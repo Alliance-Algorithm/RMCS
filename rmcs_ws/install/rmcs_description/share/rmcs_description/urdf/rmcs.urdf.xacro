@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="rmcs_infantry">
+
+    <xacro:include filename="rmcs_description.xacro"/>
+
+    <xacro:include filename="rmcs_ros2_control.xacro"/>
+
+    <xacro:rmcs_ros2_control/>
+
+</robot>

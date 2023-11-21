@@ -28,6 +28,8 @@ hardware_interface::CallbackReturn
     }
 
     // TODO(anyone): read parameters and initialize the hardware
+    // serialport_ = info_.hardware_parameters["serialport"];
+
     hw_states_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
     hw_commands_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
 

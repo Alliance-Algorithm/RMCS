@@ -1,0 +1,8 @@
+<library path="rmcs_controller">
+  <class name="rmcs_controller/RMCS_Controller"
+         type="rmcs_controller::RMCS_Controller" base_class_type="controller_interface::ControllerInterface">
+  <description>
+    RMCS_Controller ros2_control controller.
+  </description>
+  </class>
+</library>
