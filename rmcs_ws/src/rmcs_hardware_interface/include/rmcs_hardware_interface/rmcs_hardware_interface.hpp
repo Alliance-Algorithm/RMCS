@@ -63,6 +63,9 @@ public:
         write(const rclcpp::Time& time, const rclcpp::Duration& period) override;
 
 private:
+    std::string serialport_;
+    SerialHandle serial_;
+
     std::vector<double> hw_commands_;
     std::vector<double> hw_states_;
 };

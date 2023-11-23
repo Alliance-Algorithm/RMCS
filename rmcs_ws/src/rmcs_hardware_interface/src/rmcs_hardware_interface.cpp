@@ -28,6 +28,8 @@ hardware_interface::CallbackReturn
     }
 
     // TODO(anyone): read parameters and initialize the hardware
+    // serialport_ = info_.hardware_parameters["serialport"];
+
     hw_states_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
     hw_commands_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
 
@@ -37,6 +39,7 @@ hardware_interface::CallbackReturn
 hardware_interface::CallbackReturn
     RMCS_System::on_configure(const rclcpp_lifecycle::State& /*previous_state*/) {
     // TODO(anyone): prepare the robot to be ready for read calls and write calls of some interfaces
+    // serial_.open(serialport_);
 
     return CallbackReturn::SUCCESS;
 }
