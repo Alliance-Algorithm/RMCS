@@ -1,4 +1,5 @@
-// Copyright (c) 2022, Stogl Robotics Consulting UG (haftungsbeschränkt) (template)
+// Copyright (c) 2023, Alliance
+// Copyright (c) 2023, Stogl Robotics Consulting UG (haftungsbeschränkt) (template)
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,20 +20,17 @@
 
 #include "parameter_traits/parameter_traits.hpp"
 
-namespace parameter_traits
-{
-Result forbidden_interface_name_prefix(rclcpp::Parameter const & parameter)
-{
-  auto const & interface_name = parameter.as_string();
+namespace parameter_traits {
+Result forbidden_interface_name_prefix(rclcpp::Parameter const& parameter) {
+    auto const& interface_name = parameter.as_string();
 
-  if (interface_name.rfind("blup_", 0) == 0)
-  {
-    return ERROR("'interface_name' parameter can not start with 'blup_'");
-  }
+    if (interface_name.rfind("blup_", 0) == 0) {
+        return ERROR("'interface_name' parameter can not start with 'blup_'");
+    }
 
-  return OK;
+    return OK;
 }
 
-}  // namespace parameter_traits
+} // namespace parameter_traits
 
-#endif  // RMCS_CONTROLLER__VALIDATE_RMCS_CONTROLLER_PARAMETERS_HPP_
+#endif // RMCS_CONTROLLER__VALIDATE_RMCS_CONTROLLER_PARAMETERS_HPP_

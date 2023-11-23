@@ -1,2 +1,1 @@
-source;share/rmcs_bringup/environment/ament_prefix_path.sh
-source;share/rmcs_bringup/environment/path.sh
+/home/kalecx/Desktop/workspace/RMCS/rmcs_ws/build/rmcs_bringup/ament_cmake_environment_hooks/local_setup.dsv

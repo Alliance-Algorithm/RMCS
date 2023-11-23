@@ -1,20 +1,20 @@
 controller_manager:
   ros__parameters:
-    update_rate: 100  # Hz
+    update_rate: 100 # Hz
 
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
 
-    forward_position_controller:              # delete entry if controller is not applicable
+    forward_position_controller: # delete entry if controller is not applicable
       type: forward_command_controller/ForwardCommandController
 
-    forward_velocity_controller:              # delete entry if controller is not applicable
+    forward_velocity_controller: # delete entry if controller is not applicable
       type: forward_command_controller/ForwardCommandController
 
-    joint_trajectory_controller:              # delete entry if controller is not applicable
+    joint_trajectory_controller: # delete entry if controller is not applicable
       type: joint_trajectory_controller/JointTrajectoryController
 
-forward_position_controller:                  # delete entry if controller is not applicable
+forward_position_controller: # delete entry if controller is not applicable
   ros__parameters:
     joints:
       - joint1
@@ -25,7 +25,7 @@ forward_position_controller:                  # delete entry if controller is no
       - joint6
     interface_name: position
 
-forward_velocity_controller:                  # delete entry if controller is not applicable
+forward_velocity_controller: # delete entry if controller is not applicable
   ros__parameters:
     joints:
       - joint1
@@ -36,7 +36,7 @@ forward_velocity_controller:                  # delete entry if controller is no
       - joint6
     interface_name: velocity
 
-joint_trajectory_controller:                  # delete entry if controller is not applicable
+joint_trajectory_controller: # delete entry if controller is not applicable
   ros__parameters:
     joints:
       - joint1

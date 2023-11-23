@@ -1,5 +1,5 @@
-// Copyright (c) 2022, Stogl Robotics Consulting UG (haftungsbeschränkt)
-// (template)
+// Copyright (c) 2023, Alliance
+// Copyright (c) 2023, Stogl Robotics Consulting UG (haftungsbeschränkt) (template)
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@
 #include "serial_handle.hpp"
 
 namespace rmcs_hardware_interface {
-class RMCS_HardwareInterface : public hardware_interface::SystemInterface {
+class RMCS_System : public hardware_interface::SystemInterface {
 public:
     TEMPLATES__ROS2_CONTROL__VISIBILITY_PUBLIC
     hardware_interface::CallbackReturn
@@ -65,9 +65,6 @@ public:
 private:
     std::vector<double> hw_commands_;
     std::vector<double> hw_states_;
-
-    std::string serialport_;
-    SerialHandle serial_;
 };
 
 } // namespace rmcs_hardware_interface

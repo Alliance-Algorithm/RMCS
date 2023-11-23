@@ -3,9 +3,9 @@
 <package format="3">
   <name>rmcs_hardware_interface</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
-  <maintainer email="sy2330@qq.com">kalecx</maintainer>
-  <license>TODO: License declaration</license>
+  <description>hardware_interface</description>
+  <maintainer email="sy2330@qq.com">世羽</maintainer>
+  <license>GPL-3.0-only</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 

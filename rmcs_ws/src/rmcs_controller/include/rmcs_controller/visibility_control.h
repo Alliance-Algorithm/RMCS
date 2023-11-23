@@ -1,4 +1,5 @@
-// Copyright (c) 2022, Stogl Robotics Consulting UG (haftungsbeschränkt) (template)
+// Copyright (c) 2023, Alliance
+// Copyright (c) 2023, Stogl Robotics Consulting UG (haftungsbeschränkt) (template)
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,31 +20,31 @@
 //     https://gcc.gnu.org/wiki/Visibility
 
 #if defined _WIN32 || defined __CYGWIN__
-#ifdef __GNUC__
-#define RMCS_CONTROLLER__VISIBILITY_EXPORT __attribute__((dllexport))
-#define RMCS_CONTROLLER__VISIBILITY_IMPORT __attribute__((dllimport))
+# ifdef __GNUC__
+#  define RMCS_CONTROLLER__VISIBILITY_EXPORT __attribute__((dllexport))
+#  define RMCS_CONTROLLER__VISIBILITY_IMPORT __attribute__((dllimport))
+# else
+#  define RMCS_CONTROLLER__VISIBILITY_EXPORT __declspec(dllexport)
+#  define RMCS_CONTROLLER__VISIBILITY_IMPORT __declspec(dllimport)
+# endif
+# ifdef RMCS_CONTROLLER__VISIBILITY_BUILDING_DLL
+#  define RMCS_CONTROLLER__VISIBILITY_PUBLIC RMCS_CONTROLLER__VISIBILITY_EXPORT
+# else
+#  define RMCS_CONTROLLER__VISIBILITY_PUBLIC RMCS_CONTROLLER__VISIBILITY_IMPORT
+# endif
+# define RMCS_CONTROLLER__VISIBILITY_PUBLIC_TYPE RMCS_CONTROLLER__VISIBILITY_PUBLIC
+# define RMCS_CONTROLLER__VISIBILITY_LOCAL
 #else
-#define RMCS_CONTROLLER__VISIBILITY_EXPORT __declspec(dllexport)
-#define RMCS_CONTROLLER__VISIBILITY_IMPORT __declspec(dllimport)
-#endif
-#ifdef RMCS_CONTROLLER__VISIBILITY_BUILDING_DLL
-#define RMCS_CONTROLLER__VISIBILITY_PUBLIC RMCS_CONTROLLER__VISIBILITY_EXPORT
-#else
-#define RMCS_CONTROLLER__VISIBILITY_PUBLIC RMCS_CONTROLLER__VISIBILITY_IMPORT
-#endif
-#define RMCS_CONTROLLER__VISIBILITY_PUBLIC_TYPE RMCS_CONTROLLER__VISIBILITY_PUBLIC
-#define RMCS_CONTROLLER__VISIBILITY_LOCAL
-#else
-#define RMCS_CONTROLLER__VISIBILITY_EXPORT __attribute__((visibility("default")))
-#define RMCS_CONTROLLER__VISIBILITY_IMPORT
-#if __GNUC__ >= 4
-#define RMCS_CONTROLLER__VISIBILITY_PUBLIC __attribute__((visibility("default")))
-#define RMCS_CONTROLLER__VISIBILITY_LOCAL __attribute__((visibility("hidden")))
-#else
-#define RMCS_CONTROLLER__VISIBILITY_PUBLIC
-#define RMCS_CONTROLLER__VISIBILITY_LOCAL
-#endif
-#define RMCS_CONTROLLER__VISIBILITY_PUBLIC_TYPE
+# define RMCS_CONTROLLER__VISIBILITY_EXPORT __attribute__((visibility("default")))
+# define RMCS_CONTROLLER__VISIBILITY_IMPORT
+# if __GNUC__ >= 4
+#  define RMCS_CONTROLLER__VISIBILITY_PUBLIC __attribute__((visibility("default")))
+#  define RMCS_CONTROLLER__VISIBILITY_LOCAL  __attribute__((visibility("hidden")))
+# else
+#  define RMCS_CONTROLLER__VISIBILITY_PUBLIC
+#  define RMCS_CONTROLLER__VISIBILITY_LOCAL
+# endif
+# define RMCS_CONTROLLER__VISIBILITY_PUBLIC_TYPE
 #endif
 
-#endif  // RMCS_CONTROLLER__VISIBILITY_CONTROL_H_
+#endif // RMCS_CONTROLLER__VISIBILITY_CONTROL_H_

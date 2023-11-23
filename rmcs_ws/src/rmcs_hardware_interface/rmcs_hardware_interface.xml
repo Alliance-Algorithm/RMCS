@@ -1,6 +1,6 @@
 <library path="rmcs_hardware_interface">
-  <class name="rmcs_hardware_interface/RMCS_HardwareInterface"
-         type="rmcs_hardware_interface::RMCS_HardwareInterface"
+  <class name="rmcs_hardware_interface/RMCS_System"
+         type="rmcs_hardware_interface::RMCS_System"
          base_class_type="hardware_interface::SystemInterface">
     <description>
       ros2_control hardware interface.

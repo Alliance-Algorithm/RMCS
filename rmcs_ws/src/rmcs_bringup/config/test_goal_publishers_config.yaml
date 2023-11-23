@@ -1,6 +1,5 @@
 publisher_forward_position_controller:
   ros__parameters:
-
     controller_name: "forward_position_controller"
     wait_sec_between_publish: 5
 
@@ -10,10 +9,8 @@ publisher_forward_position_controller:
     pos3: [-0.785, -0.785, -0.785, -0.785, -0.785, -0.785]
     pos4: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
-
 publisher_joint_trajectory_controller:
   ros__parameters:
-
     controller_name: "joint_trajectory_controller"
     wait_sec_between_publish: 6
     repeat_the_same_goal: 1 # useful to simulate continuous inputs
