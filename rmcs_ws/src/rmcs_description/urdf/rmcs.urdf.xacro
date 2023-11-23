@@ -1,10 +1,34 @@
-<?xml version="1.0" encoding="utf-8"?>
-<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="rmcs_infantry">
+<?xml version="1.0" encoding="UTF-8"?>
+<robot xmlns:xacro="http://wiki.ros.org/xacro" name="rmcs">
 
-    <xacro:include filename="rmcs_description.xacro"/>
+  <!-- Use this if parameters are set from the launch file, otherwise delete -->
+  <xacro:arg name="prefix" default="" />
 
-    <xacro:include filename="rmcs_ros2_control.xacro"/>
+  <xacro:arg name="use_mock_hardware" default="false" />
+  <xacro:arg name="mock_sensor_commands" default="false" />
+  <xacro:arg name="sim_gazebo_classic" default="false" />
+  <xacro:arg name="sim_gazebo" default="false" />
+  <xacro:arg name="simulation_controllers" default="" />
 
-    <xacro:rmcs_ros2_control/>
+  <xacro:include filename="$(find rmcs_description)/urdf/rmcs/rmcs_macro.xacro"/>
+  <xacro:include filename="$(find rmcs_description)/urdf/rmcs/rmcs_macro.ros2_control.xacro"/>
+
+  <!-- create link fixed to the "world" -->
+  <link name="world" />
+
+  <!-- Load robot's macro with parameters -->
+  <!-- set prefix if multiple robots are used -->
+  <xacro:rmcs prefix="$(arg prefix)" parent="world" >
+    <origin xyz="0 0 0" rpy="0 0 0" />          <!-- position robot in the world -->
+  </xacro:rmcs>
+
+  <xacro:rmcs_ros2_control
+    name="rmcs"
+    prefix="$(arg prefix)"
+    use_mock_hardware="$(arg use_mock_hardware)"
+    mock_sensor_commands="$(arg mock_sensor_commands)"
+    sim_gazebo_classic="$(arg sim_gazebo_classic)"
+    sim_gazebo="$(arg sim_gazebo)"
+    simulation_controllers="$(arg simulation_controllers)" />
 
 </robot>

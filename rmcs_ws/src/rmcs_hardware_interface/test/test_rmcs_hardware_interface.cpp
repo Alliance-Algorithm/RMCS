@@ -1,4 +1,5 @@
-// Copyright (c) 2022, Stogl Robotics Consulting UG (haftungsbeschränkt) (template)
+// Copyright (c) 2023, Alliance
+// Copyright (c) 2023, Stogl Robotics Consulting UG (haftungsbeschränkt) (template)
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,15 +21,17 @@
 #include "ros2_control_test_assets/components_urdfs.hpp"
 #include "ros2_control_test_assets/descriptions.hpp"
 
-class TestRMCS_HardwareInterface : public ::testing::Test {
+class TestRMCS_System : public ::testing::Test
+{
 protected:
-    void SetUp() override {
-        // TODO(anyone): Extend this description to your robot
-        rmcs_hardware_interface_2dof_ =
-            R"(
-        <ros2_control name="RMCS_HardwareInterface2dof" type="system">
+  void SetUp() override
+  {
+    // TODO(anyone): Extend this description to your robot
+    rmcs_hardware_interface_2dof_ =
+      R"(
+        <ros2_control name="RMCS_System2dof" type="system">
           <hardware>
-            <plugin>rmcs_hardware_interface/RMCS_HardwareInterface</plugin>
+            <plugin>rmcs_hardware_interface/RMCS_System</plugin>
           </hardware>
           <joint name="joint1">
             <command_interface name="position"/>
@@ -42,13 +45,14 @@ protected:
           </joint>
         </ros2_control>
     )";
-    }
+  }
 
-    std::string rmcs_hardware_interface_2dof_;
+  std::string rmcs_hardware_interface_2dof_;
 };
 
-TEST_F(TestRMCS_HardwareInterface, load_rmcs_hardware_interface_2dof) {
-    auto urdf = ros2_control_test_assets::urdf_head + rmcs_hardware_interface_2dof_
-              + ros2_control_test_assets::urdf_tail;
-    ASSERT_NO_THROW(hardware_interface::ResourceManager rm(urdf));
+TEST_F(TestRMCS_System, load_rmcs_hardware_interface_2dof)
+{
+  auto urdf = ros2_control_test_assets::urdf_head + rmcs_hardware_interface_2dof_ +
+              ros2_control_test_assets::urdf_tail;
+  ASSERT_NO_THROW(hardware_interface::ResourceManager rm(urdf));
 }

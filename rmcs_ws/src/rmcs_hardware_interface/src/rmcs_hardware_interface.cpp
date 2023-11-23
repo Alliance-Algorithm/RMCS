@@ -1,5 +1,5 @@
-// Copyright (c) 2022, Stogl Robotics Consulting UG (haftungsbeschränkt)
-// (template)
+// Copyright (c) 2023, Alliance
+// Copyright (c) 2023, Stogl Robotics Consulting UG (haftungsbeschränkt) (template)
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,14 +22,12 @@
 
 namespace rmcs_hardware_interface {
 hardware_interface::CallbackReturn
-    RMCS_HardwareInterface::on_init(const hardware_interface::HardwareInfo& info) {
+    RMCS_System::on_init(const hardware_interface::HardwareInfo& info) {
     if (hardware_interface::SystemInterface::on_init(info) != CallbackReturn::SUCCESS) {
         return CallbackReturn::ERROR;
     }
 
     // TODO(anyone): read parameters and initialize the hardware
-    // serialport_ = info_.hardware_parameters["serialport"];
-
     hw_states_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
     hw_commands_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
 
@@ -37,14 +35,13 @@ hardware_interface::CallbackReturn
 }
 
 hardware_interface::CallbackReturn
-    RMCS_HardwareInterface::on_configure(const rclcpp_lifecycle::State& /*previous_state*/) {
-    // TODO(anyone): prepare the robot to be ready for read calls and write calls
-    // of some interfaces
+    RMCS_System::on_configure(const rclcpp_lifecycle::State& /*previous_state*/) {
+    // TODO(anyone): prepare the robot to be ready for read calls and write calls of some interfaces
 
     return CallbackReturn::SUCCESS;
 }
 
-std::vector<hardware_interface::StateInterface> RMCS_HardwareInterface::export_state_interfaces() {
+std::vector<hardware_interface::StateInterface> RMCS_System::export_state_interfaces() {
     std::vector<hardware_interface::StateInterface> state_interfaces;
     for (size_t i = 0; i < info_.joints.size(); ++i) {
         state_interfaces.emplace_back(hardware_interface::StateInterface(
@@ -55,8 +52,7 @@ std::vector<hardware_interface::StateInterface> RMCS_HardwareInterface::export_s
     return state_interfaces;
 }
 
-std::vector<hardware_interface::CommandInterface>
-    RMCS_HardwareInterface::export_command_interfaces() {
+std::vector<hardware_interface::CommandInterface> RMCS_System::export_command_interfaces() {
     std::vector<hardware_interface::CommandInterface> command_interfaces;
     for (size_t i = 0; i < info_.joints.size(); ++i) {
         command_interfaces.emplace_back(hardware_interface::CommandInterface(
@@ -68,28 +64,28 @@ std::vector<hardware_interface::CommandInterface>
 }
 
 hardware_interface::CallbackReturn
-    RMCS_HardwareInterface::on_activate(const rclcpp_lifecycle::State& /*previous_state*/) {
+    RMCS_System::on_activate(const rclcpp_lifecycle::State& /*previous_state*/) {
     // TODO(anyone): prepare the robot to receive commands
 
     return CallbackReturn::SUCCESS;
 }
 
 hardware_interface::CallbackReturn
-    RMCS_HardwareInterface::on_deactivate(const rclcpp_lifecycle::State& /*previous_state*/) {
+    RMCS_System::on_deactivate(const rclcpp_lifecycle::State& /*previous_state*/) {
     // TODO(anyone): prepare the robot to stop receiving commands
 
     return CallbackReturn::SUCCESS;
 }
 
 hardware_interface::return_type
-    RMCS_HardwareInterface::read(const rclcpp::Time& /*time*/, const rclcpp::Duration& /*period*/) {
+    RMCS_System::read(const rclcpp::Time& /*time*/, const rclcpp::Duration& /*period*/) {
     // TODO(anyone): read robot states
 
     return hardware_interface::return_type::OK;
 }
 
-hardware_interface::return_type RMCS_HardwareInterface::write(
-    const rclcpp::Time& /*time*/, const rclcpp::Duration& /*period*/) {
+hardware_interface::return_type
+    RMCS_System::write(const rclcpp::Time& /*time*/, const rclcpp::Duration& /*period*/) {
     // TODO(anyone): write robot's commands'
 
     return hardware_interface::return_type::OK;
@@ -99,5 +95,4 @@ hardware_interface::return_type RMCS_HardwareInterface::write(
 
 #include "pluginlib/class_list_macros.hpp"
 
-PLUGINLIB_EXPORT_CLASS(
-    rmcs_hardware_interface::RMCS_HardwareInterface, hardware_interface::SystemInterface)
+PLUGINLIB_EXPORT_CLASS(rmcs_hardware_interface::RMCS_System, hardware_interface::SystemInterface)

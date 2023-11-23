@@ -3,11 +3,19 @@
 <package format="3">
   <name>rmcs_description</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
-  <maintainer email="sy2330@qq.com">kalecx</maintainer>
-  <license>TODO: License declaration</license>
+  <description>description</description>
+  <maintainer email="sy2330@qq.com">世羽</maintainer>
+  <license>GPL-3.0-only</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <exec_depend>joint_state_publisher_gui</exec_depend>
+
+  <exec_depend>robot_state_publisher</exec_depend>
+
+  <exec_depend>rviz2</exec_depend>
+
+  <exec_depend>xacro</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
