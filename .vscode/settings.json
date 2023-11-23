@@ -1,0 +1,15 @@
+{
+    "ros.distro": "humble",
+    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+    "files.associations": {
+        "limits": "cpp",
+        "random": "cpp",
+        "*.tcc": "cpp",
+        "deque": "cpp",
+        "forward_list": "cpp",
+        "list": "cpp",
+        "string": "cpp",
+        "vector": "cpp"
+    },
+    "C_Cpp.default.compileCommands": "rmcs_ws/build/compile_commands.json"
+}
