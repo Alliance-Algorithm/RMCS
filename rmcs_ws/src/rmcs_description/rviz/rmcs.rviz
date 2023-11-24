@@ -1,4 +1,3 @@
-
 Panels:
   - Class: rviz_common/Displays
     Help Height: 87
@@ -76,36 +75,6 @@ Visualization Manager:
           Alpha: 1
           Show Axes: false
           Show Trail: false
-        link_1:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        link_2:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        link_3:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        link_4:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        link_5:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        link_6:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
         tool0:
           Alpha: 1
           Show Axes: false
@@ -130,18 +99,6 @@ Visualization Manager:
           Value: true
         flange:
           Value: true
-        link_1:
-          Value: true
-        link_2:
-          Value: true
-        link_3:
-          Value: true
-        link_4:
-          Value: true
-        link_5:
-          Value: true
-        link_6:
-          Value: true
         tool0:
           Value: true
         world:
@@ -154,17 +111,9 @@ Visualization Manager:
       Tree:
         world:
           base_link:
-            base:
-              {}
-            link_1:
-              link_2:
-                link_3:
-                  link_4:
-                    link_5:
-                      link_6:
-                        tool0:
-                          flange:
-                            {}
+            base: {}
+            tool0:
+              flange: {}
       Update Interval: 0
       Value: true
   Enabled: true

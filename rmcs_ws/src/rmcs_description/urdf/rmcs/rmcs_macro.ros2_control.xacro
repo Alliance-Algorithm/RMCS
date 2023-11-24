@@ -24,96 +24,23 @@
           <plugin>ign_ros2_control/IgnitionSystem</plugin>
         </xacro:if>
         <xacro:unless value="${use_mock_hardware or sim_gazebo_classic or sim_gazebo}">
-          <plugin>robot_hardware_inteface/RobotHardwareInteface</plugin>
+          <plugin>rmcs_hardware_interface/RMCS_System</plugin>
         </xacro:unless>
       </hardware>
-      <joint name="${prefix}joint1">
-        <command_interface name="position">     <!-- Add/Remove interfaces as needed -->
-          <param name="min">-1</param>
-          <param name="max">1</param>
+
+      <!-- Motor type:  RoboMaster 3508 -->
+      <joint name="${prefix}motor">
+        <command_interface name="effort">
+          <param name="min">-100000</param>
+          <param name="max">100000</param>
         </command_interface>
         <state_interface name="position">
           <param name="initial_value">0.0</param>
+          <param name="min">0</param>
+          <param name="max">8191</param>
         </state_interface>
         <state_interface name="velocity"/>
-        <state_interface name="acceleration"/>
       </joint>
-      <joint name="${prefix}joint2">
-        <command_interface name="position">     <!-- Add/Remove interfaces as needed -->
-          <param name="min">-1</param>
-          <param name="max">1</param>
-        </command_interface>
-        <state_interface name="position">
-          <param name="initial_value">0.0</param>
-        </state_interface>
-        <state_interface name="velocity"/>
-        <state_interface name="acceleration"/>
-      </joint>
-      <joint name="${prefix}joint3">
-        <command_interface name="position">     <!-- Add/Remove interfaces as needed -->
-          <param name="min">-1</param>
-          <param name="max">1</param>
-        </command_interface>
-        <state_interface name="position">
-          <param name="initial_value">0.0</param>
-        </state_interface>
-        <state_interface name="velocity"/>
-        <state_interface name="acceleration"/>
-      </joint>
-      <joint name="${prefix}joint4">
-        <command_interface name="position">     <!-- Add/Remove interfaces as needed -->
-          <param name="min">-1</param>
-          <param name="max">1</param>
-        </command_interface>
-        <state_interface name="position">
-          <param name="initial_value">0.0</param>
-        </state_interface>
-        <state_interface name="velocity"/>
-        <state_interface name="acceleration"/>
-      </joint>
-      <joint name="${prefix}joint5">
-        <command_interface name="position">     <!-- Add/Remove interfaces as needed -->
-          <param name="min">-1</param>
-          <param name="max">1</param>
-        </command_interface>
-        <state_interface name="position">
-          <param name="initial_value">0.0</param>
-        </state_interface>
-        <state_interface name="velocity"/>
-        <state_interface name="acceleration"/>
-      </joint>
-      <joint name="${prefix}joint6">
-        <command_interface name="position">     <!-- Add/Remove interfaces as needed -->
-          <param name="min">-1</param>
-          <param name="max">1</param>
-        </command_interface>
-        <state_interface name="position">
-          <param name="initial_value">0.0</param>
-        </state_interface>
-        <state_interface name="velocity"/>
-        <state_interface name="acceleration"/>
-      </joint>
-      <sensor name="tcp_fts_sensor">            <!-- Remove/change sensors as needed -->
-        <state_interface name="fx"/>
-        <state_interface name="fy"/>
-        <state_interface name="fz"/>
-        <state_interface name="tx"/>
-        <state_interface name="ty"/>
-        <state_interface name="tz"/>
-        <param name="frame_id">tool0</param>    <!-- Change sensors as needed -->
-        <param name="min_fx">-100</param>
-        <param name="max_fx">100</param>
-        <param name="min_fy">-100</param>
-        <param name="max_fy">100</param>
-        <param name="min_fz">-200</param>
-        <param name="max_fz">200</param>
-        <param name="min_tx">-10</param>
-        <param name="max_tx">10</param>
-        <param name="min_ty">-10</param>
-        <param name="max_ty">10</param>
-        <param name="min_tz">-15</param>
-        <param name="max_tz">15</param>
-      </sensor>
     </ros2_control>
 
     <xacro:if value="$(arg sim_gazebo_classic)">
