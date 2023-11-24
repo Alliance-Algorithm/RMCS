@@ -25,6 +25,8 @@
         </xacro:if>
         <xacro:unless value="${use_mock_hardware or sim_gazebo_classic or sim_gazebo}">
           <plugin>rmcs_hardware_interface/RMCS_System</plugin>
+          <!-- TODO(anyone) Correct the serialport -->
+          <param name="serialport">tty0</param>
         </xacro:unless>
       </hardware>
 
