@@ -1,1 +1,0 @@
-controller_manager:forward_command_controller:joint_state_broadcaster:joint_trajectory_controller:robot_state_publisher:ros2_controllers_test_nodes:rviz2:xacro
