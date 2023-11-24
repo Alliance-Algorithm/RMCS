@@ -66,8 +66,9 @@ private:
     std::string serialport_;
     SerialHandle serial_;
 
-    std::vector<double> hw_commands_;
-    std::vector<double> hw_states_;
+    std::vector<double> hw_effort_commands_;
+    std::vector<double> hw_position_states_;
+    std::vector<double> hw_velocity_states_;
 };
 
 } // namespace rmcs_hardware_interface

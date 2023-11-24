@@ -27,18 +27,19 @@ hardware_interface::CallbackReturn
         return CallbackReturn::ERROR;
     }
 
-    // TODO(anyone): read parameters and initialize the hardware
+    ///// TODO(anyone): read parameters and initialize the hardware
     serialport_ = info_.hardware_parameters["serialport"];
 
-    hw_states_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
-    hw_commands_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
+    hw_position_states_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
+    hw_effort_commands_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
 
     return CallbackReturn::SUCCESS;
 }
 
 hardware_interface::CallbackReturn
     RMCS_System::on_configure(const rclcpp_lifecycle::State& /*previous_state*/) {
-    // TODO(anyone): prepare the robot to be ready for read calls and write calls of some interfaces
+    ///// TODO(anyone): prepare the robot to be ready for read calls and write calls of some
+    /// interfaces
     serial_.open(serialport_);
 
     return CallbackReturn::SUCCESS;
@@ -48,8 +49,11 @@ std::vector<hardware_interface::StateInterface> RMCS_System::export_state_interf
     std::vector<hardware_interface::StateInterface> state_interfaces;
     for (size_t i = 0; i < info_.joints.size(); ++i) {
         state_interfaces.emplace_back(hardware_interface::StateInterface(
-            // TODO(anyone): insert correct interfaces
-            info_.joints[i].name, hardware_interface::HW_IF_POSITION, &hw_states_[i]));
+            info_.joints[i].name, hardware_interface::HW_IF_POSITION, &hw_position_states_[i]));
+    }
+    for (size_t i = 0; i < info_.joints.size(); ++i) {
+        state_interfaces.emplace_back(hardware_interface::StateInterface(
+            info_.joints[i].name, hardware_interface::HW_IF_VELOCITY, &hw_velocity_states_[i]));
     }
 
     return state_interfaces;
@@ -59,8 +63,7 @@ std::vector<hardware_interface::CommandInterface> RMCS_System::export_command_in
     std::vector<hardware_interface::CommandInterface> command_interfaces;
     for (size_t i = 0; i < info_.joints.size(); ++i) {
         command_interfaces.emplace_back(hardware_interface::CommandInterface(
-            // TODO(anyone): insert correct interfaces
-            info_.joints[i].name, hardware_interface::HW_IF_POSITION, &hw_commands_[i]));
+            info_.joints[i].name, hardware_interface::HW_IF_EFFORT, &hw_effort_commands_[i]));
     }
 
     return command_interfaces;
@@ -68,28 +71,56 @@ std::vector<hardware_interface::CommandInterface> RMCS_System::export_command_in
 
 hardware_interface::CallbackReturn
     RMCS_System::on_activate(const rclcpp_lifecycle::State& /*previous_state*/) {
-    // TODO(anyone): prepare the robot to receive commands
+    ///// TODO(anyone): prepare the robot to receive commands
 
     return CallbackReturn::SUCCESS;
 }
 
 hardware_interface::CallbackReturn
     RMCS_System::on_deactivate(const rclcpp_lifecycle::State& /*previous_state*/) {
-    // TODO(anyone): prepare the robot to stop receiving commands
+    ///// TODO(anyone): prepare the robot to stop receiving commands
 
     return CallbackReturn::SUCCESS;
 }
 
 hardware_interface::return_type
     RMCS_System::read(const rclcpp::Time& /*time*/, const rclcpp::Duration& /*period*/) {
-    // TODO(anyone): read robot states
+    // * read robot states
+    constexpr size_t recv_buf_size = 24;
+    static uint8_t rx_buf[recv_buf_size];
+    serial_.recv_exact(rx_buf, recv_buf_size);
+
+    if (rx_buf[0] == 0xAF && rx_buf[1] == 0x01) {
+        auto crc = std::accumulate(rx_buf, rx_buf + recv_buf_size - 1, 0);
+        if (static_cast<uint8_t>(crc & 0xFF) != rx_buf[recv_buf_size - 1]) {
+            RCLCPP_ERROR(rclcpp::get_logger("RMCS_System"), "Recived error crc package!");
+            return hardware_interface::return_type::ERROR;
+        }
+
+        // * The single motor
+        hw_position_states_[0] =
+            static_cast<double>((static_cast<int>(rx_buf[9]) << 8) | rx_buf[10]);
+        hw_velocity_states_[0] =
+            static_cast<double>((static_cast<int>(rx_buf[11]) << 8) | rx_buf[12]);
+    }
 
     return hardware_interface::return_type::OK;
 }
 
 hardware_interface::return_type
     RMCS_System::write(const rclcpp::Time& /*time*/, const rclcpp::Duration& /*period*/) {
-    // TODO(anyone): write robot's commands'
+    // * write robot's commands'
+    constexpr size_t trans_buf_size = 24;
+    static uint8_t tx_buf[trans_buf_size];
+
+    // '0xAF' 'Type' 'Destnation' 'Index' 'Size' 'Data[0]' ... 'Data[Size-1]' 'CRC'
+    memcpy(reinterpret_cast<char*>(tx_buf), "\xAF\x01\x01\x00\x0C\x00\x02\x00\x00", 9);
+    int16_t effort = static_cast<int16_t>(hw_effort_commands_[0]);
+    memcpy(reinterpret_cast<char*>(tx_buf + 9), reinterpret_cast<const char*>(&effort), 2);
+    memcpy(reinterpret_cast<char*>(tx_buf + 11), "\x00\x00\x00\x00\x00\x00", 6);
+    tx_buf[trans_buf_size - 1] = std::accumulate(tx_buf, tx_buf + trans_buf_size - 1, 0) & 0xFF;
+
+    serial_.send(tx_buf, trans_buf_size);
 
     return hardware_interface::return_type::OK;
 }
