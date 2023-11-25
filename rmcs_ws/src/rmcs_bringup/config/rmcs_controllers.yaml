@@ -12,8 +12,8 @@ rmcs_controller:
   ros__parameters:
     joints:
       - motor
-    state_joints: []
-    interface_name: effort
+    command_interfaces: ["effort"]
+    state_interfaces: ["position", "velocity"]
 
     pid:
       kp: 20.0

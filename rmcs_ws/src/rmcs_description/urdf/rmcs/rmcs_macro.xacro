@@ -14,14 +14,14 @@
         <origin xyz="0 0 0" rpy="0 0 0" />
         <geometry>
           <cylinder length="0.3" radius="0.3" />
-<!--           <mesh filename="package://rmcs_description/meshes/rmcs/visual/base_link.dae" /> -->
+          <!--           <mesh filename="package://rmcs_description/meshes/rmcs/visual/base_link.dae" /> -->
         </geometry>
       </visual>
       <collision>
         <origin xyz="0 0 0" rpy="0 0 0" />
         <geometry>
           <cylinder length="0.3" radius="0.3" />
-<!--           <mesh filename="package://rmcs_description/meshes/rmcs/collision/base_link.stl" /> -->
+          <!--           <mesh filename="package://rmcs_description/meshes/rmcs/collision/base_link.stl" /> -->
         </geometry>
       </collision>
     </link>

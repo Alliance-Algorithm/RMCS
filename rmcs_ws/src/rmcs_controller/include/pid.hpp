@@ -23,6 +23,8 @@ public:
         , setpoint_(std::numeric_limits<double>::quiet_NaN()) {}
     virtual ~PID() {}
 
+    double setPoint() { return setpoint_; }
+
     void setPoint(double setpoint) {
         last_err_ = std::numeric_limits<double>::quiet_NaN();
         setpoint_ = setpoint;

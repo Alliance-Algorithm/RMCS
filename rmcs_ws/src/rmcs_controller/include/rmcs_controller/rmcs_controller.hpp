@@ -87,8 +87,6 @@ protected:
     std::shared_ptr<rmcs_controller::ParamListener> param_listener_;
     rmcs_controller::Params params_;
 
-    std::vector<std::string> state_joints_;
-
     // Command subscribers and Controller State publisher
     rclcpp::Subscription<ControllerReferenceMsg>::SharedPtr ref_subscriber_ = nullptr;
     realtime_tools::RealtimeBuffer<std::shared_ptr<ControllerReferenceMsg>> input_ref_;
