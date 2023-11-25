@@ -62,9 +62,9 @@ public:
     bool is_open() { return initialized_ && serial_port_ >= 0; }
 
     void send(const uint8_t* buf, const size_t size) {
-        // printf("Send buf:");
-        // std::for_each(buf, buf + size, [](const uint8_t num) { printf(" %02X", num); });
-        // putchar('\n');
+        printf("Send buf:");
+        std::for_each(buf, buf + size, [](const uint8_t num) { printf(" %02X", num); });
+        putchar('\n');
         ::write(serial_port_, buf, size);
     }
 
