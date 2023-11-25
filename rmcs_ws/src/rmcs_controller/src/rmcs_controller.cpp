@@ -55,7 +55,7 @@ RMCS_Controller::RMCS_Controller()
     : controller_interface::ControllerInterface() {}
 
 controller_interface::CallbackReturn RMCS_Controller::on_init() {
-    control_mode_.initRT(control_mode_type::VELOCITY_CTRL);
+    control_mode_.initRT(control_mode_type::POSITION_CTRL);
 
     try {
         param_listener_ = std::make_shared<rmcs_controller::ParamListener>(get_node());

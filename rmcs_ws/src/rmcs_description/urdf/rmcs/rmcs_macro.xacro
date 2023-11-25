@@ -25,11 +25,6 @@
         </geometry>
       </collision>
     </link>
-
-    <!-- All-zero tool frame correspond to the TOOL frame of the robot's controller -->
-    <link name="${prefix}tool0" />
-    <!-- tool link -->
-
     <!-- END LINKS -->
 
     <!-- JOINTS -->

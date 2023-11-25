@@ -71,14 +71,6 @@ Visualization Manager:
           Show Axes: false
           Show Trail: false
           Value: true
-        flange:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        tool0:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
         world:
           Alpha: 1
           Show Axes: false
@@ -97,10 +89,6 @@ Visualization Manager:
           Value: true
         base_link:
           Value: true
-        flange:
-          Value: true
-        tool0:
-          Value: true
         world:
           Value: true
       Marker Scale: 1
@@ -112,8 +100,6 @@ Visualization Manager:
         world:
           base_link:
             base: {}
-            tool0:
-              flange: {}
       Update Interval: 0
       Value: true
   Enabled: true
