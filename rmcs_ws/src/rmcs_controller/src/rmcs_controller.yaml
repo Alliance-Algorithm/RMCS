@@ -28,3 +28,46 @@ rmcs_controller:
           forbidden_interface_name_prefix: null,
         },
     }
+  pid:
+    kp:
+      {
+        type: double,
+        default_value: 0.0,
+        description: "kp for pid_controller",
+        read_only: true,
+      }
+    ki:
+      {
+        type: double,
+        default_value: 0.0,
+        description: "ki for pid_controller",
+        read_only: true,
+      }
+    kd:
+      {
+        type: double,
+        default_value: 0.0,
+        description: "kd for pid_controller",
+        read_only: true,
+      }
+    kp_limit:
+      {
+        type: double,
+        default_value: 100000.0,
+        description: "kp limit for pid_controller",
+        read_only: true,
+      }
+    ki_limit:
+      {
+        type: double,
+        default_value: 100000.0,
+        description: "ki limit for pid_controller",
+        read_only: true,
+      }
+    kd_limit:
+      {
+        type: double,
+        default_value: 100000.0,
+        description: "kd limit for pid_controller",
+        read_only: true,
+      }

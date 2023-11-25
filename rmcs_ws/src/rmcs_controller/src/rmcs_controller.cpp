@@ -55,7 +55,7 @@ RMCS_Controller::RMCS_Controller()
     : controller_interface::ControllerInterface() {}
 
 controller_interface::CallbackReturn RMCS_Controller::on_init() {
-    control_mode_.initRT(control_mode_type::FAST);
+    control_mode_.initRT(control_mode_type::VELOCITY_CTRL);
 
     try {
         param_listener_ = std::make_shared<rmcs_controller::ParamListener>(get_node());
@@ -99,20 +99,19 @@ controller_interface::CallbackReturn
     reset_controller_reference_msg(msg, params_.joints);
     input_ref_.writeFromNonRT(msg);
 
-    auto set_slow_mode_service_callback =
+    auto set_mode_service_callback =
         [&](const std::shared_ptr<ControllerModeSrvType::Request> request,
             std::shared_ptr<ControllerModeSrvType::Response> response) {
             if (request->data) {
-                control_mode_.writeFromNonRT(control_mode_type::SLOW);
+                control_mode_.writeFromNonRT(control_mode_type::POSITION_CTRL);
             } else {
-                control_mode_.writeFromNonRT(control_mode_type::FAST);
+                control_mode_.writeFromNonRT(control_mode_type::VELOCITY_CTRL);
             }
             response->success = true;
         };
 
-    set_slow_control_mode_service_ = get_node()->create_service<ControllerModeSrvType>(
-        "~/set_slow_control_mode", set_slow_mode_service_callback,
-        rmw_qos_profile_services_hist_keep_all);
+    set_control_mode_service_ = get_node()->create_service<ControllerModeSrvType>(
+        "~/set_control_mode", set_mode_service_callback, rmw_qos_profile_services_hist_keep_all);
 
     try {
         // State publisher
@@ -131,6 +130,10 @@ controller_interface::CallbackReturn
     state_publisher_->lock();
     state_publisher_->msg_.header.frame_id = params_.joints[0];
     state_publisher_->unlock();
+
+    pid_controller.setKp(params_.pid.kp, params_.pid.kp_limit);
+    pid_controller.setKi(params_.pid.ki, params_.pid.ki_limit);
+    pid_controller.setKd(params_.pid.kd, params_.pid.kd_limit);
 
     RCLCPP_INFO(get_node()->get_logger(), "configure successful");
     return controller_interface::CallbackReturn::SUCCESS;
@@ -199,22 +202,34 @@ controller_interface::return_type
     RMCS_Controller::update(const rclcpp::Time& time, const rclcpp::Duration& /*period*/) {
     auto current_ref = input_ref_.readFromRT();
 
-    // TODO(anyone): depending on number of interfaces, use definitions, e.g., `CMD_MY_ITFS`,
-    // instead of a loop
-    for (size_t i = 0; i < command_interfaces_.size(); ++i) {
-        if (!std::isnan((*current_ref)->displacements[i])) {
-            if (*(control_mode_.readFromRT()) == control_mode_type::SLOW) {
-                (*current_ref)->displacements[i] /= 2;
-            }
-            command_interfaces_[i].set_value((*current_ref)->displacements[i]);
+    if (*(control_mode_.readFromRT()) == control_mode_type::POSITION_CTRL) {
+        if (!std::isnan((*current_ref)->displacements[CMD_ITFS]))
+            pid_controller.setPoint((*current_ref)->displacements[CMD_ITFS]);
 
-            (*current_ref)->displacements[i] = std::numeric_limits<double>::quiet_NaN();
-        }
+        command_interfaces_[CMD_ITFS].set_value(
+            pid_controller.update(state_interfaces_[0].get_value()));
+    } else { // control_mode_type::VELOCITY_CTRL
+        if (!std::isnan((*current_ref)->velocities[CMD_ITFS]))
+            pid_controller.setPoint((*current_ref)->velocities[CMD_ITFS]);
+
+        command_interfaces_[CMD_ITFS].set_value(
+            pid_controller.update(state_interfaces_[1].get_value()));
     }
 
     if (state_publisher_ && state_publisher_->trylock()) {
+        state_publisher_->msg_.joint_names.clear();
+        state_publisher_->msg_.displacements.clear();
+        state_publisher_->msg_.velocities.clear();
+
         state_publisher_->msg_.header.stamp = time;
-        state_publisher_->msg_.set_point    = command_interfaces_[CMD_MY_ITFS].get_value();
+        for (const auto& state : state_interfaces_) {
+            state_publisher_->msg_.joint_names.push_back(state.get_name());
+            if (state.get_interface_name() == "velocity") {
+                state_publisher_->msg_.velocities.push_back(state.get_value());
+            } else {
+                state_publisher_->msg_.displacements.push_back(state.get_value());
+            }
+        }
         state_publisher_->unlockAndPublish();
     }
 
