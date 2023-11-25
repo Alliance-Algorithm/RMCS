@@ -31,6 +31,7 @@ hardware_interface::CallbackReturn
     serialport_ = info_.hardware_parameters["serialport"];
 
     hw_position_states_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
+    hw_velocity_states_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
     hw_effort_commands_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
 
     return CallbackReturn::SUCCESS;
