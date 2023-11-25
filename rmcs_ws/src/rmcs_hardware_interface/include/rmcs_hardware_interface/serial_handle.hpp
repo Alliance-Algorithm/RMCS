@@ -74,7 +74,7 @@ public:
     }
 
     void recv_exact(uint8_t* buf, const size_t& size) {
-        printf("Try to recv exact %lu bytes.\n", size);
+        // printf("Try to recv exact %lu bytes.\n", size);
         size_t n = 0;
         do {
             n += ::read(serial_port_, buf + n, size - n);
