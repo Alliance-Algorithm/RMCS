@@ -1,10 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <robot xmlns:xacro="http://wiki.ros.org/xacro">
 
-  <xacro:macro name="rmcs_ros2_control" params="
-               name
-               prefix use_mock_hardware:=^|false mock_sensor_commands:=^|false sim_gazebo_classic:=^|false sim_gazebo:=^|false
-               simulation_controllers">
+  <xacro:macro name="rmcs_ros2_control"
+    params="name
+            prefix
+            use_mock_hardware:=^|false
+            mock_sensor_commands:=^|false
+            sim_gazebo_classic:=^|false
+            sim_gazebo:=^|false
+            simulation_controllers">
 
     <ros2_control name="${name}" type="system">
       <hardware>
@@ -33,10 +37,10 @@
         </command_interface>
         <state_interface name="position">
           <param name="initial_value">0.0</param>
-          <param name="min">0</param>
-          <param name="max">8191</param>
+          <param name="min">0.0</param>
+          <param name="max">8191.0</param>
         </state_interface>
-        <state_interface name="velocity"/>
+        <state_interface name="velocity" />
       </joint>
     </ros2_control>
 
@@ -56,7 +60,8 @@
       <gazebo reference="world">
       </gazebo>
       <gazebo>
-        <plugin filename="libign_ros2_control-system.so" name="ign_ros2_control::IgnitionROS2ControlPlugin">
+        <plugin filename="libign_ros2_control-system.so"
+          name="ign_ros2_control::IgnitionROS2ControlPlugin">
           <parameters>${simulation_controllers}</parameters>
           <controller_manager_node_name>${prefix}controller_manager</controller_manager_node_name>
         </plugin>

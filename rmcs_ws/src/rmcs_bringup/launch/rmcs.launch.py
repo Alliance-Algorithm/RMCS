@@ -167,7 +167,8 @@ def generate_launch_description():
             )
         ]
 
-    inactive_robot_controller_names = ["add_some_controller_name"]
+    # TODO(anyone) Add some controller name here
+    inactive_robot_controller_names = []
     inactive_robot_controller_spawners = []
     for controller in inactive_robot_controller_names:
         inactive_robot_controller_spawners += [
