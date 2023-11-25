@@ -29,7 +29,7 @@
         </xacro:unless>
       </hardware>
 
-      <!-- Motor type:  RoboMaster 3508 -->
+      <!-- Motor type  RoboMaster 3508 -->
       <joint name="${prefix}motor">
         <command_interface name="effort">
           <param name="min">-100000</param>
