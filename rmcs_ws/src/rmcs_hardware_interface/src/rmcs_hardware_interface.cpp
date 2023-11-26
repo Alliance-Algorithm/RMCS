@@ -87,11 +87,11 @@ hardware_interface::CallbackReturn
 hardware_interface::return_type
     RMCS_System::read(const rclcpp::Time& /*time*/, const rclcpp::Duration& /*period*/) {
     // * read robot states
-    constexpr size_t recv_buf_size = 24;
-    static uint8_t rx_buf[recv_buf_size];
-    serial_.recv_exact(rx_buf, recv_buf_size);
+    size_t recv_buf_size;
+    static uint8_t rx_buf[18];
+    serial_.recv(rx_buf, recv_buf_size = 18);
 
-    if (rx_buf[0] == 0xAF && rx_buf[1] == 0x01) {
+    if (recv_buf_size == 18 && rx_buf[0] == 0xAF && rx_buf[1] == 0x01) {
         auto crc = std::accumulate(rx_buf, rx_buf + recv_buf_size - 1, 0);
         if (static_cast<uint8_t>(crc & 0xFF) != rx_buf[recv_buf_size - 1]) {
             RCLCPP_ERROR(rclcpp::get_logger("RMCS_System"), "Recived error crc package!");
@@ -100,9 +100,13 @@ hardware_interface::return_type
 
         // * The single motor
         hw_position_states_[0] =
-            static_cast<double>((static_cast<int>(rx_buf[9]) << 8) | rx_buf[10]);
+            static_cast<double>((static_cast<int16_t>(rx_buf[9]) << 8) | rx_buf[10]);
         hw_velocity_states_[0] =
-            static_cast<double>((static_cast<int>(rx_buf[11]) << 8) | rx_buf[12]);
+            static_cast<double>((static_cast<int16_t>(rx_buf[11]) << 8) | rx_buf[12]);
+
+        RCLCPP_DEBUG(
+            rclcpp::get_logger("RMCS_System"), "Recv position: %lf | velocity: %lf",
+            hw_position_states_[0], hw_velocity_states_[0]);
     }
 
     return hardware_interface::return_type::OK;
@@ -122,6 +126,7 @@ hardware_interface::return_type
     tx_buf[trans_buf_size - 1] = std::accumulate(tx_buf, tx_buf + trans_buf_size - 1, 0) & 0xFF;
 
     serial_.send(tx_buf, trans_buf_size);
+    RCLCPP_DEBUG(rclcpp::get_logger("RMCS_System"), "Send effort: %d", effort);
 
     return hardware_interface::return_type::OK;
 }

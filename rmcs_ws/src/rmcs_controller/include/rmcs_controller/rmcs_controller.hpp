@@ -32,6 +32,7 @@
 ///// TODO(anyone): Replace with controller specific messages
 #include "control_msgs/msg/joint_controller_state.hpp"
 #include "control_msgs/msg/joint_jog.hpp"
+#include "std_msgs/msg/float64.hpp"
 
 #include "pid.hpp"
 
@@ -79,7 +80,7 @@ public:
         update(const rclcpp::Time& time, const rclcpp::Duration& period) override;
 
     ///// TODO(anyone): replace the state and command message types
-    using ControllerReferenceMsg = control_msgs::msg::JointJog;
+    using ControllerReferenceMsg = std_msgs::msg::Float64;
     using ControllerModeSrvType  = std_srvs::srv::SetBool;
     using ControllerStateMsg     = control_msgs::msg::JointJog;
 

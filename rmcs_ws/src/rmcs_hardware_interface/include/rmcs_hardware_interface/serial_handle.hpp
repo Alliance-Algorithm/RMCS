@@ -1,84 +1,90 @@
 #pragma once
 
 #include <algorithm>
+#include <rclcpp/logger.hpp>
 #include <stddef.h>
 #include <string>
 
 extern "C" {
-#include <errno.h>                     // Error integer and strerror() function
-#include <fcntl.h>                     // Contains file controls like O_RDWR
-#include <termios.h>                   // Contains POSIX terminal control definitions
-#include <unistd.h>                    // write(), read(), close()
+#include <errno.h>               // Error integer and strerror() function
+#include <fcntl.h>               // Contains file controls like O_RDWR
+#include <termios.h>             // Contains POSIX terminal control definitions
+#include <unistd.h>              // write(), read(), close()
 }
 
 class SerialHandle {
 public:
-    SerialHandle()          = default;
-    virtual ~SerialHandle() = default;
+    SerialHandle() = default;
+    SerialHandle(const std::string& serialport) { open(serialport); }
+    virtual ~SerialHandle() { close(); }
 
     void open(const std::string& serialport) {
-        serial_port_ = ::open(serialport.c_str(), O_RDWR);
+        RCLCPP_INFO(
+            rclcpp::get_logger("SerialHandle"), "SerialHandle opening %s", serialport.c_str());
+        this->close();
+
+        serial_port_ = ::open(serialport.c_str(), O_RDWR | O_NOCTTY);
         if (serial_port_ < 0) {
-            printf("Error when open.");
+            RCLCPP_ERROR(rclcpp::get_logger("SerialHandle"), "Error when open.");
             return;
         }
         struct ::termios tty;
         if (::tcgetattr(serial_port_, &tty) != 0) {
-            printf("Error when tcgetattr.");
+            RCLCPP_ERROR(rclcpp::get_logger("SerialHandle"), "Error when tcgetattr.");
+            ::close(serial_port_);
+            return;
         }
-        tty.c_cflag &= ~PARENB;        // Clear parity bit, disabling parity
-        tty.c_cflag &= ~CSTOPB;        // Clear stop field, only one stop bit used in communication
-        tty.c_cflag &= ~CSIZE;         // Clear all bits that set the data size
-        tty.c_cflag |= CS8;            // 8 bits per byte
-        tty.c_cflag &= ~CRTSCTS;       // Disable RTS/CTS hardware flow control
-        tty.c_cflag |= CREAD | CLOCAL; // Turn on READ & ignore ctrl lines (CLOCAL = 1)
+        cfsetispeed(&tty, B115200);
+        cfsetospeed(&tty, B115200);
+        tty.c_cflag &= ~PARENB;  // Clear parity bit, disabling parity
+        tty.c_cflag &= ~CSTOPB;  // Clear stop field, only one stop bit used in communication
+        tty.c_cflag &= ~CSIZE;   // Clear all bits that set the data size
+        tty.c_cflag &= ~CRTSCTS; // Disable RTS/CTS hardware flow control
+        tty.c_cflag |= CS8 | CREAD | CLOCAL; // 8 bits per byte & Turn on READ & ignore ctrl lines
 
-        tty.c_lflag &= ~ICANON;
-        tty.c_lflag &= ~ECHO;          // Disable echo
-        tty.c_lflag &= ~ECHOE;         // Disable erasure
-        tty.c_lflag &= ~ECHONL;        // Disable new-line echo
-        tty.c_lflag &= ~ISIG;          // Disable interpretation of INTR, QUIT and SUSP
-        tty.c_iflag &= ~(IXON | IXOFF | IXANY); // Turn off s/w flow ctrl
-        tty.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL);
-        // Disable any special handling of received bytes
-
-        tty.c_oflag &= ~OPOST; // Prevent special interpretation of output bytes
-        tty.c_oflag &= ~ONLCR; // Prevent conversion of newline to carriage return/line feed
-
-        tty.c_cc[VTIME] = 10;  // Wait for up to 1s (10 deciseconds)
-        tty.c_cc[VMIN]  = 0;   // returning as soon as any data is received.
+        tty.c_cc[VTIME] = 1;                 // Wait for up to 100ms
+        tty.c_cc[VMIN]  = 0;                 // returning as soon as any data is received.
+        tcflush(serial_port_, TCIOFLUSH);
         if (::tcsetattr(serial_port_, TCSANOW, &tty) != 0) {
-            printf("Error when tcsetattr.");
+            RCLCPP_ERROR(rclcpp::get_logger("SerialHandle"), "Error when tcsetattr.");
+            ::close(serial_port_);
+            return;
         }
 
         initialized_ = true;
+        RCLCPP_INFO(
+            rclcpp::get_logger("SerialHandle"), "SerialHandle opened with fd %d", serial_port_);
     }
 
     void close() {
-        ::close(serial_port_);
-        initialized_ = false;
+        if (initialized_) {
+            ::close(serial_port_);
+            initialized_ = false;
+            RCLCPP_INFO(
+                rclcpp::get_logger("SerialHandle"), "SerialHandle closed with fd %d", serial_port_);
+        }
     }
 
-    bool is_open() { return initialized_ && serial_port_ >= 0; }
+    bool is_open() { return initialized_; }
 
     void send(const uint8_t* buf, const size_t size) {
-        printf("Send buf:");
-        std::for_each(buf, buf + size, [](const uint8_t num) { printf(" %02X", num); });
-        putchar('\n');
+        // RCLCPP_INFO(rclcpp::get_logger("SerialHandle"), "Sending");
+        if (!initialized_) {
+            RCLCPP_ERROR(
+                rclcpp::get_logger("SerialHandle"), "Using send() of uninitialized SerialHandle!");
+            return;
+        }
         ::write(serial_port_, buf, size);
     }
 
     void recv(uint8_t* buf, size_t& size) {
-        // puts("Try to recv.");
+        // RCLCPP_INFO(rclcpp::get_logger("SerialHandle"), "Recving");
+        if (!initialized_) {
+            RCLCPP_ERROR(
+                rclcpp::get_logger("SerialHandle"), "Using recv() of uninitialized SerialHandle!");
+            return;
+        }
         size = ::read(serial_port_, buf, size);
-    }
-
-    void recv_exact(uint8_t* buf, const size_t& size) {
-        // printf("Try to recv exact %lu bytes.\n", size);
-        size_t n = 0;
-        do {
-            n += ::read(serial_port_, buf + n, size - n);
-        } while (n == size);
     }
 
 private:

@@ -42,10 +42,7 @@ using ControllerReferenceMsg = rmcs_controller::RMCS_Controller::ControllerRefer
 // called from RT control loop
 void reset_controller_reference_msg(
     std::shared_ptr<ControllerReferenceMsg>& msg, const std::vector<std::string>& joint_names) {
-    msg->joint_names = joint_names;
-    msg->displacements.resize(joint_names.size(), std::numeric_limits<double>::quiet_NaN());
-    msg->velocities.resize(joint_names.size(), std::numeric_limits<double>::quiet_NaN());
-    msg->duration = std::numeric_limits<double>::quiet_NaN();
+    msg->data = std::numeric_limits<double>::quiet_NaN();
 }
 
 } // namespace
@@ -97,8 +94,12 @@ controller_interface::CallbackReturn
             std::shared_ptr<ControllerModeSrvType::Response> response) {
             if (request->data) {
                 control_mode_.writeFromNonRT(control_mode_type::POSITION_CTRL);
+                RCLCPP_INFO(
+                    rclcpp::get_logger("RMCS_Controller"), "control_mode_type::POSITION_CTRL");
             } else {
                 control_mode_.writeFromNonRT(control_mode_type::VELOCITY_CTRL);
+                RCLCPP_INFO(
+                    rclcpp::get_logger("RMCS_Controller"), "control_mode_type::VELOCITY_CTRL");
             }
             response->success = true;
         };
@@ -134,14 +135,7 @@ controller_interface::CallbackReturn
 }
 
 void RMCS_Controller::reference_callback(const std::shared_ptr<ControllerReferenceMsg> msg) {
-    if (msg->joint_names.size() == params_.joints.size()) {
-        input_ref_.writeFromNonRT(msg);
-    } else {
-        RCLCPP_ERROR(
-            get_node()->get_logger(),
-            "Received %zu , but expected %zu joints in command. Ignoring message.",
-            msg->joint_names.size(), params_.joints.size());
-    }
+    input_ref_.writeFromNonRT(msg);
 }
 
 controller_interface::InterfaceConfiguration
@@ -202,16 +196,14 @@ controller_interface::return_type
     auto current_ref = input_ref_.readFromRT();
 
     if (*(control_mode_.readFromRT()) == control_mode_type::POSITION_CTRL) {
-        if (!std::isnan((*current_ref)->displacements[CMD_ITFS])
-            && (*current_ref)->displacements[CMD_ITFS] != pid_controller.setPoint())
-            pid_controller.setPoint((*current_ref)->displacements[CMD_ITFS]);
+        if (!std::isnan((*current_ref)->data) && (*current_ref)->data != pid_controller.setPoint())
+            pid_controller.setPoint((*current_ref)->data);
 
         command_interfaces_[CMD_ITFS].set_value(
             pid_controller.update(state_interfaces_[0].get_value()));
     } else { // control_mode_type::VELOCITY_CTRL
-        if (!std::isnan((*current_ref)->velocities[CMD_ITFS])
-            && (*current_ref)->velocities[CMD_ITFS] != pid_controller.setPoint())
-            pid_controller.setPoint((*current_ref)->velocities[CMD_ITFS]);
+        if (!std::isnan((*current_ref)->data) && (*current_ref)->data != pid_controller.setPoint())
+            pid_controller.setPoint((*current_ref)->data);
 
         command_interfaces_[CMD_ITFS].set_value(
             pid_controller.update(state_interfaces_[1].get_value()));
