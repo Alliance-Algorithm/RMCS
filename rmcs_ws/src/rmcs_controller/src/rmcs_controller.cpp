@@ -195,16 +195,13 @@ controller_interface::return_type
     RMCS_Controller::update(const rclcpp::Time& time, const rclcpp::Duration& /*period*/) {
     auto current_ref = input_ref_.readFromRT();
 
-    if (*(control_mode_.readFromRT()) == control_mode_type::POSITION_CTRL) {
-        if (!std::isnan((*current_ref)->data) && (*current_ref)->data != pid_controller.setPoint())
-            pid_controller.setPoint((*current_ref)->data);
+    if (!std::isnan((*current_ref)->data) && (*current_ref)->data != pid_controller.setPoint())
+        pid_controller.setPoint((*current_ref)->data);
 
+    if (*(control_mode_.readFromRT()) == control_mode_type::POSITION_CTRL) {
         command_interfaces_[CMD_ITFS].set_value(
             pid_controller.update(state_interfaces_[0].get_value()));
     } else { // control_mode_type::VELOCITY_CTRL
-        if (!std::isnan((*current_ref)->data) && (*current_ref)->data != pid_controller.setPoint())
-            pid_controller.setPoint((*current_ref)->data);
-
         command_interfaces_[CMD_ITFS].set_value(
             pid_controller.update(state_interfaces_[1].get_value()));
     }
