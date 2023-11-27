@@ -7,9 +7,7 @@
 #include <memory>
 
 #include <rclcpp/logger.hpp>
-#include <serial.h>
-
-#include "serial_util.hpp"
+#include <serial/serial.h>
 
 namespace serial {
 
@@ -76,7 +74,7 @@ public:
 
 protected:
     uint8_t type_, destnation_;
-    uint8_t *tx_buf_, *rx_buf;
+    uint8_t *tx_buf_, *rx_buf_;
 };
 
 class SerialDeliver {
@@ -100,9 +98,6 @@ public:
 
 private:
     std::unique_ptr<serial::Serial> serial_;
-    std::unique_ptr<serial::SerialReceiver<
-        SerialPackage::PackageHead, serial::Head<uint8_t, 0xAF>, serial::verify::CheckSum>>
-        serial_receiver_;
 };
 
 } // namespace serial

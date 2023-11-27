@@ -64,7 +64,7 @@ public:
 
 private:
     std::string serialport_;
-    SerialDeliver serial_;
+    serial::SerialDeliver serial_;
 
     std::vector<double> hw_effort_commands_;
     std::vector<double> hw_position_states_;
