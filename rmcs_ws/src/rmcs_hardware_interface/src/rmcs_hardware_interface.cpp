@@ -87,21 +87,17 @@ hardware_interface::CallbackReturn
 hardware_interface::return_type
     RMCS_System::read(const rclcpp::Time& /*time*/, const rclcpp::Duration& /*period*/) {
     // * read robot states
-    static uint8_t rx_buf[100];
-    size_t recv_buf_size = serial_.recv(0x01, 0x01, rx_buf);
+    static uint8_t rx_buf[1024];
+    size_t recv_buf_size = serial_.recv(
+        serial::SerialPackage::TypeEncode(serial::SerialPackage::PackageType::USB_PKG_CAN, 0x01),
+        rx_buf);
 
-    if (recv_buf_size == 18 && rx_buf[0] == 0xAF && rx_buf[1] == 0x01) {
-        auto crc = std::accumulate(rx_buf, rx_buf + recv_buf_size - 1, 0);
-        if (static_cast<uint8_t>(crc & 0xFF) != rx_buf[recv_buf_size - 1]) {
-            RCLCPP_ERROR(rclcpp::get_logger("RMCS_System"), "Recived error crc package!");
-            return hardware_interface::return_type::ERROR;
-        }
-
+    if (recv_buf_size == 12) {
         // * The single motor
         hw_position_states_[0] =
-            static_cast<double>((static_cast<int16_t>(rx_buf[9]) << 8) | rx_buf[10]);
+            static_cast<int16_t>((static_cast<int16_t>(rx_buf[9]) << 8) | rx_buf[10]);
         hw_velocity_states_[0] =
-            static_cast<double>((static_cast<int16_t>(rx_buf[11]) << 8) | rx_buf[12]);
+            static_cast<int16_t>((static_cast<int16_t>(rx_buf[11]) << 8) | rx_buf[12]);
 
         RCLCPP_DEBUG(
             rclcpp::get_logger("RMCS_System"), "Recv position: %lf | velocity: %lf",
@@ -114,17 +110,18 @@ hardware_interface::return_type
 hardware_interface::return_type
     RMCS_System::write(const rclcpp::Time& /*time*/, const rclcpp::Duration& /*period*/) {
     // * write robot's commands'
-    constexpr size_t trans_buf_size = 24;
+    constexpr size_t trans_buf_size = 12;
     static uint8_t tx_buf[trans_buf_size];
 
     // '0xAF' 'Type' 'Destnation' 'Index' 'Size' 'Data[0]' ... 'Data[Size-1]' 'CRC'
-    memcpy(reinterpret_cast<char*>(tx_buf), "\xAF\x01\x01\x00\x0C\x00\x02\x00\x00", 9);
+    memcpy(reinterpret_cast<char*>(tx_buf), "\x00\x02\x00\x00", 4);
     int16_t effort = static_cast<int16_t>(hw_effort_commands_[0]);
-    memcpy(reinterpret_cast<char*>(tx_buf + 9), reinterpret_cast<const char*>(&effort), 2);
-    memcpy(reinterpret_cast<char*>(tx_buf + 11), "\x00\x00\x00\x00\x00\x00", 6);
-    tx_buf[trans_buf_size - 1] = std::accumulate(tx_buf, tx_buf + trans_buf_size - 1, 0) & 0xFF;
+    memcpy(reinterpret_cast<char*>(tx_buf + 4), reinterpret_cast<const char*>(&effort), 2);
+    memcpy(reinterpret_cast<char*>(tx_buf + 6), "\x00\x00\x00\x00\x00\x00", 6);
 
-    serial_.send(0x01, 0x01, tx_buf, trans_buf_size);
+    serial_.send(
+        serial::SerialPackage::TypeEncode(serial::SerialPackage::PackageType::USB_PKG_CAN, 0x01),
+        tx_buf, trans_buf_size);
     RCLCPP_DEBUG(rclcpp::get_logger("RMCS_System"), "Send effort: %d", effort);
 
     return hardware_interface::return_type::OK;

@@ -41,7 +41,8 @@ using ControllerReferenceMsg = rmcs_controller::RMCS_Controller::ControllerRefer
 
 // called from RT control loop
 void reset_controller_reference_msg(
-    std::shared_ptr<ControllerReferenceMsg>& msg, const std::vector<std::string>& joint_names) {
+    std::shared_ptr<ControllerReferenceMsg>& msg,
+    const std::vector<std::string>& /* joint_names */) {
     msg->data = std::numeric_limits<double>::quiet_NaN();
 }
 

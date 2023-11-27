@@ -90,6 +90,8 @@ public:
 
 class CheckSum {
 public:
+    using ResultType = uint8_t;
+
     static uint8_t Calculate(const uint8_t* data, size_t size) {
         return std::accumulate(data, data + size, static_cast<uint8_t>(0));
     }
@@ -99,23 +101,16 @@ public:
 // 一般作为SerialUtil的模板参数传递，也可以直接对数据包进行计算
 // 若遇到CRC校验时不需包含包头，或校验位不位于数据包尾部的特殊情况，可以自己用实现了Append()和Verify()方法的自定义类作为模板参数传给SerialUtil
 template <typename AlgorithmType>
+requires std::is_integral_v<typename AlgorithmType::ResultType>
 class VerifyCodeCalculator {
 public:
     using ResultType = typename AlgorithmType::ResultType;
 
     static void Append(const uint8_t* data, size_t size, ResultType& verify_code) {
-        static_assert(
-            sizeof(T) >= sizeof(ResultType),
-            "Size of package must be greater than size of result type.");
-
         verify_code = AlgorithmType::Calculate(data, size);
     }
 
     static bool Verify(const uint8_t* data, size_t size, const ResultType verify_code) {
-        static_assert(
-            sizeof(T) >= sizeof(ResultType),
-            "Size of package must be greater than size of result type.");
-
         return verify_code == AlgorithmType::Calculate(data, size);
     }
 };
