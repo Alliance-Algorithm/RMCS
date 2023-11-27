@@ -87,9 +87,8 @@ hardware_interface::CallbackReturn
 hardware_interface::return_type
     RMCS_System::read(const rclcpp::Time& /*time*/, const rclcpp::Duration& /*period*/) {
     // * read robot states
-    size_t recv_buf_size;
-    static uint8_t rx_buf[18];
-    serial_.recv(rx_buf, recv_buf_size = 18);
+    static uint8_t rx_buf[100];
+    size_t recv_buf_size = serial_.recv(0x01, 0x01, rx_buf);
 
     if (recv_buf_size == 18 && rx_buf[0] == 0xAF && rx_buf[1] == 0x01) {
         auto crc = std::accumulate(rx_buf, rx_buf + recv_buf_size - 1, 0);
@@ -125,7 +124,7 @@ hardware_interface::return_type
     memcpy(reinterpret_cast<char*>(tx_buf + 11), "\x00\x00\x00\x00\x00\x00", 6);
     tx_buf[trans_buf_size - 1] = std::accumulate(tx_buf, tx_buf + trans_buf_size - 1, 0) & 0xFF;
 
-    serial_.send(tx_buf, trans_buf_size);
+    serial_.send(0x01, 0x01, tx_buf, trans_buf_size);
     RCLCPP_DEBUG(rclcpp::get_logger("RMCS_System"), "Send effort: %d", effort);
 
     return hardware_interface::return_type::OK;
