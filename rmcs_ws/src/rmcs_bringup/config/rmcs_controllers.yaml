@@ -18,4 +18,4 @@ rmcs_controller:
     pid:
       kp: 20.0
       ki: 0.0
-      kd: 500.0
+      kd: 50.0

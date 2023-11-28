@@ -88,9 +88,10 @@ hardware_interface::return_type
     RMCS_System::read(const rclcpp::Time& /*time*/, const rclcpp::Duration& /*period*/) {
     // * read robot states
     static uint8_t rx_buf[1024];
+
+    using serial::SerialPackage;
     size_t recv_buf_size = serial_.recv(
-        serial::SerialPackage::TypeEncode(serial::SerialPackage::PackageType::USB_PKG_CAN, 0x01),
-        rx_buf);
+        SerialPackage::TypeEncode(SerialPackage::PackageType::USB_PKG_CAN, 0x01), rx_buf);
 
     if (recv_buf_size == 12) {
         // * The single motor
@@ -130,7 +131,8 @@ hardware_interface::return_type
     // '0xAF' 'Type' 'Destnation' 'Index' 'Size' 'Data[0]' ... 'Data[Size-1]' 'CRC'
     memcpy(reinterpret_cast<char*>(tx_buf), "\x00\x02\x00\x00", 4);
     int16_t effort = static_cast<int16_t>(hw_effort_commands_[0]);
-    memcpy(reinterpret_cast<char*>(tx_buf + 4), reinterpret_cast<const char*>(&effort), 2);
+    tx_buf[4]      = static_cast<uint8_t>((effort >> 8) & 0xFF);
+    tx_buf[5]      = static_cast<uint8_t>(effort & 0xFF);
     memcpy(reinterpret_cast<char*>(tx_buf + 6), "\x00\x00\x00\x00\x00\x00", 6);
 
     serial_.send(

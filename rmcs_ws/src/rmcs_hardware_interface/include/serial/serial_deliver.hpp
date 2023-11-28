@@ -153,8 +153,12 @@ public:
     }
 
     void update() {
-        if (serial_ == nullptr || !serial_->available())
+        if (serial_ == nullptr || !serial_->available()) {
+            // RCLCPP_INFO(
+            //     rclcpp::get_logger("SerialDeliver"),
+            //     "Serial is nullptr or not available at update()");
             return;
+        }
 
         constexpr size_t recv_head_size =
             sizeof(SerialPackage::PackageHead) - sizeof(SerialPackage::PackageHead::data_crc);
