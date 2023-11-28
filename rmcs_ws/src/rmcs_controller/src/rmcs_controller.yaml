@@ -53,24 +53,31 @@ rmcs_controller:
         description: "kd for pid_controller",
         read_only: true,
       }
-    kp_limit:
+    output_limit:
       {
         type: double,
-        default_value: 100000.0,
-        description: "kp limit for pid_controller",
+        default_value: 16384.0,
+        description: "total output limit for pid_controller",
         read_only: true,
       }
-    ki_limit:
+    kp_output_limit:
       {
         type: double,
-        default_value: 100000.0,
-        description: "ki limit for pid_controller",
+        default_value: 16384.0,
+        description: "kp output limit for pid_controller",
         read_only: true,
       }
-    kd_limit:
+    ki_output_limit:
       {
         type: double,
-        default_value: 100000.0,
-        description: "kd limit for pid_controller",
+        default_value: 16384.0,
+        description: "ki output limit for pid_controller",
+        read_only: true,
+      }
+    kd_output_limit:
+      {
+        type: double,
+        default_value: 16384.0,
+        description: "kd output limit for pid_controller",
         read_only: true,
       }

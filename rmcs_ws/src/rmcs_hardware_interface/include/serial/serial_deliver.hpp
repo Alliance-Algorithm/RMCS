@@ -156,10 +156,13 @@ public:
         if (serial_ == nullptr || !serial_->available())
             return;
 
+        constexpr size_t recv_head_size =
+            sizeof(SerialPackage::PackageHead) - sizeof(SerialPackage::PackageHead::data_crc);
         while (serial_->available()) {
-            serial_->read(
-                buf_,
-                sizeof(SerialPackage::PackageHead) - sizeof(SerialPackage::PackageHead::data_crc));
+            size_t bytes_read = serial_->read(buf_, recv_head_size);
+            if (bytes_read != recv_head_size) {
+                RCLCPP_WARN(rclcpp::get_logger("SerialDeliver"), "Lost package head");
+            }
             auto& package = *reinterpret_cast<SerialPackage::PackageHead*>(buf_);
             if (package.head != SerialPackage::package_head_byte) {
                 do {
@@ -167,11 +170,10 @@ public:
                 } while (package.head != SerialPackage::package_head_byte);
                 serial_->read(
                     buf_ + sizeof(SerialPackage::PackageHead::head),
-                    sizeof(SerialPackage::PackageHead) - sizeof(SerialPackage::PackageHead::head)
-                        - sizeof(SerialPackage::PackageHead::data_crc));
+                    recv_head_size - sizeof(SerialPackage::PackageHead::head));
             }
 
-            size_t bytes_read = serial_->read(
+            bytes_read = serial_->read(
                 &package.data_crc, package.size + sizeof(SerialPackage::PackageHead::data_crc));
             if (bytes_read != package.size + sizeof(SerialPackage::PackageHead::data_crc)) {
                 RCLCPP_WARN(

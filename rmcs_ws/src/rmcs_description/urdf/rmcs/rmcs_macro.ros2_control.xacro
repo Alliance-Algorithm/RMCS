@@ -32,14 +32,10 @@
       <!-- Motor type  RoboMaster 3508 -->
       <joint name="${prefix}motor">
         <command_interface name="effort">
-          <param name="min">-100000</param>
-          <param name="max">100000</param>
+          <param name="min">-16384</param>
+          <param name="max">16384</param>
         </command_interface>
-        <state_interface name="position">
-          <param name="initial_value">0.0</param>
-          <param name="min">0.0</param>
-          <param name="max">8191.0</param>
-        </state_interface>
+        <state_interface name="position" />
         <state_interface name="velocity" />
       </joint>
     </ros2_control>

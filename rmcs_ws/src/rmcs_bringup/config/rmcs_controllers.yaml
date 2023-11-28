@@ -16,6 +16,6 @@ rmcs_controller:
     state_interfaces: ["position", "velocity"]
 
     pid:
-      kp: 10.0
+      kp: 20.0
       ki: 0.0
       kd: 500.0

@@ -127,9 +127,10 @@ controller_interface::CallbackReturn
     state_publisher_->msg_.header.frame_id = params_.joints[0];
     state_publisher_->unlock();
 
-    pid_controller.setKp(params_.pid.kp, params_.pid.kp_limit);
-    pid_controller.setKi(params_.pid.ki, params_.pid.ki_limit);
-    pid_controller.setKd(params_.pid.kd, params_.pid.kd_limit);
+    pid_controller.setLimit(params_.pid.output_limit);
+    pid_controller.setKp(params_.pid.kp, params_.pid.kp_output_limit);
+    pid_controller.setKi(params_.pid.ki, params_.pid.ki_output_limit);
+    pid_controller.setKd(params_.pid.kd, params_.pid.kd_output_limit);
 
     RCLCPP_INFO(get_node()->get_logger(), "configure successful");
     return controller_interface::CallbackReturn::SUCCESS;
@@ -221,6 +222,7 @@ controller_interface::return_type
                 state_publisher_->msg_.displacements.push_back(state.get_value());
             }
         }
+        state_publisher_->msg_.duration = command_interfaces_[CMD_ITFS].get_value();
         state_publisher_->unlockAndPublish();
     }
 
