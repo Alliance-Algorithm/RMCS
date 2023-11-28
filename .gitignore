@@ -1,6 +1,7 @@
 devel/
 log/
 build/
+install/
 bin/
 lib/
 msg_gen/
@@ -50,5 +51,5 @@ qtcreator-*
 # Catkin custom files
 CATKIN_IGNORE
 
-# vscode
-.vscode
+# Clangd cache files
+.cache

@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.8)
 project(rmcs_hardware_interface)
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_C_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2")
+
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
@@ -11,6 +16,7 @@ find_package(hardware_interface REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
+find_package(serial REQUIRED)
 
 add_library(
   rmcs_hardware_interface
@@ -27,7 +33,9 @@ ament_target_dependencies(
   hardware_interface
   rclcpp
   rclcpp_lifecycle
+  serial
 )
+
 # prevent pluginlib from using boost
 target_compile_definitions(rmcs_hardware_interface PUBLIC "PLUGINLIB__DISABLE_BOOST_FUNCTIONS")
 
@@ -49,9 +57,11 @@ install(
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
+
   # the following line skips the linter which checks for copyrights
   # comment the line when a copyright and license is added to all source files
   set(ament_cmake_copyright_FOUND TRUE)
+
   # the following line skips cpplint (only works in a git repo)
   # comment the line when this package is in a git repo and when
   # a copyright and license is added to all source files
@@ -67,6 +77,7 @@ if(BUILD_TESTING)
     hardware_interface
     pluginlib
     ros2_control_test_assets
+    serial
   )
 endif()
 
@@ -81,6 +92,7 @@ ament_export_dependencies(
   pluginlib
   rclcpp
   rclcpp_lifecycle
+  serial
 )
 
 ament_package()

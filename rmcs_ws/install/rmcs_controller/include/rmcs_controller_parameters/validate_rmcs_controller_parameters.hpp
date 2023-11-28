@@ -1,1 +1,0 @@
-/home/kalecx/Desktop/workspace/RMCS/rmcs_ws/build/rmcs_controller/rmcs_controller_parameters/include/validate_rmcs_controller_parameters.hpp

@@ -1,5 +1,6 @@
 <?xml version="1.0"?>
-<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" 
+            schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>rmcs_hardware_interface</name>
   <version>0.0.0</version>
@@ -16,6 +17,8 @@
   <depend>rclcpp</depend>
 
   <depend>rclcpp_lifecycle</depend>
+
+  <depend>serial</depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

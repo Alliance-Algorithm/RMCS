@@ -45,7 +45,7 @@ def generate_launch_description():
     declared_arguments.append(
         DeclareLaunchArgument(
             "description_package",
-            default_value="rmcs_bringup",
+            default_value="rmcs_description",
             description="Description package with robot URDF/xacro files. Usually the argument \
         is not set, it enables use of a custom description.",
         )
@@ -69,7 +69,7 @@ def generate_launch_description():
     declared_arguments.append(
         DeclareLaunchArgument(
             "use_mock_hardware",
-            default_value="true",
+            default_value="false",
             description="Start robot with mock hardware mirroring command to its states.",
         )
     )
@@ -84,8 +84,8 @@ def generate_launch_description():
     declared_arguments.append(
         DeclareLaunchArgument(
             "robot_controller",
-            default_value="forward_position_controller",
-            choices=["forward_position_controller", "joint_trajectory_controller"],
+            default_value="rmcs_controller",
+            choices=["rmcs_controller"],
             description="Robot controller to start.",
         )
     )
@@ -167,7 +167,8 @@ def generate_launch_description():
             )
         ]
 
-    inactive_robot_controller_names = ["add_some_controller_name"]
+    # TODO(anyone) Add some controller name here
+    inactive_robot_controller_names = []
     inactive_robot_controller_spawners = []
     for controller in inactive_robot_controller_names:
         inactive_robot_controller_spawners += [
@@ -224,7 +225,7 @@ def generate_launch_description():
         + [
             control_node,
             robot_state_pub_node,
-            rviz_node,
+            # rviz_node,
             delay_joint_state_broadcaster_spawner_after_ros2_control_node,
         ]
         + delay_robot_controller_spawners_after_joint_state_broadcaster_spawner

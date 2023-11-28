@@ -1,1 +1,0 @@
-/home/kalecx/Desktop/workspace/RMCS/rmcs_ws/build/rmcs_controller/ament_cmake_core/rmcs_controllerConfig-version.cmake

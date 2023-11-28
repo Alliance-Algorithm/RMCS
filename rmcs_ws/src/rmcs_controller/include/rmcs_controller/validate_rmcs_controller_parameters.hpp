@@ -21,6 +21,8 @@
 #include "parameter_traits/parameter_traits.hpp"
 
 namespace parameter_traits {
+
+// ! DO NOT REMOVE THIS !
 Result forbidden_interface_name_prefix(rclcpp::Parameter const& parameter) {
     auto const& interface_name = parameter.as_string();
 

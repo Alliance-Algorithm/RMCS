@@ -27,7 +27,7 @@
 #include "rclcpp_lifecycle/state.hpp"
 #include "rmcs_hardware_interface/visibility_control.h"
 
-#include "serial_handle.hpp"
+#include "serial/serial_deliver.hpp"
 
 namespace rmcs_hardware_interface {
 class RMCS_System : public hardware_interface::SystemInterface {
@@ -63,8 +63,12 @@ public:
         write(const rclcpp::Time& time, const rclcpp::Duration& period) override;
 
 private:
-    std::vector<double> hw_commands_;
-    std::vector<double> hw_states_;
+    std::string serialport_;
+    serial::SerialDeliver serial_;
+
+    std::vector<double> hw_effort_commands_;
+    std::vector<double> hw_position_states_;
+    std::vector<double> hw_velocity_states_;
 };
 
 } // namespace rmcs_hardware_interface
