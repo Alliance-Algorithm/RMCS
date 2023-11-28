@@ -94,14 +94,28 @@ hardware_interface::return_type
 
     if (recv_buf_size == 12) {
         // * The single motor
-        hw_position_states_[0] =
-            static_cast<int16_t>((static_cast<int16_t>(rx_buf[9]) << 8) | rx_buf[10]);
-        hw_velocity_states_[0] =
-            static_cast<int16_t>((static_cast<int16_t>(rx_buf[11]) << 8) | rx_buf[12]);
+        static auto angle_calc = [](int16_t measurement) -> double {
+            static double angle       = 0.0;
+            static int16_t last_angle = 0;
 
-        RCLCPP_DEBUG(
-            rclcpp::get_logger("RMCS_System"), "Recv position: %lf | velocity: %lf",
-            hw_position_states_[0], hw_velocity_states_[0]);
+            int16_t diff_angle = measurement - last_angle;
+            if (diff_angle < -8191 / 2)
+                angle += 8192.;
+            else if (diff_angle > 8191 / 2)
+                angle -= 8192.;
+            angle += diff_angle;
+            last_angle = measurement;
+            return angle;
+        };
+
+        hw_position_states_[0] =
+            angle_calc(static_cast<int16_t>((static_cast<int16_t>(rx_buf[4]) << 8) | rx_buf[5]));
+        hw_velocity_states_[0] =
+            static_cast<int16_t>((static_cast<int16_t>(rx_buf[6]) << 8) | rx_buf[7]);
+
+        // RCLCPP_INFO(
+        //     rclcpp::get_logger("RMCS_System"), "Recv position: %lf | velocity: %lf",
+        //     hw_position_states_[0], hw_velocity_states_[0]);
     }
 
     return hardware_interface::return_type::OK;
@@ -122,7 +136,7 @@ hardware_interface::return_type
     serial_.send(
         serial::SerialPackage::TypeEncode(serial::SerialPackage::PackageType::USB_PKG_CAN, 0x01),
         tx_buf, trans_buf_size);
-    RCLCPP_DEBUG(rclcpp::get_logger("RMCS_System"), "Send effort: %d", effort);
+    // RCLCPP_INFO(rclcpp::get_logger("RMCS_System"), "Send effort: %d", effort);
 
     return hardware_interface::return_type::OK;
 }

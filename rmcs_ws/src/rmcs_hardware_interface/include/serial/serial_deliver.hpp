@@ -69,7 +69,8 @@ public:
     template <class VerifyCodeCalculator>
     size_t split(
         const uint8_t type_code, const uint8_t* data, const size_t data_size, size_t& split_size) {
-        auto package      = *reinterpret_cast<PackageHead*>(tx_buf_);
+        auto& package     = *reinterpret_cast<PackageHead*>(tx_buf_);
+        package.head      = package_head_byte;
         package.type_code = type_code;
         package.index     = split_size / data_size;
         package.size      = std::min(data_size - split_size, data_size_max);
@@ -83,10 +84,10 @@ public:
 
     template <class VerifyCodeCalculator>
     bool merge(const uint8_t* data, const size_t data_size) {
-        if (VerifyCodeCalculator::Verify(data, data_size - 1, data[data_size - 1]))
+        if (!VerifyCodeCalculator::Verify(data, data_size - 1, data[data_size - 1]))
             return false;
-        auto package     = *reinterpret_cast<const PackageHead*>(rx_buf_);
-        auto new_package = *reinterpret_cast<const PackageHead*>(data);
+        auto& package     = *reinterpret_cast<PackageHead*>(rx_buf_);
+        auto& new_package = *reinterpret_cast<const PackageHead*>(data);
         if (new_package.index != package.index + 1) {
             memcpy(rx_buf_, data, data_size);
             return true;
@@ -123,23 +124,28 @@ public:
     using VerifyCodeCalculator = verify::CheckSumCalculator;
 
     bool open(const std::string& serialport) {
+        RCLCPP_INFO(
+            rclcpp::get_logger("SerialDeliver"), "Opening serialport %s", serialport.c_str());
         try {
             serial_ = std::make_unique<serial::Serial>(
                 serialport, 9600U, serial::Timeout::simpleTimeout(0));
-            serial_->open();
             if (!serial_->isOpen())
-                throw;
+                throw 6;
         } catch (...) {
             RCLCPP_ERROR(
-                rclcpp::get_logger("SerialDeliver"), "Failed to open serialport \"%s\"",
+                rclcpp::get_logger("SerialDeliver"), "Failed to open serialport %s",
                 serialport.c_str());
             serial_ = nullptr;
             return false;
         }
+        RCLCPP_INFO(
+            rclcpp::get_logger("SerialDeliver"), "Opened serialport %s successfully",
+            serialport.c_str());
         return true;
     }
 
     void close() {
+        RCLCPP_INFO(rclcpp::get_logger("SerialDeliver"), "Closing serialport");
         if (serial_ == nullptr)
             return;
         serial_->close();
@@ -154,7 +160,7 @@ public:
             serial_->read(
                 buf_,
                 sizeof(SerialPackage::PackageHead) - sizeof(SerialPackage::PackageHead::data_crc));
-            auto package = *reinterpret_cast<SerialPackage::PackageHead*>(buf_);
+            auto& package = *reinterpret_cast<SerialPackage::PackageHead*>(buf_);
             if (package.head != SerialPackage::package_head_byte) {
                 do {
                     serial_->read(buf_, sizeof(SerialPackage::PackageHead::head));
@@ -165,7 +171,7 @@ public:
                         - sizeof(SerialPackage::PackageHead::data_crc));
             }
 
-            auto bytes_read = serial_->read(
+            size_t bytes_read = serial_->read(
                 &package.data_crc, package.size + sizeof(SerialPackage::PackageHead::data_crc));
             if (bytes_read != package.size + sizeof(SerialPackage::PackageHead::data_crc)) {
                 RCLCPP_WARN(

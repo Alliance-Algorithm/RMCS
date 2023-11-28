@@ -21,16 +21,17 @@
 #include "parameter_traits/parameter_traits.hpp"
 
 namespace parameter_traits {
-// TODO(anyone): Find out WTF it is
-// Result forbidden_interface_name_prefix(rclcpp::Parameter const& parameter) {
-//     auto const& interface_name = parameter.as_string();
 
-//     if (interface_name.rfind("blup_", 0) == 0) {
-//         return ERROR("'interface_name' parameter can not start with 'blup_'");
-//     }
+// ! DO NOT REMOVE THIS !
+Result forbidden_interface_name_prefix(rclcpp::Parameter const& parameter) {
+    auto const& interface_name = parameter.as_string();
 
-//     return OK;
-// }
+    if (interface_name.rfind("blup_", 0) == 0) {
+        return ERROR("'interface_name' parameter can not start with 'blup_'");
+    }
+
+    return OK;
+}
 
 } // namespace parameter_traits
 

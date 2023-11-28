@@ -92,8 +92,8 @@ class CheckSum {
 public:
     using ResultType = uint8_t;
 
-    static uint8_t Calculate(const uint8_t* data, size_t size) {
-        return std::accumulate(data, data + size, static_cast<uint8_t>(0));
+    static ResultType Calculate(const uint8_t* data, size_t size) {
+        return std::accumulate(data, data + size, static_cast<ResultType>(0));
     }
 };
 

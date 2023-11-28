@@ -91,9 +91,8 @@ public:
     void clearErrorSum() { err_sum_ = 0.0; }
 
     double update(double measurement) {
-        if (std::isnan(setpoint_)) {
+        if (std::isnan(setpoint_))
             return 0.0;
-        }
         double err = setpoint_ - measurement;
         double result =
             setLimit(kp_ * err, kp_min_, kp_max_) + setLimit(ki_ * err_sum_, ki_min_, ki_max_);
