@@ -1,10 +1,10 @@
 <package format="2">
-  <name>urdf.SLDASM</name>
+  <name>omni_description</name>
   <version>1.0.0</version>
   <description>
-    <p>URDF Description package for urdf.SLDASM</p>
+    <p>URDF Description package for omni_description</p>
     <p>This package contains configuration data, 3D models and launch files
-for urdf.SLDASM robot</p>
+for omni_description robot</p>
   </description>
   <author>TODO</author>
   <maintainer email="TODO@email.com" />
