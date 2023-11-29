@@ -1,0 +1,524 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This URDF was automatically created by SolidWorks to URDF Exporter! Originally created by Stephen Brawner (brawner@gmail.com) 
+     Commit Version: 1.6.0-4-g7f85cfe  Build Version: 1.6.7995.38578
+     For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
+<robot
+  name="urdf.SLDASM">
+  <link
+    name="Total assembly">
+    <inertial>
+      <origin
+        xyz="-0.0195249578204248 0.00195572431337624 0.0199534599761812"
+        rpy="0 0 0" />
+      <mass
+        value="12.7319888109524" />
+      <inertia
+        ixx="0.099910085738785"
+        ixy="0.000904001123724784"
+        ixz="0.00649172844420192"
+        iyy="0.127406348155969"
+        iyz="-0.000316780368073457"
+        izz="0.180681987163622" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://urdf.SLDASM/meshes/Total assembly.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://urdf.SLDASM/meshes/Total assembly.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link
+    name="body&amp;wheels">
+    <inertial>
+      <origin
+        xyz="-0.014464583145287 -3.4777801978525E-08 -0.04630188656629"
+        rpy="0 0 0" />
+      <mass
+        value="7.38762341423434" />
+      <inertia
+        ixx="0.0858099715349203"
+        ixy="9.06674283538533E-08"
+        ixz="0.00463615934367856"
+        iyy="0.108320017042519"
+        iyz="9.21827441555587E-06"
+        izz="0.161187478867477" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://urdf.SLDASM/meshes/body&amp;wheels.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://urdf.SLDASM/meshes/body&amp;wheels.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="body&amp;wheels"
+    type="continuous">
+    <origin
+      xyz="0 0 0"
+      rpy="0 0 0" />
+    <parent
+      link="Total assembly" />
+    <child
+      link="body&amp;wheels" />
+    <axis
+      xyz="0 0 -1" />
+  </joint>
+  <link
+    name="frout left wheel">
+    <inertial>
+      <origin
+        xyz="-0.0145 0 -1.11022302462516E-16"
+        rpy="0 0 0" />
+      <mass
+        value="0.533176182602155" />
+      <inertia
+        ixx="0.00156014015731673"
+        ixy="8.13151629364128E-20"
+        ixz="3.92107847703925E-20"
+        iyy="0.000817436842789067"
+        iyz="1.0405631885096E-19"
+        izz="0.000817436842789067" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://urdf.SLDASM/meshes/frout left wheel.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://urdf.SLDASM/meshes/frout left wheel.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="frout left wheel"
+    type="continuous">
+    <origin
+      xyz="0.16718 0.16718 -0.0907"
+      rpy="0 0 0.7854" />
+    <parent
+      link="body&amp;wheels" />
+    <child
+      link="frout left wheel" />
+    <axis
+      xyz="1 0 0" />
+  </joint>
+  <link
+    name="frout right wheel">
+    <inertial>
+      <origin
+        xyz="-0.0145 -1.38777878078145E-17 -1.11022302462516E-16"
+        rpy="0 0 0" />
+      <mass
+        value="0.533176182602155" />
+      <inertia
+        ixx="0.00156014015731673"
+        ixy="0"
+        ixz="9.67092878960191E-20"
+        iyy="0.000817436842789067"
+        iyz="4.59189434683823E-20"
+        izz="0.000817436842789066" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://urdf.SLDASM/meshes/frout right wheel.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://urdf.SLDASM/meshes/frout right wheel.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="frout right wheel"
+    type="continuous">
+    <origin
+      xyz="0.16718 -0.16718 -0.09097"
+      rpy="0 0 -0.7854" />
+    <parent
+      link="body&amp;wheels" />
+    <child
+      link="frout right wheel" />
+    <axis
+      xyz="1 0 0" />
+  </joint>
+  <link
+    name="back left wheel">
+    <inertial>
+      <origin
+        xyz="-0.0145 -1.38777878078145E-17 0"
+        rpy="0 0 0" />
+      <mass
+        value="0.533176182602155" />
+      <inertia
+        ixx="0.00156014015731673"
+        ixy="0"
+        ixz="-1.14198415930064E-20"
+        iyy="0.000817436842789067"
+        iyz="-5.8057516350459E-20"
+        izz="0.000817436842789067" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://urdf.SLDASM/meshes/back left wheel.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://urdf.SLDASM/meshes/back left wheel.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="back left wheel"
+    type="continuous">
+    <origin
+      xyz="-0.16718 0.16718 -0.09097"
+      rpy="0 0 2.3562" />
+    <parent
+      link="body&amp;wheels" />
+    <child
+      link="back left wheel" />
+    <axis
+      xyz="-1 0 0" />
+  </joint>
+  <link
+    name="back right wheel">
+    <inertial>
+      <origin
+        xyz="-0.127403866697427 -0.181711200468062 -0.204299845961811"
+        rpy="0 0 0" />
+      <mass
+        value="0.533176182602155" />
+      <inertia
+        ixx="0.00106221244233337"
+        ixy="0.000349113956989373"
+        ixz="8.69614394519842E-20"
+        iyy="0.00131536455777242"
+        iyz="-2.43969840038229E-20"
+        izz="0.000817436842789066" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://urdf.SLDASM/meshes/back right wheel.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://urdf.SLDASM/meshes/back right wheel.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="back right wheel"
+    type="continuous">
+    <origin
+      xyz="0 0 0.1136"
+      rpy="0 0 -0.17391" />
+    <parent
+      link="body&amp;wheels" />
+    <child
+      link="back right wheel" />
+    <axis
+      xyz="0.57409 0.8188 0" />
+  </joint>
+  <link
+    name="body&amp;gimbol">
+    <inertial>
+      <origin
+        xyz="-0.014464583145287 -3.47778019750555E-08 -0.0463018865662903"
+        rpy="0 0 0" />
+      <mass
+        value="7.38762341423434" />
+      <inertia
+        ixx="0.0858099715349203"
+        ixy="9.06674283547613E-08"
+        ixz="0.00463615934367856"
+        iyy="0.108320017042519"
+        iyz="9.21827441555822E-06"
+        izz="0.161187478867477" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://urdf.SLDASM/meshes/body&amp;gimbol.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://urdf.SLDASM/meshes/body&amp;gimbol.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="body&amp;gimbol"
+    type="continuous">
+    <origin
+      xyz="0 0 0"
+      rpy="0 0 0" />
+    <parent
+      link="Total assembly" />
+    <child
+      link="body&amp;gimbol" />
+    <axis
+      xyz="0 0 -1" />
+  </joint>
+  <link
+    name="gimbol">
+    <inertial>
+      <origin
+        xyz="-0.000418768299019601 -2.91433543964104E-16 -0.0356697610188731"
+        rpy="0 0 0" />
+      <mass
+        value="0.296006965244182" />
+      <inertia
+        ixx="0.00245101679694451"
+        ixy="-2.16840434497101E-19"
+        ixz="1.00776769706153E-05"
+        iyy="0.0014572578844202"
+        iyz="-5.56077129872448E-19"
+        izz="0.00136511673062511" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://urdf.SLDASM/meshes/gimbol.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://urdf.SLDASM/meshes/gimbol.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="gimbol"
+    type="continuous">
+    <origin
+      xyz="0 0 0.1136"
+      rpy="0 0 -0.17391" />
+    <parent
+      link="body&amp;gimbol" />
+    <child
+      link="gimbol" />
+    <axis
+      xyz="0 0 -1" />
+  </joint>
+  <link
+    name="gimbol&amp;launch">
+    <inertial>
+      <origin
+        xyz="-0.000418768299019601 -2.77555756156289E-16 -0.0356697610188731"
+        rpy="0 0 0" />
+      <mass
+        value="0.296006965244182" />
+      <inertia
+        ixx="0.00245101679694451"
+        ixy="2.71050543121376E-20"
+        ixz="1.00776769706153E-05"
+        iyy="0.0014572578844202"
+        iyz="-4.32833836046947E-19"
+        izz="0.00136511673062511" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://urdf.SLDASM/meshes/gimbol&amp;launch.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://urdf.SLDASM/meshes/gimbol&amp;launch.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="gimbol&amp;launch"
+    type="continuous">
+    <origin
+      xyz="0 0 0.1136"
+      rpy="0 0 -0.17391" />
+    <parent
+      link="Total assembly" />
+    <child
+      link="gimbol&amp;launch" />
+    <axis
+      xyz="0 0 -1" />
+  </joint>
+  <link
+    name="launch">
+    <inertial>
+      <origin
+        xyz="-0.0526954299975222 2.81969296522799E-09 0.0528104483400688"
+        rpy="0 0 0" />
+      <mass
+        value="2.91565370106525" />
+      <inertia
+        ixx="0.00653411801697912"
+        ixy="-2.08265526950128E-10"
+        ixz="0.00135570597140225"
+        iyy="0.0130327240230517"
+        iyz="-2.7407729920282E-10"
+        izz="0.015060664789859" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://urdf.SLDASM/meshes/launch.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://urdf.SLDASM/meshes/launch.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="launch"
+    type="continuous">
+    <origin
+      xyz="0 0 0.0934"
+      rpy="0 0.062163 0" />
+    <parent
+      link="gimbol&amp;launch" />
+    <child
+      link="launch" />
+    <axis
+      xyz="0 -1 0" />
+  </joint>
+</robot>

@@ -1,0 +1,1 @@
+controller_joint_names: ['', 'body&wheels', 'frout left wheel', 'frout right wheel', 'back left wheel', 'back right wheel', 'body&gimbol', 'gimbol', 'gimbol&launch', 'launch', ]
