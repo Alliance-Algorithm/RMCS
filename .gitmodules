@@ -1,0 +1,3 @@
+[submodule "rmcs_ws/src/serial"]
+	path = rmcs_ws/src/serial
+	url = git@github.com:Alliance-Algorithm/serial.git
