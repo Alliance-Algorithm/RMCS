@@ -30,7 +30,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "description_package",
             default_value="omni_description",
-            description="Description package of the omni. Usually the argument is not set, \
+            description="Description package of the rmcs. Usually the argument is not set, \
         it enables use of a custom description.",
         )
     )
@@ -54,7 +54,7 @@ def generate_launch_description():
             PathJoinSubstitution([FindExecutable(name="xacro")]),
             " ",
             PathJoinSubstitution(
-                [FindPackageShare(description_package), "urdf", "omni.urdf.xacro"]
+                [FindPackageShare(description_package), "urdf", "rmcs.urdf.xacro"]
             ),
             " ",
             "prefix:=",
@@ -66,7 +66,7 @@ def generate_launch_description():
     robot_description = {"robot_description": robot_description_content}
 
     rviz_config_file = PathJoinSubstitution(
-        [FindPackageShare(description_package), "rviz", "omni.rviz"]
+        [FindPackageShare(description_package), "rviz", "rmcs.rviz"]
     )
 
     joint_state_publisher_node = Node(

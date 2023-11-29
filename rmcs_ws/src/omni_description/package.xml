@@ -2,8 +2,13 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>omni_description</name>
-  <version>0.0.0</version>
-  <description>omni_description</description>
+  <version>1.0.0</version>
+  <description>
+    <p>URDF Description package for omni_description</p>
+    <p>This package contains configuration data,
+    3D models and launch files
+      for omni_description robot</p>
+  </description>
   <maintainer email="sy2330@qq.com">世羽</maintainer>
   <license>GPL-3.0-only</license>
 
@@ -13,9 +18,9 @@
 
   <exec_depend>robot_state_publisher</exec_depend>
 
-  <exec_depend>rviz2</exec_depend>
-
   <exec_depend>xacro</exec_depend>
+
+  <exec_depend>gazebo</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
