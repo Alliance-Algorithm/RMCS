@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- This URDF was automatically created by SolidWorks to URDF Exporter! Originally created by Stephen Brawner (brawner@gmail.com) 
+<!-- This URDF was automatically created by SolidWorks to URDF Exporter!
+     Originally created by Stephen Brawner (brawner@gmail.com) 
      Commit Version: 1.6.0-4-g7f85cfe  Build Version: 1.6.7995.38578
      For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
 <robot
@@ -26,7 +27,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://omni_description/meshes/omni_description.STL" />
+          filename="package://omni_infantry_description/meshes/omni_description.STL" />
       </geometry>
       <material
         name="">
@@ -40,7 +41,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://omni_description/meshes/omni_description.STL" />
+          filename="package://omni_infantry_description/meshes/omni_description.STL" />
       </geometry>
     </collision>
   </link>
@@ -66,7 +67,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://omni_description/meshes/body.STL" />
+          filename="package://omni_infantry_description/meshes/body.STL" />
       </geometry>
       <material
         name="">
@@ -80,7 +81,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://omni_description/meshes/body.STL" />
+          filename="package://omni_infantry_description/meshes/body.STL" />
       </geometry>
     </collision>
   </link>
@@ -119,7 +120,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://omni_description/meshes/front_left_wheel.STL" />
+          filename="package://omni_infantry_description/meshes/front_left_wheel.STL" />
       </geometry>
       <material
         name="">
@@ -133,13 +134,13 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://omni_description/meshes/front_left_wheel.STL" />
+          filename="package://omni_infantry_description/meshes/front_left_wheel.STL" />
       </geometry>
     </collision>
   </link>
   <joint
     name="front_left_wheel"
-    type="revolute">
+    type="continuous">
     <origin
       xyz="0.13532 0.01052 -0.35759"
       rpy="0.052033 0.25223 0.20573" />
@@ -177,7 +178,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://omni_description/meshes/front_right_wheel.STL" />
+          filename="package://omni_infantry_description/meshes/front_right_wheel.STL" />
       </geometry>
       <material
         name="">
@@ -191,13 +192,13 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://omni_description/meshes/front_right_wheel.STL" />
+          filename="package://omni_infantry_description/meshes/front_right_wheel.STL" />
       </geometry>
     </collision>
   </link>
   <joint
     name="front_right_wheel"
-    type="revolute">
+    type="continuous">
     <origin
       xyz="-0.043633 -0.268 -0.31076"
       rpy="-0.25256 0.050385 -1.3781" />
@@ -235,7 +236,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://omni_description/meshes/back_left_wheel.STL" />
+          filename="package://omni_infantry_description/meshes/back_left_wheel.STL" />
       </geometry>
       <material
         name="">
@@ -249,13 +250,13 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://omni_description/meshes/back_left_wheel.STL" />
+          filename="package://omni_infantry_description/meshes/back_left_wheel.STL" />
       </geometry>
     </collision>
   </link>
   <joint
     name="back_left_wheel"
-    type="revolute">
+    type="continuous">
     <origin
       xyz="-0.13409 0.1955 -0.28694"
       rpy="0.25256 -0.050385 1.7635" />
@@ -293,7 +294,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://omni_description/meshes/back_right_wheel.STL" />
+          filename="package://omni_infantry_description/meshes/back_right_wheel.STL" />
       </geometry>
       <material
         name="">
@@ -307,13 +308,13 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://omni_description/meshes/back_right_wheel.STL" />
+          filename="package://omni_infantry_description/meshes/back_right_wheel.STL" />
       </geometry>
     </collision>
   </link>
   <joint
     name="back_right_wheel"
-    type="revolute">
+    type="continuous">
     <origin
       xyz="-0.31291 -0.08302 -0.23959"
       rpy="-0.052033 -0.25223 -2.9359" />
@@ -351,7 +352,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://omni_description/meshes/gimbol_yaw.STL" />
+          filename="package://omni_infantry_description/meshes/gimbol_yaw.STL" />
       </geometry>
       <material
         name="">
@@ -365,13 +366,13 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://omni_description/meshes/gimbol_yaw.STL" />
+          filename="package://omni_infantry_description/meshes/gimbol_yaw.STL" />
       </geometry>
     </collision>
   </link>
   <joint
     name="gimbol_yaw"
-    type="revolute">
+    type="continuous">
     <origin
       xyz="-0.036779 -0.03625 -0.10102"
       rpy="0 0.25743 0" />
@@ -409,7 +410,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://omni_description/meshes/gimbol_pitch.STL" />
+          filename="package://omni_infantry_description/meshes/gimbol_pitch.STL" />
       </geometry>
       <material
         name="">
@@ -423,7 +424,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://omni_description/meshes/gimbol_pitch.STL" />
+          filename="package://omni_infantry_description/meshes/gimbol_pitch.STL" />
       </geometry>
     </collision>
   </link>
@@ -467,7 +468,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://omni_description/meshes/left_launch.STL" />
+          filename="package://omni_infantry_description/meshes/left_launch.STL" />
       </geometry>
       <material
         name="">
@@ -481,13 +482,13 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://omni_description/meshes/left_launch.STL" />
+          filename="package://omni_infantry_description/meshes/left_launch.STL" />
       </geometry>
     </collision>
   </link>
   <joint
     name="left_launch"
-    type="revolute">
+    type="continuous">
     <origin
       xyz="0.013 0.03625 0.0107"
       rpy="0 0 0" />
@@ -525,7 +526,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://omni_description/meshes/right_launch.STL" />
+          filename="package://omni_infantry_description/meshes/right_launch.STL" />
       </geometry>
       <material
         name="">
@@ -539,13 +540,13 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://omni_description/meshes/right_launch.STL" />
+          filename="package://omni_infantry_description/meshes/right_launch.STL" />
       </geometry>
     </collision>
   </link>
   <joint
     name="right_launch"
-    type="revolute">
+    type="continuous">
     <origin
       xyz="0.013 -0.03625 0.0107"
       rpy="0 0 0" />
