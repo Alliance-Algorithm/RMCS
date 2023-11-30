@@ -4,9 +4,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <map>
 #include <memory>
 
-#include <rclcpp/logger.hpp>
+#include <rclcpp/logging.hpp>
 #include <serial/serial.h>
 
 #include "verify.hpp"
@@ -31,7 +32,7 @@ public:
         USB_PKG_SPI  = 0x30,
         USB_PKG_IIC  = 0x40,
     };
-    static uint8_t TypeEncode(PackageType type, uint8_t destnation) {
+    static constexpr uint8_t TypeEncode(PackageType type, uint8_t destnation) {
         return static_cast<uint8_t>(type) | destnation;
     }
     static PackageType TypeDecode(uint8_t type_code) {
