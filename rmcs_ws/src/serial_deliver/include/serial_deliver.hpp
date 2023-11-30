@@ -35,10 +35,10 @@ public:
     static constexpr uint8_t TypeEncode(PackageType type, uint8_t destnation) {
         return static_cast<uint8_t>(type) | destnation;
     }
-    static PackageType TypeDecode(uint8_t type_code) {
+    static constexpr PackageType TypeDecode(uint8_t type_code) {
         return static_cast<PackageType>(type_code & 0xF0);
     }
-    static uint8_t DestnationDecode(uint8_t type_code) { return type_code & 0x0F; }
+    static constexpr uint8_t DestnationDecode(uint8_t type_code) { return type_code & 0x0F; }
 
     struct alignas(1) PackageHead {
         uint8_t head;
@@ -122,7 +122,8 @@ public:
     SerialDeliver& operator=(const SerialDeliver&) = delete;
     virtual ~SerialDeliver()                       = default;
 
-    using VerifyCodeCalculator = verify::CheckSumCalculator;
+    using VerifyCodeCalculator   = verify::CheckSumCalculator;
+    using packages_callback_type = void (*)(const uint8_t*);
 
     bool open(const std::string& serialport) {
         RCLCPP_INFO(
@@ -186,8 +187,12 @@ public:
                 continue;
             }
 
-            packages_[package.type_code].merge<VerifyCodeCalculator>(
-                buf_, package.size + sizeof(PackageHead));
+            if (packages_callback_.contains(package.type_code)) {
+                packages_callback_.at(package.type_code)(buf_);
+            } else if (packages_.contains(package.type_code)) {
+                packages_.at(package.type_code)
+                    .merge<VerifyCodeCalculator>(buf_, package.size + sizeof(PackageHead));
+            }
         }
     }
 
@@ -201,6 +206,13 @@ public:
                 package.split<VerifyCodeCalculator>(type_code, data, size, split_size);
             serial_->write(package.send_buf(), send_buf_size);
         }
+    }
+
+    void subscribe(uint8_t type_code, packages_callback_type callback = nullptr) {
+        if (callback != nullptr)
+            packages_callback_.emplace(callback);
+        else if (!packages_.contains(type_code))
+            packages_.emplace(type_code);
     }
 
     size_t get(uint8_t type_code, uint8_t* data) {
@@ -221,6 +233,7 @@ public:
 private:
     std::unique_ptr<serial::Serial> serial_;
     std::map<uint8_t, SerialPackage> packages_;
+    std::map<uint8_t, packages_callback_type> packages_callback_;
 
     uint8_t buf_[package_buf_size];
 };

@@ -1,21 +1,21 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>omni_infantry_description</name>
+  <name>rmcs_msgs</name>
   <version>0.0.0</version>
-  <description>omni_infantry_description</description>
+  <description>rmcs_msgs</description>
   <maintainer email="sy2330@qq.com">KalecKKK</maintainer>
   <license>GPL-3.0-only</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>rosidl_default_generators</buildtool_depend>
 
-  <exec_depend>joint_state_publisher_gui</exec_depend>
+  <build_depend>builtin_interfaces</build_depend>
+  <build_depend>lifecycle_msgs</build_depend>
 
-  <exec_depend>robot_state_publisher</exec_depend>
-
-  <exec_depend>rviz2</exec_depend>
-
-  <exec_depend>xacro</exec_depend>
+  <exec_depend>builtin_interfaces</exec_depend>
+  <exec_depend>lifecycle_msgs</exec_depend>
+  <exec_depend>rosidl_default_runtime</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

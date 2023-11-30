@@ -23,6 +23,7 @@ public:
     virtual ~CanMotorTxData() = default;
 
     void setCanId(const int32_t can_id) { can_id_ = can_id; }
+    int32_t getCanId() const { return can_id_; }
 
     void get(uint8_t* buf) {
         auto& motor_package = *reinterpret_cast<CanMotorPackage*>(buf);

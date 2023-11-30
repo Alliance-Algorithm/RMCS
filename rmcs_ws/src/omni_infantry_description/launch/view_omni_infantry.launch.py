@@ -16,12 +16,16 @@
 # Author: Dr. Denis
 #
 
+import os
+
+from ament_index_python import get_package_share_directory
+
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
-
+from launch.launch_description_sources import AnyLaunchDescriptionSource
 
 def generate_launch_description():
     # Declare arguments
@@ -86,12 +90,19 @@ def generate_launch_description():
         output="log",
         arguments=["-d", rviz_config_file],
     )
+    foxglove = IncludeLaunchDescription(
+        AnyLaunchDescriptionSource(
+            os.path.join(
+                get_package_share_directory('foxglove_bridge'),
+                'launch/foxglove_bridge_launch.xml'))
+    )
 
     return LaunchDescription(
         declared_arguments
         + [
             joint_state_publisher_node,
             robot_state_publisher_node,
-            rviz_node,
+            # rviz_node,
+            foxglove,
         ]
     )

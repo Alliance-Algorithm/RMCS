@@ -16,12 +16,17 @@
 # Author: Dr. Denis
 #
 
+import os
+
+from ament_index_python import get_package_share_directory
+
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, RegisterEventHandler, TimerAction
-from launch.event_handlers import OnProcessExit, OnProcessStart
+from launch.actions import DeclareLaunchArgument, RegisterEventHandler, TimerAction, IncludeLaunchDescription
 from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
+from launch.launch_description_sources import AnyLaunchDescriptionSource
+from launch.event_handlers import OnProcessExit, OnProcessStart
 
 
 def generate_launch_description():
@@ -149,6 +154,13 @@ def generate_launch_description():
         output="log",
         arguments=["-d", rviz_config_file],
     )
+    foxglove = IncludeLaunchDescription(
+        AnyLaunchDescriptionSource(
+            os.path.join(
+                get_package_share_directory('foxglove_bridge'),
+                'launch/foxglove_bridge_launch.xml'))
+    )
+
 
     joint_state_broadcaster_spawner = Node(
         package="controller_manager",
@@ -224,7 +236,8 @@ def generate_launch_description():
         + [
             control_node,
             robot_state_pub_node,
-            rviz_node,
+            # rviz_node,
+            foxglove,
             delay_joint_state_broadcaster_spawner_after_ros2_control_node,
         ]
         + delay_robot_controller_spawners_after_joint_state_broadcaster_spawner

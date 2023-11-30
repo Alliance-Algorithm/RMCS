@@ -42,6 +42,9 @@ hardware_interface::CallbackReturn
     if (!serial_.open(serialport_))
         return CallbackReturn::ERROR;
 
+    serial_.subscribe(hw_states_packages::can1_type_code);
+    serial_.subscribe(hw_states_packages::dbus_type_code);
+
     return CallbackReturn::SUCCESS;
 }
 
@@ -77,6 +80,7 @@ std::vector<hardware_interface::CommandInterface> OmniInfantrySystem::export_com
 
 hardware_interface::CallbackReturn
     OmniInfantrySystem::on_activate(const rclcpp_lifecycle::State& /*previous_state*/) {
+    // To clear the system buffer and call all the callback functions
     serial_.update();
 
     return CallbackReturn::SUCCESS;
@@ -93,14 +97,8 @@ hardware_interface::return_type
     OmniInfantrySystem::read(const rclcpp::Time& /*time*/, const rclcpp::Duration& /*period*/) {
     static uint8_t data_buf[1024];
 
-    serial_.recv(hw_states_packages::can1_type_code, data_buf);
-    can_motor_states_[0].set(data_buf);
-    serial_.recv(hw_states_packages::can1_type_code, data_buf);
-    can_motor_states_[1].set(data_buf);
-    serial_.recv(hw_states_packages::can1_type_code, data_buf);
-    can_motor_states_[2].set(data_buf);
-    serial_.recv(hw_states_packages::can1_type_code, data_buf);
-    can_motor_states_[3].set(data_buf);
+    serial_.recv(hw_states_packages::dbus_type_code, data_buf);
+    uart_dbus_states_.set(data_buf);
 
     return hardware_interface::return_type::OK;
 }

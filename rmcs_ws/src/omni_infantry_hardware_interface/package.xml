@@ -4,7 +4,7 @@
   <name>omni_infantry_hardware_interface</name>
   <version>0.0.0</version>
   <description>omni_infantry_hardware_interface</description>
-  <maintainer email="sy2330@qq.com">世羽</maintainer>
+  <maintainer email="sy2330@qq.com">KalecKKK</maintainer>
   <license>GPL-3.0-only</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>

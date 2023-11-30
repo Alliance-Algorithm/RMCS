@@ -28,6 +28,7 @@
 #include "rclcpp_lifecycle/state.hpp"
 
 #include "hw_states_packages/can_motor.hpp"
+#include "hw_states_packages/uart_dbus.hpp"
 #include "serial_deliver.hpp"
 
 namespace omni_infantry_hardware_interface {
