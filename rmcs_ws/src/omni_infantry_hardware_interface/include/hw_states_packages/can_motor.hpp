@@ -55,12 +55,12 @@ private:
         uint8_t _;
     } __attribute__((packed));
 
-    void AngleAccumulate(int16_t measurement) {
+    void PositionAccumulate(int16_t measurement) {
         double diff_position = measurement - last_position_;
         if (diff_position < -position_max_ / 2)
-            position += position_max_;
+            position += position_max_ + 1;
         else if (diff_position > position_max_ / 2)
-            position -= position_max_;
+            position -= position_max_ + 1;
         position += diff_position;
         last_position_ = measurement;
     }
@@ -77,7 +77,7 @@ public:
     void set(const uint8_t* buf) {
         auto& motor_package = *reinterpret_cast<const CanMotorPackage*>(buf);
 
-        AngleAccumulate(motor_package.position);
+        PositionAccumulate(motor_package.position);
         velocity = motor_package.velocity;
     }
 };
