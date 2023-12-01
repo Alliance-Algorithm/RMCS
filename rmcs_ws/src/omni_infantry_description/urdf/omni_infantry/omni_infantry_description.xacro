@@ -7,13 +7,25 @@
     <!-- LINKS -->
     <!-- base link -->
     <link name="${prefix}base_link">
-      <xacro:default_inertial />
+      <inertial>
+        <origin
+          xyz="-0.014464583145287 -3.47778019611777E-08 -0.0463018865662903"
+          rpy="0 0 0" />
+        <mass value="7.38762341423434" />
+        <inertia
+          ixx="0.0858099715349203"
+          ixy="9.06674283545546E-08"
+          ixz="0.00463615934367856"
+          iyy="0.108320017042519"
+          iyz="9.21827441556145E-06"
+          izz="0.161187478867477" />
+      </inertial>
       <visual>
         <origin
-          xyz="-0.0891411750689129 -0.0282474641235061 -0.252587475455594"
+          xyz="0 0 0"
           rpy="0 0 0" />
         <geometry>
-          <mesh filename="package://omni_infantry_description/meshes/omni_infantry.STL" />
+          <mesh filename="package://omni_infantry_description/meshes/base_link.STL" />
         </geometry>
         <material name="">
           <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
@@ -21,18 +33,294 @@
       </visual>
       <collision>
         <origin
-          xyz="-0.0891411750689129 -0.0282474641235061 -0.252587475455594"
+          xyz="0 0 0"
           rpy="0 0 0" />
         <geometry>
-          <mesh filename="package://omni_infantry_description/meshes/omni_infantry.STL" />
+          <mesh filename="package://omni_infantry_description/meshes/base_link.STL" />
         </geometry>
       </collision>
     </link>
 
-    <link name="${prefix}front_left_wheel_link" />
-    <link name="${prefix}front_right_wheel_link" />
-    <link name="${prefix}back_left_wheel_link" />
-    <link name="${prefix}back_right_wheel_link" />
+    <link name="${prefix}front_left_wheel_link">
+      <inertial>
+        <origin
+          xyz="-0.0145 0 -1.1102E-16"
+          rpy="0 0 0" />
+        <mass value="0.53318" />
+        <inertia
+          ixx="0.0015601"
+          ixy="1.0842E-19"
+          ixz="3.9211E-20"
+          iyy="0.00081744"
+          iyz="1.0406E-19"
+          izz="0.00081744" />
+      </inertial>
+      <visual>
+        <origin
+          xyz="0 0 0"
+          rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://omni_infantry_description/meshes/front_left_wheel_link.STL" />
+        </geometry>
+        <material name="">
+          <color rgba="0.79216 0.81961 0.93333 1" />
+        </material>
+      </visual>
+      <collision>
+        <origin
+          xyz="0 0 0"
+          rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://omni_infantry_description/meshes/front_left_wheel_link.STL" />
+        </geometry>
+      </collision>
+    </link>
+
+    <link name="${prefix}front_right_wheel_link">
+      <inertial>
+        <origin
+          xyz="-0.0145 -1.38777878078145E-17 -1.11022302462516E-16"
+          rpy="0 0 0" />
+        <mass value="0.533176182602155" />
+        <inertia
+          ixx="0.00156014015731673"
+          ixy="0"
+          ixz="9.67092878960191E-20"
+          iyy="0.000817436842789067"
+          iyz="4.59189434683823E-20"
+          izz="0.000817436842789066" />
+      </inertial>
+      <visual>
+        <origin
+          xyz="0 0 0"
+          rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://omni_infantry_description/meshes/front_right_wheel_link.STL" />
+        </geometry>
+        <material name="">
+          <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+        </material>
+      </visual>
+      <collision>
+        <origin
+          xyz="0 0 0"
+          rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://omni_infantry_description/meshes/front_right_wheel_link.STL" />
+        </geometry>
+      </collision>
+    </link>
+
+    <link name="${prefix}back_left_wheel_link">
+      <inertial>
+        <origin
+          xyz="-0.0145 -1.38777878078145E-17 0"
+          rpy="0 0 0" />
+        <mass value="0.533176182602155" />
+        <inertia
+          ixx="0.00156014015731673"
+          ixy="0"
+          ixz="-1.14198415930064E-20"
+          iyy="0.000817436842789067"
+          iyz="-5.8057516350459E-20"
+          izz="0.000817436842789067" />
+      </inertial>
+      <visual>
+        <origin
+          xyz="0 0 0"
+          rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://omni_infantry_description/meshes/back_left_wheel_link.STL" />
+        </geometry>
+        <material name="">
+          <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+        </material>
+      </visual>
+      <collision>
+        <origin
+          xyz="0 0 0"
+          rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://omni_infantry_description/meshes/back_left_wheel_link.STL" />
+        </geometry>
+      </collision>
+    </link>
+
+    <link name="${prefix}back_right_wheel_link">
+      <inertial>
+        <origin
+          xyz="-0.0145 2.77555756156289E-17 -1.11022302462516E-16"
+          rpy="0 0 0" />
+        <mass
+          value="0.533176182602155" />
+        <inertia
+          ixx="0.00156014015731673"
+          ixy="-5.42101086242752E-20"
+          ixz="-2.99471370445972E-20"
+          iyy="0.000817436842789066"
+          iyz="8.52095872708936E-20"
+          izz="0.000817436842789066" />
+      </inertial>
+      <visual>
+        <origin
+          xyz="0 0 0"
+          rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://omni_infantry_description/meshes/back_right_wheel_link.STL" />
+        </geometry>
+        <material name="">
+          <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+        </material>
+      </visual>
+      <collision>
+        <origin
+          xyz="0 0 0"
+          rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://omni_infantry_description/meshes/back_right_wheel_link.STL" />
+        </geometry>
+      </collision>
+    </link>
+
+    <link name="${prefix}yaw_link">
+      <inertial>
+        <origin
+          xyz="-0.000418768299019823 -3.85108611666851E-16 -0.0356697610188732"
+          rpy="0 0 0" />
+        <mass value="0.296006965244182" />
+        <inertia
+          ixx="0.00245101679694452"
+          ixy="-4.33680868994202E-19"
+          ixz="1.00776769706155E-05"
+          iyy="0.00145725788442021"
+          iyz="6.68308995383643E-19"
+          izz="0.00136511673062511" />
+      </inertial>
+      <visual>
+        <origin
+          xyz="0 0 0"
+          rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://omni_infantry_description/meshes/yaw_link.STL" />
+        </geometry>
+        <material name="">
+          <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+        </material>
+      </visual>
+      <collision>
+        <origin
+          xyz="0 0 0"
+          rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://omni_infantry_description/meshes/yaw_link.STL" />
+        </geometry>
+      </collision>
+    </link>
+
+    <link name="${prefix}pitch_link">
+      <inertial>
+        <origin
+          xyz="-0.0540675175179778 -5.25311614346657E-09 0.0537776989933929"
+          rpy="0 0 0" />
+        <mass value="2.85600268929187" />
+        <inertia
+          ixx="0.0064336238659403"
+          ixy="1.21832161083453E-10"
+          ixz="0.00134212238936282"
+          iyy="0.0129875963565574"
+          iyz="3.72634163942098E-10"
+          izz="0.0149318473098399" />
+      </inertial>
+      <visual>
+        <origin
+          xyz="0 0 0"
+          rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://omni_infantry_description/meshes/pitch_link.STL" />
+        </geometry>
+        <material name="">
+          <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+        </material>
+      </visual>
+      <collision>
+        <origin
+          xyz="0 0 0"
+          rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://omni_infantry_description/meshes/pitch_link.STL" />
+        </geometry>
+      </collision>
+    </link>
+
+    <link name="${prefix}left_launch_link">
+      <inertial>
+        <origin
+          xyz="-2.77555756156289E-17 6.93889390390723E-18 -0.00484999999999991"
+          rpy="0 0 0" />
+        <mass value="0.0265195187658292" />
+        <inertia
+          ixx="5.9775879282138E-06"
+          ixy="-4.67165284815436E-22"
+          ixz="6.35274710440725E-22"
+          iyy="5.97758792821379E-06"
+          iyz="1.29826492595911E-21"
+          izz="1.15393056029814E-05" />
+      </inertial>
+      <visual>
+        <origin
+          xyz="0 0 0"
+          rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://omni_infantry_description/meshes/left_launch_link.STL" />
+        </geometry>
+        <material name="">
+          <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+        </material>
+      </visual>
+      <collision>
+        <origin
+          xyz="0 0 0"
+          rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://omni_infantry_description/meshes/left_launch_link.STL" />
+        </geometry>
+      </collision>
+    </link>
+
+    <link name="${prefix}right_launch_link">
+      <inertial>
+        <origin
+          xyz="2.77555756156289E-17 1.73472347597681E-18 -0.00484999999999991"
+          rpy="0 0 0" />
+        <mass value="0.0265195187658292" />
+        <inertia
+          ixx="5.9775879282138E-06"
+          ixy="-3.76709637678514E-22"
+          ixz="1.05879118406788E-22"
+          iyy="5.97758792821379E-06"
+          iyz="1.4929471988187E-22"
+          izz="1.15393056029814E-05" />
+      </inertial>
+      <visual>
+        <origin
+          xyz="0 0 0"
+          rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://omni_infantry_description/meshes/right_launch_link.STL" />
+        </geometry>
+        <material name="">
+          <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+        </material>
+      </visual>
+      <collision>
+        <origin
+          xyz="0 0 0"
+          rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://omni_infantry_description/meshes/right_launch_link.STL" />
+        </geometry>
+      </collision>
+    </link>
     <!-- END LINKS -->
 
     <joint name="${prefix}base_joint" type="fixed">
@@ -43,42 +331,80 @@
 
     <joint name="${prefix}front_left_wheel" type="continuous">
       <origin
-        xyz="0.13532 0.01052 -0.35759"
-        rpy="0.052033 0.25223 0.20573" />
-      <parent link="${prefix}base_link" />
-      <child link="${prefix}front_left_wheel_link" />
+        xyz="0.16717772074203 0.167177720742029 -0.0906999999999999"
+        rpy="0 0 0.785398163397448" />
+      <parent link="base_link" />
+      <child link="front_left_wheel_link" />
       <axis xyz="1 0 0" />
-      <limit lower="0" upper="0" effort="0" velocity="0" />
     </joint>
 
     <joint name="${prefix}front_right_wheel" type="continuous">
       <origin
-        xyz="-0.043633 -0.268 -0.31076"
-        rpy="-0.25256 0.050385 -1.3781" />
-      <parent link="${prefix}base_link" />
-      <child link="${prefix}front_right_wheel_link" />
+        xyz="0.16717772074203 -0.167177720742029 -0.0909700000000002"
+        rpy="0 0 -0.785398163397448" />
+      <parent link="base_link" />
+      <child link="front_right_wheel_link" />
       <axis xyz="1 0 0" />
-      <limit lower="0" upper="0" effort="0" velocity="0" />
     </joint>
 
     <joint name="${prefix}back_left_wheel" type="continuous">
       <origin
-        xyz="-0.13409 0.1955 -0.28694"
-        rpy="0.25256 -0.050385 1.7635" />
-      <parent link="${prefix}base_link" />
-      <child link="${prefix}back_left_wheel_link" />
+        xyz="-0.167177720742029 0.167177720742029 -0.0909700000000001"
+        rpy="0 0 2.35619449019234" />
+      <parent link="base_link" />
+      <child link="back_left_wheel_link" />
       <axis xyz="-1 0 0" />
-      <limit lower="0" upper="0" effort="0" velocity="0" />
     </joint>
 
     <joint name="${prefix}back_right_wheel" type="continuous">
       <origin
-        xyz="-0.31291 -0.08302 -0.23959"
-        rpy="-0.052033 -0.25223 -2.9359" />
-      <parent link="${prefix}base_link" />
-      <child link="${prefix}back_right_wheel_link" />
+        xyz="-0.16717772074203 -0.16717772074203 -0.0907"
+        rpy="0 0 -2.35619449019235" />
+      <parent link="base_link" />
+      <child link="back_right_wheel_link" />
       <axis xyz="-1 0 0" />
-      <limit lower="0" upper="0" effort="0" velocity="0" />
     </joint>
+
+    <joint name="${prefix}yaw" type="continuous">
+      <origin
+        xyz="0 0 0.1136"
+        rpy="0 0 0.58626" />
+      <parent link="base_link" />
+      <child link="yaw_link" />
+      <axis xyz="0 0 -1" />
+    </joint>
+
+    <joint name="${prefix}pitch" type="revolute">
+      <origin
+        xyz="0 0 0.0934"
+        rpy="0 -0.25743 0" />
+      <parent link="yaw_link" />
+      <child link="pitch_link" />
+      <axis xyz="0 -1 0" />
+      <limit
+        lower="0"
+        upper="0"
+        effort="0"
+        velocity="0" />
+    </joint>
+
+    <joint name="${prefix}left_launch" type="continuous">
+      <origin
+        xyz="0.013 0.03625 0.0107"
+        rpy="0 0 0" />
+      <parent link="pitch_link" />
+      <child link="left_launch_link" />
+      <axis xyz="0 0 -1" />
+    </joint>
+
+    <joint name="${prefix}right_launch" type="continuous">
+      <origin
+        xyz="0.013 -0.03625 0.0107"
+        rpy="0 0 0" />
+      <parent link="pitch_link" />
+      <child link="right_launch_link" />
+      <axis xyz="0 0 -1" />
+    </joint>
+
   </xacro:macro>
 </robot>
