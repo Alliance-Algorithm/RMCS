@@ -90,7 +90,7 @@ def generate_launch_description():
         output="log",
         arguments=["-d", rviz_config_file],
     )
-    foxglove = IncludeLaunchDescription(
+    foxglove_bridge = IncludeLaunchDescription(
         AnyLaunchDescriptionSource(
             os.path.join(
                 get_package_share_directory('foxglove_bridge'),
@@ -109,8 +109,8 @@ def generate_launch_description():
             joint_state_publisher_node,
             robot_state_publisher_node,
             # rviz_node,
-            foxglove,
-            # gazebo,
+            # foxglove_bridge,
+            gazebo,
             spawn_entity,
         ]
     )
