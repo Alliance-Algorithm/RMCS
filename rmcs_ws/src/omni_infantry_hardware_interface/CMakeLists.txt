@@ -17,6 +17,8 @@ find_package(pluginlib REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
 find_package(serial_deliver REQUIRED)
+find_package(realtime_tools REQUIRED)
+find_package(rmcs_msgs REQUIRED)
 
 add_library(
   omni_infantry_hardware_interface
@@ -34,6 +36,8 @@ ament_target_dependencies(
   rclcpp
   rclcpp_lifecycle
   serial_deliver
+  realtime_tools
+  rmcs_msgs
 )
 
 # prevent pluginlib from using boost
@@ -78,6 +82,8 @@ if(BUILD_TESTING)
     pluginlib
     ros2_control_test_assets
     serial_deliver
+    realtime_tools
+    rmcs_msgs
   )
 endif()
 
@@ -93,6 +99,8 @@ ament_export_dependencies(
   rclcpp
   rclcpp_lifecycle
   serial_deliver
+  realtime_tools
+  rmcs_msgs
 )
 
 ament_package()

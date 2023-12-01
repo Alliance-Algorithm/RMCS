@@ -9,8 +9,8 @@ namespace hw_states_packages {
 
 class UartDbusRxData {
 public:
-    double ch1, ch2, ch3, ch4;
-    double sw1, sw2;
+    int16_t ch1, ch2, ch3, ch4;
+    uint8_t sw1, sw2;
 
     UartDbusRxData()          = default;
     virtual ~UartDbusRxData() = default;
