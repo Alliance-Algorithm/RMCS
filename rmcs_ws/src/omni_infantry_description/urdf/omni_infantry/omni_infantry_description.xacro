@@ -5,7 +5,6 @@
 
   <xacro:macro name="omni_infantry" params="prefix parent *origin">
     <!-- LINKS -->
-    <!-- base link -->
     <link name="${prefix}omni_infantry">
       <inertial>
         <origin
@@ -23,7 +22,7 @@
       <visual>
         <origin
           xyz="0 0 0"
-          rpy="0 0 0" />
+          rpy="-1.570796326794896 0 0" />
         <geometry>
           <mesh filename="package://omni_infantry_description/meshes/omni_infantry.STL" />
         </geometry>
@@ -34,7 +33,7 @@
       <collision>
         <origin
           xyz="0 0 0"
-          rpy="0 0 0" />
+          rpy="-1.570796326794896 0 0" />
         <geometry>
           <mesh filename="package://omni_infantry_description/meshes/omni_infantry.STL" />
         </geometry>
@@ -199,7 +198,7 @@
       <visual>
         <origin
           xyz="0 0 0"
-          rpy="0 0 0" />
+          rpy="-1.570796326794896 0 0" />
         <geometry>
           <mesh filename="package://omni_infantry_description/meshes/yaw_link.STL" />
         </geometry>
@@ -210,7 +209,7 @@
       <collision>
         <origin
           xyz="0 0 0"
-          rpy="0 0 0" />
+          rpy="-1.570796326794896 0 0" />
         <geometry>
           <mesh filename="package://omni_infantry_description/meshes/yaw_link.STL" />
         </geometry>
@@ -234,7 +233,7 @@
       <visual>
         <origin
           xyz="0 0 0"
-          rpy="0 0 0" />
+          rpy="-1.570796326794896 0 0" />
         <geometry>
           <mesh filename="package://omni_infantry_description/meshes/pitch_link.STL" />
         </geometry>
@@ -245,7 +244,7 @@
       <collision>
         <origin
           xyz="0 0 0"
-          rpy="0 0 0" />
+          rpy="-1.570796326794896 0 0" />
         <geometry>
           <mesh filename="package://omni_infantry_description/meshes/pitch_link.STL" />
         </geometry>
@@ -323,7 +322,7 @@
     </link>
     <!-- END LINKS -->
 
-    <joint name="${prefix}base_joint" type="fixed">
+    <joint name="${prefix}omni_infantry_base" type="fixed">
       <xacro:insert_block name="origin" />
       <parent link="${parent}" />
       <child link="${prefix}omni_infantry" />
@@ -382,8 +381,8 @@
       <child link="${prefix}pitch_link" />
       <axis xyz="0 -1 0" />
       <limit
-        lower="-3.14"
-        upper="3.14"
+        lower="-1"
+        upper="0.7"
         effort="0"
         velocity="0" />
     </joint>
