@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<robot xmlns:xacro="http://wiki.ros.org/xacro">
+
+  <xacro:include filename="$(find omni_infantry_description)/urdf/common.xacro" />
+
+  <xacro:macro name="omni_infantry" params="prefix parent *origin">
+    <!-- LINKS -->
+    <!-- base link -->
+    <link name="${prefix}base_link">
+      <xacro:default_inertial />
+      <visual>
+        <origin
+          xyz="-0.0891411750689129 -0.0282474641235061 -0.252587475455594"
+          rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://omni_infantry_description/meshes/omni_infantry.STL" />
+        </geometry>
+        <material name="">
+          <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+        </material>
+      </visual>
+      <collision>
+        <origin
+          xyz="-0.0891411750689129 -0.0282474641235061 -0.252587475455594"
+          rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://omni_infantry_description/meshes/omni_infantry.STL" />
+        </geometry>
+      </collision>
+    </link>
+
+    <link name="${prefix}front_left_wheel_link" />
+    <link name="${prefix}front_right_wheel_link" />
+    <link name="${prefix}back_left_wheel_link" />
+    <link name="${prefix}back_right_wheel_link" />
+    <!-- END LINKS -->
+
+    <joint name="${prefix}base_joint" type="fixed">
+      <xacro:insert_block name="origin" />
+      <parent link="${parent}" />
+      <child link="${prefix}base_link" />
+    </joint>
+
+    <joint name="${prefix}front_left_wheel" type="continuous">
+      <origin
+        xyz="0.13532 0.01052 -0.35759"
+        rpy="0.052033 0.25223 0.20573" />
+      <parent link="${prefix}base_link" />
+      <child link="${prefix}front_left_wheel_link" />
+      <axis xyz="1 0 0" />
+      <limit lower="0" upper="0" effort="0" velocity="0" />
+    </joint>
+
+    <joint name="${prefix}front_right_wheel" type="continuous">
+      <origin
+        xyz="-0.043633 -0.268 -0.31076"
+        rpy="-0.25256 0.050385 -1.3781" />
+      <parent link="${prefix}base_link" />
+      <child link="${prefix}front_right_wheel_link" />
+      <axis xyz="1 0 0" />
+      <limit lower="0" upper="0" effort="0" velocity="0" />
+    </joint>
+
+    <joint name="${prefix}back_left_wheel" type="continuous">
+      <origin
+        xyz="-0.13409 0.1955 -0.28694"
+        rpy="0.25256 -0.050385 1.7635" />
+      <parent link="${prefix}base_link" />
+      <child link="${prefix}back_left_wheel_link" />
+      <axis xyz="-1 0 0" />
+      <limit lower="0" upper="0" effort="0" velocity="0" />
+    </joint>
+
+    <joint name="${prefix}back_right_wheel" type="continuous">
+      <origin
+        xyz="-0.31291 -0.08302 -0.23959"
+        rpy="-0.052033 -0.25223 -2.9359" />
+      <parent link="${prefix}base_link" />
+      <child link="${prefix}back_right_wheel_link" />
+      <axis xyz="-1 0 0" />
+      <limit lower="0" upper="0" effort="0" velocity="0" />
+    </joint>
+  </xacro:macro>
+</robot>

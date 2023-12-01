@@ -25,7 +25,7 @@ from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
-from launch.launch_description_sources import AnyLaunchDescriptionSource
+from launch.launch_description_sources import PythonLaunchDescriptionSource, AnyLaunchDescriptionSource
 
 def generate_launch_description():
     # Declare arguments
@@ -96,6 +96,12 @@ def generate_launch_description():
                 get_package_share_directory('foxglove_bridge'),
                 'launch/foxglove_bridge_launch.xml'))
     )
+    gazebo = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([os.path.join(
+            get_package_share_directory('gazebo_ros'), 'launch'), '/gazebo.launch.py']),
+    )
+    spawn_entity = Node(package='gazebo_ros', executable='spawn_entity.py',
+        arguments=['-topic', 'robot_description', '-entity', 'omni_infantry'], output='screen')
 
     return LaunchDescription(
         declared_arguments
@@ -104,5 +110,7 @@ def generate_launch_description():
             robot_state_publisher_node,
             # rviz_node,
             foxglove,
+            # gazebo,
+            spawn_entity,
         ]
     )

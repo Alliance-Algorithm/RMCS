@@ -11,9 +11,15 @@
   <xacro:arg name="simulation_controllers" default="" />
 
   <xacro:include
-    filename="$(find omni_infantry_description)/urdf/omni_infantry/omni_infantry_description.urdf" />
+    filename="$(find omni_infantry_description)/urdf/omni_infantry/omni_infantry_description.xacro" />
   <xacro:include
     filename="$(find omni_infantry_description)/urdf/omni_infantry/omni_infantry_macro.ros2_control.xacro" />
+
+  <link name="world" />
+
+  <xacro:omni_infantry prefix="$(arg prefix)" parent="world">
+    <origin xyz="0 0 0" rpy="0 0 0" />
+  </xacro:omni_infantry>
 
   <xacro:omni_infantry_ros2_control
     name="omni_infantry"
