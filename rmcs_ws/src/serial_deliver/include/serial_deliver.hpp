@@ -106,9 +106,9 @@ public:
         return false;
     }
 
-    PackageHead& read() { return *reinterpret_cast<PackageHead*>(rx_buf_); }
+    const PackageHead& read() const { return *reinterpret_cast<const PackageHead*>(rx_buf_); }
 
-    const uint8_t* send_buf() { return tx_buf_; }
+    const uint8_t* send_buf() const { return tx_buf_; }
 
 protected:
     uint8_t *tx_buf_, *rx_buf_;
@@ -116,14 +116,15 @@ protected:
 
 class SerialDeliver {
 public:
+    using VerifyCodeCalculator    = verify::CheckSumCalculator;
+    using PackagesReceiveCallback = void (*)(SerialDeliver*);
+
+public:
     SerialDeliver()                                = default;
     SerialDeliver(const SerialDeliver&)            = delete;
     SerialDeliver(const SerialDeliver&&)           = delete;
     SerialDeliver& operator=(const SerialDeliver&) = delete;
     virtual ~SerialDeliver()                       = default;
-
-    using VerifyCodeCalculator   = verify::CheckSumCalculator;
-    using packages_callback_type = void (*)(const uint8_t*);
 
     bool open(const std::string& serialport) {
         RCLCPP_INFO(
@@ -187,11 +188,12 @@ public:
                 continue;
             }
 
-            if (packages_callback_.contains(package.type_code)) {
-                packages_callback_.at(package.type_code)(buf_);
-            } else if (packages_.contains(package.type_code)) {
+            if (packages_.contains(package.type_code)) {
                 packages_.at(package.type_code)
                     .merge<VerifyCodeCalculator>(buf_, package.size + sizeof(PackageHead));
+            }
+            if (packages_callback_.contains(package.type_code)) {
+                packages_callback_.at(package.type_code)(this);
             }
         }
     }
@@ -208,14 +210,14 @@ public:
         }
     }
 
-    void subscribe(uint8_t type_code, packages_callback_type callback = nullptr) {
+    void subscribe(uint8_t type_code, PackagesReceiveCallback callback = nullptr) {
         if (callback != nullptr)
-            packages_callback_.emplace(callback);
-        else if (!packages_.contains(type_code))
-            packages_.emplace(type_code);
+            packages_callback_.emplace(type_code, callback);
+        if (!packages_.contains(type_code))
+            packages_.emplace(type_code, SerialPackage());
     }
 
-    size_t get(uint8_t type_code, uint8_t* data) {
+    size_t get(uint8_t type_code, uint8_t* data) const {
         if (!packages_.contains(type_code))
             return 0;
         auto& package = packages_.at(type_code).read();
@@ -233,7 +235,7 @@ public:
 private:
     std::unique_ptr<serial::Serial> serial_;
     std::map<uint8_t, SerialPackage> packages_;
-    std::map<uint8_t, packages_callback_type> packages_callback_;
+    std::map<uint8_t, PackagesReceiveCallback> packages_callback_;
 
     uint8_t buf_[package_buf_size];
 };
