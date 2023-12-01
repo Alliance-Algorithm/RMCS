@@ -28,7 +28,7 @@ RUN git clone https://github.com/Alliance-Algorithm/RMCS && \
     colcon build --symlink-install && \
     mv ./install /rmcs-runtime && cd / && rm -rf RMCS
 
-# Developing container 
+# Developing container
 FROM rmcs-runtime AS rmcs-develop
 
 # Install develop tools (clangd/zsh/etc...)
@@ -36,6 +36,8 @@ RUN apt-get update && apt-get -y install \
     lsb-release software-properties-common gnupg zsh sudo && \
     echo -e "\n" | bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)" && \
     ln -s /usr/bin/clangd-* /usr/bin/clangd
+
+RUN apt-get -y install libcanberra-gtk-module libcanberra-gtk3-module
 
 # Add user
 RUN useradd -m developer --shell /bin/zsh && echo "developer:developer" | chpasswd && adduser developer sudo && \

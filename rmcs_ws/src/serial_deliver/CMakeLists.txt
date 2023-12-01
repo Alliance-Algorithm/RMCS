@@ -17,4 +17,9 @@ ament_auto_add_executable (
   src/main.cpp
 )
 
+target_include_directories (${PROJECT_NAME}
+  PUBLIC
+  include
+)
+
 ament_auto_package()

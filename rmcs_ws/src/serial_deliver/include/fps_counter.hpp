@@ -4,27 +4,27 @@
 
 class FPSCounter {
 public:
-    bool Count() {
-        if (_count == 0) {
-            _count = 1;
-            _timingStart = std::chrono::steady_clock::now();
+    bool count() {
+        if (count_ == 0) {
+            count_ = 1;
+            timing_start_ = std::chrono::steady_clock::now();
         }
         else {
-            ++_count;
-            if (std::chrono::steady_clock::now() - _timingStart >= std::chrono::seconds(1)) {
-                _lastFPS = _count;
-                _count = 0;
+            ++count_;
+            if (std::chrono::steady_clock::now() - timing_start_ >= std::chrono::seconds(1)) {
+                last_fps = count_;
+                count_ = 0;
                 return true;
             }
         }
         return false;
     }
 
-    int GetFPS() {
-        return _lastFPS;
+    int get_fps() {
+        return last_fps;
     }
 
 private:
-    int _count = 0, _lastFPS;
-    std::chrono::steady_clock::time_point _timingStart;
+    int count_ = 0, last_fps;
+    std::chrono::steady_clock::time_point timing_start_;
 };

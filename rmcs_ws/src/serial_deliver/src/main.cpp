@@ -6,7 +6,7 @@
 #include <sys/types.h>
 
 #include "endian_promise.hpp"
-#include "usb_cdc_package_deliver.hpp"
+#include "usb_cdc/package_deliver.hpp"
 
 int main() {
     usb_cdc::PackageDeliver deliver("/dev/ttyACM0");

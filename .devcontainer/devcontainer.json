@@ -9,20 +9,33 @@
 		"dockerfile": "../Dockerfile"
 	},
 	"privileged": true,
-	"mounts": [{ "source": "/dev", "target": "/dev", "type": "bind" }]
-
+	"mounts": [
+		{
+			"source": "/dev",
+			"target": "/dev",
+			"type": "bind"
+		},
+		{
+			"source": "/tmp/.X11-unix",
+			"target": "/tmp/.X11-unix",
+			"type": "bind"
+		}
+	],
+	"containerEnv": {
+		"DISPLAY": ":1"
+	},
+	"runArgs": [
+		"--network",
+		"host"
+	]
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	// "features": {},
-
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
-	// "forwardPorts": [],
-
+	// "forwardPorts": [8765]
 	// Uncomment the next line to run commands after the container is created.
 	// "postCreateCommand": "cat /etc/os-release",
-
 	// Configure tool-specific properties.
 	// "customizations": {},
-
 	// Uncomment to connect as an existing user other than the container default. More info: https://aka.ms/dev-containers-non-root.
 	// "remoteUser": "devcontainer"
 }

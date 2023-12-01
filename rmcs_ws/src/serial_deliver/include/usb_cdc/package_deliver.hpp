@@ -5,11 +5,12 @@
 #include <iostream>
 #include <map>
 #include <memory>
+#include <numeric>
 
+#include <rclcpp/logging.hpp>
 #include <serial/serial.h>
 
 #include "fps_counter.hpp"
-#include "verify.hpp"
 
 namespace usb_cdc {
 
@@ -21,19 +22,43 @@ using package_index_t = uint8_t;
 using package_size_t  = uint8_t;
 
 using package_verify_code_t = uint8_t;
+inline package_verify_code_t calculate_verify_code(const uint8_t* data, size_t size) {
+    return std::accumulate(data, data + size, static_cast<package_verify_code_t>(0));
+}
 
 constexpr package_head_t package_head = 0xAF;
 
-struct Package final {
-    uint8_t buffer[package_size_max];
-    Package* next = nullptr;
-};
-
-struct alignas(1) PackageStaticPart final {
+struct __attribute__((packed)) PackageStaticPart final {
     package_head_t head;
     package_type_t type;
     package_index_t index;
     package_size_t data_size;
+};
+
+struct alignas(8) Package final {
+    static constexpr size_t static_part_size() noexcept { return sizeof(PackageStaticPart); }
+
+    PackageStaticPart& static_part() noexcept {
+        return *reinterpret_cast<PackageStaticPart*>(buffer);
+    }
+
+    size_t dymatic_part_size() noexcept { return static_part().data_size; }
+
+    template <typename T>
+    T& dymatic_part() noexcept {
+        return *reinterpret_cast<T*>(buffer + static_part_size());
+    }
+
+    static constexpr size_t verify_part_size() noexcept { return sizeof(package_verify_code_t); }
+
+    package_verify_code_t& verify_part() noexcept {
+        size_t length_without_verify = static_part_size() + dymatic_part_size();
+        return *reinterpret_cast<package_verify_code_t*>(buffer + length_without_verify);
+    }
+
+    size_t size() noexcept { return static_part_size() + dymatic_part_size() + verify_part_size(); }
+
+    uint8_t buffer[package_size_max];
 };
 
 class PackageContainer final {
@@ -74,7 +99,7 @@ public:
     std::unique_ptr<Package> pop() {
         if (count_ == 0)
             return nullptr;
-        
+
         std::unique_ptr<Package> package(first_package_);
         first_package_ = first_package_->next;
         --count_;
@@ -107,12 +132,9 @@ public:
             auto result = receive_static_part();
 
             if (result == ReceiveResult::SUCCESS) {
-                auto& static_part =
-                    *reinterpret_cast<PackageStaticPart*>(receiving_package->buffer);
-
-                size_t package_real_size = sizeof(PackageStaticPart) + static_part.data_size
-                                         + sizeof(package_verify_code_t);
+                size_t package_real_size = receiving_package->size();
                 if (package_real_size > sizeof(receiving_package->buffer)) {
+                    RCLCPP_WARN(rclcpp::get_logger("PackageDeliver"), "invaild static part");
                     received_size_ = 0;
                     continue;
                 }
@@ -122,15 +144,22 @@ public:
                 if (received_size_ < package_real_size)
                     break;
 
-                auto iter = subscribed_containers_.find(static_part.type);
-                if (iter == subscribed_containers_.end()) {
+                if (receiving_package->verify_part()
+                    != calculate_verify_code(
+                        receiving_package->buffer,
+                        receiving_package->size() - receiving_package->verify_part_size())) {
+                    RCLCPP_WARN(rclcpp::get_logger("PackageDeliver"), "invaild verify degit");
                     received_size_ = 0;
                     continue;
                 }
 
-                // std::cout << "success\n";
-                if (fps_counter_.Count()) {
-                    std::cout << fps_counter_.GetFPS() << '\n';
+                auto iter = subscribed_containers_.find(receiving_package->static_part().type);
+                if (iter == subscribed_containers_.end()) {
+                    RCLCPP_INFO(
+                        rclcpp::get_logger("PackageDeliver"), "unsubscribed package: %02X",
+                        receiving_package->static_part().type);
+                    received_size_ = 0;
+                    continue;
                 }
 
                 iter->second.push(std::move(receiving_package));
@@ -138,9 +167,7 @@ public:
             } else if (result == ReceiveResult::TIMEOUT) {
                 break;
             } else if (result == ReceiveResult::INVAILD_HEADER) {
-                std::cout << "invaild header\n";
-            } else if (result == ReceiveResult::INVAILD_VERIFY_DEGIT) {
-                std::cout << "invaild verify degit\n";
+                RCLCPP_WARN(rclcpp::get_logger("PackageDeliver"), "invaild header");
             }
         }
     }
@@ -151,8 +178,6 @@ public:
 
         return iter->second.pop();
     }
-
-    FPSCounter fps_counter_;
 
 public:
     enum class ReceiveResult : uint8_t {
