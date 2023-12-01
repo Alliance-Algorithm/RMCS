@@ -333,8 +333,8 @@
       <origin
         xyz="0.16717772074203 0.167177720742029 -0.0906999999999999"
         rpy="0 0 0.785398163397448" />
-      <parent link="base_link" />
-      <child link="front_left_wheel_link" />
+      <parent link="${prefix}base_link" />
+      <child link="${prefix}front_left_wheel_link" />
       <axis xyz="1 0 0" />
     </joint>
 
@@ -342,8 +342,8 @@
       <origin
         xyz="0.16717772074203 -0.167177720742029 -0.0909700000000002"
         rpy="0 0 -0.785398163397448" />
-      <parent link="base_link" />
-      <child link="front_right_wheel_link" />
+      <parent link="${prefix}base_link" />
+      <child link="${prefix}front_right_wheel_link" />
       <axis xyz="1 0 0" />
     </joint>
 
@@ -351,8 +351,8 @@
       <origin
         xyz="-0.167177720742029 0.167177720742029 -0.0909700000000001"
         rpy="0 0 2.35619449019234" />
-      <parent link="base_link" />
-      <child link="back_left_wheel_link" />
+      <parent link="${prefix}base_link" />
+      <child link="${prefix}back_left_wheel_link" />
       <axis xyz="-1 0 0" />
     </joint>
 
@@ -360,8 +360,8 @@
       <origin
         xyz="-0.16717772074203 -0.16717772074203 -0.0907"
         rpy="0 0 -2.35619449019235" />
-      <parent link="base_link" />
-      <child link="back_right_wheel_link" />
+      <parent link="${prefix}base_link" />
+      <child link="${prefix}back_right_wheel_link" />
       <axis xyz="-1 0 0" />
     </joint>
 
@@ -369,8 +369,8 @@
       <origin
         xyz="0 0 0.1136"
         rpy="0 0 0.58626" />
-      <parent link="base_link" />
-      <child link="yaw_link" />
+      <parent link="${prefix}base_link" />
+      <child link="${prefix}yaw_link" />
       <axis xyz="0 0 -1" />
     </joint>
 
@@ -378,8 +378,8 @@
       <origin
         xyz="0 0 0.0934"
         rpy="0 -0.25743 0" />
-      <parent link="yaw_link" />
-      <child link="pitch_link" />
+      <parent link="${prefix}yaw_link" />
+      <child link="${prefix}pitch_link" />
       <axis xyz="0 -1 0" />
       <limit
         lower="0"
@@ -392,8 +392,8 @@
       <origin
         xyz="0.013 0.03625 0.0107"
         rpy="0 0 0" />
-      <parent link="pitch_link" />
-      <child link="left_launch_link" />
+      <parent link="${prefix}pitch_link" />
+      <child link="${prefix}left_launch_link" />
       <axis xyz="0 0 -1" />
     </joint>
 
@@ -401,8 +401,8 @@
       <origin
         xyz="0.013 -0.03625 0.0107"
         rpy="0 0 0" />
-      <parent link="pitch_link" />
-      <child link="right_launch_link" />
+      <parent link="${prefix}pitch_link" />
+      <child link="${prefix}right_launch_link" />
       <axis xyz="0 0 -1" />
     </joint>
 
