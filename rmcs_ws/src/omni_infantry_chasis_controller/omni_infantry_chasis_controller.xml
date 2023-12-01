@@ -1,0 +1,8 @@
+<library path="omni_infantry_chasis_controller">
+  <class name="omni_infantry_chasis_controller/OmniInfantryChasisController"
+         type="omni_infantry_chasis_controller::OmniInfantryChasisController" base_class_type="controller_interface::ControllerInterface">
+  <description>
+    OmniInfantryChasisController ros2_control controller.
+  </description>
+  </class>
+</library>
