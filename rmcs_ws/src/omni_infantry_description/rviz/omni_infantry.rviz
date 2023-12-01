@@ -10,10 +10,6 @@ Panels:
         - /TF1
         - /TF1/Frames1
         - /TF1/Tree1
-        - /TF1/Tree1/world1
-        - /TF1/Tree1/world1/base_link1
-        - /TF1/Tree1/world1/base_link1/yaw_link1
-        - /TF1/Tree1/world1/base_link1/yaw_link1/pitch_link1
       Splitter Ratio: 0.5
     Tree Height: 613
   - Class: rviz_common/Selection
@@ -91,15 +87,9 @@ Visualization Manager:
           Value: true
         front_right_wheel_link:
           Value: true
-        left_launch_link:
-          Value: true
-        pitch_link:
-          Value: true
-        right_launch_link:
+        omni_infantry:
           Value: true
         world:
-          Value: true
-        yaw_link:
           Value: true
       Marker Scale: 1
       Name: TF
@@ -109,6 +99,8 @@ Visualization Manager:
       Tree:
         world:
           base_link:
+            {}
+          omni_infantry:
             back_left_wheel_link:
               {}
             back_right_wheel_link:
@@ -117,12 +109,6 @@ Visualization Manager:
               {}
             front_right_wheel_link:
               {}
-            yaw_link:
-              pitch_link:
-                left_launch_link:
-                  {}
-                right_launch_link:
-                  {}
       Update Interval: 0
       Value: true
   Enabled: true

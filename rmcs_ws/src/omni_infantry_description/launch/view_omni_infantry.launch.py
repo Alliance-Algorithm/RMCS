@@ -108,8 +108,8 @@ def generate_launch_description():
         + [
             joint_state_publisher_node,
             robot_state_publisher_node,
-            rviz_node,
-            # foxglove_bridge,
+            # rviz_node,
+            foxglove_bridge,
             # gazebo,
             # spawn_entity,
         ]

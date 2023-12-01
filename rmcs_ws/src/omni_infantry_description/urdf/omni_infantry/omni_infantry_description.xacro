@@ -6,7 +6,7 @@
   <xacro:macro name="omni_infantry" params="prefix parent *origin">
     <!-- LINKS -->
     <!-- base link -->
-    <link name="${prefix}base_link">
+    <link name="${prefix}omni_infantry">
       <inertial>
         <origin
           xyz="-0.014464583145287 -3.47778019611777E-08 -0.0463018865662903"
@@ -25,7 +25,7 @@
           xyz="0 0 0"
           rpy="0 0 0" />
         <geometry>
-          <mesh filename="package://omni_infantry_description/meshes/base_link.STL" />
+          <mesh filename="package://omni_infantry_description/meshes/omni_infantry.STL" />
         </geometry>
         <material name="">
           <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
@@ -36,7 +36,7 @@
           xyz="0 0 0"
           rpy="0 0 0" />
         <geometry>
-          <mesh filename="package://omni_infantry_description/meshes/base_link.STL" />
+          <mesh filename="package://omni_infantry_description/meshes/omni_infantry.STL" />
         </geometry>
       </collision>
     </link>
@@ -326,14 +326,14 @@
     <joint name="${prefix}base_joint" type="fixed">
       <xacro:insert_block name="origin" />
       <parent link="${parent}" />
-      <child link="${prefix}base_link" />
+      <child link="${prefix}omni_infantry" />
     </joint>
 
     <joint name="${prefix}front_left_wheel" type="continuous">
       <origin
         xyz="0.16717772074203 0.167177720742029 -0.0906999999999999"
         rpy="0 0 0.785398163397448" />
-      <parent link="${prefix}base_link" />
+      <parent link="${prefix}omni_infantry" />
       <child link="${prefix}front_left_wheel_link" />
       <axis xyz="1 0 0" />
     </joint>
@@ -342,7 +342,7 @@
       <origin
         xyz="0.16717772074203 -0.167177720742029 -0.0909700000000002"
         rpy="0 0 -0.785398163397448" />
-      <parent link="${prefix}base_link" />
+      <parent link="${prefix}omni_infantry" />
       <child link="${prefix}front_right_wheel_link" />
       <axis xyz="1 0 0" />
     </joint>
@@ -351,7 +351,7 @@
       <origin
         xyz="-0.167177720742029 0.167177720742029 -0.0909700000000001"
         rpy="0 0 2.35619449019234" />
-      <parent link="${prefix}base_link" />
+      <parent link="${prefix}omni_infantry" />
       <child link="${prefix}back_left_wheel_link" />
       <axis xyz="-1 0 0" />
     </joint>
@@ -360,7 +360,7 @@
       <origin
         xyz="-0.16717772074203 -0.16717772074203 -0.0907"
         rpy="0 0 -2.35619449019235" />
-      <parent link="${prefix}base_link" />
+      <parent link="${prefix}omni_infantry" />
       <child link="${prefix}back_right_wheel_link" />
       <axis xyz="-1 0 0" />
     </joint>
@@ -369,7 +369,7 @@
       <origin
         xyz="0 0 0.1136"
         rpy="0 0 0.58626" />
-      <parent link="${prefix}base_link" />
+      <parent link="${prefix}omni_infantry" />
       <child link="${prefix}yaw_link" />
       <axis xyz="0 0 -1" />
     </joint>
@@ -382,8 +382,8 @@
       <child link="${prefix}pitch_link" />
       <axis xyz="0 -1 0" />
       <limit
-        lower="0"
-        upper="0"
+        lower="-3.14"
+        upper="3.14"
         effort="0"
         velocity="0" />
     </joint>

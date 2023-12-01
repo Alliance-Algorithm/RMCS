@@ -69,6 +69,42 @@
         <state_interface name="velocity" />
       </joint>
 
+      <joint name="${prefix}yaw">
+        <command_interface name="effort">
+          <param name="min">-16384</param>
+          <param name="max">16384</param>
+        </command_interface>
+        <state_interface name="position" />
+        <state_interface name="velocity" />
+      </joint>
+
+      <joint name="${prefix}pitch">
+        <command_interface name="effort">
+          <param name="min">-16384</param>
+          <param name="max">16384</param>
+        </command_interface>
+        <state_interface name="position" />
+        <state_interface name="velocity" />
+      </joint>
+
+      <joint name="${prefix}left_launch">
+        <command_interface name="effort">
+          <param name="min">-16384</param>
+          <param name="max">16384</param>
+        </command_interface>
+        <state_interface name="position" />
+        <state_interface name="velocity" />
+      </joint>
+
+      <joint name="${prefix}right_launch">
+        <command_interface name="effort">
+          <param name="min">-16384</param>
+          <param name="max">16384</param>
+        </command_interface>
+        <state_interface name="position" />
+        <state_interface name="velocity" />
+      </joint>
+
     </ros2_control>
 
     <xacro:if value="$(arg sim_gazebo_classic)">
