@@ -45,6 +45,19 @@ hardware_interface::CallbackReturn
     serial_.subscribe(hw_states_packages::can1_type_code);
     serial_.subscribe(hw_states_packages::dbus_type_code);
 
+    // try { // Dbus state publisher
+    //     auto s_publisher_ =
+    //         rclcpp::create_publisher<rmcs_msgs::msg::Dbus>("~/dbus",
+    //         rclcpp::SystemDefaultsQoS());
+    //     dbus_state_publisher_ = std::make_unique<DbusStatePublisher>(s_publisher_);
+    // } catch (const std::exception& e) {
+    //     fprintf(
+    //         stderr,
+    //         "Exception thrown during publisher creation at configure stage with message : %s \n",
+    //         e.what());
+    //     return CallbackReturn::ERROR;
+    // }
+
     return CallbackReturn::SUCCESS;
 }
 
@@ -96,9 +109,11 @@ hardware_interface::CallbackReturn
 hardware_interface::return_type
     OmniInfantrySystem::read(const rclcpp::Time& /*time*/, const rclcpp::Duration& /*period*/) {
     static uint8_t data_buf[1024];
+    static hw_states_packages::UartDbusRxData uart_dbus_states;
 
     serial_.recv(hw_states_packages::dbus_type_code, data_buf);
-    uart_dbus_states_.set(data_buf);
+    uart_dbus_states.set(data_buf);
+    // TODO
 
     return hardware_interface::return_type::OK;
 }
