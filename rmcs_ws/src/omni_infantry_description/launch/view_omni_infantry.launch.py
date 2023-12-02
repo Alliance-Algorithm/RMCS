@@ -63,7 +63,7 @@ def generate_launch_description():
             " ", "prefix:=",                 prefix,
             " ", "use_mock_hardware:=",      "false",
             " ", "mock_sensor_commands:=",   "false",
-            " ", "sim_gazebo_classic:=",     "true",
+            " ", "sim_gazebo_classic:=",     "false",
             " ", "sim_gazebo:=",             "false",
             " ", "simulation_controllers:=", " ",
         ]
@@ -111,8 +111,8 @@ def generate_launch_description():
             joint_state_publisher_node,
             robot_state_publisher_node,
             # rviz_node,
-            # foxglove_bridge,
-            gazebo,
-            spawn_entity,
+            foxglove_bridge,
+            # gazebo,
+            # spawn_entity,
         ]
     )
