@@ -60,10 +60,12 @@ def generate_launch_description():
             PathJoinSubstitution(
                 [FindPackageShare(description_package), "urdf", "omni_infantry.urdf.xacro"]
             ),
-            " ",
-            "prefix:=",
-            prefix,
-            " ",
+            " ", "prefix:=",                 prefix,
+            " ", "use_mock_hardware:=",      "false",
+            " ", "mock_sensor_commands:=",   "false",
+            " ", "sim_gazebo_classic:=",     "true",
+            " ", "sim_gazebo:=",             "false",
+            " ", "simulation_controllers:=", " ",
         ]
     )
 
@@ -98,10 +100,10 @@ def generate_launch_description():
     )
     gazebo = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([os.path.join(
-            get_package_share_directory('gazebo_ros'), 'launch'), '/gazebo.launch.py']),
+            get_package_share_directory('gazebo_ros'), 'launch', 'gazebo.launch.py')]),
     )
     spawn_entity = Node(package='gazebo_ros', executable='spawn_entity.py',
-        arguments=['-topic', 'robot_description', '-entity', 'omni_infantry'], output='log')
+        arguments=['-topic', 'robot_description', '-entity', 'omni_infantry'], output='screen')
 
     return LaunchDescription(
         declared_arguments
@@ -109,8 +111,8 @@ def generate_launch_description():
             joint_state_publisher_node,
             robot_state_publisher_node,
             # rviz_node,
-            foxglove_bridge,
-            # gazebo,
-            # spawn_entity,
+            # foxglove_bridge,
+            gazebo,
+            spawn_entity,
         ]
     )

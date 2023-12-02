@@ -7,9 +7,15 @@ Panels:
         - /Global Options1
         - /Status1
         - /RobotModel1
+        - /RobotModel1/Mass Properties1
+        - /RobotModel1/Description Topic1
         - /TF1
         - /TF1/Frames1
         - /TF1/Tree1
+        - /TF1/Tree1/world1
+        - /TF1/Tree1/world1/omni_infantry1
+        - /TF1/Tree1/world1/omni_infantry1/yaw_link1
+        - /TF1/Tree1/world1/omni_infantry1/yaw_link1/pitch_link1
       Splitter Ratio: 0.5
     Tree Height: 613
   - Class: rviz_common/Selection
@@ -97,7 +103,7 @@ Visualization Manager:
           Value: true
         yaw_link:
           Value: true
-      Marker Scale: 1
+      Marker Scale: 0.4000000059604645
       Name: TF
       Show Arrows: true
       Show Axes: true
@@ -167,25 +173,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 1.558464765548706
+      Distance: 2.005103349685669
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: -0.5750850439071655
-        Y: -0.4315006136894226
-        Z: -0.014117423444986343
+        X: -0.010302543640136719
+        Y: -0.06418921053409576
+        Z: -0.006261229515075684
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.6153982877731323
+      Pitch: 0.43539872765541077
       Target Frame: <Fixed Frame>
-      Value: Orbit (rviz)
-      Yaw: 3.6835803985595703
+      Value: Orbit (rviz_default_plugins)
+      Yaw: 3.4635865688323975
     Saved: ~
 Window Geometry:
   Displays:
