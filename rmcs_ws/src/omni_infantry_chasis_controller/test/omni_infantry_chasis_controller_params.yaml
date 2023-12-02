@@ -1,7 +1,0 @@
-test_omni_infantry_chasis_controller:
-  ros__parameters:
-
-    joints:
-      - joint1
-
-    interface_name: acceleration

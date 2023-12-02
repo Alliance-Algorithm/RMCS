@@ -50,7 +50,7 @@ def generate_launch_description():
     declared_arguments.append(
         DeclareLaunchArgument(
             "description_package",
-            default_value="omni_description",
+            default_value="omni_infantry_description",
             description="Description package with robot URDF/xacro files. Usually the argument \
         is not set, it enables use of a custom description.",
         )
@@ -58,7 +58,7 @@ def generate_launch_description():
     declared_arguments.append(
         DeclareLaunchArgument(
             "description_file",
-            default_value="omni.urdf.xacro",
+            default_value="omni_infantry.urdf.xacro",
             description="URDF/XACRO description file with the robot.",
         )
     )
@@ -74,7 +74,7 @@ def generate_launch_description():
     declared_arguments.append(
         DeclareLaunchArgument(
             "use_mock_hardware",
-            default_value="true",
+            default_value="false",
             description="Start robot with mock hardware mirroring command to its states.",
         )
     )
@@ -89,8 +89,8 @@ def generate_launch_description():
     declared_arguments.append(
         DeclareLaunchArgument(
             "robot_controller",
-            default_value="forward_position_controller",
-            choices=["forward_position_controller", "joint_trajectory_controller"],
+            default_value="omni_infantry_chasis_controller",
+            choices=["omni_infantry_chasis_controller"],
             description="Robot controller to start.",
         )
     )
@@ -111,7 +111,8 @@ def generate_launch_description():
             PathJoinSubstitution([FindExecutable(name="xacro")]),
             " ",
             PathJoinSubstitution(
-                [FindPackageShare(description_package), "urdf", description_file]
+                [FindPackageShare(description_package),
+                 "urdf", description_file]
             ),
             " ",
             "prefix:=",
@@ -132,7 +133,7 @@ def generate_launch_description():
         [FindPackageShare(runtime_config_package), "config", controllers_file]
     )
     rviz_config_file = PathJoinSubstitution(
-        [FindPackageShare(description_package), "rviz", "omni.rviz"]
+        [FindPackageShare(description_package), "rviz", "omni_infantry.rviz"]
     )
 
     control_node = Node(
@@ -161,11 +162,11 @@ def generate_launch_description():
                 'launch/foxglove_bridge_launch.xml'))
     )
 
-
     joint_state_broadcaster_spawner = Node(
         package="controller_manager",
         executable="spawner",
-        arguments=["joint_state_broadcaster", "--controller-manager", "/controller_manager"],
+        arguments=["joint_state_broadcaster",
+                   "--controller-manager", "/controller_manager"],
     )
 
     robot_controller_names = [robot_controller]
@@ -179,14 +180,15 @@ def generate_launch_description():
             )
         ]
 
-    inactive_robot_controller_names = ["add_some_controller_name"]
+    inactive_robot_controller_names = []
     inactive_robot_controller_spawners = []
     for controller in inactive_robot_controller_names:
         inactive_robot_controller_spawners += [
             Node(
                 package="controller_manager",
                 executable="spawner",
-                arguments=[controller, "-c", "/controller_manager", "--inactive"],
+                arguments=[controller, "-c",
+                           "/controller_manager", "--inactive"],
             )
         ]
 

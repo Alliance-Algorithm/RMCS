@@ -27,6 +27,8 @@
 
   <depend>std_srvs</depend>
 
+  <depend>rmcs_msgs</depend>
+
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_cmake_gmock</test_depend>
   <test_depend>controller_manager</test_depend>

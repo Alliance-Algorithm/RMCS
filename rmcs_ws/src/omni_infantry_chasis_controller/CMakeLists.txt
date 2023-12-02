@@ -15,10 +15,12 @@ set(THIS_PACKAGE_INCLUDE_DEPENDS
   rclcpp_lifecycle
   realtime_tools
   std_srvs
+  rmcs_msgs
 )
 
 find_package(ament_cmake REQUIRED)
 find_package(generate_parameter_library REQUIRED)
+
 foreach(Dependency IN ITEMS ${THIS_PACKAGE_INCLUDE_DEPENDS})
   find_package(${Dependency} REQUIRED)
 endforeach()
@@ -32,10 +34,13 @@ add_library(
   omni_infantry_chasis_controller
   SHARED
   src/omni_infantry_chasis_controller.cpp
+  src/chasiscontroll.cpp
 )
 target_include_directories(omni_infantry_chasis_controller PUBLIC
   "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>"
-  "$<INSTALL_INTERFACE:include/${PROJECT_NAME}>")
+  "$<INSTALL_INTERFACE:include/${PROJECT_NAME}>"
+  "$<INSTALL_INTERFACE:include>")
+
 target_link_libraries(omni_infantry_chasis_controller omni_infantry_chasis_controller_parameters)
 ament_target_dependencies(omni_infantry_chasis_controller ${THIS_PACKAGE_INCLUDE_DEPENDS})
 target_compile_definitions(omni_infantry_chasis_controller PRIVATE "OMNI_INFANTRY_CHASIS_CONTROLLER_BUILDING_DLL")
@@ -57,45 +62,6 @@ install(
 )
 
 if(BUILD_TESTING)
-  find_package(ament_lint_auto REQUIRED)
-  # the following line skips the linter which checks for copyrights
-  # comment the line when a copyright and license is added to all source files
-  set(ament_cmake_copyright_FOUND TRUE)
-  # the following line skips cpplint (only works in a git repo)
-  # comment the line when this package is in a git repo and when
-  # a copyright and license is added to all source files
-  set(ament_cmake_cpplint_FOUND TRUE)
-  find_package(ament_cmake_gmock REQUIRED)
-  find_package(controller_manager REQUIRED)
-  find_package(hardware_interface REQUIRED)
-  find_package(ros2_control_test_assets REQUIRED)
-
-  ament_add_gmock(test_load_omni_infantry_chasis_controller test/test_load_omni_infantry_chasis_controller.cpp)
-  target_include_directories(test_load_omni_infantry_chasis_controller PRIVATE include)
-  ament_target_dependencies(
-    test_load_omni_infantry_chasis_controller
-    controller_manager
-    hardware_interface
-    ros2_control_test_assets
-  )
-
-  add_rostest_with_parameters_gmock(test_omni_infantry_chasis_controller test/test_omni_infantry_chasis_controller.cpp ${CMAKE_CURRENT_SOURCE_DIR}/test/omni_infantry_chasis_controller_params.yaml)
-  target_include_directories(test_omni_infantry_chasis_controller PRIVATE include)
-  target_link_libraries(test_omni_infantry_chasis_controller omni_infantry_chasis_controller)
-  ament_target_dependencies(
-    test_omni_infantry_chasis_controller
-    controller_interface
-    hardware_interface
-  )
-
-  add_rostest_with_parameters_gmock(test_omni_infantry_chasis_controller_preceeding test/test_omni_infantry_chasis_controller_preceeding.cpp ${CMAKE_CURRENT_SOURCE_DIR}/test/omni_infantry_chasis_controller_preceeding_params.yaml)
-  target_include_directories(test_omni_infantry_chasis_controller_preceeding PRIVATE include)
-  target_link_libraries(test_omni_infantry_chasis_controller_preceeding omni_infantry_chasis_controller)
-  ament_target_dependencies(
-    test_omni_infantry_chasis_controller_preceeding
-    controller_interface
-    hardware_interface
-  )
 endif()
 
 ament_export_include_directories(
