@@ -3,8 +3,7 @@
 #include "chasiscontroll.hpp"
 
 namespace ChasisController {
-ChasisControll::ChasisControll(size_t size, std::shared_ptr<rclcpp_lifecycle::LifecycleNode> node)
-    : node_(node) {
+ChasisControll::ChasisControll(size_t size) {
     ChasisPidData_.reserve(size);
     ChasisFeedbackCmdData_.reserve(size);
 }

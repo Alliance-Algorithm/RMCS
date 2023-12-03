@@ -27,7 +27,9 @@ private:
     std::shared_ptr<rclcpp_lifecycle::LifecycleNode> node_;
 
 public:
-    ChasisControll(size_t size, std::shared_ptr<rclcpp_lifecycle::LifecycleNode> node);
+    ChasisControll(size_t size);
+
+    void BindNode(std::shared_ptr<rclcpp_lifecycle::LifecycleNode> node) { node_ = node; }
     void AddChasisHandle(
         const hardware_interface::LoanedStateInterface& feedback_velocity,
         hardware_interface::LoanedCommandInterface& command_effort);

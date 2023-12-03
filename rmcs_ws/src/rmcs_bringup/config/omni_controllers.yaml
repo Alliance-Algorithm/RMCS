@@ -14,21 +14,15 @@ controller_manager:
 omni_infantry_chasis_controller:
   ros__parameters:
     joints:
-      [
-        "front_left_wheel",
-        "front_right_wheel",
-        "back_left_wheel",
-        "back_right_wheel",
-      ]
-    state_joints:
-      [
-        "front_left_wheel",
-        "front_right_wheel",
-        "back_left_wheel",
-        "back_right_wheel",
-      ]
-    state_interface_name: ["velocity", "position"]
-    cmd_interface_name: ["effort"]
+      - "front_left_wheel"
+      - "front_right_wheel"
+      - "back_left_wheel"
+      - "back_right_wheel"
+
+    state_interface_name:
+      - "velocity"
+    cmd_interface_name:
+      - "effort"
     front_left_wheel:
       pid_data:
         P: 10.0

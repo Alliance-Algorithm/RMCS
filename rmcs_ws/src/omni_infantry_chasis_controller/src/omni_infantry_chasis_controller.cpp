@@ -21,6 +21,8 @@
 
 #include "controller_interface/helpers.hpp"
 
+#include "hardware_interface/types/hardware_interface_type_values.hpp"
+
 namespace { // utility
 
 std::vector<std::string> Chasis_List;
@@ -41,21 +43,12 @@ static constexpr rmw_qos_profile_t rmw_qos_profile_services_hist_keep_all = {
 using ControllerReferenceMsg =
     omni_infantry_chasis_controller::OmniInfantryChasisController::ControllerReferenceMsg;
 
-       /// Constant defining position interface
-constexpr char HW_IF_POSITION[] = "position";
-/// Constant defining velocity interface
-constexpr char HW_IF_VELOCITY[] = "velocity";
-/// Constant defining acceleration interface
-constexpr char HW_IF_ACCELERATION[] = "acceleration";
-/// Constant defining effort interface
-constexpr char HW_IF_EFFORT[] = "effort";
-
 } // namespace
 
 namespace omni_infantry_chasis_controller {
 OmniInfantryChasisController::OmniInfantryChasisController()
     : controller_interface::ControllerInterface()
-    , ChasisData_(4, get_node()) {}
+    , ChasisData_(4) {}
 
 controller_interface::CallbackReturn OmniInfantryChasisController::on_init() {
     control_mode_.initRT(control_mode_type::FAST);
@@ -80,6 +73,7 @@ controller_interface::CallbackReturn OmniInfantryChasisController::on_init() {
 controller_interface::CallbackReturn
     OmniInfantryChasisController::on_configure(const rclcpp_lifecycle::State& /*previous_state*/) {
 
+    ChasisData_.BindNode(get_node());
     params_ = param_listener_->get_params();
 
     state_joints_ = params_.joints;
@@ -138,13 +132,17 @@ controller_interface::InterfaceConfiguration
     controller_interface::InterfaceConfiguration command_interfaces_config;
     command_interfaces_config.type = controller_interface::interface_configuration_type::INDIVIDUAL;
 
-    command_interfaces_config.names.reserve(params_.joints.size());
+    command_interfaces_config.names.reserve(
+        params_.joints.size() * params_.cmd_interface_name.size());
     for (const auto& joint : params_.joints) {
         for (const auto& cmd_interface_name : params_.cmd_interface_name) {
             command_interfaces_config.names.push_back(joint + "/" + cmd_interface_name);
             RCLCPP_INFO(
                 get_node()->get_logger(), "configure %s",
                 (joint + "/" + cmd_interface_name).c_str());
+            // command_interfaces_config.names.push_back(joint + "/" + HW_IF_EFFORT);
+            // RCLCPP_INFO(
+            //     get_node()->get_logger(), "configure %s", (joint + "/" + HW_IF_EFFORT).c_str());
         }
     }
 
@@ -156,16 +154,24 @@ controller_interface::InterfaceConfiguration
     controller_interface::InterfaceConfiguration state_interfaces_config;
     state_interfaces_config.type = controller_interface::interface_configuration_type::INDIVIDUAL;
 
-    state_interfaces_config.names.reserve(state_joints_.size());
+    state_interfaces_config.names.reserve(
+        state_joints_.size() * params_.state_interface_name.size());
     for (const auto& joint : params_.joints) {
         for (const auto& state_interface_name : params_.state_interface_name) {
             state_interfaces_config.names.push_back(joint + "/" + state_interface_name);
             RCLCPP_INFO(
                 get_node()->get_logger(), "configure %s",
                 (joint + "/" + state_interface_name).c_str());
+            // state_interfaces_config.names.push_back(joint + "/" + HW_IF_VELOCITY);
+            // state_interfaces_config.names.push_back(joint + "/" + HW_IF_POSITION);
+            // RCLCPP_INFO(
+            //     get_node()->get_logger(), "configure %s", (joint + "/" +
+            //     HW_IF_VELOCITY).c_str());
+            // RCLCPP_INFO(
+            //     get_node()->get_logger(), "configure %s", (joint + "/" +
+            //     HW_IF_POSITION).c_str());
         }
     }
-
     return state_interfaces_config;
 }
 
@@ -227,13 +233,8 @@ controller_interface::CallbackReturn OmniInfantryChasisController::configure_cha
             state_interfaces_.cbegin(), state_interfaces_.cend(),
             [&chasis_names](const auto& interface) {
                 return interface.get_prefix_name() == chasis_names
-                    && interface.get_interface_name() == HW_IF_VELOCITY;
+                    && interface.get_interface_name() == hardware_interface::HW_IF_VELOCITY;
             });
-
-        RCLCPP_INFO(
-            logger, "%s 's velocity state name is %s name is %s ", chasis_names.c_str(),
-            velocity_state_handle->get_interface_name().c_str(),
-            velocity_state_handle->get_full_name().c_str());
 
         if (velocity_state_handle == state_interfaces_.cend()) {
             RCLCPP_ERROR(
@@ -242,23 +243,29 @@ controller_interface::CallbackReturn OmniInfantryChasisController::configure_cha
             return controller_interface::CallbackReturn::ERROR;
         }
 
+        RCLCPP_INFO(
+            logger, "%s 's velocity state name is %s name is %s ", chasis_names.c_str(),
+            velocity_state_handle->get_interface_name().c_str(),
+            velocity_state_handle->get_full_name().c_str());
+
         const auto effort_command_handle = std::find_if(
             command_interfaces_.begin(), command_interfaces_.end(),
             [&chasis_names](const auto& interface) {
                 return interface.get_prefix_name() == chasis_names
-                    && interface.get_interface_name() == HW_IF_EFFORT;
+                    && interface.get_interface_name() == hardware_interface::HW_IF_EFFORT;
             });
-
-        RCLCPP_INFO(
-            logger, "%s 's effort cmd name is %s name is %s ", chasis_names.c_str(),
-            effort_command_handle->get_interface_name().c_str(),
-            effort_command_handle->get_full_name().c_str());
 
         if (effort_command_handle == command_interfaces_.end()) {
             RCLCPP_ERROR(
                 logger, "Unable to obtain joint command handle for %s", chasis_names.c_str());
             return controller_interface::CallbackReturn::ERROR;
         }
+
+        RCLCPP_INFO(
+            logger, "%s 's effort cmd name is %s name is %s ", chasis_names.c_str(),
+            effort_command_handle->get_interface_name().c_str(),
+            effort_command_handle->get_full_name().c_str());
+
         ChasisData_.AddChasisHandle(*velocity_state_handle, *effort_command_handle);
     }
 
