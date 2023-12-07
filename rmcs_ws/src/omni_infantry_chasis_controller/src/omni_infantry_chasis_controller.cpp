@@ -25,7 +25,8 @@
 
 namespace { // utility
 
-std::vector<std::string> Chasis_List;
+std::vector<std::string> Chasis_List = {
+    "front_left_wheel", "front_right_wheel", "back_left_wheel", "back_right_wheel"};
 
 // TODO(destogl): remove this when merged upstream
 // Changed services history QoS to keep all so we don't lose any client service calls
@@ -60,12 +61,6 @@ controller_interface::CallbackReturn OmniInfantryChasisController::on_init() {
         fprintf(stderr, "Exception thrown during controller's init with message: %s \n", e.what());
         return controller_interface::CallbackReturn::ERROR;
     }
-
-    Chasis_List.reserve(4);
-    Chasis_List.emplace_back("front_left_wheel");
-    Chasis_List.emplace_back("front_right_wheel");
-    Chasis_List.emplace_back("back_left_wheel");
-    Chasis_List.emplace_back("back_right_wheel");
 
     return controller_interface::CallbackReturn::SUCCESS;
 }

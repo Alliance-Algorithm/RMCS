@@ -20,7 +20,8 @@ void ChasisControll::AddChasisHandle(
 void ChasisControll::AddChasisPid(const PID::PID& PidData) {
     // std::unique_ptr<PID::PID> NewPidDataPtr;
     // NewPidDataPtr.reset(new PID::PID(PidData));
-    ChasisPidData_.emplace_back(std::unique_ptr<PID::PID>(new PID::PID(PidData)));
+    ChasisPidData_.emplace_back(
+        std::move(std::unique_ptr<PID::PID>(std::make_unique<PID::PID>(PidData))));
 }
 
 void ChasisControll::Update(double chassis_vx, double chassis_vy, double chassis_vw) {
