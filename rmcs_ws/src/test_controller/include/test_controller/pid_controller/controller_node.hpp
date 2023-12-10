@@ -1,5 +1,6 @@
 #pragma once
 
+#include "test_controller/usb_cdc_forwarder/qos.hpp"
 #include <atomic>
 #include <cmath>
 #include <memory>
@@ -9,40 +10,35 @@
 
 namespace pid_controller {
 
-inline const rclcpp::QoS kSensorQoS = rclcpp::QoS(1).best_effort().durability_volatile();
-inline const rclcpp::QoS kControlQoS = rclcpp::QoS(1).best_effort().transient_local();
-
 class ControllerNode : public rclcpp::Node {
 public:
     explicit ControllerNode(
         const std::string& measurement_topic_name, const std::string& setpoint_topic_name,
         const std::string& control_topic_name, const std::string& node_name)
-        : Node(node_name, rclcpp::NodeOptions().use_intra_process_comms(true))
-        , measurement_topic_name_(measurement_topic_name)
-        , setpoint_topic_name_(setpoint_topic_name) {
-        control_publisher_ =
-            this->create_publisher<std_msgs::msg::Float64>(control_topic_name, kControlQoS);
+        : Node(node_name, rclcpp::NodeOptions().use_intra_process_comms(true)) {
+
+        control_publisher_ = this->create_publisher<std_msgs::msg::Float64>(
+            control_topic_name, usb_cdc_forwarder::kControlQoS);
+
+        measurement_subscription_ = this->create_subscription<std_msgs::msg::Float64>(
+            measurement_topic_name, usb_cdc_forwarder::kSensorQoS,
+            std::bind(
+                &ControllerNode::measurement_subscription_callback, this, std::placeholders::_1));
+        setpoint_subscription_ = this->create_subscription<std_msgs::msg::Float64>(
+            setpoint_topic_name, usb_cdc_forwarder::kControlQoS,
+            std::bind(
+                &ControllerNode::setpoint_subscription_callback, this, std::placeholders::_1));
     }
 
     virtual ~ControllerNode() = default;
-
-    void on_subscribe() {
-        measurement_subscription_ = this->create_subscription<std_msgs::msg::Float64>(
-            measurement_topic_name_, kSensorQoS,
-            std::bind(
-                &ControllerNode::measurement_subscription_callback, this, std::placeholders::_1));
-        // setpoint_subscription_ = this->create_subscription<std_msgs::msg::Float64>(
-        //     setpoint_topic_name_, kControlQoS,
-        //     std::bind(
-        //         &ControllerNode::setpoint_subscription_callback, this, std::placeholders::_1));
-    }
 
     static_assert(std::atomic<double>::is_always_lock_free);
     static constexpr double inf = std::numeric_limits<double>::infinity();
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
-    std::atomic<double> kp = 0, ki = 0, kd = 0;
+    std::atomic<double> setpoint = 0;
 
+    std::atomic<double> kp = 0, ki = 0, kd = 0;
     std::atomic<double> integral_min = -inf, integral_max = inf;
     std::atomic<double> output_min = -inf, output_max = inf;
 
@@ -55,7 +51,7 @@ protected:
         return value;
     }
 
-    virtual double calculate_err(double measurement) { return setpoint_ - measurement; }
+    virtual double calculate_err(double measurement) { return setpoint - measurement; }
 
 private:
     void measurement_subscription_callback(std::unique_ptr<std_msgs::msg::Float64> measurement) {
@@ -73,16 +69,14 @@ private:
         control_publisher_->publish(std::move(msg));
     }
 
-    void setpoint_subscription_callback(std::unique_ptr<std_msgs::msg::Float64> setpoint) {
-        setpoint_ = setpoint->data;
+    void setpoint_subscription_callback(std::unique_ptr<std_msgs::msg::Float64> msg) {
+        setpoint = msg->data;
     }
 
-    std::atomic<double> setpoint_ = 0;
     double last_err_ = nan, err_integral_ = 0;
 
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr control_publisher_;
 
-    std::string measurement_topic_name_, setpoint_topic_name_;
     rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr measurement_subscription_;
     rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr setpoint_subscription_;
 };

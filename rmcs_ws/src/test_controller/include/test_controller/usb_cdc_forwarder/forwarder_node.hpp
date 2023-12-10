@@ -1,23 +1,18 @@
 #pragma once
 
-#include <algorithm>
-#include <atomic>
-#include <cmath>
 #include <functional>
 #include <memory>
-#include <numbers>
 #include <string>
+#include <thread>
 
 #include <rclcpp/logging.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <serial/serial.h>
-#include <std_msgs/msg/float64.hpp>
-#include <std_msgs/msg/string.hpp>
-#include <thread>
 
 #include "endian_promise.hpp"
 #include "test_controller/usb_cdc_forwarder/package_receiver.hpp"
 #include "test_controller/usb_cdc_forwarder/package_sender.hpp"
+#include "test_controller/usb_cdc_forwarder/remote_control.hpp"
 #include "test_controller/usb_cdc_forwarder/wheel.hpp"
 
 namespace usb_cdc_forwarder {
@@ -31,7 +26,9 @@ public:
         , package_receiver_(serial_) {
 
         package_receiver_.subscribe(
-            0x11, std::bind(&ForwarderNode::can1_receive_callback, this, std::placeholders::_1));
+            0x12, std::bind(&ForwarderNode::can1_receive_callback, this, std::placeholders::_1));
+        package_receiver_.subscribe(
+            0x23, std::bind(&ForwarderNode::dbus_receive_callback, this, std::placeholders::_1));
 
         package_send_receive_thread_ =
             std::thread{&ForwarderNode::package_send_receive_thread_main, this};
@@ -51,6 +48,7 @@ private:
         }
 
         auto can_id = package->dymatic_part<can_id_t>();
+
         if (can_id == 0x201) {
             chassis_wheels[0].publish_status(std::move(package));
         } else if (can_id == 0x202) {
@@ -62,6 +60,10 @@ private:
         }
     }
 
+    void dbus_receive_callback(std::unique_ptr<Package> package) {
+        remote_control_.publish_status(std::move(package));
+    }
+
     void package_send_receive_thread_main() {
         using namespace std::chrono_literals;
 
@@ -71,12 +73,8 @@ private:
 
         while (rclcpp::ok()) {
             if (std::chrono::steady_clock::now() >= next_send_time) {
+                package_sender_.package.static_part().type = 0x12;
                 chassis_wheels.write_control_package(package_sender_.package);
-                // std::for_each(
-                //     reinterpret_cast<uint8_t*>(&package_sender_.package),
-                //     reinterpret_cast<uint8_t*>(&package_sender_.package) + sizeof(package_sender_.package),
-                //     [](uint8_t byte) { printf("%02X ", byte); });
-                // putchar('\n');
                 package_sender_.Send();
                 next_send_time += period;
             }
@@ -87,9 +85,11 @@ private:
 
     WheelCollection chassis_wheels{
         this,
-        {"/chassis_wheel/right_front", "/chassis_wheel/left_front", "/chassis_wheel/left_back",
-          "/chassis_wheel/right_back"}
+        {"/chassis_wheel/left_front", "/chassis_wheel/right_front", "/chassis_wheel/right_back",
+          "/chassis_wheel/left_back"}
     };
+
+    RemoteControl remote_control_{this};
 
     serial::Serial serial_;
     PackageSender package_sender_;

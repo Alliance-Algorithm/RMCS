@@ -1,0 +1,12 @@
+float32 channel_left_x
+float32 channel_left_y
+float32 channel_right_x
+float32 channel_right_y
+uint8 switch1
+uint8 switch2
+int16 mouse_x_velocity
+int16 mouse_y_velocity
+int16 mouse_z_velocity
+bool mouse_left_button
+bool mouse_right_button
+uint16 keyboard

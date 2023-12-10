@@ -1,7 +1,7 @@
 #pragma once
 
-#include <array>
 #include <memory>
+
 #include <rclcpp/node.hpp>
 #include <std_msgs/msg/float64.hpp>
 
@@ -45,7 +45,7 @@ public:
 
         // velocity unit: rad/s
         auto velocity  = std::make_unique<std_msgs::msg::Float64>();
-        velocity->data = static_cast<double>(dymatic_part.velocity) * 2.0 * std::numbers::pi / 60.0;
+        velocity->data = -(static_cast<double>(dymatic_part.velocity) * 2.0 * std::numbers::pi / 60.0);
         velocity_publisher->publish(std::move(velocity));
     }
 
@@ -54,7 +54,7 @@ public:
     }
 
     void write_control_current_to_package(PackageC620ControlPart& dymatic_part, size_t index) {
-        double current = control_current;
+        double current = -control_current;
         if (!std::isfinite(current)) {
             RCLCPP_ERROR(
                 node_->get_logger(), "Send wheel motor control: current[%zu] isn't a number",
@@ -67,7 +67,6 @@ public:
         } else if (current < -16384) {
             current = -16384;
         }
-        std::cout << current << '\n';
         dymatic_part.current[index] = static_cast<int16_t>(current);
     }
 
@@ -78,7 +77,7 @@ private:
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr velocity_publisher;
 
     rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr control_current_subscription;
-    std::atomic<double> control_current = 200;
+    std::atomic<double> control_current = 0;
 };
 
 struct WheelCollection {
@@ -94,7 +93,6 @@ struct WheelCollection {
 
     void write_control_package(Package& package) {
         auto& static_part     = package.static_part();
-        static_part.type      = 0x11;
         static_part.index     = 0;
         static_part.data_size = sizeof(PackageC620ControlPart);
 

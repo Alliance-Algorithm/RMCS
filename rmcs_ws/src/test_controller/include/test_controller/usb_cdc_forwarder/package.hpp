@@ -71,4 +71,15 @@ struct __attribute__((packed)) PackageC620ControlPart {
     endian::be_int16_t current[4];
 };
 
+struct __attribute__((packed)) PackageDR16FeedbackPart {
+    uint8_t rockers_and_switches[6];
+    int16_t mouse_x_velocity;
+    int16_t mouse_y_velocity;
+    int16_t mouse_z_velocity;
+    uint8_t mouse_left_button;
+    uint8_t mouse_right_button;
+    uint16_t keyboard;
+    uint16_t unused;
+};
+
 } // namespace usb_cdc_forwarder
