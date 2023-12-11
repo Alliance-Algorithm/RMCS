@@ -41,15 +41,33 @@ public:
 
 private:
     void remote_control_callback(rm_msgs::msg::RemoteControl::SharedPtr msg) {
-        constexpr double max_velocity = 800;
+        constexpr double velocity_limit = 800;
 
         auto x = msg->channel_right_x;
         auto y = msg->channel_right_y;
 
-        double right_oblique = max_velocity * (x * cos_45 + y * sin_45);
-        double left_oblique  = max_velocity * (y * cos_45 - x * sin_45);
+        double right_oblique = velocity_limit * (x * cos_45 + y * sin_45);
+        double left_oblique  = velocity_limit * (y * cos_45 - x * sin_45);
 
-        publish_control_velocities(-left_oblique, right_oblique, left_oblique, -right_oblique);
+        auto turn = msg->channel_left_x;
+
+        double velocities[4] = {-left_oblique, right_oblique, left_oblique, -right_oblique};
+        double max_velocity  = 0;
+        for (auto& velocity : velocities) {
+            velocity += 0.4 * velocity_limit * turn;
+            max_velocity = std::max(std::abs(velocity), max_velocity);
+        }
+        if (max_velocity > velocity_limit) {
+            double scale = velocity_limit / max_velocity;
+            for (auto& velocity : velocities)
+                velocity *= scale;
+        }
+
+        // RCLCPP_INFO(
+        //     this->get_logger(), "%f, %f, %f, %f", velocities[0], velocities[1], velocities[2],
+        //     velocities[3]);
+
+        publish_control_velocities(velocities[0], velocities[1], velocities[2], velocities[3]);
 
         remote_control_watchdog_timer_->reset();
     }

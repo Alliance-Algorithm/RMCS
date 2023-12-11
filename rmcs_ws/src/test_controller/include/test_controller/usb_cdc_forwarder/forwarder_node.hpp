@@ -29,6 +29,7 @@ public:
             0x11, std::bind(&ForwarderNode::can1_receive_callback, this, std::placeholders::_1));
         package_receiver_.subscribe(
             0x23, std::bind(&ForwarderNode::dbus_receive_callback, this, std::placeholders::_1));
+        package_receiver_.subscribe(0x26, [](std::unique_ptr<Package>) {});
 
         package_send_receive_thread_ =
             std::thread{&ForwarderNode::package_send_receive_thread_main, this};
