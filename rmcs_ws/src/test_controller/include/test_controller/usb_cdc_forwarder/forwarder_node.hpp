@@ -26,7 +26,7 @@ public:
         , package_receiver_(serial_) {
 
         package_receiver_.subscribe(
-            0x12, std::bind(&ForwarderNode::can1_receive_callback, this, std::placeholders::_1));
+            0x11, std::bind(&ForwarderNode::can1_receive_callback, this, std::placeholders::_1));
         package_receiver_.subscribe(
             0x23, std::bind(&ForwarderNode::dbus_receive_callback, this, std::placeholders::_1));
 
@@ -73,7 +73,7 @@ private:
 
         while (rclcpp::ok()) {
             if (std::chrono::steady_clock::now() >= next_send_time) {
-                package_sender_.package.static_part().type = 0x12;
+                package_sender_.package.static_part().type = 0x11;
                 chassis_wheels.write_control_package(package_sender_.package);
                 package_sender_.Send();
                 next_send_time += period;
@@ -83,7 +83,7 @@ private:
         }
     }
 
-    WheelCollection chassis_wheels{
+    WheelCollection<true> chassis_wheels{
         this,
         {"/chassis_wheel/left_front", "/chassis_wheel/right_front", "/chassis_wheel/right_back",
           "/chassis_wheel/left_back"}
