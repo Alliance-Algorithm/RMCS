@@ -8,9 +8,9 @@
 #include <rclcpp/logging.hpp>
 #include <serial/serial.h>
 
-#include "test_controller/usb_cdc_forwarder/package.hpp"
+#include "forwarder/package.hpp"
 
-namespace usb_cdc_forwarder {
+namespace forwarder {
 
 class PackageReceiver final {
 public:
@@ -141,4 +141,4 @@ public:
     size_t received_size_                      = 0;
 };
 
-} // namespace usb_cdc_forwarder
+} // namespace forwarder

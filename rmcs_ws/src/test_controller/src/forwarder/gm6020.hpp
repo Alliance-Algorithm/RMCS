@@ -5,10 +5,10 @@
 #include <rclcpp/node.hpp>
 #include <std_msgs/msg/float64.hpp>
 
-#include "test_controller/usb_cdc_forwarder/package.hpp"
-#include "test_controller/usb_cdc_forwarder/qos.hpp"
+#include "test_controller/qos.hpp"
+#include "forwarder/package.hpp"
 
-namespace usb_cdc_forwarder {
+namespace forwarder {
 
 template <bool reverse>
 class GM6020 {
@@ -16,11 +16,11 @@ public:
     GM6020(rclcpp::Node* node, const std::string& wheel_name)
         : node_(node) {
         angle_publisher =
-            node_->create_publisher<std_msgs::msg::Float64>(wheel_name + "/angle", kSensorQoS);
+            node_->create_publisher<std_msgs::msg::Float64>(wheel_name + "/angle", kCoreQoS);
         velocity_publisher =
-            node_->create_publisher<std_msgs::msg::Float64>(wheel_name + "/velocity", kSensorQoS);
+            node_->create_publisher<std_msgs::msg::Float64>(wheel_name + "/velocity", kCoreQoS);
         control_current_subscription = node_->create_subscription<std_msgs::msg::Float64>(
-            wheel_name + "/control_current", kControlQoS,
+            wheel_name + "/control_current", kCoreQoS,
             std::bind(&GM6020::control_current_subscription_callback, this, std::placeholders::_1));
     }
     GM6020(const GM6020&)            = delete;
@@ -87,4 +87,4 @@ private:
     std::atomic<double> control_current = 0;
 };
 
-} // namespace usb_cdc_forwarder
+} // namespace forwarder

@@ -10,9 +10,9 @@
 #include <std_msgs/msg/float64.hpp>
 #include <tf2_ros/transform_broadcaster.h>
 
-#include "test_controller/usb_cdc_forwarder/qos.hpp"
+#include "test_controller/qos.hpp"
 
-namespace usb_cdc_forwarder {
+namespace forwarder {
 
 class Imu {
 public:
@@ -21,14 +21,14 @@ public:
         , tf_broadcaster_(node) {
 
         gimbal_yaw_velocity_imu_ =
-            node->create_publisher<std_msgs::msg::Float64>("/gimbal/yaw/velocity_imu", kSensorQoS);
+            node->create_publisher<std_msgs::msg::Float64>("/gimbal/yaw/velocity_imu", kCoreQoS);
         gimbal_yaw_angle_imu_ =
-            node->create_publisher<std_msgs::msg::Float64>("/gimbal/yaw/angle_imu", kSensorQoS);
+            node->create_publisher<std_msgs::msg::Float64>("/gimbal/yaw/angle_imu", kCoreQoS);
 
-        gimbal_pitch_velocity_imu_ = node->create_publisher<std_msgs::msg::Float64>(
-            "/gimbal/pitch/velocity_imu", kSensorQoS);
+        gimbal_pitch_velocity_imu_ =
+            node->create_publisher<std_msgs::msg::Float64>("/gimbal/pitch/velocity_imu", kCoreQoS);
         gimbal_pitch_angle_imu_ =
-            node->create_publisher<std_msgs::msg::Float64>("/gimbal/pitch/angle_imu", kSensorQoS);
+            node->create_publisher<std_msgs::msg::Float64>("/gimbal/pitch/angle_imu", kCoreQoS);
     };
 
     void update(double gx, double gy, double gz, double ax, double ay, double az) {
@@ -58,7 +58,7 @@ public:
         auto q      = Eigen::Quaterniond{q0, q1, q2, q3};
         auto barrel = q * Eigen::Vector3d::UnitX();
 
-        auto yaw_angle = std::make_unique<std_msgs::msg::Float64>();
+        auto yaw_angle  = std::make_unique<std_msgs::msg::Float64>();
         yaw_angle->data = atan2(barrel.y(), barrel.x());
         gimbal_yaw_angle_imu_->publish(std::move(yaw_angle));
 
@@ -159,4 +159,4 @@ private:
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr gimbal_pitch_velocity_imu_;
 };
 
-} // namespace usb_cdc_forwarder
+} // namespace forwarder

@@ -6,7 +6,7 @@
 
 #include "endian_promise.hpp"
 
-namespace usb_cdc_forwarder {
+namespace forwarder {
 
 constexpr size_t kPackageMaxSize = 64;
 
@@ -82,4 +82,4 @@ struct __attribute__((packed)) PackageDR16FeedbackPart {
     uint16_t unused;
 };
 
-} // namespace usb_cdc_forwarder
+} // namespace forwarder

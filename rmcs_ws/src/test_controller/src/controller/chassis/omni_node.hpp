@@ -13,31 +13,31 @@
 
 #include <eigen3/Eigen/Dense>
 
-#include "test_controller/usb_cdc_forwarder/qos.hpp"
+#include "test_controller/qos.hpp"
 
-namespace chassis_controller {
-namespace omni {
+namespace controller {
+namespace chassis {
 
-class ControllerNode : public rclcpp::Node {
+class OmniNode : public rclcpp::Node {
 public:
-    ControllerNode()
+    OmniNode()
         : Node("omni_chassis_controller", rclcpp::NodeOptions().use_intra_process_comms(true)) {
 
         remote_control_subscription_ = this->create_subscription<rm_msgs::msg::RemoteControl>(
-            "/remote_control", usb_cdc_forwarder::kSensorQoS,
-            std::bind(&ControllerNode::remote_control_callback, this, std::placeholders::_1));
+            "/remote_control", kCoreQoS,
+            std::bind(&OmniNode::remote_control_callback, this, std::placeholders::_1));
 
         gimbal_yaw_subscription_ = this->create_subscription<std_msgs::msg::Float64>(
-            "/gimbal/yaw/angle", usb_cdc_forwarder::kSensorQoS,
+            "/gimbal/yaw/angle", kCoreQoS,
             [this](std_msgs::msg::Float64::UniquePtr msg) { gimbal_yaw_ = msg->data; });
         gimbal_control_yaw_publisher_ = this->create_publisher<std_msgs::msg::Float64>(
-            "/gimbal/yaw/control_angle", usb_cdc_forwarder::kControlQoS);
+            "/gimbal/yaw/control_angle", kCoreQoS);
 
         gimbal_imu_pitch_subscription_ = this->create_subscription<std_msgs::msg::Float64>(
-            "/gimbal/pitch/angle_imu", usb_cdc_forwarder::kSensorQoS,
+            "/gimbal/pitch/angle_imu", kCoreQoS,
             [this](std_msgs::msg::Float64::UniquePtr msg) { gimbal_imu_pitch_ = msg->data; });
         gimbal_pitch_subscription_ = this->create_subscription<std_msgs::msg::Float64>(
-            "/gimbal/pitch/angle", usb_cdc_forwarder::kSensorQoS,
+            "/gimbal/pitch/angle", kCoreQoS,
             [this](std_msgs::msg::Float64::UniquePtr msg) {
                 using namespace std::numbers;
                 double pitch = msg->data;
@@ -56,20 +56,20 @@ public:
                 }
             });
         gimbal_control_pitch_publisher_ = this->create_publisher<std_msgs::msg::Float64>(
-            "/gimbal/pitch/control_angle", usb_cdc_forwarder::kControlQoS);
+            "/gimbal/pitch/control_angle", kCoreQoS);
 
         right_front_control_velocity_publisher_ = this->create_publisher<std_msgs::msg::Float64>(
-            "/chassis_wheel/right_front/control_velocity", usb_cdc_forwarder::kControlQoS);
+            "/chassis_wheel/right_front/control_velocity", kCoreQoS);
         left_front_control_velocity_publisher_ = this->create_publisher<std_msgs::msg::Float64>(
-            "/chassis_wheel/left_front/control_velocity", usb_cdc_forwarder::kControlQoS);
+            "/chassis_wheel/left_front/control_velocity", kCoreQoS);
         left_back_control_velocity_publisher_ = this->create_publisher<std_msgs::msg::Float64>(
-            "/chassis_wheel/left_back/control_velocity", usb_cdc_forwarder::kControlQoS);
+            "/chassis_wheel/left_back/control_velocity", kCoreQoS);
         right_back_control_velocity_publisher_ = this->create_publisher<std_msgs::msg::Float64>(
-            "/chassis_wheel/right_back/control_velocity", usb_cdc_forwarder::kControlQoS);
+            "/chassis_wheel/right_back/control_velocity", kCoreQoS);
 
         using namespace std::chrono_literals;
         remote_control_watchdog_timer_ = this->create_wall_timer(
-            100ms, std::bind(&ControllerNode::remote_control_watchdog_callback, this));
+            100ms, std::bind(&OmniNode::remote_control_watchdog_callback, this));
         remote_control_watchdog_timer_->cancel();
     }
 

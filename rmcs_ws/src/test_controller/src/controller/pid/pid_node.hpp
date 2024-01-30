@@ -1,46 +1,48 @@
 #pragma once
 
-#include "test_controller/usb_cdc_forwarder/qos.hpp"
 #include <atomic>
 #include <cmath>
 #include <memory>
+
 #include <rclcpp/logging.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/float64.hpp>
+#include <utility>
 
-namespace pid_controller {
+#include "test_controller/qos.hpp"
 
-class ControllerNode : public rclcpp::Node {
+namespace controller {
+namespace pid {
+
+class PidNode : public rclcpp::Node {
 public:
-    explicit ControllerNode(
+    explicit PidNode(
         const std::string& measurement_topic_name, const std::string& setpoint_topic_name,
         const std::string& control_topic_name, const std::string& node_name)
         : Node(node_name, rclcpp::NodeOptions().use_intra_process_comms(true)) {
 
-        control_publisher_ = this->create_publisher<std_msgs::msg::Float64>(
-            control_topic_name, usb_cdc_forwarder::kControlQoS);
+        control_publisher_ =
+            this->create_publisher<std_msgs::msg::Float64>(control_topic_name, kCoreQoS);
 
         measurement_subscription_ = this->create_subscription<std_msgs::msg::Float64>(
-            measurement_topic_name, usb_cdc_forwarder::kSensorQoS,
-            std::bind(
-                &ControllerNode::measurement_subscription_callback, this, std::placeholders::_1));
+            measurement_topic_name, kCoreQoS,
+            std::bind(&PidNode::measurement_subscription_callback, this, std::placeholders::_1));
         setpoint_subscription_ = this->create_subscription<std_msgs::msg::Float64>(
-            setpoint_topic_name, usb_cdc_forwarder::kControlQoS,
-            std::bind(
-                &ControllerNode::setpoint_subscription_callback, this, std::placeholders::_1));
+            setpoint_topic_name, kCoreQoS,
+            std::bind(&PidNode::setpoint_subscription_callback, this, std::placeholders::_1));
     }
 
-    virtual ~ControllerNode() = default;
+    virtual ~PidNode() = default;
 
     static_assert(std::atomic<double>::is_always_lock_free);
     static constexpr double inf = std::numeric_limits<double>::infinity();
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
-    std::atomic<double> setpoint = 0;
+    double setpoint = 0;
 
-    std::atomic<double> kp = 0, ki = 0, kd = 0;
-    std::atomic<double> integral_min = -inf, integral_max = inf;
-    std::atomic<double> output_min = -inf, output_max = inf;
+    double kp = 0, ki = 0, kd = 0;
+    double integral_min = -inf, integral_max = inf;
+    double output_min = -inf, output_max = inf;
 
 protected:
     double limit(double value, double min, double max) {
@@ -81,4 +83,5 @@ private:
     rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr setpoint_subscription_;
 };
 
-} // namespace pid_controller
+} // namespace pid
+} // namespace controller

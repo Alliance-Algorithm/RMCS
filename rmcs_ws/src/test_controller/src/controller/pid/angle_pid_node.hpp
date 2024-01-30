@@ -1,14 +1,16 @@
 #pragma once
 
-#include "test_controller/pid_controller/controller_node.hpp"
 #include <cmath>
 #include <numbers>
 
-namespace pid_controller {
+#include "controller/pid/pid_node.hpp"
 
-class AngleNode : public ControllerNode {
+namespace controller {
+namespace pid {
+
+class AnglePidNode : public PidNode {
 public:
-    using ControllerNode::ControllerNode;
+    using PidNode::PidNode;
 
     virtual double calculate_err(double measurement) override {
         using namespace std::numbers;
@@ -21,4 +23,5 @@ public:
     }
 };
 
-} // namespace pid_controller
+} // namespace pid
+} // namespace controller

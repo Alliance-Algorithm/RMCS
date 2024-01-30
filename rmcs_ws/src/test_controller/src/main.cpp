@@ -1,21 +1,27 @@
+#include <cassert>
+#include <cstdlib>
 #include <memory>
-#include <rclcpp/executors/single_threaded_executor.hpp>
+#include <string>
+
 #include <rclcpp/rclcpp.hpp>
 
-#include "test_controller/chassis_controller/omni/controller_node.hpp"
-#include "test_controller/filter/mean_filter_node.hpp"
-#include "test_controller/pid_controller/angle_node.hpp"
-#include "test_controller/pid_controller/controller_node.hpp"
-#include "test_controller/usb_cdc_forwarder/forwarder_node.hpp"
+#include "controller/chassis/omni_node.hpp"
+#include "controller/pid/angle_pid_node.hpp"
+#include "controller/pid/pid_node.hpp"
+#include "filter/mean_filter_node.hpp"
+#include "forwarder/forwarder_node.hpp"
 
 int main(int argc, char** argv) {
     rclcpp::init(argc, argv);
-    rclcpp::executors::SingleThreadedExecutor executor;
+    rclcpp::executors::MultiThreadedExecutor executor;
 
-    auto forwarder_node = std::make_shared<usb_cdc_forwarder::ForwarderNode>();
+    const std::string forwarder_port = "/dev/ttyACM0";
+    const std::string stty_command   = "stty -F " + forwarder_port + " raw";
+    assert(std::system(stty_command.c_str()) == 0);
+    auto forwarder_node = std::make_shared<forwarder::ForwarderNode>(forwarder_port);
     executor.add_node(forwarder_node);
 
-    auto right_front_pid_controller_node = std::make_shared<pid_controller::ControllerNode>(
+    auto right_front_pid_controller_node = std::make_shared<controller::pid::PidNode>(
         "/chassis_wheel/right_front/velocity", "/chassis_wheel/right_front/control_velocity",
         "/chassis_wheel/right_front/control_current",
         "chassis_wheel_right_front_velocity_controller");
@@ -25,7 +31,7 @@ int main(int argc, char** argv) {
     right_front_pid_controller_node->integral_max = 0.2;
     executor.add_node(right_front_pid_controller_node);
 
-    auto left_front_pid_controller_node = std::make_shared<pid_controller::ControllerNode>(
+    auto left_front_pid_controller_node = std::make_shared<controller::pid::PidNode>(
         "/chassis_wheel/left_front/velocity", "/chassis_wheel/left_front/control_velocity",
         "/chassis_wheel/left_front/control_current",
         "chassis_wheel_left_front_velocity_controller");
@@ -35,7 +41,7 @@ int main(int argc, char** argv) {
     left_front_pid_controller_node->integral_max = 0.2;
     executor.add_node(left_front_pid_controller_node);
 
-    auto left_back_pid_controller_node = std::make_shared<pid_controller::ControllerNode>(
+    auto left_back_pid_controller_node = std::make_shared<controller::pid::PidNode>(
         "/chassis_wheel/left_back/velocity", "/chassis_wheel/left_back/control_velocity",
         "/chassis_wheel/left_back/control_current", "chassis_wheel_left_back_velocity_controller");
     left_back_pid_controller_node->kp = 0.07, left_back_pid_controller_node->ki = 0.02,
@@ -44,7 +50,7 @@ int main(int argc, char** argv) {
     left_back_pid_controller_node->integral_max = 0.2;
     executor.add_node(left_back_pid_controller_node);
 
-    auto right_back_pid_controller_node = std::make_shared<pid_controller::ControllerNode>(
+    auto right_back_pid_controller_node = std::make_shared<controller::pid::PidNode>(
         "/chassis_wheel/right_back/velocity", "/chassis_wheel/right_back/control_velocity",
         "/chassis_wheel/right_back/control_current",
         "chassis_wheel_right_back_velocity_controller");
@@ -54,7 +60,7 @@ int main(int argc, char** argv) {
     right_back_pid_controller_node->integral_max = 0.2;
     executor.add_node(right_back_pid_controller_node);
 
-    auto yaw_pid_angle_controller_node = std::make_shared<pid_controller::AngleNode>(
+    auto yaw_pid_angle_controller_node = std::make_shared<controller::pid::AnglePidNode>(
         "/gimbal/yaw/angle_imu", "/gimbal/yaw/control_angle_filted", "/gimbal/yaw/control_velocity",
         "yaw_pid_angle_controller");
     yaw_pid_angle_controller_node->setpoint = 0.0;
@@ -64,7 +70,7 @@ int main(int argc, char** argv) {
     yaw_pid_angle_controller_node->integral_max = 0.5;
     executor.add_node(yaw_pid_angle_controller_node);
 
-    auto yaw_pid_velocity_controller_node = std::make_shared<pid_controller::ControllerNode>(
+    auto yaw_pid_velocity_controller_node = std::make_shared<controller::pid::PidNode>(
         "/gimbal/yaw/velocity_imu", "/gimbal/yaw/control_velocity", "/gimbal/yaw/control_current",
         "yaw_pid_velocity_controller");
     yaw_pid_velocity_controller_node->kp = 3.0, yaw_pid_velocity_controller_node->ki = 0.0,
@@ -73,16 +79,16 @@ int main(int argc, char** argv) {
     yaw_pid_velocity_controller_node->integral_max = 0.5;
     executor.add_node(yaw_pid_velocity_controller_node);
 
-    auto pitch_pid_angle_controller_node = std::make_shared<pid_controller::ControllerNode>(
-        "/gimbal/pitch/angle_imu", "/gimbal/pitch/control_angle_filted", "/gimbal/pitch/control_velocity",
-        "pitch_pid_angle_controller");
+    auto pitch_pid_angle_controller_node = std::make_shared<controller::pid::PidNode>(
+        "/gimbal/pitch/angle_imu", "/gimbal/pitch/control_angle_filted",
+        "/gimbal/pitch/control_velocity", "pitch_pid_angle_controller");
     pitch_pid_angle_controller_node->kp = 50.0, pitch_pid_angle_controller_node->ki = 0.1,
     pitch_pid_angle_controller_node->kd           = 70.0;
     pitch_pid_angle_controller_node->integral_min = -1.5,
     pitch_pid_angle_controller_node->integral_max = 1.5;
     executor.add_node(pitch_pid_angle_controller_node);
 
-    auto pitch_pid_velocity_controller_node = std::make_shared<pid_controller::ControllerNode>(
+    auto pitch_pid_velocity_controller_node = std::make_shared<controller::pid::PidNode>(
         "/gimbal/pitch/velocity_imu", "/gimbal/pitch/control_velocity",
         "/gimbal/pitch/control_current", "pitch_pid_velocity_controller");
     pitch_pid_velocity_controller_node->kp = 0.8, pitch_pid_velocity_controller_node->ki = 0.0,
@@ -95,13 +101,13 @@ int main(int argc, char** argv) {
         40, 1000, "/gimbal/yaw/control_angle", "/gimbal/yaw/control_angle_filted",
         "yaw_control_angle_mean_filter_node");
     executor.add_node(yaw_control_angle_mean_filter_node);
-    
+
     auto pitch_control_angle_mean_filter_node = std::make_shared<filter::MeanFilterNode>(
         40, 1000, "/gimbal/pitch/control_angle", "/gimbal/pitch/control_angle_filted",
         "pitch_control_angle_mean_filter_node");
     executor.add_node(pitch_control_angle_mean_filter_node);
 
-    auto chassis_controller_node = std::make_shared<chassis_controller::omni::ControllerNode>();
+    auto chassis_controller_node = std::make_shared<controller::chassis::OmniNode>();
     executor.add_node(chassis_controller_node);
 
     executor.spin();

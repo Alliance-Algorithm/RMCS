@@ -3,9 +3,9 @@
 #include <cassert>
 #include <serial/serial.h>
 
-#include "test_controller/usb_cdc_forwarder/package.hpp"
+#include "forwarder/package.hpp"
 
-namespace usb_cdc_forwarder {
+namespace forwarder {
 
 class PackageSender final {
 public:
@@ -31,4 +31,4 @@ private:
     serial::Serial& serial_;
 };
 
-} // namespace usb_cdc_forwarder
+} // namespace forwarder

@@ -4,17 +4,17 @@
 #include <rclcpp/rclcpp.hpp>
 #include <rm_msgs/msg/remote_control.hpp>
 
-#include "test_controller/usb_cdc_forwarder/package.hpp"
-#include "test_controller/usb_cdc_forwarder/qos.hpp"
+#include "test_controller/qos.hpp"
+#include "forwarder/package.hpp"
 
-namespace usb_cdc_forwarder {
+namespace forwarder {
 
 class RemoteControl {
 public:
     RemoteControl(rclcpp::Node* node)
         : node_(node) {
         remote_control_publisher_ =
-            node_->create_publisher<rm_msgs::msg::RemoteControl>("/remote_control", kSensorQoS);
+            node_->create_publisher<rm_msgs::msg::RemoteControl>("/remote_control", kCoreQoS);
     }
 
     void publish_status(std::unique_ptr<Package> package) {
@@ -69,4 +69,4 @@ private:
     rclcpp::Publisher<rm_msgs::msg::RemoteControl>::SharedPtr remote_control_publisher_;
 };
 
-} // namespace usb_cdc_forwarder
+} // namespace forwarder

@@ -2,14 +2,27 @@
 // #include <cstdint>
 // #include <iostream>
 
-// #include <serial/serial.h>
+#include <serial/serial.h>
 // #include <sys/types.h>
 
 // #include "endian_promise.hpp"
 // #include "usb_cdc/package_deliver.hpp"
 
 int main() {
-    // usb_cdc::PackageDeliver deliver("/dev/ttyACM0");
+    serial::Serial serial{"/dev/ttyACM0", 9600, serial::Timeout::simpleTimeout(0)};
+
+    for (int i = 0; i < 20; i++) {
+        std::string s = serial.read(128);
+
+        if (s.empty()) {
+            i--;
+            continue;
+        }
+
+        std::for_each(s.c_str(), s.c_str() + s.size(), [](uint8_t byte) { printf("%02X ", byte); });
+        putchar('\n');
+    }
+
     // deliver.subscribe(0x11, 1);
     // while (true) {
     //     deliver.update();
@@ -84,8 +97,9 @@ int main() {
     //         //     [](uint8_t byte) { printf("%02X ", byte); });
     //         // putchar('\n');
 
-    //         deliver.serial_.write(reinterpret_cast<uint8_t*>(&send_package), sizeof(send_package));
-    //         std::cout << angle << ' ' << velocity << ' ' << send_package.current1 << std::endl;
+    //         deliver.serial_.write(reinterpret_cast<uint8_t*>(&send_package),
+    //         sizeof(send_package)); std::cout << angle << ' ' << velocity << ' ' <<
+    //         send_package.current1 << std::endl;
     //     }
     // }
 }

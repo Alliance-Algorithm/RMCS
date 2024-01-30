@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cstdint>
-#include <functional>
 #include <memory>
 #include <numbers>
 #include <string>
@@ -14,23 +13,23 @@
 #include <serial/serial.h>
 #include <tf2_ros/transform_broadcaster.h>
 
-#include "endian_promise.hpp"
-#include "test_controller/usb_cdc_forwarder/fps_counter.hpp"
-#include "test_controller/usb_cdc_forwarder/gm6020.hpp"
-#include "test_controller/usb_cdc_forwarder/imu.hpp"
-#include "test_controller/usb_cdc_forwarder/package.hpp"
-#include "test_controller/usb_cdc_forwarder/package_receiver.hpp"
-#include "test_controller/usb_cdc_forwarder/package_sender.hpp"
-#include "test_controller/usb_cdc_forwarder/remote_control.hpp"
-#include "test_controller/usb_cdc_forwarder/wheel.hpp"
+#include "forwarder/endian_promise.hpp"
+#include "forwarder/fps_counter.hpp"
+#include "forwarder/gm6020.hpp"
+#include "forwarder/imu.hpp"
+#include "forwarder/package.hpp"
+#include "forwarder/package_receiver.hpp"
+#include "forwarder/package_sender.hpp"
+#include "forwarder/remote_control.hpp"
+#include "forwarder/wheel.hpp"
 
-namespace usb_cdc_forwarder {
+namespace forwarder {
 
 class ForwarderNode : public rclcpp::Node {
 public:
-    explicit ForwarderNode()
-        : Node("usb_cdc_forwarder", rclcpp::NodeOptions().use_intra_process_comms(true))
-        , serial_("/dev/ttyACM0", 9600, serial::Timeout::simpleTimeout(0))
+    explicit ForwarderNode(const std::string& port)
+        : Node("forwarder", rclcpp::NodeOptions().use_intra_process_comms(true))
+        , serial_(port, 9600, serial::Timeout::simpleTimeout(0))
         , package_sender_(serial_)
         , package_receiver_(serial_) {
 
@@ -157,4 +156,4 @@ private:
     std::thread package_send_receive_thread_;
 };
 
-} // namespace usb_cdc_forwarder
+} // namespace forwarder

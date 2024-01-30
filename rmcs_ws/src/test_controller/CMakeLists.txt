@@ -23,5 +23,6 @@ ament_auto_add_executable (
 )
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
+include_directories(${PROJECT_SOURCE_DIR}/src)
 
 ament_auto_package()
