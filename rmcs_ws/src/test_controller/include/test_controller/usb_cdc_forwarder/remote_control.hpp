@@ -19,7 +19,6 @@ public:
 
     void publish_status(std::unique_ptr<Package> package) {
         auto& static_part = package->static_part();
-
         if (package->dymatic_part_size() != sizeof(PackageDR16FeedbackPart)) {
             RCLCPP_ERROR(
                 node_->get_logger(),

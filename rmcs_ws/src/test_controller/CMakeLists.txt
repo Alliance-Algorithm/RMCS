@@ -14,6 +14,7 @@ ament_auto_find_build_dependencies ()
 
 file (GLOB_RECURSE PROJECT_SOURCE CONFIGURE_DEPENDS
   ${PROJECT_SOURCE_DIR}/src/*.cpp
+  ${PROJECT_SOURCE_DIR}/src/*.c
 )
 
 ament_auto_add_executable (
