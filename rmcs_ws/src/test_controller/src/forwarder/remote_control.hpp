@@ -4,8 +4,8 @@
 #include <rclcpp/rclcpp.hpp>
 #include <rm_msgs/msg/remote_control.hpp>
 
-#include "test_controller/qos.hpp"
 #include "forwarder/package.hpp"
+#include "test_controller/qos.hpp"
 
 namespace forwarder {
 
@@ -48,8 +48,8 @@ public:
         msg->channel_left_y  = channel_to_float(channel3);
 
         uint64_t switch_mask = 0b11;
-        msg->switch1         = (rockers_and_switches & (switch_mask << 44)) >> 44;
-        msg->switch2         = (rockers_and_switches & (switch_mask << 46)) >> 46;
+        msg->switch_right    = (rockers_and_switches & (switch_mask << 44)) >> 44;
+        msg->switch_left     = (rockers_and_switches & (switch_mask << 46)) >> 46;
 
         msg->mouse_x_velocity = dymatic_part.mouse_x_velocity;
         msg->mouse_y_velocity = dymatic_part.mouse_y_velocity;

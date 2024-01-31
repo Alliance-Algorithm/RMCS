@@ -6,6 +6,7 @@
 #include <rclcpp/rclcpp.hpp>
 
 #include "controller/chassis/omni_node.hpp"
+#include "controller/gimbal/gimbal_node.hpp"
 #include "controller/pid/angle_pid_node.hpp"
 #include "controller/pid/pid_node.hpp"
 #include "filter/mean_filter_node.hpp"
@@ -13,7 +14,7 @@
 
 int main(int argc, char** argv) {
     rclcpp::init(argc, argv);
-    rclcpp::executors::MultiThreadedExecutor executor;
+    rclcpp::executors::SingleThreadedExecutor executor;
 
     const std::string forwarder_port = "/dev/ttyACM0";
     const std::string stty_command   = "stty -F " + forwarder_port + " raw";
@@ -63,7 +64,6 @@ int main(int argc, char** argv) {
     auto yaw_pid_angle_controller_node = std::make_shared<controller::pid::AnglePidNode>(
         "/gimbal/yaw/angle_imu", "/gimbal/yaw/control_angle_filted", "/gimbal/yaw/control_velocity",
         "yaw_pid_angle_controller");
-    yaw_pid_angle_controller_node->setpoint = 0.0;
     yaw_pid_angle_controller_node->kp = 30.0, yaw_pid_angle_controller_node->ki = 0.0,
     yaw_pid_angle_controller_node->kd           = 20.0;
     yaw_pid_angle_controller_node->integral_min = -0.5,
@@ -109,6 +109,9 @@ int main(int argc, char** argv) {
 
     auto chassis_controller_node = std::make_shared<controller::chassis::OmniNode>();
     executor.add_node(chassis_controller_node);
+
+    auto gimbal_controller_node = std::make_shared<controller::gimbal::GimbalNode>();
+    executor.add_node(gimbal_controller_node);
 
     executor.spin();
     rclcpp::shutdown();

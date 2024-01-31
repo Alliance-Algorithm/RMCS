@@ -1,6 +1,8 @@
 #pragma once
 
+#include <cmath>
 #include <deque>
+#include <limits>
 #include <memory>
 
 #include <rclcpp/logging.hpp>
@@ -51,7 +53,7 @@ private:
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr output_publisher_;
     rclcpp::TimerBase::SharedPtr publish_timer_;
 
-    double input_value_ = 0;
+    double input_value_ = std::numeric_limits<double>::quiet_NaN();
 
     std::deque<double> queue_;
 };

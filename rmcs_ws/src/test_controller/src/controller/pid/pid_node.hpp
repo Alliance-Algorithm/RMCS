@@ -38,7 +38,7 @@ public:
     static constexpr double inf = std::numeric_limits<double>::infinity();
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
-    double setpoint = 0;
+    double setpoint = nan;
 
     double kp = 0, ki = 0, kd = 0;
     double integral_min = -inf, integral_max = inf;
@@ -57,17 +57,23 @@ protected:
 
 private:
     void measurement_subscription_callback(std::unique_ptr<std_msgs::msg::Float64> measurement) {
-        double err = calculate_err(measurement->data);
+        auto msg = std::make_unique<std_msgs::msg::Float64>();
 
-        double control = kp * err + ki * err_integral_;
-        err_integral_  = limit(err_integral_ + err, integral_min, integral_max);
+        if (std::isnan(setpoint)) {
+            msg->data = nan;
+        } else {
+            double err = calculate_err(measurement->data);
 
-        if (!std::isnan(last_err_))
-            control += kd * (err - last_err_);
-        last_err_ = err;
+            double control = kp * err + ki * err_integral_;
+            err_integral_  = limit(err_integral_ + err, integral_min, integral_max);
 
-        auto msg  = std::make_unique<std_msgs::msg::Float64>();
-        msg->data = limit(control, output_min, output_max);
+            if (!std::isnan(last_err_))
+                control += kd * (err - last_err_);
+            last_err_ = err;
+
+            msg->data = limit(control, output_min, output_max);
+        }
+
         control_publisher_->publish(std::move(msg));
     }
 
