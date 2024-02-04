@@ -1,0 +1,3 @@
+[submodule "rmcs_ws/src/serial"]
+	path = rmcs_ws/src/serial
+	url = https://github.com/Alliance-Algorithm/ros2-serial
