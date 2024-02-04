@@ -48,15 +48,15 @@ public:
         tf_broadcaster_.sendTransform(t);
 
         auto yaw_velocity  = std::make_unique<std_msgs::msg::Float64>();
-        yaw_velocity->data = -gz;
+        yaw_velocity->data = gz;
         gimbal_yaw_velocity_imu_->publish(std::move(yaw_velocity));
 
         auto pitch_velocity  = std::make_unique<std_msgs::msg::Float64>();
-        pitch_velocity->data = -gy;
+        pitch_velocity->data = gx;
         gimbal_pitch_velocity_imu_->publish(std::move(pitch_velocity));
 
         auto q      = Eigen::Quaterniond{q0, q1, q2, q3};
-        auto barrel = q * Eigen::Vector3d::UnitX();
+        auto barrel = q * (-Eigen::Vector3d::UnitY());
 
         auto yaw_angle  = std::make_unique<std_msgs::msg::Float64>();
         yaw_angle->data = atan2(barrel.y(), barrel.x());
@@ -68,7 +68,7 @@ public:
     }
 
     // Quaternion of sensor frame relative to auxiliary frame
-    double q0 = 0.0, q1 = 1.0, q2 = 0.0, q3 = 0.0;
+    double q0 = 1.0, q1 = 0.0, q2 = 0.0, q3 = 0.0;
 
 private:
     void mahony_ahrs_update_imu(double gx, double gy, double gz, double ax, double ay, double az) {
