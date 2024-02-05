@@ -1,5 +1,5 @@
-# Runtime container
-FROM ros:humble AS rmcs-runtime
+# Base container, provides a runtime environment
+FROM ros:humble AS rmcs-base
 
 WORKDIR /
 
@@ -19,17 +19,30 @@ RUN apt-get update && apt-get -y install \
     && rm -rf /var/lib/apt/lists/*
 
 # Download RMCS source, fix dependencies and compile
-RUN git clone https://github.com/Alliance-Algorithm/RMCS && \
-    cd RMCS && git switch motor_test && cd rmcs_ws && \
+RUN git clone --recurse-submodules https://github.com/Alliance-Algorithm/RMCS && \
+    cd RMCS/rmcs_ws && \
     source /opt/ros/humble/local_setup.bash && \
     apt-get update && \
     rosdep install --from-paths src --ignore-src -r -y && \
     rm -rf /var/lib/apt/lists/* && \
-    colcon build --symlink-install && \
-    mv ./install /rmcs-runtime && cd / && rm -rf RMCS
+    colcon build && \
+    mv ./install /rmcs-install && cd / && rm -rf RMCS
 
-# Developing container
-FROM rmcs-runtime AS rmcs-develop
+
+# Runtime container, will automatically launch the main program
+FROM rmcs-base AS rmcs-runtime
+
+RUN echo '#!/usr/bin/bash' > /entrypoint.bash && \
+    echo 'source /opt/ros/humble/setup.bash' >> /entrypoint.bash && \
+    echo 'source /rmcs-install/setup.bash' >> /entrypoint.bash && \
+    echo 'ros2 run rmcs_controller rmcs_controller' >> /entrypoint.bash && \
+    chmod +x /entrypoint.bash
+
+ENTRYPOINT [ "/entrypoint.bash" ]
+
+
+# Developing container, works with devcontainer
+FROM rmcs-base AS rmcs-develop
 
 # Install develop tools (clangd/zsh/etc...)
 RUN apt-get update && apt-get -y install \
