@@ -1,7 +1,7 @@
 [submodule "rmcs_ws/src/serial"]
 	path = rmcs_ws/src/serial
-	url = https://github.com/Alliance-Algorithm/ros2-serial
+	url = https://github.com/Alliance-Algorithm/ros2-serial.git
 [submodule "rmcs_ws/src/ugas"]
 	path = rmcs_ws/src/ugas
-	url = git@github.com:Alliance-Algorithm/UGAS.git
+	url = https://github.com/Alliance-Algorithm/UGAS.git
     branch = ros2
