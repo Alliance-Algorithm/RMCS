@@ -5,3 +5,6 @@
 	path = rmcs_ws/src/ugas
 	url = https://github.com/Alliance-Algorithm/UGAS.git
     branch = ros2
+[submodule "rmcs_ws/src/hikcamera"]
+	path = rmcs_ws/src/hikcamera
+	url = https://github.com/Alliance-Algorithm/ros2-hikcamera.git
