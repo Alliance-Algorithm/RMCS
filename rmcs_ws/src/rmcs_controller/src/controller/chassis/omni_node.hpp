@@ -41,7 +41,7 @@ public:
 
         using namespace std::chrono_literals;
         remote_control_watchdog_timer_ = this->create_wall_timer(
-            100ms, std::bind(&OmniNode::remote_control_watchdog_callback, this));
+            500ms, std::bind(&OmniNode::remote_control_watchdog_callback, this));
         remote_control_watchdog_timer_->cancel();
     }
 

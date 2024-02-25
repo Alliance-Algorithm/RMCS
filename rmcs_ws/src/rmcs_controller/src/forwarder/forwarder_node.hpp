@@ -36,6 +36,8 @@ public:
         package_receiver_.subscribe(
             0x11, std::bind(&ForwarderNode::can1_receive_callback, this, std::placeholders::_1));
         package_receiver_.subscribe(
+            0x12, std::bind(&ForwarderNode::can2_receive_callback, this, std::placeholders::_1));
+        package_receiver_.subscribe(
             0x23, std::bind(&ForwarderNode::dbus_receive_callback, this, std::placeholders::_1));
         package_receiver_.subscribe(
             0x31, std::bind(&ForwarderNode::imu_receive_callback, this, std::placeholders::_1));
@@ -75,6 +77,26 @@ private:
         }
     }
 
+    void can2_receive_callback(std::unique_ptr<Package> package) {
+        auto& static_part = package->static_part();
+
+        if (package->dymatic_part_size() < sizeof(can_id_t)) {
+            RCLCPP_ERROR(
+                this->get_logger(), "Package does not contain can id: [0x%02X 0x%02X] (size = %d)",
+                static_part.type, static_part.index, static_part.data_size);
+            return;
+        }
+
+        auto can_id = package->dymatic_part<can_id_t>();
+        if (can_id == 0x202) {
+            gimbal_bullet_deliver_.publish_status(std::move(package));
+        } else if (can_id == 0x203) {
+            gimbal_right_friction_.publish_status(std::move(package));
+        } else if (can_id == 0x204) {
+            gimbal_left_friction_.publish_status(std::move(package));
+        }
+    }
+
     void dbus_receive_callback(std::unique_ptr<Package> package) {
         remote_control_.publish_status(std::move(package));
     }
@@ -98,14 +120,6 @@ private:
         imu_.update(gx, gy, gz, ax, ay, az);
     }
 
-    // void receive_package_timer_callback() {
-    //     package_receiver_.update();
-    // }
-
-    // void wheel_transmit_package_timer_callback() {
-
-    // }
-
     void package_send_receive_thread_main() {
         using namespace std::chrono_literals;
 
@@ -117,8 +131,8 @@ private:
             if (std::chrono::steady_clock::now() >= next_send_time) {
                 auto& static_part  = package_sender_.package.static_part();
                 auto& dymatic_part = package_sender_.package.dymatic_part<PackageC620ControlPart>();
-                static_part.type   = 0x11;
 
+                static_part.type      = 0x11;
                 static_part.index     = 0;
                 static_part.data_size = sizeof(PackageC620ControlPart);
                 dymatic_part.can_id   = 0x1FF;
@@ -129,6 +143,17 @@ private:
                 std::this_thread::sleep_for(200us);
 
                 chassis_wheels_.write_control_package(package_sender_.package);
+                package_sender_.Send();
+                std::this_thread::sleep_for(200us);
+
+                static_part.type        = 0x12;
+                static_part.index       = 0;
+                static_part.data_size   = sizeof(PackageC620ControlPart);
+                dymatic_part.can_id     = 0x200;
+                dymatic_part.current[0] = 0;
+                gimbal_bullet_deliver_.write_control_current_to_package(dymatic_part, 1);
+                gimbal_right_friction_.write_control_current_to_package(dymatic_part, 2);
+                gimbal_left_friction_.write_control_current_to_package(dymatic_part, 3);
                 package_sender_.Send();
 
                 next_send_time += period;
@@ -147,6 +172,10 @@ private:
     };
     GM6020<false> gimbal_yaw_motor_{this, "/gimbal/yaw"},
         gimbal_pitch_motor_{this, "/gimbal/pitch"};
+
+    Wheel<false> gimbal_bullet_deliver_{this, "/gimbal/bullet_deliver"};
+    Wheel<false> gimbal_left_friction_{this, "/gimbal/left_friction"};
+    Wheel<true> gimbal_right_friction_{this, "/gimbal/right_friction"};
 
     RemoteControl remote_control_{this};
 

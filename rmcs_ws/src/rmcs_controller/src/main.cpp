@@ -107,6 +107,35 @@ int main(int argc, char** argv) {
         "pitch_control_angle_mean_filter_node");
     executor.add_node(pitch_control_angle_mean_filter_node);
 
+    auto left_friction_pid_controller_node = std::make_shared<controller::pid::PidNode>(
+        "/gimbal/left_friction/velocity", "/gimbal/left_friction/control_velocity",
+        "/gimbal/left_friction/control_current", "left_friction_velocity_controller");
+    left_friction_pid_controller_node->setpoint = 0;
+    left_friction_pid_controller_node->kp = 0.07, left_friction_pid_controller_node->ki = 0.02,
+    left_friction_pid_controller_node->kd           = 0.01;
+    left_friction_pid_controller_node->integral_min = -0.2,
+    left_friction_pid_controller_node->integral_max = 0.2;
+    executor.add_node(left_friction_pid_controller_node);
+
+    auto right_friction_pid_controller_node = std::make_shared<controller::pid::PidNode>(
+        "/gimbal/right_friction/velocity", "/gimbal/right_friction/control_velocity",
+        "/gimbal/right_friction/control_current", "right_friction_velocity_controller");
+    right_friction_pid_controller_node->setpoint = 0;
+    right_friction_pid_controller_node->kp = 0.07, right_friction_pid_controller_node->ki = 0.02,
+    right_friction_pid_controller_node->kd           = 0.01;
+    right_friction_pid_controller_node->integral_min = -0.2,
+    right_friction_pid_controller_node->integral_max = 0.2;
+    executor.add_node(right_friction_pid_controller_node);
+
+    auto bullet_deliver_pid_controller_node = std::make_shared<controller::pid::PidNode>(
+        "/gimbal/bullet_deliver/velocity", "/gimbal/bullet_deliver/control_velocity",
+        "/gimbal/bullet_deliver/control_current", "bullet_deliver_velocity_controller");
+    bullet_deliver_pid_controller_node->kp = 0.3, bullet_deliver_pid_controller_node->ki = 0.02,
+    bullet_deliver_pid_controller_node->kd           = 0.01;
+    bullet_deliver_pid_controller_node->integral_min = -0.2,
+    bullet_deliver_pid_controller_node->integral_max = 0.2;
+    executor.add_node(bullet_deliver_pid_controller_node);
+
     auto chassis_controller_node = std::make_shared<controller::chassis::OmniNode>();
     executor.add_node(chassis_controller_node);
 
