@@ -183,7 +183,7 @@ private:
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr gimbal_control_pitch_publisher_;
     double gimbal_imu_pitch_ = 0, gimbal_control_pitch_ = nan;
     double gimbal_imu_pitch_min_ = 0, gimbal_imu_pitch_max_ = 0;
-    const double gimbal_pitch_min_ = 2.7, gimbal_pitch_max_ = 3.6;
+    const double gimbal_pitch_min_ = 3.8, gimbal_pitch_max_ = 4.6;
 };
 
 } // namespace gimbal

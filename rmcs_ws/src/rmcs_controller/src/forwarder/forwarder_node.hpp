@@ -174,8 +174,8 @@ private:
         gimbal_pitch_motor_{this, "/gimbal/pitch"};
 
     Wheel<false> gimbal_bullet_deliver_{this, "/gimbal/bullet_deliver"};
-    Wheel<false> gimbal_left_friction_{this, "/gimbal/left_friction"};
-    Wheel<true> gimbal_right_friction_{this, "/gimbal/right_friction"};
+    Wheel<true> gimbal_left_friction_{this, "/gimbal/left_friction"};
+    Wheel<false> gimbal_right_friction_{this, "/gimbal/right_friction"};
 
     RemoteControl remote_control_{this};
 
