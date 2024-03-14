@@ -21,6 +21,8 @@ public:
             node_->create_publisher<std_msgs::msg::Float64>(wheel_name + "/angle", kCoreQoS);
         velocity_publisher_ =
             node_->create_publisher<std_msgs::msg::Float64>(wheel_name + "/velocity", kCoreQoS);
+        current_publisher_ =
+            node_->create_publisher<std_msgs::msg::Float64>(wheel_name + "/current", kCoreQoS);
         control_current_subscription_ = node_->create_subscription<std_msgs::msg::Float64>(
             wheel_name + "/control_current", kCoreQoS,
             std::bind(&Wheel::control_current_subscription_callback, this, std::placeholders::_1));
@@ -54,6 +56,10 @@ public:
         if constexpr (reverse)
             velocity->data = -velocity->data;
         velocity_publisher_->publish(std::move(velocity));
+
+        auto current  = std::make_unique<std_msgs::msg::Float64>();
+        current->data = static_cast<double>(dymatic_part.current) / 16384.0 * 20.0;
+        current_publisher_->publish(std::move(current));
     }
 
     void control_current_subscription_callback(std_msgs::msg::Float64::UniquePtr msg) {
@@ -70,7 +76,7 @@ public:
 
         if constexpr (reverse)
             current = -current;
-        current = std::round(current / 20.0 * 16384);
+        current = std::round(current / 20.0 * 16384.0);
         if (current > 16384) {
             current = 16384;
         } else if (current < -16384) {
@@ -84,6 +90,7 @@ private:
 
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr angle_publisher_;
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr velocity_publisher_;
+    rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr current_publisher_;
 
     rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr control_current_subscription_;
     std::atomic<double> control_current_ = 0;

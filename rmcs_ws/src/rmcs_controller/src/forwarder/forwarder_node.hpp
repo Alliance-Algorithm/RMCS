@@ -91,9 +91,9 @@ private:
         if (can_id == 0x202) {
             gimbal_bullet_deliver_.publish_status(std::move(package));
         } else if (can_id == 0x203) {
-            gimbal_right_friction_.publish_status(std::move(package));
-        } else if (can_id == 0x204) {
             gimbal_left_friction_.publish_status(std::move(package));
+        } else if (can_id == 0x204) {
+            gimbal_right_friction_.publish_status(std::move(package));
         }
     }
 
@@ -152,8 +152,8 @@ private:
                 dymatic_part.can_id     = 0x200;
                 dymatic_part.current[0] = 0;
                 gimbal_bullet_deliver_.write_control_current_to_package(dymatic_part, 1);
-                gimbal_right_friction_.write_control_current_to_package(dymatic_part, 2);
-                gimbal_left_friction_.write_control_current_to_package(dymatic_part, 3);
+                gimbal_left_friction_.write_control_current_to_package(dymatic_part, 2);
+                gimbal_right_friction_.write_control_current_to_package(dymatic_part, 3);
                 package_sender_.Send();
 
                 next_send_time += period;
@@ -174,8 +174,8 @@ private:
         gimbal_pitch_motor_{this, "/gimbal/pitch"};
 
     Wheel<false> gimbal_bullet_deliver_{this, "/gimbal/bullet_deliver"};
-    Wheel<true> gimbal_left_friction_{this, "/gimbal/left_friction"};
-    Wheel<false> gimbal_right_friction_{this, "/gimbal/right_friction"};
+    Wheel<false> gimbal_left_friction_{this, "/gimbal/left_friction"};
+    Wheel<true> gimbal_right_friction_{this, "/gimbal/right_friction"};
 
     RemoteControl remote_control_{this};
 

@@ -111,8 +111,8 @@ int main(int argc, char** argv) {
         "/gimbal/left_friction/velocity", "/gimbal/left_friction/control_velocity",
         "/gimbal/left_friction/control_current", "left_friction_velocity_controller");
     left_friction_pid_controller_node->setpoint = 0;
-    left_friction_pid_controller_node->kp = 0.07, left_friction_pid_controller_node->ki = 0.02,
-    left_friction_pid_controller_node->kd           = 0.01;
+    left_friction_pid_controller_node->kp = 0.4, left_friction_pid_controller_node->ki = 0.02,
+    left_friction_pid_controller_node->kd           = 0.1;
     left_friction_pid_controller_node->integral_min = -0.2,
     left_friction_pid_controller_node->integral_max = 0.2;
     executor.add_node(left_friction_pid_controller_node);
@@ -121,8 +121,8 @@ int main(int argc, char** argv) {
         "/gimbal/right_friction/velocity", "/gimbal/right_friction/control_velocity",
         "/gimbal/right_friction/control_current", "right_friction_velocity_controller");
     right_friction_pid_controller_node->setpoint = 0;
-    right_friction_pid_controller_node->kp = 0.07, right_friction_pid_controller_node->ki = 0.02,
-    right_friction_pid_controller_node->kd           = 0.01;
+    right_friction_pid_controller_node->kp = 0.4, right_friction_pid_controller_node->ki = 0.02,
+    right_friction_pid_controller_node->kd           = 0.1;
     right_friction_pid_controller_node->integral_min = -0.2,
     right_friction_pid_controller_node->integral_max = 0.2;
     executor.add_node(right_friction_pid_controller_node);

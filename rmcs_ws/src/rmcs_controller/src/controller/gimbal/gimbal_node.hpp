@@ -139,7 +139,7 @@ private:
 
     void publish_friction_mode() {
         std::unique_ptr<std_msgs::msg::Float64> msg;
-        double velocity = friction_mode_ ? 800.0 : 0.0;
+        double velocity = friction_mode_ ? 900.0 : 0.0;
 
         msg       = std::make_unique<std_msgs::msg::Float64>();
         msg->data = velocity;
