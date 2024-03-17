@@ -71,5 +71,25 @@
     <origin xyz="0 0 0" />
   </joint>
 
+  <link name="imu_link" />
+  <joint name="imu" type="fixed">
+    <parent link="pitch_link" />
+    <child link="imu_link" />
+    <origin rpy = "0 0 ${pi/2}" xyz="0 0 0" />
+  </joint>
+
+  <link name="muzzle_link" />
+  <joint name="muzzle" type="fixed">
+    <parent link="pitch_link" />
+    <child link="muzzle_link" />
+    <origin xyz="0.059 0 0" />
+  </joint>
+
+  <link name="camera_link" />
+  <joint name="camera" type="fixed">
+    <parent link="pitch_link" />
+    <child link="camera_link" />
+    <origin xyz="0.06603 0 0.082" />
+  </joint>
 
 </robot>

@@ -74,7 +74,7 @@ private:
 
         constexpr double velocity_limit = 800;
 
-        auto rotation = Eigen::Rotation2Dd{gimbal_yaw_ - 1.03};
+        auto rotation = Eigen::Rotation2Dd{gimbal_yaw_};
         Eigen::Vector2d channel =
             rotation * Eigen::Vector2d{msg->channel_right_x, msg->channel_right_y};
 

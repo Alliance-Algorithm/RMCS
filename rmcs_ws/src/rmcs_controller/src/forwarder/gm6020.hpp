@@ -4,6 +4,7 @@
 #include <cmath>
 #include <memory>
 
+#include <numbers>
 #include <rclcpp/node.hpp>
 #include <std_msgs/msg/float64.hpp>
 
@@ -15,7 +16,7 @@ namespace forwarder {
 template <bool reverse>
 class GM6020 {
 public:
-    GM6020(rclcpp::Node* node, const std::string& wheel_name)
+    GM6020(rclcpp::Node* node, const std::string& wheel_name, double offset = 0)
         : node_(node) {
         angle_publisher_ =
             node_->create_publisher<std_msgs::msg::Float64>(wheel_name + "/angle", kCoreQoS);
@@ -24,6 +25,7 @@ public:
         control_current_subscription_ = node_->create_subscription<std_msgs::msg::Float64>(
             wheel_name + "/control_current", kCoreQoS,
             std::bind(&GM6020::control_current_subscription_callback, this, std::placeholders::_1));
+        offset_ = offset;
     }
     GM6020(const GM6020&)            = delete;
     GM6020& operator=(const GM6020&) = delete;
@@ -44,6 +46,9 @@ public:
         // angle unit: rad [0, 2pi)
         auto angle  = std::make_unique<std_msgs::msg::Float64>();
         angle->data = static_cast<double>(dymatic_part.angle) / 8192.0 * 2.0 * std::numbers::pi;
+        angle->data = std::fmod(angle->data + offset_, 2 * std::numbers::pi);
+        if (angle->data < 0)
+            angle->data += 2 * std::numbers::pi;
         if constexpr (reverse)
             angle->data = 2.0 * std::numbers::pi - angle->data;
         angle_publisher_->publish(std::move(angle));
@@ -81,6 +86,8 @@ public:
 
 private:
     rclcpp::Node* node_;
+
+    double offset_;
 
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr angle_publisher_;
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr velocity_publisher_;

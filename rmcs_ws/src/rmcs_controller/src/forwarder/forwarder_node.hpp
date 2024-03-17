@@ -170,8 +170,8 @@ private:
         {"/chassis_wheel/left_front", "/chassis_wheel/right_front", "/chassis_wheel/right_back",
           "/chassis_wheel/left_back"}
     };
-    GM6020<false> gimbal_yaw_motor_{this, "/gimbal/yaw"},
-        gimbal_pitch_motor_{this, "/gimbal/pitch"};
+    GM6020<false> gimbal_yaw_motor_{this, "/gimbal/yaw", -1.054},
+        gimbal_pitch_motor_{this, "/gimbal/pitch", -4.217};
 
     Wheel<false> gimbal_bullet_deliver_{this, "/gimbal/bullet_deliver"};
     Wheel<false> gimbal_left_friction_{this, "/gimbal/left_friction"};

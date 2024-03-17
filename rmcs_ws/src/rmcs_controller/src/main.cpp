@@ -5,12 +5,15 @@
 
 #include <rclcpp/rclcpp.hpp>
 
+#include <sensor_msgs/msg/joint_state.hpp>
+
 #include "controller/chassis/omni_node.hpp"
 #include "controller/gimbal/gimbal_node.hpp"
 #include "controller/pid/angle_pid_node.hpp"
 #include "controller/pid/pid_node.hpp"
 #include "filter/mean_filter_node.hpp"
 #include "forwarder/forwarder_node.hpp"
+#include "forwarder/joint_state_publisher_node.hpp"
 
 int main(int argc, char** argv) {
     rclcpp::init(argc, argv);
@@ -141,6 +144,19 @@ int main(int argc, char** argv) {
 
     auto gimbal_controller_node = std::make_shared<controller::gimbal::GimbalNode>();
     executor.add_node(gimbal_controller_node);
+
+    auto joint_state_publisher_node = std::make_shared<forwarder::JointStatePublisherNode>();
+    joint_state_publisher_node->forward_joint_state("/gimbal/yaw/angle", "yaw");
+    joint_state_publisher_node->forward_joint_state("/gimbal/pitch/angle", "pitch");
+    joint_state_publisher_node->forward_joint_state(
+        "/chassis_wheel/left_front/angle", "left_front_wheel");
+    joint_state_publisher_node->forward_joint_state(
+        "/chassis_wheel/left_back/angle", "left_back_wheel");
+    joint_state_publisher_node->forward_joint_state(
+        "/chassis_wheel/right_back/angle", "right_back_wheel");
+    joint_state_publisher_node->forward_joint_state(
+        "/chassis_wheel/right_front/angle", "right_front_wheel");
+    executor.add_node(joint_state_publisher_node);
 
     executor.spin();
     rclcpp::shutdown();
