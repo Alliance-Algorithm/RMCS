@@ -9,9 +9,8 @@
 
 #include "controller/chassis/omni_node.hpp"
 #include "controller/gimbal/gimbal_node.hpp"
-#include "controller/pid/angle_pid_node.hpp"
+#include "controller/pid/error_pid_node.hpp"
 #include "controller/pid/pid_node.hpp"
-#include "filter/mean_filter_node.hpp"
 #include "forwarder/forwarder_node.hpp"
 #include "forwarder/joint_state_publisher_node.hpp"
 
@@ -64,8 +63,8 @@ int main(int argc, char** argv) {
     right_back_pid_controller_node->integral_max = 0.2;
     executor.add_node(right_back_pid_controller_node);
 
-    auto yaw_pid_angle_controller_node = std::make_shared<controller::pid::AnglePidNode>(
-        "/gimbal/yaw/angle_imu", "/gimbal/yaw/control_angle_filted", "/gimbal/yaw/control_velocity",
+    auto yaw_pid_angle_controller_node = std::make_shared<controller::pid::ErrorPidNode>(
+        "/gimbal/yaw/control_angle_error", "/gimbal/yaw/control_velocity",
         "yaw_pid_angle_controller");
     yaw_pid_angle_controller_node->kp = 30.0, yaw_pid_angle_controller_node->ki = 0.0,
     yaw_pid_angle_controller_node->kd           = 20.0;
@@ -82,9 +81,9 @@ int main(int argc, char** argv) {
     yaw_pid_velocity_controller_node->integral_max = 0.5;
     executor.add_node(yaw_pid_velocity_controller_node);
 
-    auto pitch_pid_angle_controller_node = std::make_shared<controller::pid::PidNode>(
-        "/gimbal/pitch/angle_imu", "/gimbal/pitch/control_angle_filted",
-        "/gimbal/pitch/control_velocity", "pitch_pid_angle_controller");
+    auto pitch_pid_angle_controller_node = std::make_shared<controller::pid::ErrorPidNode>(
+        "/gimbal/pitch/control_angle_error", "/gimbal/pitch/control_velocity",
+        "pitch_pid_angle_controller");
     pitch_pid_angle_controller_node->kp = 50.0, pitch_pid_angle_controller_node->ki = 0.1,
     pitch_pid_angle_controller_node->kd           = 70.0;
     pitch_pid_angle_controller_node->integral_min = -1.5,
@@ -100,20 +99,9 @@ int main(int argc, char** argv) {
     pitch_pid_velocity_controller_node->integral_max = 0.5;
     executor.add_node(pitch_pid_velocity_controller_node);
 
-    auto yaw_control_angle_mean_filter_node = std::make_shared<filter::MeanFilterNode>(
-        40, 1000, "/gimbal/yaw/control_angle", "/gimbal/yaw/control_angle_filted",
-        "yaw_control_angle_mean_filter_node");
-    executor.add_node(yaw_control_angle_mean_filter_node);
-
-    auto pitch_control_angle_mean_filter_node = std::make_shared<filter::MeanFilterNode>(
-        40, 1000, "/gimbal/pitch/control_angle", "/gimbal/pitch/control_angle_filted",
-        "pitch_control_angle_mean_filter_node");
-    executor.add_node(pitch_control_angle_mean_filter_node);
-
     auto left_friction_pid_controller_node = std::make_shared<controller::pid::PidNode>(
         "/gimbal/left_friction/velocity", "/gimbal/left_friction/control_velocity",
         "/gimbal/left_friction/control_current", "left_friction_velocity_controller");
-    left_friction_pid_controller_node->setpoint = 0;
     left_friction_pid_controller_node->kp = 0.4, left_friction_pid_controller_node->ki = 0.02,
     left_friction_pid_controller_node->kd           = 0.1;
     left_friction_pid_controller_node->integral_min = -0.2,
@@ -123,7 +111,6 @@ int main(int argc, char** argv) {
     auto right_friction_pid_controller_node = std::make_shared<controller::pid::PidNode>(
         "/gimbal/right_friction/velocity", "/gimbal/right_friction/control_velocity",
         "/gimbal/right_friction/control_current", "right_friction_velocity_controller");
-    right_friction_pid_controller_node->setpoint = 0;
     right_friction_pid_controller_node->kp = 0.4, right_friction_pid_controller_node->ki = 0.02,
     right_friction_pid_controller_node->kd           = 0.1;
     right_friction_pid_controller_node->integral_min = -0.2,
