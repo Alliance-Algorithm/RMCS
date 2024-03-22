@@ -22,13 +22,9 @@ public:
 
         gimbal_yaw_velocity_imu_ =
             node->create_publisher<std_msgs::msg::Float64>("/gimbal/yaw/velocity_imu", kCoreQoS);
-        gimbal_yaw_angle_imu_ =
-            node->create_publisher<std_msgs::msg::Float64>("/gimbal/yaw/angle_imu", kCoreQoS);
 
         gimbal_pitch_velocity_imu_ =
             node->create_publisher<std_msgs::msg::Float64>("/gimbal/pitch/velocity_imu", kCoreQoS);
-        gimbal_pitch_angle_imu_ =
-            node->create_publisher<std_msgs::msg::Float64>("/gimbal/pitch/angle_imu", kCoreQoS);
     };
 
     void update(double gx, double gy, double gz, double ax, double ay, double az) {
@@ -54,17 +50,6 @@ public:
         auto pitch_velocity  = std::make_unique<std_msgs::msg::Float64>();
         pitch_velocity->data = gx;
         gimbal_pitch_velocity_imu_->publish(std::move(pitch_velocity));
-
-        auto q      = Eigen::Quaterniond{q0, q1, q2, q3};
-        auto barrel = q * (-Eigen::Vector3d::UnitY());
-
-        auto yaw_angle  = std::make_unique<std_msgs::msg::Float64>();
-        yaw_angle->data = atan2(barrel.y(), barrel.x());
-        gimbal_yaw_angle_imu_->publish(std::move(yaw_angle));
-
-        auto pitch_angle  = std::make_unique<std_msgs::msg::Float64>();
-        pitch_angle->data = -asin(barrel.dot(Eigen::Vector3d::UnitZ()));
-        gimbal_pitch_angle_imu_->publish(std::move(pitch_angle));
     }
 
     // Quaternion of sensor frame relative to auxiliary frame
@@ -144,7 +129,7 @@ private:
     }
 
     static constexpr double kSampleFreq = 2000.0; // sample frequency in Hz
-    static constexpr double kKp         = 0.5;    // proportional gain
+    static constexpr double kKp         = 0.2;    // proportional gain
     static constexpr double kKi         = 0.0;    // integral gain
 
     // Integral error terms scaled by Ki
@@ -153,9 +138,7 @@ private:
     rclcpp::Node* node_;
 
     tf2_ros::TransformBroadcaster tf_broadcaster_;
-    rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr gimbal_yaw_angle_imu_;
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr gimbal_yaw_velocity_imu_;
-    rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr gimbal_pitch_angle_imu_;
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr gimbal_pitch_velocity_imu_;
 };
 
