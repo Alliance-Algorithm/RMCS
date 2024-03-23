@@ -65,9 +65,12 @@ public:
 
         gimbal_auto_aim_subscription_ = this->create_subscription<geometry_msgs::msg::Vector3>(
             "/gimbal/auto_aim", kCoreQoS, [this](geometry_msgs::msg::Vector3::UniquePtr msg) {
-                if (!control_direction_.isZero()) {
-                    control_direction_ = {msg->x, msg->y, msg->z};
-                }
+                if (last_switch_left_ != rm_msgs::msg::RemoteControl::SWITCH_STATE_MIDDLE
+                    || last_switch_right_ != rm_msgs::msg::RemoteControl::SWITCH_STATE_UP)
+                    return;
+                if (control_direction_.isZero())
+                    return;
+                control_direction_ = {msg->x, msg->y, msg->z};
             });
 
         using namespace std::chrono_literals;
@@ -205,7 +208,7 @@ private:
 
     void publish_friction_mode() {
         std::unique_ptr<std_msgs::msg::Float64> msg;
-        double velocity = friction_mode_ ? 900.0 : 0.0;
+        double velocity = friction_mode_ ? 820.0 : 0.0;
 
         msg       = std::make_unique<std_msgs::msg::Float64>();
         msg->data = velocity;

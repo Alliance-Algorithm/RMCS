@@ -6,27 +6,18 @@ WORKDIR /
 # Change bash as default shell instead of sh
 SHELL ["/bin/bash", "-c"]
 
-# Install some tools, eigen and ceres installation dependencies.
+# Install some tools and libraries.
 RUN apt-get update && apt-get -y install \
     vim wget curl unzip \
     build-essential \
     cmake \
     make ninja-build \
-    libgoogle-glog-dev libgflags-dev \
-    libatlas-base-dev \
     libeigen3-dev \
-    libsuitesparse-dev \
+    libopencv-dev \
+    libgoogle-glog-dev libgflags-dev \
+    libatlas-base-dev libsuitesparse-dev \
+    libceres-dev \
     && rm -rf /var/lib/apt/lists/*
-
-# Install ceres 2.2.0
-RUN mkdir ceres_tmp && cd ceres_tmp && \
-    wget http://ceres-solver.org/ceres-solver-2.2.0.tar.gz && \
-    tar zxf ceres-solver-2.2.0.tar.gz && \
-    mkdir build && cd build && \
-    cmake ../ceres-solver-2.2.0 && \
-    make -j8 && \
-    make install && \
-    cd ../.. && rm -rf ./ceres_tmp
 
 # Install openvino 2023.3 runtime (C++ API only)
 RUN wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB && \
@@ -37,23 +28,6 @@ RUN wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCT
     rm -rf /var/lib/apt/lists/* && \
     rm ./GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
 
-# Install HikCamera runtime SDK
-# RUN mkdir mvs_tmp && cd mvs_tmp && \
-#     wget https://www.hikrobotics.com/cn2/source/support/software/MvCamCtrlSDK_STD_V4.3.0_231225.zip && \
-#     unzip MvCamCtrlSDK_STD_V4.3.0_231225.zip && \
-#     echo -e '\n' | dpkg -i ./MvCamCtrlSDK_Runtime-4.3.0_x86_64_20231225.deb && \
-#     cd .. && rm -rf ./mvs_tmp
-
-# Install opencv 4.9.0 with contrib
-# RUN mkdir opencv_tmp && cd opencv_tmp && \
-#     wget -O opencv.tar.gz https://github.com/opencv/opencv/archive/refs/tags/4.9.0.tar.gz && \
-#     wget -O opencv_contrib.tar.gz https://github.com/opencv/opencv_contrib/archive/refs/tags/4.9.0.tar.gz && \
-#     tar -zxf ./opencv.tar.gz && tar -zxf ./opencv_contrib.tar.gz && \
-#     mkdir build && cd build && \
-#     cmake -DOPENCV_EXTRA_MODULES_PATH=../opencv_contrib-4.9.0/modules ../opencv-4.9.0 && \
-#     make -j8 && make install && \
-#     cd ../.. && rm -rf ./opencv_tmp
-
 # Download RMCS source, fix dependencies and compile
 RUN git clone --recurse-submodules https://github.com/Alliance-Algorithm/RMCS && \
     cd RMCS/rmcs_ws && \
@@ -62,21 +36,21 @@ RUN git clone --recurse-submodules https://github.com/Alliance-Algorithm/RMCS &&
     apt-get update && \
     rosdep install --from-paths src --ignore-src -r -y && \
     rm -rf /var/lib/apt/lists/* && \
-    # colcon build && \
-    # mv ./install /rmcs-install && cd / && \
+    colcon build && \
+    mv ./install /rmcs-install && cd / && \
     rm -rf RMCS
 
 
 # Runtime container, will automatically launch the main program
 FROM rmcs-base AS rmcs-runtime
 
-# RUN echo '#!/usr/bin/bash' > /entrypoint.bash && \
-#     echo 'source /opt/ros/humble/setup.bash' >> /entrypoint.bash && \
-#     echo 'source /rmcs-install/setup.bash' >> /entrypoint.bash && \
-#     echo 'ros2 run rmcs_controller rmcs_controller' >> /entrypoint.bash && \
-#     chmod +x /entrypoint.bash
+RUN echo '#!/usr/bin/bash' > /entrypoint.bash && \
+    echo 'source /opt/ros/humble/setup.bash' >> /entrypoint.bash && \
+    echo 'source /rmcs-install/setup.bash' >> /entrypoint.bash && \
+    echo 'ros2 launch rmcs_bringup rmcs.launch.py' >> /entrypoint.bash && \
+    chmod +x /entrypoint.bash
 
-# ENTRYPOINT [ "/entrypoint.bash" ]
+ENTRYPOINT [ "/entrypoint.bash" ]
 
 
 # Developing container, works with devcontainer
@@ -92,7 +66,8 @@ RUN apt-get -y install libcanberra-gtk-module libcanberra-gtk3-module
 
 # Add user
 RUN useradd -m developer --shell /bin/zsh && echo "developer:developer" | chpasswd && adduser developer sudo && \
-    echo "developer ALL=(ALL:ALL) NOPASSWD:ALL" >> /etc/sudoers
+    echo "developer ALL=(ALL:ALL) NOPASSWD:ALL" >> /etc/sudoers && \
+    gpasswd --add developer dialout
 
 # Set user
 USER developer

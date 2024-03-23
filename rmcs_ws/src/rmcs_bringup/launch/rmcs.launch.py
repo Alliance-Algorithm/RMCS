@@ -50,21 +50,21 @@ def generate_launch_description():
         launch_ros.actions.Node(package="rmcs_controller", executable="rmcs_controller")
     )
 
-    ld.add_action(
-        launch_ros.actions.Node(
-            package="rviz2",
-            executable="rviz2",
-            arguments=[
-                "-d",
-                launch.substitutions.PathJoinSubstitution(
-                    [
-                        launch_ros.substitutions.FindPackageShare("rmcs_description"),
-                        "rviz",
-                        "display.rviz",
-                    ]
-                ),
-            ],
-        )
-    )
+    # ld.add_action(
+    #     launch_ros.actions.Node(
+    #         package="rviz2",
+    #         executable="rviz2",
+    #         arguments=[
+    #             "-d",
+    #             launch.substitutions.PathJoinSubstitution(
+    #                 [
+    #                     launch_ros.substitutions.FindPackageShare("rmcs_description"),
+    #                     "rviz",
+    #                     "display.rviz",
+    #                 ]
+    #             ),
+    #         ],
+    #     )
+    # )
 
     return ld
