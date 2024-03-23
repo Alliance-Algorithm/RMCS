@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cmath>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <numbers>
@@ -13,6 +14,7 @@
 #include <std_msgs/msg/float64.hpp>
 
 #include "rmcs_controller/qos.hpp"
+#include "rmcs_controller/type.hpp"
 
 namespace controller {
 namespace chassis {
@@ -40,6 +42,7 @@ public:
             "/chassis_wheel/right_back/control_velocity", kCoreQoS);
 
         using namespace std::chrono_literals;
+
         remote_control_watchdog_timer_ = this->create_wall_timer(
             500ms, std::bind(&OmniNode::remote_control_watchdog_callback, this));
         remote_control_watchdog_timer_->cancel();
@@ -47,7 +50,10 @@ public:
 
 private:
     void remote_control_callback(rm_msgs::msg::RemoteControl::SharedPtr msg) {
+
         remote_control_watchdog_timer_->reset();
+
+        auto keys = reinterpret_cast<KeyboardType*>(&msg->keyboard);
 
         if (msg->switch_left == rm_msgs::msg::RemoteControl::SWITCH_STATE_DOWN
             && msg->switch_right == rm_msgs::msg::RemoteControl::SWITCH_STATE_DOWN) {
@@ -69,17 +75,30 @@ private:
                 spinning_mode_ = SpinningMode::NO;
         }
 
+        if (keys->ctrl && keys->c) {
+            spinning_mode_ = SpinningMode::NO;
+        } else if (!keys->ctrl && keys->c) {
+            spinning_mode_ = SpinningMode::HIGH;
+        }
+
         last_switch_left_  = msg->switch_left;
         last_switch_right_ = msg->switch_right;
 
+        // Control Motion
+        //
         constexpr double velocity_limit = 800;
 
         auto rotation = Eigen::Rotation2Dd{gimbal_yaw_};
-        Eigen::Vector2d channel =
-            rotation * Eigen::Vector2d{msg->channel_right_x, msg->channel_right_y};
 
-        double right_oblique = velocity_limit * (channel.x() * cos_45 + channel.y() * sin_45);
-        double left_oblique  = velocity_limit * (channel.y() * cos_45 - channel.x() * sin_45);
+        // TODO
+        //
+        // value to change
+        auto channel  = Eigen::Vector2d{msg->channel_right_x, msg->channel_right_y};
+        auto keyboard = Eigen::Vector2d{0.5 * (keys->d - keys->a), 0.5 * (keys->w - keys->s)};
+        auto move     = (rotation * (channel + keyboard)).eval();
+
+        double right_oblique = velocity_limit * (move.x() * cos_45 + move.y() * sin_45);
+        double left_oblique  = velocity_limit * (move.y() * cos_45 - move.x() * sin_45);
 
         double spinning_velocity = 0;
         if (spinning_mode_ == SpinningMode::LOW)
@@ -89,6 +108,7 @@ private:
 
         double velocities[4] = {-left_oblique, right_oblique, left_oblique, -right_oblique};
         double max_velocity  = 0;
+
         for (auto& velocity : velocities) {
             velocity += 0.4 * velocity_limit * spinning_velocity;
             max_velocity = std::max(std::abs(velocity), max_velocity);
@@ -99,6 +119,19 @@ private:
                 velocity *= scale;
         }
         publish_control_velocities(velocities[0], velocities[1], velocities[2], velocities[3]);
+
+        // RCLCPP_INFO(
+        //     this->get_logger(),
+        //     "\n|0: %d|1: %d|2: %d|3: %d|4: %d|5: %d|6: %d|7: %d"
+        //     "|8: %d|9: %d|10: %d|11: %d|12: %d|13: %d|14: %d|15: %d|",
+        //     static_cast<uint8_t>(keyboard_bits[0]), static_cast<uint8_t>(keyboard_bits[1]),
+        //     static_cast<uint8_t>(keyboard_bits[2]), static_cast<uint8_t>(keyboard_bits[3]),
+        //     static_cast<uint8_t>(keyboard_bits[4]), static_cast<uint8_t>(keyboard_bits[5]),
+        //     static_cast<uint8_t>(keyboard_bits[6]), static_cast<uint8_t>(keyboard_bits[7]),
+        //     static_cast<uint8_t>(keyboard_bits[8]), static_cast<uint8_t>(keyboard_bits[9]),
+        //     static_cast<uint8_t>(keyboard_bits[10]), static_cast<uint8_t>(keyboard_bits[11]),
+        //     static_cast<uint8_t>(keyboard_bits[12]), static_cast<uint8_t>(keyboard_bits[13]),
+        //     static_cast<uint8_t>(keyboard_bits[14]), static_cast<uint8_t>(keyboard_bits[15]));
     }
 
     void remote_control_watchdog_callback() {

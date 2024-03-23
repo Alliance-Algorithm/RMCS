@@ -16,6 +16,7 @@
 #include <tf2_ros/transform_listener.h>
 
 #include "rmcs_controller/qos.hpp"
+#include "rmcs_controller/type.hpp"
 
 namespace controller {
 namespace gimbal {
@@ -60,16 +61,20 @@ public:
                 //     gimbal_imu_pitch_min_ = gimbal_imu_pitch_max_ = gimbal_imu_pitch_;
                 // }
             });
+
         gimbal_control_pitch_error_publisher_ = this->create_publisher<std_msgs::msg::Float64>(
             "/gimbal/pitch/control_angle_error", kCoreQoS);
 
         gimbal_auto_aim_subscription_ = this->create_subscription<geometry_msgs::msg::Vector3>(
             "/gimbal/auto_aim", kCoreQoS, [this](geometry_msgs::msg::Vector3::UniquePtr msg) {
-                if (last_switch_left_ != rm_msgs::msg::RemoteControl::SWITCH_STATE_MIDDLE
-                    || last_switch_right_ != rm_msgs::msg::RemoteControl::SWITCH_STATE_UP)
+                if ((last_switch_left_ != rm_msgs::msg::RemoteControl::SWITCH_STATE_MIDDLE
+                     || last_switch_right_ != rm_msgs::msg::RemoteControl::SWITCH_STATE_UP)
+                    && false == auto_aim_mode_)
                     return;
+
                 if (control_direction_.isZero())
                     return;
+
                 control_direction_ = {msg->x, msg->y, msg->z};
             });
 
@@ -136,7 +141,10 @@ private:
     }
 
     void remote_control_callback(rm_msgs::msg::RemoteControl::SharedPtr msg) {
+
         remote_control_watchdog_timer_->reset();
+
+        auto keys = reinterpret_cast<KeyboardType*>(&msg->keyboard);
 
         if (msg->switch_left == rm_msgs::msg::RemoteControl::SWITCH_STATE_DOWN
             && msg->switch_right == rm_msgs::msg::RemoteControl::SWITCH_STATE_DOWN) {
@@ -158,6 +166,28 @@ private:
                 friction_mode_
                 && msg->switch_left == rm_msgs::msg::RemoteControl::SWITCH_STATE_DOWN;
             publish_bullet_deliver_mode();
+        }
+
+        if (keys->ctrl && keys->v) {
+            friction_mode_ = false;
+            publish_friction_mode();
+        } else if (!keys->ctrl && keys->v) {
+            friction_mode_ = true;
+            publish_friction_mode();
+        }
+
+        if (msg->mouse_left_button && friction_mode_) {
+            bullet_deliver_mode_ = true;
+            publish_bullet_deliver_mode();
+        } else {
+            bullet_deliver_mode_ = false;
+            publish_bullet_deliver_mode();
+        }
+
+        if (msg->mouse_right_button) {
+            auto_aim_mode_ = true;
+        } else {
+            auto_aim_mode_ = false;
         }
 
         last_switch_left_  = msg->switch_left;
@@ -182,12 +212,19 @@ private:
                 control_direction_ = Eigen::Vector3d{vec.x(), vec.y(), 0}.normalized();
         }
 
-        auto delta_yaw =
-            Eigen::AngleAxisd{-0.08 * msg->channel_left_x, gimbal_pose * Eigen::Vector3d::UnitZ()};
-        auto delta_pitch =
-            Eigen::AngleAxisd{-0.06 * msg->channel_left_y, gimbal_pose * Eigen::Vector3d::UnitY()};
+        // handle the message from mourse to control the yaw and pitch
+        auto delta_yaw = Eigen::AngleAxisd{
+            -0.08 * msg->channel_left_x + -0.01 * msg->mouse_x_velocity,
+            gimbal_pose * Eigen::Vector3d::UnitZ()};
+
+        auto delta_pitch = Eigen::AngleAxisd{
+            -0.06 * msg->channel_left_y + 0.01 * msg->mouse_y_velocity,
+            gimbal_pose * Eigen::Vector3d::UnitY()};
+
         control_direction_ = (delta_pitch * (delta_yaw * control_direction_)).eval();
 
+        // TODO
+        //
         // if (gimbal_control_pitch_ < gimbal_imu_pitch_min_)
         //     gimbal_control_pitch_ = gimbal_imu_pitch_min_;
         // else if (gimbal_control_pitch_ > gimbal_imu_pitch_max_)
@@ -250,7 +287,10 @@ private:
     rm_msgs::msg::RemoteControl::_switch_right_type last_switch_right_ =
         rm_msgs::msg::RemoteControl::SWITCH_STATE_UNKNOWN;
 
-    bool friction_mode_ = false, bullet_deliver_mode_ = false;
+    bool friction_mode_       = false;
+    bool bullet_deliver_mode_ = false;
+    bool auto_aim_mode_       = false;
+
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr gimbal_friction_left_publisher_;
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr gimbal_friction_right_publisher_;
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr gimbal_bullet_deliver_publisher_;
