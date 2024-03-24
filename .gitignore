@@ -57,3 +57,8 @@ CATKIN_IGNORE
 # Hik camera log files
 MvFGSdkLog
 MvSdkLog
+
+# SSH key files
+id_rsa
+id_rsa.pub
+
