@@ -48,6 +48,14 @@ RUN cd /tmp && \
     cp unison/bin/* /usr/local/bin && \
     rm -rf unison unison.tar.gz
 
+# Install livox SDK
+RUN cd /tmp && \
+    git clone https://github.com/Livox-SDK/Livox-SDK2.git && \
+    cd Livox-SDK2 && mkdir build && cd build && \
+    cmake .. && make -j && \
+    make install && \
+    cd ../.. && rm -rf Livox-SDK2
+
 
 
 # Developing container, works with devcontainer

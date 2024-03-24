@@ -8,3 +8,9 @@
 [submodule "rmcs_ws/src/hikcamera"]
 	path = rmcs_ws/src/hikcamera
 	url = https://github.com/Alliance-Algorithm/ros2-hikcamera.git
+[submodule "rmcs_ws/src/fast_lio"]
+	path = rmcs_ws/src/fast_lio
+	url = https://github.com/Alliance-Algorithm/fast_lio.git
+[submodule "rmcs_ws/src/livox_ros_driver2"]
+	path = rmcs_ws/src/livox_ros_driver2
+	url = https://github.com/Alliance-Algorithm/livox_ros_driver2.git
