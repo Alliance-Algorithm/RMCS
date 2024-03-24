@@ -133,11 +133,11 @@ public:
 
         remote_control_watchdog_timer_ = this->create_wall_timer(
             500ms, std::bind(&GimbalNode::remote_control_watchdog_callback, this));
-        decision_control_watchdog_timer_ = this->create_wall_timer(
-            500ms, std::bind(&GimbalNode::decision_control_watchdog_callback, this));
+        // decision_control_watchdog_timer_ = this->create_wall_timer(
+        //     500ms, std::bind(&GimbalNode::decision_control_watchdog_callback, this));
 
         remote_control_watchdog_timer_->cancel();
-        decision_control_watchdog_timer_->cancel();
+        // decision_control_watchdog_timer_->cancel();
     }
 
 private:
@@ -245,7 +245,7 @@ private:
     }
 
     void decision_control_callback(std_msgs::msg::Float32MultiArray::SharedPtr msg) {
-        decision_control_watchdog_timer_->reset();
+        // decision_control_watchdog_timer_->reset();
 
         // (void)msg->data[0]; // angle 1
         // (void)msg->data[1]; // angle 2

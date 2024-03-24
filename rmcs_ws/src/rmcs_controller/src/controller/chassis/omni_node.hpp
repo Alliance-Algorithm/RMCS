@@ -51,11 +51,11 @@ public:
 
         remote_control_watchdog_timer_ = this->create_wall_timer(
             500ms, std::bind(&OmniNode::remote_control_watchdog_callback, this));
-        decision_control_watchdog_timer_ = this->create_wall_timer(
-            500ms, std::bind(&OmniNode::decision_control_watchdog_callback, this));
+        // decision_control_watchdog_timer_ = this->create_wall_timer(
+        //     500ms, std::bind(&OmniNode::decision_control_watchdog_callback, this));
 
         remote_control_watchdog_timer_->cancel();
-        decision_control_watchdog_timer_->cancel();
+        // decision_control_watchdog_timer_->cancel();
     }
 
 private:
@@ -128,6 +128,7 @@ private:
             for (auto& velocity : velocities)
                 velocity *= scale;
         }
+
         publish_control_velocities(velocities[0], velocities[1], velocities[2], velocities[3]);
 
         // RCLCPP_INFO(
@@ -145,13 +146,18 @@ private:
     }
 
     void decision_control_callback(geometry_msgs::msg::Vector3::SharedPtr msg) {
-        decision_control_watchdog_timer_.reset();
+        // decision_control_watchdog_timer_.reset();
 
-        (void)msg->x;
-        (void)msg->y;
-        (void)msg->z;
+        constexpr double velocity_limit = 800;
 
-        auto vector = Eigen::Vector2d{msg->x, msg->y};
+        auto move = Eigen::Vector2d{msg->x, msg->y};
+
+        double right_oblique = velocity_limit * (move.x() * cos_45 + move.y() * sin_45);
+        double left_oblique  = velocity_limit * (move.y() * cos_45 - move.x() * sin_45);
+
+        double velocities[4] = {-left_oblique, right_oblique, left_oblique, -right_oblique};
+
+        // publish_control_velocities(velocities[0], velocities[1], velocities[2], velocities[3]);
 
         RCLCPP_INFO(this->get_logger(), "x: %f, y: %f", msg->x, msg->y);
     }
