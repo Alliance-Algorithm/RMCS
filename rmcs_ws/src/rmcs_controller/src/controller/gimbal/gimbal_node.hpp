@@ -5,15 +5,19 @@
 #include <memory>
 
 #include <eigen3/Eigen/Dense>
-#include <geometry_msgs/msg/vector3.hpp>
+
 #include <rclcpp/node.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp/timer.hpp>
-#include <rm_msgs/msg/remote_control.hpp>
-#include <std_msgs/msg/float64.hpp>
+
 #include <tf2/time.h>
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
+
+#include <geometry_msgs/msg/vector3.hpp>
+#include <rm_msgs/msg/remote_control.hpp>
+#include <std_msgs/msg/float32_multi_array.hpp>
+#include <std_msgs/msg/float64.hpp>
 
 #include "rmcs_controller/qos.hpp"
 #include "rmcs_controller/type.hpp"
@@ -31,6 +35,10 @@ public:
         remote_control_subscription_ = this->create_subscription<rm_msgs::msg::RemoteControl>(
             "/remote_control", kCoreQoS,
             std::bind(&GimbalNode::remote_control_callback, this, std::placeholders::_1));
+        decision_control_subscription_ =
+            this->create_subscription<std_msgs::msg::Float32MultiArray>(
+                "/TODO", kCoreQoS,
+                std::bind(&GimbalNode::decision_control_callback, this, std::placeholders::_1));
 
         gimbal_friction_left_publisher_ = this->create_publisher<std_msgs::msg::Float64>(
             "/gimbal/left_friction/control_velocity", kCoreQoS);
@@ -45,6 +53,7 @@ public:
         gimbal_pitch_subscription_ = this->create_subscription<std_msgs::msg::Float64>(
             "/gimbal/pitch/angle", kCoreQoS, [this](std_msgs::msg::Float64::UniquePtr msg) {
                 (void)msg;
+                (void)this;
                 // using namespace std::numbers;
                 // double pitch = msg->data;
                 // double diff  = gimbal_imu_pitch_ - pitch;
@@ -124,7 +133,11 @@ public:
 
         remote_control_watchdog_timer_ = this->create_wall_timer(
             500ms, std::bind(&GimbalNode::remote_control_watchdog_callback, this));
+        decision_control_watchdog_timer_ = this->create_wall_timer(
+            500ms, std::bind(&GimbalNode::decision_control_watchdog_callback, this));
+
         remote_control_watchdog_timer_->cancel();
+        decision_control_watchdog_timer_->cancel();
     }
 
 private:
@@ -231,10 +244,41 @@ private:
         //     gimbal_control_pitch_ = gimbal_imu_pitch_max_;
     }
 
+    void decision_control_callback(std_msgs::msg::Float32MultiArray::SharedPtr msg) {
+        decision_control_watchdog_timer_->reset();
+
+        // (void)msg->data[0]; // angle 1
+        // (void)msg->data[1]; // angle 2
+
+        // high rotation
+        if (0 == msg->data[0] && 0 == msg->data[1]) {
+
+            // lock enemy
+        } else if (-1 == msg->data[0] && -1 == msg->data[1]) {
+
+            // scan in area
+        } else {
+        }
+    }
+
     void remote_control_watchdog_callback() {
         remote_control_watchdog_timer_->cancel();
+
         RCLCPP_INFO(
             this->get_logger(), "Remote control message timeout, will disable gimbal control.");
+
+        friction_mode_ = false;
+        publish_friction_mode();
+        bullet_deliver_mode_ = false;
+        publish_bullet_deliver_mode();
+        control_direction_ = Eigen::Vector3d::Zero();
+    }
+
+    void decision_control_watchdog_callback() {
+        decision_control_watchdog_timer_->cancel();
+
+        RCLCPP_INFO(
+            this->get_logger(), "Decision control message timeout, will disable gimbal control.");
 
         friction_mode_ = false;
         publish_friction_mode();
@@ -279,6 +323,8 @@ private:
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr gimbal_control_pitch_error_publisher_;
 
     rclcpp::Subscription<rm_msgs::msg::RemoteControl>::SharedPtr remote_control_subscription_;
+    rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr
+        decision_control_subscription_;
 
     rclcpp::Subscription<geometry_msgs::msg::Vector3>::SharedPtr gimbal_auto_aim_subscription_;
 
@@ -300,6 +346,7 @@ private:
 
     rclcpp::TimerBase::SharedPtr control_error_publish_timer_;
     rclcpp::TimerBase::SharedPtr remote_control_watchdog_timer_;
+    rclcpp::TimerBase::SharedPtr decision_control_watchdog_timer_;
 };
 
 } // namespace gimbal

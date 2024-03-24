@@ -10,6 +10,8 @@
 #include <rclcpp/node.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp/timer.hpp>
+
+#include <geometry_msgs/msg/vector3.hpp>
 #include <rm_msgs/msg/remote_control.hpp>
 #include <std_msgs/msg/float64.hpp>
 
@@ -28,6 +30,10 @@ public:
             "/remote_control", kCoreQoS,
             std::bind(&OmniNode::remote_control_callback, this, std::placeholders::_1));
 
+        decision_control_subscription_ = this->create_subscription<geometry_msgs::msg::Vector3>(
+            "/watcher/decision_maker/rmul/dest_dir", kCoreQoS,
+            std::bind(&OmniNode::decision_control_callback, this, std::placeholders::_1));
+
         gimbal_yaw_subscription_ = this->create_subscription<std_msgs::msg::Float64>(
             "/gimbal/yaw/angle", kCoreQoS,
             [this](std_msgs::msg::Float64::UniquePtr msg) { gimbal_yaw_ = msg->data; });
@@ -45,7 +51,11 @@ public:
 
         remote_control_watchdog_timer_ = this->create_wall_timer(
             500ms, std::bind(&OmniNode::remote_control_watchdog_callback, this));
+        decision_control_watchdog_timer_ = this->create_wall_timer(
+            500ms, std::bind(&OmniNode::decision_control_watchdog_callback, this));
+
         remote_control_watchdog_timer_->cancel();
+        decision_control_watchdog_timer_->cancel();
     }
 
 private:
@@ -134,10 +144,30 @@ private:
         //     static_cast<uint8_t>(keyboard_bits[14]), static_cast<uint8_t>(keyboard_bits[15]));
     }
 
+    void decision_control_callback(geometry_msgs::msg::Vector3::SharedPtr msg) {
+        decision_control_watchdog_timer_.reset();
+
+        (void)msg->x;
+        (void)msg->y;
+        (void)msg->z;
+
+        auto vector = Eigen::Vector2d{msg->x, msg->y};
+
+        RCLCPP_INFO(this->get_logger(), "x: %f, y: %f", msg->x, msg->y);
+    }
+
     void remote_control_watchdog_callback() {
         remote_control_watchdog_timer_->cancel();
         RCLCPP_INFO(
             this->get_logger(), "Remote control message timeout, will reset wheel velocities.");
+        spinning_mode_ = SpinningMode::NO;
+        publish_control_velocities(0, 0, 0, 0);
+    }
+
+    void decision_control_watchdog_callback() {
+        decision_control_watchdog_timer_->cancel();
+        RCLCPP_INFO(
+            this->get_logger(), "Decision control message timeout, will reset wheel velocities.");
         spinning_mode_ = SpinningMode::NO;
         publish_control_velocities(0, 0, 0, 0);
     }
@@ -168,7 +198,9 @@ private:
     static inline const double cos_45 = std::cos(std::numbers::pi / 4.0);
 
     rclcpp::Subscription<rm_msgs::msg::RemoteControl>::SharedPtr remote_control_subscription_;
+    rclcpp::Subscription<geometry_msgs::msg::Vector3>::SharedPtr decision_control_subscription_;
     rclcpp::TimerBase::SharedPtr remote_control_watchdog_timer_;
+    rclcpp::TimerBase::SharedPtr decision_control_watchdog_timer_;
 
     rm_msgs::msg::RemoteControl::_switch_left_type last_switch_left_ =
         rm_msgs::msg::RemoteControl::SWITCH_STATE_UNKNOWN;
