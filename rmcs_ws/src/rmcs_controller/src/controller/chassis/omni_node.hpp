@@ -68,6 +68,7 @@ private:
         if (msg->switch_left == rm_msgs::msg::RemoteControl::SWITCH_STATE_DOWN
             && msg->switch_right == rm_msgs::msg::RemoteControl::SWITCH_STATE_DOWN) {
             spinning_mode_     = SpinningMode::NO;
+            auto_mode_         = false;
             last_switch_left_  = msg->switch_left;
             last_switch_right_ = msg->switch_right;
             publish_control_velocities(0, 0, 0, 0);
@@ -91,75 +92,30 @@ private:
             spinning_mode_ = SpinningMode::HIGH;
         }
 
+        auto_mode_ =
+            (msg->switch_left == rm_msgs::msg::RemoteControl::SWITCH_STATE_MIDDLE
+             && msg->switch_right == rm_msgs::msg::RemoteControl::SWITCH_STATE_UP);
+
         last_switch_left_  = msg->switch_left;
         last_switch_right_ = msg->switch_right;
 
-        // Control Motion
-        //
-        constexpr double velocity_limit = 800;
+        if (!auto_mode_) {
+            // TODO: change the value
+            auto channel  = Eigen::Vector2d{msg->channel_right_x, msg->channel_right_y};
+            auto keyboard = Eigen::Vector2d{0.5 * (keys->d - keys->a), 0.5 * (keys->w - keys->s)};
 
-        auto rotation = Eigen::Rotation2Dd{gimbal_yaw_};
-
-        // TODO
-        //
-        // value to change
-        auto channel  = Eigen::Vector2d{msg->channel_right_x, msg->channel_right_y};
-        auto keyboard = Eigen::Vector2d{0.5 * (keys->d - keys->a), 0.5 * (keys->w - keys->s)};
-        auto move     = (rotation * (channel + keyboard)).eval();
-
-        double right_oblique = velocity_limit * (move.x() * cos_45 + move.y() * sin_45);
-        double left_oblique  = velocity_limit * (move.y() * cos_45 - move.x() * sin_45);
-
-        double spinning_velocity = 0;
-        if (spinning_mode_ == SpinningMode::LOW)
-            spinning_velocity = 0.4;
-        else if (spinning_mode_ == SpinningMode::HIGH)
-            spinning_velocity = 0.8;
-
-        double velocities[4] = {-left_oblique, right_oblique, left_oblique, -right_oblique};
-        double max_velocity  = 0;
-
-        for (auto& velocity : velocities) {
-            velocity += 0.4 * velocity_limit * spinning_velocity;
-            max_velocity = std::max(std::abs(velocity), max_velocity);
+            update_control_velocities(channel + keyboard);
         }
-        if (max_velocity > velocity_limit) {
-            double scale = velocity_limit / max_velocity;
-            for (auto& velocity : velocities)
-                velocity *= scale;
-        }
-
-        publish_control_velocities(velocities[0], velocities[1], velocities[2], velocities[3]);
-
-        // RCLCPP_INFO(
-        //     this->get_logger(),
-        //     "\n|0: %d|1: %d|2: %d|3: %d|4: %d|5: %d|6: %d|7: %d"
-        //     "|8: %d|9: %d|10: %d|11: %d|12: %d|13: %d|14: %d|15: %d|",
-        //     static_cast<uint8_t>(keyboard_bits[0]), static_cast<uint8_t>(keyboard_bits[1]),
-        //     static_cast<uint8_t>(keyboard_bits[2]), static_cast<uint8_t>(keyboard_bits[3]),
-        //     static_cast<uint8_t>(keyboard_bits[4]), static_cast<uint8_t>(keyboard_bits[5]),
-        //     static_cast<uint8_t>(keyboard_bits[6]), static_cast<uint8_t>(keyboard_bits[7]),
-        //     static_cast<uint8_t>(keyboard_bits[8]), static_cast<uint8_t>(keyboard_bits[9]),
-        //     static_cast<uint8_t>(keyboard_bits[10]), static_cast<uint8_t>(keyboard_bits[11]),
-        //     static_cast<uint8_t>(keyboard_bits[12]), static_cast<uint8_t>(keyboard_bits[13]),
-        //     static_cast<uint8_t>(keyboard_bits[14]), static_cast<uint8_t>(keyboard_bits[15]));
     }
 
     void decision_control_callback(geometry_msgs::msg::Vector3::SharedPtr msg) {
-        // decision_control_watchdog_timer_.reset();
-
-        constexpr double velocity_limit = 800;
-
-        auto move = Eigen::Vector2d{msg->x, msg->y};
-
-        double right_oblique = velocity_limit * (move.x() * cos_45 + move.y() * sin_45);
-        double left_oblique  = velocity_limit * (move.y() * cos_45 - move.x() * sin_45);
-
-        double velocities[4] = {-left_oblique, right_oblique, left_oblique, -right_oblique};
-
-        // publish_control_velocities(velocities[0], velocities[1], velocities[2], velocities[3]);
-
-        RCLCPP_INFO(this->get_logger(), "x: %f, y: %f", msg->x, msg->y);
+        if (auto_mode_) {
+            // TODO
+            //
+            // note: move according to the scale of world
+            update_control_absolute_velocities({-msg->y, msg->x});
+        }
+        // RCLCPP_INFO(this->get_logger(), "x: %f, y: %f", msg->x, msg->y);
     }
 
     void remote_control_watchdog_callback() {
@@ -176,6 +132,63 @@ private:
             this->get_logger(), "Decision control message timeout, will reset wheel velocities.");
         spinning_mode_ = SpinningMode::NO;
         publish_control_velocities(0, 0, 0, 0);
+    }
+
+    void update_control_velocities(Eigen::Vector2d move) {
+        move = Eigen::Rotation2Dd{gimbal_yaw_} * move;
+
+        constexpr double speed_limit = 800;
+        double right_oblique         = speed_limit * (move.x() * cos_45 + move.y() * sin_45);
+        double left_oblique          = speed_limit * (move.y() * cos_45 - move.x() * sin_45);
+
+        double spinning_velocity = 0;
+        if (spinning_mode_ == SpinningMode::LOW)
+            spinning_velocity = 0.4;
+        else if (spinning_mode_ == SpinningMode::HIGH)
+            spinning_velocity = 0.8;
+
+        double velocities[4] = {-left_oblique, right_oblique, left_oblique, -right_oblique};
+        double max_velocity  = 0;
+
+        for (auto& velocity : velocities) {
+            velocity += 0.4 * speed_limit * spinning_velocity;
+            max_velocity = std::max(std::abs(velocity), max_velocity);
+        }
+        if (max_velocity > speed_limit) {
+            double scale = speed_limit / max_velocity;
+            for (auto& velocity : velocities)
+                velocity *= scale;
+        }
+
+        publish_control_velocities(velocities[0], velocities[1], velocities[2], velocities[3]);
+    }
+
+        void update_control_absolute_velocities(Eigen::Vector2d move) {
+
+        constexpr double speed_limit = 800;
+        double right_oblique         = speed_limit * (move.x() * cos_45 + move.y() * sin_45);
+        double left_oblique          = speed_limit * (move.y() * cos_45 - move.x() * sin_45);
+
+        double spinning_velocity = 0;
+        if (spinning_mode_ == SpinningMode::LOW)
+            spinning_velocity = 0.4;
+        else if (spinning_mode_ == SpinningMode::HIGH)
+            spinning_velocity = 0.8;
+
+        double velocities[4] = {-left_oblique, right_oblique, left_oblique, -right_oblique};
+        double max_velocity  = 0;
+
+        for (auto& velocity : velocities) {
+            velocity += 0.4 * speed_limit * spinning_velocity;
+            max_velocity = std::max(std::abs(velocity), max_velocity);
+        }
+        if (max_velocity > speed_limit) {
+            double scale = speed_limit / max_velocity;
+            for (auto& velocity : velocities)
+                velocity *= scale;
+        }
+
+        publish_control_velocities(velocities[0], velocities[1], velocities[2], velocities[3]);
     }
 
     void publish_control_velocities(
@@ -218,6 +231,7 @@ private:
         LOW  = 1,
         HIGH = 2
     } spinning_mode_ = SpinningMode::NO;
+    bool auto_mode_  = false;
 
     rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr gimbal_yaw_subscription_;
     double gimbal_yaw_ = 0;

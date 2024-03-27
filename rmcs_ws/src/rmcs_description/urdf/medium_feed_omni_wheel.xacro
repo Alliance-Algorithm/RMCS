@@ -92,4 +92,11 @@
     <origin xyz="0.06603 0 0.082" />
   </joint>
 
+  <link name="lidar_link" />
+  <joint name="lidar" type="fixed">
+    <parent link="yaw_link" />
+    <child link="lidar_link" />
+    <origin rpy="${pi} 0 ${pi}" xyz="0 0 0.4" />
+  </joint>
+
 </robot>

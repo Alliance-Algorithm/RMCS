@@ -31,6 +31,14 @@ RUN wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCT
     rm -rf /var/lib/apt/lists/* && \
     rm ./GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
 
+# Install livox SDK
+RUN cd /tmp && \
+    git clone https://github.com/Livox-SDK/Livox-SDK2.git && \
+    cd Livox-SDK2 && mkdir build && cd build && \
+    cmake .. && make -j && \
+    make install && \
+    cd ../.. && rm -rf Livox-SDK2
+
 # Mount rmcs source, fix dependencies and compile
 RUN --mount=type=bind,target=/tmp/rmcs_ws/src,source=rmcs_ws/src,readonly \
     cd /tmp/rmcs_ws && \
@@ -47,14 +55,6 @@ RUN cd /tmp && \
     mkdir -p unison && tar -zxf unison.tar.gz -C unison && \
     cp unison/bin/* /usr/local/bin && \
     rm -rf unison unison.tar.gz
-
-# Install livox SDK
-RUN cd /tmp && \
-    git clone https://github.com/Livox-SDK/Livox-SDK2.git && \
-    cd Livox-SDK2 && mkdir build && cd build && \
-    cmake .. && make -j && \
-    make install && \
-    cd ../.. && rm -rf Livox-SDK2
 
 
 
@@ -124,10 +124,10 @@ RUN echo '#!/usr/bin/bash' > /entrypoint.sh && \
     echo 'sleep infinity' >> /entrypoint.sh && \
     chmod +x /entrypoint.sh
 
+WORKDIR /root/
+
 COPY --chown=root:root .script/service.sh /etc/init.d/rmcs
 COPY --from=rmcs-develop --chmod=600 --chown=root:root /home/developer/.ssh/id_rsa.pub /root/.ssh/authorized_keys
-
-WORKDIR /root/
 
 ENTRYPOINT ["/tini", "--"]
 CMD [ "/entrypoint.sh" ]
