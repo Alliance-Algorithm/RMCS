@@ -14,6 +14,8 @@
 #include <geometry_msgs/msg/vector3.hpp>
 #include <rm_msgs/msg/remote_control.hpp>
 #include <std_msgs/msg/float64.hpp>
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
 
 #include "rmcs_controller/qos.hpp"
 #include "rmcs_controller/type.hpp"
@@ -24,7 +26,9 @@ namespace chassis {
 class OmniNode : public rclcpp::Node {
 public:
     OmniNode()
-        : Node("omni_chassis_controller", rclcpp::NodeOptions().use_intra_process_comms(true)) {
+        : Node("omni_chassis_controller", rclcpp::NodeOptions().use_intra_process_comms(true))
+        , tf_buffer_(get_clock())
+        , tf_listener_(tf_buffer_) {
 
         remote_control_subscription_ = this->create_subscription<rm_msgs::msg::RemoteControl>(
             "/remote_control", kCoreQoS,
@@ -51,11 +55,11 @@ public:
 
         remote_control_watchdog_timer_ = this->create_wall_timer(
             500ms, std::bind(&OmniNode::remote_control_watchdog_callback, this));
-        // decision_control_watchdog_timer_ = this->create_wall_timer(
-        //     500ms, std::bind(&OmniNode::decision_control_watchdog_callback, this));
+        decision_control_watchdog_timer_ = this->create_wall_timer(
+            500ms, std::bind(&OmniNode::decision_control_watchdog_callback, this));
 
         remote_control_watchdog_timer_->cancel();
-        // decision_control_watchdog_timer_->cancel();
+        decision_control_watchdog_timer_->cancel();
     }
 
 private:
@@ -109,13 +113,40 @@ private:
     }
 
     void decision_control_callback(geometry_msgs::msg::Vector3::SharedPtr msg) {
-        if (auto_mode_) {
-            // TODO
-            //
-            // note: move according to the scale of world
-            update_control_absolute_velocities({-msg->y, msg->x});
+        if (!auto_mode_)
+            return;
+
+        if (msg->x == 0 && msg->y == 0 && msg->z == 0) {
+            update_control_velocities({0, 0});
+            return;
         }
-        // RCLCPP_INFO(this->get_logger(), "x: %f, y: %f", msg->x, msg->y);
+
+        geometry_msgs::msg::TransformStamped t;
+        try {
+            t = tf_buffer_.lookupTransform("pitch_link", "odom", tf2::TimePointZero);
+        } catch (const tf2::TransformException& ex) {
+            RCLCPP_WARN(this->get_logger(), "Could not transform: %s", ex.what());
+            return;
+        }
+
+        auto q = Eigen::Quaterniond{
+            t.transform.rotation.w, t.transform.rotation.x, t.transform.rotation.y,
+            t.transform.rotation.z};
+        auto vec = (q * Eigen::Vector3d{msg->x, msg->y, msg->z}).eval();
+
+        auto vec_norm = vec.norm();
+        if (vec_norm > 1) {
+            RCLCPP_WARN(get_logger(), "Norm of destination vector is too large: %f", vec_norm);
+            return;
+        }
+
+        auto projection      = Eigen::Vector2d{vec.x(), vec.y()};
+        // auto projection_norm = projection.norm();
+        // projection *= (vec_norm / projection_norm);
+
+        // RCLCPP_INFO(get_logger(), "%f, %f", projection.x(), projection.y());
+
+        update_control_velocities({-projection.y(), projection.x()});
     }
 
     void remote_control_watchdog_callback() {
@@ -129,41 +160,12 @@ private:
     void decision_control_watchdog_callback() {
         decision_control_watchdog_timer_->cancel();
         RCLCPP_INFO(
-            this->get_logger(), "Decision control message timeout, will reset wheel velocities.");
-        spinning_mode_ = SpinningMode::NO;
-        publish_control_velocities(0, 0, 0, 0);
+            this->get_logger(), "Decision control message timeout, will reset control velocities.");
+        update_control_velocities({0, 0});
     }
 
     void update_control_velocities(Eigen::Vector2d move) {
         move = Eigen::Rotation2Dd{gimbal_yaw_} * move;
-
-        constexpr double speed_limit = 800;
-        double right_oblique         = speed_limit * (move.x() * cos_45 + move.y() * sin_45);
-        double left_oblique          = speed_limit * (move.y() * cos_45 - move.x() * sin_45);
-
-        double spinning_velocity = 0;
-        if (spinning_mode_ == SpinningMode::LOW)
-            spinning_velocity = 0.4;
-        else if (spinning_mode_ == SpinningMode::HIGH)
-            spinning_velocity = 0.8;
-
-        double velocities[4] = {-left_oblique, right_oblique, left_oblique, -right_oblique};
-        double max_velocity  = 0;
-
-        for (auto& velocity : velocities) {
-            velocity += 0.4 * speed_limit * spinning_velocity;
-            max_velocity = std::max(std::abs(velocity), max_velocity);
-        }
-        if (max_velocity > speed_limit) {
-            double scale = speed_limit / max_velocity;
-            for (auto& velocity : velocities)
-                velocity *= scale;
-        }
-
-        publish_control_velocities(velocities[0], velocities[1], velocities[2], velocities[3]);
-    }
-
-        void update_control_absolute_velocities(Eigen::Vector2d move) {
 
         constexpr double speed_limit = 800;
         double right_oblique         = speed_limit * (move.x() * cos_45 + move.y() * sin_45);
@@ -211,6 +213,9 @@ private:
         velocity->data = right_back;
         right_back_control_velocity_publisher_->publish(std::move(velocity));
     }
+
+    tf2_ros::Buffer tf_buffer_;
+    tf2_ros::TransformListener tf_listener_;
 
     // The sine and cosine functions are not constexprs, so we calculate once and cache them.
     static inline const double sin_45 = std::sin(std::numbers::pi / 4.0);
