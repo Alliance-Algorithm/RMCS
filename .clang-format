@@ -58,4 +58,4 @@ IndentWrappedFunctionNames: true
 
 AlwaysBreakTemplateDeclarations: Yes
 IndentRequiresClause: false
-RequiresClausePosition: WithPreceding
+RequiresClausePosition: SingleLine
