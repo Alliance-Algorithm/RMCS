@@ -1,0 +1,8 @@
+<library path="rmcs_core">
+  <class type="rmcs_core::forwarder::StateForwarder" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
+  <class type="rmcs_core::forwarder::CommandForwarder" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
+</library>
