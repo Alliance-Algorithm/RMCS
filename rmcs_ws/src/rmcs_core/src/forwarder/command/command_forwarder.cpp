@@ -19,7 +19,9 @@ public:
     }
     ~CommandForwarder() { RCLCPP_INFO(get_logger(), "deconstructing"); }
 
-    void update() override { RCLCPP_INFO(get_logger(), "updating"); }
+    void update() override {
+        // RCLCPP_INFO(get_logger(), "updating");
+    }
 
 private:
     InputInterface<serial::Serial> serial_;

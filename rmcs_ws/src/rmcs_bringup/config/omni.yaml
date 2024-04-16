@@ -2,10 +2,11 @@ rmcs_executor:
   ros__parameters:
     update_rate: 1000.0
     components:
-      - rmcs_core::forwarder::StateForwarder -> state_forwarder
+      - rmcs_core::forwarder::StatusForwarder -> status_forwarder
       - rmcs_core::forwarder::CommandForwarder -> command_forwarder
+      - rmcs_core::visualizer::TfVisualizer -> tf_visualizer
 
-state_forwarder:
+status_forwarder:
   ros__parameters:
     path: /dev/ttyACM0
 
