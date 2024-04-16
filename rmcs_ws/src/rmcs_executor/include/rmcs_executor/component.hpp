@@ -1,6 +1,7 @@
 #pragma once
 
 #include <new>
+#include <stdexcept>
 #include <string>
 #include <type_traits>
 #include <typeinfo>
@@ -54,8 +55,8 @@ public:
             return reinterpret_cast<void**>(&data_pointer_);
         }
 
-        bool activated   = false;
         T* data_pointer_ = nullptr;
+        bool activated   = false;
     };
 
     template <typename T>
@@ -90,19 +91,23 @@ public:
             return reinterpret_cast<void*>(&data_);
         }
 
-        bool activated = false;
         std::aligned_storage_t<sizeof(T), alignof(T)> data_;
+        bool activated = false;
     };
 
     const std::string& get_component_name() { return component_name_; }
 
     template <typename T>
     void register_input(const std::string& name, InputInterface<T>& interface) {
+        if (interface.active())
+            throw std::runtime_error("Interface has been actived");
         input_list_.emplace_back(typeid(T), name, interface.activate());
     }
 
     template <typename T, typename... Args>
     void register_output(const std::string& name, OutputInterface<T>& interface, Args&&... args) {
+        if (interface.active())
+            throw std::runtime_error("Interface has been actived");
         output_list_.emplace_back(
             typeid(T), name, interface.activate(std::forward<Args>(args)...), this);
     }

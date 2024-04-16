@@ -10,6 +10,7 @@
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 
+#include "predefined_msg_provider.hpp"
 #include "rmcs_executor/component.hpp"
 
 namespace rmcs_executor {
@@ -19,7 +20,11 @@ public:
     explicit Executor(const std::string& node_name)
         : Node{
               node_name,
-              rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true)} {}
+              rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true)} {
+        Component::initializing_component_name = "predefined_msg_provider";
+        predefined_msg_provider_               = std::make_shared<PredefinedMsgProvider>();
+        add_component(predefined_msg_provider_);
+    }
     ~Executor() {
         if (thread_.joinable())
             thread_.join();
@@ -35,15 +40,18 @@ public:
 
     void start() {
         init();
+
         double update_rate;
         if (!get_parameter("update_rate", update_rate))
             throw std::runtime_error{"Unable to get parameter update_rate<double>"};
+        predefined_msg_provider_->set_update_rate(update_rate);
 
         thread_ = std::thread{[update_rate, this]() {
             const auto period = std::chrono::nanoseconds(
                 static_cast<long>(std::round(1'000'000'000.0 / update_rate)));
             auto next_iteration_time = std::chrono::steady_clock::now();
             while (rclcpp::ok()) {
+                predefined_msg_provider_->set_timestamp(next_iteration_time);
                 next_iteration_time += period;
                 for (const auto& component : updating_order_) {
                     component->update();
@@ -146,6 +154,7 @@ private:
 
     std::thread thread_;
 
+    std::shared_ptr<PredefinedMsgProvider> predefined_msg_provider_;
     std::vector<std::shared_ptr<Component>> component_list_;
 
     std::vector<Component*> updating_order_;

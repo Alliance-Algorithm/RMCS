@@ -13,18 +13,21 @@ find_package (ament_cmake_auto REQUIRED)
 ament_auto_find_build_dependencies ()
 
 ament_auto_add_library (
-  ${PROJECT_NAME}
+  ${PROJECT_NAME}_lib
   SHARED
   src/component.cpp
 )
 
 ament_auto_add_executable (
-  node
+  ${PROJECT_NAME}_exe
   src/main.cpp
 )
-target_link_libraries(node ${PROJECT_NAME})
+target_link_libraries(${PROJECT_NAME}_exe ${PROJECT_NAME}_lib)
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_SOURCE_DIR}/src)
+
+set_property(TARGET ${PROJECT_NAME}_lib PROPERTY OUTPUT_NAME ${PROJECT_NAME})
+set_property(TARGET ${PROJECT_NAME}_exe PROPERTY OUTPUT_NAME ${PROJECT_NAME})
 
 ament_auto_package()

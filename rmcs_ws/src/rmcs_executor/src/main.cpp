@@ -3,8 +3,8 @@
 #include <pluginlib/class_loader.hpp>
 #include <rclcpp/executors.hpp>
 
+#include "executor.hpp"
 #include "rmcs_executor/component.hpp"
-#include "rmcs_executor/executor.hpp"
 
 int main(int argc, char** argv) {
     rclcpp::init(argc, argv);

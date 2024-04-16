@@ -10,7 +10,7 @@ def generate_launch_description():
     ld.add_action(
         Node(
             package="rmcs_executor",
-            executable="node",
+            executable="rmcs_executor",
             parameters=[
                 PathJoinSubstitution(
                     [FindPackageShare("rmcs_bringup"), "config", "omni.yaml"]
