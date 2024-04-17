@@ -2,10 +2,19 @@
   <class type="rmcs_core::forwarder::StatusForwarder" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
-  <class type="rmcs_core::forwarder::CommandForwarder" base_class_type="rmcs_executor::Component">
+  <class type="rmcs_core::controller::chassis::ChassisController" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
+  <class type="rmcs_core::controller::pid::PidController" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
+  <class type="rmcs_core::controller::pid::ErrorPidController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
   <class type="rmcs_core::visualizer::TfVisualizer" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
+  <class type="rmcs_core::forwarder::CommandForwarder" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
 </library>

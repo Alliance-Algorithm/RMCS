@@ -4,9 +4,9 @@
 #include <memory>
 
 #include <numbers>
-#include <rclcpp/node.hpp>
+#include <rclcpp/logger.hpp>
+#include <rclcpp/logging.hpp>
 #include <rmcs_executor/component.hpp>
-#include <std_msgs/msg/float64.hpp>
 
 #include "forwarder/package.hpp"
 
@@ -50,14 +50,14 @@ public:
     void update_status(std::unique_ptr<Package> package, rclcpp::Logger& logger) {
         auto& static_part = package->static_part();
 
-        if (package->dynamic_part_size() != sizeof(PackageC620FeedbackPart)) {
+        if (package->dynamic_part_size() != sizeof(PackageDjiMotorFeedbackPart)) {
             RCLCPP_ERROR(
                 logger, "Package size does not match (6020): [0x%02X 0x%02X] (size = %d)",
                 static_part.type, static_part.index, static_part.data_size);
             return;
         }
 
-        auto& dynamic_part = package->dynamic_part<PackageC620FeedbackPart>();
+        auto& dynamic_part = package->dynamic_part<PackageDjiMotorFeedbackPart>();
 
         // angle = (scale * real_angle) + offset
         // angle unit: rad [0, 2pi)

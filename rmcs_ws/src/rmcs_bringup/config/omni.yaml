@@ -3,15 +3,58 @@ rmcs_executor:
     update_rate: 1000.0
     components:
       - rmcs_core::forwarder::StatusForwarder -> status_forwarder
-      - rmcs_core::forwarder::CommandForwarder -> command_forwarder
+      - rmcs_core::controller::chassis::ChassisController -> chassis_controller
+      - rmcs_core::controller::pid::PidController -> left_front_wheel_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> left_back_wheel_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> right_back_wheel_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> right_front_wheel_velocity_pid_controller
       - rmcs_core::visualizer::TfVisualizer -> tf_visualizer
+      - rmcs_core::forwarder::CommandForwarder -> command_forwarder
 
 status_forwarder:
   ros__parameters:
     path: /dev/ttyACM0
 
-yaw_angle_pid:
+left_front_wheel_velocity_pid_controller:
   ros__parameters:
-    p: 0.1
-    i: 0.0
-    d: 0.0
+    measurement: /chassis/left_front_wheel/velocity
+    setpoint: /chassis/left_front_wheel/control_velocity
+    control: /chassis/left_front_wheel/control_current
+    kp: 0.07
+    ki: 0.02
+    kd: 0.01
+    integral_min: -0.2
+    integral_max: 0.2
+
+left_back_wheel_velocity_pid_controller:
+  ros__parameters:
+    measurement: /chassis/left_back_wheel/velocity
+    setpoint: /chassis/left_back_wheel/control_velocity
+    control: /chassis/left_back_wheel/control_current
+    kp: 0.07
+    ki: 0.02
+    kd: 0.01
+    integral_min: -0.2
+    integral_max: 0.2
+
+right_back_wheel_velocity_pid_controller:
+  ros__parameters:
+    measurement: /chassis/right_back_wheel/velocity
+    setpoint: /chassis/right_back_wheel/control_velocity
+    control: /chassis/right_back_wheel/control_current
+    kp: 0.07
+    ki: 0.02
+    kd: 0.01
+    integral_min: -0.2
+    integral_max: 0.2
+
+right_front_wheel_velocity_pid_controller:
+  ros__parameters:
+    measurement: /chassis/right_front_wheel/velocity
+    setpoint: /chassis/right_front_wheel/control_velocity
+    control: /chassis/right_front_wheel/control_current
+    kp: 0.07
+    ki: 0.02
+    kd: 0.01
+    integral_min: -0.2
+    integral_max: 0.2

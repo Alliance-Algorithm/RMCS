@@ -67,7 +67,7 @@ struct __attribute__((packed)) QuaternionData {
     float w, x, y, z;
 };
 
-struct __attribute__((packed)) PackageC620FeedbackPart {
+struct __attribute__((packed)) PackageDjiMotorFeedbackPart {
     can_id_t can_id;
     be_int16_t angle;
     be_int16_t velocity;
@@ -76,16 +76,16 @@ struct __attribute__((packed)) PackageC620FeedbackPart {
     uint8_t unused;
 };
 
-struct __attribute__((packed)) PackageC620ControlPart {
+struct __attribute__((packed)) PackageDjiMotorControlPart {
     can_id_t can_id;
     be_int16_t current[4];
 };
 
 struct __attribute__((packed)) PackageDr16FeedbackPart {
-    uint16_t joystick_right_x : 11;
-    uint16_t joystick_right_y : 11;
-    uint16_t joystick_left_x  : 11;
-    uint16_t joystick_left_y  : 11;
+    uint16_t joystick_channel0 : 11;
+    uint16_t joystick_channel1 : 11;
+    uint16_t joystick_channel2 : 11;
+    uint16_t joystick_channel3 : 11;
 
     rmcs_core::msgs::Switch switch_right : 2;
     rmcs_core::msgs::Switch switch_left  : 2;

@@ -6,6 +6,11 @@ namespace rmcs_core::msgs {
 
 enum class Switch : uint8_t { UNKNOWN = 0, UP = 1, DOWN = 2, MIDDLE = 3 };
 
+struct __attribute__((packed)) Mouse {
+    bool left  : 1;
+    bool right : 1;
+};
+
 struct __attribute__((packed)) Keyboard {
     bool w     : 1;
     bool s     : 1;

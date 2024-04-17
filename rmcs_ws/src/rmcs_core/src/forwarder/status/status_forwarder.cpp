@@ -183,10 +183,10 @@ private:
     PackageReceiver package_receiver_;
 
     DjiMotorPublisher chassis_wheel_motors_[4] = {
-        {this,  "/chassis_wheel/left_front"},
-        {this, "/chassis_wheel/right_front"},
-        {this,  "/chassis_wheel/right_back"},
-        {this,   "/chassis_wheel/left_back"}
+        {this,  "/chassis/left_front_wheel"},
+        {this, "/chassis/right_front_wheel"},
+        {this,  "/chassis/right_back_wheel"},
+        {this,   "/chassis/left_back_wheel"}
     };
 
     DjiMotorPublisher gimbal_yaw_motor_   = {this, "/gimbal/yaw"};
