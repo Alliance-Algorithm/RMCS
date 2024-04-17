@@ -137,17 +137,21 @@ private:
         }
     }
 
-    void append_updating_order(Component* component) {
+    void append_updating_order(Component* updatable_component) {
         std::string space = "- ";
         for (size_t i = dependency_recursive_level_; i-- > 0;)
             space.append("    ");
-        RCLCPP_INFO(get_logger(), "%s%s", space.c_str(), component->get_component_name().c_str());
-        updating_order_.emplace_back(component);
-        for (const auto& wanted_by : component->wanted_by_) {
-            if (--wanted_by->dependency_count_ == 0) {
-                dependency_recursive_level_++;
-                append_updating_order(wanted_by);
-                dependency_recursive_level_--;
+        RCLCPP_INFO(
+            get_logger(), "%s%s", space.c_str(), updatable_component->get_component_name().c_str());
+        updating_order_.emplace_back(updatable_component);
+
+        for (auto& component : component_list_) {
+            if (updatable_component->wanted_by_.contains(component.get())) {
+                if (--component->dependency_count_ == 0) {
+                    dependency_recursive_level_++;
+                    append_updating_order(component.get());
+                    dependency_recursive_level_--;
+                }
             }
         }
     };
