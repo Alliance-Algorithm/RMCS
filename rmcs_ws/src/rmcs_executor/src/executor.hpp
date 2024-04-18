@@ -78,6 +78,9 @@ private:
             for (const auto& input : component->input_list_) {
                 auto output_iter = output_map.find(input.name);
                 if (output_iter == output_map.end()) {
+                    if (!input.required)
+                        continue;
+
                     RCLCPP_FATAL(
                         get_logger(),
                         "Cannot find the corresponding output of input \"%s\" declared by "

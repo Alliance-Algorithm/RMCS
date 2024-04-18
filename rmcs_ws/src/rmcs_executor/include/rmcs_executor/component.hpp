@@ -46,6 +46,13 @@ public:
         [[nodiscard]] bool active() const { return activated; }
         [[nodiscard]] bool ready() const { return data_pointer_ != nullptr; }
 
+        void bind_directly(T& destination) {
+            if (active())
+                throw std::runtime_error("The interface has been activated");
+            activated     = true;
+            data_pointer_ = &destination;
+        }
+
         const T* operator->() const { return data_pointer_; }
         const T& operator*() const { return *data_pointer_; }
 
@@ -98,16 +105,17 @@ public:
     const std::string& get_component_name() { return component_name_; }
 
     template <typename T>
-    void register_input(const std::string& name, InputInterface<T>& interface) {
+    void register_input(
+        const std::string& name, InputInterface<T>& interface, bool required = true) {
         if (interface.active())
-            throw std::runtime_error("Interface has been actived");
-        input_list_.emplace_back(typeid(T), name, interface.activate());
+            throw std::runtime_error("The interface has been activated");
+        input_list_.emplace_back(typeid(T), name, required, interface.activate());
     }
 
     template <typename T, typename... Args>
     void register_output(const std::string& name, OutputInterface<T>& interface, Args&&... args) {
         if (interface.active())
-            throw std::runtime_error("Interface has been actived");
+            throw std::runtime_error("The interface has been activated");
         output_list_.emplace_back(
             typeid(T), name, interface.activate(std::forward<Args>(args)...), this);
     }
@@ -124,6 +132,7 @@ private:
     struct InputDeclaration {
         const std::type_info& type;
         std::string name;
+        bool required;
         void** pointer_to_data_pointer;
     };
 
