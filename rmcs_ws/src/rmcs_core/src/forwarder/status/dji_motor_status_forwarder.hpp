@@ -12,9 +12,9 @@
 
 namespace rmcs_core::forwarder {
 
-class DjiMotorPublisher {
+class DjiMotorStatusForwarder {
 public:
-    DjiMotorPublisher(rmcs_executor::Component* component, const std::string& name_prefix) {
+    DjiMotorStatusForwarder(rmcs_executor::Component* component, const std::string& name_prefix) {
         component->register_output(name_prefix + "/scale", scale_, 1.0);
         angle_border_ = 2 * std::numbers::pi;
         component->register_output(name_prefix + "/offset", offset_, 0.0);
@@ -22,24 +22,24 @@ public:
         component->register_output(name_prefix + "/angle", angle_, 0.0);
         component->register_output(name_prefix + "/velocity", velocity_, 0.0);
     }
-    DjiMotorPublisher(const DjiMotorPublisher&)            = delete;
-    DjiMotorPublisher& operator=(const DjiMotorPublisher&) = delete;
+    DjiMotorStatusForwarder(const DjiMotorStatusForwarder&)            = delete;
+    DjiMotorStatusForwarder& operator=(const DjiMotorStatusForwarder&) = delete;
 
-    DjiMotorPublisher& set_motor_gm6020() { return *max_current_ = 3.0, *this; }
-    DjiMotorPublisher& set_motor_m3508() { return *max_current_ = 20.0, *this; }
-    DjiMotorPublisher& set_motor_m2006() { return *max_current_ = 10.0, *this; }
+    DjiMotorStatusForwarder& set_motor_gm6020() { return *max_current_ = 3.0, *this; }
+    DjiMotorStatusForwarder& set_motor_m3508() { return *max_current_ = 20.0, *this; }
+    DjiMotorStatusForwarder& set_motor_m2006() { return *max_current_ = 10.0, *this; }
 
-    DjiMotorPublisher& set_reverse(bool reverse) {
+    DjiMotorStatusForwarder& set_reverse(bool reverse) {
         double scale_abs = std::abs(*scale_);
         *scale_          = reverse ? -scale_abs : scale_abs;
         return *this;
     }
-    DjiMotorPublisher& set_reduction_ratio(double ratio) {
+    DjiMotorStatusForwarder& set_reduction_ratio(double ratio) {
         *scale_       = (*scale_ > 0) ? ratio : -ratio;
         angle_border_ = ratio * 2 * std::numbers::pi;
         return *this;
     }
-    DjiMotorPublisher& set_offset(double offset) {
+    DjiMotorStatusForwarder& set_offset(double offset) {
         *offset_ = offset;
         return *this;
     }

@@ -23,9 +23,7 @@ public:
         register_input("/predefined/timestamp", timestamp_);
         register_input("/predefined/update_count", update_count_);
 
-        register_input("/gimbal/tf", gimbal_tf_);
-        register_input("/gimbal/imu/tf", gimbal_imu_tf_);
-        register_input("/chassis/tf", chassis_tf_);
+        register_input("/tf", tf_);
     }
     ~TfVisualizer() = default;
 
@@ -34,10 +32,7 @@ public:
         if (*update_count_ == 0)
             next_publish_timestamp_ = *timestamp_;
         if (*timestamp_ >= next_publish_timestamp_) {
-            fast_tf::rcl::broadcast_all(*gimbal_tf_);
-            fast_tf::rcl::broadcast_all(*gimbal_imu_tf_);
-            fast_tf::rcl::broadcast_all(*chassis_tf_);
-
+            fast_tf::rcl::broadcast_all(*tf_);
             next_publish_timestamp_ += 50ms;
         }
     }
@@ -47,9 +42,7 @@ private:
     InputInterface<std::chrono::steady_clock::time_point> timestamp_;
     std::chrono::steady_clock::time_point next_publish_timestamp_;
 
-    InputInterface<rmcs_description::Gimbal> gimbal_tf_;
-    InputInterface<rmcs_description::Imu> gimbal_imu_tf_;
-    InputInterface<rmcs_description::Chassis> chassis_tf_;
+    InputInterface<rmcs_description::Tf> tf_;
 };
 
 } // namespace rmcs_core::visualizer

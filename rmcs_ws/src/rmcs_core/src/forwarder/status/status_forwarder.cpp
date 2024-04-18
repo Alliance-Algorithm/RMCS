@@ -5,7 +5,7 @@
 #include <rmcs_executor/component.hpp>
 #include <serial/serial.h>
 
-#include "forwarder/status/dji_motor_publisher.hpp"
+#include "forwarder/status/dji_motor_status_forwarder.hpp"
 #include "forwarder/status/dr16_publisher.hpp"
 #include "forwarder/status/imu.hpp"
 #include "forwarder/status/package_receiver.hpp"
@@ -44,33 +44,36 @@ public:
             quaternion_receive_callback(std::forward<decltype(pkg)>(pkg));
         });
 
-        constexpr double reduction_ratio = 1 / 14.0;
         for (auto& motor : chassis_wheel_motors_)
-            motor.set_motor_m3508().set_reverse(true).set_reduction_ratio(reduction_ratio);
+            motor.set_motor_m3508().set_reverse(true).set_reduction_ratio(1 / 14.0);
 
         gimbal_yaw_motor_.set_motor_gm6020().set_offset(0.771);
         gimbal_pitch_motor_.set_motor_gm6020().set_offset(-0.300);
 
-        gimbal_bullet_deliver_.set_motor_m2006();
         gimbal_left_friction_.set_motor_m3508().set_reverse(false);
         gimbal_right_friction_.set_motor_m3508().set_reverse(true);
+        gimbal_bullet_deliver_.set_motor_m2006().set_reduction_ratio(1 / 36.0);
 
-        register_output("/gimbal/tf", gimbal_tf_);
-        register_output("/gimbal/imu/tf", gimbal_imu_tf_);
-        register_output("/chassis/tf", chassis_tf_);
+        register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
+        register_output("/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
+        register_output("/tf", tf_);
 
         using namespace rmcs_description;
+
+        tf_->set_transform<PitchLink, ImuLink>(
+            Eigen::AngleAxisd{std::numbers::pi / 2, Eigen::Vector3d::UnitZ()});
+
         constexpr double gimbal_center_height = 0.32059;
         constexpr double wheel_distance_x = 0.15897, wheel_distance_y = 0.15897;
-        chassis_tf_->set_transform<BaseLink, GimbalCenterLink>(
+        tf_->set_transform<BaseLink, GimbalCenterLink>(
             Eigen::Translation3d{0, 0, gimbal_center_height});
-        chassis_tf_->set_transform<BaseLink, LeftFrontWheelLink>(
+        tf_->set_transform<BaseLink, LeftFrontWheelLink>(
             Eigen::Translation3d{wheel_distance_x / 2, wheel_distance_y / 2, 0});
-        chassis_tf_->set_transform<BaseLink, LeftBackWheelLink>(
+        tf_->set_transform<BaseLink, LeftBackWheelLink>(
             Eigen::Translation3d{-wheel_distance_x / 2, wheel_distance_y / 2, 0});
-        chassis_tf_->set_transform<BaseLink, RightBackWheelLink>(
+        tf_->set_transform<BaseLink, RightBackWheelLink>(
             Eigen::Translation3d{-wheel_distance_x / 2, -wheel_distance_y / 2, 0});
-        chassis_tf_->set_transform<BaseLink, RightFrontWheelLink>(
+        tf_->set_transform<BaseLink, RightFrontWheelLink>(
             Eigen::Translation3d{wheel_distance_x / 2, -wheel_distance_y / 2, 0});
     }
     ~StatusForwarder() = default;
@@ -93,25 +96,25 @@ private:
         if (can_id == 0x201) {
             auto& motor = chassis_wheel_motors_[0];
             motor.update_status(std::move(package), logger_);
-            chassis_tf_->set_state<BaseLink, LeftFrontWheelLink>(motor.get_angle());
+            tf_->set_state<BaseLink, LeftFrontWheelLink>(motor.get_angle());
         } else if (can_id == 0x202) {
             auto& motor = chassis_wheel_motors_[1];
             motor.update_status(std::move(package), logger_);
-            chassis_tf_->set_state<BaseLink, RightFrontWheelLink>(motor.get_angle());
+            tf_->set_state<BaseLink, RightFrontWheelLink>(motor.get_angle());
         } else if (can_id == 0x203) {
             auto& motor = chassis_wheel_motors_[2];
             motor.update_status(std::move(package), logger_);
-            chassis_tf_->set_state<BaseLink, RightBackWheelLink>(motor.get_angle());
+            tf_->set_state<BaseLink, RightBackWheelLink>(motor.get_angle());
         } else if (can_id == 0x204) {
             auto& motor = chassis_wheel_motors_[3];
             motor.update_status(std::move(package), logger_);
-            chassis_tf_->set_state<BaseLink, LeftBackWheelLink>(motor.get_angle());
+            tf_->set_state<BaseLink, LeftBackWheelLink>(motor.get_angle());
         } else if (can_id == 0x205) {
             gimbal_yaw_motor_.update_status(std::move(package), logger_);
-            gimbal_tf_->set_state<GimbalCenterLink, YawLink>(gimbal_yaw_motor_.get_angle());
+            tf_->set_state<GimbalCenterLink, YawLink>(gimbal_yaw_motor_.get_angle());
         } else if (can_id == 0x206) {
             gimbal_pitch_motor_.update_status(std::move(package), logger_);
-            gimbal_tf_->set_state<YawLink, PitchLink>(gimbal_pitch_motor_.get_angle());
+            tf_->set_state<YawLink, PitchLink>(gimbal_pitch_motor_.get_angle());
         }
     }
 
@@ -149,8 +152,11 @@ private:
                gz = solve_gyro(data.gyro_z);
         double ax = solve_acc(data.acc_x), ay = solve_acc(data.acc_y), az = solve_acc(data.acc_z);
 
+        *gimbal_yaw_velocity_imu_   = gz;
+        *gimbal_pitch_velocity_imu_ = gx;
+
         auto gimbal_imu_pose = imu_.update(gx, gy, gz, ax, ay, az);
-        gimbal_imu_tf_->set_transform<rmcs_description::ImuLink, rmcs_description::OdomImu>(
+        tf_->set_transform<rmcs_description::ImuLink, rmcs_description::OdomImu>(
             gimbal_imu_pose.conjugate());
     }
 
@@ -173,7 +179,7 @@ private:
         angle_axis.axis().y() = -angle_axis.axis().y();
 
         auto gimbal_imu_pose = Eigen::Quaterniond{angle_axis};
-        gimbal_imu_tf_->set_transform<rmcs_description::ImuLink, rmcs_description::OdomImu>(
+        tf_->set_transform<rmcs_description::ImuLink, rmcs_description::OdomImu>(
             gimbal_imu_pose.conjugate());
     }
 
@@ -182,27 +188,26 @@ private:
     OutputInterface<serial::Serial> serial_;
     PackageReceiver package_receiver_;
 
-    DjiMotorPublisher chassis_wheel_motors_[4] = {
+    DjiMotorStatusForwarder chassis_wheel_motors_[4] = {
         {this,  "/chassis/left_front_wheel"},
         {this, "/chassis/right_front_wheel"},
         {this,  "/chassis/right_back_wheel"},
         {this,   "/chassis/left_back_wheel"}
     };
 
-    DjiMotorPublisher gimbal_yaw_motor_   = {this, "/gimbal/yaw"};
-    DjiMotorPublisher gimbal_pitch_motor_ = {this, "/gimbal/pitch"};
+    DjiMotorStatusForwarder gimbal_yaw_motor_   = {this, "/gimbal/yaw"};
+    DjiMotorStatusForwarder gimbal_pitch_motor_ = {this, "/gimbal/pitch"};
 
-    DjiMotorPublisher gimbal_bullet_deliver_ = {this, "/gimbal/bullet_deliver"};
-    DjiMotorPublisher gimbal_left_friction_  = {this, "/gimbal/left_friction"};
-    DjiMotorPublisher gimbal_right_friction_ = {this, "/gimbal/right_friction"};
+    DjiMotorStatusForwarder gimbal_left_friction_  = {this, "/gimbal/left_friction"};
+    DjiMotorStatusForwarder gimbal_right_friction_ = {this, "/gimbal/right_friction"};
+    DjiMotorStatusForwarder gimbal_bullet_deliver_ = {this, "/gimbal/bullet_deliver"};
 
     Dr16Publisher dr16_publisher_{this};
 
     Imu imu_;
-
-    OutputInterface<rmcs_description::Gimbal> gimbal_tf_;
-    OutputInterface<rmcs_description::Imu> gimbal_imu_tf_;
-    OutputInterface<rmcs_description::Chassis> chassis_tf_;
+    OutputInterface<double> gimbal_yaw_velocity_imu_;
+    OutputInterface<double> gimbal_pitch_velocity_imu_;
+    OutputInterface<rmcs_description::Tf> tf_;
 };
 
 } // namespace rmcs_core::forwarder

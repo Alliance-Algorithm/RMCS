@@ -7,7 +7,7 @@
 #include <rmcs_executor/component.hpp>
 #include <serial/serial.h>
 
-#include "forwarder/command/dji_motor_subscriber.hpp"
+#include "forwarder/command/dji_motor_command_forwarder.hpp"
 #include "forwarder/package.hpp"
 
 namespace rmcs_core::forwarder {
@@ -32,14 +32,30 @@ public:
         auto& static_part  = package.static_part();
         auto& dynamic_part = package.dynamic_part<PackageDjiMotorControlPart>();
 
-        static_part.type      = 0x11;
         static_part.index     = 0;
         static_part.data_size = sizeof(dynamic_part);
-        dynamic_part.can_id   = 0x200;
 
-        size_t index = 0;
+        static_part.type    = 0x11;
+        dynamic_part.can_id = 0x1FF;
+        gimbal_yaw_motor_.write_command_to_package(package, 0);
+        gimbal_pitch_motor_.write_command_to_package(package, 1);
+        dynamic_part.current[2] = dynamic_part.current[3] = 0;
+        send(serial, package);
+        std::this_thread::sleep_for(std::chrono::microseconds(50));
+
+        dynamic_part.can_id = 0x200;
+        size_t index        = 0;
         for (auto& motor : chassis_wheel_motors_)
             motor.write_command_to_package(package, index++);
+        send(serial, package);
+        std::this_thread::sleep_for(std::chrono::microseconds(50));
+
+        static_part.type        = 0x12;
+        dynamic_part.can_id     = 0x200;
+        dynamic_part.current[0] = 0;
+        gimbal_bullet_deliver_.write_command_to_package(package, 1);
+        gimbal_left_friction_.write_command_to_package(package, 2);
+        gimbal_right_friction_.write_command_to_package(package, 3);
         send(serial, package);
     }
 
@@ -56,12 +72,19 @@ private:
 
     InputInterface<serial::Serial> serial_;
 
-    DjiMotorSubscriber chassis_wheel_motors_[4] = {
+    DjiMotorCommandForwarder chassis_wheel_motors_[4] = {
         {this,  "/chassis/left_front_wheel"},
         {this, "/chassis/right_front_wheel"},
         {this,  "/chassis/right_back_wheel"},
         {this,   "/chassis/left_back_wheel"}
     };
+
+    DjiMotorCommandForwarder gimbal_yaw_motor_   = {this, "/gimbal/yaw"};
+    DjiMotorCommandForwarder gimbal_pitch_motor_ = {this, "/gimbal/pitch"};
+
+    DjiMotorCommandForwarder gimbal_left_friction_  = {this, "/gimbal/left_friction"};
+    DjiMotorCommandForwarder gimbal_right_friction_ = {this, "/gimbal/right_friction"};
+    DjiMotorCommandForwarder gimbal_bullet_deliver_ = {this, "/gimbal/bullet_deliver"};
 };
 
 } // namespace rmcs_core::forwarder

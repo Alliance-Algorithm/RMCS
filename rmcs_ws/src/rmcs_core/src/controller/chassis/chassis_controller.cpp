@@ -1,7 +1,3 @@
-// #include <cmath>
-// #include <cstdint>
-// #include <functional>
-// #include <memory>
 #include <limits>
 #include <numbers>
 
@@ -10,15 +6,6 @@
 #include <rmcs_executor/component.hpp>
 
 #include "rmcs_core/msgs.hpp"
-// #include <eigen3/Eigen/Dense>
-// #include <rclcpp/node.hpp>
-// #include <rclcpp/rclcpp.hpp>
-// #include <rclcpp/timer.hpp>
-// #include <rm_msgs/msg/remote_control.hpp>
-// #include <std_msgs/msg/float64.hpp>
-
-// #include "rmcs_controller/qos.hpp"
-// #include "rmcs_controller/type.hpp"
 
 namespace rmcs_core::controller::chassis {
 
@@ -69,9 +56,7 @@ public:
                 spinning_mode_ = !spinning_mode_;
             }
 
-            auto channel = Eigen::Vector2d{joystick_right_->x(), joystick_right_->y()};
-            update_wheel_velocities(Eigen::Rotation2Dd{*gimbal_yaw_angle_} * (channel));
-
+            update_wheel_velocities(Eigen::Rotation2Dd{*gimbal_yaw_angle_} * (*joystick_right_));
         } while (false);
 
         last_switch_right_ = switch_right;

@@ -20,7 +20,16 @@ public:
               get_parameter("kd").as_double()) {
 
         register_input(get_parameter("measurement").as_string(), measurement_);
-        register_input(get_parameter("setpoint").as_string(), setpoint_);
+
+        // Allows using immediate value instead of message name
+        auto parameter_setpoint = get_parameter("setpoint");
+        if (parameter_setpoint.get_type() == rclcpp::ParameterType::PARAMETER_DOUBLE) {
+            setpoint_immediate_value_ = parameter_setpoint.as_double();
+            setpoint_.bind_directly(setpoint_immediate_value_);
+        } else {
+            register_input(parameter_setpoint.as_string(), setpoint_);
+        }
+        
         register_output(get_parameter("control").as_string(), control_);
 
         get_parameter("integral_min", pid_calculator_.integral_min);
@@ -39,6 +48,7 @@ private:
 
     InputInterface<double> measurement_;
     InputInterface<double> setpoint_;
+    double setpoint_immediate_value_;
 
     OutputInterface<double> control_;
 };
