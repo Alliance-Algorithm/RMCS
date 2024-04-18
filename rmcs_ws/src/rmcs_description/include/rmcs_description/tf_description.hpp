@@ -137,11 +137,8 @@ struct fast_tf::Joint<rmcs_description::RightFrontWheelLink> {
 
 namespace rmcs_description {
 
-using Gimbal = fast_tf::JointCollection<YawLink, PitchLink, MuzzleLink, TransmitterLink, ImuLink>;
-using Imu    = fast_tf::JointCollection<OdomImu>;
-
-using Chassis = fast_tf::JointCollection<
-    GimbalCenterLink, LeftFrontWheelLink, LeftBackWheelLink, RightBackWheelLink,
-    RightFrontWheelLink>;
+using Tf = fast_tf::JointCollection<
+    YawLink, PitchLink, MuzzleLink, TransmitterLink, ImuLink, OdomImu, GimbalCenterLink,
+    LeftFrontWheelLink, LeftBackWheelLink, RightBackWheelLink, RightFrontWheelLink>;
 
 } // namespace rmcs_description

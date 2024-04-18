@@ -26,4 +26,9 @@ ament_auto_add_library (
 include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_SOURCE_DIR}/src)
 
+install(
+  DIRECTORY config launch meshes rviz urdf
+  DESTINATION share/${PROJECT_NAME}
+)
+
 ament_auto_package()
