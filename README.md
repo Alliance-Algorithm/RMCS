@@ -11,14 +11,6 @@ TODO .
 1. `ssh-server`
 1. `docker`
 
-#### Docker without sudo
-```sh
-sudo groupadd docker
-sudo gpasswd -a ${USER} docker
-sudo systemctl restart docekr
-sudo chmod a+rw /var/run/docker.sock
-```
-
 #### DHCP server
 
 ```sh
