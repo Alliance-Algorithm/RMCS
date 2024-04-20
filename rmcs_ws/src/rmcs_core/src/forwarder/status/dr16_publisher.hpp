@@ -60,8 +60,8 @@ public:
         *switch_right_ = dynamic_part.switch_right;
         *switch_left_  = dynamic_part.switch_left;
 
-        mouse_velocity_->x() = dynamic_part.mouse_velocity_x / 32768.0;
-        mouse_velocity_->y() = dynamic_part.mouse_velocity_y / 32768.0;
+        mouse_velocity_->x() = -dynamic_part.mouse_velocity_y / 32768.0;
+        mouse_velocity_->y() = -dynamic_part.mouse_velocity_x / 32768.0;
 
         mouse_->left  = dynamic_part.mouse_left;
         mouse_->right = dynamic_part.mouse_right;

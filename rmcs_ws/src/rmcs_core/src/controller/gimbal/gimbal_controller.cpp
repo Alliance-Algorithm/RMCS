@@ -12,6 +12,8 @@
 
 namespace rmcs_core::controller::gimbal {
 
+using namespace rmcs_description;
+
 class GimbalController
     : public rmcs_executor::Component
     , public rclcpp::Node {
@@ -31,6 +33,8 @@ public:
         register_input("/gimbal/pitch/angle", gimbal_pitch_angle_);
         register_input("/tf", tf_);
 
+        register_input("/gimbal/auto_aim/control_direction", auto_aim_control_direction_, false);
+
         register_output("/gimbal/left_friction/control_velocity", left_friction_velocity_, nan);
         register_output("/gimbal/right_friction/control_velocity", right_friction_velocity_, nan);
         register_output("/gimbal/bullet_deliver/control_velocity", bullet_deliver_velocity_, nan);
@@ -40,10 +44,11 @@ public:
 
     void update() override {
         using namespace rmcs_core::msgs;
-        using namespace rmcs_description;
 
         auto switch_right = *switch_right_;
         auto switch_left  = *switch_left_;
+        auto mouse        = *mouse_;
+        auto keyboard     = *keyboard_;
 
         do {
             if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
@@ -53,33 +58,26 @@ public:
             }
 
             if (switch_right != Switch::DOWN) {
-                if (last_switch_left_ == Switch::MIDDLE && switch_left == Switch::UP) {
+                if (switch_left == Switch::MIDDLE) {
+                    friction_mode_ |= keyboard.v;
+                    friction_mode_ &= !(keyboard.ctrl && keyboard.v);
+                } else if (last_switch_left_ == Switch::MIDDLE && switch_left == Switch::UP) {
                     friction_mode_ = !friction_mode_;
                 }
-                bullet_deliver_mode_ = friction_mode_ && switch_left == Switch::DOWN;
+                bullet_deliver_mode_ = mouse.left || switch_left == Switch::DOWN;
             }
-            update_friction_velocities();
-            update_bullet_deliver_velocity();
 
             PitchLink::DirectionVector dir;
-            if (control_enabled)
-                dir = fast_tf::cast<PitchLink>(control_direction_, *tf_);
-            else {
-                auto odom_dir = fast_tf::cast<OdomImu>(
-                    PitchLink::DirectionVector{Eigen::Vector3d::UnitX()}, *tf_);
-                if (odom_dir->x() == 0 || odom_dir->y() == 0)
-                    break;
-                odom_dir->z() = 0;
-
-                dir = fast_tf::cast<PitchLink>(odom_dir, *tf_);
-                dir->normalize();
-                control_enabled = true;
+            if (auto_aim_control_direction_.ready() && (mouse.right || switch_right == Switch::UP)
+                && !auto_aim_control_direction_->isZero()) {
+                update_auto_aim_control_direction(dir);
+            } else {
+                update_manual_control_direction(dir);
             }
-
-            update_control_direction(dir);
-            update_errors(dir);
-
             control_direction_ = fast_tf::cast<OdomImu>(dir, *tf_);
+
+            update_friction_velocities();
+            update_bullet_deliver_velocity();
         } while (false);
 
         last_switch_right_ = switch_right;
@@ -108,17 +106,51 @@ private:
         constexpr double firing_frequency     = 20.0;
         constexpr double bullet_deliver_speed = firing_frequency / 8 * 2 * std::numbers::pi;
 
-        *bullet_deliver_velocity_ = bullet_deliver_mode_ ? bullet_deliver_speed : 0;
+        *bullet_deliver_velocity_ =
+            (friction_mode_ && bullet_deliver_mode_) ? bullet_deliver_speed : 0;
     }
 
-    void update_control_direction(rmcs_description::PitchLink::DirectionVector& dir) {
-        auto delta_yaw = Eigen::AngleAxisd{0.006 * joystick_left_->y(), Eigen::Vector3d::UnitZ()};
-        auto delta_pitch =
-            Eigen::AngleAxisd{-0.006 * joystick_left_->x(), Eigen::Vector3d::UnitY()};
+    void update_auto_aim_control_direction(PitchLink::DirectionVector& dir) {
+        dir =
+            fast_tf::cast<PitchLink>(OdomImu::DirectionVector{*auto_aim_control_direction_}, *tf_);
+        control_enabled = true;
+
+        double yaw_angle_error, pitch_angle_error;
+        calculate_errors(dir, yaw_angle_error, pitch_angle_error);
+        yaw_angle_error += 0.0;
+        pitch_angle_error += 0.0;
+        bullet_deliver_mode_ |=
+            std::abs(yaw_angle_error) < 0.1 && std::abs(pitch_angle_error) < 0.1;
+        *yaw_angle_error_   = yaw_angle_error;
+        *pitch_angle_error_ = pitch_angle_error;
+    }
+
+    void update_manual_control_direction(PitchLink::DirectionVector& dir) {
+        if (control_enabled)
+            dir = fast_tf::cast<PitchLink>(control_direction_, *tf_);
+        else {
+            auto odom_dir =
+                fast_tf::cast<OdomImu>(PitchLink::DirectionVector{Eigen::Vector3d::UnitX()}, *tf_);
+            if (odom_dir->x() == 0 || odom_dir->y() == 0)
+                return;
+            odom_dir->z() = 0;
+
+            dir = fast_tf::cast<PitchLink>(odom_dir, *tf_);
+            dir->normalize();
+            control_enabled = true;
+        }
+
+        auto delta_yaw = Eigen::AngleAxisd{
+            0.006 * joystick_left_->y() + 5.0 * mouse_velocity_->y(), Eigen::Vector3d::UnitZ()};
+        auto delta_pitch = Eigen::AngleAxisd{
+            -0.006 * joystick_left_->x() - 5.0 * mouse_velocity_->x(), Eigen::Vector3d::UnitY()};
         *dir = delta_pitch * (delta_yaw * (*dir));
+
+        calculate_errors(dir, *yaw_angle_error_, *pitch_angle_error_);
     }
 
-    void update_errors(rmcs_description::PitchLink::DirectionVector& dir) {
+    static void calculate_errors(
+        PitchLink::DirectionVector& dir, double& yaw_angle_error, double& pitch_angle_error) {
         // We assume that the yaw motor consistently aligns with the z-axis of pitch_link.
         // Consequently, as the yaw_error approaches 90 degrees, the calculated pitch_error
         // tends toward 0, rendering the pitch motor nearly powerless during this period.
@@ -126,8 +158,8 @@ private:
         // degrees, the encoder overwhelmingly dictates the pitch_error, resulting in
         // significant and intolerable oscillations.
         double &x = dir->x(), &y = dir->y(), &z = dir->z();
-        *yaw_angle_error_   = std::atan2(y, x);
-        *pitch_angle_error_ = -std::atan2(z, std::sqrt(y * y + x * x));
+        yaw_angle_error   = std::atan2(y, x);
+        pitch_angle_error = -std::atan2(z, std::sqrt(y * y + x * x));
     }
 
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
@@ -141,7 +173,9 @@ private:
     InputInterface<rmcs_core::msgs::Keyboard> keyboard_;
 
     InputInterface<double> gimbal_pitch_angle_;
-    InputInterface<rmcs_description::Tf> tf_;
+    InputInterface<Tf> tf_;
+
+    InputInterface<Eigen::Vector3d> auto_aim_control_direction_;
 
     bool control_enabled = false;
     bool friction_mode_ = false, bullet_deliver_mode_ = false;
@@ -149,7 +183,7 @@ private:
     rmcs_core::msgs::Switch last_switch_right_ = rmcs_core::msgs::Switch::UNKNOWN;
     rmcs_core::msgs::Switch last_switch_left_  = rmcs_core::msgs::Switch::UNKNOWN;
 
-    rmcs_description::OdomImu::DirectionVector control_direction_{Eigen::Vector3d::Zero()};
+    OdomImu::DirectionVector control_direction_{Eigen::Vector3d::Zero()};
 
     OutputInterface<double> left_friction_velocity_, right_friction_velocity_;
     OutputInterface<double> bullet_deliver_velocity_;

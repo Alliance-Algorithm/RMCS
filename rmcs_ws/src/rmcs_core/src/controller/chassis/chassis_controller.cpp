@@ -43,6 +43,7 @@ public:
 
         auto switch_right = *switch_right_;
         auto switch_left  = *switch_left_;
+        auto keyboard     = *keyboard_;
 
         do {
             if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
@@ -51,12 +52,19 @@ public:
                 break;
             }
 
-            if (switch_left == Switch::MIDDLE
-                && (last_switch_right_ == Switch::MIDDLE && switch_right == msgs::Switch::DOWN)) {
-                spinning_mode_ = !spinning_mode_;
+            if (switch_left != Switch::DOWN) {
+                if (switch_right == Switch::MIDDLE) {
+                    spinning_mode_ |= keyboard.c;
+                    spinning_mode_ &= !(keyboard.ctrl && keyboard.c);
+                } else if (last_switch_right_ == Switch::MIDDLE && switch_right == Switch::DOWN) {
+                    spinning_mode_ = !spinning_mode_;
+                }
             }
 
-            update_wheel_velocities(Eigen::Rotation2Dd{*gimbal_yaw_angle_} * (*joystick_right_));
+            auto keyboard_move =
+                Eigen::Vector2d{0.5 * (keyboard.w - keyboard.s), 0.5 * (keyboard.a - keyboard.d)};
+            update_wheel_velocities(
+                Eigen::Rotation2Dd{*gimbal_yaw_angle_} * (*joystick_right_ + keyboard_move));
         } while (false);
 
         last_switch_right_ = switch_right;
