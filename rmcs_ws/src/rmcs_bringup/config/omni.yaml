@@ -11,6 +11,7 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController -> pitch_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> left_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> right_friction_velocity_pid_controller
+      # - rmcs_core::controller::pid::PidController -> bullet_deliver_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> bullet_deliver_velocity_pid_controller
 
       - rmcs_core::controller::chassis::ChassisController -> chassis_controller
@@ -23,11 +24,11 @@ rmcs_executor:
 
       - rmcs_core::forwarder::CommandForwarder -> command_forwarder
 
+      # - ugas::Component -> ugas
 
 status_forwarder:
   ros__parameters:
     path: /dev/ttyACM0
-
 
 yaw_angle_pid_controller:
   ros__parameters:
@@ -71,15 +72,14 @@ pitch_velocity_pid_controller:
     integral_min: -0.5
     integral_max: 0.5
 
-
 left_friction_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/left_friction/velocity
     setpoint: /gimbal/left_friction/control_velocity
     control: /gimbal/left_friction/control_current
-    kp: 0.4
-    ki: 0.02
-    kd: 0.1
+    kp: 0.22
+    ki: 0.00
+    kd: 0.6
     integral_min: -0.2
     integral_max: 0.2
 
@@ -88,9 +88,9 @@ right_friction_velocity_pid_controller:
     measurement: /gimbal/right_friction/velocity
     setpoint: /gimbal/right_friction/control_velocity
     control: /gimbal/right_friction/control_current
-    kp: 0.4
-    ki: 0.02
-    kd: 0.1
+    kp: 0.22
+    ki: 0.00
+    kd: 0.6
     integral_min: -0.2
     integral_max: 0.2
 
@@ -104,7 +104,6 @@ bullet_deliver_velocity_pid_controller:
     kd: 0.0
     integral_min: -0.2
     integral_max: 0.2
-
 
 left_front_wheel_velocity_pid_controller:
   ros__parameters:

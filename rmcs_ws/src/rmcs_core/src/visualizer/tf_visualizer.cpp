@@ -24,6 +24,7 @@ public:
         register_input("/predefined/update_count", update_count_);
 
         register_input("/tf", tf_);
+        register_input("/gimbal/bullet_deliver/control_velocity", data_);
     }
     ~TfVisualizer() = default;
 
@@ -35,6 +36,7 @@ public:
             fast_tf::rcl::broadcast_all(*tf_);
             next_publish_timestamp_ += 50ms;
         }
+        // RCLCPP_INFO(get_logger(), "--  %f", *data_);
     }
 
 private:
@@ -43,6 +45,7 @@ private:
     std::chrono::steady_clock::time_point next_publish_timestamp_;
 
     InputInterface<rmcs_description::Tf> tf_;
+    InputInterface<double> data_;
 };
 
 } // namespace rmcs_core::visualizer

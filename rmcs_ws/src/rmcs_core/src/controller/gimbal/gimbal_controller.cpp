@@ -35,9 +35,16 @@ public:
 
         register_input("/gimbal/auto_aim/control_direction", auto_aim_control_direction_, false);
 
-        register_output("/gimbal/left_friction/control_velocity", left_friction_velocity_, nan);
-        register_output("/gimbal/right_friction/control_velocity", right_friction_velocity_, nan);
-        register_output("/gimbal/bullet_deliver/control_velocity", bullet_deliver_velocity_, nan);
+        register_input("/gimbal/left_friction/velocity", left_friction_velocity_);
+        register_input("/gimbal/right_friction/velocity", right_friction_velocity_);
+
+        register_output(
+            "/gimbal/left_friction/control_velocity", left_friction_control_velocity_, nan);
+        register_output(
+            "/gimbal/right_friction/control_velocity", right_friction_control_velocity_, nan);
+        register_output(
+            "/gimbal/bullet_deliver/control_velocity", bullet_deliver_control_velocity_, nan);
+
         register_output("/gimbal/yaw/control_angle_error", yaw_angle_error_, nan);
         register_output("/gimbal/pitch/control_angle_error", pitch_angle_error_, nan);
     }
@@ -45,18 +52,18 @@ public:
     void update() override {
         using namespace rmcs_core::msgs;
 
+        update_yaw_axis();
+
         auto switch_right = *switch_right_;
         auto switch_left  = *switch_left_;
         auto mouse        = *mouse_;
         auto keyboard     = *keyboard_;
 
-        do {
-            if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
-                || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
-                reset_all_controls();
-                break;
-            }
-
+        if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
+            || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
+            reset_all_controls();
+            update_muzzle_heat();
+        } else {
             if (switch_right != Switch::DOWN) {
                 if (switch_left == Switch::MIDDLE) {
                     friction_mode_ |= keyboard.v;
@@ -76,38 +83,80 @@ public:
             }
             control_direction_ = fast_tf::cast<OdomImu>(dir, *tf_);
 
+            update_muzzle_heat();
             update_friction_velocities();
             update_bullet_deliver_velocity();
-        } while (false);
+        }
 
         last_switch_right_ = switch_right;
         last_switch_left_  = switch_left;
     }
 
 private:
+    void update_yaw_axis() {
+        auto yaw_axis = PitchLink::DirectionVector{
+            Eigen::AngleAxisd{-*gimbal_pitch_angle_, Eigen::Vector3d::UnitY()}
+            * Eigen::Vector3d::UnitZ()
+        };
+        *yaw_axis_ += 0.1 * (*fast_tf::cast<OdomImu>(yaw_axis, *tf_));
+        yaw_axis_->normalize();
+    }
+
     void reset_all_controls() {
-        control_enabled           = false;
-        friction_mode_            = false;
-        bullet_deliver_mode_      = false;
-        *left_friction_velocity_  = nan;
-        *right_friction_velocity_ = nan;
-        *bullet_deliver_velocity_ = nan;
-        *yaw_angle_error_         = nan;
-        *pitch_angle_error_       = nan;
+        control_enabled                   = false;
+        *yaw_angle_error_                 = nan;
+        *pitch_angle_error_               = nan;
+        friction_mode_                    = false;
+        *left_friction_control_velocity_  = nan;
+        *right_friction_control_velocity_ = nan;
+        bullet_deliver_mode_              = false;
+        *bullet_deliver_control_velocity_ = nan;
+    }
+
+    void update_muzzle_heat() {
+        muzzle_heat_ -= 40;
+        if (muzzle_heat_ < 0)
+            muzzle_heat_ = 0;
+
+        if (friction_mode_ && !std::isnan(last_left_friction_velocity_)) {
+            double differential = *left_friction_velocity_ - last_left_friction_velocity_;
+            if (differential < 0.1)
+                friction_velocity_decrease_integral_ += differential;
+            else {
+                if (friction_velocity_decrease_integral_ < -14.0
+                    && last_left_friction_velocity_ < friction_velocity_preset - 20.0) {
+                    // Heat with 1/1000 tex
+                    muzzle_heat_ += 10'000 + 10;
+                }
+                friction_velocity_decrease_integral_ = 0;
+            }
+        }
+
+        last_left_friction_velocity_ = *left_friction_velocity_;
+
+        bullet_count_limited_by_muzzle_heat_ = (240'000 - muzzle_heat_ - 10'000) / 10'000;
+        if (bullet_count_limited_by_muzzle_heat_ < 0)
+            bullet_count_limited_by_muzzle_heat_ = 0;
     }
 
     void update_friction_velocities() {
-        double friction_velocity  = friction_mode_ ? 820.0 : 0.0;
-        *left_friction_velocity_  = friction_velocity;
-        *right_friction_velocity_ = friction_velocity;
+        double control_velocity           = friction_mode_ ? friction_velocity_preset : 0.0;
+        *left_friction_control_velocity_  = control_velocity;
+        *right_friction_control_velocity_ = control_velocity;
     }
 
     void update_bullet_deliver_velocity() {
         constexpr double firing_frequency     = 20.0;
         constexpr double bullet_deliver_speed = firing_frequency / 8 * 2 * std::numbers::pi;
 
-        *bullet_deliver_velocity_ =
-            (friction_mode_ && bullet_deliver_mode_) ? bullet_deliver_speed : 0;
+        if (friction_mode_ && bullet_deliver_mode_ && bullet_count_limited_by_muzzle_heat_ > 0) {
+            if (bullet_count_limited_by_muzzle_heat_ > 1)
+                *bullet_deliver_control_velocity_ = bullet_deliver_speed;
+            else
+                *bullet_deliver_control_velocity_ = bullet_deliver_speed / 2;
+        } else {
+            *bullet_deliver_control_velocity_ = 0.0;
+        }
     }
 
     void update_auto_aim_control_direction(PitchLink::DirectionVector& dir) {
@@ -149,17 +198,18 @@ private:
         calculate_errors(dir, *yaw_angle_error_, *pitch_angle_error_);
     }
 
-    static void calculate_errors(
+    void calculate_errors(
         PitchLink::DirectionVector& dir, double& yaw_angle_error, double& pitch_angle_error) {
-        // We assume that the yaw motor consistently aligns with the z-axis of pitch_link.
-        // Consequently, as the yaw_error approaches 90 degrees, the calculated pitch_error
-        // tends toward 0, rendering the pitch motor nearly powerless during this period.
-        // Despite attempts to integrate the pitch axis encoder, when the yaw_error nears 90
-        // degrees, the encoder overwhelmingly dictates the pitch_error, resulting in
-        // significant and intolerable oscillations.
+        auto yaw_axis = fast_tf::cast<PitchLink>(yaw_axis_, *tf_);
+        double pitch  = -std::atan2(yaw_axis->x(), yaw_axis->z());
+
         double &x = dir->x(), &y = dir->y(), &z = dir->z();
-        yaw_angle_error   = std::atan2(y, x);
-        pitch_angle_error = -std::atan2(z, std::sqrt(y * y + x * x));
+        double sp = std::sin(pitch), cp = std::cos(pitch);
+        double a        = x * cp + z * sp;
+        double b        = std::sqrt(y * y + a * a);
+        yaw_angle_error = std::atan2(y, a);
+        pitch_angle_error =
+            -std::atan2(z * cp * cp - x * cp * sp + sp * b, -z * cp * sp + x * sp * sp + cp * b);
     }
 
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
@@ -177,6 +227,11 @@ private:
 
     InputInterface<Eigen::Vector3d> auto_aim_control_direction_;
 
+    InputInterface<double> left_friction_velocity_, right_friction_velocity_;
+    static constexpr double friction_velocity_preset = 770.0;
+    double last_left_friction_velocity_ = nan, friction_velocity_decrease_integral_ = 0;
+    int64_t muzzle_heat_ = 0, bullet_count_limited_by_muzzle_heat_ = 0;
+
     bool control_enabled = false;
     bool friction_mode_ = false, bullet_deliver_mode_ = false;
 
@@ -184,9 +239,10 @@ private:
     rmcs_core::msgs::Switch last_switch_left_  = rmcs_core::msgs::Switch::UNKNOWN;
 
     OdomImu::DirectionVector control_direction_{Eigen::Vector3d::Zero()};
+    OdomImu::DirectionVector yaw_axis_{Eigen::Vector3d::UnitZ()};
 
-    OutputInterface<double> left_friction_velocity_, right_friction_velocity_;
-    OutputInterface<double> bullet_deliver_velocity_;
+    OutputInterface<double> left_friction_control_velocity_, right_friction_control_velocity_;
+    OutputInterface<double> bullet_deliver_control_velocity_;
     OutputInterface<double> yaw_angle_error_, pitch_angle_error_;
 };
 

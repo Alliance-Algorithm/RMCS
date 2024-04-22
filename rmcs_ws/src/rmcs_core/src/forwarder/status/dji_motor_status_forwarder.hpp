@@ -16,9 +16,12 @@ class DjiMotorStatusForwarder {
 public:
     DjiMotorStatusForwarder(rmcs_executor::Component* component, const std::string& name_prefix) {
         component->register_output(name_prefix + "/scale", scale_, 1.0);
-        angle_border_ = 2 * std::numbers::pi;
+        angle_max_ = 2 * std::numbers::pi;
         component->register_output(name_prefix + "/offset", offset_, 0.0);
         component->register_output(name_prefix + "/max_current", max_current_, 0.0);
+        multi_turn_angle_enabled_ = false;
+        multi_turn_raw_angle_     = 0;
+        last_raw_angle_           = 0;
         component->register_output(name_prefix + "/angle", angle_, 0.0);
         component->register_output(name_prefix + "/velocity", velocity_, 0.0);
     }
@@ -35,12 +38,17 @@ public:
         return *this;
     }
     DjiMotorStatusForwarder& set_reduction_ratio(double ratio) {
-        *scale_       = (*scale_ > 0) ? ratio : -ratio;
-        angle_border_ = ratio * 2 * std::numbers::pi;
+        *scale_    = (*scale_ > 0) ? ratio : -ratio;
+        angle_max_ = ratio * 2 * std::numbers::pi;
         return *this;
     }
     DjiMotorStatusForwarder& set_offset(double offset) {
         *offset_ = offset;
+        return *this;
+    }
+
+    DjiMotorStatusForwarder& enable_multi_turn_angle() {
+        multi_turn_angle_enabled_ = true;
         return *this;
     }
 
@@ -60,12 +68,30 @@ public:
         auto& dynamic_part = package->dynamic_part<PackageDjiMotorFeedbackPart>();
 
         // angle = (scale * real_angle) + offset
-        // angle unit: rad [0, 2pi)
-        double angle = static_cast<double>(dynamic_part.angle) / 8192.0 * 2.0 * std::numbers::pi;
-        angle        = (*scale_ * angle) + *offset_;
-        angle        = std::fmod(angle, angle_border_);
-        if (angle < 0)
-            angle += angle_border_;
+        // angle unit: rad
+        // angle range: [0, angle_max) if multi_turn disabled, else (-inf, inf)
+        double angle;
+        if (multi_turn_angle_enabled_) {
+            int64_t raw_angle = dynamic_part.angle;
+            int64_t diff      = raw_angle - last_raw_angle_;
+            if (diff <= -raw_angle_max / 2)
+                diff += raw_angle_max;
+            else if (diff > raw_angle_max / 2)
+                diff -= raw_angle_max;
+            multi_turn_raw_angle_ += diff;
+            last_raw_angle_ = raw_angle;
+
+            angle =
+                static_cast<double>(multi_turn_raw_angle_) / raw_angle_max * 2.0 * std::numbers::pi;
+            angle = (*scale_ * angle) + *offset_;
+        } else {
+            angle =
+                static_cast<double>(dynamic_part.angle) / raw_angle_max * 2.0 * std::numbers::pi;
+            angle = (*scale_ * angle) + *offset_;
+            angle = std::fmod(angle, angle_max_);
+            if (angle < 0)
+                angle += angle_max_;
+        }
         *angle_ = angle;
 
         // velocity = scale * real_velocity;
@@ -76,11 +102,14 @@ public:
 
 private:
     rmcs_executor::Component::OutputInterface<double> scale_;
-    double angle_border_;
+    double angle_max_;
 
     rmcs_executor::Component::OutputInterface<double> offset_;
     rmcs_executor::Component::OutputInterface<double> max_current_;
 
+    static constexpr int64_t raw_angle_max = 8192;
+    bool multi_turn_angle_enabled_;
+    int64_t multi_turn_raw_angle_, last_raw_angle_;
     rmcs_executor::Component::OutputInterface<double> angle_;
     rmcs_executor::Component::OutputInterface<double> velocity_;
 };

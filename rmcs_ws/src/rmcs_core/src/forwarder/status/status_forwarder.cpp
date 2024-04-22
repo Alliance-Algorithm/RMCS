@@ -45,14 +45,19 @@ public:
         });
 
         for (auto& motor : chassis_wheel_motors_)
-            motor.set_motor_m3508().set_reverse(true).set_reduction_ratio(1 / 14.0);
+            motor.set_motor_m3508()
+                .set_reverse(true)
+                .set_reduction_ratio(1 / 14.0)
+                .enable_multi_turn_angle();
 
         gimbal_yaw_motor_.set_motor_gm6020().set_offset(0.771);
         gimbal_pitch_motor_.set_motor_gm6020().set_offset(-0.300);
 
         gimbal_left_friction_.set_motor_m3508().set_reverse(false);
         gimbal_right_friction_.set_motor_m3508().set_reverse(true);
-        gimbal_bullet_deliver_.set_motor_m2006().set_reduction_ratio(1 / 36.0);
+        gimbal_bullet_deliver_.set_motor_m2006()
+            .set_reduction_ratio(1 / 36.0)
+            .enable_multi_turn_angle();
 
         register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
         register_output("/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
