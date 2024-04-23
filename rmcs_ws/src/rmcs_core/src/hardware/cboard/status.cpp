@@ -5,18 +5,18 @@
 #include <rmcs_executor/component.hpp>
 #include <serial/serial.h>
 
-#include "forwarder/status/dji_motor_status_forwarder.hpp"
-#include "forwarder/status/dr16_publisher.hpp"
-#include "forwarder/status/imu.hpp"
-#include "forwarder/status/package_receiver.hpp"
+#include "hardware/cboard/dji_motor_status.hpp"
+#include "hardware/cboard/dr16_status.hpp"
+#include "hardware/cboard/imu_status.hpp"
+#include "hardware/cboard/package_receiver.hpp"
 
-namespace rmcs_core::forwarder {
+namespace rmcs_core::hardware::cboard {
 
-class StatusForwarder
+class Status
     : public rmcs_executor::Component
     , public rclcpp::Node {
 public:
-    StatusForwarder()
+    Status()
         : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , logger_(get_logger()) {
 
@@ -81,7 +81,7 @@ public:
         tf_->set_transform<BaseLink, RightFrontWheelLink>(
             Eigen::Translation3d{wheel_distance_x / 2, -wheel_distance_y / 2, 0});
     }
-    ~StatusForwarder() = default;
+    ~Status() = default;
 
     void update() override { package_receiver_.update(*serial_, logger_); }
 
@@ -144,7 +144,7 @@ private:
     }
 
     void dbus_receive_callback(std::unique_ptr<Package> package) {
-        dr16_publisher_.update_status(std::move(package), logger_);
+        dr16_.update_status(std::move(package), logger_);
     }
 
     void imu_receive_callback(std::unique_ptr<Package> package) {
@@ -193,30 +193,30 @@ private:
     OutputInterface<serial::Serial> serial_;
     PackageReceiver package_receiver_;
 
-    DjiMotorStatusForwarder chassis_wheel_motors_[4] = {
+    DjiMotorStatus chassis_wheel_motors_[4] = {
         {this,  "/chassis/left_front_wheel"},
         {this, "/chassis/right_front_wheel"},
         {this,  "/chassis/right_back_wheel"},
         {this,   "/chassis/left_back_wheel"}
     };
 
-    DjiMotorStatusForwarder gimbal_yaw_motor_   = {this, "/gimbal/yaw"};
-    DjiMotorStatusForwarder gimbal_pitch_motor_ = {this, "/gimbal/pitch"};
+    DjiMotorStatus gimbal_yaw_motor_   = {this, "/gimbal/yaw"};
+    DjiMotorStatus gimbal_pitch_motor_ = {this, "/gimbal/pitch"};
 
-    DjiMotorStatusForwarder gimbal_left_friction_  = {this, "/gimbal/left_friction"};
-    DjiMotorStatusForwarder gimbal_right_friction_ = {this, "/gimbal/right_friction"};
-    DjiMotorStatusForwarder gimbal_bullet_deliver_ = {this, "/gimbal/bullet_deliver"};
+    DjiMotorStatus gimbal_left_friction_  = {this, "/gimbal/left_friction"};
+    DjiMotorStatus gimbal_right_friction_ = {this, "/gimbal/right_friction"};
+    DjiMotorStatus gimbal_bullet_deliver_ = {this, "/gimbal/bullet_deliver"};
 
-    Dr16Publisher dr16_publisher_{this};
+    Dr16Status dr16_{this};
 
-    Imu imu_;
+    ImuStatus imu_;
     OutputInterface<double> gimbal_yaw_velocity_imu_;
     OutputInterface<double> gimbal_pitch_velocity_imu_;
     OutputInterface<rmcs_description::Tf> tf_;
 };
 
-} // namespace rmcs_core::forwarder
+} // namespace rmcs_core::hardware::cboard
 
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(rmcs_core::forwarder::StatusForwarder, rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(rmcs_core::hardware::cboard::Status, rmcs_executor::Component)

@@ -9,9 +9,9 @@
 #include <rclcpp/logging.hpp>
 #include <serial/serial.h>
 
-#include "forwarder/package.hpp"
+#include "hardware/cboard/package.hpp"
 
-namespace rmcs_core::forwarder {
+namespace rmcs_core::hardware::cboard {
 
 class PackageReceiver final {
 public:
@@ -142,4 +142,4 @@ private:
     size_t received_size_                      = 0;
 };
 
-} // namespace rmcs_core::forwarder
+} // namespace rmcs_core::hardware::cboard

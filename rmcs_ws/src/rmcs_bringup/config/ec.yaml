@@ -1,0 +1,13 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::hardware::cboard::Status -> cboard_status
+      - ugas::Component -> ugas
+      - rmcs_core::hardware::ec::Command -> ec_command
+      - rmcs_core::visualizer::TfVisualizer -> tf_visualizer
+
+
+cboard_status:
+  ros__parameters:
+    path: /dev/ttyACM0

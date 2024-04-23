@@ -5,7 +5,7 @@
 #include <iostream>
 #include <type_traits>
 
-namespace rmcs_core::forwarder {
+namespace rmcs_core::hardware {
 
 template <typename T>
 requires(std::is_integral_v<T> || std::is_floating_point_v<T>)

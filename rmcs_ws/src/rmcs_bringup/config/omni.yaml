@@ -2,7 +2,7 @@ rmcs_executor:
   ros__parameters:
     update_rate: 1000.0
     components:
-      - rmcs_core::forwarder::StatusForwarder -> status_forwarder
+      - rmcs_core::hardware::cboard::Status -> cboard_status
 
       - rmcs_core::controller::gimbal::GimbalController -> gimbal_controller
       - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
@@ -11,7 +11,6 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController -> pitch_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> left_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> right_friction_velocity_pid_controller
-      # - rmcs_core::controller::pid::PidController -> bullet_deliver_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> bullet_deliver_velocity_pid_controller
 
       - rmcs_core::controller::chassis::ChassisController -> chassis_controller
@@ -22,11 +21,11 @@ rmcs_executor:
 
       - rmcs_core::visualizer::TfVisualizer -> tf_visualizer
 
-      - rmcs_core::forwarder::CommandForwarder -> command_forwarder
+      - rmcs_core::hardware::cboard::Command -> cboard_command
 
       # - ugas::Component -> ugas
 
-status_forwarder:
+cboard_status:
   ros__parameters:
     path: /dev/ttyACM0
 

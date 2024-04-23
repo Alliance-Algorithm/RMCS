@@ -1,5 +1,5 @@
 <library path="rmcs_core">
-  <class type="rmcs_core::forwarder::StatusForwarder" base_class_type="rmcs_executor::Component">
+  <class type="rmcs_core::hardware::cboard::Status" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
   <class type="rmcs_core::controller::chassis::ChassisController" base_class_type="rmcs_executor::Component">
@@ -17,7 +17,10 @@
   <class type="rmcs_core::visualizer::TfVisualizer" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
-  <class type="rmcs_core::forwarder::CommandForwarder" base_class_type="rmcs_executor::Component">
+  <class type="rmcs_core::hardware::cboard::Command" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
+  <class type="rmcs_core::hardware::ec::Command" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
 </library>

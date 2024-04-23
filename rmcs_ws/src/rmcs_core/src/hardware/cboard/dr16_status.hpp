@@ -9,16 +9,16 @@
 #include <rclcpp/logging.hpp>
 #include <rmcs_executor/component.hpp>
 
-#include "forwarder/package.hpp"
+#include "hardware/cboard/package.hpp"
 #include "rmcs_core/msgs.hpp"
 
-namespace rmcs_core::forwarder {
+namespace rmcs_core::hardware::cboard {
 
 using rmcs_executor::Component;
 
-class Dr16Publisher {
+class Dr16Status {
 public:
-    explicit Dr16Publisher(Component* component) {
+    explicit Dr16Status(Component* component) {
         component->register_output(
             "/remote/joystick/right", joystick_right_, Eigen::Vector2d::Zero());
         component->register_output(
@@ -81,4 +81,4 @@ public:
     Component::OutputInterface<rmcs_core::msgs::Keyboard> keyboard_;
 };
 
-} // namespace rmcs_core::forwarder
+} // namespace rmcs_core::hardware::cboard

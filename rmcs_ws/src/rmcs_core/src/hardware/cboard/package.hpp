@@ -4,10 +4,10 @@
 #include <cstdint>
 #include <numeric>
 
-#include "forwarder/endian_promise.hpp"
+#include "hardware/endian_promise.hpp"
 #include "rmcs_core/msgs.hpp"
 
-namespace rmcs_core::forwarder {
+namespace rmcs_core::hardware::cboard {
 
 constexpr size_t kPackageMaxSize = 64;
 
@@ -102,4 +102,4 @@ struct __attribute__((packed)) PackageDr16FeedbackPart {
     uint16_t unused;
 };
 
-} // namespace rmcs_core::forwarder
+} // namespace rmcs_core::hardware::cboard

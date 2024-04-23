@@ -8,13 +8,13 @@
 #include <rclcpp/logging.hpp>
 #include <rmcs_executor/component.hpp>
 
-#include "forwarder/package.hpp"
+#include "hardware/cboard/package.hpp"
 
-namespace rmcs_core::forwarder {
+namespace rmcs_core::hardware::cboard {
 
-class DjiMotorStatusForwarder {
+class DjiMotorStatus {
 public:
-    DjiMotorStatusForwarder(rmcs_executor::Component* component, const std::string& name_prefix) {
+    DjiMotorStatus(rmcs_executor::Component* component, const std::string& name_prefix) {
         component->register_output(name_prefix + "/scale", scale_, 1.0);
         angle_max_ = 2 * std::numbers::pi;
         component->register_output(name_prefix + "/offset", offset_, 0.0);
@@ -25,29 +25,29 @@ public:
         component->register_output(name_prefix + "/angle", angle_, 0.0);
         component->register_output(name_prefix + "/velocity", velocity_, 0.0);
     }
-    DjiMotorStatusForwarder(const DjiMotorStatusForwarder&)            = delete;
-    DjiMotorStatusForwarder& operator=(const DjiMotorStatusForwarder&) = delete;
+    DjiMotorStatus(const DjiMotorStatus&)            = delete;
+    DjiMotorStatus& operator=(const DjiMotorStatus&) = delete;
 
-    DjiMotorStatusForwarder& set_motor_gm6020() { return *max_current_ = 3.0, *this; }
-    DjiMotorStatusForwarder& set_motor_m3508() { return *max_current_ = 20.0, *this; }
-    DjiMotorStatusForwarder& set_motor_m2006() { return *max_current_ = 10.0, *this; }
+    DjiMotorStatus& set_motor_gm6020() { return *max_current_ = 3.0, *this; }
+    DjiMotorStatus& set_motor_m3508() { return *max_current_ = 20.0, *this; }
+    DjiMotorStatus& set_motor_m2006() { return *max_current_ = 10.0, *this; }
 
-    DjiMotorStatusForwarder& set_reverse(bool reverse) {
+    DjiMotorStatus& set_reverse(bool reverse) {
         double scale_abs = std::abs(*scale_);
         *scale_          = reverse ? -scale_abs : scale_abs;
         return *this;
     }
-    DjiMotorStatusForwarder& set_reduction_ratio(double ratio) {
+    DjiMotorStatus& set_reduction_ratio(double ratio) {
         *scale_    = (*scale_ > 0) ? ratio : -ratio;
         angle_max_ = ratio * 2 * std::numbers::pi;
         return *this;
     }
-    DjiMotorStatusForwarder& set_offset(double offset) {
+    DjiMotorStatus& set_offset(double offset) {
         *offset_ = offset;
         return *this;
     }
 
-    DjiMotorStatusForwarder& enable_multi_turn_angle() {
+    DjiMotorStatus& enable_multi_turn_angle() {
         multi_turn_angle_enabled_ = true;
         return *this;
     }
@@ -114,4 +114,4 @@ private:
     rmcs_executor::Component::OutputInterface<double> velocity_;
 };
 
-} // namespace rmcs_core::forwarder
+} // namespace rmcs_core::hardware::cboard

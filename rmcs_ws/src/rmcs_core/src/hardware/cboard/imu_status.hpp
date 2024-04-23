@@ -4,11 +4,11 @@
 
 #include <eigen3/Eigen/Dense>
 
-namespace rmcs_core::forwarder {
+namespace rmcs_core::hardware::cboard {
 
-class Imu {
+class ImuStatus {
 public:
-    explicit Imu(const Eigen::Quaterniond& initial_status = {1, 0, 0, 0}) {
+    explicit ImuStatus(const Eigen::Quaterniond& initial_status = {1, 0, 0, 0}) {
         q0 = initial_status.w();
         q1 = initial_status.x();
         q2 = initial_status.y();

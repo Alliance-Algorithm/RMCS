@@ -7,22 +7,22 @@
 #include <rmcs_executor/component.hpp>
 #include <serial/serial.h>
 
-#include "forwarder/command/dji_motor_command_forwarder.hpp"
-#include "forwarder/package.hpp"
+#include "hardware/cboard/dji_motor_command.hpp"
+#include "hardware/cboard/package.hpp"
 
-namespace rmcs_core::forwarder {
+namespace rmcs_core::hardware::cboard {
 
-class CommandForwarder
+class Command
     : public rmcs_executor::Component
     , public rclcpp::Node {
 public:
-    CommandForwarder()
+    Command()
         : Node{
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)} {
         register_input("/serial", serial_);
     }
-    ~CommandForwarder() = default;
+    ~Command() = default;
 
     void update() override {
         using namespace std::chrono_literals;
@@ -72,23 +72,23 @@ private:
 
     InputInterface<serial::Serial> serial_;
 
-    DjiMotorCommandForwarder chassis_wheel_motors_[4] = {
+    DjiMotorCommand chassis_wheel_motors_[4] = {
         {this,  "/chassis/left_front_wheel"},
         {this, "/chassis/right_front_wheel"},
         {this,  "/chassis/right_back_wheel"},
         {this,   "/chassis/left_back_wheel"}
     };
 
-    DjiMotorCommandForwarder gimbal_yaw_motor_   = {this, "/gimbal/yaw"};
-    DjiMotorCommandForwarder gimbal_pitch_motor_ = {this, "/gimbal/pitch"};
+    DjiMotorCommand gimbal_yaw_motor_   = {this, "/gimbal/yaw"};
+    DjiMotorCommand gimbal_pitch_motor_ = {this, "/gimbal/pitch"};
 
-    DjiMotorCommandForwarder gimbal_left_friction_  = {this, "/gimbal/left_friction"};
-    DjiMotorCommandForwarder gimbal_right_friction_ = {this, "/gimbal/right_friction"};
-    DjiMotorCommandForwarder gimbal_bullet_deliver_ = {this, "/gimbal/bullet_deliver"};
+    DjiMotorCommand gimbal_left_friction_  = {this, "/gimbal/left_friction"};
+    DjiMotorCommand gimbal_right_friction_ = {this, "/gimbal/right_friction"};
+    DjiMotorCommand gimbal_bullet_deliver_ = {this, "/gimbal/bullet_deliver"};
 };
 
-} // namespace rmcs_core::forwarder
+} // namespace rmcs_core::hardware::cboard
 
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(rmcs_core::forwarder::CommandForwarder, rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(rmcs_core::hardware::cboard::Command, rmcs_executor::Component)
