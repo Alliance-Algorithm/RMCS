@@ -40,9 +40,7 @@ public:
             0x23, [this](auto&& pkg) { dbus_receive_callback(std::forward<decltype(pkg)>(pkg)); });
         package_receiver_.subscribe(
             0x31, [this](auto&& pkg) { imu_receive_callback(std::forward<decltype(pkg)>(pkg)); });
-        package_receiver_.subscribe(0x32, [this](auto&& pkg) {
-            quaternion_receive_callback(std::forward<decltype(pkg)>(pkg));
-        });
+        package_receiver_.subscribe(0x32, [](auto&&) {});
 
         for (auto& motor : chassis_wheel_motors_)
             motor.set_motor_m3508()
@@ -50,8 +48,8 @@ public:
                 .set_reduction_ratio(1 / 14.0)
                 .enable_multi_turn_angle();
 
-        gimbal_yaw_motor_.set_motor_gm6020().set_offset(0.771);
-        gimbal_pitch_motor_.set_motor_gm6020().set_offset(-0.300);
+        gimbal_yaw_motor_.set_motor_gm6020().set_offset(-0.758);
+        gimbal_pitch_motor_.set_motor_gm6020().set_offset(-0.296);
 
         gimbal_left_friction_.set_motor_m3508().set_reverse(false);
         gimbal_right_friction_.set_motor_m3508().set_reverse(true);
@@ -161,29 +159,6 @@ private:
         *gimbal_pitch_velocity_imu_ = gx;
 
         auto gimbal_imu_pose = imu_.update(gx, gy, gz, ax, ay, az);
-        tf_->set_transform<rmcs_description::ImuLink, rmcs_description::OdomImu>(
-            gimbal_imu_pose.conjugate());
-    }
-
-    void quaternion_receive_callback(std::unique_ptr<Package> package) {
-        auto& static_part = package->static_part();
-        if (static_part.data_size != sizeof(QuaternionData)) {
-            RCLCPP_ERROR(
-                get_logger(),
-                "Package size does not match (quaternion): [0x%02X 0x%02X] (size = %d)",
-                static_part.type, static_part.index, static_part.data_size);
-            return;
-        }
-        auto& dynamic_part = package->dynamic_part<QuaternionData>();
-
-        // Some hacks for wiping the butt of those embedded engineers.
-        Eigen::AngleAxisd angle_axis{
-            Eigen::Quaterniond{dynamic_part.w, dynamic_part.x, dynamic_part.y, dynamic_part.z}
-        };
-        angle_axis.axis().x() = -angle_axis.axis().x();
-        angle_axis.axis().y() = -angle_axis.axis().y();
-
-        auto gimbal_imu_pose = Eigen::Quaterniond{angle_axis};
         tf_->set_transform<rmcs_description::ImuLink, rmcs_description::OdomImu>(
             gimbal_imu_pose.conjugate());
     }

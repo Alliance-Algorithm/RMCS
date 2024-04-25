@@ -39,13 +39,13 @@ public:
             yaw_angle_error = pitch_angle_error = 0.0;
         }
 
-        SendStruct send_struct;
-        send_struct.yaw   = static_cast<float>(yaw_angle_error);
-        send_struct.pitch = static_cast<float>(pitch_angle_error);
+        PackageSend package;
+        package.yaw   = static_cast<float>(yaw_angle_error);
+        package.pitch = static_cast<float>(pitch_angle_error);
         const_cast<serial::Serial&>(*serial_).write(
-            reinterpret_cast<uint8_t*>(&send_struct), sizeof(send_struct));
+            reinterpret_cast<uint8_t*>(&package), sizeof(package));
 
-        // RCLCPP_INFO(get_logger(), "%f %f", yaw_angle_error, pitch_angle_error);
+        RCLCPP_INFO(get_logger(), "%f %f", yaw_angle_error, pitch_angle_error);
     }
 
 private:
@@ -54,7 +54,7 @@ private:
     InputInterface<Tf> tf_;
     InputInterface<Eigen::Vector3d> auto_aim_control_direction_;
 
-    struct SendStruct {
+    struct PackageSend {
         float yaw, pitch;
     };
 };
