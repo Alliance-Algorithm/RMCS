@@ -16,6 +16,8 @@ def generate_launch_description():
                     [FindPackageShare("rmcs_bringup"), "config", "omni.yaml"]
                 )
             ],
+            respawn=True,
+            respawn_delay=5.0,
         )
     )
 

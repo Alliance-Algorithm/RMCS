@@ -3,6 +3,7 @@ rmcs_executor:
     update_rate: 1000.0
     components:
       - rmcs_core::hardware::cboard::Status -> cboard_status
+      - rmcs_core::hardware::referee::Status -> referee_status
 
       - rmcs_core::controller::gimbal::GimbalController -> gimbal_controller
       - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
@@ -23,19 +24,23 @@ rmcs_executor:
 
       - rmcs_core::hardware::cboard::Command -> cboard_command
 
-      # - ugas::Component -> ugas
+      - ugas::Component -> ugas
 
 cboard_status:
   ros__parameters:
     path: /dev/ttyACM0
 
+referee_status:
+  ros__parameters:
+    path: /dev/ttyUSB0
+
 yaw_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/yaw/control_angle_error
     control: /gimbal/yaw/control_velocity
-    kp: 20.5
+    kp: 30.0
     ki: 0.1
-    kd: 70.0
+    kd: 90.0
     integral_min: -0.5
     integral_max: 0.5
 
@@ -44,7 +49,7 @@ yaw_velocity_pid_controller:
     measurement: /gimbal/yaw/velocity_imu
     setpoint: /gimbal/yaw/control_velocity
     control: /gimbal/yaw/control_current
-    kp: 4.0
+    kp: 5.2
     ki: 0.0
     kd: 0.0
     integral_min: -0.5

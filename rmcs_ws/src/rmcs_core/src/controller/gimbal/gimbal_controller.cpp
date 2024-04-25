@@ -38,6 +38,9 @@ public:
         register_input("/gimbal/left_friction/velocity", left_friction_velocity_);
         register_input("/gimbal/right_friction/velocity", right_friction_velocity_);
 
+        register_input("/referee/robot/shooter/cooling", shooter_cooling_);
+        register_input("/referee/robot/shooter/heat_limit", shooter_heat_limit_);
+
         register_output(
             "/gimbal/left_friction/control_velocity", left_friction_control_velocity_, nan);
         register_output(
@@ -114,9 +117,9 @@ private:
     }
 
     void update_muzzle_heat() {
-        muzzle_heat_ -= 40;
-        if (muzzle_heat_ < 0)
-            muzzle_heat_ = 0;
+        shooter_heat_ -= *shooter_cooling_;
+        if (shooter_heat_ < 0)
+            shooter_heat_ = 0;
 
         if (friction_mode_ && !std::isnan(last_left_friction_velocity_)) {
             double differential = *left_friction_velocity_ - last_left_friction_velocity_;
@@ -126,7 +129,7 @@ private:
                 if (friction_velocity_decrease_integral_ < -14.0
                     && last_left_friction_velocity_ < friction_velocity_preset - 20.0) {
                     // Heat with 1/1000 tex
-                    muzzle_heat_ += 10'000 + 10;
+                    shooter_heat_ += 10'000 + 10;
                 }
                 friction_velocity_decrease_integral_ = 0;
             }
@@ -134,9 +137,10 @@ private:
 
         last_left_friction_velocity_ = *left_friction_velocity_;
 
-        bullet_count_limited_by_muzzle_heat_ = (240'000 - muzzle_heat_ - 10'000) / 10'000;
-        if (bullet_count_limited_by_muzzle_heat_ < 0)
-            bullet_count_limited_by_muzzle_heat_ = 0;
+        bullet_count_limited_by_shooter_heat_ =
+            (*shooter_heat_limit_ - shooter_heat_ - 10'000) / 10'000;
+        if (bullet_count_limited_by_shooter_heat_ < 0)
+            bullet_count_limited_by_shooter_heat_ = 0;
     }
 
     void update_friction_velocities() {
@@ -149,8 +153,8 @@ private:
         constexpr double firing_frequency     = 20.0;
         constexpr double bullet_deliver_speed = firing_frequency / 8 * 2 * std::numbers::pi;
 
-        if (friction_mode_ && bullet_deliver_mode_ && bullet_count_limited_by_muzzle_heat_ > 0) {
-            if (bullet_count_limited_by_muzzle_heat_ > 1)
+        if (friction_mode_ && bullet_deliver_mode_ && bullet_count_limited_by_shooter_heat_ > 0) {
+            if (bullet_count_limited_by_shooter_heat_ > 1)
                 *bullet_deliver_control_velocity_ = bullet_deliver_speed;
             else
                 *bullet_deliver_control_velocity_ = bullet_deliver_speed / 2;
@@ -166,10 +170,10 @@ private:
 
         double yaw_angle_error, pitch_angle_error;
         calculate_errors(dir, yaw_angle_error, pitch_angle_error);
-        yaw_angle_error += 0.0;
-        pitch_angle_error += 0.0;
         bullet_deliver_mode_ |=
             std::abs(yaw_angle_error) < 0.1 && std::abs(pitch_angle_error) < 0.1;
+        yaw_angle_error += 0.005;
+        pitch_angle_error += -0.025;
         *yaw_angle_error_   = yaw_angle_error;
         *pitch_angle_error_ = pitch_angle_error;
     }
@@ -230,7 +234,9 @@ private:
     InputInterface<double> left_friction_velocity_, right_friction_velocity_;
     static constexpr double friction_velocity_preset = 770.0;
     double last_left_friction_velocity_ = nan, friction_velocity_decrease_integral_ = 0;
-    int64_t muzzle_heat_ = 0, bullet_count_limited_by_muzzle_heat_ = 0;
+
+    InputInterface<int64_t> shooter_cooling_, shooter_heat_limit_;
+    int64_t shooter_heat_ = 0, bullet_count_limited_by_shooter_heat_ = 0;
 
     bool control_enabled = false;
     bool friction_mode_ = false, bullet_deliver_mode_ = false;
