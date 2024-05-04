@@ -6,6 +6,8 @@
 #include <serial/serial.h>
 #include <serial_util/package_receive.hpp>
 
+#include "hardware/fps_counter.hpp"
+
 namespace rmcs_core::hardware::ec {
 
 class Status
@@ -27,6 +29,7 @@ public:
             throw std::runtime_error{"Unable to call '" + stty_command + "'"};
 
         register_output("/serial", serial_, path, 9600, serial::Timeout::simpleTimeout(0));
+        register_output("/tf", tf_);
     }
     ~Status() = default;
 
@@ -40,7 +43,7 @@ public:
                     return false;
                 auto* data = reinterpret_cast<const uint8_t*>(&package);
                 return package.check_sum
-                    == std::accumulate(data, data + sizeof(package), static_cast<uint8_t>(0));
+                    == std::accumulate(data, data + sizeof(package) - 1, static_cast<uint8_t>(0));
             });
 
         if (result == serial_util::ReceiveResult::TIMEOUT)
@@ -51,6 +54,9 @@ public:
             if (!successfully_received_) {
                 successfully_received_ = true;
                 RCLCPP_INFO(logger_, "Successfully received the first package");
+            }
+            if (fps_counter_.count()) {
+                RCLCPP_INFO(logger_, "Quaternion fps: %d", fps_counter_.get_fps());
             }
             return;
         }
@@ -66,22 +72,17 @@ public:
 
 private:
     void update_quaternion() {
-        Eigen::AngleAxisd angle_axis{
-            Eigen::Quaterniond{package_.w, package_.x, package_.y, package_.z}
-            .normalized()
-        };
-        // Some hacks for wiping the butt.
-        angle_axis.axis().x() = -angle_axis.axis().x();
-
-        auto gimbal_imu_pose = Eigen::Quaterniond{angle_axis};
+        auto gimbal_imu_pose = Eigen::Quaterniond{package_.w, package_.x, package_.y, package_.z};
         tf_->set_transform<rmcs_description::ImuLink, rmcs_description::OdomImu>(
             gimbal_imu_pose.conjugate());
     }
 
+    FpsCounter fps_counter_;
+
     rclcpp::Logger logger_;
 
     OutputInterface<serial::Serial> serial_;
-    struct PackageReceive {
+    struct __attribute__((packed)) PackageReceive {
         uint8_t head;
         uint8_t type;
         uint8_t index;

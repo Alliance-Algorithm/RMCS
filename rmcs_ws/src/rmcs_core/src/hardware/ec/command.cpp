@@ -42,10 +42,11 @@ public:
         PackageSend package;
         package.yaw   = static_cast<float>(yaw_angle_error);
         package.pitch = static_cast<float>(pitch_angle_error);
+        package.fire  = false;
         const_cast<serial::Serial&>(*serial_).write(
             reinterpret_cast<uint8_t*>(&package), sizeof(package));
 
-        RCLCPP_INFO(get_logger(), "%f %f", yaw_angle_error, pitch_angle_error);
+        RCLCPP_INFO(get_logger(), "%f %f", package.yaw, package.pitch);
     }
 
 private:
@@ -54,8 +55,9 @@ private:
     InputInterface<Tf> tf_;
     InputInterface<Eigen::Vector3d> auto_aim_control_direction_;
 
-    struct PackageSend {
+    struct __attribute__((packed)) PackageSend {
         float yaw, pitch;
+        uint8_t fire;
     };
 };
 
