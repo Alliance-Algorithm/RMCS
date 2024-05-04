@@ -30,6 +30,8 @@ rmcs_executor:
 cboard_status:
   ros__parameters:
     path: /dev/ttyACM0
+    yaw_motor_offset: 2.134534
+    pitch_motor_offset: -0.299893
 
 referee_status:
   ros__parameters:

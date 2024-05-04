@@ -1,9 +1,11 @@
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
+#include <rclcpp/subscription.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
 #include <serial/serial.h>
+#include <std_msgs/msg/int32.hpp>
 
 #include "hardware/cboard/dji_motor_status.hpp"
 #include "hardware/cboard/dr16_status.hpp"
@@ -19,7 +21,6 @@ public:
     Status()
         : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , logger_(get_logger()) {
-
         std::string path;
         if (get_parameter("path", path))
             RCLCPP_INFO(get_logger(), "Path: %s", path.c_str());
@@ -48,8 +49,10 @@ public:
                 .set_reduction_ratio(1 / 14.0)
                 .enable_multi_turn_angle();
 
-        gimbal_yaw_motor_.set_motor_gm6020().set_offset(-0.758);
-        gimbal_pitch_motor_.set_motor_gm6020().set_offset(-0.296);
+        gimbal_yaw_motor_.set_motor_gm6020().set_offset(
+            get_parameter("yaw_motor_offset").as_double());
+        gimbal_pitch_motor_.set_motor_gm6020().set_offset(
+            get_parameter("pitch_motor_offset").as_double());
 
         gimbal_left_friction_.set_motor_m3508().set_reverse(false);
         gimbal_right_friction_.set_motor_m3508().set_reverse(true);
@@ -78,6 +81,11 @@ public:
             Eigen::Translation3d{-wheel_distance_x / 2, -wheel_distance_y / 2, 0});
         tf_->set_transform<BaseLink, RightFrontWheelLink>(
             Eigen::Translation3d{wheel_distance_x / 2, -wheel_distance_y / 2, 0});
+
+        gimbal_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
+            "/gimbal/calibrate", rclcpp::QoS{0}, [this](std_msgs::msg::Int32::UniquePtr&& msg) {
+                gimbal_calibrate_subscription_callback(std::move(msg));
+            });
     }
     ~Status() = default;
 
@@ -163,7 +171,17 @@ private:
             gimbal_imu_pose.conjugate());
     }
 
+    void gimbal_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
+        RCLCPP_INFO(
+            logger_, "[Gimbal calibration] New yaw offset: %f",
+            gimbal_yaw_motor_.calibrate_offset());
+        RCLCPP_INFO(
+            logger_, "[Gimbal calibration] New pitch offset: %f",
+            gimbal_pitch_motor_.calibrate_offset());
+    }
+
     rclcpp::Logger logger_;
+    rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr gimbal_calibrate_subscription_;
 
     OutputInterface<serial::Serial> serial_;
     PackageReceiver package_receiver_;

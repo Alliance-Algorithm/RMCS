@@ -42,9 +42,17 @@ public:
         angle_max_ = ratio * 2 * std::numbers::pi;
         return *this;
     }
+
     DjiMotorStatus& set_offset(double offset) {
         *offset_ = offset;
         return *this;
+    }
+    double calibrate_offset() {
+        double offset = -raw_angle_to_rad_angle(last_raw_angle_);
+        if (offset < -std::numbers::pi)
+            offset += 2 * std::numbers::pi;
+        *offset_ = offset;
+        return offset;
     }
 
     DjiMotorStatus& enable_multi_turn_angle() {
@@ -70,30 +78,27 @@ public:
         // angle = (scale * real_angle) + offset
         // angle unit: rad
         // angle range: [0, angle_max) if multi_turn disabled, else (-inf, inf)
-        constexpr int64_t raw_angle_max = 8192;
+        int64_t raw_angle = dynamic_part.angle;
         double angle;
         if (multi_turn_angle_enabled_) {
-            int64_t raw_angle = dynamic_part.angle;
-            int64_t diff      = raw_angle - last_raw_angle_;
+            int64_t diff = raw_angle - last_raw_angle_;
             if (diff <= -raw_angle_max / 2)
                 diff += raw_angle_max;
             else if (diff > raw_angle_max / 2)
                 diff -= raw_angle_max;
             multi_turn_raw_angle_ += diff;
-            last_raw_angle_ = raw_angle;
 
-            angle =
-                static_cast<double>(multi_turn_raw_angle_) / raw_angle_max * 2.0 * std::numbers::pi;
+            angle = raw_angle_to_rad_angle(multi_turn_raw_angle_);
             angle = (*scale_ * angle) + *offset_;
         } else {
-            angle =
-                static_cast<double>(dynamic_part.angle) / raw_angle_max * 2.0 * std::numbers::pi;
+            angle = raw_angle_to_rad_angle(raw_angle);
             angle = (*scale_ * angle) + *offset_;
             angle = std::fmod(angle, angle_max_);
             if (angle < 0)
                 angle += angle_max_;
         }
-        *angle_ = angle;
+        *angle_         = angle;
+        last_raw_angle_ = raw_angle;
 
         // velocity = scale * real_velocity;
         // velocity unit: rad/s
@@ -102,6 +107,12 @@ public:
     }
 
 private:
+    static double raw_angle_to_rad_angle(int64_t raw_angle) {
+        return static_cast<double>(raw_angle) / raw_angle_max * 2.0 * std::numbers::pi;
+    }
+
+    static constexpr int64_t raw_angle_max = 8192;
+
     rmcs_executor::Component::OutputInterface<double> scale_;
     double angle_max_;
 
@@ -109,7 +120,7 @@ private:
     rmcs_executor::Component::OutputInterface<double> max_current_;
 
     bool multi_turn_angle_enabled_;
-    int64_t multi_turn_raw_angle_, last_raw_angle_;
+    int64_t multi_turn_raw_angle_, last_raw_angle_ = 0;
     rmcs_executor::Component::OutputInterface<double> angle_;
     rmcs_executor::Component::OutputInterface<double> velocity_;
 };
