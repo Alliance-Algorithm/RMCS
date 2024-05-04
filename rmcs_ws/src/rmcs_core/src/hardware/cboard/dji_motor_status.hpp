@@ -70,6 +70,7 @@ public:
         // angle = (scale * real_angle) + offset
         // angle unit: rad
         // angle range: [0, angle_max) if multi_turn disabled, else (-inf, inf)
+        constexpr int64_t raw_angle_max = 8192;
         double angle;
         if (multi_turn_angle_enabled_) {
             int64_t raw_angle = dynamic_part.angle;
@@ -107,7 +108,6 @@ private:
     rmcs_executor::Component::OutputInterface<double> offset_;
     rmcs_executor::Component::OutputInterface<double> max_current_;
 
-    static constexpr int64_t raw_angle_max = 8192;
     bool multi_turn_angle_enabled_;
     int64_t multi_turn_raw_angle_, last_raw_angle_;
     rmcs_executor::Component::OutputInterface<double> angle_;

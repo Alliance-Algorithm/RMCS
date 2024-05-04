@@ -13,17 +13,29 @@ class Status
 public:
     Status()
         : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
-        , logger_(get_logger())
-        , serial_(get_parameter("path").as_string(), 115200, serial::Timeout::simpleTimeout(0)) {
-            register_output("/referee/robot/shooter/cooling", robot_shooter_cooling_, 0);
-            register_output("/referee/robot/shooter/heat_limit", robot_shooter_heat_limit_, 0);
+        , logger_(get_logger()) {
+
+        try {
+            register_output(
+                "/referee/serial", serial_, get_parameter("path").as_string(), 115200,
+                serial::Timeout::simpleTimeout(0));
+        } catch (serial::IOException& ex) {
+            RCLCPP_ERROR(logger_, "Unable to open serial port: %s", ex.what());
         }
 
+        register_output("/referee/robot/shooter/cooling", robot_shooter_cooling_, 0);
+        register_output("/referee/robot/shooter/heat_limit", robot_shooter_heat_limit_, 0);
+        register_output("/referee/robot/chassis_power", robot_chassis_power_, 0.0);
+    }
+
     void update() override {
+        if (!serial_.active())
+            return;
+
         if (cache_size_ >= sizeof(frame_.header)) {
             auto frame_size = sizeof(frame_.header) + sizeof(frame_.body.command_id)
                             + frame_.header.data_length + sizeof(uint16_t);
-            cache_size_ += serial_.read(
+            cache_size_ += serial_->read(
                 reinterpret_cast<uint8_t*>(&frame_) + cache_size_, frame_size - cache_size_);
 
             if (cache_size_ == frame_size) {
@@ -36,7 +48,7 @@ public:
             }
         } else {
             auto result = serial_util::receive_package(
-                serial_, frame_.header, cache_size_, static_cast<uint8_t>(0xa5),
+                *serial_, frame_.header, cache_size_, static_cast<uint8_t>(0xa5),
                 [](const FrameHeader& header) {
                     return serial_util::dji_crc::verify_crc8(header);
                 });
@@ -82,7 +94,11 @@ private:
         *robot_shooter_heat_limit_ = static_cast<int64_t>(1000) * data.shooter_barrel_heat_limit;
     }
 
-    void update_power_heat_data() {}
+    void update_power_heat_data() {
+        auto& data = reinterpret_cast<PowerHeatData&>(frame_.body.data);
+        *robot_chassis_power_ = data.chassis_power;
+        RCLCPP_INFO(logger_, "Real power: %f", data.chassis_power);
+    }
 
     void update_robot_position() {}
 
@@ -96,11 +112,12 @@ private:
 
     rclcpp::Logger logger_;
 
-    serial::Serial serial_;
+    OutputInterface<serial::Serial> serial_;
     Frame frame_;
     size_t cache_size_ = 0;
 
     OutputInterface<int64_t> robot_shooter_cooling_, robot_shooter_heat_limit_;
+    OutputInterface<double> robot_chassis_power_;
 };
 
 } // namespace rmcs_core::hardware::referee
