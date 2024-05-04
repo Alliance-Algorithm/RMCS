@@ -81,18 +81,18 @@ public:
     }
 
     void update_wheel_velocities(Eigen::Vector2d move) {
-        constexpr double velocity_limit = 60;
+        constexpr double velocity_limit = 80;
 
         double right_oblique = velocity_limit * (-move.y() * cos_45 + move.x() * sin_45);
         double left_oblique  = velocity_limit * (move.x() * cos_45 + move.y() * sin_45);
 
-        double spinning_velocity = spinning_mode_ ? 0.8 : 0.0;
+        double spinning_velocity = spinning_mode_ ? 0.4 * velocity_limit : 0.0;
 
         double velocities[4] = {right_oblique, left_oblique, -right_oblique, -left_oblique};
         double max_velocity  = 0;
 
         for (auto& velocity : velocities) {
-            velocity += 0.4 * velocity_limit * spinning_velocity;
+            velocity += spinning_velocity;
             max_velocity = std::max(std::abs(velocity), max_velocity);
         }
         if (max_velocity > velocity_limit) {
