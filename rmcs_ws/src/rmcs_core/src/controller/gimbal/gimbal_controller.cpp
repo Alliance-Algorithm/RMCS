@@ -22,6 +22,9 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
+        upper_limit_ = get_parameter("upper_limit").as_double() + (std::numbers::pi / 2);
+        lower_limit_ = get_parameter("lower_limit").as_double() + (std::numbers::pi / 2);
+
         register_input("/remote/joystick/left", joystick_left_);
         register_input("/remote/switch/right", switch_right_);
         register_input("/remote/switch/left", switch_left_);
@@ -50,22 +53,29 @@ public:
             reset_all_controls();
         } else {
             PitchLink::DirectionVector dir;
+
             if (auto_aim_control_direction_.ready() && (mouse.right || switch_right == Switch::UP)
                 && !auto_aim_control_direction_->isZero()) {
                 update_auto_aim_control_direction(dir);
             } else {
                 update_manual_control_direction(dir);
             }
+            if (!control_enabled)
+                return;
+
+            clamp_control_direction(dir);
+            if (!control_enabled)
+                return;
+
+            update_control_errors(dir);
             control_direction_ = fast_tf::cast<OdomImu>(dir, *tf_);
         }
     }
 
 private:
     void update_yaw_axis() {
-        auto yaw_axis = PitchLink::DirectionVector{
-            Eigen::AngleAxisd{-*gimbal_pitch_angle_, Eigen::Vector3d::UnitY()}
-            * Eigen::Vector3d::UnitZ()
-        };
+        auto yaw_axis =
+            fast_tf::cast<PitchLink>(YawLink::DirectionVector{Eigen::Vector3d::UnitZ()}, *tf_);
         *yaw_axis_filtered_ += 0.1 * (*fast_tf::cast<OdomImu>(yaw_axis, *tf_));
         yaw_axis_filtered_->normalize();
     }
@@ -80,13 +90,6 @@ private:
         dir =
             fast_tf::cast<PitchLink>(OdomImu::DirectionVector{*auto_aim_control_direction_}, *tf_);
         control_enabled = true;
-
-        double yaw_angle_error, pitch_angle_error;
-        calculate_errors(dir, yaw_angle_error, pitch_angle_error);
-        yaw_angle_error += 0.034;
-        pitch_angle_error += 0.030;
-        *yaw_angle_error_   = yaw_angle_error;
-        *pitch_angle_error_ = pitch_angle_error;
     }
 
     void update_manual_control_direction(PitchLink::DirectionVector& dir) {
@@ -109,21 +112,37 @@ private:
         auto delta_pitch = Eigen::AngleAxisd{
             -0.006 * joystick_left_->x() - 5.0 * mouse_velocity_->x(), Eigen::Vector3d::UnitY()};
         *dir = delta_pitch * (delta_yaw * (*dir));
-
-        calculate_errors(dir, *yaw_angle_error_, *pitch_angle_error_);
     }
 
-    void calculate_errors(
-        PitchLink::DirectionVector& dir, double& yaw_angle_error, double& pitch_angle_error) {
+    void clamp_control_direction(PitchLink::DirectionVector& dir) {
+        dir->normalized();
+        auto yaw_axis = fast_tf::cast<PitchLink>(yaw_axis_filtered_, *tf_);
+
+        auto cos_angle = yaw_axis->dot(*dir);
+        if (cos_angle == 1 || cos_angle == -1) {
+            control_enabled = false;
+            return;
+        }
+
+        auto angle = std::acos(cos_angle);
+        if (angle < upper_limit_)
+            *dir =
+                Eigen::AngleAxisd{upper_limit_, (yaw_axis->cross(*dir)).normalized()} * (*yaw_axis);
+        else if (angle > lower_limit_)
+            *dir =
+                Eigen::AngleAxisd{lower_limit_, (yaw_axis->cross(*dir)).normalized()} * (*yaw_axis);
+    }
+
+    void update_control_errors(PitchLink::DirectionVector& dir) {
         auto yaw_axis = fast_tf::cast<PitchLink>(yaw_axis_filtered_, *tf_);
         double pitch  = -std::atan2(yaw_axis->x(), yaw_axis->z());
 
         double &x = dir->x(), &y = dir->y(), &z = dir->z();
         double sp = std::sin(pitch), cp = std::cos(pitch);
-        double a        = x * cp + z * sp;
-        double b        = std::sqrt(y * y + a * a);
-        yaw_angle_error = std::atan2(y, a);
-        pitch_angle_error =
+        double a          = x * cp + z * sp;
+        double b          = std::sqrt(y * y + a * a);
+        *yaw_angle_error_ = std::atan2(y, a);
+        *pitch_angle_error_ =
             -std::atan2(z * cp * cp - x * cp * sp + sp * b, -z * cp * sp + x * sp * sp + cp * b);
     }
 
@@ -143,6 +162,7 @@ private:
     bool control_enabled = false;
     OdomImu::DirectionVector control_direction_{Eigen::Vector3d::Zero()};
     OdomImu::DirectionVector yaw_axis_filtered_{Eigen::Vector3d::UnitZ()};
+    double upper_limit_, lower_limit_;
 
     OutputInterface<double> yaw_angle_error_, pitch_angle_error_;
 };

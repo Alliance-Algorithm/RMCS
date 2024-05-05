@@ -39,6 +39,11 @@ referee_status:
   ros__parameters:
     path: /dev/ttyUSB0
 
+gimbal_controller:
+  ros__parameters:
+    upper_limit: -0.4598
+    lower_limit: 0.4362
+
 yaw_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/yaw/control_angle_error
