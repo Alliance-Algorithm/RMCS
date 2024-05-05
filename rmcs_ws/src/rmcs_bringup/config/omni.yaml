@@ -43,9 +43,9 @@ yaw_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/yaw/control_angle_error
     control: /gimbal/yaw/control_velocity
-    kp: 23.0
-    ki: 0.1
-    kd: 150.0
+    kp: 20.0
+    ki: 0.01
+    kd: 100.0
     integral_min: -0.5
     integral_max: 0.5
 
@@ -54,7 +54,7 @@ yaw_velocity_pid_controller:
     measurement: /gimbal/yaw/velocity_imu
     setpoint: /gimbal/yaw/control_velocity
     control: /gimbal/yaw/control_current
-    kp: 5.2
+    kp: 4.0
     ki: 0.0
     kd: 0.0
     integral_min: -0.5
@@ -65,21 +65,19 @@ pitch_angle_pid_controller:
     measurement: /gimbal/pitch/control_angle_error
     control: /gimbal/pitch/control_velocity
     kp: 35.0
-    ki: 0.1
+    ki: 0.01
     kd: 80.0
-    integral_min: -1.5
-    integral_max: 1.5
+    integral_min: -0.5
+    integral_max: 0.5
 
 pitch_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/pitch/velocity_imu
     setpoint: /gimbal/pitch/control_velocity
     control: /gimbal/pitch/control_current
-    kp: 3.8
-    ki: 0.1
+    kp: 3.0
+    ki: 0.0
     kd: 0.0
-    integral_min: -0.5
-    integral_max: 0.5
 
 shooting_controller:
   ros__parameters:
@@ -95,8 +93,6 @@ left_friction_velocity_pid_controller:
     kp: 0.22
     ki: 0.00
     kd: 0.6
-    integral_min: -0.2
-    integral_max: 0.2
 
 right_friction_velocity_pid_controller:
   ros__parameters:
@@ -106,8 +102,6 @@ right_friction_velocity_pid_controller:
     kp: 0.22
     ki: 0.00
     kd: 0.6
-    integral_min: -0.2
-    integral_max: 0.2
 
 bullet_deliver_velocity_pid_controller:
   ros__parameters:
@@ -117,8 +111,6 @@ bullet_deliver_velocity_pid_controller:
     kp: 0.09
     ki: 0.0
     kd: 0.0
-    integral_min: -0.2
-    integral_max: 0.2
 
 left_front_wheel_velocity_pid_controller:
   ros__parameters:
@@ -126,10 +118,8 @@ left_front_wheel_velocity_pid_controller:
     setpoint: /chassis/left_front_wheel/control_velocity
     control: /chassis/left_front_wheel/control_current_unrestricted
     kp: 0.07
-    ki: 0.02
-    kd: 0.01
-    integral_min: -0.2
-    integral_max: 0.2
+    ki: 0.00
+    kd: 0.00
 
 left_back_wheel_velocity_pid_controller:
   ros__parameters:
@@ -137,10 +127,8 @@ left_back_wheel_velocity_pid_controller:
     setpoint: /chassis/left_back_wheel/control_velocity
     control: /chassis/left_back_wheel/control_current_unrestricted
     kp: 0.07
-    ki: 0.02
-    kd: 0.01
-    integral_min: -0.2
-    integral_max: 0.2
+    ki: 0.00
+    kd: 0.00
 
 right_back_wheel_velocity_pid_controller:
   ros__parameters:
@@ -148,10 +136,8 @@ right_back_wheel_velocity_pid_controller:
     setpoint: /chassis/right_back_wheel/control_velocity
     control: /chassis/right_back_wheel/control_current_unrestricted
     kp: 0.07
-    ki: 0.02
-    kd: 0.01
-    integral_min: -0.2
-    integral_max: 0.2
+    ki: 0.00
+    kd: 0.00
 
 right_front_wheel_velocity_pid_controller:
   ros__parameters:
@@ -159,10 +145,8 @@ right_front_wheel_velocity_pid_controller:
     setpoint: /chassis/right_front_wheel/control_velocity
     control: /chassis/right_front_wheel/control_current_unrestricted
     kp: 0.07
-    ki: 0.02
-    kd: 0.01
-    integral_min: -0.2
-    integral_max: 0.2
+    ki: 0.00
+    kd: 0.00
 
 chassis_power_controller:
   ros__parameters:
