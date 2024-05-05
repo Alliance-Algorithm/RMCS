@@ -83,22 +83,36 @@ public:
     void update_wheel_velocities(Eigen::Vector2d move) {
         constexpr double velocity_limit = 80;
 
+        if (move.norm() > 1) {
+            move.normalize();
+        }
+
         double right_oblique = velocity_limit * (-move.y() * cos_45 + move.x() * sin_45);
         double left_oblique  = velocity_limit * (move.x() * cos_45 + move.y() * sin_45);
 
-        double spinning_velocity = spinning_mode_ ? 0.4 * velocity_limit : 0.0;
-
         double velocities[4] = {right_oblique, left_oblique, -right_oblique, -left_oblique};
-        double max_velocity  = 0;
 
-        for (auto& velocity : velocities) {
-            velocity += spinning_velocity;
-            max_velocity = std::max(std::abs(velocity), max_velocity);
-        }
-        if (max_velocity > velocity_limit) {
-            double scale = velocity_limit / max_velocity;
-            for (auto& velocity : velocities)
-                velocity *= scale;
+        if (spinning_mode_) {
+            double max_velocity = 0;
+            for (auto& velocity : velocities) {
+                max_velocity = std::max(std::abs(velocity), max_velocity);
+            }
+
+            auto spinning_velocity = velocity_limit - max_velocity;
+            if (spinning_velocity < spinning_min_ * velocity_limit) {
+                spinning_velocity = spinning_min_ * velocity_limit;
+
+                auto scale = (velocity_limit - spinning_velocity) / max_velocity;
+                for (auto& velocity : velocities) {
+                    velocity *= scale;
+                }
+            } else if (spinning_velocity > spinning_max_ * velocity_limit) {
+                spinning_velocity = spinning_max_ * velocity_limit;
+            }
+
+            for (auto& velocity : velocities) {
+                velocity += spinning_velocity;
+            }
         }
 
         *left_front_control_velocity_  = velocities[0];
@@ -114,6 +128,10 @@ private:
     // Since sine and cosine function are not constexpr, we calculate once and cache them.
     static inline const double sin_45 = std::sin(std::numbers::pi / 4.0);
     static inline const double cos_45 = std::cos(std::numbers::pi / 4.0);
+
+    // Velocity scale in spinning mode
+    static inline const double spinning_max_ = 0.4;
+    static inline const double spinning_min_ = 0.2;
 
     InputInterface<Eigen::Vector2d> joystick_right_;
     InputInterface<Eigen::Vector2d> joystick_left_;
