@@ -36,7 +36,7 @@ public:
         static_part.data_size = sizeof(dynamic_part);
 
         static_part.type    = 0x11;
-        dynamic_part.can_id = 0x1FF;
+        dynamic_part.can_id = 0x1FE;
         gimbal_yaw_motor_.write_command_to_package(package, 0);
         gimbal_pitch_motor_.write_command_to_package(package, 1);
         dynamic_part.current[2] = dynamic_part.current[3] = 0;
@@ -44,9 +44,10 @@ public:
         std::this_thread::sleep_for(std::chrono::microseconds(50));
 
         dynamic_part.can_id = 0x200;
-        size_t index        = 0;
-        for (auto& motor : chassis_wheel_motors_)
-            motor.write_command_to_package(package, index++);
+        chassis_wheel_motors_[0].write_command_to_package(package, 0);
+        chassis_wheel_motors_[1].write_command_to_package(package, 1);
+        chassis_wheel_motors_[2].write_command_to_package(package, 2);
+        chassis_wheel_motors_[3].write_command_to_package(package, 3);
         send(serial, package);
         std::this_thread::sleep_for(std::chrono::microseconds(50));
 

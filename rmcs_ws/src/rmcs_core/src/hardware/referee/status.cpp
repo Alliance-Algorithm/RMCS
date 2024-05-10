@@ -1,9 +1,9 @@
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
+#include <serial_util/crc/dji_crc.hpp>
+#include <serial_util/package_receive.hpp>
 
 #include "hardware/referee/package.hpp"
-#include "serial_util/crc/dji_crc.hpp"
-#include "serial_util/package_receive.hpp"
 
 namespace rmcs_core::hardware::referee {
 
@@ -95,9 +95,8 @@ private:
     }
 
     void update_power_heat_data() {
-        auto& data = reinterpret_cast<PowerHeatData&>(frame_.body.data);
+        auto& data            = reinterpret_cast<PowerHeatData&>(frame_.body.data);
         *robot_chassis_power_ = data.chassis_power;
-        RCLCPP_INFO(logger_, "Real power: %f", data.chassis_power);
     }
 
     void update_robot_position() {}

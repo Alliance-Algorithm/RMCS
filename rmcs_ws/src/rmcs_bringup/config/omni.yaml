@@ -32,8 +32,8 @@ rmcs_executor:
 cboard_status:
   ros__parameters:
     path: /dev/ttyACM0
-    yaw_motor_offset: 2.134534
-    pitch_motor_offset: -0.299893
+    yaw_motor_zero_point: 5409
+    pitch_motor_zero_point: 391
 
 referee_status:
   ros__parameters:
@@ -48,39 +48,33 @@ yaw_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/yaw/control_angle_error
     control: /gimbal/yaw/control_velocity
-    kp: 20.0
-    ki: 0.01
-    kd: 100.0
-    integral_min: -0.5
-    integral_max: 0.5
+    kp: 11.856
+    ki: 0.0
+    kd: 0.0
 
 yaw_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/yaw/velocity_imu
     setpoint: /gimbal/yaw/control_velocity
-    control: /gimbal/yaw/control_current
-    kp: 4.0
+    control: /gimbal/yaw/control_torque
+    kp: 2.5935
     ki: 0.0
     kd: 0.0
-    integral_min: -0.5
-    integral_max: 0.5
 
 pitch_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/pitch/control_angle_error
     control: /gimbal/pitch/control_velocity
-    kp: 35.0
-    ki: 0.01
-    kd: 80.0
-    integral_min: -0.5
-    integral_max: 0.5
+    kp: 29.64
+    ki: 0.0
+    kd: 0.0
 
 pitch_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/pitch/velocity_imu
     setpoint: /gimbal/pitch/control_velocity
-    control: /gimbal/pitch/control_current
-    kp: 3.0
+    control: /gimbal/pitch/control_torque
+    kp: 1.7
     ki: 0.0
     kd: 0.0
 
@@ -94,26 +88,26 @@ left_friction_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/left_friction/velocity
     setpoint: /gimbal/left_friction/control_velocity
-    control: /gimbal/left_friction/control_current
-    kp: 0.22
+    control: /gimbal/left_friction/control_torque
+    kp: 0.003436926
     ki: 0.00
-    kd: 0.6
+    kd: 0.009373434
 
 right_friction_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/right_friction/velocity
     setpoint: /gimbal/right_friction/control_velocity
-    control: /gimbal/right_friction/control_current
-    kp: 0.22
+    control: /gimbal/right_friction/control_torque
+    kp: 0.003436926
     ki: 0.00
-    kd: 0.6
+    kd: 0.009373434
 
 bullet_deliver_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/bullet_deliver/velocity
     setpoint: /gimbal/bullet_deliver/control_velocity
-    control: /gimbal/bullet_deliver/control_current
-    kp: 0.09
+    control: /gimbal/bullet_deliver/control_torque
+    kp: 0.583
     ki: 0.0
     kd: 0.0
 
@@ -121,8 +115,8 @@ left_front_wheel_velocity_pid_controller:
   ros__parameters:
     measurement: /chassis/left_front_wheel/velocity
     setpoint: /chassis/left_front_wheel/control_velocity
-    control: /chassis/left_front_wheel/control_current_unrestricted
-    kp: 0.07
+    control: /chassis/left_front_wheel/control_torque_unrestricted
+    kp: 0.185
     ki: 0.00
     kd: 0.00
 
@@ -130,8 +124,8 @@ left_back_wheel_velocity_pid_controller:
   ros__parameters:
     measurement: /chassis/left_back_wheel/velocity
     setpoint: /chassis/left_back_wheel/control_velocity
-    control: /chassis/left_back_wheel/control_current_unrestricted
-    kp: 0.07
+    control: /chassis/left_back_wheel/control_torque_unrestricted
+    kp: 0.185
     ki: 0.00
     kd: 0.00
 
@@ -139,8 +133,8 @@ right_back_wheel_velocity_pid_controller:
   ros__parameters:
     measurement: /chassis/right_back_wheel/velocity
     setpoint: /chassis/right_back_wheel/control_velocity
-    control: /chassis/right_back_wheel/control_current_unrestricted
-    kp: 0.07
+    control: /chassis/right_back_wheel/control_torque_unrestricted
+    kp: 0.185
     ki: 0.00
     kd: 0.00
 
@@ -148,8 +142,8 @@ right_front_wheel_velocity_pid_controller:
   ros__parameters:
     measurement: /chassis/right_front_wheel/velocity
     setpoint: /chassis/right_front_wheel/control_velocity
-    control: /chassis/right_front_wheel/control_current_unrestricted
-    kp: 0.07
+    control: /chassis/right_front_wheel/control_torque_unrestricted
+    kp: 0.185
     ki: 0.00
     kd: 0.00
 

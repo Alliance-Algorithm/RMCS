@@ -44,21 +44,22 @@ public:
         package_receiver_.subscribe(0x32, [](auto&&) {});
 
         for (auto& motor : chassis_wheel_motors_)
-            motor.set_motor_m3508()
-                .set_reverse(true)
-                .set_reduction_ratio(1 / 14.0)
-                .enable_multi_turn_angle();
+            motor.configure(DjiMotorConfig{DjiMotorType::M3508}
+                                .reverse()
+                                .set_reduction_ratio(13.)
+                                .enable_multi_turn_angle());
 
-        gimbal_yaw_motor_.set_motor_gm6020().set_offset(
-            get_parameter("yaw_motor_offset").as_double());
-        gimbal_pitch_motor_.set_motor_gm6020().set_offset(
-            get_parameter("pitch_motor_offset").as_double());
+        gimbal_yaw_motor_.configure(DjiMotorConfig{DjiMotorType::GM6020}.set_encoder_zero_point(
+            static_cast<int>(get_parameter("yaw_motor_zero_point").as_int())));
+        gimbal_pitch_motor_.configure(DjiMotorConfig{DjiMotorType::GM6020}.set_encoder_zero_point(
+            static_cast<int>(get_parameter("pitch_motor_zero_point").as_int())));
 
-        gimbal_left_friction_.set_motor_m3508().set_reverse(false);
-        gimbal_right_friction_.set_motor_m3508().set_reverse(true);
-        gimbal_bullet_deliver_.set_motor_m2006()
-            .set_reduction_ratio(1 / 36.0)
-            .enable_multi_turn_angle();
+        gimbal_left_friction_.configure(
+            DjiMotorConfig{DjiMotorType::M3508}.set_reduction_ratio(1.));
+        gimbal_right_friction_.configure(
+            DjiMotorConfig{DjiMotorType::M3508}.reverse().set_reduction_ratio(1.));
+        gimbal_bullet_deliver_.configure(
+            DjiMotorConfig{DjiMotorType::M2006}.enable_multi_turn_angle());
 
         register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
         register_output("/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
@@ -173,11 +174,11 @@ private:
 
     void gimbal_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
         RCLCPP_INFO(
-            logger_, "[Gimbal calibration] New yaw offset: %f",
-            gimbal_yaw_motor_.calibrate_offset());
+            logger_, "[gimbal calibration] New yaw offset: %d",
+            gimbal_yaw_motor_.calibrate_zero_point());
         RCLCPP_INFO(
-            logger_, "[Gimbal calibration] New pitch offset: %f",
-            gimbal_pitch_motor_.calibrate_offset());
+            logger_, "[gimbal calibration] New pitch offset: %d",
+            gimbal_pitch_motor_.calibrate_zero_point());
     }
 
     rclcpp::Logger logger_;
