@@ -59,13 +59,15 @@ private:
     class Motor {
     public:
         explicit Motor(rmcs_executor::Component* component, const std::string& name) {
-            component->register_input(name + "/scale", scale_);
+            component->register_input(name + "/reduction_ratio", reduction_ratio_);
+            component->register_input(name + "/max_torque", max_torque_);
+
             component->register_input(
-                name + "/control_current_unrestricted", control_current_unrestricted_);
+                name + "/control_torque_unrestricted", control_torque_unrestricted_);
             component->register_input(name + "/velocity", velocity_);
 
             component->register_output(
-                name + "/control_current", control_current_,
+                name + "/control_torque", control_torque_,
                 std::numeric_limits<double>::quiet_NaN());
         }
 
@@ -73,19 +75,15 @@ private:
             std::tuple<double, double, double> formula;
             auto& [a, b, c] = formula;
 
-            double current = *control_current_unrestricted_; // Unit: A
-            if (!std::isfinite(current))
-                current = 0;
-            current       = current / *scale_;
-            current       = std::clamp(current, -20.0, 20.0);
-            double torque = (0.3 * 187 / 3591) * current;    // Unit: N * m
+            double torque = *control_torque_unrestricted_; // Unit: N*m
+            if (std::isnan(torque))
+                torque = 0;
+            torque = std::clamp(torque, -*max_torque_, *max_torque_);
 
-            double velocity = *velocity_;                    // Unit: rpm
-            velocity        = velocity / *scale_;
-            velocity        = velocity * 60 / (2 * std::numbers::pi);
+            double velocity = *velocity_;                  // Unit: rad/s
 
             a = k1_ * std::pow(torque, 2); // Quadratic term coefficient: copper loss
-            b = torque * velocity / 9.55;  // linear term coefficient: mechanical power
+            b = torque * velocity;         // linear term coefficient: mechanical power
             c = k2_ * std::pow(velocity, 2)
               + no_load_power_;            // Constant term: iron loss and no-load power
 
@@ -93,29 +91,27 @@ private:
         }
 
         void update_control_current(double k) {
-            double current = *control_current_unrestricted_;
+            double max_torque = *max_torque_;
 
-            if (!std::isfinite(current))
-                current = 0;
-            else {
-                current = current / *scale_;
-                current = std::clamp(current, -20.0, 20.0);
-                current = current * k;
-                current = current * *scale_;
-            }
+            double torque = *control_torque_unrestricted_;
+            if (std::isnan(torque))
+                torque = 0;
+            torque = std::clamp(torque, -max_torque, max_torque);
+            torque *= k;
 
-            *control_current_                                   = current;
-            const_cast<double&>(*control_current_unrestricted_) = current;
+            *control_torque_ = torque;
         }
 
     private:
-        double k1_ = 5.0e+02, k2_ = 2.0e-07, no_load_power_ = 0.68;
+        static constexpr double k1_ = 2.958580e+00, k2_ = 3.082190e-03, no_load_power_ = 0.68;
 
-        InputInterface<double> scale_;
-        InputInterface<double> control_current_unrestricted_;
+        rmcs_executor::Component::InputInterface<double> reduction_ratio_;
+        rmcs_executor::Component::InputInterface<double> max_torque_;
+
+        InputInterface<double> control_torque_unrestricted_;
         InputInterface<double> velocity_;
 
-        OutputInterface<double> control_current_;
+        OutputInterface<double> control_torque_;
     };
 
     std::vector<std::unique_ptr<Motor>> motors_;
