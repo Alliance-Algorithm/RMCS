@@ -24,6 +24,7 @@ rmcs_executor:
       - rmcs_core::controller::chassis::PowerController -> chassis_power_controller
 
       - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 
       - rmcs_core::hardware::cboard::Command -> cboard_command
 
