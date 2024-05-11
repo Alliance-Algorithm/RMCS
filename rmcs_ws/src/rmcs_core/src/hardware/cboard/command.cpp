@@ -54,7 +54,7 @@ public:
         static_part.type        = 0x12;
         dynamic_part.can_id     = 0x200;
         dynamic_part.current[0] = 0;
-        gimbal_bullet_deliver_.write_command_to_package(package, 1);
+        gimbal_bullet_feeder_.write_command_to_package(package, 1);
         gimbal_left_friction_.write_command_to_package(package, 2);
         gimbal_right_friction_.write_command_to_package(package, 3);
         send(serial, package);
@@ -85,7 +85,7 @@ private:
 
     DjiMotorCommand gimbal_left_friction_  = {this, "/gimbal/left_friction"};
     DjiMotorCommand gimbal_right_friction_ = {this, "/gimbal/right_friction"};
-    DjiMotorCommand gimbal_bullet_deliver_ = {this, "/gimbal/bullet_deliver"};
+    DjiMotorCommand gimbal_bullet_feeder_ = {this, "/gimbal/bullet_feeder"};
 };
 
 } // namespace rmcs_core::hardware::cboard

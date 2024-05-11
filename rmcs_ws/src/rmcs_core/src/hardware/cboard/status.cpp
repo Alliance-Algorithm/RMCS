@@ -58,7 +58,7 @@ public:
             DjiMotorConfig{DjiMotorType::M3508}.set_reduction_ratio(1.));
         gimbal_right_friction_.configure(
             DjiMotorConfig{DjiMotorType::M3508}.reverse().set_reduction_ratio(1.));
-        gimbal_bullet_deliver_.configure(
+        gimbal_bullet_feeder_.configure(
             DjiMotorConfig{DjiMotorType::M2006}.enable_multi_turn_angle());
 
         register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
@@ -142,7 +142,7 @@ private:
 
         auto can_id = package->dynamic_part<can_id_t>();
         if (can_id == 0x202) {
-            gimbal_bullet_deliver_.update_status(std::move(package), logger_);
+            gimbal_bullet_feeder_.update_status(std::move(package), logger_);
         } else if (can_id == 0x203) {
             gimbal_left_friction_.update_status(std::move(package), logger_);
         } else if (can_id == 0x204) {
@@ -199,7 +199,7 @@ private:
 
     DjiMotorStatus gimbal_left_friction_  = {this, "/gimbal/left_friction"};
     DjiMotorStatus gimbal_right_friction_ = {this, "/gimbal/right_friction"};
-    DjiMotorStatus gimbal_bullet_deliver_ = {this, "/gimbal/bullet_deliver"};
+    DjiMotorStatus gimbal_bullet_feeder_ = {this, "/gimbal/bullet_feeder"};
 
     Dr16Status dr16_{this};
 
