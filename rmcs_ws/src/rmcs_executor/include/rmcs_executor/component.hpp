@@ -1,5 +1,6 @@
 #pragma once
 
+#include <map>
 #include <new>
 #include <stdexcept>
 #include <string>
@@ -19,13 +20,12 @@ public:
     Component(Component&&)                 = delete;
     Component& operator=(Component&&)      = delete;
 
-    virtual ~Component() {
-        for (auto& input : input_list_)
-            *reinterpret_cast<bool*>(reinterpret_cast<size_t>(input.pointer_to_data_pointer) - 8) =
-                false;
-        for (auto& output : output_list_)
-            *reinterpret_cast<bool*>(reinterpret_cast<size_t>(output.data_pointer) - 8) = false;
-    };
+    virtual ~Component(){};
+
+    virtual void before_pairing(const std::map<std::string, const std::type_info&>& output_map) {
+        (void)output_map;
+    }
+    virtual void before_updating() {}
 
     virtual void update() = 0;
 

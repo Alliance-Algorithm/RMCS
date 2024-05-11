@@ -1,5 +1,6 @@
 #pragma once
 
+#include <map>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -41,6 +42,9 @@ public:
     void start() {
         init();
 
+        for (auto& component : component_list_)
+            component->before_updating();
+
         double update_rate;
         if (!get_parameter("update_rate", update_rate))
             throw std::runtime_error{"Unable to get parameter update_rate<double>"};
@@ -65,15 +69,22 @@ private:
     void init() {
         updating_order_.clear();
 
-        auto output_map = std::unordered_map<std::string, Component::OutputDeclaration*>{};
+        auto output_map      = std::unordered_map<std::string, Component::OutputDeclaration*>{};
+        auto user_output_map = std::map<std::string, const std::type_info&>{};
         for (const auto& component : component_list_) {
             component->dependency_count_ = 0;
             component->wanted_by_.clear();
             for (auto& output : component->output_list_) {
                 if (!output_map.emplace(output.name, &output).second)
                     throw std::runtime_error{"Duplicate names of output"};
+                user_output_map.emplace(output.name, output.type);
             }
         }
+
+        for (auto& component : component_list_) {
+            component->before_pairing(user_output_map);
+        }
+
         for (const auto& component : component_list_) {
             for (const auto& input : component->input_list_) {
                 auto output_iter = output_map.find(input.name);
@@ -90,7 +101,7 @@ private:
                 }
 
                 const auto& output = *output_iter->second;
-                if (input.type.hash_code() != output.type.hash_code()) {
+                if (input.type != output.type) {
                     RCLCPP_FATAL(get_logger(), "With message \"%s\":", input.name.c_str());
                     RCLCPP_FATAL(
                         get_logger(), "    Component [%s] declared the output with type \"%s\"",
