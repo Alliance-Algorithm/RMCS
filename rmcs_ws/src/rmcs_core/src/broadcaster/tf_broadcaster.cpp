@@ -10,13 +10,13 @@
 #include <rmcs_executor/component.hpp>
 #include <serial/serial.h>
 
-namespace rmcs_core::visualizer {
+namespace rmcs_core::broadcaster {
 
-class TfVisualizer
+class TfBroadcaster
     : public rmcs_executor::Component
     , public rclcpp::Node {
 public:
-    TfVisualizer()
+    TfBroadcaster()
         : Node{
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)} {
@@ -25,7 +25,7 @@ public:
 
         register_input("/tf", tf_);
     }
-    ~TfVisualizer() = default;
+    ~TfBroadcaster() = default;
 
     void update() override {
         using namespace std::chrono_literals;
@@ -45,8 +45,8 @@ private:
     InputInterface<rmcs_description::Tf> tf_;
 };
 
-} // namespace rmcs_core::visualizer
+} // namespace rmcs_core::broadcaster
 
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(rmcs_core::visualizer::TfVisualizer, rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(rmcs_core::broadcaster::TfBroadcaster, rmcs_executor::Component)
