@@ -61,6 +61,10 @@ public:
         gimbal_bullet_feeder_.configure(
             DjiMotorConfig{DjiMotorType::M2006}.enable_multi_turn_angle());
 
+        imu_gx_bias_ = get_parameter("imu_gx_bias").as_double();
+        imu_gy_bias_ = get_parameter("imu_gy_bias").as_double();
+        imu_gz_bias_ = get_parameter("imu_gz_bias").as_double();
+
         register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
         register_output("/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
         register_output("/tf", tf_);
@@ -162,6 +166,10 @@ private:
         };
         double gx = solve_gyro(data.gyro_x), gy = solve_gyro(data.gyro_y),
                gz = solve_gyro(data.gyro_z);
+        gx -= imu_gx_bias_;
+        gy -= imu_gy_bias_;
+        gz -= imu_gz_bias_;
+
         double ax = solve_acc(data.acc_x), ay = solve_acc(data.acc_y), az = solve_acc(data.acc_z);
 
         *gimbal_yaw_velocity_imu_   = gz;
@@ -199,11 +207,13 @@ private:
 
     DjiMotorStatus gimbal_left_friction_  = {this, "/gimbal/left_friction"};
     DjiMotorStatus gimbal_right_friction_ = {this, "/gimbal/right_friction"};
-    DjiMotorStatus gimbal_bullet_feeder_ = {this, "/gimbal/bullet_feeder"};
+    DjiMotorStatus gimbal_bullet_feeder_  = {this, "/gimbal/bullet_feeder"};
 
     Dr16Status dr16_{this};
 
     ImuStatus imu_;
+    double imu_gx_bias_, imu_gy_bias_, imu_gz_bias_;
+
     OutputInterface<double> gimbal_yaw_velocity_imu_;
     OutputInterface<double> gimbal_pitch_velocity_imu_;
     OutputInterface<rmcs_description::Tf> tf_;
