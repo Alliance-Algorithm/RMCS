@@ -5,7 +5,7 @@ rmcs_executor:
       - rmcs_core::hardware::ec::Status -> ec_status
       - ugas::Component -> ugas
       - rmcs_core::hardware::ec::Command -> ec_command
-      - rmcs_core::visualizer::TfVisualizer -> tf_visualizer
+      - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
 
 
 ec_status:

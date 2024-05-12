@@ -45,8 +45,6 @@ public:
         package.fire  = false;
         const_cast<serial::Serial&>(*serial_).write(
             reinterpret_cast<uint8_t*>(&package), sizeof(package));
-
-        RCLCPP_INFO(get_logger(), "%f %f", package.yaw, package.pitch);
     }
 
 private:

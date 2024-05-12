@@ -34,40 +34,43 @@ public:
     ~Status() = default;
 
     void update() override {
-        auto result = serial_util::receive_package(
-            *serial_, package_, cache_size_, static_cast<uint8_t>(0xaf),
-            [](const PackageReceive& package) {
-                if (package.type != 0x32)
-                    return false;
-                if (package.data_size != 16)
-                    return false;
-                auto* data = reinterpret_cast<const uint8_t*>(&package);
-                return package.check_sum
-                    == std::accumulate(data, data + sizeof(package) - 1, static_cast<uint8_t>(0));
-            });
+        while (true) {
+            auto result = serial_util::receive_package(
+                *serial_, package_, cache_size_, static_cast<uint8_t>(0xaf),
+                [](const PackageReceive& package) {
+                    if (package.type != 0x32)
+                        return false;
+                    if (package.data_size != 16)
+                        return false;
+                    auto* data = reinterpret_cast<const uint8_t*>(&package);
+                    return package.check_sum
+                        == std::accumulate(
+                               data, data + sizeof(package) - 1, static_cast<uint8_t>(0));
+                });
 
-        if (result == serial_util::ReceiveResult::TIMEOUT)
-            return;
-        if (result == serial_util::ReceiveResult::SUCCESS) {
-            cache_size_ = 0;
-            update_quaternion();
-            if (!successfully_received_) {
-                successfully_received_ = true;
-                RCLCPP_INFO(logger_, "Successfully received the first package");
+            if (result == serial_util::ReceiveResult::TIMEOUT)
+                return;
+            if (result == serial_util::ReceiveResult::SUCCESS) {
+                cache_size_ = 0;
+                update_quaternion();
+                if (!successfully_received_) {
+                    successfully_received_ = true;
+                    RCLCPP_INFO(logger_, "Successfully received the first package");
+                }
+                if (fps_counter_.count()) {
+                    RCLCPP_INFO(logger_, "Quaternion fps: %d", fps_counter_.get_fps());
+                }
+                continue;
             }
-            if (fps_counter_.count()) {
-                RCLCPP_INFO(logger_, "Quaternion fps: %d", fps_counter_.get_fps());
-            }
-            return;
+            // Limit the number of failure logs to prevent log files from becoming too large
+            if (failures_count_ >= 100)
+                continue;
+            failures_count_++;
+            if (result == serial_util::ReceiveResult::HEADER_INVAILD)
+                RCLCPP_WARN(logger_, "Receive failed: Header Invaild");
+            else if (result == serial_util::ReceiveResult::VERIFY_INVAILD)
+                RCLCPP_WARN(logger_, "Receive failed: Verify Invaild");
         }
-        // Limit the number of failure logs to prevent log files from becoming too large
-        if (failures_count_ >= 100)
-            return;
-        failures_count_++;
-        if (result == serial_util::ReceiveResult::HEADER_INVAILD)
-            RCLCPP_WARN(logger_, "Receive failed: Header Invaild");
-        else if (result == serial_util::ReceiveResult::VERIFY_INVAILD)
-            RCLCPP_WARN(logger_, "Receive failed: Verify Invaild");
     }
 
 private:
