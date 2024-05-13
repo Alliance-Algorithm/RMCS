@@ -4,6 +4,7 @@ rmcs_executor:
     components:
       - rmcs_core::hardware::cboard::Status -> cboard_status
       - rmcs_core::hardware::referee::Status -> referee_status
+      - rmcs_core::hardware::referee::UI -> referee_ui
 
       - rmcs_core::controller::gimbal::GimbalController -> gimbal_controller
       - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
@@ -40,6 +41,10 @@ cboard_status:
     imu_gz_bias: +0.002188
 
 referee_status:
+  ros__parameters:
+    path: /dev/ttyUSB0
+
+referee_ui:
   ros__parameters:
     path: /dev/ttyUSB0
 
