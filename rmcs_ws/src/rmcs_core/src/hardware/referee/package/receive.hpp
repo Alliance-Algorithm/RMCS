@@ -3,7 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace rmcs_core::hardware::referee {
+namespace rmcs_core::hardware::referee::package::receive {
 
 constexpr size_t frame_data_max_length = 1024;
 
@@ -110,4 +110,4 @@ struct __attribute__((packed)) GameRobotPosition {
     float infantry_5_y;
 };
 
-} // namespace rmcs_core::hardware::referee
+} // namespace rmcs_core::hardware::referee::package::receive

@@ -1,9 +1,9 @@
 #include <rclcpp/node.hpp>
+
+#include "hardware/referee/package/receive.hpp"
 #include <rmcs_executor/component.hpp>
 #include <serial_util/crc/dji_crc.hpp>
 #include <serial_util/package_receive.hpp>
-
-#include "hardware/referee/package.hpp"
 
 namespace rmcs_core::hardware::referee {
 
@@ -49,7 +49,7 @@ public:
         } else {
             auto result = serial_util::receive_package(
                 *serial_, frame_.header, cache_size_, static_cast<uint8_t>(0xa5),
-                [](const FrameHeader& header) {
+                [](const package::receive::FrameHeader& header) {
                     return serial_util::dji_crc::verify_crc8(header);
                 });
             if (result == serial_util::ReceiveResult::HEADER_INVALID) {
@@ -88,14 +88,14 @@ private:
     void update_game_robot_hp() {}
 
     void update_robot_status() {
-        auto& data = reinterpret_cast<RobotStatus&>(frame_.body.data);
+        auto& data = reinterpret_cast<package::receive::RobotStatus&>(frame_.body.data);
 
         *robot_shooter_cooling_    = data.shooter_barrel_cooling_value;
         *robot_shooter_heat_limit_ = static_cast<int64_t>(1000) * data.shooter_barrel_heat_limit;
     }
 
     void update_power_heat_data() {
-        auto& data            = reinterpret_cast<PowerHeatData&>(frame_.body.data);
+        auto& data = reinterpret_cast<package::receive::PowerHeatData&>(frame_.body.data);
         *robot_chassis_power_ = data.chassis_power;
     }
 
@@ -112,7 +112,7 @@ private:
     rclcpp::Logger logger_;
 
     OutputInterface<serial::Serial> serial_;
-    Frame frame_;
+    package::receive::Frame frame_;
     size_t cache_size_ = 0;
 
     OutputInterface<int64_t> robot_shooter_cooling_, robot_shooter_heat_limit_;
