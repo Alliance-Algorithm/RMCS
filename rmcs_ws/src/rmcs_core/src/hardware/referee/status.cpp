@@ -43,7 +43,7 @@ public:
                 if (serial_util::dji_crc::verify_crc16(&frame_, frame_size)) {
                     process_frame();
                 } else {
-                    RCLCPP_WARN(logger_, "Body crc16 invaild");
+                    RCLCPP_WARN(logger_, "Body crc16 invalid");
                 }
             }
         } else {
@@ -52,10 +52,10 @@ public:
                 [](const FrameHeader& header) {
                     return serial_util::dji_crc::verify_crc8(header);
                 });
-            if (result == serial_util::ReceiveResult::HEADER_INVAILD) {
-                RCLCPP_WARN(logger_, "Header start invaild");
-            } else if (result == serial_util::ReceiveResult::VERIFY_INVAILD) {
-                RCLCPP_WARN(logger_, "Header crc8 invaild");
+            if (result == serial_util::ReceiveResult::HEADER_INVALID) {
+                RCLCPP_WARN(logger_, "Header start invalid");
+            } else if (result == serial_util::ReceiveResult::VERIFY_INVALID) {
+                RCLCPP_WARN(logger_, "Header crc8 invalid");
             }
         }
     }

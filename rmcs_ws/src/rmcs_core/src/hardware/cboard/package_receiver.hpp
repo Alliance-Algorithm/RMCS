@@ -33,7 +33,7 @@ public:
             if (result == ReceiveResult::SUCCESS) {
                 size_t package_real_size = receiving_package->size();
                 if (package_real_size > sizeof(receiving_package->buffer)) {
-                    RCLCPP_WARN(logger, "[package_receiver]: invaild static part");
+                    RCLCPP_WARN(logger, "[package_receiver]: invalid static part");
                     received_size_ = 0;
                     continue;
                 }
@@ -47,7 +47,7 @@ public:
                     != calculate_verify_code(
                         receiving_package->buffer,
                         receiving_package->size() - receiving_package->verify_part_size())) {
-                    RCLCPP_WARN(logger, "[package_receiver]: invaild verify digit");
+                    RCLCPP_WARN(logger, "[package_receiver]: invalid verify digit");
                     received_size_ = 0;
                     continue;
                 }
@@ -67,7 +67,7 @@ public:
             } else if (result == ReceiveResult::TIMEOUT) {
                 break;
             } else if (result == ReceiveResult::INVALID_HEADER) {
-                RCLCPP_WARN(logger, "[package_receiver]: invaild header");
+                RCLCPP_WARN(logger, "[package_receiver]: invalid header");
             }
         }
     }
@@ -77,7 +77,7 @@ private:
         SUCCESS              = 0,
         TIMEOUT              = 1,
         INVALID_HEADER       = 2,
-        INVAILD_VERIFY_DIGIT = 4
+        INVALID_VERIFY_DIGIT = 4
     };
 
     ReceiveResult receive_static_part(serial::Serial& serial) {

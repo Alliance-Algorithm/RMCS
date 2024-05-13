@@ -66,10 +66,10 @@ public:
             if (failures_count_ >= 100)
                 continue;
             failures_count_++;
-            if (result == serial_util::ReceiveResult::HEADER_INVAILD)
-                RCLCPP_WARN(logger_, "Receive failed: Header Invaild");
-            else if (result == serial_util::ReceiveResult::VERIFY_INVAILD)
-                RCLCPP_WARN(logger_, "Receive failed: Verify Invaild");
+            if (result == serial_util::ReceiveResult::HEADER_INVALID)
+                RCLCPP_WARN(logger_, "Receive failed: Header invalid");
+            else if (result == serial_util::ReceiveResult::VERIFY_INVALID)
+                RCLCPP_WARN(logger_, "Receive failed: Verify invalid");
         }
     }
 

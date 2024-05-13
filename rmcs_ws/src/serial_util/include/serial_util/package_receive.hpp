@@ -11,8 +11,8 @@ namespace serial_util {
 enum class ReceiveResult : uint8_t {
     SUCCESS        = 0,
     TIMEOUT        = 1,
-    HEADER_INVAILD = 2,
-    VERIFY_INVAILD = 3
+    HEADER_INVALID = 2,
+    VERIFY_INVALID = 3
 };
 
 template <typename F, typename PackageT>
@@ -43,9 +43,9 @@ inline ReceiveResult basic_receive_package(
         if (verify(buffer)) {
             return ReceiveResult::SUCCESS;
         }
-        result = ReceiveResult::VERIFY_INVAILD;
+        result = ReceiveResult::VERIFY_INVALID;
     } else {
-        result = ReceiveResult::HEADER_INVAILD;
+        result = ReceiveResult::HEADER_INVALID;
     }
 
     while (true) {
