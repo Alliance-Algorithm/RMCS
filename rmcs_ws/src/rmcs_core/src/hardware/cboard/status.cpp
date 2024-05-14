@@ -1,3 +1,4 @@
+#include <fast_tf/impl/cast.hpp>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
@@ -172,7 +173,10 @@ private:
 
         double ax = solve_acc(data.acc_x), ay = solve_acc(data.acc_y), az = solve_acc(data.acc_z);
 
-        *gimbal_yaw_velocity_imu_   = gz;
+        auto gyro = fast_tf::cast<rmcs_description::YawLink>(
+            rmcs_description::ImuLink::DirectionVector(gx, gy, gz), *tf_);
+
+        *gimbal_yaw_velocity_imu_   = gyro->z();
         *gimbal_pitch_velocity_imu_ = gx;
 
         auto gimbal_imu_pose = imu_.update(gx, gy, gz, ax, ay, az);
