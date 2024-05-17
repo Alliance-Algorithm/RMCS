@@ -1,7 +1,7 @@
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
-#include <rmcs_description/robotic_description.hpp>
+#include <rmcs_core/msgs.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
 #include <serial/serial.h>
@@ -85,8 +85,8 @@ private:
 
         *auto_rune_ = package_.auto_rune;
         *robot_id_  = package_.robot_id > 100 ? package_.robot_id - 100 : package_.robot_id;
-        *color_     = package_.robot_id > 100 ? rmcs_description::RoboticColor::Blue
-                                              : rmcs_description::RoboticColor::Red;
+        *color_     = package_.robot_id > 100 ? rmcs_core::msgs::RoboticColor::Blue
+                                              : rmcs_core::msgs::RoboticColor::Red;
     }
 
     FpsCounter fps_counter_;
@@ -94,7 +94,7 @@ private:
     rclcpp::Logger logger_;
 
     OutputInterface<uint8_t> robot_id_;
-    OutputInterface<rmcs_description::RoboticColor> color_;
+    OutputInterface<rmcs_core::msgs::RoboticColor> color_;
     OutputInterface<uint8_t> auto_rune_;
     OutputInterface<serial::Serial> serial_;
 
