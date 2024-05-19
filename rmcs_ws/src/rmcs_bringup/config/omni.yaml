@@ -28,7 +28,7 @@ rmcs_executor:
 
       - rmcs_core::hardware::cboard::Command -> cboard_command
 
-      - rmcs_core::hardware::cboard::GyroCalibrator -> gyro_calibrator
+      # - rmcs_core::hardware::cboard::GyroCalibrator -> gyro_calibrator
 
       - ugas::Component -> ugas
 
