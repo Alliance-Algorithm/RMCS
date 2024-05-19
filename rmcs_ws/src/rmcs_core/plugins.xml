@@ -38,4 +38,7 @@
   <class type="rmcs_core::hardware::referee::Status" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
+  <class type="rmcs_core::hardware::referee::UI" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
 </library>
