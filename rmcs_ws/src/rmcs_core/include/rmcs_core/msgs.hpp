@@ -4,6 +4,12 @@
 
 namespace rmcs_core::msgs {
 
+enum class RoboticColor : uint8_t {
+    Blue    = 0, // Blue
+    Red     = 1, // Red
+    Neutral = 2, // Neutral Part
+};
+
 enum class Switch : uint8_t { UNKNOWN = 0, UP = 1, DOWN = 2, MIDDLE = 3 };
 
 struct __attribute__((packed)) Mouse {

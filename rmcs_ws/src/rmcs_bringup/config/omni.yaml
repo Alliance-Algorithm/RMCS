@@ -32,6 +32,8 @@ rmcs_executor:
 
       - ugas::Component -> ugas
 
+      - rmcs_core::hardware::referee::UI -> referee_ui
+
 cboard_status:
   ros__parameters:
     path: /dev/ttyACM0
@@ -42,6 +44,10 @@ cboard_status:
     imu_gz_bias: +0.002188
 
 referee_status:
+  ros__parameters:
+    path: /dev/ttyUSB0
+
+referee_ui:
   ros__parameters:
     path: /dev/ttyUSB0
 
