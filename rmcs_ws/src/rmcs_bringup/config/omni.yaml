@@ -170,5 +170,7 @@ chassis_power_controller:
 ugas:
   ros__parameters:
     exposure_time: 13
-    armor_predict_duration: 1000
+    armor_predict_duration: 500
     buff_predict_duration: 200
+    yaw_error: 0.005
+    pitch_error: -0.5
