@@ -83,7 +83,7 @@ private:
         tf_->set_transform<rmcs_description::ImuLink, rmcs_description::OdomImu>(
             gimbal_imu_pose.conjugate());
 
-        *auto_rune_ = package_.auto_rune;
+        *auto_rune_ = package_.auto_rune == 1;
         *robot_id_  = package_.robot_id > 100 ? package_.robot_id - 100 : package_.robot_id;
         *color_     = package_.robot_id > 100 ? rmcs_core::msgs::RoboticColor::Blue
                                               : rmcs_core::msgs::RoboticColor::Red;
@@ -95,7 +95,7 @@ private:
 
     OutputInterface<uint8_t> robot_id_;
     OutputInterface<rmcs_core::msgs::RoboticColor> color_;
-    OutputInterface<uint8_t> auto_rune_;
+    OutputInterface<bool> auto_rune_;
     OutputInterface<serial::Serial> serial_;
 
     struct __attribute__((packed)) PackageReceive {

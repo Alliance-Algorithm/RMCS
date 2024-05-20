@@ -11,3 +11,9 @@ rmcs_executor:
 ec_status:
   ros__parameters:
     path: /dev/ttyACM0
+
+ugas:
+  ros__parameters:
+    exposure_time: 13
+    armor_predict_duration: 1000
+    buff_predict_duration: 200

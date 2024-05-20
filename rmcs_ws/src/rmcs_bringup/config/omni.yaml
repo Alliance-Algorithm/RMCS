@@ -166,3 +166,9 @@ chassis_power_controller:
       - /chassis/left_back_wheel
       - /chassis/right_back_wheel
       - /chassis/right_front_wheel
+
+ugas:
+  ros__parameters:
+    exposure_time: 13
+    armor_predict_duration: 1000
+    buff_predict_duration: 200
