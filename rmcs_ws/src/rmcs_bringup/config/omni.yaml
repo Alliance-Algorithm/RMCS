@@ -172,5 +172,6 @@ ugas:
     exposure_time: 13
     armor_predict_duration: 500
     buff_predict_duration: 200
+    gimbal_predict_duration: 500
     yaw_error: 0.005
     pitch_error: -0.5

@@ -18,5 +18,6 @@ ugas:
     armor_predict_duration: 1000
     buff_predict_duration: 1000
     gimbal_predict_duration: 500
-    yaw_error: 0.025
-    pitch_error: -0.015
+    yaw_error: 0.036
+    pitch_error: 0.0145
+    
