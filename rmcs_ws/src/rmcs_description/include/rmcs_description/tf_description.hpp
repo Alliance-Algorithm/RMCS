@@ -1,6 +1,7 @@
 #pragma once
 
 #include <fast_tf/fast_tf.hpp>
+#include <fast_tf/impl/link.hpp>
 
 namespace rmcs_description {
 
@@ -18,6 +19,11 @@ struct PitchLink : fast_tf::Link<PitchLink> {
 struct MuzzleLink : fast_tf::Link<MuzzleLink> {
     static constexpr char name[] = "muzzle_link";
 };
+
+struct CameraLink : fast_tf::Link<CameraLink> {
+    static constexpr char name[] = "camera_link";
+};
+
 struct TransmitterLink : fast_tf::Link<TransmitterLink> {
     static constexpr char name[] = "transmitter_link";
 };
