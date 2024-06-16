@@ -10,23 +10,24 @@ public:
       : Node(get_component_name(),
              rclcpp::NodeOptions{}
                  .automatically_declare_parameters_from_overrides(true)) {
-    fx_c_ = get_parameter("c").as_double();
-    fx_b_ = get_parameter("b").as_double();
-    fx_d_ = get_parameter("d").as_double();
-    fx_e_ = get_parameter("e").as_double();
-    fx_s_v_ = get_parameter("s_v").as_double();
+    fx_c_ = get_parameter("fx_c").as_double();
+    fx_b_ = get_parameter("fx_b").as_double();
+    fx_d_ = get_parameter("fx_d").as_double();
+    fx_e_ = get_parameter("fx_e").as_double();
+    fx_s_v_ = get_parameter("fx_s_v").as_double();
 
-    fz_c_ = get_parameter("c").as_double();
-    fz_b_ = get_parameter("b").as_double();
-    fz_d_ = get_parameter("d").as_double();
-    fz_e_ = get_parameter("e").as_double();
-    fz_s_v_ = get_parameter("s_v").as_double();
+    fz_c_ = get_parameter("fz_c").as_double();
+    fz_b_ = get_parameter("fz_b").as_double();
+    fz_d_ = get_parameter("fz_d").as_double();
+    fz_e_ = get_parameter("fz_e").as_double();
+    fz_s_v_ = get_parameter("fz_s_v").as_double();
 
-    my_c_ = get_parameter("c").as_double();
-    my_b_ = get_parameter("b").as_double();
-    my_d_ = get_parameter("d").as_double();
-    my_e_ = get_parameter("e").as_double();
-    my_s_v_ = get_parameter("s_v").as_double();
+    my_c_ = get_parameter("my_c").as_double();
+    my_b_ = get_parameter("my_b").as_double();
+    my_d_ = get_parameter("my_d").as_double();
+    my_e_ = get_parameter("my_e").as_double();
+    my_s_v_ = get_parameter("my_s_v").as_double();
+
     identify_ = get_parameter("wheel_id").as_string();
 
     register_input("/chassis/" + identify_ + "_wheel/alpha", alpha_);
