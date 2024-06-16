@@ -1,3 +1,5 @@
+#pragma once
+
 #include <cmath>
 
 #include <rclcpp/rclcpp.hpp>
@@ -28,7 +30,7 @@ public:
     my_s_v_ = get_parameter("my_s_v").as_double();
   }
 
-  void Claculate(double alpha, double slip_rate) override {
+  void claculate(double alpha, double slip_rate) override {
 
     longitudinal_force_ =
         fx_d_ * sin(fx_c_ * atan(fx_b_ * slip_rate -
@@ -51,6 +53,10 @@ public:
   double longitudinal_force() const override { return longitudinal_force_; };
   double aligning_torque() const override { return aligning_torque_; };
   double lateral_force() const override { return lateral_force_; };
+  double mixed_force() const override {
+    return sqrt(lateral_force_ * lateral_force_ +
+                longitudinal_force_ * longitudinal_force_);
+  };
 
 private:
   double fx_c_;
