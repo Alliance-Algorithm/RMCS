@@ -3,13 +3,12 @@
 #include <rclcpp/rclcpp.hpp>
 #include <rmcs_executor/component.hpp>
 
+#include "wheel_model_base.hpp"
+
 namespace rmcs_core::controller::model::wheel {
-class ruder_wheel_model : public rmcs_executor::Component, public rclcpp::Node {
+class RuderWheelModel : public WheelBase {
 public:
-  ruder_wheel_model()
-      : Node(get_component_name(),
-             rclcpp::NodeOptions{}
-                 .automatically_declare_parameters_from_overrides(true)) {
+  RuderWheelModel() : WheelBase("ruder_wheel") {
     fx_c_ = get_parameter("fx_c").as_double();
     fx_b_ = get_parameter("fx_b").as_double();
     fx_d_ = get_parameter("fx_d").as_double();
@@ -27,37 +26,31 @@ public:
     my_d_ = get_parameter("my_d").as_double();
     my_e_ = get_parameter("my_e").as_double();
     my_s_v_ = get_parameter("my_s_v").as_double();
-
-    identify_ = get_parameter("wheel_id").as_string();
-
-    register_input("/chassis/" + identify_ + "_wheel/alpha", alpha_);
-    register_input("/chassis/" + identify_ + "_wheel/slip_rate", slip_rate_);
   }
 
-  void update() override {
-    auto alpha = *alpha_;
-    auto slip_rate = *slip_rate_;
+  void Claculate(double alpha, double slip_rate) override {
 
-    auto longitudinal_force =
+    longitudinal_force_ =
         fx_d_ * sin(fx_c_ * atan(fx_b_ * slip_rate -
                                  fx_e_ * (fx_b_ * slip_rate -
                                           atan(fx_b_ * slip_rate)))) +
         fx_s_v_;
-    auto aligning_torque =
+    aligning_torque_ =
         my_d_ *
             sin(my_c_ * atan(my_b_ * alpha -
                              my_e_ * (my_b_ * alpha - atan(my_b_ * alpha)))) +
         my_s_v_;
-    auto lateral_force =
+    lateral_force_ =
         fz_d_ *
             sin(fz_c_ * atan(fz_b_ * alpha -
                              fz_e_ * (fz_b_ * alpha - atan(fz_b_ * alpha)))) +
         fz_s_v_;
-
-    *longitudinal_force_ = longitudinal_force;
-    *aligning_torque_ = aligning_torque;
-    *lateral_force_ = lateral_force;
   }
+
+  // properties
+  double longitudinal_force() const override { return longitudinal_force_; };
+  double aligning_torque() const override { return aligning_torque_; };
+  double lateral_force() const override { return lateral_force_; };
 
 private:
   double fx_c_;
@@ -78,19 +71,10 @@ private:
   double my_e_;
   double my_s_v_;
 
-  // double fx_s_h_;
-  // double fz_s_h_;
-  // double my_s_h_;
-  // because we assume that F_z is a constant,so delta s_h is zero,
-  // param s_h is useless
-
-  std::string identify_;
-
-  InputInterface<double> alpha_;     // in rad
-  InputInterface<double> slip_rate_; // in rad
-
-  OutputInterface<double> longitudinal_force_;
-  OutputInterface<double> aligning_torque_;
-  OutputInterface<double> lateral_force_;
+  double longitudinal_force_;
+  double aligning_torque_;
+  double lateral_force_;
 };
 } // namespace rmcs_core::controller::model::wheel
+
+#include <pluginlib/class_list_macros.hpp>
