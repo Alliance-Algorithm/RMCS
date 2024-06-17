@@ -13,6 +13,7 @@ template <int dimension, int k, int ret_dimension>
 requires BSplineConcept<dimension, k, ret_dimension>
 class BSplineCalculator
     : public ObjectiveFunctionBase<dimension, ret_dimension> {
+public:
   BSplineCalculator() : ObjectiveFunctionBase<dimension, ret_dimension>() {
 #if k == 3
     m_k_ = {0.5, 0.5, 0, -1, 1, 0, 0.5, -1, 0.5};
@@ -40,16 +41,17 @@ class BSplineCalculator
         time_density * time_density * time_density,
         time_density * time_density * time_density * time_density};
 
-    u_traj = {1, u, u * u, u * u * u, u * u * u * u,
-              0, 1, 2 * u, 3 * u * u, 4 * u * u * u,
-              0, 0, 2 * 1, 2 * 3 * u, 4 * 3 * u * u,
-              0, 0, 2 * 0, 2 * 3 * 1, 4 * 3 * 2 * u,
-              0, 0, 2 * 0, 2 * 3 * 0, 4 * 3 * 2 * 1};
-    u_traj.array().colwise() /= time_density_vec.array().col(0);
+    u_trajectory = {1, u, u * u, u * u * u, u * u * u * u,
+                    0, 1, 2 * u, 3 * u * u, 4 * u * u * u,
+                    0, 0, 2 * 1, 2 * 3 * u, 4 * 3 * u * u,
+                    0, 0, 2 * 0, 2 * 3 * 1, 4 * 3 * 2 * u,
+                    0, 0, 2 * 0, 2 * 3 * 0, 4 * 3 * 2 * 1};
+    u_trajectory.array().colwise() /= time_density_vec.array().col(0);
 
     auto size = k - ret_dimension == k ? 0 : 1;
     Eigen::Matrix<double, ret_dimension, dimension> target_matrix =
-        u_traj.block(0, 0, ret_dimension, size) * m_k_.block(0, 0, size, size) *
+        u_trajectory.block(0, 0, ret_dimension, size) *
+        m_k_.block(0, 0, size, size) *
         this->control_points_.block(i, 0, size, dimension);
 
     return target_matrix;
@@ -57,7 +59,7 @@ class BSplineCalculator
 
 private:
   Eigen::Matrix<double, k, k> m_k_;
-  Eigen::Matrix<double, 5, 5> u_traj;
+  Eigen::Matrix<double, 5, 5> u_trajectory;
   Eigen::Matrix<double, 3, 3> m_tk_;
   Eigen::Matrix<double, 1, 3> u_time_density;
 };
