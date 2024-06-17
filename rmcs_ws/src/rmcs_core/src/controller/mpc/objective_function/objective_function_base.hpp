@@ -10,15 +10,19 @@
 #include <eigen3/Eigen/src/Core/util/Constants.h>
 
 namespace rmcs_core::controller::mpc::utils {
-template <int dimension> class ObjectiveFunctionBase {
-public:
-  ObjectiveFunctionBase() = default;
+template <int dimension, int k, int ret_dimension>
+concept BSplineConcept = std::isless<ret_dimension, k>() && std::isless<k, 5>();
 
-private:
-  Eigen::Matrix<double, Eigen::Dynamic, dimension> parameters_;
+template <int dimension, int ret_dimension> class ObjectiveFunctionBase {
+public:
+  ObjectiveFunctionBase<dimension, ret_dimension>() = default;
+
+  virtual Eigen::Matrix<double, ret_dimension, dimension>
+  calculate(float t) = 0;
+
+protected:
   Eigen::Matrix<double, Eigen::Dynamic, dimension> control_points_;
   std::vector<double> knot_timeline_;
-  Eigen::Matrix<double, Eigen::Dynamic, dimension> timeline_parameters_;
-  Eigen::Matrix<double, Eigen::Dynamic, dimension> timeline_control_points_;
+  Eigen::Matrix<double, Eigen::Dynamic, 1> timeline_control_points_;
 };
 } // namespace rmcs_core::controller::mpc::utils
