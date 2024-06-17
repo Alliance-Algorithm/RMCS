@@ -16,11 +16,10 @@ public:
 
   void unused(auto){};
 
-  virtual void claculate(const std::vector<double> &steering_angles,
-                         const std::vector<double> &wheel_slippage_rate,
-                         double yaw_angle,
-                         const Eigen::Vector2d &linear_velocity,
-                         double angular_velocity) = 0;
+  virtual void update(const std::vector<double> &steering_angles,
+                      const std::vector<double> &wheel_slippage_rate,
+                      double yaw_angle, const Eigen::Vector2d &linear_velocity,
+                      double angular_velocity) = 0;
 
   virtual Eigen::Vector2d acceleration() const = 0;
   virtual double angular_acceleration() const = 0;

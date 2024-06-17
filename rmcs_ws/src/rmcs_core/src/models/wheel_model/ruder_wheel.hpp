@@ -5,7 +5,8 @@
 #include <rclcpp/rclcpp.hpp>
 #include <rmcs_executor/component.hpp>
 
-#include "wheel_model_base.hpp"
+// todo : change later
+#include "./wheel_model_base.hpp"
 
 namespace rmcs_core::controller::model::wheel {
 class RuderWheelModel : public WheelBase {
@@ -30,7 +31,7 @@ public:
     my_s_v_ = get_parameter("my_s_v").as_double();
   }
 
-  void claculate(double alpha, double slip_rate) override {
+  void update(double alpha, double slip_rate) override {
 
     longitudinal_force_ =
         fx_d_ * sin(fx_c_ * atan(fx_b_ * slip_rate -

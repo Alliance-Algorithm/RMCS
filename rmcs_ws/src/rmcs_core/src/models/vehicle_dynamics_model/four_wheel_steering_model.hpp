@@ -6,15 +6,14 @@
 // 肯定会有暗病，后面出问题了优先怀疑这里
 // 快速定位代码 ALRAY_ERROR
 #include <cmath>
+#include <memory>
+#include <vector>
 
 #include <eigen3/Eigen/Eigen>
 #include <eigen3/Eigen/src/Core/Matrix.h>
 
-#include <math.h>
-#include <memory>
 #include <rclcpp/rclcpp.hpp>
 #include <rmcs_executor/component.hpp>
-#include <vector>
 
 // TODO: change later
 #include "../wheel_model/ruder_wheel.hpp"
@@ -55,10 +54,10 @@ public:
         acos(param_wheel_position_rb_.y() / param_wheel_position_rb_.x());
   }
 
-  void claculate(const std::vector<double> &steering_angles,
-                 const std::vector<double> &wheel_slippage_rate,
-                 double yaw_angle, const Eigen::Vector2d &linear_velocity,
-                 double angular_velocity) override {
+  void update(const std::vector<double> &steering_angles,
+              const std::vector<double> &wheel_slippage_rate, double yaw_angle,
+              const Eigen::Vector2d &linear_velocity,
+              double angular_velocity) override {
     steering_angle_lf_ = steering_angles[0];
     steering_angle_rf_ = steering_angles[1];
     steering_angle_lb_ = steering_angles[2];
@@ -81,26 +80,26 @@ public:
     auto trans_matrix = Eigen::Matrix2d(cos_angle_velocity, -sin_angle_velocity,
                                         sin_angle_velocity, cos_angle_velocity);
 
-    wheel_model_->claculate((yaw_angle_ + steering_angle_lf_) - angle_velocity,
-                            wheel_slippage_rate_lf_);
+    wheel_model_->update((yaw_angle_ + steering_angle_lf_) - angle_velocity,
+                         wheel_slippage_rate_lf_);
     mixed_force_lf_ = Eigen::Vector2d(wheel_model_->longitudinal_force(),
                                       wheel_model_->lateral_force());
     mixed_force_lf_ = trans_matrix * mixed_force_lf_.transpose().transpose();
 
-    wheel_model_->claculate((yaw_angle_ + steering_angle_lb_) - angle_velocity,
-                            wheel_slippage_rate_lb_);
+    wheel_model_->update((yaw_angle_ + steering_angle_lb_) - angle_velocity,
+                         wheel_slippage_rate_lb_);
     mixed_force_lb_ = Eigen::Vector2d(wheel_model_->longitudinal_force(),
                                       wheel_model_->lateral_force());
     mixed_force_lb_ = trans_matrix * mixed_force_lb_.transpose().transpose();
 
-    wheel_model_->claculate((yaw_angle_ + steering_angle_rf_) - angle_velocity,
-                            wheel_slippage_rate_rf_);
+    wheel_model_->update((yaw_angle_ + steering_angle_rf_) - angle_velocity,
+                         wheel_slippage_rate_rf_);
     mixed_force_rf_ = Eigen::Vector2d(wheel_model_->longitudinal_force(),
                                       wheel_model_->lateral_force());
     mixed_force_rf_ = trans_matrix * mixed_force_rf_.transpose().transpose();
 
-    wheel_model_->claculate((yaw_angle_ + steering_angle_rb_) - angle_velocity,
-                            wheel_slippage_rate_rb_);
+    wheel_model_->update((yaw_angle_ + steering_angle_rb_) - angle_velocity,
+                         wheel_slippage_rate_rb_);
     mixed_force_rb_ = Eigen::Vector2d(wheel_model_->longitudinal_force(),
                                       wheel_model_->lateral_force());
     mixed_force_rb_ = trans_matrix * mixed_force_rb_.transpose().transpose();

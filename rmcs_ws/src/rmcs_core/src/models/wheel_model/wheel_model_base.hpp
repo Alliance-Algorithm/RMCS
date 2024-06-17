@@ -13,7 +13,7 @@ public:
 
   void unused(auto){};
 
-  virtual void claculate(double alpha, double slip_rate) = 0;
+  virtual void update(double alpha, double slip_rate) = 0;
   virtual double longitudinal_force() const = 0;
   virtual double aligning_torque() const = 0;
   virtual double lateral_force() const = 0;
