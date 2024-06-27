@@ -47,8 +47,8 @@ public:
         [[nodiscard]] bool ready() const { return data_pointer_ != nullptr; }
 
         void bind_directly(T& destination) {
-            if (active())
-                throw std::runtime_error("The interface has been activated");
+            if (ready())
+                throw std::runtime_error("The interface has already been bound to somewhere");
             activated     = true;
             data_pointer_ = &destination;
         }
