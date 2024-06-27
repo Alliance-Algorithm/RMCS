@@ -62,3 +62,5 @@ MvSdkLog
 id_rsa
 id_rsa.pub
 
+# Recording files
+record
