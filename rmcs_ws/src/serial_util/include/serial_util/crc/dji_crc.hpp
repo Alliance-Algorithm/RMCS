@@ -7,7 +7,7 @@ namespace serial_util::dji_crc {
 namespace internal {
 
 template <typename TailT, typename T>
-auto& get_tail(T& data) {
+inline auto& get_tail(T& data) {
     return *reinterpret_cast<TailT*>(reinterpret_cast<size_t>(&data) + sizeof(T) - sizeof(uint8_t));
 }
 
@@ -31,8 +31,8 @@ constexpr uint8_t crc8_table[256] = {
     0x74, 0x2a, 0xc8, 0x96, 0x15, 0x4b, 0xa9, 0xf7, 0xb6, 0xe8, 0x0a, 0x54, 0xd7, 0x89, 0x6b, 0x35,
 };
 
-uint16_t CRC_INIT              = 0xffff;
-const uint16_t wCRC_Table[256] = {
+constexpr uint16_t crc16_init       = 0xffff;
+constexpr uint16_t crc16_table[256] = {
     0x0000, 0x1189, 0x2312, 0x329b, 0x4624, 0x57ad, 0x6536, 0x74bf, 0x8c48, 0x9dc1, 0xaf5a, 0xbed3,
     0xca6c, 0xdbe5, 0xe97e, 0xf8f7, 0x1081, 0x0108, 0x3393, 0x221a, 0x56a5, 0x472c, 0x75b7, 0x643e,
     0x9cc9, 0x8d40, 0xbfdb, 0xae52, 0xdaed, 0xcb64, 0xf9ff, 0xe876, 0x2102, 0x308b, 0x0210, 0x1399,
@@ -58,7 +58,7 @@ const uint16_t wCRC_Table[256] = {
 
 } // namespace internal
 
-uint8_t calculate_crc8(const void* data, size_t length) {
+inline uint8_t calculate_crc8(const void* data, size_t length) {
     auto* p     = reinterpret_cast<const uint8_t*>(data);
     auto result = internal::crc8_init;
     while (length--)
@@ -66,54 +66,54 @@ uint8_t calculate_crc8(const void* data, size_t length) {
     return result;
 }
 
-bool verify_crc8(const void* data, size_t length) {
+inline bool verify_crc8(const void* data, size_t length) {
     auto checksum = calculate_crc8(data, length - sizeof(uint8_t));
     return checksum == *(reinterpret_cast<const uint8_t*>(data) + length - sizeof(uint8_t));
 }
 template <typename T>
-bool verify_crc8(const T& package) {
+inline bool verify_crc8(const T& package) {
     static_assert(sizeof(T) > sizeof(uint8_t));
     return verify_crc8(&package, sizeof(package));
 }
 
-void append_crc8(void* data, size_t length) {
+inline void append_crc8(void* data, size_t length) {
     auto checksum = calculate_crc8(data, length - sizeof(uint8_t));
     *(reinterpret_cast<uint8_t*>(data) + length - sizeof(uint8_t)) = checksum;
 }
 template <typename T>
-void append_crc8(T& package) {
+inline void append_crc8(T& package) {
     static_assert(sizeof(T) > sizeof(uint8_t));
     append_crc8(&package, sizeof(package));
 }
 
-uint16_t calculate_crc16(const void* data, size_t length) {
+inline uint16_t calculate_crc16(const void* data, size_t length) {
     auto* p         = reinterpret_cast<const uint8_t*>(data);
-    uint16_t result = internal::CRC_INIT;
+    uint16_t result = internal::crc16_init;
     while (length--) {
-        result = (result >> 8) ^ internal::wCRC_Table[(result ^ (*p++)) & 0x00ff];
+        result = (result >> 8) ^ internal::crc16_table[(result ^ (*p++)) & 0x00ff];
     }
     return result;
 }
 
-bool verify_crc16(const void* data, size_t length) {
+inline bool verify_crc16(const void* data, size_t length) {
     auto checksum = calculate_crc16(data, length - sizeof(uint16_t));
     return checksum
         == *reinterpret_cast<const uint16_t*>(
                reinterpret_cast<const uint8_t*>(data) + length - sizeof(uint16_t));
 }
 template <typename T>
-bool verify_crc16(const T& package) {
+inline bool verify_crc16(const T& package) {
     static_assert(sizeof(T) > sizeof(uint16_t));
     return verify_crc16(&package, sizeof(package));
 }
 
-void append_crc16(void* data, size_t length) {
+inline void append_crc16(void* data, size_t length) {
     auto checksum = calculate_crc16(data, length - sizeof(uint16_t));
     *reinterpret_cast<uint16_t*>(reinterpret_cast<uint8_t*>(data) + length - sizeof(uint16_t)) =
         checksum;
 }
 template <typename T>
-void append_crc16(T& package) {
+inline void append_crc16(T& package) {
     static_assert(sizeof(T) > sizeof(uint16_t));
     append_crc16(&package, sizeof(package));
 }
