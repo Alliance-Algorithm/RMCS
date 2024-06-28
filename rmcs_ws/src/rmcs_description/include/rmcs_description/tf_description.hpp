@@ -80,6 +80,12 @@ struct fast_tf::Joint<rmcs_description::TransmitterLink> {
 };
 
 template <>
+struct fast_tf::Joint<rmcs_description::CameraLink> {
+    using Parent                   = rmcs_description::PitchLink;
+    Eigen::Translation3d transform = Eigen::Translation3d::Identity();
+};
+
+template <>
 struct fast_tf::Joint<rmcs_description::ImuLink> {
     using Parent                 = rmcs_description::PitchLink;
     Eigen::Quaterniond transform = Eigen::Quaterniond::Identity();
@@ -144,7 +150,7 @@ struct fast_tf::Joint<rmcs_description::RightFrontWheelLink> {
 namespace rmcs_description {
 
 using Tf = fast_tf::JointCollection<
-    YawLink, PitchLink, MuzzleLink, TransmitterLink, ImuLink, OdomImu, GimbalCenterLink,
+    YawLink, PitchLink, MuzzleLink, TransmitterLink, CameraLink, ImuLink, OdomImu, GimbalCenterLink,
     LeftFrontWheelLink, LeftBackWheelLink, RightBackWheelLink, RightFrontWheelLink>;
 
 } // namespace rmcs_description
