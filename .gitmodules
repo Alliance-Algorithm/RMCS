@@ -14,3 +14,6 @@
 [submodule "rmcs_ws/src/rmcs_referee"]
 	path = rmcs_ws/src/rmcs_referee
 	url = https://github.com/Alliance-Algorithm/rmcs_referee
+[submodule "rmcs_ws/src/auto_aim"]
+	path = rmcs_ws/src/auto_aim
+	url = git@github.com:Alliance-Algorithm/auto_aim.git
