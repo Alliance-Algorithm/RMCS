@@ -35,11 +35,9 @@ rmcs_executor:
 
       # - rmcs_core::hardware::cboard::GyroCalibrator -> gyro_calibrator
 
-      - ugas::Component -> ugas
+      # - ugas::Component -> ugas
 
-      - rmcs_core::hardware::referee::UI -> referee_ui
-
-      # - auto_aim::Controller -> auto_aim
+      - auto_aim::Controller -> auto_aim
 
 cboard_status:
   ros__parameters:
