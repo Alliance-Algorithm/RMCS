@@ -1,0 +1,108 @@
+[0.000000] (-) TimerEvent: {}
+[0.001815] (control) JobQueued: {'identifier': 'control', 'dependencies': OrderedDict()}
+[0.002167] (vision) JobQueued: {'identifier': 'vision', 'dependencies': OrderedDict()}
+[0.002516] (control) JobStarted: {'identifier': 'control'}
+[0.032750] (vision) JobStarted: {'identifier': 'vision'}
+[0.060148] (control) JobProgress: {'identifier': 'control', 'progress': 'cmake'}
+[0.074171] (control) Command: {'cmd': ['/usr/bin/cmake', '/workspaces/workspace/src/control', '-DCMAKE_INSTALL_PREFIX=/workspaces/workspace/install/control'], 'cwd': '/workspaces/workspace/build/control', 'env': OrderedDict([('USER', 'developer'), ('HOSTNAME', 'docker-desktop'), ('GIT_ASKPASS', '/vscode/vscode-server/bin/linux-x64/5437499feb04f7a586f677b155b039bc2b3669eb/extensions/git/dist/askpass.sh'), ('SHLVL', '2'), ('BROWSER', '/vscode/vscode-server/bin/linux-x64/5437499feb04f7a586f677b155b039bc2b3669eb/bin/helpers/browser.sh'), ('HOME', '/home/developer'), ('OLDPWD', '/workspaces/workspace'), ('TERM_PROGRAM_VERSION', '1.90.2'), ('VSCODE_IPC_HOOK_CLI', '/tmp/vscode-ipc-1d3da538-113c-409d-952f-f0168ab03af7.sock'), ('ZSH', '/home/developer/.oh-my-zsh'), ('LSCOLORS', 'Gxfxcxdxbxegedabagacad'), ('PAGER', 'more'), ('VSCODE_GIT_ASKPASS_MAIN', '/vscode/vscode-server/bin/linux-x64/5437499feb04f7a586f677b155b039bc2b3669eb/extensions/git/dist/askpass-main.js'), ('VSCODE_GIT_ASKPASS_NODE', '/vscode/vscode-server/bin/linux-x64/5437499feb04f7a586f677b155b039bc2b3669eb/node'), ('REMOTE_CONTAINERS', 'true'), ('COLORTERM', 'truecolor'), ('ROS_DISTRO', 'humble'), ('WAYLAND_DISPLAY', 'vscode-wayland-9085b350-6c39-4872-94fe-7a7702b7cfd9.sock'), ('REMOTE_CONTAINERS_IPC', '/tmp/vscode-remote-containers-ipc-a0c2908c-ed84-437e-800a-149aa9369479.sock'), ('LOGNAME', 'developer'), ('_', '/usr/bin/colcon'), ('USER_ZDOTDIR', '/home/developer'), ('TERM', 'xterm-256color'), ('PATH', '/vscode/vscode-server/bin/linux-x64/5437499feb04f7a586f677b155b039bc2b3669eb/bin/remote-cli:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'), ('XDG_RUNTIME_DIR', '/tmp/user/1000'), ('DISPLAY', ':1'), ('REMOTE_CONTAINERS_SOCKETS', '["/tmp/.X11-unix/X0","/home/developer/.gnupg/S.gpg-agent"]'), ('LANG', 'C.UTF-8'), ('VSCODE_INJECTION', '1'), ('LS_COLORS', 'rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.webp=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:'), ('TERM_PROGRAM', 'vscode'), ('VSCODE_GIT_IPC_HANDLE', '/tmp/user/1000/vscode-git-902f464660.sock'), ('REMOTE_CONTAINERS_DISPLAY_SOCK', '/tmp/.X11-unix/X0'), ('WORKDIR', '/home/developer'), ('SHELL', '/bin/zsh'), ('VSCODE_GIT_ASKPASS_EXTRA_ARGS', ''), ('LC_ALL', 'C.UTF-8'), ('PWD', '/workspaces/workspace/build/control'), ('ZDOTDIR', '/home/developer'), ('COLCON', '1')]), 'shell': False}
+[0.100320] (-) TimerEvent: {}
+[0.100728] (vision) JobProgress: {'identifier': 'vision', 'progress': 'cmake'}
+[0.101061] (vision) Command: {'cmd': ['/usr/bin/cmake', '/workspaces/workspace/src/vision', '-DCMAKE_INSTALL_PREFIX=/workspaces/workspace/install/vision'], 'cwd': '/workspaces/workspace/build/vision', 'env': OrderedDict([('USER', 'developer'), ('HOSTNAME', 'docker-desktop'), ('GIT_ASKPASS', '/vscode/vscode-server/bin/linux-x64/5437499feb04f7a586f677b155b039bc2b3669eb/extensions/git/dist/askpass.sh'), ('SHLVL', '2'), ('BROWSER', '/vscode/vscode-server/bin/linux-x64/5437499feb04f7a586f677b155b039bc2b3669eb/bin/helpers/browser.sh'), ('HOME', '/home/developer'), ('OLDPWD', '/workspaces/workspace'), ('TERM_PROGRAM_VERSION', '1.90.2'), ('VSCODE_IPC_HOOK_CLI', '/tmp/vscode-ipc-1d3da538-113c-409d-952f-f0168ab03af7.sock'), ('ZSH', '/home/developer/.oh-my-zsh'), ('LSCOLORS', 'Gxfxcxdxbxegedabagacad'), ('PAGER', 'more'), ('VSCODE_GIT_ASKPASS_MAIN', '/vscode/vscode-server/bin/linux-x64/5437499feb04f7a586f677b155b039bc2b3669eb/extensions/git/dist/askpass-main.js'), ('VSCODE_GIT_ASKPASS_NODE', '/vscode/vscode-server/bin/linux-x64/5437499feb04f7a586f677b155b039bc2b3669eb/node'), ('REMOTE_CONTAINERS', 'true'), ('COLORTERM', 'truecolor'), ('ROS_DISTRO', 'humble'), ('WAYLAND_DISPLAY', 'vscode-wayland-9085b350-6c39-4872-94fe-7a7702b7cfd9.sock'), ('REMOTE_CONTAINERS_IPC', '/tmp/vscode-remote-containers-ipc-a0c2908c-ed84-437e-800a-149aa9369479.sock'), ('LOGNAME', 'developer'), ('_', '/usr/bin/colcon'), ('USER_ZDOTDIR', '/home/developer'), ('TERM', 'xterm-256color'), ('PATH', '/vscode/vscode-server/bin/linux-x64/5437499feb04f7a586f677b155b039bc2b3669eb/bin/remote-cli:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'), ('XDG_RUNTIME_DIR', '/tmp/user/1000'), ('DISPLAY', ':1'), ('REMOTE_CONTAINERS_SOCKETS', '["/tmp/.X11-unix/X0","/home/developer/.gnupg/S.gpg-agent"]'), ('LANG', 'C.UTF-8'), ('VSCODE_INJECTION', '1'), ('LS_COLORS', 'rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.webp=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:'), ('TERM_PROGRAM', 'vscode'), ('VSCODE_GIT_IPC_HANDLE', '/tmp/user/1000/vscode-git-902f464660.sock'), ('REMOTE_CONTAINERS_DISPLAY_SOCK', '/tmp/.X11-unix/X0'), ('WORKDIR', '/home/developer'), ('SHELL', '/bin/zsh'), ('VSCODE_GIT_ASKPASS_EXTRA_ARGS', ''), ('LC_ALL', 'C.UTF-8'), ('PWD', '/workspaces/workspace/build/vision'), ('ZDOTDIR', '/home/developer'), ('COLCON', '1')]), 'shell': False}
+[0.200479] (-) TimerEvent: {}
+[0.301788] (-) TimerEvent: {}
+[0.402518] (-) TimerEvent: {}
+[0.503183] (-) TimerEvent: {}
+[0.537370] (control) StdoutLine: {'line': b'-- The C compiler identification is GNU 11.4.0\n'}
+[0.542466] (vision) StdoutLine: {'line': b'-- The C compiler identification is GNU 11.4.0\n'}
+[0.603269] (-) TimerEvent: {}
+[0.703943] (-) TimerEvent: {}
+[0.804794] (-) TimerEvent: {}
+[0.903378] (vision) StdoutLine: {'line': b'-- The CXX compiler identification is GNU 11.4.0\n'}
+[0.905418] (-) TimerEvent: {}
+[0.906231] (control) StdoutLine: {'line': b'-- The CXX compiler identification is GNU 11.4.0\n'}
+[1.005541] (control) StdoutLine: {'line': b'-- Detecting C compiler ABI info\n'}
+[1.007835] (-) TimerEvent: {}
+[1.008297] (vision) StdoutLine: {'line': b'-- Detecting C compiler ABI info\n'}
+[1.108025] (-) TimerEvent: {}
+[1.208933] (-) TimerEvent: {}
+[1.309709] (-) TimerEvent: {}
+[1.410556] (-) TimerEvent: {}
+[1.511948] (-) TimerEvent: {}
+[1.612674] (-) TimerEvent: {}
+[1.713798] (-) TimerEvent: {}
+[1.815892] (-) TimerEvent: {}
+[1.867919] (vision) StdoutLine: {'line': b'-- Detecting C compiler ABI info - done\n'}
+[1.908058] (control) StdoutLine: {'line': b'-- Detecting C compiler ABI info - done\n'}
+[1.911574] (vision) StdoutLine: {'line': b'-- Check for working C compiler: /usr/bin/cc - skipped\n'}
+[1.913571] (vision) StdoutLine: {'line': b'-- Detecting C compile features\n'}
+[1.915933] (-) TimerEvent: {}
+[1.916409] (vision) StdoutLine: {'line': b'-- Detecting C compile features - done\n'}
+[1.951843] (control) StdoutLine: {'line': b'-- Check for working C compiler: /usr/bin/cc - skipped\n'}
+[1.953945] (control) StdoutLine: {'line': b'-- Detecting C compile features\n'}
+[1.955946] (control) StdoutLine: {'line': b'-- Detecting C compile features - done\n'}
+[2.013253] (vision) StdoutLine: {'line': b'-- Detecting CXX compiler ABI info\n'}
+[2.016068] (-) TimerEvent: {}
+[2.056371] (control) StdoutLine: {'line': b'-- Detecting CXX compiler ABI info\n'}
+[2.116242] (-) TimerEvent: {}
+[2.216919] (-) TimerEvent: {}
+[2.318180] (-) TimerEvent: {}
+[2.418788] (-) TimerEvent: {}
+[2.519643] (-) TimerEvent: {}
+[2.620597] (-) TimerEvent: {}
+[2.721544] (-) TimerEvent: {}
+[2.823846] (-) TimerEvent: {}
+[2.924663] (-) TimerEvent: {}
+[2.940364] (vision) StdoutLine: {'line': b'-- Detecting CXX compiler ABI info - done\n'}
+[2.982766] (vision) StdoutLine: {'line': b'-- Check for working CXX compiler: /usr/bin/c++ - skipped\n'}
+[2.984919] (vision) StdoutLine: {'line': b'-- Detecting CXX compile features\n'}
+[2.987116] (vision) StdoutLine: {'line': b'-- Detecting CXX compile features - done\n'}
+[2.989164] (control) StdoutLine: {'line': b'-- Detecting CXX compiler ABI info - done\n'}
+[3.024827] (-) TimerEvent: {}
+[3.032941] (control) StdoutLine: {'line': b'-- Check for working CXX compiler: /usr/bin/c++ - skipped\n'}
+[3.034692] (control) StdoutLine: {'line': b'-- Detecting CXX compile features\n'}
+[3.036659] (control) StdoutLine: {'line': b'-- Detecting CXX compile features - done\n'}
+[3.118003] (vision) StderrLine: {'line': b'\x1b[31mCMake Error at CMakeLists.txt:9 (find_package):\n'}
+[3.120099] (vision) StderrLine: {'line': b'  By not providing "Findament_cmake.cmake" in CMAKE_MODULE_PATH this project\n'}
+[3.122132] (vision) StderrLine: {'line': b'  has asked CMake to find a package configuration file provided by\n'}
+[3.124591] (vision) StderrLine: {'line': b'  "ament_cmake", but CMake did not find one.\n'}
+[3.127026] (-) TimerEvent: {}
+[3.127944] (vision) StderrLine: {'line': b'\n'}
+[3.130570] (vision) StderrLine: {'line': b'  Could not find a package configuration file provided by "ament_cmake" with\n'}
+[3.133043] (vision) StderrLine: {'line': b'  any of the following names:\n'}
+[3.135256] (vision) StderrLine: {'line': b'\n'}
+[3.137107] (vision) StderrLine: {'line': b'    ament_cmakeConfig.cmake\n'}
+[3.139591] (vision) StderrLine: {'line': b'    ament_cmake-config.cmake\n'}
+[3.142347] (vision) StderrLine: {'line': b'\n'}
+[3.145104] (vision) StderrLine: {'line': b'  Add the installation prefix of "ament_cmake" to CMAKE_PREFIX_PATH or set\n'}
+[3.147637] (vision) StderrLine: {'line': b'  "ament_cmake_DIR" to a directory containing one of the above files.  If\n'}
+[3.150077] (vision) StderrLine: {'line': b'  "ament_cmake" provides a separate development package or SDK, be sure it\n'}
+[3.151984] (vision) StderrLine: {'line': b'  has been installed.\n'}
+[3.154118] (vision) StderrLine: {'line': b'\n'}
+[3.156102] (vision) StderrLine: {'line': b'\x1b[0m\n'}
+[3.157964] (vision) StdoutLine: {'line': b'-- Configuring incomplete, errors occurred!\n'}
+[3.159791] (vision) StdoutLine: {'line': b'See also "/workspaces/workspace/build/vision/CMakeFiles/CMakeOutput.log".\n'}
+[3.162345] (vision) CommandEnded: {'returncode': 1}
+[3.171186] (control) StderrLine: {'line': b'\x1b[31mCMake Error at CMakeLists.txt:9 (find_package):\n'}
+[3.172809] (control) StderrLine: {'line': b'  By not providing "Findament_cmake.cmake" in CMAKE_MODULE_PATH this project\n'}
+[3.174692] (control) StderrLine: {'line': b'  has asked CMake to find a package configuration file provided by\n'}
+[3.176651] (control) StderrLine: {'line': b'  "ament_cmake", but CMake did not find one.\n'}
+[3.178559] (control) StderrLine: {'line': b'\n'}
+[3.180475] (control) StderrLine: {'line': b'  Could not find a package configuration file provided by "ament_cmake" with\n'}
+[3.181739] (control) StderrLine: {'line': b'  any of the following names:\n'}
+[3.184293] (control) StderrLine: {'line': b'\n'}
+[3.186621] (control) StderrLine: {'line': b'    ament_cmakeConfig.cmake\n'}
+[3.188452] (control) StderrLine: {'line': b'    ament_cmake-config.cmake\n'}
+[3.191933] (control) StderrLine: {'line': b'\n'}
+[3.194789] (control) StderrLine: {'line': b'  Add the installation prefix of "ament_cmake" to CMAKE_PREFIX_PATH or set\n'}
+[3.196895] (control) StderrLine: {'line': b'  "ament_cmake_DIR" to a directory containing one of the above files.  If\n'}
+[3.199871] (control) StderrLine: {'line': b'  "ament_cmake" provides a separate development package or SDK, be sure it\n'}
+[3.201436] (control) StderrLine: {'line': b'  has been installed.\n'}
+[3.202922] (control) StderrLine: {'line': b'\n'}
+[3.204216] (control) StderrLine: {'line': b'\x1b[0m\n'}
+[3.205491] (control) StdoutLine: {'line': b'-- Configuring incomplete, errors occurred!\n'}
+[3.207047] (control) StdoutLine: {'line': b'See also "/workspaces/workspace/build/control/CMakeFiles/CMakeOutput.log".\n'}
+[3.227128] (-) TimerEvent: {}
+[3.328073] (-) TimerEvent: {}
+[3.355121] (vision) JobEnded: {'identifier': 'vision', 'rc': 1}
+[3.375156] (control) JobEnded: {'identifier': 'control', 'rc': 'SIGINT'}
+[3.394745] (-) EventReactorShutdown: {}

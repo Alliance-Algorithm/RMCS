@@ -1,0 +1,32 @@
+[0.097s] Invoking command in '/workspaces/workspace/build/control': /usr/bin/cmake /workspaces/workspace/src/control -DCMAKE_INSTALL_PREFIX=/workspaces/workspace/install/control
+[0.539s] -- The C compiler identification is GNU 11.4.0
+[0.905s] -- The CXX compiler identification is GNU 11.4.0
+[1.004s] -- Detecting C compiler ABI info
+[1.907s] -- Detecting C compiler ABI info - done
+[1.951s] -- Check for working C compiler: /usr/bin/cc - skipped
+[1.953s] -- Detecting C compile features
+[1.954s] -- Detecting C compile features - done
+[2.055s] -- Detecting CXX compiler ABI info
+[2.988s] -- Detecting CXX compiler ABI info - done
+[3.031s] -- Check for working CXX compiler: /usr/bin/c++ - skipped
+[3.033s] -- Detecting CXX compile features
+[3.036s] -- Detecting CXX compile features - done
+[3.170s] [31mCMake Error at CMakeLists.txt:9 (find_package):
+[3.172s]   By not providing "Findament_cmake.cmake" in CMAKE_MODULE_PATH this project
+[3.173s]   has asked CMake to find a package configuration file provided by
+[3.175s]   "ament_cmake", but CMake did not find one.
+[3.177s] 
+[3.179s]   Could not find a package configuration file provided by "ament_cmake" with
+[3.181s]   any of the following names:
+[3.183s] 
+[3.185s]     ament_cmakeConfig.cmake
+[3.188s]     ament_cmake-config.cmake
+[3.191s] 
+[3.194s]   Add the installation prefix of "ament_cmake" to CMAKE_PREFIX_PATH or set
+[3.196s]   "ament_cmake_DIR" to a directory containing one of the above files.  If
+[3.198s]   "ament_cmake" provides a separate development package or SDK, be sure it
+[3.200s]   has been installed.
+[3.201s] 
+[3.202s] [0m
+[3.204s] -- Configuring incomplete, errors occurred!
+[3.206s] See also "/workspaces/workspace/build/control/CMakeFiles/CMakeOutput.log".

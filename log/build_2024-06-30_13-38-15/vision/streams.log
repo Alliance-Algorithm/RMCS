@@ -1,0 +1,33 @@
+[0.081s] Invoking command in '/workspaces/workspace/build/vision': /usr/bin/cmake /workspaces/workspace/src/vision -DCMAKE_INSTALL_PREFIX=/workspaces/workspace/install/vision
+[0.511s] -- The C compiler identification is GNU 11.4.0
+[0.871s] -- The CXX compiler identification is GNU 11.4.0
+[0.976s] -- Detecting C compiler ABI info
+[1.835s] -- Detecting C compiler ABI info - done
+[1.879s] -- Check for working C compiler: /usr/bin/cc - skipped
+[1.881s] -- Detecting C compile features
+[1.884s] -- Detecting C compile features - done
+[1.981s] -- Detecting CXX compiler ABI info
+[2.908s] -- Detecting CXX compiler ABI info - done
+[2.950s] -- Check for working CXX compiler: /usr/bin/c++ - skipped
+[2.952s] -- Detecting CXX compile features
+[2.955s] -- Detecting CXX compile features - done
+[3.086s] [31mCMake Error at CMakeLists.txt:9 (find_package):
+[3.087s]   By not providing "Findament_cmake.cmake" in CMAKE_MODULE_PATH this project
+[3.090s]   has asked CMake to find a package configuration file provided by
+[3.092s]   "ament_cmake", but CMake did not find one.
+[3.096s] 
+[3.098s]   Could not find a package configuration file provided by "ament_cmake" with
+[3.101s]   any of the following names:
+[3.103s] 
+[3.105s]     ament_cmakeConfig.cmake
+[3.108s]     ament_cmake-config.cmake
+[3.111s] 
+[3.113s]   Add the installation prefix of "ament_cmake" to CMAKE_PREFIX_PATH or set
+[3.115s]   "ament_cmake_DIR" to a directory containing one of the above files.  If
+[3.117s]   "ament_cmake" provides a separate development package or SDK, be sure it
+[3.119s]   has been installed.
+[3.122s] 
+[3.123s] [0m
+[3.125s] -- Configuring incomplete, errors occurred!
+[3.128s] See also "/workspaces/workspace/build/vision/CMakeFiles/CMakeOutput.log".
+[3.129s] Invoked command in '/workspaces/workspace/build/vision' returned '1': /usr/bin/cmake /workspaces/workspace/src/vision -DCMAKE_INSTALL_PREFIX=/workspaces/workspace/install/vision

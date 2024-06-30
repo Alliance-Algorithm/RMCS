@@ -1,0 +1,2 @@
+Invoking command in '/workspaces/workspace/build/vision': /usr/bin/cmake /workspaces/workspace/src/vision -DCMAKE_INSTALL_PREFIX=/workspaces/workspace/install/vision
+Invoked command in '/workspaces/workspace/build/vision' returned '1': /usr/bin/cmake /workspaces/workspace/src/vision -DCMAKE_INSTALL_PREFIX=/workspaces/workspace/install/vision
