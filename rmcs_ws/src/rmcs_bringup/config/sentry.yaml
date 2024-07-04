@@ -48,10 +48,6 @@ referee_status:
   ros__parameters:
     path: /dev/ttyUSB0
 
-referee_ui:
-  ros__parameters:
-    path: /dev/ttyUSB0
-
 gimbal_controller:
   ros__parameters:
     upper_limit: -0.4598

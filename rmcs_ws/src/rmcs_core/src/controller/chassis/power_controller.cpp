@@ -23,6 +23,8 @@ public:
             motors_.push_back(std::make_unique<Motor>(this, motor_name));
 
         register_input("/referee/robot/chassis_power", chassis_power_referee_);
+        register_input("/referee/robot/buffer_energy", chassis_buffer_energy_referee_);
+        register_input("/referee/robot/chassis_power_limit", chassis_power_limit_referee_);
     }
 
     void update() override {
@@ -35,8 +37,14 @@ public:
             c += ic;
         }
 
-        double power               = a + b + c;
-        constexpr double power_max = 80.0;
+        double power     = a + b + c;
+        double power_max = *chassis_power_limit_referee_;
+
+        constexpr double buffer_energy_control_line = 50;
+        double power_reduction_factor =
+            std::min(1.0, *chassis_buffer_energy_referee_ / buffer_energy_control_line);
+        power_max *= power_reduction_factor;
+
         double k;
 
         if (power <= power_max) {
@@ -116,6 +124,8 @@ private:
 
     std::vector<std::unique_ptr<Motor>> motors_;
     InputInterface<double> chassis_power_referee_;
+    InputInterface<double> chassis_buffer_energy_referee_;
+    InputInterface<double> chassis_power_limit_referee_;
 };
 
 } // namespace rmcs_core::controller::chassis
