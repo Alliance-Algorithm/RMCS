@@ -191,6 +191,7 @@ auto_aim:
     pitch_error: -0.5
     armor_model_path: "/models/armoridentify_with_base.onnx"
     buff_model_path: "/models/buff_nocolor_v6.onnx"
+    debug: true
     fx: 1.722231837421459e+03
     fy: 1.724876404292754e+03
     cx: 7.013056440882832e+02

@@ -6,5 +6,11 @@
     "python.analysis.extraPaths": [
         "/opt/ros/humble/lib/python3.10/site-packages",
         "/opt/ros/humble/local/lib/python3.10/dist-packages"
+    ],
+    "cSpell.words": [
+        "Axisd",
+        "hikcamera",
+        "PLUGINLIB",
+        "rmcs"
     ]
 }
