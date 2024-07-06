@@ -23,7 +23,6 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController -> right_front_wheel_velocity_pid_controller
       - rmcs_core::controller::chassis::PowerController -> chassis_power_controller
 
-      - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 
       - rmcs_referee::command::Interaction -> referee_interaction

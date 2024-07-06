@@ -1,7 +1,7 @@
 from launch import LaunchDescription
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
-from launch.substitutions import PathJoinSubstitution
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 
 
 def generate_launch_description():
@@ -13,7 +13,11 @@ def generate_launch_description():
             executable="rmcs_executor",
             parameters=[
                 PathJoinSubstitution(
-                    [FindPackageShare("rmcs_bringup"), "config", "ec.yaml"]
+                    [
+                        FindPackageShare("rmcs_bringup"),
+                        "config",
+                        LaunchConfiguration("config"),
+                    ]
                 )
             ],
             respawn=True,
