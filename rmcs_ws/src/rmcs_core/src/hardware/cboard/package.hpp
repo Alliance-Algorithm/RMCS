@@ -4,8 +4,10 @@
 #include <cstdint>
 #include <numeric>
 
+#include <rmcs_msgs/keyboard.hpp>
+#include <rmcs_msgs/switch.hpp>
+
 #include "hardware/endian_promise.hpp"
-#include "rmcs_core/msgs.hpp"
 
 namespace rmcs_core::hardware::cboard {
 
@@ -87,8 +89,8 @@ struct __attribute__((packed)) PackageDr16FeedbackPart {
     uint16_t joystick_channel2 : 11;
     uint16_t joystick_channel3 : 11;
 
-    rmcs_core::msgs::Switch switch_right : 2;
-    rmcs_core::msgs::Switch switch_left  : 2;
+    rmcs_msgs::Switch switch_right : 2;
+    rmcs_msgs::Switch switch_left  : 2;
 
     int16_t mouse_velocity_x;
     int16_t mouse_velocity_y;
@@ -97,7 +99,7 @@ struct __attribute__((packed)) PackageDr16FeedbackPart {
     bool mouse_left;
     bool mouse_right;
 
-    rmcs_core::msgs::Keyboard keyboard;
+    rmcs_msgs::Keyboard keyboard;
 
     uint16_t unused;
 };

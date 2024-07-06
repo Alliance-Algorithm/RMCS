@@ -7,8 +7,8 @@
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
-
-#include "rmcs_core/msgs.hpp"
+#include <rmcs_msgs/mouse.hpp>
+#include <rmcs_msgs/switch.hpp>
 
 namespace rmcs_core::controller::gimbal {
 
@@ -47,7 +47,7 @@ public:
         auto switch_left  = *switch_left_;
         auto mouse        = *mouse_;
 
-        using namespace rmcs_core::msgs;
+        using namespace rmcs_msgs;
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
             reset_all_controls();
@@ -149,10 +149,10 @@ private:
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
     InputInterface<Eigen::Vector2d> joystick_left_;
-    InputInterface<rmcs_core::msgs::Switch> switch_right_;
-    InputInterface<rmcs_core::msgs::Switch> switch_left_;
+    InputInterface<rmcs_msgs::Switch> switch_right_;
+    InputInterface<rmcs_msgs::Switch> switch_left_;
     InputInterface<Eigen::Vector2d> mouse_velocity_;
-    InputInterface<rmcs_core::msgs::Mouse> mouse_;
+    InputInterface<rmcs_msgs::Mouse> mouse_;
 
     InputInterface<double> gimbal_pitch_angle_;
     InputInterface<Tf> tf_;

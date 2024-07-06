@@ -1,17 +1,16 @@
 #pragma once
 
+#include <bit>
 #include <cstdint>
 
-namespace rmcs_core::msgs {
-
-enum class Switch : uint8_t { UNKNOWN = 0, UP = 1, DOWN = 2, MIDDLE = 3 };
-
-struct __attribute__((packed)) Mouse {
-    bool left  : 1;
-    bool right : 1;
-};
+namespace rmcs_msgs {
 
 struct __attribute__((packed)) Keyboard {
+    constexpr static inline Keyboard zero() {
+        constexpr uint16_t zero = 0;
+        return std::bit_cast<Keyboard>(zero);
+    }
+
     bool w     : 1;
     bool s     : 1;
     bool a     : 1;
@@ -30,4 +29,4 @@ struct __attribute__((packed)) Keyboard {
     bool b     : 1;
 };
 
-} // namespace rmcs_core::msgs
+} // namespace rmcs_msgs

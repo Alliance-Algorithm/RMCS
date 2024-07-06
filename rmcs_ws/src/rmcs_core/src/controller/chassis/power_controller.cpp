@@ -22,9 +22,9 @@ public:
         for (const auto& motor_name : motor_names)
             motors_.push_back(std::make_unique<Motor>(this, motor_name));
 
-        register_input("/referee/robot/chassis_power", chassis_power_referee_);
-        register_input("/referee/robot/buffer_energy", chassis_buffer_energy_referee_);
-        register_input("/referee/robot/chassis_power_limit", chassis_power_limit_referee_);
+        register_input("/referee/chassis_power", chassis_power_referee_);
+        register_input("/referee/buffer_energy", chassis_buffer_energy_referee_);
+        register_input("/referee/chassis_power_limit", chassis_power_limit_referee_);
     }
 
     void update() override {

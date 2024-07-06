@@ -8,9 +8,11 @@
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/keyboard.hpp>
+#include <rmcs_msgs/mouse.hpp>
+#include <rmcs_msgs/switch.hpp>
 
 #include "hardware/cboard/package.hpp"
-#include "rmcs_core/msgs.hpp"
 
 namespace rmcs_core::hardware::cboard {
 
@@ -25,9 +27,8 @@ public:
             "/remote/joystick/left", joystick_left_, Eigen::Vector2d::Zero());
 
         component->register_output(
-            "/remote/switch/right", switch_right_, rmcs_core::msgs::Switch::UNKNOWN);
-        component->register_output(
-            "/remote/switch/left", switch_left_, rmcs_core::msgs::Switch::UNKNOWN);
+            "/remote/switch/right", switch_right_, rmcs_msgs::Switch::UNKNOWN);
+        component->register_output("/remote/switch/left", switch_left_, rmcs_msgs::Switch::UNKNOWN);
 
         component->register_output(
             "/remote/mouse/velocity", mouse_velocity_, Eigen::Vector2d::Zero());
@@ -72,13 +73,13 @@ public:
     Component::OutputInterface<Eigen::Vector2d> joystick_right_;
     Component::OutputInterface<Eigen::Vector2d> joystick_left_;
 
-    Component::OutputInterface<rmcs_core::msgs::Switch> switch_right_;
-    Component::OutputInterface<rmcs_core::msgs::Switch> switch_left_;
+    Component::OutputInterface<rmcs_msgs::Switch> switch_right_;
+    Component::OutputInterface<rmcs_msgs::Switch> switch_left_;
 
     Component::OutputInterface<Eigen::Vector2d> mouse_velocity_;
 
-    Component::OutputInterface<rmcs_core::msgs::Mouse> mouse_;
-    Component::OutputInterface<rmcs_core::msgs::Keyboard> keyboard_;
+    Component::OutputInterface<rmcs_msgs::Mouse> mouse_;
+    Component::OutputInterface<rmcs_msgs::Keyboard> keyboard_;
 };
 
 } // namespace rmcs_core::hardware::cboard
