@@ -12,9 +12,16 @@ public:
     PidCalculator(double kp, double ki, double kd)
         : kp(kp)
         , ki(ki)
-        , kd(kd) {}
+        , kd(kd) {
+        reset();
+    }
 
     virtual ~PidCalculator() = default;
+
+    void reset() {
+        last_err_     = nan;
+        err_integral_ = 0;
+    }
 
     double update(double err) {
         if (!std::isfinite(err)) {
@@ -39,7 +46,7 @@ protected:
     static constexpr double inf = std::numeric_limits<double>::infinity();
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
-    double last_err_ = nan, err_integral_ = 0;
+    double last_err_, err_integral_;
 };
 
 } // namespace rmcs_core::controller::pid

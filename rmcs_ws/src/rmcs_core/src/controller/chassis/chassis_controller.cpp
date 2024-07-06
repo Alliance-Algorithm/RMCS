@@ -1,11 +1,16 @@
+#include <algorithm>
+#include <iterator>
 #include <limits>
 #include <numbers>
 
 #include <eigen3/Eigen/Dense>
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/keyboard.hpp>
+#include <rmcs_msgs/mouse.hpp>
+#include <rmcs_msgs/switch.hpp>
 
-#include "rmcs_core/msgs.hpp"
+#include "controller/pid/pid_calculator.hpp"
 
 namespace rmcs_core::controller::chassis {
 
@@ -16,7 +21,10 @@ public:
     ChassisController()
         : Node(
               get_component_name(),
-              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
+        , following_velocity_controller_(30.0, 0.01, 300) {
+        following_velocity_controller_.integral_max = 40;
+        following_velocity_controller_.integral_min = -40;
 
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
@@ -27,6 +35,7 @@ public:
         register_input("/remote/keyboard", keyboard_);
 
         register_input("/gimbal/yaw/angle", gimbal_yaw_angle_);
+        register_input("/gimbal/yaw/control_angle_error", gimbal_yaw_angle_error_);
 
         register_output(
             "/chassis/left_front_wheel/control_velocity", left_front_control_velocity_, nan);
@@ -39,7 +48,7 @@ public:
     }
 
     void update() override {
-        using namespace rmcs_core::msgs;
+        using namespace rmcs_msgs;
 
         auto switch_right = *switch_right_;
         auto switch_left  = *switch_left_;
@@ -53,11 +62,12 @@ public:
             }
 
             if (switch_left != Switch::DOWN) {
-                if (switch_right == Switch::MIDDLE) {
-                    spinning_mode_ |= keyboard.c;
-                    spinning_mode_ &= !(keyboard.ctrl && keyboard.c);
-                } else if (last_switch_right_ == Switch::MIDDLE && switch_right == Switch::DOWN) {
-                    spinning_mode_ = !spinning_mode_;
+                if ((!last_keyboard_.c && keyboard.c)
+                    || (last_switch_right_ == Switch::MIDDLE && switch_right == Switch::DOWN)) {
+                    following_ = spinning_;
+                    if (following_)
+                        following_velocity_controller_.reset();
+                    spinning_ = !spinning_;
                 }
             }
 
@@ -69,10 +79,12 @@ public:
 
         last_switch_right_ = switch_right;
         last_switch_left_  = switch_left;
+        last_keyboard_     = keyboard;
     }
 
     void reset_all_controls() {
-        spinning_mode_ = false;
+        spinning_  = false;
+        following_ = false;
 
         *left_front_control_velocity_  = nan;
         *left_back_control_velocity_   = nan;
@@ -81,38 +93,28 @@ public:
     }
 
     void update_wheel_velocities(Eigen::Vector2d move) {
-        constexpr double velocity_limit = 80;
-
         if (move.norm() > 1) {
             move.normalize();
         }
 
-        double right_oblique = velocity_limit * (-move.y() * cos_45 + move.x() * sin_45);
-        double left_oblique  = velocity_limit * (move.x() * cos_45 + move.y() * sin_45);
+        double velocities[4];
+        calculate_wheel_velocity_for_forwarding(velocities, move);
 
-        double velocities[4] = {right_oblique, left_oblique, -right_oblique, -left_oblique};
+        if (spinning_) {
+            add_wheel_velocity_for_spinning(
+                velocities, 0.4 * wheel_speed_limit, 0.2 * wheel_speed_limit);
+        } else if (following_) {
+            double err = -*gimbal_yaw_angle_ - *gimbal_yaw_angle_error_;
+            err        = std::fmod(err, 2 * std::numbers::pi);
+            if (err > std::numbers::pi)
+                err -= 2 * std::numbers::pi;
+            else if (err < -std::numbers::pi)
+                err += 2 * std::numbers::pi;
 
-        if (spinning_mode_) {
-            double max_velocity = 0;
-            for (auto& velocity : velocities) {
-                max_velocity = std::max(std::abs(velocity), max_velocity);
-            }
-
-            auto spinning_velocity = velocity_limit - max_velocity;
-            if (spinning_velocity < spinning_min_ * velocity_limit) {
-                spinning_velocity = spinning_min_ * velocity_limit;
-
-                auto scale = (velocity_limit - spinning_velocity) / max_velocity;
-                for (auto& velocity : velocities) {
-                    velocity *= scale;
-                }
-            } else if (spinning_velocity > spinning_max_ * velocity_limit) {
-                spinning_velocity = spinning_max_ * velocity_limit;
-            }
-
-            for (auto& velocity : velocities) {
-                velocity += spinning_velocity;
-            }
+            double velocity_for_spinning = std::clamp(
+                following_velocity_controller_.update(err), -wheel_speed_limit, wheel_speed_limit);
+            add_wheel_velocity_for_spinning(
+                velocities, velocity_for_spinning, 0.6 * wheel_speed_limit);
         }
 
         *left_front_control_velocity_  = velocities[0];
@@ -121,32 +123,79 @@ public:
         *right_front_control_velocity_ = velocities[3];
     }
 
+    static inline void
+        calculate_wheel_velocity_for_forwarding(double (&velocities)[4], Eigen::Vector2d move) {
+
+        double right_oblique = wheel_speed_limit * (-move.y() * cos_45 + move.x() * sin_45);
+        double left_oblique  = wheel_speed_limit * (move.x() * cos_45 + move.y() * sin_45);
+
+        velocities[0] = right_oblique;
+        velocities[1] = left_oblique;
+        velocities[2] = -right_oblique;
+        velocities[3] = -left_oblique;
+    };
+
+    constexpr static inline void add_wheel_velocity_for_spinning(
+        double (&velocities)[4], double velocity_for_spinning,
+        double min_acceptable_absolute_velocity_for_spinning) {
+
+        double k = 1;
+        if (velocity_for_spinning > 0) {
+            double max_velocity_for_forwarding =
+                *std::max_element(std::begin(velocities), std::end(velocities));
+
+            double velocity_remaining = wheel_speed_limit - max_velocity_for_forwarding;
+            if (velocity_for_spinning > velocity_remaining) {
+                if (velocity_remaining > min_acceptable_absolute_velocity_for_spinning)
+                    velocity_for_spinning = velocity_remaining;
+                else
+                    k = (wheel_speed_limit - velocity_for_spinning) / max_velocity_for_forwarding;
+            }
+        } else if (velocity_for_spinning < 0) {
+            double min_velocity_for_forwarding =
+                *std::min_element(std::begin(velocities), std::end(velocities));
+
+            double velocity_remaining = -wheel_speed_limit - min_velocity_for_forwarding;
+            if (velocity_for_spinning < velocity_remaining) {
+                if (velocity_remaining < -min_acceptable_absolute_velocity_for_spinning)
+                    velocity_for_spinning = velocity_remaining;
+                else
+                    k = (-wheel_speed_limit - velocity_for_spinning) / min_velocity_for_forwarding;
+            }
+        }
+
+        for (auto& velocity : velocities)
+            velocity = k * velocity + velocity_for_spinning;
+    }
+
 private:
     static constexpr double inf = std::numeric_limits<double>::infinity();
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
+
+    static constexpr double wheel_speed_limit = 80;
 
     // Since sine and cosine function are not constexpr, we calculate once and cache them.
     static inline const double sin_45 = std::sin(std::numbers::pi / 4.0);
     static inline const double cos_45 = std::cos(std::numbers::pi / 4.0);
 
     // Velocity scale in spinning mode
-    static inline const double spinning_max_ = 0.4;
-    static inline const double spinning_min_ = 0.2;
 
     InputInterface<Eigen::Vector2d> joystick_right_;
     InputInterface<Eigen::Vector2d> joystick_left_;
-    InputInterface<rmcs_core::msgs::Switch> switch_right_;
-    InputInterface<rmcs_core::msgs::Switch> switch_left_;
+    InputInterface<rmcs_msgs::Switch> switch_right_;
+    InputInterface<rmcs_msgs::Switch> switch_left_;
     InputInterface<Eigen::Vector2d> mouse_velocity_;
-    InputInterface<rmcs_core::msgs::Mouse> mouse_;
-    InputInterface<rmcs_core::msgs::Keyboard> keyboard_;
+    InputInterface<rmcs_msgs::Mouse> mouse_;
+    InputInterface<rmcs_msgs::Keyboard> keyboard_;
 
-    InputInterface<double> gimbal_yaw_angle_;
+    InputInterface<double> gimbal_yaw_angle_, gimbal_yaw_angle_error_;
 
-    rmcs_core::msgs::Switch last_switch_right_ = rmcs_core::msgs::Switch::UNKNOWN;
-    rmcs_core::msgs::Switch last_switch_left_  = rmcs_core::msgs::Switch::UNKNOWN;
+    rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
+    rmcs_msgs::Switch last_switch_left_  = rmcs_msgs::Switch::UNKNOWN;
+    rmcs_msgs::Keyboard last_keyboard_   = rmcs_msgs::Keyboard::zero();
 
-    bool spinning_mode_ = false;
+    bool spinning_ = false, following_ = false;
+    pid::PidCalculator following_velocity_controller_;
 
     OutputInterface<double> left_front_control_velocity_;
     OutputInterface<double> left_back_control_velocity_;

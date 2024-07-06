@@ -7,8 +7,9 @@
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
-
-#include "rmcs_core/msgs.hpp"
+#include <rmcs_msgs/keyboard.hpp>
+#include <rmcs_msgs/mouse.hpp>
+#include <rmcs_msgs/switch.hpp>
 
 namespace rmcs_core::controller::gimbal {
 
@@ -22,10 +23,10 @@ public:
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , logger_(get_logger()) {
 
-        friction_working_velocity         = get_parameter("friction_velocity").as_double();
-        double shot_frequency             = get_parameter("shot_frequency").as_double();
+        friction_working_velocity        = get_parameter("friction_velocity").as_double();
+        double shot_frequency            = get_parameter("shot_frequency").as_double();
         bullet_feeder_working_velocity   = shot_frequency / 8 * 2 * std::numbers::pi;
-        double safe_shot_frequency        = get_parameter("safe_shot_frequency").as_double();
+        double safe_shot_frequency       = get_parameter("safe_shot_frequency").as_double();
         bullet_feeder_safe_shot_velocity = safe_shot_frequency / 8 * 2 * std::numbers::pi;
 
         register_input("/remote/switch/right", switch_right_);
@@ -36,8 +37,8 @@ public:
         register_input("/gimbal/left_friction/velocity", left_friction_velocity_);
         register_input("/gimbal/right_friction/velocity", right_friction_velocity_);
 
-        register_input("/referee/robot/shooter/cooling", shooter_cooling_);
-        register_input("/referee/robot/shooter/heat_limit", shooter_heat_limit_);
+        register_input("/referee/shooter/cooling", shooter_cooling_);
+        register_input("/referee/shooter/heat_limit", shooter_heat_limit_);
 
         register_input("/gimbal/bullet_feeder/velocity", bullet_feeder_velocity_);
 
@@ -57,16 +58,14 @@ public:
         auto mouse        = *mouse_;
         auto keyboard     = *keyboard_;
 
-        using namespace rmcs_core::msgs;
+        using namespace rmcs_msgs;
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
             reset_all_controls();
         } else {
             if (switch_right != Switch::DOWN) {
-                if (switch_left == Switch::MIDDLE) {
-                    friction_enabled_ |= keyboard.v;
-                    friction_enabled_ &= !(keyboard.ctrl && keyboard.v);
-                } else if (last_switch_left_ == Switch::MIDDLE && switch_left == Switch::UP) {
+                if ((!last_keyboard_.v && keyboard.v)
+                    || (last_switch_left_ == Switch::MIDDLE && switch_left == Switch::UP)) {
                     friction_enabled_ = !friction_enabled_;
                 }
                 bullet_feeder_enabled_ = mouse.left || switch_left == Switch::DOWN;
@@ -77,6 +76,7 @@ public:
 
         last_switch_right_ = switch_right;
         last_switch_left_  = switch_left;
+        last_keyboard_     = keyboard;
     }
 
 private:
@@ -84,8 +84,8 @@ private:
         friction_enabled_                 = false;
         *left_friction_control_velocity_  = nan;
         *right_friction_control_velocity_ = nan;
-        bullet_feeder_enabled_           = false;
-        *bullet_feeder_control_velocity_ = nan;
+        bullet_feeder_enabled_            = false;
+        *bullet_feeder_control_velocity_  = nan;
     }
 
     void update_muzzle_heat() {
@@ -159,8 +159,7 @@ private:
             } else {
                 if (bullet_feeder_working_status_ == 500) {
                     enter_jam_protection();
-                    RCLCPP_INFO(
-                        logger_, "Instant jammed! Count = %d", bullet_feeder_jammed_count_);
+                    RCLCPP_INFO(logger_, "Instant jammed! Count = %d", bullet_feeder_jammed_count_);
                 } else if (bullet_feeder_working_status_ > 0) {
                     bullet_feeder_working_status_ = 0;
                 } else if (bullet_feeder_working_status_ > -500) {
@@ -191,13 +190,14 @@ private:
     double friction_working_velocity;
     double bullet_feeder_working_velocity, bullet_feeder_safe_shot_velocity;
 
-    InputInterface<rmcs_core::msgs::Switch> switch_right_;
-    InputInterface<rmcs_core::msgs::Switch> switch_left_;
-    InputInterface<rmcs_core::msgs::Mouse> mouse_;
-    InputInterface<rmcs_core::msgs::Keyboard> keyboard_;
+    InputInterface<rmcs_msgs::Switch> switch_right_;
+    InputInterface<rmcs_msgs::Switch> switch_left_;
+    InputInterface<rmcs_msgs::Mouse> mouse_;
+    InputInterface<rmcs_msgs::Keyboard> keyboard_;
 
-    rmcs_core::msgs::Switch last_switch_right_ = rmcs_core::msgs::Switch::UNKNOWN;
-    rmcs_core::msgs::Switch last_switch_left_  = rmcs_core::msgs::Switch::UNKNOWN;
+    rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
+    rmcs_msgs::Switch last_switch_left_  = rmcs_msgs::Switch::UNKNOWN;
+    rmcs_msgs::Keyboard last_keyboard_   = rmcs_msgs::Keyboard::zero();
 
     InputInterface<double> left_friction_velocity_, right_friction_velocity_;
     double last_left_friction_velocity_ = nan, friction_velocity_decrease_integral_ = 0;
