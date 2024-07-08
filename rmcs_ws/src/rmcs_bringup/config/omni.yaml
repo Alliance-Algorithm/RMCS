@@ -35,9 +35,9 @@ rmcs_executor:
 
       # - rmcs_core::hardware::cboard::GyroCalibrator -> gyro_calibrator
 
-      # - ugas::Component -> ugas
+      - ugas::Component -> ugas
 
-      - auto_aim::Controller -> auto_aim
+      # - auto_aim::Controller -> auto_aim
 
 cboard_status:
   ros__parameters:
@@ -183,7 +183,7 @@ ugas:
 
 auto_aim:
   ros__parameters:
-    exposure_time: 13
+    exposure_time: 5
     armor_predict_duration: 500
     buff_predict_duration: 200
     gimbal_predict_duration: 500
