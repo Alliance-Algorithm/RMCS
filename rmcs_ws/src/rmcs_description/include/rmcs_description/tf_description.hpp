@@ -1,6 +1,7 @@
 #pragma once
 
 #include <fast_tf/fast_tf.hpp>
+#include <fast_tf/impl/link.hpp>
 
 namespace rmcs_description {
 
@@ -18,6 +19,11 @@ struct PitchLink : fast_tf::Link<PitchLink> {
 struct MuzzleLink : fast_tf::Link<MuzzleLink> {
     static constexpr char name[] = "muzzle_link";
 };
+
+struct CameraLink : fast_tf::Link<CameraLink> {
+    static constexpr char name[] = "camera_link";
+};
+
 struct TransmitterLink : fast_tf::Link<TransmitterLink> {
     static constexpr char name[] = "transmitter_link";
 };
@@ -69,6 +75,12 @@ struct fast_tf::Joint<rmcs_description::MuzzleLink> {
 
 template <>
 struct fast_tf::Joint<rmcs_description::TransmitterLink> {
+    using Parent                   = rmcs_description::PitchLink;
+    Eigen::Translation3d transform = Eigen::Translation3d::Identity();
+};
+
+template <>
+struct fast_tf::Joint<rmcs_description::CameraLink> {
     using Parent                   = rmcs_description::PitchLink;
     Eigen::Translation3d transform = Eigen::Translation3d::Identity();
 };
@@ -138,7 +150,7 @@ struct fast_tf::Joint<rmcs_description::RightFrontWheelLink> {
 namespace rmcs_description {
 
 using Tf = fast_tf::JointCollection<
-    YawLink, PitchLink, MuzzleLink, TransmitterLink, ImuLink, OdomImu, GimbalCenterLink,
+    YawLink, PitchLink, MuzzleLink, TransmitterLink, CameraLink, ImuLink, OdomImu, GimbalCenterLink,
     LeftFrontWheelLink, LeftBackWheelLink, RightBackWheelLink, RightFrontWheelLink>;
 
 } // namespace rmcs_description
