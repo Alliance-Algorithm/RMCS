@@ -12,6 +12,12 @@ endif()
 find_package (ament_cmake_auto REQUIRED)
 ament_auto_find_build_dependencies ()
 
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/RobotPose.msg"
+  DEPENDENCIES builtin_interfaces geometry_msgs
+)
+
+
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
 ament_auto_package()
