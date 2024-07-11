@@ -43,8 +43,15 @@ public:
             0x31, [this](auto&& pkg) { imu_receive_callback(std::forward<decltype(pkg)>(pkg)); });
         package_receiver_.subscribe(0x32, [](auto&&) {});
 
+        // wheel config
         for (auto& motor : chassis_wheel_motors_)
             motor.configure(DjiMotorConfig{DjiMotorType::M3508}
+                                .reverse()
+                                .set_reduction_ratio(13.)
+                                .enable_multi_turn_angle());
+        // steering config
+        for (auto& motor : chassis_steering_motors_)
+            motor.configure(DjiMotorConfig{DjiMotorType::GM6020}
                                 .reverse()
                                 .set_reduction_ratio(13.)
                                 .enable_multi_turn_angle());
@@ -125,12 +132,6 @@ private:
             auto& motor = chassis_wheel_motors_[3];
             motor.update_status(std::move(package), logger_);
             tf_->set_state<BaseLink, LeftBackWheelLink>(motor.get_angle());
-        } else if (can_id == 0x205) {
-            gimbal_yaw_motor_.update_status(std::move(package), logger_);
-            tf_->set_state<GimbalCenterLink, YawLink>(gimbal_yaw_motor_.get_angle());
-        } else if (can_id == 0x206) {
-            gimbal_pitch_motor_.update_status(std::move(package), logger_);
-            tf_->set_state<YawLink, PitchLink>(gimbal_pitch_motor_.get_angle());
         }
     }
 
@@ -145,12 +146,27 @@ private:
         }
 
         auto can_id = package->dynamic_part<can_id_t>();
-        if (can_id == 0x202) {
-            gimbal_bullet_feeder_.update_status(std::move(package), logger_);
-        } else if (can_id == 0x203) {
-            gimbal_left_friction_.update_status(std::move(package), logger_);
-        } else if (can_id == 0x204) {
-            gimbal_right_friction_.update_status(std::move(package), logger_);
+        using namespace rmcs_description;
+
+        if (can_id == 0x205) {
+            auto& motor = chassis_steering_motors_[0];
+            motor.update_status(std::move(package), logger_);
+            tf_->set_state<BaseLink, LeftFrontWheelLink>(motor.get_angle());
+
+        } else if (can_id == 0x206) {
+            auto& motor = chassis_steering_motors_[1];
+            motor.update_status(std::move(package), logger_);
+            tf_->set_state<BaseLink, LeftFrontWheelLink>(motor.get_angle());
+
+        } else if (can_id == 0x207) {
+            auto& motor = chassis_steering_motors_[2];
+            motor.update_status(std::move(package), logger_);
+            tf_->set_state<BaseLink, LeftFrontWheelLink>(motor.get_angle());
+
+        } else if (can_id == 0x208) {
+            auto& motor = chassis_steering_motors_[3];
+            motor.update_status(std::move(package), logger_);
+            tf_->set_state<BaseLink, LeftFrontWheelLink>(motor.get_angle());
         }
     }
 
@@ -195,11 +211,20 @@ private:
     OutputInterface<serial::Serial> serial_;
     PackageReceiver package_receiver_;
 
-    DjiMotorStatus chassis_wheel_motors_[4] = {
+    // DJI 3508 CAN1
+    DjiMotorStatus chassis_wheel_motors_[4]{
         {this,  "/chassis/left_front_wheel"},
         {this, "/chassis/right_front_wheel"},
         {this,  "/chassis/right_back_wheel"},
         {this,   "/chassis/left_back_wheel"}
+    };
+
+    // DJI 6020 CAN2
+    DjiMotorStatus chassis_steering_motors_[4]{
+        {this,  "/chassis/left_front_steering"},
+        {this, "/chassis/right_front_steering"},
+        {this,  "/chassis/right_back_steering"},
+        {this,   "/chassis/left_back_steering"}
     };
 
     DjiMotorStatus gimbal_yaw_motor_   = {this, "/gimbal/yaw"};
