@@ -36,22 +36,29 @@ public:
         register_input("/remote/joystick/left", joystick_left_);
         register_input("/remote/switch/right", switch_right_);
         register_input("/remote/switch/left", switch_left_);
-        register_input("/remote/mouse/velocity", mouse_velocity_);
-        register_input("/remote/mouse", mouse_);
-        register_input("/remote/keyboard", keyboard_);
 
         register_input("/gimbal/yaw/angle", gimbal_yaw_angle_);
         register_input("/gimbal/yaw/control_angle_error", gimbal_yaw_angle_error_);
 
         register_output(
-            "/chassis/left_front_wheel/control_velocity", left_front_control_velocity_, nan);
+            "/chassis/left_front_wheel/control_angle", left_front_control_angle_, nan);
         register_output(
-            "/chassis/left_back_wheel/control_velocity", left_back_control_velocity_, nan);
+            "/chassis/left_back_wheel/control_angle", left_back_control_angle_, nan);
         register_output(
-            "/chassis/right_back_wheel/control_velocity", right_back_control_velocity_, nan);
+            "/chassis/right_back_wheel/control_angle", right_back_control_angle_, nan);
         register_output(
-            "/chassis/right_front_wheel/control_velocity", right_front_control_velocity_, nan);
-            publisher_ = this->create_publisher<std_msgs::msg::Float64>("/armor/angle",20);
+            "/chassis/right_front_wheel/control_angle", right_front_control_angle_, nan);
+
+        register_output(
+            "/chassis/left_front_wheel/control_split", left_front_control_split_, nan);
+        register_output(
+            "/chassis/left_back_wheel/control_split", left_back_control_split_, nan);
+        register_output(
+            "/chassis/right_back_wheel/control_split", right_back_control_split_, nan);
+        register_output(
+            "/chassis/right_front_wheel/control_split", right_front_control_split_, nan);
+
+        publisher_ = this->create_publisher<std_msgs::msg::Float64>("/armor/angle",20);
     }
 
     void update() override {
@@ -63,7 +70,6 @@ public:
 
         auto switch_right = *switch_right_;
         auto switch_left  = *switch_left_;
-        auto keyboard     = *keyboard_;
 
         do {
             if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
@@ -73,8 +79,7 @@ public:
             }
 
             if (switch_left != Switch::DOWN) {
-                if ((!last_keyboard_.c && keyboard.c)
-                    || (last_switch_right_ == Switch::MIDDLE && switch_right == Switch::DOWN)) {
+                if ((last_switch_right_ == Switch::MIDDLE && switch_right == Switch::DOWN)) {
                     following_ = spinning_;
                     if (following_)
                         following_velocity_controller_.reset();
@@ -82,25 +87,28 @@ public:
                 }
             }
 
-            auto keyboard_move =
-                Eigen::Vector2d{0.5 * (keyboard.w - keyboard.s), 0.5 * (keyboard.a - keyboard.d)};
             update_wheel_velocities(
-                Eigen::Rotation2Dd{*gimbal_yaw_angle_} * (*joystick_right_ + keyboard_move));
+                Eigen::Rotation2Dd{*gimbal_yaw_angle_} * (*joystick_right_ ));
         } while (false);
 
         last_switch_right_ = switch_right;
         last_switch_left_  = switch_left;
-        last_keyboard_     = keyboard;
     }
 
     void reset_all_controls() {
         spinning_  = false;
         following_ = false;
 
-        *left_front_control_velocity_  = nan;
-        *left_back_control_velocity_   = nan;
-        *right_back_control_velocity_  = nan;
-        *right_front_control_velocity_ = nan;
+        *left_front_control_angle_  = nan;
+        *left_back_control_angle_   = nan;
+        *right_back_control_angle_  = nan;
+        *left_front_control_angle_  = nan;
+
+
+        *left_front_control_split_  = nan;
+        *left_front_control_split_  = nan;
+        *left_front_control_split_  = nan;
+        *left_front_control_split_  = nan;
     }
 
     void update_wheel_velocities(Eigen::Vector2d move) {
@@ -108,12 +116,12 @@ public:
             move.normalize();
         }
 
-        double velocities[4];
-        calculate_wheel_velocity_for_forwarding(velocities, move);
+        double angle[4];
+        calculate_wheel_velocity_for_forwarding(angle, move);
 
         if (spinning_) {
             add_wheel_velocity_for_spinning(
-                velocities, 0.4 * wheel_speed_limit, 0.2 * wheel_speed_limit);
+                angle, 0.4 * wheel_speed_limit, 0.2 * wheel_speed_limit);
         } else if (following_) {
             double err = -*gimbal_yaw_angle_ - *gimbal_yaw_angle_error_;
             err        = std::fmod(err, 2 * std::numbers::pi);
@@ -125,13 +133,13 @@ public:
             double velocity_for_spinning = std::clamp(
                 following_velocity_controller_.update(err), -wheel_speed_limit, wheel_speed_limit);
             add_wheel_velocity_for_spinning(
-                velocities, velocity_for_spinning, 0.6 * wheel_speed_limit);
+                angle, velocity_for_spinning, 0.6 * wheel_speed_limit);
         }
 
-        *left_front_control_velocity_  = velocities[0];
-        *left_back_control_velocity_   = velocities[1];
-        *right_back_control_velocity_  = velocities[2];
-        *right_front_control_velocity_ = velocities[3];
+        *left_front_control_angle_  = angle[0];
+        *left_back_control_angle_   = angle[1];
+        *right_back_control_angle_  = angle[2];
+        *right_front_control_angle_ = angle[3];
     }
 
     static inline void
@@ -195,9 +203,6 @@ private:
     InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;
     InputInterface<rmcs_msgs::Switch> switch_left_;
-    InputInterface<Eigen::Vector2d> mouse_velocity_;
-    InputInterface<rmcs_msgs::Mouse> mouse_;
-    InputInterface<rmcs_msgs::Keyboard> keyboard_;
 
     InputInterface<double> gimbal_yaw_angle_, gimbal_yaw_angle_error_;
 
@@ -208,14 +213,19 @@ private:
     bool spinning_ = false, following_ = false;
     pid::PidCalculator following_velocity_controller_;
 
-    OutputInterface<double> left_front_control_velocity_;
-    OutputInterface<double> left_back_control_velocity_;
-    OutputInterface<double> right_back_control_velocity_;
-    OutputInterface<double> right_front_control_velocity_;
+    OutputInterface<double> left_front_control_angle_;
+    OutputInterface<double> left_back_control_angle_;
+    OutputInterface<double> right_back_control_angle_;
+    OutputInterface<double> right_front_control_angle_;
+
+
+    OutputInterface<double> left_front_control_split_;
+    OutputInterface<double> left_back_control_split_;
+    OutputInterface<double> right_back_control_split_;
+    OutputInterface<double> right_front_control_split_;
 
     rclcpp::Logger logger_;
 
-    long long tick_;
 };
 
 } // namespace rmcs_core::controller::chassis
