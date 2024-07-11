@@ -38,23 +38,23 @@ public:
         register_input("/remote/switch/right", switch_right_);
         register_input("/remote/switch/left", switch_left_);
 
-        register_input(
-            "/controller/mpc/left_front_steering/control_angle", mpc_left_front_control_angle_);
-        register_input(
-            "/controller/mpc/left_back_steering/control_angle", mpc_left_back_control_angle_);
-        register_input(
-            "/controller/mpc/right_back_steering/control_angle", mpc_right_back_control_angle_);
-        register_input(
-            "/controller/mpc/right_front_steering/control_angle", mpc_right_front_control_angle_);
+        // register_input(
+        //     "/controller/mpc/left_front_steering/control_angle", mpc_left_front_control_angle_);
+        // register_input(
+        //     "/controller/mpc/left_back_steering/control_angle", mpc_left_back_control_angle_);
+        // register_input(
+        //     "/controller/mpc/right_back_steering/control_angle", mpc_right_back_control_angle_);
+        // register_input(
+        //     "/controller/mpc/right_front_steering/control_angle", mpc_right_front_control_angle_);
 
-        register_input(
-            "/controller/mpc/left_front_wheel/control_velocity", mpc_left_front_control_velocity_);
-        register_input(
-            "/controller/mpc/left_back_wheel/control_velocity", mpc_left_back_control_velocity_);
-        register_input(
-            "/controller/mpc/right_back_wheel/control_velocity", mpc_right_back_control_velocity_);
-        register_input(
-            "/controller/mpc/right_front_wheel/control_velocity", mpc_right_front_control_velocity_);
+        // register_input(
+        //     "/controller/mpc/left_front_wheel/control_velocity", mpc_left_front_control_velocity_);
+        // register_input(
+        //     "/controller/mpc/left_back_wheel/control_velocity", mpc_left_back_control_velocity_);
+        // register_input(
+        //     "/controller/mpc/right_back_wheel/control_velocity", mpc_right_back_control_velocity_);
+        // register_input(
+        //     "/controller/mpc/right_front_wheel/control_velocity", mpc_right_front_control_velocity_);
 
 
 
