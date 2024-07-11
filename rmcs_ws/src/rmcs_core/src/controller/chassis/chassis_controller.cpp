@@ -38,23 +38,23 @@ public:
         register_input("/remote/switch/right", switch_right_);
         register_input("/remote/switch/left", switch_left_);
 
-        // register_input(
-        //     "/controller/mpc/left_front_steering/control_angle", mpc_left_front_control_angle_);
-        // register_input(
-        //     "/controller/mpc/left_back_steering/control_angle", mpc_left_back_control_angle_);
-        // register_input(
-        //     "/controller/mpc/right_back_steering/control_angle", mpc_right_back_control_angle_);
-        // register_input(
-        //     "/controller/mpc/right_front_steering/control_angle", mpc_right_front_control_angle_);
+        register_input(
+            "/controller/mpc/left_front_steering/control_angle", mpc_left_front_control_angle_);
+        register_input(
+            "/controller/mpc/left_back_steering/control_angle", mpc_left_back_control_angle_);
+        register_input(
+            "/controller/mpc/right_back_steering/control_angle", mpc_right_back_control_angle_);
+        register_input(
+            "/controller/mpc/right_front_steering/control_angle", mpc_right_front_control_angle_);
 
-        // register_input(
-        //     "/controller/mpc/left_front_wheel/control_velocity", mpc_left_front_control_velocity_);
-        // register_input(
-        //     "/controller/mpc/left_back_wheel/control_velocity", mpc_left_back_control_velocity_);
-        // register_input(
-        //     "/controller/mpc/right_back_wheel/control_velocity", mpc_right_back_control_velocity_);
-        // register_input(
-        //     "/controller/mpc/right_front_wheel/control_velocity", mpc_right_front_control_velocity_);
+        register_input(
+            "/controller/mpc/left_front_wheel/control_velocity", mpc_left_front_control_velocity_);
+        register_input(
+            "/controller/mpc/left_back_wheel/control_velocity", mpc_left_back_control_velocity_);
+        register_input(
+            "/controller/mpc/right_back_wheel/control_velocity", mpc_right_back_control_velocity_);
+        register_input(
+            "/controller/mpc/right_front_wheel/control_velocity", mpc_right_front_control_velocity_);
 
 
 
@@ -138,15 +138,15 @@ public:
         double velocity[4];
         calculate_wheel_velocity_for_forwarding(angle,velocity, move);
 
-        *left_front_control_angle_  = angle[0] + *mpc_left_front_control_angle_;
-        *left_back_control_angle_   = angle[1] + *mpc_left_back_control_angle_;
-        *right_back_control_angle_  = angle[2] + *mpc_right_back_control_angle_;
-        *right_front_control_angle_ = angle[3] + *mpc_right_front_control_angle_;
+        *left_front_control_angle_  = angle[0];
+        *left_back_control_angle_   = angle[1];
+        *right_back_control_angle_  = angle[2];
+        *right_front_control_angle_ = angle[3];
 
-        *left_front_control_velocity_  = velocity[0] + *mpc_left_front_control_velocity_;
-        *left_back_control_velocity_  = velocity[0] + *mpc_left_back_control_velocity_;
-        *right_back_control_velocity_  = velocity[0] + *mpc_right_back_control_velocity_;
-        *right_front_control_velocity_  = velocity[0] + *mpc_right_front_control_velocity_;
+        *left_front_control_velocity_  = velocity[0];
+        *left_back_control_velocity_  = velocity[0];
+        *right_back_control_velocity_  = velocity[0];
+        *right_front_control_velocity_  = velocity[0];
     }
 
     static inline void

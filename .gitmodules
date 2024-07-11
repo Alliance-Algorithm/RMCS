@@ -1,9 +1,6 @@
 [submodule "rmcs_ws/src/serial"]
 	path = rmcs_ws/src/serial
 	url = https://github.com/Alliance-Algorithm/ros2-serial.git
-[submodule "rmcs_ws/src/ugas"]
-	path = rmcs_ws/src/ugas
-	url = https://github.com/Alliance-Algorithm/UGAS.git
     branch = ros2
 [submodule "rmcs_ws/src/hikcamera"]
 	path = rmcs_ws/src/hikcamera
@@ -14,3 +11,6 @@
 [submodule "rmcs_ws/src/rmcs_referee"]
 	path = rmcs_ws/src/rmcs_referee
 	url = https://github.com/Alliance-Algorithm/rmcs_referee
+[submodule "rmcs_ws/src/rmcs_auto_aim"]
+	path = rmcs_ws/src/rmcs_auto_aim
+	url = https://github.com/Alliance-Algorithm/rmcs_auto_aim.git
