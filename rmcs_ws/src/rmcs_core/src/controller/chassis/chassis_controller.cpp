@@ -6,6 +6,7 @@
 #include <eigen3/Eigen/Dense>
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/chassis_mode.hpp>
 #include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/switch.hpp>
@@ -37,6 +38,10 @@ public:
         register_input("/gimbal/yaw/angle", gimbal_yaw_angle_);
         register_input("/gimbal/yaw/control_angle_error", gimbal_yaw_angle_error_);
 
+        register_output("/chassis/mode", chassis_mode_, rmcs_msgs::ChassisMode::AUTO);
+        register_output("/chassis/angle", chassis_angle_, nan);
+        register_output("/chassis/control_angle", chassis_control_angle_, nan);
+
         register_output(
             "/chassis/left_front_wheel/control_velocity", left_front_control_velocity_, nan);
         register_output(
@@ -62,12 +67,28 @@ public:
             }
 
             if (switch_left != Switch::DOWN) {
-                if ((!last_keyboard_.c && keyboard.c)
-                    || (last_switch_right_ == Switch::MIDDLE && switch_right == Switch::DOWN)) {
-                    following_ = spinning_;
-                    if (following_)
+                if ((last_switch_right_ == Switch::MIDDLE && switch_right == Switch::DOWN)
+                    || (!last_keyboard_.c && keyboard.c)) {
+                    chassis_mode_cache_ = chassis_mode_cache_ == rmcs_msgs::ChassisMode::SPIN
+                                            ? rmcs_msgs::ChassisMode::AUTO
+                                            : rmcs_msgs::ChassisMode::SPIN;
+                    if (chassis_mode_cache_ == rmcs_msgs::ChassisMode::SPIN)
+                        spinning_clockwise_ = !spinning_clockwise_;
+                } else if (!last_keyboard_.x && keyboard.x) {
+                    chassis_mode_cache_ = chassis_mode_cache_ == rmcs_msgs::ChassisMode::LAUNCH_RAMP
+                                            ? rmcs_msgs::ChassisMode::AUTO
+                                            : rmcs_msgs::ChassisMode::LAUNCH_RAMP;
+                    if (chassis_mode_cache_ == rmcs_msgs::ChassisMode::LAUNCH_RAMP)
                         following_velocity_controller_.reset();
-                    spinning_ = !spinning_;
+                }
+
+                if (keyboard.ctrl && chassis_mode_cache_ != rmcs_msgs::ChassisMode::LAUNCH_RAMP) {
+                    // Never set chassis_mode_cache to STEP_DOWN, otherwise we won't know
+                    // how to restore chassis_mode when user released the ctrl key.
+                    *chassis_mode_ = rmcs_msgs::ChassisMode::STEP_DOWN;
+                    following_velocity_controller_.reset();
+                } else {
+                    *chassis_mode_ = chassis_mode_cache_;
                 }
             }
 
@@ -83,8 +104,7 @@ public:
     }
 
     void reset_all_controls() {
-        spinning_  = false;
-        following_ = false;
+        *chassis_mode_ = chassis_mode_cache_ = rmcs_msgs::ChassisMode::AUTO;
 
         *left_front_control_velocity_  = nan;
         *left_back_control_velocity_   = nan;
@@ -100,27 +120,76 @@ public:
         double velocities[4];
         calculate_wheel_velocity_for_forwarding(velocities, move);
 
-        if (spinning_) {
+        double chassis_control_angle = nan;
+        switch (*chassis_mode_) {
+        case rmcs_msgs::ChassisMode::AUTO: break;
+        case rmcs_msgs::ChassisMode::SPIN: {
+            double wheel_speed = 0.4 * wheel_speed_limit;
             add_wheel_velocity_for_spinning(
-                velocities, 0.4 * wheel_speed_limit, 0.2 * wheel_speed_limit);
-        } else if (following_) {
-            double err = -*gimbal_yaw_angle_ - *gimbal_yaw_angle_error_;
-            err        = std::fmod(err, 2 * std::numbers::pi);
-            if (err > std::numbers::pi)
-                err -= 2 * std::numbers::pi;
-            else if (err < -std::numbers::pi)
-                err += 2 * std::numbers::pi;
+                velocities, spinning_clockwise_ ? wheel_speed : -wheel_speed,
+                0.1 * wheel_speed_limit);
+        } break;
+        case rmcs_msgs::ChassisMode::STEP_DOWN: {
+            double err = calculate_unsigned_chassis_angle_error(chassis_control_angle);
 
-            double velocity_for_spinning = std::clamp(
+            // err: [0, 2pi) -> [0, alignment) -> signed.
+            // In step-down mode, two sides of the chassis can be used for alignment.
+            // TODO(qzh): Dynamically determine the split angle based on chassis velocity.
+            constexpr double alignment = std::numbers::pi;
+            while (err > alignment / 2) {
+                chassis_control_angle -= alignment;
+                if (chassis_control_angle < 0)
+                    chassis_control_angle += 2 * std::numbers::pi;
+                err -= alignment;
+            }
+
+            // Note: The chassis rotates in the opposite direction to the wheel motors.
+            double wheel_velocity = -std::clamp(
                 following_velocity_controller_.update(err), -wheel_speed_limit, wheel_speed_limit);
-            add_wheel_velocity_for_spinning(
-                velocities, velocity_for_spinning, 0.6 * wheel_speed_limit);
+            add_wheel_velocity_for_spinning(velocities, wheel_velocity, 0.8 * wheel_speed_limit);
+        } break;
+        case rmcs_msgs::ChassisMode::LAUNCH_RAMP: {
+            double err = calculate_unsigned_chassis_angle_error(chassis_control_angle);
+
+            // err: [0, 2pi) -> signed
+            // In launch ramp mode, only one direction can be used for alignment.
+            // TODO(qzh): Dynamically determine the split angle based on chassis velocity.
+            constexpr double alignment = 2 * std::numbers::pi;
+            if (err > alignment / 2)
+                err -= alignment;
+
+            // Note: The chassis rotates in the opposite direction to the wheel motors.
+            double wheel_velocity = -std::clamp(
+                following_velocity_controller_.update(err), -wheel_speed_limit, wheel_speed_limit);
+            add_wheel_velocity_for_spinning(velocities, wheel_velocity, 0.6 * wheel_speed_limit);
+        } break;
         }
+        *chassis_angle_         = 2 * std::numbers::pi - *gimbal_yaw_angle_;
+        *chassis_control_angle_ = chassis_control_angle;
 
         *left_front_control_velocity_  = velocities[0];
         *left_back_control_velocity_   = velocities[1];
         *right_back_control_velocity_  = velocities[2];
         *right_front_control_velocity_ = velocities[3];
+    }
+
+    double calculate_unsigned_chassis_angle_error(double& chassis_control_angle) {
+        chassis_control_angle = *gimbal_yaw_angle_error_;
+        if (chassis_control_angle < 0)
+            chassis_control_angle += 2 * std::numbers::pi;
+        // chassis_control_angle: [0, 2pi).
+
+        // err = setpoint         -       measurement
+        //          ^                          ^
+        //          |gimbal_yaw_angle_error    |chassis_angle
+        //                                            ^
+        //                                            |(2pi - gimbal_yaw_angle)
+        double err = chassis_control_angle + *gimbal_yaw_angle_;
+        if (err >= 2 * std::numbers::pi)
+            err -= 2 * std::numbers::pi;
+        // err: [0, 2pi).
+
+        return err;
     }
 
     static inline void
@@ -178,8 +247,6 @@ private:
     static inline const double sin_45 = std::sin(std::numbers::pi / 4.0);
     static inline const double cos_45 = std::cos(std::numbers::pi / 4.0);
 
-    // Velocity scale in spinning mode
-
     InputInterface<Eigen::Vector2d> joystick_right_;
     InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;
@@ -194,8 +261,12 @@ private:
     rmcs_msgs::Switch last_switch_left_  = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Keyboard last_keyboard_   = rmcs_msgs::Keyboard::zero();
 
-    bool spinning_ = false, following_ = false;
+    rmcs_msgs::ChassisMode chassis_mode_cache_ = rmcs_msgs::ChassisMode::AUTO;
+    OutputInterface<rmcs_msgs::ChassisMode> chassis_mode_;
+    bool spinning_clockwise_ = false;
     pid::PidCalculator following_velocity_controller_;
+
+    OutputInterface<double> chassis_angle_, chassis_control_angle_;
 
     OutputInterface<double> left_front_control_velocity_;
     OutputInterface<double> left_back_control_velocity_;
