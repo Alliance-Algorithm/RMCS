@@ -16,7 +16,7 @@ public:
     PowerController()
         : Node(
               get_component_name(),
-              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)),logger_(get_logger()) {
         auto motor_names = get_parameter("motors").as_string_array();
         motors_.reserve(motor_names.size());
         for (const auto& motor_name : motor_names)
@@ -126,6 +126,8 @@ private:
     InputInterface<double> chassis_power_referee_;
     InputInterface<double> chassis_buffer_energy_referee_;
     InputInterface<double> chassis_power_limit_referee_;
+
+    rclcpp::Logger logger_;
 };
 
 } // namespace rmcs_core::controller::chassis

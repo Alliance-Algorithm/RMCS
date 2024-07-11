@@ -17,7 +17,7 @@ public:
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , pid_calculator_(
               get_parameter("kp").as_double(), get_parameter("ki").as_double(),
-              get_parameter("kd").as_double()) {
+              get_parameter("kd").as_double()) ,logger_(get_logger()){
 
         register_input(get_parameter("measurement").as_string(), measurement_);
 
@@ -29,7 +29,6 @@ public:
         } else {
             register_input(parameter_setpoint.as_string(), setpoint_);
         }
-        
         register_output(get_parameter("control").as_string(), control_);
 
         get_parameter("integral_min", pid_calculator_.integral_min);
@@ -41,6 +40,9 @@ public:
     void update() override {
         auto err  = *setpoint_ - *measurement_;
         *control_ = pid_calculator_.update(err);
+        // if (get_component_name() == "left_front_wheel_split_pid_controller" || get_component_name() == "left_back_wheel_split_pid_controller") {
+        //     RCLCPP_INFO(logger_, "%f %f %f %f %f %f", pid_calculator_.kp, pid_calculator_.ki, pid_calculator_.kd, *setpoint_, *measurement_, *control_);
+        // }
     }
 
 private:
@@ -49,6 +51,10 @@ private:
     InputInterface<double> measurement_;
     InputInterface<double> setpoint_;
     double setpoint_immediate_value_;
+
+    rclcpp::Logger logger_;
+
+    
 
     OutputInterface<double> control_;
 };

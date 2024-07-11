@@ -37,8 +37,8 @@ public:
 
         static_part.type    = 0x11;
         dynamic_part.can_id = 0x1FE;
-        gimbal_yaw_motor_.write_command_to_package(package, 0);
-        gimbal_pitch_motor_.write_command_to_package(package, 1);
+        // gimbal_yaw_motor_.write_command_to_package(package, 0);
+        // gimbal_pitch_motor_.write_command_to_package(package, 1);
         dynamic_part.current[2] = dynamic_part.current[3] = 0;
         send(serial, package);
         std::this_thread::sleep_for(std::chrono::microseconds(50));
@@ -51,22 +51,26 @@ public:
         chassis_wheel_motors_[3].write_command_to_package(package, 3);
         send(serial, package);
         std::this_thread::sleep_for(std::chrono::microseconds(50));
+        // RCLCPP_INFO(get_logger(), "%d %d %d %d", (int)dynamic_part.current[0], (int)dynamic_part.current[1], (int)dynamic_part.current[2], (int)dynamic_part.current[3]);
+        // RCLCPP_INFO(this->get_logger(),"hello %f,%f",(*chassis_wheel_motors_[0].motor_)->get_torque()
+        // ,(*chassis_wheel_motors_[0].motor_)->get_torque());
 
         // steering control
-        dynamic_part.can_id = 0X1fe;
+        static_part.type    = 0x12;
+        dynamic_part.can_id = 0X1FE;
         chassis_steering_motors_[0].write_command_to_package(package, 0);
         chassis_steering_motors_[1].write_command_to_package(package, 1);
         chassis_steering_motors_[2].write_command_to_package(package, 2);
         chassis_steering_motors_[3].write_command_to_package(package, 3);
+
         send(serial, package);
         std::this_thread::sleep_for(std::chrono::microseconds(50));
 
-        static_part.type        = 0x12;
         dynamic_part.can_id     = 0x200;
         dynamic_part.current[0] = 0;
-        gimbal_bullet_feeder_.write_command_to_package(package, 1);
-        gimbal_left_friction_.write_command_to_package(package, 2);
-        gimbal_right_friction_.write_command_to_package(package, 3);
+        // gimbal_bullet_feeder_.write_command_to_package(package, 1);
+        // gimbal_left_friction_.write_command_to_package(package, 2);
+        // gimbal_right_friction_.write_command_to_package(package, 3);
         send(serial, package);
     }
 
@@ -85,24 +89,24 @@ private:
 
     DjiMotorCommand chassis_wheel_motors_[4] = {
         {this,  "/chassis/left_front_wheel"},
-        {this, "/chassis/right_front_wheel"},
+        {this, "/chassis/left_back_wheel"},
         {this,  "/chassis/right_back_wheel"},
-        {this,   "/chassis/left_back_wheel"}
+        {this,   "/chassis/right_front_wheel"}
     };
 
     DjiMotorCommand chassis_steering_motors_[4] = {
         {this,  "/chassis/left_front_steering"},
-        {this, "/chassis/right_front_steering"},
+        {this, "/chassis/left_back_steering"},
         {this,  "/chassis/right_back_steering"},
-        {this,   "/chassis/left_back_steering"}
+        {this,   "/chassis/right_front_steering"}
     };
 
-    DjiMotorCommand gimbal_yaw_motor_   = {this, "/gimbal/yaw"};
-    DjiMotorCommand gimbal_pitch_motor_ = {this, "/gimbal/pitch"};
+    // DjiMotorCommand gimbal_yaw_motor_   = {this, "/gimbal/yaw"};
+    // DjiMotorCommand gimbal_pitch_motor_ = {this, "/gimbal/pitch"};
 
-    DjiMotorCommand gimbal_left_friction_  = {this, "/gimbal/left_friction"};
-    DjiMotorCommand gimbal_right_friction_ = {this, "/gimbal/right_friction"};
-    DjiMotorCommand gimbal_bullet_feeder_  = {this, "/gimbal/bullet_feeder"};
+    // DjiMotorCommand gimbal_left_friction_  = {this, "/gimbal/left_friction"};
+    // DjiMotorCommand gimbal_right_friction_ = {this, "/gimbal/right_friction"};
+    // DjiMotorCommand gimbal_bullet_feeder_  = {this, "/gimbal/bullet_feeder"};
 };
 
 } // namespace rmcs_core::hardware::cboard

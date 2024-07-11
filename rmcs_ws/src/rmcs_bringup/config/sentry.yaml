@@ -3,67 +3,113 @@ rmcs_executor:
     update_rate: 1000.0
     components:
       - rmcs_core::hardware::cboard::Status -> cboard_status
-      - rmcs_referee::Status -> referee_status
+      # - rmcs_referee::Status -> referee_status
 
       - rmcs_core::controller::chassis::ChassisController -> chassis_controller
-      - rmcs_core::controller::pid::PidController -> left_front_wheel_angle_pid_controller
-      - rmcs_core::controller::pid::PidController -> left_back_wheel_angle_pid_controller
-      - rmcs_core::controller::pid::PidController -> right_back_wheel_angle_pid_controller
-      - rmcs_core::controller::pid::PidController -> right_front_wheel_angle_pid_controller
+      - rmcs_core::controller::pid::ErrorPidController -> left_front_angle_error_pid_controller
+      - rmcs_core::controller::pid::ErrorPidController -> left_back_angle_error_pid_controller
+      - rmcs_core::controller::pid::ErrorPidController -> right_back_angle_error_pid_controller
+      - rmcs_core::controller::pid::ErrorPidController -> right_front_angle_error_pid_controller
+      # - rmcs_core::controller::pid::PidController -> left_front_wheel_angle_pid_controller
+      # - rmcs_core::controller::pid::PidController -> left_back_wheel_angle_pid_controller
+      # - rmcs_core::controller::pid::PidController -> right_back_wheel_angle_pid_controller
+      # - rmcs_core::controller::pid::PidController -> right_front_wheel_angle_pid_controller
+
       - rmcs_core::controller::pid::PidController -> left_front_wheel_split_pid_controller
       - rmcs_core::controller::pid::PidController -> left_back_wheel_split_pid_controller
       - rmcs_core::controller::pid::PidController -> right_back_wheel_split_pid_controller
       - rmcs_core::controller::pid::PidController -> right_front_wheel_split_pid_controller
-      - rmcs_core::controller::chassis::PowerController -> chassis_power_controller
+      # - rmcs_core::controller::chassis::PowerController -> chassis_power_controller
+
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+
+      - rmcs_core::hardware::cboard::Command -> cboard_command
 
 cboard_status:
   ros__parameters:
     path: /dev/ttyACM0
     yaw_motor_zero_point: 3088
     pitch_motor_zero_point: 381
+    left_front_motor_zero_point: 4146
+    left_back_motor_zero_point: 7866
+    right_back_motor_zero_point: 7469
+    right_front_motor_zero_point: 1633
     imu_gx_bias: -0.001279
     imu_gy_bias: -0.001447
     imu_gz_bias: +0.002188
 
-referee_status:
-  ros__parameters:
-    path: /dev/ttyUSB0
+# referee_status:
+#   ros__parameters:
+#     path: /dev/ttyUSB0
 
-left_front_wheel_angle_pid_controller:
+left_front_angle_error_pid_controller:
   ros__parameters:
-    measurement: /chassis/left_front_steering/angle
-    setpoint: /chassis/left_front_steering/control_angle
-    control: /chassis/left_front_steering/control_angle_torque_unrestricted
-    kp: 0.185
+    measurement: /chassis/left_front_steering/control_angle_error
+    control: /chassis/left_front_steering/control_torque
+    kp: 0.80
     ki: 0.00
-    kd: 0.00
+    kd: 0.004
 
-left_back_wheel_angle_pid_controller:
+left_back_angle_error_pid_controller:
   ros__parameters:
-    measurement: /chassis/left_back_steering/angle
-    setpoint: /chassis/left_back_steering/control_angle
-    control: /chassis/left_back_steering/control_angle_torque_unrestricted
-    kp: 0.185
+    measurement: /chassis/left_back_steering/control_angle_error
+    control: /chassis/left_back_steering/control_torque
+    kp:  0.80
     ki: 0.00
-    kd: 0.00
+    kd: 0.004
 
-right_back_wheel_angle_pid_controller:
+right_back_angle_error_pid_controller:
   ros__parameters:
-    measurement: /chassis/right_back_steering/angle
-    setpoint: /chassis/right_back_steering/control_angle
-    control: /chassis/right_back_steering/control_angle_torque_unrestricted
-    kp: 0.185
+    measurement: /chassis/right_back_steering/control_angle_error
+    control: /chassis/right_back_steering/control_torque
+    kp:  0.80
     ki: 0.00
-    kd: 0.00
+    kd: 0.004
 
-right_front_wheel_angle_pid_controller:
+right_front_angle_error_pid_controller:
   ros__parameters:
-    measurement: /chassis/right_front_steering/angle
-    setpoint: /chassis/right_front_steering/control_angle
-    control: /chassis/right_front_steering/control_angle_torque_unrestricted
-    kp: 0.185
+    measurement: /chassis/right_front_steering/control_angle_error
+    control: /chassis/right_front_steering/control_torque
+    kp:  0.80
     ki: 0.00
-    kd: 0.00
+    kd: 0.004
+#---------
+
+# left_front_wheel_angle_pid_controller:
+#   ros__parameters:
+#     measurement: /chassis/left_front_steering/angle
+#     setpoint: /chassis/left_front_steering/control_velocity
+#     control: /chassis/left_front_steering/control_torque
+#     kp: 0.5
+#     ki: 0.00
+#     kd: 0.00
+
+# left_back_wheel_angle_pid_controller:
+#   ros__parameters:
+#     measurement: /chassis/left_back_steering/angle
+#     setpoint: /chassis/left_back_steering/control_velocity
+#     control: /chassis/left_back_steering/control_torque
+#     kp: 0.5
+#     ki: 0.00
+#     kd: 0.00
+
+# right_back_wheel_angle_pid_controller:
+#   ros__parameters:
+#     measurement: /chassis/right_back_steering/angle
+#     setpoint: /chassis/right_back_steering/control_velocity
+#     control: /chassis/right_back_steering/control_torque
+#     kp: 0.5
+#     ki: 0.00
+#     kd: 0.00
+
+# right_front_wheel_angle_pid_controller:
+#   ros__parameters:
+#     measurement: /chassis/right_front_steering/angle
+#     setpoint: /chassis/right_front_steering/control_velocity
+#     control: /chassis/right_front_steering/control_torque
+#     kp: 0.5
+#     ki: 0.00
+#     kd: 0.00
 
 #===========
 
@@ -71,7 +117,7 @@ left_front_wheel_split_pid_controller:
   ros__parameters:
     measurement: /chassis/left_front_wheel/velocity
     setpoint: /chassis/left_front_wheel/control_velocity
-    control: /chassis/left_front_wheel/control_velocity_torque_unrestricted
+    control: /chassis/left_front_wheel/control_torque
     kp: 0.185
     ki: 0.00
     kd: 0.00
@@ -80,7 +126,7 @@ left_back_wheel_split_pid_controller:
   ros__parameters:
     measurement: /chassis/left_back_wheel/velocity
     setpoint: /chassis/left_back_wheel/control_velocity
-    control: /chassis/left_back_wheel/control_velocity_torque_unrestricted
+    control: /chassis/left_back_wheel/control_torque
     kp: 0.185
     ki: 0.00
     kd: 0.00
@@ -89,7 +135,7 @@ right_back_wheel_split_pid_controller:
   ros__parameters:
     measurement: /chassis/right_back_wheel/velocity
     setpoint: /chassis/right_back_wheel/control_velocity
-    control: /chassis/right_back_wheel/control_velocity_torque_unrestricted
+    control: /chassis/right_back_wheel/control_torque
     kp: 0.185
     ki: 0.00
     kd: 0.00
@@ -98,20 +144,20 @@ right_front_wheel_split_pid_controller:
   ros__parameters:
     measurement: /chassis/right_front_wheel/velocity
     setpoint: /chassis/right_front_wheel/control_velocity
-    control: /chassis/right_front_wheel/control_velocity_torque_unrestricted
+    control: /chassis/right_front_wheel/control_torque
     kp: 0.185
     ki: 0.00
     kd: 0.00
 
-chassis_power_controller:
-  ros__parameters:
-    motors:
-      - /chassis/left_front_steering
-      - /chassis/left_back_steering
-      - /chassis/right_back_steering
-      - /chassis/right_front_steering
-      - /chassis/left_front_wheel
-      - /chassis/left_back_wheel
-      - /chassis/right_back_wheel
-      - /chassis/right_front_wheel
+# chassis_power_controller:
+#   ros__parameters:
+#     motors:
+#       - /chassis/left_front_steering
+#       - /chassis/left_back_steering
+#       - /chassis/right_back_steering
+#       - /chassis/right_front_steering
+#       - /chassis/left_front_wheel
+#       - /chassis/left_back_wheel
+#       - /chassis/right_back_wheel
+#       - /chassis/right_front_wheel
       

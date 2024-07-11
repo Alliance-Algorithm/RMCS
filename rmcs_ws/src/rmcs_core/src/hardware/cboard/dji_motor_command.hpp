@@ -4,6 +4,7 @@
 
 #include <algorithm>
 
+#include <rclcpp/logger.hpp>
 #include <rmcs_executor/component.hpp>
 
 #include "hardware/cboard/dji_motor_status.hpp"
@@ -16,6 +17,7 @@ public:
     DjiMotorCommand(rmcs_executor::Component* component, const std::string& name_prefix) {
         component->register_input(name_prefix + "/motor", motor_);
         component->register_input(name_prefix + "/control_torque", control_torque_);
+
     }
     DjiMotorCommand(const DjiMotorCommand&)            = delete;
     DjiMotorCommand& operator=(const DjiMotorCommand&) = delete;
@@ -35,9 +37,8 @@ public:
         dynamic_part.current[index] = static_cast<short>(current);
     }
 
-private:
     rmcs_executor::Component::InputInterface<DjiMotorStatus*> motor_;
-
+private:
     rmcs_executor::Component::InputInterface<double> control_torque_;
 };
 
