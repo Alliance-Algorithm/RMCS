@@ -1,14 +1,20 @@
 #include <algorithm>
+#include <chrono>
 #include <iterator>
 #include <limits>
 #include <numbers>
 
 #include <eigen3/Eigen/Dense>
+#include <rclcpp/create_publisher.hpp>
+#include <rclcpp/create_timer.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/switch.hpp>
+
+#include <std_msgs/msg/detail/float64__struct.hpp>
+#include <std_msgs/msg/float64.hpp>
 
 #include "controller/pid/pid_calculator.hpp"
 
@@ -22,7 +28,7 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , following_velocity_controller_(30.0, 0.01, 300) {
+        , following_velocity_controller_(30.0, 0.01, 300) ,logger_(get_logger()){
         following_velocity_controller_.integral_max = 40;
         following_velocity_controller_.integral_min = -40;
 
@@ -45,9 +51,14 @@ public:
             "/chassis/right_back_wheel/control_velocity", right_back_control_velocity_, nan);
         register_output(
             "/chassis/right_front_wheel/control_velocity", right_front_control_velocity_, nan);
+            publisher_ = this->create_publisher<std_msgs::msg::Float64>("/armor/angle",20);
     }
 
     void update() override {
+        auto msg  = std_msgs::msg::Float64();
+        msg.data = *gimbal_yaw_angle_;
+        publisher_->publish(msg);
+        RCLCPP_INFO(logger_, "angle = %f", *gimbal_yaw_angle_);
         using namespace rmcs_msgs;
 
         auto switch_right = *switch_right_;
@@ -193,7 +204,7 @@ private:
     rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Switch last_switch_left_  = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Keyboard last_keyboard_   = rmcs_msgs::Keyboard::zero();
-
+    rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr publisher_;
     bool spinning_ = false, following_ = false;
     pid::PidCalculator following_velocity_controller_;
 
@@ -201,6 +212,10 @@ private:
     OutputInterface<double> left_back_control_velocity_;
     OutputInterface<double> right_back_control_velocity_;
     OutputInterface<double> right_front_control_velocity_;
+
+    rclcpp::Logger logger_;
+
+    long long tick_;
 };
 
 } // namespace rmcs_core::controller::chassis
