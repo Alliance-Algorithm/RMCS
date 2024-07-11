@@ -8,6 +8,13 @@
   <license>TODO: License declaration</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
+  
+  <member_of_group>rosidl_interface_packages</member_of_group>
+  
+  <depend>rclcpp</depend>
+  <depend>std_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>builtin_interfaces</depend>
 
   <export>
     <build_type>ament_cmake</build_type>
