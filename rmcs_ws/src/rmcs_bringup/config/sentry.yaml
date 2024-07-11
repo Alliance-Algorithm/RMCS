@@ -69,36 +69,36 @@ right_front_wheel_angle_pid_controller:
 
 left_front_wheel_split_pid_controller:
   ros__parameters:
-    measurement: /chassis/left_front_wheel/split
-    setpoint: /chassis/left_front_wheel/control_split
-    control: /chassis/left_front_wheel/control_split_torque_unrestricted
+    measurement: /chassis/left_front_wheel/velocity
+    setpoint: /chassis/left_front_wheel/control_velocity
+    control: /chassis/left_front_wheel/control_velocity_torque_unrestricted
     kp: 0.185
     ki: 0.00
     kd: 0.00
 
 left_back_wheel_split_pid_controller:
   ros__parameters:
-    measurement: /chassis/left_back_wheel/split
-    setpoint: /chassis/left_back_wheel/control_split
-    control: /chassis/left_back_wheel/control_split_torque_unrestricted
+    measurement: /chassis/left_back_wheel/velocity
+    setpoint: /chassis/left_back_wheel/control_velocity
+    control: /chassis/left_back_wheel/control_velocity_torque_unrestricted
     kp: 0.185
     ki: 0.00
     kd: 0.00
 
 right_back_wheel_split_pid_controller:
   ros__parameters:
-    measurement: /chassis/right_back_wheel/split
-    setpoint: /chassis/right_back_wheel/control_split
-    control: /chassis/right_back_wheel/control_split_torque_unrestricted
+    measurement: /chassis/right_back_wheel/velocity
+    setpoint: /chassis/right_back_wheel/control_velocity
+    control: /chassis/right_back_wheel/control_velocity_torque_unrestricted
     kp: 0.185
     ki: 0.00
     kd: 0.00
 
 right_front_wheel_split_pid_controller:
   ros__parameters:
-    measurement: /chassis/right_front_wheel/split
-    setpoint: /chassis/right_front_wheel/control_split
-    control: /chassis/right_front_wheel/control_split_torque_unrestricted
+    measurement: /chassis/right_front_wheel/velocity
+    setpoint: /chassis/right_front_wheel/control_velocity
+    control: /chassis/right_front_wheel/control_velocity_torque_unrestricted
     kp: 0.185
     ki: 0.00
     kd: 0.00
@@ -106,11 +106,12 @@ right_front_wheel_split_pid_controller:
 chassis_power_controller:
   ros__parameters:
     motors:
+      - /chassis/left_front_steering
+      - /chassis/left_back_steering
+      - /chassis/right_back_steering
+      - /chassis/right_front_steering
       - /chassis/left_front_wheel
       - /chassis/left_back_wheel
       - /chassis/right_back_wheel
       - /chassis/right_front_wheel
-      - /chassis/left_front_wheel
-      - /chassis/left_back_wheel
-      - /chassis/right_back_wheel
-      - /chassis/right_front_wheel
+      

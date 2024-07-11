@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <iterator>
 #include <limits>
 #include <numbers>
@@ -37,26 +38,43 @@ public:
         register_input("/remote/switch/right", switch_right_);
         register_input("/remote/switch/left", switch_left_);
 
-        register_input("/gimbal/yaw/angle", gimbal_yaw_angle_);
-        register_input("/gimbal/yaw/control_angle_error", gimbal_yaw_angle_error_);
+        register_input(
+            "/controller/mpc/left_front_steering/control_angle", mpc_left_front_control_angle_);
+        register_input(
+            "/controller/mpc/left_back_steering/control_angle", mpc_left_back_control_angle_);
+        register_input(
+            "/controller/mpc/right_back_steering/control_angle", mpc_right_back_control_angle_);
+        register_input(
+            "/controller/mpc/right_front_steering/control_angle", mpc_right_front_control_angle_);
+
+        register_input(
+            "/controller/mpc/left_front_wheel/control_velocity", mpc_left_front_control_velocity_);
+        register_input(
+            "/controller/mpc/left_back_wheel/control_velocity", mpc_left_back_control_velocity_);
+        register_input(
+            "/controller/mpc/right_back_wheel/control_velocity", mpc_right_back_control_velocity_);
+        register_input(
+            "/controller/mpc/right_front_wheel/control_velocity", mpc_right_front_control_velocity_);
+
+
 
         register_output(
-            "/chassis/left_front_wheel/control_angle", left_front_control_angle_, nan);
+            "/chassis/left_front_steering/control_angle", left_front_control_angle_, nan);
         register_output(
-            "/chassis/left_back_wheel/control_angle", left_back_control_angle_, nan);
+            "/chassis/left_back_steering/control_angle", left_back_control_angle_, nan);
         register_output(
-            "/chassis/right_back_wheel/control_angle", right_back_control_angle_, nan);
+            "/chassis/right_back_steering/control_angle", right_back_control_angle_, nan);
         register_output(
-            "/chassis/right_front_wheel/control_angle", right_front_control_angle_, nan);
+            "/chassis/right_front_steering/control_angle", right_front_control_angle_, nan);
 
         register_output(
-            "/chassis/left_front_wheel/control_split", left_front_control_split_, nan);
+            "/chassis/left_front_wheel/control_velocity", left_front_control_velocity_, nan);
         register_output(
-            "/chassis/left_back_wheel/control_split", left_back_control_split_, nan);
+            "/chassis/left_back_wheel/control_velocity", left_back_control_velocity_, nan);
         register_output(
-            "/chassis/right_back_wheel/control_split", right_back_control_split_, nan);
+            "/chassis/right_back_wheel/control_velocity", right_back_control_velocity_, nan);
         register_output(
-            "/chassis/right_front_wheel/control_split", right_front_control_split_, nan);
+            "/chassis/right_front_wheel/control_velocity", right_front_control_velocity_, nan);
 
         publisher_ = this->create_publisher<std_msgs::msg::Float64>("/armor/angle",20);
     }
@@ -102,13 +120,13 @@ public:
         *left_front_control_angle_  = nan;
         *left_back_control_angle_   = nan;
         *right_back_control_angle_  = nan;
-        *left_front_control_angle_  = nan;
+        *right_front_control_angle_  = nan;
 
 
-        *left_front_control_split_  = nan;
-        *left_front_control_split_  = nan;
-        *left_front_control_split_  = nan;
-        *left_front_control_split_  = nan;
+        *left_front_control_velocity_  = nan;
+        *left_back_control_velocity_  = nan;
+        *right_back_control_velocity_  = nan;
+        *right_front_control_velocity_  = nan;
     }
 
     void update_wheel_velocities(Eigen::Vector2d move) {
@@ -117,41 +135,35 @@ public:
         }
 
         double angle[4];
-        calculate_wheel_velocity_for_forwarding(angle, move);
+        double velocity[4];
+        calculate_wheel_velocity_for_forwarding(angle,velocity, move);
 
-        if (spinning_) {
-            add_wheel_velocity_for_spinning(
-                angle, 0.4 * wheel_speed_limit, 0.2 * wheel_speed_limit);
-        } else if (following_) {
-            double err = -*gimbal_yaw_angle_ - *gimbal_yaw_angle_error_;
-            err        = std::fmod(err, 2 * std::numbers::pi);
-            if (err > std::numbers::pi)
-                err -= 2 * std::numbers::pi;
-            else if (err < -std::numbers::pi)
-                err += 2 * std::numbers::pi;
+        *left_front_control_angle_  = angle[0] + *mpc_left_front_control_angle_;
+        *left_back_control_angle_   = angle[1] + *mpc_left_back_control_angle_;
+        *right_back_control_angle_  = angle[2] + *mpc_right_back_control_angle_;
+        *right_front_control_angle_ = angle[3] + *mpc_right_front_control_angle_;
 
-            double velocity_for_spinning = std::clamp(
-                following_velocity_controller_.update(err), -wheel_speed_limit, wheel_speed_limit);
-            add_wheel_velocity_for_spinning(
-                angle, velocity_for_spinning, 0.6 * wheel_speed_limit);
-        }
-
-        *left_front_control_angle_  = angle[0];
-        *left_back_control_angle_   = angle[1];
-        *right_back_control_angle_  = angle[2];
-        *right_front_control_angle_ = angle[3];
+        *left_front_control_velocity_  = velocity[0] + *mpc_left_front_control_velocity_;
+        *left_back_control_velocity_  = velocity[0] + *mpc_left_back_control_velocity_;
+        *right_back_control_velocity_  = velocity[0] + *mpc_right_back_control_velocity_;
+        *right_front_control_velocity_  = velocity[0] + *mpc_right_front_control_velocity_;
     }
 
     static inline void
-        calculate_wheel_velocity_for_forwarding(double (&velocities)[4], Eigen::Vector2d move) {
+        calculate_wheel_velocity_for_forwarding(double (&angle)[4],double(& velocity)[4], Eigen::Vector2d move) {
 
-        double right_oblique = wheel_speed_limit * (-move.y() * cos_45 + move.x() * sin_45);
-        double left_oblique  = wheel_speed_limit * (move.x() * cos_45 + move.y() * sin_45);
+        auto v = move.norm();
+        auto anlge = atan2(move.y() , move.x());
+        
+        velocity[0] = v;
+        velocity[0] = v;
+        velocity[0] = v;
+        velocity[0] = v;
 
-        velocities[0] = right_oblique;
-        velocities[1] = left_oblique;
-        velocities[2] = -right_oblique;
-        velocities[3] = -left_oblique;
+        angle[0] = anlge;
+        angle[1] = anlge;
+        angle[2] = -anlge;
+        angle[3] = -anlge;
     };
 
     constexpr static inline void add_wheel_velocity_for_spinning(
@@ -208,10 +220,21 @@ private:
 
     rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Switch last_switch_left_  = rmcs_msgs::Switch::UNKNOWN;
-    rmcs_msgs::Keyboard last_keyboard_   = rmcs_msgs::Keyboard::zero();
+    
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr publisher_;
     bool spinning_ = false, following_ = false;
+    
     pid::PidCalculator following_velocity_controller_;
+
+    InputInterface<double> mpc_left_front_control_angle_;
+    InputInterface<double> mpc_left_back_control_angle_;
+    InputInterface<double> mpc_right_back_control_angle_;
+    InputInterface<double> mpc_right_front_control_angle_;
+
+    InputInterface<double> mpc_left_front_control_velocity_;
+    InputInterface<double> mpc_left_back_control_velocity_;
+    InputInterface<double> mpc_right_back_control_velocity_;
+    InputInterface<double> mpc_right_front_control_velocity_;
 
     OutputInterface<double> left_front_control_angle_;
     OutputInterface<double> left_back_control_angle_;
@@ -219,10 +242,10 @@ private:
     OutputInterface<double> right_front_control_angle_;
 
 
-    OutputInterface<double> left_front_control_split_;
-    OutputInterface<double> left_back_control_split_;
-    OutputInterface<double> right_back_control_split_;
-    OutputInterface<double> right_front_control_split_;
+    OutputInterface<double> left_front_control_velocity_;
+    OutputInterface<double> left_back_control_velocity_;
+    OutputInterface<double> right_back_control_velocity_;
+    OutputInterface<double> right_front_control_velocity_;
 
     rclcpp::Logger logger_;
 
