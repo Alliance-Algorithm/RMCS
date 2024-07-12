@@ -61,8 +61,7 @@ public:
         chassis_steering_motors_[0].write_command_to_package(package, 0);
         chassis_steering_motors_[1].write_command_to_package(package, 1);
         chassis_steering_motors_[2].write_command_to_package(package, 2);
-        chassis_steering_motors_[3].write_command_to_package(package, 3);
-
+        chassis_steering_motors_[3].write_command_to_package(package, 3);  
         send(serial, package);
         std::this_thread::sleep_for(std::chrono::microseconds(50));
 

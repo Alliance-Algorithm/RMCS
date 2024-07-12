@@ -30,10 +30,10 @@ cboard_status:
     path: /dev/ttyACM0
     yaw_motor_zero_point: 3088
     pitch_motor_zero_point: 381
-    left_front_motor_zero_point: 4146
-    left_back_motor_zero_point: 7866
-    right_back_motor_zero_point: 7469
-    right_front_motor_zero_point: 1633
+    left_front_motor_zero_point: 4089
+    left_back_motor_zero_point: 3410
+    right_back_motor_zero_point: 7442
+    right_front_motor_zero_point: 1690
     imu_gx_bias: -0.001279
     imu_gy_bias: -0.001447
     imu_gz_bias: +0.002188
@@ -46,7 +46,7 @@ left_front_angle_error_pid_controller:
   ros__parameters:
     measurement: /chassis/left_front_steering/control_angle_error
     control: /chassis/left_front_steering/control_torque
-    kp: 0.80
+    kp: 1.5
     ki: 0.00
     kd: 0.004
 
@@ -54,7 +54,7 @@ left_back_angle_error_pid_controller:
   ros__parameters:
     measurement: /chassis/left_back_steering/control_angle_error
     control: /chassis/left_back_steering/control_torque
-    kp:  0.80
+    kp:  1.5
     ki: 0.00
     kd: 0.004
 
@@ -62,7 +62,7 @@ right_back_angle_error_pid_controller:
   ros__parameters:
     measurement: /chassis/right_back_steering/control_angle_error
     control: /chassis/right_back_steering/control_torque
-    kp:  0.80
+    kp:  1.5
     ki: 0.00
     kd: 0.004
 
@@ -70,7 +70,7 @@ right_front_angle_error_pid_controller:
   ros__parameters:
     measurement: /chassis/right_front_steering/control_angle_error
     control: /chassis/right_front_steering/control_torque
-    kp:  0.80
+    kp:  1.5
     ki: 0.00
     kd: 0.004
 #---------

@@ -147,7 +147,7 @@ public:
 
         double angle[4]{nan,nan,nan,nan};
         double velocity[4]{0, 0, 0, 0};
-        calculate_wheel_velocity_for_forwarding(angle,velocity, move,spinning_ * M_PI);
+        calculate_wheel_velocity_for_forwarding(angle,velocity, move,spinning_ * M_PI/5);
 
         *left_front_control_angle_  = angle[0] - *left_front_angle_ ;//+ *mpc_left_front_control_angle_;
         *left_back_control_angle_   = angle[1] - *left_back_angle_;//+ *mpc_left_back_control_angle_;
@@ -167,7 +167,7 @@ public:
         *left_back_control_velocity_  = velocity[1] ;//+ *mpc_left_back_control_velocity_;
         *right_back_control_velocity_  = velocity[2] ;//+ *mpc_right_back_control_velocity_;
         *right_front_control_velocity_  = velocity[3] ;//+ *mpc_right_front_control_velocity_;
-            // RCLCPP_INFO(logger_, "angle = %f,%f" ,*right_front_control_velocity_ ,*right_back_control_velocity_);
+            RCLCPP_INFO(logger_, "angle = %f,%f" ,*left_front_angle_ ,*left_back_angle_);
 
     }
 
