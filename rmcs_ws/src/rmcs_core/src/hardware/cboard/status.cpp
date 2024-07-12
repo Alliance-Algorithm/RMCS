@@ -47,7 +47,7 @@ public:
         for (auto& motor : chassis_wheel_motors_)
             motor.configure(DjiMotorConfig{DjiMotorType::M3508}
                                 .reverse()
-                                .set_reduction_ratio(13.)
+                                .set_reduction_ratio(268. / 17.)
                                 .enable_multi_turn_angle());
 
         gimbal_yaw_motor_.configure(DjiMotorConfig{DjiMotorType::GM6020}.set_encoder_zero_point(
@@ -55,14 +55,18 @@ public:
         gimbal_pitch_motor_.configure(DjiMotorConfig{DjiMotorType::GM6020}.set_encoder_zero_point(
             static_cast<int>(get_parameter("pitch_motor_zero_point").as_int())));
 
-        chassis_steering_motors_[0].configure(DjiMotorConfig{DjiMotorType::GM6020}.set_encoder_zero_point(
-            static_cast<int>(get_parameter("left_front_motor_zero_point").as_int())));
-        chassis_steering_motors_[1].configure(DjiMotorConfig{DjiMotorType::GM6020}.set_encoder_zero_point(
-            static_cast<int>(get_parameter("left_back_motor_zero_point").as_int())));
-        chassis_steering_motors_[2].configure(DjiMotorConfig{DjiMotorType::GM6020}.set_encoder_zero_point(
-            static_cast<int>(get_parameter("right_back_motor_zero_point").as_int())));
-        chassis_steering_motors_[3].configure(DjiMotorConfig{DjiMotorType::GM6020}.set_encoder_zero_point(
-            static_cast<int>(get_parameter("right_front_motor_zero_point").as_int())));
+        chassis_steering_motors_[0].configure(
+            DjiMotorConfig{DjiMotorType::GM6020}.set_encoder_zero_point(
+                static_cast<int>(get_parameter("left_front_motor_zero_point").as_int())));
+        chassis_steering_motors_[1].configure(
+            DjiMotorConfig{DjiMotorType::GM6020}.set_encoder_zero_point(
+                static_cast<int>(get_parameter("left_back_motor_zero_point").as_int())));
+        chassis_steering_motors_[2].configure(
+            DjiMotorConfig{DjiMotorType::GM6020}.set_encoder_zero_point(
+                static_cast<int>(get_parameter("right_back_motor_zero_point").as_int())));
+        chassis_steering_motors_[3].configure(
+            DjiMotorConfig{DjiMotorType::GM6020}.set_encoder_zero_point(
+                static_cast<int>(get_parameter("right_front_motor_zero_point").as_int())));
 
         gimbal_left_friction_.configure(
             DjiMotorConfig{DjiMotorType::M3508}.set_reduction_ratio(1.));
@@ -151,7 +155,6 @@ private:
 
         auto can_id = package->dynamic_part<can_id_t>();
         using namespace rmcs_description;
-        
 
         // RCLCPP_INFO(logger_, "id= %d",can_id);
         if (can_id == 0x205) {
@@ -220,17 +223,17 @@ private:
     // DJI 3508 CAN1
     DjiMotorStatus chassis_wheel_motors_[4]{
         {this,  "/chassis/left_front_wheel"},
-        {this, "/chassis/left_back_wheel"},
+        {this,   "/chassis/left_back_wheel"},
         {this,  "/chassis/right_back_wheel"},
-        {this,   "/chassis/right_front_wheel"}
+        {this, "/chassis/right_front_wheel"}
     };
 
     // DJI 6020 CAN2
     DjiMotorStatus chassis_steering_motors_[4]{
         {this,  "/chassis/left_front_steering"},
-        {this, "/chassis/left_back_steering"},
+        {this,   "/chassis/left_back_steering"},
         {this,  "/chassis/right_back_steering"},
-        {this,   "/chassis/right_front_steering"}
+        {this, "/chassis/right_front_steering"}
     };
 
     DjiMotorStatus gimbal_yaw_motor_   = {this, "/gimbal/yaw"};
