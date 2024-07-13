@@ -122,7 +122,7 @@ public:
         angle_multi_turn_         = 0;
     }
 
-    void update_status(std::unique_ptr<Package> package, rclcpp::Logger& logger) {
+    void update(std::unique_ptr<Package> package, rclcpp::Logger& logger) {
         auto& static_part = package->static_part();
 
         if (package->dynamic_part_size() != sizeof(PackageDjiMotorFeedbackPart)) {

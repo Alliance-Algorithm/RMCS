@@ -20,7 +20,7 @@ public:
     DjiMotorCommand(const DjiMotorCommand&)            = delete;
     DjiMotorCommand& operator=(const DjiMotorCommand&) = delete;
 
-    void write_command_to_package(Package& package, size_t index) {
+    void write_command_to_package(Package& package, size_t index) const {
         auto& dynamic_part = package.dynamic_part<PackageDjiMotorControlPart>();
 
         double torque = *control_torque_;
