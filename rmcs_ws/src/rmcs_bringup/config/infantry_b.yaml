@@ -22,6 +22,7 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController -> right_back_wheel_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> right_front_wheel_velocity_pid_controller
       - rmcs_core::controller::chassis::PowerController -> chassis_power_controller
+      - rmcs_core::controller::chassis::SupercapController -> chassis_supercap_controller
 
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 
@@ -33,7 +34,6 @@ rmcs_executor:
       - rmcs_referee::Command -> referee_command
 
       - rmcs_auto_aim::Controller -> rmcs_auto_aim
-
 
 cboard_status:
   ros__parameters:
@@ -163,7 +163,6 @@ chassis_power_controller:
       - /chassis/left_back_wheel
       - /chassis/right_back_wheel
       - /chassis/right_front_wheel
-
 
 rmcs_auto_aim:
   ros__parameters:

@@ -22,40 +22,36 @@ public:
         for (const auto& motor_name : motor_names)
             motors_.push_back(std::make_unique<Motor>(this, motor_name));
 
-        register_input("/referee/chassis_power", chassis_power_referee_);
-        register_input("/referee/buffer_energy", chassis_buffer_energy_referee_);
-        register_input("/referee/chassis_power_limit", chassis_power_limit_referee_);
+        register_input("/chassis/control_power_limit", power_limit_);
     }
 
     void update() override {
-        double a = 0, b = 0, c = 0;
-
-        for (auto& motor : motors_) {
-            auto [ia, ib, ic] = motor->predict_power_formula();
-            a += ia;
-            b += ib;
-            c += ic;
-        }
-
-        double power     = a + b + c;
-        double power_max = *chassis_power_limit_referee_;
-
-        constexpr double buffer_energy_control_line = 50;
-        double power_reduction_factor =
-            std::min(1.0, *chassis_buffer_energy_referee_ / buffer_energy_control_line);
-        power_max *= power_reduction_factor;
-
+        double power_limit = *power_limit_;
         double k;
 
-        if (power <= power_max) {
-            k = 1;
+        if (std::isnan(power_limit) || power_limit <= 0) {
+            k = 0;
         } else {
-            c -= power_max;
-            k = (-b + std::sqrt(std::pow(b, 2) - 4 * a * c)) / (2 * a);
-            if (std::isnan(k))
-                k = 0;
-            else
-                k = std::clamp(k, 0.0, 1.0);
+            double a = 0, b = 0, c = 0;
+
+            for (auto& motor : motors_) {
+                auto [ia, ib, ic] = motor->predict_power_formula();
+                a += ia;
+                b += ib;
+                c += ic;
+            }
+
+            double power = a + b + c;
+            if (power <= power_limit) {
+                k = 1;
+            } else {
+                c -= power_limit;
+                k = (-b + std::sqrt(std::pow(b, 2) - 4 * a * c)) / (2 * a);
+                if (std::isnan(k))
+                    k = 0;
+                else
+                    k = std::clamp(k, 0.0, 1.0);
+            }
         }
 
         for (auto& motor : motors_) {
@@ -123,9 +119,7 @@ private:
     };
 
     std::vector<std::unique_ptr<Motor>> motors_;
-    InputInterface<double> chassis_power_referee_;
-    InputInterface<double> chassis_buffer_energy_referee_;
-    InputInterface<double> chassis_power_limit_referee_;
+    InputInterface<double> power_limit_;
 };
 
 } // namespace rmcs_core::controller::chassis

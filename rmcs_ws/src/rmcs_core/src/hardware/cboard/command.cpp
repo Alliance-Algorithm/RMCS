@@ -9,6 +9,7 @@
 
 #include "hardware/cboard/dji_motor_command.hpp"
 #include "hardware/cboard/package.hpp"
+#include "hardware/cboard/supercap_command.hpp"
 
 namespace rmcs_core::hardware::cboard {
 
@@ -39,7 +40,8 @@ public:
         dynamic_part.can_id = 0x1FE;
         gimbal_yaw_motor_.write_command_to_package(package, 0);
         gimbal_pitch_motor_.write_command_to_package(package, 1);
-        dynamic_part.current[2] = dynamic_part.current[3] = 0;
+        dynamic_part.current[2] = 0;
+        supercap_.write_command_to_package(package, 3);
         send(serial, package);
         std::this_thread::sleep_for(std::chrono::microseconds(50));
 
@@ -73,19 +75,20 @@ private:
 
     InputInterface<serial::Serial> serial_;
 
-    DjiMotorCommand chassis_wheel_motors_[4] = {
+    DjiMotorCommand chassis_wheel_motors_[4]{
         {this,  "/chassis/left_front_wheel"},
         {this, "/chassis/right_front_wheel"},
         {this,  "/chassis/right_back_wheel"},
         {this,   "/chassis/left_back_wheel"}
     };
+    SupercapCommand supercap_{this};
 
-    DjiMotorCommand gimbal_yaw_motor_   = {this, "/gimbal/yaw"};
-    DjiMotorCommand gimbal_pitch_motor_ = {this, "/gimbal/pitch"};
+    DjiMotorCommand gimbal_yaw_motor_{this, "/gimbal/yaw"};
+    DjiMotorCommand gimbal_pitch_motor_{this, "/gimbal/pitch"};
 
-    DjiMotorCommand gimbal_left_friction_  = {this, "/gimbal/left_friction"};
-    DjiMotorCommand gimbal_right_friction_ = {this, "/gimbal/right_friction"};
-    DjiMotorCommand gimbal_bullet_feeder_ = {this, "/gimbal/bullet_feeder"};
+    DjiMotorCommand gimbal_left_friction_{this, "/gimbal/left_friction"};
+    DjiMotorCommand gimbal_right_friction_{this, "/gimbal/right_friction"};
+    DjiMotorCommand gimbal_bullet_feeder_{this, "/gimbal/bullet_feeder"};
 };
 
 } // namespace rmcs_core::hardware::cboard

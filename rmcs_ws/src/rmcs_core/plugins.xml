@@ -8,6 +8,9 @@
   <class type="rmcs_core::controller::chassis::PowerController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
+  <class type="rmcs_core::controller::chassis::SupercapController" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
   <class type="rmcs_core::controller::gimbal::GimbalController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>

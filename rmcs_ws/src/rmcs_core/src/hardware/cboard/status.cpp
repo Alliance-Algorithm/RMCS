@@ -11,6 +11,7 @@
 #include "hardware/cboard/dr16_status.hpp"
 #include "hardware/cboard/imu_status.hpp"
 #include "hardware/cboard/package_receiver.hpp"
+#include "hardware/cboard/supercap_status.hpp"
 
 namespace rmcs_core::hardware::cboard {
 
@@ -111,26 +112,28 @@ private:
         using namespace rmcs_description;
         if (can_id == 0x201) {
             auto& motor = chassis_wheel_motors_[0];
-            motor.update_status(std::move(package), logger_);
+            motor.update(std::move(package), logger_);
             tf_->set_state<BaseLink, LeftFrontWheelLink>(motor.get_angle());
         } else if (can_id == 0x202) {
             auto& motor = chassis_wheel_motors_[1];
-            motor.update_status(std::move(package), logger_);
+            motor.update(std::move(package), logger_);
             tf_->set_state<BaseLink, RightFrontWheelLink>(motor.get_angle());
         } else if (can_id == 0x203) {
             auto& motor = chassis_wheel_motors_[2];
-            motor.update_status(std::move(package), logger_);
+            motor.update(std::move(package), logger_);
             tf_->set_state<BaseLink, RightBackWheelLink>(motor.get_angle());
         } else if (can_id == 0x204) {
             auto& motor = chassis_wheel_motors_[3];
-            motor.update_status(std::move(package), logger_);
+            motor.update(std::move(package), logger_);
             tf_->set_state<BaseLink, LeftBackWheelLink>(motor.get_angle());
         } else if (can_id == 0x205) {
-            gimbal_yaw_motor_.update_status(std::move(package), logger_);
+            gimbal_yaw_motor_.update(std::move(package), logger_);
             tf_->set_state<GimbalCenterLink, YawLink>(gimbal_yaw_motor_.get_angle());
         } else if (can_id == 0x206) {
-            gimbal_pitch_motor_.update_status(std::move(package), logger_);
+            gimbal_pitch_motor_.update(std::move(package), logger_);
             tf_->set_state<YawLink, PitchLink>(gimbal_pitch_motor_.get_angle());
+        } else if (can_id == 0x300) {
+            supercap_.update(std::move(package), logger_);
         }
     }
 
@@ -146,11 +149,11 @@ private:
 
         auto can_id = package->dynamic_part<can_id_t>();
         if (can_id == 0x202) {
-            gimbal_bullet_feeder_.update_status(std::move(package), logger_);
+            gimbal_bullet_feeder_.update(std::move(package), logger_);
         } else if (can_id == 0x203) {
-            gimbal_left_friction_.update_status(std::move(package), logger_);
+            gimbal_left_friction_.update(std::move(package), logger_);
         } else if (can_id == 0x204) {
-            gimbal_right_friction_.update_status(std::move(package), logger_);
+            gimbal_right_friction_.update(std::move(package), logger_);
         }
     }
 
@@ -195,19 +198,20 @@ private:
     OutputInterface<serial::Serial> serial_;
     PackageReceiver package_receiver_;
 
-    DjiMotorStatus chassis_wheel_motors_[4] = {
+    DjiMotorStatus chassis_wheel_motors_[4]{
         {this,  "/chassis/left_front_wheel"},
         {this, "/chassis/right_front_wheel"},
         {this,  "/chassis/right_back_wheel"},
         {this,   "/chassis/left_back_wheel"}
     };
+    SupercapStatus supercap_{this};
 
-    DjiMotorStatus gimbal_yaw_motor_   = {this, "/gimbal/yaw"};
-    DjiMotorStatus gimbal_pitch_motor_ = {this, "/gimbal/pitch"};
+    DjiMotorStatus gimbal_yaw_motor_{this, "/gimbal/yaw"};
+    DjiMotorStatus gimbal_pitch_motor_{this, "/gimbal/pitch"};
 
-    DjiMotorStatus gimbal_left_friction_  = {this, "/gimbal/left_friction"};
-    DjiMotorStatus gimbal_right_friction_ = {this, "/gimbal/right_friction"};
-    DjiMotorStatus gimbal_bullet_feeder_  = {this, "/gimbal/bullet_feeder"};
+    DjiMotorStatus gimbal_left_friction_{this, "/gimbal/left_friction"};
+    DjiMotorStatus gimbal_right_friction_{this, "/gimbal/right_friction"};
+    DjiMotorStatus gimbal_bullet_feeder_{this, "/gimbal/bullet_feeder"};
 
     Dr16Status dr16_{this};
 
