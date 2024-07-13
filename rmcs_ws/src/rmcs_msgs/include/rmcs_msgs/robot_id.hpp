@@ -53,7 +53,7 @@ public:
     constexpr bool operator==(const Value value) const { return value_ == value; }
     constexpr bool operator!=(const Value value) const { return value_ != value; }
 
-    constexpr RobotColor color() { return value_ & 0x40 ? RobotColor::BLUE : RobotColor::RED; }
+    constexpr RobotColor color() const { return value_ & 0x40 ? RobotColor::BLUE : RobotColor::RED; }
 
 private:
     Value value_;
