@@ -32,7 +32,7 @@ public:
         command.enabled = *supercap_control_enabled_;
 
         double power_limit = *supercap_control_power_limit_;
-        if (std::isnan(power_limit) || true)
+        if (std::isnan(power_limit))
             command.power_limit = 0;
         else
             command.power_limit = static_cast<uint8_t>(std::clamp(power_limit, 0.0, 255.0));
