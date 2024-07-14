@@ -184,3 +184,15 @@ rmcs_auto_aim:
     k3: 0.792381808294582
     omni_exposure: 1000.0
     test: 0.1107
+    omni_fx: 1.0941e+03 
+    omni_fy: 1.0961e+03
+    omni_cx: 9.596707e+02
+    omni_cy: 5.860586e+02
+    omni_k1: 0.0829
+    omni_k2: -0.1184
+    omni_k3: 0.0501
+    test: 0.1107
+    fps: 165
+    debug_color: 0 # 0 For blue while 1 for red
+    debug_robot_id: 4
+    debug_buff_mode: false

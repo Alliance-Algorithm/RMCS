@@ -71,3 +71,36 @@ ssh-remote
 # TODO: Remove directory restrictions
 sync-remote
 ```
+
+# How to make NUC connect to Internet
+
+## Gateway
+
+To make Ubuntu1 regarded as gateway, edit the `/etc/netplan/***.yaml`. A possible version is shown below.
+
+```
+# Let NetworkManager manage all devices on this system
+network:
+    ethernets:
+        ens32:                    ## network card name
+            dhcp4: false
+            addresses:
+              - 192.168.234.5/24   ## set static IP
+            routes:
+              - to: default
+                via: 192.168.234.1  ## gateway
+    version: 2
+```
+
+## Soft Route
+
+Assuming that Ubuntu 1 has wlp4s0 connected to Internet and eno1 connected to NUC, Run commands below in Ubuntu 1 to create a soft route.
+
+``` bash
+
+sudo iptables -A FORWARD -i eno1 -o eno2 -j ACCEPT
+sudo iptables -A FORWARD -i eno2 -o eno1 -m state --state ESTABLISHED,RELATED -j ACCEPT
+sudo iptables -t nat -A POSTROUTING -o eno2 -j MASQUERADE
+
+
+```
