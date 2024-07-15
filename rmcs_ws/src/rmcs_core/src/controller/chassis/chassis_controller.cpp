@@ -58,8 +58,8 @@ public:
                 break;
             }
 
+            auto mode = *mode_;
             if (switch_left != Switch::DOWN) {
-                auto mode = *mode_;
                 if ((last_switch_right_ == Switch::MIDDLE && switch_right == Switch::DOWN)
                     || (!last_keyboard_.c && keyboard.c)) {
                     mode = mode == rmcs_msgs::ChassisMode::SPIN ? rmcs_msgs::ChassisMode::AUTO
@@ -95,18 +95,48 @@ public:
                 --supercap_switch_cooling_;
             }
 
-            constexpr double buffer_energy_control_line = 50;
-            double power_reduction_factor =
-                std::min(1.0, *chassis_buffer_energy_referee_ / buffer_energy_control_line);
-            double power_limit_after_closed_loop =
-                *chassis_power_limit_referee_ * power_reduction_factor;
+            // Maximum excess power when buffer energy is sufficient.
+            constexpr double excess_power_limit = 35;
 
-            *supercap_control_power_limit_ = power_limit_after_closed_loop;
+            //        power_limit_after_buffer_energy_closed_loop =
+            constexpr double buffer_energy_control_line = 120; // = referee + excess
+            constexpr double buffer_energy_base_line    = 50;  // = referee
+            constexpr double buffer_energy_dead_line    = 0;   // = 0
+            double power_limit_after_buffer_energy_closed_loop =
+                *chassis_power_limit_referee_
+                    * std::clamp(
+                        (*chassis_buffer_energy_referee_ - buffer_energy_dead_line)
+                            / (buffer_energy_base_line - buffer_energy_dead_line),
+                        0.0, 1.0)
+                + excess_power_limit
+                      * std::clamp(
+                          (*chassis_buffer_energy_referee_ - buffer_energy_base_line)
+                              / (buffer_energy_control_line - buffer_energy_base_line),
+                          0.0, 1.0);
+            *supercap_control_power_limit_ = power_limit_after_buffer_energy_closed_loop;
 
             if (*supercap_control_enabled_ && *supercap_enabled_) {
-                *chassis_control_power_limit_ = 250.0;
+                double supercap_power_limit = mode == rmcs_msgs::ChassisMode::LAUNCH_RAMP
+                                                ? 250.0
+                                                : *chassis_power_limit_referee_ + 80.0;
+
+                //                                  chassis_control_power =
+                constexpr double supercap_voltage_control_line = 15.5; // = supercap
+                constexpr double supercap_voltage_base_line    = 13.5; // = referee
+                constexpr double supercap_voltage_dead_line    = 12.5; // = 0
+                *chassis_control_power_limit_ =
+                    *chassis_power_limit_referee_
+                        * std::clamp(
+                            (*supercap_voltage_ - supercap_voltage_dead_line)
+                                / (supercap_voltage_base_line - supercap_voltage_dead_line),
+                            0.0, 1.0)
+                    + (supercap_power_limit - *chassis_power_limit_referee_)
+                          * std::clamp(
+                              (*supercap_voltage_ - supercap_voltage_base_line)
+                                  / (supercap_voltage_control_line - supercap_voltage_base_line),
+                              0.0, 1.0);
             } else {
-                *chassis_control_power_limit_ = power_limit_after_closed_loop;
+                *chassis_control_power_limit_ = power_limit_after_buffer_energy_closed_loop;
             }
 
         } while (false);
@@ -116,7 +146,13 @@ public:
         last_keyboard_     = keyboard;
     }
 
-    void reset_all_controls() { *mode_ = rmcs_msgs::ChassisMode::AUTO; }
+    void reset_all_controls() {
+        *mode_ = rmcs_msgs::ChassisMode::AUTO;
+
+        *supercap_control_enabled_     = false;
+        *supercap_control_power_limit_ = 0.0;
+        *chassis_control_power_limit_  = 0.0;
+    }
 
 private:
     InputInterface<Eigen::Vector2d> joystick_right_;
