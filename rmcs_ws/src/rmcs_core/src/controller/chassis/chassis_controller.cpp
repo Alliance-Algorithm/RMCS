@@ -28,20 +28,29 @@ public:
 
         register_input("/gimbal/yaw/angle", gimbal_yaw_angle_);
 
-        register_output("/chassis/control_mode", mode_);
-        register_output("/chassis/control_move", move_);
-
         register_input("/chassis/supercap/voltage", supercap_voltage_);
         register_input("/chassis/supercap/enabled", supercap_enabled_);
 
         register_input("/referee/chassis/power_limit", chassis_power_limit_referee_);
         register_input("/referee/chassis/buffer_energy", chassis_buffer_energy_referee_);
 
+        register_output("/chassis/control_mode", mode_);
+        register_output("/chassis/control_move", move_);
+
         register_output("/chassis/supercap/control_enable", supercap_control_enabled_, false);
         register_output(
             "/chassis/supercap/control_power_limit", supercap_control_power_limit_, 0.0);
-
         register_output("/chassis/control_power_limit", chassis_control_power_limit_, 0.0);
+
+        register_output(
+            "/chassis/supercap/voltage/control_line", supercap_voltage_control_line_,
+            supercap_voltage_control_line);
+        register_output(
+            "/chassis/supercap/voltage/base_line", supercap_voltage_base_line_,
+            supercap_voltage_base_line);
+        register_output(
+            "/chassis/supercap/voltage/dead_line", supercap_voltage_dead_line_,
+            supercap_voltage_dead_line);
     }
 
     void update() override {
@@ -95,13 +104,6 @@ public:
                 --supercap_switch_cooling_;
             }
 
-            // Maximum excess power when buffer energy is sufficient.
-            constexpr double excess_power_limit = 35;
-
-            //        power_limit_after_buffer_energy_closed_loop =
-            constexpr double buffer_energy_control_line = 120; // = referee + excess
-            constexpr double buffer_energy_base_line    = 50;  // = referee
-            constexpr double buffer_energy_dead_line    = 0;   // = 0
             double power_limit_after_buffer_energy_closed_loop =
                 *chassis_power_limit_referee_
                     * std::clamp(
@@ -119,11 +121,6 @@ public:
                 double supercap_power_limit = mode == rmcs_msgs::ChassisMode::LAUNCH_RAMP
                                                 ? 250.0
                                                 : *chassis_power_limit_referee_ + 80.0;
-
-                //                                  chassis_control_power =
-                constexpr double supercap_voltage_control_line = 15.5; // = supercap
-                constexpr double supercap_voltage_base_line    = 13.5; // = referee
-                constexpr double supercap_voltage_dead_line    = 12.5; // = 0
                 *chassis_control_power_limit_ =
                     *chassis_power_limit_referee_
                         * std::clamp(
@@ -155,6 +152,19 @@ public:
     }
 
 private:
+    // Maximum excess power when buffer energy is sufficient.
+    static constexpr double excess_power_limit = 35;
+
+    //               power_limit_after_buffer_energy_closed_loop =
+    static constexpr double buffer_energy_control_line = 120; // = referee + excess
+    static constexpr double buffer_energy_base_line    = 50;  // = referee
+    static constexpr double buffer_energy_dead_line    = 0;   // = 0
+
+    //                                         chassis_control_power =
+    static constexpr double supercap_voltage_control_line = 13.5; // = supercap
+    static constexpr double supercap_voltage_base_line    = 11.5; // = referee
+    static constexpr double supercap_voltage_dead_line    = 10.5; // = 0
+
     InputInterface<Eigen::Vector2d> joystick_right_;
     InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;
@@ -183,6 +193,10 @@ private:
     OutputInterface<double> supercap_control_power_limit_;
 
     OutputInterface<double> chassis_control_power_limit_;
+
+    OutputInterface<double> supercap_voltage_control_line_;
+    OutputInterface<double> supercap_voltage_base_line_;
+    OutputInterface<double> supercap_voltage_dead_line_;
 };
 
 } // namespace rmcs_core::controller::chassis
