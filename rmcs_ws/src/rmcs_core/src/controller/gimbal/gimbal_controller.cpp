@@ -108,9 +108,9 @@ private:
         }
 
         auto delta_yaw = Eigen::AngleAxisd{
-            0.006 * joystick_left_->y() + 5.0 * mouse_velocity_->y(), Eigen::Vector3d::UnitZ()};
+            0.006 * joystick_left_->y() + 0.5 * mouse_velocity_->y(), Eigen::Vector3d::UnitZ()};
         auto delta_pitch = Eigen::AngleAxisd{
-            -0.006 * joystick_left_->x() - 5.0 * mouse_velocity_->x(), Eigen::Vector3d::UnitY()};
+            -0.006 * joystick_left_->x() - 0.5 * mouse_velocity_->x(), Eigen::Vector3d::UnitY()};
         *dir = delta_pitch * (delta_yaw * (*dir));
     }
 
