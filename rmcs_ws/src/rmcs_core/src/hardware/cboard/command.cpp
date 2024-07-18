@@ -43,7 +43,7 @@ public:
         dynamic_part.current[2] = 0;
         supercap_.write_command_to_package(package, 3);
         send(serial, package);
-        std::this_thread::sleep_for(std::chrono::microseconds(50));
+        std::this_thread::sleep_for(std::chrono::microseconds(15));
 
         dynamic_part.can_id = 0x200;
         chassis_wheel_motors_[0].write_command_to_package(package, 0);
@@ -51,9 +51,17 @@ public:
         chassis_wheel_motors_[2].write_command_to_package(package, 2);
         chassis_wheel_motors_[3].write_command_to_package(package, 3);
         send(serial, package);
-        std::this_thread::sleep_for(std::chrono::microseconds(50));
+        std::this_thread::sleep_for(std::chrono::microseconds(15));
 
         static_part.type        = 0x12;
+        dynamic_part.can_id     = 0x1FE;
+        dynamic_part.current[0] = 0;
+        gimbal_pitch_motor_.write_command_to_package(package, 1);
+        dynamic_part.current[2] = 0;
+        dynamic_part.current[3] = 0;
+        send(serial, package);
+        std::this_thread::sleep_for(std::chrono::microseconds(15));
+
         dynamic_part.can_id     = 0x200;
         dynamic_part.current[0] = 0;
         gimbal_bullet_feeder_.write_command_to_package(package, 1);

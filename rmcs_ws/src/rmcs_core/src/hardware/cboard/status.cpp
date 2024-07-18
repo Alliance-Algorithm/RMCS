@@ -148,12 +148,16 @@ private:
         }
 
         auto can_id = package->dynamic_part<can_id_t>();
+        using namespace rmcs_description;
         if (can_id == 0x202) {
             gimbal_bullet_feeder_.update(std::move(package), logger_);
         } else if (can_id == 0x203) {
             gimbal_left_friction_.update(std::move(package), logger_);
         } else if (can_id == 0x204) {
             gimbal_right_friction_.update(std::move(package), logger_);
+        } else if (can_id == 0x206) {
+            gimbal_pitch_motor_.update(std::move(package), logger_);
+            tf_->set_state<YawLink, PitchLink>(gimbal_pitch_motor_.get_angle());
         }
     }
 
