@@ -33,11 +33,13 @@ rmcs_executor:
       - rmcs_core::hardware::cboard::Command -> cboard_command
       - rmcs_referee::Command -> referee_command
 
+      - rmcs_auto_aim::Controller -> rmcs_auto_aim
+
 cboard_status:
   ros__parameters:
     path: /dev/ttyACM0
     yaw_motor_zero_point: 7144
-    pitch_motor_zero_point: 1360
+    pitch_motor_zero_point: 2089
     imu_gx_bias: 0.0
     imu_gy_bias: 0.0
     imu_gz_bias: 0.0
@@ -168,8 +170,8 @@ rmcs_auto_aim:
     armor_predict_duration: 500
     buff_predict_duration: 200
     gimbal_predict_duration: 500
-    yaw_error: 0.005
-    pitch_error: -0.5
+    yaw_error: 0.0
+    pitch_error: 0.0
     armor_model_path: "/models/armoridentify_with_base.onnx"
     buff_model_path: "/models/buff_nocolor_v6.onnx"
     debug: true
@@ -182,3 +184,7 @@ rmcs_auto_aim:
     k3: 0.792381808294582
     omni_exposure: 1000.0
     test: 0.1107
+    fps: 165
+    debug_color: 0 # 0 For blue while 1 for red
+    debug_robot_id: 4
+    debug_buff_mode: false
