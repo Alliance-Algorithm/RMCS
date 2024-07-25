@@ -37,8 +37,8 @@ public:
         register_input("/gimbal/left_friction/velocity", left_friction_velocity_);
         register_input("/gimbal/right_friction/velocity", right_friction_velocity_);
 
-        register_input("/referee/shooter/cooling", shooter_cooling_);
-        register_input("/referee/shooter/heat_limit", shooter_heat_limit_);
+        // register_input("/referee/shooter/cooling", shooter_cooling_);
+        // register_input("/referee/shooter/heat_limit", shooter_heat_limit_);
 
         register_input("/gimbal/bullet_feeder/velocity", bullet_feeder_velocity_);
 
@@ -89,7 +89,7 @@ private:
     }
 
     void update_muzzle_heat() {
-        shooter_heat_ -= *shooter_cooling_;
+        shooter_heat_ -= shooter_cooling_;
         if (shooter_heat_ < 0)
             shooter_heat_ = 0;
 
@@ -110,7 +110,7 @@ private:
         last_left_friction_velocity_ = *left_friction_velocity_;
 
         bullet_count_limited_by_shooter_heat_ =
-            (*shooter_heat_limit_ - shooter_heat_ - 10'000) / 10'000;
+            (shooter_heat_limit_ - shooter_heat_ - 10'000) / 10'000;
         if (bullet_count_limited_by_shooter_heat_ < 0)
             bullet_count_limited_by_shooter_heat_ = 0;
     }
@@ -202,7 +202,8 @@ private:
     InputInterface<double> left_friction_velocity_, right_friction_velocity_;
     double last_left_friction_velocity_ = nan, friction_velocity_decrease_integral_ = 0;
 
-    InputInterface<int64_t> shooter_cooling_, shooter_heat_limit_;
+    // InputInterface<int64_t> shooter_cooling_, shooter_heat_limit_;
+    int shooter_cooling_ = 0, shooter_heat_limit_ = 0;
     int64_t shooter_heat_ = 0, bullet_count_limited_by_shooter_heat_ = 0;
 
     bool friction_enabled_ = false, bullet_feeder_enabled_ = false;

@@ -16,13 +16,12 @@ def generate_launch_description():
                     [
                         FindPackageShare("rmcs_bringup"),
                         "config",
-                        LaunchConfiguration("config"),
+                        "steering.yaml"
                     ]
                 )
             ],
             respawn=True,
             # prefix=["gdb -ex run --args"],
-            # prefix=["ldd"],
             respawn_delay=5.0,
         )
     )

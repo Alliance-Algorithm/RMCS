@@ -22,26 +22,52 @@ public:
         : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , logger_(get_logger()) {
         std::string path;
-        if (get_parameter("path", path))
+        if (get_parameter("path_above", path))
             RCLCPP_INFO(get_logger(), "Path: %s", path.c_str());
         else
-            throw std::runtime_error{"Unable to get parameter 'path'"};
+            throw std::runtime_error{"Unable to get parameter 'path_above'"};
 
-        const std::string stty_command = "stty -F " + path + " raw";
-        if (std::system(stty_command.c_str()) != 0)
-            throw std::runtime_error{"Unable to call '" + stty_command + "'"};
+        const std::string stty_command_above = "stty -F " + path + " raw";
+        if (std::system(stty_command_above.c_str()) != 0)
+            throw std::runtime_error{"Unable to call '" + stty_command_above + "'"};
 
-        register_output("/serial", serial_, path, 9600, serial::Timeout::simpleTimeout(0));
+        register_output(
+            "/serial_above", serial_above_, path, 9600, serial::Timeout::simpleTimeout(0));
 
-        package_receiver_.subscribe(
-            0x11, [this](auto&& pkg) { can1_receive_callback(std::forward<decltype(pkg)>(pkg)); });
-        package_receiver_.subscribe(
-            0x12, [this](auto&& pkg) { can2_receive_callback(std::forward<decltype(pkg)>(pkg)); });
-        package_receiver_.subscribe(
+        if (get_parameter("path_below", path))
+            RCLCPP_INFO(get_logger(), "Path: %s", path.c_str());
+        else
+            throw std::runtime_error{"Unable to get parameter 'path_below'"};
+
+        const std::string stty_command_below = "stty -F " + path + " raw";
+        if (std::system(stty_command_below.c_str()) != 0)
+            throw std::runtime_error{"Unable to call '" + stty_command_below + "'"};
+
+        register_output(
+            "/serial_below", serial_below_, path, 9600, serial::Timeout::simpleTimeout(0));
+
+        package_receiver_below_.subscribe(0x11, [this](auto&& pkg) {
+            can1_below_receive_callback(std::forward<decltype(pkg)>(pkg));
+        });
+        package_receiver_below_.subscribe(0x12, [this](auto&& pkg) {
+            can2_below_receive_callback(std::forward<decltype(pkg)>(pkg));
+        });
+        package_receiver_below_.subscribe(
+            0x31, [this](auto&& pkg) { nop_callback(std::forward<decltype(pkg)>(pkg)); });
+        package_receiver_below_.subscribe(
+            0x32, [this](auto&& pkg) { nop_callback(std::forward<decltype(pkg)>(pkg)); });
+
+        package_receiver_above_.subscribe(0x11, [this](auto&& pkg) {
+            can1_above_receive_callback(std::forward<decltype(pkg)>(pkg));
+        });
+        package_receiver_above_.subscribe(0x12, [this](auto&& pkg) {
+            can2_above_receive_callback(std::forward<decltype(pkg)>(pkg));
+        });
+        package_receiver_above_.subscribe(
             0x23, [this](auto&& pkg) { dbus_receive_callback(std::forward<decltype(pkg)>(pkg)); });
-        package_receiver_.subscribe(
+        package_receiver_above_.subscribe(
             0x31, [this](auto&& pkg) { imu_receive_callback(std::forward<decltype(pkg)>(pkg)); });
-        package_receiver_.subscribe(0x32, [](auto&&) {});
+        package_receiver_above_.subscribe(0x32, [](auto&&) {});
 
         // wheel config
         for (auto& motor : chassis_wheel_motors_)
@@ -108,10 +134,44 @@ public:
     }
     ~Status() = default;
 
-    void update() override { package_receiver_.update(*serial_, logger_); }
+    void update() override {
+        package_receiver_above_.update(*serial_above_, logger_);
+        package_receiver_below_.update(*serial_below_, logger_);
+    }
 
 private:
-    void can1_receive_callback(std::unique_ptr<Package> package) {
+    void can1_above_receive_callback(std::unique_ptr<Package> package) {
+        auto& static_part = package->static_part();
+
+        if (package->dynamic_part_size() < sizeof(can_id_t)) {
+            RCLCPP_ERROR(
+                get_logger(), "CAN1 package does not contain can id: [0x%02X 0x%02X] (size = %d)",
+                static_part.type, static_part.index, static_part.data_size);
+            return;
+        }
+    }
+
+    void can2_above_receive_callback(std::unique_ptr<Package> package) {
+        auto& static_part = package->static_part();
+
+        if (package->dynamic_part_size() < sizeof(can_id_t)) {
+            RCLCPP_ERROR(
+                logger_, "CAN2 package does not contain can id: [0x%02X 0x%02X] (size = %d)",
+                static_part.type, static_part.index, static_part.data_size);
+            return;
+        }
+
+        auto can_id = package->dynamic_part<can_id_t>();
+        using namespace rmcs_description;
+
+        if (can_id == 0x206) {
+            auto& motor = gimbal_pitch_motor_;
+            motor.update_status(std::move(package), logger_);
+            tf_->set_state<BaseLink, LeftFrontWheelLink>(motor.get_angle());
+        }
+    }
+
+    void can1_below_receive_callback(std::unique_ptr<Package> package) {
         auto& static_part = package->static_part();
 
         if (package->dynamic_part_size() < sizeof(can_id_t)) {
@@ -140,10 +200,14 @@ private:
             auto& motor = chassis_wheel_motors_[3];
             motor.update_status(std::move(package), logger_);
             tf_->set_state<BaseLink, LeftBackWheelLink>(motor.get_angle());
+        } else if (can_id == 0x205) {
+            auto& motor = gimbal_yaw_motor_;
+            motor.update_status(std::move(package), logger_);
+            tf_->set_state<BaseLink, LeftFrontWheelLink>(motor.get_angle());
         }
     }
 
-    void can2_receive_callback(std::unique_ptr<Package> package) {
+    void can2_below_receive_callback(std::unique_ptr<Package> package) {
         auto& static_part = package->static_part();
 
         if (package->dynamic_part_size() < sizeof(can_id_t)) {
@@ -214,11 +278,15 @@ private:
             gimbal_pitch_motor_.calibrate_zero_point());
     }
 
+    void nop_callback(std::unique_ptr<Package>) {}
+
     rclcpp::Logger logger_;
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr gimbal_calibrate_subscription_;
 
-    OutputInterface<serial::Serial> serial_;
-    PackageReceiver package_receiver_;
+    OutputInterface<serial::Serial> serial_above_;
+    OutputInterface<serial::Serial> serial_below_;
+    PackageReceiver package_receiver_below_;
+    PackageReceiver package_receiver_above_;
 
     // DJI 3508 CAN1
     DjiMotorStatus chassis_wheel_motors_[4]{

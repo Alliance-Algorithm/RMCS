@@ -41,6 +41,8 @@ public:
     }
 
     void update() override {
+        // RCLCPP_INFO(get_logger(), "%f", *gimbal_pitch_angle_);
+
         update_yaw_axis();
 
         auto switch_right = *switch_right_;

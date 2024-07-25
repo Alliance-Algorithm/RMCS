@@ -3,7 +3,8 @@ rmcs_executor:
     update_rate: 1000.0
     components:
       - rmcs_core::hardware::cboard::Status -> cboard_status
-      - rmcs_referee::Status -> referee_status
+      # - rmcs_referee::Status -> referee_status
+
 
       - rmcs_core::controller::gimbal::GimbalController -> gimbal_controller
       - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
@@ -16,34 +17,32 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController -> right_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller
 
-      - rmcs_core::controller::chassis::ChassisController -> chassis_controller
-      - rmcs_core::controller::pid::PidController -> left_front_wheel_velocity_pid_controller
-      - rmcs_core::controller::pid::PidController -> left_back_wheel_velocity_pid_controller
-      - rmcs_core::controller::pid::PidController -> right_back_wheel_velocity_pid_controller
-      - rmcs_core::controller::pid::PidController -> right_front_wheel_velocity_pid_controller
-      - rmcs_core::controller::chassis::PowerController -> chassis_power_controller
+      - rmcs_core::controller::chassis::SentrySteering -> chassis_controller
+      - rmcs_core::controller::mpc::MPCController -> mpc_controller
+      # - rmcs_core::controller::chassis::PowerController -> chassis_power_controller
 
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 
-      - rmcs_referee::command::Interaction -> referee_interaction
-      - rmcs_referee::command::interaction::Ui -> referee_ui
-      - rmcs_referee::app::ui::Infantry -> referee_ui_infantry
-
       - rmcs_core::hardware::cboard::Command -> cboard_command
-      - rmcs_referee::Command -> referee_command
 
 cboard_status:
   ros__parameters:
-    path: /dev/ttyACM0
-    yaw_motor_zero_point: 6784
-    pitch_motor_zero_point: 6709
-    imu_gx_bias: 0.0
-    imu_gy_bias: 0.0
-    imu_gz_bias: 0.0
+    path_above: /dev/cboard_above
+    path_below: /dev/cboard_below
+    yaw_motor_zero_point: 2751
+    pitch_motor_zero_point: 384
+    left_front_motor_zero_point: 4089
+    left_back_motor_zero_point: 2772
+    right_back_motor_zero_point: 7429
+    right_front_motor_zero_point: 1690
+    imu_gx_bias: -0.001279
+    imu_gy_bias: -0.001447
+    imu_gz_bias: +0.002188
 
-referee_status:
-  ros__parameters:
-    path: /dev/ttyUSB0
+
+# referee_status:
+#   ros__parameters:
+#     path: /dev/ttyUSB0
 
 gimbal_controller:
   ros__parameters:
@@ -84,6 +83,7 @@ pitch_velocity_pid_controller:
     ki: 0.0
     kd: 0.0
 
+
 shooting_controller:
   ros__parameters:
     friction_velocity: 700.0
@@ -117,46 +117,17 @@ bullet_feeder_velocity_pid_controller:
     ki: 0.0
     kd: 0.0
 
-left_front_wheel_velocity_pid_controller:
-  ros__parameters:
-    measurement: /chassis/left_front_wheel/velocity
-    setpoint: /chassis/left_front_wheel/control_velocity
-    control: /chassis/left_front_wheel/control_torque_unrestricted
-    kp: 0.185
-    ki: 0.00
-    kd: 0.00
+#===========
 
-left_back_wheel_velocity_pid_controller:
-  ros__parameters:
-    measurement: /chassis/left_back_wheel/velocity
-    setpoint: /chassis/left_back_wheel/control_velocity
-    control: /chassis/left_back_wheel/control_torque_unrestricted
-    kp: 0.185
-    ki: 0.00
-    kd: 0.00
-
-right_back_wheel_velocity_pid_controller:
-  ros__parameters:
-    measurement: /chassis/right_back_wheel/velocity
-    setpoint: /chassis/right_back_wheel/control_velocity
-    control: /chassis/right_back_wheel/control_torque_unrestricted
-    kp: 0.185
-    ki: 0.00
-    kd: 0.00
-
-right_front_wheel_velocity_pid_controller:
-  ros__parameters:
-    measurement: /chassis/right_front_wheel/velocity
-    setpoint: /chassis/right_front_wheel/control_velocity
-    control: /chassis/right_front_wheel/control_torque_unrestricted
-    kp: 0.185
-    ki: 0.00
-    kd: 0.00
-
-chassis_power_controller:
-  ros__parameters:
-    motors:
-      - /chassis/left_front_wheel
-      - /chassis/left_back_wheel
-      - /chassis/right_back_wheel
-      - /chassis/right_front_wheel
+# chassis_power_controller:
+#   ros__parameters:
+#     motors:
+#       - /chassis/left_front_steering
+#       - /chassis/left_back_steering
+#       - /chassis/right_back_steering
+#       - /chassis/right_front_steering
+#       - /chassis/left_front_wheel
+#       - /chassis/left_back_wheel
+#       - /chassis/right_back_wheel
+#       - /chassis/right_front_wheel
+      

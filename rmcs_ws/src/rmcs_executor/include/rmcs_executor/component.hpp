@@ -108,14 +108,14 @@ public:
     void register_input(
         const std::string& name, InputInterface<T>& interface, bool required = true) {
         if (interface.active())
-            throw std::runtime_error("The interface has been activated");
+            throw std::runtime_error("The interface has been activated:input:" + name);
         input_list_.emplace_back(typeid(T), name, required, interface.activate());
     }
 
     template <typename T, typename... Args>
     void register_output(const std::string& name, OutputInterface<T>& interface, Args&&... args) {
         if (interface.active())
-            throw std::runtime_error("The interface has been activated");
+            throw std::runtime_error("The interface has been activated:output:" + name);
         output_list_.emplace_back(
             typeid(T), name, interface.activate(std::forward<Args>(args)...), this);
     }
