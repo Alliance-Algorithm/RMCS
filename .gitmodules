@@ -14,3 +14,10 @@
 [submodule "rmcs_ws/src/rmcs_auto_aim"]
 	path = rmcs_ws/src/rmcs_auto_aim
 	url = https://github.com/Alliance-Algorithm/rmcs_auto_aim.git
+[submodule "tlarc"]
+	path = rmcs_ws/src/tlarc
+	url = https://github.com/Alliance-Algorithm/TLARC.git
+	branch = code@HUNTER
+[submodule "rmcs_slam"]
+	path = rmcs_ws/src/rmcs_slam
+	url = https://github.com/Alliance-Algorithm/rmcs_slam.git

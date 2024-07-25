@@ -108,7 +108,7 @@ public:
             update_wheel_velocities(
                 Eigen::Rotation2Dd{*gimbal_yaw_angle_ + *gimbal_yaw_angle_error_}
                     * (*joystick_right_)
-                + auto_control_velocity / 10);
+                + (switch_right == Switch::UP) * auto_control_velocity / 10);
         } while (false);
 
         last_switch_right_ = switch_right;
