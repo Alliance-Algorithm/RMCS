@@ -17,7 +17,7 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController -> right_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller
 
-      - rmcs_core::controller::chassis::ChassisController -> chassis_controller
+      - rmcs_core::controller::chassis::SteeringPidController -> chassis_controller
       - rmcs_core::controller::pid::ErrorPidController -> left_front_steering_error_pid_controller
       - rmcs_core::controller::pid::ErrorPidController -> left_back_steering_error_pid_controller
       - rmcs_core::controller::pid::ErrorPidController -> right_back_steering_error_pid_controller
@@ -134,33 +134,33 @@ left_front_steering_error_pid_controller:
   ros__parameters:
     measurement: /chassis/left_front_steering/control_angle_error
     control: /chassis/left_front_steering/control_torque
-    kp:  1.5
-    ki: 0.0001
-    kd: 0.7
+    kp:  1.
+    ki: 0.
+    kd: 0.5
 
 left_back_steering_error_pid_controller:
   ros__parameters:
     measurement: /chassis/left_back_steering/control_angle_error
     control: /chassis/left_back_steering/control_torque
-    kp:  1.5
-    ki: 0.0001
-    kd: 0.7
+    kp:  1.
+    ki: 0.
+    kd: 0.5
 
 right_back_steering_error_pid_controller:
   ros__parameters:
     measurement: /chassis/right_back_steering/control_angle_error
     control: /chassis/right_back_steering/control_torque
-    kp:  1.5
-    ki: 0.0001
-    kd: 0.7
+    kp:  1.
+    ki: 0.
+    kd: 0.5
 
 right_front_steering_error_pid_controller:
   ros__parameters:
     measurement: /chassis/right_front_steering/control_angle_error
     control: /chassis/right_front_steering/control_torque
-    kp:  1.5
-    ki: 0.0001
-    kd: 0.7
+    kp:  1.
+    ki: 0.
+    kd: 0.5
 
 #=============
 

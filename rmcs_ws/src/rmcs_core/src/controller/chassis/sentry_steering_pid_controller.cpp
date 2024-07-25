@@ -62,7 +62,6 @@ public:
         register_input("/chassis/left_back_steering/angle", left_back_angle_);
         register_input("/chassis/right_back_steering/angle", right_back_angle_);
         register_input("/chassis/right_front_steering/angle", right_front_angle_);
-
         register_input("/gimbal/yaw/angle", gimbal_yaw_angle_);
         register_input("/gimbal/yaw/control_angle_error", gimbal_yaw_angle_error_);
 
@@ -109,7 +108,7 @@ public:
             update_wheel_velocities(
                 Eigen::Rotation2Dd{*gimbal_yaw_angle_ + *gimbal_yaw_angle_error_}
                     * (*joystick_right_)
-                + auto_control_velocity / 11);
+                + auto_control_velocity / 10);
         } while (false);
 
         last_switch_right_ = switch_right;
@@ -160,12 +159,13 @@ public:
                      / sin(angle_new);
             }
             last_control_move = move;
-            calculate_wheel_velocity_for_forwarding(angle, velocity, move, spinning_ * M_PI * 0.5);
+            calculate_wheel_velocity_for_forwarding(
+                angle, velocity, move, spinning_ * spinning_omega);
         } else {
             {
                 move = (1. - speed_ratio) * last_control_move;
                 calculate_wheel_velocity_for_forwarding(
-                    angle, velocity, move, spinning_ * M_PI * 0.5);
+                    angle, velocity, move, spinning_ * spinning_omega);
                 last_control_move = move;
             }
         }
@@ -192,6 +192,8 @@ public:
             fmax(abs(*left_front_control_angle_), abs(*left_back_control_angle_)),
             fmin(abs(*right_back_control_angle_), abs(*right_front_control_angle_)));
         max_angle = std::clamp(min_rad / max_angle, 0., 1.);
+        if (spinning_)
+            max_angle = 1;
         *left_front_control_velocity_ =
             velocity[0] * max_angle;                          //+ *mpc_left_front_control_velocity_;
         *left_back_control_velocity_ =
@@ -244,6 +246,7 @@ private:
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
     static constexpr double wheel_speed_limit = 28.937262372; //
+    static constexpr double spinning_omega    = M_PI * 3. / 4.; //
 
     // Since sine and cosine function are not constexpr, we calculate once and cache them.
     static inline const double sin_45 = std::sin(std::numbers::pi / 4.0);
