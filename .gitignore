@@ -4,6 +4,7 @@ build/
 install/
 bin/
 lib/
+ignore/
 msg_gen/
 srv_gen/
 msg/*Action.msg
