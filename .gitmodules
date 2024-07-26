@@ -21,3 +21,9 @@
 [submodule "rmcs_slam"]
 	path = rmcs_ws/src/rmcs_slam
 	url = https://github.com/Alliance-Algorithm/rmcs_slam.git
+[submodule "rmcs_map"]
+	path = rmcs_ws/src/rmcs_map
+	url = https://github.com/Alliance-Algorithm/rmcs_map.git
+[submodule "rmcs_navigation"]
+	path = rmcs_ws/src/rmcs_navigation
+	url = https://github.com/Alliance-Algorithm/rmcs_navigation.git

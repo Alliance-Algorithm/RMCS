@@ -38,9 +38,9 @@ public:
         , auto_control_velocity()
         , following_velocity_controller_(30.0, 0.01, 300)
         , logger_(get_logger()) {
-        create_subscription<geometry_msgs::msg::Pose2D>(
-            "sentry/control/velocity", 10,
-            [this](const geometry_msgs::msg::Pose2D::ConstSharedPtr& msg) {
+        auto_control_velocity_sub_ = create_subscription<geometry_msgs::msg::Pose2D>(
+            "/sentry/control/velocity", 10,
+            [this](const geometry_msgs::msg::Pose2D::UniquePtr& msg) {
                 auto_control_velocity.x() = msg->x;
                 auto_control_velocity.y() = msg->y;
             });
@@ -107,8 +107,8 @@ public:
 
             update_wheel_velocities(
                 Eigen::Rotation2Dd{*gimbal_yaw_angle_ + *gimbal_yaw_angle_error_}
-                    * (*joystick_right_)
-                + (switch_right == Switch::UP) * auto_control_velocity / 10);
+                * (*joystick_right_
+                   + (switch_right == Switch::UP ? 1 : 0) * auto_control_velocity / 10));
         } while (false);
 
         last_switch_right_ = switch_right;
