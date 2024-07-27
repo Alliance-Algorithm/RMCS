@@ -1,6 +1,6 @@
 cdBasedOnStyle: LLVM
 
-ColumnLimit: 100
+ColumnLimit: 110
 
 IndentWidth: 4
 ContinuationIndentWidth: 4
