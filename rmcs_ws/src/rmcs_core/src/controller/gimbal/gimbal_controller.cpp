@@ -1,9 +1,12 @@
 #include <bits/types/struct_timeval.h>
 #include <cmath>
-
 #include <limits>
 
 #include <eigen3/Eigen/Dense>
+#include <rclcpp/node.hpp>
+
+#include <geometry_msgs/msg/pose2_d.hpp>
+
 #include <fast_tf/rcl.hpp>
 #include <rclcpp/node.hpp>
 
@@ -131,7 +134,7 @@ private:
         auto time   = (double)time_tick_.tv_sec * 1e6 + (double)time_tick_.tv_usec - time_zero_;
         auto v_time = (double)time * auto_rotate_speed_ / 1e6;
         if (v_time > 1)
-            v_time -= 2;
+            v_time;
         auto yaw_angle = (auto_control_angle_.y() - auto_control_angle_.x()) * (v_time + 1) / 2.
                        + auto_control_angle_.x();
         auto pitch_angle = dir =
