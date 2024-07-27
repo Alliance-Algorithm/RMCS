@@ -1,4 +1,4 @@
-BasedOnStyle: LLVM
+cdBasedOnStyle: LLVM
 
 ColumnLimit: 100
 
