@@ -1,6 +1,7 @@
 #pragma once
 
 #include <map>
+#include <memory>
 #include <new>
 #include <stdexcept>
 #include <string>
@@ -120,6 +121,16 @@ public:
             typeid(T), name, interface.activate(std::forward<Args>(args)...), this);
     }
 
+    template <typename T, typename... Args>
+    std::shared_ptr<T> create_partner_component(const std::string& name, Args&&... args) {
+        initializing_component_name = name.c_str();
+
+        auto component = std::make_shared<T>(std::forward<Args>(args)...);
+        partner_component_list_.emplace_back(component);
+
+        return component;
+    }
+
     static const char* initializing_component_name;
 
 protected:
@@ -146,6 +157,8 @@ private:
 
     std::vector<InputDeclaration> input_list_;
     std::vector<OutputDeclaration> output_list_;
+
+    std::vector<std::shared_ptr<Component>> partner_component_list_;
 
     size_t dependency_count_                  = 0;
     std::unordered_set<Component*> wanted_by_ = {};
