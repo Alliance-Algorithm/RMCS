@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cmath>
 
 #include <bits/types/struct_timeval.h>
@@ -31,6 +32,7 @@ public:
           auto_control_angle_.x() = msg->x;
           auto_control_angle_.y() = msg->y;
         });
+    last_yaw_angle_ = 0;
     upper_limit_ =
         get_parameter("upper_limit").as_double() + (std::numbers::pi / 2);
     lower_limit_ =
@@ -146,14 +148,18 @@ private:
     pitch_time = fmod(pitch_time, 2.);
     if (pitch_time > 1)
       pitch_time = 2 - pitch_time;
-    auto yaw_angle = delta_angle * yaw_time + auto_control_angle_.x();
+    auto yaw_angle =
+        std::clamp(delta_angle * yaw_time + auto_control_angle_.x() -
+                       last_yaw_angle_,
+                   -auto_rotate_speed_ * 1e-3, auto_rotate_speed_ * 1e-3) +
+        last_yaw_angle_;
     auto pitch_angle = 0.4 * pitch_time - 0.1;
     auto delta_yaw = Eigen::AngleAxisd{yaw_angle, Eigen::Vector3d::UnitZ()};
     auto delta_pitch = Eigen::AngleAxisd{pitch_angle, Eigen::Vector3d::UnitY()};
     dir = fast_tf::cast<PitchLink>(
         OdomImu::DirectionVector{-Eigen::Vector3d::UnitY()}, *tf_);
-    // RCLCPP_INFO(get_logger(), "%f,%f", time, delta_angle);
-
+    RCLCPP_INFO(get_logger(), "%f,%f", time, delta_angle);
+    last_yaw_angle_ = yaw_angle;
     dir->normalize();
     *dir = delta_pitch * (delta_yaw * (*dir));
     control_enabled = true;
@@ -211,7 +217,8 @@ private:
   Eigen::Vector2d auto_control_angle_;
 
   double time_tick_;
-  static const constexpr double auto_rotate_speed_ = M_PI / 2;
+  double last_yaw_angle_;
+  static const constexpr double auto_rotate_speed_ = M_PI / 8;
 
   bool control_enabled = false;
   OdomImu::DirectionVector control_direction_{Eigen::Vector3d::Zero()};

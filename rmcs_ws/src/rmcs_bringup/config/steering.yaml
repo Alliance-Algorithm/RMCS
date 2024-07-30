@@ -3,7 +3,7 @@ rmcs_executor:
     update_rate: 1000.0
     components:
       - rmcs_core::hardware::cboard::Status -> cboard_status
-      # - rmcs_referee::Status -> referee_status
+      - rmcs_referee::Status -> referee_status
 
 
       - rmcs_core::controller::gimbal::GimbalController -> gimbal_controller
@@ -47,9 +47,9 @@ cboard_status:
     imu_gz_bias: +0.002188
 
 
-# referee_status:
-#   ros__parameters:
-#     path: /dev/ttyUSB0
+referee_status:
+  ros__parameters:
+    path: /dev/ttyUSB0
 
 gimbal_controller:
   ros__parameters:
