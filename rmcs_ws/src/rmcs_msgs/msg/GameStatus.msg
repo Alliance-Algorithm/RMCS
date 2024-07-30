@@ -19,3 +19,5 @@ int32 friends_base_hp
 int32 enemies_base_hp
 
 int32 bullet
+
+uint32 rfid

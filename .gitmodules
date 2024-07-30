@@ -27,3 +27,6 @@
 [submodule "livox_ros_driver2"]
 	path = rmcs_ws/src/livox_ros_driver2
 	url = https://github.com/Livox-SDK/livox_ros_driver2
+[submodule "rmcs_ws/src/rmcs_auto_aim"]
+	path = rmcs_ws/src/rmcs_auto_aim
+	url = git@github.com:Alliance-Algorithm/rmcs_auto_aim.git
