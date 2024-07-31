@@ -49,7 +49,7 @@ private:
 
         ret = libusb_init(&libusb_context_);
         if (ret != 0) {
-            RCLCPP_INFO(logger_, "Failed to init libusb: %d", ret);
+            RCLCPP_ERROR(logger_, "Failed to init libusb: %d", ret);
             return false;
         }
         FinalAction exit_libusb{[this]() { libusb_exit(libusb_context_); }};
@@ -57,7 +57,7 @@ private:
         libusb_device_handle_ =
             libusb_open_device_with_vid_pid(libusb_context_, vendor_id, product_id);
         if (!libusb_device_handle_) {
-            RCLCPP_INFO(
+            RCLCPP_ERROR(
                 logger_, "Failed to open device (vid=0x%x, pid=0x%x)", vendor_id, product_id);
             return false;
         }
@@ -65,13 +65,13 @@ private:
 
         ret = libusb_set_auto_detach_kernel_driver(libusb_device_handle_, true);
         if (ret != 0) {
-            RCLCPP_INFO(logger_, "Failed to set auto detach kernel driver: %d", ret);
+            RCLCPP_ERROR(logger_, "Failed to set auto detach kernel driver: %d", ret);
             return false;
         }
 
         ret = libusb_claim_interface(libusb_device_handle_, target_interface);
         if (ret != 0) {
-            RCLCPP_INFO(logger_, "Failed to claim interface: %d", ret);
+            RCLCPP_ERROR(logger_, "Failed to claim interface: %d", ret);
             return false;
         }
         FinalAction release_interface{
@@ -79,7 +79,7 @@ private:
 
         libusb_receive_transfer_ = libusb_alloc_transfer(0);
         if (!libusb_receive_transfer_) {
-            RCLCPP_INFO(logger_, "Failed to alloc receive-transfer");
+            RCLCPP_ERROR(logger_, "Failed to alloc receive-transfer");
             return false;
         }
         FinalAction free_receive_transfer{
@@ -95,7 +95,7 @@ private:
 
         ret = libusb_submit_transfer(libusb_receive_transfer_);
         if (ret != 0) {
-            RCLCPP_INFO(logger_, "Failed to submit receive-transfer: %d", ret);
+            RCLCPP_ERROR(logger_, "Failed to submit receive-transfer: %d", ret);
             return false;
         }
         active_transfer_count_.store(1, std::memory_order::release);
@@ -114,12 +114,23 @@ private:
             libusb_free_transfer(transfer);
             return;
         }
-        FinalAction resubmit_transfer{[transfer]() { libusb_submit_transfer(transfer); }};
+        FinalAction resubmit_transfer{[this, transfer]() {
+            int ret = libusb_submit_transfer(transfer);
+            if (ret != 0) [[unlikely]] {
+                if (ret == LIBUSB_ERROR_NO_DEVICE)
+                    RCLCPP_ERROR(
+                        logger_,
+                        "Failed to re-submit transfer: Device disconnected. Terminating...");
+                else
+                    RCLCPP_ERROR(logger_, "Failed to re-submit transfer: %d. Terminating...", ret);
+                std::terminate();
+            }
+        }};
 
         auto iterator = receive_buffer_;
         auto sentinel = iterator + transfer->actual_length;
         if (iterator == sentinel) [[unlikely]] {
-            RCLCPP_INFO(logger_, "USB receiving error: No data! status=%d", transfer->status);
+            RCLCPP_ERROR(logger_, "USB receiving error: No data! status=%d", transfer->status);
             return;
         }
 
@@ -127,23 +138,28 @@ private:
             char hex_string[64 * 3 + 1];
             for (int i = 0; i < transfer->actual_length; i++)
                 sprintf(&hex_string[i * 3], "%02x ", static_cast<uint8_t>(receive_buffer_[i]));
-            RCLCPP_INFO(logger_, "Buffer (len=%d): %s", transfer->actual_length, hex_string);
+            RCLCPP_ERROR(logger_, "Buffer (len=%d): %s", transfer->actual_length, hex_string);
         }};
 
         if (transfer->status != LIBUSB_TRANSFER_COMPLETED) [[unlikely]] {
-            RCLCPP_INFO(
+            RCLCPP_ERROR(
                 logger_, "USB receiving error: Transfer not completed! status=%d",
                 transfer->status);
             return;
         }
 
         if (*iterator != std::byte{0xAE}) [[unlikely]] {
-            RCLCPP_INFO(
+            RCLCPP_ERROR(
                 logger_, "USB receiving error: Unexpected header: 0x%02x!",
                 static_cast<uint8_t>(*iterator));
             return;
         }
+
         ++iterator;
+        if (iterator == sentinel) [[unlikely]] {
+            RCLCPP_ERROR(logger_, "USB receiving error: Package without body!");
+            return;
+        }
 
         while (iterator < sentinel) {
             struct __attribute__((packed)) Header {
@@ -161,11 +177,11 @@ private:
 
         if (iterator != sentinel) [[unlikely]] {
             if (iterator < sentinel) {
-                RCLCPP_INFO(
+                RCLCPP_ERROR(
                     logger_, "USB receiving error: Unexpected field-id: [%ld]0x%hhx!",
                     iterator - receive_buffer_, static_cast<uint8_t>(*iterator));
             } else {
-                RCLCPP_INFO(
+                RCLCPP_ERROR(
                     logger_,
                     "USB receiving error: Field reading out-of-bounds! (iterator = sentinel + %ld)",
                     iterator - sentinel);
