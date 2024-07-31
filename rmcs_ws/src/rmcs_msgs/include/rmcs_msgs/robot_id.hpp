@@ -12,9 +12,12 @@ enum class ArmorID : uint16_t {
     InfantryIII = 3,
     InfantryIV  = 4,
     InfantryV   = 5,
-    Sentry      = 6,
-    Outpost     = 7,
-    Base        = 8,
+    Aerial      = 6,
+    Sentry      = 7,
+    Dart        = 8,
+    Radar       = 9,
+    Outpost     = 10,
+    Base        = 11,
 };
 
 class RobotId {
