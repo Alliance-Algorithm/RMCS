@@ -35,11 +35,35 @@ public:
 protected:
     virtual void can1_receive_callback(
         uint32_t can_id, uint64_t can_data, bool is_extended_can_id, bool is_remote_transmission,
-        uint8_t can_data_length) = 0;
-
+        uint8_t can_data_length) {
+        (void)can_id;
+        (void)can_data;
+        (void)is_extended_can_id;
+        (void)is_remote_transmission;
+        (void)can_data_length;
+    };
     virtual void can2_receive_callback(
         uint32_t can_id, uint64_t can_data, bool is_extended_can_id, bool is_remote_transmission,
-        uint8_t can_data_length) = 0;
+        uint8_t can_data_length) {
+        (void)can_id;
+        (void)can_data;
+        (void)is_extended_can_id;
+        (void)is_remote_transmission;
+        (void)can_data_length;
+    }
+
+    virtual void uart1_receive_callback(const std::byte* uart_data, uint8_t uart_data_length) {
+        (void)uart_data;
+        (void)uart_data_length;
+    };
+    virtual void uart2_receive_callback(const std::byte* uart_data, uint8_t uart_data_length) {
+        (void)uart_data;
+        (void)uart_data_length;
+    }
+    virtual void dbus_receive_callback(const std::byte* uart_data, uint8_t uart_data_length) {
+        (void)uart_data;
+        (void)uart_data_length;
+    }
 
     class TransmitBuffer;
 
@@ -109,7 +133,7 @@ private:
     }
 
     void usb_receive_complete_callback(libusb_transfer* transfer) noexcept {
-        if (transfer->status == LIBUSB_TRANSFER_CANCELLED) {
+        if (transfer->status == LIBUSB_TRANSFER_CANCELLED) [[unlikely]] {
             --active_transfer_count_;
             libusb_free_transfer(transfer);
             return;
@@ -119,10 +143,11 @@ private:
             if (ret != 0) [[unlikely]] {
                 if (ret == LIBUSB_ERROR_NO_DEVICE)
                     RCLCPP_ERROR(
-                        logger_,
-                        "Failed to re-submit transfer: Device disconnected. Terminating...");
+                        logger_, "Failed to re-submit receive transfer: Device disconnected. "
+                                 "Terminating...");
                 else
-                    RCLCPP_ERROR(logger_, "Failed to re-submit transfer: %d. Terminating...", ret);
+                    RCLCPP_ERROR(
+                        logger_, "Failed to re-submit receive transfer: %d. Terminating...", ret);
                 std::terminate();
             }
         }};
@@ -171,6 +196,12 @@ private:
                 read_can_buffer(iterator, &CBoard::can1_receive_callback);
             } else if (field_id == StatusId::CAN2) {
                 read_can_buffer(iterator, &CBoard::can2_receive_callback);
+            } else if (field_id == StatusId::UART1) {
+                read_uart_buffer(iterator, &CBoard::uart1_receive_callback);
+            } else if (field_id == StatusId::UART2) {
+                read_uart_buffer(iterator, &CBoard::uart2_receive_callback);
+            } else if (field_id == StatusId::UART3) {
+                read_uart_buffer(iterator, &CBoard::dbus_receive_callback);
             } else
                 break;
         }
@@ -178,8 +209,8 @@ private:
         if (iterator != sentinel) [[unlikely]] {
             if (iterator < sentinel) {
                 RCLCPP_ERROR(
-                    logger_, "USB receiving error: Unexpected field-id: [%ld]0x%hhx!",
-                    iterator - receive_buffer_, static_cast<uint8_t>(*iterator));
+                    logger_, "USB receiving error: Unexpected field-id: [%ld] %d!",
+                    iterator - receive_buffer_, static_cast<uint8_t>(*iterator) & 0xF);
             } else {
                 RCLCPP_ERROR(
                     logger_,
@@ -199,7 +230,7 @@ private:
         uint32_t can_id;
         uint64_t can_data;
 
-        auto& header = *std::launder(reinterpret_cast<const FieldHeader*>(buffer));
+        auto& header = *std::launder(reinterpret_cast<const CanFieldHeader*>(buffer));
         buffer += sizeof(header);
 
         is_extended_can_id     = header.is_extended_can_id;
@@ -221,6 +252,18 @@ private:
 
         (this->*callback)(
             can_id, can_data, is_extended_can_id, is_remote_transmission, can_data_length);
+    }
+
+    void read_uart_buffer(std::byte*& buffer, decltype(&CBoard::uart1_receive_callback) callback) {
+        auto& header = *std::launder(reinterpret_cast<UartFieldHeader*>(buffer));
+        buffer += sizeof(UartFieldHeader);
+
+        uint8_t size = header.data_size;
+        if (!size)
+            size = static_cast<uint8_t>(*buffer++);
+
+        (this->*callback)(buffer, size);
+        buffer += size;
     }
 
     enum class StatusId : uint8_t {
@@ -262,11 +305,16 @@ private:
         BUZZER = 12,
     };
 
-    struct __attribute__((packed)) FieldHeader {
+    struct __attribute__((packed)) CanFieldHeader {
         uint8_t field_id            : 4;
         bool is_extended_can_id     : 1;
         bool is_remote_transmission : 1;
         bool has_can_data           : 1;
+    };
+
+    struct __attribute__((packed)) UartFieldHeader {
+        uint8_t field_id  : 4;
+        uint8_t data_size : 4;
     };
 
     struct __attribute__((packed)) CanStandardId {
@@ -380,6 +428,18 @@ public:
             can_data_length);
     }
 
+    bool add_uart1_transmission(const std::byte* uart_data, uint8_t uart_data_length) {
+        return add_uart_transmission(CommandId::UART1, uart_data, uart_data_length);
+    }
+
+    bool add_uart2_transmission(const std::byte* uart_data, uint8_t uart_data_length) {
+        return add_uart_transmission(CommandId::UART2, uart_data, uart_data_length);
+    }
+
+    bool add_dbus_transmission(const std::byte* uart_data, uint8_t uart_data_length) {
+        return add_uart_transmission(CommandId::UART3, uart_data, uart_data_length);
+    }
+
     bool trigger_transmission() noexcept {
         auto front = free_transfers_.front();
         if (!front || (*front)->length <= 1)
@@ -393,30 +453,16 @@ private:
         CommandId field_id, uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
         bool is_remote_transmission, uint8_t can_data_length) noexcept {
 
-        libusb_transfer* transfer;
-        std::byte* buffer;
-        while (true) {
-            auto front = free_transfers_.front();
-            if (!front)
-                return false;
-            transfer = *front;
-
-            // Calculate field size
-            size_t field_size = sizeof(FieldHeader)
-                              + (is_extended_can_id ? sizeof(CanExtendedId) : sizeof(CanStandardId))
-                              + can_data_length;
-            if (transfer->length + field_size > 64)
-                trigger_transmission_nocheck();
-            else {
-                buffer = reinterpret_cast<std::byte*>(transfer->buffer) + transfer->length;
-                transfer->length += static_cast<int>(field_size);
-                break;
-            }
-        }
+        std::byte* buffer = try_fetch_buffer(
+            sizeof(CanFieldHeader)
+            + (is_extended_can_id ? sizeof(CanExtendedId) : sizeof(CanStandardId))
+            + can_data_length);
+        if (!buffer)
+            return false;
 
         // Write field header
-        auto& header = *new (buffer) FieldHeader{};
-        buffer += sizeof(FieldHeader);
+        auto& header = *new (buffer) CanFieldHeader{};
+        buffer += sizeof(CanFieldHeader);
         header.field_id               = static_cast<uint8_t>(field_id);
         header.is_extended_can_id     = is_extended_can_id;
         header.is_remote_transmission = is_remote_transmission;
@@ -442,21 +488,95 @@ private:
         return true;
     }
 
+    bool add_uart_transmission(
+        CommandId field_id, const std::byte* uart_data, uint8_t uart_data_length) {
+
+        std::byte* buffer =
+            try_fetch_buffer(sizeof(UartFieldHeader) + (uart_data_length > 15) + uart_data_length);
+        if (!buffer)
+            return false;
+
+        // Write field header
+        auto& header = *new (buffer) UartFieldHeader{};
+        buffer += sizeof(UartFieldHeader);
+        header.field_id = static_cast<uint8_t>(field_id);
+        if (uart_data_length <= 15) {
+            // Store 4-bit size and field-id together
+            header.data_size = uart_data_length;
+        } else {
+            // Store size to a separate byte
+            header.data_size = 0;
+            *(buffer++)      = static_cast<std::byte>(uart_data_length);
+        }
+
+        // Write received data
+        std::memcpy(buffer, uart_data, uart_data_length);
+        buffer += uart_data_length;
+
+        return true;
+    }
+
+    std::byte* try_fetch_buffer(size_t size) {
+        if (1 + size > 64) [[unlikely]]
+            return nullptr;
+
+        while (true) {
+            auto front = free_transfers_.front();
+            if (!front) [[unlikely]] {
+                if (!transfers_all_busy_)
+                    RCLCPP_ERROR(
+                        cboard_.logger_, "Failed to fetch free buffer: All transfers are busy!");
+                transfers_all_busy_ = true;
+                return nullptr;
+            } else
+                transfers_all_busy_ = false;
+
+            libusb_transfer* transfer = *front;
+
+            if (transfer->length + size > 64)
+                trigger_transmission_nocheck();
+            else {
+                std::byte* buffer =
+                    reinterpret_cast<std::byte*>(transfer->buffer) + transfer->length;
+                transfer->length += static_cast<int>(size);
+                return buffer;
+            }
+        }
+    }
+
     bool trigger_transmission_nocheck() {
-        return free_transfers_.pop_front(
-            [](libusb_transfer* transfer) { libusb_submit_transfer(transfer); });
+        return free_transfers_.pop_front([this](libusb_transfer* transfer) {
+            int ret = libusb_submit_transfer(transfer);
+            if (ret != 0) [[unlikely]] {
+                if (ret == LIBUSB_ERROR_NO_DEVICE)
+                    RCLCPP_ERROR(
+                        cboard_.logger_,
+                        "Failed to submit transmit transfer: Device disconnected. Terminating...");
+                else
+                    RCLCPP_ERROR(
+                        cboard_.logger_, "Failed to submit transmit transfer: %d. Terminating...",
+                        ret);
+                std::terminate();
+            }
+        });
     }
 
     void usb_transmit_complete_callback(libusb_transfer* transfer) {
-        if (transfer->status == LIBUSB_TRANSFER_CANCELLED) {
-            --cboard_.active_transfer_count_;
-            libusb_free_transfer(transfer);
-            return;
+        if (transfer->status != LIBUSB_TRANSFER_COMPLETED) [[unlikely]] {
+            if (transfer->status == LIBUSB_TRANSFER_CANCELLED) {
+                --cboard_.active_transfer_count_;
+                libusb_free_transfer(transfer);
+                return;
+            } else {
+                RCLCPP_ERROR(
+                    cboard_.logger_, "USB transmitting error: Transfer not completed! status=%d",
+                    transfer->status);
+            }
         }
 
         if (transfer->actual_length != transfer->length) [[unlikely]]
             RCLCPP_ERROR(
-                cboard_.logger_, "USB transmit error: transmitted(%d) < expected(%d)",
+                cboard_.logger_, "USB transmitting error: transmitted(%d) < expected(%d)",
                 transfer->actual_length, transfer->length);
 
         transfer->length = 1;
@@ -467,6 +587,8 @@ private:
 
     RingBuffer<libusb_transfer*> free_transfers_;
     std::vector<libusb_transfer*> transfers_;
+
+    bool transfers_all_busy_ = false;
 };
 
 } // namespace rmcs_core::hardware::forwarder

@@ -56,23 +56,36 @@ public:
             is_remote_transmission, hex_string, can_data_length);
     }
 
+    void uart1_receive_callback(const std::byte* uart_data, uint8_t uart_data_length) override {
+        char hex_string[64 * 3 + 1];
+        hex_string[0] = '\0';
+        for (int i = 0; i < uart_data_length; i++)
+            sprintf(&hex_string[i * 3], "%02x ", static_cast<uint8_t>(uart_data[i]));
+        RCLCPP_INFO(get_logger(), "UART2 receive: %s(%d)", hex_string, uart_data_length);
+    }
+
+    void uart2_receive_callback(const std::byte* uart_data, uint8_t uart_data_length) override {
+        char hex_string[64 * 3 + 1];
+        hex_string[0] = '\0';
+        for (int i = 0; i < uart_data_length; i++)
+            sprintf(&hex_string[i * 3], "%02x ", static_cast<uint8_t>(uart_data[i]));
+        RCLCPP_INFO(get_logger(), "UART2 receive: %s(%d)", hex_string, uart_data_length);
+    }
+
+    void dbus_receive_callback(const std::byte* uart_data, uint8_t uart_data_length) override {
+        char hex_string[64 * 3 + 1];
+        hex_string[0] = '\0';
+        for (int i = 0; i < uart_data_length; i++)
+            sprintf(&hex_string[i * 3], "%02x ", static_cast<uint8_t>(uart_data[i]));
+        RCLCPP_INFO(get_logger(), "DBUS receive: %s(%d)", hex_string, uart_data_length);
+    }
+
     void update() override {
         transmit_buffer_.add_can2_transmission(0x200, 0x01'23'45'67'89'AB'CD'EF, true, true, 6);
         transmit_buffer_.add_can2_transmission(0x201, 0x01'23'45'67'89'AB'CD'EF, true, true, 0);
         transmit_buffer_.add_can2_transmission(0x202, 0x01'23'45'67'89'AB'CD'EF);
-        transmit_buffer_.add_can2_transmission(0x203, 0x01'23'45'67'89'AB'CD'EF);
-        transmit_buffer_.add_can2_transmission(0x204, 0x01'23'45'67'89'AB'CD'EF);
-        transmit_buffer_.add_can2_transmission(0x205, 0x01'23'45'67'89'AB'CD'EF);
-        transmit_buffer_.add_can2_transmission(0x206, 0x01'23'45'67'89'AB'CD'EF);
-        transmit_buffer_.add_can2_transmission(0x207, 0x01'23'45'67'89'AB'CD'EF);
-        transmit_buffer_.add_can2_transmission(0x208, 0x01'23'45'67'89'AB'CD'EF);
-        transmit_buffer_.add_can2_transmission(0x209, 0x01'23'45'67'89'AB'CD'EF);
-        transmit_buffer_.add_can2_transmission(0x20A, 0x01'23'45'67'89'AB'CD'EF);
-        transmit_buffer_.add_can2_transmission(0x20B, 0x01'23'45'67'89'AB'CD'EF);
-        transmit_buffer_.add_can2_transmission(0x20C, 0x01'23'45'67'89'AB'CD'EF);
-        transmit_buffer_.add_can2_transmission(0x20D, 0x01'23'45'67'89'AB'CD'EF);
-        transmit_buffer_.add_can2_transmission(0x20E, 0x01'23'45'67'89'AB'CD'EF);
-        transmit_buffer_.add_can2_transmission(0x20F, 0x01'23'45'67'89'AB'CD'EF);
+        uint8_t foo[] = {0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF};
+        transmit_buffer_.add_uart2_transmission(reinterpret_cast<std::byte*>(foo), sizeof(foo));
         transmit_buffer_.trigger_transmission();
     }
 
