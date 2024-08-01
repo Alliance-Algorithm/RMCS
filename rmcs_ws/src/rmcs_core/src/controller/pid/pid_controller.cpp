@@ -18,12 +18,14 @@ public:
         , pid_calculator_(
               get_parameter("kp").as_double(), get_parameter("ki").as_double(),
               get_parameter("kd").as_double()) ,logger_(get_logger()){
+      RCLCPP_INFO(get_logger(), "chassis_controller init start");
 
         register_input(get_parameter("measurement").as_string(), measurement_);
 
         // Allows using immediate value instead of message name
         auto parameter_setpoint = get_parameter("setpoint");
-        if (parameter_setpoint.get_type() == rclcpp::ParameterType::PARAMETER_DOUBLE) {
+      if (parameter_setpoint.get_type() ==
+          rclcpp::ParameterType::PARAMETER_DOUBLE) {
             setpoint_immediate_value_ = parameter_setpoint.as_double();
             setpoint_.bind_directly(setpoint_immediate_value_);
         } else {

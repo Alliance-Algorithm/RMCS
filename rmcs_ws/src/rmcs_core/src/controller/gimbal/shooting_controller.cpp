@@ -21,6 +21,7 @@ public:
              rclcpp::NodeOptions{}
                  .automatically_declare_parameters_from_overrides(true)),
         logger_(get_logger()) {
+    RCLCPP_INFO(get_logger(),"shooting_controller init start");
 
     friction_working_velocity = get_parameter("friction_velocity").as_double();
     double shot_frequency = get_parameter("shot_frequency").as_double();
@@ -49,6 +50,7 @@ public:
                     right_friction_control_velocity_, nan);
     register_output("/gimbal/bullet_feeder/control_velocity",
                     bullet_feeder_control_velocity_, nan);
+    RCLCPP_INFO(get_logger(),"shooting_controller init");
   }
 
   void update() override {

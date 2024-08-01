@@ -119,6 +119,7 @@ public:
     register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
     register_output("/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
     register_output("/tf", tf_);
+    register_output("/imu/gyro", imu_gyro_);
 
     using namespace rmcs_description;
 
@@ -290,6 +291,8 @@ private:
     auto gimbal_imu_pose = imu_.update(gx, gy, gz, ax, ay, az);
     tf_->set_transform<rmcs_description::ImuLink, rmcs_description::OdomImu>(
         gimbal_imu_pose.conjugate());
+
+    *imu_gyro_ = rmcs_description::YawLink::DirectionVector{gx, gy, gz};
   }
 
   void gimbal_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
@@ -338,6 +341,8 @@ private:
   OutputInterface<double> gimbal_yaw_velocity_imu_;
   OutputInterface<double> gimbal_pitch_velocity_imu_;
   OutputInterface<rmcs_description::Tf> tf_;
+
+  OutputInterface<rmcs_description::YawLink::DirectionVector> imu_gyro_;
 };
 
 } // namespace rmcs_core::hardware::cboard

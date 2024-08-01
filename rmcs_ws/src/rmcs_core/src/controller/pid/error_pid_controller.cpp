@@ -18,6 +18,7 @@ public:
         , pid_calculator_(
               get_parameter("kp").as_double(), get_parameter("ki").as_double(),
               get_parameter("kd").as_double()) {
+        RCLCPP_INFO(get_logger(),"error pid controller init start");
 
         register_input(get_parameter("measurement").as_string(), measurement_);
         register_output(get_parameter("control").as_string(), control_);
@@ -26,6 +27,8 @@ public:
         get_parameter("integral_max", pid_calculator_.integral_max);
         get_parameter("output_min", pid_calculator_.output_min);
         get_parameter("output_max", pid_calculator_.output_max);
+
+        RCLCPP_INFO(get_logger(),"error pid controller init");
     }
 
     void update() override {

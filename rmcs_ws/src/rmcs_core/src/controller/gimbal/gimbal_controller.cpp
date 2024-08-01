@@ -26,6 +26,8 @@ public:
       : Node(get_component_name(),
              rclcpp::NodeOptions{}
                  .automatically_declare_parameters_from_overrides(true)) {
+    RCLCPP_INFO(get_logger(),"gimbal_controller init start");
+
     auto_control_angle_sub_ = create_subscription<geometry_msgs::msg::Pose2D>(
         "/sentry/control/angle", 10,
         [this](const geometry_msgs::msg::Pose2D::UniquePtr &msg) {
@@ -53,6 +55,8 @@ public:
     register_output("/gimbal/yaw/control_angle_error", yaw_angle_error_, nan);
     register_output("/gimbal/pitch/control_angle_error", pitch_angle_error_,
                     nan);
+
+    RCLCPP_INFO(get_logger(),"gimbal_controller init");
   }
 
   void update() override {
@@ -75,8 +79,8 @@ public:
           (mouse.right || switch_right == Switch::UP) &&
           !auto_aim_control_direction_->isZero()) {
         update_auto_aim_control_direction(dir);
-      } else if (switch_right == Switch::UP) {
-        update_auto_control_direction(dir);
+        // } else if (switch_right == Switch::UP) {
+        //   update_auto_control_direction(dir);
       } else {
         update_manual_control_direction(dir);
       }
