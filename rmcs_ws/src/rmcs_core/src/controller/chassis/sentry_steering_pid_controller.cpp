@@ -156,8 +156,7 @@ public:
     }
 
     if (move.norm() != 0) {
-      if (angle_new != 0 && !spinning_ &&
-          *switch_right_ != rmcs_msgs::Switch::UP) {
+      if (angle_new != 0 && !spinning_ ) {
         move = (sin((1 - angle_ratio) * angle_new) * last_control_move +
                 sin(angle_ratio * angle_new) * move) /
                sin(angle_new);
