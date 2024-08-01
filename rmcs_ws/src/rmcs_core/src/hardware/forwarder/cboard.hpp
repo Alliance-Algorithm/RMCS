@@ -65,6 +65,17 @@ protected:
         (void)uart_data_length;
     }
 
+    virtual void accelerometer_receive_callback(int16_t x, int16_t y, int16_t z) {
+        (void)x;
+        (void)y;
+        (void)z;
+    }
+    virtual void gyroscope_receive_callback(int16_t x, int16_t y, int16_t z) {
+        (void)x;
+        (void)y;
+        (void)z;
+    }
+
     class TransmitBuffer;
 
 private:
@@ -202,6 +213,8 @@ private:
                 read_uart_buffer(iterator, &CBoard::uart2_receive_callback);
             } else if (field_id == StatusId::UART3) {
                 read_uart_buffer(iterator, &CBoard::dbus_receive_callback);
+            } else if (field_id == StatusId::IMU) {
+                read_imu_buffer(iterator);
             } else
                 break;
         }
@@ -266,6 +279,17 @@ private:
         buffer += size;
     }
 
+    void read_imu_buffer(std::byte*& buffer) {
+        auto& field = *std::launder(reinterpret_cast<ImuField*>(buffer));
+        buffer += sizeof(ImuField);
+
+        if (field.device_id == ImuField::DeviceId::ACCELEROMETER) {
+            accelerometer_receive_callback(field.x, field.y, field.z);
+        } else {
+            gyroscope_receive_callback(field.x, field.y, field.z);
+        }
+    }
+
     enum class StatusId : uint8_t {
         RESERVED = 0,
 
@@ -312,11 +336,6 @@ private:
         bool has_can_data           : 1;
     };
 
-    struct __attribute__((packed)) UartFieldHeader {
-        uint8_t field_id  : 4;
-        uint8_t data_size : 4;
-    };
-
     struct __attribute__((packed)) CanStandardId {
         uint32_t can_id     : 11;
         uint8_t data_length : 3;
@@ -325,6 +344,20 @@ private:
     struct __attribute__((packed)) CanExtendedId {
         uint32_t can_id     : 29;
         uint8_t data_length : 3;
+    };
+
+    struct __attribute__((packed)) UartFieldHeader {
+        uint8_t field_id  : 4;
+        uint8_t data_size : 4;
+    };
+
+    struct __attribute__((packed)) ImuField {
+        uint8_t field_id : 4;
+        enum class DeviceId : uint8_t {
+            ACCELEROMETER = 0,
+            GYROSCOPE     = 1,
+        } device_id : 4;
+        int16_t x, y, z;
     };
 
     template <typename Functor>
