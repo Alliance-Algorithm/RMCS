@@ -5,6 +5,20 @@
 #include "robot_color.hpp"
 
 namespace rmcs_msgs {
+enum class ArmorID : uint16_t {
+    Unknown     = 0,
+    Hero        = 1,
+    Engineer    = 2,
+    InfantryIII = 3,
+    InfantryIV  = 4,
+    InfantryV   = 5,
+    Aerial      = 6,
+    Sentry      = 7,
+    Dart        = 8,
+    Radar       = 9,
+    Outpost     = 10,
+    Base        = 11,
+};
 
 class RobotId {
 public:
@@ -54,6 +68,10 @@ public:
     constexpr bool operator!=(const Value value) const { return value_ != value; }
 
     constexpr RobotColor color() const { return value_ & 0x40 ? RobotColor::BLUE : RobotColor::RED; }
+
+    constexpr ArmorID id() const {
+        return value_ > 100 ? static_cast<ArmorID>(value_ - 100) : static_cast<ArmorID>(value_);
+    }
 
 private:
     Value value_;
