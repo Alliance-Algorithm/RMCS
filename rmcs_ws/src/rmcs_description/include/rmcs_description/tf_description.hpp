@@ -86,7 +86,7 @@ struct fast_tf::Joint<rmcs_description::PitchLink> {
 template <>
 struct fast_tf::Joint<rmcs_description::MuzzleLink> {
     using Parent                   = rmcs_description::PitchLink;
-    Eigen::Translation3d transform = Eigen::Translation3d::Identity();
+    Eigen::Translation3d transform = Eigen::Translation3d{0.059, 0, 0};
 };
 
 template <>
@@ -98,13 +98,13 @@ struct fast_tf::Joint<rmcs_description::TransmitterLink> {
 template <>
 struct fast_tf::Joint<rmcs_description::CameraLink> {
     using Parent                   = rmcs_description::PitchLink;
-    Eigen::Translation3d transform = Eigen::Translation3d::Identity();
+    Eigen::Translation3d transform = Eigen::Translation3d{0.06603, 0, 0.082};
 };
 
 template <>
 struct fast_tf::Joint<rmcs_description::ImuLink> {
-    using Parent                 = rmcs_description::PitchLink;
-    Eigen::Quaterniond transform = Eigen::Quaterniond::Identity();
+    using Parent                = rmcs_description::PitchLink;
+    Eigen::AngleAxisd transform = {std::numbers::pi / 2, Eigen::Vector3d::UnitZ()};
 };
 
 template <>
