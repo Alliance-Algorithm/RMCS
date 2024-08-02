@@ -20,7 +20,8 @@
 #include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/switch.hpp>
-#include <std_msgs/msg/detail/float64__struct.hpp>
+#include <std_msgs/msg/bool.hpp>
+#include <std_msgs/msg/detail/bool__struct.hpp>
 #include <std_msgs/msg/float64.hpp>
 
 #include "controller/pid/pid_calculator.hpp"
@@ -43,6 +44,10 @@ public:
               auto_control_velocity.x() = msg->x;
               auto_control_velocity.y() = msg->y;
             });
+    auto_control_spinning_sub_ = create_subscription<std_msgs::msg::Bool>(
+        "/sentry/control/spinning", 10, [this](const std_msgs::msg::Bool &msg) {
+          auto_control_spinning_ = msg.data;
+        });
     following_velocity_controller_.integral_max = 40;
     following_velocity_controller_.integral_min = -40;
 
@@ -172,9 +177,10 @@ public:
       move = (1. - speed_ratio) * last_control_move;
       last_control_move = move;
     }
-    calculate_wheel_velocity_for_forwarding(angle, velocity, move,
-                                            spinning_ * spinning_omega *
-                                                (last_spinning_ ? 1 : -1));
+    calculate_wheel_velocity_for_forwarding(
+        angle, velocity, move,
+        (spinning_ || auto_control_spinning_) * spinning_omega *
+            (last_spinning_ ? 1 : -1));
 
     *left_front_control_angle_ =
         angle[0] - *left_front_angle_; //+ *mpc_left_front_control_angle_;
@@ -276,6 +282,9 @@ private:
   rclcpp::Subscription<geometry_msgs::msg::Pose2D>::SharedPtr
       auto_control_velocity_sub_;
 
+  rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr
+      auto_control_spinning_sub_;
+
   InputInterface<Eigen::Vector2d> joystick_right_;
   InputInterface<Eigen::Vector2d> joystick_left_;
   InputInterface<rmcs_msgs::Switch> switch_right_;
@@ -289,7 +298,8 @@ private:
   rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
   rmcs_msgs::Switch last_switch_left_ = rmcs_msgs::Switch::UNKNOWN;
 
-  bool spinning_ = false, following_ = false, last_spinning_ = true;
+  bool spinning_ = false, following_ = false, last_spinning_ = true,
+       auto_control_spinning_ = false;
 
   double min_rad = 0.1;
   double speed_ratio = 0.2;

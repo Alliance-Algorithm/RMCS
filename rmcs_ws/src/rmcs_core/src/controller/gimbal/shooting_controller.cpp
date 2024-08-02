@@ -46,6 +46,7 @@ public:
 
     register_input("/gimbal/bullet_feeder/velocity", bullet_feeder_velocity_);
 
+    register_input("/gimbal/shooting/fire_controller_", fire_controller_);
     register_output("/gimbal/left_friction/control_velocity",
                     left_friction_control_velocity_, nan);
     register_output("/gimbal/right_friction/control_velocity",
@@ -78,7 +79,9 @@ public:
                   switch_left == Switch::UP)) {
           friction_enabled_ = !friction_enabled_;
         }
-        bullet_feeder_enabled_ = mouse.left || switch_left == Switch::DOWN;
+        bullet_feeder_enabled_ =
+            (switch_right == Switch::UP && *fire_controller_) || mouse.left ||
+            switch_left == Switch::DOWN;
       }
       update_friction_velocities();
       update_bullet_feeder_velocity();
@@ -233,6 +236,8 @@ private:
   int bullet_feeder_working_status_ = 0;
   int bullet_feeder_jammed_count_ = 0;
   int bullet_feeder_cool_down_ = 0;
+
+  InputInterface<bool> fire_controller_;
 
   OutputInterface<double> left_friction_control_velocity_,
       right_friction_control_velocity_;

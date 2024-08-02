@@ -26,7 +26,7 @@ public:
       : Node(get_component_name(),
              rclcpp::NodeOptions{}
                  .automatically_declare_parameters_from_overrides(true)) {
-    RCLCPP_INFO(get_logger(),"gimbal_controller init start");
+    RCLCPP_INFO(get_logger(), "gimbal_controller init start");
 
     auto_control_angle_sub_ = create_subscription<geometry_msgs::msg::Pose2D>(
         "/sentry/control/angle", 10,
@@ -55,8 +55,10 @@ public:
     register_output("/gimbal/yaw/control_angle_error", yaw_angle_error_, nan);
     register_output("/gimbal/pitch/control_angle_error", pitch_angle_error_,
                     nan);
+    register_output("/gimbal/shooting/fire_controller_", fire_controller_,
+                    false);
 
-    RCLCPP_INFO(get_logger(),"gimbal_controller init");
+    RCLCPP_INFO(get_logger(), "gimbal_controller init");
   }
 
   void update() override {
@@ -79,8 +81,9 @@ public:
           (mouse.right || switch_right == Switch::UP) &&
           !auto_aim_control_direction_->isZero()) {
         update_auto_aim_control_direction(dir);
-        } else if (switch_right == Switch::UP) {
-          update_auto_control_direction(dir);
+        update_auto_aim_fire_controller();
+      } else if (switch_right == Switch::UP) {
+        update_auto_control_direction(dir);
       } else {
         update_manual_control_direction(dir);
       }
@@ -114,6 +117,24 @@ private:
     dir = fast_tf::cast<PitchLink>(
         OdomImu::DirectionVector{*auto_aim_control_direction_}, *tf_);
     control_enabled = true;
+  }
+
+  void update_auto_aim_fire_controller() {
+    auto target_dir = fast_tf::cast<PitchLink>(
+        OdomImu::DirectionVector{*auto_aim_control_direction_}, *tf_);
+    auto odom_dir = fast_tf::cast<OdomImu>(
+        PitchLink::DirectionVector{Eigen::Vector3d::UnitX()}, *tf_);
+    if (odom_dir->x() == 0 || odom_dir->y() == 0)
+      return;
+    odom_dir->z() = 0;
+
+    auto current_dir = fast_tf::cast<PitchLink>(odom_dir, *tf_);
+
+    double cosValNew =
+        current_dir.vector.dot(target_dir.vector) /
+        (current_dir.vector.norm() * target_dir.vector.norm()); // 角度cos值
+
+    *fire_controller_ = cosValNew < fire_limit_rad;
   }
 
   void update_manual_control_direction(PitchLink::DirectionVector &dir) {
@@ -204,7 +225,7 @@ private:
   }
 
   static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
-
+  static constexpr double fire_limit_rad = M_PI / 36.;
   InputInterface<Eigen::Vector2d> joystick_left_;
   InputInterface<rmcs_msgs::Switch> switch_right_;
   InputInterface<rmcs_msgs::Switch> switch_left_;
@@ -230,6 +251,7 @@ private:
   double upper_limit_, lower_limit_;
 
   OutputInterface<double> yaw_angle_error_, pitch_angle_error_;
+  OutputInterface<bool> fire_controller_;
 };
 
 } // namespace rmcs_core::controller::gimbal
