@@ -178,6 +178,7 @@ private:
 
     auto can_id = package->dynamic_part<can_id_t>();
     using namespace rmcs_description;
+   // RCLCPP_INFO(get_logger(),"%hu",can_id);
     if (can_id == 0x202) {
       gimbal_bullet_feeder_.update_status(std::move(package), logger_);
     } else if (can_id == 0x203) {
@@ -185,7 +186,7 @@ private:
     } else if (can_id == 0x204) {
       gimbal_right_friction_.update_status(std::move(package), logger_);
     }
-    if (can_id == 0x206) {
+    else if (can_id == 0x206) {
       auto &motor = gimbal_pitch_motor_;
       motor.update_status(std::move(package), logger_);
       tf_->set_state<BaseLink, LeftFrontWheelLink>(motor.get_angle());

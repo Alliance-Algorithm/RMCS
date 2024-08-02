@@ -72,7 +72,7 @@ public:
         gimbal_bullet_feeder_.write_command_to_package(package_above, 1);
         gimbal_left_friction_.write_command_to_package(package_above, 2);
         gimbal_right_friction_.write_command_to_package(package_above, 3);
-        send(serial_above, package_above);
+         send(serial_above, package_above);
         std::this_thread::sleep_for(std::chrono::microseconds(30));
 
         // gimbal control

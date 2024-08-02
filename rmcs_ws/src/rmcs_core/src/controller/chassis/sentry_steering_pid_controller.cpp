@@ -1,6 +1,6 @@
 #include <algorithm>
 #include <cmath>
-#include <geometry_msgs/msg/detail/pose2_d__struct.hpp>
+#include <game_stage.hpp>
 #include <limits>
 #include <numbers>
 
@@ -12,14 +12,14 @@
 #include <rclcpp/create_timer.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
-
 #include <rclcpp/publisher.hpp>
+
 #include <rmcs_executor/component.hpp>
+
+#include <geometry_msgs/msg/pose2_d.hpp>
 #include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/switch.hpp>
-
-#include <geometry_msgs/msg/pose2_d.hpp>
 #include <std_msgs/msg/detail/float64__struct.hpp>
 #include <std_msgs/msg/float64.hpp>
 
@@ -51,6 +51,8 @@ public:
 
     min_rad = get_parameter("min_rad").as_double();
     speed_ratio = get_parameter("speed_ratio").as_double();
+
+    register_input("/referee/game/stage", game_stage_);
 
     register_input("/remote/joystick/right", joystick_right_);
     register_input("/remote/joystick/left", joystick_left_);
@@ -111,7 +113,10 @@ public:
       update_wheel_velocities(
           Eigen::Rotation2Dd{*gimbal_yaw_angle_ + *gimbal_yaw_angle_error_} *
           (*joystick_right_ +
-           (switch_right == Switch::UP ? 1 : 0) * auto_control_velocity / 10));
+           ((switch_right == Switch::UP || *game_stage_ == GameStage::STARTED)
+                ? 1
+                : 0) *
+               auto_control_velocity / 5 / 2));
     } while (false);
 
     last_switch_right_ = switch_right;
@@ -156,7 +161,7 @@ public:
     }
 
     if (move.norm() != 0) {
-      if (angle_new != 0 && !spinning_ ) {
+      if (angle_new != 0 && !spinning_) {
         move = (sin((1 - angle_ratio) * angle_new) * last_control_move +
                 sin(angle_ratio * angle_new) * move) /
                sin(angle_new);
@@ -205,6 +210,7 @@ public:
     *right_front_control_velocity_ =
         velocity[3] * max_angle; //+ *mpc_right_front_control_velocity_
   }
+  InputInterface<rmcs_msgs::GameStage> game_stage_;
 
   static inline void calculate_wheel_velocity_for_forwarding(
       double (&angle)[4], double (&velocity)[4], const Eigen::Vector2d &move,
@@ -254,7 +260,7 @@ private:
   static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
   static constexpr double wheel_speed_limit = 45.454545455; //
-  static constexpr double spinning_omega = M_PI * 3. / 4.; //
+  static constexpr double spinning_omega = M_PI * 3. / 4.;  //
 
   // Since sine and cosine function are not constexpr, we calculate once and
   // cache them.

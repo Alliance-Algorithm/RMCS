@@ -4,6 +4,7 @@
 
 #include <eigen3/Eigen/Dense>
 #include <fast_tf/rcl.hpp>
+#include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
@@ -50,7 +51,8 @@ public:
                     right_friction_control_velocity_, nan);
     register_output("/gimbal/bullet_feeder/control_velocity",
                     bullet_feeder_control_velocity_, nan);
-    RCLCPP_INFO(get_logger(),"shooting_controller init");
+
+        RCLCPP_INFO(get_logger(), "shooting_controller init");
   }
 
   void update() override {
@@ -114,8 +116,13 @@ private:
 
     last_left_friction_velocity_ = *left_friction_velocity_;
 
+//test
+
     bullet_count_limited_by_shooter_heat_ =
-        (*shooter_heat_limit_ - shooter_heat_ - 10'000) / 10'000;
+        (20'000'000 - shooter_heat_ - 10'000) / 10'000;
+
+    // bullet_count_limited_by_shooter_heat_ =
+    //     (*shooter_heat_limit_ - shooter_heat_ - 10'000) / 10'000;
     if (bullet_count_limited_by_shooter_heat_ < 0)
       bullet_count_limited_by_shooter_heat_ = 0;
   }
@@ -134,7 +141,7 @@ private:
       *bullet_feeder_control_velocity_ = 0.0;
       return;
     }
-
+    // RCLCPP_INFO(get_logger(), "%ld", bullet_count_limited_by_shooter_heat_);
     update_jam_detection();
 
     if (bullet_feeder_cool_down_ > 0) {

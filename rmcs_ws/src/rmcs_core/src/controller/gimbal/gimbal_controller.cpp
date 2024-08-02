@@ -79,8 +79,8 @@ public:
           (mouse.right || switch_right == Switch::UP) &&
           !auto_aim_control_direction_->isZero()) {
         update_auto_aim_control_direction(dir);
-        // } else if (switch_right == Switch::UP) {
-        //   update_auto_control_direction(dir);
+        } else if (switch_right == Switch::UP) {
+          update_auto_control_direction(dir);
       } else {
         update_manual_control_direction(dir);
       }
