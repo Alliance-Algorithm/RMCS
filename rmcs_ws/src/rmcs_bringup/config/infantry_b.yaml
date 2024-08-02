@@ -89,7 +89,7 @@ pitch_velocity_pid_controller:
 
 shooting_controller:
   ros__parameters:
-    friction_velocity: 700.0
+    friction_velocity: 740.0
     shot_frequency: 20.0
     safe_shot_frequency: 10.0
 
@@ -185,7 +185,8 @@ rmcs_auto_aim:
     record_fps: 120
     debug: false # Setup in actual using.Debug mode is used when referee is not ready
     debug_color: 0 # 0 For blue while 1 for red. mine
-    debug_robot_id: 4
+    debug_robot_id: 5
     debug_buff_mode: false
     record: false
     raw_img_pub: false # Set false in actual use 
+    shoot_velocity: 29.0

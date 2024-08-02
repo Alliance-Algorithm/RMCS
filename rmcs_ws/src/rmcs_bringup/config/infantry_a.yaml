@@ -89,7 +89,7 @@ pitch_velocity_pid_controller:
 
 shooting_controller:
   ros__parameters:
-    friction_velocity: 700.0
+    friction_velocity: 740.0
     shot_frequency: 20.0
     safe_shot_frequency: 10.0
 
@@ -170,7 +170,7 @@ rmcs_auto_aim:
     armor_predict_duration: 500
     buff_predict_duration: 200
     gimbal_predict_duration: 100
-    yaw_error: 0.0
+    yaw_error: 0.02
     pitch_error: -0.0
     armor_model_path: "/models/mlp.onnx"
     buff_model_path: "/models/buff_nocolor_v6.onnx"
@@ -189,3 +189,4 @@ rmcs_auto_aim:
     debug_buff_mode: false
     record: false
     raw_img_pub: false # Set false in actual use 
+    shoot_velocity: 29.0
