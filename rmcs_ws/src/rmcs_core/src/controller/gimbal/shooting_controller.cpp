@@ -1,5 +1,6 @@
 #include <cmath>
 
+#include <game_stage.hpp>
 #include <limits>
 
 #include <eigen3/Eigen/Dense>
@@ -22,7 +23,7 @@ public:
              rclcpp::NodeOptions{}
                  .automatically_declare_parameters_from_overrides(true)),
         logger_(get_logger()) {
-    RCLCPP_INFO(get_logger(),"shooting_controller init start");
+    RCLCPP_INFO(get_logger(), "shooting_controller init start");
 
     friction_working_velocity = get_parameter("friction_velocity").as_double();
     double shot_frequency = get_parameter("shot_frequency").as_double();
@@ -52,7 +53,8 @@ public:
     register_output("/gimbal/bullet_feeder/control_velocity",
                     bullet_feeder_control_velocity_, nan);
 
-        RCLCPP_INFO(get_logger(), "shooting_controller init");
+    register_input("/referee/game/stage", game_stage_);
+    RCLCPP_INFO(get_logger(), "shooting_controller init");
   }
 
   void update() override {
@@ -69,9 +71,11 @@ public:
       reset_all_controls();
     } else {
       if (switch_right != Switch::DOWN) {
-        if ((!last_keyboard_.v && keyboard.v) ||
-            (last_switch_left_ == Switch::MIDDLE &&
-             switch_left == Switch::UP)) {
+        if (*game_stage_ == GameStage::STARTED)
+          friction_enabled_ = true;
+        else if ((!last_keyboard_.v && keyboard.v) ||
+                 (last_switch_left_ == Switch::MIDDLE &&
+                  switch_left == Switch::UP)) {
           friction_enabled_ = !friction_enabled_;
         }
         bullet_feeder_enabled_ = mouse.left || switch_left == Switch::DOWN;
@@ -116,7 +120,7 @@ private:
 
     last_left_friction_velocity_ = *left_friction_velocity_;
 
-//test
+    // test
 
     bullet_count_limited_by_shooter_heat_ =
         (20'000'000 - shooter_heat_ - 10'000) / 10'000;
@@ -219,6 +223,7 @@ private:
   double last_left_friction_velocity_ = nan,
          friction_velocity_decrease_integral_ = 0;
 
+  InputInterface<rmcs_msgs::GameStage> game_stage_;
   InputInterface<int64_t> shooter_cooling_, shooter_heat_limit_;
   int64_t shooter_heat_ = 0, bullet_count_limited_by_shooter_heat_ = 0;
 
