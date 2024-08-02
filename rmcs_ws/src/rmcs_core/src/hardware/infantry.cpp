@@ -3,7 +3,6 @@
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
-#include <rmcs_msgs/byte_stream.hpp>
 #include <rmcs_msgs/serial_interface.hpp>
 #include <std_msgs/msg/int32.hpp>
 
@@ -47,13 +46,14 @@ public:
         gimbal_bullet_feeder_.configure(
             DjiMotorConfig{DjiMotorType::M2006}.enable_multi_turn_angle());
 
-        // imu_gx_bias_ = get_parameter("imu_gx_bias").as_double();
-        // imu_gy_bias_ = get_parameter("imu_gy_bias").as_double();
-        // imu_gz_bias_ = get_parameter("imu_gz_bias").as_double();
+        imu_gx_bias_ = get_parameter("imu_gx_bias").as_double();
+        imu_gy_bias_ = get_parameter("imu_gy_bias").as_double();
+        imu_gz_bias_ = get_parameter("imu_gz_bias").as_double();
 
         register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
         register_output("/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
         register_output("/tf", tf_);
+        register_output("/imu/gyro", imu_gyro_);
 
         using namespace rmcs_description;
 
@@ -169,6 +169,8 @@ private:
         auto gimbal_imu_pose = imu_.update(ax, ay, az, gx, gy, gz);
         tf_->set_transform<rmcs_description::ImuLink, rmcs_description::OdomImu>(
             gimbal_imu_pose.conjugate());
+
+        *imu_gyro_ = {gx, gy, gz};
     }
 
     void gimbal_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
@@ -281,11 +283,13 @@ private:
     std::atomic<ImuData> accelerometer_data_, gyroscope_data_;
     static_assert(std::atomic<ImuData>::is_always_lock_free);
     device::Imu imu_;
-    // TODO: double imu_gx_bias_, imu_gy_bias_, imu_gz_bias_;
+    double imu_gx_bias_, imu_gy_bias_, imu_gz_bias_;
+
     OutputInterface<double> gimbal_yaw_velocity_imu_;
     OutputInterface<double> gimbal_pitch_velocity_imu_;
 
     OutputInterface<rmcs_description::Tf> tf_;
+    OutputInterface<Eigen::Vector3d> imu_gyro_;
 
     RingBuffer<std::byte> referee_ring_buffer_receive_{256};
     OutputInterface<rmcs_msgs::SerialInterface> referee_serial_;

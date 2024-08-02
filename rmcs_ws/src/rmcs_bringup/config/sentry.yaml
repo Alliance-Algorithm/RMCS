@@ -33,6 +33,8 @@ rmcs_executor:
       - rmcs_core::hardware::cboard::Command -> cboard_command
       - rmcs_referee::Command -> referee_command
 
+      - rmcs_core::hardware::cboard::GyroCalibrator -> gyro_calibrator
+
       - rmcs_auto_aim::Controller -> rmcs_auto_aim
 
 cboard_status:
@@ -174,7 +176,6 @@ rmcs_auto_aim:
     pitch_error: -0.5
     armor_model_path: "/models/armoridentify_with_base.onnx"
     buff_model_path: "/models/buff_nocolor_v6.onnx"
-    debug: true
     fx: 1.722231837421459e+03
     fy: 1.724876404292754e+03
     cx: 7.013056440882832e+02
@@ -192,7 +193,10 @@ rmcs_auto_aim:
     omni_k2: -0.1184
     omni_k3: 0.0501
     test: 0.1107
-    fps: 165
+    record_fps: 165
+    debug: true
     debug_color: 0 # 0 For blue while 1 for red
-    debug_robot_id: 4
+    debug_robot_id: 7
     debug_buff_mode: false
+    record: false
+    raw_img_pub: false

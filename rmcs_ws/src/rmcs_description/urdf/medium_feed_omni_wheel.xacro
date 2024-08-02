@@ -92,4 +92,29 @@
     <origin xyz="0.06603 0 0.082" />
   </joint>
 
+  <link name="omni_link_left_front" />
+  <joint name="omni" type="fixed">
+    <parent link="yaw_link" />
+    <child link="omni_link_left_front" />
+    <origin xyz="" />
+  </joint>
+  <link name="omni_link_right_front" />
+  <joint name="omni" type="fixed">
+    <parent link="yaw_link" />
+    <child link="omni_link_right_front" />
+    <origin xyz="" />
+  </joint>
+  <link name="omni_link_left" />
+  <joint name="omni" type="fixed">
+    <parent link="yaw_link" />
+    <child link="omni_link_left" />
+    <origin xyz="" />
+  </joint>
+  <link name="omni_link_right" />
+  <joint name="omni" type="fixed">
+    <parent link="yaw_link" />
+    <child link="omni_link_right" />
+    <origin xyz="" />
+  </joint>
+
 </robot>

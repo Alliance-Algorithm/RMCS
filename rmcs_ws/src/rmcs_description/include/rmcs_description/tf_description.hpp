@@ -51,6 +51,22 @@ struct RightFrontWheelLink : fast_tf::Link<LeftFrontWheelLink> {
     static constexpr char name[] = "right_front_wheel_link";
 };
 
+struct OmniLinkLeftFront : fast_tf::Link<OmniLinkLeftFront> {
+    static constexpr char name[] = "omni_link_left_front";
+};
+
+struct OmniLinkRightFront : fast_tf::Link<OmniLinkRightFront> {
+    static constexpr char name[] = "omni_link_right_front";
+};
+
+struct OmniLinkLeft : fast_tf::Link<OmniLinkLeft> {
+    static constexpr char name[] = "omni_link_left";
+};
+
+struct OmniLinkRight : fast_tf::Link<OmniLinkRight> {
+    static constexpr char name[] = "omni_link_right";
+};
+
 } // namespace rmcs_description
 
 template <>
@@ -147,10 +163,35 @@ struct fast_tf::Joint<rmcs_description::RightFrontWheelLink> {
     }
 };
 
+template <>
+struct fast_tf::Joint<rmcs_description::OmniLinkLeftFront> {
+    using Parent                = rmcs_description::YawLink;
+    Eigen::Isometry3d transform = Eigen::Isometry3d::Identity();
+};
+
+template <>
+struct fast_tf::Joint<rmcs_description::OmniLinkRightFront> {
+    using Parent                = rmcs_description::YawLink;
+    Eigen::Isometry3d transform = Eigen::Isometry3d::Identity();
+};
+
+template <>
+struct fast_tf::Joint<rmcs_description::OmniLinkLeft> {
+    using Parent                = rmcs_description::YawLink;
+    Eigen::Isometry3d transform = Eigen::Isometry3d::Identity();
+};
+
+template <>
+struct fast_tf::Joint<rmcs_description::OmniLinkRight> {
+    using Parent                = rmcs_description::YawLink;
+    Eigen::Isometry3d transform = Eigen::Isometry3d::Identity();
+};
+
 namespace rmcs_description {
 
 using Tf = fast_tf::JointCollection<
     YawLink, PitchLink, MuzzleLink, TransmitterLink, CameraLink, ImuLink, OdomImu, GimbalCenterLink,
-    LeftFrontWheelLink, LeftBackWheelLink, RightBackWheelLink, RightFrontWheelLink>;
+    LeftFrontWheelLink, LeftBackWheelLink, RightBackWheelLink, RightFrontWheelLink,
+    OmniLinkLeftFront, OmniLinkRightFront, OmniLinkLeft, OmniLinkRight>;
 
 } // namespace rmcs_description

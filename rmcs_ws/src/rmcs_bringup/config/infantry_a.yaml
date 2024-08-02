@@ -32,16 +32,17 @@ rmcs_executor:
 
       - rmcs_referee::Command -> referee_command
 
-      # - rmcs_auto_aim::Controller -> rmcs_auto_aim
+      - rmcs_core::hardware::cboard::GyroCalibrator -> gyro_calibrator
+      - rmcs_auto_aim::Controller -> rmcs_auto_aim
 
 infantry_hardware:
   ros__parameters:
     path: /dev/ttyACM0
     yaw_motor_zero_point: 7830
     pitch_motor_zero_point: 2028
-    imu_gx_bias: 0.0
-    imu_gy_bias: 0.0
-    imu_gz_bias: 0.0
+    imu_gx_bias: +0.004977
+    imu_gy_bias: +0.000446
+    imu_gz_bias: +0.001367
 
 referee_status:
   ros__parameters:
@@ -168,12 +169,11 @@ rmcs_auto_aim:
     exposure_time: 5
     armor_predict_duration: 500
     buff_predict_duration: 200
-    gimbal_predict_duration: 500
+    gimbal_predict_duration: 100
     yaw_error: 0.0
-    pitch_error: 0.0
-    armor_model_path: "/models/armoridentify_with_base.onnx"
+    pitch_error: -0.0
+    armor_model_path: "/models/mlp.onnx"
     buff_model_path: "/models/buff_nocolor_v6.onnx"
-    debug: true
     fx: 1.722231837421459e+03
     fy: 1.724876404292754e+03
     cx: 7.013056440882832e+02
@@ -182,8 +182,10 @@ rmcs_auto_aim:
     k2: -0.087667493884102
     k3: 0.792381808294582
     omni_exposure: 1000.0
-    test: 0.1107
-    fps: 165
-    debug_color: 0 # 0 For blue while 1 for red
+    record_fps: 120
+    debug: false # Setup in actual using.Debug mode is used when referee is not ready
+    debug_color: 0 # 0 For blue while 1 for red. mine
     debug_robot_id: 4
     debug_buff_mode: false
+    record: false
+    raw_img_pub: false # Set false in actual use 
