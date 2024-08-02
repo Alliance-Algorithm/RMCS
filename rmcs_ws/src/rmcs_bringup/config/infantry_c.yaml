@@ -37,8 +37,8 @@ rmcs_executor:
 infantry_hardware:
   ros__parameters:
     path: /dev/ttyACM0
-    yaw_motor_zero_point: 4425
-    pitch_motor_zero_point: 6716
+    yaw_motor_zero_point: 5824
+    pitch_motor_zero_point: 5431
     imu_gx_bias: 0.0
     imu_gy_bias: 0.0
     imu_gz_bias: 0.0
