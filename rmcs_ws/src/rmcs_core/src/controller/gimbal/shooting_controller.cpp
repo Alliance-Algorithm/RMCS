@@ -69,6 +69,17 @@ public:
                     friction_enabled_ = !friction_enabled_;
                 }
                 bullet_feeder_enabled_ = mouse.left || switch_left == Switch::DOWN;
+                if (keyboard.f || keyboard.g) {
+                    if (bullet_count_limited_by_single_shot_ < 0)
+                        bullet_count_limited_by_single_shot_ = 0;
+                    if (!last_mouse_.left && mouse.left) {
+                        ++bullet_count_limited_by_single_shot_;
+                        RCLCPP_INFO(get_logger(), "%ld", bullet_count_limited_by_single_shot_);
+                    }
+                    bullet_feeder_enabled_ |= bullet_count_limited_by_single_shot_ > 0;
+                } else {
+                    bullet_count_limited_by_single_shot_ = -1;
+                }
             }
             update_friction_velocities();
             update_bullet_feeder_velocity();
@@ -76,6 +87,7 @@ public:
 
         last_switch_right_ = switch_right;
         last_switch_left_  = switch_left;
+        last_mouse_        = mouse;
         last_keyboard_     = keyboard;
     }
 
@@ -102,6 +114,8 @@ private:
                     && last_left_friction_velocity_ < friction_working_velocity - 20.0) {
                     // Heat with 1/1000 tex
                     shooter_heat_ += 10'000 + 10;
+                    // Decrease single-shot bullet allowance
+                    --bullet_count_limited_by_single_shot_;
                 }
                 friction_velocity_decrease_integral_ = 0;
             }
@@ -122,8 +136,12 @@ private:
     }
 
     void update_bullet_feeder_velocity() {
-        if (!friction_enabled_ || !bullet_feeder_enabled_
-            || bullet_count_limited_by_shooter_heat_ == 0) {
+        auto bullet_allowance = bullet_count_limited_by_shooter_heat_;
+        if (0 <= bullet_count_limited_by_single_shot_
+            && bullet_count_limited_by_single_shot_ < bullet_allowance)
+            bullet_allowance = bullet_count_limited_by_single_shot_;
+
+        if (!friction_enabled_ || !bullet_feeder_enabled_ || bullet_allowance == 0) {
             bullet_feeder_working_status_    = 0;
             *bullet_feeder_control_velocity_ = 0.0;
             return;
@@ -136,9 +154,8 @@ private:
             return;
         }
 
-        double new_control_velocity = bullet_count_limited_by_shooter_heat_ > 1
-                                        ? bullet_feeder_working_velocity
-                                        : bullet_feeder_safe_shot_velocity;
+        double new_control_velocity = bullet_allowance > 1 ? bullet_feeder_working_velocity
+                                                           : bullet_feeder_safe_shot_velocity;
         if (new_control_velocity > *bullet_feeder_control_velocity_)
             bullet_feeder_working_status_ = std::min(0, bullet_feeder_working_status_);
         *bullet_feeder_control_velocity_ = new_control_velocity;
@@ -197,13 +214,16 @@ private:
 
     rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Switch last_switch_left_  = rmcs_msgs::Switch::UNKNOWN;
+    rmcs_msgs::Mouse last_mouse_         = rmcs_msgs::Mouse::zero();
     rmcs_msgs::Keyboard last_keyboard_   = rmcs_msgs::Keyboard::zero();
 
     InputInterface<double> left_friction_velocity_, right_friction_velocity_;
     double last_left_friction_velocity_ = nan, friction_velocity_decrease_integral_ = 0;
 
     InputInterface<int64_t> shooter_cooling_, shooter_heat_limit_;
-    int64_t shooter_heat_ = 0, bullet_count_limited_by_shooter_heat_ = 0;
+    int64_t shooter_heat_                         = 0;
+    int64_t bullet_count_limited_by_shooter_heat_ = 0;
+    int64_t bullet_count_limited_by_single_shot_  = -1;
 
     bool friction_enabled_ = false, bullet_feeder_enabled_ = false;
 
