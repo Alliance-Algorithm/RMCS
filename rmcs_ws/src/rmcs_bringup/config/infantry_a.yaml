@@ -166,7 +166,7 @@ chassis_power_controller:
 
 rmcs_auto_aim:
   ros__parameters:
-    exposure_time: 5
+    exposure_time: 3
     armor_predict_duration: 500
     buff_predict_duration: 200
     gimbal_predict_duration: 100

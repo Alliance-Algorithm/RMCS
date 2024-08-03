@@ -166,12 +166,12 @@ chassis_power_controller:
 
 rmcs_auto_aim:
   ros__parameters:
-    exposure_time: 5
+    exposure_time: 3
     armor_predict_duration: 500
     buff_predict_duration: 200
     gimbal_predict_duration: 100
-    yaw_error: 0.0
-    pitch_error: -0.0
+    yaw_error: 0.022
+    pitch_error: 0.015
     armor_model_path: "/models/mlp.onnx"
     buff_model_path: "/models/buff_nocolor_v6.onnx"
     fx: 1.722231837421459e+03
@@ -186,7 +186,7 @@ rmcs_auto_aim:
     debug: false # Setup in actual using.Debug mode is used when referee is not ready
     debug_color: 0 # 0 For blue while 1 for red. mine
     debug_robot_id: 5
-    debug_buff_mode: false
-    record: false
+    debug_buff_mode: true
+    record: true
     raw_img_pub: false # Set false in actual use 
     shoot_velocity: 29.0
