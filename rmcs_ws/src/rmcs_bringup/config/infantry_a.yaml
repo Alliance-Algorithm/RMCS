@@ -37,7 +37,7 @@ rmcs_executor:
 
 infantry_hardware:
   ros__parameters:
-    path: /dev/ttyACM0
+    usb_pid: 0x488D
     yaw_motor_zero_point: 7830
     pitch_motor_zero_point: 2028
     imu_gx_bias: +0.004977
@@ -171,7 +171,7 @@ rmcs_auto_aim:
     buff_predict_duration: 200
     gimbal_predict_duration: 100
     yaw_error: 0.02
-    pitch_error: -0.0
+    pitch_error: -0.01
     armor_model_path: "/models/mlp.onnx"
     buff_model_path: "/models/buff_nocolor_v6.onnx"
     fx: 1.722231837421459e+03
@@ -189,4 +189,4 @@ rmcs_auto_aim:
     debug_buff_mode: false
     record: false
     raw_img_pub: false # Set false in actual use 
-    shoot_velocity: 29.0
+    shoot_velocity: 26.0

@@ -2,7 +2,7 @@ rmcs_executor:
   ros__parameters:
     update_rate: 1000.0
     components:
-      - rmcs_core::hardware::cboard::Status -> cboard_status
+      - rmcs_core::hardware::Infantry -> infantry_hardware
       - rmcs_referee::Status -> referee_status
 
       - rmcs_core::controller::gimbal::GimbalController -> gimbal_controller
@@ -30,17 +30,16 @@ rmcs_executor:
       - rmcs_referee::command::interaction::Ui -> referee_ui
       - rmcs_referee::app::ui::Infantry -> referee_ui_infantry
 
-      - rmcs_core::hardware::cboard::Command -> cboard_command
       - rmcs_referee::Command -> referee_command
 
       - rmcs_core::hardware::cboard::GyroCalibrator -> gyro_calibrator
       - rmcs_auto_aim::Controller -> rmcs_auto_aim
 
-cboard_status:
+infantry_hardware:
   ros__parameters:
-    path: /dev/ttyACM0
-    yaw_motor_zero_point: 4062
-    pitch_motor_zero_point: 5410
+    usb_pid: 0x5891
+    yaw_motor_zero_point: 7470
+    pitch_motor_zero_point: 5498
     imu_gx_bias: 0.0
     imu_gy_bias: 0.0
     imu_gz_bias: 0.0
@@ -171,8 +170,8 @@ rmcs_auto_aim:
     armor_predict_duration: 500
     buff_predict_duration: 200
     gimbal_predict_duration: 100
-    yaw_error: 0.0
-    pitch_error: -0.0
+    yaw_error: 0.03
+    pitch_error: -0.00
     armor_model_path: "/models/mlp.onnx"
     buff_model_path: "/models/buff_nocolor_v6.onnx"
     fx: 1.722231837421459e+03
@@ -190,3 +189,4 @@ rmcs_auto_aim:
     debug_buff_mode: false
     record: false
     raw_img_pub: false # Set false in actual use 
+    shoot_velocity: 26.0

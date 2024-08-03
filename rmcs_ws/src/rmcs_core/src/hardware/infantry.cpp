@@ -21,7 +21,7 @@ class Infantry
 public:
     Infantry()
         : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
-        , forwarder::CBoard{get_logger()}
+        , forwarder::CBoard{static_cast<uint16_t>(get_parameter("usb_pid").as_int()), get_logger()}
         , logger_(get_logger())
         , infantry_command_(
               create_partner_component<InfantryCommand>(get_component_name() + "_command", *this))

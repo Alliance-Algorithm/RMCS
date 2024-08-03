@@ -12,9 +12,9 @@ namespace rmcs_core::hardware::forwarder {
 
 class CBoard {
 public:
-    explicit CBoard(const rclcpp::Logger& logger)
+    explicit CBoard(uint16_t usb_pid, const rclcpp::Logger& logger)
         : logger_(logger) {
-        if (!init()) {
+        if (!init(0xa11c, usb_pid)) {
             throw std::runtime_error{"Failed to init usb transfer for cboard, see log for detail."};
         }
 
@@ -79,7 +79,7 @@ protected:
     class TransmitBuffer;
 
 private:
-    bool init(uint16_t vendor_id = 0x0483, uint16_t product_id = 0x5740) noexcept {
+    bool init(uint16_t vendor_id, uint16_t product_id) noexcept {
         int ret;
 
         ret = libusb_init(&libusb_context_);
