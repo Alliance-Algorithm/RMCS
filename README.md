@@ -1,6 +1,20 @@
 # RMCS
 RoboMaster Control System based on ROS2.
 
+## Dependency
+
+```zsh
+echo "source /opt/ros/humble/setup.zsh" >> ~/.zshrc
+
+# if you keep the origin folder structure
+cd /workspaces/RMCS/rmcs_ws
+
+# build to make custom packages available
+colcon build --merge-install
+
+sudo rosdep install --from-paths src --ignore-src -r -y
+```
+
 ## Develop
 
 #### Configure environment
