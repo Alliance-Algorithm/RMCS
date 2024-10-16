@@ -1,6 +1,13 @@
 # RMCS
 RoboMaster Control System based on ROS2.
 
+# Sentry
+> by Alray Qiu
+
+Try Event Drive FrameWork, with one leader and some follower
+
+Everyone should work without others but test easily
+
 ## Develop
 
 #### Configure environment
