@@ -33,20 +33,24 @@ public:
     bullet_feeder_safe_shot_velocity =
         safe_shot_frequency / 8 * 2 * std::numbers::pi;
 
-    register_input("/remote/switch/right", switch_right_);
-    register_input("/remote/switch/left", switch_left_);
-    register_input("/remote/mouse", mouse_);
-    register_input("/remote/keyboard", keyboard_);
+    register_input("/remote/switch/right", switch_right_, false);
+    register_input("/remote/switch/left", switch_left_, false);
+    register_input("/remote/mouse", mouse_, false);
+    register_input("/remote/keyboard", keyboard_, false);
 
-    register_input("/gimbal/left_friction/velocity", left_friction_velocity_);
-    register_input("/gimbal/right_friction/velocity", right_friction_velocity_);
+    register_input("/gimbal/left_friction/velocity", left_friction_velocity_,
+                   false);
+    register_input("/gimbal/right_friction/velocity", right_friction_velocity_,
+                   false);
 
-    register_input("/referee/shooter/cooling", shooter_cooling_);
-    register_input("/referee/shooter/heat_limit", shooter_heat_limit_);
+    register_input("/referee/shooter/cooling", shooter_cooling_, false);
+    register_input("/referee/shooter/heat_limit", shooter_heat_limit_, false);
 
-    register_input("/gimbal/bullet_feeder/velocity", bullet_feeder_velocity_);
+    register_input("/gimbal/bullet_feeder/velocity", bullet_feeder_velocity_,
+                   false);
 
-    register_input("/gimbal/shooting/fire_controller_", fire_controller_);
+    register_input("/gimbal/shooting/fire_controller_", fire_controller_,
+                   false);
     register_output("/gimbal/left_friction/control_velocity",
                     left_friction_control_velocity_, nan);
     register_output("/gimbal/right_friction/control_velocity",
@@ -54,7 +58,7 @@ public:
     register_output("/gimbal/bullet_feeder/control_velocity",
                     bullet_feeder_control_velocity_, nan);
 
-    register_input("/referee/game/stage", game_stage_);
+    register_input("/referee/game/stage", game_stage_, false);
     RCLCPP_INFO(get_logger(), "shooting_controller init");
   }
 

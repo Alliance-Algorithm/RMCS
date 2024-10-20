@@ -40,14 +40,14 @@ public:
     lower_limit_ =
         get_parameter("lower_limit").as_double() + (std::numbers::pi / 2);
     time_tick_ = 0;
-    register_input("/remote/joystick/left", joystick_left_);
-    register_input("/remote/switch/right", switch_right_);
-    register_input("/remote/switch/left", switch_left_);
-    register_input("/remote/mouse/velocity", mouse_velocity_);
-    register_input("/remote/mouse", mouse_);
+    register_input("/remote/joystick/left", joystick_left_, false);
+    register_input("/remote/switch/right", switch_right_, false);
+    register_input("/remote/switch/left", switch_left_, false);
+    register_input("/remote/mouse/velocity", mouse_velocity_, false);
+    register_input("/remote/mouse", mouse_, false);
 
-    register_input("/gimbal/pitch/angle", gimbal_pitch_angle_);
-    register_input("/tf", tf_);
+    register_input("/gimbal/pitch/angle", gimbal_pitch_angle_, false);
+    register_input("/tf", tf_, false);
 
     register_input("/gimbal/auto_aim/control_direction",
                    auto_aim_control_direction_, false);

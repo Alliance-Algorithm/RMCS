@@ -14,6 +14,9 @@
   <class type="rmcs_core::controller::chassis::PowerController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
+  <class type="rmcs_core::controller::chassis::PowerControllerTest" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
   <class type="rmcs_core::controller::gimbal::GimbalController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
@@ -45,6 +48,9 @@
     <description>Test plugin.</description>
   </class>
   <class type="rmcs_core::hardware::cboard::GyroCalibrator" base_class_type="rmcs_executor::Component">
-  <description>Test plugin.</description>
+    <description>Test plugin.</description>
+  </class> 
+  <class type="rmcs_core::hardware::TestForwarder" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
   </class>
 </library>

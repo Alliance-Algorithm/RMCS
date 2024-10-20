@@ -4,24 +4,24 @@
 
 #include <eigen3/Eigen/Dense>
 
-namespace rmcs_core::hardware::cboard {
+namespace rmcs_core::hardware::device {
 
-class ImuStatus {
+class Imu {
 public:
-    explicit ImuStatus(const Eigen::Quaterniond& initial_status = {1, 0, 0, 0}) {
+    explicit Imu(const Eigen::Quaterniond& initial_status = {1, 0, 0, 0}) {
         q0 = initial_status.w();
         q1 = initial_status.x();
         q2 = initial_status.y();
         q3 = initial_status.z();
     };
 
-    Eigen::Quaterniond update(double gx, double gy, double gz, double ax, double ay, double az) {
-        mahony_ahrs_update_imu(gx, gy, gz, ax, ay, az);
+    Eigen::Quaterniond update(double ax, double ay, double az, double gx, double gy, double gz) {
+        mahony_ahrs_update_imu(ax, ay, az, gx, gy, gz);
         return {q0, q1, q2, q3};
     }
 
 private:
-    void mahony_ahrs_update_imu(double gx, double gy, double gz, double ax, double ay, double az) {
+    void mahony_ahrs_update_imu(double ax, double ay, double az, double gx, double gy, double gz) {
         // Madgwick's implementation of Mayhony's AHRS algorithm.
         // See: http://www.x-io.co.uk/node/8#open_source_ahrs_and_imu_algorithms
 
@@ -93,7 +93,7 @@ private:
         q3 *= recipNorm;
     }
 
-    static constexpr double kSampleFreq = 2000.0; // sample frequency in Hz
+    static constexpr double kSampleFreq = 1000.0; // sample frequency in Hz
     static constexpr double kKp         = 0.2;    // proportional gain
     static constexpr double kKi         = 0.0;    // integral gain
 
@@ -104,4 +104,4 @@ private:
     double integral_fbx_ = 0.0, integral_fby_ = 0.0, integral_fbz_ = 0.0;
 };
 
-} // namespace forwarder
+} // namespace rmcs_core::hardware::device

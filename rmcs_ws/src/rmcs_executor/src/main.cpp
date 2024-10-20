@@ -12,8 +12,8 @@ int main(int argc, char** argv) {
     pluginlib::ClassLoader<rmcs_executor::Component> component_loader(
         "rmcs_executor", "rmcs_executor::Component");
 
-    auto executor = std::make_shared<rmcs_executor::Executor>("rmcs_executor");
     rclcpp::executors::SingleThreadedExecutor rcl_executor;
+    auto executor = std::make_shared<rmcs_executor::Executor>("rmcs_executor", rcl_executor);
     rcl_executor.add_node(executor);
 
     std::vector<std::string> component_descriptions;
@@ -38,8 +38,6 @@ int main(int argc, char** argv) {
         rmcs_executor::Component::initializing_component_name = component_name.c_str();
         auto component = component_loader.createSharedInstance(plugin_name);
         executor->add_component(component);
-        if (auto node = std::dynamic_pointer_cast<rclcpp::Node>(component))
-            rcl_executor.add_node(node);
     }
 
     executor->start();

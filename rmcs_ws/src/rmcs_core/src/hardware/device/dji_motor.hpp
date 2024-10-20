@@ -1,6 +1,9 @@
 #pragma once
 
+#include <atomic>
+#include <bit>
 #include <cmath>
+#include <cstring>
 #include <numbers>
 #include <stdexcept>
 
@@ -8,9 +11,10 @@
 #include <rclcpp/logging.hpp>
 #include <rmcs_executor/component.hpp>
 
-#include "hardware/cboard/package.hpp"
+#include "hardware/endian_promise.hpp"
 
-namespace rmcs_core::hardware::cboard {
+namespace rmcs_core::hardware::device {
+using rmcs_executor::Component;
 
 enum class DjiMotorType : uint8_t {
     UNKNOWN        = 0,
@@ -47,11 +51,10 @@ struct DjiMotorConfig {
     DjiMotorConfig& enable_multi_turn_angle() { return multi_turn_angle_enabled = true, *this; }
 };
 
-class DjiMotorStatus {
+class DjiMotor {
 public:
-    friend class DjiMotorCommand;
-
-    DjiMotorStatus(rmcs_executor::Component* component, const std::string& name_prefix) {
+    DjiMotor(
+        Component& status_component, Component& command_component, const std::string& name_prefix) {
         encoder_zero_point_       = 0;
         last_raw_angle_           = 0;
         multi_turn_angle_enabled_ = false;
@@ -59,17 +62,19 @@ public:
         raw_angle_to_angle_coefficient_ = angle_to_raw_angle_coefficient_ = 0.0;
         raw_current_to_torque_coefficient_ = torque_to_raw_current_coefficient_ = 0.0;
 
-        component->register_output(name_prefix + "/reduction_ratio", reduction_ratio_, 0.0);
-        component->register_output(name_prefix + "/max_torque", max_torque_, 0.0);
+        status_component.register_output(name_prefix + "/reduction_ratio", reduction_ratio_, 0.0);
+        status_component.register_output(name_prefix + "/max_torque", max_torque_, 0.0);
 
-        component->register_output(name_prefix + "/angle", angle_, 0.0);
-        component->register_output(name_prefix + "/velocity", velocity_, 0.0);
-        component->register_output(name_prefix + "/torque", torque_, 0.0);
+        status_component.register_output(name_prefix + "/angle", angle_, 0.0);
+        status_component.register_output(name_prefix + "/velocity", velocity_, 0.0);
+        status_component.register_output(name_prefix + "/torque", torque_, 0.0);
 
-        component->register_output(name_prefix + "/motor", motor_, this);
+        status_component.register_output(name_prefix + "/motor", motor_, this);
+
+        command_component.register_input(name_prefix + "/control_torque", control_torque_);
     }
-    DjiMotorStatus(const DjiMotorStatus&)            = delete;
-    DjiMotorStatus& operator=(const DjiMotorStatus&) = delete;
+    DjiMotor(const DjiMotor&)            = delete;
+    DjiMotor& operator=(const DjiMotor&) = delete;
 
     void configure(const DjiMotorConfig& config) {
         encoder_zero_point_ = config.encoder_zero_point % raw_angle_max_;
@@ -122,18 +127,11 @@ public:
         angle_multi_turn_         = 0;
     }
 
-    void update(std::unique_ptr<Package> package, rclcpp::Logger& logger) {
-        auto& static_part = package->static_part();
+    void store_status(uint64_t can_data) { can_data_.store(can_data, std::memory_order::relaxed); }
 
-        if (package->dynamic_part_size() != sizeof(PackageDjiMotorFeedbackPart)) {
-            RCLCPP_ERROR(
-                logger, "Package size does not match (6020): [0x%02X 0x%02X] (size = %d)",
-                static_part.type, static_part.index, static_part.data_size);
-            return;
-        }
-
-        auto& dynamic_part = package->dynamic_part<PackageDjiMotorFeedbackPart>();
-        int raw_angle      = dynamic_part.angle;
+    void update() {
+        auto feedback = std::bit_cast<DjiMotorFeedback>(can_data_.load(std::memory_order::relaxed));
+        int raw_angle = feedback.angle;
 
         // Angle unit: rad
         int angle = raw_angle - encoder_zero_point_;
@@ -152,13 +150,29 @@ public:
         }
 
         // Velocity unit: rad/s
-        *velocity_ =
-            raw_velocity_to_velocity_coefficient_ * static_cast<double>(dynamic_part.velocity);
+        *velocity_ = raw_velocity_to_velocity_coefficient_ * static_cast<double>(feedback.velocity);
 
         // Torque unit: N*m
-        *torque_ = raw_current_to_torque_coefficient_ * static_cast<double>(dynamic_part.current);
+        *torque_ = raw_current_to_torque_coefficient_ * static_cast<double>(feedback.current);
 
         last_raw_angle_ = raw_angle;
+    }
+
+    uint16_t generate_command() const {
+        double torque = *control_torque_;
+        if (std::isnan(torque)) {
+            return 0;
+        }
+
+        be_int16_t control_current;
+
+        double max_torque = (*motor_)->get_max_torque();
+        torque            = std::clamp(torque, -max_torque, max_torque);
+
+        double current  = std::round((*motor_)->torque_to_raw_current_coefficient_ * torque);
+        control_current = static_cast<int16_t>(current);
+
+        return std::bit_cast<uint16_t>(control_current);
     }
 
     int calibrate_zero_point() {
@@ -173,6 +187,20 @@ public:
     double get_max_torque() { return *max_torque_; }
 
 private:
+    struct alignas(uint64_t) DjiMotorFeedback {
+        be_int16_t angle;
+        be_int16_t velocity;
+        be_int16_t current;
+        uint8_t temperature;
+        uint8_t unused;
+    };
+
+    struct alignas(uint64_t) DjiMotorCommand {
+        be_int16_t control_current[4];
+    };
+
+    std::atomic<uint64_t> can_data_ = 0;
+
     static constexpr int raw_angle_max_ = 8192;
     int encoder_zero_point_, last_raw_angle_;
 
@@ -183,14 +211,16 @@ private:
     double raw_velocity_to_velocity_coefficient_, velocity_to_raw_velocity_coefficient_;
     double raw_current_to_torque_coefficient_, torque_to_raw_current_coefficient_;
 
-    rmcs_executor::Component::OutputInterface<double> reduction_ratio_;
-    rmcs_executor::Component::OutputInterface<double> max_torque_;
+    Component::OutputInterface<double> reduction_ratio_;
+    Component::OutputInterface<double> max_torque_;
 
-    rmcs_executor::Component::OutputInterface<double> angle_;
-    rmcs_executor::Component::OutputInterface<double> velocity_;
-    rmcs_executor::Component::OutputInterface<double> torque_;
+    Component::OutputInterface<double> angle_;
+    Component::OutputInterface<double> velocity_;
+    Component::OutputInterface<double> torque_;
 
-    rmcs_executor::Component::OutputInterface<DjiMotorStatus*> motor_;
+    Component::OutputInterface<DjiMotor*> motor_;
+
+    Component::InputInterface<double> control_torque_;
 };
 
-} // namespace rmcs_core::hardware::cboard
+} // namespace rmcs_core::hardware::device

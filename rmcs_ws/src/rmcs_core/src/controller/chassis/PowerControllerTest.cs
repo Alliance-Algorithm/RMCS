@@ -9,9 +9,9 @@
 
 namespace rmcs_core::controller::chassis {
 
-class PowerController : public rmcs_executor::Component, public rclcpp::Node {
+class PowerControllerTest : public rmcs_executor::Component, public rclcpp::Node {
 public:
-  PowerController()
+  PowerControllerTest()
       : Node(get_component_name(),
              rclcpp::NodeOptions{}
                  .automatically_declare_parameters_from_overrides(true)),
@@ -135,5 +135,5 @@ private:
 
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::chassis::PowerController,
+PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::chassis::PowerControllerTest,
                        rmcs_executor::Component)

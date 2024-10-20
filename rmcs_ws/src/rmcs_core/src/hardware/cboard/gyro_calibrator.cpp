@@ -1,11 +1,10 @@
 #include <cmath>
 
+#include <eigen3/Eigen/Dense>
 #include <rclcpp/node.hpp>
 #include <rclcpp/subscription.hpp>
-#include <std_msgs/msg/detail/int8__struct.hpp>
 #include <std_msgs/msg/int8.hpp>
 
-#include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
 
 namespace rmcs_core::hardware::cboard {
@@ -37,9 +36,9 @@ public:
             if (calibrate_mode_) {
                 auto gyro = *imu_gyro_;
 
-                auto x = gyro->x();
-                auto y = gyro->y();
-                auto z = gyro->z();
+                auto x = gyro.x();
+                auto y = gyro.y();
+                auto z = gyro.z();
 
                 sum_gx_ += x;
                 sum_gy_ += y;
@@ -91,11 +90,12 @@ public:
 
                 RCLCPP_INFO(
                     get_logger(),
-                    "\n# Sample Count=%d\n# Mean:\t x=%+Lf, y=%+Lf, z=%+Lf\n# Max:\t x=%+lf, y=%+lf, "
+                    "\n# Sample Count=%d\n# Mean:\t x=%+Lf, y=%+Lf, z=%+Lf\n# Max:\t x=%+lf, "
+                    "y=%+lf, "
                     "z=%+lf\n# "
                     "Min:\t x=%+lf, y=%+lf, z=%+lf\n# Variance:\t x=%+Lf, y=%+Lf, z=%+Lf",
-                    count_, mean_x, mean_y, mean_z, max_gx_, max_gy_, max_gz_, min_gx_, min_gy_, min_gz_, d_x,
-                    d_y, d_z);
+                    count_, mean_x, mean_y, mean_z, max_gx_, max_gy_, max_gz_, min_gx_, min_gy_,
+                    min_gz_, d_x, d_y, d_z);
                 RCLCPP_INFO(get_logger(), "Calibration finished");
                 reset();
             }
@@ -140,7 +140,7 @@ public:
     long double s_y_ = 0;
     long double s_z_ = 0;
 
-    InputInterface<rmcs_description::YawLink::DirectionVector> imu_gyro_;
+    InputInterface<Eigen::Vector3d> imu_gyro_;
 
     rclcpp::Subscription<std_msgs::msg::Int8>::SharedPtr calibrator_mode_sub_;
 

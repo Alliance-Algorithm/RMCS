@@ -1,0 +1,9 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::hardware::TestForwarder -> forwarder
+
+forwarder:
+  ros__parameters:
+    usb_pid: ce3b

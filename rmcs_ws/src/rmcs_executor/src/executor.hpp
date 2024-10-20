@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include <rclcpp/executors.hpp>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
@@ -18,10 +19,10 @@ namespace rmcs_executor {
 
 class Executor final : public rclcpp::Node {
 public:
-    explicit Executor(const std::string& node_name)
-        : Node{
-              node_name,
-              rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true)} {
+    explicit Executor(
+        const std::string& node_name, rclcpp::executors::SingleThreadedExecutor& rcl_executor)
+        : Node{node_name, rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true)}
+        , rcl_executor_(rcl_executor) {
         Component::initializing_component_name = "predefined_msg_provider";
         predefined_msg_provider_               = std::make_shared<PredefinedMsgProvider>();
         add_component(predefined_msg_provider_);
@@ -31,12 +32,12 @@ public:
             thread_.join();
     };
 
-    void add_component(std::unique_ptr<Component> component) {
-        component_list_.emplace_back(std::move(component));
-    }
-
     void add_component(std::shared_ptr<Component> component) {
         component_list_.emplace_back(component);
+        if (auto node = std::dynamic_pointer_cast<rclcpp::Node>(component))
+            rcl_executor_.add_node(node);
+        for (auto& partner_component : component->partner_component_list_)
+            add_component(partner_component);
     }
 
     void start() {
@@ -169,6 +170,8 @@ private:
             }
         }
     };
+
+    rclcpp::executors::SingleThreadedExecutor& rcl_executor_;
 
     std::thread thread_;
 

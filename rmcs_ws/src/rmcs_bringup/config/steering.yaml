@@ -129,10 +129,6 @@ bullet_feeder_velocity_pid_controller:
     kd: 0.0
 
 #===========
-chassis_controller:
-  ros__parameters:
-    min_rad: 0.5
-    speed_ratio: 0.01
 
 left_front_steering_error_pid_controller:
   ros__parameters:
