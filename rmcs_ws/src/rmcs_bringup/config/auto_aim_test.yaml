@@ -1,0 +1,42 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      # - rmcs_auto_aim::ArmorIdentifierNode -> armor_identifier
+      - rmcs_auto_aim::Capturer -> capturer
+      - rmcs_auto_aim::AutoAimTest -> auto_aim_test
+
+armor_identifier:
+  ros__parameters:
+    armor_model_path: "/models/mlp.onnx"
+
+capturer:
+  ros__parameters:
+    exposure_time: 3
+    invert_image: false
+
+auto_aim_test:
+  ros__parameters:
+    armor_predict_duration: 500
+    buff_predict_duration: 200
+    gimbal_predict_duration: 100
+    yaw_error: 0.02
+    pitch_error: -0.01
+    armor_model_path: "/models/mlp.onnx"
+    buff_model_path: "/models/buff_nocolor_v6.onnx"
+    fx: 1.722231837421459e+03
+    fy: 1.724876404292754e+03
+    cx: 7.013056440882832e+02
+    cy: 5.645821718351237e+02
+    k1: -0.064232403853946
+    k2: -0.087667493884102
+    k3: 0.792381808294582
+    omni_exposure: 1000.0
+    record_fps: 120
+    debug: false # Setup in actual using.Debug mode is used when referee is not ready
+    debug_color: 0 # 0 For blue while 1 for red. mine
+    debug_robot_id: 4
+    debug_buff_mode: false
+    record: false
+    raw_img_pub: false # Set false in actual use 
+    shoot_velocity: 26.0
