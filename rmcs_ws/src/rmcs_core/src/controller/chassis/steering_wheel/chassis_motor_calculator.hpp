@@ -1,0 +1,71 @@
+#pragma once
+
+#include "controller/chassis/steering_wheel/motor.hpp"
+#include "controller/pid/pid_calculator.hpp"
+#include <eigen3/Eigen/Eigen>
+#include <eigen3/Eigen/src/Core/Matrix.h>
+
+#include <memory>
+#include <rclcpp/node.hpp>
+#include <rmcs_executor/component.hpp>
+#include <switch.hpp>
+#include <vector>
+
+namespace rmcs_core::controller::chassis::steering_wheel {
+using rmcs_executor::Component;
+
+class ChassisMotorCalculator {
+public:
+  ChassisMotorCalculator(Component &chassis, rclcpp::Node &node) {
+
+    chassis.register_input("/chassis/left_front_steering/angle",
+                           left_front_angle_);
+
+    chassis.register_input("/chassis/left_back_steering/angle",
+                           left_back_angle_);
+
+    chassis.register_input("/chassis/right_back_steering/angle",
+                           right_back_angle_);
+
+    chassis.register_input("/chassis/right_front_steering/angle",
+                           right_front_angle_);
+  }
+
+  bool calculate_wheel_velocity_and_angle(
+      const std::vector<std::unique_ptr<SteerMotor>> &steers,
+      const std::vector<std::unique_ptr<WheelMotor>> &wheels,
+      const Eigen::Vector2d &move, double spin_speed) {
+
+    Eigen::Vector2d lf_vel = Eigen::Vector2d{-spin_speed, spin_speed} + move;
+    Eigen::Vector2d lb_vel = Eigen::Vector2d{-spin_speed, -spin_speed} + move;
+    Eigen::Vector2d rb_vel = Eigen::Vector2d{spin_speed, -spin_speed} + move;
+    Eigen::Vector2d rf_vel = Eigen::Vector2d{spin_speed, spin_speed} + move;
+
+    // velocity[0] = lf_vel.norm();
+    // velocity[1] = lb_vel.norm();
+    // velocity[2] = rb_vel.norm();
+    // velocity[3] = rf_vel.norm();
+
+    // err_with_angle[0] = norm_error_angle(atan2(lf_vel.y(), lf_vel.x()));
+    // err_with_angle[1] = norm_error_angle(atan2(lb_vel.y(), lb_vel.x()));
+    // err_with_angle[2] = norm_error_angle(atan2(rb_vel.y(), rb_vel.x()));
+    // err_with_angle[3] = norm_error_angle(atan2(rf_vel.y(), rf_vel.x()));
+    return true;
+  }
+
+private:
+  static inline double norm_error_angle(const double &angle) {
+    return atan(abs(tan(angle)) > abs(tan(angle + M_PI)) //
+                    ? tan(angle)
+                    : tan(angle + M_PI));
+  }
+
+  Component::InputInterface<double> left_front_angle_;
+  Component::InputInterface<double> left_back_angle_;
+  Component::InputInterface<double> right_back_angle_;
+  Component::InputInterface<double> right_front_angle_;
+
+  static constexpr double wheel_speed_limit = 71.78136448385897;
+};
+
+} // namespace rmcs_core::controller::chassis::steering_wheel

@@ -10,7 +10,6 @@
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/imu.hpp"
-#include "hardware/device/supercap.hpp"
 #include "hardware/forwarder/cboard.hpp"
 
 namespace rmcs_core::hardware {
@@ -31,6 +30,14 @@ public:
             get_component_name() + "_command", *this)),
         transmit_buffer_(*this, 16) {
     using namespace device;
+
+    test_motor.configure(DjiMotorConfig{DjiMotorType::M3508}
+                             .reverse()
+                             .set_reduction_ratio(19.)
+                             .enable_multi_turn_angle());
+
+    register_output("/motor/test/control_torque_unrestricted",
+                    control_torque_unrestricted_, nan);
   }
 
   void update() override {
@@ -42,7 +49,7 @@ public:
   void command_update() {
     uint16_t can_commands[4];
 
-    can_commands[0] = 0;
+    can_commands[0] = std::bit_cast<uint16_t>(be_uint16_t(300));
     can_commands[1] = 0;
     can_commands[2] = 0;
     can_commands[3] = 0;
@@ -72,7 +79,6 @@ protected:
     if (can_id == 0x201) {
       auto &motor = test_motor;
       motor.store_status(can_data);
-      RCLCPP_INFO(logger_, "%f", motor.get_velocity());
     }
   }
 
@@ -109,8 +115,7 @@ private:
   rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr
       gimbal_calibrate_subscription_;
 
-  device::DjiMotor test_motor{*this, *infantry_command_,
-                              "/gimbal/left_friction"};
+  device::DjiMotor test_motor{*this, *infantry_command_, "/motor/test"};
 
   device::Dr16 dr16_{*this};
 
@@ -129,8 +134,12 @@ private:
 
   RingBuffer<std::byte> referee_ring_buffer_receive_{256};
   OutputInterface<rmcs_msgs::SerialInterface> referee_serial_;
+  OutputInterface<double> control_torque_unrestricted_;
 
   forwarder::CBoard::TransmitBuffer transmit_buffer_;
+
+  static constexpr double inf = std::numeric_limits<double>::infinity();
+  static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 };
 
 } // namespace rmcs_core::hardware

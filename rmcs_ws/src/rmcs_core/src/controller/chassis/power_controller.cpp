@@ -92,7 +92,7 @@ private:
 
       a = k1_ * std::pow(torque, 2); // Quadratic term coefficient: copper loss
       b = torque * velocity; // linear term coefficient: mechanical power
-      c = k2_ * std::pow(velocity, 2) +
+      c = k2_ * velocity +
           no_load_power_; // Constant term: iron loss and no-load power
 
       return formula; // Unit: W

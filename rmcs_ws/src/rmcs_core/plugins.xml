@@ -2,7 +2,7 @@
   <class type="rmcs_core::hardware::cboard::Status" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
-  <class type="rmcs_core::controller::chassis::SteeringPidController" base_class_type="rmcs_executor::Component">
+  <class type="rmcs_core::controller::chassis::SteeringWheel" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
   <class type="rmcs_core::controller::chassis::SentrySteering" base_class_type="rmcs_executor::Component">

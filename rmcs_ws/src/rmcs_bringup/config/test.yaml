@@ -3,7 +3,21 @@ rmcs_executor:
     update_rate: 1000.0
     components:
       - rmcs_core::hardware::TestForwarder -> forwarder
+      - rmcs_core::controller::chassis::PowerController -> test
+
+      - rmcs_referee::Status -> referee_status
 
 forwarder:
   ros__parameters:
-    usb_pid: ce3b
+    usb_pid: 0xce3b
+
+test:
+  ros__parameters:
+    motors:
+      - /motor/test
+
+
+referee_status:
+  ros__parameters:
+    path:
+      /dev/ttyUSB0

@@ -34,7 +34,7 @@ public:
     for (auto &motor : chassis_wheel_motors_)
       motor.configure(DjiMotorConfig{DjiMotorType::M3508}
                           .reverse()
-                          .set_reduction_ratio(13.)
+                          .set_reduction_ratio(19.)
                           .enable_multi_turn_angle());
 
     gimbal_yaw_motor_.configure(

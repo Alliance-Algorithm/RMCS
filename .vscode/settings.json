@@ -9,7 +9,9 @@
     ],
     "cSpell.words": [
         "constexpr",
+        "Eigen",
         "Osqp",
+        "RCLCPP",
         "tlarc"
     ]
 }
