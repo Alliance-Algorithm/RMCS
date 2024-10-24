@@ -36,9 +36,6 @@
 
 namespace rmcs_core::controller::chassis::steering_wheel {
 
-// static constexpr double inf = std::numeric_limits<double>::infinity();
-static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
-
 class SentryChassis : public rmcs_executor::Component, public rclcpp::Node {
 public:
   SentryChassis()
@@ -46,7 +43,7 @@ public:
              rclcpp::NodeOptions{}
                  .automatically_declare_parameters_from_overrides(true)),
         auto_control_velocity(), logger_(get_logger()), logic_(*this),
-        motor_calculator_(*this, *this) {
+        motor_calculator_(this) {
 
     register_input("/referee/game/stage", game_stage_);
 
@@ -55,32 +52,6 @@ public:
     register_input("/gimbal/yaw/angle", gimbal_yaw_angle_, false);
     register_input("/gimbal/yaw/control_angle_error", gimbal_yaw_angle_error_,
                    false);
-
-    steers_.push_back(
-        std::make_unique<SteerMotor>(this, "/chassis/steer/left_front",
-                                     hardware::device::DjiMotorType::GM6020));
-    steers_.push_back(
-        std::make_unique<SteerMotor>(this, "/chassis/steer/left_back",
-                                     hardware::device::DjiMotorType::GM6020));
-    steers_.push_back(
-        std::make_unique<SteerMotor>(this, "/chassis/steer/right_back",
-                                     hardware::device::DjiMotorType::GM6020));
-    steers_.push_back(
-        std::make_unique<SteerMotor>(this, "/chassis/steer/right_front",
-                                     hardware::device::DjiMotorType::GM6020));
-
-    wheels_.push_back(
-        std::make_unique<WheelMotor>(this, "/chassis/wheel/left_front",
-                                     hardware::device::DjiMotorType::M3508));
-    wheels_.push_back(
-        std::make_unique<WheelMotor>(this, "/chassis/wheel/left_back",
-                                     hardware::device::DjiMotorType::M3508));
-    wheels_.push_back(
-        std::make_unique<WheelMotor>(this, "/chassis/wheel/right_back",
-                                     hardware::device::DjiMotorType::M3508));
-    wheels_.push_back(
-        std::make_unique<WheelMotor>(this, "/chassis/wheel/right_front",
-                                     hardware::device::DjiMotorType::M3508));
 
     RCLCPP_INFO(get_logger(), "chassis_controller init");
   }
@@ -95,6 +66,7 @@ public:
       update_wheel_velocities(true);
       break;
     case ChassisStatus::Safe:
+      motor_calculator_.reset();
     default:
       reset_all_controls();
       break;
@@ -123,13 +95,12 @@ public:
       move.normalize();
     }
     if (spinning)
-      motor_calculator_.calculate_wheel_velocity_and_angle( //
-          steers_, wheels_, move, 0);
+      motor_calculator_.calculate_wheel_velocity_and_angle(move, 0);
     else {
       double ratio = 1;
       for (int i = 0; i < spin_try_times; i++) {
-        if (motor_calculator_.calculate_wheel_velocity_and_angle( //
-                steers_, wheels_, move, ratio * spinning_velocity))
+        if (motor_calculator_.calculate_wheel_velocity_and_angle(
+                move, ratio * spinning_velocity))
           return;
         ratio -= spin_try_decrease;
       }
@@ -175,9 +146,6 @@ private:
   rclcpp::Logger logger_;
   JoystickLogic logic_;
   ChassisMotorCalculator motor_calculator_;
-
-  std::vector<std::unique_ptr<SteerMotor>> steers_;
-  std::vector<std::unique_ptr<WheelMotor>> wheels_;
 };
 
 } // namespace rmcs_core::controller::chassis::steering_wheel

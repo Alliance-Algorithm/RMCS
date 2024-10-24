@@ -10,6 +10,7 @@
 #include <tuple>
 #include <vector>
 
+#include "concexpt_chassis_controller.hpp"
 #include "controller/pid/pid_calculator.hpp"
 #include "hardware/device/dji_motor.hpp"
 #include "motor.hpp"
@@ -17,6 +18,8 @@
 namespace rmcs_core::controller::chassis::steering_wheel {
 using rmcs_executor::Component;
 
+// static constexpr double inf = std::numeric_limits<double>::infinity();
+static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 class MotorBase {
 public:
   MotorBase(hardware::device::DjiMotorType motor)
@@ -54,6 +57,8 @@ public:
     torque = std::clamp(torque, -max_torque, max_torque);
     torque *= k;
   }
+
+  virtual void reset() = 0;
 
 protected:
   std::tuple<double, double, double> torque_calculator_param_;
@@ -100,13 +105,6 @@ private:
   }
   // I think this should be put into dji_motor.hpp
 };
-
-template <typename T>
-concept DerivedFromComponent = std::is_base_of_v<Component, T>;
-template <typename T>
-concept DerivedFromNode = std::is_base_of_v<rclcpp::Node, T>;
-template <typename T>
-concept DerivedFromBoth = DerivedFromComponent<T> && DerivedFromNode<T>;
 
 class SteerMotor : public MotorBase {
 public:
@@ -155,6 +153,12 @@ public:
         steer_angle_pid_calculator_.update(error) - *velocity_measure_);
   }
 
+  void reset() override {
+    steer_angle_pid_calculator_.reset();
+    steer_velocity_pid_calculator_.reset();
+    update_control_current(nan);
+  }
+
 private:
   rmcs_core::controller::pid::PidCalculator steer_angle_pid_calculator_;
   rmcs_core::controller::pid::PidCalculator steer_velocity_pid_calculator_;
@@ -191,6 +195,11 @@ public:
   void set_target_velocity(double velocity) {
     auto err = velocity - *velocity_measure_;
     control_torque_unrestricted_ = wheel_velocity_pid_calculator_.update(err);
+  }
+
+  void reset() override {
+    wheel_velocity_pid_calculator_.reset();
+    update_control_current(nan);
   }
 
 private:

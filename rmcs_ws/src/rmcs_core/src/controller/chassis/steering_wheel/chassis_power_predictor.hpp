@@ -33,14 +33,14 @@ public:
 
   template <typename... MotorVectors>
   double power_ratio_predict(const MotorVectors &...motorVectors) {
-    static_assert(
-        (std::is_same_v<MotorVectors, std::vector<std::unique_ptr<Motor>>> &&
-         ...),
-        "All parameters must be std::vector<std::unique_ptr<Motor>>");
+    static_assert((std::is_same_v<MotorVectors,
+                                  std::vector<std::unique_ptr<MotorBase>>> &&
+                   ...),
+                  "All parameters must be std::vector<std::unique_ptr<Motor>>");
 
     double total_power = 0.0;
     auto accumulate_power =
-        [&total_power](const std::vector<std::unique_ptr<Motor>> &motors) {
+        [&total_power](const std::vector<std::unique_ptr<MotorBase>> &motors) {
           for (const auto &motor_ptr : motors) {
             total_power += motor_ptr->predict_power();
           }
@@ -52,21 +52,21 @@ public:
 
   template <typename... MotorVectors>
   void motor_current_update(const MotorVectors &...motorVectors) {
-    static_assert(
-        (std::is_same_v<MotorVectors, std::vector<std::unique_ptr<Motor>>> &&
-         ...),
-        "All parameters must be std::vector<std::unique_ptr<Motor>>");
+    static_assert((std::is_same_v<MotorVectors,
+                                  std::vector<std::unique_ptr<MotorBase>>> &&
+                   ...),
+                  "All parameters must be std::vector<std::unique_ptr<Motor>>");
 
     double total_power = 0.0;
     auto accumulate_power =
-        [&total_power](const std::vector<std::unique_ptr<Motor>> &motors) {
+        [&total_power](const std::vector<std::unique_ptr<MotorBase>> &motors) {
           for (const auto &motor_ptr : motors) {
             total_power += motor_ptr->predict_power();
           }
         };
     double a = 0, b = 0, c = 0;
     auto get_params_sum =
-        [&a, &b, &c](const std::vector<std::unique_ptr<Motor>> &motors) {
+        [&a, &b, &c](const std::vector<std::unique_ptr<MotorBase>> &motors) {
           for (const auto &motor_ptr : motors) {
             auto &[a_, b_, c_] = motor_ptr->get_param();
 
@@ -77,7 +77,7 @@ public:
         };
     double k;
     auto update_current =
-        [&k](const std::vector<std::unique_ptr<Motor>> &motors) {
+        [&k](const std::vector<std::unique_ptr<MotorBase>> &motors) {
           for (auto &motor : motors) {
             motor->update_control_current(k);
           }
