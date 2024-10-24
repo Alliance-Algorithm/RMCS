@@ -12,6 +12,8 @@ armor_identifier:
 
 capturer:
   ros__parameters:
+    use_video: false # If true, use video stream instead of camera. 
+    video_path: "~/resources/test.avi"
     exposure_time: 3
     invert_image: false
 
