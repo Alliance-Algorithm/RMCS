@@ -15,15 +15,15 @@ using rmcs_executor::Component;
 
 class ChassisPowerPredictor {
 public:
-  ChassisPowerPredictor(Component &chassis) {
-    chassis.register_input("/referee/chassis_power", chassis_power_referee_);
-    chassis.register_input("/referee/buffer_energy",
-                           chassis_buffer_energy_referee_);
-    chassis.register_input("/referee/chassis_power_limit",
-                           chassis_power_limit_referee_);
+  ChassisPowerPredictor(DerivedFromBoth auto *chassis) {
+    chassis->register_input("/referee/chassis_power", chassis_power_referee_);
+    chassis->register_input("/referee/buffer_energy",
+                            chassis_buffer_energy_referee_);
+    chassis->register_input("/referee/chassis_power_limit",
+                            chassis_power_limit_referee_);
   };
 
-  void update_power_max() {
+  inline void update_power_max() {
     constexpr double buffer_energy_control_line = 50;
     double power_reduction_factor = std::min(
         1.0, *chassis_buffer_energy_referee_ / buffer_energy_control_line);
@@ -32,26 +32,25 @@ public:
   }
 
   template <typename... MotorVectors>
-  double power_ratio_predict(const MotorVectors &...motorVectors) {
+  double inline power_ratio_predict(const MotorVectors &...motorVectors) {
     static_assert((std::is_same_v<MotorVectors,
                                   std::vector<std::unique_ptr<MotorBase>>> &&
                    ...),
                   "All parameters must be std::vector<std::unique_ptr<Motor>>");
 
     double total_power = 0.0;
-    auto accumulate_power =
-        [&total_power](const std::vector<std::unique_ptr<MotorBase>> &motors) {
-          for (const auto &motor_ptr : motors) {
-            total_power += motor_ptr->predict_power();
-          }
-        };
+    auto accumulate_power = [&total_power](const auto &motors) {
+      for (const std::unique_ptr<MotorBase> &motor_ptr : motors) {
+        total_power += motor_ptr->predict_power();
+      }
+    };
     (accumulate_power(motorVectors), ...);
 
     return total_power / power_max_;
   }
 
   template <typename... MotorVectors>
-  void motor_current_update(const MotorVectors &...motorVectors) {
+  double motor_current_update(const MotorVectors &...motorVectors) {
     static_assert((std::is_same_v<MotorVectors,
                                   std::vector<std::unique_ptr<MotorBase>>> &&
                    ...),
@@ -98,6 +97,7 @@ public:
         k = std::clamp(k, 0.0, 1.0);
     }
     (update_current(motorVectors), ...);
+    return total_power / power_max_;
   }
 
   void shrink_total_power(double ratio) { power_max_ *= ratio; }
