@@ -66,26 +66,15 @@ public:
       update_wheel_velocities(true);
       break;
     case ChassisStatus::Safe:
-      motor_calculator_.reset();
     default:
       reset_all_controls();
       break;
     }
   }
 
-  void reset_all_controls() {
-    *left_front_control_angle_error_ = nan;
-    *left_back_control_angle_error_ = nan;
-    *right_back_control_angle_error_ = nan;
-    *right_front_control_angle_error_ = nan;
+  inline void reset_all_controls() { motor_calculator_.reset(); }
 
-    *left_front_control_velocity_ = nan;
-    *left_back_control_velocity_ = nan;
-    *right_back_control_velocity_ = nan;
-    *right_front_control_velocity_ = nan;
-  }
-
-  void update_wheel_velocities(bool spinning) {
+  inline void update_wheel_velocities(bool spinning) {
 
     if (!gimbal_yaw_angle_.ready())
       gimbal_yaw_angle_.bind_directly(null_bind_);
