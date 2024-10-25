@@ -1,22 +1,23 @@
 #pragma once
 
+#include "hardware/utils/endian_promise.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <numeric>
-
 #include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/switch.hpp>
 
-#include "hardware/endian_promise.hpp"
 
-namespace rmcs_core::hardware::cboard {
+namespace rmcs_core::hardware::cboard
+{
 
 constexpr size_t kPackageMaxSize = 64;
 
-using package_head_t  = uint8_t;
-using package_type_t  = uint8_t;
+using package_head_t = uint8_t;
+using package_type_t = uint8_t;
 using package_index_t = uint8_t;
-using package_size_t  = uint8_t;
+using package_size_t = uint8_t;
 
 using package_verify_code_t = uint8_t;
 inline package_verify_code_t calculate_verify_code(const uint8_t* data, size_t size) {
@@ -25,19 +26,19 @@ inline package_verify_code_t calculate_verify_code(const uint8_t* data, size_t s
 
 constexpr package_head_t kPackageHead = 0xAF;
 
-struct __attribute__((packed)) PackageStaticPart final {
-    package_head_t head;
-    package_type_t type;
+struct __attribute__((packed)) PackageStaticPart final
+{
+    package_head_t  head;
+    package_type_t  type;
     package_index_t index;
-    package_size_t data_size;
+    package_size_t  data_size;
 };
 
-struct alignas(8) Package final {
+struct alignas(8) Package final
+{
     static constexpr size_t static_part_size() noexcept { return sizeof(PackageStaticPart); }
 
-    PackageStaticPart& static_part() noexcept {
-        return *reinterpret_cast<PackageStaticPart*>(buffer);
-    }
+    PackageStaticPart& static_part() noexcept { return *reinterpret_cast<PackageStaticPart*>(buffer); }
 
     size_t dynamic_part_size() noexcept { return static_part().data_size; }
 
@@ -60,30 +61,35 @@ struct alignas(8) Package final {
 
 using can_id_t = le_uint32_t;
 
-struct __attribute__((packed)) ImuData {
+struct __attribute__((packed)) ImuData
+{
     int16_t gyro_x, gyro_y, gyro_z;
     int16_t acc_x, acc_y, acc_z;
 };
 
-struct __attribute__((packed)) QuaternionData {
+struct __attribute__((packed)) QuaternionData
+{
     float w, x, y, z;
 };
 
-struct __attribute__((packed)) PackageDjiMotorFeedbackPart {
-    can_id_t can_id;
+struct __attribute__((packed)) PackageDjiMotorFeedbackPart
+{
+    can_id_t   can_id;
     be_int16_t angle;
     be_int16_t velocity;
     be_int16_t current;
-    uint8_t temperature;
-    uint8_t unused;
+    uint8_t    temperature;
+    uint8_t    unused;
 };
 
-struct __attribute__((packed)) PackageDjiMotorControlPart {
-    can_id_t can_id;
+struct __attribute__((packed)) PackageDjiMotorControlPart
+{
+    can_id_t   can_id;
     be_int16_t current[4];
 };
 
-struct __attribute__((packed)) PackageDr16FeedbackPart {
+struct __attribute__((packed)) PackageDr16FeedbackPart
+{
     uint16_t joystick_channel0 : 11;
     uint16_t joystick_channel1 : 11;
     uint16_t joystick_channel2 : 11;

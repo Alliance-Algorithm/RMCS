@@ -1,3 +1,5 @@
+#include "hardware/utils/fps_counter.hpp"
+
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
@@ -6,27 +8,29 @@
 #include <serial/serial.h>
 #include <serial_util/package_receive.hpp>
 
-#include "hardware/fps_counter.hpp"
 
-namespace rmcs_core::hardware::ec {
+namespace rmcs_core::hardware::ec
+{
 
 class Status
     : public rmcs_executor::Component
-    , public rclcpp::Node {
+    , public rclcpp::Node
+{
 public:
     Status()
-        : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
+        : Node { get_component_name(),
+                 rclcpp::NodeOptions {}.automatically_declare_parameters_from_overrides(true) }
         , logger_(get_logger()) {
 
         std::string path;
         if (get_parameter("path", path))
             RCLCPP_INFO(get_logger(), "Path: %s", path.c_str());
         else
-            throw std::runtime_error{"Unable to get parameter 'path'"};
+            throw std::runtime_error { "Unable to get parameter 'path'" };
 
         const std::string stty_command = "stty -F " + path + " raw";
         if (std::system(stty_command.c_str()) != 0)
-            throw std::runtime_error{"Unable to call '" + stty_command + "'"};
+            throw std::runtime_error { "Unable to call '" + stty_command + "'" };
 
         register_output("/serial", serial_, path, 9600, serial::Timeout::simpleTimeout(0));
         register_output("/tf", tf_);
@@ -36,7 +40,10 @@ public:
     void update() override {
         while (true) {
             auto result = serial_util::receive_package(
-                *serial_, package_, cache_size_, static_cast<uint8_t>(0xaf),
+                *serial_,
+                package_,
+                cache_size_,
+                static_cast<uint8_t>(0xaf),
                 [](const PackageReceive& package) {
                     if (package.type != 0x32)
                         return false;
@@ -44,8 +51,7 @@ public:
                         return false;
                     auto* data = reinterpret_cast<const uint8_t*>(&package);
                     return package.check_sum
-                        == std::accumulate(
-                               data, data + sizeof(package) - 1, static_cast<uint8_t>(0));
+                        == std::accumulate(data, data + sizeof(package) - 1, static_cast<uint8_t>(0));
                 });
 
             if (result == serial_util::ReceiveResult::TIMEOUT)
@@ -75,9 +81,8 @@ public:
 
 private:
     void update_quaternion() {
-        auto gimbal_imu_pose = Eigen::Quaterniond{package_.w, package_.x, package_.y, package_.z};
-        tf_->set_transform<rmcs_description::ImuLink, rmcs_description::OdomImu>(
-            gimbal_imu_pose.conjugate());
+        auto gimbal_imu_pose = Eigen::Quaterniond { package_.w, package_.x, package_.y, package_.z };
+        tf_->set_transform<rmcs_description::ImuLink, rmcs_description::OdomImu>(gimbal_imu_pose.conjugate());
     }
 
     FpsCounter fps_counter_;
@@ -85,18 +90,19 @@ private:
     rclcpp::Logger logger_;
 
     OutputInterface<serial::Serial> serial_;
-    struct __attribute__((packed)) PackageReceive {
+    struct __attribute__((packed)) PackageReceive
+    {
         uint8_t head;
         uint8_t type;
         uint8_t index;
         uint8_t data_size;
-        float w, x, y, z;
+        float   w, x, y, z;
         uint8_t check_sum;
     } package_;
     size_t cache_size_ = 0;
 
     bool successfully_received_ = false;
-    int failures_count_         = 0;
+    int  failures_count_ = 0;
 
     OutputInterface<rmcs_description::Tf> tf_;
 };

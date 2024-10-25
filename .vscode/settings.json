@@ -8,10 +8,12 @@
         "/opt/ros/humble/local/lib/python3.10/dist-packages"
     ],
     "cSpell.words": [
+        "Axisd",
         "constexpr",
         "Eigen",
         "Osqp",
         "RCLCPP",
+        "supercap",
         "tlarc"
     ]
 }

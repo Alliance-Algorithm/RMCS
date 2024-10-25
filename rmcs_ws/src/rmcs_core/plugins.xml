@@ -50,7 +50,10 @@
   <class type="rmcs_core::hardware::cboard::GyroCalibrator" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class> 
-  <class type="rmcs_core::hardware::TestForwarder" base_class_type="rmcs_executor::Component">
+  <class type="rmcs_core::hardware::SteeringSentry" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
+  <class type="rmcs_core::controller::chassis::steering_wheel::SentryChassis" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
 </library>
