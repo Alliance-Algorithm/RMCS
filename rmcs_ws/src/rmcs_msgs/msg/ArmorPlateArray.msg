@@ -1,0 +1,1 @@
+ArmorPlate[] armor_plate_array
