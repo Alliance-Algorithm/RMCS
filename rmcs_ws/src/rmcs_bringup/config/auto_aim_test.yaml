@@ -9,6 +9,8 @@ rmcs_executor:
 armor_identifier:
   ros__parameters:
     armor_model_path: "/models/mlp.onnx"
+    publish_topic: false
+    topic_name: "/armor_detector/armor_info"
 
 capturer:
   ros__parameters:
@@ -16,6 +18,8 @@ capturer:
     video_path: "~/resources/test.avi"
     exposure_time: 3
     invert_image: false
+    publish_topic: false
+    topic_name: "/camera/image_raw"
 
 auto_aim_test:
   ros__parameters:
