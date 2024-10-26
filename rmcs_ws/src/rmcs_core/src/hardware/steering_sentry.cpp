@@ -187,6 +187,18 @@ private:
         RCLCPP_INFO(logger_,
                     "[gimbal calibration] New pitch offset: %d",
                     gimbal_pitch_motor_.calibrate_zero_point());
+        RCLCPP_INFO(logger_,
+                    "[chassis_steer_motors calibration] New left font offset: %d",
+                    chassis_steer_motors_[0].calibrate_zero_point());
+        RCLCPP_INFO(logger_,
+                    "[chassis_steer_motors calibration] New left back offset: %d",
+                    chassis_steer_motors_[1].calibrate_zero_point());
+        RCLCPP_INFO(logger_,
+                    "[chassis_steer_motors calibration] New right back offset: %d",
+                    chassis_steer_motors_[2].calibrate_zero_point());
+        RCLCPP_INFO(logger_,
+                    "[chassis_steer_motors calibration] New right font offset: %d",
+                    chassis_steer_motors_[3].calibrate_zero_point());
     }
 
 private:
