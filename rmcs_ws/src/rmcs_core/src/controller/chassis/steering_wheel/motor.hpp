@@ -122,7 +122,7 @@ public:
         component->register_input(name + "/reduction_ratio", reduction_ratio_);
         component->register_input(name + "/max_torque", max_torque_);
 
-        component->register_input(name + "/angle_", angle_measure_);
+        component->register_input(name + "/angle", angle_measure_);
         component->register_input(name + "/velocity", velocity_measure_);
 
         component->register_output(name + "/control_torque",

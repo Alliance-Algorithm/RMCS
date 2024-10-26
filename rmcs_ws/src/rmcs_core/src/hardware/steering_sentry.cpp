@@ -51,7 +51,6 @@ public:
               &SteeringSentry::lower_board_gyroscope_receive_callback,
           })) {
         using namespace device;
-        RCLCPP_INFO(logger_, "init");
         for (auto& motor : chassis_wheel_motors_)
             motor.configure(DjiMotorConfig { DjiMotorType::M3508 }
                                 .reverse()

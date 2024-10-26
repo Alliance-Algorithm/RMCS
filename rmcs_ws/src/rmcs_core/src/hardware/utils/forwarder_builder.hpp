@@ -52,9 +52,7 @@ public:
         , dbus_receive_callback_ { forwarder_dbus_receive_callback }
         , accelerometer_receive_callback_ { forwarder_accelerometer_receive_callback }
         , gyroscope_receive_callback_ { forwarder_gyroscope_receive_callback }
-        , instance_(instance_object) {
-        RCLCPP_INFO(logger, "ForwarderConstructData");
-    }
+        , instance_(instance_object) { }
 
     inline void can1_receive_callback(uint32_t a, uint64_t b, bool c, bool d, uint8_t e) const override {
         (instance_->*can1_receive_callback_)(a, b, c, d, e);
@@ -207,7 +205,6 @@ public:
     template <typename T, typename N>
     requires IsForwarderConstructData<T, N>
     static std::unique_ptr<const Forwarder> Create(N&& data) {
-        RCLCPP_INFO(data.logger, "create");
         switch (data.flag.board_type) {
         case 1:
             return std::unique_ptr<const Forwarder>(static_cast<const Forwarder*>(

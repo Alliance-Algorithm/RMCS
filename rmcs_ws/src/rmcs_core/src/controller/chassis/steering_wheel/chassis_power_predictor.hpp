@@ -18,9 +18,9 @@ class ChassisPowerPredictor
 {
 public:
     ChassisPowerPredictor(DerivedFromBoth auto* chassis) {
-        chassis->register_input("/referee/chassis_power", chassis_power_referee_);
-        chassis->register_input("/referee/buffer_energy", chassis_buffer_energy_referee_);
-        chassis->register_input("/referee/chassis_power_limit", chassis_power_limit_referee_);
+        chassis->register_input("/referee/chassis/power", chassis_power_referee_);
+        chassis->register_input("/referee/chassis/buffer_energy", chassis_buffer_energy_referee_);
+        chassis->register_input("/referee/chassis/power_limit", chassis_power_limit_referee_);
     };
 
     inline void update_power_max() {

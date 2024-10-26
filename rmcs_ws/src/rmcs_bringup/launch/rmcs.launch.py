@@ -21,7 +21,7 @@ def generate_launch_description():
                 )
             ],
             respawn=True,
-             prefix=["gdb -ex run --args"],
+            #  prefix=["gdb -ex run --args"],
             # prefix=["ldd"],
             respawn_delay=5.0,
         )
