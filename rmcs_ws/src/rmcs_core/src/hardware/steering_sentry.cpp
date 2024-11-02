@@ -109,12 +109,12 @@ public:
         tf_->set_transform<BaseLink, RightFrontWheelLink>(
             Eigen::Translation3d { wheel_distance_x / 2, -wheel_distance_y / 2, 0 });
 
-        gimbal_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
-            "/gimbal/calibrate",
-            rclcpp::QoS { 0 },
-            [this](std_msgs::msg::Int32::UniquePtr&& msg) {
-                gimbal_calibrate_subscription_callback(std::move(msg));
-            });
+        gimbal_calibrate_subscription_ =
+            create_subscription<std_msgs::msg::Int32>("/gimbal/calibrate",
+                                                      rclcpp::QoS { 0 },
+                                                      [this](std_msgs::msg::Int32::UniquePtr&& msg) {
+                                                          calibrate_subscription_callback(std::move(msg));
+                                                      });
 
         register_output("/referee/serial", referee_serial_);
         referee_serial_->read = [this](std::byte* buffer, size_t size) {
@@ -180,7 +180,7 @@ private:
         *imu_gyro_ = { gx, gy, gz };
     }
 
-    void gimbal_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
+    void calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
         RCLCPP_INFO(logger_,
                     "[gimbal calibration] New yaw offset: %d",
                     gimbal_yaw_motor_.calibrate_zero_point());

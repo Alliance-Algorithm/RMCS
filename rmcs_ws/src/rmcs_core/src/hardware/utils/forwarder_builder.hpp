@@ -206,6 +206,7 @@ public:
     requires IsForwarderConstructData<T, N>
     static std::unique_ptr<const Forwarder> Create(N&& data) {
         switch (data.flag.board_type) {
+
         case 1:
             return std::unique_ptr<const Forwarder>(static_cast<const Forwarder*>(
                 std::move(std::make_unique<ForwarderProduct<forwarder::CBoard>>(std::move(data)).release())));
