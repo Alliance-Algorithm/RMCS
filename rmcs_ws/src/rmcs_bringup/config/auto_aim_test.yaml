@@ -33,10 +33,10 @@ rmcs_executor:
       - rmcs_referee::Command -> referee_command
 
       - rmcs_core::hardware::cboard::GyroCalibrator -> gyro_calibrator
+
       - rmcs_auto_aim::AutoAimInitializer -> initializer
-      - rmcs_auto_aim::Capturer -> capturer
-      - rmcs_auto_aim::ArmorIdentifierNode -> armor_identifier
-      - rmcs_auto_aim::ArmorPnpSolverNode -> armor_pnp_solver
+      - rmcs_auto_aim::AutoAimController -> auto_aim_controller
+      # - rmcs_auto_aim::AutoAimTest -> auto_aim_test
 
 infantry:
   ros__parameters:
@@ -221,7 +221,7 @@ auto_aim_test:
     raw_img_pub: false # Set false in actual use 
     shoot_velocity: 26.0
 
-rmcs_auto_aim:
+auto_aim_controller:
   ros__parameters:
     # capture
     use_video: false # If true, use video stream instead of camera. 
