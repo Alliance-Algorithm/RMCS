@@ -23,12 +23,12 @@ rmcs_executor:
 forwarder:
   ros__parameters:
     upper_board_flag: 0x0000ce3b
-    lower_board_flag: 0x0000ce3b
+    lower_board_flag: 0x00011783
     
-    left_front_zero_point: 123
-    left_back_zero_point: 456
-    right_back_zero_point: 789
-    right_front_zero_point: 147
+    left_front_zero_point: 7507
+    left_back_zero_point: 6118
+    right_back_zero_point: 2020
+    right_front_zero_point: 622
 
     yaw_motor_zero_point: 258
     pitch_motor_zero_point: 369
@@ -39,15 +39,15 @@ forwarder:
 
 chassis:
   ros__parameters:
-    wheels_vel_kp: 0.
+    wheels_vel_kp: 1.
     wheels_vel_ki: 0.
     wheels_vel_kd: 0.
     
-    steers_angle_kp: 0.
+    steers_angle_kp: 2.5
     steers_angle_ki: 0.
-    steers_angle_kd: 0.
+    steers_angle_kd: 1
     
-    steers_vel_kp: 0.
+    steers_vel_kp: 0.3
     steers_vel_ki: 0.
     steers_vel_kd: 0.
 

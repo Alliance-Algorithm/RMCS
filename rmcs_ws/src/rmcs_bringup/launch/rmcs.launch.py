@@ -16,7 +16,7 @@ def generate_launch_description():
                     [
                         FindPackageShare("rmcs_bringup"),
                         "config",
-                        LaunchConfiguration("config"),
+                        "test.yaml",
                     ]
                 )
             ],
