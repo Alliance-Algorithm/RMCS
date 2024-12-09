@@ -64,3 +64,6 @@ id_rsa.pub
 
 # Recording files
 record
+
+# For Develop
+develop_ws

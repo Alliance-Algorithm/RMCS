@@ -26,6 +26,13 @@ TODO .
 3. `docker`
 
 ### Connect with nuc
+### local-link (recommend)
+
+#### some useful link
+- [network-manager ipv6-addr-gen-mode](https://askubuntu.com/questions/1268900/what-is-setting-my-ipv6-addr-gen-mode)
+- [arch linux](https://wiki.archlinuxcn.org/wiki/IPv6)
+- [IPv6-link-local-address](https://forums.fedoraforum.org/showthread.php?329517-IPv6-link-local-address)
+
 #### Net plan
 
 ```yaml
