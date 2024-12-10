@@ -1,4 +1,4 @@
-#!/usr/bin/zsh
+#!/usr/bin/bash
 
 function extensionInstallation {
     echo -e "RMCS: start vscode extension installation."
@@ -55,7 +55,62 @@ function rmcsDependencyInstallation {
     echo -e "RMCS: finish rmcs installation."
 }
 
+# sudo rm -rf /usr/local/lib/liblivox_lidar_sdk_*
+# sudo rm -rf /usr/local/include/livox_lidar_*
+function slamDependencyInstallation {
+    echo -e "RMCS: start slam dependency installation."
+    sudo apt install ros-humble-pcl-ros -y
+    git clone https://github.com/Livox-SDK/Livox-SDK2.git /tmp/livox-sdk
+    mkdir /tmp/livox-sdk/build && cd /tmp/livox-sdk/build
+    cmake .. && make -j 12
+    sudo make install
+    sudo rm -r /tmp/livox-sdk
+    echo  -e "if you want to install driver, clone this: "\
+          "\033[32mhttps://github.com/Alliance-Algorithm/livox_ros_driver2.git\033[0m"
+    echo -e "RMCS: finish slam dependency installation."
+}
+
+function show_help {
+  echo "Usage: $0 [--help] [--mode <mode>]"
+  echo "  --help         Show this help message."
+  echo "  --mode <mode>  Set the mode to 'sentry' or 'infantry'."
+}
+
+mode=""
+
+while [[ "$#" -gt 0 ]]; do
+  case $1 in
+    --help)
+      show_help 
+      exit 0
+      ;;
+    --mode)
+      shift
+      mode=$1
+      if [[ "$mode" != "sentry" && "$mode" != "infantry" ]]; then
+        echo "Error: Mode must be 'sentry' or 'infantry'."
+        exit 1
+      fi
+      ;;
+    *)
+      echo "Unknown option: $1"
+      exit 1
+      ;;
+  esac
+  shift
+done
+
+if [[ -n "$mode" ]]; then
+  echo "Mode set to: $mode"
+else
+  echo "No mode set."
+fi
+
 sudo apt-get update -y
 clangdInstallation
 extensionInstallation
 rmcsDependencyInstallation
+
+if [[ "$mode" == "sentry" ]]; then
+    slamDependencyInstallation
+fi
