@@ -11,15 +11,23 @@ cd /workspaces/rmcs
 # 构建程序并加载构建结果至当前终端环境中
 source ./script/build.sh
 ```
-
-
-
 ## Develop
 
 ### Some Commands
 
 这些是常见指令
 ```bash
+# 使用openocd快速烧录下位机固件
+openocd -f interface/jlink.cfg -f target/stm32f4x.cfg -c "program 无下位机v2.1.elf verify reset exit"
+
+# jlink如果是首次使用需要手动添加一段配置，stlink不需要
+echo "transport select swd" | sudo tee -a /usr/share/openocd/scripts/interface/jlink.cfg
+
+# 配置下位机usb
+echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="a11c", MODE="0666"' | sudo tee /etc/udev/rules.d/95-rmcs-slave.rules &&
+sudo udevadm control --reload-rules &&
+sudo udevadm trigger
+
 # 添加ros2的环境变量到当前终端中
 source /opt/ros/humble/setup.zsh
 
@@ -36,7 +44,7 @@ colcon build --merge-install
 source ./install/setup.zsh
 
 # RoboMaster，启动！
-ros2 launch rmcs_bringup sentry.yaml
+ros2 launch rmcs_bringup rmcs.launch.py config:=xxxx.yaml
 ```
 
 ### Configure environment
