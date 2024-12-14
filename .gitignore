@@ -52,7 +52,10 @@ qtcreator-*
 CATKIN_IGNORE
 
 # Clangd cache files
-.cache
+.cache/
+
+# VSCode configure files
+.vscode/
 
 # Hik camera log files
 MvFGSdkLog
@@ -63,7 +66,7 @@ id_rsa
 id_rsa.pub
 
 # Recording files
-record
+record/
 
 # For Develop
 develop_ws
