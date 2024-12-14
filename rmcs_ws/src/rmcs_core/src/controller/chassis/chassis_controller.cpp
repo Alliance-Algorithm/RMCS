@@ -1,3 +1,4 @@
+#include "controller/pid/pid_calculator.hpp"
 #include <eigen3/Eigen/Dense>
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
@@ -16,7 +17,10 @@ public:
     ChassisController()
         : Node(
               get_component_name(),
-              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
+        , following_velocity_controller_(7.0, 0.0, 0.0) {
+        following_velocity_controller_.output_max = angular_velocity_max;
+        following_velocity_controller_.output_min = -angular_velocity_max;
 
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
@@ -27,6 +31,7 @@ public:
         register_input("/remote/keyboard", keyboard_);
 
         register_input("/gimbal/yaw/angle", gimbal_yaw_angle_);
+        register_input("/gimbal/yaw/control_angle_error", gimbal_yaw_angle_error_);
 
         register_input("/chassis/supercap/voltage", supercap_voltage_);
         register_input("/chassis/supercap/enabled", supercap_enabled_);
@@ -34,8 +39,11 @@ public:
         register_input("/referee/chassis/power_limit", chassis_power_limit_referee_);
         register_input("/referee/chassis/buffer_energy", chassis_buffer_energy_referee_);
 
+        register_output("/chassis/angle", chassis_angle_, nan);
+        register_output("/chassis/control_angle", chassis_control_angle_, nan);
+
         register_output("/chassis/control_mode", mode_);
-        register_output("/chassis/control_move", move_);
+        register_output("/chassis/control_velocity", chassis_control_velocity_);
 
         register_output("/chassis/supercap/control_enable", supercap_control_enabled_, false);
         register_output(
@@ -69,10 +77,20 @@ public:
 
             auto mode = *mode_;
             if (switch_left != Switch::DOWN) {
-                if ((last_switch_right_ == Switch::MIDDLE && switch_right == Switch::DOWN)
-                    || (!last_keyboard_.c && keyboard.c)) {
-                    mode = mode == rmcs_msgs::ChassisMode::SPIN ? rmcs_msgs::ChassisMode::AUTO
-                                                                : rmcs_msgs::ChassisMode::SPIN;
+                if (last_switch_right_ == Switch::MIDDLE && switch_right == Switch::DOWN) {
+                    if (mode == rmcs_msgs::ChassisMode::SPIN) {
+                        mode = rmcs_msgs::ChassisMode::STEP_DOWN;
+                    } else {
+                        mode              = rmcs_msgs::ChassisMode::SPIN;
+                        spinning_forward_ = !spinning_forward_;
+                    }
+                } else if (!last_keyboard_.c && keyboard.c) {
+                    if (mode == rmcs_msgs::ChassisMode::SPIN) {
+                        mode = rmcs_msgs::ChassisMode::AUTO;
+                    } else {
+                        mode              = rmcs_msgs::ChassisMode::SPIN;
+                        spinning_forward_ = !spinning_forward_;
+                    }
                 } else if (!last_keyboard_.x && keyboard.x) {
                     mode = mode == rmcs_msgs::ChassisMode::LAUNCH_RAMP
                              ? rmcs_msgs::ChassisMode::AUTO
@@ -85,57 +103,8 @@ public:
                 *mode_ = mode;
             }
 
-            auto keyboard_move =
-                Eigen::Vector2d{0.5 * (keyboard.w - keyboard.s), 0.5 * (keyboard.a - keyboard.d)};
-            auto move =
-                (Eigen::Rotation2Dd{*gimbal_yaw_angle_} * (*joystick_right_ + keyboard_move))
-                    .eval();
-            if (move.norm() > 1)
-                move.normalize();
-            *move_ = {move.x(), move.y(), 0};
-
-            if (!supercap_switch_cooling_) {
-                bool enable = keyboard_->shift;
-                if (*supercap_control_enabled_ != enable) {
-                    *supercap_control_enabled_ = enable;
-                    supercap_switch_cooling_   = 500;
-                }
-            } else {
-                --supercap_switch_cooling_;
-            }
-
-            double power_limit_after_buffer_energy_closed_loop =
-                *chassis_power_limit_referee_
-                    * std::clamp(
-                        (*chassis_buffer_energy_referee_ - buffer_energy_dead_line)
-                            / (buffer_energy_base_line - buffer_energy_dead_line),
-                        0.0, 1.0)
-                + excess_power_limit
-                      * std::clamp(
-                          (*chassis_buffer_energy_referee_ - buffer_energy_base_line)
-                              / (buffer_energy_control_line - buffer_energy_base_line),
-                          0.0, 1.0);
-            *supercap_control_power_limit_ = power_limit_after_buffer_energy_closed_loop;
-
-            if (*supercap_control_enabled_ && *supercap_enabled_) {
-                double supercap_power_limit = mode == rmcs_msgs::ChassisMode::LAUNCH_RAMP
-                                                ? 250.0
-                                                : *chassis_power_limit_referee_ + 80.0;
-                *chassis_control_power_limit_ =
-                    *chassis_power_limit_referee_
-                        * std::clamp(
-                            (*supercap_voltage_ - supercap_voltage_dead_line)
-                                / (supercap_voltage_base_line - supercap_voltage_dead_line),
-                            0.0, 1.0)
-                    + (supercap_power_limit - *chassis_power_limit_referee_)
-                          * std::clamp(
-                              (*supercap_voltage_ - supercap_voltage_base_line)
-                                  / (supercap_voltage_control_line - supercap_voltage_base_line),
-                              0.0, 1.0);
-            } else {
-                *chassis_control_power_limit_ = power_limit_after_buffer_energy_closed_loop;
-            }
-
+            update_velocity_control();
+            update_power_limit_control();
         } while (false);
 
         last_switch_right_ = switch_right;
@@ -146,12 +115,151 @@ public:
     void reset_all_controls() {
         *mode_ = rmcs_msgs::ChassisMode::AUTO;
 
+        *chassis_control_velocity_ = {nan, nan, nan};
+
         *supercap_control_enabled_     = false;
         *supercap_control_power_limit_ = 0.0;
         *chassis_control_power_limit_  = 0.0;
     }
 
+    void update_velocity_control() {
+        auto translational_velocity = update_translational_velocity_control();
+        auto angular_velocity       = update_angular_velocity_control();
+
+        *chassis_control_velocity_ = {
+            translational_velocity.x(), translational_velocity.y(), angular_velocity};
+    }
+
+    Eigen::Vector2d update_translational_velocity_control() {
+        auto keyboard = *keyboard_;
+        Eigen::Vector2d keyboard_move{keyboard.w - keyboard.s, keyboard.a - keyboard.d};
+
+        Eigen::Vector2d translational_velocity =
+            Eigen::Rotation2Dd{*gimbal_yaw_angle_} * (*joystick_right_ + keyboard_move);
+
+        if (translational_velocity.norm() > 1.0)
+            translational_velocity.normalize();
+
+        translational_velocity *= translational_velocity_max;
+        return translational_velocity;
+    }
+
+    double update_angular_velocity_control() {
+        double angular_velocity      = nan;
+        double chassis_control_angle = nan;
+
+        switch (*mode_) {
+        case rmcs_msgs::ChassisMode::AUTO: break;
+        case rmcs_msgs::ChassisMode::SPIN: {
+            angular_velocity =
+                0.6 * (spinning_forward_ ? angular_velocity_max : -angular_velocity_max);
+        } break;
+        case rmcs_msgs::ChassisMode::STEP_DOWN: {
+            double err = calculate_unsigned_chassis_angle_error(chassis_control_angle);
+
+            // err: [0, 2pi) -> [0, alignment) -> signed.
+            // In step-down mode, two sides of the chassis can be used for alignment.
+            // TODO: Dynamically determine the split angle based on chassis velocity.
+            constexpr double alignment = std::numbers::pi;
+            while (err > alignment / 2) {
+                chassis_control_angle -= alignment;
+                if (chassis_control_angle < 0)
+                    chassis_control_angle += 2 * std::numbers::pi;
+                err -= alignment;
+            }
+
+            angular_velocity = following_velocity_controller_.update(err);
+        } break;
+        case rmcs_msgs::ChassisMode::LAUNCH_RAMP: {
+            double err = calculate_unsigned_chassis_angle_error(chassis_control_angle);
+
+            // err: [0, 2pi) -> signed
+            // In launch ramp mode, only one direction can be used for alignment.
+            // TODO: Dynamically determine the split angle based on chassis velocity.
+            constexpr double alignment = 2 * std::numbers::pi;
+            if (err > alignment / 2)
+                err -= alignment;
+
+            angular_velocity = following_velocity_controller_.update(err);
+        } break;
+        }
+        *chassis_angle_         = 2 * std::numbers::pi - *gimbal_yaw_angle_;
+        *chassis_control_angle_ = chassis_control_angle;
+
+        return angular_velocity;
+    }
+
+    double calculate_unsigned_chassis_angle_error(double& chassis_control_angle) {
+        chassis_control_angle = *gimbal_yaw_angle_error_;
+        if (chassis_control_angle < 0)
+            chassis_control_angle += 2 * std::numbers::pi;
+        // chassis_control_angle: [0, 2pi).
+
+        // err = setpoint         -       measurement
+        //          ^                          ^
+        //          |gimbal_yaw_angle_error    |chassis_angle
+        //                                            ^
+        //                                            |(2pi - gimbal_yaw_angle)
+        double err = chassis_control_angle + *gimbal_yaw_angle_;
+        if (err >= 2 * std::numbers::pi)
+            err -= 2 * std::numbers::pi;
+        // err: [0, 2pi).
+
+        return err;
+    }
+
+    void update_power_limit_control() {
+        if (!supercap_switch_cooling_) {
+            bool enable = keyboard_->shift;
+            if (*supercap_control_enabled_ != enable) {
+                *supercap_control_enabled_ = enable;
+                supercap_switch_cooling_   = 500;
+            }
+        } else {
+            --supercap_switch_cooling_;
+        }
+
+        double power_limit_after_buffer_energy_closed_loop =
+            *chassis_power_limit_referee_
+                * std::clamp(
+                    (*chassis_buffer_energy_referee_ - buffer_energy_dead_line)
+                        / (buffer_energy_base_line - buffer_energy_dead_line),
+                    0.0, 1.0)
+            + excess_power_limit
+                  * std::clamp(
+                      (*chassis_buffer_energy_referee_ - buffer_energy_base_line)
+                          / (buffer_energy_control_line - buffer_energy_base_line),
+                      0.0, 1.0);
+        *supercap_control_power_limit_ = power_limit_after_buffer_energy_closed_loop;
+
+        if (*supercap_control_enabled_ && *supercap_enabled_) {
+            double supercap_power_limit = *mode_ == rmcs_msgs::ChassisMode::LAUNCH_RAMP
+                                            ? 250.0
+                                            : *chassis_power_limit_referee_ + 80.0;
+            *chassis_control_power_limit_ =
+                *chassis_power_limit_referee_
+                    * std::clamp(
+                        (*supercap_voltage_ - supercap_voltage_dead_line)
+                            / (supercap_voltage_base_line - supercap_voltage_dead_line),
+                        0.0, 1.0)
+                + (supercap_power_limit - *chassis_power_limit_referee_)
+                      * std::clamp(
+                          (*supercap_voltage_ - supercap_voltage_base_line)
+                              / (supercap_voltage_control_line - supercap_voltage_base_line),
+                          0.0, 1.0);
+        } else {
+            *chassis_control_power_limit_ = power_limit_after_buffer_energy_closed_loop;
+        }
+    }
+
 private:
+    static constexpr double inf = std::numeric_limits<double>::infinity();
+    static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
+
+    // Maximum control velocities
+    static constexpr double translational_velocity_max = 8.0;
+    static constexpr double angular_velocity_max       = 10.0;
+
     // Maximum excess power when buffer energy is sufficient.
     static constexpr double excess_power_limit = 35;
 
@@ -177,10 +285,14 @@ private:
     rmcs_msgs::Switch last_switch_left_  = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Keyboard last_keyboard_   = rmcs_msgs::Keyboard::zero();
 
-    InputInterface<double> gimbal_yaw_angle_;
+    InputInterface<double> gimbal_yaw_angle_, gimbal_yaw_angle_error_;
+    OutputInterface<double> chassis_angle_, chassis_control_angle_;
 
     OutputInterface<rmcs_msgs::ChassisMode> mode_;
-    OutputInterface<rmcs_description::BaseLink::DirectionVector> move_;
+    bool spinning_forward_ = true;
+    pid::PidCalculator following_velocity_controller_;
+
+    OutputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;
 
     InputInterface<double> supercap_voltage_;
     InputInterface<bool> supercap_enabled_;

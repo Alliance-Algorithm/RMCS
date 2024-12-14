@@ -18,11 +18,6 @@ rmcs_executor:
 
       - rmcs_core::controller::chassis::ChassisController -> chassis_controller
       - rmcs_core::controller::chassis::OmniWheelController -> omni_wheel_controller
-      - rmcs_core::controller::pid::PidController -> left_front_wheel_velocity_pid_controller
-      - rmcs_core::controller::pid::PidController -> left_back_wheel_velocity_pid_controller
-      - rmcs_core::controller::pid::PidController -> right_back_wheel_velocity_pid_controller
-      - rmcs_core::controller::pid::PidController -> right_front_wheel_velocity_pid_controller
-      - rmcs_core::controller::chassis::PowerController -> chassis_power_controller
 
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 
@@ -38,7 +33,7 @@ rmcs_executor:
 infantry_hardware:
   ros__parameters:
     usb_pid: 0xac89
-    yaw_motor_zero_point: 4425
+    yaw_motor_zero_point: 3387
     pitch_motor_zero_point: 6716
     imu_gx_bias: +0.001294
     imu_gy_bias: -0.000584
