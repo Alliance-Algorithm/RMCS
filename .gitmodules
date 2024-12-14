@@ -8,9 +8,6 @@
 [submodule "rmcs_ws/src/fast_tf"]
 	path = rmcs_ws/src/fast_tf
 	url = https://github.com/qzhhhi/FastTF.git
-[submodule "rmcs_ws/src/rmcs_referee"]
-	path = rmcs_ws/src/rmcs_referee
-	url = https://github.com/Alliance-Algorithm/rmcs_referee
 [submodule "rmcs_ws/src/rmcs_auto_aim"]
 	path = rmcs_ws/src/rmcs_auto_aim
 	url = https://github.com/Alliance-Algorithm/rmcs_auto_aim.git

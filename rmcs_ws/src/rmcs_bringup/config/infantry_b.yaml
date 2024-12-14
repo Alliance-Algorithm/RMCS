@@ -3,7 +3,7 @@ rmcs_executor:
     update_rate: 1000.0
     components:
       - rmcs_core::hardware::Infantry -> infantry_hardware
-      - rmcs_referee::Status -> referee_status
+      - rmcs_core::referee::Status -> referee_status
 
       - rmcs_core::controller::gimbal::GimbalController -> gimbal_controller
       - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
@@ -21,14 +21,14 @@ rmcs_executor:
 
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 
-      - rmcs_referee::command::Interaction -> referee_interaction
-      - rmcs_referee::command::interaction::Ui -> referee_ui
-      - rmcs_referee::app::ui::Infantry -> referee_ui_infantry
+      - rmcs_core::referee::command::Interaction -> referee_interaction
+      - rmcs_core::referee::command::interaction::Ui -> referee_ui
+      - rmcs_core::referee::app::ui::Infantry -> referee_ui_infantry
 
-      - rmcs_referee::Command -> referee_command
+      - rmcs_core::referee::Command -> referee_command
 
       - rmcs_core::hardware::cboard::GyroCalibrator -> gyro_calibrator
-      - rmcs_auto_aim::Controller -> rmcs_auto_aim
+      # - rmcs_auto_aim::Controller -> rmcs_auto_aim
 
 infantry_hardware:
   ros__parameters:
