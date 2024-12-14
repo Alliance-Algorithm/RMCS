@@ -1,11 +1,12 @@
 #pragma once
 
-#include <concepts>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 
+#include <concepts>
+
 #include <rmcs_msgs/serial_interface.hpp>
-#include <serial/serial.h>
 
 namespace serial_util {
 
@@ -59,17 +60,6 @@ inline ReceiveResult basic_receive_package(
         }
     }
     return result;
-}
-
-template <typename PackageT, std::integral HeaderT, verify_function<PackageT> VerifyT>
-inline ReceiveResult receive_package(
-    serial::Serial& serial, PackageT& buffer, size_t& cache_size, HeaderT header, VerifyT verify) {
-    return basic_receive_package<sizeof(header), uint8_t>(
-        serial, buffer, cache_size,
-        [header](const PackageT& package) {
-            return reinterpret_cast<const HeaderT&>(package) == header;
-        },
-        verify);
 }
 
 template <typename PackageT, std::integral HeaderT, verify_function<PackageT> VerifyT>

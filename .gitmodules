@@ -10,7 +10,3 @@
 [submodule "rmcs_ws/src/hikcamera"]
 	path = rmcs_ws/src/hikcamera
 	url = https://github.com/Alliance-Algorithm/ros2-hikcamera.git
-[submodule "rmcs_ws/src/serial"]
-	path = rmcs_ws/src/serial
-	url = https://github.com/Alliance-Algorithm/ros2-serial.git
-    branch = ros2

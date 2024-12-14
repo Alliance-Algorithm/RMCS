@@ -2,7 +2,6 @@
 
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
-#include <serial/serial.h>
 #include <serial_interface.hpp>
 #include <serial_util/crc/dji_crc.hpp>
 
