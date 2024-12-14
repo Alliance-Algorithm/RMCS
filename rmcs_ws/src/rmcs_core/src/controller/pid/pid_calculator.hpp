@@ -42,7 +42,7 @@ public:
     double integral_min = -inf, integral_max = inf;
     double output_min = -inf, output_max = inf;
 
-protected:
+private:
     static constexpr double inf = std::numeric_limits<double>::infinity();
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
