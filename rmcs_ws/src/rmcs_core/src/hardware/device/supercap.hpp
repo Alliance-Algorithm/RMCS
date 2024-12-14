@@ -27,7 +27,7 @@ public:
         can_data_.store(std::bit_cast<SupercapStatus>(can_data), std::memory_order::relaxed);
     }
 
-    void update() {
+    void update_status() {
         auto status = can_data_.load(std::memory_order::relaxed);
 
         *chassis_power_    = uint_to_double(status.chassis_power, 0.0, 500.0);

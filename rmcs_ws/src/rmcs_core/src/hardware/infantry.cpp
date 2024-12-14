@@ -6,54 +6,56 @@
 #include <rmcs_msgs/serial_interface.hpp>
 #include <std_msgs/msg/int32.hpp>
 
+#include <librmcs/client/cboard.hpp>
+
+#include "hardware/device/bmi088.hpp"
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
-#include "hardware/device/imu.hpp"
 #include "hardware/device/supercap.hpp"
-#include "hardware/forwarder/cboard.hpp"
 
 namespace rmcs_core::hardware {
 
 class Infantry
     : public rmcs_executor::Component
     , public rclcpp::Node
-    , private forwarder::CBoard {
+    , private librmcs::client::CBoard {
 public:
     Infantry()
         : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
-        , forwarder::CBoard{static_cast<uint16_t>(get_parameter("usb_pid").as_int()), get_logger()}
+        , librmcs::client::CBoard{static_cast<int>(get_parameter("usb_pid").as_int())}
         , logger_(get_logger())
         , infantry_command_(
               create_partner_component<InfantryCommand>(get_component_name() + "_command", *this))
-        , transmit_buffer_(*this, 16) {
+        , transmit_buffer_(*this, 16)
+        , event_thread_([this]() { handle_events(); }) {
         using namespace device;
 
         for (auto& motor : chassis_wheel_motors_)
-            motor.configure(DjiMotorConfig{DjiMotorType::M3508}
-                                .reverse()
+            motor.configure(device::DjiMotor::Config{device::DjiMotor::Type::M3508}
+                                .set_reversed()
                                 .set_reduction_ratio(13.)
                                 .enable_multi_turn_angle());
 
-        gimbal_yaw_motor_.configure(DjiMotorConfig{DjiMotorType::GM6020}.set_encoder_zero_point(
-            static_cast<int>(get_parameter("yaw_motor_zero_point").as_int())));
-        gimbal_pitch_motor_.configure(DjiMotorConfig{DjiMotorType::GM6020}.set_encoder_zero_point(
-            static_cast<int>(get_parameter("pitch_motor_zero_point").as_int())));
+        gimbal_yaw_motor_.configure(
+            device::DjiMotor::Config{device::DjiMotor::Type::GM6020}.set_encoder_zero_point(
+                static_cast<int>(get_parameter("yaw_motor_zero_point").as_int())));
+        gimbal_pitch_motor_.configure(
+            device::DjiMotor::Config{device::DjiMotor::Type::GM6020}.set_encoder_zero_point(
+                static_cast<int>(get_parameter("pitch_motor_zero_point").as_int())));
 
         gimbal_left_friction_.configure(
-            DjiMotorConfig{DjiMotorType::M3508}.set_reduction_ratio(1.));
-        gimbal_right_friction_.configure(
-            DjiMotorConfig{DjiMotorType::M3508}.reverse().set_reduction_ratio(1.));
+            device::DjiMotor::Config{device::DjiMotor::Type::M3508}.set_reduction_ratio(1.));
+        gimbal_right_friction_.configure(device::DjiMotor::Config{device::DjiMotor::Type::M3508}
+                                             .set_reversed()
+                                             .set_reduction_ratio(1.));
         gimbal_bullet_feeder_.configure(
-            DjiMotorConfig{DjiMotorType::M2006}.enable_multi_turn_angle());
+            device::DjiMotor::Config{device::DjiMotor::Type::M2006}.enable_multi_turn_angle());
 
-        imu_gx_bias_ = get_parameter("imu_gx_bias").as_double();
-        imu_gy_bias_ = get_parameter("imu_gy_bias").as_double();
-        imu_gz_bias_ = get_parameter("imu_gz_bias").as_double();
+        // TODO: imu bias
 
         register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
         register_output("/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
         register_output("/tf", tf_);
-        register_output("/imu/gyro", imu_gyro_);
 
         using namespace rmcs_description;
 
@@ -94,11 +96,16 @@ public:
         };
     }
 
+    ~Infantry() {
+        stop_handling_events();
+        event_thread_.join();
+    }
+
     void update() override {
         update_motors();
         update_imu();
-        dr16_.update();
-        supercap_.update();
+        dr16_.update_status();
+        supercap_.update_status();
     }
 
     void command_update() {
@@ -135,42 +142,30 @@ private:
     void update_motors() {
         using namespace rmcs_description;
         for (auto& motor : chassis_wheel_motors_)
-            motor.update();
-        tf_->set_state<BaseLink, LeftFrontWheelLink>(chassis_wheel_motors_[0].get_angle());
-        tf_->set_state<BaseLink, RightFrontWheelLink>(chassis_wheel_motors_[1].get_angle());
-        tf_->set_state<BaseLink, RightBackWheelLink>(chassis_wheel_motors_[2].get_angle());
-        tf_->set_state<BaseLink, LeftBackWheelLink>(chassis_wheel_motors_[3].get_angle());
+            motor.update_status();
+        tf_->set_state<BaseLink, LeftFrontWheelLink>(chassis_wheel_motors_[0].angle());
+        tf_->set_state<BaseLink, RightFrontWheelLink>(chassis_wheel_motors_[1].angle());
+        tf_->set_state<BaseLink, RightBackWheelLink>(chassis_wheel_motors_[2].angle());
+        tf_->set_state<BaseLink, LeftBackWheelLink>(chassis_wheel_motors_[3].angle());
 
-        gimbal_yaw_motor_.update();
-        tf_->set_state<GimbalCenterLink, YawLink>(gimbal_yaw_motor_.get_angle());
-        gimbal_pitch_motor_.update();
-        tf_->set_state<YawLink, PitchLink>(gimbal_pitch_motor_.get_angle());
+        gimbal_yaw_motor_.update_status();
+        tf_->set_state<GimbalCenterLink, YawLink>(gimbal_yaw_motor_.angle());
+        gimbal_pitch_motor_.update_status();
+        tf_->set_state<YawLink, PitchLink>(gimbal_pitch_motor_.angle());
 
-        gimbal_bullet_feeder_.update();
-        gimbal_left_friction_.update();
-        gimbal_right_friction_.update();
+        gimbal_bullet_feeder_.update_status();
+        gimbal_left_friction_.update_status();
+        gimbal_right_friction_.update_status();
     }
 
     void update_imu() {
-        auto acc  = accelerometer_data_.load(std::memory_order::relaxed);
-        auto gyro = gyroscope_data_.load(std::memory_order::relaxed);
-
-        auto solve_acc  = [](int16_t value) { return value / 32767.0 * 6.0; };
-        auto solve_gyro = [](int16_t value) {
-            return value / 32767.0 * 2000.0 / 180.0 * std::numbers::pi;
-        };
-
-        double gx = solve_gyro(gyro.x), gy = solve_gyro(gyro.y), gz = solve_gyro(gyro.z);
-        double ax = solve_acc(acc.x), ay = solve_acc(acc.y), az = solve_acc(acc.z);
-
-        *gimbal_yaw_velocity_imu_   = gz;
-        *gimbal_pitch_velocity_imu_ = gx;
-
-        auto gimbal_imu_pose = imu_.update(ax, ay, az, gx, gy, gz);
+        imu_.update_status();
+        Eigen::Quaterniond gimbal_imu_pose{imu_.q0(), imu_.q1(), imu_.q2(), imu_.q3()};
         tf_->set_transform<rmcs_description::ImuLink, rmcs_description::OdomImu>(
             gimbal_imu_pose.conjugate());
 
-        *imu_gyro_ = {gx, gy, gz};
+        *gimbal_yaw_velocity_imu_   = imu_.gz();
+        *gimbal_pitch_velocity_imu_ = imu_.gx();
     }
 
     void gimbal_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
@@ -237,11 +232,11 @@ protected:
     }
 
     void accelerometer_receive_callback(int16_t x, int16_t y, int16_t z) override {
-        accelerometer_data_.store({x, y, z}, std::memory_order::relaxed);
+        imu_.store_accelerometer_status(x, y, z);
     }
 
     void gyroscope_receive_callback(int16_t x, int16_t y, int16_t z) override {
-        gyroscope_data_.store({x, y, z}, std::memory_order::relaxed);
+        imu_.store_gyroscope_status(x, y, z);
     }
 
 private:
@@ -277,24 +272,19 @@ private:
 
     device::Dr16 dr16_{*this};
 
-    struct alignas(8) ImuData {
-        int16_t x, y, z;
-    };
-    std::atomic<ImuData> accelerometer_data_, gyroscope_data_;
-    static_assert(std::atomic<ImuData>::is_always_lock_free);
-    device::Imu imu_;
-    double imu_gx_bias_, imu_gy_bias_, imu_gz_bias_;
+    device::Bmi088 imu_{1000, 0.2, 0.0};
 
     OutputInterface<double> gimbal_yaw_velocity_imu_;
     OutputInterface<double> gimbal_pitch_velocity_imu_;
 
     OutputInterface<rmcs_description::Tf> tf_;
-    OutputInterface<Eigen::Vector3d> imu_gyro_;
 
-    RingBuffer<std::byte> referee_ring_buffer_receive_{256};
+    librmcs::utility::RingBuffer<std::byte> referee_ring_buffer_receive_{256};
     OutputInterface<rmcs_msgs::SerialInterface> referee_serial_;
 
-    forwarder::CBoard::TransmitBuffer transmit_buffer_;
+    librmcs::client::CBoard::TransmitBuffer transmit_buffer_;
+
+    std::thread event_thread_;
 };
 
 } // namespace rmcs_core::hardware

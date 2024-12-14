@@ -27,12 +27,12 @@ rmcs_executor:
 
       - rmcs_core::referee::Command -> referee_command
 
-      - rmcs_core::hardware::cboard::GyroCalibrator -> gyro_calibrator
+      # - rmcs_core::hardware::cboard::GyroCalibrator -> gyro_calibrator
       # - rmcs_auto_aim::Controller -> rmcs_auto_aim
 
 infantry_hardware:
   ros__parameters:
-    usb_pid: 0xac89
+    usb_pid: -1
     yaw_motor_zero_point: 3387
     pitch_motor_zero_point: 6716
     imu_gx_bias: +0.001294
