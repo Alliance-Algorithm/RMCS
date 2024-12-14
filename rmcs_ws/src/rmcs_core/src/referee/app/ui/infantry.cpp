@@ -52,7 +52,7 @@ public:
         register_input("/chassis/voltage", chassis_voltage_);
         register_input("/chassis/power", chassis_power_);
         register_input("/chassis/control_power_limit", chassis_control_power_limit_);
-        register_input("/chassis/supercap/control_power_limit", supercap_control_power_limit_);
+        register_input("/chassis/supercap/charge_power_limit", supercap_charge_power_limit_);
 
         register_input("/chassis/left_front_wheel/velocity", left_front_velocity_);
         register_input("/chassis/left_back_wheel/velocity", left_back_velocity_);
@@ -76,7 +76,7 @@ public:
         update_chassis_direction_indicator();
 
         chassis_control_power_limit_indicator_.set_value(*chassis_control_power_limit_);
-        supercap_control_power_limit_indicator_.set_value(*supercap_control_power_limit_);
+        supercap_control_power_limit_indicator_.set_value(*supercap_charge_power_limit_);
 
         chassis_power_number_.set_value(*chassis_power_);
 
@@ -142,7 +142,7 @@ private:
     InputInterface<double> chassis_voltage_;
     InputInterface<double> chassis_power_;
     InputInterface<double> chassis_control_power_limit_;
-    InputInterface<double> supercap_control_power_limit_;
+    InputInterface<double> supercap_charge_power_limit_;
 
     InputInterface<double> left_front_velocity_, left_back_velocity_, right_back_velocity_,
         right_front_velocity_;

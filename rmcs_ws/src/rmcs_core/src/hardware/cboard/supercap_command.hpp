@@ -18,7 +18,7 @@ public:
     explicit SupercapCommand(Component* component) {
         component->register_input("/chassis/supercap/control_enable", supercap_control_enabled_);
         component->register_input(
-            "/chassis/supercap/control_power_limit", supercap_control_power_limit_);
+            "/chassis/supercap/charge_power_limit", supercap_charge_power_limit_);
     }
 
     void write_command_to_package(Package& package, size_t index) const {
@@ -31,7 +31,7 @@ public:
 
         command.enabled = *supercap_control_enabled_;
 
-        double power_limit = *supercap_control_power_limit_;
+        double power_limit = *supercap_charge_power_limit_;
         if (std::isnan(power_limit))
             command.power_limit = 0;
         else
@@ -42,7 +42,7 @@ public:
 
 private:
     Component::InputInterface<bool> supercap_control_enabled_;
-    Component::InputInterface<double> supercap_control_power_limit_;
+    Component::InputInterface<double> supercap_charge_power_limit_;
 };
 
 } // namespace rmcs_core::hardware::cboard

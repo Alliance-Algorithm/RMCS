@@ -20,7 +20,7 @@ public:
         command_component.register_input(
             "/chassis/supercap/control_enable", supercap_control_enabled_);
         command_component.register_input(
-            "/chassis/supercap/control_power_limit", supercap_control_power_limit_);
+            "/chassis/supercap/charge_power_limit", supercap_charge_power_limit_);
     }
 
     void store_status(uint64_t can_data) {
@@ -41,7 +41,7 @@ public:
 
         command.enabled = *supercap_control_enabled_;
 
-        double power_limit = *supercap_control_power_limit_;
+        double power_limit = *supercap_charge_power_limit_;
         if (std::isnan(power_limit))
             command.power_limit = 0;
         else
@@ -79,7 +79,7 @@ private:
     Component::OutputInterface<bool> supercap_enabled_;
 
     Component::InputInterface<bool> supercap_control_enabled_;
-    Component::InputInterface<double> supercap_control_power_limit_;
+    Component::InputInterface<double> supercap_charge_power_limit_;
 };
 
 } // namespace rmcs_core::hardware::device

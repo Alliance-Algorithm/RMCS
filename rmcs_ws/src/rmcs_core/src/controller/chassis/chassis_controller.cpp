@@ -46,8 +46,7 @@ public:
         register_output("/chassis/control_velocity", chassis_control_velocity_);
 
         register_output("/chassis/supercap/control_enable", supercap_control_enabled_, false);
-        register_output(
-            "/chassis/supercap/control_power_limit", supercap_control_power_limit_, 0.0);
+        register_output("/chassis/supercap/charge_power_limit", supercap_charge_power_limit_, 0.0);
         register_output("/chassis/control_power_limit", chassis_control_power_limit_, 0.0);
 
         register_output(
@@ -117,9 +116,9 @@ public:
 
         *chassis_control_velocity_ = {nan, nan, nan};
 
-        *supercap_control_enabled_     = false;
-        *supercap_control_power_limit_ = 0.0;
-        *chassis_control_power_limit_  = 0.0;
+        *supercap_control_enabled_    = false;
+        *supercap_charge_power_limit_ = 0.0;
+        *chassis_control_power_limit_ = 0.0;
     }
 
     void update_velocity_control() {
@@ -230,7 +229,7 @@ public:
                       (*chassis_buffer_energy_referee_ - buffer_energy_base_line)
                           / (buffer_energy_control_line - buffer_energy_base_line),
                       0.0, 1.0);
-        *supercap_control_power_limit_ = power_limit_after_buffer_energy_closed_loop;
+        *supercap_charge_power_limit_ = power_limit_after_buffer_energy_closed_loop;
 
         if (*supercap_control_enabled_ && *supercap_enabled_) {
             double supercap_power_limit = *mode_ == rmcs_msgs::ChassisMode::LAUNCH_RAMP
@@ -302,7 +301,7 @@ private:
 
     int supercap_switch_cooling_ = 0;
     OutputInterface<bool> supercap_control_enabled_;
-    OutputInterface<double> supercap_control_power_limit_;
+    OutputInterface<double> supercap_charge_power_limit_;
 
     OutputInterface<double> chassis_control_power_limit_;
 
