@@ -1,0 +1,108 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::hardware::DartLauncher -> dart_hardware
+      # - rmcs_referee::Status -> referee_statuss
+
+      - rmcs_core::controller::dart::LauncherController -> launcher_controller
+      - rmcs_core::controller::pid::PidController -> friction_lf_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> friction_lb_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> friction_rb_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> friction_rf_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> conveyor_velocity_pid_controller
+
+      # - rmcs_core::controller::dart::AngleTest -> angle_test
+      # - rmcs_core::controller::pid::PidControler -> yaw_velocity_pid_controller
+      # - rmcs_core::controller::pid::PidControler -> pitch_left_velocity_pid_controller
+      # - rmcs_core::controller::pid::PidControler -> pitch_right_velocity_pid_controller
+
+dart_hardware:
+  ros__parameters:
+    usb_pid: 0xc049
+
+# referee_status:
+#   ros__parameters:
+#     path: /dev/ttyUSB0
+
+launcher_controller:
+  ros__parameters:
+    conveyor_working_velocity: 0.00
+    friction_working_velocity: 0.00
+
+conveyor_velocity_pid_controller:
+  ros__parameters:
+    measurement: /dart/conveyor/velocity
+    setpoint: /dart/conveyor/control_velocity
+    control: /dart/conveyor/control_torque
+    kp: 0.003436926
+    ki: 0.00
+    kd: 0.009373434
+
+friction_lf_velocity_pid_controller:
+  ros__parameters:
+    measurement: /dart/friction_lf/velocity
+    setpoint: /dart/friction_lf/control_velocity
+    control: /dart/friction_lf/control_torque
+    kp: 0.003436926
+    ki: 0.00
+    kd: 0.009373434
+
+friction_lb_velocity_pid_controller:
+  ros__parameters:
+    measurement: /dart/friction_lb/velocity
+    setpoint: /dart/friction_lb/control_velocity
+    control: /dart/friction_lb/control_torque
+    kp: 0.003436926
+    ki: 0.00
+    kd: 0.009373434
+
+friction_rb_velocity_pid_controller:
+  ros__parameters:
+    measurement: /dart/friction_rb/velocity
+    setpoint: /dart/friction_rb/control_velocity
+    control: /dart/friction_rb/control_torque
+    kp: 0.003436926
+    ki: 0.00
+    kd: 0.009373434
+
+friction_rf_velocity_pid_controller:
+  ros__parameters:
+    measurement: /dart/friction_rf/velocity
+    setpoint: /dart/friction_rf/control_velocity
+    control: /dart/friction_rf/control_torque
+    kp: 0.003436926
+    ki: 0.00
+    kd: 0.009373434
+
+angle_test:
+  ros__parameters:
+    dart_yaw_velocity_limit: 10.00
+    dart_pitch_velocity_limit: 10.00
+
+yaw_velocity_pid_controller:
+  ros__parameters:
+    measurement: /dart/yaw/velocity
+    setpoint: /dart/yaw/control_velocity
+    control: /dart/yaw/control_torque
+    kp: 0.003436926
+    ki: 0.00
+    kd: 0.009373434
+
+pitch_left_velocity_pid_controller:
+  ros__parameters:
+    measurement: /dart/pitch_left/velocity
+    setpoint: /dart/pitch_left/control_velocity
+    control: /dart/pitch_left/control_torque
+    kp: 0.003436926
+    ki: 0.00
+    kd: 0.009373434
+
+pitch_right_velocity_pid_controller:
+  ros__parameters:
+    measurement: /dart/pitch_right/velocity
+    setpoint: /dart/pitch_right/control_velocity
+    control: /dart/pitch_right/control_torque
+    kp: 0.003436926
+    ki: 0.00
+    kd: 0.009373434
