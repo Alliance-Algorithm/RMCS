@@ -131,7 +131,7 @@ protected:
             auto& motor = yaw_motor_;
             motor.store_status(can_data);
         }
-        callback_update(can_id, 1, can_data);
+        // callback_update(can_id, 1, can_data);
     }
 
     // void uart1_receive_callback();

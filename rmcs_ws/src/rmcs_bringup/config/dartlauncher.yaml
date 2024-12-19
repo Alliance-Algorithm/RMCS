@@ -77,8 +77,8 @@ friction_rf_velocity_pid_controller:
 
 angle_test:
   ros__parameters:
-    dart_yaw_velocity_limit: 10.00
-    dart_pitch_velocity_limit: 10.00
+    dart_yaw_velocity_limit: 20.00
+    dart_pitch_velocity_limit: 20.00
 
 yaw_velocity_pid_controller:
   ros__parameters:

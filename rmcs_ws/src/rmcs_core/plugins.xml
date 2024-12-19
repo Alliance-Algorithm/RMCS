@@ -48,12 +48,12 @@
     <description>Test plugin.</description>
   </class>
   <class type="rmcs_core::hardware::DartLauncher" base_class_type="rmcs_executor::Component">
-  <description>Test plugin.</description>
+    <description>Test plugin.</description>
   </class>
   <class type="rmcs_core::controller::dart::LauncherController" base_class_type="rmcs_executor::Component">
-  <description>Test plugin.</description>
+    <description>Test plugin.</description>
   </class>
   <class type="rmcs_core::controller::dart::AngleTest" base_class_type="rmcs_executor::Component">
-  <description>Test plugin.</description>
+    <description>Test plugin.</description>
   </class>
 </library>
