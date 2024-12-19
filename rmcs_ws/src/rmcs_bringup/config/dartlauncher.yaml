@@ -12,10 +12,10 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController -> friction_rf_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> conveyor_velocity_pid_controller
 
-      # - rmcs_core::controller::dart::AngleTest -> angle_test
-      # - rmcs_core::controller::pid::PidControler -> yaw_velocity_pid_controller
-      # - rmcs_core::controller::pid::PidControler -> pitch_left_velocity_pid_controller
-      # - rmcs_core::controller::pid::PidControler -> pitch_right_velocity_pid_controller
+      - rmcs_core::controller::dart::AngleTest -> angle_test
+      - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> pitch_left_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> pitch_right_velocity_pid_controller
 
 dart_hardware:
   ros__parameters:

@@ -37,31 +37,30 @@ public:
 
         Conveyor_motor_.configure(DjiMotorConfig{DjiMotorType::M3508}.set_reduction_ratio(1.));
 
-        // yaw_motor_.configure(DjiMotorConfig{DjiMotorType::M2006}.enable_multi_turn_angle());
-        // pitch_left_motor.configure(DjiMotorConfig{DjiMotorType::M2006}.enable_multi_turn_angle());
-        // pitch_right_motor.configure(DjiMotorConfig{DjiMotorType::M2006}.enable_multi_turn_angle());
+        yaw_motor_.configure(DjiMotorConfig{DjiMotorType::M2006}.enable_multi_turn_angle());
+        pitch_left_motor.configure(DjiMotorConfig{DjiMotorType::M2006}.enable_multi_turn_angle());
+        pitch_right_motor.configure(DjiMotorConfig{DjiMotorType::M2006}.enable_multi_turn_angle());
     }
 
     void update() override {
         update_motors();
         dr16_.update();
-        // RCLCPP_INFO(logger_, "work");
     }
 
     void command_update() {
         uint16_t can_commands[4];
 
-        // can_commands[0] = 0;
-        // can_commands[1] = 0;
-        // can_commands[2] = 0;
-        // can_commands[3] = 0;
-        // transmit_buffer_.add_can1_transmission(0x1FE, std::bit_cast<uint64_t>(can_commands));
+        can_commands[0] = 0;
+        can_commands[1] = 0;
+        can_commands[2] = 0;
+        can_commands[3] = 0;
+        transmit_buffer_.add_can1_transmission(0x1FE, std::bit_cast<uint64_t>(can_commands));
 
-        // can_commands[0] = pitch_left_motor.generate_command();
-        // can_commands[1] = pitch_right_motor.generate_command();
-        // can_commands[2] = yaw_motor_.generate_command();
-        // can_commands[3] = 0;
-        // transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(can_commands));
+        can_commands[0] = pitch_left_motor.generate_command();
+        can_commands[1] = pitch_right_motor.generate_command();
+        can_commands[2] = yaw_motor_.generate_command();
+        can_commands[3] = 0;
+        transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(can_commands));
 
         can_commands[0] = Conveyor_motor_.generate_command();
         can_commands[1] = 0;
@@ -76,10 +75,6 @@ public:
         transmit_buffer_.add_can2_transmission(0x200, std::bit_cast<uint64_t>(can_commands));
 
         transmit_buffer_.trigger_transmission();
-        // RCLCPP_INFO(
-        //     logger_, "1:%5d,2:%5d,3:%5d,4:%5d,5:%5d", friction_motors_[0].generate_command(),
-        //     friction_motors_[1].generate_command(), friction_motors_[2].generate_command(),
-        //     friction_motors_[3].generate_command(), Conveyor_motor_.generate_command());
     }
 
 private:
@@ -89,9 +84,9 @@ private:
         for (auto& motor : friction_motors_)
             motor.update();
         Conveyor_motor_.update();
-        // pitch_left_motor.update();
-        // pitch_right_motor.update();
-        // yaw_motor_.update();
+        pitch_left_motor.update();
+        pitch_right_motor.update();
+        yaw_motor_.update();
     }
 
 protected:
@@ -117,27 +112,27 @@ protected:
             auto& motor = Conveyor_motor_;
             motor.update();
         }
-        callback_update(can_id, 2, can_data);
-        // RCLCPP_INFO(logger_, "work");
+        // callback_update(can_id, 2, can_data);
     }
 
-    // void can1_receive_callback(
-    //     uint32_t can_id, uint64_t can_data, bool is_extended_can_id, bool is_remote_transmission,
-    //     uint8_t can_data_length) override {
-    //     if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
-    //         return;
+    void can1_receive_callback(
+        uint32_t can_id, uint64_t can_data, bool is_extended_can_id, bool is_remote_transmission,
+        uint8_t can_data_length) override {
+        if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
+            return;
 
-    //     if (can_id == 0x201) {
-    //         auto& motor = pitch_left_motor;
-    //         motor.store_status(can_data);
-    //     } else if (can_id == 0x202) {
-    //         auto& motor = pitch_right_motor;
-    //         motor.store_status(can_data);
-    //     } else if (can_id == 0x203) {
-    //         auto& motor = yaw_motor_;
-    //         motor.store_status(can_data);
-    //     }
-    // }
+        if (can_id == 0x201) {
+            auto& motor = pitch_left_motor;
+            motor.store_status(can_data);
+        } else if (can_id == 0x202) {
+            auto& motor = pitch_right_motor;
+            motor.store_status(can_data);
+        } else if (can_id == 0x203) {
+            auto& motor = yaw_motor_;
+            motor.store_status(can_data);
+        }
+        callback_update(can_id, 1, can_data);
+    }
 
     // void uart1_receive_callback();
     // void uart2_receive_callback();
@@ -181,9 +176,9 @@ private:
     };
     device::DjiMotor Conveyor_motor_{*this, *dart_command_, "/dart/conveyor"};
 
-    // device::DjiMotor yaw_motor_{*this, *dart_command_, "/dart/yaw"};
-    // device::DjiMotor pitch_left_motor{*this, *dart_command_, "/dart/pitch_left"};
-    // device::DjiMotor pitch_right_motor{*this, *dart_command_, "/dart/pitch_right"};
+    device::DjiMotor yaw_motor_{*this, *dart_command_, "/dart/yaw"};
+    device::DjiMotor pitch_left_motor{*this, *dart_command_, "/dart/pitch_left"};
+    device::DjiMotor pitch_right_motor{*this, *dart_command_, "/dart/pitch_right"};
 
     device::Dr16 dr16_{*this};
 
