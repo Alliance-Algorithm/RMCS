@@ -31,7 +31,7 @@ public:
     virtual void update() = 0;
 
     template <typename T>
-    class InputInterface {
+    requires(!std::is_reference_v<T> && !std::is_unbounded_array_v<T>) class InputInterface {
     public:
         friend class Component;
 
@@ -42,16 +42,36 @@ public:
         InputInterface(InputInterface&&)                 = delete;
         InputInterface& operator=(InputInterface&&)      = delete;
 
-        ~InputInterface() = default;
+        ~InputInterface() {
+            if (delete_data_when_deconstruct) {
+                if constexpr (std::is_array_v<T>) {
+                    delete[] data_pointer_;
+                } else {
+                    delete data_pointer_;
+                }
+            }
+        }
 
         [[nodiscard]] bool active() const { return activated; }
         [[nodiscard]] bool ready() const { return data_pointer_ != nullptr; }
 
+        template <typename... Args>
+        void make_and_bind_directly(Args&&... args) {
+            if (ready())
+                throw std::runtime_error("The interface has already been bound to somewhere");
+
+            data_pointer_ = new T(std::forward<Args>(args)...);
+            activated     = true;
+
+            delete_data_when_deconstruct = true;
+        }
+
         void bind_directly(T& destination) {
             if (ready())
                 throw std::runtime_error("The interface has already been bound to somewhere");
-            activated     = true;
+
             data_pointer_ = &destination;
+            activated     = true;
         }
 
         const T* operator->() const { return data_pointer_; }
@@ -65,10 +85,12 @@ public:
 
         T* data_pointer_ = nullptr;
         bool activated   = false;
+
+        bool delete_data_when_deconstruct = false;
     };
 
     template <typename T>
-    class OutputInterface {
+    requires(!std::is_reference_v<T> && !std::is_unbounded_array_v<T>) class OutputInterface {
     public:
         friend class Component;
 
