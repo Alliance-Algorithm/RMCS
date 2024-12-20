@@ -1,7 +1,6 @@
 /*
-    镖架的发射角度控制部分
-    但通过遥控器调整
-    作为一个能跑通代码的测试
+    镖架发射角度控制(Beta)
+    拨杆双上可使用遥控器调整
 */
 #include <algorithm>
 #include <eigen3/Eigen/Dense>
@@ -26,8 +25,8 @@ public:
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , logger_(get_logger()) {
-        yaw_velocity_limit_   = get_parameter("dart_yaw_velocity_limit").as_double();
-        pitch_velocity_limit_ = get_parameter("dart_pitch_velocity_limit").as_double();
+        yaw_velocity_limit_   = get_parameter("yaw_velocity_limit").as_double();
+        pitch_velocity_limit_ = get_parameter("pitch_velocity_limit").as_double();
 
         register_input("/remote/switch/right", switch_right_input_, false);
         register_input("/remote/switch/left", switch_left_input_, false);
@@ -41,18 +40,14 @@ public:
 
     void update() override {
         using namespace rmcs_msgs;
-
         switch_left_  = *switch_left_input_;
         switch_right_ = *switch_right_input_;
 
-        if ((switch_left_ == Switch::UNKNOWN || switch_right_ == Switch::UNKNOWN)
-            || (switch_left_ == Switch::MIDDLE || switch_right_ == Switch::MIDDLE)) {
-            reset_all_controls();
-            // RCLCPP_INFO(logger_, "STOP");
-        } else {
+        if (switch_left_ == Switch::UP && switch_right_ == Switch::UP) {
             control_enabled_ = true;
             update_motor_velocities();
-            // RCLCPP_INFO(logger_, "WORK");
+        } else {
+            reset_all_controls();
         }
     }
 
@@ -67,7 +62,7 @@ private:
     void update_motor_velocities() {
         double pitch_control_input_ = 20.0 * joystick_left_->x();
         double yaw_control_input_   = 20.0 * joystick_right_->y();
-        RCLCPP_INFO(logger_, "yaw:%4lf,pitch:%4lf", yaw_control_input_, pitch_control_input_);
+        // RCLCPP_INFO(logger_, "yaw:%4lf,pitch:%4lf", yaw_control_input_, pitch_control_input_);
 
         *yaw_control_velocity_ =
             control_enabled_ ? std::min(yaw_velocity_limit_, yaw_control_input_) : 0.0;

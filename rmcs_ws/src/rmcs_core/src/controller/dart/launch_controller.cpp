@@ -1,7 +1,4 @@
-/*
-    镖架的发射机构代码
-    包含摩擦轮和传送带电机控制
-*/
+
 #include <cmath>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
@@ -20,13 +17,11 @@ public:
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , logger_(get_logger()) {
-        //
-        conveyor_working_velocity_ = get_parameter("conveyor_working_velocity").as_double();
-        friction_working_velocity_ = get_parameter("friction_working_velocity").as_double();
-
+        conveyor_working_velocity_       = get_parameter("conveyor_working_velocity").as_double();
+        friction_working_velocity_debug_ = get_parameter("friction_working_velocity").as_double();
         register_input("/remote/switch/right", switch_right_input_, false);
         register_input("/remote/switch/left", switch_left_input_, false);
-        // register_input("/dart/friction/working_velocity", friction_working_velocity_);
+        register_input("/dart/firction/working_velocity", friction_working_velocity_);
 
         register_output("/dart/friction_lf/control_velocity", friction_lf_control_velocity_, nan);
         register_output("/dart/friction_lb/control_velocity", friction_lb_control_velocity_, nan);
@@ -40,23 +35,20 @@ public:
         switch_right_ = *switch_right_input_;
         using namespace rmcs_msgs;
 
-        // 如果有遥控器调试的话，拨杆双中停止工作
-        //
         if ((switch_left_ == Switch::UNKNOWN || switch_right_ == Switch::UNKNOWN)
-            || (switch_left_ == Switch::MIDDLE && switch_right_ == Switch::MIDDLE)) {
+            || (switch_left_ == Switch::DOWN && switch_right_ == Switch::DOWN)) {
             reset_all_controls();
         } else {
-            control_enabled_ = true;
+            conveyor_enable_ = (switch_left_ == Switch::MIDDLE) ? true : false;
+            friction_enable_ = (switch_right_ == Switch::DOWN) ? false : true;
             update_motor_velocities();
         }
-
-        // control_enabled_ = true;
-        // update_motor_velocities();
     }
 
 private:
     void reset_all_controls() {
-        control_enabled_               = false;
+        friction_enable_               = false;
+        conveyor_enable_               = false;
         *conveyor_control_velocity_    = nan;
         *friction_lf_control_velocity_ = nan;
         *friction_lb_control_velocity_ = nan;
@@ -65,8 +57,9 @@ private:
     }
 
     void update_motor_velocities() {
-        double friction_velocity = control_enabled_ ? friction_working_velocity_ : 0.0;
-        double conveyor_velocity = control_enabled_ ? conveyor_working_velocity_ : 0.0;
+        // double friction_velocity = friction_enable_ ? *friction_working_velocity_ : 0.0;
+        double friction_velocity = friction_enable_ ? friction_working_velocity_debug_ : 0.0;
+        double conveyor_velocity = conveyor_enable_ ? conveyor_working_velocity_ : 0.0;
 
         *conveyor_control_velocity_    = conveyor_velocity;
         *friction_lf_control_velocity_ = friction_velocity;
@@ -80,10 +73,11 @@ private:
     rclcpp::Logger logger_;
 
     double conveyor_working_velocity_;
-    double friction_working_velocity_;
-    // InputInterface<double> friction_working_velocity_;
+    double friction_working_velocity_debug_;
+    InputInterface<double> friction_working_velocity_;
 
-    bool control_enabled_ = false;
+    bool friction_enable_ = false;
+    bool conveyor_enable_ = false;
 
     OutputInterface<double> friction_lf_control_velocity_;
     OutputInterface<double> friction_lb_control_velocity_;
