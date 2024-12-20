@@ -3,7 +3,6 @@ rmcs_executor:
     update_rate: 1000.0
     components:
       - rmcs_core::hardware::DartLauncher -> dart_hardware
-      # - rmcs_referee::Status -> referee_statuss
 
       - rmcs_core::controller::dart::LauncherController -> launcher_controller
       - rmcs_core::controller::pid::PidController -> friction_lf_velocity_pid_controller
@@ -17,18 +16,56 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController -> pitch_left_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> pitch_right_velocity_pid_controller
 
+      # - rmcs_core::controller::dart::AngleController -> angle_controller
+      # - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
+      # - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
+      # - rmcs_core::controller::pid::ErrorPidController -> pitch_left_angle_pid_controller
+      # - rmcs_core::controller::pid::PidController -> pitch_left_velocity_pid_controller
+      # - rmcs_core::controller::pid::ErrorPidController -> pitch_right_angle_pid_controller
+      # - rmcs_core::controller::pid::PidController -> pitch_right_velocity_pid_controller
+      
+      - rmcs_core::controller::dart::VisualGuidance -> visual_guidance
+
 dart_hardware:
   ros__parameters:
     usb_pid: 0xc049
 
-# referee_status:
-#   ros__parameters:
-#     path: /dev/ttyUSB0
+angle_test:
+  ros__parameters:
+    yaw_velocity_limit: 20.00
+    pitch_velocity_limit: 20.00
+
+yaw_velocity_pid_controller:
+  ros__parameters:
+    measurement: /dart/yaw/velocity
+    setpoint: /dart/yaw/control_velocity
+    control: /dart/yaw/control_torque
+    kp: 0.003436926
+    ki: 0.00
+    kd: 0.009373434
+
+pitch_left_velocity_pid_controller:
+  ros__parameters:
+    measurement: /dart/pitch_left/velocity
+    setpoint: /dart/pitch_left/control_velocity
+    control: /dart/pitch_left/control_torque
+    kp: 0.003436926
+    ki: 0.00
+    kd: 0.009373434
+
+pitch_right_velocity_pid_controller:
+  ros__parameters:
+    measurement: /dart/pitch_right/velocity
+    setpoint: /dart/pitch_right/control_velocity
+    control: /dart/pitch_right/control_torque
+    kp: 0.003436926
+    ki: 0.00
+    kd: 0.009373434
 
 launcher_controller:
   ros__parameters:
-    conveyor_working_velocity: 0.00
-    friction_working_velocity: 0.00
+    conveyor_working_velocity: 10.00
+    friction_working_velocity: 10.00
 
 conveyor_velocity_pid_controller:
   ros__parameters:
@@ -75,34 +112,66 @@ friction_rf_velocity_pid_controller:
     ki: 0.00
     kd: 0.009373434
 
-angle_test:
+visual_guidance:
   ros__parameters:
-    dart_yaw_velocity_limit: 20.00
-    dart_pitch_velocity_limit: 20.00
+    debug_mode: true
+
+angle_controller:
+  ros__parameters:
+    yaw_velocity_limit: 20.00
+    pitch_velocity_limit: 20.00
+    pitch_up_angle_limit: 0.00
+    pitch_down_angle_limit: 0.00
+    yaw_left_angle_limit: 0.00
+    yaw_right_angle_limit: 0.00
+
+yaw_angle_pid_controller:
+  ros__parameters:
+    measurement: /dart/yaw/control_angle_error
+    control: /dart/yaw/control_velocity
+    kp: 15.0
+    ki: 0.0
+    kd: 0.0
 
 yaw_velocity_pid_controller:
   ros__parameters:
     measurement: /dart/yaw/velocity
     setpoint: /dart/yaw/control_velocity
     control: /dart/yaw/control_torque
-    kp: 0.003436926
-    ki: 0.00
-    kd: 0.009373434
+    kp: 3.5
+    ki: 0.0
+    kd: 0.0
+
+pitch_left_angle_pid_controller:
+  ros__parameters:
+    measurement: /dart/pitch_left/control_angle_error
+    control: /dart/pitch_left/control_velocity
+    kp: 20.00
+    ki: 0.0
+    kd: 0.0
 
 pitch_left_velocity_pid_controller:
   ros__parameters:
     measurement: /dart/pitch_left/velocity
     setpoint: /dart/pitch_left/control_velocity
     control: /dart/pitch_left/control_torque
-    kp: 0.003436926
-    ki: 0.00
-    kd: 0.009373434
+    kp: 0.8
+    ki: 0.0
+    kd: 0.0
+
+pitch_right_angle_pid_controller:
+  ros__parameters:
+    measurement: /dart/pitch_right/control_angle_error
+    control: /dart/pitch_right/control_velocity
+    kp: 20.00
+    ki: 0.0
+    kd: 0.0
 
 pitch_right_velocity_pid_controller:
   ros__parameters:
     measurement: /dart/pitch_right/velocity
     setpoint: /dart/pitch_right/control_velocity
     control: /dart/pitch_right/control_torque
-    kp: 0.003436926
-    ki: 0.00
-    kd: 0.009373434
+    kp: 0.8
+    ki: 0.0
+    kd: 0.0
