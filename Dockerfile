@@ -83,7 +83,7 @@ USER developer
 
 # Install oh my zsh & change theme to af-magic
 RUN set -eo pipefail && \
-    curl -fsSL https://raw.github.com/robbyrussell/oh-my-zsh/master/tools/install.sh | sh && \
+    curl -fsSL https://cdn.jsdelivr.net/gh/robbyrussell/oh-my-zsh/tools/install.sh | sh && \
     sed -i 's/ZSH_THEME=\"[a-z0-9\-]*\"/ZSH_THEME="af-magic"/g' .zshrc
 
 COPY --chown=root:root .script/set-remote.py /usr/local/bin/set-remote

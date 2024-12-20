@@ -39,6 +39,15 @@ public:
         if (uart_data_length != 6 + 8 + 4)
             return;
 
+        // Avoid using reinterpret_cast here because it does not account for pointer alignment.
+        // Dr16DataPart structures are aligned, and using reinterpret_cast on potentially unaligned
+        // uart_data can cause undefined behavior on architectures that enforce strict alignment
+        // requirements (e.g., ARM).
+        // Directly accessing unaligned memory through a casted pointer can lead to crashes,
+        // inefficiencies, or incorrect data reads. Instead, std::memcpy safely copies the data from
+        // unaligned memory to properly aligned structures without violating alignment or strict
+        // aliasing rules.
+
         Dr16DataPart1 part1;
         std::memcpy(&part1, uart_data, 6);
         uart_data += 6;

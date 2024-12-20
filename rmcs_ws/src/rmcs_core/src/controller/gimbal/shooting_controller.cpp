@@ -42,6 +42,8 @@ public:
 
         register_input("/gimbal/bullet_feeder/velocity", bullet_feeder_velocity_);
 
+        register_input("/gimbal/auto_aim/control_fire", auto_aim_control_fire_, false);
+
         register_output(
             "/gimbal/left_friction/control_velocity", left_friction_control_velocity_, nan);
         register_output(
@@ -68,13 +70,15 @@ public:
                     || (last_switch_left_ == Switch::MIDDLE && switch_left == Switch::UP)) {
                     friction_enabled_ = !friction_enabled_;
                 }
-                bullet_feeder_enabled_ = mouse.left || switch_left == Switch::DOWN;
+                bullet_feeder_enabled_ =
+                    mouse.left || switch_left == Switch::DOWN
+                    || (mouse.right && auto_aim_control_fire_.ready() && *auto_aim_control_fire_);
                 if (keyboard.f || keyboard.g) {
                     if (bullet_count_limited_by_single_shot_ < 0)
                         bullet_count_limited_by_single_shot_ = 0;
-                    if (!last_mouse_.left && mouse.left) {
+                    if ((!last_mouse_.left && mouse.left)
+                        || (last_switch_left_ != Switch::DOWN && switch_left == Switch::DOWN)) {
                         ++bullet_count_limited_by_single_shot_;
-                        RCLCPP_INFO(get_logger(), "%ld", bullet_count_limited_by_single_shot_);
                     }
                     bullet_feeder_enabled_ |= bullet_count_limited_by_single_shot_ > 0;
                 } else {
@@ -231,6 +235,8 @@ private:
     int bullet_feeder_working_status_ = 0;
     int bullet_feeder_jammed_count_   = 0;
     int bullet_feeder_cool_down_      = 0;
+
+    InputInterface<bool> auto_aim_control_fire_;
 
     OutputInterface<double> left_friction_control_velocity_, right_friction_control_velocity_;
     OutputInterface<double> bullet_feeder_control_velocity_;

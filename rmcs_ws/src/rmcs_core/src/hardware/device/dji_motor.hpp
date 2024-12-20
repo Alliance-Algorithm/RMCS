@@ -181,10 +181,10 @@ public:
         return encoder_zero_point_;
     }
 
-    double get_angle() { return *angle_; }
-    double get_velocity() { return *velocity_; }
-    double get_torque() { return *torque_; }
-    double get_max_torque() { return *max_torque_; }
+    double get_angle() const { return *angle_; }
+    double get_velocity() const { return *velocity_; }
+    double get_torque() const { return *torque_; }
+    double get_max_torque() const { return *max_torque_; }
 
 private:
     struct alignas(uint64_t) DjiMotorFeedback {

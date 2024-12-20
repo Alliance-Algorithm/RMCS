@@ -52,14 +52,35 @@ public:
         predefined_msg_provider_->set_update_rate(update_rate);
 
         thread_ = std::thread{[update_rate, this]() {
-            const auto period = std::chrono::nanoseconds(
-                static_cast<long>(std::round(1'000'000'000.0 / update_rate)));
+            using namespace std::chrono_literals;
+
+            const auto period =
+                std::chrono::round<std::chrono::steady_clock::duration>(1.0s / update_rate);
+            
             auto next_iteration_time = std::chrono::steady_clock::now();
             while (rclcpp::ok()) {
                 predefined_msg_provider_->set_timestamp(next_iteration_time);
                 next_iteration_time += period;
+
+                std::chrono::steady_clock::time_point full_updating_start, updating_start,
+                    updating_end;
+                full_updating_start = updating_start = std::chrono::steady_clock::now();
+
                 for (const auto& component : updating_order_) {
                     component->update();
+                    updating_end = std::chrono::steady_clock::now();
+                    if (updating_end - updating_start > period) {
+                        RCLCPP_ERROR(
+                            get_logger(), "The update time of component %s exceeds the period",
+                            component->get_component_name().c_str());
+                    }
+                    updating_start = updating_end;
+                }
+                if (updating_end > next_iteration_time) {
+                    RCLCPP_ERROR(
+                        get_logger(), "Full updating time (%ld) exceeds the period",
+                        (updating_end - full_updating_start).count());
+                    next_iteration_time = std::chrono::steady_clock::now() + period;
                 }
                 std::this_thread::sleep_until(next_iteration_time);
             }

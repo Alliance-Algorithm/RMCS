@@ -14,3 +14,6 @@
 [submodule "rmcs_ws/src/rmcs_auto_aim"]
 	path = rmcs_ws/src/rmcs_auto_aim
 	url = https://github.com/Alliance-Algorithm/rmcs_auto_aim.git
+[submodule "rmcs_ws/src/ugas"]
+	path = rmcs_ws/src/ugas
+	url = https://github.com/Alliance-Algorithm/UGAS.git
