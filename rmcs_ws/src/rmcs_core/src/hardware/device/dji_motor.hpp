@@ -16,7 +16,7 @@ public:
         status_component.register_output(name_prefix + "/torque", torque_, 0.0);
         status_component.register_output(name_prefix + "/max_torque", max_torque_, 0.0);
 
-        command_component.register_input(name_prefix + "/control_torque", control_torque_);
+        command_component.register_input(name_prefix + "/control_torque", control_torque_, false);
     }
 
     DjiMotor(
@@ -39,8 +39,15 @@ public:
         *torque_   = torque();
     }
 
+    double control_torque() const {
+        if (control_torque_.ready()) [[likely]]
+            return *control_torque_;
+        else
+            return 0.0;
+    }
+
     uint16_t generate_command() {
-        return librmcs::device::DjiMotor::generate_command(*control_torque_);
+        return librmcs::device::DjiMotor::generate_command(control_torque());
     }
 
 private:

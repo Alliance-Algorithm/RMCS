@@ -30,14 +30,14 @@ public:
         register_input("/remote/mouse", mouse_);
         register_input("/remote/keyboard", keyboard_);
 
-        register_input("/gimbal/yaw/angle", gimbal_yaw_angle_);
-        register_input("/gimbal/yaw/control_angle_error", gimbal_yaw_angle_error_);
+        register_input("/gimbal/yaw/angle", gimbal_yaw_angle_, false);
+        register_input("/gimbal/yaw/control_angle_error", gimbal_yaw_angle_error_, false);
 
-        register_input("/chassis/supercap/voltage", supercap_voltage_);
-        register_input("/chassis/supercap/enabled", supercap_enabled_);
+        register_input("/chassis/supercap/voltage", supercap_voltage_, false);
+        register_input("/chassis/supercap/enabled", supercap_enabled_, false);
 
-        register_input("/referee/chassis/power_limit", chassis_power_limit_referee_);
-        register_input("/referee/chassis/buffer_energy", chassis_buffer_energy_referee_);
+        register_input("/referee/chassis/power_limit", chassis_power_limit_referee_, false);
+        register_input("/referee/chassis/buffer_energy", chassis_buffer_energy_referee_, false);
 
         register_output("/chassis/angle", chassis_angle_, nan);
         register_output("/chassis/control_angle", chassis_control_angle_, nan);
@@ -58,6 +58,45 @@ public:
         register_output(
             "/chassis/supercap/voltage/dead_line", supercap_voltage_dead_line_,
             supercap_voltage_dead_line);
+    }
+
+    void before_updating() override {
+        if (!gimbal_yaw_angle_.ready()) {
+            gimbal_yaw_angle_.make_and_bind_directly(0.0);
+            RCLCPP_WARN(get_logger(), "Failed to fetch \"/gimbal/yaw/angle\". Set to 0.0.");
+        }
+        if (!gimbal_yaw_angle_error_.ready()) {
+            gimbal_yaw_angle_error_.make_and_bind_directly(0.0);
+            RCLCPP_WARN(
+                get_logger(), "Failed to fetch \"/gimbal/yaw/control_angle_error\". Set to 0.0.");
+        }
+
+        bool supercap_free = false;
+        if (!supercap_voltage_.ready()) {
+            supercap_voltage_.make_and_bind_directly(0.0);
+            supercap_free = true;
+        }
+        if (!supercap_enabled_.ready()) {
+            supercap_enabled_.make_and_bind_directly(false);
+            supercap_free = true;
+        }
+        if (supercap_free)
+            RCLCPP_INFO(get_logger(), "Works in supercap-free mode.");
+
+        if (!chassis_power_limit_referee_.ready()) {
+            chassis_power_limit_referee_.make_and_bind_directly(safe_chassis_power_limit);
+            RCLCPP_WARN(
+                get_logger(),
+                "Failed to fetch \"/referee/chassis/power_limit\". Set to safe value %.1f.",
+                safe_chassis_power_limit);
+        }
+        if (!chassis_buffer_energy_referee_.ready()) {
+            chassis_buffer_energy_referee_.make_and_bind_directly(buffer_energy_base_line);
+            RCLCPP_WARN(
+                get_logger(),
+                "Failed to fetch \"/referee/chassis/buffer_energy\". Set to safe value %.1f.",
+                buffer_energy_base_line);
+        }
     }
 
     void update() override {
@@ -271,6 +310,9 @@ private:
     static constexpr double supercap_voltage_control_line = 13.5; // = supercap
     static constexpr double supercap_voltage_base_line    = 11.5; // = referee
     static constexpr double supercap_voltage_dead_line    = 10.5; // = 0
+
+    // Minimum chassis power limit (Infantry, Health prioritized at level 1)
+    static constexpr double safe_chassis_power_limit = 45;
 
     InputInterface<Eigen::Vector2d> joystick_right_;
     InputInterface<Eigen::Vector2d> joystick_left_;
