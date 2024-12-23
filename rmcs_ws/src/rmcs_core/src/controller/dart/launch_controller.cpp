@@ -21,7 +21,7 @@ public:
         friction_working_velocity_debug_ = get_parameter("friction_working_velocity").as_double();
         register_input("/remote/switch/right", switch_right_input_, false);
         register_input("/remote/switch/left", switch_left_input_, false);
-        register_input("/dart/firction/working_velocity", friction_working_velocity_);
+        // register_input("/dart/firction/working_velocity", friction_working_velocity_);
 
         register_output("/dart/friction_lf/control_velocity", friction_lf_control_velocity_, nan);
         register_output("/dart/friction_lb/control_velocity", friction_lb_control_velocity_, nan);
@@ -74,7 +74,7 @@ private:
 
     double conveyor_working_velocity_;
     double friction_working_velocity_debug_;
-    InputInterface<double> friction_working_velocity_;
+    // InputInterface<double> friction_working_velocity_;
 
     bool friction_enable_ = false;
     bool conveyor_enable_ = false;

@@ -3,6 +3,7 @@
 
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
+#include "hardware/device/imu.hpp"
 #include "hardware/forwarder/cboard.hpp"
 
 #include <rclcpp/logger.hpp>
@@ -87,9 +88,31 @@ private:
         pitch_left_motor.update();
         pitch_right_motor.update();
         yaw_motor_.update();
+        update_imu();
     }
 
+    void update_imu() {}
+
 protected:
+    void can1_receive_callback(
+        uint32_t can_id, uint64_t can_data, bool is_extended_can_id, bool is_remote_transmission,
+        uint8_t can_data_length) override {
+        if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
+            return;
+
+        if (can_id == 0x201) {
+            auto& motor = pitch_left_motor;
+            motor.store_status(can_data);
+        } else if (can_id == 0x202) {
+            auto& motor = pitch_right_motor;
+            motor.store_status(can_data);
+        } else if (can_id == 0x203) {
+            auto& motor = yaw_motor_;
+            motor.store_status(can_data);
+        }
+        // callback_update(1, can_id, 2, can_data);
+    }
+
     void can2_receive_callback(
         uint32_t can_id, uint64_t can_data, bool is_extended_can_id, bool is_remote_transmission,
         uint8_t can_data_length) override {
@@ -112,26 +135,7 @@ protected:
             auto& motor = Conveyor_motor_;
             motor.update();
         }
-        // callback_update(can_id, 2, can_data);
-    }
-
-    void can1_receive_callback(
-        uint32_t can_id, uint64_t can_data, bool is_extended_can_id, bool is_remote_transmission,
-        uint8_t can_data_length) override {
-        if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
-            return;
-
-        if (can_id == 0x201) {
-            auto& motor = pitch_left_motor;
-            motor.store_status(can_data);
-        } else if (can_id == 0x202) {
-            auto& motor = pitch_right_motor;
-            motor.store_status(can_data);
-        } else if (can_id == 0x203) {
-            auto& motor = yaw_motor_;
-            motor.store_status(can_data);
-        }
-        // callback_update(can_id, 1, can_data);
+        callback_update(2, can_id, 3, can_data);
     }
 
     // void uart1_receive_callback();
@@ -141,17 +145,17 @@ protected:
         dr16_.store_status(uart_data, uart_data_length);
     }
 
-    void callback_update(uint32_t can_id, uint32_t motor_id, uint64_t can_data) {
+    void callback_update(int can, uint32_t can_id, uint32_t motor_id, uint64_t can_data) {
         if (can_id != 0x200 + motor_id)
             return;
         can_callback callback_data = std::bit_cast<can_callback>(can_data);
-        int angle                  = callback_data.angle_high * 256 + callback_data.angle_low;
-        int speed                  = callback_data.speed_high * 256 + callback_data.speed_low;
-        // double currrent            = callback_data.current_high * 256 +
+        uint16_t angle             = (callback_data.angle_high << 8) | callback_data.angle_low;
+        uint16_t speed             = (callback_data.speed_high << 8) | callback_data.speed_low;
+        // double currrent            = (callback_data.current_high << 8) |
         // callback_data.current_low;
         int temperature = callback_data.temperature;
 
-        RCLCPP_INFO(logger_, "angle:%4d,speed:%5d,temp:%2d", angle, speed, temperature);
+        RCLCPP_INFO(logger_, "can%d,angle:%4d,speed:%5d,temp:%2d", can, angle, speed, temperature);
     }
 
 private:
@@ -194,6 +198,8 @@ private:
         uint8_t temperature;
         uint8_t others;
     };
+
+    device::Imu imu_;
 };
 } // namespace rmcs_core::hardware
 
