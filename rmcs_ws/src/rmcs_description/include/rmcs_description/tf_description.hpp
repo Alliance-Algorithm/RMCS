@@ -103,8 +103,8 @@ struct fast_tf::Joint<rmcs_description::CameraLink> {
 
 template <>
 struct fast_tf::Joint<rmcs_description::ImuLink> {
-    using Parent                = rmcs_description::PitchLink;
-    Eigen::AngleAxisd transform = {std::numbers::pi / 2, Eigen::Vector3d::UnitZ()};
+    using Parent                 = rmcs_description::PitchLink;
+    Eigen::Quaterniond transform = Eigen::Quaterniond::Identity();
 };
 
 template <>
