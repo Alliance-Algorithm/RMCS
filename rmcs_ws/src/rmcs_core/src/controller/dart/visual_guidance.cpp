@@ -1,10 +1,14 @@
-
+/*
+    镖架视觉
+    施工中
+*/
 #include "hikcamera/image_capturer.hpp"
 #include "image_processing.hpp"
 
 #include <eigen3/Eigen/Dense>
 #include <eigen3/Eigen/src/Core/Matrix.h>
 #include <opencv2/core.hpp>
+#include <opencv2/core/mat.hpp>
 #include <opencv2/core/types.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
@@ -31,6 +35,7 @@ public:
         register_output("/dart/firction/working_velocity", friction_working_velocity_, nan);
         register_output("/dart/yaw/control_angle_error", yaw_error_, nan);
         register_output("/dart/camera/frame", camera_image_);
+        register_output("/dart/camera/processed_image", processed_image_);
 
         // profile.invert_image  = get_parameter("invert_image").as_bool();
         // profile.exposure_time =
@@ -40,7 +45,8 @@ public:
     }
 
     void update() override {
-        frame_ = capturer->read();
+        frame_         = capturer->read();
+        *camera_image_ = frame_;
         update_target_position(frame_);
         update_yaw_control_errors();
 
@@ -61,10 +67,10 @@ private:
         ImageProcess::hybrid_image_processing(frame_, processed_image);
         // ImageProcess::image_to_brightMask(frame_, processed_image);
         std::vector<cv::Point> target = ImageProcess::target_find(processed_image);
-        *camera_image_                = processed_image;
+        *processed_image_             = processed_image;
 
         if (target.size() == 0) {
-            RCLCPP_WARN(logger_, "VisualGuidance::update_target_position : target not found");
+            // RCLCPP_WARN(logger_, "VisualGuidance::update_target_position : target not found");
             return;
         }
         if (target.size() > 1) {
@@ -96,6 +102,7 @@ private:
     OutputInterface<double> yaw_error_;
     OutputInterface<double> friction_working_velocity_;
     OutputInterface<cv::Mat> camera_image_;
+    OutputInterface<cv::Mat> processed_image_;
 
     hikcamera::ImageCapturer::CameraProfile profile;
     std::unique_ptr<hikcamera::ImageCapturer> capturer;

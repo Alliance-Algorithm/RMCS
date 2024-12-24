@@ -19,6 +19,7 @@ public:
         , logger_(get_logger()) {
 
         register_input("/dart/camera/frame", frame_);
+        register_input("/dart/camera/processed_image", processed_image_);
     }
     void update() override {
         if (frame_->empty()) {
@@ -26,13 +27,14 @@ public:
             return;
         }
         cv::imshow("camera", *frame_);
+        cv::imshow("processed", *processed_image_);
         cv::waitKey(1);
     };
 
 private:
     rclcpp::Logger logger_;
-
     InputInterface<cv::Mat> frame_;
+    InputInterface<cv::Mat> processed_image_;
 };
 } // namespace rmcs_core::controller::dart
 

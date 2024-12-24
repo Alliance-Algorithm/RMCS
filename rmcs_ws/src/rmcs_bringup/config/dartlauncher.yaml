@@ -24,8 +24,8 @@ rmcs_executor:
       # - rmcs_core::controller::pid::ErrorPidController -> pitch_right_angle_pid_controller
       # - rmcs_core::controller::pid::PidController -> pitch_right_velocity_pid_controller
       
-      # - rmcs_core::controller::dart::VisualGuidance -> visual_guidance
-      # - rmcs_core::controller::dart::ImageSubscriber -> image_subscriber
+      - rmcs_core::controller::dart::VisualGuidance -> visual_guidance
+      - rmcs_core::controller::dart::ImageSubscriber -> image_subscriber
 
 dart_hardware:
   ros__parameters:
