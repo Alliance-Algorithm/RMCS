@@ -26,19 +26,21 @@ public:
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , logger_(get_logger()) {
         yaw_velocity_limit_     = get_parameter("yaw_velocity_limit").as_double();
+        yaw_left_angle_limit_   = get_parameter("yaw_left_angle_limit").as_double();
+        yaw_right_angle_limit_  = get_parameter("yaw_right_angle_limit").as_double();
         pitch_velocity_limit_   = get_parameter("pitch_velocity_limit").as_double();
         pitch_up_angle_limit_   = get_parameter("pitch_up_angle_limit").as_double();
         pitch_down_angle_limit_ = get_parameter("pitch_down_angle_limit").as_double();
-        yaw_left_angle_limit_   = get_parameter("yaw_left_angle_limit").as_double();
-        yaw_right_angle_limit_  = get_parameter("yaw_right_angle_limit").as_double();
+
+        pitch_angle_A_ = get_parameter("pitch_angle_A").as_double();
+        pitch_angle_B_ = get_parameter("pitch_angle_B").as_double();
 
         register_input("/remote/switch/right", switch_right_input_);
         register_input("/remote/switch/left", switch_left_input_);
-        register_input("/dart/guidance/control_direction", guidance_control_dirction_);
 
-        register_output("/dart/yaw/control_angle_error", yaw_angle_error_, nan);
-        register_output("/dart/pitch_left/control_angle_error", pitch_left_angle_error_, nan);
-        register_output("/dart/pitch_right/control_angle_error", pitch_right_angle_error_, nan);
+        // register_input("/dart/pitch/current_angle", current_pitch_angle_);
+        register_output("/dart/pitch_left/control_angle_error", pitch_left_error_, nan);
+        register_output("/dart/pitch_right/control_angle_error", pitch_right_error_, nan);
     }
 
     void update() override {
@@ -58,38 +60,35 @@ public:
 
 private:
     void reset_all_controls() {
-        control_enabled_          = false;
-        *yaw_angle_error_         = nan;
-        *pitch_left_angle_error_  = nan;
-        *pitch_right_angle_error_ = nan;
+        control_enabled_    = false;
+        *pitch_left_error_  = nan;
+        *pitch_right_error_ = nan;
     }
 
-    void update_guidance_control_direction() {}
-    void clamp_control_direction() {}
-    void update_control_errors() {}
+    void update_control_errors() {
+        // *pitch_left_error_  = *current_pitch_angle_ - pitch_angle_A_;
+        // *pitch_right_error_ = *current_pitch_angle_ - pitch_angle_A_;
+    }
 
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
     rclcpp::Logger logger_;
-    // bool debug_mode_      = false;
     bool control_enabled_ = false;
 
     double yaw_velocity_limit_, pitch_up_angle_limit_, pitch_down_angle_limit_;
     double pitch_velocity_limit_, yaw_left_angle_limit_, yaw_right_angle_limit_;
+    double pitch_angle_A_, pitch_angle_B_;
 
+    // double current_pitch_angle_;
+    // InputInterface<double> current_pitch_angle_;
     InputInterface<rmcs_msgs::Switch> switch_left_input_;
     InputInterface<rmcs_msgs::Switch> switch_right_input_;
-
-    InputInterface<Eigen::Vector3d> guidance_control_dirction_;
-
-    OdomImu::DirectionVector control_direction_{Eigen::Vector3d::Zero()};
 
     rmcs_msgs::Switch switch_left_  = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Switch switch_right_ = rmcs_msgs::Switch::UNKNOWN;
 
-    OutputInterface<double> yaw_angle_error_;
-    OutputInterface<double> pitch_left_angle_error_;
-    OutputInterface<double> pitch_right_angle_error_;
+    OutputInterface<double> pitch_left_error_;
+    OutputInterface<double> pitch_right_error_;
 };
 } // namespace rmcs_core::controller::dart
 

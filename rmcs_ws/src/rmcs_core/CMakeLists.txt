@@ -9,6 +9,7 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-O2 -Wall -Wextra -Wpedantic)
 endif()
 
+find_package (OpenCV 4.5 REQUIRED)
 find_package (ament_cmake_auto REQUIRED)
 ament_auto_find_build_dependencies ()
 
@@ -25,7 +26,7 @@ ament_auto_add_library (
 include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_SOURCE_DIR}/src)
 
-target_link_libraries(${PROJECT_NAME} -lusb-1.0)
+target_link_libraries(${PROJECT_NAME} ${OpenCV_LIBS} ${HikCameraSDK_LIB} -lusb-1.0)
 
 pluginlib_export_plugin_description_file(rmcs_executor plugins.xml)
 

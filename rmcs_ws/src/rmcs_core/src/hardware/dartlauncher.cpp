@@ -27,6 +27,8 @@ public:
         , dart_command_(
               create_partner_component<DartCommand>(get_component_name() + "_command", *this))
         , transmit_buffer_(*this, 16) {
+
+        // register_output("/dart/pitch/current_angle", current_pitch_angle_, nan);
         using namespace device;
 
         friction_motors_[0].configure(
@@ -200,6 +202,8 @@ private:
     };
 
     device::Imu imu_;
+    // OutputInterface<double> current_pitch_angle_;
+    static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 };
 } // namespace rmcs_core::hardware
 

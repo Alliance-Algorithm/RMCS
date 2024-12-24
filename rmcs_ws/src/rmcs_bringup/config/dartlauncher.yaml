@@ -25,6 +25,7 @@ rmcs_executor:
       # - rmcs_core::controller::pid::PidController -> pitch_right_velocity_pid_controller
       
       # - rmcs_core::controller::dart::VisualGuidance -> visual_guidance
+      # - rmcs_core::controller::dart::ImageSubscriber -> image_subscriber
 
 dart_hardware:
   ros__parameters:
@@ -115,6 +116,9 @@ friction_rf_velocity_pid_controller:
 visual_guidance:
   ros__parameters:
     debug_mode: true
+    invert_image: false
+    exposure_time: 0
+    gain: 0.00
 
 angle_controller:
   ros__parameters:
@@ -124,6 +128,8 @@ angle_controller:
     pitch_down_angle_limit: 0.00
     yaw_left_angle_limit: 0.00
     yaw_right_angle_limit: 0.00
+    pitch_angle_A: 45.00
+    pitch_angle_B: 45.00
 
 yaw_angle_pid_controller:
   ros__parameters:

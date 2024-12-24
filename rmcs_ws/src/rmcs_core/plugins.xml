@@ -62,4 +62,7 @@
   <class type="rmcs_core::controller::dart::VisualGuidance" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
+  <class type="rmcs_core::controller::dart::ImageSubscriber" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
 </library>
