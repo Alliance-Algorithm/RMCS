@@ -84,9 +84,20 @@ pitch_velocity_pid_controller:
 
 shooting_controller:
   ros__parameters:
-    friction_velocity: 740.0
+    friction_wheels:
+      - /gimbal/left_friction
+      - /gimbal/right_friction
+    friction_velocities:
+      - 740.0
+      - 740.0
+    is_42mm: false
+    bullets_per_feeder_turn: 8.0
     shot_frequency: 20.0
     safe_shot_frequency: 10.0
+    eject_frequency: 10.0
+    eject_time: 0.05
+    deep_eject_frequency: 5.0
+    deep_eject_time: 0.2
 
 left_friction_velocity_pid_controller:
   ros__parameters:
