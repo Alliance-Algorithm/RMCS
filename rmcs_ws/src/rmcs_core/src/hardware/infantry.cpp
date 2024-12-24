@@ -26,7 +26,7 @@ public:
         , logger_(get_logger())
         , infantry_command_(
               create_partner_component<InfantryCommand>(get_component_name() + "_command", *this))
-        , transmit_buffer_(*this, 16)
+        , transmit_buffer_(*this, 32)
         , event_thread_([this]() { handle_events(); }) {
         using namespace device;
 
@@ -96,7 +96,7 @@ public:
         };
     }
 
-    ~Infantry() {
+    ~Infantry() override {
         stop_handling_events();
         event_thread_.join();
     }
