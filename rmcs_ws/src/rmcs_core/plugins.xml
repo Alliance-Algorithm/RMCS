@@ -38,12 +38,6 @@
   <class type="rmcs_core::hardware::cboard::Command" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
-  <class type="rmcs_core::hardware::ec::Status" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
-  </class>
-  <class type="rmcs_core::hardware::ec::Command" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
-  </class>
   <class type="rmcs_core::hardware::referee::Status" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
@@ -63,6 +57,9 @@
     <description>Test plugin.</description>
   </class>
   <class type="rmcs_core::referee::app::ui::Infantry" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
+  <class type="rmcs_core::referee::app::ui::Hero" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
 </library>
