@@ -41,17 +41,17 @@ public:
         // profile.exposure_time =
         // std::chrono::milliseconds(get_parameter("exposure_time").as_int()); profile.gain =
         // static_cast<float>(get_parameter("gain").as_double());
-        capturer = std::make_unique<hikcamera::ImageCapturer>(profile);
+        capture_ = std::make_unique<hikcamera::ImageCapturer>(profile_);
     }
 
     void update() override {
-        frame_         = capturer->read();
+        frame_         = capture_->read();
         *camera_image_ = frame_;
         update_target_position(frame_);
-        update_yaw_control_errors();
+        update_yaw_error();
 
         if (angle_ready_ == true) {
-            calculate_relative_distance();
+            calculate_distance();
             calculate_launch_velocity();
         }
     }
@@ -63,14 +63,12 @@ private:
             return;
         }
 
-        cv::Mat processed_image;
-        ImageProcess::hybrid_image_processing(frame_, processed_image);
-        // ImageProcess::image_to_brightMask(frame_, processed_image);
-        std::vector<cv::Point> target = ImageProcess::target_find(processed_image);
-        *processed_image_             = processed_image;
+        cv::Mat processed;
+        std::vector<cv::Point> target = ImageProcess::darts_target_finder(frame_, processed);
+        *processed_image_             = processed;
 
         if (target.size() == 0) {
-            // RCLCPP_WARN(logger_, "VisualGuidance::update_target_position : target not found");
+            RCLCPP_WARN(logger_, "VisualGuidance::update_target_position : target not found");
             return;
         }
         if (target.size() > 1) {
@@ -82,12 +80,12 @@ private:
         RCLCPP_INFO(logger_, "position : %d,%d", target_position_.x, target_position_.y);
     }
 
-    void update_yaw_control_errors() {
+    void update_yaw_error() {
         double mid_col = frame_.cols / 2.0;
         *yaw_error_    = target_position_.x - mid_col;
     }
 
-    void calculate_relative_distance() {}
+    void calculate_distance() {}
     void calculate_launch_velocity() {}
 
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
@@ -104,8 +102,8 @@ private:
     OutputInterface<cv::Mat> camera_image_;
     OutputInterface<cv::Mat> processed_image_;
 
-    hikcamera::ImageCapturer::CameraProfile profile;
-    std::unique_ptr<hikcamera::ImageCapturer> capturer;
+    hikcamera::ImageCapturer::CameraProfile profile_;
+    std::unique_ptr<hikcamera::ImageCapturer> capture_;
 };
 } // namespace rmcs_core::controller::dart
 

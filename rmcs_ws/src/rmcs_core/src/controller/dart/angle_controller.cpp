@@ -32,8 +32,8 @@ public:
         pitch_up_angle_limit_   = get_parameter("pitch_up_angle_limit").as_double();
         pitch_down_angle_limit_ = get_parameter("pitch_down_angle_limit").as_double();
 
-        pitch_angle_A_ = get_parameter("pitch_angle_A").as_double();
-        pitch_angle_B_ = get_parameter("pitch_angle_B").as_double();
+        // pitch_angle_A_ = get_parameter("pitch_angle_A").as_double();
+        // pitch_angle_B_ = get_parameter("pitch_angle_B").as_double();
 
         register_input("/remote/switch/right", switch_right_input_);
         register_input("/remote/switch/left", switch_left_input_);
@@ -65,10 +65,7 @@ private:
         *pitch_right_error_ = nan;
     }
 
-    void update_control_errors() {
-        // *pitch_left_error_  = *current_pitch_angle_ - pitch_angle_A_;
-        // *pitch_right_error_ = *current_pitch_angle_ - pitch_angle_A_;
-    }
+    void update_control_errors() {}
 
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
@@ -77,7 +74,7 @@ private:
 
     double yaw_velocity_limit_, pitch_up_angle_limit_, pitch_down_angle_limit_;
     double pitch_velocity_limit_, yaw_left_angle_limit_, yaw_right_angle_limit_;
-    double pitch_angle_A_, pitch_angle_B_;
+    // double pitch_angle_A_, pitch_angle_B_;
 
     // double current_pitch_angle_;
     // InputInterface<double> current_pitch_angle_;
