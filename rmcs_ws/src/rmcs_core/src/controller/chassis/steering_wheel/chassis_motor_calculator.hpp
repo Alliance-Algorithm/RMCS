@@ -59,20 +59,55 @@ public:
     Eigen::Vector2d rb_vel = Eigen::Vector2d{spin_speed, -spin_speed} + move;
     Eigen::Vector2d rf_vel = Eigen::Vector2d{spin_speed, spin_speed} + move;
 
-    double err[4] = {
-        -atan2(lf_vel.y(), lf_vel.x()) - steers_[0]->get_current_angle(),
-        -atan2(lb_vel.y(), lb_vel.x()) - steers_[1]->get_current_angle(),
-        -atan2(rb_vel.y(), rb_vel.x()) - steers_[2]->get_current_angle(),
-        -atan2(rf_vel.y(), rf_vel.x()) - steers_[3]->get_current_angle()};
+    Eigen::Vector2d lb_vel_angle = lb_vel;
+    Eigen::Vector2d lf_vel_angle = lf_vel;
+    Eigen::Vector2d rb_vel_angle = rb_vel;
+    Eigen::Vector2d rf_vel_angle = rf_vel;
 
-    if (lf_vel.x() == 0 && lf_vel.y() == 0)
-      err[0] = 0;
-    if (lb_vel.x() == 0 && lb_vel.y() == 0)
-      err[1] = 0;
-    if (rb_vel.x() == 0 && rb_vel.y() == 0)
-      err[2] = 0;
-    if (rf_vel.x() == 0 && rf_vel.y() == 0)
-      err[3] = 0;
+    if (move.x() != 0 || move.y() != 0)
+      last_time_point_ = std::chrono::system_clock::now();
+
+    if (std::chrono::duration_cast<std::chrono::seconds>(
+            std::chrono::system_clock::now() - last_time_point_)
+            .count() >= 0.5) {
+      if (lf_vel.x() == 0 && lf_vel.y() == 0)
+        lf_vel_angle = lf_vel_;
+
+      if (lb_vel.x() == 0 && lb_vel.y() == 0)
+        lb_vel_angle = lb_vel_;
+
+      if (rf_vel.x() == 0 && rf_vel.y() == 0)
+        rf_vel_angle = rf_vel_;
+
+      if (rb_vel.x() == 0 && rb_vel.y() == 0)
+        rb_vel_angle = rb_vel_;
+
+    } else {
+      if (lf_vel.x() == 0 && lf_vel.y() == 0)
+        lf_vel_angle = lf_vel_last_;
+      else
+        lf_vel_last_ = lf_vel;
+      if (lb_vel.x() == 0 && lb_vel.y() == 0)
+        lb_vel_angle = lb_vel_last_;
+      else
+        lb_vel_last_ = lb_vel;
+      if (rf_vel.x() == 0 && rf_vel.y() == 0)
+        rf_vel_angle = rf_vel_last_;
+      else
+        rf_vel_last_ = rf_vel;
+      if (rb_vel.x() == 0 && rb_vel.y() == 0)
+        rb_vel_angle = rb_vel_last_;
+      else
+        rb_vel_last_ = rb_vel;
+    }
+    double err[4] = {-atan2(lb_vel_angle.y(), lb_vel_angle.x()) -
+                         steers_[0]->get_current_angle(),
+                     -atan2(lf_vel_angle.y(), lf_vel_angle.x()) -
+                         steers_[1]->get_current_angle(),
+                     -atan2(rb_vel_angle.y(), rb_vel_angle.x()) -
+                         steers_[2]->get_current_angle(),
+                     -atan2(rf_vel_angle.y(), rf_vel_angle.x()) -
+                         steers_[3]->get_current_angle()};
 
     steers_[0]->set_target_angle_error(norm_error_angle(err[0]));
     steers_[1]->set_target_angle_error(norm_error_angle(err[1]));
@@ -87,9 +122,10 @@ public:
                                     check_error_angle(err[2]));
     wheels_[3]->set_target_velocity(rf_vel.norm() * wheel_speed_limit *
                                     check_error_angle(err[3]));
-    // auto rst_ratio = power_predictor_.power_ratio_predict(steers_, wheels_);
-    // auto ratio = power_predictor_.motor_current_update(steers_);
-    // if (ratio > 1)
+
+    // auto rst_ratio = power_predictor_.power_ratio_predict(steers_,
+    // wheels_); auto ratio =
+    // power_predictor_.motor_current_update(steers_); if (ratio > 1)
     //     return false;
     // power_predictor_.shrink_total_power(ratio);
     // power_predictor_.motor_current_update(steers_);
@@ -133,11 +169,23 @@ private:
     };
     (rst(motors), ...);
   }
+  std::chrono::time_point<std::chrono::high_resolution_clock> last_time_point_ =
+      std::chrono::system_clock::now();
 
   std::vector<std::shared_ptr<SteerMotor>> steers_;
   std::vector<std::shared_ptr<WheelMotor>> wheels_;
   Supercap supercap_;
   ChassisPowerPredictor power_predictor_;
+
+  const Eigen::Vector2d lf_vel_{1, -1};
+  const Eigen::Vector2d lb_vel_{1, 1};
+  const Eigen::Vector2d rb_vel_{-1, -1};
+  const Eigen::Vector2d rf_vel_{-1, 1};
+
+  Eigen::Vector2d lf_vel_last_{1, -1};
+  Eigen::Vector2d lb_vel_last_{1, 1};
+  Eigen::Vector2d rb_vel_last_{-1, -1};
+  Eigen::Vector2d rf_vel_last_{-1, 1};
 
   static constexpr double wheel_speed_limit = 71.78136448385897;
 };

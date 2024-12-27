@@ -43,16 +43,16 @@ chassis:
     wheels_vel_ki: 0.
     wheels_vel_kd: 0.
     
-    steers_angle_kp: 2.5
-    steers_angle_ki: 0.
-    steers_angle_kd: 1
+    steers_angle_kp: 30.
+    steers_angle_ki: -0.02
+    steers_angle_kd: 0.
     
     steers_vel_kp: 0.3
     steers_vel_ki: 0.
-    steers_vel_kd: 0.
+    steers_vel_kd: 1.5
 
-    steers_angle_integral_min: -100.
-    steers_angle_integral_max: 100.
+    steers_angle_integral_min: -50.
+    steers_angle_integral_max: 50.
     steers_angle_output_min: -100.
     steers_angle_output_max: 100.
 
