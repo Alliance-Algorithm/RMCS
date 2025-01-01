@@ -3,7 +3,6 @@
 
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
-#include "hardware/device/imu.hpp"
 #include "hardware/forwarder/cboard.hpp"
 
 #include <rclcpp/logger.hpp>
@@ -24,17 +23,13 @@ public:
         : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , forwarder::CBoard(static_cast<uint16_t>(get_parameter("usb_pid").as_int()), get_logger())
         , logger_(get_logger())
-        , dart_command_(
-              create_partner_component<DartCommand>(get_component_name() + "_command", *this))
+        , dart_command_(create_partner_component<DartCommand>(get_component_name() + "_command", *this))
         , transmit_buffer_(*this, 16) {
 
-        // register_output("/dart/pitch/current_angle", current_pitch_angle_, nan);
         using namespace device;
 
-        friction_motors_[0].configure(
-            DjiMotorConfig{DjiMotorType::M3508}.reverse().set_reduction_ratio(1.));
-        friction_motors_[1].configure(
-            DjiMotorConfig{DjiMotorType::M3508}.reverse().set_reduction_ratio(1.));
+        friction_motors_[0].configure(DjiMotorConfig{DjiMotorType::M3508}.reverse().set_reduction_ratio(1.));
+        friction_motors_[1].configure(DjiMotorConfig{DjiMotorType::M3508}.reverse().set_reduction_ratio(1.));
         friction_motors_[2].configure(DjiMotorConfig{DjiMotorType::M3508}.set_reduction_ratio(1.));
         friction_motors_[3].configure(DjiMotorConfig{DjiMotorType::M3508}.set_reduction_ratio(1.));
 
@@ -43,6 +38,11 @@ public:
         yaw_motor_.configure(DjiMotorConfig{DjiMotorType::M2006}.enable_multi_turn_angle());
         pitch_left_motor.configure(DjiMotorConfig{DjiMotorType::M2006}.enable_multi_turn_angle());
         pitch_right_motor.configure(DjiMotorConfig{DjiMotorType::M2006}.enable_multi_turn_angle());
+
+        register_output("friction_lf_current_velocity_", friction_lf_current_velocity_, nan);
+        register_output("friction_lb_current_velocity_", friction_lb_current_velocity_, nan);
+        register_output("friction_rb_current_velocity_", friction_rb_current_velocity_, nan);
+        register_output("friction_rf_current_velocity_", friction_rf_current_velocity_, nan);
     }
 
     void update() override {
@@ -90,10 +90,7 @@ private:
         pitch_left_motor.update();
         pitch_right_motor.update();
         yaw_motor_.update();
-        update_imu();
     }
-
-    void update_imu() {}
 
 protected:
     void can1_receive_callback(
@@ -112,7 +109,6 @@ protected:
             auto& motor = yaw_motor_;
             motor.store_status(can_data);
         }
-        // callback_update(1, can_id, 2, can_data);
     }
 
     void can2_receive_callback(
@@ -137,7 +133,7 @@ protected:
             auto& motor = Conveyor_motor_;
             motor.update();
         }
-        callback_update(2, can_id, 3, can_data);
+        callback_update(can_id, can_data);
     }
 
     // void uart1_receive_callback();
@@ -147,17 +143,34 @@ protected:
         dr16_.store_status(uart_data, uart_data_length);
     }
 
-    void callback_update(int can, uint32_t can_id, uint32_t motor_id, uint64_t can_data) {
+    void callback_update_for_single_channel(int can, uint32_t can_id, uint32_t motor_id, uint64_t can_data) {
         if (can_id != 0x200 + motor_id)
             return;
         can_callback callback_data = std::bit_cast<can_callback>(can_data);
         uint16_t angle             = (callback_data.angle_high << 8) | callback_data.angle_low;
         uint16_t speed             = (callback_data.speed_high << 8) | callback_data.speed_low;
-        // double currrent            = (callback_data.current_high << 8) |
-        // callback_data.current_low;
+        // double currrent            = (callback_data.current_high << 8) | callback_data.current_low;
         int temperature = callback_data.temperature;
 
         RCLCPP_INFO(logger_, "can%d,angle:%4d,speed:%5d,temp:%2d", can, angle, speed, temperature);
+    }
+
+    void callback_update(uint32_t can_id, uint64_t can_data) {
+        can_callback callback_data = std::bit_cast<can_callback>(can_data);
+        uint16_t speed             = (callback_data.speed_high << 8) | callback_data.speed_low;
+
+        if (can_id == 0x201) {
+            *friction_lf_current_velocity_ = speed;
+
+        } else if (can_id == 0x202) {
+            *friction_lb_current_velocity_ = speed;
+
+        } else if (can_id == 0x203) {
+            *friction_rb_current_velocity_ = speed;
+
+        } else if (can_id == 0x204) {
+            *friction_rf_current_velocity_ = speed;
+        }
     }
 
 private:
@@ -173,6 +186,7 @@ private:
         DartLauncher& dart_;
     };
     std::shared_ptr<DartCommand> dart_command_;
+    forwarder::CBoard::TransmitBuffer transmit_buffer_;
 
     device::DjiMotor friction_motors_[4]{
         {*this, *dart_command_, "/dart/friction_lf"},
@@ -181,14 +195,10 @@ private:
         {*this, *dart_command_, "/dart/friction_rf"}
     };
     device::DjiMotor Conveyor_motor_{*this, *dart_command_, "/dart/conveyor"};
-
     device::DjiMotor yaw_motor_{*this, *dart_command_, "/dart/yaw"};
     device::DjiMotor pitch_left_motor{*this, *dart_command_, "/dart/pitch_left"};
     device::DjiMotor pitch_right_motor{*this, *dart_command_, "/dart/pitch_right"};
-
     device::Dr16 dr16_{*this};
-
-    forwarder::CBoard::TransmitBuffer transmit_buffer_;
 
     struct can_callback {
         uint8_t angle_high;
@@ -201,9 +211,12 @@ private:
         uint8_t others;
     };
 
-    device::Imu imu_;
-    // OutputInterface<double> current_pitch_angle_;
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
+
+    OutputInterface<double> friction_lf_current_velocity_;
+    OutputInterface<double> friction_lb_current_velocity_;
+    OutputInterface<double> friction_rb_current_velocity_;
+    OutputInterface<double> friction_rf_current_velocity_;
 };
 } // namespace rmcs_core::hardware
 

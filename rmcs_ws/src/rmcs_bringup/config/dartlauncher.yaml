@@ -26,7 +26,7 @@ rmcs_executor:
       
       - rmcs_core::controller::dart::VisualGuidance -> visual_guidance
       - rmcs_core::controller::dart::ImageSubscriber -> image_subscriber
-      - rmcs_core::controller::dart::MessagePublisher -> message_publisher
+      # - rmcs_core::controller::dart::MessagePublisher -> message_publisher
 
 dart_hardware:
   ros__parameters:
