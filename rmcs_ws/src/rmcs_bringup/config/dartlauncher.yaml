@@ -26,6 +26,7 @@ rmcs_executor:
       
       - rmcs_core::controller::dart::VisualGuidance -> visual_guidance
       - rmcs_core::controller::dart::ImageSubscriber -> image_subscriber
+      - rmcs_core::controller::dart::MessagePublisher -> message_publisher
 
 dart_hardware:
   ros__parameters:
@@ -181,3 +182,7 @@ pitch_right_velocity_pid_controller:
     kp: 0.8
     ki: 0.0
     kd: 0.0
+
+message_publisher:
+  ros__parameters:
+    debug_enable: false
