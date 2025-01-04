@@ -5,6 +5,7 @@
 #include "hikcamera/image_capturer.hpp"
 #include "image_processing.hpp"
 
+#include <chrono>
 #include <eigen3/Eigen/Dense>
 #include <eigen3/Eigen/src/Core/Matrix.h>
 #include <opencv2/core.hpp>
@@ -25,9 +26,7 @@ class VisualGuidance
     , public rclcpp::Node {
 public:
     VisualGuidance()
-        : Node(
-              get_component_name(),
-              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
+        : Node(get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , logger_(get_logger()) {
 
         debug_mode_ = get_parameter("debug_mode").as_bool();
@@ -37,10 +36,10 @@ public:
         register_output("/dart/camera/frame", camera_image_);
         register_output("/dart/camera/processed_image", processed_image_);
 
-        // profile.invert_image  = get_parameter("invert_image").as_bool();
-        // profile.exposure_time =
-        // std::chrono::milliseconds(get_parameter("exposure_time").as_int()); profile.gain =
-        // static_cast<float>(get_parameter("gain").as_double());
+        profile_.invert_image  = get_parameter("invert_image").as_bool();
+        profile_.exposure_time = std::chrono::microseconds(get_parameter("exposure_time").as_int());
+        profile_.gain          = 16.9807;
+
         capture_ = std::make_unique<hikcamera::ImageCapturer>(profile_);
     }
 
