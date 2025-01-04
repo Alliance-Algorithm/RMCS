@@ -1,8 +1,4 @@
-/*
-    施工中
-    镖架制导角度控制部分的正式代码
-    但是视觉部分没写完所以工作不了
-*/
+
 #include <eigen3/Eigen/Dense>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
@@ -21,9 +17,7 @@ class AngleController
     , public rclcpp::Node {
 public:
     AngleController()
-        : Node(
-              get_component_name(),
-              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
+        : Node(get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , logger_(get_logger()) {
         yaw_velocity_limit_     = get_parameter("yaw_velocity_limit").as_double();
         yaw_left_angle_limit_   = get_parameter("yaw_left_angle_limit").as_double();
@@ -32,15 +26,8 @@ public:
         pitch_up_angle_limit_   = get_parameter("pitch_up_angle_limit").as_double();
         pitch_down_angle_limit_ = get_parameter("pitch_down_angle_limit").as_double();
 
-        // pitch_angle_A_ = get_parameter("pitch_angle_A").as_double();
-        // pitch_angle_B_ = get_parameter("pitch_angle_B").as_double();
-
         register_input("/remote/switch/right", switch_right_input_);
         register_input("/remote/switch/left", switch_left_input_);
-
-        // register_input("/dart/pitch/current_angle", current_pitch_angle_);
-        register_output("/dart/pitch_left/control_angle_error", pitch_left_error_, nan);
-        register_output("/dart/pitch_right/control_angle_error", pitch_right_error_, nan);
     }
 
     void update() override {
@@ -59,11 +46,7 @@ public:
     }
 
 private:
-    void reset_all_controls() {
-        control_enabled_    = false;
-        *pitch_left_error_  = nan;
-        *pitch_right_error_ = nan;
-    }
+    void reset_all_controls() { control_enabled_ = false; }
 
     void update_control_errors() {}
 
@@ -74,18 +57,12 @@ private:
 
     double yaw_velocity_limit_, pitch_up_angle_limit_, pitch_down_angle_limit_;
     double pitch_velocity_limit_, yaw_left_angle_limit_, yaw_right_angle_limit_;
-    // double pitch_angle_A_, pitch_angle_B_;
 
-    // double current_pitch_angle_;
-    // InputInterface<double> current_pitch_angle_;
     InputInterface<rmcs_msgs::Switch> switch_left_input_;
     InputInterface<rmcs_msgs::Switch> switch_right_input_;
 
     rmcs_msgs::Switch switch_left_  = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Switch switch_right_ = rmcs_msgs::Switch::UNKNOWN;
-
-    OutputInterface<double> pitch_left_error_;
-    OutputInterface<double> pitch_right_error_;
 };
 } // namespace rmcs_core::controller::dart
 
