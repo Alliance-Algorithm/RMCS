@@ -3,66 +3,28 @@ rmcs_executor:
     update_rate: 1000.0
     components:
       - rmcs_core::hardware::DartLauncher -> dart_hardware
-
       - rmcs_core::controller::dart::LauncherController -> launcher_controller
+      - rmcs_core::controller::pid::PidController -> conveyor_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> friction_lf_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> friction_lb_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> friction_rb_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> friction_rf_velocity_pid_controller
-      - rmcs_core::controller::pid::PidController -> conveyor_velocity_pid_controller
 
-      - rmcs_core::controller::dart::AngleTest -> angle_test
+      - rmcs_core::controller::dart::AngleController -> angle_controller
+      - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
+      - rmcs_core::controller::pid::ErrorPidController -> pitch_left_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> pitch_left_velocity_pid_controller
+      - rmcs_core::controller::pid::ErrorPidController -> pitch_right_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> pitch_right_velocity_pid_controller
-
-      # - rmcs_core::controller::dart::AngleController -> angle_controller
-      # - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
-      # - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
-      # - rmcs_core::controller::pid::ErrorPidController -> pitch_left_angle_pid_controller
-      # - rmcs_core::controller::pid::PidController -> pitch_left_velocity_pid_controller
-      # - rmcs_core::controller::pid::ErrorPidController -> pitch_right_angle_pid_controller
-      # - rmcs_core::controller::pid::PidController -> pitch_right_velocity_pid_controller
       
-      - rmcs_core::controller::dart::VisualGuidance -> visual_guidance
-      - rmcs_core::controller::dart::ImageSubscriber -> image_subscriber
+      - rmcs_core::controller::dart::DartCamera -> dart_camera
+      - rmcs_core::controller::dart::DartAiming -> dart_aiming
       # - rmcs_core::controller::dart::MessagePublisher -> message_publisher
 
 dart_hardware:
   ros__parameters:
     usb_pid: 0xc049
-
-angle_test:
-  ros__parameters:
-    yaw_velocity_limit: 20.00
-    pitch_velocity_limit: 20.00
-
-yaw_velocity_pid_controller:
-  ros__parameters:
-    measurement: /dart/yaw/velocity
-    setpoint: /dart/yaw/control_velocity
-    control: /dart/yaw/control_torque
-    kp: 0.003436926
-    ki: 0.00
-    kd: 0.009373434
-
-pitch_left_velocity_pid_controller:
-  ros__parameters:
-    measurement: /dart/pitch_left/velocity
-    setpoint: /dart/pitch_left/control_velocity
-    control: /dart/pitch_left/control_torque
-    kp: 0.003436926
-    ki: 0.00
-    kd: 0.009373434
-
-pitch_right_velocity_pid_controller:
-  ros__parameters:
-    measurement: /dart/pitch_right/velocity
-    setpoint: /dart/pitch_right/control_velocity
-    control: /dart/pitch_right/control_torque
-    kp: 0.003436926
-    ki: 0.00
-    kd: 0.009373434
 
 launcher_controller:
   ros__parameters:
@@ -114,13 +76,6 @@ friction_rf_velocity_pid_controller:
     ki: 0.00
     kd: 0.009373434
 
-visual_guidance:
-  ros__parameters:
-    debug_mode: true
-    invert_image: false
-    exposure_time: 0
-    gain: 0.00
-
 angle_controller:
   ros__parameters:
     yaw_velocity_limit: 20.00
@@ -129,8 +84,6 @@ angle_controller:
     pitch_down_angle_limit: 0.00
     yaw_left_angle_limit: 0.00
     yaw_right_angle_limit: 0.00
-    pitch_angle_A: 45.00
-    pitch_angle_B: 45.00
 
 yaw_angle_pid_controller:
   ros__parameters:
@@ -182,6 +135,22 @@ pitch_right_velocity_pid_controller:
     kp: 0.8
     ki: 0.0
     kd: 0.0
+
+dart_camera:
+  ros__parameters:
+    image_show_enable: true
+    invert_image: true
+    exposure_time: 50000
+
+dart_aiming:
+  ros__parameters:
+    image_show_enable: false
+    lowerlimit_H: 50.00
+    lowerlimit_L: 96.00
+    lowerlimit_S: 128.00
+    upperlimit_H: 70.00
+    upperlimit_L: 192.00
+    upperlimit_S: 255.00
 
 message_publisher:
   ros__parameters:
