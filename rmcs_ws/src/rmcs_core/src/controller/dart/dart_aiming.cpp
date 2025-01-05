@@ -1,6 +1,8 @@
 
 #include <opencv2/core/mat.hpp>
 #include <opencv2/core/types.hpp>
+#include <opencv2/highgui.hpp>
+#include <opencv2/opencv.hpp>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
@@ -28,11 +30,28 @@ public:
         upperlimit[2]      = get_parameter("upperlimit_S").as_double();
     }
 
-    void update() override {}
+    void update() override {
+        camera_image_    = *dart_camera_frame_;
+        processed_image_ = image_processing(camera_image_);
+
+        cv::imshow("process_test", processed_image_);
+        cv::waitKey(1);
+    }
 
 private:
     void update_errors() {}
     void guide_light_identifier() {}
+
+    cv::Mat image_processing(const cv::Mat& input) {
+        cv::Mat HSV_image;
+        cv::cvtColor(input, HSV_image, cv::COLOR_BGR2HLS);
+        cv::Mat processing;
+        cv::inRange(HSV_image, lowerlimit, upperlimit, processing);
+        static cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5));
+        cv::morphologyEx(processing, processing, cv::MORPH_OPEN, kernel);
+
+        return processing;
+    }
 
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
     rclcpp::Logger logger_;

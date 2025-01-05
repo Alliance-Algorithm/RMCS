@@ -1,7 +1,4 @@
-/*
-    镖架发射角度控制(Beta)
-    拨杆双上可使用遥控器调整
-*/
+
 #include <algorithm>
 #include <eigen3/Eigen/Dense>
 #include <rclcpp/logger.hpp>
@@ -21,9 +18,7 @@ class AngleTest
     , public rclcpp::Node {
 public:
     AngleTest()
-        : Node(
-              get_component_name(),
-              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
+        : Node(get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , logger_(get_logger()) {
         yaw_velocity_limit_   = get_parameter("yaw_velocity_limit").as_double();
         pitch_velocity_limit_ = get_parameter("pitch_velocity_limit").as_double();
@@ -49,6 +44,7 @@ public:
         } else {
             reset_all_controls();
         }
+        RCLCPP_INFO(logger_, "Ready!");
     }
 
 private:
@@ -62,14 +58,10 @@ private:
     void update_motor_velocities() {
         double pitch_control_input_ = 20.0 * joystick_left_->x();
         double yaw_control_input_   = 20.0 * joystick_right_->y();
-        // RCLCPP_INFO(logger_, "yaw:%4lf,pitch:%4lf", yaw_control_input_, pitch_control_input_);
 
-        *yaw_control_velocity_ =
-            control_enabled_ ? std::min(yaw_velocity_limit_, yaw_control_input_) : 0.0;
-        *pitch_left_control_velocity_ =
-            control_enabled_ ? std::min(pitch_velocity_limit_, pitch_control_input_) : 0.0;
-        *pitch_right_control_velocity_ =
-            control_enabled_ ? std::min(pitch_velocity_limit_, pitch_control_input_) : 0.0;
+        *yaw_control_velocity_         = control_enabled_ ? std::min(yaw_velocity_limit_, yaw_control_input_) : 0.0;
+        *pitch_left_control_velocity_  = control_enabled_ ? std::min(pitch_velocity_limit_, pitch_control_input_) : 0.0;
+        *pitch_right_control_velocity_ = control_enabled_ ? std::min(pitch_velocity_limit_, pitch_control_input_) : 0.0;
     }
 
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();

@@ -13,15 +13,19 @@ class LauncherController
     , public rclcpp::Node {
 public:
     LauncherController()
-        : Node(
-              get_component_name(),
-              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
+        : Node(get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , logger_(get_logger()) {
-        conveyor_working_velocity_       = get_parameter("conveyor_working_velocity").as_double();
-        friction_working_velocity_debug_ = get_parameter("friction_working_velocity").as_double();
+        debug_enable_              = get_parameter("debug_enable").as_bool();
+        conveyor_working_velocity_ = get_parameter("conveyor_working_velocity").as_double();
+
+        if (debug_enable_) {
+            friction_velocity_debug_ = get_parameter("friction_working_velocity").as_double();
+        } else {
+            register_input("/dart/firction/working_velocity", friction_velocity_input_);
+        }
+
         register_input("/remote/switch/right", switch_right_input_, false);
         register_input("/remote/switch/left", switch_left_input_, false);
-        // register_input("/dart/firction/working_velocity", friction_working_velocity_);
 
         register_output("/dart/friction_lf/control_velocity", friction_lf_control_velocity_, nan);
         register_output("/dart/friction_lb/control_velocity", friction_lb_control_velocity_, nan);
@@ -57,9 +61,9 @@ private:
     }
 
     void update_motor_velocities() {
-        // double friction_velocity = friction_enable_ ? *friction_working_velocity_ : 0.0;
-        double friction_velocity = friction_enable_ ? friction_working_velocity_debug_ : 0.0;
-        double conveyor_velocity = conveyor_enable_ ? conveyor_working_velocity_ : 0.0;
+        friction_working_velocity_ = debug_enable_ ? friction_velocity_debug_ : *friction_velocity_input_;
+        double friction_velocity   = friction_enable_ ? friction_working_velocity_ : 0.0;
+        double conveyor_velocity   = conveyor_enable_ ? conveyor_working_velocity_ : 0.0;
 
         *conveyor_control_velocity_    = conveyor_velocity;
         *friction_lf_control_velocity_ = friction_velocity;
@@ -72,10 +76,12 @@ private:
 
     rclcpp::Logger logger_;
 
+    double friction_velocity_debug_;
+    InputInterface<double> friction_velocity_input_;
     double conveyor_working_velocity_;
-    double friction_working_velocity_debug_;
-    // InputInterface<double> friction_working_velocity_;
+    double friction_working_velocity_;
 
+    bool debug_enable_    = true;
     bool friction_enable_ = false;
     bool conveyor_enable_ = false;
 

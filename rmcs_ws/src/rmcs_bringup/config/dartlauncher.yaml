@@ -28,8 +28,8 @@ dart_hardware:
 
 launcher_controller:
   ros__parameters:
+    debug_enable: false
     conveyor_working_velocity: 10.00
-    friction_working_velocity: 100.00
 
 conveyor_velocity_pid_controller:
   ros__parameters:
@@ -140,7 +140,7 @@ dart_camera:
   ros__parameters:
     image_show_enable: true
     invert_image: true
-    exposure_time: 50000
+    exposure_time: 5000
 
 dart_aiming:
   ros__parameters:
