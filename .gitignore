@@ -68,5 +68,5 @@ id_rsa.pub
 # Recording files
 record/
 
-# For Develop
+# For temperary development
 develop_ws
