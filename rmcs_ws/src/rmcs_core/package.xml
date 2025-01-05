@@ -14,7 +14,6 @@
   <depend>pluginlib</depend>
   <depend>tf2</depend>
   <depend>tf2_ros</depend>
-  <depend>serial</depend>
   <depend>serial_util</depend>
   <depend>rmcs_msgs</depend>
   <depend>rmcs_executor</depend>
