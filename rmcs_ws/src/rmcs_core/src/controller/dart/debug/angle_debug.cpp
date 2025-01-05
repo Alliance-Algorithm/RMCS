@@ -41,10 +41,12 @@ public:
         if (switch_left_ == Switch::UP && switch_right_ == Switch::UP) {
             control_enabled_ = true;
             update_motor_velocities();
+        } else if (switch_left_ == Switch::UP && switch_right_ == Switch::DOWN) {
+            pitch_calibrator_enable_ = true;
+            pitch_calibrator();
         } else {
             reset_all_controls();
         }
-        RCLCPP_INFO(logger_, "Ready!");
     }
 
 private:
@@ -64,10 +66,21 @@ private:
         *pitch_right_control_velocity_ = control_enabled_ ? std::min(pitch_velocity_limit_, pitch_control_input_) : 0.0;
     }
 
+    void pitch_calibrator() {
+        double pitch_left_control_input  = 20.0 * joystick_left_->x();
+        double pitch_right_control_input = 20.0 * joystick_right_->x();
+
+        *pitch_left_control_velocity_ =
+            pitch_calibrator_enable_ ? std::min(pitch_velocity_limit_, pitch_left_control_input) : 0.0;
+        *pitch_right_control_velocity_ =
+            pitch_calibrator_enable_ ? std::min(pitch_velocity_limit_, pitch_right_control_input) : 0.0;
+    }
+
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
     rclcpp::Logger logger_;
-    bool control_enabled_ = false;
+    bool control_enabled_         = false;
+    bool pitch_calibrator_enable_ = false;
     double yaw_velocity_limit_;
     double pitch_velocity_limit_;
 

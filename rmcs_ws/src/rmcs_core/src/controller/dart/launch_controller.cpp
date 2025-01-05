@@ -42,8 +42,14 @@ public:
         if ((switch_left_ == Switch::UNKNOWN || switch_right_ == Switch::UNKNOWN)
             || (switch_left_ == Switch::DOWN && switch_right_ == Switch::DOWN)) {
             reset_all_controls();
+        } else if (switch_right_ == Switch::MIDDLE) {
+            friction_enable_ = (switch_right_ == Switch::DOWN) ? false : true;
+            if (switch_left_ == Switch::MIDDLE)
+                conveyor_enable_ = -1;
+            if (switch_left_ == Switch::UP)
+                conveyor_enable_ = 1;
+            update_motor_velocities();
         } else {
-            conveyor_enable_ = (switch_left_ == Switch::MIDDLE) ? true : false;
             friction_enable_ = (switch_right_ == Switch::DOWN) ? false : true;
             update_motor_velocities();
         }
@@ -52,7 +58,7 @@ public:
 private:
     void reset_all_controls() {
         friction_enable_               = false;
-        conveyor_enable_               = false;
+        conveyor_enable_               = 0;
         *conveyor_control_velocity_    = nan;
         *friction_lf_control_velocity_ = nan;
         *friction_lb_control_velocity_ = nan;
@@ -63,7 +69,7 @@ private:
     void update_motor_velocities() {
         friction_working_velocity_ = debug_enable_ ? friction_velocity_debug_ : *friction_velocity_input_;
         double friction_velocity   = friction_enable_ ? friction_working_velocity_ : 0.0;
-        double conveyor_velocity   = conveyor_enable_ ? conveyor_working_velocity_ : 0.0;
+        double conveyor_velocity   = conveyor_enable_ * conveyor_working_velocity_;
 
         *conveyor_control_velocity_    = conveyor_velocity;
         *friction_lf_control_velocity_ = friction_velocity;
@@ -83,7 +89,7 @@ private:
 
     bool debug_enable_    = true;
     bool friction_enable_ = false;
-    bool conveyor_enable_ = false;
+    int conveyor_enable_  = 0;
 
     OutputInterface<double> friction_lf_control_velocity_;
     OutputInterface<double> friction_lb_control_velocity_;

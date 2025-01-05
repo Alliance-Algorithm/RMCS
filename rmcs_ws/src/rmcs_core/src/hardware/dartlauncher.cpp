@@ -33,7 +33,7 @@ public:
         friction_motors_[2].configure(DjiMotorConfig{DjiMotorType::M3508}.set_reduction_ratio(1.));
         friction_motors_[3].configure(DjiMotorConfig{DjiMotorType::M3508}.set_reduction_ratio(1.));
 
-        Conveyor_motor_.configure(DjiMotorConfig{DjiMotorType::M3508}.set_reduction_ratio(1.));
+        Conveyor_motor_.configure(DjiMotorConfig{DjiMotorType::M3508}.reverse().set_reduction_ratio(1.));
 
         yaw_motor_.configure(DjiMotorConfig{DjiMotorType::M2006}.enable_multi_turn_angle());
         pitch_left_motor.configure(DjiMotorConfig{DjiMotorType::M2006}.enable_multi_turn_angle());
@@ -57,7 +57,7 @@ public:
         can_commands[1] = 0;
         can_commands[2] = 0;
         can_commands[3] = 0;
-        transmit_buffer_.add_can1_transmission(0x1FE, std::bit_cast<uint64_t>(can_commands));
+        transmit_buffer_.add_can1_transmission(0x1FF, std::bit_cast<uint64_t>(can_commands));
 
         can_commands[0] = pitch_left_motor.generate_command();
         can_commands[1] = pitch_right_motor.generate_command();
@@ -69,7 +69,7 @@ public:
         can_commands[1] = 0;
         can_commands[2] = 0;
         can_commands[3] = 0;
-        transmit_buffer_.add_can2_transmission(0x1FE, std::bit_cast<uint64_t>(can_commands));
+        transmit_buffer_.add_can2_transmission(0x1FF, std::bit_cast<uint64_t>(can_commands));
 
         can_commands[0] = friction_motors_[0].generate_command();
         can_commands[1] = friction_motors_[1].generate_command();
@@ -131,9 +131,10 @@ protected:
             motor.store_status(can_data);
         } else if (can_id == 0x205) {
             auto& motor = Conveyor_motor_;
-            motor.update();
+            motor.store_status(can_data);
         }
-        callback_update(can_id, can_data);
+        // callback_update(can_id, can_data);
+        callback_update_for_single_channel(2, can_id, 5, can_data);
     }
 
     // void uart1_receive_callback();
@@ -149,10 +150,11 @@ protected:
         can_callback callback_data = std::bit_cast<can_callback>(can_data);
         uint16_t angle             = (callback_data.angle_high << 8) | callback_data.angle_low;
         uint16_t speed             = (callback_data.speed_high << 8) | callback_data.speed_low;
-        // double currrent            = (callback_data.current_high << 8) | callback_data.current_low;
-        int temperature = callback_data.temperature;
+        uint16_t currrent          = (callback_data.current_high << 8) | callback_data.current_low;
+        int temperature            = callback_data.temperature;
 
-        RCLCPP_INFO(logger_, "can%d,angle:%4d,speed:%5d,temp:%2d", can, angle, speed, temperature);
+        RCLCPP_INFO(
+            logger_, "can%d,angle:%4d,speed:%5d,current:%5d,temp:%2d", can, angle, speed, currrent, temperature);
     }
 
     void callback_update(uint32_t can_id, uint64_t can_data) {

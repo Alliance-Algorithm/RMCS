@@ -27,8 +27,8 @@ dart_hardware:
 launcher_controller:
   ros__parameters:
     debug_enable: true
-    conveyor_working_velocity: 0.00
-    friction_working_velocity: 10.00
+    conveyor_working_velocity: 30.00
+    friction_working_velocity: 500.00
 
 conveyor_velocity_pid_controller:
   ros__parameters:
@@ -77,15 +77,15 @@ friction_rf_velocity_pid_controller:
 
 angle_test:
   ros__parameters:
-    yaw_velocity_limit: 20.00
-    pitch_velocity_limit: 20.00
+    yaw_velocity_limit: 30.00
+    pitch_velocity_limit: 30.00
 
 yaw_velocity_pid_controller:
   ros__parameters:
     measurement: /dart/yaw/velocity
     setpoint: /dart/yaw/control_velocity
     control: /dart/yaw/control_torque
-    kp: 0.003436926
+    kp: 0.03436926
     ki: 0.00
     kd: 0.009373434
 
@@ -94,7 +94,7 @@ pitch_left_velocity_pid_controller:
     measurement: /dart/pitch_left/velocity
     setpoint: /dart/pitch_left/control_velocity
     control: /dart/pitch_left/control_torque
-    kp: 0.003436926
+    kp: 0.03436926
     ki: 0.00
     kd: 0.009373434
 
@@ -103,7 +103,7 @@ pitch_right_velocity_pid_controller:
     measurement: /dart/pitch_right/velocity
     setpoint: /dart/pitch_right/control_velocity
     control: /dart/pitch_right/control_torque
-    kp: 0.003436926
+    kp: 0.03436926
     ki: 0.00
     kd: 0.009373434
 
