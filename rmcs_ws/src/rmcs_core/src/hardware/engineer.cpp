@@ -1,0 +1,234 @@
+#include <cmath>
+#include <cstdint>
+#include <cstdio>
+#include <memory>
+
+#include <numbers>
+#include <rclcpp/logging.hpp>
+#include <rclcpp/node.hpp>
+#include <rclcpp/node_options.hpp>
+#include <rmcs_description/tf_description.hpp>
+#include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/serial_interface.hpp>
+#include <std_msgs/msg/int32.hpp>
+
+#include "hardware/device/dji_motor.hpp"
+#include "hardware/device/dr16.hpp"
+#include "hardware/device/lk_motor.hpp"
+#include "hardware/device//encorder.hpp"
+#include "hardware/forwarder/cboard.hpp"
+
+namespace rmcs_core::hardware {
+    class Engineer:
+    public rmcs_executor::Component
+    ,public rclcpp::Node
+    ,private forwarder::CBoard{
+public:
+Engineer()
+    : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
+    , forwarder::CBoard{static_cast<uint16_t>(get_parameter("usb_pid").as_int()), get_logger()}
+    , logger_(get_logger()) 
+    , engineer_command_(
+              create_partner_component<EngineerCommand>( "engineer_command", *this))
+        , transmit_buffer_(*this, 16) {
+        using namespace device;
+
+        joint[5].configure(LKMotorConfig{LKMotorType::MG4010E_i10V3}.set_encoder_zero_point(static_cast<uint16_t>(get_parameter("joint6_zero_point").as_int())));
+        joint[4].configure(LKMotorConfig{LKMotorType::MG4010E_i10V3}.enable_multi_turn_angle().set_gear_ratio(1.35).set_encoder_zero_point(static_cast<uint16_t>(get_parameter("joint5_zero_point").as_int())));
+        joint[3].configure(LKMotorConfig{LKMotorType::MG4010E_i36V3}.set_encoder_zero_point(static_cast<int16_t>(get_parameter("joint4_zero_point").as_int())));
+        joint[2].configure(LKMotorConfig{LKMotorType::MF7015V210T});
+        joint[1].configure(LKMotorConfig{LKMotorType::MF7015V210T});
+        joint[0].configure(LKMotorConfig{LKMotorType::MG8010E_i36}.set_encoder_zero_point(static_cast<uint16_t>(get_parameter("joint1_zero_point").as_int())));
+        
+        joint2_encoder.configure(EncoderConfig{}.set_encoder_zero_point(static_cast<int>(get_parameter("joint2_zero_point").as_int())).enable_multi_turn_angle());
+        joint3_encoder.configure(EncoderConfig{}.set_encoder_zero_point(static_cast<int>(get_parameter("joint3_zero_point").as_int())).reverse());
+        register_output("/arm/Joint6/control_angle_error", joint6_error_angle);
+        register_output("/arm/Joint5/control_angle_error", joint5_error_angle);
+        register_output("/arm/Joint4/control_angle_error", joint4_error_angle);
+        register_output("/arm/Joint3/control_angle_error", joint3_error_angle);
+        register_output("/arm/Joint2/control_angle_error", joint2_error_angle);
+        register_output("/arm/Joint1/control_angle_error", joint1_error_angle);
+
+        }  
+~Engineer()
+{
+        uint64_t command_;
+        command_ = std::bit_cast<uint64_t>(uint64_t{0x80});
+        for (int i = 0; i<=2; i++) {
+            transmit_buffer_.add_can2_transmission((0x144+i), std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+        }
+         for (int i = 0; i<=2; i++) {
+            transmit_buffer_.add_can1_transmission((0x141+i), std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+        }
+        transmit_buffer_.trigger_transmission();
+}
+    void update() override {
+        update_arm_motors();
+        dr16_.update();
+       
+    }
+    void arm_command_update() {
+        
+        double control_angle[6];
+        control_angle[5] = (*engineer_command_->control_angle)[5];
+        bool is_arm_enable = *engineer_command_->is_arm_enable_;
+        uint64_t command_;
+        
+        if(!(is_arm_enable)&&last_is_arm_enable_){
+            command_ = std::bit_cast<uint64_t>(uint64_t{0x80});
+        for (int i = 0; i<=2; i++) {
+            transmit_buffer_.add_can2_transmission((0x144+i), std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+        }
+         for (int i = 0; i<=2; i++) {
+            transmit_buffer_.add_can1_transmission((0x141+i), std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+        }
+            //transmit_buffer_.add_can1_transmission((0x141+i), std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+            
+            
+        }
+        else if (!(is_arm_enable)&&!(last_is_arm_enable_)) {
+            command_ = std::bit_cast<uint64_t>(uint64_t{0x9C});
+        for (int i = 0; i<=2; i++) {
+            transmit_buffer_.add_can2_transmission((0x144+i), std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+        }
+         for (int i = 0; i<=2; i++) {
+            transmit_buffer_.add_can1_transmission((0x141+i), std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+        }
+
+            
+        }
+        else if((is_arm_enable)&&!(last_is_arm_enable_)){
+            command_ = std::bit_cast<uint64_t>(uint64_t{0x88});
+        for (int i = 0; i<=2; i++) {
+            transmit_buffer_.add_can2_transmission((0x144+i), std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+        }
+         for (int i = 0; i<=2; i++) {
+            transmit_buffer_.add_can1_transmission((0x141+i), std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+        }
+
+           
+        }
+        else{   
+           // command_ = joint1.generate_position_velocity_command(control_angle[0], 255);
+            (*joint5_error_angle) = normalizeAngle((*engineer_command_->control_angle)[4]-joint[4].get_angle());
+            (*joint6_error_angle) = normalizeAngle((*engineer_command_->control_angle)[5]-joint[5].get_angle());
+            (*joint4_error_angle) = normalizeAngle((*engineer_command_->control_angle)[3]-joint[3].get_angle());
+            (*joint3_error_angle) = normalizeAngle((*engineer_command_->control_angle)[2]-joint3_encoder.get_angle());
+            (*joint2_error_angle) = -normalizeAngle((*engineer_command_->control_angle)[1]-joint2_encoder.get_angle());
+            (*joint1_error_angle) = normalizeAngle((*engineer_command_->control_angle)[0]-joint[0].get_angle());
+            // RCLCPP_INFO(this->get_logger(),"%f %f %f",(*joint2_error_angle),(*engineer_command_->control_angle)[1],joint[0].get_angle());
+
+            command_ = joint[5].generate_torque_command();
+            transmit_buffer_.add_can2_transmission((0x146), std::bit_cast<uint64_t>(command_));
+            command_= joint[4].generate_torque_command();
+            //transmit_buffer_.add_can2_transmission((0x145), std::bit_cast<uint64_t>(command_));
+            command_ = joint[3].generate_torque_command();
+            transmit_buffer_.add_can2_transmission((0x144), std::bit_cast<uint64_t>(command_));
+            
+            command_ = joint[2].generate_torque_command();
+            //transmit_buffer_.add_can1_transmission((0x143), std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+            command_ = joint[1].generate_torque_command();
+            //transmit_buffer_.add_can1_transmission((0x142), std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+            command_ = joint[0].generate_torque_command();
+            transmit_buffer_.add_can1_transmission((0x141), std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+            RCLCPP_INFO(this->get_logger(),"%f %f %f",(*joint2_error_angle),joint2_encoder.get_angle(),joint2_encoder.get_raw_angle());        }
+       
+        transmit_buffer_.trigger_transmission();
+        last_is_arm_enable_ = is_arm_enable;
+    }
+    static double normalizeAngle(double angle) {
+    
+        while (angle > M_PI) angle -= 2 * M_PI;  
+        while (angle < -M_PI) angle += 2 * M_PI;
+        return angle;
+    }
+
+private:
+    void update_arm_motors() {
+        joint[5].update();  std::atomic<uint64_t> can_result_ = 0;
+        joint[4].update();
+        joint[3].update();
+        joint[2].update();
+        joint[1].update();
+        joint[0].update();
+        joint2_encoder.update();
+        joint3_encoder.update();
+                    
+
+    }
+
+
+protected:
+    void can2_receive_callback(
+        uint32_t can_id, uint64_t can_data, bool is_extended_can_id, bool is_remote_transmission,
+        uint8_t can_data_length) override {
+        if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
+            return;
+        if(can_id == 0x146)joint[5].store_status(can_data);
+        if(can_id == 0x145)joint[4].store_status(can_data);
+        if(can_id == 0x144)joint[3].store_status(can_data);
+    }
+    void can1_receive_callback(
+        uint32_t can_id, uint64_t can_data, bool is_extended_can_id, bool is_remote_transmission,
+        uint8_t can_data_length) override {
+        if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
+            return;
+        if(can_id == 0x143)joint[2].store_status(can_data);
+        if(can_id == 0x142)joint[1].store_status(can_data);
+        if(can_id == 0x141)joint[0].store_status(can_data);
+        if(can_id==0x7ff)joint3_encoder.store_status(can_data);
+        if(can_id==0x1fb)joint2_encoder.store_status(can_data);
+    }
+
+    void dbus_receive_callback(const std::byte* uart_data, uint8_t uart_data_length) override {
+        dr16_.store_status(uart_data, uart_data_length);
+    }
+private:  std::atomic<uint64_t> can_result_ = 0;
+    rclcpp::Logger logger_;
+    class EngineerCommand : public rmcs_executor::Component {
+    public:
+        explicit EngineerCommand(Engineer& engineer)
+            : engineer_(engineer) {
+            register_input("/arm/enable_flag", is_arm_enable_);
+            register_input("/arm/control_angle", control_angle);
+            }
+
+        void update() override { 
+            engineer_.arm_command_update(); 
+        }
+
+        Engineer& engineer_;
+        InputInterface<bool> is_arm_enable_;
+        InputInterface<std::array<double, 6>> control_angle;
+
+    };
+
+
+    std::shared_ptr<EngineerCommand> engineer_command_;
+    forwarder::CBoard::TransmitBuffer transmit_buffer_;
+    
+    device::Dr16 dr16_{*this};
+    device::LKMotor joint[6]{
+        {*this, *engineer_command_, "/arm/Joint1"},
+        {*this, *engineer_command_, "/arm/Joint2"},
+        {*this, *engineer_command_, "/arm/Joint3"},
+        {*this, *engineer_command_, "/arm/Joint4"},
+        {*this, *engineer_command_, "/arm/Joint5"},
+        {*this, *engineer_command_, "/arm/Joint6"},
+    };
+    device::Encoder joint2_encoder{*this,*engineer_command_,"/arm/Joint2encoder"};
+    device::Encoder joint3_encoder{*this,*engineer_command_,"/arm/Joint3encoder"};
+    
+    OutputInterface<double> joint6_error_angle;
+    OutputInterface<double> joint5_error_angle;
+    OutputInterface<double> joint4_error_angle;
+    OutputInterface<double> joint3_error_angle;
+    OutputInterface<double> joint2_error_angle;
+    OutputInterface<double> joint1_error_angle;
+
+    bool last_is_arm_enable_ = true;
+    };
+} // namespace rmcs_core::hardware
+#include <pluginlib/class_list_macros.hpp>
+
+PLUGINLIB_EXPORT_CLASS(rmcs_core::hardware::Engineer, rmcs_executor::Component)

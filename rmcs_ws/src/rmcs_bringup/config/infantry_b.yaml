@@ -37,7 +37,7 @@ rmcs_executor:
 
 infantry_hardware:
   ros__parameters:
-    usb_pid: 0xac89
+    usb_pid: 0x03d9
     yaw_motor_zero_point: 4425
     pitch_motor_zero_point: 6716
     imu_gx_bias: +0.001294
