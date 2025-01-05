@@ -10,8 +10,8 @@ from colorama import Fore, Style
 def main():
     if len(sys.argv) <= 1 or len(sys.argv) > 2 or sys.argv[1] in ("-h", "--help"):
         print("Usage: set-remote <remote_host>")
-        print("    1. IP address (e.g., 169.254.233.233)")
-        print("    2. Link-local address (e.g., fe80::c6d0:e3ff:fed7:ed12%eth0)")
+        print("    1. IPv4 / IPv6 address (e.g., 169.254.233.233)")
+        print("    2. IPv4 / IPv6 link-local address (e.g., fe80::c6d0:e3ff:fed7:ed12%eth0)")
         print("    3. mDNS hostname (e.g., my-sentry.local)")
         sys.exit(1)
 
