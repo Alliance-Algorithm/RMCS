@@ -1,4 +1,3 @@
-#include "controller/pid/pid_calculator.hpp"
 #include <eigen3/Eigen/Dense>
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
@@ -7,6 +6,8 @@
 #include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/switch.hpp>
+
+#include "controller/pid/pid_calculator.hpp"
 
 namespace rmcs_core::controller::chassis {
 
