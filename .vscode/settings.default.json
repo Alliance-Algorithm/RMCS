@@ -32,6 +32,7 @@
         "PLUGINLIB",
         "Quaterniond",
         "rclcpp",
+        "rclpy",
         "respawn",
         "RMCS",
         "RMUC",
