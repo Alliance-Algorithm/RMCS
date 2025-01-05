@@ -1,0 +1,17 @@
+#!/usr/bin/bash
+
+# Remove all files in /tmp
+rm -rf /tmp/*
+
+# Remove all files in /run except for /run/dbus
+find /run -mindepth 1 -not -path "/run/dbus*" -exec rm -rf {} +
+
+service rmcs start
+
+service ssh start
+
+if [ -f "/etc/avahi/enabled" ]; then
+    service avahi-daemon start
+fi
+
+sleep infinity

@@ -17,7 +17,7 @@
 		}
 	],
 	"containerEnv": {
-		"DISPLAY": ":1"
+		"DISPLAY": "${localEnv:DISPLAY}"
 	},
 	"runArgs": [
 		"--network",

@@ -1,0 +1,3 @@
+#! /bin/bash
+
+rm -rf /workspaces/RMCS/rmcs_ws/build /workspaces/RMCS/rmcs_ws/install /workspaces/RMCS/rmcs_ws/log

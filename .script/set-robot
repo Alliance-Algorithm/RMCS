@@ -1,0 +1,38 @@
+#!/bin/python3
+
+import sys
+import re
+import os
+
+if len(sys.argv) <= 1:
+    print(
+        "Error: No arguments provided. Please specify the name of the robot type."
+    )
+    sys.exit(1)
+elif len(sys.argv) > 2:
+    print(
+        "Error: Too many arguments provided. Please specify only the name of the robot type."
+    )
+    sys.exit(1)
+
+script_paths = [
+    os.path.join(os.getenv("HOME"), "env_setup.bash"),
+    os.path.join(os.getenv("HOME"), "env_setup.zsh"),
+]
+for script_path in script_paths:
+    try:
+        with open(script_path, "r") as file:
+            config = file.read()
+        updated_config, updated_count = re.subn(
+            r"export RMCS_ROBOT_TYPE=\"[^\n\"]*\"",
+            f'export RMCS_ROBOT_TYPE="{sys.argv[1]}"',
+            config,
+        )
+        if updated_count == 0:
+            print(f"Error: Cannot find any place to modify in '{script_path}'.")
+            sys.exit(1)
+        with open(script_path, "w") as file:
+            file.write(updated_config)
+    except FileNotFoundError:
+        print(f"Error: '{script_path}' not found.")
+        sys.exit(1)
