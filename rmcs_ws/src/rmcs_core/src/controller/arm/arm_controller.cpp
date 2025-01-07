@@ -27,12 +27,12 @@ public:
         register_input("/remote/mouse/velocity", mouse_velocity_);
         register_input("/remote/mouse", mouse_);
 
-        register_input("/arm/Joint6/angle",theta[5]);
-        register_input("/arm/Joint5/angle",theta[4]);
-        register_input("/arm/Joint4/angle",theta[3]);
-        register_input("/arm/Joint3encoder/angle",theta[2]);
-        register_input("/arm/Joint2encoder/angle",theta[1]);
-        register_input("/arm/Joint1/angle",theta[0]);
+        register_input("/arm/Joint6/theta",theta[5]);
+        register_input("/arm/Joint5/theta",theta[4]);
+        register_input("/arm/Joint4/theta",theta[3]);
+        register_input("/arm/Joint3/theta",theta[2]);
+        register_input("/arm/Joint2/theta",theta[1]);
+        register_input("/arm/Joint1/theta",theta[0]);
 
         register_output("/arm/enable_flag", is_arm_enable, true);
 

@@ -151,7 +151,7 @@ public:
         angle_multi_turn_         = 0;
     }
 
-void store_status(uint64_t can_result) { 
+    void store_status(uint64_t can_result) { 
         uint8_t command_byte = static_cast<uint8_t>(can_result);  
         if (command_byte == 0x9C || command_byte == 0xA4 || command_byte == 0xA1 || command_byte == 0xAD) {
             can_result_.store(can_result, std::memory_order::relaxed);
@@ -238,8 +238,8 @@ void store_status(uint64_t can_result) {
     double get_velocity() { return *velocity_; }
     double get_torque() { return *torque_; }
     double get_max_torque() { return *max_torque_; }
-    double get_rated_torque() { return *rated_torque_; }
-    double get_gear_ratio() {return *gear_ratio_;}
+
+
 
 private:
     struct alignas(uint64_t) LKMotorFeedback {

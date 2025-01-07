@@ -26,10 +26,10 @@ engineer_hardware:
   ros__parameters:
     usb_pid: 0x03d9
     joint6_zero_point: 0
-    joint5_zero_point: 57090
+    joint5_zero_point: 48183
     joint4_zero_point: 16159
-    joint3_zero_point: 79099
-    joint2_zero_point: 246717
+    joint3_zero_point: 67744
+    joint2_zero_point: 96040
     joint1_zero_point: 36508
 
 arm_controller:
@@ -50,7 +50,7 @@ joint6_velocity_pid_controller:
     measurement: /arm/Joint6/velocity
     setpoint: /arm/Joint6/control_velocity
     control: /arm/Joint6/control_torque
-    kp: 0.031
+    kp: 0.013
     ki: 0.0
     kd: 0.0005
 
@@ -90,15 +90,15 @@ joint3_angle_pid_controller:
   ros__parameters:
     measurement: /arm/Joint3/control_angle_error
     control: /arm/Joint3/control_velocity
-    kp: 1190.0
+    kp: 1790.0
     ki: 0.0
-    kd: 13.0
+    kd: 20.0
 joint3_velocity_pid_controller:
   ros__parameters:
     measurement: /arm/Joint3/velocity
     setpoint: /arm/Joint3/control_velocity
     control: /arm/Joint3/control_torque
-    kp: 0.0015
+    kp: 0.0032
     ki: 0.0
     kd: 0.0002
 
@@ -106,30 +106,30 @@ joint2_angle_pid_controller:
   ros__parameters:
     measurement: /arm/Joint2/control_angle_error
     control: /arm/Joint2/control_velocity
-    kp: 1190.0
+    kp: 2090.0
     ki: 0.0
-    kd: 10.0
+    kd: 20.0
 joint2_velocity_pid_controller:
   ros__parameters:
     measurement: /arm/Joint2/velocity
     setpoint: /arm/Joint2/control_velocity
     control: /arm/Joint2/control_torque
-    kp: 0.0105
+    kp: 0.00343
     ki: 0.0
-    kd: 0.00001
+    kd: 0.00004
 
 joint1_angle_pid_controller:
   ros__parameters:
     measurement: /arm/Joint1/control_angle_error
     control: /arm/Joint1/control_velocity
-    kp: 600.0
+    kp: 4120.0
     ki: 0.0
-    kd: 0.0
+    kd: 40.0
 joint1_velocity_pid_controller:
   ros__parameters:
     measurement: /arm/Joint1/velocity
     setpoint: /arm/Joint1/control_velocity
     control: /arm/Joint1/control_torque
-    kp: 0.012
+    kp: 0.252
     ki: 0.0
-    kd: 0.0
+    kd: 0.0001
