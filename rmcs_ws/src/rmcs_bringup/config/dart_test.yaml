@@ -13,8 +13,9 @@ rmcs_executor:
 
       - rmcs_core::controller::dart::AngleTest -> angle_test
       - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
-      - rmcs_core::controller::pid::PidController -> pitch_left_velocity_pid_controller
-      - rmcs_core::controller::pid::PidController -> pitch_right_velocity_pid_controller
+      # - rmcs_core::controller::pid::PidController -> pitch_left_velocity_pid_controller
+      # - rmcs_core::controller::pid::PidController -> pitch_right_velocity_pid_controller
+      - rmcs_core::controller::pid::DualSyncController -> pitch_velocity_sync_controller
       
       # - rmcs_core::controller::dart::VisualGuidance -> visual_guidance
       # - rmcs_core::controller::dart::ImageSubscriber -> image_subscriber
@@ -106,6 +107,21 @@ pitch_right_velocity_pid_controller:
     kp: 0.03436926
     ki: 0.00
     kd: 0.009373434
+
+pitch_velocity_sync_controller:
+  ros__parameters:
+    setpoint: /dart/pitch_left/control_velocity
+    motor1_measurement: /dart/pitch_left/velocity
+    motor1_control: /dart/pitch_left/control_torque
+    motor2_measurement: /dart/pitch_right/velocity
+    motor2_control: /dart/pitch_right/control_torque
+    motor1_kp: 0.3036926
+    motor1_ki: 0.00
+    motor1_kd: 0.009373434
+    sync_compensation_coefficient: 0.3
+    motor2_kp: 0.3036926
+    motor2_ki: 0.00
+    motor2_kd: 0.009373434
 
 dart_camera:
   ros__parameters:
