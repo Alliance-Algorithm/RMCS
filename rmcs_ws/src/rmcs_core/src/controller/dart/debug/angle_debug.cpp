@@ -63,7 +63,7 @@ private:
     }
 
     void update_motor_velocities() {
-        double pitch_control_input_ = 20.0 * joystick_left_->x();
+        double pitch_control_input_ = 25.0 * joystick_left_->x();
         double yaw_control_input_   = 30.0 * joystick_right_->y();
 
         *yaw_control_velocity_         = control_enabled_ ? std::min(yaw_velocity_limit_, yaw_control_input_) : 0.0;

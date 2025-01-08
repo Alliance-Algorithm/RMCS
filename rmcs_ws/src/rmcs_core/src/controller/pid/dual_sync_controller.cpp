@@ -61,7 +61,7 @@ private:
         double error = *motor1_measurement_ - *motor2_measurement_;
         integral_error_ += error * 0.05;
         RCLCPP_INFO(
-            get_logger(), "v1:%15lf,v2:%15lf,error:%15lf,integral:%15lf", *motor1_measurement_, *motor2_measurement_,
+            get_logger(), "v1:%12lf,v2:%12lf,error:%12lf,integral:%12lf", *motor1_measurement_, *motor2_measurement_,
             error, integral_error_);
     }
     PidCalculator motor1_pid_calculator_, motor2_pid_calculator_;

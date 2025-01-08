@@ -13,8 +13,6 @@ rmcs_executor:
 
       - rmcs_core::controller::dart::AngleTest -> angle_test
       - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
-      # - rmcs_core::controller::pid::PidController -> pitch_left_velocity_pid_controller
-      # - rmcs_core::controller::pid::PidController -> pitch_right_velocity_pid_controller
       - rmcs_core::controller::pid::DualSyncController -> pitch_velocity_sync_controller
       
       # - rmcs_core::controller::dart::VisualGuidance -> visual_guidance
@@ -29,7 +27,7 @@ launcher_controller:
   ros__parameters:
     debug_enable: true
     conveyor_working_velocity: 100.00
-    friction_working_velocity: 0.00
+    friction_working_velocity: 00.00
 
 conveyor_velocity_pid_controller:
   ros__parameters:

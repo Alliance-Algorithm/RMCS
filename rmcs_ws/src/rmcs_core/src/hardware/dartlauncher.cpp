@@ -40,8 +40,8 @@ public:
         Conveyor_motor_.configure(DjiMotorConfig{DjiMotorType::M3508}.reverse().set_reduction_ratio(1.));
 
         yaw_motor_.configure(DjiMotorConfig{DjiMotorType::M2006}.enable_multi_turn_angle());
-        pitch_left_motor.configure(DjiMotorConfig{DjiMotorType::M2006}.enable_multi_turn_angle());
-        pitch_right_motor.configure(DjiMotorConfig{DjiMotorType::M2006}.enable_multi_turn_angle());
+        pitch_left_motor.configure(DjiMotorConfig{DjiMotorType::M2006}.reverse().enable_multi_turn_angle());
+        pitch_right_motor.configure(DjiMotorConfig{DjiMotorType::M2006}.reverse().enable_multi_turn_angle());
 
         register_output("/dart/imu/gyro", imu_gyro_);
         register_output("/dart/imu/acc", imu_acc_);

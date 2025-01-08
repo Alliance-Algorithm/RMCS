@@ -45,9 +45,11 @@ public:
         } else if (switch_right_ == Switch::MIDDLE) {
             friction_enable_ = (switch_right_ == Switch::DOWN) ? false : true;
             if (switch_left_ == Switch::MIDDLE)
-                conveyor_enable_ = -1;
-            if (switch_left_ == Switch::UP)
+                conveyor_enable_ = -1.5;
+            else if (switch_left_ == Switch::UP)
                 conveyor_enable_ = 1;
+            else
+                conveyor_enable_ = 0;
             update_motor_velocities();
         } else {
             friction_enable_ = (switch_right_ == Switch::DOWN) ? false : true;
@@ -88,9 +90,9 @@ private:
     double conveyor_working_velocity_;
     double friction_working_velocity_;
 
-    bool debug_enable_    = true;
-    bool friction_enable_ = false;
-    int conveyor_enable_  = 0;
+    bool debug_enable_      = true;
+    bool friction_enable_   = false;
+    double conveyor_enable_ = 0;
 
     OutputInterface<double> friction_lf_control_velocity_;
     OutputInterface<double> friction_lb_control_velocity_;
