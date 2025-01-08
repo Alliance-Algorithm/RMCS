@@ -1,10 +1,14 @@
+
+#include <atomic>
 #include <cstdint>
 #include <memory>
 
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
+#include "hardware/device/imu.hpp"
 #include "hardware/forwarder/cboard.hpp"
 
+#include <eigen3/Eigen/Dense>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
@@ -39,15 +43,14 @@ public:
         pitch_left_motor.configure(DjiMotorConfig{DjiMotorType::M2006}.enable_multi_turn_angle());
         pitch_right_motor.configure(DjiMotorConfig{DjiMotorType::M2006}.enable_multi_turn_angle());
 
-        register_output("friction_lf_current_velocity_", friction_lf_current_velocity_, nan);
-        register_output("friction_lb_current_velocity_", friction_lb_current_velocity_, nan);
-        register_output("friction_rb_current_velocity_", friction_rb_current_velocity_, nan);
-        register_output("friction_rf_current_velocity_", friction_rf_current_velocity_, nan);
+        register_output("/dart/imu/gyro", imu_gyro_);
+        register_output("/dart/imu/acc", imu_acc_);
     }
 
     void update() override {
-        update_motors();
         dr16_.update();
+        update_motors();
+        update_imu();
     }
 
     void command_update() {
@@ -92,6 +95,22 @@ private:
         yaw_motor_.update();
     }
 
+    void update_imu() {
+        auto acc  = accelerometer_data_.load(std::memory_order::relaxed);
+        auto gyro = gyroscope_data_.load(std::memory_order::relaxed);
+
+        auto solve_acc  = [](int16_t value) { return value / 32767.0 * 6.0; };
+        auto solve_gyro = [](int16_t value) { return value / 32767.0 * 2000.0 / 180.0 * std::numbers::pi; };
+
+        double gx = solve_gyro(gyro.x), gy = solve_gyro(gyro.y), gz = solve_gyro(gyro.z);
+        double ax = solve_acc(acc.x), ay = solve_acc(acc.y), az = solve_acc(acc.z);
+
+        imu_.update(ax, ay, az, gx, gy, gz);
+        *imu_acc_  = {ax, ay, az};
+        *imu_gyro_ = {gx, gy, gz};
+        // RCLCPP_INFO(logger_, "gx:%5.2lf,gy:%5.2lf,gz:%5.2lf,ax:%5.2lf,ay:%5.2lf,az:%5.2lf", gx, gy, gz, ax, ay, az);
+    }
+
 protected:
     void can1_receive_callback(
         uint32_t can_id, uint64_t can_data, bool is_extended_can_id, bool is_remote_transmission,
@@ -133,46 +152,21 @@ protected:
             auto& motor = Conveyor_motor_;
             motor.store_status(can_data);
         }
-        // callback_update(can_id, can_data);
-        callback_update_for_single_channel(2, can_id, 5, can_data);
     }
 
     // void uart1_receive_callback();
     // void uart2_receive_callback();
 
+    void accelerometer_receive_callback(int16_t x, int16_t y, int16_t z) override {
+        accelerometer_data_.store({x, y, z}, std::memory_order::relaxed);
+    }
+
+    void gyroscope_receive_callback(int16_t x, int16_t y, int16_t z) override {
+        gyroscope_data_.store({x, y, z}, std::memory_order::relaxed);
+    }
+
     void dbus_receive_callback(const std::byte* uart_data, uint8_t uart_data_length) override {
         dr16_.store_status(uart_data, uart_data_length);
-    }
-
-    void callback_update_for_single_channel(int can, uint32_t can_id, uint32_t motor_id, uint64_t can_data) {
-        if (can_id != 0x200 + motor_id)
-            return;
-        can_callback callback_data = std::bit_cast<can_callback>(can_data);
-        uint16_t angle             = (callback_data.angle_high << 8) | callback_data.angle_low;
-        uint16_t speed             = (callback_data.speed_high << 8) | callback_data.speed_low;
-        uint16_t currrent          = (callback_data.current_high << 8) | callback_data.current_low;
-        int temperature            = callback_data.temperature;
-
-        RCLCPP_INFO(
-            logger_, "can%d,angle:%4d,speed:%5d,current:%5d,temp:%2d", can, angle, speed, currrent, temperature);
-    }
-
-    void callback_update(uint32_t can_id, uint64_t can_data) {
-        can_callback callback_data = std::bit_cast<can_callback>(can_data);
-        uint16_t speed             = (callback_data.speed_high << 8) | callback_data.speed_low;
-
-        if (can_id == 0x201) {
-            *friction_lf_current_velocity_ = speed;
-
-        } else if (can_id == 0x202) {
-            *friction_lb_current_velocity_ = speed;
-
-        } else if (can_id == 0x203) {
-            *friction_rb_current_velocity_ = speed;
-
-        } else if (can_id == 0x204) {
-            *friction_rf_current_velocity_ = speed;
-        }
     }
 
 private:
@@ -200,25 +194,20 @@ private:
     device::DjiMotor yaw_motor_{*this, *dart_command_, "/dart/yaw"};
     device::DjiMotor pitch_left_motor{*this, *dart_command_, "/dart/pitch_left"};
     device::DjiMotor pitch_right_motor{*this, *dart_command_, "/dart/pitch_right"};
-    device::Dr16 dr16_{*this};
 
-    struct can_callback {
-        uint8_t angle_high;
-        uint8_t angle_low;
-        uint8_t speed_high;
-        uint8_t speed_low;
-        uint8_t current_high;
-        uint8_t current_low;
-        uint8_t temperature;
-        uint8_t others;
+    device::Dr16 dr16_{*this};
+    device::Imu imu_;
+    struct alignas(8) ImuData {
+        int16_t x, y, z;
     };
+    std::atomic<ImuData> accelerometer_data_;
+    std::atomic<ImuData> gyroscope_data_;
+    static_assert(std::atomic<ImuData>::is_always_lock_free);
+
+    OutputInterface<Eigen::Vector3d> imu_acc_;
+    OutputInterface<Eigen::Vector3d> imu_gyro_;
 
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
-
-    OutputInterface<double> friction_lf_current_velocity_;
-    OutputInterface<double> friction_lb_current_velocity_;
-    OutputInterface<double> friction_rb_current_velocity_;
-    OutputInterface<double> friction_rf_current_velocity_;
 };
 } // namespace rmcs_core::hardware
 

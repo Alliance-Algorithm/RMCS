@@ -51,6 +51,7 @@ public:
             update_motor_velocities();
         } else {
             friction_enable_ = (switch_right_ == Switch::DOWN) ? false : true;
+            conveyor_enable_ = 0;
             update_motor_velocities();
         }
     }

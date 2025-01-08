@@ -14,10 +14,10 @@ public:
 
         debug_mode_ = get_parameter("debug_enable").as_bool();
 
-        register_input("friction_lf_current_velocity_", friction_lf_current_velocity_);
-        register_input("friction_lb_current_velocity_", friction_lb_current_velocity_);
-        register_input("friction_rb_current_velocity_", friction_rb_current_velocity_);
-        register_input("friction_rf_current_velocity_", friction_rf_current_velocity_);
+        register_input("/dart/friction_lf/velocity", friction_lf_velocity_);
+        register_input("/dart/friction_lb/velocity", friction_lb_velocity_);
+        register_input("/dart/friction_rb/velocity", friction_rb_velocity_);
+        register_input("/dart/friction_rf/velocity", friction_rf_velocity_);
 
         publisher_1_ = this->create_publisher<std_msgs::msg::String>("msg_friction_lf_current_velocity_", 10);
         publisher_2_ = this->create_publisher<std_msgs::msg::String>("msg_friction_lb_current_velocity_", 10);
@@ -27,10 +27,10 @@ public:
     }
 
     void update() override {
-        msg_friction_lf_current_velocity_.data = std::to_string(*friction_lf_current_velocity_);
-        msg_friction_lb_current_velocity_.data = std::to_string(*friction_lb_current_velocity_);
-        msg_friction_rb_current_velocity_.data = std::to_string(*friction_rb_current_velocity_);
-        msg_friction_rf_current_velocity_.data = std::to_string(*friction_rf_current_velocity_);
+        msg_friction_lf_current_velocity_.data = std::to_string(*friction_lf_velocity_);
+        msg_friction_lb_current_velocity_.data = std::to_string(*friction_lb_velocity_);
+        msg_friction_rb_current_velocity_.data = std::to_string(*friction_rb_velocity_);
+        msg_friction_rf_current_velocity_.data = std::to_string(*friction_rf_velocity_);
     }
 
 private:
@@ -54,10 +54,10 @@ private:
     std_msgs::msg::String msg_friction_rb_current_velocity_;
     std_msgs::msg::String msg_friction_rf_current_velocity_;
 
-    InputInterface<double> friction_lf_current_velocity_;
-    InputInterface<double> friction_lb_current_velocity_;
-    InputInterface<double> friction_rb_current_velocity_;
-    InputInterface<double> friction_rf_current_velocity_;
+    InputInterface<double> friction_lf_velocity_;
+    InputInterface<double> friction_lb_velocity_;
+    InputInterface<double> friction_rb_velocity_;
+    InputInterface<double> friction_rf_velocity_;
 };
 
 } // namespace rmcs_core::controller::dart

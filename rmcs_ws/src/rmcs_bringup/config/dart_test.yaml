@@ -27,8 +27,8 @@ dart_hardware:
 launcher_controller:
   ros__parameters:
     debug_enable: true
-    conveyor_working_velocity: 30.00
-    friction_working_velocity: 500.00
+    conveyor_working_velocity: 100.00
+    friction_working_velocity: 0.00
 
 conveyor_velocity_pid_controller:
   ros__parameters:

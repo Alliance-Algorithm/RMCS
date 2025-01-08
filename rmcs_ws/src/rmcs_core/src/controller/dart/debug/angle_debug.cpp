@@ -27,6 +27,11 @@ public:
         register_input("/remote/switch/left", switch_left_input_, false);
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
+        register_input("/dart/imu/gyro", imu_gyro_);
+        register_input("/dart/imu/acc", imu_acc_);
+
+        register_input("/dart/pitch_left/velocity", pitch_left_velocity_);
+        register_input("/dart/pitch_right/velocity", pitch_right_velocity_);
 
         register_output("/dart/yaw/control_velocity", yaw_control_velocity_, nan);
         register_output("/dart/pitch_left/control_velocity", pitch_left_control_velocity_, nan);
@@ -76,6 +81,8 @@ private:
             pitch_calibrator_enable_ ? std::min(pitch_velocity_limit_, pitch_right_control_input) : 0.0;
     }
 
+    void motor_error_compensation() {}
+
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
     rclcpp::Logger logger_;
@@ -88,6 +95,12 @@ private:
     InputInterface<rmcs_msgs::Switch> switch_right_input_;
     InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<Eigen::Vector2d> joystick_right_;
+
+    InputInterface<Eigen::Vector3d> imu_gyro_;
+    InputInterface<Eigen::Vector3d> imu_acc_;
+
+    InputInterface<double> pitch_left_velocity_;
+    InputInterface<double> pitch_right_velocity_;
 
     rmcs_msgs::Switch switch_left_  = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Switch switch_right_ = rmcs_msgs::Switch::UNKNOWN;
