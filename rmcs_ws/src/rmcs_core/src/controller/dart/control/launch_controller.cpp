@@ -26,12 +26,9 @@ public:
 
         register_input("/remote/switch/right", switch_right_input_, false);
         register_input("/remote/switch/left", switch_left_input_, false);
-
-        register_output("/dart/friction_lf/control_velocity", friction_lf_control_velocity_, nan);
-        register_output("/dart/friction_lb/control_velocity", friction_lb_control_velocity_, nan);
-        register_output("/dart/friction_rb/control_velocity", friction_rb_control_velocity_, nan);
-        register_output("/dart/friction_rf/control_velocity", friction_rf_control_velocity_, nan);
         register_output("/dart/conveyor/control_velocity", conveyor_control_velocity_, nan);
+        register_output("/dart/friction_front/control_velocity", friction_front_control_velocity_, nan);
+        register_output("/dart/friction_back/control_velocity", friction_back_control_velocity_, nan);
     }
 
     void update() override {
@@ -60,13 +57,11 @@ public:
 
 private:
     void reset_all_controls() {
-        friction_enable_               = false;
-        conveyor_enable_               = 0;
-        *conveyor_control_velocity_    = nan;
-        *friction_lf_control_velocity_ = nan;
-        *friction_lb_control_velocity_ = nan;
-        *friction_rb_control_velocity_ = nan;
-        *friction_rf_control_velocity_ = nan;
+        friction_enable_                  = false;
+        conveyor_enable_                  = 0;
+        *conveyor_control_velocity_       = nan;
+        *friction_front_control_velocity_ = nan;
+        *friction_back_control_velocity_  = nan;
     }
 
     void update_motor_velocities() {
@@ -74,11 +69,9 @@ private:
         double friction_velocity   = friction_enable_ ? friction_working_velocity_ : 0.0;
         double conveyor_velocity   = conveyor_enable_ * conveyor_working_velocity_;
 
-        *conveyor_control_velocity_    = conveyor_velocity;
-        *friction_lf_control_velocity_ = friction_velocity;
-        *friction_lb_control_velocity_ = friction_velocity;
-        *friction_rb_control_velocity_ = friction_velocity;
-        *friction_rf_control_velocity_ = friction_velocity;
+        *conveyor_control_velocity_       = conveyor_velocity;
+        *friction_front_control_velocity_ = friction_velocity;
+        *friction_back_control_velocity_  = friction_velocity;
     }
 
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
@@ -94,11 +87,9 @@ private:
     bool friction_enable_   = false;
     double conveyor_enable_ = 0;
 
-    OutputInterface<double> friction_lf_control_velocity_;
-    OutputInterface<double> friction_lb_control_velocity_;
-    OutputInterface<double> friction_rb_control_velocity_;
-    OutputInterface<double> friction_rf_control_velocity_;
     OutputInterface<double> conveyor_control_velocity_;
+    OutputInterface<double> friction_front_control_velocity_;
+    OutputInterface<double> friction_back_control_velocity_;
 
     InputInterface<rmcs_msgs::Switch> switch_left_input_;
     InputInterface<rmcs_msgs::Switch> switch_right_input_;

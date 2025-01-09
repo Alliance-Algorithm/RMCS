@@ -1,3 +1,4 @@
+
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rclcpp/rclcpp.hpp>
@@ -33,7 +34,8 @@ public:
             register_input(parameter_setpoint.as_string(), setpoint_);
         }
 
-        sync_compensation_coefficient_ = get_parameter("sync_compensation_coefficient").as_double();
+        sync_compensation_          = get_parameter("sync_compensation").as_double();
+        error_integral_compensation = get_parameter("error_integral_compensation").as_double();
 
         get_parameter("integral_min", motor1_pid_calculator_.integral_min);
         get_parameter("integral_max", motor1_pid_calculator_.integral_max);
@@ -47,23 +49,19 @@ public:
     }
 
     void update() override {
-        double motor1_error = *setpoint_ - *motor1_measurement_;
-        double motor2_error = *setpoint_ - *motor2_measurement_;
-        double cross_error  = *motor1_measurement_ - *motor2_measurement_;
+        double motor1_error   = *setpoint_ - *motor1_measurement_;
+        double motor2_error   = *setpoint_ - *motor2_measurement_;
+        double relative_error = *motor1_measurement_ - *motor2_measurement_;
 
-        *motor1_control_ = motor1_pid_calculator_.update(motor1_error - cross_error - integral_error_);
-        *motor2_control_ = motor2_pid_calculator_.update(motor2_error + cross_error + integral_error_);
-        update_errors();
+        *motor1_control_ = motor1_pid_calculator_.update(motor1_error - relative_error - error_integral_);
+        *motor2_control_ = motor2_pid_calculator_.update(motor2_error + relative_error + error_integral_);
+        error_integral_ += relative_error * error_integral_compensation;
+        RCLCPP_INFO(
+            get_logger(), "v1:%12lf,v2:%12lf,error:%12lf,integral:%12lf", *motor1_measurement_, *motor2_measurement_,
+            relative_error, error_integral_);
     }
 
 private:
-    void update_errors() {
-        double error = *motor1_measurement_ - *motor2_measurement_;
-        integral_error_ += error * 0.05;
-        RCLCPP_INFO(
-            get_logger(), "v1:%12lf,v2:%12lf,error:%12lf,integral:%12lf", *motor1_measurement_, *motor2_measurement_,
-            error, integral_error_);
-    }
     PidCalculator motor1_pid_calculator_, motor2_pid_calculator_;
 
     InputInterface<double> motor1_measurement_;
@@ -74,8 +72,9 @@ private:
     OutputInterface<double> motor2_control_;
 
     double setpoint_immediate_value_;
-    double sync_compensation_coefficient_;
-    double integral_error_ = 0;
+    double sync_compensation_;
+    double error_integral_compensation;
+    double error_integral_ = 0;
 };
 
 } // namespace rmcs_core::controller::pid
