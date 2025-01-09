@@ -30,7 +30,7 @@ engineer_hardware:
     joint4_zero_point: 16159
     joint3_zero_point: 67744
     joint2_zero_point: 96040
-    joint1_zero_point: 36508
+    joint1_zero_point: 43227
 
 arm_controller:
   ros__parameters:
