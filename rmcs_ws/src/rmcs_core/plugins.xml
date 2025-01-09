@@ -71,7 +71,7 @@
   <class type="rmcs_core::controller::dart::DartAiming" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
-  <class type="rmcs_core::controller::pid::DualSyncController" base_class_type="rmcs_executor::Component">
+  <class type="rmcs_core::controller::dart::SyncController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
 </library>

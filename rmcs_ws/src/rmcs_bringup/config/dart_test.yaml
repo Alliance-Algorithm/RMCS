@@ -5,15 +5,19 @@ rmcs_executor:
       - rmcs_core::hardware::DartLauncher -> dart_hardware
 
       - rmcs_core::controller::dart::LauncherController -> launcher_controller
-      - rmcs_core::controller::pid::PidController -> friction_lf_velocity_pid_controller
-      - rmcs_core::controller::pid::PidController -> friction_lb_velocity_pid_controller
-      - rmcs_core::controller::pid::PidController -> friction_rb_velocity_pid_controller
-      - rmcs_core::controller::pid::PidController -> friction_rf_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> conveyor_velocity_pid_controller
+      - rmcs_core::controller::pid::ErrorPidController -> friction_lf_velocity_pid_controller
+      - rmcs_core::controller::pid::ErrorPidController -> friction_rf_velocity_pid_controller
+      - rmcs_core::controller::pid::ErrorPidController -> friction_lb_velocity_pid_controller
+      - rmcs_core::controller::pid::ErrorPidController -> friction_rb_velocity_pid_controller
+      - rmcs_core::controller::dart::SyncController -> friction_front_velocity_sync_controller
+      - rmcs_core::controller::dart::SyncController -> friction_back_velocity_sync_controller
 
       - rmcs_core::controller::dart::AngleTest -> angle_test
       - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
-      - rmcs_core::controller::pid::DualSyncController -> pitch_velocity_sync_controller
+      - rmcs_core::controller::pid::ErrorPidController -> pitch_left_velocity_pid_controller
+      - rmcs_core::controller::pid::ErrorPidController -> pitch_right_velocity_pid_controller
+      - rmcs_core::controller::dart::SyncController -> pitch_velocity_sync_controller
       
       # - rmcs_core::controller::dart::VisualGuidance -> visual_guidance
       # - rmcs_core::controller::dart::ImageSubscriber -> image_subscriber
@@ -27,7 +31,7 @@ launcher_controller:
   ros__parameters:
     debug_enable: true
     conveyor_working_velocity: 100.00
-    friction_working_velocity: 00.00
+    friction_working_velocity: 0.00
 
 conveyor_velocity_pid_controller:
   ros__parameters:
@@ -40,17 +44,23 @@ conveyor_velocity_pid_controller:
 
 friction_lf_velocity_pid_controller:
   ros__parameters:
-    measurement: /dart/friction_lf/velocity
-    setpoint: /dart/friction_lf/control_velocity
+    measurement: /dart/friction_lf/control_error
     control: /dart/friction_lf/control_torque
+    kp: 0.003436926
+    ki: 0.00
+    kd: 0.009373434
+
+friction_rf_velocity_pid_controller:
+  ros__parameters:
+    measurement: /dart/friction_rf/control_error
+    control: /dart/friction_rf/control_torque
     kp: 0.003436926
     ki: 0.00
     kd: 0.009373434
 
 friction_lb_velocity_pid_controller:
   ros__parameters:
-    measurement: /dart/friction_lb/velocity
-    setpoint: /dart/friction_lb/control_velocity
+    measurement: /dart/friction_lb/control_error
     control: /dart/friction_lb/control_torque
     kp: 0.003436926
     ki: 0.00
@@ -58,21 +68,33 @@ friction_lb_velocity_pid_controller:
 
 friction_rb_velocity_pid_controller:
   ros__parameters:
-    measurement: /dart/friction_rb/velocity
-    setpoint: /dart/friction_rb/control_velocity
+    measurement: /dart/friction_rb/control_error
     control: /dart/friction_rb/control_torque
     kp: 0.003436926
     ki: 0.00
     kd: 0.009373434
 
-friction_rf_velocity_pid_controller:
+friction_front_velocity_sync_controller:
   ros__parameters:
-    measurement: /dart/friction_rf/velocity
-    setpoint: /dart/friction_rf/control_velocity
-    control: /dart/friction_rf/control_torque
-    kp: 0.003436926
-    ki: 0.00
-    kd: 0.009373434
+    setpoint: /dart/friction_front/control_velocity
+    motor1_measurement: /dart/friction_lf/velocity
+    motor1_control_error: /dart/friction_lf/control_error
+    motor2_measurement: /dart/friction_rf/velocity
+    motor2_control_error: /dart/friction_rf/control_error
+    sync_compensation: 0.5
+    error_integral_compensation: 0.00
+    log_enable: false
+
+friction_back_velocity_sync_controller:
+  ros__parameters:
+    setpoint: /dart/friction_back/control_velocity
+    motor1_measurement: /dart/friction_lb/velocity
+    motor1_control_error: /dart/friction_lb/control_error
+    motor2_measurement: /dart/friction_rb/velocity
+    motor2_control_error: /dart/friction_rb/control_error
+    sync_compensation: 0.8
+    error_integral_compensation: 0.00
+    log_enable: false
 
 angle_test:
   ros__parameters:
@@ -84,23 +106,21 @@ yaw_velocity_pid_controller:
     measurement: /dart/yaw/velocity
     setpoint: /dart/yaw/control_velocity
     control: /dart/yaw/control_torque
-    kp: 0.03436926
+    kp: 0.3036926
     ki: 0.00
     kd: 0.009373434
 
 pitch_left_velocity_pid_controller:
   ros__parameters:
-    measurement: /dart/pitch_left/velocity
-    setpoint: /dart/pitch_left/control_velocity
+    measurement: /dart/pitch_left/control_error
     control: /dart/pitch_left/control_torque
-    kp: 0.03436926
+    kp: 0.3036926
     ki: 0.00
     kd: 0.009373434
 
 pitch_right_velocity_pid_controller:
   ros__parameters:
-    measurement: /dart/pitch_right/velocity
-    setpoint: /dart/pitch_right/control_velocity
+    measurement: /dart/pitch_right/control_error
     control: /dart/pitch_right/control_torque
     kp: 0.03436926
     ki: 0.00
@@ -108,18 +128,14 @@ pitch_right_velocity_pid_controller:
 
 pitch_velocity_sync_controller:
   ros__parameters:
-    setpoint: /dart/pitch_left/control_velocity
+    setpoint: /dart/pitch/control_velocity
     motor1_measurement: /dart/pitch_left/velocity
-    motor1_control: /dart/pitch_left/control_torque
+    motor1_control_error: /dart/pitch_left/control_error
     motor2_measurement: /dart/pitch_right/velocity
-    motor2_control: /dart/pitch_right/control_torque
-    motor1_kp: 0.3036926
-    motor1_ki: 0.00
-    motor1_kd: 0.009373434
-    sync_compensation_coefficient: 0.3
-    motor2_kp: 0.3036926
-    motor2_ki: 0.00
-    motor2_kd: 0.009373434
+    motor2_control_error: /dart/pitch_right/control_error
+    sync_compensation: 0.8
+    error_integral_compensation: 0.1
+    log_enable: false
 
 dart_camera:
   ros__parameters:

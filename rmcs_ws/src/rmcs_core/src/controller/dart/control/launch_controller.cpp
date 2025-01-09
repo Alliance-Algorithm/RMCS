@@ -1,9 +1,11 @@
 
+#include <chrono>
 #include <cmath>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rclcpp/node_options.hpp>
+#include <rclcpp/parameter_value.hpp>
 #include <rmcs_executor/component.hpp>
 #include <switch.hpp>
 namespace rmcs_core::controller::dart {
@@ -15,15 +17,17 @@ public:
     LauncherController()
         : Node(get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , logger_(get_logger()) {
-        debug_enable_              = get_parameter("debug_enable").as_bool();
         conveyor_working_velocity_ = get_parameter("conveyor_working_velocity").as_double();
 
-        if (debug_enable_) {
-            friction_velocity_debug_ = get_parameter("friction_working_velocity").as_double();
+        auto parameter = get_parameter("friction_working_velocity");
+        if (parameter.get_type() == rclcpp::ParameterType::PARAMETER_DOUBLE) {
+            parameter_immediate_value_ = parameter.as_double();
+            friction_working_velocity_.bind_directly(parameter_immediate_value_);
         } else {
-            register_input("/dart/firction/working_velocity", friction_velocity_input_);
+            register_input(parameter.as_string(), friction_working_velocity_);
         }
 
+        register_input("/dart/conveyor/velocity", conveyor_velocity_);
         register_input("/remote/switch/right", switch_right_input_, false);
         register_input("/remote/switch/left", switch_left_input_, false);
         register_output("/dart/conveyor/control_velocity", conveyor_control_velocity_, nan);
@@ -42,11 +46,7 @@ public:
         } else if (switch_right_ == Switch::MIDDLE) {
             friction_enable_ = (switch_right_ == Switch::DOWN) ? false : true;
             if (switch_left_ == Switch::MIDDLE)
-                conveyor_enable_ = -1.5;
-            else if (switch_left_ == Switch::UP)
-                conveyor_enable_ = 1;
-            else
-                conveyor_enable_ = 0;
+                auto_filling();
             update_motor_velocities();
         } else {
             friction_enable_ = (switch_right_ == Switch::DOWN) ? false : true;
@@ -65,26 +65,27 @@ private:
     }
 
     void update_motor_velocities() {
-        friction_working_velocity_ = debug_enable_ ? friction_velocity_debug_ : *friction_velocity_input_;
-        double friction_velocity   = friction_enable_ ? friction_working_velocity_ : 0.0;
-        double conveyor_velocity   = conveyor_enable_ * conveyor_working_velocity_;
+        double friction_velocity = friction_enable_ ? *friction_working_velocity_ : 0.0;
+        double conveyor_velocity = conveyor_enable_ * conveyor_working_velocity_;
 
         *conveyor_control_velocity_       = conveyor_velocity;
         *friction_front_control_velocity_ = friction_velocity;
         *friction_back_control_velocity_  = friction_velocity;
     }
 
+    void auto_filling() {}
+
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
     rclcpp::Logger logger_;
 
-    double friction_velocity_debug_;
-    InputInterface<double> friction_velocity_input_;
+    InputInterface<double> friction_working_velocity_;
+    InputInterface<double> conveyor_velocity_;
+    double parameter_immediate_value_;
     double conveyor_working_velocity_;
-    double friction_working_velocity_;
 
-    bool debug_enable_      = true;
     bool friction_enable_   = false;
+    bool reverse_ready      = false;
     double conveyor_enable_ = 0;
 
     OutputInterface<double> conveyor_control_velocity_;
@@ -96,6 +97,8 @@ private:
 
     rmcs_msgs::Switch switch_left_  = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Switch switch_right_ = rmcs_msgs::Switch::UNKNOWN;
+
+    std::chrono::steady_clock::time_point stop_time_;
 };
 } // namespace rmcs_core::controller::dart
 
