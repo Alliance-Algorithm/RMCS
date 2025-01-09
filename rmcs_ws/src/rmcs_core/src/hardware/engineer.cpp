@@ -102,7 +102,7 @@ Engineer()
             if(counter % 2 ==0){
               
                 command_ = device::LKMotor::lk_quest_command();
-                transmit_buffer_.add_can1_transmission((0x143), std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+                transmit_buffer_.add_can1_transmission((0x143), std::bit_cast<uint64_t>(command_));
                 transmit_buffer_.add_can2_transmission((0x146), std::bit_cast<uint64_t>(command_));
             }else{
                 command_ = device::LKMotor::lk_quest_command();
@@ -139,7 +139,7 @@ Engineer()
 
                 (*joint6_error_angle) = normalizeAngle((*engineer_command_->control_angle)[5]-joint[5].get_theta());
                 command_ = joint[5].generate_torque_command();
-                transmit_buffer_.add_can2_transmission((0x146), std::bit_cast<uint64_t>(command_));
+                transmit_buffer_.add_can2_transmission((0x146), std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
             }else{
                 (*joint2_error_angle) = -normalizeAngle((*engineer_command_->control_angle)[1]-joint[1].get_theta());
                 (*joint1_error_angle) = normalizeAngle((*engineer_command_->control_angle)[0]-joint[0].get_theta());
@@ -150,11 +150,11 @@ Engineer()
 
                 (*joint5_error_angle) = normalizeAngle((*engineer_command_->control_angle)[4]-joint[4].get_theta());
                 command_ = joint[4].generate_torque_command();
-                transmit_buffer_.add_can2_transmission((0x145), std::bit_cast<uint64_t>(command_));
+                transmit_buffer_.add_can2_transmission((0x145), std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
 
-                (*joint5_error_angle) = normalizeAngle((*engineer_command_->control_angle)[3]-joint[3].get_theta());
+                (*joint4_error_angle) = normalizeAngle((*engineer_command_->control_angle)[3]-joint[3].get_theta());
                 command_ = joint[3].generate_torque_command();
-                transmit_buffer_.add_can2_transmission((0x144), std::bit_cast<uint64_t>(command_));            
+                transmit_buffer_.add_can2_transmission((0x144), std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));            
             }
         }
        
@@ -186,7 +186,7 @@ private:
         joint[2].update_joint().change_theta_feedback_(joint3_encoder.get_angle());
         joint[1].update_joint().change_theta_feedback_(joint2_encoder.get_angle());
         joint[0].update_joint();
-        RCLCPP_INFO(this->get_logger(),"%f %f %f",(*joint2_error_angle),joint[0].get_angle(),joint[1].get_angle());        
+        RCLCPP_INFO(this->get_logger(),"%f %f %f",(*joint4_error_angle),joint[4].get_angle(),joint[1].get_angle());        
 
 
     }

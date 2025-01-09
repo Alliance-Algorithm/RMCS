@@ -77,14 +77,11 @@ private:
             if(fabs(joystick_left_->y()) > 0.001)(*control_angle)[5] += 0.003*joystick_left_->y();
             if(fabs(joystick_left_->x()) > 0.001)(*control_angle)[4] += 0.003*joystick_left_->x();
             if(fabs(joystick_right_->y()) > 0.001)(*control_angle)[3] += 0.003*joystick_right_->y();
-        //(*control_angle)[5] = -3.11 ;
         }
         if(switch_left == rmcs_msgs::Switch::UP && switch_right == rmcs_msgs::Switch::UP){
             if(fabs(joystick_left_->x()) > 0.001)(*control_angle)[2] += 0.001*joystick_left_->x();
-            // if(fabs(joystick_left_->x()) > 0.001)(*control_angle)[1] += 0.003*joystick_left_->x();
             if(fabs(joystick_right_->x()) > 0.001)(*control_angle)[1] += 0.001*joystick_right_->x();
             if(fabs(joystick_left_->y()) > 0.001)(*control_angle)[0] += 0.001*joystick_left_->y();
-        //(*control_angle)[5] = -3.11 ;
         }
     }
 
