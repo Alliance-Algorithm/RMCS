@@ -44,15 +44,17 @@ public:
 
         publisher_ =
             create_publisher<std_msgs::msg::Float32MultiArray>("/engineer/joint/measure", 10);
-        using CallbackType =
-            std::function<void(const std_msgs::msg::Float32MultiArray::SharedPtr&)>;
+
         subscription_ = this->create_subscription<std_msgs::msg::Float32MultiArray>(
             "/engineer/joint/control", 10,
             [this](const std_msgs::msg::Float32MultiArray::SharedPtr msg) {
                 if (msg->data.size() == 6) {
-                    for (size_t i = 0; i < 6; ++i) {
-                        (*control_angle)[i] = static_cast<double>(msg->data[i]);
-                    }
+                    (*control_angle)[0] = static_cast<double>(msg->data[0]);
+                    (*control_angle)[1] = -static_cast<double>(msg->data[1]);
+                    (*control_angle)[2] = -static_cast<double>(msg->data[2]) + std::numbers::pi / 2;
+                    (*control_angle)[3] = static_cast<double>(msg->data[3]);
+                    (*control_angle)[4] = static_cast<double>(msg->data[4]);
+                    (*control_angle)[5] = static_cast<double>(msg->data[5]);
                 }
             });
     }
@@ -62,9 +64,13 @@ public:
         auto mouse        = *mouse_;
 
         auto msg = std_msgs::msg::Float32MultiArray();
-        msg.data = {static_cast<float>(*theta[0]), static_cast<float>(*theta[1]),
-                    static_cast<float>(*theta[2]), static_cast<float>(*theta[3]),
-                    static_cast<float>(*theta[4]), static_cast<float>(*theta[5])};
+        msg.data = {
+            static_cast<float>(*theta[0]),
+            -static_cast<float>(*theta[1]),
+            -(static_cast<float>(*theta[2] - std::numbers::pi / 2)),
+            static_cast<float>(*theta[3]),
+            static_cast<float>(*theta[4]),
+            static_cast<float>(*theta[5])};
         publisher_->publish(msg);
 
         using namespace rmcs_msgs;
@@ -80,7 +86,7 @@ public:
 
         } else {
             *is_arm_enable = true;
-            update_dr16_control_theta();
+            // update_dr16_control_theta();
             clamp_control_angle();
         }
     }
@@ -96,7 +102,6 @@ private:
     //     *is_motor_enbale = false;
     // }
     void update_dr16_control_theta() {
-        this->create_publisher<std_msgs::msg::Float32MultiArray>("float32_array", 10);
 
         auto switch_right = *switch_right_;
         auto switch_left  = *switch_left_;

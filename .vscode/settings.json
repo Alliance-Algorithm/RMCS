@@ -11,5 +11,9 @@
         "colcon",
         "rmcs",
         "rosdep"
-    ]
+    ],
+    "clangd.arguments": [
+        "--query-driver=/usr/bin/c*,/usr/bin/g*,/usr/bin/C*"
+    ],
+    "clangd.path": "/usr/bin/clangd"
 }

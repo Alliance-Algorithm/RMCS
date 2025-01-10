@@ -55,14 +55,14 @@ Engineer()
         uint64_t command_;
         command_ = device::LKMotor::lk_close_command();
         
-        transmit_buffer_.add_can1_transmission(0x143, std::bit_cast<uint64_t>(command_));
-        transmit_buffer_.add_can2_transmission(0x146, std::bit_cast<uint64_t>(command_));
-        transmit_buffer_.trigger_transmission();
-        transmit_buffer_.add_can1_transmission(0x142, std::bit_cast<uint64_t>(command_));
-        transmit_buffer_.add_can1_transmission(0x141, std::bit_cast<uint64_t>(command_));
-        transmit_buffer_.add_can2_transmission(0x145, std::bit_cast<uint64_t>(command_));
-        transmit_buffer_.add_can2_transmission(0x144, std::bit_cast<uint64_t>(command_));  
-        transmit_buffer_.trigger_transmission();
+        // transmit_buffer_.add_can1_transmission(0x143, std::bit_cast<uint64_t>(command_));
+        // transmit_buffer_.add_can2_transmission(0x146, std::bit_cast<uint64_t>(command_));
+        // transmit_buffer_.trigger_transmission();
+        // transmit_buffer_.add_can1_transmission(0x142, std::bit_cast<uint64_t>(command_));
+        // transmit_buffer_.add_can1_transmission(0x141, std::bit_cast<uint64_t>(command_));
+        // transmit_buffer_.add_can2_transmission(0x145, std::bit_cast<uint64_t>(command_));
+        // transmit_buffer_.add_can2_transmission(0x144, std::bit_cast<uint64_t>(command_));  
+        // transmit_buffer_.trigger_transmission();
         
         
 }
@@ -87,7 +87,7 @@ Engineer()
             transmit_buffer_.add_can2_transmission(0x146, std::bit_cast<uint64_t>(command_));
             quest_send_flag = false;     
         }
-        if (!quest_send_flag && !(is_arm_enable)&&!(last_is_arm_enable_)) {
+        else if (!quest_send_flag && !(is_arm_enable)&&!(last_is_arm_enable_)) {
             command_ = device::LKMotor::lk_close_command();
             transmit_buffer_.add_can1_transmission(0x142, std::bit_cast<uint64_t>(command_));
             transmit_buffer_.add_can1_transmission(0x141, std::bit_cast<uint64_t>(command_));
@@ -98,7 +98,7 @@ Engineer()
         }
 
 
-        if (!(is_arm_enable)&&!(last_is_arm_enable_)&& quest_send_flag) {
+        else if (!(is_arm_enable)&&!(last_is_arm_enable_)&& quest_send_flag) {
             if(counter % 2 ==0){
               
                 command_ = device::LKMotor::lk_quest_command();
@@ -112,14 +112,14 @@ Engineer()
                 transmit_buffer_.add_can2_transmission((0x144), std::bit_cast<uint64_t>(command_));            
             }
         }
-        if((is_arm_enable)&&!(last_is_arm_enable_)){
+        else if((is_arm_enable)&&!(last_is_arm_enable_)){
             command_ = device::LKMotor::lk_enable_command();
             transmit_buffer_.add_can1_transmission((0x143), std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
             transmit_buffer_.add_can2_transmission((0x146), std::bit_cast<uint64_t>(command_));
             enable_send_flag = false;
         }
 
-        if(!enable_send_flag && is_arm_enable && last_is_arm_enable_){
+        else if(!enable_send_flag && is_arm_enable && last_is_arm_enable_){
             command_ = device::LKMotor::lk_enable_command();
             transmit_buffer_.add_can1_transmission((0x142), std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
             transmit_buffer_.add_can1_transmission((0x141), std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
@@ -129,7 +129,7 @@ Engineer()
         }
       
 
-        if(is_arm_enable && last_is_arm_enable_){   
+        else if(is_arm_enable && last_is_arm_enable_){   
     
             if(counter % 2 ==0)
             {
@@ -186,7 +186,6 @@ private:
         joint[2].update_joint().change_theta_feedback_(joint3_encoder.get_angle());
         joint[1].update_joint().change_theta_feedback_(joint2_encoder.get_angle());
         joint[0].update_joint();
-        RCLCPP_INFO(this->get_logger(),"%f %f %f",(*joint4_error_angle),joint[0].get_angle(),joint[1].get_angle());        
 
 
     }

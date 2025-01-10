@@ -1,5 +1,8 @@
 #pragma once
 
+#include <rclcpp/node.hpp>
+#include <eigen3/Eigen/Dense>
+
 #include <algorithm>
 #include <atomic>
 #include <bit>
@@ -16,8 +19,6 @@
 #include "hardware/endian_promise.hpp"
 #include "hardware/device/lk_motor.hpp"
 #include <rclcpp/logging.hpp>
-#include <rclcpp/node.hpp>
-#include <eigen3/Eigen/Dense>
 
 
 namespace rmcs_core::hardware::device {
