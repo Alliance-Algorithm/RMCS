@@ -43,6 +43,14 @@ public:
 
         publisher_ =
             create_publisher<std_msgs::msg::Float32MultiArray>("/engineer/joint/measure", 10);
+
+        subscription_ = this->create_subscription<std_msgs::msg::Float32MultiArray>(
+            "/engineer/joint/control", 10,
+            [this](const std_msgs::msg::Float32MultiArray::SharedPtr& msg) {
+                for (size_t i = 0; i < 6; ++i) {
+                    (*control_angle)[i] = msg->data[i];
+                }
+            });
     }
     void update() override {
         auto switch_right = *switch_right_;
@@ -52,14 +60,6 @@ public:
         auto msg = std_msgs::msg::Float32MultiArray();
         msg.data = std::vector<float>(theta, theta + 6);
         publisher_->publish(msg);
-        
-        subscription_ = this->create_subscription<std_msgs::msg::Float32MultiArray>(
-            "/engineer/joint/control", 10,
-            [this](const std_msgs::msg::Float32MultiArray::SharedPtr& msg) { // 使用 const 引用
-                for (size_t i = 0; i < 6; ++i) {
-                    (*control_angle)[i] = msg->data[i];
-                }
-            });
 
         using namespace rmcs_msgs;
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
