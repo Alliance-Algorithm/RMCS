@@ -2,6 +2,7 @@
 #include "std_msgs/msg/float32_multi_array.hpp"
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <cmath>
 #include <eigen3/Eigen/Dense>
 #include <rclcpp/node.hpp>
@@ -43,12 +44,15 @@ public:
 
         publisher_ =
             create_publisher<std_msgs::msg::Float32MultiArray>("/engineer/joint/measure", 10);
-
+        using CallbackType =
+            std::function<void(const std_msgs::msg::Float32MultiArray::SharedPtr&)>;
         subscription_ = this->create_subscription<std_msgs::msg::Float32MultiArray>(
             "/engineer/joint/control", 10,
-            [this](const std_msgs::msg::Float32MultiArray::SharedPtr& msg) {
-                for (size_t i = 0; i < 6; ++i) {
-                    (*control_angle)[i] = msg->data[i];
+            [this](const std_msgs::msg::Float32MultiArray::SharedPtr msg) {
+                if (msg->data.size() == 6) {
+                    for (size_t i = 0; i < 6; ++i) {
+                        (*control_angle)[i] = static_cast<double>(msg->data[i]);
+                    }
                 }
             });
     }
@@ -58,7 +62,9 @@ public:
         auto mouse        = *mouse_;
 
         auto msg = std_msgs::msg::Float32MultiArray();
-        msg.data = std::vector<float>(theta, theta + 6);
+        msg.data = {static_cast<float>(*theta[0]), static_cast<float>(*theta[1]),
+                    static_cast<float>(*theta[2]), static_cast<float>(*theta[3]),
+                    static_cast<float>(*theta[4]), static_cast<float>(*theta[5])};
         publisher_->publish(msg);
 
         using namespace rmcs_msgs;
