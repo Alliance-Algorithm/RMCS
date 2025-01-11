@@ -68,10 +68,12 @@ shooting_controller:
     bullets_per_feeder_turn: 6.0
     shot_frequency: 10.0
     safe_shot_frequency: 10.0
+    precise_shot_frequency: 4.0
     eject_frequency: 5.0
     eject_time: 0.2
     deep_eject_frequency: 2.0
     deep_eject_time: 0.5
+    single_shot_max_stop_delay: 2.0
     
 
 second_left_friction_velocity_pid_controller:

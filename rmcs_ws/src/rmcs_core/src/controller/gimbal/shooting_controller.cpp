@@ -9,6 +9,8 @@
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/mouse.hpp>
+#include <rmcs_msgs/shoot_mode.hpp>
+#include <rmcs_msgs/shoot_status.hpp>
 #include <rmcs_msgs/switch.hpp>
 
 namespace rmcs_core::controller::gimbal {
@@ -54,30 +56,41 @@ public:
 
         is_42mm_ = get_parameter("is_42mm").as_bool();
 
-        double bullets_per_feeder_turn = get_parameter("bullets_per_feeder_turn").as_double();
+        double bullets_per_feeder_turn      = get_parameter("bullets_per_feeder_turn").as_double();
+        bullet_feeder_angle_per_bullet_     = 2 * std::numbers::pi / bullets_per_feeder_turn;
+        bullet_feeder_angle_per_1_5_bullet_ = bullet_feeder_angle_per_bullet_ * 1.5;
 
-        double shot_frequency = get_parameter("shot_frequency").as_double();
-        bullet_feeder_working_velocity =
-            (2 * std::numbers::pi / bullets_per_feeder_turn) * shot_frequency;
-        double safe_shot_frequency = get_parameter("safe_shot_frequency").as_double();
-        bullet_feeder_safe_shot_velocity =
-            (2 * std::numbers::pi / bullets_per_feeder_turn) * safe_shot_frequency;
+        double shot_frequency            = get_parameter("shot_frequency").as_double();
+        bullet_feeder_working_velocity   = bullet_feeder_angle_per_bullet_ * shot_frequency;
+        double safe_shot_frequency       = get_parameter("safe_shot_frequency").as_double();
+        bullet_feeder_safe_shot_velocity = bullet_feeder_angle_per_bullet_ * safe_shot_frequency;
+        double precise_shot_frequency    = 0;
+        if (get_parameter("precise_shot_frequency", precise_shot_frequency))
+            bullet_feeder_precise_shot_velocity =
+                bullet_feeder_angle_per_bullet_ * precise_shot_frequency;
 
-        double eject_frequency = get_parameter("eject_frequency").as_double();
-        bullet_feeder_eject_velocity_ =
-            -(2 * std::numbers::pi / bullets_per_feeder_turn) * eject_frequency;
+        double eject_frequency        = get_parameter("eject_frequency").as_double();
+        bullet_feeder_eject_velocity_ = -bullet_feeder_angle_per_bullet_ * eject_frequency;
         bullet_feeder_eject_time_ =
             static_cast<int>(std::round(1000.0 * get_parameter("eject_time").as_double()));
 
         double deep_eject_frequency = get_parameter("deep_eject_frequency").as_double();
         bullet_feeder_deep_eject_velocity_ =
-            -(2 * std::numbers::pi / bullets_per_feeder_turn) * deep_eject_frequency;
+            -bullet_feeder_angle_per_bullet_ * deep_eject_frequency;
         bullet_feeder_deep_eject_time_ =
             static_cast<int>(std::round(1000.0 * get_parameter("deep_eject_time").as_double()));
 
+        single_shot_max_stop_delay_ = static_cast<int>(
+            std::round(1000.0 * get_parameter("single_shot_max_stop_delay").as_double()));
+
         register_input("/gimbal/bullet_feeder/velocity", bullet_feeder_velocity_);
+        register_input("/gimbal/bullet_feeder/angle", bullet_feeder_multi_turn_angle_);
         register_output(
             "/gimbal/bullet_feeder/control_velocity", bullet_feeder_control_velocity_, nan_);
+
+        register_output("/gimbal/shooter/mode", shoot_mode_, default_shoot_mode());
+        register_output(
+            "/gimbal/shooter/status", shoot_status_, rmcs_msgs::ShootStatus{false, 0, 0, 0, 0});
     }
 
     void before_updating() override {
@@ -109,10 +122,12 @@ public:
     void update() override {
         update_muzzle_heat();
 
-        auto switch_right = *switch_right_;
-        auto switch_left  = *switch_left_;
-        auto mouse        = *mouse_;
-        auto keyboard     = *keyboard_;
+        auto& shoot_mode = *shoot_mode_;
+
+        const auto switch_right = *switch_right_;
+        const auto switch_left  = *switch_left_;
+        const auto mouse        = *mouse_;
+        const auto keyboard     = *keyboard_;
 
         using namespace rmcs_msgs;
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
@@ -124,17 +139,52 @@ public:
                     || (last_switch_left_ == Switch::MIDDLE && switch_left == Switch::UP)) {
                     friction_enabled_ = !friction_enabled_;
                 }
+
                 bullet_feeder_enabled_ = mouse.left || switch_left == Switch::DOWN;
-                if (keyboard.f || keyboard.g) {
+
+                const auto default_mode     = default_shoot_mode();
+                const auto alternative_mode = alternative_shoot_mode();
+
+                if (keyboard.f)
+                    shoot_mode = alternative_mode;
+                else if (shoot_mode == alternative_mode)
+                    shoot_mode = default_mode;
+
+                if (!last_keyboard_.g && keyboard.g) {
+                    shoot_mode = shoot_mode == rmcs_msgs::ShootMode::PRECISE
+                                   ? default_mode
+                                   : rmcs_msgs::ShootMode::PRECISE;
+                }
+                if (is_42mm_) {
+                    if (switch_right == Switch::UP)
+                        shoot_mode = rmcs_msgs::ShootMode::PRECISE;
+                    else if (shoot_mode == rmcs_msgs::ShootMode::PRECISE)
+                        shoot_mode = default_mode;
+                }
+
+                if (shoot_mode == rmcs_msgs::ShootMode::SINGLE
+                    || shoot_mode == rmcs_msgs::ShootMode::PRECISE) {
                     if (bullet_count_limited_by_single_shot_ < 0)
                         bullet_count_limited_by_single_shot_ = 0;
-                    if (!last_mouse_.left && mouse.left) {
-                        ++bullet_count_limited_by_single_shot_;
-                        RCLCPP_INFO(get_logger(), "%ld", bullet_count_limited_by_single_shot_);
+                    if ((!last_mouse_.left && mouse.left)
+                        || (last_switch_left_ == rmcs_msgs::Switch::MIDDLE
+                            && switch_left == rmcs_msgs::Switch::DOWN)) {
+                        bullet_count_limited_by_single_shot_++;
+                        single_shot_delayed_stop_counter_ = 0;
                     }
-                    bullet_feeder_enabled_ |= bullet_count_limited_by_single_shot_ > 0;
+
+                    if (!bullet_feeder_enabled_ && bullet_count_limited_by_single_shot_) {
+                        if (++single_shot_delayed_stop_counter_ != single_shot_max_stop_delay_) {
+                            bullet_feeder_enabled_ = true;
+                        } else {
+                            bullet_count_limited_by_single_shot_ = 0;
+                            single_shot_delayed_stop_counter_    = 0;
+                            shoot_status_->single_shot_cancelled_count++;
+                        }
+                    }
                 } else {
                     bullet_count_limited_by_single_shot_ = -1;
+                    single_shot_delayed_stop_counter_    = 0;
                 }
             }
             update_friction_velocities();
@@ -149,11 +199,24 @@ public:
 
 private:
     void reset_all_controls() {
+        *shoot_mode_         = default_shoot_mode();
+        shoot_status_->ready = false;
+
         friction_enabled_ = false;
         for (size_t i = 0; i < friction_count_; i++)
             *friction_control_velocities_[i] = nan_;
+
         bullet_feeder_enabled_           = false;
         *bullet_feeder_control_velocity_ = nan_;
+        bullet_feeder_last_shoot_angle_  = *bullet_feeder_multi_turn_angle_;
+    }
+
+    rmcs_msgs::ShootMode default_shoot_mode() const {
+        return is_42mm_ ? rmcs_msgs::ShootMode::SINGLE : rmcs_msgs::ShootMode::AUTOMATIC;
+    }
+
+    rmcs_msgs::ShootMode alternative_shoot_mode() const {
+        return is_42mm_ ? rmcs_msgs::ShootMode::AUTOMATIC : rmcs_msgs::ShootMode::SINGLE;
     }
 
     void update_muzzle_heat() {
@@ -174,8 +237,14 @@ private:
                     && last_primary_friction_velocity_ < friction_working_velocities_[0] - 20.0) {
                     // Heat with 1/1000 tex
                     shooter_heat_ += heat_per_shot + 10;
+
                     // Decrease single-shot bullet allowance
                     --bullet_count_limited_by_single_shot_;
+                    single_shot_delayed_stop_counter_ = 0;
+
+                    shoot_status_->fired_count++;
+
+                    bullet_feeder_last_shoot_angle_ = *bullet_feeder_multi_turn_angle_;
                 }
                 primary_friction_velocity_decrease_integral_ = 0;
             }
@@ -190,6 +259,7 @@ private:
     }
 
     void update_friction_velocities() {
+        shoot_status_->ready = friction_enabled_;
         if (friction_enabled_) {
             for (size_t i = 0; i < friction_count_; i++)
                 *friction_control_velocities_[i] = friction_working_velocities_[i];
@@ -220,6 +290,9 @@ private:
 
         double new_control_velocity = bullet_allowance > 1 ? bullet_feeder_working_velocity
                                                            : bullet_feeder_safe_shot_velocity;
+        if (*shoot_mode_ == rmcs_msgs::ShootMode::PRECISE)
+            new_control_velocity =
+                std::min(new_control_velocity, bullet_feeder_precise_shot_velocity);
         if (new_control_velocity > *bullet_feeder_control_velocity_)
             bullet_feeder_working_status_ = std::min(0, bullet_feeder_working_status_);
         *bullet_feeder_control_velocity_ = new_control_velocity;
@@ -262,6 +335,16 @@ private:
             *bullet_feeder_control_velocity_ = bullet_feeder_deep_eject_velocity_;
             bullet_feeder_cool_down_         = bullet_feeder_deep_eject_time_;
         }
+
+        shoot_status_->jammed_count++;
+    }
+
+    void update_dry_feed_detection() {
+        while (*bullet_feeder_multi_turn_angle_ - bullet_feeder_last_shoot_angle_
+               >= bullet_feeder_angle_per_1_5_bullet_) {
+            bullet_feeder_last_shoot_angle_ += bullet_feeder_angle_per_bullet_;
+            shoot_status_->dry_fed_count++;
+        }
     }
 
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
@@ -272,9 +355,12 @@ private:
     bool is_42mm_;
 
     std::unique_ptr<double[]> friction_working_velocities_;
-    double bullet_feeder_working_velocity, bullet_feeder_safe_shot_velocity;
+    double bullet_feeder_working_velocity, bullet_feeder_safe_shot_velocity,
+        bullet_feeder_precise_shot_velocity;
     double bullet_feeder_eject_velocity_, bullet_feeder_deep_eject_velocity_;
     int bullet_feeder_eject_time_, bullet_feeder_deep_eject_time_;
+
+    int single_shot_delayed_stop_counter_ = 0, single_shot_max_stop_delay_;
 
     InputInterface<rmcs_msgs::Switch> switch_right_;
     InputInterface<rmcs_msgs::Switch> switch_left_;
@@ -302,8 +388,15 @@ private:
     int bullet_feeder_jammed_count_   = 0;
     int bullet_feeder_cool_down_      = 0;
 
+    InputInterface<double> bullet_feeder_multi_turn_angle_;
+    double bullet_feeder_angle_per_bullet_, bullet_feeder_angle_per_1_5_bullet_;
+    double bullet_feeder_last_shoot_angle_ = 0;
+
     std::unique_ptr<OutputInterface<double>[]> friction_control_velocities_;
     OutputInterface<double> bullet_feeder_control_velocity_;
+
+    OutputInterface<rmcs_msgs::ShootMode> shoot_mode_;
+    OutputInterface<rmcs_msgs::ShootStatus> shoot_status_;
 };
 
 } // namespace rmcs_core::controller::gimbal

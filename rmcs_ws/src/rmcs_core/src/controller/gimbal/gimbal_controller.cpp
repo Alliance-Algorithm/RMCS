@@ -8,6 +8,7 @@
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/mouse.hpp>
+#include <rmcs_msgs/shoot_mode.hpp>
 #include <rmcs_msgs/switch.hpp>
 
 namespace rmcs_core::controller::gimbal {
@@ -33,6 +34,8 @@ public:
 
         register_input("/gimbal/pitch/angle", gimbal_pitch_angle_);
         register_input("/tf", tf_);
+
+        register_input("/gimbal/shooter/mode", shoot_mode_);
 
         register_input("/gimbal/auto_aim/control_direction", auto_aim_control_direction_, false);
 
@@ -107,10 +110,19 @@ private:
             control_enabled = true;
         }
 
+        auto joystick_sensitivity = 0.006;
+        auto mouse_sensitivity    = 0.5;
+        if (*shoot_mode_ == rmcs_msgs::ShootMode::PRECISE) {
+            joystick_sensitivity = 0.006 / 16;
+            mouse_sensitivity    = 0.5 / 16;
+        }
+
         auto delta_yaw = Eigen::AngleAxisd{
-            0.006 * joystick_left_->y() + 0.5 * mouse_velocity_->y(), Eigen::Vector3d::UnitZ()};
+            joystick_sensitivity * joystick_left_->y() + mouse_sensitivity * mouse_velocity_->y(),
+            Eigen::Vector3d::UnitZ()};
         auto delta_pitch = Eigen::AngleAxisd{
-            -0.006 * joystick_left_->x() - 0.5 * mouse_velocity_->x(), Eigen::Vector3d::UnitY()};
+            -joystick_sensitivity * joystick_left_->x() - mouse_sensitivity * mouse_velocity_->x(),
+            Eigen::Vector3d::UnitY()};
         *dir = delta_pitch * (delta_yaw * (*dir));
     }
 
@@ -156,6 +168,8 @@ private:
 
     InputInterface<double> gimbal_pitch_angle_;
     InputInterface<Tf> tf_;
+
+    InputInterface<rmcs_msgs::ShootMode> shoot_mode_;
 
     InputInterface<Eigen::Vector3d> auto_aim_control_direction_;
 
