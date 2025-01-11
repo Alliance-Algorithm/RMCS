@@ -1,15 +1,23 @@
-#include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/float32_multi_array.hpp"
 #include <algorithm>
 #include <array>
 #include <bit>
 #include <cmath>
 #include <eigen3/Eigen/Dense>
+#include <fstream>
+#include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/switch.hpp>
+
+#include "hardware/device/drag_teach.hpp"
+#include <rosbag2_cpp/reader.hpp>
+#include <rosbag2_cpp/typesupport_helpers.hpp>
+#include <rosbag2_cpp/writer.hpp>
+#include <rosbag2_cpp/writers/sequential_writer.hpp>
+#include <rosbag2_storage/serialized_bag_message.hpp>
 
 namespace rmcs_core::controller::arm {
 class ArmController
@@ -63,6 +71,10 @@ public:
         auto switch_left  = *switch_left_;
         auto mouse        = *mouse_;
 
+        //    RCLCPP_INFO(this->get_logger(),"%f %f %f %f %f
+        //    %f",tes11.read_next_message()[0],tes11.read_next_message()[1],
+        //    tes11.read_next_message()[2],tes11.read_next_message()[3],tes11.read_next_message()[4],tes11.read_next_message()[5]);
+
         auto msg = std_msgs::msg::Float32MultiArray();
         msg.data = {
             static_cast<float>(*theta[0]),
@@ -84,9 +96,22 @@ public:
             (*control_angle)[1] = *theta[1];
             (*control_angle)[0] = *theta[0];
 
+            std::array<double, 6> sample_data = {*theta[0],*theta[1],*theta[2],*theta[3],*theta[4],*theta[5]};
+            test.write_data_to_file(sample_data);
+            
+    
         } else {
             *is_arm_enable = true;
-            // update_dr16_control_theta();
+            // // update_dr16_control_theta();
+            // test.read_data_from_file();
+            // const double* data = test.get_data();
+            // (*control_angle)[5] = data[5];
+            // (*control_angle)[4] = data[4];
+            // (*control_angle)[3] = data[3];
+            // (*control_angle)[2] = data[2];
+            // (*control_angle)[1] = data[1];
+            // (*control_angle)[0] = data[0];
+
             clamp_control_angle();
         }
     }
@@ -97,10 +122,8 @@ private:
         if (param_values.size() == 6) {
             std::copy(param_values.begin(), param_values.end(), target_array.begin());
         }
-    }
-    // void motor_disable(){
-    //     *is_motor_enbale = false;
-    // }
+    };
+
     void update_dr16_control_theta() {
 
         auto switch_right = *switch_right_;
@@ -122,15 +145,19 @@ private:
             if (fabs(joystick_left_->y()) > 0.001)
                 (*control_angle)[0] += 0.001 * joystick_left_->y();
         }
-    }
+    };
 
     void clamp_control_angle() {
         for (int i = 0; i <= 5; i++) {
             (*control_angle)[i] =
                 std::clamp((*control_angle)[i], Joint_Lower_Limit_[i], Joint_Upper_Limit_[i]);
         }
-    }
+    };
+
     bool is_auto_exchange = false;
+
+    Drag test{"/workspaces/RMCS/rmcs_ws/src/rmcs_core/src/test.dat"};
+
 
     rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr subscription_;
     rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr publisher_;
