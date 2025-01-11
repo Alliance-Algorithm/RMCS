@@ -1,0 +1,23 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::controller::dart::DartCamera -> dart_camera
+      - rmcs_core::controller::dart::DartAiming -> dart_aiming
+      # - rmcs_core::controller::dart::MessagePublisher -> message_publisher
+
+dart_camera:
+  ros__parameters:
+    image_show_enable: true
+    invert_image: false
+    exposure_time: 5000
+
+dart_aiming:
+  ros__parameters:
+    image_show_enable: false
+    lowerlimit_H: 50.00
+    lowerlimit_L: 96.00
+    lowerlimit_S: 128.00
+    upperlimit_H: 70.00
+    upperlimit_L: 192.00
+    upperlimit_S: 255.00

@@ -21,6 +21,8 @@ public:
         register_output("/dart/pitch_left/control_angle_error", pitch_left_error_, nan);
         register_output("/dart/pitch_right/control_angle_error", pitch_right_error_, nan);
 
+        register_output("/dart/vision/processed_image", display_image_);
+
         image_show_enable_ = get_parameter("image_show_enable").as_bool();
         lowerlimit[0]      = get_parameter("lowerlimit_H").as_double();
         lowerlimit[1]      = get_parameter("lowerlimit_L").as_double();
@@ -33,9 +35,7 @@ public:
     void update() override {
         camera_image_    = *dart_camera_frame_;
         processed_image_ = image_processing(camera_image_);
-
-        cv::imshow("process_test", processed_image_);
-        cv::waitKey(1);
+        *display_image_  = processed_image_;
     }
 
 private:
@@ -64,6 +64,7 @@ private:
 
     InputInterface<cv::Mat> dart_camera_frame_;
 
+    OutputInterface<cv::Mat> display_image_;
     OutputInterface<double> yaw_error_;
     OutputInterface<double> pitch_left_error_;
     OutputInterface<double> pitch_right_error_;
