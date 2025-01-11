@@ -30,15 +30,15 @@ dart_hardware:
 launcher_controller:
   ros__parameters:
     debug_enable: true
-    conveyor_working_velocity: 100.00
-    friction_working_velocity: 0.00
+    conveyor_working_velocity: 120.00
+    friction_working_velocity: 200.00
 
 conveyor_velocity_pid_controller:
   ros__parameters:
     measurement: /dart/conveyor/velocity
     setpoint: /dart/conveyor/control_velocity
     control: /dart/conveyor/control_torque
-    kp: 0.003436926
+    kp: 0.0034
     ki: 0.00
     kd: 0.009373434
 
@@ -46,33 +46,33 @@ friction_lf_velocity_pid_controller:
   ros__parameters:
     measurement: /dart/friction_lf/control_error
     control: /dart/friction_lf/control_torque
-    kp: 0.003436926
+    kp: 0.016
     ki: 0.00
-    kd: 0.009373434
+    kd: 0.010
 
 friction_rf_velocity_pid_controller:
   ros__parameters:
     measurement: /dart/friction_rf/control_error
     control: /dart/friction_rf/control_torque
-    kp: 0.003436926
+    kp: 0.016
     ki: 0.00
-    kd: 0.009373434
+    kd: 0.010
 
 friction_lb_velocity_pid_controller:
   ros__parameters:
     measurement: /dart/friction_lb/control_error
     control: /dart/friction_lb/control_torque
-    kp: 0.003436926
+    kp: 0.030
     ki: 0.00
-    kd: 0.009373434
+    kd: 0.012
 
 friction_rb_velocity_pid_controller:
   ros__parameters:
     measurement: /dart/friction_rb/control_error
     control: /dart/friction_rb/control_torque
-    kp: 0.003436926
+    kp: 0.030
     ki: 0.00
-    kd: 0.009373434
+    kd: 0.012
 
 friction_front_velocity_sync_controller:
   ros__parameters:

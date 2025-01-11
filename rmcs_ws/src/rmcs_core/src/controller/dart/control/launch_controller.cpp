@@ -1,5 +1,4 @@
 
-#include <chrono>
 #include <cmath>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
@@ -45,8 +44,13 @@ public:
             reset_all_controls();
         } else if (switch_right_ == Switch::MIDDLE) {
             friction_enable_ = (switch_right_ == Switch::DOWN) ? false : true;
-            if (switch_left_ == Switch::MIDDLE)
+            if (switch_left_ == Switch::MIDDLE) {
                 auto_filling();
+            } else if (switch_left_ == Switch::UP) {
+                conveyor_enable_ = 1;
+            } else {
+                conveyor_enable_ = 0;
+            }
             update_motor_velocities();
         } else {
             friction_enable_ = (switch_right_ == Switch::DOWN) ? false : true;
@@ -73,7 +77,18 @@ private:
         *friction_back_control_velocity_  = friction_velocity;
     }
 
-    void auto_filling() {}
+    void auto_filling() {
+        double velocity = *conveyor_velocity_;
+
+        if (velocity == 0 && !reverse_ready_) {
+            reverse_ready_   = true;
+            conveyor_enable_ = -1 * conveyor_enable_ - 0.5;
+        } else if (abs(velocity) >= 10.0) {
+            reverse_ready_ = false;
+        }
+
+        RCLCPP_INFO(logger_, "conveyor:%5.1lf,bool:%5d", conveyor_enable_, reverse_ready_);
+    }
 
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
@@ -85,8 +100,8 @@ private:
     double conveyor_working_velocity_;
 
     bool friction_enable_   = false;
-    bool reverse_ready      = false;
     double conveyor_enable_ = 0;
+    bool reverse_ready_     = false;
 
     OutputInterface<double> conveyor_control_velocity_;
     OutputInterface<double> friction_front_control_velocity_;
@@ -97,8 +112,6 @@ private:
 
     rmcs_msgs::Switch switch_left_  = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Switch switch_right_ = rmcs_msgs::Switch::UNKNOWN;
-
-    std::chrono::steady_clock::time_point stop_time_;
 };
 } // namespace rmcs_core::controller::dart
 
