@@ -1,16 +1,11 @@
 
 #include <eigen3/Eigen/Dense>
 #include <rclcpp/logger.hpp>
-#include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
-#include <rclcpp/node_options.hpp>
-#include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
 #include <switch.hpp>
 
 namespace rmcs_core::controller::dart {
-
-using namespace rmcs_description;
 
 class AngleController
     : public rmcs_executor::Component
@@ -19,50 +14,82 @@ public:
     AngleController()
         : Node(get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , logger_(get_logger()) {
-        yaw_velocity_limit_     = get_parameter("yaw_velocity_limit").as_double();
-        yaw_left_angle_limit_   = get_parameter("yaw_left_angle_limit").as_double();
-        yaw_right_angle_limit_  = get_parameter("yaw_right_angle_limit").as_double();
-        pitch_velocity_limit_   = get_parameter("pitch_velocity_limit").as_double();
-        pitch_up_angle_limit_   = get_parameter("pitch_up_angle_limit").as_double();
-        pitch_down_angle_limit_ = get_parameter("pitch_down_angle_limit").as_double();
 
-        register_input("/remote/switch/right", switch_right_input_);
-        register_input("/remote/switch/left", switch_left_input_);
+        error_reference_value_       = get_parameter("error_reference").as_double();
+        angle_high_control_velocity_ = get_parameter("high_velocity").as_double();
+        angle_low_control_velocity_  = get_parameter("low_velocity").as_double();
+
+        register_input("/remote/switch/right", switch_right_input_, false);
+        register_input("/remote/switch/left", switch_left_input_, false);
+        register_input("/dart/vision/error_vector", error_vector_);
+
+        register_output("/dart/yaw/control_velocity", yaw_control_velocity_, nan);
+        register_output("/dart/pitch/control_velocity", pitch_control_velocity_, nan);
     }
 
     void update() override {
-        using namespace rmcs_msgs;
-
-        switch_left_  = *switch_left_input_;
-        switch_right_ = *switch_right_input_;
-
-        if ((switch_left_ == Switch::UNKNOWN || switch_right_ == Switch::UNKNOWN)
-            || (switch_left_ == Switch::DOWN || switch_right_ == Switch::DOWN)) {
+        update_commands();
+        if (!angle_control_enable_) {
             reset_all_controls();
-        } else {
-            control_enabled_ = true;
-            update_control_errors();
+            return;
         }
+
+        update_control_velocitys();
     }
 
 private:
-    void reset_all_controls() { control_enabled_ = false; }
+    void reset_all_controls() {
+        angle_control_enable_    = false;
+        *yaw_control_velocity_   = nan;
+        *pitch_control_velocity_ = nan;
+    }
 
-    void update_control_errors() {}
+    void update_commands() {
+        using namespace rmcs_msgs;
+        switch_left_  = *switch_left_input_;
+        switch_right_ = *switch_right_input_;
+
+        if (switch_left_ == Switch::UP && switch_right_ == Switch::UP) {
+            angle_control_enable_ = true;
+        } else {
+            angle_control_enable_ = false;
+        }
+    }
+
+    void update_control_velocitys() {
+        double yaw_error   = error_vector_->x();
+        double pitch_error = error_vector_->y();
+
+        if (yaw_error >= error_reference_value_) {
+            *yaw_control_velocity_ = angle_high_control_velocity_;
+        } else {
+            *yaw_control_velocity_ = angle_low_control_velocity_;
+        }
+
+        if (pitch_error >= error_reference_value_) {
+            *pitch_control_velocity_ = angle_high_control_velocity_;
+        } else {
+            *pitch_control_velocity_ = angle_low_control_velocity_;
+        }
+    }
 
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
-
     rclcpp::Logger logger_;
-    bool control_enabled_ = false;
 
-    double yaw_velocity_limit_, pitch_up_angle_limit_, pitch_down_angle_limit_;
-    double pitch_velocity_limit_, yaw_left_angle_limit_, yaw_right_angle_limit_;
+    bool angle_control_enable_      = false;
+    rmcs_msgs::Switch switch_left_  = rmcs_msgs::Switch::UNKNOWN;
+    rmcs_msgs::Switch switch_right_ = rmcs_msgs::Switch::UNKNOWN;
 
+    double error_reference_value_;
+    double angle_high_control_velocity_;
+    double angle_low_control_velocity_;
+
+    InputInterface<Eigen::Vector2d> error_vector_;
     InputInterface<rmcs_msgs::Switch> switch_left_input_;
     InputInterface<rmcs_msgs::Switch> switch_right_input_;
 
-    rmcs_msgs::Switch switch_left_  = rmcs_msgs::Switch::UNKNOWN;
-    rmcs_msgs::Switch switch_right_ = rmcs_msgs::Switch::UNKNOWN;
+    OutputInterface<double> yaw_control_velocity_;
+    OutputInterface<double> pitch_control_velocity_;
 };
 } // namespace rmcs_core::controller::dart
 

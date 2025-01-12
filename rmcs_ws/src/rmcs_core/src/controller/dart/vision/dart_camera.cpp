@@ -9,6 +9,7 @@
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
 #include <thread>
+
 namespace rmcs_core::controller::dart {
 
 class DartCamera
@@ -18,7 +19,7 @@ public:
     DartCamera()
         : Node(get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , logger_(get_logger()) {
-        register_output("/dart/camera/frame", dart_camera_frame_);
+        register_output("/dart/vision/camera_frame", dart_camera_frame_);
 
         image_show_enable_     = get_parameter("image_show_enable").as_bool();
         profile_.invert_image  = get_parameter("invert_image").as_bool();
@@ -70,6 +71,7 @@ private:
     }
 
     rclcpp::Logger logger_;
+
     hikcamera::ImageCapturer::CameraProfile profile_;
     std::unique_ptr<hikcamera::ImageCapturer> capture_;
     bool image_show_enable_ = false;

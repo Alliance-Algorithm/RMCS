@@ -9,15 +9,15 @@ rmcs_executor:
 dart_camera:
   ros__parameters:
     image_show_enable: true
-    invert_image: false
-    exposure_time: 5000
+    invert_image: true
+    exposure_time: 1000
 
 dart_aiming:
   ros__parameters:
     image_show_enable: false
-    lowerlimit_H: 50.00
-    lowerlimit_L: 96.00
-    lowerlimit_S: 128.00
-    upperlimit_H: 70.00
-    upperlimit_L: 192.00
+    lowerlimit_H: 60.00
+    lowerlimit_L: 128.00
+    lowerlimit_S: 60.00
+    upperlimit_H: 80.00
+    upperlimit_L: 196.00
     upperlimit_S: 255.00
