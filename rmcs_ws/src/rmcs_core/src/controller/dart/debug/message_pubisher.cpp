@@ -1,7 +1,13 @@
 
+#include <atomic>
+#include <cmath>
+#include <mutex>
+#include <opencv2/core/mat.hpp>
+#include <opencv2/highgui.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
 #include <std_msgs/msg/string.hpp>
+#include <thread>
 
 namespace rmcs_core::controller::dart {
 
@@ -10,27 +16,45 @@ class MessagePublisher
     , public rclcpp::Node {
 public:
     MessagePublisher()
-        : Node(get_component_name()) {
+        : Node(get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
 
-        debug_mode_ = get_parameter("debug_enable").as_bool();
+        camera_enable_   = get_parameter("camera_enable").as_bool();
+        friction_enable_ = get_parameter("friction_enable").as_bool();
 
-        register_input("/dart/friction_lf/velocity", friction_lf_velocity_);
-        register_input("/dart/friction_lb/velocity", friction_lb_velocity_);
-        register_input("/dart/friction_rb/velocity", friction_rb_velocity_);
-        register_input("/dart/friction_rf/velocity", friction_rf_velocity_);
+        if (friction_enable_) {
+            register_input("/dart/friction_lf/velocity", friction_lf_velocity_);
+            register_input("/dart/friction_lb/velocity", friction_lb_velocity_);
+            register_input("/dart/friction_rb/velocity", friction_rb_velocity_);
+            register_input("/dart/friction_rf/velocity", friction_rf_velocity_);
 
-        publisher_1_ = this->create_publisher<std_msgs::msg::String>("msg_friction_lf_current_velocity_", 10);
-        publisher_2_ = this->create_publisher<std_msgs::msg::String>("msg_friction_lb_current_velocity_", 10);
-        publisher_3_ = this->create_publisher<std_msgs::msg::String>("msg_friction_rb_current_velocity_", 10);
-        publisher_4_ = this->create_publisher<std_msgs::msg::String>("msg_friction_rf_current_velocity_", 10);
-        timer_       = this->create_wall_timer(std::chrono::milliseconds(1), [this]() { this->publish_message(); });
+            publisher_1_ = this->create_publisher<std_msgs::msg::String>("msg_friction_lf_current_velocity_", 10);
+            publisher_2_ = this->create_publisher<std_msgs::msg::String>("msg_friction_lb_current_velocity_", 10);
+            publisher_3_ = this->create_publisher<std_msgs::msg::String>("msg_friction_rb_current_velocity_", 10);
+            publisher_4_ = this->create_publisher<std_msgs::msg::String>("msg_friction_rf_current_velocity_", 10);
+            timer_ = this->create_wall_timer(std::chrono::milliseconds(10), [this]() { this->publish_message(); });
+        }
+
+        if (camera_enable_) {
+            register_input("/dart/vision/display_image", display_image_);
+            display_thread_ = std::thread(&MessagePublisher::image_displayer, this);
+        }
     }
 
     void update() override {
-        msg_friction_lf_current_velocity_.data = std::to_string(*friction_lf_velocity_);
-        msg_friction_lb_current_velocity_.data = std::to_string(*friction_lb_velocity_);
-        msg_friction_rb_current_velocity_.data = std::to_string(*friction_rb_velocity_);
-        msg_friction_rf_current_velocity_.data = std::to_string(*friction_rf_velocity_);
+        if (friction_enable_) {
+            msg_friction_lf_current_velocity_.data = std::to_string(*friction_lf_velocity_);
+            msg_friction_lb_current_velocity_.data = std::to_string(*friction_lb_velocity_);
+            msg_friction_rb_current_velocity_.data = std::to_string(*friction_rb_velocity_);
+            msg_friction_rf_current_velocity_.data = std::to_string(*friction_rf_velocity_);
+
+            // count++;
+            // msg_friction_lb_current_velocity_.data = std::to_string(100 * cos(0.001 * count * std::numbers::pi));
+            // msg_friction_rb_current_velocity_.data = std::to_string(100 * sin(0.001 * count * std::numbers::pi));
+        }
+
+        if (camera_enable_) {
+            lastest_image_ = display_image_->clone();
+        }
     }
 
 private:
@@ -41,23 +65,57 @@ private:
         publisher_4_->publish(msg_friction_rf_current_velocity_);
     }
 
-    bool debug_mode_ = false;
+    void image_displayer() {
+        while (!display_stop_flag_) {
+            cv::Mat camera_display;
+            {
+                std::lock_guard<std::mutex> lock(display_mutex_);
+                if (!lastest_image_.empty()) {
+                    camera_display = lastest_image_;
+                }
+            }
+            if (!camera_display.empty()) {
+                auto now                      = std::chrono::steady_clock::now();
+                static auto last_display_time = now;
+                auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_display_time);
 
-    rclcpp::TimerBase::SharedPtr timer_;
-    rclcpp::Publisher<std_msgs::msg::String>::SharedPtr publisher_1_;
-    rclcpp::Publisher<std_msgs::msg::String>::SharedPtr publisher_2_;
-    rclcpp::Publisher<std_msgs::msg::String>::SharedPtr publisher_3_;
-    rclcpp::Publisher<std_msgs::msg::String>::SharedPtr publisher_4_;
+                if (elapsed_time.count() >= 16) {
+                    cv::imshow("display_image", camera_display);
+                    cv::waitKey(1);
+                    last_display_time = now;
+                }
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+    }
+
+    bool camera_enable_ = false, friction_enable_ = false;
+
+    InputInterface<cv::Mat> display_image_;
+    std::thread display_thread_;
+    std::atomic<bool> display_stop_flag_ = false;
+    std::mutex display_mutex_;
+    cv::Mat lastest_image_;
+
+    InputInterface<double> friction_lf_velocity_;
+    InputInterface<double> friction_lb_velocity_;
+    InputInterface<double> friction_rb_velocity_;
+    InputInterface<double> friction_rf_velocity_;
+
+    std::thread publisher_thread_;
+    std::atomic<bool> publisher_stop_flag_ = false;
+    std::mutex publisher_mutex_;
 
     std_msgs::msg::String msg_friction_lf_current_velocity_;
     std_msgs::msg::String msg_friction_lb_current_velocity_;
     std_msgs::msg::String msg_friction_rb_current_velocity_;
     std_msgs::msg::String msg_friction_rf_current_velocity_;
 
-    InputInterface<double> friction_lf_velocity_;
-    InputInterface<double> friction_lb_velocity_;
-    InputInterface<double> friction_rb_velocity_;
-    InputInterface<double> friction_rf_velocity_;
+    rclcpp::TimerBase::SharedPtr timer_;
+    rclcpp::Publisher<std_msgs::msg::String>::SharedPtr publisher_1_;
+    rclcpp::Publisher<std_msgs::msg::String>::SharedPtr publisher_2_;
+    rclcpp::Publisher<std_msgs::msg::String>::SharedPtr publisher_3_;
+    rclcpp::Publisher<std_msgs::msg::String>::SharedPtr publisher_4_;
 };
 
 } // namespace rmcs_core::controller::dart

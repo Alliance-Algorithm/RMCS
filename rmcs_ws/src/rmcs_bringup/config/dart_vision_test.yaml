@@ -4,7 +4,12 @@ rmcs_executor:
     components:
       - rmcs_core::controller::dart::DartCamera -> dart_camera
       - rmcs_core::controller::dart::DartAiming -> dart_aiming
-      # - rmcs_core::controller::dart::MessagePublisher -> message_publisher
+      - rmcs_core::controller::dart::MessagePublisher -> message_publisher
+
+message_publisher:
+  ros__parameters:
+    camera_enable: true
+    friction_enable: false
 
 dart_camera:
   ros__parameters:
