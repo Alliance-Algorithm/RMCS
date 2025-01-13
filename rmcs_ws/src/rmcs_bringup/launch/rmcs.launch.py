@@ -46,10 +46,11 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
                 ],
                 respawn=True,
                 respawn_delay=1.0,
+                output="screen",
             )
         )
 
-        if (is_automatic):
+        if is_automatic:
             pass
 
         return entities
