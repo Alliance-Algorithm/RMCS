@@ -3,7 +3,9 @@
 #include <cmath>
 #include <mutex>
 #include <opencv2/core/mat.hpp>
+#include <opencv2/core/types.hpp>
 #include <opencv2/highgui.hpp>
+#include <opencv2/opencv.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
 #include <std_msgs/msg/string.hpp>
@@ -53,7 +55,10 @@ public:
         }
 
         if (camera_enable_) {
-            lastest_image_ = display_image_->clone();
+            lastest_image_              = display_image_->clone();
+            cv::Point2d yaw_center_top  = cv::Point2d(lastest_image_.cols / 2.0, 0);
+            cv::Point2d yaw_center_down = cv::Point2d(lastest_image_.cols / 2.0, lastest_image_.cols);
+            cv::line(lastest_image_, yaw_center_top, yaw_center_down, cv::Scalar(255, 0, 255), 1);
         }
     }
 

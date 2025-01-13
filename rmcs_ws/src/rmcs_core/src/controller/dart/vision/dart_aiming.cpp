@@ -1,5 +1,6 @@
 
 #include <eigen3/Eigen/Dense>
+#include <eigen3/Eigen/src/Core/Matrix.h>
 #include <opencv2/core/mat.hpp>
 #include <opencv2/core/types.hpp>
 #include <opencv2/highgui.hpp>
@@ -18,7 +19,10 @@ class DartAiming
 public:
     DartAiming()
         : Node(get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , logger_(get_logger()) {
+        , logger_(get_logger())
+        , yaw_aim_position_(get_parameter("yaw_aim_position").as_double())
+        , pitch_aim_position_(get_parameter("pitch_aim_position").as_double()) {
+
         register_input("/dart/vision/camera_frame", dart_camera_frame_);
         register_output("/dart/vision/display_image", display_image_);
 
@@ -35,11 +39,12 @@ public:
     void update() override {
         camera_image_ = *dart_camera_frame_;
         identifier(camera_image_);
+
+        error_vector_->x() = target_position_.x - yaw_aim_position_;
+        error_vector_->y() = target_position_.y - pitch_aim_position_;
     }
 
 private:
-    void update_errors() {}
-
     void identifier(const cv::Mat& camera_image_) {
         processed_image_ = image_processing(camera_image_);
 
@@ -47,21 +52,36 @@ private:
         std::vector<cv::Vec4i> hierarchy;
         cv::findContours(processed_image_, contours, hierarchy, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
 
-        cv::Mat display = camera_image_.clone();
+        cv::Mat display   = camera_image_.clone();
+        int target_number = 0;
         for (const auto& contour : contours) {
-            cv::RotatedRect minRect = cv::minAreaRect(contour);
+            double area = cv::contourArea(contour);
 
+            if (area < 16)
+                continue;
+            else
+                target_number++;
+
+            cv::RotatedRect minRect = cv::minAreaRect(contour);
             cv::Point2f rectPoints[4];
             minRect.points(rectPoints);
 
             for (int i = 0; i < 4; i++) {
                 cv::line(display, rectPoints[i], rectPoints[(i + 1) % 4], cv::Scalar(255, 0, 255), 1);
             }
-
-            target_position_ = minRect.center;
-            cv::circle(display, target_position_, 2, cv::Scalar(0, 0, 255), -1);
-            RCLCPP_INFO(logger_, "(%lf,%lf)", target_position_.x, target_position_.y);
+            if (target_number == 1) {
+                target_position_ = minRect.center;
+                cv::circle(display, target_position_, 2, cv::Scalar(255, 0, 255), -1);
+            }
         }
+
+        /*
+            TODO: 当检测到多个目标的处理代码
+        */
+
+        RCLCPP_INFO(
+            logger_, "contours:%zu,target:%d,position:(%d,%d),error:(%lf,%lf)", contours.size(), target_number,
+            target_position_.x, target_position_.y, error_vector_->x(), error_vector_->y());
 
         *display_image_ = display;
     }
@@ -91,7 +111,9 @@ private:
 
     cv::Mat camera_image_;
     cv::Mat processed_image_;
-    cv::Point2d target_position_;
+    cv::Point target_position_;
+    const double yaw_aim_position_;
+    const double pitch_aim_position_;
 
     InputInterface<cv::Mat> dart_camera_frame_;
 

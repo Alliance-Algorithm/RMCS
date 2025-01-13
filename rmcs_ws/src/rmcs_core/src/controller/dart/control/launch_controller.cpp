@@ -29,6 +29,7 @@ public:
         register_input("/dart/conveyor/velocity", conveyor_velocity_);
         register_input("/remote/switch/right", switch_right_input_, false);
         register_input("/remote/switch/left", switch_left_input_, false);
+
         register_output("/dart/conveyor/control_velocity", conveyor_control_velocity_, nan);
         register_output("/dart/friction_front/control_velocity", friction_front_control_velocity_, nan);
         register_output("/dart/friction_back/control_velocity", friction_back_control_velocity_, nan);
@@ -74,7 +75,7 @@ private:
 
         *conveyor_control_velocity_       = conveyor_velocity;
         *friction_front_control_velocity_ = friction_velocity;
-        *friction_back_control_velocity_  = friction_velocity;
+        *friction_back_control_velocity_  = friction_velocity + 50;
     }
 
     void auto_filling() {

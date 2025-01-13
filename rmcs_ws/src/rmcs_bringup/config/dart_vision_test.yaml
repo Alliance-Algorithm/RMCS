@@ -24,5 +24,7 @@ dart_aiming:
     lowerlimit_L: 128.00
     lowerlimit_S: 60.00
     upperlimit_H: 80.00
-    upperlimit_L: 196.00
+    upperlimit_L: 160.00
     upperlimit_S: 255.00
+    yaw_aim_position: 720.00
+    pitch_aim_position: 120.00
