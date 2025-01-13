@@ -46,13 +46,13 @@ public:
         register_input("/chassis/angle", chassis_angle_);
         register_input("/chassis/control_angle", chassis_control_angle_);
 
-        // register_input("/chassis/supercap/voltage", supercap_voltage_);
-        // register_input("/chassis/supercap/enabled", supercap_enabled_);
+        register_input("/chassis/supercap/voltage", supercap_voltage_);
+        register_input("/chassis/supercap/enabled", supercap_enabled_);
 
-        // register_input("/chassis/voltage", chassis_voltage_);
-        // register_input("/chassis/power", chassis_power_);
+        register_input("/chassis/voltage", chassis_voltage_);
+        register_input("/chassis/power", chassis_power_);
         register_input("/chassis/control_power_limit", chassis_control_power_limit_);
-        // register_input("/chassis/supercap/charge_power_limit", supercap_charge_power_limit_);
+        register_input("/chassis/supercap/charge_power_limit", supercap_charge_power_limit_);
 
         register_input("/chassis/left_front_wheel/velocity", left_front_velocity_);
         register_input("/chassis/left_back_wheel/velocity", left_back_velocity_);
@@ -76,16 +76,16 @@ public:
         update_chassis_direction_indicator();
 
         chassis_control_power_limit_indicator_.set_value(*chassis_control_power_limit_);
-        // supercap_control_power_limit_indicator_.set_value(*supercap_charge_power_limit_);
+        supercap_control_power_limit_indicator_.set_value(*supercap_charge_power_limit_);
 
-        // chassis_power_number_.set_value(*chassis_power_);
+        chassis_power_number_.set_value(*chassis_power_);
 
         status_ring_.update_bullet_allowance(*robot_bullet_allowance_);
         status_ring_.update_friction_wheel_speed(
             std::min(*left_friction_velocity_, *right_friction_velocity_),
             *left_friction_control_velocity_ > 0);
-        // status_ring_.update_supercap(*supercap_voltage_, *supercap_enabled_);
-        // status_ring_.update_battery_power(*chassis_voltage_);
+        status_ring_.update_supercap(*supercap_voltage_, *supercap_enabled_);
+        status_ring_.update_battery_power(*chassis_voltage_);
 
         status_ring_.update_auto_aim_enable(mouse_->right == 1);
     }
@@ -136,13 +136,13 @@ private:
     InputInterface<rmcs_msgs::ChassisMode> chassis_mode_;
     InputInterface<double> chassis_angle_, chassis_control_angle_;
 
-    // InputInterface<double> supercap_voltage_;
-    // InputInterface<bool> supercap_enabled_;
+    InputInterface<double> supercap_voltage_;
+    InputInterface<bool> supercap_enabled_;
 
-    // InputInterface<double> chassis_voltage_;
-    // InputInterface<double> chassis_power_;
+    InputInterface<double> chassis_voltage_;
+    InputInterface<double> chassis_power_;
     InputInterface<double> chassis_control_power_limit_;
-    // InputInterface<double> supercap_charge_power_limit_;
+    InputInterface<double> supercap_charge_power_limit_;
 
     InputInterface<double> left_front_velocity_, left_back_velocity_, right_back_velocity_,
         right_front_velocity_;

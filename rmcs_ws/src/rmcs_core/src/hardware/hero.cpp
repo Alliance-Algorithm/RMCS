@@ -12,6 +12,7 @@
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/lk_motor.hpp"
+#include "hardware/device/supercap.hpp"
 
 namespace rmcs_core::hardware {
 
@@ -209,6 +210,7 @@ private:
                    device::DjiMotor::Config{device::DjiMotor::Type::M3508}},
                   {hero, hero_command, "/chassis/right_front_wheel",
                    device::DjiMotor::Config{device::DjiMotor::Type::M3508}})
+            , supercap_(hero, hero_command)
             , gimbal_yaw_motor_(
                   hero, hero_command, "/gimbal/yaw",
                   device::LkMotor::Config{device::LkMotor::Type::MG5010E_I10}
@@ -244,6 +246,8 @@ private:
             for (auto& motor : chassis_wheel_motors_)
                 motor.update_status();
 
+            supercap_.update_status();
+
             gimbal_yaw_motor_.update_status();
             tf_->set_state<rmcs_description::GimbalCenterLink, rmcs_description::YawLink>(
                 gimbal_yaw_motor_.angle());
@@ -270,6 +274,12 @@ private:
             transmit_buffer_.add_can2_transmission(
                 0x141, gimbal_yaw_motor_.generate_velocity_command(
                            gimbal_yaw_motor_.control_velocity() - bmi088_.gz()));
+
+            batch_commands[0] = 0;
+            batch_commands[1] = 0;
+            batch_commands[2] = 0;
+            batch_commands[3] = supercap_.generate_command();
+            transmit_buffer_.add_can2_transmission(0x1FE, std::bit_cast<uint64_t>(batch_commands));
 
             transmit_buffer_.trigger_transmission();
         }
@@ -302,6 +312,8 @@ private:
 
             if (can_id == 0x141) {
                 gimbal_yaw_motor_.store_status(can_data);
+            } else if (can_id == 0x300) {
+                supercap_.store_status(can_data);
             }
         }
 
@@ -328,6 +340,7 @@ private:
         device::Dr16 dr16_;
 
         device::DjiMotor chassis_wheel_motors_[4];
+        device::Supercap supercap_;
 
         device::LkMotor gimbal_yaw_motor_;
 
