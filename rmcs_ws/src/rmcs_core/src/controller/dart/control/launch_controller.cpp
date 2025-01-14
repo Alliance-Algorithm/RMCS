@@ -17,6 +17,7 @@ public:
         : Node(get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , logger_(get_logger()) {
         conveyor_working_velocity_ = get_parameter("conveyor_working_velocity").as_double();
+        error_velocity_            = get_parameter("error_velocity").as_double();
 
         auto parameter = get_parameter("friction_working_velocity");
         if (parameter.get_type() == rclcpp::ParameterType::PARAMETER_DOUBLE) {
@@ -75,7 +76,7 @@ private:
 
         *conveyor_control_velocity_       = conveyor_velocity;
         *friction_front_control_velocity_ = friction_velocity;
-        *friction_back_control_velocity_  = friction_velocity + 50;
+        *friction_back_control_velocity_  = friction_velocity + error_velocity_;
     }
 
     void auto_filling() {
@@ -99,6 +100,7 @@ private:
     InputInterface<double> conveyor_velocity_;
     double parameter_immediate_value_;
     double conveyor_working_velocity_;
+    double error_velocity_;
 
     bool friction_enable_   = false;
     double conveyor_enable_ = 0;

@@ -21,7 +21,7 @@ rmcs_executor:
       
       # - rmcs_core::controller::dart::VisualGuidance -> visual_guidance
       # - rmcs_core::controller::dart::ImageSubscriber -> image_subscriber
-      # - rmcs_core::controller::dart::MessagePublisher -> message_publisher
+      - rmcs_core::controller::dart::MessagePublisher -> message_publisher
 
 dart_hardware:
   ros__parameters:
@@ -31,7 +31,8 @@ launcher_controller:
   ros__parameters:
     debug_enable: true
     conveyor_working_velocity: 120.00
-    friction_working_velocity: 200.00
+    friction_working_velocity: 400.00
+    error_velocity: 200.00
 
 conveyor_velocity_pid_controller:
   ros__parameters:
@@ -46,33 +47,33 @@ friction_lf_velocity_pid_controller:
   ros__parameters:
     measurement: /dart/friction_lf/control_error
     control: /dart/friction_lf/control_torque
-    kp: 0.016
+    kp: 500.0
     ki: 0.00
-    kd: 0.010
+    kd: 0.00
 
 friction_rf_velocity_pid_controller:
   ros__parameters:
     measurement: /dart/friction_rf/control_error
     control: /dart/friction_rf/control_torque
-    kp: 0.016
+    kp: 500.0
     ki: 0.00
-    kd: 0.010
+    kd: 0.00
 
 friction_lb_velocity_pid_controller:
   ros__parameters:
     measurement: /dart/friction_lb/control_error
     control: /dart/friction_lb/control_torque
-    kp: 0.030
-    ki: 0.00
-    kd: 0.012
+    kp: 5000.0
+    ki: 0.0
+    kd: 0.0
 
 friction_rb_velocity_pid_controller:
   ros__parameters:
     measurement: /dart/friction_rb/control_error
     control: /dart/friction_rb/control_torque
-    kp: 0.030
-    ki: 0.00
-    kd: 0.012
+    kp: 5000.0
+    ki: 0.0
+    kd: 0.0
 
 friction_front_velocity_sync_controller:
   ros__parameters:
@@ -81,7 +82,7 @@ friction_front_velocity_sync_controller:
     motor1_control_error: /dart/friction_lf/control_error
     motor2_measurement: /dart/friction_rf/velocity
     motor2_control_error: /dart/friction_rf/control_error
-    sync_compensation: 0.5
+    sync_compensation: 0.3
     error_integral_compensation: 0.00
     log_enable: false
 
@@ -92,7 +93,7 @@ friction_back_velocity_sync_controller:
     motor1_control_error: /dart/friction_lb/control_error
     motor2_measurement: /dart/friction_rb/velocity
     motor2_control_error: /dart/friction_rb/control_error
-    sync_compensation: 0.8
+    sync_compensation: 0.00
     error_integral_compensation: 0.00
     log_enable: false
 
@@ -155,4 +156,5 @@ dart_aiming:
 
 message_publisher:
   ros__parameters:
-    debug_enable: false
+    camera_enable: false
+    friction_enable: true

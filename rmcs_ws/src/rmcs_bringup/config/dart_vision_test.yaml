@@ -2,8 +2,8 @@ rmcs_executor:
   ros__parameters:
     update_rate: 1000.0
     components:
-      - rmcs_core::controller::dart::DartCamera -> dart_camera
-      - rmcs_core::controller::dart::DartAiming -> dart_aiming
+      # - rmcs_core::controller::dart::DartCamera -> dart_camera
+      # - rmcs_core::controller::dart::DartAiming -> dart_aiming
       - rmcs_core::controller::dart::MessagePublisher -> message_publisher
 
 message_publisher:
