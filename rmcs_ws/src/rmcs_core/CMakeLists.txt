@@ -32,7 +32,8 @@ target_link_libraries(${PROJECT_NAME} -lusb-1.0)
 target_link_libraries(${PROJECT_NAME} ${rosbag2_cpp_LIBRARIES})
 file(GLOB DAT_FILES "${CMAKE_SOURCE_DIR}/src/*.dat")
 
-install(FILES ${DAT_FILES} DESTINATION share/${PROJECT_NAME}/)
+install(FILES ${DAT_FILES}
+        DESTINATION share/${PROJECT_NAME})
 
 
 

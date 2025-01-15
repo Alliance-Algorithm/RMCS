@@ -1,3 +1,5 @@
+#include "hardware/device/Kinematic.hpp"
+#include "hardware/device/drag_teach.hpp"
 #include "std_msgs/msg/float32_multi_array.hpp"
 #include <algorithm>
 #include <array>
@@ -11,13 +13,6 @@
 #include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/switch.hpp>
-
-#include "hardware/device/drag_teach.hpp"
-#include <rosbag2_cpp/reader.hpp>
-#include <rosbag2_cpp/typesupport_helpers.hpp>
-#include <rosbag2_cpp/writer.hpp>
-#include <rosbag2_cpp/writers/sequential_writer.hpp>
-#include <rosbag2_storage/serialized_bag_message.hpp>
 
 namespace rmcs_core::controller::arm {
 class ArmController
@@ -71,10 +66,6 @@ public:
         auto switch_left  = *switch_left_;
         auto mouse        = *mouse_;
 
-        //    RCLCPP_INFO(this->get_logger(),"%f %f %f %f %f
-        //    %f",tes11.read_next_message()[0],tes11.read_next_message()[1],
-        //    tes11.read_next_message()[2],tes11.read_next_message()[3],tes11.read_next_message()[4],tes11.read_next_message()[5]);
-
         auto msg = std_msgs::msg::Float32MultiArray();
         msg.data = {
             static_cast<float>(*theta[0]),
@@ -96,15 +87,24 @@ public:
             (*control_angle)[1] = *theta[1];
             (*control_angle)[0] = *theta[0];
 
-            std::array<double, 6> sample_data = {*theta[0],*theta[1],*theta[2],*theta[3],*theta[4],*theta[5]};
-            test.write_data_to_file(sample_data);
-            
-    
+            tegdg.positive_kinematic();
+            RCLCPP_INFO(
+                this->get_logger(), "%f %f %f %f %f %f", tegdg.get_x(), tegdg.get_y(),
+                tegdg.get_z(), tegdg.get_roll(), tegdg.get_pitch(), tegdg.get_yaw());
+            // std::array<double, 6> sample_data =
+            // {*theta[0],*theta[1],*theta[2],*theta[3],*theta[4],*theta[5]};
+            // test.write_data_to_file(sample_data);
+            // RCLCPP_INFO(this->get_logger(),"%f %f %f %f %f
+            // %f",*theta[5],*theta[4],*theta[3],*theta[2],*theta[1],*theta[0]);
+
         } else {
             *is_arm_enable = true;
             // // update_dr16_control_theta();
+
             // test.read_data_from_file();
             // const double* data = test.get_data();
+            // RCLCPP_INFO(this->get_logger(),"%f %f %f %f %f
+            // %f",data[0],data[1],data[2],data[3],data[4],data[5]);
             // (*control_angle)[5] = data[5];
             // (*control_angle)[4] = data[4];
             // (*control_angle)[3] = data[3];
@@ -156,8 +156,7 @@ private:
 
     bool is_auto_exchange = false;
 
-    Drag test{"/workspaces/RMCS/rmcs_ws/src/rmcs_core/src/test.dat"};
-
+    Drag test{"1es12t.dat"};
 
     rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr subscription_;
     rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr publisher_;
@@ -176,8 +175,9 @@ private:
 
     OutputInterface<bool> is_arm_enable;
     OutputInterface<std::array<double, 6>> control_angle;
-
     InputInterface<double> theta[6]; // motor_current_angle
+
+    hardware::device::Kinematic tegdg{*this};
 };
 } // namespace rmcs_core::controller::arm
 #include <pluginlib/class_list_macros.hpp>

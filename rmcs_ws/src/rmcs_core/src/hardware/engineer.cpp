@@ -41,7 +41,7 @@ public:
                 .set_gear_ratio(1.35)
                 .set_encoder_zero_point(
                     static_cast<uint16_t>(get_parameter("joint5_zero_point").as_int())),
-            DHConfig{0, 0, 1.5707963, 1.5707963});
+            DHConfig{0, 0, 1.5707963, 0});
         joint[3].configure_joint(
             LKMotorConfig{LKMotorType::MG4010E_i36V3}.set_encoder_zero_point(
                 static_cast<int16_t>(get_parameter("joint4_zero_point").as_int())),
