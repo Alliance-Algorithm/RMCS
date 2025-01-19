@@ -30,6 +30,7 @@ public:
         register_input("/remote/mouse/velocity", mouse_velocity_);
         register_input("/remote/mouse", mouse_);
         register_input("/remote/keyboard", keyboard_);
+        register_input("/remote/rotary_knob", rotary_knob_);
 
         register_input("/gimbal/yaw/angle", gimbal_yaw_angle_, false);
         register_input("/gimbal/yaw/control_angle_error", gimbal_yaw_angle_error_, false);
@@ -249,7 +250,7 @@ public:
 
     void update_power_limit_control() {
         if (!supercap_switch_cooling_) {
-            bool enable = keyboard_->shift;
+            bool enable = keyboard_->shift || *rotary_knob_ < -0.9;
             if (*supercap_control_enabled_ != enable) {
                 *supercap_control_enabled_ = enable;
                 supercap_switch_cooling_   = 500;
@@ -322,6 +323,7 @@ private:
     InputInterface<Eigen::Vector2d> mouse_velocity_;
     InputInterface<rmcs_msgs::Mouse> mouse_;
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
+    InputInterface<double> rotary_knob_;
 
     rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Switch last_switch_left_  = rmcs_msgs::Switch::UNKNOWN;
