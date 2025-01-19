@@ -28,13 +28,13 @@ public:
               create_partner_component<InfantryCommand>(get_component_name() + "_command", *this))
         , transmit_buffer_(*this, 32)
         , event_thread_([this]() { handle_events(); }) {
-        using namespace device;
 
         for (auto& motor : chassis_wheel_motors_)
-            motor.configure(device::DjiMotor::Config{device::DjiMotor::Type::M3508}
-                                .set_reversed()
-                                .set_reduction_ratio(13.)
-                                .enable_multi_turn_angle());
+            motor.configure(
+                device::DjiMotor::Config{device::DjiMotor::Type::M3508}
+                    .set_reversed()
+                    .set_reduction_ratio(13.)
+                    .enable_multi_turn_angle());
 
         gimbal_yaw_motor_.configure(
             device::DjiMotor::Config{device::DjiMotor::Type::GM6020}.set_encoder_zero_point(
@@ -45,9 +45,10 @@ public:
 
         gimbal_left_friction_.configure(
             device::DjiMotor::Config{device::DjiMotor::Type::M3508}.set_reduction_ratio(1.));
-        gimbal_right_friction_.configure(device::DjiMotor::Config{device::DjiMotor::Type::M3508}
-                                             .set_reversed()
-                                             .set_reduction_ratio(1.));
+        gimbal_right_friction_.configure(
+            device::DjiMotor::Config{device::DjiMotor::Type::M3508}
+                .set_reversed()
+                .set_reduction_ratio(1.));
         gimbal_bullet_feeder_.configure(
             device::DjiMotor::Config{device::DjiMotor::Type::M2006}.enable_multi_turn_angle());
 
@@ -86,13 +87,8 @@ public:
                 [&buffer](std::byte byte) { *buffer++ = byte; }, size);
         };
         referee_serial_->write = [this](const std::byte* buffer, size_t size) {
-            while (uint8_t transmit_length = size > 15ul ? (uint8_t)15 : (uint8_t)size) {
-                if (!transmit_buffer_.add_uart1_transmission(buffer, transmit_length))
-                    break;
-                buffer += transmit_length;
-                size -= transmit_length;
-            }
-            return size; // TODO
+            transmit_buffer_.add_uart1_transmission(buffer, size);
+            return size;
         };
     }
 
