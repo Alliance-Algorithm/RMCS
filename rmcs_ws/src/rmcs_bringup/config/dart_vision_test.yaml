@@ -2,19 +2,20 @@ rmcs_executor:
   ros__parameters:
     update_rate: 1000.0
     components:
-      # - rmcs_core::controller::dart::DartCamera -> dart_camera
-      # - rmcs_core::controller::dart::DartAiming -> dart_aiming
+      # - rmcs_core::controller::dart::AngleController -> angle_controller
+      - rmcs_core::controller::dart::DartCamera -> dart_camera
+      - rmcs_core::controller::dart::DartAiming -> dart_aiming
       - rmcs_core::controller::dart::MessagePublisher -> message_publisher
 
-message_publisher:
+angle_controller:
   ros__parameters:
-    camera_enable: true
-    friction_enable: false
+    error_reference: 25.00
+    control_velocity_limit: 30
 
 dart_camera:
   ros__parameters:
     image_show_enable: true
-    invert_image: true
+    invert_image: false
     exposure_time: 1000
 
 dart_aiming:
@@ -28,3 +29,8 @@ dart_aiming:
     upperlimit_S: 255.00
     yaw_aim_position: 720.00
     pitch_aim_position: 120.00
+
+message_publisher:
+  ros__parameters:
+    camera_enable: true
+    friction_enable: false

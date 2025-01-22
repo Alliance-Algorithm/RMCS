@@ -1,11 +1,13 @@
 
 #include <atomic>
+#include <chrono>
 #include <cmath>
 #include <mutex>
 #include <opencv2/core/mat.hpp>
 #include <opencv2/core/types.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/opencv.hpp>
+#include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
 #include <std_msgs/msg/string.hpp>
@@ -60,6 +62,8 @@ public:
             cv::Point2d yaw_center_down = cv::Point2d(lastest_image_.cols / 2.0, lastest_image_.cols);
             cv::line(lastest_image_, yaw_center_top, yaw_center_down, cv::Scalar(255, 0, 255), 1);
         }
+
+        calc_fps();
     }
 
 private:
@@ -93,6 +97,17 @@ private:
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
     }
+
+    void calc_fps() {
+        auto time_now = std::chrono::steady_clock::now();
+
+        long delta_time  = std::chrono::duration_cast<std::chrono::microseconds>(time_now - last_time_point_).count();
+        last_time_point_ = time_now;
+
+        long fps = 1000000 / delta_time;
+        RCLCPP_INFO(get_logger(), "fps:%10.3ld,delta_time:%10.3ld", fps, delta_time);
+    }
+    std::chrono::steady_clock::time_point last_time_point_;
 
     bool camera_enable_ = false, friction_enable_ = false;
 

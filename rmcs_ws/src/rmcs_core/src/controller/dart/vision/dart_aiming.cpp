@@ -75,13 +75,11 @@ private:
             }
         }
 
-        /*
-            TODO: 当检测到多个目标的处理代码
-        */
+        //   TODO: 当检测到多个目标的处理代码
 
-        RCLCPP_INFO(
-            logger_, "contours:%zu,target:%d,position:(%d,%d),error:(%lf,%lf)", contours.size(), target_number,
-            target_position_.x, target_position_.y, error_vector_->x(), error_vector_->y());
+        // RCLCPP_INFO(
+        //     logger_, "contours:%zu,target:%d,position:(%d,%d),error:(%lf,%lf)", contours.size(), target_number,
+        //     target_position_.x, target_position_.y, error_vector_->x(), error_vector_->y());
 
         *display_image_ = display;
     }
