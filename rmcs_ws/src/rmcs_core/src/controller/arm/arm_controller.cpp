@@ -7,6 +7,7 @@
 #include <cmath>
 #include <eigen3/Eigen/Dense>
 #include <fstream>
+#include <numbers>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
@@ -23,8 +24,6 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
-        load_limit_parameter("Joint_Upper_Limit", Joint_Upper_Limit_);
-        load_limit_parameter("Joint_Lower_Limit", Joint_Lower_Limit_);
 
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
@@ -40,11 +39,18 @@ public:
         register_input("/arm/Joint2/theta", theta[1]);
         register_input("/arm/Joint1/theta", theta[0]);
 
+        register_output("/arm/Joint6/target_theta", target_theta[5],nan);
+        register_output("/arm/Joint5/target_theta", target_theta[4],nan);
+        register_output("/arm/Joint4/target_theta", target_theta[3],nan);
+        register_output("/arm/Joint3/target_theta", target_theta[2],nan);
+        register_output("/arm/Joint2/target_theta", target_theta[1],nan);
+        register_output("/arm/Joint1/target_theta", target_theta[0],nan);
+
         register_output("/arm/enable_flag", is_arm_enable, true);
 
-        std::array<double, 6> control_angle_ = {nan, nan, nan, nan, nan, nan};
-        register_output("/arm/control_angle", control_angle, control_angle_);
-
+        //std::array<double, 6> *target_theta_inital_value = {nan, nan, nan, nan, nan, nan};
+        // register_output("/arm*target_theta",*target_theta, *target_theta_inital_value);
+        // auto exchange
         publisher_ =
             create_publisher<std_msgs::msg::Float32MultiArray>("/engineer/joint/measure", 10);
 
@@ -52,12 +58,12 @@ public:
             "/engineer/joint/control", 10,
             [this](const std_msgs::msg::Float32MultiArray::SharedPtr msg) {
                 if (msg->data.size() == 6) {
-                    (*control_angle)[0] = static_cast<double>(msg->data[0]);
-                    (*control_angle)[1] = -static_cast<double>(msg->data[1]);
-                    (*control_angle)[2] = -static_cast<double>(msg->data[2]) + std::numbers::pi / 2;
-                    (*control_angle)[3] = static_cast<double>(msg->data[3]);
-                    (*control_angle)[4] = static_cast<double>(msg->data[4]);
-                    (*control_angle)[5] = static_cast<double>(msg->data[5]);
+                    *target_theta[0] = static_cast<double>(msg->data[0]);
+                    *target_theta[1] = -static_cast<double>(msg->data[1]);
+                    *target_theta[2] = -static_cast<double>(msg->data[2]) + std::numbers::pi / 2;
+                    *target_theta[3] = static_cast<double>(msg->data[3]);
+                    *target_theta[4] = static_cast<double>(msg->data[4]);
+                    *target_theta[5] = static_cast<double>(msg->data[5]);
                 }
             });
     }
@@ -80,17 +86,18 @@ public:
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
             *is_arm_enable      = false;
-            (*control_angle)[5] = *theta[5];
-            (*control_angle)[4] = *theta[4];
-            (*control_angle)[3] = *theta[3];
-            (*control_angle)[2] = *theta[2];
-            (*control_angle)[1] = *theta[1];
-            (*control_angle)[0] = *theta[0];
-
-            tegdg.positive_kinematic();
-            RCLCPP_INFO(
-                this->get_logger(), "%f %f %f %f %f %f", tegdg.get_x(), tegdg.get_y(),
-                tegdg.get_z(), tegdg.get_roll(), tegdg.get_pitch(), tegdg.get_yaw());
+            *target_theta[5] = *theta[5];
+            *target_theta[4] = *theta[4];
+            *target_theta[3] = *theta[3];
+            *target_theta[2] = *theta[2];
+            *target_theta[1] = *theta[1];
+            *target_theta[0] = *theta[0];
+            // std::array<double, 6> angle = tegdg.inverse_kinematic(0.256,0.242,0.479, 1.627, -0.0853 , 1.378);
+            // RCLCPP_INFO(this->get_logger(),"%f %f %f %f %f %f",angle[0]*180/std::numbers::pi,angle[1]*180/std::numbers::pi,angle[2]*180/std::numbers::pi,angle[3]*180/std::numbers::pi,angle[4]*180/std::numbers::pi,angle[5]*180/std::numbers::pi);
+            // RCLCPP_INFO(
+            //     this->get_logger(), "%f %f %f %f %f %f", tegdg.get_x(), tegdg.get_y(),
+            //     tegdg.get_z(), tegdg.get_roll(), tegdg.get_pitch(), tegdg.get_yaw());
+            // RCLCPP_INFO(this->get_logger()," %f %f %f",*theta[0],*theta[1],*theta[2]);
             // std::array<double, 6> sample_data =
             // {*theta[0],*theta[1],*theta[2],*theta[3],*theta[4],*theta[5]};
             // test.write_data_to_file(sample_data);
@@ -99,31 +106,24 @@ public:
 
         } else {
             *is_arm_enable = true;
-            // // update_dr16_control_theta();
+            update_dr16_control_theta();
 
             // test.read_data_from_file();
             // const double* data = test.get_data();
             // RCLCPP_INFO(this->get_logger(),"%f %f %f %f %f
             // %f",data[0],data[1],data[2],data[3],data[4],data[5]);
-            // (*control_angle)[5] = data[5];
-            // (*control_angle)[4] = data[4];
-            // (*control_angle)[3] = data[3];
-            // (*control_angle)[2] = data[2];
-            // (*control_angle)[1] = data[1];
-            // (*control_angle)[0] = data[0];
+            // *target_theta[5] = data[5];
+            // *target_theta[4] = data[4];
+            // *target_theta[3] = data[3];
+            // *target_theta[2] = data[2];
+            // *target_theta[1] = data[1];
+            // *target_theta[0] = data[0];
 
-            clamp_control_angle();
         }
     }
 
 private:
-    void load_limit_parameter(const std::string& param_name, std::array<double, 6>& target_array) {
-        std::vector<double> param_values = this->get_parameter(param_name).as_double_array();
-        if (param_values.size() == 6) {
-            std::copy(param_values.begin(), param_values.end(), target_array.begin());
-        }
-    };
-
+   
     void update_dr16_control_theta() {
 
         auto switch_right = *switch_right_;
@@ -131,40 +131,31 @@ private:
         auto mouse        = *mouse_;
         if (switch_left == rmcs_msgs::Switch::UP && switch_right == rmcs_msgs::Switch::MIDDLE) {
             if (fabs(joystick_left_->y()) > 0.001)
-                (*control_angle)[5] += 0.003 * joystick_left_->y();
+                *target_theta[5] += 0.003 * joystick_left_->y();
             if (fabs(joystick_left_->x()) > 0.001)
-                (*control_angle)[4] += 0.003 * joystick_left_->x();
+                *target_theta[4] += 0.003 * joystick_left_->x();
             if (fabs(joystick_right_->y()) > 0.001)
-                (*control_angle)[3] += 0.003 * joystick_right_->y();
+                *target_theta[3] += 0.003 * joystick_right_->y();
         }
         if (switch_left == rmcs_msgs::Switch::UP && switch_right == rmcs_msgs::Switch::UP) {
             if (fabs(joystick_left_->x()) > 0.001)
-                (*control_angle)[2] += 0.001 * joystick_left_->x();
+                *target_theta[2] += 0.001 * joystick_left_->x();
             if (fabs(joystick_right_->x()) > 0.001)
-                (*control_angle)[1] += 0.001 * joystick_right_->x();
+                *target_theta[1] += 0.001 * joystick_right_->x();
             if (fabs(joystick_left_->y()) > 0.001)
-                (*control_angle)[0] += 0.001 * joystick_left_->y();
+                *target_theta[0] += 0.001 * joystick_left_->y();
         }
     };
 
-    void clamp_control_angle() {
-        for (int i = 0; i <= 5; i++) {
-            (*control_angle)[i] =
-                std::clamp((*control_angle)[i], Joint_Lower_Limit_[i], Joint_Upper_Limit_[i]);
-        }
-    };
+   
 
     bool is_auto_exchange = false;
 
-    Drag test{"1es12t.dat"};
 
     rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr subscription_;
     rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr publisher_;
 
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
-
-    std::array<double, 6> Joint_Upper_Limit_;
-    std::array<double, 6> Joint_Lower_Limit_;
 
     InputInterface<Eigen::Vector2d> joystick_right_;
     InputInterface<Eigen::Vector2d> joystick_left_;
@@ -174,9 +165,10 @@ private:
     InputInterface<rmcs_msgs::Mouse> mouse_;
 
     OutputInterface<bool> is_arm_enable;
-    OutputInterface<std::array<double, 6>> control_angle;
     InputInterface<double> theta[6]; // motor_current_angle
-
+    OutputInterface<double> target_theta[6];
+    //test
+    Drag test{"test.dat"};
     hardware::device::Kinematic tegdg{*this};
 };
 } // namespace rmcs_core::controller::arm

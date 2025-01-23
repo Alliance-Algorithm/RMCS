@@ -85,8 +85,8 @@ public:
         // static double L_fake = sqrt(*link_length3 * (*link_length3) + *link_length4 *
         // (*link_length4));
         static double L_fake = 0.349699;
-        static double beta   = 0.238739;
-        Eigen::Matrix4d T_R  = getTransformationMatrix(x, y, z, roll, pitch, yaw).matrix();
+        static double beta   = 0.239839;
+        Eigen::Matrix4d T_R  = getTransformationMatrix(x, y, z, roll, pitch, yaw);
         double x_e           = T_R(0, 3) - T_R(0, 2) * (*link_length5);
         double y_e           = T_R(1, 3) - T_R(1, 2) * (*link_length5);
         double z_e           = T_R(2, 3) - T_R(2, 2) * (*link_length5);
@@ -107,6 +107,9 @@ public:
         double theta2_2 = atan2(k22, k21) - atan2(-d2, -sqrt(k21 * k21 + k22 * k22 - d2 * d2));
         theta2_1        = normalizeAngle(theta2_1);
         theta2_2        = normalizeAngle(theta2_2);
+        // RCLCPP_INFO(
+        //     this->get_logger(), "%f %f %f  %f %f", T_R(0, 2), T_R(1, 2), T_R(2, 2),
+        //     theta2_1 * 180 / std::numbers::pi, theta2_2 * 180 / std::numbers::pi);
         // theta3
         double d31 = (A + (*link_length2) * sin(theta2_1)) / L_fake;
         double d32 = (A + (*link_length2) * sin(theta2_2)) / L_fake;
@@ -118,7 +121,12 @@ public:
             atan2(cos(theta2_2 - beta), sin(theta2_2 - beta)) - atan2(d32, sqrt(1 - d32 * d32));
         double theta3_2_2 =
             atan2(cos(theta2_2 - beta), sin(theta2_2 - beta)) - atan2(d32, -sqrt(1 - d32 * d32));
-        if (theta2_1 >= -std::numbers::pi / 2 && theta2_1 <= 1.0631) {
+
+        theta3_1_1 = normalizeAngle(theta3_1_1);
+        theta3_1_2 = normalizeAngle(theta3_1_2);
+        theta3_2_1 = normalizeAngle(theta3_2_1);
+        theta3_2_2 = normalizeAngle(theta3_2_2);
+        if (theta2_1 >= -70.0 * std::numbers::pi / 180 && theta2_1 <= 1.0631) {
             theta2 = theta2_1;
             if (theta3_1_1 >= -1.0472 && theta3_1_1 <= 0.8727)
                 theta3 = theta3_1_1;
@@ -126,7 +134,7 @@ public:
                 theta3 = theta3_1_2;
 
             else {
-                if (theta2_2 >= -std::numbers::pi / 2 && theta2_2 <= 1.0631) {
+                if (theta2_2 >= -70.0 * std::numbers::pi / 180 && theta2_2 <= 1.0631) {
                     theta2 = theta2_2;
                     if (theta3_2_1 >= -1.0472 && theta3_2_1 <= 0.8727)
                         theta3 = theta3_2_1;
@@ -136,7 +144,7 @@ public:
                         theta3 = NAN;
                 }
             }
-        } else if (theta2_2 >= -std::numbers::pi / 2 && theta2_2 <= 1.0631) {
+        } else if (theta2_2 >= -70.0 * std::numbers::pi / 180 && theta2_2 <= 1.0631) {
             theta2 = theta2_2;
             if (theta3_2_1 >= -1.0472 && theta3_2_1 <= 0.8727)
                 theta3 = theta3_2_1;
@@ -171,24 +179,28 @@ public:
         theta4 = atan2(-r23 / cos(theta5), r33 / cos(theta5));
         theta6 = atan2(-r12 / cos(theta5), r11 / cos(theta5));
 
+        theta5 = normalizeAngle(theta5) + std::numbers::pi / 2;
+        theta4 = normalizeAngle(theta4);
+        theta6 = normalizeAngle(theta6);
+        if(theta5 > 3.141592 || theta5 < -3.141592)theta5 = NAN;
+        if(theta4 > 1.83532 || theta4 < -1.83532)theta4 = NAN;
+        if(theta6 > 3.141592 || theta6 < -3.141592)theta6 = NAN;
         return {theta1, theta2, theta3, theta4, theta5, theta6};
     }
 
 private:
-    static Eigen::Affine3d getTransformationMatrix(
+    static Eigen::Matrix4d getTransformationMatrix(
         double x, double y, double z, double roll, double pitch, double yaw) {
-        Eigen::Matrix3d rotationMatrix;
 
-        Eigen::AngleAxisd rollAngle(roll, Eigen::Vector3d::UnitX());
-        Eigen::AngleAxisd pitchAngle(pitch, Eigen::Vector3d::UnitY());
-        Eigen::AngleAxisd yawAngle(yaw, Eigen::Vector3d::UnitZ());
-
-        rotationMatrix = yawAngle * pitchAngle * rollAngle;
-
-        Eigen::Translation3d translation(x, y, z);
-
-        Eigen::Affine3d transformation = translation * rotationMatrix;
-
+        Eigen::Matrix3d Rz, Ry, Rx, Rotation;
+        Rz << cos(yaw), -sin(yaw), 0, sin(yaw), cos(yaw), 0, 0, 0, 1;
+        Ry << cos(pitch), 0, sin(pitch), 0, 1, 0, -sin(pitch), 0, cos(pitch);
+        Rx << 1, 0, 0, 0, cos(roll), -sin(roll), 0, sin(roll), cos(roll);
+        Rotation = Rx * Ry * Rz;
+        Eigen::Matrix4d transformation;
+        transformation << Rotation(2, 2), Rotation(1, 2), Rotation(0, 2), x, Rotation(2, 1),
+            Rotation(1, 1), Rotation(0, 1), y, Rotation(2, 0), Rotation(1, 0), Rotation(0, 0), z, 0,
+            0, 0, 1;
         return transformation;
     }
 

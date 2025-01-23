@@ -65,7 +65,7 @@ public:
         int raw_angle_ = static_cast<int>(raw_angle.to_ulong());
         
         int angle = raw_angle_ - encoder_zero_point_;
-        if(angle < 0) if(angle < 0)angle+=raw_angle_max_;
+        if(angle < 0) angle+=raw_angle_max_;
         if (!multi_turn_angle_enabled_) { 
             *angle_ = this->reverse*(((double)angle <= (raw_angle_max_)/2.0 )? (raw_angle_to_angle_coefficient_ * angle): (-2*std::numbers::pi )+ (raw_angle_to_angle_coefficient_ * angle));
         } else {

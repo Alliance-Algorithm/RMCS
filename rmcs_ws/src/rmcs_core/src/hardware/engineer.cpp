@@ -34,26 +34,32 @@ public:
         joint[5].configure_joint(
             LKMotorConfig{LKMotorType::MG4010E_i10V3}.set_encoder_zero_point(
                 static_cast<uint16_t>(get_parameter("joint6_zero_point").as_int())),
-            DHConfig{0, -0.0571, 0, 0});
+            DHConfig{0, -0.0571, 0, 0},
+            Qlim_Stall_Config{get_parameter("joint6_qlim").as_double_array()});
         joint[4].configure_joint(
             LKMotorConfig{LKMotorType::MG4010E_i10V3}
                 .enable_multi_turn_angle()
                 .set_gear_ratio(1.35)
                 .set_encoder_zero_point(
                     static_cast<uint16_t>(get_parameter("joint5_zero_point").as_int())),
-            DHConfig{0, 0, 1.5707963, 0});
+            DHConfig{0, 0, 1.5707963, 0},
+            Qlim_Stall_Config{get_parameter("joint5_qlim").as_double_array()});
         joint[3].configure_joint(
             LKMotorConfig{LKMotorType::MG4010E_i36V3}.set_encoder_zero_point(
                 static_cast<int16_t>(get_parameter("joint4_zero_point").as_int())),
-            DHConfig{0, 0.33969, 1.5707963, 0});
+            DHConfig{0, 0.33969, 1.5707963, 0},
+            Qlim_Stall_Config{get_parameter("joint4_qlim").as_double_array()});
         joint[2].configure_joint(
-            LKMotorConfig{LKMotorType::MF7015V210T}, DHConfig{-0.08307, 0, 1.5707963, 0});
+            LKMotorConfig{LKMotorType::MF7015V210T}, DHConfig{-0.08307, 0, 1.5707963, 0},
+            Qlim_Stall_Config{get_parameter("joint3_qlim").as_double_array()});
         joint[1].configure_joint(
-            LKMotorConfig{LKMotorType::MF7015V210T}, DHConfig{0.41, 0, 0, 1.5707963});
+            LKMotorConfig{LKMotorType::MF7015V210T}, DHConfig{0.41, 0, 0, 1.5707963},
+            Qlim_Stall_Config{get_parameter("joint2_qlim").as_double_array()});
         joint[0].configure_joint(
             LKMotorConfig{LKMotorType::MG8010E_i36}.set_encoder_zero_point(
                 static_cast<uint16_t>(get_parameter("joint1_zero_point").as_int())),
-            DHConfig{0, 0.05985, 1.5707963, 0});
+            DHConfig{0, 0.05985, 1.5707963, 0},
+            Qlim_Stall_Config{get_parameter("joint1_qlim").as_double_array()});
 
         joint2_encoder.configure(EncoderConfig{}
                                      .set_encoder_zero_point(static_cast<int>(
@@ -63,6 +69,7 @@ public:
                                      .set_encoder_zero_point(static_cast<int>(
                                          get_parameter("joint3_zero_point").as_int()))
                                      .reverse());
+
         register_output("/arm/Joint6/control_angle_error", joint6_error_angle);
         register_output("/arm/Joint5/control_angle_error", joint5_error_angle);
         register_output("/arm/Joint4/control_angle_error", joint4_error_angle);
@@ -86,6 +93,7 @@ public:
     void update() override {
         update_arm_motors();
         dr16_.update();
+        // RCLCPP_INFO(this->get_logger(),"%f",joint[2].get_target_theta());
     }
     void arm_command_update() {
         bool is_arm_enable = *engineer_command_->is_arm_enable_;
@@ -148,21 +156,21 @@ public:
 
             if (counter % 2 == 0) {
                 (*joint3_error_angle) =
-                    normalizeAngle((*engineer_command_->control_angle)[2] - joint[2].get_theta());
+                    normalizeAngle(joint[2].get_target_theta() - joint[2].get_theta());
                 command_ = joint[2].generate_torque_command();
                 transmit_buffer_.add_can1_transmission(
                     (0x143), std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
 
                 (*joint6_error_angle) =
-                    normalizeAngle((*engineer_command_->control_angle)[5] - joint[5].get_theta());
+                    normalizeAngle(joint[5].get_target_theta() - joint[5].get_theta());
                 command_ = joint[5].generate_torque_command();
                 transmit_buffer_.add_can2_transmission(
                     (0x146), std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
             } else {
                 (*joint2_error_angle) =
-                    -normalizeAngle((*engineer_command_->control_angle)[1] - joint[1].get_theta());
+                    -normalizeAngle(joint[1].get_target_theta() - joint[1].get_theta());
                 (*joint1_error_angle) =
-                    normalizeAngle((*engineer_command_->control_angle)[0] - joint[0].get_theta());
+                    normalizeAngle(joint[0].get_target_theta() - joint[0].get_theta());
                 command_ = joint[1].generate_torque_command();
                 transmit_buffer_.add_can1_transmission(
                     (0x142), std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
@@ -171,13 +179,13 @@ public:
                     (0x141), std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
 
                 (*joint5_error_angle) =
-                    normalizeAngle((*engineer_command_->control_angle)[4] - joint[4].get_theta());
+                    normalizeAngle(joint[4].get_target_theta() - joint[4].get_theta());
                 command_ = joint[4].generate_torque_command();
                 transmit_buffer_.add_can2_transmission(
                     (0x145), std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
 
                 (*joint4_error_angle) =
-                    normalizeAngle((*engineer_command_->control_angle)[3] - joint[3].get_theta());
+                    normalizeAngle(joint[3].get_target_theta() - joint[3].get_theta());
                 command_ = joint[3].generate_torque_command();
                 transmit_buffer_.add_can2_transmission(
                     (0x144), std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
@@ -212,6 +220,8 @@ private:
         joint[2].update_joint().change_theta_feedback_(joint3_encoder.get_angle());
         joint[1].update_joint().change_theta_feedback_(joint2_encoder.get_angle());
         joint[0].update_joint();
+
+        RCLCPP_INFO(this->get_logger(),"%f %f",joint[2].get_theta(),joint3_encoder.get_raw_angle());
     }
 
 protected:
@@ -256,14 +266,14 @@ private:
         explicit EngineerCommand(Engineer& engineer)
             : engineer_(engineer) {
             register_input("/arm/enable_flag", is_arm_enable_);
-            register_input("/arm/control_angle", control_angle);
+           // register_input("/arm/control_angle", control_angle);
         }
 
         void update() override { engineer_.arm_command_update(); }
 
         Engineer& engineer_;
         InputInterface<bool> is_arm_enable_;
-        InputInterface<std::array<double, 6>> control_angle;
+        //InputInterface<std::array<double, 6>> control_angle;
     };
 
     std::shared_ptr<EngineerCommand> engineer_command_;

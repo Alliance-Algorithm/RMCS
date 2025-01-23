@@ -108,14 +108,14 @@ public:
             rated_current     = 3.5;
             rated_torque    = 9;
             max_torque      = 18;
-            LSB             =648040;
+            LSB             =648000;
             break;
         case LKMotorType::MG8010E_i36:
             torque_constant = 0.15 * 36;
             rated_current     = 6.9;
             rated_torque    = 35.0;
             max_torque      = 45.0;
-            LSB             =648040;
+            LSB             =648000;
             break;
         default: throw std::runtime_error{"Unknown motor type"};
         }

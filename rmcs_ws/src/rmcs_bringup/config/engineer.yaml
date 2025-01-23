@@ -29,13 +29,14 @@ engineer_hardware:
     joint5_zero_point: 28148
     joint4_zero_point: 16159
     joint3_zero_point: 67744
-    joint2_zero_point: 96040
-    joint1_zero_point: 43227
-
-arm_controller:
-  ros__parameters:
-    Joint_Upper_Limit: [3.1415,1.0631,0.8727,3.1415,1.83532,3.1415]
-    Joint_Lower_Limit: [-3.1415,-1.2217,-1.0472,-3.1415,-1.83532,-3.1415]
+    joint2_zero_point: 225864
+    joint1_zero_point: 10459
+    joint6_qlim: [-3.141592,3.141592]    
+    joint5_qlim: [-1.83532,1.83532]    
+    joint4_qlim: [-3.141592,3.141592]    
+    joint3_qlim: [-1.0472,0.8727]    
+    joint2_qlim: [-1.2217,1.2217]    
+    joint1_qlim: [-3.141592,3.141592]    
 
 joint6_angle_pid_controller:
   ros__parameters:
@@ -106,7 +107,7 @@ joint2_angle_pid_controller:
   ros__parameters:
     measurement: /arm/Joint2/control_angle_error
     control: /arm/Joint2/control_velocity
-    kp: 2390.0
+    kp: 3190.0
     ki: 0.0
     kd: 20.0
 joint2_velocity_pid_controller:
@@ -130,6 +131,6 @@ joint1_velocity_pid_controller:
     measurement: /arm/Joint1/velocity
     setpoint: /arm/Joint1/control_velocity
     control: /arm/Joint1/control_torque
-    kp: 0.252
+    kp: 0.212
     ki: 0.0
     kd: 0.0001
