@@ -4,7 +4,7 @@ rmcs_executor:
     components:
       # - rmcs_core::controller::dart::AngleController -> angle_controller
       - rmcs_core::controller::dart::DartCamera -> dart_camera
-      - rmcs_core::controller::dart::DartAiming -> dart_aiming
+      - rmcs_core::controller::dart::AimController -> aim_controller
       - rmcs_core::controller::dart::MessagePublisher -> message_publisher
 
 angle_controller:
@@ -15,10 +15,10 @@ angle_controller:
 dart_camera:
   ros__parameters:
     image_show_enable: true
-    invert_image: false
-    exposure_time: 1000
+    invert_image: true
+    exposure_time: 5000
 
-dart_aiming:
+aim_controller:
   ros__parameters:
     image_show_enable: false
     lowerlimit_H: 60.00

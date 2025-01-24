@@ -1,4 +1,5 @@
 
+#include "controller/dart/dart_resource.hpp"
 #include <chrono>
 #include <hikcamera/image_capturer.hpp>
 #include <memory>
@@ -27,30 +28,32 @@ public:
         profile_.gain          = 16.9807;
         capture_               = std::make_unique<hikcamera::ImageCapturer>(profile_);
 
-        frame_buffer_[0]    = cv::Mat(720, 1440, CV_8UC3, cv::Scalar(0, 0, 0));
+        latest_frame_.init();
         camera_read_thread_ = std::thread(&DartCamera::camera_read, this);
     }
 
     void update() override {
-        if (!frame_buffer_[0].empty()) {
+        if (!latest_frame_.image.empty()) {
             std::lock_guard<std::mutex> lock(buffer_mutex_);
-            *dart_camera_frame_ = frame_buffer_[0];
+            *dart_camera_frame_ = latest_frame_;
         }
     }
 
 private:
     void camera_read() {
-        while (camera_enable_) {
-            frame_buffer_[1] = capture_->read();
+        while (camera_control_mode_ == ControllMode::Enable) {
+
+            cv::Mat image_buffer = capture_->read();
 
             std::lock_guard<std::mutex> lock(buffer_mutex_);
-            frame_buffer_[0] = frame_buffer_[1];
+            latest_frame_.image = image_buffer;
+            latest_frame_.id    = (latest_frame_.id + 1) % 0xFF;
         }
     }
 
     std::thread camera_read_thread_;
-    bool camera_enable_ = true;
-    cv::Mat frame_buffer_[2];
+    ControllMode camera_control_mode_ = ControllMode::Enable;
+    CameraFrame latest_frame_;
     std::mutex buffer_mutex_;
 
     rclcpp::Logger logger_;
@@ -58,7 +61,7 @@ private:
     hikcamera::ImageCapturer::CameraProfile profile_;
     std::unique_ptr<hikcamera::ImageCapturer> capture_;
 
-    OutputInterface<cv::Mat> dart_camera_frame_;
+    OutputInterface<CameraFrame> dart_camera_frame_;
 };
 } // namespace rmcs_core::controller::dart
 

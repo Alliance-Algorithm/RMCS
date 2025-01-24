@@ -1,4 +1,5 @@
 
+#include "controller/dart/dart_resource.hpp"
 #include <atomic>
 #include <chrono>
 #include <cmath>
@@ -57,7 +58,7 @@ public:
         }
 
         if (camera_enable_) {
-            lastest_image_              = display_image_->clone();
+            lastest_image_              = display_image_->image;
             cv::Point2d yaw_center_top  = cv::Point2d(lastest_image_.cols / 2.0, 0);
             cv::Point2d yaw_center_down = cv::Point2d(lastest_image_.cols / 2.0, lastest_image_.cols);
             cv::line(lastest_image_, yaw_center_top, yaw_center_down, cv::Scalar(255, 0, 255), 1);
@@ -101,17 +102,28 @@ private:
     void calc_fps() {
         auto time_now = std::chrono::steady_clock::now();
 
-        long delta_time  = std::chrono::duration_cast<std::chrono::microseconds>(time_now - last_time_point_).count();
-        last_time_point_ = time_now;
+        long update_delta_time =
+            std::chrono::duration_cast<std::chrono::microseconds>(time_now - update_last_time_point_).count();
+        update_last_time_point_ = time_now;
 
-        long fps = 1000000 / delta_time;
-        RCLCPP_INFO(get_logger(), "fps:%10.3ld,delta_time:%10.3ld", fps, delta_time);
+        long fps = 1000000 / update_delta_time;
+        if (display_image_->id != latest_id_) {
+            long camera_delta_time =
+                std::chrono::duration_cast<std::chrono::microseconds>(time_now - camera_last_time_point_).count();
+            camera_last_time_point_ = time_now;
+            latest_id_              = display_image_->id;
+            camera_fps              = 1000000 / camera_delta_time;
+        }
+        RCLCPP_INFO(get_logger(), "id:%5ld,camera_fps:%10.3ld,update_fps:%10.3ld", display_image_->id, camera_fps, fps);
     }
-    std::chrono::steady_clock::time_point last_time_point_;
+    std::chrono::steady_clock::time_point update_last_time_point_;
+    std::chrono::steady_clock::time_point camera_last_time_point_;
+    long latest_id_ = -1;
+    long camera_fps;
 
     bool camera_enable_ = false, friction_enable_ = false;
 
-    InputInterface<cv::Mat> display_image_;
+    InputInterface<CameraFrame> display_image_;
     std::thread display_thread_;
     std::atomic<bool> display_stop_flag_ = false;
     std::mutex display_mutex_;

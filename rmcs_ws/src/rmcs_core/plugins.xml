@@ -59,16 +59,13 @@
   <class type="rmcs_core::controller::dart::AngleController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
-  <class type="rmcs_core::controller::dart::VisualGuidance" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
-  </class>
   <class type="rmcs_core::controller::dart::MessagePublisher" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
   <class type="rmcs_core::controller::dart::DartCamera" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
-  <class type="rmcs_core::controller::dart::DartAiming" base_class_type="rmcs_executor::Component">
+  <class type="rmcs_core::controller::dart::AimController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
   <class type="rmcs_core::controller::dart::SyncController" base_class_type="rmcs_executor::Component">
