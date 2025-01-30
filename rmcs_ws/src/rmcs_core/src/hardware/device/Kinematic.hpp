@@ -19,7 +19,7 @@ namespace rmcs_core::hardware::device {
 using rmcs_executor::Component;
 class Kinematic : public rclcpp::Node {
 public:
-    Kinematic(Component& status_component)
+    explicit Kinematic(Component& status_component)
         : Node("a") {
         status_component.register_input("/arm/Joint1/T", T_01);
         status_component.register_input("/arm/Joint2/T", T_12);
@@ -51,18 +51,18 @@ public:
         z                    = T_06(2, 3);
         // RCLCPP_INFO(this->get_logger(),"%f  %f  %f  %f",T_02(1,0),T_02(1,1),T_02(1,2),T_02(1,3));
 
-        if (fabs(fabs(T_06(1, 3)) - 1.0) < std::numeric_limits<double>::epsilon()) {
+        if (fabs(fabs(T_06(0, 2)) - 1.0) < std::numeric_limits<double>::epsilon()) {
             roll = 0;
-            if (T_06(1, 3) > 0) {
-                yaw = atan2(T_06(3, 2), T_06(2, 2));
+            if (T_06(0, 2) > 0) {
+                yaw = atan2(T_06(2, 1), T_06(1, 1));
             } else {
-                yaw = -atan2(T_06(2, 1), T_06(3, 1));
+                yaw = -atan2(T_06(1, 0), T_06(2, 0));
             }
-            pitch = asin(T_06(1, 3));
+            pitch = asin(T_06(0, 2));
         } else {
-            roll  = -atan2(T_06(1, 2), T_06(1, 1));
-            yaw   = -atan2(T_06(2, 3), T_06(3, 3));
-            pitch = atan(T_06(1, 3) * cos(roll) / T_06(1, 1));
+            roll  = -atan2(T_06(0, 1), T_06(0, 0));
+            yaw   = -atan2(T_06(1, 2), T_06(2, 2));
+            pitch = atan(T_06(0, 2) * cos(roll) / T_06(0, 0));
         }
     }
 
@@ -108,7 +108,7 @@ public:
         theta2_1        = normalizeAngle(theta2_1);
         theta2_2        = normalizeAngle(theta2_2);
         // RCLCPP_INFO(
-        //     this->get_logger(), "%f %f %f  %f %f", T_R(0, 2), T_R(1, 2), T_R(2, 2),
+        //     this->get_logger(), "%f %f %f  %f %f", x_e,y_e, T_R(1, 2),
         //     theta2_1 * 180 / std::numbers::pi, theta2_2 * 180 / std::numbers::pi);
         // theta3
         double d31 = (A + (*link_length2) * sin(theta2_1)) / L_fake;
@@ -179,11 +179,11 @@ public:
         theta4 = atan2(-r23 / cos(theta5), r33 / cos(theta5));
         theta6 = atan2(-r12 / cos(theta5), r11 / cos(theta5));
 
-        theta5 = normalizeAngle(theta5) + std::numbers::pi / 2;
+        theta5 = normalizeAngle(theta5 )+ std::numbers::pi / 2.0;
         theta4 = normalizeAngle(theta4);
         theta6 = normalizeAngle(theta6);
-        if(theta5 > 3.141592 || theta5 < -3.141592)theta5 = NAN;
-        if(theta4 > 1.83532 || theta4 < -1.83532)theta4 = NAN;
+        if(theta4 > 3.141592 || theta4 < -3.141592)theta4 = NAN;
+        if(theta5 > 1.83532 || theta5 < -1.83532)theta5 = NAN;
         if(theta6 > 3.141592 || theta6 < -3.141592)theta6 = NAN;
         return {theta1, theta2, theta3, theta4, theta5, theta6};
     }
