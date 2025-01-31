@@ -37,7 +37,7 @@ struct EncoderConfig {
 class Encoder:rclcpp::Node
 {
 public:
-    Encoder(Component& status_component, Component& command_component, const std::string& name_prefix)
+    Encoder(Component& status_component, const std::string& name_prefix)
     :Node{"aaa"}
     {
         status_component.register_output(name_prefix + "/angle", angle_, 0.0);

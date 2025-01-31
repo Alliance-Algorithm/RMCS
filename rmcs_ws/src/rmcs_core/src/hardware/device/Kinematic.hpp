@@ -32,8 +32,21 @@ public:
         status_component.register_input("/arm/Joint2/a", link_length2);
         status_component.register_input("/arm/Joint3/a", link_length3);
         status_component.register_input("/arm/Joint4/d", link_length4);
-        // status_component.register_input("/arm/Joint5/d", link_length1);
         status_component.register_input("/arm/Joint6/d", link_length5);
+
+        status_component.register_input("/arm/Joint1/qlim_up", joint1_qlim_up);
+        status_component.register_input("/arm/Joint2/qlim_up", joint2_qlim_up);
+        status_component.register_input("/arm/Joint3/qlim_up", joint3_qlim_up);
+        status_component.register_input("/arm/Joint4/qlim_up", joint4_qlim_up);
+        status_component.register_input("/arm/Joint5/qlim_up", joint5_qlim_up);
+        status_component.register_input("/arm/Joint6/qlim_up", joint6_qlim_up);
+
+        status_component.register_input("/arm/Joint1/qlim_low", joint1_qlim_low);
+        status_component.register_input("/arm/Joint2/qlim_low", joint2_qlim_low);
+        status_component.register_input("/arm/Joint3/qlim_low", joint3_qlim_low);
+        status_component.register_input("/arm/Joint4/qlim_low", joint4_qlim_low);
+        status_component.register_input("/arm/Joint5/qlim_low", joint5_qlim_low);
+        status_component.register_input("/arm/Joint6/qlim_low", joint6_qlim_low);
     }
     Kinematic(const Kinematic&)            = delete;
     Kinematic& operator=(const Kinematic&) = delete;
@@ -79,21 +92,24 @@ public:
         return in_degrees ? pitch * (180.0 / M_PI) : pitch;
     }
 
-    std::array<double, 6>
-        inverse_kinematic(double x, double y, double z, double roll, double pitch, double yaw) {
+    std::array<double, 6> inverse_kinematic(std::array<double, 6> xyz_rpy) {
         double theta1, theta2, theta3 = 0.0, theta4, theta5, theta6;
         // static double L_fake = sqrt(*link_length3 * (*link_length3) + *link_length4 *
         // (*link_length4));
+        double roll = xyz_rpy[3];
+
+        double pitch         = xyz_rpy[4];
+        double yaw           = xyz_rpy[5];
         static double L_fake = 0.349699;
         static double beta   = 0.239839;
-        Eigen::Matrix4d T_R  = getTransformationMatrix(x, y, z, roll, pitch, yaw);
+        Eigen::Matrix4d T_R  = getTransformationMatrix(xyz_rpy);
         double x_e           = T_R(0, 3) - T_R(0, 2) * (*link_length5);
         double y_e           = T_R(1, 3) - T_R(1, 2) * (*link_length5);
         double z_e           = T_R(2, 3) - T_R(2, 2) * (*link_length5);
         // theta1
         double theta1_1 = -atan2(-y_e, x_e);
         double theta1_2 = -atan2(-y_e, x_e) + std::numbers::pi;
-        if (theta1_1 >= -std::numbers::pi && theta1_1 <= std::numbers::pi)
+        if (theta1_1 >= *joint1_qlim_low && theta1_1 <= *joint1_qlim_up)
             theta1 = theta1_1;
         else
             theta1 = theta1_2;
@@ -126,29 +142,29 @@ public:
         theta3_1_2 = normalizeAngle(theta3_1_2);
         theta3_2_1 = normalizeAngle(theta3_2_1);
         theta3_2_2 = normalizeAngle(theta3_2_2);
-        if (theta2_1 >= -70.0 * std::numbers::pi / 180 && theta2_1 <= 1.0631) {
+        if (theta2_1 >= (*joint2_qlim_low) && theta2_1 <= (*joint2_qlim_up)) {
             theta2 = theta2_1;
-            if (theta3_1_1 >= -1.0472 && theta3_1_1 <= 0.8727)
+            if (theta3_1_1 >= (*joint3_qlim_low) && theta3_1_1 <= (*joint3_qlim_up))
                 theta3 = theta3_1_1;
-            else if (theta3_1_2 >= -1.0472 && theta3_1_2 <= 0.8727)
+            else if (theta3_1_2 >= (*joint3_qlim_low) && theta3_1_2 <= (*joint3_qlim_up))
                 theta3 = theta3_1_2;
 
             else {
-                if (theta2_2 >= -70.0 * std::numbers::pi / 180 && theta2_2 <= 1.0631) {
+                if (theta2_2 >= (*joint2_qlim_low) && theta2_2 <= (*joint2_qlim_up)) {
                     theta2 = theta2_2;
-                    if (theta3_2_1 >= -1.0472 && theta3_2_1 <= 0.8727)
+                    if (theta3_2_1 >= (*joint3_qlim_low) && theta3_2_1 <= (*joint3_qlim_up))
                         theta3 = theta3_2_1;
-                    else if (theta3_2_2 >= -1.0472 && theta3_2_2 <= 0.8727)
+                    else if (theta3_2_2 >= (*joint3_qlim_low) && theta3_2_2 <= (*joint3_qlim_up))
                         theta3 = theta3_2_2;
                     else
                         theta3 = NAN;
                 }
             }
-        } else if (theta2_2 >= -70.0 * std::numbers::pi / 180 && theta2_2 <= 1.0631) {
+        } else if (theta2_2 >= (*joint2_qlim_low) && theta2_2 <= (*joint2_qlim_up)) {
             theta2 = theta2_2;
-            if (theta3_2_1 >= -1.0472 && theta3_2_1 <= 0.8727)
+            if (theta3_2_1 >= (*joint3_qlim_low) && theta3_2_1 <= (*joint3_qlim_up))
                 theta3 = theta3_2_1;
-            else if (theta3_2_2 >= -1.0472 && theta3_2_2 <= 0.8727)
+            else if (theta3_2_2 >= (*joint3_qlim_low) && theta3_2_2 <= (*joint3_qlim_up))
                 theta3 = theta3_2_2;
             else
                 theta3 = NAN;
@@ -179,28 +195,33 @@ public:
         theta4 = atan2(-r23 / cos(theta5), r33 / cos(theta5));
         theta6 = atan2(-r12 / cos(theta5), r11 / cos(theta5));
 
-        theta5 = normalizeAngle(theta5 )+ std::numbers::pi / 2.0;
+        theta5 = normalizeAngle(theta5) + std::numbers::pi / 2.0;
         theta4 = normalizeAngle(theta4);
         theta6 = normalizeAngle(theta6);
-        if(theta4 > 3.141592 || theta4 < -3.141592)theta4 = NAN;
-        if(theta5 > 1.83532 || theta5 < -1.83532)theta5 = NAN;
-        if(theta6 > 3.141592 || theta6 < -3.141592)theta6 = NAN;
+        if (theta4 > 3.141592 || theta4 < -3.141592)
+            theta4 = NAN;
+        if (theta5 > *joint5_qlim_up || theta5 < *joint5_qlim_low)
+            theta5 = NAN;
+        if (theta6 > 3.141592 || theta6 < -3.141592)
+            theta6 = NAN;
         return {theta1, theta2, theta3, theta4, theta5, theta6};
     }
 
 private:
-    static Eigen::Matrix4d getTransformationMatrix(
-        double x, double y, double z, double roll, double pitch, double yaw) {
+    static Eigen::Matrix4d getTransformationMatrix(std::array<double, 6> xyz_rpy_) {
 
         Eigen::Matrix3d Rz, Ry, Rx, Rotation;
-        Rz << cos(yaw), -sin(yaw), 0, sin(yaw), cos(yaw), 0, 0, 0, 1;
-        Ry << cos(pitch), 0, sin(pitch), 0, 1, 0, -sin(pitch), 0, cos(pitch);
-        Rx << 1, 0, 0, 0, cos(roll), -sin(roll), 0, sin(roll), cos(roll);
+        Rz << cos(xyz_rpy_[5]), -sin(xyz_rpy_[5]), 0, sin(xyz_rpy_[5]), cos(xyz_rpy_[5]), 0, 0, 0,
+            1;
+        Ry << cos(xyz_rpy_[4]), 0, sin(xyz_rpy_[4]), 0, 1, 0, -sin(xyz_rpy_[4]), 0,
+            cos(xyz_rpy_[4]);
+        Rx << 1, 0, 0, 0, cos(xyz_rpy_[3]), -sin(xyz_rpy_[3]), 0, sin(xyz_rpy_[3]),
+            cos(xyz_rpy_[3]);
         Rotation = Rx * Ry * Rz;
         Eigen::Matrix4d transformation;
-        transformation << Rotation(2, 2), Rotation(1, 2), Rotation(0, 2), x, Rotation(2, 1),
-            Rotation(1, 1), Rotation(0, 1), y, Rotation(2, 0), Rotation(1, 0), Rotation(0, 0), z, 0,
-            0, 0, 1;
+        transformation << Rotation(2, 2), Rotation(1, 2), Rotation(0, 2), xyz_rpy_[0],
+            Rotation(2, 1), Rotation(1, 1), Rotation(0, 1), xyz_rpy_[1], Rotation(2, 0),
+            Rotation(1, 0), Rotation(0, 0), xyz_rpy_[2], 0, 0, 0, 1;
         return transformation;
     }
 
@@ -235,6 +256,20 @@ private:
     Component::InputInterface<double> link_length3;
     Component::InputInterface<double> link_length4;
     Component::InputInterface<double> link_length5;
+
+    Component::InputInterface<double> joint1_qlim_up;
+    Component::InputInterface<double> joint2_qlim_up;
+    Component::InputInterface<double> joint3_qlim_up;
+    Component::InputInterface<double> joint4_qlim_up;
+    Component::InputInterface<double> joint5_qlim_up;
+    Component::InputInterface<double> joint6_qlim_up;
+
+    Component::InputInterface<double> joint1_qlim_low;
+    Component::InputInterface<double> joint2_qlim_low;
+    Component::InputInterface<double> joint3_qlim_low;
+    Component::InputInterface<double> joint4_qlim_low;
+    Component::InputInterface<double> joint5_qlim_low;
+    Component::InputInterface<double> joint6_qlim_low;
 
     double x;
     double y;

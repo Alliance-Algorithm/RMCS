@@ -68,6 +68,8 @@ public:
         status_component.register_output(name_prefix + "/d", d, 0.0);
         status_component.register_output(name_prefix + "/alpha", alpha, 0.0);
         status_component.register_output(name_prefix + "/offset", offset, 0.0);
+        status_component.register_output(name_prefix + "/qlim_up", qlim_up, 0.0);
+        status_component.register_output(name_prefix + "/qlim_low", qlim_low, 0.0);
 
         command_component.register_input(name_prefix + "/target_theta", target_theta);
 

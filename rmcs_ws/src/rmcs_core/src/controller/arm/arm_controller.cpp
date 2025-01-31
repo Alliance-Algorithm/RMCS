@@ -101,11 +101,11 @@ public:
             //     tegdg.get_z(), tegdg.get_roll(), tegdg.get_pitch(), tegdg.get_yaw());
             // RCLCPP_INFO(this->get_logger()," aa%f %f %f %f %f %f
             // ",*theta[0],*theta[1],*theta[2],*theta[3],*theta[4],*theta[5]); std::array<double, 6>
-            std::array<double, 6> sample_data =
-            {*theta[0],*theta[1],*theta[2],*theta[3],*theta[4],*theta[5]};
+            std::array<double, 6> sample_data = {*theta[0], *theta[1], *theta[2],
+                                                 *theta[3], *theta[4], *theta[5]};
 
-             //   test.write_data_to_file(sample_data);
-            
+            //   test.write_data_to_file(sample_data);
+
             // RCLCPP_INFO(this->get_logger(),"%f %f %f %f %f
             // %f",*theta[5],*theta[4],*theta[3],*theta[2],*theta[1],*theta[0]);
 
@@ -116,14 +116,16 @@ public:
             roll  = 0.688 * std::numbers::pi / 180.0;
             pitch = -0.883 * std::numbers::pi / 180.0;
             yaw   = 0.07149 * std::numbers::pi / 180.0;
-            line.set_start_point({-0.313, 0, 0.2}, {0,0 * std::numbers::pi / 180.0, 0})
-                .set_end_point({-0.613, 0, 0.2}, {0,0 * std::numbers::pi / 180.0, 0})
+            line.set_start_point({-0.313, 0, 0.2}, {0, 0 * std::numbers::pi / 180.0, 0})
+                .set_end_point({-0.613, 0, 0.2}, {0, 0 * std::numbers::pi / 180.0, 0})
                 .set_total_step(700.f);
 
-
             bezier.set_start_point({x, y, z}, {roll, pitch, yaw})
-                .set_end_point({-0.322, -0.175, 0.219}, {0.688 * std::numbers::pi/180.f, -0.883  *std::numbers::pi/180.f,0.07149*std::numbers::pi/180.f})
-                .set_control_point({0.49221,-0.492337436, 0.243}, {-0.46, -0.4633, 0.243})
+                .set_end_point(
+                    {-0.322, -0.175, 0.219},
+                    {0.688 * std::numbers::pi / 180.f, -0.883 * std::numbers::pi / 180.f,
+                     0.07149 * std::numbers::pi / 180.f})
+                .set_control_point({0.49221, -0.492337436, 0.243}, {-0.46, -0.4633, 0.243})
                 .set_total_step(1500.0);
             // x = 0.463;
             // y = 0;
@@ -135,7 +137,7 @@ public:
             bezier.reset();
         } else {
             *is_arm_enable = true;
-           // update_dr16_control_theta();
+            // update_dr16_control_theta();
             // static double step = 700.0;
             // static double i = 1.0;
             // if(i <= step){
@@ -156,40 +158,37 @@ public:
             //           ,roll_,yaw_,pitch_);
             // }
             static int i = 0;
-if(i < 2000){
-  *target_theta[5] = 0.697789 / 180.0 * std::numbers::pi;
-            *target_theta[4] = 87.855693 / 180.0 * std::numbers::pi;
-            *target_theta[3] = 0.07 / 180 * std::numbers::pi;
-            *target_theta[2] = 21.608468 / 180.0 * std::numbers::pi;
-            *target_theta[1] = -22.869786 / 180.0 * std::numbers::pi;
-            *target_theta[0] = -0.008210/180 *std::numbers::pi;
-            i ++;
-}
-          else{
+            if (i < 2000) {
+                *target_theta[5] = 0.697789 / 180.0 * std::numbers::pi;
+                *target_theta[4] = 87.855693 / 180.0 * std::numbers::pi;
+                *target_theta[3] = 0.07 / 180 * std::numbers::pi;
+                *target_theta[2] = 21.608468 / 180.0 * std::numbers::pi;
+                *target_theta[1] = -22.869786 / 180.0 * std::numbers::pi;
+                *target_theta[0] = -0.008210 / 180 * std::numbers::pi;
+                i++;
+            } else {
 
-std::array<double, 6> target = bezier.trajectory();
-            std::array<double, 6> angle = tegdg.inverse_kinematic(target[0],target[1],target[2],target[3],target[4],target[5]);
-            
-            RCLCPP_INFO(
-                this->get_logger(), "%f %f %f %f %f %f ", angle[0] * 180 / std::numbers::pi,
-                angle[1] * 180 / std::numbers::pi, angle[2] * 180 / std::numbers::pi,
-                angle[3] * 180 / std::numbers::pi, angle[4] * 180 / std::numbers::pi,
-                angle[5] * 180 / std::numbers::pi);
-            *target_theta[5] = angle[5];
-            *target_theta[4] = angle[4];
-            *target_theta[3] = angle[3];
-            *target_theta[2] = angle[2];
-            *target_theta[1] = angle[1];
-            *target_theta[0] = angle[0];
-          }
+                std::array<double, 6> target = bezier.trajectory();
+                std::array<double, 6> angle  = tegdg.inverse_kinematic(target);
 
-
+                RCLCPP_INFO(
+                    this->get_logger(), "%f %f %f %f %f %f ", angle[0] * 180 / std::numbers::pi,
+                    angle[1] * 180 / std::numbers::pi, angle[2] * 180 / std::numbers::pi,
+                    angle[3] * 180 / std::numbers::pi, angle[4] * 180 / std::numbers::pi,
+                    angle[5] * 180 / std::numbers::pi);
+                *target_theta[5] = angle[5];
+                *target_theta[4] = angle[4];
+                *target_theta[3] = angle[3];
+                *target_theta[2] = angle[2];
+                *target_theta[1] = angle[1];
+                *target_theta[0] = angle[0];
+            }
 
             //              drag
             // test.read_data_from_file();
             // const double* data = test.get_data();
-            // RCLCPP_INFO(this->get_logger(),"%f %f %f %f %f  %f",data[0],data[1],data[2],data[3],data[4],data[5]);
-            // *target_theta[5] = data[5];
+            // RCLCPP_INFO(this->get_logger(),"%f %f %f %f %f
+            // %f",data[0],data[1],data[2],data[3],data[4],data[5]); *target_theta[5] = data[5];
             // *target_theta[4] = data[4];
             // *target_theta[3] = data[3];
             // *target_theta[2] = data[2];
@@ -224,8 +223,8 @@ private:
     double x, y, z, roll, pitch, yaw;
 
     bool is_auto_exchange = false;
-    hardware::device::Line_trajectory line;
-    hardware::device::Bezier_trajectory bezier;
+    hardware::device::Trajectory<hardware::device::LineTrajectoryType> line;
+    hardware::device::Trajectory<hardware::device::BezierTrajectoryType> bezier;
 
     rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr subscription_;
     rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr publisher_;
