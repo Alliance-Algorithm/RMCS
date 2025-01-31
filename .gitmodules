@@ -14,3 +14,12 @@
 [submodule "rmcs_ws/src/rmcs_auto_aim"]
 	path = rmcs_ws/src/rmcs_auto_aim
 	url = https://github.com/Alliance-Algorithm/rmcs_auto_aim.git
+[submodule "rmcs_ws/src/rmcs_core/include/librmcs"]
+	path = rmcs_ws/src/rmcs_core/include/librmcs
+	url = git@github.com:Alliance-Algorithm/librmcs.git
+[submodule "rmcs_ws/src/rmcs_core/include/rmcs_core/librmcs"]
+	path = rmcs_ws/src/rmcs_core/include/rmcs_core/librmcs
+	url = git@github.com:Alliance-Algorithm/librmcs.git
+[submodule "rmcs_ws/src/rmcs_core/librmcs"]
+	path = rmcs_ws/src/rmcs_core/librmcs
+	url = git@github.com:Alliance-Algorithm/librmcs.git
