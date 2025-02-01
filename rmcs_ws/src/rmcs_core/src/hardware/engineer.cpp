@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <librmcs/librmcs/client/cboard.hpp>
 #include <memory>
 #include <numbers>
 #include <rclcpp/logging.hpp>
@@ -16,7 +17,6 @@
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/serial_interface.hpp>
 #include <std_msgs/msg/int32.hpp>
-
 namespace rmcs_core::hardware {
 
 class Engineer
@@ -27,41 +27,39 @@ public:
         : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , logger_(get_logger())
         , engineer_command_(create_partner_component<EngineerCommand>("engineer_command", *this))
-        , armboard(
-              *this, *engineer_command_,
-              static_cast<uint16_t>(get_parameter("usb_pid").as_int())) {
+        , armboard(*this, *engineer_command_, static_cast<int>(get_parameter("arm_board_usb_pid").as_int())) {
     }
-    // ~Engineer() override = default;
-    void update() override { armboard.update(); }
-    void command() { armboard.command(); }
+    ~Engineer() override = default;
+    void update() override {
+        armboard.update();
+        //
+    }
+    void command() {
+        armboard.command();
+        //
+    }
 
 private:
     rclcpp::Logger logger_;
     class EngineerCommand : public rmcs_executor::Component {
     public:
         explicit EngineerCommand(Engineer& engineer)
-            : engineer_(engineer) {
-            register_input("/arm/enable_flag", is_arm_enable_);
-            // register_input("/arm/control_angle", control_angle);
-        }
-
+            : engineer_(engineer) {}
         void update() override { engineer_.command(); }
 
         Engineer& engineer_;
-        InputInterface<bool> is_arm_enable_;
-        // InputInterface<std::array<double, 6>> control_angle;
     };
     std::shared_ptr<EngineerCommand> engineer_command_;
 
     class ArmBoard final
-        : forwarder::CBoard
+        : private librmcs::client::CBoard
         , rclcpp::Node {
     public:
         friend class Engineer;
-        explicit ArmBoard(Engineer& engineer, EngineerCommand& engineer_command, int usb_pid = -1)
-            : forwarder::CBoard(usb_pid, get_logger())
+        explicit ArmBoard(Engineer& engineer, EngineerCommand& engineer_command, int usb_pid)
+            : librmcs::client::CBoard(usb_pid)
             , rclcpp::Node("arm_board")
-            , transmit_buffer_(*this, 16)
+
             , joint(
                   {engineer, engineer_command, "/arm/Joint1"},
                   {engineer, engineer_command, "/arm/Joint2"},
@@ -71,7 +69,9 @@ private:
                   {engineer, engineer_command, "/arm/Joint6"})
             , joint2_encoder(engineer, "/arm/Joint2encoder")
             , joint3_encoder(engineer, "/arm/Joint3encoder")
-            , dr16_(engineer) {
+            , dr16_(engineer)
+            , transmit_buffer_(*this, 32)
+            , event_thread_([this]() { handle_events(); }) {
             engineer.register_output("/arm/Joint6/control_angle_error", joint6_error_angle);
             engineer.register_output("/arm/Joint5/control_angle_error", joint5_error_angle);
             engineer.register_output("/arm/Joint4/control_angle_error", joint4_error_angle);
@@ -120,11 +120,14 @@ private:
                                              get_parameter("joint3_zero_point").as_int()))
                                          .reverse());
         }
+        ~ArmBoard() final {
+            stop_handling_events();
+            event_thread_.join();
+        }
 
         void update() {
             update_arm_motors();
             dr16_.update();
-            // RCLCPP_INFO(this->get_logger(),"%f",joint[2].get_target_theta());
         }
         void command() {
             arm_command_update();
@@ -134,6 +137,7 @@ private:
     private:
         void arm_command_update() {
             bool is_arm_enable = *is_arm_enable_;
+
             uint64_t command_;
             int max_count                = 100000;
             static int counter           = 0;
@@ -308,7 +312,6 @@ private:
         }
 
     private:
-        forwarder::CBoard::TransmitBuffer transmit_buffer_;
         OutputInterface<double> joint6_error_angle;
         OutputInterface<double> joint5_error_angle;
         OutputInterface<double> joint4_error_angle;
@@ -322,6 +325,8 @@ private:
         device::Encoder joint2_encoder;
         device::Encoder joint3_encoder;
         device::Dr16 dr16_;
+        librmcs::client::CBoard::TransmitBuffer transmit_buffer_;
+        std::thread event_thread_;
         bool last_is_arm_enable_ = true;
 
     } armboard;

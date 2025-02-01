@@ -41,7 +41,7 @@ public:
     :Node{"aaa"}
     {
         status_component.register_output(name_prefix + "/angle", angle_, 0.0);
-        status_component.register_output(name_prefix + "/motor", encoder_, this);
+        status_component.register_output(name_prefix + "/encoder", encoder_, this);
     }
 
     Encoder(const Encoder&)            = delete;

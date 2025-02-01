@@ -109,24 +109,24 @@ public:
             // RCLCPP_INFO(this->get_logger(),"%f %f %f %f %f
             // %f",*theta[5],*theta[4],*theta[3],*theta[2],*theta[1],*theta[0]);
 
-            tegdg.positive_kinematic();
-            x     = 0.498;
-            y     = 0;
-            z     = 0.29;
-            roll  = 0.688 * std::numbers::pi / 180.0;
-            pitch = -0.883 * std::numbers::pi / 180.0;
-            yaw   = 0.07149 * std::numbers::pi / 180.0;
-            line.set_start_point({-0.313, 0, 0.2}, {0, 0 * std::numbers::pi / 180.0, 0})
-                .set_end_point({-0.613, 0, 0.2}, {0, 0 * std::numbers::pi / 180.0, 0})
-                .set_total_step(700.f);
+            // tegdg.positive_kinematic();
+            // x     = 0.498;
+            // y     = 0;
+            // z     = 0.29;
+            // roll  = 0.688 * std::numbers::pi / 180.0;
+            // pitch = -0.883 * std::numbers::pi / 180.0;
+            // yaw   = 0.07149 * std::numbers::pi / 180.0;
+            // line.set_start_point({-0.313, 0, 0.2}, {0, 0 * std::numbers::pi / 180.0, 0})
+            //     .set_end_point({-0.613, 0, 0.2}, {0, 0 * std::numbers::pi / 180.0, 0})
+            //     .set_total_step(700.f);
 
-            bezier.set_start_point({x, y, z}, {roll, pitch, yaw})
-                .set_end_point(
-                    {-0.322, -0.175, 0.219},
-                    {0.688 * std::numbers::pi / 180.f, -0.883 * std::numbers::pi / 180.f,
-                     0.07149 * std::numbers::pi / 180.f})
-                .set_control_point({0.49221, -0.492337436, 0.243}, {-0.46, -0.4633, 0.243})
-                .set_total_step(1500.0);
+            // bezier.set_start_point({x, y, z}, {roll, pitch, yaw})
+            //     .set_end_point(
+            //         {-0.322, -0.175, 0.219},
+            //         {0.688 * std::numbers::pi / 180.f, -0.883 * std::numbers::pi / 180.f,
+            //          0.07149 * std::numbers::pi / 180.f})
+            //     .set_control_point({0.49221, -0.492337436, 0.243}, {-0.46, -0.4633, 0.243})
+            //     .set_total_step(1500.0);
             // x = 0.463;
             // y = 0;
             // z = 0.106;
@@ -134,7 +134,7 @@ public:
             // pitch = -std::numbers::pi/2;
             // yaw = 0;
             // RCLCPP_INFO(this->get_logger(),"%f",*theta[4]);
-            bezier.reset();
+            // bezier.reset();
         } else {
             *is_arm_enable = true;
             // update_dr16_control_theta();
@@ -157,32 +157,32 @@ public:
             //           RCLCPP_INFO(this->get_logger(),"%f %f %f %f %f %f",x_,y_,z_
             //           ,roll_,yaw_,pitch_);
             // }
-            static int i = 0;
-            if (i < 2000) {
-                *target_theta[5] = 0.697789 / 180.0 * std::numbers::pi;
-                *target_theta[4] = 87.855693 / 180.0 * std::numbers::pi;
-                *target_theta[3] = 0.07 / 180 * std::numbers::pi;
-                *target_theta[2] = 21.608468 / 180.0 * std::numbers::pi;
-                *target_theta[1] = -22.869786 / 180.0 * std::numbers::pi;
-                *target_theta[0] = -0.008210 / 180 * std::numbers::pi;
-                i++;
-            } else {
+            // static int i = 0;
+            // if (i < 2000) {
+            //     *target_theta[5] = 0.697789 / 180.0 * std::numbers::pi;
+            //     *target_theta[4] = 87.855693 / 180.0 * std::numbers::pi;
+            //     *target_theta[3] = 0.07 / 180 * std::numbers::pi;
+            //     *target_theta[2] = 21.608468 / 180.0 * std::numbers::pi;
+            //     *target_theta[1] = -22.869786 / 180.0 * std::numbers::pi;
+            //     *target_theta[0] = -0.008210 / 180 * std::numbers::pi;
+            //     i++;
+            // } else {
 
-                std::array<double, 6> target = bezier.trajectory();
-                std::array<double, 6> angle  = tegdg.inverse_kinematic(target);
+            //     std::array<double, 6> target = bezier.trajectory();
+            //     std::array<double, 6> angle  = tegdg.inverse_kinematic(target);
 
-                RCLCPP_INFO(
-                    this->get_logger(), "%f %f %f %f %f %f ", angle[0] * 180 / std::numbers::pi,
-                    angle[1] * 180 / std::numbers::pi, angle[2] * 180 / std::numbers::pi,
-                    angle[3] * 180 / std::numbers::pi, angle[4] * 180 / std::numbers::pi,
-                    angle[5] * 180 / std::numbers::pi);
-                *target_theta[5] = angle[5];
-                *target_theta[4] = angle[4];
-                *target_theta[3] = angle[3];
-                *target_theta[2] = angle[2];
-                *target_theta[1] = angle[1];
-                *target_theta[0] = angle[0];
-            }
+            //     RCLCPP_INFO(
+            //         this->get_logger(), "%f %f %f %f %f %f ", angle[0] * 180 / std::numbers::pi,
+            //         angle[1] * 180 / std::numbers::pi, angle[2] * 180 / std::numbers::pi,
+            //         angle[3] * 180 / std::numbers::pi, angle[4] * 180 / std::numbers::pi,
+            //         angle[5] * 180 / std::numbers::pi);
+            //     *target_theta[5] = angle[5];
+            //     *target_theta[4] = angle[4];
+            //     *target_theta[3] = angle[3];
+            //     *target_theta[2] = angle[2];
+            //     *target_theta[1] = angle[1];
+            //     *target_theta[0] = angle[0];
+            // }
 
             //              drag
             // test.read_data_from_file();
@@ -223,8 +223,8 @@ private:
     double x, y, z, roll, pitch, yaw;
 
     bool is_auto_exchange = false;
-    hardware::device::Trajectory<hardware::device::LineTrajectoryType> line;
-    hardware::device::Trajectory<hardware::device::BezierTrajectoryType> bezier;
+    // hardware::device::Trajectory<hardware::device::LineTrajectoryType> line;
+    // hardware::device::Trajectory<hardware::device::BezierTrajectoryType> bezier;
 
     rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr subscription_;
     rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr publisher_;

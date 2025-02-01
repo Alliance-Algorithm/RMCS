@@ -24,7 +24,7 @@ rmcs_executor:
    
 engineer_hardware:
   ros__parameters:
-    usb_pid: 0xbc01
+    arm_board_usb_pid: 0xbc01
     joint6_zero_point: 0
     joint5_zero_point: 25950
     joint4_zero_point: 16159
