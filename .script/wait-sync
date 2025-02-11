@@ -1,0 +1,30 @@
+#!/bin/python3
+
+import socket
+import os
+
+SOCKET_PATH = "/tmp/sync-remote"
+
+def wait_for_sync_complete():
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client_socket:
+        try:
+            client_socket.connect(SOCKET_PATH)
+            data = client_socket.recv(1)
+            if data == b"f":
+                return 0
+            elif data == b"":
+                print(f"Error: Synchronization stopped.")
+                return 1
+            else:
+                print(f"Error: Received unexpected data!")
+                return 2
+        except FileNotFoundError:
+            print("Sync not in progress! Start synchronization with the command 'sync-remote'.")
+            return 10
+        except Exception as e:
+            print(f"Error: {e}")
+            return 11
+
+
+if __name__ == "__main__":
+    exit(wait_for_sync_complete())

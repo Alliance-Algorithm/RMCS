@@ -271,7 +271,7 @@ attach-remote -r
 更进一步的，指令间还可以组合，例如：
 
 ```bash
-build-rmcs && sleep 2 && attach-remote -r
+build-rmcs && wait-sync && attach-remote -r
 ```
 
-可以触发 RMCS 构建，完成后等待 2 秒以保证文件同步，接下来重启 RMCS 守护进程后，显示实时输出。
+可以触发 RMCS 构建，`wait-sync` 等待文件同步完成，接下来重启 RMCS 守护进程后，显示实时输出。
