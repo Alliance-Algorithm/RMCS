@@ -4,7 +4,10 @@
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/lk_motor.hpp"
 #include "hardware/forwarder/cboard.hpp"
+#include "hardware/ring_buffer.hpp"
+#include <bitset>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <librmcs/librmcs/client/cboard.hpp>
@@ -27,8 +30,9 @@ public:
         : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , logger_(get_logger())
         , engineer_command_(create_partner_component<EngineerCommand>("engineer_command", *this))
-        , armboard(*this, *engineer_command_, static_cast<int>(get_parameter("arm_board_usb_pid").as_int())) {
-    }
+        , armboard(
+              *this, *engineer_command_,
+              static_cast<int>(get_parameter("arm_board_usb_pid").as_int())) {}
     ~Engineer() override = default;
     void update() override {
         armboard.update();
@@ -58,7 +62,7 @@ private:
         friend class Engineer;
         explicit ArmBoard(Engineer& engineer, EngineerCommand& engineer_command, int usb_pid)
             : librmcs::client::CBoard(usb_pid)
-            , rclcpp::Node("arm_board")
+            , rclcpp::Node{"arm_board"}
 
             , joint(
                   {engineer, engineer_command, "/arm/Joint1"},
@@ -79,45 +83,53 @@ private:
             engineer.register_output("/arm/Joint2/control_angle_error", joint2_error_angle);
             engineer.register_output("/arm/Joint1/control_angle_error", joint1_error_angle);
 
+            engineer.register_output("/arm/Joint1/vision", vision_theta1, NAN);
+            engineer.register_output("/arm/Joint2/vision", vision_theta2, NAN);
+            engineer.register_output("/arm/Joint3/vision", vision_theta3, NAN);
+            engineer.register_output("/arm/Joint4/vision", vision_theta4, NAN);
+            engineer.register_output("/arm/Joint5/vision", vision_theta5, NAN);
+            engineer.register_output("/arm/Joint6/vision", vision_theta6, NAN);
+
             engineer_command.register_input("/arm/enable_flag", is_arm_enable_);
+
             using namespace device;
             joint[5].configure_joint(
                 LKMotorConfig{LKMotorType::MG4010E_i10V3}.set_encoder_zero_point(
-                    static_cast<uint16_t>(get_parameter("joint6_zero_point").as_int())),
+                    static_cast<uint16_t>(engineer.get_parameter("joint6_zero_point").as_int())),
                 DHConfig{0, -0.0571, 0, 0},
-                Qlim_Stall_Config{get_parameter("joint6_qlim").as_double_array()});
+                Qlim_Stall_Config{engineer.get_parameter("joint6_qlim").as_double_array()});
             joint[4].configure_joint(
                 LKMotorConfig{LKMotorType::MG4010E_i10V3}
                     .enable_multi_turn_angle()
                     .set_gear_ratio(1.35)
-                    .set_encoder_zero_point(
-                        static_cast<uint16_t>(get_parameter("joint5_zero_point").as_int())),
+                    .set_encoder_zero_point(static_cast<uint16_t>(
+                        engineer.get_parameter("joint5_zero_point").as_int())),
                 DHConfig{0, 0, 1.5707963, 0},
-                Qlim_Stall_Config{get_parameter("joint5_qlim").as_double_array()});
+                Qlim_Stall_Config{engineer.get_parameter("joint5_qlim").as_double_array()});
             joint[3].configure_joint(
                 LKMotorConfig{LKMotorType::MG4010E_i36V3}.set_encoder_zero_point(
-                    static_cast<int16_t>(get_parameter("joint4_zero_point").as_int())),
+                    static_cast<int16_t>(engineer.get_parameter("joint4_zero_point").as_int())),
                 DHConfig{0, 0.33969, 1.5707963, 0},
-                Qlim_Stall_Config{get_parameter("joint4_qlim").as_double_array()});
+                Qlim_Stall_Config{engineer.get_parameter("joint4_qlim").as_double_array()});
             joint[2].configure_joint(
                 LKMotorConfig{LKMotorType::MF7015V210T}, DHConfig{-0.08307, 0, 1.5707963, 0},
-                Qlim_Stall_Config{get_parameter("joint3_qlim").as_double_array()});
+                Qlim_Stall_Config{engineer.get_parameter("joint3_qlim").as_double_array()});
             joint[1].configure_joint(
                 LKMotorConfig{LKMotorType::MF7015V210T}, DHConfig{0.41, 0, 0, 1.5707963},
-                Qlim_Stall_Config{get_parameter("joint2_qlim").as_double_array()});
+                Qlim_Stall_Config{engineer.get_parameter("joint2_qlim").as_double_array()});
             joint[0].configure_joint(
                 LKMotorConfig{LKMotorType::MG8010E_i36}.set_encoder_zero_point(
-                    static_cast<uint16_t>(get_parameter("joint1_zero_point").as_int())),
+                    static_cast<uint16_t>(engineer.get_parameter("joint1_zero_point").as_int())),
                 DHConfig{0, 0.05985, 1.5707963, 0},
-                Qlim_Stall_Config{get_parameter("joint1_qlim").as_double_array()});
+                Qlim_Stall_Config{engineer.get_parameter("joint1_qlim").as_double_array()});
 
             joint2_encoder.configure(EncoderConfig{}
                                          .set_encoder_zero_point(static_cast<int>(
-                                             get_parameter("joint2_zero_point").as_int()))
+                                             engineer.get_parameter("joint2_zero_point").as_int()))
                                          .enable_multi_turn_angle());
             joint3_encoder.configure(EncoderConfig{}
                                          .set_encoder_zero_point(static_cast<int>(
-                                             get_parameter("joint3_zero_point").as_int()))
+                                             engineer.get_parameter("joint3_zero_point").as_int()))
                                          .reverse());
         }
         ~ArmBoard() final {
@@ -128,6 +140,8 @@ private:
         void update() {
             update_arm_motors();
             dr16_.update();
+
+            // vision.pop_front_multi()
         }
         void command() {
             arm_command_update();
@@ -310,6 +324,72 @@ private:
         void dbus_receive_callback(const std::byte* uart_data, uint8_t uart_data_length) override {
             dr16_.store_status(uart_data, uart_data_length);
         }
+        void uart1_receive_callback(const std::byte* uart_data, uint8_t uart_data_length) override {
+            if (vision.writeable() == 25 && vision.readable() == 39) {
+                vision.clear();
+            }
+            vision.emplace_back_multi(
+                [&uart_data](std::byte* storage) { *storage = *uart_data++; }, uart_data_length);
+
+            //    if(!(int)*(uart_data) && !(int)*(uart_data + 7))
+            //    RCLCPP_INFO(this->get_logger(),"%x %d",(int)*(uart_data),uart_data_length);
+            // std::byte* byte_ptr = vision.get_byte(0);
+            auto* front = vision.front();
+            auto* end   = vision.back();
+            if (uart_data == nullptr) {
+                RCLCPP_INFO(this->get_logger(), "%d", (int)(uart_data_length));
+            }
+            if (front && (int)*front == 0xA5 && vision.readable() >= 39) {
+
+                std::array<std::byte, 4> byte_data;
+
+                int16_t command;
+                command = *reinterpret_cast<const int16_t*>(front + 5);
+                if (command == 0x302) {
+                    // std::memcpy(byte_data.data(), front + 8, 4);
+                    float theta1, theta2, theta3, theta4, theta5, theta6;
+
+                    std::memcpy(&theta1, front + 8, 4);
+                    std::memcpy(&theta2, front + 12, 4);
+                    std::memcpy(&theta3, front + 16, 4);
+                    std::memcpy(&theta4, front + 20, 4);
+                    std::memcpy(&theta5, front + 24, 4);
+                    std::memcpy(&theta6, front + 28, 4);
+
+                    const float epsilon  = 0.000001f;
+                    const float maxValue = 10000.0f;
+
+                    if (!std::isinf(theta1) && fabs(theta1) >= epsilon && fabs(theta1) <= maxValue
+                        && !std::isinf(theta2) && fabs(theta2) >= epsilon
+                        && fabs(theta2) <= maxValue && !std::isinf(theta3)
+                        && fabs(theta3) >= epsilon && fabs(theta3) <= maxValue
+                        && !std::isinf(theta4) && fabs(theta4) >= epsilon
+                        && fabs(theta4) <= maxValue && !std::isinf(theta5)
+                        && fabs(theta5) >= epsilon && fabs(theta5) <= maxValue
+                        && !std::isinf(theta6) && fabs(theta6) >= epsilon
+                        && fabs(theta6) <= maxValue) {
+                        *vision_theta1 = theta1;
+                        *vision_theta2 = theta2;
+                        *vision_theta3 = theta3;
+                        *vision_theta4 = theta4;
+                        *vision_theta5 = theta5;
+                        *vision_theta6 = theta6;
+
+                            RCLCPP_INFO(
+                            this->get_logger(),
+                            "%f %f %f %f %f %f ",
+                            *vision_theta1,
+                            *vision_theta2,
+                            *vision_theta3,
+                            *vision_theta4,
+                            *vision_theta5,
+                            *vision_theta6
+                        );
+                    }
+
+                }
+            }
+        }
 
     private:
         OutputInterface<double> joint6_error_angle;
@@ -319,6 +399,13 @@ private:
         OutputInterface<double> joint2_error_angle;
         OutputInterface<double> joint1_error_angle;
 
+        OutputInterface<double> vision_theta1;
+        OutputInterface<double> vision_theta2;
+        OutputInterface<double> vision_theta3;
+        OutputInterface<double> vision_theta4;
+        OutputInterface<double> vision_theta5;
+        OutputInterface<double> vision_theta6;
+        OutputInterface<std::array<int8_t, 39>> vision_data;
         InputInterface<bool> is_arm_enable_;
 
         device::Joint joint[6];
@@ -327,6 +414,8 @@ private:
         device::Dr16 dr16_;
         librmcs::client::CBoard::TransmitBuffer transmit_buffer_;
         std::thread event_thread_;
+
+        librmcs::utility::RingBuffer<std::byte> vision{39};
         bool last_is_arm_enable_ = true;
 
     } armboard;

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <eigen3/Eigen/Dense>
 #include <rclcpp/node.hpp>
 
@@ -28,25 +29,25 @@ public:
         status_component.register_input("/arm/Joint5/T", T_45);
         status_component.register_input("/arm/Joint6/T", T_56);
 
-        status_component.register_input("/arm/Joint1/d", link_length1);
-        status_component.register_input("/arm/Joint2/a", link_length2);
-        status_component.register_input("/arm/Joint3/a", link_length3);
-        status_component.register_input("/arm/Joint4/d", link_length4);
-        status_component.register_input("/arm/Joint6/d", link_length5);
+        // status_component.register_input("/arm/Joint1/d", link_length1);
+        // status_component.register_input("/arm/Joint2/a", link_length2);
+        // status_component.register_input("/arm/Joint3/a", link_length3);
+        // status_component.register_input("/arm/Joint4/d", link_length4);
+        // status_component.register_input("/arm/Joint6/d", link_length5);
 
-        status_component.register_input("/arm/Joint1/qlim_up", joint1_qlim_up);
-        status_component.register_input("/arm/Joint2/qlim_up", joint2_qlim_up);
-        status_component.register_input("/arm/Joint3/qlim_up", joint3_qlim_up);
-        status_component.register_input("/arm/Joint4/qlim_up", joint4_qlim_up);
-        status_component.register_input("/arm/Joint5/qlim_up", joint5_qlim_up);
-        status_component.register_input("/arm/Joint6/qlim_up", joint6_qlim_up);
+        // status_component.register_input("/arm/Joint1/qlim_up", joint1_qlim_up);
+        // status_component.register_input("/arm/Joint2/qlim_up", joint2_qlim_up);
+        // status_component.register_input("/arm/Joint3/qlim_up", joint3_qlim_up);
+        // status_component.register_input("/arm/Joint4/qlim_up", joint4_qlim_up);
+        // status_component.register_input("/arm/Joint5/qlim_up", joint5_qlim_up);
+        // status_component.register_input("/arm/Joint6/qlim_up", joint6_qlim_up);
 
-        status_component.register_input("/arm/Joint1/qlim_low", joint1_qlim_low);
-        status_component.register_input("/arm/Joint2/qlim_low", joint2_qlim_low);
-        status_component.register_input("/arm/Joint3/qlim_low", joint3_qlim_low);
-        status_component.register_input("/arm/Joint4/qlim_low", joint4_qlim_low);
-        status_component.register_input("/arm/Joint5/qlim_low", joint5_qlim_low);
-        status_component.register_input("/arm/Joint6/qlim_low", joint6_qlim_low);
+        // status_component.register_input("/arm/Joint1/qlim_low", joint1_qlim_low);
+        // status_component.register_input("/arm/Joint2/qlim_low", joint2_qlim_low);
+        // status_component.register_input("/arm/Joint3/qlim_low", joint3_qlim_low);
+        // status_component.register_input("/arm/Joint4/qlim_low", joint4_qlim_low);
+        // status_component.register_input("/arm/Joint5/qlim_low", joint5_qlim_low);
+        // status_component.register_input("/arm/Joint6/qlim_low", joint6_qlim_low);
     }
     Kinematic(const Kinematic&)            = delete;
     Kinematic& operator=(const Kinematic&) = delete;
@@ -92,7 +93,7 @@ public:
         return in_degrees ? pitch * (180.0 / M_PI) : pitch;
     }
 
-    std::array<double, 6> inverse_kinematic(std::array<double, 6> xyz_rpy) {
+    static std::array<double, 6> inverse_kinematic(std::array<double, 6> xyz_rpy) {
         double theta1, theta2, theta3 = 0.0, theta4, theta5, theta6;
         // static double L_fake = sqrt(*link_length3 * (*link_length3) + *link_length4 *
         // (*link_length4));
@@ -103,22 +104,22 @@ public:
         static double L_fake = 0.349699;
         static double beta   = 0.239839;
         Eigen::Matrix4d T_R  = getTransformationMatrix(xyz_rpy);
-        double x_e           = T_R(0, 3) - T_R(0, 2) * (*link_length5);
-        double y_e           = T_R(1, 3) - T_R(1, 2) * (*link_length5);
-        double z_e           = T_R(2, 3) - T_R(2, 2) * (*link_length5);
+        double x_e           = T_R(0, 3) - T_R(0, 2) * (link_length5);
+        double y_e           = T_R(1, 3) - T_R(1, 2) * (link_length5);
+        double z_e           = T_R(2, 3) - T_R(2, 2) * (link_length5);
         // theta1
         double theta1_1 = -atan2(-y_e, x_e);
         double theta1_2 = -atan2(-y_e, x_e) + std::numbers::pi;
-        if (theta1_1 >= *joint1_qlim_low && theta1_1 <= *joint1_qlim_up)
+        if (theta1_1 >= joint1_qlim[0] && theta1_1 <= joint1_qlim[1])
             theta1 = theta1_1;
         else
             theta1 = theta1_2;
         // theta2
         double A        = x_e / cos(theta1);
-        double B        = z_e - *link_length1;
-        double k21      = -2.0 * A * (*link_length2);
-        double k22      = -2.0 * B * (*link_length2);
-        double d2       = A * A + B * B + (*link_length2) * (*link_length2) - L_fake * L_fake;
+        double B        = z_e - link_length1;
+        double k21      = -2.0 * A * (link_length2);
+        double k22      = -2.0 * B * (link_length2);
+        double d2       = A * A + B * B + (link_length2) * (link_length2)-L_fake * L_fake;
         double theta2_1 = atan2(k22, k21) - atan2(-d2, sqrt(k21 * k21 + k22 * k22 - d2 * d2));
         double theta2_2 = atan2(k22, k21) - atan2(-d2, -sqrt(k21 * k21 + k22 * k22 - d2 * d2));
         theta2_1        = normalizeAngle(theta2_1);
@@ -127,8 +128,8 @@ public:
         //     this->get_logger(), "%f %f %f  %f %f", x_e,y_e, T_R(1, 2),
         //     theta2_1 * 180 / std::numbers::pi, theta2_2 * 180 / std::numbers::pi);
         // theta3
-        double d31 = (A + (*link_length2) * sin(theta2_1)) / L_fake;
-        double d32 = (A + (*link_length2) * sin(theta2_2)) / L_fake;
+        double d31 = (A + (link_length2)*sin(theta2_1)) / L_fake;
+        double d32 = (A + (link_length2)*sin(theta2_2)) / L_fake;
         double theta3_1_1 =
             atan2(cos(theta2_1 - beta), sin(theta2_1 - beta)) - atan2(d31, sqrt(1 - d31 * d31));
         double theta3_1_2 =
@@ -142,29 +143,29 @@ public:
         theta3_1_2 = normalizeAngle(theta3_1_2);
         theta3_2_1 = normalizeAngle(theta3_2_1);
         theta3_2_2 = normalizeAngle(theta3_2_2);
-        if (theta2_1 >= (*joint2_qlim_low) && theta2_1 <= (*joint2_qlim_up)) {
+        if (theta2_1 >= (joint2_qlim[0]) && theta2_1 <= (joint2_qlim[1])) {
             theta2 = theta2_1;
-            if (theta3_1_1 >= (*joint3_qlim_low) && theta3_1_1 <= (*joint3_qlim_up))
+            if (theta3_1_1 >= (joint3_qlim[0]) && theta3_1_1 <= (joint3_qlim[1]))
                 theta3 = theta3_1_1;
-            else if (theta3_1_2 >= (*joint3_qlim_low) && theta3_1_2 <= (*joint3_qlim_up))
+            else if (theta3_1_2 >= (joint3_qlim[0]) && theta3_1_2 <= (joint3_qlim[1]))
                 theta3 = theta3_1_2;
 
             else {
-                if (theta2_2 >= (*joint2_qlim_low) && theta2_2 <= (*joint2_qlim_up)) {
+                if (theta2_2 >= (joint2_qlim[0]) && theta2_2 <= (joint2_qlim[1])) {
                     theta2 = theta2_2;
-                    if (theta3_2_1 >= (*joint3_qlim_low) && theta3_2_1 <= (*joint3_qlim_up))
+                    if (theta3_2_1 >= (joint3_qlim[0]) && theta3_2_1 <= (joint3_qlim[1]))
                         theta3 = theta3_2_1;
-                    else if (theta3_2_2 >= (*joint3_qlim_low) && theta3_2_2 <= (*joint3_qlim_up))
+                    else if (theta3_2_2 >= (joint3_qlim[0]) && theta3_2_2 <= (joint3_qlim[1]))
                         theta3 = theta3_2_2;
                     else
                         theta3 = NAN;
                 }
             }
-        } else if (theta2_2 >= (*joint2_qlim_low) && theta2_2 <= (*joint2_qlim_up)) {
+        } else if (theta2_2 >= (joint2_qlim[0]) && theta2_2 <= (joint2_qlim[1])) {
             theta2 = theta2_2;
-            if (theta3_2_1 >= (*joint3_qlim_low) && theta3_2_1 <= (*joint3_qlim_up))
+            if (theta3_2_1 >= (joint3_qlim[0]) && theta3_2_1 <= (joint3_qlim[1]))
                 theta3 = theta3_2_1;
-            else if (theta3_2_2 >= (*joint3_qlim_low) && theta3_2_2 <= (*joint3_qlim_up))
+            else if (theta3_2_2 >= (joint3_qlim[0]) && theta3_2_2 <= (joint3_qlim[1]))
                 theta3 = theta3_2_2;
             else
                 theta3 = NAN;
@@ -200,7 +201,7 @@ public:
         theta6 = normalizeAngle(theta6);
         if (theta4 > 3.141592 || theta4 < -3.141592)
             theta4 = NAN;
-        if (theta5 > *joint5_qlim_up || theta5 < *joint5_qlim_low)
+        if (theta5 > joint5_qlim[1] || theta5 < joint5_qlim[0])
             theta5 = NAN;
         if (theta6 > 3.141592 || theta6 < -3.141592)
             theta6 = NAN;
@@ -251,25 +252,37 @@ private:
     Component::InputInterface<Eigen::Matrix4d> T_45;
     Component::InputInterface<Eigen::Matrix4d> T_56;
 
-    Component::InputInterface<double> link_length1;
-    Component::InputInterface<double> link_length2;
-    Component::InputInterface<double> link_length3;
-    Component::InputInterface<double> link_length4;
-    Component::InputInterface<double> link_length5;
+    // Component::InputInterface<double> link_length1;
+    // Component::InputInterface<double> link_length2;
+    // Component::InputInterface<double> link_length3;
+    // Component::InputInterface<double> link_length4;
+    // Component::InputInterface<double> link_length5;
 
-    Component::InputInterface<double> joint1_qlim_up;
-    Component::InputInterface<double> joint2_qlim_up;
-    Component::InputInterface<double> joint3_qlim_up;
-    Component::InputInterface<double> joint4_qlim_up;
-    Component::InputInterface<double> joint5_qlim_up;
-    Component::InputInterface<double> joint6_qlim_up;
+    // Component::InputInterface<double> joint1_qlim_up;
+    // Component::InputInterface<double> joint2_qlim_up;
+    // Component::InputInterface<double> joint3_qlim_up;
+    // Component::InputInterface<double> joint4_qlim_up;
+    // Component::InputInterface<double> joint5_qlim_up;
+    // Component::InputInterface<double> joint6_qlim_up;
 
-    Component::InputInterface<double> joint1_qlim_low;
-    Component::InputInterface<double> joint2_qlim_low;
-    Component::InputInterface<double> joint3_qlim_low;
-    Component::InputInterface<double> joint4_qlim_low;
-    Component::InputInterface<double> joint5_qlim_low;
-    Component::InputInterface<double> joint6_qlim_low;
+    // Component::InputInterface<double> joint1_qlim_low;
+    // Component::InputInterface<double> joint2_qlim_low;
+    // Component::InputInterface<double> joint3_qlim_low;
+    // Component::InputInterface<double> joint4_qlim_low;
+    // Component::InputInterface<double> joint5_qlim_low;
+    // Component::InputInterface<double> joint6_qlim_low;
+    static constexpr double link_length1 = 0.05985;
+    static constexpr double link_length2 = 0.41;
+    static constexpr double link_length3 = -0.08307;
+    static constexpr double link_length4 = 0.33969;
+    static constexpr double link_length5 = -0.0571;
+
+    static constexpr std::array<double, 2> joint1_qlim = {-3.141592, 3.141592};
+    static constexpr std::array<double, 2> joint2_qlim = {-1.308, 1.04719};
+    static constexpr std::array<double, 2> joint3_qlim = {-1.0472, 0.8727};
+    static constexpr std::array<double, 2> joint4_qlim = {-3.141592, 3.141592};
+    static constexpr std::array<double, 2> joint5_qlim = {-1.83532, 1.83532};
+    static constexpr std::array<double, 2> joint6_qlim = {-3.141592, 3.141592};
 
     double x;
     double y;
