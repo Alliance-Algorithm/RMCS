@@ -76,6 +76,7 @@ private:
     }
 
     void image_displayer() {
+        // 提醒：code review，乱加线程sleep改来改去没删干净
         while (!display_stop_flag_) {
             cv::Mat camera_display;
             {
