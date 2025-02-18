@@ -5,6 +5,8 @@
 #include "hardware/fsm/FSM_gold_l.hpp"
 #include "hardware/fsm/FSM_gold_m.hpp"
 #include "hardware/fsm/FSM_gold_r.hpp"
+#include "hardware/fsm/FSM_sliver.hpp"
+#include "hardware/fsm/FSM_walk.hpp"
 #include "std_msgs/msg/float32_multi_array.hpp"
 #include <algorithm>
 #include <array>
@@ -106,51 +108,6 @@ public:
             *target_theta[2] = *theta[2];
             *target_theta[1] = *theta[1];
             *target_theta[0] = *theta[0];
-            // std::array<double, 6> angle = tegdg.inverse_kinematic(0.256,0.242,0.479, 1.627,
-            // -0.0853 , 1.378); RCLCPP_INFO(this->get_logger(),"%f %f %f %f %f
-            // %f",angle[0]*180/std::numbers::pi,angle[1]*180/std::numbers::pi,angle[2]*180/std::numbers::pi,angle[3]*180/std::numbers::pi,angle[4]*180/std::numbers::pi,angle[5]*180/std::numbers::pi);
-            // RCLCPP_INFO(
-            //     this->get_logger(), "%f %f %f %f %f %f", tegdg.get_x(), tegdg.get_y(),
-            //     tegdg.get_z(), tegdg.get_roll(), tegdg.get_pitch(), tegdg.get_yaw());
-            // RCLCPP_INFO(this->get_logger()," aa%f %f %f %f %f %f
-            // ",*theta[0],*theta[1],*theta[2],*theta[3],*theta[4],*theta[5]); std::array<double, 6>
-            // std::array<double, 6> sample_data = {*theta[0], *theta[1], *theta[2],
-            //                                      *theta[3], *theta[4], *theta[5]};
-
-            //   test.write_data_to_file(sample_data);
-
-            // RCLCPP_INFO(this->get_logger(),"%f %f %f %f %f
-            // %f",*theta[5],*theta[4],*theta[3],*theta[2],*theta[1],*theta[0]);
-
-            // tegdg.positive_kinematic();
-            // x     = 0.498;
-            // y     = 0;
-            // z     = 0.29;
-            // roll  = 0.688 * std::numbers::pi / 180.0;
-            // pitch = -0.883 * std::numbers::pi / 180.0;
-            // yaw   = 0.07149 * std::numbers::pi / 180.0;
-            // line.set_start_point({-0.313, 0, 0.2}, {0, 0 * std::numbers::pi / 180.0, 0})
-            //     .set_end_point({-0.613, 0, 0.2}, {0, 0 * std::numbers::pi / 180.0, 0})
-            //     .set_total_step(700.f);
-            // x     = 0.463;
-            // y     = 0;
-            // z     = 0.106;
-            // roll  = 0;
-            // pitch = -std::numbers::pi / 2;
-            // yaw   = 0;
-            // bezier.set_start_point({x, y, z}, {roll, pitch, yaw})
-            //     .set_end_point(
-            //         {-0.322, -0.175, 0.219},
-            //         {0.688 * std::numbers::pi / 180.f, -0.883 * std::numbers::pi / 180.f,
-            //          0.07149 * std::numbers::pi / 180.f})
-            //     .set_control_points({0.49221, -0.492337436, 0.243}, {-0.46, -0.4633, 0.243})
-            //     .set_total_step(1500.0);
-            //
-            // RCLCPP_INFO(this->get_logger(), "%f", *theta[4]);
-            // bezier.reset();
-            // reset_initial_arm.reset();
-
-            // reset_initial_arm.set_start_point({*theta[0],*theta[1],*theta[2],*theta[3],*theta[4],*theta[5]}).set_total_step(2000);
 
         } else {
             *is_arm_enable = true;
@@ -160,90 +117,11 @@ public:
                 case Mode::Auto_Gold_Left: execute_gold(fsm_gold_l); break;
                 case Mode::Auto_Gold_Mid: execute_gold(fsm_gold_m); break;
                 case Mode::Auto_Gold_right: execute_gold(fsm_gold_r); break;
+                case Mode::Auto_Sliver: execute_sliver(fsm_sliver); break;
+                case Mode::Auto_Walk: execute_walk();break;
                 default: break;
                 }
             }
-
-            // update_dr16_control_theta();
-            // reset_initial_arm.set_end_point({0,1.04,-1.04,0,0,0});
-            // std::array<double, 6> angle = reset_initial_arm.trajectory();
-            //  RCLCPP_INFO(
-            //         this->get_logger(), "%f %f %f %f %f %f ", angle[0] * 180 / std::numbers::pi,
-            //         angle[1] * 180 / std::numbers::pi, angle[2] * 180 / std::numbers::pi,
-            //         angle[3] * 180 / std::numbers::pi, angle[4] * 180 / std::numbers::pi,
-            //         angle[5] * 180 / std::numbers::pi);
-            // static int i = 0;
-            // if (i < 2000) {
-            //     *target_theta[5] = 179.859552 / 180.0 * std::numbers::pi;
-            //     *target_theta[4] = 44.583750 / 180.0 * std::numbers::pi;
-            //     *target_theta[3] = 179.802025 / 180 * std::numbers::pi;
-            //     *target_theta[2] = -11.752940 / 180.0 * std::numbers::pi;
-            //     *target_theta[1] = -32.890090 / 180.0 * std::numbers::pi;
-            //     *target_theta[0] = -0.138969 / 180 * std::numbers::pi;
-            //     i++;
-            // } else {
-
-            // std::array<double, 6> target = bezier.trajectory();
-            // std::array<double, 6> angle  =
-            // hardware::device::Kinematic::inverse_kinematic(target);
-
-            //     RCLCPP_INFO(
-            //         this->get_logger(), "%f %f %f %f %f %f ", angle[0] * 180 / std::numbers::pi,
-            //         angle[1] * 180 / std::numbers::pi, angle[2] * 180 / std::numbers::pi,
-            //         angle[3] * 180 / std::numbers::pi, angle[4] * 180 / std::numbers::pi,
-            //         angle[5] * 180 / std::numbers::pi);
-            // *target_theta[5] = angle[5];
-            // *target_theta[4] = angle[4];
-            // *target_theta[3] = angle[3];
-            // *target_theta[2] = angle[2];
-            // *target_theta[1] = angle[1];
-            // *target_theta[0] = angle[0];
-            // }
-
-            //              drag
-            // test.read_data_from_file();
-            // const double* data = test.get_data();
-            // RCLCPP_INFO(this->get_logger(),"%f %f %f %f %f
-            // %f",data[0],data[1],data[2],data[3],data[4],data[5]); *target_theta[5] = data[5];
-            // *target_theta[4] = data[4];
-            // *target_theta[3] = data[3];
-            // *target_theta[2] = data[2];
-            // *target_theta[1] = data[1];
-            // *target_theta[0] = data[0];
-
-            // *target_theta[5] = *vision_theta6;
-            // *target_theta[4] = *vision_theta5;
-            // *target_theta[3] = *vision_theta4;
-            // *target_theta[2] = *vision_theta3;
-            // *target_theta[1] = *vision_theta2;
-            // *target_theta[0] = *vision_theta1;
-            // static int i = 0;
-            //     // if(i <  1){
-            //     static int flag = 0,up_flag = 0;
-            //     if (keyboard.z) {
-            //         flag = 1;
-            //         egg.get_current_theta(
-            //             {*theta[0], *theta[1], *theta[2], *theta[3], *theta[4], *theta[5]});
-            //         egg.reset();
-            //         egg.start();
-            //     }
-            //     if(flag == 1){
-            //         if(keyboard.w){
-            //             up_flag = 1;
-            //         }else if (keyboard.s) {
-            //             up_flag = 2;
-            //         }
-            //     }
-            //     if(up_flag == 1){
-            //     egg.processEvent(Auto_Gold_Event::Up);
-
-            //    RCLCPP_INFO(
-            //         this->get_logger(), "%f %f %f %f %f %f", egg.get_result()[0],
-            //         egg.get_result()[1], egg.get_result()[2], egg.get_result()[3],
-            //         egg.get_result()[4], egg.get_result()[5]);}
-            // i ++;
-            // }
-            // RCLCPP_INFO(this->get_logger(),"%d",flag);
         }
     }
 
@@ -285,6 +163,14 @@ private:
             mode = Mode::Auto_Gold_right;
             fsm_gold_r.reset();
         }
+        if (keyboard.x) {
+            mode = Mode::Auto_Sliver;
+            fsm_sliver.reset();
+        }
+        if (keyboard.g) {
+            mode = Mode::Auto_Walk;
+            fsm_walk.reset();
+        }
     }
     template <typename T>
     void execute_gold(T& fsm_gold) {
@@ -325,11 +211,64 @@ private:
         //         fsm_gold.get_result()[4],
         //         fsm_gold.get_result()[5]);
     }
+    template <typename T>
+    void execute_sliver(T& fsm_sliver) {
+        auto keyboard          = *keyboard_;
+        static auto last_state = Auto_Sliver_State::Set_initial;
 
+        if (fsm_sliver.fsm_direction == initial_enter || keyboard.s) {
+            fsm_sliver.get_current_theta(
+                {*theta[0], *theta[1], *theta[2], *theta[3], *theta[4], *theta[5]});
+        }
+        if (keyboard.w || fsm_sliver.fsm_direction == initial_enter)
+            fsm_sliver.fsm_direction = up;
+        else if (keyboard.s)
+            fsm_sliver.fsm_direction = down;
+
+        if (fsm_sliver.fsm_direction == up) {
+            fsm_sliver.processEvent(Auto_Sliver_Event::Up);
+        }
+        if (fsm_sliver.fsm_direction == down) {
+            fsm_sliver.processEvent(Auto_Sliver_Event::Down);
+        }
+
+        if (fsm_sliver.getState() != last_state) {
+            fsm_sliver.fsm_direction = 0;
+        }
+        last_state       = fsm_sliver.getState();
+        *target_theta[5] = fsm_sliver.get_result()[5];
+        *target_theta[4] = fsm_sliver.get_result()[4];
+        *target_theta[3] = fsm_sliver.get_result()[3];
+        *target_theta[2] = fsm_sliver.get_result()[2];
+        *target_theta[1] = fsm_sliver.get_result()[1];
+        *target_theta[0] = fsm_sliver.get_result()[0];
+    }
+    void execute_walk(){
+        auto keyboard          = *keyboard_;
+        if(fsm_walk.fsm_direction == initial_enter){
+            fsm_walk.get_current_theta(
+                {*theta[0], *theta[1], *theta[2], *theta[3], *theta[4], *theta[5]});
+            fsm_walk.fsm_direction = up;
+        }
+        if(fsm_walk.fsm_direction == up){
+            fsm_walk.processEvent(Auto_Walk_Event::Up);
+        }
+        *target_theta[5] = fsm_walk.get_result()[5];
+        *target_theta[4] = fsm_walk.get_result()[4];
+        *target_theta[3] = fsm_walk.get_result()[3];
+        *target_theta[2] = fsm_walk.get_result()[2];
+        *target_theta[1] = fsm_walk.get_result()[1];
+        *target_theta[0] = fsm_walk.get_result()[0];
+
+    }
     bool is_auto_exchange = false;
+    //auto_mode_Fsm
     Auto_Gold_Left fsm_gold_l;
     Auto_Gold_Mid fsm_gold_m;
     Auto_Gold_Right fsm_gold_r;
+    Auto_Sliver fsm_sliver;
+    Auto_Set_Walk_Arm fsm_walk;
+    //
 
     rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr subscription_;
     rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr publisher_;
@@ -346,14 +285,20 @@ private:
     OutputInterface<bool> is_arm_enable;
     InputInterface<double> theta[6]; // motor_current_angle
     OutputInterface<double> target_theta[6];
-    enum class Mode { Auto_Gold_Left, Auto_Gold_right, Auto_Gold_Mid, None } mode = Mode::None;
+    enum class Mode {
+        Auto_Gold_Left,
+        Auto_Gold_right,
+        Auto_Gold_Mid,
+        Auto_Sliver,
+        Auto_Walk,
+        None
+    } mode = Mode::None;
 
     // test
     //  hardware::device::Trajectory<hardware::device::LineTrajectoryType> line;
     rmcs_core::hardware::device::Trajectory<rmcs_core::hardware::device::TrajectoryType::BEZIER>
         bezier;
-    rmcs_core::hardware::device::Trajectory<hardware::device::TrajectoryType::JOINT>
-        reset_initial_arm;
+
     InputInterface<double> vision_theta1;
     InputInterface<double> vision_theta2;
     InputInterface<double> vision_theta3;

@@ -16,7 +16,7 @@ enum class Auto_Gold_Event { Up, Down };
 // 定义上下文
 struct Auto_Gold_Context {};
 
-class Set_initial_State : public IState<Auto_Gold_State, Auto_Gold_Event, Auto_Gold_Context> {
+class Gold_Set_initial_State : public IState<Auto_Gold_State, Auto_Gold_Event, Auto_Gold_Context> {
 public:
     void enter(
         FiniteStateMachine<Auto_Gold_State, Auto_Gold_Event, Auto_Gold_Context>& fsm,
@@ -41,7 +41,7 @@ public:
 private:
     rclcpp::Logger logger = rclcpp::get_logger("Set_initial_State");
 };
-class Lift_State : public IState<Auto_Gold_State, Auto_Gold_Event, Auto_Gold_Context> {
+class Gold_Lift_State : public IState<Auto_Gold_State, Auto_Gold_Event, Auto_Gold_Context> {
 public:
     void enter(
         FiniteStateMachine<Auto_Gold_State, Auto_Gold_Event, Auto_Gold_Context>& fsm,
@@ -76,8 +76,8 @@ public:
                 {0.52, 0, 0.32},
                 {-std::numbers::pi, -90 * std::numbers::pi / 180, -std::numbers::pi});
 
-        fsm.registerState<Set_initial_State>();
-        fsm.registerState<Lift_State>();
+        fsm.registerState<Gold_Set_initial_State>();
+        fsm.registerState<Gold_Lift_State>();
         fsm.addTransition<Auto_Gold_Event>(
             Auto_Gold_State::Set_initial, Auto_Gold_Event::Up,
             [this](const Auto_Gold_Event& event, const Auto_Gold_Context& context) {
