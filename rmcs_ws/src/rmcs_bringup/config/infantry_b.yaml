@@ -30,6 +30,8 @@ rmcs_executor:
       # - rmcs_core::hardware::cboard::GyroCalibrator -> gyro_calibrator
       # - rmcs_auto_aim::Controller -> rmcs_auto_aim
 
+      - rmcs_core::controller::gimbal::ShootingRecorder -> shooting_recorder
+
 infantry_hardware:
   ros__parameters:
     usb_pid: -1
@@ -100,6 +102,12 @@ shooting_controller:
     deep_eject_frequency: 5.0
     deep_eject_time: 0.2
     single_shot_max_stop_delay: 2.0
+
+shooting_recorder:
+  ros__parameters:
+    friction_wheel_count: 2
+    # 1: trigger, 2: timing
+    log_mode: 1
 
 left_friction_velocity_pid_controller:
   ros__parameters:

@@ -24,6 +24,8 @@ rmcs_executor:
       - rmcs_core::controller::chassis::ChassisController -> chassis_controller
       - rmcs_core::controller::chassis::OmniWheelController -> omni_wheel_controller
 
+      - rmcs_core::controller::gimbal::ShootingRecorder -> shooting_recorder
+
 hero_hardware:
   ros__parameters:
     usb_pid_top_board: 0x652f
@@ -60,10 +62,10 @@ shooting_controller:
       - /gimbal/second_left_friction
       - /gimbal/second_right_friction
     friction_velocities:
-      - 520.0
-      - 520.0
-      - 520.0
-      - 520.0
+      - 530.85
+      - 530.85
+      - 530.70
+      - 530.70
     is_42mm: true
     bullets_per_feeder_turn: 6.0
     shot_frequency: 10.0
@@ -74,8 +76,12 @@ shooting_controller:
     deep_eject_frequency: 2.0
     deep_eject_time: 0.5
     single_shot_max_stop_delay: 2.0
-    
 
+shooting_recorder:
+  ros__parameters:
+    friction_wheel_count: 4
+    log_mode: 2 # 1: trigger, 2: timing
+    
 second_left_friction_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/second_left_friction/velocity

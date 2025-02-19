@@ -64,7 +64,7 @@ struct __attribute__((packed)) HurtData {
     uint8_t reason   : 4;
 };
 
-struct __attribute__((packed)) ShotData {
+struct __attribute__((packed)) ShootData {
     uint8_t bullet_type;
     uint8_t shooter_number;
     uint8_t launching_frequency;

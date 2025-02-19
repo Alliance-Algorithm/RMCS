@@ -11,6 +11,7 @@
 #include "hardware/device/bmi088.hpp"
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
+#include "hardware/device/gy614.hpp"
 #include "hardware/device/lk_motor.hpp"
 #include "hardware/device/supercap.hpp"
 
@@ -84,13 +85,14 @@ private:
         explicit TopBoard(Hero& hero, HeroCommand& hero_command, int usb_pid = -1)
             : librmcs::client::CBoard(usb_pid)
             , bmi088_(1000, 0.2, 0.0)
+            , gy614_(hero)
             , tf_(hero.tf_)
             , gimbal_pitch_motor_(
                   hero, hero_command, "/gimbal/pitch",
                   device::LkMotor::Config{device::LkMotor::Type::MG5010E_I10}
                       .set_encoder_zero_point(
                           static_cast<int>(hero.get_parameter("pitch_motor_zero_point").as_int())))
-            , gimbal_friction_wheels(
+            , gimbal_friction_wheels_(
                   {hero, hero_command, "/gimbal/first_left_friction",
                    device::DjiMotor::Config{device::DjiMotor::Type::M3508}.set_reduction_ratio(1.)},
                   {hero, hero_command, "/gimbal/second_left_friction",
@@ -117,6 +119,8 @@ private:
 
         void update() {
             bmi088_.update_status();
+            gy614_.update();
+
             Eigen::Quaterniond gimbal_imu_pose{
                 bmi088_.q0(), bmi088_.q1(), bmi088_.q2(), bmi088_.q3()};
             tf_->set_transform<rmcs_description::ImuLink, rmcs_description::OdomImu>(
@@ -128,14 +132,14 @@ private:
             tf_->set_state<rmcs_description::YawLink, rmcs_description::PitchLink>(
                 gimbal_pitch_motor_.angle());
 
-            for (auto& motor : gimbal_friction_wheels)
+            for (auto& motor : gimbal_friction_wheels_)
                 motor.update_status();
         }
 
         void command_update() {
             uint16_t batch_commands[4];
             for (int i = 0; i < 4; i++)
-                batch_commands[i] = gimbal_friction_wheels[i].generate_command();
+                batch_commands[i] = gimbal_friction_wheels_[i].generate_command();
             transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(batch_commands));
 
             transmit_buffer_.add_can2_transmission(0x141, gimbal_pitch_motor_.generate_command());
@@ -151,13 +155,13 @@ private:
                 return;
 
             if (can_id == 0x201) {
-                gimbal_friction_wheels[0].store_status(can_data);
+                gimbal_friction_wheels_[0].store_status(can_data);
             } else if (can_id == 0x202) {
-                gimbal_friction_wheels[1].store_status(can_data);
+                gimbal_friction_wheels_[1].store_status(can_data);
             } else if (can_id == 0x203) {
-                gimbal_friction_wheels[2].store_status(can_data);
+                gimbal_friction_wheels_[2].store_status(can_data);
             } else if (can_id == 0x204) {
-                gimbal_friction_wheels[3].store_status(can_data);
+                gimbal_friction_wheels_[3].store_status(can_data);
             }
         }
 
@@ -172,6 +176,10 @@ private:
             }
         }
 
+        void uart2_receive_callback(const std::byte* data, uint8_t length) override {
+            gy614_.store_status(data, length);
+        }
+
         void accelerometer_receive_callback(int16_t x, int16_t y, int16_t z) override {
             bmi088_.store_accelerometer_status(x, y, z);
         }
@@ -181,13 +189,14 @@ private:
         }
 
         device::Bmi088 bmi088_;
+        device::Gy614 gy614_;
         OutputInterface<rmcs_description::Tf>& tf_;
         OutputInterface<double> gimbal_yaw_velocity_imu_;
         OutputInterface<double> gimbal_pitch_velocity_imu_;
 
         device::LkMotor gimbal_pitch_motor_;
 
-        device::DjiMotor gimbal_friction_wheels[4];
+        device::DjiMotor gimbal_friction_wheels_[4];
 
         librmcs::client::CBoard::TransmitBuffer transmit_buffer_;
         std::thread event_thread_;

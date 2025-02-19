@@ -34,6 +34,9 @@ public:
         register_output("/referee/robots/hp", robots_hp_);
         register_output("/referee/shooter/bullet_allowance", robot_bullet_allowance_, false);
 
+        register_output("/referee/shooter/initial_speed", robot_initial_speed_, false);
+        register_output("/referee/shooter/shoot_timestamp", robot_shoot_timestamp_, false);
+
         robot_status_watchdog_.reset(5'000);
     }
 
@@ -146,7 +149,13 @@ private:
 
     void update_hurt_data() {}
 
-    void update_shoot_data() {}
+    void update_shoot_data() {
+        auto& data            = reinterpret_cast<ShootData&>(frame_.body.data);
+        *robot_initial_speed_ = data.initial_speed;
+
+        const auto now          = std::chrono::high_resolution_clock::now();
+        *robot_shoot_timestamp_ = std::chrono::duration<double>(now.time_since_epoch()).count();
+    }
 
     void update_bullet_allowance() {
         auto& data               = reinterpret_cast<BulletAllowance&>(frame_.body.data);
@@ -183,6 +192,9 @@ private:
 
     OutputInterface<GameRobotHp> robots_hp_;
     OutputInterface<uint16_t> robot_bullet_allowance_;
+
+    OutputInterface<float> robot_initial_speed_;
+    OutputInterface<double> robot_shoot_timestamp_;
 };
 
 } // namespace rmcs_core::referee

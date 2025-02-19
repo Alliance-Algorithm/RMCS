@@ -11,6 +11,7 @@
 #include "hardware/device/bmi088.hpp"
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
+#include "hardware/device/gy614.hpp"
 #include "hardware/device/supercap.hpp"
 
 namespace rmcs_core::hardware {
@@ -26,15 +27,15 @@ public:
         , logger_(get_logger())
         , infantry_command_(
               create_partner_component<InfantryCommand>(get_component_name() + "_command", *this))
+        , gy614_(*this)
         , transmit_buffer_(*this, 32)
         , event_thread_([this]() { handle_events(); }) {
 
         for (auto& motor : chassis_wheel_motors_)
-            motor.configure(
-                device::DjiMotor::Config{device::DjiMotor::Type::M3508}
-                    .set_reversed()
-                    .set_reduction_ratio(13.)
-                    .enable_multi_turn_angle());
+            motor.configure(device::DjiMotor::Config{device::DjiMotor::Type::M3508}
+                                .set_reversed()
+                                .set_reduction_ratio(13.)
+                                .enable_multi_turn_angle());
 
         gimbal_yaw_motor_.configure(
             device::DjiMotor::Config{device::DjiMotor::Type::GM6020}.set_encoder_zero_point(
@@ -45,10 +46,9 @@ public:
 
         gimbal_left_friction_.configure(
             device::DjiMotor::Config{device::DjiMotor::Type::M3508}.set_reduction_ratio(1.));
-        gimbal_right_friction_.configure(
-            device::DjiMotor::Config{device::DjiMotor::Type::M3508}
-                .set_reversed()
-                .set_reduction_ratio(1.));
+        gimbal_right_friction_.configure(device::DjiMotor::Config{device::DjiMotor::Type::M3508}
+                                             .set_reversed()
+                                             .set_reduction_ratio(1.));
         gimbal_bullet_feeder_.configure(
             device::DjiMotor::Config{device::DjiMotor::Type::M2006}.enable_multi_turn_angle());
 
@@ -101,6 +101,7 @@ public:
         update_motors();
         update_imu();
         dr16_.update_status();
+        gy614_.update();
         supercap_.update_status();
     }
 
@@ -223,6 +224,10 @@ protected:
             [&uart_data](std::byte* storage) { *storage = *uart_data++; }, uart_data_length);
     }
 
+    void uart2_receive_callback(const std::byte* data, uint8_t length) override {
+        gy614_.store_status(data, length);
+    }
+
     void dbus_receive_callback(const std::byte* uart_data, uint8_t uart_data_length) override {
         dr16_.store_status(uart_data, uart_data_length);
     }
@@ -269,6 +274,7 @@ private:
     device::Dr16 dr16_{*this};
 
     device::Bmi088 imu_{1000, 0.2, 0.0};
+    device::Gy614 gy614_;
 
     OutputInterface<double> gimbal_yaw_velocity_imu_;
     OutputInterface<double> gimbal_pitch_velocity_imu_;

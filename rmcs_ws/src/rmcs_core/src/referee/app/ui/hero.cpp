@@ -61,7 +61,8 @@ public:
 
         register_input("/referee/shooter/bullet_allowance", robot_bullet_allowance_);
 
-        register_input("/gimbal/first_left_friction/control_velocity", left_friction_control_velocity_);
+        register_input(
+            "/gimbal/first_left_friction/control_velocity", left_friction_control_velocity_);
         register_input("/gimbal/first_left_friction/velocity", left_friction_velocity_);
         register_input("/gimbal/first_right_friction/velocity", right_friction_velocity_);
 
