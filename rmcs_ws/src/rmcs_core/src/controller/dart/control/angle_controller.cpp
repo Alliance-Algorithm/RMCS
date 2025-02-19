@@ -18,7 +18,6 @@ public:
         : Node(get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , logger_(get_logger()) {
 
-        error_reference_value_ = get_parameter("error_reference").as_double();
         control_velocity_limit = get_parameter("control_velocity_limit").as_double();
 
         register_input("/remote/switch/right", switch_right_input_, false);
@@ -34,7 +33,7 @@ public:
 
     void update() override {
         update_control_mode();
-        if (control_mode_ == ControllMode::Ban) {
+        if (control_mode_ == ControllerState::Ban) {
             reset_all_controls();
         } else {
             update_control_velocitys();
@@ -43,7 +42,7 @@ public:
 
 private:
     void reset_all_controls() {
-        control_mode_            = ControllMode::Ban;
+        control_mode_            = ControllerState::Ban;
         *yaw_control_velocity_   = nan;
         *pitch_control_velocity_ = nan;
     }
@@ -56,15 +55,15 @@ private:
         if (switch_right_ == Switch::DOWN) {
 
             if (switch_left_ == Switch::MIDDLE) {
-                control_mode_ = ControllMode::Auto;
+                control_mode_ = ControllerState::Auto;
             } else if (switch_left_ == Switch::UP) {
-                control_mode_ = ControllMode::Manual;
+                control_mode_ = ControllerState::Manual;
             } else {
-                control_mode_ = ControllMode::Ban;
+                control_mode_ = ControllerState::Ban;
             }
 
         } else {
-            control_mode_ = ControllMode::Ban;
+            control_mode_ = ControllerState::Ban;
         }
     }
 
@@ -72,13 +71,15 @@ private:
         double yaw_error   = 0;
         double pitch_error = 0;
 
-        if (control_mode_ == ControllMode::Manual) {
-            yaw_error   = 30.0 * joystick_right_->y();
-            pitch_error = 30.0 * joystick_left_->x();
-        }
-        if (control_mode_ == ControllMode::Auto) {
+        if (control_mode_ == ControllerState::Manual) {
+            yaw_error   = 25.0 * joystick_right_->y();
+            pitch_error = 25.0 * joystick_left_->x();
+        } else if (control_mode_ == ControllerState::Auto) {
             yaw_error   = error_vector_->x();
             pitch_error = error_vector_->y();
+        } else {
+            yaw_error   = nan;
+            pitch_error = nan;
         }
 
         *yaw_control_velocity_   = MIN(MAX(yaw_error, -control_velocity_limit), control_velocity_limit);
@@ -88,11 +89,10 @@ private:
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
     rclcpp::Logger logger_;
 
-    ControllMode control_mode_      = ControllMode::Ban;
+    ControllerState control_mode_   = ControllerState::Ban;
     rmcs_msgs::Switch switch_left_  = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Switch switch_right_ = rmcs_msgs::Switch::UNKNOWN;
 
-    double error_reference_value_;
     double control_velocity_limit;
 
     InputInterface<Eigen::Vector2d> error_vector_;

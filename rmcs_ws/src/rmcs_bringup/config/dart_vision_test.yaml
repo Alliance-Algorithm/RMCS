@@ -15,7 +15,7 @@ angle_controller:
 dart_camera:
   ros__parameters:
     invert_image: true
-    exposure_time: 3000
+    exposure_time: 5000
 
 aim_controller:
   ros__parameters:
