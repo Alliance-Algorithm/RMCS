@@ -84,12 +84,12 @@ private:
 
         if (velocity == 0 && !reverse_ready_) {
             reverse_ready_   = true;
-            conveyor_enable_ = -1 * conveyor_enable_ - 0.5;
+            conveyor_enable_ = -1 * conveyor_enable_;
         } else if (abs(velocity) >= 10.0) {
             reverse_ready_ = false;
         }
 
-        RCLCPP_INFO(logger_, "conveyor:%5.1lf,bool:%5d", conveyor_enable_, reverse_ready_);
+        // RCLCPP_INFO(logger_, "conveyor:%5.1lf,bool:%5d", conveyor_enable_, reverse_ready_);
     }
 
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();

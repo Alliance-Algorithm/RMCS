@@ -3,9 +3,6 @@ rmcs_executor:
     update_rate: 1000.0
     components:
       - rmcs_core::hardware::DartLauncher -> dart_hardware
-      - rmcs_core::controller::dart::DartCamera -> dart_camera
-      - rmcs_core::controller::dart::AimController -> aim_controller
-      - rmcs_core::controller::dart::MessagePublisher -> message_publisher
 
       - rmcs_core::controller::dart::LauncherController -> launcher_controller
       - rmcs_core::controller::pid::PidController -> conveyor_velocity_pid_controller
@@ -16,11 +13,15 @@ rmcs_executor:
       - rmcs_core::controller::dart::SyncController -> friction_front_velocity_sync_controller
       - rmcs_core::controller::dart::SyncController -> friction_back_velocity_sync_controller
 
-      - rmcs_core::controller::dart::AngleController -> angle_controller
+      - rmcs_core::controller::dart::AngleController -> angle_test
       - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
       - rmcs_core::controller::pid::ErrorPidController -> pitch_left_velocity_pid_controller
       - rmcs_core::controller::pid::ErrorPidController -> pitch_right_velocity_pid_controller
       - rmcs_core::controller::dart::SyncController -> pitch_velocity_sync_controller
+      
+      - rmcs_core::controller::dart::MessagePublisher -> message_publisher
+      - rmcs_core::controller::dart::DartCamera -> dart_camera
+      - rmcs_core::controller::dart::AimController -> aim_controller
 
 dart_hardware:
   ros__parameters:
@@ -29,7 +30,7 @@ dart_hardware:
 launcher_controller:
   ros__parameters:
     debug_enable: true
-    conveyor_working_velocity: 100.00
+    conveyor_working_velocity: 120.00
     friction_working_velocity: 400.00
     error_velocity: 00.00
 
@@ -81,7 +82,7 @@ friction_front_velocity_sync_controller:
     motor1_control_error: /dart/friction_lf/control_error
     motor2_measurement: /dart/friction_rf/velocity
     motor2_control_error: /dart/friction_rf/control_error
-    sync_compensation: 0.3
+    sync_compensation: 0.02
     error_integral_compensation: 0.00
     log_enable: false
 
@@ -96,34 +97,35 @@ friction_back_velocity_sync_controller:
     error_integral_compensation: 0.00
     log_enable: false
 
-angle_controller:
+angle_test:
   ros__parameters:
-    control_velocity_limit: 20.00
+    yaw_velocity_limit: 25.00
+    pitch_velocity_limit: 25.00
 
 yaw_velocity_pid_controller:
   ros__parameters:
     measurement: /dart/yaw/velocity
     setpoint: /dart/yaw/control_velocity
     control: /dart/yaw/control_torque
-    kp: 0.30
+    kp: 0.3036926
     ki: 0.00
-    kd: 0.01
+    kd: 0.009373434
 
 pitch_left_velocity_pid_controller:
   ros__parameters:
     measurement: /dart/pitch_left/control_error
     control: /dart/pitch_left/control_torque
-    kp: 0.30
+    kp: 0.3036926
     ki: 0.00
-    kd: 0.01
+    kd: 0.009373434
 
 pitch_right_velocity_pid_controller:
   ros__parameters:
     measurement: /dart/pitch_right/control_error
     control: /dart/pitch_right/control_torque
-    kp: 0.30
+    kp: 0.03436926
     ki: 0.00
-    kd: 0.01
+    kd: 0.009373434
 
 pitch_velocity_sync_controller:
   ros__parameters:
@@ -136,10 +138,16 @@ pitch_velocity_sync_controller:
     error_integral_compensation: 0.1
     log_enable: false
 
+message_publisher:
+  ros__parameters:
+    camera_enable: true
+    friction_enable: true
+    cal_fps_enable: false
+
 dart_camera:
   ros__parameters:
     invert_image: true
-    exposure_time: 5000
+    exposure_time: 3000
 
 aim_controller:
   ros__parameters:
@@ -148,13 +156,7 @@ aim_controller:
     lowerlimit_L: 128.00
     lowerlimit_S: 60.00
     upperlimit_H: 80.00
-    upperlimit_L: 160.00
+    upperlimit_L: 196.00
     upperlimit_S: 255.00
     yaw_aim_position: 720.00
-    pitch_aim_position: 300.00
-
-message_publisher:
-  ros__parameters:
-    camera_enable: true
-    friction_enable: true
-    cal_fps_enable: false
+    pitch_aim_position: 120.00

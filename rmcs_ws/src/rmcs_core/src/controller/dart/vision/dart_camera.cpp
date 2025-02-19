@@ -25,7 +25,7 @@ public:
 
         profile_.invert_image  = get_parameter("invert_image").as_bool();
         profile_.exposure_time = std::chrono::microseconds(get_parameter("exposure_time").as_int());
-        profile_.gain          = 0;
+        profile_.gain          = 16.9807;
         capture_               = std::make_unique<hikcamera::ImageCapturer>(profile_);
 
         latest_frame_.init();

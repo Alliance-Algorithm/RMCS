@@ -26,6 +26,8 @@ public:
         , yaw_aim_position_(get_parameter("yaw_aim_position").as_double())
         , pitch_aim_position_(get_parameter("pitch_aim_position").as_double()) {
 
+        latest_target_position_ = cv::Point2d(yaw_aim_position_, pitch_aim_position_);
+
         register_input("/dart/vision/camera_frame", dart_camera_frame_);
         register_output("/dart/vision/display_image", display_image_);
         register_output("/dart/vision/error_vector", error_vector_, Eigen::Vector2d::Zero());
@@ -85,18 +87,21 @@ private:
             for (int i = 0; i < 4; i++) {
                 cv::line(display, rectPoints[i], rectPoints[(i + 1) % 4], cv::Scalar(255, 0, 255), 1);
             }
+
+            // 有错误
             if (target_number == 1) {
                 std::lock_guard<std::mutex> lock(buffer_mutex_);
                 latest_target_position_ = minRect.center;
                 cv::circle(display, latest_target_position_, 2, cv::Scalar(255, 0, 255), -1);
             }
         }
+        if (target_number == 0) {
+            std::lock_guard<std::mutex> lock(buffer_mutex_);
+            latest_target_position_ = cv::Point2d(yaw_aim_position_, pitch_aim_position_);
+        }
 
         // TODO: 当检测到多个目标的处理代码
-
-        // RCLCPP_INFO(
-        //     logger_, "contours:%zu,target:%d,position:(%d,%d),error:(%lf,%lf)", contours.size(), target_number,
-        //     target_position_.x, target_position_.y, error_vector_->x(), error_vector_->y());
+        // RCLCPP_INFO(logger_, "error:(%lf,%lf)", error_vector_->x(), error_vector_->y());
 
         display_image_->image = display;
         display_image_->id    = latest_frame_id_;
