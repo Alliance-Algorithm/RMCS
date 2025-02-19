@@ -52,9 +52,11 @@ public:
             msg_friction_rb_current_velocity_.data = std::to_string(*friction_rb_velocity_);
             msg_friction_rf_current_velocity_.data = std::to_string(*friction_rf_velocity_);
 
-            // count++;
+            // // for test without motor
+            // static int count = 0;
             // msg_friction_lb_current_velocity_.data = std::to_string(100 * cos(0.001 * count * std::numbers::pi));
             // msg_friction_rb_current_velocity_.data = std::to_string(100 * sin(0.001 * count * std::numbers::pi));
+            // count ++
         }
 
         if (camera_enable_) {
@@ -75,31 +77,6 @@ private:
         publisher_4_->publish(msg_friction_rf_current_velocity_);
     }
 
-    void image_displayer() {
-        // 提醒：code review，乱加线程sleep改来改去没删干净
-        while (!display_stop_flag_) {
-            cv::Mat camera_display;
-            {
-                std::lock_guard<std::mutex> lock(display_mutex_);
-                if (!lastest_image_.empty()) {
-                    camera_display = lastest_image_;
-                }
-            }
-            if (!camera_display.empty()) {
-                auto now                      = std::chrono::steady_clock::now();
-                static auto last_display_time = now;
-                auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_display_time);
-
-                if (elapsed_time.count() >= 16) {
-                    cv::imshow("display_image", camera_display);
-                    cv::waitKey(1);
-                    last_display_time = now;
-                }
-            }
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        }
-    }
-
     void calc_fps() {
         auto time_now = std::chrono::steady_clock::now();
 
@@ -113,17 +90,33 @@ private:
                 std::chrono::duration_cast<std::chrono::microseconds>(time_now - camera_last_time_point_).count();
             camera_last_time_point_ = time_now;
             latest_id_              = display_image_->id;
-            camera_fps              = 1000000 / camera_delta_time;
+            camera_fps_             = 1000000 / camera_delta_time;
         }
-        RCLCPP_INFO(get_logger(), "id:%5ld,camera_fps:%10.3ld,update_fps:%10.3ld", display_image_->id, camera_fps, fps);
+        RCLCPP_INFO(
+            get_logger(), "id:%5ld,camera_fps:%10.3ld,update_fps:%10.3ld", display_image_->id, camera_fps_, fps);
     }
     std::chrono::steady_clock::time_point update_last_time_point_;
     std::chrono::steady_clock::time_point camera_last_time_point_;
     long latest_id_ = -1;
-    long camera_fps;
+    long camera_fps_;
+
+    void image_displayer() {
+        while (!display_stop_flag_) {
+            cv::Mat display;
+            {
+                std::lock_guard<std::mutex> lock(display_mutex_);
+                if (!lastest_image_.empty()) {
+                    display = lastest_image_;
+                }
+            }
+            if (!display.empty()) {
+                cv::imshow("display", display);
+                cv::waitKey(5);
+            }
+        }
+    }
 
     bool camera_enable_ = false, friction_enable_ = false;
-
     InputInterface<CameraFrame> display_image_;
     std::thread display_thread_;
     std::atomic<bool> display_stop_flag_ = false;
