@@ -41,7 +41,7 @@ public:
 
 private:
     void camera_read() {
-        while (camera_control_mode_ == ControllMode::Enable) {
+        while (camera_control_mode_ == ControllerState::Enable) {
 
             cv::Mat image_buffer = capture_->read();
 
@@ -52,7 +52,7 @@ private:
     }
 
     std::thread camera_read_thread_;
-    ControllMode camera_control_mode_ = ControllMode::Enable;
+    ControllerState camera_control_mode_ = ControllerState::Enable;
     CameraFrame latest_frame_;
     std::mutex buffer_mutex_;
 

@@ -33,3 +33,4 @@ message_publisher:
   ros__parameters:
     camera_enable: true
     friction_enable: false
+    cal_fps_enable: true

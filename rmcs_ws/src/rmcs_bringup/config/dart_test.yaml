@@ -32,7 +32,7 @@ launcher_controller:
     debug_enable: true
     conveyor_working_velocity: 120.00
     friction_working_velocity: 400.00
-    error_velocity: 200.00
+    error_velocity: 00.00
 
 conveyor_velocity_pid_controller:
   ros__parameters:
@@ -47,7 +47,7 @@ friction_lf_velocity_pid_controller:
   ros__parameters:
     measurement: /dart/friction_lf/control_error
     control: /dart/friction_lf/control_torque
-    kp: 500.0
+    kp: 200.0
     ki: 0.00
     kd: 0.00
 
@@ -55,7 +55,7 @@ friction_rf_velocity_pid_controller:
   ros__parameters:
     measurement: /dart/friction_rf/control_error
     control: /dart/friction_rf/control_torque
-    kp: 500.0
+    kp: 200.0
     ki: 0.00
     kd: 0.00
 
@@ -63,7 +63,7 @@ friction_lb_velocity_pid_controller:
   ros__parameters:
     measurement: /dart/friction_lb/control_error
     control: /dart/friction_lb/control_torque
-    kp: 5000.0
+    kp: 200.0
     ki: 0.0
     kd: 0.0
 
@@ -71,7 +71,7 @@ friction_rb_velocity_pid_controller:
   ros__parameters:
     measurement: /dart/friction_rb/control_error
     control: /dart/friction_rb/control_torque
-    kp: 5000.0
+    kp: 200.0
     ki: 0.0
     kd: 0.0
 
@@ -82,7 +82,7 @@ friction_front_velocity_sync_controller:
     motor1_control_error: /dart/friction_lf/control_error
     motor2_measurement: /dart/friction_rf/velocity
     motor2_control_error: /dart/friction_rf/control_error
-    sync_compensation: 0.3
+    sync_compensation: 0.02
     error_integral_compensation: 0.00
     log_enable: false
 
@@ -99,8 +99,8 @@ friction_back_velocity_sync_controller:
 
 angle_test:
   ros__parameters:
-    yaw_velocity_limit: 30.00
-    pitch_velocity_limit: 30.00
+    yaw_velocity_limit: 20.00
+    pitch_velocity_limit: 20.00
 
 yaw_velocity_pid_controller:
   ros__parameters:
@@ -158,3 +158,4 @@ message_publisher:
   ros__parameters:
     camera_enable: false
     friction_enable: true
+    cal_fps_enable: false

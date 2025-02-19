@@ -24,6 +24,7 @@ public:
         : Node(get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
 
         camera_enable_   = get_parameter("camera_enable").as_bool();
+        cal_fps_enable_  = get_parameter("cal_fps_enable").as_bool();
         friction_enable_ = get_parameter("friction_enable").as_bool();
 
         if (friction_enable_) {
@@ -65,8 +66,9 @@ public:
             cv::Point2d yaw_center_down = cv::Point2d(lastest_image_.cols / 2.0, lastest_image_.cols);
             cv::line(lastest_image_, yaw_center_top, yaw_center_down, cv::Scalar(255, 0, 255), 1);
         }
-
-        calc_fps();
+        if (camera_enable_ && cal_fps_enable_) {
+            calc_fps();
+        }
     }
 
 private:
@@ -117,6 +119,7 @@ private:
     }
 
     bool camera_enable_ = false, friction_enable_ = false;
+    bool cal_fps_enable_ = false;
     InputInterface<CameraFrame> display_image_;
     std::thread display_thread_;
     std::atomic<bool> display_stop_flag_ = false;

@@ -5,7 +5,7 @@
 
 namespace rmcs_core::controller::dart {
 
-enum class ControllMode { Ban, Enable, Auto, Manual };
+enum class ControllerState { Ban, Enable, Auto, Manual };
 
 struct CameraFrame {
     cv::Mat image;

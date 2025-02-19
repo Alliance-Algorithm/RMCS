@@ -28,6 +28,7 @@ public:
 
         register_input("/dart/vision/camera_frame", dart_camera_frame_);
         register_output("/dart/vision/display_image", display_image_);
+        register_output("/dart/vision/error_vector", error_vector_, Eigen::Vector2d::Zero());
 
         lowerlimit = cv::Scalar(
             get_parameter("lowerlimit_H").as_double(), get_parameter("lowerlimit_L").as_double(),
@@ -132,7 +133,7 @@ private:
     InputInterface<CameraFrame> dart_camera_frame_;
 
     OutputInterface<CameraFrame> display_image_;
-    OutputInterface<Eigen::Vector3d> error_vector_;
+    OutputInterface<Eigen::Vector2d> error_vector_;
 
     bool guidance_enable_ = true;
     std::thread identify_thread_;
