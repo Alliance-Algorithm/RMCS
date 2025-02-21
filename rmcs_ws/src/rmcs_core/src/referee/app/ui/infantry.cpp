@@ -8,9 +8,13 @@
 #include <rmcs_msgs/chassis_mode.hpp>
 #include <rmcs_msgs/mouse.hpp>
 
+#include "librmcs/utility/logging.hpp"
+
 #include "referee/app/ui/shape/shape.hpp"
 #include "referee/app/ui/widget/crosshair.hpp"
 #include "referee/app/ui/widget/status_ring.hpp"
+#include "referee/status/field.hpp"
+#include "referee/app/ui/position.hpp"
 
 namespace rmcs_core::referee::app::ui {
 using namespace std::chrono_literals;
@@ -36,10 +40,20 @@ public:
         , chassis_direction_indicator_(Shape::Color::PINK, 8, x_center, y_center, 0, 0, 84, 84)
         , chassis_control_power_limit_indicator_(Shape::Color::WHITE, 20, 2, x_center + 10, 820, 0)
         , supercap_control_power_limit_indicator_(Shape::Color::WHITE, 20, 2, x_center + 10, 790, 0)
-        , time_reminder_(Shape::Color::PINK, 50, 5, x_center + 150, y_center + 65, 0, false) {
+        , time_reminder_(Shape::Color::PINK, 50, 5, x_center + 150, y_center + 65, 0, false)
+        , hero_bullet_allowance(
+              Shape::Color::BLACK, 10, 5, x_center + 150, red_hero_x, robot_y, true)
+        , infantry_III_bullet_allowance(
+              Shape::Color::BLACK, 10, 5, x_center + 150, red_hero_x, robot_y, true)
+        , infantry_IV_bullet_allowance(
+              Shape::Color::BLACK, 10, 5, x_center + 150, red_hero_x, robot_y, true)
+        , infantry_V_bullet_allowance(
+              Shape::Color::BLACK, 10, 5, x_center + 150, red_hero_x, robot_y, true) {
 
         chassis_control_direction_indicator_.set_x(x_center);
         chassis_control_direction_indicator_.set_y(y_center);
+
+        register_input("/referee/id", robot_id_);
 
         register_input("/chassis/control_mode", chassis_mode_);
 
@@ -60,6 +74,7 @@ public:
         register_input("/chassis/right_front_wheel/velocity", right_front_velocity_);
 
         register_input("/referee/shooter/bullet_allowance", robot_bullet_allowance_);
+        register_input("/referee/shooter/other_bullet_allowance", other_robot_bullet_allowance_);
 
         register_input("/gimbal/left_friction/control_velocity", left_friction_control_velocity_);
         register_input("/gimbal/left_friction/velocity", left_friction_velocity_);
@@ -86,6 +101,70 @@ public:
             *left_friction_control_velocity_ > 0);
         status_ring_.update_supercap(*supercap_voltage_, *supercap_enabled_);
         status_ring_.update_battery_power(*chassis_voltage_);
+
+        if (*robot_id_ >= rmcs_msgs::RobotId::RED_HERO
+            && *robot_id_ <= rmcs_msgs::RobotId::RED_BASE) {
+            switch (other_robot_bullet_allowance_->header.sender_id) {
+            case rmcs_msgs::FullRobotId::RED_HERO:
+                hero_bullet_allowance.set_x(red_hero_x);
+                hero_bullet_allowance.set_value(
+                    other_robot_bullet_allowance_->data.bullet_allowance);
+                break;
+            case rmcs_msgs::FullRobotId::RED_ENGINEER:
+                engineer_bullet_allowance.set_x(red_engineer_x);
+                engineer_bullet_allowance.set_value(
+                    other_robot_bullet_allowance_->data.bullet_allowance);
+                break;
+            case rmcs_msgs::FullRobotId::RED_INFANTRY_III:
+                infantry_III_bullet_allowance.set_x(red_infantry_III_x);
+                infantry_III_bullet_allowance.set_value(
+                    other_robot_bullet_allowance_->data.bullet_allowance);
+                break;
+            case rmcs_msgs::FullRobotId::RED_INFANTRY_IV:
+                infantry_IV_bullet_allowance.set_x(red_infantry_IV_x);
+                infantry_IV_bullet_allowance.set_value(
+                    other_robot_bullet_allowance_->data.bullet_allowance);
+                break;
+            case rmcs_msgs::FullRobotId::RED_INFANTRY_V:
+                infantry_V_bullet_allowance.set_x(red_infantry_V_x);
+                infantry_V_bullet_allowance.set_value(
+                    other_robot_bullet_allowance_->data.bullet_allowance);
+                break;
+            case rmcs_msgs::FullRobotId::RED_SENTRY:
+                sentry_bullet_allowance.set_x(red_sentry_x);
+                sentry_bullet_allowance.set_value(
+                    other_robot_bullet_allowance_->data.bullet_allowance);
+                break;
+            }
+        } else {
+            switch (other_robot_bullet_allowance_->header.sender_id) {
+            case rmcs_msgs::FullRobotId::BLUE_HERO:
+                hero_bullet_allowance.set_x(blue_hero_x); hero_bullet_allowance.set_value(
+                    other_robot_bullet_allowance_->data.bullet_allowance);
+                break;
+            case rmcs_msgs::FullRobotId::BLUE_ENGINEER:
+                engineer_bullet_allowance.set_x(blue_engineer_x);
+                engineer_bullet_allowance.set_value(
+                    other_robot_bullet_allowance_->data.bullet_allowance);
+                break;
+            case rmcs_msgs::FullRobotId::BLUE_INFANTRY_III:
+                infantry_III_bullet_allowance.set_x(blue_infantry_III_x); infantry_III_bullet_allowance.set_value(
+                    other_robot_bullet_allowance_->data.bullet_allowance);
+                break;
+            case rmcs_msgs::FullRobotId::BLUE_INFANTRY_IV:
+                infantry_IV_bullet_allowance.set_x(blue_infantry_IV_x); infantry_IV_bullet_allowance.set_value(
+                    other_robot_bullet_allowance_->data.bullet_allowance);
+                break;
+            case rmcs_msgs::FullRobotId::BLUE_INFANTRY_V:
+                infantry_V_bullet_allowance.set_x(blue_infantry_V_x); infantry_V_bullet_allowance.set_value(
+                    other_robot_bullet_allowance_->data.bullet_allowance);
+                break;
+            case rmcs_msgs::FullRobotId::BLUE_SENTRY:
+                sentry_bullet_allowance.set_x(blue_sentry_x); sentry_bullet_allowance.set_value(
+                    other_robot_bullet_allowance_->data.bullet_allowance);
+                break;
+            }
+        }
 
         status_ring_.update_auto_aim_enable(mouse_->right == 1);
     }
@@ -130,8 +209,6 @@ private:
             chassis_control_direction_indicator_visible);
     }
 
-    static constexpr uint16_t screen_width = 1920, screen_height = 1080;
-    static constexpr uint16_t x_center = screen_width / 2, y_center = screen_height / 2;
 
     InputInterface<rmcs_msgs::ChassisMode> chassis_mode_;
     InputInterface<double> chassis_angle_, chassis_control_angle_;
@@ -173,6 +250,17 @@ private:
     Float chassis_control_power_limit_indicator_, supercap_control_power_limit_indicator_;
 
     Integer time_reminder_;
+
+    // for communication
+    InputInterface<rmcs_msgs::RobotId> robot_id_;
+    InputInterface<status::CommunicateData<status::CommunicateBulletAllowance>>
+        other_robot_bullet_allowance_;
+    Integer hero_bullet_allowance;
+    Integer engineer_bullet_allowance;
+    Integer infantry_III_bullet_allowance;
+    Integer infantry_IV_bullet_allowance;
+    Integer infantry_V_bullet_allowance;
+    Integer sentry_bullet_allowance;
 };
 
 } // namespace rmcs_core::referee::app::ui

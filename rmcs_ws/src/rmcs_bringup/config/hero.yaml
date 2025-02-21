@@ -24,6 +24,8 @@ rmcs_executor:
       - rmcs_core::controller::chassis::ChassisController -> chassis_controller
       - rmcs_core::controller::chassis::OmniWheelController -> omni_wheel_controller
 
+      - rmcs_core::referee::command::interaction::CommunicateForHero -> communicate_for_hero
+
 hero_hardware:
   ros__parameters:
     usb_pid_top_board: 0x652f

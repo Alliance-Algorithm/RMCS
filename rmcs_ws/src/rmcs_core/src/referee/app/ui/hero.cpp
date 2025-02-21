@@ -8,9 +8,13 @@
 #include <rmcs_msgs/chassis_mode.hpp>
 #include <rmcs_msgs/mouse.hpp>
 
+#include "librmcs/utility/logging.hpp"
+
+#include "referee/app/ui/position.hpp"
 #include "referee/app/ui/shape/shape.hpp"
 #include "referee/app/ui/widget/crosshair.hpp"
 #include "referee/app/ui/widget/status_ring.hpp"
+#include "referee/status/field.hpp"
 
 namespace rmcs_core::referee::app::ui {
 using namespace std::chrono_literals;
@@ -36,7 +40,9 @@ public:
         , chassis_direction_indicator_(Shape::Color::PINK, 8, x_center, y_center, 0, 0, 84, 84)
         , chassis_control_power_limit_indicator_(Shape::Color::WHITE, 20, 2, x_center + 10, 820, 0)
         , supercap_control_power_limit_indicator_(Shape::Color::WHITE, 20, 2, x_center + 10, 790, 0)
-        , time_reminder_(Shape::Color::PINK, 50, 5, x_center + 150, y_center + 65, 0, false) {
+        , time_reminder_(Shape::Color::PINK, 50, 5, x_center + 150, y_center + 65, 0, false)
+        , infantry_bullet_allowance(
+              Shape::Color::BLACK, 10, 5, x_center + 150, y_center + 65, 0, true) {
 
         chassis_control_direction_indicator_.set_x(x_center);
         chassis_control_direction_indicator_.set_y(y_center);
@@ -61,13 +67,16 @@ public:
 
         register_input("/referee/shooter/bullet_allowance", robot_bullet_allowance_);
 
-        register_input("/gimbal/first_left_friction/control_velocity", left_friction_control_velocity_);
+        register_input(
+            "/gimbal/first_left_friction/control_velocity", left_friction_control_velocity_);
         register_input("/gimbal/first_left_friction/velocity", left_friction_velocity_);
         register_input("/gimbal/first_right_friction/velocity", right_friction_velocity_);
 
         register_input("/remote/mouse", mouse_);
 
         register_input("/referee/game/stage", game_stage_);
+
+        register_input("/referee/shooter/other_bullet_allowance", other_robot_bullet_allowance_);
 
         // register_input("/auto_aim/ui_target", auto_aim_target_, false);
     }
@@ -86,6 +95,11 @@ public:
             *left_friction_control_velocity_ > 0);
         // status_ring_.update_supercap(*supercap_voltage_, *supercap_enabled_);
         // status_ring_.update_battery_power(*chassis_voltage_);
+
+        if (other_robot_bullet_allowance_->header.sender_id
+            == rmcs_msgs::FullRobotId::RED_INFANTRY_III)
+            infantry_bullet_allowance.set_value(
+                other_robot_bullet_allowance_->data.bullet_allowance);
 
         status_ring_.update_auto_aim_enable(mouse_->right == 1);
     }
@@ -130,9 +144,6 @@ private:
             chassis_control_direction_indicator_visible);
     }
 
-    static constexpr uint16_t screen_width = 1920, screen_height = 1080;
-    static constexpr uint16_t x_center = screen_width / 2, y_center = screen_height / 2;
-
     InputInterface<rmcs_msgs::ChassisMode> chassis_mode_;
     InputInterface<double> chassis_angle_, chassis_control_angle_;
 
@@ -148,6 +159,8 @@ private:
         right_front_velocity_;
 
     InputInterface<uint16_t> robot_bullet_allowance_;
+    InputInterface<status::CommunicateData<status::CommunicateBulletAllowance>>
+        other_robot_bullet_allowance_;
 
     InputInterface<double> left_friction_control_velocity_;
     InputInterface<double> left_friction_velocity_;
@@ -173,6 +186,8 @@ private:
     Float chassis_control_power_limit_indicator_, supercap_control_power_limit_indicator_;
 
     Integer time_reminder_;
+
+    Integer infantry_bullet_allowance;
 };
 
 } // namespace rmcs_core::referee::app::ui

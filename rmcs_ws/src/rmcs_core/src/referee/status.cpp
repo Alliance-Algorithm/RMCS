@@ -8,6 +8,7 @@
 #include <serial_util/package_receive.hpp>
 #include <serial_util/tick_timer.hpp>
 
+#include "librmcs/utility/logging.hpp"
 #include "referee/frame.hpp"
 #include "referee/status/field.hpp"
 
@@ -33,6 +34,12 @@ public:
         register_output("/referee/chassis/buffer_energy", robot_buffer_energy_, 60.0);
         register_output("/referee/robots/hp", robots_hp_);
         register_output("/referee/shooter/bullet_allowance", robot_bullet_allowance_, false);
+        register_output(
+            "/referee/shooter/other_bullet_allowance", other_robot_bullet_allowance_,
+            CommunicateData<CommunicateBulletAllowance>{
+                {0, 0, 0},
+                {0}
+            });
 
         robot_status_watchdog_.reset(5'000);
     }
@@ -92,6 +99,8 @@ private:
             update_game_status();
         if (command_id == 0x0003)
             update_game_robot_hp();
+        else if (command_id == 0x301)
+            update_communicate();
         else if (command_id == 0x0201)
             update_robot_status();
         else if (command_id == 0x0202)
@@ -119,6 +128,14 @@ private:
     }
 
     void update_game_robot_hp() {}
+
+    void update_communicate() {
+        auto command_id = *reinterpret_cast<const uint16_t*>(frame_.body.data);
+        if (command_id == 0x0200) {
+            auto& data                     = reinterpret_cast<CommunicateData<CommunicateBulletAllowance>&>(frame_.body.data);
+            *other_robot_bullet_allowance_ = data;
+        }
+    }
 
     void update_robot_status() {
         if (*game_stage_ == rmcs_msgs::GameStage::STARTED)
@@ -171,6 +188,8 @@ private:
 
     serial_util::TickTimer game_status_watchdog_;
     OutputInterface<rmcs_msgs::GameStage> game_stage_;
+
+    OutputInterface<CommunicateData<CommunicateBulletAllowance>> other_robot_bullet_allowance_;
 
     serial_util::TickTimer robot_status_watchdog_;
     OutputInterface<rmcs_msgs::RobotId> robot_id_;
