@@ -206,3 +206,4 @@ rmcs_auto_aim:
     record: true
     raw_img_pub: false # Set false in actual use 
     shoot_velocity: 29.0
+    image_viewer_type: 0

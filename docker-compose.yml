@@ -1,0 +1,20 @@
+services:
+  rmcs-develop:
+    image: qzhhhi/rmcs-develop:latest
+    privileged: true
+    volumes:
+      - /dev:/dev:bind
+      - /tmp/.X11-unix:/tmp/.X11-unix:bind
+
+      - .:/workspaces/RMCS:bind
+      - ~/workspace/robomaster:/workspaces/data:bind
+
+      - ~/.config/nvim:/home/developer/.config/nvim:bind
+      - ~/.local/share/nvim:/home/developer/.local/share/nvim:bind
+    environment:
+      - DISPLAY=${DISPLAY}
+    network_mode: host
+    tty: true
+    stdin_open: true 
+    user: "developer"
+    command: tail -f /dev/null
