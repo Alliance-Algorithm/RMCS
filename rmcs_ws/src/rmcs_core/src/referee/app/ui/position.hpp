@@ -18,5 +18,5 @@ static constexpr uint16_t blue_infantry_III_x = blue_hero_x + 2 * offset_;
 static constexpr uint16_t blue_infantry_IV_x  = blue_hero_x + 3 * offset_;
 static constexpr uint16_t blue_infantry_V_x   = blue_hero_x + 4 * offset_;
 static constexpr uint16_t blue_sentry_x       = blue_hero_x + 5 * offset_;
-static constexpr uint16_t robot_y             = y_center - 360;
+static constexpr uint16_t robot_y             = 900;
 } // namespace rmcs_core::referee::app::ui

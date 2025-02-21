@@ -29,7 +29,7 @@ public:
             return;
         }
 
-        // TODO:重置和编解码以及可能的错误处理
+        // TODO:重置及可能的错误处理
         *communicate_field_ = Field{[this](std::byte* buffer) { return write_field(buffer); }};
     };
 
