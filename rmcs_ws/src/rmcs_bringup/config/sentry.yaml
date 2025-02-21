@@ -42,9 +42,6 @@ cboard_status:
     path: /dev/ttyACM0
     yaw_motor_zero_point: 3088
     pitch_motor_zero_point: 381
-    imu_gx_bias: -0.001279
-    imu_gy_bias: -0.001447
-    imu_gz_bias: +0.002188
 
 referee_status:
   ros__parameters:

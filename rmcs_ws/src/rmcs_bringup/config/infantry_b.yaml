@@ -27,8 +27,8 @@ rmcs_executor:
 
       - rmcs_core::referee::Command -> referee_command
 
-      # - rmcs_core::hardware::cboard::GyroCalibrator -> gyro_calibrator
-      # - rmcs_auto_aim::Controller -> rmcs_auto_aim
+      - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
+      - rmcs_auto_aim::AutoAimController -> auto_aim_controller
 
       - rmcs_core::controller::gimbal::ShootingRecorder -> shooting_recorder
 
@@ -37,9 +37,6 @@ infantry_hardware:
     usb_pid: -1
     yaw_motor_zero_point: 3387
     pitch_motor_zero_point: 6716
-    imu_gx_bias: +0.001294
-    imu_gy_bias: -0.000584
-    imu_gz_bias: +0.000445 # Updated at 30th July 21:28
 
 referee_status:
   ros__parameters:
@@ -180,16 +177,16 @@ chassis_power_controller:
       - /chassis/right_back_wheel
       - /chassis/right_front_wheel
 
-rmcs_auto_aim:
+auto_aim_controller:
   ros__parameters:
+    # capture
+    use_video: false # If true, use video stream instead of camera. 
+    video_path: "/workspaces/RMCS/rmcs_ws/resources/1.avi"
     exposure_time: 3
-    armor_predict_duration: 500
-    buff_predict_duration: 200
-    gimbal_predict_duration: 100
-    yaw_error: 0.022
-    pitch_error: 0.015
+    invert_image: false
+    # identifier
     armor_model_path: "/models/mlp.onnx"
-    buff_model_path: "/models/buff_nocolor_v6.onnx"
+    # pnp    
     fx: 1.722231837421459e+03
     fy: 1.724876404292754e+03
     cx: 7.013056440882832e+02
@@ -197,12 +194,23 @@ rmcs_auto_aim:
     k1: -0.064232403853946
     k2: -0.087667493884102
     k3: 0.792381808294582
+    # tracker
+    armor_predict_duration: 500
+    # controller
+    gimbal_predict_duration: 100
+    yaw_error: 0.02
+    pitch_error: -0.01
+    shoot_velocity: 28.0
+    predict_sec: 0.095
+    # etc
+    buff_predict_duration: 200
+    buff_model_path: "/models/buff_nocolor_v6.onnx"
     omni_exposure: 1000.0
     record_fps: 120
     debug: false # Setup in actual using.Debug mode is used when referee is not ready
     debug_color: 0 # 0 For blue while 1 for red. mine
-    debug_robot_id: 5
-    debug_buff_mode: true
-    record: true
-    raw_img_pub: false # Set false in actual use 
-    shoot_velocity: 29.0
+    debug_robot_id: 4
+    debug_buff_mode: false
+    record: false
+    raw_img_pub: false # Set false in actual use
+    image_viewer_type: 2
