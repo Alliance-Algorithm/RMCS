@@ -179,13 +179,13 @@ struct RadarMarkData {
 
 // for communicate
 template <typename T>
-struct __attribute__((packed)) CommunicateData {
+struct __attribute__((packed)) CommunicateDataWithHeader {
     command::interaction::Header header;
     T data;
 };
 
-//0x0200子弹数量
-struct __attribute__((packed)) CommunicateBulletAllowance {
+//0x0200
+struct __attribute__((packed)) CommunicateData {
     uint16_t bullet_allowance;
 };
 

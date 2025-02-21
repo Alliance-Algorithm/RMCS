@@ -35,11 +35,11 @@ public:
         register_output("/referee/robots/hp", robots_hp_);
         register_output("/referee/shooter/bullet_allowance", robot_bullet_allowance_, false);
         register_output(
-            "/referee/shooter/other_bullet_allowance", other_robot_bullet_allowance_,
-            CommunicateData<CommunicateBulletAllowance>{
+            "/referee/communicate", communicate_data,
+            CommunicateDataWithHeader<CommunicateData>{
                 {0, 0, 0},
                 {0}
-            });
+        });
 
         robot_status_watchdog_.reset(5'000);
     }
@@ -132,8 +132,8 @@ private:
     void update_communicate() {
         auto command_id = *reinterpret_cast<const uint16_t*>(frame_.body.data);
         if (command_id == 0x0200) {
-            auto& data                     = reinterpret_cast<CommunicateData<CommunicateBulletAllowance>&>(frame_.body.data);
-            *other_robot_bullet_allowance_ = data;
+            auto& data                     = reinterpret_cast<CommunicateDataWithHeader<CommunicateData>&>(frame_.body.data);
+            *communicate_data = data;
         }
     }
 
@@ -189,7 +189,7 @@ private:
     serial_util::TickTimer game_status_watchdog_;
     OutputInterface<rmcs_msgs::GameStage> game_stage_;
 
-    OutputInterface<CommunicateData<CommunicateBulletAllowance>> other_robot_bullet_allowance_;
+    OutputInterface<CommunicateDataWithHeader<CommunicateData>> communicate_data;
 
     serial_util::TickTimer robot_status_watchdog_;
     OutputInterface<rmcs_msgs::RobotId> robot_id_;

@@ -30,7 +30,7 @@ rmcs_executor:
       - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
       - rmcs_auto_aim::AutoAimController -> auto_aim_controller
 
-      - rmcs_core::referee::command::interaction::CommunicateForInfantry -> communicate_for_infantry
+      - rmcs_core::referee::command::interaction::Communicate -> communicate_for_infantry
 
 infantry_hardware:
   ros__parameters:

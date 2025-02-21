@@ -47,6 +47,10 @@ public:
         chassis_control_direction_indicator_.set_x(x_center);
         chassis_control_direction_indicator_.set_y(y_center);
 
+        // for communicate
+        register_input("/referee/id", robot_id_);
+        register_input("/referee/communicate", communicate_data);
+
         register_input("/chassis/control_mode", chassis_mode_);
 
         register_input("/chassis/angle", chassis_angle_);
@@ -76,12 +80,69 @@ public:
 
         register_input("/referee/game/stage", game_stage_);
 
-        register_input("/referee/shooter/other_bullet_allowance", other_robot_bullet_allowance_);
+        register_input("/referee/communicate", communicate_data);
 
         // register_input("/auto_aim/ui_target", auto_aim_target_, false);
     }
 
     void update() override {
+        if (*robot_id_ >= rmcs_msgs::RobotId::RED_HERO
+            && *robot_id_ <= rmcs_msgs::RobotId::RED_BASE) {
+            switch (communicate_data->header.sender_id) {
+            case rmcs_msgs::FullRobotId::RED_HERO:
+                hero_bullet_allowance.set_x(red_hero_x);
+                hero_bullet_allowance.set_value(communicate_data->data.bullet_allowance);
+                break;
+            case rmcs_msgs::FullRobotId::RED_ENGINEER:
+                engineer_bullet_allowance.set_x(red_engineer_x);
+                engineer_bullet_allowance.set_value(communicate_data->data.bullet_allowance);
+                break;
+            case rmcs_msgs::FullRobotId::RED_INFANTRY_III:
+                infantry_III_bullet_allowance.set_x(red_infantry_III_x);
+                infantry_III_bullet_allowance.set_value(communicate_data->data.bullet_allowance);
+                break;
+            case rmcs_msgs::FullRobotId::RED_INFANTRY_IV:
+                infantry_IV_bullet_allowance.set_x(red_infantry_IV_x);
+                infantry_IV_bullet_allowance.set_value(communicate_data->data.bullet_allowance);
+                break;
+            case rmcs_msgs::FullRobotId::RED_INFANTRY_V:
+                infantry_V_bullet_allowance.set_x(red_infantry_V_x);
+                infantry_V_bullet_allowance.set_value(communicate_data->data.bullet_allowance);
+                break;
+            case rmcs_msgs::FullRobotId::RED_SENTRY:
+                sentry_bullet_allowance.set_x(red_sentry_x);
+                sentry_bullet_allowance.set_value(communicate_data->data.bullet_allowance);
+                break;
+            }
+        } else {
+            switch (communicate_data->header.sender_id) {
+            case rmcs_msgs::FullRobotId::BLUE_HERO:
+                hero_bullet_allowance.set_x(blue_hero_x);
+                hero_bullet_allowance.set_value(communicate_data->data.bullet_allowance);
+                break;
+            case rmcs_msgs::FullRobotId::BLUE_ENGINEER:
+                engineer_bullet_allowance.set_x(blue_engineer_x);
+                engineer_bullet_allowance.set_value(communicate_data->data.bullet_allowance);
+                break;
+            case rmcs_msgs::FullRobotId::BLUE_INFANTRY_III:
+                infantry_III_bullet_allowance.set_x(blue_infantry_III_x);
+                infantry_III_bullet_allowance.set_value(communicate_data->data.bullet_allowance);
+                break;
+            case rmcs_msgs::FullRobotId::BLUE_INFANTRY_IV:
+                infantry_IV_bullet_allowance.set_x(blue_infantry_IV_x);
+                infantry_IV_bullet_allowance.set_value(communicate_data->data.bullet_allowance);
+                break;
+            case rmcs_msgs::FullRobotId::BLUE_INFANTRY_V:
+                infantry_V_bullet_allowance.set_x(blue_infantry_V_x);
+                infantry_V_bullet_allowance.set_value(communicate_data->data.bullet_allowance);
+                break;
+            case rmcs_msgs::FullRobotId::BLUE_SENTRY:
+                sentry_bullet_allowance.set_x(blue_sentry_x);
+                sentry_bullet_allowance.set_value(communicate_data->data.bullet_allowance);
+                break;
+            }
+        }
+
         update_chassis_direction_indicator();
 
         chassis_control_power_limit_indicator_.set_value(*chassis_control_power_limit_);
@@ -96,10 +157,8 @@ public:
         // status_ring_.update_supercap(*supercap_voltage_, *supercap_enabled_);
         // status_ring_.update_battery_power(*chassis_voltage_);
 
-        if (other_robot_bullet_allowance_->header.sender_id
-            == rmcs_msgs::FullRobotId::RED_INFANTRY_III)
-            infantry_bullet_allowance.set_value(
-                other_robot_bullet_allowance_->data.bullet_allowance);
+        if (communicate_data->header.sender_id == rmcs_msgs::FullRobotId::RED_INFANTRY_III)
+            infantry_bullet_allowance.set_value(communicate_data->data.bullet_allowance);
 
         status_ring_.update_auto_aim_enable(mouse_->right == 1);
     }
@@ -159,8 +218,6 @@ private:
         right_front_velocity_;
 
     InputInterface<uint16_t> robot_bullet_allowance_;
-    InputInterface<status::CommunicateData<status::CommunicateBulletAllowance>>
-        other_robot_bullet_allowance_;
 
     InputInterface<double> left_friction_control_velocity_;
     InputInterface<double> left_friction_velocity_;
@@ -188,6 +245,16 @@ private:
     Integer time_reminder_;
 
     Integer infantry_bullet_allowance;
+
+    // for communication
+    InputInterface<rmcs_msgs::RobotId> robot_id_;
+    InputInterface<status::CommunicateDataWithHeader<status::CommunicateData>> communicate_data;
+    Integer hero_bullet_allowance;
+    Integer engineer_bullet_allowance;
+    Integer infantry_III_bullet_allowance;
+    Integer infantry_IV_bullet_allowance;
+    Integer infantry_V_bullet_allowance;
+    Integer sentry_bullet_allowance;
 };
 
 } // namespace rmcs_core::referee::app::ui
