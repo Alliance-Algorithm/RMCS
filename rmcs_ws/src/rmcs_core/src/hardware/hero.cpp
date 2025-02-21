@@ -32,10 +32,31 @@ public:
         , bottom_board_(
               *this, *command_component_,
               static_cast<int>(get_parameter("usb_pid_bottom_board").as_int())) {
+        using namespace rmcs_description;
+
+        auto cboard_init_q_w = get_parameter("cboard_init_q_w").as_double();
+        auto cboard_init_q_x = get_parameter("cboard_init_q_x").as_double();
+        auto cboard_init_q_y = get_parameter("cboard_init_q_y").as_double();
+        auto cboard_init_q_z = get_parameter("cboard_init_q_z").as_double();
 
         register_output("/tf", tf_);
-        tf_->set_transform<rmcs_description::PitchLink, rmcs_description::ImuLink>(
-            Eigen::AngleAxisd{std::numbers::pi, Eigen::Vector3d::UnitZ()});
+        tf_->set_transform<PitchLink, ImuLink>(
+            Eigen::Quaterniond{cboard_init_q_w, cboard_init_q_x, cboard_init_q_y, cboard_init_q_z});
+
+        auto camera_q_w = get_parameter("camera_q_w").as_double();
+        auto camera_q_x = get_parameter("camera_q_x").as_double();
+        auto camera_q_y = get_parameter("camera_q_y").as_double();
+        auto camera_q_z = get_parameter("camera_q_z").as_double();
+        auto camera_t_x = get_parameter("camera_t_x").as_double();
+        auto camera_t_y = get_parameter("camera_t_y").as_double();
+        auto camera_t_z = get_parameter("camera_t_z").as_double();
+
+        auto camera_q = Eigen::Quaterniond{camera_q_w, camera_q_x, camera_q_y, camera_q_z};
+        auto camera_t = Eigen::Vector3d{camera_t_x, camera_t_y, camera_t_z};
+        auto iso      = Eigen::Isometry3d::Identity();
+        iso.rotate(camera_q);
+        iso.pretranslate(camera_t);
+        tf_->set_transform<PitchLink, CameraLink>(iso);
 
         gimbal_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
             "/gimbal/calibrate", rclcpp::QoS{0}, [this](std_msgs::msg::Int32::UniquePtr&& msg) {

@@ -37,6 +37,17 @@ infantry_hardware:
     usb_pid: -1
     yaw_motor_zero_point: 3387
     pitch_motor_zero_point: 6716
+    cboard_init_q_w: 0.0
+    cboard_init_q_x: 0.0
+    cboard_init_q_y: 0.0
+    cboard_init_q_z: 1.0
+    camera_q_w: 0.0
+    camera_q_x: 0.0
+    camera_q_y: 0.0
+    camera_q_z: 1.0
+    camera_t_x: 0.06603
+    camera_t_y: 0.0
+    camera_t_z: 0.082
 
 referee_status:
   ros__parameters:
