@@ -31,8 +31,8 @@ launcher_controller:
   ros__parameters:
     debug_enable: true
     conveyor_working_velocity: 120.00
-    friction_working_velocity: 400.00
-    error_velocity: 00.00
+    friction_working_velocity: 500.00
+    error_velocity: 200.00
 
 conveyor_velocity_pid_controller:
   ros__parameters:
@@ -147,16 +147,17 @@ message_publisher:
 dart_camera:
   ros__parameters:
     invert_image: true
-    exposure_time: 3000
+    exposure_time: 2000
+    gain: 10.0161
 
 aim_controller:
   ros__parameters:
     image_show_enable: false
-    lowerlimit_H: 60.00
-    lowerlimit_L: 128.00
-    lowerlimit_S: 60.00
-    upperlimit_H: 80.00
-    upperlimit_L: 196.00
+    lowerlimit_H: 45.00
+    lowerlimit_L: 64.00
+    lowerlimit_S: 128.00
+    upperlimit_H: 75.00
+    upperlimit_L: 144.00
     upperlimit_S: 255.00
     yaw_aim_position: 720.00
     pitch_aim_position: 120.00
