@@ -8,6 +8,7 @@
 
 #include <librmcs/client/cboard.hpp>
 
+#include "hardware/device/benewake.hpp"
 #include "hardware/device/bmi088.hpp"
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
@@ -85,6 +86,7 @@ private:
         explicit TopBoard(Hero& hero, HeroCommand& hero_command, int usb_pid = -1)
             : librmcs::client::CBoard(usb_pid)
             , bmi088_(1000, 0.2, 0.0)
+            , benewake_(hero)
             , gy614_(hero)
             , tf_(hero.tf_)
             , gimbal_pitch_motor_(
@@ -120,6 +122,7 @@ private:
         void update() {
             bmi088_.update_status();
             gy614_.update();
+            benewake_.update();
 
             Eigen::Quaterniond gimbal_imu_pose{
                 bmi088_.q0(), bmi088_.q1(), bmi088_.q2(), bmi088_.q3()};
@@ -176,6 +179,10 @@ private:
             }
         }
 
+        void uart1_receive_callback(const std::byte* data, uint8_t length) override {
+            benewake_.store_status(data, length);
+        }
+
         void uart2_receive_callback(const std::byte* data, uint8_t length) override {
             gy614_.store_status(data, length);
         }
@@ -189,6 +196,7 @@ private:
         }
 
         device::Bmi088 bmi088_;
+        device::Benewake benewake_;
         device::Gy614 gy614_;
         OutputInterface<rmcs_description::Tf>& tf_;
         OutputInterface<double> gimbal_yaw_velocity_imu_;
