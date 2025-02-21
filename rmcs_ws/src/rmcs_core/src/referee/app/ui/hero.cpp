@@ -41,8 +41,15 @@ public:
         , chassis_control_power_limit_indicator_(Shape::Color::WHITE, 20, 2, x_center + 10, 820, 0)
         , supercap_control_power_limit_indicator_(Shape::Color::WHITE, 20, 2, x_center + 10, 790, 0)
         , time_reminder_(Shape::Color::PINK, 50, 5, x_center + 150, y_center + 65, 0, false)
-        , infantry_bullet_allowance(
-              Shape::Color::BLACK, 10, 5, x_center + 150, y_center + 65, 0, true) {
+        , engineer_bullet_allowance(Shape::Color::BLACK, 10, 5, red_engineer_x, robot_y, 0, true)
+        , infantry_III_bullet_allowance(
+              Shape::Color::BLACK, 10, 5, red_infantry_III_x, robot_y, 0, true)
+        , infantry_IV_bullet_allowance(
+              Shape::Color::BLACK, 10, 5, red_infantry_IV_x, robot_y, 0, true)
+        , infantry_V_bullet_allowance(
+              Shape::Color::BLACK, 10, 5, red_infantry_V_x, robot_y, 0, true)
+        , sentry_bullet_allowance(
+              Shape::Color::BLACK, 10, 5, red_sentry_x, robot_y, 0, true) {
 
         chassis_control_direction_indicator_.set_x(x_center);
         chassis_control_direction_indicator_.set_y(y_center);
@@ -89,10 +96,10 @@ public:
         if (*robot_id_ >= rmcs_msgs::RobotId::RED_HERO
             && *robot_id_ <= rmcs_msgs::RobotId::RED_BASE) {
             switch (communicate_data->header.sender_id) {
-            case rmcs_msgs::FullRobotId::RED_HERO:
-                hero_bullet_allowance.set_x(red_hero_x);
-                hero_bullet_allowance.set_value(communicate_data->data.bullet_allowance);
-                break;
+            // case rmcs_msgs::FullRobotId::RED_HERO:
+            //     hero_bullet_allowance.set_x(red_hero_x);
+            //     hero_bullet_allowance.set_value(communicate_data->data.bullet_allowance);
+            //     break;
             case rmcs_msgs::FullRobotId::RED_ENGINEER:
                 engineer_bullet_allowance.set_x(red_engineer_x);
                 engineer_bullet_allowance.set_value(communicate_data->data.bullet_allowance);
@@ -116,10 +123,10 @@ public:
             }
         } else {
             switch (communicate_data->header.sender_id) {
-            case rmcs_msgs::FullRobotId::BLUE_HERO:
-                hero_bullet_allowance.set_x(blue_hero_x);
-                hero_bullet_allowance.set_value(communicate_data->data.bullet_allowance);
-                break;
+            // case rmcs_msgs::FullRobotId::BLUE_HERO:
+            //     hero_bullet_allowance.set_x(blue_hero_x);
+            //     hero_bullet_allowance.set_value(communicate_data->data.bullet_allowance);
+            //     break;
             case rmcs_msgs::FullRobotId::BLUE_ENGINEER:
                 engineer_bullet_allowance.set_x(blue_engineer_x);
                 engineer_bullet_allowance.set_value(communicate_data->data.bullet_allowance);
@@ -156,9 +163,6 @@ public:
             *left_friction_control_velocity_ > 0);
         // status_ring_.update_supercap(*supercap_voltage_, *supercap_enabled_);
         // status_ring_.update_battery_power(*chassis_voltage_);
-
-        if (communicate_data->header.sender_id == rmcs_msgs::FullRobotId::RED_INFANTRY_III)
-            infantry_bullet_allowance.set_value(communicate_data->data.bullet_allowance);
 
         status_ring_.update_auto_aim_enable(mouse_->right == 1);
     }
@@ -244,12 +248,10 @@ private:
 
     Integer time_reminder_;
 
-    Integer infantry_bullet_allowance;
 
     // for communication
     InputInterface<rmcs_msgs::RobotId> robot_id_;
     InputInterface<status::CommunicateDataWithHeader<status::CommunicateData>> communicate_data;
-    Integer hero_bullet_allowance;
     Integer engineer_bullet_allowance;
     Integer infantry_III_bullet_allowance;
     Integer infantry_IV_bullet_allowance;
