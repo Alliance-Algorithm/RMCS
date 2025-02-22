@@ -32,18 +32,33 @@ public:
     }
 
     void update() override {
-        if (*sentry_decision_field_)
-            *interaction_field_ = *sentry_decision_field_;
-        else if (*communicate_field_)
-            *interaction_field_ = *communicate_field_;
-        else if (*ui_field_)
-            *interaction_field_ = *ui_field_;
-        else
+        // if (*sentry_decision_field_)
+        //     *interaction_field_ = *sentry_decision_field_;
+        // else if (*ui_field_)
+        //     *interaction_field_ = *ui_field_;
+        // else
+        //     *interaction_field_ = Field{};
+
+        const auto phase_index = update_num % total;
+        if (phase_index < ui_proportion) {
             *interaction_field_ = Field{};
+        } else if (phase_index < communicate_proportion + ui_proportion) {
+            *interaction_field_ = *ui_field_;
+        } else {
+            *interaction_field_ = *communicate_field_;
+        }
+
+        ++update_num;
     }
 
 private:
+    uint update_num = 0;
     Field empty_field_;
+
+    uint ui_proportion{static_cast<uint>(get_parameter("ui").as_int())};
+    uint communicate_proportion{static_cast<uint>(get_parameter("communicate").as_int())};
+    uint sentry_decision_proportion{static_cast<uint>(get_parameter("sentry_decision").as_int())};
+    uint total = sentry_decision_proportion + ui_proportion + communicate_proportion;
 
     InputInterface<Field> sentry_decision_field_;
     InputInterface<Field> communicate_field_;

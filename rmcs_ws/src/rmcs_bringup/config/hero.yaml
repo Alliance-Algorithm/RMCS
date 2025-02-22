@@ -158,3 +158,9 @@ right_front_wheel_velocity_pid_controller:
     kp: 0.185
     ki: 0.00
     kd: 0.00
+
+interaction_proportion:
+  ros__parameters:
+    ui: 4
+    communicate: 1
+    sentry_decision: 0

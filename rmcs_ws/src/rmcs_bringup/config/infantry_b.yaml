@@ -208,3 +208,9 @@ auto_aim_controller:
     debug_buff_mode: false
     record: false
     raw_img_pub: false # Set false in actual use 
+
+interaction_proportion:
+  ros__parameters:
+    ui: 4
+    communicate: 1
+    sentry_decision: 0

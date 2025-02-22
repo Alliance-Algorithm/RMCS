@@ -37,7 +37,7 @@ public:
         register_output(
             "/referee/communicate", communicate_data,
             CommunicateDataWithHeader<CommunicateData>{
-                {0, 0, 0},
+                {0, rmcs_msgs::RobotId::UNKNOWN, rmcs_msgs::RobotId::UNKNOWN},
                 {0}
         });
 

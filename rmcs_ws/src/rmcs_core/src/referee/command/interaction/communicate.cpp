@@ -40,14 +40,14 @@ private:
         header.command_id  = 0x0200;
         auto full_robot_id = rmcs_msgs::FullRobotId{*robot_id_};
         header.sender_id   = full_robot_id;
-        header.receiver_id = rmcs_msgs::FullRobotId::RED_HERO;
+        header.receiver_id = full_robot_id;
         written += sizeof(Header);
 
-        auto& command = *new (buffer + written) status::CommunicateData{};
+        auto& command = *new (buffer + written) status::CommunicateData;
 
-        // command.bullet_allowance = *robot_bullet_allowance_;
+        // command.robot_bullet_allowance = *robot_bullet_allowance_;
         // for debug:
-        command.bullet_allowance = 20;
+        command.bullet_allowance = 30;
         written += sizeof(status::CommunicateData);
 
         return written;
