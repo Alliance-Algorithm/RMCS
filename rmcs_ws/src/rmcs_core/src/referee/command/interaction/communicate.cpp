@@ -40,14 +40,19 @@ private:
         header.command_id  = 0x0200;
         auto full_robot_id = rmcs_msgs::FullRobotId{*robot_id_};
         header.sender_id   = full_robot_id;
-        header.receiver_id = full_robot_id;
+        header.receiver_id = full_robot_id == rmcs_msgs::FullRobotId::RED_HERO
+                               ? rmcs_msgs::FullRobotId::RED_INFANTRY_III
+                               : rmcs_msgs::FullRobotId::RED_HERO;
         written += sizeof(Header);
 
         auto& command = *new (buffer + written) status::CommunicateData;
+        if (sizeof(status::CommunicateData) >= 112) {
+            throw std::runtime_error{"CommunicateData size is too large"};
+        }
 
-        // command.robot_bullet_allowance = *robot_bullet_allowance_;
-        // for debug:
-        command.bullet_allowance = 30;
+        command.bullet_allowance = *robot_bullet_allowance_;
+        // // for debug:
+        // command.bullet_allowance = 30;
         written += sizeof(status::CommunicateData);
 
         return written;

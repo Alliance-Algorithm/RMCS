@@ -132,9 +132,63 @@ private:
     void update_communicate() {
         auto command_id = *reinterpret_cast<const uint16_t*>(frame_.body.data);
         if (command_id == 0x0200) {
-            auto& data                     = reinterpret_cast<CommunicateDataWithHeader<CommunicateData>&>(frame_.body.data);
+            auto& data =
+                reinterpret_cast<CommunicateDataWithHeader<CommunicateData>&>(frame_.body.data);
             *communicate_data = data;
+            LOG_INFO("received communicate data");
+            communicate_log_info(data);
         }
+    }
+
+    void communicate_log_info(CommunicateDataWithHeader<CommunicateData>& data) {
+        std::string sender;
+        std::string receiver;
+        int bullet_allowance;
+        bullet_allowance = data.data.bullet_allowance;
+        if (*robot_id_ >= rmcs_msgs::RobotId::RED_HERO
+            && *robot_id_ <= rmcs_msgs::RobotId::RED_BASE) {
+            switch (communicate_data->header.sender_id) {
+            case rmcs_msgs::FullRobotId::RED_HERO: sender = "RED_HERO"; break;
+            case rmcs_msgs::FullRobotId::RED_ENGINEER: sender = "RED_ENGINEER"; break;
+            case rmcs_msgs::FullRobotId::RED_INFANTRY_III: sender = "RED_INFANTRY_III"; break;
+            case rmcs_msgs::FullRobotId::RED_INFANTRY_IV: sender = "RED_INFANTRY_IV"; break;
+            case rmcs_msgs::FullRobotId::RED_INFANTRY_V: sender = "RED_INFANTRY_V"; break;
+            case rmcs_msgs::FullRobotId::RED_SENTRY: sender = "RED_SENTRY"; break;
+            default: break;
+            }
+
+            switch (communicate_data->header.receiver_id) {
+            case rmcs_msgs::FullRobotId::RED_HERO: receiver = "RED_HERO"; break;
+            case rmcs_msgs::FullRobotId::RED_ENGINEER: receiver = "RED_ENGINEER"; break;
+            case rmcs_msgs::FullRobotId::RED_INFANTRY_III: receiver = "RED_INFANTRY_III"; break;
+            case rmcs_msgs::FullRobotId::RED_INFANTRY_IV: receiver = "RED_INFANTRY_IV"; break;
+            case rmcs_msgs::FullRobotId::RED_INFANTRY_V: receiver = "RED_INFANTRY_V"; break;
+            case rmcs_msgs::FullRobotId::RED_SENTRY: receiver = "RED_SENTRY"; break;
+            default: break;
+            }
+        } else {
+            switch (communicate_data->header.sender_id) {
+            case rmcs_msgs::FullRobotId::BLUE_HERO: sender = "BLUE_HERO"; break;
+            case rmcs_msgs::FullRobotId::BLUE_ENGINEER: sender = "BLUE_ENGINEER"; break;
+            case rmcs_msgs::FullRobotId::BLUE_INFANTRY_III: sender = "BLUE_INFANTRY_III"; break;
+            case rmcs_msgs::FullRobotId::BLUE_INFANTRY_IV: sender = "BLUE_INFANTRY_IV"; break;
+            case rmcs_msgs::FullRobotId::BLUE_INFANTRY_V: sender = "BLUE_INFANTRY_V"; break;
+            case rmcs_msgs::FullRobotId::BLUE_SENTRY: sender = "BLUE_SENTRY"; break;
+            default: break;
+            }
+
+            switch (communicate_data->header.receiver_id) {
+            case rmcs_msgs::FullRobotId::BLUE_HERO: receiver = "BLUE_HERO"; break;
+            case rmcs_msgs::FullRobotId::BLUE_ENGINEER: receiver = "BLUE_ENGINEER"; break;
+            case rmcs_msgs::FullRobotId::BLUE_INFANTRY_III: receiver = "BLUE_INFANTRY_III"; break;
+            case rmcs_msgs::FullRobotId::BLUE_INFANTRY_IV: receiver = "BLUE_INFANTRY_IV"; break;
+            case rmcs_msgs::FullRobotId::BLUE_INFANTRY_V: receiver = "BLUE_INFANTRY_V"; break;
+            case rmcs_msgs::FullRobotId::BLUE_SENTRY: receiver = "BLUE_SENTRY"; break;
+            default: break;
+            }
+        }
+
+        LOG_INFO("data from %s to %s, bullet_allowance: %d", sender.c_str(), receiver.c_str(), bullet_allowance);
     }
 
     void update_robot_status() {
