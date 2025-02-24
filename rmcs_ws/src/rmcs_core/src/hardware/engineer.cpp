@@ -1,6 +1,7 @@
 #include "hardware/device//encorder.hpp"
 #include "hardware/device//joint.hpp"
 #include "hardware/device/dji_motor.hpp"
+#include "hardware/device/dm_motor.hpp"
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/lk_motor.hpp"
 #include "hardware/forwarder/cboard.hpp"
@@ -75,7 +76,11 @@ private:
             , joint3_encoder(engineer, "/arm/Joint3encoder")
             , dr16_(engineer)
             , transmit_buffer_(*this, 32)
-            , event_thread_([this]() { handle_events(); }) {
+            , event_thread_([this]() { handle_events(); })
+
+            , big_yaw(engineer, engineer_command, "/chassis/big_yaw")
+
+        {
             engineer.register_output("/arm/Joint6/control_angle_error", joint6_error_angle);
             engineer.register_output("/arm/Joint5/control_angle_error", joint5_error_angle);
             engineer.register_output("/arm/Joint4/control_angle_error", joint4_error_angle);
@@ -91,6 +96,7 @@ private:
             engineer.register_output("/arm/Joint6/vision", vision_theta6, NAN);
 
             engineer_command.register_input("/arm/enable_flag", is_arm_enable_);
+            engineer_command.register_input("/chassis_and_leg/enable_flag", is_chassis_and_leg_enable_);
 
             using namespace device;
             joint[5].configure_joint(
@@ -131,6 +137,8 @@ private:
                                          .set_encoder_zero_point(static_cast<int>(
                                              engineer.get_parameter("joint3_zero_point").as_int()))
                                          .reverse());
+
+            big_yaw.configure(DMMotorConfig{DMMotorType::DM8009});
         }
         ~ArmBoard() final {
             stop_handling_events();
@@ -150,8 +158,8 @@ private:
 
     private:
         void arm_command_update() {
-            bool is_arm_enable = *is_arm_enable_;
-
+            auto is_arm_enable = *is_arm_enable_;
+            auto is_chassis_and_leg_enable = *is_chassis_and_leg_enable_;
             uint64_t command_;
             int max_count                = 100000;
             static int counter           = 0;
@@ -229,11 +237,13 @@ private:
                     transmit_buffer_.add_can2_transmission(
                         (0x146),
                         std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+
                 } else {
                     (*joint2_error_angle) =
                         -normalizeAngle(joint[1].get_target_theta() - joint[1].get_theta());
                     (*joint1_error_angle) =
                         normalizeAngle(joint[0].get_target_theta() - joint[0].get_theta());
+
                     command_ = joint[1].generate_torque_command();
                     transmit_buffer_.add_can1_transmission(
                         (0x142),
@@ -259,6 +269,22 @@ private:
                 }
             }
 
+            if (counter % 2 == 0) {
+                if (is_chassis_and_leg_enable && big_yaw.get_state() != 0 && big_yaw.get_state() != 1) {
+                    command_ = big_yaw.dm_clear_error_command();
+                } else if (!is_chassis_and_leg_enable) {
+                    command_ = big_yaw.dm_close_command();
+                } else if (is_chassis_and_leg_enable && big_yaw.get_state() == 0) {
+                    command_ = big_yaw.dm_enable_command();
+
+                } else {
+                    command_ = big_yaw.generate_torque_command();
+                }
+                transmit_buffer_.add_can1_transmission(
+                    (0x9), std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+            }
+
+            //----------------------------------------------------------------//
             transmit_buffer_.trigger_transmission();
             last_is_arm_enable_ = is_arm_enable;
 
@@ -278,6 +304,8 @@ private:
             joint[2].update_joint().change_theta_feedback_(joint3_encoder.get_angle());
             joint[1].update_joint().change_theta_feedback_(joint2_encoder.get_angle());
             joint[0].update_joint();
+
+            big_yaw.update();
 
             // RCLCPP_INFO(this->get_logger(),"%f
             // %f",joint[2].get_theta(),joint3_encoder.get_raw_angle());
@@ -319,6 +347,8 @@ private:
                 joint3_encoder.store_status(can_data);
             if (can_id == 0x1fb)
                 joint2_encoder.store_status(can_data);
+            if (can_id == 0x19)
+                big_yaw.store_status(can_data);
         }
 
         void dbus_receive_callback(const std::byte* uart_data, uint8_t uart_data_length) override {
@@ -375,18 +405,11 @@ private:
                         *vision_theta5 = theta5;
                         *vision_theta6 = theta6;
 
-                            RCLCPP_INFO(
-                            this->get_logger(),
-                            "%f %f %f %f %f %f ",
-                            *vision_theta1,
-                            *vision_theta2,
-                            *vision_theta3,
-                            *vision_theta4,
-                            *vision_theta5,
-                            *vision_theta6
-                        );
+                        RCLCPP_INFO(
+                            this->get_logger(), "%f %f %f %f %f %f ", *vision_theta1,
+                            *vision_theta2, *vision_theta3, *vision_theta4, *vision_theta5,
+                            *vision_theta6);
                     }
-
                 }
             }
         }
@@ -407,6 +430,7 @@ private:
         OutputInterface<double> vision_theta6;
         OutputInterface<std::array<int8_t, 39>> vision_data;
         InputInterface<bool> is_arm_enable_;
+        InputInterface<bool> is_chassis_and_leg_enable_;
 
         device::Joint joint[6];
         device::Encoder joint2_encoder;
@@ -417,6 +441,8 @@ private:
 
         librmcs::utility::RingBuffer<std::byte> vision{39};
         bool last_is_arm_enable_ = true;
+
+        device::DMMotor big_yaw;
 
     } armboard;
 };

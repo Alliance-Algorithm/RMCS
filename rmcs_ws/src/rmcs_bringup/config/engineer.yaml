@@ -4,6 +4,7 @@ rmcs_executor:
     components:
       - rmcs_core::hardware::Engineer -> engineer_hardware
       - rmcs_core::controller::arm::ArmController -> arm_controller
+      - rmcs_core::controller::chassis::Chassis_and_LegController -> chassis_and_leg
       - rmcs_core::controller::pid::ErrorPidController -> joint6_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> joint6_velocity_pid_controller
 
