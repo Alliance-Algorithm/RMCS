@@ -9,4 +9,19 @@
 	url = https://github.com/Alliance-Algorithm/rmcs_auto_aim.git
 [submodule "rmcs_ws/src/hikcamera"]
 	path = rmcs_ws/src/hikcamera
-	url = https://github.com/Alliance-Algorithm/ros2-hikcamera.git
+    url = https://github.com/Alliance-Algorithm/ros2-hikcamera.git
+[submodule "rmcs_ws/src/ros2-serial"]
+	path = rmcs_ws/src/ros2-serial
+	url = https://github.com/Alliance-Algorithm/ros2-serial.git
+[submodule "rmcs_ws/src/rmcs_map"]
+	path = rmcs_ws/src/rmcs_map
+	url = https://github.com/Alliance-Algorithm/rmcs_map.git
+[submodule "rmcs_ws/src/rmcs_location"]
+	path = rmcs_ws/src/rmcs_location
+	url = https://github.com/Alliance-Algorithm/rmcs_location.git
+[submodule "rmcs_ws/src/rmcs_slam"]
+	path = rmcs_ws/src/rmcs_slam
+    url = https://github.com/Alliance-Algorithm/rmcs_slam.git
+[submodule "rmcs_ws/src/fast_gicp"]
+	path = rmcs_ws/src/fast_gicp
+	url = https://github.com/koide3/fast_gicp.git
