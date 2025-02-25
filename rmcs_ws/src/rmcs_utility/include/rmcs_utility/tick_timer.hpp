@@ -1,6 +1,6 @@
 #pragma once
 
-namespace serial_util {
+namespace rmcs_utility {
 
 class TickTimer {
 public:
@@ -20,4 +20,4 @@ private:
     unsigned int counter_ = 1;
 };
 
-} // namespace serial_util
+} // namespace rmcs_utility

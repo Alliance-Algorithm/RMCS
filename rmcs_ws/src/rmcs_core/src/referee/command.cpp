@@ -3,7 +3,7 @@
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
 #include <serial_interface.hpp>
-#include <serial_util/crc/dji_crc.hpp>
+#include <rmcs_utility/crc/dji_crc.hpp>
 
 #include "referee/command/field.hpp"
 #include "referee/frame.hpp"
@@ -72,11 +72,11 @@ public:
         frame_.header.sof         = sof_value;
         frame_.header.data_length = data_length;
         frame_.header.sequence    = 0;
-        serial_util::dji_crc::append_crc8(frame_.header);
+        rmcs_utility::dji_crc::append_crc8(frame_.header);
 
         auto frame_size =
             sizeof(frame_.header) + sizeof(frame_.body.command_id) + data_length + sizeof(uint16_t);
-        serial_util::dji_crc::append_crc16(&frame_, frame_size);
+        rmcs_utility::dji_crc::append_crc16(&frame_, frame_size);
 
         serial.write(reinterpret_cast<std::byte*>(&frame_), frame_size);
         next_sent_ = now + (one_second / 3720 * frame_size);

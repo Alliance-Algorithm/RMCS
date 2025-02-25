@@ -4,9 +4,9 @@
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/game_stage.hpp>
 #include <rmcs_msgs/robot_id.hpp>
-#include <serial_util/crc/dji_crc.hpp>
-#include <serial_util/package_receive.hpp>
-#include <serial_util/tick_timer.hpp>
+#include <rmcs_utility/crc/dji_crc.hpp>
+#include <rmcs_utility/package_receive.hpp>
+#include <rmcs_utility/tick_timer.hpp>
 
 #include "referee/frame.hpp"
 #include "referee/status/field.hpp"
@@ -52,21 +52,21 @@ public:
 
             if (cache_size_ == frame_size) {
                 cache_size_ = 0;
-                if (serial_util::dji_crc::verify_crc16(&frame_, frame_size)) {
+                if (rmcs_utility::dji_crc::verify_crc16(&frame_, frame_size)) {
                     process_frame();
                 } else {
                     RCLCPP_WARN(logger_, "Body crc16 invalid");
                 }
             }
         } else {
-            auto result = serial_util::receive_package(
+            auto result = rmcs_utility::receive_package(
                 const_cast<rmcs_msgs::SerialInterface&>(*serial_), frame_.header, cache_size_,
                 static_cast<uint8_t>(0xa5), [](const FrameHeader& header) {
-                    return serial_util::dji_crc::verify_crc8(header);
+                    return rmcs_utility::dji_crc::verify_crc8(header);
                 });
-            if (result == serial_util::ReceiveResult::HEADER_INVALID) {
+            if (result == rmcs_utility::ReceiveResult::HEADER_INVALID) {
                 RCLCPP_WARN(logger_, "Header start invalid");
-            } else if (result == serial_util::ReceiveResult::VERIFY_INVALID) {
+            } else if (result == rmcs_utility::ReceiveResult::VERIFY_INVALID) {
                 RCLCPP_WARN(logger_, "Header crc8 invalid");
             }
         }
@@ -178,15 +178,15 @@ private:
     Frame frame_;
     size_t cache_size_ = 0;
 
-    serial_util::TickTimer game_status_watchdog_;
+    rmcs_utility::TickTimer game_status_watchdog_;
     OutputInterface<rmcs_msgs::GameStage> game_stage_;
 
-    serial_util::TickTimer robot_status_watchdog_;
+    rmcs_utility::TickTimer robot_status_watchdog_;
     OutputInterface<rmcs_msgs::RobotId> robot_id_;
     OutputInterface<int64_t> robot_shooter_cooling_, robot_shooter_heat_limit_;
     OutputInterface<double> robot_chassis_power_limit_;
 
-    serial_util::TickTimer power_heat_data_watchdog_;
+    rmcs_utility::TickTimer power_heat_data_watchdog_;
     OutputInterface<double> robot_chassis_power_;
     OutputInterface<double> robot_buffer_energy_;
 
