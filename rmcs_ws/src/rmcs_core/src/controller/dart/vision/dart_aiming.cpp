@@ -48,9 +48,11 @@ public:
     void update() override {
         camera_frame_ = *dart_camera_frame_;
 
-        std::lock_guard<std::mutex> lock(buffer_mutex_);
-        error_vector_->x() = latest_target_position_.x - yaw_aim_position_;
-        error_vector_->y() = latest_target_position_.y - pitch_aim_position_;
+        {
+            std::lock_guard<std::mutex> lock(buffer_mutex_);
+            error_vector_->x() = latest_target_position_.x - yaw_aim_position_;
+            error_vector_->y() = latest_target_position_.y - pitch_aim_position_;
+        }
     }
 
 private:
@@ -122,9 +124,11 @@ private:
         }
 
         if (possible_targets.empty()) {
-            std::lock_guard<std::mutex> lock(buffer_mutex_);
-            latest_target_position_ = cv::Point2d(yaw_aim_position_, pitch_aim_position_);
-            last_possible_targets_.clear();
+            {
+                std::lock_guard<std::mutex> lock(buffer_mutex_);
+                latest_target_position_ = cv::Point2d(yaw_aim_position_, pitch_aim_position_);
+                last_possible_targets_.clear();
+            }
         }
 
         if (possible_targets.size() == 1) {
@@ -133,9 +137,11 @@ private:
                 return;
             }
 
-            std::lock_guard<std::mutex> lock(buffer_mutex_);
-            latest_target_position_ = possible_targets.front();
-            cv::circle(display, latest_target_position_, 2, cv::Scalar(255, 0, 255), -1);
+            {
+                std::lock_guard<std::mutex> lock(buffer_mutex_);
+                latest_target_position_ = possible_targets.front();
+                cv::circle(display, latest_target_position_, 2, cv::Scalar(255, 0, 255), -1);
+            }
         }
 
         if (possible_targets.size() >= 2) {

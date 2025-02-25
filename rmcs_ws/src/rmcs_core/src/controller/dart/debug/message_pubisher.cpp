@@ -94,8 +94,12 @@ private:
             latest_id_              = display_image_->id;
             camera_fps_             = 1000000 / camera_delta_time;
         }
-        RCLCPP_INFO(
-            get_logger(), "id:%5ld,camera_fps:%10.3ld,update_fps:%10.3ld", display_image_->id, camera_fps_, fps);
+        // RCLCPP_INFO(
+        //     get_logger(), "id:%5ld,camera_fps:%10.3ld,update_fps:%10.3ld", display_image_->id, camera_fps_, fps);
+
+        if (fps > 1500 || fps < 700) {
+            RCLCPP_WARN(get_logger(), "fps abnormal,value:camera_fps:%10.3ld,update_fps:%10.3ld", camera_fps_, fps);
+        }
     }
     std::chrono::steady_clock::time_point update_last_time_point_;
     std::chrono::steady_clock::time_point camera_last_time_point_;

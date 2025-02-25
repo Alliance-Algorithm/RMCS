@@ -14,8 +14,8 @@ angle_controller:
 
 dart_camera:
   ros__parameters:
-    invert_image: true
-    exposure_time: 2000
+    invert_image: false
+    exposure_time: 3600
     gain: 10.0161
 
 aim_controller:
@@ -34,4 +34,4 @@ message_publisher:
   ros__parameters:
     camera_enable: true
     friction_enable: false
-    cal_fps_enable: false
+    cal_fps_enable: true
