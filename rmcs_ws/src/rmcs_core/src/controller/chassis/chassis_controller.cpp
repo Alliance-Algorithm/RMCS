@@ -1,4 +1,5 @@
 #include <eigen3/Eigen/Dense>
+#include <numbers>
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
@@ -19,7 +20,7 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , following_velocity_controller_(7.0, 0.0, 0.0) {
+        , following_velocity_controller_(20.0, 0.0, 0.0) {
         following_velocity_controller_.output_max = angular_velocity_max;
         following_velocity_controller_.output_min = -angular_velocity_max;
 
@@ -171,6 +172,7 @@ public:
     }
 
     Eigen::Vector2d update_translational_velocity_control() {
+
         auto keyboard = *keyboard_;
         Eigen::Vector2d keyboard_move{keyboard.w - keyboard.s, keyboard.a - keyboard.d};
 
@@ -197,18 +199,21 @@ public:
         case rmcs_msgs::ChassisMode::STEP_DOWN: {
             double err = calculate_unsigned_chassis_angle_error(chassis_control_angle);
 
+            double offset_angle;
             // err: [0, 2pi) -> [0, alignment) -> signed.
             // In step-down mode, two sides of the chassis can be used for alignment.
             // TODO: Dynamically determine the split angle based on chassis velocity.
             constexpr double alignment = std::numbers::pi;
-            while (err > alignment / 2) {
-                chassis_control_angle -= alignment;
-                if (chassis_control_angle < 0)
-                    chassis_control_angle += 2 * std::numbers::pi;
-                err -= alignment;
+
+            if (err <= alignment / 2 && err >= -alignment / 2) {
+                offset_angle = err;
+            } else {
+                offset_angle = err >= 0 ? err - alignment : err + alignment;
             }
 
-            angular_velocity = following_velocity_controller_.update(err);
+            RCLCPP_INFO(this->get_logger(), " chassis err :%f ", offset_angle);
+
+            angular_velocity = following_velocity_controller_.update(offset_angle);
         } break;
         case rmcs_msgs::ChassisMode::LAUNCH_RAMP: {
             double err = calculate_unsigned_chassis_angle_error(chassis_control_angle);
@@ -220,7 +225,7 @@ public:
             if (err > alignment / 2)
                 err -= alignment;
 
-            angular_velocity = following_velocity_controller_.update(err);
+            // angular_velocity = following_velocity_controller_.update(err);
         } break;
         }
         *chassis_angle_         = 2 * std::numbers::pi - *gimbal_yaw_angle_;
@@ -231,19 +236,19 @@ public:
 
     double calculate_unsigned_chassis_angle_error(double& chassis_control_angle) {
         chassis_control_angle = *gimbal_yaw_angle_error_;
-        if (chassis_control_angle < 0)
-            chassis_control_angle += 2 * std::numbers::pi;
-        // chassis_control_angle: [0, 2pi).
 
+        double gimbal_yaw_angle = *gimbal_yaw_angle_;
+        if (gimbal_yaw_angle < -std::numbers::pi) {
+            gimbal_yaw_angle += 2 * std::numbers::pi;
+        }
+
+        // chassis_control_angle: [0, 2pi).
         // err = setpoint         -       measurement
         //          ^                          ^
         //          |gimbal_yaw_angle_error    |chassis_angle
         //                                            ^
         //                                            |(2pi - gimbal_yaw_angle)
-        double err = chassis_control_angle + *gimbal_yaw_angle_;
-        if (err >= 2 * std::numbers::pi)
-            err -= 2 * std::numbers::pi;
-        // err: [0, 2pi).
+        double err = chassis_control_angle + gimbal_yaw_angle;
 
         return err;
     }

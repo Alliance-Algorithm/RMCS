@@ -2,7 +2,7 @@ rmcs_executor:
   ros__parameters:
     update_rate: 1000.0
     components:
-      - rmcs_core::hardware::TunnelInfantry -> tunnel_omni_hardware
+      - rmcs_core::hardware::TunnelInfantry -> tunnel_infantry_hardware
 
       - rmcs_core::controller::gimbal::GimbalController -> gimbal_controller
 
@@ -32,7 +32,7 @@ rmcs_executor:
       # - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
       # - rmcs_auto_aim::AutoAimController -> auto_aim_controller
 
-tunnel_omni_hardware:
+tunnel_infantry_hardware:
   ros__parameters:
     usb_pid: -1
     yaw_motor_zero_point: 567
@@ -201,3 +201,4 @@ auto_aim_controller:
     debug_buff_mode: false
     record: false
     raw_img_pub: false # Set false in actual use 
+        image_viewer_type: 2
