@@ -9,6 +9,7 @@
 #include <librmcs/client/cboard.hpp>
 
 #include "hardware/device/bmi088.hpp"
+#include "hardware/device/ch040.hpp"
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/gy614.hpp"
@@ -85,6 +86,7 @@ private:
         explicit TopBoard(Hero& hero, HeroCommand& hero_command, int usb_pid = -1)
             : librmcs::client::CBoard(usb_pid)
             , bmi088_(1000, 0.2, 0.0)
+            , ch040_(hero.get_parameter_or<std::string>("gyroscope_device", "/dev/ttyUSB0"), 115200)
             , gy614_(hero)
             , tf_(hero.tf_)
             , gimbal_pitch_motor_(
@@ -110,6 +112,8 @@ private:
 
             hero.register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
             hero.register_output("/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
+
+            use_external_gyroscope_ = hero.get_parameter_or<bool>("use_external_gyroscope", false);
         }
 
         ~TopBoard() final {
@@ -119,12 +123,16 @@ private:
 
         void update() {
             bmi088_.update_status();
+            ch040_.update_status();
             gy614_.update();
 
+            // TODO Appliy Imu compensate
             Eigen::Quaterniond gimbal_imu_pose{
                 bmi088_.q0(), bmi088_.q1(), bmi088_.q2(), bmi088_.q3()};
+
             tf_->set_transform<rmcs_description::ImuLink, rmcs_description::OdomImu>(
                 gimbal_imu_pose.conjugate());
+
             *gimbal_yaw_velocity_imu_   = bmi088_.gz();
             *gimbal_pitch_velocity_imu_ = -bmi088_.gy();
 
@@ -188,7 +196,10 @@ private:
             bmi088_.store_gyroscope_status(x, y, z);
         }
 
+        bool use_external_gyroscope_ = false;
+
         device::Bmi088 bmi088_;
+        device::Ch040 ch040_;
         device::Gy614 gy614_;
         OutputInterface<rmcs_description::Tf>& tf_;
         OutputInterface<double> gimbal_yaw_velocity_imu_;

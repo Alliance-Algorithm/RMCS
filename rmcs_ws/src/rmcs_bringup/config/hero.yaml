@@ -90,7 +90,7 @@ shooting_controller:
 shooting_recorder:
   ros__parameters:
     friction_wheel_count: 4
-    log_mode: 2 # 1: trigger, 2: timing
+    log_mode: 1 # 1: trigger, 2: timing
     
 second_left_friction_velocity_pid_controller:
   ros__parameters:
