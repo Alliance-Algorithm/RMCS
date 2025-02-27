@@ -62,8 +62,6 @@ public:
             if (buffer_[index] == standard_header[0] && buffer_[index + 1] == standard_header[1]
                 && buffer_[index + 2] == standard_header[2]) {
                 store_status(buffer_.data() + index, sizeof(Package));
-                // RCLCPP_INFO(
-                //   rclcpp::get_logger("CH040"), "Update, %f %fi %fj %fz", w(), x(), y(), z());
                 index += sizeof(Package);
             }
             index++;

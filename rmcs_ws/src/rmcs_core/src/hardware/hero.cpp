@@ -34,8 +34,6 @@ public:
               static_cast<int>(get_parameter("usb_pid_bottom_board").as_int())) {
 
         register_output("/tf", tf_);
-        tf_->set_transform<rmcs_description::PitchLink, rmcs_description::ImuLink>(
-            Eigen::AngleAxisd{std::numbers::pi, Eigen::Vector3d::UnitZ()});
 
         gimbal_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
             "/gimbal/calibrate", rclcpp::QoS{0}, [this](std_msgs::msg::Int32::UniquePtr&& msg) {
@@ -114,6 +112,18 @@ private:
             hero.register_output("/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
 
             use_external_gyroscope_ = hero.get_parameter_or<bool>("use_external_gyroscope", false);
+
+            auto imu_source = std::string{"cboard"};
+            if (use_external_gyroscope_ && ch040_.available())
+                imu_source = "imu";
+
+            auto w = hero.get_parameter_or<double>(imu_source + "_q_w", 0.0);
+            auto x = hero.get_parameter_or<double>(imu_source + "_q_x", 0.0);
+            auto y = hero.get_parameter_or<double>(imu_source + "_q_y", 0.0);
+            auto z = hero.get_parameter_or<double>(imu_source + "_q_z", 1.0);
+
+            tf_->set_transform<rmcs_description::PitchLink, rmcs_description::ImuLink>(
+                Eigen::Quaterniond{w, x, y, z});
         }
 
         ~TopBoard() final {
@@ -126,12 +136,13 @@ private:
             ch040_.update_status();
             gy614_.update();
 
-            // TODO Appliy Imu compensate
-            Eigen::Quaterniond gimbal_imu_pose{
-                bmi088_.q0(), bmi088_.q1(), bmi088_.q2(), bmi088_.q3()};
+            auto rotation =
+                (use_external_gyroscope_ && ch040_.available())
+                    ? Eigen::Quaterniond{ch040_.w(), ch040_.x(), ch040_.y(), ch040_.z()}
+                    : Eigen::Quaterniond{bmi088_.q0(), bmi088_.q1(), bmi088_.q2(), bmi088_.q3()};
 
             tf_->set_transform<rmcs_description::ImuLink, rmcs_description::OdomImu>(
-                gimbal_imu_pose.conjugate());
+                rotation.conjugate());
 
             *gimbal_yaw_velocity_imu_   = bmi088_.gz();
             *gimbal_pitch_velocity_imu_ = -bmi088_.gy();
