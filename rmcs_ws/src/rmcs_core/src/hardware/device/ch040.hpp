@@ -11,81 +11,76 @@ namespace rmcs_core::hardware::device {
 class Ch040 : public librmcs::device::Ch040 {
 public:
     explicit Ch040(const std::string& port = "/dev/ttyUSB0", uint32_t baud = 115200) {
+        RCLCPP_INFO(logger_, "Ch040 IMU Initializing, try to open: %s", port.c_str());
 
-        RCLCPP_INFO(logger_, "CH040 IMU Initializing");
+        serial_.setPort(port);
+        serial_.setBaudrate(baud);
 
         try {
-            serial_ = std::make_unique<serial::Serial>(port, baud);
-            serial_->open();
-            available_ = serial_->isOpen();
+            serial_.open();
+            available_ = true;
         } catch (serial::IOException& e) {
             available_ = false;
             RCLCPP_WARN(
-                rclcpp::get_logger("CH040"), "Error happened while opening port %s: %s",
-                port.c_str(), e.what());
+                logger_, "IOException happened while opening %s: %s", port.c_str(), e.what());
         } catch (const serial::SerialException& e) {
             available_ = false;
             RCLCPP_WARN(
-                rclcpp::get_logger("CH040"), "Error happened while opening port %s: %s",
-                port.c_str(), e.what());
+                logger_, "SerialException happened while opening %s: %s", port.c_str(), e.what());
         } catch (const std::invalid_argument& e) {
         } catch (...) {
+            available_ = false;
             RCLCPP_WARN(logger_, "Unknown error happened");
         }
     }
 
+    auto quaternion() const {
+        return initial_orientation_.inverse() * Eigen::Quaterniond{w(), x(), y(), z()};
+    }
+    auto available() const { return available_; }
+
     void update_status() {
-        if (!available_)
-            return;
-
-        if (!serial_->available())
-            return;
-
-        auto length = serial_->available();
-        if (!length)
+        if (!serial_.available())
             return;
 
         try {
-            serial_->read(buffer_, length);
+            auto length = serial_.read(buffer_ + index_head_, sizeof(buffer_) - index_tail_);
+            index_tail_ += length;
+
+            if (index_tail_ >= 1024 - sizeof(Package)) {
+                index_head_ = 0;
+                index_tail_ = 0;
+            }
+
+            while (index_head_ < index_tail_)
+                if (store_status(buffer_ + index_head_++, sizeof(Package))) {
+                    index_head_ += sizeof(Package);
+                    if (!record_initial_orientation_) {
+                        record_initial_orientation_ = true;
+                        initial_orientation_        = {w(), x(), y(), z()};
+                    }
+                }
+
         } catch (const serial::PortNotOpenedException& e) {
-            RCLCPP_WARN(rclcpp::get_logger("CH040"), "Error happened while reading: %s", e.what());
+            RCLCPP_WARN(logger_, "PortNotOpenedException happened while reading: %s", e.what());
             available_ = false;
         } catch (const serial::SerialException& e) {
-            RCLCPP_WARN(rclcpp::get_logger("CH040"), "Error happened while reading: %s", e.what());
+            RCLCPP_WARN(logger_, "SerialException happened while reading: %s", e.what());
             available_ = false;
-        }
-
-        constexpr uint8_t standard_header[] = {0x5a, 0xa5, 17};
-
-        auto& index = check_index_;
-        while (index + sizeof(Package) < buffer_.size()) {
-            if (buffer_[index] == standard_header[0] && buffer_[index + 1] == standard_header[1]
-                && buffer_[index + 2] == standard_header[2]) {
-                store_status(buffer_.data() + index, sizeof(Package));
-                index += sizeof(Package);
-            }
-            index++;
-        }
-
-        if (check_index_ > 1024) {
-            buffer_.clear();
-            check_index_ = 0;
         }
     }
 
-    Eigen::Quaterniond q() const { return Eigen::Quaterniond{w(), x(), y(), z()}; }
-
-    bool available() const { return available_; }
-
 private:
-    std::size_t check_index_{0};
-    std::vector<uint8_t> buffer_;
+    std::size_t index_head_{0};
+    std::size_t index_tail_{0};
+    uint8_t buffer_[1024];
 
-    std::unique_ptr<serial::Serial> serial_;
+    Eigen::Quaterniond initial_orientation_{Eigen::Quaterniond::Identity()};
+    bool record_initial_orientation_{false};
 
+    serial::Serial serial_{};
+    rclcpp::Logger logger_{rclcpp::get_logger("ch040")};
     bool available_{false};
-
-    rclcpp::Logger logger_{rclcpp::get_logger("CH040")};
 };
 
 } // namespace rmcs_core::hardware::device
