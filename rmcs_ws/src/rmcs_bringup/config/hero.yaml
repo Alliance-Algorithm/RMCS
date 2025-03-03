@@ -35,17 +35,6 @@ hero_hardware:
     usb_pid_bottom_board: 0xc1d3
     yaw_motor_zero_point: 27555
     pitch_motor_zero_point: 24514
-    cboard_init_q_w: 0.0
-    cboard_init_q_x: 0.0
-    cboard_init_q_y: 0.0
-    cboard_init_q_z: 1.0
-    camera_q_w: 1.0
-    camera_q_x: 0.0
-    camera_q_y: 0.0
-    camera_q_z: 0.0
-    camera_t_x: 0.16
-    camera_t_y: 0.0
-    camera_t_z: 0.15
 
 gimbal_controller:
   ros__parameters:

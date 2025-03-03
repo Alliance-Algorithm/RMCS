@@ -25,70 +25,46 @@ public:
     Hero()
         : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , command_component_(
-              create_partner_component<HeroCommand>(get_component_name() + "_command", *this))
-        , top_board_(
-              *this, *command_component_,
-              static_cast<int>(get_parameter("usb_pid_top_board").as_int()))
-        , bottom_board_(
-              *this, *command_component_,
-              static_cast<int>(get_parameter("usb_pid_bottom_board").as_int())) {
+              create_partner_component<HeroCommand>(get_component_name() + "_command", *this)) {
         using namespace rmcs_description;
 
-        auto cboard_init_q_w = get_parameter("cboard_init_q_w").as_double();
-        auto cboard_init_q_x = get_parameter("cboard_init_q_x").as_double();
-        auto cboard_init_q_y = get_parameter("cboard_init_q_y").as_double();
-        auto cboard_init_q_z = get_parameter("cboard_init_q_z").as_double();
-
         register_output("/tf", tf_);
-        tf_->set_transform<PitchLink, ImuLink>(
-            Eigen::Quaterniond{cboard_init_q_w, cboard_init_q_x, cboard_init_q_y, cboard_init_q_z});
-
-        auto camera_q_w = get_parameter("camera_q_w").as_double();
-        auto camera_q_x = get_parameter("camera_q_x").as_double();
-        auto camera_q_y = get_parameter("camera_q_y").as_double();
-        auto camera_q_z = get_parameter("camera_q_z").as_double();
-        auto camera_t_x = get_parameter("camera_t_x").as_double();
-        auto camera_t_y = get_parameter("camera_t_y").as_double();
-        auto camera_t_z = get_parameter("camera_t_z").as_double();
-
-        auto camera_q = Eigen::Quaterniond{camera_q_w, camera_q_x, camera_q_y, camera_q_z};
-        auto camera_t = Eigen::Vector3d{camera_t_x, camera_t_y, camera_t_z};
-        auto iso      = Eigen::Isometry3d::Identity();
-        iso.rotate(camera_q);
-        iso.pretranslate(camera_t);
-        tf_->set_transform<PitchLink, CameraLink>(iso);
+        tf_->set_transform<PitchLink, CameraLink>(Eigen::Translation3d{0.16, 0.0, 0.15});
 
         gimbal_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
             "/gimbal/calibrate", rclcpp::QoS{0}, [this](std_msgs::msg::Int32::UniquePtr&& msg) {
                 gimbal_calibrate_subscription_callback(std::move(msg));
             });
+
+        top_board_ = std::make_unique<TopBoard>(
+            *this, *command_component_,
+            static_cast<int>(get_parameter("usb_pid_top_board").as_int()));
+        bottom_board_ = std::make_unique<BottomBoard>(
+            *this, *command_component_,
+            static_cast<int>(get_parameter("usb_pid_bottom_board").as_int()));
     }
 
     ~Hero() override = default;
 
     void update() override {
-        top_board_.update();
-        bottom_board_.update();
+        top_board_->update();
+        bottom_board_->update();
     }
 
     void command_update() {
-        top_board_.command_update();
-        bottom_board_.command_update();
+        top_board_->command_update();
+        bottom_board_->command_update();
     }
 
 private:
     void gimbal_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
         RCLCPP_INFO(
             get_logger(), "[gimbal calibration] New yaw offset: %ld",
-            bottom_board_.gimbal_yaw_motor_.calibrate_zero_point());
+            bottom_board_->gimbal_yaw_motor_.calibrate_zero_point());
         RCLCPP_INFO(
             get_logger(), "[gimbal calibration] New pitch offset: %ld",
-            top_board_.gimbal_pitch_motor_.calibrate_zero_point());
+            top_board_->gimbal_pitch_motor_.calibrate_zero_point());
     }
-
-    OutputInterface<rmcs_description::Tf> tf_;
-
-    rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr gimbal_calibrate_subscription_;
 
     class HeroCommand : public rmcs_executor::Component {
     public:
@@ -106,10 +82,10 @@ private:
         friend class Hero;
         explicit TopBoard(Hero& hero, HeroCommand& hero_command, int usb_pid = -1)
             : librmcs::client::CBoard(usb_pid)
-            , bmi088_(1000, 0.2, 0.0)
-            , benewake_(hero)
-            , gy614_(hero)
             , tf_(hero.tf_)
+            , bmi088_(1000, 0.2, 0.0)
+            , gy614_(hero)
+            , benewake_(hero)
             , gimbal_pitch_motor_(
                   hero, hero_command, "/gimbal/pitch",
                   device::LkMotor::Config{device::LkMotor::Type::MG5010E_I10}
@@ -131,6 +107,19 @@ private:
             , transmit_buffer_(*this, 32)
             , event_thread_([this]() { handle_events(); }) {
 
+            bmi088_.set_coordinate_mapping([](double x, double y, double z) {
+                // Get the mapping with the following code.
+                // The rotation angle must be an exact multiple of 90 degrees, otherwise use a
+                // matrix.
+
+                // Eigen::AngleAxisd pitch_link_to_imu_link{
+                //     std::numbers::pi, Eigen::Vector3d::UnitZ()};
+                // Eigen::Vector3d mapping = pitch_link_to_imu_link * Eigen::Vector3d{1, 2, 3};
+                // std::cout << mapping << std::endl;
+
+                return std::make_tuple(-x, -y, z);
+            });
+
             hero.register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
             hero.register_output("/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
         }
@@ -147,10 +136,10 @@ private:
 
             Eigen::Quaterniond gimbal_imu_pose{
                 bmi088_.q0(), bmi088_.q1(), bmi088_.q2(), bmi088_.q3()};
-            tf_->set_transform<rmcs_description::ImuLink, rmcs_description::OdomImu>(
+            tf_->set_transform<rmcs_description::PitchLink, rmcs_description::OdomImu>(
                 gimbal_imu_pose.conjugate());
             *gimbal_yaw_velocity_imu_   = bmi088_.gz();
-            *gimbal_pitch_velocity_imu_ = -bmi088_.gy();
+            *gimbal_pitch_velocity_imu_ = bmi088_.gy();
 
             gimbal_pitch_motor_.update_status();
             tf_->set_state<rmcs_description::YawLink, rmcs_description::PitchLink>(
@@ -216,10 +205,12 @@ private:
             bmi088_.store_gyroscope_status(x, y, z);
         }
 
-        device::Bmi088 bmi088_;
-        device::Benewake benewake_;
-        device::Gy614 gy614_;
         OutputInterface<rmcs_description::Tf>& tf_;
+
+        device::Bmi088 bmi088_;
+        device::Gy614 gy614_;
+        device::Benewake benewake_;
+
         OutputInterface<double> gimbal_yaw_velocity_imu_;
         OutputInterface<double> gimbal_pitch_velocity_imu_;
 
@@ -229,7 +220,7 @@ private:
 
         librmcs::client::CBoard::TransmitBuffer transmit_buffer_;
         std::thread event_thread_;
-    } top_board_;
+    };
 
     class BottomBoard final : private librmcs::client::CBoard {
     public:
@@ -389,7 +380,14 @@ private:
 
         librmcs::client::CBoard::TransmitBuffer transmit_buffer_;
         std::thread event_thread_;
-    } bottom_board_;
+    };
+
+    OutputInterface<rmcs_description::Tf> tf_;
+
+    rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr gimbal_calibrate_subscription_;
+
+    std::unique_ptr<TopBoard> top_board_;
+    std::unique_ptr<BottomBoard> bottom_board_;
 };
 
 } // namespace rmcs_core::hardware
