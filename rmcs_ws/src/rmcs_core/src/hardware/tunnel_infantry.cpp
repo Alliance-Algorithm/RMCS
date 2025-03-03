@@ -1,54 +1,58 @@
 #include <memory>
 
+#include <librmcs/client/cboard.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/serial_interface.hpp>
 #include <std_msgs/msg/int32.hpp>
 
-#include <librmcs/client/cboard.hpp>
-
 #include "hardware/device/bmi088.hpp"
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
-#include "hardware/device/gy614.hpp"
+#include "hardware/device/lk_motor.hpp"
 #include "hardware/device/supercap.hpp"
 
 namespace rmcs_core::hardware {
 
-class Infantry
+class TunnelInfantry
     : public rmcs_executor::Component
     , public rclcpp::Node
     , private librmcs::client::CBoard {
 public:
-    Infantry()
+    TunnelInfantry()
         : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , librmcs::client::CBoard{static_cast<int>(get_parameter("usb_pid").as_int())}
         , logger_(get_logger())
         , infantry_command_(
               create_partner_component<InfantryCommand>(get_component_name() + "_command", *this))
-        , gy614_(*this)
         , transmit_buffer_(*this, 32)
         , event_thread_([this]() { handle_events(); }) {
 
         for (auto& motor : chassis_wheel_motors_)
-            motor.configure(device::DjiMotor::Config{device::DjiMotor::Type::M3508}
-                                .set_reversed()
-                                .set_reduction_ratio(13.)
-                                .enable_multi_turn_angle());
+            motor.configure(
+                device::DjiMotor::Config{device::DjiMotor::Type::M3508}
+                    .set_reversed()
+                    .set_reduction_ratio(13.)
+                    .enable_multi_turn_angle());
 
         gimbal_yaw_motor_.configure(
-            device::DjiMotor::Config{device::DjiMotor::Type::GM6020}.set_encoder_zero_point(
-                static_cast<int>(get_parameter("yaw_motor_zero_point").as_int())));
+            device::DjiMotor::Config{device::DjiMotor::Type::GM6020}
+                .set_reversed()
+                .set_encoder_zero_point(
+                    static_cast<int>(get_parameter("yaw_motor_zero_point").as_int())));
         gimbal_pitch_motor_.configure(
-            device::DjiMotor::Config{device::DjiMotor::Type::GM6020}.set_encoder_zero_point(
-                static_cast<int>(get_parameter("pitch_motor_zero_point").as_int())));
+            device::LkMotor::Config{device::LkMotor::Type::MG4010E_I10}
+                .set_encoder_zero_point(
+                    static_cast<int>(get_parameter("pitch_motor_zero_point").as_int()))
+                .set_reversed());
 
         gimbal_left_friction_.configure(
             device::DjiMotor::Config{device::DjiMotor::Type::M3508}.set_reduction_ratio(1.));
-        gimbal_right_friction_.configure(device::DjiMotor::Config{device::DjiMotor::Type::M3508}
-                                             .set_reversed()
-                                             .set_reduction_ratio(1.));
+        gimbal_right_friction_.configure(
+            device::DjiMotor::Config{device::DjiMotor::Type::M3508}
+                .set_reversed()
+                .set_reduction_ratio(1.));
         gimbal_bullet_feeder_.configure(
             device::DjiMotor::Config{device::DjiMotor::Type::M2006}.enable_multi_turn_angle());
 
@@ -58,28 +62,8 @@ public:
 
         using namespace rmcs_description;
 
-        auto cboard_init_q_w = get_parameter("cboard_init_q_w").as_double();
-        auto cboard_init_q_x = get_parameter("cboard_init_q_x").as_double();
-        auto cboard_init_q_y = get_parameter("cboard_init_q_y").as_double();
-        auto cboard_init_q_z = get_parameter("cboard_init_q_z").as_double();
-
         tf_->set_transform<PitchLink, ImuLink>(
-            Eigen::Quaterniond{cboard_init_q_w, cboard_init_q_x, cboard_init_q_y, cboard_init_q_z});
-
-        auto camera_q_w = get_parameter("camera_q_w").as_double();
-        auto camera_q_x = get_parameter("camera_q_x").as_double();
-        auto camera_q_y = get_parameter("camera_q_y").as_double();
-        auto camera_q_z = get_parameter("camera_q_z").as_double();
-        auto camera_t_x = get_parameter("camera_t_x").as_double();
-        auto camera_t_y = get_parameter("camera_t_y").as_double();
-        auto camera_t_z = get_parameter("camera_t_z").as_double();
-
-        auto camera_q = Eigen::Quaterniond{camera_q_w, camera_q_x, camera_q_y, camera_q_z};
-        auto camera_t = Eigen::Vector3d{camera_t_x, camera_t_y, camera_t_z};
-        auto iso      = Eigen::Isometry3d::Identity();
-        iso.rotate(camera_q);
-        iso.pretranslate(camera_t);
-        tf_->set_transform<PitchLink, CameraLink>(iso);
+            Eigen::AngleAxisd{std::numbers::pi / 2, Eigen::Vector3d::UnitZ()});
 
         constexpr double gimbal_center_height = 0.32059;
         constexpr double wheel_distance_x = 0.15897, wheel_distance_y = 0.15897;
@@ -110,7 +94,7 @@ public:
         };
     }
 
-    ~Infantry() override {
+    ~TunnelInfantry() override {
         stop_handling_events();
         event_thread_.join();
     }
@@ -119,7 +103,6 @@ public:
         update_motors();
         update_imu();
         dr16_.update_status();
-        gy614_.update();
         supercap_.update_status();
     }
 
@@ -138,11 +121,7 @@ public:
         can_commands[3] = chassis_wheel_motors_[3].generate_command();
         transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(can_commands));
 
-        can_commands[0] = 0;
-        can_commands[1] = gimbal_pitch_motor_.generate_command();
-        can_commands[2] = 0;
-        can_commands[3] = 0;
-        transmit_buffer_.add_can2_transmission(0x1FE, std::bit_cast<uint64_t>(can_commands));
+        transmit_buffer_.add_can2_transmission(0x142, gimbal_pitch_motor_.generate_command());
 
         can_commands[0] = 0;
         can_commands[1] = gimbal_bullet_feeder_.generate_command();
@@ -188,7 +167,7 @@ private:
             logger_, "[gimbal calibration] New yaw offset: %d",
             gimbal_yaw_motor_.calibrate_zero_point());
         RCLCPP_INFO(
-            logger_, "[gimbal calibration] New pitch offset: %d",
+            logger_, "[gimbal calibration] New pitch offset: %ld",
             gimbal_pitch_motor_.calibrate_zero_point());
     }
 
@@ -226,24 +205,20 @@ protected:
         if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
             return;
 
-        if (can_id == 0x202) {
+        if (can_id == 0x142) {
+            gimbal_pitch_motor_.store_status(can_data);
+        } else if (can_id == 0x202) {
             gimbal_bullet_feeder_.store_status(can_data);
         } else if (can_id == 0x203) {
             gimbal_left_friction_.store_status(can_data);
         } else if (can_id == 0x204) {
             gimbal_right_friction_.store_status(can_data);
-        } else if (can_id == 0x206) {
-            gimbal_pitch_motor_.store_status(can_data);
         }
     }
 
     void uart1_receive_callback(const std::byte* uart_data, uint8_t uart_data_length) override {
         referee_ring_buffer_receive_.emplace_back_multi(
             [&uart_data](std::byte* storage) { *storage = *uart_data++; }, uart_data_length);
-    }
-
-    void uart2_receive_callback(const std::byte* data, uint8_t length) override {
-        gy614_.store_status(data, length);
     }
 
     void dbus_receive_callback(const std::byte* uart_data, uint8_t uart_data_length) override {
@@ -263,12 +238,12 @@ private:
 
     class InfantryCommand : public rmcs_executor::Component {
     public:
-        explicit InfantryCommand(Infantry& infantry)
+        explicit InfantryCommand(TunnelInfantry& infantry)
             : infantry_(infantry) {}
 
         void update() override { infantry_.command_update(); }
 
-        Infantry& infantry_;
+        TunnelInfantry& infantry_;
     };
     std::shared_ptr<InfantryCommand> infantry_command_;
 
@@ -283,7 +258,7 @@ private:
     device::Supercap supercap_{*this, *infantry_command_};
 
     device::DjiMotor gimbal_yaw_motor_{*this, *infantry_command_, "/gimbal/yaw"};
-    device::DjiMotor gimbal_pitch_motor_{*this, *infantry_command_, "/gimbal/pitch"};
+    device::LkMotor gimbal_pitch_motor_{*this, *infantry_command_, "/gimbal/pitch"};
 
     device::DjiMotor gimbal_left_friction_{*this, *infantry_command_, "/gimbal/left_friction"};
     device::DjiMotor gimbal_right_friction_{*this, *infantry_command_, "/gimbal/right_friction"};
@@ -292,7 +267,6 @@ private:
     device::Dr16 dr16_{*this};
 
     device::Bmi088 imu_{1000, 0.2, 0.0};
-    device::Gy614 gy614_;
 
     OutputInterface<double> gimbal_yaw_velocity_imu_;
     OutputInterface<double> gimbal_pitch_velocity_imu_;
@@ -311,4 +285,4 @@ private:
 
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(rmcs_core::hardware::Infantry, rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(rmcs_core::hardware::TunnelInfantry, rmcs_executor::Component)

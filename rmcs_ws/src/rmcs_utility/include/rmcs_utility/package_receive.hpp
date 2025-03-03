@@ -8,7 +8,7 @@
 
 #include <rmcs_msgs/serial_interface.hpp>
 
-namespace serial_util {
+namespace rmcs_utility {
 
 enum class ReceiveResult : uint8_t {
     SUCCESS        = 0,
@@ -74,4 +74,4 @@ inline ReceiveResult receive_package(
         verify);
 }
 
-} // namespace serial_util
+} // namespace rmcs_utility

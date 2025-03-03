@@ -97,8 +97,8 @@ struct fast_tf::Joint<rmcs_description::TransmitterLink> {
 
 template <>
 struct fast_tf::Joint<rmcs_description::CameraLink> {
-    using Parent                   = rmcs_description::PitchLink;
-    Eigen::Translation3d transform = Eigen::Translation3d{0.06603, 0, 0.082};
+    using Parent                = rmcs_description::PitchLink;
+    Eigen::Isometry3d transform = Eigen::Isometry3d::Identity();
 };
 
 template <>

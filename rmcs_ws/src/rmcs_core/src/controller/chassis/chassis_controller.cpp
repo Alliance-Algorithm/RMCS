@@ -1,5 +1,7 @@
-#include <eigen3/Eigen/Dense>
+#include <algorithm>
+#include <geometry_msgs/msg/pose2_d.hpp>
 #include <rclcpp/node.hpp>
+#include <rclcpp/subscription.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/chassis_mode.hpp>
@@ -60,6 +62,14 @@ public:
         register_output(
             "/chassis/supercap/voltage/dead_line", supercap_voltage_dead_line_,
             supercap_voltage_dead_line);
+        auto_controller_ = this->create_subscription<geometry_msgs::msg::Pose2D>(
+            "/sentry/transform/velocity", 10, [this](geometry_msgs::msg::Pose2D::SharedPtr msg) {
+                auto_controller_velocity_.x() = msg->x;
+                auto_controller_velocity_.y() = msg->y;
+                auto_controller_velocity_ =
+                    std::clamp(auto_controller_velocity_.norm(), 0.0, translational_velocity_max)
+                    / translational_velocity_max * auto_controller_velocity_.normalized();
+            });
     }
 
     void before_updating() override {
@@ -140,6 +150,10 @@ public:
                              ? rmcs_msgs::ChassisMode::AUTO
                              : rmcs_msgs::ChassisMode::STEP_DOWN;
                 }
+                if (last_switch_right_ == Switch::UP)
+                    auto_controller_flag_ = true;
+                else
+                    auto_controller_flag_ = false;
                 *mode_ = mode;
             }
 
@@ -175,7 +189,9 @@ public:
         Eigen::Vector2d keyboard_move{keyboard.w - keyboard.s, keyboard.a - keyboard.d};
 
         Eigen::Vector2d translational_velocity =
-            Eigen::Rotation2Dd{*gimbal_yaw_angle_} * (*joystick_right_ + keyboard_move);
+            Eigen::Rotation2Dd{*gimbal_yaw_angle_}
+            * (*joystick_right_ + keyboard_move
+               + (auto_controller_flag_ ? auto_controller_velocity_ : Eigen::Vector2d::Zero()));
 
         if (translational_velocity.norm() > 1.0)
             translational_velocity.normalize();
@@ -353,6 +369,10 @@ private:
     OutputInterface<double> supercap_voltage_control_line_;
     OutputInterface<double> supercap_voltage_base_line_;
     OutputInterface<double> supercap_voltage_dead_line_;
+
+    rclcpp::Subscription<geometry_msgs::msg::Pose2D>::SharedPtr auto_controller_;
+    Eigen::Vector2d auto_controller_velocity_;
+    bool auto_controller_flag_;
 };
 
 } // namespace rmcs_core::controller::chassis

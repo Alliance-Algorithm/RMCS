@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>serial_util</name>
+  <name>rmcs_utility</name>
   <version>1.0.0</version>
   <description>Utility tool for serial port reception of data packets</description>
   <maintainer email="zihanqin2048@gmail.com">Qzh</maintainer>

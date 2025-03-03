@@ -184,6 +184,11 @@ auto_aim_controller:
     k1: -0.064232403853946
     k2: -0.087667493884102
     k3: 0.792381808294582
+    #transform quaternion
+    q_w: 0.0
+    q_x: 0.0
+    q_y: 0.0
+    q_z: 1.0
     # tracker
     armor_predict_duration: 500
     # controller

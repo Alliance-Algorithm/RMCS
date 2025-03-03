@@ -3,7 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace serial_util::dji_crc {
+namespace rmcs_utility::dji_crc {
 namespace internal {
 
 template <typename TailT, typename T>
@@ -118,4 +118,4 @@ inline void append_crc16(T& package) {
     append_crc16(&package, sizeof(package));
 }
 
-} // namespace serial_util::dji_crc
+} // namespace rmcs_utility::dji_crc
