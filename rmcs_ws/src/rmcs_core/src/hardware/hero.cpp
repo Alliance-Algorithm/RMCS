@@ -84,8 +84,8 @@ private:
             : librmcs::client::CBoard(usb_pid)
             , tf_(hero.tf_)
             , bmi088_(1000, 0.2, 0.0)
-            , gy614_(hero)
-            , benewake_(hero)
+            , gy614_(hero, "/friction_wheels/temperature")
+            , benewake_(hero, "/gimbal/auto_aim/laser_distance")
             , gimbal_pitch_motor_(
                   hero, hero_command, "/gimbal/pitch",
                   device::LkMotor::Config{device::LkMotor::Type::MG5010E_I10}
@@ -131,8 +131,8 @@ private:
 
         void update() {
             bmi088_.update_status();
-            gy614_.update();
-            benewake_.update();
+            gy614_.update_status();
+            benewake_.update_status();
 
             Eigen::Quaterniond gimbal_imu_pose{
                 bmi088_.q0(), bmi088_.q1(), bmi088_.q2(), bmi088_.q3()};

@@ -40,7 +40,7 @@ public:
         , gimbal_bullet_feeder_(*this, *infantry_command_, "/gimbal/bullet_feeder")
         , dr16_{*this}
         , bmi088_(1000, 0.2, 0.0)
-        , gy614_(*this)
+        , gy614_(*this, "/friction_wheels/temperature")
         , transmit_buffer_(*this, 32)
         , event_thread_([this]() { handle_events(); }) {
 
@@ -124,7 +124,7 @@ public:
         update_motors();
         update_imu();
         dr16_.update_status();
-        gy614_.update();
+        gy614_.update_status();
         supercap_.update_status();
     }
 
