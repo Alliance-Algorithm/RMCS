@@ -108,7 +108,6 @@ private:
         imu_.update(ax, ay, az, gx, gy, gz);
         *imu_acc_  = {ax, ay, az};
         *imu_gyro_ = {gx, gy, gz};
-        // RCLCPP_INFO(logger_, "gx:%5.2lf,gy:%5.2lf,gz:%5.2lf,ax:%5.2lf,ay:%5.2lf,az:%5.2lf", gx, gy, gz, ax, ay, az);
     }
 
 protected:
