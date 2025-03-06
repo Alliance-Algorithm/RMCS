@@ -1,18 +1,22 @@
+#include <atomic>
 #include <memory>
+#include <thread>
 
+#include <librmcs/client/cboard.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/serial_interface.hpp>
+#include <rmcs_utility/fps_counter.hpp>
+#include <serial/serial.h>
 #include <std_msgs/msg/int32.hpp>
-
-#include <librmcs/client/cboard.hpp>
 
 #include "hardware/device/benewake.hpp"
 #include "hardware/device/bmi088.hpp"
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/gy614.hpp"
+#include "hardware/device/hipnuc.hpp"
 #include "hardware/device/lk_motor.hpp"
 #include "hardware/device/supercap.hpp"
 
@@ -83,7 +87,7 @@ private:
         explicit TopBoard(Hero& hero, HeroCommand& hero_command, int usb_pid = -1)
             : librmcs::client::CBoard(usb_pid)
             , tf_(hero.tf_)
-            , bmi088_(1000, 0.2, 0.0)
+            , imu_(1000, 0.2, 0.0)
             , gy614_(hero, "/friction_wheels/temperature")
             , benewake_(hero, "/gimbal/auto_aim/laser_distance")
             , gimbal_pitch_motor_(
@@ -107,7 +111,7 @@ private:
             , transmit_buffer_(*this, 32)
             , event_thread_([this]() { handle_events(); }) {
 
-            bmi088_.set_coordinate_mapping([](double x, double y, double z) {
+            imu_.set_coordinate_mapping([](double x, double y, double z) {
                 // Get the mapping with the following code.
                 // The rotation angle must be an exact multiple of 90 degrees, otherwise use a
                 // matrix.
@@ -122,24 +126,41 @@ private:
 
             hero.register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
             hero.register_output("/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
+
+            external_imu_thread_ = std::jthread([this, &hero](const std::stop_token& stop_token) {
+                external_imu_thread_main(
+                    stop_token, hero.get_parameter("external_imu_port").as_string(),
+                    hero.get_logger());
+            });
         }
 
         ~TopBoard() final {
             stop_handling_events();
             event_thread_.join();
+            external_imu_thread_.request_stop();
         }
 
         void update() {
-            bmi088_.update_status();
+            imu_.update_status();
+            Eigen::Quaterniond gimbal_imu_pose{imu_.q0(), imu_.q1(), imu_.q2(), imu_.q3()};
+
+            if (external_imu_available_.load(std::memory_order::relaxed)) {
+                external_imu_.update_status();
+                gimbal_imu_pose.slerp(0.001, external_imu_.quaternion());
+                imu_.q0() = gimbal_imu_pose.w();
+                imu_.q1() = gimbal_imu_pose.x();
+                imu_.q2() = gimbal_imu_pose.y();
+                imu_.q3() = gimbal_imu_pose.z();
+            }
+
+            tf_->set_transform<rmcs_description::PitchLink, rmcs_description::OdomImu>(
+                gimbal_imu_pose.conjugate());
+
             gy614_.update_status();
             benewake_.update_status();
 
-            Eigen::Quaterniond gimbal_imu_pose{
-                bmi088_.q0(), bmi088_.q1(), bmi088_.q2(), bmi088_.q3()};
-            tf_->set_transform<rmcs_description::PitchLink, rmcs_description::OdomImu>(
-                gimbal_imu_pose.conjugate());
-            *gimbal_yaw_velocity_imu_   = bmi088_.gz();
-            *gimbal_pitch_velocity_imu_ = bmi088_.gy();
+            *gimbal_yaw_velocity_imu_   = imu_.gz();
+            *gimbal_pitch_velocity_imu_ = imu_.gy();
 
             gimbal_pitch_motor_.update_status();
             tf_->set_state<rmcs_description::YawLink, rmcs_description::PitchLink>(
@@ -198,16 +219,41 @@ private:
         }
 
         void accelerometer_receive_callback(int16_t x, int16_t y, int16_t z) override {
-            bmi088_.store_accelerometer_status(x, y, z);
+            imu_.store_accelerometer_status(x, y, z);
         }
 
         void gyroscope_receive_callback(int16_t x, int16_t y, int16_t z) override {
-            bmi088_.store_gyroscope_status(x, y, z);
+            imu_.store_gyroscope_status(x, y, z);
+        }
+
+        void external_imu_thread_main(
+            const std::stop_token& stop_token, const std::string& port_name,
+            const rclcpp::Logger& logger) {
+            try {
+                serial::Serial serial{port_name, 115200, serial::Timeout::simpleTimeout(10)};
+                rmcs_utility::FpsCounter fps_counter;
+
+                while (!stop_token.stop_requested()) {
+                    if (external_imu_.store_status<uint8_t>(serial) && fps_counter.count()) {
+                        bool available = fps_counter.fps() > 350.0;
+                        if (!available)
+                            RCLCPP_WARN(logger, "External IMU low FPS: %.2f", fps_counter.fps());
+                        else if (!external_imu_available_.load(std::memory_order::relaxed))
+                            RCLCPP_INFO(
+                                logger, "External IMU now available with FPS: %.2f",
+                                fps_counter.fps());
+                        external_imu_available_.store(available, std::memory_order::relaxed);
+                    }
+                }
+            } catch (const std::exception& e) {
+                external_imu_available_.store(false, std::memory_order::relaxed);
+                RCLCPP_ERROR(logger, "Exception in external IMU thread: %s", e.what());
+            }
         }
 
         OutputInterface<rmcs_description::Tf>& tf_;
 
-        device::Bmi088 bmi088_;
+        device::Bmi088 imu_;
         device::Gy614 gy614_;
         device::Benewake benewake_;
 
@@ -220,6 +266,10 @@ private:
 
         librmcs::client::CBoard::TransmitBuffer transmit_buffer_;
         std::thread event_thread_;
+
+        rmcs_core::hardware::device::Hipnuc external_imu_;
+        std::atomic<bool> external_imu_available_ = false;
+        std::jthread external_imu_thread_;
     };
 
     class BottomBoard final : private librmcs::client::CBoard {
@@ -227,7 +277,7 @@ private:
         friend class Hero;
         explicit BottomBoard(Hero& hero, HeroCommand& hero_command, int usb_pid = -1)
             : librmcs::client::CBoard(usb_pid)
-            , bmi088_(1000, 0.2, 0.0)
+            , imu_(1000, 0.2, 0.0)
             , tf_(hero.tf_)
             , dr16_(hero)
             , chassis_wheel_motors_(
@@ -268,7 +318,7 @@ private:
         }
 
         void update() {
-            bmi088_.update_status();
+            imu_.update_status();
 
             dr16_.update_status();
 
@@ -302,7 +352,7 @@ private:
             // instead of gyro angular velocity for closed-loop control.
             transmit_buffer_.add_can2_transmission(
                 0x141, gimbal_yaw_motor_.generate_velocity_command(
-                           gimbal_yaw_motor_.control_velocity() - bmi088_.gz()));
+                           gimbal_yaw_motor_.control_velocity() - imu_.gz()));
 
             batch_commands[0] = 0;
             batch_commands[1] = 0;
@@ -356,14 +406,14 @@ private:
         }
 
         void accelerometer_receive_callback(int16_t x, int16_t y, int16_t z) override {
-            bmi088_.store_accelerometer_status(x, y, z);
+            imu_.store_accelerometer_status(x, y, z);
         }
 
         void gyroscope_receive_callback(int16_t x, int16_t y, int16_t z) override {
-            bmi088_.store_gyroscope_status(x, y, z);
+            imu_.store_gyroscope_status(x, y, z);
         }
 
-        device::Bmi088 bmi088_;
+        device::Bmi088 imu_;
         OutputInterface<rmcs_description::Tf>& tf_;
 
         device::Dr16 dr16_;

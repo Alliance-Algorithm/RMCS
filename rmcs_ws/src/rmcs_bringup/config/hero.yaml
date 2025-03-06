@@ -35,6 +35,7 @@ hero_hardware:
     usb_pid_bottom_board: 0xc1d3
     yaw_motor_zero_point: 27555
     pitch_motor_zero_point: 24514
+    external_imu_port: /dev/ttyUSB0
 
 gimbal_controller:
   ros__parameters:
