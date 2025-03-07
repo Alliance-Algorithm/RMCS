@@ -87,7 +87,7 @@ public:
         });
 
         using namespace rmcs_description;
-        tf_->set_transform<PitchLink, CameraLink>(Eigen::Translation3d{06603, 0.0, 0.082});
+        tf_->set_transform<PitchLink, CameraLink>(Eigen::Translation3d{0.06603, 0.0, 0.082});
 
         constexpr double gimbal_center_height = 0.32059;
         constexpr double wheel_distance_x = 0.15897, wheel_distance_y = 0.15897;
