@@ -68,7 +68,7 @@ pitch_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/pitch/control_angle_error
     control: /gimbal/pitch/control_velocity
-    kp: 20.00
+    kp: 18.00
     ki: 0.0
     kd: 0.0
 
@@ -182,7 +182,7 @@ auto_aim_controller:
     # capture
     use_video: false # If true, use video stream instead of camera. 
     video_path: "/workspaces/RMCS/rmcs_ws/resources/1.avi"
-    exposure_time: 3
+    exposure_time: 4
     invert_image: false
     # identifier
     armor_model_path: "/models/mlp.onnx"
@@ -198,10 +198,10 @@ auto_aim_controller:
     armor_predict_duration: 500
     # controller
     gimbal_predict_duration: 100
-    yaw_error: 0.02
-    pitch_error: -0.01
-    shoot_velocity: 28.0
-    predict_sec: 0.095
+    yaw_error: 0.03
+    pitch_error: 0.015
+    shoot_velocity: 22.5
+    predict_sec: 0.03
     # etc
     buff_predict_duration: 200
     buff_model_path: "/models/buff_nocolor_v6.onnx"

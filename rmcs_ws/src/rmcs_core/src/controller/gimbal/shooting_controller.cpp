@@ -32,6 +32,7 @@ public:
 
         register_input("/referee/shooter/cooling", shooter_cooling_, false);
         register_input("/referee/shooter/heat_limit", shooter_heat_limit_, false);
+        register_input("/gimbal/auto_aim/fire_control", fire_control_, false);
 
         auto friction_wheels     = get_parameter("friction_wheels").as_string_array();
         auto friction_velocities = get_parameter("friction_velocities").as_double_array();
@@ -140,7 +141,9 @@ public:
                     friction_enabled_ = !friction_enabled_;
                 }
 
-                bullet_feeder_enabled_ = mouse.left || switch_left == Switch::DOWN;
+                bullet_feeder_enabled_ =
+                    mouse.left || switch_left == Switch::DOWN
+                    || (fire_control_.ready() && *fire_control_ && switch_right == Switch::UP);
 
                 const auto default_mode     = default_shoot_mode();
                 const auto alternative_mode = alternative_shoot_mode();
@@ -397,6 +400,8 @@ private:
 
     OutputInterface<rmcs_msgs::ShootMode> shoot_mode_;
     OutputInterface<rmcs_msgs::ShootStatus> shoot_status_;
+
+    InputInterface<bool> fire_control_;
 };
 
 } // namespace rmcs_core::controller::gimbal
