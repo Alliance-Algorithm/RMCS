@@ -4,6 +4,7 @@
 
 #include <eigen3/Eigen/Dense>
 #include <fast_tf/rcl.hpp>
+#include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
@@ -237,6 +238,9 @@ private:
                     && last_primary_friction_velocity_ < friction_working_velocities_[0] - 20.0) {
                     // Heat with 1/1000 tex
                     shooter_heat_ += heat_per_shot + 10;
+                    bullet_count++;
+
+                    RCLCPP_INFO(logger_, "bullet count :%d", bullet_count);
 
                     // Decrease single-shot bullet allowance
                     --bullet_count_limited_by_single_shot_;
@@ -397,6 +401,8 @@ private:
 
     OutputInterface<rmcs_msgs::ShootMode> shoot_mode_;
     OutputInterface<rmcs_msgs::ShootStatus> shoot_status_;
+
+    int bullet_count = 0;
 };
 
 } // namespace rmcs_core::controller::gimbal

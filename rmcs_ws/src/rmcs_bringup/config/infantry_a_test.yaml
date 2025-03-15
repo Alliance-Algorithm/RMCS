@@ -7,7 +7,7 @@ rmcs_executor:
       - rmcs_core::controller::gimbal::GimbalController -> gimbal_controller
 
       - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
-      - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
+      - rmcs_core::controller::pid::FeedForwardPidController -> yaw_velocity_pid_controller
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
 
       - rmcs_core::controller::gimbal::ShootingController -> shooting_controller
@@ -25,12 +25,12 @@ rmcs_executor:
       - rmcs_core::referee::Status -> referee_status
 
       - rmcs_core::referee::command::Interaction -> referee_interaction
-      - rmcs_core::referee::command::interaction::Ui -> referee_ui
-      - rmcs_core::referee::app::ui::Infantry -> referee_ui_infantry
+      # - rmcs_core::referee::command::interaction::Ui -> referee_ui
+      # - rmcs_core::referee::app::ui::Infantry -> referee_ui_infantry
       - rmcs_core::referee::Command -> referee_command
 
-      - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
-      - rmcs_auto_aim::AutoAimController -> auto_aim_controller
+      # - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
+      # - rmcs_auto_aim::AutoAimController -> auto_aim_controller
 
 tunnel_infantry_hardware:
   ros__parameters:
@@ -54,7 +54,7 @@ yaw_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/yaw/control_angle_error
     control: /gimbal/yaw/control_velocity
-    kp: 15.0
+    kp: 18.0
     ki: 0.0
     kd: 0.0
 
@@ -63,7 +63,7 @@ yaw_velocity_pid_controller:
     measurement: /gimbal/yaw/velocity_imu
     setpoint: /gimbal/yaw/control_velocity
     control: /gimbal/yaw/control_torque
-    kp: 3.5
+    kp: 4.5
     ki: 0.0
     kd: 0.0
 
@@ -81,8 +81,8 @@ shooting_controller:
       - /gimbal/left_friction
       - /gimbal/right_friction
     friction_velocities:
-      - 705.0
-      - 705.0
+      - 740.0
+      - 740.0
     is_42mm: false
     bullets_per_feeder_turn: 8.0
     shot_frequency: 20.0

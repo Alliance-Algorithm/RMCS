@@ -32,6 +32,9 @@
   <class type="rmcs_core::controller::pid::PidController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
+  <class type="rmcs_core::controller::pid::FeedForwardPidController" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
   <class type="rmcs_core::controller::pid::ErrorPidController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
