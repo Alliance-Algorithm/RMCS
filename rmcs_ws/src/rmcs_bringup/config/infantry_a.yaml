@@ -32,6 +32,11 @@ rmcs_executor:
       # - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
       # - rmcs_auto_aim::AutoAimController -> auto_aim_controller
 
+value_broadcaster:
+  ros__parameters:
+    forward_list_init: []
+
+
 tunnel_omni_hardware:
   ros__parameters:
     usb_pid: -1

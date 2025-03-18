@@ -37,6 +37,11 @@ rmcs_executor:
 
       - rmcs_auto_aim::Controller -> rmcs_auto_aim
 
+
+value_broadcaster:
+  ros__parameters:
+    forward_list_init: []
+
 cboard_status:
   ros__parameters:
     path: /dev/ttyACM0
