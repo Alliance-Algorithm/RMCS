@@ -33,7 +33,7 @@ hero_hardware:
   ros__parameters:
     usb_pid_top_board: 0x652f
     usb_pid_bottom_board: 0xc1d3
-    yaw_motor_zero_point: 27555
+    yaw_motor_zero_point: 41841
     pitch_motor_zero_point: 24514
     external_imu_port: /dev/ttyUSB0
 
