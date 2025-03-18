@@ -13,3 +13,24 @@
 [submodule "rmcs_ws/src/serial"]
 	path = rmcs_ws/src/serial
 	url = git@github.com:Alliance-Algorithm/ros2-serial.git
+[submodule "rmcs_ws/src/tlarc"]
+	path = rmcs_ws/src/tlarc
+	url = git@github.com:Alliance-Algorithm/TLARC.git
+[submodule "rmcs_ws/src/rmcs_location"]
+	path = rmcs_ws/src/rmcs_location
+	branch = sentry-planner-release
+	url = git@github.com:Alliance-Algorithm/rmcs_location.git
+[submodule "rmcs_ws/src/rmcs_slam"]
+	path = rmcs_ws/src/rmcs_slam
+	branch = sentry-planner-release
+	url = git@github.com:Alliance-Algorithm/rmcs_slam.git
+[submodule "rmcs_ws/src/rmcs_map"]
+	path = rmcs_ws/src/rmcs_map
+	branch = sentry-planner-release
+	url = git@github.com:Alliance-Algorithm/rmcs_map.git
+[submodule "rmcs_ws/src/livox_ros_driver2"]
+	path = rmcs_ws/src/livox_ros_driver2
+	url = git@github.com:Alliance-Algorithm/livox_ros_driver2.git
+[submodule "rmcs_ws/src/fast_gicp"]
+	path = rmcs_ws/src/fast_gicp
+	url = https://github.com/koide3/fast_gicp.git
