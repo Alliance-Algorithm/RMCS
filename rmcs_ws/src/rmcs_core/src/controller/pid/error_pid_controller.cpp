@@ -24,6 +24,10 @@ public:
 
         get_parameter("integral_min", pid_calculator_.integral_min);
         get_parameter("integral_max", pid_calculator_.integral_max);
+
+        get_parameter("integral_split_min", pid_calculator_.integral_split_min);
+        get_parameter("integral_split_max", pid_calculator_.integral_split_max);
+
         get_parameter("output_min", pid_calculator_.output_min);
         get_parameter("output_max", pid_calculator_.output_max);
     }
