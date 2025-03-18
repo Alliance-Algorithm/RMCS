@@ -20,6 +20,7 @@ rmcs_executor:
       - rmcs_core::controller::chassis::OmniWheelController -> omni_wheel_controller
 
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
 
       - rmcs_core::referee::command::Interaction -> referee_interaction
       - rmcs_core::referee::command::interaction::Ui -> referee_ui
@@ -177,16 +178,26 @@ chassis_power_controller:
       - /chassis/right_back_wheel
       - /chassis/right_front_wheel
 
+# value_broadcaster:
+#   ros__parameters:
+#     forward_list:
+#       - /gimbal/pitch/velocity_imu
+#       - /gimbal/pitch/control_angle_error
+#       - /gimbal/pitch/control_velocity
+#       - /gimbal/yaw/velocity_imu
+#       - /gimbal/yaw/control_angle_error
+#       - /gimbal/yaw/control_velocity
+
 auto_aim_controller:
   ros__parameters:
     # capture
-    use_video: false # If true, use video stream instead of camera. 
+    use_video: false # If true, use video stream instead of camera.
     video_path: "/workspaces/RMCS/rmcs_ws/resources/1.avi"
     exposure_time: 3
     invert_image: false
     # identifier
     armor_model_path: "/models/mlp.onnx"
-    # pnp    
+    # pnp
     fx: 1.722231837421459e+03
     fy: 1.724876404292754e+03
     cx: 7.013056440882832e+02
