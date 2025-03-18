@@ -54,6 +54,8 @@ public:
             register_output(
                 friction_wheels[i] + "/control_velocity", friction_control_velocities_[i]);
         }
+        friction_control_velocity_soft_start_stop_step_ =
+            (1 / 1000.0) / get_parameter("friction_soft_start_stop_time").as_double();
 
         is_42mm_ = get_parameter("is_42mm").as_bool();
 
@@ -205,7 +207,8 @@ private:
         *shoot_mode_         = default_shoot_mode();
         shoot_status_->ready = false;
 
-        friction_enabled_ = false;
+        friction_enabled_                     = false;
+        friction_control_velocity_percentage_ = nan_;
         for (size_t i = 0; i < friction_count_; i++)
             *friction_control_velocities_[i] = nan_;
 
@@ -263,14 +266,24 @@ private:
     }
 
     void update_friction_velocities() {
-        shoot_status_->ready = friction_enabled_;
-        if (friction_enabled_) {
+        if (std::isnan(friction_control_velocity_percentage_)) {
+            friction_control_velocity_percentage_ = 0.0;
             for (size_t i = 0; i < friction_count_; i++)
-                *friction_control_velocities_[i] = friction_working_velocities_[i];
-        } else {
-            for (size_t i = 0; i < friction_count_; i++)
-                *friction_control_velocities_[i] = 0.0;
+                friction_control_velocity_percentage_ +=
+                    *friction_velocities_[i] / friction_working_velocities_[i];
+            friction_control_velocity_percentage_ /= static_cast<double>(friction_count_);
         }
+        friction_control_velocity_percentage_ +=
+            friction_enabled_ ? friction_control_velocity_soft_start_stop_step_
+                              : -friction_control_velocity_soft_start_stop_step_;
+        friction_control_velocity_percentage_ =
+            std::clamp(friction_control_velocity_percentage_, 0.0, 1.0);
+
+        for (size_t i = 0; i < friction_count_; i++)
+            *friction_control_velocities_[i] =
+                friction_control_velocity_percentage_ * friction_working_velocities_[i];
+
+        shoot_status_->ready = friction_control_velocity_percentage_ == 1.0;
     }
 
     void update_bullet_feeder_velocity() {
@@ -396,6 +409,8 @@ private:
     double bullet_feeder_angle_per_bullet_, bullet_feeder_angle_per_1_5_bullet_;
     double bullet_feeder_last_shoot_angle_ = 0;
 
+    double friction_control_velocity_soft_start_stop_step_;
+    double friction_control_velocity_percentage_ = nan_;
     std::unique_ptr<OutputInterface<double>[]> friction_control_velocities_;
     OutputInterface<double> bullet_feeder_control_velocity_;
 

@@ -87,6 +87,7 @@ shooting_controller:
     friction_velocities:
       - 740.0
       - 740.0
+    friction_soft_start_stop_time: 1.0
     is_42mm: false
     bullets_per_feeder_turn: 8.0
     shot_frequency: 20.0
