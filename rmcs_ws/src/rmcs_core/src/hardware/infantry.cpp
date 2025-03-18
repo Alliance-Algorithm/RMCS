@@ -27,15 +27,29 @@ public:
         , logger_(get_logger())
         , infantry_command_(
               create_partner_component<InfantryCommand>(get_component_name() + "_command", *this))
-        , gy614_(*this)
+        , chassis_wheel_motors_(
+              {*this, *infantry_command_, "/chassis/left_front_wheel"},
+              {*this, *infantry_command_, "/chassis/right_front_wheel"},
+              {*this, *infantry_command_, "/chassis/right_back_wheel"},
+              {*this, *infantry_command_, "/chassis/left_back_wheel"})
+        , supercap_(*this, *infantry_command_)
+        , gimbal_yaw_motor_(*this, *infantry_command_, "/gimbal/yaw")
+        , gimbal_pitch_motor_(*this, *infantry_command_, "/gimbal/pitch")
+        , gimbal_left_friction_(*this, *infantry_command_, "/gimbal/left_friction")
+        , gimbal_right_friction_(*this, *infantry_command_, "/gimbal/right_friction")
+        , gimbal_bullet_feeder_(*this, *infantry_command_, "/gimbal/bullet_feeder")
+        , dr16_{*this}
+        , bmi088_(1000, 0.2, 0.0)
+        , gy614_(*this, "/friction_wheels/temperature")
         , transmit_buffer_(*this, 32)
         , event_thread_([this]() { handle_events(); }) {
 
         for (auto& motor : chassis_wheel_motors_)
-            motor.configure(device::DjiMotor::Config{device::DjiMotor::Type::M3508}
-                                .set_reversed()
-                                .set_reduction_ratio(13.)
-                                .enable_multi_turn_angle());
+            motor.configure(
+                device::DjiMotor::Config{device::DjiMotor::Type::M3508}
+                    .set_reversed()
+                    .set_reduction_ratio(13.)
+                    .enable_multi_turn_angle());
 
         gimbal_yaw_motor_.configure(
             device::DjiMotor::Config{device::DjiMotor::Type::GM6020}.set_encoder_zero_point(
@@ -46,9 +60,10 @@ public:
 
         gimbal_left_friction_.configure(
             device::DjiMotor::Config{device::DjiMotor::Type::M3508}.set_reduction_ratio(1.));
-        gimbal_right_friction_.configure(device::DjiMotor::Config{device::DjiMotor::Type::M3508}
-                                             .set_reversed()
-                                             .set_reduction_ratio(1.));
+        gimbal_right_friction_.configure(
+            device::DjiMotor::Config{device::DjiMotor::Type::M3508}
+                .set_reversed()
+                .set_reduction_ratio(1.));
         gimbal_bullet_feeder_.configure(
             device::DjiMotor::Config{device::DjiMotor::Type::M2006}.enable_multi_turn_angle());
 
@@ -56,30 +71,20 @@ public:
         register_output("/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
         register_output("/tf", tf_);
 
+        bmi088_.set_coordinate_mapping([](double x, double y, double z) {
+            // Get the mapping with the following code.
+            // The rotation angle must be an exact multiple of 90 degrees, otherwise use a matrix.
+
+            // Eigen::AngleAxisd pitch_link_to_imu_link{
+            //     std::numbers::pi / 2, Eigen::Vector3d::UnitZ()};
+            // Eigen::Vector3d mapping = pitch_link_to_imu_link * Eigen::Vector3d{1, 2, 3};
+            // std::cout << mapping << std::endl;
+
+            return std::make_tuple(-y, x, z);
+        });
+
         using namespace rmcs_description;
-
-        auto cboard_init_q_w = get_parameter("cboard_init_q_w").as_double();
-        auto cboard_init_q_x = get_parameter("cboard_init_q_x").as_double();
-        auto cboard_init_q_y = get_parameter("cboard_init_q_y").as_double();
-        auto cboard_init_q_z = get_parameter("cboard_init_q_z").as_double();
-
-        tf_->set_transform<PitchLink, ImuLink>(
-            Eigen::Quaterniond{cboard_init_q_w, cboard_init_q_x, cboard_init_q_y, cboard_init_q_z});
-
-        auto camera_q_w = get_parameter("camera_q_w").as_double();
-        auto camera_q_x = get_parameter("camera_q_x").as_double();
-        auto camera_q_y = get_parameter("camera_q_y").as_double();
-        auto camera_q_z = get_parameter("camera_q_z").as_double();
-        auto camera_t_x = get_parameter("camera_t_x").as_double();
-        auto camera_t_y = get_parameter("camera_t_y").as_double();
-        auto camera_t_z = get_parameter("camera_t_z").as_double();
-
-        auto camera_q = Eigen::Quaterniond{camera_q_w, camera_q_x, camera_q_y, camera_q_z};
-        auto camera_t = Eigen::Vector3d{camera_t_x, camera_t_y, camera_t_z};
-        auto iso      = Eigen::Isometry3d::Identity();
-        iso.rotate(camera_q);
-        iso.pretranslate(camera_t);
-        tf_->set_transform<PitchLink, CameraLink>(iso);
+        tf_->set_transform<PitchLink, CameraLink>(Eigen::Translation3d{0.06603, 0.0, 0.082});
 
         constexpr double gimbal_center_height = 0.32059;
         constexpr double wheel_distance_x = 0.15897, wheel_distance_y = 0.15897;
@@ -119,7 +124,7 @@ public:
         update_motors();
         update_imu();
         dr16_.update_status();
-        gy614_.update();
+        gy614_.update_status();
         supercap_.update_status();
     }
 
@@ -174,13 +179,13 @@ private:
     }
 
     void update_imu() {
-        imu_.update_status();
-        Eigen::Quaterniond gimbal_imu_pose{imu_.q0(), imu_.q1(), imu_.q2(), imu_.q3()};
-        tf_->set_transform<rmcs_description::ImuLink, rmcs_description::OdomImu>(
+        bmi088_.update_status();
+        Eigen::Quaterniond gimbal_imu_pose{bmi088_.q0(), bmi088_.q1(), bmi088_.q2(), bmi088_.q3()};
+        tf_->set_transform<rmcs_description::PitchLink, rmcs_description::OdomImu>(
             gimbal_imu_pose.conjugate());
 
-        *gimbal_yaw_velocity_imu_   = imu_.gz();
-        *gimbal_pitch_velocity_imu_ = imu_.gx();
+        *gimbal_yaw_velocity_imu_   = bmi088_.gz();
+        *gimbal_pitch_velocity_imu_ = bmi088_.gy();
     }
 
     void gimbal_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
@@ -251,11 +256,11 @@ protected:
     }
 
     void accelerometer_receive_callback(int16_t x, int16_t y, int16_t z) override {
-        imu_.store_accelerometer_status(x, y, z);
+        bmi088_.store_accelerometer_status(x, y, z);
     }
 
     void gyroscope_receive_callback(int16_t x, int16_t y, int16_t z) override {
-        imu_.store_gyroscope_status(x, y, z);
+        bmi088_.store_gyroscope_status(x, y, z);
     }
 
 private:
@@ -274,24 +279,18 @@ private:
 
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr gimbal_calibrate_subscription_;
 
-    device::DjiMotor chassis_wheel_motors_[4]{
-        {*this, *infantry_command_,  "/chassis/left_front_wheel"},
-        {*this, *infantry_command_, "/chassis/right_front_wheel"},
-        {*this, *infantry_command_,  "/chassis/right_back_wheel"},
-        {*this, *infantry_command_,   "/chassis/left_back_wheel"}
-    };
-    device::Supercap supercap_{*this, *infantry_command_};
+    device::DjiMotor chassis_wheel_motors_[4];
+    device::Supercap supercap_;
 
-    device::DjiMotor gimbal_yaw_motor_{*this, *infantry_command_, "/gimbal/yaw"};
-    device::DjiMotor gimbal_pitch_motor_{*this, *infantry_command_, "/gimbal/pitch"};
+    device::DjiMotor gimbal_yaw_motor_;
+    device::DjiMotor gimbal_pitch_motor_;
 
-    device::DjiMotor gimbal_left_friction_{*this, *infantry_command_, "/gimbal/left_friction"};
-    device::DjiMotor gimbal_right_friction_{*this, *infantry_command_, "/gimbal/right_friction"};
-    device::DjiMotor gimbal_bullet_feeder_{*this, *infantry_command_, "/gimbal/bullet_feeder"};
+    device::DjiMotor gimbal_left_friction_;
+    device::DjiMotor gimbal_right_friction_;
+    device::DjiMotor gimbal_bullet_feeder_;
 
-    device::Dr16 dr16_{*this};
-
-    device::Bmi088 imu_{1000, 0.2, 0.0};
+    device::Dr16 dr16_;
+    device::Bmi088 bmi088_;
     device::Gy614 gy614_;
 
     OutputInterface<double> gimbal_yaw_velocity_imu_;
@@ -303,7 +302,6 @@ private:
     OutputInterface<rmcs_msgs::SerialInterface> referee_serial_;
 
     librmcs::client::CBoard::TransmitBuffer transmit_buffer_;
-
     std::thread event_thread_;
 };
 

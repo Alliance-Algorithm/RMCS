@@ -29,8 +29,13 @@ rmcs_executor:
       # - rmcs_core::referee::app::ui::Infantry -> referee_ui_infantry
       - rmcs_core::referee::Command -> referee_command
 
-      - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
-      - rmcs_auto_aim::AutoAimController -> auto_aim_controller
+      # - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
+      # - rmcs_auto_aim::AutoAimController -> auto_aim_controller
+
+value_broadcaster:
+  ros__parameters:
+    forward_list_init: []
+
 
 tunnel_omni_hardware:
   ros__parameters:
@@ -170,7 +175,7 @@ auto_aim_controller:
     # capture
     use_video: false # If true, use video stream instead of camera. 
     video_path: "/workspaces/RMCS/rmcs_ws/resources/1.avi"
-    exposure_time: 2
+    exposure_time: 3
     invert_image: false
     # identifier
     armor_model_path: "/models/mlp.onnx"
@@ -201,4 +206,3 @@ auto_aim_controller:
     debug_buff_mode: false
     record: false
     raw_img_pub: false # Set false in actual use 
-    image_viewer_type: 2

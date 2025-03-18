@@ -19,11 +19,11 @@ public:
             "forward_list",
             [this](const rclcpp::Parameter& para) { update_forward_list(para.as_string_array()); });
 
-        declare_parameter<std::vector<std::string>>("forward_list", std::vector<std::string>{});
+        declare_parameter<std::vector<std::string>>(
+            "forward_list", get_parameter("forward_list_init").as_string_array());
     }
 
-    void before_pairing(
-        const std::map<std::string, const std::type_info&>& output_map) override {
+    void before_pairing(const std::map<std::string, const std::type_info&>& output_map) override {
         for (const auto& [name, type] : output_map) {
             if (type == typeid(double)) {
                 forward_units_.emplace(

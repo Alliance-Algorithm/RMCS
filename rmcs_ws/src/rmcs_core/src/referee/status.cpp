@@ -7,6 +7,7 @@
 #include <rmcs_utility/crc/dji_crc.hpp>
 #include <rmcs_utility/package_receive.hpp>
 #include <rmcs_utility/tick_timer.hpp>
+#include <serial_interface.hpp>
 
 #include "referee/frame.hpp"
 #include "referee/status/field.hpp"
@@ -59,7 +60,7 @@ public:
                 }
             }
         } else {
-            auto result = rmcs_utility::receive_package(
+            auto result = rmcs_utility::receive_package<std::byte>(
                 const_cast<rmcs_msgs::SerialInterface&>(*serial_), frame_.header, cache_size_,
                 static_cast<uint8_t>(0xa5), [](const FrameHeader& header) {
                     return rmcs_utility::dji_crc::verify_crc8(header);

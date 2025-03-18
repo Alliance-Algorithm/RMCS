@@ -5,8 +5,7 @@
 #include <cstring>
 
 #include <concepts>
-
-#include <rmcs_msgs/serial_interface.hpp>
+#include <new>
 
 namespace rmcs_utility {
 
@@ -17,61 +16,76 @@ enum class ReceiveResult : uint8_t {
     VERIFY_INVALID = 3
 };
 
-template <typename F, typename PackageT>
-concept verify_function = requires(F f) {
-    { f(std::declval<const PackageT&>()) } -> std::convertible_to<bool>;
+template <typename T>
+concept is_byte =
+    std::is_same_v<T, char> || std::is_same_v<T, unsigned char> || std::is_same_v<T, std::byte>;
+
+template <typename SerialT, typename ByteT>
+concept is_readable_stream = requires(SerialT& serial, ByteT* pointer, size_t size) {
+    { serial.read(pointer, size) } -> std::convertible_to<size_t>;
 };
 
-template <
-    size_t header_size, typename ByteT, typename SerialT, typename PackageT,
-    verify_function<PackageT> HeaderVerifyT, verify_function<PackageT> VerifyT>
-inline ReceiveResult basic_receive_package(
-    SerialT& serial, PackageT& buffer, size_t& cache_size, HeaderVerifyT header_verify,
-    VerifyT verify) {
+template <typename F, typename PackageT>
+concept is_verify_function = requires(const F& f, const PackageT& package) {
+    { f(package) } -> std::convertible_to<bool>;
+};
 
+template <size_t header_size, is_byte ByteT, typename PackageT>
+requires std::is_trivially_copyable_v<PackageT> inline auto receive_package(
+    is_readable_stream<ByteT> auto& stream, PackageT& buffer, size_t& cache_size,
+    const is_verify_function<PackageT> auto& header_verify,
+    const is_verify_function<PackageT> auto& verify) -> ReceiveResult {
     if (cache_size == sizeof(PackageT))
         return ReceiveResult::SUCCESS;
 
     auto* buffer_pointer = reinterpret_cast<ByteT*>(&buffer);
-    cache_size += serial.read(buffer_pointer + cache_size, sizeof(PackageT) - cache_size);
+    cache_size += stream.read(buffer_pointer + cache_size, sizeof(PackageT) - cache_size);
 
     if (cache_size == 0 || cache_size < header_size)
         return ReceiveResult::TIMEOUT;
 
     ReceiveResult result;
-    if (header_verify(buffer)) {
+    if (header_size == 0 || header_verify(buffer)) {
         if (cache_size != sizeof(PackageT))
             return ReceiveResult::TIMEOUT;
-        if (verify(buffer)) {
+        if (verify(buffer))
             return ReceiveResult::SUCCESS;
-        }
-        result = ReceiveResult::VERIFY_INVALID;
+        else
+            result = ReceiveResult::VERIFY_INVALID;
     } else {
         result = ReceiveResult::HEADER_INVALID;
     }
 
     while (true) {
-        --cache_size;
-        ++buffer_pointer;
-        if (cache_size == 0 || cache_size < header_size
-            || header_verify(reinterpret_cast<PackageT&>(*buffer_pointer))) {
-            memmove(&buffer, buffer_pointer, cache_size);
+        memmove(buffer_pointer, buffer_pointer + 1, --cache_size);
+        if (cache_size == 0 || cache_size < header_size || header_size == 0
+            || header_verify(*std::launder(reinterpret_cast<PackageT*>(buffer_pointer)))) {
             break;
         }
     }
     return result;
 }
 
-template <typename PackageT, std::integral HeaderT, verify_function<PackageT> VerifyT>
-inline ReceiveResult receive_package(
-    rmcs_msgs::SerialInterface& serial, PackageT& buffer, size_t& cache_size, HeaderT header,
-    VerifyT verify) {
-    return basic_receive_package<sizeof(header), std::byte>(
-        serial, buffer, cache_size,
+template <is_byte ByteT, typename PackageT, std::integral HeaderT>
+requires std::is_trivially_copyable_v<PackageT> inline auto receive_package(
+    is_readable_stream<ByteT> auto& stream, PackageT& buffer, size_t& cache_size, HeaderT header,
+    const is_verify_function<PackageT> auto& verify) -> ReceiveResult {
+    return receive_package<sizeof(HeaderT), ByteT>(
+        stream, buffer, cache_size,
         [header](const PackageT& package) {
-            return reinterpret_cast<const HeaderT&>(package) == header;
+            HeaderT actual_header;
+            std::memcpy(&actual_header, &package, sizeof(HeaderT));
+            return actual_header == header;
         },
         verify);
+}
+
+template <is_byte ByteT, typename PackageT>
+requires std::is_trivially_copyable_v<PackageT> inline auto receive_package(
+    is_readable_stream<ByteT> auto& stream, PackageT& buffer, size_t& cache_size,
+    const is_verify_function<PackageT> auto& verify) -> ReceiveResult {
+    return receive_package<0, std::byte>(
+        stream, buffer, cache_size, [](const PackageT&) { return true; }, verify);
 }
 
 } // namespace rmcs_utility

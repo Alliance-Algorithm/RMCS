@@ -26,7 +26,7 @@ public:
         return false;
     }
 
-    double get_fps() const { return fps_; }
+    double fps() const { return fps_; }
 
 private:
     std::chrono::steady_clock::duration measurement_window_;

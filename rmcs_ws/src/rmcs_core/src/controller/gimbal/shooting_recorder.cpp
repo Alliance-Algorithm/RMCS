@@ -20,7 +20,7 @@ public:
 
         register_input("/referee/shooter/initial_speed", initial_speed_);
         register_input("/referee/shooter/shoot_timestamp", shoot_timestamp_);
-        register_input("friction_wheels/temperature", fractional_temperature_);
+        register_input("/friction_wheels/temperature", fractional_temperature_);
 
         if (friction_wheel_count_ == 2) {
             const auto topic = std::array{
