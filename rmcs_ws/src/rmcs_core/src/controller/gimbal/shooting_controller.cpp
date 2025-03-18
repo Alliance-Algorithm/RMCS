@@ -228,6 +228,7 @@ private:
             shooter_heat_ = 0;
 
         int64_t heat_per_shot = (is_42mm_ ? 100'000 : 10'000);
+        int64_t reserved_heat = (is_42mm_ ? 0 : 10'000);
 
         // The first friction wheel in the list is considered the primary one, meaning we only
         // monitor the speed drop of this wheel to detect whether a bullet has been fired.
@@ -256,7 +257,7 @@ private:
         last_primary_friction_velocity_ = *friction_velocities_[0];
 
         bullet_count_limited_by_shooter_heat_ =
-            (*shooter_heat_limit_ - shooter_heat_ - 10'000) / heat_per_shot;
+            (*shooter_heat_limit_ - shooter_heat_ - reserved_heat) / heat_per_shot;
         if (bullet_count_limited_by_shooter_heat_ < 0)
             bullet_count_limited_by_shooter_heat_ = 0;
     }
