@@ -1,7 +1,10 @@
+#include <cstdint>
 #include <eigen3/Eigen/Eigen>
+#include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 
 #include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/damage_reason.hpp>
 #include <rmcs_msgs/game_stage.hpp>
 #include <rmcs_msgs/robot_id.hpp>
 #include <rmcs_utility/crc/dji_crc.hpp>
@@ -33,6 +36,10 @@ public:
         register_output("/referee/chassis/buffer_energy", robot_buffer_energy_, 60.0);
         register_output("/referee/robots/hp", robots_hp_);
         register_output("/referee/shooter/bullet_allowance", robot_bullet_allowance_, false);
+
+        register_output("/referee/robot/damaged_armor_id", damaged_armor_id_);
+        register_output(
+            "/referee/robot/damaged_reason", damaged_reason_, rmcs_msgs::DamageReason::UNKNOWN);
 
         register_output("/referee/shooter/initial_speed", robot_initial_speed_, false);
         register_output("/referee/shooter/shoot_timestamp", robot_shoot_timestamp_, false);
@@ -86,6 +93,10 @@ public:
             *robot_chassis_power_ = 0.0;
             *robot_buffer_energy_ = 60.0;
         }
+        auto damaged_reason = rmcs_msgs::get_damaged_reason(*damaged_reason_);
+        RCLCPP_INFO(
+            logger_, "Damaged armor id: %d, Damaged reason: %s", *damaged_armor_id_,
+            rmcs_msgs::get_damaged_reason(*damaged_reason_).c_str());
     }
 
 private:
@@ -147,7 +158,11 @@ private:
 
     void update_robot_position() {}
 
-    void update_hurt_data() {}
+    void update_hurt_data() {
+        auto& data         = reinterpret_cast<HurtData&>(frame_.body.data);
+        *damaged_armor_id_ = data.armor_id;
+        *damaged_reason_   = static_cast<rmcs_msgs::DamageReason>(data.reason);
+    }
 
     void update_shoot_data() {
         auto& data            = reinterpret_cast<ShootData&>(frame_.body.data);
@@ -195,6 +210,9 @@ private:
 
     OutputInterface<float> robot_initial_speed_;
     OutputInterface<double> robot_shoot_timestamp_;
+
+    OutputInterface<uint8_t> damaged_armor_id_;
+    OutputInterface<rmcs_msgs::DamageReason> damaged_reason_;
 };
 
 } // namespace rmcs_core::referee
