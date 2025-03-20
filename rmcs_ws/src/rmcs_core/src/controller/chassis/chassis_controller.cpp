@@ -222,7 +222,8 @@ public:
             if (err > alignment / 2)
                 err -= alignment;
 
-            // angular_velocity = following_velocity_controller_.update(err);
+            angular_velocity = following_velocity_controller_.update(err);
+
         } break;
         }
         *chassis_angle_         = 2 * std::numbers::pi - *gimbal_yaw_angle_;
@@ -276,7 +277,7 @@ public:
 
         if (*supercap_control_enabled_ && *supercap_enabled_) {
             double supercap_power_limit = *mode_ == rmcs_msgs::ChassisMode::LAUNCH_RAMP
-                                            ? 250.0
+                                            ? 500.0
                                             : *chassis_power_limit_referee_ + 80.0;
             *chassis_control_power_limit_ =
                 *chassis_power_limit_referee_
@@ -299,15 +300,15 @@ private:
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
     // Maximum control velocities
-    static constexpr double translational_velocity_max = 8.0;
+    static constexpr double translational_velocity_max = 25.0;
     static constexpr double angular_velocity_max       = 10.0;
 
     // Maximum excess power when buffer energy is sufficient.
     static constexpr double excess_power_limit = 35;
 
     //               power_limit_after_buffer_energy_closed_loop =
-    static constexpr double buffer_energy_control_line = 120; // = referee + excess
-    static constexpr double buffer_energy_base_line    = 50;  // = referee
+    static constexpr double buffer_energy_control_line = 160; // = referee + excess
+    static constexpr double buffer_energy_base_line    = 30;  // = referee
     static constexpr double buffer_energy_dead_line    = 0;   // = 0
 
     //                                         chassis_control_power =

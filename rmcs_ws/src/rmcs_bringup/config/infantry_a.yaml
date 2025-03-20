@@ -26,7 +26,7 @@ rmcs_executor:
 
       - rmcs_core::referee::command::Interaction -> referee_interaction
       - rmcs_core::referee::command::interaction::Ui -> referee_ui
-      - rmcs_core::referee::app::ui::Infantry -> referee_ui_infantry
+      - rmcs_core::referee::app::ui::TunnelInfantry -> referee_ui_tunnel_infantry
       - rmcs_core::referee::Command -> referee_command
 
       - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
@@ -71,9 +71,9 @@ pitch_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/pitch/control_angle_error
     control: /gimbal/pitch/control_velocity
-    kp: 10.00
+    kp: 15.00
     ki: 0.0
-    kd: 0.0
+    kd: 1.0
 
 shooting_controller:
   ros__parameters:
