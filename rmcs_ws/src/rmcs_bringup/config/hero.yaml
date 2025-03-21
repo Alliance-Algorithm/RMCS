@@ -13,6 +13,11 @@ rmcs_executor:
       - rmcs_core::controller::gimbal::GimbalController -> gimbal_controller
       - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
+
+      - rmcs_core::controller::gimbal::Scope -> scope_controller
+      - rmcs_core::controller::gimbal::PlayerViewer -> player_viewer_controller
+      - rmcs_core::controller::pid::ErrorPidController -> scope_pid_controller
+      - rmcs_core::controller::pid::ErrorPidController -> player_viewer_pid_controller
       
       - rmcs_core::controller::gimbal::ShootingController -> shooting_controller
       - rmcs_core::controller::pid::PidController -> second_left_friction_velocity_pid_controller
@@ -55,6 +60,22 @@ pitch_angle_pid_controller:
     measurement: /gimbal/pitch/control_angle_error
     control: /gimbal/pitch/control_velocity
     kp: 16.00
+    ki: 0.0
+    kd: 0.0
+
+scope_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/scope/control_torque_error
+    control: /gimbal/scope/control_torque
+    kp: 1.0
+    ki: 0.0
+    kd: 0.0
+
+player_viewer_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/player_viewer/control_torque_error
+    control: /gimbal/player_viewer/control_torque
+    kp: 1.0
     ki: 0.0
     kd: 0.0
 

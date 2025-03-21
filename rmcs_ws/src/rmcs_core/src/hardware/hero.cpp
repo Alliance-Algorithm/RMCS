@@ -108,6 +108,12 @@ private:
                    device::DjiMotor::Config{device::DjiMotor::Type::M3508}
                        .set_reduction_ratio(1.)
                        .set_reversed()})
+            , gimbal_scope_motor_(
+                  hero, hero_command, "/gimbal/scope",
+                  device::DjiMotor::Config{device::DjiMotor::Type::M2006})
+            , gimbal_player_viewer_motor_(
+                  hero, hero_command, "/gimbal/player_viewer",
+                  device::DjiMotor::Config{device::DjiMotor::Type::M2006})
             , transmit_buffer_(*this, 32)
             , event_thread_([this]() { handle_events(); }) {
 
@@ -178,6 +184,12 @@ private:
 
             transmit_buffer_.add_can2_transmission(0x141, gimbal_pitch_motor_.generate_command());
 
+            batch_commands[0] = gimbal_player_viewer_motor_.generate_command();
+            batch_commands[1] = gimbal_scope_motor_.generate_command();
+            batch_commands[2] = 0;
+            batch_commands[3] = 0;
+            transmit_buffer_.add_can2_transmission(0x1ff, std::bit_cast<uint64_t>(batch_commands));
+
             transmit_buffer_.trigger_transmission();
         }
 
@@ -207,6 +219,8 @@ private:
 
             if (can_id == 0x141) {
                 gimbal_pitch_motor_.store_status(can_data);
+            }else {
+                // LOG_INFO("can2_receive_callback: can_id: %d", can_id);
             }
         }
 
@@ -263,6 +277,9 @@ private:
         device::LkMotor gimbal_pitch_motor_;
 
         device::DjiMotor gimbal_friction_wheels_[4];
+
+        device::DjiMotor gimbal_scope_motor_;
+        device::DjiMotor gimbal_player_viewer_motor_;
 
         librmcs::client::CBoard::TransmitBuffer transmit_buffer_;
         std::thread event_thread_;
