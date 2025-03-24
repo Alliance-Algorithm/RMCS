@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <game_stage.hpp>
 #include <geometry_msgs/msg/pose2_d.hpp>
 #include <rclcpp/node.hpp>
 #include <rclcpp/subscription.hpp>
@@ -8,6 +9,7 @@
 #include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/switch.hpp>
+#include <robot_id.hpp>
 
 #include "controller/pid/pid_calculator.hpp"
 
@@ -42,6 +44,8 @@ public:
 
         register_input("/referee/chassis/power_limit", chassis_power_limit_referee_, false);
         register_input("/referee/chassis/buffer_energy", chassis_buffer_energy_referee_, false);
+        register_input("/referee/id", robot_msg_referee_, false);
+        register_input("/referee/game/stage", game_stage_);
 
         register_output("/chassis/angle", chassis_angle_, nan);
         register_output("/chassis/control_angle", chassis_control_angle_, nan);
@@ -150,7 +154,9 @@ public:
                              ? rmcs_msgs::ChassisMode::AUTO
                              : rmcs_msgs::ChassisMode::STEP_DOWN;
                 }
-                if (last_switch_right_ == Switch::UP)
+                if ((robot_msg_referee_.ready() && robot_msg_referee_->id() == ArmorID::Sentry
+                     && *game_stage_ == GameStage::STARTED)
+                    || last_switch_right_ == Switch::UP)
                     auto_controller_flag_ = true;
                 else
                     auto_controller_flag_ = false;
@@ -369,6 +375,9 @@ private:
     OutputInterface<double> supercap_voltage_control_line_;
     OutputInterface<double> supercap_voltage_base_line_;
     OutputInterface<double> supercap_voltage_dead_line_;
+
+    InputInterface<rmcs_msgs::RobotId> robot_msg_referee_;
+    InputInterface<rmcs_msgs::GameStage> game_stage_;
 
     rclcpp::Subscription<geometry_msgs::msg::Pose2D>::SharedPtr auto_controller_;
     Eigen::Vector2d auto_controller_velocity_;

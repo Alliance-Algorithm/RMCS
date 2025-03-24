@@ -4,11 +4,11 @@ source /opt/ros/humble/setup.bash
 
 cd /workspaces/RMCS/rmcs_ws
 
-build-slam
-if [ $? -eq 2 ]; then
-    exit 2
+# build-slam
+# if [ $? -eq 2 ]; then
+#     exit 2
 
-elif [$? -neq 0]; then
-    exit $?
-fi
+# elif [ $? -ne 0 ]; then
+#     exit $?
+# fi
 colcon build --symlink-install --merge-install

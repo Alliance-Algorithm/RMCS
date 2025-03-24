@@ -1,15 +1,18 @@
 #include <cmath>
 
+#include <game_stage.hpp>
 #include <limits>
 
-#include <eigen3/Eigen/Dense>
+#include <eigen3/Eigen/Eigen>
 #include <fast_tf/rcl.hpp>
+#include <numbers>
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/shoot_mode.hpp>
 #include <rmcs_msgs/switch.hpp>
+#include <robot_id.hpp>
 
 namespace rmcs_core::controller::gimbal {
 
@@ -41,6 +44,9 @@ public:
 
         register_output("/gimbal/yaw/control_angle_error", yaw_angle_error_, nan);
         register_output("/gimbal/pitch/control_angle_error", pitch_angle_error_, nan);
+
+        register_input("/referee/id", robot_msg_referee_);
+        register_input("/referee/game/stage", game_stage_);
     }
 
     void update() override {
@@ -57,11 +63,22 @@ public:
         } else {
             PitchLink::DirectionVector dir;
 
-            if (auto_aim_control_direction_.ready() && (mouse.right || switch_right == Switch::UP)
+            if (auto_aim_control_direction_.ready()
+                && ((mouse.right || switch_right == Switch::UP)
+                    || (robot_msg_referee_->id() == ArmorID::Sentry
+                        && *game_stage_ == GameStage::STARTED))
                 && !auto_aim_control_direction_->isZero()) {
                 update_auto_aim_control_direction(dir);
             } else {
                 update_manual_control_direction(dir);
+                if ((robot_msg_referee_->id() == ArmorID::Sentry
+                     && (*game_stage_ == GameStage::STARTED
+                         || (mouse.right || switch_right == Switch::UP))))
+                    dir = fast_tf::cast<PitchLink>(
+                        OdomImu::DirectionVector(
+                            Eigen::AngleAxisd(std::numbers::pi / 1000.0, Eigen::Vector3d::UnitZ())
+                            * *OdomImu::DirectionVector()),
+                        *tf_);
             }
             if (!control_enabled)
                 return;
@@ -179,6 +196,9 @@ private:
     double upper_limit_, lower_limit_;
 
     OutputInterface<double> yaw_angle_error_, pitch_angle_error_;
+
+    InputInterface<rmcs_msgs::RobotId> robot_msg_referee_;
+    InputInterface<rmcs_msgs::GameStage> game_stage_;
 };
 
 } // namespace rmcs_core::controller::gimbal

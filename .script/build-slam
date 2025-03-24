@@ -7,27 +7,27 @@ cd /workspaces/RMCS/rmcs_ws
 
 
 if [ -d "src/livox_ros_driver2" ]; then
- colcon build --symlink-install --merge-install --packages-select livox_ros_driver2 fast_gicp
+ colcon build  --merge-install --packages-select livox_ros_driver2 fast_gicp
     if [ $? -eq 2 ]; then
     exit 2
     fi
 fi 
 
 if [ -d "src/rmcs_slam" ]; then
-colcon build --symlink-install --merge-install --packages-select rmcs_slam 
+colcon build  --merge-install --packages-select rmcs_slam 
  if [ $? -eq 2 ]; then 
     exit 2
     fi
 fi
 
 if [ -d "src/rmcs_map" ]; then
-colcon build --symlink-install --merge-install --packages-select rmcs_map 
+colcon build  --merge-install --packages-select rmcs_map 
  if [ $? -eq 2 ] ; then
     exit 2
     fi
 fi
 if [ -d "src/rmcs_location" ]; then
-colcon build --symlink-install --merge-install --packages-select rmcs_location 
+colcon build  --merge-install --packages-select rmcs_location 
  if [ $? -eq 2 ]; then 
     exit 2
     fi

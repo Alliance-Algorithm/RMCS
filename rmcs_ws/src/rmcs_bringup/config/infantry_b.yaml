@@ -42,7 +42,9 @@ value_broadcaster:
       "/gimbal/pitch/control_velocity",
       "/gimbal/yaw/velocity_imu",
       "/gimbal/yaw/control_angle_error",
-      "/gimbal/yaw/control_velocity"]
+      "/gimbal/yaw/control_velocity",
+      "/debug/target_omega",
+      "/debug/target_theta_"]
 
 infantry_hardware:
   ros__parameters:
@@ -74,7 +76,7 @@ yaw_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/yaw/control_angle_error
     control: /gimbal/yaw/control_velocity
-    kp: 30.0
+    kp: 15.0
     ki: 0.1
     kd: 0.0
     integral_min: -4.0
@@ -90,8 +92,8 @@ yaw_velocity_pid_controller:
     setpoint: /gimbal/yaw/control_velocity
     control: /gimbal/yaw/control_torque
     kp: 3.0
-    ki: 0.00001
-    kd: 0.1
+    ki: 0.0001
+    kd: 0.0
     integral_min: -3.0
     integral_max: 3.0
 
@@ -99,24 +101,26 @@ pitch_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/pitch/control_angle_error
     control: /gimbal/pitch/control_velocity
-    kp: 50.0
-    ki: 0.5
-    kd: 0.0
-    integral_min: -10.0
-    integral_max: 10.0
-    integral_split_min: -0.025
-    integral_split_max: 0.025
+    kp: 20.0
+    ki: 0.08001
+    kd: 0.0001
+    integral_min: -4.0
+    integral_max: 4.0
+    integral_split_min: -0.01
+    integral_split_max: 0.01
 
 pitch_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/pitch/velocity_imu
     setpoint: /gimbal/pitch/control_velocity
     control: /gimbal/pitch/control_torque
-    kp: 1.3
-    ki: 0.001
-    kd: 0.0080
-    integral_min: -10.0
-    integral_max: 10.0
+    kp: 0.8
+    ki: 0.0
+    kd: 0.0
+    integral_min: -3.0
+    integral_max: 3.0
+    integral_split_min: -0.4
+    integral_split_max: 0.4
 
 shooting_controller:
   ros__parameters:
@@ -236,9 +240,9 @@ auto_aim_controller:
     # controller
     gimbal_predict_duration: 100
     yaw_error: 0.03
-    pitch_error: 0.02
-    shoot_velocity: 23.0
-    predict_sec: 0.01
+    pitch_error: 0.01
+    shoot_velocity: 22.0
+    predict_sec: 0.03
     # etc
     buff_predict_duration: 200
     buff_model_path: "/models/buff_nocolor_v6.onnx"
