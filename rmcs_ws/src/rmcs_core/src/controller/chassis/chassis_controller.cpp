@@ -277,7 +277,7 @@ public:
 
         if (*supercap_control_enabled_ && *supercap_enabled_) {
             double supercap_power_limit = *mode_ == rmcs_msgs::ChassisMode::LAUNCH_RAMP
-                                            ? 500.0
+                                            ? 600.0
                                             : *chassis_power_limit_referee_ + 80.0;
             *chassis_control_power_limit_ =
                 *chassis_power_limit_referee_
@@ -300,7 +300,7 @@ private:
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
     // Maximum control velocities
-    static constexpr double translational_velocity_max = 25.0;
+    static constexpr double translational_velocity_max = 50.0;
     static constexpr double angular_velocity_max       = 10.0;
 
     // Maximum excess power when buffer energy is sufficient.
@@ -312,7 +312,7 @@ private:
     static constexpr double buffer_energy_dead_line    = 0;   // = 0
 
     //                                         chassis_control_power =
-    static constexpr double supercap_voltage_control_line = 13.5; // = supercap
+    static constexpr double supercap_voltage_control_line = 12.5; // = supercap
     static constexpr double supercap_voltage_base_line    = 11.5; // = referee
     static constexpr double supercap_voltage_dead_line    = 10.5; // = 0
 
