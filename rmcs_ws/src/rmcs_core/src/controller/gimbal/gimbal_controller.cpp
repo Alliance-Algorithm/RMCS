@@ -4,9 +4,11 @@
 
 #include <eigen3/Eigen/Dense>
 #include <fast_tf/rcl.hpp>
+#include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/lkmotor_status.hpp>
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/shoot_mode.hpp>
 #include <rmcs_msgs/switch.hpp>
@@ -41,10 +43,14 @@ public:
 
         register_output("/gimbal/yaw/control_angle_error", yaw_angle_error_, nan);
         register_output("/gimbal/pitch/control_angle_error", pitch_angle_error_, nan);
+
+        register_output(
+            "/gimbal/pitch/motor_status", pitch_motor_status_, rmcs_msgs::LkmotorStatus::UNKNOWN);
     }
 
     void update() override {
         update_yaw_axis();
+        update_lk_motors_status();
 
         auto switch_right = *switch_right_;
         auto switch_left  = *switch_left_;
@@ -55,6 +61,7 @@ public:
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
             reset_all_controls();
         } else {
+            is_enable_ = true;
             PitchLink::DirectionVector dir;
 
             if (auto_aim_control_direction_.ready() && (mouse.right || switch_right == Switch::UP)
@@ -84,7 +91,9 @@ private:
     }
 
     void reset_all_controls() {
-        control_enabled     = false;
+        control_enabled = false;
+        is_enable_      = false;
+
         *yaw_angle_error_   = nan;
         *pitch_angle_error_ = nan;
     }
@@ -158,6 +167,20 @@ private:
             -std::atan2(z * cp * cp - x * cp * sp + sp * b, -z * cp * sp + x * sp * sp + cp * b);
     }
 
+    void update_lk_motors_status() {
+        if (is_enable_ && !last_is_enable_) {
+            *pitch_motor_status_ = rmcs_msgs::LkmotorStatus::START_UP;
+        } else if (is_enable_ && last_is_enable_) {
+            *pitch_motor_status_ = rmcs_msgs::LkmotorStatus::ENABLE;
+        } else if (!is_enable_ && last_is_enable_) {
+            *pitch_motor_status_ = rmcs_msgs::LkmotorStatus::DISABLE;
+        } else if (!is_enable_ && !last_is_enable_) {
+            *pitch_motor_status_ = rmcs_msgs::LkmotorStatus::REQUEST;
+        }
+
+        last_is_enable_ = is_enable_;
+    }
+
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
     InputInterface<Eigen::Vector2d> joystick_left_;
@@ -179,6 +202,10 @@ private:
     double upper_limit_, lower_limit_;
 
     OutputInterface<double> yaw_angle_error_, pitch_angle_error_;
+
+    OutputInterface<rmcs_msgs::LkmotorStatus> pitch_motor_status_;
+    bool is_enable_      = false;
+    bool last_is_enable_ = false;
 };
 
 } // namespace rmcs_core::controller::gimbal

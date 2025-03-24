@@ -94,9 +94,6 @@ public:
             *robot_buffer_energy_ = 60.0;
         }
         auto damaged_reason = rmcs_msgs::get_damaged_reason(*damaged_reason_);
-        RCLCPP_INFO(
-            logger_, "Damaged armor id: %d, Damaged reason: %s", *damaged_armor_id_,
-            rmcs_msgs::get_damaged_reason(*damaged_reason_).c_str());
     }
 
 private:
