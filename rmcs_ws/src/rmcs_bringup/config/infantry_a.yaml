@@ -121,6 +121,10 @@ bullet_feeder_velocity_pid_controller:
     ki: 0.0
     kd: 0.0
 
+chassis_controller:
+  ros__parameters:
+    auto_spin: false
+
 left_front_wheel_velocity_pid_controller:
   ros__parameters:
     measurement: /chassis/left_front_wheel/velocity

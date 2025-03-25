@@ -1,5 +1,8 @@
+#include <cmath>
+#include <damage_reason.hpp>
 #include <eigen3/Eigen/Dense>
 #include <numbers>
+#include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
@@ -41,6 +44,7 @@ public:
 
         register_input("/referee/chassis/power_limit", chassis_power_limit_referee_, false);
         register_input("/referee/chassis/buffer_energy", chassis_buffer_energy_referee_, false);
+        register_input("/referee/robot/damaged_reason", damaged_reason_, false);
 
         register_output("/chassis/angle", chassis_angle_, nan);
         register_output("/chassis/control_angle", chassis_control_angle_, nan);
@@ -61,6 +65,8 @@ public:
         register_output(
             "/chassis/supercap/voltage/dead_line", supercap_voltage_dead_line_,
             supercap_voltage_dead_line);
+
+        is_auto_spin = get_parameter("auto_spin").as_bool();
     }
 
     void before_updating() override {
@@ -117,8 +123,10 @@ public:
             }
 
             auto mode = *mode_;
+
             if (switch_left != Switch::DOWN) {
-                if (last_switch_right_ == Switch::MIDDLE && switch_right == Switch::DOWN) {
+                if (get_bullet_attacked
+                    || (last_switch_right_ == Switch::MIDDLE && switch_right == Switch::DOWN)) {
                     if (mode == rmcs_msgs::ChassisMode::SPIN) {
                         mode = rmcs_msgs::ChassisMode::STEP_DOWN;
                     } else {
@@ -142,6 +150,10 @@ public:
                              : rmcs_msgs::ChassisMode::STEP_DOWN;
                 }
                 *mode_ = mode;
+            }
+
+            if (is_auto_spin) {
+                update_damaged_reason();
             }
 
             update_velocity_control();
@@ -296,6 +308,32 @@ public:
     }
 
 private:
+    void update_damaged_reason() {
+        auto damage_reason = *damaged_reason_;
+
+        if (damage_reason == rmcs_msgs::DamageReason::SUFFERED_BULLET_ATTACKED
+            && last_damaged_reason_ != rmcs_msgs::DamageReason::SUFFERED_BULLET_ATTACKED) {
+            get_bullet_attacked     = true;
+            after_get_damaged_time_ = 6000;
+        } else {
+            get_bullet_attacked = false;
+        }
+        last_damaged_reason_ = damage_reason;
+
+        if (get_bullet_attacked) {
+            leave_battle_count_down = true;
+        }
+
+        if (leave_battle_count_down) {
+            after_get_damaged_time_--;
+            if (after_get_damaged_time_ == 0) {
+                leave_battle_field_     = true;
+                after_get_damaged_time_ = 6000;
+            }
+        }
+    }
+
+private:
     static constexpr double inf = std::numeric_limits<double>::infinity();
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
@@ -346,6 +384,16 @@ private:
 
     InputInterface<double> chassis_power_limit_referee_;
     InputInterface<double> chassis_buffer_energy_referee_;
+
+    InputInterface<rmcs_msgs::DamageReason> damaged_reason_;
+
+    rmcs_msgs::DamageReason last_damaged_reason_ = rmcs_msgs::DamageReason::NOT_DAMAGED;
+
+    int after_get_damaged_time_  = 0;
+    bool is_auto_spin            = false;
+    bool get_bullet_attacked     = false;
+    bool leave_battle_field_     = false;
+    bool leave_battle_count_down = false;
 
     int supercap_switch_cooling_ = 0;
     OutputInterface<bool> supercap_control_enabled_;

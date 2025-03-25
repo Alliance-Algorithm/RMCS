@@ -39,7 +39,7 @@ public:
 
         register_output("/referee/robot/damaged_armor_id", damaged_armor_id_);
         register_output(
-            "/referee/robot/damaged_reason", damaged_reason_, rmcs_msgs::DamageReason::UNKNOWN);
+            "/referee/robot/damaged_reason", damaged_reason_, rmcs_msgs::DamageReason::NOT_DAMAGED);
 
         register_output("/referee/shooter/initial_speed", robot_initial_speed_, false);
         register_output("/referee/shooter/shoot_timestamp", robot_shoot_timestamp_, false);
@@ -93,7 +93,6 @@ public:
             *robot_chassis_power_ = 0.0;
             *robot_buffer_energy_ = 60.0;
         }
-        auto damaged_reason = rmcs_msgs::get_damaged_reason(*damaged_reason_);
     }
 
 private:
