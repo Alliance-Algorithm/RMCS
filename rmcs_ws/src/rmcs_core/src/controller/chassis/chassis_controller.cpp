@@ -1,8 +1,10 @@
 #include <algorithm>
+
 #include <game_stage.hpp>
-#include <geometry_msgs/msg/pose2_d.hpp>
+
 #include <rclcpp/node.hpp>
 #include <rclcpp/subscription.hpp>
+
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/chassis_mode.hpp>
@@ -10,6 +12,10 @@
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/switch.hpp>
 #include <robot_id.hpp>
+
+#include <geometry_msgs/msg/pose2_d.hpp>
+#include <std_msgs/msg/bool.hpp>
+#include <std_msgs/msg/detail/bool__struct.hpp>
 
 #include "controller/pid/pid_calculator.hpp"
 
@@ -74,6 +80,7 @@ public:
                     std::clamp(auto_controller_velocity_.norm(), 0.0, translational_velocity_max)
                     / translational_velocity_max * auto_controller_velocity_.normalized();
             });
+        reload_planner_ = this->create_publisher<std_msgs::msg::Bool>("/alplanner/reload", 10);
     }
 
     void before_updating() override {
@@ -121,7 +128,7 @@ public:
         auto switch_right = *switch_right_;
         auto switch_left  = *switch_left_;
         auto keyboard     = *keyboard_;
-
+        last_game_stage_  = *game_stage_;
         do {
             if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
                 || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
@@ -156,10 +163,22 @@ public:
                 }
                 if ((robot_msg_referee_.ready() && robot_msg_referee_->id() == ArmorID::Sentry
                      && *game_stage_ == GameStage::STARTED)
-                    || last_switch_right_ == Switch::UP)
+                    || switch_right == Switch::UP)
                     auto_controller_flag_ = true;
                 else
                     auto_controller_flag_ = false;
+
+                if ((*game_stage_ == GameStage::STARTED
+                     && last_game_stage_ != GameStage::STARTED)) {
+                    std_msgs::msg::Bool msg{};
+                    msg.data = true;
+                    reload_planner_->publish(msg);
+                }
+                if (last_switch_right_ != Switch::UP && switch_right == Switch::UP) {
+                    std_msgs::msg::Bool msg{};
+                    msg.data = true;
+                    reload_planner_->publish(msg);
+                }
                 *mode_ = mode;
             }
 
@@ -378,8 +397,10 @@ private:
 
     InputInterface<rmcs_msgs::RobotId> robot_msg_referee_;
     InputInterface<rmcs_msgs::GameStage> game_stage_;
+    rmcs_msgs::GameStage last_game_stage_;
 
     rclcpp::Subscription<geometry_msgs::msg::Pose2D>::SharedPtr auto_controller_;
+    rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr reload_planner_;
     Eigen::Vector2d auto_controller_velocity_;
     bool auto_controller_flag_;
 };

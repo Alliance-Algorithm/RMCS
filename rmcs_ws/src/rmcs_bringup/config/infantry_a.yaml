@@ -29,8 +29,8 @@ rmcs_executor:
       # - rmcs_core::referee::app::ui::Infantry -> referee_ui_infantry
       - rmcs_core::referee::Command -> referee_command
 
-      # - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
-      # - rmcs_auto_aim::AutoAimController -> auto_aim_controller
+      - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
+      - rmcs_auto_aim::AutoAimController -> auto_aim_controller
 
 value_broadcaster:
   ros__parameters:
@@ -206,3 +206,4 @@ auto_aim_controller:
     debug_buff_mode: false
     record: false
     raw_img_pub: false # Set false in actual use 
+    image_viewer_type: 2
