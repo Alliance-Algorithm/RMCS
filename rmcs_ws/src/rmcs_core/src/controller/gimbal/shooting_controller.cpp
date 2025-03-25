@@ -1,3 +1,4 @@
+#include "librmcs/utility/logging.hpp"
 #include <cmath>
 
 #include <limits>
@@ -287,13 +288,22 @@ private:
     }
 
     void update_bullet_feeder_velocity() {
+        // LOG_INFO("bullet_count_limited_by_shooter_heat_:
+        // %ld",bullet_count_limited_by_shooter_heat_);
         auto bullet_allowance = bullet_count_limited_by_shooter_heat_;
         if (0 <= bullet_count_limited_by_single_shot_
-            && bullet_count_limited_by_single_shot_ < bullet_allowance)
+            && bullet_count_limited_by_single_shot_ < bullet_allowance) {
             bullet_allowance = bullet_count_limited_by_single_shot_;
+        }
+
+        // if (*switch_left_ == rmcs_msgs::Switch::DOWN) {
+        //     if (bullet_allowance)
+        //         LOG_INFO("bullet_allowance %ld", bullet_allowance);
+        // }
 
         if (!friction_enabled_ || !bullet_feeder_enabled_ || bullet_allowance == 0) {
-            bullet_feeder_working_status_    = 0;
+            bullet_feeder_working_status_ = 0;
+            // LOG_INFO("first");
             *bullet_feeder_control_velocity_ = 0.0;
             return;
         }
@@ -307,15 +317,21 @@ private:
 
         double new_control_velocity = bullet_allowance > 1 ? bullet_feeder_working_velocity
                                                            : bullet_feeder_safe_shot_velocity;
-        if (*shoot_mode_ == rmcs_msgs::ShootMode::PRECISE)
+        if (*shoot_mode_ == rmcs_msgs::ShootMode::PRECISE) {
+            // LOG_INFO("second");
             new_control_velocity =
                 std::min(new_control_velocity, bullet_feeder_precise_shot_velocity);
-        if (new_control_velocity > *bullet_feeder_control_velocity_)
+        }
+        if (new_control_velocity > *bullet_feeder_control_velocity_) {
+            // LOG_INFO("third");
             bullet_feeder_working_status_ = std::min(0, bullet_feeder_working_status_);
+        }
         *bullet_feeder_control_velocity_ = new_control_velocity;
     }
 
     void update_jam_detection() {
+
+        // LOG_INFO("forth");
         auto control_velocity = *bullet_feeder_control_velocity_;
         if (control_velocity > 0.0) {
             auto velocity = *bullet_feeder_velocity_;
@@ -346,9 +362,12 @@ private:
     void enter_jam_protection() {
         bullet_feeder_working_status_ = 0;
         if (++bullet_feeder_jammed_count_ <= 2) {
+
+            // LOG_INFO("five");
             *bullet_feeder_control_velocity_ = bullet_feeder_eject_velocity_;
             bullet_feeder_cool_down_         = bullet_feeder_eject_time_;
         } else {
+            // LOG_INFO("six");
             *bullet_feeder_control_velocity_ = bullet_feeder_deep_eject_velocity_;
             bullet_feeder_cool_down_         = bullet_feeder_deep_eject_time_;
         }

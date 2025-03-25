@@ -1,5 +1,6 @@
 #include <cmath>
 
+#include <keyboard.hpp>
 #include <limits>
 
 #include <eigen3/Eigen/Dense>
@@ -23,14 +24,17 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
-        upper_limit_ = get_parameter("upper_limit").as_double() + (std::numbers::pi / 2);
-        lower_limit_ = get_parameter("lower_limit").as_double() + (std::numbers::pi / 2);
+        upper_limit_        = get_parameter("upper_limit").as_double() + (std::numbers::pi / 2);
+        lower_limit_        = get_parameter("lower_limit").as_double() + (std::numbers::pi / 2);
+        pitch_micro_motion_ = get_parameter("pitch_micro_motion").as_double();
+        yaw_micro_motion_   = get_parameter("yaw_micro_motion").as_double();
 
         register_input("/remote/joystick/left", joystick_left_);
         register_input("/remote/switch/right", switch_right_);
         register_input("/remote/switch/left", switch_left_);
         register_input("/remote/mouse/velocity", mouse_velocity_);
         register_input("/remote/mouse", mouse_);
+        register_input("/remote/keyboard", keyboard_);
 
         register_input("/gimbal/pitch/angle", gimbal_pitch_angle_);
         register_input("/tf", tf_);
@@ -49,6 +53,7 @@ public:
         auto switch_right = *switch_right_;
         auto switch_left  = *switch_left_;
         auto mouse        = *mouse_;
+        auto keyboard     = *keyboard_;
 
         using namespace rmcs_msgs;
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
@@ -117,12 +122,24 @@ private:
             mouse_sensitivity    = 0.5 / 16;
         }
 
-        auto delta_yaw = Eigen::AngleAxisd{
-            joystick_sensitivity * joystick_left_->y() + mouse_sensitivity * mouse_velocity_->y(),
-            Eigen::Vector3d::UnitZ()};
-        auto delta_pitch = Eigen::AngleAxisd{
-            -joystick_sensitivity * joystick_left_->x() - mouse_sensitivity * mouse_velocity_->x(),
-            Eigen::Vector3d::UnitY()};
+        Eigen::AngleAxisd delta_yaw{0, Eigen::Vector3d::UnitZ()};
+        Eigen::AngleAxisd delta_pitch{0, Eigen::Vector3d::UnitY()};
+
+        if (keyboard_->ctrl) {
+            if (keyboard_->w)
+                delta_pitch.angle() -= pitch_micro_motion_;
+            if (keyboard_->s)
+                delta_pitch.angle() += pitch_micro_motion_;
+            if (keyboard_->a)
+                delta_yaw.angle() += yaw_micro_motion_;
+            if (keyboard_->d)
+                delta_yaw.angle() -= yaw_micro_motion_;
+        } else {
+            delta_yaw.angle() = joystick_sensitivity * joystick_left_->y()
+                              + mouse_sensitivity * mouse_velocity_->y();
+            delta_pitch.angle() = -joystick_sensitivity * joystick_left_->x()
+                                - mouse_sensitivity * mouse_velocity_->x();
+        }
         *dir = delta_pitch * (delta_yaw * (*dir));
     }
 
@@ -165,6 +182,7 @@ private:
     InputInterface<rmcs_msgs::Switch> switch_left_;
     InputInterface<Eigen::Vector2d> mouse_velocity_;
     InputInterface<rmcs_msgs::Mouse> mouse_;
+    InputInterface<rmcs_msgs::Keyboard> keyboard_;
 
     InputInterface<double> gimbal_pitch_angle_;
     InputInterface<Tf> tf_;
@@ -177,6 +195,7 @@ private:
     OdomImu::DirectionVector control_direction_{Eigen::Vector3d::Zero()};
     OdomImu::DirectionVector yaw_axis_filtered_{Eigen::Vector3d::UnitZ()};
     double upper_limit_, lower_limit_;
+    double pitch_micro_motion_, yaw_micro_motion_;
 
     OutputInterface<double> yaw_angle_error_, pitch_angle_error_;
 };

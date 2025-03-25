@@ -26,8 +26,14 @@
   <class type="rmcs_core::controller::gimbal::ShootingController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
-    <class type="rmcs_core::controller::gimbal::ShootingRecorder" base_class_type="rmcs_executor::Component">
+  <class type="rmcs_core::controller::gimbal::ShootingRecorder" base_class_type="rmcs_executor::Component">
     <description>the recorder of Hero</description>
+  </class>
+  <class type="rmcs_core::controller::gimbal::Scope" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
+  <class type="rmcs_core::controller::gimbal::PlayerViewer" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
   </class>
   <class type="rmcs_core::controller::pid::PidController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
@@ -68,4 +74,7 @@
   <class type="rmcs_core::referee::app::ui::Hero" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
+  <class type="rmcs_core::controller::pid::PairedPidController" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>  
 </library>

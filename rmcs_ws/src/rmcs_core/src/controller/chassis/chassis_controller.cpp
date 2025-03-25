@@ -163,11 +163,15 @@ public:
     }
 
     void update_velocity_control() {
-        auto translational_velocity = update_translational_velocity_control();
-        auto angular_velocity       = update_angular_velocity_control();
+        if (keyboard_->ctrl) {
+            *chassis_control_velocity_ = {0, 0, 0};
+        } else {
+            auto translational_velocity = update_translational_velocity_control();
+            auto angular_velocity       = update_angular_velocity_control();
 
-        *chassis_control_velocity_ = {
-            translational_velocity.x(), translational_velocity.y(), angular_velocity};
+            *chassis_control_velocity_ = {
+                translational_velocity.x(), translational_velocity.y(), angular_velocity};
+        }
     }
 
     Eigen::Vector2d update_translational_velocity_control() {
