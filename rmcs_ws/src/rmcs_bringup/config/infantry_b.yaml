@@ -223,9 +223,5 @@ auto_aim_controller:
     debug_robot_id: 4
     debug_buff_mode: false
     record: false
-<<<<<<< HEAD
-    raw_img_pub: false # Set false in actual use 
-=======
     raw_img_pub: false # Set false in actual use
     image_viewer_type: 2
->>>>>>> develop

@@ -18,12 +18,9 @@ public:
         parameter_callback_   = parameter_subscriber_->add_parameter_callback(
             "forward_list",
             [this](const rclcpp::Parameter& para) { update_forward_list(para.as_string_array()); });
-
-        declare_parameter<std::vector<std::string>>("forward_list", std::vector<std::string>{});
     }
 
-    void before_pairing(
-        const std::map<std::string, const std::type_info&>& output_map) override {
+    void before_pairing(const std::map<std::string, const std::type_info&>& output_map) override {
         for (const auto& [name, type] : output_map) {
             if (type == typeid(double)) {
                 forward_units_.emplace(
