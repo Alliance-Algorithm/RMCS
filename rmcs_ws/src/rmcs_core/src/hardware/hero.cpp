@@ -96,9 +96,9 @@ private:
                       .set_encoder_zero_point(
                           static_cast<int>(hero.get_parameter("pitch_motor_zero_point").as_int())))
             , gimbal_friction_wheels_(
-                  {hero, hero_command, "/gimbal/first_left_friction",
-                   device::DjiMotor::Config{device::DjiMotor::Type::M3508}.set_reduction_ratio(1.)},
                   {hero, hero_command, "/gimbal/second_left_friction",
+                   device::DjiMotor::Config{device::DjiMotor::Type::M3508}.set_reduction_ratio(1.)},
+                  {hero, hero_command, "/gimbal/first_left_friction",
                    device::DjiMotor::Config{device::DjiMotor::Type::M3508}.set_reduction_ratio(1.)},
                   {hero, hero_command, "/gimbal/first_right_friction",
                    device::DjiMotor::Config{device::DjiMotor::Type::M3508}
