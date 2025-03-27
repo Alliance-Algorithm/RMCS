@@ -21,7 +21,11 @@ class Hero
 public:
     Hero()
         : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
-        , crosshair_(Shape::Color::WHITE, x_center - 12, y_center - 37)
+        , crosshair_(
+              Shape::Color::GREEN, 2, x_center - 120, y_center - 17, x_center + 120, y_center - 17)
+        , crosshair2_(
+              Shape::Color::GREEN, 2, x_center - 12, y_center - 17 - 40, x_center - 12,
+              y_center - 17 + 40)
         , status_ring_()
         , horizontal_center_guidelines_(
               {Shape::Color::WHITE, 2, x_center - 360, y_center, x_center - 110, y_center},
@@ -160,7 +164,7 @@ private:
 
     // InputInterface<std::pair<uint16_t, uint16_t>> auto_aim_target_;
 
-    CrossHair crosshair_;
+    Line crosshair_, crosshair2_;
     StatusRing status_ring_;
 
     Line horizontal_center_guidelines_[2];

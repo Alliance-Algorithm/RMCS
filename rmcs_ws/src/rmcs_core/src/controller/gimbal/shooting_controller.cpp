@@ -175,12 +175,13 @@ public:
                         bullet_count_limited_by_single_shot_++;
                         single_shot_delayed_stop_counter_ = 0;
                     }
-                    if (!last_fire_control_ && *fire_control_ && switch_right == Switch::UP
+                    if (!last_fire_control_ && *fire_control_
+                        && (mouse_->right || switch_right == Switch::UP)
                         && bullet_count_limited_by_shooter_heat_ >= 2) {
                         bullet_count_limited_by_single_shot_ = 1;
                         single_shot_delayed_stop_counter_    = 0;
                     }
-                    if (!*fire_control_ && switch_right == Switch::UP)
+                    if (!*fire_control_ && (mouse_->right || switch_right == Switch::UP))
                         bullet_count_limited_by_single_shot_ = 0;
 
                     if (!bullet_feeder_enabled_ && bullet_count_limited_by_single_shot_) {
