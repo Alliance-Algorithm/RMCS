@@ -21,6 +21,9 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController -> second_right_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller
 
+      # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
+      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+
       - rmcs_core::controller::chassis::ChassisController -> chassis_controller
       - rmcs_core::controller::chassis::OmniWheelController -> omni_wheel_controller
 
@@ -54,7 +57,23 @@ pitch_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/pitch/control_angle_error
     control: /gimbal/pitch/control_velocity
-    kp: 16.00
+    kp: 30.00
+    ki: 0.0
+    kd: 0.0
+
+scope_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/scope/control_torque_error
+    control: /gimbal/scope/control_torque
+    kp: 0.2
+    ki: 0.0
+    kd: 0.0
+
+view_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/player_viewer/control_torque_error
+    control: /gimbal/player_viewer/control_torque
+    kp: 0.28
     ki: 0.0
     kd: 0.0
 
@@ -66,10 +85,10 @@ shooting_controller:
       - /gimbal/second_left_friction
       - /gimbal/second_right_friction
     friction_velocities:
-      - 530.85
-      - 530.85
-      - 530.70
-      - 530.70
+      - 700.85
+      - 700.85
+      - 540.70
+      - 540.70
     friction_soft_start_stop_time: 1.0
     is_42mm: true
     bullets_per_feeder_turn: 6.0
@@ -85,42 +104,94 @@ shooting_controller:
 shooting_recorder:
   ros__parameters:
     friction_wheel_count: 4
-    log_mode: 2 # 1: trigger, 2: timing
-    
+    log_mode: 1 # 1: trigger, 2: timing
+
+first_friction_velocity_pid_controller:
+  ros__parameters:
+    setpoint: /gimbal/first_left_friction/control_velocity
+    motor1_measurement: /gimbal/first_left_friction/velocity
+    motor1_control_error: /gimbal/first_left_friction/control_error
+    motor2_measurement: /gimbal/first_right_friction/velocity
+    motor2_control_error: /gimbal/first_right_friction/control_error
+    sync_compensation: 0.5
+    error_integral_compensation: 0.00
+    log_enable: false
+
+second_friction_velocity_pid_controller:
+  ros__parameters:
+    setpoint: /gimbal/second_left_friction/control_velocity
+    motor1_measurement: /gimbal/second_left_friction/velocity
+    motor1_control_error: /gimbal/second_left_friction/control_error
+    motor2_measurement: /gimbal/second_right_friction/velocity
+    motor2_control_error: /gimbal/second_right_friction/control_error
+    sync_compensation: 0.5
+    error_integral_compensation: 0.00
+    log_enable: false
+
+value_broadcaster:
+  ros__parameters:
+    forward_list:
+      - /gimbal/first_left_friction/velocity
+      - /gimbal/first_right_friction/velocity
+      - /gimbal/second_left_friction/velocity
+      - /gimbal/second_right_friction/velocity
+      - /referee/shooter/initial_speed
+      - /debug/target_theta_
+      - /debug/target_omega
+      # - /gimbal/first_left_friction/angle
+      # - /gimbal/first_right_friction/angle
+      # - /gimbal/second_left_friction/angle
+      # - /gimbal/second_right_friction/angle
+
 second_left_friction_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/second_left_friction/velocity
     setpoint: /gimbal/second_left_friction/control_velocity
+    measurement: /gimbal/second_left_friction/velocity
+    setpoint: /gimbal/second_left_friction/control_velocity
     control: /gimbal/second_left_friction/control_torque
     kp: 0.003436926
+    kp: 0.003436926
     ki: 0.00
+    kd: 0.009373434
     kd: 0.009373434
 
 first_left_friction_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/first_left_friction/velocity
     setpoint: /gimbal/first_left_friction/control_velocity
+    measurement: /gimbal/first_left_friction/velocity
+    setpoint: /gimbal/first_left_friction/control_velocity
     control: /gimbal/first_left_friction/control_torque
     kp: 0.003436926
     ki: 0.00
+    kd: 0.009373434
     kd: 0.009373434
 
 first_right_friction_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/first_right_friction/velocity
     setpoint: /gimbal/first_right_friction/control_velocity
+    measurement: /gimbal/first_right_friction/velocity
+    setpoint: /gimbal/first_right_friction/control_velocity
     control: /gimbal/first_right_friction/control_torque
     kp: 0.003436926
+    kp: 0.003436926
     ki: 0.00
+    kd: 0.009373434
     kd: 0.009373434
 
 second_right_friction_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/second_right_friction/velocity
     setpoint: /gimbal/second_right_friction/control_velocity
+    measurement: /gimbal/second_right_friction/velocity
+    setpoint: /gimbal/second_right_friction/control_velocity
     control: /gimbal/second_right_friction/control_torque
     kp: 0.003436926
+    kp: 0.003436926
     ki: 0.00
+    kd: 0.009373434
     kd: 0.009373434
 
 bullet_feeder_velocity_pid_controller:
@@ -192,8 +263,8 @@ auto_aim_controller:
     # controller
     gimbal_predict_duration: 100
     yaw_error: 0.02
-    pitch_error: 0.06
-    shoot_velocity: 28.0
+    pitch_error: -0.025
+    shoot_velocity: 16.3
     predict_sec: 0.095
     # etc
     buff_predict_duration: 200
@@ -206,4 +277,4 @@ auto_aim_controller:
     debug_buff_mode: false
     record: false
     raw_img_pub: false # Set false in actual use
-    image_viewer_type: 0
+    image_viewer_type: 2

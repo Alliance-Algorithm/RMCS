@@ -34,6 +34,8 @@ public:
 
         register_output("/tf", tf_);
         tf_->set_transform<PitchLink, CameraLink>(Eigen::Translation3d{0.16, 0.0, 0.15});
+        tf_->set_transform<PitchLink, CameraLink>(
+            Eigen::AngleAxisd{6.0 / 180 * std::numbers::pi, Eigen::Vector3d::UnitY()});
 
         gimbal_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
             "/gimbal/calibrate", rclcpp::QoS{0}, [this](std_msgs::msg::Int32::UniquePtr&& msg) {

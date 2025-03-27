@@ -137,15 +137,14 @@ public:
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
             reset_all_controls();
         } else {
+            LOG_INFO("...");
             if (switch_right != Switch::DOWN) {
                 if ((!last_keyboard_.v && keyboard.v)
                     || (last_switch_left_ == Switch::MIDDLE && switch_left == Switch::UP)) {
                     friction_enabled_ = !friction_enabled_;
                 }
 
-                bullet_feeder_enabled_ =
-                    mouse.left || switch_left == Switch::DOWN
-                    || (fire_control_.ready() && *fire_control_ && switch_right == Switch::UP);
+                bullet_feeder_enabled_ = mouse.left || switch_left == Switch::DOWN;
 
                 const auto default_mode     = default_shoot_mode();
                 const auto alternative_mode = alternative_shoot_mode();
@@ -177,6 +176,13 @@ public:
                         bullet_count_limited_by_single_shot_++;
                         single_shot_delayed_stop_counter_ = 0;
                     }
+                    if (!last_fire_control_ && *fire_control_ && switch_right == Switch::UP
+                        && bullet_count_limited_by_shooter_heat_ >= 2) {
+                        bullet_count_limited_by_single_shot_ = 1;
+                        single_shot_delayed_stop_counter_    = 0;
+                    }
+                    if (!*fire_control_ && switch_right == Switch::UP)
+                        bullet_count_limited_by_single_shot_ = 0;
 
                     if (!bullet_feeder_enabled_ && bullet_count_limited_by_single_shot_) {
                         if (++single_shot_delayed_stop_counter_ != single_shot_max_stop_delay_) {
@@ -200,6 +206,7 @@ public:
         last_switch_left_  = switch_left;
         last_mouse_        = mouse;
         last_keyboard_     = keyboard;
+        last_fire_control_ = *fire_control_;
     }
 
 private:
@@ -245,7 +252,6 @@ private:
                     // Heat with 1/1000 tex
                     shooter_heat_ += heat_per_shot + 10;
 
-                    // Decrease single-shot bullet allowance
                     --bullet_count_limited_by_single_shot_;
                     single_shot_delayed_stop_counter_ = 0;
 
@@ -418,6 +424,7 @@ private:
     OutputInterface<rmcs_msgs::ShootStatus> shoot_status_;
 
     InputInterface<bool> fire_control_;
+    bool last_fire_control_ = false;
 };
 
 } // namespace rmcs_core::controller::gimbal

@@ -1,3 +1,4 @@
+#include "librmcs/utility/logging.hpp"
 #include <cmath>
 
 #include <limits>
