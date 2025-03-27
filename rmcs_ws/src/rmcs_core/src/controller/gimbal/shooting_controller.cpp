@@ -137,7 +137,6 @@ public:
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
             reset_all_controls();
         } else {
-            LOG_INFO("...");
             if (switch_right != Switch::DOWN) {
                 if ((!last_keyboard_.v && keyboard.v)
                     || (last_switch_left_ == Switch::MIDDLE && switch_left == Switch::UP)) {

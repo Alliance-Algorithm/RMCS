@@ -85,8 +85,8 @@ shooting_controller:
       - /gimbal/second_left_friction
       - /gimbal/second_right_friction
     friction_velocities:
-      - 700.85
-      - 700.85
+      - 560.85
+      - 560.85
       - 540.70
       - 540.70
     friction_soft_start_stop_time: 1.0
@@ -262,10 +262,10 @@ auto_aim_controller:
     armor_predict_duration: 500
     # controller
     gimbal_predict_duration: 100
-    yaw_error: 0.02
-    pitch_error: -0.025
-    shoot_velocity: 16.3
-    predict_sec: 0.095
+    yaw_error: 0.01
+    pitch_error: 0.0
+    shoot_velocity: 15.3
+    predict_sec: 0.05
     # etc
     buff_predict_duration: 200
     buff_model_path: "/models/buff_nocolor_v6.onnx"
