@@ -16,15 +16,13 @@ public:
         : rclcpp::Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
-        scope_control_torque_  = get_parameter("scope_torque").as_double();
-        viewer_control_torque_ = get_parameter("viewer_torque").as_double();
         register_input("/remote/switch/right", switch_right_);
         register_input("/remote/switch/left", switch_left_);
         register_input("/remote/mouse", mouse_);
         register_input("/remote/keyboard", keyboard_);
 
-        register_output("/gimbal/player_viewer/control_torque_error", control_torque_view_, 0);
-        register_output("/gimbal/scope/control_torque_error", control_torque_scope_, 0);
+        register_output("/gimbal/player_viewer/control_torque", control_torque_view_, 0);
+        register_output("/gimbal/scope/control_torque", control_torque_scope_, 0);
     }
 
     void update() override {
@@ -39,9 +37,9 @@ public:
             *control_torque_view_ = 0;
         else if (!last_keyboard_.e && keyboard.e) {
             if (scope_active_)
-                *control_torque_view_ = -viewer_control_torque_;
+                *control_torque_view_ = -0.28;
             else
-                *control_torque_view_ = viewer_control_torque_;
+                *control_torque_view_ = 0.28;
             scope_active_ = !scope_active_;
         }
 
@@ -50,9 +48,9 @@ public:
             *control_torque_scope_ = 0;
         else if (!last_keyboard_.q && keyboard.q) {
             if (view_active_)
-                *control_torque_scope_ = -scope_control_torque_;
+                *control_torque_scope_ = -0.2;
             else
-                *control_torque_scope_ = scope_control_torque_;
+                *control_torque_scope_ = 0.2;
             view_active_ = !view_active_;
         }
 
@@ -72,9 +70,6 @@ private:
 
     bool scope_active_{false};
     bool view_active_{false};
-
-    double scope_control_torque_;
-    double viewer_control_torque_;
 };
 } // namespace rmcs_core::controller::gimbal
 
