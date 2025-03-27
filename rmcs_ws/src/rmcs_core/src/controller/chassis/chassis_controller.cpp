@@ -1,5 +1,6 @@
 #include <algorithm>
 
+#include <chrono>
 #include <game_stage.hpp>
 
 #include <rclcpp/node.hpp>
@@ -179,6 +180,7 @@ public:
                     std_msgs::msg::Bool msg{};
                     msg.data = true;
                     reload_planner_->publish(msg);
+                    begin_time_ = std::chrono::steady_clock::now();
                 }
                 if (last_switch_right_ != Switch::UP && switch_right == Switch::UP) {
                     std_msgs::msg::Bool msg{};
@@ -187,6 +189,8 @@ public:
                 }
                 if (*game_stage_ == GameStage::STARTED
                     && robot_msg_referee_->id() == ArmorID::Sentry) {
+                    if (std::chrono::steady_clock::now() - begin_time_ > std::chrono::seconds(5))
+                        mode = rmcs_msgs::ChassisMode::SPIN;
                     if (robot_msg_referee_->color() == RobotColor::RED && robots_hp_->red_7 < 100) {
                         geometry_msgs::msg::PoseStamped msg{};
                         geometry_msgs::msg::Pose msg_pose{};
@@ -442,8 +446,10 @@ private:
     Eigen::Vector2d auto_controller_velocity_;
     bool auto_controller_flag_;
 
-    const Eigen::Vector3d supply_point{-1.0, 1.0, 0};
-    const Eigen::Vector3d target_point{4.5, 1.8, 0};
+    const Eigen::Vector3d supply_point{1.0, -1.0, 0};
+    const Eigen::Vector3d target_point{-4.5, -1.8, 0};
+
+    std::chrono::steady_clock::time_point begin_time_;
 };
 
 } // namespace rmcs_core::controller::chassis

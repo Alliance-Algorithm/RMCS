@@ -71,19 +71,19 @@ public:
                 && !auto_aim_control_direction_->isZero()) {
                 update_auto_aim_control_direction(dir);
             } else {
+                auto dir_in_odom = fast_tf ::cast<OdomImu>(dir, *tf_);
                 update_manual_control_direction(dir);
                 if ((robot_msg_referee_->id() == ArmorID::Sentry
                      && (*game_stage_ == GameStage::STARTED
                          || (mouse.right || switch_right == Switch::UP)))) {
-                    auto dir_in_odom = fast_tf ::cast<OdomImu>(dir, *tf_);
-                    dir              = fast_tf::cast<PitchLink>(
+                    dir = fast_tf::cast<PitchLink>(
                         OdomImu::DirectionVector(
                             Eigen::AngleAxisd(
                                 std::numbers::pi / 500 / speed_spr, Eigen::Vector3d::UnitZ())
                             * *OdomImu::DirectionVector(dir_in_odom->x(), dir_in_odom->y(), 0)),
                         *tf_);
-                    *dir =
-                        Eigen::AngleAxisd(std::numbers::pi / 36, Eigen::Vector3d::UnitY()) * *dir;
+                    *dir = Eigen::AngleAxisd(std::numbers::pi / 36, Eigen::Vector3d::UnitY())
+                         * dir->normalized();
                 }
             }
             if (!control_enabled)
