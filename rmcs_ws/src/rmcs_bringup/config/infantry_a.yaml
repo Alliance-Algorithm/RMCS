@@ -31,7 +31,10 @@ rmcs_executor:
 
       - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
       - rmcs_auto_aim::AutoAimController -> auto_aim_controller
-
+value_broadcaster:
+  ros__parameters:
+    forward_list:
+      - /debug/target_omega
 tunnel_infantry_hardware:
   ros__parameters:
     usb_pid: -1
@@ -47,23 +50,23 @@ referee_status:
 
 gimbal_controller:
   ros__parameters:
-    upper_limit: -0.4598
-    lower_limit: 0.4362
+    upper_limit: -0.3598
+    lower_limit: 0.1762
 
 yaw_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/yaw/control_angle_error
     control: /gimbal/yaw/control_velocity
-    kp: 12.0
+    kp: 13.0
     ki: 0.0
-    kd: 0.0
+    kd: 0.2
 
 yaw_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/yaw/velocity_imu
     setpoint: /gimbal/yaw/control_velocity
     control: /gimbal/yaw/control_torque
-    kp: 5.0
+    kp: 6.2
     ki: 0.0
     kd: 0.0
 
@@ -71,9 +74,9 @@ pitch_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/pitch/control_angle_error
     control: /gimbal/pitch/control_velocity
-    kp: 15.00
+    kp: 16.40
     ki: 0.0
-    kd: 1.0
+    kd: 0.15
 
 shooting_controller:
   ros__parameters:
@@ -123,7 +126,7 @@ bullet_feeder_velocity_pid_controller:
 
 chassis_controller:
   ros__parameters:
-    auto_spin: false
+    auto_spin: true
 
 left_front_wheel_velocity_pid_controller:
   ros__parameters:
@@ -190,10 +193,10 @@ auto_aim_controller:
     armor_predict_duration: 500
     # controller
     gimbal_predict_duration: 100
-    yaw_error: 0.02
-    pitch_error: -0.01
-    shoot_velocity: 28.0
-    predict_sec: 0.095
+    yaw_error: 0.073
+    pitch_error: -0.03
+    shoot_velocity: 24.0
+    predict_sec: 0.05
     # etc
     buff_predict_duration: 200
     buff_model_path: "/models/buff_nocolor_v6.onnx"

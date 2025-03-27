@@ -66,7 +66,7 @@ public:
             "/chassis/supercap/voltage/dead_line", supercap_voltage_dead_line_,
             supercap_voltage_dead_line);
 
-        is_auto_spin = get_parameter("auto_spin").as_bool();
+        auto_spin_enable_ = get_parameter("auto_spin").as_bool();
     }
 
     void before_updating() override {
@@ -125,7 +125,7 @@ public:
             auto mode = *mode_;
 
             if (switch_left != Switch::DOWN) {
-                if (get_bullet_attacked
+                if (get_bullet_attacked_ || leave_battle_field_
                     || (last_switch_right_ == Switch::MIDDLE && switch_right == Switch::DOWN)) {
                     if (mode == rmcs_msgs::ChassisMode::SPIN) {
                         mode = rmcs_msgs::ChassisMode::STEP_DOWN;
@@ -152,7 +152,7 @@ public:
                 *mode_ = mode;
             }
 
-            if (is_auto_spin) {
+            if (auto_spin_enable_) {
                 update_damaged_reason();
             }
 
@@ -313,23 +313,28 @@ private:
 
         if (damage_reason == rmcs_msgs::DamageReason::SUFFERED_BULLET_ATTACKED
             && last_damaged_reason_ != rmcs_msgs::DamageReason::SUFFERED_BULLET_ATTACKED) {
-            get_bullet_attacked     = true;
-            after_get_damaged_time_ = 6000;
+            //
+            get_bullet_attacked_        = true; // 1
+            after_damaged_cooling_time_ = 6000;
         } else {
-            get_bullet_attacked = false;
+            get_bullet_attacked_ = false;
         }
+
         last_damaged_reason_ = damage_reason;
 
-        if (get_bullet_attacked) {
+        if (get_bullet_attacked_) {
             leave_battle_count_down = true;
         }
 
         if (leave_battle_count_down) {
-            after_get_damaged_time_--;
-            if (after_get_damaged_time_ == 0) {
-                leave_battle_field_     = true;
-                after_get_damaged_time_ = 6000;
+            after_damaged_cooling_time_--;
+            if (after_damaged_cooling_time_ == 0) {
+                leave_battle_field_         = true;
+                after_damaged_cooling_time_ = 6000;
+                leave_battle_count_down     = !leave_battle_count_down;
             }
+        } else {
+            leave_battle_field_ = false;
         }
     }
 
@@ -338,7 +343,7 @@ private:
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
     // Maximum control velocities
-    static constexpr double translational_velocity_max = 50.0;
+    static constexpr double translational_velocity_max = 30.0;
     static constexpr double angular_velocity_max       = 10.0;
 
     // Maximum excess power when buffer energy is sufficient.
@@ -389,11 +394,11 @@ private:
 
     rmcs_msgs::DamageReason last_damaged_reason_ = rmcs_msgs::DamageReason::NOT_DAMAGED;
 
-    int after_get_damaged_time_  = 0;
-    bool is_auto_spin            = false;
-    bool get_bullet_attacked     = false;
-    bool leave_battle_field_     = false;
-    bool leave_battle_count_down = false;
+    int after_damaged_cooling_time_ = 0;
+    bool auto_spin_enable_          = false;
+    bool get_bullet_attacked_       = false;
+    bool leave_battle_field_        = false;
+    bool leave_battle_count_down    = false;
 
     int supercap_switch_cooling_ = 0;
     OutputInterface<bool> supercap_control_enabled_;

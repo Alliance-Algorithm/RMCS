@@ -146,12 +146,14 @@ private:
         }
 
         auto angle = std::acos(cos_angle);
-        if (angle < upper_limit_)
+        if (angle < upper_limit_) {
             *dir =
                 Eigen::AngleAxisd{upper_limit_, (yaw_axis->cross(*dir)).normalized()} * (*yaw_axis);
-        else if (angle > lower_limit_)
+
+        } else if (angle > lower_limit_) {
             *dir =
                 Eigen::AngleAxisd{lower_limit_, (yaw_axis->cross(*dir)).normalized()} * (*yaw_axis);
+        }
     }
 
     void update_control_errors(PitchLink::DirectionVector& dir) {
