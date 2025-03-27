@@ -49,7 +49,7 @@ value_broadcaster:
 infantry_hardware:
   ros__parameters:
     usb_pid: -1
-    yaw_motor_zero_point: 3387
+    yaw_motor_zero_point: 7148
     pitch_motor_zero_point: 6716
     cboard_init_q_w: 0.0
     cboard_init_q_x: 0.0
@@ -223,7 +223,7 @@ auto_aim_controller:
     # capture
     use_video: false # If true, use video stream instead of camera. 
     video_path: "/workspaces/RMCS/rmcs_ws/resources/1.avi"
-    exposure_time: 4
+    exposure_time: 3
     invert_image: false
     # identifier
     armor_model_path: "/models/mlp.onnx"

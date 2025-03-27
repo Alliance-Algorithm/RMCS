@@ -122,7 +122,26 @@ private:
             game_status_watchdog_.reset(5'000);
     }
 
-    void update_game_robot_hp() {}
+    void update_game_robot_hp() {
+        auto& data               = reinterpret_cast<GameRobotHp&>(frame_.body.data);
+        robots_hp_->blue_1       = data.blue_1;
+        robots_hp_->blue_2       = data.blue_2;
+        robots_hp_->blue_3       = data.blue_3;
+        robots_hp_->blue_4       = data.blue_4;
+        robots_hp_->blue_5       = data.blue_5;
+        robots_hp_->blue_7       = data.blue_7;
+        robots_hp_->blue_base    = data.blue_base;
+        robots_hp_->blue_outpost = data.blue_outpost;
+
+        robots_hp_->red_1       = data.red_1;
+        robots_hp_->red_2       = data.red_2;
+        robots_hp_->red_3       = data.red_3;
+        robots_hp_->red_4       = data.red_4;
+        robots_hp_->red_5       = data.red_5;
+        robots_hp_->red_7       = data.red_7;
+        robots_hp_->red_base    = data.red_base;
+        robots_hp_->red_outpost = data.red_outpost;
+    }
 
     void update_robot_status() {
         if (*game_stage_ == rmcs_msgs::GameStage::STARTED)
@@ -146,9 +165,17 @@ private:
         *robot_buffer_energy_ = static_cast<double>(data.buffer_energy);
     }
 
-    void update_robot_position() {}
+    void update_robot_position() {
+        auto& data = reinterpret_cast<RobotPosition&>(frame_.body.data);
 
-    void update_hurt_data() {}
+        (void)data;
+    }
+
+    void update_hurt_data() {
+        auto& data = reinterpret_cast<HurtData&>(frame_.body.data);
+
+        (void)data;
+    }
 
     void update_shoot_data() {
         auto& data            = reinterpret_cast<ShootData&>(frame_.body.data);
@@ -163,7 +190,10 @@ private:
         *robot_bullet_allowance_ = data.bullet_allowance_17mm;
     }
 
-    void update_game_robot_position() {}
+    void update_game_robot_position() {
+        auto& data = reinterpret_cast<GameRobotPosition&>(frame_.body.data);
+        (void)data;
+    }
 
     // When referee system loses connection unexpectedly,
     // use these indicators make sure the robot safe.

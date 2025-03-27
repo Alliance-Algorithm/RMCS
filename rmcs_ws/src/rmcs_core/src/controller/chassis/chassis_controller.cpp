@@ -11,13 +11,16 @@
 #include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/switch.hpp>
+#include <robot_color.hpp>
 #include <robot_id.hpp>
 
 #include <geometry_msgs/msg/pose2_d.hpp>
+#include <geometry_msgs/msg/pose_stamped.hpp>
 #include <std_msgs/msg/bool.hpp>
 #include <std_msgs/msg/detail/bool__struct.hpp>
 
 #include "controller/pid/pid_calculator.hpp"
+#include "referee/status/field.hpp"
 
 namespace rmcs_core::controller::chassis {
 
@@ -52,6 +55,7 @@ public:
         register_input("/referee/chassis/buffer_energy", chassis_buffer_energy_referee_, false);
         register_input("/referee/id", robot_msg_referee_, false);
         register_input("/referee/game/stage", game_stage_);
+        register_input("/referee/robots/hp", robots_hp_);
 
         register_output("/chassis/angle", chassis_angle_, nan);
         register_output("/chassis/control_angle", chassis_control_angle_, nan);
@@ -80,7 +84,9 @@ public:
                     std::clamp(auto_controller_velocity_.norm(), 0.0, translational_velocity_max)
                     / translational_velocity_max * auto_controller_velocity_.normalized();
             });
-        reload_planner_ = this->create_publisher<std_msgs::msg::Bool>("/alplanner/reload", 10);
+        reload_planner_      = this->create_publisher<std_msgs::msg::Bool>("/alplanner/reload", 10);
+        auto_control_target_ = this->create_publisher<geometry_msgs::msg::PoseStamped>(
+            "/transform/target/publish", 10);
     }
 
     void before_updating() override {
@@ -168,8 +174,8 @@ public:
                 else
                     auto_controller_flag_ = false;
 
-                if ((*game_stage_ == GameStage::STARTED
-                     && last_game_stage_ != GameStage::STARTED)) {
+                if ((*game_stage_ == GameStage::STARTED && last_game_stage_ != GameStage::STARTED
+                     && robot_msg_referee_->id() == ArmorID::Sentry)) {
                     std_msgs::msg::Bool msg{};
                     msg.data = true;
                     reload_planner_->publish(msg);
@@ -179,6 +185,35 @@ public:
                     msg.data = true;
                     reload_planner_->publish(msg);
                 }
+                if (*game_stage_ == GameStage::STARTED
+                    && robot_msg_referee_->id() == ArmorID::Sentry) {
+                    if (robot_msg_referee_->color() == RobotColor::RED && robots_hp_->red_7 < 100) {
+                        geometry_msgs::msg::PoseStamped msg{};
+                        geometry_msgs::msg::Pose msg_pose{};
+                        msg_pose.position.set__x(supply_point.x());
+                        msg_pose.position.set__y(supply_point.y());
+                        msg.pose = msg_pose;
+                        auto_control_target_->publish(msg);
+                    } else if (
+                        robot_msg_referee_->color() == RobotColor::BLUE
+                        && robots_hp_->blue_7 < 100) {
+                        geometry_msgs::msg::PoseStamped msg{};
+                        geometry_msgs::msg::Pose msg_pose{};
+                        msg_pose.position.set__x(supply_point.x());
+                        msg_pose.position.set__y(supply_point.y());
+                        msg.pose = msg_pose;
+                        auto_control_target_->publish(msg);
+                    } else {
+                        geometry_msgs::msg::PoseStamped msg{};
+                        geometry_msgs::msg::Pose msg_pose{};
+                        msg_pose.position.set__x(target_point.x());
+                        msg_pose.position.set__y(target_point.y());
+                        msg.pose = msg_pose;
+                        auto_control_target_->publish(msg);
+                    }
+                }
+                // std::cerr << robots_hp_->red_7 << std::endl;
+
                 *mode_ = mode;
             }
 
@@ -397,12 +432,18 @@ private:
 
     InputInterface<rmcs_msgs::RobotId> robot_msg_referee_;
     InputInterface<rmcs_msgs::GameStage> game_stage_;
+    InputInterface<referee::status::GameRobotHp> robots_hp_;
     rmcs_msgs::GameStage last_game_stage_;
 
     rclcpp::Subscription<geometry_msgs::msg::Pose2D>::SharedPtr auto_controller_;
+    rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr auto_control_target_;
+
     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr reload_planner_;
     Eigen::Vector2d auto_controller_velocity_;
     bool auto_controller_flag_;
+
+    const Eigen::Vector3d supply_point{-1.0, 1.0, 0};
+    const Eigen::Vector3d target_point{4.5, 1.8, 0};
 };
 
 } // namespace rmcs_core::controller::chassis
