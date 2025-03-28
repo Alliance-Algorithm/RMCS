@@ -120,6 +120,13 @@ public:
                 "Failed to fetch \"/referee/shooter/heat_limit\". Set to safe value %ld.",
                 safe_heat_limit);
         }
+
+        if (!fire_control_.ready()) {
+            fire_control_.make_and_bind_directly(false);
+            RCLCPP_WARN(
+                get_logger(),
+                "Failed to fetch \"/gimbal/auto_aim/fire_control\". Set to safe value false.");
+        }
     }
 
     void update() override {
