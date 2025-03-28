@@ -1,5 +1,6 @@
 #include <cmath>
 
+#include <game_stage.hpp>
 #include <limits>
 
 #include <eigen3/Eigen/Dense>
@@ -12,6 +13,7 @@
 #include <rmcs_msgs/shoot_mode.hpp>
 #include <rmcs_msgs/shoot_status.hpp>
 #include <rmcs_msgs/switch.hpp>
+#include <robot_id.hpp>
 
 namespace rmcs_core::controller::gimbal {
 
@@ -33,6 +35,9 @@ public:
         register_input("/referee/shooter/cooling", shooter_cooling_, false);
         register_input("/referee/shooter/heat_limit", shooter_heat_limit_, false);
         register_input("/gimbal/auto_aim/fire_control", fire_control_, false);
+
+        register_input("/referee/id", robot_msg_referee_, false);
+        register_input("/referee/game/stage", game_stage_);
 
         auto friction_wheels     = get_parameter("friction_wheels").as_string_array();
         auto friction_velocities = get_parameter("friction_velocities").as_double_array();
@@ -143,7 +148,11 @@ public:
 
                 bullet_feeder_enabled_ =
                     mouse.left || switch_left == Switch::DOWN
-                    || (fire_control_.ready() && *fire_control_ && switch_right == Switch::UP);
+                    || (fire_control_.ready() && *fire_control_
+                        && (switch_right == Switch::UP
+                            || (*game_stage_ == GameStage::STARTED
+                                && robot_msg_referee_->id() == rmcs_msgs::ArmorID::Sentry)
+                            || mouse.right));
 
                 const auto default_mode     = default_shoot_mode();
                 const auto alternative_mode = alternative_shoot_mode();
@@ -392,6 +401,9 @@ private:
     int bullet_feeder_cool_down_      = 0;
 
     InputInterface<double> bullet_feeder_multi_turn_angle_;
+    InputInterface<rmcs_msgs::GameStage> game_stage_;
+
+    InputInterface<rmcs_msgs::RobotId> robot_msg_referee_;
     double bullet_feeder_angle_per_bullet_, bullet_feeder_angle_per_1_5_bullet_;
     double bullet_feeder_last_shoot_angle_ = 0;
 

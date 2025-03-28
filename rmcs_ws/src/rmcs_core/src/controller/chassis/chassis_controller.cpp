@@ -3,6 +3,7 @@
 #include <chrono>
 #include <game_stage.hpp>
 
+#include <rclcpp/client.hpp>
 #include <rclcpp/node.hpp>
 #include <rclcpp/subscription.hpp>
 
@@ -22,6 +23,9 @@
 
 #include "controller/pid/pid_calculator.hpp"
 #include "referee/status/field.hpp"
+
+#include <std_srvs/srv/detail/trigger__struct.hpp>
+#include <std_srvs/srv/trigger.hpp>
 
 namespace rmcs_core::controller::chassis {
 
@@ -88,6 +92,9 @@ public:
         reload_planner_      = this->create_publisher<std_msgs::msg::Bool>("/alplanner/reload", 10);
         auto_control_target_ = this->create_publisher<geometry_msgs::msg::PoseStamped>(
             "/transform/target/publish", 10);
+
+        reload_slam_trigger_client_ =
+            this->create_client<std_srvs::srv::Trigger>("/rmcs_slam/reset");
     }
 
     void before_updating() override {
@@ -135,7 +142,6 @@ public:
         auto switch_right = *switch_right_;
         auto switch_left  = *switch_left_;
         auto keyboard     = *keyboard_;
-        last_game_stage_  = *game_stage_;
         do {
             if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
                 || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
@@ -175,6 +181,18 @@ public:
                 else
                     auto_controller_flag_ = false;
 
+                if ((*game_stage_ == GameStage::REFEREE_CHECK
+                     && last_game_stage_ != GameStage::REFEREE_CHECK
+                     && robot_msg_referee_->id() == ArmorID::Sentry)) {
+                    RCLCPP_INFO(get_logger(), "referee check and reset slam");
+                    std_msgs::msg::Bool msg{};
+                    msg.data = true;
+                    reload_planner_->publish(msg);
+
+                    auto future = reload_slam_trigger_client_->async_send_request(
+                        std::make_shared<std_srvs::srv::Trigger::Request>());
+                }
+
                 if ((*game_stage_ == GameStage::STARTED && last_game_stage_ != GameStage::STARTED
                      && robot_msg_referee_->id() == ArmorID::Sentry)) {
                     std_msgs::msg::Bool msg{};
@@ -182,13 +200,16 @@ public:
                     reload_planner_->publish(msg);
                     begin_time_ = std::chrono::steady_clock::now();
                 }
+
                 if (last_switch_right_ != Switch::UP && switch_right == Switch::UP) {
                     std_msgs::msg::Bool msg{};
                     msg.data = true;
                     reload_planner_->publish(msg);
                 }
+
                 if (*game_stage_ == GameStage::STARTED
                     && robot_msg_referee_->id() == ArmorID::Sentry) {
+
                     if (std::chrono::steady_clock::now() - begin_time_ > std::chrono::seconds(5))
                         mode = rmcs_msgs::ChassisMode::SPIN;
                     if (robot_msg_referee_->color() == RobotColor::RED && robots_hp_->red_7 < 100) {
@@ -207,7 +228,10 @@ public:
                         msg_pose.position.set__y(supply_point.y());
                         msg.pose = msg_pose;
                         auto_control_target_->publish(msg);
-                    } else {
+                    } else if (
+                        (robot_msg_referee_->color() == RobotColor::RED && robots_hp_->red_7 >= 350)
+                        || (robot_msg_referee_->color() == RobotColor::BLUE
+                            && robots_hp_->blue_7 >= 350)) {
                         geometry_msgs::msg::PoseStamped msg{};
                         geometry_msgs::msg::Pose msg_pose{};
                         msg_pose.position.set__x(target_point.x());
@@ -228,6 +252,7 @@ public:
         last_switch_right_ = switch_right;
         last_switch_left_  = switch_left;
         last_keyboard_     = keyboard;
+        last_game_stage_   = *game_stage_;
     }
 
     void reset_all_controls() {
@@ -441,13 +466,14 @@ private:
 
     rclcpp::Subscription<geometry_msgs::msg::Pose2D>::SharedPtr auto_controller_;
     rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr auto_control_target_;
+    rclcpp::Client<std_srvs::srv::Trigger>::SharedPtr reload_slam_trigger_client_;
 
     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr reload_planner_;
     Eigen::Vector2d auto_controller_velocity_;
     bool auto_controller_flag_;
 
     const Eigen::Vector3d supply_point{1.0, -1.0, 0};
-    const Eigen::Vector3d target_point{-4.5, -1.8, 0};
+    const Eigen::Vector3d target_point{-4.5, 1.8, 0};
 
     std::chrono::steady_clock::time_point begin_time_;
 };

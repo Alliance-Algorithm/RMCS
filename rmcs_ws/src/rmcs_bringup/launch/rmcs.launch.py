@@ -1,4 +1,6 @@
 from typing import List, Optional
+from launch.actions import IncludeLaunchDescription, TimerAction
+from launch.launch_description_sources import PythonLaunchDescriptionSource
 import os
 
 from launch import (
@@ -51,12 +53,33 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
         )
 
         if is_automatic:
-            pass
+            entities.append(
+                Node(
+                    package="tlarc",
+                    executable="tlarc",
+                    arguments=[
+                        "PlanAndMove"
+                    ]
+                )
+            )
+
+            delayed_node = TimerAction(
+                period=10.0,
+                actions=[
+                    IncludeLaunchDescription(
+                        PythonLaunchDescriptionSource(
+                            [FindPackageShare("rmcs_location"), "/launch", "/online.py"]
+                        )
+                    )
+                ]
+            )
+
+            entities.append(delayed_node)
 
         return entities
 
 
 def generate_launch_description():
     ld = LaunchDescription([MyLaunchDescriptionEntity()])
-
+    
     return ld
