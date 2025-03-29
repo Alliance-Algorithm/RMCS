@@ -33,28 +33,33 @@ public:
         const auto keyboard     = *keyboard_;
 
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
-            || (switch_left == Switch::DOWN && switch_right == Switch::DOWN))
-            *control_torque_view_ = 0;
-        else if (!last_keyboard_.e && keyboard.e) {
-            if (scope_active_)
-                *control_torque_view_ = -0.28;
-            else
-                *control_torque_view_ = 0.28;
-            scope_active_ = !scope_active_;
-        }
+            || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
+            reset_all_controls();
+        } else {
+            if (!last_keyboard_.e && keyboard.e)
+                scope_active_ = !scope_active_;
+            if (!last_keyboard_.q && keyboard.q)
+                view_active_ = !view_active_;
 
-        if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
-            || (switch_left == Switch::DOWN && switch_right == Switch::DOWN))
-            *control_torque_scope_ = 0;
-        else if (!last_keyboard_.q && keyboard.q) {
-            if (view_active_)
-                *control_torque_scope_ = -0.2;
-            else
-                *control_torque_scope_ = 0.2;
-            view_active_ = !view_active_;
+            update_control_torque();
         }
 
         last_keyboard_ = keyboard;
+    }
+
+    void reset_all_controls() {
+        *control_torque_view_  = 0;
+        *control_torque_scope_ = 0;
+        scope_active_          = false;
+        view_active_           = false;
+    }
+
+    void update_control_torque() {
+        constexpr double view_torque = 0.28;
+        *control_torque_view_        = scope_active_ ? view_torque : -view_torque;
+
+        constexpr double scope_torque = 0.2;
+        *control_torque_scope_        = view_active_ ? scope_torque : -scope_torque;
     }
 
 private:
