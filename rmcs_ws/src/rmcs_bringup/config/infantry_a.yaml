@@ -57,16 +57,16 @@ yaw_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/yaw/control_angle_error
     control: /gimbal/yaw/control_velocity
-    kp: 13.0
+    kp: 14.0
     ki: 0.0
-    kd: 0.2
+    kd: 0.0
 
 yaw_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/yaw/velocity_imu
     setpoint: /gimbal/yaw/control_velocity
     control: /gimbal/yaw/control_torque
-    kp: 6.2
+    kp: 5.0
     ki: 0.0
     kd: 0.0
 
@@ -74,9 +74,9 @@ pitch_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/pitch/control_angle_error
     control: /gimbal/pitch/control_velocity
-    kp: 16.40
+    kp: 8.0
     ki: 0.0
-    kd: 0.15
+    kd: 2.1
 
 shooting_controller:
   ros__parameters:
@@ -120,13 +120,13 @@ bullet_feeder_velocity_pid_controller:
     measurement: /gimbal/bullet_feeder/velocity
     setpoint: /gimbal/bullet_feeder/control_velocity
     control: /gimbal/bullet_feeder/control_torque
-    kp: 1.083
+    kp: 1.583
     ki: 0.0
     kd: 0.0
 
 chassis_controller:
-  ros__parameters:
-    auto_spin: true
+  ros__parameters:  
+    auto_spin: false
 
 left_front_wheel_velocity_pid_controller:
   ros__parameters:
@@ -177,14 +177,14 @@ auto_aim_controller:
     # capture
     use_video: false # If true, use video stream instead of camera. 
     video_path: "/workspaces/RMCS/rmcs_ws/resources/1.avi"
-    exposure_time: 3
+    exposure_time: 2
     invert_image: false
     # identifier
     armor_model_path: "/models/mlp.onnx"
     # pnp    
     fx: 1.722231837421459e+03
     fy: 1.724876404292754e+03
-    cx: 7.013056440882832e+02
+    cx: 7.013056440882832e+02 
     cy: 5.645821718351237e+02
     k1: -0.064232403853946
     k2: -0.087667493884102
@@ -193,9 +193,9 @@ auto_aim_controller:
     armor_predict_duration: 500
     # controller
     gimbal_predict_duration: 100
-    yaw_error: 0.073
-    pitch_error: -0.03
-    shoot_velocity: 24.0
+    yaw_error: 0.020
+    pitch_error: -0.020
+    shoot_velocity: 21.4
     predict_sec: 0.05
     # etc
     buff_predict_duration: 200

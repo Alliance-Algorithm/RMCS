@@ -125,15 +125,14 @@ public:
             auto mode = *mode_;
 
             if (switch_left != Switch::DOWN) {
-                if (get_bullet_attacked_ || leave_battle_field_
-                    || (last_switch_right_ == Switch::MIDDLE && switch_right == Switch::DOWN)) {
+                if ((last_switch_right_ == Switch::MIDDLE && switch_right == Switch::DOWN)) {
                     if (mode == rmcs_msgs::ChassisMode::SPIN) {
                         mode = rmcs_msgs::ChassisMode::STEP_DOWN;
                     } else {
                         mode              = rmcs_msgs::ChassisMode::SPIN;
                         spinning_forward_ = !spinning_forward_;
                     }
-                } else if (!last_keyboard_.c && keyboard.c) {
+                } else if ((!last_keyboard_.c && keyboard.c)) {
                     if (mode == rmcs_msgs::ChassisMode::SPIN) {
                         mode = rmcs_msgs::ChassisMode::AUTO;
                     } else {
@@ -313,13 +312,11 @@ private:
 
         if (damage_reason == rmcs_msgs::DamageReason::SUFFERED_BULLET_ATTACKED
             && last_damaged_reason_ != rmcs_msgs::DamageReason::SUFFERED_BULLET_ATTACKED) {
-            //
-            get_bullet_attacked_        = true; // 1
+            get_bullet_attacked_        = true;
             after_damaged_cooling_time_ = 6000;
         } else {
             get_bullet_attacked_ = false;
         }
-
         last_damaged_reason_ = damage_reason;
 
         if (get_bullet_attacked_) {
@@ -336,6 +333,7 @@ private:
         } else {
             leave_battle_field_ = false;
         }
+        // RCLCPP_INFO(get_logger(), "%d,%d", damage_reason, last_damaged_reason_);
     }
 
 private:
@@ -343,8 +341,8 @@ private:
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
     // Maximum control velocities
-    static constexpr double translational_velocity_max = 30.0;
-    static constexpr double angular_velocity_max       = 10.0;
+    static constexpr double translational_velocity_max = 20.0;
+    static constexpr double angular_velocity_max       = 25.0;
 
     // Maximum excess power when buffer energy is sufficient.
     static constexpr double excess_power_limit = 35;
@@ -355,7 +353,7 @@ private:
     static constexpr double buffer_energy_dead_line    = 0;   // = 0
 
     //                                         chassis_control_power =
-    static constexpr double supercap_voltage_control_line = 12.5; // = supercap
+    static constexpr double supercap_voltage_control_line = 13.5; // = supercap
     static constexpr double supercap_voltage_base_line    = 11.5; // = referee
     static constexpr double supercap_voltage_dead_line    = 10.5; // = 0
 

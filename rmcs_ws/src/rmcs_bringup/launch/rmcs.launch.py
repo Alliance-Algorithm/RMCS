@@ -46,7 +46,7 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
                 ],
                 respawn=True,
                 respawn_delay=1.0,
-                output="screen",
+                # output="screen",
             )
         )
 

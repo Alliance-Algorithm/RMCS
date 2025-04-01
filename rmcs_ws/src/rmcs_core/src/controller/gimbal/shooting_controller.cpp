@@ -141,9 +141,9 @@ public:
                     friction_enabled_ = !friction_enabled_;
                 }
 
-                bullet_feeder_enabled_ =
-                    mouse.left || switch_left == Switch::DOWN
-                    || (fire_control_.ready() && *fire_control_ && switch_right == Switch::UP);
+                bullet_feeder_enabled_ = mouse.left || switch_left == Switch::DOWN
+                                      || (fire_control_.ready() && *fire_control_
+                                          && (switch_right == Switch::UP || mouse.right));
 
                 const auto default_mode     = default_shoot_mode();
                 const auto alternative_mode = alternative_shoot_mode();
