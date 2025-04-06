@@ -64,7 +64,7 @@ private:
     void gimbal_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
         RCLCPP_INFO(
             get_logger(), "[gimbal calibration] New yaw offset: %ld",
-            bottom_board_->gimbal_yaw_motor_.calibrate_zero_point());
+            bottom_board_->gimbal_bottom_yaw_motor_.calibrate_zero_point());
         RCLCPP_INFO(
             get_logger(), "[gimbal calibration] New pitch offset: %ld",
             top_board_->gimbal_pitch_motor_.calibrate_zero_point());
@@ -90,6 +90,9 @@ private:
             , imu_(1000, 0.2, 0.0)
             , gy614_(hero, "/friction_wheels/temperature")
             , benewake_(hero, "/gimbal/auto_aim/laser_distance")
+            , gimbal_top_yaw_motor_(
+                  hero, hero_command, "/gimbal/top_yaw",
+                  device::LkMotor::Config{device::LkMotor::Type::MG5010E_I10})
             , gimbal_pitch_motor_(
                   hero, hero_command, "/gimbal/pitch",
                   device::LkMotor::Config{device::LkMotor::Type::MG5010E_I10}
@@ -272,6 +275,7 @@ private:
         OutputInterface<double> gimbal_yaw_velocity_imu_;
         OutputInterface<double> gimbal_pitch_velocity_imu_;
 
+        device::LkMotor gimbal_top_yaw_motor_;
         device::LkMotor gimbal_pitch_motor_;
 
         device::DjiMotor gimbal_friction_wheels_[4];
@@ -295,6 +299,15 @@ private:
             , imu_(1000, 0.2, 0.0)
             , tf_(hero.tf_)
             , dr16_(hero)
+            , chassis_steering_motors_(
+                  {hero, hero_command, "/chassis/left_front_steering",
+                   device::DjiMotor::Config{device::DjiMotor::Type::GM6020}},
+                  {hero, hero_command, "/chassis/left_back_steering",
+                   device::DjiMotor::Config{device::DjiMotor::Type::GM6020}},
+                  {hero, hero_command, "/chassis/right_back_steering",
+                   device::DjiMotor::Config{device::DjiMotor::Type::GM6020}},
+                  {hero, hero_command, "/chassis/right_front_steering",
+                   device::DjiMotor::Config{device::DjiMotor::Type::GM6020}})
             , chassis_wheel_motors_(
                   {hero, hero_command, "/chassis/left_front_wheel",
                    device::DjiMotor::Config{device::DjiMotor::Type::M3508}},
@@ -305,7 +318,8 @@ private:
                   {hero, hero_command, "/chassis/right_front_wheel",
                    device::DjiMotor::Config{device::DjiMotor::Type::M3508}})
             , supercap_(hero, hero_command)
-            , gimbal_yaw_motor_(
+            // TODO: change bottom yaw motor name prefix
+            , gimbal_bottom_yaw_motor_(
                   hero, hero_command, "/gimbal/yaw",
                   device::LkMotor::Config{device::LkMotor::Type::MG5010E_I10}
                       .set_encoder_zero_point(
@@ -342,9 +356,9 @@ private:
 
             supercap_.update_status();
 
-            gimbal_yaw_motor_.update_status();
+            gimbal_bottom_yaw_motor_.update_status();
             tf_->set_state<rmcs_description::GimbalCenterLink, rmcs_description::YawLink>(
-                gimbal_yaw_motor_.angle());
+                gimbal_bottom_yaw_motor_.angle());
 
             gimbal_bullet_feeder_.update_status();
         }
@@ -366,8 +380,8 @@ private:
             // This approach currently works only on Hero, as it utilizes motor angular velocity
             // instead of gyro angular velocity for closed-loop control.
             transmit_buffer_.add_can2_transmission(
-                0x141, gimbal_yaw_motor_.generate_velocity_command(
-                           gimbal_yaw_motor_.control_velocity() - imu_.gz()));
+                0x141, gimbal_bottom_yaw_motor_.generate_velocity_command(
+                           gimbal_bottom_yaw_motor_.control_velocity() - imu_.gz()));
 
             batch_commands[0] = 0;
             batch_commands[1] = 0;
@@ -405,7 +419,7 @@ private:
                 return;
 
             if (can_id == 0x141) {
-                gimbal_yaw_motor_.store_status(can_data);
+                gimbal_bottom_yaw_motor_.store_status(can_data);
             } else if (can_id == 0x300) {
                 supercap_.store_status(can_data);
             }
@@ -433,10 +447,11 @@ private:
 
         device::Dr16 dr16_;
 
+        device::DjiMotor chassis_steering_motors_[4];
         device::DjiMotor chassis_wheel_motors_[4];
         device::Supercap supercap_;
 
-        device::LkMotor gimbal_yaw_motor_;
+        device::LkMotor gimbal_bottom_yaw_motor_;
 
         device::DjiMotor gimbal_bullet_feeder_;
 
