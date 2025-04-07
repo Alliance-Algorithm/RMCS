@@ -64,9 +64,21 @@ public:
             supercap_voltage_base_line);
         register_output(
             "/chassis/supercap/voltage/dead_line", supercap_voltage_dead_line_,
+            
             supercap_voltage_dead_line);
+            register_output(
+                "/chassis/left_front_wheel/control_velocity", left_front_control_velocity_, nan);
+            register_output(
+                "/chassis/left_back_wheel/control_velocity", left_back_control_velocity_, nan);
+            register_output(
+                "/chassis/right_back_wheel/control_velocity", right_back_control_velocity_, nan);
+            register_output(
+                "/chassis/right_front_wheel/control_velocity", right_front_control_velocity_, nan);
+    
 
         auto_spin_enable_ = get_parameter("auto_spin").as_bool();
+
+        speed_mode_ = false;
     }
 
     void before_updating() override {
@@ -155,6 +167,11 @@ public:
                 update_damaged_reason();
             }
 
+            if (mode == rmcs_msgs::ChassisMode::LAUNCH_RAMP) {
+                speed_mode_ = true;  
+            } else {
+                speed_mode_ = false; 
+            }
             update_velocity_control();
             update_power_limit_control();
         } while (false);
@@ -169,17 +186,27 @@ public:
 
         *chassis_control_velocity_ = {nan, nan, nan};
 
+        speed_mode_ = false;
+
+        *left_front_control_velocity_ = nan;
+        *left_back_control_velocity_ = nan;
+        *right_back_control_velocity_ = nan;
+        *right_front_control_velocity_ = nan;
+
         *supercap_control_enabled_    = false;
         *supercap_charge_power_limit_ = 0.0;
         *chassis_control_power_limit_ = 0.0;
     }
 
     void update_velocity_control() {
+
+        if (!speed_mode_) {
         auto translational_velocity = update_translational_velocity_control();
         auto angular_velocity       = update_angular_velocity_control();
 
         *chassis_control_velocity_ = {
             translational_velocity.x(), translational_velocity.y(), angular_velocity};
+        }
     }
 
     Eigen::Vector2d update_translational_velocity_control() {
@@ -195,6 +222,24 @@ public:
 
         translational_velocity *= translational_velocity_max;
         return translational_velocity;
+    }
+
+    void update_wheel_velocities(Eigen::Vector2d move) {
+        constexpr double velocity_limit = 80.0;
+    
+        if (move.norm() > 1.0)
+            move.normalize();
+    
+        double right_oblique = velocity_limit * (-move.y() * cos_45 + move.x() * sin_45);
+        double left_oblique  = velocity_limit * (move.x() * cos_45 + move.y() * sin_45);
+        double velocities[4] = {right_oblique, left_oblique, -right_oblique, -left_oblique};
+    
+        if (speed_mode_) {
+            *left_front_control_velocity_  = velocities[0];
+            *left_back_control_velocity_   = velocities[1];
+            *right_back_control_velocity_  = velocities[2];
+            *right_front_control_velocity_ = velocities[3];
+        } 
     }
 
     double update_angular_velocity_control() {
@@ -360,6 +405,10 @@ private:
     // Minimum chassis power limit (Infantry, Health prioritized at level 1)
     static constexpr double safe_chassis_power_limit = 45;
 
+    // Since sine and cosine function are not constexpr, we calculate once and cache them.
+    static inline const double sin_45 = std::sin(std::numbers::pi / 4.0);
+    static inline const double cos_45 = std::cos(std::numbers::pi / 4.0);
+
     InputInterface<Eigen::Vector2d> joystick_right_;
     InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;
@@ -407,6 +456,16 @@ private:
     OutputInterface<double> supercap_voltage_control_line_;
     OutputInterface<double> supercap_voltage_base_line_;
     OutputInterface<double> supercap_voltage_dead_line_;
+
+    bool speed_mode_;
+    OutputInterface<double> left_front_control_velocity_;
+    OutputInterface<double> left_back_control_velocity_;
+    OutputInterface<double> right_back_control_velocity_;
+    OutputInterface<double> right_front_control_velocity_;
+
+    static inline const double spinning_max_ = 0.4;
+    static inline const double spinning_min_ = 0.2;
+
 };
 
 } // namespace rmcs_core::controller::chassis

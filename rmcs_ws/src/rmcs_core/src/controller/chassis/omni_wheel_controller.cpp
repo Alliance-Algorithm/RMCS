@@ -36,7 +36,7 @@ public:
 
         register_input("/chassis/control_velocity", control_velocity_);
         register_input("/chassis/control_power_limit", power_limit_);
-
+        register_input("/chassis/control_mode", mode_);
         register_output(
             "/chassis/left_front_wheel/control_torque", left_front_control_torque_, nan_);
         register_output("/chassis/left_back_wheel/control_torque", left_back_control_torque_, nan_);
@@ -53,6 +53,13 @@ public:
     }
 
     void update() override {
+        auto current_mode = *mode_;
+
+        if (current_mode == rmcs_msgs::ChassisMode::LAUNCH_RAMP) {
+            RCLCPP_DEBUG(get_logger(), "Speed control mode active, skipping torque calculation.");
+            return;
+        }
+    
         double wheel_velocities[] = {
             *left_front_velocity_, *left_back_velocity_, *right_back_velocity_,
             *right_front_velocity_};
@@ -400,6 +407,8 @@ private:
     OutputInterface<double> left_back_control_torque_;
     OutputInterface<double> right_back_control_torque_;
     OutputInterface<double> right_front_control_torque_;
+
+    InputInterface<rmcs_msgs::ChassisMode> mode_;
 };
 
 } // namespace rmcs_core::controller::chassis
