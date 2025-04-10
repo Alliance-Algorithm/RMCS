@@ -25,7 +25,11 @@ public:
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , translational_velocity_pid_calculator_(100.0, 0.0, 0.0)
-        , angular_velocity_pid_calculator_(100.0, 0.0, 0.0) {
+        , angular_velocity_pid_calculator_(100.0, 0.0, 0.0)
+        , front_left_wheel_pid_(0.185, 0.0, 0.0)
+        , front_right_wheel_pid_(0.185, 0.0, 0.0)
+        , back_left_wheel_pid_(0.185, 0.0, 0.0)
+        , back_right_wheel_pid_(0.185, 0.0, 0.0){
 
         register_input("/chassis/left_front_wheel/max_torque", wheel_motor_max_control_torque_);
 
@@ -44,6 +48,14 @@ public:
             "/chassis/right_back_wheel/control_torque", right_back_control_torque_, nan_);
         register_output(
             "/chassis/right_front_wheel/control_torque", right_front_control_torque_, nan_);
+            register_output(
+                "/chassis/left_front_wheel/control_velocity", left_front_control_velocity_, nan_);
+        register_output(
+                "/chassis/left_back_wheel/control_velocity", left_back_control_velocity_, nan_);
+        register_output(
+                "/chassis/right_back_wheel/control_velocity", right_back_control_velocity_, nan_);
+        register_output(
+                "/chassis/right_front_wheel/control_velocity", right_front_control_velocity_, nan_);
     }
 
     void before_updating() override {
@@ -53,30 +65,52 @@ public:
     }
 
     void update() override {
-        auto current_mode = *mode_;
-
-        if (current_mode == rmcs_msgs::ChassisMode::LAUNCH_RAMP) {
-            RCLCPP_DEBUG(get_logger(), "Speed control mode active, skipping torque calculation.");
-            return;
-        }
-    
         double wheel_velocities[] = {
             *left_front_velocity_, *left_back_velocity_, *right_back_velocity_,
             *right_front_velocity_};
 
-        auto [best_translational_control_torque, best_angular_control_torque] =
+        auto current_mode = *mode_;
+
+        if (current_mode == rmcs_msgs::ChassisMode::LAUNCH_RAMP) {
+            Eigen::Vector2d translational_control_velocity = control_velocity_->vector.head<2>();
+            update_wheel_velocities(translational_control_velocity);
+            RCLCPP_INFO(get_logger(), "Speed control mode active, skipping torque calculation.");
+        }
+        else {
+            auto [best_translational_control_torque, best_angular_control_torque] =
             calculate_best_control_torque(wheel_velocities);
 
-        *left_front_control_torque_ =
+            *left_front_control_torque_ =
             best_angular_control_torque + best_translational_control_torque.y();
-        *left_back_control_torque_ =
+            *left_back_control_torque_ =
             best_angular_control_torque - best_translational_control_torque.x();
-        *right_back_control_torque_ =
+            *right_back_control_torque_ =
             best_angular_control_torque - best_translational_control_torque.y();
-        *right_front_control_torque_ =
+            *right_front_control_torque_ =
             best_angular_control_torque + best_translational_control_torque.x();
+        }
     }
+private:    
+    void update_wheel_velocities(Eigen::Vector2d control_velocity_) {
+        if (control_velocity_.norm() > 1.0)
+        control_velocity_.normalize();
+    
+        double right_oblique = velocity_limit * (-control_velocity_.y() * cos_45 + control_velocity_.x() * sin_45);
+        double left_oblique  = velocity_limit * (control_velocity_.x() * cos_45 + control_velocity_.y() * sin_45);
+        double velocities[4] = {right_oblique, left_oblique, -right_oblique, -left_oblique};
+    
+        *left_front_control_velocity_  = velocities[0];
+        *left_back_control_velocity_   = velocities[1];
+        *right_back_control_velocity_  = velocities[2];
+        *right_front_control_velocity_ = velocities[3];
 
+        if (*mode_== rmcs_msgs::ChassisMode::LAUNCH_RAMP) {
+            *left_front_control_velocity_ = front_left_wheel_pid_.update(*left_front_velocity_-*left_front_control_velocity_);
+            *left_back_control_velocity_ = back_left_wheel_pid_.update(*left_back_velocity_-*left_back_control_velocity_);
+            *right_front_control_velocity_ = front_right_wheel_pid_.update(*right_front_velocity_-*right_front_control_velocity_);
+            *right_back_control_velocity_ = back_right_wheel_pid_.update(*right_back_velocity_-*right_back_control_velocity_);
+        } 
+    }
 private:
     auto calculate_best_control_torque(const double (&wheel_velocities)[4])
         -> std::pair<Eigen::Vector2d, double> {
@@ -156,7 +190,6 @@ private:
                                        * angular_velocity_pid_calculator_.update(
                                            angular_control_velocity - angular_velocity);
         }
-
         return angular_control_torque_max;
     }
 
@@ -390,6 +423,12 @@ private:
 
     static constexpr double control_torque_max_ = 3.5;
 
+    // Since sine and cosine function are not constexpr, we calculate once and cache them.
+    static inline const double sin_45 = std::sin(std::numbers::pi / 4.0);
+    static inline const double cos_45 = std::cos(std::numbers::pi / 4.0);
+       
+    static constexpr double velocity_limit = 80.0;
+
     InputInterface<double> wheel_motor_max_control_torque_;
 
     InputInterface<double> left_front_velocity_;
@@ -409,6 +448,16 @@ private:
     OutputInterface<double> right_front_control_torque_;
 
     InputInterface<rmcs_msgs::ChassisMode> mode_;
+
+    OutputInterface<double> left_front_control_velocity_;
+    OutputInterface<double> left_back_control_velocity_;
+    OutputInterface<double> right_back_control_velocity_;
+    OutputInterface<double> right_front_control_velocity_;
+
+    pid::PidCalculator front_left_wheel_pid_;
+    pid::PidCalculator front_right_wheel_pid_;
+    pid::PidCalculator back_left_wheel_pid_;
+    pid::PidCalculator back_right_wheel_pid_;
 };
 
 } // namespace rmcs_core::controller::chassis
