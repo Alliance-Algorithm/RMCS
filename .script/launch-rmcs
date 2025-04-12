@@ -1,0 +1,10 @@
+#! /bin/bash
+
+source ~/env_setup.bash
+
+if [ -z "${RMCS_ROBOT_TYPE}" ]; then
+    echo "Error: Please set robot type first (e.g. 'set-robot sentry')."
+    exit 1
+fi
+
+ros2 launch rmcs_bringup rmcs.launch.py robot:=${RMCS_ROBOT_TYPE}

@@ -1,0 +1,27 @@
+#!/bin/bash
+
+# Check if exactly one argument is passed
+if [ "$#" -ne 1 ]; then
+    echo "Usage: set-hostname <hostname | off>"
+    echo "Example: set-hostname my-sentry"
+    exit 1
+fi
+
+# Handle the "off" argument
+if [ "$1" == "off" ]; then
+    rm -f /etc/avahi/enabled
+    service avahi-daemon stop
+    exit 0
+fi
+
+# Update the avahi-daemon.conf file
+AVAHI_CONF="/etc/avahi/avahi-daemon.conf"
+if [ -f "$AVAHI_CONF" ]; then
+    touch /etc/avahi/enabled
+    sed -i -E 's|^#?host-name=\S*|host-name='"$1"'|' "$AVAHI_CONF"
+    service avahi-daemon restart
+    echo "Updated host-name in $AVAHI_CONF to $1."
+else
+    echo "Error: Configuration file $AVAHI_CONF does not exist."
+    exit 1
+fi

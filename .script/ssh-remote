@@ -1,0 +1,7 @@
+#!/bin/bash
+
+if [ -z "$1" ]; then
+    ssh -X remote
+else
+    ssh -t -X remote "$@"
+fi

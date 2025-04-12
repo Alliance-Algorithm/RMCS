@@ -11,7 +11,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
-#include <librmcs/librmcs/client/cboard.hpp>
+#include <librmcs/client/cboard.hpp>
 #include <memory>
 #include <numbers>
 #include <rclcpp/logging.hpp>

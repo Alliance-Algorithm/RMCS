@@ -1,0 +1,8 @@
+#! /bin/bash
+
+# if arg[1] == "-r"
+if [ "$1" == "-r" ]; then
+    ssh-remote "service rmcs restart && service rmcs attach"
+else
+    ssh-remote "service rmcs attach"
+fi
