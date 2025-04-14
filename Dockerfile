@@ -13,10 +13,14 @@ SHELL ["/bin/bash", "-c"]
 ENV TZ=Asia/Shanghai \
     DEBIAN_FRONTEND=noninteractive
 
+# Modify the apt source
+RUN sed -i 's@//.*archive.ubuntu.com@//mirrors.bfsu.edu.cn@g' /etc/apt/sources.list && \
+    sed -i 's@//.*security.ubuntu.com@//mirrors.bfsu.edu.cn@g' /etc/apt/sources.list
+
 # Install tools and libraries.
 RUN apt-get update && apt-get -y install \
     vim wget curl unzip \
-    zsh screen \
+    zsh screen tmux \
     usbutils net-tools iputils-ping \
     libusb-1.0-0-dev \
     libeigen3-dev \
@@ -26,7 +30,11 @@ RUN apt-get update && apt-get -y install \
     libatlas-base-dev \
     libsuitesparse-dev \
     libceres-dev \
-    ros-humble-rviz2 \
+    ros-$ROS_DISTRO-rviz2 \
+    ros-$ROS_DISTRO-foxglove-bridge \
+    dotnet-sdk-8.0 \
+    libpcl-ros-dev libpcl-dev \
+    ros-humble-pcl-conversions ros-humble-pcl-msgs \
     && rm -rf /var/lib/apt/lists/*
 
 # Install openvino 2024.6 runtime
@@ -92,7 +100,7 @@ ENV USER=developer
 ENV WORKDIR=/home/developer
 
 # Generate/load ssh key and setup unison
-RUN --mount=type=bind,target=/tmp/.ssh,source=.ssh \
+RUN --mount=type=bind,target=/tmp/.ssh,source=.ssh,readonly=false \
     mkdir -p .ssh && \
     if [ ! -f "/tmp/.ssh/id_rsa" ]; then ssh-keygen -N "" -f "/tmp/.ssh/id_rsa"; fi && \
     cp -r /tmp/.ssh/* .ssh && \
@@ -107,13 +115,18 @@ USER developer
 RUN sh -c "$(wget https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh -O -)" && \
     sed -i 's/ZSH_THEME=\"[a-z0-9\-]*\"/ZSH_THEME="af-magic"/g' ~/.zshrc && \
     echo 'source ~/env_setup.zsh' >> ~/.zshrc && \
+    echo 'export PATH="$PATH:/opt/nvim-linux-x86_64/bin"' >> ~/.zshrc && \
     echo 'export PATH=${PATH}:/workspaces/RMCS/.script' >> ~/.zshrc
+
+# Install latest neovim
+RUN curl -LO https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.tar.gz && \
+    sudo rm -rf /opt/nvim && \
+    sudo tar -C /opt -xzf nvim-linux-x86_64.tar.gz && \
+    rm nvim-linux-x86_64.tar.gz
 
 # Copy environment setup scripts
 COPY --chown=1000:1000 .script/template/env_setup.bash env_setup.bash
 COPY --chown=1000:1000 .script/template/env_setup.zsh env_setup.zsh
-
-
 
 # Runtime container, will automatically launch the main program
 FROM rmcs-base AS rmcs-runtime
