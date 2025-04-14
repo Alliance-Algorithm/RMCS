@@ -17,10 +17,28 @@
 		}
 	],
 	"containerEnv": {
-		"DISPLAY": ":1"
+		"DISPLAY": "${localEnv:DISPLAY}"
 	},
 	"runArgs": [
 		"--network",
 		"host"
-	]
+	],
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				// C++ language support
+				"llvm-vs-code-extensions.vscode-clangd",
+				// Python language support
+				"ms-python.vscode-pylance",
+				"ms-python.python",
+				"ms-python.debugpy",
+				// CMake language support
+				"twxs.cmake",
+				// Code spell checking
+				"streetsidesoftware.code-spell-checker",
+				// Git enhancements
+				"mhutchie.git-graph"
+			]
+		}
+	}
 }
