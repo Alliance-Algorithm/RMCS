@@ -31,16 +31,26 @@ public:
         : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , logger_(get_logger())
         , engineer_command_(create_partner_component<EngineerCommand>("engineer_command", *this))
-        , armboard(
+        , armboard_(
               *this, *engineer_command_,
-              static_cast<int>(get_parameter("arm_board_usb_pid").as_int())) {}
+              static_cast<int>(get_parameter("arm_board_usb_pid").as_int()))
+        , steeringboard_(
+              *this, *engineer_command_,
+              static_cast<int>(get_parameter("steering_board_usb_pid").as_int()))
+        , legboard_(
+              *this, *engineer_command_,
+              static_cast<int>(get_parameter("leg_board_usb_pid").as_int())) {}
     ~Engineer() override = default;
     void update() override {
-        armboard.update();
+        armboard_.update();
+        steeringboard_.update();
+        legboard_.update();
         //
     }
     void command() {
-        armboard.command();
+        armboard_.command();
+        steeringboard_.command();
+        legboard_.command();
         //
     }
 
@@ -96,7 +106,8 @@ private:
             engineer.register_output("/arm/Joint6/vision", vision_theta6, NAN);
 
             engineer_command.register_input("/arm/enable_flag", is_arm_enable_);
-            engineer_command.register_input("/chassis_and_leg/enable_flag", is_chassis_and_leg_enable_);
+            engineer_command.register_input(
+                "/chassis_and_leg/enable_flag", is_chassis_and_leg_enable_);
 
             using namespace device;
             joint[5].configure_joint(
@@ -108,8 +119,9 @@ private:
                 LKMotorConfig{LKMotorType::MG4010E_i10V3}
                     .enable_multi_turn_angle()
                     .set_gear_ratio(1.35)
-                    .set_encoder_zero_point(static_cast<uint16_t>(
-                        engineer.get_parameter("joint5_zero_point").as_int())),
+                    .set_encoder_zero_point(
+                        static_cast<uint16_t>(
+                            engineer.get_parameter("joint5_zero_point").as_int())),
                 DHConfig{0, 0, 1.5707963, 0},
                 Qlim_Stall_Config{engineer.get_parameter("joint5_qlim").as_double_array()});
             joint[3].configure_joint(
@@ -129,14 +141,16 @@ private:
                 DHConfig{0, 0.05985, 1.5707963, 0},
                 Qlim_Stall_Config{engineer.get_parameter("joint1_qlim").as_double_array()});
 
-            joint2_encoder.configure(EncoderConfig{}
-                                         .set_encoder_zero_point(static_cast<int>(
-                                             engineer.get_parameter("joint2_zero_point").as_int()))
-                                         .enable_multi_turn_angle());
-            joint3_encoder.configure(EncoderConfig{}
-                                         .set_encoder_zero_point(static_cast<int>(
-                                             engineer.get_parameter("joint3_zero_point").as_int()))
-                                         .reverse());
+            joint2_encoder.configure(
+                EncoderConfig{}
+                    .set_encoder_zero_point(
+                        static_cast<int>(engineer.get_parameter("joint2_zero_point").as_int()))
+                    .enable_multi_turn_angle());
+            joint3_encoder.configure(
+                EncoderConfig{}
+                    .set_encoder_zero_point(
+                        static_cast<int>(engineer.get_parameter("joint3_zero_point").as_int()))
+                    .reverse());
 
             big_yaw.configure(DMMotorConfig{DMMotorType::DM8009});
         }
@@ -158,7 +172,7 @@ private:
 
     private:
         void arm_command_update() {
-            auto is_arm_enable = *is_arm_enable_;
+            auto is_arm_enable             = *is_arm_enable_;
             auto is_chassis_and_leg_enable = *is_chassis_and_leg_enable_;
             uint64_t command_;
             int max_count                = 100000;
@@ -270,7 +284,8 @@ private:
             }
 
             if (counter % 2 == 0) {
-                if (is_chassis_and_leg_enable && big_yaw.get_state() != 0 && big_yaw.get_state() != 1) {
+                if (is_chassis_and_leg_enable && big_yaw.get_state() != 0
+                    && big_yaw.get_state() != 1) {
                     command_ = big_yaw.dm_clear_error_command();
                 } else if (!is_chassis_and_leg_enable) {
                     command_ = big_yaw.dm_close_command();
@@ -355,63 +370,42 @@ private:
             dr16_.store_status(uart_data, uart_data_length);
         }
         void uart1_receive_callback(const std::byte* uart_data, uint8_t uart_data_length) override {
-            if (vision.writeable() == 25 && vision.readable() == 39) {
-                vision.clear();
-            }
             vision.emplace_back_multi(
                 [&uart_data](std::byte* storage) { *storage = *uart_data++; }, uart_data_length);
 
-            //    if(!(int)*(uart_data) && !(int)*(uart_data + 7))
-            //    RCLCPP_INFO(this->get_logger(),"%x %d",(int)*(uart_data),uart_data_length);
-            // std::byte* byte_ptr = vision.get_byte(0);
             auto* front = vision.front();
-            auto* end   = vision.back();
-            if (uart_data == nullptr) {
-                RCLCPP_INFO(this->get_logger(), "%d", (int)(uart_data_length));
-            }
-            if (front && (int)*front == 0xA5 && vision.readable() >= 39) {
 
-                std::array<std::byte, 4> byte_data;
+            if (front)
+                if (front && (int)*front == 0xA5 && vision.readable() >= 39) {
+                    std::byte rx_data[39];
+                    std::byte* rx_data_ptr = &rx_data[0];
+                    vision.pop_front_multi(
+                        [&rx_data_ptr](std::byte storage) { *rx_data_ptr++ = storage; }, 39);
+                    int16_t command;
+                    rx_data_ptr = &rx_data[0];
+                    command     = *reinterpret_cast<const int16_t*>(rx_data_ptr + 5);
 
-                int16_t command;
-                command = *reinterpret_cast<const int16_t*>(front + 5);
-                if (command == 0x302) {
-                    // std::memcpy(byte_data.data(), front + 8, 4);
-                    float theta1, theta2, theta3, theta4, theta5, theta6;
+                    if (command == 0x302) {
 
-                    std::memcpy(&theta1, front + 8, 4);
-                    std::memcpy(&theta2, front + 12, 4);
-                    std::memcpy(&theta3, front + 16, 4);
-                    std::memcpy(&theta4, front + 20, 4);
-                    std::memcpy(&theta5, front + 24, 4);
-                    std::memcpy(&theta6, front + 28, 4);
+                        float theta1, theta2, theta3, theta4, theta5, theta6;
+                        uint8_t enable_;
 
-                    const float epsilon  = 0.000001f;
-                    const float maxValue = 10000.0f;
+                        std::memcpy(&theta1, rx_data_ptr + 8, 4);
+                        std::memcpy(&theta2, rx_data_ptr + 12, 4);
+                        std::memcpy(&theta3, rx_data_ptr + 16, 4);
+                        std::memcpy(&theta4, rx_data_ptr + 20, 4);
+                        std::memcpy(&theta5, rx_data_ptr + 24, 4);
+                        std::memcpy(&theta6, rx_data_ptr + 28, 4);
+                        std::memcpy(&enable_, rx_data_ptr + 32, 1);
 
-                    if (!std::isinf(theta1) && fabs(theta1) >= epsilon && fabs(theta1) <= maxValue
-                        && !std::isinf(theta2) && fabs(theta2) >= epsilon
-                        && fabs(theta2) <= maxValue && !std::isinf(theta3)
-                        && fabs(theta3) >= epsilon && fabs(theta3) <= maxValue
-                        && !std::isinf(theta4) && fabs(theta4) >= epsilon
-                        && fabs(theta4) <= maxValue && !std::isinf(theta5)
-                        && fabs(theta5) >= epsilon && fabs(theta5) <= maxValue
-                        && !std::isinf(theta6) && fabs(theta6) >= epsilon
-                        && fabs(theta6) <= maxValue) {
                         *vision_theta1 = theta1;
                         *vision_theta2 = theta2;
                         *vision_theta3 = theta3;
                         *vision_theta4 = theta4;
-                        *vision_theta5 = theta5;
+                        *vision_theta5 = -theta5;
                         *vision_theta6 = theta6;
-
-                        RCLCPP_INFO(
-                            this->get_logger(), "%f %f %f %f %f %f ", *vision_theta1,
-                            *vision_theta2, *vision_theta3, *vision_theta4, *vision_theta5,
-                            *vision_theta6);
                     }
                 }
-            }
         }
 
     private:
@@ -444,7 +438,250 @@ private:
 
         device::DMMotor big_yaw;
 
-    } armboard;
+    } armboard_;
+    class SteeringBoard final
+        : private librmcs::client::CBoard
+        , rclcpp::Node {
+    public:
+        friend class Engineer;
+        explicit SteeringBoard(Engineer& engineer, EngineerCommand& engineer_command, int usb_pid)
+            : librmcs::client::CBoard(usb_pid)
+            , rclcpp::Node{"steering_board"}
+            , transmit_buffer_(*this, 32)
+            , event_thread_([this]() { handle_events(); })
+            , Steering_motors(
+                  {engineer, engineer_command, "/steering/steering/lf"},
+                  {engineer, engineer_command, "/steering/steering/lb"},
+                  {engineer, engineer_command, "/steering/steering/rb"},
+                  {engineer, engineer_command, "/steering/steering/rf"})
+            , Wheel_motors(
+                  {engineer, engineer_command, "/steering/wheel/lf"},
+                  {engineer, engineer_command, "/steering/wheel/lb"},
+                  {engineer, engineer_command, "/steering/wheel/rb"},
+                  {engineer, engineer_command, "/steering/wheel/rf"}) {
+            Steering_motors[0].configure(
+                device::DjiMotorConfig{device::DjiMotorType::GM6020}
+                    .set_encoder_zero_point(
+                        static_cast<int>(engineer.get_parameter("steering_lf_zero_point").as_int()))
+                    .enable_multi_turn_angle());
+            Steering_motors[1].configure(
+                device::DjiMotorConfig{device::DjiMotorType::GM6020}
+                    .set_encoder_zero_point(
+                        static_cast<int>(engineer.get_parameter("steering_lb_zero_point").as_int()))
+                    .enable_multi_turn_angle());
+            Steering_motors[2].configure(
+                device::DjiMotorConfig{device::DjiMotorType::GM6020}
+                    .set_encoder_zero_point(
+                        static_cast<int>(engineer.get_parameter("steering_rb_zero_point").as_int()))
+                    .enable_multi_turn_angle());
+            Steering_motors[3].configure(
+                device::DjiMotorConfig{device::DjiMotorType::GM6020}
+                    .set_encoder_zero_point(
+                        static_cast<int>(engineer.get_parameter("steering_rf_zero_point").as_int()))
+                    .enable_multi_turn_angle());
+
+            Wheel_motors[0].configure(
+                device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(
+                    18.2));
+            Wheel_motors[1].configure(
+                device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(
+                    18.2));
+            Wheel_motors[2].configure(
+                device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(
+                    18.2));
+            Wheel_motors[3].configure(
+                device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(
+                    18.2));
+        }
+        ~SteeringBoard() final {
+            stop_handling_events();
+            event_thread_.join();
+        }
+        void update() {
+            for (auto& motor : Steering_motors) {
+                motor.update();
+            }
+            for (auto& motor : Wheel_motors) {
+                motor.update();
+            }
+        }
+        void command() {
+            uint16_t command[4];
+            command[0] = Steering_motors[0].generate_command();
+            command[1] = Steering_motors[3].generate_command();
+            command[2] = Steering_motors[2].generate_command();
+            command[3] = Steering_motors[1].generate_command();
+            transmit_buffer_.add_can2_transmission(0x1FE, std::bit_cast<uint64_t>(command));
+            command[0] = Wheel_motors[0].generate_command();
+            command[1] = Wheel_motors[3].generate_command();
+            command[2] = Wheel_motors[2].generate_command();
+            command[3] = Wheel_motors[1].generate_command();
+            transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(command));
+        }
+
+    protected:
+        void can2_receive_callback(
+            uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
+            bool is_remote_transmission, uint8_t can_data_length) override {
+            if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
+                return;
+            if (can_id == 0x205) {
+                Steering_motors[0].store_status(can_data);
+            }
+            if (can_id == 0x208) {
+                Steering_motors[1].store_status(can_data);
+            }
+            if (can_id == 0x207) {
+                Steering_motors[2].store_status(can_data);
+            }
+            if (can_id == 0x206) {
+                Steering_motors[3].store_status(can_data);
+            }
+        }
+        void can1_receive_callback(
+            uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
+            bool is_remote_transmission, uint8_t can_data_length) override {
+            if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
+                return;
+
+            if (can_id == 0x201) {
+                Wheel_motors[0].store_status(can_data);
+            }
+            if (can_id == 0x202) {
+                Wheel_motors[1].store_status(can_data);
+            }
+            if (can_id == 0x203) {
+                Wheel_motors[2].store_status(can_data);
+            }
+            if (can_id == 0x204) {
+                Wheel_motors[3].store_status(can_data);
+            }
+        }
+
+    private:
+        librmcs::client::CBoard::TransmitBuffer transmit_buffer_;
+        std::thread event_thread_;
+        device::DjiMotor Steering_motors[4];
+        device::DjiMotor Wheel_motors[4];
+    } steeringboard_;
+
+    class LegBoard final
+        : private librmcs::client::CBoard
+        , rclcpp::Node {
+    public:
+        friend class Engineer;
+        explicit LegBoard(Engineer& engineer, EngineerCommand& engineer_command, int usb_pid)
+            : librmcs::client::CBoard(usb_pid)
+            , rclcpp::Node{"leg_board"}
+            , transmit_buffer_(*this, 32)
+            , event_thread_([this]() { handle_events(); })
+            , Omni_Motors(
+                  {engineer, engineer_command, "/leg/omni/l"},
+                  {engineer, engineer_command, "/leg/omni/f"})
+            , Leg_Motors(
+                  {engineer, engineer_command, "/leg/joint/lf"},
+                  {engineer, engineer_command, "/leg/joint/lb"},
+                  {engineer, engineer_command, "/leg/joint/rb"},
+                  {engineer, engineer_command, "/leg/joint/rf"})
+            , Leg_ecd(
+                  {engineer, "/leg/encoder/lf"}, {engineer, "/leg/encoder/lb"},
+                  {engineer, "/leg/encoder/rb"}, {engineer, "/leg/encoder/rf"}) {
+            Omni_Motors[0].configure(
+                device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(
+                    18.2));
+            Omni_Motors[1].configure(
+                device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(
+                    18.2));
+            Leg_Motors[0].configure(
+                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(92.0));
+            Leg_Motors[1].configure(
+                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(277.0));
+            Leg_Motors[2].configure(
+                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(92.0));
+            Leg_Motors[3].configure(
+                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(277.0));
+            Leg_ecd[0].configure(
+                device::EncoderConfig{}.set_encoder_zero_point(
+                    static_cast<int>(engineer.get_parameter("leg_lf_ecd_zero_point").as_int())));
+            Leg_ecd[1].configure(
+                device::EncoderConfig{}.set_encoder_zero_point(
+                    static_cast<int>(engineer.get_parameter("leg_lb_ecd_zero_point").as_int())));
+            Leg_ecd[2].configure(
+                device::EncoderConfig{}.set_encoder_zero_point(
+                    static_cast<int>(engineer.get_parameter("leg_rb_ecd_zero_point").as_int())));
+            Leg_ecd[3].configure(
+                device::EncoderConfig{}.set_encoder_zero_point(
+                    static_cast<int>(engineer.get_parameter("leg_rf_ecd_zero_point").as_int())));
+        }
+        ~LegBoard() final {
+            stop_handling_events();
+            event_thread_.join();
+        }
+        void update() {
+            Omni_Motors[0].update();
+            Omni_Motors[1].update();
+            for (auto& motor : Leg_Motors) {
+                motor.update();
+            }
+            for (auto& ecd : Leg_ecd) {
+                ecd.update();
+            }
+        }
+        void command() {}
+
+    protected:
+        void can2_receive_callback(
+            uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
+            bool is_remote_transmission, uint8_t can_data_length) override {
+            if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
+                return;
+            if (can_id == 0x201) {
+                Omni_Motors[1].store_status(can_data);
+            }
+            if (can_id == 0x202) {
+                Leg_Motors[0].store_status(can_data);
+            }
+            if (can_id == 0x203) {
+                Leg_Motors[1].store_status(can_data);
+            }
+            if (can_id == 0x206) {
+                Leg_Motors[2].store_status(can_data);
+            }
+            if (can_id == 0x207) {
+                Leg_Motors[3].store_status(can_data);
+            }
+            if (can_id == 0x204) {
+                Omni_Motors[0].store_status(can_data);
+            }
+        }
+        void can1_receive_callback(
+            uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
+            bool is_remote_transmission, uint8_t can_data_length) override {
+            if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
+                return;
+            return;
+            if (can_id == 0x007) {
+                Leg_ecd[3].store_status(can_data);
+            }
+            if (can_id == 0x008) {
+                Leg_ecd[0].store_status(can_data);
+            }
+            if (can_id == 0x009) {
+                Leg_ecd[1].store_status(can_data);
+            }
+            if (can_id == 0x010) {
+                Leg_ecd[2].store_status(can_data);
+            }
+        }
+
+    private:
+        librmcs::client::CBoard::TransmitBuffer transmit_buffer_;
+        std::thread event_thread_;
+        device::DjiMotor Omni_Motors[2];
+        device::DjiMotor Leg_Motors[4];
+        device::Encoder Leg_ecd[4];
+
+    } legboard_;
 };
 
 } // namespace rmcs_core::hardware

@@ -26,6 +26,8 @@ rmcs_executor:
 engineer_hardware:
   ros__parameters:
     arm_board_usb_pid: 0x524f
+    steering_board_usb_pid: 0x000
+    leg_board_usb_pid: 0x0010
     joint6_zero_point: 0
     joint5_zero_point: 42350
     joint4_zero_point: 16159
@@ -38,6 +40,14 @@ engineer_hardware:
     joint3_qlim: [-1.0472,0.8727]    
     joint2_qlim: [-1.308,1.04719]    
     joint1_qlim: [-3.141592,3.141592]    
+    steering_lf_zero_point: 0 
+    steering_lb_zero_point: 0 
+    steering_rb_zero_point: 0 
+    steering_rf_zero_point: 0 
+    leg_lf_ecd_zero_point: 0
+    leg_lb_ecd_zero_point: 0
+    leg_rb_ecd_zero_point: 0
+    leg_rf_ecd_zero_point: 0
 
 joint6_angle_pid_controller:
   ros__parameters:
