@@ -98,7 +98,10 @@ private:
             , benewake_(hero, "/gimbal/auto_aim/laser_distance")
             , gimbal_top_yaw_motor_(
                   hero, hero_command, "/gimbal/top_yaw",
-                  device::LkMotor::Config{device::LkMotor::Type::MG5010E_I10})
+                  device::LkMotor::Config{device::LkMotor::Type::MG5010E_I10}
+                      .set_encoder_zero_point(
+                          static_cast<int>(
+                              hero.get_parameter("top_yaw_motor_zero_point").as_int())))
             , gimbal_pitch_motor_(
                   hero, hero_command, "/gimbal/pitch",
                   device::LkMotor::Config{device::LkMotor::Type::MG5010E_I10}
@@ -328,29 +331,42 @@ private:
             , dr16_(hero)
             , chassis_steering_motors_(
                   {hero, hero_command, "/chassis/left_front_steering",
-                   device::DjiMotor::Config{device::DjiMotor::Type::GM6020}},
+                   device::DjiMotor::Config{device::DjiMotor::Type::GM6020}.set_encoder_zero_point(
+                       static_cast<int>(hero.get_parameter("left_front_zero_point").as_int()))},
                   {hero, hero_command, "/chassis/left_back_steering",
-                   device::DjiMotor::Config{device::DjiMotor::Type::GM6020}},
+                   device::DjiMotor::Config{device::DjiMotor::Type::GM6020}.set_encoder_zero_point(
+                       static_cast<int>(hero.get_parameter("left_back_zero_point").as_int()))},
                   {hero, hero_command, "/chassis/right_back_steering",
-                   device::DjiMotor::Config{device::DjiMotor::Type::GM6020}},
+                   device::DjiMotor::Config{device::DjiMotor::Type::GM6020}.set_encoder_zero_point(
+                       static_cast<int>(hero.get_parameter("right_back_zero_point").as_int()))},
                   {hero, hero_command, "/chassis/right_front_steering",
-                   device::DjiMotor::Config{device::DjiMotor::Type::GM6020}})
+                   device::DjiMotor::Config{device::DjiMotor::Type::GM6020}.set_encoder_zero_point(
+                       static_cast<int>(hero.get_parameter("right_front_zero_point").as_int()))})
             , chassis_wheel_motors_(
                   {hero, hero_command, "/chassis/left_front_wheel",
-                   device::DjiMotor::Config{device::DjiMotor::Type::M3508}},
+                   device::DjiMotor::Config{device::DjiMotor::Type::M3508}
+                       .set_reversed()
+                       .set_reduction_ratio(13.)},
                   {hero, hero_command, "/chassis/left_back_wheel",
-                   device::DjiMotor::Config{device::DjiMotor::Type::M3508}},
+                   device::DjiMotor::Config{device::DjiMotor::Type::M3508}
+                       .set_reversed()
+                       .set_reduction_ratio(13.)},
                   {hero, hero_command, "/chassis/right_back_wheel",
-                   device::DjiMotor::Config{device::DjiMotor::Type::M3508}},
+                   device::DjiMotor::Config{device::DjiMotor::Type::M3508}
+                       .set_reversed()
+                       .set_reduction_ratio(13.)},
                   {hero, hero_command, "/chassis/right_front_wheel",
-                   device::DjiMotor::Config{device::DjiMotor::Type::M3508}})
+                   device::DjiMotor::Config{device::DjiMotor::Type::M3508}
+                       .set_reversed()
+                       .set_reduction_ratio(13.)})
             , supercap_(hero, hero_command)
             // TODO: change bottom yaw motor name prefix
             , gimbal_bottom_yaw_motor_(
                   hero, hero_command, "/gimbal/bottom_yaw",
                   device::LkMotor::Config{device::LkMotor::Type::MG5010E_I10}
                       .set_encoder_zero_point(
-                          static_cast<int>(hero.get_parameter("yaw_motor_zero_point").as_int())))
+                          static_cast<int>(
+                              hero.get_parameter("bottom_yaw_motor_zero_point").as_int())))
             , transmit_buffer_(*this, 32)
             , event_thread_([this]() { handle_events(); }) {
 
