@@ -41,22 +41,25 @@ hero_hardware:
 
 gimbal_controller:
   ros__parameters:
+    gimbal_motors: 
+      - /gimbal/top_yaw 
+      - /gimbal/bottom_yaw
     upper_limit: -0.4598
     lower_limit: 0.4362
 
-bottom_yaw_angle_pid_controller:
- ros__parameter:
-    mearsurment:
-    control:
-    kp: 0.0
+top_yaw_angle_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/top_yaw/control_angle_error
+    control: /gimbal/top_yaw/control_velocity
+    kp: 16.0
     ki: 0.0
     kd: 0.0
 
-top_yaw_angle_pid_controller:
-  ros__parameters:
-    measurement: /gimbal/yaw/control_angle_error
-    control: /gimbal/yaw/control_velocity
-    kp: 16.0
+bottom_yaw_angle_pid_controller:
+ ros__parameter:
+    measurement: /gimbal/bottom_yaw/control_angle_error
+    control: /gimbal/bottom_yaw/control_velocity
+    kp: 0.0
     ki: 0.0
     kd: 0.0
 

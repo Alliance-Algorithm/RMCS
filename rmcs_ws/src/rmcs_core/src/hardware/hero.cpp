@@ -97,7 +97,7 @@ private:
             , gy614_(hero, "/friction_wheels/temperature")
             , benewake_(hero, "/gimbal/auto_aim/laser_distance")
             , gimbal_top_yaw_motor_(
-                  hero, hero_command, "/gimbal/yaw",
+                  hero, hero_command, "/gimbal/top_yaw",
                   device::LkMotor::Config{device::LkMotor::Type::MG5010E_I10})
             , gimbal_pitch_motor_(
                   hero, hero_command, "/gimbal/pitch",
@@ -347,7 +347,7 @@ private:
             , supercap_(hero, hero_command)
             // TODO: change bottom yaw motor name prefix
             , gimbal_bottom_yaw_motor_(
-                  hero, hero_command, "/gimbal/yaw",
+                  hero, hero_command, "/gimbal/bottom_yaw",
                   device::LkMotor::Config{device::LkMotor::Type::MG5010E_I10}
                       .set_encoder_zero_point(
                           static_cast<int>(hero.get_parameter("yaw_motor_zero_point").as_int())))

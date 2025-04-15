@@ -1,9 +1,11 @@
 #include <cmath>
 
+#include <cstddef>
 #include <limits>
 
 #include <eigen3/Eigen/Dense>
 #include <fast_tf/rcl.hpp>
+#include <memory>
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
@@ -39,7 +41,17 @@ public:
 
         register_input("/gimbal/auto_aim/control_direction", auto_aim_control_direction_, false);
 
-        register_output("/gimbal/yaw/control_angle_error", yaw_angle_error_, nan);
+        // register_output("/gimbal/top_yaw/control_angle_error", yaw_angle_error_, nan);
+        // register_output("/gimbal/bottom_yaw/control_angle_error", yaw_angle_error_, nan);
+
+        auto gimbal_motors   = get_parameter("gimbal_motors").as_string_array();
+        gimbal_motors_count_ = gimbal_motors.size();
+        yaw_angle_error_     = std::make_unique<OutputInterface<double>[]>(gimbal_motors_count_);
+
+        for (size_t i = 0; i < gimbal_motors_count_; i++) {
+            register_output(gimbal_motors[i] + "/control_angle_error", yaw_angle_error_[i], nan);
+        }
+
         register_output("/gimbal/pitch/control_angle_error", pitch_angle_error_, nan);
     }
 
@@ -84,9 +96,10 @@ private:
     }
 
     void reset_all_controls() {
-        control_enabled     = false;
-        *yaw_angle_error_   = nan;
-        *pitch_angle_error_ = nan;
+        control_enabled      = false;
+        *yaw_angle_error_[0] = nan;
+        *yaw_angle_error_[1] = nan;
+        *pitch_angle_error_  = nan;
     }
 
     void update_auto_aim_control_direction(PitchLink::DirectionVector& dir) {
@@ -151,9 +164,10 @@ private:
 
         double &x = dir->x(), &y = dir->y(), &z = dir->z();
         double sp = std::sin(pitch), cp = std::cos(pitch);
-        double a          = x * cp + z * sp;
-        double b          = std::sqrt(y * y + a * a);
-        *yaw_angle_error_ = std::atan2(y, a);
+        double a             = x * cp + z * sp;
+        double b             = std::sqrt(y * y + a * a);
+        *yaw_angle_error_[0] = std::atan2(y, a);
+        *yaw_angle_error_[1] = std::atan2(y, a);
         *pitch_angle_error_ =
             -std::atan2(z * cp * cp - x * cp * sp + sp * b, -z * cp * sp + x * sp * sp + cp * b);
     }
@@ -173,12 +187,14 @@ private:
 
     InputInterface<Eigen::Vector3d> auto_aim_control_direction_;
 
+    size_t gimbal_motors_count_;
     bool control_enabled = false;
     OdomImu::DirectionVector control_direction_{Eigen::Vector3d::Zero()};
     OdomImu::DirectionVector yaw_axis_filtered_{Eigen::Vector3d::UnitZ()};
     double upper_limit_, lower_limit_;
 
-    OutputInterface<double> yaw_angle_error_, pitch_angle_error_;
+    OutputInterface<double> pitch_angle_error_;
+    std::unique_ptr<OutputInterface<double>[]> yaw_angle_error_;
 };
 
 } // namespace rmcs_core::controller::gimbal
