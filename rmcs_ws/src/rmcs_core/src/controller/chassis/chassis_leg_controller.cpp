@@ -65,6 +65,10 @@ public:
     }
 
 private:
+void ChassisController(const Eigen::Vector2d &move_,double spin_speed_){
+    SteeringControl(move_,spin_speed_);
+    OmniWheelControl(move_);
+}
     void SteeringControl(const Eigen::Vector2d& move, double spin_speed) {
 
         Eigen::Vector2d lf_vel = Eigen::Vector2d{-spin_speed, spin_speed} + move;
@@ -114,7 +118,8 @@ private:
             rf_vel.norm() * (speed_limit / wheel_r) * check_error_angle(err[3]);
     }
     void OmniWheelControl(const Eigen::Vector2d& move){
-        
+        *omni_l_target_vel = move.x()*(speed_limit / wheel_r);
+        *omni_r_target_vel = move.x()*(speed_limit / wheel_r);
     }
     static inline double norm_error_angle(const double& angle) {
         double tmp = angle;
@@ -176,6 +181,8 @@ private:
     OutputInterface<double> steering_wheel_lb_target_vel;
     OutputInterface<double> steering_wheel_rb_target_vel;
     OutputInterface<double> steering_wheel_rf_target_vel;
+    OutputInterface<double> omni_l_target_vel;
+    OutputInterface<double> omni_r_target_vel;
 };
 } // namespace rmcs_core::controller::chassis
 #include <pluginlib/class_list_macros.hpp>

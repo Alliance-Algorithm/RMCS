@@ -18,6 +18,7 @@
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/arm_mode.hpp>
 #include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/switch.hpp>
@@ -63,9 +64,6 @@ public:
 
         register_output("/arm/enable_flag", is_arm_enable, true);
 
-        // std::array<double, 6> *target_theta_inital_value = {nan, nan, nan, nan, nan, nan};
-        //  register_output("/arm*target_theta",*target_theta, *target_theta_inital_value);
-        //  auto exchange
         publisher_ =
             create_publisher<std_msgs::msg::Float32MultiArray>("/engineer/joint/measure", 10);
 
@@ -114,11 +112,12 @@ public:
             if (switch_left == rmcs_msgs::Switch::DOWN && switch_right == rmcs_msgs::Switch::UP) {
                 keyboard_mode_selection();
                 switch (mode) {
-                case Mode::Auto_Gold_Left: execute_gold(fsm_gold_l); break;
-                case Mode::Auto_Gold_Mid: execute_gold(fsm_gold_m); break;
-                case Mode::Auto_Gold_right: execute_gold(fsm_gold_r); break;
-                case Mode::Auto_Sliver: execute_sliver(fsm_sliver); break;
-                case Mode::Auto_Walk: execute_walk();break;
+                    using namespace rmcs_msgs;
+                case ArmMode::Auto_Gold_Left: execute_gold(fsm_gold_l); break;
+                case ArmMode::Auto_Gold_Mid: execute_gold(fsm_gold_m); break;
+                case ArmMode::Auto_Gold_Right: execute_gold(fsm_gold_r); break;
+                case ArmMode::Auto_Sliver: execute_sliver(fsm_sliver); break;
+                case ArmMode::Auto_Walk: execute_walk(); break;
                 default: break;
                 }
             }
@@ -152,23 +151,23 @@ private:
         auto keyboard = *keyboard_;
 
         if (keyboard.z && !keyboard.ctrl && !keyboard.shift) {
-            mode = Mode::Auto_Gold_Left;
+            mode = rmcs_msgs::ArmMode::Auto_Gold_Left;
             fsm_gold_l.reset();
         }
         if (keyboard.z && !keyboard.ctrl && keyboard.shift) {
-            mode = Mode::Auto_Gold_Mid;
+            mode = rmcs_msgs::ArmMode::Auto_Gold_Mid;
             fsm_gold_m.reset();
         }
         if (keyboard.z && keyboard.ctrl && !keyboard.shift) {
-            mode = Mode::Auto_Gold_right;
+            mode = rmcs_msgs::ArmMode::Auto_Gold_Right;
             fsm_gold_r.reset();
         }
         if (keyboard.x) {
-            mode = Mode::Auto_Sliver;
+            mode = rmcs_msgs::ArmMode::Auto_Sliver;
             fsm_sliver.reset();
         }
         if (keyboard.g) {
-            mode = Mode::Auto_Walk;
+            mode = rmcs_msgs::ArmMode::Auto_Walk;
             fsm_walk.reset();
         }
     }
@@ -243,14 +242,14 @@ private:
         *target_theta[1] = fsm_sliver.get_result()[1];
         *target_theta[0] = fsm_sliver.get_result()[0];
     }
-    void execute_walk(){
-        auto keyboard          = *keyboard_;
-        if(fsm_walk.fsm_direction == initial_enter){
+    void execute_walk() {
+        auto keyboard = *keyboard_;
+        if (fsm_walk.fsm_direction == initial_enter) {
             fsm_walk.get_current_theta(
                 {*theta[0], *theta[1], *theta[2], *theta[3], *theta[4], *theta[5]});
             fsm_walk.fsm_direction = up;
         }
-        if(fsm_walk.fsm_direction == up){
+        if (fsm_walk.fsm_direction == up) {
             fsm_walk.processEvent(Auto_Walk_Event::Up);
         }
         *target_theta[5] = fsm_walk.get_result()[5];
@@ -259,17 +258,16 @@ private:
         *target_theta[2] = fsm_walk.get_result()[2];
         *target_theta[1] = fsm_walk.get_result()[1];
         *target_theta[0] = fsm_walk.get_result()[0];
-
     }
     bool is_auto_exchange = false;
-    //auto_mode_Fsm
+    // auto_mode_Fsm
     Auto_Gold_Left fsm_gold_l;
     Auto_Gold_Mid fsm_gold_m;
     Auto_Gold_Right fsm_gold_r;
     Auto_Sliver fsm_sliver;
     Auto_Set_Walk_Arm fsm_walk;
     //
-
+    rmcs_msgs::ArmMode mode;
     rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr subscription_;
     rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr publisher_;
 
@@ -285,19 +283,6 @@ private:
     OutputInterface<bool> is_arm_enable;
     InputInterface<double> theta[6]; // motor_current_angle
     OutputInterface<double> target_theta[6];
-    enum class Mode {
-        Auto_Gold_Left,
-        Auto_Gold_right,
-        Auto_Gold_Mid,
-        Auto_Sliver,
-        Auto_Walk,
-        None
-    } mode = Mode::None;
-
-    // test
-    //  hardware::device::Trajectory<hardware::device::LineTrajectoryType> line;
-    rmcs_core::hardware::device::Trajectory<rmcs_core::hardware::device::TrajectoryType::BEZIER>
-        bezier;
 
     InputInterface<double> vision_theta1;
     InputInterface<double> vision_theta2;

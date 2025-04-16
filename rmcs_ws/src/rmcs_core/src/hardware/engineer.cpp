@@ -507,16 +507,17 @@ private:
         }
         void command() {
             uint16_t command[4];
-            command[0] = Steering_motors[0].generate_command();
-            command[1] = Steering_motors[3].generate_command();
-            command[2] = Steering_motors[2].generate_command();
-            command[3] = Steering_motors[1].generate_command();
-            transmit_buffer_.add_can2_transmission(0x1FE, std::bit_cast<uint64_t>(command));
-            command[0] = Wheel_motors[0].generate_command();
-            command[1] = Wheel_motors[3].generate_command();
-            command[2] = Wheel_motors[2].generate_command();
-            command[3] = Wheel_motors[1].generate_command();
-            transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(command));
+            // command[0] = Steering_motors[0].generate_command();
+            // command[1] = Steering_motors[3].generate_command();
+            // command[2] = Steering_motors[2].generate_command();
+            // command[3] = Steering_motors[1].generate_command();
+            // transmit_buffer_.add_can2_transmission(0x1FE, std::bit_cast<uint64_t>(command));
+            // command[0] = Wheel_motors[0].generate_command();
+            // command[1] = Wheel_motors[3].generate_command();
+            // command[2] = Wheel_motors[2].generate_command();
+            // command[3] = Wheel_motors[1].generate_command();
+            // transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(command));
+            
         }
 
     protected:
@@ -537,6 +538,8 @@ private:
             if (can_id == 0x206) {
                 Steering_motors[3].store_status(can_data);
             }
+            RCLCPP_INFO(this->get_logger(),"%x",can_id);
+
         }
         void can1_receive_callback(
             uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
@@ -544,18 +547,19 @@ private:
             if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
                 return;
 
-            if (can_id == 0x201) {
+            if (can_id == 0x204) {
                 Wheel_motors[0].store_status(can_data);
             }
-            if (can_id == 0x202) {
+            if (can_id == 0x201) {
                 Wheel_motors[1].store_status(can_data);
             }
             if (can_id == 0x203) {
                 Wheel_motors[2].store_status(can_data);
             }
-            if (can_id == 0x204) {
+            if (can_id == 0x202) {
                 Wheel_motors[3].store_status(can_data);
             }
+
         }
 
     private:
@@ -638,40 +642,44 @@ private:
             if (can_id == 0x201) {
                 Omni_Motors[1].store_status(can_data);
             }
-            if (can_id == 0x202) {
+            if (can_id == 0x206) {
                 Leg_Motors[0].store_status(can_data);
             }
             if (can_id == 0x203) {
                 Leg_Motors[1].store_status(can_data);
             }
-            if (can_id == 0x206) {
+            if (can_id == 0x202) {
                 Leg_Motors[2].store_status(can_data);
             }
-            if (can_id == 0x207) {
+            if (can_id == 0x208) {
                 Leg_Motors[3].store_status(can_data);
             }
             if (can_id == 0x204) {
                 Omni_Motors[0].store_status(can_data);
             }
+
         }
         void can1_receive_callback(
             uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
             bool is_remote_transmission, uint8_t can_data_length) override {
+
             if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
                 return;
-            return;
-            if (can_id == 0x007) {
+          
+            if (can_id == 0x017) {
                 Leg_ecd[3].store_status(can_data);
             }
-            if (can_id == 0x008) {
+            if (can_id == 0x016) {
                 Leg_ecd[0].store_status(can_data);
             }
-            if (can_id == 0x009) {
+            if (can_id == 0x015) {
                 Leg_ecd[1].store_status(can_data);
             }
-            if (can_id == 0x010) {
+            if (can_id == 0x13) {
                 Leg_ecd[2].store_status(can_data);
             }
+
+
         }
 
     private:

@@ -5,10 +5,11 @@
 namespace rmcs_msgs {
 
 enum class ChassisMode : uint8_t {
-    AUTO        = 0,
-    SPIN        = 1,
-    STEP_DOWN   = 2,
-    LAUNCH_RAMP = 3,
+    SPIN,
+    Four_Wheel_Normal_Move,        
+    Six_Wheel_Normal_Move,   
+    Flowing, 
+    Yaw_Free,
 };
 
 } // namespace rmcs_msgs

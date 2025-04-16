@@ -71,7 +71,7 @@ public:
 
         status_component.register_output(name_prefix + "/motor", motor_, this);
 
-        command_component.register_input(name_prefix + "/control_torque", control_torque_);
+        // command_component.register_input(name_prefix + "/control_torque", control_torque_);
     }
     DjiMotor(const DjiMotor&)            = delete;
     DjiMotor& operator=(const DjiMotor&) = delete;
@@ -135,6 +135,7 @@ public:
 
         // Angle unit: rad
         int angle = raw_angle - encoder_zero_point_;
+        raw_angle_ = angle;
         if (angle < 0)
             angle += raw_angle_max_;
         if (!multi_turn_angle_enabled_) {
@@ -185,6 +186,7 @@ public:
     double get_velocity() { return *velocity_; }
     double get_torque() { return *torque_; }
     double get_max_torque() { return *max_torque_; }
+    int get_raw_angle() const { return raw_angle_; }
 
 private:
     struct alignas(uint64_t) DjiMotorFeedback {
@@ -201,6 +203,7 @@ private:
 
     std::atomic<uint64_t> can_data_ = 0;
 
+    int raw_angle_;
     static constexpr int raw_angle_max_ = 8192;
     int encoder_zero_point_, last_raw_angle_;
 
