@@ -331,17 +331,25 @@ private:
             , dr16_(hero)
             , chassis_steering_motors_(
                   {hero, hero_command, "/chassis/left_front_steering",
-                   device::DjiMotor::Config{device::DjiMotor::Type::GM6020}.set_encoder_zero_point(
-                       static_cast<int>(hero.get_parameter("left_front_zero_point").as_int()))},
+                   device::DjiMotor::Config{device::DjiMotor::Type::GM6020}
+                       .set_encoder_zero_point(
+                           static_cast<int>(hero.get_parameter("left_front_zero_point").as_int()))
+                       .set_reversed()},
                   {hero, hero_command, "/chassis/left_back_steering",
-                   device::DjiMotor::Config{device::DjiMotor::Type::GM6020}.set_encoder_zero_point(
-                       static_cast<int>(hero.get_parameter("left_back_zero_point").as_int()))},
+                   device::DjiMotor::Config{device::DjiMotor::Type::GM6020}
+                       .set_encoder_zero_point(
+                           static_cast<int>(hero.get_parameter("left_back_zero_point").as_int()))
+                       .set_reversed()},
                   {hero, hero_command, "/chassis/right_back_steering",
-                   device::DjiMotor::Config{device::DjiMotor::Type::GM6020}.set_encoder_zero_point(
-                       static_cast<int>(hero.get_parameter("right_back_zero_point").as_int()))},
+                   device::DjiMotor::Config{device::DjiMotor::Type::GM6020}
+                       .set_encoder_zero_point(
+                           static_cast<int>(hero.get_parameter("right_back_zero_point").as_int()))
+                       .set_reversed()},
                   {hero, hero_command, "/chassis/right_front_steering",
-                   device::DjiMotor::Config{device::DjiMotor::Type::GM6020}.set_encoder_zero_point(
-                       static_cast<int>(hero.get_parameter("right_front_zero_point").as_int()))})
+                   device::DjiMotor::Config{device::DjiMotor::Type::GM6020}
+                       .set_encoder_zero_point(
+                           static_cast<int>(hero.get_parameter("right_front_zero_point").as_int()))
+                       .set_reversed()})
             , chassis_wheel_motors_(
                   {hero, hero_command, "/chassis/left_front_wheel",
                    device::DjiMotor::Config{device::DjiMotor::Type::M3508}
