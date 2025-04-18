@@ -76,8 +76,10 @@ private:
             component->dependency_count_ = 0;
             component->wanted_by_.clear();
             for (auto& output : component->output_list_) {
-                if (!output_map.emplace(output.name, &output).second)
+                if (!output_map.emplace(output.name, &output).second) {
+                    std::cout << "Output name: " << output.name << std::endl;
                     throw std::runtime_error{"Duplicate names of output"};
+                }
                 user_output_map.emplace(output.name, output.type);
             }
         }

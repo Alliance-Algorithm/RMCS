@@ -36,7 +36,7 @@ public:
 
         auto friction_wheels     = get_parameter("friction_wheels").as_string_array();
         auto friction_velocities = get_parameter("friction_velocities").as_double_array();
-        if (friction_wheels.size() != friction_wheels.size())
+        if (friction_wheels.size() != friction_velocities.size())
             throw std::runtime_error(
                 "Mismatch in array sizes: "
                 "'friction_wheels' and 'friction_velocities' must have the same length!");

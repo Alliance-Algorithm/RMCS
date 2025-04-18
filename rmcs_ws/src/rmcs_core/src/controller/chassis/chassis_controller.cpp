@@ -32,8 +32,17 @@ public:
         register_input("/remote/keyboard", keyboard_);
         register_input("/remote/rotary_knob", rotary_knob_);
 
-        register_input("/gimbal/yaw/angle", gimbal_yaw_angle_, false);
-        register_input("/gimbal/yaw/control_angle_error", gimbal_yaw_angle_error_, false);
+        auto gimbal_yaw_motors = get_parameter("gimbal_yaw_motors").as_string_array();
+        if (gimbal_yaw_motors.size() == 0)
+            throw std::runtime_error("Empty array error: 'gimbal_yaw_motors' cannot be empty!");
+
+        gimbal_yaw_motors_counts_ = gimbal_yaw_motors.size();
+
+        register_input(
+            gimbal_yaw_motors[gimbal_yaw_motors_counts_ - 1] + "/angle", gimbal_yaw_angle_, false);
+        register_input(
+            gimbal_yaw_motors[gimbal_yaw_motors_counts_ - 1] + "/control_angle_error",
+            gimbal_yaw_angle_error_, false);
 
         register_input("/chassis/supercap/voltage", supercap_voltage_, false);
         register_input("/chassis/supercap/enabled", supercap_enabled_, false);
@@ -297,7 +306,7 @@ private:
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
     // Maximum control velocities
-    static constexpr double translational_velocity_max = 8.0;
+    static constexpr double translational_velocity_max = 5.0;
     static constexpr double angular_velocity_max       = 10.0;
 
     // Maximum excess power when buffer energy is sufficient.
@@ -331,6 +340,7 @@ private:
 
     InputInterface<double> gimbal_yaw_angle_, gimbal_yaw_angle_error_;
     OutputInterface<double> chassis_angle_, chassis_control_angle_;
+    size_t gimbal_yaw_motors_counts_;
 
     OutputInterface<rmcs_msgs::ChassisMode> mode_;
     bool spinning_forward_ = true;

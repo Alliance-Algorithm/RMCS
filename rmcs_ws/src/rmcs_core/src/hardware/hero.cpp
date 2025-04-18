@@ -11,7 +11,6 @@
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/serial_interface.hpp>
 #include <rmcs_utility/fps_counter.hpp>
-#include <serial/serial.h>
 #include <std_msgs/msg/int32.hpp>
 
 #include "hardware/device/benewake.hpp"
@@ -74,6 +73,18 @@ private:
         RCLCPP_INFO(
             get_logger(), "[gimbal calibration] New top yaw offset: %ld",
             top_board_->gimbal_top_yaw_motor_.calibrate_zero_point());
+        RCLCPP_INFO(
+            get_logger(), "[chassis calibration] left front steering offset: %d",
+            bottom_board_->chassis_steering_motors_[0].calibrate_zero_point());
+        RCLCPP_INFO(
+            get_logger(), "[chassis calibration] left back steering offset: %d",
+            bottom_board_->chassis_steering_motors_[1].calibrate_zero_point());
+        RCLCPP_INFO(
+            get_logger(), "[chassis calibration] right back steering offset: %d",
+            bottom_board_->chassis_steering_motors_[2].calibrate_zero_point());
+        RCLCPP_INFO(
+            get_logger(), "[chassis calibration] right front steering offset: %d",
+            bottom_board_->chassis_steering_motors_[3].calibrate_zero_point());
     }
 
     class HeroCommand : public rmcs_executor::Component {
@@ -99,9 +110,8 @@ private:
             , gimbal_top_yaw_motor_(
                   hero, hero_command, "/gimbal/top_yaw",
                   device::LkMotor::Config{device::LkMotor::Type::MG5010E_I10}
-                      .set_encoder_zero_point(
-                          static_cast<int>(
-                              hero.get_parameter("top_yaw_motor_zero_point").as_int())))
+                      .set_encoder_zero_point(static_cast<int>(
+                          hero.get_parameter("top_yaw_motor_zero_point").as_int())))
             , gimbal_pitch_motor_(
                   hero, hero_command, "/gimbal/pitch",
                   device::LkMotor::Config{device::LkMotor::Type::MG5010E_I10}
@@ -148,31 +158,32 @@ private:
             hero.register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
             hero.register_output("/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
 
-            external_imu_thread_ = std::jthread([this, &hero](const std::stop_token& stop_token) {
-                external_imu_thread_main(
-                    stop_token, hero.get_parameter("external_imu_port").as_string(),
-                    hero.get_logger());
-            });
+            // external_imu_thread_ = std::jthread([this, &hero](const std::stop_token& stop_token)
+            // {
+            //     external_imu_thread_main(
+            //         stop_token, hero.get_parameter("external_imu_port").as_string(),
+            //         hero.get_logger());
+            // });
         }
 
         ~TopBoard() final {
             stop_handling_events();
             event_thread_.join();
-            external_imu_thread_.request_stop();
+            // external_imu_thread_.request_stop();
         }
 
         void update() {
             imu_.update_status();
             Eigen::Quaterniond gimbal_imu_pose{imu_.q0(), imu_.q1(), imu_.q2(), imu_.q3()};
 
-            if (external_imu_available_.load(std::memory_order::relaxed)) {
-                external_imu_.update_status();
-                gimbal_imu_pose.slerp(0.001, external_imu_.quaternion());
-                imu_.q0() = gimbal_imu_pose.w();
-                imu_.q1() = gimbal_imu_pose.x();
-                imu_.q2() = gimbal_imu_pose.y();
-                imu_.q3() = gimbal_imu_pose.z();
-            }
+            // if (external_imu_available_.load(std::memory_order::relaxed)) {
+            //     external_imu_.update_status();
+            //     gimbal_imu_pose.slerp(0.001, external_imu_.quaternion());
+            //     imu_.q0() = gimbal_imu_pose.w();
+            //     imu_.q1() = gimbal_imu_pose.x();
+            //     imu_.q2() = gimbal_imu_pose.y();
+            //     imu_.q3() = gimbal_imu_pose.z();
+            // }
 
             tf_->set_transform<rmcs_description::PitchLink, rmcs_description::OdomImu>(
                 gimbal_imu_pose.conjugate());
@@ -205,14 +216,15 @@ private:
             for (int i = 0; i < 4; i++)
                 batch_commands[i] = gimbal_friction_wheels_[i].generate_command();
             transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(batch_commands));
-
-            transmit_buffer_.add_can2_transmission(0x141, gimbal_pitch_motor_.generate_command());
+            transmit_buffer_.add_can1_transmission(0x141, gimbal_bullet_feeder_.generate_command());
 
             batch_commands[0] = gimbal_player_viewer_motor_.generate_command();
             batch_commands[1] = gimbal_scope_motor_.generate_command();
             batch_commands[2] = 0;
             batch_commands[3] = 0;
             transmit_buffer_.add_can2_transmission(0x1ff, std::bit_cast<uint64_t>(batch_commands));
+            transmit_buffer_.add_can2_transmission(0x141, gimbal_top_yaw_motor_.generate_command());
+            transmit_buffer_.add_can2_transmission(0x142, gimbal_pitch_motor_.generate_command());
 
             transmit_buffer_.trigger_transmission();
         }
@@ -270,30 +282,30 @@ private:
             imu_.store_gyroscope_status(x, y, z);
         }
 
-        void external_imu_thread_main(
-            const std::stop_token& stop_token, const std::string& port_name,
-            const rclcpp::Logger& logger) {
-            try {
-                serial::Serial serial{port_name, 115200, serial::Timeout::simpleTimeout(10)};
-                rmcs_utility::FpsCounter fps_counter;
+        // void external_imu_thread_main(
+        //     const std::stop_token& stop_token, const std::string& port_name,
+        //     const rclcpp::Logger& logger) {
+        //     try {
+        //         serial::Serial serial{port_name, 115200, serial::Timeout::simpleTimeout(10)};
+        //         rmcs_utility::FpsCounter fps_counter;
 
-                while (!stop_token.stop_requested()) {
-                    if (external_imu_.store_status<uint8_t>(serial) && fps_counter.count()) {
-                        bool available = fps_counter.fps() > 350.0;
-                        if (!available)
-                            RCLCPP_WARN(logger, "External IMU low FPS: %.2f", fps_counter.fps());
-                        else if (!external_imu_available_.load(std::memory_order::relaxed))
-                            RCLCPP_INFO(
-                                logger, "External IMU now available with FPS: %.2f",
-                                fps_counter.fps());
-                        external_imu_available_.store(available, std::memory_order::relaxed);
-                    }
-                }
-            } catch (const std::exception& e) {
-                external_imu_available_.store(false, std::memory_order::relaxed);
-                RCLCPP_ERROR(logger, "Exception in external IMU thread: %s", e.what());
-            }
-        }
+        //         while (!stop_token.stop_requested()) {
+        //             if (external_imu_.store_status<uint8_t>(serial) && fps_counter.count()) {
+        //                 bool available = fps_counter.fps() > 350.0;
+        //                 if (!available)
+        //                     RCLCPP_WARN(logger, "External IMU low FPS: %.2f", fps_counter.fps());
+        //                 else if (!external_imu_available_.load(std::memory_order::relaxed))
+        //                     RCLCPP_INFO(
+        //                         logger, "External IMU now available with FPS: %.2f",
+        //                         fps_counter.fps());
+        //                 external_imu_available_.store(available, std::memory_order::relaxed);
+        //             }
+        //         }
+        //     } catch (const std::exception& e) {
+        //         external_imu_available_.store(false, std::memory_order::relaxed);
+        //         RCLCPP_ERROR(logger, "Exception in external IMU thread: %s", e.what());
+        //     }
+        // }
 
         OutputInterface<rmcs_description::Tf>& tf_;
 
@@ -316,9 +328,9 @@ private:
         librmcs::client::CBoard::TransmitBuffer transmit_buffer_;
         std::thread event_thread_;
 
-        rmcs_core::hardware::device::Hipnuc external_imu_;
-        std::atomic<bool> external_imu_available_ = false;
-        std::jthread external_imu_thread_;
+        // rmcs_core::hardware::device::Hipnuc external_imu_;
+        // std::atomic<bool> external_imu_available_ = false;
+        // std::jthread external_imu_thread_;
     };
 
     class BottomBoard final : private librmcs::client::CBoard {
@@ -372,9 +384,9 @@ private:
             , gimbal_bottom_yaw_motor_(
                   hero, hero_command, "/gimbal/bottom_yaw",
                   device::LkMotor::Config{device::LkMotor::Type::MG5010E_I10}
-                      .set_encoder_zero_point(
-                          static_cast<int>(
-                              hero.get_parameter("bottom_yaw_motor_zero_point").as_int())))
+                      .set_reversed()
+                      .set_encoder_zero_point(static_cast<int>(
+                          hero.get_parameter("bottom_yaw_motor_zero_point").as_int())))
             , transmit_buffer_(*this, 32)
             , event_thread_([this]() { handle_events(); }) {
 
@@ -433,7 +445,7 @@ private:
             // This approach currently works only on Hero, as it utilizes motor angular velocity
             // instead of gyro angular velocity for closed-loop control.
             transmit_buffer_.add_can2_transmission(
-                0x141, gimbal_bottom_yaw_motor_.generate_velocity_command(
+                0x142, gimbal_bottom_yaw_motor_.generate_velocity_command(
                            gimbal_bottom_yaw_motor_.control_velocity() - imu_.gz()));
 
             transmit_buffer_.trigger_transmission();
@@ -473,7 +485,7 @@ private:
                 chassis_steering_motors_[2].store_status(can_data);
             } else if (can_id == 0x208) {
                 chassis_steering_motors_[3].store_status(can_data);
-            } else if (can_id == 0x141) {
+            } else if (can_id == 0x142) {
                 gimbal_bottom_yaw_motor_.store_status(can_data);
             }
         }
