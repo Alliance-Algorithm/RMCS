@@ -25,11 +25,7 @@ public:
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , translational_velocity_pid_calculator_(100.0, 0.0, 0.0)
-        , angular_velocity_pid_calculator_(100.0, 0.0, 0.0)
-        , front_left_wheel_pid_(0.185, 0.0, 0.0)
-        , front_right_wheel_pid_(0.185, 0.0, 0.0)
-        , back_left_wheel_pid_(0.185, 0.0, 0.0)
-        , back_right_wheel_pid_(0.185, 0.0, 0.0){
+        , angular_velocity_pid_calculator_(100.0, 0.0, 0.0){
 
         register_input("/chassis/left_front_wheel/max_torque", wheel_motor_max_control_torque_);
 
@@ -92,8 +88,9 @@ public:
     }
 private:    
     void update_wheel_velocities(Eigen::Vector2d control_velocity_) {
-        if (control_velocity_.norm() > 1.0)
-        control_velocity_.normalize();
+        if (control_velocity_.norm() > 1.0){
+            control_velocity_.normalize();
+        }
     
         double right_oblique = velocity_limit * (-control_velocity_.y() * cos_45 + control_velocity_.x() * sin_45);
         double left_oblique  = velocity_limit * (control_velocity_.x() * cos_45 + control_velocity_.y() * sin_45);
@@ -104,12 +101,7 @@ private:
         *right_back_control_velocity_  = velocities[2];
         *right_front_control_velocity_ = velocities[3];
 
-        if (*mode_== rmcs_msgs::ChassisMode::LAUNCH_RAMP) {
-            *left_front_control_velocity_ = front_left_wheel_pid_.update(*left_front_velocity_-*left_front_control_velocity_);
-            *left_back_control_velocity_ = back_left_wheel_pid_.update(*left_back_velocity_-*left_back_control_velocity_);
-            *right_front_control_velocity_ = front_right_wheel_pid_.update(*right_front_velocity_-*right_front_control_velocity_);
-            *right_back_control_velocity_ = back_right_wheel_pid_.update(*right_back_velocity_-*right_back_control_velocity_);
-        } 
+
     }
 private:
     auto calculate_best_control_torque(const double (&wheel_velocities)[4])
@@ -454,10 +446,7 @@ private:
     OutputInterface<double> right_back_control_velocity_;
     OutputInterface<double> right_front_control_velocity_;
 
-    pid::PidCalculator front_left_wheel_pid_;
-    pid::PidCalculator front_right_wheel_pid_;
-    pid::PidCalculator back_left_wheel_pid_;
-    pid::PidCalculator back_right_wheel_pid_;
+
 };
 
 } // namespace rmcs_core::controller::chassis

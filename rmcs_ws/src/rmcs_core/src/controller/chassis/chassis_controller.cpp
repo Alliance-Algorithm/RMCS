@@ -76,7 +76,7 @@ public:
 
         auto_spin_enable_ = get_parameter("auto_spin").as_bool();
 
-        speed_mode_ = false;
+        speed_mode_ = get_parameter("speed_mode_").as_bool();
     }
 
     void before_updating() override {
