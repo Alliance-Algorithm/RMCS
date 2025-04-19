@@ -68,7 +68,7 @@ public:
         auto current_mode = *mode_;
 
         if (current_mode == rmcs_msgs::ChassisMode::LAUNCH_RAMP) {
-            Eigen::Vector2d translational_control_velocity = control_velocity_->vector.head<3>();
+            Eigen::Vector3d translational_control_velocity = control_velocity_->vector.head<3>();
             update_wheel_velocities(translational_control_velocity);
             RCLCPP_INFO(get_logger(), "Speed control mode active, skipping torque calculation.");
         }
