@@ -48,10 +48,10 @@ hero_hardware:
     top_yaw_motor_zero_point: 3106
     pitch_motor_zero_point: 24759
     external_imu_port: /dev/ttyUSB0
-    left_front_zero_point: 2753
-    left_back_zero_point: 4732
-    right_back_zero_point: 2790
-    right_front_zero_point: 4036
+    left_front_zero_point: 2728
+    left_back_zero_point: 4757
+    right_back_zero_point: 6832
+    right_front_zero_point: 7
 
 gimbal_controller:
   ros__parameters:
@@ -65,9 +65,9 @@ top_yaw_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/top_yaw/control_angle_error
     control: /gimbal/top_yaw/control_velocity
-    kp: 8.0
+    kp: 14.5
     ki: 0.0
-    kd: 0.0
+    kd: 1.9
 
 bottom_yaw_angle_pid_controller:
   ros__parameters:
@@ -171,7 +171,7 @@ left_front_steering_angle_pid_controller:
   ros__parameters:
     measurement: /chassis/left_front_steering/control_angle_error
     control: /chassis/left_front_steering/control_velocity
-    kp: 0.00
+    kp: 30.00
     ki: 0.00
     kd: 0.00    
 
@@ -179,7 +179,7 @@ left_back_steering_angle_pid_controller:
   ros__parameters:
     measurement: /chassis/left_back_steering/control_angle_error
     control: /chassis/left_back_steering/control_velocity
-    kp: 0.00
+    kp: 5.00
     ki: 0.00
     kd: 0.00    
 
@@ -187,26 +187,26 @@ right_back_steering_angle_pid_controller:
   ros__parameters:
     measurement: /chassis/right_back_steering/control_angle_error
     control: /chassis/right_back_steering/control_velocity
-    kp: 0.00
+    kp: 5.00
     ki: 0.00
-    kd: 0.00    
+    kd: 0.00     
 
 right_front_steering_angle_pid_controller:
   ros__parameters:
     measurement: /chassis/right_front_steering/control_angle_error
     control: /chassis/right_front_steering/control_velocity
-    kp: 0.00
+    kp: 5.00
     ki: 0.00
-    kd: 0.00    
+    kd: 0.00      
 
 left_front_steering_velocity_pid_controller:
   ros__parameters:
     measurement: /chassis/left_front_steering/velocity
     setpoint: /chassis/left_front_steering/control_velocity
     control: /chassis/left_front_steering/control_torque
-    kp: 0.00
+    kp: 0.15
     ki: 0.00
-    kd: 0.00    
+    kd: 0.00     
 
 left_back_steering_velocity_pid_controller:
   ros__parameters:
@@ -222,7 +222,7 @@ right_back_steering_velocity_pid_controller:
     measurement: /chassis/right_back_steering/velocity
     setpoint: /chassis/right_back_steering/control_velocity
     control: /chassis/right_back_steering/control_torque
-    kp: 0.00
+    kp: 0.20
     ki: 0.00
     kd: 0.00    
 
@@ -231,7 +231,7 @@ right_front_steering_velocity_pid_controller:
     measurement: /chassis/right_front_steering/velocity
     setpoint: /chassis/right_front_steering/control_velocity
     control: /chassis/right_front_steering/control_torque
-    kp: 0.00
+    kp: 0.20
     ki: 0.00
     kd: 0.00    
 

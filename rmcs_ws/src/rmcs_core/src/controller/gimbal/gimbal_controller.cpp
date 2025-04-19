@@ -173,9 +173,6 @@ private:
                                  : *gimbal_yaw_angle_[0];
         if (std::abs(*yaw_angle_error_[1]) < 0.01)
             *yaw_angle_error_[1] = 0.;
-        // RCLCPP_INFO(
-        //     get_logger(), "yaw_angle_error_:%f,bottom yaw;%f", *yaw_angle_error_[1],
-        //     *gimbal_yaw_angle_[1]);
     }
 
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();

@@ -372,13 +372,11 @@ private:
                        .set_reversed()
                        .set_reduction_ratio(13.)},
                   {hero, hero_command, "/chassis/right_back_wheel",
-                   device::DjiMotor::Config{device::DjiMotor::Type::M3508}
-                       .set_reversed()
-                       .set_reduction_ratio(13.)},
+                   device::DjiMotor::Config{device::DjiMotor::Type::M3508}.set_reduction_ratio(
+                       13.)},
                   {hero, hero_command, "/chassis/right_front_wheel",
-                   device::DjiMotor::Config{device::DjiMotor::Type::M3508}
-                       .set_reversed()
-                       .set_reduction_ratio(13.)})
+                   device::DjiMotor::Config{device::DjiMotor::Type::M3508}.set_reduction_ratio(
+                       13.)})
             , supercap_(hero, hero_command)
             // TODO: change bottom yaw motor name prefix
             , gimbal_bottom_yaw_motor_(
