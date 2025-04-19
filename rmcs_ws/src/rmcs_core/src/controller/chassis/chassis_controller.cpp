@@ -65,14 +65,6 @@ public:
         register_output(
             "/chassis/supercap/voltage/dead_line", supercap_voltage_dead_line_,
             supercap_voltage_dead_line);
-        register_output(
-                "/chassis/left_front_wheel/control_velocity", left_front_control_velocity_, nan);
-        register_output(
-                "/chassis/left_back_wheel/control_velocity", left_back_control_velocity_, nan);
-        register_output(
-                "/chassis/right_back_wheel/control_velocity", right_back_control_velocity_, nan);
-        register_output(
-                "/chassis/right_front_wheel/control_velocity", right_front_control_velocity_, nan);
 
         auto_spin_enable_ = get_parameter("auto_spin").as_bool();
 
@@ -185,11 +177,6 @@ public:
         *chassis_control_velocity_ = {nan, nan, nan};
 
         speed_mode_ = false;
-
-        *left_front_control_velocity_ = nan;
-        *left_back_control_velocity_ = nan;
-        *right_back_control_velocity_ = nan;
-        *right_front_control_velocity_ = nan;
 
         *supercap_control_enabled_    = false;
         *supercap_charge_power_limit_ = 0.0;
@@ -437,10 +424,6 @@ private:
     OutputInterface<double> supercap_voltage_dead_line_;
 
     bool speed_mode_;
-    OutputInterface<double> left_front_control_velocity_;
-    OutputInterface<double> left_back_control_velocity_;
-    OutputInterface<double> right_back_control_velocity_;
-    OutputInterface<double> right_front_control_velocity_;
 
 };
 
