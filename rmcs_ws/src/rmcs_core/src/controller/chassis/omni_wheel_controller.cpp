@@ -68,7 +68,7 @@ public:
         auto current_mode = *mode_;
 
         if (current_mode == rmcs_msgs::ChassisMode::LAUNCH_RAMP) {
-            Eigen::Vector2d translational_control_velocity = control_velocity_->vector.head<2>();
+            Eigen::Vector2d translational_control_velocity = control_velocity_->vector.head<3>();
             update_wheel_velocities(translational_control_velocity);
             RCLCPP_INFO(get_logger(), "Speed control mode active, skipping torque calculation.");
         }
@@ -87,21 +87,19 @@ public:
         }
     }
 private:    
-    void update_wheel_velocities(Eigen::Vector2d control_velocity_) {
+    void update_wheel_velocities(Eigen::Vector3d control_velocity_) {
         if (control_velocity_.norm() > 1.0){
             control_velocity_.normalize();
         }
     
-        double right_oblique = velocity_limit * (-control_velocity_.y() * cos_45 + control_velocity_.x() * sin_45);
-        double left_oblique  = velocity_limit * (control_velocity_.x() * cos_45 + control_velocity_.y() * sin_45);
+        double right_oblique = velocity_limit * (-control_velocity_.y() * cos_45 + control_velocity_.x() * sin_45 - chassis_radius_*control_velocity_.z());
+        double left_oblique  = velocity_limit * (control_velocity_.x() * cos_45 + control_velocity_.y() * sin_45 + chassis_radius_*control_velocity_.z());
         double velocities[4] = {right_oblique, left_oblique, -right_oblique, -left_oblique};
     
         *left_front_control_velocity_  = velocities[0];
         *left_back_control_velocity_   = velocities[1];
         *right_back_control_velocity_  = velocities[2];
         *right_front_control_velocity_ = velocities[3];
-
-
     }
 private:
     auto calculate_best_control_torque(const double (&wheel_velocities)[4])
