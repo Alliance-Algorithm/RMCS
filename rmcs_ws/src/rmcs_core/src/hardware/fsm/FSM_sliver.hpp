@@ -95,7 +95,7 @@ public:
             [this](const Auto_Sliver_Event& event, const Auto_Sliver_Context& context) {
                 if (event == Auto_Sliver_Event::Up) {
                     std::array<double, 6> result_ =
-                        rmcs_core::hardware::device::Kinematic::inverse_kinematic(
+                        rmcs_core::hardware::device::Kinematic::arm_inverse_kinematic(
                             lift_mine.trajectory());
                     result_[3] = std::numbers::pi;
                     result_[5] = 0;

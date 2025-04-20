@@ -46,7 +46,7 @@ public:
             Auto_Gold_State::Lift, Auto_Gold_Event::Up,
             [this](const Auto_Gold_Event& event, const Auto_Gold_Context& context) {
                 if (event == Auto_Gold_Event::Up) {
-                      std::array<double,6> result_ = rmcs_core::hardware::device::Kinematic::inverse_kinematic(
+                      std::array<double,6> result_ = rmcs_core::hardware::device::Kinematic::arm_inverse_kinematic(
                         lift_mine.trajectory());
                         result_[3] = std::numbers::pi;
                         result_[5] = 0;

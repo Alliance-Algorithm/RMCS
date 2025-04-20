@@ -6,6 +6,7 @@
 #include "hardware/device/lk_motor.hpp"
 #include "hardware/forwarder/cboard.hpp"
 #include "hardware/ring_buffer.hpp"
+#include "librmcs/device/bmi088.hpp"
 #include <bitset>
 #include <cmath>
 #include <cstddef>
@@ -87,7 +88,7 @@ private:
             , dr16_(engineer)
             , transmit_buffer_(*this, 32)
             , event_thread_([this]() { handle_events(); })
-
+            , bmi088_(1000, 0.2, 0)
             , big_yaw(engineer, engineer_command, "/chassis/big_yaw")
 
         {
@@ -108,6 +109,9 @@ private:
             engineer_command.register_input("/arm/enable_flag", is_arm_enable_);
             engineer_command.register_input(
                 "/chassis_and_leg/enable_flag", is_chassis_and_leg_enable_);
+
+            engineer.register_output("yaw_imu_velocity", yaw_imu_velocity,NAN);
+            engineer.register_output("yaw_imu_angle",yaw_imu_angle,NAN);
 
             using namespace device;
             joint[5].configure_joint(
@@ -152,7 +156,12 @@ private:
                         static_cast<int>(engineer.get_parameter("joint3_zero_point").as_int()))
                     .reverse());
 
-            big_yaw.configure(DMMotorConfig{DMMotorType::DM8009});
+            big_yaw.configure(
+                DMMotorConfig{DMMotorType::DM8009}.set_encoder_zero_point(
+                    static_cast<int>(engineer.get_parameter("big_yaw_zero_point").as_int())));
+            bmi088_.set_coordinate_mapping([](double x, double y, double z) {
+                return std::make_tuple(-x, -y, z);
+            });
         }
         ~ArmBoard() final {
             stop_handling_events();
@@ -162,7 +171,7 @@ private:
         void update() {
             update_arm_motors();
             dr16_.update();
-
+            update_imu();
             // vision.pop_front_multi()
         }
         void command() {
@@ -282,21 +291,22 @@ private:
                         std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
                 }
             }
-
+            uint64_t command_1;
             if (counter % 2 == 0) {
                 if (is_chassis_and_leg_enable && big_yaw.get_state() != 0
                     && big_yaw.get_state() != 1) {
-                    command_ = big_yaw.dm_clear_error_command();
+                        command_1 = big_yaw.dm_clear_error_command();
                 } else if (!is_chassis_and_leg_enable) {
-                    command_ = big_yaw.dm_close_command();
+                    command_1 = big_yaw.dm_close_command();
                 } else if (is_chassis_and_leg_enable && big_yaw.get_state() == 0) {
-                    command_ = big_yaw.dm_enable_command();
+                    command_1 = big_yaw.dm_enable_command();
 
                 } else {
-                    command_ = big_yaw.generate_torque_command();
+                    command_1 = big_yaw.generate_torque_command();
                 }
-                transmit_buffer_.add_can1_transmission(
-                    (0x9), std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+
+                transmit_buffer_.add_can2_transmission(
+                    (0x3), std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_1})));
             }
 
             //----------------------------------------------------------------//
@@ -321,9 +331,6 @@ private:
             joint[0].update_joint();
 
             big_yaw.update();
-
-            // RCLCPP_INFO(this->get_logger(),"%f
-            // %f",joint[2].get_theta(),joint3_encoder.get_raw_angle());
         }
         static double normalizeAngle(double angle) {
 
@@ -332,6 +339,14 @@ private:
             while (angle < -M_PI)
                 angle += 2 * M_PI;
             return angle;
+        }
+        void update_imu() {
+            bmi088_.update_status();
+
+            *yaw_imu_velocity = bmi088_.gz();
+            *yaw_imu_angle = std::atan2(
+                2.0 * (bmi088_.q0() * bmi088_.q3() + bmi088_.q1() * bmi088_.q2()),
+                1.0 - 2.0 * (bmi088_.q2() * bmi088_.q2() + bmi088_.q3() * bmi088_.q3()));
         }
 
     protected:
@@ -346,6 +361,9 @@ private:
                 joint[4].store_status(can_data);
             if (can_id == 0x144)
                 joint[3].store_status(can_data);
+            if (can_id == 0x33){             
+                big_yaw.store_status(can_data);
+            }
         }
         void can1_receive_callback(
             uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
@@ -362,8 +380,6 @@ private:
                 joint3_encoder.store_status(can_data);
             if (can_id == 0x1fb)
                 joint2_encoder.store_status(can_data);
-            if (can_id == 0x19)
-                big_yaw.store_status(can_data);
         }
 
         void dbus_receive_callback(const std::byte* uart_data, uint8_t uart_data_length) override {
@@ -407,6 +423,13 @@ private:
                     }
                 }
         }
+        void accelerometer_receive_callback(int16_t x, int16_t y, int16_t z) override {
+            bmi088_.store_accelerometer_status(x, y, z);
+        }
+
+        void gyroscope_receive_callback(int16_t x, int16_t y, int16_t z) override {
+            bmi088_.store_gyroscope_status(x, y, z);
+        }
 
     private:
         OutputInterface<double> joint6_error_angle;
@@ -432,9 +455,13 @@ private:
         device::Dr16 dr16_;
         librmcs::client::CBoard::TransmitBuffer transmit_buffer_;
         std::thread event_thread_;
-
         librmcs::utility::RingBuffer<std::byte> vision{39};
         bool last_is_arm_enable_ = true;
+
+        librmcs::device::Bmi088 bmi088_;
+
+        OutputInterface<double> yaw_imu_velocity;
+        OutputInterface<double> yaw_imu_angle;
 
         device::DMMotor big_yaw;
 
@@ -487,13 +514,14 @@ private:
                 device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(
                     18.2));
             Wheel_motors[2].configure(
-                device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(
-                    18.2));
+                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(18.2));
             Wheel_motors[3].configure(
-                device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(
-                    18.2));
+                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(18.2));
         }
         ~SteeringBoard() final {
+            uint16_t command[4];
+            transmit_buffer_.add_can2_transmission(0x1FE, std::bit_cast<uint64_t>(command));
+            transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(command));
             stop_handling_events();
             event_thread_.join();
         }
@@ -504,20 +532,21 @@ private:
             for (auto& motor : Wheel_motors) {
                 motor.update();
             }
+            // RCLCPP_INFO(this->get_logger(),"gs");
         }
         void command() {
             uint16_t command[4];
-            // command[0] = Steering_motors[0].generate_command();
-            // command[1] = Steering_motors[3].generate_command();
-            // command[2] = Steering_motors[2].generate_command();
-            // command[3] = Steering_motors[1].generate_command();
-            // transmit_buffer_.add_can2_transmission(0x1FE, std::bit_cast<uint64_t>(command));
-            // command[0] = Wheel_motors[0].generate_command();
-            // command[1] = Wheel_motors[3].generate_command();
-            // command[2] = Wheel_motors[2].generate_command();
-            // command[3] = Wheel_motors[1].generate_command();
-            // transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(command));
-            
+            command[0] = Steering_motors[0].generate_command();
+            command[1] = Steering_motors[3].generate_command();
+            command[2] = Steering_motors[2].generate_command();
+            command[3] = Steering_motors[1].generate_command();
+            transmit_buffer_.add_can2_transmission(0x1FE, std::bit_cast<uint64_t>(command));
+            command[0] = Wheel_motors[1].generate_command();
+            command[1] = Wheel_motors[3].generate_command();
+            command[2] = Wheel_motors[2].generate_command();
+            command[3] = Wheel_motors[0].generate_command();
+            transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(command));
+            transmit_buffer_.trigger_transmission();
         }
 
     protected:
@@ -538,8 +567,6 @@ private:
             if (can_id == 0x206) {
                 Steering_motors[3].store_status(can_data);
             }
-            RCLCPP_INFO(this->get_logger(),"%x",can_id);
-
         }
         void can1_receive_callback(
             uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
@@ -581,7 +608,7 @@ private:
             , event_thread_([this]() { handle_events(); })
             , Omni_Motors(
                   {engineer, engineer_command, "/leg/omni/l"},
-                  {engineer, engineer_command, "/leg/omni/f"})
+                  {engineer, engineer_command, "/leg/omni/r"})
             , Leg_Motors(
                   {engineer, engineer_command, "/leg/joint/lf"},
                   {engineer, engineer_command, "/leg/joint/lb"},
@@ -631,7 +658,16 @@ private:
                 ecd.update();
             }
         }
-        void command() {}
+        void command() {
+            uint8_t command[8];
+            command[0] = 1;
+            command[1] = 1;
+            command[2] = 1;
+            command[3] = 1;
+            command[4] = 1;
+            transmit_buffer_.add_can2_transmission(0x306, std::bit_cast<uint64_t>(command));
+            transmit_buffer_.trigger_transmission();
+        }
 
     protected:
         void can2_receive_callback(
@@ -657,7 +693,6 @@ private:
             if (can_id == 0x204) {
                 Omni_Motors[0].store_status(can_data);
             }
-
         }
         void can1_receive_callback(
             uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
@@ -665,7 +700,7 @@ private:
 
             if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
                 return;
-          
+
             if (can_id == 0x017) {
                 Leg_ecd[3].store_status(can_data);
             }
@@ -678,8 +713,6 @@ private:
             if (can_id == 0x13) {
                 Leg_ecd[2].store_status(can_data);
             }
-
-
         }
 
     private:

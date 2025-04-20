@@ -7,8 +7,7 @@ namespace rmcs_msgs {
 enum class ChassisMode : uint8_t {
     SPIN,
     Four_Wheel_Normal_Move,        
-    Six_Wheel_Normal_Move,   
-    Flowing, 
+    Six_Wheel_Normal_Move,    
     Yaw_Free,
 };
 

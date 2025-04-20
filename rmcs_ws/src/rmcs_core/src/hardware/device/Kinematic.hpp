@@ -93,7 +93,7 @@ public:
         return in_degrees ? pitch * (180.0 / M_PI) : pitch;
     }
 
-    static std::array<double, 6> inverse_kinematic(std::array<double, 6> xyz_rpy) {
+    static std::array<double, 6> arm_inverse_kinematic(std::array<double, 6> xyz_rpy) {
         double theta1, theta2, theta3 = 0.0, theta4, theta5, theta6;
         // static double L_fake = sqrt(*link_length3 * (*link_length3) + *link_length4 *
         // (*link_length4));

@@ -71,7 +71,7 @@ public:
 
         status_component.register_output(name_prefix + "/motor", motor_, this);
 
-        // command_component.register_input(name_prefix + "/control_torque", control_torque_);
+        command_component.register_input(name_prefix + "/control_torque", control_torque_);
     }
     DjiMotor(const DjiMotor&)            = delete;
     DjiMotor& operator=(const DjiMotor&) = delete;

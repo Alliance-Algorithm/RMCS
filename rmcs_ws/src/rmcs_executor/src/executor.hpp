@@ -76,6 +76,11 @@ private:
             component->dependency_count_ = 0;
             component->wanted_by_.clear();
             for (auto& output : component->output_list_) {
+                // RCLCPP_INFO(
+                //     this->get_logger(),
+                //     "%s: %s\n",
+                //     component->get_component_name().c_str(),
+                //     output.name.c_str());
                 if (!output_map.emplace(output.name, &output).second)
                     throw std::runtime_error{"Duplicate names of output"};
                 user_output_map.emplace(output.name, output.type);

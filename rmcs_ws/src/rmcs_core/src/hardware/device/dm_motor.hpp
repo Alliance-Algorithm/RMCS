@@ -136,7 +136,6 @@ public:
         }
         torque           = std::clamp(torque, -TMAX, TMAX);
         uint16_t tor_tmp = double_to_uint(torque, -TMAX, TMAX, 12);
-
         uint8_t tx_buff[8] = {0, 0, 0, 0, 0, 0, 0, 0};
         tx_buff[6]         = ((0 & 0xf) << 4) | (tor_tmp >> 8);
         tx_buff[7]         = tor_tmp;
