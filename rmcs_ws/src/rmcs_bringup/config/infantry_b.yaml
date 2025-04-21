@@ -19,13 +19,11 @@ rmcs_executor:
       - rmcs_core::controller::chassis::ChassisController -> chassis_controller
 
       - rmcs_core::controller::chassis::OmniWheelController -> omni_wheel_controller
-
       - rmcs_core::controller::pid::PidController ->left_front_wheel_velocity_pid_controller
       - rmcs_core::controller::pid::PidController ->left_back_wheel_velocity_pid_controller
       - rmcs_core::controller::pid::PidController ->right_back_wheel_velocity_pid_controller
       - rmcs_core::controller::pid::PidController ->right_front_wheel_velocity_pid_controller
       
-
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 
       - rmcs_core::referee::command::Interaction -> referee_interaction
@@ -45,6 +43,7 @@ infantry_hardware:
     yaw_motor_zero_point: 3387
     pitch_motor_zero_point: 6716
     cboard_init_q_w: 0.0
+
     cboard_init_q_x: 0.0
     cboard_init_q_y: 0.0
     cboard_init_q_z: 1.0
@@ -155,7 +154,7 @@ left_front_wheel_velocity_pid_controller:
   ros__parameters:
     measurement: /chassis/left_front_wheel/velocity
     setpoint: /chassis/left_front_wheel/control_velocity
-    control: /chassis/left_front_wheel/control_torque
+    control: /chassis/left_front_wheel/control_torque_unrestricted
     kp: 0.185
     ki: 0.00
     kd: 0.00
@@ -164,7 +163,7 @@ left_back_wheel_velocity_pid_controller:
   ros__parameters:
     measurement: /chassis/left_back_wheel/velocity
     setpoint: /chassis/left_back_wheel/control_velocity
-    control: /chassis/left_back_wheel/control_torque
+    control: /chassis/left_back_wheel/control_torque_unrestricted
     kp: 0.185
     ki: 0.00
     kd: 0.00
@@ -173,7 +172,7 @@ right_back_wheel_velocity_pid_controller:
   ros__parameters:
     measurement: /chassis/right_back_wheel/velocity
     setpoint: /chassis/right_back_wheel/control_velocity
-    control: /chassis/right_back_wheel/control_torque
+    control: /chassis/right_back_wheel/control_torque_unrestricted
     kp: 0.185
     ki: 0.00
     kd: 0.00
@@ -182,7 +181,7 @@ right_front_wheel_velocity_pid_controller:
   ros__parameters:
     measurement: /chassis/right_front_wheel/velocity
     setpoint: /chassis/right_front_wheel/control_velocity
-    control: /chassis/right_front_wheel/control_torque
+    control: /chassis/right_front_wheel/control_torque_unrestricted
     kp: 0.185
     ki: 0.00
     kd: 0.00
@@ -199,7 +198,7 @@ chassis_controller:
   ros__parameters:  
     auto_spin: false
     speed_mode_: false
-    
+    mode: false
 auto_aim_controller:
   ros__parameters:
     # capture

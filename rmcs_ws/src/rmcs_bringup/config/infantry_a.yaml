@@ -19,7 +19,6 @@ rmcs_executor:
       - rmcs_core::controller::chassis::ChassisController -> chassis_controller
 
       - rmcs_core::controller::chassis::OmniWheelController -> omni_wheel_controller
-
       - rmcs_core::controller::pid::PidController ->left_front_wheel_velocity_pid_controller
       - rmcs_core::controller::pid::PidController ->left_back_wheel_velocity_pid_controller
       - rmcs_core::controller::pid::PidController ->right_back_wheel_velocity_pid_controller
@@ -138,7 +137,7 @@ left_front_wheel_velocity_pid_controller:
   ros__parameters:
     measurement: /chassis/left_front_wheel/velocity
     setpoint: /chassis/left_front_wheel/control_velocity
-    control: /chassis/left_front_wheel/control_torque
+    control: /chassis/left_front_wheel/control_torque_unrestricted
     kp: 0.185
     ki: 0.00
     kd: 0.00
@@ -147,7 +146,7 @@ left_back_wheel_velocity_pid_controller:
   ros__parameters:
     measurement: /chassis/left_back_wheel/velocity
     setpoint: /chassis/left_back_wheel/control_velocity
-    control: /chassis/left_back_wheel/control_torque
+    control: /chassis/left_back_wheel/control_torque_unrestricted
     kp: 0.185
     ki: 0.00
     kd: 0.00
@@ -156,7 +155,7 @@ right_back_wheel_velocity_pid_controller:
   ros__parameters:
     measurement: /chassis/right_back_wheel/velocity
     setpoint: /chassis/right_back_wheel/control_velocity
-    control: /chassis/right_back_wheel/control_torque
+    control: /chassis/right_back_wheel/control_torque_unrestricted
     kp: 0.185
     ki: 0.00
     kd: 0.00
@@ -165,7 +164,7 @@ right_front_wheel_velocity_pid_controller:
   ros__parameters:
     measurement: /chassis/right_front_wheel/velocity
     setpoint: /chassis/right_front_wheel/control_velocity
-    control: /chassis/right_front_wheel/control_torque
+    control: /chassis/right_front_wheel/control_torque_unrestricted
     kp: 0.185
     ki: 0.00
     kd: 0.00
