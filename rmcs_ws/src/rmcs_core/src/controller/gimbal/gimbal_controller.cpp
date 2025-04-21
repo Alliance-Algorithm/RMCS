@@ -183,8 +183,6 @@ private:
     InputInterface<Eigen::Vector2d> mouse_velocity_;
     InputInterface<rmcs_msgs::Mouse> mouse_;
 
-    // InputInterface<double> gimbal_top_yaw_angle_;
-    // InputInterface<double> gimbal_bottom_yaw_angle_;
     std::unique_ptr<InputInterface<double>[]> gimbal_yaw_angle_;
 
     InputInterface<Tf> tf_;
