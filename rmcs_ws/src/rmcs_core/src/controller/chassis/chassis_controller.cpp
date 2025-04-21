@@ -306,8 +306,8 @@ private:
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
     // Maximum control velocities
-    static constexpr double translational_velocity_max = 2.0;
-    static constexpr double angular_velocity_max       = 10.0;
+    static constexpr double translational_velocity_max = 4.5;
+    static constexpr double angular_velocity_max       = 4.5;
 
     // Maximum excess power when buffer energy is sufficient.
     static constexpr double excess_power_limit = 35;

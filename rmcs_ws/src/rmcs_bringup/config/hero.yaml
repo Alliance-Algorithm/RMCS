@@ -202,7 +202,7 @@ right_front_steering_angle_pid_controller:
     control: /chassis/right_front_steering/control_velocity
     kp: 15.00
     ki: 0.00
-    kd: 0.00      
+    kd: 0.00     
 
 left_front_steering_velocity_pid_controller:
   ros__parameters:
@@ -236,7 +236,7 @@ right_front_steering_velocity_pid_controller:
     measurement: /chassis/right_front_steering/velocity
     setpoint: /chassis/right_front_steering/control_velocity
     control: /chassis/right_front_steering/control_torque
-    kp: 0.10
+    kp: 0.15
     ki: 0.00
     kd: 0.00    
 

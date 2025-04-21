@@ -42,10 +42,6 @@ public:
     void update() override {
         auto err  = *setpoint_ - *measurement_;
         *control_ = pid_calculator_.update(err);
-
-        if (get_component_name() == "right_back_wheel_velocity_pid_controller") {
-            RCLCPP_INFO(get_logger(), "set:%f,mea:%f,con:%f", *setpoint_, *measurement_, *control_);
-        }
     }
 
 private:
