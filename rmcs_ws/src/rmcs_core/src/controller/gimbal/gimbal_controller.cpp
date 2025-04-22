@@ -47,10 +47,10 @@ public:
         for (size_t i = 0; i < gimbal_yaw_motors_count_; i++) {
             register_input(gimbal_yaw_motors[i] + "/angle", gimbal_yaw_angle_[i]);
             register_output(
-                gimbal_yaw_motors[i] + "/control_angle_error", yaw_angle_error_[i], nan);
+                gimbal_yaw_motors[i] + "/control_angle_error", yaw_angle_error_[i], nan_);
         }
 
-        register_output("/gimbal/pitch/control_angle_error", pitch_angle_error_, nan);
+        register_output("/gimbal/pitch/control_angle_error", pitch_angle_error_, nan_);
     }
 
     void update() override {
@@ -96,8 +96,8 @@ private:
     void reset_all_controls() {
         control_enabled = false;
         for (size_t i = 0; i < gimbal_yaw_motors_count_; i++)
-            *yaw_angle_error_[i] = nan;
-        *pitch_angle_error_ = nan;
+            *yaw_angle_error_[i] = nan_;
+        *pitch_angle_error_ = nan_;
     }
 
     void update_auto_aim_control_direction(PitchLink::DirectionVector& dir) {
@@ -168,14 +168,30 @@ private:
             -std::atan2(z * cp * cp - x * cp * sp + sp * b, -z * cp * sp + x * sp * sp + cp * b);
         *yaw_angle_error_[0] = std::atan2(y, a);
 
-        *yaw_angle_error_[1] = (*gimbal_yaw_angle_[0] > std::numbers::pi)
-                                 ? *gimbal_yaw_angle_[0] - 2 * std::numbers::pi
-                                 : *gimbal_yaw_angle_[0];
+        *yaw_angle_error_[1] = update_bottom_yaw_angle_error();
+
         if (std::abs(*yaw_angle_error_[1]) < 0.01)
             *yaw_angle_error_[1] = 0.;
     }
 
-    static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
+    double update_bottom_yaw_angle_error() {
+        double top_yaw_control_angle = *yaw_angle_error_[0];
+        if (top_yaw_control_angle < 0)
+            top_yaw_control_angle += 2 * std::numbers::pi;
+
+        double err = top_yaw_control_angle + *gimbal_yaw_angle_[0];
+        if (err > 2 * std::numbers::pi)
+            err -= 2 * std::numbers::pi;
+        // err: [0, 2pi) -> signed
+
+        if (err > alignment_ / 2)
+            err -= alignment_;
+
+        return err;
+    }
+
+    static constexpr double nan_       = std::numeric_limits<double>::quiet_NaN();
+    static constexpr double alignment_ = 2 * std::numbers::pi;
 
     InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;

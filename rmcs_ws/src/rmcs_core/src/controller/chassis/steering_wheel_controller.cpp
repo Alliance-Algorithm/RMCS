@@ -120,25 +120,27 @@ private:
         translational_control_velocity =
             Eigen::Vector2d{control_velocity.x(), control_velocity.y()};
 
-        if (!std::isnan(control_velocity.z())) {
-            angular_control_velocity = control_velocity.z();
+        if (!std::isnan(control_velocity_->vector.z())) {
+            angular_control_velocity = control_velocity_->vector.z();
+        } else {
+            angular_control_velocity = 0.;
         }
 
         return result;
     }
 
     void update_control_torque_and_angle(
-        const std::array<Eigen::Vector2d, 4> vector, const Eigen::Vector2d& move) {
+        const std::array<Eigen::Vector2d, 4>& vector, const Eigen::Vector2d& move) {
 
         Eigen::Vector2d lf_wheel_vector = vector[0];
         Eigen::Vector2d lb_wheel_vector = vector[1];
         Eigen::Vector2d rb_wheel_vector = vector[2];
         Eigen::Vector2d rf_wheel_vector = vector[3];
 
-        Eigen::Vector2d lf_steering_vector = vector[0];
-        Eigen::Vector2d lb_steering_vector = vector[1];
-        Eigen::Vector2d rb_steering_vector = vector[2];
-        Eigen::Vector2d rf_steering_vector = vector[3];
+        Eigen::Vector2d lf_steering_vector = lf_wheel_vector;
+        Eigen::Vector2d lb_steering_vector = lb_wheel_vector;
+        Eigen::Vector2d rb_steering_vector = rb_wheel_vector;
+        Eigen::Vector2d rf_steering_vector = rf_wheel_vector;
 
         if (move.x() != 0 || move.y() != 0)
             last_time_point_ = std::chrono::system_clock::now();
@@ -174,28 +176,28 @@ private:
                 rf_vector_last_ = rf_wheel_vector;
         }
 
-        double control_angle[4] = {
-            atan2(lf_steering_vector.y(), lf_steering_vector.x()),
-            atan2(lb_steering_vector.y(), lb_steering_vector.x()),
-            atan2(rb_steering_vector.y(), rb_steering_vector.x()),
-            atan2(rf_steering_vector.y(), rf_steering_vector.x())};
+        auto [lf_angle_err, lf_vel_dir] = revise_angle_error_and_vel_direction(
+            atan2(lf_steering_vector.y(), lf_steering_vector.x()), *left_front_steering_angle_);
+        auto [lb_angle_err, lb_vel_dir] = revise_angle_error_and_vel_direction(
+            atan2(lb_steering_vector.y(), lb_steering_vector.x()), *left_back_steering_angle_);
+        auto [rb_angle_err, rb_vel_dir] = revise_angle_error_and_vel_direction(
+            atan2(rb_steering_vector.y(), rb_steering_vector.x()), *right_back_steering_angle_);
+        auto [rf_angle_err, rf_vel_dir] = revise_angle_error_and_vel_direction(
+            atan2(rf_steering_vector.y(), rf_steering_vector.x()), *right_front_steering_angle_);
 
-        *left_front_steering_control_angle_error_ =
-            revise_angle_error_and_vel_direction(control_angle[0], *left_front_steering_angle_);
+        // RCLCPP_INFO(
+        //     get_logger(), "lf:%f,lb:%f,rb:%f,rf:%f", lf_angle_err, lb_angle_err, rb_angle_err,
+        //     rf_angle_err);
 
-        *left_back_steering_control_angle_error_ =
-            revise_angle_error_and_vel_direction(control_angle[1], *left_back_steering_angle_);
+        *left_front_steering_control_angle_error_  = lf_angle_err;
+        *left_back_steering_control_angle_error_   = lb_angle_err;
+        *right_back_steering_control_angle_error_  = rb_angle_err;
+        *right_front_steering_control_angle_error_ = rf_angle_err;
 
-        *right_back_steering_control_angle_error_ =
-            revise_angle_error_and_vel_direction(control_angle[2], *right_back_steering_angle_);
-
-        *right_front_steering_control_angle_error_ =
-            revise_angle_error_and_vel_direction(control_angle[3], *right_front_steering_angle_);
-
-        *left_front_wheel_control_velocity_  = lf_wheel_vector.norm() / wheel_radius_;
-        *left_back_wheel_control_velocity_   = lb_wheel_vector.norm() / wheel_radius_;
-        *right_back_wheel_control_velocity_  = rb_wheel_vector.norm() / wheel_radius_;
-        *right_front_wheel_control_velocity_ = rf_wheel_vector.norm() / wheel_radius_;
+        *left_front_wheel_control_velocity_  = lf_vel_dir * lf_wheel_vector.norm() / wheel_radius_;
+        *left_back_wheel_control_velocity_   = lb_vel_dir * lb_wheel_vector.norm() / wheel_radius_;
+        *right_back_wheel_control_velocity_  = rb_vel_dir * rb_wheel_vector.norm() / wheel_radius_;
+        *right_front_wheel_control_velocity_ = rf_vel_dir * rf_wheel_vector.norm() / wheel_radius_;
     }
 
     static std::array<Eigen::Vector2d, 4> update_control_vector(
@@ -213,9 +215,12 @@ private:
         };
     }
 
-    // static auto revise_angle_error_and_vel_direction(double target_angle, double measure_angle)
-    //     -> std::tuple<double, bool> {
-    static double revise_angle_error_and_vel_direction(double target_angle, double measure_angle) {
+    static auto revise_angle_error_and_vel_direction(double target_angle, double measure_angle)
+        -> std::tuple<double, double> {
+
+        std::tuple<double, double> result{};
+        auto& [error, forward] = result;
+
         if (measure_angle > std::numbers::pi) {
             measure_angle -= 2 * std::numbers::pi;
         }
@@ -228,14 +233,23 @@ private:
             target_angle += 2 * std::numbers::pi;
         }
 
-        // if (raw_error < std::numbers::pi && raw_error > std::numbers::pi / 2)
+        auto wheel_reverse = false;
+
+        // if (raw_error < std::numbers::pi && raw_error > std::numbers::pi / 2) {
+        //     wheel_reverse = true;
         //     target_angle -= std::numbers::pi;
-        // else if (raw_error > -std::numbers::pi && raw_error < -std::numbers::pi / 2)
+        // } else if (raw_error > -std::numbers::pi && raw_error < -std::numbers::pi / 2) {
+        //     wheel_reverse = true;
         //     target_angle += std::numbers::pi;
+        // } else {
+        //     wheel_reverse = false;
+        // }
 
-        auto error = target_angle - measure_angle;
+        error = target_angle - measure_angle;
+        // forward = wheel_reverse ? -1 : 1;
+        forward = 1;
 
-        return error;
+        return result;
     }
 
 private:
@@ -258,7 +272,6 @@ private:
     static constexpr double filter_alpha_ = update_freq_ / (filter_tau_ + update_freq_);
 
     std::array<Eigen::Vector2d, 4> control_vector_;
-    std::array<bool, 4> velocity_direction_;
 
     pid::MatrixPidCalculator<2> translational_velocity_pid_calculator_;
     pid::PidCalculator angular_velocity_pid_calculator_;
