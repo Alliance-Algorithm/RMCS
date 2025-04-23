@@ -80,7 +80,7 @@ public:
         }
     }
     double get_angle() { return *angle_; }
-    double get_raw_angle() { return static_cast<int>(raw_angle.to_ulong());}
+    int get_raw_angle() { return static_cast<int>(raw_angle.to_ulong());}
 
 private:
 

@@ -74,7 +74,7 @@ public:
         auto mouse        = *mouse_;
         auto keyboard     = *keyboard_;
         using namespace rmcs_msgs;
-        
+
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
             *is_chassis_and_leg_enable = false;
@@ -88,40 +88,44 @@ public:
             switch (chassis_mode) {
             case rmcs_msgs::ChassisMode::Four_Wheel_Normal_Move: {
                 // todo:加入wasd
-                Eigen::Vector2d move_ = *joystick_left_;
-                double spin_          = joystick_right_->y() / 3;
-                yaw_target_ += joystick_right_->y() * 0.001;
-                SteeringControl(move_, spin_);
-                OmniWheelControl(Eigen::Vector2d{NAN, NAN});
-                ControlYaw(yaw_target_);
-                break;
-            }
-            case rmcs_msgs::ChassisMode::Six_Wheel_Normal_Move: {
-                // todo:加入wasd
+                speed_limit          = 5.0;
                 double chassis_theta = *chassis_big_yaw_angle;
-                if(std::abs(chassis_theta) < 0.009) chassis_theta = 0.0f;
-                double spin = std::clamp(
-                    following_velocity_controller_.update(chassis_theta), -0.5, 0.5);
-                    RCLCPP_INFO(this->get_logger(), "%f", spin);
+                double spin_speed =
+                    std::clamp(following_velocity_controller_.update(chassis_theta), -0.5, 0.5);
+                if (std::abs(chassis_theta) < 0.01)
+                    spin_speed = 0.0f;
                 Eigen::Vector2d move_ = *joystick_left_;
                 yaw_target_ += joystick_right_->y() * 0.002;
                 yaw_target_ = normalizeAngle(yaw_target_);
                 ControlYaw(yaw_target_);
-                SteeringControl(move_, spin);
+                SteeringControl(move_, spin_speed);
                 OmniWheelControl(Eigen::Vector2d{NAN, NAN});
-                //    RCLCPP_INFO(this->get_logger(),"%f",yaw_target_-*yaw_imu_angle);
-
-                // RCLCPP_INFO(this->get_logger(),"%f %f
-                // %f",following_velocity_controller_.update(*chassis_big_yaw_angle),*yaw_imu_angle,std::clamp(following_velocity_controller_.update(*chassis_big_yaw_angle),-0.3,0.3));
+                break;
+            }
+            case rmcs_msgs::ChassisMode::Six_Wheel_Normal_Move: {
+                // todo:加入wasd
+                speed_limit          = 5.0;
+                double chassis_theta = *chassis_big_yaw_angle;
+                double spin_speed =
+                    std::clamp(following_velocity_controller_.update(chassis_theta), -0.5, 0.5);
+                if (std::abs(chassis_theta) < 0.01)
+                    spin_speed = 0.0f;
+                Eigen::Vector2d move_ = *joystick_left_;
+                yaw_target_ += joystick_right_->y() * 0.002;
+                yaw_target_ = normalizeAngle(yaw_target_);
+                ControlYaw(yaw_target_);
+                // SteeringControl(move_, spin_speed);
+                OmniWheelControl(Eigen::Vector2d{NAN, NAN});
                 break;
             }
             case rmcs_msgs::ChassisMode::SPIN: {
-                double spin = 1.2;
+                double spin_speed = 1.2;
+                speed_limit       = 8.0;
                 Eigen::Rotation2D<double> rotation(*chassis_big_yaw_angle);
                 Eigen::Vector2d move_ = rotation * (*joystick_left_);
                 yaw_target_ += joystick_right_->y() * 0.002;
                 ControlYaw(yaw_target_);
-                SteeringControl(move_, spin);
+                SteeringControl(move_, spin_speed);
                 OmniWheelControl(Eigen::Vector2d{NAN, NAN});
                 break;
             }
@@ -251,8 +255,8 @@ private:
     }
 
     pid::PidCalculator following_velocity_controller_;
-    static constexpr double speed_limit = 5; // m/s
-    static constexpr double wheel_r     = 0.11;
+    double speed_limit              = 5.0; // m/s
+    static constexpr double wheel_r = 0.11;
     double yaw_target_;
 
     const Eigen::Vector2d lf_vel_{1, -1};

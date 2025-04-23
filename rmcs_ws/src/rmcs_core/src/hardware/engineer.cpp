@@ -532,7 +532,6 @@ private:
             for (auto& motor : Wheel_motors) {
                 motor.update();
             }
-            // RCLCPP_INFO(this->get_logger(),"gs");
         }
         void command() {
             uint16_t command[4];
@@ -657,6 +656,9 @@ private:
             for (auto& ecd : Leg_ecd) {
                 ecd.update();
             }
+
+
+
         }
         void command() {
             uint8_t command[8];
@@ -693,6 +695,7 @@ private:
             if (can_id == 0x204) {
                 Omni_Motors[0].store_status(can_data);
             }
+
         }
         void can1_receive_callback(
             uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
@@ -706,13 +709,21 @@ private:
             }
             if (can_id == 0x016) {
                 Leg_ecd[0].store_status(can_data);
+
             }
             if (can_id == 0x015) {
                 Leg_ecd[1].store_status(can_data);
+            RCLCPP_INFO(this->get_logger(),"%f",Leg_ecd[1].get_angle() * 180.0 /std::numbers::pi);
+
+            // RCLCPP_INFO(this->get_logger(),"%f",Leg_ecd[1].get_angle() * 180.0 / std::numbers::pi);
+
             }
-            if (can_id == 0x13) {
-                Leg_ecd[2].store_status(can_data);
-            }
+            // if (can_id == 0x13) {
+            //     Leg_ecd[2].store_status(can_data);
+            // }
+            // RCLCPP_INFO(this->get_logger(),"%x",can_id);
+
+
         }
 
     private:
