@@ -223,7 +223,10 @@ private:
             batch_commands[2] = 0;
             batch_commands[3] = 0;
             transmit_buffer_.add_can2_transmission(0x1ff, std::bit_cast<uint64_t>(batch_commands));
-            transmit_buffer_.add_can2_transmission(0x141, gimbal_top_yaw_motor_.generate_command());
+            transmit_buffer_.add_can2_transmission(
+                0x141, gimbal_top_yaw_motor_.generate_velocity_command(
+                           gimbal_top_yaw_motor_.control_velocity() - imu_.gz()));
+
             transmit_buffer_.add_can2_transmission(0x142, gimbal_pitch_motor_.generate_command());
 
             transmit_buffer_.trigger_transmission();
@@ -381,7 +384,7 @@ private:
             // TODO: change bottom yaw motor name prefix
             , gimbal_bottom_yaw_motor_(
                   hero, hero_command, "/gimbal/bottom_yaw",
-                  device::LkMotor::Config{device::LkMotor::Type::MG5010E_I10}
+                  device::LkMotor::Config{device::LkMotor::Type::MG6012E_I8}
                       .set_reversed()
                       .set_encoder_zero_point(static_cast<int>(
                           hero.get_parameter("bottom_yaw_motor_zero_point").as_int())))

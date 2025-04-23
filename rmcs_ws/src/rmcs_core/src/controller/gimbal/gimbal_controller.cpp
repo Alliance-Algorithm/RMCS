@@ -44,12 +44,12 @@ public:
         gimbal_yaw_motors_count_ = gimbal_yaw_motors.size();
         yaw_angle_error_  = std::make_unique<OutputInterface<double>[]>(gimbal_yaw_motors_count_);
         gimbal_yaw_angle_ = std::make_unique<InputInterface<double>[]>(gimbal_yaw_motors_count_);
-        for (size_t i = 0; i < gimbal_yaw_motors_count_; i++) {
-            register_input(gimbal_yaw_motors[i] + "/angle", gimbal_yaw_angle_[i]);
-            register_output(
-                gimbal_yaw_motors[i] + "/control_angle_error", yaw_angle_error_[i], nan_);
-        }
 
+        size_t index = 0;
+        for (auto& motor : gimbal_yaw_motors) {
+            register_input(motor + "/angle", gimbal_yaw_angle_[index]);
+            register_output(motor + "/control_angle_error", yaw_angle_error_[index++], nan_);
+        }
         register_output("/gimbal/pitch/control_angle_error", pitch_angle_error_, nan_);
     }
 

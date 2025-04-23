@@ -10,6 +10,9 @@ rmcs_executor:
       - rmcs_core::referee::app::ui::Hero -> referee_ui_hero
       - rmcs_core::referee::Command -> referee_command
 
+      # TODO: Remove soon
+      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+
       - rmcs_core::controller::gimbal::GimbalController -> gimbal_controller
       - rmcs_core::controller::pid::ErrorPidController -> bottom_yaw_angle_pid_controller
       - rmcs_core::controller::pid::ErrorPidController -> top_yaw_angle_pid_controller
@@ -70,17 +73,17 @@ top_yaw_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/top_yaw/control_angle_error
     control: /gimbal/top_yaw/control_velocity
-    kp: 10.0
-    ki: 0.0
-    kd: 2.2
+    kp: 16.00
+    ki: 0.0000
+    kd: 0.0
 
 bottom_yaw_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/bottom_yaw/control_angle_error
     control: /gimbal/bottom_yaw/control_velocity
-    kp: 9.1
+    kp: 10.0
     ki: 0.0
-    kd: 1.5
+    kd: 0.0
 
 pitch_angle_pid_controller:
   ros__parameters:
