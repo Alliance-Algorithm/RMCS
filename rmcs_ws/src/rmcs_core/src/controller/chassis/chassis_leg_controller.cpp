@@ -4,6 +4,8 @@
 #include <cmath>
 #include <cstdlib>
 #include <eigen3/Eigen/Dense>
+#include <eigen3/Eigen/src/Core/Matrix.h>
+#include <numbers>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
@@ -21,7 +23,7 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , following_velocity_controller_(0.92, 0.0, 0.01) {
+        , following_velocity_controller_(0.26, 0.00, 0.089) {
 
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
@@ -62,11 +64,17 @@ public:
         register_input("/leg/encoder/rb/angle", theta_rb);
         register_input("/leg/encoder/rf/angle", theta_rf);
 
+        register_output("/leg/joint/lf/target_theta", leg_lf_target_theta,NAN);
+        register_output("/leg/joint/lb/target_theta", leg_lb_target_theta,NAN);
+        register_output("/leg/joint/rb/target_theta", leg_rb_target_theta,NAN);
+        register_output("/leg/joint/rf/target_theta", leg_rf_target_theta,NAN);
+
         register_input("yaw_imu_velocity", yaw_imu_velocity);
         register_input("yaw_imu_angle", yaw_imu_angle);
         register_output(
             "/chassis/big_yaw/target_angle_error", chassis_big_yaw_target_angle_error, NAN);
         register_input("/chassis/big_yaw/angle", chassis_big_yaw_angle);
+        // register_input("/chassis/big_yaw/control_vel", chassis_big_yaw_control_vel_);
     }
     void update() override {
         auto switch_right = *switch_right_;
@@ -74,7 +82,8 @@ public:
         auto mouse        = *mouse_;
         auto keyboard     = *keyboard_;
         using namespace rmcs_msgs;
-
+        std::array<double, 2> array = leg_inverse_kinematic(231.25,231.25, false,false);
+        // RCLCPP_INFO(this->get_logger(),"%f %f ",array[0],array[1]);
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
             *is_chassis_and_leg_enable = false;
@@ -84,7 +93,7 @@ public:
         } else {
 
             *is_chassis_and_leg_enable = true;
-            ModeSelection();
+            mode_selection();
             switch (chassis_mode) {
             case rmcs_msgs::ChassisMode::Four_Wheel_Normal_Move: {
                 // todo:加入wasd
@@ -97,9 +106,9 @@ public:
                 Eigen::Vector2d move_ = *joystick_left_;
                 yaw_target_ += joystick_right_->y() * 0.002;
                 yaw_target_ = normalizeAngle(yaw_target_);
-                ControlYaw(yaw_target_);
-                SteeringControl(move_, spin_speed);
-                OmniWheelControl(Eigen::Vector2d{NAN, NAN});
+                yaw_control(yaw_target_);
+                // steering_control(move_, spin_speed);
+                omniwheel_control(Eigen::Vector2d{NAN, NAN});
                 break;
             }
             case rmcs_msgs::ChassisMode::Six_Wheel_Normal_Move: {
@@ -107,15 +116,16 @@ public:
                 speed_limit          = 5.0;
                 double chassis_theta = *chassis_big_yaw_angle;
                 double spin_speed =
-                    std::clamp(following_velocity_controller_.update(chassis_theta), -0.5, 0.5);
-                if (std::abs(chassis_theta) < 0.01)
+                    std::clamp(following_velocity_controller_.update(chassis_theta), -1.0, 1.0);
+                if (std::abs(chassis_theta) < 0.07)
                     spin_speed = 0.0f;
                 Eigen::Vector2d move_ = *joystick_left_;
                 yaw_target_ += joystick_right_->y() * 0.002;
                 yaw_target_ = normalizeAngle(yaw_target_);
-                ControlYaw(yaw_target_);
-                // SteeringControl(move_, spin_speed);
-                OmniWheelControl(Eigen::Vector2d{NAN, NAN});
+                steering_control(move_, spin_speed);
+
+                yaw_control(yaw_target_);
+                omniwheel_control(Eigen::Vector2d{NAN, NAN});
                 break;
             }
             case rmcs_msgs::ChassisMode::SPIN: {
@@ -124,9 +134,9 @@ public:
                 Eigen::Rotation2D<double> rotation(*chassis_big_yaw_angle);
                 Eigen::Vector2d move_ = rotation * (*joystick_left_);
                 yaw_target_ += joystick_right_->y() * 0.002;
-                ControlYaw(yaw_target_);
-                SteeringControl(move_, spin_speed);
-                OmniWheelControl(Eigen::Vector2d{NAN, NAN});
+                yaw_control(yaw_target_);
+                steering_control(move_, spin_speed);
+                omniwheel_control(Eigen::Vector2d{NAN, NAN});
                 break;
             }
             default: break;
@@ -135,7 +145,8 @@ public:
     }
 
 private:
-    void ModeSelection() {
+
+    void mode_selection() {
         auto switch_right = *switch_right_;
         auto switch_left  = *switch_left_;
         auto mouse        = *mouse_;
@@ -149,11 +160,30 @@ private:
             chassis_mode = ChassisMode::SPIN;
         }
     }
-    void ControlYaw(double target_angle) {
+    std::array<double, 2> leg_inverse_kinematic(double f_x,double b_x,bool is_front_ecd_obtuse,bool is_back_ecd_obtuse){
+        constexpr double link1 = 240.0f,link2 = 120.0f,link3 = 160.0f;
+        double theta_f,theta_b;
+        double theta_b_ = asin(b_x/ link1);
+        if(is_back_ecd_obtuse){
+            theta_b = std::numbers::pi - theta_b_;
+        }else{
+            theta_b = theta_b_;
+        }
+        double x_link2 = link2 * sin(5.0 * std::numbers::pi / 6.0 - theta_b);
+        double theta_f_=asin((f_x - x_link2)/link3);
+        if(is_front_ecd_obtuse){
+            theta_f = std::numbers::pi - theta_f_;
+        }else{
+            theta_f = theta_f_;
+        }
+        return {theta_f,theta_b};
+    }
+    void yaw_control(double target_angle) {
         *chassis_big_yaw_target_angle_error = normalizeAngle(target_angle - *yaw_imu_angle);
         // todo：：add free——yaw
+        // RCLCPP_INFO(this->get_logger(),"%f",*chassis_big_yaw_target_angle_error);
     }
-    void SteeringControl(const Eigen::Vector2d& move, double spin_speed) {
+    void steering_control(const Eigen::Vector2d& move, double spin_speed) {
 
         Eigen::Vector2d lf_vel = Eigen::Vector2d{-spin_speed, spin_speed} + move;
         Eigen::Vector2d lb_vel = Eigen::Vector2d{-spin_speed, -spin_speed} + move;
@@ -201,7 +231,7 @@ private:
         *steering_wheel_rf_target_vel =
             rf_vel.norm() * (speed_limit / wheel_r) * check_error_angle(err[3]);
     }
-    void OmniWheelControl(const Eigen::Vector2d& move) {
+    void omniwheel_control(const Eigen::Vector2d& move) {
         *omni_l_target_vel = move.x() * (speed_limit / wheel_r);
         *omni_r_target_vel = move.x() * (speed_limit / wheel_r);
     }
@@ -298,8 +328,15 @@ private:
     InputInterface<double> theta_rb;
     InputInterface<double> theta_rf;
 
+    InputInterface<double> chassis_big_yaw_control_vel_;
+
     InputInterface<double> yaw_imu_velocity;
     InputInterface<double> yaw_imu_angle;
+
+    OutputInterface<double> leg_lf_target_theta;
+    OutputInterface<double> leg_lb_target_theta;
+    OutputInterface<double> leg_rb_target_theta;
+    OutputInterface<double> leg_rf_target_theta;
 
     OutputInterface<double> leg1_t;
     OutputInterface<double> leg2_t;

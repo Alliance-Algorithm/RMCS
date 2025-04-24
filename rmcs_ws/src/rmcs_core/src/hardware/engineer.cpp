@@ -56,6 +56,14 @@ public:
     }
 
 private:
+    static double normalizeAngle(double angle) {
+
+        while (angle > M_PI)
+            angle -= 2 * M_PI;
+        while (angle < -M_PI)
+            angle += 2 * M_PI;
+        return angle;
+    }
     rclcpp::Logger logger_;
     class EngineerCommand : public rmcs_executor::Component {
     public:
@@ -110,8 +118,8 @@ private:
             engineer_command.register_input(
                 "/chassis_and_leg/enable_flag", is_chassis_and_leg_enable_);
 
-            engineer.register_output("yaw_imu_velocity", yaw_imu_velocity,NAN);
-            engineer.register_output("yaw_imu_angle",yaw_imu_angle,NAN);
+            engineer.register_output("yaw_imu_velocity", yaw_imu_velocity, NAN);
+            engineer.register_output("yaw_imu_angle", yaw_imu_angle, NAN);
 
             using namespace device;
             joint[5].configure_joint(
@@ -159,9 +167,8 @@ private:
             big_yaw.configure(
                 DMMotorConfig{DMMotorType::DM8009}.set_encoder_zero_point(
                     static_cast<int>(engineer.get_parameter("big_yaw_zero_point").as_int())));
-            bmi088_.set_coordinate_mapping([](double x, double y, double z) {
-                return std::make_tuple(-x, -y, z);
-            });
+            bmi088_.set_coordinate_mapping(
+                [](double x, double y, double z) { return std::make_tuple(-x, -y, z); });
         }
         ~ArmBoard() final {
             stop_handling_events();
@@ -173,6 +180,7 @@ private:
             dr16_.update();
             update_imu();
             // vision.pop_front_multi()
+            // RCLCPP_INFO(this->get_logger(),"%f ",big_yaw.get_velocity());
         }
         void command() {
             arm_command_update();
@@ -295,7 +303,7 @@ private:
             if (counter % 2 == 0) {
                 if (is_chassis_and_leg_enable && big_yaw.get_state() != 0
                     && big_yaw.get_state() != 1) {
-                        command_1 = big_yaw.dm_clear_error_command();
+                    command_1 = big_yaw.dm_clear_error_command();
                 } else if (!is_chassis_and_leg_enable) {
                     command_1 = big_yaw.dm_close_command();
                 } else if (is_chassis_and_leg_enable && big_yaw.get_state() == 0) {
@@ -332,19 +340,12 @@ private:
 
             big_yaw.update();
         }
-        static double normalizeAngle(double angle) {
 
-            while (angle > M_PI)
-                angle -= 2 * M_PI;
-            while (angle < -M_PI)
-                angle += 2 * M_PI;
-            return angle;
-        }
         void update_imu() {
             bmi088_.update_status();
 
             *yaw_imu_velocity = bmi088_.gz();
-            *yaw_imu_angle = std::atan2(
+            *yaw_imu_angle    = std::atan2(
                 2.0 * (bmi088_.q0() * bmi088_.q3() + bmi088_.q1() * bmi088_.q2()),
                 1.0 - 2.0 * (bmi088_.q2() * bmi088_.q2() + bmi088_.q3() * bmi088_.q3()));
         }
@@ -361,7 +362,7 @@ private:
                 joint[4].store_status(can_data);
             if (can_id == 0x144)
                 joint[3].store_status(can_data);
-            if (can_id == 0x33){             
+            if (can_id == 0x33) {
                 big_yaw.store_status(can_data);
             }
         }
@@ -585,7 +586,6 @@ private:
             if (can_id == 0x202) {
                 Wheel_motors[3].store_status(can_data);
             }
-
         }
 
     private:
@@ -616,6 +616,7 @@ private:
             , Leg_ecd(
                   {engineer, "/leg/encoder/lf"}, {engineer, "/leg/encoder/lb"},
                   {engineer, "/leg/encoder/rb"}, {engineer, "/leg/encoder/rf"}) {
+
             Omni_Motors[0].configure(
                 device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(
                     18.2));
@@ -642,7 +643,21 @@ private:
             Leg_ecd[3].configure(
                 device::EncoderConfig{}.set_encoder_zero_point(
                     static_cast<int>(engineer.get_parameter("leg_rf_ecd_zero_point").as_int())));
+            engineer.register_output(
+                "/leg/joint/lf/control_theta_error", leg_joint_lf_control_theta_error, NAN);
+            engineer.register_output(
+                "/leg/joint/lb/control_theta_error", leg_joint_lb_control_theta_error, NAN);
+            engineer.register_output(
+                "/leg/joint/rb/control_theta_error", leg_joint_rb_control_theta_error, NAN);
+            engineer.register_output(
+                "/leg/joint/rf/control_theta_error", leg_joint_rf_control_theta_error, NAN);
+
+            engineer_command.register_input("/leg/joint/lf/target_theta", leg_lf_target_theta_);
+            engineer_command.register_input("/leg/joint/lb/target_theta", leg_lb_target_theta_);
+            engineer_command.register_input("/leg/joint/rb/target_theta", leg_rb_target_theta_);
+            engineer_command.register_input("/leg/joint/rf/target_theta", leg_rf_target_theta_);
         }
+
         ~LegBoard() final {
             stop_handling_events();
             event_thread_.join();
@@ -656,19 +671,32 @@ private:
             for (auto& ecd : Leg_ecd) {
                 ecd.update();
             }
-
-
-
         }
         void command() {
+            //todo:class
             uint8_t command[8];
             command[0] = 1;
             command[1] = 1;
             command[2] = 1;
             command[3] = 1;
-            command[4] = 1;
+            command[4] = 0;
             transmit_buffer_.add_can2_transmission(0x306, std::bit_cast<uint64_t>(command));
-            transmit_buffer_.trigger_transmission();
+            
+            uint16_t command_[4];
+            // static int counter = 0;
+            // if (counter % 2 == 0) {
+
+            //     // 发送1234包
+            // } else {
+            //     // 发送68包
+            //     command_[0] = 0;
+            //     *leg_joint_lb_control_theta_error = normalizeAngle(*leg_lb_target_theta_ - Leg_ecd[0].get_angle());
+            //     command_[1] = Leg_Motors[0].generate_command();
+            //     transmit_buffer_.add_can2_transmission(0x1FF, std::bit_cast<uint64_t>(command_));
+            // }
+            // transmit_buffer_.trigger_transmission();
+
+            // counter++;
         }
 
     protected:
@@ -695,7 +723,6 @@ private:
             if (can_id == 0x204) {
                 Omni_Motors[0].store_status(can_data);
             }
-
         }
         void can1_receive_callback(
             uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
@@ -706,24 +733,21 @@ private:
 
             if (can_id == 0x017) {
                 Leg_ecd[3].store_status(can_data);
+
             }
             if (can_id == 0x016) {
                 Leg_ecd[0].store_status(can_data);
-
             }
             if (can_id == 0x015) {
                 Leg_ecd[1].store_status(can_data);
-            RCLCPP_INFO(this->get_logger(),"%f",Leg_ecd[1].get_angle() * 180.0 /std::numbers::pi);
-
-            // RCLCPP_INFO(this->get_logger(),"%f",Leg_ecd[1].get_angle() * 180.0 / std::numbers::pi);
+                
+            }
+            if (can_id == 0x13) {
+                Leg_ecd[2].store_status(can_data);
+                RCLCPP_INFO(this->get_logger(), "%f", Leg_ecd[2].get_angle() * 180.0 / std::numbers::pi);
 
             }
-            // if (can_id == 0x13) {
-            //     Leg_ecd[2].store_status(can_data);
-            // }
-            // RCLCPP_INFO(this->get_logger(),"%x",can_id);
-
-
+            RCLCPP_INFO(this->get_logger(),"%x",can_id);
         }
 
     private:
@@ -732,6 +756,15 @@ private:
         device::DjiMotor Omni_Motors[2];
         device::DjiMotor Leg_Motors[4];
         device::Encoder Leg_ecd[4];
+
+        InputInterface<double> leg_lf_target_theta_;
+        InputInterface<double> leg_lb_target_theta_;
+        InputInterface<double> leg_rb_target_theta_;
+        InputInterface<double> leg_rf_target_theta_;
+        OutputInterface<double> leg_joint_lf_control_theta_error;
+        OutputInterface<double> leg_joint_lb_control_theta_error;
+        OutputInterface<double> leg_joint_rb_control_theta_error;
+        OutputInterface<double> leg_joint_rf_control_theta_error;
 
     } legboard_;
 };

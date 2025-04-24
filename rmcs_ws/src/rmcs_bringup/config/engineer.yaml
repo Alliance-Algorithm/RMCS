@@ -282,14 +282,14 @@ big_yaw_angle_error_pid_controller:
   ros__parameters:
     measurement: /chassis/big_yaw/target_angle_error
     control: /chassis/big_yaw/control_vel
-    kp: 101.0
+    kp: 10.3
     ki: 0.0
-    kd: 1.0
+    kd: 1.6
 big_yaw_velocity_pid_controller:
   ros__parameters:
     measurement: /chassis/big_yaw/velocity
     setpoint: /chassis/big_yaw/control_vel
     control: /chassis/big_yaw/control_torque
-    kp: 2.1
+    kp: 3.19
     ki: 0.0
-    kd: 0.0
+    kd: 0.039
