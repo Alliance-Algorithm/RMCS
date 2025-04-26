@@ -8,6 +8,7 @@
 
 #include "controller/pid/matrix_pid_calculator.hpp"
 #include "controller/pid/pid_calculator.hpp"
+#include <std_msgs/msg/float64.hpp>
 
 namespace rmcs_core::controller::chassis {
 
@@ -61,6 +62,18 @@ public:
         register_output(
             "/chassis/right_front_steering/control_angle_error",
             right_front_steering_control_angle_error_, nan_);
+
+        const std::array<std::string, 4> publisher_prefixes = {
+            "/chassis/lf_steering", "/chassis/lb_steering", "/chassis/rb_steering",
+            "/chassis/rf_steering"};
+
+        size_t index = 0;
+        for (auto& publishers : steering_control_angle_error_publishers_) {
+            steering_control_angle_error_msgs_[index] = std::make_unique<std_msgs::msg::Float64>();
+
+            publishers = create_publisher<std_msgs::msg::Float64>(
+                publisher_prefixes[index++] + "/control_angle_error", 20);
+        }
     }
 
     void before_updating() override {
@@ -176,29 +189,38 @@ private:
                 rf_vector_last_ = rf_wheel_vector;
         }
 
-        auto [lf_angle_err, lf_vel_dir] = revise_angle_error_and_vel_direction(
+        desire_attitude_[0] = revise_angle_error_and_vel_direction(
             atan2(lf_steering_vector.y(), lf_steering_vector.x()), *left_front_steering_angle_);
-        auto [lb_angle_err, lb_vel_dir] = revise_angle_error_and_vel_direction(
+        desire_attitude_[1] = revise_angle_error_and_vel_direction(
             atan2(lb_steering_vector.y(), lb_steering_vector.x()), *left_back_steering_angle_);
-        auto [rb_angle_err, rb_vel_dir] = revise_angle_error_and_vel_direction(
+        desire_attitude_[2] = revise_angle_error_and_vel_direction(
             atan2(rb_steering_vector.y(), rb_steering_vector.x()), *right_back_steering_angle_);
-        auto [rf_angle_err, rf_vel_dir] = revise_angle_error_and_vel_direction(
+        desire_attitude_[3] = revise_angle_error_and_vel_direction(
             atan2(rf_steering_vector.y(), rf_steering_vector.x()), *right_front_steering_angle_);
 
-        // RCLCPP_INFO(
-        //     get_logger(), "lf:%f,lb:%f,rb:%f,rf:%f", lf_angle_err, lb_angle_err, rb_angle_err,
-        //     rf_angle_err);
+        *left_front_steering_control_angle_error_  = std::get<0>(desire_attitude_[0]);
+        *left_back_steering_control_angle_error_   = std::get<0>(desire_attitude_[1]);
+        *right_back_steering_control_angle_error_  = std::get<0>(desire_attitude_[2]);
+        *right_front_steering_control_angle_error_ = std::get<0>(desire_attitude_[3]);
 
-        *left_front_steering_control_angle_error_  = lf_angle_err;
-        *left_back_steering_control_angle_error_   = lb_angle_err;
-        *right_back_steering_control_angle_error_  = rb_angle_err;
-        *right_front_steering_control_angle_error_ = rf_angle_err;
+        size_t index = 0;
+        for (auto& msg : steering_control_angle_error_msgs_) {
+            msg->data = std::get<0>(desire_attitude_[index]);
+            steering_control_angle_error_publishers_[index++]->publish(std::move(msg));
+            msg = std::make_unique<std_msgs::msg::Float64>();
+        }
 
-        *left_front_wheel_control_velocity_  = lf_vel_dir * lf_wheel_vector.norm() / wheel_radius_;
-        *left_back_wheel_control_velocity_   = lb_vel_dir * lb_wheel_vector.norm() / wheel_radius_;
-        *right_back_wheel_control_velocity_  = rb_vel_dir * rb_wheel_vector.norm() / wheel_radius_;
-        *right_front_wheel_control_velocity_ = rf_vel_dir * rf_wheel_vector.norm() / wheel_radius_;
+        *left_front_wheel_control_velocity_ =
+            std::get<1>(desire_attitude_[0]) * lf_wheel_vector.norm() / wheel_radius_;
+        *left_back_wheel_control_velocity_ =
+            std::get<1>(desire_attitude_[1]) * lb_wheel_vector.norm() / wheel_radius_;
+        *right_back_wheel_control_velocity_ =
+            std::get<1>(desire_attitude_[2]) * rb_wheel_vector.norm() / wheel_radius_;
+        *right_front_wheel_control_velocity_ =
+            std::get<1>(desire_attitude_[3]) * rf_wheel_vector.norm() / wheel_radius_;
     }
+
+    double update_power_control_torque() {}
 
     static std::array<Eigen::Vector2d, 4> update_control_vector(
         const Eigen::Vector2d& translational_control_vel, const double angular_control_vel) {
@@ -262,7 +284,6 @@ private:
 
     static constexpr double chassis_radius_ = 0.5617 / 2.;
     static constexpr double wheel_radius_   = 0.11;
-
     static constexpr double k1_ = 1., k2_ = 1., no_load_power_ = 2.9;
 
     static constexpr double font_freq = 0.01, translation_accelerate_limit = 1.5;
@@ -303,15 +324,21 @@ private:
     OutputInterface<double> right_back_steering_control_angle_error_;
     OutputInterface<double> right_front_steering_control_angle_error_;
 
+    std::array<std::tuple<double, double>, 4> desire_attitude_;
+
     const Eigen::Vector2d lf_static_vector_{1, -1};
     const Eigen::Vector2d lb_static_vector_{1, 1};
-    const Eigen::Vector2d rb_static_vector_{-1, 1};
-    const Eigen::Vector2d rf_static_vector_{-1, -1};
+    const Eigen::Vector2d rb_static_vector_{1, -1};
+    const Eigen::Vector2d rf_static_vector_{1, 1};
 
     Eigen::Vector2d lf_vector_last_{1, -1};
     Eigen::Vector2d lb_vector_last_{1, 1};
-    Eigen::Vector2d rb_vector_last_{-1, 1};
-    Eigen::Vector2d rf_vector_last_{-1, -1};
+    Eigen::Vector2d rb_vector_last_{1, -1};
+    Eigen::Vector2d rf_vector_last_{1, 1};
+
+    std::array<rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr, 4>
+        steering_control_angle_error_publishers_;
+    std::array<std_msgs::msg::Float64::UniquePtr, 4> steering_control_angle_error_msgs_;
 };
 
 } // namespace rmcs_core::controller::chassis

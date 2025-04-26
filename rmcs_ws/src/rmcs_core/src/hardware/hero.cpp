@@ -132,7 +132,7 @@ private:
                        .set_reversed()})
             , gimbal_bullet_feeder_(
                   hero, hero_command, "/gimbal/bullet_feeder",
-                  device::LkMotor::Config{device::LkMotor::Type::MG4010E_I10})
+                  device::LkMotor::Config{device::LkMotor::Type::MG4010E_I10}.set_reversed())
             , gimbal_scope_motor_(
                   hero, hero_command, "/gimbal/scope",
                   device::DjiMotor::Config{device::DjiMotor::Type::M2006})
@@ -447,7 +447,7 @@ private:
             // instead of gyro angular velocity for closed-loop control.
             transmit_buffer_.add_can2_transmission(
                 0x142, gimbal_bottom_yaw_motor_.generate_velocity_command(
-                           gimbal_bottom_yaw_motor_.control_velocity() - imu_.gz()));
+                           gimbal_bottom_yaw_motor_.control_velocity()));
 
             transmit_buffer_.trigger_transmission();
         }
