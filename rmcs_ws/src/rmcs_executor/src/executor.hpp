@@ -101,6 +101,7 @@ private:
                         "Cannot find the corresponding output of input \"%s\" declared by "
                         "component [%s]",
                         input.name.c_str(), component->get_component_name().c_str());
+                    RCLCPP_INFO(get_logger(),"%s",input.name.c_str());
                     throw std::runtime_error{"Cannot find the corresponding output"};
                 }
 

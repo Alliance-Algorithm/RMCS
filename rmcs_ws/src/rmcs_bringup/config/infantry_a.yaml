@@ -19,11 +19,7 @@ rmcs_executor:
       - rmcs_core::controller::chassis::ChassisController -> chassis_controller
 
       - rmcs_core::controller::chassis::OmniWheelController -> omni_wheel_controller
-      - rmcs_core::controller::pid::PidController ->left_front_wheel_velocity_pid_controller
-      - rmcs_core::controller::pid::PidController ->left_back_wheel_velocity_pid_controller
-      - rmcs_core::controller::pid::PidController ->right_back_wheel_velocity_pid_controller
-      - rmcs_core::controller::pid::PidController ->right_front_wheel_velocity_pid_controller
-      
+
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 
       - rmcs_core::referee::Status -> referee_status
@@ -131,7 +127,6 @@ bullet_feeder_velocity_pid_controller:
 chassis_controller:
   ros__parameters:  
     auto_spin: false
-    speed_mode_: false
 
 left_front_wheel_velocity_pid_controller:
   ros__parameters:

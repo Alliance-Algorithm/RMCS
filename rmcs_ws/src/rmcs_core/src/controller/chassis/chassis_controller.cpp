@@ -51,8 +51,7 @@ public:
         register_output(
             "/chassis/supercap/voltage/dead_line", supercap_voltage_dead_line_,
             supercap_voltage_dead_line);
-        
-        register_output("/chassis/supercap/charge_power_limit", supercap_charge_power_limit_, 0.0);
+            
     }
 
     void update() override {
@@ -199,8 +198,6 @@ private:
     OutputInterface<double> supercap_voltage_control_line_;
     OutputInterface<double> supercap_voltage_base_line_;
     OutputInterface<double> supercap_voltage_dead_line_;
-
-    OutputInterface<double> supercap_charge_power_limit_ ;
 };
 
 } // namespace rmcs_core::controller::chassis
