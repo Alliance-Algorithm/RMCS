@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <librmcs/device/lk_motor.hpp>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
@@ -20,6 +21,7 @@ public:
 
         command_component.register_input(
             name_prefix + "/control_velocity", control_velocity_, false);
+        command_component.register_input(name_prefix + "/control_torque", control_torque_, false);
     }
 
     LkMotor(
@@ -49,8 +51,11 @@ public:
             return std::numeric_limits<double>::quiet_NaN();
     }
 
-    uint64_t generate_command() {
-        return librmcs::device::LkMotor::generate_velocity_command(control_velocity());
+    double control_torque() const {
+        if (control_torque_.ready()) [[likely]]
+            return *control_torque_;
+        else
+            return std::numeric_limits<double>::quiet_NaN();
     }
 
 private:
@@ -60,6 +65,7 @@ private:
     rmcs_executor::Component::OutputInterface<double> max_torque_;
 
     rmcs_executor::Component::InputInterface<double> control_velocity_;
+    rmcs_executor::Component::InputInterface<double> control_torque_;
 };
 
 } // namespace rmcs_core::hardware::device

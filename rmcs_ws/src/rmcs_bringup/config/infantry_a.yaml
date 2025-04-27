@@ -47,6 +47,8 @@ referee_status:
 
 gimbal_controller:
   ros__parameters:
+    gimbal_yaw_motors:
+      - /gimbal/yaw
     upper_limit: -0.4598
     lower_limit: 0.4362
 
@@ -121,6 +123,11 @@ bullet_feeder_velocity_pid_controller:
     kp: 0.583
     ki: 0.0
     kd: 0.0
+
+chassis_controller:
+  ros__parameters:
+    gimbal_yaw_motors:
+      - /gimbal/yaw
 
 left_front_wheel_velocity_pid_controller:
   ros__parameters:

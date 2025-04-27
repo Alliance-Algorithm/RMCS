@@ -44,29 +44,25 @@ public:
         , event_thread_([this]() { handle_events(); }) {
 
         for (auto& motor : chassis_wheel_motors_)
-            motor.configure(
-                device::DjiMotor::Config{device::DjiMotor::Type::M3508}
-                    .set_reversed()
-                    .set_reduction_ratio(13.)
-                    .enable_multi_turn_angle());
+            motor.configure(device::DjiMotor::Config{device::DjiMotor::Type::M3508}
+                                .set_reversed()
+                                .set_reduction_ratio(13.)
+                                .enable_multi_turn_angle());
 
-        gimbal_yaw_motor_.configure(
-            device::DjiMotor::Config{device::DjiMotor::Type::GM6020}
-                .set_reversed()
-                .set_encoder_zero_point(
-                    static_cast<int>(get_parameter("yaw_motor_zero_point").as_int())));
-        gimbal_pitch_motor_.configure(
-            device::LkMotor::Config{device::LkMotor::Type::MG4010E_I10}
-                .set_encoder_zero_point(
-                    static_cast<int>(get_parameter("pitch_motor_zero_point").as_int()))
-                .set_reversed());
+        gimbal_yaw_motor_.configure(device::DjiMotor::Config{device::DjiMotor::Type::GM6020}
+                                        .set_reversed()
+                                        .set_encoder_zero_point(static_cast<int>(
+                                            get_parameter("yaw_motor_zero_point").as_int())));
+        gimbal_pitch_motor_.configure(device::LkMotor::Config{device::LkMotor::Type::MG4010E_I10}
+                                          .set_encoder_zero_point(static_cast<int>(
+                                              get_parameter("pitch_motor_zero_point").as_int()))
+                                          .set_reversed());
 
         gimbal_left_friction_.configure(
             device::DjiMotor::Config{device::DjiMotor::Type::M3508}.set_reduction_ratio(1.));
-        gimbal_right_friction_.configure(
-            device::DjiMotor::Config{device::DjiMotor::Type::M3508}
-                .set_reversed()
-                .set_reduction_ratio(1.));
+        gimbal_right_friction_.configure(device::DjiMotor::Config{device::DjiMotor::Type::M3508}
+                                             .set_reversed()
+                                             .set_reduction_ratio(1.));
         gimbal_bullet_feeder_.configure(
             device::DjiMotor::Config{device::DjiMotor::Type::M2006}.enable_multi_turn_angle());
 
@@ -134,7 +130,7 @@ public:
         uint16_t can_commands[4];
 
         can_commands[0] = gimbal_yaw_motor_.generate_command();
-        can_commands[1] = gimbal_pitch_motor_.generate_command();
+        can_commands[1] = 0;
         can_commands[2] = 0;
         can_commands[3] = supercap_.generate_command();
         transmit_buffer_.add_can1_transmission(0x1FE, std::bit_cast<uint64_t>(can_commands));
@@ -145,7 +141,9 @@ public:
         can_commands[3] = chassis_wheel_motors_[3].generate_command();
         transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(can_commands));
 
-        transmit_buffer_.add_can2_transmission(0x142, gimbal_pitch_motor_.generate_command());
+        transmit_buffer_.add_can2_transmission(
+            0x142,
+            gimbal_pitch_motor_.generate_velocity_command(gimbal_pitch_motor_.control_velocity()));
 
         can_commands[0] = 0;
         can_commands[1] = gimbal_bullet_feeder_.generate_command();

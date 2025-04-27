@@ -29,6 +29,7 @@ public:
         std::memset(&*keyboard_, 0, sizeof(*keyboard_));
 
         component.register_output("/remote/rotary_knob", rotary_knob_);
+        component.register_output("/remote/mouse/mouse_wheel", mouse_wheel_);
     }
 
     void update_status() {
@@ -46,6 +47,7 @@ public:
         *keyboard_ = keyboard();
 
         *rotary_knob_ = rotary_knob();
+        *mouse_wheel_ = mouse_wheel();
     }
 
     Eigen::Vector2d joystick_right() const {
@@ -88,6 +90,7 @@ private:
     rmcs_executor::Component::OutputInterface<rmcs_msgs::Keyboard> keyboard_;
 
     rmcs_executor::Component::OutputInterface<double> rotary_knob_;
+    rmcs_executor::Component::OutputInterface<double> mouse_wheel_;
 };
 
 } // namespace rmcs_core::hardware::device

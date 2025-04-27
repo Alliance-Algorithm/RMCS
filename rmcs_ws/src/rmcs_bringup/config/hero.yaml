@@ -14,9 +14,13 @@ rmcs_executor:
       # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 
       - rmcs_core::controller::gimbal::GimbalController -> gimbal_controller
-      - rmcs_core::controller::pid::ErrorPidController -> bottom_yaw_angle_pid_controller
       - rmcs_core::controller::pid::ErrorPidController -> top_yaw_angle_pid_controller
+      - rmcs_core::controller::pid::PidController -> top_yaw_velocity_pid_controller
+      - rmcs_core::controller::pid::ErrorPidController -> bottom_yaw_angle_pid_controller
+      - rmcs_core::controller::pid::PidController -> bottom_yaw_velocity_pid_controller
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
+      - rmcs_core::controller::pid::PidController -> pitch_velocity_pid_controller
+      # - rmcs_core::controller::gimbal::PlayerViewer -> gimbal_player_viewer_controller
       
       - rmcs_core::controller::gimbal::ShootingController -> shooting_controller
       - rmcs_core::controller::pid::PidController -> second_left_friction_velocity_pid_controller
@@ -42,8 +46,6 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController -> left_back_wheel_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> right_back_wheel_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> right_front_wheel_velocity_pid_controller
-
-      # - rmcs_core::controller::gimbal::ShootingRecorder -> shooting_recorder
       
       # - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
       # - rmcs_auto_aim::AutoAimController -> auto_aim_controller
@@ -73,17 +75,35 @@ top_yaw_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/top_yaw/control_angle_error
     control: /gimbal/top_yaw/control_velocity
-    kp: 18.0
+    kp: 16.0
     ki: 0.00
-    kd: 0.60
+    kd: 0.00
+
+top_yaw_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/yaw/velocity_imu
+    setpoint: /gimbal/top_yaw/control_velocity
+    control: /gimbal/top_yaw/control_torque
+    kp: 90.00
+    ki: 0.00
+    kd: 5.00
 
 bottom_yaw_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/bottom_yaw/control_angle_error
     control: /gimbal/bottom_yaw/control_velocity
-    kp: 10.0
+    kp: 9.70
     ki: 0.00
-    kd: 0.00
+    kd: 0.01
+
+bottom_yaw_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/bottom_yaw/velocity
+    setpoint: /gimbal/bottom_yaw/control_velocity
+    control: /gimbal/bottom_yaw/control_torque
+    kp: 30.00
+    ki: 0.00
+    kd: 1.10
 
 pitch_angle_pid_controller:
   ros__parameters:
@@ -92,6 +112,20 @@ pitch_angle_pid_controller:
     kp: 16.00
     ki: 0.0
     kd: 0.0
+
+pitch_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/pitch/velocity_imu
+    setpoint: /gimbal/pitch/control_velocity
+    control: /gimbal/pitch/control_torque
+    kp: 100.00
+    ki: 0.00
+    kd: 0.00
+
+# gimbal_player_viewer_controller:
+#   ros__parameters:
+#     upper_limit:
+#     lower_limit:
 
 shooting_controller:
   ros__parameters:
