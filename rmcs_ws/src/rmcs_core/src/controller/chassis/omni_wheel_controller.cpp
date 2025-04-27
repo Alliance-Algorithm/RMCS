@@ -28,9 +28,7 @@ public:
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , translational_velocity_pid_calculator_(100.0, 0.0, 0.0)
         , angular_velocity_pid_calculator_(100.0, 0.0, 0.0) {
-
         register_input("/chassis/left_front_wheel/max_torque", wheel_motor_max_control_torque_);
-        //    轮子电机的最大扭矩限制
         register_input("/chassis/left_front_wheel/velocity", left_front_velocity_);
         register_input("/chassis/left_back_wheel/velocity", left_back_velocity_);
         register_input("/chassis/right_back_wheel/velocity", right_back_velocity_);
@@ -39,11 +37,8 @@ public:
         register_input("/gimbal/yaw/velocity", yaw_velocity_);
         register_input("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
 
-        // 注册四个全向轮（左前、左后、右后、右前）的当前速度，分别绑定到对应的成员变量
         register_input("/chassis/control_velocity", control_velocity_);
         register_input("/chassis/control_power_limit", power_limit_);
-        // 期望的底盘运动速度（可能包含线速度和角速度）
-        // 功率限制，防止电机过载
         register_output(
             "/chassis/left_front_wheel/control_torque", left_front_control_torque_, nan_);
         register_output("/chassis/left_back_wheel/control_torque", left_back_control_torque_, nan_);
@@ -51,8 +46,6 @@ public:
             "/chassis/right_back_wheel/control_torque", right_back_control_torque_, nan_);
         register_output(
             "/chassis/right_front_wheel/control_torque", right_front_control_torque_, nan_);
-        // 注册四个电机的控制扭矩输出，初始值为 nan_（Not aNumber）。这些输出将用于驱动电机，初始
-        // NaN 表示未计算时的无效状态。
     }
 
     void before_updating() override {
@@ -69,11 +62,7 @@ public:
 
         auto [best_translational_control_torque, best_angular_control_torque] =
             calculate_best_control_torque(wheel_velocities);
-        // double K_0 = 1, K_1 = 1;
         auto [K_0, K_1] = calculate_K(wheel_velocities);
-        // 输入：当前轮速数组 wheel_velocities
-        // best_translational_control_torque：平移方向的最优控制扭矩（可能为矢量）
-        // best_translational_cont`rol_torque：平移方向的最优控制扭矩（可能为矢量）
 
         *left_front_control_torque_ =
             K_0 * (best_angular_control_torque + best_translational_control_torque.y());
@@ -89,22 +78,15 @@ private:
     auto calculate_best_control_torque(const double (&wheel_velocities)[5])
         -> std::pair<Eigen::Vector2d, double> {
 
-        // double 类型。
-        // double K_0 = 1, K_1 = 1;
         auto [K_0, K_1] = calculate_K(wheel_velocities);
         auto [translational_control_torque_max, translational_control_direction] =
             calculate_translational_control_torque_max(wheel_velocities);
-        // 平移控制扭矩和扭矩的方向 e
         auto angular_control_torque_max = calculate_angular_control_torque_max(wheel_velocities);
-        // 最大角度控制扭矩
         bool angular_control_torque_positive = angular_control_torque_max > 0;
-        // 正数，表示角度控制扭矩是正向的
         if (!angular_control_torque_positive)
             angular_control_torque_max = -angular_control_torque_max;
-        // 确保后续计算时角度控制扭矩总是正的
         auto signed_affine_coefficient =
             angular_control_torque_positive ? affine_coefficient_ : -affine_coefficient_;
-        // 保存扭矩正负
 
         // auto angular_constraint       = std::sqrt(control_torque_max_); // TODO: Cache this
 
@@ -112,11 +94,9 @@ private:
         //                               / std::max(
         //                                     std::abs(translational_control_direction.x()),
         //                                     std::abs(translational_control_direction.y()));
-        // 四边形的顶点计算
         auto polygon1 = calculate_polygon_constraints(
             K_0, K_1, translational_control_torque_max, 0, angular_control_torque_max,
             translational_control_direction);
-        // 这代表了控制扭矩的可行区域
         auto [circle_center, circle_radius, signed_affine, rotation_angle] =
             calculate_ellipse_parameters(
                 wheel_velocities, translational_control_direction, K_0, K_1);
@@ -124,13 +104,11 @@ private:
         circle_center.y() *= signed_affine_coefficient;
         auto polygon = calculate_polygon(polygon1, signed_affine, rotation_angle);
 
-        // 计算椭圆的中心和半径
         auto best_point = calculate_best_point_within_constraints(
             polygon, circle_center, circle_radius, rotation_angle);
         best_point.x() = best_point.x() * rotation_angle.y() - best_point.y() * rotation_angle.x();
         best_point.y() = best_point.y() / signed_affine;
         best_point.y() = best_point.x() * rotation_angle.x() + best_point.y() * rotation_angle.y();
-        // 该函数计算了在多边形约束和椭圆约束内的最佳点，代表最佳的控制扭矩
         return {
             best_point.x() * translational_control_direction, // best translational control
             best_point.y() / signed_affine_coefficient};      // best angular control
