@@ -19,6 +19,7 @@
 #include "hardware/device/gy614.hpp"
 #include "hardware/device/lk_motor.hpp"
 #include "hardware/device/supercap.hpp"
+#include "librmcs/utility/logging.hpp"
 
 namespace rmcs_core::hardware {
 
@@ -53,6 +54,11 @@ public:
     void update() override {
         top_board_->update();
         bottom_board_->update();
+        RCLCPP_INFO(
+            get_logger(), "viewer:%f,pitch:%f,scope:%f,yaw:%f",
+            top_board_->gimbal_player_viewer_motor_.velocity(),
+            top_board_->gimbal_pitch_motor_.angle(), top_board_->gimbal_scope_motor_.angle(),
+            top_board_->gimbal_top_yaw_motor_.angle());
     }
 
     void command_update() {
@@ -136,7 +142,7 @@ private:
                   device::DjiMotor::Config{device::DjiMotor::Type::M2006})
             , gimbal_player_viewer_motor_(
                   hero, hero_command, "/gimbal/player_viewer",
-                  device::LkMotor::Config{device::LkMotor::Type::MG4005_I10})
+                  device::LkMotor::Config{device::LkMotor::Type::MG4005E_I10})
             , transmit_buffer_(*this, 32)
             , event_thread_([this]() { handle_events(); }) {
 
@@ -211,29 +217,29 @@ private:
 
         void command_update() {
             uint16_t batch_commands[4]{};
-
-            // can2
-            transmit_buffer_.add_can2_transmission(
-                0x141, gimbal_top_yaw_motor_.generate_torque_command(
-                           gimbal_top_yaw_motor_.control_torque()));
-            transmit_buffer_.add_can2_transmission(
-                0x142,
-                gimbal_pitch_motor_.generate_torque_command(gimbal_pitch_motor_.control_torque()));
-            // TODO:add gimbal_player_viewer messages
-            transmit_buffer_.add_can2_transmission(
-                0x143, gimbal_player_viewer_motor_.generate_velocity_command(
-                           gimbal_player_viewer_motor_.control_velocity()));
-
-            batch_commands[0] = gimbal_scope_motor_.generate_command();
-            transmit_buffer_.add_can2_transmission(0x200, std::bit_cast<uint64_t>(batch_commands));
-
             // can1
             transmit_buffer_.add_can1_transmission(
                 0x141, gimbal_bullet_feeder_.generate_velocity_command(
                            gimbal_bullet_feeder_.control_velocity()));
+
             for (int i = 0; i < 4; i++)
                 batch_commands[i] = gimbal_friction_wheels_[i].generate_command();
             transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(batch_commands));
+
+            // can2
+            // TODO:add gimbal_player_viewer messages
+            transmit_buffer_.add_can2_transmission(
+                0x143, gimbal_player_viewer_motor_.generate_disable_command());
+
+            transmit_buffer_.add_can2_transmission(
+                0x142,
+                gimbal_pitch_motor_.generate_torque_command(gimbal_pitch_motor_.control_torque()));
+            transmit_buffer_.add_can2_transmission(
+                0x141, gimbal_top_yaw_motor_.generate_torque_command(
+                           gimbal_top_yaw_motor_.control_torque()));
+
+            batch_commands[0] = gimbal_scope_motor_.generate_command();
+            transmit_buffer_.add_can2_transmission(0x200, std::bit_cast<uint64_t>(batch_commands));
 
             transmit_buffer_.trigger_transmission();
         }
@@ -387,7 +393,6 @@ private:
                    device::DjiMotor::Config{device::DjiMotor::Type::M3508}.set_reduction_ratio(
                        13.)})
             , supercap_(hero, hero_command)
-            // TODO: change bottom yaw motor name prefix
             , gimbal_bottom_yaw_motor_(
                   hero, hero_command, "/gimbal/bottom_yaw",
                   device::LkMotor::Config{device::LkMotor::Type::MG6012E_I8}
@@ -415,20 +420,14 @@ private:
 
         void update() {
             imu_.update_status();
-
             dr16_.update_status();
+            supercap_.update_status();
 
             for (auto& motor : chassis_wheel_motors_)
                 motor.update_status();
-
             for (auto& motor : chassis_steering_motors_)
                 motor.update_status();
-
-            supercap_.update_status();
-
             gimbal_bottom_yaw_motor_.update_status();
-            tf_->set_state<rmcs_description::GimbalCenterLink, rmcs_description::YawLink>(
-                gimbal_bottom_yaw_motor_.angle());
         }
 
         void command_update() {
@@ -449,7 +448,7 @@ private:
             // This approach currently works only on Hero, as it utilizes motor angular velocity
             // instead of gyro angular velocity for closed-loop control.
             transmit_buffer_.add_can2_transmission(
-                0x142, gimbal_bottom_yaw_motor_.generate_torque_command(
+                0x141, gimbal_bottom_yaw_motor_.generate_torque_command(
                            gimbal_bottom_yaw_motor_.control_torque()));
 
             transmit_buffer_.trigger_transmission();
@@ -489,7 +488,7 @@ private:
                 chassis_steering_motors_[2].store_status(can_data);
             } else if (can_id == 0x208) {
                 chassis_steering_motors_[3].store_status(can_data);
-            } else if (can_id == 0x142) {
+            } else if (can_id == 0x141) {
                 gimbal_bottom_yaw_motor_.store_status(can_data);
             }
         }

@@ -54,9 +54,9 @@ hero_hardware:
   ros__parameters:
     usb_pid_top_board: 0x652f
     usb_pid_bottom_board: 0x1783
-    bottom_yaw_motor_zero_point: 42596
-    top_yaw_motor_zero_point: 2983
-    pitch_motor_zero_point: 15014
+    bottom_yaw_motor_zero_point: 42555
+    top_yaw_motor_zero_point: 3521
+    pitch_motor_zero_point: 14367
     external_imu_port: /dev/ttyUSB0
     left_front_zero_point: 2711
     left_back_zero_point: 4755
@@ -92,18 +92,18 @@ bottom_yaw_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/bottom_yaw/control_angle_error
     control: /gimbal/bottom_yaw/control_velocity
-    kp: 9.70
+    kp: 10.00
     ki: 0.00
-    kd: 0.01
+    kd: 0.00
 
 bottom_yaw_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/bottom_yaw/velocity
     setpoint: /gimbal/bottom_yaw/control_velocity
     control: /gimbal/bottom_yaw/control_torque
-    kp: 30.00
+    kp: 20.00
     ki: 0.00
-    kd: 1.10
+    kd: 1.30
 
 pitch_angle_pid_controller:
   ros__parameters:
