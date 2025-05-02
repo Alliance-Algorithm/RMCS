@@ -4,6 +4,7 @@
 #include "hardware/device/dm_motor.hpp"
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/lk_motor.hpp"
+#include "hardware/device/relay.hpp"
 #include "hardware/forwarder/cboard.hpp"
 #include "hardware/ring_buffer.hpp"
 #include "librmcs/device/bmi088.hpp"
@@ -49,15 +50,14 @@ public:
         //
     }
     void command() {
-        armboard_.command();
-        steeringboard_.command();
-        legboard_.command();
+        // armboard_.command();
+        // steeringboard_.command();
+        // legboard_.command();
         //
     }
 
 private:
     static double normalizeAngle(double angle) {
-
         while (angle > M_PI)
             angle -= 2 * M_PI;
         while (angle < -M_PI)
@@ -130,7 +130,7 @@ private:
             joint[4].configure_joint(
                 LKMotorConfig{LKMotorType::MG4010E_i10V3}
                     .enable_multi_turn_angle()
-                    .set_gear_ratio(1.35)
+                    .set_gear_ratio(1.0)
                     .set_encoder_zero_point(
                         static_cast<uint16_t>(
                             engineer.get_parameter("joint5_zero_point").as_int())),
@@ -179,8 +179,6 @@ private:
             update_arm_motors();
             dr16_.update();
             update_imu();
-            // vision.pop_front_multi()
-            // RCLCPP_INFO(this->get_logger(),"%f ",big_yaw.get_velocity());
         }
         void command() {
             arm_command_update();
@@ -218,8 +216,9 @@ private:
                     command_ = device::LKMotor::lk_quest_command();
                     transmit_buffer_.add_can1_transmission(
                         (0x143), std::bit_cast<uint64_t>(command_));
-                    transmit_buffer_.add_can2_transmission(
-                        (0x146), std::bit_cast<uint64_t>(command_));
+                        transmit_buffer_.add_can2_transmission(
+                            (0x146), std::bit_cast<uint64_t>(command_));
+                    
                 } else {
                     command_ = device::LKMotor::lk_quest_command();
                     transmit_buffer_.add_can1_transmission(
@@ -270,6 +269,8 @@ private:
                         std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
 
                 } else {
+            RCLCPP_INFO(this->get_logger(),"%f",(*joint2_error_angle));
+
                     (*joint2_error_angle) =
                         -normalizeAngle(joint[1].get_target_theta() - joint[1].get_theta());
                     (*joint1_error_angle) =
@@ -310,7 +311,7 @@ private:
                     command_1 = big_yaw.dm_enable_command();
 
                 } else {
-                    command_1 = big_yaw.generate_torque_command();
+                    command_1 = big_yaw.dm_enable_command();
                 }
 
                 transmit_buffer_.add_can2_transmission(
@@ -365,6 +366,7 @@ private:
             if (can_id == 0x33) {
                 big_yaw.store_status(can_data);
             }
+
         }
         void can1_receive_callback(
             uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
@@ -377,7 +379,7 @@ private:
                 joint[1].store_status(can_data);
             if (can_id == 0x141)
                 joint[0].store_status(can_data);
-            if (can_id == 0x7ff)
+            if (can_id == 0x005)
                 joint3_encoder.store_status(can_data);
             if (can_id == 0x1fb)
                 joint2_encoder.store_status(can_data);
@@ -615,47 +617,49 @@ private:
                   {engineer, engineer_command, "/leg/joint/rf"})
             , Leg_ecd(
                   {engineer, "/leg/encoder/lf"}, {engineer, "/leg/encoder/lb"},
-                  {engineer, "/leg/encoder/rb"}, {engineer, "/leg/encoder/rf"}) {
+                  {engineer, "/leg/encoder/rb"}, {engineer, "/leg/encoder/rf"})
+            , leg_relay(engineer_command, "/leg/relay", device::RelayType::Four_CH) {
 
             Omni_Motors[0].configure(
                 device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(
                     18.2));
             Omni_Motors[1].configure(
-                device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(
+                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(
                     18.2));
             Leg_Motors[0].configure(
-                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(92.0));
+                device::DjiMotorConfig{device::DjiMotorType::M3508}
+                    .set_reduction_ratio(92.0)
+                    .reverse());
             Leg_Motors[1].configure(
-                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(277.0));
+                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(
+                    277.6));
             Leg_Motors[2].configure(
-                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(92.0));
+                device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(277.6));
             Leg_Motors[3].configure(
-                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(277.0));
+                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(92.0));
+
+
             Leg_ecd[0].configure(
                 device::EncoderConfig{}.set_encoder_zero_point(
                     static_cast<int>(engineer.get_parameter("leg_lf_ecd_zero_point").as_int())));
             Leg_ecd[1].configure(
-                device::EncoderConfig{}.set_encoder_zero_point(
+                device::EncoderConfig{}.reverse().set_encoder_zero_point(
                     static_cast<int>(engineer.get_parameter("leg_lb_ecd_zero_point").as_int())));
             Leg_ecd[2].configure(
                 device::EncoderConfig{}.set_encoder_zero_point(
                     static_cast<int>(engineer.get_parameter("leg_rb_ecd_zero_point").as_int())));
             Leg_ecd[3].configure(
-                device::EncoderConfig{}.set_encoder_zero_point(
+                device::EncoderConfig{}.reverse().set_encoder_zero_point(
                     static_cast<int>(engineer.get_parameter("leg_rf_ecd_zero_point").as_int())));
-            engineer.register_output(
-                "/leg/joint/lf/control_theta_error", leg_joint_lf_control_theta_error, NAN);
+
             engineer.register_output(
                 "/leg/joint/lb/control_theta_error", leg_joint_lb_control_theta_error, NAN);
             engineer.register_output(
                 "/leg/joint/rb/control_theta_error", leg_joint_rb_control_theta_error, NAN);
-            engineer.register_output(
-                "/leg/joint/rf/control_theta_error", leg_joint_rf_control_theta_error, NAN);
 
-            engineer_command.register_input("/leg/joint/lf/target_theta", leg_lf_target_theta_);
             engineer_command.register_input("/leg/joint/lb/target_theta", leg_lb_target_theta_);
             engineer_command.register_input("/leg/joint/rb/target_theta", leg_rb_target_theta_);
-            engineer_command.register_input("/leg/joint/rf/target_theta", leg_rf_target_theta_);
+       
         }
 
         ~LegBoard() final {
@@ -671,32 +675,59 @@ private:
             for (auto& ecd : Leg_ecd) {
                 ecd.update();
             }
+            // RCLCPP_INFO(this->get_logger(), "lf %f lb %f rb %f rf %f",Leg_Motors[0].get_torque(),Leg_Motors[3].get_torque(),max_rb,max_rf);
+
+            // printf_max(Leg_Motors[0].get_torque(),Leg_Motors[1].get_torque(),Leg_Motors[2].get_torque(),Leg_Motors[3].get_torque());
+        }
+        void printf_max(double lf,double lb,double rb,double rf){
+            
+            if(lf > max_lf){
+                max_lf = lf;
+            }
+            if(lb > max_lb){
+                max_lb = lb;
+            }
+            if(rb > max_rb){
+                max_rb = rb;
+            }
+            if(rf > max_rf){
+                max_rf = rf;
+            }
+            RCLCPP_INFO(this->get_logger(), "lf %f lb %f rb %f rf %f",max_lf,max_lb,max_rb,max_rf);
         }
         void command() {
-            //todo:class
-            uint8_t command[8];
-            command[0] = 1;
-            command[1] = 1;
-            command[2] = 1;
-            command[3] = 1;
-            command[4] = 0;
-            transmit_buffer_.add_can2_transmission(0x306, std::bit_cast<uint64_t>(command));
-            
+
             uint16_t command_[4];
-            // static int counter = 0;
-            // if (counter % 2 == 0) {
 
-            //     // 发送1234包
-            // } else {
-            //     // 发送68包
-            //     command_[0] = 0;
-            //     *leg_joint_lb_control_theta_error = normalizeAngle(*leg_lb_target_theta_ - Leg_ecd[0].get_angle());
-            //     command_[1] = Leg_Motors[0].generate_command();
-            //     transmit_buffer_.add_can2_transmission(0x1FF, std::bit_cast<uint64_t>(command_));
-            // }
-            // transmit_buffer_.trigger_transmission();
+            static int counter = 0;
+            if (counter % 2 == 0) {
+                // send 0x201~0x204
 
-            // counter++;
+                command_[0] = Omni_Motors[1].generate_command();
+                *leg_joint_rb_control_theta_error =
+                    normalizeAngle(*leg_rb_target_theta_ - Leg_ecd[2].get_angle());
+                command_[1] = Leg_Motors[2].generate_command();
+                *leg_joint_lb_control_theta_error =
+                    normalizeAngle(*leg_lb_target_theta_ - Leg_ecd[1].get_angle());
+
+                command_[2] = Leg_Motors[1].generate_command();
+                command_[3] = Omni_Motors[0].generate_command();
+                transmit_buffer_.add_can2_transmission(0x200, std::bit_cast<uint64_t>(command_));
+
+            } else {
+                // send 0x206 0x208
+                command_[0] = 0;
+                command_[1] = Leg_Motors[0].generate_command();
+                command_[2] = 0;
+                command_[3] = Leg_Motors[3].generate_command();
+                transmit_buffer_.add_can2_transmission(0x1FF, std::bit_cast<uint64_t>(command_));
+            }
+            if (counter > 1000) {
+                counter = 0;
+            }
+            transmit_buffer_.trigger_transmission();
+            counter++;
+
         }
 
     protected:
@@ -722,6 +753,7 @@ private:
             }
             if (can_id == 0x204) {
                 Omni_Motors[0].store_status(can_data);
+
             }
         }
         void can1_receive_callback(
@@ -733,21 +765,16 @@ private:
 
             if (can_id == 0x017) {
                 Leg_ecd[3].store_status(can_data);
-
             }
             if (can_id == 0x016) {
                 Leg_ecd[0].store_status(can_data);
             }
             if (can_id == 0x015) {
                 Leg_ecd[1].store_status(can_data);
-                
             }
-            if (can_id == 0x13) {
+            if (can_id == 0x013) {
                 Leg_ecd[2].store_status(can_data);
-                RCLCPP_INFO(this->get_logger(), "%f", Leg_ecd[2].get_angle() * 180.0 / std::numbers::pi);
-
             }
-            RCLCPP_INFO(this->get_logger(),"%x",can_id);
         }
 
     private:
@@ -756,16 +783,15 @@ private:
         device::DjiMotor Omni_Motors[2];
         device::DjiMotor Leg_Motors[4];
         device::Encoder Leg_ecd[4];
-
-        InputInterface<double> leg_lf_target_theta_;
+        device::Relay leg_relay;
+      
         InputInterface<double> leg_lb_target_theta_;
         InputInterface<double> leg_rb_target_theta_;
-        InputInterface<double> leg_rf_target_theta_;
-        OutputInterface<double> leg_joint_lf_control_theta_error;
+
         OutputInterface<double> leg_joint_lb_control_theta_error;
         OutputInterface<double> leg_joint_rb_control_theta_error;
-        OutputInterface<double> leg_joint_rf_control_theta_error;
 
+        double max_lf = 0.0,max_lb = 0.0,max_rb = 0.0,max_rf = 0.0;
     } legboard_;
 };
 

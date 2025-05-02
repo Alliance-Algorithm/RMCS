@@ -1,7 +1,10 @@
 #include "controller/pid/pid_calculator.hpp"
+#include "hardware/device/trajectory.hpp"
 #include <algorithm>
 #include <arm_mode.hpp>
+#include <array>
 #include <cmath>
+#include <cstdint>
 #include <cstdlib>
 #include <eigen3/Eigen/Dense>
 #include <eigen3/Eigen/src/Core/Matrix.h>
@@ -10,8 +13,10 @@
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/arm_mode.hpp>
 #include <rmcs_msgs/chassis_mode.hpp>
 #include <rmcs_msgs/keyboard.hpp>
+#include <rmcs_msgs/leg_mode.hpp>
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/switch.hpp>
 namespace rmcs_core::controller::chassis {
@@ -23,7 +28,11 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , following_velocity_controller_(0.26, 0.00, 0.089) {
+        , following_velocity_controller_(0.26, 0.00, 0.089)
+        , leg_lf_error_pid_controller(120.0, 0.0, 3.0)
+        , leg_lf_velocity_pid_controller(3.0, 0.0, 0.2)
+        , leg_rf_error_pid_controller(120.0, 0.0, 3.0)
+        , leg_rf_velocity_pid_controller(2.0, 0.0, 0.0) {
 
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
@@ -54,27 +63,47 @@ public:
         register_output("/leg/omni/l/target_vel", omni_l_target_vel, NAN);
         register_output("/leg/omni/r/target_vel", omni_r_target_vel, NAN);
 
-        register_output("/leg/joint/lf/control_torque", leg1_t, NAN);
-        register_output("/leg/joint/lb/control_torque", leg2_t, NAN);
-        register_output("/leg/joint/rb/control_torque", leg3_t, NAN);
-        register_output("/leg/joint/rf/control_torque", leg4_t, NAN);
-
         register_input("/leg/encoder/lf/angle", theta_lf);
         register_input("/leg/encoder/lb/angle", theta_lb);
         register_input("/leg/encoder/rb/angle", theta_rb);
         register_input("/leg/encoder/rf/angle", theta_rf);
+        register_output("/leg/joint/lf/control_torque", leg_joint_lf_control_torque, NAN);
+        register_output("/leg/joint/lb/target_theta", leg_lb_target_theta, NAN);
+        register_output("/leg/joint/rb/target_theta", leg_rb_target_theta, NAN);
+        register_output("/leg/joint/rf/control_torque", leg_joint_rf_control_torque, NAN);
 
-        register_output("/leg/joint/lf/target_theta", leg_lf_target_theta,NAN);
-        register_output("/leg/joint/lb/target_theta", leg_lb_target_theta,NAN);
-        register_output("/leg/joint/rb/target_theta", leg_rb_target_theta,NAN);
-        register_output("/leg/joint/rf/target_theta", leg_rf_target_theta,NAN);
+        register_input("/leg/joint/lf/velocity", leg_joint_lf_velocity);
+        register_input("/leg/joint/rf/velocity", leg_joint_rf_velocity);
+        register_input("/leg/joint/lf/torque", leg_joint_lf_torque);
+        register_input("/leg/joint/rf/torque", leg_joint_rf_torque);
+        register_output("/leg/relay/CH", leg_relay, NAN);
 
         register_input("yaw_imu_velocity", yaw_imu_velocity);
         register_input("yaw_imu_angle", yaw_imu_angle);
+        register_input("/chassis/big_yaw/angle", yaw_motor_angle);
+
+        register_input("/arm/mode", arm_mode);
+
         register_output(
             "/chassis/big_yaw/target_angle_error", chassis_big_yaw_target_angle_error, NAN);
         register_input("/chassis/big_yaw/angle", chassis_big_yaw_angle);
-        // register_input("/chassis/big_yaw/control_vel", chassis_big_yaw_control_vel_);
+
+        std::array<double, 2> four_wheel_angle = leg_inverse_kinematic(245.8, 212.2, false, false);
+        four_wheel_trajectory
+            .set_end_point(
+                {four_wheel_angle[0], four_wheel_angle[1], four_wheel_angle[1], four_wheel_angle[0],
+                 0, 0})
+            .set_total_step(500.0);
+        // six_wheel_trajectory
+        std::array<double, 2> six_wheel_angle = leg_inverse_kinematic(270.0, 220.0, false, false);
+        six_wheel_trajectory
+            .set_end_point(
+                {six_wheel_angle[0], six_wheel_angle[1], six_wheel_angle[1], six_wheel_angle[0], 0,
+                 0})
+            .set_total_step(500.0);
+        up_stairs.set_end_point({1.800270, 1.680, 1.680, 1.800270, 0, 0}).set_total_step(1800);
+        leg_press.set_end_point({1.016814, 0.765241, 0.765241, 1.016814, 0, 0})
+            .set_total_step(4000);
     }
     void update() override {
         auto switch_right = *switch_right_;
@@ -82,70 +111,77 @@ public:
         auto mouse        = *mouse_;
         auto keyboard     = *keyboard_;
         using namespace rmcs_msgs;
-        std::array<double, 2> array = leg_inverse_kinematic(231.25,231.25, false,false);
         // RCLCPP_INFO(this->get_logger(),"%f %f ",array[0],array[1]);
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
             *is_chassis_and_leg_enable = false;
             reset_motor();
             yaw_target_ = *yaw_imu_angle;
+            leg_relay_control(true);
 
         } else {
+            leg_relay_control(false);
 
             *is_chassis_and_leg_enable = true;
             mode_selection();
             switch (chassis_mode) {
             case rmcs_msgs::ChassisMode::Four_Wheel_Normal_Move: {
                 // todo:加入wasd
-                speed_limit          = 5.0;
                 double chassis_theta = *chassis_big_yaw_angle;
                 double spin_speed =
-                    std::clamp(following_velocity_controller_.update(chassis_theta), -0.5, 0.5);
-                if (std::abs(chassis_theta) < 0.01)
-                    spin_speed = 0.0f;
+                    std::clamp(following_velocity_controller_.update(chassis_theta), -1.0, 1.0);
                 Eigen::Vector2d move_ = *joystick_left_;
+                is_yaw_imu_control    = true;
                 yaw_target_ += joystick_right_->y() * 0.002;
                 yaw_target_ = normalizeAngle(yaw_target_);
                 yaw_control(yaw_target_);
-                // steering_control(move_, spin_speed);
+                steering_control(move_, spin_speed);
                 omniwheel_control(Eigen::Vector2d{NAN, NAN});
                 break;
             }
             case rmcs_msgs::ChassisMode::Six_Wheel_Normal_Move: {
                 // todo:加入wasd
-                speed_limit          = 5.0;
                 double chassis_theta = *chassis_big_yaw_angle;
                 double spin_speed =
                     std::clamp(following_velocity_controller_.update(chassis_theta), -1.0, 1.0);
-                if (std::abs(chassis_theta) < 0.07)
-                    spin_speed = 0.0f;
                 Eigen::Vector2d move_ = *joystick_left_;
+                is_yaw_imu_control    = true;
                 yaw_target_ += joystick_right_->y() * 0.002;
                 yaw_target_ = normalizeAngle(yaw_target_);
                 steering_control(move_, spin_speed);
-
                 yaw_control(yaw_target_);
-                omniwheel_control(Eigen::Vector2d{NAN, NAN});
+                omniwheel_control(move_);
                 break;
             }
             case rmcs_msgs::ChassisMode::SPIN: {
-                double spin_speed = 1.2;
-                speed_limit       = 8.0;
+                double spin_speed = 0.9;
+                speed_limit       = 11.0;
                 Eigen::Rotation2D<double> rotation(*chassis_big_yaw_angle);
                 Eigen::Vector2d move_ = rotation * (*joystick_left_);
+                is_yaw_imu_control    = true;
                 yaw_target_ += joystick_right_->y() * 0.002;
                 yaw_control(yaw_target_);
                 steering_control(move_, spin_speed);
                 omniwheel_control(Eigen::Vector2d{NAN, NAN});
+
                 break;
+            }
+            case rmcs_msgs::ChassisMode::Up_Stairs: {
+                is_yaw_imu_control    = false;
+                yaw_target_           = 0.0;
+                speed_limit           = 3.0;
+                Eigen::Vector2d move_ = *joystick_left_;
+                yaw_control(yaw_target_);
+                steering_control(move_, joystick_right_->y());
+                omniwheel_control(move_);
             }
             default: break;
             }
+            leg_control();
         }
     }
 
 private:
-
     void mode_selection() {
         auto switch_right = *switch_right_;
         auto switch_left  = *switch_left_;
@@ -154,34 +190,198 @@ private:
         using namespace rmcs_msgs;
         if (switch_left == Switch::MIDDLE && switch_right == Switch::MIDDLE) {
             chassis_mode = ChassisMode::Four_Wheel_Normal_Move;
+            leg_mode     = rmcs_msgs::LegMode::Four_Wheel;
         } else if (switch_left == Switch::MIDDLE && switch_right == Switch::DOWN) {
             chassis_mode = ChassisMode::Six_Wheel_Normal_Move;
+            leg_mode     = rmcs_msgs::LegMode::Six_Wheel;
+
         } else if (switch_left == Switch::MIDDLE && switch_right == Switch::UP) {
             chassis_mode = ChassisMode::SPIN;
+            leg_mode     = rmcs_msgs::LegMode::Four_Wheel;
+
+        } else if (switch_left == Switch::UP && switch_right == Switch::DOWN) {
+            chassis_mode = ChassisMode::Up_Stairs;
+            leg_mode     = rmcs_msgs::LegMode::Up_Stairs;
+
+        } else if (switch_left == Switch::DOWN && switch_right == Switch::UP) {
+            // attentation code order
+            if (keyboard.c) {
+                if (!keyboard.shift && !keyboard.ctrl) {
+                    speed_limit = 5.0;
+                }
+                if (keyboard.shift && !keyboard.ctrl) {
+                    speed_limit = 3.0;
+                }
+                if (!keyboard.shift && keyboard.ctrl) {
+                    speed_limit = 1.0;
+                }
+            } 
+            if (keyboard.v) {
+                if (!keyboard.shift && !keyboard.ctrl) {
+                    chassis_mode = ChassisMode::Six_Wheel_Normal_Move;
+                    leg_mode     = rmcs_msgs::LegMode::Six_Wheel;
+    
+                }
+                if (keyboard.shift && !keyboard.ctrl) {
+                    chassis_mode = ChassisMode::Four_Wheel_Normal_Move;
+                    leg_mode     = rmcs_msgs::LegMode::Four_Wheel;
+                }
+                if (!keyboard.shift && keyboard.ctrl) {
+                    chassis_mode = ChassisMode::SPIN;
+                    leg_mode     = rmcs_msgs::LegMode::Four_Wheel;
+                }
+            }
+            if (keyboard.b) {
+                chassis_mode = rmcs_msgs::ChassisMode::Up_Stairs;
+                leg_mode     = rmcs_msgs::LegMode::Up_Stairs;
+                up_stairs.reset();
+                leg_press.reset();
+                up_stairs.set_start_point({*theta_lf, *theta_lb, *theta_rb, *theta_rf, 0.0, 0.0});
+                leg_press.set_start_point({*theta_lf, *theta_lb, *theta_rb, *theta_rf, 0.0, 0.0});
+                
+            }
+            // execute right change according to arm_mode
+            if (last_arm_mode != *arm_mode) {
+
+                if (*arm_mode == rmcs_msgs::ArmMode::Auto_Gold_Left
+                    || *arm_mode == rmcs_msgs::ArmMode::Auto_Gold_Mid
+                    || *arm_mode == rmcs_msgs::ArmMode::Auto_Gold_Right
+                    || *arm_mode == rmcs_msgs::ArmMode::Auto_Sliver
+                    || *arm_mode == rmcs_msgs::ArmMode::Auto_Ground
+                    || *arm_mode == rmcs_msgs::ArmMode::Auto_Storage
+                    || *arm_mode == rmcs_msgs::ArmMode::Auto_Extract
+                    || *arm_mode == rmcs_msgs::ArmMode::Customer
+                    || *arm_mode == rmcs_msgs::ArmMode::Vision_Exchange) {
+                    speed_limit = 1.0;
+                    if (*arm_mode == rmcs_msgs::ArmMode::Customer
+                        || *arm_mode == rmcs_msgs::ArmMode::Vision_Exchange) {
+                        chassis_mode = ChassisMode::Four_Wheel_Normal_Move;
+                        leg_mode     = rmcs_msgs::LegMode::Four_Wheel;
+                    } else {
+                        chassis_mode = ChassisMode::Six_Wheel_Normal_Move;
+                        leg_mode     = rmcs_msgs::LegMode::Six_Wheel;
+                    }
+                } else if (*arm_mode == rmcs_msgs::ArmMode::Auto_Walk) {
+                    speed_limit = 5.0;
+                }
+            }
+
+        } else {
+            chassis_mode = ChassisMode::None;
         }
+        if (chassis_last_mode != chassis_mode) {
+            four_wheel_trajectory.reset();
+            six_wheel_trajectory.reset();
+           
+            four_wheel_trajectory.set_start_point(
+                {*theta_lf, *theta_lb, *theta_rb, *theta_rf, 0.0, 0.0});
+
+            six_wheel_trajectory.set_start_point(
+                {*theta_lf, *theta_lb, *theta_rb, *theta_rf, 0.0, 0.0});
+          
+            if (chassis_last_mode == rmcs_msgs::ChassisMode::SPIN) {
+                speed_limit = 5.0;
+            }
+        }
+        chassis_last_mode = chassis_mode;
+        last_arm_mode     = *arm_mode;
     }
-    std::array<double, 2> leg_inverse_kinematic(double f_x,double b_x,bool is_front_ecd_obtuse,bool is_back_ecd_obtuse){
-        constexpr double link1 = 240.0f,link2 = 120.0f,link3 = 160.0f;
-        double theta_f,theta_b;
-        double theta_b_ = asin(b_x/ link1);
-        if(is_back_ecd_obtuse){
+
+    void leg_control() {
+
+        static std::array<double, 6> result;
+        static bool flag = false;
+        if (leg_mode == rmcs_msgs::LegMode::Four_Wheel) {
+            is_leg_forward_joint_torque_control = false;
+            result                              = four_wheel_trajectory.trajectory();
+
+        } else if (leg_mode == rmcs_msgs::LegMode::Six_Wheel) {
+            if (!six_wheel_trajectory.get_complete()) {
+                is_leg_forward_joint_torque_control = false;
+                result                              = six_wheel_trajectory.trajectory();
+            } else {
+                is_leg_forward_joint_torque_control = false;
+                result                              = six_wheel_trajectory.trajectory();
+                if (*theta_lf < std::numbers::pi / 2.0 || *theta_rf < std::numbers::pi / 2.0) {
+                    result[0] = NAN;
+                    result[3] = NAN;
+                }
+            }
+        } else if (leg_mode == rmcs_msgs::LegMode::Up_Stairs) {
+            is_leg_forward_joint_torque_control = false;
+            if (!up_stairs.get_complete()) {
+                result = up_stairs.trajectory();
+                RCLCPP_INFO(this->get_logger(), "ggggggg");
+
+                flag = false;
+            } else {
+                if (*leg_joint_lf_torque > 5.0 && *leg_joint_rf_torque > 5.0) {
+                    flag = true;
+                    RCLCPP_INFO(this->get_logger(), "ddada");
+                } else if (flag) {
+                    std::array<double, 6> result_;
+                    result = leg_press.trajectory();
+                    RCLCPP_INFO(
+                        this->get_logger(), "%f,%f,%f,%f", result[0], result[1], result[2],
+                        result[3]);
+                    RCLCPP_INFO(this->get_logger(), "gjkjkjkjkjk");
+                }
+            }
+        }
+        leg_joint_controller(result[0], result[1], result[2], result[3]);
+    }
+
+    void leg_joint_controller(double lf, double lb, double rb, double rf) {
+        if (is_leg_forward_joint_torque_control) {
+            set_leg_forward_joint_torque(lf, rf);
+            *leg_lb_target_theta = lb;
+            *leg_rb_target_theta = rb;
+
+        } else {
+            leg_lf_target_theta  = lf;
+            leg_rf_target_theta  = rf;
+            *leg_lb_target_theta = lb;
+            *leg_rb_target_theta = rb;
+            double leg_joint_lf_control_vel =
+                leg_lf_error_pid_controller.update(normalizeAngle(leg_lf_target_theta - *theta_lf));
+            double leg_joint_rf_control_vel =
+                leg_rf_error_pid_controller.update(normalizeAngle(leg_rf_target_theta - *theta_rf));
+            set_leg_forward_joint_torque(
+                leg_lf_velocity_pid_controller.update(
+                    leg_joint_lf_control_vel - *leg_joint_lf_velocity),
+                leg_rf_velocity_pid_controller.update(
+                    leg_joint_rf_control_vel - *leg_joint_rf_velocity));
+        }
+    };
+    void set_leg_forward_joint_torque(double lf, double rf) {
+        *leg_joint_lf_control_torque = lf;
+        *leg_joint_rf_control_torque = rf;
+    }
+    static std::array<double, 2> leg_inverse_kinematic(
+        double f_x, double b_x, bool is_front_ecd_obtuse, bool is_back_ecd_obtuse) {
+        constexpr double link1 = 240.0f, link2 = 120.0f, link3 = 160.0f;
+        double theta_f, theta_b;
+        double theta_b_ = asin(b_x / link1);
+        if (is_back_ecd_obtuse) {
             theta_b = std::numbers::pi - theta_b_;
-        }else{
+        } else {
             theta_b = theta_b_;
         }
-        double x_link2 = link2 * sin(5.0 * std::numbers::pi / 6.0 - theta_b);
-        double theta_f_=asin((f_x - x_link2)/link3);
-        if(is_front_ecd_obtuse){
+        double x_link2  = link2 * sin(5.0 * std::numbers::pi / 6.0 - theta_b);
+        double theta_f_ = asin((f_x - x_link2) / link3);
+        if (is_front_ecd_obtuse) {
             theta_f = std::numbers::pi - theta_f_;
-        }else{
+        } else {
             theta_f = theta_f_;
         }
-        return {theta_f,theta_b};
+        return {theta_f, theta_b};
     }
     void yaw_control(double target_angle) {
-        *chassis_big_yaw_target_angle_error = normalizeAngle(target_angle - *yaw_imu_angle);
-        // todo：：add free——yaw
-        // RCLCPP_INFO(this->get_logger(),"%f",*chassis_big_yaw_target_angle_error);
+        if (is_yaw_imu_control) {
+            *chassis_big_yaw_target_angle_error = normalizeAngle(target_angle - *yaw_imu_angle);
+        } else {
+            *chassis_big_yaw_target_angle_error = normalizeAngle(target_angle - *yaw_motor_angle);
+        }
     }
     void steering_control(const Eigen::Vector2d& move, double spin_speed) {
 
@@ -194,23 +394,6 @@ private:
         Eigen::Vector2d lf_vel_angle = lf_vel;
         Eigen::Vector2d rb_vel_angle = rb_vel;
         Eigen::Vector2d rf_vel_angle = rf_vel;
-
-        if (lf_vel.x() == 0 && lf_vel.y() == 0)
-            lf_vel_angle = lf_vel_last_;
-        else
-            lf_vel_last_ = lf_vel;
-        if (lb_vel.x() == 0 && lb_vel.y() == 0)
-            lb_vel_angle = lb_vel_last_;
-        else
-            lb_vel_last_ = lb_vel;
-        if (rf_vel.x() == 0 && rf_vel.y() == 0)
-            rf_vel_angle = rf_vel_last_;
-        else
-            rf_vel_last_ = rf_vel;
-        if (rb_vel.x() == 0 && rb_vel.y() == 0)
-            rb_vel_angle = rb_vel_last_;
-        else
-            rb_vel_last_ = rb_vel;
 
         double err[4] = {
             -atan2(lb_vel_angle.y(), lb_vel_angle.x()) - *steering_lb_angle,
@@ -235,21 +418,35 @@ private:
         *omni_l_target_vel = move.x() * (speed_limit / wheel_r);
         *omni_r_target_vel = move.x() * (speed_limit / wheel_r);
     }
+    void leg_relay_control(bool is_open) {
+        if (is_open) {
+            *leg_relay = 0b11110000;
+        } else {
+            *leg_relay = 0b00000000;
+        }
+    }
     void reset_motor() {
-        *steering_lf_target_angle_error = NAN;
-        *steering_lb_target_angle_error = NAN;
-        *steering_rb_target_angle_error = NAN;
-        *steering_rf_target_angle_error = NAN;
-        *steering_lf_target_angle_error = NAN;
-        *steering_lb_target_angle_error = NAN;
-        *steering_rb_target_angle_error = NAN;
-        *steering_rf_target_angle_error = NAN;
-        *omni_l_target_vel              = NAN;
-        *omni_r_target_vel              = NAN;
-        *steering_wheel_lf_target_vel   = NAN;
-        *steering_wheel_lb_target_vel   = NAN;
-        *steering_wheel_rb_target_vel   = NAN;
-        *steering_wheel_rf_target_vel   = NAN;
+        *steering_lf_target_angle_error     = NAN;
+        *steering_lb_target_angle_error     = NAN;
+        *steering_rb_target_angle_error     = NAN;
+        *steering_rf_target_angle_error     = NAN;
+        *steering_lf_target_angle_error     = NAN;
+        *steering_lb_target_angle_error     = NAN;
+        *steering_rb_target_angle_error     = NAN;
+        *steering_rf_target_angle_error     = NAN;
+        *omni_l_target_vel                  = NAN;
+        *omni_r_target_vel                  = NAN;
+        *steering_wheel_lf_target_vel       = NAN;
+        *steering_wheel_lb_target_vel       = NAN;
+        *steering_wheel_rb_target_vel       = NAN;
+        *steering_wheel_rf_target_vel       = NAN;
+        leg_lf_target_theta                 = NAN;
+        *leg_lb_target_theta                = NAN;
+        *leg_rb_target_theta                = NAN;
+        leg_rf_target_theta                 = NAN;
+        *leg_joint_lf_control_torque        = NAN;
+        *leg_joint_rf_control_torque        = NAN;
+        *chassis_big_yaw_target_angle_error = NAN;
     }
     static inline double norm_error_angle(const double& angle) {
         double tmp = angle;
@@ -283,11 +480,18 @@ private:
             angle += 2 * M_PI;
         return angle;
     }
-
+    InputInterface<rmcs_msgs::ArmMode> arm_mode;
+    rmcs_msgs::ArmMode last_arm_mode;
     pid::PidCalculator following_velocity_controller_;
-    double speed_limit              = 5.0; // m/s
-    static constexpr double wheel_r = 0.11;
-    double yaw_target_;
+
+    pid::PidCalculator leg_lf_error_pid_controller;
+    pid::PidCalculator leg_lf_velocity_pid_controller;
+    pid::PidCalculator leg_rf_error_pid_controller;
+    pid::PidCalculator leg_rf_velocity_pid_controller;
+
+    double speed_limit              = 5.0;  // m/s
+    static constexpr double wheel_r = 0.11; // m
+    double yaw_target_              = NAN;
 
     const Eigen::Vector2d lf_vel_{1, -1};
     const Eigen::Vector2d lb_vel_{1, 1};
@@ -327,25 +531,39 @@ private:
     InputInterface<double> theta_lb;
     InputInterface<double> theta_rb;
     InputInterface<double> theta_rf;
-
+    // unused
     InputInterface<double> chassis_big_yaw_control_vel_;
-
+    //----------------------------------
+    bool is_yaw_imu_control = false;
     InputInterface<double> yaw_imu_velocity;
     InputInterface<double> yaw_imu_angle;
+    InputInterface<double> yaw_motor_angle;
 
-    OutputInterface<double> leg_lf_target_theta;
+    bool is_leg_forward_joint_torque_control = false;
+    double leg_lf_target_theta               = NAN;
     OutputInterface<double> leg_lb_target_theta;
     OutputInterface<double> leg_rb_target_theta;
-    OutputInterface<double> leg_rf_target_theta;
+    double leg_rf_target_theta = NAN;
 
-    OutputInterface<double> leg1_t;
-    OutputInterface<double> leg2_t;
-    OutputInterface<double> leg3_t;
-    OutputInterface<double> leg4_t;
+    InputInterface<double> leg_joint_lf_velocity;
+    InputInterface<double> leg_joint_rf_velocity;
+    InputInterface<double> leg_joint_lf_torque;
+    InputInterface<double> leg_joint_rf_torque;
+    OutputInterface<double> leg_joint_lf_control_torque;
+    OutputInterface<double> leg_joint_rf_control_torque;
 
     OutputInterface<double> chassis_big_yaw_target_angle_error;
     InputInterface<double> chassis_big_yaw_angle;
-    rmcs_msgs::ChassisMode chassis_mode = rmcs_msgs::ChassisMode::Four_Wheel_Normal_Move;
+    rmcs_msgs::ChassisMode chassis_mode      = rmcs_msgs::ChassisMode::None;
+    rmcs_msgs::ChassisMode chassis_last_mode = rmcs_msgs::ChassisMode::None;
+    rmcs_msgs::LegMode leg_mode              = rmcs_msgs::LegMode::Four_Wheel;
+    rmcs_msgs::LegMode leg_last_mode         = rmcs_msgs::LegMode::None;
+    OutputInterface<uint8_t> leg_relay;
+
+    hardware::device::Trajectory<hardware::device::TrajectoryType::JOINT> four_wheel_trajectory;
+    hardware::device::Trajectory<hardware::device::TrajectoryType::JOINT> six_wheel_trajectory;
+    hardware::device::Trajectory<hardware::device::TrajectoryType::JOINT> up_stairs;
+    hardware::device::Trajectory<hardware::device::TrajectoryType::JOINT> leg_press;
 };
 } // namespace rmcs_core::controller::chassis
 #include <pluginlib/class_list_macros.hpp>

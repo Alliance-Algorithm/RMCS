@@ -66,7 +66,6 @@ public:
 
         publisher_ =
             create_publisher<std_msgs::msg::Float32MultiArray>("/engineer/joint/measure", 10);
-
         subscription_ = this->create_subscription<std_msgs::msg::Float32MultiArray>(
             "/engineer/joint/control", 10,
             [this](const std_msgs::msg::Float32MultiArray::SharedPtr msg) {
@@ -79,6 +78,8 @@ public:
                     *target_theta[5] = static_cast<double>(msg->data[5]);
                 }
             });
+        *mode = rmcs_msgs::ArmMode::None;
+        register_output("/arm/mode", mode, rmcs_msgs::ArmMode::None);
     }
     void update() override {
         auto switch_right = *switch_right_;
@@ -109,66 +110,98 @@ public:
 
         } else {
             *is_arm_enable = true;
-            if (switch_left == rmcs_msgs::Switch::DOWN && switch_right == rmcs_msgs::Switch::UP) {
-                keyboard_mode_selection();
-                switch (mode) {
-                    using namespace rmcs_msgs;
-                case ArmMode::Auto_Gold_Left: execute_gold(fsm_gold_l); break;
-                case ArmMode::Auto_Gold_Mid: execute_gold(fsm_gold_m); break;
-                case ArmMode::Auto_Gold_Right: execute_gold(fsm_gold_r); break;
-                case ArmMode::Auto_Sliver: execute_sliver(fsm_sliver); break;
-                case ArmMode::Auto_Walk: execute_walk(); break;
-                default: break;
+
+            if (switch_left == rmcs_msgs::Switch::UP && switch_right == rmcs_msgs::Switch::UP) {
+                *mode = rmcs_msgs::ArmMode::DT7_Control_Position;
+            } else if (
+                switch_left == rmcs_msgs::Switch::UP && switch_right == rmcs_msgs::Switch::MIDDLE) {
+                *mode = rmcs_msgs::ArmMode::DT7_Control_Orientation;
+            } else if (
+                switch_left == rmcs_msgs::Switch::DOWN && switch_right == rmcs_msgs::Switch::UP) {
+
+                if (keyboard.z) {
+                    if (!keyboard.ctrl && !keyboard.shift) {
+                        *mode = rmcs_msgs::ArmMode::Auto_Gold_Left;
+                        fsm_gold_l.reset();
+                    } else if (keyboard.shift && !keyboard.ctrl) {
+                        *mode = rmcs_msgs::ArmMode::Auto_Gold_Mid;
+                        fsm_gold_m.reset();
+                    } else if (keyboard.ctrl && !keyboard.shift) {
+                        *mode = rmcs_msgs::ArmMode::Auto_Gold_Right;
+                        fsm_gold_r.reset();
+                    }
                 }
+                if (keyboard.x) {
+                    *mode = rmcs_msgs::ArmMode::Auto_Sliver;
+                    fsm_sliver.reset();
+                }
+                if (keyboard.g) {
+                    *mode = rmcs_msgs::ArmMode::Auto_Walk;
+                    fsm_walk.reset();
+                }
+                if (keyboard.d) {
+                    *mode = rmcs_msgs::ArmMode::Auto_Ground;
+                }
+                if (keyboard.f) {
+                    *mode = rmcs_msgs::ArmMode::Auto_Storage;
+                }
+                if (keyboard.e) {
+                    *mode = rmcs_msgs::ArmMode::Auto_Extract;
+                }
+                if (keyboard.r) {
+                    if (!keyboard.ctrl && !keyboard.shift) {
+                        *mode = rmcs_msgs::ArmMode::Customer;
+                    } else if (keyboard.shift && !keyboard.ctrl) {
+                        *mode = rmcs_msgs::ArmMode::Vision_Exchange;
+                    }
+                }
+
+            } else {
+                *mode = rmcs_msgs::ArmMode::None;
             }
+            switch (*mode) {
+                using namespace rmcs_msgs;
+            case ArmMode::Auto_Gold_Left: execute_gold(fsm_gold_l); break;
+            case ArmMode::Auto_Gold_Mid: execute_gold(fsm_gold_m); break;
+            case ArmMode::Auto_Gold_Right: execute_gold(fsm_gold_r); break;
+            case ArmMode::Auto_Sliver: execute_sliver(fsm_sliver); break;
+            case ArmMode::Auto_Walk: execute_walk(); break;
+            case ArmMode::DT7_Control_Position: execute_dt7_position(); break;
+            case ArmMode::DT7_Control_Orientation: execute_dt7_orientation(); break;
+            default: break;
+            }
+        RCLCPP_INFO(this->get_logger(),"%d",*mode);
+
         }
     }
 
 private:
-    void update_dr16_control_theta() {
-
-        auto switch_right = *switch_right_;
-        auto switch_left  = *switch_left_;
-        auto mouse        = *mouse_;
-        if (switch_left == rmcs_msgs::Switch::UP && switch_right == rmcs_msgs::Switch::MIDDLE) {
-            if (fabs(joystick_left_->y()) > 0.01)
-                *target_theta[5] += 0.003 * joystick_left_->y();
-            if (fabs(joystick_left_->x()) > 0.01)
-                *target_theta[4] += 0.003 * joystick_left_->x();
-            if (fabs(joystick_right_->y()) > 0.01)
-                *target_theta[3] += 0.003 * joystick_right_->y();
+    void execute_dt7_orientation() {
+        if (fabs(joystick_left_->y()) > 0.01) {
+            *target_theta[5] += 0.003 * joystick_left_->y();
+            *target_theta[5] = std::clamp(*target_theta[5], -3.1415926, 3.1415926);
         }
-        if (switch_left == rmcs_msgs::Switch::UP && switch_right == rmcs_msgs::Switch::UP) {
-            if (fabs(joystick_left_->x()) > 0.01)
-                *target_theta[2] += 0.001 * joystick_left_->x();
-            if (fabs(joystick_right_->x()) > 0.01)
-                *target_theta[1] += 0.001 * joystick_right_->x();
-            if (fabs(joystick_left_->y()) > 0.01)
-                *target_theta[0] += 0.001 * joystick_left_->y();
+        if (fabs(joystick_left_->x()) > 0.01) {
+            *target_theta[4] += 0.003 * joystick_left_->x();
+            *target_theta[4] = std::clamp(*target_theta[4], -1.83532, 1.83532);
         }
-    };
-    void keyboard_mode_selection() {
-        auto keyboard = *keyboard_;
-
-        if (keyboard.z && !keyboard.ctrl && !keyboard.shift) {
-            mode = rmcs_msgs::ArmMode::Auto_Gold_Left;
-            fsm_gold_l.reset();
+        if (fabs(joystick_right_->y()) > 0.01) {
+            *target_theta[3] += 0.003 * joystick_right_->y();
+            *target_theta[3] = std::clamp(*target_theta[3], -3.1415926, 3.1415926);
         }
-        if (keyboard.z && !keyboard.ctrl && keyboard.shift) {
-            mode = rmcs_msgs::ArmMode::Auto_Gold_Mid;
-            fsm_gold_m.reset();
+    }
+    void execute_dt7_position() {
+        if (fabs(joystick_left_->x()) > 0.01) {
+            *target_theta[2] += 0.001 * joystick_left_->x();
+            *target_theta[2] = std::clamp(*target_theta[2], -1.0472, 0.8727);
         }
-        if (keyboard.z && keyboard.ctrl && !keyboard.shift) {
-            mode = rmcs_msgs::ArmMode::Auto_Gold_Right;
-            fsm_gold_r.reset();
+        if (fabs(joystick_right_->x()) > 0.01) {
+            *target_theta[1] += 0.001 * joystick_right_->x();
+            *target_theta[1] = std::clamp(*target_theta[1], -1.308, 1.39719);
         }
-        if (keyboard.x) {
-            mode = rmcs_msgs::ArmMode::Auto_Sliver;
-            fsm_sliver.reset();
-        }
-        if (keyboard.g) {
-            mode = rmcs_msgs::ArmMode::Auto_Walk;
-            fsm_walk.reset();
+        if (fabs(joystick_left_->y()) > 0.01) {
+            *target_theta[0] += 0.001 * joystick_left_->y();
+            *target_theta[0] = std::clamp(*target_theta[0], -3.1415926, 3.1415926);
         }
     }
     template <typename T>
@@ -180,18 +213,16 @@ private:
             fsm_gold.get_current_theta(
                 {*theta[0], *theta[1], *theta[2], *theta[3], *theta[4], *theta[5]});
         }
-        if (keyboard.w || fsm_gold.fsm_direction == initial_enter)
+        if (keyboard.w || fsm_gold.fsm_direction == initial_enter) {
             fsm_gold.fsm_direction = up;
-        else if (keyboard.s)
+        } else if (keyboard.s) {
             fsm_gold.fsm_direction = down;
-
+        }
         if (fsm_gold.fsm_direction == up) {
             fsm_gold.processEvent(Auto_Gold_Event::Up);
-        }
-        if (fsm_gold.fsm_direction == down) {
+        } else if (fsm_gold.fsm_direction == down) {
             fsm_gold.processEvent(Auto_Gold_Event::Down);
         }
-
         if (fsm_gold.getState() != last_state) {
             fsm_gold.fsm_direction = 0;
         }
@@ -226,8 +257,7 @@ private:
 
         if (fsm_sliver.fsm_direction == up) {
             fsm_sliver.processEvent(Auto_Sliver_Event::Up);
-        }
-        if (fsm_sliver.fsm_direction == down) {
+        } else if (fsm_sliver.fsm_direction == down) {
             fsm_sliver.processEvent(Auto_Sliver_Event::Down);
         }
 
@@ -267,7 +297,8 @@ private:
     Auto_Sliver fsm_sliver;
     Auto_Set_Walk_Arm fsm_walk;
     //
-    rmcs_msgs::ArmMode mode;
+    OutputInterface<rmcs_msgs::ArmMode> mode;
+
     rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr subscription_;
     rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr publisher_;
 

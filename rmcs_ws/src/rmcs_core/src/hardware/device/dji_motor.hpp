@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstring>
 #include <numbers>
+#include <rclcpp/node.hpp>
 #include <stdexcept>
 
 #include <rclcpp/logger.hpp>
@@ -51,7 +52,7 @@ struct DjiMotorConfig {
     DjiMotorConfig& enable_multi_turn_angle() { return multi_turn_angle_enabled = true, *this; }
 };
 
-class DjiMotor {
+class DjiMotor{
 public:
     DjiMotor(
         Component& status_component, Component& command_component, const std::string& name_prefix) {

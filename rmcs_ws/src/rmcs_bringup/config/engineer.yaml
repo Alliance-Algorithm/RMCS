@@ -41,6 +41,11 @@ rmcs_executor:
 
       - rmcs_core::controller::pid::ErrorPidController -> big_yaw_angle_error_pid_controller
       - rmcs_core::controller::pid::PidController -> big_yaw_velocity_pid_controller
+
+      - rmcs_core::controller::pid::ErrorPidController -> leg_lb_error_pid_controller
+      - rmcs_core::controller::pid::PidController -> leg_lb_velocity_pid_controller
+      - rmcs_core::controller::pid::ErrorPidController -> leg_rb_error_pid_controller
+      - rmcs_core::controller::pid::PidController -> leg_rb_velocity_pid_controller
    
 engineer_hardware:
   ros__parameters:
@@ -48,26 +53,26 @@ engineer_hardware:
     steering_board_usb_pid: 0x75f3
     leg_board_usb_pid: 0xdd7a
     joint6_zero_point: 0
-    joint5_zero_point: 42350
-    joint4_zero_point: 16159
-    joint3_zero_point: 69744
-    joint2_zero_point: 226264
+    joint5_zero_point: 37366
+    joint4_zero_point: 12200
+    joint3_zero_point: 79000
+    joint2_zero_point: 257800
     joint1_zero_point: 10459
     joint6_qlim: [-3.141592,3.141592]    
     joint5_qlim: [-1.83532,1.83532]    
     joint4_qlim: [-3.141592,3.141592]    
     joint3_qlim: [-1.0472,0.8727]    
-    joint2_qlim: [-1.308,1.04719]    
+    joint2_qlim: [-1.308,1.39719]    
     joint1_qlim: [-3.141592,3.141592]    
     steering_lf_zero_point: 1330
     steering_lb_zero_point: 1330 
     steering_rb_zero_point: 7554
     steering_rf_zero_point: 3348 
-    leg_lf_ecd_zero_point: 37800
-    leg_lb_ecd_zero_point: 0
-    leg_rb_ecd_zero_point: 0
-    leg_rf_ecd_zero_point: 0
-    big_yaw_zero_point: 63421
+    leg_lf_ecd_zero_point: 256216
+    leg_lb_ecd_zero_point: 268279
+    leg_rb_ecd_zero_point: 104085
+    leg_rf_ecd_zero_point: 123311
+    big_yaw_zero_point: 63050
 
 joint6_angle_pid_controller:
   ros__parameters:
@@ -90,7 +95,7 @@ joint5_angle_pid_controller:
   ros__parameters:
     measurement: /arm/Joint5/control_angle_error
     control: /arm/Joint5/control_velocity
-    kp: 4720.0
+    kp: 4920.0
     ki: 0.0
     kd: 15.0
 joint5_velocity_pid_controller:
@@ -98,7 +103,7 @@ joint5_velocity_pid_controller:
     measurement: /arm/Joint5/velocity
     setpoint: /arm/Joint5/control_velocity
     control: /arm/Joint5/control_torque
-    kp: 0.018
+    kp: 0.028
     ki: 0.0
     kd: 0.0009
 
@@ -138,7 +143,7 @@ joint2_angle_pid_controller:
   ros__parameters:
     measurement: /arm/Joint2/control_angle_error
     control: /arm/Joint2/control_velocity
-    kp: 4190.0
+    kp: 4390.0
     ki: 0.0
     kd: 20.0
 joint2_velocity_pid_controller:
@@ -146,7 +151,7 @@ joint2_velocity_pid_controller:
     measurement: /arm/Joint2/velocity
     setpoint: /arm/Joint2/control_velocity
     control: /arm/Joint2/control_torque
-    kp: 0.00283
+    kp: 0.00293
     ki: 0.0
     kd: 0.00004
 
@@ -170,7 +175,7 @@ steering_steering_lf_angle_error_pid_controller:
   ros__parameters:
     measurement: /steering/steering/lf/target_angle_error
     control: /steering/steering/lf/control_vel
-    kp: 85.0
+    kp: 75.0
     ki: 0.0
     kd: 0.0
 steering_steering_lf_velocity_pid_controller:
@@ -194,7 +199,7 @@ steering_steering_lb_angle_error_pid_controller:
   ros__parameters:
     measurement: /steering/steering/lb/target_angle_error
     control: /steering/steering/lb/control_vel
-    kp: 85.0
+    kp: 75.0
     ki: 0.0
     kd: 1.0
 steering_steering_lb_velocity_pid_controller:
@@ -218,7 +223,7 @@ steering_steering_rb_angle_error_pid_controller:
   ros__parameters:
     measurement: /steering/steering/rb/target_angle_error
     control: /steering/steering/rb/control_vel
-    kp: 85.0
+    kp: 75.0
     ki: 0.0
     kd: 1.0
 steering_steering_rb_velocity_pid_controller:
@@ -242,7 +247,7 @@ steering_steering_rf_angle_error_pid_controller:
   ros__parameters:
     measurement: /steering/steering/rf/target_angle_error
     control: /steering/steering/rf/control_vel
-    kp: 85.0
+    kp: 75.0
     ki: 0.0
     kd: 1.0
 steering_steering_rf_velocity_pid_controller:
@@ -282,7 +287,7 @@ big_yaw_angle_error_pid_controller:
   ros__parameters:
     measurement: /chassis/big_yaw/target_angle_error
     control: /chassis/big_yaw/control_vel
-    kp: 10.3
+    kp: 21.3
     ki: 0.0
     kd: 1.6
 big_yaw_velocity_pid_controller:
@@ -293,3 +298,36 @@ big_yaw_velocity_pid_controller:
     kp: 3.19
     ki: 0.0
     kd: 0.039
+
+
+leg_lb_error_pid_controller:
+  ros__parameters:
+    measurement: /leg/joint/lb/control_theta_error
+    control: /leg/joint/lb/control_vel
+    kp: 120.0
+    ki: 0.0
+    kd: 0.0
+leg_lb_velocity_pid_controller:
+  ros__parameters:
+    measurement: /leg/joint/lb/velocity
+    setpoint: /leg/joint/lb/control_vel
+    control: /leg/joint/lb/control_torque
+    kp: 5.0
+    ki: 0.0
+    kd: 0.1
+
+leg_rb_error_pid_controller:
+  ros__parameters:
+    measurement: /leg/joint/rb/control_theta_error
+    control: /leg/joint/rb/control_vel
+    kp: 120.0
+    ki: 0.0
+    kd: 0.0
+leg_rb_velocity_pid_controller:
+  ros__parameters:
+    measurement: /leg/joint/rb/velocity
+    setpoint: /leg/joint/rb/control_vel
+    control: /leg/joint/rb/control_torque
+    kp: 5.0
+    ki: 0.0
+    kd: 0.1
