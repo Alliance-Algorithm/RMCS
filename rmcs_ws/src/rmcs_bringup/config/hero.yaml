@@ -70,8 +70,8 @@ gimbal_controller:
     gimbal_yaw_motors:
       - /gimbal/top_yaw
       - /gimbal/bottom_yaw
-    upper_limit: -0.4598
-    lower_limit: 0.4362
+    upper_limit: -0.7224
+    lower_limit: 0.7082
 
 top_yaw_angle_pid_controller:
   ros__parameters:
@@ -103,15 +103,15 @@ bottom_yaw_velocity_pid_controller:
     measurement: /gimbal/bottom_yaw/velocity
     setpoint: /gimbal/bottom_yaw/control_velocity
     control: /gimbal/bottom_yaw/control_torque
-    kp: 25.00
+    kp: 22.00
     ki: 0.00
-    kd: 0.60
+    kd: 0.20
 
 pitch_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/pitch/control_angle_error
     control: /gimbal/pitch/control_velocity
-    kp: 16.00
+    kp: 26.00
     ki: 0.0
     kd: 0.0
 
@@ -120,7 +120,7 @@ pitch_velocity_pid_controller:
     measurement: /gimbal/pitch/velocity_imu
     setpoint: /gimbal/pitch/control_velocity
     control: /gimbal/pitch/control_torque
-    kp: 100.00
+    kp: 60.00
     ki: 0.00
     kd: 0.00
 
