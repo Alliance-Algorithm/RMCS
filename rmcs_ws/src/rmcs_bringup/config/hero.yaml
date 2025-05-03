@@ -16,7 +16,7 @@ rmcs_executor:
       - rmcs_core::controller::gimbal::GimbalController -> gimbal_controller
       - rmcs_core::controller::pid::ErrorPidController -> top_yaw_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> top_yaw_velocity_pid_controller
-      - rmcs_core::controller::pid::ErrorPidController -> bottom_yaw_angle_pid_controller
+      - rmcs_core::controller::pid::FeedforwardPidController -> bottom_yaw_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> bottom_yaw_velocity_pid_controller
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> pitch_velocity_pid_controller
@@ -56,7 +56,7 @@ hero_hardware:
   ros__parameters:
     usb_pid_top_board: 0x652f
     usb_pid_bottom_board: 0x1783
-    bottom_yaw_motor_zero_point: 42555
+    bottom_yaw_motor_zero_point: 42889
     top_yaw_motor_zero_point: 2788
     pitch_motor_zero_point: 14367
     external_imu_port: /dev/ttyUSB0
@@ -93,6 +93,7 @@ top_yaw_velocity_pid_controller:
 bottom_yaw_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/bottom_yaw/control_angle_error
+    feedforward: /chassis/yaw/velocity_imu
     control: /gimbal/bottom_yaw/control_velocity
     kp: 10.00
     ki: 0.00
@@ -103,9 +104,9 @@ bottom_yaw_velocity_pid_controller:
     measurement: /gimbal/bottom_yaw/velocity
     setpoint: /gimbal/bottom_yaw/control_velocity
     control: /gimbal/bottom_yaw/control_torque
-    kp: 22.00
+    kp: 23.25
     ki: 0.00
-    kd: 0.20
+    kd: 0.00
 
 pitch_angle_pid_controller:
   ros__parameters:
@@ -137,8 +138,8 @@ shooting_controller:
       - /gimbal/second_left_friction
       - /gimbal/second_right_friction
     friction_velocities:
-      - 530.85
-      - 530.85
+      - 530.90
+      - 530.90
       - 530.70
       - 530.70
     friction_soft_start_stop_time: 1.0

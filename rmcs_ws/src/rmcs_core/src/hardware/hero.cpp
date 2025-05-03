@@ -408,6 +408,8 @@ private:
                 return size;
             };
 
+            hero.register_output("/chassis/yaw/velocity_imu", chassis_yaw_velocity_imu_, 0);
+
             hero.register_output(
                 "/chassis/powermeter/control_enable", powermeter_control_enabled_, false);
             hero.register_output(
@@ -424,6 +426,8 @@ private:
             dr16_.update_status();
             supercap_.update_status();
             steering_power_meter_.update_status();
+
+            *chassis_yaw_velocity_imu_ = imu_.gz();
 
             for (auto& motor : chassis_wheel_motors_)
                 motor.update_status();
@@ -517,6 +521,8 @@ private:
 
         device::Bmi088 imu_;
         OutputInterface<rmcs_description::Tf>& tf_;
+
+        OutputInterface<double> chassis_yaw_velocity_imu_;
 
         OutputInterface<bool> powermeter_control_enabled_;
         OutputInterface<double> powermeter_charge_power_limit_;
