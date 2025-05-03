@@ -50,6 +50,26 @@ public:
         return std::bit_cast<uint16_t>(command);
     }
 
+    uint16_t generate_disable_command() const {
+        SupercapCommand command;
+
+        command.enabled = false;
+
+        double power_limit = *supercap_charge_power_limit_;
+
+        if (std::isnan(power_limit))
+            command.power_limit = 0;
+        else
+            command.power_limit = static_cast<uint8_t>(std::clamp(power_limit, 0.0, 255.0));
+
+        return std::bit_cast<uint16_t>(command);
+    }
+
+    double chassis_power() { return *chassis_power_; }
+    double chassis_voltage() { return *chassis_voltage_; }
+    double supercap_voltage() { return *supercap_voltage_; }
+    double supercap_enabled() { return *supercap_enabled_; }
+
 private:
     static constexpr double
         uint_to_double(std::unsigned_integral auto value, double min, double max) {

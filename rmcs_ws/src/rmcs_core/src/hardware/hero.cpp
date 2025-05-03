@@ -18,8 +18,8 @@
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/gy614.hpp"
 #include "hardware/device/lk_motor.hpp"
+#include "hardware/device/power_meter.hpp"
 #include "hardware/device/supercap.hpp"
-#include "librmcs/utility/logging.hpp"
 
 namespace rmcs_core::hardware {
 
@@ -54,11 +54,6 @@ public:
     void update() override {
         top_board_->update();
         bottom_board_->update();
-        RCLCPP_INFO(
-            get_logger(), "viewer:%f,pitch:%f,scope:%f,yaw:%f",
-            top_board_->gimbal_player_viewer_motor_.velocity(),
-            top_board_->gimbal_pitch_motor_.angle(), top_board_->gimbal_scope_motor_.angle(),
-            top_board_->gimbal_top_yaw_motor_.angle());
     }
 
     void command_update() {
@@ -393,6 +388,7 @@ private:
                    device::DjiMotor::Config{device::DjiMotor::Type::M3508}.set_reduction_ratio(
                        13.)})
             , supercap_(hero, hero_command)
+            , steering_power_meter_(hero, hero_command)
             , gimbal_bottom_yaw_motor_(
                   hero, hero_command, "/gimbal/bottom_yaw",
                   device::LkMotor::Config{device::LkMotor::Type::MG6012E_I8}
@@ -411,6 +407,11 @@ private:
                 transmit_buffer_.add_uart1_transmission(buffer, size);
                 return size;
             };
+
+            hero.register_output(
+                "/chassis/powermeter/control_enable", powermeter_control_enabled_, false);
+            hero.register_output(
+                "/chassis/powermeter/charge_power_limit", powermeter_charge_power_limit_, 0.);
         }
 
         ~BottomBoard() final {
@@ -422,6 +423,7 @@ private:
             imu_.update_status();
             dr16_.update_status();
             supercap_.update_status();
+            steering_power_meter_.update_status();
 
             for (auto& motor : chassis_wheel_motors_)
                 motor.update_status();
@@ -433,7 +435,8 @@ private:
         void command_update() {
             uint16_t batch_commands[4]{};
 
-            batch_commands[3] = supercap_.generate_command();
+            batch_commands[2] = supercap_.generate_command();
+            batch_commands[3] = steering_power_meter_.generate_disable_command();
             transmit_buffer_.add_can1_transmission(0x1FE, std::bit_cast<uint64_t>(batch_commands));
 
             for (int i = 0; i < 4; i++)
@@ -469,8 +472,10 @@ private:
                 chassis_wheel_motors_[2].store_status(can_data);
             } else if (can_id == 0x204) {
                 chassis_wheel_motors_[3].store_status(can_data);
-            } else if (can_id == 0x300) {
+            } else if (can_id == 0x209) {
                 supercap_.store_status(can_data);
+            } else if (can_id == 0x300) {
+                steering_power_meter_.store_status(can_data);
             }
         }
 
@@ -513,11 +518,15 @@ private:
         device::Bmi088 imu_;
         OutputInterface<rmcs_description::Tf>& tf_;
 
+        OutputInterface<bool> powermeter_control_enabled_;
+        OutputInterface<double> powermeter_charge_power_limit_;
+
         device::Dr16 dr16_;
 
         device::DjiMotor chassis_steering_motors_[4];
         device::DjiMotor chassis_wheel_motors_[4];
         device::Supercap supercap_;
+        device::Powermeter steering_power_meter_;
 
         device::LkMotor gimbal_bottom_yaw_motor_;
 
