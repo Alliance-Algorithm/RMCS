@@ -19,12 +19,11 @@ public:
     PowerController()
         : Node(
               get_component_name(),
-              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
-
-        k1_            = get_parameter("k1").as_double();
-        k2_            = get_parameter("k2").as_double();
-        no_load_power_ = get_parameter("no_load_power").as_double();
-        power_ratio_   = get_parameter("power_ratio").as_double();
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
+        , k1_(get_parameter("k1").as_double())
+        , k2_(get_parameter("k2").as_double())
+        , no_load_power_(get_parameter("no_load_power").as_double())
+        , power_ratio_(get_parameter("power_ratio").as_double()) {
 
         register_input("/chassis/control_power_limit", power_limit_, false);
         register_input("/chassis/steering/power", steering_power_);
@@ -49,7 +48,7 @@ public:
             register_output(motor + "/control_torque", motor_control_torques_[index++], nan_);
         }
 
-        steering_predict_power_pulbisher_ =
+        steering_predict_power_publisher_ =
             create_publisher<std_msgs::msg::Float64>("chassis/steering/predict_power", 20);
     }
 
@@ -70,11 +69,9 @@ public:
             }
             auto predict_power = a + b + c;
             if (get_component_name() == "steering_power_controller") {
-                // RCLCPP_INFO(get_logger(), "predict power:%f", predict_power);
-
                 std_msgs::msg::Float64 msg;
                 msg.data = predict_power;
-                steering_predict_power_pulbisher_->publish(msg);
+                steering_predict_power_publisher_->publish(msg);
             }
             if (predict_power < power_limit) {
                 k = 1;
@@ -91,7 +88,6 @@ public:
         for (size_t index = 0; index < motor_count_; index++) {
             *motor_control_torques_[index] = k * *motor_control_torques_unrestricted_[index];
         }
-        // *motor_control_torques_[1] = k * *motor_control_torques_unrestricted_[1];
     }
 
 private:
@@ -114,8 +110,8 @@ private:
 
     size_t motor_count_;
 
-    double k1_, k2_, no_load_power_;
-    double power_ratio_;
+    const double k1_, k2_, no_load_power_;
+    const double power_ratio_;
 
     std::unique_ptr<InputInterface<double>[]> motor_velocities_;
     std::unique_ptr<InputInterface<double>[]> motor_control_torques_unrestricted_;
@@ -127,7 +123,7 @@ private:
 
     std::unique_ptr<OutputInterface<double>[]> motor_control_torques_;
 
-    rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr steering_predict_power_pulbisher_;
+    rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr steering_predict_power_publisher_;
 };
 } // namespace rmcs_core::controller::chassis
 

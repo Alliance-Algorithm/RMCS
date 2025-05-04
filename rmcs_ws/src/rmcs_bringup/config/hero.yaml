@@ -86,9 +86,9 @@ top_yaw_velocity_pid_controller:
     measurement: /gimbal/yaw/velocity_imu
     setpoint: /gimbal/top_yaw/control_velocity
     control: /gimbal/top_yaw/control_torque
-    kp: 90.00
-    ki: 0.00
-    kd: 5.00
+    kp: 87.00
+    ki: 0.017
+    kd: 1.70
 
 bottom_yaw_angle_pid_controller:
   ros__parameters:
@@ -106,7 +106,7 @@ bottom_yaw_velocity_pid_controller:
     control: /gimbal/bottom_yaw/control_torque
     kp: 23.25
     ki: 0.00
-    kd: 0.00
+    kd: 0.07
 
 pitch_angle_pid_controller:
   ros__parameters:
