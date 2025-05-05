@@ -47,7 +47,7 @@ public:
         register_input("/chassis/control_angle", chassis_control_angle_);
 
         register_input("/chassis/supercap/voltage", supercap_voltage_);
-        register_input("/chassis/supercap/enabled", supercap_enabled_);
+        register_input("/chassis/supercap/control_enable", supercap_control_enabled_);
 
         register_input("/chassis/voltage", chassis_voltage_);
         register_input("/chassis/power", chassis_power_);
@@ -85,7 +85,7 @@ public:
         status_ring_.update_friction_wheel_speed(
             std::min(*left_friction_velocity_, *right_friction_velocity_),
             *left_friction_control_velocity_ > 0);
-        status_ring_.update_supercap(*supercap_voltage_, *supercap_enabled_);
+        status_ring_.update_supercap(*supercap_voltage_, *supercap_control_enabled_);
         status_ring_.update_battery_power(*chassis_voltage_);
 
         status_ring_.update_auto_aim_enable(mouse_->right == 1);
@@ -138,7 +138,7 @@ private:
     InputInterface<double> chassis_angle_, chassis_control_angle_;
 
     InputInterface<double> supercap_voltage_;
-    InputInterface<bool> supercap_enabled_;
+    InputInterface<bool> supercap_control_enabled_;
 
     InputInterface<double> chassis_voltage_;
     InputInterface<double> chassis_power_;

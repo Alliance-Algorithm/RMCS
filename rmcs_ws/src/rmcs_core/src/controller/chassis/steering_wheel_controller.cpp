@@ -22,9 +22,7 @@ public:
     explicit SteeringWheelController()
         : Node(
               get_component_name(),
-              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , steerings_angle_pid_caculator_(10.685, 0., 0.)
-        , wheels_velocity_pid_calculator_(0.685, 0., 0.) {
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
 
         register_input("/chassis/left_front_wheel/max_torque", wheel_motor_max_control_torque_);
 
@@ -72,18 +70,6 @@ public:
         chassis_power_publisher_ = create_publisher<std_msgs::msg::Float64>("/chassis/power", 20);
         power_limit_publisher_ =
             create_publisher<std_msgs::msg::Float64>("chassis/power_limit", 20);
-
-        const std::array<std::string, 4> publisher_prefixes = {
-            "/chassis/lf_steering", "/chassis/lb_steering", "/chassis/rb_steering",
-            "/chassis/rf_steering"};
-
-        size_t index = 0;
-        for (auto& publishers : steering_control_angle_error_publishers_) {
-            steering_control_angle_error_msgs_[index] = std::make_unique<std_msgs::msg::Float64>();
-
-            publishers = create_publisher<std_msgs::msg::Float64>(
-                publisher_prefixes[index++] + "/control_angle_error", 20);
-        }
     }
 
     void update() override {
@@ -99,6 +85,7 @@ public:
         // };
 
         auto [translational_control_velocity, angular_control_velocity] = update_control_velocity();
+
         control_vector_ =
             update_control_vector(translational_control_velocity, angular_control_velocity);
 
@@ -135,30 +122,29 @@ private:
     }
 
     void update_control_torque_and_angle(const std::array<Eigen::Vector2d, 4>& vector) {
-
-        Eigen::Vector2d lf_wheel_vector = vector[0];
-        Eigen::Vector2d lb_wheel_vector = vector[1];
-        Eigen::Vector2d rb_wheel_vector = vector[2];
-        Eigen::Vector2d rf_wheel_vector = vector[3];
+        const Eigen::Vector2d& lf_wheel_vector = vector[0];
+        const Eigen::Vector2d& lb_wheel_vector = vector[1];
+        const Eigen::Vector2d& rb_wheel_vector = vector[2];
+        const Eigen::Vector2d& rf_wheel_vector = vector[3];
 
         Eigen::Vector2d lf_steering_vector = lf_wheel_vector;
         Eigen::Vector2d lb_steering_vector = lb_wheel_vector;
         Eigen::Vector2d rb_steering_vector = rb_wheel_vector;
         Eigen::Vector2d rf_steering_vector = rf_wheel_vector;
 
-        if (lf_wheel_vector.x() == 0 && lf_wheel_vector.y() == 0)
+        if (lf_wheel_vector.norm() == 0)
             lf_steering_vector = lf_vector_last_;
         else
             lf_vector_last_ = lf_wheel_vector;
-        if (lb_wheel_vector.x() == 0 && lb_wheel_vector.y() == 0)
+        if (lb_wheel_vector.norm() == 0)
             lb_steering_vector = lb_vector_last_;
         else
             lb_vector_last_ = lb_wheel_vector;
-        if (rb_wheel_vector.x() == 0 && rb_wheel_vector.y() == 0)
+        if (rb_wheel_vector.norm() == 0)
             rb_steering_vector = rb_vector_last_;
         else
             rb_vector_last_ = rb_wheel_vector;
-        if (rf_wheel_vector.x() == 0 && rf_wheel_vector.y() == 0)
+        if (rf_wheel_vector.norm() == 0)
             rf_steering_vector = rf_vector_last_;
         else
             rf_vector_last_ = rf_wheel_vector;
@@ -176,13 +162,6 @@ private:
         *left_back_steering_control_angle_error_   = std::get<0>(desire_attitude_[1]);
         *right_back_steering_control_angle_error_  = std::get<0>(desire_attitude_[2]);
         *right_front_steering_control_angle_error_ = std::get<0>(desire_attitude_[3]);
-
-        size_t index = 0;
-        for (auto& msg : steering_control_angle_error_msgs_) {
-            msg->data = std::get<0>(desire_attitude_[index]);
-            steering_control_angle_error_publishers_[index++]->publish(std::move(msg));
-            msg = std::make_unique<std_msgs::msg::Float64>();
-        }
 
         *left_front_wheel_control_velocity_ =
             std::get<1>(desire_attitude_[0]) * lf_wheel_vector.norm() / wheel_radius_;
@@ -209,8 +188,9 @@ private:
         };
     }
 
-    auto revise_angle_error_and_vel_direction(double target_angle, double measure_angle)
-        -> std::tuple<double, double> {
+    static inline auto
+        revise_angle_error_and_vel_direction(double target_angle, double measure_angle)
+            -> std::tuple<double, double> {
         std::tuple<double, double> result{};
         auto& [error, forward] = result;
 
@@ -219,8 +199,7 @@ private:
         }
 
         auto wheel_reverse = false;
-
-        auto raw_error = target_angle - measure_angle;
+        auto raw_error     = target_angle - measure_angle;
 
         if (raw_error >= std::numbers::pi) {
             target_angle -= 2 * std::numbers::pi;
@@ -229,7 +208,6 @@ private:
         }
 
         error = target_angle - measure_angle;
-
         if (error > std::numbers::pi / 2) {
             wheel_reverse = true;
             error -= std::numbers::pi;
@@ -240,17 +218,11 @@ private:
             wheel_reverse = false;
         }
 
-        // error   = target_angle - measure_angle;
         forward = wheel_reverse ? -1 : 1;
-        // RCLCPP_INFO(get_logger(), "err:%f,for:%f", error, forward);
         return result;
     }
 
 private:
-    std::chrono::time_point<std::chrono::high_resolution_clock> last_time_point_ =
-        std::chrono::system_clock::now();
-
-    static constexpr double inf_   = std::numeric_limits<double>::infinity();
     static constexpr double nan_   = std::numeric_limits<double>::quiet_NaN();
     static constexpr double sqrt2_ = std::numbers::sqrt2;
     static constexpr double pi_    = std::numbers::pi;
@@ -267,9 +239,6 @@ private:
     static constexpr double steering_angular_velocity_max = 0;
 
     std::array<Eigen::Vector2d, 4> control_vector_;
-
-    pid::PidCalculator steerings_angle_pid_caculator_;
-    pid::PidCalculator wheels_velocity_pid_calculator_;
 
     InputInterface<double> left_front_steering_angle_;
     InputInterface<double> left_back_steering_angle_;
@@ -308,10 +277,6 @@ private:
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr steering_power_publisher_;
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr chassis_power_publisher_;
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr power_limit_publisher_;
-
-    std::array<rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr, 4>
-        steering_control_angle_error_publishers_;
-    std::array<std_msgs::msg::Float64::UniquePtr, 4> steering_control_angle_error_msgs_;
 };
 
 } // namespace rmcs_core::controller::chassis
