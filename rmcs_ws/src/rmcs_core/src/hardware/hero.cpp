@@ -1,7 +1,4 @@
-#include <bit>
-#include <cstdint>
 #include <memory>
-#include <rclcpp/logging.hpp>
 #include <thread>
 
 #include <librmcs/client/cboard.hpp>
@@ -202,6 +199,9 @@ private:
                 gimbal_pitch_motor_.angle());
 
             gimbal_player_viewer_motor_.update_status();
+            tf_->set_state<rmcs_description::PitchLink, rmcs_description::ViewerLink>(
+                gimbal_player_viewer_motor_.angle());
+
             gimbal_scope_motor_.update_status();
 
             for (auto& motor : gimbal_friction_wheels_)
@@ -212,19 +212,22 @@ private:
 
         void command_update() {
             uint16_t batch_commands[4]{};
-            // can1
-            transmit_buffer_.add_can1_transmission(
-                0x141, gimbal_bullet_feeder_.generate_velocity_command(
-                           gimbal_bullet_feeder_.control_velocity()));
 
             for (int i = 0; i < 4; i++)
                 batch_commands[i] = gimbal_friction_wheels_[i].generate_command();
             transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(batch_commands));
 
-            // can2
+            transmit_buffer_.add_can1_transmission(
+                0x141, gimbal_bullet_feeder_.generate_velocity_command(
+                           gimbal_bullet_feeder_.control_velocity()));
+
+            batch_commands[0] = gimbal_scope_motor_.generate_command();
+            transmit_buffer_.add_can2_transmission(0x200, std::bit_cast<uint64_t>(batch_commands));
+
             // TODO:add gimbal_player_viewer messages
             transmit_buffer_.add_can2_transmission(
-                0x143, gimbal_player_viewer_motor_.generate_disable_command());
+                0x143, gimbal_player_viewer_motor_.generate_torque_command(
+                           gimbal_player_viewer_motor_.control_torque()));
 
             transmit_buffer_.add_can2_transmission(
                 0x142,
@@ -232,9 +235,6 @@ private:
             transmit_buffer_.add_can2_transmission(
                 0x141, gimbal_top_yaw_motor_.generate_torque_command(
                            gimbal_top_yaw_motor_.control_torque()));
-
-            batch_commands[0] = gimbal_scope_motor_.generate_command();
-            transmit_buffer_.add_can2_transmission(0x200, std::bit_cast<uint64_t>(batch_commands));
 
             transmit_buffer_.trigger_transmission();
         }
@@ -439,13 +439,13 @@ private:
         void command_update() {
             uint16_t batch_commands[4]{};
 
-            batch_commands[2] = supercap_.generate_command();
-            batch_commands[3] = steering_power_meter_.generate_disable_command();
-            transmit_buffer_.add_can1_transmission(0x1FE, std::bit_cast<uint64_t>(batch_commands));
-
             for (int i = 0; i < 4; i++)
                 batch_commands[i] = chassis_wheel_motors_[i].generate_command();
             transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(batch_commands));
+
+            batch_commands[2] = supercap_.generate_command();
+            batch_commands[3] = steering_power_meter_.generate_disable_command();
+            transmit_buffer_.add_can1_transmission(0x1FE, std::bit_cast<uint64_t>(batch_commands));
 
             for (int i = 0; i < 4; i++)
                 batch_commands[i] = chassis_steering_motors_[i].generate_command();

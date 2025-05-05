@@ -20,7 +20,10 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController -> bottom_yaw_velocity_pid_controller
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> pitch_velocity_pid_controller
+
       - rmcs_core::controller::gimbal::PlayerViewer -> gimbal_player_viewer_controller
+      # - rmcs_core::controller::pid::ErrorPidController -> viewer_angle_pid_controller
+      # - rmcs_core::controller::pid::PidController -> viewer_velocity_pid_controller
       
       - rmcs_core::controller::gimbal::ShootingController -> shooting_controller
       - rmcs_core::controller::pid::PidController -> second_left_friction_velocity_pid_controller
@@ -56,9 +59,9 @@ hero_hardware:
   ros__parameters:
     usb_pid_top_board: 0x652f
     usb_pid_bottom_board: 0x1783
+    pitch_motor_zero_point: 14367
     bottom_yaw_motor_zero_point: 42889
     top_yaw_motor_zero_point: 2788
-    pitch_motor_zero_point: 14367
     external_imu_port: /dev/ttyUSB0
     left_front_zero_point: 2711
     left_back_zero_point: 4755
@@ -125,10 +128,27 @@ pitch_velocity_pid_controller:
     ki: 0.00
     kd: 0.00
 
-# gimbal_player_viewer_controller:
-#   ros__parameters:
-#     upper_limit:
-#     lower_limit:
+gimbal_player_viewer_controller:
+  ros__parameters:
+    upper_limit: 0.2847
+    lower_limit: -0.3874
+
+viewer_angle_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/player_viewer/control_angle_error
+    control: /gimbal/player_viewer/control_velocity
+    kp: 5.00
+    ki: 0.00
+    kd: 0.00
+
+viewer_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/player_viewer/velocity
+    setpoint: /gimbal/player_viewer/control_velocity
+    control: /gimbal/player_viewer/control_torque
+    kp: 5.00
+    ki: 0.00
+    kd: 0.00
 
 shooting_controller:
   ros__parameters:
