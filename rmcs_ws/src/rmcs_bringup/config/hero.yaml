@@ -10,9 +10,6 @@ rmcs_executor:
       - rmcs_core::referee::app::ui::Hero -> referee_ui_hero
       - rmcs_core::referee::Command -> referee_command
 
-      # TODO: Remove soon
-      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
-
       - rmcs_core::controller::gimbal::GimbalController -> gimbal_controller
       - rmcs_core::controller::pid::ErrorPidController -> top_yaw_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> top_yaw_velocity_pid_controller

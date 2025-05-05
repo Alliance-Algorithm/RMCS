@@ -37,7 +37,7 @@ public:
             std::make_unique<InputInterface<double>[]>(motor_count_);
         motor_control_torques_ = std::make_unique<OutputInterface<double>[]>(motor_count_);
 
-        register_input(motors[0] + "/max_torque", wheel_motor_max_control_torque_);
+        register_input(motors[0] + "/max_torque", motor_max_control_torque_);
 
         size_t index = 0;
         for (const auto& motor : motors) {
@@ -92,7 +92,7 @@ public:
 
 private:
     Formula update_formula(double wheel_velocity, double unrestricted_torque) {
-        double max_torque = *wheel_motor_max_control_torque_;
+        double max_torque = *motor_max_control_torque_;
         double a = 0, b = 0, c = 0;
         if (std::isnan(unrestricted_torque))
             unrestricted_torque = 0;
@@ -116,7 +116,7 @@ private:
     std::unique_ptr<InputInterface<double>[]> motor_velocities_;
     std::unique_ptr<InputInterface<double>[]> motor_control_torques_unrestricted_;
 
-    InputInterface<double> wheel_motor_max_control_torque_;
+    InputInterface<double> motor_max_control_torque_;
     InputInterface<double> steering_power_;
     InputInterface<double> chassis_power_;
     InputInterface<double> power_limit_;
