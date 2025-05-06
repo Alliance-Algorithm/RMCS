@@ -6,6 +6,8 @@
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/serial_interface.hpp>
 #include <std_msgs/msg/int32.hpp>
+#include <std_msgs/msg/float64.hpp>
+#include <std_msgs/msg/bool.hpp>
 
 #include "hardware/device/bmi088.hpp"
 #include "hardware/device/dji_motor.hpp"
@@ -52,6 +54,11 @@ public:
         gimbal_bullet_feeder_.configure(
             device::DjiMotor::Config{device::DjiMotor::Type::M2006}.enable_multi_turn_angle());
 
+        // gimbal_motor_velocity_callback_ = create_subscription<std_msgs::msg::Int32>(
+        //     "/gimbal/yaw/velocity", rclcpp::QoS{0}, [this](std_msgs::msg::Float64::UniquePtr&& msg) {
+        //         gimbal_motor_velocity_callback(std::move(msg));
+        //     });
+
         register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
         register_output("/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
         register_output("/tf", tf_);
@@ -78,6 +85,8 @@ public:
             "/gimbal/calibrate", rclcpp::QoS{0}, [this](std_msgs::msg::Int32::UniquePtr&& msg) {
                 gimbal_calibrate_subscription_callback(std::move(msg));
             });
+            
+        // supercap_enabled_pub_ = this->create_subscription<std_msgs::msg::Bool>("/supercap/enabled", rclcpp::QoS(10));
 
         register_output("/referee/serial", referee_serial_);
         referee_serial_->read = [this](std::byte* buffer, size_t size) {
@@ -100,6 +109,7 @@ public:
         update_imu();
         dr16_.update_status();
         supercap_.update_status();
+
     }
 
     void command_update() {
@@ -166,6 +176,25 @@ private:
             logger_, "[gimbal calibration] New pitch offset: %ld",
             gimbal_pitch_motor_.calibrate_zero_point());
     }
+
+    // void supercap_enabled_checkout() {
+    //     bool enabled = *supercap_enabled_;
+      
+    //     RCLCPP_INFO_STREAM(
+    //       get_logger(),
+    //       "supercap enabled: " << std::boolalpha << enabled
+    //     );
+      
+    //     std_msgs::msg::Bool msg;
+    //     msg.data = enabled;
+    //     supercap_enabled_pub_->publish(msg);
+    // }
+
+    // void gimbal_motor_velocity_callback(std_msgs::msg::Float64::UniquePtr) {
+    //     RCLCPP_INFO(
+    //         logger_, "[yaw velocity] : %f",
+    //         gimbal_yaw_motor_.velocity());
+    // }
 
 protected:
     void can1_receive_callback(
@@ -244,7 +273,9 @@ private:
     std::shared_ptr<InfantryCommand> infantry_command_;
 
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr gimbal_calibrate_subscription_;
+    // rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr gimbal_motor_velocity_callback_;
 
+    rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr supercap_enabled_pub_;
     device::DjiMotor chassis_wheel_motors_[4]{
         {*this, *infantry_command_,  "/chassis/left_front_wheel"},
         {*this, *infantry_command_, "/chassis/right_front_wheel"},
@@ -266,7 +297,6 @@ private:
 
     OutputInterface<double> gimbal_yaw_velocity_imu_;
     OutputInterface<double> gimbal_pitch_velocity_imu_;
-
     OutputInterface<rmcs_description::Tf> tf_;
 
     librmcs::utility::RingBuffer<std::byte> referee_ring_buffer_receive_{256};
@@ -275,6 +305,8 @@ private:
     librmcs::client::CBoard::TransmitBuffer transmit_buffer_;
 
     std::thread event_thread_;
+
+    InputInterface<bool> supercap_enabled_;
 };
 
 } // namespace rmcs_core::hardware

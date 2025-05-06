@@ -2,6 +2,7 @@
 
 #include <algorithm>
 
+// #include <iterator>
 #include <limits>
 #include <numbers>
 #include <tuple>
@@ -28,15 +29,14 @@ public:
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , translational_velocity_pid_calculator_(100.0, 0.0, 0.0)
         , angular_velocity_pid_calculator_(100.0, 0.0, 0.0) {
+
         register_input("/chassis/left_front_wheel/max_torque", wheel_motor_max_control_torque_);
         register_input("/chassis/left_front_wheel/velocity", left_front_velocity_);
         register_input("/chassis/left_back_wheel/velocity", left_back_velocity_);
         register_input("/chassis/right_back_wheel/velocity", right_back_velocity_);
         register_input("/chassis/right_front_wheel/velocity", right_front_velocity_);
-
         register_input("/gimbal/yaw/velocity", yaw_velocity_);
         register_input("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
-
         register_input("/chassis/control_velocity", control_velocity_);
         register_input("/chassis/control_power_limit", power_limit_);
         register_output(
@@ -60,9 +60,8 @@ public:
             *left_front_velocity_, *left_back_velocity_, *right_back_velocity_,
             *right_front_velocity_, *gimbal_yaw_velocity_imu_ - *yaw_velocity_};
 
-        auto [best_translational_control_torque, best_angular_control_torque] =
+        auto [best_translational_control_torque, best_angular_control_torque, K_0, K_1] =
             calculate_best_control_torque(wheel_velocities);
-        auto [K_0, K_1] = calculate_K(wheel_velocities);
 
         *left_front_control_torque_ =
             K_0 * (best_angular_control_torque + best_translational_control_torque.y());
@@ -76,27 +75,26 @@ public:
 
 private:
     auto calculate_best_control_torque(const double (&wheel_velocities)[5])
-        -> std::pair<Eigen::Vector2d, double> {
+        -> std::tuple<Eigen::Vector2d, double, double, double> {
 
         auto [K_0, K_1] = calculate_K(wheel_velocities);
         auto [translational_control_torque_max, translational_control_direction] =
             calculate_translational_control_torque_max(wheel_velocities);
+
         auto angular_control_torque_max = calculate_angular_control_torque_max(wheel_velocities);
+
         bool angular_control_torque_positive = angular_control_torque_max > 0;
+
         if (!angular_control_torque_positive)
             angular_control_torque_max = -angular_control_torque_max;
+
         auto signed_affine_coefficient =
             angular_control_torque_positive ? affine_coefficient_ : -affine_coefficient_;
 
-        // auto angular_constraint       = std::sqrt(control_torque_max_); // TODO: Cache this
-
-        // auto translational_constraint = angular_constraint
-        //                               / std::max(
-        //                                     std::abs(translational_control_direction.x()),
-        //                                     std::abs(translational_control_direction.y()));
-        auto polygon1 = calculate_polygon_constraints(
+        auto polygon1 = calculate_polygon_constraints_co(
             K_0, K_1, translational_control_torque_max, 0, angular_control_torque_max,
             translational_control_direction);
+
         auto [circle_center, circle_radius, signed_affine, rotation_angle] =
             calculate_ellipse_parameters(
                 wheel_velocities, translational_control_direction, K_0, K_1);
@@ -109,35 +107,41 @@ private:
         best_point.x() = best_point.x() * rotation_angle.y() - best_point.y() * rotation_angle.x();
         best_point.y() = best_point.y() / signed_affine;
         best_point.y() = best_point.x() * rotation_angle.x() + best_point.y() * rotation_angle.y();
+
         return {
-            best_point.x() * translational_control_direction, // best translational control
-            best_point.y() / signed_affine_coefficient};      // best angular control
+            best_point.x() * translational_control_direction,
+            best_point.y() / signed_affine_coefficient, K_0, K_1};
     }
     static auto calculate_K(const double (&wheel_velocities)[5]) -> std::pair<double, double> {
+
         double K_0 = std::pow(
             K_dec_,
             -std::abs(
-                ((wheel_velocities[0] + wheel_velocities[2]) * wheel_radius_ / chassis_radius_
-                 + wheel_velocities[4]))
+                ((wheel_velocities[0] + wheel_velocities[2]) * 0.07775 / 0.39404 + wheel_velocities[4]))
                 / std::max(
                     std::max(
                         std::abs(wheel_velocities[4]),
                         std::abs(
-                            (wheel_velocities[0] + wheel_velocities[2]) * wheel_radius_
-                            / chassis_radius_)),
+                            (wheel_velocities[0] + wheel_velocities[2]) * 0.07775 / 0.39404)),
                     min_omega_));
         double K_1 = std::pow(
             K_dec_,
             -std::abs(
-                ((wheel_velocities[1] + wheel_velocities[3]) * wheel_radius_ / chassis_radius_
-                 + wheel_velocities[4]))
+                ((wheel_velocities[1] + wheel_velocities[3]) * 0.07775 / 0.39404 + wheel_velocities[4]))
                 / std::max(
                     std::max(
                         std::abs(wheel_velocities[4]),
-                        std::abs(
-                            (wheel_velocities[1] + wheel_velocities[3]) * wheel_radius_
-                            / chassis_radius_)),
+                        std::abs((wheel_velocities[1] + wheel_velocities[3]) * 0.07775 / 0.39404)),
                     min_omega_));
+        if (K_0 < 0.85)
+            K_0 += 0.15;
+        else
+            K_0 = 1;
+        if (K_1 < 0.85)
+            K_1 += 0.15;
+        else
+            K_1 = 1;
+
         if (std::abs(wheel_velocities[0]) < std::abs(wheel_velocities[2])) {
             K_0 = 2.0 - K_0;
         }
@@ -146,6 +150,7 @@ private:
         }
         return {K_0, K_1};
     }
+
     auto calculate_translational_control_torque_max(const double (&wheel_velocities)[5])
         -> std::pair<double, Eigen::Vector2d> {
         Eigen::Vector2d translational_control_velocity = control_velocity_->vector.head<2>();
@@ -203,13 +208,16 @@ private:
      * of vertices in counter-clockwise order representing the polygon. The function assumes that
      * `rhombus_right` and `rhombus_top` are always positive values.
      */
-    static std::vector<Eigen::Vector2d> calculate_polygon_constraints(
+
+    static std::vector<Eigen::Vector2d> calculate_polygon_constraints_co(
         double K_0, double K_1, double x_max, double y_min, double y_max,
         Eigen::Vector2d translational_control_direction) {
-        std::vector<Eigen::Vector2d> polygon;
-        std::vector<Eigen::Vector2d> polygon2;
 
+        std::vector<Eigen::Vector2d> polygon;
         do {
+            if (y_min > y_max) [[unlikely]] {
+                break;
+            }
 
             if (y_min == y_max) [[unlikely]] {
 
@@ -218,34 +226,11 @@ private:
                 break;
             }
 
-            if (y_min > y_max) {
-                polygon.emplace_back(0.0, y_max);
-                polygon.emplace_back(x_max, y_max);
-                polygon.emplace_back(x_max, y_min);
-                polygon.emplace_back(0.0, y_min);
-                break;
-            }
-
             polygon.emplace_back(0.0, y_max);
             polygon.emplace_back(x_max, y_max);
             polygon.emplace_back(x_max, y_min);
             polygon.emplace_back(0.0, y_min);
 
-            // if (y_min < 0 && y_max > 0) {
-            //     polygon.emplace_back(rhombus_right, 0.0);
-            // }
-            // if (y_max < rhombus_top) {
-            //     polygon.emplace_back(calculate_intersecting_x(y_max), y_max);
-            //     polygon.emplace_back(0.0, y_max);
-            // } else {
-            //     polygon.emplace_back(0.0, rhombus_top);
-            // }
-            // if (y_min > -rhombus_top) {
-            //     polygon.emplace_back(0.0, y_min);
-            //     polygon.emplace_back(calculate_intersecting_x(y_min), y_min);
-            // } else {
-            //     polygon.emplace_back(0.0, -rhombus_top);
-            // }
         } while (false);
 
         auto calculate_intersecting_point = [](Eigen::Vector2d c, Eigen::Vector2d p, double K,
@@ -261,279 +246,65 @@ private:
             }
         };
 
-        std::vector<Eigen::Vector2d> polygon3;
-        for (int i = int(polygon.size()) - 1; i > -1; i--) {
+        auto process_constraint = [&](double K, double dir_component, bool is_upper_limit,
+                                      std::vector<Eigen::Vector2d>& polygon) {
+            std::vector<Eigen::Vector2d> new_polygon;
+            const double limit = is_upper_limit ? control_torque_max_ : -control_torque_max_;
 
-            auto& current_point = polygon[i];
-            auto& prev_point    = polygon[i - 1];
-            if (K_0 * (current_point.y() + current_point.x() * translational_control_direction.y())
-                    <= control_torque_max_
-                && K_0 * (prev_point.y() + prev_point.x() * translational_control_direction.y())
-                       <= control_torque_max_) {
-                polygon3.emplace_back(current_point);
-            } else if (
-                K_0 * (current_point.y() + current_point.x() * translational_control_direction.y())
-                    <= control_torque_max_
-                && K_0 * (prev_point.y() + prev_point.x() * translational_control_direction.y())
-                       > control_torque_max_) {
-                polygon3.emplace_back(current_point);
-                polygon3.emplace_back(calculate_intersecting_point(
-                    current_point, prev_point, K_0, translational_control_direction.y()));
-            } else if (
-                K_0 * (current_point.y() + current_point.x() * translational_control_direction.y())
-                    > control_torque_max_
-                && K_0 * (prev_point.y() + prev_point.x() * translational_control_direction.y())
-                       <= control_torque_max_) {
-                polygon3.emplace_back(calculate_intersecting_point(
-                    current_point, prev_point, K_0, translational_control_direction.y()));
+            for (size_t i = 0; i < polygon.size(); i++) {
+                const auto& curr = polygon[i];
+                const auto& prev = polygon[i - 1];
+
+                double curr_val = K * (curr.y() + dir_component * curr.x());
+                double prev_val = K * (prev.y() + dir_component * prev.x());
+                if (is_upper_limit) {
+
+                    if (curr_val <= limit && prev_val <= limit) {
+                        new_polygon.emplace_back(curr);
+                    } else if (curr_val <= limit && prev_val > limit) {
+                        new_polygon.emplace_back(
+                            calculate_intersecting_point(curr, prev, K, dir_component));
+                        new_polygon.emplace_back(curr);
+
+                    } else if (curr_val > limit && prev_val <= limit) {
+                        new_polygon.emplace_back(
+                            calculate_intersecting_point(curr, prev, K, dir_component));
+                    }
+                }
+                if (!is_upper_limit) {
+                    if (curr_val >= limit && prev_val >= limit) {
+                        new_polygon.emplace_back(curr);
+                    } else if (curr_val >= limit && prev_val < limit) {
+                        new_polygon.emplace_back(
+                            calculate_intersecting_point(curr, prev, -K, dir_component));
+                        new_polygon.emplace_back(curr);
+
+                    } else if (curr_val < limit && prev_val >= limit) {
+                        new_polygon.emplace_back(
+                            calculate_intersecting_point(curr, prev, -K, dir_component));
+                    }
+                }
+            }
+
+            polygon = std::move(new_polygon);
+        };
+
+        process_constraint(K_0, translational_control_direction.x(), true, polygon);
+        process_constraint(K_0, translational_control_direction.x(), false, polygon);
+        process_constraint(2.0 - K_0, -translational_control_direction.x(), true, polygon);
+        process_constraint(2.0 - K_0, -translational_control_direction.x(), false, polygon);
+        process_constraint(2.0 - K_1, translational_control_direction.y(), true, polygon);
+        process_constraint(2.0 - K_1, translational_control_direction.y(), false, polygon);
+        process_constraint(K_1, -translational_control_direction.y(), true, polygon);
+        process_constraint(K_1, -translational_control_direction.y(), false, polygon);
+
+        std::vector<Eigen::Vector2d> result;
+        for (size_t i = 0; i < polygon.size(); ++i) {
+            if (i == 0 || polygon[i] != polygon[i - 1]) {
+                result.emplace_back(polygon[i]);
             }
         }
-        polygon  = polygon3;
-        polygon3 = polygon2;
-        for (int i = int(polygon.size()) - 1; i > -1; i--) {
-
-            auto& current_point = polygon[i];
-            auto& prev_point    = polygon[i - 1];
-            if (K_0 * (current_point.y() + current_point.x() * translational_control_direction.y())
-                    >= -control_torque_max_
-                && K_0 * (prev_point.y() + prev_point.x() * translational_control_direction.y())
-                       >= -control_torque_max_) {
-                polygon3.emplace_back(current_point);
-            } else if (
-                K_0 * (current_point.y() + current_point.x() * translational_control_direction.y())
-                    >= -control_torque_max_
-                && K_0 * (prev_point.y() + prev_point.x() * translational_control_direction.y())
-                       < -control_torque_max_) {
-                polygon3.emplace_back(current_point);
-                polygon3.emplace_back(calculate_intersecting_point(
-                    current_point, prev_point, -K_0, translational_control_direction.y()));
-            } else if (
-                K_0 * (current_point.y() + current_point.x() * translational_control_direction.y())
-                    < -control_torque_max_
-                && K_0 * (prev_point.y() + prev_point.x() * translational_control_direction.y())
-                       >= -control_torque_max_) {
-                polygon3.emplace_back(calculate_intersecting_point(
-                    current_point, prev_point, -K_0, translational_control_direction.y()));
-            }
-        }
-        polygon  = polygon3;
-        polygon3 = polygon2;
-
-        for (int i = int(polygon.size()) - 1; i > -1; i--) {
-
-            auto& current_point = polygon[i];
-            auto& prev_point    = polygon[i - 1];
-            if ((2.0 - K_0)
-                        * (current_point.y()
-                           - current_point.x() * translational_control_direction.y())
-                    <= control_torque_max_
-                && (2.0 - K_0)
-                           * (prev_point.y() - prev_point.x() * translational_control_direction.y())
-                       <= control_torque_max_) {
-                polygon3.emplace_back(current_point);
-            } else if (
-                (2.0 - K_0)
-                        * (current_point.y()
-                           - current_point.x() * translational_control_direction.y())
-                    <= control_torque_max_
-                && (2.0 - K_0)
-                           * (prev_point.y() - prev_point.x() * translational_control_direction.y())
-                       > control_torque_max_) {
-                polygon3.emplace_back(current_point);
-                polygon3.emplace_back(calculate_intersecting_point(
-                    current_point, prev_point, (2.0 - K_0), -translational_control_direction.y()));
-            } else if (
-                (2.0 - K_0)
-                        * (current_point.y()
-                           - current_point.x() * translational_control_direction.y())
-                    > control_torque_max_
-                && (2.0 - K_0)
-                           * (prev_point.y() - prev_point.x() * translational_control_direction.y())
-                       <= control_torque_max_) {
-                polygon3.emplace_back(calculate_intersecting_point(
-                    current_point, prev_point, (2.0 - K_0), -translational_control_direction.y()));
-            }
-        }
-        polygon  = polygon3;
-        polygon3 = polygon2;
-        for (int i = int(polygon.size()) - 1; i > -1; i--) {
-
-            auto& current_point = polygon[i];
-            auto& prev_point    = polygon[i - 1];
-            if ((2.0 - K_0)
-                        * (current_point.y()
-                           - current_point.x() * translational_control_direction.y())
-                    >= -control_torque_max_
-                && (2.0 - K_0)
-                           * (prev_point.y() - prev_point.x() * translational_control_direction.y())
-                       >= -control_torque_max_) {
-                polygon3.emplace_back(current_point);
-            } else if (
-                (2.0 - K_0)
-                        * (current_point.y()
-                           - current_point.x() * translational_control_direction.y())
-                    >= -control_torque_max_
-                && (2.0 - K_0)
-                           * (prev_point.y() - prev_point.x() * translational_control_direction.y())
-                       < -control_torque_max_) {
-                polygon3.emplace_back(current_point);
-                polygon3.emplace_back(calculate_intersecting_point(
-                    current_point, prev_point, -(2.0 - K_0), -translational_control_direction.y()));
-            } else if (
-                (2.0 - K_0)
-                        * (current_point.y()
-                           - current_point.x() * translational_control_direction.y())
-                    < -control_torque_max_
-                && (2.0 - K_0)
-                           * (prev_point.y() - prev_point.x() * translational_control_direction.y())
-                       >= -control_torque_max_) {
-                polygon3.emplace_back(calculate_intersecting_point(
-                    current_point, prev_point, -(2.0 - K_0), -translational_control_direction.y()));
-            }
-        }
-        polygon  = polygon3;
-        polygon3 = polygon2;
-
-        for (int i = int(polygon.size()) - 1; i > -1; i--) {
-
-            auto& current_point = polygon[i];
-            auto& prev_point    = polygon[i - 1];
-            if ((2.0 - K_1)
-                        * (current_point.y()
-                           + current_point.x() * translational_control_direction.x())
-                    <= control_torque_max_
-                && (2.0 - K_1)
-                           * (prev_point.y() + prev_point.x() * translational_control_direction.x())
-                       <= control_torque_max_) {
-                polygon3.emplace_back(current_point);
-            } else if (
-                (2.0 - K_1)
-                        * (current_point.y()
-                           + current_point.x() * translational_control_direction.x())
-                    <= control_torque_max_
-                && (2.0 - K_1)
-                           * (prev_point.y() + prev_point.x() * translational_control_direction.x())
-                       > control_torque_max_) {
-                polygon3.emplace_back(current_point);
-                polygon3.emplace_back(calculate_intersecting_point(
-                    current_point, prev_point, (2.0 - K_1), translational_control_direction.x()));
-            } else if (
-                (2.0 - K_1)
-                        * (current_point.y()
-                           + current_point.x() * translational_control_direction.x())
-                    > control_torque_max_
-                && (2.0 - K_1)
-                           * (prev_point.y() + prev_point.x() * translational_control_direction.x())
-                       <= control_torque_max_) {
-                polygon3.emplace_back(calculate_intersecting_point(
-                    current_point, prev_point, (2.0 - K_1), translational_control_direction.x()));
-            }
-        }
-        polygon  = polygon3;
-        polygon3 = polygon2;
-        for (int i = int(polygon.size()) - 1; i > -1; i--) {
-
-            auto& current_point = polygon[i];
-            auto& prev_point    = polygon[i - 1];
-            if ((2.0 - K_1)
-                        * (current_point.y()
-                           + current_point.x() * translational_control_direction.x())
-                    >= -control_torque_max_
-                && (2.0 - K_1)
-                           * (prev_point.y() + prev_point.x() * translational_control_direction.x())
-                       >= -control_torque_max_) {
-                polygon3.emplace_back(current_point);
-            } else if (
-                (2.0 - K_1)
-                        * (current_point.y()
-                           + current_point.x() * translational_control_direction.x())
-                    >= -control_torque_max_
-                && (2.0 - K_1)
-                           * (prev_point.y() + prev_point.x() * translational_control_direction.x())
-                       < -control_torque_max_) {
-                polygon3.emplace_back(current_point);
-                polygon3.emplace_back(calculate_intersecting_point(
-                    current_point, prev_point, -(2.0 - K_1), translational_control_direction.x()));
-            } else if (
-                (2.0 - K_1)
-                        * (current_point.y()
-                           + current_point.x() * translational_control_direction.x())
-                    < -control_torque_max_
-                && (2.0 - K_1)
-                           * (prev_point.y() + prev_point.x() * translational_control_direction.x())
-                       >= -control_torque_max_) {
-                polygon3.emplace_back(calculate_intersecting_point(
-                    current_point, prev_point, -(2.0 - K_1), translational_control_direction.x()));
-            }
-        }
-        polygon  = polygon3;
-        polygon3 = polygon2;
-
-        for (int i = int(polygon.size()) - 1; i > -1; i--) {
-
-            auto& current_point = polygon[i];
-            auto& prev_point    = polygon[i - 1];
-            if (K_1 * (current_point.y() - current_point.x() * translational_control_direction.x())
-                    <= control_torque_max_
-                && K_1 * (prev_point.y() - prev_point.x() * translational_control_direction.x())
-                       <= control_torque_max_) {
-                polygon3.emplace_back(current_point);
-            } else if (
-                K_1 * (current_point.y() - current_point.x() * translational_control_direction.x())
-                    <= control_torque_max_
-                && K_1 * (prev_point.y() - prev_point.x() * translational_control_direction.x())
-                       > control_torque_max_) {
-                polygon3.emplace_back(current_point);
-                polygon3.emplace_back(calculate_intersecting_point(
-                    current_point, prev_point, K_1, -translational_control_direction.x()));
-            } else if (
-                K_1 * (current_point.y() - current_point.x() * translational_control_direction.x())
-                    > control_torque_max_
-                && K_1 * (prev_point.y() - prev_point.x() * translational_control_direction.x())
-                       <= control_torque_max_) {
-                polygon3.emplace_back(calculate_intersecting_point(
-                    current_point, prev_point, K_1, -translational_control_direction.x()));
-            }
-        }
-        polygon  = polygon3;
-        polygon3 = polygon2;
-        for (int i = int(polygon.size()) - 1; i > -1; i--) {
-
-            auto& current_point = polygon[i];
-            auto& prev_point    = polygon[i - 1];
-            if (K_1 * (current_point.y() - current_point.x() * translational_control_direction.x())
-                    >= -control_torque_max_
-                && K_1 * (prev_point.y() - prev_point.x() * translational_control_direction.x())
-                       >= -control_torque_max_) {
-                polygon3.emplace_back(current_point);
-            } else if (
-                K_1 * (current_point.y() - current_point.x() * translational_control_direction.x())
-                    >= -control_torque_max_
-                && K_1 * (prev_point.y() - prev_point.x() * translational_control_direction.x())
-                       < -control_torque_max_) {
-                polygon3.emplace_back(current_point);
-                polygon3.emplace_back(calculate_intersecting_point(
-                    current_point, prev_point, -K_1, -translational_control_direction.x()));
-            } else if (
-                K_1 * (current_point.y() - current_point.x() * translational_control_direction.x())
-                    < -control_torque_max_
-                && K_1 * (prev_point.y() - prev_point.x() * translational_control_direction.x())
-                       >= -control_torque_max_) {
-                polygon3.emplace_back(calculate_intersecting_point(
-                    current_point, prev_point, -K_1, -translational_control_direction.x()));
-            }
-        }
-
-        for (int i = int(polygon3.size()) - 1; i > -1; i--) {
-            auto& current_point = polygon3[i];
-            auto& prev_point    = polygon3[i - 1];
-            if ((current_point.x() == prev_point.x()) && (current_point.y() == prev_point.y()))
-                ;
-            else
-                polygon2.emplace_back(current_point);
-        }
-
-        return polygon2;
+        return result;
     }
 
     auto calculate_ellipse_parameters(
@@ -546,66 +317,43 @@ private:
         angle.x() = translational_control_direction.y();
         angle.y() = translational_control_direction.x();
 
-        double A = k1_
+        double a = k1_
                  * ((K_0 * K_0 + (2.0 - K_0) * (2.0 - K_0)) * angle.x() * angle.x()
                     + (K_1 * K_1 + (2.0 - K_1) * (2.0 - K_1)) * angle.y() * angle.y());
-        double B = 2 * k1_
+        double b = 2 * k1_
                  * ((K_0 * K_0 - (2.0 - K_0) * (2.0 - K_0)) * angle.x()
                     + (-K_1 * K_1 + (2.0 - K_1) * (2.0 - K_1)) * angle.y());
-        double C =
+        double c =
             k1_ * (K_0 * K_0 + (2.0 - K_0) * (2.0 - K_0) + K_1 * K_1 + (2.0 - K_1) * (2.0 - K_1));
-        double D =
+        double d =
             ((wheel_velocities[0] * K_0 - wheel_velocities[2] * (2.0 - K_0)) * angle.x()
              - (wheel_velocities[1] * K_1 - wheel_velocities[3] * (2.0 - K_1)) * angle.y());
-        double E = wheel_velocities[0] * K_0 + wheel_velocities[2] * (2.0 - K_0)
+        double e = wheel_velocities[0] * K_0 + wheel_velocities[2] * (2.0 - K_0)
                  + wheel_velocities[1] * K_1 + wheel_velocities[3] * (2.0 - K_1);
-        double F = k2_
+        double f = k2_
                      * (wheel_velocities[0] * wheel_velocities[0]
                         + wheel_velocities[1] * wheel_velocities[1]
                         + wheel_velocities[2] * wheel_velocities[2]
                         + wheel_velocities[3] * wheel_velocities[3])
                  + no_load_power_ - *power_limit_;
 
-        double h      = (B * E - 2 * C * D) / (4 * A * C - B * B);
-        double k      = (B * D - 2 * A * E) / (4 * A * C - B * B);
-        double lamb_1 = (A + C + std::sqrt((A - C) * (A - C) + B * B)) / 2;
-        double lamb_2 = (A + C - std::sqrt((A - C) * (A - C) + B * B)) / 2;
-        double F_1    = std::abs(A * h * h + B * h * k + C * k * k + D * h + E * k + F);
+        double h      = (b * e - 2 * c * d) / (4 * a * c - b * b);
+        double k      = (b * d - 2 * a * e) / (4 * a * c - b * b);
+        double lamb_1 = (a + c + std::sqrt((a - c) * (a - c) + b * b)) / 2;
+        double lamb_2 = (a + c - std::sqrt((a - c) * (a - c) + b * b)) / 2;
+        double f_1    = std::abs(a * h * h + b * h * k + c * k * k + d * h + e * k + f);
 
-        double a = std::sqrt(F_1 / lamb_2);
-        double c = std::sqrt(F_1 / lamb_1);
+        double l = std::sqrt(f_1 / lamb_2);
+        double s = std::sqrt(f_1 / lamb_1);
 
         rotation_angle = {
-            std::sin(std::atan(B / (A - C)) / 2), std::cos(std::atan(B / (A - C)) / 2)};
-        signed_affine = a / c;
+            std::sin(std::atan(b / (a - c)) / 2), std::cos(std::atan(b / (a - c)) / 2)};
+        signed_affine = l / s;
 
         center = {
             h * rotation_angle.y() + k * rotation_angle.x(),
             signed_affine * (k * rotation_angle.y() - h * rotation_angle.x())};
-        semi_major_axis = a;
-
-        // auto temp_value_0 =
-        //     (wheel_velocities[0] - wheel_velocities[2]) * translational_control_direction.y()
-        //     + (wheel_velocities[3] - wheel_velocities[1]) *
-        // translational_control_direction.x();
-        // auto temp_value_1 =
-        //     std::accumulate(std::begin(wheel_velocities), std::end(wheel_velocities), 0.0);
-        // auto temp_value_2 = std::accumulate(
-        //     std::begin(wheel_velocities), std::end(wheel_velocities), 0.0,
-        //     [](double acc, double v) { return acc + std::pow(v, 2); });
-
-        // constexpr auto inv_k1    = 1 / k1_;
-        // constexpr auto inv_2_k1  = inv_k1 / 2;
-        // constexpr auto inv_4_k1  = inv_k1 / 4;
-        // constexpr auto inv_8_k1  = inv_k1 / 8;
-        // constexpr auto inv_16_k1 = inv_k1 / 16;
-
-        // center = {-inv_4_k1 * temp_value_0, -inv_8_k1 * temp_value_1};
-        // semi_major_axis =
-        //     inv_2_k1
-        //     * (inv_8_k1 * std::pow(temp_value_0, 2) + inv_16_k1 * std::pow(temp_value_1, 2)
-        //        - k2_ * temp_value_2 + *power_limit_ - no_load_power_);
-        // semi_major_axis = semi_major_axis < 0 ? nan_ : std::sqrt(semi_major_axis);
+        semi_major_axis = l;
 
         return result;
     }
@@ -741,8 +489,8 @@ private:
     static constexpr double wheel_radius_   = 0.07;
     static constexpr double chassis_radius_ = 0.5;
 
-    static constexpr double min_omega_ = 2.0;
-    static constexpr double K_dec_     = 10.0;
+    static constexpr double min_omega_ = 6.0;
+    static constexpr double K_dec_     = 7.0;
 
     static constexpr double affine_coefficient_ = 1.0;
 
@@ -754,8 +502,9 @@ private:
     static constexpr double control_torque_max_ = 3.5;
 
     InputInterface<double> wheel_motor_max_control_torque_;
-
     InputInterface<double> left_front_velocity_;
+
+    InputInterface<double> gimbal_yaw_angle_;
     InputInterface<double> left_back_velocity_;
     InputInterface<double> right_back_velocity_;
     InputInterface<double> right_front_velocity_;
@@ -774,7 +523,6 @@ private:
     OutputInterface<double> left_back_control_torque_;
     OutputInterface<double> right_back_control_torque_;
     OutputInterface<double> right_front_control_torque_;
-
 };
 
 } // namespace rmcs_core::controller::chassis

@@ -23,7 +23,7 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , following_velocity_controller_(8.0, 0.0, 0.0) {
+        , following_velocity_controller_(7.0, 0.0, 0.0) {
         following_velocity_controller_.output_max = angular_velocity_max;
         following_velocity_controller_.output_min = -angular_velocity_max;
 
@@ -111,6 +111,8 @@ public:
     void update() override {
         using namespace rmcs_msgs;
 
+        RCLCPP_INFO(get_logger(), "%d",*supercap_enabled_);
+        
         auto switch_right = *switch_right_;
         auto switch_left  = *switch_left_;
         auto keyboard     = *keyboard_;
@@ -149,6 +151,7 @@ public:
                              : rmcs_msgs::ChassisMode::STEP_DOWN;
                 }
                 *mode_ = mode;
+
             }
 
             if (auto_spin_enable_) {
@@ -341,8 +344,8 @@ private:
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
     // Maximum control velocities
-    static constexpr double translational_velocity_max = 20.0;
-    static constexpr double angular_velocity_max       = 25.0;
+    static constexpr double translational_velocity_max = 30.0;
+    static constexpr double angular_velocity_max       = 15.0;
 
     // Maximum excess power when buffer energy is sufficient.
     static constexpr double excess_power_limit = 35;
