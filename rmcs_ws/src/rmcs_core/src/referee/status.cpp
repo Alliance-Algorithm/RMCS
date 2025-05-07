@@ -43,6 +43,8 @@ public:
 
         register_output("/referee/shooter/initial_speed", robot_initial_speed_, false);
         register_output("/referee/shooter/shoot_timestamp", robot_shoot_timestamp_, false);
+        register_output("/referee/chassis/output_status", chassis_output_status_, false);
+
 
         robot_status_watchdog_.reset(5'000);
     }
@@ -142,6 +144,8 @@ private:
         *robot_shooter_cooling_     = data.shooter_barrel_cooling_value;
         *robot_shooter_heat_limit_  = static_cast<int64_t>(1000) * data.shooter_barrel_heat_limit;
         *robot_chassis_power_limit_ = static_cast<double>(data.chassis_power_limit);
+        *chassis_output_status_     = static_cast<bool>(data.power_management_chassis_output);
+   
     }
 
     void update_power_heat_data() {
@@ -196,6 +200,8 @@ private:
     OutputInterface<rmcs_msgs::RobotId> robot_id_;
     OutputInterface<int64_t> robot_shooter_cooling_, robot_shooter_heat_limit_;
     OutputInterface<double> robot_chassis_power_limit_;
+    OutputInterface<bool> chassis_output_status_;
+
 
     rmcs_utility::TickTimer power_heat_data_watchdog_;
     OutputInterface<double> robot_chassis_power_;

@@ -50,7 +50,7 @@ referee_status:
 
 gimbal_controller:
   ros__parameters:
-    upper_limit: -0.4598
+    upper_limit: -0.5098
     lower_limit: 0.1862
 
 yaw_angle_pid_controller:
