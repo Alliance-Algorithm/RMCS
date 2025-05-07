@@ -8,7 +8,7 @@
 #include <rmcs_executor/component.hpp>
 #include <std_msgs/msg/float64.hpp>
 
-#include "controller/pid/pid_calculator.hpp"
+#include "power_controller.hpp"
 
 namespace rmcs_core::controller::chassis {
 
@@ -22,7 +22,9 @@ public:
     explicit SteeringWheelController()
         : Node(
               get_component_name(),
-              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
+        , steering_motors_power_controller_(PowerController::Config{}.set_no_load_power(8.65))
+        , wheel_motors_power_controller_(PowerController::Config{}) {
 
         register_input("/chassis/left_front_wheel/max_torque", wheel_motor_max_control_torque_);
 
@@ -105,13 +107,11 @@ private:
     auto update_control_velocity() -> std::pair<Eigen::Vector2d, double> {
         std::pair<Eigen::Vector2d, double> result{};
         auto& [translational_control_velocity, angular_control_velocity] = result;
-
         auto control_velocity =
             Eigen::Vector2d{control_velocity_->vector.x(), control_velocity_->vector.y()};
 
         translational_control_velocity =
             Eigen::Vector2d{control_velocity.x(), control_velocity.y()};
-
         if (!std::isnan(control_velocity_->vector.z())) {
             angular_control_velocity = control_velocity_->vector.z();
         } else {
@@ -173,6 +173,13 @@ private:
             std::get<1>(desire_attitude_[3]) * rf_wheel_vector.norm() / wheel_radius_;
     }
 
+    void update_power_control_torque() {
+        steering_motors_power_controller_.store_status(power_ratio_ * *power_limit_);
+        wheel_motors_power_controller_.store_status((1 - power_ratio_) * *power_limit_);
+        // auto s_k1 = steering_motors_power_controller_.update_power_scaling_factor(, const double
+        // (&motor_unrestricted_torques)[])
+    }
+
     static std::array<Eigen::Vector2d, 4> update_control_vector(
         const Eigen::Vector2d& translational_control_vel, const double angular_control_vel) {
 
@@ -200,7 +207,6 @@ private:
 
         auto wheel_reverse = false;
         auto raw_error     = target_angle - measure_angle;
-
         if (raw_error >= std::numbers::pi) {
             target_angle -= 2 * std::numbers::pi;
         } else if (raw_error <= -std::numbers::pi) {
@@ -236,9 +242,7 @@ private:
     static constexpr double update_freq_  = 0.001;
     static constexpr double filter_alpha_ = update_freq_ / (filter_tau_ + update_freq_);
 
-    static constexpr double steering_angular_velocity_max = 0;
-
-    std::array<Eigen::Vector2d, 4> control_vector_;
+    static constexpr double power_ratio_ = 0.6;
 
     InputInterface<double> left_front_steering_angle_;
     InputInterface<double> left_back_steering_angle_;
@@ -250,12 +254,27 @@ private:
     InputInterface<double> right_back_wheel_velocity_;
     InputInterface<double> right_front_wheel_velocity_;
 
+    // std::unique_ptr<InputInterface<double>[]> steering_motor_velocities_;
+    // std::unique_ptr<InputInterface<double>[]> wheel_motor_velocities_;
+
     InputInterface<rmcs_description::BaseLink::DirectionVector> control_velocity_;
+
+    std::array<Eigen::Vector2d, 4> control_vector_;
+
+    Eigen::Vector2d lf_vector_last_{1, -1};
+    Eigen::Vector2d lb_vector_last_{1, 1};
+    Eigen::Vector2d rb_vector_last_{1, -1};
+    Eigen::Vector2d rf_vector_last_{1, 1};
 
     InputInterface<double> wheel_motor_max_control_torque_;
     InputInterface<double> steering_power_;
     InputInterface<double> chassis_power_;
     InputInterface<double> power_limit_;
+
+    std::array<std::tuple<double, double>, 4> desire_attitude_;
+
+    PowerController steering_motors_power_controller_;
+    PowerController wheel_motors_power_controller_;
 
     OutputInterface<double> left_front_wheel_control_velocity_;
     OutputInterface<double> left_back_wheel_control_velocity_;
@@ -266,13 +285,6 @@ private:
     OutputInterface<double> left_back_steering_control_angle_error_;
     OutputInterface<double> right_back_steering_control_angle_error_;
     OutputInterface<double> right_front_steering_control_angle_error_;
-
-    std::array<std::tuple<double, double>, 4> desire_attitude_;
-
-    Eigen::Vector2d lf_vector_last_{1, -1};
-    Eigen::Vector2d lb_vector_last_{1, 1};
-    Eigen::Vector2d rb_vector_last_{1, -1};
-    Eigen::Vector2d rf_vector_last_{1, 1};
 
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr steering_power_publisher_;
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr chassis_power_publisher_;

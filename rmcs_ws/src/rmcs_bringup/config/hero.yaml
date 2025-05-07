@@ -220,6 +220,9 @@ chassis_controller:
       - /gimbal/top_yaw
       - /gimbal/bottom_yaw
 
+steering_wheel_controller:
+  ros__parameters:
+
 steering_power_controller:
   ros__parameters:
     motors:
