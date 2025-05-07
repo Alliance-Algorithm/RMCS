@@ -70,6 +70,9 @@ private:
             get_logger(), "[gimbal calibration] New top yaw offset: %ld",
             top_board_->gimbal_top_yaw_motor_.calibrate_zero_point());
         RCLCPP_INFO(
+            get_logger(), "[gimbal calibration] New viewer offset: %ld",
+            top_board_->gimbal_player_viewer_motor_.calibrate_zero_point());
+        RCLCPP_INFO(
             get_logger(), "[chassis calibration] left front steering offset: %d",
             bottom_board_->chassis_steering_motors_[0].calibrate_zero_point());
         RCLCPP_INFO(
@@ -134,7 +137,10 @@ private:
                   device::DjiMotor::Config{device::DjiMotor::Type::M2006})
             , gimbal_player_viewer_motor_(
                   hero, hero_command, "/gimbal/player_viewer",
-                  device::LkMotor::Config{device::LkMotor::Type::MG4005E_I10})
+                  device::LkMotor::Config{device::LkMotor::Type::MG4005E_I10}
+                      .set_encoder_zero_point(
+                          static_cast<int>(hero.get_parameter("viewer_motor_zero_point").as_int()))
+                      .set_reversed())
             , transmit_buffer_(*this, 32)
             , event_thread_([this]() { handle_events(); }) {
 
@@ -226,8 +232,8 @@ private:
 
             // TODO:add gimbal_player_viewer messages
             transmit_buffer_.add_can2_transmission(
-                0x143, gimbal_player_viewer_motor_.generate_torque_command(
-                           gimbal_player_viewer_motor_.control_torque()));
+                0x143, gimbal_player_viewer_motor_.generate_velocity_command(
+                           gimbal_player_viewer_motor_.control_velocity()));
 
             transmit_buffer_.add_can2_transmission(
                 0x142,

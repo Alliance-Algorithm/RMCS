@@ -2,6 +2,7 @@
 
 #include <eigen3/Eigen/Dense>
 #include <rclcpp/node.hpp>
+#include <std_msgs/msg/float64.hpp>
 
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
@@ -23,8 +24,8 @@ public:
         : rclcpp::Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , upper_limit_(get_parameter("upper_limit").as_double() + pi_ / 2)
-        , lower_limit_(get_parameter("lower_limit").as_double() + pi_ / 2) {
+        , upper_limit_(get_parameter("upper_limit").as_double())
+        , lower_limit_(get_parameter("lower_limit").as_double()) {
         register_input("/remote/switch/right", switch_right_);
         register_input("/remote/switch/left", switch_left_);
         register_input("/remote/mouse", mouse_);
@@ -32,13 +33,18 @@ public:
         register_input("/remote/keyboard", keyboard_);
 
         register_input("/gimbal/pitch/angle", gimbal_pitch_angle_);
+        register_input("/gimbal/player_viewer/angle", gimbal_player_viewer_angle_);
 
         register_input("/tf", tf_);
 
         register_output(
             "/gimbal/player_viewer/control_angle_error", viewer_control_angle_error_, nan_);
-        register_output("/gimbal/player_viewer/control_torque", viewer_control_torque_, nan_);
         register_output("/gimbal/scope/control_torque", scope_control_torque_, nan_);
+
+        viewer_control_angle_publisher_ =
+            create_publisher<std_msgs::msg::Float64>("/gimbal/viewer/control_angle", 20);
+        viewer_measure_angle_publisher_ =
+            create_publisher<std_msgs::msg::Float64>("/gimbal/viewer/measure_angle", 20);
     }
 
     void update() override {
@@ -53,15 +59,10 @@ public:
             reset_all_controls();
         } else {
             if (!last_keyboard_.e && keyboard.e) {
-                if (view_active_) {
-                    viewer_target_angle_    = upper_limit_;
-                    *viewer_control_torque_ = 0.3;
-                } else {
-                    viewer_target_angle_    = lower_limit_;
-                    *viewer_control_torque_ = -0.3;
-                }
-                view_active_ = !view_active_;
+                viewer_state_ = view_active_ ? ViewerState::LOWER : ViewerState::UPPER;
+                view_active_  = !view_active_;
             }
+            update_viewer_control_state();
             if (!last_keyboard_.q && keyboard.q) {
                 if (scope_active_) {
                     *scope_control_torque_ = 0.2;
@@ -70,27 +71,64 @@ public:
                 }
                 scope_active_ = !scope_active_;
             }
-
-            update_player_viewer_angle_control();
         };
-
         last_keyboard_ = keyboard;
+
+        // RCLCPP_INFO(
+        //     get_logger(), "viewer state:%hhu,error:%f,mea:%f,control:%f",
+        //     static_cast<uint8_t>(viewer_state_), *viewer_control_angle_error_,
+        //     viewer_measure_angle_, viewer_control_angle_);
+
+        std_msgs::msg::Float64 control_msg, measure_msg;
+        control_msg.data = viewer_control_angle_;
+        measure_msg.data = viewer_measure_angle_;
+        viewer_control_angle_publisher_->publish(control_msg);
+        viewer_measure_angle_publisher_->publish(measure_msg);
     }
 
 private:
     void reset_all_controls() {
         *viewer_control_angle_error_ = nan_;
-        *viewer_control_torque_      = nan_;
         *scope_control_torque_       = nan_;
+        viewer_state_                = ViewerState::UPPER;
+        view_active_                 = true;
+        scope_active_                = true;
     }
 
-    void update_player_viewer_angle_control() {
+    void update_manual_control_angle() {
         auto wheel_sensitivity = 1.0;
         auto delta_pitch =
             Eigen::AngleAxisd{wheel_sensitivity * *mouse_wheel_, Eigen::Vector3d::UnitY()};
+        viewer_control_angle_ += delta_pitch.angle();
+
+        viewer_control_angle_ = std::clamp(viewer_control_angle_, upper_limit_, lower_limit_);
+
+        viewer_measure_angle_ = (*gimbal_player_viewer_angle_ > pi_)
+                                  ? *gimbal_player_viewer_angle_ - 2 * pi_
+                                  : *gimbal_player_viewer_angle_;
+
+        auto raw_error = viewer_control_angle_ - viewer_measure_angle_;
+
+        *viewer_control_angle_error_ = raw_error;
+    }
+
+    void update_viewer_control_state() {
+        switch (viewer_state_) {
+        case ViewerState::UPPER:
+            viewer_control_angle_ = upper_limit_;
+            viewer_state_         = ViewerState::MANUAL;
+            break;
+        case ViewerState::LOWER:
+            viewer_control_angle_ = lower_limit_;
+            viewer_state_         = ViewerState::MANUAL;
+            break;
+        case ViewerState::MANUAL: update_manual_control_angle(); break;
+        }
     }
 
 private:
+    enum class ViewerState : uint8_t { MANUAL = 0, UPPER = 1, LOWER = 2 };
+
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
     static constexpr double pi_  = std::numbers::pi;
 
@@ -104,22 +142,27 @@ private:
     InputInterface<double> rotary_knob_;
 
     InputInterface<double> gimbal_pitch_angle_;
-    InputInterface<double> gimbal_scope_torque_;
+
+    InputInterface<double> gimbal_player_viewer_angle_;
 
     InputInterface<rmcs_description::Tf> tf_;
 
     rmcs_description::PitchLink::DirectionVector control_direction_{Eigen::Vector3d::Zero()};
     rmcs_description::ViewerLink::DirectionVector viewer_dir_{Eigen::Vector3d::UnitX()};
 
-    OutputInterface<double> viewer_control_torque_;
     OutputInterface<double> scope_control_torque_;
     OutputInterface<double> viewer_control_angle_error_;
 
     rmcs_msgs::Keyboard last_keyboard_{rmcs_msgs::Keyboard::zero()};
 
-    double viewer_target_angle_ = 0.0;
+    double viewer_control_angle_ = 0.0, viewer_measure_angle_ = 0.0;
     bool scope_active_{true};
     bool view_active_{true};
+
+    ViewerState viewer_state_{ViewerState::UPPER};
+
+    rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr viewer_control_angle_publisher_;
+    rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr viewer_measure_angle_publisher_;
 };
 } // namespace rmcs_core::controller::gimbal
 

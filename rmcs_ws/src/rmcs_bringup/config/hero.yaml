@@ -20,7 +20,6 @@ rmcs_executor:
 
       - rmcs_core::controller::gimbal::PlayerViewer -> gimbal_player_viewer_controller
       # - rmcs_core::controller::pid::ErrorPidController -> viewer_angle_pid_controller
-      # - rmcs_core::controller::pid::PidController -> viewer_velocity_pid_controller
       
       - rmcs_core::controller::gimbal::ShootingController -> shooting_controller
       - rmcs_core::controller::pid::PidController -> second_left_friction_velocity_pid_controller
@@ -56,9 +55,10 @@ hero_hardware:
   ros__parameters:
     usb_pid_top_board: 0x652f
     usb_pid_bottom_board: 0x1783
-    pitch_motor_zero_point: 14367
     bottom_yaw_motor_zero_point: 42889
+    pitch_motor_zero_point: 14367
     top_yaw_motor_zero_point: 2788
+    viewer_motor_zero_point: 11869
     external_imu_port: /dev/ttyUSB0
     left_front_zero_point: 2711
     left_back_zero_point: 4755
@@ -77,7 +77,7 @@ top_yaw_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/top_yaw/control_angle_error
     control: /gimbal/top_yaw/control_velocity
-    kp: 16.0
+    kp: 16.50
     ki: 0.00
     kd: 0.00
 
@@ -86,16 +86,16 @@ top_yaw_velocity_pid_controller:
     measurement: /gimbal/yaw/velocity_imu
     setpoint: /gimbal/top_yaw/control_velocity
     control: /gimbal/top_yaw/control_torque
-    kp: 87.00
-    ki: 0.017
-    kd: 1.70
+    kp: 87.40
+    ki: 0.004
+    kd: 1.00
 
 bottom_yaw_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/bottom_yaw/control_angle_error
     feedforward: /chassis/yaw/velocity_imu
     control: /gimbal/bottom_yaw/control_velocity
-    kp: 10.00
+    kp: 10.60
     ki: 0.00
     kd: 0.00
 
@@ -104,9 +104,9 @@ bottom_yaw_velocity_pid_controller:
     measurement: /gimbal/bottom_yaw/velocity
     setpoint: /gimbal/bottom_yaw/control_velocity
     control: /gimbal/bottom_yaw/control_torque
-    kp: 23.25
+    kp: 23.20
     ki: 0.00
-    kd: 0.07
+    kd: 0.09
 
 pitch_angle_pid_controller:
   ros__parameters:
@@ -127,23 +127,14 @@ pitch_velocity_pid_controller:
 
 gimbal_player_viewer_controller:
   ros__parameters:
-    upper_limit: 0.2847
-    lower_limit: -0.3874
+    upper_limit: 0.0002
+    lower_limit: 0.7309
 
 viewer_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/player_viewer/control_angle_error
     control: /gimbal/player_viewer/control_velocity
-    kp: 5.00
-    ki: 0.00
-    kd: 0.00
-
-viewer_velocity_pid_controller:
-  ros__parameters:
-    measurement: /gimbal/player_viewer/velocity
-    setpoint: /gimbal/player_viewer/control_velocity
-    control: /gimbal/player_viewer/control_torque
-    kp: 5.00
+    kp: 4.00
     ki: 0.00
     kd: 0.00
 
