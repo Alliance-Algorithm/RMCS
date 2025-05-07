@@ -63,6 +63,7 @@ public:
         register_output("/arm/Joint1/target_theta", target_theta[0], nan);
 
         register_output("/arm/enable_flag", is_arm_enable, true);
+        register_output("/arm/pump/control_torque", TORQUE_test, NAN);
 
         publisher_ =
             create_publisher<std_msgs::msg::Float32MultiArray>("/engineer/joint/measure", 10);
@@ -156,9 +157,7 @@ public:
                     }
                 }
 
-            } else {
-                *mode = rmcs_msgs::ArmMode::None;
-            }
+            } 
             switch (*mode) {
                 using namespace rmcs_msgs;
             case ArmMode::Auto_Gold_Left: execute_gold(fsm_gold_l); break;
@@ -170,8 +169,6 @@ public:
             case ArmMode::DT7_Control_Orientation: execute_dt7_orientation(); break;
             default: break;
             }
-        RCLCPP_INFO(this->get_logger(),"%d",*mode);
-
         }
     }
 
@@ -206,16 +203,18 @@ private:
     }
     template <typename T>
     void execute_gold(T& fsm_gold) {
-        auto keyboard          = *keyboard_;
+        auto keyboard = *keyboard_;
+        auto mouse    = *mouse_;
+
         static auto last_state = Auto_Gold_State::Set_initial;
 
-        if (fsm_gold.fsm_direction == initial_enter || keyboard.s) {
+        if (fsm_gold.fsm_direction == initial_enter || mouse.right) {
             fsm_gold.get_current_theta(
                 {*theta[0], *theta[1], *theta[2], *theta[3], *theta[4], *theta[5]});
         }
-        if (keyboard.w || fsm_gold.fsm_direction == initial_enter) {
+        if (mouse.left || fsm_gold.fsm_direction == initial_enter) {
             fsm_gold.fsm_direction = up;
-        } else if (keyboard.s) {
+        } else if (mouse.right) {
             fsm_gold.fsm_direction = down;
         }
         if (fsm_gold.fsm_direction == up) {
@@ -244,15 +243,16 @@ private:
     template <typename T>
     void execute_sliver(T& fsm_sliver) {
         auto keyboard          = *keyboard_;
+        auto mouse             = *mouse_;
         static auto last_state = Auto_Sliver_State::Set_initial;
 
-        if (fsm_sliver.fsm_direction == initial_enter || keyboard.s) {
+        if (fsm_sliver.fsm_direction == initial_enter || mouse.right) {
             fsm_sliver.get_current_theta(
                 {*theta[0], *theta[1], *theta[2], *theta[3], *theta[4], *theta[5]});
         }
-        if (keyboard.w || fsm_sliver.fsm_direction == initial_enter)
+        if (mouse.left || fsm_sliver.fsm_direction == initial_enter)
             fsm_sliver.fsm_direction = up;
-        else if (keyboard.s)
+        else if (mouse.right)
             fsm_sliver.fsm_direction = down;
 
         if (fsm_sliver.fsm_direction == up) {
@@ -314,6 +314,7 @@ private:
     OutputInterface<bool> is_arm_enable;
     InputInterface<double> theta[6]; // motor_current_angle
     OutputInterface<double> target_theta[6];
+    OutputInterface<double> TORQUE_test;
 
     InputInterface<double> vision_theta1;
     InputInterface<double> vision_theta2;

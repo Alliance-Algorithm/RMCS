@@ -190,7 +190,15 @@ public:
         result[0] = 0xA1; 
         double torque = *control_torque_;
         if (std::isnan(torque)) {
-             return 0;
+            result[1] = 0X00;
+            result[2] = 0X00;
+            result[3] = 0X00;
+            result[4] = 0X00;
+            result[5] = 0X00;
+            result[6] = 0X00;
+            result[7] = 0X00;
+
+            return std::bit_cast<uint64_t>(result);;
         }
         double max_torque = (*motor_)->get_max_torque();
         torque            = std::clamp(torque, -max_torque, max_torque);

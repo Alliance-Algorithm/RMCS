@@ -117,7 +117,7 @@ public:
         }
     }
 
-    // 获取当前状态
+
     S getCurrentState() const {
         std::lock_guard lock(mtx_);
         return currentState_ ? currentState_->getStateID() : S{};

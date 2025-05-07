@@ -47,13 +47,11 @@ public:
         armboard_.update();
         steeringboard_.update();
         legboard_.update();
-        //
     }
     void command() {
-        // armboard_.command();
-        // steeringboard_.command();
-        // legboard_.command();
-        //
+        armboard_.command();
+        steeringboard_.command();
+        legboard_.command();
     }
 
 private:
@@ -97,9 +95,7 @@ private:
             , transmit_buffer_(*this, 32)
             , event_thread_([this]() { handle_events(); })
             , bmi088_(1000, 0.2, 0)
-            , big_yaw(engineer, engineer_command, "/chassis/big_yaw")
-
-        {
+            , arm_pump{engineer, engineer_command, "/arm/pump"} {
             engineer.register_output("/arm/Joint6/control_angle_error", joint6_error_angle);
             engineer.register_output("/arm/Joint5/control_angle_error", joint5_error_angle);
             engineer.register_output("/arm/Joint4/control_angle_error", joint4_error_angle);
@@ -115,8 +111,6 @@ private:
             engineer.register_output("/arm/Joint6/vision", vision_theta6, NAN);
 
             engineer_command.register_input("/arm/enable_flag", is_arm_enable_);
-            engineer_command.register_input(
-                "/chassis_and_leg/enable_flag", is_chassis_and_leg_enable_);
 
             engineer.register_output("yaw_imu_velocity", yaw_imu_velocity, NAN);
             engineer.register_output("yaw_imu_angle", yaw_imu_angle, NAN);
@@ -164,11 +158,9 @@ private:
                         static_cast<int>(engineer.get_parameter("joint3_zero_point").as_int()))
                     .reverse());
 
-            big_yaw.configure(
-                DMMotorConfig{DMMotorType::DM8009}.set_encoder_zero_point(
-                    static_cast<int>(engineer.get_parameter("big_yaw_zero_point").as_int())));
             bmi088_.set_coordinate_mapping(
                 [](double x, double y, double z) { return std::make_tuple(-x, -y, z); });
+            arm_pump.configure(DjiMotorConfig{DjiMotorType::M3508});
         }
         ~ArmBoard() final {
             stop_handling_events();
@@ -187,138 +179,173 @@ private:
 
     private:
         void arm_command_update() {
-            auto is_arm_enable             = *is_arm_enable_;
-            auto is_chassis_and_leg_enable = *is_chassis_and_leg_enable_;
+            auto is_arm_enable = *is_arm_enable_;
             uint64_t command_;
             int max_count                = 100000;
             static int counter           = 0;
             static bool quest_send_flag  = true;
             static bool enable_send_flag = true;
 
-            if (!(is_arm_enable) && last_is_arm_enable_) {
-                command_ = device::LKMotor::lk_close_command();
-                transmit_buffer_.add_can1_transmission(0x143, std::bit_cast<uint64_t>(command_));
-                transmit_buffer_.add_can2_transmission(0x146, std::bit_cast<uint64_t>(command_));
-                quest_send_flag = false;
-            } else if (!quest_send_flag && !(is_arm_enable) && !(last_is_arm_enable_)) {
-                command_ = device::LKMotor::lk_close_command();
-                transmit_buffer_.add_can1_transmission(0x142, std::bit_cast<uint64_t>(command_));
-                transmit_buffer_.add_can1_transmission(0x141, std::bit_cast<uint64_t>(command_));
-                transmit_buffer_.add_can2_transmission(0x145, std::bit_cast<uint64_t>(command_));
-                transmit_buffer_.add_can2_transmission(0x144, std::bit_cast<uint64_t>(command_));
-                quest_send_flag = true;
+            // if (!(is_arm_enable) && last_is_arm_enable_) {
+            //     command_ = device::LKMotor::lk_close_command();
+            //     transmit_buffer_.add_can1_transmission(0x143, std::bit_cast<uint64_t>(command_));
+            //     transmit_buffer_.add_can2_transmission(0x146, std::bit_cast<uint64_t>(command_));
+            //     quest_send_flag = false;
+            // } else if (!quest_send_flag && !(is_arm_enable) && !(last_is_arm_enable_)) {
+            //     command_ = device::LKMotor::lk_close_command();
+            //     transmit_buffer_.add_can1_transmission(0x142, std::bit_cast<uint64_t>(command_));
+            //     transmit_buffer_.add_can1_transmission(0x141, std::bit_cast<uint64_t>(command_));
+            //     transmit_buffer_.add_can2_transmission(0x145, std::bit_cast<uint64_t>(command_));
+            //     transmit_buffer_.add_can2_transmission(0x144, std::bit_cast<uint64_t>(command_));
+            //     quest_send_flag = true;
 
-            }
+            // }
 
-            else if (!(is_arm_enable) && !(last_is_arm_enable_) && quest_send_flag) {
-                if (counter % 2 == 0) {
+            // else if (!(is_arm_enable) && !(last_is_arm_enable_) && quest_send_flag) {
+            //     if (counter % 2 == 0) {
 
-                    command_ = device::LKMotor::lk_quest_command();
-                    transmit_buffer_.add_can1_transmission(
-                        (0x143), std::bit_cast<uint64_t>(command_));
-                        transmit_buffer_.add_can2_transmission(
-                            (0x146), std::bit_cast<uint64_t>(command_));
-                    
-                } else {
-                    command_ = device::LKMotor::lk_quest_command();
-                    transmit_buffer_.add_can1_transmission(
-                        (0x142),
-                        std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
-                    transmit_buffer_.add_can1_transmission(
-                        (0x141),
-                        std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
-                    transmit_buffer_.add_can2_transmission(
-                        (0x145), std::bit_cast<uint64_t>(command_));
-                    transmit_buffer_.add_can2_transmission(
-                        (0x144), std::bit_cast<uint64_t>(command_));
-                }
-            } else if ((is_arm_enable) && !(last_is_arm_enable_)) {
-                command_ = device::LKMotor::lk_enable_command();
-                transmit_buffer_.add_can1_transmission(
-                    (0x143), std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
-                transmit_buffer_.add_can2_transmission((0x146), std::bit_cast<uint64_t>(command_));
-                enable_send_flag = false;
-            }
+            //         command_ = device::LKMotor::lk_quest_command();
+            //         transmit_buffer_.add_can1_transmission(
+            //             (0x143), std::bit_cast<uint64_t>(command_));
+            //         transmit_buffer_.add_can2_transmission(
+            //             (0x146), std::bit_cast<uint64_t>(command_));
 
-            else if (!enable_send_flag && is_arm_enable && last_is_arm_enable_) {
-                command_ = device::LKMotor::lk_enable_command();
-                transmit_buffer_.add_can1_transmission(
-                    (0x142), std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
-                transmit_buffer_.add_can1_transmission(
-                    (0x141), std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
-                transmit_buffer_.add_can2_transmission((0x145), std::bit_cast<uint64_t>(command_));
-                transmit_buffer_.add_can2_transmission((0x144), std::bit_cast<uint64_t>(command_));
-                enable_send_flag = true;
-            }
+            //     } else {
+            //         command_ = device::LKMotor::lk_quest_command();
+            //         transmit_buffer_.add_can1_transmission(
+            //             (0x142),
+            //             std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+            //         transmit_buffer_.add_can1_transmission(
+            //             (0x141),
+            //             std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+            //         transmit_buffer_.add_can2_transmission(
+            //             (0x145), std::bit_cast<uint64_t>(command_));
+            //         transmit_buffer_.add_can2_transmission(
+            //             (0x144), std::bit_cast<uint64_t>(command_));
+            //     }
+            // } else if ((is_arm_enable) && !(last_is_arm_enable_)) {
+            //     command_ = device::LKMotor::lk_enable_command();
+            //     transmit_buffer_.add_can1_transmission(
+            //         (0x143),
+            //         std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+            //     transmit_buffer_.add_can2_transmission((0x146),
+            //     std::bit_cast<uint64_t>(command_)); enable_send_flag = false;
+            // }
 
-            else if (is_arm_enable && last_is_arm_enable_) {
+            // else if (!enable_send_flag && is_arm_enable && last_is_arm_enable_) {
+            //     command_ = device::LKMotor::lk_enable_command();
+            //     transmit_buffer_.add_can1_transmission(
+            //         (0x142),
+            //         std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+            //     transmit_buffer_.add_can1_transmission(
+            //         (0x141),
+            //         std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+            //     transmit_buffer_.add_can2_transmission((0x145),
+            //     std::bit_cast<uint64_t>(command_));
+            //     transmit_buffer_.add_can2_transmission((0x144),
+            //     std::bit_cast<uint64_t>(command_)); enable_send_flag = true;
+            // }
 
-                if (counter % 2 == 0) {
-                    (*joint3_error_angle) =
-                        normalizeAngle(joint[2].get_target_theta() - joint[2].get_theta());
-                    command_ = joint[2].generate_torque_command();
-                    transmit_buffer_.add_can1_transmission(
-                        (0x143),
-                        std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+            // else if (is_arm_enable && last_is_arm_enable_) {
 
-                    (*joint6_error_angle) =
-                        normalizeAngle(joint[5].get_target_theta() - joint[5].get_theta());
-                    command_ = joint[5].generate_torque_command();
-                    transmit_buffer_.add_can2_transmission(
-                        (0x146),
-                        std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+            //     if (counter % 2 == 0) {
+            //         (*joint3_error_angle) =
+            //             normalizeAngle(joint[2].get_target_theta() - joint[2].get_theta());
+            //         command_ = joint[2].generate_torque_command();
+            //         transmit_buffer_.add_can1_transmission(
+            //             (0x143),
+            //             std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
 
-                } else {
-            RCLCPP_INFO(this->get_logger(),"%f",(*joint2_error_angle));
+            //         (*joint6_error_angle) =
+            //             normalizeAngle(joint[5].get_target_theta() - joint[5].get_theta());
+            //         command_ = joint[5].generate_torque_command();
+            //         transmit_buffer_.add_can2_transmission(
+            //             (0x146),
+            //             std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
 
-                    (*joint2_error_angle) =
-                        -normalizeAngle(joint[1].get_target_theta() - joint[1].get_theta());
-                    (*joint1_error_angle) =
-                        normalizeAngle(joint[0].get_target_theta() - joint[0].get_theta());
+            //     } else {
+            //         (*joint2_error_angle) =
+            //             -normalizeAngle(joint[1].get_target_theta() - joint[1].get_theta());
+            //         (*joint1_error_angle) =
+            //             normalizeAngle(joint[0].get_target_theta() - joint[0].get_theta());
 
-                    command_ = joint[1].generate_torque_command();
-                    transmit_buffer_.add_can1_transmission(
-                        (0x142),
-                        std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
-                    command_ = joint[0].generate_torque_command();
-                    transmit_buffer_.add_can1_transmission(
-                        (0x141),
-                        std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+            //         command_ = joint[1].generate_torque_command();
+            //         transmit_buffer_.add_can1_transmission(
+            //             (0x142),
+            //             std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+            //         command_ = joint[0].generate_torque_command();
+            //         transmit_buffer_.add_can1_transmission(
+            //             (0x141),
+            //             std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
 
-                    (*joint5_error_angle) =
-                        normalizeAngle(joint[4].get_target_theta() - joint[4].get_theta());
-                    command_ = joint[4].generate_torque_command();
-                    transmit_buffer_.add_can2_transmission(
-                        (0x145),
-                        std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+            //         (*joint5_error_angle) =
+            //             normalizeAngle(joint[4].get_target_theta() - joint[4].get_theta());
+            //         command_ = joint[4].generate_torque_command();
+            //         transmit_buffer_.add_can2_transmission(
+            //             (0x145),
+            //             std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
 
-                    (*joint4_error_angle) =
-                        normalizeAngle(joint[3].get_target_theta() - joint[3].get_theta());
-                    command_ = joint[3].generate_torque_command();
-                    transmit_buffer_.add_can2_transmission(
-                        (0x144),
-                        std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
-                }
-            }
-            uint64_t command_1;
-            if (counter % 2 == 0) {
-                if (is_chassis_and_leg_enable && big_yaw.get_state() != 0
-                    && big_yaw.get_state() != 1) {
-                    command_1 = big_yaw.dm_clear_error_command();
-                } else if (!is_chassis_and_leg_enable) {
-                    command_1 = big_yaw.dm_close_command();
-                } else if (is_chassis_and_leg_enable && big_yaw.get_state() == 0) {
-                    command_1 = big_yaw.dm_enable_command();
-
-                } else {
-                    command_1 = big_yaw.dm_enable_command();
-                }
-
-                transmit_buffer_.add_can2_transmission(
-                    (0x3), std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_1})));
-            }
+            //         (*joint4_error_angle) =
+            //             normalizeAngle(joint[3].get_target_theta() - joint[3].get_theta());
+            //         command_ = joint[3].generate_torque_command();
+            //         transmit_buffer_.add_can2_transmission(
+            //             (0x144),
+            //             std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+            //     }
+            // }
 
             //----------------------------------------------------------------//
+            if (counter % 2 == 0) {
+                *joint3_error_angle =
+                    is_arm_enable
+                        ? normalizeAngle(joint[2].get_target_theta() - joint[2].get_theta())
+                        : NAN;
+                command_ = joint[2].generate_torque_command();
+                transmit_buffer_.add_can1_transmission(
+                    0x143, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+
+                *joint6_error_angle =
+                    is_arm_enable
+                        ? normalizeAngle(joint[5].get_target_theta() - joint[5].get_theta())
+                        : NAN;
+                command_ = joint[5].generate_torque_command();
+
+                transmit_buffer_.add_can2_transmission(
+                    0x146, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+            } else {
+                *joint1_error_angle =
+                    is_arm_enable
+                        ? normalizeAngle(joint[0].get_target_theta() - joint[0].get_theta())
+                        : NAN;
+                command_ = joint[0].generate_torque_command();
+                transmit_buffer_.add_can1_transmission(
+                    0x141, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+
+                *joint2_error_angle =
+                    is_arm_enable
+                        ? -normalizeAngle(joint[1].get_target_theta() - joint[1].get_theta())
+                        : NAN;
+                command_ = joint[1].generate_torque_command();
+                transmit_buffer_.add_can1_transmission(
+                    0x142, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+
+                *joint4_error_angle =
+                    is_arm_enable
+                        ? normalizeAngle(joint[3].get_target_theta() - joint[3].get_theta())
+                        : NAN;
+                command_ = joint[3].generate_torque_command();
+                transmit_buffer_.add_can2_transmission(
+                    0x144, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+
+                *joint5_error_angle =
+                    is_arm_enable
+                        ? normalizeAngle(joint[4].get_target_theta() - joint[4].get_theta())
+                        : NAN;
+                command_ = joint[4].generate_torque_command();
+
+                transmit_buffer_.add_can2_transmission(
+                    0x145, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+            }
             transmit_buffer_.trigger_transmission();
             last_is_arm_enable_ = is_arm_enable;
 
@@ -338,8 +365,7 @@ private:
             joint[2].update_joint().change_theta_feedback_(joint3_encoder.get_angle());
             joint[1].update_joint().change_theta_feedback_(joint2_encoder.get_angle());
             joint[0].update_joint();
-
-            big_yaw.update();
+            arm_pump.update();
         }
 
         void update_imu() {
@@ -363,10 +389,9 @@ private:
                 joint[4].store_status(can_data);
             if (can_id == 0x144)
                 joint[3].store_status(can_data);
-            if (can_id == 0x33) {
-                big_yaw.store_status(can_data);
+            if (can_id == 0x201) {
+                arm_pump.store_status(can_data);
             }
-
         }
         void can1_receive_callback(
             uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
@@ -450,7 +475,6 @@ private:
         OutputInterface<double> vision_theta6;
         OutputInterface<std::array<int8_t, 39>> vision_data;
         InputInterface<bool> is_arm_enable_;
-        InputInterface<bool> is_chassis_and_leg_enable_;
 
         device::Joint joint[6];
         device::Encoder joint2_encoder;
@@ -462,11 +486,10 @@ private:
         bool last_is_arm_enable_ = true;
 
         librmcs::device::Bmi088 bmi088_;
+        device::DjiMotor arm_pump;
 
         OutputInterface<double> yaw_imu_velocity;
         OutputInterface<double> yaw_imu_angle;
-
-        device::DMMotor big_yaw;
 
     } armboard_;
     class SteeringBoard final
@@ -618,26 +641,25 @@ private:
             , Leg_ecd(
                   {engineer, "/leg/encoder/lf"}, {engineer, "/leg/encoder/lb"},
                   {engineer, "/leg/encoder/rb"}, {engineer, "/leg/encoder/rf"})
-            , leg_relay(engineer_command, "/leg/relay", device::RelayType::Four_CH) {
+            , leg_relay(engineer_command, "/leg/relay", device::RelayType::Four_CH)
+            , big_yaw(engineer, engineer_command, "/chassis/big_yaw") {
 
             Omni_Motors[0].configure(
                 device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(
                     18.2));
             Omni_Motors[1].configure(
-                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(
-                    18.2));
+                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(18.2));
             Leg_Motors[0].configure(
                 device::DjiMotorConfig{device::DjiMotorType::M3508}
                     .set_reduction_ratio(92.0)
                     .reverse());
             Leg_Motors[1].configure(
-                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(
-                    277.6));
+                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(277.6));
             Leg_Motors[2].configure(
-                device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(277.6));
+                device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(
+                    277.6));
             Leg_Motors[3].configure(
                 device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(92.0));
-
 
             Leg_ecd[0].configure(
                 device::EncoderConfig{}.set_encoder_zero_point(
@@ -651,7 +673,9 @@ private:
             Leg_ecd[3].configure(
                 device::EncoderConfig{}.reverse().set_encoder_zero_point(
                     static_cast<int>(engineer.get_parameter("leg_rf_ecd_zero_point").as_int())));
-
+            big_yaw.configure(
+                device::DMMotorConfig{device::DMMotorType::DM8009}.set_encoder_zero_point(
+                    static_cast<int>(engineer.get_parameter("big_yaw_zero_point").as_int())));
             engineer.register_output(
                 "/leg/joint/lb/control_theta_error", leg_joint_lb_control_theta_error, NAN);
             engineer.register_output(
@@ -659,7 +683,8 @@ private:
 
             engineer_command.register_input("/leg/joint/lb/target_theta", leg_lb_target_theta_);
             engineer_command.register_input("/leg/joint/rb/target_theta", leg_rb_target_theta_);
-       
+            engineer_command.register_input(
+                "/chassis_and_leg/enable_flag", is_chassis_and_leg_enable_);
         }
 
         ~LegBoard() final {
@@ -675,29 +700,34 @@ private:
             for (auto& ecd : Leg_ecd) {
                 ecd.update();
             }
-            // RCLCPP_INFO(this->get_logger(), "lf %f lb %f rb %f rf %f",Leg_Motors[0].get_torque(),Leg_Motors[3].get_torque(),max_rb,max_rf);
-
+            big_yaw.update();
+            // RCLCPP_INFO(this->get_logger(), "lf %f lb %f rb %f rf
+            // %f",Leg_Motors[0].get_torque(),Leg_Motors[3].get_torque(),max_rb,max_rf);
+            // RCLCPP_INFO(this->get_logger(), "lf %f rf %f  %f
+            // %f",Leg_ecd[0].get_angle(),Leg_ecd[3].get_angle(),max_rb,max_rf);
             // printf_max(Leg_Motors[0].get_torque(),Leg_Motors[1].get_torque(),Leg_Motors[2].get_torque(),Leg_Motors[3].get_torque());
         }
-        void printf_max(double lf,double lb,double rb,double rf){
-            
-            if(lf > max_lf){
+        void printf_max(double lf, double lb, double rb, double rf) {
+
+            if (lf > max_lf) {
                 max_lf = lf;
             }
-            if(lb > max_lb){
+            if (lb > max_lb) {
                 max_lb = lb;
             }
-            if(rb > max_rb){
+            if (rb > max_rb) {
                 max_rb = rb;
             }
-            if(rf > max_rf){
+            if (rf > max_rf) {
                 max_rf = rf;
             }
-            RCLCPP_INFO(this->get_logger(), "lf %f lb %f rb %f rf %f",max_lf,max_lb,max_rb,max_rf);
+            RCLCPP_INFO(
+                this->get_logger(), "lf %f lb %f rb %f rf %f", max_lf, max_lb, max_rb, max_rf);
         }
         void command() {
 
             uint16_t command_[4];
+            auto is_chassis_and_leg_enable = *is_chassis_and_leg_enable_;
 
             static int counter = 0;
             if (counter % 2 == 0) {
@@ -725,9 +755,26 @@ private:
             if (counter > 1000) {
                 counter = 0;
             }
+            uint64_t command_1;
+            if (counter % 2 == 0) {
+                if (is_chassis_and_leg_enable && big_yaw.get_state() != 0
+                    && big_yaw.get_state() != 1) {
+                    command_1 = big_yaw.dm_clear_error_command();
+                } else if (!is_chassis_and_leg_enable) {
+                    command_1 = big_yaw.dm_close_command();
+                } else if (is_chassis_and_leg_enable && big_yaw.get_state() == 0) {
+                    command_1 = big_yaw.dm_enable_command();
+
+                } else {
+                    command_1 = big_yaw.generate_torque_command();
+                }
+
+                transmit_buffer_.add_can1_transmission(
+                    (0x3), std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_1})));
+                    RCLCPP_INFO(get_logger(),"%f",big_yaw.get_angle());
+            }
             transmit_buffer_.trigger_transmission();
             counter++;
-
         }
 
     protected:
@@ -753,7 +800,6 @@ private:
             }
             if (can_id == 0x204) {
                 Omni_Motors[0].store_status(can_data);
-
             }
         }
         void can1_receive_callback(
@@ -775,6 +821,9 @@ private:
             if (can_id == 0x013) {
                 Leg_ecd[2].store_status(can_data);
             }
+            if (can_id == 0x33) {
+                big_yaw.store_status(can_data);
+            }
         }
 
     private:
@@ -784,14 +833,15 @@ private:
         device::DjiMotor Leg_Motors[4];
         device::Encoder Leg_ecd[4];
         device::Relay leg_relay;
-      
+        device::DMMotor big_yaw;
         InputInterface<double> leg_lb_target_theta_;
         InputInterface<double> leg_rb_target_theta_;
+        InputInterface<bool> is_chassis_and_leg_enable_;
 
         OutputInterface<double> leg_joint_lb_control_theta_error;
         OutputInterface<double> leg_joint_rb_control_theta_error;
 
-        double max_lf = 0.0,max_lb = 0.0,max_rb = 0.0,max_rf = 0.0;
+        double max_lf = 0.0, max_lb = 0.0, max_rb = 0.0, max_rf = 0.0;
     } legboard_;
 };
 

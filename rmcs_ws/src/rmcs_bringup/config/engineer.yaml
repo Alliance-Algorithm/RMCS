@@ -68,11 +68,11 @@ engineer_hardware:
     steering_lb_zero_point: 1330 
     steering_rb_zero_point: 7554
     steering_rf_zero_point: 3348 
-    leg_lf_ecd_zero_point: 256216
+    leg_lf_ecd_zero_point: 212582
     leg_lb_ecd_zero_point: 268279
     leg_rb_ecd_zero_point: 104085
-    leg_rf_ecd_zero_point: 123311
-    big_yaw_zero_point: 63050
+    leg_rf_ecd_zero_point: 124431
+    big_yaw_zero_point: 32073
 
 joint6_angle_pid_controller:
   ros__parameters:
@@ -287,7 +287,7 @@ big_yaw_angle_error_pid_controller:
   ros__parameters:
     measurement: /chassis/big_yaw/target_angle_error
     control: /chassis/big_yaw/control_vel
-    kp: 21.3
+    kp: 33.3
     ki: 0.0
     kd: 1.6
 big_yaw_velocity_pid_controller:
@@ -295,7 +295,7 @@ big_yaw_velocity_pid_controller:
     measurement: /chassis/big_yaw/velocity
     setpoint: /chassis/big_yaw/control_vel
     control: /chassis/big_yaw/control_torque
-    kp: 3.19
+    kp: 3.39
     ki: 0.0
     kd: 0.039
 
