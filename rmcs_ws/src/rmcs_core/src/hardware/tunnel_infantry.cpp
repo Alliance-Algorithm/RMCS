@@ -273,9 +273,10 @@ private:
     std::shared_ptr<InfantryCommand> infantry_command_;
 
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr gimbal_calibrate_subscription_;
+    
     // rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr gimbal_motor_velocity_callback_;
+    // rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr supercap_enabled_pub_;
 
-    rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr supercap_enabled_pub_;
     device::DjiMotor chassis_wheel_motors_[4]{
         {*this, *infantry_command_,  "/chassis/left_front_wheel"},
         {*this, *infantry_command_, "/chassis/right_front_wheel"},
@@ -306,7 +307,7 @@ private:
 
     std::thread event_thread_;
 
-    InputInterface<bool> supercap_enabled_;
+    // InputInterface<bool> supercap_enabled_;
 };
 
 } // namespace rmcs_core::hardware

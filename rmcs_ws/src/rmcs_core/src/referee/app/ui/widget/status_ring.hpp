@@ -16,7 +16,8 @@ namespace rmcs_core::referee::app::ui {
 
 class StatusRing {
 public:
-    StatusRing() {
+    StatusRing(
+        double supercap_limit, double battery_limit, double friction_limit, int16_t bullet_limit) {
         supercap_status_.set_x(x_center);
         supercap_status_.set_y(y_center);
         supercap_status_.set_r(visible_radius - width_ring);
@@ -131,7 +132,7 @@ public:
         bullet_allowance_.set_value(0);
         bullet_allowance_.set_visible(true);
 
-        set_limits(26.5, 26.5, 800, 300);
+        set_limits(supercap_limit, battery_limit, friction_limit, bullet_limit);
     }
 
     void update_auto_aim_enable(bool enable) {

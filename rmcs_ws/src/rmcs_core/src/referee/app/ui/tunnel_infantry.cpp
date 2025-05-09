@@ -21,8 +21,8 @@ class TunnelInfantry
 public:
     TunnelInfantry()
         : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
-        , crosshair_(Shape::Color::WHITE, x_center - 25, y_center - 65)
-        , status_ring_()
+        , crosshair_(Shape::Color::WHITE, x_center - 5, y_center - 45)
+        , status_ring_(26.5, 26.5, 600, 40)
         , horizontal_center_guidelines_(
               {Shape::Color::WHITE, 2, x_center - 360, y_center, x_center - 110, y_center},
               {Shape::Color::WHITE, 2, x_center + 110, y_center, x_center + 360, y_center})
@@ -47,7 +47,7 @@ public:
         register_input("/chassis/control_angle", chassis_control_angle_);
 
         register_input("/chassis/supercap/voltage", supercap_voltage_);
-        register_input("/chassis/supercap/enabled", supercap_enabled_);
+        register_input("/chassis/supercap/control_enable", supercap_control_enabled_);
 
         register_input("/chassis/voltage", chassis_voltage_);
         register_input("/chassis/power", chassis_power_);
@@ -84,7 +84,7 @@ public:
         status_ring_.update_friction_wheel_speed(
             std::min(*left_friction_velocity_, *right_friction_velocity_),
             *left_friction_control_velocity_ > 0);
-        status_ring_.update_supercap(*supercap_voltage_, *supercap_enabled_);
+        status_ring_.update_supercap(*supercap_voltage_, *supercap_control_enabled_);
         status_ring_.update_battery_power(*chassis_voltage_);
 
         status_ring_.update_auto_aim_enable(mouse_->right == 1);
@@ -137,7 +137,7 @@ private:
     InputInterface<double> chassis_angle_, chassis_control_angle_;
 
     InputInterface<double> supercap_voltage_;
-    InputInterface<bool> supercap_enabled_;
+    InputInterface<bool> supercap_control_enabled_;
 
     InputInterface<double> chassis_voltage_;
     InputInterface<double> chassis_power_;

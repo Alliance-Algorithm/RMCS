@@ -18,6 +18,8 @@ public:
         status_component.register_output("/chassis/supercap/enabled", supercap_enabled_, false);
 
         command_component.register_input(
+            "/chassis/supercap/control_enable", supercap_control_enabled_);
+        command_component.register_input(
             "/chassis/supercap/charge_power_limit", supercap_charge_power_limit_);
         command_component.register_input("/referee/chassis/output_status", chassis_output_status_);
     }
@@ -97,6 +99,8 @@ private:
     Component::InputInterface<double> supercap_charge_power_limit_;
 
     Component::InputInterface<bool> chassis_output_status_;
+
+    Component::InputInterface<bool> supercap_control_enabled_;
 };
 
 } // namespace rmcs_core::hardware::device
