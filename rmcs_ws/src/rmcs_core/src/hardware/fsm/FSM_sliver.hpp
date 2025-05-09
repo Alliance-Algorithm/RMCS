@@ -10,6 +10,7 @@
 #include <memory>
 #include <numbers>
 #include <rclcpp/logging.hpp>
+#include <rclcpp/node_options.hpp>
 #include <string>
 
 enum class Auto_Sliver_State {
@@ -60,18 +61,24 @@ public:
     Auto_Sliver_State getStateID() const override { return Auto_Sliver_State::Lift_mine; }
 };
 
-class Auto_Sliver {
+class Auto_Sliver : rclcpp::Node {
 public:
-    explicit Auto_Sliver() {
-        reset_initial_arm.set_total_step(1000).set_end_point(
-            {0, -0.672690, -0.023241, std::numbers::pi, 0.713385, 0});
-        lift_mine.set_total_step(500)
-            .set_start_point(
-                {0.52, 0, 0.1},
-                {-std::numbers::pi, -90 * std::numbers::pi / 180, -std::numbers::pi})
-            .set_end_point(
-                {0.52, 0, 0.32},
-                {-std::numbers::pi, -90 * std::numbers::pi / 180, -std::numbers::pi});
+    explicit Auto_Sliver()
+        : rclcpp::Node{"adada"} {
+        std::array<double, 3> lift_start_point_position = {0.27, 0.001, -0.06};
+        std::array<double, 3> lift_end_point_position   = {0.27, 0.001, 0.17};
+
+        std::array<double, 3> lift_point_orientation = {0.0, 0.0, 0.0};
+
+        std::array<double, 6> initial_joint_theta =
+            rmcs_core::hardware::device::Kinematic::arm_inverse_kinematic(
+                {lift_start_point_position[0], lift_start_point_position[1],
+                 lift_start_point_position[2], lift_point_orientation[0], lift_point_orientation[1],
+                 lift_point_orientation[2]});
+        reset_initial_arm.set_total_step(2700).set_end_point(initial_joint_theta);
+        lift_mine.set_total_step(900)
+            .set_start_point(lift_start_point_position, lift_point_orientation)
+            .set_end_point(lift_end_point_position, lift_point_orientation);
 
         fsm.registerState<Sliver_Set_initial_State>();
         fsm.registerState<Sliver_Lift_mine_State>();
@@ -97,8 +104,8 @@ public:
                     std::array<double, 6> result_ =
                         rmcs_core::hardware::device::Kinematic::arm_inverse_kinematic(
                             lift_mine.trajectory());
-                    result_[3] = std::numbers::pi;
-                    result_[5] = 0;
+                    result_[3] = 0.0;
+                    result_[5] = 0.0;
                     result     = result_;
                     reset_initial_arm.reset();
                 }
@@ -117,7 +124,7 @@ public:
             },
             [this](const Auto_Sliver_Event& event, Auto_Sliver_Context& context) {},
             Auto_Sliver_State::Set_initial);
-            fsm.start(Auto_Sliver_State::Set_initial);
+        fsm.start(Auto_Sliver_State::Set_initial);
     }
     Auto_Sliver_State getState() { return fsm.getCurrentState(); }
     void get_current_theta(std::array<double, 6> theta) { enter_theta_ = theta; }
@@ -131,7 +138,6 @@ public:
     void reset() {
         fsm.start(Auto_Sliver_State::Set_initial);
         fsm_direction = initial_enter;
-
         reset_initial_arm.reset();
         lift_mine.reset();
     }

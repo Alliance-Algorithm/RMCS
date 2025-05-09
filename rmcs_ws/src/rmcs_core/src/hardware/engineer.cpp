@@ -160,7 +160,7 @@ private:
 
             bmi088_.set_coordinate_mapping(
                 [](double x, double y, double z) { return std::make_tuple(-x, -y, z); });
-            arm_pump.configure(DjiMotorConfig{DjiMotorType::M3508});
+            arm_pump.configure(DjiMotorConfig{DjiMotorType::M3508}.set_reduction_ratio(1.0));
         }
         ~ArmBoard() final {
             stop_handling_events();
@@ -181,6 +181,7 @@ private:
         void arm_command_update() {
             auto is_arm_enable = *is_arm_enable_;
             uint64_t command_;
+            uint16_t M3508_command[4];
             int max_count                = 100000;
             static int counter           = 0;
             static bool quest_send_flag  = true;
@@ -293,9 +294,9 @@ private:
             //             std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
             //     }
             // }
-
             //----------------------------------------------------------------//
             if (counter % 2 == 0) {
+
                 *joint3_error_angle =
                     is_arm_enable
                         ? normalizeAngle(joint[2].get_target_theta() - joint[2].get_theta())
@@ -304,6 +305,13 @@ private:
                 transmit_buffer_.add_can1_transmission(
                     0x143, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
 
+                M3508_command[0] = 0;
+                M3508_command[1] = 0;
+                M3508_command[2] = 0;
+                M3508_command[3] = arm_pump.generate_command();
+                ;
+                transmit_buffer_.add_can2_transmission(
+                    0x200, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(M3508_command)));
                 *joint6_error_angle =
                     is_arm_enable
                         ? normalizeAngle(joint[5].get_target_theta() - joint[5].get_theta())
@@ -315,7 +323,7 @@ private:
             } else {
                 *joint1_error_angle =
                     is_arm_enable
-                        ? normalizeAngle(joint[0].get_target_theta() - joint[0].get_theta())
+                        ? (joint[0].get_target_theta() - joint[0].get_theta())
                         : NAN;
                 command_ = joint[0].generate_torque_command();
                 transmit_buffer_.add_can1_transmission(
@@ -366,6 +374,8 @@ private:
             joint[1].update_joint().change_theta_feedback_(joint2_encoder.get_angle());
             joint[0].update_joint();
             arm_pump.update();
+            RCLCPP_INFO(this->get_logger(),"%f",joint2_encoder.get_angle());
+
         }
 
         void update_imu() {
@@ -389,7 +399,7 @@ private:
                 joint[4].store_status(can_data);
             if (can_id == 0x144)
                 joint[3].store_status(can_data);
-            if (can_id == 0x201) {
+            if (can_id == 0x204) {
                 arm_pump.store_status(can_data);
             }
         }
@@ -771,7 +781,6 @@ private:
 
                 transmit_buffer_.add_can1_transmission(
                     (0x3), std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_1})));
-                    RCLCPP_INFO(get_logger(),"%f",big_yaw.get_angle());
             }
             transmit_buffer_.trigger_transmission();
             counter++;

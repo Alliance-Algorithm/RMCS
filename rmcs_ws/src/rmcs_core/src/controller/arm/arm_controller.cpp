@@ -63,7 +63,7 @@ public:
         register_output("/arm/Joint1/target_theta", target_theta[0], nan);
 
         register_output("/arm/enable_flag", is_arm_enable, true);
-        register_output("/arm/pump/control_torque", TORQUE_test, NAN);
+        register_output("/arm/pump/target_vel", arm_pump_target_vel, NAN);
 
         publisher_ =
             create_publisher<std_msgs::msg::Float32MultiArray>("/engineer/joint/measure", 10);
@@ -87,7 +87,22 @@ public:
         auto switch_left  = *switch_left_;
         auto mouse        = *mouse_;
         auto keyboard     = *keyboard_;
+        // std::array<double, 3> lift_start_point_position = {0.27, 0.001, -0.05};
+        // std::array<double, 3> lift_end_point_position   = {0.27, 0.001, 0.17};
 
+        // std::array<double, 3> lift_point_orientation = {
+        //     0.0,0.0, 0.0};
+
+        //     std::array<double, 6> initial_joint_theta =
+        //     rmcs_core::hardware::device::Kinematic::arm_inverse_kinematic(
+        //     {lift_start_point_position[0], lift_start_point_position[1],
+        //      lift_start_point_position[2], lift_point_orientation[0], lift_point_orientation[1],
+        //      lift_point_orientation[2]});
+        //      RCLCPP_INFO(this->get_logger(),"%f %f %f %f %f
+        //      %f",initial_joint_theta[0],initial_joint_theta[1],initial_joint_theta[2],initial_joint_theta[3],initial_joint_theta[4],initial_joint_theta[5]);
+        // test.positive_kinematic();
+        // RCLCPP_INFO(
+        //     this->get_logger(), "%f %F %F", test.get_roll(), test.get_pitch(), test.get_yaw());
         auto msg = std_msgs::msg::Float32MultiArray();
         msg.data = {
             static_cast<float>(*theta[0]),
@@ -101,13 +116,14 @@ public:
         using namespace rmcs_msgs;
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
-            *is_arm_enable   = false;
-            *target_theta[5] = *theta[5];
-            *target_theta[4] = *theta[4];
-            *target_theta[3] = *theta[3];
-            *target_theta[2] = *theta[2];
-            *target_theta[1] = *theta[1];
-            *target_theta[0] = *theta[0];
+            *is_arm_enable       = false;
+            *target_theta[5]     = *theta[5];
+            *target_theta[4]     = *theta[4];
+            *target_theta[3]     = *theta[3];
+            *target_theta[2]     = *theta[2];
+            *target_theta[1]     = *theta[1];
+            *target_theta[0]     = *theta[0];
+            *arm_pump_target_vel = NAN;
 
         } else {
             *is_arm_enable = true;
@@ -157,7 +173,9 @@ public:
                     }
                 }
 
-            } 
+            } else {
+                *mode = rmcs_msgs::ArmMode::None;
+            }
             switch (*mode) {
                 using namespace rmcs_msgs;
             case ArmMode::Auto_Gold_Left: execute_gold(fsm_gold_l); break;
@@ -169,6 +187,23 @@ public:
             case ArmMode::DT7_Control_Orientation: execute_dt7_orientation(); break;
             default: break;
             }
+            if (switch_left == rmcs_msgs::Switch::DOWN
+                && switch_right == rmcs_msgs::Switch::MIDDLE) {
+                is_arm_pump_on = true;
+            } else if (
+                switch_left == rmcs_msgs::Switch::DOWN && switch_right == rmcs_msgs::Switch::UP) {
+                if (keyboard.a) {
+                    if (!keyboard.ctrl && !keyboard.shift) {
+                        is_arm_pump_on = true;
+
+                    } else if (keyboard.shift && !keyboard.ctrl) {
+                        is_arm_pump_on = false;
+                    }
+                }
+            } else {
+                is_arm_pump_on = false;
+            }
+            pump_control();
         }
     }
 
@@ -194,7 +229,7 @@ private:
         }
         if (fabs(joystick_right_->x()) > 0.01) {
             *target_theta[1] += 0.001 * joystick_right_->x();
-            *target_theta[1] = std::clamp(*target_theta[1], -1.308, 1.39719);
+            *target_theta[1] = std::clamp(*target_theta[1], -1.308, 1.29719);
         }
         if (fabs(joystick_left_->y()) > 0.01) {
             *target_theta[0] += 0.001 * joystick_left_->y();
@@ -289,6 +324,14 @@ private:
         *target_theta[1] = fsm_walk.get_result()[1];
         *target_theta[0] = fsm_walk.get_result()[0];
     }
+    void pump_control() {
+        if (is_arm_pump_on) {
+            *arm_pump_target_vel = 5000 * std::numbers::pi / 30.0;
+        } else {
+            *arm_pump_target_vel = 0.0;
+        }
+    }
+    // hardware::device::Kinematic test{*this};
     bool is_auto_exchange = false;
     // auto_mode_Fsm
     Auto_Gold_Left fsm_gold_l;
@@ -314,7 +357,9 @@ private:
     OutputInterface<bool> is_arm_enable;
     InputInterface<double> theta[6]; // motor_current_angle
     OutputInterface<double> target_theta[6];
-    OutputInterface<double> TORQUE_test;
+
+    OutputInterface<double> arm_pump_target_vel;
+    bool is_arm_pump_on = false;
 
     InputInterface<double> vision_theta1;
     InputInterface<double> vision_theta2;
