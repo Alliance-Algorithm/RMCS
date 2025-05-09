@@ -175,16 +175,14 @@ public:
         auto translational_velocity = update_translational_velocity_control();
         auto angular_velocity       = update_angular_velocity_control();
 
-        *chassis_control_velocity_ = {
-            translational_velocity.x(), translational_velocity.y(), angular_velocity};
+        chassis_control_velocity_->vector << translational_velocity, angular_velocity;
     }
 
     Eigen::Vector2d update_translational_velocity_control() {
         auto keyboard = *keyboard_;
         Eigen::Vector2d keyboard_move{keyboard.w - keyboard.s, keyboard.a - keyboard.d};
 
-        Eigen::Vector2d translational_velocity =
-            Eigen::Rotation2Dd{*gimbal_yaw_angle_} * (*joystick_right_ + keyboard_move);
+        Eigen::Vector2d translational_velocity = *joystick_right_ + keyboard_move;
 
         if (translational_velocity.norm() > 1.0)
             translational_velocity.normalize();
@@ -312,7 +310,7 @@ private:
 
     // Maximum control velocities
     static constexpr double translational_velocity_max = 5.0;
-    static constexpr double angular_velocity_max       = 12.0;
+    static constexpr double angular_velocity_max       = 100.0;
 
     // Maximum excess power when buffer energy is sufficient.
     static constexpr double excess_power_limit = 35;
@@ -351,7 +349,7 @@ private:
     bool spinning_forward_ = true;
     pid::PidCalculator following_velocity_controller_;
 
-    OutputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;
+    OutputInterface<rmcs_description::YawLink::DirectionVector> chassis_control_velocity_;
 
     InputInterface<double> supercap_voltage_;
     InputInterface<bool> supercap_enabled_;

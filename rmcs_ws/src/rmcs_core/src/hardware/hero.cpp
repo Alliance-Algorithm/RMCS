@@ -197,8 +197,8 @@ private:
             *gimbal_pitch_velocity_imu_ = imu_.gy();
 
             gimbal_top_yaw_motor_.update_status();
-            tf_->set_state<rmcs_description::GimbalCenterLink, rmcs_description::YawLink>(
-                gimbal_top_yaw_motor_.angle());
+            // tf_->set_state<rmcs_description::GimbalCenterLink, rmcs_description::YawLink>(
+            //     gimbal_top_yaw_motor_.angle());
 
             gimbal_pitch_motor_.update_status();
             tf_->set_state<rmcs_description::YawLink, rmcs_description::PitchLink>(
@@ -440,6 +440,8 @@ private:
             for (auto& motor : chassis_steering_motors_)
                 motor.update_status();
             gimbal_bottom_yaw_motor_.update_status();
+            tf_->set_state<rmcs_description::GimbalCenterLink, rmcs_description::YawLink>(
+                gimbal_bottom_yaw_motor_.angle());
         }
 
         void command_update() {
