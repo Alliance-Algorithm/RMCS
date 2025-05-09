@@ -134,10 +134,14 @@ private:
 
         auto& data = reinterpret_cast<RobotStatus&>(frame_.body.data);
 
-        *robot_id_                  = static_cast<rmcs_msgs::RobotId>(data.robot_id);
-        *robot_shooter_cooling_     = data.shooter_barrel_cooling_value;
-        *robot_shooter_heat_limit_  = static_cast<int64_t>(1000) * data.shooter_barrel_heat_limit;
-        *robot_chassis_power_limit_ = static_cast<double>(data.chassis_power_limit);
+        *robot_id_                 = static_cast<rmcs_msgs::RobotId>(data.robot_id);
+        *robot_shooter_cooling_    = data.shooter_barrel_cooling_value;
+        *robot_shooter_heat_limit_ = static_cast<int64_t>(1000) * data.shooter_barrel_heat_limit;
+
+        if (data.chassis_power_limit == std::numeric_limits<uint16_t>::max())
+            *robot_chassis_power_limit_ = std::numeric_limits<double>::infinity();
+        else
+            *robot_chassis_power_limit_ = static_cast<double>(data.chassis_power_limit);
         *chassis_output_status_     = static_cast<bool>(data.power_management_chassis_output);
     }
 

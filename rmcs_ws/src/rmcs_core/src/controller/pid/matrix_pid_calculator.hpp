@@ -34,20 +34,13 @@ public:
     }
 
     Vector update(Vector err) {
-        if (!std::isfinite(err[0])) {
-            Vector nan_vector;
-            nan_vector.setConstant(nan);
-            return nan_vector;
-        } else {
-            Vector control = kp * err + ki * err_integral_;
-            err_integral_  = clamp(err_integral_ + err, integral_min, integral_max);
+        Vector control = kp * err + ki * err_integral_;
+        err_integral_  = exclude_nan(clamp(err_integral_ + err, integral_min, integral_max));
 
-            if (!std::isnan(last_err_[0]))
-                control += kd * (err - last_err_);
-            last_err_ = err;
+        control += exclude_nan(kd * (err - last_err_));
+        last_err_ = err;
 
-            return clamp(control, output_min, output_max);
-        }
+        return clamp(control, output_min, output_max);
     }
 
     Gain kp, ki, kd;
@@ -58,8 +51,12 @@ private:
     static constexpr double inf = std::numeric_limits<double>::infinity();
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
-    static Vector clamp(const Vector& value, const Vector& min, const Vector& max) {
+    static auto clamp(const Vector& value, const Vector& min, const Vector& max) {
         return value.cwiseMax(min).cwiseMin(max);
+    }
+
+    static auto exclude_nan(const Vector& value) {
+        return value.unaryExpr([](double v) { return std::isnan(v) ? 0.0 : v; });
     }
 
     Vector last_err_, err_integral_;

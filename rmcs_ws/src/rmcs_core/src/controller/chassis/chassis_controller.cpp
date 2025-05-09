@@ -194,7 +194,7 @@ public:
     }
 
     double update_angular_velocity_control() {
-        double angular_velocity      = nan;
+        double angular_velocity      = 0.0;
         double chassis_control_angle = nan;
 
         switch (*mode_) {
@@ -268,6 +268,11 @@ public:
             --supercap_switch_cooling_;
         }
 
+        if (*chassis_power_limit_referee_ == inf) {
+            *chassis_control_power_limit_ = inf;
+            return;
+        }
+
         double power_limit_after_buffer_energy_closed_loop =
             *chassis_power_limit_referee_
                 * std::clamp(
@@ -306,8 +311,8 @@ private:
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
     // Maximum control velocities
-    static constexpr double translational_velocity_max = 12.0;
-    static constexpr double angular_velocity_max       = 8.0;
+    static constexpr double translational_velocity_max = 5.0;
+    static constexpr double angular_velocity_max       = 12.0;
 
     // Maximum excess power when buffer energy is sufficient.
     static constexpr double excess_power_limit = 35;
