@@ -9,11 +9,10 @@
 #define up   1
 #define down 2
 #define initial_enter 3
-// 前置声明
+
 template <typename S, typename E, typename C>
 class FiniteStateMachine;
 
-// 状态接口
 template <typename S, typename E, typename C>
 class IState {
 public:
@@ -24,7 +23,6 @@ public:
     virtual S getStateID() const = 0;
 };
 
-// 转换基础结构
 template <typename S, typename E, typename C>
 struct Transition {
     std::function<bool(const E&, const C&)> condition;
@@ -32,7 +30,6 @@ struct Transition {
     std::shared_ptr<IState<S,E,C>> target;
 };
 
-// 主状态机类
 template <typename S, typename E, typename C = void*>
 class FiniteStateMachine {
     using StatePtr = std::shared_ptr<IState<S,E,C>>;
@@ -48,7 +45,6 @@ class FiniteStateMachine {
 public:
     explicit FiniteStateMachine(C context = C{}) : context_(context) {}
 
-    // 注册状态
     template <typename T, typename... Args>
     void registerState(Args&&... args) {
         std::lock_guard lock(mtx_);
@@ -56,7 +52,6 @@ public:
         states_.emplace(state->getStateID(), state);
     }
 
-    // 获取状态
     std::shared_ptr<IState<S,E,C>> getState(S stateID) const {
         std::lock_guard lock(mtx_);
         auto it = states_.find(stateID);
@@ -66,7 +61,6 @@ public:
         return nullptr;
     }
 
-    // 添加转换
     template <typename EventType>
     void addTransition(S from, EventType&& event,
                       std::function<bool(const EventType&, const C&)> condition,
@@ -90,14 +84,12 @@ public:
         });
     }
 
-    // 初始化状态机
     void start(S initialState) {
         std::lock_guard lock(mtx_);
         currentState_ = states_.at(initialState);
         currentState_->enter(*this, context_);
     }
 
-    // 处理事件
     void processEvent(const E& event) {
         std::lock_guard lock(mtx_);
         if (!currentState_) return;
@@ -112,7 +104,7 @@ public:
                 transition.action(event, context_);
                 currentState_ = transition.target;
                 currentState_->enter(*this, context_);
-                break; // 只执行第一条符合条件的转换
+                break; 
             }
         }
     }
@@ -123,7 +115,6 @@ public:
         return currentState_ ? currentState_->getStateID() : S{};
     }
 
-    // 获取上下文
     C& getContext() { return context_; }
     const C& getContext() const { return context_; }
 };
