@@ -22,7 +22,7 @@ public:
     Infantry()
         : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , crosshair_(Shape::Color::WHITE, x_center - 12, y_center - 37)
-        , status_ring_()
+        , status_ring_(26.5, 26.5, 600, 40)
         , horizontal_center_guidelines_(
               {Shape::Color::WHITE, 2, x_center - 360, y_center, x_center - 110, y_center},
               {Shape::Color::WHITE, 2, x_center + 110, y_center, x_center + 360, y_center})
@@ -47,7 +47,7 @@ public:
         register_input("/chassis/control_angle", chassis_control_angle_);
 
         register_input("/chassis/supercap/voltage", supercap_voltage_);
-        register_input("/chassis/supercap/enabled", supercap_enabled_);
+        register_input("/chassis/supercap/control_enable", supercap_enabled_);
 
         register_input("/chassis/voltage", chassis_voltage_);
         register_input("/chassis/power", chassis_power_);

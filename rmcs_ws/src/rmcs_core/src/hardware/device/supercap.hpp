@@ -40,7 +40,8 @@ public:
     uint16_t generate_command() const {
         SupercapCommand command;
 
-        command.enabled    = *chassis_output_status_;
+        command.enabled = *chassis_output_status_;
+
         double power_limit = *supercap_charge_power_limit_;
         if (std::isnan(power_limit))
             command.power_limit = 0;
@@ -96,11 +97,10 @@ private:
     Component::OutputInterface<double> supercap_voltage_;
     Component::OutputInterface<bool> supercap_enabled_;
 
+    Component::InputInterface<bool> supercap_control_enabled_;
     Component::InputInterface<double> supercap_charge_power_limit_;
 
     Component::InputInterface<bool> chassis_output_status_;
-
-    Component::InputInterface<bool> supercap_control_enabled_;
 };
 
 } // namespace rmcs_core::hardware::device

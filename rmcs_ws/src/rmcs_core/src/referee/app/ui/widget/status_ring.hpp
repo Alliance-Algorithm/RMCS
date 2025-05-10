@@ -133,6 +133,7 @@ public:
         bullet_allowance_.set_visible(true);
 
         set_limits(supercap_limit, battery_limit, friction_limit, bullet_limit);
+
     }
 
     void update_auto_aim_enable(bool enable) {

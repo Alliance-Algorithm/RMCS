@@ -66,6 +66,8 @@ public:
             "/chassis/supercap/voltage/dead_line", supercap_voltage_dead_line_,
             supercap_voltage_dead_line);
 
+        register_input("/referee/chassis/output_status", chassis_output_status_);
+
         auto_spin_enable_ = get_parameter("auto_spin").as_bool();
     }
 
@@ -112,6 +114,8 @@ public:
         using namespace rmcs_msgs;
 
         RCLCPP_INFO(get_logger(), "%d",*supercap_enabled_);
+
+        RCLCPP_INFO(get_logger(), "%d",*chassis_output_status_);
         
         auto switch_right = *switch_right_;
         auto switch_left  = *switch_left_;
@@ -410,6 +414,8 @@ private:
     OutputInterface<double> supercap_voltage_control_line_;
     OutputInterface<double> supercap_voltage_base_line_;
     OutputInterface<double> supercap_voltage_dead_line_;
+
+    InputInterface<bool> chassis_output_status_;
 };
 
 } // namespace rmcs_core::controller::chassis
