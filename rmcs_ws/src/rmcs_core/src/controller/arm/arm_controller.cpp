@@ -83,23 +83,21 @@ public:
         register_output("/arm/mode", mode, rmcs_msgs::ArmMode::None);
     }
     void update() override {
-        auto switch_right = *switch_right_;
-        auto switch_left  = *switch_left_;
-        auto mouse        = *mouse_;
-        auto keyboard     = *keyboard_;
-        // std::array<double, 3> lift_start_point_position = {0.27, 0.001, -0.05};
-        // std::array<double, 3> lift_end_point_position   = {0.27, 0.001, 0.17};
+        auto switch_right                               = *switch_right_;
+        auto switch_left                                = *switch_left_;
+        auto mouse                                      = *mouse_;
+        auto keyboard                                   = *keyboard_;
+        std::array<double, 3> lift_start_point_position = {0.000001, -0.72, 0.18};
+        std::array<double, 3> lift_end_point_position   = {0.000001, -0.72, 0.14};
+        std::array<double, 3> lift_point_orientation    = {
+            -std::numbers::pi / 2.0, 0.0, -std::numbers::pi / 2.0};
 
-        // std::array<double, 3> lift_point_orientation = {
-        //     0.0,0.0, 0.0};
-
-        //     std::array<double, 6> initial_joint_theta =
-        //     rmcs_core::hardware::device::Kinematic::arm_inverse_kinematic(
-        //     {lift_start_point_position[0], lift_start_point_position[1],
-        //      lift_start_point_position[2], lift_point_orientation[0], lift_point_orientation[1],
-        //      lift_point_orientation[2]});
-        //      RCLCPP_INFO(this->get_logger(),"%f %f %f %f %f
-        //      %f",initial_joint_theta[0],initial_joint_theta[1],initial_joint_theta[2],initial_joint_theta[3],initial_joint_theta[4],initial_joint_theta[5]);
+        std::array<double, 6> initial_joint_theta =
+            rmcs_core::hardware::device::Kinematic::arm_inverse_kinematic(
+                {lift_start_point_position[0], lift_start_point_position[1],
+                 lift_start_point_position[2], lift_point_orientation[0], lift_point_orientation[1],
+                 lift_point_orientation[2]});
+             RCLCPP_INFO(this->get_logger(),"%f %f %f %f %f%f",initial_joint_theta[0],initial_joint_theta[1],initial_joint_theta[2],initial_joint_theta[3],initial_joint_theta[4],initial_joint_theta[5]);
         // test.positive_kinematic();
         // RCLCPP_INFO(
         //     this->get_logger(), "%f %F %F", test.get_roll(), test.get_pitch(), test.get_yaw());
@@ -137,6 +135,8 @@ public:
                 switch_left == rmcs_msgs::Switch::DOWN && switch_right == rmcs_msgs::Switch::UP) {
 
                 if (keyboard.z) {
+                    is_arm_pump_on = true;
+
                     if (!keyboard.ctrl && !keyboard.shift) {
                         *mode = rmcs_msgs::ArmMode::Auto_Gold_Left;
                         fsm_gold_l.reset();
@@ -149,7 +149,8 @@ public:
                     }
                 }
                 if (keyboard.x) {
-                    *mode = rmcs_msgs::ArmMode::Auto_Sliver;
+                    is_arm_pump_on = true;
+                    *mode          = rmcs_msgs::ArmMode::Auto_Sliver;
                     fsm_sliver.reset();
                 }
                 if (keyboard.g) {

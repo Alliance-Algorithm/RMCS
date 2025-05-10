@@ -143,6 +143,7 @@ public:
                 a3      = -2.0f * (end - start) / pow(total_step, 3);
                 result_ = a0 + a2 * pow(current_step, 2) + a3 * pow(current_step, 3);
                 result[0] = result[0];
+                
             }
 
             current_step++;

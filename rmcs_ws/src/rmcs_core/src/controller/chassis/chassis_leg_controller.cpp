@@ -166,10 +166,9 @@ public:
             }
             case rmcs_msgs::ChassisMode::Yaw_Free: {
                 Eigen::Rotation2D<double> rotation(*chassis_big_yaw_angle - *joint1_theta);
-                Eigen::Vector2d move_ =
-                    rotation * (*joystick_left_ + Eigen::Vector2d{keyboard.w - keyboard.s, 0});
-                steering_control(move_, joystick_right_->y());
-                omniwheel_control(move_);
+                Eigen::Vector2d move_ = rotation * (*joystick_left_);
+                steering_control(-move_, joystick_right_->y());
+                omniwheel_control(-move_);
                 break;
             }
             default: break;
@@ -267,16 +266,23 @@ private:
                         is_yaw_imu_control = false;
                         if (*arm_mode == rmcs_msgs::ArmMode::Auto_Gold_Left) {
                             yaw_set_theta_in_YawFreeMode = std::numbers::pi / 2.0;
-                            leg_mode           = rmcs_msgs::LegMode::Six_Wheel;
+                            leg_mode                     = rmcs_msgs::LegMode::Six_Wheel;
                         } else if (*arm_mode == rmcs_msgs::ArmMode::Auto_Gold_Right) {
                             yaw_set_theta_in_YawFreeMode = -std::numbers::pi / 2.0;
-                            leg_mode           = rmcs_msgs::LegMode::Six_Wheel;
+                            leg_mode                     = rmcs_msgs::LegMode::Six_Wheel;
+                        } else if (*arm_mode == rmcs_msgs::ArmMode::Auto_Gold_Mid) {
+                            yaw_set_theta_in_YawFreeMode = std::numbers::pi / 2.0;
+                            leg_mode                     = rmcs_msgs::LegMode::Six_Wheel;
+
                         } else {
                             yaw_set_theta_in_YawFreeMode = 0.0;
+                            leg_mode                     = rmcs_msgs::LegMode::Six_Wheel;
                         }
-                        yaw_trajectory_controller.set_start_point({*joint1_theta})
+                        yaw_trajectory_controller.set_start_point({*chassis_big_yaw_angle})
                             .set_total_step(2200)
-                            .set_end_point({yaw_set_theta_in_YawFreeMode}).reset();
+                            .set_end_point({yaw_set_theta_in_YawFreeMode})
+                            .reset();
+                        // RCLCPP_INFO(this->get_logger(),"fafaf");
                     }
                 } else if (*arm_mode == rmcs_msgs::ArmMode::Auto_Walk) {
                     speed_limit = 4.5;
@@ -418,10 +424,11 @@ private:
             *chassis_big_yaw_target_angle_error =
                 normalizeAngle(yaw_control_theta - *yaw_imu_angle);
         } else {
-            std::array<double,6> result = yaw_trajectory_controller.trajectory();
-            yaw_control_theta = result[0];
+            std::array<double, 6> result = yaw_trajectory_controller.trajectory();
+            yaw_control_theta            = result[0];
             *chassis_big_yaw_target_angle_error =
                 normalizeAngle(yaw_control_theta - *yaw_motor_angle);
+            RCLCPP_INFO(this->get_logger(), "%f", result[0]);
         }
     }
     void steering_control(const Eigen::Vector2d& move, double spin_speed) {
@@ -583,8 +590,7 @@ private:
     InputInterface<double> joint1_theta;
     double yaw_control_theta            = NAN;
     double yaw_set_theta_in_YawFreeMode = NAN;
-    hardware::device::Trajectory<hardware::device::TrajectoryType::SINGLE_JOINT>
-        yaw_trajectory_controller;
+    hardware::device::Trajectory<hardware::device::TrajectoryType::JOINT> yaw_trajectory_controller;
 
     bool is_leg_forward_joint_torque_control = false;
     double leg_lf_target_theta               = NAN;

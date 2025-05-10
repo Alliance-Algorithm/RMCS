@@ -65,7 +65,7 @@ class Auto_Sliver : rclcpp::Node {
 public:
     explicit Auto_Sliver()
         : rclcpp::Node{"adada"} {
-        std::array<double, 3> lift_start_point_position = {0.27, 0.001, -0.06};
+        std::array<double, 3> lift_start_point_position = {0.27, 0.001, -0.05};
         std::array<double, 3> lift_end_point_position   = {0.27, 0.001, 0.17};
 
         std::array<double, 3> lift_point_orientation = {0.0, 0.0, 0.0};

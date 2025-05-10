@@ -15,15 +15,23 @@
 class Auto_Gold_Mid {
 public:
     explicit Auto_Gold_Mid() {
-        reset_initial_arm.set_total_step(1000).set_end_point(
-            {0, -0.672690, -0.023241, std::numbers::pi, 0.713385, 0});
-        lift_mine.set_total_step(500)
-            .set_start_point(
-                {0.52, 0, 0.1},
-                {-std::numbers::pi, -90 * std::numbers::pi / 180, -std::numbers::pi})
-            .set_end_point(
-                {0.52, 0, 0.32},
-                {-std::numbers::pi, -90 * std::numbers::pi / 180, -std::numbers::pi});
+        std::array<double, 3> lift_start_point_position = {0.000001, -0.72, 0.08};
+        std::array<double, 3> lift_end_point_position   = {0.000001, -0.72, 0.18};
+        std::array<double, 3> lift_point_orientation    = {
+            -std::numbers::pi / 2.0, 0.0, -std::numbers::pi / 2.0};
+
+        std::array<double, 6> initial_joint_theta =
+            rmcs_core::hardware::device::Kinematic::arm_inverse_kinematic(
+                {lift_start_point_position[0], lift_start_point_position[1],
+                 lift_start_point_position[2], lift_point_orientation[0], lift_point_orientation[1],
+                 lift_point_orientation[2]});
+
+        initial_joint_theta[3] = std::numbers::pi;
+        initial_joint_theta[5] = 0;
+        reset_initial_arm.set_total_step(2700).set_end_point(initial_joint_theta);
+        lift_mine.set_total_step(900)
+            .set_start_point(lift_start_point_position, lift_point_orientation)
+            .set_end_point(lift_end_point_position, lift_point_orientation);
 
         fsm.registerState<Gold_Set_initial_State>();
         fsm.registerState<Gold_Lift_State>();

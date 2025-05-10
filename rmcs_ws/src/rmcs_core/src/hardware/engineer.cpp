@@ -374,7 +374,7 @@ private:
             joint[1].update_joint().change_theta_feedback_(joint2_encoder.get_angle());
             joint[0].update_joint();
             arm_pump.update();
-            RCLCPP_INFO(this->get_logger(),"%f",joint2_encoder.get_angle());
+            RCLCPP_INFO(this->get_logger(),"%f",joint3_encoder.get_angle());
 
         }
 
