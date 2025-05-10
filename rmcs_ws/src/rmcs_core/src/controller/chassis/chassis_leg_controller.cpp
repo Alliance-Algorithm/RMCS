@@ -267,8 +267,10 @@ private:
                         is_yaw_imu_control = false;
                         if (*arm_mode == rmcs_msgs::ArmMode::Auto_Gold_Left) {
                             yaw_set_theta_in_YawFreeMode = std::numbers::pi / 2.0;
+                            leg_mode           = rmcs_msgs::LegMode::Six_Wheel;
                         } else if (*arm_mode == rmcs_msgs::ArmMode::Auto_Gold_Right) {
                             yaw_set_theta_in_YawFreeMode = -std::numbers::pi / 2.0;
+                            leg_mode           = rmcs_msgs::LegMode::Six_Wheel;
                         } else {
                             yaw_set_theta_in_YawFreeMode = 0.0;
                         }
