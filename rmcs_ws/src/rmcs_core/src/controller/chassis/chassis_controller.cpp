@@ -188,6 +188,7 @@ public:
             translational_velocity.normalize();
 
         translational_velocity *= translational_velocity_max;
+
         return translational_velocity;
     }
 
@@ -310,7 +311,7 @@ private:
 
     // Maximum control velocities
     static constexpr double translational_velocity_max = 5.0;
-    static constexpr double angular_velocity_max       = 100.0;
+    static constexpr double angular_velocity_max       = 16.0;
 
     // Maximum excess power when buffer energy is sufficient.
     static constexpr double excess_power_limit = 35;

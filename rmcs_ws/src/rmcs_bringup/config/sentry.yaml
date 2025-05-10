@@ -1,0 +1,308 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::hardware::Sentry -> sentry_hardware
+      
+      - rmcs_core::referee::Status -> referee_status
+      - rmcs_core::referee::Command -> referee_command
+
+      - rmcs_core::controller::gimbal::GimbalController -> gimbal_controller
+      - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
+      - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
+      
+      - rmcs_core::controller::gimbal::ShootingController -> shooting_controller
+      - rmcs_core::controller::pid::PidController -> left_friction_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> right_friction_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller
+      
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+
+      - rmcs_core::controller::chassis::ChassisController -> chassis_controller
+      - rmcs_core::controller::chassis::SteeringWheelController -> steering_wheel_controller
+      # - rmcs_core::controller::pid::PidController -> left_front_wheel_velocity_pid_controller
+      # - rmcs_core::controller::pid::PidController -> left_back_wheel_velocity_pid_controller
+      # - rmcs_core::controller::pid::PidController -> right_back_wheel_velocity_pid_controller
+      # - rmcs_core::controller::pid::PidController -> right_front_wheel_velocity_pid_controller
+
+      # - rmcs_core::controller::pid::ErrorPidController -> left_front_steer_angle_pid_controller
+      # - rmcs_core::controller::pid::ErrorPidController -> left_back_steer_angle_pid_controller
+      # - rmcs_core::controller::pid::ErrorPidController -> right_back_steer_angle_pid_controller
+      # - rmcs_core::controller::pid::ErrorPidController -> right_front_steer_angle_pid_controller
+      
+      # - rmcs_core::controller::pid::PidController -> left_front_steer_velocity_pid_controller
+      # - rmcs_core::controller::pid::PidController -> left_back_steer_velocity_pid_controller
+      # - rmcs_core::controller::pid::PidController -> right_back_steer_velocity_pid_controller
+      # - rmcs_core::controller::pid::PidController -> right_front_steer_velocity_pid_controller
+
+      # - rmcs_core::controller::gimbal::ShootingRecorder -> shooting_recorder
+      
+      # - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
+      # - rmcs_auto_aim::AutoAimController -> auto_aim_controller
+
+sentry_hardware:
+  ros__parameters:
+    usb_pid_top_board: 0x68c6
+    usb_pid_bottom_board: 0x5891
+    yaw_motor_zero_point: 49654
+    pitch_motor_zero_point: 30525
+    left_front_zero_point: 6543
+    left_back_zero_point: 4436
+    right_back_zero_point: 6098
+    right_front_zero_point: 4416
+    external_imu_port: /dev/ttyUSB0
+
+gimbal_controller:
+  ros__parameters:
+    upper_limit: -0.4598
+    lower_limit: 0.4362
+
+    
+value_broadcaster:
+  ros__parameters:
+    forward_list_init: [
+      /chassis/left_front/wheel/control_velocity
+      /chassis/left_back/wheel/control_velocity
+      /chassis/right_back/wheel/control_velocity
+      /chassis/right_front/wheel/control_velocity
+    ]
+
+
+yaw_angle_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/yaw/control_angle_error
+    control: /gimbal/yaw/control_velocity
+    kp: 16.0
+    ki: 0.0
+    kd: 0.0
+    
+
+pitch_angle_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/pitch/control_angle_error
+    control: /gimbal/pitch/control_velocity
+    kp: 10.00
+    ki: 0.0
+    kd: 0.0
+
+shooting_controller:
+  ros__parameters:
+    friction_wheels:
+      - /gimbal/left_friction
+      - /gimbal/right_friction
+    friction_velocities:
+      - 740.0
+      - 740.0
+    friction_soft_start_stop_time: 1.0
+    is_42mm: false
+    bullets_per_feeder_turn: 8.0
+    shot_frequency: 20.0
+    safe_shot_frequency: 10.0
+    precise_shot_frequency: 10.0
+    eject_frequency: 10.0
+    eject_time: 0.05
+    deep_eject_frequency: 5.0
+    deep_eject_time: 0.2
+    single_shot_max_stop_delay: 2.0
+
+shooting_recorder:
+  ros__parameters:
+    friction_wheel_count: 4
+    log_mode: 2 # 1: trigger, 2: timing
+    
+left_friction_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/left_friction/velocity
+    setpoint: /gimbal/left_friction/control_velocity
+    control: /gimbal/left_friction/control_torque
+    kp: 0.003436926
+    ki: 0.00
+    kd: 0.009373434
+
+right_friction_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/right_friction/velocity
+    setpoint: /gimbal/right_friction/control_velocity
+    control: /gimbal/right_friction/control_torque
+    kp: 0.003436926
+    ki: 0.00
+    kd: 0.009373434
+
+bullet_feeder_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/bullet_feeder/velocity
+    setpoint: /gimbal/bullet_feeder/control_velocity
+    control: /gimbal/bullet_feeder/control_torque
+    kp: 0.583
+    ki: 0.0
+    kd: 0.0
+left_front_wheel_velocity_pid_controller:
+  ros__parameters:
+    measurement: /chassis/left_front/wheel/velocity
+    setpoint: /chassis/left_front/wheel/control_velocity
+    control: /chassis/left_front/wheel/control_torque
+    kp: 0.1
+    ki: 0.000
+    kd: 0.00
+    integral_min: -100.0
+    integral_max: 100.0
+
+left_back_wheel_velocity_pid_controller:
+  ros__parameters:
+    measurement: /chassis/left_back/wheel/velocity
+    setpoint: /chassis/left_back/wheel/control_velocity
+    control: /chassis/left_back/wheel/control_torque
+    kp: 0.1
+    ki: 0.000
+    kd: 0.00
+    integral_min: -100.0
+    integral_max: 100.0
+
+right_back_wheel_velocity_pid_controller:
+  ros__parameters:
+    measurement: /chassis/right_back/wheel/velocity
+    setpoint: /chassis/right_back/wheel/control_velocity
+    control: /chassis/right_back/wheel/control_torque
+    kp: 0.1
+    ki: 0.000
+    kd: 0.00
+    integral_min: -100.0
+    integral_max: 100.0
+
+right_front_wheel_velocity_pid_controller:
+  ros__parameters:
+    measurement: /chassis/right_front/wheel/velocity
+    setpoint: /chassis/right_front/wheel/control_velocity
+    control: /chassis/right_front/wheel/control_torque
+    kp: 0.1
+    ki: 0.000
+    kd: 0.00
+    integral_min: -100.0
+    integral_max: 100.0
+    
+left_front_steer_angle_pid_controller:
+  ros__parameters:
+    measurement: /chassis/left_front/steer/control_err_angle
+    control: /chassis/left_front/steer/control_velocity
+    kp: 10.0
+    ki: 0.01
+    kd: 0.00
+    integral_split_min: -0.5
+    integral_split_max: 0.5
+    integral_min: -100.0
+    integral_max: 100.0
+
+left_back_steer_angle_pid_controller:
+  ros__parameters:
+    measurement: /chassis/left_back/steer/control_err_angle
+    control: /chassis/left_back/steer/control_velocity
+    kp: 10.0
+    ki: 0.01
+    kd: 0.00
+    integral_split_min: -0.5
+    integral_split_max: 0.5
+    integral_min: -100.0
+    integral_max: 100.0
+
+right_back_steer_angle_pid_controller:
+  ros__parameters:
+    measurement: /chassis/right_back/steer/control_err_angle
+    control: /chassis/right_back/steer/control_velocity
+    kp: 10.0
+    ki: 0.01
+    kd: 0.00
+    integral_split_min: -0.5
+    integral_split_max: 0.5
+    integral_min: -100.0
+    integral_max: 100.0
+
+right_front_steer_angle_pid_controller:
+  ros__parameters:
+    measurement: /chassis/right_front/steer/control_err_angle
+    control: /chassis/right_front/steer/control_velocity
+    kp: 10.0
+    ki: 0.01
+    kd: 0.00
+    integral_split_min: -0.5
+    integral_split_max: 0.5
+    integral_min: -100.0
+    integral_max: 100.0
+
+left_front_steer_velocity_pid_controller:
+  ros__parameters:
+    measurement: /chassis/left_front/steer/velocity
+    setpoint: /chassis/left_front/steer/control_velocity
+    control: /chassis/left_front/steer/control_torque
+    kp: 0.2
+    ki: 0.00
+    kd: 0.00
+
+left_back_steer_velocity_pid_controller:
+  ros__parameters:
+    measurement: /chassis/left_back/steer/velocity
+    setpoint: /chassis/left_back/steer/control_velocity
+    control: /chassis/left_back/steer/control_torque
+    kp: 0.2
+    ki: 0.0
+    kd: 0.00
+
+right_back_steer_velocity_pid_controller:
+  ros__parameters:
+    measurement: /chassis/right_back/steer/velocity
+    setpoint: /chassis/right_back/steer/control_velocity
+    control: /chassis/right_back/steer/control_torque
+    kp: 0.2
+    ki: 0.00
+    kd: 0.00
+
+right_front_steer_velocity_pid_controller:
+  ros__parameters:
+    measurement: /chassis/right_front/steer/velocity
+    setpoint: /chassis/right_front/steer/control_velocity
+    control: /chassis/right_front/steer/control_torque
+    kp: 0.2
+    ki: 0.00
+    kd: 0.00
+
+chassis_controller:
+  ros__parameters:
+    gimbal_yaw_motors:
+      - /gimbal/yaw
+
+auto_aim_controller:
+  ros__parameters:
+    # capture
+    use_video: false # If true, use video stream instead of camera. 
+    video_path: "/workspaces/RMCS/rmcs_ws/resources/1.avi"
+    exposure_time: 3
+    invert_image: false
+    # identifier
+    armor_model_path: "/models/mlp.onnx"
+    # pnp    
+    fx: 1.722231837421459e+03
+    fy: 1.724876404292754e+03
+    cx: 7.013056440882832e+02
+    cy: 5.645821718351237e+02
+    k1: -0.064232403853946
+    k2: -0.087667493884102
+    k3: 0.792381808294582
+    # tracker
+    armor_predict_duration: 500
+    # controller
+    gimbal_predict_duration: 100
+    yaw_error: 0.02
+    pitch_error: 0.06
+    shoot_velocity: 28.0
+    predict_sec: 0.095
+    # etc
+    buff_predict_duration: 200
+    buff_model_path: "/models/buff_nocolor_v6.onnx"
+    omni_exposure: 1000.0
+    record_fps: 120
+    debug: false # Setup in actual using.Debug mode is used when referee is not ready
+    debug_color: 0 # 0 For blue while 1 for red. mine
+    debug_robot_id: 4
+    debug_buff_mode: false
+    record: false
+    raw_img_pub: false # Set false in actual use
+    image_viewer_type: 0

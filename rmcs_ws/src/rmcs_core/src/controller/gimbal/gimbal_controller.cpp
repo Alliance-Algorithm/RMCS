@@ -1,4 +1,5 @@
 #include <cmath>
+
 #include <limits>
 
 #include <eigen3/Eigen/Dense>
@@ -31,26 +32,15 @@ public:
         register_input("/remote/mouse/velocity", mouse_velocity_);
         register_input("/remote/mouse", mouse_);
 
+        register_input("/gimbal/pitch/angle", gimbal_pitch_angle_);
         register_input("/tf", tf_);
 
         register_input("/gimbal/shooter/mode", shoot_mode_);
 
         register_input("/gimbal/auto_aim/control_direction", auto_aim_control_direction_, false);
 
-        auto gimbal_yaw_motors = get_parameter("gimbal_yaw_motors").as_string_array();
-        if (gimbal_yaw_motors.size() == 0)
-            throw std::runtime_error("Empty array error: 'gimbal_yaw_motors' cannot be empty!");
-
-        gimbal_yaw_motors_count_ = gimbal_yaw_motors.size();
-        yaw_angle_error_  = std::make_unique<OutputInterface<double>[]>(gimbal_yaw_motors_count_);
-        gimbal_yaw_angle_ = std::make_unique<InputInterface<double>[]>(gimbal_yaw_motors_count_);
-
-        size_t index = 0;
-        for (auto& motor : gimbal_yaw_motors) {
-            register_input(motor + "/angle", gimbal_yaw_angle_[index]);
-            register_output(motor + "/control_angle_error", yaw_angle_error_[index++], nan_);
-        }
-        register_output("/gimbal/pitch/control_angle_error", pitch_angle_error_, nan_);
+        register_output("/gimbal/yaw/control_angle_error", yaw_angle_error_, nan);
+        register_output("/gimbal/pitch/control_angle_error", pitch_angle_error_, nan);
     }
 
     void update() override {
@@ -94,10 +84,9 @@ private:
     }
 
     void reset_all_controls() {
-        control_enabled = false;
-        for (size_t i = 0; i < gimbal_yaw_motors_count_; i++)
-            *yaw_angle_error_[i] = nan_;
-        *pitch_angle_error_ = nan_;
+        control_enabled     = false;
+        *yaw_angle_error_   = nan;
+        *pitch_angle_error_ = nan;
     }
 
     void update_auto_aim_control_direction(PitchLink::DirectionVector& dir) {
@@ -162,36 +151,14 @@ private:
 
         double &x = dir->x(), &y = dir->y(), &z = dir->z();
         double sp = std::sin(pitch), cp = std::cos(pitch);
-        double a = x * cp + z * sp;
-        double b = std::sqrt(y * y + a * a);
+        double a          = x * cp + z * sp;
+        double b          = std::sqrt(y * y + a * a);
+        *yaw_angle_error_ = std::atan2(y, a);
         *pitch_angle_error_ =
             -std::atan2(z * cp * cp - x * cp * sp + sp * b, -z * cp * sp + x * sp * sp + cp * b);
-        *yaw_angle_error_[0] = std::atan2(y, a);
-
-        *yaw_angle_error_[1] = update_bottom_yaw_angle_error();
-
-        if (std::abs(*yaw_angle_error_[1]) < 0.01)
-            *yaw_angle_error_[1] = 0.;
     }
 
-    double update_bottom_yaw_angle_error() {
-        double top_yaw_control_angle = *yaw_angle_error_[0];
-        if (top_yaw_control_angle < 0)
-            top_yaw_control_angle += 2 * std::numbers::pi;
-
-        double err = top_yaw_control_angle + *gimbal_yaw_angle_[0];
-        if (err > 2 * std::numbers::pi)
-            err -= 2 * std::numbers::pi;
-        // err: [0, 2pi) -> signed
-
-        if (err > alignment_ / 2)
-            err -= alignment_;
-
-        return err;
-    }
-
-    static constexpr double nan_       = std::numeric_limits<double>::quiet_NaN();
-    static constexpr double alignment_ = 2 * std::numbers::pi;
+    static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
     InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;
@@ -199,8 +166,7 @@ private:
     InputInterface<Eigen::Vector2d> mouse_velocity_;
     InputInterface<rmcs_msgs::Mouse> mouse_;
 
-    std::unique_ptr<InputInterface<double>[]> gimbal_yaw_angle_;
-
+    InputInterface<double> gimbal_pitch_angle_;
     InputInterface<Tf> tf_;
 
     InputInterface<rmcs_msgs::ShootMode> shoot_mode_;
@@ -211,10 +177,8 @@ private:
     OdomImu::DirectionVector control_direction_{Eigen::Vector3d::Zero()};
     OdomImu::DirectionVector yaw_axis_filtered_{Eigen::Vector3d::UnitZ()};
     double upper_limit_, lower_limit_;
-    size_t gimbal_yaw_motors_count_;
 
-    OutputInterface<double> pitch_angle_error_;
-    std::unique_ptr<OutputInterface<double>[]> yaw_angle_error_;
+    OutputInterface<double> yaw_angle_error_, pitch_angle_error_;
 };
 
 } // namespace rmcs_core::controller::gimbal
