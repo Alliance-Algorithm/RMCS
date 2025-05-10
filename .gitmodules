@@ -1,9 +1,6 @@
 [submodule "rmcs_ws/src/rmcs_core/librmcs"]
 	path = rmcs_ws/src/rmcs_core/librmcs
 	url = https://github.com/Alliance-Algorithm/librmcs.git
-[submodule "rmcs_ws/src/fast_tf"]
-	path = rmcs_ws/src/fast_tf
-	url = https://github.com/qzhhhi/FastTF.git
 [submodule "rmcs_ws/src/rmcs_auto_aim"]
 	path = rmcs_ws/src/rmcs_auto_aim
 	url = https://github.com/Alliance-Algorithm/rmcs_auto_aim.git
@@ -17,6 +14,9 @@
 	path = rmcs_ws/src/rmcs_slam
 	url = https://github.com/Alliance-Algorithm/rmcs_slam.git
 	branch = union
-[submodule "rmcs_ws/src/TLARC"]
-	path = rmcs_ws/src/TLARC
+[submodule "rmcs_ws/src/tlarc"]
+	path = rmcs_ws/src/tlarc
 	url = https://github.com/Alliance-Algorithm/TLARC.git
+[submodule "rmcs_ws/src/fast_tf"]
+	path = rmcs_ws/src/fast_tf
+	url = https://github.com/qzhhhi/FastTF.git
