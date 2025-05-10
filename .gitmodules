@@ -13,3 +13,10 @@
 [submodule "rmcs_ws/src/serial"]
 	path = rmcs_ws/src/serial
 	url = git@github.com:Alliance-Algorithm/ros2-serial.git
+[submodule "rmcs_ws/src/rmcs_slam"]
+	path = rmcs_ws/src/rmcs_slam
+	url = https://github.com/Alliance-Algorithm/rmcs_slam.git
+	branch = union
+[submodule "rmcs_ws/src/TLARC"]
+	path = rmcs_ws/src/TLARC
+	url = https://github.com/Alliance-Algorithm/TLARC.git
