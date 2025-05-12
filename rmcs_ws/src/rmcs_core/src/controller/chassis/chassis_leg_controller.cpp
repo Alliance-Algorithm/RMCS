@@ -282,10 +282,12 @@ private:
                             .set_total_step(2200)
                             .set_end_point({yaw_set_theta_in_YawFreeMode})
                             .reset();
-                        // RCLCPP_INFO(this->get_logger(),"fafaf");
                     }
                 } else if (*arm_mode == rmcs_msgs::ArmMode::Auto_Walk) {
                     speed_limit = 4.5;
+                    leg_mode                     = rmcs_msgs::LegMode::Six_Wheel;
+                    chassis_mode       = rmcs_msgs::ChassisMode::Flow;
+                    is_yaw_imu_control = true;
                 }
             }
         } else {
