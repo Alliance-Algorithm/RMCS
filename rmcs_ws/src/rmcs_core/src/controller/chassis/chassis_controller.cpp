@@ -113,9 +113,9 @@ public:
     void update() override {
         using namespace rmcs_msgs;
 
-        RCLCPP_INFO(get_logger(), "%d",*supercap_enabled_);
+        // RCLCPP_INFO(get_logger(), "%d",*supercap_enabled_);
 
-        RCLCPP_INFO(get_logger(), "%d",*chassis_output_status_);
+        // RCLCPP_INFO(get_logger(), "chassis output status %d",*chassis_output_status_);
         
         auto switch_right = *switch_right_;
         auto switch_left  = *switch_left_;

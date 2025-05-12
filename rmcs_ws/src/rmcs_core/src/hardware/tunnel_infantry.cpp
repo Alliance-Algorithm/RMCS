@@ -110,6 +110,7 @@ public:
         dr16_.update_status();
         supercap_.update_status();
 
+        RCLCPP_INFO(logger_,"supercap enable: %f",supercap_.supercap_enabled());
     }
 
     void command_update() {
