@@ -47,8 +47,8 @@ public:
         register_output(
             "/gimbal/pitch/mode", pitch_motor_mode_, hardware::device::LkMotor::Mode::Velocity);
         register_output(
-            "/gimbal/yaw/mode", yaw_motor_mode_, hardware::device::LkMotor::Mode::Angle);
-        register_output("/gimbal/yaw/velocity_limit", yaw_velocity_limit_, 0.5);
+            "/gimbal/yaw/mode", yaw_motor_mode_, hardware::device::LkMotor::Mode::Velocity);
+        register_output("/gimbal/yaw/velocity_limit", yaw_velocity_limit_, 0.8);
         register_output("/gimbal/yaw/control_angle_error", yaw_angle_error_, nan);
         register_output("/gimbal/pitch/control_angle_error", pitch_angle_error_, nan);
     }

@@ -377,7 +377,7 @@ private:
                                gimbal_yaw_motor_.control_velocity() - imu_.gz()));
             } else if (gimbal_yaw_control_mode_ == device::LkMotor::Mode::Angle) {
                 {
-                    LOG_INFO("error:%f", gimbal_yaw_motor_.control_angle());
+                    // LOG_INFO("error:%f", gimbal_yaw_motor_.control_angle());
                     transmit_buffer_.add_can2_transmission(
                         0x141, gimbal_yaw_motor_.generate_angle_command(
                                    -gimbal_yaw_motor_.control_angle() + gimbal_yaw_motor_.angle(),

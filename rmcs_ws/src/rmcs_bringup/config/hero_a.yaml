@@ -27,14 +27,14 @@ rmcs_executor:
 
       # - rmcs_core::controller::gimbal::ShootingRecorder -> shooting_recorder
       
-      # - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
-      # - rmcs_auto_aim::AutoAimController -> auto_aim_controller
+      - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
+      - rmcs_auto_aim::AutoAimController -> auto_aim_controller
 
 hero_hardware:
   ros__parameters:
     usb_pid_top_board: 0xeb37
     usb_pid_bottom_board: 0xc1d3
-    yaw_motor_zero_point: 0
+    yaw_motor_zero_point: 7819
     pitch_motor_zero_point: 54374
     external_imu_port: /dev/ttyUSB0
 
@@ -198,4 +198,4 @@ auto_aim_controller:
     debug_buff_mode: false
     record: false
     raw_img_pub: false # Set false in actual use
-    image_viewer_type: 0
+    image_viewer_type: 2
