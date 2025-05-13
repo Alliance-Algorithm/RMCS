@@ -7,6 +7,15 @@
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/switch.hpp>
 
+#include <geometry_msgs/msg/pose2_d.hpp>
+#include <geometry_msgs/msg/pose_stamped.hpp>
+
+#include <std_srvs/srv/trigger.hpp>
+
+#include <game_stage.hpp>
+#include <robot_color.hpp>
+#include <robot_id.hpp>
+
 #include "controller/pid/pid_calculator.hpp"
 
 namespace rmcs_core::controller::chassis {
@@ -49,6 +58,8 @@ public:
 
         register_input("/referee/chassis/power_limit", chassis_power_limit_referee_, false);
         register_input("/referee/chassis/buffer_energy", chassis_buffer_energy_referee_, false);
+        register_input("/referee/id", robot_msg_referee_, false);
+        register_input("/referee/game/stage", game_stage_);
 
         register_output("/chassis/angle", chassis_angle_, nan);
         register_output("/chassis/control_angle", chassis_control_angle_, nan);
@@ -69,6 +80,20 @@ public:
         register_output(
             "/chassis/supercap/voltage/dead_line", supercap_voltage_dead_line_,
             supercap_voltage_dead_line);
+
+        auto_controller_ = this->create_subscription<geometry_msgs::msg::Pose2D>(
+            "/sentry/transform/velocity", 10, [this](geometry_msgs::msg::Pose2D::SharedPtr msg) {
+                auto_controller_velocity_.x() = msg->x;
+                auto_controller_velocity_.y() = msg->y;
+                auto_controller_velocity_ =
+                    std::clamp(auto_controller_velocity_.norm(), 0.0, translational_velocity_max)
+                    / translational_velocity_max * auto_controller_velocity_.normalized();
+            });
+        auto_control_target_ = this->create_publisher<geometry_msgs::msg::PoseStamped>(
+            "/transform/target/publish", 10);
+
+        reload_slam_trigger_client_ =
+            this->create_client<std_srvs::srv::Trigger>("/rmcs_slam/reset");
     }
 
     void before_updating() override {
@@ -149,6 +174,13 @@ public:
                              ? rmcs_msgs::ChassisMode::AUTO
                              : rmcs_msgs::ChassisMode::STEP_DOWN;
                 }
+
+                if ((robot_msg_referee_.ready() && robot_msg_referee_->id() == ArmorID::Sentry
+                     && *game_stage_ == GameStage::STARTED)
+                    || switch_right == Switch::UP)
+                    auto_controller_flag_ = true;
+                else
+                    auto_controller_flag_ = false;
                 *mode_ = mode;
             }
 
@@ -173,7 +205,8 @@ public:
 
     void update_velocity_control() {
         auto translational_velocity = update_translational_velocity_control();
-        auto angular_velocity       = update_angular_velocity_control();
+
+        auto angular_velocity = update_angular_velocity_control();
 
         chassis_control_velocity_->vector << translational_velocity, angular_velocity;
     }
@@ -182,7 +215,9 @@ public:
         auto keyboard = *keyboard_;
         Eigen::Vector2d keyboard_move{keyboard.w - keyboard.s, keyboard.a - keyboard.d};
 
-        Eigen::Vector2d translational_velocity = *joystick_right_ + keyboard_move;
+        Eigen::Vector2d translational_velocity =
+            *joystick_right_ + keyboard_move
+            + (auto_controller_flag_ ? auto_controller_velocity_ : Eigen::Vector2d::Zero());
 
         if (translational_velocity.norm() > 1.0)
             translational_velocity.normalize();
@@ -358,6 +393,9 @@ private:
     InputInterface<double> chassis_power_limit_referee_;
     InputInterface<double> chassis_buffer_energy_referee_;
 
+    InputInterface<rmcs_msgs::RobotId> robot_msg_referee_;
+    InputInterface<rmcs_msgs::GameStage> game_stage_;
+
     int supercap_switch_cooling_ = 0;
     OutputInterface<bool> supercap_control_enabled_;
     OutputInterface<double> supercap_charge_power_limit_;
@@ -367,6 +405,13 @@ private:
     OutputInterface<double> supercap_voltage_control_line_;
     OutputInterface<double> supercap_voltage_base_line_;
     OutputInterface<double> supercap_voltage_dead_line_;
+
+    rclcpp::Subscription<geometry_msgs::msg::Pose2D>::SharedPtr auto_controller_;
+    rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr auto_control_target_;
+    rclcpp::Client<std_srvs::srv::Trigger>::SharedPtr reload_slam_trigger_client_;
+
+    Eigen::Vector2d auto_controller_velocity_ = {0, 0};
+    bool auto_controller_flag_;
 };
 
 } // namespace rmcs_core::controller::chassis
