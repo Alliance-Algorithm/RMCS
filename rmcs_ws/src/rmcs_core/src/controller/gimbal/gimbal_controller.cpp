@@ -1,3 +1,4 @@
+#include "hardware/device/lk_motor.hpp"
 #include <cmath>
 
 #include <keyboard.hpp>
@@ -43,6 +44,11 @@ public:
 
         register_input("/gimbal/auto_aim/control_direction", auto_aim_control_direction_, false);
 
+        register_output(
+            "/gimbal/pitch/mode", pitch_motor_mode_, hardware::device::LkMotor::Mode::Velocity);
+        register_output(
+            "/gimbal/yaw/mode", yaw_motor_mode_, hardware::device::LkMotor::Mode::Angle);
+        register_output("/gimbal/yaw/velocity_limit", yaw_velocity_limit_, 0.5);
         register_output("/gimbal/yaw/control_angle_error", yaw_angle_error_, nan);
         register_output("/gimbal/pitch/control_angle_error", pitch_angle_error_, nan);
     }
@@ -198,6 +204,8 @@ private:
     double pitch_micro_motion_, yaw_micro_motion_;
 
     OutputInterface<double> yaw_angle_error_, pitch_angle_error_;
+    OutputInterface<hardware::device::LkMotor::Mode> yaw_motor_mode_, pitch_motor_mode_;
+    OutputInterface<double> yaw_velocity_limit_, pitch_velocity_limit_;
 };
 
 } // namespace rmcs_core::controller::gimbal

@@ -237,7 +237,7 @@ private:
         // The first friction wheel in the list is considered the primary one, meaning we only
         // monitor the speed drop of this wheel to detect whether a bullet has been fired.
         if (friction_enabled_ && !std::isnan(last_primary_friction_velocity_)) {
-            double differential = *friction_velocities_[0] - last_primary_friction_velocity_;
+            double differential = *friction_velocities_[2] - last_primary_friction_velocity_;
             if (differential < 0.1)
                 primary_friction_velocity_decrease_integral_ += differential;
             else {
@@ -258,7 +258,7 @@ private:
             }
         }
 
-        last_primary_friction_velocity_ = *friction_velocities_[0];
+        last_primary_friction_velocity_ = *friction_velocities_[2];
 
         bullet_count_limited_by_shooter_heat_ =
             (*shooter_heat_limit_ - shooter_heat_ - reserved_heat) / heat_per_shot;
