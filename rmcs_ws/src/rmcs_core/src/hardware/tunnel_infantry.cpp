@@ -110,7 +110,6 @@ public:
         dr16_.update_status();
         supercap_.update_status();
 
-        RCLCPP_INFO(logger_,"supercap enable: %f",supercap_.supercap_enabled());
     }
 
     void command_update() {
@@ -129,6 +128,9 @@ public:
         transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(can_commands));
 
         transmit_buffer_.add_can2_transmission(0x142, gimbal_pitch_motor_.generate_command());
+
+        transmit_buffer_.add_can2_transmission(0x141, gimbal_yaw_motor_.generate_command());
+
 
         can_commands[0] = 0;
         can_commands[1] = gimbal_bullet_feeder_.generate_command();
@@ -233,6 +235,8 @@ protected:
 
         if (can_id == 0x142) {
             gimbal_pitch_motor_.store_status(can_data);
+        } else if (can_id == 0x141) {
+            gimbal_yaw_motor_.store_status(can_data);
         } else if (can_id == 0x202) {
             gimbal_bullet_feeder_.store_status(can_data);
         } else if (can_id == 0x203) {
