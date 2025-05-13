@@ -37,7 +37,7 @@ public:
                                 .set_reduction_ratio(13.)
                                 .enable_multi_turn_angle());
 
-        gimbal_yaw_motor_.configure(device::DjiMotor::Config{device::DjiMotor::Type::GM6020}
+        gimbal_yaw_motor_.configure(device::LkMotor::Config{device::LkMotor::Type::MG5010E_I10}
                                         .set_reversed()
                                         .set_encoder_zero_point(static_cast<int>(
                                             get_parameter("yaw_motor_zero_point").as_int())));
@@ -171,7 +171,7 @@ private:
 
     void gimbal_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
         RCLCPP_INFO(
-            logger_, "[gimbal calibration] New yaw offset: %d",
+            logger_, "[gimbal calibration] New yaw offset: %ld",
             gimbal_yaw_motor_.calibrate_zero_point());
         RCLCPP_INFO(
             logger_, "[gimbal calibration] New pitch offset: %ld",
@@ -286,7 +286,7 @@ private:
     };
     device::Supercap supercap_{*this, *infantry_command_};
 
-    device::DjiMotor gimbal_yaw_motor_{*this, *infantry_command_, "/gimbal/yaw"};
+    device::LkMotor gimbal_yaw_motor_{*this, *infantry_command_, "/gimbal/yaw"};
     device::LkMotor gimbal_pitch_motor_{*this, *infantry_command_, "/gimbal/pitch"};
 
     device::DjiMotor gimbal_left_friction_{*this, *infantry_command_, "/gimbal/left_friction"};
