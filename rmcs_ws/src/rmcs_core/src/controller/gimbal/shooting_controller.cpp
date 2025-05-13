@@ -1,3 +1,5 @@
+#include "hardware/device/lk_motor.hpp"
+#include "librmcs/device/lk_motor.hpp"
 #include "librmcs/utility/logging.hpp"
 #include <cmath>
 
@@ -95,6 +97,8 @@ public:
         register_output("/gimbal/shooter/mode", shoot_mode_, default_shoot_mode());
         register_output(
             "/gimbal/shooter/status", shoot_status_, rmcs_msgs::ShootStatus{false, 0, 0, 0, 0});
+
+        register_output("/gimbal/bullet_feeder/mode", mode_, hardware::device::LkMotor::Mode::Velocity);
     }
 
     void before_updating() override {
@@ -402,6 +406,7 @@ private:
     InputInterface<rmcs_msgs::Switch> switch_left_;
     InputInterface<rmcs_msgs::Mouse> mouse_;
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
+    OutputInterface<hardware::device::LkMotor::Mode> mode_;
 
     rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Switch last_switch_left_  = rmcs_msgs::Switch::UNKNOWN;

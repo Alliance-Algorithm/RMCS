@@ -365,7 +365,7 @@ private:
                 batch_commands[i] = chassis_wheel_motors_[i].generate_command();
             transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(batch_commands));
 
-            transmit_buffer_.add_can1_transmission(0x142, gimbal_bullet_feeder_.generate_command());
+            transmit_buffer_.add_can1_transmission(0x141, gimbal_bullet_feeder_.generate_velocity_command(gimbal_bullet_feeder_.control_velocity()));
 
             // Use the chassis angular velocity as feedforward input for yaw velocity control.
             // This approach currently works only on Hero, as it utilizes motor angular velocity
@@ -380,7 +380,7 @@ private:
                     // LOG_INFO("error:%f", gimbal_yaw_motor_.control_angle());
                     transmit_buffer_.add_can2_transmission(
                         0x141, gimbal_yaw_motor_.generate_angle_command(
-                                   -gimbal_yaw_motor_.control_angle() + gimbal_yaw_motor_.angle(),
+                                   -gimbal_yaw_motor_.control_angle() - gimbal_yaw_motor_.angle(),
                                    gimbal_yaw_motor_.velocity_limit()));
                 }
             };
@@ -409,6 +409,8 @@ private:
                 chassis_wheel_motors_[2].store_status(can_data);
             } else if (can_id == 0x204) {
                 chassis_wheel_motors_[3].store_status(can_data);
+            }else if (can_id == 0x141) {
+                gimbal_bullet_feeder_.store_status(can_data);
             }
         }
 
@@ -422,9 +424,7 @@ private:
                 gimbal_yaw_motor_.store_status(can_data);
             } else if (can_id == 0x300) {
                 supercap_.store_status(can_data);
-            } else if (can_id == 0x142) {
-                gimbal_bullet_feeder_.store_status(can_data);
-            }
+            } 
         }
 
         void uart1_receive_callback(const std::byte* uart_data, uint8_t uart_data_length) override {

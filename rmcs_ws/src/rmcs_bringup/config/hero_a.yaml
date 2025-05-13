@@ -25,16 +25,16 @@ rmcs_executor:
 
       - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
 
-      # - rmcs_core::controller::gimbal::ShootingRecorder -> shooting_recorder
+      - rmcs_core::controller::gimbal::ShootingRecorder -> shooting_recorder
       
-      - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
-      - rmcs_auto_aim::AutoAimController -> auto_aim_controller
+      # - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
+      # - rmcs_auto_aim::AutoAimController -> auto_aim_controller
 
 hero_hardware:
   ros__parameters:
     usb_pid_top_board: 0xeb37
     usb_pid_bottom_board: 0xc1d3
-    yaw_motor_zero_point: 7819
+    yaw_motor_zero_point: 40576
     pitch_motor_zero_point: 54374
     external_imu_port: /dev/ttyUSB0
 
@@ -88,7 +88,7 @@ shooting_controller:
 shooting_recorder:
   ros__parameters:
     friction_wheel_count: 4
-    log_mode: 2 # 1: trigger, 2: timing
+    log_mode: 1 # 1: trigger, 2: timing
     
 second_left_friction_velocity_pid_controller:
   ros__parameters:
