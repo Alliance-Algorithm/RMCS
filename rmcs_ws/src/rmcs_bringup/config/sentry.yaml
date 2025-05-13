@@ -19,7 +19,7 @@ rmcs_executor:
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 
       - rmcs_core::controller::chassis::ChassisController -> chassis_controller
-      - rmcs_core::controller::chassis::SteeringWheelController -> steering_wheel_controller
+      - rmcs_core::controller::chassis::SteeringWheelControllerWithPlanner -> steering_wheel_controller
       # - rmcs_core::controller::pid::PidController -> left_front_wheel_velocity_pid_controller
       # - rmcs_core::controller::pid::PidController -> left_back_wheel_velocity_pid_controller
       # - rmcs_core::controller::pid::PidController -> right_back_wheel_velocity_pid_controller
