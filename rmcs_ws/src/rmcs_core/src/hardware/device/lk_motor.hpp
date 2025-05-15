@@ -25,7 +25,7 @@ public:
         command_component.register_input(
             name_prefix + "/control_velocity", control_velocity_, false);
         command_component.register_input(
-            name_prefix + "/control_angle_error", control_angle_, false);
+            name_prefix + "/control_angle", control_angle_, false);
         command_component.register_input(name_prefix + "/velocity_limit", velocity_limit_, false);
     }
 

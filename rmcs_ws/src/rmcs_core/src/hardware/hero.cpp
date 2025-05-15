@@ -93,6 +93,7 @@ private:
             , gimbal_pitch_motor_(
                   hero, hero_command, "/gimbal/pitch",
                   device::LkMotor::Config{device::LkMotor::Type::MG5010E_I10}
+                      .enable_multi_turn_angle()
                       .set_encoder_zero_point(
                           static_cast<int>(hero.get_parameter("pitch_motor_zero_point").as_int())))
             , gimbal_friction_wheels_(
@@ -183,9 +184,21 @@ private:
                 batch_commands[i] = gimbal_friction_wheels_[i].generate_command();
             transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(batch_commands));
 
-            transmit_buffer_.add_can2_transmission(
-                0x142, gimbal_pitch_motor_.generate_velocity_command(
-                           gimbal_pitch_motor_.control_velocity()));
+            if (gimbal_pitch_motor_.mode() == device::LkMotor::Mode::Velocity)
+                transmit_buffer_.add_can2_transmission(
+                    0x142, gimbal_pitch_motor_.generate_velocity_command(
+                               gimbal_pitch_motor_.control_velocity()));
+            else if (gimbal_pitch_motor_.mode() == device::LkMotor::Mode::Angle) {
+                const auto control_angle = -gimbal_pitch_motor_.control_angle() + pitch_zero_point;
+
+                transmit_buffer_.add_can2_transmission(
+                    0x142, gimbal_pitch_motor_.generate_angle_command(
+                               control_angle, gimbal_pitch_motor_.velocity_limit()));
+            } else if (gimbal_pitch_motor_.mode() == device::LkMotor::Mode::Unknown) {
+                transmit_buffer_.add_can2_transmission(
+                    0x142, gimbal_pitch_motor_.generate_velocity_command(
+                               std::numeric_limits<double>::quiet_NaN()));
+            }
 
             batch_commands[0] = gimbal_scope_motor_.generate_command();
             batch_commands[1] = 0;
@@ -272,6 +285,8 @@ private:
             }
         }
 
+        static constexpr double pitch_zero_point = -1.1;
+
         OutputInterface<rmcs_description::Tf>& tf_;
 
         device::Bmi088 imu_;
@@ -317,6 +332,7 @@ private:
             , gimbal_yaw_motor_(
                   hero, hero_command, "/gimbal/yaw",
                   device::LkMotor::Config{device::LkMotor::Type::MG5010E_I10}
+                      .enable_multi_turn_angle()
                       .set_encoder_zero_point(
                           static_cast<int>(hero.get_parameter("yaw_motor_zero_point").as_int())))
             , gimbal_bullet_feeder_(
@@ -365,7 +381,9 @@ private:
                 batch_commands[i] = chassis_wheel_motors_[i].generate_command();
             transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(batch_commands));
 
-            transmit_buffer_.add_can1_transmission(0x141, gimbal_bullet_feeder_.generate_velocity_command(gimbal_bullet_feeder_.control_velocity()));
+            transmit_buffer_.add_can1_transmission(
+                0x141, gimbal_bullet_feeder_.generate_velocity_command(
+                           gimbal_bullet_feeder_.control_velocity()));
 
             // Use the chassis angular velocity as feedforward input for yaw velocity control.
             // This approach currently works only on Hero, as it utilizes motor angular velocity
@@ -376,14 +394,17 @@ private:
                     0x141, gimbal_yaw_motor_.generate_velocity_command(
                                gimbal_yaw_motor_.control_velocity() - imu_.gz()));
             } else if (gimbal_yaw_control_mode_ == device::LkMotor::Mode::Angle) {
-                {
-                    // LOG_INFO("error:%f", gimbal_yaw_motor_.control_angle());
-                    transmit_buffer_.add_can2_transmission(
-                        0x141, gimbal_yaw_motor_.generate_angle_command(
-                                   -gimbal_yaw_motor_.control_angle() - gimbal_yaw_motor_.angle(),
-                                   gimbal_yaw_motor_.velocity_limit()));
-                }
-            };
+                const auto control_angle =
+                    -gimbal_yaw_motor_.control_angle() + gimbal_yaw_motor_.zero_point();
+
+                transmit_buffer_.add_can2_transmission(
+                    0x141, gimbal_yaw_motor_.generate_angle_command(
+                               control_angle, gimbal_yaw_motor_.velocity_limit()));
+            } else if (gimbal_yaw_motor_.mode() == device::LkMotor::Mode::Unknown) {
+                transmit_buffer_.add_can2_transmission(
+                    0x141, gimbal_yaw_motor_.generate_velocity_command(
+                               std::numeric_limits<double>::quiet_NaN()));
+            }
 
             batch_commands[0] = 0;
             batch_commands[1] = 0;
@@ -409,7 +430,7 @@ private:
                 chassis_wheel_motors_[2].store_status(can_data);
             } else if (can_id == 0x204) {
                 chassis_wheel_motors_[3].store_status(can_data);
-            }else if (can_id == 0x141) {
+            } else if (can_id == 0x141) {
                 gimbal_bullet_feeder_.store_status(can_data);
             }
         }
@@ -424,7 +445,7 @@ private:
                 gimbal_yaw_motor_.store_status(can_data);
             } else if (can_id == 0x300) {
                 supercap_.store_status(can_data);
-            } 
+            }
         }
 
         void uart1_receive_callback(const std::byte* uart_data, uint8_t uart_data_length) override {

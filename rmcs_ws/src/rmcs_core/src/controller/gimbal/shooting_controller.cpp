@@ -223,7 +223,7 @@ private:
     }
 
     rmcs_msgs::ShootMode default_shoot_mode() const {
-        return is_42mm_ ? rmcs_msgs::ShootMode::SINGLE : rmcs_msgs::ShootMode::AUTOMATIC;
+        return is_42mm_ ? rmcs_msgs::ShootMode::PRECISE : rmcs_msgs::ShootMode::AUTOMATIC;
     }
 
     rmcs_msgs::ShootMode alternative_shoot_mode() const {
@@ -246,7 +246,7 @@ private:
                 primary_friction_velocity_decrease_integral_ += differential;
             else {
                 if (primary_friction_velocity_decrease_integral_ < -14.0
-                    && last_primary_friction_velocity_ < friction_working_velocities_[0] - 20.0) {
+                    && last_primary_friction_velocity_ < friction_working_velocities_[2] - 20.0) {
                     // Heat with 1/1000 tex
                     shooter_heat_ += heat_per_shot + 10;
 
@@ -292,22 +292,15 @@ private:
     }
 
     void update_bullet_feeder_velocity() {
-        // LOG_INFO("bullet_count_limited_by_shooter_heat_:
-        // %ld",bullet_count_limited_by_shooter_heat_);
         auto bullet_allowance = bullet_count_limited_by_shooter_heat_;
         if (0 <= bullet_count_limited_by_single_shot_
             && bullet_count_limited_by_single_shot_ < bullet_allowance) {
             bullet_allowance = bullet_count_limited_by_single_shot_;
         }
 
-        // if (*switch_left_ == rmcs_msgs::Switch::DOWN) {
-        //     if (bullet_allowance)
-        //         LOG_INFO("bullet_allowance %ld", bullet_allowance);
-        // }
 
         if (!friction_enabled_ || !bullet_feeder_enabled_ || bullet_allowance == 0) {
             bullet_feeder_working_status_ = 0;
-            // LOG_INFO("first");
             *bullet_feeder_control_velocity_ = 0.0;
             return;
         }
@@ -322,12 +315,10 @@ private:
         double new_control_velocity = bullet_allowance > 1 ? bullet_feeder_working_velocity
                                                            : bullet_feeder_safe_shot_velocity;
         if (*shoot_mode_ == rmcs_msgs::ShootMode::PRECISE) {
-            // LOG_INFO("second");
             new_control_velocity =
                 std::min(new_control_velocity, bullet_feeder_precise_shot_velocity);
         }
         if (new_control_velocity > *bullet_feeder_control_velocity_) {
-            // LOG_INFO("third");
             bullet_feeder_working_status_ = std::min(0, bullet_feeder_working_status_);
         }
         *bullet_feeder_control_velocity_ = new_control_velocity;
