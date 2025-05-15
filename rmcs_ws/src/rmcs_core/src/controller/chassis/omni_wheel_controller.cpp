@@ -71,6 +71,15 @@ public:
             (2.0 - K_0) * (best_angular_control_torque - best_translational_control_torque.y());
         *right_front_control_torque_ =
             (2.0 - K_1) * (best_angular_control_torque + best_translational_control_torque.x());
+        // RCLCPP_INFO(
+        //     get_logger(), "Max control torque of wheel motor: %.2f",
+        //     std::sqrt(
+        //         (-wheel_velocities[0] + wheel_velocities[2])
+        //             * (-wheel_velocities[0] + wheel_velocities[2])
+        //         + (-wheel_velocities[1] + wheel_velocities[3])
+        //               * (-wheel_velocities[1] + wheel_velocities[3]))
+        //         * 0.075 / 2);
+
     }
 
 private:
@@ -78,8 +87,15 @@ private:
         -> std::tuple<Eigen::Vector2d, double, double, double> {
 
         auto [K_0, K_1] = calculate_K(wheel_velocities);
+        auto next_angle = calculate_next_angle(wheel_velocities);
+
         auto [translational_control_torque_max, translational_control_direction] =
             calculate_translational_control_torque_max(wheel_velocities);
+        auto direction_angle = translational_control_direction;
+        translational_control_direction.x() =
+            direction_angle.x() * next_angle.x() - direction_angle.y() * next_angle.y();
+        translational_control_direction.y() =
+            direction_angle.y() * next_angle.x() + direction_angle.x() * next_angle.y();
 
         auto angular_control_torque_max = calculate_angular_control_torque_max(wheel_velocities);
 
@@ -112,6 +128,39 @@ private:
             best_point.x() * translational_control_direction,
             best_point.y() / signed_affine_coefficient, K_0, K_1};
     }
+    static Eigen::Vector2d calculate_next_angle(const double (&wheel_velocities)[5]) {
+        double v = std::sqrt(
+                       (-wheel_velocities[0] + wheel_velocities[2])
+                           * (-wheel_velocities[0] + wheel_velocities[2])
+                       + (-wheel_velocities[1] + wheel_velocities[3])
+                             * (-wheel_velocities[1] + wheel_velocities[3]))
+                 * 0.0775 / 2;
+        if (v < 0.1)
+            return {1, 0};
+        if (v < 1.0)
+            v = 1.0;
+        else if (v < 1.5)
+            v = 1 + (v - 1);
+        else
+            v = 1.5 + 0.8 * (v - 1.5);
+        double omega =
+            (wheel_velocities[0] + wheel_velocities[1] + wheel_velocities[2] + wheel_velocities[3])
+            * 0.075 / 0.9;
+
+        if (omega > 0) {
+            omega = (20 - omega) * omega / 16;
+        } else if (omega < 0) {
+            omega = (20 + omega) * omega / 16;
+        }
+        // if (omega > 0) {
+        //     omega = 0.2 * omega + std::pow(omega, 0.775);
+        // } else if (omega < 0)
+        //     omega = 0.2 * omega - std::pow(-omega, 0.775);
+
+        double next_angle = v * omega * 0.065;
+        return {std::cos(next_angle), std::sin(next_angle)};
+    }
+
     static auto calculate_K(const double (&wheel_velocities)[5]) -> std::pair<double, double> {
 
         double K_0 = std::pow(
@@ -490,7 +539,7 @@ private:
     static constexpr double chassis_radius_ = 0.5;
 
     static constexpr double min_omega_ = 6.0;
-    static constexpr double K_dec_     = 7.0;
+    static constexpr double K_dec_     = 10.0;
 
     static constexpr double affine_coefficient_ = 1.0;
 

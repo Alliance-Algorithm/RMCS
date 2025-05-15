@@ -97,6 +97,7 @@ public:
             transmit_buffer_.add_uart1_transmission(buffer, size);
             return size;
         };
+
     }
 
     ~TunnelInfantry() override {
@@ -127,10 +128,10 @@ public:
         can_commands[3] = chassis_wheel_motors_[3].generate_command();
         transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(can_commands));
 
+
+        transmit_buffer_.add_can1_transmission(0x145, gimbal_yaw_motor_.generate_command());
+
         transmit_buffer_.add_can2_transmission(0x142, gimbal_pitch_motor_.generate_command());
-
-        transmit_buffer_.add_can2_transmission(0x141, gimbal_yaw_motor_.generate_command());
-
 
         can_commands[0] = 0;
         can_commands[1] = gimbal_bullet_feeder_.generate_command();
@@ -218,7 +219,7 @@ protected:
         } else if (can_id == 0x204) {
             auto& motor = chassis_wheel_motors_[3];
             motor.store_status(can_data);
-        } else if (can_id == 0x205) {
+        } else if (can_id == 0x145) {
             gimbal_yaw_motor_.store_status(can_data);
         } else if (can_id == 0x206) {
             gimbal_pitch_motor_.store_status(can_data);
@@ -235,8 +236,6 @@ protected:
 
         if (can_id == 0x142) {
             gimbal_pitch_motor_.store_status(can_data);
-        } else if (can_id == 0x141) {
-            gimbal_yaw_motor_.store_status(can_data);
         } else if (can_id == 0x202) {
             gimbal_bullet_feeder_.store_status(can_data);
         } else if (can_id == 0x203) {
@@ -311,6 +310,7 @@ private:
     librmcs::client::CBoard::TransmitBuffer transmit_buffer_;
 
     std::thread event_thread_;
+
 
     // InputInterface<bool> supercap_enabled_;
 };
