@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cmath>
 
 #include <eigen3/Eigen/Dense>
@@ -31,7 +32,7 @@ public:
         , sin_varphi_(0, 1, 0, -1)
         , steering_velocity_pid_(0.15, 0.0, 0.0)
         , steering_angle_pid_(80.0, 0.0, 0.0)
-        , wheel_velocity_pid_(0.5, 0.001, 0.0) {
+        , wheel_velocity_pid_(0.3, 0.000, 0.0) {
 
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
@@ -425,8 +426,11 @@ private:
         Eigen::Vector4d wheel_control_velocity =
             chassis_status_expected.wheel_velocity_x.array() * steering_status.cos_angle.array()
             + chassis_status_expected.wheel_velocity_y.array() * steering_status.sin_angle.array();
-        wheel_torques +=
-            wheel_velocity_pid_.update(wheel_control_velocity / wheel_radius_ - wheel_velocities);
+        Eigen::Vector4d vel_err = wheel_control_velocity / wheel_radius_ - wheel_velocities;
+        // for (int i = 0; i < 4; i++) {
+        //     vel_err(i) = std::clamp(vel_err(i), -3.0, 3.0);
+        // }
+        wheel_torques += wheel_velocity_pid_.update(vel_err);
         // std::cerr << "control:" << wheel_control_velocity / wheel_radius_ << std::endl;
         // std::cerr << "current" << wheel_velocities << std::endl;
 
