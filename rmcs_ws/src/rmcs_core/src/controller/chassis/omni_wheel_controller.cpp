@@ -134,7 +134,7 @@ private:
                            * (-wheel_velocities[0] + wheel_velocities[2])
                        + (-wheel_velocities[1] + wheel_velocities[3])
                              * (-wheel_velocities[1] + wheel_velocities[3]))
-                 * 0.0775 / 2;
+                 * 0.07775 / 2;
         if (v < 0.1)
             return {1, 0};
         if (v < 1.0)
@@ -145,7 +145,7 @@ private:
             v = 1.5 + 0.8 * (v - 1.5);
         double omega =
             (wheel_velocities[0] + wheel_velocities[1] + wheel_velocities[2] + wheel_velocities[3])
-            * 0.075 / 0.9;
+            * 0.07775 / 0.9;
 
         if (omega > 0) {
             omega = (20 - omega) * omega / 16;
