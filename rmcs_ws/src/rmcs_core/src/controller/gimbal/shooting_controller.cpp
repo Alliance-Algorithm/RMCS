@@ -223,7 +223,7 @@ private:
     }
 
     rmcs_msgs::ShootMode default_shoot_mode() const {
-        return is_42mm_ ? rmcs_msgs::ShootMode::PRECISE : rmcs_msgs::ShootMode::AUTOMATIC;
+        return is_42mm_ ? rmcs_msgs::ShootMode::SINGLE : rmcs_msgs::ShootMode::AUTOMATIC;
     }
 
     rmcs_msgs::ShootMode alternative_shoot_mode() const {

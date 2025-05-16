@@ -46,7 +46,7 @@ public:
 
         register_output(
             "/gimbal/pitch/mode", pitch_motor_mode_, hardware::device::LkMotor::Mode::Unknown);
-        register_output("/gimbal/pitch/velocity_limit", pitch_velocity_limit_, 5.0);
+        register_output("/gimbal/pitch/velocity_limit", pitch_velocity_limit_, nan);
         register_output(
             "/gimbal/yaw/mode", yaw_motor_mode_, hardware::device::LkMotor::Mode::Unknown);
         register_output("/gimbal/yaw/velocity_limit", yaw_velocity_limit_, 5.0);
@@ -54,6 +54,7 @@ public:
         register_output("/gimbal/pitch/control_angle_error", pitch_angle_error_, nan);
         register_output("/gimbal/pitch/control_angle", pitch_control_angle_, nan);
         register_output("/gimbal/yaw/control_angle", yaw_control_angle_, nan);
+        register_output("/gimbal/yaw/control_angle_error_test", pitch_control_angle_error_, nan);
     }
 
     void update() override {
@@ -67,41 +68,43 @@ public:
         using namespace rmcs_msgs;
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
-            test_=true;
+            test_ = true;
             reset_all_controls();
         } else {
+            // change to
+            // last_shoot_mode_ != ShootMode::PRECISE && *shoot_mode_ == ShootMode::PRECISE;
             if (test_) {
                 *pitch_control_angle_ = -*gimbal_pitch_angle_;
-                *yaw_control_angle_   = -*gimbal_yaw_angle_;
-                test_=false;
+                *yaw_control_angle_   = *gimbal_yaw_angle_;
+                LOG_INFO("debug:%f", *gimbal_yaw_angle_);
+                test_ = false;
             }
 
             if (*shoot_mode_ == ShootMode::PRECISE) {
-                *pitch_motor_mode_ = hardware::device::LkMotor::Mode::Angle;
-                *yaw_motor_mode_   = hardware::device::LkMotor::Mode::Angle;
-                update_angle_control_errors();
-            } else {
+            *pitch_motor_mode_ = hardware::device::LkMotor::Mode::Angle;
+            *yaw_motor_mode_   = hardware::device::LkMotor::Mode::Angle;
+            }else {
                 *pitch_motor_mode_ = hardware::device::LkMotor::Mode::Velocity;
                 *yaw_motor_mode_   = hardware::device::LkMotor::Mode::Velocity;
-                PitchLink::DirectionVector dir;
-
-                if (auto_aim_control_direction_.ready()
-                    && (mouse.right || switch_right == Switch::UP)
-                    && !auto_aim_control_direction_->isZero()) {
-                    update_auto_aim_control_direction(dir);
-                } else {
-                    update_manual_control_direction(dir);
-                }
-                if (!control_enabled)
-                    return;
-
-                clamp_control_direction(dir);
-                if (!control_enabled)
-                    return;
-
-                update_control_errors(dir);
-                control_direction_ = fast_tf::cast<OdomImu>(dir, *tf_);
             }
+
+            PitchLink::DirectionVector dir;
+
+            if (auto_aim_control_direction_.ready() && (mouse.right || switch_right == Switch::UP)
+                && !auto_aim_control_direction_->isZero()) {
+                update_auto_aim_control_direction(dir);
+            } else {
+                update_manual_control_direction(dir);
+            }
+            if (!control_enabled)
+                return;
+
+            clamp_control_direction(dir);
+            if (!control_enabled)
+                return;
+
+            update_control_errors(dir);
+            control_direction_ = fast_tf::cast<OdomImu>(dir, *tf_);
         }
 
         last_shoot_mode_ = *shoot_mode_;
@@ -152,11 +155,12 @@ private:
         Eigen::AngleAxisd delta_yaw{0, Eigen::Vector3d::UnitZ()};
         Eigen::AngleAxisd delta_pitch{0, Eigen::Vector3d::UnitY()};
 
-        delta_yaw.angle() =
-            joystick_sensitivity * joystick_left_->y() + mouse_sensitivity * mouse_velocity_->y();
-        delta_pitch.angle() =
-            -joystick_sensitivity * joystick_left_->x() - mouse_sensitivity * mouse_velocity_->x();
-
+        if (*shoot_mode_ != rmcs_msgs::ShootMode::PRECISE) {
+            delta_yaw.angle() = joystick_sensitivity * joystick_left_->y()
+                              + mouse_sensitivity * mouse_velocity_->y();
+            delta_pitch.angle() = -joystick_sensitivity * joystick_left_->x()
+                                + mouse_sensitivity * mouse_velocity_->x();
+        }
         *dir = delta_pitch * (delta_yaw * (*dir));
     }
 
@@ -191,21 +195,20 @@ private:
         *yaw_angle_error_ = std::atan2(y, a);
         *pitch_angle_error_ =
             -std::atan2(z * cp * cp - x * cp * sp + sp * b, -z * cp * sp + x * sp * sp + cp * b);
-    }
 
-    void update_angle_control_errors() {
+        if (*shoot_mode_ == rmcs_msgs::ShootMode::PRECISE) {
         *yaw_control_angle_ -= precise_joystick_sensitivity * joystick_left_->y()
                              + precise_mouse_sensitivity * mouse_velocity_->y();
-
         *pitch_control_angle_ += precise_joystick_sensitivity * joystick_left_->x()
-                               + precise_mouse_sensitivity * mouse_velocity_->x();
-        *pitch_control_angle_=std::clamp(*pitch_control_angle_,-0.595318,0.812755);
+                               - precise_mouse_sensitivity * mouse_velocity_->x();
+        *pitch_control_angle_ = std::clamp(*pitch_control_angle_, -0.595318, 0.812755);
+        }
     }
 
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
-    static constexpr double precise_joystick_sensitivity = 0.006;
-    static constexpr double precise_mouse_sensitivity    = 0.5;
+    static constexpr double precise_joystick_sensitivity = 0.003;
+    static constexpr double precise_mouse_sensitivity    = 0.25;
 
     InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;
@@ -230,6 +233,7 @@ private:
 
     OutputInterface<double> yaw_angle_error_, pitch_angle_error_;
     OutputInterface<double> pitch_control_angle_, yaw_control_angle_;
+    OutputInterface<double> pitch_control_angle_error_;
     OutputInterface<hardware::device::LkMotor::Mode> yaw_motor_mode_, pitch_motor_mode_;
     OutputInterface<double> yaw_velocity_limit_, pitch_velocity_limit_;
 

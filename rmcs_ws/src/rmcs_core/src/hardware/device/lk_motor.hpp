@@ -24,8 +24,8 @@ public:
         command_component.register_input(name_prefix + "/mode", mode_, false);
         command_component.register_input(
             name_prefix + "/control_velocity", control_velocity_, false);
-        command_component.register_input(
-            name_prefix + "/control_angle", control_angle_, false);
+        command_component.register_input(name_prefix + "/control_angle", control_angle_, false);
+        command_component.register_input(name_prefix + "/control_torque", control_torque_,false);
         command_component.register_input(name_prefix + "/velocity_limit", velocity_limit_, false);
     }
 
@@ -77,6 +77,13 @@ public:
             return std::numeric_limits<double>::quiet_NaN();
     }
 
+    double control_torque() const {
+        if (control_torque_.ready()) [[likely]]
+            return *control_torque_;
+        else
+            return std::numeric_limits<double>::quiet_NaN();
+    }
+
     uint64_t generate_command() {
         if (mode_.ready()) [[likely]] {
             uint64_t command{std::numeric_limits<uint64_t>::quiet_NaN()};
@@ -111,6 +118,7 @@ private:
     rmcs_executor::Component::InputInterface<Mode> mode_;
     rmcs_executor::Component::InputInterface<double> control_velocity_;
     rmcs_executor::Component::InputInterface<double> control_angle_;
+    rmcs_executor::Component::InputInterface<double> control_torque_;
     rmcs_executor::Component::InputInterface<double> velocity_limit_;
 };
 
