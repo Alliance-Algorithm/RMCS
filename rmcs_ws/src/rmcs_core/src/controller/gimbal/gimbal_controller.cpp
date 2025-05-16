@@ -54,7 +54,6 @@ public:
         register_output("/gimbal/pitch/control_angle_error", pitch_angle_error_, nan);
         register_output("/gimbal/pitch/control_angle", pitch_control_angle_, nan);
         register_output("/gimbal/yaw/control_angle", yaw_control_angle_, nan);
-        register_output("/gimbal/yaw/control_angle_error_test", pitch_control_angle_error_, nan);
     }
 
     void update() override {
@@ -81,9 +80,9 @@ public:
             }
 
             if (*shoot_mode_ == ShootMode::PRECISE) {
-            *pitch_motor_mode_ = hardware::device::LkMotor::Mode::Angle;
-            *yaw_motor_mode_   = hardware::device::LkMotor::Mode::Angle;
-            }else {
+                *pitch_motor_mode_ = hardware::device::LkMotor::Mode::Angle;
+                *yaw_motor_mode_   = hardware::device::LkMotor::Mode::Angle;
+            } else {
                 *pitch_motor_mode_ = hardware::device::LkMotor::Mode::Velocity;
                 *yaw_motor_mode_   = hardware::device::LkMotor::Mode::Velocity;
             }
@@ -192,16 +191,16 @@ private:
         double a = x * cp + z * sp;
         double b = std::sqrt(y * y + a * a);
 
-        *yaw_angle_error_ = std::atan2(y, a);
+        *yaw_angle_error_ = -std::atan2(y, a);
         *pitch_angle_error_ =
             -std::atan2(z * cp * cp - x * cp * sp + sp * b, -z * cp * sp + x * sp * sp + cp * b);
 
         if (*shoot_mode_ == rmcs_msgs::ShootMode::PRECISE) {
-        *yaw_control_angle_ -= precise_joystick_sensitivity * joystick_left_->y()
-                             + precise_mouse_sensitivity * mouse_velocity_->y();
-        *pitch_control_angle_ += precise_joystick_sensitivity * joystick_left_->x()
-                               - precise_mouse_sensitivity * mouse_velocity_->x();
-        *pitch_control_angle_ = std::clamp(*pitch_control_angle_, -0.595318, 0.812755);
+            *yaw_control_angle_ -= precise_joystick_sensitivity * joystick_left_->y()
+                                 + precise_mouse_sensitivity * mouse_velocity_->y();
+            *pitch_control_angle_ += precise_joystick_sensitivity * joystick_left_->x()
+                                   - precise_mouse_sensitivity * mouse_velocity_->x();
+            *pitch_control_angle_ = std::clamp(*pitch_control_angle_, -0.595318, 0.812755);
         }
     }
 
@@ -233,7 +232,6 @@ private:
 
     OutputInterface<double> yaw_angle_error_, pitch_angle_error_;
     OutputInterface<double> pitch_control_angle_, yaw_control_angle_;
-    OutputInterface<double> pitch_control_angle_error_;
     OutputInterface<hardware::device::LkMotor::Mode> yaw_motor_mode_, pitch_motor_mode_;
     OutputInterface<double> yaw_velocity_limit_, pitch_velocity_limit_;
 
