@@ -159,6 +159,10 @@ private:
             fast_tf::cast<rmcs_description::BaseLink>(*chassis_control_velocity_, *tf_).vector;
         chassis_control_velocity.head<2>() =
             Eigen::Rotation2Dd(-std::numbers::pi / 4) * chassis_control_velocity.head<2>();
+        Eigen::Vector2d err = chassis_control_velocity.head<2>() - translational_control_velocity;
+        translational_control_velocity = translational_control_velocity
+                                       + std::clamp(err.norm(), -0.002, 0.002) * err.normalized();
+        chassis_control_velocity.head<2>() = translational_control_velocity;
         return chassis_control_velocity;
     }
 
@@ -505,7 +509,7 @@ private:
     pid::PidCalculator chassis_angular_velocity_pid_;
 
     const Eigen::Vector4d cos_varphi_, sin_varphi_;
-
+    Eigen::Vector2d translational_control_velocity{0, 0};
     pid::MatrixPidCalculator<4> steering_velocity_pid_, steering_angle_pid_, wheel_velocity_pid_;
 };
 
