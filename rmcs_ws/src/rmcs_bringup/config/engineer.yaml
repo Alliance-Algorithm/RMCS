@@ -3,6 +3,7 @@ rmcs_executor:
     update_rate: 1000.0
     components:
       - rmcs_core::hardware::Engineer -> engineer_hardware
+      - rmcs_core::referee::Vision -> vision
       - rmcs_core::controller::arm::ArmController -> arm_controller
       - rmcs_core::controller::chassis::Chassis_and_LegController -> chassis_and_leg
       - rmcs_core::controller::pid::ErrorPidController -> joint6_angle_pid_controller
@@ -48,7 +49,7 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController -> leg_rb_velocity_pid_controller
 
       - rmcs_core::controller::pid::PidController -> arm_pump_velocity_pid_controller
-   
+
 engineer_hardware:
   ros__parameters:
     arm_board_usb_pid: 0x524f
@@ -66,15 +67,18 @@ engineer_hardware:
     joint3_qlim: [-1.0472,0.8727]    
     joint2_qlim: [-1.308,1.29719]    
     joint1_qlim: [-3.141592,3.141592]    
-    steering_lf_zero_point: 1330
-    steering_lb_zero_point: 1330 
-    steering_rb_zero_point: 7554
-    steering_rf_zero_point: 3348 
+    steering_lf_zero_point: 1365
+    steering_lb_zero_point: 1365
+    steering_rb_zero_point: 0
+    steering_rf_zero_point: 3348
     leg_lf_ecd_zero_point: 212582
-    leg_lb_ecd_zero_point: 268279
-    leg_rb_ecd_zero_point: 104085
+    leg_lb_ecd_zero_point: 237881
+    leg_rb_ecd_zero_point: 1828
     leg_rf_ecd_zero_point: 124431
     big_yaw_zero_point: 32073
+vision:
+  ros__parameters:
+    path: /dev/ttyACM0
 
 joint6_angle_pid_controller:
   ros__parameters:
@@ -306,7 +310,7 @@ leg_lb_error_pid_controller:
   ros__parameters:
     measurement: /leg/joint/lb/control_theta_error
     control: /leg/joint/lb/control_vel
-    kp: 14990.0
+    kp: 10990.0
     ki: 0.0
     kd: 0.0
 leg_lb_velocity_pid_controller:
@@ -322,7 +326,7 @@ leg_rb_error_pid_controller:
   ros__parameters:
     measurement: /leg/joint/rb/control_theta_error
     control: /leg/joint/rb/control_vel
-    kp: 14990.0
+    kp: 10990.0
     ki: 0.0
     kd: 0.0
 leg_rb_velocity_pid_controller:

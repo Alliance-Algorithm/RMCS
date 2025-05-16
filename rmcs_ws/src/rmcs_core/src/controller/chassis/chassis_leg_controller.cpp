@@ -89,14 +89,14 @@ public:
             "/chassis/big_yaw/target_angle_error", chassis_big_yaw_target_angle_error, NAN);
         register_input("/chassis/big_yaw/angle", chassis_big_yaw_angle);
 
-        std::array<double, 2> four_wheel_angle = leg_inverse_kinematic(234.4, 223.6, false, false);
+        std::array<double, 2> four_wheel_angle = leg_inverse_kinematic(239.4, 218.6, false, false);
         four_wheel_trajectory
             .set_end_point(
                 {four_wheel_angle[0], four_wheel_angle[1], four_wheel_angle[1], four_wheel_angle[0],
                  0, 0})
             .set_total_step(500.0);
         // six_wheel_trajectory
-        std::array<double, 2> six_wheel_angle = leg_inverse_kinematic(250.0, 226.0, false, false);
+        std::array<double, 2> six_wheel_angle = leg_inverse_kinematic(243.0, 217.0, false, false);
         six_wheel_trajectory
             .set_end_point(
                 {six_wheel_angle[0], six_wheel_angle[1], six_wheel_angle[1], six_wheel_angle[0], 0,
@@ -261,6 +261,7 @@ private:
                     if (*arm_mode == rmcs_msgs::ArmMode::Customer
                         || *arm_mode == rmcs_msgs::ArmMode::Vision_Exchange) {
                         leg_mode = rmcs_msgs::LegMode::Four_Wheel;
+                        chassis_mode =rmcs_msgs::ChassisMode::Flow;
                     } else {
                         chassis_mode       = ChassisMode::Yaw_Free;
                         is_yaw_imu_control = false;

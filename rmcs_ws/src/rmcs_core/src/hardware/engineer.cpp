@@ -374,7 +374,6 @@ private:
             joint[1].update_joint().change_theta_feedback_(joint2_encoder.get_angle());
             joint[0].update_joint();
             arm_pump.update();
-            RCLCPP_INFO(this->get_logger(),"%f",joint3_encoder.get_angle());
 
         }
 
@@ -424,42 +423,7 @@ private:
             dr16_.store_status(uart_data, uart_data_length);
         }
         void uart1_receive_callback(const std::byte* uart_data, uint8_t uart_data_length) override {
-            vision.emplace_back_multi(
-                [&uart_data](std::byte* storage) { *storage = *uart_data++; }, uart_data_length);
-
-            auto* front = vision.front();
-
-            if (front)
-                if (front && (int)*front == 0xA5 && vision.readable() >= 39) {
-                    std::byte rx_data[39];
-                    std::byte* rx_data_ptr = &rx_data[0];
-                    vision.pop_front_multi(
-                        [&rx_data_ptr](std::byte storage) { *rx_data_ptr++ = storage; }, 39);
-                    int16_t command;
-                    rx_data_ptr = &rx_data[0];
-                    command     = *reinterpret_cast<const int16_t*>(rx_data_ptr + 5);
-
-                    if (command == 0x302) {
-
-                        float theta1, theta2, theta3, theta4, theta5, theta6;
-                        uint8_t enable_;
-
-                        std::memcpy(&theta1, rx_data_ptr + 8, 4);
-                        std::memcpy(&theta2, rx_data_ptr + 12, 4);
-                        std::memcpy(&theta3, rx_data_ptr + 16, 4);
-                        std::memcpy(&theta4, rx_data_ptr + 20, 4);
-                        std::memcpy(&theta5, rx_data_ptr + 24, 4);
-                        std::memcpy(&theta6, rx_data_ptr + 28, 4);
-                        std::memcpy(&enable_, rx_data_ptr + 32, 1);
-
-                        *vision_theta1 = theta1;
-                        *vision_theta2 = theta2;
-                        *vision_theta3 = theta3;
-                        *vision_theta4 = theta4;
-                        *vision_theta5 = -theta5;
-                        *vision_theta6 = theta6;
-                    }
-                }
+           
         }
         void accelerometer_receive_callback(int16_t x, int16_t y, int16_t z) override {
             bmi088_.store_accelerometer_status(x, y, z);
@@ -568,17 +532,18 @@ private:
             for (auto& motor : Wheel_motors) {
                 motor.update();
             }
+// RCLCPP_INFO(this->get_logger(),"%f",Steering_motors[2].get_angle());
         }
         void command() {
             uint16_t command[4];
             command[0] = Steering_motors[0].generate_command();
             command[1] = Steering_motors[3].generate_command();
-            command[2] = Steering_motors[2].generate_command();
-            command[3] = Steering_motors[1].generate_command();
+            command[2] = Steering_motors[1].generate_command();
+            command[3] = Steering_motors[2].generate_command();
             transmit_buffer_.add_can2_transmission(0x1FE, std::bit_cast<uint64_t>(command));
-            command[0] = Wheel_motors[1].generate_command();
+            command[0] = Wheel_motors[2].generate_command();
             command[1] = Wheel_motors[3].generate_command();
-            command[2] = Wheel_motors[2].generate_command();
+            command[2] = Wheel_motors[1].generate_command();
             command[3] = Wheel_motors[0].generate_command();
             transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(command));
             transmit_buffer_.trigger_transmission();
@@ -594,10 +559,10 @@ private:
                 Steering_motors[0].store_status(can_data);
             }
             if (can_id == 0x208) {
-                Steering_motors[1].store_status(can_data);
+                Steering_motors[2].store_status(can_data);
             }
             if (can_id == 0x207) {
-                Steering_motors[2].store_status(can_data);
+                Steering_motors[1].store_status(can_data);
             }
             if (can_id == 0x206) {
                 Steering_motors[3].store_status(can_data);
@@ -613,10 +578,10 @@ private:
                 Wheel_motors[0].store_status(can_data);
             }
             if (can_id == 0x201) {
-                Wheel_motors[1].store_status(can_data);
+                Wheel_motors[2].store_status(can_data);
             }
             if (can_id == 0x203) {
-                Wheel_motors[2].store_status(can_data);
+                Wheel_motors[1].store_status(can_data);
             }
             if (can_id == 0x202) {
                 Wheel_motors[3].store_status(can_data);
@@ -711,6 +676,7 @@ private:
                 ecd.update();
             }
             big_yaw.update();
+
             // RCLCPP_INFO(this->get_logger(), "lf %f lb %f rb %f rf
             // %f",Leg_Motors[0].get_torque(),Leg_Motors[3].get_torque(),max_rb,max_rf);
             // RCLCPP_INFO(this->get_logger(), "lf %f rf %f  %f
@@ -735,7 +701,6 @@ private:
                 this->get_logger(), "lf %f lb %f rb %f rf %f", max_lf, max_lb, max_rb, max_rf);
         }
         void command() {
-
             uint16_t command_[4];
             auto is_chassis_and_leg_enable = *is_chassis_and_leg_enable_;
 

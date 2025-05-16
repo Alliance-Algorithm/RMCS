@@ -1,6 +1,7 @@
 #include "hardware/device/Kinematic.hpp"
 #include "hardware/device/drag_teach.hpp"
 #include "hardware/device/trajectory.hpp"
+#include "hardware/endian_promise.hpp"
 #include "hardware/fsm/FSM.hpp"
 #include "hardware/fsm/FSM_gold_l.hpp"
 #include "hardware/fsm/FSM_gold_m.hpp"
@@ -12,7 +13,10 @@
 #include <array>
 #include <bit>
 #include <cmath>
+#include <concepts>
+#include <cstdint>
 #include <eigen3/Eigen/Dense>
+#include <eigen3/Eigen/src/Core/util/Meta.h>
 #include <fstream>
 #include <numbers>
 #include <rclcpp/logging.hpp>
@@ -22,6 +26,9 @@
 #include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/switch.hpp>
+#include <rmcs_utility/crc/dji_crc.hpp>
+#include <rmcs_utility/package_receive.hpp>
+#include <rmcs_utility/tick_timer.hpp>
 
 namespace rmcs_core::controller::arm {
 class ArmController
@@ -40,6 +47,7 @@ public:
         register_input("/remote/mouse/velocity", mouse_velocity_);
         register_input("/remote/mouse", mouse_);
         register_input("/remote/keyboard", keyboard_);
+        register_input("/referee/vision/custom", custom_controller);
 
         register_input("/arm/Joint6/theta", theta[5]);
         register_input("/arm/Joint5/theta", theta[4]);
@@ -47,14 +55,6 @@ public:
         register_input("/arm/Joint3/theta", theta[2]);
         register_input("/arm/Joint2/theta", theta[1]);
         register_input("/arm/Joint1/theta", theta[0]);
-
-        register_input("/arm/Joint1/vision", vision_theta1);
-        register_input("/arm/Joint2/vision", vision_theta2);
-        register_input("/arm/Joint3/vision", vision_theta3);
-        register_input("/arm/Joint4/vision", vision_theta4);
-        register_input("/arm/Joint5/vision", vision_theta5);
-        register_input("/arm/Joint6/vision", vision_theta6);
-
         register_output("/arm/Joint6/target_theta", target_theta[5], nan);
         register_output("/arm/Joint5/target_theta", target_theta[4], nan);
         register_output("/arm/Joint4/target_theta", target_theta[3], nan);
@@ -83,21 +83,23 @@ public:
         register_output("/arm/mode", mode, rmcs_msgs::ArmMode::None);
     }
     void update() override {
-        auto switch_right                               = *switch_right_;
-        auto switch_left                                = *switch_left_;
-        auto mouse                                      = *mouse_;
-        auto keyboard                                   = *keyboard_;
-        std::array<double, 3> lift_start_point_position = {0.000001, -0.72, 0.18};
-        std::array<double, 3> lift_end_point_position   = {0.000001, -0.72, 0.14};
-        std::array<double, 3> lift_point_orientation    = {
-            -std::numbers::pi / 2.0, 0.0, -std::numbers::pi / 2.0};
 
-        std::array<double, 6> initial_joint_theta =
-            rmcs_core::hardware::device::Kinematic::arm_inverse_kinematic(
-                {lift_start_point_position[0], lift_start_point_position[1],
-                 lift_start_point_position[2], lift_point_orientation[0], lift_point_orientation[1],
-                 lift_point_orientation[2]});
-             RCLCPP_INFO(this->get_logger(),"%f %f %f %f %f%f",initial_joint_theta[0],initial_joint_theta[1],initial_joint_theta[2],initial_joint_theta[3],initial_joint_theta[4],initial_joint_theta[5]);
+        auto switch_right = *switch_right_;
+        auto switch_left  = *switch_left_;
+        auto mouse        = *mouse_;
+        auto keyboard     = *keyboard_;
+        // std::array<double, 3> lift_start_point_position = {0.000001, -0.72, 0.18};
+        // std::array<double, 3> lift_end_point_position   = {0.000001, -0.72, 0.14};
+        // std::array<double, 3> lift_point_orientation    = {
+        //     -std::numbers::pi / 2.0, 0.0, -std::numbers::pi / 2.0};
+
+        // std::array<double, 6> initial_joint_theta =
+        //     rmcs_core::hardware::device::Kinematic::arm_inverse_kinematic(
+        //         {lift_start_point_position[0], lift_start_point_position[1],
+        //          lift_start_point_position[2], lift_point_orientation[0],
+        //          lift_point_orientation[1], lift_point_orientation[2]});
+        //      RCLCPP_INFO(this->get_logger(),"%f %f %f %f
+        //      %f%f",initial_joint_theta[0],initial_joint_theta[1],initial_joint_theta[2],initial_joint_theta[3],initial_joint_theta[4],initial_joint_theta[5]);
         // test.positive_kinematic();
         // RCLCPP_INFO(
         //     this->get_logger(), "%f %F %F", test.get_roll(), test.get_pitch(), test.get_yaw());
@@ -186,6 +188,7 @@ public:
             case ArmMode::Auto_Walk: execute_walk(); break;
             case ArmMode::DT7_Control_Position: execute_dt7_position(); break;
             case ArmMode::DT7_Control_Orientation: execute_dt7_orientation(); break;
+            case ArmMode::Customer: execute_customer(); break;
             default: break;
             }
             if (switch_left == rmcs_msgs::Switch::DOWN
@@ -332,6 +335,23 @@ private:
             *arm_pump_target_vel = 0.0;
         }
     }
+    void execute_customer() {
+       
+        std::memcpy(customer_theta, custom_controller->begin() +1, sizeof(customer_theta));
+        double customer_[6];
+        for (int i = 0; i < 6; ++i) {
+            customer_[i] = customer_theta[i];
+        }
+        // RCLCPP_INFO(this->get_logger(),"%f %F %F %f %F %F",customer_[5],customer_[4],customer_[3],customer_[2],customer_[1],customer_[0]);
+        *target_theta[5] = customer_[5];
+        *target_theta[4] = customer_[4];
+        *target_theta[3] = customer_[3];
+        *target_theta[2] = customer_[2];
+        *target_theta[1] = customer_[1];
+        *target_theta[0] = customer_[0];
+
+
+    }
     // hardware::device::Kinematic test{*this};
     bool is_auto_exchange = false;
     // auto_mode_Fsm
@@ -348,6 +368,9 @@ private:
 
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
+    float customer_theta[6];
+    InputInterface<std::array<uint8_t, 30>> custom_controller;
+
     InputInterface<Eigen::Vector2d> joystick_right_;
     InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;
@@ -361,13 +384,6 @@ private:
 
     OutputInterface<double> arm_pump_target_vel;
     bool is_arm_pump_on = false;
-
-    InputInterface<double> vision_theta1;
-    InputInterface<double> vision_theta2;
-    InputInterface<double> vision_theta3;
-    InputInterface<double> vision_theta4;
-    InputInterface<double> vision_theta5;
-    InputInterface<double> vision_theta6;
 };
 } // namespace rmcs_core::controller::arm
 #include <pluginlib/class_list_macros.hpp>
