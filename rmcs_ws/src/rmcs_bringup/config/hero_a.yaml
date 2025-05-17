@@ -13,7 +13,6 @@ rmcs_executor:
       - rmcs_core::controller::gimbal::GimbalController -> gimbal_controller
       - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
-      # - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller_test
       
       - rmcs_core::controller::gimbal::ShootingController -> shooting_controller
       - rmcs_core::controller::pid::PidController -> second_left_friction_velocity_pid_controller
@@ -35,14 +34,6 @@ rmcs_executor:
       # - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
       # - rmcs_auto_aim::AutoAimController -> auto_aim_controller
 
-pitch_angle_pid_controller_test:
-  ros__parameters:
-    measurement: /gimbal/pitch/control_angle_error_test
-    control: /gimbal/pitch/control_torque
-    kp: 50.00
-    ki: 0.0
-    kd: 0.0
-
 value_broadcaster:
   ros__parameters:
     forward_list:
@@ -50,7 +41,7 @@ value_broadcaster:
       - /gimbal/second_left_friction/velocity
       - /gimbal/first_right_friction/velocity
       - /gimbal/second_right_friction/velocity
-      # - /gimbal/yaw/angle
+      - /gimbal/yaw/angle
       # - /gimbal/pitch/angle
       - /gimbal/scope/velocity
 
@@ -73,7 +64,7 @@ yaw_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/yaw/control_angle_error
     control: /gimbal/yaw/control_velocity
-    kp: 16.0
+    kp: 30.0
     ki: 0.0
     kd: 0.0
 

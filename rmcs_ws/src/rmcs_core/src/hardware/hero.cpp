@@ -190,7 +190,7 @@ private:
                                gimbal_pitch_motor_.control_velocity()));
             else if (gimbal_pitch_motor_.mode() == device::LkMotor::Mode::Angle) {
                 const auto control_angle = -gimbal_pitch_motor_.control_angle() + pitch_zero_point;
-                
+
                 transmit_buffer_.add_can2_transmission(
                     0x142, gimbal_pitch_motor_.generate_angle_command(
                                control_angle, gimbal_pitch_motor_.velocity_limit()));
@@ -333,7 +333,7 @@ private:
                   hero, hero_command, "/gimbal/yaw",
                   device::LkMotor::Config{device::LkMotor::Type::MG5010E_I10}
                       .enable_multi_turn_angle()
-                      .set_reversed()
+                    //   .set_reversed()
                       .set_encoder_zero_point(
                           static_cast<int>(hero.get_parameter("yaw_motor_zero_point").as_int())))
             , gimbal_bullet_feeder_(

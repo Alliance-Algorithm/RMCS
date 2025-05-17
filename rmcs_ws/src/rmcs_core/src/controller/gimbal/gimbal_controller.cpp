@@ -67,15 +67,11 @@ public:
         using namespace rmcs_msgs;
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
-            test_ = true;
             reset_all_controls();
         } else {
-            // change to
-            // last_shoot_mode_ != ShootMode::PRECISE && *shoot_mode_ == ShootMode::PRECISE;
-            if (test_) {
+            if (last_shoot_mode_ != ShootMode::PRECISE&&* shoot_mode_ == ShootMode::PRECISE) {
                 *pitch_control_angle_ = -*gimbal_pitch_angle_;
                 *yaw_control_angle_   = *gimbal_yaw_angle_;
-                test_ = false;
             }
 
             if (*shoot_mode_ == ShootMode::PRECISE) {
@@ -190,7 +186,7 @@ private:
         double a = x * cp + z * sp;
         double b = std::sqrt(y * y + a * a);
 
-        *yaw_angle_error_ = -std::atan2(y, a);
+        *yaw_angle_error_ = std::atan2(y, a);
         *pitch_angle_error_ =
             -std::atan2(z * cp * cp - x * cp * sp + sp * b, -z * cp * sp + x * sp * sp + cp * b);
 
@@ -233,8 +229,6 @@ private:
     OutputInterface<double> pitch_control_angle_, yaw_control_angle_;
     OutputInterface<hardware::device::LkMotor::Mode> yaw_motor_mode_, pitch_motor_mode_;
     OutputInterface<double> yaw_velocity_limit_, pitch_velocity_limit_;
-
-    bool test_{true};
 };
 
 } // namespace rmcs_core::controller::gimbal
