@@ -1,4 +1,3 @@
-#include <algorithm>
 #include <cmath>
 
 #include <limits>
@@ -40,7 +39,6 @@ public:
         register_input("/gimbal/shooter/mode", shoot_mode_);
 
         register_input("/gimbal/auto_aim/control_direction", auto_aim_control_direction_, false);
-        register_input("/chassis/control_velocity", chassis_control_velocity_);
 
         register_output("/gimbal/yaw/control_angle_error", yaw_angle_error_, nan);
         register_output("/gimbal/pitch/control_angle_error", pitch_angle_error_, nan);
@@ -63,8 +61,7 @@ public:
             if (auto_aim_control_direction_.ready() && (mouse.right || switch_right == Switch::UP)
                 && !auto_aim_control_direction_->isZero()) {
                 update_auto_aim_control_direction(dir);
-            } else if (mouse.right || switch_right == Switch::UP) {
-                update_cruise_control_direction(dir);
+
             } else {
                 update_manual_control_direction(dir);
             }
@@ -100,35 +97,6 @@ private:
         control_enabled = true;
     }
 
-    void update_cruise_control_direction(PitchLink::DirectionVector& dir) {
-        if (control_enabled)
-            dir = fast_tf::cast<PitchLink>(control_direction_, *tf_);
-        else {
-            auto odom_dir =
-                fast_tf::cast<OdomImu>(PitchLink::DirectionVector{Eigen::Vector3d::UnitX()}, *tf_);
-            if (odom_dir->x() == 0 || odom_dir->y() == 0)
-                return;
-            odom_dir->z() = 0;
-
-            dir = fast_tf::cast<PitchLink>(odom_dir, *tf_);
-            dir->normalize();
-            control_enabled = true;
-        }
-
-        double angle;
-        Eigen::Vector2d translational_velocity{
-            (*chassis_control_velocity_)->x(), (*chassis_control_velocity_)->y()};
-
-        if (!std::isnan(translational_velocity.x()) && translational_velocity.norm() < 0.1)
-            angle = atan2(translational_velocity.x(), translational_velocity.y());
-        else
-            angle = std::numbers::pi / 6 / 20;
-
-        std::clamp(angle, -std::numbers::pi / 6 / 20, std::numbers::pi / 6 / 20);
-        YawLink::DirectionVector forward{cos(angle), sin(angle), 0};
-
-        dir = fast_tf::cast<PitchLink>(forward, *tf_);
-    }
     void update_manual_control_direction(PitchLink::DirectionVector& dir) {
         if (control_enabled)
             dir = fast_tf::cast<PitchLink>(control_direction_, *tf_);
@@ -211,7 +179,6 @@ private:
     OdomImu::DirectionVector yaw_axis_filtered_{Eigen::Vector3d::UnitZ()};
     double upper_limit_, lower_limit_;
 
-    InputInterface<rmcs_description::YawLink::DirectionVector> chassis_control_velocity_;
     OutputInterface<double> yaw_angle_error_, pitch_angle_error_;
 };
 

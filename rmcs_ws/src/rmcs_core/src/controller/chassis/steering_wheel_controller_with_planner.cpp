@@ -422,7 +422,7 @@ private:
 
     void update_wheel_torques(
         const Eigen::Vector4d& wheel_velocities, const SteeringStatus& steering_status,
-        const ChassisStatus& chassis_status_expected, const Eigen::Vector3d& chassis_acceleration) {
+        const ChassisStatus& chassis_status_expected, const Eigen::Vector3d&) {
 
         // const auto& [ax, ay, az]      = chassis_acceleration;
         Eigen::Vector4d wheel_torques = {0, 0, 0, 0};
