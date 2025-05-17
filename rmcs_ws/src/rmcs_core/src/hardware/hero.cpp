@@ -190,7 +190,7 @@ private:
                                gimbal_pitch_motor_.control_velocity()));
             else if (gimbal_pitch_motor_.mode() == device::LkMotor::Mode::Angle) {
                 const auto control_angle = -gimbal_pitch_motor_.control_angle() + pitch_zero_point;
-
+                
                 transmit_buffer_.add_can2_transmission(
                     0x142, gimbal_pitch_motor_.generate_angle_command(
                                control_angle, gimbal_pitch_motor_.velocity_limit()));
@@ -241,7 +241,7 @@ private:
                 gimbal_pitch_motor_.store_status(can_data);
             } else if (can_id == 0x141) {
                 gimbal_player_viewer_motor_.store_status(can_data);
-            }
+            } 
         }
 
         void uart1_receive_callback(const std::byte* data, uint8_t length) override {
@@ -332,7 +332,8 @@ private:
             , gimbal_yaw_motor_(
                   hero, hero_command, "/gimbal/yaw",
                   device::LkMotor::Config{device::LkMotor::Type::MG5010E_I10}
-                      .enable_multi_turn_angle().set_reversed()
+                      .enable_multi_turn_angle()
+                      .set_reversed()
                       .set_encoder_zero_point(
                           static_cast<int>(hero.get_parameter("yaw_motor_zero_point").as_int())))
             , gimbal_bullet_feeder_(
@@ -394,7 +395,8 @@ private:
                     0x141, gimbal_yaw_motor_.generate_velocity_command(
                                gimbal_yaw_motor_.control_velocity() - imu_.gz()));
             } else if (gimbal_yaw_control_mode_ == device::LkMotor::Mode::Angle) {
-                const auto control_angle = gimbal_yaw_motor_.control_angle()+gimbal_yaw_motor_.zero_point();
+                const auto control_angle =
+                    gimbal_yaw_motor_.control_angle() + gimbal_yaw_motor_.zero_point();
 
                 transmit_buffer_.add_can2_transmission(
                     0x141, gimbal_yaw_motor_.generate_angle_command(

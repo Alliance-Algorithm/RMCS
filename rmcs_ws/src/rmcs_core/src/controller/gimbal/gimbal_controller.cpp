@@ -75,7 +75,6 @@ public:
             if (test_) {
                 *pitch_control_angle_ = -*gimbal_pitch_angle_;
                 *yaw_control_angle_   = *gimbal_yaw_angle_;
-                LOG_INFO("debug:%f", *gimbal_yaw_angle_);
                 test_ = false;
             }
 

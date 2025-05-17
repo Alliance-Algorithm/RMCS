@@ -49,6 +49,10 @@ public:
             if (!last_keyboard_.e && keyboard.e)
                 viewer_reset_ = true;
             update_viewer_control_error();
+            if (reset_flag_) {
+                *scope_control_torque_ = -0.2;
+                reset_flag_            = false;
+            }
             if (!last_keyboard_.q && keyboard.q) {
                 if (scope_active_) {
                     *scope_control_torque_ = 0.2;
@@ -67,6 +71,7 @@ private:
         *scope_control_torque_ = nan_;
         scope_active_          = true;
         viewer_reset_          = true;
+        reset_flag_            = true;
     }
 
     void update_viewer_control_error() {
@@ -74,7 +79,7 @@ private:
             *viewer_control_angle_ = upper_limit_;
             viewer_reset_          = false;
         } else {
-            *viewer_control_angle_ += 0.01**mouse_wheel_;
+            *viewer_control_angle_ += 0.01 * *mouse_wheel_;
         }
         *viewer_control_angle_ = std::clamp(*viewer_control_angle_, lower_limit_, upper_limit_);
     }
@@ -104,6 +109,7 @@ private:
 
     bool scope_active_{true};
     bool viewer_reset_{true};
+    bool reset_flag_{true};
 };
 } // namespace rmcs_core::controller::gimbal
 

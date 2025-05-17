@@ -50,8 +50,9 @@ value_broadcaster:
       - /gimbal/second_left_friction/velocity
       - /gimbal/first_right_friction/velocity
       - /gimbal/second_right_friction/velocity
-      - /gimbal/yaw/angle
-      - /gimbal/pitch/angle
+      # - /gimbal/yaw/angle
+      # - /gimbal/pitch/angle
+      - /gimbal/scope/velocity
 
 hero_hardware:
   ros__parameters:
