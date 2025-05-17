@@ -40,6 +40,7 @@ inline void set_bool(const ServiceContext& context, bool data) {
 
 } // namespace internal
 
+// NOTE: suspend function
 inline void switch_record(rclcpp::Node& node, bool data, const CommonCallback& callback) {
     internal::set_bool({node, "/rmcs_slam/switch_record", callback}, data);
 }
