@@ -142,7 +142,7 @@ private:
             *robot_chassis_power_limit_ = std::numeric_limits<double>::infinity();
         else
             *robot_chassis_power_limit_ = static_cast<double>(data.chassis_power_limit);
-        *chassis_output_status_     = static_cast<bool>(data.power_management_chassis_output);
+        *chassis_output_status_ = static_cast<bool>(data.power_management_chassis_output);
     }
 
     void update_power_heat_data() {
@@ -176,7 +176,7 @@ private:
     // use these indicators make sure the robot safe.
     // Muzzle: Cooling priority with level 1
     static constexpr int64_t safe_shooter_cooling    = 40;
-    static constexpr int64_t safe_shooter_heat_limit = 50'000;
+    static constexpr int64_t safe_shooter_heat_limit = 50000'000;
     // Chassis: Health priority with level 1
     static constexpr double safe_chassis_power_limit = 45;
 
