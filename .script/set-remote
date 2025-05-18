@@ -11,7 +11,9 @@ def main():
     if len(sys.argv) <= 1 or len(sys.argv) > 2 or sys.argv[1] in ("-h", "--help"):
         print("Usage: set-remote <remote_host>")
         print("    1. IPv4 / IPv6 address (e.g., 169.254.233.233)")
-        print("    2. IPv4 / IPv6 link-local address (e.g., fe80::c6d0:e3ff:fed7:ed12%eth0)")
+        print(
+            "    2. IPv4 / IPv6 link-local address (e.g., fe80::c6d0:e3ff:fed7:ed12%eth0)"
+        )
         print("    3. mDNS hostname (e.g., my-sentry.local)")
         sys.exit(1)
 
@@ -44,8 +46,8 @@ def mdns_lookup(hostname):
     dns_query.qd[0].type = dpkt.dns.DNS_AAAA
     dns_query_packet6 = dns_query.pack()
 
-    socks = []
-    sock_info = {}
+    socks = {}
+    sock_groups = []
 
     print("Sending mDNS query packet to interfaces...")
     for interface, addresses in psutil.net_if_addrs().items():
@@ -66,6 +68,8 @@ def mdns_lookup(hostname):
             elif addr.family == socket.AF_INET6:
                 if addr.address.startswith("fe80"):
                     interface_ip6 = addr.address
+
+        sock_group = [interface, None, None]
 
         if interface_ip4 is not None:
             multicast_group4 = "224.0.0.251"  # IPv4 mDNS multicast group
@@ -96,13 +100,11 @@ def mdns_lookup(hostname):
 
             sock4.sendto(dns_query_packet4, (multicast_group4, mdns_udp_port))
             sock4.sendto(dns_query_packet6, (multicast_group4, mdns_udp_port))
-            print(
-                f"{Fore.LIGHTGREEN_EX}Query sent successfully (IPv4).{Style.RESET_ALL}"
-            )
 
-            sock_info[sock4] = (interface, "IPv4")
-            socks.append(sock4)
-        elif interface_ip6 is not None:
+            sock_group[1] = sock4
+            socks[sock4] = interface
+
+        if interface_ip6 is not None:
             multicast_group6 = "ff02::fb"  # IPv6 mDNS multicast group
 
             sock6 = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
@@ -131,19 +133,29 @@ def mdns_lookup(hostname):
             )
 
             sock6.sendto(dns_query_packet6, (multicast_group6, mdns_udp_port))
-            print(
-                f"{Fore.LIGHTGREEN_EX}Query sent successfully (IPv6).{Style.RESET_ALL}"
-            )
 
-            sock_info[sock6] = (interface, "IPv6")
-            socks.append(sock6)
+            sock_group[2] = sock6
+            socks[sock6] = interface
+
+        if interface_ip4 is not None and interface_ip6 is not None:
+            ip_version = "IPv4 & IPv6"
+        elif interface_ip4 is not None:
+            ip_version = "IPv4"
+        elif interface_ip6 is not None:
+            ip_version = "IPv6"
         else:
             print(f"{Fore.LIGHTBLACK_EX}Skipped (interface down).{Style.RESET_ALL}")
+            continue
+
+        print(
+            f"{Fore.LIGHTGREEN_EX}Query sent successfully ({ip_version}).{Style.RESET_ALL}"
+        )
+        sock_groups.append(sock_group)
 
     discovered_list = []
 
     while True:
-        ready_socks, _, _ = select.select(socks, [], [], 1.0)
+        ready_socks, _, _ = select.select(socks.keys(), [], [], 1.0)
 
         if not ready_socks:
             index = input(
@@ -157,19 +169,25 @@ def mdns_lookup(hostname):
                 return ip
             else:
                 print("\033[A\r\033[KRe-sending mDNS query packet...")
-                for sock in socks:
-                    interface, ip_version = sock_info[sock]
-                    if ip_version == "IPv4":
-                        sock.sendto(
+                for interface, sock4, sock6 in sock_groups:
+                    if sock4 is not None:
+                        sock4.sendto(
                             dns_query_packet4, (multicast_group4, mdns_udp_port)
                         )
-                        sock.sendto(
+                        sock4.sendto(
                             dns_query_packet6, (multicast_group4, mdns_udp_port)
                         )
-                    elif ip_version == "IPv6":
-                        sock.sendto(
+                    if sock6 is not None:
+                        sock6.sendto(
                             dns_query_packet6, (multicast_group6, mdns_udp_port)
                         )
+
+                    if sock4 is not None and sock6 is not None:
+                        ip_version = "IPv4 & IPv6"
+                    elif sock4 is not None:
+                        ip_version = "IPv4"
+                    elif sock6 is not None:
+                        ip_version = "IPv6"
                     print(
                         f"    - {interface}: "
                         f"{Fore.LIGHTGREEN_EX}Query re-sent successfully ({ip_version}).{Style.RESET_ALL}"
@@ -196,7 +214,7 @@ def mdns_lookup(hostname):
             elif dns.an[0].type == dpkt.dns.DNS_AAAA:
                 ip = socket.inet_ntop(socket.AF_INET6, dns.an[0].rdata)
                 if ip.startswith("fe80"):
-                    interface, _ = sock_info[sock]
+                    interface = socks[sock]
                     ip = f"{ip}%{interface}"
             else:
                 continue
