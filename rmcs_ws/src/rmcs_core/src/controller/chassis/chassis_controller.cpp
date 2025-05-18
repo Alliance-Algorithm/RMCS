@@ -6,6 +6,7 @@
 #include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/switch.hpp>
+#include <shoot_mode.hpp>
 
 #include "controller/pid/pid_calculator.hpp"
 
@@ -32,8 +33,22 @@ public:
         register_input("/remote/keyboard", keyboard_);
         register_input("/remote/rotary_knob", rotary_knob_);
 
-        register_input("/gimbal/yaw/angle", gimbal_yaw_angle_, false);
-        register_input("/gimbal/yaw/control_angle_error", gimbal_yaw_angle_error_, false);
+        bool is_dual_yaw;
+        if (get_parameter("is_dual_yaw", is_dual_yaw) && is_dual_yaw) {
+            auto gimbal_yaw_motors = get_parameter("gimbal_yaw_motors").as_string_array();
+            if (gimbal_yaw_motors.size() == 0)
+                throw std::runtime_error("Empty array error: 'gimbal_yaw_motors' cannot be empty!");
+
+            size_t gimbal_yaw_motors_counts = gimbal_yaw_motors.size();
+            register_input(
+                gimbal_yaw_motors[gimbal_yaw_motors_counts - 1] + "/angle", gimbal_yaw_angle_);
+            register_input(
+                gimbal_yaw_motors[gimbal_yaw_motors_counts - 1] + "/control_angle_error",
+                gimbal_yaw_angle_error_);
+        } else {
+            register_input("/gimbal/yaw/angle", gimbal_yaw_angle_, false);
+            register_input("/gimbal/yaw/control_angle_error", gimbal_yaw_angle_error_, false);
+        }
 
         register_input("/chassis/supercap/voltage", supercap_voltage_, false);
         register_input("/chassis/supercap/enabled", supercap_enabled_, false);
@@ -166,26 +181,25 @@ public:
         auto translational_velocity = update_translational_velocity_control();
         auto angular_velocity       = update_angular_velocity_control();
 
-        *chassis_control_velocity_ = {
-            translational_velocity.x(), translational_velocity.y(), angular_velocity};
+        chassis_control_velocity_->vector << translational_velocity, angular_velocity;
     }
 
     Eigen::Vector2d update_translational_velocity_control() {
         auto keyboard = *keyboard_;
         Eigen::Vector2d keyboard_move{keyboard.w - keyboard.s, keyboard.a - keyboard.d};
 
-        Eigen::Vector2d translational_velocity =
-            Eigen::Rotation2Dd{*gimbal_yaw_angle_} * (*joystick_right_ + keyboard_move);
+        Eigen::Vector2d translational_velocity = *joystick_right_ + keyboard_move;
 
         if (translational_velocity.norm() > 1.0)
             translational_velocity.normalize();
 
         translational_velocity *= translational_velocity_max;
+
         return translational_velocity;
     }
 
     double update_angular_velocity_control() {
-        double angular_velocity      = nan;
+        double angular_velocity      = 0.0;
         double chassis_control_angle = nan;
 
         switch (*mode_) {
@@ -259,6 +273,11 @@ public:
             --supercap_switch_cooling_;
         }
 
+        if (*chassis_power_limit_referee_ == inf) {
+            *chassis_control_power_limit_ = inf;
+            return;
+        }
+
         double power_limit_after_buffer_energy_closed_loop =
             *chassis_power_limit_referee_
                 * std::clamp(
@@ -297,8 +316,8 @@ private:
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
     // Maximum control velocities
-    static constexpr double translational_velocity_max = 8.0;
-    static constexpr double angular_velocity_max       = 10.0;
+    static constexpr double translational_velocity_max = 10.0;
+    static constexpr double angular_velocity_max       = 16.0;
 
     // Maximum excess power when buffer energy is sufficient.
     static constexpr double excess_power_limit = 35;
@@ -336,7 +355,7 @@ private:
     bool spinning_forward_ = true;
     pid::PidCalculator following_velocity_controller_;
 
-    OutputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;
+    OutputInterface<rmcs_description::YawLink::DirectionVector> chassis_control_velocity_;
 
     InputInterface<double> supercap_voltage_;
     InputInterface<bool> supercap_enabled_;

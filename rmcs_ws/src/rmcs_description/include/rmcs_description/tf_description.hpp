@@ -1,6 +1,7 @@
 #pragma once
 
 #include <fast_tf/fast_tf.hpp>
+
 #include <fast_tf/impl/link.hpp>
 
 namespace rmcs_description {
@@ -22,6 +23,10 @@ struct MuzzleLink : fast_tf::Link<MuzzleLink> {
 
 struct CameraLink : fast_tf::Link<CameraLink> {
     static constexpr char name[] = "camera_link";
+};
+
+struct ViewerLink : fast_tf::Link<ViewerLink> {
+    static constexpr char name[] = "viewer_link";
 };
 
 struct TransmitterLink : fast_tf::Link<TransmitterLink> {
@@ -119,6 +124,16 @@ struct fast_tf::Joint<rmcs_description::OdomImu> : fast_tf::ModificationTrackabl
 };
 
 template <>
+struct fast_tf::Joint<rmcs_description::ViewerLink> : fast_tf::ModificationTrackable {
+    using Parent = rmcs_description::PitchLink;
+
+    void set_state(double angle) { angle_ = angle; }
+    auto get_transform() const { return Eigen::AngleAxisd{angle_, Eigen::Vector3d::UnitY()}; };
+
+private:
+    double angle_;
+};
+template <>
 struct fast_tf::Joint<rmcs_description::LeftFrontWheelLink> : fast_tf::ModificationTrackable {
     using Parent                = rmcs_description::BaseLink;
     Eigen::Isometry3d transform = Eigen::Isometry3d::Identity();
@@ -166,11 +181,15 @@ namespace rmcs_description {
 
 using Tf = fast_tf::JointCollection<
     GimbalCenterLink, YawLink, PitchLink, MuzzleLink, TransmitterLink, CameraLink, OdomImu,
-    LeftFrontWheelLink, LeftBackWheelLink, RightBackWheelLink, RightFrontWheelLink>;
+    LeftFrontWheelLink, LeftBackWheelLink, RightBackWheelLink, RightFrontWheelLink, ViewerLink>;
 
 using InfantryTf = fast_tf::JointCollection<
     GimbalCenterLink, YawLink, PitchLink, MuzzleLink, TransmitterLink, CameraLink, OdomImu,
     LeftFrontWheelLink, LeftBackWheelLink, RightBackWheelLink, RightFrontWheelLink>;
+
+using HeroTf = fast_tf::JointCollection<
+    GimbalCenterLink, YawLink, PitchLink, MuzzleLink, TransmitterLink, CameraLink, OdomImu,
+    LeftFrontWheelLink, LeftBackWheelLink, RightBackWheelLink, RightFrontWheelLink, ViewerLink>;
 
 using AutoAimTf = fast_tf::JointCollection<MuzzleLink, TransmitterLink, CameraLink, OdomImu>;
 

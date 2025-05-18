@@ -1,12 +1,12 @@
 #pragma once
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
 
-#include <algorithm>
 #include <bit>
-#include <numbers>
+#include <tuple>
 
 #include <rmcs_msgs/robot_color.hpp>
 
@@ -16,7 +16,8 @@ namespace rmcs_core::referee::app::ui {
 
 class StatusRing {
 public:
-    StatusRing() {
+    StatusRing(
+        double supercap_limit, double battery_limit, double friction_limit, int16_t bullet_limit) {
         supercap_status_.set_x(x_center);
         supercap_status_.set_y(y_center);
         supercap_status_.set_r(visible_radius - width_ring);
@@ -106,32 +107,92 @@ public:
         arc_right_down_.set_color(Shape::Color::WHITE);
         arc_right_down_.set_visible(true);
 
-        // Integer
-        supercap_voltage_.set_color(Shape::Color::WHITE);
-        supercap_voltage_.set_font_size(15);
-        supercap_voltage_.set_width(2);
-        supercap_voltage_.set_x(x_center - 200);
-        supercap_voltage_.set_y(y_center + 25);
-        supercap_voltage_.set_value(0);
-        supercap_voltage_.set_visible(true);
+        set_limits(supercap_limit, battery_limit, friction_limit, bullet_limit);
+    }
 
-        battery_voltage_.set_color(Shape::Color::WHITE);
-        battery_voltage_.set_font_size(15);
-        battery_voltage_.set_width(2);
-        battery_voltage_.set_x(x_center - 200);
-        battery_voltage_.set_y(y_center - 10);
-        battery_voltage_.set_value(0);
-        battery_voltage_.set_visible(true);
+    void set_visible(bool value) {
+        // Dynamic
+        supercap_status_.set_visible(value);
+        battery_status_.set_visible(value);
+        friction_wheel_speed_.set_visible(value);
+        bullet_status_.set_visible(value);
 
-        bullet_allowance_.set_color(Shape::Color::WHITE);
-        bullet_allowance_.set_font_size(15);
-        bullet_allowance_.set_width(2);
-        bullet_allowance_.set_x(x_center + 100);
-        bullet_allowance_.set_y(y_center - 10);
-        bullet_allowance_.set_value(0);
-        bullet_allowance_.set_visible(true);
+        // Static
+        line_left_center_.set_visible(value);
+        line_right_center_.set_visible(value);
+        arc_left_up_.set_visible(value);
+        arc_left_down_.set_visible(value);
+        arc_right_up_.set_visible(value);
+        arc_right_down_.set_visible(value);
 
-        set_limits(26.5, 26.5, 800, 300);
+        for (auto& scale : bullet_scales_)
+            scale.set_visible(value);
+        for (auto& number : bullet_scales_number_)
+            number.set_visible(value);
+    }
+
+    void update_static_parts(std::tuple<bool, bool> enable) {
+        auto& [auto_aim_enable, precise_enable] = enable;
+        auto static_enable                      = auto_aim_enable || precise_enable;
+
+        static auto color{Shape::Color::WHITE};
+
+        if (auto_aim_enable) {
+            color = Shape::Color::GREEN;
+        } else {
+            if (precise_enable) {
+                color = Shape::Color::CYAN;
+            }
+        }
+        if (!static_enable) {
+            color = Shape::Color::WHITE;
+        }
+
+        update_static_enable(static_enable, color);
+    }
+
+    void update_static_enable(bool enable, Shape::Color color) {
+        static bool enable_last_{false};
+
+        arc_left_up_.set_color(color);
+        arc_left_down_.set_color(color);
+        arc_right_up_.set_color(color);
+        arc_right_down_.set_color(color);
+        if (enable == enable_last_)
+            return;
+
+        if (enable) {
+            arc_left_up_.set_width(width_ring + 50);
+            arc_left_down_.set_width(width_ring + 50);
+            arc_right_up_.set_width(width_ring + 50);
+            arc_right_down_.set_width(width_ring + 50);
+
+            arc_left_up_.set_angle_start(275 + visible_angle + 1);
+            arc_left_up_.set_angle_end(275 + visible_angle + 2);
+            arc_left_down_.set_angle_start(265 - visible_angle - 2);
+            arc_left_down_.set_angle_end(265 - visible_angle - 1);
+            arc_right_up_.set_angle_start(85 - visible_angle - 2);
+            arc_right_up_.set_angle_end(85 - visible_angle - 1);
+            arc_right_down_.set_angle_start(95 + visible_angle + 1);
+            arc_right_down_.set_angle_end(95 + visible_angle + 2);
+
+        } else {
+            arc_left_up_.set_width(width_ring + 10);
+            arc_left_down_.set_width(width_ring + 10);
+            arc_right_up_.set_width(width_ring + 10);
+            arc_right_down_.set_width(width_ring + 10);
+
+            arc_left_up_.set_angle_start(275 + visible_angle + 1);
+            arc_left_up_.set_angle_end(275 + visible_angle + 3);
+            arc_left_down_.set_angle_start(265 - visible_angle - 3);
+            arc_left_down_.set_angle_end(265 - visible_angle - 1);
+            arc_right_up_.set_angle_start(85 - visible_angle - 3);
+            arc_right_up_.set_angle_end(85 - visible_angle - 1);
+            arc_right_down_.set_angle_start(95 + visible_angle + 1);
+            arc_right_down_.set_angle_end(95 + visible_angle + 3);
+        }
+
+        enable_last_ = enable;
     }
 
     void update_auto_aim_enable(bool enable) {
@@ -185,8 +246,6 @@ public:
     }
 
     void update_supercap(double value, bool enable) {
-        supercap_voltage_.set_value(value);
-
         auto angle = 275 + calculate_angle(value, 10.5, supercap_limit_) + 1;
         supercap_status_.set_angle_end(static_cast<uint16_t>(angle));
 
@@ -200,8 +259,6 @@ public:
     }
 
     void update_battery_power(double value) {
-        battery_voltage_.set_value(value);
-
         auto angle = 265 - calculate_angle(value, 20, 25.7) - 1;
         battery_status_.set_angle_start(static_cast<uint16_t>(angle));
 
@@ -230,16 +287,13 @@ public:
     void update_bullet_allowance(uint16_t value) {
         auto allowance = std::bit_cast<int16_t>(value);
 
-        // real number
-        bullet_allowance_.set_value(allowance);
-
         // limit ring
         auto angle = 95 + calculate_angle(allowance, 0, bullet_limit_) + 1;
         bullet_status_.set_angle_end(static_cast<uint16_t>(angle));
 
-        if (allowance < 25) {
+        if (allowance < bullet_limit_ / 8) {
             bullet_status_.set_color(Shape::Color::PINK);
-        } else if (allowance < 50) {
+        } else if (allowance < bullet_limit_ / 4) {
             bullet_status_.set_color(Shape::Color::ORANGE);
         } else {
             bullet_status_.set_color(Shape::Color::GREEN);
@@ -306,15 +360,12 @@ private:
 
     // Dynamic part
     Arc supercap_status_;
-    Float supercap_voltage_;
 
     Arc battery_status_;
-    Float battery_voltage_;
 
     Arc friction_wheel_speed_;
 
     Arc bullet_status_;
-    Integer bullet_allowance_;
 
     // Static part
     Line line_left_center_;

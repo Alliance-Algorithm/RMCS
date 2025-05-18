@@ -1,6 +1,9 @@
+#include <cmath>
+
 #include <eigen3/Eigen/Dense>
-#include <fast_tf/rcl.hpp>
 #include <rclcpp/node.hpp>
+#include <std_msgs/msg/float64.hpp>
+
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/mouse.hpp>
@@ -8,6 +11,7 @@
 #include <rmcs_msgs/switch.hpp>
 
 namespace rmcs_core::controller::gimbal {
+
 class PlayerViewer
     : public rmcs_executor::Component
     , public rclcpp::Node {
@@ -15,61 +19,105 @@ public:
     PlayerViewer()
         : rclcpp::Node(
               get_component_name(),
-              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
+        , upper_limit_(get_parameter("upper_limit").as_double())
+        , lower_limit_(get_parameter("lower_limit").as_double()) {
         register_input("/remote/switch/right", switch_right_);
         register_input("/remote/switch/left", switch_left_);
-        register_input("/remote/mouse", mouse_);
+        register_input("/remote/mouse/mouse_wheel", mouse_wheel_);
         register_input("/remote/keyboard", keyboard_);
 
-        register_output("/gimbal/player_viewer/control_torque", control_torque_view_, 0);
-        register_output("/gimbal/scope/control_torque", control_torque_scope_, 0);
+        register_input("/gimbal/player_viewer/angle", gimbal_player_viewer_angle_);
+
+        register_output(
+            "/gimbal/player_viewer/delta_angle", viewer_delta_angle_by_mouse_wheel_, nan_);
+
+        register_output(
+            "/gimbal/player_viewer/control_angle_error", viewer_control_angle_error_, nan_);
+        register_output("/gimbal/scope/control_torque", scope_control_torque_, nan_);
+        register_output("/gimbal/scope/active", is_scope_active_, false);
     }
 
     void update() override {
         using namespace rmcs_msgs;
+
+        auto norm_angle = [](double angle) { return (angle > pi_) ? angle - 2 * pi_ : angle; };
+        viewer_measure_angle_ = norm_angle(*gimbal_player_viewer_angle_);
 
         const auto switch_right = *switch_right_;
         const auto switch_left  = *switch_left_;
         const auto keyboard     = *keyboard_;
 
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
-            || (switch_left == Switch::DOWN && switch_right == Switch::DOWN))
-            *control_torque_view_ = 0;
-        else if (!last_keyboard_.e && keyboard.e) {
-            if (scope_active_)
-                *control_torque_view_ = -0.28;
-            else
-                *control_torque_view_ = 0.28;
-            scope_active_ = !scope_active_;
-        }
-
-        if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
-            || (switch_left == Switch::DOWN && switch_right == Switch::DOWN))
-            *control_torque_scope_ = 0;
-        else if (!last_keyboard_.q && keyboard.q) {
-            if (view_active_)
-                *control_torque_scope_ = -0.2;
-            else
-                *control_torque_scope_ = 0.2;
-            view_active_ = !view_active_;
-        }
-
+            || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
+            reset_all_controls();
+        } else {
+            if (!last_keyboard_.e && keyboard.e)
+                viewer_reset_ = true;
+            update_viewer_control_error();
+            if (!last_keyboard_.q && keyboard.q) {
+                scope_active_     = !scope_active_;
+                *is_scope_active_ = scope_active_;
+            }
+            if (scope_active_) {
+                *scope_control_torque_ = 0.2;
+            } else {
+                *scope_control_torque_ = -0.2;
+            }
+        };
         last_keyboard_ = keyboard;
     }
 
 private:
+    void reset_all_controls() {
+        *viewer_control_angle_error_ = nan_;
+        *scope_control_torque_       = nan_;
+        scope_active_                = false;
+        viewer_reset_                = true;
+    }
+
+    void update_viewer_control_error() {
+        auto unit_sensitivity = [&](double sensitivity) {
+            return (*is_scope_active_) ? sensitivity : 1.0;
+        };
+
+        *viewer_delta_angle_by_mouse_wheel_ = 0.5 * *mouse_wheel_ * unit_sensitivity(0.2);
+
+        if (viewer_reset_) {
+            viewer_control_angle_ = upper_limit_;
+            viewer_reset_         = false;
+        } else {
+            viewer_control_angle_ += *viewer_delta_angle_by_mouse_wheel_;
+        }
+        viewer_control_angle_ = std::clamp(viewer_control_angle_, upper_limit_, lower_limit_);
+        *viewer_control_angle_error_ = viewer_control_angle_ - viewer_measure_angle_;
+    }
+
+private:
+    static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
+    static constexpr double pi_  = std::numbers::pi;
+
+    const double upper_limit_, lower_limit_;
+
     InputInterface<rmcs_msgs::Switch> switch_right_;
     InputInterface<rmcs_msgs::Switch> switch_left_;
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
-    InputInterface<rmcs_msgs::Mouse> mouse_;
+    InputInterface<double> mouse_wheel_;
 
-    OutputInterface<double> control_torque_view_;
-    OutputInterface<double> control_torque_scope_;
+    InputInterface<double> gimbal_player_viewer_angle_;
+
+    OutputInterface<double> scope_control_torque_;
+    OutputInterface<double> viewer_control_angle_error_;
+
+    OutputInterface<bool> is_scope_active_;
+    OutputInterface<double> viewer_delta_angle_by_mouse_wheel_;
 
     rmcs_msgs::Keyboard last_keyboard_{rmcs_msgs::Keyboard::zero()};
 
+    double viewer_control_angle_ = 0.0, viewer_measure_angle_ = 0.0;
+
     bool scope_active_{false};
-    bool view_active_{false};
+    bool viewer_reset_{true};
 };
 } // namespace rmcs_core::controller::gimbal
 

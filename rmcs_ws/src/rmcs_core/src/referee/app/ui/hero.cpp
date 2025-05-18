@@ -7,9 +7,10 @@
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/chassis_mode.hpp>
 #include <rmcs_msgs/mouse.hpp>
+#include <rmcs_msgs/shoot_mode.hpp>
 
 #include "referee/app/ui/shape/shape.hpp"
-#include "referee/app/ui/widget/crosshair.hpp"
+#include "referee/app/ui/widget/rangefinder.hpp"
 #include "referee/app/ui/widget/status_ring.hpp"
 
 namespace rmcs_core::referee::app::ui {
@@ -21,21 +22,9 @@ class Hero
 public:
     Hero()
         : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
-        , crosshair_(Shape::Color::WHITE, x_center - 12, y_center - 37)
-        , status_ring_()
-        , horizontal_center_guidelines_(
-              {Shape::Color::WHITE, 2, x_center - 360, y_center, x_center - 110, y_center},
-              {Shape::Color::WHITE, 2, x_center + 110, y_center, x_center + 360, y_center})
-        , vertical_center_guidelines_(
-              {Shape::Color::WHITE, 2, x_center, 800, x_center, y_center + 110},
-              {Shape::Color::WHITE, 2, x_center, y_center - 110, x_center, 200})
-        , chassis_power_number_(Shape::Color::WHITE, 20, 2, x_center - 40, 860, 0)
-        , yaw_indicator_guidelines_(
-              {Shape::Color::WHITE, 2, x_center - 32, 830, x_center + 32, 830},
-              {Shape::Color::WHITE, 2, x_center, 830, x_center, 820})
+        , status_ring_(26.5, 26.5, 600, 40)
+        , rangefinder_()
         , chassis_direction_indicator_(Shape::Color::PINK, 8, x_center, y_center, 0, 0, 84, 84)
-        , chassis_control_power_limit_indicator_(Shape::Color::WHITE, 20, 2, x_center + 10, 820, 0)
-        , supercap_control_power_limit_indicator_(Shape::Color::WHITE, 20, 2, x_center + 10, 790, 0)
         , time_reminder_(Shape::Color::PINK, 50, 5, x_center + 150, y_center + 65, 0, false) {
 
         chassis_control_direction_indicator_.set_x(x_center);
@@ -47,54 +36,90 @@ public:
         register_input("/chassis/control_angle", chassis_control_angle_);
 
         register_input("/chassis/supercap/voltage", supercap_voltage_);
-        register_input("/chassis/supercap/enabled", supercap_enabled_);
+        register_input("/chassis/supercap/control_enable", supercap_control_enabled_);
 
         register_input("/chassis/voltage", chassis_voltage_);
         register_input("/chassis/power", chassis_power_);
         register_input("/chassis/control_power_limit", chassis_control_power_limit_);
         register_input("/chassis/supercap/charge_power_limit", supercap_charge_power_limit_);
 
-        register_input("/chassis/left_front_wheel/velocity", left_front_velocity_);
-        register_input("/chassis/left_back_wheel/velocity", left_back_velocity_);
-        register_input("/chassis/right_back_wheel/velocity", right_back_velocity_);
-        register_input("/chassis/right_front_wheel/velocity", right_front_velocity_);
-
-        register_input("/referee/shooter/bullet_allowance", robot_bullet_allowance_);
+        register_input("/referee/shooter/42mm_bullet_allowance", robot_bullet_allowance_);
 
         register_input(
             "/gimbal/first_left_friction/control_velocity", left_friction_control_velocity_);
         register_input("/gimbal/first_left_friction/velocity", left_friction_velocity_);
         register_input("/gimbal/first_right_friction/velocity", right_friction_velocity_);
 
+        register_input("/gimbal/pitch/angle", gimbal_pitch_angle_);
+        register_input("/gimbal/auto_aim/laser_distance", laser_distance_);
+
+        register_input("/gimbal/shooter/mode", shoot_mode_);
+        register_input("/gimbal/scope/active", is_scope_active_);
+
         register_input("/remote/mouse", mouse_);
 
         register_input("/referee/game/stage", game_stage_);
-
-        // register_input("/auto_aim/ui_target", auto_aim_target_, false);
     }
 
     void update() override {
+        update_normal_ui();
+        update_sniper_ui();
+
+        if (*is_scope_active_) {
+            set_normal_ui_visible(false);
+            rangefinder_.set_visible(true);
+        } else {
+            set_normal_ui_visible(true);
+            rangefinder_.set_visible(false);
+        }
+    }
+
+private:
+    void set_normal_ui_visible(bool value) {
+        status_ring_.set_visible(value);
+
+        chassis_direction_indicator_.set_visible(value);
+        chassis_control_direction_indicator_.set_visible(value);
+    }
+
+    void update_normal_ui() {
         update_chassis_direction_indicator();
-
-        chassis_control_power_limit_indicator_.set_value(*chassis_control_power_limit_);
-        supercap_control_power_limit_indicator_.set_value(*supercap_charge_power_limit_);
-
-        chassis_power_number_.set_value(*chassis_power_);
 
         status_ring_.update_bullet_allowance(*robot_bullet_allowance_);
         status_ring_.update_friction_wheel_speed(
             std::min(*left_friction_velocity_, *right_friction_velocity_),
             *left_friction_control_velocity_ > 0);
-        status_ring_.update_supercap(*supercap_voltage_, *supercap_enabled_);
+        status_ring_.update_supercap(*supercap_voltage_, *supercap_control_enabled_);
         status_ring_.update_battery_power(*chassis_voltage_);
-
-        status_ring_.update_auto_aim_enable(mouse_->right == 1);
+        update_static_status_ring();
     }
 
-private:
+    void update_sniper_ui() {
+        auto display_angle = *gimbal_pitch_angle_ > std::numbers::pi / 2
+                               ? *gimbal_pitch_angle_ - 2 * std::numbers::pi
+                               : *gimbal_pitch_angle_;
+
+        rangefinder_.update_pitch_angle(
+            -display_angle, *shoot_mode_ == rmcs_msgs::ShootMode::PRECISE);
+
+        double raw_height    = -display_angle / 0.7 * static_cast<double>(height_max);
+        raw_height           = std::clamp(raw_height, 0.0, static_cast<double>(height_max));
+        uint16_t lift_height = static_cast<uint16_t>(std::round(raw_height));
+
+        lift_height = std::clamp(lift_height, height_min, height_max);
+        rangefinder_.update_vertical_rangefinder(lift_height);
+    }
+
     void update_time_reminder() {
         if (!game_stage_.ready())
             return;
+    }
+
+    void update_static_status_ring() {
+        auto auto_aim_enable = mouse_->right == 1;
+        auto precise_enable  = *shoot_mode_ == rmcs_msgs::ShootMode::PRECISE;
+
+        status_ring_.update_static_parts({auto_aim_enable, precise_enable});
     }
 
     void update_chassis_direction_indicator() {
@@ -134,19 +159,18 @@ private:
     static constexpr uint16_t screen_width = 1920, screen_height = 1080;
     static constexpr uint16_t x_center = screen_width / 2, y_center = screen_height / 2;
 
+    static constexpr uint16_t height_min = 0, height_max = 500;
+
     InputInterface<rmcs_msgs::ChassisMode> chassis_mode_;
     InputInterface<double> chassis_angle_, chassis_control_angle_;
 
     InputInterface<double> supercap_voltage_;
-    InputInterface<bool> supercap_enabled_;
+    InputInterface<bool> supercap_control_enabled_;
 
     InputInterface<double> chassis_voltage_;
     InputInterface<double> chassis_power_;
     InputInterface<double> chassis_control_power_limit_;
     InputInterface<double> supercap_charge_power_limit_;
-
-    InputInterface<double> left_front_velocity_, left_back_velocity_, right_back_velocity_,
-        right_front_velocity_;
 
     InputInterface<uint16_t> robot_bullet_allowance_;
 
@@ -158,20 +182,17 @@ private:
 
     InputInterface<rmcs_msgs::GameStage> game_stage_;
 
-    // InputInterface<std::pair<uint16_t, uint16_t>> auto_aim_target_;
+    InputInterface<double> gimbal_pitch_angle_;
+    InputInterface<double> gimbal_player_viewer_angle_;
+    InputInterface<double> laser_distance_;
 
-    CrossHair crosshair_;
+    InputInterface<rmcs_msgs::ShootMode> shoot_mode_;
+    InputInterface<bool> is_scope_active_;
+
     StatusRing status_ring_;
-
-    Line horizontal_center_guidelines_[2];
-    Line vertical_center_guidelines_[2];
-
-    Float chassis_power_number_;
-    Line yaw_indicator_guidelines_[2];
+    Rangefinder rangefinder_;
 
     Arc chassis_direction_indicator_, chassis_control_direction_indicator_;
-
-    Float chassis_control_power_limit_indicator_, supercap_control_power_limit_indicator_;
 
     Integer time_reminder_;
 };

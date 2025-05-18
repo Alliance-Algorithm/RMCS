@@ -8,6 +8,9 @@
   <class type="rmcs_core::hardware::Hero" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
+  <class type="rmcs_core::hardware::SteeringHero" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
   <class type = "rmcs_core::hardware::TunnelInfantry" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
@@ -17,11 +20,17 @@
   <class type="rmcs_core::controller::chassis::OmniWheelController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
-  <class type="rmcs_core::controller::chassis::PowerController" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
+    <class type="rmcs_core::controller::chassis::SteeringWheelController" base_class_type="rmcs_executor::Component">
+    <description>Steering wheel controller.</description>
   </class>
   <class type="rmcs_core::controller::gimbal::GimbalController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
+  </class>
+  <class type="rmcs_core::controller::gimbal::DualGimbalController" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
+  <class type="rmcs_core::controller::gimbal::PlayerViewer" base_class_type="rmcs_executor::Component">
+    <description>Gimbal player viewer</description>
   </class>
   <class type="rmcs_core::controller::gimbal::ShootingController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
@@ -34,6 +43,9 @@
   </class>
   <class type="rmcs_core::controller::pid::ErrorPidController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
+  </class>
+  <class type="rmcs_core::controller::pid::FeedforwardPidController" base_class_type="rmcs_executor::Component">
+    <description>Feedforward pid controller.</description>
   </class>
   <class type="rmcs_core::broadcaster::TfBroadcaster" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>

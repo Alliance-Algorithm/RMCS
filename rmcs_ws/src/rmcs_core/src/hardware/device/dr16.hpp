@@ -22,6 +22,7 @@ public:
 
         component.register_output(
             "/remote/mouse/velocity", mouse_velocity_, Eigen::Vector2d::Zero());
+        component.register_output("/remote/mouse/mouse_wheel", mouse_wheel_);
 
         component.register_output("/remote/mouse", mouse_);
         std::memset(&*mouse_, 0, sizeof(*mouse_));
@@ -41,6 +42,7 @@ public:
         *switch_left_  = switch_left();
 
         *mouse_velocity_ = mouse_velocity();
+        *mouse_wheel_    = mouse_wheel();
 
         *mouse_    = mouse();
         *keyboard_ = keyboard();
@@ -88,6 +90,7 @@ private:
     rmcs_executor::Component::OutputInterface<rmcs_msgs::Keyboard> keyboard_;
 
     rmcs_executor::Component::OutputInterface<double> rotary_knob_;
+    rmcs_executor::Component::OutputInterface<double> mouse_wheel_;
 };
 
 } // namespace rmcs_core::hardware::device
