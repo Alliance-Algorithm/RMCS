@@ -8,6 +8,7 @@
 #include "hardware/fsm/FSM_gold_r.hpp"
 #include "hardware/fsm/FSM_sliver.hpp"
 #include "hardware/fsm/FSM_walk.hpp"
+#include "hardware/fsm/FSM_gold_l_spin.hpp"
 #include "std_msgs/msg/float32_multi_array.hpp"
 #include <algorithm>
 #include <array>
@@ -138,7 +139,6 @@ public:
 
                 if (keyboard.z) {
                     is_arm_pump_on = true;
-
                     if (!keyboard.ctrl && !keyboard.shift) {
                         *mode = rmcs_msgs::ArmMode::Auto_Gold_Left;
                         fsm_gold_l.reset();
@@ -147,6 +147,19 @@ public:
                         fsm_gold_m.reset();
                     } else if (keyboard.ctrl && !keyboard.shift) {
                         *mode = rmcs_msgs::ArmMode::Auto_Gold_Right;
+                        fsm_gold_r.reset();
+                    }
+                }
+                if (keyboard.s) {
+                    is_arm_pump_on = true;
+                    if (!keyboard.ctrl && !keyboard.shift) {
+                        *mode = rmcs_msgs::ArmMode::Auto_Gold_Left_Spin;
+                        fsm_gold_l.reset();
+                    } else if (keyboard.shift && !keyboard.ctrl) {
+                        *mode = rmcs_msgs::ArmMode::Auto_Gold_Mid_Spin;
+                        fsm_gold_m.reset();
+                    } else if (keyboard.ctrl && !keyboard.shift) {
+                        *mode = rmcs_msgs::ArmMode::Auto_Gold_Right_Spin;
                         fsm_gold_r.reset();
                     }
                 }
@@ -271,13 +284,6 @@ private:
         *target_theta[2] = fsm_gold.get_result()[2];
         *target_theta[1] = fsm_gold.get_result()[1];
         *target_theta[0] = fsm_gold.get_result()[0];
-        // RCLCPP_INFO(this->get_logger(), "%f %f %f %f %f %f",
-        //         fsm_gold.get_result()[0],
-        //         fsm_gold.get_result()[1],
-        //         fsm_gold.get_result()[2],
-        //         fsm_gold.get_result()[3],
-        //         fsm_gold.get_result()[4],
-        //         fsm_gold.get_result()[5]);
     }
     template <typename T>
     void execute_sliver(T& fsm_sliver) {
@@ -330,7 +336,7 @@ private:
     }
     void pump_control() {
         if (is_arm_pump_on) {
-            *arm_pump_target_vel = 5000 * std::numbers::pi / 30.0;
+            *arm_pump_target_vel = 6000 * std::numbers::pi / 30.0;
         } else {
             *arm_pump_target_vel = 0.0;
         }
@@ -360,6 +366,8 @@ private:
     Auto_Gold_Right fsm_gold_r;
     Auto_Sliver fsm_sliver;
     Auto_Set_Walk_Arm fsm_walk;
+    Auto_Gold_Left_Spin fsm_gold_l_spin;
+    // Auto_G
     //
     OutputInterface<rmcs_msgs::ArmMode> mode;
 

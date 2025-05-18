@@ -60,7 +60,7 @@ engineer_hardware:
     joint4_zero_point: 12200
     joint3_zero_point: 92916
     joint2_zero_point: 101455
-    joint1_zero_point: 40133
+    joint1_zero_point: 3454
     joint6_qlim: [-3.141592,3.141592]    
     joint5_qlim: [-1.83532,1.83532]    
     joint4_qlim: [-3.141592,3.141592]    

@@ -10,66 +10,16 @@
 #include <numbers>
 #include <rclcpp/logging.hpp>
 #include <string>
+#include "hardware/fsm/FSM_gold_l.hpp"
 
-enum class Auto_Gold_State { Set_initial, Lift };
-enum class Auto_Gold_Event { Up, Down };
-// 定义上下文
-struct Auto_Gold_Context {};
 
-class Gold_Set_initial_State : public IState<Auto_Gold_State, Auto_Gold_Event, Auto_Gold_Context> {
+class Auto_Gold_Left_Spin {
 public:
-    void enter(
-        FiniteStateMachine<Auto_Gold_State, Auto_Gold_Event, Auto_Gold_Context>& fsm,
-        const Auto_Gold_Context& context) override {
-        // RCLCPP_INFO(logger, "bbbb");
-    }
-    void exit(
-        FiniteStateMachine<Auto_Gold_State, Auto_Gold_Event, Auto_Gold_Context>& fsm,
-        const Auto_Gold_Context& context) override {
-        // RCLCPP_INFO(logger, "cccc");
-    }
-    std::shared_ptr<IState<Auto_Gold_State, Auto_Gold_Event, Auto_Gold_Context>> handleEvent(
-        FiniteStateMachine<Auto_Gold_State, Auto_Gold_Event, Auto_Gold_Context>& fsm,
-        const Auto_Gold_Event& event, Auto_Gold_Context& context) override {
-        if (event == Auto_Gold_Event::Up) {
-            return fsm.getState(Auto_Gold_State::Lift); // 转到Lift状态
-        }
-        return nullptr;
-    }
-    Auto_Gold_State getStateID() const override { return Auto_Gold_State::Set_initial; }
-
-private:
-    rclcpp::Logger logger = rclcpp::get_logger("Set_initial_State");
-};
-class Gold_Lift_State : public IState<Auto_Gold_State, Auto_Gold_Event, Auto_Gold_Context> {
-public:
-    void enter(
-        FiniteStateMachine<Auto_Gold_State, Auto_Gold_Event, Auto_Gold_Context>& fsm,
-        const Auto_Gold_Context& context) override {}
-    void exit(
-        FiniteStateMachine<Auto_Gold_State, Auto_Gold_Event, Auto_Gold_Context>& fsm,
-        const Auto_Gold_Context& context) override {}
-    std::shared_ptr<IState<Auto_Gold_State, Auto_Gold_Event, Auto_Gold_Context>> handleEvent(
-        FiniteStateMachine<Auto_Gold_State, Auto_Gold_Event, Auto_Gold_Context>& fsm,
-        const Auto_Gold_Event& event, Auto_Gold_Context& context) override {
-
-        if (event == Auto_Gold_Event::Down) {
-            return fsm.getState(Auto_Gold_State::Set_initial);
-        }
-        return nullptr;
-    }
-    Auto_Gold_State getStateID() const override { return Auto_Gold_State::Lift; }
-
-private:
-    rclcpp::Logger logger = rclcpp::get_logger("Lift_State");
-};
-class Auto_Gold_Left {
-public:
-    explicit Auto_Gold_Left() {
-        std::array<double, 3> lift_start_point_position = {0.11, -0.65, 0.1};
-        std::array<double, 3> lift_end_point_position   = {0.11, -0.65, 0.16};
+    explicit Auto_Gold_Left_Spin() {
+        std::array<double, 3> lift_start_point_position = {0.118, -0.7, 0.1};
+        std::array<double, 3> lift_end_point_position   = {0.118, -0.7, 0.16};
         std::array<double, 3> lift_point_orientation    = {
-            -std::numbers::pi / 2.0, -14.0 * std::numbers::pi / 180.0, -std::numbers::pi / 2.0};
+            -std::numbers::pi / 2.0, -9.6 * std::numbers::pi / 180.0, -std::numbers::pi / 2.0};
 
         std::array<double, 6> initial_joint_theta =
             rmcs_core::hardware::device::Kinematic::arm_inverse_kinematic(
@@ -97,6 +47,7 @@ public:
                     result = reset_initial_arm.trajectory();
                 }
                 return false;
+                
             },
             [this](const Auto_Gold_Event& event, Auto_Gold_Context& context) {},
             Auto_Gold_State::Lift);

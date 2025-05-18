@@ -75,8 +75,8 @@ public:
                 {lift_start_point_position[0], lift_start_point_position[1],
                  lift_start_point_position[2], lift_point_orientation[0], lift_point_orientation[1],
                  lift_point_orientation[2]});
-        reset_initial_arm.set_total_step(2700).set_end_point(initial_joint_theta);
-        lift_mine.set_total_step(900)
+        reset_initial_arm.set_total_step(2200).set_end_point(initial_joint_theta);
+        lift_mine.set_total_step(500)
             .set_start_point(lift_start_point_position, lift_point_orientation)
             .set_end_point(lift_end_point_position, lift_point_orientation);
 

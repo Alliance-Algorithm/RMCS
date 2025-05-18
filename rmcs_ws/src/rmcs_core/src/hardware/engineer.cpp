@@ -49,9 +49,9 @@ public:
         legboard_.update();
     }
     void command() {
-        armboard_.command();
-        steeringboard_.command();
-        legboard_.command();
+        // armboard_.command();
+        // steeringboard_.command();
+        // legboard_.command();
     }
 
 private:
@@ -175,6 +175,8 @@ private:
         void command() {
             arm_command_update();
             // todo::
+// RCLCPP_INFO(this->get_logger(),"%f",joint[0].get_angle());
+
         }
 
     private:
@@ -532,7 +534,6 @@ private:
             for (auto& motor : Wheel_motors) {
                 motor.update();
             }
-// RCLCPP_INFO(this->get_logger(),"%f",Steering_motors[2].get_angle());
         }
         void command() {
             uint16_t command[4];

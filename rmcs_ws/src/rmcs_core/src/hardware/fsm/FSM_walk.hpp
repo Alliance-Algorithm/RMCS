@@ -55,7 +55,7 @@ public:
             Auto_Walk_State::Set_Walk_Arm);
         fsm.start(Auto_Walk_State::Set_Walk_Arm);
 
-        set_walk_arm.set_total_step(2000).set_end_point({0, 1.04719, -1.0472, 0, 0, 0});
+        set_walk_arm.set_total_step(2000).set_end_point({0, 1.04719, -1.0472, 0, -0.9, 0});
     }
     void get_current_theta(std::array<double, 6> theta) { enter_theta_ = theta; }
     std::array<double, 6> get_result() { return result; }

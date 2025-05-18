@@ -28,8 +28,8 @@ public:
 
         initial_joint_theta[3] = std::numbers::pi;
         initial_joint_theta[5] = 0;
-        reset_initial_arm.set_total_step(2700).set_end_point(initial_joint_theta);
-        lift_mine.set_total_step(900)
+        reset_initial_arm.set_total_step(2000).set_end_point(initial_joint_theta);
+        lift_mine.set_total_step(300)
             .set_start_point(lift_start_point_position, lift_point_orientation)
             .set_end_point(lift_end_point_position, lift_point_orientation);
 
