@@ -173,7 +173,8 @@ public:
         auto keyboard = *keyboard_;
         Eigen::Vector2d keyboard_move{keyboard.w - keyboard.s, keyboard.a - keyboard.d};
 
-        Eigen::Vector2d translational_velocity = *joystick_right_ + keyboard_move;
+        Eigen::Vector2d translational_velocity =
+            Eigen::Rotation2Dd{*gimbal_yaw_angle_} * (*joystick_right_ + keyboard_move);
 
         if (translational_velocity.norm() > 1.0)
             translational_velocity.normalize();
@@ -340,7 +341,7 @@ private:
     bool spinning_forward_ = true;
     pid::PidCalculator following_velocity_controller_;
 
-    OutputInterface<rmcs_description::YawLink::DirectionVector> chassis_control_velocity_;
+    OutputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;
 
     InputInterface<double> supercap_voltage_;
     InputInterface<bool> supercap_enabled_;
