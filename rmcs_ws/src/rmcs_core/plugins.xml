@@ -26,6 +26,9 @@
   <class type="rmcs_core::controller::gimbal::GimbalController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
+  <class type="rmcs_core::controller::gimbal::DualYawController" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
   <class type="rmcs_core::controller::gimbal::DualGimbalController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>

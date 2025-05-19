@@ -9,6 +9,8 @@ namespace rmcs_core::controller::pid {
 
 class PidCalculator {
 public:
+    PidCalculator() { reset(); };
+
     PidCalculator(double kp, double ki, double kd)
         : kp(kp)
         , ki(ki)

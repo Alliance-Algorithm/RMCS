@@ -10,11 +10,8 @@ rmcs_executor:
       - rmcs_core::referee::app::ui::Hero -> referee_ui_hero
       - rmcs_core::referee::Command -> referee_command
 
-      - rmcs_core::controller::gimbal::DualGimbalController -> gimbal_controller
-      - rmcs_core::controller::pid::FeedforwardPidController -> bottom_yaw_angle_pid_controller
-      - rmcs_core::controller::pid::PidController -> bottom_yaw_velocity_pid_controller
-      - rmcs_core::controller::pid::ErrorPidController -> top_yaw_angle_pid_controller
-      - rmcs_core::controller::pid::PidController -> top_yaw_velocity_pid_controller
+      - rmcs_core::controller::gimbal::GimbalController -> gimbal_controller
+      - rmcs_core::controller::gimbal::DualYawController -> dual_yaw_controller
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> pitch_velocity_pid_controller
 
@@ -50,46 +47,23 @@ hero_hardware:
 
 gimbal_controller:
   ros__parameters:
-    gimbal_yaw_motors:
-      - /gimbal/top_yaw
-      - /gimbal/bottom_yaw
     upper_limit: -0.7224
     lower_limit: 0.7082
 
-top_yaw_angle_pid_controller:
+dual_yaw_controller:
   ros__parameters:
-    measurement: /gimbal/top_yaw/control_angle_error
-    control: /gimbal/top_yaw/control_velocity
-    kp: 16.50
-    ki: 0.00
-    kd: 0.00
-
-top_yaw_velocity_pid_controller:
-  ros__parameters:
-    measurement: /gimbal/yaw/velocity_imu
-    setpoint: /gimbal/top_yaw/control_velocity
-    control: /gimbal/top_yaw/control_torque
-    kp: 87.40
-    ki: 0.004
-    kd: 1.00
-
-bottom_yaw_angle_pid_controller:
-  ros__parameters:
-    measurement: /gimbal/bottom_yaw/control_angle_error
-    feedforward: /chassis/yaw/velocity_imu
-    control: /gimbal/bottom_yaw/control_velocity
-    kp: 15.60
-    ki: 0.00
-    kd: 0.00
-
-bottom_yaw_velocity_pid_controller:
-  ros__parameters:
-    measurement: /gimbal/bottom_yaw/velocity
-    setpoint: /gimbal/bottom_yaw/control_velocity
-    control: /gimbal/bottom_yaw/control_torque
-    kp: 23.20
-    ki: 0.00
-    kd: 0.09
+    top_yaw_angle_kp: 16.5
+    top_yaw_angle_ki: 0.0
+    top_yaw_angle_kd: 0.0
+    top_yaw_velocity_kp: 87.4
+    top_yaw_velocity_ki: 0.004
+    top_yaw_velocity_kd: 1.0
+    bottom_yaw_angle_kp: 15.6
+    bottom_yaw_angle_ki: 0.0
+    bottom_yaw_angle_kd: 0.0
+    bottom_yaw_velocity_kp: 23.2
+    bottom_yaw_velocity_ki: 0.0
+    bottom_yaw_velocity_kd: 0.09
 
 pitch_angle_pid_controller:
   ros__parameters:

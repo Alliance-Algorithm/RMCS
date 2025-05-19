@@ -6,7 +6,6 @@
 #include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/switch.hpp>
-#include <shoot_mode.hpp>
 
 #include "controller/pid/pid_calculator.hpp"
 
@@ -33,22 +32,8 @@ public:
         register_input("/remote/keyboard", keyboard_);
         register_input("/remote/rotary_knob", rotary_knob_);
 
-        bool is_dual_yaw;
-        if (get_parameter("is_dual_yaw", is_dual_yaw) && is_dual_yaw) {
-            auto gimbal_yaw_motors = get_parameter("gimbal_yaw_motors").as_string_array();
-            if (gimbal_yaw_motors.size() == 0)
-                throw std::runtime_error("Empty array error: 'gimbal_yaw_motors' cannot be empty!");
-
-            size_t gimbal_yaw_motors_counts = gimbal_yaw_motors.size();
-            register_input(
-                gimbal_yaw_motors[gimbal_yaw_motors_counts - 1] + "/angle", gimbal_yaw_angle_);
-            register_input(
-                gimbal_yaw_motors[gimbal_yaw_motors_counts - 1] + "/control_angle_error",
-                gimbal_yaw_angle_error_);
-        } else {
-            register_input("/gimbal/yaw/angle", gimbal_yaw_angle_, false);
-            register_input("/gimbal/yaw/control_angle_error", gimbal_yaw_angle_error_, false);
-        }
+        register_input("/gimbal/yaw/angle", gimbal_yaw_angle_, false);
+        register_input("/gimbal/yaw/control_angle_error", gimbal_yaw_angle_error_, false);
 
         register_input("/chassis/supercap/voltage", supercap_voltage_, false);
         register_input("/chassis/supercap/enabled", supercap_enabled_, false);
