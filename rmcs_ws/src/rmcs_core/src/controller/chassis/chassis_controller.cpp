@@ -23,9 +23,11 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , following_velocity_controller_(7.0, 0.0, 0.02) {
+        , following_velocity_controller_(7.0, 0.0001, 0.001) {
         following_velocity_controller_.output_max = angular_velocity_max;
         following_velocity_controller_.output_min = -angular_velocity_max;
+        following_velocity_controller_.integral_split_min = 0.05 * std::numbers::pi;
+        following_velocity_controller_.integral_split_max = 0.05 * std::numbers::pi;
 
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);

@@ -86,6 +86,7 @@ public:
                 gimbal_calibrate_subscription_callback(std::move(msg));
             });
             
+
         // supercap_enabled_pub_ = this->create_subscription<std_msgs::msg::Bool>("/supercap/enabled", rclcpp::QoS(10));
 
         register_output("/referee/serial", referee_serial_);
@@ -129,12 +130,11 @@ public:
         transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(can_commands));
 
 
-        transmit_buffer_.add_can1_transmission(0x145, gimbal_yaw_motor_.generate_torque_command(
-            gimbal_yaw_motor_.control_torque()));
+        transmit_buffer_.add_can1_transmission(0x145, gimbal_yaw_motor_.generate_velocity_command(
+            gimbal_yaw_motor_.control_velocity()));
 
-        transmit_buffer_.add_can2_transmission(0x142, gimbal_pitch_motor_.generate_torque_command(
-            gimbal_pitch_motor_.control_torque()));
-
+        transmit_buffer_.add_can2_transmission(0x142, gimbal_pitch_motor_.generate_velocity_command(
+            gimbal_pitch_motor_.control_velocity()));
         can_commands[0] = 0;
         can_commands[1] = gimbal_bullet_feeder_.generate_command();
         can_commands[2] = gimbal_left_friction_.generate_command();
@@ -196,11 +196,11 @@ private:
     //     supercap_enabled_pub_->publish(msg);
     // }
 
-    // void gimbal_motor_velocity_callback(std_msgs::msg::Float64::UniquePtr) {
-    //     RCLCPP_INFO(
-    //         logger_, "[yaw velocity] : %f",
-    //         gimbal_yaw_motor_.velocity());
-    // }
+    void gimbal_motor_velocity_callback(std_msgs::msg::Float64::UniquePtr) {
+        RCLCPP_INFO(
+            logger_, "[yaw motor velocity] : %f",
+            gimbal_yaw_motor_.velocity());
+    }
 
 protected:
     void can1_receive_callback(
@@ -280,7 +280,7 @@ private:
 
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr gimbal_calibrate_subscription_;
     
-    // rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr gimbal_motor_velocity_callback_;
+    rclcpp::Subscription<std_msgs::msg::Float64_<class ContainerAllocator>>::SharedPtr gimbal_motor_velocity_callback_;
     // rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr supercap_enabled_pub_;
 
     device::DjiMotor chassis_wheel_motors_[4]{

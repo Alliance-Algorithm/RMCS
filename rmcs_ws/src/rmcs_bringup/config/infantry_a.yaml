@@ -34,10 +34,15 @@ value_broadcaster:
   ros__parameters:
     forward_list:
       - /debug/target_omega
+      - /gimbal/yaw/velocity
+      - /gimbal/yaw/control_velocity
+      - /gimbal/yaw/velocity
+      - /gimbal/yaw/control_angle_error
+
 tunnel_infantry_hardware:
   ros__parameters:
     usb_pid: -1
-    yaw_motor_zero_point: 37474
+    yaw_motor_zero_point: 21000
     pitch_motor_zero_point: 47527
     imu_gx_bias: +0.001294
     imu_gy_bias: -0.000584
@@ -54,21 +59,35 @@ gimbal_controller:
 
 yaw_angle_pid_controller:
   ros__parameters:
+    filter_alpha: 0.95
+    integral_split_min: -0.1
+    integral_split_max: 0.1
+    output_min: -15.0
+    output_max:  15.0
+
     measurement: /gimbal/yaw/control_angle_error
     feedforward: /gimbal/yaw/velocity_imu
     control: /gimbal/yaw/control_velocity
-    kp: 28.60
-    ki: 0.001
-    kd: 1.2
+    kp: 41.0
+    ki: 0.002
+    kd: 0.01
 
 yaw_velocity_pid_controller:
   ros__parameters:
+    filter_alpha: 0.9
+    integral_min: -10.0
+    integral_max:  10.0
+    integral_split_min: -0.12
+    integral_split_max: 0.12
+    output_min: -30.0
+    output_max:  30.0
+
     measurement: /gimbal/yaw/velocity
     setpoint: /gimbal/yaw/control_velocity
     control: /gimbal/yaw/control_torque
-    kp: 24.20
-    ki: 0.00
-    kd: 0.1
+    kp: 55.0
+    ki: 0.001
+    kd: 1.2
 
 pitch_angle_pid_controller:
   ros__parameters:
@@ -82,6 +101,7 @@ pitch_angle_pid_controller:
 shooting_controller:
   ros__parameters:
     friction_wheels:
+
       - /gimbal/left_friction
       - /gimbal/right_friction
     friction_velocities:

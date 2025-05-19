@@ -21,6 +21,10 @@ public:
 
         register_input(get_parameter("measurement").as_string(), measurement_);
 
+        filter_alpha_ = this->get_parameter_or<double>("filter_alpha", 1.0);
+
+        filter_alpha_ = std::clamp(filter_alpha_, 0.0, 1.0);
+
         // Allows using immediate value instead of message name
         auto parameter_setpoint = get_parameter("setpoint");
         if (parameter_setpoint.get_type() == rclcpp::ParameterType::PARAMETER_DOUBLE) {
@@ -37,14 +41,25 @@ public:
         get_parameter("integral_split_max", pid_calculator_.integral_split_max);
         get_parameter("output_min", pid_calculator_.output_min);
         get_parameter("output_max", pid_calculator_.output_max);
+
+                if (measurement_.ready()) {
+            filtered_measurement_ = *measurement_;
+        } else {
+            filtered_measurement_ = 0.0;
+        }
     }
 
     void update() override {
-        auto err  = *setpoint_ - *measurement_;
+        double raw = *measurement_;
+        filtered_measurement_ = filter_alpha_ * raw
+                              + (1.0 - filter_alpha_) * filtered_measurement_;
+        double err = *setpoint_ - filtered_measurement_;
         *control_ = pid_calculator_.update(err);
     }
 
 private:
+    double filter_alpha_;            // α ∈ [0,1]
+    double filtered_measurement_; 
     PidCalculator pid_calculator_;
 
     InputInterface<double> measurement_;

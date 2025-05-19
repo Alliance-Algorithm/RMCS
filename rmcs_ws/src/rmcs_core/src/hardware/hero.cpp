@@ -166,7 +166,9 @@ private:
                 batch_commands[i] = gimbal_friction_wheels_[i].generate_command();
             transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(batch_commands));
 
-            transmit_buffer_.add_can2_transmission(0x141, gimbal_pitch_motor_.generate_command());
+            transmit_buffer_.add_can2_transmission(0x141, gimbal_pitch_motor_.generate_torque_command(
+                gimbal_pitch_motor_.control_velocity()));
+    
 
             transmit_buffer_.trigger_transmission();
         }

@@ -28,7 +28,7 @@ public:
             return nan;
         } else {
             double control = kp * err;
-
+ 
             if (err < integral_split_max && err > integral_split_min) {
                 control += ki * err_integral_;
                 err_integral_ = std::clamp(err_integral_ + err, integral_min, integral_max);

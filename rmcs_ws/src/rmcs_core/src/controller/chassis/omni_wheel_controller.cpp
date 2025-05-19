@@ -28,7 +28,8 @@ public:
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , translational_velocity_pid_calculator_(100.0, 0.0, 0.0)
-        , angular_velocity_pid_calculator_(100.0, 0.0, 0.0) {
+        , translational_velocity_pid_calculator_.integral_split_min = 0.01,
+        angular_velocity_pid_calculator_(100.0, 0.0, 0.0) {
 
         register_input("/chassis/left_front_wheel/max_torque", wheel_motor_max_control_torque_);
         register_input("/chassis/left_front_wheel/velocity", left_front_velocity_);
@@ -299,7 +300,7 @@ private:
                                       std::vector<Eigen::Vector2d>& polygon) {
             std::vector<Eigen::Vector2d> new_polygon;
             const double limit = is_upper_limit ? control_torque_max_ : -control_torque_max_;
-
+                                        
             for (size_t i = 0; i < polygon.size(); i++) {
                 const auto& curr = polygon[i];
                 const auto& prev = polygon[i - 1];
