@@ -31,8 +31,8 @@ rmcs_executor:
 
       - rmcs_core::controller::gimbal::ShootingRecorder -> shooting_recorder
       
-      # - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
-      # - rmcs_auto_aim::AutoAimController -> auto_aim_controller
+      - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
+      - rmcs_auto_aim::AutoAimController -> auto_aim_controller
 
 value_broadcaster:
   ros__parameters:
@@ -41,9 +41,9 @@ value_broadcaster:
       - /gimbal/second_left_friction/velocity
       - /gimbal/first_right_friction/velocity
       - /gimbal/second_right_friction/velocity
-      - /gimbal/yaw/angle
+      # - /gimbal/yaw/angle
       # - /gimbal/pitch/angle
-      - /gimbal/scope/velocity
+      # - /gimbal/scope/velocity
 
 hero_hardware:
   ros__parameters:

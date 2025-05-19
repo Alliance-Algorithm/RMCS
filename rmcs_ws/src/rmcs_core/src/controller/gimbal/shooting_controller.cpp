@@ -165,12 +165,11 @@ public:
                                    ? default_mode
                                    : rmcs_msgs::ShootMode::PRECISE;
                 }
-                if (is_42mm_) {
+                
+                if (is_42mm_) 
                     if (switch_right == Switch::UP)
                         shoot_mode = rmcs_msgs::ShootMode::PRECISE;
-                    else if (shoot_mode == rmcs_msgs::ShootMode::PRECISE)
-                        shoot_mode = default_mode;
-                }
+                
 
                 if (shoot_mode == rmcs_msgs::ShootMode::SINGLE
                     || shoot_mode == rmcs_msgs::ShootMode::PRECISE) {

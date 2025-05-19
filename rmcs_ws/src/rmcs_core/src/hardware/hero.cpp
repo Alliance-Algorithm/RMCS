@@ -204,7 +204,7 @@ private:
             batch_commands[1] = 0;
             batch_commands[2] = 0;
             batch_commands[3] = 0;
-            transmit_buffer_.add_can2_transmission(0x200, std::bit_cast<uint64_t>(batch_commands));
+            transmit_buffer_.add_can1_transmission(0x1ff, std::bit_cast<uint64_t>(batch_commands));
 
             transmit_buffer_.add_can2_transmission(
                 0x141, gimbal_player_viewer_motor_.generate_angle_command(
@@ -241,7 +241,7 @@ private:
                 gimbal_pitch_motor_.store_status(can_data);
             } else if (can_id == 0x141) {
                 gimbal_player_viewer_motor_.store_status(can_data);
-            } 
+            }
         }
 
         void uart1_receive_callback(const std::byte* data, uint8_t length) override {
@@ -333,7 +333,7 @@ private:
                   hero, hero_command, "/gimbal/yaw",
                   device::LkMotor::Config{device::LkMotor::Type::MG5010E_I10}
                       .enable_multi_turn_angle()
-                    //   .set_reversed()
+                      //   .set_reversed()
                       .set_encoder_zero_point(
                           static_cast<int>(hero.get_parameter("yaw_motor_zero_point").as_int())))
             , gimbal_bullet_feeder_(
@@ -395,12 +395,9 @@ private:
                     0x141, gimbal_yaw_motor_.generate_velocity_command(
                                gimbal_yaw_motor_.control_velocity() - imu_.gz()));
             } else if (gimbal_yaw_control_mode_ == device::LkMotor::Mode::Angle) {
-                const auto control_angle =
-                    gimbal_yaw_motor_.control_angle() + gimbal_yaw_motor_.zero_point();
-
                 transmit_buffer_.add_can2_transmission(
-                    0x141, gimbal_yaw_motor_.generate_angle_command(
-                               control_angle, gimbal_yaw_motor_.velocity_limit()));
+                    0x141, gimbal_yaw_motor_.generate_velocity_command(
+                               gimbal_yaw_motor_.control_velocity()));
             } else if (gimbal_yaw_motor_.mode() == device::LkMotor::Mode::Unknown) {
                 transmit_buffer_.add_can2_transmission(
                     0x141, gimbal_yaw_motor_.generate_velocity_command(

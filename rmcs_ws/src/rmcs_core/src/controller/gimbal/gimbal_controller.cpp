@@ -67,12 +67,17 @@ public:
         using namespace rmcs_msgs;
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
+            if (true) {}
             reset_all_controls();
         } else {
-            if (last_shoot_mode_ != ShootMode::PRECISE&&* shoot_mode_ == ShootMode::PRECISE) {
+            if (last_shoot_mode_ != ShootMode::PRECISE && *shoot_mode_ == ShootMode::PRECISE) {
                 *pitch_control_angle_ = -*gimbal_pitch_angle_;
                 *yaw_control_angle_   = *gimbal_yaw_angle_;
             }
+
+            if (last_shoot_mode_ == ShootMode::PRECISE && *shoot_mode_ != ShootMode::PRECISE) 
+                reset_all_controls();
+            
 
             if (*shoot_mode_ == ShootMode::PRECISE) {
                 *pitch_motor_mode_ = hardware::device::LkMotor::Mode::Angle;
@@ -191,11 +196,13 @@ private:
             -std::atan2(z * cp * cp - x * cp * sp + sp * b, -z * cp * sp + x * sp * sp + cp * b);
 
         if (*shoot_mode_ == rmcs_msgs::ShootMode::PRECISE) {
-            *yaw_control_angle_ -= precise_joystick_sensitivity * joystick_left_->y()
+            *yaw_control_angle_ += precise_joystick_sensitivity * joystick_left_->y()
                                  + precise_mouse_sensitivity * mouse_velocity_->y();
             *pitch_control_angle_ += precise_joystick_sensitivity * joystick_left_->x()
                                    - precise_mouse_sensitivity * mouse_velocity_->x();
             *pitch_control_angle_ = std::clamp(*pitch_control_angle_, -0.595318, 0.812755);
+
+            *yaw_angle_error_ = *yaw_control_angle_ - *gimbal_yaw_angle_;
         }
     }
 
@@ -229,6 +236,8 @@ private:
     OutputInterface<double> pitch_control_angle_, yaw_control_angle_;
     OutputInterface<hardware::device::LkMotor::Mode> yaw_motor_mode_, pitch_motor_mode_;
     OutputInterface<double> yaw_velocity_limit_, pitch_velocity_limit_;
+
+    bool test{true};
 };
 
 } // namespace rmcs_core::controller::gimbal

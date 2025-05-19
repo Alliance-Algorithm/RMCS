@@ -1,4 +1,5 @@
 #include "hardware/device/lk_motor.hpp"
+#include "librmcs/utility/logging.hpp"
 #include <cmath>
 
 #include <eigen3/Eigen/Dense>
@@ -41,7 +42,6 @@ public:
         const auto switch_right = *switch_right_;
         const auto switch_left  = *switch_left_;
         const auto keyboard     = *keyboard_;
-
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
             reset_all_controls();
@@ -53,14 +53,17 @@ public:
                 *scope_control_torque_ = -0.2;
                 reset_flag_            = false;
             }
+            *scope_control_torque_ = -0.2;
             if (!last_keyboard_.q && keyboard.q) {
+                scope_active_ = !scope_active_;
                 if (scope_active_) {
                     *scope_control_torque_ = 0.2;
+                    LOG_INFO("active");
                 } else {
                     *scope_control_torque_ = -0.2;
+                    LOG_INFO("un");
                 }
                 *is_scope_active_ = scope_active_;
-                scope_active_     = !scope_active_;
             }
         };
         last_keyboard_ = keyboard;
