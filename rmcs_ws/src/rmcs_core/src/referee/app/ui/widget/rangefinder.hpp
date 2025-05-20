@@ -19,13 +19,7 @@ public:
             line.set_visible(false);
     }
 
-    void update_pitch_angle(double display_angle, bool precise_enabled) {
-        pitch_angle_.set_value(display_angle);
-        if (precise_enabled)
-            pitch_angle_.set_color(Shape::Color::BLACK);
-        else
-            pitch_angle_.set_color(Shape::Color::WHITE);
-    }
+    void update_pitch_angle(double display_angle) { pitch_angle_.set_value(display_angle); }
 
     void update_vertical_rangefinder(uint16_t lift_height) {
         size_t index = 0;
@@ -159,16 +153,16 @@ private:
 private:
     constexpr static uint16_t x_center_      = 960;
     constexpr static uint16_t y_center_      = 540;
-    constexpr static uint16_t x_side_center_ = x_center_ - 200;
+    constexpr static uint16_t x_side_center_ = x_center_ - 110;
 
     constexpr static uint16_t horizontal_unit_scale      = 15;
     constexpr static uint16_t horizontal_scale_accuracy_ = 40;
 
     constexpr static uint16_t vertical_unit_scale_      = 5;
     constexpr static uint16_t vertical_side_unit_scale_ = 15;
-    constexpr static uint16_t vertical_scale_accuracy_  = 30;
+    constexpr static uint16_t vertical_scale_accuracy_  = 26;
 
-    Float pitch_angle_{Shape::Color::BLACK, 20, 2, x_center_ - 140, y_center_ + 170, 0, false};
+    Float pitch_angle_{Shape::Color::BLACK, 17, 2, x_center_ - 100, y_center_ + 170, 0, false};
 
     Line vertical_center_line_   //
         {Shape::Color::BLACK, 1, x_center_, y_center_ + 530, x_center_, y_center_ - 530, true};
@@ -185,5 +179,7 @@ private:
     Integer bullet_allowance_    //
         {Shape::Color::WHITE, 12, 2, x_center_ - 100, y_center_ - 300, 0, false};
     Line bullet_allowance_indicator_[10];
+
+    Arc friction_wheel_velocity_;
 };
 } // namespace rmcs_core::referee::app::ui

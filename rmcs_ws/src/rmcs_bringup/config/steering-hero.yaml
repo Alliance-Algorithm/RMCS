@@ -38,12 +38,12 @@ hero_hardware:
     bottom_yaw_motor_zero_point: 42889
     pitch_motor_zero_point: 14367
     top_yaw_motor_zero_point: 46348
-    viewer_motor_zero_point: 33876
+    viewer_motor_zero_point: 35712
     external_imu_port: /dev/ttyUSB0
-    left_front_zero_point: 3396
-    left_back_zero_point: 6131
-    right_back_zero_point: 6170
-    right_front_zero_point: 6802
+    left_front_zero_point: 3304
+    left_back_zero_point: 5906
+    right_back_zero_point: 2030
+    right_front_zero_point: 2651
 
 gimbal_controller:
   ros__parameters:
@@ -112,10 +112,10 @@ shooting_controller:
       - /gimbal/second_left_friction
       - /gimbal/second_right_friction
     friction_velocities:
-      - 530.85
-      - 530.85
       - 530.70
       - 530.70
+      - 529.50
+      - 529.50
     friction_soft_start_stop_time: 1.0
     is_42mm: true
     bullets_per_feeder_turn: 6.0

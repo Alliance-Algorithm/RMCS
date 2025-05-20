@@ -40,6 +40,7 @@ public:
 
         register_input("/gimbal/scope/active", is_scope_active_);
         register_input("/gimbal/player_viewer/delta_angle", delta_angle_by_mouse_wheel_);
+        register_input("/gimbal/player_viewer/scope_offset_angle", scope_offset_angle_);
 
         register_input("/gimbal/pitch/angle", gimbal_pitch_angle_);
         register_output("/gimbal/pitch/control_angle_error", pitch_angle_error_, nan_);
@@ -71,8 +72,8 @@ public:
         };
 
         joystick_sensitivity_ = 0.008 * unit_sensitivity(1.0 / 16);
-        mouse_x_sensitivity_  = 0.5 * unit_sensitivity(0.1);
-        mouse_y_sensitivity_  = 0.5 * unit_sensitivity(0.5);
+        mouse_x_sensitivity_  = 0.75 * unit_sensitivity(0.07);
+        mouse_y_sensitivity_  = 0.75 * unit_sensitivity(0.3);
 
         using namespace rmcs_msgs;
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
@@ -100,7 +101,8 @@ public:
                 update_control_errors(dir);
             }
 
-            control_direction_ = fast_tf::cast<OdomImu>(dir, *tf_);
+            precise_initialized_last_ = precise_initialized_;
+            control_direction_        = fast_tf::cast<OdomImu>(dir, *tf_);
         }
     }
 
@@ -116,7 +118,9 @@ private:
         control_enabled = false;
         for (size_t i = 0; i < gimbal_yaw_motors_count_; i++)
             *yaw_angle_error_[i] = nan_;
-        *pitch_angle_error_ = nan_;
+        *pitch_angle_error_       = nan_;
+        precise_initialized_      = false;
+        precise_initialized_last_ = false;
     }
 
     void update_auto_aim_control_direction(PitchLink::DirectionVector& dir) {
@@ -213,43 +217,53 @@ private:
     }
 
     void update_precise_control_errors() {
-        if (!precise_initialized_) {
-            precise_initialized_ = true;
-            RCLCPP_INFO(get_logger(), "Turn to gimbal precise mode.");
-        }
-
         auto norm_angle = [](double angle) {
             return (angle > std::numbers::pi) ? angle - 2 * std::numbers::pi : angle;
         };
 
+        if (!precise_initialized_) {
+            precise_initialized_      = true;
+            bottom_yaw_current_angle_ = norm_angle(*gimbal_yaw_angle_[1]);
+            RCLCPP_INFO(get_logger(), "Turn to gimbal precise mode.");
+        }
+
         auto pitch_measure_angle = norm_angle(*gimbal_pitch_angle_);
         auto yaw_measure_angle   = norm_angle(*gimbal_yaw_angle_[0]);
 
-        yaw_control_angle_ += joystick_sensitivity_ * joystick_left_->y()
-                            + mouse_y_sensitivity_ * mouse_velocity_->y();
-        pitch_control_angle_ += -joystick_sensitivity_ * joystick_left_->x()
-                              + mouse_x_sensitivity_ * mouse_velocity_->x()
-                              - *delta_angle_by_mouse_wheel_;
+        if (precise_initialized_ && !precise_initialized_last_) {
+            yaw_precise_control_angle_   = 0;
+            pitch_precise_control_angle_ = -*scope_offset_angle_;
+            RCLCPP_INFO(get_logger(), "Precise control angles initial.");
+        } else {
+            yaw_precise_control_angle_ += joystick_sensitivity_ * joystick_left_->y()
+                                        + mouse_y_sensitivity_ * mouse_velocity_->y();
+
+            pitch_precise_control_angle_ += -joystick_sensitivity_ * joystick_left_->x()
+                                          + mouse_x_sensitivity_ * mouse_velocity_->x()
+                                          - *delta_angle_by_mouse_wheel_;
+        }
 
         const auto lower_limit = lower_limit_ - std::numbers::pi / 2;
         const auto upper_limit = upper_limit_ - std::numbers::pi / 2;
 
-        if (yaw_control_angle_ >= yaw_limit_) {
-            yaw_control_angle_ = yaw_limit_;
-        } else if (yaw_control_angle_ <= -yaw_limit_) {
-            yaw_control_angle_ = -yaw_limit_;
-        }
+        yaw_precise_control_angle_ =
+            std::clamp(yaw_precise_control_angle_, -yaw_limit_, yaw_limit_);
+        pitch_precise_control_angle_ =
+            std::clamp(pitch_precise_control_angle_, upper_limit, lower_limit);
 
-        if (pitch_control_angle_ >= lower_limit) {
-            pitch_control_angle_ = lower_limit;
-        } else if (pitch_control_angle_ <= upper_limit) {
-            pitch_control_angle_ = upper_limit;
-        }
+        *pitch_angle_error_  = pitch_precise_control_angle_ - pitch_measure_angle;
+        *yaw_angle_error_[0] = yaw_precise_control_angle_ - yaw_measure_angle;
 
-        *pitch_angle_error_  = pitch_control_angle_ - pitch_measure_angle;
-        *yaw_angle_error_[0] = yaw_control_angle_ - yaw_measure_angle;
         if (gimbal_yaw_motors_count_ > 1) {
-            *yaw_angle_error_[1] = 0;
+            auto bottom_yaw_measure_angle = norm_angle(*gimbal_yaw_angle_[1]);
+            auto raw_error                = bottom_yaw_current_angle_ - bottom_yaw_measure_angle;
+            if (raw_error >= std::numbers::pi) {
+                bottom_yaw_current_angle_ -= 2 * std::numbers::pi;
+            } else if (raw_error <= -std::numbers::pi) {
+                bottom_yaw_current_angle_ += 2 * std::numbers::pi;
+            }
+            *yaw_angle_error_[1] = bottom_yaw_current_angle_ - bottom_yaw_measure_angle;
+
             if (std::abs(*yaw_angle_error_[1]) < 0.01)
                 *yaw_angle_error_[1] = 0.;
         }
@@ -281,6 +295,7 @@ private:
 
     InputInterface<bool> is_scope_active_;
     InputInterface<double> delta_angle_by_mouse_wheel_;
+    InputInterface<double> scope_offset_angle_;
 
     bool control_enabled = false;
     OdomImu::DirectionVector control_direction_{Eigen::Vector3d::Zero()};
@@ -288,8 +303,10 @@ private:
     double upper_limit_, lower_limit_;
     size_t gimbal_yaw_motors_count_;
 
-    bool precise_initialized_ = false;
-    double yaw_control_angle_ = 0, pitch_control_angle_ = 0;
+    bool precise_initialized_{false}, precise_initialized_last_{false};
+    double yaw_precise_control_angle_ = 0, pitch_precise_control_angle_ = 0;
+    double bottom_yaw_current_angle_ = 0;
+    Eigen::Vector3d precise_direction_{Eigen::Vector3d::UnitX()};
 
     OutputInterface<double> pitch_angle_error_;
     std::unique_ptr<OutputInterface<double>[]> yaw_angle_error_;
@@ -299,4 +316,5 @@ private:
 
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::gimbal::DualGimbalController, rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(
+    rmcs_core::controller::gimbal::DualGimbalController, rmcs_executor::Component)

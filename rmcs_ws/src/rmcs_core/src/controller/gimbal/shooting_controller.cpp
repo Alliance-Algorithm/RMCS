@@ -4,7 +4,6 @@
 
 #include <eigen3/Eigen/Dense>
 #include <fast_tf/rcl.hpp>
-#include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/keyboard.hpp>
@@ -150,10 +149,9 @@ public:
                 const auto default_mode     = default_shoot_mode();
                 const auto alternative_mode = alternative_shoot_mode();
 
-                if (keyboard.f)
-                    shoot_mode = alternative_mode;
-                else if (shoot_mode == alternative_mode)
-                    shoot_mode = default_mode;
+                if (!last_keyboard_.f && keyboard.f) {
+                    shoot_mode = shoot_mode == alternative_mode ? default_mode : alternative_mode;
+                }
 
                 if (!last_keyboard_.g && keyboard.g) {
                     shoot_mode = shoot_mode == rmcs_msgs::ShootMode::PRECISE
@@ -173,12 +171,16 @@ public:
                     }
 
                     if (!bullet_feeder_enabled_ && bullet_count_limited_by_single_shot_) {
-                        if (++single_shot_delayed_stop_counter_ != single_shot_max_stop_delay_) {
+                        if (!bullet_is_shot_
+                            && (++single_shot_delayed_stop_counter_
+                                != single_shot_max_stop_delay_)) {
                             bullet_feeder_enabled_ = true;
                         } else {
                             bullet_count_limited_by_single_shot_ = 0;
                             single_shot_delayed_stop_counter_    = 0;
-                            shoot_status_->single_shot_cancelled_count++;
+                            RCLCPP_INFO(
+                                get_logger(), "Single shot failed. Count:%d",
+                                ++shoot_status_->single_shot_cancelled_count);
                         }
                     }
                 } else {
@@ -244,8 +246,11 @@ private:
                     single_shot_delayed_stop_counter_ = 0;
 
                     shoot_status_->fired_count++;
+                    bullet_is_shot_ = true;
 
                     bullet_feeder_last_shoot_angle_ = *bullet_feeder_multi_turn_angle_;
+                } else {
+                    bullet_is_shot_ = false;
                 }
                 primary_friction_velocity_decrease_integral_ = 0;
             }
@@ -391,6 +396,8 @@ private:
     int64_t shooter_heat_                         = 0;
     int64_t bullet_count_limited_by_shooter_heat_ = 0;
     int64_t bullet_count_limited_by_single_shot_  = -1;
+
+    bool bullet_is_shot_{false};
 
     bool friction_enabled_ = false, bullet_feeder_enabled_ = false;
 

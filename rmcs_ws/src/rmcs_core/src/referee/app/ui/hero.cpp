@@ -99,8 +99,7 @@ private:
                                ? *gimbal_pitch_angle_ - 2 * std::numbers::pi
                                : *gimbal_pitch_angle_;
 
-        rangefinder_.update_pitch_angle(
-            -display_angle, *shoot_mode_ == rmcs_msgs::ShootMode::PRECISE);
+        rangefinder_.update_pitch_angle(-display_angle);
 
         double raw_height    = -display_angle / 0.7 * static_cast<double>(height_max);
         raw_height           = std::clamp(raw_height, 0.0, static_cast<double>(height_max));
