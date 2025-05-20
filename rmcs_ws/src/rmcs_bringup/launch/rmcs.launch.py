@@ -7,7 +7,9 @@ from launch import (
     LaunchDescriptionEntity,
 )
 from launch.actions import LogInfo
+from launch.actions import IncludeLaunchDescription
 from launch.substitutions import LaunchConfiguration
+from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
@@ -46,12 +48,28 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
                 ],
                 respawn=True,
                 respawn_delay=1.0,
-                output="screen",
+                output="log",
             )
         )
 
         if is_automatic:
-            pass
+            entities.append(
+                IncludeLaunchDescription(
+                    PythonLaunchDescriptionSource(
+                        [FindPackageShare("rmcs_slam"), "/launch", "/launch.py"]
+                    )
+                )
+            )
+            entities.append(
+                Node(
+                    package="tlarc",
+                    executable="tlarc",
+                    arguments=["PlanAndMove"],
+                    respawn=True,
+                    respawn_delay=1.0,
+                    output="log",
+                )
+            )
 
         return entities
 

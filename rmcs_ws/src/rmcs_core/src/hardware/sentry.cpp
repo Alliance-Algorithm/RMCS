@@ -3,16 +3,19 @@
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/lk_motor.hpp"
 #include "librmcs/client/cboard.hpp"
-#include <memory>
+#include "rmcs_utility/navigation_util.hpp"
+
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
+#include <std_msgs/msg/int32.hpp>
 
 #include <rmcs_description/tf_description.hpp>
-
 #include <rmcs_executor/component.hpp>
 #include <serial_interface.hpp>
-#include <std_msgs/msg/int32.hpp>
+
+#include <memory>
+
 namespace rmcs_core::hardware {
 
 class Sentry
@@ -281,6 +284,19 @@ private:
                     .set_encoder_zero_point(
                         static_cast<int>(sentry.get_parameter("right_front_zero_point").as_int()))
                     .enable_multi_turn_angle());
+
+            update_recorder_ = [this, &sentry] {
+                const auto switch_status = dr16_.switch_right();
+                if (last_switch_right_ == rmcs_msgs::Switch::MIDDLE
+                    && switch_status == rmcs_msgs::Switch::UP) {
+                    rmcs_utility::switch_record(sentry, true);
+                } else if (
+                    last_switch_right_ == rmcs_msgs::Switch::UP
+                    && switch_status == rmcs_msgs::Switch::MIDDLE) {
+                    rmcs_utility::switch_record(sentry, false);
+                }
+                last_switch_right_ = switch_status;
+            };
         }
         ~BottomBoard() final {
             stop_handling_events();
@@ -303,6 +319,8 @@ private:
                 gimbal_yaw_motor_.angle());
 
             gimbal_bullet_feeder_.update_status();
+
+            std::invoke(update_recorder_);
         }
         void command_update() {
             uint16_t batch_commands[4];
@@ -403,6 +421,10 @@ private:
 
         librmcs::client::CBoard::TransmitBuffer transmit_buffer_;
         std::thread event_thread_;
+
+        // For recorder switcher
+        rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
+        std::function<void()> update_recorder_;
     };
 
     OutputInterface<rmcs_description::Tf> tf_;

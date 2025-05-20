@@ -7,8 +7,6 @@
 #include <std_srvs/srv/set_bool.hpp>
 #include <string>
 
-#define RMCS_SERVICE_CALLBACK(...) [__VA_ARGS__](bool success, const std::string& msg)
-
 #define SET_BOOL_CALLBACK(...)                                          \
     [__VA_ARGS__](                                                      \
         const std_srvs::srv::SetBool::Request::ConstSharedPtr& request, \
@@ -19,30 +17,22 @@ namespace rmcs_utility {
 using CommonCallback = std::function<void(bool, const std::string&)>;
 
 namespace internal {
-using ServiceContext = std::tuple<rclcpp::Node&, std::string, CommonCallback>;
+using ServiceContext = std::tuple<rclcpp::Node&, std::string>;
 
-inline void set_bool(const ServiceContext& context, bool data) {
-    auto& [node, service, callback] = context;
+inline auto set_bool(const ServiceContext& context, bool data) {
+    auto& [node, service] = context;
 
     auto client   = node.create_client<std_srvs::srv::SetBool>(service);
     auto request  = std::make_shared<std_srvs::srv::SetBool::Request>();
     request->data = data;
 
-    auto future = client->async_send_request(request);
-    if (rclcpp::spin_until_future_complete(node.get_node_base_interface(), future)
-        == rclcpp::FutureReturnCode::SUCCESS) {
-        const auto result = future.get();
-        callback(result->success, result->message);
-    } else {
-        callback(false, "Service " + service + " trigger timeout");
-    }
+    return client->async_send_request(request);
 }
 
 } // namespace internal
 
-// NOTE: suspend function
-inline void switch_record(rclcpp::Node& node, bool data, const CommonCallback& callback) {
-    internal::set_bool({node, "/rmcs_slam/switch_record", callback}, data);
+inline auto switch_record(rclcpp::Node& node, bool data) {
+    return internal::set_bool({node, "/rmcs_slam/switch_record"}, data);
 }
 
 } // namespace rmcs_utility
