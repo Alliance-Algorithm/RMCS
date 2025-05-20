@@ -30,6 +30,9 @@ public:
 
         get_parameter("output_min", pid_calculator_.output_min);
         get_parameter("output_max", pid_calculator_.output_max);
+        
+        get_parameter("deadzone_min", pid_calculator_.deadzone_min);
+        get_parameter("deadzone_max", pid_calculator_.deadzone_max);
     }
 
     void update() override {

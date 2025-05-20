@@ -36,7 +36,9 @@ public:
         , chassis_direction_indicator_(Shape::Color::PINK, 8, x_center, y_center, 0, 0, 84, 84)
         , chassis_control_power_limit_indicator_(Shape::Color::WHITE, 20, 2, x_center + 10, 820, 0)
         , supercap_control_power_limit_indicator_(Shape::Color::WHITE, 20, 2, x_center + 10, 790, 0)
-        , time_reminder_(Shape::Color::PINK, 50, 5, x_center + 150, y_center + 65, 0, false) {
+        , time_reminder_(Shape::Color::PINK, 50, 5, x_center + 150, y_center + 65, 0, false)
+        , pitch_text_(Shape::Color::WHITE, 20, 2, x_center - 30, y_center - 350, "pitch")
+        , pitch_angle_(Shape::Color::WHITE, 20, 2, x_center , y_center - 350, 0) {
 
         chassis_control_direction_indicator_.set_x(x_center);
         chassis_control_direction_indicator_.set_y(y_center);
@@ -70,6 +72,8 @@ public:
         register_input("/referee/game/stage", game_stage_);
 
         // register_input("/auto_aim/ui_target", auto_aim_target_, false);
+        register_input("/gimbal/pitch/angle", gimbal_pitch_angle_);
+
     }
 
     void update() override {
@@ -89,6 +93,8 @@ public:
 
         status_ring_.update_auto_aim_enable(mouse_->right == 1);
     }
+
+    void update_pitch_angle(double pitch_angle) { pitch_angle_.set_value(pitch_angle); };
 
 private:
     void update_time_reminder() {
@@ -159,6 +165,8 @@ private:
 
     // InputInterface<std::pair<uint16_t, uint16_t>> auto_aim_target_;
 
+    InputInterface<double> gimbal_pitch_angle_;
+
     CrossHair crosshair_;
     StatusRing status_ring_;
 
@@ -173,6 +181,9 @@ private:
     Float chassis_control_power_limit_indicator_, supercap_control_power_limit_indicator_;
 
     Integer time_reminder_;
+
+    Text pitch_text_;
+    Float pitch_angle_;
 };
 
 } // namespace rmcs_core::referee::app::ui

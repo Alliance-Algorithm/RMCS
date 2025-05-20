@@ -20,12 +20,10 @@ public:
               get_parameter("kd").as_double()) {
 
         register_input(get_parameter("measurement").as_string(), measurement_);
-
+        
         filter_alpha_ = this->get_parameter_or<double>("filter_alpha", 1.0);
-
         filter_alpha_ = std::clamp(filter_alpha_, 0.0, 1.0);
 
-        // Allows using immediate value instead of message name
         auto parameter_setpoint = get_parameter("setpoint");
         if (parameter_setpoint.get_type() == rclcpp::ParameterType::PARAMETER_DOUBLE) {
             setpoint_.make_and_bind_directly(parameter_setpoint.as_double());
@@ -35,14 +33,17 @@ public:
 
         register_output(get_parameter("control").as_string(), control_);
 
-        get_parameter("integral_min", pid_calculator_.integral_min);
-        get_parameter("integral_max", pid_calculator_.integral_max);
+        get_parameter("integral_min",       pid_calculator_.integral_min);
+        get_parameter("integral_max",       pid_calculator_.integral_max);
         get_parameter("integral_split_min", pid_calculator_.integral_split_min);
         get_parameter("integral_split_max", pid_calculator_.integral_split_max);
-        get_parameter("output_min", pid_calculator_.output_min);
-        get_parameter("output_max", pid_calculator_.output_max);
+        get_parameter("output_min",         pid_calculator_.output_min);
+        get_parameter("output_max",         pid_calculator_.output_max);
 
-                if (measurement_.ready()) {
+        get_parameter("deadzone_min",       pid_calculator_.deadzone_min);
+        get_parameter("deadzone_max",       pid_calculator_.deadzone_max);
+
+        if (measurement_.ready()) {
             filtered_measurement_ = *measurement_;
         } else {
             filtered_measurement_ = 0.0;
@@ -59,8 +60,8 @@ public:
 
 private:
     double filter_alpha_;            // α ∈ [0,1]
-    double filtered_measurement_; 
-    PidCalculator pid_calculator_;
+    double filtered_measurement_;   
+    PidCalculator pid_calculator_;   
 
     InputInterface<double> measurement_;
     InputInterface<double> setpoint_;
@@ -71,5 +72,4 @@ private:
 } // namespace rmcs_core::controller::pid
 
 #include <pluginlib/class_list_macros.hpp>
-
 PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::pid::PidController, rmcs_executor::Component)

@@ -5,7 +5,7 @@ rmcs_executor:
       - rmcs_core::hardware::TunnelInfantry -> tunnel_infantry_hardware
 
       - rmcs_core::controller::gimbal::GimbalController -> gimbal_controller
-      - rmcs_core::controller::pid::FeedForwardPidController -> yaw_angle_pid_controller
+      - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
 
@@ -59,34 +59,31 @@ gimbal_controller:
 
 yaw_angle_pid_controller:
   ros__parameters:
-    filter_alpha: 0.95
-    integral_split_min: -0.1
-    integral_split_max: 0.1
-    output_min: -15.0
-    output_max:  15.0
+    filter_alpha: 0.9
+    output_min: -30.0
+    output_max:  30.0
+    deadzone_min: -0.03
+    deadzone_max:  0.03
 
     measurement: /gimbal/yaw/control_angle_error
-    feedforward: /gimbal/yaw/velocity_imu
     control: /gimbal/yaw/control_velocity
-    kp: 41.0
-    ki: 0.002
-    kd: 0.01
+    kp: 38.5
+    ki: 0.003
+    kd: 0.03
 
 yaw_velocity_pid_controller:
   ros__parameters:
-    filter_alpha: 0.9
-    integral_min: -10.0
-    integral_max:  10.0
-    integral_split_min: -0.12
-    integral_split_max: 0.12
+    filter_alpha: 0.95
     output_min: -30.0
     output_max:  30.0
+    deadzone_min: -0.03
+    deadzone_max:  0.03
 
     measurement: /gimbal/yaw/velocity
     setpoint: /gimbal/yaw/control_velocity
     control: /gimbal/yaw/control_torque
-    kp: 55.0
-    ki: 0.001
+    kp: 70.0
+    ki: 0.003
     kd: 1.2
 
 pitch_angle_pid_controller:
@@ -101,7 +98,6 @@ pitch_angle_pid_controller:
 shooting_controller:
   ros__parameters:
     friction_wheels:
-
       - /gimbal/left_friction
       - /gimbal/right_friction
     friction_velocities:
