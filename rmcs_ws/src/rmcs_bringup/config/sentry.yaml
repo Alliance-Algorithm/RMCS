@@ -20,25 +20,13 @@ rmcs_executor:
 
       - rmcs_core::controller::chassis::ChassisController -> chassis_controller
       - rmcs_core::controller::chassis::SteeringWheelControllerWithPlanner -> steering_wheel_controller
-      # - rmcs_core::controller::pid::PidController -> left_front_wheel_velocity_pid_controller
-      # - rmcs_core::controller::pid::PidController -> left_back_wheel_velocity_pid_controller
-      # - rmcs_core::controller::pid::PidController -> right_back_wheel_velocity_pid_controller
-      # - rmcs_core::controller::pid::PidController -> right_front_wheel_velocity_pid_controller
 
-      # - rmcs_core::controller::pid::ErrorPidController -> left_front_steer_angle_pid_controller
-      # - rmcs_core::controller::pid::ErrorPidController -> left_back_steer_angle_pid_controller
-      # - rmcs_core::controller::pid::ErrorPidController -> right_back_steer_angle_pid_controller
-      # - rmcs_core::controller::pid::ErrorPidController -> right_front_steer_angle_pid_controller
-      
-      # - rmcs_core::controller::pid::PidController -> left_front_steer_velocity_pid_controller
-      # - rmcs_core::controller::pid::PidController -> left_back_steer_velocity_pid_controller
-      # - rmcs_core::controller::pid::PidController -> right_back_steer_velocity_pid_controller
-      # - rmcs_core::controller::pid::PidController -> right_front_steer_velocity_pid_controller
+      - rmcs_core::bridge::TlarcBridge -> tlarc_bridge
 
       # - rmcs_core::controller::gimbal::ShootingRecorder -> shooting_recorder
       
-      # - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
-      # - rmcs_auto_aim::AutoAimController -> auto_aim_controller
+      - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
+      - rmcs_auto_aim::AutoAimController -> auto_aim_controller
 
 sentry_hardware:
   ros__parameters:
@@ -305,4 +293,4 @@ auto_aim_controller:
     debug_buff_mode: false
     record: false
     raw_img_pub: false # Set false in actual use
-    image_viewer_type: 0
+    image_viewer_type: 2

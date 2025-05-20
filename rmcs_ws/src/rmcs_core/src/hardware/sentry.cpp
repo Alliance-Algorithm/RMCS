@@ -27,7 +27,6 @@ public:
               create_partner_component<SentryCommand>(get_component_name() + "_command", *this)) {
         using namespace rmcs_description;
         register_output("/tf", tf_);
-        tf_->set_transform<PitchLink, CameraLink>(Eigen::Translation3d{0.16, 0.0, 0.15});
 
         gimbal_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
             "/gimbal/calibrate", rclcpp::QoS{0}, [this](std_msgs::msg::Int32::UniquePtr&& msg) {
@@ -47,7 +46,7 @@ public:
             static_cast<int>(get_parameter("usb_pid_bottom_board").as_int()));
 
         using namespace rmcs_description;
-        tf_->set_transform<PitchLink, CameraLink>(Eigen::Translation3d{0.06603, 0.0, 0.082});
+        tf_->set_transform<PitchLink, CameraLink>(Eigen::Translation3d{0.03403, 0.0, 0.08285});
     }
     ~Sentry() override = default;
 

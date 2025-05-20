@@ -110,6 +110,7 @@ private:
 
     void reset_all_controls() {
         chassis_velocity_expected_.vector = Eigen::Vector3d::Zero();
+        translational_control_velocity    = Eigen::Vector2d::Zero();
 
         *left_front_steering_control_torque_  = 0.0;
         *left_back_steering_control_torque_   = 0.0;
@@ -159,9 +160,11 @@ private:
             fast_tf::cast<rmcs_description::BaseLink>(*chassis_control_velocity_, *tf_).vector;
         chassis_control_velocity.head<2>() =
             Eigen::Rotation2Dd(-std::numbers::pi / 4) * chassis_control_velocity.head<2>();
-        Eigen::Vector2d err = chassis_control_velocity.head<2>() - translational_control_velocity;
-        translational_control_velocity = translational_control_velocity
-                                       + std::clamp(err.norm(), -0.002, 0.002) * err.normalized();
+        double err =
+            chassis_control_velocity.head<2>().norm() - translational_control_velocity.norm();
+        translational_control_velocity =
+            chassis_control_velocity.head<2>().normalized()
+            * (translational_control_velocity.norm() + std::clamp(err, -0.002, 0.002));
         chassis_control_velocity.head<2>() = translational_control_velocity;
         return chassis_control_velocity;
     }

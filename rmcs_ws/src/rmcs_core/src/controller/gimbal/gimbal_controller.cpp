@@ -1,5 +1,6 @@
 #include <cmath>
 
+#include <game_stage.hpp>
 #include <limits>
 
 #include <eigen3/Eigen/Dense>
@@ -11,6 +12,7 @@
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/shoot_mode.hpp>
 #include <rmcs_msgs/switch.hpp>
+#include <robot_id.hpp>
 
 namespace rmcs_core::controller::gimbal {
 
@@ -33,6 +35,10 @@ public:
         register_input("/remote/mouse/velocity", mouse_velocity_);
         register_input("/remote/mouse", mouse_);
 
+        register_input("/tlarc/control/velocity", auto_controller_velocity_);
+
+        register_input("/referee/id", robot_msg_referee_, false);
+
         register_input("/gimbal/pitch/angle", gimbal_pitch_angle_);
         register_input("/tf", tf_);
 
@@ -51,6 +57,13 @@ public:
         auto switch_left  = *switch_left_;
         auto mouse        = *mouse_;
 
+        if ((robot_msg_referee_.ready() && robot_msg_referee_->id() == rmcs_msgs::ArmorID::Sentry
+             && *game_stage_ == rmcs_msgs::GameStage::STARTED)
+            || switch_right == rmcs_msgs::Switch::UP)
+            auto_controller_flag_ = true;
+        else
+            auto_controller_flag_ = false;
+
         using namespace rmcs_msgs;
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
@@ -62,6 +75,8 @@ public:
                 && !auto_aim_control_direction_->isZero()) {
                 update_auto_aim_control_direction(dir);
 
+            } else if (auto_controller_flag_) {
+                update_cruise_control_direction(dir);
             } else {
                 update_manual_control_direction(dir);
             }
@@ -97,6 +112,38 @@ private:
         control_enabled = true;
     }
 
+    void update_cruise_control_direction(PitchLink::DirectionVector& dir) {
+        if (control_enabled)
+            dir = fast_tf::cast<PitchLink>(control_direction_, *tf_);
+        else {
+            auto odom_dir =
+                fast_tf::cast<OdomImu>(PitchLink::DirectionVector{Eigen::Vector3d::UnitX()}, *tf_);
+            if (odom_dir->x() == 0 || odom_dir->y() == 0)
+                return;
+            odom_dir->z() = 0;
+
+            dir = fast_tf::cast<PitchLink>(odom_dir, *tf_);
+            dir->normalize();
+            control_enabled = true;
+        }
+
+        double angle = 0;
+        Eigen::Vector2d translational_velocity{
+            auto_controller_velocity_->x(), auto_controller_velocity_->y()};
+
+        // if (!std::isnan(translational_velocity.x()) && !std::isnan(translational_velocity.y())
+        //     && translational_velocity.norm() > 0.05) {
+        //     angle = atan2(translational_velocity.y(), translational_velocity.x());
+        //     angle = angle > std::numbers::pi ? angle - 2 * std::numbers::pi : angle;
+        // } else
+        angle = -std::numbers::pi / 6 / 10;
+
+        angle = std::clamp(angle, -std::numbers::pi / 6, std::numbers::pi / 6);
+        // std::cerr << angle << std::endl;
+        YawLink::DirectionVector forward{cos(angle), sin(angle), 0};
+
+        dir = fast_tf::cast<PitchLink>(forward, *tf_);
+    }
     void update_manual_control_direction(PitchLink::DirectionVector& dir) {
         if (control_enabled)
             dir = fast_tf::cast<PitchLink>(control_direction_, *tf_);
@@ -180,6 +227,11 @@ private:
     double upper_limit_, lower_limit_;
 
     OutputInterface<double> yaw_angle_error_, pitch_angle_error_;
+
+    InputInterface<rmcs_msgs::RobotId> robot_msg_referee_;
+    InputInterface<rmcs_msgs::GameStage> game_stage_;
+    bool auto_controller_flag_;
+    InputInterface<Eigen::Vector2d> auto_controller_velocity_;
 };
 
 } // namespace rmcs_core::controller::gimbal

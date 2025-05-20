@@ -40,6 +40,7 @@ public:
         register_input("/remote/mouse", mouse_);
         register_input("/remote/keyboard", keyboard_);
         register_input("/remote/rotary_knob", rotary_knob_);
+        register_input("/tlarc/control/velocity", auto_controller_velocity_);
 
         auto gimbal_yaw_motors = get_parameter("gimbal_yaw_motors").as_string_array();
         if (gimbal_yaw_motors.size() == 0)
@@ -81,14 +82,6 @@ public:
             "/chassis/supercap/voltage/dead_line", supercap_voltage_dead_line_,
             supercap_voltage_dead_line);
 
-        auto_controller_ = this->create_subscription<geometry_msgs::msg::Pose2D>(
-            "/sentry/transform/velocity", 10, [this](geometry_msgs::msg::Pose2D::SharedPtr msg) {
-                auto_controller_velocity_.x() = msg->x;
-                auto_controller_velocity_.y() = msg->y;
-                auto_controller_velocity_ =
-                    std::clamp(auto_controller_velocity_.norm(), 0.0, translational_velocity_max)
-                    / translational_velocity_max * auto_controller_velocity_.normalized();
-            });
         auto_control_target_ = this->create_publisher<geometry_msgs::msg::PoseStamped>(
             "/transform/target/publish", 10);
 
@@ -214,10 +207,13 @@ public:
     Eigen::Vector2d update_translational_velocity_control() {
         auto keyboard = *keyboard_;
         Eigen::Vector2d keyboard_move{keyboard.w - keyboard.s, keyboard.a - keyboard.d};
-
+        auto auto_velocity = *auto_controller_velocity_;
+        auto_velocity      = auto_velocity.normalized()
+                      * std::clamp(auto_velocity.norm(), 0.0, translational_velocity_max)
+                      / translational_velocity_max;
         Eigen::Vector2d translational_velocity =
             *joystick_right_ + keyboard_move
-            + (auto_controller_flag_ ? auto_controller_velocity_ : Eigen::Vector2d::Zero());
+            + (auto_controller_flag_ ? auto_velocity : Eigen::Vector2d::Zero());
 
         if (translational_velocity.norm() > 1.0)
             translational_velocity.normalize();
@@ -406,11 +402,10 @@ private:
     OutputInterface<double> supercap_voltage_base_line_;
     OutputInterface<double> supercap_voltage_dead_line_;
 
-    rclcpp::Subscription<geometry_msgs::msg::Pose2D>::SharedPtr auto_controller_;
     rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr auto_control_target_;
     rclcpp::Client<std_srvs::srv::Trigger>::SharedPtr reload_slam_trigger_client_;
 
-    Eigen::Vector2d auto_controller_velocity_ = {0, 0};
+    InputInterface<Eigen::Vector2d> auto_controller_velocity_;
     bool auto_controller_flag_;
 };
 
