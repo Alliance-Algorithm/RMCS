@@ -38,6 +38,7 @@ public:
         register_input("/tlarc/control/velocity", auto_controller_velocity_);
 
         register_input("/referee/id", robot_msg_referee_, false);
+        register_input("/referee/game/stage", game_stage_, false);
 
         register_input("/gimbal/pitch/angle", gimbal_pitch_angle_);
         register_input("/tf", tf_);
@@ -57,9 +58,17 @@ public:
         auto switch_left  = *switch_left_;
         auto mouse        = *mouse_;
 
-        if ((robot_msg_referee_.ready() && robot_msg_referee_->id() == rmcs_msgs::ArmorID::Sentry
-             && *game_stage_ == rmcs_msgs::GameStage::STARTED)
-            || switch_right == rmcs_msgs::Switch::UP)
+        // 裁判系统正常且比赛开始
+        bool is_gaming_time = robot_msg_referee_.ready()
+                           && robot_msg_referee_->id() == rmcs_msgs::ArmorID::Sentry
+                           && *game_stage_ == rmcs_msgs::GameStage::STARTED;
+
+        // 人为设置成自动模式，左中右上
+        bool is_forced_auto = switch_right == rmcs_msgs::Switch::UP //
+                           && switch_left == rmcs_msgs::Switch::MIDDLE;
+
+        // 烧饼自动模式检测
+        if (is_gaming_time || is_forced_auto)
             auto_controller_flag_ = true;
         else
             auto_controller_flag_ = false;

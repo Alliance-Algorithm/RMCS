@@ -212,7 +212,7 @@ public:
                       * std::clamp(auto_velocity.norm(), 0.0, translational_velocity_max)
                       / translational_velocity_max;
         Eigen::Vector2d translational_velocity =
-            *joystick_right_ + keyboard_move
+            *joystick_right_ * 0.2 + keyboard_move
             + (auto_controller_flag_ ? auto_velocity : Eigen::Vector2d::Zero());
 
         if (translational_velocity.norm() > 1.0)

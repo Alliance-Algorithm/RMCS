@@ -5,6 +5,7 @@
 #include "librmcs/client/cboard.hpp"
 #include "rmcs_utility/navigation_util.hpp"
 
+#include <game_stage.hpp>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
@@ -56,6 +57,21 @@ public:
     void update() override {
         top_board_->update();
         bottom_board_->update();
+
+        // 右摇杆由中位向上拨时，发送录制雷达消息的请求
+        // 当配置文件 (slam.yaml) 选择取消录制时，则不会进行录制
+        {
+            const auto switch_status = bottom_board_->switch_right();
+
+            using namespace rmcs_msgs;
+            if (last_switch_right_ == Switch::MIDDLE && switch_status == Switch::UP)
+                rmcs_utility::switch_record(*this, true);
+
+            if (last_switch_right_ == Switch::UP && switch_status == Switch::MIDDLE)
+                rmcs_utility::switch_record(*this, false);
+
+            last_switch_right_ = switch_status;
+        }
     }
 
     void command_update() {
@@ -87,14 +103,38 @@ private:
             get_logger(), "[steer calibration] New rf offset: %d",
             bottom_board_->chassis_steer_motors_[3].calibrate_zero_point());
     }
+
+    // 裁判系统等信息更新在 Sentry 中，故使用新组件来接收消息，防止循环引用
     class SentryCommand : public rmcs_executor::Component {
     public:
         explicit SentryCommand(Sentry& sentry)
-            : sentry_(sentry) {}
+            : sentry_(sentry) {
+            register_input("/referee/game/stage", game_stage_, false);
+        }
 
-        void update() override { sentry_.command_update(); }
+        void update() override {
+            sentry_.command_update();
+
+            // 比赛进入裁判系统自检阶段时，重置 SLAM 并进行重定位
+            {
+                using namespace rmcs_msgs;
+                bool is_entry_game = last_game_stage_ == GameStage::PREPARATION
+                                  && *game_stage_ == GameStage::REFEREE_CHECK;
+
+                using namespace rmcs_utility;
+                if (is_entry_game) {
+                    initialize_navigation(sentry_);
+                    RCLCPP_INFO(sentry_.get_logger(), "Entry game, initialize navigation now");
+                }
+
+                last_game_stage_ = *game_stage_;
+            }
+        }
 
         Sentry& sentry_;
+
+        InputInterface<rmcs_msgs::GameStage> game_stage_;
+        rmcs_msgs::GameStage last_game_stage_;
     };
 
     class TopBoard final : private librmcs::client::CBoard {
@@ -136,7 +176,7 @@ private:
                 return std::make_tuple(x, y, z);
             });
         }
-        ~TopBoard() {
+        ~TopBoard() final {
             stop_handling_events();
             event_thread_.join();
         }
@@ -284,19 +324,6 @@ private:
                     .set_encoder_zero_point(
                         static_cast<int>(sentry.get_parameter("right_front_zero_point").as_int()))
                     .enable_multi_turn_angle());
-
-            update_recorder_ = [this, &sentry] {
-                const auto switch_status = dr16_.switch_right();
-                if (last_switch_right_ == rmcs_msgs::Switch::MIDDLE
-                    && switch_status == rmcs_msgs::Switch::UP) {
-                    rmcs_utility::switch_record(sentry, true);
-                } else if (
-                    last_switch_right_ == rmcs_msgs::Switch::UP
-                    && switch_status == rmcs_msgs::Switch::MIDDLE) {
-                    rmcs_utility::switch_record(sentry, false);
-                }
-                last_switch_right_ = switch_status;
-            };
         }
         ~BottomBoard() final {
             stop_handling_events();
@@ -319,9 +346,8 @@ private:
                 gimbal_yaw_motor_.angle());
 
             gimbal_bullet_feeder_.update_status();
-
-            std::invoke(update_recorder_);
         }
+
         void command_update() {
             uint16_t batch_commands[4];
 
@@ -342,6 +368,8 @@ private:
 
             transmit_buffer_.trigger_transmission();
         }
+
+        rmcs_msgs::Switch switch_right() const { return dr16_.switch_right(); }
 
         void dbus_receive_callback(const std::byte* uart_data, uint8_t uart_data_length) override {
             dr16_.store_status(uart_data, uart_data_length);
@@ -421,13 +449,11 @@ private:
 
         librmcs::client::CBoard::TransmitBuffer transmit_buffer_;
         std::thread event_thread_;
-
-        // For recorder switcher
-        rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
-        std::function<void()> update_recorder_;
     };
 
     OutputInterface<rmcs_description::Tf> tf_;
+
+    rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
 
     std::shared_ptr<SentryCommand> command_component_;
     std::shared_ptr<TopBoard> top_board_;
