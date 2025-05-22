@@ -161,7 +161,8 @@ public:
             update_velocity_control();
             update_power_limit_control();
         } while (false);
-
+        // RCLCPP_INFO(rclcpp::get_logger("a"), "%d", *supercap_control_enabled_ );
+        // RCLCPP_INFO(rclcpp::get_logger("b"), "%d", *supercap_enabled_);
         last_switch_right_ = switch_right;
         last_switch_left_  = switch_left;
         last_keyboard_     = keyboard;
@@ -289,7 +290,7 @@ public:
                       (*chassis_buffer_energy_referee_ - buffer_energy_base_line)
                           / (buffer_energy_control_line - buffer_energy_base_line),
                       0.0, 1.0);
-        *supercap_charge_power_limit_ = power_limit_after_buffer_energy_closed_loop;
+        *supercap_charge_power_limit_ = power_limit_after_buffer_energy_closed_loop - 3;
 
         if (*supercap_control_enabled_ && *supercap_enabled_) {
             double supercap_power_limit = *mode_ == rmcs_msgs::ChassisMode::LAUNCH_RAMP

@@ -46,6 +46,7 @@ SteeringInfantry()
         bottom_board_ = std::make_unique<BottomBoard>(
             *this, *command_component_,
             static_cast<int>(get_parameter("usb_pid_bottom_board").as_int()));
+            
 
         using namespace rmcs_description;
         tf_->set_transform<PitchLink, CameraLink>(Eigen::Translation3d{0.06603, 0.0, 0.082});
@@ -252,6 +253,7 @@ private:
             , event_thread_([this]() { handle_events(); }) {
 
                 steeringInfantry.register_output("/referee/serial", referee_serial_);
+                
             referee_serial_->read = [this](std::byte* buffer, size_t size) {
                 return referee_ring_buffer_receive_.pop_front_multi(
                     [&buffer](std::byte byte) { *buffer++ = byte; }, size);
@@ -310,6 +312,7 @@ private:
             imu_.update_status();
             *chassis_yaw_velocity_imu_ = imu_.gy();
             supercap_.update_status();
+            
             // RCLCPP_INFO(rclcpp::get_logger("hello"), "%lf\n", supercap_.chassis_power());
             for (auto& motor : chassis_wheel_motors_)
                 motor.update_status();

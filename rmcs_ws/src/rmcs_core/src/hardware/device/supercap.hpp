@@ -35,14 +35,17 @@ public:
         *chassis_voltage_  = uint_to_double(status.chassis_voltage, 0.0, 50.0);
         *supercap_voltage_ = uint_to_double(status.supercap_voltage, 0.0, 50.0);
         *supercap_enabled_ = status.enabled;
+        
     }
 
     uint16_t generate_command() const {
         SupercapCommand command;
 
-        command.enabled = *chassis_output_status_;
+        command.enabled = true;
 
         double power_limit = *supercap_charge_power_limit_;
+         RCLCPP_INFO(rclcpp::get_logger("a"), "%lf", power_limit );
+         RCLCPP_INFO(rclcpp::get_logger("b"), "%d", *supercap_enabled_);
         if (std::isnan(power_limit))
             command.power_limit = 0;
         else
