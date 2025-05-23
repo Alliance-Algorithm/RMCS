@@ -56,7 +56,8 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
             entities.append(
                 IncludeLaunchDescription(
                     PythonLaunchDescriptionSource(
-                        [FindPackageShare("rmcs_slam"), "/launch", "/launch.py"]
+                        [FindPackageShare("rmcs_slam"),
+                         "/launch", "/launch.py"]
                     )
                 )
             )

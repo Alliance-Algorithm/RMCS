@@ -131,6 +131,7 @@ private:
             }
         }
 
+    private:
         Sentry& sentry_;
 
         InputInterface<rmcs_msgs::GameStage> game_stage_;
@@ -210,7 +211,6 @@ private:
             transmit_buffer_.add_can1_transmission(
                 0x142, gimbal_pitch_motor_.generate_velocity_command(
                            gimbal_pitch_motor_.control_velocity()));
-            // RCLCPP_INFO(rclcpp::get_logger("h"), "command Update");
 
             transmit_buffer_.trigger_transmission();
         }
@@ -219,18 +219,26 @@ private:
         void can1_receive_callback(
             uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
             bool is_remote_transmission, uint8_t can_data_length) override {
+
             if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
                 return;
-            // std::cerr << can_id << std::endl;
-            // RCLCPP_INFO(rclcpp::get_logger("a"), "%x", can_id);
+
             if (can_id == 0x201) {
                 gimbal_left_friction_.store_status(can_data);
-                // RCLCPP_INFO(rclcpp::get_logger("a"), "%lu", can_data);
             } else if (can_id == 0x202) {
                 gimbal_right_friction_.store_status(can_data);
             } else {
                 gimbal_pitch_motor_.store_status(can_data);
             }
+        }
+        void can2_receive_callback(
+            uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
+            bool is_remote_transmission, uint8_t can_data_length) override {
+            (void)can_id;
+            (void)can_data;
+            (void)is_extended_can_id;
+            (void)is_remote_transmission;
+            (void)can_data_length;
         }
         void accelerometer_receive_callback(int16_t x, int16_t y, int16_t z) override {
             bmi088_.store_accelerometer_status(x, y, z);
