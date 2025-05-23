@@ -338,7 +338,7 @@ private:
                           static_cast<int>(hero.get_parameter("yaw_motor_zero_point").as_int())))
             , gimbal_bullet_feeder_(
                   hero, hero_command, "/gimbal/bullet_feeder",
-                  device::LkMotor::Config{device::LkMotor::Type::MG4010E_I10}.set_reversed())
+                  device::LkMotor::Config{device::LkMotor::Type::MG5010E_I10}.set_reversed())
             , transmit_buffer_(*this, 32)
             , event_thread_([this]() { handle_events(); }) {
 

@@ -1,13 +1,9 @@
-#include "hardware/device/lk_motor.hpp"
-#include "librmcs/device/lk_motor.hpp"
-#include "librmcs/utility/logging.hpp"
 #include <cmath>
 
 #include <limits>
 
 #include <eigen3/Eigen/Dense>
 #include <fast_tf/rcl.hpp>
-#include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/keyboard.hpp>
@@ -39,7 +35,7 @@ public:
 
         auto friction_wheels     = get_parameter("friction_wheels").as_string_array();
         auto friction_velocities = get_parameter("friction_velocities").as_double_array();
-        if (friction_wheels.size() != friction_wheels.size())
+        if (friction_wheels.size() != friction_velocities.size())
             throw std::runtime_error(
                 "Mismatch in array sizes: "
                 "'friction_wheels' and 'friction_velocities' must have the same length!");
@@ -97,8 +93,6 @@ public:
         register_output("/gimbal/shooter/mode", shoot_mode_, default_shoot_mode());
         register_output(
             "/gimbal/shooter/status", shoot_status_, rmcs_msgs::ShootStatus{false, 0, 0, 0, 0});
-
-        register_output("/gimbal/bullet_feeder/mode", mode_, hardware::device::LkMotor::Mode::Velocity);
     }
 
     void before_updating() override {
@@ -155,21 +149,15 @@ public:
                 const auto default_mode     = default_shoot_mode();
                 const auto alternative_mode = alternative_shoot_mode();
 
-                if (keyboard.f)
-                    shoot_mode = alternative_mode;
-                else if (shoot_mode == alternative_mode)
-                    shoot_mode = default_mode;
+                if (!last_keyboard_.f && keyboard.f) {
+                    shoot_mode = shoot_mode == alternative_mode ? default_mode : alternative_mode;
+                }
 
                 if (!last_keyboard_.g && keyboard.g) {
                     shoot_mode = shoot_mode == rmcs_msgs::ShootMode::PRECISE
                                    ? default_mode
                                    : rmcs_msgs::ShootMode::PRECISE;
                 }
-                
-                if (is_42mm_) 
-                    if (switch_right == Switch::UP)
-                        shoot_mode = rmcs_msgs::ShootMode::PRECISE;
-                
 
                 if (shoot_mode == rmcs_msgs::ShootMode::SINGLE
                     || shoot_mode == rmcs_msgs::ShootMode::PRECISE) {
@@ -183,12 +171,16 @@ public:
                     }
 
                     if (!bullet_feeder_enabled_ && bullet_count_limited_by_single_shot_) {
-                        if (++single_shot_delayed_stop_counter_ != single_shot_max_stop_delay_) {
+                        if (!bullet_is_shot_
+                            && (++single_shot_delayed_stop_counter_
+                                != single_shot_max_stop_delay_)) {
                             bullet_feeder_enabled_ = true;
                         } else {
                             bullet_count_limited_by_single_shot_ = 0;
                             single_shot_delayed_stop_counter_    = 0;
-                            shoot_status_->single_shot_cancelled_count++;
+                            RCLCPP_INFO(
+                                get_logger(), "Single shot failed. Count:%d",
+                                ++shoot_status_->single_shot_cancelled_count);
                         }
                     }
                 } else {
@@ -254,8 +246,11 @@ private:
                     single_shot_delayed_stop_counter_ = 0;
 
                     shoot_status_->fired_count++;
+                    bullet_is_shot_ = true;
 
                     bullet_feeder_last_shoot_angle_ = *bullet_feeder_multi_turn_angle_;
+                } else {
+                    bullet_is_shot_ = false;
                 }
                 primary_friction_velocity_decrease_integral_ = 0;
             }
@@ -293,13 +288,11 @@ private:
     void update_bullet_feeder_velocity() {
         auto bullet_allowance = bullet_count_limited_by_shooter_heat_;
         if (0 <= bullet_count_limited_by_single_shot_
-            && bullet_count_limited_by_single_shot_ < bullet_allowance) {
+            && bullet_count_limited_by_single_shot_ < bullet_allowance)
             bullet_allowance = bullet_count_limited_by_single_shot_;
-        }
-
 
         if (!friction_enabled_ || !bullet_feeder_enabled_ || bullet_allowance == 0) {
-            bullet_feeder_working_status_ = 0;
+            bullet_feeder_working_status_    = 0;
             *bullet_feeder_control_velocity_ = 0.0;
             return;
         }
@@ -313,19 +306,15 @@ private:
 
         double new_control_velocity = bullet_allowance > 1 ? bullet_feeder_working_velocity
                                                            : bullet_feeder_safe_shot_velocity;
-        if (*shoot_mode_ == rmcs_msgs::ShootMode::PRECISE) {
+        if (*shoot_mode_ == rmcs_msgs::ShootMode::PRECISE)
             new_control_velocity =
                 std::min(new_control_velocity, bullet_feeder_precise_shot_velocity);
-        }
-        if (new_control_velocity > *bullet_feeder_control_velocity_) {
+        if (new_control_velocity > *bullet_feeder_control_velocity_)
             bullet_feeder_working_status_ = std::min(0, bullet_feeder_working_status_);
-        }
         *bullet_feeder_control_velocity_ = new_control_velocity;
     }
 
     void update_jam_detection() {
-
-        // LOG_INFO("forth");
         auto control_velocity = *bullet_feeder_control_velocity_;
         if (control_velocity > 0.0) {
             auto velocity = *bullet_feeder_velocity_;
@@ -356,12 +345,9 @@ private:
     void enter_jam_protection() {
         bullet_feeder_working_status_ = 0;
         if (++bullet_feeder_jammed_count_ <= 2) {
-
-            // LOG_INFO("five");
             *bullet_feeder_control_velocity_ = bullet_feeder_eject_velocity_;
             bullet_feeder_cool_down_         = bullet_feeder_eject_time_;
         } else {
-            // LOG_INFO("six");
             *bullet_feeder_control_velocity_ = bullet_feeder_deep_eject_velocity_;
             bullet_feeder_cool_down_         = bullet_feeder_deep_eject_time_;
         }
@@ -396,7 +382,6 @@ private:
     InputInterface<rmcs_msgs::Switch> switch_left_;
     InputInterface<rmcs_msgs::Mouse> mouse_;
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
-    OutputInterface<hardware::device::LkMotor::Mode> mode_;
 
     rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Switch last_switch_left_  = rmcs_msgs::Switch::UNKNOWN;
@@ -411,6 +396,8 @@ private:
     int64_t shooter_heat_                         = 0;
     int64_t bullet_count_limited_by_shooter_heat_ = 0;
     int64_t bullet_count_limited_by_single_shot_  = -1;
+
+    bool bullet_is_shot_{false};
 
     bool friction_enabled_ = false, bullet_feeder_enabled_ = false;
 

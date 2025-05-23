@@ -49,7 +49,7 @@ hero_hardware:
   ros__parameters:
     usb_pid_top_board: 0xeb37
     usb_pid_bottom_board: 0xc1d3
-    yaw_motor_zero_point: 40576
+    yaw_motor_zero_point: 61054
     pitch_motor_zero_point: 54062
     external_imu_port: /dev/ttyUSB0
 
@@ -96,9 +96,9 @@ shooting_controller:
     is_42mm: true
     friction_soft_start_stop_time: 1.0
     bullets_per_feeder_turn: 6.0
-    shot_frequency: 10.0
-    safe_shot_frequency: 10.0
-    precise_shot_frequency: 10.0
+    shot_frequency: 8.0
+    safe_shot_frequency: 8.0
+    precise_shot_frequency: 8.0
     eject_frequency: 5.0
     eject_time: 0.2
     deep_eject_frequency: 2.0
@@ -204,8 +204,8 @@ auto_aim_controller:
     # controller
     gimbal_predict_duration: 100
     yaw_error: 0.02
-    pitch_error: 0.06
-    shoot_velocity: 28.0
+    pitch_error: 0.00
+    shoot_velocity: 15.5
     predict_sec: 0.095
     # etc
     buff_predict_duration: 200

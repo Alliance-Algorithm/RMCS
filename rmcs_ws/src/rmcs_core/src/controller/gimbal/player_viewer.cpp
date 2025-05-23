@@ -53,15 +53,12 @@ public:
                 *scope_control_torque_ = -0.2;
                 reset_flag_            = false;
             }
-            *scope_control_torque_ = -0.2;
             if (!last_keyboard_.q && keyboard.q) {
                 scope_active_ = !scope_active_;
                 if (scope_active_) {
-                    *scope_control_torque_ = 0.2;
-                    LOG_INFO("active");
-                } else {
                     *scope_control_torque_ = -0.2;
-                    LOG_INFO("un");
+                } else {
+                    *scope_control_torque_ = 0.2;
                 }
                 *is_scope_active_ = scope_active_;
             }
@@ -75,6 +72,7 @@ private:
         scope_active_          = true;
         viewer_reset_          = true;
         reset_flag_            = true;
+        *viewer_control_angle_ = nan_;
     }
 
     void update_viewer_control_error() {
@@ -91,8 +89,8 @@ private:
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
     static constexpr double pi_  = std::numbers::pi;
 
-    static constexpr double upper_limit_ = 2.615094;
-    static constexpr double lower_limit_ = 2.026228;
+    static constexpr double upper_limit_ = 1.147915;
+    static constexpr double lower_limit_ = 0.557994;
 
     InputInterface<rmcs_msgs::Switch> switch_right_;
     InputInterface<rmcs_msgs::Switch> switch_left_;
