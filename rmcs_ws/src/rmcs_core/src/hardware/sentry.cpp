@@ -6,6 +6,8 @@
 #include "rmcs_utility/navigation_util.hpp"
 
 #include <game_stage.hpp>
+#include <robot_id.hpp>
+
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
@@ -110,25 +112,30 @@ private:
         explicit SentryCommand(Sentry& sentry)
             : sentry_(sentry) {
             register_input("/referee/game/stage", game_stage_, false);
+            register_input("/referee/id", robot_id_, false);
         }
 
         void update() override {
             sentry_.command_update();
 
             // 比赛进入裁判系统自检阶段时，重置 SLAM 并进行重定位
-            {
+            do {
+                if (!game_stage_.ready() || !robot_id_.ready())
+                    break;
+
                 using namespace rmcs_msgs;
                 bool is_entry_game = last_game_stage_ == GameStage::PREPARATION
                                   && *game_stage_ == GameStage::REFEREE_CHECK;
 
                 using namespace rmcs_utility;
                 if (is_entry_game) {
+                    update_robot_side(sentry_, robot_id_->color());
                     initialize_navigation(sentry_);
                     RCLCPP_INFO(sentry_.get_logger(), "Entry game, initialize navigation now");
                 }
 
                 last_game_stage_ = *game_stage_;
-            }
+            } while (false);
         }
 
     private:
@@ -136,6 +143,8 @@ private:
 
         InputInterface<rmcs_msgs::GameStage> game_stage_;
         rmcs_msgs::GameStage last_game_stage_;
+
+        InputInterface<rmcs_msgs::RobotId> robot_id_;
     };
 
     class TopBoard final : private librmcs::client::CBoard {

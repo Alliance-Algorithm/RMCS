@@ -4,6 +4,7 @@
 #include <rclcpp/executors.hpp>
 #include <rclcpp/future_return_code.hpp>
 #include <rclcpp/node.hpp>
+#include <robot_color.hpp>
 #include <std_srvs/srv/set_bool.hpp>
 #include <std_srvs/srv/trigger.hpp>
 #include <string>
@@ -46,6 +47,11 @@ inline auto trigger(const ServiceContext& context) {
 
 inline auto switch_record(rclcpp::Node& node, bool data) {
     return internal::set_bool({node, "/rmcs_slam/switch_record"}, data);
+}
+// 约定默认为红色，为 true，另一边则为蓝色，false
+inline auto update_robot_side(rclcpp::Node& node, rmcs_msgs::RobotColor color) {
+    const auto is_default = (color == rmcs_msgs::RobotColor::BLUE) ? false : true;
+    return internal::set_bool({node, "/rmcs_location/update_side"}, is_default);
 }
 inline auto initialize_navigation(rclcpp::Node& node) {
     return internal::trigger({node, "/rmcs_location/initialize"});
