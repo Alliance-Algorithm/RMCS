@@ -5,6 +5,7 @@
 #include <functional>
 #include <game_stage.hpp>
 #include <memory>
+#include <std_msgs/msg/detail/bool__struct.hpp>
 #include <string>
 #include <vector>
 
@@ -17,6 +18,7 @@
 #include <rclcpp/timer.hpp>
 
 #include <geometry_msgs/msg/pose2_d.hpp>
+#include <std_msgs/msg/bool.hpp>
 #include <std_msgs/msg/float64.hpp>
 #include <std_msgs/msg/header.hpp>
 #include <std_msgs/msg/int32.hpp>
@@ -46,12 +48,12 @@ public:
             get_or<std::string>("refeere_hp_inter_name", "/referee/robots/hp"),
             [](std_msgs::msg::UInt16MultiArray& msg,
                InputInterface<referee::status::GameRobotHp>& interface) {
-                msg.data = {interface->blue_1,      interface->blue_2,   interface->blue_3,
-                            interface->blue_4,      interface->blue_5,   interface->blue_7,
-                            interface->blue_base, //
-                            interface->red_outpost, interface->red_1,    interface->red_2,
-                            interface->red_3,       interface->red_4,    interface->red_5,
-                            interface->red_7,       interface->red_base, interface->red_outpost};
+                msg.data = {interface->blue_1,    interface->blue_2,       interface->blue_3,
+                            interface->blue_4,    interface->blue_5,       interface->blue_7,
+                            interface->blue_base, interface->blue_outpost, //
+                            interface->red_1,     interface->red_2,        interface->red_3,
+                            interface->red_4,     interface->red_5,        interface->red_7,
+                            interface->red_base,  interface->red_outpost};
             });
         publisher_factory<std_msgs::msg::UInt8, rmcs_msgs::GameStage>(
             get_or<std::string>("refeere_stage_topic_name", "/referee/game/stage"),
@@ -65,20 +67,33 @@ public:
             [](std_msgs::msg::Float64& msg, InputInterface<double>& interface) {
                 msg.set__data(*interface);
             });
-        publisher_factory<std_msgs::msg::UInt16, rmcs_msgs::RobotId>(
-            get_or<std::string>("refeere_id_topic_name", "/referee/id"),
+        publisher_factory<std_msgs::msg::UInt8, rmcs_msgs::RobotId>(
+            get_or<std::string>("refeere_id_topic_name", "/referee/id/color"),
             get_or<std::string>("refeere_id_inter_name", "/referee/id"),
-            [](std_msgs::msg::UInt16& msg, InputInterface<rmcs_msgs::RobotId>& interface) {
-                msg.set__data((uint16_t)(interface->id()));
+            [](std_msgs::msg::UInt8& msg, InputInterface<rmcs_msgs::RobotId>& interface) {
+                msg.set__data((uint8_t)(interface->color()));
+            });
+        publisher_factory<std_msgs::msg::UInt16, uint16_t>(
+            get_or<std::string>("refeere_id_topic_name", "/referee/shooter/bullet_allowance"),
+            get_or<std::string>("refeere_id_inter_name", "/referee/shooter/bullet_allowance"),
+            [](std_msgs::msg::UInt16& msg, InputInterface<uint16_t>& interface) {
+                msg.set__data(*interface);
             });
 
-        subsciprtion_factory<geometry_msgs::msg::Pose2D, Eigen::Vector2d>(
+        subscription_factory<geometry_msgs::msg::Pose2D, Eigen::Vector2d>(
             get_or<std::string>("tlarc_velocity_topic_name", "/tlarc/control/velocity"),
             get_or<std::string>("tlarc_velocity_topic_name", "/tlarc/control/velocity"), {0, 0},
             [](std::shared_ptr<geometry_msgs::msg::Pose2D> msg,
                OutputInterface<Eigen::Vector2d>& interface) { *interface = {msg->x, msg->y}; });
 
-        subsciprtion_factory<std_msgs::msg::UInt8, TargetEnemiesID>(
+        subscription_factory<std_msgs::msg::Bool, bool>(
+            get_or<std::string>("tlarc_spinning_topic_name", "/tlarc/control/spinning"),
+            get_or<std::string>("tlarc_spinning_topic_name", "/tlarc/control/spinning"), {false},
+            [](std::shared_ptr<std_msgs::msg::Bool> msg, OutputInterface<bool>& interface) {
+                *interface = msg->data;
+            });
+
+        subscription_factory<std_msgs::msg::UInt8, TargetEnemiesID>(
             get_or<std::string>(
                 "tlarc_auto_aim_target_topic_name", "/tlarc/control/auto_aim/target"),
             get_or<std::string>(
@@ -88,11 +103,12 @@ public:
                OutputInterface<TargetEnemiesID>& interface) {
                 *interface = std::bit_cast<TargetEnemiesID>(msg->data);
             });
-
-        RCLCPP_WARN(get_logger(), "Thease paremeters write in yaml but not used:\n");
-        for (const auto& str : param_names)
-            RCLCPP_WARN(get_logger(), "\t%s\n", str.c_str());
-        RCLCPP_WARN(get_logger(), "Check your spell pls\n");
+        if (!param_names.empty()) {
+            RCLCPP_WARN(get_logger(), "Thease paremeters write in yaml but not used:\n");
+            for (const auto& str : param_names)
+                RCLCPP_WARN(get_logger(), "\t%s\n", str.c_str());
+            RCLCPP_WARN(get_logger(), "Check your spell pls\n");
+        }
     }
     void before_updating() override {
         timer = this->create_wall_timer(
@@ -152,7 +168,7 @@ private:
         typename Subscription = rclcpp::Subscription<MessageT>,
         typename UnitT        = BridgeUnit<Subscription, OutputInterface<DataT>>>
     // using Subscription = rclcpp::Subscription<MessageT>;
-    void subsciprtion_factory(
+    void subscription_factory(
         const std::string& topic_name, const std::string& interface_name,
         const DataT& default_value,
         const std::function<void(std::shared_ptr<MessageT>, OutputInterface<DataT>&)>&

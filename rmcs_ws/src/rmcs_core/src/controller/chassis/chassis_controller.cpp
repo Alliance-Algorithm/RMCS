@@ -1,4 +1,8 @@
+#include <chrono>
+#include <cmath>
+#include <ctime>
 #include <eigen3/Eigen/Dense>
+#include <eigen3/Eigen/src/Core/Matrix.h>
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
@@ -17,6 +21,7 @@
 #include <robot_id.hpp>
 
 #include "controller/pid/pid_calculator.hpp"
+#include "referee/status/field.hpp"
 
 namespace rmcs_core::controller::chassis {
 
@@ -41,6 +46,7 @@ public:
         register_input("/remote/keyboard", keyboard_);
         register_input("/remote/rotary_knob", rotary_knob_);
         register_input("/tlarc/control/velocity", auto_controller_velocity_);
+        register_input("/tlarc/control/spinning", auto_controller_spinning_);
 
         auto gimbal_yaw_motors = get_parameter("gimbal_yaw_motors").as_string_array();
         if (gimbal_yaw_motors.size() == 0)
@@ -67,6 +73,7 @@ public:
         register_input("/referee/chassis/buffer_energy", chassis_buffer_energy_referee_, false);
         register_input("/referee/id", robot_msg_referee_, false);
         register_input("/referee/game/stage", game_stage_);
+        register_input("/referee/robots/hp", robot_hp_, false);
 
         register_output("/chassis/angle", chassis_angle_, nan);
         register_output("/chassis/control_angle", chassis_control_angle_, nan);
@@ -137,6 +144,15 @@ public:
     void update() override {
         using namespace rmcs_msgs;
 
+        sentry_hp_ =
+            robot_hp_.ready() && robot_msg_referee_.ready()
+                ? (robot_msg_referee_->color() == rmcs_msgs::RobotColor::BLUE ? robot_hp_->blue_7
+                                                                              : robot_hp_->red_7)
+                : 400;
+        if (sentry_hp_ > last_sentry_hp_)
+            spinning_to_when_ = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+        last_sentry_hp_ = sentry_hp_;
+
         auto switch_right = *switch_right_;
         auto switch_left  = *switch_left_;
         auto keyboard     = *keyboard_;
@@ -205,7 +221,7 @@ public:
     void update_velocity_control() {
         auto translational_velocity = update_translational_velocity_control();
 
-        auto angular_velocity = update_angular_velocity_control();
+        auto angular_velocity = update_angular_velocity_control(translational_velocity);
 
         chassis_control_velocity_->vector << translational_velocity, angular_velocity;
     }
@@ -229,7 +245,7 @@ public:
         return translational_velocity;
     }
 
-    double update_angular_velocity_control() {
+    double update_angular_velocity_control(const Eigen::Vector2d& translational_velocity) {
         double angular_velocity      = 0.0;
         double chassis_control_angle = nan;
 
@@ -268,6 +284,19 @@ public:
             angular_velocity = following_velocity_controller_.update(err);
         } break;
         }
+        if (auto_controller_flag_) {
+            if (translational_velocity.norm() > 0.05) {
+                double err = calculate_unsigned_chassis_angle_error_with_velocity(
+                    translational_velocity, chassis_control_angle);
+                constexpr double alignment = 2 * std::numbers::pi;
+                if (err > alignment / 2)
+                    err -= alignment;
+                angular_velocity = following_velocity_controller_.update(err);
+            } else {
+                if (std::chrono::steady_clock::now() < spinning_to_when_)
+                    angular_velocity = 0.6 * angular_velocity_max;
+            }
+        }
         *chassis_angle_         = 2 * std::numbers::pi - *gimbal_yaw_angle_;
         *chassis_control_angle_ = chassis_control_angle;
 
@@ -276,6 +305,26 @@ public:
 
     double calculate_unsigned_chassis_angle_error(double& chassis_control_angle) {
         chassis_control_angle = *gimbal_yaw_angle_error_;
+        if (chassis_control_angle < 0)
+            chassis_control_angle += 2 * std::numbers::pi;
+        // chassis_control_angle: [0, 2pi).
+
+        // err = setpoint         -       measurement
+        //          ^                          ^
+        //          |gimbal_yaw_angle_error    |chassis_angle
+        //                                            ^
+        //                                            |(2pi - gimbal_yaw_angle)
+        double err = chassis_control_angle + *gimbal_yaw_angle_;
+        if (err >= 2 * std::numbers::pi)
+            err -= 2 * std::numbers::pi;
+        // err: [0, 2pi).
+
+        return err;
+    }
+    double calculate_unsigned_chassis_angle_error_with_velocity(
+        Eigen::Vector2d translational_velocity, double& chassis_control_angle) {
+        chassis_control_angle = *gimbal_yaw_angle_error_
+                              + atan2(translational_velocity.y(), translational_velocity.x());
         if (chassis_control_angle < 0)
             chassis_control_angle += 2 * std::numbers::pi;
         // chassis_control_angle: [0, 2pi).
@@ -397,6 +446,7 @@ private:
 
     InputInterface<rmcs_msgs::RobotId> robot_msg_referee_;
     InputInterface<rmcs_msgs::GameStage> game_stage_;
+    InputInterface<referee::status::GameRobotHp> robot_hp_;
 
     int supercap_switch_cooling_ = 0;
     OutputInterface<bool> supercap_control_enabled_;
@@ -412,7 +462,12 @@ private:
     rclcpp::Client<std_srvs::srv::Trigger>::SharedPtr reload_slam_trigger_client_;
 
     InputInterface<Eigen::Vector2d> auto_controller_velocity_;
+    InputInterface<bool> auto_controller_spinning_;
     bool auto_controller_flag_;
+    int sentry_hp_      = 400;
+    int last_sentry_hp_ = 400;
+    std::chrono::time_point<std::chrono::steady_clock> spinning_to_when_ =
+        std::chrono::steady_clock::now();
 };
 
 } // namespace rmcs_core::controller::chassis

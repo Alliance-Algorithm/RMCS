@@ -100,7 +100,7 @@ private:
                         "Cannot find the corresponding output of input \"%s\" declared by "
                         "component [%s]",
                         input.name.c_str(), component->get_component_name().c_str());
-                    throw std::runtime_error{"Cannot find the corresponding output"};
+                    throw std::runtime_error{"Cannot find the corresponding output " + input.name};
                 }
 
                 const auto& output = *output_iter->second;

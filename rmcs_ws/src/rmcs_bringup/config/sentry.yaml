@@ -121,7 +121,7 @@ bullet_feeder_velocity_pid_controller:
     measurement: /gimbal/bullet_feeder/velocity
     setpoint: /gimbal/bullet_feeder/control_velocity
     control: /gimbal/bullet_feeder/control_torque
-    kp: 0.5
+    kp: 0.583
     ki: 0.0
     kd: 0.0
 left_front_wheel_velocity_pid_controller:
