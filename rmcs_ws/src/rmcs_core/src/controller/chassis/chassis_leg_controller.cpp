@@ -28,7 +28,7 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , following_velocity_controller_(0.36, 0.00, 0.089)
+        , following_velocity_controller_(0.46, 0.00, 0.089)
         , leg_lf_error_pid_controller(240.0, 0.0, 5.0)
         , leg_lf_velocity_pid_controller(2.0, 0.0, 0.2)
         , leg_rf_error_pid_controller(240.0, 0.0, 5.0)
@@ -88,22 +88,25 @@ public:
             "/chassis/big_yaw/target_angle_error", chassis_big_yaw_target_angle_error, NAN);
         register_input("/chassis/big_yaw/angle", chassis_big_yaw_angle);
 
-        std::array<double, 2> four_wheel_angle = leg_inverse_kinematic(237.4, 220.6, false, false);
+        std::array<double, 2> four_wheel_angle = leg_inverse_kinematic(241.6, 218.4, false, false);
         four_wheel_trajectory
             .set_end_point(
                 {four_wheel_angle[0], four_wheel_angle[1], four_wheel_angle[1], four_wheel_angle[0],
                  0, 0})
             .set_total_step(500.0);
-        // six_wheel_trajectory
-        std::array<double, 2> six_wheel_angle = leg_inverse_kinematic(243.0, 217.0, false, false);
+        std::array<double, 2> six_wheel_angle = leg_inverse_kinematic(251.0, 220.0, false, false);
         six_wheel_trajectory
             .set_end_point(
                 {six_wheel_angle[0], six_wheel_angle[1], six_wheel_angle[1], six_wheel_angle[0], 0,
                  0})
             .set_total_step(500.0);
-        up_stairs.set_end_point({1.800270, 1.680, 1.680, 1.800270, 0, 0}).set_total_step(1800);
-        leg_press.set_end_point({1.016814, 0.765241, 0.765241, 1.016814, 0, 0})
-            .set_total_step(4000);
+
+        up_stairs_initial.set_end_point({1.700270, 1.680, 1.680, 1.700270, 0, 0})
+            .set_total_step(2000);
+        up_stairs_leg_press.set_end_point({0.506814, 0.995241, 0.995241, 0.466814, 0, 0})
+            .set_total_step(1400);
+        up_stairs_leg_lift.set_end_point({1.523598767, 1.021730456, 1.021730456, 1.523598767, 0, 0})
+            .set_total_step(3100);
     }
     void update() override {
         auto switch_right = *switch_right_;
@@ -119,6 +122,7 @@ public:
             leg_relay_control(true);
             is_yaw_imu_control                  = true;
             is_leg_forward_joint_torque_control = false;
+            leg_mode                            = rmcs_msgs::LegMode::None;
         } else {
             leg_relay_control(false);
 
@@ -129,7 +133,7 @@ public:
                 double chassis_theta = *chassis_big_yaw_angle;
                 double spin_speed =
                     std::clamp(following_velocity_controller_.update(chassis_theta), -1.0, 1.0);
-                    Eigen::Rotation2D<double> rotation(chassis_theta + *joint1_theta);
+                Eigen::Rotation2D<double> rotation(chassis_theta + *joint1_theta);
                 Eigen::Vector2d move_ = *joystick_left_;
                 yaw_control_theta += joystick_right_->y() * 0.002;
                 yaw_control_theta = normalizeAngle(yaw_control_theta);
@@ -153,10 +157,10 @@ public:
                 break;
             }
             case rmcs_msgs::ChassisMode::Up_Stairs: {
-                is_yaw_imu_control    = false;
-                yaw_control_theta     = 0.0;
-                speed_limit           = 3.0;
-                Eigen::Vector2d move_ = *joystick_left_;
+                is_yaw_imu_control           = false;
+                yaw_set_theta_in_YawFreeMode = 0.0;
+                speed_limit                  = 1.0;
+                Eigen::Vector2d move_        = *joystick_left_;
                 steering_control(move_, joystick_right_->y());
                 omniwheel_control(move_);
                 break;
@@ -164,7 +168,7 @@ public:
             case rmcs_msgs::ChassisMode::Yaw_Free: {
                 Eigen::Rotation2D<double> rotation(*chassis_big_yaw_angle + *joint1_theta);
                 Eigen::Vector2d move_ = rotation * (*joystick_left_);
-                steering_control(move_, joystick_right_->y()/2.0);
+                steering_control(move_, joystick_right_->y() / 2.0);
                 omniwheel_control(move_);
                 break;
             }
@@ -196,13 +200,7 @@ private:
             is_yaw_imu_control = true;
             leg_mode           = rmcs_msgs::LegMode::Four_Wheel;
 
-        }
-        //  else if (switch_left == Switch::UP && switch_right == Switch::DOWN) {
-        //     chassis_mode = ChassisMode::Up_Stairs;
-        //     leg_mode     = rmcs_msgs::LegMode::Up_Stairs;
-
-        // }
-        else if (switch_left == Switch::DOWN && switch_right == Switch::UP) {
+        } else if (switch_left == Switch::DOWN && switch_right == Switch::UP) {
             if (keyboard.c) {
                 if (!keyboard.shift && !keyboard.ctrl) {
                     speed_limit = 4.5;
@@ -232,15 +230,17 @@ private:
                     is_yaw_imu_control = true;
                 }
             }
-            // if (keyboard.b) {
-            //     chassis_mode = rmcs_msgs::ChassisMode::Up_Stairs;
-            //     leg_mode     = rmcs_msgs::LegMode::Up_Stairs;
-            //     up_stairs.reset();
-            //     leg_press.reset();
-            //     up_stairs.set_start_point({*theta_lf, *theta_lb, *theta_rb, *theta_rf, 0.0,
-            //     0.0}); leg_press.set_start_point({*theta_lf, *theta_lb, *theta_rb, *theta_rf,
-            //     0.0, 0.0});
-            // }
+            if (keyboard.b) {
+                chassis_mode           = rmcs_msgs::ChassisMode::Up_Stairs;
+                leg_mode               = rmcs_msgs::LegMode::Up_Stairs;
+                up_stairs_is_leg_press = false;
+                up_stairs_is_leg_lift  = false;
+                up_stairs_initial.reset();
+                up_stairs_leg_press.reset();
+                up_stairs_leg_lift.reset();
+                up_stairs_initial.set_start_point(
+                    {*theta_lf, *theta_lb, *theta_rb, *theta_rf, 0.0, 0.0});
+            }
             // execute right change according to arm_mode
             if (last_arm_mode != *arm_mode) {
 
@@ -249,15 +249,19 @@ private:
                     || *arm_mode == rmcs_msgs::ArmMode::Auto_Gold_Right
                     || *arm_mode == rmcs_msgs::ArmMode::Auto_Sliver
                     || *arm_mode == rmcs_msgs::ArmMode::Auto_Ground
-                    || *arm_mode == rmcs_msgs::ArmMode::Auto_Storage
+                    || *arm_mode == rmcs_msgs::ArmMode::Auto_Storage_LB
+                    || *arm_mode == rmcs_msgs::ArmMode::Auto_Storage_RB
+                    || *arm_mode == rmcs_msgs::ArmMode::Auto_Storage_RF
                     || *arm_mode == rmcs_msgs::ArmMode::Auto_Extract
                     || *arm_mode == rmcs_msgs::ArmMode::Customer
                     || *arm_mode == rmcs_msgs::ArmMode::Vision_Exchange) {
                     speed_limit = 1.0;
                     if (*arm_mode == rmcs_msgs::ArmMode::Customer
                         || *arm_mode == rmcs_msgs::ArmMode::Vision_Exchange) {
-                        leg_mode = rmcs_msgs::LegMode::Four_Wheel;
-                        chassis_mode =rmcs_msgs::ChassisMode::Flow;
+                        leg_mode                     = rmcs_msgs::LegMode::Four_Wheel;
+                        chassis_mode                 = rmcs_msgs::ChassisMode::Yaw_Free;
+                        is_yaw_imu_control           = false;
+                        yaw_set_theta_in_YawFreeMode = 0.0;
                     } else {
                         chassis_mode       = ChassisMode::Yaw_Free;
                         is_yaw_imu_control = false;
@@ -281,8 +285,8 @@ private:
                             .reset();
                     }
                 } else if (*arm_mode == rmcs_msgs::ArmMode::Auto_Walk) {
-                    speed_limit = 4.5;
-                    leg_mode                     = rmcs_msgs::LegMode::Six_Wheel;
+                    speed_limit        = 4.5;
+                    leg_mode           = rmcs_msgs::LegMode::Six_Wheel;
                     chassis_mode       = rmcs_msgs::ChassisMode::Flow;
                     is_yaw_imu_control = true;
                 }
@@ -310,7 +314,7 @@ private:
             }
             if (last_chassis_mode == rmcs_msgs::ChassisMode::Yaw_Free) {
                 if (last_is_yaw_imu_control != is_yaw_imu_control) {
-                        yaw_control_theta = *yaw_imu_angle;
+                    yaw_control_theta = *yaw_imu_angle;
                 }
             }
         }
@@ -323,7 +327,7 @@ private:
     void leg_control() {
 
         static std::array<double, 6> result;
-        static bool flag = false;
+
         if (leg_mode == rmcs_msgs::LegMode::Four_Wheel) {
             is_leg_forward_joint_torque_control = false;
             result                              = four_wheel_trajectory.trajectory();
@@ -342,21 +346,33 @@ private:
             }
         } else if (leg_mode == rmcs_msgs::LegMode::Up_Stairs) {
             is_leg_forward_joint_torque_control = false;
-            if (!up_stairs.get_complete()) {
-                result = up_stairs.trajectory();
-                flag   = false;
+            if (!up_stairs_initial.get_complete()) {
+                result = up_stairs_initial.trajectory();
+                up_stairs_leg_press.set_start_point(
+                    {*theta_lf, *theta_lb, *theta_rb, *theta_rf, 0.0, 0.0});
+                up_stairs_is_leg_press = false;
             } else {
-                if (*leg_joint_lf_torque > 5.0 && *leg_joint_rf_torque > 5.0) {
-                    flag = true;
-                } else if (flag) {
-                    std::array<double, 6> result_;
-                    result = leg_press.trajectory();
-                    RCLCPP_INFO(
-                        this->get_logger(), "%f,%f,%f,%f", result[0], result[1], result[2],
-                        result[3]);
-                    RCLCPP_INFO(this->get_logger(), "gjkjkjkjkjk");
+                if (keyboard_->shift) {
+                    up_stairs_is_leg_press = true;
+                }
+                if (keyboard_->ctrl) {
+                    up_stairs_is_leg_lift = true;
+                } else if (up_stairs_is_leg_press) {
+                    if (!up_stairs_leg_press.get_complete()) {
+                        result = up_stairs_leg_press.trajectory();
+                        up_stairs_leg_lift.set_start_point(
+                            {*theta_lf, *theta_lb, *theta_rb, *theta_rf, 0.0, 0.0});
+                    } else if (up_stairs_is_leg_lift) {
+                        result = up_stairs_leg_lift.trajectory();
+                        if (up_stairs_leg_lift.get_complete()) {
+                            result[0] = 1.0;
+                            result[3] = 1.0;
+                        }
+                    }
                 }
             }
+            RCLCPP_INFO(
+                this->get_logger(), "%f %f %f %f", result[0], result[1], result[2], result[3]);
         } else if (leg_mode == rmcs_msgs::LegMode::None) {
             is_leg_forward_joint_torque_control = false;
             result[0]                           = *theta_lf;
@@ -572,7 +588,6 @@ private:
     InputInterface<double> theta_rb;
     InputInterface<double> theta_rf;
 
-
     bool is_yaw_imu_control      = false;
     bool last_is_yaw_imu_control = false;
     InputInterface<double> yaw_imu_velocity;
@@ -586,7 +601,9 @@ private:
     double leg_lf_target_theta               = NAN;
     OutputInterface<double> leg_lb_target_theta;
     OutputInterface<double> leg_rb_target_theta;
-    double leg_rf_target_theta = NAN;
+    double leg_rf_target_theta  = NAN;
+    bool up_stairs_is_leg_press = false;
+    bool up_stairs_is_leg_lift  = false;
 
     InputInterface<double> leg_joint_lf_velocity;
     InputInterface<double> leg_joint_rf_velocity;
@@ -605,8 +622,9 @@ private:
 
     hardware::device::Trajectory<hardware::device::TrajectoryType::JOINT> four_wheel_trajectory;
     hardware::device::Trajectory<hardware::device::TrajectoryType::JOINT> six_wheel_trajectory;
-    hardware::device::Trajectory<hardware::device::TrajectoryType::JOINT> up_stairs;
-    hardware::device::Trajectory<hardware::device::TrajectoryType::JOINT> leg_press;
+    hardware::device::Trajectory<hardware::device::TrajectoryType::JOINT> up_stairs_initial;
+    hardware::device::Trajectory<hardware::device::TrajectoryType::JOINT> up_stairs_leg_press;
+    hardware::device::Trajectory<hardware::device::TrajectoryType::JOINT> up_stairs_leg_lift;
 };
 } // namespace rmcs_core::controller::chassis
 #include <pluginlib/class_list_macros.hpp>

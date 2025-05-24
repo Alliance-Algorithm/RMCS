@@ -1,6 +1,5 @@
 #pragma once
 
-#include "hardware/fsm/FSM_gold_l_spin.hpp"
 #include <cstdint>
 
 namespace rmcs_msgs {
@@ -9,15 +8,14 @@ enum class ArmMode : uint8_t {
     Auto_Gold_Left,
     Auto_Gold_Right,
     Auto_Gold_Mid,
-    Auto_Gold_Left_Spin,
-    Auto_Gold_Right_Spin,
-    Auto_Gold_Mid_Spin,
     Auto_Sliver,
     Auto_Walk,
     Auto_Ground,
-    Auto_Storage,
+    Auto_Storage_LB,
+    Auto_Storage_RB,
+    Auto_Storage_RF,
     Auto_Extract,
-    Up_Stairs,
+    Auto_Up_Stairs,
     Customer,
     Vision_Exchange,
     DT7_Control_Position,

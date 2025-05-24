@@ -49,7 +49,7 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController -> leg_rb_velocity_pid_controller
 
       - rmcs_core::controller::pid::PidController -> arm_pump_velocity_pid_controller
-
+      - rmcs_core::controller::pid::PidController -> mine_pump_velocity_pid_controller
 engineer_hardware:
   ros__parameters:
     arm_board_usb_pid: 0x524f
@@ -59,13 +59,13 @@ engineer_hardware:
     joint5_zero_point: 37366
     joint4_zero_point: 12200
     joint3_zero_point: 92916
-    joint2_zero_point: 101455
-    joint1_zero_point: 3454
+    joint2_zero_point: 123373
+    joint1_zero_point: 28575
     joint6_qlim: [-3.141592,3.141592]    
     joint5_qlim: [-1.83532,1.83532]    
     joint4_qlim: [-3.141592,3.141592]    
     joint3_qlim: [-1.0472,0.8727]    
-    joint2_qlim: [-1.308,1.29719]    
+    joint2_qlim: [-1.308,1.16719]    
     joint1_qlim: [-3.141592,3.141592]    
     steering_lf_zero_point: 1365
     steering_lb_zero_point: 1365
@@ -75,7 +75,7 @@ engineer_hardware:
     leg_lb_ecd_zero_point: 237881
     leg_rb_ecd_zero_point: 1828
     leg_rf_ecd_zero_point: 124431
-    big_yaw_zero_point: 32073
+    big_yaw_zero_point: 56459
 vision:
   ros__parameters:
     path: /dev/ttyACM0
@@ -84,7 +84,7 @@ joint6_angle_pid_controller:
   ros__parameters:
     measurement: /arm/Joint6/control_angle_error
     control: /arm/Joint6/control_velocity
-    kp: 1620.0
+    kp: 3620.0
     ki: 0.0
     kd: 5.0
 
@@ -165,7 +165,7 @@ joint1_angle_pid_controller:
   ros__parameters:
     measurement: /arm/Joint1/control_angle_error
     control: /arm/Joint1/control_velocity
-    kp: 7120.0
+    kp: 6520.0
     ki: 0.0
     kd: 40.0
 joint1_velocity_pid_controller:
@@ -173,7 +173,7 @@ joint1_velocity_pid_controller:
     measurement: /arm/Joint1/velocity
     setpoint: /arm/Joint1/control_velocity
     control: /arm/Joint1/control_torque
-    kp: 0.212
+    kp: 0.042
     ki: 0.0
     kd: 0.0001
 
@@ -293,15 +293,15 @@ big_yaw_angle_error_pid_controller:
   ros__parameters:
     measurement: /chassis/big_yaw/target_angle_error
     control: /chassis/big_yaw/control_vel
-    kp: 69.3
+    kp: 91.3
     ki: 0.0
-    kd: 1.6
+    kd: 2.6
 big_yaw_velocity_pid_controller:
   ros__parameters:
     measurement: /chassis/big_yaw/velocity
     setpoint: /chassis/big_yaw/control_vel
     control: /chassis/big_yaw/control_torque
-    kp: 3.39
+    kp: 3.99
     ki: 0.0
     kd: 0.039
 
@@ -343,6 +343,14 @@ arm_pump_velocity_pid_controller:
     measurement: /arm/pump/velocity
     setpoint: /arm/pump/target_vel
     control: /arm/pump/control_torque
+    kp: 0.001
+    ki: 0.0
+    kd: 0.0
+mine_pump_velocity_pid_controller:
+  ros__parameters:
+    measurement: /mine/pump/velocity
+    setpoint: /mine/pump/target_vel
+    control: /mine/pump/control_torque
     kp: 0.001
     ki: 0.0
     kd: 0.0

@@ -37,13 +37,7 @@ public:
         joint_start = joint_angles;
         return *this;
     }
-    template <
-        TrajectoryType T                                                      = Type,
-        typename std::enable_if<T == TrajectoryType::SINGLE_JOINT, int>::type = 0>
-    Trajectory& set_start_point(std::array<double, 1> joint_angle) {
-        joint_start = joint_angle;
-        return *this;
-    }
+   
 
     Trajectory& set_end_point(std::array<double, 3> xyz, std::array<double, 3> rpy) {
         xyz_end = xyz;

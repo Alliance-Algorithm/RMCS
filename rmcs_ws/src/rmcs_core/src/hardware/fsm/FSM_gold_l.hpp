@@ -129,18 +129,7 @@ public:
             [this](const Auto_Gold_Event& event, Auto_Gold_Context& context) {},
             Auto_Gold_State::Set_initial);
 
-        // fsm.addTransition<Auto_Gold_Event>(
-        //     Auto_Gold_State::Lift, Auto_Gold_Event::Down,
-        //     [this](const Auto_Gold_Event& event, const Auto_Gold_Context& context) {
-
-        // RCLCPP_INFO(logger, "e");
-
-        //         return false;
-        //     },
-        //     [this](
-        //         const Auto_Gold_Event& event,
-        //         Auto_Gold_Context& context) {  },
-        //     Auto_Gold_State::Set_initial);
+       
         fsm.start(Auto_Gold_State::Set_initial);
     }
     Auto_Gold_State getState() { return fsm.getCurrentState(); }
