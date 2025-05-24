@@ -130,8 +130,8 @@ public:
         transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(can_commands));
 
 
-        transmit_buffer_.add_can1_transmission(0x145, gimbal_yaw_motor_.generate_velocity_command(
-            gimbal_yaw_motor_.control_velocity()));
+        transmit_buffer_.add_can1_transmission(0x145, gimbal_yaw_motor_.generate_torque_command(
+            gimbal_yaw_motor_.control_torque()));
 
         transmit_buffer_.add_can2_transmission(0x142, gimbal_pitch_motor_.generate_velocity_command(
             gimbal_pitch_motor_.control_velocity()));

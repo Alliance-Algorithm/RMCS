@@ -118,7 +118,7 @@ private:
         }
 
         auto joystick_sensitivity = 0.006;
-        auto mouse_sensitivity    = 0.6;
+        auto mouse_sensitivity    = 0.5;
         if (*shoot_mode_ == rmcs_msgs::ShootMode::PRECISE) {
             joystick_sensitivity = 0.006 / 16;
             mouse_sensitivity    = 0.5 / 16;

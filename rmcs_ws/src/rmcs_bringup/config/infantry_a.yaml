@@ -59,31 +59,27 @@ gimbal_controller:
 
 yaw_angle_pid_controller:
   ros__parameters:
-    filter_alpha: 0.9
-    output_min: -30.0
-    output_max:  30.0
-    deadzone_min: -0.03
-    deadzone_max:  0.03
-
-    measurement: /gimbal/yaw/control_angle_error
-    control: /gimbal/yaw/control_velocity
-    kp: 38.5
-    ki: 0.003
-    kd: 0.03
-
-yaw_velocity_pid_controller:
-  ros__parameters:
     filter_alpha: 0.95
     output_min: -30.0
     output_max:  30.0
-    deadzone_min: -0.03
-    deadzone_max:  0.03
+    deadzone_min: -0.05
+    deadzone_max:  0.05
 
-    measurement: /gimbal/yaw/velocity
+    measurement: /gimbal/yaw/control_angle_error
+    control: /gimbal/yaw/control_velocity
+    kp: 30.0
+    ki: 0.001
+    kd: 0.5
+
+yaw_velocity_pid_controller:
+  ros__parameters:
+    filter_alpha: 0.9
+
+    measurement: /gimbal/yaw/velocity_imu
     setpoint: /gimbal/yaw/control_velocity
     control: /gimbal/yaw/control_torque
-    kp: 70.0
-    ki: 0.003
+    kp: 65.0
+    ki: 0.002
     kd: 1.2
 
 pitch_angle_pid_controller:

@@ -27,8 +27,6 @@ public:
         following_velocity_controller_.output_max = angular_velocity_max;
         following_velocity_controller_.output_min = -angular_velocity_max;
 
-        following_velocity_controller_.deadzone_max = 0.03 * std::numbers::pi;    
-        following_velocity_controller_.deadzone_min = -0.03 * std::numbers::pi;    
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
         register_input("/remote/switch/right", switch_right_);
@@ -418,6 +416,7 @@ private:
     OutputInterface<double> supercap_voltage_dead_line_;
 
     InputInterface<bool> chassis_output_status_;
+    
 };
 
 } // namespace rmcs_core::controller::chassis
