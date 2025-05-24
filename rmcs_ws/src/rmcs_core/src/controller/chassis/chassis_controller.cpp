@@ -28,7 +28,7 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , following_velocity_controller_(7.0, 0.0, 0.0) {
+        , following_velocity_controller_(8.0, 0.0, 2.0) {
         following_velocity_controller_.output_max = angular_velocity_max;
         following_velocity_controller_.output_min = -angular_velocity_max;
 
@@ -45,6 +45,12 @@ public:
         auto gimbal_yaw_motors = get_parameter("gimbal_yaw_motors").as_string_array();
         if (gimbal_yaw_motors.size() == 0)
             throw std::runtime_error("Empty array error: 'gimbal_yaw_motors' cannot be empty!");
+
+        auto following_loop_kp = get_parameter("following_loop.kp").as_double();
+        auto following_loop_ki = get_parameter("following_loop.ki").as_double();
+        auto following_loop_kd = get_parameter("following_loop.kd").as_double();
+        following_velocity_controller_ =
+            pid::PidCalculator{following_loop_kp, following_loop_ki, following_loop_kd};
 
         gimbal_yaw_motors_counts_ = gimbal_yaw_motors.size();
 
@@ -212,7 +218,7 @@ public:
                       * std::clamp(auto_velocity.norm(), 0.0, translational_velocity_max)
                       / translational_velocity_max;
         Eigen::Vector2d translational_velocity =
-            *joystick_right_ * 0.2 + keyboard_move
+            *joystick_right_ * 0.4 + keyboard_move
             + (auto_controller_flag_ ? auto_velocity : Eigen::Vector2d::Zero());
 
         if (translational_velocity.norm() > 1.0)

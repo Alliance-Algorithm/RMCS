@@ -1,5 +1,5 @@
 services:
-  rmcs-develop:
+  sentry-develop:
     image: qzhhhi/rmcs-develop:latest
     container_name: rmcs-develop
     user: "developer"
