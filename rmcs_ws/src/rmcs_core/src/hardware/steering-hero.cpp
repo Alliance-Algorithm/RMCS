@@ -49,6 +49,9 @@ public:
     void update() override {
         top_board_->update();
         bottom_board_->update();
+
+        top_board_->get_lob_shot(*command_component_->is_lob_shot_);
+        bottom_board_->get_lob_shot(*command_component_->is_lob_shot_);
     }
 
     void command_update() {
@@ -87,11 +90,14 @@ private:
     class SteeringHeroCommand : public rmcs_executor::Component {
     public:
         explicit SteeringHeroCommand(SteeringHero& hero)
-            : hero_(hero) {}
+            : hero_(hero) {
+            register_input("/gimbal/is_lob_shot", is_lob_shot_, false);
+        }
 
         void update() override { hero_.command_update(); }
 
         SteeringHero& hero_;
+        InputInterface<bool> is_lob_shot_;
     };
     std::shared_ptr<SteeringHeroCommand> command_component_;
 
@@ -207,19 +213,29 @@ private:
             batch_commands[0] = gimbal_scope_motor_.generate_command();
             transmit_buffer_.add_can2_transmission(0x200, std::bit_cast<uint64_t>(batch_commands));
 
-            transmit_buffer_.add_can2_transmission(
-                0x143, gimbal_player_viewer_motor_.generate_velocity_command(
-                           gimbal_player_viewer_motor_.control_velocity()));
-
-            transmit_buffer_.add_can2_transmission(
-                0x142,
-                gimbal_pitch_motor_.generate_torque_command(gimbal_pitch_motor_.control_torque()));
-            transmit_buffer_.add_can2_transmission(
-                0x141, gimbal_top_yaw_motor_.generate_torque_command(
-                           gimbal_top_yaw_motor_.control_torque()));
+            if (is_lob_shot_) {
+                transmit_buffer_.add_can2_transmission(
+                    0x143, gimbal_player_viewer_motor_.generate_angle_shift_command());
+                transmit_buffer_.add_can2_transmission(
+                    0x142, gimbal_pitch_motor_.generate_angle_shift_command());
+                transmit_buffer_.add_can2_transmission(
+                    0x141, gimbal_top_yaw_motor_.generate_angle_shift_command());
+            } else {
+                transmit_buffer_.add_can2_transmission(
+                    0x143, gimbal_player_viewer_motor_.generate_velocity_command(
+                               gimbal_player_viewer_motor_.control_velocity()));
+                transmit_buffer_.add_can2_transmission(
+                    0x142, gimbal_pitch_motor_.generate_torque_command(
+                               gimbal_pitch_motor_.control_torque()));
+                transmit_buffer_.add_can2_transmission(
+                    0x141, gimbal_top_yaw_motor_.generate_torque_command(
+                               gimbal_top_yaw_motor_.control_torque()));
+            }
 
             transmit_buffer_.trigger_transmission();
         }
+
+        void get_lob_shot(bool value) { is_lob_shot_ = value; }
 
     private:
         void can1_receive_callback(
@@ -286,6 +302,8 @@ private:
 
         device::DjiMotor gimbal_scope_motor_;
         device::LkMotor gimbal_player_viewer_motor_;
+
+        bool is_lob_shot_;
 
         librmcs::client::CBoard::TransmitBuffer transmit_buffer_;
         std::thread event_thread_;
@@ -401,15 +419,19 @@ private:
                 batch_commands[i] = chassis_steering_motors_[i].generate_command();
             transmit_buffer_.add_can2_transmission(0x1FE, std::bit_cast<uint64_t>(batch_commands));
 
-            // Use the chassis angular velocity as feedforward input for yaw velocity control.
-            // This approach currently works only on Hero, as it utilizes motor angular velocity
-            // instead of gyro angular velocity for closed-loop control.
-            transmit_buffer_.add_can2_transmission(
-                0x141, gimbal_bottom_yaw_motor_.generate_torque_command(
-                           gimbal_bottom_yaw_motor_.control_torque()));
+            if (is_lob_shot_) {
+                transmit_buffer_.add_can2_transmission(
+                    0x141, gimbal_bottom_yaw_motor_.generate_angle_shift_command());
+            } else {
+                transmit_buffer_.add_can2_transmission(
+                    0x141, gimbal_bottom_yaw_motor_.generate_torque_command(
+                               gimbal_bottom_yaw_motor_.control_torque()));
+            }
 
             transmit_buffer_.trigger_transmission();
         }
+
+        void get_lob_shot(bool value) { is_lob_shot_ = value; }
 
     private:
         void can1_receive_callback(
@@ -482,6 +504,8 @@ private:
         device::Supercap supercap_;
 
         device::LkMotor gimbal_bottom_yaw_motor_;
+
+        bool is_lob_shot_;
 
         librmcs::utility::RingBuffer<std::byte> referee_ring_buffer_receive_{256};
         OutputInterface<rmcs_msgs::SerialInterface> referee_serial_;

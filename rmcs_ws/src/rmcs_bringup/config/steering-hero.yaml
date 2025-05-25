@@ -12,8 +12,6 @@ rmcs_executor:
 
       - rmcs_core::controller::gimbal::GimbalController -> gimbal_controller
       - rmcs_core::controller::gimbal::DualYawController -> dual_yaw_controller
-      - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
-      - rmcs_core::controller::pid::PidController -> pitch_velocity_pid_controller
 
       - rmcs_core::controller::gimbal::PlayerViewer -> gimbal_player_viewer_controller
       - rmcs_core::controller::pid::ErrorPidController -> viewer_angle_pid_controller
@@ -35,36 +33,36 @@ hero_hardware:
   ros__parameters:
     usb_pid_top_board: 0x652f
     usb_pid_bottom_board: 0x1783
-    bottom_yaw_motor_zero_point: 42889
-    pitch_motor_zero_point: 14367
-    top_yaw_motor_zero_point: 46348
-    viewer_motor_zero_point: 35712
+    bottom_yaw_motor_zero_point: 42883
+    pitch_motor_zero_point: 6214
+    top_yaw_motor_zero_point: 57579
+    viewer_motor_zero_point: 3403
     external_imu_port: /dev/ttyUSB0
     left_front_zero_point: 3304
     left_back_zero_point: 5906
-    right_back_zero_point: 2030
-    right_front_zero_point: 2651
+    right_back_zero_point: 6147
+    right_front_zero_point: 2842
 
 gimbal_controller:
   ros__parameters:
-    upper_limit: -0.7224
-    lower_limit: 0.7082
+    upper_limit: -0.6266
+    lower_limit: 0.4629
 
 dual_yaw_controller:
   ros__parameters:
-    top_yaw_angle_kp: 16.5
+    top_yaw_angle_kp: 24.5
     top_yaw_angle_ki: 0.0
     top_yaw_angle_kd: 0.0
-    top_yaw_velocity_kp: 87.4
+    top_yaw_velocity_kp: 77.4
     top_yaw_velocity_ki: 0.004
     top_yaw_velocity_kd: 1.0
     bottom_yaw_angle_kp: 15.6
     bottom_yaw_angle_ki: 0.0
     bottom_yaw_angle_kd: 0.0
-    bottom_yaw_velocity_kp: 23.2
+    bottom_yaw_velocity_kp: 25.85
     bottom_yaw_velocity_ki: 0.0
-    bottom_yaw_velocity_kd: 0.09
-
+    bottom_yaw_velocity_kd: 50.0
+    
 pitch_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/pitch/control_angle_error
@@ -84,8 +82,8 @@ pitch_velocity_pid_controller:
 
 gimbal_player_viewer_controller:
   ros__parameters:
-    upper_limit: 0.0058
-    lower_limit: 0.6768
+    upper_limit: 0.0101
+    lower_limit: 0.6191
 
 viewer_angle_pid_controller:
   ros__parameters:
@@ -94,15 +92,6 @@ viewer_angle_pid_controller:
     kp: 17.00
     ki: 0.00
     kd: 2.00
-
-viewer_velocity_pid_controller:
-  ros__parameters:
-    measurement: /gimbal/player_viewer/velocity
-    setpoint: /gimbal/player_viewer/control_velocity
-    control: /gimbal/player_viewer/control_torque
-    kp: 20.00
-    ki: 0.00
-    kd: 0.00
 
 shooting_controller:
   ros__parameters:
@@ -179,13 +168,6 @@ bullet_feeder_velocity_pid_controller:
     kd: 0.0
     integral_min: -1000.0
     integral_max: 1000.0
-
-chassis_controller:
-  ros__parameters:
-    is_dual_yaw: true
-    gimbal_yaw_motors:
-      - /gimbal/top_yaw
-      - /gimbal/bottom_yaw
 
 auto_aim_controller:
   ros__parameters:
