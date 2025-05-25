@@ -28,7 +28,8 @@ public:
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , translational_velocity_pid_calculator_(100.0, 0.0, 0.0)
-        ,angular_velocity_pid_calculator_(100.0, 0.0, 0.0) {
+        , angular_velocity_pid_calculator_(100.0, 0.0, 0.0) {
+
         register_input("/chassis/left_front_wheel/max_torque", wheel_motor_max_control_torque_);
         register_input("/chassis/left_front_wheel/velocity", left_front_velocity_);
         register_input("/chassis/left_back_wheel/velocity", left_back_velocity_);
@@ -126,6 +127,7 @@ private:
         return {
             best_point.x() * translational_control_direction,
             best_point.y() / signed_affine_coefficient, K_0, K_1};
+      
     }
     static Eigen::Vector2d calculate_next_angle(const double (&wheel_velocities)[5]) {
         double v = std::sqrt(
@@ -298,7 +300,7 @@ private:
                                       std::vector<Eigen::Vector2d>& polygon) {
             std::vector<Eigen::Vector2d> new_polygon;
             const double limit = is_upper_limit ? control_torque_max_ : -control_torque_max_;
-                                        
+
             for (size_t i = 0; i < polygon.size(); i++) {
                 const auto& curr = polygon[i];
                 const auto& prev = polygon[i - 1];
