@@ -117,8 +117,8 @@ public:
     void command_update() {
         uint16_t can_commands[4];
 
-        can_commands[0] = gimbal_yaw_motor_.generate_torque_command(gimbal_yaw_motor_.control_torque());
-        can_commands[1] = gimbal_pitch_motor_.generate_torque_command(gimbal_pitch_motor_.control_torque());
+        can_commands[0] = 0;
+        can_commands[1] = 0;
         can_commands[2] = 0;
         can_commands[3] = supercap_.generate_command();
         transmit_buffer_.add_can1_transmission(0x1FE, std::bit_cast<uint64_t>(can_commands));

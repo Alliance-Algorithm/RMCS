@@ -63,9 +63,9 @@ yaw_angle_pid_controller:
     output_min: -10.0
     measurement: /gimbal/yaw/control_angle_error
     control: /gimbal/yaw/control_velocity
-    kp: 30.0
-    ki: 0.001
-    kd: 0.5
+    kp: 10.0
+    ki: 0.00
+    kd: 0.0
 
 yaw_velocity_pid_controller:
   ros__parameters:
@@ -73,8 +73,8 @@ yaw_velocity_pid_controller:
     setpoint: /gimbal/yaw/control_velocity
     control: /gimbal/yaw/control_torque
     kp: 65.0
-    ki: 0.002
-    kd: 1.2
+    ki: 0.000
+    kd: 3.0
 
 pitch_angle_pid_controller:
   ros__parameters:
@@ -200,9 +200,9 @@ auto_aim_controller:
     # controller
     gimbal_predict_duration: 100
     yaw_error: 0.020
-    pitch_error: -0.020
+    pitch_error: -0.030
     shoot_velocity: 21.4
-    predict_sec: 0.05
+    predict_sec: 0.06
     # etc
     buff_predict_duration: 200
     buff_model_path: "/models/buff_nocolor_v6.onnx"
