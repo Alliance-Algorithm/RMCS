@@ -35,6 +35,8 @@ public:
         register_output("/gimbal/scope/active", is_scope_active_, false);
 
         register_output("/gimbal/player_viewer/control_angle", viewer_control_angle_, nan_);
+        register_output(
+            "/gimbal/player_viewer/control_angle_error", viewer_control_angle_error_, nan_);
 
         register_output("/gimbal/scope/control_torque", scope_control_torque_, nan_);
     }
@@ -82,7 +84,7 @@ private:
         auto unit_sensitivity = [&](double sensitivity) {
             return (*is_scope_active_) ? sensitivity : 1.0;
         };
-        *viewer_delta_angle_by_mouse_wheel_ = 0.3 * *mouse_wheel_ * unit_sensitivity(0.095);
+        *viewer_delta_angle_by_mouse_wheel_ = 0.5 * *mouse_wheel_ * unit_sensitivity(0.095);
 
         auto norm_angle = [](double angle) { return (angle > pi_) ? angle - 2 * pi_ : angle; };
         auto viewer_measure_angle = norm_angle(*gimbal_player_viewer_angle_);
@@ -98,6 +100,7 @@ private:
                 *viewer_control_angle_ = *viewer_delta_angle_by_mouse_wheel_;
             }
         }
+        *viewer_control_angle_error_ = *viewer_control_angle_ - viewer_measure_angle;
 
         if (scope_active_) {
             *scope_control_torque_ = 0.2;
@@ -124,6 +127,7 @@ private:
     OutputInterface<double> scope_control_torque_;
 
     OutputInterface<double> viewer_control_angle_;
+    OutputInterface<double> viewer_control_angle_error_;
 
     OutputInterface<bool> is_scope_active_;
     OutputInterface<double> viewer_delta_angle_by_mouse_wheel_;
