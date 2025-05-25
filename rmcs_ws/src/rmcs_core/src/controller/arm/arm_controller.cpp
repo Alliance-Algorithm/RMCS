@@ -7,9 +7,10 @@
 #include "hardware/fsm/FSM_gold_m.hpp"
 #include "hardware/fsm/FSM_gold_r.hpp"
 #include "hardware/fsm/FSM_sliver.hpp"
+#include "hardware/fsm/FSM_storage_lb.hpp"
+#include "hardware/fsm/FSM_storage_rb.hpp"
 #include "hardware/fsm/FSM_up_stairs.hpp"
 #include "hardware/fsm/FSM_walk.hpp"
-#include "hardware/fsm/FSM_storage_lb.hpp"
 #include "std_msgs/msg/float32_multi_array.hpp"
 #include <algorithm>
 #include <array>
@@ -67,7 +68,7 @@ public:
         register_output("/arm/enable_flag", is_arm_enable, true);
         register_output("/arm/pump/target_vel", arm_pump_target_vel, NAN);
         register_output("/mine/pump/target_vel", mine_pump_target_vel, NAN);
-
+        register_output("/arm/pump/relay/CH", arm_pump_relay, 0b00000000);
         publisher_ =
             create_publisher<std_msgs::msg::Float32MultiArray>("/engineer/joint/measure", 10);
         subscription_ = this->create_subscription<std_msgs::msg::Float32MultiArray>(
@@ -91,23 +92,8 @@ public:
         auto switch_left  = *switch_left_;
         auto mouse        = *mouse_;
         auto keyboard     = *keyboard_;
-        // std::array<double, 3> lift_start_point_position = {0.000001, -0.72, 0.18};
-        // std::array<double, 3> lift_end_point_position   = {0.000001, -0.72, 0.14};
-        // std::array<double, 3> lift_point_orientation    = {
-        //     -std::numbers::pi / 2.0, 0.0, -std::numbers::pi / 2.0};
-
-        // std::array<double, 6> initial_joint_theta =
-        //     rmcs_core::hardware::device::Kinematic::arm_inverse_kinematic(
-        //         {lift_start_point_position[0], lift_start_point_position[1],
-        //          lift_start_point_position[2], lift_point_orientation[0],
-        //          lift_point_orientation[1], lift_point_orientation[2]});
-        //      RCLCPP_INFO(this->get_logger(),"%f %f %f %f
-        //      %f%f",initial_joint_theta[0],initial_joint_theta[1],initial_joint_theta[2],initial_joint_theta[3],initial_joint_theta[4],initial_joint_theta[5]);
-        // test.positive_kinematic();
-        // RCLCPP_INFO(
-        //     this->get_logger(), "%f %F %F", test.get_roll(), test.get_pitch(), test.get_yaw());
-        auto msg = std_msgs::msg::Float32MultiArray();
-        msg.data = {
+        auto msg          = std_msgs::msg::Float32MultiArray();
+        msg.data          = {
             static_cast<float>(*theta[0]),
             -static_cast<float>(*theta[1]),
             -(static_cast<float>(*theta[2] - std::numbers::pi / 2)),
@@ -119,8 +105,8 @@ public:
         using namespace rmcs_msgs;
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
-           
-                reset_motors();
+
+            reset_motors();
         } else {
             *is_arm_enable = true;
 
@@ -130,8 +116,28 @@ public:
                 switch_left == rmcs_msgs::Switch::UP && switch_right == rmcs_msgs::Switch::MIDDLE) {
                 *arm_mode = rmcs_msgs::ArmMode::DT7_Control_Orientation;
             } else if (
+                switch_left == rmcs_msgs::Switch::DOWN
+                && switch_right == rmcs_msgs::Switch::MIDDLE) {
+                is_arm_pump_on  = true;
+                is_mine_pump_on = true;
+            } else if (
                 switch_left == rmcs_msgs::Switch::DOWN && switch_right == rmcs_msgs::Switch::UP) {
+                if (keyboard.a) {
+                    if (!keyboard.ctrl && !keyboard.shift) {
+                        is_arm_pump_on = true;
 
+                    } else if (keyboard.shift && !keyboard.ctrl) {
+                        is_arm_pump_on = false;
+                    }
+                }
+                if (keyboard.s) {
+                    if (!keyboard.ctrl && !keyboard.shift) {
+                        is_mine_pump_on = true;
+
+                    } else if (keyboard.shift && !keyboard.ctrl) {
+                        is_mine_pump_on = false;
+                    }
+                }
                 if (keyboard.z) {
                     is_arm_pump_on = true;
                     if (!keyboard.ctrl && !keyboard.shift) {
@@ -160,30 +166,27 @@ public:
                     fsm_up_stairs.reset();
                 }
                 if (keyboard.f) {
-                    is_arm_pump_on = true;
+                    is_arm_pump_on  = true;
                     is_mine_pump_on = true;
-                    if (!keyboard.ctrl && !keyboard.shift) {
-                        *arm_mode = rmcs_msgs::ArmMode::Auto_Storage_RF;
-                    } else if (keyboard.shift && !keyboard.ctrl) {
+                    if (keyboard.shift && !keyboard.ctrl) {
                         *arm_mode = rmcs_msgs::ArmMode::Auto_Storage_LB;
                         fsm_storage_lb.reset();
                     } else if (keyboard.ctrl && !keyboard.shift) {
                         *arm_mode = rmcs_msgs::ArmMode::Auto_Storage_RB;
+                        fsm_storage_rb.reset();
                     }
                 }
-                if (keyboard.e) {
-                    *arm_mode = rmcs_msgs::ArmMode::Auto_Extract;
-                }
+                
                 if (keyboard.r) {
                     if (!keyboard.ctrl && !keyboard.shift) {
                         *arm_mode = rmcs_msgs::ArmMode::Customer;
-                    } else if (keyboard.shift && !keyboard.ctrl) {
-                        *arm_mode = rmcs_msgs::ArmMode::Vision_Exchange;
-                    }
+                    };
                 }
 
             } else {
-                *arm_mode = rmcs_msgs::ArmMode::None;
+                *arm_mode       = rmcs_msgs::ArmMode::None;
+                is_arm_pump_on  = false;
+                is_mine_pump_on = false;
             }
             switch (*arm_mode) {
                 using namespace rmcs_msgs;
@@ -196,30 +199,10 @@ public:
             case ArmMode::DT7_Control_Orientation: execute_dt7_orientation(); break;
             case ArmMode::Customer: execute_customer(); break;
             case ArmMode::Auto_Up_Stairs: execute_up_stairs(); break;
-            case ArmMode::Auto_Storage_LB :execute_storage(fsm_storage_lb);break;
+            case ArmMode::Auto_Storage_LB: execute_storage(fsm_storage_lb); break;
+            case ArmMode::Auto_Storage_RB: execute_storage(fsm_storage_rb); break;
+
             default: break;
-            }
-
-            if (switch_left == rmcs_msgs::Switch::DOWN
-                && switch_right == rmcs_msgs::Switch::MIDDLE) {
-                is_arm_pump_on = true;
-                is_mine_pump_on = true;
-
-            } else if (
-                switch_left == rmcs_msgs::Switch::DOWN && switch_right == rmcs_msgs::Switch::UP) {
-                if (keyboard.a) {
-                    if (!keyboard.ctrl && !keyboard.shift) {
-                        is_arm_pump_on = true;
-                        is_mine_pump_on = true;
-
-                    } else if (keyboard.shift && !keyboard.ctrl) {
-                        is_mine_pump_on = false;
-                        is_arm_pump_on = false;
-                    }
-                }
-            } else {
-                is_arm_pump_on = false;
-                is_mine_pump_on = false;
             }
             pump_control();
         }
@@ -343,8 +326,7 @@ private:
         for (int i = 0; i < 6; ++i) {
             customer_[i] = customer_theta[i];
         }
-        // RCLCPP_INFO(this->get_logger(),"%f %F %F %f %F
-        // %F",customer_[5],customer_[4],customer_[3],customer_[2],customer_[1],customer_[0]);
+        RCLCPP_INFO(this->get_logger(),"%f %F %F %f %F%F",customer_[5],customer_[4],customer_[3],customer_[2],customer_[1],customer_[0]);
         *target_theta[5] = customer_[5];
         *target_theta[4] = customer_[4];
         *target_theta[3] = customer_[3];
@@ -382,18 +364,19 @@ private:
         *target_theta[0] = fsm_up_stairs.get_result()[0];
     }
     template <typename T>
-    void execute_storage(T& fsm){
+    void execute_storage(T& fsm) {
         auto keyboard = *keyboard_;
         if (fsm.fsm_direction == initial_enter) {
             fsm.get_current_theta(
                 {*theta[0], *theta[1], *theta[2], *theta[3], *theta[4], *theta[5]});
-                fsm.fsm_direction = up;
+            fsm.fsm_direction = up;
         }
         if (fsm.fsm_direction == up) {
             fsm.processEvent(Auto_Storage_Event::Up);
         }
-        if(fsm.get_first_trajectory_result()){
-            is_arm_pump_on = false;
+        if (fsm.get_first_trajectory_result()) {
+            is_arm_pump_on  = false;
+            is_mine_pump_on = true;
         }
         *target_theta[5] = fsm.get_result()[5];
         *target_theta[4] = fsm.get_result()[4];
@@ -406,21 +389,27 @@ private:
     void pump_control() {
         if (is_arm_pump_on) {
             *arm_pump_target_vel = 5300 * std::numbers::pi / 30.0;
-            *mine_pump_target_vel = 5300 * std::numbers::pi / 30.0;
+            *arm_pump_relay      = 0b00000000;
         } else {
             *arm_pump_target_vel = 0.0;
+            *arm_pump_relay      = 0b11111111;
+        }
+        if (is_mine_pump_on) {
+            *mine_pump_target_vel = 5300 * std::numbers::pi / 30.0;
+
+        } else {
             *mine_pump_target_vel = 0.0;
         }
     }
-    void reset_motors(){
-        *is_arm_enable       = false;
-        *target_theta[5]     = *theta[5];
-        *target_theta[4]     = *theta[4];
-        *target_theta[3]     = *theta[3];
-        *target_theta[2]     = *theta[2];
-        *target_theta[1]     = *theta[1];
-        *target_theta[0]     = *theta[0];
-        *arm_pump_target_vel = NAN;
+    void reset_motors() {
+        *is_arm_enable        = false;
+        *target_theta[5]      = *theta[5];
+        *target_theta[4]      = *theta[4];
+        *target_theta[3]      = *theta[3];
+        *target_theta[2]      = *theta[2];
+        *target_theta[1]      = *theta[1];
+        *target_theta[0]      = *theta[0];
+        *arm_pump_target_vel  = NAN;
         *mine_pump_target_vel = NAN;
     }
     bool is_auto_exchange = false;
@@ -431,7 +420,8 @@ private:
     Auto_Sliver fsm_sliver;
     Auto_Set_Walk_Arm fsm_walk;
     Auto_Up_Stairs fsm_up_stairs;
-    Auto_Storage_Lb fsm_storage_lb;
+    Auto_Storage_LB fsm_storage_lb;
+    Auto_Storage_RB fsm_storage_rb;
 
     OutputInterface<rmcs_msgs::ArmMode> arm_mode;
     rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr subscription_;
@@ -454,9 +444,10 @@ private:
 
     OutputInterface<double> arm_pump_target_vel;
     OutputInterface<double> mine_pump_target_vel;
-    bool is_arm_pump_on = false;
-    bool is_mine_pump_on = false;
+    OutputInterface<uint8_t> arm_pump_relay;
 
+    bool is_arm_pump_on  = false;
+    bool is_mine_pump_on = false;
 };
 } // namespace rmcs_core::controller::arm
 #include <pluginlib/class_list_macros.hpp>

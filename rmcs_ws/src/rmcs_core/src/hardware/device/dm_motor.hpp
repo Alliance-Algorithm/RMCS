@@ -132,7 +132,7 @@ public:
         uint64_t result;
         double torque = *control_torque_;
         if (std::isnan(torque)) {
-            return 0;
+            torque = 0.0;
         }
         torque           = std::clamp(torque, -TMAX, TMAX);
         uint16_t tor_tmp = double_to_uint(torque, -TMAX, TMAX, 12);

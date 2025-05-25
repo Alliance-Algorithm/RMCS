@@ -1,62 +1,14 @@
 #pragma once
-
-#include "hardware/device/Kinematic.hpp"
-#include "hardware/device/trajectory.hpp"
-#include "hardware/fsm/FSM.hpp"
-#include "rclcpp/node.hpp"
-#include <algorithm>
-#include <array>
-#include <cstddef>
-#include <memory>
-#include <numbers>
-#include <rclcpp/logging.hpp>
-#include <string>
-
-enum class Auto_Storage_State {
-    Set_Storage,
-};
-enum class Auto_Storage_Event { Up, Down };
-struct Auto_Storage_Context {};
-
-class Set_Storage_State
-    : public IState<Auto_Storage_State, Auto_Storage_Event, Auto_Storage_Context> {
+#include "hardware/fsm/FSM_storage_lb.hpp"
+class Auto_Storage_RB {
 public:
-    void enter(
-        FiniteStateMachine<Auto_Storage_State, Auto_Storage_Event, Auto_Storage_Context>& fsm,
-        const Auto_Storage_Context& context) override {}
-    void exit(
-        FiniteStateMachine<Auto_Storage_State, Auto_Storage_Event, Auto_Storage_Context>& fsm,
-        const Auto_Storage_Context& context) override {}
-    std::shared_ptr<IState<Auto_Storage_State, Auto_Storage_Event, Auto_Storage_Context>>
-        handleEvent(
-            FiniteStateMachine<Auto_Storage_State, Auto_Storage_Event, Auto_Storage_Context>& fsm,
-            const Auto_Storage_Event& event, Auto_Storage_Context& context) override {
-
-        if (event == Auto_Storage_Event::Up) {
-            return fsm.getState(Auto_Storage_State::Set_Storage);
-        }
-        return nullptr;
-    }
-    Auto_Storage_State getStateID() const override { return Auto_Storage_State::Set_Storage; }
-};
-
-class Auto_Storage_LB {
-public:
-    explicit Auto_Storage_LB() {
-
+    explicit Auto_Storage_RB() {
         move_to_former_target.set_total_step(600);
         move_to_target.set_total_step(900);
         press.set_total_step(300)
             .set_start_point(press_start_point_position, press_point_orientation)
             .set_end_point(press_end_point_position, press_point_orientation);
-        lift.set_total_step(300)
-            .set_start_point(lift_start_point_position, press_point_orientation)
-            .set_end_point(lift_end_point_position, press_point_orientation);
-        back_to_safety_.set_total_step(300)
-            .set_start_point(back_to_safety)
-            .set_end_point(
-                {0.0, back_to_safety[1], back_to_safety[2], back_to_safety[3], back_to_safety[4],
-                 back_to_safety[5]});
+
         fsm.registerState<Set_Storage_State>();
         fsm.addTransition<Auto_Storage_Event>(
             Auto_Storage_State::Set_Storage, Auto_Storage_Event::Up,
@@ -124,14 +76,14 @@ private:
         move_to_former_target;
     rmcs_core::hardware::device::Trajectory<rmcs_core::hardware::device::TrajectoryType::LINE>
         press;
-    rmcs_core::hardware::device::Trajectory<rmcs_core::hardware::device::TrajectoryType::LINE> lift;
+        rmcs_core::hardware::device::Trajectory<rmcs_core::hardware::device::TrajectoryType::LINE> lift;
     rmcs_core::hardware::device::Trajectory<rmcs_core::hardware::device::TrajectoryType::JOINT>
         back_to_safety_;
     std::array<double, 6> last_theta_, result;
-    std::array<double, 3> press_start_point_position = {-0.23, 0.26, 0.35};
-    std::array<double, 3> press_end_point_position   = {-0.23, 0.26, 0.3};
-    std::array<double, 3> lift_start_point_position  = {-0.23, 0.26, 0.3};
-    std::array<double, 3> lift_end_point_position    = {-0.23, 0.26, 0.35};
+    std::array<double, 3> press_start_point_position = {-0.27, -0.22, 0.35};
+    std::array<double, 3> press_end_point_position   = {-0.27, -0.22, 0.3};
+    std::array<double, 3> lift_start_point_position  = {-0.27, -0.22, 0.3};
+    std::array<double, 3> lift_end_point_position    = {-0.27, -0.22, 0.35};
     std::array<double, 3> press_point_orientation    = {-41 * std::numbers::pi / 180.0, 0.0, 0.0};
 
     std::array<double, 6> move_to_target_ =

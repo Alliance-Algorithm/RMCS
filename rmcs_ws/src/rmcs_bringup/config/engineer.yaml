@@ -60,7 +60,7 @@ engineer_hardware:
     joint4_zero_point: 12200
     joint3_zero_point: 92916
     joint2_zero_point: 123373
-    joint1_zero_point: 28575
+    joint1_zero_point: 41596
     joint6_qlim: [-3.141592,3.141592]    
     joint5_qlim: [-1.83532,1.83532]    
     joint4_qlim: [-3.141592,3.141592]    
@@ -74,7 +74,7 @@ engineer_hardware:
     leg_lf_ecd_zero_point: 212582
     leg_lb_ecd_zero_point: 237881
     leg_rb_ecd_zero_point: 1828
-    leg_rf_ecd_zero_point: 124431
+    leg_rf_ecd_zero_point: 82230
     big_yaw_zero_point: 56459
 vision:
   ros__parameters:
@@ -84,7 +84,7 @@ joint6_angle_pid_controller:
   ros__parameters:
     measurement: /arm/Joint6/control_angle_error
     control: /arm/Joint6/control_velocity
-    kp: 3620.0
+    kp: 6620.0
     ki: 0.0
     kd: 5.0
 
@@ -93,7 +93,7 @@ joint6_velocity_pid_controller:
     measurement: /arm/Joint6/velocity
     setpoint: /arm/Joint6/control_velocity
     control: /arm/Joint6/control_torque
-    kp: 0.016
+    kp: 0.026
     ki: 0.0
     kd: 0.0005
 

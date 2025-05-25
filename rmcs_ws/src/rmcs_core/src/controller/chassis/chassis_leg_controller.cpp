@@ -76,7 +76,6 @@ public:
         register_input("/leg/joint/rf/velocity", leg_joint_rf_velocity);
         register_input("/leg/joint/lf/torque", leg_joint_lf_torque);
         register_input("/leg/joint/rf/torque", leg_joint_rf_torque);
-        register_output("/leg/relay/CH", leg_relay, NAN);
 
         register_input("yaw_imu_velocity", yaw_imu_velocity);
         register_input("yaw_imu_angle", yaw_imu_angle);
@@ -88,13 +87,13 @@ public:
             "/chassis/big_yaw/target_angle_error", chassis_big_yaw_target_angle_error, NAN);
         register_input("/chassis/big_yaw/angle", chassis_big_yaw_angle);
 
-        std::array<double, 2> four_wheel_angle = leg_inverse_kinematic(241.6, 218.4, false, false);
+        std::array<double, 2> four_wheel_angle = leg_inverse_kinematic(237.2, 222.8, false, false);
         four_wheel_trajectory
             .set_end_point(
                 {four_wheel_angle[0], four_wheel_angle[1], four_wheel_angle[1], four_wheel_angle[0],
                  0, 0})
             .set_total_step(500.0);
-        std::array<double, 2> six_wheel_angle = leg_inverse_kinematic(251.0, 220.0, false, false);
+        std::array<double, 2> six_wheel_angle = leg_inverse_kinematic(246.0, 225.0, false, false);
         six_wheel_trajectory
             .set_end_point(
                 {six_wheel_angle[0], six_wheel_angle[1], six_wheel_angle[1], six_wheel_angle[0], 0,
@@ -104,8 +103,9 @@ public:
         up_stairs_initial.set_end_point({1.700270, 1.680, 1.680, 1.700270, 0, 0})
             .set_total_step(2000);
         up_stairs_leg_press.set_end_point({0.506814, 0.995241, 0.995241, 0.466814, 0, 0})
-            .set_total_step(1400);
-        up_stairs_leg_lift.set_end_point({1.523598767, 1.021730456, 1.021730456, 1.523598767, 0, 0})
+            .set_total_step(1000);
+        up_stairs_leg_lift
+            .set_end_point({1.2193598767, 1.261730456, 1.261730456, 1.2193598767, 0, 0})
             .set_total_step(3100);
     }
     void update() override {
@@ -118,13 +118,11 @@ public:
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
             *is_chassis_and_leg_enable = false;
             reset_motor();
-            yaw_control_theta = *yaw_imu_angle;
-            leg_relay_control(true);
+            yaw_control_theta                   = *yaw_imu_angle;
             is_yaw_imu_control                  = true;
             is_leg_forward_joint_torque_control = false;
             leg_mode                            = rmcs_msgs::LegMode::None;
         } else {
-            leg_relay_control(false);
 
             *is_chassis_and_leg_enable = true;
             mode_selection();
@@ -159,7 +157,7 @@ public:
             case rmcs_msgs::ChassisMode::Up_Stairs: {
                 is_yaw_imu_control           = false;
                 yaw_set_theta_in_YawFreeMode = 0.0;
-                speed_limit                  = 1.0;
+                speed_limit                  = 1.5;
                 Eigen::Vector2d move_        = *joystick_left_;
                 steering_control(move_, joystick_right_->y());
                 omniwheel_control(move_);
@@ -251,39 +249,46 @@ private:
                     || *arm_mode == rmcs_msgs::ArmMode::Auto_Ground
                     || *arm_mode == rmcs_msgs::ArmMode::Auto_Storage_LB
                     || *arm_mode == rmcs_msgs::ArmMode::Auto_Storage_RB
-                    || *arm_mode == rmcs_msgs::ArmMode::Auto_Storage_RF
                     || *arm_mode == rmcs_msgs::ArmMode::Auto_Extract
                     || *arm_mode == rmcs_msgs::ArmMode::Customer
-                    || *arm_mode == rmcs_msgs::ArmMode::Vision_Exchange) {
-                    speed_limit = 1.0;
-                    if (*arm_mode == rmcs_msgs::ArmMode::Customer
-                        || *arm_mode == rmcs_msgs::ArmMode::Vision_Exchange) {
+                    || *arm_mode == rmcs_msgs::ArmMode::Auto_Up_Stairs) {
+                    speed_limit        = 1.0;
+                    is_yaw_imu_control = false;
+                    if (*arm_mode == rmcs_msgs::ArmMode::Customer) {
                         leg_mode                     = rmcs_msgs::LegMode::Four_Wheel;
                         chassis_mode                 = rmcs_msgs::ChassisMode::Yaw_Free;
-                        is_yaw_imu_control           = false;
                         yaw_set_theta_in_YawFreeMode = 0.0;
                     } else {
-                        chassis_mode       = ChassisMode::Yaw_Free;
-                        is_yaw_imu_control = false;
+                        chassis_mode = ChassisMode::Yaw_Free;
+                        leg_mode     = rmcs_msgs::LegMode::Six_Wheel;
+
                         if (*arm_mode == rmcs_msgs::ArmMode::Auto_Gold_Left) {
                             yaw_set_theta_in_YawFreeMode = std::numbers::pi / 2.0;
-                            leg_mode                     = rmcs_msgs::LegMode::Six_Wheel;
                         } else if (*arm_mode == rmcs_msgs::ArmMode::Auto_Gold_Right) {
                             yaw_set_theta_in_YawFreeMode = -std::numbers::pi / 2.0;
-                            leg_mode                     = rmcs_msgs::LegMode::Six_Wheel;
                         } else if (*arm_mode == rmcs_msgs::ArmMode::Auto_Gold_Mid) {
                             yaw_set_theta_in_YawFreeMode = std::numbers::pi / 2.0;
-                            leg_mode                     = rmcs_msgs::LegMode::Six_Wheel;
+
+                        } else if (
+                            *arm_mode == rmcs_msgs::ArmMode::Auto_Storage_LB
+                            || *arm_mode == rmcs_msgs::ArmMode::Auto_Storage_RB) {
+                            if (last_arm_mode == rmcs_msgs::ArmMode::Auto_Gold_Left) {
+                                yaw_set_theta_in_YawFreeMode = std::numbers::pi / 2.0;
+                            } else if (last_arm_mode == rmcs_msgs::ArmMode::Auto_Gold_Mid) {
+                                yaw_set_theta_in_YawFreeMode = std::numbers::pi / 2.0;
+
+                            } else if (last_arm_mode == rmcs_msgs::ArmMode::Auto_Gold_Right) {
+                                yaw_set_theta_in_YawFreeMode = -std::numbers::pi / 2.0;
+                            }
 
                         } else {
                             yaw_set_theta_in_YawFreeMode = 0.0;
-                            leg_mode                     = rmcs_msgs::LegMode::Six_Wheel;
                         }
-                        yaw_trajectory_controller.set_start_point({*chassis_big_yaw_angle})
-                            .set_total_step(1400)
-                            .set_end_point({yaw_set_theta_in_YawFreeMode})
-                            .reset();
                     }
+                    yaw_trajectory_controller.set_start_point({*chassis_big_yaw_angle})
+                        .set_total_step(1400)
+                        .set_end_point({yaw_set_theta_in_YawFreeMode})
+                        .reset();
                 } else if (*arm_mode == rmcs_msgs::ArmMode::Auto_Walk) {
                     speed_limit        = 4.5;
                     leg_mode           = rmcs_msgs::LegMode::Six_Wheel;
@@ -312,7 +317,8 @@ private:
             if (last_chassis_mode == rmcs_msgs::ChassisMode::SPIN) {
                 speed_limit = 4.5;
             }
-            if (last_chassis_mode == rmcs_msgs::ChassisMode::Yaw_Free) {
+            if (last_chassis_mode == rmcs_msgs::ChassisMode::Yaw_Free
+                || last_chassis_mode == rmcs_msgs::ChassisMode::Up_Stairs) {
                 if (last_is_yaw_imu_control != is_yaw_imu_control) {
                     yaw_control_theta = *yaw_imu_angle;
                 }
@@ -365,8 +371,8 @@ private:
                     } else if (up_stairs_is_leg_lift) {
                         result = up_stairs_leg_lift.trajectory();
                         if (up_stairs_leg_lift.get_complete()) {
-                            result[0] = 1.0;
-                            result[3] = 1.0;
+                            result[0] = 0.8;
+                            result[3] = 0.8;
                         }
                     }
                 }
@@ -475,13 +481,7 @@ private:
         *omni_l_target_vel = move.x() * (speed_limit / wheel_r);
         *omni_r_target_vel = move.x() * (speed_limit / wheel_r);
     }
-    void leg_relay_control(bool is_open) {
-        if (is_open) {
-            *leg_relay = 0b11110000;
-        } else {
-            *leg_relay = 0b00000000;
-        }
-    }
+
     void reset_motor() {
         *steering_lf_target_angle_error     = NAN;
         *steering_lb_target_angle_error     = NAN;
@@ -618,7 +618,6 @@ private:
     rmcs_msgs::ChassisMode last_chassis_mode = rmcs_msgs::ChassisMode::None;
     rmcs_msgs::LegMode leg_mode              = rmcs_msgs::LegMode::Six_Wheel;
     rmcs_msgs::LegMode last_leg_mode         = rmcs_msgs::LegMode::None;
-    OutputInterface<uint8_t> leg_relay;
 
     hardware::device::Trajectory<hardware::device::TrajectoryType::JOINT> four_wheel_trajectory;
     hardware::device::Trajectory<hardware::device::TrajectoryType::JOINT> six_wheel_trajectory;

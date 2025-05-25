@@ -70,7 +70,7 @@ private:
 class Auto_Up_Stairs {
 public:
     explicit Auto_Up_Stairs() {
-        lift.set_total_step(2000).set_end_point({0.0, 0.6, -0.2, 0.0, 0.0, 0.0});
+        lift.set_total_step(1600).set_end_point({0.0, -0.4, 0.2, 0.0, 0.0, 0.0});
         initial.set_total_step(2000).set_end_point({0.0, -0.9, 0.5, 0.0, 0.0, 0.0});
         fsm.registerState<Leg_Initial_State>();
         fsm.registerState<Leg_Press_State>();

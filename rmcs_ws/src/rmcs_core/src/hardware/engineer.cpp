@@ -96,7 +96,11 @@ private:
             , event_thread_([this]() { handle_events(); })
             , bmi088_(1000, 0.2, 0)
             , arm_pump{engineer, engineer_command, "/arm/pump"}
-            , mine_pump{engineer, engineer_command, "/mine/pump"} {
+            , mine_pump{engineer, engineer_command, "/mine/pump"}
+            , arm_pump_relay(engineer_command, "/arm/pump/relay", device::RelayType::One_CH)
+
+        {
+
             engineer.register_output("/arm/Joint6/control_angle_error", joint6_error_angle);
             engineer.register_output("/arm/Joint5/control_angle_error", joint5_error_angle);
             engineer.register_output("/arm/Joint4/control_angle_error", joint4_error_angle);
@@ -194,7 +198,11 @@ private:
                 transmit_buffer_.add_can1_transmission(
                     0x143, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
 
-                M3508_command[0] = 0;
+                command_ = arm_pump_relay.generate_commande();
+                transmit_buffer_.add_can2_transmission(
+                    0x305, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+
+                M3508_command[0] = mine_pump.generate_command();
                 M3508_command[1] = 0;
                 M3508_command[2] = 0;
                 M3508_command[3] = arm_pump.generate_command();
@@ -206,9 +214,9 @@ private:
                         ? normalizeAngle(joint[5].get_target_theta() - joint[5].get_theta())
                         : NAN;
                 command_ = joint[5].generate_torque_command();
-
                 transmit_buffer_.add_can2_transmission(
                     0x146, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+
             } else {
                 *joint1_error_angle =
                     is_arm_enable ? (joint[0].get_target_theta() - joint[0].get_theta()) : NAN;
@@ -224,7 +232,7 @@ private:
                 transmit_buffer_.add_can1_transmission(
                     0x142, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
 
-                    *joint5_error_angle =
+                *joint5_error_angle =
                     is_arm_enable
                         ? normalizeAngle(joint[4].get_target_theta() - joint[4].get_theta())
                         : NAN;
@@ -240,7 +248,6 @@ private:
                 command_ = joint[3].generate_torque_command();
                 transmit_buffer_.add_can2_transmission(
                     0x144, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
-
             }
             transmit_buffer_.trigger_transmission();
             last_is_arm_enable_ = is_arm_enable;
@@ -263,7 +270,7 @@ private:
             joint[0].update_joint();
             arm_pump.update();
             mine_pump.update();
-            // RCLCPP_INFO(this->get_logger(),"%f",joint[4].get_angle());
+            RCLCPP_INFO(this->get_logger(), "%f", joint[5].get_theta());
         }
 
         void update_imu() {
@@ -289,6 +296,9 @@ private:
                 joint[3].store_status(can_data);
             if (can_id == 0x204) {
                 arm_pump.store_status(can_data);
+            }
+            if (can_id == 0x201) {
+                mine_pump.store_status(can_data);
             }
         }
         void can1_receive_callback(
@@ -347,9 +357,9 @@ private:
         std::thread event_thread_;
         librmcs::utility::RingBuffer<std::byte> vision{39};
         bool last_is_arm_enable_ = true;
-
         librmcs::device::Bmi088 bmi088_;
         device::DjiMotor arm_pump, mine_pump;
+        device::Relay arm_pump_relay;
 
         OutputInterface<double> yaw_imu_velocity;
         OutputInterface<double> yaw_imu_angle;
@@ -504,7 +514,6 @@ private:
             , Leg_ecd(
                   {engineer, "/leg/encoder/lf"}, {engineer, "/leg/encoder/lb"},
                   {engineer, "/leg/encoder/rb"}, {engineer, "/leg/encoder/rf"})
-            , leg_relay(engineer_command, "/leg/relay", device::RelayType::Four_CH)
             , big_yaw(engineer, engineer_command, "/chassis/big_yaw") {
 
             Omni_Motors[0].configure(
@@ -564,10 +573,9 @@ private:
                 ecd.update();
             }
             big_yaw.update();
-            RCLCPP_INFO(this->get_logger(),"%f %f",Leg_ecd[3].get_angle(),Leg_ecd[0].get_angle());
+            // RCLCPP_INFO(this->get_logger(), "%f %f", big_yaw.get_angle(), Leg_ecd[0].get_angle());
 
             // RCLCPP_INFO(this->get_logger(),"%f",big_yaw.get_angle());
-
         }
         void printf_max(double lf, double lb, double rb, double rf) {
 
@@ -692,7 +700,6 @@ private:
         device::DjiMotor Omni_Motors[2];
         device::DjiMotor Leg_Motors[4];
         device::Encoder Leg_ecd[4];
-        device::Relay leg_relay;
         device::DMMotor big_yaw;
         InputInterface<double> leg_lb_target_theta_;
         InputInterface<double> leg_rb_target_theta_;
