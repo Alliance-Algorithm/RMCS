@@ -3,7 +3,6 @@
 #include <limits>
 
 #include <eigen3/Eigen/Dense>
-#include <fast_tf/rcl.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
@@ -12,6 +11,7 @@
 #include <rmcs_msgs/shoot_mode.hpp>
 #include <rmcs_msgs/shoot_status.hpp>
 #include <rmcs_msgs/switch.hpp>
+#include <rmcs_utility/fps_counter.hpp>
 
 namespace rmcs_core::controller::gimbal {
 
@@ -178,7 +178,9 @@ public:
                         } else {
                             bullet_count_limited_by_single_shot_ = 0;
                             single_shot_delayed_stop_counter_    = 0;
-                            shoot_status_->single_shot_cancelled_count++;
+                            RCLCPP_INFO(
+                                get_logger(), "Single shot cancelled. Count: %d",
+                                ++shoot_status_->single_shot_cancelled_count);
                         }
                     }
                 } else {
@@ -246,6 +248,10 @@ private:
                     shoot_status_->fired_count++;
 
                     bullet_feeder_last_shoot_angle_ = *bullet_feeder_multi_turn_angle_;
+
+                    if (shoot_frequency_counter_.count())
+                        RCLCPP_INFO(
+                            logger_, "Shoot frequency: %.2f", shoot_frequency_counter_.fps());
                 }
                 primary_friction_velocity_decrease_integral_ = 0;
             }
@@ -313,7 +319,7 @@ private:
         auto control_velocity = *bullet_feeder_control_velocity_;
         if (control_velocity > 0.0) {
             auto velocity = *bullet_feeder_velocity_;
-            if (velocity > control_velocity / 2) {
+            if (velocity > control_velocity * 0.5) {
                 if (bullet_feeder_working_status_ < 0) {
                     bullet_feeder_working_status_ = 0;
                 } else if (bullet_feeder_working_status_ < 500) {
@@ -402,6 +408,7 @@ private:
     InputInterface<double> bullet_feeder_multi_turn_angle_;
     double bullet_feeder_angle_per_bullet_, bullet_feeder_angle_per_1_5_bullet_;
     double bullet_feeder_last_shoot_angle_ = 0;
+    rmcs_utility::FpsCounter shoot_frequency_counter_;
 
     double friction_control_velocity_soft_start_stop_step_;
     double friction_control_velocity_percentage_ = nan_;

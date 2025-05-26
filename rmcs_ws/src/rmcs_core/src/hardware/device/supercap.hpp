@@ -44,8 +44,8 @@ public:
         command.enabled = true;
 
         double power_limit = *supercap_charge_power_limit_;
-         RCLCPP_INFO(rclcpp::get_logger("a"), "%lf", power_limit );
-         RCLCPP_INFO(rclcpp::get_logger("b"), "%d", *supercap_enabled_);
+        //  RCLCPP_INFO(rclcpp::get_logger("a"), "%lf", power_limit );
+        //  RCLCPP_INFO(rclcpp::get_logger("b"), "%d", *supercap_enabled_);
         if (std::isnan(power_limit))
             command.power_limit = 0;
         else
