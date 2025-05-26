@@ -146,6 +146,12 @@ public:
                     mouse.left || switch_left == Switch::DOWN
                     || (fire_control_.ready() && *fire_control_ && switch_right == Switch::UP);
 
+                if (last_switch_right_ == Switch::UP && switch_right == Switch::MIDDLE)
+                    bullet_count_limited_by_single_shot_ = 0;
+
+                // if (*fire_control_)
+                //     std::cout << "Fire control: " << *fire_control_ << std::endl;
+
                 const auto default_mode     = default_shoot_mode();
                 const auto alternative_mode = alternative_shoot_mode();
 
@@ -165,7 +171,8 @@ public:
                         bullet_count_limited_by_single_shot_ = 0;
                     if ((!last_mouse_.left && mouse.left)
                         || (last_switch_left_ == rmcs_msgs::Switch::MIDDLE
-                            && switch_left == rmcs_msgs::Switch::DOWN)) {
+                            && switch_left == rmcs_msgs::Switch::DOWN)
+                        || (!last_fire_control_ && *fire_control_)) {
                         bullet_count_limited_by_single_shot_++;
                         single_shot_delayed_stop_counter_ = 0;
                     }
@@ -196,6 +203,7 @@ public:
         last_switch_left_  = switch_left;
         last_mouse_        = mouse;
         last_keyboard_     = keyboard;
+        last_fire_control_ = *fire_control_;
     }
 
 private:
@@ -387,6 +395,7 @@ private:
     rmcs_msgs::Switch last_switch_left_  = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Mouse last_mouse_         = rmcs_msgs::Mouse::zero();
     rmcs_msgs::Keyboard last_keyboard_   = rmcs_msgs::Keyboard::zero();
+    bool last_fire_control_              = false;
 
     std::unique_ptr<InputInterface<double>[]> friction_velocities_;
     double last_primary_friction_velocity_              = nan_;
