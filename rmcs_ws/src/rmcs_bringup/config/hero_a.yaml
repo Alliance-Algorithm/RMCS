@@ -98,9 +98,9 @@ shooting_controller:
     is_42mm: true
     friction_soft_start_stop_time: 1.0
     bullets_per_feeder_turn: 6.0
-    shot_frequency: 5.0
-    safe_shot_frequency: 5.0
-    precise_shot_frequency: 5.0
+    shot_frequency: 4.0
+    safe_shot_frequency: 4.0
+    precise_shot_frequency: 4.0
     eject_frequency: 5.0
     eject_time: 0.2
     deep_eject_frequency: 2.0
@@ -206,9 +206,9 @@ auto_aim_controller:
     # controller
     gimbal_predict_duration: 100
     yaw_error: 0.00
-    pitch_error: -0.036
+    pitch_error: -0.034
     shoot_velocity: 15.5
-    predict_sec: 0.0
+    predict_sec: 0.7
     # etc
     buff_predict_duration: 200
     buff_model_path: "/models/buff_nocolor_v6.onnx"
