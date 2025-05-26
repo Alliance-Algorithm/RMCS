@@ -65,7 +65,7 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
                 Node(
                     package="tlarc",
                     executable="tlarc",
-                    arguments=["PlanAndMove"],
+                    arguments=["DecisionAndMove"],
                     respawn=True,
                     respawn_delay=1.0,
                     output="log",

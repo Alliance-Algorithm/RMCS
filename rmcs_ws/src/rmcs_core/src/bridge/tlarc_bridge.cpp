@@ -6,7 +6,9 @@
 #include <game_stage.hpp>
 #include <memory>
 #include <std_msgs/msg/detail/bool__struct.hpp>
+#include <std_msgs/msg/detail/u_int8__struct.hpp>
 #include <string>
+#include <switch.hpp>
 #include <vector>
 
 #include <eigen3/Eigen/Eigen>
@@ -39,6 +41,8 @@ class TlarcBridge
 public:
     TlarcBridge()
         : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
+        , command_component_(
+              create_partner_component<TlarcCommand>(get_component_name() + "_command"))
         , pub_functions()
         , units()
         , param_names(this->list_parameters({"*"}, 1).names) {
@@ -62,22 +66,31 @@ public:
                 msg.set__data(std::bit_cast<uint8_t>(*interface));
             });
         publisher_factory<std_msgs::msg::Float64, double>(
-            get_or<std::string>("refeere_power_limit_topic_name", "/referee/chassis/power_limit"),
-            get_or<std::string>("refeere_power_limit_inter_name", "/referee/chassis/power_limit"),
+            get_or<std::string>("referee_power_limit_topic_name", "/referee/chassis/power_limit"),
+            get_or<std::string>("referee_power_limit_inter_name", "/referee/chassis/power_limit"),
             [](std_msgs::msg::Float64& msg, InputInterface<double>& interface) {
                 msg.set__data(*interface);
             });
         publisher_factory<std_msgs::msg::UInt8, rmcs_msgs::RobotId>(
-            get_or<std::string>("refeere_id_topic_name", "/referee/id/color"),
-            get_or<std::string>("refeere_id_inter_name", "/referee/id"),
+            get_or<std::string>("referee_id_topic_name", "/referee/id/color"),
+            get_or<std::string>("referee_id_inter_name", "/referee/id"),
             [](std_msgs::msg::UInt8& msg, InputInterface<rmcs_msgs::RobotId>& interface) {
                 msg.set__data((uint8_t)(interface->color()));
             });
         publisher_factory<std_msgs::msg::UInt16, uint16_t>(
-            get_or<std::string>("refeere_id_topic_name", "/referee/shooter/bullet_allowance"),
-            get_or<std::string>("refeere_id_inter_name", "/referee/shooter/bullet_allowance"),
+            get_or<std::string>(
+                "referee_bullet_allowance_topic_name", "/referee/shooter/bullet_allowance"),
+            get_or<std::string>(
+                "referee_bullet_allowance_inter_name", "/referee/shooter/bullet_allowance"),
             [](std_msgs::msg::UInt16& msg, InputInterface<uint16_t>& interface) {
                 msg.set__data(*interface);
+            });
+
+        publisher_factory<std_msgs::msg::Bool, rmcs_msgs::Switch>(
+            get_or<std::string>("test_mode_topic_name", "/rmcs/test_mode"),
+            get_or<std::string>("test_mode_inter_name", "/remote/switch/right"),
+            [](std_msgs::msg::Bool& msg, InputInterface<rmcs_msgs::Switch>& interface) {
+                msg.set__data(*interface == rmcs_msgs::Switch::UP);
             });
 
         subscription_factory<geometry_msgs::msg::Pose2D, Eigen::Vector2d>(
@@ -103,6 +116,12 @@ public:
                OutputInterface<TargetEnemiesID>& interface) {
                 *interface = std::bit_cast<TargetEnemiesID>(msg->data);
             });
+        subscription_factory<std_msgs::msg::UInt8, uint8_t>(
+            get_or<std::string>("tlarc_whitelist_topic_name", "/tlarc/control/auto_aim/whitelist"),
+            get_or<std::string>("tlarc_whitelist_topic_name", "/auto_aim/whitelist"), {false},
+            [](std::shared_ptr<std_msgs::msg::UInt8> msg, OutputInterface<uint8_t>& interface) {
+                *interface = msg->data;
+            });
         if (!param_names.empty()) {
             RCLCPP_WARN(get_logger(), "Thease paremeters write in yaml but not used:\n");
             for (const auto& str : param_names)
@@ -119,7 +138,9 @@ public:
 
 private:
     ~TlarcBridge() = default;
-
+    class TlarcCommand : public rmcs_executor::Component {
+        void update() final {};
+    };
     class BaseBridgeUnit {};
     template <typename RosT, typename InterfaceT>
     class BridgeUnit : public BaseBridgeUnit {
@@ -150,7 +171,6 @@ private:
     void publisher_factory(
         const std::string& topic_name, const std::string& interface_name,
         const std::function<void(MessageT&, InputInterface<DataT>&)>& msg_exchange) {
-
         UnitT* unit = new UnitT();
 
         register_input(interface_name, unit->interface);
@@ -175,7 +195,7 @@ private:
             msg_exchange) {
         UnitT* unit = new UnitT();
 
-        register_output(interface_name, unit->interface, default_value);
+        command_component_->register_output(interface_name, unit->interface, default_value);
 
         unit->messager = create_subscription<MessageT>(
             topic_name, 10, [msg_exchange, unit](const std::shared_ptr<MessageT> msg) {
@@ -189,6 +209,7 @@ private:
         for (const auto& func : pub_functions)
             func.second();
     }
+    std::shared_ptr<TlarcCommand> command_component_;
 
     std::map<std::string, std::function<void()>> pub_functions;
     std::vector<BaseBridgeUnit*> units;

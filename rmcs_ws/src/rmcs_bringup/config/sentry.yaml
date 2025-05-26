@@ -257,7 +257,7 @@ chassis_controller:
     gimbal_yaw_motors:
       - /gimbal/yaw
     following_loop:
-      kp: 6.0
+      kp: 20.0
       ki: 0.0
       kd: 0.0
 
@@ -282,10 +282,10 @@ auto_aim_controller:
     armor_predict_duration: 500
     # controller
     gimbal_predict_duration: 100
-    yaw_error: 0.02
-    pitch_error: 0.06
+    yaw_error: 0.004
+    pitch_error: 0.00
     shoot_velocity: 28.0
-    predict_sec: 0.095
+    predict_sec: 0.050
     # etc
     buff_predict_duration: 200
     buff_model_path: "/models/buff_nocolor_v6.onnx"

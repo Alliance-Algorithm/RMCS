@@ -14,6 +14,9 @@
 
 namespace rmcs_core::controller::chassis {
 
+/*
+I bull a lot of shit here
+*/
 class SteeringWheelControllerWithPlanner
     : public rmcs_executor::Component
     , public rclcpp::Node {
@@ -164,7 +167,7 @@ private:
             chassis_control_velocity.head<2>().norm() - translational_control_velocity.norm();
         translational_control_velocity =
             chassis_control_velocity.head<2>().normalized()
-            * (translational_control_velocity.norm() + std::clamp(err, -0.002, 0.002));
+            * (translational_control_velocity.norm() + std::clamp(err, -0.0024, 0.0024));
         chassis_control_velocity.head<2>() = translational_control_velocity;
         return chassis_control_velocity;
     }
@@ -191,8 +194,8 @@ private:
         const Eigen::Vector3d& chassis_velocity_expected,
         const Eigen::Vector3d& chassis_control_velocity) {
 
-        Eigen::Vector2d translational_control_velocity = chassis_control_velocity.head<2>();
-        Eigen::Vector2d translational_velocity         = chassis_velocity_expected.head<2>();
+        Eigen::Vector2d translational_control_velocity{0, 0};
+        Eigen::Vector2d translational_velocity = {0, 0};
         Eigen::Vector2d translational_control_acceleration =
             chassis_translational_velocity_pid_.update(
                 translational_control_velocity - translational_velocity);
@@ -211,7 +214,6 @@ private:
         else
             chassis_control_acceleration = constrain_chassis_control_acceleration(
                 chassis_velocity_expected, chassis_control_acceleration);
-
         return chassis_control_acceleration;
     }
 
@@ -258,15 +260,15 @@ private:
         double best_value          = -inf_;
         Eigen::Vector2d best_point = Eigen::Vector2d::Zero();
         for (auto& point : constrain) {
-            double value = point.dot(Eigen::Vector2d(1.0, 0.1));
-            // double value = point.dot(Eigen::Vector2d(0.3, 0.7));
+            // double value = point.dot(Eigen::Vector2d(1.0, 0.8));
+            double value = point.dot(Eigen::Vector2d(0, 1));
             if (value > best_value)
                 best_value = value, best_point = point;
         }
 
         Eigen::Vector3d best_acceleration;
         best_acceleration << best_point.x() * translational_acceleration_direction,
-            angular_acceleration_sign * best_point.y();
+            chassis_acceleration.z();
 
         return best_acceleration;
     }
