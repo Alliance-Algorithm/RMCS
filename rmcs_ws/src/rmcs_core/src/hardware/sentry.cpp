@@ -379,9 +379,12 @@ private:
             // std::cerr << chassis_steer_motors_[1].generate_command() << std::endl;
 
             transmit_buffer_.add_can1_transmission(0x1FE, std::bit_cast<uint64_t>(batch_commands));
-            transmit_buffer_.add_can1_transmission(
-                0x142, gimbal_yaw_motor_.generate_velocity_command(
-                           gimbal_yaw_motor_.control_velocity() - imu_.gz()));
+            static uint8_t yaw_count = 0;
+            yaw_count                = (yaw_count + 1) % 2;
+            if (yaw_count % 2)
+                transmit_buffer_.add_can1_transmission(
+                    0x142, gimbal_yaw_motor_.generate_velocity_command(
+                               gimbal_yaw_motor_.control_velocity() - imu_.gz()));
 
             transmit_buffer_.trigger_transmission();
         }

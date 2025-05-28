@@ -145,13 +145,14 @@ public:
         using namespace rmcs_msgs;
 
         sentry_hp_ =
-            robot_hp_.ready() && robot_msg_referee_.ready()
+            (robot_hp_.ready() && robot_msg_referee_.ready())
                 ? (robot_msg_referee_->color() == rmcs_msgs::RobotColor::BLUE ? robot_hp_->blue_7
                                                                               : robot_hp_->red_7)
                 : 400;
-        if (sentry_hp_ > last_sentry_hp_)
+        if (sentry_hp_ < last_sentry_hp_)
             spinning_to_when_ = std::chrono::steady_clock::now() + std::chrono::seconds(1);
         last_sentry_hp_ = sentry_hp_;
+        // std::cerr << sentry_hp_ << std::endl;
 
         auto switch_right = *switch_right_;
         auto switch_left  = *switch_left_;
