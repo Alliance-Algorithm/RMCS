@@ -33,7 +33,7 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , following_velocity_controller_(12.0, 0.0, 2.0) {
+        , following_velocity_controller_(8.0, 0.0, 2.0) {
         following_velocity_controller_.output_max = angular_velocity_max;
         following_velocity_controller_.output_min = -angular_velocity_max;
 
@@ -294,7 +294,7 @@ public:
                 // angular_velocity = following_velocity_controller_.update(err);
             } else {
                 if (std::chrono::steady_clock::now() < spinning_to_when_)
-                    angular_velocity = 0.4 * angular_velocity_max;
+                    angular_velocity = 0.8 * angular_velocity_max;
                 else
                     angular_velocity = 0;
             }

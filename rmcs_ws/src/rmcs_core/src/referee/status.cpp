@@ -124,7 +124,10 @@ private:
             game_status_watchdog_.reset(5'000);
     }
 
-    void update_game_robot_hp() {}
+    void update_game_robot_hp() {
+        auto& data  = reinterpret_cast<GameRobotHp&>(frame_.body.data);
+        *robots_hp_ = data;
+    }
 
     void update_robot_status() {
         if (*game_stage_ == rmcs_msgs::GameStage::STARTED)

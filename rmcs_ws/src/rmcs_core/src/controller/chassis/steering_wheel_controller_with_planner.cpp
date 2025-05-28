@@ -34,7 +34,7 @@ public:
         , cos_varphi_(1, 0, -1, 0) // 0, pi/2, pi, 3pi/2
         , sin_varphi_(0, 1, 0, -1)
         , steering_velocity_pid_(0.15, 0.0, 0.0)
-        , steering_angle_pid_(80.0, 0.0, 0.0)
+        , steering_angle_pid_(20.0, 0.0, 0.0)
         , wheel_velocity_pid_(0.3, 0.000, 0.0) {
 
         register_input("/remote/joystick/right", joystick_right_);
@@ -429,19 +429,14 @@ private:
         const Eigen::Vector4d& wheel_velocities, const SteeringStatus& steering_status,
         const ChassisStatus& chassis_status_expected, const Eigen::Vector3d&) {
 
-        // const auto& [ax, ay, az]      = chassis_acceleration;
         Eigen::Vector4d wheel_torques = {0, 0, 0, 0};
 
         Eigen::Vector4d wheel_control_velocity =
             chassis_status_expected.wheel_velocity_x.array() * steering_status.cos_angle.array()
             + chassis_status_expected.wheel_velocity_y.array() * steering_status.sin_angle.array();
         Eigen::Vector4d vel_err = wheel_control_velocity / wheel_radius_ - wheel_velocities;
-        // for (int i = 0; i < 4; i++) {
-        //     vel_err(i) = std::clamp(vel_err(i), -3.0, 3.0);
-        // }
+
         wheel_torques += wheel_velocity_pid_.update(vel_err);
-        // std::cerr << "control:" << wheel_control_velocity / wheel_radius_ << std::endl;
-        // std::cerr << "current" << wheel_velocities << std::endl;
 
         *left_front_wheel_control_torque_  = wheel_torques[0];
         *left_back_wheel_control_torque_   = wheel_torques[1];

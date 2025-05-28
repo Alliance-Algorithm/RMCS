@@ -80,7 +80,8 @@ public:
         } else {
             PitchLink::DirectionVector dir;
 
-            if (auto_aim_control_direction_.ready() && (mouse.right || switch_right == Switch::UP)
+            if (auto_aim_control_direction_.ready()
+                && (mouse.right || switch_right == Switch::UP || auto_controller_flag_)
                 && !auto_aim_control_direction_->isZero()) {
                 update_auto_aim_control_direction(dir);
 
