@@ -9,6 +9,7 @@ rmcs_executor:
 
       - rmcs_core::controller::gimbal::GimbalController -> gimbal_controller
       - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
+      - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
       
       - rmcs_core::controller::gimbal::ShootingController -> shooting_controller
@@ -16,7 +17,7 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController -> right_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller
       
-      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 
       - rmcs_core::controller::chassis::ChassisController -> chassis_controller
       - rmcs_core::controller::chassis::SteeringWheelControllerWithPlanner -> steering_wheel_controller
@@ -53,6 +54,9 @@ value_broadcaster:
       /chassis/left_back/wheel/control_velocity
       /chassis/right_back/wheel/control_velocity
       /chassis/right_front/wheel/control_velocity
+      /gimbal/yaw/control_angle_error
+      /gimbal/yaw/control_velocity
+      /gimbal/yaw/velocity_imu
     ]
 
 
@@ -64,6 +68,14 @@ yaw_angle_pid_controller:
     ki: 0.0
     kd: 0.0
     
+yaw_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/yaw/velocity_imu
+    setpoint: /gimbal/yaw/control_velocity
+    control: /gimbal/yaw/control_torque
+    kp: 70.0
+    ki: 0.000
+    kd: 1.0
 
 pitch_angle_pid_controller:
   ros__parameters:

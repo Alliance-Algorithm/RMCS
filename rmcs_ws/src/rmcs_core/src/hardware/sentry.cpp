@@ -341,6 +341,7 @@ private:
                     .set_encoder_zero_point(
                         static_cast<int>(sentry.get_parameter("right_front_zero_point").as_int()))
                     .enable_multi_turn_angle());
+            sentry.register_output("/chassis/yaw/velocity", chassis_yaw_velocity);
         }
         ~BottomBoard() final {
             stop_handling_events();
@@ -363,6 +364,7 @@ private:
                 gimbal_yaw_motor_.angle());
 
             gimbal_bullet_feeder_.update_status();
+            *chassis_yaw_velocity = imu_.gz();
         }
 
         void command_update() {
@@ -383,8 +385,8 @@ private:
             yaw_count                = (yaw_count + 1) % 2;
             if (yaw_count % 2)
                 transmit_buffer_.add_can1_transmission(
-                    0x142, gimbal_yaw_motor_.generate_velocity_command(
-                               gimbal_yaw_motor_.control_velocity() - imu_.gz()));
+                    0x142,
+                    gimbal_yaw_motor_.generate_torque_command(gimbal_yaw_motor_.control_torque()));
 
             transmit_buffer_.trigger_transmission();
         }
@@ -469,6 +471,7 @@ private:
 
         librmcs::client::CBoard::TransmitBuffer transmit_buffer_;
         std::thread event_thread_;
+        OutputInterface<double> chassis_yaw_velocity;
     };
 
     OutputInterface<rmcs_description::Tf> tf_;
