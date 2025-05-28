@@ -55,7 +55,7 @@ referee_status:
 gimbal_controller:
   ros__parameters:
     upper_limit: -0.5098
-    lower_limit: 0.2162
+    lower_limit: 0.2262
 
 yaw_angle_pid_controller:
   ros__parameters:
@@ -74,7 +74,7 @@ yaw_velocity_pid_controller:
     control: /gimbal/yaw/control_torque
     kp: 65.0
     ki: 0.000
-    kd: 2.0
+    kd: 1.5
 
 pitch_angle_pid_controller:
   ros__parameters:
