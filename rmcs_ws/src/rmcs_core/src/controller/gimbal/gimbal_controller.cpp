@@ -231,35 +231,26 @@ private:
             RCLCPP_INFO(get_logger(), "Turn to gimbal precise mode.");
         }
 
-        auto norm_angle = [&](double angle) { return (angle > pi_) ? angle - 2 * pi_ : angle; };
-
         if (precise_initialized_ && !precise_initialized_last_) {
-            *yaw_precise_control_angle_ = 0;
-            *pitch_precise_control_angle_ =
-                -*scope_offset_angle_ - norm_angle(*gimbal_pitch_angle_);
-
-            RCLCPP_INFO(
-                get_logger(), "scope control:%f,pitch measure:%f,pitch control:%f",
-                -*scope_offset_angle_, norm_angle(*gimbal_pitch_angle_),
-                *pitch_precise_control_angle_);
-
+            *yaw_precise_control_angle_   = 0;
+            *pitch_precise_control_angle_ = -*scope_offset_angle_;
             RCLCPP_INFO(get_logger(), "Precise control angles initial.");
         } else {
-            *yaw_precise_control_angle_ = joystick_sensitivity_ * joystick_left_->y()
-                                        + mouse_y_sensitivity_ * mouse_velocity_->y();
+            *yaw_precise_control_angle_ += joystick_sensitivity_ * joystick_left_->y()
+                                         + mouse_y_sensitivity_ * mouse_velocity_->y();
 
-            *pitch_precise_control_angle_ = -joystick_sensitivity_ * joystick_left_->x()
-                                          + mouse_x_sensitivity_ * mouse_velocity_->x()
-                                          - *delta_angle_by_mouse_wheel_;
+            *pitch_precise_control_angle_ += -joystick_sensitivity_ * joystick_left_->x()
+                                           + mouse_x_sensitivity_ * mouse_velocity_->x()
+                                           - *delta_angle_by_mouse_wheel_;
         }
 
         const auto lower_limit = lower_limit_ - std::numbers::pi / 2;
         const auto upper_limit = upper_limit_ - std::numbers::pi / 2;
 
-        if (norm_angle(*gimbal_pitch_angle_) > lower_limit
-            || norm_angle(*gimbal_pitch_angle_) < upper_limit) {
-            *pitch_precise_control_angle_ = 0;
-        }
+        *yaw_precise_control_angle_ =
+            std::clamp(*yaw_precise_control_angle_, -yaw_limit_, yaw_limit_);
+        *pitch_precise_control_angle_ =
+            std::clamp(*pitch_precise_control_angle_, upper_limit, lower_limit);
     }
 
     void update_sensitivities() {
@@ -274,6 +265,8 @@ private:
 
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
     static constexpr double pi_ = std::numbers::pi;
+
+    static constexpr double yaw_limit_ = std::numbers::pi / 6 - 0.22;
 
     InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;
@@ -305,10 +298,13 @@ private:
     InputInterface<bool> is_scope_active_;
 
     bool precise_initialized_{false}, precise_initialized_last_{false};
+    double yaw_control_angle_{0.0}, pitch_control_angle_{0.0};
+
     OutputInterface<double> yaw_precise_control_angle_, pitch_precise_control_angle_;
 
     pid::PidCalculator yaw_angle_pid_calculator_, yaw_velocity_pid_calculator_,
-        pitch_angle_pid_calculator_, pitch_velocity_pid_calculator_;
+        pitch_angle_pid_calculator_, pitch_velocity_pid_calculator_, roll_angle_pid_calculator_,
+        roll_velocity_pid_calculator_;
 
     OutputInterface<double> yaw_angle_error_;
     OutputInterface<double> yaw_control_torque_, pitch_control_torque_;

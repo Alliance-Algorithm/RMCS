@@ -27,6 +27,7 @@ public:
         register_input("/remote/mouse/mouse_wheel", mouse_wheel_);
         register_input("/remote/keyboard", keyboard_);
 
+        register_input("/gimbal/pitch/angle", gimbal_pitch_angle_);
         register_input("/gimbal/player_viewer/angle", gimbal_player_viewer_angle_);
 
         register_output(
@@ -62,6 +63,7 @@ public:
 
             update_viewer_control();
         };
+
         last_keyboard_ = keyboard;
     }
 
@@ -69,7 +71,8 @@ private:
     void reset_all_controls() {
         *scope_control_torque_ = nan_;
 
-        *viewer_control_angle_ = nan_;
+        *viewer_control_angle_error_ = nan_;
+        *viewer_control_angle_       = nan_;
 
         *is_scope_active_   = false;
         scope_active_       = false;
@@ -78,29 +81,37 @@ private:
     }
 
     void update_viewer_control() {
-        constexpr double scope_offset_angle = 0.32;
+        constexpr double scope_offset_angle = 0.31;
         *scope_offset_angle_                = scope_offset_angle;
 
         auto unit_sensitivity = [&](double sensitivity) {
             return (*is_scope_active_) ? sensitivity : 1.0;
         };
-        *viewer_delta_angle_by_mouse_wheel_ = 0.5 * *mouse_wheel_ * unit_sensitivity(0.095);
 
-        auto norm_angle = [](double angle) { return (angle > pi_) ? angle - 2 * pi_ : angle; };
-        auto viewer_measure_angle = norm_angle(*gimbal_player_viewer_angle_);
+        *viewer_delta_angle_by_mouse_wheel_ = 0.5 * *mouse_wheel_ * unit_sensitivity(0.09);
 
         if (viewer_reset_) {
-            *viewer_control_angle_ = upper_limit_ - viewer_measure_angle;
+            *viewer_control_angle_ = upper_limit_;
             viewer_reset_          = false;
         } else {
             if (scope_viewer_reset_) {
-                *viewer_control_angle_ = *scope_offset_angle_ - viewer_measure_angle;
+                *viewer_control_angle_ = *scope_offset_angle_;
                 scope_viewer_reset_    = false;
             } else {
-                *viewer_control_angle_ = *viewer_delta_angle_by_mouse_wheel_;
+                *viewer_control_angle_ += *viewer_delta_angle_by_mouse_wheel_;
             }
         }
-        *viewer_control_angle_error_ = *viewer_control_angle_ - viewer_measure_angle;
+        *viewer_control_angle_ = std::clamp(*viewer_control_angle_, upper_limit_, lower_limit_);
+
+        auto norm_angle = [](double angle) { return (angle > pi_) ? angle - 2 * pi_ : angle; };
+
+        if (norm_angle(*viewer_control_angle_) >= lower_limit_
+            || norm_angle(*viewer_control_angle_) <= upper_limit_) {
+            *viewer_delta_angle_by_mouse_wheel_ = 0;
+        }
+
+        *viewer_control_angle_error_ =
+            *viewer_control_angle_ - norm_angle(*gimbal_player_viewer_angle_);
 
         if (scope_active_) {
             *scope_control_torque_ = 0.2;
@@ -122,6 +133,7 @@ private:
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
     InputInterface<double> mouse_wheel_;
 
+    InputInterface<double> gimbal_pitch_angle_;
     InputInterface<double> gimbal_player_viewer_angle_;
 
     OutputInterface<double> scope_control_torque_;

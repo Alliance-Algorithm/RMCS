@@ -63,16 +63,7 @@ public:
                 bottom_yaw_angle_pid_.update(bottom_yaw_control_error())
                 - bottom_yaw_velocity_imu());
 
-            auto norm_angle = [&](double angle) {
-                return (angle > std::numbers::pi) ? angle - 2 * std::numbers::pi : angle;
-            };
-
-            if (norm_angle(*top_yaw_angle_) > yaw_limit_
-                && norm_angle(*top_yaw_angle_) < -yaw_limit_) {
-                *top_yaw_control_angle_ = 0;
-            } else {
-                *top_yaw_control_angle_ = *control_angle_;
-            }
+            *top_yaw_control_angle_    = *control_angle_;
             *bottom_yaw_control_angle_ = 0;
         }
     }
@@ -96,8 +87,7 @@ private:
     double bottom_yaw_velocity_imu() { return *chassis_yaw_velocity_imu_ + *bottom_yaw_velocity_; }
 
 private:
-    static constexpr double nan_       = std::numeric_limits<double>::quiet_NaN();
-    static constexpr double yaw_limit_ = std::numbers::pi / 3 - 0.22;
+    static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
 
     InputInterface<double> top_yaw_angle_, top_yaw_velocity_;
     InputInterface<double> bottom_yaw_angle_, bottom_yaw_velocity_;
