@@ -265,7 +265,7 @@ private:
         shoot_status_->ready = friction_enabled_;
         if (friction_enabled_) {
             for (size_t i = 0; i < friction_count_; i++)
-                *friction_control_velocities_[i] = friction_working_velocities_[i];
+                *friction_control_velocities_[i] = friction_working_velocities_[i] - 0.08;
         } else {
             for (size_t i = 0; i < friction_count_; i++)
                 *friction_control_velocities_[i] = 0.0;

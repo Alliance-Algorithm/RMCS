@@ -90,8 +90,8 @@ shooting_controller:
       - /gimbal/left_friction
       - /gimbal/right_friction
     friction_velocities:
-      - 650.0
-      - 650.0
+      - 660.0
+      - 660.0
     is_42mm: false
     bullets_per_feeder_turn: 8.0
     shot_frequency: 20.0
@@ -120,7 +120,7 @@ right_friction_velocity_pid_controller:
     kp: 0.003436926
     ki: 0.00
     kd: 0.009373434
-+
+
 bullet_feeder_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/bullet_feeder/velocity
