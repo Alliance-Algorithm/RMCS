@@ -40,7 +40,7 @@ public:
     uint16_t generate_command() const {
         SupercapCommand command;
 
-        command.enabled = true;
+        command.enabled = *chassis_output_status_;
 
         double power_limit = *supercap_charge_power_limit_;
         if (std::isnan(power_limit))
