@@ -93,8 +93,8 @@ shooting_controller:
       - 690.0
       - 690.0
     is_42mm: false
-    bullets_per_feeder_turn: 8.0
-    shot_frequency: 20.0
+    bullets_per_feeder_turn: 6.4
+    shot_frequency: 25.0
     safe_shot_frequency: 10.0
     precise_shot_frequency: 10.0
     eject_frequency: 10.0
@@ -183,7 +183,7 @@ auto_aim_controller:
     # capture
     use_video: false # If true, use video stream instead of camera. 
     video_path: "/workspaces/RMCS/rmcs_ws/resources/1.avi"
-    exposure_time: 2
+    exposure_time: 5
     invert_image: false
     # identifier
     armor_model_path: "/models/mlp.onnx"
@@ -199,10 +199,10 @@ auto_aim_controller:
     armor_predict_duration: 500
     # controller
     gimbal_predict_duration: 100
-    yaw_error: 0.020
+    yaw_error: 0.030
     pitch_error: -0.030
-    shoot_velocity: 21.4
-    predict_sec: 0.06
+    shoot_velocity: 22.4
+    predict_sec: 0.05
     # etc
     buff_predict_duration: 200
     buff_model_path: "/models/buff_nocolor_v6.onnx"
