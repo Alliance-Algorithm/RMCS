@@ -338,7 +338,9 @@ private:
                           static_cast<int>(hero.get_parameter("yaw_motor_zero_point").as_int())))
             , gimbal_bullet_feeder_(
                   hero, hero_command, "/gimbal/bullet_feeder",
-                  device::LkMotor::Config{device::LkMotor::Type::MG5010E_I10}.set_reversed())
+                  device::LkMotor::Config{device::LkMotor::Type::MG5010E_I10}
+                      .set_reversed()
+                      .enable_multi_turn_angle())
             , transmit_buffer_(*this, 32)
             , event_thread_([this]() { handle_events(); }) {
 
@@ -383,8 +385,8 @@ private:
             transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(batch_commands));
 
             transmit_buffer_.add_can1_transmission(
-                0x141, gimbal_bullet_feeder_.generate_velocity_command(
-                           gimbal_bullet_feeder_.control_velocity()));
+                0x141, gimbal_bullet_feeder_.generate_torque_command(
+                           gimbal_bullet_feeder_.control_torque()));
 
             // Use the chassis angular velocity as feedforward input for yaw velocity control.
             // This approach currently works only on Hero, as it utilizes motor angular velocity

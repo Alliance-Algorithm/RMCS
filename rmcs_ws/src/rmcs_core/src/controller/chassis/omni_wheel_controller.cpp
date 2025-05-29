@@ -371,7 +371,7 @@ private:
 
     static constexpr double k1_ = 2.958580e+00, k2_ = 3.082190e-03, no_load_power_ = 2.7;
 
-    static constexpr double wheel_radius_   = 0.07;
+    static constexpr double wheel_radius_   = 0.075;
     static constexpr double chassis_radius_ = 0.5;
 
     static constexpr double affine_coefficient_ = std::numbers::sqrt2;

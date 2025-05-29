@@ -26,6 +26,18 @@
   <class type="rmcs_core::controller::gimbal::ShootingController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
+  <class type="rmcs_core::controller::chassis::ChassisPowerController" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
+  <class type="rmcs_core::controller::gimbal::ShootCalibrate" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
+  <class type="rmcs_core::controller::gimbal::HeatController" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
+  <class type="rmcs_core::controller::gimbal::BulletFeederController42mm" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
   <class type="rmcs_core::controller::gimbal::ShootingRecorder" base_class_type="rmcs_executor::Component">
     <description>the recorder of Hero</description>
   </class>

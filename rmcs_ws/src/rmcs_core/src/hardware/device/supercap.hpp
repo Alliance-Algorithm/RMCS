@@ -1,5 +1,6 @@
 #pragma once
 
+#include "librmcs/utility/logging.hpp"
 #include <cmath>
 
 #include <rclcpp/logger.hpp>
@@ -17,20 +18,20 @@ public:
         status_component.register_output("/chassis/supercap/voltage", supercap_voltage_, 0.0);
         status_component.register_output("/chassis/supercap/enabled", supercap_enabled_, false);
 
-        command_component.register_input(
-            "/chassis/supercap/control_enable", supercap_control_enabled_);
+        command_component.register_input("/referee/chassis/output_status", chassis_output_status_);
         command_component.register_input(
             "/chassis/supercap/charge_power_limit", supercap_charge_power_limit_);
     }
 
     void store_status(uint64_t can_data) {
+        // LOG_INFO("Storing supercap status: 0x%016lx", can_data);
         can_data_.store(std::bit_cast<SupercapStatus>(can_data), std::memory_order::relaxed);
     }
 
     void update_status() {
         auto status = can_data_.load(std::memory_order::relaxed);
 
-        *chassis_power_    = uint_to_double(status.chassis_power, 0.0, 500.0);
+        *chassis_power_    = uint_to_double(status.chassis_power, -100.0, 400.0);
         *chassis_voltage_  = uint_to_double(status.chassis_voltage, 0.0, 50.0);
         *supercap_voltage_ = uint_to_double(status.supercap_voltage, 0.0, 50.0);
         *supercap_enabled_ = status.enabled;
@@ -39,7 +40,7 @@ public:
     uint16_t generate_command() const {
         SupercapCommand command;
 
-        command.enabled = *supercap_control_enabled_;
+        command.enabled = true;
 
         double power_limit = *supercap_charge_power_limit_;
         if (std::isnan(power_limit))
@@ -49,6 +50,24 @@ public:
 
         return std::bit_cast<uint16_t>(command);
     }
+
+    uint16_t generate_disable_command() const {
+        SupercapCommand command;
+
+        command.enabled    = false;
+        double power_limit = *supercap_charge_power_limit_;
+        if (std::isnan(power_limit))
+            command.power_limit = 0;
+        else
+            command.power_limit = static_cast<uint8_t>(std::clamp(power_limit, 0.0, 255.0));
+
+        return std::bit_cast<uint16_t>(command);
+    }
+
+    double chassis_power() { return *chassis_power_; }
+    double chassis_voltage() { return *chassis_voltage_; }
+    double supercap_voltage() { return *supercap_voltage_; }
+    double supercap_enabled() { return *supercap_enabled_; }
 
 private:
     static constexpr double
@@ -78,7 +97,7 @@ private:
     Component::OutputInterface<double> supercap_voltage_;
     Component::OutputInterface<bool> supercap_enabled_;
 
-    Component::InputInterface<bool> supercap_control_enabled_;
+    Component::InputInterface<bool> chassis_output_status_;
     Component::InputInterface<double> supercap_charge_power_limit_;
 };
 

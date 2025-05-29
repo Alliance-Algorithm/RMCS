@@ -8,6 +8,7 @@
 
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/keyboard.hpp>
+#include <rmcs_msgs/long_distance_shoot_mode.hpp>
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/shoot_mode.hpp>
 #include <rmcs_msgs/switch.hpp>
@@ -33,7 +34,7 @@ public:
             hardware::device::LkMotor::Mode::Angle);
         register_output("/gimbal/player_viewer/control_angle", viewer_control_angle_, nan_);
         register_output("/gimbal/scope/control_torque", scope_control_torque_, nan_);
-        register_output("/gimbal/scope/active", is_scope_active_, false);
+        register_input("/shoot/long_distance_shoot_mode", long_distance_shoot_mode_);
     }
 
     void update() override {
@@ -53,26 +54,25 @@ public:
                 *scope_control_torque_ = -0.2;
                 reset_flag_            = false;
             }
-            if (!last_keyboard_.q && keyboard.q) {
-                scope_active_ = !scope_active_;
-                if (scope_active_) {
-                    *scope_control_torque_ = -0.2;
-                } else {
-                    *scope_control_torque_ = 0.2;
-                }
-                *is_scope_active_ = scope_active_;
-            }
+            if (*long_distance_shoot_mode_ == rmcs_msgs::LongDistanceShootMode::Normal)
+                *scope_control_torque_ = -0.2;
+            else if (
+                *long_distance_shoot_mode_ == rmcs_msgs::LongDistanceShootMode::Outpost
+                || *long_distance_shoot_mode_ == rmcs_msgs::LongDistanceShootMode::Base)
+                *scope_control_torque_ = 0.2;
         };
-        last_keyboard_ = keyboard;
+        last_keyboard_                 = keyboard;
+        last_long_distance_shoot_mode_ = *long_distance_shoot_mode_;
     }
 
 private:
     void reset_all_controls() {
-        *scope_control_torque_ = nan_;
-        scope_active_          = true;
-        viewer_reset_          = true;
-        reset_flag_            = true;
-        *viewer_control_angle_ = nan_;
+        *scope_control_torque_         = nan_;
+        scope_active_                  = true;
+        viewer_reset_                  = true;
+        reset_flag_                    = true;
+        *viewer_control_angle_         = nan_;
+        last_long_distance_shoot_mode_ = rmcs_msgs::LongDistanceShootMode::Normal;
     }
 
     void update_viewer_control_error() {
@@ -82,6 +82,21 @@ private:
         } else {
             *viewer_control_angle_ += 0.01 * *mouse_wheel_;
         }
+        if (last_long_distance_shoot_mode_ != rmcs_msgs::LongDistanceShootMode::Outpost
+            && *long_distance_shoot_mode_ == rmcs_msgs::LongDistanceShootMode::Outpost) {
+            *viewer_control_angle_ = 1.045;
+        }
+
+        if (last_long_distance_shoot_mode_ != rmcs_msgs::LongDistanceShootMode::Base
+            && *long_distance_shoot_mode_ == rmcs_msgs::LongDistanceShootMode::Base) {
+            *viewer_control_angle_ = 0.747;
+        }
+
+        if (last_long_distance_shoot_mode_ != rmcs_msgs::LongDistanceShootMode::Normal
+            && *long_distance_shoot_mode_ == rmcs_msgs::LongDistanceShootMode::Normal) {
+            viewer_reset_ = true;
+        }
+
         *viewer_control_angle_ = std::clamp(*viewer_control_angle_, lower_limit_, upper_limit_);
     }
 
@@ -96,14 +111,18 @@ private:
     InputInterface<rmcs_msgs::Switch> switch_left_;
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
     InputInterface<double> mouse_wheel_;
+    InputInterface<rmcs_msgs::LongDistanceShootMode> long_distance_shoot_mode_;
+    rmcs_msgs::LongDistanceShootMode last_long_distance_shoot_mode_{
+        rmcs_msgs::LongDistanceShootMode::Normal};
 
     InputInterface<double> gimbal_player_viewer_angle_;
 
     OutputInterface<double> scope_control_torque_;
 
-    OutputInterface<bool> is_scope_active_;
-
     rmcs_msgs::Keyboard last_keyboard_{rmcs_msgs::Keyboard::zero()};
+
+    InputInterface<rmcs_msgs::ShootMode> shoot_mode_;
+    rmcs_msgs::ShootMode last_shoot_mode_{rmcs_msgs::ShootMode::SINGLE};
 
     OutputInterface<hardware::device::LkMotor::Mode> viewer_control_mode_;
     OutputInterface<double> viewer_control_angle_;

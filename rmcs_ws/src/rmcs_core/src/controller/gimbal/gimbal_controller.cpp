@@ -10,6 +10,7 @@
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/long_distance_shoot_mode.hpp>
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/shoot_mode.hpp>
 #include <rmcs_msgs/switch.hpp>
@@ -54,20 +55,24 @@ public:
         register_output("/gimbal/pitch/control_angle_error", pitch_angle_error_, nan);
         register_output("/gimbal/pitch/control_angle", pitch_control_angle_, nan);
         register_output("/gimbal/yaw/control_angle", yaw_control_angle_, nan);
+        register_input("/shoot/long_distance_shoot_mode", long_distance_shoot_mode_);
+        // outpost: pitch 0.305 viewer 1.045
+        // base: pitch  viewer
     }
 
     void update() override {
         update_yaw_axis();
 
-        auto switch_right = *switch_right_;
-        auto switch_left  = *switch_left_;
-        auto mouse        = *mouse_;
-        auto keyboard     = *keyboard_;
+        const auto switch_right             = *switch_right_;
+        const auto switch_left              = *switch_left_;
+        const auto mouse                    = *mouse_;
+        const auto keyboard                 = *keyboard_;
+        const auto long_distance_shoot_mode = *long_distance_shoot_mode_;
 
         using namespace rmcs_msgs;
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
-            if (true) {}
+            // test = true;
             reset_all_controls();
         } else {
             if (last_shoot_mode_ != ShootMode::PRECISE && *shoot_mode_ == ShootMode::PRECISE) {
@@ -75,9 +80,36 @@ public:
                 *yaw_control_angle_   = *gimbal_yaw_angle_;
             }
 
-            if (last_shoot_mode_ == ShootMode::PRECISE && *shoot_mode_ != ShootMode::PRECISE) 
+            // if (last_scope_active_ && !*is_scope_active_) {
+            //     *pitch_control_angle_ = 0.305;
+            //     *yaw_control_angle_   = *gimbal_yaw_angle_;
+            // }
+
+            if (last_long_distance_shoot_mode_ != rmcs_msgs::LongDistanceShootMode::Outpost
+                && long_distance_shoot_mode == rmcs_msgs::LongDistanceShootMode::Outpost) {
+                *pitch_control_angle_ = 0.305;
+                *yaw_control_angle_   = *gimbal_yaw_angle_;
+            }
+
+            if (last_long_distance_shoot_mode_ != rmcs_msgs::LongDistanceShootMode::Base
+                && long_distance_shoot_mode == rmcs_msgs::LongDistanceShootMode::Base) {
+                *pitch_control_angle_ = 0.482;
+                *yaw_control_angle_   = *gimbal_yaw_angle_;
+            }
+
+            if (last_long_distance_shoot_mode_ != rmcs_msgs::LongDistanceShootMode::Normal
+                && long_distance_shoot_mode == rmcs_msgs::LongDistanceShootMode::Normal) {
                 reset_all_controls();
-            
+                control_enabled = false;
+            }
+
+            // if (test) {
+            //     test                  = false;
+            //     *pitch_control_angle_ = -*gimbal_pitch_angle_;
+            //     *yaw_control_angle_   = *gimbal_yaw_angle_;
+            // }
+            if (last_shoot_mode_ == ShootMode::PRECISE && *shoot_mode_ != ShootMode::PRECISE)
+                reset_all_controls();
 
             if (*shoot_mode_ == ShootMode::PRECISE) {
                 *pitch_motor_mode_ = hardware::device::LkMotor::Mode::Angle;
@@ -106,7 +138,8 @@ public:
             control_direction_ = fast_tf::cast<OdomImu>(dir, *tf_);
         }
 
-        last_shoot_mode_ = *shoot_mode_;
+        last_shoot_mode_               = *shoot_mode_;
+        last_long_distance_shoot_mode_ = *long_distance_shoot_mode_;
     }
 
 private:
@@ -118,13 +151,14 @@ private:
     }
 
     void reset_all_controls() {
-        control_enabled       = false;
-        *yaw_angle_error_     = nan;
-        *pitch_angle_error_   = nan;
-        *pitch_control_angle_ = nan;
-        *yaw_control_angle_   = nan;
-        *pitch_motor_mode_    = hardware::device::LkMotor::Mode::Unknown;
-        *yaw_motor_mode_      = hardware::device::LkMotor::Mode::Unknown;
+        control_enabled                = false;
+        *yaw_angle_error_              = nan;
+        *pitch_angle_error_            = nan;
+        *pitch_control_angle_          = nan;
+        *yaw_control_angle_            = nan;
+        *pitch_motor_mode_             = hardware::device::LkMotor::Mode::Unknown;
+        *yaw_motor_mode_               = hardware::device::LkMotor::Mode::Unknown;
+        last_long_distance_shoot_mode_ = rmcs_msgs::LongDistanceShootMode::Normal;
     }
 
     void update_auto_aim_control_direction(PitchLink::DirectionVector& dir) {
@@ -217,6 +251,9 @@ private:
     InputInterface<Eigen::Vector2d> mouse_velocity_;
     InputInterface<rmcs_msgs::Mouse> mouse_;
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
+    InputInterface<rmcs_msgs::LongDistanceShootMode> long_distance_shoot_mode_;
+    rmcs_msgs::LongDistanceShootMode last_long_distance_shoot_mode_{
+        rmcs_msgs::LongDistanceShootMode::Normal};
 
     InputInterface<double> gimbal_pitch_angle_;
     InputInterface<double> gimbal_yaw_angle_;

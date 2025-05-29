@@ -2,6 +2,7 @@
 #include <cmath>
 #include <cstdint>
 
+#include "rmcs_msgs/long_distance_shoot_mode.hpp"
 #include <game_stage.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
@@ -23,7 +24,7 @@ class Hero
 public:
     Hero()
         : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
-        , crosshair_(Shape::Color::WHITE, x_center - 12, y_center - 37)
+        // , crosshair_(Shape::Color::WHITE, x_center - 12, y_center - 37)
         , status_ring_(26.5, 26.5, 600, 40)
         , rangefinder_()
         , horizontal_center_guidelines_(
@@ -36,7 +37,9 @@ public:
         , chassis_direction_indicator_(Shape::Color::PINK, 8, x_center, y_center, 0, 0, 84, 84)
         , chassis_control_power_limit_indicator_(
               Shape::Color::WHITE, 15, 2, x_center - 340, y_center + 25, 0)
-        , time_reminder_(Shape::Color::PINK, 50, 5, x_center + 150, y_center + 65, 0, false) {
+        , time_reminder_(Shape::Color::PINK, 50, 5, x_center + 150, y_center + 65, 0, false)
+        , long_distance_shoot_mode_text_(
+              Shape::Color::WHITE, 20, 2, x_center - 340, y_center + 50, "Normal") {
 
         chassis_control_direction_indicator_.set_x(x_center);
         chassis_control_direction_indicator_.set_y(y_center);
@@ -47,7 +50,8 @@ public:
         register_input("/chassis/control_angle", chassis_control_angle_);
 
         register_input("/chassis/supercap/voltage", supercap_voltage_);
-        register_input("/chassis/supercap/control_enable", supercap_control_enabled_);
+        register_input("/chassis/supercap/enabled", supercap_control_enabled_);
+        // supercap_control_enabled_.make_and_bind_directly(false);
 
         register_input("/chassis/voltage", chassis_voltage_);
         register_input("/chassis/power", chassis_power_);
@@ -66,21 +70,26 @@ public:
         register_input("/gimbal/first_left_friction/velocity", left_friction_velocity_);
         register_input("/gimbal/first_right_friction/velocity", right_friction_velocity_);
 
-        register_input("/gimbal/pitch/angle", gimbal_pitch_angle_);
+        register_input("/gimbal/pitch/control_angle", gimbal_pitch_angle_);
+        register_input("/gimbal/player_viewer/control_angle", gimbal_player_viewer_angle_);
         register_input("/gimbal/auto_aim/laser_distance", laser_distance_);
 
         register_input("/gimbal/shooter/mode", shoot_mode_);
-        register_input("/gimbal/scope/active", is_scope_active_);
 
         register_input("/remote/mouse", mouse_);
 
         register_input("/referee/game/stage", game_stage_);
 
+        register_input("/auto_aim/outpost_rotate_direction", outpost_rotate_direction_);
+
+        register_input("/shoot/long_distance_shoot_mode", long_distance_shoot_mode_);
+
         // register_input("/auto_aim/ui_target", auto_aim_target_, false);
     }
 
     void update() override {
-        if (*is_scope_active_) {
+        if (*long_distance_shoot_mode_ == rmcs_msgs::LongDistanceShootMode::Outpost
+            || *long_distance_shoot_mode_ == rmcs_msgs::LongDistanceShootMode::Base) {
             set_normal_ui_visible(false);
             rangefinder_.set_visible(true);
         } else {
@@ -90,11 +99,12 @@ public:
 
         update_normal_ui();
         update_sniper_ui();
+        update_autoaim_ui();
     }
 
 private:
     void set_normal_ui_visible(bool value) {
-        crosshair_.set_visible(value);
+        // crosshair_.set_visible(value);
         status_ring_.set_visible(value);
 
         for (auto& line : horizontal_center_guidelines_)
@@ -111,6 +121,12 @@ private:
 
     void update_normal_ui() {
         update_chassis_direction_indicator();
+        if (*long_distance_shoot_mode_ == rmcs_msgs::LongDistanceShootMode::Normal)
+            long_distance_shoot_mode_text_.set_value("Normal");
+        else if (*long_distance_shoot_mode_ == rmcs_msgs::LongDistanceShootMode::Outpost)
+            long_distance_shoot_mode_text_.set_value("Outpost");
+        else if (*long_distance_shoot_mode_ == rmcs_msgs::LongDistanceShootMode::Base)
+            long_distance_shoot_mode_text_.set_value("Base");
 
         chassis_control_power_limit_indicator_.set_value(*chassis_control_power_limit_);
 
@@ -123,16 +139,13 @@ private:
         status_ring_.update_friction_wheel_speed(
             std::min(*left_friction_velocity_, *right_friction_velocity_),
             *left_friction_control_velocity_ > 0);
-        status_ring_.update_supercap(*supercap_voltage_, *supercap_control_enabled_);
+        status_ring_.update_supercap(*supercap_voltage_, true);
         status_ring_.update_battery_power(*chassis_voltage_);
 
         status_ring_.update_auto_aim_enable(mouse_->right == 1);
 
         status_ring_.update_precise_enable(*shoot_mode_ == rmcs_msgs::ShootMode::PRECISE);
-
-        auto precise_enable = (*shoot_mode_ == rmcs_msgs::ShootMode::PRECISE && !*is_scope_active_);
-
-        crosshair_.enable_precise_crosshair(precise_enable);
+        // crosshair_.enable_precise_crosshair(precise_enable);
     }
 
     void update_sniper_ui() {
@@ -141,7 +154,10 @@ private:
                                : *gimbal_pitch_angle_;
 
         rangefinder_.update_pitch_angle(
-            -display_angle, *shoot_mode_ == rmcs_msgs::ShootMode::PRECISE);
+            *gimbal_pitch_angle_, *shoot_mode_ == rmcs_msgs::ShootMode::PRECISE);
+
+        rangefinder_.update_viewer_angle(
+            *gimbal_player_viewer_angle_, *shoot_mode_ == rmcs_msgs::ShootMode::PRECISE);
 
         // auto double_to_uint =
         //     [](double value, std::unsigned_integral auto min, std::unsigned_integral auto max) {
@@ -201,6 +217,8 @@ private:
             chassis_control_direction_indicator_visible);
     }
 
+    void update_autoaim_ui() {}
+
     static constexpr uint16_t screen_width = 1920, screen_height = 1080;
     static constexpr uint16_t x_center = screen_width / 2, y_center = screen_height / 2;
 
@@ -233,13 +251,17 @@ private:
     InputInterface<double> gimbal_pitch_angle_;
     InputInterface<double> gimbal_player_viewer_angle_;
     InputInterface<double> laser_distance_;
+    InputInterface<double> gimbal_viewer_angle_;
 
     InputInterface<rmcs_msgs::ShootMode> shoot_mode_;
-    InputInterface<bool> is_scope_active_;
+
+    InputInterface<bool> outpost_rotate_direction_;
+
+    InputInterface<rmcs_msgs::LongDistanceShootMode> long_distance_shoot_mode_;
 
     // InputInterface<std::pair<uint16_t, uint16_t>> auto_aim_target_;
 
-    CrossHair crosshair_;
+    // CrossHair crosshair_;
     StatusRing status_ring_;
     Rangefinder rangefinder_;
 
@@ -253,6 +275,7 @@ private:
     Float chassis_control_power_limit_indicator_;
 
     Integer time_reminder_;
+    Text long_distance_shoot_mode_text_;
 };
 
 } // namespace rmcs_core::referee::app::ui

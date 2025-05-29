@@ -14,6 +14,7 @@ public:
 
     void set_visible(bool value) {
         pitch_angle_.set_visible(value);
+        viewer_angle_.set_visible(value);
 
         vertical_center_line_.set_visible(value);
         horizontal_center_line_.set_visible(value);
@@ -40,6 +41,15 @@ public:
             pitch_angle_.set_color(Shape::Color::BLACK);
         else
             pitch_angle_.set_color(Shape::Color::WHITE);
+    }
+
+    void update_viewer_angle(double display_angle, bool precise_enable) {
+        viewer_angle_.set_value(display_angle);
+
+        if (precise_enable)
+            viewer_angle_.set_color(Shape::Color::BLACK);
+        else
+            viewer_angle_.set_color(Shape::Color::WHITE);
     }
 
     void update_vertical_rangefinder(uint16_t lift_height) {
@@ -180,6 +190,7 @@ private:
     constexpr static uint16_t vertical_scale_accuracy_  = 30;
 
     Float pitch_angle_{Shape::Color::BLACK, 15, 2, x_center_ - 170, y_center_ + 170, 0, true};
+    Float viewer_angle_{Shape::Color::BLACK, 15, 2, x_center_ - 170, y_center_ + 150, 0, true};
 
     Line vertical_center_line_   //
         {Shape::Color::BLACK, 1, x_center_, y_center_ + 530, x_center_, y_center_ - 530, true};
