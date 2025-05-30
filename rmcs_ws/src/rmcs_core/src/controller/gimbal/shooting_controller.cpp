@@ -33,7 +33,8 @@ public:
         register_input("/referee/shooter/cooling", shooter_cooling_, false);
         register_input("/referee/shooter/heat_limit", shooter_heat_limit_, false);
         register_input("/gimbal/auto_aim/fire_control", fire_control_, false);
-
+        register_input("/referee/shooter/initial_speed", robot_initial_speed_, false);
+     
         auto friction_wheels     = get_parameter("friction_wheels").as_string_array();
         auto friction_velocities = get_parameter("friction_velocities").as_double_array();
         if (friction_wheels.size() != friction_wheels.size())
@@ -262,10 +263,17 @@ private:
     }
 
     void update_friction_velocities() {
+        double robot_initial_speed = *robot_initial_speed_;
         shoot_status_->ready = friction_enabled_;
         if (friction_enabled_) {
-            for (size_t i = 0; i < friction_count_; i++)
-                *friction_control_velocities_[i] = friction_working_velocities_[i] - 0.08;
+            if (robot_initial_speed > 24) {
+                for (size_t i = 0; i < friction_count_; i++)
+                *friction_control_velocities_[i] = *friction_control_velocities_[i] - 10;
+            }
+            else {
+                for (size_t i = 0; i < friction_count_; i++)
+                *friction_control_velocities_[i] = friction_working_velocities_[i];
+            }
         } else {
             for (size_t i = 0; i < friction_count_; i++)
                 *friction_control_velocities_[i] = 0.0;
@@ -402,6 +410,7 @@ private:
     OutputInterface<rmcs_msgs::ShootStatus> shoot_status_;
 
     InputInterface<bool> fire_control_;
+    InputInterface<float> robot_initial_speed_;
 };
 
 } // namespace rmcs_core::controller::gimbal
