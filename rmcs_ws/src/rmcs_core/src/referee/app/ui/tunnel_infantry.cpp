@@ -22,7 +22,7 @@ public:
     TunnelInfantry()
         : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , crosshair_(Shape::Color::WHITE, x_center - 5, y_center - 45)
-        , status_ring_(26.5, 26.5, 600, 40)
+        , status_ring_(26.5, 26.5, 30, 500)
         , horizontal_center_guidelines_(
               {Shape::Color::WHITE, 2, x_center - 360, y_center, x_center - 110, y_center},
               {Shape::Color::WHITE, 2, x_center + 110, y_center, x_center + 360, y_center})
@@ -37,7 +37,7 @@ public:
         , chassis_control_power_limit_indicator_(Shape::Color::WHITE, 20, 2, x_center + 10, 820, 0)
         , supercap_control_power_limit_indicator_(Shape::Color::WHITE, 20, 2, x_center + 10, 790, 0)
         , time_reminder_(Shape::Color::PINK, 50, 5, x_center + 150, y_center + 65, 0, false)
-        {
+        ,bullet_control_velocity_(Shape::Color::CYAN, 16, 2, x_center + 40, y_center + 20, 0){
 
         chassis_control_direction_indicator_.set_x(x_center);
         chassis_control_direction_indicator_.set_y(y_center);
@@ -72,7 +72,9 @@ public:
 
         // register_input("/auto_aim/ui_target", auto_aim_target_, false);
         register_input("/gimbal/pitch/angle", gimbal_pitch_angle_);
-
+        register_input(
+            "/gimbal/shooter/control_velocity",friction_control_velocities_);
+    
     }
 
     void update() override {
@@ -91,6 +93,8 @@ public:
         status_ring_.update_battery_power(*chassis_voltage_);
 
         status_ring_.update_auto_aim_enable(mouse_->right == 1);
+
+        bullet_control_velocity_.set_value(*friction_control_velocities_);
 }
 
 private:
@@ -178,6 +182,10 @@ private:
     Float chassis_control_power_limit_indicator_, supercap_control_power_limit_indicator_;
 
     Integer time_reminder_;
+
+    InputInterface<double>friction_control_velocities_;
+
+    Float bullet_control_velocity_;
 
 };
 

@@ -94,6 +94,8 @@ public:
         register_output("/gimbal/shooter/mode", shoot_mode_, default_shoot_mode());
         register_output(
             "/gimbal/shooter/status", shoot_status_, rmcs_msgs::ShootStatus{false, 0, 0, 0, 0});
+        register_output(
+            "/gimbal/shooter/control_velocity",shoot_control_velocity_,nan_);
     }
 
     void before_updating() override {
@@ -304,7 +306,8 @@ private:
                 friction_control_velocity_percentage_ * friction_working_velocities_[i];
 
         shoot_status_->ready = friction_control_velocity_percentage_ == 1.0;
-        
+        *shoot_control_velocity_ = *friction_control_velocities_[1];
+
     }
 
     void update_bullet_feeder_velocity() {
@@ -441,6 +444,8 @@ private:
     InputInterface<bool> fire_control_;
     bool decrease_speed_enabled_;
     bool increase_speed_enabled_;
+    OutputInterface<double> shoot_control_velocity_;
+    
 };
 
 } // namespace rmcs_core::controller::gimbal

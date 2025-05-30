@@ -74,15 +74,15 @@ yaw_velocity_pid_controller:
     control: /gimbal/yaw/control_torque
     kp: 65.0
     ki: 0.000
-    kd: 1.5
+    kd: 1.2
 
 pitch_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/pitch/control_angle_error
     control: /gimbal/pitch/control_velocity
-    kp: 9.0
+    kp: 10.0
     ki: 0.0
-    kd: 0.05
+    kd: 0.02
 
 shooting_controller:
   ros__parameters:
@@ -92,6 +92,7 @@ shooting_controller:
     friction_velocities:
       - 630.0
       - 630.0
+    friction_soft_start_stop_time: 1.0
     is_42mm: false
     bullets_per_feeder_turn: 8.0
     shot_frequency: 20.0
