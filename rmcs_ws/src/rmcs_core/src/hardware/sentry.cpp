@@ -120,18 +120,35 @@ private:
 
             // 比赛进入裁判系统自检阶段时，重置 SLAM 并进行重定位
             do {
+                using namespace rmcs_msgs;
+                using namespace rmcs_utility;
+
                 if (!game_stage_.ready() || !robot_id_.ready())
                     break;
 
-                using namespace rmcs_msgs;
-                bool is_entry_game = last_game_stage_ == GameStage::PREPARATION
-                                  && *game_stage_ == GameStage::REFEREE_CHECK;
-
-                using namespace rmcs_utility;
+                const auto is_entry_game = bool{
+                    *game_stage_ == GameStage::PREPARATION && last_game_stage_ != *game_stage_};
                 if (is_entry_game) {
                     update_robot_side(sentry_, robot_id_->color());
+                    switch_record(sentry_, true);
                     initialize_navigation(sentry_);
-                    RCLCPP_INFO(sentry_.get_logger(), "Entry game, initialize navigation now");
+                    RCLCPP_INFO(
+                        sentry_.get_logger(),
+                        "Entry game, initialize navigation now and start lidar recorder");
+                }
+
+                const auto is_exit_game =
+                    bool{*game_stage_ == GameStage::SETTLING && last_game_stage_ != *game_stage_};
+                if (is_exit_game) {
+                    switch_record(sentry_, false);
+                    RCLCPP_INFO(sentry_.get_logger(), "Exit game, stop lidar recorder");
+                }
+
+                const auto is_unknown_status =
+                    bool{*game_stage_ == GameStage::UNKNOWN && last_game_stage_ != *game_stage_};
+                if (is_unknown_status) {
+                    switch_record(sentry_, false);
+                    RCLCPP_INFO(sentry_.get_logger(), "Unknown status, stop lidar recorder");
                 }
 
                 last_game_stage_ = *game_stage_;
