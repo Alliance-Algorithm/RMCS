@@ -92,6 +92,12 @@ public:
             [](std_msgs::msg::Bool& msg, InputInterface<rmcs_msgs::Switch>& interface) {
                 msg.set__data(*interface == rmcs_msgs::Switch::UP);
             });
+        publisher_factory<std_msgs::msg::Bool, bool>(
+            get_or<std::string>("chassis_output_topic_name", "/referee/chassis/output_status"),
+            get_or<std::string>("chassis_output_inter_name", "/referee/chassis/output_status"),
+            [](std_msgs::msg::Bool& msg, InputInterface<bool>& interface) {
+                msg.set__data(*interface);
+            });
 
         subscription_factory<geometry_msgs::msg::Pose2D, Eigen::Vector2d>(
             get_or<std::string>("tlarc_velocity_topic_name", "/tlarc/control/velocity"),

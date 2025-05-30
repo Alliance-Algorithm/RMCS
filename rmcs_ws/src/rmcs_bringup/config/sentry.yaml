@@ -17,7 +17,7 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController -> right_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller
       
-      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 
       - rmcs_core::controller::chassis::ChassisController -> chassis_controller
       - rmcs_core::controller::chassis::SteeringWheelControllerWithPlanner -> steering_wheel_controller
@@ -33,7 +33,7 @@ sentry_hardware:
   ros__parameters:
     usb_pid_top_board: 0x68c6
     usb_pid_bottom_board: 0x5891
-    yaw_motor_zero_point: 49654
+    yaw_motor_zero_point: 25692
     pitch_motor_zero_point: 41388
     left_front_zero_point: 6543
     left_back_zero_point: 4436
@@ -64,16 +64,16 @@ yaw_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/yaw/control_angle_error
     control: /gimbal/yaw/control_velocity
-    kp: 16.0
+    kp: 10.0
     ki: 0.0
-    kd: 0.0
+    kd: 0.1
     
 yaw_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/yaw/velocity_imu
     setpoint: /gimbal/yaw/control_velocity
     control: /gimbal/yaw/control_torque
-    kp: 70.0
+    kp: 60.0
     ki: 0.000
     kd: 1.0
 
@@ -278,7 +278,7 @@ auto_aim_controller:
     # capture
     use_video: false # If true, use video stream instead of camera. 
     video_path: "/workspaces/RMCS/rmcs_ws/resources/1.avi"
-    exposure_time: 4
+    exposure_time: 7
     invert_image: false
     # identifier
     armor_model_path: "/models/mlp.onnx"
@@ -309,4 +309,4 @@ auto_aim_controller:
     debug_buff_mode: false
     record: false
     raw_img_pub: false # Set false in actual use
-    image_viewer_type: 2
+    image_viewer_type: 0
