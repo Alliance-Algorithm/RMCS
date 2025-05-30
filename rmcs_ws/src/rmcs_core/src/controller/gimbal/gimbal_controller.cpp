@@ -121,7 +121,7 @@ private:
             joystick_sensitivity * joystick_left_->y() + mouse_sensitivity * mouse_velocity_->y(),
             Eigen::Vector3d::UnitZ()};
         auto delta_pitch = Eigen::AngleAxisd{
-            -joystick_sensitivity * joystick_left_->x() - mouse_sensitivity * mouse_velocity_->x(),
+            -joystick_sensitivity * joystick_left_->x() + mouse_sensitivity * mouse_velocity_->x(),
             Eigen::Vector3d::UnitY()};
         *dir = delta_pitch * (delta_yaw * (*dir));
     }

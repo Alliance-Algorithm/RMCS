@@ -32,7 +32,7 @@ public:
         , cos_varphi_(1, 0, -1, 0) // 0, pi/2, pi, 3pi/2
         , sin_varphi_(0, 1, 0, -1)
         , steering_velocity_pid_(0.15, 0.0, 0.0)
-        , steering_angle_pid_(40.0, 0.0, 0.0)
+        , steering_angle_pid_(30.0, 0.0, 0.0)
         , wheel_velocity_pid_(0.6, 0.0, 0.0) {
 
         register_input("/remote/joystick/right", joystick_right_);

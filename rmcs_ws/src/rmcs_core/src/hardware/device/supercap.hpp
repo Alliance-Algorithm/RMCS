@@ -25,6 +25,9 @@ public:
     }
 
     void store_status(uint64_t can_data) {
+
+        //   RCLCPP_INFO(rclcpp::get_logger("a"), "%lf", *chassis_power_ );
+        //  RCLCPP_INFO(rclcpp::get_logger("b"), "%d", *supercap_enabled_);
         can_data_.store(std::bit_cast<SupercapStatus>(can_data), std::memory_order::relaxed);
     }
 
@@ -35,17 +38,18 @@ public:
         *chassis_voltage_  = uint_to_double(status.chassis_voltage, 0.0, 50.0);
         *supercap_voltage_ = uint_to_double(status.supercap_voltage, 0.0, 50.0);
         *supercap_enabled_ = status.enabled;
-        
     }
 
     uint16_t generate_command() const {
         SupercapCommand command;
 
-        command.enabled = true;
+        command.enabled = *chassis_output_status_;
 
         double power_limit = *supercap_charge_power_limit_;
         //  RCLCPP_INFO(rclcpp::get_logger("a"), "%lf", power_limit );
-        //  RCLCPP_INFO(rclcpp::get_logger("b"), "%d", *supercap_enabled_);
+        // RCLCPP_INFO(rclcpp::get_logger("b"), "%d", *chassis_output_status_);
+
+        // RCLCPP_INFO(rclcpp::get_logger("a"), "%d", *supercap_enabled_);
         if (std::isnan(power_limit))
             command.power_limit = 0;
         else
