@@ -1,14 +1,39 @@
 #pragma once
+
+#include "hardware/device/Kinematic.hpp"
+#include "hardware/device/trajectory.hpp"
+#include "hardware/fsm/FSM.hpp"
+#include "rclcpp/node.hpp"
+#include <algorithm>
+#include <array>
+#include <cstddef>
+#include <memory>
+#include <numbers>
+#include <rclcpp/logging.hpp>
+#include <string>
 #include "hardware/fsm/FSM_storage_lb.hpp"
+
+
 class Auto_Storage_RB {
 public:
     explicit Auto_Storage_RB() {
+
         move_to_former_target.set_total_step(600);
         move_to_target.set_total_step(900);
-        press.set_total_step(300)
+        press.set_total_step(600)
             .set_start_point(press_start_point_position, press_point_orientation)
             .set_end_point(press_end_point_position, press_point_orientation);
-
+        delay.set_total_step(1500)
+            .set_start_point({0, 0, 0, 0, 0, 0})
+            .set_end_point({0, 0, 0, 0, 0, 0});
+        lift.set_total_step(900)
+            .set_start_point(lift_start_point_position, press_point_orientation)
+            .set_end_point(lift_end_point_position, press_point_orientation);
+        back_to_safety_.set_total_step(300)
+            .set_start_point(back_to_safety)
+            .set_end_point(
+                {0.0, back_to_safety[1], back_to_safety[2], back_to_safety[3], back_to_safety[4],
+                 back_to_safety[5]});
         fsm.registerState<Set_Storage_State>();
         fsm.addTransition<Auto_Storage_Event>(
             Auto_Storage_State::Set_Storage, Auto_Storage_Event::Up,
@@ -34,11 +59,15 @@ public:
                                     rmcs_core::hardware::device::Kinematic::arm_inverse_kinematic(
                                         {press.trajectory()});
                             } else {
-                                if (!lift.get_complete()) {
-                                    result = rmcs_core::hardware::device::Kinematic::
-                                        arm_inverse_kinematic(lift.trajectory());
+                                if (!delay.get_complete()) {
+                                    delay.trajectory();
                                 } else {
-                                    result = back_to_safety_.trajectory();
+                                    if (!lift.get_complete()) {
+                                        result = rmcs_core::hardware::device::Kinematic::
+                                            arm_inverse_kinematic(lift.trajectory());
+                                    } else {
+                                        result = back_to_safety_.trajectory();
+                                    }
                                 }
                             }
                         }
@@ -61,6 +90,7 @@ public:
         fsm.start(Auto_Storage_State::Set_Storage);
         move_to_target.reset();
         press.reset();
+        delay.reset();
         move_to_former_target.reset();
         lift.reset();
         back_to_safety_.reset();
@@ -76,15 +106,17 @@ private:
         move_to_former_target;
     rmcs_core::hardware::device::Trajectory<rmcs_core::hardware::device::TrajectoryType::LINE>
         press;
-        rmcs_core::hardware::device::Trajectory<rmcs_core::hardware::device::TrajectoryType::LINE> lift;
+    rmcs_core::hardware::device::Trajectory<rmcs_core::hardware::device::TrajectoryType::JOINT>
+        delay;
+    rmcs_core::hardware::device::Trajectory<rmcs_core::hardware::device::TrajectoryType::LINE> lift;
     rmcs_core::hardware::device::Trajectory<rmcs_core::hardware::device::TrajectoryType::JOINT>
         back_to_safety_;
     std::array<double, 6> last_theta_, result;
-    std::array<double, 3> press_start_point_position = {-0.27, -0.22, 0.35};
-    std::array<double, 3> press_end_point_position   = {-0.27, -0.22, 0.3};
-    std::array<double, 3> lift_start_point_position  = {-0.27, -0.22, 0.3};
-    std::array<double, 3> lift_end_point_position    = {-0.27, -0.22, 0.35};
-    std::array<double, 3> press_point_orientation    = {-41 * std::numbers::pi / 180.0, 0.0, 0.0};
+    std::array<double, 3> press_start_point_position = {-0.23, -0.20, 0.36};
+    std::array<double, 3> press_end_point_position   = {-0.23, -0.20, 0.31};
+    std::array<double, 3> lift_start_point_position  = {-0.23, -0.20, 0.31};
+    std::array<double, 3> lift_end_point_position    = {-0.23, -0.20, 0.36};
+    std::array<double, 3> press_point_orientation    = {69 * std::numbers::pi / 180.0, 0.0, 0.0};
 
     std::array<double, 6> move_to_target_ =
         rmcs_core::hardware::device::Kinematic::arm_inverse_kinematic(

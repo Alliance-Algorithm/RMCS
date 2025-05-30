@@ -116,7 +116,7 @@ private:
             engineer.register_output("/arm/Joint6/vision", vision_theta6, NAN);
 
             engineer_command.register_input("/arm/enable_flag", is_arm_enable_);
-
+            engineer_command.register_input("/arm/Joint1/zero_point", joint1_zero_point);
             engineer.register_output("yaw_imu_velocity", yaw_imu_velocity, NAN);
             engineer.register_output("yaw_imu_angle", yaw_imu_angle, NAN);
 
@@ -146,12 +146,6 @@ private:
             joint[1].configure_joint(
                 LKMotorConfig{LKMotorType::MF7015V210T}, DHConfig{0.41, 0, 0, 1.5707963},
                 Qlim_Stall_Config{engineer.get_parameter("joint2_qlim").as_double_array()});
-            joint[0].configure_joint(
-                LKMotorConfig{LKMotorType::MG8010E_i36}.set_encoder_zero_point(
-                    static_cast<uint16_t>(engineer.get_parameter("joint1_zero_point").as_int())),
-                DHConfig{0, 0.05985, 1.5707963, 0},
-                Qlim_Stall_Config{engineer.get_parameter("joint1_qlim").as_double_array()});
-
             joint2_encoder.configure(
                 EncoderConfig{}
                     .set_encoder_zero_point(
@@ -174,6 +168,13 @@ private:
         }
 
         void update() {
+            using namespace device;
+            static std::vector<double> qlim_input = {-3.1415926, 3.1415926};
+
+            joint[0].configure_joint(
+                device::LKMotorConfig{device::LKMotorType::MG8010E_i36}.set_encoder_zero_point((double)(*joint1_zero_point)),
+                DHConfig{0, 0.05985, 1.5707963, 0}, Qlim_Stall_Config{qlim_input});
+
             update_arm_motors();
             dr16_.update();
             update_imu();
@@ -270,7 +271,8 @@ private:
             joint[0].update_joint();
             arm_pump.update();
             mine_pump.update();
-            RCLCPP_INFO(this->get_logger(), "%f", joint[5].get_theta());
+            // RCLCPP_INFO(this->get_logger(),"%f",joint[1].get_theta());
+
         }
 
         void update_imu() {
@@ -348,6 +350,8 @@ private:
         OutputInterface<double> vision_theta6;
         OutputInterface<std::array<int8_t, 39>> vision_data;
         InputInterface<bool> is_arm_enable_;
+        InputInterface<double> joint1_zero_point;
+
 
         device::Joint joint[6];
         device::Encoder joint2_encoder;
@@ -573,27 +577,8 @@ private:
                 ecd.update();
             }
             big_yaw.update();
-            // RCLCPP_INFO(this->get_logger(), "%f %f", big_yaw.get_angle(), Leg_ecd[0].get_angle());
-
-            // RCLCPP_INFO(this->get_logger(),"%f",big_yaw.get_angle());
         }
-        void printf_max(double lf, double lb, double rb, double rf) {
 
-            if (lf > max_lf) {
-                max_lf = lf;
-            }
-            if (lb > max_lb) {
-                max_lb = lb;
-            }
-            if (rb > max_rb) {
-                max_rb = rb;
-            }
-            if (rf > max_rf) {
-                max_rf = rf;
-            }
-            RCLCPP_INFO(
-                this->get_logger(), "lf %f lb %f rb %f rf %f", max_lf, max_lb, max_rb, max_rf);
-        }
         void command() {
             uint16_t command_[4];
             auto is_chassis_and_leg_enable = *is_chassis_and_leg_enable_;
@@ -692,6 +677,7 @@ private:
             if (can_id == 0x33) {
                 big_yaw.store_status(can_data);
             }
+
         }
 
     private:

@@ -15,8 +15,8 @@
 class Auto_Gold_Right {
 public:
     explicit Auto_Gold_Right() {
-        std::array<double, 3> lift_start_point_position = {0.11, 0.65, 0.1};
-        std::array<double, 3> lift_end_point_position   = {0.11, 0.65, 0.16};
+        std::array<double, 3> lift_start_point_position = {0.11, 0.65, 0.14};
+        std::array<double, 3> lift_end_point_position   = {0.11, 0.65, 0.180};
         std::array<double, 3> lift_point_orientation    = {
             -std::numbers::pi / 2.0, -14.0 * std::numbers::pi / 180.0, std::numbers::pi / 2.0};
 

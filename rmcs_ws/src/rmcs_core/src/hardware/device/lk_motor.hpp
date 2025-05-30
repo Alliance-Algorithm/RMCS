@@ -77,6 +77,7 @@ public:
         status_component.register_output(name_prefix + "/angle", angle_, 0.0);
         status_component.register_output(name_prefix + "/velocity", velocity_, 0.0);
         status_component.register_output(name_prefix + "/torque", torque_, 0.0);
+        status_component.register_output(name_prefix + "/raw_angle",raw_angle_,0);
 
         status_component.register_output(name_prefix + "/motor", motor_, this);
 
@@ -160,7 +161,7 @@ public:
     void update() {
         auto feedback = std::bit_cast<LKMotorFeedback>(can_result_.load(std::memory_order::relaxed));
         int raw_angle = feedback.encoder;
- 
+        *raw_angle_ = feedback.encoder;
         int angle = raw_angle - encoder_zero_point_;
         if(angle < 0)angle+=raw_angle_max_;
         if (!multi_turn_angle_enabled_) { 
@@ -276,6 +277,7 @@ private:
     Component::OutputInterface<double> max_torque_;
     Component::OutputInterface<double> rated_torque_;
 
+    Component::OutputInterface<int> raw_angle_;
     Component::OutputInterface<double> angle_;
     Component::OutputInterface<double> velocity_;
     Component::OutputInterface<double> torque_;

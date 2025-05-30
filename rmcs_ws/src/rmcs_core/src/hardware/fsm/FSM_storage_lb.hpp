@@ -46,10 +46,13 @@ public:
 
         move_to_former_target.set_total_step(600);
         move_to_target.set_total_step(900);
-        press.set_total_step(300)
+        press.set_total_step(600)
             .set_start_point(press_start_point_position, press_point_orientation)
             .set_end_point(press_end_point_position, press_point_orientation);
-        lift.set_total_step(300)
+        delay.set_total_step(1100)
+            .set_start_point({0, 0, 0, 0, 0, 0})
+            .set_end_point({0, 0, 0, 0, 0, 0});
+        lift.set_total_step(600)
             .set_start_point(lift_start_point_position, press_point_orientation)
             .set_end_point(lift_end_point_position, press_point_orientation);
         back_to_safety_.set_total_step(300)
@@ -82,11 +85,15 @@ public:
                                     rmcs_core::hardware::device::Kinematic::arm_inverse_kinematic(
                                         {press.trajectory()});
                             } else {
-                                if (!lift.get_complete()) {
-                                    result = rmcs_core::hardware::device::Kinematic::
-                                        arm_inverse_kinematic(lift.trajectory());
+                                if (!delay.get_complete()) {
+                                    delay.trajectory();
                                 } else {
-                                    result = back_to_safety_.trajectory();
+                                    if (!lift.get_complete()) {
+                                        result = rmcs_core::hardware::device::Kinematic::
+                                            arm_inverse_kinematic(lift.trajectory());
+                                    } else {
+                                        result = back_to_safety_.trajectory();
+                                    }
                                 }
                             }
                         }
@@ -109,6 +116,7 @@ public:
         fsm.start(Auto_Storage_State::Set_Storage);
         move_to_target.reset();
         press.reset();
+        delay.reset();
         move_to_former_target.reset();
         lift.reset();
         back_to_safety_.reset();
@@ -124,15 +132,17 @@ private:
         move_to_former_target;
     rmcs_core::hardware::device::Trajectory<rmcs_core::hardware::device::TrajectoryType::LINE>
         press;
+    rmcs_core::hardware::device::Trajectory<rmcs_core::hardware::device::TrajectoryType::JOINT>
+        delay;
     rmcs_core::hardware::device::Trajectory<rmcs_core::hardware::device::TrajectoryType::LINE> lift;
     rmcs_core::hardware::device::Trajectory<rmcs_core::hardware::device::TrajectoryType::JOINT>
         back_to_safety_;
     std::array<double, 6> last_theta_, result;
-    std::array<double, 3> press_start_point_position = {-0.23, 0.26, 0.35};
-    std::array<double, 3> press_end_point_position   = {-0.23, 0.26, 0.3};
-    std::array<double, 3> lift_start_point_position  = {-0.23, 0.26, 0.3};
-    std::array<double, 3> lift_end_point_position    = {-0.23, 0.26, 0.35};
-    std::array<double, 3> press_point_orientation    = {-41 * std::numbers::pi / 180.0, 0.0, 0.0};
+    std::array<double, 3> press_start_point_position = {-0.22, 0.24, 0.35};
+    std::array<double, 3> press_end_point_position   = {-0.22, 0.24, 0.30};
+    std::array<double, 3> lift_start_point_position  = {-0.22, 0.24, 0.30};
+    std::array<double, 3> lift_end_point_position    = {-0.22, 0.24, 0.38};
+    std::array<double, 3> press_point_orientation    = {-91 * std::numbers::pi / 180.0, 0.0, 0.0};
 
     std::array<double, 6> move_to_target_ =
         rmcs_core::hardware::device::Kinematic::arm_inverse_kinematic(

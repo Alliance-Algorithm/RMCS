@@ -15,10 +15,10 @@
 class Auto_Gold_Mid {
 public:
     explicit Auto_Gold_Mid() {
-        std::array<double, 3> lift_start_point_position = {0.000001, -0.72, 0.08};
-        std::array<double, 3> lift_end_point_position   = {0.000001, -0.72, 0.18};
+        std::array<double, 3> lift_start_point_position = {0.66, 0.0, 0.145};
+        std::array<double, 3> lift_end_point_position   = {0.66, 0.0, 0.1850};
         std::array<double, 3> lift_point_orientation    = {
-            -std::numbers::pi / 2.0, 0.0, -std::numbers::pi / 2.0};
+            0.0, -std::numbers::pi/2.0, 0.0};
 
         std::array<double, 6> initial_joint_theta =
             rmcs_core::hardware::device::Kinematic::arm_inverse_kinematic(

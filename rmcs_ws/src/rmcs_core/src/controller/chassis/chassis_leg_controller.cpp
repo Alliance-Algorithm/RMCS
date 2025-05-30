@@ -9,6 +9,7 @@
 #include <eigen3/Eigen/Dense>
 #include <eigen3/Eigen/src/Core/Matrix.h>
 #include <numbers>
+#include <random>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
@@ -87,13 +88,13 @@ public:
             "/chassis/big_yaw/target_angle_error", chassis_big_yaw_target_angle_error, NAN);
         register_input("/chassis/big_yaw/angle", chassis_big_yaw_angle);
 
-        std::array<double, 2> four_wheel_angle = leg_inverse_kinematic(237.2, 222.8, false, false);
+        std::array<double, 2> four_wheel_angle = leg_inverse_kinematic(237.0, 221.0, false, false);
         four_wheel_trajectory
             .set_end_point(
                 {four_wheel_angle[0], four_wheel_angle[1], four_wheel_angle[1], four_wheel_angle[0],
                  0, 0})
             .set_total_step(500.0);
-        std::array<double, 2> six_wheel_angle = leg_inverse_kinematic(246.0, 225.0, false, false);
+        std::array<double, 2> six_wheel_angle = leg_inverse_kinematic(250.0, 221.0, false, false);
         six_wheel_trajectory
             .set_end_point(
                 {six_wheel_angle[0], six_wheel_angle[1], six_wheel_angle[1], six_wheel_angle[0], 0,
@@ -144,7 +145,7 @@ public:
                 break;
             }
             case rmcs_msgs::ChassisMode::SPIN: {
-                leg_mode          = rmcs_msgs::LegMode::Four_Wheel;
+                // leg_mode          = rmcs_msgs::LegMode::Four_Wheel;
                 double spin_speed = 0.8;
                 speed_limit       = 5.0;
                 Eigen::Rotation2D<double> rotation(*chassis_big_yaw_angle + *joint1_theta);
@@ -152,7 +153,9 @@ public:
                 yaw_control_theta += joystick_right_->y() * 0.002;
                 steering_control(move_, spin_speed);
                 omniwheel_control(Eigen::Vector2d{NAN, NAN});
+
                 break;
+
             }
             case rmcs_msgs::ChassisMode::Up_Stairs: {
                 is_yaw_imu_control           = false;
@@ -166,7 +169,7 @@ public:
             case rmcs_msgs::ChassisMode::Yaw_Free: {
                 Eigen::Rotation2D<double> rotation(*chassis_big_yaw_angle + *joint1_theta);
                 Eigen::Vector2d move_ = rotation * (*joystick_left_);
-                steering_control(move_, joystick_right_->y() / 2.0);
+                steering_control(move_, joystick_right_->y() / 1.5);
                 omniwheel_control(move_);
                 break;
             }
@@ -223,10 +226,11 @@ private:
                     chassis_mode       = rmcs_msgs::ChassisMode::Flow;
                     is_yaw_imu_control = true;
                 }
-                if (keyboard.shift && !keyboard.ctrl) {
+
+            } 
+            if (keyboard.d) {
                     chassis_mode       = rmcs_msgs::ChassisMode::SPIN;
                     is_yaw_imu_control = true;
-                }
             }
             if (keyboard.b) {
                 chassis_mode           = rmcs_msgs::ChassisMode::Up_Stairs;
@@ -252,7 +256,7 @@ private:
                     || *arm_mode == rmcs_msgs::ArmMode::Auto_Extract
                     || *arm_mode == rmcs_msgs::ArmMode::Customer
                     || *arm_mode == rmcs_msgs::ArmMode::Auto_Up_Stairs) {
-                    speed_limit        = 1.0;
+                    speed_limit        = 1.6;
                     is_yaw_imu_control = false;
                     if (*arm_mode == rmcs_msgs::ArmMode::Customer) {
                         leg_mode                     = rmcs_msgs::LegMode::Four_Wheel;
@@ -267,18 +271,17 @@ private:
                         } else if (*arm_mode == rmcs_msgs::ArmMode::Auto_Gold_Right) {
                             yaw_set_theta_in_YawFreeMode = -std::numbers::pi / 2.0;
                         } else if (*arm_mode == rmcs_msgs::ArmMode::Auto_Gold_Mid) {
-                            yaw_set_theta_in_YawFreeMode = std::numbers::pi / 2.0;
+                            yaw_set_theta_in_YawFreeMode = 0.0;
 
                         } else if (
                             *arm_mode == rmcs_msgs::ArmMode::Auto_Storage_LB
                             || *arm_mode == rmcs_msgs::ArmMode::Auto_Storage_RB) {
                             if (last_arm_mode == rmcs_msgs::ArmMode::Auto_Gold_Left) {
                                 yaw_set_theta_in_YawFreeMode = std::numbers::pi / 2.0;
-                            } else if (last_arm_mode == rmcs_msgs::ArmMode::Auto_Gold_Mid) {
-                                yaw_set_theta_in_YawFreeMode = std::numbers::pi / 2.0;
-
                             } else if (last_arm_mode == rmcs_msgs::ArmMode::Auto_Gold_Right) {
                                 yaw_set_theta_in_YawFreeMode = -std::numbers::pi / 2.0;
+                            } else {
+                                yaw_set_theta_in_YawFreeMode = 0.0;
                             }
 
                         } else {
@@ -377,8 +380,6 @@ private:
                     }
                 }
             }
-            RCLCPP_INFO(
-                this->get_logger(), "%f %f %f %f", result[0], result[1], result[2], result[3]);
         } else if (leg_mode == rmcs_msgs::LegMode::None) {
             is_leg_forward_joint_torque_control = false;
             result[0]                           = *theta_lf;
@@ -536,6 +537,16 @@ private:
         while (angle < -M_PI)
             angle += 2 * M_PI;
         return angle;
+    }
+    int generateRandomInt(int min, int max) {
+        // 使用随机设备生成随机数种子
+        std::random_device rd;
+        std::default_random_engine gen(rd());
+
+        // 使用 uniform_int_distribution 来生成指定范围内的随机整数
+        std::uniform_int_distribution<int> dist(min, max);
+
+        return dist(gen);
     }
     InputInterface<rmcs_msgs::ArmMode> arm_mode;
     rmcs_msgs::ArmMode last_arm_mode;

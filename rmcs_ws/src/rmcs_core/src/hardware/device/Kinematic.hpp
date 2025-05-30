@@ -281,7 +281,7 @@ private:
     static constexpr std::array<double, 2> joint2_qlim = {-1.308, 1.16719};
     static constexpr std::array<double, 2> joint3_qlim = {-1.0472, 0.8727};
     static constexpr std::array<double, 2> joint4_qlim = {-3.141592, 3.141592};
-    static constexpr std::array<double, 2> joint5_qlim = {-1.83532, 1.83532};
+    static constexpr std::array<double, 2> joint5_qlim = {-1.93532, 1.93532};
     static constexpr std::array<double, 2> joint6_qlim = {-3.141592, 3.141592};
 
     double x;

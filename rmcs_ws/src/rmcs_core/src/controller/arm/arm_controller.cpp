@@ -65,6 +65,9 @@ public:
         register_output("/arm/Joint2/target_theta", target_theta[1], nan);
         register_output("/arm/Joint1/target_theta", target_theta[0], nan);
 
+        register_input("/arm/Joint1/raw_angle",joint1_raw_angle);
+        register_output("/arm/Joint1/zero_point", joint1_zero_point, 14381);
+
         register_output("/arm/enable_flag", is_arm_enable, true);
         register_output("/arm/pump/target_vel", arm_pump_target_vel, NAN);
         register_output("/mine/pump/target_vel", mine_pump_target_vel, NAN);
@@ -87,7 +90,6 @@ public:
         register_output("/arm/mode", arm_mode, rmcs_msgs::ArmMode::None);
     }
     void update() override {
-
         auto switch_right = *switch_right_;
         auto switch_left  = *switch_left_;
         auto mouse        = *mouse_;
@@ -101,7 +103,12 @@ public:
             static_cast<float>(*theta[4]),
             static_cast<float>(*theta[5])};
         publisher_->publish(msg);
-
+        if(keyboard.e){
+            if(keyboard.ctrl && keyboard.shift){
+                *joint1_zero_point = *joint1_raw_angle;
+                *target_theta[0] = 0.0;
+            }
+        }                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       
         using namespace rmcs_msgs;
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
@@ -182,7 +189,7 @@ public:
                         *arm_mode = rmcs_msgs::ArmMode::Customer;
                     };
                 }
-
+               
             } else {
                 *arm_mode       = rmcs_msgs::ArmMode::None;
                 is_arm_pump_on  = false;
@@ -326,7 +333,6 @@ private:
         for (int i = 0; i < 6; ++i) {
             customer_[i] = customer_theta[i];
         }
-        RCLCPP_INFO(this->get_logger(),"%f %F %F %f %F%F",customer_[5],customer_[4],customer_[3],customer_[2],customer_[1],customer_[0]);
         *target_theta[5] = customer_[5];
         *target_theta[4] = customer_[4];
         *target_theta[3] = customer_[3];
@@ -441,6 +447,9 @@ private:
     OutputInterface<bool> is_arm_enable;
     InputInterface<double> theta[6]; // motor_current_angle
     OutputInterface<double> target_theta[6];
+
+    InputInterface<int> joint1_raw_angle;
+    OutputInterface<double> joint1_zero_point;
 
     OutputInterface<double> arm_pump_target_vel;
     OutputInterface<double> mine_pump_target_vel;
