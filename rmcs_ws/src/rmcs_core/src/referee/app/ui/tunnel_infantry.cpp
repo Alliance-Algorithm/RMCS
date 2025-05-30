@@ -37,8 +37,7 @@ public:
         , chassis_control_power_limit_indicator_(Shape::Color::WHITE, 20, 2, x_center + 10, 820, 0)
         , supercap_control_power_limit_indicator_(Shape::Color::WHITE, 20, 2, x_center + 10, 790, 0)
         , time_reminder_(Shape::Color::PINK, 50, 5, x_center + 150, y_center + 65, 0, false)
-        , pitch_text_(Shape::Color::WHITE, 20, 2, x_center - 30, y_center - 350, "pitch")
-        , pitch_angle_(Shape::Color::WHITE, 20, 2, x_center , y_center - 350, 0) {
+        {
 
         chassis_control_direction_indicator_.set_x(x_center);
         chassis_control_direction_indicator_.set_y(y_center);
@@ -92,9 +91,7 @@ public:
         status_ring_.update_battery_power(*chassis_voltage_);
 
         status_ring_.update_auto_aim_enable(mouse_->right == 1);
-    }
-
-    void update_pitch_angle(double pitch_angle) { pitch_angle_.set_value(pitch_angle); };
+}
 
 private:
     void update_time_reminder() {
@@ -182,8 +179,6 @@ private:
 
     Integer time_reminder_;
 
-    Text pitch_text_;
-    Float pitch_angle_;
 };
 
 } // namespace rmcs_core::referee::app::ui

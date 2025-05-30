@@ -90,8 +90,8 @@ shooting_controller:
       - /gimbal/left_friction
       - /gimbal/right_friction
     friction_velocities:
-      - 660.0
-      - 660.0
+      - 630.0
+      - 630.0
     is_42mm: false
     bullets_per_feeder_turn: 8.0
     shot_frequency: 20.0
@@ -183,7 +183,7 @@ auto_aim_controller:
     # capture
     use_video: false # If true, use video stream instead of camera. 
     video_path: "/workspaces/RMCS/rmcs_ws/resources/1.avi"
-    exposure_time: 5
+    exposure_time: 8
     invert_image: false
     # identifier
     armor_model_path: "/models/mlp.onnx"
