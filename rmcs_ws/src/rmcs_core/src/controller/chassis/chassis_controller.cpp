@@ -318,7 +318,7 @@ private:
 
     // Maximum control velocities
     static constexpr double translational_velocity_max = 10.0;
-    static constexpr double angular_velocity_max       = 16.0;
+    static constexpr double angular_velocity_max       = 10.0;
 
     // Maximum excess power when buffer energy is sufficient.
     static constexpr double excess_power_limit = 35;
