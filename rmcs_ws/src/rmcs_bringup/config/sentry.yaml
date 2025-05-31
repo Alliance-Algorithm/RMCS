@@ -31,13 +31,14 @@ rmcs_executor:
 
 sentry_hardware:
   ros__parameters:
-    usb_pid_top_board: 0x68c6
+    usb_pid_top_board: 0x2c8d
+    
     usb_pid_bottom_board: 0x5891
     yaw_motor_zero_point: 25692
     pitch_motor_zero_point: 41388
     left_front_zero_point: 6543
     left_back_zero_point: 4436
-    right_back_zero_point: 6098
+    right_back_zero_point: 2044
     right_front_zero_point: 4416
     external_imu_port: /dev/ttyUSB0
 
@@ -73,7 +74,7 @@ yaw_velocity_pid_controller:
     measurement: /gimbal/yaw/velocity_imu
     setpoint: /gimbal/yaw/control_velocity
     control: /gimbal/yaw/control_torque
-    kp: 60.0
+    kp: 30.0
     ki: 0.000
     kd: 1.0
 
@@ -91,12 +92,12 @@ shooting_controller:
       - /gimbal/left_friction
       - /gimbal/right_friction
     friction_velocities:
-      - 740.0
-      - 740.0
+      - 640.0
+      - 640.0
     friction_soft_start_stop_time: 1.0
     is_42mm: false
     bullets_per_feeder_turn: 12.0
-    shot_frequency: 20.0
+    shot_frequency: 15.0
     safe_shot_frequency: 10.0
     precise_shot_frequency: 10.0
     eject_frequency: 10.0
@@ -295,8 +296,8 @@ auto_aim_controller:
     # controller
     gimbal_predict_duration: 100
     yaw_error: 0.05
-    pitch_error: 0.00
-    shoot_velocity: 28.0
+    pitch_error: -0.01
+    shoot_velocity: 22.5
     predict_sec: 0.050
     # etc
     buff_predict_duration: 200

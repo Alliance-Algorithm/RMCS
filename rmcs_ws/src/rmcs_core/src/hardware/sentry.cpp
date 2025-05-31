@@ -127,7 +127,7 @@ private:
                     break;
 
                 const auto is_entry_game = bool{
-                    *game_stage_ == GameStage::PREPARATION && last_game_stage_ != *game_stage_};
+                    *game_stage_ == GameStage::REFEREE_CHECK && last_game_stage_ != *game_stage_};
                 if (is_entry_game) {
                     update_robot_side(sentry_, robot_id_->color());
                     switch_record(sentry_, true);
@@ -200,7 +200,7 @@ private:
                 // Eigen::Vector3d mapping = pitch_link_to_bmi088_link * Eigen::Vector3d{1,
                 // 2, 3}; std::cout << mapping << std::endl;
 
-                return std::make_tuple(x, y, z);
+                return std::make_tuple(-x, -y, z);
             });
         }
         ~TopBoard() final {

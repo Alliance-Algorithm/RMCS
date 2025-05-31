@@ -148,9 +148,11 @@ private:
         // } else
         angle = -std::numbers::pi / 6 / 10;
 
-        angle = std::clamp(angle, -std::numbers::pi / 6, std::numbers::pi / 6);
+        angle            = std::clamp(angle, -std::numbers::pi / 6, std::numbers::pi / 6);
+        auto pitch_angle = std::numbers::pi / 36;
         // std::cerr << angle << std::endl;
-        YawLink::DirectionVector forward{cos(angle), sin(angle), 0};
+        YawLink::DirectionVector forward{
+            cos(angle) * cos(pitch_angle), sin(angle) * cos(pitch_angle), -sin(pitch_angle)};
 
         dir = fast_tf::cast<PitchLink>(forward, *tf_);
     }
