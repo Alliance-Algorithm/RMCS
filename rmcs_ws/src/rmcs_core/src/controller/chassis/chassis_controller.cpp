@@ -1,4 +1,5 @@
 #include <eigen3/Eigen/Dense>
+#include <long_distance_shoot_mode.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
@@ -34,6 +35,8 @@ public:
 
         register_input("/gimbal/yaw/angle", gimbal_yaw_angle_, false);
         register_input("/gimbal/yaw/control_angle_error", gimbal_yaw_angle_error_, false);
+
+        register_input("/shoot/long_distance_shoot_mode", long_distance_shoot_mode_);
 
         register_output("/chassis/angle", chassis_angle_, nan);
         register_output("/chassis/control_angle", chassis_control_angle_, nan);
@@ -96,18 +99,21 @@ public:
                 *mode_ = mode;
             }
 
+            if (last_long_distance_shoot_mode_ != rmcs_msgs::LongDistanceShootMode::Normal
+                && *long_distance_shoot_mode_ == rmcs_msgs::LongDistanceShootMode::Normal)
+                *mode_ = rmcs_msgs::ChassisMode::STEP_DOWN;
+            else if (
+                last_long_distance_shoot_mode_ == rmcs_msgs::LongDistanceShootMode::Normal
+                && *long_distance_shoot_mode_ == rmcs_msgs::LongDistanceShootMode::Outpost)
+                *mode_ = rmcs_msgs::ChassisMode::AUTO;
+
             update_velocity_control();
         } while (false);
 
-        last_switch_right_ = switch_right;
-        last_switch_left_  = switch_left;
-        last_keyboard_     = keyboard;
-    }
-
-    void reset_all_controls() {
-        *mode_ = rmcs_msgs::ChassisMode::AUTO;
-
-        *chassis_control_velocity_ = {nan, nan, nan};
+        last_switch_right_             = switch_right;
+        last_switch_left_              = switch_left;
+        last_keyboard_                 = keyboard;
+        last_long_distance_shoot_mode_ = *long_distance_shoot_mode_;
     }
 
     void update_velocity_control() {
@@ -171,7 +177,13 @@ public:
             angular_velocity = following_velocity_controller_.update(err);
         } break;
         }
-        *chassis_angle_         = 2 * std::numbers::pi - *gimbal_yaw_angle_;
+
+        auto gimbal_yaw_angle = *gimbal_yaw_angle_;
+        while (gimbal_yaw_angle < 0)
+            gimbal_yaw_angle += 2 * std::numbers::pi;
+        while (gimbal_yaw_angle >= 2 * std::numbers::pi)
+            gimbal_yaw_angle -= 2 * std::numbers::pi;
+        *chassis_angle_         = 2 * std::numbers::pi - gimbal_yaw_angle;
         *chassis_control_angle_ = chassis_control_angle;
 
         return angular_velocity;
@@ -188,7 +200,14 @@ public:
         //          |gimbal_yaw_angle_error    |chassis_angle
         //                                            ^
         //                                            |(2pi - gimbal_yaw_angle)
-        double err = chassis_control_angle + *gimbal_yaw_angle_;
+
+        auto gimbal_yaw_angle = *gimbal_yaw_angle_;
+        while (gimbal_yaw_angle >= 2 * std::numbers::pi)
+            gimbal_yaw_angle -= 2 * std::numbers::pi;
+        while (gimbal_yaw_angle < 0)
+            gimbal_yaw_angle += 2 * std::numbers::pi;
+
+        double err = chassis_control_angle + gimbal_yaw_angle;
         if (err >= 2 * std::numbers::pi)
             err -= 2 * std::numbers::pi;
         // err: [0, 2pi).
@@ -197,6 +216,12 @@ public:
     }
 
 private:
+    void reset_all_controls() {
+        *mode_ = rmcs_msgs::ChassisMode::AUTO;
+
+        *chassis_control_velocity_ = {nan, nan, nan};
+    }
+
     static constexpr double inf = std::numeric_limits<double>::infinity();
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
@@ -212,6 +237,9 @@ private:
     InputInterface<rmcs_msgs::Mouse> mouse_;
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
     InputInterface<double> rotary_knob_;
+    InputInterface<rmcs_msgs::LongDistanceShootMode> long_distance_shoot_mode_;
+    rmcs_msgs::LongDistanceShootMode last_long_distance_shoot_mode_{
+        rmcs_msgs::LongDistanceShootMode::Normal};
 
     rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Switch last_switch_left_  = rmcs_msgs::Switch::UNKNOWN;

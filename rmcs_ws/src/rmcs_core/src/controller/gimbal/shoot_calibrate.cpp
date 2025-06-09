@@ -1,11 +1,11 @@
 #pragma once
 
+#include "rmcs_msgs/long_distance_shoot_mode.hpp"
 #include <keyboard.hpp>
 #include <mouse.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
 #include <switch.hpp>
-#include "rmcs_msgs/long_distance_shoot_mode.hpp"
 
 namespace rmcs_core::controller::gimbal {
 
@@ -42,6 +42,9 @@ public:
                 ++q_pressed_count_;
                 q_pressed_count_ %= 3;
             }
+            if ((!last_keyboard_.e && keyboard.e)||(!last_keyboard_.x&&keyboard.x))
+                q_pressed_count_ = 0;
+            
             if (q_pressed_count_ == 0)
                 *long_distance_shoot_mode_ = LongDistanceShootMode::Normal;
             else if (q_pressed_count_ == 1)
@@ -54,8 +57,8 @@ public:
 
 private:
     void reset_all_controls() {
-        q_pressed_count_ = 0;
-        last_keyboard_   = rmcs_msgs::Keyboard::zero();
+        q_pressed_count_           = 0;
+        last_keyboard_             = rmcs_msgs::Keyboard::zero();
         *long_distance_shoot_mode_ = rmcs_msgs::LongDistanceShootMode::Normal;
     }
     InputInterface<rmcs_msgs::Mouse> mouse_;

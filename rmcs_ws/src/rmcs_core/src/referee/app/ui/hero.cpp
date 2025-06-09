@@ -37,6 +37,8 @@ public:
         , chassis_direction_indicator_(Shape::Color::PINK, 8, x_center, y_center, 0, 0, 84, 84)
         , chassis_control_power_limit_indicator_(
               Shape::Color::WHITE, 15, 2, x_center - 340, y_center + 25, 0)
+        , second_friction_velocity_ui_(
+              Shape::Color::PINK, 15, 2, x_center + 150, y_center + 65, 0, true)
         , time_reminder_(Shape::Color::PINK, 50, 5, x_center + 150, y_center + 65, 0, false)
         , long_distance_shoot_mode_text_(
               Shape::Color::WHITE, 20, 2, x_center - 340, y_center + 50, "Normal") {
@@ -80,9 +82,11 @@ public:
 
         register_input("/referee/game/stage", game_stage_);
 
-        register_input("/auto_aim/outpost_rotate_direction", outpost_rotate_direction_);
+        // register_input("/auto_aim/outpost_rotate_direction", outpost_rotate_direction_);
 
         register_input("/shoot/long_distance_shoot_mode", long_distance_shoot_mode_);
+
+        register_input("/gimbal/second_left_friction/control_velocity", second_friction_velocity_);
 
         // register_input("/auto_aim/ui_target", auto_aim_target_, false);
     }
@@ -90,7 +94,7 @@ public:
     void update() override {
         if (*long_distance_shoot_mode_ == rmcs_msgs::LongDistanceShootMode::Outpost
             || *long_distance_shoot_mode_ == rmcs_msgs::LongDistanceShootMode::Base) {
-            set_normal_ui_visible(false);
+            // set_normal_ui_visible(false);
             rangefinder_.set_visible(true);
         } else {
             set_normal_ui_visible(true);
@@ -120,6 +124,7 @@ private:
     }
 
     void update_normal_ui() {
+        second_friction_velocity_ui_.set_value(static_cast<int32_t>(*second_friction_velocity_));
         update_chassis_direction_indicator();
         if (*long_distance_shoot_mode_ == rmcs_msgs::LongDistanceShootMode::Normal)
             long_distance_shoot_mode_text_.set_value("Normal");
@@ -145,6 +150,8 @@ private:
         status_ring_.update_auto_aim_enable(mouse_->right == 1);
 
         status_ring_.update_precise_enable(*shoot_mode_ == rmcs_msgs::ShootMode::PRECISE);
+
+        // if (second_friction_velocity_.ready())
         // crosshair_.enable_precise_crosshair(precise_enable);
     }
 
@@ -253,9 +260,11 @@ private:
     InputInterface<double> laser_distance_;
     InputInterface<double> gimbal_viewer_angle_;
 
+    InputInterface<double> second_friction_velocity_;
+
     InputInterface<rmcs_msgs::ShootMode> shoot_mode_;
 
-    InputInterface<bool> outpost_rotate_direction_;
+    // InputInterface<bool> outpost_rotate_direction_;
 
     InputInterface<rmcs_msgs::LongDistanceShootMode> long_distance_shoot_mode_;
 
@@ -265,6 +274,8 @@ private:
     StatusRing status_ring_;
     Rangefinder rangefinder_;
 
+    Line long_distance_shoot_assist_line_{
+        Shape::Color::GREEN, 2, x_center - 25, y_center - 140, x_center + 25, y_center - 140};
     Line horizontal_center_guidelines_[2];
     Line vertical_center_guidelines_[2];
 
@@ -274,6 +285,7 @@ private:
 
     Float chassis_control_power_limit_indicator_;
 
+    Integer second_friction_velocity_ui_;
     Integer time_reminder_;
     Text long_distance_shoot_mode_text_;
 };

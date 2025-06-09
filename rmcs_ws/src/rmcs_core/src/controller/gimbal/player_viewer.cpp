@@ -34,6 +34,9 @@ public:
             hardware::device::LkMotor::Mode::Angle);
         register_output("/gimbal/player_viewer/control_angle", viewer_control_angle_, nan_);
         register_output("/gimbal/scope/control_torque", scope_control_torque_, nan_);
+        register_output("/gimbal/player_viewer/viewer_reset", viewer_reset_, true);
+
+        register_input("/gimbal/pitch/angle", pitch_control_angle);
         register_input("/shoot/long_distance_shoot_mode", long_distance_shoot_mode_);
     }
 
@@ -47,8 +50,8 @@ public:
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
             reset_all_controls();
         } else {
-            if (!last_keyboard_.e && keyboard.e)
-                viewer_reset_ = true;
+            if ((!last_keyboard_.e && keyboard.e)||(!last_keyboard_.x&&keyboard.x))
+                *viewer_reset_ = true;
             update_viewer_control_error();
             if (reset_flag_) {
                 *scope_control_torque_ = -0.2;
@@ -69,33 +72,30 @@ private:
     void reset_all_controls() {
         *scope_control_torque_         = nan_;
         scope_active_                  = true;
-        viewer_reset_                  = true;
+        *viewer_reset_                 = true;
         reset_flag_                    = true;
         *viewer_control_angle_         = nan_;
         last_long_distance_shoot_mode_ = rmcs_msgs::LongDistanceShootMode::Normal;
     }
 
     void update_viewer_control_error() {
-        if (viewer_reset_) {
+        if (*viewer_reset_) {
             *viewer_control_angle_ = upper_limit_;
-            viewer_reset_          = false;
-        } else {
+            *viewer_reset_         = false;
+        } else
             *viewer_control_angle_ += 0.01 * *mouse_wheel_;
-        }
+
         if (last_long_distance_shoot_mode_ != rmcs_msgs::LongDistanceShootMode::Outpost
-            && *long_distance_shoot_mode_ == rmcs_msgs::LongDistanceShootMode::Outpost) {
-            *viewer_control_angle_ = 1.045;
-        }
+            && *long_distance_shoot_mode_ == rmcs_msgs::LongDistanceShootMode::Outpost)
+            *viewer_control_angle_ = 1.027;
 
         if (last_long_distance_shoot_mode_ != rmcs_msgs::LongDistanceShootMode::Base
-            && *long_distance_shoot_mode_ == rmcs_msgs::LongDistanceShootMode::Base) {
+            && *long_distance_shoot_mode_ == rmcs_msgs::LongDistanceShootMode::Base)
             *viewer_control_angle_ = 0.747;
-        }
 
         if (last_long_distance_shoot_mode_ != rmcs_msgs::LongDistanceShootMode::Normal
-            && *long_distance_shoot_mode_ == rmcs_msgs::LongDistanceShootMode::Normal) {
-            viewer_reset_ = true;
-        }
+            && *long_distance_shoot_mode_ == rmcs_msgs::LongDistanceShootMode::Normal)
+            *viewer_reset_ = true;
 
         *viewer_control_angle_ = std::clamp(*viewer_control_angle_, lower_limit_, upper_limit_);
     }
@@ -104,8 +104,8 @@ private:
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
     static constexpr double pi_  = std::numbers::pi;
 
-    static constexpr double upper_limit_ = 1.147915;
-    static constexpr double lower_limit_ = 0.557994;
+    static constexpr double upper_limit_       = 1.147915;
+    static constexpr double lower_limit_       = 0.557994;
 
     InputInterface<rmcs_msgs::Switch> switch_right_;
     InputInterface<rmcs_msgs::Switch> switch_left_;
@@ -116,6 +116,7 @@ private:
         rmcs_msgs::LongDistanceShootMode::Normal};
 
     InputInterface<double> gimbal_player_viewer_angle_;
+    InputInterface<double> pitch_control_angle;
 
     OutputInterface<double> scope_control_torque_;
 
@@ -128,7 +129,7 @@ private:
     OutputInterface<double> viewer_control_angle_;
 
     bool scope_active_{true};
-    bool viewer_reset_{true};
+    OutputInterface<bool> viewer_reset_;
     bool reset_flag_{true};
 };
 } // namespace rmcs_core::controller::gimbal

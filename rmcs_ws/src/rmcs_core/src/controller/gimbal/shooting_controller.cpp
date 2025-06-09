@@ -1,3 +1,4 @@
+#include "librmcs/utility/logging.hpp"
 #include <cmath>
 
 #include <limits>
@@ -115,6 +116,17 @@ private:
                     *friction_velocities_[i] / friction_working_velocities_[i];
             friction_soft_start_stop_percentage_ /= static_cast<double>(friction_count_);
         }
+
+        if (!last_keyboard_.f && keyboard_->f && !keyboard_->ctrl) {
+            friction_working_velocities_[0] += 1;
+            friction_working_velocities_[1] += 1;
+        }
+
+        if ((!last_keyboard_.ctrl || !last_keyboard_.f) && keyboard_->ctrl && keyboard_->f) {
+            friction_working_velocities_[0] -= 1;
+            friction_working_velocities_[1] -= 1;
+        }
+
         friction_soft_start_stop_percentage_ +=
             friction_enabled_ ? friction_soft_start_stop_step_ : -friction_soft_start_stop_step_;
         friction_soft_start_stop_percentage_ =

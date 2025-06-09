@@ -42,7 +42,6 @@ public:
         register_input("/tf", tf_);
 
         register_input("/gimbal/shooter/mode", shoot_mode_);
-
         register_input("/gimbal/auto_aim/control_direction", auto_aim_control_direction_, false);
 
         register_output(
@@ -87,13 +86,13 @@ public:
 
             if (last_long_distance_shoot_mode_ != rmcs_msgs::LongDistanceShootMode::Outpost
                 && long_distance_shoot_mode == rmcs_msgs::LongDistanceShootMode::Outpost) {
-                *pitch_control_angle_ = 0.305;
+                *pitch_control_angle_ = 0.317;
                 *yaw_control_angle_   = *gimbal_yaw_angle_;
             }
 
             if (last_long_distance_shoot_mode_ != rmcs_msgs::LongDistanceShootMode::Base
                 && long_distance_shoot_mode == rmcs_msgs::LongDistanceShootMode::Base) {
-                *pitch_control_angle_ = 0.482;
+                *pitch_control_angle_ = 0.495;
                 *yaw_control_angle_   = *gimbal_yaw_angle_;
             }
 
@@ -103,13 +102,13 @@ public:
                 control_enabled = false;
             }
 
+            if (last_shoot_mode_ == ShootMode::PRECISE && *shoot_mode_ != ShootMode::PRECISE)
+                reset_all_controls();
             // if (test) {
             //     test                  = false;
             //     *pitch_control_angle_ = -*gimbal_pitch_angle_;
             //     *yaw_control_angle_   = *gimbal_yaw_angle_;
             // }
-            if (last_shoot_mode_ == ShootMode::PRECISE && *shoot_mode_ != ShootMode::PRECISE)
-                reset_all_controls();
 
             if (*shoot_mode_ == ShootMode::PRECISE) {
                 *pitch_motor_mode_ = hardware::device::LkMotor::Mode::Angle;
@@ -140,6 +139,8 @@ public:
 
         last_shoot_mode_               = *shoot_mode_;
         last_long_distance_shoot_mode_ = *long_distance_shoot_mode_;
+        last_switch_right_             = switch_right;
+        last_keyboard_                 = keyboard;
     }
 
 private:
@@ -194,6 +195,7 @@ private:
             delta_pitch.angle() = -joystick_sensitivity * joystick_left_->x()
                                 + mouse_sensitivity * mouse_velocity_->x();
         }
+
         *dir = delta_pitch * (delta_yaw * (*dir));
     }
 
@@ -268,6 +270,9 @@ private:
     OdomImu::DirectionVector control_direction_{Eigen::Vector3d::Zero()};
     OdomImu::DirectionVector yaw_axis_filtered_{Eigen::Vector3d::UnitZ()};
     double upper_limit_, lower_limit_;
+
+    rmcs_msgs::Switch last_switch_right_;
+    rmcs_msgs::Keyboard last_keyboard_;
 
     OutputInterface<double> yaw_angle_error_, pitch_angle_error_;
     OutputInterface<double> pitch_control_angle_, yaw_control_angle_;

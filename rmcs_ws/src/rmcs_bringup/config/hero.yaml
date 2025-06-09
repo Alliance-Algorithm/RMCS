@@ -30,13 +30,13 @@ rmcs_executor:
       - rmcs_core::controller::gimbal::PlayerViewer -> gimbal_player_viewer_controller
       # - rmcs_core::controller::pid::ErrorPidController -> viewer_angle_pid_controller
 
-      - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
+      # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 
       - rmcs_core::controller::gimbal::ShootingRecorder -> shooting_recorder
       
-      - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
-      - rmcs_auto_aim::AutoAimController -> auto_aim_controller
+      # - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
+      # - rmcs_auto_aim::AutoAimController -> auto_aim_controller
 
 value_broadcaster:
   ros__parameters:
@@ -45,12 +45,13 @@ value_broadcaster:
       - /gimbal/second_left_friction/velocity
       - /gimbal/first_right_friction/velocity
       - /gimbal/second_right_friction/velocity
-      - /gimbal/bullet_feeder/torque
+      # - /gimbal/bullet_feeder/torque
       # - /debug
       # - /debug/target_theta_
       # - /gimbal/bullet_feeder/angle
-      # - /gimbal/yaw/angle
-      # - /gimbal/pitch/angle
+      # - /gimbal/yaw/control_angle
+      # - /chassis/right_front_wheel/velocity
+      # - /gimbal/pitch/control_angle
       # - /gimbal/scope/velocity
 # 1.55 2.30 
 # 1.4801
@@ -99,8 +100,8 @@ shooting_controller:
       - /gimbal/first_left_friction
       - /gimbal/first_right_friction
     friction_velocities:
-      - 525.00
-      - 525.00
+      - 540.00
+      - 540.00
       - 400.00
       - 400.00
     friction_soft_start_stop_time: 1.0

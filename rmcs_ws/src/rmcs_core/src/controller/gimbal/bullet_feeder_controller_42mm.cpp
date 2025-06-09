@@ -23,7 +23,7 @@ public:
         register_input("/remote/switch/left", switch_left_);
         register_input("/remote/mouse", mouse_);
         register_input("/remote/keyboard", keyboard_);
-        register_input("/gimbal/auto_aim/fire_control", fire_control_);
+        // register_input("/gimbal/auto_aim/fire_control", fire_control_);
 
         register_input("/gimbal/friction_ready", friction_ready_);
 
@@ -59,7 +59,7 @@ public:
         const auto switch_left  = *switch_left_;
         const auto mouse        = *mouse_;
         const auto keyboard     = *keyboard_;
-        const auto fire_control = *fire_control_;
+        // const auto fire_control = *fire_control_;
 
         using namespace rmcs_msgs;
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
@@ -68,17 +68,18 @@ public:
             return;
         }
 
-        if (!last_keyboard_.g && keyboard.g)
-            *shoot_mode_ =
-                *shoot_mode_ == ShootMode::PRECISE ? ShootMode::SINGLE : ShootMode::PRECISE;
-
         if (*long_distance_shoot_mode_ == rmcs_msgs::LongDistanceShootMode::Outpost
             || *long_distance_shoot_mode_ == rmcs_msgs::LongDistanceShootMode::Base)
             *shoot_mode_ = rmcs_msgs::ShootMode::PRECISE;
 
-        if (*long_distance_shoot_mode_ == rmcs_msgs::LongDistanceShootMode::Normal) {
+        if (*long_distance_shoot_mode_ == rmcs_msgs::LongDistanceShootMode::Normal)
             *shoot_mode_ = ShootMode::SINGLE;
-        }
+
+        if (!last_keyboard_.g && keyboard.g)
+            *shoot_mode_ =
+                *shoot_mode_ == ShootMode::PRECISE ? ShootMode::SINGLE : ShootMode::PRECISE;
+
+        // *shoot_mode_ = ShootMode::PRECISE;
 
         overdrive_mode_ = keyboard.f;
         if (keyboard.ctrl && !last_keyboard_.r && keyboard.r)
@@ -118,12 +119,10 @@ public:
                         if (*control_bullet_allowance_limited_by_heat_ > 0)
                             set_shooting();
                     }
-                    if ((!last_fire_control_ && fire_control && switch_right == Switch::UP
-                         && single_flag_for_auto_aim_))
-                        if (*control_bullet_allowance_limited_by_heat_ > 0) {
-                            set_shooting();
-                            single_flag_for_auto_aim_ = false;
-                        }
+                    // if ((!last_fire_control_ && fire_control && switch_right == Switch::UP))
+                    //     if (*control_bullet_allowance_limited_by_heat_ > 0) {
+                    //         set_shooting();
+                    //     }
                 }
 
                 double err_abs = std::abs(bullet_feeder_control_angle_ - *bullet_feeder_angle_);
@@ -157,17 +156,16 @@ public:
         last_switch_left_  = switch_left;
         last_mouse_        = mouse;
         last_keyboard_     = keyboard;
-        last_fire_control_ = fire_control;
+        // last_fire_control_ = fire_control;
     }
 
 private:
     void reset_all_controls() {
-        last_switch_right_        = rmcs_msgs::Switch::UNKNOWN;
-        last_switch_left_         = rmcs_msgs::Switch::UNKNOWN;
-        last_mouse_               = rmcs_msgs::Mouse::zero();
-        last_keyboard_            = rmcs_msgs::Keyboard::zero();
-        last_fire_control_        = false;
-        single_flag_for_auto_aim_ = true;
+        last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
+        last_switch_left_  = rmcs_msgs::Switch::UNKNOWN;
+        last_mouse_        = rmcs_msgs::Mouse::zero();
+        last_keyboard_     = rmcs_msgs::Keyboard::zero();
+        last_fire_control_ = false;
 
         overdrive_mode_ = low_latency_mode_ = false;
 
@@ -187,22 +185,21 @@ private:
     }
 
     void set_preloading() {
-        RCLCPP_INFO(get_logger(), "PRELOADING");
+        // RCLCPP_INFO(get_logger(), "PRELOADING");
         bullet_fed_count_++;
         shoot_stage_                 = ShootStage::PRELOADING;
         bullet_feeder_control_angle_ = bullet_feeder_compressed_zero_point_
                                      + (bullet_fed_count_ + 0.7) * bullet_feeder_angle_per_bullet_;
         bullet_feeder_angle_pid_.output_max = 6.0;
-        single_flag_for_auto_aim_           = true;
     }
 
     void set_preloaded() {
-        RCLCPP_INFO(get_logger(), "PRELOADED");
+        // RCLCPP_INFO(get_logger(), "PRELOADED");
         shoot_stage_ = ShootStage::PRELOADED;
     }
 
     void set_compressing() {
-        RCLCPP_INFO(get_logger(), "COMPRESSING");
+        // RCLCPP_INFO(get_logger(), "COMPRESSING");
         shoot_stage_                 = ShootStage::COMPRESSING;
         bullet_feeder_control_angle_ = bullet_feeder_compressed_zero_point_
                                      + (bullet_fed_count_ + 1.2) * bullet_feeder_angle_per_bullet_;
@@ -210,13 +207,13 @@ private:
     }
 
     void set_compressed() {
-        RCLCPP_INFO(get_logger(), "COMPRESSED");
+        // RCLCPP_INFO(get_logger(), "COMPRESSED");
         shoot_stage_ = ShootStage::COMPRESSED;
     }
 
     void set_shooting() {
         // already_shoot = true;
-        RCLCPP_INFO(get_logger(), "SHOOTING");
+        // RCLCPP_INFO(get_logger(), "SHOOTING");
         shoot_stage_                 = ShootStage::SHOOTING;
         bullet_feeder_control_angle_ = bullet_feeder_compressed_zero_point_
                                      + (bullet_fed_count_ + 1.4) * bullet_feeder_angle_per_bullet_;
@@ -273,8 +270,6 @@ private:
     InputInterface<double> bullet_feeder_velocity_;
 
     InputInterface<int64_t> control_bullet_allowance_limited_by_heat_;
-
-    bool single_flag_for_auto_aim_{true};
 
     enum class ShootStage { PRELOADING, PRELOADED, COMPRESSING, COMPRESSED, SHOOTING };
     ShootStage shoot_stage_             = ShootStage::PRELOADED;
