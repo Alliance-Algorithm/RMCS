@@ -222,6 +222,7 @@ public:
         last_switch_left_  = switch_left;
         last_mouse_        = mouse;
         last_keyboard_     = keyboard;
+
     }
 
 private:

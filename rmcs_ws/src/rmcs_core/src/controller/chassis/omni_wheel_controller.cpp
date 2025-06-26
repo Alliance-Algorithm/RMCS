@@ -540,7 +540,7 @@ private:
     static constexpr double chassis_radius_ = 0.5;
 
     static constexpr double min_omega_ = 6.0;
-    static constexpr double K_dec_     = 10.0;
+    static constexpr double K_dec_     = 5.0;
 
     static constexpr double affine_coefficient_ = 1.0;
 

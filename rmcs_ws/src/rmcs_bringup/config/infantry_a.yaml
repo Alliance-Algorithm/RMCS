@@ -38,11 +38,12 @@ value_broadcaster:
       - /gimbal/yaw/control_velocity
       - /gimbal/yaw/velocity
       - /gimbal/yaw/control_angle_error
+      - /gimbal/bullet_feeder/control_torque
 
 tunnel_infantry_hardware:
   ros__parameters:
     usb_pid: -1
-    yaw_motor_zero_point: 32723
+    yaw_motor_zero_point: 32457
     pitch_motor_zero_point: 47527
     imu_gx_bias: +0.001294
     imu_gy_bias: -0.000584
@@ -74,7 +75,7 @@ yaw_velocity_pid_controller:
     control: /gimbal/yaw/control_torque
     kp: 65.0
     ki: 0.000
-    kd: 1.2
+    kd: 1.5
 
 pitch_angle_pid_controller:
   ros__parameters:
@@ -90,8 +91,8 @@ shooting_controller:
       - /gimbal/left_friction
       - /gimbal/right_friction
     friction_velocities:
-      - 630.0
-      - 630.0
+      - 660.0
+      - 660.0
     friction_soft_start_stop_time: 1.0
     is_42mm: false
     bullets_per_feeder_turn: 8.0

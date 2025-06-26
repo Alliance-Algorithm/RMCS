@@ -62,11 +62,11 @@ public:
         register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
         register_output("/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
         register_output("/tf", tf_);
-
+        
         using namespace rmcs_description;
 
         tf_->set_transform<PitchLink, ImuLink>(
-            Eigen::AngleAxisd{std::numbers::pi / 2, Eigen::Vector3d::UnitZ()});
+            Eigen::AngleAxisd{-std::numbers::pi / 2, Eigen::Vector3d::UnitZ()});
 
         constexpr double gimbal_center_height = 0.32059;
         constexpr double wheel_distance_x = 0.15897, wheel_distance_y = 0.15897;
@@ -111,8 +111,7 @@ public:
         update_imu();
         dr16_.update_status();
         supercap_.update_status();
-
-    }
+        }
 
     void command_update() {
         uint16_t can_commands[4];
@@ -311,6 +310,8 @@ private:
     librmcs::client::CBoard::TransmitBuffer transmit_buffer_;
 
     std::thread event_thread_;
+
+    OutputInterface<double>bullet_feeder_control_torque;
 
 
     // InputInterface<bool> supercap_enabled_;
