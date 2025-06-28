@@ -17,6 +17,11 @@
   <class type="rmcs_core::controller::chassis::ChassisController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
+  <!-- For steering wheel test -->
+  <class type="rmcs_core::controller::chassis::SteeringWheelControllerTest" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
+
   <class type="rmcs_core::controller::chassis::OmniWheelController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>

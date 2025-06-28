@@ -20,14 +20,14 @@ rmcs_executor:
       # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 
       - rmcs_core::controller::chassis::ChassisController -> chassis_controller
-      - rmcs_core::controller::chassis::SteeringWheelControllerWithPlanner -> steering_wheel_controller
-
+      # - rmcs_core::controller::chassis::SteeringWheelControllerWithPlanner -> steering_wheel_controller
+      - rmcs_core::controller::chassis::SteeringWheelControllerTest -> steering_wheel_controller_test
       - rmcs_core::bridge::TlarcBridge -> tlarc_bridge
 
       # - rmcs_core::controller::gimbal::ShootingRecorder -> shooting_recorder
       
-      - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
-      - rmcs_auto_aim::AutoAimController -> auto_aim_controller
+      # - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
+      # - rmcs_auto_aim::AutoAimController -> auto_aim_controller
 
 sentry_hardware:
   ros__parameters:
@@ -273,6 +273,17 @@ chassis_controller:
       kp: 20.0
       ki: 0.0
       kd: 0.0
+
+steering_wheel_controller_test:
+  ros__parameters:
+    steering_angle_pid_parameters:
+      - 0.0
+      - 0.0
+      - 0.0 
+    wheel_velocity_pid_parameters:
+      - 0.0
+      - 0.0
+      - 0.0 
 
 auto_aim_controller:
   ros__parameters:

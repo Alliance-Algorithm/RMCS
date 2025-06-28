@@ -18,7 +18,7 @@ int main(int argc, char** argv) {
 
     std::vector<std::string> component_descriptions;
     if (!executor->get_parameter("components", component_descriptions))
-        throw std::runtime_error("para");
+        throw std::runtime_error("para: components no define in yaml");
 
     std::regex regex(R"(\s*(\S+)\s*->\s*(\S+)\s*)");
     for (const auto& component_description : component_descriptions) {
