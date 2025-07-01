@@ -1,4 +1,3 @@
-
 #include <numbers>
 
 #include <eigen3/Eigen/Dense>
@@ -41,28 +40,42 @@ public:
 
         register_input("/gimbal/yaw/control_angle_error", control_angle_error_);
 
+        register_input("/gimbal/yaw/control_angle", control_angle_);
+
         register_output("/gimbal/top_yaw/control_torque", top_yaw_control_torque_, 0.0);
         register_output("/gimbal/bottom_yaw/control_torque", bottom_yaw_control_torque_, 0.0);
+
+        register_output("/gimbal/top_yaw/control_angle", top_yaw_control_angle_, 0.0);
+        register_output("/gimbal/bottom_yaw/control_angle", bottom_yaw_control_angle_, 0.0);
 
         status_component_ =
             create_partner_component<DualYawStatus>(get_component_name() + "_status", *this);
     }
 
     void update() override {
-        if (std::isnan(*control_angle_error_)) {
-            *top_yaw_control_torque_    = 0.0;
-            *bottom_yaw_control_torque_ = 0.0;
-            return;
+        if (std::isnan(*control_angle_error_) && std::isnan(*control_angle_)) {
+            reset_all_controls();
+        } else {
+            *top_yaw_control_torque_ = top_yaw_velocity_pid_.update(
+                top_yaw_angle_pid_.update(*control_angle_error_) - *gimbal_yaw_velocity_imu_);
+            *bottom_yaw_control_torque_ = bottom_yaw_velocity_pid_.update(
+                bottom_yaw_angle_pid_.update(bottom_yaw_control_error())
+                - bottom_yaw_velocity_imu());
+
+            *top_yaw_control_angle_    = *control_angle_;
+            *bottom_yaw_control_angle_ = 0;
         }
-
-        *top_yaw_control_torque_ = top_yaw_velocity_pid_.update(
-            top_yaw_angle_pid_.update(*control_angle_error_) - *gimbal_yaw_velocity_imu_);
-
-        *bottom_yaw_control_torque_ = bottom_yaw_velocity_pid_.update(
-            bottom_yaw_angle_pid_.update(bottom_yaw_control_error()) - bottom_yaw_velocity_imu());
     }
 
 private:
+    void reset_all_controls() {
+        *top_yaw_control_torque_    = nan_;
+        *bottom_yaw_control_torque_ = nan_;
+
+        *top_yaw_control_angle_    = nan_;
+        *bottom_yaw_control_angle_ = nan_;
+    }
+
     double bottom_yaw_control_error() {
         double err = *top_yaw_angle_ + *control_angle_error_;
         if (err > std::numbers::pi)
@@ -72,6 +85,9 @@ private:
 
     double bottom_yaw_velocity_imu() { return *chassis_yaw_velocity_imu_ + *bottom_yaw_velocity_; }
 
+private:
+    static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
+
     InputInterface<double> top_yaw_angle_, top_yaw_velocity_;
     InputInterface<double> bottom_yaw_angle_, bottom_yaw_velocity_;
 
@@ -79,8 +95,13 @@ private:
 
     InputInterface<double> control_angle_error_;
 
+    InputInterface<double> control_angle_;
+
     pid::PidCalculator top_yaw_angle_pid_, top_yaw_velocity_pid_;
     pid::PidCalculator bottom_yaw_angle_pid_, bottom_yaw_velocity_pid_;
+
+    OutputInterface<double> top_yaw_control_angle_;
+    OutputInterface<double> bottom_yaw_control_angle_;
 
     OutputInterface<double> top_yaw_control_torque_;
     OutputInterface<double> bottom_yaw_control_torque_;

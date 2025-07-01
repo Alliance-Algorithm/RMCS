@@ -17,6 +17,9 @@ class Ui;
 
 namespace app::ui {
 
+constexpr inline uint16_t screen_width = 1920, screen_height = 1080;
+constexpr inline uint16_t x_center = screen_width / 2, y_center = screen_height / 2;
+
 class Shape
     : private CfsScheduler<Shape>::Entity
     , private RemoteShape<Shape>::Descriptor {

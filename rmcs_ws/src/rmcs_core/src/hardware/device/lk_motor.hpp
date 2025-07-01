@@ -16,11 +16,16 @@ public:
         status_component.register_output(name_prefix + "/angle", angle_, 0.0);
         status_component.register_output(name_prefix + "/velocity", velocity_, 0.0);
         status_component.register_output(name_prefix + "/torque", torque_, 0.0);
+        status_component.register_output(name_prefix + "/temperature", temperature_, 0.0);
         status_component.register_output(name_prefix + "/max_torque", max_torque_, 0.0);
 
+        command_component.register_input(name_prefix + "/control_torque", control_torque_, false);
         command_component.register_input(
             name_prefix + "/control_velocity", control_velocity_, false);
-        command_component.register_input(name_prefix + "/control_torque", control_torque_, false);
+        command_component.register_input( //
+            name_prefix + "/control_angle", control_angle_, false);
+        command_component.register_input(
+            name_prefix + "/control_angle_error", control_angle_error_, false);
     }
 
     LkMotor(
@@ -38,16 +43,10 @@ public:
 
     void update_status() {
         librmcs::device::LkMotor::update_status();
-        *angle_    = angle();
-        *velocity_ = velocity();
-        *torque_   = torque();
-    }
-
-    double control_velocity() const {
-        if (control_velocity_.ready()) [[likely]]
-            return *control_velocity_;
-        else
-            return std::numeric_limits<double>::quiet_NaN();
+        *angle_       = angle();
+        *velocity_    = velocity();
+        *torque_      = torque();
+        *temperature_ = temperature();
     }
 
     double control_torque() const {
@@ -57,18 +56,59 @@ public:
             return std::numeric_limits<double>::quiet_NaN();
     }
 
+    double control_velocity() const {
+        if (control_velocity_.ready()) [[likely]]
+            return *control_velocity_;
+        else
+            return nan_;
+    }
+
+    double control_angle() {
+        if (control_angle_.ready()) [[likely]]
+            return *control_angle_;
+        else
+            return nan_;
+    }
+
+    double control_angle_error() {
+        if (control_angle_error_.ready()) [[likely]]
+            return *control_angle_error_;
+        else
+            return nan_;
+    }
+
     uint64_t generate_command() {
         return librmcs::device::LkMotor::generate_velocity_command(control_velocity());
     }
 
+    using librmcs::device::LkMotor::generate_velocity_command;
+    uint64_t generate_velocity_command() {
+        return librmcs::device::LkMotor::generate_velocity_command(control_velocity());
+    }
+
+    using librmcs::device::LkMotor::generate_angle_command;
+    uint64_t generate_angle_command() {
+        return librmcs::device::LkMotor::generate_angle_command(control_angle());
+    }
+
+    using librmcs::device::LkMotor::generate_angle_shift_command;
+    uint64_t generate_angle_shift_command() {
+        return librmcs::device::LkMotor::generate_angle_shift_command(control_angle());
+    }
+
 private:
+    static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
+
     rmcs_executor::Component::OutputInterface<double> angle_;
     rmcs_executor::Component::OutputInterface<double> velocity_;
     rmcs_executor::Component::OutputInterface<double> torque_;
+    rmcs_executor::Component::OutputInterface<double> temperature_;
     rmcs_executor::Component::OutputInterface<double> max_torque_;
 
-    rmcs_executor::Component::InputInterface<double> control_velocity_;
     rmcs_executor::Component::InputInterface<double> control_torque_;
+    rmcs_executor::Component::InputInterface<double> control_velocity_;
+    rmcs_executor::Component::InputInterface<double> control_angle_;
+    rmcs_executor::Component::InputInterface<double> control_angle_error_;
 };
 
 } // namespace rmcs_core::hardware::device

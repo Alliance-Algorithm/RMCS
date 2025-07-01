@@ -6,7 +6,7 @@
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/serial_interface.hpp>
-#include <rmcs_utility/fps_counter.hpp>
+#include <rmcs_utility/tick_timer.hpp>
 #include <std_msgs/msg/int32.hpp>
 
 #include "hardware/device/benewake.hpp"
@@ -43,6 +43,8 @@ public:
         bottom_board_ = std::make_unique<BottomBoard>(
             *this, *command_component_,
             static_cast<int>(get_parameter("usb_pid_bottom_board").as_int()));
+
+        temperature_logging_timer_.reset(1000);
     }
 
     ~SteeringHero() override = default;
@@ -50,6 +52,20 @@ public:
     void update() override {
         top_board_->update();
         bottom_board_->update();
+
+        top_board_->update_lob_shot(*command_component_->is_lob_shot_);
+        bottom_board_->update_lob_shot(*command_component_->is_lob_shot_);
+
+        if (temperature_logging_timer_.tick()) {
+            temperature_logging_timer_.reset(1000);
+            RCLCPP_INFO(
+                get_logger(),
+                "Temperature: pitch: %.1f, top_yaw: %.1f, bottom_yaw: %.1f, feeder: %.1f",
+                top_board_->gimbal_pitch_motor_.temperature(),
+                top_board_->gimbal_top_yaw_motor_.temperature(),
+                bottom_board_->gimbal_bottom_yaw_motor_.temperature(),
+                top_board_->gimbal_bullet_feeder_.temperature());
+        }
     }
 
     void command_update() {
@@ -88,11 +104,14 @@ private:
     class SteeringHeroCommand : public rmcs_executor::Component {
     public:
         explicit SteeringHeroCommand(SteeringHero& hero)
-            : hero_(hero) {}
+            : hero_(hero) {
+            register_input("/gimbal/is_lob_shot", is_lob_shot_, false);
+        }
 
         void update() override { hero_.command_update(); }
 
         SteeringHero& hero_;
+        InputInterface<bool> is_lob_shot_;
     };
     std::shared_ptr<SteeringHeroCommand> command_component_;
 
@@ -130,7 +149,9 @@ private:
                        .set_reversed()})
             , gimbal_bullet_feeder_(
                   hero, hero_command, "/gimbal/bullet_feeder",
-                  device::LkMotor::Config{device::LkMotor::Type::MG5010E_I10}.set_reversed())
+                  device::LkMotor::Config{device::LkMotor::Type::MG5010E_I10}
+                      .set_reversed()
+                      .enable_multi_turn_angle())
             , gimbal_scope_motor_(
                   hero, hero_command, "/gimbal/scope",
                   device::DjiMotor::Config{device::DjiMotor::Type::M2006})
@@ -203,8 +224,8 @@ private:
             transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(batch_commands));
 
             transmit_buffer_.add_can1_transmission(
-                0x141, gimbal_bullet_feeder_.generate_velocity_command(
-                           gimbal_bullet_feeder_.control_velocity()));
+                0x141, gimbal_bullet_feeder_.generate_torque_command(
+                           gimbal_bullet_feeder_.control_torque()));
 
             batch_commands[0] = gimbal_scope_motor_.generate_command();
             transmit_buffer_.add_can2_transmission(0x200, std::bit_cast<uint64_t>(batch_commands));
@@ -213,15 +234,24 @@ private:
                 0x143, gimbal_player_viewer_motor_.generate_velocity_command(
                            gimbal_player_viewer_motor_.control_velocity()));
 
-            transmit_buffer_.add_can2_transmission(
-                0x142,
-                gimbal_pitch_motor_.generate_torque_command(gimbal_pitch_motor_.control_torque()));
-            transmit_buffer_.add_can2_transmission(
-                0x141, gimbal_top_yaw_motor_.generate_torque_command(
-                           gimbal_top_yaw_motor_.control_torque()));
+            if (is_lob_shot_) {
+                transmit_buffer_.add_can2_transmission(
+                    0x142, gimbal_pitch_motor_.generate_angle_command());
+                transmit_buffer_.add_can2_transmission(
+                    0x141, gimbal_top_yaw_motor_.generate_angle_command());
+            } else {
+                transmit_buffer_.add_can2_transmission(
+                    0x142, gimbal_pitch_motor_.generate_torque_command(
+                               gimbal_pitch_motor_.control_torque()));
+                transmit_buffer_.add_can2_transmission(
+                    0x141, gimbal_top_yaw_motor_.generate_torque_command(
+                               gimbal_top_yaw_motor_.control_torque()));
+            }
 
             transmit_buffer_.trigger_transmission();
         }
+
+        void update_lob_shot(bool value) { is_lob_shot_ = value; }
 
     private:
         void can1_receive_callback(
@@ -288,6 +318,8 @@ private:
 
         device::DjiMotor gimbal_scope_motor_;
         device::LkMotor gimbal_player_viewer_motor_;
+
+        bool is_lob_shot_;
 
         librmcs::client::CBoard::TransmitBuffer transmit_buffer_;
         std::thread event_thread_;
@@ -404,15 +436,19 @@ private:
                 batch_commands[i] = chassis_steering_motors_[i].generate_command();
             transmit_buffer_.add_can2_transmission(0x1FE, std::bit_cast<uint64_t>(batch_commands));
 
-            // Use the chassis angular velocity as feedforward input for yaw velocity control.
-            // This approach currently works only on Hero, as it utilizes motor angular velocity
-            // instead of gyro angular velocity for closed-loop control.
-            transmit_buffer_.add_can2_transmission(
-                0x141, gimbal_bottom_yaw_motor_.generate_torque_command(
-                           gimbal_bottom_yaw_motor_.control_torque()));
+            if (is_lob_shot_) {
+                transmit_buffer_.add_can2_transmission(
+                    0x141, gimbal_bottom_yaw_motor_.generate_angle_shift_command());
+            } else {
+                transmit_buffer_.add_can2_transmission(
+                    0x141, gimbal_bottom_yaw_motor_.generate_torque_command(
+                               gimbal_bottom_yaw_motor_.control_torque()));
+            }
 
             transmit_buffer_.trigger_transmission();
         }
+
+        void update_lob_shot(bool value) { is_lob_shot_ = value; }
 
     private:
         void can1_receive_callback(
@@ -486,6 +522,8 @@ private:
 
         device::LkMotor gimbal_bottom_yaw_motor_;
 
+        bool is_lob_shot_;
+
         librmcs::utility::RingBuffer<std::byte> referee_ring_buffer_receive_{256};
         OutputInterface<rmcs_msgs::SerialInterface> referee_serial_;
 
@@ -499,6 +537,8 @@ private:
 
     std::unique_ptr<TopBoard> top_board_;
     std::unique_ptr<BottomBoard> bottom_board_;
+
+    rmcs_utility::TickTimer temperature_logging_timer_;
 };
 
 } // namespace rmcs_core::hardware

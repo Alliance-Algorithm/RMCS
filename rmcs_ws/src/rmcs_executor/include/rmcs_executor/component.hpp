@@ -66,11 +66,11 @@ public:
             delete_data_when_deconstruct = true;
         }
 
-        void bind_directly(T& destination) {
+        void bind_directly(const T& destination) {
             if (ready())
                 throw std::runtime_error("The interface has already been bound to somewhere");
 
-            data_pointer_ = &destination;
+            data_pointer_ = const_cast<T*>(&destination);
             activated     = true;
         }
 

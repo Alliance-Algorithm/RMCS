@@ -12,20 +12,20 @@ rmcs_executor:
 
       - rmcs_core::controller::gimbal::GimbalController -> gimbal_controller
       - rmcs_core::controller::gimbal::DualYawController -> dual_yaw_controller
-      - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
-      - rmcs_core::controller::pid::PidController -> pitch_velocity_pid_controller
 
       - rmcs_core::controller::gimbal::PlayerViewer -> gimbal_player_viewer_controller
       - rmcs_core::controller::pid::ErrorPidController -> viewer_angle_pid_controller
 
       - rmcs_core::controller::gimbal::ShootingController -> shooting_controller
+      - rmcs_core::controller::gimbal::HeatController -> heat_controller
+      - rmcs_core::controller::gimbal::BulletFeederController42mm -> bullet_feeder_controller
       - rmcs_core::controller::pid::PidController -> second_left_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> first_left_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> first_right_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> second_right_friction_velocity_pid_controller
-      - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller
 
       - rmcs_core::controller::chassis::ChassisController -> chassis_controller
+      - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::SteeringWheelController -> steering_wheel_controller
 
       # - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
@@ -35,36 +35,36 @@ hero_hardware:
   ros__parameters:
     usb_pid_top_board: 0x652f
     usb_pid_bottom_board: 0x1783
-    bottom_yaw_motor_zero_point: 42889
-    pitch_motor_zero_point: 14367
-    top_yaw_motor_zero_point: 46348
-    viewer_motor_zero_point: 33876
+    bottom_yaw_motor_zero_point: 21880
+    pitch_motor_zero_point: 59255
+    top_yaw_motor_zero_point: 56492
+    viewer_motor_zero_point: 3030
     external_imu_port: /dev/ttyUSB0
-    left_front_zero_point: 3396
-    left_back_zero_point: 6131
-    right_back_zero_point: 6170
-    right_front_zero_point: 6802
+    left_front_zero_point: 3400
+    left_back_zero_point: 6114
+    right_back_zero_point: 6162
+    right_front_zero_point: 2708
 
 gimbal_controller:
   ros__parameters:
-    upper_limit: -0.7224
-    lower_limit: 0.7082
+    upper_limit: -0.6266
+    lower_limit: 0.4629
 
 dual_yaw_controller:
   ros__parameters:
-    top_yaw_angle_kp: 16.5
+    top_yaw_angle_kp: 24.5
     top_yaw_angle_ki: 0.0
     top_yaw_angle_kd: 0.0
-    top_yaw_velocity_kp: 87.4
+    top_yaw_velocity_kp: 77.4
     top_yaw_velocity_ki: 0.004
     top_yaw_velocity_kd: 1.0
-    bottom_yaw_angle_kp: 15.6
+    bottom_yaw_angle_kp: 8.6
     bottom_yaw_angle_ki: 0.0
     bottom_yaw_angle_kd: 0.0
-    bottom_yaw_velocity_kp: 23.2
+    bottom_yaw_velocity_kp: 25.85
     bottom_yaw_velocity_ki: 0.0
-    bottom_yaw_velocity_kd: 0.09
-
+    bottom_yaw_velocity_kd: 50.0
+    
 pitch_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/pitch/control_angle_error
@@ -84,8 +84,8 @@ pitch_velocity_pid_controller:
 
 gimbal_player_viewer_controller:
   ros__parameters:
-    upper_limit: 0.0058
-    lower_limit: 0.6768
+    upper_limit: 0.0101
+    lower_limit: 0.6191
 
 viewer_angle_pid_controller:
   ros__parameters:
@@ -95,15 +95,6 @@ viewer_angle_pid_controller:
     ki: 0.00
     kd: 2.00
 
-viewer_velocity_pid_controller:
-  ros__parameters:
-    measurement: /gimbal/player_viewer/velocity
-    setpoint: /gimbal/player_viewer/control_velocity
-    control: /gimbal/player_viewer/control_torque
-    kp: 20.00
-    ki: 0.00
-    kd: 0.00
-
 shooting_controller:
   ros__parameters:
     friction_wheels:
@@ -112,21 +103,16 @@ shooting_controller:
       - /gimbal/second_left_friction
       - /gimbal/second_right_friction
     friction_velocities:
-      - 530.85
-      - 530.85
-      - 530.70
-      - 530.70
+      - 450.00
+      - 450.00
+      - 535.00
+      - 535.00
     friction_soft_start_stop_time: 1.0
-    is_42mm: true
-    bullets_per_feeder_turn: 6.0
-    shot_frequency: 10.0
-    safe_shot_frequency: 10.0
-    precise_shot_frequency: 4.0
-    eject_frequency: 5.0
-    eject_time: 0.2
-    deep_eject_frequency: 2.0
-    deep_eject_time: 0.5
-    single_shot_max_stop_delay: 0.5
+
+heat_controller:
+  ros__parameters:
+    heat_per_shot: 100000
+    reserved_heat: 0
 
 shooting_recorder:
   ros__parameters:
@@ -168,24 +154,6 @@ second_right_friction_velocity_pid_controller:
     kp: 0.003436926
     ki: 0.00
     kd: 0.009373434
-
-bullet_feeder_velocity_pid_controller:
-  ros__parameters:
-    measurement: /gimbal/bullet_feeder/velocity
-    setpoint: /gimbal/bullet_feeder/control_velocity
-    control: /gimbal/bullet_feeder/control_torque
-    kp: 9.0
-    ki: 0.001
-    kd: 0.0
-    integral_min: -1000.0
-    integral_max: 1000.0
-
-chassis_controller:
-  ros__parameters:
-    is_dual_yaw: true
-    gimbal_yaw_motors:
-      - /gimbal/top_yaw
-      - /gimbal/bottom_yaw
 
 auto_aim_controller:
   ros__parameters:

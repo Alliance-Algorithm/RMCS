@@ -17,11 +17,9 @@ public:
         status_component.register_output("/chassis/supercap/voltage", supercap_voltage_, 0.0);
         status_component.register_output("/chassis/supercap/enabled", supercap_enabled_, false);
 
-        command_component.register_input(
-            "/chassis/supercap/control_enable", supercap_control_enabled_);
+        command_component.register_input("/referee/chassis/output_status", chassis_output_status_);
         command_component.register_input(
             "/chassis/supercap/charge_power_limit", supercap_charge_power_limit_);
-        command_component.register_input("/referee/chassis/output_status", chassis_output_status_);
     }
 
     void store_status(uint64_t can_data) {
@@ -31,7 +29,7 @@ public:
     void update_status() {
         auto status = can_data_.load(std::memory_order::relaxed);
 
-        *chassis_power_    = uint_to_double(status.chassis_power, 0.0, 500.0);
+        *chassis_power_    = uint_to_double(status.chassis_power, -100.0, 400.0);
         *chassis_voltage_  = uint_to_double(status.chassis_voltage, 0.0, 50.0);
         *supercap_voltage_ = uint_to_double(status.supercap_voltage, 0.0, 50.0);
         *supercap_enabled_ = status.enabled;
@@ -97,10 +95,8 @@ private:
     Component::OutputInterface<double> supercap_voltage_;
     Component::OutputInterface<bool> supercap_enabled_;
 
-    Component::InputInterface<bool> supercap_control_enabled_;
-    Component::InputInterface<double> supercap_charge_power_limit_;
-
     Component::InputInterface<bool> chassis_output_status_;
+    Component::InputInterface<double> supercap_charge_power_limit_;
 };
 
 } // namespace rmcs_core::hardware::device
