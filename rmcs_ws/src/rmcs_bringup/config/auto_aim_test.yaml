@@ -11,7 +11,7 @@ rmcs_executor:
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> pitch_velocity_pid_controller
 
-      - rmcs_core::controller::gimbal::ShootingController -> shooting_controller
+      - rmcs_core::controller::shooting::ShootingController -> shooting_controller
       - rmcs_core::controller::pid::PidController -> left_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> right_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller

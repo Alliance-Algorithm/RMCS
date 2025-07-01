@@ -3,7 +3,7 @@
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
 
-namespace rmcs_core::controller::gimbal {
+namespace rmcs_core::controller::shooting {
 
 class HeatController
     : public rmcs_executor::Component
@@ -49,8 +49,8 @@ private:
     OutputInterface<int64_t> control_bullet_allowance_;
 };
 
-} // namespace rmcs_core::controller::gimbal
+} // namespace rmcs_core::controller::shooting
 
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::gimbal::HeatController, rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::shooting::HeatController, rmcs_executor::Component)

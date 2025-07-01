@@ -14,7 +14,7 @@ rmcs_executor:
       - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
       
-      - rmcs_core::controller::gimbal::ShootingController -> shooting_controller
+      - rmcs_core::controller::shooting::ShootingController -> shooting_controller
       - rmcs_core::controller::pid::PidController -> second_left_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> first_left_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> first_right_friction_velocity_pid_controller
@@ -24,7 +24,7 @@ rmcs_executor:
       - rmcs_core::controller::chassis::ChassisController -> chassis_controller
       - rmcs_core::controller::chassis::OmniWheelController -> omni_wheel_controller
 
-      # - rmcs_core::controller::gimbal::ShootingRecorder -> shooting_recorder
+      # - rmcs_core::controller::shooting::ShootingRecorder -> shooting_recorder
       
       - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
       - rmcs_auto_aim::AutoAimController -> auto_aim_controller

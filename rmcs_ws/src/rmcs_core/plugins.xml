@@ -38,16 +38,16 @@
   <class type="rmcs_core::controller::gimbal::PlayerViewer" base_class_type="rmcs_executor::Component">
     <description>Gimbal player viewer</description>
   </class>
-  <class type="rmcs_core::controller::gimbal::ShootingController" base_class_type="rmcs_executor::Component">
+  <class type="rmcs_core::controller::shooting::ShootingController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
-  <class type="rmcs_core::controller::gimbal::HeatController" base_class_type="rmcs_executor::Component">
+  <class type="rmcs_core::controller::shooting::HeatController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
-  <class type="rmcs_core::controller::gimbal::BulletFeederController42mm" base_class_type="rmcs_executor::Component">
+  <class type="rmcs_core::controller::shooting::BulletFeederController42mm" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
-  <class type="rmcs_core::controller::gimbal::ShootingRecorder" base_class_type="rmcs_executor::Component">
+  <class type="rmcs_core::controller::shooting::ShootingRecorder" base_class_type="rmcs_executor::Component">
     <description>the recorder of Hero</description>
   </class>
   <class type="rmcs_core::controller::pid::PidController" base_class_type="rmcs_executor::Component">

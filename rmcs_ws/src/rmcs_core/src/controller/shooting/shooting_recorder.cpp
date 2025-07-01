@@ -3,7 +3,7 @@
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
 
-namespace rmcs_core::controller::gimbal {
+namespace rmcs_core::controller::shooting {
 
 class ShootingRecorder
     : public rmcs_executor::Component
@@ -124,8 +124,8 @@ private:
     }
 };
 
-} // namespace rmcs_core::controller::gimbal
+} // namespace rmcs_core::controller::shooting
 
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::gimbal::ShootingRecorder, rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::shooting::ShootingRecorder, rmcs_executor::Component)

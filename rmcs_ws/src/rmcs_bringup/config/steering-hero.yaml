@@ -16,9 +16,9 @@ rmcs_executor:
       - rmcs_core::controller::gimbal::PlayerViewer -> gimbal_player_viewer_controller
       - rmcs_core::controller::pid::ErrorPidController -> viewer_angle_pid_controller
 
-      - rmcs_core::controller::gimbal::ShootingController -> shooting_controller
-      - rmcs_core::controller::gimbal::HeatController -> heat_controller
-      - rmcs_core::controller::gimbal::BulletFeederController42mm -> bullet_feeder_controller
+      - rmcs_core::controller::shooting::ShootingController -> shooting_controller
+      - rmcs_core::controller::shooting::HeatController -> heat_controller
+      - rmcs_core::controller::shooting::BulletFeederController42mm -> bullet_feeder_controller
       - rmcs_core::controller::pid::PidController -> second_left_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> first_left_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> first_right_friction_velocity_pid_controller

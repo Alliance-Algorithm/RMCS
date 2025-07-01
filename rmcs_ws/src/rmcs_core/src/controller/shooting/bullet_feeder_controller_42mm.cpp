@@ -7,7 +7,8 @@
 
 #include "controller/pid/pid_calculator.hpp"
 
-namespace rmcs_core::controller::gimbal {
+namespace rmcs_core::controller::shooting {
+
 class BulletFeederController42mm
     : public rmcs_executor::Component
     , public rclcpp::Node {
@@ -260,9 +261,9 @@ private:
     OutputInterface<rmcs_msgs::ShootMode> shoot_mode_;
 };
 
-} // namespace rmcs_core::controller::gimbal
+} // namespace rmcs_core::controller::shooting
 
 #include <pluginlib/class_list_macros.hpp>
 
 PLUGINLIB_EXPORT_CLASS(
-    rmcs_core::controller::gimbal::BulletFeederController42mm, rmcs_executor::Component)
+    rmcs_core::controller::shooting::BulletFeederController42mm, rmcs_executor::Component)

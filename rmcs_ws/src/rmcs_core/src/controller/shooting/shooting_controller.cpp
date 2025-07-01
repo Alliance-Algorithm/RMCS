@@ -16,7 +16,7 @@
 #include <rmcs_msgs/switch.hpp>
 #include <rmcs_utility/fps_counter.hpp>
 
-namespace rmcs_core::controller::gimbal {
+namespace rmcs_core::controller::shooting {
 
 class ShootingController
     : public rmcs_executor::Component
@@ -214,8 +214,9 @@ private:
     OutputInterface<bool> bullet_fired_;
 };
 
-} // namespace rmcs_core::controller::gimbal
+} // namespace rmcs_core::controller::shooting
 
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::gimbal::ShootingController, rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(
+    rmcs_core::controller::shooting::ShootingController, rmcs_executor::Component)
