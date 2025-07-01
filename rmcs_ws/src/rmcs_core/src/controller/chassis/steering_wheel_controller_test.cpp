@@ -25,8 +25,10 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , cos_varphi_(sqrt_2_ / 2.0, -sqrt_2_ / 2.0, -sqrt_2_ / 2.0, sqrt_2_ / 2.0)
-        , sin_varphi_(sqrt_2_ / 2, sqrt_2_ / 2, -sqrt_2_ / 2, -sqrt_2_ / 2)
+        // , cos_varphi_(sqrt_2_ / 2.0, -sqrt_2_ / 2.0, -sqrt_2_ / 2.0, sqrt_2_ / 2.0)
+        // , sin_varphi_(sqrt_2_ / 2, sqrt_2_ / 2, -sqrt_2_ / 2, -sqrt_2_ / 2)
+        , cos_varphi_(1, 0, -1,0 )
+        , sin_varphi_(0, 1, 0, -1)
         , steering_velocity_pid_(0, 0, 0)
         , steering_angle_pid_(0, 0, 0)
         , wheel_velocity_pid_(0, 0, 0) {
@@ -135,7 +137,7 @@ public:
         auto steering_status  = calculate_steering_status();
 
         update_steering_control_torques(steering_status, chassis_status_expected);
-        update_wheel_torques(wheel_velocities, chassis_status_expected);
+        update_wheel_torques(wheel_velocities, chassis_status_expected, steering_status);
     }
 
 private:
@@ -178,8 +180,7 @@ private:
             fast_tf::cast<rmcs_description::BaseLink>(*chassis_control_velocity_, *tf_).vector;
 
         chassis_status_expected.velocity.head<2>() =
-            Eigen::Rotation2Dd(-std::numbers::pi / 4) *
-            chassis_status_expected.velocity.head<2>();
+            Eigen::Rotation2Dd(-std::numbers::pi / 4) * chassis_status_expected.velocity.head<2>();
 
         const auto& [vx, vy, vz] = chassis_status_expected.velocity;
         chassis_status_expected.wheel_frame_velocity_x =
@@ -230,10 +231,13 @@ private:
                 return diff;
             });
 
+        // Eigen::Vector4d steering_velocity_expected;
+        // steering_velocity_expected << 2, 2, 2, 2;
+
         Eigen::Vector4d steering_velocity_expected = steering_angle_pid_.update(angle_error);
 
-        Eigen::Vector4d velocity_error           = steering_velocity_expected - steering_status.velocity;
-        
+        Eigen::Vector4d velocity_error = steering_velocity_expected - steering_status.velocity;
+
         Eigen::Vector4d steering_control_torques = steering_velocity_pid_.update(velocity_error);
 
         *left_front_steering_control_torque_unrestricted_  = steering_control_torques[0];
@@ -243,17 +247,19 @@ private:
     }
 
     void update_wheel_torques(
-        const Eigen::Vector4d& wheel_velocities, const ChassisStatus& chassis_status_expected) {
+        const Eigen::Vector4d& wheel_velocities, const ChassisStatus& chassis_status_expected,
+        const SteeringStatus& steering_status) {
         const Eigen::Vector4d& wheel_velocities_expected =
-            (chassis_status_expected.wheel_frame_velocity_x.array().square()
-             + chassis_status_expected.wheel_frame_velocity_y.array().square())
-                .sqrt()
+            (chassis_status_expected.wheel_frame_velocity_x.array()
+                 * steering_status.cos_angle.array()
+             + chassis_status_expected.wheel_frame_velocity_y.array()
+                   * steering_status.sin_angle.array())
             / wheel_radius_;
 
-        *left_front_wheel_control_velocity_ = wheel_velocities_expected[0];
-        *left_back_wheel_control_velocity_  = wheel_velocities_expected[1];
-        *right_back_wheel_control_velocity_ = wheel_velocities_expected[2];
-        *right_back_wheel_control_velocity_ = wheel_velocities_expected[3];
+        *left_front_wheel_control_velocity_  = wheel_velocities_expected[0];
+        *left_back_wheel_control_velocity_   = wheel_velocities_expected[1];
+        *right_back_wheel_control_velocity_  = wheel_velocities_expected[2];
+        *right_front_wheel_control_velocity_ = wheel_velocities_expected[3];
 
         Eigen::Vector4d wheel_torques =
             wheel_velocity_pid_.update(wheel_velocities_expected - wheel_velocities);
@@ -283,7 +289,8 @@ private:
             *right_front_steering_angle_    //
         };
 
-        steering_status.angle.array() -= std::numbers::pi / 4;;
+        steering_status.angle.array() -= std::numbers::pi / 4;
+        ;
         steering_status.cos_angle = steering_status.angle.array().cos();
         steering_status.sin_angle = steering_status.angle.array().sin();
 

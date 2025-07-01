@@ -69,22 +69,27 @@ value_broadcaster:
      - /chassis/right_back_steering/angle
      - /chassis/right_front_steering/angle
 
-    #  - /chassis/left_front_steering/velocity
+     - /chassis/left_front_steering/velocity
      - /chassis/left_back_steering/velocity
-    #  - /chassis/right_back_steering/velocity
-    #  - /chassis/right_front_steering/velocity
+     - /chassis/right_back_steering/velocity
+     - /chassis/right_front_steering/velocity
 
-     - /chassis/left_back_steering/control_torque
+     - /chassis/left_front_steering/angle_error
+     - /chassis/left_back_steering/angle_error
+     - /chassis/right_back_steering/angle_error
+     - /chassis/right_front_steering/angle_error
 
-    #  - /chassis/left_front_wheel/control_velocity
+    #  - /chassis/left_back_steering/control_torque
+
+     - /chassis/left_front_wheel/control_velocity
      - /chassis/left_back_wheel/control_velocity
-    #  - /chassis/right_back_wheel/control_velocity
-    #  - /chassis/right_front_wheel/control_velocity
+     - /chassis/right_back_wheel/control_velocity
+     - /chassis/right_front_wheel/control_velocity
 
-    #  - /chassis/left_front_wheel/velocity
+     - /chassis/left_front_wheel/velocity
      - /chassis/left_back_wheel/velocity
-    #  - /chassis/right_back_wheel/velocity
-    #  - /chassis/right_front_wheel/velocity
+     - /chassis/right_back_wheel/velocity
+     - /chassis/right_front_wheel/velocity
 
      - /chassis/left_back_wheel/control_torque
 
@@ -304,17 +309,17 @@ chassis_controller:
 steering_wheel_controller_test:
   ros__parameters:
     steering_velocity_pid_parameters:
+      - 0.2
+      - 0.01
       - 0.1
-      - 0.0
-      - 0.0 
     steering_angle_pid_parameters:
       - 10.0
-      - 0.0
-      - 0.0 
+      - 0.00
+      - 0.01
     wheel_velocity_pid_parameters:
-      - 0.0
-      - 0.0
-      - 0.0 
+      - 0.1
+      - 0.001
+      - 0.01 
 
 auto_aim_controller:
   ros__parameters:
