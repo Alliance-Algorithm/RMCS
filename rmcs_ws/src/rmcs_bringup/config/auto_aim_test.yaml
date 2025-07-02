@@ -214,3 +214,10 @@ auto_aim_controller:
     record: false
     raw_img_pub: false # Set false in actual use 
     image_viewer_type: 2
+
+    enable_pnp_test: false         # true=PnP测试模式, false=正常自瞄模式
+
+    # PnP test
+    solver_type: "fusion"          # "pnp", "fusion", "simple"
+    enable_accuracy_test: true     # 
+    log_file_path: "/tmp/pnp_test_log.csv"
