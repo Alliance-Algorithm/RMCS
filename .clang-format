@@ -16,11 +16,7 @@ AlignAfterOpenBracket: AlwaysBreak
 AlignArrayOfStructures: Right
 
 AlignConsecutiveAssignments:
-    Enabled: true
-    AcrossEmptyLines: false
-    AcrossComments: false
-    AlignCompound: false
-    PadOperators: false
+    Enabled: false
 AlignConsecutiveBitFields:
     Enabled: true
     AcrossEmptyLines: false
