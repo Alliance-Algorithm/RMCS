@@ -23,16 +23,13 @@
   <class type="rmcs_core::controller::chassis::OmniWheelController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
-    <class type="rmcs_core::controller::chassis::SteeringWheelController" base_class_type="rmcs_executor::Component">
+  <class type="rmcs_core::controller::chassis::SteeringWheelController" base_class_type="rmcs_executor::Component">
     <description>Steering wheel controller.</description>
-  </class>
-  <class type="rmcs_core::controller::gimbal::GimbalController" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
   </class>
   <class type="rmcs_core::controller::gimbal::SimpleGimbalController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
-  <class type="rmcs_core::controller::gimbal::PreciseGimbalController" base_class_type="rmcs_executor::Component">
+  <class type="rmcs_core::controller::gimbal::HeroGimbalController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
   <class type="rmcs_core::controller::gimbal::DualYawController" base_class_type="rmcs_executor::Component">

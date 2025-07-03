@@ -1,5 +1,7 @@
 #pragma once
 
+#include <limits>
+
 #include <librmcs/device/lk_motor.hpp>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
@@ -19,13 +21,14 @@ public:
         status_component.register_output(name_prefix + "/temperature", temperature_, 0.0);
         status_component.register_output(name_prefix + "/max_torque", max_torque_, 0.0);
 
-        command_component.register_input(name_prefix + "/control_torque", control_torque_, false);
-        command_component.register_input(
+        command_component.register_input( //
+            name_prefix + "/control_torque", control_torque_, false);
+        command_component.register_input( //
             name_prefix + "/control_velocity", control_velocity_, false);
         command_component.register_input( //
             name_prefix + "/control_angle", control_angle_, false);
-        command_component.register_input(
-            name_prefix + "/control_angle_error", control_angle_error_, false);
+        command_component.register_input( //
+            name_prefix + "/control_angle_shift", control_angle_shift_, false);
     }
 
     LkMotor(
@@ -49,51 +52,51 @@ public:
         *temperature_ = temperature();
     }
 
-    double control_torque() const {
-        if (control_torque_.ready()) [[likely]]
-            return *control_torque_;
-        else
-            return std::numeric_limits<double>::quiet_NaN();
-    }
+    double control_torque() const { return *control_torque_; }
+    double control_velocity() const { return *control_velocity_; }
+    double control_angle() const { return *control_angle_; }
+    double control_angle_shift() const { return *control_angle_shift_; }
 
-    double control_velocity() const {
-        if (control_velocity_.ready()) [[likely]]
-            return *control_velocity_;
-        else
-            return nan_;
-    }
-
-    double control_angle() {
-        if (control_angle_.ready()) [[likely]]
-            return *control_angle_;
-        else
-            return nan_;
-    }
-
-    double control_angle_error() {
-        if (control_angle_error_.ready()) [[likely]]
-            return *control_angle_error_;
-        else
-            return nan_;
-    }
-
-    uint64_t generate_command() {
-        return librmcs::device::LkMotor::generate_velocity_command(control_velocity());
-    }
+    using librmcs::device::LkMotor::generate_torque_command;
+    uint64_t generate_torque_command() { return generate_torque_command(control_torque()); }
 
     using librmcs::device::LkMotor::generate_velocity_command;
-    uint64_t generate_velocity_command() {
-        return librmcs::device::LkMotor::generate_velocity_command(control_velocity());
-    }
+    uint64_t generate_velocity_command() { return generate_velocity_command(control_velocity()); }
 
     using librmcs::device::LkMotor::generate_angle_command;
-    uint64_t generate_angle_command() {
-        return librmcs::device::LkMotor::generate_angle_command(control_angle());
-    }
+    uint64_t generate_angle_command() { return generate_angle_command(control_angle()); }
 
     using librmcs::device::LkMotor::generate_angle_shift_command;
     uint64_t generate_angle_shift_command() {
-        return librmcs::device::LkMotor::generate_angle_shift_command(control_angle());
+        return generate_angle_shift_command(control_angle_shift());
+    }
+
+    uint64_t generate_command() {
+        if (first_generate_auto_command_) [[unlikely]] {
+            first_generate_auto_command_ = false;
+            if (!control_angle_shift_.ready() && !control_angle_.ready()
+                && !control_velocity_.ready() && !control_torque_.ready())
+                throw std::runtime_error{"[LkMotor] No manipulating available!"};
+            else {
+                if (!control_angle_shift_.ready())
+                    control_angle_shift_.bind_directly(nan_);
+                if (!control_angle_.ready())
+                    control_angle_.bind_directly(nan_);
+                if (!control_velocity_.ready())
+                    control_velocity_.bind_directly(nan_);
+                if (!control_torque_.ready())
+                    control_torque_.bind_directly(nan_);
+            }
+        }
+
+        if (!std::isnan(control_angle_shift()))
+            return generate_angle_shift_command(control_angle_shift(), control_velocity());
+        else if (!std::isnan(control_angle()))
+            return generate_angle_command(control_angle(), control_velocity());
+        else if (!std::isnan(control_velocity()))
+            return generate_velocity_command(control_velocity(), control_torque());
+        else
+            return generate_torque_command(control_torque());
     }
 
 private:
@@ -108,7 +111,9 @@ private:
     rmcs_executor::Component::InputInterface<double> control_torque_;
     rmcs_executor::Component::InputInterface<double> control_velocity_;
     rmcs_executor::Component::InputInterface<double> control_angle_;
-    rmcs_executor::Component::InputInterface<double> control_angle_error_;
+    rmcs_executor::Component::InputInterface<double> control_angle_shift_;
+
+    bool first_generate_auto_command_ = true;
 };
 
 } // namespace rmcs_core::hardware::device

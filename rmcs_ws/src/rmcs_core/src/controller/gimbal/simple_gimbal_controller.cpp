@@ -23,6 +23,7 @@ public:
         , two_axis_gimbal_solver(
               *this, get_parameter("upper_limit").as_double(),
               get_parameter("lower_limit").as_double()) {
+
         register_input("/remote/joystick/left", joystick_left_);
         register_input("/remote/switch/right", switch_right_);
         register_input("/remote/switch/left", switch_left_);
@@ -48,23 +49,17 @@ public:
 
         using namespace rmcs_msgs;
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
-            || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
-            control_enabled_ = false;
+            || (switch_left == Switch::DOWN && switch_right == Switch::DOWN))
             return two_axis_gimbal_solver.update(TwoAxisGimbalSolver::SetDisabled());
-        }
 
         if (auto_aim_control_direction_.ready() && (mouse.right || switch_right == Switch::UP)
-            && !auto_aim_control_direction_->isZero()) {
-            control_enabled_ = true;
+            && !auto_aim_control_direction_->isZero())
             return two_axis_gimbal_solver.update(
                 TwoAxisGimbalSolver::SetControlDirection(
                     OdomImu::DirectionVector(*auto_aim_control_direction_)));
-        }
 
-        if (!control_enabled_) {
-            control_enabled_ = true;
+        if (!two_axis_gimbal_solver.enabled())
             return two_axis_gimbal_solver.update(TwoAxisGimbalSolver::SetToLevel());
-        }
 
         constexpr double joystick_sensitivity = 0.006;
         constexpr double mouse_sensitivity = 0.5;
@@ -90,7 +85,6 @@ private:
     InputInterface<Eigen::Vector3d> auto_aim_control_direction_;
 
     TwoAxisGimbalSolver two_axis_gimbal_solver;
-    bool control_enabled_ = false;
 
     OutputInterface<double> yaw_angle_error_, pitch_angle_error_;
 };

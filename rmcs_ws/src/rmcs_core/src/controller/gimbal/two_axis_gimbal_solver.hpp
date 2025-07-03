@@ -13,7 +13,10 @@ using namespace rmcs_description;
 class TwoAxisGimbalSolver {
     class Operation {
         friend class TwoAxisGimbalSolver;
+
         virtual PitchLink::DirectionVector update(TwoAxisGimbalSolver& super) const = 0;
+        // Modifies super.control_enabled_ in the method.
+        // Returns the new control direction (in PitchLink) to be used for control.
     };
 
 public:
@@ -105,6 +108,8 @@ public:
         return calculate_control_errors(dir);
     }
 
+    bool enabled() const { return control_enabled_; }
+
 private:
     void update_yaw_axis() {
         auto yaw_axis =
@@ -151,7 +156,7 @@ private:
 
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
 
-    double upper_limit_, lower_limit_;
+    const double upper_limit_, lower_limit_;
 
     rmcs_executor::Component::InputInterface<double> gimbal_pitch_angle_;
     rmcs_executor::Component::InputInterface<Tf> tf_;

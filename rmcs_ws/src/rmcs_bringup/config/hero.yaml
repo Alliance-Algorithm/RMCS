@@ -10,7 +10,7 @@ rmcs_executor:
       - rmcs_core::referee::app::ui::Hero -> referee_ui_hero
       - rmcs_core::referee::Command -> referee_command
 
-      - rmcs_core::controller::gimbal::GimbalController -> gimbal_controller
+      - rmcs_core::controller::gimbal::HeroGimbalController -> gimbal_controller
       - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
       
