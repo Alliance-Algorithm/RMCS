@@ -5,7 +5,7 @@ rmcs_executor:
       - rmcs_core::hardware::Infantry -> infantry_hardware
       - rmcs_core::referee::Status -> referee_status
 
-      - rmcs_core::controller::gimbal::GimbalController -> gimbal_controller
+      - rmcs_core::controller::gimbal::SimpleGimbalController -> gimbal_controller
       - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller

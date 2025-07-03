@@ -4,7 +4,7 @@ rmcs_executor:
     components:
       - rmcs_core::hardware::TunnelInfantry -> tunnel_omni_hardware
 
-      - rmcs_core::controller::gimbal::GimbalController -> gimbal_controller
+      - rmcs_core::controller::gimbal::SimpleGimbalController -> gimbal_controller
 
       - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
