@@ -26,8 +26,7 @@ public:
         , power_ratio_(get_parameter("power_ratio").as_double()) {
 
         register_input("/chassis/control_power_limit", power_limit_);
-        // register_input("/chassis/steering/power", steering_power_);
-        // register_input("/chassis/power", chassis_power_);
+        register_input("/chassis/power", chassis_power_);
 
         register_input("/chassis/left_front_steering/velocity", left_front_steering_velocity_);
         register_input("/chassis/left_back_steering/velocity", left_back_steering_velocity_);
@@ -40,28 +39,28 @@ public:
         register_input("/chassis/right_front_wheel/velocity", right_front_wheel_velocity_);
 
         register_input(
-            "/chassis/left_front_steering/control_torque_unrestricted",
+            "/chassis/left_front_steering/control_torque",
             left_front_steering_control_torque_unrestricted_);
         register_input(
-            "/chassis/left_back_steering/control_torque_unrestricted",
+            "/chassis/left_back_steering/control_torque",
             left_back_steering_control_torque_unrestricted_);
         register_input(
-            "/chassis/right_back_steering/control_torque_unrestricted",
+            "/chassis/right_back_steering/control_torque",
             right_back_steering_control_torque_unrestricted_);
         register_input(
-            "/chassis/right_front_steering/control_torque_unrestricted",
+            "/chassis/right_front_steering/control_torque",
             right_front_steering_control_torque_unrestricted_);
         register_input(
-            "/chassis/left_front_wheel/control_torque_unrestricted",
+            "/chassis/left_front_wheel/control_torque",
             left_front_wheel_control_torque_unrestricted_);
         register_input(
-            "/chassis/left_back_wheel/control_torque_unrestricted",
+            "/chassis/left_back_wheel/control_torque",
             left_back_wheel_control_torque_unrestricted_);
         register_input(
-            "/chassis/right_back_wheel/control_torque_unrestricted",
+            "/chassis/right_back_wheel/control_torque",
             right_back_wheel_control_torque_unrestricted_);
         register_input(
-            "/chassis/right_front_wheel/control_torque_unrestricted",
+            "/chassis/right_front_wheel/control_torque",
             right_front_wheel_control_torque_unrestricted_);
 
         register_output(
@@ -237,7 +236,7 @@ private:
     Eigen::Vector4d motor_control_torque_unstricted_;
 
     // InputInterface<double> steering_power_;
-    // InputInterface<double> chassis_power_;
+    InputInterface<double> chassis_power_;
     InputInterface<double> power_limit_;
 
     // InputInterface<double> left_front_steering_angle_;

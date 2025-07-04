@@ -2,6 +2,7 @@
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/lk_motor.hpp"
+#include "hardware/device/supercap.hpp"
 #include "librmcs/client/cboard.hpp"
 #include "rmcs_utility/navigation_util.hpp"
 
@@ -306,6 +307,7 @@ private:
                   {sentry, sentry_command, "/chassis/left_back_steering"},
                   {sentry, sentry_command, "/chassis/right_back_steering"},
                   {sentry, sentry_command, "/chassis/right_front_steering"})
+            , supercap_(sentry, sentry_command)
             , transmit_buffer_(*this, 32)
             , event_thread_([this]() { handle_events(); }) {
 
@@ -382,6 +384,8 @@ private:
 
             gimbal_bullet_feeder_.update_status();
             *chassis_yaw_velocity = imu_.gz();
+
+            supercap_.update_status();
         }
 
         void command_update() {
@@ -391,6 +395,12 @@ private:
                 batch_commands[i] = chassis_wheel_motors_[i].generate_command();
             transmit_buffer_.add_can2_transmission(0x200, std::bit_cast<uint64_t>(batch_commands));
             transmit_buffer_.add_can2_transmission(0x1FF, gimbal_bullet_feeder_.generate_command());
+
+            batch_commands[0] = 0;
+            batch_commands[1] = 0;
+            batch_commands[2] = 0;
+            batch_commands[3] = supercap_.generate_command();
+            transmit_buffer_.add_can2_transmission(0x1fe, std::bit_cast<uint64_t>(batch_commands));
 
             for (int i = 0; i < 4; i++) {
                 batch_commands[i] = chassis_steer_motors_[i].generate_command();
@@ -434,6 +444,8 @@ private:
             } else if (can_id == 0x205) {
                 auto& motor = gimbal_bullet_feeder_;
                 motor.store_status(can_data);
+            } else if (can_id == 0x300) {
+                supercap_.store_status(can_data);
             }
         }
         void can1_receive_callback(
@@ -455,9 +467,10 @@ private:
                 auto& motor = chassis_steer_motors_[3];
                 motor.store_status(can_data);
             } else if (can_id == 0x142) {
-                // std::cerr << can_id << std::endl;
                 auto& motor = gimbal_yaw_motor_;
                 motor.store_status(can_data);
+            } else if (can_id == 0x300) {
+                supercap_.store_status(can_data);
             }
         }
         void uart1_receive_callback(const std::byte* uart_data, uint8_t uart_data_length) override {
@@ -482,6 +495,7 @@ private:
         device::DjiMotor gimbal_bullet_feeder_;
         device::DjiMotor chassis_wheel_motors_[4];
         device::DjiMotor chassis_steer_motors_[4];
+        device::Supercap supercap_;
 
         librmcs::utility::RingBuffer<std::byte> referee_ring_buffer_receive_{256};
         OutputInterface<rmcs_msgs::SerialInterface> referee_serial_;

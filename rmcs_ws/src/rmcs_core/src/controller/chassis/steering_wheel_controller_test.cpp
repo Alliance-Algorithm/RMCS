@@ -25,15 +25,12 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        // , cos_varphi_(sqrt_2_ / 2.0, -sqrt_2_ / 2.0, -sqrt_2_ / 2.0, sqrt_2_ / 2.0)
-        // , sin_varphi_(sqrt_2_ / 2, sqrt_2_ / 2, -sqrt_2_ / 2, -sqrt_2_ / 2)
-        , cos_varphi_(1, 0, -1,0 )
+        , cos_varphi_(1, 0, -1, 0)
         , sin_varphi_(0, 1, 0, -1)
         , steering_velocity_pid_(0, 0, 0)
         , steering_angle_pid_(0, 0, 0)
         , wheel_velocity_pid_(0, 0, 0) {
 
-        // auto steering_velocity_pid =
         auto steering_velocity_pid =
             get_parameter("steering_velocity_pid_parameters").as_double_array();
         auto steering_angle_pid = get_parameter("steering_angle_pid_parameters").as_double_array();
@@ -70,12 +67,8 @@ public:
         register_input("/chassis/control_velocity", chassis_control_velocity_);
         register_input("/chassis/control_mode", mode_);
 
-        register_input("/chassis/supercap/control_enable", supercap_control_enabled_);
-        register_input("/chassis/supercap/charge_power_limit", supercap_charge_power_limit_);
         register_input("/chassis/control_power_limit", chassis_control_power_limit_);
-        register_input("/chassis/supercap/voltage/dead_line", supercap_voltage_dead_line_);
-        register_input("/chassis/supercap/voltage/control_line", supercap_voltage_control_line_);
-        register_input("/chassis/supercap/voltage/base_line", supercap_voltage_base_line_);
+        register_input("/chassis/power", chassis_power_);
 
         register_output(
             "/chassis/left_front_steering/control_torque",
@@ -102,6 +95,31 @@ public:
             "/chassis/right_front_wheel/control_torque",
             right_front_wheel_control_torque_unrestricted_);
 
+        // register_output(
+        //     "/chassis/left_front_steering/control_torque_unrestricted",
+        //     left_front_steering_control_torque_unrestricted_);
+        // register_output(
+        //     "/chassis/left_back_steering/control_torque_unrestricted",
+        //     left_back_steering_control_torque_unrestricted_);
+        // register_output(
+        //     "/chassis/right_back_steering/control_torque_unrestricted",
+        //     right_back_steering_control_torque_unrestricted_);
+        // register_output(
+        //     "/chassis/right_front_steering/control_torque_unrestricted",
+        //     right_front_steering_control_torque_unrestricted_);
+        // register_output(
+        //     "/chassis/left_front_wheel/control_torque_unrestricted",
+        //     left_front_wheel_control_torque_unrestricted_);
+        // register_output(
+        //     "/chassis/left_back_wheel/control_torque_unrestricted",
+        //     left_back_wheel_control_torque_unrestricted_);
+        // register_output(
+        //     "/chassis/right_back_wheel/control_torque_unrestricted",
+        //     right_back_wheel_control_torque_unrestricted_);
+        // register_output(
+        //     "/chassis/right_front_wheel/control_torque_unrestricted",
+        //     right_front_wheel_control_torque_unrestricted_);
+
         register_output(
             "/chassis/left_front_steering/angle_expected", left_front_steering_angle_expected_);
         register_output(
@@ -119,8 +137,7 @@ public:
             "/chassis/right_back_wheel/control_velocity", right_back_wheel_control_velocity_);
         register_output(
             "/chassis/right_front_wheel/control_velocity", right_front_wheel_control_velocity_);
-        // register_output("/chassis/steering_angle_err", steering_angle_err_);
-        // register_output("/chassis/wheel_velocity_err", wheel_velocity_err_);
+
     };
 
     void update() override {
@@ -340,13 +357,9 @@ private:
     // InputInterface<double> power_limit_;
 
     InputInterface<rmcs_msgs::ChassisMode> mode_;
-    InputInterface<bool> supercap_control_enabled_;
 
-    InputInterface<double> supercap_charge_power_limit_;
     InputInterface<double> chassis_control_power_limit_;
-    InputInterface<double> supercap_voltage_dead_line_;
-    InputInterface<double> supercap_voltage_control_line_;
-    InputInterface<double> supercap_voltage_base_line_;
+    InputInterface<double> chassis_power_;
 
     OutputInterface<double> left_front_steering_control_torque_unrestricted_;
     OutputInterface<double> left_back_steering_control_torque_unrestricted_;

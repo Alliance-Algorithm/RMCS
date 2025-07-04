@@ -59,39 +59,40 @@ value_broadcaster:
      - /gimbal/yaw/control_velocity
      - /gimbal/yaw/velocity_imu
 
-     - /chassis/left_front_steering/angle_expected
-     - /chassis/left_back_steering/angle_expected
-     - /chassis/right_back_steering/angle_expected
-     - /chassis/right_front_steering/angle_expected
+     - /chassis/control_power_limit
+     - /chassis/power
 
-     - /chassis/left_front_steering/angle
-     - /chassis/left_back_steering/angle
-     - /chassis/right_back_steering/angle
-     - /chassis/right_front_steering/angle
+    #  - /chassis/left_front_steering/angle_expected
+    #  - /chassis/left_back_steering/angle_expected
+    #  - /chassis/right_back_steering/angle_expected
+    #  - /chassis/right_front_steering/angle_expected
 
-     - /chassis/left_front_steering/velocity
-     - /chassis/left_back_steering/velocity
-     - /chassis/right_back_steering/velocity
-     - /chassis/right_front_steering/velocity
+    #  - /chassis/left_front_steering/angle
+    #  - /chassis/left_back_steering/angle
+    #  - /chassis/right_back_steering/angle
+    #  - /chassis/right_front_steering/angle
 
-     - /chassis/left_front_steering/angle_error
-     - /chassis/left_back_steering/angle_error
-     - /chassis/right_back_steering/angle_error
-     - /chassis/right_front_steering/angle_error
+    #  - /chassis/left_front_steering/velocity
+    #  - /chassis/left_back_steering/velocity
+    #  - /chassis/right_back_steering/velocity
+    #  - /chassis/right_front_steering/velocity
+
+    #  - /chassis/left_front_steering/angle_error
+    #  - /chassis/left_back_steering/angle_error
+    #  - /chassis/right_back_steering/angle_error
+    #  - /chassis/right_front_steering/angle_error
 
     #  - /chassis/left_back_steering/control_torque
 
-     - /chassis/left_front_wheel/control_velocity
-     - /chassis/left_back_wheel/control_velocity
-     - /chassis/right_back_wheel/control_velocity
-     - /chassis/right_front_wheel/control_velocity
+    #  - /chassis/left_front_wheel/control_velocity
+    #  - /chassis/left_back_wheel/control_velocity
+    #  - /chassis/right_back_wheel/control_velocity
+    #  - /chassis/right_front_wheel/control_velocity
 
-     - /chassis/left_front_wheel/velocity
-     - /chassis/left_back_wheel/velocity
-     - /chassis/right_back_wheel/velocity
-     - /chassis/right_front_wheel/velocity
-
-     - /chassis/left_back_wheel/control_torque
+    #  - /chassis/left_front_wheel/velocity
+    #  - /chassis/left_back_wheel/velocity
+    #  - /chassis/right_back_wheel/velocity
+    #  - /chassis/right_front_wheel/velocity
 
 yaw_angle_pid_controller:
   ros__parameters:
