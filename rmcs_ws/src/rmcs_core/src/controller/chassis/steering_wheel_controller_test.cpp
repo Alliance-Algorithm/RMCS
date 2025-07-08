@@ -137,7 +137,8 @@ public:
             "/chassis/right_back_wheel/control_velocity", right_back_wheel_control_velocity_);
         register_output(
             "/chassis/right_front_wheel/control_velocity", right_front_wheel_control_velocity_);
-
+        // register_output("/chassis/steering_angle_err", steering_angle_err_);
+        // register_output("/chassis/wheel_velocity_err", wheel_velocity_err_);
     };
 
     void update() override {
@@ -222,6 +223,11 @@ private:
 
         Eigen::Vector4d steering_angles_expected = steering_angles_expected_x.binaryExpr(
             steering_angles_expected_y, [](double x, double y) { return std::atan2(y, x); });
+
+        if (chassis_status_expected.velocity.norm() < 1e-2) {
+            steering_angles_expected[0] = std::numbers::pi / 2;
+            steering_angles_expected[2] = std::numbers::pi / 2;
+        };
 
         *left_front_steering_angle_expected_  = steering_angles_expected[0];
         *left_back_steering_angle_expected_   = steering_angles_expected[1];

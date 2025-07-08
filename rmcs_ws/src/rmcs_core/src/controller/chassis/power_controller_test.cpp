@@ -15,15 +15,20 @@ public:
         : rclcpp::Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , wheel_parameters_(
-              {get_parameter("wheel_k1").as_double(),    //
-               get_parameter("wheel_k2").as_double(),    //
-               get_parameter("wheel_static_power").as_double()})
-        , steering_parameters_(
-              {get_parameter("steering_k1").as_double(), //
-               get_parameter("steering_k2").as_double(), //
-               get_parameter("steering_static_power").as_double()})
+        , wheel_parameters_(0, 0, 0) //})
+        , steering_parameters_(0, 0, 0)
         , power_ratio_(get_parameter("power_ratio").as_double()) {
+
+        const auto wheel_parameters    = get_parameter("wheel_parameters").as_double_array();
+        const auto steering_parameters = get_parameter("steering_parameters").as_double_array();
+
+        wheel_parameters_.k1           = wheel_parameters[0];
+        wheel_parameters_.k2           = wheel_parameters[1];
+        wheel_parameters_.static_power = wheel_parameters[2];
+
+        steering_parameters_.k1           = steering_parameters[0];
+        steering_parameters_.k2           = steering_parameters[1];
+        steering_parameters_.static_power = steering_parameters[2];
 
         register_input("/chassis/control_power_limit", power_limit_);
         register_input("/chassis/power", chassis_power_);
@@ -39,28 +44,28 @@ public:
         register_input("/chassis/right_front_wheel/velocity", right_front_wheel_velocity_);
 
         register_input(
-            "/chassis/left_front_steering/control_torque",
+            "/chassis/left_front_steering/control_torque_unrestricted",
             left_front_steering_control_torque_unrestricted_);
         register_input(
-            "/chassis/left_back_steering/control_torque",
+            "/chassis/left_back_steering/control_torque_unrestricted",
             left_back_steering_control_torque_unrestricted_);
         register_input(
-            "/chassis/right_back_steering/control_torque",
+            "/chassis/right_back_steering/control_torque_unrestricted",
             right_back_steering_control_torque_unrestricted_);
         register_input(
-            "/chassis/right_front_steering/control_torque",
+            "/chassis/right_front_steering/control_torque_unrestricted",
             right_front_steering_control_torque_unrestricted_);
         register_input(
-            "/chassis/left_front_wheel/control_torque",
+            "/chassis/left_front_wheel/control_torque_unrestricted",
             left_front_wheel_control_torque_unrestricted_);
         register_input(
-            "/chassis/left_back_wheel/control_torque",
+            "/chassis/left_back_wheel/control_torque_unrestricted",
             left_back_wheel_control_torque_unrestricted_);
         register_input(
-            "/chassis/right_back_wheel/control_torque",
+            "/chassis/right_back_wheel/control_torque_unrestricted",
             right_back_wheel_control_torque_unrestricted_);
         register_input(
-            "/chassis/right_front_wheel/control_torque",
+            "/chassis/right_front_wheel/control_torque_unrestricted",
             right_front_wheel_control_torque_unrestricted_);
 
         register_output(
@@ -98,13 +103,13 @@ public:
             *power_limit_ * power_ratio_, steering_formula, steering_torques_unrestricted);
         set_steering_control_torque(steering_control_torques);
 
-        auto wheel_velocities_unrestricted = calculate_wheel_velocities();
-        auto wheel_formula                 = update_power_formula(
+        const auto wheel_velocities_unrestricted = calculate_wheel_velocities();
+        auto wheel_formula                       = update_power_formula(
             wheel_parameters_, wheel_velocities_unrestricted, wheel_velocities_unrestricted);
 
         const auto& wheel_torques_unrestricted = calculate_wheel_torques_unrestricted();
         auto wheel_control_torques             = calculate_control_torques(
-            (1 - *power_limit_) * power_ratio_, wheel_formula, wheel_torques_unrestricted);
+            (1 - power_ratio_) * *power_limit_, wheel_formula, wheel_torques_unrestricted);
         set_wheel_control_torque(wheel_control_torques);
     }
 
@@ -144,15 +149,22 @@ private:
         } else {
             c -= power_limit;
             double delta = b * b - 4 * a * c;
-            k            = (-b + std::sqrt(delta)) / (2 * a);
-            if (std::isnan(k)) {
-                k = 0;
+            if (delta <= 0) {
+                k = -b / (2 * a);
             } else {
+                double root1 = (-b + std::sqrt(delta)) / (2 * a);
+                double root2 = (-b - std::sqrt(delta)) / (2 * a);
+                if (root1 * motor_control_torque_unrestricted.sum() > 0) {
+                    k = root1;
+                } else if (root2 * motor_control_torque_unrestricted.sum() > 0) {
+                    k = root2;
+                }
                 k = std::clamp(k, 0.0, 1.0);
             }
         }
 
         return motor_control_torque_unrestricted.array() * k; // or use error-based scaling
+
         // if (delta > 1e-6) {
         //     double root1 = (-b + sqrt(delta)) / (2 * a);
         //     double root2 = (-b - sqrt(delta)) / (2 * a);

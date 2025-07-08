@@ -22,6 +22,8 @@ rmcs_executor:
       - rmcs_core::controller::chassis::ChassisController -> chassis_controller
       # - rmcs_core::controller::chassis::SteeringWheelControllerWithPlanner -> steering_wheel_controller
       - rmcs_core::controller::chassis::SteeringWheelControllerTest -> steering_wheel_controller_test
+      # - rmcs_core::controller::chassis::PowerControllerTest -> power_controller_test
+
       - rmcs_core::bridge::TlarcBridge -> tlarc_bridge
 
       # - rmcs_core::controller::gimbal::ShootingRecorder -> shooting_recorder
@@ -61,6 +63,7 @@ value_broadcaster:
 
      - /chassis/control_power_limit
      - /chassis/power
+     - /chassis/power_predicted
 
     #  - /chassis/left_front_steering/angle_expected
     #  - /chassis/left_back_steering/angle_expected
@@ -315,12 +318,24 @@ steering_wheel_controller_test:
       - 0.1
     steering_angle_pid_parameters:
       - 10.0
-      - 0.00
-      - 0.01
+      - 0.1
+      - 0.0
     wheel_velocity_pid_parameters:
       - 0.1
       - 0.001
       - 0.01 
+
+power_controller_test:
+  ros__parameters:
+    wheel_parameters:
+      - 2.958580e+00
+      - 3.082190e-03
+      - 0.5
+    steering_parameters:
+      - 2.958580e+00
+      - 3.082190e-03
+      - 2.35
+    power_ratio: 0.2
 
 auto_aim_controller:
   ros__parameters:
