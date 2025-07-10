@@ -3,38 +3,38 @@ rmcs_executor:
     update_rate: 1000.0
     components:
       - rmcs_core::hardware::Hero -> hero_hardware
-      
+
       - rmcs_core::referee::Status -> referee_status
       - rmcs_core::referee::command::Interaction -> referee_interaction
       - rmcs_core::referee::command::interaction::Ui -> referee_ui
-      - rmcs_core::referee::app::ui::Hero -> referee_ui_hero
+      # - rmcs_core::referee::app::ui::Hero -> referee_ui_hero
       - rmcs_core::referee::Command -> referee_command
 
       - rmcs_core::controller::gimbal::HeroGimbalController -> gimbal_controller
       - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
-      
+
       - rmcs_core::controller::shooting::ShootingController -> shooting_controller
+      - rmcs_core::controller::shooting::HeatController -> heat_controller
+      - rmcs_core::controller::shooting::BulletFeederController42mm -> bullet_feeder_controller
       - rmcs_core::controller::pid::PidController -> second_left_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> first_left_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> first_right_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> second_right_friction_velocity_pid_controller
-      - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller
 
       - rmcs_core::controller::chassis::ChassisController -> chassis_controller
+      - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::OmniWheelController -> omni_wheel_controller
 
-      # - rmcs_core::controller::shooting::ShootingRecorder -> shooting_recorder
-      
-      - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
-      - rmcs_auto_aim::AutoAimController -> auto_aim_controller
+      # - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
+      # - rmcs_auto_aim::AutoAimController -> auto_aim_controller
 
 hero_hardware:
   ros__parameters:
-    usb_pid_top_board: 0x652f
+    usb_pid_top_board: 0xeb37
     usb_pid_bottom_board: 0xc1d3
-    yaw_motor_zero_point: 41841
-    pitch_motor_zero_point: 24514
+    yaw_motor_zero_point: 61054
+    pitch_motor_zero_point: 54062
     external_imu_port: /dev/ttyUSB0
 
 gimbal_controller:
@@ -45,6 +45,7 @@ gimbal_controller:
 yaw_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/yaw/control_angle_error
+    feedforward: -/chassis/yaw/velocity_imu
     control: /gimbal/yaw/control_velocity
     kp: 16.0
     ki: 0.0
@@ -66,27 +67,17 @@ shooting_controller:
       - /gimbal/second_left_friction
       - /gimbal/second_right_friction
     friction_velocities:
-      - 530.85
-      - 530.85
-      - 530.70
-      - 530.70
+      - 450.00
+      - 450.00
+      - 535.00
+      - 535.00
     friction_soft_start_stop_time: 1.0
-    is_42mm: true
-    bullets_per_feeder_turn: 6.0
-    shot_frequency: 10.0
-    safe_shot_frequency: 10.0
-    precise_shot_frequency: 4.0
-    eject_frequency: 5.0
-    eject_time: 0.2
-    deep_eject_frequency: 2.0
-    deep_eject_time: 0.5
-    single_shot_max_stop_delay: 2.0
 
-shooting_recorder:
+heat_controller:
   ros__parameters:
-    friction_wheel_count: 4
-    log_mode: 2 # 1: trigger, 2: timing
-    
+    heat_per_shot: 100000
+    reserved_heat: 0
+
 second_left_friction_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/second_left_friction/velocity
@@ -173,13 +164,13 @@ right_front_wheel_velocity_pid_controller:
 auto_aim_controller:
   ros__parameters:
     # capture
-    use_video: false # If true, use video stream instead of camera. 
+    use_video: false # If true, use video stream instead of camera.
     video_path: "/workspaces/RMCS/rmcs_ws/resources/1.avi"
     exposure_time: 3
     invert_image: false
     # identifier
     armor_model_path: "/models/mlp.onnx"
-    # pnp    
+    # pnp
     fx: 1.722231837421459e+03
     fy: 1.724876404292754e+03
     cx: 7.013056440882832e+02

@@ -46,16 +46,39 @@ public:
 
     void update_status() {
         librmcs::device::LkMotor::update_status();
-        *angle_       = angle();
-        *velocity_    = velocity();
-        *torque_      = torque();
+        *angle_ = angle();
+        *velocity_ = velocity();
+        *torque_ = torque();
         *temperature_ = temperature();
     }
 
-    double control_torque() const { return *control_torque_; }
-    double control_velocity() const { return *control_velocity_; }
-    double control_angle() const { return *control_angle_; }
-    double control_angle_shift() const { return *control_angle_shift_; }
+    double control_torque() const {
+        if (control_torque_.ready()) [[likely]]
+            return *control_torque_;
+        else
+            return std::numeric_limits<double>::quiet_NaN();
+    }
+
+    double control_velocity() const {
+        if (control_velocity_.ready()) [[likely]]
+            return *control_velocity_;
+        else
+            return std::numeric_limits<double>::quiet_NaN();
+    }
+
+    double control_angle() const {
+        if (control_angle_.ready()) [[likely]]
+            return *control_angle_;
+        else
+            return std::numeric_limits<double>::quiet_NaN();
+    }
+
+    double control_angle_shift() const {
+        if (control_angle_shift_.ready()) [[likely]]
+            return *control_angle_shift_;
+        else
+            return std::numeric_limits<double>::quiet_NaN();
+    }
 
     using librmcs::device::LkMotor::generate_torque_command;
     uint64_t generate_torque_command() { return generate_torque_command(control_torque()); }

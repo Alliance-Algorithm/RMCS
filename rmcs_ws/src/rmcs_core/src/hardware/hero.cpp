@@ -95,16 +95,17 @@ private:
                   device::LkMotor::Config{device::LkMotor::Type::MG5010E_I10}
                       .set_encoder_zero_point(
                           static_cast<int>(hero.get_parameter("pitch_motor_zero_point").as_int())))
+            // TODO: Bad CAN ID sequence, needs to be adjusted.
             , gimbal_friction_wheels_(
                   {hero, hero_command, "/gimbal/second_left_friction",
                    device::DjiMotor::Config{device::DjiMotor::Type::M3508}.set_reduction_ratio(1.)},
-                  {hero, hero_command, "/gimbal/first_left_friction",
-                   device::DjiMotor::Config{device::DjiMotor::Type::M3508}.set_reduction_ratio(1.)},
-                  {hero, hero_command, "/gimbal/first_right_friction",
+                  {hero, hero_command, "/gimbal/second_right_friction",
                    device::DjiMotor::Config{device::DjiMotor::Type::M3508}
                        .set_reduction_ratio(1.)
                        .set_reversed()},
-                  {hero, hero_command, "/gimbal/second_right_friction",
+                  {hero, hero_command, "/gimbal/first_left_friction",
+                   device::DjiMotor::Config{device::DjiMotor::Type::M3508}.set_reduction_ratio(1.)},
+                  {hero, hero_command, "/gimbal/first_right_friction",
                    device::DjiMotor::Config{device::DjiMotor::Type::M3508}
                        .set_reduction_ratio(1.)
                        .set_reversed()})
@@ -113,7 +114,7 @@ private:
                   device::DjiMotor::Config{device::DjiMotor::Type::M2006})
             , gimbal_player_viewer_motor_(
                   hero, hero_command, "/gimbal/player_viewer",
-                  device::DjiMotor::Config{device::DjiMotor::Type::M2006})
+                  device::LkMotor::Config{device::LkMotor::Type::MG4005E_I10})
             , transmit_buffer_(*this, 32)
             , event_thread_([this]() { handle_events(); }) {
 
@@ -127,7 +128,7 @@ private:
                 // Eigen::Vector3d mapping = pitch_link_to_imu_link * Eigen::Vector3d{1, 2, 3};
                 // std::cout << mapping << std::endl;
 
-                return std::make_tuple(-x, -y, z);
+                return std::make_tuple(x, y, z);
             });
 
             hero.register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
@@ -165,7 +166,7 @@ private:
             gy614_.update_status();
             benewake_.update_status();
 
-            *gimbal_yaw_velocity_imu_   = imu_.gz();
+            *gimbal_yaw_velocity_imu_ = imu_.gz();
             *gimbal_pitch_velocity_imu_ = imu_.gy();
 
             gimbal_pitch_motor_.update_status();
@@ -174,6 +175,8 @@ private:
 
             for (auto& motor : gimbal_friction_wheels_)
                 motor.update_status();
+
+            gimbal_player_viewer_motor_.update_status();
         }
 
         void command_update() {
@@ -182,13 +185,17 @@ private:
                 batch_commands[i] = gimbal_friction_wheels_[i].generate_command();
             transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(batch_commands));
 
-            transmit_buffer_.add_can2_transmission(0x141, gimbal_pitch_motor_.generate_command());
+            transmit_buffer_.add_can2_transmission(0x142, gimbal_pitch_motor_.generate_command());
 
-            batch_commands[0] = gimbal_player_viewer_motor_.generate_command();
-            batch_commands[1] = gimbal_scope_motor_.generate_command();
+            batch_commands[0] = gimbal_scope_motor_.generate_command();
+            batch_commands[1] = 0;
             batch_commands[2] = 0;
             batch_commands[3] = 0;
-            transmit_buffer_.add_can2_transmission(0x1ff, std::bit_cast<uint64_t>(batch_commands));
+            transmit_buffer_.add_can1_transmission(0x1ff, std::bit_cast<uint64_t>(batch_commands));
+
+            transmit_buffer_.add_can2_transmission(
+                0x141, gimbal_player_viewer_motor_.generate_angle_command(
+                           gimbal_player_viewer_motor_.control_angle()));
 
             transmit_buffer_.trigger_transmission();
         }
@@ -217,8 +224,10 @@ private:
             if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
                 return;
 
-            if (can_id == 0x141) {
+            if (can_id == 0x142) {
                 gimbal_pitch_motor_.store_status(can_data);
+            } else if (can_id == 0x141) {
+                gimbal_player_viewer_motor_.store_status(can_data);
             }
         }
 
@@ -277,7 +286,7 @@ private:
         device::DjiMotor gimbal_friction_wheels_[4];
 
         device::DjiMotor gimbal_scope_motor_;
-        device::DjiMotor gimbal_player_viewer_motor_;
+        device::LkMotor gimbal_player_viewer_motor_;
 
         librmcs::client::CBoard::TransmitBuffer transmit_buffer_;
         std::thread event_thread_;
@@ -312,7 +321,9 @@ private:
                           static_cast<int>(hero.get_parameter("yaw_motor_zero_point").as_int())))
             , gimbal_bullet_feeder_(
                   hero, hero_command, "/gimbal/bullet_feeder",
-                  device::DjiMotor::Config{device::DjiMotor::Type::M3508}.set_reversed())
+                  device::LkMotor::Config{device::LkMotor::Type::MG5010E_I10}
+                      .set_reversed()
+                      .enable_multi_turn_angle())
             , transmit_buffer_(*this, 32)
             , event_thread_([this]() { handle_events(); }) {
 
@@ -325,6 +336,8 @@ private:
                 transmit_buffer_.add_uart1_transmission(buffer, size);
                 return size;
             };
+
+            hero.register_output("/chassis/yaw/velocity_imu", chassis_yaw_velocity_imu_, 0);
         }
 
         ~BottomBoard() final {
@@ -334,8 +347,9 @@ private:
 
         void update() {
             imu_.update_status();
-
             dr16_.update_status();
+
+            *chassis_yaw_velocity_imu_ = imu_.gz();
 
             for (auto& motor : chassis_wheel_motors_)
                 motor.update_status();
@@ -356,18 +370,11 @@ private:
                 batch_commands[i] = chassis_wheel_motors_[i].generate_command();
             transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(batch_commands));
 
-            batch_commands[0] = gimbal_bullet_feeder_.generate_command();
-            batch_commands[1] = 0;
-            batch_commands[2] = 0;
-            batch_commands[3] = 0;
-            transmit_buffer_.add_can1_transmission(0x1FF, std::bit_cast<uint64_t>(batch_commands));
+            transmit_buffer_.add_can1_transmission(
+                0x141, gimbal_bullet_feeder_.generate_torque_command(
+                           gimbal_bullet_feeder_.control_torque()));
 
-            // Use the chassis angular velocity as feedforward input for yaw velocity control.
-            // This approach currently works only on Hero, as it utilizes motor angular velocity
-            // instead of gyro angular velocity for closed-loop control.
-            transmit_buffer_.add_can2_transmission(
-                0x141, gimbal_yaw_motor_.generate_velocity_command(
-                           gimbal_yaw_motor_.control_velocity() - imu_.gz()));
+            transmit_buffer_.add_can2_transmission(0x141, gimbal_yaw_motor_.generate_command());
 
             batch_commands[0] = 0;
             batch_commands[1] = 0;
@@ -393,7 +400,7 @@ private:
                 chassis_wheel_motors_[2].store_status(can_data);
             } else if (can_id == 0x204) {
                 chassis_wheel_motors_[3].store_status(can_data);
-            } else if (can_id == 0x205) {
+            } else if (can_id == 0x141) {
                 gimbal_bullet_feeder_.store_status(can_data);
             }
         }
@@ -431,6 +438,8 @@ private:
         device::Bmi088 imu_;
         OutputInterface<rmcs_description::Tf>& tf_;
 
+        OutputInterface<double> chassis_yaw_velocity_imu_;
+
         device::Dr16 dr16_;
 
         device::DjiMotor chassis_wheel_motors_[4];
@@ -438,7 +447,7 @@ private:
 
         device::LkMotor gimbal_yaw_motor_;
 
-        device::DjiMotor gimbal_bullet_feeder_;
+        device::LkMotor gimbal_bullet_feeder_;
 
         librmcs::utility::RingBuffer<std::byte> referee_ring_buffer_receive_{256};
         OutputInterface<rmcs_msgs::SerialInterface> referee_serial_;
