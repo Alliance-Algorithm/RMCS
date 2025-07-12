@@ -334,7 +334,7 @@ private:
                 motor.configure(
                     device::DjiMotor::Config{device::DjiMotor::Type::M3508}
                         .set_reversed()
-                        .set_reduction_ratio(11.)
+                        .set_reduction_ratio(13.)
                         .enable_multi_turn_angle());
             chassis_steer_motors_[0].configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::GM6020}

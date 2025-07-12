@@ -1,5 +1,6 @@
 #include "rmcs_utility/eigen_structured_bindings.hpp"
 #include <eigen3/Eigen/Dense>
+#include <rclcpp/logging.hpp>
 #include <rclcpp/rclcpp.hpp>
 
 #include <rmcs_executor/component.hpp>
@@ -15,7 +16,7 @@ public:
         : rclcpp::Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , wheel_parameters_(0, 0, 0) //})
+        , wheel_parameters_(0, 0, 0)
         , steering_parameters_(0, 0, 0)
         , power_ratio_(get_parameter("power_ratio").as_double()) {
 
@@ -85,6 +86,10 @@ public:
             "/chassis/right_front_wheel/control_torque", right_front_wheel_control_torque_);
         register_output("/chassis/power_predicted", max_power_predicted_);
 
+        register_output("/chassis/power_predicted_a", power_predicted_a_);
+        register_output("/chassis/power_predicted_b", power_predicted_b_);
+        register_output("/chassis/power_predicted_c", power_predicted_c_);
+
         // register_input("/chassis/left_front_steering/angle", left_front_steering_angle_);
         // register_input("/chassis/left_back_steering/angle", left_back_steering_angle_);
         // register_input("/chassis/right_back_steering/angle", right_back_steering_angle_);
@@ -94,23 +99,27 @@ public:
     void update() override {
 
         auto steering_velocities_unrestricted = calculate_steering_velocities();
-        auto steering_formula                 = update_power_formula(
-            steering_parameters_, steering_velocities_unrestricted,
-            steering_velocities_unrestricted);
 
         const auto& steering_torques_unrestricted = calculate_steering_torque_unrestricted();
-        auto steering_control_torques             = calculate_control_torques(
+
+        auto steering_formula = update_power_formula(
+            steering_parameters_, steering_velocities_unrestricted, steering_torques_unrestricted);
+        auto steering_control_torques = calculate_control_torques(
             *power_limit_ * power_ratio_, steering_formula, steering_torques_unrestricted);
         set_steering_control_torque(steering_control_torques);
 
         const auto wheel_velocities_unrestricted = calculate_wheel_velocities();
-        auto wheel_formula                       = update_power_formula(
-            wheel_parameters_, wheel_velocities_unrestricted, wheel_velocities_unrestricted);
 
         const auto& wheel_torques_unrestricted = calculate_wheel_torques_unrestricted();
-        auto wheel_control_torques             = calculate_control_torques(
+
+        auto wheel_formula = update_power_formula(
+            wheel_parameters_, wheel_velocities_unrestricted, wheel_torques_unrestricted);
+
+        auto wheel_control_torques = calculate_control_torques(
             (1 - power_ratio_) * *power_limit_, wheel_formula, wheel_torques_unrestricted);
         set_wheel_control_torque(wheel_control_torques);
+
+        *max_power_predicted_ = wheel_formula.sum() + steering_formula.sum();
     }
 
 private:
@@ -128,62 +137,37 @@ private:
         auto& [a, b, c] = formula;
 
         a = parameters.k1 * motor_control_torques_unrestricted.squaredNorm();
-        b = (motor_control_torques_unrestricted.array() * motor_velocities.array())
-                .cwiseAbs()
-                .sum();
+        b = (motor_control_torques_unrestricted.array() * motor_velocities.array()).sum();
         c = parameters.k2 * motor_velocities.squaredNorm() + parameters.static_power;
 
         return formula;
     };
 
     static Eigen::Vector4d calculate_control_torques(
-        const double& power_limit, Eigen::Vector3d& formula,
+        const double& power_limit, Eigen::Vector3d formula,
         const Eigen::Vector4d& motor_control_torque_unrestricted) {
 
         double k               = 0;
         auto& [a, b, c]        = formula;
         double power_predicted = a + b + c;
 
+        // k = 1;
+
         if (power_predicted < power_limit) {
             k = 1;
         } else {
             c -= power_limit;
             double delta = b * b - 4 * a * c;
-            if (delta <= 0) {
+            k            = (-b + std::sqrt(delta)) / (2 * a);
+
+            if (std::isnan(k)) {
                 k = -b / (2 * a);
-            } else {
-                double root1 = (-b + std::sqrt(delta)) / (2 * a);
-                double root2 = (-b - std::sqrt(delta)) / (2 * a);
-                if (root1 * motor_control_torque_unrestricted.sum() > 0) {
-                    k = root1;
-                } else if (root2 * motor_control_torque_unrestricted.sum() > 0) {
-                    k = root2;
-                }
-                k = std::clamp(k, 0.0, 1.0);
             }
+            k = std::clamp(k, 0.0, 1.0);
         }
 
+        // RCLCPP_INFO(get_logger(), "k:%f", k);
         return motor_control_torque_unrestricted.array() * k; // or use error-based scaling
-
-        // if (delta > 1e-6) {
-        //     double root1 = (-b + sqrt(delta)) / (2 * a);
-        //     double root2 = (-b - sqrt(delta)) / (2 * a);
-        //     if (root1 * velocities_err.sum() > 0) {
-        //         torque_predicted = root1;
-        //     } else if (root2 * velocities_err.sum() > 0) {
-        //         torque_predicted = root2;
-        //     }
-        // } else {
-        //     torque_predicted = -b / (2 * a);
-        // }
-
-        // Eigen::Vector4d confidence_coefficient;
-        // if (torque_predicted > *power_limit_) {
-        //     confidence_coefficient << 1, 1, 1, 1;
-        // } else {
-        //     confidence_coefficient = velocities_err.array().abs() / velocities_err.sum();
-        // }
-        // return torque_predicted * confidence_coefficient * motor_control_torque_unstricted;
     }
 
     Eigen::Vector4d calculate_wheel_velocities() const {
@@ -245,7 +229,7 @@ private:
     static constexpr double inf = std::numeric_limits<double>::infinity();
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
-    Eigen::Vector4d motor_control_torque_unstricted_;
+    Eigen::Vector4d motor_control_torque_unrestricted_;
 
     // InputInterface<double> steering_power_;
     InputInterface<double> chassis_power_;
@@ -285,6 +269,9 @@ private:
     OutputInterface<double> right_front_wheel_control_torque_;
 
     OutputInterface<double> max_power_predicted_;
+    OutputInterface<double> power_predicted_a_;
+    OutputInterface<double> power_predicted_b_;
+    OutputInterface<double> power_predicted_c_;
 };
 
 } // namespace rmcs_core::controller::chassis

@@ -22,7 +22,7 @@ rmcs_executor:
       - rmcs_core::controller::chassis::ChassisController -> chassis_controller
       # - rmcs_core::controller::chassis::SteeringWheelControllerWithPlanner -> steering_wheel_controller
       - rmcs_core::controller::chassis::SteeringWheelControllerTest -> steering_wheel_controller_test
-      # - rmcs_core::controller::chassis::PowerControllerTest -> power_controller_test
+      - rmcs_core::controller::chassis::PowerControllerTest -> power_controller_test
 
       - rmcs_core::bridge::TlarcBridge -> tlarc_bridge
 
@@ -38,10 +38,10 @@ sentry_hardware:
     usb_pid_bottom_board: 0x5891
     yaw_motor_zero_point: 25692
     pitch_motor_zero_point: 41388
-    left_front_zero_point: 6543
-    left_back_zero_point: 4436
-    right_back_zero_point: 2044
-    right_front_zero_point: 4416
+    left_front_zero_point: 6535
+    left_back_zero_point: 2517
+    right_back_zero_point: 1976
+    right_front_zero_point: 4345
     external_imu_port: /dev/ttyUSB0
 
 gimbal_controller:
@@ -53,17 +53,21 @@ gimbal_controller:
 value_broadcaster:
   ros__parameters:
     forward_list:
-     - /chassis/left_front/wheel/control_velocity
-     - /chassis/left_back/wheel/control_velocity
-     - /chassis/right_back/wheel/control_velocity
-     - /chassis/right_front/wheel/control_velocity
-     - /gimbal/yaw/control_angle_error
-     - /gimbal/yaw/control_velocity
-     - /gimbal/yaw/velocity_imu
+
+    #  - /gimbal/yaw/control_angle_error
+    #  - /gimbal/yaw/control_velocity
+    #  - /gimbal/yaw/velocity_imu
 
      - /chassis/control_power_limit
      - /chassis/power
      - /chassis/power_predicted
+ 
+     - /chassis/left_back_steering/angle_error
+     - /chassis/right_front_steering/angle_error
+
+     - /chassis/power_predicted_a
+     - /chassis/power_predicted_b
+     - /chassis/power_predicted_c
 
     #  - /chassis/left_front_steering/angle_expected
     #  - /chassis/left_back_steering/angle_expected
@@ -80,22 +84,24 @@ value_broadcaster:
     #  - /chassis/right_back_steering/velocity
     #  - /chassis/right_front_steering/velocity
 
-    #  - /chassis/left_front_steering/angle_error
-    #  - /chassis/left_back_steering/angle_error
-    #  - /chassis/right_back_steering/angle_error
-    #  - /chassis/right_front_steering/angle_error
+    #  - /chassis/left_front_steering/torque
+    #  - /chassis/left_back_steering/torque
+    #  - /chassis/right_back_steering/torque
+    #  - /chassis/right_front_steering/torque
 
-    #  - /chassis/left_back_steering/control_torque
-
+    #  - /chassis/left_front_wheel/torque
+    #  - /chassis/left_back_wheel/torque
+    #  - /chassis/right_back_wheel/torque
+    #  - /chassis/right_front_wheel/torque
     #  - /chassis/left_front_wheel/control_velocity
     #  - /chassis/left_back_wheel/control_velocity
     #  - /chassis/right_back_wheel/control_velocity
     #  - /chassis/right_front_wheel/control_velocity
 
-    #  - /chassis/left_front_wheel/velocity
-    #  - /chassis/left_back_wheel/velocity
-    #  - /chassis/right_back_wheel/velocity
-    #  - /chassis/right_front_wheel/velocity
+     - /chassis/left_front_wheel/velocity
+     - /chassis/left_back_wheel/velocity
+     - /chassis/right_back_wheel/velocity
+     - /chassis/right_front_wheel/velocity
 
 yaw_angle_pid_controller:
   ros__parameters:
@@ -313,29 +319,36 @@ chassis_controller:
 steering_wheel_controller_test:
   ros__parameters:
     steering_velocity_pid_parameters:
-      - 0.2
-      - 0.01
-      - 0.1
+      - 0.22
+      - 0.0000
+      - 0.10
     steering_angle_pid_parameters:
-      - 10.0
-      - 0.1
+      - 11.0
+      - 0.00000
       - 0.0
     wheel_velocity_pid_parameters:
       - 0.1
       - 0.001
-      - 0.01 
+      - 0.02 
 
 power_controller_test:
   ros__parameters:
     wheel_parameters:
-      - 2.958580e+00
-      - 3.082190e-03
-      - 0.5
-    steering_parameters:
-      - 2.958580e+00
-      - 3.082190e-03
+      - 3.0e+00
+      - 1.3e-02
       - 2.35
-    power_ratio: 0.2
+      # - 2.69011e+00
+      # - 3.082190e-03
+      # - 2.35
+    steering_parameters:
+      - 3.0e+00
+      - 1.3e-02
+      - 0.7
+      
+      # - 3.40e+00
+      # - 1.882190e-02
+      # - 0.7
+    power_ratio: 0.25
 
 auto_aim_controller:
   ros__parameters:

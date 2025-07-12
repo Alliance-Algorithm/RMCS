@@ -70,55 +70,57 @@ public:
         register_input("/chassis/control_power_limit", chassis_control_power_limit_);
         register_input("/chassis/power", chassis_power_);
 
-        register_output(
-            "/chassis/left_front_steering/control_torque",
-            left_front_steering_control_torque_unrestricted_);
-        register_output(
-            "/chassis/left_back_steering/control_torque",
-            left_back_steering_control_torque_unrestricted_);
-        register_output(
-            "/chassis/right_back_steering/control_torque",
-            right_back_steering_control_torque_unrestricted_);
-        register_output(
-            "/chassis/right_front_steering/control_torque",
-            right_front_steering_control_torque_unrestricted_);
-        register_output(
-            "/chassis/left_front_wheel/control_torque",
-            left_front_wheel_control_torque_unrestricted_);
-        register_output(
-            "/chassis/left_back_wheel/control_torque",
-            left_back_wheel_control_torque_unrestricted_);
-        register_output(
-            "/chassis/right_back_wheel/control_torque",
-            right_back_wheel_control_torque_unrestricted_);
-        register_output(
-            "/chassis/right_front_wheel/control_torque",
-            right_front_wheel_control_torque_unrestricted_);
-
         // register_output(
-        //     "/chassis/left_front_steering/control_torque_unrestricted",
+        //     "/chassis/left_front_steering/control_torque",
         //     left_front_steering_control_torque_unrestricted_);
         // register_output(
-        //     "/chassis/left_back_steering/control_torque_unrestricted",
+        //     "/chassis/left_back_steering/control_torque",
         //     left_back_steering_control_torque_unrestricted_);
         // register_output(
-        //     "/chassis/right_back_steering/control_torque_unrestricted",
+        //     "/chassis/right_back_steering/control_torque",
         //     right_back_steering_control_torque_unrestricted_);
         // register_output(
-        //     "/chassis/right_front_steering/control_torque_unrestricted",
+        //     "/chassis/right_front_steering/control_torque",
         //     right_front_steering_control_torque_unrestricted_);
+
         // register_output(
-        //     "/chassis/left_front_wheel/control_torque_unrestricted",
+        //     "/chassis/left_front_wheel/control_torque",
         //     left_front_wheel_control_torque_unrestricted_);
         // register_output(
-        //     "/chassis/left_back_wheel/control_torque_unrestricted",
+        //     "/chassis/left_back_wheel/control_torque",
         //     left_back_wheel_control_torque_unrestricted_);
         // register_output(
-        //     "/chassis/right_back_wheel/control_torque_unrestricted",
+        //     "/chassis/right_back_wheel/control_torque",
         //     right_back_wheel_control_torque_unrestricted_);
         // register_output(
-        //     "/chassis/right_front_wheel/control_torque_unrestricted",
+        //     "/chassis/right_front_wheel/control_torque",
         //     right_front_wheel_control_torque_unrestricted_);
+
+        register_output(
+            "/chassis/left_front_steering/control_torque_unrestricted",
+            left_front_steering_control_torque_unrestricted_);
+        register_output(
+            "/chassis/left_back_steering/control_torque_unrestricted",
+            left_back_steering_control_torque_unrestricted_);
+        register_output(
+            "/chassis/right_back_steering/control_torque_unrestricted",
+            right_back_steering_control_torque_unrestricted_);
+        register_output(
+            "/chassis/right_front_steering/control_torque_unrestricted",
+            right_front_steering_control_torque_unrestricted_);
+
+        register_output(
+            "/chassis/left_front_wheel/control_torque_unrestricted",
+            left_front_wheel_control_torque_unrestricted_);
+        register_output(
+            "/chassis/left_back_wheel/control_torque_unrestricted",
+            left_back_wheel_control_torque_unrestricted_);
+        register_output(
+            "/chassis/right_back_wheel/control_torque_unrestricted",
+            right_back_wheel_control_torque_unrestricted_);
+        register_output(
+            "/chassis/right_front_wheel/control_torque_unrestricted",
+            right_front_wheel_control_torque_unrestricted_);
 
         register_output(
             "/chassis/left_front_steering/angle_expected", left_front_steering_angle_expected_);
@@ -129,16 +131,22 @@ public:
         register_output(
             "/chassis/right_front_steering/angle_expected", right_front_steering_angle_expected_);
 
+        // register_output(
+        //     "/chassis/left_front_wheel/control_velocity", left_front_wheel_control_velocity_);
+        // register_output(
+        //     "/chassis/left_back_wheel/control_velocity", left_back_wheel_control_velocity_);
+        // register_output(
+        //     "/chassis/right_back_wheel/control_velocity", right_back_wheel_control_velocity_);
+        // register_output(
+        //     "/chassis/right_front_wheel/control_velocity", right_front_wheel_control_velocity_);
+
         register_output(
-            "/chassis/left_front_wheel/control_velocity", left_front_wheel_control_velocity_);
+            "/chassis/left_front_steering/angle_error", left_front_steering_angle_error_);
+        register_output("/chassis/left_back_steering/angle_error", left_back_steering_angle_error_);
         register_output(
-            "/chassis/left_back_wheel/control_velocity", left_back_wheel_control_velocity_);
+            "/chassis/right_back_steering/angle_error", right_back_steering_angle_error_);
         register_output(
-            "/chassis/right_back_wheel/control_velocity", right_back_wheel_control_velocity_);
-        register_output(
-            "/chassis/right_front_wheel/control_velocity", right_front_wheel_control_velocity_);
-        // register_output("/chassis/steering_angle_err", steering_angle_err_);
-        // register_output("/chassis/wheel_velocity_err", wheel_velocity_err_);
+            "/chassis/right_front_steering/angle_error", right_front_steering_angle_error_);
     };
 
     void update() override {
@@ -206,7 +214,7 @@ private:
         chassis_status_expected.wheel_frame_velocity_y =
             vy + vz * vehicle_radius_ * cos_varphi_.array();
 
-        if (chassis_status_expected.velocity.norm() < 1e-2) {
+        if (chassis_status_expected.velocity.norm() < 1e-3) {
             chassis_status_expected.velocity.setZero();
             chassis_status_expected.wheel_frame_velocity_x.setZero();
             chassis_status_expected.wheel_frame_velocity_y.setZero();
@@ -227,6 +235,8 @@ private:
         if (chassis_status_expected.velocity.norm() < 1e-2) {
             steering_angles_expected[0] = std::numbers::pi / 2;
             steering_angles_expected[2] = std::numbers::pi / 2;
+            steering_angles_expected[1] = 0;
+            steering_angles_expected[3] = 0;
         };
 
         *left_front_steering_angle_expected_  = steering_angles_expected[0];
@@ -254,8 +264,10 @@ private:
                 return diff;
             });
 
-        // Eigen::Vector4d steering_velocity_expected;
-        // steering_velocity_expected << 2, 2, 2, 2;
+        *left_front_steering_angle_error_  = angle_error[0];
+        *left_back_steering_angle_error_   = angle_error[1];
+        *right_back_steering_angle_error_  = angle_error[2];
+        *right_front_steering_angle_error_ = angle_error[3];
 
         Eigen::Vector4d steering_velocity_expected = steering_angle_pid_.update(angle_error);
 
@@ -286,6 +298,11 @@ private:
 
         Eigen::Vector4d wheel_torques =
             wheel_velocity_pid_.update(wheel_velocities_expected - wheel_velocities);
+
+        // *left_front_wheel_control_torque_unrestricted_  = 0;
+        // *left_back_wheel_control_torque_unrestricted_   = 0;
+        // *right_back_wheel_control_torque_unrestricted_  = 0;
+        // *right_front_wheel_control_torque_unrestricted_ = 0;
 
         *left_front_wheel_control_torque_unrestricted_  = wheel_torques[0];
         *left_back_wheel_control_torque_unrestricted_   = wheel_torques[1];
@@ -381,6 +398,11 @@ private:
     OutputInterface<double> left_back_steering_angle_expected_;
     OutputInterface<double> right_back_steering_angle_expected_;
     OutputInterface<double> right_front_steering_angle_expected_;
+
+    OutputInterface<double> left_front_steering_angle_error_;
+    OutputInterface<double> left_back_steering_angle_error_;
+    OutputInterface<double> right_back_steering_angle_error_;
+    OutputInterface<double> right_front_steering_angle_error_;
 
     OutputInterface<double> left_front_wheel_control_velocity_;
     OutputInterface<double> left_back_wheel_control_velocity_;

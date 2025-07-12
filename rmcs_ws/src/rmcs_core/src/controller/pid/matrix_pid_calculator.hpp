@@ -19,8 +19,8 @@ public:
         : kp(std::move(kp))
         , ki(std::move(ki))
         , kd(std::move(kd)) {
-        integral_min.setConstant(-inf);
-        integral_max.setConstant(inf);
+        integral_min.setConstant(-80);
+        integral_max.setConstant(80);
         output_min.setConstant(-inf);
         output_max.setConstant(inf);
         reset();
