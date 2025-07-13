@@ -8,6 +8,7 @@ rmcs_executor:
       - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
+      - rmcs_core::controller::pid::PidController -> pitch_velocity_pid_controller
 
       - rmcs_core::controller::gimbal::ShootingController -> shooting_controller
   
@@ -28,8 +29,8 @@ rmcs_executor:
       - rmcs_core::referee::app::ui::TunnelInfantry -> referee_ui_tunnel_infantry
       - rmcs_core::referee::Command -> referee_command
 
-      - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
-      - rmcs_auto_aim::AutoAimController -> auto_aim_controller
+      # - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
+      # - rmcs_auto_aim::AutoAimController -> auto_aim_controller
 value_broadcaster:
   ros__parameters:
     forward_list:
@@ -39,11 +40,14 @@ value_broadcaster:
       - /gimbal/yaw/velocity
       - /gimbal/yaw/control_angle_error
       - /gimbal/bullet_feeder/control_torque
+      - /gimbal/pitch/control_angle_error
+      - /gimbal/pitch/control_velocity
+      - /gimbal/pitch/velocity
 
 tunnel_infantry_hardware:
   ros__parameters:
     usb_pid: -1
-    yaw_motor_zero_point: 32457
+    yaw_motor_zero_point: 43417
     pitch_motor_zero_point: 47527
     imu_gx_bias: +0.001294
     imu_gy_bias: -0.000584
@@ -73,17 +77,26 @@ yaw_velocity_pid_controller:
     measurement: /gimbal/yaw/velocity_imu
     setpoint: /gimbal/yaw/control_velocity
     control: /gimbal/yaw/control_torque
-    kp: 65.0
+    kp: 60.0
     ki: 0.000
-    kd: 1.5
+    kd: 1.2
 
 pitch_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/pitch/control_angle_error
     control: /gimbal/pitch/control_velocity
-    kp: 10.0
-    ki: 0.0
-    kd: 0.02
+    kp: 15.0
+    ki: 0.00
+    kd: 0.1
+
+pitch_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/pitch/velocity_imu
+    setpoint: /gimbal/pitch/control_velocity
+    control: /gimbal/pitch/control_torque
+    kp: 40.0
+    ki: 0.000
+    kd: 0.0
 
 shooting_controller:
   ros__parameters:

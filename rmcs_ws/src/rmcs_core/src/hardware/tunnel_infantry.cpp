@@ -131,7 +131,7 @@ public:
 
         transmit_buffer_.add_can1_transmission(0x145, gimbal_yaw_motor_.generate_command());
 
-        transmit_buffer_.add_can2_transmission(0x142, gimbal_pitch_motor_.generate_velocity_command(
+        transmit_buffer_.add_can2_transmission(0x142, gimbal_pitch_motor_.generate_torque_command(
             gimbal_pitch_motor_.control_velocity()));
         can_commands[0] = 0;
         can_commands[1] = gimbal_bullet_feeder_.generate_command();

@@ -40,7 +40,7 @@ value_broadcaster:
   ros__parameters:
     forward_list:
       - /debug/target_omega
-      - /pnp/target_distance
+      - /yaw/debug
 
 referee_status:
   ros__parameters:
