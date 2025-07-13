@@ -18,11 +18,11 @@
 
 namespace rmcs_core::controller::shooting {
 
-class ShootingController
+class FrictionWheelController
     : public rmcs_executor::Component
     , public rclcpp::Node {
 public:
-    ShootingController()
+    FrictionWheelController()
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
@@ -32,7 +32,7 @@ public:
         register_input("/remote/switch/left", switch_left_);
         register_input("/remote/keyboard", keyboard_);
 
-        auto friction_wheels             = get_parameter("friction_wheels").as_string_array();
+        auto friction_wheels = get_parameter("friction_wheels").as_string_array();
         auto friction_working_velocities = get_parameter("friction_velocities").as_double_array();
         if (friction_wheels.size() != friction_working_velocities.size())
             throw std::runtime_error(
@@ -42,9 +42,9 @@ public:
             throw std::runtime_error(
                 "Empty array error: 'friction_wheels' and 'friction_velocities' cannot be empty!");
 
-        friction_count_              = friction_wheels.size();
+        friction_count_ = friction_wheels.size();
         friction_working_velocities_ = std::make_unique<double[]>(friction_count_);
-        friction_velocities_         = std::make_unique<InputInterface<double>[]>(friction_count_);
+        friction_velocities_ = std::make_unique<InputInterface<double>[]>(friction_count_);
         friction_control_velocities_ = std::make_unique<OutputInterface<double>[]>(friction_count_);
         for (size_t i = 0; i < friction_count_; i++) {
             friction_working_velocities_[i] = friction_working_velocities[i];
@@ -63,8 +63,8 @@ public:
 
     void update() override {
         const auto switch_right = *switch_right_;
-        const auto switch_left  = *switch_left_;
-        const auto keyboard     = *keyboard_;
+        const auto switch_left = *switch_left_;
+        const auto keyboard = *keyboard_;
 
         using namespace rmcs_msgs;
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
@@ -87,8 +87,8 @@ public:
                 RCLCPP_INFO(logger_, "Bullet Fired!");
 
             last_switch_right_ = switch_right;
-            last_switch_left_  = switch_left;
-            last_keyboard_     = keyboard;
+            last_switch_left_ = switch_left;
+            last_keyboard_ = keyboard;
         }
     }
 
@@ -96,7 +96,7 @@ private:
     void reset_all_controls() {
         friction_enabled_ = false;
 
-        last_primary_friction_velocity_              = nan_;
+        last_primary_friction_velocity_ = nan_;
         primary_friction_velocity_decrease_integral_ = 0;
 
         friction_soft_start_stop_percentage_ = nan_;
@@ -145,7 +145,7 @@ private:
         }
 
         *friction_ready_ = true;
-        *bullet_fired_   = detect_bullet_fire();
+        *bullet_fired_ = detect_bullet_fire();
     }
 
     bool detect_friction_faulty() {
@@ -189,8 +189,8 @@ private:
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
 
     rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
-    rmcs_msgs::Switch last_switch_left_  = rmcs_msgs::Switch::UNKNOWN;
-    rmcs_msgs::Keyboard last_keyboard_   = rmcs_msgs::Keyboard::zero();
+    rmcs_msgs::Switch last_switch_left_ = rmcs_msgs::Switch::UNKNOWN;
+    rmcs_msgs::Keyboard last_keyboard_ = rmcs_msgs::Keyboard::zero();
 
     size_t friction_count_;
 
@@ -209,7 +209,7 @@ private:
     int friction_faulty_count_ = 0;
     OutputInterface<bool> friction_jammed_;
 
-    double last_primary_friction_velocity_              = nan_;
+    double last_primary_friction_velocity_ = nan_;
     double primary_friction_velocity_decrease_integral_ = 0;
     OutputInterface<bool> bullet_fired_;
 };
@@ -219,4 +219,4 @@ private:
 #include <pluginlib/class_list_macros.hpp>
 
 PLUGINLIB_EXPORT_CLASS(
-    rmcs_core::controller::shooting::ShootingController, rmcs_executor::Component)
+    rmcs_core::controller::shooting::FrictionWheelController, rmcs_executor::Component)

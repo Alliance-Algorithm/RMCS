@@ -5,16 +5,17 @@ rmcs_executor:
       - rmcs_core::hardware::Hero -> hero_hardware
 
       - rmcs_core::referee::Status -> referee_status
+      - rmcs_core::referee::Command -> referee_command
+
       - rmcs_core::referee::command::Interaction -> referee_interaction
       - rmcs_core::referee::command::interaction::Ui -> referee_ui
       # - rmcs_core::referee::app::ui::Hero -> referee_ui_hero
-      - rmcs_core::referee::Command -> referee_command
 
       - rmcs_core::controller::gimbal::HeroGimbalController -> gimbal_controller
       - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
 
-      - rmcs_core::controller::shooting::ShootingController -> shooting_controller
+      - rmcs_core::controller::shooting::FrictionWheelController -> shooting_controller
       - rmcs_core::controller::shooting::HeatController -> heat_controller
       - rmcs_core::controller::shooting::BulletFeederController42mm -> bullet_feeder_controller
       - rmcs_core::controller::pid::PidController -> second_left_friction_velocity_pid_controller
