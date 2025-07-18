@@ -69,7 +69,7 @@ public:
                     return rmcs_utility::dji_crc::verify_crc8(header);
                 });
             if (result == rmcs_utility::ReceiveResult::HEADER_INVALID) {
-                RCLCPP_WARN(logger_, "Header start invalid");
+                // RCLCPP_WARN(logger_, "Header start invalid");
             } else if (result == rmcs_utility::ReceiveResult::VERIFY_INVALID) {
                 RCLCPP_WARN(logger_, "Header crc8 invalid");
             }

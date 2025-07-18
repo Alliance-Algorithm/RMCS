@@ -32,9 +32,9 @@ public:
             "/gimbal/control_bullet_allowance/limited_by_heat",
             control_bullet_allowance_limited_by_heat_);
 
-        bullet_feeder_velocity_pid_.kp           = 50.0;
-        bullet_feeder_velocity_pid_.ki           = 10.0;
-        bullet_feeder_velocity_pid_.kd           = 0.0;
+        bullet_feeder_velocity_pid_.kp = 50.0;
+        bullet_feeder_velocity_pid_.ki = 10.0;
+        bullet_feeder_velocity_pid_.kd = 0.0;
         bullet_feeder_velocity_pid_.integral_max = 60.0;
         bullet_feeder_velocity_pid_.integral_min = 0.0;
 
@@ -51,9 +51,9 @@ public:
 
     void update() override {
         const auto switch_right = *switch_right_;
-        const auto switch_left  = *switch_left_;
-        const auto mouse        = *mouse_;
-        const auto keyboard     = *keyboard_;
+        const auto switch_left = *switch_left_;
+        const auto mouse = *mouse_;
+        const auto keyboard = *keyboard_;
 
         using namespace rmcs_msgs;
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
@@ -84,8 +84,8 @@ public:
         } else {
             if (!*friction_ready_ || std::isnan(bullet_feeder_control_angle_)) {
                 bullet_feeder_control_angle_ = *bullet_feeder_angle_;
-                shoot_stage_                 = ShootStage::PRELOADED;
-                bullet_fed_count_            = static_cast<int>(
+                shoot_stage_ = ShootStage::PRELOADED;
+                bullet_fed_count_ = static_cast<int>(
                     (*bullet_feeder_angle_ - bullet_feeder_compressed_zero_point_ - 0.1)
                     / bullet_feeder_angle_per_bullet_);
             }
@@ -135,24 +135,24 @@ public:
         }
 
         last_switch_right_ = switch_right;
-        last_switch_left_  = switch_left;
-        last_mouse_        = mouse;
-        last_keyboard_     = keyboard;
+        last_switch_left_ = switch_left;
+        last_mouse_ = mouse;
+        last_keyboard_ = keyboard;
     }
 
 private:
     void reset_all_controls() {
         last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
-        last_switch_left_  = rmcs_msgs::Switch::UNKNOWN;
-        last_mouse_        = rmcs_msgs::Mouse::zero();
-        last_keyboard_     = rmcs_msgs::Keyboard::zero();
+        last_switch_left_ = rmcs_msgs::Switch::UNKNOWN;
+        last_mouse_ = rmcs_msgs::Mouse::zero();
+        last_keyboard_ = rmcs_msgs::Keyboard::zero();
 
         overdrive_mode_ = low_latency_mode_ = false;
 
-        shoot_stage_      = ShootStage::PRELOADED;
+        shoot_stage_ = ShootStage::PRELOADED;
         bullet_fed_count_ = std::numeric_limits<int>::min();
 
-        bullet_feeder_control_angle_        = nan_;
+        bullet_feeder_control_angle_ = nan_;
         bullet_feeder_angle_pid_.output_max = inf_;
 
         bullet_feeder_velocity_pid_.reset();
@@ -160,13 +160,13 @@ private:
         *bullet_feeder_control_torque_ = nan_;
 
         bullet_feeder_faulty_count_ = 0;
-        bullet_feeder_cool_down_    = 0;
+        bullet_feeder_cool_down_ = 0;
     }
 
     void set_preloading() {
         RCLCPP_INFO(get_logger(), "PRELOADING");
         bullet_fed_count_++;
-        shoot_stage_                 = ShootStage::PRELOADING;
+        shoot_stage_ = ShootStage::PRELOADING;
         bullet_feeder_control_angle_ = bullet_feeder_compressed_zero_point_
                                      + (bullet_fed_count_ + 0.5) * bullet_feeder_angle_per_bullet_;
         bullet_feeder_angle_pid_.output_max = 1.0;
@@ -179,7 +179,7 @@ private:
 
     void set_compressing() {
         RCLCPP_INFO(get_logger(), "COMPRESSING");
-        shoot_stage_                 = ShootStage::COMPRESSING;
+        shoot_stage_ = ShootStage::COMPRESSING;
         bullet_feeder_control_angle_ = bullet_feeder_compressed_zero_point_
                                      + (bullet_fed_count_ + 1) * bullet_feeder_angle_per_bullet_;
         bullet_feeder_angle_pid_.output_max = 0.8;
@@ -192,7 +192,7 @@ private:
 
     void set_shooting() {
         RCLCPP_INFO(get_logger(), "SHOOTING");
-        shoot_stage_                 = ShootStage::SHOOTING;
+        shoot_stage_ = ShootStage::SHOOTING;
         bullet_feeder_control_angle_ = bullet_feeder_compressed_zero_point_
                                      + (bullet_fed_count_ + 1.2) * bullet_feeder_angle_per_bullet_;
         bullet_feeder_angle_pid_.output_max = 1.0;
@@ -215,7 +215,7 @@ private:
 
     void enter_jam_protection() {
         bullet_feeder_control_angle_ = nan_;
-        bullet_feeder_cool_down_     = 1000;
+        bullet_feeder_cool_down_ = 1000;
         bullet_feeder_angle_pid_.reset();
         bullet_feeder_velocity_pid_.reset();
         RCLCPP_INFO(get_logger(), "Jammed!");
@@ -225,7 +225,7 @@ private:
     static constexpr double inf_ = std::numeric_limits<double>::infinity();
 
     static constexpr double bullet_feeder_compressed_zero_point_ = 0.58;
-    static constexpr double bullet_feeder_angle_per_bullet_      = 2 * std::numbers::pi / 6;
+    static constexpr double bullet_feeder_angle_per_bullet_ = 2 * std::numbers::pi / 6;
 
     InputInterface<bool> friction_ready_;
 
@@ -235,9 +235,9 @@ private:
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
 
     rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
-    rmcs_msgs::Switch last_switch_left_  = rmcs_msgs::Switch::UNKNOWN;
-    rmcs_msgs::Mouse last_mouse_         = rmcs_msgs::Mouse::zero();
-    rmcs_msgs::Keyboard last_keyboard_   = rmcs_msgs::Keyboard::zero();
+    rmcs_msgs::Switch last_switch_left_ = rmcs_msgs::Switch::UNKNOWN;
+    rmcs_msgs::Mouse last_mouse_ = rmcs_msgs::Mouse::zero();
+    rmcs_msgs::Keyboard last_keyboard_ = rmcs_msgs::Keyboard::zero();
 
     bool overdrive_mode_ = false, low_latency_mode_ = false;
 
@@ -247,8 +247,8 @@ private:
     InputInterface<int64_t> control_bullet_allowance_limited_by_heat_;
 
     enum class ShootStage { PRELOADING, PRELOADED, COMPRESSING, COMPRESSED, SHOOTING };
-    ShootStage shoot_stage_             = ShootStage::PRELOADED;
-    int bullet_fed_count_               = std::numeric_limits<int>::min();
+    ShootStage shoot_stage_ = ShootStage::PRELOADED;
+    int bullet_fed_count_ = std::numeric_limits<int>::min();
     double bullet_feeder_control_angle_ = nan_;
 
     pid::PidCalculator bullet_feeder_velocity_pid_;
@@ -256,7 +256,7 @@ private:
     OutputInterface<double> bullet_feeder_control_torque_;
 
     int bullet_feeder_faulty_count_ = 0;
-    int bullet_feeder_cool_down_    = 0;
+    int bullet_feeder_cool_down_ = 0;
 
     OutputInterface<rmcs_msgs::ShootMode> shoot_mode_;
 };

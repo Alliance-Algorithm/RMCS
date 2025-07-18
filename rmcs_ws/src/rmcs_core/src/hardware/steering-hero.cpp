@@ -44,7 +44,7 @@ public:
             *this, *command_component_,
             static_cast<int>(get_parameter("usb_pid_bottom_board").as_int()));
 
-        temperature_logging_timer_.reset(1000);
+        // temperature_logging_timer_.reset(1000);
     }
 
     ~SteeringHero() override = default;
@@ -53,16 +53,16 @@ public:
         top_board_->update();
         bottom_board_->update();
 
-        if (temperature_logging_timer_.tick()) {
-            temperature_logging_timer_.reset(1000);
-            RCLCPP_INFO(
-                get_logger(),
-                "Temperature: pitch: %.1f, top_yaw: %.1f, bottom_yaw: %.1f, feeder: %.1f",
-                top_board_->gimbal_pitch_motor_.temperature(),
-                top_board_->gimbal_top_yaw_motor_.temperature(),
-                bottom_board_->gimbal_bottom_yaw_motor_.temperature(),
-                top_board_->gimbal_bullet_feeder_.temperature());
-        }
+        // if (temperature_logging_timer_.tick()) {
+        //     temperature_logging_timer_.reset(1000);
+        //     RCLCPP_INFO(
+        //         get_logger(),
+        //         "Temperature: pitch: %.1f, top_yaw: %.1f, bottom_yaw: %.1f, feeder: %.1f",
+        //         top_board_->gimbal_pitch_motor_.temperature(),
+        //         top_board_->gimbal_top_yaw_motor_.temperature(),
+        //         bottom_board_->gimbal_bottom_yaw_motor_.temperature(),
+        //         top_board_->gimbal_bullet_feeder_.temperature());
+        // }
     }
 
     void command_update() {
@@ -146,6 +146,8 @@ private:
                   device::LkMotor::Config{device::LkMotor::Type::MG5010E_I10}
                       .set_reversed()
                       .enable_multi_turn_angle())
+            , putter_motor_{hero, hero_command, "/gimbal/putter",
+                device::DjiMotor::Config{device::DjiMotor::Type::M3508}.set_reduction_ratio(1.).enable_multi_turn_angle()}
             , gimbal_scope_motor_(
                   hero, hero_command, "/gimbal/scope",
                   device::DjiMotor::Config{device::DjiMotor::Type::M2006})
@@ -173,6 +175,12 @@ private:
 
             hero.register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
             hero.register_output("/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
+
+            hero.register_output(
+                "/gimbal/photoelectric_sensor", photoelectric_sensor_status_, false);
+            hero.register_output("/auto_aim/image/timestamp", timestamp_, 0);
+            hero.register_output("/gimbal/imu/ax", ax_, 0.);
+            hero.register_output("/gimbal/imu/ay", ay_, 0.);
         }
 
         ~TopBoard() final {
@@ -182,6 +190,8 @@ private:
 
         void update() {
             imu_.update_status();
+            *ax_ = imu_.ax();
+            *ay_ = imu_.ay();
             Eigen::Quaterniond gimbal_imu_pose{imu_.q0(), imu_.q1(), imu_.q2(), imu_.q3()};
 
             tf_->set_transform<rmcs_description::PitchLink, rmcs_description::OdomImu>(
@@ -208,6 +218,7 @@ private:
                 motor.update_status();
 
             gimbal_bullet_feeder_.update_status();
+            putter_motor_.update_status();
         }
 
         void command_update() {
@@ -217,19 +228,25 @@ private:
                 batch_commands[i] = gimbal_friction_wheels_[i].generate_command();
             transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(batch_commands));
 
-            transmit_buffer_.add_can1_transmission(
-                0x141, gimbal_bullet_feeder_.generate_torque_command(
-                           gimbal_bullet_feeder_.control_torque()));
+            frequency_control_flag_ = !frequency_control_flag_;
+            if (frequency_control_flag_) {
+                batch_commands[0] = putter_motor_.generate_command();
+                transmit_buffer_.add_can1_transmission(
+                    0x1ff, std::bit_cast<uint64_t>(batch_commands));
+            }
 
             batch_commands[0] = gimbal_scope_motor_.generate_command();
             transmit_buffer_.add_can2_transmission(0x200, std::bit_cast<uint64_t>(batch_commands));
 
             transmit_buffer_.add_can2_transmission(
+                0x141, gimbal_bullet_feeder_.generate_torque_command(
+                           gimbal_bullet_feeder_.control_torque()));
+
+            transmit_buffer_.add_can2_transmission(0x142, gimbal_pitch_motor_.generate_command());
+
+            transmit_buffer_.add_can2_transmission(
                 0x143, gimbal_player_viewer_motor_.generate_velocity_command(
                            gimbal_player_viewer_motor_.control_velocity()));
-
-            transmit_buffer_.add_can2_transmission(0x141, gimbal_top_yaw_motor_.generate_command());
-            transmit_buffer_.add_can2_transmission(0x142, gimbal_pitch_motor_.generate_command());
 
             transmit_buffer_.trigger_transmission();
         }
@@ -249,8 +266,8 @@ private:
                 gimbal_friction_wheels_[2].store_status(can_data);
             } else if (can_id == 0x204) {
                 gimbal_friction_wheels_[3].store_status(can_data);
-            } else if (can_id == 0x141) {
-                gimbal_bullet_feeder_.store_status(can_data);
+            } else if (can_id == 0x205) {
+                putter_motor_.store_status(can_data);
             }
         }
 
@@ -261,7 +278,8 @@ private:
                 return;
 
             if (can_id == 0x141) {
-                gimbal_top_yaw_motor_.store_status(can_data);
+                // gimbal_top_yaw_motor_.store_status(can_data);
+                gimbal_bullet_feeder_.store_status(can_data);
             } else if (can_id == 0x142) {
                 gimbal_pitch_motor_.store_status(can_data);
             } else if (can_id == 0x143) {
@@ -283,7 +301,17 @@ private:
             imu_.store_gyroscope_status(x, y, z);
         }
 
+        void gpio_receive_callback(bool gpio_level_status) override {
+            *photoelectric_sensor_status_ = gpio_level_status;
+        }
+
+        void timestamp_receive_callback(uint32_t timestamp) override { *timestamp_ = timestamp; }
+
         OutputInterface<rmcs_description::Tf>& tf_;
+        OutputInterface<bool> photoelectric_sensor_status_;
+        OutputInterface<uint32_t> timestamp_;
+        OutputInterface<double> ax_;
+        OutputInterface<double> ay_;
 
         device::Bmi088 imu_;
         device::Benewake benewake_;
@@ -296,6 +324,9 @@ private:
 
         device::DjiMotor gimbal_friction_wheels_[4];
         device::LkMotor gimbal_bullet_feeder_;
+
+        bool frequency_control_flag_{false};
+        device::DjiMotor putter_motor_;
 
         device::DjiMotor gimbal_scope_motor_;
         device::LkMotor gimbal_player_viewer_motor_;

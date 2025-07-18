@@ -53,6 +53,9 @@
   <class type="rmcs_core::controller::shooting::BulletFeederController42mm" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
+  <class type="rmcs_core::controller::shooting::PutterController" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
   <class type="rmcs_core::controller::shooting::ShootingRecorder" base_class_type="rmcs_executor::Component">
     <description>the recorder of Hero</description>
   </class>
