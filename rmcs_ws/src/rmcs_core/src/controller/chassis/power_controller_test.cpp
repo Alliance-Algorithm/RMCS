@@ -1,9 +1,11 @@
-#include "rmcs_utility/eigen_structured_bindings.hpp"
 #include <eigen3/Eigen/Dense>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/rclcpp.hpp>
 
+#include "rmcs_utility/eigen_structured_bindings.hpp"
 #include <rmcs_executor/component.hpp>
+
+#include <fstream>
 
 namespace rmcs_core::controller::chassis {
 
@@ -86,14 +88,19 @@ public:
             "/chassis/right_front_wheel/control_torque", right_front_wheel_control_torque_);
         register_output("/chassis/power_predicted", max_power_predicted_);
 
-        register_output("/chassis/power_predicted_a", power_predicted_a_);
-        register_output("/chassis/power_predicted_b", power_predicted_b_);
-        register_output("/chassis/power_predicted_c", power_predicted_c_);
-
         // register_input("/chassis/left_front_steering/angle", left_front_steering_angle_);
         // register_input("/chassis/left_back_steering/angle", left_back_steering_angle_);
         // register_input("/chassis/right_back_steering/angle", right_back_steering_angle_);
         // register_input("/chassis/right_front_steering/angle", right_front_steering_angle_);
+
+        // log_file_.open("/tmp/power_controller_test_log.csv", std::ios::out | std::ios::app);
+        // if (log_file_.is_open()) {
+        //     RCLCPP_INFO(
+        //         get_logger(), "日志文件已打开，尝试写入: %s/%s",
+        //         std::filesystem::current_path().c_str(), "power_controller_test_log.csv");
+        // } else {
+        //     RCLCPP_ERROR(get_logger(), "未能打开日志文件: power_controller_test_log.csv");
+        // }
     }
 
     void update() override {
@@ -120,6 +127,23 @@ public:
         set_wheel_control_torque(wheel_control_torques);
 
         *max_power_predicted_ = wheel_formula.sum() + steering_formula.sum();
+
+        // output_log();
+    }
+
+    void output_log() {
+        if (!log_file_.is_open()) {
+            RCLCPP_ERROR(get_logger(), "Failed to open log file for power controller test.");
+        } else {
+            log_file_ << *right_front_wheel_velocity_ << ","
+                      << *right_front_wheel_control_torque_unrestricted_ << std::endl;
+        }
+    }
+
+    ~PowerControllerTest() override {
+        if (log_file_.is_open()) {
+            log_file_.close();
+        }
     }
 
 private:
@@ -163,10 +187,14 @@ private:
             if (std::isnan(k)) {
                 k = -b / (2 * a);
             }
-            k = std::clamp(k, 0.0, 1.0);
+
+            // RCLCPP_INFO(get_logger(), "origin k:%f", k);
+            // RCLCPP_INFO(get_logger(), "%f %f %f", k, std ::clamp(k, 0.0, 1.0), exp(k) - 1);
+
+            k = std ::clamp(k, 0.0, 1.0);
+            // k = exp(k) - 1 + k * k / 2;
         }
 
-        // RCLCPP_INFO(get_logger(), "k:%f", k);
         return motor_control_torque_unrestricted.array() * k; // or use error-based scaling
     }
 
@@ -269,9 +297,8 @@ private:
     OutputInterface<double> right_front_wheel_control_torque_;
 
     OutputInterface<double> max_power_predicted_;
-    OutputInterface<double> power_predicted_a_;
-    OutputInterface<double> power_predicted_b_;
-    OutputInterface<double> power_predicted_c_;
+
+    std::ofstream log_file_;
 };
 
 } // namespace rmcs_core::controller::chassis

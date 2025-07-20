@@ -14,6 +14,7 @@
 
 #include <controller/pid/matrix_pid_calculator.hpp>
 
+#include "filter/low_pass_filter.hpp"
 namespace rmcs_core::controller::chassis {
 
 class SteeringWheelControllerTest
@@ -25,11 +26,13 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
+        , steering_angle_expected_previous_(Eigen::Vector4d::Zero())
         , cos_varphi_(1, 0, -1, 0)
         , sin_varphi_(0, 1, 0, -1)
         , steering_velocity_pid_(0, 0, 0)
         , steering_angle_pid_(0, 0, 0)
-        , wheel_velocity_pid_(0, 0, 0) {
+        , wheel_velocity_pid_(0, 0, 0)
+        , steering_angle_filter_(5.0, 1000.0) {
 
         auto steering_velocity_pid =
             get_parameter("steering_velocity_pid_parameters").as_double_array();
@@ -181,6 +184,7 @@ private:
 
     void reset_all_controls() {
         chassis_velocity_expected_.vector = Eigen::Vector3d::Zero();
+        steering_angle_expected_previous_.setZero();
 
         *left_front_steering_control_torque_unrestricted_  = 0.0;
         *left_back_steering_control_torque_unrestricted_   = 0.0;
@@ -247,6 +251,25 @@ private:
         return steering_angles_expected;
     }
 
+    // Eigen::Vector4d
+    //     calculate_steering_angles_feed_forward(const Eigen::Vector4d& steering_angles_expected) {
+    //     double dt = 0.001;
+
+    //     auto error = (steering_angles_expected - steering_angle_expected_previous_)
+    //                      .unaryExpr([](double diff) {
+    //                          diff = std::fmod(diff, std::numbers::pi);
+    //                          if (diff < -std::numbers::pi / 2.0) {
+    //                              diff += std::numbers::pi;
+    //                          } else if (diff > std::numbers::pi / 2.0) {
+    //                              diff -= std::numbers::pi;
+    //                          }
+    //                          return diff;
+    //                      });
+    //     Eigen::Vector4d feedback          = error / dt;
+    //     steering_angle_expected_previous_ = steering_angles_expected;
+    //     return feedback;
+    // }
+
     void update_steering_control_torques(
         const SteeringStatus& steering_status, const ChassisStatus& chassis_status_expected) {
 
@@ -269,7 +292,14 @@ private:
         *right_back_steering_angle_error_  = angle_error[2];
         *right_front_steering_angle_error_ = angle_error[3];
 
-        Eigen::Vector4d steering_velocity_expected = steering_angle_pid_.update(angle_error);
+        // const auto& feedback = steering_angle_filter_.update(
+        //     calculate_steering_angles_feed_forward(steering_angles_expected));
+
+        // Eigen::Vector4d steering_velocity_expected =
+        //     steering_angle_pid_.update(angle_error + 0.01 * feedback);
+
+        Eigen::Vector4d steering_velocity_expected =
+            steering_angle_pid_.update(steering_angle_filter_.update(angle_error));
 
         Eigen::Vector4d velocity_error = steering_velocity_expected - steering_status.velocity;
 
@@ -348,6 +378,8 @@ private:
     static constexpr double inf_    = std::numeric_limits<double>::infinity();
     static constexpr double sqrt_2_ = std::numbers::sqrt2;
 
+    Eigen::Vector4d steering_angle_expected_previous_;
+
     // static constexpr double mess_                 = 22.0;
     // static constexpr double moment_of_inertia_    = 4.0;
     // static constexpr double vehicle_radius_       = 0.2 * std::numbers::sqrt2;
@@ -414,6 +446,8 @@ private:
     const Eigen::Vector4d cos_varphi_, sin_varphi_;
 
     pid::MatrixPidCalculator<4> steering_velocity_pid_, steering_angle_pid_, wheel_velocity_pid_;
+
+    filter::LowPassFilter<4> steering_angle_filter_;
 };
 } // namespace rmcs_core::controller::chassis
 #include <pluginlib/class_list_macros.hpp>
