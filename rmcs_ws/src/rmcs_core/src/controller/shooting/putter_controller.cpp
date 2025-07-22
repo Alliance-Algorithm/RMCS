@@ -6,7 +6,6 @@
 #include <rmcs_msgs/switch.hpp>
 
 #include "controller/pid/pid_calculator.hpp"
-#include "librmcs/utility/logging.hpp"
 
 namespace rmcs_core::controller::shooting {
 
@@ -104,18 +103,16 @@ public:
                 if (!bullet_feeder_cool_down_)
                     RCLCPP_INFO(get_logger(), "Jamming Solved!");
             } else {
-                if (*friction_ready_)
+                if (*friction_ready_) {
                     if (switch_right != Switch::DOWN) {
                         if ((!last_mouse_.left && mouse.left)
                             || (last_switch_left_ == rmcs_msgs::Switch::MIDDLE
                                 && switch_left == rmcs_msgs::Switch::DOWN)) {
-                            //*control_bullet_allowance_limited_by_heat_ > 0&&
-                            if (shoot_stage_ == ShootStage::PRELOADED)
+                            if (*control_bullet_allowance_limited_by_heat_ > 0
+                                && shoot_stage_ == ShootStage::PRELOADED)
                                 set_shooting();
                         }
                     }
-
-                if (*friction_ready_) {
                     if (shoot_stage_ == ShootStage::PRELOADING) {
                         if (last_preload_flag_) {
                             const auto angle_err =
@@ -285,9 +282,6 @@ private:
 
     static constexpr double max_bullet_feeder_control_torque_ = 0.1;
     static constexpr double bullet_feeder_angle_per_bullet_ = 2 * std::numbers::pi / 6;
-
-    // static constexpr double qian=0.6;
-    // static constexpr double hou=-3.8;
 
     InputInterface<bool> photoelectric_sensor_status_;
     bool last_photoelectric_sensor_status_;

@@ -178,9 +178,9 @@ private:
 
             hero.register_output(
                 "/gimbal/photoelectric_sensor", photoelectric_sensor_status_, false);
-            hero.register_output("/auto_aim/image/timestamp", timestamp_, 0);
-            hero.register_output("/gimbal/imu/ax", ax_, 0.);
-            hero.register_output("/gimbal/imu/ay", ay_, 0.);
+            hero.register_output(
+                "/auto_aim/image_capturer/timestamp", camera_capturer_trigger_timestamp_, 0);
+            hero.register_output("/auto_aim/image_capturer/trigger", camera_capturer_trigger_, 0);
         }
 
         ~TopBoard() final {
@@ -190,8 +190,6 @@ private:
 
         void update() {
             imu_.update_status();
-            *ax_ = imu_.ax();
-            *ay_ = imu_.ay();
             Eigen::Quaterniond gimbal_imu_pose{imu_.q0(), imu_.q1(), imu_.q2(), imu_.q3()};
 
             tf_->set_transform<rmcs_description::PitchLink, rmcs_description::OdomImu>(
@@ -219,6 +217,10 @@ private:
 
             gimbal_bullet_feeder_.update_status();
             putter_motor_.update_status();
+
+            if (last_camera_capturer_trigger_timestamp_ != *camera_capturer_trigger_timestamp_)
+                *camera_capturer_trigger_ = true;
+            last_camera_capturer_trigger_timestamp_ = *camera_capturer_trigger_timestamp_;
         }
 
         void command_update() {
@@ -301,17 +303,20 @@ private:
             imu_.store_gyroscope_status(x, y, z);
         }
 
-        void gpio_receive_callback(bool gpio_level_status) override {
-            *photoelectric_sensor_status_ = gpio_level_status;
+        void putter_receive_callback(bool status) override {
+            *photoelectric_sensor_status_ = status;
         }
 
-        void timestamp_receive_callback(uint32_t timestamp) override { *timestamp_ = timestamp; }
+        void camera_capturer_callback(bool status) override {
+            *camera_capturer_trigger_timestamp_ =
+                std::chrono::steady_clock::now().time_since_epoch().count();
+        }
 
         OutputInterface<rmcs_description::Tf>& tf_;
         OutputInterface<bool> photoelectric_sensor_status_;
-        OutputInterface<uint32_t> timestamp_;
-        OutputInterface<double> ax_;
-        OutputInterface<double> ay_;
+        OutputInterface<bool> camera_capturer_trigger_;
+        OutputInterface<std::time_t> camera_capturer_trigger_timestamp_;
+        std::time_t last_camera_capturer_trigger_timestamp_{0};
 
         device::Bmi088 imu_;
         device::Benewake benewake_;
