@@ -308,8 +308,6 @@ private:
         }
 
         void camera_capturer_callback(bool status) override {
-            *camera_capturer_trigger_timestamp_ =
-                std::chrono::steady_clock::now().time_since_epoch().count();
         }
 
         OutputInterface<rmcs_description::Tf>& tf_;

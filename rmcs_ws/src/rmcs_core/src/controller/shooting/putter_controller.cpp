@@ -108,8 +108,9 @@ public:
                         if ((!last_mouse_.left && mouse.left)
                             || (last_switch_left_ == rmcs_msgs::Switch::MIDDLE
                                 && switch_left == rmcs_msgs::Switch::DOWN)) {
-                            if (*control_bullet_allowance_limited_by_heat_ > 0
-                                && shoot_stage_ == ShootStage::PRELOADED)
+                            if (
+                                // *control_bullet_allowance_limited_by_heat_ > 0 &&
+                                shoot_stage_ == ShootStage::PRELOADED)
                                 set_shooting();
                         }
                     }
@@ -127,7 +128,7 @@ public:
                             *bullet_feeder_control_torque_ =
                                 bullet_feeder_velocity_pid_.update(velocity_err);
                         } else {
-                            if (*photoelectric_sensor_status_) {
+                            if (!*photoelectric_sensor_status_) {
                                 last_preload_flag_ = true;
                                 bullet_feeder_control_angle_ =
                                     *bullet_feeder_angle_ + bullet_feeder_angle_per_bullet_ * 1.2;
@@ -276,7 +277,7 @@ private:
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
     static constexpr double inf_ = std::numeric_limits<double>::infinity();
 
-    static constexpr double low_latency_velocity_ = 2.5;
+    static constexpr double low_latency_velocity_ = 1.5;
 
     static constexpr double putter_stroke_ = 11.5;
 
