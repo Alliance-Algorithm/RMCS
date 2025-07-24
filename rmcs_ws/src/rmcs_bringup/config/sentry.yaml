@@ -62,6 +62,8 @@ value_broadcaster:
     forward_list:
       - /gimbal/yaw/control_angle_error
       - /gimbal/yaw/angle
+      - /gimbal/yaw/control_current
+      - /gimbal/yaw/velocity
       
  
 yaw_angle_pid_controller:

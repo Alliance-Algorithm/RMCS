@@ -24,6 +24,7 @@ public:
         command_component.register_input(name_prefix + "/control_torque", control_torque_, false);
         command_component.register_input(
             name_prefix + "/control_angle_error", control_angle_error_, false);
+        command_component.register_input(name_prefix + "/control_current", control_current_, false);
     }
 
     LkMotor(

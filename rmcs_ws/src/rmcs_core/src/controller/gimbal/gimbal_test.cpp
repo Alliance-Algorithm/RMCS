@@ -166,8 +166,15 @@ private:
                 return;
             odom_dir->z() = 0;
 
-            dir = fast_tf::cast<PitchLink>(odom_dir, *tf_);
-            dir->normalize();
+            // dir              = fast_tf::cast<PitchLink>(odom_dir, *tf_);
+            // double rad_angle = std::numbers::pi / 2;
+            // Eigen::Matrix3d rotation_matrix;
+            // rotation_matrix << std::cos(rad_angle), -std::sin(rad_angle), 0, //
+            //     std::sin(rad_angle), std::cos(rad_angle), 0,                 //
+            //     0, 0, 1;
+            // dir.vector = rotation_matrix * dir.vector;
+
+            // dir->normalize();
             control_enabled = true;
         }
 
