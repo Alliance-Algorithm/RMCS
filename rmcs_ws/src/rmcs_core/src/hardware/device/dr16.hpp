@@ -2,6 +2,8 @@
 
 #include <eigen3/Eigen/Dense>
 #include <librmcs/device/dr16.hpp>
+#include <rclcpp/logger.hpp>
+#include <rclcpp/logging.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/mouse.hpp>
@@ -30,24 +32,29 @@ public:
         std::memset(&*keyboard_, 0, sizeof(*keyboard_));
 
         component.register_output("/remote/rotary_knob", rotary_knob_);
+
+        // Simulate the rotary knob as a switch, with anti-shake algorithm.
+        component.register_output(
+            "/remote/rotary_knob_switch", rotary_knob_switch_, rmcs_msgs::Switch::UNKNOWN);
     }
 
     void update_status() {
         librmcs::device::Dr16::update_status();
 
         *joystick_right_ = joystick_right();
-        *joystick_left_  = joystick_left();
+        *joystick_left_ = joystick_left();
 
         *switch_right_ = switch_right();
-        *switch_left_  = switch_left();
+        *switch_left_ = switch_left();
 
         *mouse_velocity_ = mouse_velocity();
-        *mouse_wheel_    = mouse_wheel();
+        *mouse_wheel_ = mouse_wheel();
 
-        *mouse_    = mouse();
+        *mouse_ = mouse();
         *keyboard_ = keyboard();
 
         *rotary_knob_ = rotary_knob();
+        update_rotary_knob_switch();
     }
 
     Eigen::Vector2d joystick_right() const {
@@ -78,6 +85,28 @@ public:
 private:
     static Eigen::Vector2d to_eigen_vector(Vector vector) { return {vector.x, vector.y}; }
 
+    void update_rotary_knob_switch() {
+        constexpr double divider = 0.7, anti_shake_shift = 0.05;
+        double upper_divider = divider, lower_divider = -divider;
+
+        auto& switch_value = *rotary_knob_switch_;
+        if (switch_value == rmcs_msgs::Switch::UP)
+            upper_divider -= anti_shake_shift, lower_divider -= anti_shake_shift;
+        else if (switch_value == rmcs_msgs::Switch::MIDDLE)
+            upper_divider += anti_shake_shift, lower_divider -= anti_shake_shift;
+        else if (switch_value == rmcs_msgs::Switch::DOWN)
+            upper_divider += anti_shake_shift, lower_divider += anti_shake_shift;
+
+        const auto knob_value = -*rotary_knob_;
+        if (knob_value > upper_divider) {
+            switch_value = rmcs_msgs::Switch::UP;
+        } else if (knob_value < lower_divider) {
+            switch_value = rmcs_msgs::Switch::DOWN;
+        } else {
+            switch_value = rmcs_msgs::Switch::MIDDLE;
+        }
+    }
+
     rmcs_executor::Component::OutputInterface<Eigen::Vector2d> joystick_right_;
     rmcs_executor::Component::OutputInterface<Eigen::Vector2d> joystick_left_;
 
@@ -85,12 +114,13 @@ private:
     rmcs_executor::Component::OutputInterface<rmcs_msgs::Switch> switch_left_;
 
     rmcs_executor::Component::OutputInterface<Eigen::Vector2d> mouse_velocity_;
+    rmcs_executor::Component::OutputInterface<double> mouse_wheel_;
 
     rmcs_executor::Component::OutputInterface<rmcs_msgs::Mouse> mouse_;
     rmcs_executor::Component::OutputInterface<rmcs_msgs::Keyboard> keyboard_;
 
     rmcs_executor::Component::OutputInterface<double> rotary_knob_;
-    rmcs_executor::Component::OutputInterface<double> mouse_wheel_;
+    rmcs_executor::Component::OutputInterface<rmcs_msgs::Switch> rotary_knob_switch_;
 };
 
 } // namespace rmcs_core::hardware::device
