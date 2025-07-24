@@ -19,10 +19,10 @@
   </class>
   <!-- For steering wheel test -->
   <class type="rmcs_core::controller::chassis::SteeringWheelControllerTest" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
+    <description>Speed control chassis resolution.</description>
   </class>
   <class type="rmcs_core::controller::chassis::PowerControllerTest" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
+    <description>Power limitation of speed control chassis resolution.</description>
   </class>
 
   <class type="rmcs_core::controller::chassis::OmniWheelController" base_class_type="rmcs_executor::Component">
@@ -40,6 +40,14 @@
   <class type="rmcs_core::controller::gimbal::GimbalController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
+ <!-- <class type="rmcs_core::controller::gimbal::GimbalFrequencySweeper" base_class_type="rmcs_executor::Component">
+    <description>Gimbal frequency sweeper</description>
+  </class> -->
+
+  <!-- <class type="rmcs_core::controller::gimbal::GimbalTest" base_class_type="rmcs_executor::Component"> 
+   <description>Gimbal frequency sweeper</description>
+  </class> -->
+
   <class type="rmcs_core::controller::gimbal::PlayerViewer" base_class_type="rmcs_executor::Component">
     <description>Gimbal player viewer</description>
   </class>

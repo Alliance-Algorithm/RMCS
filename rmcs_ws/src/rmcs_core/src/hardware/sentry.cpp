@@ -369,7 +369,6 @@ private:
         void update() {
 
             imu_.update_status();
-
             for (auto& motor : chassis_wheel_motors_)
                 motor.update_status();
             for (auto& motor : chassis_steer_motors_) {
@@ -412,8 +411,8 @@ private:
             yaw_count                = (yaw_count + 1) % 2;
             if (yaw_count % 2)
                 transmit_buffer_.add_can1_transmission(
-                    0x142,
-                    gimbal_yaw_motor_.generate_torque_command(gimbal_yaw_motor_.control_torque()));
+                    0x142, gimbal_yaw_motor_.generate_current_command(
+                               gimbal_yaw_motor_.control_current()));
 
             transmit_buffer_.trigger_transmission();
         }

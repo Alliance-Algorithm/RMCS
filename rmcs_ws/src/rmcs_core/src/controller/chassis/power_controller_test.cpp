@@ -5,8 +5,6 @@
 #include "rmcs_utility/eigen_structured_bindings.hpp"
 #include <rmcs_executor/component.hpp>
 
-#include <fstream>
-
 namespace rmcs_core::controller::chassis {
 
 class PowerControllerTest
@@ -18,12 +16,14 @@ public:
         : rclcpp::Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , wheel_parameters_(0, 0, 0)
-        , steering_parameters_(0, 0, 0)
+        , wheel_parameters_(3.0, 0.014, 2.35)
+        , steering_parameters_(3.0, 0.014, 0.7)
         , power_ratio_(get_parameter("power_ratio").as_double()) {
 
         const auto wheel_parameters    = get_parameter("wheel_parameters").as_double_array();
         const auto steering_parameters = get_parameter("steering_parameters").as_double_array();
+
+        // auto following_loop_kp = get_parameter("following_loop.kp").as_double();
 
         wheel_parameters_.k1           = wheel_parameters[0];
         wheel_parameters_.k2           = wheel_parameters[1];
@@ -87,20 +87,6 @@ public:
         register_output(
             "/chassis/right_front_wheel/control_torque", right_front_wheel_control_torque_);
         register_output("/chassis/power_predicted", max_power_predicted_);
-
-        // register_input("/chassis/left_front_steering/angle", left_front_steering_angle_);
-        // register_input("/chassis/left_back_steering/angle", left_back_steering_angle_);
-        // register_input("/chassis/right_back_steering/angle", right_back_steering_angle_);
-        // register_input("/chassis/right_front_steering/angle", right_front_steering_angle_);
-
-        // log_file_.open("/tmp/power_controller_test_log.csv", std::ios::out | std::ios::app);
-        // if (log_file_.is_open()) {
-        //     RCLCPP_INFO(
-        //         get_logger(), "日志文件已打开，尝试写入: %s/%s",
-        //         std::filesystem::current_path().c_str(), "power_controller_test_log.csv");
-        // } else {
-        //     RCLCPP_ERROR(get_logger(), "未能打开日志文件: power_controller_test_log.csv");
-        // }
     }
 
     void update() override {
@@ -127,23 +113,6 @@ public:
         set_wheel_control_torque(wheel_control_torques);
 
         *max_power_predicted_ = wheel_formula.sum() + steering_formula.sum();
-
-        // output_log();
-    }
-
-    void output_log() {
-        if (!log_file_.is_open()) {
-            RCLCPP_ERROR(get_logger(), "Failed to open log file for power controller test.");
-        } else {
-            log_file_ << *right_front_wheel_velocity_ << ","
-                      << *right_front_wheel_control_torque_unrestricted_ << std::endl;
-        }
-    }
-
-    ~PowerControllerTest() override {
-        if (log_file_.is_open()) {
-            log_file_.close();
-        }
     }
 
 private:
@@ -175,8 +144,6 @@ private:
         auto& [a, b, c]        = formula;
         double power_predicted = a + b + c;
 
-        // k = 1;
-
         if (power_predicted < power_limit) {
             k = 1;
         } else {
@@ -188,14 +155,10 @@ private:
                 k = -b / (2 * a);
             }
 
-            // RCLCPP_INFO(get_logger(), "origin k:%f", k);
-            // RCLCPP_INFO(get_logger(), "%f %f %f", k, std ::clamp(k, 0.0, 1.0), exp(k) - 1);
-
             k = std ::clamp(k, 0.0, 1.0);
-            // k = exp(k) - 1 + k * k / 2;
         }
 
-        return motor_control_torque_unrestricted.array() * k; // or use error-based scaling
+        return motor_control_torque_unrestricted.array() * k;
     }
 
     Eigen::Vector4d calculate_wheel_velocities() const {
@@ -257,16 +220,9 @@ private:
     static constexpr double inf = std::numeric_limits<double>::infinity();
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
-    Eigen::Vector4d motor_control_torque_unrestricted_;
-
-    // InputInterface<double> steering_power_;
     InputInterface<double> chassis_power_;
     InputInterface<double> power_limit_;
 
-    // InputInterface<double> left_front_steering_angle_;
-    // InputInterface<double> left_back_steering_angle_;
-    // InputInterface<double> right_back_steering_angle_;
-    // InputInterface<double> right_front_steering_angle_;
     InputInterface<double> left_front_steering_velocity_;
     InputInterface<double> left_back_steering_velocity_;
     InputInterface<double> right_back_steering_velocity_;
@@ -291,14 +247,13 @@ private:
     OutputInterface<double> left_back_steering_control_torque_;
     OutputInterface<double> right_back_steering_control_torque_;
     OutputInterface<double> right_front_steering_control_torque_;
+
     OutputInterface<double> left_front_wheel_control_torque_;
     OutputInterface<double> left_back_wheel_control_torque_;
     OutputInterface<double> right_back_wheel_control_torque_;
     OutputInterface<double> right_front_wheel_control_torque_;
 
     OutputInterface<double> max_power_predicted_;
-
-    std::ofstream log_file_;
 };
 
 } // namespace rmcs_core::controller::chassis

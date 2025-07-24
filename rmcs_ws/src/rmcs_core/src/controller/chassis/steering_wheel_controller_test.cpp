@@ -26,12 +26,11 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , steering_angle_expected_previous_(Eigen::Vector4d::Zero())
         , cos_varphi_(1, 0, -1, 0)
         , sin_varphi_(0, 1, 0, -1)
-        , steering_velocity_pid_(0, 0, 0)
-        , steering_angle_pid_(0, 0, 0)
-        , wheel_velocity_pid_(0, 0, 0)
+        , steering_velocity_pid_(0.15, 0, 0.1)
+        , steering_angle_pid_(30, 0, 0)
+        , wheel_velocity_pid_(0.09, 0, 0.02)
         , steering_angle_filter_(5.0, 1000.0) {
 
         auto steering_velocity_pid =
@@ -68,36 +67,9 @@ public:
         register_input("/tf", tf_);
 
         register_input("/chassis/control_velocity", chassis_control_velocity_);
-        register_input("/chassis/control_mode", mode_);
 
         register_input("/chassis/control_power_limit", chassis_control_power_limit_);
         register_input("/chassis/power", chassis_power_);
-
-        // register_output(
-        //     "/chassis/left_front_steering/control_torque",
-        //     left_front_steering_control_torque_unrestricted_);
-        // register_output(
-        //     "/chassis/left_back_steering/control_torque",
-        //     left_back_steering_control_torque_unrestricted_);
-        // register_output(
-        //     "/chassis/right_back_steering/control_torque",
-        //     right_back_steering_control_torque_unrestricted_);
-        // register_output(
-        //     "/chassis/right_front_steering/control_torque",
-        //     right_front_steering_control_torque_unrestricted_);
-
-        // register_output(
-        //     "/chassis/left_front_wheel/control_torque",
-        //     left_front_wheel_control_torque_unrestricted_);
-        // register_output(
-        //     "/chassis/left_back_wheel/control_torque",
-        //     left_back_wheel_control_torque_unrestricted_);
-        // register_output(
-        //     "/chassis/right_back_wheel/control_torque",
-        //     right_back_wheel_control_torque_unrestricted_);
-        // register_output(
-        //     "/chassis/right_front_wheel/control_torque",
-        //     right_front_wheel_control_torque_unrestricted_);
 
         register_output(
             "/chassis/left_front_steering/control_torque_unrestricted",
@@ -126,24 +98,6 @@ public:
             right_front_wheel_control_torque_unrestricted_);
 
         register_output(
-            "/chassis/left_front_steering/angle_expected", left_front_steering_angle_expected_);
-        register_output(
-            "/chassis/left_back_steering/angle_expected", left_back_steering_angle_expected_);
-        register_output(
-            "/chassis/right_back_steering/angle_expected", right_back_steering_angle_expected_);
-        register_output(
-            "/chassis/right_front_steering/angle_expected", right_front_steering_angle_expected_);
-
-        // register_output(
-        //     "/chassis/left_front_wheel/control_velocity", left_front_wheel_control_velocity_);
-        // register_output(
-        //     "/chassis/left_back_wheel/control_velocity", left_back_wheel_control_velocity_);
-        // register_output(
-        //     "/chassis/right_back_wheel/control_velocity", right_back_wheel_control_velocity_);
-        // register_output(
-        //     "/chassis/right_front_wheel/control_velocity", right_front_wheel_control_velocity_);
-
-        register_output(
             "/chassis/left_front_steering/angle_error", left_front_steering_angle_error_);
         register_output("/chassis/left_back_steering/angle_error", left_back_steering_angle_error_);
         register_output(
@@ -159,7 +113,6 @@ public:
             reset_all_controls();
         }
 
-        // auto chassis_control_velocity = calculate_chassis_control_velocity(); // 获取底盘速度
         auto chassis_status_expected = calculate_chassis_status_expected(); // 轮组
 
         auto wheel_velocities = calculate_wheel_velocities();
@@ -175,16 +128,20 @@ private:
         Eigen::Vector4d velocity;
     };
 
+    /**
+     * @brief Chassiss current status
+     * velocity:(v_x,v_y,w)
+     * wheel_frame_velocity: velocity of the wheel frame,(LF, LB, RB, RF)
+     */
     struct ChassisStatus {
-        Eigen::Vector3d velocity;                                           //(x,y,w)
+        Eigen::Vector3d velocity;
 
-        Eigen::Vector4d wheel_frame_velocity_x;                             //(LF, LB, RB, RF)
-        Eigen::Vector4d wheel_frame_velocity_y; // velocity in the Y direction of the wheel frame
+        Eigen::Vector4d wheel_frame_velocity_x;
+        Eigen::Vector4d wheel_frame_velocity_y;
     };
 
     void reset_all_controls() {
         chassis_velocity_expected_.vector = Eigen::Vector3d::Zero();
-        steering_angle_expected_previous_.setZero();
 
         *left_front_steering_control_torque_unrestricted_  = 0.0;
         *left_back_steering_control_torque_unrestricted_   = 0.0;
@@ -197,11 +154,14 @@ private:
         *right_front_wheel_control_torque_unrestricted_ = 0.0;
     }
 
-    // Eigen::Vector3d calculate_chassis_control_velocity() {
-    //     Eigen::Vector3d chassis_control_velocity =
-    //         fast_tf::cast<rmcs_description::BaseLink>(*chassis_control_velocity_, *tf_).vector;
-    //     return chassis_control_velocity;
-    // }
+    /**
+     * @brief Calculates the expected chassis status, including velocity and wheel-frame velocities.
+     * @details The `chassis_control_velocity_` is transformed into the coordinate frame of the
+     * robot's base link (`rmcs_description::BaseLink`).The chassis coordinate system is a
+     * right-handed system, with the x-axis pointing from the center of the chassis to a wheel.
+     * @return ChassisStatus An object containing the calculated expected chassis velocity(in the
+     * base link frame after rotation) and the individual wheel-frame velocities.
+     */
 
     ChassisStatus calculate_chassis_status_expected() {
         ChassisStatus chassis_status_expected;
@@ -226,8 +186,8 @@ private:
         return chassis_status_expected;
     }
 
-    Eigen::Vector4d
-        calculate_steering_angles_expected(const ChassisStatus& chassis_status_expected) {
+    Eigen::Vector4d static calculate_steering_angles_expected(
+        const ChassisStatus& chassis_status_expected) {
         const Eigen::Array4d steering_angles_expected_x =
             chassis_status_expected.wheel_frame_velocity_x;
         const Eigen::Array4d steering_angles_expected_y =
@@ -243,32 +203,8 @@ private:
             steering_angles_expected[3] = 0;
         };
 
-        *left_front_steering_angle_expected_  = steering_angles_expected[0];
-        *left_back_steering_angle_expected_   = steering_angles_expected[1];
-        *right_back_steering_angle_expected_  = steering_angles_expected[2];
-        *right_front_steering_angle_expected_ = steering_angles_expected[3];
-
         return steering_angles_expected;
     }
-
-    // Eigen::Vector4d
-    //     calculate_steering_angles_feed_forward(const Eigen::Vector4d& steering_angles_expected) {
-    //     double dt = 0.001;
-
-    //     auto error = (steering_angles_expected - steering_angle_expected_previous_)
-    //                      .unaryExpr([](double diff) {
-    //                          diff = std::fmod(diff, std::numbers::pi);
-    //                          if (diff < -std::numbers::pi / 2.0) {
-    //                              diff += std::numbers::pi;
-    //                          } else if (diff > std::numbers::pi / 2.0) {
-    //                              diff -= std::numbers::pi;
-    //                          }
-    //                          return diff;
-    //                      });
-    //     Eigen::Vector4d feedback          = error / dt;
-    //     steering_angle_expected_previous_ = steering_angles_expected;
-    //     return feedback;
-    // }
 
     void update_steering_control_torques(
         const SteeringStatus& steering_status, const ChassisStatus& chassis_status_expected) {
@@ -291,12 +227,6 @@ private:
         *left_back_steering_angle_error_   = angle_error[1];
         *right_back_steering_angle_error_  = angle_error[2];
         *right_front_steering_angle_error_ = angle_error[3];
-
-        // const auto& feedback = steering_angle_filter_.update(
-        //     calculate_steering_angles_feed_forward(steering_angles_expected));
-
-        // Eigen::Vector4d steering_velocity_expected =
-        //     steering_angle_pid_.update(angle_error + 0.01 * feedback);
 
         Eigen::Vector4d steering_velocity_expected =
             steering_angle_pid_.update(steering_angle_filter_.update(angle_error));
@@ -328,11 +258,6 @@ private:
 
         Eigen::Vector4d wheel_torques =
             wheel_velocity_pid_.update(wheel_velocities_expected - wheel_velocities);
-
-        // *left_front_wheel_control_torque_unrestricted_  = 0;
-        // *left_back_wheel_control_torque_unrestricted_   = 0;
-        // *right_back_wheel_control_torque_unrestricted_  = 0;
-        // *right_front_wheel_control_torque_unrestricted_ = 0;
 
         *left_front_wheel_control_torque_unrestricted_  = wheel_torques[0];
         *left_back_wheel_control_torque_unrestricted_   = wheel_torques[1];
@@ -378,14 +303,6 @@ private:
     static constexpr double inf_    = std::numeric_limits<double>::infinity();
     static constexpr double sqrt_2_ = std::numbers::sqrt2;
 
-    Eigen::Vector4d steering_angle_expected_previous_;
-
-    // static constexpr double mess_                 = 22.0;
-    // static constexpr double moment_of_inertia_    = 4.0;
-    // static constexpr double vehicle_radius_       = 0.2 * std::numbers::sqrt2;
-    // static constexpr double wheel_radius_         = 0.055;
-    // static constexpr double friction_coefficient_ = 0.6;
-
     static constexpr double mess_                 = 19.0;
     static constexpr double moment_of_inertia_    = 2.0;
     static constexpr double vehicle_radius_       = 0.24678;
@@ -409,9 +326,6 @@ private:
 
     InputInterface<rmcs_description::Tf> tf_;
     InputInterface<rmcs_description::YawLink::DirectionVector> chassis_control_velocity_;
-    // InputInterface<double> power_limit_;
-
-    InputInterface<rmcs_msgs::ChassisMode> mode_;
 
     InputInterface<double> chassis_control_power_limit_;
     InputInterface<double> chassis_power_;
@@ -425,11 +339,6 @@ private:
     OutputInterface<double> left_back_wheel_control_torque_unrestricted_;
     OutputInterface<double> right_back_wheel_control_torque_unrestricted_;
     OutputInterface<double> right_front_wheel_control_torque_unrestricted_;
-
-    OutputInterface<double> left_front_steering_angle_expected_;
-    OutputInterface<double> left_back_steering_angle_expected_;
-    OutputInterface<double> right_back_steering_angle_expected_;
-    OutputInterface<double> right_front_steering_angle_expected_;
 
     OutputInterface<double> left_front_steering_angle_error_;
     OutputInterface<double> left_back_steering_angle_error_;

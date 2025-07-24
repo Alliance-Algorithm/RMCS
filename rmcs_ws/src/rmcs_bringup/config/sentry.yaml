@@ -7,10 +7,13 @@ rmcs_executor:
       - rmcs_core::referee::Status -> referee_status
       - rmcs_core::referee::Command -> referee_command
 
+      # - rmcs_core::controller::gimbal::GimbalTest -> gimbal_test
       - rmcs_core::controller::gimbal::GimbalController -> gimbal_controller
       - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
+
+      # - rmcs_core::controller::gimbal::GimbalFrequencySweeper->gimbal_frequency_sweeper
       
       - rmcs_core::controller::gimbal::ShootingController -> shooting_controller
       - rmcs_core::controller::pid::PidController -> left_friction_velocity_pid_controller
@@ -49,72 +52,39 @@ gimbal_controller:
     upper_limit: -0.4598
     lower_limit: 0.4362
 
-    
+gimbal_test:
+  ros__parameters:
+    upper_limit: -0.4598
+    lower_limit: 0.4362    
+
 value_broadcaster:
   ros__parameters:
     forward_list:
-
-    #  - /gimbal/yaw/control_angle_error
-    #  - /gimbal/yaw/control_velocity
-    #  - /gimbal/yaw/velocity_imu
-
-     - /chassis/control_power_limit
-     - /chassis/power
-     - /chassis/power_predicted
+      - /gimbal/yaw/control_angle_error
+      - /gimbal/yaw/angle
+      
  
-     - /chassis/left_back_steering/angle_error
-     - /chassis/right_front_steering/angle_error
-
-    #  - /chassis/left_front_steering/angle_expected
-    #  - /chassis/left_back_steering/angle_expected
-    #  - /chassis/right_back_steering/angle_expected
-    #  - /chassis/right_front_steering/angle_expected
-
-    #  - /chassis/left_front_steering/angle
-    #  - /chassis/left_back_steering/angle
-    #  - /chassis/right_back_steering/angle
-    #  - /chassis/right_front_steering/angle
-
-    #  - /chassis/left_front_steering/velocity
-    #  - /chassis/left_back_steering/velocity
-    #  - /chassis/right_back_steering/velocity
-    #  - /chassis/right_front_steering/velocity
-
-    #  - /chassis/left_front_steering/torque
-    #  - /chassis/left_back_steering/torque
-    #  - /chassis/right_back_steering/torque
-    #  - /chassis/right_front_steering/torque
-
-     - /chassis/left_front_wheel/torque
-    #  - /chassis/left_back_wheel/torque
-     - /chassis/right_back_wheel/torque
-    #  - /chassis/right_front_wheel/torque
-    #  - /chassis/left_front_wheel/control_velocity
-    #  - /chassis/left_back_wheel/control_velocity
-    #  - /chassis/right_back_wheel/control_velocity
-    #  - /chassis/right_front_wheel/control_velocity
-
-     - /chassis/left_front_wheel/velocity
-     - /chassis/left_back_wheel/velocity
-     - /chassis/right_back_wheel/velocity
-     - /chassis/right_front_wheel/velocity
-
 yaw_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/yaw/control_angle_error
     control: /gimbal/yaw/control_velocity
-    kp: 10.0
-    ki: 0.0
-    kd: 0.1
+    kp: 40.9708
+    ki: 0.0000014
+    kd: 333.6
+    output_min: -10000000.0
+    output_max:  10000000.0
+
     
 yaw_velocity_pid_controller:
   ros__parameters:
-    measurement: /gimbal/yaw/velocity_imu
+    measurement: /gimbal/yaw/velocity
     setpoint: /gimbal/yaw/control_velocity
-    control: /gimbal/yaw/control_torque
-    kp: 30.0
-    ki: 0.000
-    kd: 1.0
+    control: /gimbal/yaw/control_current
+    kp: 3.8229
+    ki: 0.0007893
+    kd: 0.0
+    output_min: -25.0
+    output_max:  25.0
 
 pitch_angle_pid_controller:
   ros__parameters:
@@ -333,17 +303,12 @@ power_controller_test:
       - 3.0e+00
       - 1.4e-02
       - 2.35
-      # - 2.69011e+00
-      # - 3.082190e-03
-      # - 2.35
+ 
     steering_parameters:
       - 3.0e+00
       - 1.4e-02
       - 0.7
       
-      # - 3.40e+00
-      # - 1.882190e-02
-      # - 0.7
     power_ratio: 0.25
 
 auto_aim_controller:

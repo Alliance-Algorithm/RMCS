@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cstdint>
 #include <librmcs/device/lk_motor.hpp>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
@@ -18,10 +17,13 @@ public:
         status_component.register_output(name_prefix + "/velocity", velocity_, 0.0);
         status_component.register_output(name_prefix + "/torque", torque_, 0.0);
         status_component.register_output(name_prefix + "/max_torque", max_torque_, 0.0);
+        status_component.register_output(name_prefix + "/control_angle", control_angle_, 0.0);
 
         command_component.register_input(
             name_prefix + "/control_velocity", control_velocity_, false);
         command_component.register_input(name_prefix + "/control_torque", control_torque_, false);
+        command_component.register_input(
+            name_prefix + "/control_angle_error", control_angle_error_, false);
     }
 
     LkMotor(
@@ -39,9 +41,10 @@ public:
 
     void update_status() {
         librmcs::device::LkMotor::update_status();
-        *angle_    = angle();
-        *velocity_ = velocity();
-        *torque_   = torque();
+        *angle_         = angle();
+        *velocity_      = velocity();
+        *torque_        = torque();
+        *control_angle_ = *control_angle_error_ + *angle_;
     }
 
     double control_velocity() const {
@@ -58,14 +61,24 @@ public:
             return std::numeric_limits<double>::quiet_NaN();
     }
 
+    double control_current() const {
+        if (control_current_.ready()) [[likely]]
+            return *control_current_;
+        else
+            return std::numeric_limits<double>::quiet_NaN();
+    }
+
 private:
     rmcs_executor::Component::OutputInterface<double> angle_;
     rmcs_executor::Component::OutputInterface<double> velocity_;
     rmcs_executor::Component::OutputInterface<double> torque_;
     rmcs_executor::Component::OutputInterface<double> max_torque_;
+    rmcs_executor::Component::OutputInterface<double> control_angle_;
 
     rmcs_executor::Component::InputInterface<double> control_velocity_;
     rmcs_executor::Component::InputInterface<double> control_torque_;
+    rmcs_executor::Component::InputInterface<double> control_current_;
+    rmcs_executor::Component::InputInterface<double> control_angle_error_;
 };
 
 } // namespace rmcs_core::hardware::device
