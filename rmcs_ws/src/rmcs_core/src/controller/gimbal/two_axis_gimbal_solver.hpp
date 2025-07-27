@@ -2,12 +2,16 @@
 
 #include <cmath>
 
+#include <iostream>
 #include <limits>
 #include <utility>
 
 #include <eigen3/Eigen/Dense>
+#include <rclcpp/logger.hpp>
+#include <rclcpp/logging.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
+#include <rmcs_utility/eigen_structured_bindings.hpp>
 
 namespace rmcs_core::controller::gimbal {
 using namespace rmcs_description;
@@ -23,8 +27,9 @@ class TwoAxisGimbalSolver {
 
 public:
     TwoAxisGimbalSolver(rmcs_executor::Component& component, double upper_limit, double lower_limit)
-        : upper_limit_(upper_limit + std::numbers::pi / 2)
-        , lower_limit_(lower_limit + std::numbers::pi / 2) {
+        : upper_limit_(std::cos(upper_limit), -std::sin(upper_limit))
+        , lower_limit_(std::cos(lower_limit), -std::sin(lower_limit)) {
+
         component.register_input("/gimbal/pitch/angle", gimbal_pitch_angle_);
         component.register_input("/tf", tf_);
     }
@@ -98,16 +103,19 @@ public:
     AngleError update(const Operation& operation) {
         update_yaw_axis();
 
-        PitchLink::DirectionVector dir = operation.update(*this);
+        PitchLink::DirectionVector control_direction = operation.update(*this);
         if (!control_enabled_)
             return {nan_, nan_};
 
-        clamp_control_direction(dir);
+        auto [control_direction_yaw_link, pitch] = pitch_link_to_yaw_link(control_direction);
+
+        clamp_control_direction(control_direction_yaw_link);
         if (!control_enabled_)
             return {nan_, nan_};
 
-        control_direction_ = fast_tf::cast<OdomImu>(dir, *tf_);
-        return calculate_control_errors(dir);
+        control_direction_ =
+            fast_tf::cast<OdomImu>(yaw_link_to_pitch_link(control_direction_yaw_link, pitch), *tf_);
+        return calculate_control_errors(control_direction_yaw_link, pitch);
     }
 
     bool enabled() const { return control_enabled_; }
@@ -120,45 +128,63 @@ private:
         yaw_axis_filtered_->normalize();
     }
 
-    void clamp_control_direction(PitchLink::DirectionVector& dir) {
-        dir->normalized();
-        auto yaw_axis = fast_tf::cast<PitchLink>(yaw_axis_filtered_, *tf_);
+    auto pitch_link_to_yaw_link(const PitchLink::DirectionVector& dir) const
+        -> std::pair<YawLink::DirectionVector, Eigen::Vector2d> {
 
-        auto cos_angle = yaw_axis->dot(*dir);
-        if (cos_angle == 1 || cos_angle == -1) {
+        std::pair<YawLink::DirectionVector, Eigen::Vector2d> result;
+        auto& [dir_yaw_link, pitch] = result;
+
+        auto yaw_axis = fast_tf::cast<PitchLink>(yaw_axis_filtered_, *tf_);
+        pitch = {yaw_axis->z(), yaw_axis->x()};
+        pitch.normalized();
+
+        const auto& [x, y, z] = *dir;
+        dir_yaw_link = {x * pitch.x() - z * pitch.y(), y, x * pitch.y() + z * pitch.x()};
+
+        return result;
+    }
+
+    static PitchLink::DirectionVector
+        yaw_link_to_pitch_link(const YawLink::DirectionVector& dir, const Eigen::Vector2d& pitch) {
+
+        const auto& [x, y, z] = *dir;
+        return {x * pitch.x() + z * pitch.y(), y, -x * pitch.y() + z * pitch.x()};
+    }
+
+    void clamp_control_direction(YawLink::DirectionVector& control_direction) {
+        const auto& [x, y, z] = *control_direction;
+
+        Eigen::Vector2d projection{x, y};
+        double norm = projection.norm();
+        if (norm > 0)
+            projection /= norm;
+        else {
             control_enabled_ = false;
             return;
         }
 
-        auto angle = std::acos(cos_angle);
-        if (angle < upper_limit_)
-            *dir =
-                Eigen::AngleAxisd{upper_limit_, (yaw_axis->cross(*dir)).normalized()} * (*yaw_axis);
-        else if (angle > lower_limit_)
-            *dir =
-                Eigen::AngleAxisd{lower_limit_, (yaw_axis->cross(*dir)).normalized()} * (*yaw_axis);
+        if (z > upper_limit_.y())
+            *control_direction << upper_limit_.x() * projection, upper_limit_.y();
+        else if (z < lower_limit_.y())
+            *control_direction << lower_limit_.x() * projection, lower_limit_.y();
     }
 
-    AngleError calculate_control_errors(PitchLink::DirectionVector& dir) {
-        auto yaw_axis = fast_tf::cast<PitchLink>(yaw_axis_filtered_, *tf_);
-        double pitch = -std::atan2(yaw_axis->x(), yaw_axis->z());
-
-        double &x = dir->x(), &y = dir->y(), &z = dir->z();
-        double sp = std::sin(pitch), cp = std::cos(pitch);
-        double a = x * cp + z * sp;
-        double b = std::sqrt(y * y + a * a);
+    static AngleError calculate_control_errors(
+        const YawLink::DirectionVector& control_direction, const Eigen::Vector2d& pitch) {
+        const auto& [x, y, z] = *control_direction;
+        const auto& [c, s] = pitch;
 
         AngleError result;
-        result.yaw_angle_error = std::atan2(y, a);
-        result.pitch_angle_error =
-            -std::atan2(z * cp * cp - x * cp * sp + sp * b, -z * cp * sp + x * sp * sp + cp * b);
+        result.yaw_angle_error = std::atan2(y, x);
+        double x_projected = std::sqrt(x * x + y * y);
+        result.pitch_angle_error = -std::atan2(z * c - x_projected * s, z * s + x_projected * c);
 
         return result;
     }
 
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
 
-    const double upper_limit_, lower_limit_;
+    const Eigen::Vector2d upper_limit_, lower_limit_;
 
     rmcs_executor::Component::InputInterface<double> gimbal_pitch_angle_;
     rmcs_executor::Component::InputInterface<Tf> tf_;
