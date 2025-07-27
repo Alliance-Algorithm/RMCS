@@ -2,7 +2,7 @@
 
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
-#include <serial_interface.hpp>
+#include <rmcs_msgs/serial_interface.hpp>
 #include <rmcs_utility/crc/dji_crc.hpp>
 
 #include "referee/command/field.hpp"
@@ -43,7 +43,7 @@ public:
             return;
 
         using namespace std::chrono_literals;
-        auto now     = std::chrono::steady_clock::now();
+        auto now = std::chrono::steady_clock::now();
         auto& serial = const_cast<rmcs_msgs::SerialInterface&>(*serial_);
 
         if (now < next_sent_)
@@ -54,24 +54,24 @@ public:
         if (now >= interaction_next_sent_ && !interaction_field_->empty()) {
             interaction_next_sent_ = now + (one_second / 25); // 25hz max to reduce packet loss
             frame_.body.command_id = 0x0301;
-            data_length            = interaction_field_->write(frame_.body.data);
+            data_length = interaction_field_->write(frame_.body.data);
         } else if (now >= map_marker_next_sent_ && !map_marker_field_->empty()) {
-            map_marker_next_sent_  = now + (one_second / 1);  // 1hz max
+            map_marker_next_sent_ = now + (one_second / 1);   // 1hz max
             frame_.body.command_id = 0x0307;
-            data_length            = map_marker_field_->write(frame_.body.data);
+            data_length = map_marker_field_->write(frame_.body.data);
         } else if (now >= text_display_next_sent_ && !text_display_field_->empty()) {
             text_display_next_sent_ = now + (one_second / 3); // 3hz max
-            frame_.body.command_id  = 0x0308;
-            data_length             = text_display_field_->write(frame_.body.data);
+            frame_.body.command_id = 0x0308;
+            data_length = text_display_field_->write(frame_.body.data);
         } else {
             return;
         }
 
         // TODO(qzh): Assert data length.
 
-        frame_.header.sof         = sof_value;
+        frame_.header.sof = sof_value;
         frame_.header.data_length = data_length;
-        frame_.header.sequence    = 0;
+        frame_.header.sequence = 0;
         rmcs_utility::dji_crc::append_crc8(frame_.header);
 
         auto frame_size =

@@ -2,7 +2,7 @@
 
 export ROS_LOCALHOST_ONLY=1
 
-source /opt/ros/humble/setup.bash
+source /opt/ros/jazzy/setup.bash
 
 if [ -f "/rmcs_install/local_setup.bash" ]; then
     source /rmcs_install/local_setup.bash

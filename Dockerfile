@@ -4,7 +4,7 @@
 
 
 # Base container, provides a runtime environment
-FROM ros:humble AS rmcs-base
+FROM ros:jazzy AS rmcs-base
 
 # Change bash as default shell instead of sh
 SHELL ["/bin/bash", "-c"]
@@ -14,10 +14,11 @@ ENV TZ=Asia/Shanghai \
     DEBIAN_FRONTEND=noninteractive
 
 # Install tools and libraries.
-RUN apt-get update && apt-get -y install \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     vim wget curl unzip \
     zsh screen \
     usbutils net-tools iputils-ping \
+    ripgrep htop fzf \
     libusb-1.0-0-dev \
     libeigen3-dev \
     libopencv-dev \
@@ -26,31 +27,40 @@ RUN apt-get update && apt-get -y install \
     libatlas-base-dev \
     libsuitesparse-dev \
     libceres-dev \
-    ros-humble-rviz2 \
-    && rm -rf /var/lib/apt/lists/*
+    ros-$ROS_DISTRO-rviz2 \
+    ros-$ROS_DISTRO-foxglove-bridge \
+    dotnet-sdk-8.0 \
+    ros-$ROS_DISTRO-pcl-ros ros-$ROS_DISTRO-pcl-conversions ros-$ROS_DISTRO-pcl-msgs && \
+    apt-get autoremove -y && apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/*
 
-# Install openvino 2024.6 runtime
+
+# Install openvino runtime
 RUN wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB && \
     apt-key add ./GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB && \
     rm ./GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB && \
-    echo "deb https://apt.repos.intel.com/openvino/2024 ubuntu22 main" > /etc/apt/sources.list.d/intel-openvino-2024.list && \
+    echo "deb https://apt.repos.intel.com/openvino ubuntu24 main" > /etc/apt/sources.list.d/intel-openvino.list && \
     apt-get update && \
-    apt-get install -y openvino-2024.6.0 && \
-    rm -rf /var/lib/apt/lists/*
+    apt-get install -y --no-install-recommends openvino-2025.2.0 && \
+    apt-get autoremove -y && apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/*
 
 # Install Livox SDK
 RUN git clone https://github.com/Livox-SDK/Livox-SDK2.git && \
-    cd ./Livox-SDK2/ && \
+    cd Livox-SDK2 && \
+    sed -i '6iset(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-pragmas -Wno-c++20-compat -include cstdint")' CMakeLists.txt && \
     mkdir build && cd build && \
-    cmake .. && make -j && \
+    cmake -DCMAKE_BUILD_TYPE=Release .. && \
+    make -j && \
     make install && \
-    cd ../.. && rm -rf ./Livox-SDK2/
+    cd ../.. && rm -rf Livox-SDK2
 
 # Mount rmcs source and install dependencies
-RUN --mount=type=bind,target=/tmp/rmcs_ws/src,source=rmcs_ws/src,readonly \
+RUN --mount=type=bind,target=/rmcs_ws/src,source=rmcs_ws/src,readonly \
     apt-get update && \
-    rosdep install --from-paths /tmp/rmcs_ws/src --ignore-src -r -y && \
-    rm -rf /var/lib/apt/lists/*
+    rosdep install --from-paths /rmcs_ws/src --ignore-src -r -y && \
+    apt-get autoremove -y && apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/*
 
 # Install unison to allow file synchronization
 RUN cd /tmp && \
@@ -65,8 +75,8 @@ RUN cd /tmp && \
 FROM rmcs-base AS rmcs-develop
 
 # Install develop tools
-RUN apt-get update && apt-get -y install \
-    libc6-dev gcc-12 g++-12 \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libc6-dev gcc-14 g++-14 \
     cmake make ninja-build \
     openssh-client \
     lsb-release software-properties-common gnupg sudo \
@@ -74,26 +84,19 @@ RUN apt-get update && apt-get -y install \
     wget -O ./llvm-snapshot.gpg.key https://apt.llvm.org/llvm-snapshot.gpg.key && \
     apt-key add ./llvm-snapshot.gpg.key && \
     rm ./llvm-snapshot.gpg.key && \
-    echo "deb https://apt.llvm.org/jammy/ llvm-toolchain-jammy main" > /etc/apt/sources.list.d/llvm-apt.list && \
+    echo "deb https://apt.llvm.org/noble/ llvm-toolchain-noble main" > /etc/apt/sources.list.d/llvm-apt.list && \
     apt-get update && \
     version=`apt-cache search clangd- | grep clangd- | awk -F' ' '{print $1}' | sort -V | tail -1 | cut -d- -f2` && \
-    apt-get install -y clangd-$version && \
-    update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 50 && \
-    update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-12 50 && \
+    apt-get install -y --no-install-recommends clangd-$version && \
+    update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 50 && \
+    update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-14 50 && \
     update-alternatives --install /usr/bin/clangd clangd /usr/bin/clangd-$version 50 && \
-    rm -rf /var/lib/apt/lists/*
-
-# Add user
-RUN useradd -m developer --shell /bin/zsh && echo "developer:developer" | chpasswd && adduser developer sudo && \
-    echo "developer ALL=(ALL:ALL) NOPASSWD:ALL" >> /etc/sudoers && \
-    gpasswd --add developer dialout
-WORKDIR /home/developer
-ENV USER=developer
-ENV WORKDIR=/home/developer
+    apt-get autoremove -y && apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/*
 
 # Generate/load ssh key and setup unison
-RUN --mount=type=bind,target=/tmp/.ssh,source=.ssh \
-    mkdir -p .ssh && \
+RUN --mount=type=bind,target=/tmp/.ssh,source=.ssh,readonly=false \
+    cd /home/ubuntu && mkdir -p .ssh && \
     if [ ! -f "/tmp/.ssh/id_rsa" ]; then ssh-keygen -N "" -f "/tmp/.ssh/id_rsa"; fi && \
     cp -r /tmp/.ssh/* .ssh && \
     chown -R 1000:1000 .ssh && chmod 600 .ssh/id_rsa && \
@@ -101,12 +104,25 @@ RUN --mount=type=bind,target=/tmp/.ssh,source=.ssh \
     echo 'confirmbigdel = false' >> ".unison/default.prf" && \
     chown -R 1000:1000 .unison
 
-USER developer
+# Install latest neovim
+RUN curl -LO https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.tar.gz && \
+    rm -rf /opt/nvim && \
+    tar -C /opt -xzf nvim-linux-x86_64.tar.gz && \
+    rm nvim-linux-x86_64.tar.gz
+
+# Change user
+RUN chsh -s /bin/zsh ubuntu && \
+    echo "ubuntu ALL=(ALL:ALL) NOPASSWD:ALL" >> /etc/sudoers
+WORKDIR /home/ubuntu
+ENV USER=ubuntu
+ENV WORKDIR=/home/ubuntu
+USER ubuntu
 
 # Install oh my zsh, change theme to af-magic and setup environment of zsh
 RUN sh -c "$(wget https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh -O -)" && \
     sed -i 's/ZSH_THEME=\"[a-z0-9\-]*\"/ZSH_THEME="af-magic"/g' ~/.zshrc && \
     echo 'source ~/env_setup.zsh' >> ~/.zshrc && \
+    echo 'export PATH="${PATH}:/opt/nvim-linux-x86_64/bin"' >> ~/.zshrc && \
     echo 'export PATH=${PATH}:/workspaces/RMCS/.script' >> ~/.zshrc
 
 # Copy environment setup scripts
@@ -120,8 +136,9 @@ FROM rmcs-base AS rmcs-runtime
 
 # Install runtime tools
 RUN apt-get update && \
-    apt-get install -y tini openssh-server avahi-daemon && \
-    rm -rf /var/lib/apt/lists/* && \
+    apt-get install -y --no-install-recommends tini openssh-server avahi-daemon orphan-sysvinit-scripts && \
+    apt-get autoremove -y && apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* && \
     echo 'Port 2022' >> /etc/ssh/sshd_config && \
     echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config && \
     echo 'PasswordAuthentication no' >> /etc/ssh/sshd_config && \
@@ -143,7 +160,7 @@ COPY --chown=root:root .script/template/set-hostname /usr/local/bin/set-hostname
 COPY --chown=root:root .script/template/entrypoint /entrypoint
 COPY --chown=root:root .script/template/rmcs-service /etc/init.d/rmcs
 
-COPY --from=rmcs-develop --chown=root:root /home/developer/.ssh/id_rsa.pub /root/.ssh/authorized_keys
+COPY --from=rmcs-develop --chown=root:root /home/ubuntu/.ssh/id_rsa.pub /root/.ssh/authorized_keys
 
 WORKDIR /root/
 COPY --chown=root:root .script/template/env_setup.bash env_setup.bash
