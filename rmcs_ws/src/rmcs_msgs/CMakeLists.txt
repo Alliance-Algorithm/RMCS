@@ -19,11 +19,6 @@ foreach(MSG ${RMCS_MSGS_MSGS})
   set(MSG_PATH "${MSG_PATH};msg/${MSG_NAME}.msg")
 endforeach()
 
-rosidl_generate_interfaces(${PROJECT_NAME}
-  ${MSG_PATH}
-  DEPENDENCIES builtin_interfaces geometry_msgs
-)
-
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
 ament_auto_package()

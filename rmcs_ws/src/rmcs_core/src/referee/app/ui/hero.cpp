@@ -2,10 +2,10 @@
 #include <cmath>
 #include <cstdint>
 
-#include <game_stage.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/chassis_mode.hpp>
+#include <rmcs_msgs/game_stage.hpp>
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/shoot_mode.hpp>
 
@@ -101,8 +101,8 @@ private:
 
         rangefinder_.update_pitch_angle(-display_angle);
 
-        double raw_height    = -display_angle / 0.7 * static_cast<double>(height_max);
-        raw_height           = std::clamp(raw_height, 0.0, static_cast<double>(height_max));
+        double raw_height = -display_angle / 0.7 * static_cast<double>(height_max);
+        raw_height = std::clamp(raw_height, 0.0, static_cast<double>(height_max));
         uint16_t lift_height = static_cast<uint16_t>(std::round(raw_height));
 
         lift_height = std::clamp(lift_height, height_min, height_max);
@@ -116,7 +116,7 @@ private:
 
     void update_static_status_ring() {
         auto auto_aim_enable = mouse_->right == 1;
-        auto precise_enable  = *shoot_mode_ == rmcs_msgs::ShootMode::PRECISE;
+        auto precise_enable = *shoot_mode_ == rmcs_msgs::ShootMode::PRECISE;
 
         status_ring_.update_static_parts({auto_aim_enable, precise_enable});
     }
