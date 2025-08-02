@@ -39,8 +39,8 @@ sentry_hardware:
     usb_pid_top_board: 0x2c8d
     
     usb_pid_bottom_board: 0x5891
-    yaw_motor_zero_point: 25692
-    pitch_motor_zero_point: 41388
+    yaw_motor_zero_point: 34239
+    pitch_motor_zero_point: 41372
     left_front_zero_point: 6473
     left_back_zero_point: 2373
     right_back_zero_point: 1994
@@ -64,15 +64,19 @@ value_broadcaster:
       - /gimbal/yaw/angle
       - /gimbal/yaw/control_current
       - /gimbal/yaw/velocity
+      - /gimbal/yaw/control_angle
       
  
 yaw_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/yaw/control_angle_error
     control: /gimbal/yaw/control_velocity
-    kp: 40.9708
-    ki: 0.0000014
-    kd: 333.6
+    kp: 20.5478633
+    ki: 0.000261
+    kd: 339.9
+    # kp: 32.6741
+    # ki: 0.0002597
+    # kd: 0.5399
     output_min: -10000000.0
     output_max:  10000000.0
 
@@ -82,9 +86,12 @@ yaw_velocity_pid_controller:
     measurement: /gimbal/yaw/velocity
     setpoint: /gimbal/yaw/control_velocity
     control: /gimbal/yaw/control_current
-    kp: 3.8229
-    ki: 0.0007893
+    kp: 4.3654747
+    ki:  0.0001706
     kd: 0.0
+    # kp: 5.7911
+    # ki:  0.0001706
+    # kd: 0.0646
     output_min: -25.0
     output_max:  25.0
 
@@ -302,14 +309,14 @@ steering_wheel_controller_test:
 power_controller_test:
   ros__parameters:
     wheel_parameters:
-      - 3.0e+00
-      - 1.4e-02
-      - 2.35
+      k1: 3.0e+00
+      k2: 1.4e-02
+      static_power: 2.35
  
     steering_parameters:
-      - 3.0e+00
-      - 1.4e-02
-      - 0.7
+      k1: 3.0e+00
+      k2: 1.4e-02
+      static_power: 0.7
       
     power_ratio: 0.25
 

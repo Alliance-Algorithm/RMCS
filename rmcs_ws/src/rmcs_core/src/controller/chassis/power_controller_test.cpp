@@ -20,18 +20,15 @@ public:
         , steering_parameters_(3.0, 0.014, 0.7)
         , power_ratio_(get_parameter("power_ratio").as_double()) {
 
-        const auto wheel_parameters    = get_parameter("wheel_parameters").as_double_array();
-        const auto steering_parameters = get_parameter("steering_parameters").as_double_array();
+        // wheel_parameters_.k1           = get_parameter("wheel_parameters.k1").as_double();
+        // wheel_parameters_.k2           = get_parameter("wheel_parameters.k2").as_double();
+        // wheel_parameters_.static_power =
+        // get_parameter("wheel_parameters.static_power").as_double();
 
-        // auto following_loop_kp = get_parameter("following_loop.kp").as_double();
-
-        wheel_parameters_.k1           = wheel_parameters[0];
-        wheel_parameters_.k2           = wheel_parameters[1];
-        wheel_parameters_.static_power = wheel_parameters[2];
-
-        steering_parameters_.k1           = steering_parameters[0];
-        steering_parameters_.k2           = steering_parameters[1];
-        steering_parameters_.static_power = steering_parameters[2];
+        // steering_parameters_.k1 = get_parameter("steering_parameters.k1").as_double();
+        // steering_parameters_.k2 = get_parameter("steering_parameters.k2").as_double();
+        // steering_parameters_.static_power =
+        //     get_parameter("steering_parameters.static_power").as_double();
 
         register_input("/chassis/control_power_limit", power_limit_);
         register_input("/chassis/power", chassis_power_);

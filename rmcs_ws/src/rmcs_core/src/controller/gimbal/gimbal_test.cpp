@@ -18,11 +18,11 @@ namespace rmcs_core::controller::gimbal {
 
 using namespace rmcs_description;
 
-class GimbalController
+class GimbalTest
     : public rmcs_executor::Component
     , public rclcpp::Node {
 public:
-    GimbalController()
+    GimbalTest()
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
@@ -49,6 +49,8 @@ public:
 
         register_output("/gimbal/yaw/control_angle_error", yaw_angle_error_, nan);
         register_output("/gimbal/pitch/control_angle_error", pitch_angle_error_, nan);
+
+        last_ = std::chrono::steady_clock::now();
     }
 
     void update() override {
@@ -157,24 +159,39 @@ private:
         dir = fast_tf::cast<PitchLink>(forward, *tf_);
     }
     void update_manual_control_direction(PitchLink::DirectionVector& dir) {
-        if (control_enabled)
+        using namespace rmcs_msgs;
+        using namespace std::chrono_literals;
+
+        if (control_enabled) {
             dir = fast_tf::cast<PitchLink>(control_direction_, *tf_);
-        else {
+
+            now_ = std::chrono::steady_clock::now();
+            if (*switch_left_ == Switch::DOWN && *switch_right_ == Switch::MIDDLE) {
+
+                double rad_angle = std::numbers::pi / 2;
+                Eigen::Matrix3d rotation_matrix;
+                rotation_matrix << std::cos(rad_angle), -std::sin(rad_angle), 0, //
+                    std::sin(rad_angle), std::cos(rad_angle), 0,                 //
+                    0, 0, 1;
+
+                if (now_ - last_ > 2s) {
+                    dir.vector = rotation_matrix * dir.vector;
+                    last_      = std::chrono::steady_clock::now();
+                }
+                // RCLCPP_INFO(
+                //     get_logger(), "(%f,%f.%f)\n", dir.vector.x(), dir.vector.y(),
+                //     dir.vector.z());
+            }
+
+        } else {
             auto odom_dir =
                 fast_tf::cast<OdomImu>(PitchLink::DirectionVector{Eigen::Vector3d::UnitX()}, *tf_);
             if (odom_dir->x() == 0 || odom_dir->y() == 0)
                 return;
             odom_dir->z() = 0;
 
-            // dir              = fast_tf::cast<PitchLink>(odom_dir, *tf_);
-            // double rad_angle = std::numbers::pi / 2;
-            // Eigen::Matrix3d rotation_matrix;
-            // rotation_matrix << std::cos(rad_angle), -std::sin(rad_angle), 0, //
-            //     std::sin(rad_angle), std::cos(rad_angle), 0,                 //
-            //     0, 0, 1;
-            // dir.vector = rotation_matrix * dir.vector;
-
-            // dir->normalize();
+            dir = fast_tf::cast<PitchLink>(odom_dir, *tf_);
+            dir->normalize();
             control_enabled = true;
         }
 
@@ -251,10 +268,13 @@ private:
     InputInterface<rmcs_msgs::GameStage> game_stage_;
     bool auto_controller_flag_;
     InputInterface<Eigen::Vector2d> auto_controller_velocity_;
+
+    std::chrono::time_point<std::chrono::steady_clock> now_;
+    std::chrono::time_point<std::chrono::steady_clock> last_;
 };
 
 } // namespace rmcs_core::controller::gimbal
 
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::gimbal::GimbalController, rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::gimbal::GimbalTest, rmcs_executor::Component)
