@@ -131,7 +131,7 @@ public:
                             if (!*photoelectric_sensor_status_) {
                                 last_preload_flag_ = true;
                                 bullet_feeder_control_angle_ =
-                                    *bullet_feeder_angle_ + bullet_feeder_angle_per_bullet_ * 1.2;
+                                    *bullet_feeder_angle_ + bullet_feeder_angle_per_bullet_ * 1.;
                             } else
                                 *bullet_feeder_control_torque_ = bullet_feeder_velocity_pid_.update(
                                     low_latency_velocity_ - *bullet_feeder_velocity_);
@@ -153,6 +153,8 @@ public:
                             shooted = true;
                         }
 
+                        update_putter_jam_detection();
+
                         if (shooted) {
                             const auto angle_err = putter_startpoint - *putter_angle_;
                             if (angle_err > -0.05) {
@@ -168,6 +170,8 @@ public:
                                 puttter_return_velocity_pid_.update(60. - *putter_velocity_);
                         }
                     }
+                } else {
+                    *bullet_feeder_control_torque_ = 0.;
                 }
 
                 if (shoot_stage_ != ShootStage::SHOOTING)
@@ -199,6 +203,8 @@ private:
         bullet_feeder_velocity_pid_.reset();
         bullet_feeder_angle_pid_.reset();
         *bullet_feeder_control_torque_ = nan_;
+
+        // shoot_stage_ = ShootStage::PRELOADING;
 
         putter_initialized = false;
         putter_startpoint = nan_;
@@ -252,7 +258,9 @@ private:
     }
 
     void update_putter_jam_detection() {
-        if (*putter_control_torque_ > -0.03 || std::isnan(*putter_control_torque_)) {
+        if ((*putter_control_torque_ > -0.03 && shoot_stage_ == ShootStage::PRELOADING)
+            || (*putter_control_torque_ < 0.05 && shoot_stage_ == ShootStage::SHOOTING)
+            || std::isnan(*putter_control_torque_)) {
             putter_faulty_count_ = 0;
             return;
         }
@@ -261,8 +269,12 @@ private:
             ++putter_faulty_count_;
         else {
             putter_faulty_count_ = 0;
-            putter_initialized = true;
-            putter_startpoint = *putter_angle_;
+            if (shoot_stage_ != ShootStage::SHOOTING) {
+                putter_initialized = true;
+                putter_startpoint = *putter_angle_;
+            } else {
+                shooted = true;
+            }
         }
     }
 
@@ -277,7 +289,7 @@ private:
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
     static constexpr double inf_ = std::numeric_limits<double>::infinity();
 
-    static constexpr double low_latency_velocity_ = 1.5;
+    static constexpr double low_latency_velocity_ = 5.0;
 
     static constexpr double putter_stroke_ = 11.5;
 
