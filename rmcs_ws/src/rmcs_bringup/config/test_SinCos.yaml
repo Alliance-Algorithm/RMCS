@@ -1,0 +1,21 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - "rmcs_core::controller::test::SinCosoutputValue -> SinCos_output_Value"
+      - "rmcs_core::controller::test::SinCoscalValue    -> SinCos_cal_Value"
+      - "rmcs_core::broadcaster::ValueBroadcaster       -> Value_Broadcaster"
+
+SinCos_output_Value:
+  ros__parameters: 
+    w: 10.0
+
+SinCos_cal_Value:
+  ros__parameters: {}
+
+Value_Broadcaster:
+  ros__parameters:
+    forward_list:
+      - /sin_wt
+      - /cos_wt
+      - /sum
