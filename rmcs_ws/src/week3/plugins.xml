@@ -1,0 +1,5 @@
+<library path="component">
+  <class type="Component" base_class_type="rmcs_executor::Component">
+    <description>...</description>
+  </class>
+</library>

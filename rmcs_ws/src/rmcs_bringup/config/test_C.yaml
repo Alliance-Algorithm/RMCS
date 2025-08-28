@@ -1,0 +1,40 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::simulator::MotorBackdataBridge -> motor_backdata_bridge
+      - rmcs_core::simulator::MotorControlBridge -> motor_control_bridge
+      - rmcs_core::controller::pid::PidController -> pid
+      - rmcs_core::rmcs_simulator_bridge::executor::ComponentC -> executor
+
+
+
+motor_backdata_bridge:
+  ros__parameters:
+    simulated_motor_angle: /motor/angle
+    simulated_motor_velocity: /motor/velocity
+    simulated_motor_torque: /motor/troque
+
+motor_control_bridge:
+  ros__parameters:
+    simulated_motor_control_torque: /motor/control_torque
+
+executor:
+  ros__parameters:
+    aim_velocity: 60.0
+    output: /motor/control_velocity
+
+pid:
+  ros__parameters:
+    measurement: /motor/velocity
+    setpoint: /motor/control_velocity
+    control: /motor/control_torque
+    kp: 40.0
+    ki: 0.1
+    kd: 0.01
+    integral_min: -10.0                    
+    integral_max: 10.0                     
+    integral_split_min: -5.0               
+    integral_split_max: 5.0                
+    output_min: -100.0                     
+    output_max: 100.0

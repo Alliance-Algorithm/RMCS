@@ -33,4 +33,5 @@ target_link_libraries(${PROJECT_NAME} -lusb-1.0)
 
 pluginlib_export_plugin_description_file(rmcs_executor plugins.xml)
 
+find_package(ament_cmake REQUIRED)
 ament_auto_package()
