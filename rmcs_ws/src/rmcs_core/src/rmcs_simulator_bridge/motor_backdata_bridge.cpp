@@ -21,7 +21,7 @@ public:
                 *simulated_motor_angle_ = msg->x;
                 *simulated_motor_velocity_ = msg->y;
                 *simulated_motor_torque_ = msg->z;
-                RCLCPP_INFO(get_logger(), "%lf", *simulated_motor_velocity_);
+                RCLCPP_INFO(get_logger(), "%lf", *simulated_motor_angle_);
             });
     }
 

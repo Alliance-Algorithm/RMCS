@@ -113,4 +113,7 @@
   <class type="rmcs_core::rmcs_simulator_bridge::executor::ComponentC" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
+  <class type="rmcs_core::rmcs_simulator_bridge::angle_test::ComponentD" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
 </library>
