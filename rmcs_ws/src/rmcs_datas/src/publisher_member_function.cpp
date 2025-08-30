@@ -15,10 +15,12 @@
 #include <chrono>
 #include <functional>
 #include <memory>
+#include <rclcpp/logging.hpp>
+#include <rclcpp/time.hpp>
 #include <string>
 
 #include "rclcpp/rclcpp.hpp"
-#include "std_msgs/msg/string.hpp"
+#include "std_msgs/msg/float64.hpp"
 
 using namespace std::chrono_literals;
 
@@ -29,24 +31,52 @@ class MinimalPublisher : public rclcpp::Node
 {
 public:
   MinimalPublisher()
-  : Node("minimal_publisher"), count_(0)
+  : Node("minimal_publisher")
   {
-    publisher_ = this->create_publisher<std_msgs::msg::String>("topic", 10);
-    timer_ = this->create_wall_timer(
-      500ms, std::bind(&MinimalPublisher::timer_callback, this));
-  }
+    publisher_ = this->create_publisher<std_msgs::msg::Float64>("angle", 10);
+ 
+    timer_=this -> create_wall_timer(500ms,std::bind(&MinimalPublisher::check_input,this));
+        }
+  
+
 
 private:
-  void timer_callback()
-  {
-    auto message = std_msgs::msg::String();
-    message.data = "print: " + std::to_string(count_++);
-    RCLCPP_INFO(this->get_logger(), "Publishing: '%s'", message.data.c_str());
-    publisher_->publish(message);
-  }
+      void check_input(){
+        if(!published_){
+          double input_angle;
+          std::cout<<"请输入一个值：";
+          std::cin>>input_angle;
+
+          auto msg=std_msgs::msg::Float64();
+          msg.data=input_angle;
+          publisher_ ->publish(msg);
+
+
+          RCLCPP_INFO(this ->get_logger(),"已发布：%2f",msg.data);
+
+          published_=true;
+
+
+
+
+
+        }
+
+
+
+
+      }
+
+
+
+
+
+
+
+
+  rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr publisher_;
   rclcpp::TimerBase::SharedPtr timer_;
-  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr publisher_;
-  size_t count_;
+  bool published_=false;
 };
 
 int main(int argc, char * argv[])

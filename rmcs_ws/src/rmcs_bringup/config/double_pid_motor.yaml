@@ -1,0 +1,51 @@
+rmcs_executor:
+  ros__parameters:
+     update_rate: 1000.0
+     components:
+      - "rmcs_core::simulator::MotorBackdataBridge -> Motor_output_Value"
+      - "rmcs_core::simulator::MotorControlBridge -> Motor_input_Value"
+      - "rmcs_core::controller::test::ReceiveAngle -> Publish_dream_Angle"
+      - "rmcs_core::controller::test::Motor_double_controller -> Double_controller_test" 
+      - "rmcs_core::controller::pid::PidController -> Angle_controller"
+      - "rmcs_core::controller::pid::PidController -> Velocity_controller"
+
+
+Motor_output_Value:
+  ros__parameters:
+    simulated_motor_angle: /simulator/output_motor_angle
+    simulated_motor_velocity: /simulator/output_motor_velocity
+    simulated_motor_torque: /simulator/output_motor_torque   
+
+
+Motor_input_Value:
+  ros__parameters:
+    simulated_motor_control_torque: /simulator/control_motor_torque   
+
+
+Publish_dream_Angle:
+  ros__parameters: {}
+
+
+
+Double_controller_test:
+  ros__parameters: {}
+
+
+Angle_controller:
+  ros__parameters:
+    measurement: /simulator/output_motor_angle
+    setpoint: /controller/test/control_angle
+    control: /controller/control_velocity
+    kp: 0.1
+    ki: 0.05
+    kd: 0.0
+
+
+Velocity_controller:
+  ros__parameters:
+    measurement: /simulator/output_motor_velocity
+    setpoint: /controller/control_velocity
+    control: /simulator/control_motor_torque
+    kp: 0.1
+    ki: 0.05
+    kd: 0.005

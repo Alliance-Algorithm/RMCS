@@ -16,7 +16,7 @@
 #include <memory>
 
 #include "rclcpp/rclcpp.hpp"
-#include "std_msgs/msg/string.hpp"
+#include "std_msgs/msg/float64.hpp"
 
 using std::placeholders::_1;
 
@@ -26,16 +26,16 @@ public:
   MinimalSubscriber()
   : Node("minimal_subscriber")
   {
-    subscription_ = this->create_subscription<std_msgs::msg::String>(
-      "topic", 10, std::bind(&MinimalSubscriber::topic_callback, this, _1));
+    subscription_ = this->create_subscription<std_msgs::msg::Float64>(
+      "angle", 10, std::bind(&MinimalSubscriber::topic_callback, this, _1));
   }
 
 private:
-  void topic_callback(const std_msgs::msg::String & msg) const
+  void topic_callback(const std_msgs::msg::Float64 & msg) const
   {
-    RCLCPP_INFO(this->get_logger(), "receive: '%s'", msg.data.c_str());
+    RCLCPP_INFO(this->get_logger(), "收到期望角度: '%.2f'", msg.data);
   }
-  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr subscription_;
+  rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr subscription_;
 };
 
 int main(int argc, char * argv[])
