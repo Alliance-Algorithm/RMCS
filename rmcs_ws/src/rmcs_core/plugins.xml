@@ -119,4 +119,10 @@
   <class type="rmcs_core::controller::test::Motor_double_controller" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
+  <class type="rmcs_core::controller::filter::MakeDatas" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
+  <class type="rmcs_core::controller::filter::DatasProcess" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
 </library>
