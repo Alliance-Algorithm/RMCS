@@ -1,0 +1,23 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::controller::filter::MakeDatas -> Make_datas
+      - rmcs_core::controller::filter::DatasProcess -> Datas_process
+      - rmcs_core::broadcaster::ValueBroadcaster -> Value_Broadcaster
+
+
+Make_datas:
+  ros__parameters: {}
+
+
+Datas_process:
+  ros__parameters: {}
+
+
+Value_Broadcaster:
+  ros__parameters:
+    forward_list:
+      - /controller/filter/real_sample
+      - /processed_lowfilter_data
+      - /processed_medianfilter_data
