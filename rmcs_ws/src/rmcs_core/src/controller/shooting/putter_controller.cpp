@@ -9,6 +9,16 @@
 
 namespace rmcs_core::controller::shooting {
 
+/**
+ * @class PutterController
+ * @brief 推弹机构控制器
+ *
+ * 发射机制说明：
+ * 由于光电门放置于弹舱口，经测试，双中先触发推杆向后复位，然后堵转检测复位完毕，
+ * 默认情况下会给一点点的力保证推杆不会滑下去，再然后上弹采用速度环，在光电门被触发时
+ * 记录角度并转为角度环，然后推杆检测发弹根据两部分来检测，一是摩擦轮，二是推杆的行程
+ * 整套方案以于暑假前完成压力测试
+ */
 class PutterController
     : public rmcs_executor::Component
     , public rclcpp::Node {
@@ -39,6 +49,7 @@ public:
         register_input("/gimbal/putter/velocity", putter_velocity_);
 
         last_preload_flag_ = false;
+
         bullet_feeder_velocity_pid_.kp = 50.0;
         bullet_feeder_velocity_pid_.ki = 10.0;
         bullet_feeder_velocity_pid_.kd = 0.0;
@@ -69,7 +80,6 @@ public:
             "/gimbal/bullet_feeder/control_torque", bullet_feeder_control_torque_, nan_);
         register_output("/gimbal/putter/control_torque", putter_control_torque_, nan_);
 
-        // For compatibility
         register_output("/gimbal/shooter/mode", shoot_mode_, rmcs_msgs::ShootMode::SINGLE);
     }
 
@@ -80,20 +90,25 @@ public:
         const auto keyboard = *keyboard_;
 
         using namespace rmcs_msgs;
+
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
             reset_all_controls();
             return;
         }
 
+        // 推杆已初始化后的正常控制流程
         if (putter_initialized) {
+            // 供弹轮卡弹保护冷却期间的处理
             if (bullet_feeder_cool_down_ > 0) {
                 bullet_feeder_cool_down_--;
 
+                // 冷却期前期：反转供弹轮以解除卡弹
                 if (bullet_feeder_cool_down_ > 500)
                     *bullet_feeder_control_torque_ = bullet_feeder_velocity_pid_.update(
                         -bullet_feeder_angle_per_bullet_ - *bullet_feeder_velocity_);
                 else {
+                    // 冷却期后期：停止控制
                     bullet_feeder_velocity_pid_.reset();
                     *bullet_feeder_control_torque_ = 0.0;
                 }
@@ -103,7 +118,9 @@ public:
                 if (!bullet_feeder_cool_down_)
                     RCLCPP_INFO(get_logger(), "Jamming Solved!");
             } else {
+                // 正常运行模式：摩擦轮就绪时才允许发射
                 if (*friction_ready_) {
+                    // 发射触发检测
                     if (switch_right != Switch::DOWN) {
                         if ((!last_mouse_.left && mouse.left)
                             || (last_switch_left_ == rmcs_msgs::Switch::MIDDLE
@@ -114,8 +131,10 @@ public:
                                 set_shooting();
                         }
                     }
+
                     if (shoot_stage_ == ShootStage::PRELOADING) {
                         if (last_preload_flag_) {
+                            // 角度环控制模式：光电门触发后精确定位
                             const auto angle_err =
                                 bullet_feeder_control_angle_ - *bullet_feeder_angle_;
                             if (angle_err < 0.1) {
@@ -128,6 +147,7 @@ public:
                             *bullet_feeder_control_torque_ =
                                 bullet_feeder_velocity_pid_.update(velocity_err);
                         } else {
+                            // 速度环控制模式：等待光电门触发
                             if (!*photoelectric_sensor_status_) {
                                 last_preload_flag_ = true;
                                 bullet_feeder_control_angle_ =
@@ -138,6 +158,7 @@ public:
                         }
                         update_jam_detection();
                     } else {
+                        // 其他状态：角度环保持角度不变防止弹链退弹
                         double velocity_err =
                             bullet_feeder_angle_pid_.update(
                                 bullet_feeder_control_angle_ - *bullet_feeder_angle_)
@@ -146,8 +167,8 @@ public:
                             bullet_feeder_velocity_pid_.update(velocity_err);
                     }
 
-                    if (shoot_stage_ == ShootStage::PRELOADED) {}
                     if (shoot_stage_ == ShootStage::SHOOTING) {
+                        // 发射状态：检测子弹是否发出
                         if (*bullet_fired_
                             || *putter_angle_ - putter_startpoint >= putter_stroke_) {
                             shooted = true;
@@ -156,6 +177,7 @@ public:
                         update_putter_jam_detection();
 
                         if (shooted) {
+                            // 子弹已发出：推杆复位
                             const auto angle_err = putter_startpoint - *putter_angle_;
                             if (angle_err > -0.05) {
                                 *putter_control_torque_ = 0.;
@@ -166,22 +188,27 @@ public:
                             *putter_control_torque_ =
                                 puttter_return_velocity_pid_.update(-80. - *putter_velocity_);
                         } else {
+                            // 子弹未发出：继续推进
                             *putter_control_torque_ =
                                 puttter_return_velocity_pid_.update(60. - *putter_velocity_);
                         }
                     }
                 } else {
+                    // 摩擦轮未就绪：停止供弹轮
                     *bullet_feeder_control_torque_ = 0.;
                 }
 
+                // 非发射状态：推杆给少许力保持位置
                 if (shoot_stage_ != ShootStage::SHOOTING)
                     *putter_control_torque_ = -0.02;
             }
         } else {
+            // 推杆未初始化：执行复位操作
             *putter_control_torque_ = puttter_return_velocity_pid_.update(-80. - *putter_velocity_);
             update_putter_jam_detection();
         }
-        // 3.387030 -9.177040
+
+        // 保存当前状态用于下次比较
         last_switch_right_ = switch_right;
         last_switch_left_ = switch_left;
         last_mouse_ = mouse;
@@ -199,7 +226,6 @@ private:
 
         bullet_feeder_control_angle_ = nan_;
         bullet_feeder_angle_pid_.output_max = inf_;
-
         bullet_feeder_velocity_pid_.reset();
         bullet_feeder_angle_pid_.reset();
         *bullet_feeder_control_torque_ = nan_;
@@ -209,9 +235,7 @@ private:
         putter_initialized = false;
         putter_startpoint = nan_;
         puttter_return_velocity_pid_.reset();
-
         putter_velocity_pid_.reset();
-
         putter_return_angle_pid.reset();
         *putter_control_torque_ = nan_;
 
@@ -246,6 +270,7 @@ private:
             return;
         }
 
+        // 扭矩持续过大时累计故障计数
         if (bullet_feeder_faulty_count_ < 1000)
             bullet_feeder_faulty_count_++;
         else {
@@ -265,14 +290,17 @@ private:
             return;
         }
 
+        // 扭矩异常时累计故障计数
         if (putter_faulty_count_ < 500)
             ++putter_faulty_count_;
         else {
             putter_faulty_count_ = 0;
             if (shoot_stage_ != ShootStage::SHOOTING) {
+                // 非发射状态下检测到堵转：推杆已到位，设置为已初始化
                 putter_initialized = true;
                 putter_startpoint = *putter_angle_;
             } else {
+                // 发射状态下检测到堵转：认为子弹已发出
                 shooted = true;
             }
         }
@@ -286,66 +314,67 @@ private:
         RCLCPP_INFO(get_logger(), "Jammed!");
     }
 
-    static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
-    static constexpr double inf_ = std::numeric_limits<double>::infinity();
+    static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN(); ///< 非数值常量
+    static constexpr double inf_ = std::numeric_limits<double>::infinity();  ///< 无穷大常量
 
-    static constexpr double low_latency_velocity_ = 5.0;
+    static constexpr double low_latency_velocity_ = 5.0;                     ///< 低延迟预装弹速度
 
-    static constexpr double putter_stroke_ = 11.5;
+    static constexpr double putter_stroke_ = 11.5;                           ///< 推杆行程长度
 
-    static constexpr double max_bullet_feeder_control_torque_ = 0.1;
-    static constexpr double bullet_feeder_angle_per_bullet_ = 2 * std::numbers::pi / 6;
+    static constexpr double max_bullet_feeder_control_torque_ = 0.1;      
+    static constexpr double bullet_feeder_angle_per_bullet_ =
+        2 * std::numbers::pi / 6; 
 
-    InputInterface<bool> photoelectric_sensor_status_;
-    bool last_photoelectric_sensor_status_;
-    InputInterface<bool> bullet_fired_;
-    bool shooted{false};
+    InputInterface<bool> photoelectric_sensor_status_; 
+    bool last_photoelectric_sensor_status_;            
+    InputInterface<bool> bullet_fired_;               
+    bool shooted{false};                            
 
-    InputInterface<bool> friction_ready_;
+    InputInterface<bool> friction_ready_;           
 
-    InputInterface<rmcs_msgs::Switch> switch_right_;
-    InputInterface<rmcs_msgs::Switch> switch_left_;
-    InputInterface<rmcs_msgs::Mouse> mouse_;
-    InputInterface<rmcs_msgs::Keyboard> keyboard_;
+    InputInterface<rmcs_msgs::Switch> switch_right_; 
+    InputInterface<rmcs_msgs::Switch> switch_left_; 
+    InputInterface<rmcs_msgs::Mouse> mouse_;         
+    InputInterface<rmcs_msgs::Keyboard> keyboard_;   
 
     rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Switch last_switch_left_ = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Mouse last_mouse_ = rmcs_msgs::Mouse::zero();
     rmcs_msgs::Keyboard last_keyboard_ = rmcs_msgs::Keyboard::zero();
 
-    bool overdrive_mode_ = false;
+    bool overdrive_mode_ = false; 
 
-    InputInterface<double> bullet_feeder_angle_;
-    InputInterface<double> bullet_feeder_velocity_;
+    InputInterface<double> bullet_feeder_angle_;                      
+    InputInterface<double> bullet_feeder_velocity_;                
 
-    InputInterface<int64_t> control_bullet_allowance_limited_by_heat_;
+    InputInterface<int64_t> control_bullet_allowance_limited_by_heat_; 
 
-    bool last_preload_flag_ = false;
+    bool last_preload_flag_ = false;                                
 
-    bool putter_initialized = false;
-    int putter_faulty_count_ = 0;
-    double putter_startpoint = nan_;
-    pid::PidCalculator puttter_return_velocity_pid_;
-    InputInterface<double> putter_velocity_;
+    bool putter_initialized = false;                 
+    int putter_faulty_count_ = 0;                    
+    double putter_startpoint = nan_;                 
+    pid::PidCalculator puttter_return_velocity_pid_; 
+    InputInterface<double> putter_velocity_;         
 
-    pid::PidCalculator putter_velocity_pid_;
+    pid::PidCalculator putter_velocity_pid_;         
 
-    enum class ShootStage { PRELOADING, PRELOADED, SHOOTING };
-    ShootStage shoot_stage_ = ShootStage::PRELOADING;
-    double bullet_feeder_control_angle_ = nan_;
+    enum class ShootStage { PRELOADING, PRELOADED, SHOOTING }; 
+    ShootStage shoot_stage_ = ShootStage::PRELOADING;          
+    double bullet_feeder_control_angle_ = nan_;               
 
-    pid::PidCalculator bullet_feeder_velocity_pid_;
-    pid::PidCalculator bullet_feeder_angle_pid_;
-    OutputInterface<double> bullet_feeder_control_torque_;
+    pid::PidCalculator bullet_feeder_velocity_pid_;       
+    pid::PidCalculator bullet_feeder_angle_pid_;          
+    OutputInterface<double> bullet_feeder_control_torque_; 
 
-    InputInterface<double> putter_angle_;
-    pid::PidCalculator putter_return_angle_pid;
-    OutputInterface<double> putter_control_torque_;
+    InputInterface<double> putter_angle_;                
+    pid::PidCalculator putter_return_angle_pid;           
+    OutputInterface<double> putter_control_torque_;       
 
-    int bullet_feeder_faulty_count_ = 0;
-    int bullet_feeder_cool_down_ = 0;
+    int bullet_feeder_faulty_count_ = 0;               
+    int bullet_feeder_cool_down_ = 0;                  
 
-    OutputInterface<rmcs_msgs::ShootMode> shoot_mode_;
+    OutputInterface<rmcs_msgs::ShootMode> shoot_mode_; 
 };
 
 } // namespace rmcs_core::controller::shooting
