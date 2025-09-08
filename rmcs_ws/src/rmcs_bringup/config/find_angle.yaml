@@ -11,37 +11,37 @@ rmcs_executor:
 
 motor_backdata_bridge:
   ros__parameters:
-    simulated_motor_angle: angle
-    simulated_motor_velocity: velocity
-    simulated_motor_torque: troque
+    simulated_motor_angle: /motor/angle
+    simulated_motor_velocity: /motor/velocity
+    simulated_motor_torque: /motor/troque
 
 motor_control_bridge:
   ros__parameters:
-    simulated_motor_control_torque: control_torque
+    simulated_motor_control_torque: /motor/control_torque
 
 executor:
   ros__parameters:
-    output: control_angle
+    output: /motor/control_angle
 
 pid_outer:
   ros__parameters:
-    measurement: angle
-    setpoint: control_angle
-    control: control_velocity
-    kp: 6.0  
-    ki: 0.8     
-    kd: 1.2     
+    measurement: /motor/angle
+    setpoint: /motor/control_angle
+    control: /motor/control_velocity
+    kp: 10.0  
+    ki: 0.0005     
+    kd: 0.00002     
     integral_min: -5.0   
     integral_max: 5.0
 
 pid_inner:
   ros__parameters:
-    measurement: velocity
-    setpoint: control_velocity
-    control: control_torque
+    measurement: /motor/velocity
+    setpoint: /motor/control_velocity
+    control: /motor/control_torque
     kp: 20.0    
-    ki: 3.0     
-    kd: 2.0     
+    ki: 0.0005     
+    kd: 0.00002    
 
 
 

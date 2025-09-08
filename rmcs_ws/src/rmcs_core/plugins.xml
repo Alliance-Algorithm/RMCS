@@ -116,4 +116,10 @@
   <class type="rmcs_core::rmcs_simulator_bridge::angle_test::ComponentD" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
+  <class type="rmcs_core::filter_test::signal_publisher::Signal" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
+  <class type="rmcs_core::filter_test::signal_transformer::Transformation" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
 </library>

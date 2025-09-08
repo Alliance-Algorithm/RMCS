@@ -1,0 +1,41 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      - rmcs_core::filter_test::signal_publisher::Signal -> signal_generator
+      - rmcs_core::filter_test::signal_transformer::Transformation -> low_pass_filter
+      - rmcs_core::filter_test::signal_transformer::Transformation -> middle_value_filter
+
+
+# 值广播器配置
+value_broadcaster:
+  ros__parameters:
+    forward_list:
+      - /signal/raw
+      - /signal/noisy
+      - /output/low_signal
+      - /output/middle_signal
+
+# 信号生成器组件配置
+signal_generator:
+  ros__parameters:
+    sin_test: /signal/raw          
+    noisy_sin_test: /signal/noisy
+
+low_pass_filter:
+  ros__parameters:
+    name: low_pass
+    input: /signal/noisy
+    output: /output/low_signal
+    alpha: 0.2
+
+middle_value_filter:
+  ros__parameters:
+    name: middle_value
+    input: /signal/noisy
+    output: /output/middle_signal
+    window_size: 7
+
+
+
