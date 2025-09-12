@@ -9,4 +9,4 @@
 	url = https://github.com/Alliance-Algorithm/ros2-hikcamera.git
 [submodule "rmcs_ws/src/serial"]
 	path = rmcs_ws/src/serial
-	url = git@github.com:Alliance-Algorithm/ros2-serial.git
+	url = https://github.com/Alliance-Algorithm/ros2-serial.git
