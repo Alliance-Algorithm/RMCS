@@ -123,7 +123,7 @@ RUN sh -c "$(wget https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools
     sed -i 's/ZSH_THEME=\"[a-z0-9\-]*\"/ZSH_THEME="af-magic"/g' ~/.zshrc && \
     echo 'source ~/env_setup.zsh' >> ~/.zshrc && \
     echo 'export PATH="${PATH}:/opt/nvim-linux-x86_64/bin"' >> ~/.zshrc && \
-    echo 'export PATH=${PATH}:/workspaces/RMCS/.script' >> ~/.zshrc
+    echo 'export PATH="${PATH}:${RMCS_PATH}/.script"' >> ~/.zshrc
 
 # Copy environment setup scripts
 COPY --chown=1000:1000 .script/template/env_setup.bash env_setup.bash
