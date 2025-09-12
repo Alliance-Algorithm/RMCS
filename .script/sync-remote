@@ -8,7 +8,8 @@ import subprocess
 from colorama import Fore, Style
 
 
-SRC_DIR = "/workspaces/RMCS/rmcs_ws/install"
+RMCS_PATH = os.getenv("RMCS_PATH") or "/workspaces/RMCS"
+SRC_DIR = os.path.join(RMCS_PATH, "rmcs_ws", "install")
 DST_DIR = "ssh://remote//rmcs_install"
 SOCKET_PATH = "/tmp/sync-remote"
 
