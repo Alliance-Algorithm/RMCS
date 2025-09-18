@@ -2,7 +2,7 @@ rmcs_executor:
   ros__parameters:
     update_rate: 1000.0
     components:
-      - rmcs_core::hardware::class ShooterTest -> shooter_test_hardware
+      - rmcs_core::hardware::ShooterTest -> shooter_test_hardware
 
       - rmcs_core::controller::gimbal::ShootingTester -> shooting_controller
   
