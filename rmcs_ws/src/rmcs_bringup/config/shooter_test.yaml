@@ -15,6 +15,13 @@ rmcs_executor:
       # - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
       # - rmcs_auto_aim::AutoAimController -> auto_aim_controller
 
+
+value_broadcaster:
+  ros__parameters:
+    forward_list:
+      - /gimbal/right_friction/control_velocity
+      - /gimbal/left_friction/control_velocity
+
 shooter_test_hardware:
   ros__parameters:
     usb_pid: -1
