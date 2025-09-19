@@ -99,9 +99,6 @@ public:
     }
 
     void before_updating() override {
-
-
-        
     }
 
     void update() override {
@@ -228,45 +225,45 @@ private:
         return is_42mm_ ? rmcs_msgs::ShootMode::AUTOMATIC : rmcs_msgs::ShootMode::SINGLE;
     }
 
-    void update_muzzle_heat() {
-        shooter_heat_ -= *shooter_cooling_;
-        if (shooter_heat_ < 0)
-            shooter_heat_ = 0;
+    // void update_muzzle_heat() {
+    //     shooter_heat_ -= *shooter_cooling_;
+    //     if (shooter_heat_ < 0)
+    //         shooter_heat_ = 0;
 
-        int64_t heat_per_shot = (is_42mm_ ? 100'000 : 10'000);
-        int64_t reserved_heat = (is_42mm_ ? 0 : 10'000);
+    //     int64_t heat_per_shot = (is_42mm_ ? 100'000 : 10'000);
+    //     int64_t reserved_heat = (is_42mm_ ? 0 : 10'000);
 
-        // The first friction wheel in the list is considered the primary one, meaning we only
-        // monitor the speed drop of this wheel to detect whether a bullet has been fired.
-        if (friction_enabled_ && !std::isnan(last_primary_friction_velocity_)) {
-            double differential = *friction_velocities_[0] - last_primary_friction_velocity_;
-            if (differential < 0.1)
-                primary_friction_velocity_decrease_integral_ += differential;
-            else {
-                if (primary_friction_velocity_decrease_integral_ < -14.0
-                    && last_primary_friction_velocity_ < friction_working_velocities_[0] - 20.0) {
-                    // Heat with 1/1000 tex
-                    shooter_heat_ += heat_per_shot + 10;
+    //     // The first friction wheel in the list is considered the primary one, meaning we only
+    //     // monitor the speed drop of this wheel to detect whether a bullet has been fired.
+    //     if (friction_enabled_ && !std::isnan(last_primary_friction_velocity_)) {
+    //         double differential = *friction_velocities_[0] - last_primary_friction_velocity_;
+    //         if (differential < 0.1)
+    //             primary_friction_velocity_decrease_integral_ += differential;
+    //         else {
+    //             if (primary_friction_velocity_decrease_integral_ < -14.0
+    //                 && last_primary_friction_velocity_ < friction_working_velocities_[0] - 20.0) {
+    //                 // Heat with 1/1000 tex
+    //                 shooter_heat_ += heat_per_shot + 10;
 
-                    // Decrease single-shot bullet allowance
-                    --bullet_count_limited_by_single_shot_;
-                    single_shot_delayed_stop_counter_ = 0;
+    //                 // Decrease single-shot bullet allowance
+    //                 --bullet_count_limited_by_single_shot_;
+    //                 single_shot_delayed_stop_counter_ = 0;
 
-                    shoot_status_->fired_count++;
+    //                 shoot_status_->fired_count++;
 
-                    bullet_feeder_last_shoot_angle_ = *bullet_feeder_multi_turn_angle_;
-                }
-                primary_friction_velocity_decrease_integral_ = 0;
-            }
-        }
+    //                 bullet_feeder_last_shoot_angle_ = *bullet_feeder_multi_turn_angle_;
+    //             }
+    //             primary_friction_velocity_decrease_integral_ = 0;
+    //         }
+    //     }
 
-        last_primary_friction_velocity_ = *friction_velocities_[0];
+    //     last_primary_friction_velocity_ = *friction_velocities_[0];
 
-        bullet_count_limited_by_shooter_heat_ =
-            (*shooter_heat_limit_ - shooter_heat_ - reserved_heat) / heat_per_shot;
-        if (bullet_count_limited_by_shooter_heat_ < 0)
-            bullet_count_limited_by_shooter_heat_ = 0;
-    }
+    //     bullet_count_limited_by_shooter_heat_ =
+    //         (*shooter_heat_limit_ - shooter_heat_ - reserved_heat) / heat_per_shot;
+    //     if (bullet_count_limited_by_shooter_heat_ < 0)
+    //         bullet_count_limited_by_shooter_heat_ = 0;
+    // }
 
     void update_friction_velocities() {
         if (std::isnan(friction_control_velocity_percentage_)) {
@@ -395,10 +392,10 @@ private:
     rmcs_msgs::Keyboard last_keyboard_   = rmcs_msgs::Keyboard::zero();
 
     std::unique_ptr<InputInterface<double>[]> friction_velocities_;
-    double last_primary_friction_velocity_              = nan_;
-    double primary_friction_velocity_decrease_integral_ = 0;
+    // double last_primary_friction_velocity_              = nan_;
+    // double primary_friction_velocity_decrease_integral_ = 0;
 
-    InputInterface<int64_t> shooter_cooling_, shooter_heat_limit_;
+    // InputInterface<int64_t> shooter_cooling_, shooter_heat_limit_;
     int64_t shooter_heat_                         = 0;
     int64_t bullet_count_limited_by_shooter_heat_ = 0;
     int64_t bullet_count_limited_by_single_shot_  = -1;

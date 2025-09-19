@@ -4,7 +4,7 @@ rmcs_executor:
     components:
       - rmcs_core::hardware::ShooterTest -> shooter_test_hardware
 
-      - rmcs_core::controller::gimbal::ShootingTester -> shooting_controller
+      - rmcs_core::controller::gimbal::ShooterTest -> shooting_controller
   
       - rmcs_core::controller::pid::PidController -> left_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> right_friction_velocity_pid_controller

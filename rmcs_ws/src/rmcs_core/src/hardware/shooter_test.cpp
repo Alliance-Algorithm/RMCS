@@ -39,15 +39,15 @@ public:
 
         using namespace rmcs_description;
 
-        register_output("/referee/serial", referee_serial_);
-        referee_serial_->read = [this](std::byte* buffer, size_t size) {
-            return referee_ring_buffer_receive_.pop_front_multi(
-                [&buffer](std::byte byte) { *buffer++ = byte; }, size);
-        };
-        referee_serial_->write = [this](const std::byte* buffer, size_t size) {
-            transmit_buffer_.add_uart1_transmission(buffer, size);
-            return size;
-        };
+        // register_output("/referee/serial", referee_serial_);
+        // referee_serial_->read = [this](std::byte* buffer, size_t size) {
+        //     return referee_ring_buffer_receive_.pop_front_multi(
+        //         [&buffer](std::byte byte) { *buffer++ = byte; }, size);
+        // };
+        // referee_serial_->write = [this](const std::byte* buffer, size_t size) {
+        //     transmit_buffer_.add_uart1_transmission(buffer, size);
+        //     return size;
+        // };
 
     }
 
@@ -64,18 +64,6 @@ public:
 
     void command_update() {
         uint16_t can_commands[4];
-
-        can_commands[0] = 0;
-        can_commands[1] = 0;
-        can_commands[2] = 0;
-        can_commands[3] = 0;
-        transmit_buffer_.add_can1_transmission(0x1FE, std::bit_cast<uint64_t>(can_commands));
-
-        can_commands[0] = 0;
-        can_commands[1] = 0;
-        can_commands[2] = 0;
-        can_commands[3] = 0;
-        transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(can_commands));
 
         can_commands[0] = 0;
         can_commands[1] = gimbal_bullet_feeder_.generate_command();
@@ -176,10 +164,10 @@ protected:
         }
     }
 
-    void uart1_receive_callback(const std::byte* uart_data, uint8_t uart_data_length) override {
-        referee_ring_buffer_receive_.emplace_back_multi(
-            [&uart_data](std::byte* storage) { *storage = *uart_data++; }, uart_data_length);
-    }
+    // void uart1_receive_callback(const std::byte* uart_data, uint8_t uart_data_length) override {
+    //     referee_ring_buffer_receive_.emplace_back_multi(
+    //         [&uart_data](std::byte* storage) { *storage = *uart_data++; }, uart_data_length);
+    // }
 
     void dbus_receive_callback(const std::byte* uart_data, uint8_t uart_data_length) override {
         dr16_.store_status(uart_data, uart_data_length);
