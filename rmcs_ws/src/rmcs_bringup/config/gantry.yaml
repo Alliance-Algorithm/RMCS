@@ -1,0 +1,54 @@
+rmcs_executor:
+  ros__parameters:
+     update_rate: 1000.0
+     components:
+      - "rmcs_core::hardware::Gantry -> gantry_hardware"
+      - "rmcs_core::controller::test::GantryController -> gantry_controller"
+      - "rmcs_core::controller::test::GantryStateController -> gantry_state_controller"
+      - "rmcs_core::broadcaster::ValueBroadcaster -> Value_Broadcaster"
+
+gantry_hardware:
+  ros__parameters:
+      usb_pid_bottom_board: -1
+
+gantry_controller:
+  ros__parameters: {}
+
+
+gantry_state_controller:
+  ros__parameters:
+    kp1: 2.014
+    ki1: 0.016341675
+    kd1: 0.012
+    kp2: 0.8
+    ki2: 0.005
+    kd2: 0.012
+    integral_min1: -1000.0
+    integral_max1:  1000.0
+    integral_split_min1: -120.0
+    integral_split_max1:  120.0
+    output_min1: -100.0
+    output_max1: 100.0
+    integral_min2: -1000.0
+    integral_max2: 1000.0
+    integral_split_min2: -100.0
+    integral_split_max2: 100.0 
+    output_min2: -100.0
+    output_max2:  100.0
+
+    
+Value_Broadcaster:
+  ros__parameters:
+    forward_list:
+      - /gantry/left_motor/angle
+      - /gantry/right_motor/angle
+      - /gantry/left_motor/velocity
+      - /gantry/right_motor/velocity
+      - /gantry/left_motor/filtered_velocity
+      - /gantry/right_motor/filtered_velocity
+      - /gantry/left_motor/torque
+      - /gantry/right_motor/torque
+      - /gantry/left_motor/control_torque
+      - /gantry/control_angle
+      - /gantry/left_motor/filtered_velocity
+      
