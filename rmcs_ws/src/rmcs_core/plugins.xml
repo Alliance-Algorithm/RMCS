@@ -125,4 +125,22 @@
   <class type="rmcs_core::controller::filter::DatasProcess" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
+  <class type="rmcs_core::controller::test::TestChassisController" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
+  <class type="rmcs_core::controller::test::TestOmniWheelController" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
+  <class type = "rmcs_core::hardware::Classis" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
+  <class type = "rmcs_core::hardware::Gantry" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
+  <class type = "rmcs_core::controller::test::GantryController" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
+  <class type = "rmcs_core::controller::test::GantryStateController" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
 </library>

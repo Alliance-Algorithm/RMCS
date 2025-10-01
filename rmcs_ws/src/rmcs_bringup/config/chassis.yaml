@@ -1,0 +1,21 @@
+rmcs_executor:
+  ros__parameters:
+     update_rate: 1000.0
+     components:
+      - "rmcs_core::hardware::Chassis -> chassis_hardware"
+      - "rmcs_core::controller::test::TestChassisController -> wheel_controller"
+      - "rmcs_core::controller::test::TestOmniWheelController -> Omniwheel_controller"
+
+
+chassis_hardware:
+  ros__parameters:
+    usb_pid_bottom_board: -1
+
+wheel_controller:
+  ros__parameters:
+    {}
+
+Omniwheel_controller:
+  ros__parameters:
+    {}
+    
