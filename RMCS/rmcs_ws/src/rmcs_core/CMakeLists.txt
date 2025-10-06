@@ -18,6 +18,9 @@ file (GLOB_RECURSE PROJECT_SOURCE CONFIGURE_DEPENDS
   ${PROJECT_SOURCE_DIR}/src/*.c
 )
 
+find_package( OpenCV REQUIRED )
+include_directories( ${OpenCV_INCLUDE_DIRS} )
+
 ament_auto_add_library (
   ${PROJECT_NAME} SHARED
   ${PROJECT_SOURCE}

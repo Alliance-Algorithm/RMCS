@@ -122,4 +122,10 @@
   <class type="rmcs_core::filter_test::signal_transformer::Transformation" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
+  <class type="rmcs_core::armor_camera::ArmorCameraController" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
+  <class type="rmcs_core::detect::ArmorDetection" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
 </library>

@@ -1,0 +1,30 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::armor_camera::ArmorCameraController -> armor_camera_controller
+
+armor_camera_controller:
+  ros__parameters:
+    invert_image: false          # 是否翻转图像
+    exposure_time: 3200         # 曝光时间（微秒）
+    gain: 0.60                   # 增益值
+
+    # BGR颜色阈值
+    # 红色下限
+    R_B_L: 60
+    R_G_L: 50
+    R_R_L: 100
+    # 红色上限：
+    R_B_U: 120
+    R_G_U: 200
+    R_R_U: 255
+
+    # 蓝色下限
+    B_B_L: 150
+    B_G_L: 150 
+    B_R_L: 0
+    # 蓝色上限
+    B_B_U: 255 
+    B_G_U: 255
+    B_R_U: 100 

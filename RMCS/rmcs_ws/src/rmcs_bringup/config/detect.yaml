@@ -1,0 +1,43 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::detect::ArmorDetection -> armor_detection
+
+armor_detection:
+  ros__parameters:
+    invert_image: false          # 是否翻转图像
+    exposure_time: 5000         # 曝光时间（微秒）
+    gain: 1.0                   # 增益值
+
+    # 红色范围1 (HSV)
+    red1_L_H: 0.0                 # 色相下限
+    red1_L_S: 80.0                # 饱和度下限
+    red1_L_V: 50.0                # 亮度下限
+    red1_U_H: 15.0                # 色相上限
+    red1_U_S: 255.0               # 饱和度上限
+    red1_U_V: 255.0               # 亮度上限
+
+    # 红色范围2 (HSV - 红色在色相环两端)
+    red2_L_H: 160.0               # 色相下限
+    red2_L_S: 80.0                # 饱和度下限
+    red2_L_V: 50.0                # 亮度下限
+    red2_U_H: 180.0               # 色相上限
+    red2_U_S: 255.0               # 饱和度上限
+    red2_U_V: 255.0               # 亮度上限
+
+    # 蓝色范围 (HSV)
+    blue_L_H: 90.0                # 色相下限
+    blue_L_S: 80.0                # 饱和度下限
+    blue_L_V: 40.0                # 亮度下限
+    blue_U_H: 140.0               # 色相上限
+    blue_U_S: 255.0               # 饱和度上限
+    blue_U_V: 255.0               # 亮度上限
+
+    # 白色范围 (可选，用于光晕检测)
+    white_L_H: 0.0                # 色相下限
+    white_L_S: 0.0                # 饱和度下限
+    white_L_V: 100.0              # 亮度下限
+    white_U_H: 180.0              # 色相上限
+    white_U_S: 50.0               # 饱和度上限
+    white_U_V: 255.0              # 亮度上限
