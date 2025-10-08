@@ -122,7 +122,7 @@ public:
 
                 const auto default_mode     = default_shoot_mode();
                 const auto alternative_mode = alternative_shoot_mode();
-                if (keyboard.f)
+                if (keyboard.f || switch_right == Switch::UP)
                     shoot_mode = alternative_mode;
                 else if (shoot_mode == alternative_mode)
                     shoot_mode = default_mode;
