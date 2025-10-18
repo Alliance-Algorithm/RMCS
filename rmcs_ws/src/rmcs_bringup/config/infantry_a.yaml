@@ -48,7 +48,7 @@ tunnel_infantry_hardware:
   ros__parameters:
     usb_pid: -1
     yaw_motor_zero_point: 43417
-    pitch_motor_zero_point: 47527
+    pitch_motor_zero_point: 52997
     imu_gx_bias: +0.001294
     imu_gy_bias: -0.000584
     imu_gz_bias: +0.000445 # Updated at 30th July 21:28
