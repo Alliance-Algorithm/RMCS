@@ -4,11 +4,17 @@ rmcs_executor:
     components:
       - rmcs_core::controller::communication::InputTest -> input
       - rmcs_core::controller::communication::OutputTest -> output
+      - rmcs_core::broadcaster::ValueBroadcaster -> broadcaster
 
 input:
   ros__parameters:
-    name: /communication_input
+    name: /communication/oumiga
 output:
   ros__parameters:
-    name: /communication_output
-    value: 10.0
+    name: /communication/oumiga
+    oumiga: 10.0
+
+broadcaster:
+  ros__parameters:
+    forward_list:
+      - /communication/oumiga
