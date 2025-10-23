@@ -1,6 +1,7 @@
 // 秉持最小引入的原则，尽量不要使用 <rclcpp/rclcpp.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
+#include <cmath>
 
 namespace rmcs_core::controller::communication {
 
@@ -12,18 +13,24 @@ class OutputTest
 public:
     OutputTest()
         : Node(get_component_name(),rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)){
-        register_output(get_parameter("name").as_string(), value_);
-        input_ = get_parameter("value").as_double();
+        register_output(get_parameter("name_sin").as_string(), value_sin);
+        register_output(get_parameter("name_cos").as_string(), value_cos);
+        w = get_parameter("w").as_double();
     }
 
     void update() override {
-        *value_ = input_;
+        sum += 0.001*w;
+        *value_sin = sin(sum);
+        *value_cos = cos(sum);
+
     }
 
 private:
-    OutputInterface<double> value_;
+    OutputInterface<double> value_sin;
+    OutputInterface<double> value_cos;
     
-    double input_;
+    double w;
+    double sum;
 };
 
 } // namespace rmcs

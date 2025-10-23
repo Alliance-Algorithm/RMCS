@@ -8,13 +8,18 @@ rmcs_executor:
 
 input:
   ros__parameters:
-    name: /communication/oumiga
+    name_sin: /communication/value_sin
+    name_cos: /communication/value_cos
+    name_sum: /communication/value_sum
 output:
   ros__parameters:
-    name: /communication/oumiga
-    oumiga: 10.0
+    name_sin: /communication/value_sin
+    name_cos: /communication/value_cos
+    w: 6.283185307179586  # 0.2 * pi
 
 broadcaster:
   ros__parameters:
     forward_list:
-      - /communication/oumiga
+      - /communication/value_sin
+      - /communication/value_cos
+      - /communication/value_sum
