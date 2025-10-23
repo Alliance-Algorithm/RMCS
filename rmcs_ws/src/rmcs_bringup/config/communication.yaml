@@ -1,0 +1,14 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::controller::communication::InputTest -> input
+      - rmcs_core::controller::communication::OutputTest -> output
+
+input:
+  ros__parameters:
+    name: /communication_input
+output:
+  ros__parameters:
+    name: /communication_output
+    value: 10.0
