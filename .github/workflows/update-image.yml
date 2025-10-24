@@ -27,11 +27,10 @@ jobs:
 
     - name: Set up SSH keys
       run: |
-        mkdir -p ~/.ssh
-        echo "${{ secrets.CONTAINER_ID_RSA }}" > ~/.ssh/id_rsa
-        echo "${{ secrets.CONTAINER_ID_RSA_PUB }}" > ~/.ssh/id_rsa.pub
-        chmod 600 ~/.ssh/id_rsa
-        chmod 644 ~/.ssh/id_rsa.pub
+        echo "${{ secrets.CONTAINER_ID_RSA }}" > .ssh/id_rsa
+        echo "${{ secrets.CONTAINER_ID_RSA_PUB }}" > .ssh/id_rsa.pub
+        chmod 600 .ssh/id_rsa
+        chmod 644 .ssh/id_rsa.pub
 
     - name: Build and push rmcs-develop:latest
       uses: docker/build-push-action@v6
