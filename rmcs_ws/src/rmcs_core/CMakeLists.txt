@@ -11,6 +11,8 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 find_package (ament_cmake_auto REQUIRED)
+
+
 ament_auto_find_build_dependencies ()
 
 file (GLOB_RECURSE PROJECT_SOURCE CONFIGURE_DEPENDS
@@ -29,7 +31,8 @@ include_directories(${PROJECT_SOURCE_DIR}/librmcs)
 
 include_directories(SYSTEM "/usr/include/libusb-1.0")
 
-target_link_libraries(${PROJECT_NAME} -lusb-1.0)
+target_link_libraries(${PROJECT_NAME} -lusb-1.0 atomic)
+
 
 pluginlib_export_plugin_description_file(rmcs_executor plugins.xml)
 

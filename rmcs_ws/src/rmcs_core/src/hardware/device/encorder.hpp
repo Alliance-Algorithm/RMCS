@@ -11,7 +11,6 @@
 #include <rclcpp/logging.hpp>
 #include <rmcs_executor/component.hpp>
 
-#include "hardware/endian_promise.hpp"
 
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>

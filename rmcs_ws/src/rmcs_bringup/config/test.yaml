@@ -1,0 +1,16 @@
+rmcs_executor:
+  ros__parameters:
+     update_rate: 1000.0
+     components:
+      - "rmcs_core::hardware::Test -> test_hardware"
+      - "rmcs_core::broadcaster::ValueBroadcaster -> Value_Broadcaster"
+
+test_hardware:
+  ros__parameters:
+      usb_pid_bottom_board: -1
+
+Value_Broadcaster:
+  ros__parameters:
+    Value_Broadcaster/forward_list:
+      - /test/distance
+
