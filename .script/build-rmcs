@@ -4,4 +4,4 @@ source /opt/ros/jazzy/setup.bash
 
 cd ${RMCS_PATH}/rmcs_ws
 
-colcon build --symlink-install --merge-install
+colcon build --symlink-install --merge-install $@

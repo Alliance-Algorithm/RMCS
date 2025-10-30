@@ -1,5 +1,6 @@
 #!/bin/bash
 
+export RCUTILS_COLORIZED_OUTPUT=1
 export ROS_LOCALHOST_ONLY=1
 export RMCS_PATH="/workspaces/RMCS"
 

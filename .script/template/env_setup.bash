@@ -1,6 +1,7 @@
 #!/bin/bash
 
 export ROS_LOCALHOST_ONLY=1
+export RCUTILS_COLORIZED_OUTPUT=1
 export RMCS_PATH="/workspaces/RMCS"
 
 source /opt/ros/jazzy/setup.bash
