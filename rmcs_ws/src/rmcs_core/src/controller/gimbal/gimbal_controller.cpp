@@ -1,5 +1,4 @@
 #include <cmath>
-
 #include <limits>
 
 #include <eigen3/Eigen/Dense>
@@ -12,6 +11,10 @@
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/shoot_mode.hpp>
 #include <rmcs_msgs/switch.hpp>
+#include <builtin_interfaces/msg/time.hpp>  
+#include <geometry_msgs/msg/transform.hpp>
+#include <geometry_msgs/msg/transform_stamped.hpp>
+#include <std_msgs/msg/header.hpp>
 
 namespace rmcs_core::controller::gimbal {
 
@@ -50,11 +53,19 @@ public:
         register_output(
             "/gimbal/yaw/motor_status", yaw_motor_status_, rmcs_msgs::LkmotorStatus::UNKNOWN);
 
-
+        camera_to_gimbal_publisher_ = this->create_publisher<geometry_msgs::msg::TransformStamped>(
+            "/gimbal/camera_to_gimbal_transform", rclcpp::QoS(10));
+            
+        gimbal_to_muzzle_publisher_ = this->create_publisher<geometry_msgs::msg::TransformStamped>(
+            "/gimbal/gimbal_to_muzzle_transform", rclcpp::QoS(10));
+            
+        timestamp_publisher_ = this->create_publisher<builtin_interfaces::msg::Time>(
+            "/gimbal/timestamp", rclcpp::QoS(10));
     }
     
-
     void update() override {
+        publish_sync_data();
+        
         update_yaw_axis();
         update_pitch_lk_motors_status();
         update_yaw_lk_motors_status();
@@ -90,6 +101,105 @@ public:
     }
 
 private:
+    void publish_sync_data() {
+        auto now = this->now();
+        
+        auto timestamp_msg = builtin_interfaces::msg::Time();
+        timestamp_msg.sec = static_cast<int32_t>(now.seconds());
+        timestamp_msg.nanosec = now.nanoseconds() % 1000000000;
+        timestamp_publisher_->publish(timestamp_msg);
+        
+        try {
+            auto camera_origin = CameraLink::Position{Eigen::Vector3d::Zero()};
+            auto camera_origin_in_gimbal = fast_tf::cast<GimbalCenterLink>(camera_origin, *tf_);
+            
+            auto camera_x_axis = CameraLink::DirectionVector{Eigen::Vector3d::UnitX()};
+            auto camera_x_in_gimbal = fast_tf::cast<GimbalCenterLink>(camera_x_axis, *tf_);
+            
+            auto camera_y_axis = CameraLink::DirectionVector{Eigen::Vector3d::UnitY()};
+            auto camera_y_in_gimbal = fast_tf::cast<GimbalCenterLink>(camera_y_axis, *tf_);
+            
+            auto camera_z_axis = CameraLink::DirectionVector{Eigen::Vector3d::UnitZ()};
+            auto camera_z_in_gimbal = fast_tf::cast<GimbalCenterLink>(camera_z_axis, *tf_);
+            
+            Eigen::Isometry3d camera_to_gimbal = Eigen::Isometry3d::Identity();
+            camera_to_gimbal.translation() = *camera_origin_in_gimbal;
+            
+            Eigen::Matrix3d rotation;
+            rotation.col(0) = *camera_x_in_gimbal;
+            rotation.col(1) = *camera_y_in_gimbal;
+            rotation.col(2) = *camera_z_in_gimbal;
+            camera_to_gimbal.linear() = rotation;
+            
+            auto transform_msg = eigen_to_transform_stamped_msg(
+                camera_to_gimbal, "gimbal_center_link", "camera_link", now);
+            camera_to_gimbal_publisher_->publish(transform_msg);
+            
+        } catch (const std::exception& e) {
+            static size_t error_count = 0;
+            error_count++;
+            if (error_count % 100 == 0){
+            RCLCPP_WARN(this->get_logger(), "Failed to publish camera to gimbal transform: %s", e.what());
+            }
+        }
+        
+        try {
+            auto gimbal_origin = GimbalCenterLink::Position{Eigen::Vector3d::Zero()};
+            auto gimbal_origin_in_muzzle = fast_tf::cast<MuzzleLink>(gimbal_origin, *tf_);
+            
+            auto gimbal_x_axis = GimbalCenterLink::DirectionVector{Eigen::Vector3d::UnitX()};
+            auto gimbal_x_in_muzzle = fast_tf::cast<MuzzleLink>(gimbal_x_axis, *tf_);
+            
+            auto gimbal_y_axis = GimbalCenterLink::DirectionVector{Eigen::Vector3d::UnitY()};
+            auto gimbal_y_in_muzzle = fast_tf::cast<MuzzleLink>(gimbal_y_axis, *tf_);
+            
+            auto gimbal_z_axis = GimbalCenterLink::DirectionVector{Eigen::Vector3d::UnitZ()};
+            auto gimbal_z_in_muzzle = fast_tf::cast<MuzzleLink>(gimbal_z_axis, *tf_);
+            
+            Eigen::Isometry3d gimbal_to_muzzle = Eigen::Isometry3d::Identity();
+            gimbal_to_muzzle.translation() = *gimbal_origin_in_muzzle;
+            
+            Eigen::Matrix3d rotation;
+            rotation.col(0) = *gimbal_x_in_muzzle;
+            rotation.col(1) = *gimbal_y_in_muzzle;
+            rotation.col(2) = *gimbal_z_in_muzzle;
+            gimbal_to_muzzle.linear() = rotation;
+            
+            auto transform_msg = eigen_to_transform_stamped_msg(
+                gimbal_to_muzzle, "muzzle_link", "gimbal_center_link", now);
+            gimbal_to_muzzle_publisher_->publish(transform_msg);
+            
+        } catch (const std::exception& e) {
+            RCLCPP_WARN(this->get_logger(), "Failed to publish gimbal to muzzle transform: %s", e.what());
+        }
+    }
+    
+    static geometry_msgs::msg::TransformStamped eigen_to_transform_stamped_msg(
+        const Eigen::Isometry3d& transform, 
+        const std::string& child_frame_id,
+        const std::string& frame_id,
+        const rclcpp::Time& stamp) {
+        
+        geometry_msgs::msg::TransformStamped msg;
+        
+        msg.header.stamp.sec = static_cast<int32_t>(stamp.seconds());
+        msg.header.stamp.nanosec = stamp.nanoseconds() % 1000000000;
+        msg.header.frame_id = frame_id;
+        msg.child_frame_id = child_frame_id;
+        
+        msg.transform.translation.x = transform.translation().x();
+        msg.transform.translation.y = transform.translation().y();
+        msg.transform.translation.z = transform.translation().z();
+        
+        Eigen::Quaterniond quat(transform.linear());
+        msg.transform.rotation.x = quat.x();
+        msg.transform.rotation.y = quat.y();
+        msg.transform.rotation.z = quat.z();
+        msg.transform.rotation.w = quat.w();
+        
+        return msg;
+    }
+
     void update_yaw_axis() {
         auto yaw_axis =
             fast_tf::cast<PitchLink>(YawLink::DirectionVector{Eigen::Vector3d::UnitZ()}, *tf_);
@@ -202,7 +312,6 @@ private:
         yaw_last_is_enable_ = is_enable_;
     }
 
-
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
     InputInterface<Eigen::Vector2d> joystick_left_;
@@ -231,6 +340,10 @@ private:
     bool is_enable_      = false;
     bool pitch_last_is_enable_ = false;
     bool yaw_last_is_enable_ = false;
+
+    rclcpp::Publisher<geometry_msgs::msg::TransformStamped>::SharedPtr camera_to_gimbal_publisher_;
+    rclcpp::Publisher<geometry_msgs::msg::TransformStamped>::SharedPtr gimbal_to_muzzle_publisher_;
+    rclcpp::Publisher<builtin_interfaces::msg::Time>::SharedPtr timestamp_publisher_;
 
 };
 
