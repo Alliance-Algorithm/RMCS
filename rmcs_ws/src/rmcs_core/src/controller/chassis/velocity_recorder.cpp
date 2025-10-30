@@ -1,7 +1,7 @@
 #include <fmt/format.h>
 #include <fstream>
 
-#include <chassis_mode.hpp>
+#include <rmcs_msgs/chassis_mode.hpp>
 #include <rclcpp/node.hpp>
 #include <rclcpp/node_options.hpp>
 #include <rmcs_executor/component.hpp>

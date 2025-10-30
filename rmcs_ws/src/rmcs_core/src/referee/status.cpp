@@ -7,6 +7,7 @@
 #include <rmcs_msgs/damage_reason.hpp>
 #include <rmcs_msgs/game_stage.hpp>
 #include <rmcs_msgs/robot_id.hpp>
+#include <rmcs_msgs/serial_interface.hpp>
 #include <rmcs_utility/crc/dji_crc.hpp>
 #include <rmcs_utility/package_receive.hpp>
 #include <rmcs_utility/tick_timer.hpp>
@@ -86,8 +87,8 @@ public:
         }
         if (robot_status_watchdog_.tick()) {
             RCLCPP_ERROR(logger_, "Robot status receiving timeout. Set to safe indicators.");
-            *robot_shooter_cooling_     = safe_shooter_cooling;
-            *robot_shooter_heat_limit_  = safe_shooter_heat_limit;
+            *robot_shooter_cooling_ = safe_shooter_cooling;
+            *robot_shooter_heat_limit_ = safe_shooter_heat_limit;
             *robot_chassis_power_limit_ = safe_chassis_power_limit;
         }
         if (power_heat_data_watchdog_.tick()) {
@@ -151,7 +152,7 @@ private:
     void update_power_heat_data() {
         power_heat_data_watchdog_.reset(3'000);
 
-        auto& data            = reinterpret_cast<PowerHeatData&>(frame_.body.data);
+        auto& data = reinterpret_cast<PowerHeatData&>(frame_.body.data);
         *robot_chassis_power_ = data.chassis_power;
         *robot_buffer_energy_ = static_cast<double>(data.buffer_energy);
     }
@@ -165,10 +166,10 @@ private:
     }
 
     void update_shoot_data() {
-        auto& data            = reinterpret_cast<ShootData&>(frame_.body.data);
+        auto& data = reinterpret_cast<ShootData&>(frame_.body.data);
         *robot_initial_speed_ = data.initial_speed;
 
-        const auto now          = std::chrono::high_resolution_clock::now();
+        const auto now = std::chrono::high_resolution_clock::now();
         *robot_shoot_timestamp_ = std::chrono::duration<double>(now.time_since_epoch()).count();
     }
 
@@ -182,7 +183,7 @@ private:
     // When referee system loses connection unexpectedly,
     // use these indicators make sure the robot safe.
     // Muzzle: Cooling priority with level 1
-    static constexpr int64_t safe_shooter_cooling    = 40;
+    static constexpr int64_t safe_shooter_cooling = 40;
     static constexpr int64_t safe_shooter_heat_limit = 50'000;
     // Chassis: Health priority with level 1
     static constexpr double safe_chassis_power_limit = 45;
