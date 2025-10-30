@@ -55,8 +55,29 @@ public:
     void store_status(const std::byte* uart_data, size_t uart_data_length) {
         if (uart_data_length != package_length)
             return;
+        if (std::to_integer<uint8_t>(uart_data[0]) != 0x57) {
+            RCLCPP_WARN(
+                this->get_logger(), "Invalid header: 0x%02x",
+                std::to_integer<uint8_t>(uart_data[0]));
+            return;
+        }
+
+        uint8_t calc_sum = 0;
+        for (size_t i = 0; i < package_length - 1; ++i) {
+            calc_sum += std::to_integer<uint8_t>(uart_data[i]);
+        }
+        calc_sum &= 0xFF; // 只取低 8 位
+
+        uint8_t recv_sum = std::to_integer<uint8_t>(uart_data[package_length - 1]);
+        if (calc_sum != recv_sum) {
+            RCLCPP_WARN(
+                this->get_logger(), "Checksum mismatch! calc=0x%02x, recv=0x%02x", calc_sum,
+                recv_sum);
+            return;       // 校验失败，丢弃帧
+        }
+        
         Package package;
-        std::memcpy(&package, uart_data + 2, sizeof(Package));
+        std::memcpy(&package, uart_data, sizeof(Package));
         package_.store(package, std::memory_order::relaxed);
     }
 
@@ -69,10 +90,10 @@ public:
 
             *distance_ = package.calculate_distance();
 
-            RCLCPP_INFO(this->get_logger(),"距离为：%f",*distance_);
-        } else {
-            //RCLCPP_INFO(this->get_logger(),"failed invalid data");
-            *distance_ = std::numeric_limits<double>::quiet_NaN();
+            RCLCPP_INFO(this->get_logger(), "距离为：%f", *distance_);
+            // } else {
+            //     RCLCPP_INFO(this->get_logger(),"failed invalid data");
+            //     *distance_ = std::numeric_limits<double>::quiet_NaN();
         }
     }
 
@@ -81,10 +102,12 @@ public:
 
     double get_distance() { return *distance_; }
     bool get_valid() { return distance_valid; }
-    static constexpr size_t package_length = 14;
+    static constexpr size_t package_length = 16;
 
 private:
     struct __attribute__((packed)) Package {
+        uint8_t header;
+        uint8_t mark;               // 0x57
         uint8_t reserved;           // 0xFF
         uint8_t id;                 // 0x00
         uint8_t system_time[4];     // 0x9E
@@ -99,7 +122,11 @@ private:
             return static_cast<double>(raw) / 1000.0;
         }
 
-        bool calculate_valid() const { return static_cast<bool>(dis_status); }
+        bool calculate_valid() const {
+            // RCLCPP_INFO(this->get_logger(),"failed invalid data");
+
+            return static_cast<bool>(dis_status);
+        }
     };
 
     std::atomic<Package> package_;

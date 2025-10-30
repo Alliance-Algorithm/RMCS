@@ -128,24 +128,67 @@ private:
         //     }
         // }
 
+        //         void uart2_receive_callback(const std::byte* data, uint8_t length) override {
+        // //            RCLCPP_INFO(logger_, "%x  %d ",*(data),length);
+
+        //             ring_buff.emplace_back_multi([&data](std::byte* storage) { *storage =
+        //             *data++; }, length);
+
+        //             auto* front = ring_buff.front();
+
+        //             if (front){
+        //                 if (ring_buff.readable() >= 16) {
+        //                     RCLCPP_INFO(logger_, "Received buff data");
+        //                     std::byte rx_data[16];
+        //                     std::byte* rx_data_ptr = &rx_data[0];
+        //                     ring_buff.pop_front_multi(
+        //                         [&rx_data_ptr](std::byte storage) { *rx_data_ptr++ = storage; },
+        //                         16);
+
+        //                     RCLCPP_INFO(logger_, "%02x  %02x %02x %02x %02x
+        //                     ",static_cast<unsigned int>(rx_data[0]),static_cast<unsigned
+        //                     int>(rx_data[1]),static_cast<unsigned
+        //                     int>(rx_data[2]),static_cast<unsigned
+        //                     int>(rx_data[3]),static_cast<unsigned int>(rx_data[4]));
+        //                     tof_.store_status(rx_data, 16);
+        //                 }
+        //             }
+        //         }
+
         void uart2_receive_callback(const std::byte* data, uint8_t length) override {
-//            RCLCPP_INFO(logger_, "%x  %d ",*(data),length);
+            // 把收到的 data 写入环形缓冲（用值捕获，mutable 允许在 lambda 中修改 data 指针）
+            ring_buff.emplace_back_multi(
+                [data](std::byte* storage) mutable { *storage = *data++; }, length);
 
-            ring_buff.emplace_back_multi([&data](std::byte* storage) { *storage = *data++; }, length);
+            // 如果缓冲有数据并且至少能组成一帧（16 字节），就尝试解析（可能连续解析多帧）
+            while (ring_buff.front() && ring_buff.readable() >= 16) {
+                // 先读取并弹出第一个字节，作为可能的帧头
+                std::byte rx_data[16];
+                std::byte* rx_ptr = rx_data;
 
-            auto* front = ring_buff.front();
+                // 先弹出一个字节到 rx_data[0]
+                ring_buff.pop_front_multi([&rx_ptr](std::byte storage) { *rx_ptr++ = storage; }, 1);
 
-            if (front){
-                if (ring_buff.readable() >= 16) {
-                    RCLCPP_INFO(logger_, "Received buff data");
-                    std::byte rx_data[16];
-                    std::byte* rx_data_ptr = &rx_data[0];
-                    ring_buff.pop_front_multi(
-                        [&rx_data_ptr](std::byte storage) { *rx_data_ptr++ = storage; }, 16);
-
-                    RCLCPP_INFO(logger_, "%x  %x %x %x %x ",*(rx_data),*(rx_data+1), *(rx_data+2),*(rx_data+3),*(rx_data+4));  
-                    tof_.store_status(rx_data, 16);
+                // 如果第一个字节不是帧头 0x57，则丢弃它并继续（寻找下一个可能的帧头）
+                if (rx_data[0] != std::byte{0x57}) {
+                    // 不是帧头：继续循环，下一次会检查新的第一个字节
+                    continue;
                 }
+
+                // 已确认帧头，弹出剩余 15 字节组成完整 16 字节帧
+                ring_buff.pop_front_multi(
+                    [&rx_ptr](std::byte storage) { *rx_ptr++ = storage; }, 15);
+
+                // 打印收到的前 5 个字节（以两位十六进制显示），用于调试
+                RCLCPP_INFO(
+                    logger_, "%02x %02x %02x %02x %02x", std::to_integer<unsigned int>(rx_data[0]),
+                    std::to_integer<unsigned int>(rx_data[8]),
+                    std::to_integer<unsigned int>(rx_data[9]),
+                    std::to_integer<unsigned int>(rx_data[10]),
+                    std::to_integer<unsigned int>(rx_data[11]));
+
+                // 把整帧数据传给解析函数（传入 rx_data 的起始地址）
+                tof_.store_status(rx_data, 16);
             }
         }
 
