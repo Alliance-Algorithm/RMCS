@@ -30,11 +30,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libceres-dev \
     ros-$ROS_DISTRO-rviz2 \
     ros-$ROS_DISTRO-foxglove-bridge \
+    ros-$ROS_DISTRO-pcl-conversions \
+    ros-$ROS_DISTRO-pcl-ros \
+    libpcl-ros-dev \
+    libpcl-dev \
+    libgomp-dev \
+    libomp-dev \
+    libomp-22-dev \
     dotnet-sdk-8.0 \
     ros-$ROS_DISTRO-pcl-ros ros-$ROS_DISTRO-pcl-conversions ros-$ROS_DISTRO-pcl-msgs && \
     apt-get autoremove -y && apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/*
-
 
 # Install openvino runtime
 RUN wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB && \
@@ -150,6 +156,10 @@ RUN sh -c "$(wget https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools
     echo 'source ~/env_setup.zsh' >> ~/.zshrc && \
     echo 'export PATH=${PATH}:/rmcs_install/lib/rmcs_cli' >> ~/.zshrc && \
     chsh -s /bin/zsh root
+
+# Remove git proxy config to avoid issues when interacting with docker
+RUN git config --global --unset http.proxy || true && \
+    git config --global --unset https.proxy || true
 
 RUN mkdir -p /rmcs_install/
 
