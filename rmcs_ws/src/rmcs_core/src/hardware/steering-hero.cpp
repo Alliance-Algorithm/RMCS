@@ -9,7 +9,6 @@
 #include <rmcs_utility/tick_timer.hpp>
 #include <std_msgs/msg/int32.hpp>
 
-#include "hardware/device/benewake.hpp"
 #include "hardware/device/bmi088.hpp"
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
@@ -116,7 +115,6 @@ private:
             : librmcs::client::CBoard(usb_pid)
             , tf_(hero.tf_)
             , imu_(1000, 0.2, 0.0)
-            , benewake_(hero, "/gimbal/auto_aim/laser_distance")
             , gimbal_top_yaw_motor_(
                   hero, hero_command, "/gimbal/top_yaw",
                   device::LkMotor::Config{device::LkMotor::Type::MG5010E_I10}
@@ -194,8 +192,6 @@ private:
 
             tf_->set_transform<rmcs_description::PitchLink, rmcs_description::OdomImu>(
                 gimbal_imu_pose.conjugate());
-
-            benewake_.update_status();
 
             *gimbal_yaw_velocity_imu_ = imu_.gz();
             *gimbal_pitch_velocity_imu_ = imu_.gy();
@@ -291,10 +287,6 @@ private:
             }
         }
 
-        void uart2_receive_callback(const std::byte* data, uint8_t length) override {
-            benewake_.store_status(data, length);
-        }
-
         void accelerometer_receive_callback(int16_t x, int16_t y, int16_t z) override {
             imu_.store_accelerometer_status(x, y, z);
         }
@@ -303,12 +295,7 @@ private:
             imu_.store_gyroscope_status(x, y, z);
         }
 
-        void putter_receive_callback(bool status) override {
-            *photoelectric_sensor_status_ = status;
-        }
-
-        void camera_capturer_callback(bool status) override {
-        }
+        void putter_receive_callback(bool status) { *photoelectric_sensor_status_ = status; }
 
         OutputInterface<rmcs_description::Tf>& tf_;
         OutputInterface<bool> photoelectric_sensor_status_;
@@ -317,7 +304,6 @@ private:
         std::time_t last_camera_capturer_trigger_timestamp_{0};
 
         device::Bmi088 imu_;
-        device::Benewake benewake_;
 
         OutputInterface<double> gimbal_yaw_velocity_imu_;
         OutputInterface<double> gimbal_pitch_velocity_imu_;
