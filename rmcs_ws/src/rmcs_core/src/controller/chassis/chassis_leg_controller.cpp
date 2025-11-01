@@ -1,7 +1,7 @@
 #include "controller/pid/pid_calculator.hpp"
 #include "hardware/device/trajectory.hpp"
 #include <algorithm>
-#include <arm_mode.hpp>
+#include "rmcs_msgs/arm_mode.hpp"
 #include <array>
 #include <cmath>
 #include <cstdint>
