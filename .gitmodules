@@ -4,12 +4,9 @@
 [submodule "rmcs_ws/src/fast_tf"]
 	path = rmcs_ws/src/fast_tf
 	url = https://github.com/qzhhhi/FastTF.git
-[submodule "rmcs_ws/src/rmcs_auto_aim"]
-	path = rmcs_ws/src/rmcs_auto_aim
-	url = https://github.com/Alliance-Algorithm/rmcs_auto_aim.git
 [submodule "rmcs_ws/src/hikcamera"]
 	path = rmcs_ws/src/hikcamera
 	url = https://github.com/Alliance-Algorithm/ros2-hikcamera.git
 [submodule "rmcs_ws/src/serial"]
 	path = rmcs_ws/src/serial
-	url = git@github.com:Alliance-Algorithm/ros2-serial.git
+	url = https://github.com/Alliance-Algorithm/ros2-serial.git

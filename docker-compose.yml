@@ -1,15 +1,18 @@
 services:
   rmcs-develop:
     image: qzhhhi/rmcs-develop:latest
-    container_name: rmcs-develop
-    user: "developer"
-    hostname: "developer"
+    user: "${CONTAINER_USER}"
     privileged: true
+    command: >
+      bash -c "
+        sudo chown -R ${CONTAINER_USER}:${CONTAINER_USER} ${CONTAINER_HOME}/.config
+        exec bash
+      "
     volumes:
       - /dev:/dev:bind
       - /tmp/.X11-unix:/tmp/.X11-unix:bind
       - /run/user/1000/wayland-0:/run/user/1000/wayland-0
-      - ~/.config/nvim/:/home/developer/.config/nvim/:bind
+      - ${HOST_NVIM_DIR}:${CONTAINER_HOME}/.config/nvim/:bind
       - .:/workspaces/RMCS:bind
     environment:
       - DISPLAY=${DISPLAY}

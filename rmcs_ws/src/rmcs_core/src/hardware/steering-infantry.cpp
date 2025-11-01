@@ -1,19 +1,21 @@
+
+#include <memory>
+
+#include <rclcpp/logger.hpp>
+#include <rclcpp/logging.hpp>
+#include <rclcpp/node.hpp>
+#include <rmcs_description/tf_description.hpp>
+#include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/serial_interface.hpp>
+#include <std_msgs/msg/int32.hpp>
+
 #include "hardware/device/bmi088.hpp"
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/lk_motor.hpp"
 #include "hardware/device/supercap.hpp"
 #include "librmcs/client/cboard.hpp"
-#include <memory>
-#include <rclcpp/logger.hpp>
-#include <rclcpp/logging.hpp>
-#include <rclcpp/node.hpp>
 
-#include <rmcs_description/tf_description.hpp>
-
-#include <rmcs_executor/component.hpp>
-#include <serial_interface.hpp>
-#include <std_msgs/msg/int32.hpp>
 namespace rmcs_core::hardware {
 
 class SteeringInfantry

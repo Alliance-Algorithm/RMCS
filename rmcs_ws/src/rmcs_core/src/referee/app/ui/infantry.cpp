@@ -2,10 +2,10 @@
 #include <cmath>
 #include <cstdint>
 
-#include <game_stage.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/chassis_mode.hpp>
+#include <rmcs_msgs/game_stage.hpp>
 #include <rmcs_msgs/mouse.hpp>
 
 #include "referee/app/ui/shape/shape.hpp"

@@ -15,7 +15,7 @@ rmcs_executor:
       - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
 
-      - rmcs_core::controller::shooting::FrictionWheelController -> shooting_controller
+      - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
       - rmcs_core::controller::shooting::HeatController -> heat_controller
       - rmcs_core::controller::shooting::BulletFeederController42mm -> bullet_feeder_controller
       - rmcs_core::controller::pid::PidController -> second_left_friction_velocity_pid_controller
@@ -59,8 +59,9 @@ pitch_angle_pid_controller:
     kp: 16.00
     ki: 0.0
     kd: 0.0
+    output_max: 10.0
 
-shooting_controller:
+friction_wheel_controller:
   ros__parameters:
     friction_wheels:
       - /gimbal/first_left_friction
