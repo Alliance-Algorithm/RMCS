@@ -1,15 +1,15 @@
 #!/bin/sh
 
-if [ "$#" -ne 2 ]; then
-    echo "用法: $0 <用户名> <主机>"
-    echo "示例: $0 user localhost"
+if [ "$#" -ne 1 ]; then
+    echo "用法: $0 <用户名>"
+    echo "示例: $0 user"
     exit 1
 fi
 
 REMOTE_PLAYER="vlc"
 
 REMOTE_USER="$1"
-REMOTE_HOST="$2"
+REMOTE_HOST="localhost"
 
 REMOTE_PATH="/tmp/auto_aim.sdp"
 LOCAL_PATH="/tmp/auto_aim.sdp"
