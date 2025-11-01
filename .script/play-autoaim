@@ -14,7 +14,7 @@ REMOTE_HOST="localhost"
 REMOTE_PATH="/tmp/auto_aim.sdp"
 LOCAL_PATH="/tmp/auto_aim.sdp"
 
-scp remote:tmp/auto_aim.sdp /tmp/auto_aim.sdp
+scp remote:${REMOTE_PATH} ${REMOTE_PATH}
 if [ $? -ne 0 ]; then
     echo "⚠️ 从 remote 拷贝失败。是否继续？(y/n)"
     read -r answer
