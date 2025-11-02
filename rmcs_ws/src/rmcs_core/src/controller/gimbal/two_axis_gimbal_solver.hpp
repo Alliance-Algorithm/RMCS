@@ -26,11 +26,14 @@ class TwoAxisGimbalSolver {
     };
 
 public:
-    TwoAxisGimbalSolver(rmcs_executor::Component& component, double upper_limit, double lower_limit)
+    TwoAxisGimbalSolver(rmcs_executor::Component& component, double upper_limit, double lower_limit,double yaw_upper_limit, double yaw_lower_limit)
         : upper_limit_(std::cos(upper_limit), -std::sin(upper_limit))
-        , lower_limit_(std::cos(lower_limit), -std::sin(lower_limit)) {
+        , lower_limit_(std::cos(lower_limit), -std::sin(lower_limit)) 
+        , yaw_upper_limit_(std::cos(yaw_upper_limit),-std::sin(yaw_upper_limit))
+        , yaw_lower_limit_(std::cos(yaw_lower_limit),-std::sin(yaw_lower_limit)){
 
         component.register_input("/gimbal/pitch/angle", gimbal_pitch_angle_);
+        component.register_input("/gimbal/yaw/angle", gimbal_yaw_angle_);
         component.register_input("/tf", tf_);
     }
 
@@ -167,6 +170,23 @@ private:
             *control_direction << upper_limit_.x() * projection, upper_limit_.y();
         else if (z < lower_limit_.y())
             *control_direction << lower_limit_.x() * projection, lower_limit_.y();
+
+        const auto& [x_,y_,z_] = *control_direction;
+
+        Eigen::Vector2d yaw_projection{x_,y_};
+        double yaw_norm = yaw_projection.norm();
+        if (yaw_norm > 0)
+            yaw_projection /=yaw_norm;
+        else{
+            control_enabled_ =false;
+            return;
+        }
+
+        if (y_ > yaw_upper_limit_.y())
+            *control_direction << yaw_upper_limit_.x() * yaw_projection.x(), yaw_upper_limit_.y(), z_;
+        else if (y_ < yaw_lower_limit_.y())
+            *control_direction << yaw_lower_limit_.x() * yaw_projection.x(), yaw_lower_limit_.y(), z_;
+         
     }
 
     static AngleError calculate_control_errors(
@@ -185,8 +205,10 @@ private:
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
 
     const Eigen::Vector2d upper_limit_, lower_limit_;
+    const Eigen::Vector2d yaw_upper_limit_, yaw_lower_limit_;
 
     rmcs_executor::Component::InputInterface<double> gimbal_pitch_angle_;
+    rmcs_executor::Component::InputInterface<double> gimbal_yaw_angle_;
     rmcs_executor::Component::InputInterface<Tf> tf_;
 
     OdomImu::DirectionVector yaw_axis_filtered_{Eigen::Vector3d::UnitZ()};

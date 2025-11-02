@@ -8,6 +8,9 @@
   <class type="rmcs_core::hardware::Hero" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
+  <class type="rmcs_core::hardware::Flight" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
   <class type="rmcs_core::hardware::SteeringHero" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
