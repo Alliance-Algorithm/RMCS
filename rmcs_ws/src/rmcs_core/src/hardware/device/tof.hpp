@@ -54,12 +54,12 @@ public:
 
     void store_status(const std::byte* uart_data, size_t uart_data_length) {
         if (uart_data_length != package_length)
-            return;
+          
         if (std::to_integer<uint8_t>(uart_data[0]) != 0x57) {
             RCLCPP_WARN(
                 this->get_logger(), "Invalid header: 0x%02x",
                 std::to_integer<uint8_t>(uart_data[0]));
-            return;
+            
         }
 
         uint8_t calc_sum = 0;
@@ -73,7 +73,7 @@ public:
             RCLCPP_WARN(
                 this->get_logger(), "Checksum mismatch! calc=0x%02x, recv=0x%02x", calc_sum,
                 recv_sum);
-            return;       // 校验失败，丢弃帧
+              
         }
         
         Package package;

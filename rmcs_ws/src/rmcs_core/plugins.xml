@@ -56,7 +56,10 @@
    <class type="rmcs_core::referee::Vision" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
-  <class type="rmcs_core::hardware::Test" base_class_type="rmcs_executor::Component">
+  <class type="rmcs_core::hardware::LK_Robot" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
+   <class type="rmcs_core::controller::chassis::Steering" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
 </library>

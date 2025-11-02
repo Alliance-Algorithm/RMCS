@@ -1,0 +1,70 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - "rmcs_core::hardware::LK_Robot -> hardware"
+      # - rmcs_core::controller::pid::ErrorPidController -> steering_steering_lf_angle_error_pid_controller
+      # - rmcs_core::controller::pid::PidController -> steering_steering_lf_velocity_pid_controller
+      # - rmcs_core::controller::pid::ErrorPidController -> steering_steering_lb_angle_error_pid_controller
+      # - rmcs_core::controller::pid::PidController -> steering_steering_lb_velocity_pid_controller
+      - rmcs_core::controller::pid::ErrorPidController -> steering_steering_rb_angle_error_pid_controller
+      - rmcs_core::controller::pid::PidController -> steering_steering_rb_velocity_pid_controller
+      - rmcs_core::controller::pid::ErrorPidController -> steering_steering_rf_angle_error_pid_controller
+      - rmcs_core::controller::pid::PidController -> steering_steering_rf_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> steering_wheel_rb_velocity_controller
+      - rmcs_core::controller::pid::PidController -> steering_wheel_rf_velocity_controller
+hardware:
+  ros__parameters:
+      right_board_usb_pid: 0x94dc
+      right_forward_zero_point: 0
+      right_back_zero_point: 0
+
+steering_steering_rb_angle_error_pid_controller:
+  ros__parameters:
+    measurement: /steering/steering/rb/target_angle_error
+    control: /steering/steering/rb/control_vel
+    kp: 1.0
+    ki: 0.0
+    kd: 0.0
+steering_steering_rb_velocity_pid_controller:
+  ros__parameters:
+    measurement: /steering/steering/rb/velocity
+    setpoint: /steering/steering/rb/control_vel
+    control: /steering/steering/rb/control_torque
+    kp: 0.12
+    ki: 0.0
+    kd: 0.0
+steering_wheel_rb_velocity_controller:
+  ros__parameters:
+    measurement: /steering/wheel/rb/velocity
+    setpoint: /steering/wheel/rb/target_vel
+    control: /steering/wheel/rb/control_torque
+    kp: 0.15
+    ki: 0.0
+    kd: 0.0
+
+steering_steering_rf_angle_error_pid_controller:
+  ros__parameters:
+    measurement: /steering/steering/rf/target_angle_error
+    control: /steering/steering/rf/control_vel
+    kp: 1.0
+    ki: 0.0
+    kd: 0.0
+steering_steering_rf_velocity_pid_controller:
+  ros__parameters:
+    measurement: /steering/steering/rf/velocity
+    setpoint: /steering/steering/rf/control_vel
+    control: /steering/steering/rf/control_torque
+    kp: 0.12
+    ki: 0.0
+    kd: 0.0
+steering_wheel_rf_velocity_controller:
+  ros__parameters:
+    measurement: /steering/wheel/rf/velocity
+    setpoint: /steering/wheel/rf/target_vel
+    control: /steering/wheel/rf/control_torque
+    kp: 0.15
+    ki: 0.0
+    kd: 0.0
+
+

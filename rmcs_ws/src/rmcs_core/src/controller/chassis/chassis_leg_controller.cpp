@@ -538,16 +538,7 @@ private:
             angle += 2 * M_PI;
         return angle;
     }
-    int generateRandomInt(int min, int max) {
-        // 使用随机设备生成随机数种子
-        std::random_device rd;
-        std::default_random_engine gen(rd());
-
-        // 使用 uniform_int_distribution 来生成指定范围内的随机整数
-        std::uniform_int_distribution<int> dist(min, max);
-
-        return dist(gen);
-    }
+    
     InputInterface<rmcs_msgs::ArmMode> arm_mode;
     rmcs_msgs::ArmMode last_arm_mode;
     pid::PidCalculator following_velocity_controller_;
