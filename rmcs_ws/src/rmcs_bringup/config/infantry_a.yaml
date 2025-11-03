@@ -5,10 +5,10 @@ rmcs_executor:
       - rmcs_core::hardware::TunnelInfantry -> tunnel_infantry_hardware
 
       - rmcs_core::controller::gimbal::GimbalController -> gimbal_controller
-      - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
-      - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
-      - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
-      - rmcs_core::controller::pid::PidController -> pitch_velocity_pid_controller
+      # - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
+      # - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
+      # - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
+      # - rmcs_core::controller::pid::PidController -> pitch_velocity_pid_controller
 
       - rmcs_core::controller::gimbal::ShootingController -> shooting_controller
   
