@@ -16,3 +16,7 @@ eval "$(register-python-argcomplete ros2)"
 eval "$(register-python-argcomplete colcon)"
 
 export RMCS_ROBOT_TYPE=""
+
+fpath=(${RMCS_PATH}/.script/complete $fpath)
+autoload -Uz compinit
+compinit
