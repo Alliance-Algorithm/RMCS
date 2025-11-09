@@ -1,0 +1,24 @@
+services:
+  rmcs-develop:
+    image: qzhhhi/rmcs-develop:latest
+    user: "${CONTAINER_USER}"
+    privileged: true
+    command: >
+      bash -c "
+        sudo chown -R ${CONTAINER_USER}:${CONTAINER_USER} ${CONTAINER_HOME}/.config
+        exec bash
+      "
+    volumes:
+      - /dev:/dev:bind
+      - /tmp/.X11-unix:/tmp/.X11-unix:bind
+      # - ${XDG_RUNTIME_DIR}:${XDG_RUNTIME_DIR}
+      - /run/user/1000/wayland-0:/run/user/1000/wayland-0
+      - ${HOST_NVIM_DIR}:/home/${CONTAINER_USER}/.config/nvim/:bind
+      - .:/workspaces/RMCS:bind
+    environment:
+      - DISPLAY=${DISPLAY}
+      - WAYLAND_DISPLAY=${WAYLAND_DISPLAY}
+    network_mode: host
+    tty: true
+    stdin_open: true 
+    working_dir: /workspaces/RMCS
