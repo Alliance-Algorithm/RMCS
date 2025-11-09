@@ -1,8 +1,11 @@
 #include <cmath>
 #include <limits>
 
+#include <builtin_interfaces/msg/time.hpp>
 #include <eigen3/Eigen/Dense>
 #include <fast_tf/rcl.hpp>
+#include <geometry_msgs/msg/transform.hpp>
+#include <geometry_msgs/msg/transform_stamped.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
@@ -11,15 +14,7 @@
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/shoot_mode.hpp>
 #include <rmcs_msgs/switch.hpp>
-#include <builtin_interfaces/msg/time.hpp>  
-#include <geometry_msgs/msg/transform.hpp>
-#include <geometry_msgs/msg/transform_stamped.hpp>
 #include <std_msgs/msg/header.hpp>
-
-#include <ctime>      
-#include <fstream>    
-#include <iomanip>    
-#include <sys/stat.h> 
 
 namespace rmcs_core::controller::gimbal {
 
@@ -36,11 +31,6 @@ public:
         upper_limit_ = get_parameter("upper_limit").as_double() + (std::numbers::pi / 2);
         lower_limit_ = get_parameter("lower_limit").as_double() + (std::numbers::pi / 2);
 
-                create_data_directory();
-                // 初始化CSV文件
-                init_csv_file();
-        
-
         register_input("/remote/joystick/left", joystick_left_);
         register_input("/remote/switch/right", switch_right_);
         register_input("/remote/switch/left", switch_left_);
@@ -53,9 +43,6 @@ public:
         register_input("/gimbal/shooter/mode", shoot_mode_);
 
         register_input("/gimbal/auto_aim/control_direction", auto_aim_control_direction_, false);
-        register_input("/gimbal/yaw/velocity", yaw_velocity_);
-        register_input("/gimbal/yaw/torque", yaw_torque_);
-        
 
         register_output("/gimbal/yaw/control_angle_error", yaw_angle_error_, nan);
         register_output("/gimbal/pitch/control_angle_error", pitch_angle_error_, nan);
@@ -65,75 +52,31 @@ public:
 
         register_output(
             "/gimbal/yaw/motor_status", yaw_motor_status_, rmcs_msgs::LkmotorStatus::UNKNOWN);
-        register_output("/gimbal/yaw/control_torque", yaw_control_torque_);
+
+        register_output("/gimbal/yaw/processed_output", yaw_processed_output_, 0.0);
 
         camera_to_gimbal_publisher_ = this->create_publisher<geometry_msgs::msg::TransformStamped>(
             "/gimbal/camera_to_gimbal_transform", rclcpp::QoS(10));
-            
+
         gimbal_to_muzzle_publisher_ = this->create_publisher<geometry_msgs::msg::TransformStamped>(
             "/gimbal/gimbal_to_muzzle_transform", rclcpp::QoS(10));
-            
+
         timestamp_publisher_ = this->create_publisher<builtin_interfaces::msg::Time>(
             "/gimbal/timestamp", rclcpp::QoS(10));
     }
 
-    ~GimbalController() {
-        if (csv_file_.is_open()) {
-            csv_file_.close();
-            RCLCPP_INFO(get_logger(), "CSV file closed: %s", filename_.c_str());
-        }
-    }
-    
     void update() override {
-        auto switch_right = *switch_right_;
-        auto switch_left  = *switch_left_;
-        auto mouse        = *mouse_;
+        publish_sync_data();
 
         update_yaw_axis();
         update_pitch_lk_motors_status();
         update_yaw_lk_motors_status();
 
+        auto switch_right = *switch_right_;
+        auto switch_left  = *switch_left_;
+        auto mouse        = *mouse_;
 
         using namespace rmcs_msgs;
-        do {
-            if (switch_left == Switch::DOWN && switch_right == Switch::MIDDLE) {
-
-                Now_time = this->now();
-                if (f_now > F_end) {
-                    break;
-                }
-                if (last_time <= 0.0002) {
-                    last_time = Now_time.seconds();
-                }
-                now_time = Now_time.seconds();
-
-                // current              = Top * std::sin(2 * Pi * f_now * (now_time - last_time));
-
-                current              = Top ;
-                *yaw_control_torque_ = current * k;
-                if ((now_time - last_time) > ((1 / f_now) * Repeat_time)) {
-                    if (f_now < 24) {
-                        f_now += 0.5;
-                    } else if (f_now >= 24 && f_now <= 50) {
-                        f_now += 2;
-                    } else {
-                        f_now += 4;
-                    }
-                    last_time = Now_time.seconds();
-                }
-                record_data(); // gimbal_yaw_motor_.control_torque()
-                RCLCPP_INFO(get_logger(), "contrl_torque %f",*yaw_control_torque_);
-                RCLCPP_INFO(get_logger(), "torque %f",*yaw_torque_);
-            }
-            if (switch_left == Switch::DOWN && switch_right == Switch::DOWN) {
-                reset_status();
-            }
-
-        } while (false);
-        publish_sync_data();
-        
-
-
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
             reset_all_controls();
@@ -155,108 +98,134 @@ public:
                 return;
 
             update_control_errors(dir);
-            control_direction_ = fast_tf::cast<OdomImu>(dir, *tf_);
 
+            *yaw_processed_output_ = calculate_feedback(*yaw_angle_error_);
+
+            control_direction_ = fast_tf::cast<OdomImu>(dir, *tf_);
         }
     }
 
 private:
+    double calculate_feedback(double angle_error) {
+        const double dt = 0.001;
+
+        if (!calculate_initialized_) {
+            previous_angle_error_  = angle_error;
+            previous_velocity_     = 0.0;
+            calculate_initialized_ = true;
+            return 0.0;
+        }
+
+        // dx/dt ≈ (x[n] - x[n-1]) / dt
+        double velocity = (angle_error - previous_angle_error_) / dt;
+
+        // d²x/dt² ≈ (v[n] - v[n-1]) / dt
+        double acceleration = (velocity - previous_velocity_) / dt;
+
+        previous_angle_error_  = angle_error;
+        previous_velocity_     = velocity;
+        previous_acceleration_ = acceleration;
+
+        return (1.601339013998783 * velocity) + (0.060864272671942 * acceleration);
+    }
+
     void publish_sync_data() {
         auto now = this->now();
-        
-        auto timestamp_msg = builtin_interfaces::msg::Time();
-        timestamp_msg.sec = static_cast<int32_t>(now.seconds());
+
+        auto timestamp_msg    = builtin_interfaces::msg::Time();
+        timestamp_msg.sec     = static_cast<int32_t>(now.seconds());
         timestamp_msg.nanosec = now.nanoseconds() % 1000000000;
         timestamp_publisher_->publish(timestamp_msg);
-        
+
         try {
-            auto camera_origin = CameraLink::Position{Eigen::Vector3d::Zero()};
+            auto camera_origin           = CameraLink::Position{Eigen::Vector3d::Zero()};
             auto camera_origin_in_gimbal = fast_tf::cast<GimbalCenterLink>(camera_origin, *tf_);
-            
-            auto camera_x_axis = CameraLink::DirectionVector{Eigen::Vector3d::UnitX()};
+
+            auto camera_x_axis      = CameraLink::DirectionVector{Eigen::Vector3d::UnitX()};
             auto camera_x_in_gimbal = fast_tf::cast<GimbalCenterLink>(camera_x_axis, *tf_);
-            
-            auto camera_y_axis = CameraLink::DirectionVector{Eigen::Vector3d::UnitY()};
+
+            auto camera_y_axis      = CameraLink::DirectionVector{Eigen::Vector3d::UnitY()};
             auto camera_y_in_gimbal = fast_tf::cast<GimbalCenterLink>(camera_y_axis, *tf_);
-            
-            auto camera_z_axis = CameraLink::DirectionVector{Eigen::Vector3d::UnitZ()};
+
+            auto camera_z_axis      = CameraLink::DirectionVector{Eigen::Vector3d::UnitZ()};
             auto camera_z_in_gimbal = fast_tf::cast<GimbalCenterLink>(camera_z_axis, *tf_);
-            
+
             Eigen::Isometry3d camera_to_gimbal = Eigen::Isometry3d::Identity();
-            camera_to_gimbal.translation() = *camera_origin_in_gimbal;
-            
+            camera_to_gimbal.translation()     = *camera_origin_in_gimbal;
+
             Eigen::Matrix3d rotation;
-            rotation.col(0) = *camera_x_in_gimbal;
-            rotation.col(1) = *camera_y_in_gimbal;
-            rotation.col(2) = *camera_z_in_gimbal;
+            rotation.col(0)           = *camera_x_in_gimbal;
+            rotation.col(1)           = *camera_y_in_gimbal;
+            rotation.col(2)           = *camera_z_in_gimbal;
             camera_to_gimbal.linear() = rotation;
-            
+
             auto transform_msg = eigen_to_transform_stamped_msg(
                 camera_to_gimbal, "gimbal_center_link", "camera_link", now);
             camera_to_gimbal_publisher_->publish(transform_msg);
-            
+
         } catch (const std::exception& e) {
             static size_t error_count = 0;
             error_count++;
-            if (error_count % 100 == 0){
-            RCLCPP_WARN(this->get_logger(), "Failed to publish camera to gimbal transform: %s", e.what());
+            if (error_count % 100 == 0) {
+                RCLCPP_WARN(
+                    this->get_logger(), "Failed to publish camera to gimbal transform: %s",
+                    e.what());
             }
         }
-        
+
         try {
-            auto gimbal_origin = GimbalCenterLink::Position{Eigen::Vector3d::Zero()};
+            auto gimbal_origin           = GimbalCenterLink::Position{Eigen::Vector3d::Zero()};
             auto gimbal_origin_in_muzzle = fast_tf::cast<MuzzleLink>(gimbal_origin, *tf_);
-            
-            auto gimbal_x_axis = GimbalCenterLink::DirectionVector{Eigen::Vector3d::UnitX()};
+
+            auto gimbal_x_axis      = GimbalCenterLink::DirectionVector{Eigen::Vector3d::UnitX()};
             auto gimbal_x_in_muzzle = fast_tf::cast<MuzzleLink>(gimbal_x_axis, *tf_);
-            
-            auto gimbal_y_axis = GimbalCenterLink::DirectionVector{Eigen::Vector3d::UnitY()};
+
+            auto gimbal_y_axis      = GimbalCenterLink::DirectionVector{Eigen::Vector3d::UnitY()};
             auto gimbal_y_in_muzzle = fast_tf::cast<MuzzleLink>(gimbal_y_axis, *tf_);
-            
-            auto gimbal_z_axis = GimbalCenterLink::DirectionVector{Eigen::Vector3d::UnitZ()};
+
+            auto gimbal_z_axis      = GimbalCenterLink::DirectionVector{Eigen::Vector3d::UnitZ()};
             auto gimbal_z_in_muzzle = fast_tf::cast<MuzzleLink>(gimbal_z_axis, *tf_);
-            
+
             Eigen::Isometry3d gimbal_to_muzzle = Eigen::Isometry3d::Identity();
-            gimbal_to_muzzle.translation() = *gimbal_origin_in_muzzle;
-            
+            gimbal_to_muzzle.translation()     = *gimbal_origin_in_muzzle;
+
             Eigen::Matrix3d rotation;
-            rotation.col(0) = *gimbal_x_in_muzzle;
-            rotation.col(1) = *gimbal_y_in_muzzle;
-            rotation.col(2) = *gimbal_z_in_muzzle;
+            rotation.col(0)           = *gimbal_x_in_muzzle;
+            rotation.col(1)           = *gimbal_y_in_muzzle;
+            rotation.col(2)           = *gimbal_z_in_muzzle;
             gimbal_to_muzzle.linear() = rotation;
-            
+
             auto transform_msg = eigen_to_transform_stamped_msg(
                 gimbal_to_muzzle, "muzzle_link", "gimbal_center_link", now);
             gimbal_to_muzzle_publisher_->publish(transform_msg);
-            
+
         } catch (const std::exception& e) {
-            RCLCPP_WARN(this->get_logger(), "Failed to publish gimbal to muzzle transform: %s", e.what());
+            RCLCPP_WARN(
+                this->get_logger(), "Failed to publish gimbal to muzzle transform: %s", e.what());
         }
     }
-    
+
     static geometry_msgs::msg::TransformStamped eigen_to_transform_stamped_msg(
-        const Eigen::Isometry3d& transform, 
-        const std::string& child_frame_id,
-        const std::string& frame_id,
-        const rclcpp::Time& stamp) {
-        
+        const Eigen::Isometry3d& transform, const std::string& child_frame_id,
+        const std::string& frame_id, const rclcpp::Time& stamp) {
+
         geometry_msgs::msg::TransformStamped msg;
-        
-        msg.header.stamp.sec = static_cast<int32_t>(stamp.seconds());
+
+        msg.header.stamp.sec     = static_cast<int32_t>(stamp.seconds());
         msg.header.stamp.nanosec = stamp.nanoseconds() % 1000000000;
-        msg.header.frame_id = frame_id;
-        msg.child_frame_id = child_frame_id;
-        
+        msg.header.frame_id      = frame_id;
+        msg.child_frame_id       = child_frame_id;
+
         msg.transform.translation.x = transform.translation().x();
         msg.transform.translation.y = transform.translation().y();
         msg.transform.translation.z = transform.translation().z();
-        
+
         Eigen::Quaterniond quat(transform.linear());
         msg.transform.rotation.x = quat.x();
         msg.transform.rotation.y = quat.y();
         msg.transform.rotation.z = quat.z();
         msg.transform.rotation.w = quat.w();
-        
+
         return msg;
     }
 
@@ -273,6 +242,11 @@ private:
 
         *yaw_angle_error_   = nan;
         *pitch_angle_error_ = nan;
+
+        calculate_initialized_ = false;
+        previous_angle_error_  = 0.0;
+        previous_velocity_     = 0.0;
+        previous_acceleration_ = 0.0;
     }
 
     void update_auto_aim_control_direction(PitchLink::DirectionVector& dir) {
@@ -369,71 +343,9 @@ private:
         } else if (!is_enable_ && !yaw_last_is_enable_) {
             *yaw_motor_status_ = rmcs_msgs::LkmotorStatus::REQUEST;
         }
-        // RCLCPP_INFO(get_logger(), "gimbal/yaw/ %d",*yaw_motor_status_);
         yaw_last_is_enable_ = is_enable_;
     }
 
-    void create_data_directory() {
-
-        const char* home_dir = std::getenv("HOME");
-        if (!home_dir) {
-            RCLCPP_ERROR(get_logger(), "Failed to get home directory");
-            return;
-        }
-
-        data_dir_  = std::string(home_dir) + "/gimbal_sweep_data";
-        if (mkdir(data_dir_.c_str(), 0777) == -1) {
-            if (errno != EEXIST) {
-                RCLCPP_ERROR(get_logger(), "Failed to create data directory: %s", strerror(errno));
-            } else {
-                RCLCPP_INFO(get_logger(), "Using existing data directory: %s", data_dir_.c_str());
-            }
-        } else {
-            RCLCPP_INFO(get_logger(), "Created data directory: %s", data_dir_.c_str());
-        }
-    }
-
-    void init_csv_file() {
-
-        auto now       = std::time(nullptr);
-        std::tm now_tm = *std::localtime(&now);
-
-        std::ostringstream oss;
-        oss << data_dir_ << "/sweep_" << std::put_time(&now_tm, "%Y%m%d_%H%M%S") << ".csv";
-        filename_ = oss.str();
-
-        csv_file_.open(filename_, std::ios::out);
-        if (!csv_file_.is_open()) {
-            RCLCPP_ERROR(get_logger(), "Failed to open CSV file: %s", filename_.c_str());
-            return;
-        }
-
-        csv_file_ << "actual_velocity control_torque\n";
-        csv_file_.flush();
-
-        RCLCPP_INFO(get_logger(), "Data recording started. File: %s", filename_.c_str());
-    }
-
-    void record_data() {
-        if (!csv_file_.is_open())
-            return;
-
-        auto now = this->now();
-        // double elapsed = (last_time > 0) ? now.seconds() - last_time : 0.0;
-
-        csv_file_ << *yaw_velocity_ << " " << current << "\n";
-        RCLCPP_INFO(get_logger(), "%d", i++);
-
-        static int count = 0;
-        if (++count % 100 == 0) {
-            csv_file_.flush();
-        }
-    }
-
-    void reset_status() {
-        f_now                = 1.0;
-        *yaw_control_torque_ = 0.0;
-    }
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
     InputInterface<Eigen::Vector2d> joystick_left_;
@@ -459,42 +371,21 @@ private:
     OutputInterface<rmcs_msgs::LkmotorStatus> pitch_motor_status_;
 
     OutputInterface<rmcs_msgs::LkmotorStatus> yaw_motor_status_;
-    bool is_enable_      = false;
+
+    OutputInterface<double> yaw_processed_output_;
+
+    bool is_enable_            = false;
     bool pitch_last_is_enable_ = false;
-    bool yaw_last_is_enable_ = false;
+    bool yaw_last_is_enable_   = false;
 
     rclcpp::Publisher<geometry_msgs::msg::TransformStamped>::SharedPtr camera_to_gimbal_publisher_;
     rclcpp::Publisher<geometry_msgs::msg::TransformStamped>::SharedPtr gimbal_to_muzzle_publisher_;
     rclcpp::Publisher<builtin_interfaces::msg::Time>::SharedPtr timestamp_publisher_;
-    rclcpp::Time Now_time;
 
-    double now_time;
-    double last_time = 0.0;
-    double current;
-
-    float f_now = 1.0;
-    int i       = 0;
-
-    static constexpr int F_start     = 1;
-    static constexpr int F_end       = 50;
-    static constexpr int Repeat_time = 20;
-    static constexpr double Pi = std::numbers::pi;
-    static constexpr double Top      = 10.999;
-    static constexpr double k        = 1.12793;
-
-    rclcpp::TimerBase::SharedPtr control_timer_;
-
-    InputInterface<double> yaw_velocity_;
-    InputInterface<double> yaw_max_torque_;
-    InputInterface<double> yaw_torque_;
-    OutputInterface<double> yaw_current_command_;
-    OutputInterface<double> yaw_control_torque_;
-
-    std::string data_dir_;
-    std::string filename_;
-    std::ofstream csv_file_;
-
-
+    bool calculate_initialized_   = false;
+    double previous_angle_error_  = 0.0;
+    double previous_velocity_     = 0.0;
+    double previous_acceleration_ = 0.0;
 };
 
 } // namespace rmcs_core::controller::gimbal

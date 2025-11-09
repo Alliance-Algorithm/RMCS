@@ -135,8 +135,6 @@ public:
             // transmit_buffer_.add_can1_transmission(0x145, gimbal_yaw_motor_.generate_command());
     
 
-        RCLCPP_INFO(get_logger(),"generated data: %d", gimbal_yaw_motor_.to_command_current( gimbal_yaw_motor_.control_torque()));
-
         transmit_buffer_.add_can2_transmission(0x142, gimbal_pitch_motor_.generate_torque_command(
             gimbal_pitch_motor_.control_velocity()));
         can_commands[0] = 0;
