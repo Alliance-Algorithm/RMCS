@@ -1,0 +1,9 @@
+make
+build
+install
+log
+.cache
+.devcontainer
+docker-compose.yml
+Dockerfile
+.env
