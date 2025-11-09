@@ -1,0 +1,44 @@
+#####-----classfier parameters-----#####
+# classify_model:
+# model_image_width:
+# model_image_height:
+#
+#####-----identifier parameters-----#####
+threshold: 150
+max_angle_error: 45 #degree
+min_lightbar_ratio: 1.5
+max_lightbar_ratio: 20
+min_lightbar_length: 8
+max_armor_ratio: 5
+min_armor_ratio: 1
+max_side_ratio: 1.5
+min_confidence: 0.8
+max_rectangular_error: 25 #degree
+
+#####-----target_snapshot_manager parameters-----#####
+decision_speed: 7 # rad/s
+high_speed_delay_time: 0.050 # s
+low_speed_delay_time: 0.015 # s
+
+#####-----fire_decision parameters-----#####
+auto_fire: true
+first_tolerance: 100 # 近距离射击容差，degree
+second_tolerance: 100 # 远距离射击容差，degree
+judge_distance: 2 #距离判断阈值
+
+#####-----fire_controller parameters-----#####
+control_delay_s: 0.1
+
+#####-----aiming_solver parameters-----#####
+yaw_offset: 1.5 # degree
+pitch_offset: -0.5 # degree
+bullet_speed: 26
+
+#####-----aime_point_chooser parameters-----#####
+comming_angle: 60 # degree
+leaving_angle: 20 # degree
+
+#####-----solver parameters-----#####
+R_muzzle2camera:
+t_muzzle2camera:
+

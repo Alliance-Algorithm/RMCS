@@ -1,0 +1,61 @@
+@startuml SystemV1 workflow
+skinparam roundCorner 10
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam component {
+    BackgroundColor #F0F8FF
+    BorderColor #4682B4
+    ArrowColor #4169E1
+}
+
+title SystemV1 workflow
+
+
+package "Outers"{
+    [OuterComponent::Camera] as Camera
+    [RMCS]
+}
+package "alliance auto aim system v1"{
+[interfaces::IIdentifier] as Identifier
+[interfaces::IFireControl] as FireControl
+[interfaces::IStateMachine] as StateMachine
+[interfaces::IPnpSolver] as PnpSolver
+[interfaces::ITracker] as Tracker
+[SyncComponent]
+(raw_image_event)
+(armors_in_image_identify_event)
+(car_id_identify_event)
+(armors_in_camera_pnp_event)
+(car_tracing_event) 
+(tracker_current_armors_event)
+(tracker_update_event)
+(camera_capture_transforms)
+(get_lastest_predictor_event) 
+(fire_control_event)
+}
+
+Camera --> raw_image_event : cv::Mat
+raw_image_event --> Identifier : cv::Mat
+Identifier --> armors_in_image_identify_event : std::shared_ptr<interfaces::IArmorInImage>
+Identifier --> car_id_identify_event : enumeration::CarIDFlag
+armors_in_image_identify_event --> PnpSolver : std::shared_ptr<interfaces::IArmorInImage>
+PnpSolver --> armors_in_camera_pnp_event : interfaces::IArmorInCamera
+car_id_identify_event --> StateMachine : enumeration::CarIDFlag
+StateMachine --> car_tracing_event : enumeration::CarIDFlag
+car_tracing_event --> FireControl : enumeration::CarIDFlag
+car_tracing_event --> Tracker : enumeration::CarIDFlag
+Tracker --> tracker_current_armors_event : interfaces::IArmorInGimbalControl
+armors_in_camera_pnp_event --> SyncComponent : interfaces::IArmorInCamera
+SyncComponent --> tracker_update_event : std::shared_ptr<data::PredictorUpdatePackage>
+camera_capture_transforms -->  SyncComponent : data::CameraGimbalMuzzleSyncData
+tracker_update_event --> FireControl : std::shared_ptr<data::PredictorUpdatePackage>
+tracker_update_event --> Tracker : std::shared_ptr<data::PredictorUpdatePackage>
+tracker_current_armors_event --> FireControl :  interfaces::IArmorInGimbalControl
+FireControl --> get_lastest_predictor_event : enumeration::CarIDFlag
+get_lastest_predictor_event --> Tracker : enumeration::CarIDFlag
+Tracker --> get_lastest_predictor_event : interfaces::IPredictor
+get_lastest_predictor_event --> FireControl : interfaces::IPredictor
+FireControl --> fire_control_event : data::FireControl
+fire_control_event --> RMCS  : data::FireControl
+RMCS --> camera_capture_transforms : data::FireControl
+@enduml
