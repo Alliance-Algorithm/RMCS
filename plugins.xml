@@ -1,0 +1,5 @@
+<library path="rmcs_auto_aim_v2_component">
+  <class type="rmcs::AutoAimComponent" base_class_type="rmcs_executor::Component">
+    <description>...</description>
+  </class>
+</library>

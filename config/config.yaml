@@ -1,0 +1,31 @@
+use_visualization: true
+
+capturer:
+  show_loss_framerate: false
+  show_loss_framerate_interval: 500
+  reconnect_wait_interval: 100
+
+  source: "hikcamera"
+  hikcamera:
+    # int
+    timeout_ms: 500
+    # float
+    exposure_us: 2000.0
+    # float
+    framerate: 80.0
+    # float
+    gain: 16.9807
+
+    invert_image: false
+    software_sync: false
+    trigger_mode: false
+    fixed_framerate: true
+
+identifier:
+  binarization_threshold: 0.5
+
+visualization:
+  framerate: 60
+  monitor_host: "127.0.0.1"
+  monitor_port: "5000"
+  stream_type: "RTP_JEPG"

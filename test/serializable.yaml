@@ -1,0 +1,8 @@
+serializable:
+  ros__parameters:
+    test:
+      mem1: 23332
+      mem2: "this is a string"
+      mem3: 1.234
+      mem4: [ 1., 2., 3. ]
+

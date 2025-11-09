@@ -1,0 +1,52 @@
+name: Run Test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    container:
+      image: qzhhhi/rmcs-develop
+      options: --user 0
+
+    env:
+      WS_DIR: ${{ github.workspace }}/ws
+      SRC_DIR: ${{ github.workspace }}/ws/src
+      IMAGE_URL: https://pub-997cd3005edc4b9db91df913907990bf.r2.dev/autoaim/model_infer_example.jpg
+      IMAGE_PATH: /tmp/model_infer_example.jpg
+
+    steps:
+      - name: Checkout repository into ROS2 workspace
+        uses: actions/checkout@v4
+        with:
+          repository: Alliance-Algorithm/rmcs_auto_aim_v2
+          path: ws/src/rmcs_auto_aim_v2
+
+      - name: Download test frame
+        run: |
+          curl -fsSL "$IMAGE_URL" -o "$IMAGE_PATH"
+
+      - name: Configure test project
+        shell: bash
+        run: |
+          source /opt/ros/jazzy/setup.bash
+          cd "$SRC_DIR/rmcs_auto_aim_v2/test"
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build test project
+        shell: bash
+        run: |
+          source /opt/ros/jazzy/setup.bash
+          cd "$SRC_DIR/rmcs_auto_aim_v2/test"
+          cmake --build build --parallel
+
+      - name: Run gtests
+        shell: bash
+        run: |
+          source /opt/ros/jazzy/setup.bash
+          cd "$SRC_DIR/rmcs_auto_aim_v2/test"
+          IMAGE="$IMAGE_PATH" ctest --test-dir build --output-on-failure
