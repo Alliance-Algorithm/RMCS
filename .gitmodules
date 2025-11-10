@@ -7,3 +7,9 @@
 [submodule "rmcs_ws/src/hikcamera"]
 	path = rmcs_ws/src/hikcamera
 	url = https://github.com/Alliance-Algorithm/ros2-hikcamera.git
+[submodule "rmcs_ws/src/rmcs_auto_aim_v1"]
+	path = rmcs_ws/src/rmcs_auto_aim_v1
+	url = git@github.com:Alliance-Algorithm/alliance_ros_auto_aim.git
+[submodule "rmcs_ws/src/serial"]
+	path = rmcs_ws/src/serial
+	url = https://github.com/Alliance-Algorithm/ros2-serial.git
