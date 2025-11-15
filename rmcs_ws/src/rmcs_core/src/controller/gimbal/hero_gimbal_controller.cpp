@@ -24,11 +24,9 @@ public:
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , imu_gimbal_solver(
-              *this, get_parameter("upper_limit").as_double(),
-              get_parameter("lower_limit").as_double())
+              *this, get_parameter("upper_limit").as_double(), get_parameter("lower_limit").as_double())
         , encoder_gimbal_solver(
-              *this, get_parameter("upper_limit").as_double(),
-              get_parameter("lower_limit").as_double()) {
+              *this, get_parameter("upper_limit").as_double(), get_parameter("lower_limit").as_double()) {
 
         register_input("/remote/joystick/left", joystick_left_);
         register_input("/remote/switch/left", switch_left_);
@@ -65,8 +63,7 @@ public:
                 else
                     gimbal_mode_keyboard_ = GimbalMode::IMU;
             }
-            *gimbal_mode_ =
-                *switch_right_ == Switch::UP ? GimbalMode::ENCODER : gimbal_mode_keyboard_;
+            // *gimbal_mode_ = *switch_right_ == Switch::UP ? GimbalMode::ENCODER : gimbal_mode_keyboard_;
 
             if (*gimbal_mode_ == GimbalMode::IMU) {
                 auto angle_error = update_imu_control();
@@ -105,7 +102,7 @@ public:
 
     TwoAxisGimbalSolver::AngleError update_imu_control() {
         if (auto_aim_control_direction_.ready()
-            && (mouse_->right || *switch_right_ == rmcs_msgs::Switch::UP)
+            && (mouse_->right /*||  *switch_right_ == rmcs_msgs::Switch::UP*/)
             && !auto_aim_control_direction_->isZero()) {
             return imu_gimbal_solver.update(
                 TwoAxisGimbalSolver::SetControlDirection{
@@ -123,8 +120,7 @@ public:
         double pitch_shift =
             -joystick_sensitivity * joystick_left_->x() - mouse_sensitivity * mouse_velocity_->x();
 
-        return imu_gimbal_solver.update(
-            TwoAxisGimbalSolver::SetControlShift{yaw_shift, pitch_shift});
+        return imu_gimbal_solver.update(TwoAxisGimbalSolver::SetControlShift{yaw_shift, pitch_shift});
     }
 
     PreciseTwoAxisGimbalSolver::ControlAngle update_encoder_control() {
@@ -135,10 +131,10 @@ public:
         constexpr double mouse_yaw_sensitivity = 0.5 * 0.114;
         constexpr double mouse_pitch_sensitivity = 0.5 * 0.095;
 
-        double yaw_shift = joystick_sensitivity * joystick_left_->y()
-                         + mouse_yaw_sensitivity * mouse_velocity_->y();
-        double pitch_shift = -joystick_sensitivity * joystick_left_->x()
-                           - mouse_pitch_sensitivity * mouse_velocity_->x();
+        double yaw_shift =
+            joystick_sensitivity * joystick_left_->y() + mouse_yaw_sensitivity * mouse_velocity_->y();
+        double pitch_shift =
+            -joystick_sensitivity * joystick_left_->x() - mouse_pitch_sensitivity * mouse_velocity_->x();
 
         return encoder_gimbal_solver.update(
             PreciseTwoAxisGimbalSolver::SetControlShift{yaw_shift, pitch_shift});
@@ -172,5 +168,4 @@ private:
 
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(
-    rmcs_core::controller::gimbal::HeroGimbalController, rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::gimbal::HeroGimbalController, rmcs_executor::Component)

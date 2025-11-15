@@ -65,22 +65,15 @@ public:
         register_input("/chassis/control_velocity", chassis_control_velocity_);
         register_input("/chassis/control_power_limit", power_limit_);
 
-        register_output(
-            "/chassis/left_front_steering/control_torque", left_front_steering_control_torque_);
-        register_output(
-            "/chassis/left_back_steering/control_torque", left_back_steering_control_torque_);
-        register_output(
-            "/chassis/right_back_steering/control_torque", right_back_steering_control_torque_);
-        register_output(
-            "/chassis/right_front_steering/control_torque", right_front_steering_control_torque_);
+        register_output("/chassis/left_front_steering/control_torque", left_front_steering_control_torque_);
+        register_output("/chassis/left_back_steering/control_torque", left_back_steering_control_torque_);
+        register_output("/chassis/right_back_steering/control_torque", right_back_steering_control_torque_);
+        register_output("/chassis/right_front_steering/control_torque", right_front_steering_control_torque_);
 
-        register_output(
-            "/chassis/left_front_wheel/control_torque", left_front_wheel_control_torque_);
+        register_output("/chassis/left_front_wheel/control_torque", left_front_wheel_control_torque_);
         register_output("/chassis/left_back_wheel/control_torque", left_back_wheel_control_torque_);
-        register_output(
-            "/chassis/right_back_wheel/control_torque", right_back_wheel_control_torque_);
-        register_output(
-            "/chassis/right_front_wheel/control_torque", right_front_wheel_control_torque_);
+        register_output("/chassis/right_back_wheel/control_torque", right_back_wheel_control_torque_);
+        register_output("/chassis/right_front_wheel/control_torque", right_front_wheel_control_torque_);
     }
 
     void update() override {
@@ -101,18 +94,15 @@ public:
         auto chassis_acceleration = calculate_chassis_control_acceleration(
             chassis_status_expected.velocity, chassis_control_velocity);
 
-        double power_limit =
-            *power_limit_ - no_load_power_ - k2_ * wheel_velocities.array().pow(2).sum();
+        double power_limit = *power_limit_ - no_load_power_ - k2_ * wheel_velocities.array().pow(2).sum();
 
         auto wheel_pid_torques =
             calculate_wheel_pid_torques(steering_status, wheel_velocities, chassis_status_expected);
 
         auto constrained_chassis_acceleration = constrain_chassis_control_acceleration(
-            steering_status, wheel_velocities, chassis_acceleration, wheel_pid_torques,
-            power_limit);
-        auto filtered_chassis_acceleration =
-            odom_to_base_link_vector(control_acceleration_filter_.update(
-                base_link_to_odom_vector(constrained_chassis_acceleration)));
+            steering_status, wheel_velocities, chassis_acceleration, wheel_pid_torques, power_limit);
+        auto filtered_chassis_acceleration = odom_to_base_link_vector(
+            control_acceleration_filter_.update(base_link_to_odom_vector(constrained_chassis_acceleration)));
 
         auto steering_torques = calculate_steering_control_torques(
             steering_status, chassis_status_expected, filtered_chassis_acceleration);
@@ -233,14 +223,12 @@ private:
     }
 
     Eigen::Vector3d calculate_chassis_control_acceleration(
-        const Eigen::Vector3d& chassis_velocity_expected,
-        const Eigen::Vector3d& chassis_control_velocity) {
+        const Eigen::Vector3d& chassis_velocity_expected, const Eigen::Vector3d& chassis_control_velocity) {
 
         Eigen::Vector2d translational_control_velocity = chassis_control_velocity.head<2>();
         Eigen::Vector2d translational_velocity = chassis_velocity_expected.head<2>();
-        Eigen::Vector2d translational_control_acceleration =
-            chassis_translational_velocity_pid_.update(
-                translational_control_velocity - translational_velocity);
+        Eigen::Vector2d translational_control_acceleration = chassis_translational_velocity_pid_.update(
+            translational_control_velocity - translational_velocity);
 
         const double& angular_control_velocity = chassis_control_velocity[2];
         const double& angular_velocity = chassis_velocity_expected[2];
@@ -248,8 +236,7 @@ private:
             chassis_angular_velocity_pid_.update(angular_control_velocity - angular_velocity);
 
         Eigen::Vector3d chassis_control_acceleration;
-        chassis_control_acceleration << translational_control_acceleration,
-            angular_control_acceleration;
+        chassis_control_acceleration << translational_control_acceleration, angular_control_acceleration;
 
         if (chassis_control_acceleration.lpNorm<1>() < 1e-1)
             chassis_control_acceleration.setZero();
@@ -263,8 +250,7 @@ private:
         Eigen::Vector4d wheel_control_velocity =
             chassis_status_expected.wheel_velocity_x.array() * steering_status.cos_angle.array()
             + chassis_status_expected.wheel_velocity_y.array() * steering_status.sin_angle.array();
-        return wheel_velocity_pid_.update(
-            wheel_control_velocity / wheel_radius_ - wheel_velocities);
+        return wheel_velocity_pid_.update(wheel_control_velocity / wheel_radius_ - wheel_velocities);
     }
 
     Eigen::Vector3d constrain_chassis_control_acceleration(
@@ -305,9 +291,8 @@ private:
         Eigen::Vector4d cos_alpha_minus_gamma =
             steering_status.cos_angle.array() * translational_acceleration_direction.x()
             + steering_status.sin_angle.array() * translational_acceleration_direction.y();
-        Eigen::Vector4d sin_alpha_minus_varphi =
-            cos_varphi_.array() * steering_status.sin_angle.array()
-            - sin_varphi_.array() * steering_status.cos_angle.array();
+        Eigen::Vector4d sin_alpha_minus_varphi = cos_varphi_.array() * steering_status.sin_angle.array()
+                                               - sin_varphi_.array() * steering_status.cos_angle.array();
         Eigen::Vector4d double_k1_torque_base_plus_wheel_velocities =
             2 * k1_ * wheel_torque_base.array() + wheel_velocities.array();
 
@@ -316,23 +301,17 @@ private:
 
         a = (k1_ * mess_ * mess_ * wheel_radius_ * wheel_radius_ / 16.0)
           * cos_alpha_minus_gamma.array().pow(2).sum();
-        b = ((k1_ * mess_ * moment_of_inertia_ * wheel_radius_ * wheel_radius_)
-             / (8.0 * vehicle_radius_))
+        b = ((k1_ * mess_ * moment_of_inertia_ * wheel_radius_ * wheel_radius_) / (8.0 * vehicle_radius_))
           * angular_acceleration_direction
           * (cos_alpha_minus_gamma.array() * sin_alpha_minus_varphi.array()).sum();
         c = ((k1_ * moment_of_inertia_ * moment_of_inertia_ * wheel_radius_ * wheel_radius_)
              / (16.0 * vehicle_radius_ * vehicle_radius_))
           * sin_alpha_minus_varphi.array().pow(2).sum();
         d = (mess_ * wheel_radius_ / 4.0)
-          * (double_k1_torque_base_plus_wheel_velocities.array() * cos_alpha_minus_gamma.array())
-                .sum();
-        e = ((moment_of_inertia_ * wheel_radius_) / (4.0 * vehicle_radius_))
-          * angular_acceleration_direction
-          * (double_k1_torque_base_plus_wheel_velocities.array() * sin_alpha_minus_varphi.array())
-                .sum();
-        f = (wheel_torque_base.array()
-             * (k1_ * wheel_torque_base.array() + wheel_velocities.array()))
-                .sum();
+          * (double_k1_torque_base_plus_wheel_velocities.array() * cos_alpha_minus_gamma.array()).sum();
+        e = ((moment_of_inertia_ * wheel_radius_) / (4.0 * vehicle_radius_)) * angular_acceleration_direction
+          * (double_k1_torque_base_plus_wheel_velocities.array() * sin_alpha_minus_varphi.array()).sum();
+        f = (wheel_torque_base.array() * (k1_ * wheel_torque_base.array() + wheel_velocities.array())).sum();
 
         return formula;
     }
@@ -357,8 +336,7 @@ private:
             if (dot_r_squared[i] > 1e-2) {
                 steering_control_velocities[i] /= dot_r_squared[i];
                 steering_control_angles[i] = std::atan2(
-                    chassis_status_expected.wheel_velocity_y[i],
-                    chassis_status_expected.wheel_velocity_x[i]);
+                    chassis_status_expected.wheel_velocity_y[i], chassis_status_expected.wheel_velocity_x[i]);
             } else {
                 auto x = ax - vehicle_radius_ * (az * sin_varphi_[i] + 0 * cos_varphi_[i]);
                 auto y = ay + vehicle_radius_ * (az * cos_varphi_[i] - 0 * sin_varphi_[i]);
@@ -395,8 +373,7 @@ private:
         const auto& [ax, ay, az] = chassis_acceleration;
         Eigen::Vector4d wheel_torques =
             wheel_radius_
-            * (ax * mess_ * steering_status.cos_angle.array()
-               + ay * mess_ * steering_status.sin_angle.array()
+            * (ax * mess_ * steering_status.cos_angle.array() + ay * mess_ * steering_status.sin_angle.array()
                + az * moment_of_inertia_
                      * (cos_varphi_.array() * steering_status.sin_angle.array()
                         - sin_varphi_.array() * steering_status.cos_angle.array())
@@ -500,5 +477,4 @@ private:
 
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(
-    rmcs_core::controller::chassis::SteeringWheelController, rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::chassis::SteeringWheelController, rmcs_executor::Component)

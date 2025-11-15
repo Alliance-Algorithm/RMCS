@@ -6,8 +6,8 @@ rmcs_executor:
 
       - rmcs_core::referee::Status -> referee_status
       - rmcs_core::referee::command::Interaction -> referee_interaction
-      - rmcs_core::referee::command::interaction::Ui -> referee_ui
-      - rmcs_core::referee::app::ui::Hero -> referee_ui_hero
+      # - rmcs_core::referee::command::interaction::Ui -> referee_ui
+      # - rmcs_core::referee::app::ui::Hero -> referee_ui_hero
       - rmcs_core::referee::Command -> referee_command
 
       - rmcs_core::controller::gimbal::HeroGimbalController -> gimbal_controller
@@ -28,6 +28,7 @@ rmcs_executor:
       - rmcs_core::controller::chassis::ChassisController -> chassis_controller
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::SteeringWheelController -> steering_wheel_controller
+      - rmcs_core::controller::chassis::ChassisClimberController -> climber_controller
 
       # - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
       # - rmcs_auto_aim::AutoAimController -> auto_aim_controller
@@ -38,20 +39,35 @@ hero_hardware:
   ros__parameters:
     usb_pid_top_board: 0xab05
     usb_pid_bottom_board: 0x1783
-    bottom_yaw_motor_zero_point: 54310
+    bottom_yaw_motor_zero_point: 23155
     pitch_motor_zero_point: 63917
     top_yaw_motor_zero_point: 0
     viewer_motor_zero_point: 3030
     external_imu_port: /dev/ttyUSB0
-    left_front_zero_point: 3473
-    left_back_zero_point: 6124
-    right_back_zero_point: 6157
-    right_front_zero_point: 2723
+    left_front_zero_point: 7530
+    left_back_zero_point:  2060
+    right_back_zero_point: 2016
+    right_front_zero_point: 6805
+    # left_front_zero_point: 3473
+    # left_back_zero_point: 6124
+    # right_back_zero_point: 6157
+    # right_front_zero_point: 2723
 
 value_broadcaster:
   ros__parameters:
     forward_list:
       - /gimbal/putter/angle
+
+climber_controller:
+  ros__parameters:
+    front_climber_velocity: 50.0
+    back_climber_velocity: 10.0
+    front_kp: 1.0
+    front_ki: 0.0
+    front_kd: 0.5
+    back_kp: 50.0
+    back_ki: 1.0
+    back_kd: 0.0
 
 gimbal_controller:
   ros__parameters:
