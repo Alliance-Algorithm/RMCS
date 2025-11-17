@@ -127,18 +127,7 @@ public:
                 a3      = -2.0f * (end - start) / pow(total_step, 3);
                 result_ = a0 + a2 * pow(current_step, 2) + a3 * pow(current_step, 3);
                 std::copy(result_.data(), result_.data() + 6, result.begin());
-            } else if constexpr (Type == TrajectoryType::SINGLE_JOINT) {
-                Eigen::VectorXd result_(1), a0(1), a2(1), a3(1), start(1), end(1);
-                start << joint_start[0];
-                end << joint_end[0];
-
-                a0      = start;
-                a2      = 3.0f * (end - start) / pow(total_step, 2);
-                a3      = -2.0f * (end - start) / pow(total_step, 3);
-                result_ = a0 + a2 * pow(current_step, 2) + a3 * pow(current_step, 3);
-                result[0] = result[0];
-                
-            }
+            } 
 
             current_step++;
         }

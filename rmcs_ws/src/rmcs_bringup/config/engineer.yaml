@@ -58,8 +58,8 @@ engineer_hardware:
     joint6_zero_point: 0
     joint5_zero_point: 37361
     joint4_zero_point: 12200
-    joint3_zero_point: 91046
-    joint2_zero_point: 52992 
+    joint3_zero_point: 260992
+    joint2_zero_point: 52343 
     joint6_qlim: [-3.141592,3.141592]    
     joint5_qlim: [-1.93532,1.93532]    
     joint4_qlim: [-3.141592,3.141592]    
@@ -270,6 +270,7 @@ steering_wheel_rf_velocity_controller:
     kp: 0.85
     ki: 0.0
     kd: 0.0
+    
 leg_omni_l_velocity_controller:
   ros__parameters:
     measurement: /leg/omni/l/velocity

@@ -2,28 +2,161 @@ rmcs_executor:
   ros__parameters:
     update_rate: 1000.0
     components:
-      - "rmcs_core::hardware::LK_Robot -> hardware"
-      # - rmcs_core::controller::pid::ErrorPidController -> steering_steering_lf_angle_error_pid_controller
-      # - rmcs_core::controller::pid::PidController -> steering_steering_lf_velocity_pid_controller
-      # - rmcs_core::controller::pid::ErrorPidController -> steering_steering_lb_angle_error_pid_controller
-      # - rmcs_core::controller::pid::PidController -> steering_steering_lb_velocity_pid_controller
+      - rmcs_core::hardware::LK_Robot -> hardware
+      - rmcs_core::controller::arm::Arm -> arm_controller
+      - rmcs_core::controller::chassis::Steering -> steering_chassis
+      - rmcs_core::controller::pid::ErrorPidController -> joint6_angle_pid_controller
+      - rmcs_core::controller::pid::PidController -> joint6_velocity_pid_controller
+
+      - rmcs_core::controller::pid::ErrorPidController -> joint5_angle_pid_controller
+      - rmcs_core::controller::pid::PidController -> joint5_velocity_pid_controller
+
+      - rmcs_core::controller::pid::ErrorPidController -> joint4_angle_pid_controller
+      - rmcs_core::controller::pid::PidController -> joint4_velocity_pid_controller
+
+      - rmcs_core::controller::pid::ErrorPidController -> joint3_angle_pid_controller
+      - rmcs_core::controller::pid::PidController -> joint3_velocity_pid_controller
+
+      - rmcs_core::controller::pid::ErrorPidController -> joint2_angle_pid_controller
+      - rmcs_core::controller::pid::PidController -> joint2_velocity_pid_controller
+
+      - rmcs_core::controller::pid::ErrorPidController -> joint1_angle_pid_controller
+      - rmcs_core::controller::pid::PidController -> joint1_velocity_pid_controller
+      - rmcs_core::controller::pid::ErrorPidController -> steering_steering_lf_angle_error_pid_controller
+      - rmcs_core::controller::pid::PidController -> steering_steering_lf_velocity_pid_controller
+      - rmcs_core::controller::pid::ErrorPidController -> steering_steering_lb_angle_error_pid_controller
+      - rmcs_core::controller::pid::PidController -> steering_steering_lb_velocity_pid_controller
       - rmcs_core::controller::pid::ErrorPidController -> steering_steering_rb_angle_error_pid_controller
       - rmcs_core::controller::pid::PidController -> steering_steering_rb_velocity_pid_controller
       - rmcs_core::controller::pid::ErrorPidController -> steering_steering_rf_angle_error_pid_controller
       - rmcs_core::controller::pid::PidController -> steering_steering_rf_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> steering_wheel_rb_velocity_controller
       - rmcs_core::controller::pid::PidController -> steering_wheel_rf_velocity_controller
+      - rmcs_core::controller::pid::PidController -> steering_wheel_lf_velocity_controller
+      - rmcs_core::controller::pid::PidController -> steering_wheel_lb_velocity_controller
+      
 hardware:
   ros__parameters:
-      right_board_usb_pid: 0x94dc
-      right_forward_zero_point: 0
-      right_back_zero_point: 0
+    right_board_usb_pid: 0x94dc
+    left_board_usb_pid: 0x93ac
+    right_forward_zero_point: 30090
+    right_back_zero_point: 49500
+    left_forward_zero_point: 43900
+    left_back_zero_point: 4280
+    joint6_zero_point: 0
+    joint5_zero_point: 40661
+    joint4_zero_point: 12200
+    joint3_zero_point: 2000
+    joint2_zero_point: 52992 
+    joint1_zero_point: 28349
+    joint6_qlim: [-3.141592,3.141592]    
+    joint5_qlim: [-1.93532,1.93532]    
+    joint4_qlim: [-3.141592,3.141592]    
+    joint3_qlim: [-0.80,0.9227]    
+    joint2_qlim: [-1.0108,1.09719]   
+    joint1_qlim: [-2.841592,2.841592]
+joint6_angle_pid_controller:
+  ros__parameters:
+    measurement: /arm/Joint6/control_angle_error
+    control: /arm/Joint6/control_velocity
+    kp: 9620.0
+    ki: 0.0
+    kd: 25.0
+
+joint6_velocity_pid_controller:
+  ros__parameters:
+    measurement: /arm/Joint6/velocity
+    setpoint: /arm/Joint6/control_velocity
+    control: /arm/Joint6/control_torque
+    kp: 0.021
+    ki: 0.0
+    kd: 0.0005
+
+joint5_angle_pid_controller:
+  ros__parameters:
+    measurement: /arm/Joint5/control_angle_error
+    control: /arm/Joint5/control_velocity
+    kp: 6920.0
+    ki: 0.0
+    kd: 15.0
+joint5_velocity_pid_controller:
+  ros__parameters:
+    measurement: /arm/Joint5/velocity
+    setpoint: /arm/Joint5/control_velocity
+    control: /arm/Joint5/control_torque
+    kp: 0.028
+    ki: 0.0
+    kd: 0.0009
+
+joint4_angle_pid_controller:
+  ros__parameters:
+    measurement: /arm/Joint4/control_angle_error
+    control: /arm/Joint4/control_velocity
+    kp: 3120.0
+    ki: 0.0
+    kd: 15.0
+joint4_velocity_pid_controller:
+  ros__parameters:
+    measurement: /arm/Joint4/velocity
+    setpoint: /arm/Joint4/control_velocity
+    control: /arm/Joint4/control_torque
+    kp: 0.06
+    ki: 0.0
+    kd: 0.001
+
+joint3_angle_pid_controller:
+  ros__parameters:
+    measurement: /arm/Joint3/control_angle_error
+    control: /arm/Joint3/control_velocity
+    kp: 4290.0
+    ki: 0.0
+    kd: 20.0
+joint3_velocity_pid_controller:
+  ros__parameters:
+    measurement: /arm/Joint3/velocity
+    setpoint: /arm/Joint3/control_velocity
+    control: /arm/Joint3/control_torque
+    kp: 0.0025
+    ki: 0.0
+    kd: 0.0002
+
+joint2_angle_pid_controller:
+  ros__parameters:
+    measurement: /arm/Joint2/control_angle_error
+    control: /arm/Joint2/control_velocity
+    kp: 6390.0
+    ki: 0.0
+    kd: 20.0
+joint2_velocity_pid_controller:
+  ros__parameters:
+    measurement: /arm/Joint2/velocity
+    setpoint: /arm/Joint2/control_velocity
+    control: /arm/Joint2/control_torque
+    kp: 0.00293
+    ki: 0.0
+    kd: 0.00004
+
+joint1_angle_pid_controller:
+  ros__parameters:
+    measurement: /arm/Joint1/control_angle_error
+    control: /arm/Joint1/control_velocity
+    kp: 6520.0
+    ki: 0.0
+    kd: 40.0
+joint1_velocity_pid_controller:
+  ros__parameters:
+    measurement: /arm/Joint1/velocity
+    setpoint: /arm/Joint1/control_velocity
+    control: /arm/Joint1/control_torque
+    kp: 0.042
+    ki: 0.0
+    kd: 0.0001
 
 steering_steering_rb_angle_error_pid_controller:
   ros__parameters:
     measurement: /steering/steering/rb/target_angle_error
     control: /steering/steering/rb/control_vel
-    kp: 1.0
+    kp: 70.0
     ki: 0.0
     kd: 0.0
 steering_steering_rb_velocity_pid_controller:
@@ -39,7 +172,7 @@ steering_wheel_rb_velocity_controller:
     measurement: /steering/wheel/rb/velocity
     setpoint: /steering/wheel/rb/target_vel
     control: /steering/wheel/rb/control_torque
-    kp: 0.15
+    kp: 0.4
     ki: 0.0
     kd: 0.0
 
@@ -47,7 +180,7 @@ steering_steering_rf_angle_error_pid_controller:
   ros__parameters:
     measurement: /steering/steering/rf/target_angle_error
     control: /steering/steering/rf/control_vel
-    kp: 1.0
+    kp: 70.0
     ki: 0.0
     kd: 0.0
 steering_steering_rf_velocity_pid_controller:
@@ -63,8 +196,54 @@ steering_wheel_rf_velocity_controller:
     measurement: /steering/wheel/rf/velocity
     setpoint: /steering/wheel/rf/target_vel
     control: /steering/wheel/rf/control_torque
-    kp: 0.15
+    kp: 0.4
     ki: 0.0
     kd: 0.0
 
+steering_steering_lf_angle_error_pid_controller:
+  ros__parameters:
+    measurement: /steering/steering/lf/target_angle_error
+    control: /steering/steering/lf/control_vel
+    kp: 70.0
+    ki: 0.0
+    kd: 0.0
+steering_steering_lf_velocity_pid_controller:
+  ros__parameters:
+    measurement: /steering/steering/lf/velocity
+    setpoint: /steering/steering/lf/control_vel
+    control: /steering/steering/lf/control_torque
+    kp: 0.12
+    ki: 0.0
+    kd: 0.0
+steering_wheel_lf_velocity_controller:
+  ros__parameters:
+    measurement: /steering/wheel/lf/velocity
+    setpoint: /steering/wheel/lf/target_vel
+    control: /steering/wheel/lf/control_torque
+    kp: 0.4
+    ki: 0.0
+    kd: 0.0
 
+steering_steering_lb_angle_error_pid_controller:
+  ros__parameters:
+    measurement: /steering/steering/lb/target_angle_error
+    control: /steering/steering/lb/control_vel
+    kp: 70.0
+    ki: 0.0
+    kd: 0.0
+steering_steering_lb_velocity_pid_controller:
+  ros__parameters:
+    measurement: /steering/steering/lb/velocity
+    setpoint: /steering/steering/lb/control_vel
+    control: /steering/steering/lb/control_torque
+    kp: 0.12
+    ki: 0.0
+    kd: 0.01
+steering_wheel_lb_velocity_controller:
+  ros__parameters:
+    measurement: /steering/wheel/lb/velocity
+    setpoint: /steering/wheel/lb/target_vel
+    control: /steering/wheel/lb/control_torque
+    kp: 0.4
+    ki: 0.0
+    kd: 0.0
