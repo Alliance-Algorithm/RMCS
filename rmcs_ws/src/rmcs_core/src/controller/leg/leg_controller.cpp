@@ -96,38 +96,18 @@ public:
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
             *is_leg_enable = false;
             reset_motor();
-            is_leg_forward_joint_torque_control = false;
-            leg_mode                            = rmcs_msgs::LegMode::None;
+            leg_mode = rmcs_msgs::LegMode::None;
         } else {
-            *is_leg_enable = true;
+            *is_leg_enable        = true;
+            Eigen::Vector2d move_ = *joystick_left_;
             mode_selection();
-            switch (*chassis_mode) {
-            case rmcs_msgs::ChassisMode::Flow: {
-                Eigen::Vector2d move_ = *joystick_left_;
-                if (leg_mode == rmcs_msgs::LegMode::Four_Wheel) {
-                    omniwheel_control(Eigen::Vector2d{NAN, NAN});
-                } else {
-                    omniwheel_control(move_);
-                }
-                break;
+            if (*chassis_mode == rmcs_msgs::ChassisMode::SPIN) {
+                leg_mode = rmcs_msgs::LegMode::Four_Wheel;
             }
-            case rmcs_msgs::ChassisMode::SPIN: {
-                omniwheel_control(Eigen::Vector2d{NAN, NAN});
-                break;
-            }
-            case rmcs_msgs::ChassisMode::Up_Stairs: {
-                Eigen::Vector2d move_ = *joystick_left_;
-                omniwheel_control(move_);
-                break;
-            }
-            case rmcs_msgs::ChassisMode::Yaw_Free: {
-                Eigen::Rotation2D<double> rotation(*chassis_big_yaw_angle + *joint1_theta);
-                Eigen::Vector2d move_ = rotation * (*joystick_left_);
-                omniwheel_control(move_);
-                break;
-            }
-            default: break;
-            }
+
+            omniwheel_control(Eigen::Vector2d{NAN, NAN});
+
+            leg_control();
         }
     }
 
@@ -228,23 +208,19 @@ private:
         static std::array<double, 6> result;
 
         if (leg_mode == rmcs_msgs::LegMode::Four_Wheel) {
-            is_leg_forward_joint_torque_control = false;
-            result                              = four_wheel_trajectory.trajectory();
+            result = four_wheel_trajectory.trajectory();
 
         } else if (leg_mode == rmcs_msgs::LegMode::Six_Wheel) {
             if (!six_wheel_trajectory.get_complete()) {
-                is_leg_forward_joint_torque_control = false;
-                result                              = six_wheel_trajectory.trajectory();
+                result = six_wheel_trajectory.trajectory();
             } else {
-                is_leg_forward_joint_torque_control = false;
-                result                              = six_wheel_trajectory.trajectory();
+                result = six_wheel_trajectory.trajectory();
                 if (*theta_lf < std::numbers::pi / 2.0 || *theta_rf < std::numbers::pi / 2.0) {
                     result[0] = NAN;
                     result[3] = NAN;
                 }
             }
         } else if (leg_mode == rmcs_msgs::LegMode::Up_Stairs) {
-            is_leg_forward_joint_torque_control = false;
             if (!up_stairs_initial.get_complete()) {
                 result = up_stairs_initial.trajectory();
                 up_stairs_leg_press.set_start_point(
@@ -271,37 +247,30 @@ private:
                 }
             }
         } else if (leg_mode == rmcs_msgs::LegMode::None) {
-            is_leg_forward_joint_torque_control = false;
-            result[0]                           = *theta_lf;
-            result[1]                           = *theta_lb;
-            result[2]                           = *theta_rb;
-            result[3]                           = *theta_rf;
+            result[0] = *theta_lf;
+            result[1] = *theta_lb;
+            result[2] = *theta_rb;
+            result[3] = *theta_rf;
         }
         leg_joint_controller(result[0], result[1], result[2], result[3]);
     }
 
     void leg_joint_controller(double lf, double lb, double rb, double rf) {
-        if (is_leg_forward_joint_torque_control) {
-            set_leg_forward_joint_torque(lf, rf);
-            *leg_lb_target_theta = lb;
-            *leg_rb_target_theta = rb;
 
-        } else {
-            leg_lf_target_theta  = lf;
-            leg_rf_target_theta  = rf;
-            *leg_lb_target_theta = lb;
-            *leg_rb_target_theta = rb;
-            double diff          = (*theta_rf); //
-            double leg_joint_lf_control_vel =
-                leg_lf_error_pid_controller.update(normalizeAngle(leg_lf_target_theta - *theta_lf));
-            double leg_joint_rf_control_vel =
-                leg_rf_error_pid_controller.update(normalizeAngle(leg_rf_target_theta - *theta_rf));
-            set_leg_forward_joint_torque(
-                leg_lf_velocity_pid_controller.update(
-                    leg_joint_lf_control_vel - *leg_joint_lf_velocity),
-                leg_rf_velocity_pid_controller.update(
-                    leg_joint_rf_control_vel - *leg_joint_rf_velocity));
-        }
+        leg_lf_target_theta  = lf;
+        leg_rf_target_theta  = rf;
+        *leg_lb_target_theta = lb;
+        *leg_rb_target_theta = rb;
+        double diff          = (*theta_rf); //
+        double leg_joint_lf_control_vel =
+            leg_lf_error_pid_controller.update(normalizeAngle(leg_lf_target_theta - *theta_lf));
+        double leg_joint_rf_control_vel =
+            leg_rf_error_pid_controller.update(normalizeAngle(leg_rf_target_theta - *theta_rf));
+        set_leg_forward_joint_torque(
+            leg_lf_velocity_pid_controller.update(
+                leg_joint_lf_control_vel - *leg_joint_lf_velocity),
+            leg_rf_velocity_pid_controller.update(
+                leg_joint_rf_control_vel - *leg_joint_rf_velocity));
     };
     void set_leg_forward_joint_torque(double lf, double rf) {
         *leg_joint_lf_control_torque = lf;
@@ -328,8 +297,10 @@ private:
     }
 
     void omniwheel_control(const Eigen::Vector2d& move) {
-        *omni_l_target_vel = move.x() * ((*speed_limit_) / wheel_r);
-        *omni_r_target_vel = move.x() * ((*speed_limit_) / wheel_r);
+        if (leg_mode != rmcs_msgs::LegMode::Four_Wheel) {
+            *omni_l_target_vel = move.x() * ((*speed_limit_) / wheel_r);
+            *omni_r_target_vel = move.x() * ((*speed_limit_) / wheel_r);
+        }
     }
 
     static double normalizeAngle(double angle) {
@@ -374,8 +345,7 @@ private:
     OutputInterface<double> leg_joint_lf_control_torque;
     OutputInterface<double> leg_joint_rf_control_torque;
 
-    bool is_leg_forward_joint_torque_control = false;
-    double leg_lf_target_theta               = NAN;
+    double leg_lf_target_theta = NAN;
     OutputInterface<double> leg_lb_target_theta;
     OutputInterface<double> leg_rb_target_theta;
     double leg_rf_target_theta  = NAN;
