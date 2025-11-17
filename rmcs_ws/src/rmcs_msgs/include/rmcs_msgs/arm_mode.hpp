@@ -10,6 +10,7 @@ enum class ArmMode : uint8_t {
     Auto_Gold_Mid,
     Auto_Sliver,
     Auto_Walk,
+    Auto_Spin,
     Auto_Ground,
     Auto_Storage_LB,
     Auto_Storage_RB,

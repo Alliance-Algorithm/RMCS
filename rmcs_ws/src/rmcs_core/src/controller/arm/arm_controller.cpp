@@ -65,7 +65,7 @@ public:
         register_output("/arm/Joint2/target_theta", target_theta[1], nan);
         register_output("/arm/Joint1/target_theta", target_theta[0], nan);
 
-        register_input("/arm/Joint1/raw_angle",joint1_raw_angle);
+        register_input("/arm/Joint1/raw_angle", joint1_raw_angle);
         register_output("/arm/Joint1/zero_point", joint1_zero_point, 14381);
 
         register_output("/arm/enable_flag", is_arm_enable, true);
@@ -103,12 +103,12 @@ public:
             static_cast<float>(*theta[4]),
             static_cast<float>(*theta[5])};
         publisher_->publish(msg);
-        if(keyboard.e){
-            if(keyboard.ctrl && keyboard.shift){
+        if (keyboard.e) {
+            if (keyboard.ctrl && keyboard.shift) {
                 *joint1_zero_point = *joint1_raw_angle;
-                *target_theta[0] = 0.0;
+                *target_theta[0]   = 0.0;
             }
-        }                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       
+        }
         using namespace rmcs_msgs;
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
@@ -168,6 +168,10 @@ public:
                     *arm_mode = rmcs_msgs::ArmMode::Auto_Walk;
                     fsm_walk.reset();
                 }
+                if (keyboard.d) {
+                    *arm_mode = rmcs_msgs::ArmMode::Auto_Spin;
+                    fsm_walk.reset();
+                }
                 if (keyboard.b) {
                     *arm_mode = rmcs_msgs::ArmMode::Auto_Up_Stairs;
                     fsm_up_stairs.reset();
@@ -183,13 +187,13 @@ public:
                         fsm_storage_rb.reset();
                     }
                 }
-                
+
                 if (keyboard.r) {
                     if (!keyboard.ctrl && !keyboard.shift) {
                         *arm_mode = rmcs_msgs::ArmMode::Customer;
                     };
                 }
-               
+
             } else {
                 *arm_mode       = rmcs_msgs::ArmMode::None;
                 is_arm_pump_on  = false;
@@ -201,13 +205,14 @@ public:
             case ArmMode::Auto_Gold_Mid: execute_gold(fsm_gold_m); break;
             case ArmMode::Auto_Gold_Right: execute_gold(fsm_gold_r); break;
             case ArmMode::Auto_Sliver: execute_sliver(fsm_sliver); break;
-            case ArmMode::Auto_Walk: execute_walk(); break;
             case ArmMode::DT7_Control_Position: execute_dt7_position(); break;
             case ArmMode::DT7_Control_Orientation: execute_dt7_orientation(); break;
             case ArmMode::Customer: execute_customer(); break;
             case ArmMode::Auto_Up_Stairs: execute_up_stairs(); break;
             case ArmMode::Auto_Storage_LB: execute_storage(fsm_storage_lb); break;
             case ArmMode::Auto_Storage_RB: execute_storage(fsm_storage_rb); break;
+            case ArmMode::Auto_Spin:
+            case ArmMode::Auto_Walk: execute_walk(); break;
 
             default: break;
             }

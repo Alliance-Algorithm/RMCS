@@ -108,6 +108,9 @@ public:
             omniwheel_control(Eigen::Vector2d{NAN, NAN});
 
             leg_control();
+
+            last_arm_mode = *arm_mode;
+            last_leg_mode = leg_mode;
         }
     }
 
@@ -147,6 +150,9 @@ private:
                 up_stairs_initial.set_start_point(
                     {*theta_lf, *theta_lb, *theta_rb, *theta_rf, 0.0, 0.0});
             }
+            if (keyboard.d) {
+                
+            }
 
             if (last_arm_mode != *arm_mode) {
                 if (*arm_mode == rmcs_msgs::ArmMode::Auto_Gold_Left
@@ -160,7 +166,6 @@ private:
                     || *arm_mode == rmcs_msgs::ArmMode::Customer
                     || *arm_mode == rmcs_msgs::ArmMode::Auto_Up_Stairs) {
 
-                    last_arm_mode = *arm_mode;
                     if (*arm_mode == rmcs_msgs::ArmMode::Customer) {
                         leg_mode = rmcs_msgs::LegMode::Four_Wheel;
                     } else {
@@ -174,22 +179,6 @@ private:
         } else {
             leg_mode = rmcs_msgs::LegMode::None;
         }
-
-        if (last_leg_mode != leg_mode) {
-            if (leg_mode == rmcs_msgs::LegMode::Four_Wheel) {
-                four_wheel_trajectory.reset();
-                four_wheel_trajectory.set_start_point(
-                    {*theta_lf, *theta_lb, *theta_rb, *theta_rf, 0.0, 0.0});
-
-            } else if (leg_mode == rmcs_msgs::LegMode::Six_Wheel) {
-                six_wheel_trajectory.reset();
-                six_wheel_trajectory.set_start_point(
-                    {*theta_lf, *theta_lb, *theta_rb, *theta_rf, 0.0, 0.0});
-            }
-        }
-
-        last_arm_mode = *arm_mode;
-        last_leg_mode = leg_mode;
     }
 
     void reset_motor() {
@@ -204,6 +193,22 @@ private:
     }
 
     void leg_control() {
+
+        auto reset_leg_trajectory = [&] {
+            if (last_leg_mode != leg_mode) {
+                if (leg_mode == rmcs_msgs::LegMode::Four_Wheel) {
+                    four_wheel_trajectory.reset();
+                    four_wheel_trajectory.set_start_point(
+                        {*theta_lf, *theta_lb, *theta_rb, *theta_rf, 0.0, 0.0});
+
+                } else if (leg_mode == rmcs_msgs::LegMode::Six_Wheel) {
+                    six_wheel_trajectory.reset();
+                    six_wheel_trajectory.set_start_point(
+                        {*theta_lf, *theta_lb, *theta_rb, *theta_rf, 0.0, 0.0});
+                }
+            }
+        };
+        reset_leg_trajectory();
 
         static std::array<double, 6> result;
 
@@ -261,38 +266,27 @@ private:
         leg_rf_target_theta  = rf;
         *leg_lb_target_theta = lb;
         *leg_rb_target_theta = rb;
-        double diff          = (*theta_rf); //
+
         double leg_joint_lf_control_vel =
             leg_lf_error_pid_controller.update(normalizeAngle(leg_lf_target_theta - *theta_lf));
         double leg_joint_rf_control_vel =
             leg_rf_error_pid_controller.update(normalizeAngle(leg_rf_target_theta - *theta_rf));
-        set_leg_forward_joint_torque(
-            leg_lf_velocity_pid_controller.update(
-                leg_joint_lf_control_vel - *leg_joint_lf_velocity),
-            leg_rf_velocity_pid_controller.update(
-                leg_joint_rf_control_vel - *leg_joint_rf_velocity));
+
+        *leg_joint_lf_control_torque = leg_lf_velocity_pid_controller.update(
+            leg_joint_lf_control_vel - *leg_joint_lf_velocity);
+        *leg_joint_rf_control_torque = leg_rf_velocity_pid_controller.update(
+            leg_joint_rf_control_vel - *leg_joint_rf_velocity);
     };
-    void set_leg_forward_joint_torque(double lf, double rf) {
-        *leg_joint_lf_control_torque = lf;
-        *leg_joint_rf_control_torque = rf;
-    }
+
     static std::array<double, 2> leg_inverse_kinematic(
         double f_x, double b_x, bool is_front_ecd_obtuse, bool is_back_ecd_obtuse) {
         constexpr double link1 = 240.0f, link2 = 120.0f, link3 = 160.0f;
+        constexpr double link_angle = 5 * std::numbers::pi / 6.0;
         double theta_f, theta_b;
-        double theta_b_ = asin(b_x / link1);
-        if (is_back_ecd_obtuse) {
-            theta_b = std::numbers::pi - theta_b_;
-        } else {
-            theta_b = theta_b_;
-        }
-        double x_link2  = link2 * sin(5.0 * std::numbers::pi / 6.0 - theta_b);
-        double theta_f_ = asin((f_x - x_link2) / link3);
-        if (is_front_ecd_obtuse) {
-            theta_f = std::numbers::pi - theta_f_;
-        } else {
-            theta_f = theta_f_;
-        }
+        theta_b = !is_back_ecd_obtuse ? asin(b_x / link1) : (M_PI - asin(b_x / link1));
+        double x_link2  = link2 * sin(link_angle - theta_b);
+        theta_f = !is_front_ecd_obtuse ? asin((f_x - x_link2) / link3) : (M_PI - asin((f_x - x_link2) / link3));
+        
         return {theta_f, theta_b};
     }
 
