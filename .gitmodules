@@ -19,3 +19,6 @@
 [submodule "rmcs_ws/src/rmcs_core/librmcs"]
 	path = rmcs_ws/src/rmcs_core/librmcs
 	url = git@github.com:Alliance-Algorithm/librmcs.git
+[submodule "rmcs_ws/src/serial"]
+	path = rmcs_ws/src/serial
+	url = https://github.com/Alliance-Algorithm/ros2-serial.git
