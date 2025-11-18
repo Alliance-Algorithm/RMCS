@@ -1,3 +1,4 @@
+#include <chrono>
 #include <cmath>
 #include <limits>
 
@@ -130,11 +131,11 @@ private:
     }
 
     void publish_sync_data() {
-        auto now = this->now();
+        auto now = std::chrono::steady_clock::now().time_since_epoch().count();
 
         auto timestamp_msg    = builtin_interfaces::msg::Time();
-        timestamp_msg.sec     = static_cast<int32_t>(now.seconds());
-        timestamp_msg.nanosec = now.nanoseconds() % 1000000000;
+        timestamp_msg.sec     = static_cast<int32_t>(now / 1000000000);
+        timestamp_msg.nanosec = static_cast<int32_t>(now % 1000000000);
         timestamp_publisher_->publish(timestamp_msg);
 
         try {
@@ -160,7 +161,7 @@ private:
             camera_to_gimbal.linear() = rotation;
 
             auto transform_msg = eigen_to_transform_stamped_msg(
-                camera_to_gimbal, "gimbal_center_link", "camera_link", now);
+                camera_to_gimbal, "gimbal_center_link", "camera_link", timestamp_msg);
             camera_to_gimbal_publisher_->publish(transform_msg);
 
         } catch (const std::exception& e) {
@@ -196,7 +197,7 @@ private:
             gimbal_to_muzzle.linear() = rotation;
 
             auto transform_msg = eigen_to_transform_stamped_msg(
-                gimbal_to_muzzle, "muzzle_link", "gimbal_center_link", now);
+                gimbal_to_muzzle, "muzzle_link", "gimbal_center_link", timestamp_msg);
             gimbal_to_muzzle_publisher_->publish(transform_msg);
 
         } catch (const std::exception& e) {
@@ -207,14 +208,13 @@ private:
 
     static geometry_msgs::msg::TransformStamped eigen_to_transform_stamped_msg(
         const Eigen::Isometry3d& transform, const std::string& child_frame_id,
-        const std::string& frame_id, const rclcpp::Time& stamp) {
+        const std::string& frame_id, const builtin_interfaces::msg::Time& now) {
 
         geometry_msgs::msg::TransformStamped msg;
 
-        msg.header.stamp.sec     = static_cast<int32_t>(stamp.seconds());
-        msg.header.stamp.nanosec = stamp.nanoseconds() % 1000000000;
-        msg.header.frame_id      = frame_id;
-        msg.child_frame_id       = child_frame_id;
+        msg.header.stamp    = now;
+        msg.header.frame_id = frame_id;
+        msg.child_frame_id  = child_frame_id;
 
         msg.transform.translation.x = transform.translation().x();
         msg.transform.translation.y = transform.translation().y();
