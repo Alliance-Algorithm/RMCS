@@ -126,6 +126,7 @@ public:
         target_theta_        = std::clamp(target_theta_, *qlim_low, *qlim_up);
         return target_theta_;
     }
+    double get_vel(){return this->get_velocity();}
     // Eigen::Matrix4d get_transform() { return *T_; }
 
 private:

@@ -29,14 +29,15 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
-                 register_input("/remote/joystick/right", joystick_right_);
+        register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
         register_input("/remote/switch/right", switch_right_);
         register_input("/remote/switch/left", switch_left_);
 
-         register_input("/steering/steering/lf/angle", steering_lf_angle);
+        register_input("/steering/steering/lf/angle", steering_lf_angle);
         register_input("/steering/steering/lb/angle", steering_lb_angle);
-
+        register_input("/steering/steering/rb/angle", steering_rb_angle);
+        register_input("/steering/steering/rf/angle", steering_rf_angle);
 
         register_output(
             "/steering/steering/lf/target_angle_error", steering_lf_target_angle_error, NAN);
@@ -46,18 +47,32 @@ public:
             "/steering/steering/rb/target_angle_error", steering_rb_target_angle_error, NAN);
         register_output(
             "/steering/steering/rf/target_angle_error", steering_rf_target_angle_error, NAN);
-              
+
         register_output("/steering/wheel/lf/target_vel", steering_wheel_lf_target_vel, NAN);
         register_output("/steering/wheel/lb/target_vel", steering_wheel_lb_target_vel, NAN);
         register_output("/steering/wheel/rb/target_vel", steering_wheel_rb_target_vel, NAN);
         register_output("/steering/wheel/rf/target_vel", steering_wheel_rf_target_vel, NAN);
-        }
+    }
     void update() override {
-        reset_motor();
+        auto switch_right = *switch_right_;
+        auto switch_left  = *switch_left_;
+        using namespace rmcs_msgs;
+        if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
+            || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
+            reset_motor();
+
+        } else {
+            if (switch_left == Switch::MIDDLE && switch_right == Switch::MIDDLE) {
+                Eigen::Vector2d move_ = *joystick_left_;
+                steering_control(move_, joystick_right_->y() / 1.5);
+            }
+            //  Eigen::Rotation2D<double> rotation( + *joint1_theta);
+            // Eigen::Vector2d move_ = rotation * (*joystick_left_);
+        }
     }
 
 private:
-void steering_control(const Eigen::Vector2d& move, double spin_speed) {
+    void steering_control(const Eigen::Vector2d& move, double spin_speed) {
 
         Eigen::Vector2d lf_vel = Eigen::Vector2d{-spin_speed, spin_speed} + move;
         Eigen::Vector2d lb_vel = Eigen::Vector2d{-spin_speed, -spin_speed} + move;
@@ -88,19 +103,18 @@ void steering_control(const Eigen::Vector2d& move, double spin_speed) {
         *steering_wheel_rf_target_vel =
             rf_vel.norm() * (speed_limit / wheel_r) * check_error_angle(err[3]);
     }
-void reset_motor() {
-        *steering_lf_target_angle_error     = NAN;
-        *steering_lb_target_angle_error     = NAN;
-        *steering_rb_target_angle_error     = NAN;
-        *steering_rf_target_angle_error     = NAN;
-     
-        *steering_wheel_lf_target_vel       = NAN;
-        *steering_wheel_lb_target_vel       = NAN;
-        *steering_wheel_rb_target_vel       = NAN;
-        *steering_wheel_rf_target_vel       = NAN;
-      
+    void reset_motor() {
+        *steering_lf_target_angle_error = NAN;
+        *steering_lb_target_angle_error = NAN;
+        *steering_rb_target_angle_error = NAN;
+        *steering_rf_target_angle_error = NAN;
+
+        *steering_wheel_lf_target_vel = NAN;
+        *steering_wheel_lb_target_vel = NAN;
+        *steering_wheel_rb_target_vel = NAN;
+        *steering_wheel_rf_target_vel = NAN;
     }
-static inline double norm_error_angle(const double& angle) {
+    static inline double norm_error_angle(const double& angle) {
         double tmp = angle;
         while (tmp > 2 * M_PI)
             tmp -= 2 * M_PI;

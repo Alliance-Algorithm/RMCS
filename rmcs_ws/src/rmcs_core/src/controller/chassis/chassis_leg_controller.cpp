@@ -121,7 +121,6 @@ public:
             reset_motor();
             yaw_control_theta                   = *yaw_imu_angle;
             is_yaw_imu_control                  = true;
-            is_leg_forward_joint_torque_control = false;
             leg_mode                            = rmcs_msgs::LegMode::None;
         } else {
 
@@ -132,7 +131,6 @@ public:
                 double chassis_theta = *chassis_big_yaw_angle;
                 double spin_speed =
                     std::clamp(following_velocity_controller_.update(chassis_theta), -1.0, 1.0);
-                Eigen::Rotation2D<double> rotation(chassis_theta + *joint1_theta);
                 Eigen::Vector2d move_ = *joystick_left_;
                 yaw_control_theta += joystick_right_->y() * 0.002;
                 yaw_control_theta = normalizeAngle(yaw_control_theta);
@@ -338,15 +336,12 @@ private:
         static std::array<double, 6> result;
 
         if (leg_mode == rmcs_msgs::LegMode::Four_Wheel) {
-            is_leg_forward_joint_torque_control = false;
             result                              = four_wheel_trajectory.trajectory();
 
         } else if (leg_mode == rmcs_msgs::LegMode::Six_Wheel) {
             if (!six_wheel_trajectory.get_complete()) {
-                is_leg_forward_joint_torque_control = false;
                 result                              = six_wheel_trajectory.trajectory();
             } else {
-                is_leg_forward_joint_torque_control = false;
                 result                              = six_wheel_trajectory.trajectory();
                 if (*theta_lf < std::numbers::pi / 2.0 || *theta_rf < std::numbers::pi / 2.0) {
                     result[0] = NAN;
@@ -354,7 +349,6 @@ private:
                 }
             }
         } else if (leg_mode == rmcs_msgs::LegMode::Up_Stairs) {
-            is_leg_forward_joint_torque_control = false;
             if (!up_stairs_initial.get_complete()) {
                 result = up_stairs_initial.trajectory();
                 up_stairs_leg_press.set_start_point(
@@ -381,7 +375,6 @@ private:
                 }
             }
         } else if (leg_mode == rmcs_msgs::LegMode::None) {
-            is_leg_forward_joint_torque_control = false;
             result[0]                           = *theta_lf;
             result[1]                           = *theta_lb;
             result[2]                           = *theta_rb;
@@ -391,12 +384,7 @@ private:
     }
 
     void leg_joint_controller(double lf, double lb, double rb, double rf) {
-        if (is_leg_forward_joint_torque_control) {
-            set_leg_forward_joint_torque(lf, rf);
-            *leg_lb_target_theta = lb;
-            *leg_rb_target_theta = rb;
-
-        } else {
+     
             leg_lf_target_theta  = lf;
             leg_rf_target_theta  = rf;
             *leg_lb_target_theta = lb;
@@ -411,7 +399,7 @@ private:
                     leg_joint_lf_control_vel - *leg_joint_lf_velocity),
                 leg_rf_velocity_pid_controller.update(
                     leg_joint_rf_control_vel - *leg_joint_rf_velocity));
-        }
+       
     };
     void set_leg_forward_joint_torque(double lf, double rf) {
         *leg_joint_lf_control_torque = lf;
@@ -599,7 +587,7 @@ private:
     double yaw_set_theta_in_YawFreeMode = NAN;
     hardware::device::Trajectory<hardware::device::TrajectoryType::JOINT> yaw_trajectory_controller;
 
-    bool is_leg_forward_joint_torque_control = false;
+
     double leg_lf_target_theta               = NAN;
     OutputInterface<double> leg_lb_target_theta;
     OutputInterface<double> leg_rb_target_theta;

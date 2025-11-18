@@ -1,0 +1,22 @@
+#compdef set-remote
+
+_remote_hosts() {
+  local hosts=(
+    "169.254.233.233"
+    "alliance-sentry.local"
+    "alliance-infantry.local"
+    "alliance-hero.local"
+  )
+
+  # 从 ~/.ssh/config 提取最近使用的 HostName
+  if [[ -f ~/.ssh/config ]]; then
+    local extracted
+    extracted=(${(f)"$(grep -A1 'Host remote' ~/.ssh/config | grep HostName | awk '{print $2}')"})
+    hosts+=(${extracted})
+  fi
+
+  compadd -- $hosts
+}
+
+_arguments \
+  '1:远程主机地址:_remote_hosts'
