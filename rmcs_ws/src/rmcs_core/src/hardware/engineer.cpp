@@ -73,9 +73,7 @@ private:
     };
     std::shared_ptr<EngineerCommand> engineer_command_;
 
-    class ArmBoard final
-        : private librmcs::client::CBoard
-        , rclcpp::Node {
+    class ArmBoard final : private librmcs::client::CBoard, rclcpp::Node {
     public:
         friend class Engineer;
         explicit ArmBoard(Engineer& engineer, EngineerCommand& engineer_command, int usb_pid)
@@ -172,7 +170,8 @@ private:
             static std::vector<double> qlim_input = {-3.1415926, 3.1415926};
 
             joint[0].configure_joint(
-                device::LKMotorConfig{device::LKMotorType::MG8010E_i36}.set_encoder_zero_point((double)(*joint1_zero_point)),
+                device::LKMotorConfig{device::LKMotorType::MG8010E_i36}.set_encoder_zero_point(
+                    (double)(*joint1_zero_point)),
                 DHConfig{0, 0.05985, 1.5707963, 0}, Qlim_Stall_Config{qlim_input});
 
             update_arm_motors();
@@ -272,7 +271,6 @@ private:
             arm_pump.update();
             mine_pump.update();
             // RCLCPP_INFO(this->get_logger(),"%f",joint[1].get_theta());
-
         }
 
         void update_imu() {
@@ -352,7 +350,6 @@ private:
         InputInterface<bool> is_arm_enable_;
         InputInterface<double> joint1_zero_point;
 
-
         device::Joint joint[6];
         device::Encoder joint2_encoder;
         device::Encoder joint3_encoder;
@@ -369,9 +366,7 @@ private:
         OutputInterface<double> yaw_imu_angle;
 
     } armboard_;
-    class SteeringBoard final
-        : private librmcs::client::CBoard
-        , rclcpp::Node {
+    class SteeringBoard final : private librmcs::client::CBoard, rclcpp::Node {
     public:
         friend class Engineer;
         explicit SteeringBoard(Engineer& engineer, EngineerCommand& engineer_command, int usb_pid)
@@ -497,9 +492,7 @@ private:
         device::DjiMotor Wheel_motors[4];
     } steeringboard_;
 
-    class LegBoard final
-        : private librmcs::client::CBoard
-        , rclcpp::Node {
+    class LegBoard final : private librmcs::client::CBoard, rclcpp::Node {
     public:
         friend class Engineer;
         explicit LegBoard(Engineer& engineer, EngineerCommand& engineer_command, int usb_pid)
@@ -594,6 +587,11 @@ private:
                 *leg_joint_lb_control_theta_error =
                     normalizeAngle(*leg_lb_target_theta_ - Leg_ecd[1].get_angle());
 
+                *leg_joint_lf_control_theta_error =
+                    normalizeAngle(*leg_lf_target_theta_ - Leg_ecd[0].get_angle());
+                *leg_joint_rf_control_theta_error =
+                    normalizeAngle(*leg_rf_target_theta_ - Leg_ecd[4].get_angle());
+                    
                 command_[2] = Leg_Motors[1].generate_command();
                 command_[3] = Omni_Motors[0].generate_command();
                 transmit_buffer_.add_can2_transmission(0x200, std::bit_cast<uint64_t>(command_));
@@ -677,7 +675,6 @@ private:
             if (can_id == 0x33) {
                 big_yaw.store_status(can_data);
             }
-
         }
 
     private:
@@ -687,12 +684,18 @@ private:
         device::DjiMotor Leg_Motors[4];
         device::Encoder Leg_ecd[4];
         device::DMMotor big_yaw;
+
+        InputInterface<double> leg_lf_target_theta_;
+        InputInterface<double> leg_rf_target_theta_;
         InputInterface<double> leg_lb_target_theta_;
         InputInterface<double> leg_rb_target_theta_;
         InputInterface<bool> is_chassis_and_leg_enable_;
 
         OutputInterface<double> leg_joint_lb_control_theta_error;
         OutputInterface<double> leg_joint_rb_control_theta_error;
+
+        OutputInterface<double> leg_joint_lf_control_theta_error;
+        OutputInterface<double> leg_joint_rf_control_theta_error;
 
         double max_lf = 0.0, max_lb = 0.0, max_rb = 0.0, max_rf = 0.0;
     } legboard_;

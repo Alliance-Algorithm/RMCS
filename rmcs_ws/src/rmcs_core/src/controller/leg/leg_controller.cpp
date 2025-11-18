@@ -26,11 +26,7 @@ public:
     LegController()
         : Node(
               get_component_name(),
-              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , leg_lf_error_pid_controller(240.0, 0.0, 5.0)
-        , leg_lf_velocity_pid_controller(2.0, 0.0, 0.2)
-        , leg_rf_error_pid_controller(240.0, 0.0, 5.0)
-        , leg_rf_velocity_pid_controller(2.0, 0.0, 0.2) {
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
 
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
@@ -49,18 +45,15 @@ public:
         register_input("/leg/encoder/lb/angle", theta_lb);
         register_input("/leg/encoder/rb/angle", theta_rb);
         register_input("/leg/encoder/rf/angle", theta_rf);
-        register_output("/leg/joint/lf/control_torque", leg_joint_lf_control_torque, NAN);
+
+        register_output("/leg/joint/lf/target_theta", leg_lf_target_theta, NAN);
+        register_output("/leg/joint/rf/target_theta", leg_rf_target_theta, NAN);
+
         register_output("/leg/joint/lb/target_theta", leg_lb_target_theta, NAN);
         register_output("/leg/joint/rb/target_theta", leg_rb_target_theta, NAN);
-        register_output("/leg/joint/rf/control_torque", leg_joint_rf_control_torque, NAN);
-
-        register_input("/leg/joint/lf/velocity", leg_joint_lf_velocity);
-        register_input("/leg/joint/rf/velocity", leg_joint_rf_velocity);
-        register_input("/leg/joint/lf/torque", leg_joint_lf_torque);
-        register_input("/leg/joint/rf/torque", leg_joint_rf_torque);
 
         register_input("/arm/mode", arm_mode);
-        register_input("/chassis/mode", chassis_mode);
+
         register_input("/arm/Joint1/theta", joint1_theta);
         register_input("/chassis/big_yaw/angle", chassis_big_yaw_angle);
 
@@ -98,14 +91,14 @@ public:
             reset_motor();
             leg_mode = rmcs_msgs::LegMode::None;
         } else {
-            *is_leg_enable        = true;
-            Eigen::Vector2d move_ = *joystick_left_;
+            *is_leg_enable = true;
+            Eigen::Rotation2D<double> rotation(*chassis_big_yaw_angle + *joint1_theta);
+            Eigen::Vector2d move_ = rotation*(*joystick_left_);
             mode_selection();
-            if (*chassis_mode == rmcs_msgs::ChassisMode::SPIN) {
+            if (*arm_mode == rmcs_msgs::ArmMode::Auto_Spin) {
                 leg_mode = rmcs_msgs::LegMode::Four_Wheel;
             }
-
-            omniwheel_control(Eigen::Vector2d{NAN, NAN});
+            omniwheel_control(move_);
 
             leg_control();
 
@@ -139,6 +132,9 @@ private:
                 if (!keyboard.shift && !keyboard.ctrl) {
                     leg_mode = rmcs_msgs::LegMode::Six_Wheel;
                 }
+                if (keyboard.shift && !keyboard.ctrl) {
+                    leg_mode = rmcs_msgs::LegMode::Four_Wheel;
+                }
             }
             if (keyboard.b) {
                 leg_mode               = rmcs_msgs::LegMode::Up_Stairs;
@@ -151,7 +147,7 @@ private:
                     {*theta_lf, *theta_lb, *theta_rb, *theta_rf, 0.0, 0.0});
             }
             if (keyboard.d) {
-                
+                leg_mode = rmcs_msgs::LegMode::Four_Wheel;
             }
 
             if (last_arm_mode != *arm_mode) {
@@ -182,14 +178,12 @@ private:
     }
 
     void reset_motor() {
-        *omni_l_target_vel           = NAN;
-        *omni_r_target_vel           = NAN;
-        leg_lf_target_theta          = NAN;
-        *leg_lb_target_theta         = NAN;
-        *leg_rb_target_theta         = NAN;
-        leg_rf_target_theta          = NAN;
-        *leg_joint_lf_control_torque = NAN;
-        *leg_joint_rf_control_torque = NAN;
+        *omni_l_target_vel   = NAN;
+        *omni_r_target_vel   = NAN;
+        *leg_lf_target_theta = NAN;
+        *leg_lb_target_theta = NAN;
+        *leg_rb_target_theta = NAN;
+        *leg_rf_target_theta = NAN;
     }
 
     void leg_control() {
@@ -262,20 +256,10 @@ private:
 
     void leg_joint_controller(double lf, double lb, double rb, double rf) {
 
-        leg_lf_target_theta  = lf;
-        leg_rf_target_theta  = rf;
+        *leg_lf_target_theta = lf;
+        *leg_rf_target_theta = rf;
         *leg_lb_target_theta = lb;
         *leg_rb_target_theta = rb;
-
-        double leg_joint_lf_control_vel =
-            leg_lf_error_pid_controller.update(normalizeAngle(leg_lf_target_theta - *theta_lf));
-        double leg_joint_rf_control_vel =
-            leg_rf_error_pid_controller.update(normalizeAngle(leg_rf_target_theta - *theta_rf));
-
-        *leg_joint_lf_control_torque = leg_lf_velocity_pid_controller.update(
-            leg_joint_lf_control_vel - *leg_joint_lf_velocity);
-        *leg_joint_rf_control_torque = leg_rf_velocity_pid_controller.update(
-            leg_joint_rf_control_vel - *leg_joint_rf_velocity);
     };
 
     static std::array<double, 2> leg_inverse_kinematic(
@@ -283,10 +267,11 @@ private:
         constexpr double link1 = 240.0f, link2 = 120.0f, link3 = 160.0f;
         constexpr double link_angle = 5 * std::numbers::pi / 6.0;
         double theta_f, theta_b;
-        theta_b = !is_back_ecd_obtuse ? asin(b_x / link1) : (M_PI - asin(b_x / link1));
-        double x_link2  = link2 * sin(link_angle - theta_b);
-        theta_f = !is_front_ecd_obtuse ? asin((f_x - x_link2) / link3) : (M_PI - asin((f_x - x_link2) / link3));
-        
+        theta_b        = !is_back_ecd_obtuse ? asin(b_x / link1) : (M_PI - asin(b_x / link1));
+        double x_link2 = link2 * sin(link_angle - theta_b);
+        theta_f        = !is_front_ecd_obtuse ? asin((f_x - x_link2) / link3)
+                                              : (M_PI - asin((f_x - x_link2) / link3));
+
         return {theta_f, theta_b};
     }
 
@@ -309,10 +294,6 @@ private:
     InputInterface<rmcs_msgs::ArmMode> arm_mode;
     InputInterface<rmcs_msgs::ChassisMode> chassis_mode;
     rmcs_msgs::ArmMode last_arm_mode;
-    pid::PidCalculator leg_lf_error_pid_controller;
-    pid::PidCalculator leg_lf_velocity_pid_controller;
-    pid::PidCalculator leg_rf_error_pid_controller;
-    pid::PidCalculator leg_rf_velocity_pid_controller;
 
     static constexpr double wheel_r = 0.11;
     InputInterface<double> speed_limit_;
@@ -332,17 +313,11 @@ private:
     InputInterface<double> theta_rb;
     InputInterface<double> theta_rf;
 
-    InputInterface<double> leg_joint_lf_velocity;
-    InputInterface<double> leg_joint_rf_velocity;
-    InputInterface<double> leg_joint_lf_torque;
-    InputInterface<double> leg_joint_rf_torque;
-    OutputInterface<double> leg_joint_lf_control_torque;
-    OutputInterface<double> leg_joint_rf_control_torque;
-
-    double leg_lf_target_theta = NAN;
+    OutputInterface<double> leg_lf_target_theta;
+    OutputInterface<double> leg_rf_target_theta;
     OutputInterface<double> leg_lb_target_theta;
     OutputInterface<double> leg_rb_target_theta;
-    double leg_rf_target_theta  = NAN;
+
     bool up_stairs_is_leg_press = false;
     bool up_stairs_is_leg_lift  = false;
 

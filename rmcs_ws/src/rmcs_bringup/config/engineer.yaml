@@ -43,6 +43,11 @@ rmcs_executor:
       - rmcs_core::controller::pid::ErrorPidController -> big_yaw_angle_error_pid_controller
       - rmcs_core::controller::pid::PidController -> big_yaw_velocity_pid_controller
 
+      - rmcs_core::controller::pid::ErrorPidController -> leg_lf_error_pid_controller
+      - rmcs_core::controller::pid::PidController -> leg_lf_velocity_pid_controller
+      - rmcs_core::controller::pid::ErrorPidController -> leg_rf_error_pid_controller
+      - rmcs_core::controller::pid::PidController -> leg_rf_velocity_pid_controller
+
       - rmcs_core::controller::pid::ErrorPidController -> leg_lb_error_pid_controller
       - rmcs_core::controller::pid::PidController -> leg_lb_velocity_pid_controller
       - rmcs_core::controller::pid::ErrorPidController -> leg_rb_error_pid_controller
@@ -304,6 +309,40 @@ big_yaw_velocity_pid_controller:
     ki: 0.0
     kd: 0.039
 
+
+leg_lf_error_pid_controller:
+  ros__parameters:
+    measurement: /leg/joint/lf/control_theta_error
+    control: /leg/joint/lf/control_vel
+    kp: 240.0
+    ki: 0.0
+    kd: 5.0
+leg_lf_velocity_pid_controller:
+  ros__parameters:
+    measurement: /leg/joint/lf/velocity
+    setpoint: /leg/joint/lf/control_vel
+    control: /leg/joint/lf/control_torque
+    kp: 2.0
+    ki: 0.0
+    kd: 0.2
+
+leg_rf_error_pid_controller:
+  ros__parameters:
+    measurement: /leg/joint/rf/control_theta_error
+    control: /leg/joint/rf/control_vel
+    kp: 240.0
+    ki: 0.0
+    kd: 5.0
+
+
+leg_rf_velocity_pid_controller:
+  ros__parameters:
+    measurement: /leg/joint/rf/velocity
+    setpoint: /leg/joint/rf/control_vel
+    control: /leg/joint/rf/control_torque
+    kp: 2.0
+    ki: 0.0
+    kd: 0.2
 
 leg_lb_error_pid_controller:
   ros__parameters:
