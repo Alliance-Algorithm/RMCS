@@ -1,7 +1,9 @@
 #include <chrono>
 #include <cmath>
+
 #include <limits>
 
+#include "geometry_msgs/msg/vector3_stamped.hpp"
 #include <builtin_interfaces/msg/time.hpp>
 #include <eigen3/Eigen/Dense>
 #include <fast_tf/rcl.hpp>
@@ -9,6 +11,8 @@
 #include <geometry_msgs/msg/transform_stamped.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
+#include <rclcpp/qos.hpp>
+#include <rclcpp/subscription.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/lkmotor_status.hpp>
@@ -43,7 +47,7 @@ public:
 
         register_input("/gimbal/shooter/mode", shoot_mode_);
 
-        register_input("/gimbal/auto_aim/control_direction", auto_aim_control_direction_, false);
+        // register_input("/gimbal/auto_aim/control_direction", auto_aim_control_direction_, false);
 
         register_output("/gimbal/yaw/control_angle_error", yaw_angle_error_, nan);
         register_output("/gimbal/pitch/control_angle_error", pitch_angle_error_, nan);
@@ -64,6 +68,19 @@ public:
 
         timestamp_publisher_ = this->create_publisher<builtin_interfaces::msg::Time>(
             "/gimbal/timestamp", rclcpp::QoS(10));
+
+        gimbal_direction_subscription_ =
+            this->create_subscription<geometry_msgs::msg::Vector3Stamped>(
+                "/alliacne_auto_aim/fire_control", rclcpp::QoS(10),
+                [&](geometry_msgs::msg::Vector3Stamped const& dir) {
+                    auto gimbal_dir = GimbalCenterLink::DirectionVector{
+                        Eigen::Vector3d{dir.vector.x, dir.vector.y, dir.vector.z}.normalized()
+                    };
+                    RCLCPP_INFO(
+                        this->get_logger(), "(%f,%f,%f)", dir.vector.x, dir.vector.y, dir.vector.z);
+                    auto auto_aim_dir            = fast_tf::cast<OdomImu>(gimbal_dir, *tf_);
+                    *auto_aim_control_direction_ = *auto_aim_dir;
+                });
     }
 
     void update() override {
@@ -85,8 +102,13 @@ public:
             is_enable_ = true;
             PitchLink::DirectionVector dir;
 
-            if (auto_aim_control_direction_.ready() && (mouse.right || switch_right == Switch::UP)
-                && !auto_aim_control_direction_->isZero()) {
+            // if (auto_aim_control_direction_.ready() && (mouse.right || switch_right ==
+            // Switch::UP)
+            //     && !auto_aim_control_direction_->isZero()) {
+            //     update_auto_aim_control_direction(dir);
+            // }
+            if (!auto_aim_control_direction_->isZero()
+                && (mouse.right || switch_right == Switch::UP)) {
                 update_auto_aim_control_direction(dir);
             } else {
                 update_manual_control_direction(dir);
@@ -359,7 +381,8 @@ private:
 
     InputInterface<rmcs_msgs::ShootMode> shoot_mode_;
 
-    InputInterface<Eigen::Vector3d> auto_aim_control_direction_;
+    // InputInterface<Eigen::Vector3d> auto_aim_control_direction_;
+    GimbalCenterLink::DirectionVector auto_aim_control_direction_{Eigen::Vector3d::Zero()};
 
     bool control_enabled = false;
     OdomImu::DirectionVector control_direction_{Eigen::Vector3d::Zero()};
@@ -381,6 +404,8 @@ private:
     rclcpp::Publisher<geometry_msgs::msg::TransformStamped>::SharedPtr camera_to_gimbal_publisher_;
     rclcpp::Publisher<geometry_msgs::msg::TransformStamped>::SharedPtr gimbal_to_muzzle_publisher_;
     rclcpp::Publisher<builtin_interfaces::msg::Time>::SharedPtr timestamp_publisher_;
+    rclcpp::Subscription<geometry_msgs::msg::Vector3Stamped>::SharedPtr
+        gimbal_direction_subscription_;
 
     bool calculate_initialized_   = false;
     double previous_angle_error_  = 0.0;
