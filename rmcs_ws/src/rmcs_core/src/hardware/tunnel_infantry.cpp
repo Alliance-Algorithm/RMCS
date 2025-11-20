@@ -5,9 +5,8 @@
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/serial_interface.hpp>
-#include <std_msgs/msg/int32.hpp>
 #include <std_msgs/msg/float64.hpp>
-#include <std_msgs/msg/bool.hpp>
+#include <std_msgs/msg/int32.hpp>
 
 #include "hardware/device/bmi088.hpp"
 #include "hardware/device/dji_motor.hpp"
@@ -80,6 +79,7 @@ public:
             Eigen::Translation3d{-wheel_distance_x / 2, -wheel_distance_y / 2, 0});
         tf_->set_transform<BaseLink, RightFrontWheelLink>(
             Eigen::Translation3d{wheel_distance_x / 2, -wheel_distance_y / 2, 0});
+        tf_->set_transform<PitchLink, CameraLink>(Eigen::Translation3d{0.16311, 0, 0.0385});
 
         gimbal_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
             "/gimbal/calibrate", rclcpp::QoS{0}, [this](std_msgs::msg::Int32::UniquePtr&& msg) {

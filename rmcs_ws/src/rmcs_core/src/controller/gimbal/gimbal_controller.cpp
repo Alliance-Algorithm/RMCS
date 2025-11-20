@@ -60,10 +60,10 @@ public:
 
         register_output("/gimbal/yaw/processed_output", yaw_processed_output_, 0.0);
 
-        camera_to_gimbal_publisher_ = this->create_publisher<geometry_msgs::msg::TransformStamped>(
+        camera_to_world_publisher_ = this->create_publisher<geometry_msgs::msg::TransformStamped>(
             "/gimbal/camera_to_gimbal_transform", rclcpp::QoS(10));
 
-        gimbal_to_muzzle_publisher_ = this->create_publisher<geometry_msgs::msg::TransformStamped>(
+        world_to_muzzle_publisher_ = this->create_publisher<geometry_msgs::msg::TransformStamped>(
             "/gimbal/gimbal_to_muzzle_transform", rclcpp::QoS(10));
 
         timestamp_publisher_ = this->create_publisher<builtin_interfaces::msg::Time>(
@@ -72,14 +72,15 @@ public:
         gimbal_direction_subscription_ =
             this->create_subscription<geometry_msgs::msg::Vector3Stamped>(
                 "/alliacne_auto_aim/fire_control", rclcpp::QoS(10),
-                [&](geometry_msgs::msg::Vector3Stamped const& dir) {
-                    auto gimbal_dir = GimbalCenterLink::DirectionVector{
-                        Eigen::Vector3d{dir.vector.x, dir.vector.y, dir.vector.z}.normalized()
+                [&](geometry_msgs::msg::Vector3Stamped const& target_pos) {
+                    auto target_position = OdomImu::DirectionVector{
+                        Eigen::Vector3d{
+                                        target_pos.vector.x, target_pos.vector.y, target_pos.vector.z}
+                            .normalized()
                     };
-                    RCLCPP_INFO(
-                        this->get_logger(), "(%f,%f,%f)", dir.vector.x, dir.vector.y, dir.vector.z);
-                    auto auto_aim_dir            = fast_tf::cast<OdomImu>(gimbal_dir, *tf_);
-                    *auto_aim_control_direction_ = *auto_aim_dir;
+
+                    auto_aim_control_direction_ =
+                        fast_tf::cast<GimbalCenterLink>(target_position, *tf_);
                 });
     }
 
@@ -161,30 +162,30 @@ private:
         timestamp_publisher_->publish(timestamp_msg);
 
         try {
-            auto camera_origin           = CameraLink::Position{Eigen::Vector3d::Zero()};
-            auto camera_origin_in_gimbal = fast_tf::cast<GimbalCenterLink>(camera_origin, *tf_);
+            auto camera_origin          = CameraLink::Position{Eigen::Vector3d::Zero()};
+            auto camera_origin_in_world = fast_tf::cast<OdomImu>(camera_origin, *tf_);
 
-            auto camera_x_axis      = CameraLink::DirectionVector{Eigen::Vector3d::UnitX()};
-            auto camera_x_in_gimbal = fast_tf::cast<GimbalCenterLink>(camera_x_axis, *tf_);
+            auto camera_x_axis     = CameraLink::DirectionVector{Eigen::Vector3d::UnitX()};
+            auto camera_x_in_world = fast_tf::cast<OdomImu>(camera_x_axis, *tf_);
 
-            auto camera_y_axis      = CameraLink::DirectionVector{Eigen::Vector3d::UnitY()};
-            auto camera_y_in_gimbal = fast_tf::cast<GimbalCenterLink>(camera_y_axis, *tf_);
+            auto camera_y_axis     = CameraLink::DirectionVector{Eigen::Vector3d::UnitY()};
+            auto camera_y_in_world = fast_tf::cast<OdomImu>(camera_y_axis, *tf_);
 
-            auto camera_z_axis      = CameraLink::DirectionVector{Eigen::Vector3d::UnitZ()};
-            auto camera_z_in_gimbal = fast_tf::cast<GimbalCenterLink>(camera_z_axis, *tf_);
+            auto camera_z_axis     = CameraLink::DirectionVector{Eigen::Vector3d::UnitZ()};
+            auto camera_z_in_world = fast_tf::cast<OdomImu>(camera_z_axis, *tf_);
 
-            Eigen::Isometry3d camera_to_gimbal = Eigen::Isometry3d::Identity();
-            camera_to_gimbal.translation()     = *camera_origin_in_gimbal;
+            Eigen::Isometry3d camera_to_world = Eigen::Isometry3d::Identity();
+            camera_to_world.translation()     = *camera_origin_in_world;
 
             Eigen::Matrix3d rotation;
-            rotation.col(0)           = *camera_x_in_gimbal;
-            rotation.col(1)           = *camera_y_in_gimbal;
-            rotation.col(2)           = *camera_z_in_gimbal;
-            camera_to_gimbal.linear() = rotation;
+            rotation.col(0)          = *camera_x_in_world;
+            rotation.col(1)          = *camera_y_in_world;
+            rotation.col(2)          = *camera_z_in_world;
+            camera_to_world.linear() = rotation;
 
             auto transform_msg = eigen_to_transform_stamped_msg(
-                camera_to_gimbal, "gimbal_center_link", "camera_link", timestamp_msg);
-            camera_to_gimbal_publisher_->publish(transform_msg);
+                camera_to_world, "camera_link", "odom_imu", timestamp_msg);
+            camera_to_world_publisher_->publish(transform_msg);
 
         } catch (const std::exception& e) {
             static size_t error_count = 0;
@@ -197,34 +198,34 @@ private:
         }
 
         try {
-            auto gimbal_origin           = GimbalCenterLink::Position{Eigen::Vector3d::Zero()};
-            auto gimbal_origin_in_muzzle = fast_tf::cast<MuzzleLink>(gimbal_origin, *tf_);
+            auto world_origin           = OdomImu::Position{Eigen::Vector3d::Zero()};
+            auto world_origin_in_muzzle = fast_tf::cast<MuzzleLink>(world_origin, *tf_);
 
-            auto gimbal_x_axis      = GimbalCenterLink::DirectionVector{Eigen::Vector3d::UnitX()};
-            auto gimbal_x_in_muzzle = fast_tf::cast<MuzzleLink>(gimbal_x_axis, *tf_);
+            auto world_x_axis      = OdomImu::DirectionVector{Eigen::Vector3d::UnitX()};
+            auto world_x_in_muzzle = fast_tf::cast<MuzzleLink>(world_x_axis, *tf_);
 
-            auto gimbal_y_axis      = GimbalCenterLink::DirectionVector{Eigen::Vector3d::UnitY()};
-            auto gimbal_y_in_muzzle = fast_tf::cast<MuzzleLink>(gimbal_y_axis, *tf_);
+            auto world_y_axis      = OdomImu::DirectionVector{Eigen::Vector3d::UnitY()};
+            auto world_y_in_muzzle = fast_tf::cast<MuzzleLink>(world_y_axis, *tf_);
 
-            auto gimbal_z_axis      = GimbalCenterLink::DirectionVector{Eigen::Vector3d::UnitZ()};
-            auto gimbal_z_in_muzzle = fast_tf::cast<MuzzleLink>(gimbal_z_axis, *tf_);
+            auto world_z_axis      = OdomImu::DirectionVector{Eigen::Vector3d::UnitZ()};
+            auto world_z_in_muzzle = fast_tf::cast<MuzzleLink>(world_z_axis, *tf_);
 
-            Eigen::Isometry3d gimbal_to_muzzle = Eigen::Isometry3d::Identity();
-            gimbal_to_muzzle.translation()     = *gimbal_origin_in_muzzle;
+            Eigen::Isometry3d world_to_muzzle = Eigen::Isometry3d::Identity();
+            world_to_muzzle.translation()     = *world_origin_in_muzzle;
 
             Eigen::Matrix3d rotation;
-            rotation.col(0)           = *gimbal_x_in_muzzle;
-            rotation.col(1)           = *gimbal_y_in_muzzle;
-            rotation.col(2)           = *gimbal_z_in_muzzle;
-            gimbal_to_muzzle.linear() = rotation;
+            rotation.col(0)          = *world_x_in_muzzle;
+            rotation.col(1)          = *world_y_in_muzzle;
+            rotation.col(2)          = *world_z_in_muzzle;
+            world_to_muzzle.linear() = rotation;
 
             auto transform_msg = eigen_to_transform_stamped_msg(
-                gimbal_to_muzzle, "muzzle_link", "gimbal_center_link", timestamp_msg);
-            gimbal_to_muzzle_publisher_->publish(transform_msg);
+                world_to_muzzle, "odom_imu", "muzzle_link", timestamp_msg);
+            world_to_muzzle_publisher_->publish(transform_msg);
 
         } catch (const std::exception& e) {
             RCLCPP_WARN(
-                this->get_logger(), "Failed to publish gimbal to muzzle transform: %s", e.what());
+                this->get_logger(), "Failed to publish odom_imu to muzzle transform: %s", e.what());
         }
     }
 
@@ -272,8 +273,7 @@ private:
     }
 
     void update_auto_aim_control_direction(PitchLink::DirectionVector& dir) {
-        dir =
-            fast_tf::cast<PitchLink>(OdomImu::DirectionVector{*auto_aim_control_direction_}, *tf_);
+        dir             = fast_tf::cast<PitchLink>(auto_aim_control_direction_, *tf_);
         control_enabled = true;
     }
 
@@ -401,8 +401,8 @@ private:
     bool pitch_last_is_enable_ = false;
     bool yaw_last_is_enable_   = false;
 
-    rclcpp::Publisher<geometry_msgs::msg::TransformStamped>::SharedPtr camera_to_gimbal_publisher_;
-    rclcpp::Publisher<geometry_msgs::msg::TransformStamped>::SharedPtr gimbal_to_muzzle_publisher_;
+    rclcpp::Publisher<geometry_msgs::msg::TransformStamped>::SharedPtr camera_to_world_publisher_;
+    rclcpp::Publisher<geometry_msgs::msg::TransformStamped>::SharedPtr world_to_muzzle_publisher_;
     rclcpp::Publisher<builtin_interfaces::msg::Time>::SharedPtr timestamp_publisher_;
     rclcpp::Subscription<geometry_msgs::msg::Vector3Stamped>::SharedPtr
         gimbal_direction_subscription_;
