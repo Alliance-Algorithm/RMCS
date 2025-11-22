@@ -57,17 +57,28 @@ public:
         auto switch_right = *switch_right_;
         auto switch_left  = *switch_left_;
         using namespace rmcs_msgs;
-        if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
+        
+        if (!initial_check_done_) {
+           reset_motor();
+
+            // RCLCPP_INFO(get_logger(), "awwwwww");
+            if (switch_left == Switch::DOWN && switch_right == Switch::DOWN) {
+
+                initial_check_done_ = true;
+            }
+        } else {
+            if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
             reset_motor();
 
         } else {
             if (switch_left == Switch::MIDDLE && switch_right == Switch::MIDDLE) {
-                Eigen::Vector2d move_ = *joystick_left_;
-                steering_control(move_, joystick_right_->y() / 1.5);
+                Eigen::Vector2d move_ = -*joystick_left_;
+                steering_control(move_, -joystick_right_->y() / 2.3);
             }
             //  Eigen::Rotation2D<double> rotation( + *joint1_theta);
             // Eigen::Vector2d move_ = rotation * (*joystick_left_);
+        }
         }
     }
 
@@ -146,7 +157,7 @@ private:
             angle += 2 * M_PI;
         return angle;
     }
-    double speed_limit              = 4.5;  // m/s
+    double speed_limit              = 2.5;  // m/s
     static constexpr double wheel_r = 0.11; // m
 
     const Eigen::Vector2d lf_vel_{1, -1};
@@ -174,6 +185,7 @@ private:
     OutputInterface<double> steering_wheel_lb_target_vel;
     OutputInterface<double> steering_wheel_rb_target_vel;
     OutputInterface<double> steering_wheel_rf_target_vel;
+     bool initial_check_done_    = false;
 };
 } // namespace rmcs_core::controller::chassis
 #include <pluginlib/class_list_macros.hpp>
