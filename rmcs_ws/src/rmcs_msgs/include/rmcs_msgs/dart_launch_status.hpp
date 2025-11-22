@@ -1,9 +1,9 @@
 namespace rmcs_msgs {
 enum class DartLaunchStatus {
-    DISABLE,
-    INIT,
-    LOADING,
-    LAUNCH_READY,
+    DISABLE = 0,
+    INIT = 1,
+    LOADING = 2,
+    LAUNCH_READY = 3,
 };
 /*
 说明：
