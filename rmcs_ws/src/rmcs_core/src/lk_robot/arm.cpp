@@ -22,6 +22,7 @@
 #include <eigen3/Eigen/src/Core/util/Meta.h>
 #include <fstream>
 #include <numbers>
+#include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
@@ -65,20 +66,31 @@ public:
         auto switch_right = *switch_right_;
         auto switch_left  = *switch_left_;
         using namespace rmcs_msgs;
-        if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
-            || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
+        if (!initial_check_done_) {
+            *is_arm_enable = false;
             reset_motors();
-        } 
-        else {
-        *is_arm_enable = true;
+            // RCLCPP_INFO(get_logger(), "awwwwww");
+            if (switch_left == Switch::DOWN && switch_right == Switch::DOWN) {
+
+                initial_check_done_ = true;
+            }
+        } else {
+            // RCLCPP_INFO(get_logger(), "asasa");
+            if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
+                || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
+                *is_arm_enable = false;
+                reset_motors();
+
+            } else {
+                *is_arm_enable = true;
+            }
+
+            if (switch_left == Switch::UP && switch_right == Switch::MIDDLE) {
+                execute_dt7_orientation();
+            } else if (switch_left == Switch::UP && switch_right == Switch::UP) {
+                execute_dt7_position();
+            }
         }
-        if (switch_left == Switch::UP && switch_right == Switch::MIDDLE) {
-            execute_dt7_orientation();
-            
-        } else if (switch_left == Switch::UP && switch_right == Switch::UP) {
-            execute_dt7_position();
-        }
-        RCLCPP_INFO(get_logger(),"%f",*theta[1]);
     }
 
 private:
@@ -98,15 +110,15 @@ private:
     }
     void execute_dt7_position() {
         if (fabs(joystick_left_->x()) > 0.01) {
-            *target_theta[2] += 0.001 * joystick_left_->x();
-            *target_theta[2] = std::clamp(*target_theta[2], -0.80, 0.9227);
+            *target_theta[2] += 0.002 * joystick_left_->x();
+            *target_theta[2] = std::clamp(*target_theta[2], -1.01, 0.9227);
         }
         if (fabs(joystick_right_->x()) > 0.01) {
-            *target_theta[1] += 0.001 * joystick_right_->x();
+            *target_theta[1] += 0.002 * joystick_right_->x();
             *target_theta[1] = std::clamp(*target_theta[1], -1.0108, 1.09719);
         }
         if (fabs(joystick_left_->y()) > 0.01) {
-            *target_theta[0] += 0.001 * joystick_left_->y();
+            *target_theta[0] += 0.002 * joystick_left_->y();
             *target_theta[0] = std::clamp(*target_theta[0], -2.841592, 2.841592);
         }
     }
@@ -127,6 +139,8 @@ private:
     InputInterface<double> theta[6]; // motor_current_angle
     OutputInterface<double> target_theta[6];
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
+    int delay                   = 0;
+    bool initial_check_done_    = false;
 };
 } // namespace rmcs_core::controller::arm
   // namespace rmcs_core::controller::arm

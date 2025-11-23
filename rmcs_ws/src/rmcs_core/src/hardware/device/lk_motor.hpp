@@ -261,6 +261,7 @@ public:
     double get_velocity() { return *velocity_; }
     double get_torque() { return *torque_; }
     double get_max_torque() { return *max_torque_; }
+    double get_raw_angle() { return *raw_angle_; }
 
 private:
     struct alignas(uint64_t) LKMotorFeedback {

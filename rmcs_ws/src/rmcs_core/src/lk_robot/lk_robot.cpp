@@ -88,9 +88,13 @@ private:
             LK_Robot_command.register_input("/arm/enable_flag", is_arm_enable_);
 
             Wheel_Motors[0].configure(
-                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(11.0));
+                device::DjiMotorConfig{device::DjiMotorType::M3508}
+                    .set_reduction_ratio(11.0).reverse()
+                    );
             Wheel_Motors[1].configure(
-                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(11.0));
+                device::DjiMotorConfig{device::DjiMotorType::M3508}
+                    .set_reduction_ratio(11.0).reverse()
+                    );
             Steering_Motors[0].configure(
                 device::LKMotorConfig{device::LKMotorType::MHF7015}
                     .set_gear_ratio(1.0)
@@ -163,15 +167,7 @@ private:
         void command() {
             uint16_t command[4];
             uint64_t lk_command;
-            command[0] = Wheel_Motors[0].generate_command();
-            command[1] = 0;
-            command[2] = 0;
-            command[3] = Wheel_Motors[1].generate_command();
-            transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(command));
-            lk_command = Steering_Motors[0].generate_torque_command();
-            transmit_buffer_.add_can1_transmission(0x142, std::bit_cast<uint64_t>(lk_command));
-            lk_command = Steering_Motors[1].generate_torque_command();
-            transmit_buffer_.add_can1_transmission(0x141, std::bit_cast<uint64_t>(lk_command));
+
             auto is_arm_enable = *is_arm_enable_;
             uint64_t command_;
 
@@ -186,7 +182,11 @@ private:
                 command_ = joint[2].generate_torque_command();
                 transmit_buffer_.add_can2_transmission(
                     0x146, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
-
+                command[0] = Wheel_Motors[0].generate_command();
+                command[1] = 0;
+                command[2] = 0;
+                command[3] = Wheel_Motors[1].generate_command();
+                transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(command));
             } else {
 
                 *joint5_error_angle =
@@ -205,6 +205,10 @@ private:
                 command_ = joint[0].generate_torque_command();
                 transmit_buffer_.add_can2_transmission(
                     0x144, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+                lk_command = Steering_Motors[0].generate_torque_command();
+                transmit_buffer_.add_can1_transmission(0x142, std::bit_cast<uint64_t>(lk_command));
+                lk_command = Steering_Motors[1].generate_torque_command();
+                transmit_buffer_.add_can1_transmission(0x141, std::bit_cast<uint64_t>(lk_command));
             }
             transmit_buffer_.trigger_transmission();
             last_is_arm_enable_ = is_arm_enable;
@@ -249,9 +253,9 @@ private:
 
     private:
         static double normalizeAngle(double angle) {
-            while (angle > M_PI)
+            if (angle > M_PI)
                 angle -= 2 * M_PI;
-            while (angle < -M_PI)
+            if (angle < -M_PI)
                 angle += 2 * M_PI;
             return angle;
         }
@@ -302,9 +306,7 @@ private:
             Wheel_Motors[0].configure(
                 device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(11.0));
             Wheel_Motors[1].configure(
-                device::DjiMotorConfig{device::DjiMotorType::M3508}
-                    .set_reduction_ratio(11.0)
-                    .reverse());
+                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(11.0));
             Steering_Motors[0].configure(
                 device::LKMotorConfig{device::LKMotorType::MHF7015}
                     .set_gear_ratio(1.0)
@@ -376,20 +378,10 @@ private:
             joint[2].update_joint().change_theta_feedback_(joint3_encoder.get_angle());
             joint[1].update_joint().change_theta_feedback_(joint2_encoder.get_angle());
             joint[0].update_joint();
-            // RCLCPP_INFO(logger_, "joint3 angle: %d", joint3_encoder.get_raw_angle());
         }
         void command() {
             uint16_t command[4];
             uint64_t lk_command;
-            command[0] = 0;
-            command[1] = Wheel_Motors[1].generate_command();
-            command[2] = Wheel_Motors[0].generate_command();
-            command[3] = 0;
-            transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(command));
-            lk_command = Steering_Motors[0].generate_torque_command();
-            transmit_buffer_.add_can1_transmission(0x142, std::bit_cast<uint64_t>(lk_command));
-            lk_command = Steering_Motors[1].generate_torque_command();
-            transmit_buffer_.add_can1_transmission(0x141, std::bit_cast<uint64_t>(lk_command));
 
             auto is_arm_enable = *is_arm_enable_;
             uint64_t command_;
@@ -405,6 +397,11 @@ private:
                 command_ = joint[2].generate_torque_command();
                 transmit_buffer_.add_can2_transmission(
                     0x143, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+                command[0] = 0;
+                command[1] = Wheel_Motors[1].generate_command();
+                command[2] = Wheel_Motors[0].generate_command();
+                command[3] = 0;
+                transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(command));
 
             } else {
 
@@ -424,10 +421,14 @@ private:
                 command_ = joint[0].generate_torque_command();
                 transmit_buffer_.add_can2_transmission(
                     0x141, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+                lk_command = Steering_Motors[0].generate_torque_command();
+                transmit_buffer_.add_can1_transmission(0x142, std::bit_cast<uint64_t>(lk_command));
+                lk_command = Steering_Motors[1].generate_torque_command();
+                transmit_buffer_.add_can1_transmission(0x141, std::bit_cast<uint64_t>(lk_command));
             }
             transmit_buffer_.trigger_transmission();
             last_is_arm_enable_ = is_arm_enable;
-        // RCLCPP_INFO(logger_,"%f",joint[1].get_vel());
+            // RCLCPP_INFO(logger_,"%f",joint[1].get_vel());
 
             counter++;
             if (counter >= max_count) {
@@ -471,9 +472,9 @@ private:
 
     private:
         static double normalizeAngle(double angle) {
-            while (angle > M_PI)
+            if (angle > M_PI)
                 angle -= 2 * M_PI;
-            while (angle < -M_PI)
+            if (angle < -M_PI)
                 angle += 2 * M_PI;
             return angle;
         }

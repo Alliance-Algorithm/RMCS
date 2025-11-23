@@ -39,20 +39,20 @@ hardware:
   ros__parameters:
     right_board_usb_pid: 0x94dc
     left_board_usb_pid: 0x93ac
-    right_forward_zero_point: 30090
-    right_back_zero_point: 49500
-    left_forward_zero_point: 43900
-    left_back_zero_point: 4280
+    right_forward_zero_point: 30130
+    right_back_zero_point: 49504
+    left_forward_zero_point: 11648
+    left_back_zero_point: 4477
     joint6_zero_point: 0
     joint5_zero_point: 40661
     joint4_zero_point: 12200
     joint3_zero_point: 2000
-    joint2_zero_point: 52992 
+    joint2_zero_point: 196350 
     joint1_zero_point: 28349
     joint6_qlim: [-3.141592,3.141592]    
     joint5_qlim: [-1.93532,1.93532]    
     joint4_qlim: [-3.141592,3.141592]    
-    joint3_qlim: [-0.80,0.9227]    
+    joint3_qlim: [-1.01,0.9227]    
     joint2_qlim: [-1.0108,1.09719]   
     joint1_qlim: [-2.841592,2.841592]
 joint6_angle_pid_controller:
@@ -140,7 +140,7 @@ joint1_angle_pid_controller:
   ros__parameters:
     measurement: /arm/Joint1/control_angle_error
     control: /arm/Joint1/control_velocity
-    kp: 6520.0
+    kp: 9520.0
     ki: 0.0
     kd: 40.0
 joint1_velocity_pid_controller:
@@ -148,7 +148,7 @@ joint1_velocity_pid_controller:
     measurement: /arm/Joint1/velocity
     setpoint: /arm/Joint1/control_velocity
     control: /arm/Joint1/control_torque
-    kp: 0.042
+    kp: 0.032
     ki: 0.0
     kd: 0.0001
 
@@ -156,7 +156,7 @@ steering_steering_rb_angle_error_pid_controller:
   ros__parameters:
     measurement: /steering/steering/rb/target_angle_error
     control: /steering/steering/rb/control_vel
-    kp: 70.0
+    kp: 60.0
     ki: 0.0
     kd: 0.0
 steering_steering_rb_velocity_pid_controller:
@@ -164,7 +164,7 @@ steering_steering_rb_velocity_pid_controller:
     measurement: /steering/steering/rb/velocity
     setpoint: /steering/steering/rb/control_vel
     control: /steering/steering/rb/control_torque
-    kp: 0.12
+    kp: 0.08
     ki: 0.0
     kd: 0.0
 steering_wheel_rb_velocity_controller:
@@ -180,7 +180,7 @@ steering_steering_rf_angle_error_pid_controller:
   ros__parameters:
     measurement: /steering/steering/rf/target_angle_error
     control: /steering/steering/rf/control_vel
-    kp: 70.0
+    kp: 60.0
     ki: 0.0
     kd: 0.0
 steering_steering_rf_velocity_pid_controller:
@@ -188,7 +188,7 @@ steering_steering_rf_velocity_pid_controller:
     measurement: /steering/steering/rf/velocity
     setpoint: /steering/steering/rf/control_vel
     control: /steering/steering/rf/control_torque
-    kp: 0.12
+    kp: 0.08
     ki: 0.0
     kd: 0.0
 steering_wheel_rf_velocity_controller:
@@ -204,7 +204,7 @@ steering_steering_lf_angle_error_pid_controller:
   ros__parameters:
     measurement: /steering/steering/lf/target_angle_error
     control: /steering/steering/lf/control_vel
-    kp: 70.0
+    kp: 60.0
     ki: 0.0
     kd: 0.0
 steering_steering_lf_velocity_pid_controller:
@@ -212,7 +212,7 @@ steering_steering_lf_velocity_pid_controller:
     measurement: /steering/steering/lf/velocity
     setpoint: /steering/steering/lf/control_vel
     control: /steering/steering/lf/control_torque
-    kp: 0.12
+    kp: 0.08
     ki: 0.0
     kd: 0.0
 steering_wheel_lf_velocity_controller:
@@ -228,7 +228,7 @@ steering_steering_lb_angle_error_pid_controller:
   ros__parameters:
     measurement: /steering/steering/lb/target_angle_error
     control: /steering/steering/lb/control_vel
-    kp: 70.0
+    kp: 60.0
     ki: 0.0
     kd: 0.0
 steering_steering_lb_velocity_pid_controller:
@@ -236,7 +236,7 @@ steering_steering_lb_velocity_pid_controller:
     measurement: /steering/steering/lb/velocity
     setpoint: /steering/steering/lb/control_vel
     control: /steering/steering/lb/control_torque
-    kp: 0.12
+    kp: 0.08
     ki: 0.0
     kd: 0.01
 steering_wheel_lb_velocity_controller:
