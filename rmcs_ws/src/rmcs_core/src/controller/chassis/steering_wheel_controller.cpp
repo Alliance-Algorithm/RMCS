@@ -62,8 +62,8 @@ public:
         register_input("/steering/steering/rf/velocity", right_front_wheel_velocity_);
 
         register_input("yaw_imu_velocity", chassis_yaw_velocity_imu_);
-        register_input("/chassis/control_velocity", chassis_control_velocity_);//yaml配置
-        register_input("/chassis/control_power_limit", power_limit_);//yaml配置
+        register_input("/chassis/control_velocity", chassis_control_velocity_);
+        register_input("/chassis/control_power_limit", power_limit_);
 
         register_output(
             "/steering/steering/lf/control_torque", left_front_steering_control_torque_);
