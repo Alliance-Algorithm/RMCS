@@ -1,206 +1,361 @@
-// #include <eigen3/Eigen/Dense>
-// #include <rclcpp/node.hpp>
-// #include <rmcs_description/tf_description.hpp>
-// #include <rmcs_executor/component.hpp>
-// #include <rmcs_msgs/chassis_mode.hpp>
-// #include <rmcs_msgs/keyboard.hpp>
-// #include <rmcs_msgs/mouse.hpp>
-// #include <rmcs_msgs/switch.hpp>
+#include "controller/pid/pid_calculator.hpp"
+#include "hardware/device/trajectory.hpp"
+#include "rmcs_msgs/arm_mode.hpp"
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstdlib>
+#include <eigen3/Eigen/Dense>
+#include <eigen3/Eigen/src/Core/Matrix.h>
+#include <numbers>
+#include <rclcpp/logging.hpp>
+#include <rclcpp/node.hpp>
+#include <rmcs_description/tf_description.hpp>
+#include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/arm_mode.hpp>
+#include <rmcs_msgs/chassis_mode.hpp>
+#include <rmcs_msgs/keyboard.hpp>
+#include <rmcs_msgs/leg_mode.hpp>
+#include <rmcs_msgs/mouse.hpp>
+#include <rmcs_msgs/switch.hpp>
+namespace rmcs_core::controller::chassis {
+class Chassis_Controller
+    : public rmcs_executor::Component
+    , public rclcpp::Node {
+public:
+    Chassis_Controller()
+        : Node(
+              get_component_name(),
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
+        , following_velocity_controller_(1.0, 0.0, 0.0) {
+        register_input("/remote/joystick/right", joystick_right_);
+        register_input("/remote/joystick/left", joystick_left_);
+        register_input("/remote/switch/right", switch_right_);
+        register_input("/remote/switch/left", switch_left_);
+        register_input("/remote/mouse/velocity", mouse_velocity_);
+        register_input("/remote/mouse", mouse_);
+        register_input("/remote/keyboard", keyboard_);
 
-// namespace rmcs_core::controller::chassis {
+        register_output("/chassis_and_leg/enable_flag", is_chassis_and_leg_enable, true);
+        register_input("/steering/steering/lf/angle", steering_lf_angle);
+        register_input("/steering/steering/lb/angle", steering_lb_angle);
+        register_input("/steering/steering/rb/angle", steering_rb_angle);
+        register_input("/steering/steering/rf/angle", steering_rf_angle);
+        register_output(
+            "/steering/steering/lf/target_angle_error", steering_lf_target_angle_error, NAN);
+        register_output(
+            "/steering/steering/lb/target_angle_error", steering_lb_target_angle_error, NAN);
+        register_output(
+            "/steering/steering/rb/target_angle_error", steering_rb_target_angle_error, NAN);
+        register_output(
+            "/steering/steering/rf/target_angle_error", steering_rf_target_angle_error, NAN);
 
-// class ChassisController
-//     : public rmcs_executor::Component
-//     , public rclcpp::Node {
-// public:
-//     ChassisController()
-//         : Node(
-//               get_component_name(),
-//               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
+        register_output("/steering/wheel/lf/target_vel", steering_wheel_lf_target_vel, NAN);
+        register_output("/steering/wheel/lb/target_vel", steering_wheel_lb_target_vel, NAN);
+        register_output("/steering/wheel/rb/target_vel", steering_wheel_rb_target_vel, NAN);
+        register_output("/steering/wheel/rf/target_vel", steering_wheel_rf_target_vel, NAN);
 
-//         register_input("/remote/joystick/right", joystick_right_);
-//         register_input("/remote/joystick/left", joystick_left_);
-//         register_input("/remote/switch/right", switch_right_);
-//         register_input("/remote/switch/left", switch_left_);
-//         register_input("/remote/mouse/velocity", mouse_velocity_);
-//         register_input("/remote/mouse", mouse_);
-//         register_input("/remote/keyboard", keyboard_);
+        register_input("yaw_imu_velocity", yaw_imu_velocity);
+        register_input("yaw_imu_angle", yaw_imu_angle);
+        register_input("/arm/Joint1/theta", joint1_theta);
 
-//         register_input("/gimbal/yaw/angle", gimbal_yaw_angle_);
+        register_input("/arm/mode", arm_mode);
 
-//         register_input("/chassis/supercap/voltage", supercap_voltage_);
-//         register_input("/chassis/supercap/enabled", supercap_enabled_);
+        register_output(
+            "/chassis/big_yaw/target_angle_error", chassis_big_yaw_target_angle_error, NAN);
+        register_input("/chassis/big_yaw/angle", chassis_big_yaw_angle);
+        register_output(
+            "/chassis/control_power_limit", chassis_control_power_limit_, 0.0); // yaml
+        register_output("/chassis/control_velocity", chassis_control_velocity_);  // yaml
+        register_input("/chassis/power", chassis_power_);//yaml
+        register_input("/referee/chassis/buffer_energy", chassis_buffer_energy_referee_);//yaml
+    }
+    void update() override {
+        auto switch_right = *switch_right_;
+        auto switch_left  = *switch_left_;
+        auto mouse        = *mouse_;
+        auto keyboard     = *keyboard_;
+        using namespace rmcs_msgs;
+        if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
+            || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
+            *is_chassis_and_leg_enable = false;
+            reset_motor();
+            yaw_control_theta_in_IMU = *yaw_imu_angle;
+            is_yaw_imu_control       = true;
+        } else {
+            mode_selection();
 
-//         register_input("/referee/chassis/power_limit", chassis_power_limit_referee_);
-//         register_input("/referee/chassis/buffer_energy", chassis_buffer_energy_referee_);
+            *is_chassis_and_leg_enable = true;
+            Eigen::Vector2d move_;
+            double angular_velocity = 0.0;
+            switch (chassis_mode) {
+            case rmcs_msgs::ChassisMode::Flow: {
+                double chassis_theta = *chassis_big_yaw_angle;
+                angular_velocity =
+                    std::clamp(following_velocity_controller_.update(chassis_theta), -1.0, 1.0);
+                break;
+            }
+            case rmcs_msgs::ChassisMode::SPIN: {
+                angular_velocity = 5;
+                yaw_control_theta_in_IMU += joystick_right_->y() * 0.002;
+                break;
+            }
+            case rmcs_msgs::ChassisMode::Up_Stairs: {
+                is_yaw_imu_control           = false;
+                yaw_set_theta_in_YawFreeMode = 0.0;
+                speed_limit                  = 1.5;
+                move_                        = *joystick_left_;
+                break;
+            }
+            default: break;
+            }
+            Eigen::Rotation2D<double> rotation(*chassis_big_yaw_angle + *joint1_theta);
+            move_ = rotation * (*joystick_left_);
+            chassis_control_velocity_->vector << (move_ * speed_limit), angular_velocity;
+            yaw_control();
+            // power control
+        update_virtual_buffer_energy();
+        update_control_power_limit();
+        }
+    }
 
-//         register_output("/chassis/control_mode", mode_);
-//         register_output("/chassis/control_move", move_);
+private:
+    void mode_selection() {
+        auto switch_right = *switch_right_;
+        auto switch_left  = *switch_left_;
+        auto mouse        = *mouse_;
+        auto keyboard     = *keyboard_;
+        using namespace rmcs_msgs;
+        if (switch_left == Switch::MIDDLE && switch_right == Switch::MIDDLE) {
+            chassis_mode       = ChassisMode::Flow;
+            is_yaw_imu_control = true;
+        } else if (switch_left == Switch::MIDDLE && switch_right == Switch::DOWN) {
+            chassis_mode       = ChassisMode::Flow;
+            is_yaw_imu_control = true;
+        } else if (switch_left == Switch::MIDDLE && switch_right == Switch::UP) {
+            chassis_mode       = ChassisMode::SPIN;
+            is_yaw_imu_control = true;
+        } else if (switch_left == Switch::DOWN && switch_right == Switch::UP) {
+            if (keyboard.c) {
+                if (!keyboard.shift && !keyboard.ctrl) {
+                    speed_limit = 4.5;
+                }
+                if (keyboard.shift && !keyboard.ctrl) {
+                    speed_limit = 2.5;
+                }
+                if (!keyboard.shift && keyboard.ctrl) {
+                    speed_limit = 0.8;
+                }
+            }
+            if (keyboard.q) {
+                if (!keyboard.shift && !keyboard.ctrl) {
+                    chassis_mode       = rmcs_msgs::ChassisMode::Flow;
+                    is_yaw_imu_control = true;
+                }
+            }
+            if (keyboard.d) {
+                chassis_mode       = rmcs_msgs::ChassisMode::SPIN;
+                is_yaw_imu_control = true;
+            }
+            if (keyboard.b) {
+                chassis_mode = rmcs_msgs::ChassisMode::Up_Stairs;
+            }
+            // execute right change according to arm_mode
+            if (last_arm_mode != *arm_mode) {
 
-//         register_output("/chassis/supercap/control_enable", supercap_control_enabled_, false);
-//         register_output(
-//             "/chassis/supercap/control_power_limit", supercap_control_power_limit_, 0.0);
-//         register_output("/chassis/control_power_limit", chassis_control_power_limit_, 0.0);
+                if (*arm_mode == rmcs_msgs::ArmMode::Auto_Gold_Left
+                    || *arm_mode == rmcs_msgs::ArmMode::Auto_Gold_Mid
+                    || *arm_mode == rmcs_msgs::ArmMode::Auto_Gold_Right
+                    || *arm_mode == rmcs_msgs::ArmMode::Auto_Sliver
+                    || *arm_mode == rmcs_msgs::ArmMode::Auto_Ground
+                    || *arm_mode == rmcs_msgs::ArmMode::Auto_Storage_LB
+                    || *arm_mode == rmcs_msgs::ArmMode::Auto_Storage_RB
+                    || *arm_mode == rmcs_msgs::ArmMode::Auto_Extract
+                    || *arm_mode == rmcs_msgs::ArmMode::Customer
+                    || *arm_mode == rmcs_msgs::ArmMode::Auto_Up_Stairs) {
+                    speed_limit        = 1.6;
+                    is_yaw_imu_control = false;
+                    if (*arm_mode == rmcs_msgs::ArmMode::Customer) {
+                        chassis_mode                 = rmcs_msgs::ChassisMode::Yaw_Free;
+                        yaw_set_theta_in_YawFreeMode = 0.0;
+                    } else {
+                        chassis_mode = ChassisMode::Yaw_Free;
+                        if (*arm_mode == rmcs_msgs::ArmMode::Auto_Gold_Left) {
+                            yaw_set_theta_in_YawFreeMode = std::numbers::pi / 2.0;
+                        } else if (*arm_mode == rmcs_msgs::ArmMode::Auto_Gold_Right) {
+                            yaw_set_theta_in_YawFreeMode = -std::numbers::pi / 2.0;
+                        } else if (*arm_mode == rmcs_msgs::ArmMode::Auto_Gold_Mid) {
+                            yaw_set_theta_in_YawFreeMode = 0.0;
 
-//         register_output(
-//             "/chassis/supercap/voltage/control_line", supercap_voltage_control_line_,
-//             supercap_voltage_control_line);
-//         register_output(
-//             "/chassis/supercap/voltage/base_line", supercap_voltage_base_line_,
-//             supercap_voltage_base_line);
-//         register_output(
-//             "/chassis/supercap/voltage/dead_line", supercap_voltage_dead_line_,
-//             supercap_voltage_dead_line);
-//     }
+                        } else if (
+                            *arm_mode == rmcs_msgs::ArmMode::Auto_Storage_LB
+                            || *arm_mode == rmcs_msgs::ArmMode::Auto_Storage_RB) {
+                            if (last_arm_mode == rmcs_msgs::ArmMode::Auto_Gold_Left) {
+                                yaw_set_theta_in_YawFreeMode = std::numbers::pi / 2.0;
+                            } else if (last_arm_mode == rmcs_msgs::ArmMode::Auto_Gold_Right) {
+                                yaw_set_theta_in_YawFreeMode = -std::numbers::pi / 2.0;
+                            } else {
+                                yaw_set_theta_in_YawFreeMode = 0.0;
+                            }
 
-//     void update() override {
-//         using namespace rmcs_msgs;
+                        } else {
+                            yaw_set_theta_in_YawFreeMode = 0.0;
+                        }
+                    }
+                    yaw_trajectory_controller.set_start_point({*chassis_big_yaw_angle})
+                        .set_total_step(1400)
+                        .set_end_point({yaw_set_theta_in_YawFreeMode})
+                        .reset();
+                } else if (*arm_mode == rmcs_msgs::ArmMode::Auto_Walk) {
+                    speed_limit        = 4.5;
+                    chassis_mode       = rmcs_msgs::ChassisMode::Flow;
+                    is_yaw_imu_control = true;
+                }
+            }
+        } else {
+            chassis_mode = rmcs_msgs::ChassisMode::None;
+        }
+        if (last_chassis_mode != chassis_mode) {
+            if (last_chassis_mode == rmcs_msgs::ChassisMode::SPIN) {
+                speed_limit = 4.5;
+            }
+            if (last_chassis_mode == rmcs_msgs::ChassisMode::Yaw_Free
+                || last_chassis_mode == rmcs_msgs::ChassisMode::Up_Stairs) {
+                if (last_is_yaw_imu_control != is_yaw_imu_control) {
+                    yaw_control_theta_in_IMU = *yaw_imu_angle;
+                }
+            }
+        }
+        last_chassis_mode       = chassis_mode;
+        last_arm_mode           = *arm_mode;
+        last_is_yaw_imu_control = is_yaw_imu_control;
+    }
 
-//         auto switch_right = *switch_right_;
-//         auto switch_left  = *switch_left_;
-//         auto keyboard     = *keyboard_;
+    void yaw_control() {
+        if (chassis_mode != rmcs_msgs::ChassisMode::Up_Stairs) {
+            yaw_control_theta_in_IMU += joystick_right_->y() * 0.002;
+        }
+        if (is_yaw_imu_control) {
+            *chassis_big_yaw_target_angle_error =
+                normalizeAngle(yaw_control_theta_in_IMU - *yaw_imu_angle);
+        } else {
+            std::array<double, 6> result = yaw_trajectory_controller.trajectory();
+            *chassis_big_yaw_target_angle_error =
+                normalizeAngle(result[0] - *chassis_big_yaw_angle);
+        }
+    }
+    void update_virtual_buffer_energy() {
+        constexpr double dt = 1e-3;
+        virtual_buffer_energy_ += dt * (chassis_power_limit_expected_ - *chassis_power_);
+        virtual_buffer_energy_ = std::clamp(
+            virtual_buffer_energy_, 0.0,
+            std::min(*chassis_buffer_energy_referee_, virtual_buffer_energy_limit_));
+    }
 
-//         do {
-//             if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
-//                 || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
-//                 reset_all_controls();
-//                 break;
-//             }
+    void update_control_power_limit() {
+        double power_limit;
 
-//             auto mode = *mode_;
-//             if (switch_left != Switch::DOWN) {
-//                 if ((last_switch_right_ == Switch::MIDDLE && switch_right == Switch::DOWN)
-//                     || (!last_keyboard_.c && keyboard.c)) {
-//                     mode = mode == rmcs_msgs::ChassisMode::SPIN ? rmcs_msgs::ChassisMode::AUTO
-//                                                                 : rmcs_msgs::ChassisMode::SPIN;
-//                 } else if (!last_keyboard_.x && keyboard.x) {
-//                     mode = mode == rmcs_msgs::ChassisMode::LAUNCH_RAMP
-//                              ? rmcs_msgs::ChassisMode::AUTO
-//                              : rmcs_msgs::ChassisMode::LAUNCH_RAMP;
-//                 } else if (!last_keyboard_.z && keyboard.z) {
-//                     mode = mode == rmcs_msgs::ChassisMode::STEP_DOWN
-//                              ? rmcs_msgs::ChassisMode::AUTO
-//                              : rmcs_msgs::ChassisMode::STEP_DOWN;
-//                 }
-//                 *mode_ = mode;
-//             }
+            power_limit = chassis_power_limit_referee_;
+        chassis_power_limit_expected_ = power_limit;
 
-//             auto keyboard_move =
-//                 Eigen::Vector2d{0.5 * (keyboard.w - keyboard.s), 0.5 * (keyboard.a - keyboard.d)};
-//             auto move =
-//                 (Eigen::Rotation2Dd{*gimbal_yaw_angle_} * (*joystick_right_ + keyboard_move))
-//                     .eval();
-//             if (move.norm() > 1)
-//                 move.normalize();
-//             *move_ = {move.x(), move.y(), 0};
+        constexpr double excess_power_limit = 15;
 
-//             if (!supercap_switch_cooling_) {
-//                 bool enable = keyboard_->shift;
-//                 if (*supercap_control_enabled_ != enable) {
-//                     *supercap_control_enabled_ = enable;
-//                     supercap_switch_cooling_   = 500;
-//                 }
-//             } else {
-//                 --supercap_switch_cooling_;
-//             }
+        power_limit += excess_power_limit;
+        power_limit *= virtual_buffer_energy_ / virtual_buffer_energy_limit_;
 
-//             double power_limit_after_buffer_energy_closed_loop =
-//                 *chassis_power_limit_referee_
-//                     * std::clamp(
-//                         (*chassis_buffer_energy_referee_ - buffer_energy_dead_line)
-//                             / (buffer_energy_base_line - buffer_energy_dead_line),
-//                         0.0, 1.0)
-//                 + excess_power_limit
-//                       * std::clamp(
-//                           (*chassis_buffer_energy_referee_ - buffer_energy_base_line)
-//                               / (buffer_energy_control_line - buffer_energy_base_line),
-//                           0.0, 1.0);
-//             *supercap_control_power_limit_ = power_limit_after_buffer_energy_closed_loop;
+        *chassis_control_power_limit_ = power_limit;//
+    }
 
-//             if (*supercap_control_enabled_ && *supercap_enabled_) {
-//                 double supercap_power_limit = mode == rmcs_msgs::ChassisMode::LAUNCH_RAMP
-//                                                 ? 250.0
-//                                                 : *chassis_power_limit_referee_ + 80.0;
-//                 *chassis_control_power_limit_ =
-//                     *chassis_power_limit_referee_
-//                         * std::clamp(
-//                             (*supercap_voltage_ - supercap_voltage_dead_line)
-//                                 / (supercap_voltage_base_line - supercap_voltage_dead_line),
-//                             0.0, 1.0)
-//                     + (supercap_power_limit - *chassis_power_limit_referee_)
-//                           * std::clamp(
-//                               (*supercap_voltage_ - supercap_voltage_base_line)
-//                                   / (supercap_voltage_control_line - supercap_voltage_base_line),
-//                               0.0, 1.0);
-//             } else {
-//                 *chassis_control_power_limit_ = power_limit_after_buffer_energy_closed_loop;
-//             }
+    void reset_motor() {
+        *steering_lf_target_angle_error     = NAN;
+        *steering_lb_target_angle_error     = NAN;
+        *steering_rb_target_angle_error     = NAN;
+        *steering_rf_target_angle_error     = NAN;
+        *steering_lf_target_angle_error     = NAN;
+        *steering_lb_target_angle_error     = NAN;
+        *steering_rb_target_angle_error     = NAN;
+        *steering_rf_target_angle_error     = NAN;
+        *steering_wheel_lf_target_vel       = NAN;
+        *steering_wheel_lb_target_vel       = NAN;
+        *steering_wheel_rb_target_vel       = NAN;
+        *steering_wheel_rf_target_vel       = NAN;
+        *chassis_big_yaw_target_angle_error = NAN;
+        *chassis_control_velocity_          = {nan, nan, nan};
+        *chassis_control_power_limit_       = 0.0;
+        virtual_buffer_energy_        = virtual_buffer_energy_limit_;//
+    }
+    static double normalizeAngle(double angle) {
+        while (angle > M_PI)
+            angle -= 2 * M_PI;
+        while (angle < -M_PI)
+            angle += 2 * M_PI;
+        return angle;
+    }
 
-//         } while (false);
+    static constexpr double inf = std::numeric_limits<double>::infinity();
+    static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
-//         last_switch_right_ = switch_right;
-//         last_switch_left_  = switch_left;
-//         last_keyboard_     = keyboard;
-//     }
+    InputInterface<rmcs_msgs::ArmMode> arm_mode;
+    rmcs_msgs::ArmMode last_arm_mode;
+    pid::PidCalculator following_velocity_controller_;
 
-//     void reset_all_controls() {
-//         *mode_ = rmcs_msgs::ChassisMode::AUTO;
+    double speed_limit              = 4.5;  // m/s
+    constexpr static double chassis_power_limit_referee_ = 120.0f;
 
-//         *supercap_control_enabled_     = false;
-//         *supercap_control_power_limit_ = 0.0;
-//         *chassis_control_power_limit_  = 0.0;
-//     }
+    InputInterface<Eigen::Vector2d> joystick_right_;
+    InputInterface<Eigen::Vector2d> joystick_left_;
+    InputInterface<rmcs_msgs::Switch> switch_right_;
+    InputInterface<rmcs_msgs::Switch> switch_left_;
+    InputInterface<Eigen::Vector2d> mouse_velocity_;
+    InputInterface<rmcs_msgs::Mouse> mouse_;
+    InputInterface<rmcs_msgs::Keyboard> keyboard_;
 
-// private:
-//     // Maximum excess power when buffer energy is sufficient.
-//     static constexpr double excess_power_limit = 35;
+    OutputInterface<bool> is_chassis_and_leg_enable;
+    // ————————————————————————steering——————————————————————————
+    InputInterface<double> steering_lf_angle;
+    InputInterface<double> steering_lb_angle;
+    InputInterface<double> steering_rb_angle;
+    InputInterface<double> steering_rf_angle;
 
-//     //               power_limit_after_buffer_energy_closed_loop =
-//     static constexpr double buffer_energy_control_line = 120; // = referee + excess
-//     static constexpr double buffer_energy_base_line    = 50;  // = referee
-//     static constexpr double buffer_energy_dead_line    = 0;   // = 0
+    OutputInterface<double> steering_lf_target_angle_error;
+    OutputInterface<double> steering_lb_target_angle_error;
+    OutputInterface<double> steering_rb_target_angle_error;
+    OutputInterface<double> steering_rf_target_angle_error;
 
-//     //                                         chassis_control_power =
-//     static constexpr double supercap_voltage_control_line = 13.5; // = supercap
-//     static constexpr double supercap_voltage_base_line    = 11.5; // = referee
-//     static constexpr double supercap_voltage_dead_line    = 10.5; // = 0
+    OutputInterface<double> steering_wheel_lf_target_vel;
+    OutputInterface<double> steering_wheel_lb_target_vel;
+    OutputInterface<double> steering_wheel_rb_target_vel;
+    OutputInterface<double> steering_wheel_rf_target_vel;
+    // —————————————————————————leg————————————————————————————————
+    InputInterface<double> theta_lf;
+    InputInterface<double> theta_lb;
+    InputInterface<double> theta_rb;
+    InputInterface<double> theta_rf;
 
-//     InputInterface<Eigen::Vector2d> joystick_right_;
-//     InputInterface<Eigen::Vector2d> joystick_left_;
-//     InputInterface<rmcs_msgs::Switch> switch_right_;
-//     InputInterface<rmcs_msgs::Switch> switch_left_;
-//     InputInterface<Eigen::Vector2d> mouse_velocity_;
-//     InputInterface<rmcs_msgs::Mouse> mouse_;
-//     InputInterface<rmcs_msgs::Keyboard> keyboard_;
+    bool is_yaw_imu_control      = false;
+    bool last_is_yaw_imu_control = false;
+    InputInterface<double> yaw_imu_velocity;
+    InputInterface<double> yaw_imu_angle;
+    InputInterface<double> joint1_theta;
+    double yaw_control_theta_in_IMU     = NAN;
+    double yaw_set_theta_in_YawFreeMode = NAN;
+    hardware::device::Trajectory<hardware::device::TrajectoryType::JOINT> yaw_trajectory_controller;
 
-//     rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
-//     rmcs_msgs::Switch last_switch_left_  = rmcs_msgs::Switch::UNKNOWN;
-//     rmcs_msgs::Keyboard last_keyboard_   = rmcs_msgs::Keyboard::zero();
+    OutputInterface<double> chassis_big_yaw_target_angle_error;
+    InputInterface<double> chassis_big_yaw_angle;
+    rmcs_msgs::ChassisMode chassis_mode      = rmcs_msgs::ChassisMode::None;
+    rmcs_msgs::ChassisMode last_chassis_mode = rmcs_msgs::ChassisMode::None;
 
-//     InputInterface<double> gimbal_yaw_angle_;
+    OutputInterface<double> chassis_control_power_limit_;
+    OutputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;
+    double virtual_buffer_energy_;
+    static constexpr double virtual_buffer_energy_limit_ = 30.0;
+    double chassis_power_limit_expected_;
+    InputInterface<double> chassis_power_;
+    InputInterface<double> chassis_buffer_energy_referee_;
+};
+} // namespace rmcs_core::controller::chassis
+#include <pluginlib/class_list_macros.hpp>
 
-//     OutputInterface<rmcs_msgs::ChassisMode> mode_;
-//     OutputInterface<rmcs_description::BaseLink::DirectionVector> move_;
-
-//     InputInterface<double> supercap_voltage_;
-//     InputInterface<bool> supercap_enabled_;
-
-//     InputInterface<double> chassis_power_limit_referee_;
-//     InputInterface<double> chassis_buffer_energy_referee_;
-
-//     int supercap_switch_cooling_ = 0;
-//     OutputInterface<bool> supercap_control_enabled_;
-//     OutputInterface<double> supercap_control_power_limit_;
-
-//     OutputInterface<double> chassis_control_power_limit_;
-
-//     OutputInterface<double> supercap_voltage_control_line_;
-//     OutputInterface<double> supercap_voltage_base_line_;
-//     OutputInterface<double> supercap_voltage_dead_line_;
-// };
-
-// } // namespace rmcs_core::controller::chassis
-
-// #include <pluginlib/class_list_macros.hpp>
-
-// PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::chassis::ChassisController, rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(
+    rmcs_core::controller::chassis::Chassis_Controller, rmcs_executor::Component)

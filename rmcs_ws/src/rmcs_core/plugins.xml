@@ -74,7 +74,7 @@
   <class type="rmcs_core::controller::leg::LegController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
-  <class type="rmcs_core::controller::chassis::ChassissonlyController" base_class_type="rmcs_executor::Component">
+  <class type="rmcs_core::controller::chassis:ChassisController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
 </library>
