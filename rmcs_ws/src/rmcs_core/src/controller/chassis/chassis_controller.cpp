@@ -68,7 +68,7 @@ public:
             "/chassis/control_power_limit", chassis_control_power_limit_, 0.0); 
         register_output("/chassis/control_velocity", chassis_control_velocity_);  
         register_input("/chassis/power", chassis_power_);
-        register_input("/referee/chassis/buffer_energy", chassis_buffer_energy_referee_);//yaml
+        register_input("/referee/chassis/buffer_energy", chassis_buffer_energy_referee_);
     }
     void update() override {
         auto switch_right = *switch_right_;
