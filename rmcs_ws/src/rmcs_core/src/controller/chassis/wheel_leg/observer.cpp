@@ -1,18 +1,17 @@
+#include <eigen3/Eigen/Dense>
 #include <rclcpp/node.hpp>
-#include <rmcs_description/tf_description.hpp>
+#include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/wheel_leg_state.hpp>
 
-#include "controller/pid/pid_calculator.hpp"
 #include "filter/kalman_filter.hpp"
-#include "rmcs_executor/component.hpp"
-#include "wheel_leg/vmc_solver.hpp"
+#include "vmc_solver.hpp"
 
 namespace rmcs_core::controller::chassis {
-class WheelLegController
+class Observer
     : public rmcs_executor::Component
     , public rclcpp::Node {
 public:
-    WheelLegController()
+    Observer()
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
@@ -23,11 +22,7 @@ public:
         , centroid_position_coefficient_()
         , left_leg_vmc_solver_(0.21, 0.25, 0.0)
         , right_leg_vmc_solver_(0.21, 0.25, 0.0)
-        , velocity_kalman_filter_(A_, H_, Q_, R_, W_)
-        , roll_angle_pid_calculator_(0.0, 0.0, 0.0)
-        , leg_length_pid_calculator_(0.0, 0.0, 0.0) {
-
-        register_input("/chassis/control_velocity", chassis_control_velocity_);
+        , velocity_kalman_filter_(A_, H_, Q_, R_, W_) {
 
         register_input("/chassis/left_front_hip/angle", left_front_hip_angle_);
         register_input("/chassis/left_back_hip/angle", left_back_hip_angle_);
@@ -47,21 +42,12 @@ public:
         register_input("/chassis/pitch/angle", chassis_pitch_angle_imu_);
         register_input("/chassis/roll/angle", chassis_roll_angle_imu_);
 
-        register_output("/chassis/left_front_hip/control_torque", left_front_hip_control_torque_);
-        register_output("/chassis/left_back_hip/control_torque", left_back_hip_control_torque_);
-        register_output("/chassis/right_front_hip/control_torque", right_front_hip_control_torque_);
-        register_output("/chassis/right_back_hip/control_torque", right_back_hip_control_torque_);
-
-        register_output("/chassis/left_wheel/control_torque", left_wheel_control_torque_);
-        register_output("/chassis/right_wheel/control_torque", right_wheel_control_torque_);
+        register_output("/chassis/left_leg_length", left_leg_length_);
+        register_output("chassis/right_leg_length", right_leg_length_);
+        register_output("/chassis/measure_state", measure_state_);
     }
 
     void update() override {
-        if (std::isnan(chassis_control_velocity_->vector[0])) {
-            reset_all_controls();
-            return;
-        }
-
         // state vector: s ds phi dphi theta_l d_theta_l theta_r d_theta_r theta_b d_theta_b
         auto wheel_velocities = calculate_wheel_velocities();
         auto hip_angles = calculate_hips_angles();
@@ -71,15 +57,7 @@ public:
 
         auto support_force = calculate_support_force(leg_posture);
 
-        auto measure_state = calculate_measure_state(distance, leg_posture);
-
-        auto chassis_control_velocity = calculate_chassis_control_velocity();
-        auto desire_state = calculate_desire_state(chassis_control_velocity);
-
-        auto leg_forces = calculate_leg_force(leg_posture, measure_state);
-        auto control_torques = calculate_control_torques(desire_state, measure_state);
-
-        update_hip_and_wheel_torques(leg_forces, control_torques);
+        *measure_state_ = calculate_measure_state(distance, leg_posture);
     }
 
 private:
@@ -120,6 +98,9 @@ private:
 
         result.leg_length = Eigen::Vector2d{left_leg_length, right_leg_length};
         result.tilt_angle = Eigen::Vector2d{left_tilt_angle, right_tilt_angle};
+
+        *left_leg_length_ = left_leg_length;
+        *right_leg_length_ = right_leg_length;
 
         result.dot_leg_length = (result.leg_length - last_leg_length_) / dt_;
         last_leg_length_ = result.leg_length;
@@ -186,96 +167,11 @@ private:
         return measure_state;
     }
 
-    Eigen::Vector3d calculate_chassis_control_velocity() {
-        Eigen::Vector3d chassis_control_velocity;
-        chassis_control_velocity.x() = chassis_control_velocity_->vector.x();
-        chassis_control_velocity.y() = 0.0;
-        chassis_control_velocity.z() = chassis_control_velocity_->vector.z();
-        return chassis_control_velocity;
-    }
-
-    rmcs_msgs::WheelLegState calculate_desire_state(Eigen::Vector3d control_velocity) {
-        rmcs_msgs::WheelLegState desire_state;
-
-        return desire_state;
-    }
-
-    Eigen::Vector2d
-        calculate_leg_force(LegPosture leg_posture, rmcs_msgs::WheelLegState measure_state) {
-        Eigen::Vector2d result;
-
-        auto roll_feedforward = roll_angle_pid_calculator_.update(0 - *chassis_roll_angle_imu_);
-        auto leg_length_feedforward = leg_length_pid_calculator_.update(
-            leg_length_desire_ - (leg_posture.leg_length.x() + leg_posture.leg_length.y()) / 2.0);
-
-        auto calculate_compensation_feedforward = [this](double coefficient) {
-            return (body_mess_ / 2.0 + centroid_position_coefficient_ * leg_mess_) * coefficient;
-        };
-
-        auto gravity_feedforward = calculate_compensation_feedforward(g_);
-        auto inertial_feedforward = calculate_compensation_feedforward(
-            (leg_posture.leg_length.x() + leg_posture.leg_length.y()) / 2.0 / (2 * wheel_distance_)
-            * measure_state.yaw_velocity * measure_state.velocity);
-
-        //                       F_ψ
-        // F_bl_l =  1 1 1 -1 *  F_l
-        // F_bl_r   -1 1 1  1    F_g
-        //                       F_i
-        result = Eigen::Vector2d{
-            roll_feedforward + leg_length_feedforward + gravity_feedforward - inertial_feedforward,
-            -roll_feedforward + leg_length_feedforward + gravity_feedforward
-                + inertial_feedforward};
-
-        return result;
-    }
-
-    Eigen::Vector4d calculate_control_torques(
-        rmcs_msgs::WheelLegState desire_state, rmcs_msgs::WheelLegState measure_state) {
-        Eigen::Vector4d result;
-
-        auto error_state = desire_state.vector() - measure_state.vector();
-
-        return result;
-    }
-
-    void update_hip_and_wheel_torques(Eigen::Vector2d leg_forces, Eigen::Vector4d control_torques) {
-        auto left_leg_force = leg_forces.x(), right_leg_force = leg_forces.y();
-        auto left_wheel_control_torque = control_torques.x(),
-             right_wheel_control_torque = control_torques.y(),
-             left_leg_control_torque = control_torques.z(),
-             right_leg_control_torque = control_torques.w();
-
-        *left_wheel_control_torque_ = left_wheel_control_torque;
-        *right_wheel_control_torque_ = right_wheel_control_torque;
-
-        auto left_hip_control_torque =
-            left_leg_vmc_solver_.get_joint_torque(left_leg_force, left_leg_control_torque);
-        auto right_hip_control_torque =
-            right_leg_vmc_solver_.get_joint_torque(right_leg_force, right_leg_control_torque);
-
-        *left_front_hip_control_torque_ = left_hip_control_torque.x();
-        *left_back_hip_control_torque_ = left_hip_control_torque.y();
-        *right_front_hip_control_torque_ = right_hip_control_torque.x();
-        *right_back_hip_control_torque_ = right_hip_control_torque.y();
-    }
-
-    void reset_all_controls() {
-        *left_front_hip_control_torque_ = 0.0;
-        *left_back_hip_control_torque_ = 0.0;
-        *right_front_hip_control_torque_ = 0.0;
-        *right_back_hip_control_torque_ = 0.0;
-
-        *left_wheel_control_torque_ = 0.0;
-        *right_wheel_control_torque_ = 0.0;
-    }
-
-    static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
-    static constexpr double inf_ = std::numeric_limits<double>::infinity();
-
     static constexpr double dt_ = 1e-3;
     static constexpr double g_ = 9.80665;
 
     static constexpr double sigma_q_ = 1.0;
+
     static constexpr double sigma_v_ = 0.75;
     static constexpr double sigma_a_ = 1.0;
 
@@ -311,30 +207,18 @@ private:
     InputInterface<double> chassis_pitch_angle_imu_;
     InputInterface<double> chassis_roll_angle_imu_;
 
-    InputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;
-    InputInterface<double> power_limit_;
+    OutputInterface<double> left_leg_length_;
+    OutputInterface<double> right_leg_length_;
 
-    OutputInterface<double> left_front_hip_control_torque_;
-    OutputInterface<double> left_back_hip_control_torque_;
-    OutputInterface<double> right_front_hip_control_torque_;
-    OutputInterface<double> right_back_hip_control_torque_;
-
-    OutputInterface<double> left_wheel_control_torque_;
-    OutputInterface<double> right_wheel_control_torque_;
-
-    // rmcs_msgs::WheelLegState measure_state_, desire_state_;
-
-    double leg_length_desire_;
+    OutputInterface<rmcs_msgs::WheelLegState> measure_state_;
 
     Eigen::Vector2d last_leg_length_, last_tilt_angle_, last_dot_leg_length_, last_dot_tilt_angle_;
+    double last_left_leg_length_, last_right_leg_length_;
 
     VmcSolver left_leg_vmc_solver_, right_leg_vmc_solver_;
     filter::KalmanFilter<2, 2> velocity_kalman_filter_;
-
-    pid::PidCalculator roll_angle_pid_calculator_, leg_length_pid_calculator_;
 };
 } // namespace rmcs_core::controller::chassis
-
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::chassis::WheelLegController, rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::chassis::Observer, rmcs_executor::Component)
