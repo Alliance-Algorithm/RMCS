@@ -2,6 +2,7 @@
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/wheel_leg_state.hpp>
+#include <rmcs_utility/eigen_structured_bindings.hpp>
 
 #include "filter/kalman_filter.hpp"
 #include "vmc_solver.hpp"

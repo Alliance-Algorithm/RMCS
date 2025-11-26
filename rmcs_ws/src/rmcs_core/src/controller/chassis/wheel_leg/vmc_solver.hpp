@@ -1,7 +1,8 @@
+#pragma once
+
 #include <cmath>
 #include <eigen3/Eigen/Dense>
 #include <limits>
-#include <tuple>
 
 namespace rmcs_core::controller::chassis {
 class VmcSolver {
@@ -13,7 +14,7 @@ public:
         , l4_(l1)
         , l5_(l5) {}
 
-    auto update(double phi1, double phi4) -> std::tuple<double, double> {
+    Eigen::Vector2d update(double phi1, double phi4) {
         if (std::isnan(phi1) || std::isnan(phi4)) {
             reset();
             return {0.0, 0.0};
@@ -73,7 +74,6 @@ private:
             {j11, j12},
             {j21, j22}
         };
-
         auto rotation_matrix = Eigen::Rotation2Dd(phi0 - pi_ / 2.0);
         auto transform_matrix = Eigen::Matrix2d{
             {0, -1 / leg_length_},
@@ -83,9 +83,7 @@ private:
         joint_torque_matrix_ = jacobian_matrix.transpose() * rotation_matrix * transform_matrix;
     }
 
-    auto get_leg_posture() const -> std::tuple<double, double> {
-        return {leg_length_, tilt_angle_};
-    }
+    Eigen::Vector2d get_leg_posture() const { return Eigen::Vector2d{leg_length_, tilt_angle_}; }
 
     static constexpr double inf_ = std::numeric_limits<double>::infinity();
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();

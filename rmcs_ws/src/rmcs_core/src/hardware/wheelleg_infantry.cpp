@@ -237,7 +237,10 @@ private:
                 return size;
             };
 
-            infantry.register_output("/chassis/x/acceleration", chassis_x_acceleration_imu_);
+            infantry.register_output(
+                "/chassis/x_axis/acceleration", chassis_x_axis_acceleration_imu_);
+            infantry.register_output(
+                "/chassis/z_axis/acceleration", chassis_z_axis_acceleration_imu_);
 
             infantry.register_output("/chassis/yaw/velocity", chassis_yaw_velocity_imu_);
             infantry.register_output("/chassis/pitch/velocity", chassis_pitch_velocity_imu_);
@@ -289,7 +292,8 @@ private:
             *chassis_pitch_velocity_imu_ = imu_.gy();
             *chassis_roll_velocity_imu_ = imu_.gx();
 
-            *chassis_x_acceleration_imu_ = imu_.ax();
+            *chassis_x_axis_acceleration_imu_ = imu_.ax();
+            *chassis_z_axis_acceleration_imu_ = imu_.az();
         }
 
     private:
@@ -331,7 +335,8 @@ private:
 
         device::Bmi088 imu_;
 
-        OutputInterface<double> chassis_x_acceleration_imu_;
+        OutputInterface<double> chassis_x_axis_acceleration_imu_;
+        OutputInterface<double> chassis_z_axis_acceleration_imu_;
 
         OutputInterface<double> chassis_yaw_velocity_imu_;
         OutputInterface<double> chassis_pitch_velocity_imu_;

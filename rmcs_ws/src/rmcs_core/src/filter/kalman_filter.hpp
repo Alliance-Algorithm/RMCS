@@ -1,3 +1,5 @@
+#pragma once
+
 #include <cstddef>
 
 #include <eigen3/Eigen/Dense>
@@ -42,14 +44,14 @@ public:
     }
 
     State update(const Measure& measurement, const Control& control_vector = Control::Zero()) {
-        // prediction
+        // Prediction
         prior_estimate_ = state_transition_ * posterior_estimate_ + control_input_ * control_vector;
         prior_error_covariance_ =
             state_transition_ * posterior_error_covariance_ * state_transition_.transpose()
             + process_noise_transition_ * process_noise_covariance_
                   * process_noise_transition_.transpose();
 
-        // correction
+        // Correction
         kalman_gain_ = prior_error_covariance_ * measurement_transition_.transpose()
                      * (measurement_transition_ * prior_error_covariance_
                             * measurement_transition_.transpose()
@@ -59,7 +61,7 @@ public:
         posterior_estimate_ +=
             kalman_gain_ * (measurement - measurement_transition_ * prior_estimate_);
 
-        // update
+        // Update
         posterior_error_covariance_ =
             (Matrix<state>::Identity() - kalman_gain_ * measurement_transition_)
             * prior_error_covariance_;
