@@ -117,7 +117,7 @@ public:
         uint16_t can_commands[4];
 
         transmit_buffer_.add_can1_transmission(0x141, gimbal_yaw_motor_.generate_command());
-        transmit_buffer_.add_can1_transmission(0x142, gimbal_pitch_motor_.generate_command());
+        transmit_buffer_.add_can2_transmission(0x144, gimbal_pitch_motor_.generate_command());      
 
         can_commands[0] = gimbal_bullet_feeder_.generate_command();
         can_commands[1] = gimbal_left_friction_.generate_command();
@@ -167,9 +167,7 @@ protected:
 
         if (can_id == 0x141) {
             gimbal_yaw_motor_.store_status(can_data);
-        } else if (can_id == 0x142) {
-            gimbal_pitch_motor_.store_status(can_data);
-        }
+        } 
     }
 
     void can2_receive_callback(
@@ -179,10 +177,12 @@ protected:
             return;
         if (can_id == 0x201) {
             gimbal_bullet_feeder_.store_status(can_data);
-        } else if (can_id == 0x203) {
-            gimbal_right_friction_.store_status(can_data);
         } else if (can_id == 0x202) {
             gimbal_left_friction_.store_status(can_data);
+        } else if (can_id == 0x203) {
+            gimbal_right_friction_.store_status(can_data);
+        } else if (can_id == 0x144) {
+            gimbal_pitch_motor_.store_status(can_data);
         }
     }
 

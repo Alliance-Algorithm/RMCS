@@ -7,9 +7,8 @@ rmcs_executor:
 
       - rmcs_core::controller::gimbal::SimpleGimbalController -> gimbal_controller
       - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
-      - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
+      - rmcs_core::controller::pid::ErrorPidController -> yaw_velocity_pid_controller
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
-      - rmcs_core::controller::pid::PidController -> pitch_velocity_pid_controller
 
       - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
       - rmcs_core::controller::shooting::HeatController -> heat_controller
@@ -29,37 +28,48 @@ rmcs_executor:
       # - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
       # - rmcs_auto_aim::AutoAimController -> auto_aim_controller
 
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+
+value_broadcaster:
+  ros__parameters:
+    forward_list:
+      - /gimbal/yaw/angle
+      - /gimbal/yaw/velocity
+      - /gimbal/yaw/torque
+      - /gimbal/yaw/control_torque
+      - /gimbal/yaw/control_angle_error
+      - /gimbal/yaw/control_velocity
+
 flight_hardware:
   ros__parameters:
     usb_pid: -1
-    yaw_motor_zero_point: 0
-    pitch_motor_zero_point: 0
+    yaw_motor_zero_point: 5450
+    pitch_motor_zero_point: 30473
 
 referee_status:
   ros__parameters:
-    path: /dev/ttyUSB0
+    path: /dev/tty0
 
 gimbal_controller:
   ros__parameters:
-    upper_limit: -0.4598
-    lower_limit: 0.4362
-    yaw_upper_limit: 0.872665
-    yaw_lower_limit: -0.872665
+    upper_limit: -0.249
+    lower_limit: 0.249
+    yaw_upper_limit: -180.0
+    yaw_lower_limit: 180.0
 
 yaw_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/yaw/control_angle_error
     control: /gimbal/yaw/control_velocity
-    kp: 3.0
+    kp: 1.0
     ki: 0.0
     kd: 0.0
 
 yaw_velocity_pid_controller:
   ros__parameters:
-    measurement: /gimbal/yaw/velocity_imu
-    setpoint: /gimbal/yaw/control_velocity
+    measurement: /gimbal/yaw/control_velocity
     control: /gimbal/yaw/control_torque
-    kp: 0.5
+    kp: 1.0
     ki: 0.0
     kd: 0.0
 
@@ -67,16 +77,7 @@ pitch_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/pitch/control_angle_error
     control: /gimbal/pitch/control_velocity
-    kp: 3.0
-    ki: 0.0
-    kd: 0.0
-
-pitch_velocity_pid_controller:
-  ros__parameters:
-    measurement: /gimbal/pitch/velocity_imu
-    setpoint: /gimbal/pitch/control_velocity
-    control: /gimbal/pitch/control_torque
-    kp: 0.5
+    kp: 16.0
     ki: 0.0
     kd: 0.0
 
@@ -156,6 +157,7 @@ auto_aim_controller:
     k1: -0.064232403853946
     k2: -0.087667493884102
     k3: 0.792381808294582
+
     # tracker
     armor_predict_duration: 500
     # controller
