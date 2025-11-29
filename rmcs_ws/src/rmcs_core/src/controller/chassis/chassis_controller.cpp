@@ -64,11 +64,10 @@ public:
         register_output(
             "/chassis/big_yaw/target_angle_error", chassis_big_yaw_target_angle_error, NAN);
         register_input("/chassis/big_yaw/angle", chassis_big_yaw_angle);
-        register_output(
-            "/chassis/control_power_limit", chassis_control_power_limit_, 0.0); // yaml
-        register_output("/chassis/control_velocity", chassis_control_velocity_);  // yaml
-        register_input("/chassis/power", chassis_power_);//yaml
-        register_input("/referee/chassis/buffer_energy", chassis_buffer_energy_referee_);//yaml
+        register_output("/chassis/control_power_limit", chassis_control_power_limit_, 0.0); // yaml
+        register_output("/chassis/control_velocity", chassis_control_velocity_);            // yaml
+        register_input("/chassis/power", chassis_power_);                                   // yaml
+        register_input("/referee/chassis/buffer_energy", chassis_buffer_energy_referee_);   // yaml
     }
     void update() override {
         auto switch_right = *switch_right_;
@@ -114,8 +113,8 @@ public:
             chassis_control_velocity_->vector << (move_ * speed_limit), angular_velocity;
             yaw_control();
             // power control
-        update_virtual_buffer_energy();
-        update_control_power_limit();
+            update_virtual_buffer_energy();
+            update_control_power_limit();
         }
     }
 
@@ -255,7 +254,7 @@ private:
     void update_control_power_limit() {
         double power_limit;
 
-            power_limit = chassis_power_limit_referee_;
+        power_limit                   = chassis_power_limit_referee_;
         chassis_power_limit_expected_ = power_limit;
 
         constexpr double excess_power_limit = 15;
@@ -263,7 +262,7 @@ private:
         power_limit += excess_power_limit;
         power_limit *= virtual_buffer_energy_ / virtual_buffer_energy_limit_;
 
-        *chassis_control_power_limit_ = power_limit;//
+        *chassis_control_power_limit_ = power_limit;                        //
     }
 
     void reset_motor() {
@@ -282,7 +281,7 @@ private:
         *chassis_big_yaw_target_angle_error = NAN;
         *chassis_control_velocity_          = {nan, nan, nan};
         *chassis_control_power_limit_       = 0.0;
-        virtual_buffer_energy_        = virtual_buffer_energy_limit_;//
+        virtual_buffer_energy_              = virtual_buffer_energy_limit_; //
     }
     static double normalizeAngle(double angle) {
         while (angle > M_PI)
@@ -299,7 +298,7 @@ private:
     rmcs_msgs::ArmMode last_arm_mode;
     pid::PidCalculator following_velocity_controller_;
 
-    double speed_limit              = 4.5;  // m/s
+    double speed_limit                                   = 4.5;             // m/s
     constexpr static double chassis_power_limit_referee_ = 120.0f;
 
     InputInterface<Eigen::Vector2d> joystick_right_;
@@ -357,5 +356,4 @@ private:
 } // namespace rmcs_core::controller::chassis
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(
-    rmcs_core::controller::chassis::Chassis_Controller, rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::chassis::Chassis_Controller, rmcs_executor::Component)
