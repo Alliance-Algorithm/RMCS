@@ -15,7 +15,6 @@
 #include <rmcs_msgs/arm_mode.hpp>
 #include <rmcs_msgs/chassis_mode.hpp>
 #include <rmcs_msgs/keyboard.hpp>
-#include <rmcs_msgs/leg_mode.hpp>
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/switch.hpp>
 namespace rmcs_core::controller::chassis {
@@ -35,25 +34,6 @@ public:
         register_input("/remote/mouse/velocity", mouse_velocity_);
         register_input("/remote/mouse", mouse_);
         register_input("/remote/keyboard", keyboard_);
-
-        register_output("/chassis_and_leg/enable_flag", is_chassis_and_leg_enable, true);
-        register_input("/steering/steering/lf/angle", steering_lf_angle);
-        register_input("/steering/steering/lb/angle", steering_lb_angle);
-        register_input("/steering/steering/rb/angle", steering_rb_angle);
-        register_input("/steering/steering/rf/angle", steering_rf_angle);
-        register_output(
-            "/steering/steering/lf/target_angle_error", steering_lf_target_angle_error, NAN);
-        register_output(
-            "/steering/steering/lb/target_angle_error", steering_lb_target_angle_error, NAN);
-        register_output(
-            "/steering/steering/rb/target_angle_error", steering_rb_target_angle_error, NAN);
-        register_output(
-            "/steering/steering/rf/target_angle_error", steering_rf_target_angle_error, NAN);
-
-        register_output("/steering/wheel/lf/target_vel", steering_wheel_lf_target_vel, NAN);
-        register_output("/steering/wheel/lb/target_vel", steering_wheel_lb_target_vel, NAN);
-        register_output("/steering/wheel/rb/target_vel", steering_wheel_rb_target_vel, NAN);
-        register_output("/steering/wheel/rf/target_vel", steering_wheel_rf_target_vel, NAN);
 
         register_input("yaw_imu_velocity", yaw_imu_velocity);
         register_input("yaw_imu_angle", yaw_imu_angle);
@@ -75,47 +55,46 @@ public:
         auto mouse        = *mouse_;
         auto keyboard     = *keyboard_;
         using namespace rmcs_msgs;
-        if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
-            || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
-            *is_chassis_and_leg_enable = false;
-            reset_motor();
-            yaw_control_theta_in_IMU = *yaw_imu_angle;
-            is_yaw_imu_control       = true;
-        } else {
-            mode_selection();
+        // if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
+        //     || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
+        //     reset_motor();
+        //     yaw_control_theta_in_IMU = *yaw_imu_angle;
+        //     is_yaw_imu_control       = true;
+        // } else {
+        //     mode_selection();
 
-            *is_chassis_and_leg_enable = true;
-            Eigen::Vector2d move_;
-            double angular_velocity = 0.0;
-            switch (chassis_mode) {
-            case rmcs_msgs::ChassisMode::Flow: {
-                double chassis_theta = *chassis_big_yaw_angle;
-                angular_velocity =
-                    std::clamp(following_velocity_controller_.update(chassis_theta), -1.0, 1.0);
-                break;
-            }
-            case rmcs_msgs::ChassisMode::SPIN: {
-                angular_velocity = 5;
-                yaw_control_theta_in_IMU += joystick_right_->y() * 0.002;
-                break;
-            }
-            case rmcs_msgs::ChassisMode::Up_Stairs: {
-                is_yaw_imu_control           = false;
-                yaw_set_theta_in_YawFreeMode = 0.0;
-                speed_limit                  = 1.5;
-                move_                        = *joystick_left_;
-                break;
-            }
-            default: break;
-            }
-            Eigen::Rotation2D<double> rotation(*chassis_big_yaw_angle + *joint1_theta);
-            move_ = rotation * (*joystick_left_);
-            chassis_control_velocity_->vector << (move_ * speed_limit), angular_velocity;
-            yaw_control();
-            // power control
-            update_virtual_buffer_energy();
-            update_control_power_limit();
-        }
+        //     Eigen::Vector2d move_;
+        //     double angular_velocity = 0.0;
+        //     switch (chassis_mode) {
+        //     case rmcs_msgs::ChassisMode::Flow: {
+        //         double chassis_theta = *chassis_big_yaw_angle;
+        //         angular_velocity =
+        //             std::clamp(following_velocity_controller_.update(chassis_theta), -1.0, 1.0);
+        //         break;
+        //     }
+        //     case rmcs_msgs::ChassisMode::SPIN: {
+        //         angular_velocity = 5;
+        //         yaw_control_theta_in_IMU += joystick_right_->y() * 0.002;
+        //         break;
+        //     }
+        //     case rmcs_msgs::ChassisMode::Up_Stairs: {
+        //         is_yaw_imu_control           = false;
+        //         yaw_set_theta_in_YawFreeMode = 0.0;
+        //         speed_limit                  = 1.5;
+        //         move_                        = *joystick_left_;
+        //         break;
+        //     }
+        //     default: break;
+        //     }
+        //     Eigen::Rotation2D<double> rotation(*chassis_big_yaw_angle + *joint1_theta);
+        //     move_ = rotation * (*joystick_left_);
+        //     chassis_control_velocity_->vector << (move_ * speed_limit), angular_velocity;
+        //     yaw_control();
+        //     // power control
+        //     update_virtual_buffer_energy();
+        //     update_control_power_limit();
+        // }
+        reset_motor();
     }
 
 private:
@@ -266,18 +245,6 @@ private:
     }
 
     void reset_motor() {
-        *steering_lf_target_angle_error     = NAN;
-        *steering_lb_target_angle_error     = NAN;
-        *steering_rb_target_angle_error     = NAN;
-        *steering_rf_target_angle_error     = NAN;
-        *steering_lf_target_angle_error     = NAN;
-        *steering_lb_target_angle_error     = NAN;
-        *steering_rb_target_angle_error     = NAN;
-        *steering_rf_target_angle_error     = NAN;
-        *steering_wheel_lf_target_vel       = NAN;
-        *steering_wheel_lb_target_vel       = NAN;
-        *steering_wheel_rb_target_vel       = NAN;
-        *steering_wheel_rf_target_vel       = NAN;
         *chassis_big_yaw_target_angle_error = NAN;
         *chassis_control_velocity_          = {nan, nan, nan};
         *chassis_control_power_limit_       = 0.0;
@@ -308,28 +275,6 @@ private:
     InputInterface<Eigen::Vector2d> mouse_velocity_;
     InputInterface<rmcs_msgs::Mouse> mouse_;
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
-
-    OutputInterface<bool> is_chassis_and_leg_enable;
-    // ————————————————————————steering——————————————————————————
-    InputInterface<double> steering_lf_angle;
-    InputInterface<double> steering_lb_angle;
-    InputInterface<double> steering_rb_angle;
-    InputInterface<double> steering_rf_angle;
-
-    OutputInterface<double> steering_lf_target_angle_error;
-    OutputInterface<double> steering_lb_target_angle_error;
-    OutputInterface<double> steering_rb_target_angle_error;
-    OutputInterface<double> steering_rf_target_angle_error;
-
-    OutputInterface<double> steering_wheel_lf_target_vel;
-    OutputInterface<double> steering_wheel_lb_target_vel;
-    OutputInterface<double> steering_wheel_rb_target_vel;
-    OutputInterface<double> steering_wheel_rf_target_vel;
-    // —————————————————————————leg————————————————————————————————
-    InputInterface<double> theta_lf;
-    InputInterface<double> theta_lb;
-    InputInterface<double> theta_rb;
-    InputInterface<double> theta_rf;
 
     bool is_yaw_imu_control      = false;
     bool last_is_yaw_imu_control = false;

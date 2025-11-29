@@ -37,7 +37,7 @@ public:
         register_input("/remote/keyboard", keyboard_);
 
         register_input("/leg/speed_limit", speed_limit_);
-        register_output("/chassis_and_leg/enable_flag", is_leg_enable, true);
+        register_output("/leg/enable_flag", is_leg_enable, true);
         register_output("/leg/omni/l/target_vel", omni_l_target_vel, NAN);
         register_output("/leg/omni/r/target_vel", omni_r_target_vel, NAN);
 
@@ -85,25 +85,35 @@ public:
         auto mouse        = *mouse_;
         auto keyboard     = *keyboard_;
         using namespace rmcs_msgs;
-        if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
-            || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
+        if (!initial_check_done_) {
             *is_leg_enable = false;
             reset_motor();
             leg_mode = rmcs_msgs::LegMode::None;
-        } else {
-            *is_leg_enable = true;
-            Eigen::Rotation2D<double> rotation(*chassis_big_yaw_angle + *joint1_theta);
-            Eigen::Vector2d move_ = rotation*(*joystick_left_);
-            mode_selection();
-            if (*arm_mode == rmcs_msgs::ArmMode::Auto_Spin) {
-                leg_mode = rmcs_msgs::LegMode::Four_Wheel;
+            if (switch_left == Switch::DOWN && switch_right == Switch::DOWN) {
+
+                initial_check_done_ = true;
             }
-            omniwheel_control(move_);
+        } else {
+            if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
+                || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
+                *is_leg_enable = false;
+                reset_motor();
+                leg_mode = rmcs_msgs::LegMode::None;
+            } else {
+                *is_leg_enable = true;
+                Eigen::Rotation2D<double> rotation(*chassis_big_yaw_angle + *joint1_theta);
+                Eigen::Vector2d move_ = rotation * (*joystick_left_);
+                mode_selection();
+                if (*arm_mode == rmcs_msgs::ArmMode::Auto_Spin) {
+                    leg_mode = rmcs_msgs::LegMode::Four_Wheel;
+                }
+                omniwheel_control(move_);
 
-            leg_control();
+                leg_control();
 
-            last_arm_mode = *arm_mode;
-            last_leg_mode = leg_mode;
+                last_arm_mode = *arm_mode;
+                last_leg_mode = leg_mode;
+            }
         }
     }
 
@@ -332,6 +342,7 @@ private:
     hardware::device::Trajectory<hardware::device::TrajectoryType::JOINT> up_stairs_initial;
     hardware::device::Trajectory<hardware::device::TrajectoryType::JOINT> up_stairs_leg_press;
     hardware::device::Trajectory<hardware::device::TrajectoryType::JOINT> up_stairs_leg_lift;
+    bool initial_check_done_ = false;
 };
 
 } // namespace rmcs_core::controller::leg

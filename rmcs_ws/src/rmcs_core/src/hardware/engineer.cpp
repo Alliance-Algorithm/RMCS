@@ -30,7 +30,9 @@ class Engineer
     , public rclcpp::Node {
 public:
     Engineer()
-        : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
+        : Node{
+              get_component_name(),
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , logger_(get_logger())
         , engineer_command_(create_partner_component<EngineerCommand>("engineer_command", *this))
         , armboard_(
@@ -73,7 +75,9 @@ private:
     };
     std::shared_ptr<EngineerCommand> engineer_command_;
 
-    class ArmBoard final : private librmcs::client::CBoard, rclcpp::Node {
+    class ArmBoard final
+        : private librmcs::client::CBoard
+        , rclcpp::Node {
     public:
         friend class Engineer;
         explicit ArmBoard(Engineer& engineer, EngineerCommand& engineer_command, int usb_pid)
@@ -366,7 +370,9 @@ private:
         OutputInterface<double> yaw_imu_angle;
 
     } armboard_;
-    class SteeringBoard final : private librmcs::client::CBoard, rclcpp::Node {
+    class SteeringBoard final
+        : private librmcs::client::CBoard
+        , rclcpp::Node {
     public:
         friend class Engineer;
         explicit SteeringBoard(Engineer& engineer, EngineerCommand& engineer_command, int usb_pid)
@@ -492,7 +498,9 @@ private:
         device::DjiMotor Wheel_motors[4];
     } steeringboard_;
 
-    class LegBoard final : private librmcs::client::CBoard, rclcpp::Node {
+    class LegBoard final
+        : private librmcs::client::CBoard
+        , rclcpp::Node {
     public:
         friend class Engineer;
         explicit LegBoard(Engineer& engineer, EngineerCommand& engineer_command, int usb_pid)
@@ -552,8 +560,7 @@ private:
 
             engineer_command.register_input("/leg/joint/lb/target_theta", leg_lb_target_theta_);
             engineer_command.register_input("/leg/joint/rb/target_theta", leg_rb_target_theta_);
-            engineer_command.register_input(
-                "/chassis_and_leg/enable_flag", is_chassis_and_leg_enable_);
+            engineer_command.register_input("/leg/enable_flag", is_leg_enable_);
         }
 
         ~LegBoard() final {
@@ -574,7 +581,7 @@ private:
 
         void command() {
             uint16_t command_[4];
-            auto is_chassis_and_leg_enable = *is_chassis_and_leg_enable_;
+            auto is_chassis_and_leg_enable = *is_leg_enable_;
 
             static int counter = 0;
             if (counter % 2 == 0) {
@@ -591,7 +598,7 @@ private:
                     normalizeAngle(*leg_lf_target_theta_ - Leg_ecd[0].get_angle());
                 *leg_joint_rf_control_theta_error =
                     normalizeAngle(*leg_rf_target_theta_ - Leg_ecd[4].get_angle());
-                    
+
                 command_[2] = Leg_Motors[1].generate_command();
                 command_[3] = Omni_Motors[0].generate_command();
                 transmit_buffer_.add_can2_transmission(0x200, std::bit_cast<uint64_t>(command_));
@@ -689,7 +696,7 @@ private:
         InputInterface<double> leg_rf_target_theta_;
         InputInterface<double> leg_lb_target_theta_;
         InputInterface<double> leg_rb_target_theta_;
-        InputInterface<bool> is_chassis_and_leg_enable_;
+        InputInterface<bool> is_leg_enable_;
 
         OutputInterface<double> leg_joint_lb_control_theta_error;
         OutputInterface<double> leg_joint_rb_control_theta_error;
@@ -704,4 +711,4 @@ private:
 } // namespace rmcs_core::hardware
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(rmcs_core::hardware::Engineer, rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(rmcs_core::hardware::Engineer,rmcs_executor::Component)

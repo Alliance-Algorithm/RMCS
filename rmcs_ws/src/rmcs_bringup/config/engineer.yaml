@@ -3,9 +3,12 @@ rmcs_executor:
     update_rate: 1000.0
     components:
       - rmcs_core::hardware::Engineer -> engineer_hardware
-      - rmcs_core::referee::Vision -> vision
       - rmcs_core::controller::arm::ArmController -> arm_controller
-      - rmcs_core::controller::chassis::Chassis_and_LegController -> chassis_and_leg
+
+      - rmcs_core::controller::leg::LegController -> leg_controller
+      - rmcs_core::controller::chassis:ChassisController -> chassis_controller
+      - rmcs_core::controller::chassis::SteeringWheelController -> steering_wheel_controller
+            
       - rmcs_core::controller::pid::ErrorPidController -> joint6_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> joint6_velocity_pid_controller
 
@@ -24,19 +27,6 @@ rmcs_executor:
       - rmcs_core::controller::pid::ErrorPidController -> joint1_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> joint1_velocity_pid_controller
 
-      - rmcs_core::controller::pid::ErrorPidController -> steering_steering_lf_angle_error_pid_controller
-      - rmcs_core::controller::pid::PidController -> steering_steering_lf_velocity_pid_controller
-      - rmcs_core::controller::pid::ErrorPidController -> steering_steering_lb_angle_error_pid_controller
-      - rmcs_core::controller::pid::PidController -> steering_steering_lb_velocity_pid_controller
-      - rmcs_core::controller::pid::ErrorPidController -> steering_steering_rb_angle_error_pid_controller
-      - rmcs_core::controller::pid::PidController -> steering_steering_rb_velocity_pid_controller
-      - rmcs_core::controller::pid::ErrorPidController -> steering_steering_rf_angle_error_pid_controller
-      - rmcs_core::controller::pid::PidController -> steering_steering_rf_velocity_pid_controller
-
-      - rmcs_core::controller::pid::PidController -> steering_wheel_lf_velocity_controller
-      - rmcs_core::controller::pid::PidController -> steering_wheel_lb_velocity_controller
-      - rmcs_core::controller::pid::PidController -> steering_wheel_rb_velocity_controller
-      - rmcs_core::controller::pid::PidController -> steering_wheel_rf_velocity_controller
       - rmcs_core::controller::pid::PidController -> leg_omni_l_velocity_controller
       - rmcs_core::controller::pid::PidController -> leg_omni_r_velocity_controller
 
@@ -79,9 +69,6 @@ engineer_hardware:
     leg_rb_ecd_zero_point: 1828
     leg_rf_ecd_zero_point: 82230
     big_yaw_zero_point: 20485
-vision:
-  ros__parameters:
-    path: /dev/ttyACM0
 
 joint6_angle_pid_controller:
   ros__parameters:
@@ -180,102 +167,6 @@ joint1_velocity_pid_controller:
     ki: 0.0
     kd: 0.0001
 
-steering_steering_lf_angle_error_pid_controller:
-  ros__parameters:
-    measurement: /steering/steering/lf/target_angle_error
-    control: /steering/steering/lf/control_vel
-    kp: 75.0
-    ki: 0.0
-    kd: 0.0
-steering_steering_lf_velocity_pid_controller:
-  ros__parameters:
-    measurement: /steering/steering/lf/velocity
-    setpoint: /steering/steering/lf/control_vel
-    control: /steering/steering/lf/control_torque
-    kp: 0.12
-    ki: 0.0
-    kd: 0.0
-steering_wheel_lf_velocity_controller:
-  ros__parameters:
-    measurement: /steering/wheel/lf/velocity
-    setpoint: /steering/wheel/lf/target_vel
-    control: /steering/wheel/lf/control_torque
-    kp: 0.8
-    ki: 0.0
-    kd: 0.0
-
-steering_steering_lb_angle_error_pid_controller:
-  ros__parameters:
-    measurement: /steering/steering/lb/target_angle_error
-    control: /steering/steering/lb/control_vel
-    kp: 75.0
-    ki: 0.0
-    kd: 1.0
-steering_steering_lb_velocity_pid_controller:
-  ros__parameters:
-    measurement: /steering/steering/lb/velocity
-    setpoint: /steering/steering/lb/control_vel
-    control: /steering/steering/lb/control_torque
-    kp: 0.12
-    ki: 0.0
-    kd: 0.01
-steering_wheel_lb_velocity_controller:
-  ros__parameters:
-    measurement: /steering/wheel/lb/velocity
-    setpoint: /steering/wheel/lb/target_vel
-    control: /steering/wheel/lb/control_torque
-    kp: 0.8
-    ki: 0.0
-    kd: 0.0
-
-steering_steering_rb_angle_error_pid_controller:
-  ros__parameters:
-    measurement: /steering/steering/rb/target_angle_error
-    control: /steering/steering/rb/control_vel
-    kp: 75.0
-    ki: 0.0
-    kd: 1.0
-steering_steering_rb_velocity_pid_controller:
-  ros__parameters:
-    measurement: /steering/steering/rb/velocity
-    setpoint: /steering/steering/rb/control_vel
-    control: /steering/steering/rb/control_torque
-    kp: 0.12
-    ki: 0.0
-    kd: 0.01
-steering_wheel_rb_velocity_controller:
-  ros__parameters:
-    measurement: /steering/wheel/rb/velocity
-    setpoint: /steering/wheel/rb/target_vel
-    control: /steering/wheel/rb/control_torque
-    kp: 0.85
-    ki: 0.0
-    kd: 0.0
-
-steering_steering_rf_angle_error_pid_controller:
-  ros__parameters:
-    measurement: /steering/steering/rf/target_angle_error
-    control: /steering/steering/rf/control_vel
-    kp: 75.0
-    ki: 0.0
-    kd: 1.0
-steering_steering_rf_velocity_pid_controller:
-  ros__parameters:
-    measurement: /steering/steering/rf/velocity
-    setpoint: /steering/steering/rf/control_vel
-    control: /steering/steering/rf/control_torque
-    kp: 0.12
-    ki: 0.0
-    kd: 0.01
-steering_wheel_rf_velocity_controller:
-  ros__parameters:
-    measurement: /steering/wheel/rf/velocity
-    setpoint: /steering/wheel/rf/target_vel
-    control: /steering/wheel/rf/control_torque
-    kp: 0.85
-    ki: 0.0
-    kd: 0.0
-    
 leg_omni_l_velocity_controller:
   ros__parameters:
     measurement: /leg/omni/l/velocity
@@ -348,7 +239,7 @@ leg_lb_error_pid_controller:
   ros__parameters:
     measurement: /leg/joint/lb/control_theta_error
     control: /leg/joint/lb/control_vel
-    kp: 12990.0
+    kp: 6990.0
     ki: 0.0
     kd: 0.0
 leg_lb_velocity_pid_controller:
@@ -364,7 +255,7 @@ leg_rb_error_pid_controller:
   ros__parameters:
     measurement: /leg/joint/rb/control_theta_error
     control: /leg/joint/rb/control_vel
-    kp: 12990.0
+    kp: 6990.0
     ki: 0.0
     kd: 0.0
 leg_rb_velocity_pid_controller:
