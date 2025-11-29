@@ -4,6 +4,7 @@ rmcs_executor:
     components:
       - rmcs_core::hardware::CatapultDart -> dart_hardware
       - rmcs_core::controller::dart::DartLaunchController -> launch_controller
+      - rmcs_core::hardware::ServoTest -> servo_test
 
 
 dart_hardware:
@@ -17,3 +18,8 @@ launch_controller:
     b_kp: 1.0
     b_ki: 0.0
     b_kd: 0.0
+
+servo_test:
+  ros__parameters:
+    trigger_lock_angle: 0x0CC5
+    trigger_free_angle: 0x0389
