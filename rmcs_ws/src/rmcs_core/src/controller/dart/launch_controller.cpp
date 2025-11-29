@@ -1,11 +1,14 @@
 #include "controller/pid/matrix_pid_calculator.hpp"
+#include <algorithm>
+#include <cstdlib>
 #include <eigen3/Eigen/Dense>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
-#include <rmcs_msgs/dart_launch_status.hpp>
+#include <rmcs_msgs/dart_launch_stage.hpp>
 #include <rmcs_msgs/switch.hpp>
+#include <sys/types.h>
 
 /*
 launch controls
@@ -36,6 +39,10 @@ public:
 
         dirve_belt_working_velocity_ = get_parameter("belt_velocity").as_double();
         sync_coefficient_ = get_parameter("sync_coefficient").as_double();
+        max_control_torque_ = get_parameter("max_control_torque").as_double();
+
+        launch_trigger_angle_ = get_parameter("launch_trigger_angle").as_int();
+        launch_lock_angle_ = get_parameter("launch_lock_angle").as_int();
 
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
@@ -47,82 +54,89 @@ public:
 
         register_output("/dart/drive_belt/left/control_torque", left_drive_belt_control_torque_, 0);
         register_output("/dart/drive_belt/right/control_torque", right_drive_belt_control_torque_, 0);
+
+        register_output("/dart/trigger_servo/control_angle", trigger_control_angle);
     }
 
     void update() override {
         using namespace rmcs_msgs;
+
         if ((*switch_left_ == Switch::DOWN || *switch_left_ == Switch::UNKNOWN)
             && (*switch_right_ == Switch::DOWN || *switch_right_ == Switch::UNKNOWN)) {
+            *launch_stage_ = DartLaunchStages::DISABLE;
             reset_all_controls();
 
         } else if (*switch_left_ == Switch::MIDDLE) {
-            if (dart_launch_status_ == rmcs_msgs::DartLaunchStatus::DISABLE) {
-                dart_launch_status_ = rmcs_msgs::DartLaunchStatus::INIT;
-                return;
+            double control_velocity = 0;
+
+            if (last_launch_stage_ == DartLaunchStages::DISABLE) {
+                *launch_stage_ = DartLaunchStages::RESETTING;
             }
+
             if (last_switch_right_ == Switch::MIDDLE && *switch_right_ == Switch::DOWN) {
-                dirve_belt_block_count_ = 0;
-                drive_belt_control_direction_ = -1;
-                if (dart_launch_status_ == DartLaunchStatus::INIT) {
-                    dart_launch_status_ = DartLaunchStatus::LOADING;
+                if (last_launch_stage_ == DartLaunchStages::INIT) {
+                    *launch_stage_ = DartLaunchStages::LOADING;
+                    control_velocity = dirve_belt_working_velocity_;
+                } else if (last_launch_stage_ == DartLaunchStages::READY) {
+                    *launch_stage_ = DartLaunchStages::CANCEL;
+                    control_velocity = dirve_belt_working_velocity_;
                 }
-            }
-
-            if (last_switch_right_ == Switch::MIDDLE && *switch_right_ == Switch::UP) {
-                if (dart_launch_status_ == DartLaunchStatus::LAUNCH_READY) {
-                    dart_launch_status_ = rmcs_msgs::DartLaunchStatus::INIT;
-                    trigger_enable_ = true;
+            } else if (last_switch_right_ == Switch::MIDDLE && *switch_right_ == Switch::UP) {
+                if (last_launch_stage_ == DartLaunchStages::READY) {
+                    *launch_stage_ = DartLaunchStages::INIT;
+                    trigger_lock_flag_ = false;
                 } else {
-                    RCLCPP_INFO(logger_, "Dart Hasn't Been Loaded!");
+                    RCLCPP_INFO(logger_, "Dart has't been loaded !");
                 }
             }
 
-            launch_load_control();
-            drive_belt_sync_control();
+            if (blocking_detection()) {
+                if (last_launch_stage_ == DartLaunchStages::LOADING) {
+                    *launch_stage_ = DartLaunchStages::RESETTING;
+                    trigger_lock_flag_ = true;
+                    dirve_belt_block_count_ = 0;
+                    control_velocity = -dirve_belt_working_velocity_;
+
+                } else if (last_launch_stage_ == DartLaunchStages::CANCEL) {
+                    *launch_stage_ = DartLaunchStages::RESETTING;
+                    trigger_lock_flag_ = false;
+                    dirve_belt_block_count_ = 0;
+                    control_velocity = -dirve_belt_working_velocity_;
+
+                } else if (last_launch_stage_ == DartLaunchStages::RESETTING) {
+                    *launch_stage_ = trigger_lock_flag_ ? DartLaunchStages::READY : DartLaunchStages::INIT;
+                    dirve_belt_block_count_ = 0;
+                    control_velocity = 0;
+                }
+            }
+            drive_belt_sync_control(control_velocity);
         }
+
+        *trigger_control_angle = trigger_lock_flag_ ? launch_lock_angle_ : launch_trigger_angle_;
 
         last_switch_left_ = *switch_left_;
         last_switch_right_ = *switch_right_;
-
-        {
-            if (log_count_++ > 500) {
-                RCLCPP_INFO(logger_, "dart status: %d", static_cast<int>(dart_launch_status_));
-                log_count_ = 0;
-            }
-        } // DEBUG
+        last_launch_stage_ = *launch_stage_;
     }
+
     double log_count_;
 
 private:
     void reset_all_controls() {
-        dart_launch_status_ = rmcs_msgs::DartLaunchStatus::DISABLE;
+        *launch_stage_ = rmcs_msgs::DartLaunchStages::DISABLE;
         *left_drive_belt_control_torque_ = 0;
         *right_drive_belt_control_torque_ = 0;
-        drive_belt_control_direction_ = 0;
     }
 
-    void launch_load_control() {
-        using namespace rmcs_msgs;
-        dirve_belt_block_count_++;
-        if (dirve_belt_block_count_ >= 500) {
-            if (drive_belt_control_direction_ == -1) {
-                drive_belt_control_direction_ = 1;
-                if (dart_launch_status_ == DartLaunchStatus::LAUNCH_READY) {
-                    trigger_enable_ = true;
-                    dart_launch_status_ = rmcs_msgs::DartLaunchStatus::INIT;
-                }
-            } else if (drive_belt_control_direction_ == 1) {
-                drive_belt_control_direction_ = 0;
-                if (dart_launch_status_ == DartLaunchStatus::LOADING) {
-                    dart_launch_status_ = DartLaunchStatus::LAUNCH_READY;
-                }
-            }
+    void drive_belt_sync_control(double set_velocity) {
+        if (set_velocity == 0) {
+            *left_drive_belt_control_torque_ = 0;
+            *right_drive_belt_control_torque_ = 0;
+            return;
         }
-    }
 
-    void drive_belt_sync_control() {
-        auto setpoint = drive_belt_control_direction_ * dirve_belt_working_velocity_;
-        Eigen::Vector2d setpoint_error{setpoint - *left_drive_belt_velocity_, setpoint - *right_drive_belt_velocity_};
+        Eigen::Vector2d setpoint_error{
+            set_velocity - *left_drive_belt_velocity_, set_velocity - *right_drive_belt_velocity_};
 
         Eigen::Vector2d relative_velocity{
             *left_drive_belt_velocity_ - *right_drive_belt_velocity_,
@@ -130,14 +144,20 @@ private:
 
         Eigen::Vector2d control_torques = setpoint_error - sync_coefficient_ * relative_velocity;
 
-        *left_drive_belt_control_torque_ = control_torques[0];
-        *right_drive_belt_control_torque_ = control_torques[1];
+        *left_drive_belt_control_torque_ = std::clamp(control_torques[0], -max_control_torque_, max_control_torque_);
+        *right_drive_belt_control_torque_ = std::clamp(control_torques[1], -max_control_torque_, max_control_torque_);
     }
 
-    void trigger_control() {}
+    bool blocking_detection() {
+        if ((abs(*left_drive_belt_velocity_) < 0.5 && abs(*left_drive_belt_control_torque_) > 0.5)
+            || (abs(*right_drive_belt_velocity_) < 0.5 && abs(*right_drive_belt_control_torque_) > 0.5)) {
+            dirve_belt_block_count_++;
+        }
+
+        return dirve_belt_block_count_ > 1000 ? true : false;
+    }
 
     int dirve_belt_block_count_ = 0;
-    double drive_belt_control_direction_ = 0;
     double dirve_belt_working_velocity_;
 
     rclcpp::Logger logger_;
@@ -154,8 +174,15 @@ private:
     InputInterface<double> left_drive_belt_velocity_;
     InputInterface<double> right_drive_belt_velocity_;
 
-    rmcs_msgs::DartLaunchStatus dart_launch_status_;
-    bool trigger_enable_ = false;
+    double max_control_torque_;
+
+    OutputInterface<rmcs_msgs::DartLaunchStages> launch_stage_;
+    rmcs_msgs::DartLaunchStages last_launch_stage_ = rmcs_msgs::DartLaunchStages::DISABLE;
+
+    uint16_t launch_lock_angle_;
+    uint16_t launch_trigger_angle_;
+    bool trigger_lock_flag_ = false;
+    OutputInterface<uint16_t> trigger_control_angle;
 
     pid::MatrixPidCalculator<2> drive_belt_pid_calculator_;
     double sync_coefficient_;
