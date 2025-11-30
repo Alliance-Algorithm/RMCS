@@ -36,26 +36,7 @@ public:
         register_input("/remote/mouse", mouse_);
         register_input("/remote/keyboard", keyboard_);
 
-        register_output("/chassis_and_leg/enable_flag", is_chassis_and_leg_enable, true);
-        register_input("/steering/steering/lf/angle", steering_lf_angle);
-        register_input("/steering/steering/lb/angle", steering_lb_angle);
-        register_input("/steering/steering/rb/angle", steering_rb_angle);
-        register_input("/steering/steering/rf/angle", steering_rf_angle);
-        register_output(
-            "/steering/steering/lf/target_angle_error", steering_lf_target_angle_error, NAN);
-        register_output(
-            "/steering/steering/lb/target_angle_error", steering_lb_target_angle_error, NAN);
-        register_output(
-            "/steering/steering/rb/target_angle_error", steering_rb_target_angle_error, NAN);
-        register_output(
-            "/steering/steering/rf/target_angle_error", steering_rf_target_angle_error, NAN);
-
-        register_output("/steering/wheel/lf/target_vel", steering_wheel_lf_target_vel, NAN);
-        register_output("/steering/wheel/lb/target_vel", steering_wheel_lb_target_vel, NAN);
-        register_output("/steering/wheel/rb/target_vel", steering_wheel_rb_target_vel, NAN);
-        register_output("/steering/wheel/rf/target_vel", steering_wheel_rf_target_vel, NAN);
-
-        register_input("yaw_imu_velocity", yaw_imu_velocity);
+        register_output("/chassis_and_leg/enable_flag", is_chassis_and_leg_enable, true);\
         register_input("yaw_imu_angle", yaw_imu_angle);
         register_input("/arm/Joint1/theta", joint1_theta);
 
@@ -267,18 +248,6 @@ private:
     }
 
     void reset_motor() {
-        *steering_lf_target_angle_error     = NAN;
-        *steering_lb_target_angle_error     = NAN;
-        *steering_rb_target_angle_error     = NAN;
-        *steering_rf_target_angle_error     = NAN;
-        *steering_lf_target_angle_error     = NAN;
-        *steering_lb_target_angle_error     = NAN;
-        *steering_rb_target_angle_error     = NAN;
-        *steering_rf_target_angle_error     = NAN;
-        *steering_wheel_lf_target_vel       = NAN;
-        *steering_wheel_lb_target_vel       = NAN;
-        *steering_wheel_rb_target_vel       = NAN;
-        *steering_wheel_rf_target_vel       = NAN;
         *chassis_big_yaw_target_angle_error = NAN;
         *chassis_control_velocity_          = {nan, nan, nan};
         *chassis_control_power_limit_       = 0.0;
@@ -311,21 +280,6 @@ private:
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
 
     OutputInterface<bool> is_chassis_and_leg_enable;
-    // ————————————————————————steering——————————————————————————
-    InputInterface<double> steering_lf_angle;
-    InputInterface<double> steering_lb_angle;
-    InputInterface<double> steering_rb_angle;
-    InputInterface<double> steering_rf_angle;
-
-    OutputInterface<double> steering_lf_target_angle_error;
-    OutputInterface<double> steering_lb_target_angle_error;
-    OutputInterface<double> steering_rb_target_angle_error;
-    OutputInterface<double> steering_rf_target_angle_error;
-
-    OutputInterface<double> steering_wheel_lf_target_vel;
-    OutputInterface<double> steering_wheel_lb_target_vel;
-    OutputInterface<double> steering_wheel_rb_target_vel;
-    OutputInterface<double> steering_wheel_rf_target_vel;
     // —————————————————————————leg————————————————————————————————
     InputInterface<double> theta_lf;
     InputInterface<double> theta_lb;
@@ -334,7 +288,6 @@ private:
 
     bool is_yaw_imu_control      = false;
     bool last_is_yaw_imu_control = false;
-    InputInterface<double> yaw_imu_velocity;
     InputInterface<double> yaw_imu_angle;
     InputInterface<double> joint1_theta;
     double yaw_control_theta_in_IMU     = NAN;
