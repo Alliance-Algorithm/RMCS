@@ -50,7 +50,8 @@ public:
         register_input("/remote/mouse/velocity", mouse_velocity_);
         register_input("/remote/mouse", mouse_);
         register_input("/remote/keyboard", keyboard_);
-        register_input("/referee/vision/custom", custom_controller);
+
+        // register_input("/referee/vision/custom", custom_controller);
 
         register_input("/arm/Joint6/theta", theta[5]);
         register_input("/arm/Joint5/theta", theta[4]);
@@ -207,7 +208,7 @@ public:
             case ArmMode::Auto_Sliver: execute_sliver(fsm_sliver); break;
             case ArmMode::DT7_Control_Position: execute_dt7_position(); break;
             case ArmMode::DT7_Control_Orientation: execute_dt7_orientation(); break;
-            case ArmMode::Customer: execute_customer(); break;
+            // case ArmMode::Customer: execute_customer(); break;
             case ArmMode::Auto_Up_Stairs: execute_up_stairs(); break;
             case ArmMode::Auto_Storage_LB: execute_storage(fsm_storage_lb); break;
             case ArmMode::Auto_Storage_RB: execute_storage(fsm_storage_rb); break;
@@ -333,7 +334,7 @@ private:
 
     void execute_customer() {
 
-        std::memcpy(customer_theta, custom_controller->begin() + 1, sizeof(customer_theta));
+        // std::memcpy(customer_theta, custom_controller->begin() + 1, sizeof(customer_theta));
         double customer_[6];
         for (int i = 0; i < 6; ++i) {
             customer_[i] = customer_theta[i];
@@ -440,7 +441,7 @@ private:
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
     float customer_theta[6];
-    InputInterface<std::array<uint8_t, 30>> custom_controller;
+    // InputInterface<std::array<uint8_t, 30>> custom_controller;
 
     InputInterface<Eigen::Vector2d> joystick_right_;
     InputInterface<Eigen::Vector2d> joystick_left_;

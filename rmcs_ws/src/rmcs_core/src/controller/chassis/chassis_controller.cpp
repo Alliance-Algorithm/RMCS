@@ -15,7 +15,6 @@
 #include <rmcs_msgs/arm_mode.hpp>
 #include <rmcs_msgs/chassis_mode.hpp>
 #include <rmcs_msgs/keyboard.hpp>
-#include <rmcs_msgs/leg_mode.hpp>
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/switch.hpp>
 namespace rmcs_core::controller::chassis {
@@ -36,7 +35,7 @@ public:
         register_input("/remote/mouse", mouse_);
         register_input("/remote/keyboard", keyboard_);
 
-        register_output("/chassis_and_leg/enable_flag", is_chassis_and_leg_enable, true);\
+        //register_input("yaw_imu_velocity", yaw_imu_velocity);
         register_input("yaw_imu_angle", yaw_imu_angle);
         register_input("/arm/Joint1/theta", joint1_theta);
 
@@ -57,47 +56,46 @@ public:
         auto mouse        = *mouse_;
         auto keyboard     = *keyboard_;
         using namespace rmcs_msgs;
-        if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
-            || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
-            *is_chassis_and_leg_enable = false;
-            reset_motor();
-            yaw_control_theta_in_IMU = *yaw_imu_angle;
-            is_yaw_imu_control       = true;
-        } else {
-            mode_selection();
+        // if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
+        //     || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
+        //     reset_motor();
+        //     yaw_control_theta_in_IMU = *yaw_imu_angle;
+        //     is_yaw_imu_control       = true;
+        // } else {
+        //     mode_selection();
 
-            *is_chassis_and_leg_enable = true;
-            Eigen::Vector2d move_;
-            double angular_velocity = 0.0;
-            switch (chassis_mode) {
-            case rmcs_msgs::ChassisMode::Flow: {
-                double chassis_theta = *chassis_big_yaw_angle;
-                angular_velocity =
-                    std::clamp(following_velocity_controller_.update(chassis_theta), -1.0, 1.0);
-                break;
-            }
-            case rmcs_msgs::ChassisMode::SPIN: {
-                angular_velocity = 5;
-                yaw_control_theta_in_IMU += joystick_right_->y() * 0.002;
-                break;
-            }
-            case rmcs_msgs::ChassisMode::Up_Stairs: {
-                is_yaw_imu_control           = false;
-                yaw_set_theta_in_YawFreeMode = 0.0;
-                speed_limit                  = 1.5;
-                move_                        = *joystick_left_;
-                break;
-            }
-            default: break;
-            }
-            Eigen::Rotation2D<double> rotation(*chassis_big_yaw_angle + *joint1_theta);
-            move_ = rotation * (*joystick_left_);
-            chassis_control_velocity_->vector << (move_ * speed_limit), angular_velocity;
-            yaw_control();
-            // power control
-        update_virtual_buffer_energy();
-        update_control_power_limit();
-        }
+        //     Eigen::Vector2d move_;
+        //     double angular_velocity = 0.0;
+        //     switch (chassis_mode) {
+        //     case rmcs_msgs::ChassisMode::Flow: {
+        //         double chassis_theta = *chassis_big_yaw_angle;
+        //         angular_velocity =
+        //             std::clamp(following_velocity_controller_.update(chassis_theta), -1.0, 1.0);
+        //         break;
+        //     }
+        //     case rmcs_msgs::ChassisMode::SPIN: {
+        //         angular_velocity = 5;
+        //         yaw_control_theta_in_IMU += joystick_right_->y() * 0.002;
+        //         break;
+        //     }
+        //     case rmcs_msgs::ChassisMode::Up_Stairs: {
+        //         is_yaw_imu_control           = false;
+        //         yaw_set_theta_in_YawFreeMode = 0.0;
+        //         speed_limit                  = 1.5;
+        //         move_                        = *joystick_left_;
+        //         break;
+        //     }
+        //     default: break;
+        //     }
+        //     Eigen::Rotation2D<double> rotation(*chassis_big_yaw_angle + *joint1_theta);
+        //     move_ = rotation * (*joystick_left_);
+        //     chassis_control_velocity_->vector << (move_ * speed_limit), angular_velocity;
+        //     yaw_control();
+        //     // power control
+        //     update_virtual_buffer_energy();
+        //     update_control_power_limit();
+        // }
+        reset_motor();
     }
 
 private:
@@ -236,7 +234,7 @@ private:
     void update_control_power_limit() {
         double power_limit;
 
-            power_limit = chassis_power_limit_referee_;
+        power_limit                   = chassis_power_limit_referee_;
         chassis_power_limit_expected_ = power_limit;
 
         constexpr double excess_power_limit = 15;
@@ -244,14 +242,14 @@ private:
         power_limit += excess_power_limit;
         power_limit *= virtual_buffer_energy_ / virtual_buffer_energy_limit_;
 
-        *chassis_control_power_limit_ = power_limit;//
+        *chassis_control_power_limit_ = power_limit;                        //
     }
 
     void reset_motor() {
         *chassis_big_yaw_target_angle_error = NAN;
         *chassis_control_velocity_          = {nan, nan, nan};
         *chassis_control_power_limit_       = 0.0;
-        virtual_buffer_energy_        = virtual_buffer_energy_limit_;//
+        virtual_buffer_energy_              = virtual_buffer_energy_limit_; //
     }
     static double normalizeAngle(double angle) {
         while (angle > M_PI)
@@ -268,7 +266,7 @@ private:
     rmcs_msgs::ArmMode last_arm_mode;
     pid::PidCalculator following_velocity_controller_;
 
-    double speed_limit              = 4.5;  // m/s
+    double speed_limit                                   = 4.5;             // m/s
     constexpr static double chassis_power_limit_referee_ = 120.0f;
 
     InputInterface<Eigen::Vector2d> joystick_right_;
@@ -278,13 +276,6 @@ private:
     InputInterface<Eigen::Vector2d> mouse_velocity_;
     InputInterface<rmcs_msgs::Mouse> mouse_;
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
-
-    OutputInterface<bool> is_chassis_and_leg_enable;
-    // —————————————————————————leg————————————————————————————————
-    InputInterface<double> theta_lf;
-    InputInterface<double> theta_lb;
-    InputInterface<double> theta_rb;
-    InputInterface<double> theta_rf;
 
     bool is_yaw_imu_control      = false;
     bool last_is_yaw_imu_control = false;
@@ -310,5 +301,4 @@ private:
 } // namespace rmcs_core::controller::chassis
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(
-    rmcs_core::controller::chassis::Chassis_Controller, rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::chassis::Chassis_Controller, rmcs_executor::Component)
