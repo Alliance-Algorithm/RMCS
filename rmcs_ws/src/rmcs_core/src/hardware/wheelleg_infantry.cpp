@@ -1,3 +1,5 @@
+#include <bit>
+#include <cstdint>
 #include <librmcs/client/cboard.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
@@ -7,6 +9,7 @@
 
 #include "hardware/device/bmi088.hpp"
 #include "hardware/device/dji_motor.hpp"
+#include "hardware/device/dm_motor.hpp"
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/lk_motor.hpp"
 
@@ -132,8 +135,8 @@ private:
 
         void command_update() {
             uint16_t control_commands[4]{};
-            control_commands[2] = friction_wheel_motors_[0].generate_command();
-            control_commands[3] = friction_wheel_motors_[1].generate_command();
+            control_commands[0] = friction_wheel_motors_[0].generate_command();
+            control_commands[1] = friction_wheel_motors_[1].generate_command();
 
             transmit_buffer_.add_can1_transmission(
                 0x200, std::bit_cast<uint64_t>(control_commands));
@@ -152,9 +155,9 @@ private:
             if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
                 return;
 
-            if (can_id == 0x203) {
+            if (can_id == 0x201) {
                 friction_wheel_motors_[0].store_status(can_data);
-            } else if (can_id == 0x204) {
+            } else if (can_id == 0x202) {
                 friction_wheel_motors_[1].store_status(can_data);
             }
         }
@@ -209,8 +212,16 @@ private:
                   {infantry, infantry_command, "/chassis/right_wheel",
                    device::DjiMotor::Config{device::DjiMotor::Type::M3508}
                        .set_reduction_ratio(13.0)
-                       .enable_multi_turn_angle()
-                       .set_reversed()})
+                       .enable_multi_turn_angle()})
+            , chassis_hip_motors(
+                  {infantry, infantry_command, "/chassis/left_front_hip",
+                   device::DmMotor::Config{device::DmMotor::Type::DM8009}},
+                  {infantry, infantry_command, "/chassis/left_back_hip",
+                   device::DmMotor::Config{device::DmMotor::Type::DM8009}},
+                  {infantry, infantry_command, "/chassis/right_front_hip",
+                   device::DmMotor::Config{device::DmMotor::Type::DM8009}},
+                  {infantry, infantry_command, "/chassis/right_back_hip",
+                   device::DmMotor::Config{device::DmMotor::Type::DM8009}})
             , gimbal_yaw_motor_(
                   infantry, infantry_command, "/gimbal/yaw",
                   device::LkMotor::Config{device::LkMotor::Type::MG4010E_I10}
@@ -225,6 +236,19 @@ private:
                       .set_reduction_ratio(19 * 2))
             , transmit_buffer_(*this, 32)
             , event_thread_([this]() { handle_events(); }) {
+
+            imu_.set_coordinate_mapping([](double x, double y, double z) {
+                // Get the mapping with the following code.
+                // The rotation angle must be an exact multiple of 90 degrees, otherwise use a
+                // matrix.
+
+                // Eigen::AngleAxisd pitch_link_to_imu_link{
+                //     std::numbers::pi, Eigen::Vector3d::UnitZ()};
+                // Eigen::Vector3d mapping = pitch_link_to_imu_link * Eigen::Vector3d{1, 2, 3};
+                // std::cout << mapping << std::endl;
+
+                return std::make_tuple(x, -y, -z);
+            });
 
             infantry.register_output("/referee/serial", referee_serial_);
 
@@ -272,7 +296,44 @@ private:
         }
 
         void command_update() {
-            uint16_t control_commands[4];
+            uint16_t control_commands[4]{};
+
+            control_commands[0] = chassis_wheel_motors_[0].generate_command();
+            control_commands[1] = chassis_wheel_motors_[1].generate_command();
+            control_commands[3] = bullet_feeder_motor_.generate_command();
+
+            transmit_buffer_.add_can1_transmission(
+                0x200, std::bit_cast<uint64_t>(control_commands));
+
+            transmit_buffer_.add_can1_transmission(
+                0x141,
+                gimbal_yaw_motor_.generate_torque_command(gimbal_yaw_motor_.control_torque()));
+
+            if (!is_hips_enable_) {
+                transmit_buffer_.add_can2_transmission(
+                    0x01, chassis_hip_motors[0].generate_enable_command());
+                transmit_buffer_.add_can2_transmission(
+                    0x02, chassis_hip_motors[1].generate_enable_command());
+                transmit_buffer_.add_can2_transmission(
+                    0x03, chassis_hip_motors[2].generate_enable_command());
+                transmit_buffer_.add_can2_transmission(
+                    0x04, chassis_hip_motors[3].generate_enable_command());
+                is_hips_enable_ = !is_hips_enable_;
+            } else {
+                transmit_buffer_.add_can2_transmission(
+                    0x01, chassis_hip_motors[0].generate_torque_command(
+                              chassis_hip_motors[0].control_torque()));
+                transmit_buffer_.add_can2_transmission(
+                    0x02, chassis_hip_motors[1].generate_torque_command(
+                              chassis_hip_motors[1].control_torque()));
+                transmit_buffer_.add_can2_transmission(
+                    0x03, chassis_hip_motors[2].generate_torque_command(
+                              chassis_hip_motors[2].control_torque()));
+                transmit_buffer_.add_can2_transmission(
+                    0x04, chassis_hip_motors[3].generate_torque_command(
+                              chassis_hip_motors[3].control_torque()));
+            }
+
             transmit_buffer_.trigger_transmission();
         }
 
@@ -282,11 +343,11 @@ private:
             *chassis_yaw_angle_imu_ = std::atan2(
                 2.0 * (imu_.q0() * imu_.q3() + imu_.q1() * imu_.q2()),
                 2.0 * (imu_.q0() * imu_.q0() + imu_.q1() * imu_.q1()) - 1.0);
-            *chassis_pitch_angle_imu_ = std::atan2(
+            *chassis_pitch_angle_imu_ =
+                std::asin(-2.0 * (imu_.q1() * imu_.q3() - imu_.q0() * imu_.q2()));
+            *chassis_roll_angle_imu_ = std::atan2(
                 2.0 * (imu_.q0() * imu_.q1() + imu_.q2() * imu_.q3()),
                 2.0 * (imu_.q0() * imu_.q0() + imu_.q3() * imu_.q3()) - 1.0);
-            *chassis_roll_angle_imu_ =
-                std::asin(-2.0 * (imu_.q1() * imu_.q3() - imu_.q0() * imu_.q2()));
 
             *chassis_yaw_velocity_imu_ = imu_.gz();
             *chassis_pitch_velocity_imu_ = imu_.gy();
@@ -303,7 +364,15 @@ private:
             if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
                 return;
 
-            if (can_id == 0x201) {}
+            if (can_id == 0x201) {
+                chassis_wheel_motors_[0].store_status(can_data);
+            } else if (can_id == 0x202) {
+                chassis_wheel_motors_[1].store_status(can_data);
+            } else if (can_id == 0x203) {
+                bullet_feeder_motor_.store_status(can_data);
+            } else if (can_id == 0x141) {
+                gimbal_yaw_motor_.store_status(can_data);
+            }
         }
 
         void can2_receive_callback(
@@ -312,7 +381,15 @@ private:
             if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
                 return;
 
-            if (can_id == 0x141) {}
+            if (can_id == 0x01) {
+                chassis_hip_motors[0].store_status(can_data);
+            } else if (can_id == 0x02) {
+                chassis_hip_motors[1].store_status(can_data);
+            } else if (can_id == 0x03) {
+                chassis_hip_motors[2].store_status(can_data);
+            } else if (can_id == 0x04) {
+                chassis_hip_motors[3].store_status(can_data);
+            }
         }
 
         void uart1_receive_callback(const std::byte* uart_data, uint8_t uart_data_length) override {
@@ -331,6 +408,7 @@ private:
         void gyroscope_receive_callback(int16_t x, int16_t y, int16_t z) override {
             imu_.store_gyroscope_status(x, y, z);
         }
+
         device::Dr16 dr16_;
 
         device::Bmi088 imu_;
@@ -349,7 +427,9 @@ private:
         OutputInterface<rmcs_description::Tf>& tf_;
 
         device::DjiMotor chassis_wheel_motors_[2];
-        // device::DmMotor chassis_hip_motors[4];
+
+        bool is_hips_enable_{false};
+        device::DmMotor chassis_hip_motors[4];
 
         device::LkMotor gimbal_yaw_motor_;
         device::DjiMotor bullet_feeder_motor_;
