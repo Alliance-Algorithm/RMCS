@@ -35,7 +35,7 @@ public:
         register_input("/remote/mouse", mouse_);
         register_input("/remote/keyboard", keyboard_);
 
-        register_input("yaw_imu_velocity", yaw_imu_velocity);
+        //register_input("yaw_imu_velocity", yaw_imu_velocity);
         register_input("yaw_imu_angle", yaw_imu_angle);
         register_input("/arm/Joint1/theta", joint1_theta);
 
@@ -44,10 +44,11 @@ public:
         register_output(
             "/chassis/big_yaw/target_angle_error", chassis_big_yaw_target_angle_error, NAN);
         register_input("/chassis/big_yaw/angle", chassis_big_yaw_angle);
-        register_output("/chassis/control_power_limit", chassis_control_power_limit_, 0.0); // yaml
-        register_output("/chassis/control_velocity", chassis_control_velocity_);            // yaml
-        register_input("/chassis/power", chassis_power_);                                   // yaml
-        register_input("/referee/chassis/buffer_energy", chassis_buffer_energy_referee_);   // yaml
+        register_output(
+            "/chassis/control_power_limit", chassis_control_power_limit_, 0.0); 
+        register_output("/chassis/control_velocity", chassis_control_velocity_);  
+        register_input("/chassis/power", chassis_power_);
+        register_input("/referee/chassis/buffer_energy", chassis_buffer_energy_referee_);
     }
     void update() override {
         auto switch_right = *switch_right_;
@@ -278,7 +279,6 @@ private:
 
     bool is_yaw_imu_control      = false;
     bool last_is_yaw_imu_control = false;
-    InputInterface<double> yaw_imu_velocity;
     InputInterface<double> yaw_imu_angle;
     InputInterface<double> joint1_theta;
     double yaw_control_theta_in_IMU     = NAN;
