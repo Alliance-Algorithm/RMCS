@@ -51,8 +51,8 @@ public:
         legboard_.update();
     }
     void command() {
-        armboard_.command();
-        steeringboard_.command();
+        // armboard_.command();
+        // steeringboard_.command();
         legboard_.command();
     }
 
@@ -182,7 +182,9 @@ private:
             dr16_.update();
             update_imu();
         }
-        void command() { arm_command_update(); }
+        void command() { 
+            arm_command_update(); 
+        }
 
     private:
         void arm_command_update() {
@@ -616,18 +618,18 @@ private:
             }
             uint64_t command_1;
             if (counter % 2 == 0) {
-                if (is_chassis_and_leg_enable && big_yaw.get_state() != 0
-                    && big_yaw.get_state() != 1) {
-                    command_1 = big_yaw.dm_clear_error_command();
-                } else if (!is_chassis_and_leg_enable) {
-                    command_1 = big_yaw.dm_close_command();
-                } else if (is_chassis_and_leg_enable && big_yaw.get_state() == 0) {
-                    command_1 = big_yaw.dm_enable_command();
+                // if (is_chassis_and_leg_enable && big_yaw.get_state() != 0
+                //     && big_yaw.get_state() != 1) {
+                //     command_1 = big_yaw.dm_clear_error_command();
+                // } else if (!is_chassis_and_leg_enable) {
+                //     command_1 = big_yaw.dm_close_command();
+                // } else if (is_chassis_and_leg_enable && big_yaw.get_state() == 0) {
+                //     command_1 = big_yaw.dm_enable_command();
 
-                } else {
-                    command_1 = big_yaw.generate_torque_command();
-                }
-
+                // } else {
+                //     command_1 = big_yaw.generate_torque_command();
+                // }
+                command_1 = big_yaw.dm_close_command();
                 transmit_buffer_.add_can1_transmission(
                     (0x3), std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_1})));
             }
