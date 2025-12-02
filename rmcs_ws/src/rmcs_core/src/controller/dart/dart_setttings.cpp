@@ -28,11 +28,48 @@ class DartSettings
 public:
     DartSettings()
         : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
-        , logger_(get_logger()) {}
+        , logger_(get_logger()) {
+        log_enable_ = get_parameter("log_enable").as_bool();
+        force_screw_max_velocity_ = get_parameter("screw_max_velocity").as_double();
 
-    void update() override {};
+        register_input("/remote/joystick/right", joystick_right_);
+        register_input("/remote/joystick/left", joystick_left_);
+        register_input("/remote/switch/right", switch_right_);
+        register_input("/remote/switch/left", switch_left_);
+
+        register_input("/force_sensor/channel_1/weight", force_sensor_ch1_weight_);
+        register_input("/force_sensor/channel_2/weight", force_sensor_ch2_weight_);
+
+        register_output("/dart/force_control_motor/control_velocity", force_control_velocity_);
+    }
+
+    void update() override {
+        if (*switch_left_ == rmcs_msgs::Switch::UP) {
+            if (*switch_right_ == rmcs_msgs::Switch::DOWN) {
+                *force_control_velocity_ = joystick_right_->x() * force_screw_max_velocity_;
+            }
+            if (*switch_right_ == rmcs_msgs::Switch::MIDDLE) {
+                // angle control
+            }
+        } else {
+            reset();
+        }
+
+        if (log_enable_) {
+            measure_log();
+        }
+    }
 
 private:
+    void reset() { *force_control_velocity_ = 0; }
+
+    void measure_log() {
+        if (log_count_++ > 100) {
+            log_count_ = 0;
+            RCLCPP_INFO(logger_, "ch1: %d | ch2: %d", *force_sensor_ch1_weight_, *force_sensor_ch2_weight_);
+        }
+    }
+
     rclcpp::Logger logger_;
 
     InputInterface<Eigen::Vector2d> joystick_right_;
@@ -40,10 +77,15 @@ private:
     InputInterface<rmcs_msgs::Switch> switch_right_;
     InputInterface<rmcs_msgs::Switch> switch_left_;
 
-    OutputInterface<double> yaw_control_velocity_; // 只需要速度环，摇杆直接映射成速度
-    OutputInterface<double> pitch_angle_setpoint_; // 双环pid，外环角度内环速度，摇杆映射成目标角度
+    // OutputInterface<double> yaw_control_velocity_; // 只需要速度环，摇杆直接映射成速度
+    // OutputInterface<double> pitch_angle_setpoint_; // 双环pid，外环角度内环速度，摇杆映射成目标角度
 
-    OutputInterface<double> force_setpoint_;
+    InputInterface<int> force_sensor_ch1_weight_, force_sensor_ch2_weight_;
+    OutputInterface<double> force_control_velocity_;
+    double force_screw_max_velocity_;
+
+    bool log_enable_ = false;
+    int log_count_ = 0;
 };
 
 } // namespace rmcs_core::controller::dart

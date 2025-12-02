@@ -59,10 +59,13 @@ public:
         drive_belt_motor_[0].update_status();
         drive_belt_motor_[1].update_status();
         force_control_motor_.update_status();
+        force_sensor_.update_status();
     }
 
     void command_update() {
         uint16_t can_commands[4];
+
+        transmit_buffer_.add_can1_transmission(0x301, std::bit_cast<uint64_t>(force_sensor_.generate_command()));
 
         can_commands[0] = pitch_motor_.generate_command();
         can_commands[1] = yaw_motor_.generate_command();
@@ -90,13 +93,17 @@ public:
     }
 
 protected:
-    // void can1_receive_callback(
-    //     uint32_t can_id, uint64_t can_data, bool is_extended_can_id, bool is_remote_transmission,
-    //     uint8_t can_data_length) override {
+    void can1_receive_callback(
+        uint32_t can_id, uint64_t can_data, bool is_extended_can_id, bool is_remote_transmission,
+        uint8_t can_data_length) override {
 
-    //     if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
-    //         return;
-    // }
+        if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
+            return;
+
+        if (can_id == 0x302) {
+            force_sensor_.store_status(can_data);
+        }
+    }
 
     void can2_receive_callback(
         uint32_t can_id, uint64_t can_data, bool is_extended_can_id, bool is_remote_transmission,

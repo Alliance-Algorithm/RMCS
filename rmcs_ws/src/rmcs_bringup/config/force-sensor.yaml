@@ -1,0 +1,12 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::hardware::ForceSensorTest -> force_sensor_test
+      - rmcs_core::hardware::ForceSensorReceive -> force_sensor_receive
+
+
+force_sensor_test:
+  ros__parameters:
+    usb_pid: -1
+

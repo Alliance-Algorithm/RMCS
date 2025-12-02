@@ -4,8 +4,8 @@ rmcs_executor:
     components:
       - rmcs_core::hardware::CatapultDart -> dart_hardware
       - rmcs_core::controller::dart::DartLaunchController -> launch_controller
-      - rmcs_core::hardware::ServoTest -> servo_test
-
+      # - rmcs_core::hardware::ServoTest -> servo_test
+      - rmcs_core::controller::dart::DartSettings -> dart_settings
 
 dart_hardware:
   ros__parameters:
@@ -23,3 +23,8 @@ servo_test:
   ros__parameters:
     trigger_lock_angle: 0x0CC5
     trigger_free_angle: 0x0389
+
+dart_settings:
+  ros__parameters:
+    log_enable: true
+    screw_max_velocity: 10.0
