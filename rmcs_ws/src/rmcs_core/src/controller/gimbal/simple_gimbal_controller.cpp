@@ -62,14 +62,15 @@ public:
         if (!two_axis_gimbal_solver.enabled())
             return two_axis_gimbal_solver.update(TwoAxisGimbalSolver::SetToLevel());
 
-        constexpr double joystick_sensitivity = 0.06;
+        constexpr double joystick_sensitivity = 0.006;
         constexpr double mouse_sensitivity = 0.5;
 
         double yaw_shift =
             joystick_sensitivity * joystick_left_->y() + mouse_sensitivity * mouse_velocity_->y();
-            RCLCPP_INFO(get_logger(), "%lf",yaw_shift);
+            // RCLCPP_INFO(get_logger(), "%lf",yaw_shift);
         double pitch_shift =
             -joystick_sensitivity * joystick_left_->x() - mouse_sensitivity * mouse_velocity_->x();
+            RCLCPP_INFO(get_logger(),"%lf",pitch_shift);
 
         return two_axis_gimbal_solver.update(
             TwoAxisGimbalSolver::SetControlShift(yaw_shift, pitch_shift));

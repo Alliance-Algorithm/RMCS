@@ -7,7 +7,7 @@ rmcs_executor:
 
       - rmcs_core::controller::gimbal::SimpleGimbalController -> gimbal_controller
       - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
-      - rmcs_core::controller::pid::ErrorPidController -> yaw_velocity_pid_controller
+      #- rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
 
       - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
@@ -16,8 +16,6 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController -> left_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> right_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller
-
-      # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
 
       - rmcs_core::referee::command::Interaction -> referee_interaction
       #- rmcs_core::referee::command::interaction::Ui -> referee_ui
@@ -29,10 +27,19 @@ rmcs_executor:
       # - rmcs_auto_aim::AutoAimController -> auto_aim_controller
 
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
 
 value_broadcaster:
   ros__parameters:
     forward_list:
+      - /gimbal/pitch/angle
+      - /gimbal/pitch/velocity
+      - /gimbal/pitch/torque
+      - /gimbal/pitch/control_torque
+      - /gimbal/pitch/control_angle_error
+      - /gimbal/pitch/control_velocity
+      - /gimbal/pitch/velocity_imu
+
       - /gimbal/yaw/angle
       - /gimbal/yaw/velocity
       - /gimbal/yaw/torque
@@ -40,11 +47,15 @@ value_broadcaster:
       - /gimbal/yaw/control_angle_error
       - /gimbal/yaw/control_velocity
 
+tf_broadcaster:
+  ros__parameters:
+    tf: /tf
+
 flight_hardware:
   ros__parameters:
     usb_pid: -1
-    yaw_motor_zero_point: 5450
-    pitch_motor_zero_point: 30473
+    yaw_motor_zero_point: 5807
+    pitch_motor_zero_point: 29303
 
 referee_status:
   ros__parameters:
@@ -52,24 +63,16 @@ referee_status:
 
 gimbal_controller:
   ros__parameters:
-    upper_limit: -0.249
-    lower_limit: 0.249
-    yaw_upper_limit: -180.0
-    yaw_lower_limit: 180.0
+    upper_limit: -0.349
+    lower_limit: 0.349
+    yaw_upper_limit: -0.5
+    yaw_lower_limit: 0.5
 
 yaw_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/yaw/control_angle_error
     control: /gimbal/yaw/control_velocity
-    kp: 1.0
-    ki: 0.0
-    kd: 0.0
-
-yaw_velocity_pid_controller:
-  ros__parameters:
-    measurement: /gimbal/yaw/control_velocity
-    control: /gimbal/yaw/control_torque
-    kp: 1.0
+    kp: 0.5
     ki: 0.0
     kd: 0.0
 
@@ -77,7 +80,7 @@ pitch_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/pitch/control_angle_error
     control: /gimbal/pitch/control_velocity
-    kp: 16.0
+    kp: 6.0
     ki: 0.0
     kd: 0.0
 

@@ -42,7 +42,8 @@ public:
         , transmit_buffer_(*this, 32)
         , event_thread_([this]() { handle_events(); }) {
         gimbal_yaw_motor_.configure(
-            device::LkMotor::Config{device::LkMotor::Type::MHF7015}.set_encoder_zero_point(
+            device::LkMotor::Config{device::LkMotor::Type::MHF7015}
+                .set_encoder_zero_point(
                 static_cast<int>(get_parameter("yaw_motor_zero_point").as_int())));
         gimbal_pitch_motor_.configure(
             device::LkMotor::Config{device::LkMotor::Type::MG4010E_I10}.set_encoder_zero_point(
@@ -81,7 +82,7 @@ public:
 
         constexpr double gimbal_center_x = 0;
         constexpr double gimbal_center_y = 0;
-        constexpr double gimbal_center_z = 0.20552;
+        constexpr double gimbal_center_z = -0.20552;
         tf_->set_transform<BaseLink, GimbalCenterLink>(
             Eigen::Translation3d{gimbal_center_x, gimbal_center_y, gimbal_center_z});
 
@@ -120,8 +121,8 @@ public:
         transmit_buffer_.add_can2_transmission(0x144, gimbal_pitch_motor_.generate_command());      
 
         can_commands[0] = gimbal_bullet_feeder_.generate_command();
-        can_commands[1] = gimbal_left_friction_.generate_command();
-        can_commands[2] = gimbal_right_friction_.generate_command();
+        can_commands[1] = gimbal_right_friction_.generate_command();
+        can_commands[2] = gimbal_left_friction_.generate_command();
         can_commands[3] = 0;
         transmit_buffer_.add_can2_transmission(0x200, std::bit_cast<uint64_t>(can_commands));
     }
@@ -140,8 +141,8 @@ private:
         gimbal_right_friction_.update_status();
     }
 
-    void update_imu() {
-        bmi088_.update_status();
+     void update_imu() {
+       bmi088_.update_status();
         Eigen::Quaterniond gimbal_imu_pose{bmi088_.q0(), bmi088_.q1(), bmi088_.q2(), bmi088_.q3()};
         tf_->set_transform<rmcs_description::PitchLink, rmcs_description::OdomImu>(
             gimbal_imu_pose.conjugate());
@@ -177,9 +178,9 @@ protected:
             return;
         if (can_id == 0x201) {
             gimbal_bullet_feeder_.store_status(can_data);
-        } else if (can_id == 0x202) {
-            gimbal_left_friction_.store_status(can_data);
         } else if (can_id == 0x203) {
+            gimbal_left_friction_.store_status(can_data);
+        } else if (can_id == 0x202) {
             gimbal_right_friction_.store_status(can_data);
         } else if (can_id == 0x144) {
             gimbal_pitch_motor_.store_status(can_data);
@@ -227,6 +228,7 @@ private:
 
     OutputInterface<double> gimbal_yaw_velocity_imu_;
     OutputInterface<double> gimbal_pitch_velocity_imu_;
+    
 
     OutputInterface<rmcs_description::Tf> tf_;
 
