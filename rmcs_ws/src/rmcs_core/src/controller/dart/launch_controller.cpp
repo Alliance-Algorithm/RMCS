@@ -32,17 +32,20 @@ class DartLaunchController
     , public rclcpp::Node {
 public:
     DartLaunchController()
-        : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
+        : Node{
+              get_component_name(),
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , logger_(get_logger())
         , drive_belt_pid_calculator_(
-              get_parameter("b_kp").as_double(), get_parameter("b_ki").as_double(), get_parameter("b_kd").as_double()) {
+              get_parameter("b_kp").as_double(), get_parameter("b_ki").as_double(),
+              get_parameter("b_kd").as_double()) {
 
         dirve_belt_working_velocity_ = get_parameter("belt_velocity").as_double();
         sync_coefficient_ = get_parameter("sync_coefficient").as_double();
         max_control_torque_ = get_parameter("max_control_torque").as_double();
 
-        launch_trigger_angle_ = get_parameter("launch_trigger_angle").as_int();
-        launch_lock_angle_ = get_parameter("launch_lock_angle").as_int();
+        launch_trigger_angle_ = get_parameter("trigger_free_angle").as_int();
+        launch_lock_angle_ = get_parameter("trigger_lock_angle").as_int();
 
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
@@ -53,7 +56,8 @@ public:
         register_input("/dart/drive_belt/right/velocity", right_drive_belt_velocity_);
 
         register_output("/dart/drive_belt/left/control_torque", left_drive_belt_control_torque_, 0);
-        register_output("/dart/drive_belt/right/control_torque", right_drive_belt_control_torque_, 0);
+        register_output(
+            "/dart/drive_belt/right/control_torque", right_drive_belt_control_torque_, 0);
 
         register_output("/dart/trigger_servo/control_angle", trigger_control_angle);
     }
@@ -67,7 +71,6 @@ public:
             reset_all_controls();
 
         } else if (*switch_left_ == Switch::MIDDLE) {
-            double control_velocity = 0;
 
             if (last_launch_stage_ == DartLaunchStages::DISABLE) {
                 *launch_stage_ = DartLaunchStages::RESETTING;
@@ -76,10 +79,8 @@ public:
             if (last_switch_right_ == Switch::MIDDLE && *switch_right_ == Switch::DOWN) {
                 if (last_launch_stage_ == DartLaunchStages::INIT) {
                     *launch_stage_ = DartLaunchStages::LOADING;
-                    control_velocity = dirve_belt_working_velocity_;
                 } else if (last_launch_stage_ == DartLaunchStages::READY) {
                     *launch_stage_ = DartLaunchStages::CANCEL;
-                    control_velocity = dirve_belt_working_velocity_;
                 }
             } else if (last_switch_right_ == Switch::MIDDLE && *switch_right_ == Switch::UP) {
                 if (last_launch_stage_ == DartLaunchStages::READY) {
@@ -95,21 +96,31 @@ public:
                     *launch_stage_ = DartLaunchStages::RESETTING;
                     trigger_lock_flag_ = true;
                     dirve_belt_block_count_ = 0;
-                    control_velocity = -dirve_belt_working_velocity_;
 
                 } else if (last_launch_stage_ == DartLaunchStages::CANCEL) {
                     *launch_stage_ = DartLaunchStages::RESETTING;
                     trigger_lock_flag_ = false;
                     dirve_belt_block_count_ = 0;
-                    control_velocity = -dirve_belt_working_velocity_;
 
                 } else if (last_launch_stage_ == DartLaunchStages::RESETTING) {
-                    *launch_stage_ = trigger_lock_flag_ ? DartLaunchStages::READY : DartLaunchStages::INIT;
+                    *launch_stage_ =
+                        trigger_lock_flag_ ? DartLaunchStages::READY : DartLaunchStages::INIT;
                     dirve_belt_block_count_ = 0;
-                    control_velocity = 0;
                 }
             }
+            double control_velocity = 0;
+
+            if (*launch_stage_ == rmcs_msgs::DartLaunchStages::RESETTING) {
+                control_velocity = -dirve_belt_working_velocity_;
+            } else if (
+                *launch_stage_ == rmcs_msgs::DartLaunchStages::LOADING
+                || *launch_stage_ == rmcs_msgs::DartLaunchStages::CANCEL) {
+                control_velocity = dirve_belt_working_velocity_;
+            } else {
+                control_velocity = 0;
+            }
             drive_belt_sync_control(control_velocity);
+            RCLCPP_INFO(logger_, "%lf", control_velocity);
         }
 
         *trigger_control_angle = trigger_lock_flag_ ? launch_lock_angle_ : launch_trigger_angle_;
@@ -117,9 +128,12 @@ public:
         last_switch_left_ = *switch_left_;
         last_switch_right_ = *switch_right_;
         last_launch_stage_ = *launch_stage_;
+        // RCLCPP_INFO(logger_, "%lf | %lf", *right_drive_belt_velocity_,
+        // *left_drive_belt_velocity_);
+        // RCLCPP_INFO(
+        //     logger_, "%d | %lf | %lf", static_cast<int>(*launch_stage_),
+        //     *left_drive_belt_control_torque_, *right_drive_belt_control_torque_);
     }
-
-    double log_count_;
 
 private:
     void reset_all_controls() {
@@ -144,13 +158,16 @@ private:
 
         Eigen::Vector2d control_torques = setpoint_error - sync_coefficient_ * relative_velocity;
 
-        *left_drive_belt_control_torque_ = std::clamp(control_torques[0], -max_control_torque_, max_control_torque_);
-        *right_drive_belt_control_torque_ = std::clamp(control_torques[1], -max_control_torque_, max_control_torque_);
+        *left_drive_belt_control_torque_ =
+            std::clamp(control_torques[0], -max_control_torque_, max_control_torque_);
+        *right_drive_belt_control_torque_ =
+            std::clamp(control_torques[1], -max_control_torque_, max_control_torque_);
     }
 
     bool blocking_detection() {
         if ((abs(*left_drive_belt_velocity_) < 0.5 && abs(*left_drive_belt_control_torque_) > 0.5)
-            || (abs(*right_drive_belt_velocity_) < 0.5 && abs(*right_drive_belt_control_torque_) > 0.5)) {
+            || (abs(*right_drive_belt_velocity_) < 0.5
+                && abs(*right_drive_belt_control_torque_) > 0.5)) {
             dirve_belt_block_count_++;
         }
 

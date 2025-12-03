@@ -17,10 +17,13 @@ class CatapultDart
     , private librmcs::client::CBoard {
 public:
     CatapultDart()
-        : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
+        : Node{
+              get_component_name(),
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , librmcs::client::CBoard{static_cast<int>(get_parameter("usb_pid").as_int())}
         , logger_(get_logger())
-        , dart_command_(create_partner_component<DartCommand>(get_component_name() + "_command", *this))
+        , dart_command_(
+              create_partner_component<DartCommand>(get_component_name() + "_command", *this))
         , dr16_(*this)
         , pitch_motor_(
               *this, *dart_command_, "/dart/pitch_motor",
@@ -35,7 +38,9 @@ public:
               {*this, *dart_command_, "/dart/drive_belt/left",
                device::DjiMotor::Config{device::DjiMotor::Type::M3508}.set_reduction_ratio(19.)},
               {*this, *dart_command_, "/dart/drive_belt/right",
-               device::DjiMotor::Config{device::DjiMotor::Type::M3508}.set_reduction_ratio(19.)})
+               device::DjiMotor::Config{device::DjiMotor::Type::M3508}
+                   .set_reduction_ratio(19.)
+                   .set_reversed()})
         , force_sensor_(*this)
         , trigger_servo_(*dart_command_, "/dart/trigger_servo")
         , transmit_buffer_(*this, 32)
@@ -65,7 +70,11 @@ public:
     void command_update() {
         uint16_t can_commands[4];
 
-        transmit_buffer_.add_can1_transmission(0x301, std::bit_cast<uint64_t>(force_sensor_.generate_command()));
+        if (pub_time_count_++ > 100) {
+            transmit_buffer_.add_can1_transmission(
+                0x301, std::bit_cast<uint64_t>(force_sensor_.generate_command()));
+            pub_time_count_ = 0;
+        }
 
         can_commands[0] = pitch_motor_.generate_command();
         can_commands[1] = yaw_motor_.generate_command();
@@ -81,16 +90,20 @@ public:
 
         if (!trigger_servo_.calibrate_mode()) {
             size_t uart_data_length;
-            std::unique_ptr<std::byte[]> command_buffer = trigger_servo_.generate_runtime_command(uart_data_length);
+            std::unique_ptr<std::byte[]> command_buffer =
+                trigger_servo_.generate_runtime_command(uart_data_length);
             const auto trigger_servo_uart_data_ptr = command_buffer.get();
             transmit_buffer_.add_uart2_transmission(trigger_servo_uart_data_ptr, uart_data_length);
 
-            std::string hex_string = bytes_to_hex_string(command_buffer.get(), uart_data_length);
-            RCLCPP_INFO(this->get_logger(), "UART2(length: %zu): [ %s ]", uart_data_length, hex_string.c_str());
+            // std::string hex_string = bytes_to_hex_string(command_buffer.get(), uart_data_length);
+            // RCLCPP_INFO(
+            //     this->get_logger(), "UART2(length: %zu): [ %s ]", uart_data_length,
+            //     hex_string.c_str());
         }
 
         transmit_buffer_.trigger_transmission();
     }
+    int pub_time_count_ = 0;
 
 protected:
     void can1_receive_callback(
@@ -118,9 +131,9 @@ protected:
         } else if (can_id == 0x203) {
             force_control_motor_.store_status(can_data);
         } else if (can_id == 0x205) {
-            drive_belt_motor_[0].generate_command();
+            drive_belt_motor_[0].store_status(can_data);
         } else if (can_id == 0x206) {
-            drive_belt_motor_[1].generate_command();
+            drive_belt_motor_[1].store_status(can_data);
         }
     }
 
@@ -132,8 +145,9 @@ protected:
             RCLCPP_INFO(logger_, "calibrate: uart2 data store failed");
         }
 
-        std::string hex_string = bytes_to_hex_string(data, length);
-        RCLCPP_INFO(this->get_logger(), "UART2(length: %hhu): [ %s ]", length, hex_string.c_str());
+        // std::string hex_string = bytes_to_hex_string(data, length);
+        // RCLCPP_INFO(this->get_logger(), "UART2(length: %hhu): [ %s ]", length,
+        // hex_string.c_str());
     }
 
     void dbus_receive_callback(const std::byte* uart_data, uint8_t uart_data_length) override {
@@ -178,7 +192,9 @@ private:
         transmit_buffer_.add_uart2_transmission(trigger_servo_uart_data_ptr, command_length);
 
         std::string hex_string = bytes_to_hex_string(command_buffer.get(), command_length);
-        RCLCPP_INFO(this->get_logger(), "UART2 Pub: (length=%zu)[ %s ]", command_length, hex_string.c_str());
+        RCLCPP_INFO(
+            this->get_logger(), "UART2 Pub: (length=%zu)[ %s ]", command_length,
+            hex_string.c_str());
     }
 
     static std::string bytes_to_hex_string(const std::byte* data, size_t size) {

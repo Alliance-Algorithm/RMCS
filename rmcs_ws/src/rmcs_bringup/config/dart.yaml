@@ -6,6 +6,17 @@ rmcs_executor:
       - rmcs_core::controller::dart::DartLaunchController -> launch_controller
       # - rmcs_core::hardware::ServoTest -> servo_test
       - rmcs_core::controller::dart::DartSettings -> dart_settings
+      - rmcs_core::broadcaster::ValueBroadcaster -> broadcaster
+
+broadcaster:
+  ros__parameters:
+    forward_list:
+      - /dart/force_control_motor/control_velocity
+      - /dart/drive_belt/left/control_torque
+      - /dart/drive_belt/left/velocity
+      - /dart/drive_belt/right/control_torque
+      - /dart/drive_belt/right/velocity
+      - /dart/force_control_motor/velocity
 
 dart_hardware:
   ros__parameters:
@@ -18,13 +29,16 @@ launch_controller:
     b_kp: 1.0
     b_ki: 0.0
     b_kd: 0.0
+    max_control_torque: 1.0
+    trigger_free_angle: 0x0E2A
+    trigger_lock_angle: 0x0FC1
 
 servo_test:
   ros__parameters:
-    trigger_lock_angle: 0x0CC5
-    trigger_free_angle: 0x0389
+    trigger_free_angle: 0x0E2A
+    trigger_lock_angle: 0x0FC1
 
 dart_settings:
   ros__parameters:
-    log_enable: true
+    log_enable: false
     screw_max_velocity: 10.0
