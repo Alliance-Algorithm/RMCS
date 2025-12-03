@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <limits>
 #include <rmcs_executor/component.hpp>
-#include <rmcs_msgs/force_sensor_mode.hpp>
+// #include <rmcs_msgs/force_sensor_mode.hpp>
 
 namespace rmcs_core::hardware::device {
 
