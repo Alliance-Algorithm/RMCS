@@ -18,12 +18,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     vim wget curl unzip \
     zsh screen tmux \
     usbutils net-tools iputils-ping \
+    gstreamer1.0-tools gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
     ripgrep htop fzf \
     libusb-1.0-0-dev \
     libeigen3-dev \
     libopencv-dev \
-    libgoogle-glog-dev libgflags-dev \
-    libatlas-base-dev libsuitesparse-dev \
+    libgoogle-glog-dev \
+    libgflags-dev \
+    libatlas-base-dev \
+    libsuitesparse-dev \
     libceres-dev \
     ros-$ROS_DISTRO-rviz2 \
     ros-$ROS_DISTRO-foxglove-bridge \
@@ -62,7 +65,7 @@ RUN --mount=type=bind,target=/rmcs_ws/src,source=rmcs_ws/src,readonly \
 
 # Install unison to allow file synchronization
 RUN cd /tmp && \
-    wget -O unison.tar.gz https://github.com/bcpierce00/unison/releases/download/v2.53.4/unison-2.53.4-ubuntu-x86_64.tar.gz && \
+    wget -O unison.tar.gz https://github.com/bcpierce00/unison/releases/download/v2.53.7/unison-2.53.7-ubuntu-x86_64.tar.gz && \
     mkdir -p unison && tar -zxf unison.tar.gz -C unison && \
     cp unison/bin/* /usr/local/bin && \
     rm -rf unison unison.tar.gz
@@ -97,6 +100,7 @@ RUN --mount=type=bind,target=/tmp/.ssh,source=.ssh,readonly=false \
     cd /home/ubuntu && mkdir -p .ssh && \
     if [ ! -f "/tmp/.ssh/id_rsa" ]; then ssh-keygen -N "" -f "/tmp/.ssh/id_rsa"; fi && \
     cp -r /tmp/.ssh/* .ssh && \
+    chown -R 1000:1000 .ssh && chmod 600 .ssh/id_rsa && \
     mkdir -p .unison && \
     echo 'confirmbigdel = false' >> ".unison/default.prf" && \
     chown -R 1000:1000 .unison
@@ -120,7 +124,7 @@ RUN sh -c "$(wget https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools
     sed -i 's/ZSH_THEME=\"[a-z0-9\-]*\"/ZSH_THEME="af-magic"/g' ~/.zshrc && \
     echo 'source ~/env_setup.zsh' >> ~/.zshrc && \
     echo 'export PATH="${PATH}:/opt/nvim-linux-x86_64/bin"' >> ~/.zshrc && \
-    echo 'export PATH=${PATH}:/workspaces/RMCS/.script' >> ~/.zshrc
+    echo 'export PATH="${PATH}:${RMCS_PATH}/.script"' >> ~/.zshrc
 
 # Copy environment setup scripts
 COPY --chown=1000:1000 .script/template/env_setup.bash env_setup.bash
@@ -129,7 +133,7 @@ COPY --chown=1000:1000 .script/template/env_setup.zsh env_setup.zsh
 # Runtime container, will automatically launch the main program
 FROM rmcs-base AS rmcs-runtime
 
-# Install ssh server
+# Install runtime tools
 RUN apt-get update && \
     apt-get install -y --no-install-recommends tini openssh-server avahi-daemon orphan-sysvinit-scripts && \
     apt-get autoremove -y && apt-get clean && \
@@ -158,6 +162,8 @@ COPY --chown=root:root .script/template/rmcs-service /etc/init.d/rmcs
 COPY --from=rmcs-develop --chown=root:root /home/ubuntu/.ssh/id_rsa.pub /root/.ssh/authorized_keys
 
 WORKDIR /root/
+COPY --chown=root:root .script/template/env_setup.bash env_setup.bash
+COPY --chown=root:root .script/template/env_setup.zsh env_setup.zsh
 
-ENTRYPOINT ["/tini", "--"]
-CMD [ "/entrypoint.sh" ]
+ENTRYPOINT ["tini", "--"]
+CMD [ "/entrypoint" ]

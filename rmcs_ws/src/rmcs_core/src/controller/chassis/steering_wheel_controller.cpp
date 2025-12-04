@@ -56,10 +56,10 @@ public:
         register_input("/steering/steering/rb/velocity", right_back_steering_velocity_);
         register_input("/steering/steering/rf/velocity", right_front_steering_velocity_);
 
-        register_input("/steering/steering/lf/velocity", left_front_wheel_velocity_);
-        register_input("/steering/steering/lb/velocity", left_back_wheel_velocity_);
-        register_input("/steering/steering/rb/velocity", right_back_wheel_velocity_);
-        register_input("/steering/steering/rf/velocity", right_front_wheel_velocity_);
+        register_input("/steering/wheel/lf/velocity", left_front_wheel_velocity_);
+        register_input("/steering/wheel/lb/velocity", left_back_wheel_velocity_);
+        register_input("/steering/wheel/rb/velocity", right_back_wheel_velocity_);
+        register_input("/steering/wheel/rf/velocity", right_front_wheel_velocity_);
 
         register_input("yaw_imu_velocity", chassis_yaw_velocity_imu_);
         register_input("/chassis/control_velocity", chassis_control_velocity_);

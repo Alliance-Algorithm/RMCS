@@ -36,7 +36,7 @@ public:
         register_input("/remote/mouse", mouse_);                   //
         register_input("/remote/keyboard", keyboard_);
 
-        register_input("/leg/speed_limit", speed_limit_);
+        register_input("/speed_limit", speed_limit_);
         register_output("/leg/enable_flag", is_leg_enable, true);
         register_output("/leg/omni/l/target_vel", omni_l_target_vel, NAN);
         register_output("/leg/omni/r/target_vel", omni_r_target_vel, NAN);
@@ -287,8 +287,8 @@ private:
 
     void omniwheel_control(const Eigen::Vector2d& move) {
         if (leg_mode != rmcs_msgs::LegMode::Four_Wheel) {
-            *omni_l_target_vel = move.x() * ((*speed_limit_) / wheel_r);
-            *omni_r_target_vel = move.x() * ((*speed_limit_) / wheel_r);
+            *omni_l_target_vel = move.x() * (*speed_limit_ / wheel_r);
+            *omni_r_target_vel = move.x() * (*speed_limit_ / wheel_r);
         }
     }
 
@@ -306,7 +306,7 @@ private:
     rmcs_msgs::ArmMode last_arm_mode;
 
     static constexpr double wheel_r = 0.11;
-    InputInterface<double> speed_limit_;
+    InputInterface<double> speed_limit_;  // m/s
     InputInterface<Eigen::Vector2d> joystick_right_;
     InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;

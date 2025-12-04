@@ -7,4 +7,4 @@ rmcs_executor:
 
 test_hardware:
   ros__parameters:
-      usb_pid_bottom_board: -1
+      usb_pid_bottom_board: 0x75f3

@@ -49,7 +49,7 @@ public:
 
         } else {
             *distance_ = std::numeric_limits<double>::quiet_NaN();
-            RCLCPP_INFO(this->get_logger(), "manage data error");
+            //RCLCPP_INFO(this->get_logger(), "manage data error");
         }
     }
 

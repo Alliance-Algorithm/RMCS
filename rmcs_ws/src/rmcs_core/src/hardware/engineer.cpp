@@ -117,8 +117,8 @@ private:
             engineer.register_output("/arm/Joint5/vision", vision_theta5, NAN);
             engineer.register_output("/arm/Joint6/vision", vision_theta6, NAN);
 
-            engineer_command.register_input("/arm/enable_flag", is_arm_enable_);
-            engineer_command.register_input("/arm/Joint1/zero_point", joint1_zero_point);
+            engineer_command.register_input("/arm/enable_flag", is_arm_enable_,false);//
+            engineer_command.register_input("/arm/Joint1/zero_point", joint1_zero_point,NAN);//
             engineer.register_output("yaw_imu_velocity", yaw_imu_velocity, NAN);
             engineer.register_output("yaw_imu_angle", yaw_imu_angle, NAN);
 
@@ -276,7 +276,7 @@ private:
             joint[0].update_joint();
             arm_pump.update();
             mine_pump.update();
-            // RCLCPP_INFO(this->get_logger(),"%f",joint[1].get_theta());
+             RCLCPP_INFO(this->get_logger(),"joint %f",joint[1].get_theta());
         }
 
         void update_imu() {
@@ -559,10 +559,14 @@ private:
                 "/leg/joint/lb/control_theta_error", leg_joint_lb_control_theta_error, NAN);
             engineer.register_output(
                 "/leg/joint/rb/control_theta_error", leg_joint_rb_control_theta_error, NAN);
+            engineer.register_output(
+                "/leg/joint/rf/control_theta_error", leg_joint_rf_control_theta_error, NAN);
+                       engineer.register_output(
+                "/leg/joint/lf/control_theta_error", leg_joint_lf_control_theta_error, NAN);
 
             engineer_command.register_input("/leg/joint/lb/target_theta", leg_lb_target_theta_);
             engineer_command.register_input("/leg/joint/rb/target_theta", leg_rb_target_theta_);
-            engineer_command.register_input("/leg/enable_flag", is_leg_enable_);
+            engineer_command.register_input("/leg/enable_flag", is_leg_enable_, true);
         }
 
         ~LegBoard() final {
@@ -599,7 +603,7 @@ private:
                 *leg_joint_lf_control_theta_error =
                     normalizeAngle(*leg_lf_target_theta_ - Leg_ecd[0].get_angle());
                 *leg_joint_rf_control_theta_error =
-                    normalizeAngle(*leg_rf_target_theta_ - Leg_ecd[4].get_angle());
+                    normalizeAngle(*leg_rf_target_theta_ - Leg_ecd[3].get_angle());
 
                 command_[2] = Leg_Motors[1].generate_command();
                 command_[3] = Omni_Motors[0].generate_command();
@@ -644,21 +648,28 @@ private:
             if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
                 return;
             if (can_id == 0x201) {
+                //right omni
+                RCLCPP_INFO(this->get_logger(),"%f",Omni_Motors[1].get_angle());
                 Omni_Motors[1].store_status(can_data);
             }
             if (can_id == 0x206) {
+                //lf
                 Leg_Motors[0].store_status(can_data);
             }
             if (can_id == 0x203) {
+                //lb
                 Leg_Motors[1].store_status(can_data);
             }
             if (can_id == 0x202) {
+                //rb
                 Leg_Motors[2].store_status(can_data);
             }
             if (can_id == 0x208) {
+                //rf
                 Leg_Motors[3].store_status(can_data);
             }
             if (can_id == 0x204) {
+                //left omni
                 Omni_Motors[0].store_status(can_data);
             }
         }
@@ -670,15 +681,20 @@ private:
                 return;
 
             if (can_id == 0x017) {
+                //right forward
                 Leg_ecd[3].store_status(can_data);
+                RCLCPP_INFO(this->get_logger(),"%f",Leg_ecd[3].get_raw_angle());
             }
             if (can_id == 0x016) {
+                //left forward
                 Leg_ecd[0].store_status(can_data);
             }
             if (can_id == 0x015) {
+                //left back
                 Leg_ecd[1].store_status(can_data);
             }
             if (can_id == 0x013) {
+                //right back
                 Leg_ecd[2].store_status(can_data);
             }
             if (can_id == 0x33) {
