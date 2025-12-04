@@ -4,31 +4,31 @@ rmcs_executor:
     components:
       - rmcs_core::hardware::TunnelOmniInfantry -> tunnel_infantry_hardware
 
-      - rmcs_core::controller::gimbal::GimbalController -> gimbal_controller
-      - rmcs_core::controller::gimbal::GimbalFeedforward -> gimbal_feedward_controller
-      - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
-      - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
-      - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
-      - rmcs_core::controller::pid::PidController -> pitch_velocity_pid_controller
-
-      - rmcs_core::controller::gimbal::ShootingController -> shooting_controller
-  
-      - rmcs_core::controller::pid::PidController -> left_friction_velocity_pid_controller
-      - rmcs_core::controller::pid::PidController -> right_friction_velocity_pid_controller
-      - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller
-
-      - rmcs_core::controller::chassis::ChassisController -> chassis_controller
-
-      - rmcs_core::controller::chassis::OmniWheelController -> omni_wheel_controller
-
-      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
-
-      - rmcs_core::referee::Status -> referee_status
-
-      - rmcs_core::referee::command::Interaction -> referee_interaction
-      - rmcs_core::referee::command::interaction::Ui -> referee_ui
-      - rmcs_core::referee::app::ui::TunnelInfantry -> referee_ui_tunnel_infantry
-      - rmcs_core::referee::Command -> referee_command
+      # - rmcs_core::controller::gimbal::GimbalController -> gimbal_controller
+      # - rmcs_core::controller::gimbal::GimbalFeedforward -> gimbal_feedward_controller
+      # - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
+      # - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
+      # - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
+      # - rmcs_core::controller::pid::PidController -> pitch_velocity_pid_controller
+      #
+      # - rmcs_core::controller::gimbal::ShootingController -> shooting_controller
+      #
+      # - rmcs_core::controller::pid::PidController -> left_friction_velocity_pid_controller
+      # - rmcs_core::controller::pid::PidController -> right_friction_velocity_pid_controller
+      # - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller
+      #
+      # - rmcs_core::controller::chassis::ChassisController -> chassis_controller
+      #
+      # - rmcs_core::controller::chassis::OmniWheelController -> omni_wheel_controller
+      #
+      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      #
+      # - rmcs_core::referee::Status -> referee_status
+      #
+      # - rmcs_core::referee::command::Interaction -> referee_interaction
+      # - rmcs_core::referee::command::interaction::Ui -> referee_ui
+      # - rmcs_core::referee::app::ui::TunnelInfantry -> referee_ui_tunnel_infantry
+      # - rmcs_core::referee::Command -> referee_command
 
 value_broadcaster:
   ros__parameters:
@@ -51,6 +51,25 @@ tunnel_infantry_hardware:
     imu_gx_bias: +0.001294
     imu_gy_bias: -0.000584
     imu_gz_bias: +0.000445 # Updated at 30th July 21:28
+    transforms:
+      - parent: pitch_link
+        child: imu_link
+        q: [0.70710678, 0., 0., -0.70710678]
+      - parent: base_link
+        child: gimbal_center_link
+        t: [0.0, 0.0, 0.32059]
+      - parent: base_link
+        child: left_front_wheel_link
+        t: [+0.15897, +0.15897, 0.0]
+      - parent: base_link
+        child: left_back_wheel_link
+        t: [-0.15897, +0.15897, 0.0]
+      - parent: base_link
+        child: right_back_wheel_link
+        t: [-0.15897, -0.15897, 0.0]
+      - parent: base_link
+        child: right_front_wheel_link
+        t: [+0.15897, -0.15897, 0.0]
 
 referee_status:
   ros__parameters:

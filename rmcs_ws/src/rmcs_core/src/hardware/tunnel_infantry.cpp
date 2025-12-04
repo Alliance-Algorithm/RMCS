@@ -1,5 +1,6 @@
 #include <librmcs/client/cboard.hpp>
 #include <rclcpp/node.hpp>
+#include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
 
 #include "hardware/device/bmi088.hpp"
@@ -66,16 +67,30 @@ public:
 
         std::ranges::fill(command, 0);
 
+        // CAN1
         command.at(3) = supercap.generate_command();
-        transmit_buffer.add_can1_transmission(supercap_id, command_data());
+        transmit_buffer.add_can1_transmission(supercap_send_id, command_data());
 
         for (auto&& [byte, motor] : std::views::zip(command, chassis_wheel_motors)) {
             byte = motor.generate_command();
         }
-        transmit_buffer.add_can1_transmission(chassis_wheel_motors_id, command_data());
+        transmit_buffer.add_can1_transmission(chassis_wheel_motors_send_id, command_data());
 
-        auto single_command = gimbal_motor_pitch.generate_torque_command();
-        // TODO:
+        auto long_command = std::uint64_t{};
+        long_command = gimbal_motor_yaw.generate_torque_command();
+        transmit_buffer.add_can1_transmission(gimbal_motor_yaw_send_id, long_command);
+
+        // CAN2
+        long_command = gimbal_motor_pitch.generate_torque_command();
+        transmit_buffer.add_can2_transmission(gimbal_motor_pitch_send_id, long_command);
+
+        command.at(0) = 0;
+        command.at(1) = gimbal_bullet_feeder.generate_command();
+        command.at(2) = gimbal_friction_left.generate_command();
+        command.at(3) = gimbal_friction_right.generate_command();
+        transmit_buffer.add_can2_transmission(gimbal_shooting_device_send_id, command_data());
+
+        transmit_buffer.trigger_transmission();
     }
 
 private:
@@ -90,67 +105,112 @@ private:
     };
 
     // CAN1
+    std::uint32_t supercap_send_id{0x1FE};
+    std::uint32_t supercap_recv_id{0x300};
+    device::Supercap supercap{master, *this};
+
+    std::uint32_t chassis_wheel_motors_send_id{0x200};
+    std::array<std::uint32_t, 4> chassis_wheel_motors_recv_ids{0x201, 0x202, 0x203, 0x204};
     std::array<device::DjiMotor, 4> chassis_wheel_motors{
         device::DjiMotor{master, *this,  "/chassis/left_front_wheel"},
         device::DjiMotor{master, *this, "/chassis/right_front_wheel"},
         device::DjiMotor{master, *this,  "/chassis/right_back_wheel"},
         device::DjiMotor{master, *this,   "/chassis/left_back_wheel"},
     };
-    std::uint32_t chassis_wheel_motors_id{0x200};
 
+    std::uint32_t gimbal_motor_yaw_send_id{0x145};
+    std::uint32_t gimbal_motor_yaw_recv_id{0x145};
     device::LkMotor gimbal_motor_yaw{master, *this, "/gimbal/yaw"};
-    std::uint32_t gimbal_motor_yaw_id{0x145};
 
     // CAN2
+    std::uint32_t gimbal_motor_pitch_send_id{0x142};
+    std::uint32_t gimbal_motor_pitch_recv_id{0x206};
     device::LkMotor gimbal_motor_pitch{master, *this, "/gimbal/pitch"};
-    std::uint32_t gimbal_motor_pitch_id{0x142};
 
-    device::DjiMotor gimbal_friction_left{master, *this, "/gimbal/left_friction"};
-    device::DjiMotor gimbal_friction_right{master, *this, "/gimbal/right_friction"};
+    std::uint32_t gimbal_shooting_device_send_id{0x200};
+
+    std::uint32_t gimbal_bullet_feeder_recv_id{0x202};
     device::DjiMotor gimbal_bullet_feeder{master, *this, "/gimbal/bullet_feeder"};
-    std::uint32_t gimbal_shooting_device_id{0x200};
 
+    std::uint32_t gimbal_friction_left_recv_id{0x203};
+    device::DjiMotor gimbal_friction_left{master, *this, "/gimbal/left_friction"};
+
+    std::uint32_t gimbal_friction_right_recv_id{0x204};
+    device::DjiMotor gimbal_friction_right{master, *this, "/gimbal/right_friction"};
+
+    // OTHER
     device::Dr16 dr16{master};
-
     device::Bmi088 imu{1000, 0.2, 0.0};
 
-    device::Supercap supercap{master, *this};
-    std::uint32_t supercap_id{0x1FE};
+    librmcs::utility::RingBuffer<std::byte> referee_buffer{255};
 
 private:
     auto can1_receive_callback(
         uint32_t id, uint64_t data, bool is_extended, bool is_remote_transmission, uint8_t length)
-        -> void override {};
-
+        -> void override {
+        if (!is_extended && !is_remote_transmission && length >= 8) {
+            if (id == supercap_recv_id)
+                supercap.store_status(data);
+            else if (id == chassis_wheel_motors_recv_ids.at(0))
+                chassis_wheel_motors.at(0).store_status(data);
+            else if (id == chassis_wheel_motors_recv_ids.at(1))
+                chassis_wheel_motors.at(1).store_status(data);
+            else if (id == chassis_wheel_motors_recv_ids.at(2))
+                chassis_wheel_motors.at(2).store_status(data);
+            else if (id == chassis_wheel_motors_recv_ids.at(3))
+                chassis_wheel_motors.at(3).store_status(data);
+            else if (id == gimbal_motor_yaw_recv_id)
+                gimbal_motor_yaw.store_status(data);
+        }
+    };
     auto can2_receive_callback(
         uint32_t id, uint64_t data, bool is_extended, bool is_remote_transmission, uint8_t length)
-        -> void override {}
-
-    auto uart1_receive_callback(const std::byte* data, uint8_t length) -> void override {};
-
-    auto uart2_receive_callback(const std::byte* data, uint8_t length) -> void override {}
-
-    auto dbus_receive_callback(const std::byte* data, uint8_t length) -> void override {}
-
-    auto accelerometer_receive_callback(int16_t x, int16_t y, int16_t z) -> void override {}
-
-    auto gyroscope_receive_callback(int16_t x, int16_t y, int16_t z) -> void override {}
+        -> void override {
+        if (!is_extended && !is_remote_transmission && length >= 8) {
+            if (id == gimbal_motor_pitch_recv_id)
+                gimbal_motor_pitch.store_status(data);
+            else if (id == gimbal_bullet_feeder_recv_id)
+                gimbal_bullet_feeder.store_status(data);
+            else if (id == gimbal_friction_left_recv_id)
+                gimbal_friction_left.store_status(data);
+            else if (id == gimbal_friction_right_recv_id)
+                gimbal_friction_right.store_status(data);
+        }
+    }
+    auto uart1_receive_callback(const std::byte* data, uint8_t length) -> void override {
+        referee_buffer.emplace_back_multi([&](std::byte* buffer) { *buffer = *data++; }, length);
+    }
+    auto uart2_receive_callback(const std::byte* data, uint8_t length) -> void override {
+        std::ignore = data, std::ignore = length;
+    }
+    auto dbus_receive_callback(const std::byte* data, uint8_t length) -> void override {
+        dr16.store_status(data, length);
+    }
+    auto accelerometer_receive_callback(int16_t x, int16_t y, int16_t z) -> void override {
+        imu.store_accelerometer_status(x, y, z);
+    }
+    auto gyroscope_receive_callback(int16_t x, int16_t y, int16_t z) -> void override {
+        imu.store_gyroscope_status(x, y, z);
+    }
 };
 
 class TunnelOmniInfantry : public rmcs_executor::Component {
 public:
-    auto update() noexcept -> void override {
+    TunnelOmniInfantry() {
         // ...
-        std::ignore = slave_device;
     }
 
+    auto update() noexcept -> void override {}
+
 private:
+    OutputInterface<rmcs_description::Tf> tf;
+
     rclcpp::Node node{
-        get_component_name(),
+        Component::get_component_name(),
         rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)};
 
     std::shared_ptr<SlaveDevice> slave_device{
-        create_partner_component<SlaveDevice>(
+        Component::create_partner_component<SlaveDevice>(
             std::string{get_component_name() + "_slave"}, *this, node,
             node.get_parameter_or<int>("usb_pid", -1)),
     };
