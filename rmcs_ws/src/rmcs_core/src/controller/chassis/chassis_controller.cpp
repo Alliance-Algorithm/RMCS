@@ -58,8 +58,8 @@ public:
         using namespace rmcs_msgs;
 
         auto switch_right = *switch_right_;
-        auto switch_left  = *switch_left_;
-        auto keyboard     = *keyboard_;
+        auto switch_left = *switch_left_;
+        auto keyboard = *keyboard_;
 
         do {
             if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
@@ -74,14 +74,14 @@ public:
                     if (mode == rmcs_msgs::ChassisMode::SPIN) {
                         mode = rmcs_msgs::ChassisMode::STEP_DOWN;
                     } else {
-                        mode              = rmcs_msgs::ChassisMode::SPIN;
+                        mode = rmcs_msgs::ChassisMode::SPIN;
                         spinning_forward_ = !spinning_forward_;
                     }
                 } else if (!last_keyboard_.c && keyboard.c) {
                     if (mode == rmcs_msgs::ChassisMode::SPIN) {
                         mode = rmcs_msgs::ChassisMode::AUTO;
                     } else {
-                        mode              = rmcs_msgs::ChassisMode::SPIN;
+                        mode = rmcs_msgs::ChassisMode::SPIN;
                         spinning_forward_ = !spinning_forward_;
                     }
                 } else if (!last_keyboard_.x && keyboard.x) {
@@ -100,8 +100,8 @@ public:
         } while (false);
 
         last_switch_right_ = switch_right;
-        last_switch_left_  = switch_left;
-        last_keyboard_     = keyboard;
+        last_switch_left_ = switch_left;
+        last_keyboard_ = keyboard;
     }
 
     void reset_all_controls() {
@@ -112,7 +112,7 @@ public:
 
     void update_velocity_control() {
         auto translational_velocity = update_translational_velocity_control();
-        auto angular_velocity       = update_angular_velocity_control();
+        auto angular_velocity = update_angular_velocity_control();
 
         chassis_control_velocity_->vector << translational_velocity, angular_velocity;
     }
@@ -133,7 +133,7 @@ public:
     }
 
     double update_angular_velocity_control() {
-        double angular_velocity      = 0.0;
+        double angular_velocity = 0.0;
         double chassis_control_angle = nan;
 
         switch (*mode_) {
@@ -171,7 +171,7 @@ public:
             angular_velocity = following_velocity_controller_.update(err);
         } break;
         }
-        *chassis_angle_         = 2 * std::numbers::pi - *gimbal_yaw_angle_;
+        *chassis_angle_ = 2 * std::numbers::pi - *gimbal_yaw_angle_;
         *chassis_control_angle_ = chassis_control_angle;
 
         return angular_velocity;
@@ -202,7 +202,7 @@ private:
 
     // Maximum control velocities
     static constexpr double translational_velocity_max = 10.0;
-    static constexpr double angular_velocity_max       = 16.0;
+    static constexpr double angular_velocity_max = 16.0;
 
     InputInterface<Eigen::Vector2d> joystick_right_;
     InputInterface<Eigen::Vector2d> joystick_left_;
@@ -214,8 +214,8 @@ private:
     InputInterface<double> rotary_knob_;
 
     rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
-    rmcs_msgs::Switch last_switch_left_  = rmcs_msgs::Switch::UNKNOWN;
-    rmcs_msgs::Keyboard last_keyboard_   = rmcs_msgs::Keyboard::zero();
+    rmcs_msgs::Switch last_switch_left_ = rmcs_msgs::Switch::UNKNOWN;
+    rmcs_msgs::Keyboard last_keyboard_ = rmcs_msgs::Keyboard::zero();
 
     InputInterface<double> gimbal_yaw_angle_, gimbal_yaw_angle_error_;
     OutputInterface<double> chassis_angle_, chassis_control_angle_;

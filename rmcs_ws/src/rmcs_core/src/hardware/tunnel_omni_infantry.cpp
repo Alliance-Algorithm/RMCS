@@ -144,12 +144,6 @@ public:
     auto get_can2_ids() const -> const std::unordered_set<std::uint32_t>& { return can2_ids; }
 
 private:
-    bool enable_control = false;
-    bool collect_can_id = false;
-
-    std::unordered_set<std::uint32_t> can1_ids;
-    std::unordered_set<std::uint32_t> can2_ids;
-
     TransmitBuffer transmit_buffer{*this, 32};
 
     rclcpp::Logger logger;
@@ -202,6 +196,12 @@ private:
     // OTHER
     device::Dr16 dr16{master};
     device::Bmi088 imu{1000, 0.2, 0.0};
+
+    bool enable_control = false;
+    bool collect_can_id = false;
+
+    std::unordered_set<std::uint32_t> can1_ids;
+    std::unordered_set<std::uint32_t> can2_ids;
 
 private:
     auto can1_receive_callback(
