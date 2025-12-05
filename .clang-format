@@ -13,8 +13,6 @@ MaxEmptyLinesToKeep: 1
 
 AlignAfterOpenBracket: AlwaysBreak
 
-AlignArrayOfStructures: Right
-
 AlignConsecutiveAssignments:
     Enabled: false
 AlignConsecutiveBitFields:
