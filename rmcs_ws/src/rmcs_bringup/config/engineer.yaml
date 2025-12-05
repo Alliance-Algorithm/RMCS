@@ -6,7 +6,7 @@ rmcs_executor:
       - rmcs_core::controller::arm::ArmController -> arm_controller
 
       - rmcs_core::controller::leg::LegController -> leg_controller
-      - rmcs_core::controller::chassis:ChassisController -> chassis_controller
+      - rmcs_core::controller::chassis::Chassis_Controller -> chassis_controller
       - rmcs_core::controller::chassis::SteeringWheelController -> steering_wheel_controller
             
       - rmcs_core::controller::pid::ErrorPidController -> joint6_angle_pid_controller
@@ -33,21 +33,21 @@ rmcs_executor:
       - rmcs_core::controller::pid::ErrorPidController -> big_yaw_angle_error_pid_controller
       - rmcs_core::controller::pid::PidController -> big_yaw_velocity_pid_controller
 
-      - rmcs_core::controller::pid::ErrorPidController -> leg_lf_error_pid_controller
+      - rmcs_core::controller::pid::ErrorPidController -> leg_lf_angle_error_pid_controller
       - rmcs_core::controller::pid::PidController -> leg_lf_velocity_pid_controller
-      - rmcs_core::controller::pid::ErrorPidController -> leg_rf_error_pid_controller
+      - rmcs_core::controller::pid::ErrorPidController -> leg_rf_angle_error_pid_controller
       - rmcs_core::controller::pid::PidController -> leg_rf_velocity_pid_controller
 
-      - rmcs_core::controller::pid::ErrorPidController -> leg_lb_error_pid_controller
+      - rmcs_core::controller::pid::ErrorPidController -> leg_lb_angle_error_pid_controller
       - rmcs_core::controller::pid::PidController -> leg_lb_velocity_pid_controller
-      - rmcs_core::controller::pid::ErrorPidController -> leg_rb_error_pid_controller
+      - rmcs_core::controller::pid::ErrorPidController -> leg_rb_angle_error_pid_controller
       - rmcs_core::controller::pid::PidController -> leg_rb_velocity_pid_controller
 
       - rmcs_core::controller::pid::PidController -> arm_pump_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> mine_pump_velocity_pid_controller
 engineer_hardware:
   ros__parameters:
-    arm_board_usb_pid: 0x524f
+    arm_board_usb_pid: 0x1783
     steering_board_usb_pid: 0x75f3
     leg_board_usb_pid: 0xdd7a
     joint6_zero_point: 0
@@ -201,7 +201,7 @@ big_yaw_velocity_pid_controller:
     kd: 0.039
 
 
-leg_lf_error_pid_controller:
+leg_lf_angle_error_pid_controller:
   ros__parameters:
     measurement: /leg/joint/lf/control_theta_error
     control: /leg/joint/lf/control_vel
@@ -217,7 +217,7 @@ leg_lf_velocity_pid_controller:
     ki: 0.0
     kd: 0.2
 
-leg_rf_error_pid_controller:
+leg_rf_angle_error_pid_controller:
   ros__parameters:
     measurement: /leg/joint/rf/control_theta_error
     control: /leg/joint/rf/control_vel
@@ -235,7 +235,7 @@ leg_rf_velocity_pid_controller:
     ki: 0.0
     kd: 0.2
 
-leg_lb_error_pid_controller:
+leg_lb_angle_error_pid_controller:
   ros__parameters:
     measurement: /leg/joint/lb/control_theta_error
     control: /leg/joint/lb/control_vel
@@ -251,7 +251,7 @@ leg_lb_velocity_pid_controller:
     ki: 0.0
     kd: 0.0
 
-leg_rb_error_pid_controller:
+leg_rb_angle_error_pid_controller:
   ros__parameters:
     measurement: /leg/joint/rb/control_theta_error
     control: /leg/joint/rb/control_vel
@@ -266,6 +266,17 @@ leg_rb_velocity_pid_controller:
     kp: 0.03
     ki: 0.0
     kd: 0.0
+
+steering_wheel_controller:
+  ros__parameters:
+    mess: 19.0
+    moment_of_inertia: 1.0
+    vehicle_radius: 0.24678
+    wheel_radius: 0.055
+    friction_coefficient: 0.6
+    k1: 2.958580e+00
+    k2: 3.082190e-03
+    no_load_power: 11.37
 
 arm_pump_velocity_pid_controller:
   ros__parameters:

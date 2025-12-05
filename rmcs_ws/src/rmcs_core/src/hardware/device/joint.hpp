@@ -55,11 +55,11 @@ struct Qlim_Stall_Config {
 
 class Joint
     : public LKMotor
-    , public rclcpp::Node {
+    {
 public:
     Joint(Component& status_component, Component& command_component, const std::string& name_prefix)
         : LKMotor(status_component, command_component, name_prefix)
-        , rclcpp::Node("joint_hpp")
+       // , rclcpp::Node("joint_hpp")
         , name_prefix_(name_prefix) {
 
         status_component.register_output(name_prefix + "/theta", theta, 0.0);

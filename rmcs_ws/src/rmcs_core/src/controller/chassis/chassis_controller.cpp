@@ -47,8 +47,9 @@ public:
         register_output(
             "/chassis/control_power_limit", chassis_control_power_limit_, 0.0); 
         register_output("/chassis/control_velocity", chassis_control_velocity_);  
-        register_input("/chassis/power", chassis_power_);
-        register_input("/referee/chassis/buffer_energy", chassis_buffer_energy_referee_);
+        //register_input("/chassis/power", chassis_power_);
+      //  register_input("/referee/chassis/buffer_energy", chassis_buffer_energy_referee_);
+        register_output("/speed_limit", speed_limit_, NAN);
     }
     void update() override {
         auto switch_right = *switch_right_;
@@ -95,6 +96,7 @@ public:
         //     update_virtual_buffer_energy();
         //     update_control_power_limit();
         // }
+        *speed_limit_ = speed_limit;
         reset_motor();
     }
 
@@ -265,10 +267,10 @@ private:
     InputInterface<rmcs_msgs::ArmMode> arm_mode;
     rmcs_msgs::ArmMode last_arm_mode;
     pid::PidCalculator following_velocity_controller_;
-
-    double speed_limit                                   = 4.5;             // m/s
+    OutputInterface<double> speed_limit_;
+    double speed_limit                                   = 2.5;             // m/s
     constexpr static double chassis_power_limit_referee_ = 120.0f;
-
+    
     InputInterface<Eigen::Vector2d> joystick_right_;
     InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;

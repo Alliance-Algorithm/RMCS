@@ -61,10 +61,13 @@ public:
     Auto_Sliver_State getStateID() const override { return Auto_Sliver_State::Lift_mine; }
 };
 
-class Auto_Sliver : rclcpp::Node {
+class Auto_Sliver
+// rclcpp::Node
+{
 public:
     explicit Auto_Sliver()
-        : rclcpp::Node{"adada"} {
+    // : rclcpp::Node{"adada"}
+    {
         std::array<double, 3> lift_start_point_position = {0.37, 0.001, -0.07};
         std::array<double, 3> lift_end_point_position   = {0.37, 0.001, 0.26};
 

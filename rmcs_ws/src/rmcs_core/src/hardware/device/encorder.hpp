@@ -33,11 +33,11 @@ struct EncoderConfig {
     EncoderConfig& reverse() { return reversed = -1.0, *this; }
     EncoderConfig& enable_multi_turn_angle() { return multi_turn_angle_enabled = true, *this; }
 };
-class Encoder:rclcpp::Node
+class Encoder //: public rclcpp::Node
 {
 public:
     Encoder(Component& status_component, const std::string& name_prefix)
-    :Node{"aaa"}
+    //:Node{"aaa"}
     {
         status_component.register_output(name_prefix + "/angle", angle_, 0.0);
         status_component.register_output(name_prefix + "/encoder", encoder_, this);

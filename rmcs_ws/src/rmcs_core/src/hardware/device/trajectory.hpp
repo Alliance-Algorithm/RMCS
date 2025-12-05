@@ -14,14 +14,17 @@ namespace rmcs_core::hardware::device {
 enum class TrajectoryType { LINE, BEZIER, JOINT, SINGLE_JOINT };
 
 template <TrajectoryType Type>
-class Trajectory : public rclcpp::Node {
+class Trajectory 
+//: public rclcpp::Node
+ {
 public:
     using JointArrayType = typename std::conditional<
         Type == TrajectoryType::SINGLE_JOINT, std::array<double, 1>, std::array<double, 6>>::type;
     JointArrayType joint_start;
     JointArrayType joint_end;
     Trajectory()
-        : Node("trajectory_node") {
+       // : Node("trajectory_node") 
+        {
         current_step = 1.0f;
         is_complete  = false;
     }

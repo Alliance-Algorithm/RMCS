@@ -47,7 +47,7 @@ public:
             "/steering/steering/rb/target_angle_error", steering_rb_target_angle_error, NAN);
         register_output(
             "/steering/steering/rf/target_angle_error", steering_rf_target_angle_error, NAN);
-
+        
         register_output("/steering/wheel/lf/target_vel", steering_wheel_lf_target_vel, NAN);
         register_output("/steering/wheel/lb/target_vel", steering_wheel_lb_target_vel, NAN);
         register_output("/steering/wheel/rb/target_vel", steering_wheel_rb_target_vel, NAN);
