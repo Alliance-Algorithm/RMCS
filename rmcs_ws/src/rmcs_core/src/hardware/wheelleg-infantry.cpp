@@ -25,9 +25,9 @@ public:
               create_partner_component<WheelLegInfantryCommand>(
                   get_component_name() + "_command", *this)) {
 
-        top_board_ = std::make_unique<TopBoard>(
-            *this, *infantry_command_,
-            static_cast<int>(get_parameter("usb_pid_top_board").as_int()));
+        // top_board_ = std::make_unique<TopBoard>(
+        //     *this, *infantry_command_,
+        //     static_cast<int>(get_parameter("usb_pid_top_board").as_int()));
         bottom_board_ = std::make_unique<BottomBoard>(
             *this, *infantry_command_,
             static_cast<int>(get_parameter("usb_pid_bottom_board").as_int()));
@@ -43,18 +43,18 @@ public:
             });
     }
 
-    void update() override {}
+    void update() override { bottom_board_->update(); }
 
-    void command_update() {}
+    void command_update() { bottom_board_->command_update(); }
 
 private:
     void gimbal_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
         RCLCPP_INFO(
             logger_, "[gimbal calibration] New yaw offset: %ld",
             bottom_board_->gimbal_yaw_motor_.calibrate_zero_point());
-        RCLCPP_INFO(
-            logger_, "[gimbal calibration] New pitch offset: %ld",
-            top_board_->gimbal_pitch_motor_.calibrate_zero_point());
+        // RCLCPP_INFO(
+        //     logger_, "[gimbal calibration] New pitch offset: %ld",
+        //     top_board_->gimbal_pitch_motor_.calibrate_zero_point());
     }
 
     void chassis_hip_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {}
@@ -247,7 +247,7 @@ private:
                 // Eigen::Vector3d mapping = pitch_link_to_imu_link * Eigen::Vector3d{1, 2, 3};
                 // std::cout << mapping << std::endl;
 
-                return std::make_tuple(x, -y, -z);
+                return std::make_tuple(x, y, z);
             });
 
             infantry.register_output("/referee/serial", referee_serial_);
@@ -447,10 +447,14 @@ private:
 
     std::shared_ptr<WheelLegInfantryCommand> infantry_command_;
 
-    std::unique_ptr<TopBoard> top_board_;
+    // std::unique_ptr<TopBoard> top_board_;
     std::unique_ptr<BottomBoard> bottom_board_;
 
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr gimbal_calibrate_subscription_;
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr chassis_hips_calibrate_subscription_;
 };
 } // namespace rmcs_core::hardware
+
+#include <pluginlib/class_list_macros.hpp>
+
+PLUGINLIB_EXPORT_CLASS(rmcs_core::hardware::WheelLegInfantry, rmcs_executor::Component)

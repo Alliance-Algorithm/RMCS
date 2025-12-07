@@ -17,6 +17,9 @@
   <class type = "rmcs_core::hardware::TunnelInfantry" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
+  <class type = "rmcs_core::hardware::WheelLegInfantry" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
   <class type="rmcs_core::controller::chassis::ChassisController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
@@ -30,7 +33,7 @@
     <description>Steering wheel controller.</description>
   </class>
   <class type="rmcs_core::controller::chassis::WheelLegController" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
+    <description>Wheel leg controller.</description>
   </class>
   <class type="rmcs_core::controller::gimbal::SimpleGimbalController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
