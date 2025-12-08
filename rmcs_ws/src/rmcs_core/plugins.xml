@@ -98,4 +98,13 @@
   <class type="rmcs_core::referee::app::ui::Hero" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
+  <class type="rmcs_core::hardware::CatapultDart" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
+  <class type="rmcs_core::controller::dart::DartLaunchController" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
+  <class type="rmcs_core::controller::dart::DartSettings" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
 </library>
