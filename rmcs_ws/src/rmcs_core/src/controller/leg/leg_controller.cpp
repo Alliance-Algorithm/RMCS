@@ -26,7 +26,8 @@ public:
     LegController()
         : Node(
               get_component_name(),
-              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
+              ,forward_x_position_in_FourWheel_(get_parameter("forward_x_position_in_FourWheel").as_double()){
 
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
@@ -57,7 +58,8 @@ public:
         register_input("/arm/Joint1/theta", joint1_theta);
         register_input("/chassis/big_yaw/angle", chassis_big_yaw_angle);
 
-        std::array<double, 2> four_wheel_angle = leg_inverse_kinematic(237.0, 221.0, false, false);
+        
+        std::array<double, 2> four_wheel_angle = leg_inverse_kinematic(forward_x_position_in_FourWheel_,wheel_distance - forward_x_position_in_FourWheel_, false, false);
         four_wheel_trajectory
             .set_end_point(
                 {four_wheel_angle[0], four_wheel_angle[1], four_wheel_angle[1], four_wheel_angle[0],
@@ -108,7 +110,6 @@ public:
                     leg_mode = rmcs_msgs::LegMode::Four_Wheel;
                 }
                 omniwheel_control(move_);
-
                 leg_control();
 
                 last_arm_mode = *arm_mode;
@@ -290,6 +291,11 @@ private:
             *omni_l_target_vel = move.x() * (*speed_limit_ / wheel_r);
             *omni_r_target_vel = move.x() * (*speed_limit_ / wheel_r);
         }
+        else {
+        *omni_l_target_vel = NAN;
+        *omni_r_target_vel = NAN;
+
+    }
     }
 
     static double normalizeAngle(double angle) {
@@ -301,6 +307,8 @@ private:
         return angle;
     }
 
+
+    const double forward_x_position_in_FourWheel_;
     InputInterface<rmcs_msgs::ArmMode> arm_mode;
     InputInterface<rmcs_msgs::ChassisMode> chassis_mode;
     rmcs_msgs::ArmMode last_arm_mode;
@@ -338,6 +346,7 @@ private:
     InputInterface<double> joint1_theta;
 
     hardware::device::Trajectory<hardware::device::TrajectoryType::JOINT> four_wheel_trajectory;
+    static constexpr double wheel_distance = 458.0f;
     hardware::device::Trajectory<hardware::device::TrajectoryType::JOINT> six_wheel_trajectory;
     hardware::device::Trajectory<hardware::device::TrajectoryType::JOINT> up_stairs_initial;
     hardware::device::Trajectory<hardware::device::TrajectoryType::JOINT> up_stairs_leg_press;

@@ -45,6 +45,7 @@ rmcs_executor:
 
       - rmcs_core::controller::pid::PidController -> arm_pump_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> mine_pump_velocity_pid_controller
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 engineer_hardware:
   ros__parameters:
     arm_board_usb_pid: 0x1783
@@ -64,11 +65,19 @@ engineer_hardware:
     steering_lb_zero_point: 1365
     steering_rb_zero_point: 0
     steering_rf_zero_point: 3348
-    leg_lf_ecd_zero_point: 213086
-    leg_lb_ecd_zero_point: 237881
-    leg_rb_ecd_zero_point: 1828
-    leg_rf_ecd_zero_point: 82230
+    leg_lf_ecd_zero_point: 108011
+    leg_lb_ecd_zero_point: 152382
+    leg_rb_ecd_zero_point: 3439
+    leg_rf_ecd_zero_point: 134825
     big_yaw_zero_point: 20485
+
+
+leg_controller:
+  ros__parameters:
+    forward_x_position_in_FourWheel: 243.0
+
+
+
 
 joint6_angle_pid_controller:
   ros__parameters:
@@ -94,6 +103,7 @@ joint5_angle_pid_controller:
     kp: 6920.0
     ki: 0.0
     kd: 15.0
+
 joint5_velocity_pid_controller:
   ros__parameters:
     measurement: /arm/Joint5/velocity
@@ -205,7 +215,7 @@ leg_lf_angle_error_pid_controller:
   ros__parameters:
     measurement: /leg/joint/lf/control_theta_error
     control: /leg/joint/lf/control_vel
-    kp: 240.0
+    kp: 100.0
     ki: 0.0
     kd: 5.0
 leg_lf_velocity_pid_controller:
@@ -221,7 +231,7 @@ leg_rf_angle_error_pid_controller:
   ros__parameters:
     measurement: /leg/joint/rf/control_theta_error
     control: /leg/joint/rf/control_vel
-    kp: 240.0
+    kp: 80.0
     ki: 0.0
     kd: 5.0
 
@@ -239,7 +249,7 @@ leg_lb_angle_error_pid_controller:
   ros__parameters:
     measurement: /leg/joint/lb/control_theta_error
     control: /leg/joint/lb/control_vel
-    kp: 6990.0
+    kp: 6000.0
     ki: 0.0
     kd: 0.0
 leg_lb_velocity_pid_controller:
@@ -255,7 +265,7 @@ leg_rb_angle_error_pid_controller:
   ros__parameters:
     measurement: /leg/joint/rb/control_theta_error
     control: /leg/joint/rb/control_vel
-    kp: 6990.0
+    kp: 6000.0
     ki: 0.0
     kd: 0.0
 leg_rb_velocity_pid_controller:
@@ -269,9 +279,9 @@ leg_rb_velocity_pid_controller:
 
 steering_wheel_controller:
   ros__parameters:
-    mess: 19.0
+    mess: 25.0
     moment_of_inertia: 1.0
-    vehicle_radius: 0.24678
+    vehicle_radius: 0.3238
     wheel_radius: 0.055
     friction_coefficient: 0.6
     k1: 2.958580e+00
@@ -294,3 +304,11 @@ mine_pump_velocity_pid_controller:
     kp: 0.001
     ki: 0.0
     kd: 0.0
+
+
+value_broadcaster:
+  ros__parameters:
+    forward_list:
+      - "/leg/joint/lf/control_torque"
+      - "/leg/joint/lb/control_torque"
+

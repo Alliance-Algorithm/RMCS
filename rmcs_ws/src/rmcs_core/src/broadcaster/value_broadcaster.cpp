@@ -19,7 +19,7 @@ public:
             "forward_list",
             [this](const rclcpp::Parameter& para) { update_forward_list(para.as_string_array()); });
 
-        declare_parameter<std::vector<std::string>>("forward_list", std::vector<std::string>{});
+       // declare_parameter<std::vector<std::string>>("forward_list", std::vector<std::string>{});
     }
 
     void before_pairing(

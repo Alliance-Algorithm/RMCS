@@ -35,7 +35,7 @@ public:
         register_input("/remote/mouse", mouse_);
         register_input("/remote/keyboard", keyboard_);
 
-        //register_input("yaw_imu_velocity", yaw_imu_velocity);
+        // register_input("yaw_imu_velocity", yaw_imu_velocity);
         register_input("yaw_imu_angle", yaw_imu_angle);
         register_input("/arm/Joint1/theta", joint1_theta);
 
@@ -44,11 +44,11 @@ public:
         register_output(
             "/chassis/big_yaw/target_angle_error", chassis_big_yaw_target_angle_error, NAN);
         register_input("/chassis/big_yaw/angle", chassis_big_yaw_angle);
-        register_output(
-            "/chassis/control_power_limit", chassis_control_power_limit_, 0.0); 
-        register_output("/chassis/control_velocity", chassis_control_velocity_);  
-        //register_input("/chassis/power", chassis_power_);
-      //  register_input("/referee/chassis/buffer_energy", chassis_buffer_energy_referee_);
+        register_output("/chassis/control_power_limit", chassis_control_power_limit_, 0.0);
+        register_output("/chassis/control_velocity", chassis_control_velocity_);
+
+        register_input("/chassis/power", chassis_power_);
+        //    register_input("/referee/chassis/buffer_energy", chassis_buffer_energy_referee_);
         register_output("/speed_limit", speed_limit_, NAN);
     }
     void update() override {
@@ -56,48 +56,56 @@ public:
         auto switch_left  = *switch_left_;
         auto mouse        = *mouse_;
         auto keyboard     = *keyboard_;
+        *speed_limit_     = speed_limit;
         using namespace rmcs_msgs;
-        // if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
-        //     || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
-        //     reset_motor();
-        //     yaw_control_theta_in_IMU = *yaw_imu_angle;
-        //     is_yaw_imu_control       = true;
-        // } else {
-        //     mode_selection();
 
-        //     Eigen::Vector2d move_;
-        //     double angular_velocity = 0.0;
-        //     switch (chassis_mode) {
-        //     case rmcs_msgs::ChassisMode::Flow: {
-        //         double chassis_theta = *chassis_big_yaw_angle;
-        //         angular_velocity =
-        //             std::clamp(following_velocity_controller_.update(chassis_theta), -1.0, 1.0);
-        //         break;
-        //     }
-        //     case rmcs_msgs::ChassisMode::SPIN: {
-        //         angular_velocity = 5;
-        //         yaw_control_theta_in_IMU += joystick_right_->y() * 0.002;
-        //         break;
-        //     }
-        //     case rmcs_msgs::ChassisMode::Up_Stairs: {
-        //         is_yaw_imu_control           = false;
-        //         yaw_set_theta_in_YawFreeMode = 0.0;
-        //         speed_limit                  = 1.5;
-        //         move_                        = *joystick_left_;
-        //         break;
-        //     }
-        //     default: break;
-        //     }
-        //     Eigen::Rotation2D<double> rotation(*chassis_big_yaw_angle + *joint1_theta);
-        //     move_ = rotation * (*joystick_left_);
-        //     chassis_control_velocity_->vector << (move_ * speed_limit), angular_velocity;
-        //     yaw_control();
-        //     // power control
-        //     update_virtual_buffer_energy();
-        //     update_control_power_limit();
-        // }
-        *speed_limit_ = speed_limit;
-        reset_motor();
+        if (!initial_check_done_) {
+            reset_motor();
+            yaw_control_theta_in_IMU = *yaw_imu_angle;
+            is_yaw_imu_control       = true;
+            if (switch_left == Switch::DOWN && switch_right == Switch::DOWN) {
+                initial_check_done_ = true;
+            }
+        } else {
+            if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
+                || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
+
+            } else {
+                // mode_selection();
+                Eigen::Vector2d move_;
+                double angular_velocity = 0.0;
+                // switch (chassis_mode) {
+                // case rmcs_msgs::ChassisMode::Flow: {
+                //     double chassis_theta = *chassis_big_yaw_angle;
+                //     angular_velocity =
+                //         std::clamp(following_velocity_controller_.update(chassis_theta),
+                //         -1.0, 1.0);
+                //     break;
+                // }
+                // case rmcs_msgs::ChassisMode::SPIN: {
+                //     angular_velocity = 5;
+                //     yaw_control_theta_in_IMU += joystick_right_->y() * 0.002;
+                //     break;
+                // }
+                // case rmcs_msgs::ChassisMode::Up_Stairs: {
+                //     is_yaw_imu_control           = false;
+                //     yaw_set_theta_in_YawFreeMode = 0.0;
+                //     speed_limit                  = 1.5;
+                //     move_                        = *joystick_left_;
+                //     break;
+                // }
+                // default: break;
+                // }
+                // Eigen::Rotation2D<double> rotation(*chassis_big_yaw_angle + *joint1_theta);
+                // move_ = rotation * (*joystick_left_);
+                move_            = (*joystick_left_);
+                angular_velocity = joystick_right_->x();
+                chassis_control_velocity_->vector << (move_ * speed_limit), angular_velocity;
+                // yaw_control();
+                update_virtual_buffer_energy();
+                update_control_power_limit();
+            }
+        }
     }
 
 private:
@@ -230,7 +238,7 @@ private:
         virtual_buffer_energy_ += dt * (chassis_power_limit_expected_ - *chassis_power_);
         virtual_buffer_energy_ = std::clamp(
             virtual_buffer_energy_, 0.0,
-            std::min(*chassis_buffer_energy_referee_, virtual_buffer_energy_limit_));
+            std::min(chassis_buffer_energy_referee_, virtual_buffer_energy_limit_));
     }
 
     void update_control_power_limit() {
@@ -268,9 +276,9 @@ private:
     rmcs_msgs::ArmMode last_arm_mode;
     pid::PidCalculator following_velocity_controller_;
     OutputInterface<double> speed_limit_;
-    double speed_limit                                   = 2.5;             // m/s
+    double speed_limit                                   = 4.5;             // m/s
     constexpr static double chassis_power_limit_referee_ = 120.0f;
-    
+
     InputInterface<Eigen::Vector2d> joystick_right_;
     InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;
@@ -298,7 +306,9 @@ private:
     static constexpr double virtual_buffer_energy_limit_ = 30.0;
     double chassis_power_limit_expected_;
     InputInterface<double> chassis_power_;
-    InputInterface<double> chassis_buffer_energy_referee_;
+    // InputInterface<double> chassis_buffer_energy_referee_;
+    double chassis_buffer_energy_referee_ = 60.0f;
+    bool initial_check_done_              = false;
 };
 } // namespace rmcs_core::controller::chassis
 #include <pluginlib/class_list_macros.hpp>

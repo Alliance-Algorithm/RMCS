@@ -30,9 +30,7 @@ class Engineer
     , public rclcpp::Node {
 public:
     Engineer()
-        : Node{
-              get_component_name(),
-              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
+        : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , logger_(get_logger())
         , engineer_command_(create_partner_component<EngineerCommand>("engineer_command", *this))
         , armboard_(
@@ -75,9 +73,7 @@ private:
     };
     std::shared_ptr<EngineerCommand> engineer_command_;
 
-    class ArmBoard final
-        : private librmcs::client::CBoard
-        , rclcpp::Node {
+    class ArmBoard final : private librmcs::client::CBoard, rclcpp::Node {
     public:
         friend class Engineer;
         explicit ArmBoard(Engineer& engineer, EngineerCommand& engineer_command, int usb_pid)
@@ -117,8 +113,8 @@ private:
             engineer.register_output("/arm/Joint5/vision", vision_theta5, NAN);
             engineer.register_output("/arm/Joint6/vision", vision_theta6, NAN);
 
-            engineer_command.register_input("/arm/enable_flag", is_arm_enable_,false);//
-            engineer_command.register_input("/arm/Joint1/zero_point", joint1_zero_point,NAN);//
+            engineer_command.register_input("/arm/enable_flag", is_arm_enable_, false);        //
+            engineer_command.register_input("/arm/Joint1/zero_point", joint1_zero_point, NAN); //
             engineer.register_output("yaw_imu_velocity", yaw_imu_velocity, NAN);
             engineer.register_output("yaw_imu_angle", yaw_imu_angle, NAN);
 
@@ -182,9 +178,7 @@ private:
             dr16_.update();
             update_imu();
         }
-        void command() { 
-            arm_command_update(); 
-        }
+        void command() { arm_command_update(); }
 
     private:
         void arm_command_update() {
@@ -276,7 +270,7 @@ private:
             joint[0].update_joint();
             arm_pump.update();
             mine_pump.update();
-             RCLCPP_INFO(this->get_logger(),"joint %f",joint[1].get_theta());
+            // RCLCPP_INFO(this->get_logger(), "joint %f", joint[1].get_theta());
         }
 
         void update_imu() {
@@ -372,9 +366,7 @@ private:
         OutputInterface<double> yaw_imu_angle;
 
     } armboard_;
-    class SteeringBoard final
-        : private librmcs::client::CBoard
-        , rclcpp::Node {
+    class SteeringBoard final : private librmcs::client::CBoard, rclcpp::Node {
     public:
         friend class Engineer;
         explicit SteeringBoard(Engineer& engineer, EngineerCommand& engineer_command, int usb_pid)
@@ -462,15 +454,19 @@ private:
                 return;
             if (can_id == 0x205) {
                 Steering_motors[0].store_status(can_data);
+                RCLCPP_INFO(this->get_logger(), "steering0 %f", Steering_motors[0].get_angle());
             }
             if (can_id == 0x208) {
                 Steering_motors[2].store_status(can_data);
+                RCLCPP_INFO(this->get_logger(), "steering2 %f", Steering_motors[2].get_angle());
             }
             if (can_id == 0x207) {
                 Steering_motors[1].store_status(can_data);
+                RCLCPP_INFO(this->get_logger(), "steering1 %f", Steering_motors[1].get_angle());
             }
             if (can_id == 0x206) {
                 Steering_motors[3].store_status(can_data);
+                RCLCPP_INFO(this->get_logger(), "steering3 %f", Steering_motors[3].get_angle());
             }
         }
         void can1_receive_callback(
@@ -481,15 +477,19 @@ private:
 
             if (can_id == 0x204) {
                 Wheel_motors[0].store_status(can_data);
+                RCLCPP_INFO(this->get_logger(), "wheel0 %f", Wheel_motors[0].get_angle());
             }
             if (can_id == 0x201) {
                 Wheel_motors[2].store_status(can_data);
+                RCLCPP_INFO(this->get_logger(), "wheel2 %f", Wheel_motors[2].get_angle());
             }
             if (can_id == 0x203) {
                 Wheel_motors[1].store_status(can_data);
+                RCLCPP_INFO(this->get_logger(), "wheel1 %f", Wheel_motors[1].get_angle());
             }
             if (can_id == 0x202) {
                 Wheel_motors[3].store_status(can_data);
+                RCLCPP_INFO(this->get_logger(), "wheel3 %f", Wheel_motors[3].get_angle());
             }
         }
 
@@ -500,9 +500,7 @@ private:
         device::DjiMotor Wheel_motors[4];
     } steeringboard_;
 
-    class LegBoard final
-        : private librmcs::client::CBoard
-        , rclcpp::Node {
+    class LegBoard final : private librmcs::client::CBoard, rclcpp::Node {
     public:
         friend class Engineer;
         explicit LegBoard(Engineer& engineer, EngineerCommand& engineer_command, int usb_pid)
@@ -561,11 +559,13 @@ private:
                 "/leg/joint/rb/control_theta_error", leg_joint_rb_control_theta_error, NAN);
             engineer.register_output(
                 "/leg/joint/rf/control_theta_error", leg_joint_rf_control_theta_error, NAN);
-                       engineer.register_output(
+            engineer.register_output(
                 "/leg/joint/lf/control_theta_error", leg_joint_lf_control_theta_error, NAN);
 
             engineer_command.register_input("/leg/joint/lb/target_theta", leg_lb_target_theta_);
             engineer_command.register_input("/leg/joint/rb/target_theta", leg_rb_target_theta_);
+            engineer_command.register_input("/leg/joint/lf/target_theta", leg_lf_target_theta_);
+            engineer_command.register_input("/leg/joint/rf/target_theta", leg_rf_target_theta_);
             engineer_command.register_input("/leg/enable_flag", is_leg_enable_, true);
         }
 
@@ -643,62 +643,77 @@ private:
 
     protected:
         void can2_receive_callback(
+
             uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
             bool is_remote_transmission, uint8_t can_data_length) override {
+
+          
             if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
                 return;
             if (can_id == 0x201) {
-                //right omni
-                RCLCPP_INFO(this->get_logger(),"%f",Omni_Motors[1].get_angle());
+                // right omni
+             
                 Omni_Motors[1].store_status(can_data);
             }
             if (can_id == 0x206) {
-                //lf
+                // lf
                 Leg_Motors[0].store_status(can_data);
+        
             }
             if (can_id == 0x203) {
-                //lb
+                // lb
                 Leg_Motors[1].store_status(can_data);
+           
             }
             if (can_id == 0x202) {
-                //rb
+                // rb
                 Leg_Motors[2].store_status(can_data);
+               
             }
             if (can_id == 0x208) {
-                //rf
+                // rf
                 Leg_Motors[3].store_status(can_data);
+             
             }
             if (can_id == 0x204) {
-                //left omni
+                // left omni
                 Omni_Motors[0].store_status(can_data);
+                // RCLCPP_INFO(this->get_logger(), "omni0  %f", Omni_Motors[0].get_angle());
             }
         }
         void can1_receive_callback(
             uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
             bool is_remote_transmission, uint8_t can_data_length) override {
+            // RCLCPP_INFO(this->get_logger(), "%x",can_id);
 
-            if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
+            if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]] {
+                RCLCPP_INFO(this->get_logger(), "%x", can_id);
                 return;
+            }
 
-            if (can_id == 0x017) {
-                //right forward
+            if (can_id == 0x2f4) {
+                // right forward
                 Leg_ecd[3].store_status(can_data);
-                RCLCPP_INFO(this->get_logger(),"%f",Leg_ecd[3].get_raw_angle());
+         
             }
             if (can_id == 0x016) {
-                //left forward
+                // left forward
                 Leg_ecd[0].store_status(can_data);
+            
             }
             if (can_id == 0x015) {
-                //left back
+                // left back
                 Leg_ecd[1].store_status(can_data);
+              
             }
             if (can_id == 0x013) {
-                //right back
+                // right back
                 Leg_ecd[2].store_status(can_data);
+              
             }
             if (can_id == 0x33) {
                 big_yaw.store_status(can_data);
+                
             }
         }
 
@@ -729,4 +744,4 @@ private:
 } // namespace rmcs_core::hardware
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(rmcs_core::hardware::Engineer,rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(rmcs_core::hardware::Engineer, rmcs_executor::Component)
