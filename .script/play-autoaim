@@ -25,6 +25,11 @@ while [ "$#" -gt 0 ]; do
     --no-copy)
         SKIP_COPY=true
         ;;
+    --ip)
+        shift
+        [ -z "$1" ] && echo "❌ --ip 参数缺失" && exit 1
+        MONITOR_HOST="$1"
+        ;;
     *)
         echo "未知参数: $1"
         echo "用法: $0 --user <用户名> [--remote] [--no-copy]"
