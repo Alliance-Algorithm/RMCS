@@ -720,9 +720,6 @@ private:
             if (can_id == 0x100) {
                 power_meter.store_status(can_data);
             }
-            else if (can_id == 0x101) {
-                power_meter.store_status(can_data);
-            }
         }
 
     private:
