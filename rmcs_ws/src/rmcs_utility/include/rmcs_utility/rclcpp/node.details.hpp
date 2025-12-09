@@ -1,5 +1,6 @@
 #pragma once
 #include "node.hpp"
+#include "param_adapter.hpp"
 #include "rclcpp/node.hpp"
 #include <rclcpp/executors.hpp>
 
@@ -25,9 +26,12 @@ constexpr auto naming_standard = "Names must match pattern: ^[a-z0-9_/]+$";
 struct RclcppNode::Details {
 
     std::shared_ptr<rclcpp::Node> rclcpp;
+    std::unique_ptr<IParams> params;
 
     explicit Details(const std::string& name) noexcept
-        : rclcpp{std::make_shared<rclcpp::Node>(name)} {}
+        : rclcpp{std::make_shared<rclcpp::Node>(
+              name, rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))}
+        , params{std::make_unique<ParamsAdapter>(*rclcpp)} {}
 
     auto spin_once() const noexcept { rclcpp::spin_some(rclcpp); }
 

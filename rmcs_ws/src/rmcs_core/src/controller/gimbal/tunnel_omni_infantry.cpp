@@ -1,3 +1,5 @@
+#include "description/tf/tunnel_omni_infantry.hpp"
+
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/shoot_mode.hpp>
@@ -8,30 +10,25 @@
 
 namespace rmcs_core {
 
-class TunnelOmniInfantryGimbalController : rmcs_executor::Component {
-public:
-    TunnelOmniInfantryGimbalController() {
-        {
-            register_input("/remote/joystick/left", input.joystick_left);
-            register_input("/remote/switch/right", input.switch_right);
-            register_input("/remote/switch/left", input.switch_left);
-            register_input("/remote/mouse/velocity", input.mouse_velocity);
-            register_input("/remote/mouse", input.mouse_event);
-
-            register_input("/gimbal/pitch/angle", input.gimbal_pitch_angle);
-
-            register_input("/gimbal/shooter/mode", input.shoot_mode);
-        }
-    }
-
-    auto update() -> void override {}
-
-private:
-    constexpr static auto kNan = std::numeric_limits<double>::quiet_NaN();
+struct TunnelOmniInfantryGimbal : public rmcs_executor::Component {
 
     rmcs_util::RclcppNode rclcpp{Component::get_component_name()};
 
-    struct Input {
+    struct Config {
+        double yaw_upper_limit = 0.;
+        double yaw_lower_limit = 0.;
+
+        explicit Config(rmcs_util::RclcppNode& rclcpp) {
+            const auto& params = rclcpp.params();
+
+            yaw_upper_limit = params->get_double("yaw_upper_limit");
+            yaw_lower_limit = params->get_double("yaw_lower_limit");
+
+            // ...
+        }
+    } config{rclcpp};
+
+    struct ComponentInput {
         InputInterface<double> gimbal_pitch_angle;
         InputInterface<Eigen::Vector2d> joystick_left;
 
@@ -43,7 +40,7 @@ private:
 
         InputInterface<rmcs_msgs::ShootMode> shoot_mode;
 
-        explicit Input(rmcs_executor::Component& component) {
+        explicit ComponentInput(rmcs_executor::Component& component) {
             component.register_input("/remote/joystick/left", joystick_left);
             component.register_input("/remote/switch/right", switch_right);
             component.register_input("/remote/switch/left", switch_left);
@@ -56,15 +53,29 @@ private:
         }
     } input{*this};
 
-    struct Output {
+    struct ComponentOutput {
         OutputInterface<double> yaw_angle_error;
         OutputInterface<double> pitch_angle_error;
 
-        explicit Output(rmcs_executor::Component& component) {
+        explicit ComponentOutput(rmcs_executor::Component& component) {
             component.register_output("/gimbal/yaw/control_angle_error", yaw_angle_error, kNan);
             component.register_output("/gimbal/pitch/control_angle_error", pitch_angle_error, kNan);
         }
     } output{*this};
+
+    TunnelOmniInfantryGimbal() {
+        // ...
+        rclcpp.info("Hello Gimbal Controller");
+    }
+
+    auto update() -> void override {
+        {
+            using Tf = TunnelOmniInfantryTf;
+            std::ignore = Tf::look_up<"pitch_link", "yaw_link", Eigen::Quaterniond>();
+        }
+    }
+
+    constexpr static auto kNan = std::numeric_limits<double>::quiet_NaN();
 };
 
 } // namespace rmcs_core

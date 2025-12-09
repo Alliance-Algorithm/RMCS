@@ -100,11 +100,7 @@ public:
         }
     }
 
-    auto update() -> void override {
-        if (enable_control) {
-            update_control();
-        }
-    }
+    auto update() -> void override { update_control(); }
 
     auto update_peripherals() {
         using namespace rmcs_description;
@@ -263,33 +259,43 @@ private:
     auto update_control() -> void {
         auto command = std::array<std::uint16_t, 4>{};
         auto command_data = [&] { return std::bit_cast<std::uint64_t>(command.data()); };
+        auto long_command = std::uint64_t{0};
 
         std::ranges::fill(command, 0);
 
-        // CAN1
-        // command.at(3) = supercap.generate_command();
-        // transmit_buffer.add_can1_transmission(supercap_send_id, command_data());
+        if (enable_control) {
+            // CAN1
+            // command.at(3) = supercap.generate_command();
+            // transmit_buffer.add_can1_transmission(supercap_send_id, command_data());
 
-        for (auto&& [byte, motor] : std::views::zip(command, chassis_wheel_motors)) {
-            byte = motor.generate_command();
+            for (auto&& [byte, motor] : std::views::zip(command, chassis_wheel_motors)) {
+                byte = motor.generate_command();
+            }
+            transmit_buffer.add_can1_transmission(chassis_wheel_motors_send_id, command_data());
+
+            long_command = gimbal_motor_yaw.generate_torque_command();
+            transmit_buffer.add_can1_transmission(gimbal_motor_yaw_send_id, long_command);
+
+            // CAN2
+            long_command = gimbal_motor_pitch.generate_torque_command();
+            transmit_buffer.add_can2_transmission(gimbal_motor_pitch_send_id, long_command);
+
+            command.at(0) = 0;
+            command.at(1) = gimbal_bullet_feeder.generate_command();
+            command.at(2) = gimbal_friction_left.generate_command();
+            command.at(3) = gimbal_friction_right.generate_command();
+            transmit_buffer.add_can2_transmission(gimbal_shooting_device_send_id, command_data());
+
+            transmit_buffer.trigger_transmission();
+        } else {
+            // CAN1
+            long_command = gimbal_motor_yaw.generate_status_request();
+            transmit_buffer.add_can1_transmission(gimbal_motor_yaw_send_id, long_command);
+
+            // CAN2
+            long_command = gimbal_motor_pitch.generate_status_request();
+            transmit_buffer.add_can2_transmission(gimbal_motor_pitch_send_id, long_command);
         }
-        transmit_buffer.add_can1_transmission(chassis_wheel_motors_send_id, command_data());
-
-        auto long_command = std::uint64_t{};
-        long_command = gimbal_motor_yaw.generate_torque_command();
-        transmit_buffer.add_can1_transmission(gimbal_motor_yaw_send_id, long_command);
-
-        // CAN2
-        long_command = gimbal_motor_pitch.generate_torque_command();
-        transmit_buffer.add_can2_transmission(gimbal_motor_pitch_send_id, long_command);
-
-        command.at(0) = 0;
-        command.at(1) = gimbal_bullet_feeder.generate_command();
-        command.at(2) = gimbal_friction_left.generate_command();
-        command.at(3) = gimbal_friction_right.generate_command();
-        transmit_buffer.add_can2_transmission(gimbal_shooting_device_send_id, command_data());
-
-        transmit_buffer.trigger_transmission();
     }
 };
 
@@ -338,7 +344,7 @@ public:
     }
 
 private:
-    rmcs_utility::Framerate log_framerate;
+    rmcs_util::Framerate log_framerate;
     bool log_received_can_ids = false;
     bool log_calibrable_device = false;
 

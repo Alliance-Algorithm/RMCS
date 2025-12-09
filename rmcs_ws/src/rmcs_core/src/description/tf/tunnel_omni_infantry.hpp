@@ -3,7 +3,7 @@
 #include <rmcs_utility/tf/static_tf.hpp>
 
 namespace rmcs_core::description::details {
-using namespace rmcs_utility;
+using namespace rmcs_util;
 
 constexpr auto tunnel_omni_infantry_tf = Joint{
     Link<"world_link">(),

@@ -2,7 +2,7 @@
 #include <cstddef>
 #include <string_view>
 
-namespace rmcs_utility {
+namespace rmcs_util {
 
 template <std::size_t N>
 struct StaticString {
@@ -33,4 +33,4 @@ struct StaticString {
 template <std::size_t N>
 StaticString(const char (&)[N]) -> StaticString<N>;
 
-} // namespace rmcs_utility
+} // namespace rmcs_util

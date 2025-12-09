@@ -3,9 +3,17 @@
 #include <algorithm>
 #include <tuple>
 
-namespace rmcs_utility::tf::details {
+namespace rmcs_util::tf::details {
 
 struct MonoState {};
+
+template <class T>
+concept se3_trait = requires {
+    T::Identity();
+    T{T{} * T{}};
+    T{T{}.inverse()};
+    T{T{}};
+};
 
 template <typename T>
 concept node_trait = requires {
@@ -27,8 +35,8 @@ struct JointTransfroms {
     static inline T state = T{};
 };
 
-} // namespace rmcs_utility::tf::details
-namespace rmcs_utility {
+} // namespace rmcs_util::tf::details
+namespace rmcs_util {
 
 template <StaticString Name, class T = tf::details::MonoState>
 struct Link {};
@@ -261,18 +269,25 @@ struct Joint {
         set_state<child>(state);
     }
 
-    template <StaticString begin, StaticString final, class SE3>
+    template <StaticString begin, StaticString final, tf::details::se3_trait SE3>
     constexpr static auto look_up() noexcept {
         static_assert(requires { SE3::Identity(); }, "SE3 不是一个标准的变换类型");
+
         auto lca_to_begin = SE3::Identity();
         auto lca_to_final = SE3::Identity();
-        Joint::impl_look_up<begin, final, SE3>([&]([[maybe_unused]] auto, auto se3, bool is_begin) {
-            if constexpr (requires { se3 * std::declval<SE3>(); }) {
+
+        Joint::impl_look_up<begin, final, SE3>([&](auto, auto se3, bool is_begin) {
+            constexpr auto can_mul = requires { se3 * std::declval<SE3>(); };
+            constexpr auto can_new = requires { SE3{se3}; };
+
+            // 跳过 MonoState，和不需要的变换自由度，防止编译期展开循环时，
+            // 未用到的分换分支实例化后，造成的类型检查错误
+            if constexpr (can_mul && can_new) {
                 if (is_begin == true) {
-                    lca_to_begin = lca_to_begin * se3;
+                    lca_to_begin = SE3{lca_to_begin * se3};
                 }
                 if (is_begin == false) {
-                    lca_to_final = lca_to_final * se3;
+                    lca_to_final = SE3{lca_to_final * se3};
                 }
             }
         });
@@ -314,34 +329,29 @@ public:
     template <StaticString begin, StaticString final, class SE3>
     constexpr static auto impl_look_up(auto&& callback) noexcept
         requires requires { callback(std::string_view{}, SE3{}, bool{}); } {
-        auto [begin_len, final_len] = distance_to_lca<begin, final>();
+
+        constexpr auto distance = distance_to_lca<begin, final>();
+        constexpr auto begin_len = std::get<0>(distance);
+        constexpr auto final_len = std::get<1>(distance);
+
         // calculate tf from begin to lca
+        auto begin_step = begin_len;
         impl_traversal_child<begin>([&]<class T>() {
             using State = typename T::State;
-            if (begin_len-- > 0) {
+            if (begin_step-- > 0) {
                 callback(T::name, Transforms<T::static_name, State>::state, true);
             }
         });
+
         // calculate tf from final to lca>
+        auto final_step = final_len;
         impl_traversal_child<final>([&]<class T>() {
             using State = typename T::State;
-            if (final_len-- > 0) {
+            if (final_step-- > 0) {
                 callback(T::name, Transforms<T::static_name, State>::state, false);
             }
         });
     }
 };
 
-} // namespace rmcs_utility
-
-template <typename T>
-constexpr auto operator*(const rmcs_utility::tf::details::MonoState&, const T& other) noexcept
-    -> decltype(auto) {
-    return other;
-}
-
-template <typename T>
-constexpr auto operator*(const T& other, const rmcs_utility::tf::details::MonoState&) noexcept
-    -> decltype(auto) {
-    return other;
-}
+} // namespace rmcs_util

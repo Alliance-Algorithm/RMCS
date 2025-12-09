@@ -2,7 +2,7 @@
 #include <chrono>
 #include <deque>
 
-namespace rmcs_utility {
+namespace rmcs_util {
 
 class Framerate {
 public:
@@ -42,4 +42,4 @@ public:
     }
 };
 
-} // namespace rmcs_utility
+} // namespace rmcs_util
