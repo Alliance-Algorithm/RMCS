@@ -4,6 +4,7 @@
 #include "hardware/device/dm_motor.hpp"
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/lk_motor.hpp"
+#include "hardware/device/power_meter .hpp"
 #include "hardware/device/relay.hpp"
 #include "hardware/forwarder/cboard.hpp"
 #include "hardware/ring_buffer.hpp"
@@ -519,7 +520,8 @@ private:
             , Leg_ecd(
                   {engineer, "/leg/encoder/lf"}, {engineer, "/leg/encoder/lb"},
                   {engineer, "/leg/encoder/rb"}, {engineer, "/leg/encoder/rf"})
-            , big_yaw(engineer, engineer_command, "/chassis/big_yaw") {
+            , big_yaw(engineer, engineer_command, "/chassis/big_yaw") 
+            , power_meter(engineer, "/chassis/power_meter"){
 
             Omni_Motors[0].configure(
                 device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(
@@ -715,6 +717,12 @@ private:
                 big_yaw.store_status(can_data);
                 
             }
+            if (can_id == 0x100) {
+                power_meter.store_status(can_data);
+            }
+            else if (can_id == 0x101) {
+                power_meter.store_status(can_data);
+            }
         }
 
     private:
@@ -724,6 +732,7 @@ private:
         device::DjiMotor Leg_Motors[4];
         device::Encoder Leg_ecd[4];
         device::DMMotor big_yaw;
+        device::PowerMeter power_meter;
 
         InputInterface<double> leg_lf_target_theta_;
         InputInterface<double> leg_rf_target_theta_;
