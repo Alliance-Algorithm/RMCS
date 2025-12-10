@@ -108,18 +108,21 @@ public:
                 }
             }
             double control_velocity = 0;
+            double control_torque_limit = max_control_torque_;
 
             if (*launch_stage_ == rmcs_msgs::DartLaunchStages::RESETTING) {
                 control_velocity = -dirve_belt_working_velocity_;
+                control_torque_limit = max_control_torque_ * 0.1;
             } else if (
                 *launch_stage_ == rmcs_msgs::DartLaunchStages::LOADING
                 || *launch_stage_ == rmcs_msgs::DartLaunchStages::CANCEL) {
                 control_velocity = dirve_belt_working_velocity_;
+                control_torque_limit = max_control_torque_;
             } else {
                 control_velocity = 0;
             }
-            drive_belt_sync_control(control_velocity);
-            RCLCPP_INFO(logger_, "%lf", control_velocity);
+            drive_belt_sync_control(control_velocity, control_torque_limit);
+            // RCLCPP_INFO(logger_, "%lf", control_velocity);
         }
 
         *trigger_control_angle = trigger_lock_flag_ ? launch_lock_angle_ : launch_trigger_angle_;
@@ -136,7 +139,7 @@ private:
         *right_drive_belt_control_torque_ = 0;
     }
 
-    void drive_belt_sync_control(double set_velocity) {
+    void drive_belt_sync_control(double set_velocity, double control_torque_limit) {
         if (set_velocity == 0) {
             *left_drive_belt_control_torque_ = 0;
             *right_drive_belt_control_torque_ = 0;
@@ -153,9 +156,9 @@ private:
         Eigen::Vector2d control_torques = setpoint_error - sync_coefficient_ * relative_velocity;
 
         *left_drive_belt_control_torque_ =
-            std::clamp(control_torques[0], -max_control_torque_, max_control_torque_);
+            std::clamp(control_torques[0], -control_torque_limit, control_torque_limit);
         *right_drive_belt_control_torque_ =
-            std::clamp(control_torques[1], -max_control_torque_, max_control_torque_);
+            std::clamp(control_torques[1], -control_torque_limit, control_torque_limit);
     }
 
     bool blocking_detection() {

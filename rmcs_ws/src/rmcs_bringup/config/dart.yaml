@@ -27,17 +27,17 @@ dart_hardware:
 launch_controller:
   ros__parameters:
     belt_velocity: 10.0
-    sync_coefficient: 0.5
+    sync_coefficient: 0.1
     b_kp: 1.0
     b_ki: 0.0
     b_kd: 0.0
-    max_control_torque: 1.0
+    max_control_torque: 15.0
     trigger_free_angle: 0x0E2A
     trigger_lock_angle: 0x0FC1
 
 dart_settings:
   ros__parameters:
-    log_enable: false
+    log_enable: true
     screw_max_velocity: 10.0
 
 force_screw_velocity_pid_controller:
@@ -54,7 +54,7 @@ yaw_velocity_pid_controller:
     measurement: /dart/yaw_motor/velocity
     setpoint: /dart/yaw_motor/control_velocity
     control: /dart/yaw_motor/control_torque
-    kp: 1.0
+    kp: 0.0
     ki: 0.0
     kd: 0.0
 
@@ -63,6 +63,6 @@ pitch_velocity_pid_controller:
     measurement: /dart/pitch_motor/velocity
     setpoint: /dart/pitch_motor/control_velocity
     control: /dart/pitch_motor/control_torque
-    kp: 1.0
+    kp: 0.0
     ki: 0.0
     kd: 0.0
