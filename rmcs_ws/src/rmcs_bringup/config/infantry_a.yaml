@@ -47,8 +47,8 @@ value_broadcaster:
 tunnel_infantry_hardware:
   ros__parameters:
     usb_pid: -1
-    yaw_motor_zero_point: 43417
-    pitch_motor_zero_point: 54062
+    yaw_motor_zero_point: 64078
+    pitch_motor_zero_point: 53296
     imu_gx_bias: +0.001294
     imu_gy_bias: -0.000584
     imu_gz_bias: +0.000445 # Updated at 30th July 21:28
@@ -68,18 +68,18 @@ yaw_angle_pid_controller:
     output_min: -10.0
     measurement: /gimbal/yaw/control_angle_error
     control: /gimbal/yaw/control_velocity
-    kp: 15.0
-    ki: 0.00
-    kd: 0.0
+    kp: 10.0
+    ki: 0.001
+    kd: 0.01
 
 yaw_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/yaw/velocity_imu
     setpoint: /gimbal/yaw/control_velocity
     control: /gimbal/yaw/control_torque
-    kp: 50.0
-    ki: 0.1
-    kd: 1.0
+    kp: 30.0
+    ki: 0.001
+    kd: 0.5
 
 pitch_angle_pid_controller:
   ros__parameters:
