@@ -47,6 +47,12 @@ public:
         , transmit_buffer_(*this, 32)
         , event_thread_([this]() { handle_events(); }) {
 
+        force_sensor_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
+            "/force_sensor/calibrate", rclcpp::QoS{0},
+            [this](std_msgs::msg::Int32::UniquePtr&& msg) {
+                force_sensor_calibrate_subscription_callback(std::move(msg));
+            });
+
         trigger_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
             "/trigger/calibrate", rclcpp::QoS{0}, [this](std_msgs::msg::Int32::UniquePtr&& msg) {
                 trigger_servo_calibrate_subscription_callback(std::move(msg));
@@ -149,22 +155,29 @@ protected:
             [&uart_data](std::byte* storage) { *storage = *uart_data++; }, uart_data_length);
     }
 
-    void uart2_receive_callback(const std::byte* data, uint8_t length) override {
-        bool success = trigger_servo_.calibrate_current_angle(logger_, data, length);
-        if (!success) {
-            RCLCPP_INFO(logger_, "calibrate: uart2 data store failed");
-        }
+    // void uart2_receive_callback(const std::byte* data, uint8_t length) override {
+    //     bool success = trigger_servo_.calibrate_current_angle(logger_, data, length);
+    //     if (!success) {
+    //         RCLCPP_INFO(logger_, "calibrate: uart2 data store failed");
+    //     }
 
-        // std::string hex_string = bytes_to_hex_string(data, length);
-        // RCLCPP_INFO(this->get_logger(), "UART2(length: %hhu): [ %s ]", length,
-        // hex_string.c_str());
-    }
+    //     // std::string hex_string = bytes_to_hex_string(data, length);
+    //     // RCLCPP_INFO(this->get_logger(), "UART2(length: %hhu): [ %s ]", length,
+    //     // hex_string.c_str());
+    // }
 
     void dbus_receive_callback(const std::byte* uart_data, uint8_t uart_data_length) override {
         dr16_.store_status(uart_data, uart_data_length);
     }
 
 private:
+    void force_sensor_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
+        transmit_buffer_.add_can1_transmission(
+            force_sensor_.get_can_id(device::ForceSensor::Mode::ZERO_CALIBRATE, 1),
+            force_sensor_.generate_zero_calibration_command());
+        RCLCPP_INFO(logger_, "call");
+    }
+
     void trigger_servo_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr msg) {
         /*
         标定命令格式：
@@ -252,6 +265,7 @@ private:
     device::TriggerServo trigger_servo_;
 
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr trigger_calibrate_subscription_;
+    rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr force_sensor_calibrate_subscription_;
 
     librmcs::utility::RingBuffer<std::byte> referee_ring_buffer_receive_{256};
     OutputInterface<rmcs_msgs::SerialInterface> referee_serial_;
