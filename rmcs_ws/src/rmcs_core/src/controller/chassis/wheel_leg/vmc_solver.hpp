@@ -2,7 +2,6 @@
 
 #include <cmath>
 #include <eigen3/Eigen/Dense>
-#include <limits>
 
 namespace rmcs_core::controller::chassis {
 class VmcSolver {
@@ -45,12 +44,12 @@ private:
         auto xb = l1_ * std::cos(phi1), yb = l1_ * std::sin(phi1);
         auto xd = l5_ + l4_ * std::cos(phi4), yd = l4_ * std::sin(phi4);
 
-        auto lbd = std::sqrt((xb - xd) * (xb - xd) + (yd - yb) * (yd - yb));
+        auto lbd = std::sqrt((xd - xb) * (xd - xb) + (yd - yb) * (yd - yb));
 
-        auto a = 2 * l2_ * (xd - xb), b = 2 * l2_ * (yb - yd),
+        auto a = 2 * l2_ * (xd - xb), b = 2 * l2_ * (yd - yb),
              c = l2_ * l2_ + lbd * lbd - l3_ * l3_;
 
-        auto phi2 = 2 * std::atan2(b + std::sqrt(a * a + b * b + c * c), (a + c)),
+        auto phi2 = 2 * std::atan2(b + std::sqrt(a * a + b * b - c * c), (a + c)),
              phi3 = std::atan2((yb - yd) + l2_ * std::sin(phi2), (xb - xd) + l2_ * std::cos(phi2));
 
         auto xc = l1_ * std::cos(phi1) + l2_ * std::cos(phi2),
@@ -64,8 +63,8 @@ private:
         leg_posture_ = {leg_length_, tilt_angle_};
 
         auto j11 = l1_ * std::sin(phi0 - phi3) * std::sin(phi1 - phi2) / std::sin(phi3 - phi2),
-             j12 = l4_ * std::sin(phi0 - phi2) * std::sin(phi3 - phi4) / std::sin(phi3 - phi4),
-             j21 = l1_ * std::cos(phi0 - phi2) * std::sin(phi1 - phi2)
+             j12 = l4_ * std::sin(phi0 - phi2) * std::sin(phi3 - phi4) / std::sin(phi3 - phi2),
+             j21 = l1_ * std::cos(phi0 - phi3) * std::sin(phi1 - phi2)
                  / (leg_length_ * std::sin(phi3 - phi2)),
              j22 = l4_ * std::cos(phi0 - phi2) * std::sin(phi3 - phi4)
                  / (leg_length_ * std::sin(phi3 - phi2));
@@ -75,12 +74,10 @@ private:
             {j21, j22}
         };
         auto rotation_matrix = Eigen::Rotation2Dd(phi0 - pi_ / 2.0);
-        auto transform_matrix = Eigen::Matrix2d{
-            {0, -1 / leg_length_},
-            {1,                0}
-        };
+        Eigen::Matrix2d transform_matrix = Eigen::Vector2d{-1 / leg_length_, 1}.asDiagonal();
 
-        joint_torque_matrix_ = jacobian_matrix.transpose() * rotation_matrix * transform_matrix;
+        joint_torque_matrix_ =
+            jacobian_matrix.transpose() * rotation_matrix * transform_matrix.transpose();
     }
 
     Eigen::Vector2d get_leg_posture() const { return Eigen::Vector2d{leg_length_, tilt_angle_}; }

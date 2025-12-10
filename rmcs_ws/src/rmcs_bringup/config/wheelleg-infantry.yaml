@@ -32,6 +32,8 @@ infantry_hardware:
     usb_pid_bottom_board: 0xf30c
     yaw_motor_zero_point: 32285
     pitch_motor_zero_point: 6321
+    left_front_hip_motor_zero_point: 14944
+    left_back_hip_motor_zero_point: 28913
 
 yaw_angle_pid_controller:
   ros__parameters:

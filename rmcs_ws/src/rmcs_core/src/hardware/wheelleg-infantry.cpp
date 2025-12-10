@@ -57,7 +57,20 @@ private:
         //     top_board_->gimbal_pitch_motor_.calibrate_zero_point());
     }
 
-    void chassis_hip_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {}
+    void chassis_hip_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
+        RCLCPP_INFO(
+            logger_, "[chassis calibration] New left front hip offset: %ld",
+            bottom_board_->chassis_hip_motors[0].calibrate_zero_point());
+        RCLCPP_INFO(
+            logger_, "[chassis calibration] New left back hip offset: %ld",
+            bottom_board_->chassis_hip_motors[1].calibrate_zero_point());
+        RCLCPP_INFO(
+            logger_, "[chassis calibration] New right back hip offset: %ld",
+            bottom_board_->chassis_hip_motors[2].calibrate_zero_point());
+        RCLCPP_INFO(
+            logger_, "[chassis calibration] New right front hip offset: %ld",
+            bottom_board_->chassis_hip_motors[3].calibrate_zero_point());
+    }
     class WheelLegInfantryCommand : public rmcs_executor::Component {
     public:
         explicit WheelLegInfantryCommand(WheelLegInfantry& infantry)
@@ -207,17 +220,20 @@ private:
                   {infantry, infantry_command, "/chassis/left_wheel",
                    device::DjiMotor::Config{device::DjiMotor::Type::M3508}
                        .set_reduction_ratio(13.0)
-                       .enable_multi_turn_angle()
-                       .set_reversed()},
+                       .enable_multi_turn_angle()},
                   {infantry, infantry_command, "/chassis/right_wheel",
                    device::DjiMotor::Config{device::DjiMotor::Type::M3508}
                        .set_reduction_ratio(13.0)
                        .enable_multi_turn_angle()})
             , chassis_hip_motors(
                   {infantry, infantry_command, "/chassis/left_front_hip",
-                   device::DmMotor::Config{device::DmMotor::Type::DM8009}},
+                   device::DmMotor::Config{device::DmMotor::Type::DM8009}.set_encoder_zero_point(
+                       static_cast<int>(
+                           infantry.get_parameter("left_front_hip_motor_zero_point").as_int()))},
                   {infantry, infantry_command, "/chassis/left_back_hip",
-                   device::DmMotor::Config{device::DmMotor::Type::DM8009}},
+                   device::DmMotor::Config{device::DmMotor::Type::DM8009}.set_encoder_zero_point(
+                       static_cast<int>(
+                           infantry.get_parameter("left_back_hip_motor_zero_point").as_int()))},
                   {infantry, infantry_command, "/chassis/right_front_hip",
                    device::DmMotor::Config{device::DmMotor::Type::DM8009}},
                   {infantry, infantry_command, "/chassis/right_back_hip",
@@ -288,6 +304,9 @@ private:
             for (auto& motor : chassis_wheel_motors_)
                 motor.update_status();
 
+            for (auto& motor : chassis_hip_motors)
+                motor.update_status();
+
             gimbal_yaw_motor_.update_status();
             tf_->set_state<rmcs_description::GimbalCenterLink, rmcs_description::YawLink>(
                 gimbal_yaw_motor_.angle());
@@ -309,30 +328,10 @@ private:
                 0x141,
                 gimbal_yaw_motor_.generate_torque_command(gimbal_yaw_motor_.control_torque()));
 
-            if (!is_hips_enable_) {
-                transmit_buffer_.add_can2_transmission(
-                    0x01, chassis_hip_motors[0].generate_enable_command());
-                transmit_buffer_.add_can2_transmission(
-                    0x02, chassis_hip_motors[1].generate_enable_command());
-                transmit_buffer_.add_can2_transmission(
-                    0x03, chassis_hip_motors[2].generate_enable_command());
-                transmit_buffer_.add_can2_transmission(
-                    0x04, chassis_hip_motors[3].generate_enable_command());
-                is_hips_enable_ = !is_hips_enable_;
-            } else {
-                transmit_buffer_.add_can2_transmission(
-                    0x01, chassis_hip_motors[0].generate_torque_command(
-                              chassis_hip_motors[0].control_torque()));
-                transmit_buffer_.add_can2_transmission(
-                    0x02, chassis_hip_motors[1].generate_torque_command(
-                              chassis_hip_motors[1].control_torque()));
-                transmit_buffer_.add_can2_transmission(
-                    0x03, chassis_hip_motors[2].generate_torque_command(
-                              chassis_hip_motors[2].control_torque()));
-                transmit_buffer_.add_can2_transmission(
-                    0x04, chassis_hip_motors[3].generate_torque_command(
-                              chassis_hip_motors[3].control_torque()));
-            }
+            transmit_buffer_.add_can2_transmission(0x01, chassis_hip_motors[0].generate_command());
+            transmit_buffer_.add_can2_transmission(0x02, chassis_hip_motors[1].generate_command());
+            transmit_buffer_.add_can2_transmission(0x03, chassis_hip_motors[2].generate_command());
+            transmit_buffer_.add_can2_transmission(0x04, chassis_hip_motors[3].generate_command());
 
             transmit_buffer_.trigger_transmission();
         }

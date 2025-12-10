@@ -1,157 +1,183 @@
 
-// #include <cmath>
-// #include <eigen3/Eigen/Dense>
-// #include <iostream>
-// // #include <robotics/common.hpp>
-// #include <vector>
+#include <cmath>
+#include <eigen3/Eigen/Dense>
+#include <iostream>
+// #include <robotics/common.hpp>
+#include <random>
+#include <vector>
 
-// //
 // https://github.com/giacomo-b/CppRobotics/blob/e2b5cdad0ea3f982be2c310cf4d9023d347f97a4/include/robotics/linear_control/lqr.hpp
 
-// namespace rmcs_core::controller::lqr {
+namespace rmcs_core::controller::lqr {
 
-// template <int StateSize, int InputSize>
-// class LqrController {
-//     static_assert(StateSize > 0);
-//     static_assert(InputSize > 0);
+template <int N>
+using ColumnVector = Eigen::Matrix<double, N, 1>;
 
-//     using VectorNx1 = ColumnVector<StateSize>;
-//     using VectorMx1 = ColumnVector<InputSize>;
+template <int N>
+using SquareMatrix = Eigen::Matrix<double, N, N>;
 
-//     using MatrixNxN = SquareMatrix<StateSize>;
-//     using MatrixMxM = SquareMatrix<InputSize>;
-//     using InputMatrix = Matrix<StateSize, InputSize>;
-//     using GainMatrix = Matrix<InputSize, StateSize>;
+template <int N, int M>
+using Matrix = Eigen::Matrix<double, N, M>;
 
-//     using State = VectorNx1;
+double deg2rad(double deg) { return deg * M_PI / 180.0; }
 
-// public:
-//     /**
-//      * @brief Creates a new Linear-Quadratic Regulator
-//      * @param A state matrix
-//      * @param B control matrix
-//      * @param Q state weights matrix
-//      * @param R control weights matrix
-//      * @todo pass a linear system as input
-//      */
-//     LqrController(MatrixNxN A, InputMatrix B, MatrixNxN Q, MatrixMxM R)
-//         : A(A)
-//         , B(B)
-//         , Q(Q)
-//         , R(R)
-//         , K(ComputeGain()) {}
+class NormalDistributionRandomGenerator {
+public:
+    template <int Size>
+    ColumnVector<Size> GetColumnVector() {
+        ColumnVector<Size> rand_vector;
 
-//     /**
-//      * @brief Solves the LQR problem
-//      * @param initial the initial state
-//      * @param target the target state
-//      * @return a vector containing the state along the whole path
-//      * @todo this behavior should be in a user-defined loop, refactor so that only one step is
-//      * carried out at a time
-//      */
-//     std::vector<State> Solve(State initial, State target, double dt) {
-//         std::vector<State> path{initial};
-//         path.reserve(
-//             (unsigned int)std::round(max_time / dt) + 1); // TODO: currently assuming the worst
-//             case
+        for (auto i = 0; i < rand_vector.size(); i++)
+            rand_vector(i) = distribution(generator);
 
-//         State x = initial - target;
-//         VectorMx1 u;
+        return rand_vector;
+    }
 
-//         bool path_found = false;
-//         double time = 0;
-//         double goal_dist_squared = std::pow(goal_dist, 2);
+private:
+    std::default_random_engine generator;
+    std::normal_distribution<double> distribution{0.0, 1.0};
+};
 
-//         while (time < max_time) {
-//             time += dt;
+template <int StateSize, int InputSize>
+class LqrController {
+    static_assert(StateSize > 0);
+    static_assert(InputSize > 0);
 
-//             u = Input(x);
-//             x = A * x + B * u;
+    using VectorNx1 = ColumnVector<StateSize>;
+    using VectorMx1 = ColumnVector<InputSize>;
 
-//             path.push_back(x + target);
+    using MatrixNxN = SquareMatrix<StateSize>;
+    using MatrixMxM = SquareMatrix<InputSize>;
+    using InputMatrix = Matrix<StateSize, InputSize>;
+    using GainMatrix = Matrix<InputSize, StateSize>;
 
-//             if (x.squaredNorm() <= goal_dist_squared) {
-//                 path_found = true;
-//                 break;
-//             }
-//         }
+    using State = VectorNx1;
 
-//         if (!path_found) {
-//             std::cerr << "Couldn't find a path\n";
-//             return {};
-//         }
+public:
+    /**
+     * @brief Creates a new Linear-Quadratic Regulator
+     * @param A state matrix
+     * @param B control matrix
+     * @param Q state weights matrix
+     * @param R control weights matrix
+     * @todo pass a linear system as input
+     */
+    LqrController(MatrixNxN A, InputMatrix B, MatrixNxN Q, MatrixMxM R)
+        : A(A)
+        , B(B)
+        , Q(Q)
+        , R(R)
+        , K(ComputeGain()) {}
 
-//         return path;
-//     }
+    /**
+     * @brief Solves the LQR problem
+     * @param initial the initial state
+     * @param target the target state
+     * @return a vector containing the state along the whole path
+     * @todo this behavior should be in a user-defined loop, refactor so that only one step is
+     * carried out at a time
+     */
+    std::vector<State> Solve(State initial, State target, double dt) {
+        std::vector<State> path{initial};
+        path.reserve(
+            (unsigned int)std::round(max_time / dt) + 1); // TODO: currently assuming the worst case
 
-//     /**
-//      * @brief Sets the maximum simulation time
-//      * @param limit time limit
-//      * @todo remove
-//      */
-//     void SetTimeLimit(double limit) { max_time = limit; }
+        State x = initial - target;
+        VectorMx1 u;
 
-//     /**
-//      * @brief Sets the tolerance w.r.t. the target
-//      * @param tol tolerance
-//      * @todo remove, the user should decide when to exit
-//      */
-//     void SetFinalPositionTolerance(double tol) { goal_dist = tol; }
+        bool path_found = false;
+        double time = 0;
+        double goal_dist_squared = std::pow(goal_dist, 2);
 
-//     /**
-//      * @brief Sets the maximum number of iterations
-//      * @param limit maximum number of iterations
-//      * @todo remove, the user should decide when to exit
-//      */
-//     void SetIterationsLimit(int limit) { max_iter = limit; }
+        while (time < max_time) {
+            time += dt;
 
-//     /**
-//      * @brief Sets the tolerance for the resolution of the Discrete Algebraic Riccati Equation
-//      * @param tol tolerance
-//      */
-//     void SetDARETolerance(double tol) { eps = tol; }
+            u = Input(x);
+            x = A * x + B * u;
 
-// private:
-//     VectorMx1 Input(State x) const { return -K * x; }
+            path.push_back(x + target);
 
-//     /**
-//      * @brief Computes the LQR problem gain matrix
-//      * @return
-//      */
-//     GainMatrix ComputeGain() {
-//         MatrixNxN X = SolveDARE();
-//         return (B.transpose() * X * B + R).inverse() * (B.transpose() * X * A);
-//     }
+            if (x.squaredNorm() <= goal_dist_squared) {
+                path_found = true;
+                break;
+            }
+        }
 
-//     /**
-//      * @brief Solves a discrete-time algebraic Riccati equation
-//      * @return
-//      */
-//     MatrixNxN SolveDARE() const {
-//         MatrixNxN X = Q, Xn = Q;
-//         for (auto _ = 0; _ < max_iter; _++) {
-//             Xn = A.transpose() * X * A
-//                - A.transpose() * X * B * (R + B.transpose() * X * B).inverse() * B.transpose() *
-//                X
-//                      * A
-//                + Q;
-//             if ((Xn - X).template lpNorm<Eigen::Infinity>() < eps)
-//                 break;
-//             X = Xn;
-//         }
-//         return Xn;
-//     }
+        if (!path_found) {
+            std::cerr << "Couldn't find a path\n";
+            return {};
+        }
 
-//     MatrixNxN A;
-//     InputMatrix B;
-//     MatrixNxN Q;
-//     MatrixMxM R;
-//     GainMatrix K;
+        return path;
+    }
 
-//     double max_time{100.0};
-//     double goal_dist{0.1};
-//     int max_iter{10};
-//     double eps{0.01};
-// };
+    /**
+     * @brief Sets the maximum simulation time
+     * @param limit time limit
+     * @todo remove
+     */
+    void SetTimeLimit(double limit) { max_time = limit; }
 
-// } // namespace rmcs_core::controller::chassis
+    /**
+     * @brief Sets the tolerance w.r.t. the target
+     * @param tol tolerance
+     * @todo remove, the user should decide when to exit
+     */
+    void SetFinalPositionTolerance(double tol) { goal_dist = tol; }
+
+    /**
+     * @brief Sets the maximum number of iterations
+     * @param limit maximum number of iterations
+     * @todo remove, the user should decide when to exit
+     */
+    void SetIterationsLimit(int limit) { max_iter = limit; }
+
+    /**
+     * @brief Sets the tolerance for the resolution of the Discrete Algebraic Riccati Equation
+     * @param tol tolerance
+     */
+    void SetDARETolerance(double tol) { eps = tol; }
+
+private:
+    VectorMx1 Input(State x) const { return -K * x; }
+
+    /**
+     * @brief Computes the LQR problem gain matrix
+     * @return
+     */
+    GainMatrix ComputeGain() {
+        MatrixNxN X = SolveDARE();
+        return (B.transpose() * X * B + R).inverse() * (B.transpose() * X * A);
+    }
+
+    /**
+     * @brief Solves a discrete-time algebraic Riccati equation
+     * @return
+     */
+    MatrixNxN SolveDARE() const {
+        MatrixNxN X = Q, Xn = Q;
+        for (auto _ = 0; _ < max_iter; _++) {
+            Xn = A.transpose() * X * A
+               - A.transpose() * X * B * (R + B.transpose() * X * B).inverse() * B.transpose() * X
+                     * A
+               + Q;
+            if ((Xn - X).template lpNorm<Eigen::Infinity>() < eps)
+                break;
+            X = Xn;
+        }
+        return Xn;
+    }
+
+    MatrixNxN A;
+    InputMatrix B;
+    MatrixNxN Q;
+    MatrixMxM R;
+    GainMatrix K;
+
+    double max_time{100.0};
+    double goal_dist{0.1};
+    int max_iter{10};
+    double eps{0.01};
+};
+
+} // namespace rmcs_core::controller::lqr
