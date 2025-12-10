@@ -36,6 +36,8 @@ public:
         *angle_ = angle();
         *velocity_ = velocity();
         *torque_ = torque();
+
+        motor_state_ = error_state();
     }
 
     double control_torque() {
@@ -61,13 +63,24 @@ public:
         return librmcs::device::DmMotor::generate_disable_command();
     }
 
+    uint64_t generate_command() {
+        if (motor_state_ == 0) {
+            return generate_enable_command();
+        } else if (motor_state_ == 1) {
+            return generate_torque_command(control_torque());
+        } else {
+            return generate_clear_error_command();
+        }
+    }
+
 private:
     rmcs_executor::Component::OutputInterface<double> angle_;
     rmcs_executor::Component::OutputInterface<double> velocity_;
     rmcs_executor::Component::OutputInterface<double> torque_;
     rmcs_executor::Component::OutputInterface<double> max_torque_;
-    // rmcs_executor::Component::OutputInterface<double> rotor_temperature_;
 
     rmcs_executor::Component::InputInterface<double> control_torque_;
+
+    uint8_t motor_state_;
 };
 } // namespace rmcs_core::hardware::device
