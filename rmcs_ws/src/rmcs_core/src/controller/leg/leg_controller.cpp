@@ -37,7 +37,7 @@ public:
         register_input("/remote/mouse", mouse_);                   //
         register_input("/remote/keyboard", keyboard_);
 
-        register_input("/speed_limit", speed_limit_);
+        register_input("/move_speed_limit", speed_limit_);
         register_output("/leg/enable_flag", is_leg_enable, true);
         register_output("/leg/omni/l/target_vel", omni_l_target_vel, NAN);
         register_output("/leg/omni/r/target_vel", omni_r_target_vel, NAN);

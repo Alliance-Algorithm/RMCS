@@ -136,7 +136,7 @@ public:
 
         // Angle unit: rad
         int angle = raw_angle - encoder_zero_point_;
-        raw_angle_ = angle;
+        raw_angle_ = raw_angle;
         if (angle < 0)
             angle += raw_angle_max_;
         if (!multi_turn_angle_enabled_) {

@@ -51,7 +51,7 @@ public:
     }
     void command() {
         // armboard_.command();
-        // steeringboard_.command();
+        steeringboard_.command();
         legboard_.command();
     }
 
@@ -388,34 +388,34 @@ private:
             Steering_motors[0].configure(
                 device::DjiMotorConfig{device::DjiMotorType::GM6020}
                     .set_encoder_zero_point(
-                        static_cast<int>(engineer.get_parameter("steering_lf_zero_point").as_int()))
-                    .enable_multi_turn_angle());
+                        static_cast<int>(engineer.get_parameter("steering_lf_zero_point").as_int())).reverse()
+                    );
             Steering_motors[1].configure(
                 device::DjiMotorConfig{device::DjiMotorType::GM6020}
                     .set_encoder_zero_point(
                         static_cast<int>(engineer.get_parameter("steering_lb_zero_point").as_int()))
-                    .enable_multi_turn_angle());
+                    .reverse());
             Steering_motors[2].configure(
                 device::DjiMotorConfig{device::DjiMotorType::GM6020}
                     .set_encoder_zero_point(
                         static_cast<int>(engineer.get_parameter("steering_rb_zero_point").as_int()))
-                    .enable_multi_turn_angle());
+                    .reverse());
             Steering_motors[3].configure(
                 device::DjiMotorConfig{device::DjiMotorType::GM6020}
                     .set_encoder_zero_point(
                         static_cast<int>(engineer.get_parameter("steering_rf_zero_point").as_int()))
-                    .enable_multi_turn_angle());
+                    .reverse());
 
             Wheel_motors[0].configure(
-                device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(
-                    18.2));
+                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(
+                    18.2).reverse());
             Wheel_motors[1].configure(
                 device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(
                     18.2));
             Wheel_motors[2].configure(
                 device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(18.2));
             Wheel_motors[3].configure(
-                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(18.2));
+                device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(18.2));
         }
         ~SteeringBoard() final {
             uint16_t command[4];
@@ -455,19 +455,15 @@ private:
                 return;
             if (can_id == 0x205) {
                 Steering_motors[0].store_status(can_data);
-                RCLCPP_INFO(this->get_logger(), "steering0 %f", Steering_motors[0].get_angle());
             }
             if (can_id == 0x208) {
                 Steering_motors[2].store_status(can_data);
-                RCLCPP_INFO(this->get_logger(), "steering2 %f", Steering_motors[2].get_angle());
             }
             if (can_id == 0x207) {
                 Steering_motors[1].store_status(can_data);
-                RCLCPP_INFO(this->get_logger(), "steering1 %f", Steering_motors[1].get_angle());
             }
             if (can_id == 0x206) {
                 Steering_motors[3].store_status(can_data);
-                RCLCPP_INFO(this->get_logger(), "steering3 %f", Steering_motors[3].get_angle());
             }
         }
         void can1_receive_callback(
@@ -478,19 +474,15 @@ private:
 
             if (can_id == 0x204) {
                 Wheel_motors[0].store_status(can_data);
-                RCLCPP_INFO(this->get_logger(), "wheel0 %f", Wheel_motors[0].get_angle());
             }
             if (can_id == 0x201) {
                 Wheel_motors[2].store_status(can_data);
-                RCLCPP_INFO(this->get_logger(), "wheel2 %f", Wheel_motors[2].get_angle());
             }
             if (can_id == 0x203) {
                 Wheel_motors[1].store_status(can_data);
-                RCLCPP_INFO(this->get_logger(), "wheel1 %f", Wheel_motors[1].get_angle());
             }
             if (can_id == 0x202) {
                 Wheel_motors[3].store_status(can_data);
-                RCLCPP_INFO(this->get_logger(), "wheel3 %f", Wheel_motors[3].get_angle());
             }
         }
 
@@ -521,7 +513,7 @@ private:
                   {engineer, "/leg/encoder/lf"}, {engineer, "/leg/encoder/lb"},
                   {engineer, "/leg/encoder/rb"}, {engineer, "/leg/encoder/rf"})
             , big_yaw(engineer, engineer_command, "/chassis/big_yaw") 
-            , power_meter(engineer, "/chassis/power_meter"){
+            , power_meter(engineer, "/steering/power_meter"){
 
             Omni_Motors[0].configure(
                 device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(
