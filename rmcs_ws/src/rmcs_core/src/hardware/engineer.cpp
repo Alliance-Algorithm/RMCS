@@ -516,10 +516,10 @@ private:
             , power_meter(engineer, "/steering/power_meter"){
 
             Omni_Motors[0].configure(
-                device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(
+                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(
                     18.2));
             Omni_Motors[1].configure(
-                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(18.2));
+                device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(18.2));
             Leg_Motors[0].configure(
                 device::DjiMotorConfig{device::DjiMotorType::M3508}
                     .set_reduction_ratio(92.0)
