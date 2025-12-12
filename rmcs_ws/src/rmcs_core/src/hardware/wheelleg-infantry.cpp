@@ -234,10 +234,18 @@ private:
                    device::DmMotor::Config{device::DmMotor::Type::DM8009}.set_encoder_zero_point(
                        static_cast<int>(
                            infantry.get_parameter("left_back_hip_motor_zero_point").as_int()))},
-                  {infantry, infantry_command, "/chassis/right_front_hip",
-                   device::DmMotor::Config{device::DmMotor::Type::DM8009}},
                   {infantry, infantry_command, "/chassis/right_back_hip",
-                   device::DmMotor::Config{device::DmMotor::Type::DM8009}})
+                   device::DmMotor::Config{device::DmMotor::Type::DM8009}
+                       .set_encoder_zero_point(
+                           static_cast<int>(
+                               infantry.get_parameter("right_back_hip_motor_zero_point").as_int()))
+                       .set_reversed()},
+                  {infantry, infantry_command, "/chassis/right_front_hip",
+                   device::DmMotor::Config{device::DmMotor::Type::DM8009}
+                       .set_encoder_zero_point(
+                           static_cast<int>(
+                               infantry.get_parameter("right_front_hip_motor_zero_point").as_int()))
+                       .set_reversed()})
             , gimbal_yaw_motor_(
                   infantry, infantry_command, "/gimbal/yaw",
                   device::LkMotor::Config{device::LkMotor::Type::MG4010E_I10}
@@ -328,10 +336,11 @@ private:
                 0x141,
                 gimbal_yaw_motor_.generate_torque_command(gimbal_yaw_motor_.control_torque()));
 
+            transmit_buffer_.add_can1_transmission(0x03, chassis_hip_motors[2].generate_command());
+            transmit_buffer_.add_can1_transmission(0x04, chassis_hip_motors[3].generate_command());
+
             transmit_buffer_.add_can2_transmission(0x01, chassis_hip_motors[0].generate_command());
             transmit_buffer_.add_can2_transmission(0x02, chassis_hip_motors[1].generate_command());
-            transmit_buffer_.add_can2_transmission(0x03, chassis_hip_motors[2].generate_command());
-            transmit_buffer_.add_can2_transmission(0x04, chassis_hip_motors[3].generate_command());
 
             transmit_buffer_.trigger_transmission();
         }
@@ -363,14 +372,21 @@ private:
             if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
                 return;
 
-            if (can_id == 0x201) {
-                chassis_wheel_motors_[0].store_status(can_data);
-            } else if (can_id == 0x202) {
-                chassis_wheel_motors_[1].store_status(can_data);
-            } else if (can_id == 0x203) {
-                bullet_feeder_motor_.store_status(can_data);
-            } else if (can_id == 0x141) {
-                gimbal_yaw_motor_.store_status(can_data);
+            ;
+
+            // if (can_id == 0x201) {
+            //     chassis_wheel_motors_[0].store_status(can_data);
+            // } else if (can_id == 0x202) {
+            //     chassis_wheel_motors_[1].store_status(can_data);
+            // } else if (can_id == 0x203) {
+            //     bullet_feeder_motor_.store_status(can_data);
+            // } else if (can_id == 0x141) {
+            //     gimbal_yaw_motor_.store_status(can_data);
+            // } else
+            if (can_id == 0x03) {
+                chassis_hip_motors[2].store_status(can_data);
+            } else if (can_id == 0x04) {
+                chassis_hip_motors[3].store_status(can_data);
             }
         }
 
@@ -384,10 +400,6 @@ private:
                 chassis_hip_motors[0].store_status(can_data);
             } else if (can_id == 0x02) {
                 chassis_hip_motors[1].store_status(can_data);
-            } else if (can_id == 0x03) {
-                chassis_hip_motors[2].store_status(can_data);
-            } else if (can_id == 0x04) {
-                chassis_hip_motors[3].store_status(can_data);
             }
         }
 
@@ -427,7 +439,6 @@ private:
 
         device::DjiMotor chassis_wheel_motors_[2];
 
-        bool is_hips_enable_{false};
         device::DmMotor chassis_hip_motors[4];
 
         device::LkMotor gimbal_yaw_motor_;

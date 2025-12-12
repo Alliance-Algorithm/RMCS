@@ -55,12 +55,12 @@ public:
         return librmcs::device::DmMotor::generate_clear_error_command();
     }
 
-    uint64_t generate_torque_command(double control_torque) {
-        return librmcs::device::DmMotor::generate_torque_command(control_torque);
+    constexpr static uint64_t generate_disable_command() {
+        return librmcs::device::DmMotor::generate_disable_command();
     }
 
-    uint64_t generate_disable_command() {
-        return librmcs::device::DmMotor::generate_disable_command();
+    uint64_t generate_torque_command(double control_torque) {
+        return librmcs::device::DmMotor::generate_torque_command(control_torque);
     }
 
     uint64_t generate_command() {

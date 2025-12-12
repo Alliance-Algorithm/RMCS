@@ -34,6 +34,8 @@ infantry_hardware:
     pitch_motor_zero_point: 6321
     left_front_hip_motor_zero_point: 14944
     left_back_hip_motor_zero_point: 28913
+    right_back_hip_motor_zero_point: 12639
+    right_front_hip_motor_zero_point: 8753
 
 yaw_angle_pid_controller:
   ros__parameters:
