@@ -8,9 +8,11 @@
 
 #include <eigen3/Eigen/Geometry>
 
-namespace rmcs_core {
+namespace rmcs_core::tunnel_omni {
 
-struct TunnelOmniInfantryGimbal : public rmcs_executor::Component {
+struct GimbalController : public rmcs_executor::Component {
+
+    constexpr static auto kNan = std::numeric_limits<double>::quiet_NaN();
 
     rmcs_util::RclcppNode rclcpp{Component::get_component_name()};
 
@@ -63,9 +65,9 @@ struct TunnelOmniInfantryGimbal : public rmcs_executor::Component {
         }
     } output{*this};
 
-    TunnelOmniInfantryGimbal() {
-        // ...
-        rclcpp.info("Hello Gimbal Controller");
+    GimbalController() {
+        std::ignore = config.yaw_upper_limit;
+        std::ignore = config.yaw_lower_limit;
     }
 
     auto update() -> void override {
@@ -74,8 +76,6 @@ struct TunnelOmniInfantryGimbal : public rmcs_executor::Component {
             std::ignore = Tf::look_up<"pitch_link", "yaw_link", Eigen::Quaterniond>();
         }
     }
-
-    constexpr static auto kNan = std::numeric_limits<double>::quiet_NaN();
 };
 
-} // namespace rmcs_core
+} // namespace rmcs_core::tunnel_omni

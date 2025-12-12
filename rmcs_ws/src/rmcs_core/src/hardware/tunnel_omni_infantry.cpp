@@ -5,6 +5,7 @@
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/serial_interface.hpp>
 #include <rmcs_utility/framerate.hpp>
+#include <rmcs_utility/rclcpp/node.hpp>
 
 #include "description/tf/tunnel_omni_infantry.hpp"
 #include "hardware/device/bmi088.hpp"
@@ -15,18 +16,25 @@
 
 #include <ranges>
 
-namespace rmcs_core::hardware {
+namespace rmcs_core::hardware::tunnel_omni_infantry {
 
 class SlaveDevice final
     : public librmcs::client::CBoard
     , public rmcs_executor::Component {
 public:
-    explicit SlaveDevice(rmcs_executor::Component& master, rclcpp::Node& node, int usb_pid = -1)
-        : CBoard{usb_pid}
-        , logger(node.get_logger())
+    explicit SlaveDevice(rmcs_executor::Component& master, rmcs_util::RclcppNode& node)
+        : CBoard{static_cast<int>(node.params()->get_int64("usb_pid"))}
         , master{master} {
 
+        const auto& params = node.params();
+
         using namespace device;
+        try {
+            supercap = std::make_unique<Supercap>(*this, master);
+        } catch (const std::runtime_error& e) {
+            node.error("Failed to initialize supercap: {}", e.what());
+            node.error("Run without supercap");
+        }
         {
             auto config = DjiMotor::Config{DjiMotor::Type::M3508};
             config.set_reversed();
@@ -38,13 +46,15 @@ public:
         {
             auto config = LkMotor::Config{LkMotor::Type::MG5010E_I10};
             config.set_reversed();
-            config.set_encoder_zero_point(node.get_parameter_or<int>("yaw_motor_zero_point", 0));
+            config.set_encoder_zero_point(
+                static_cast<int>(params->get_int64("yaw_motor_zero_point")));
             gimbal_motor_yaw.configure(config);
         }
         {
             auto config = LkMotor::Config{LkMotor::Type::MG4010E_I10};
             config.set_reversed();
-            config.set_encoder_zero_point(node.get_parameter_or<int>("pitch_motor_zero_point", 0));
+            config.set_encoder_zero_point(
+                static_cast<int>(params->get_int64("pitch_motor_zero_point")));
             gimbal_motor_pitch.configure(config);
         }
         {
@@ -123,8 +133,9 @@ public:
             // TODO:
         }
         {
-            // supercap.update_status();
             dr16.update_status();
+            if (supercap != nullptr)
+                supercap->update_status();
         }
     }
 
@@ -142,7 +153,6 @@ public:
 private:
     TransmitBuffer transmit_buffer{*this, 32};
 
-    rclcpp::Logger logger;
     rmcs_executor::Component& master;
 
     librmcs::utility::RingBuffer<std::byte> referee_buffer{255};
@@ -156,9 +166,9 @@ private:
     };
 
     // CAN1
-    // std::uint32_t supercap_send_id{0x1FE};
-    // std::uint32_t supercap_recv_id{0x300};
-    // device::Supercap supercap{master, *this};
+    std::uint32_t supercap_send_id{0x1FE};
+    std::uint32_t supercap_recv_id{0x300};
+    std::unique_ptr<device::Supercap> supercap{};
 
     std::uint32_t chassis_wheel_motors_send_id{0x200};
     std::array<std::uint32_t, 4> chassis_wheel_motors_recv_ids{0x201, 0x202, 0x203, 0x204};
@@ -208,8 +218,8 @@ private:
             can1_ids.insert(id);
 
         if (!is_extended && !is_remote_transmission && length >= 8) {
-            // if (id == supercap_recv_id)
-            //     supercap.store_status(data);
+            if (supercap && id == supercap_recv_id)
+                supercap->store_status(data);
             if (id == chassis_wheel_motors_recv_ids.at(0))
                 chassis_wheel_motors.at(0).store_status(data);
             else if (id == chassis_wheel_motors_recv_ids.at(1))
@@ -265,8 +275,10 @@ private:
 
         if (enable_control) {
             // CAN1
-            // command.at(3) = supercap.generate_command();
-            // transmit_buffer.add_can1_transmission(supercap_send_id, command_data());
+            if (supercap != nullptr) {
+                command.at(3) = supercap->generate_command();
+                transmit_buffer.add_can1_transmission(supercap_send_id, command_data());
+            }
 
             for (auto&& [byte, motor] : std::views::zip(command, chassis_wheel_motors)) {
                 byte = motor.generate_command();
@@ -299,67 +311,69 @@ private:
     }
 };
 
-class TunnelOmniInfantry : public rmcs_executor::Component {
+class Hardware : public rmcs_executor::Component {
 public:
-    TunnelOmniInfantry() noexcept {
-        using namespace std::chrono_literals;
-        log_calibrable_device = node.get_parameter("log_calibrable_device").as_bool();
-        log_framerate.set_intetval(2s);
-
-        auto enable_control = node.get_parameter("enable_control").as_bool();
-        slave_device->set_enable_control(enable_control);
-        if (!enable_control) {
-            RCLCPP_INFO(node.get_logger(), "Use uncontrolled mode, to clibrate or debug");
-        }
-
-        log_received_can_ids = node.get_parameter("log_received_can_ids").as_bool();
-        slave_device->set_collect_can_id(log_received_can_ids);
-    }
-
-    auto update() noexcept -> void override {
-        slave_device->update_peripherals();
-
-        if (log_framerate.tick()) {
-            if (log_calibrable_device) {
-                const auto yaw = slave_device->gimbal_yaw_raw_angle();
-                const auto pitch = slave_device->gimbal_pitch_raw_angle();
-                RCLCPP_INFO(node.get_logger(), "Clibration: yaw(%5ld) pitch(%5ld)", yaw, pitch);
-            }
-            if (log_received_can_ids) {
-                auto text = std::string{};
-
-                text = std::string{"Can1 ids: "};
-                for (auto id : slave_device->get_can1_ids()) {
-                    text += std::format("0x{:X} ", id);
-                }
-                RCLCPP_INFO(node.get_logger(), "%s", text.c_str());
-
-                text = std::string{"Can2 ids: "};
-                for (auto id : slave_device->get_can2_ids()) {
-                    text += std::format("0x{:X} ", id);
-                }
-                RCLCPP_INFO(node.get_logger(), "%s", text.c_str());
-            }
-        }
-    }
-
-private:
     rmcs_util::Framerate log_framerate;
     bool log_received_can_ids = false;
     bool log_calibrable_device = false;
 
-    rclcpp::Node node{
-        Component::get_component_name(),
-        rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)};
+    rmcs_util::RclcppNode node{Component::get_component_name()};
 
     std::shared_ptr<SlaveDevice> slave_device{
         Component::create_partner_component<SlaveDevice>(
-            std::string{get_component_name() + "_slave"}, *this, node,
-            node.get_parameter_or<int>("usb_pid", -1)),
+            std::string{get_component_name() + "_slave"}, *this, node),
     };
+
+    Hardware() noexcept {
+        using namespace std::chrono_literals;
+
+        const auto& params = node.params();
+
+        log_calibrable_device = params->get_bool("log_calibrable_device");
+        log_framerate.set_intetval(2s);
+
+        auto enable_control = params->get_bool("enable_control");
+        slave_device->set_enable_control(enable_control);
+        if (!enable_control) {
+            node.info("Use uncontrolled mode, to clibrate or debug");
+        }
+
+        log_received_can_ids = params->get_bool("log_received_can_ids");
+        slave_device->set_collect_can_id(log_received_can_ids);
+    }
+
+    auto update_log_status() noexcept {
+        if (!log_framerate.tick())
+            return;
+
+        if (log_calibrable_device) {
+            const auto yaw = slave_device->gimbal_yaw_raw_angle();
+            const auto pitch = slave_device->gimbal_pitch_raw_angle();
+            node.info("Clibration: yaw{:5} pitch{:5}", yaw, pitch);
+        }
+        if (log_received_can_ids) {
+            auto text = std::string{};
+
+            text = std::string{"Can1 ids: "};
+            for (auto id : slave_device->get_can1_ids())
+                text += std::format("0x{:X} ", id);
+            node.info("{}", text);
+
+            text = std::string{"Can2 ids: "};
+            for (auto id : slave_device->get_can2_ids())
+                text += std::format("0x{:X} ", id);
+            node.info("{}", text);
+        }
+    }
+
+    auto update() noexcept -> void override {
+        slave_device->update_peripherals();
+        update_log_status();
+    }
 };
 
-} // namespace rmcs_core::hardware
+} // namespace rmcs_core::hardware::tunnel_omni_infantry
 
 #include <pluginlib/class_list_macros.hpp>
-PLUGINLIB_EXPORT_CLASS(rmcs_core::hardware::TunnelOmniInfantry, rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(
+    rmcs_core::hardware::tunnel_omni_infantry::Hardware, rmcs_executor::Component)

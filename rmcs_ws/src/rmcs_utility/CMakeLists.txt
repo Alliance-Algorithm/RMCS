@@ -21,18 +21,24 @@ file(GLOB_RECURSE PROJECT_SOURCE
     ${PROJECT_SOURCE_DIR}/include/*.cxx
     ${PROJECT_SOURCE_DIR}/include/*.cc
 )
-add_library(
-    rmcs_utility_lib
-    ${PROJECT_SOURCE}
-)
+add_library(${PROJECT_NAME} SHARED ${PROJECT_SOURCE})
 target_link_libraries(
-    rmcs_utility_lib
+    ${PROJECT_NAME}
     rclcpp::rclcpp
 )
 
 install(
-    TARGETS rmcs_utility_lib
+    TARGETS ${PROJECT_NAME}
+    EXPORT ${PROJECT_NAME}
     DESTINATION lib
+)
+
+set_target_properties(
+    ${PROJECT_NAME} PROPERTIES
+    LINKER_LANGUAGE CXX
+)
+ament_export_targets(
+    ${PROJECT_NAME} HAS_LIBRARY_TARGET
 )
 
 ament_auto_package()
@@ -43,6 +49,6 @@ add_executable(
 )
 target_link_libraries(
     test_rclcpp
-    rmcs_utility_lib
+    rmcs_utility
     rclcpp::rclcpp
 )

@@ -2,7 +2,7 @@ rmcs_executor:
   ros__parameters:
     update_rate: 1000.0
     components:
-      - rmcs_core::hardware::TunnelOmniInfantry -> tunnel_infantry_hardware
+      - rmcs_core::hardware::tunnel_omni_infantry::Hardware -> hardware
 
       # - rmcs_core::controller::gimbal::GimbalController -> gimbal_controller
       # - rmcs_core::controller::gimbal::GimbalFeedforward -> gimbal_feedward_controller
@@ -43,7 +43,7 @@ value_broadcaster:
       - /gimbal/pitch/control_velocity
       - /gimbal/pitch/velocity
 
-tunnel_infantry_hardware:
+hardware:
   ros__parameters:
     log_calibrable_device: true
     log_received_can_ids: true
