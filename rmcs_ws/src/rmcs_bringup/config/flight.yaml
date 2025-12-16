@@ -7,8 +7,10 @@ rmcs_executor:
 
       - rmcs_core::controller::gimbal::SimpleGimbalController -> gimbal_controller
       - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
-      #- rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
+      #- rmcs_core::controller::gimbal::GimbalFrequencySweep -> gimbal_frequency
+
 
       - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
       - rmcs_core::controller::shooting::HeatController -> heat_controller
@@ -54,8 +56,8 @@ tf_broadcaster:
 flight_hardware:
   ros__parameters:
     usb_pid: -1
-    yaw_motor_zero_point: 5807
-    pitch_motor_zero_point: 29303
+    yaw_motor_zero_point: 4608
+    pitch_motor_zero_point: 51629
 
 referee_status:
   ros__parameters:
@@ -63,26 +65,42 @@ referee_status:
 
 gimbal_controller:
   ros__parameters:
-    upper_limit: -0.349
-    lower_limit: 0.349
-    yaw_upper_limit: -0.5
-    yaw_lower_limit: 0.5
+    upper_limit: -0.149
+    lower_limit: 0.149
+    yaw_upper_limit: -0.349
+    yaw_lower_limit: 0.349
 
 yaw_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/yaw/control_angle_error
     control: /gimbal/yaw/control_velocity
-    kp: 0.5
+    kp: 8.0
     ki: 0.0
-    kd: 0.0
+    kd: 0.0003
+
+yaw_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/yaw/velocity_imu
+    setpoint: /gimbal/yaw/control_velocity
+    control: /gimbal/yaw/control_torque
+    kp: 1.5
+    ki: 0.0
+    kd: 0.01
 
 pitch_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/pitch/control_angle_error
     control: /gimbal/pitch/control_velocity
-    kp: 6.0
+    kp: 16.0
     ki: 0.0
     kd: 0.0
+
+# gimbal_frequency:
+#   ros__parameters:
+#     F_start: 5
+#     F_end: 50
+#     Repeat_time: 20
+
 
 friction_wheel_controller:
   ros__parameters:

@@ -67,10 +67,8 @@ public:
 
         double yaw_shift =
             joystick_sensitivity * joystick_left_->y() + mouse_sensitivity * mouse_velocity_->y();
-            // RCLCPP_INFO(get_logger(), "%lf",yaw_shift);
         double pitch_shift =
             -joystick_sensitivity * joystick_left_->x() - mouse_sensitivity * mouse_velocity_->x();
-            RCLCPP_INFO(get_logger(),"%lf",pitch_shift);
 
         return two_axis_gimbal_solver.update(
             TwoAxisGimbalSolver::SetControlShift(yaw_shift, pitch_shift));
