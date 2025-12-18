@@ -49,8 +49,8 @@ rmcs_executor:
 engineer_hardware:
   ros__parameters:
     arm_board_usb_pid: 0x1783
-    left_board_usb_pid: 0x75f3
-    right_board_usb_pid: 0xdd7a
+    left_board_usb_pid: 0x652f
+    right_board_usb_pid: 0x75f3
     joint6_zero_point: 0
     joint5_zero_point: 37361
     joint4_zero_point: 12200
