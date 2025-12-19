@@ -52,7 +52,7 @@ public:
     void command() {
         // armboard_.command();
         leftboard_.command();
-    rightboard_.command();
+        rightboard_.command();
     }
 
 private:
@@ -386,14 +386,12 @@ private:
             , Leg_Motors(
                   {engineer, engineer_command, "/leg/joint/lf"},
                   {engineer, engineer_command, "/leg/joint/lb"})
-            , Leg_ecd(
-                  {engineer, "/leg/encoder/lf"}, 
-                  {engineer, "/leg/encoder/lb"}) {
+            , Leg_ecd({engineer, "/leg/encoder/lf"}, {engineer, "/leg/encoder/lb"}) {
             Steering_motors[0].configure(
                 device::DjiMotorConfig{device::DjiMotorType::GM6020}
                     .set_encoder_zero_point(
-                        static_cast<int>(engineer.get_parameter("steering_lf_zero_point").as_int())).reverse()
-                    );
+                        static_cast<int>(engineer.get_parameter("steering_lf_zero_point").as_int()))
+                    .reverse());
             Steering_motors[1].configure(
                 device::DjiMotorConfig{device::DjiMotorType::GM6020}
                     .set_encoder_zero_point(
@@ -401,8 +399,9 @@ private:
                     .reverse());
 
             Wheel_motors[0].configure(
-                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(
-                    18.2).reverse());
+                device::DjiMotorConfig{device::DjiMotorType::M3508}
+                    .set_reduction_ratio(18.2)
+                    .reverse());
             Wheel_motors[1].configure(
                 device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(
                     18.2));
@@ -419,8 +418,7 @@ private:
                 device::EncoderConfig{}.reverse().set_encoder_zero_point(
                     static_cast<int>(engineer.get_parameter("leg_lb_ecd_zero_point").as_int())));
             Omni_Motors.configure(
-                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(
-                    18.2));
+                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(18.2));
             engineer.register_output(
                 "/leg/joint/lb/control_theta_error", leg_joint_lb_control_theta_error, NAN);
             engineer.register_output(
@@ -448,6 +446,7 @@ private:
                 ecd.update();
             }
             power_meter.update();
+             RCLCPP_INFO(this->get_logger(),"left%f %f",Leg_ecd[0].get_angle(),Leg_ecd[1].get_angle());
         }
         void command() {
             uint16_t command_[4];
@@ -456,8 +455,8 @@ private:
             static int counter = 0;
             if (counter % 2 == 0) {
                 command_[0] = 0;
-                command_[1] = Steering_motors[1].generate_command();
-                command_[2] = 0;
+                command_[1] = 0;
+                command_[2] = Steering_motors[1].generate_command();
                 command_[3] = 0;
                 transmit_buffer_.add_can2_transmission(0x1FE, std::bit_cast<uint64_t>(command_));
                 command_[0] = Steering_motors[0].generate_command();
@@ -465,7 +464,7 @@ private:
                 command_[2] = 0;
                 command_[3] = 0;
                 transmit_buffer_.add_can1_transmission(0x1FE, std::bit_cast<uint64_t>(command_));
-            } else{
+            } else {
                 command_[0] = Wheel_motors[1].generate_command();
                 command_[1] = Leg_Motors[1].generate_command();
                 *leg_joint_lb_control_theta_error =
@@ -492,6 +491,7 @@ private:
         void can1_receive_callback(
             uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
             bool is_remote_transmission, uint8_t can_data_length) override {
+            // RCLCPP_INFO(this->get_logger(), "leftcan1  %x", can_id);
             if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
                 return;
             if (can_id == 0x205) {
@@ -506,14 +506,18 @@ private:
             if (can_id == 0x203) {
                 Omni_Motors.store_status(can_data);
             }
+            if (can_id == 0x321) {
+                Leg_ecd[0].store_status(can_data);
+            }
         }
         void can2_receive_callback(
             uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
             bool is_remote_transmission, uint8_t can_data_length) override {
+            // RCLCPP_INFO(this->get_logger(), "leftcan2  %x", can_id);
             if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
                 return;
 
-            if (can_id == 0x206) {
+            if (can_id == 0x207) {
                 Steering_motors[1].store_status(can_data);
             }
             if (can_id == 0x201) {
@@ -524,6 +528,9 @@ private:
             }
             if (can_id == 0x100) {
                 power_meter.store_status(can_data);
+            }
+            if (can_id == 0x320) {
+                Leg_ecd[1].store_status(can_data);
             }
         }
 
@@ -561,10 +568,8 @@ private:
             , Leg_Motors(
                   {engineer, engineer_command, "/leg/joint/rb"},
                   {engineer, engineer_command, "/leg/joint/rf"})
-            , Leg_ecd(
-                  {engineer, "/leg/encoder/rb"}, 
-                  {engineer, "/leg/encoder/rf"})
-            , big_yaw(engineer, engineer_command, "/chassis/big_yaw"){
+            , Leg_ecd({engineer, "/leg/encoder/rb"}, {engineer, "/leg/encoder/rf"})
+            , big_yaw(engineer, engineer_command, "/chassis/big_yaw") {
             Steering_motors[0].configure(
                 device::DjiMotorConfig{device::DjiMotorType::GM6020}
                     .set_encoder_zero_point(
@@ -578,9 +583,11 @@ private:
             Wheel_motors[0].configure(
                 device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(18.2));
             Wheel_motors[1].configure(
-                device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(18.2));
+                device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(
+                    18.2));
             Omni_Motors.configure(
-                device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(18.2));
+                device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(
+                    18.2));
             Leg_Motors[0].configure(
                 device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(
                     277.6));
@@ -624,6 +631,9 @@ private:
                 ecd.update();
             }
             big_yaw.update();
+            //  RCLCPP_INFO(this->get_logger(), "rb ecd angle: %f", Leg_ecd[0].get_angle());
+            // RCLCPP_INFO(this->get_logger(), "%f", Wheel_motors[1].get_angle());
+             RCLCPP_INFO(this->get_logger()," right%f %f ",Leg_ecd[0].get_angle(),Leg_ecd[1].get_angle());
         }
 
         void command() {
@@ -633,16 +643,16 @@ private:
             static int counter = 0;
             if (counter % 2 == 0) {
                 command_[0] = 0;
-                command_[1] = Steering_motors[0].generate_command();
-                command_[2] = 0;
-                command_[3] = 0;
-                transmit_buffer_.add_can2_transmission(0x1FE, std::bit_cast<uint64_t>(command_));
-                command_[0] = Steering_motors[1].generate_command();
                 command_[1] = 0;
+                command_[2] = 0;
+                command_[3] = Steering_motors[0].generate_command();
+                transmit_buffer_.add_can2_transmission(0x1FE, std::bit_cast<uint64_t>(command_));
+                command_[0] = 0;
+                command_[1] = Steering_motors[1].generate_command();
                 command_[2] = 0;
                 command_[3] = 0;
                 transmit_buffer_.add_can1_transmission(0x1FE, std::bit_cast<uint64_t>(command_));
-            } else{
+            } else {
                 command_[0] = Wheel_motors[0].generate_command();
                 command_[1] = Leg_Motors[0].generate_command();
                 *leg_joint_rb_control_theta_error =
@@ -684,50 +694,51 @@ private:
 
     protected:
         void can1_receive_callback(
-
             uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
             bool is_remote_transmission, uint8_t can_data_length) override {
 
-          
+          //  RCLCPP_INFO(this->get_logger(), "rightcan1  %x", can_id);
             if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
                 return;
             if (can_id == 0x201) {
-                Leg_Motors[1].store_status(can_data);
+                Wheel_motors[1].store_status(can_data);
             }
             if (can_id == 0x202) {
-                Wheel_motors[1].store_status(can_data);
+                Leg_Motors[1].store_status(can_data);
             }
             if (can_id == 0x203) {
                 Omni_Motors.store_status(can_data);
             }
-            if (can_id == 0x205) {
+            if (can_id == 0x206) {
                 Steering_motors[1].store_status(can_data);
+            }
+            if (can_id == 0x322) {
+                Leg_ecd[1].store_status(can_data);
             }
         }
         void can2_receive_callback(
             uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
             bool is_remote_transmission, uint8_t can_data_length) override {
-            // RCLCPP_INFO(this->get_logger(), "%x",can_id);
+            // RCLCPP_INFO(this->get_logger(), "rightcan2  %x", can_id);
             if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]] {
-                RCLCPP_INFO(this->get_logger(), "%x", can_id);
+                // RCLCPP_INFO(this->get_logger(), "%x", can_id);
                 return;
             }
 
             if (can_id == 0x201) {
                 Wheel_motors[0].store_status(can_data);
-         
             }
             if (can_id == 0x202) {
                 Leg_Motors[0].store_status(can_data);
-            
             }
-            if (can_id == 0x206) {
+            if (can_id == 0x208) {
                 Steering_motors[0].store_status(can_data);
-              
             }
             if (can_id == 0x33) {
                 big_yaw.store_status(can_data);
-                
+            }
+            if (can_id == 0x319) {
+                Leg_ecd[0].store_status(can_data);
             }
         }
 

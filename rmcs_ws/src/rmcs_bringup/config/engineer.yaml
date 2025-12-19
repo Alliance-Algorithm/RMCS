@@ -65,10 +65,10 @@ engineer_hardware:
     steering_lb_zero_point: 1365
     steering_rb_zero_point: 0
     steering_rf_zero_point: 7444
-    leg_lf_ecd_zero_point: 108011
-    leg_lb_ecd_zero_point: 152382
-    leg_rb_ecd_zero_point: 3439
-    leg_rf_ecd_zero_point: 134825
+    leg_lf_ecd_zero_point: 109021
+    leg_lb_ecd_zero_point: 153207
+    leg_rb_ecd_zero_point: 2135
+    leg_rf_ecd_zero_point: 133400
     big_yaw_zero_point: 20485
 
 
