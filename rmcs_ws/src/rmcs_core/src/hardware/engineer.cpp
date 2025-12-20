@@ -31,7 +31,9 @@ class Engineer
     , public rclcpp::Node {
 public:
     Engineer()
-        : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
+        : Node{
+              get_component_name(),
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , logger_(get_logger())
         , engineer_command_(create_partner_component<EngineerCommand>("engineer_command", *this))
         , armboard_(
@@ -74,7 +76,9 @@ private:
     };
     std::shared_ptr<EngineerCommand> engineer_command_;
 
-    class ArmBoard final : private librmcs::client::CBoard, rclcpp::Node {
+    class ArmBoard final
+        : private librmcs::client::CBoard
+        , rclcpp::Node {
     public:
         friend class Engineer;
         explicit ArmBoard(Engineer& engineer, EngineerCommand& engineer_command, int usb_pid)
@@ -367,7 +371,9 @@ private:
         OutputInterface<double> yaw_imu_angle;
 
     } armboard_;
-    class LeftBoard final : private librmcs::client::CBoard, rclcpp::Node {
+    class LeftBoard final
+        : private librmcs::client::CBoard
+        , rclcpp::Node {
     public:
         friend class Engineer;
         explicit LeftBoard(Engineer& engineer, EngineerCommand& engineer_command, int usb_pid)
@@ -388,22 +394,16 @@ private:
                   {engineer, engineer_command, "/leg/joint/lb"})
             , Leg_ecd({engineer, "/leg/encoder/lf"}, {engineer, "/leg/encoder/lb"}) {
             Steering_motors[0].configure(
-                device::DjiMotorConfig{device::DjiMotorType::GM6020}
-                    .set_encoder_zero_point(
-                        static_cast<int>(engineer.get_parameter("steering_lf_zero_point").as_int())).reverse()
-                    );
+                device::DjiMotorConfig{device::DjiMotorType::GM6020}.reverse().set_encoder_zero_point(
+                    static_cast<int>(engineer.get_parameter("steering_lf_zero_point").as_int())));
             Steering_motors[1].configure(
-                device::DjiMotorConfig{device::DjiMotorType::GM6020}
-                    .set_encoder_zero_point(
-                        static_cast<int>(engineer.get_parameter("steering_lb_zero_point").as_int()))
-                    );
+                device::DjiMotorConfig{device::DjiMotorType::GM6020}.reverse().set_encoder_zero_point(
+                    static_cast<int>(engineer.get_parameter("steering_lb_zero_point").as_int())));
 
             Wheel_motors[0].configure(
-                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(
-                    18.2).reverse());
+                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(18.2));
             Wheel_motors[1].configure(
-                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(
-                    18.2));
+                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(18.2));
             Leg_Motors[0].configure(
                 device::DjiMotorConfig{device::DjiMotorType::M3508}
                     .set_reduction_ratio(92.0)
@@ -417,7 +417,7 @@ private:
                 device::EncoderConfig{}.reverse().set_encoder_zero_point(
                     static_cast<int>(engineer.get_parameter("leg_lb_ecd_zero_point").as_int())));
             Omni_Motors.configure(
-                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(18.2));
+                device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(18.2));
             engineer.register_output(
                 "/leg/joint/lb/control_theta_error", leg_joint_lb_control_theta_error, NAN);
             engineer.register_output(
@@ -427,6 +427,12 @@ private:
             engineer_command.register_input("/leg/enable_flag", is_leg_enable_, true);
         }
         ~LeftBoard() final {
+            uint16_t command_[4] = {0, 0, 0, 0};
+            transmit_buffer_.add_can1_transmission(0x1FE, std::bit_cast<uint64_t>(command_));
+            transmit_buffer_.add_can2_transmission(0x1FE, std::bit_cast<uint64_t>(command_));
+            transmit_buffer_.add_can2_transmission(0x200, std::bit_cast<uint64_t>(command_));
+            transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(command_));
+            transmit_buffer_.trigger_transmission();
             stop_handling_events();
             event_thread_.join();
         }
@@ -548,7 +554,9 @@ private:
         OutputInterface<double> leg_joint_lf_control_theta_error;
     } leftboard_;
 
-    class RightBoard final : private librmcs::client::CBoard, rclcpp::Node {
+    class RightBoard final
+        : private librmcs::client::CBoard
+        , rclcpp::Node {
     public:
         friend class Engineer;
         explicit RightBoard(Engineer& engineer, EngineerCommand& engineer_command, int usb_pid)
@@ -569,21 +577,17 @@ private:
             , Leg_ecd({engineer, "/leg/encoder/rb"}, {engineer, "/leg/encoder/rf"})
             , big_yaw(engineer, engineer_command, "/chassis/big_yaw") {
             Steering_motors[0].configure(
-                device::DjiMotorConfig{device::DjiMotorType::GM6020}
-                    .set_encoder_zero_point(
-                        static_cast<int>(engineer.get_parameter("steering_rb_zero_point").as_int()))
-                    );
+                device::DjiMotorConfig{device::DjiMotorType::GM6020}.reverse().set_encoder_zero_point(
+                    static_cast<int>(engineer.get_parameter("steering_rb_zero_point").as_int())));
             Steering_motors[1].configure(
-                device::DjiMotorConfig{device::DjiMotorType::GM6020}
-                    .set_encoder_zero_point(
-                        static_cast<int>(engineer.get_parameter("steering_rf_zero_point").as_int()))
-                );
+                device::DjiMotorConfig{device::DjiMotorType::GM6020}.reverse().set_encoder_zero_point(
+                    static_cast<int>(engineer.get_parameter("steering_rf_zero_point").as_int())));
             Wheel_motors[0].configure(
                 device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(18.2));
             Wheel_motors[1].configure(
-                device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(18.2));
+                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(18.2));
             Omni_Motors.configure(
-                device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(
+                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(
                     18.2));
             Leg_Motors[0].configure(
                 device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(
@@ -610,6 +614,12 @@ private:
         }
 
         ~RightBoard() final {
+            uint16_t command_[4] = {0, 0, 0, 0};
+            transmit_buffer_.add_can1_transmission(0x1FE, std::bit_cast<uint64_t>(command_));
+            transmit_buffer_.add_can2_transmission(0x1FE, std::bit_cast<uint64_t>(command_));
+            transmit_buffer_.add_can2_transmission(0x200, std::bit_cast<uint64_t>(command_));
+            transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(command_));
+            transmit_buffer_.trigger_transmission();
             stop_handling_events();
             event_thread_.join();
         }
@@ -691,7 +701,7 @@ private:
             uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
             bool is_remote_transmission, uint8_t can_data_length) override {
 
-          //  RCLCPP_INFO(this->get_logger(), "rightcan1  %x", can_id);
+            //  RCLCPP_INFO(this->get_logger(), "rightcan1  %x", can_id);
             if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
                 return;
             if (can_id == 0x201) {

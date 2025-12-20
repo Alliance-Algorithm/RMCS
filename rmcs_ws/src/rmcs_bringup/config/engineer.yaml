@@ -61,10 +61,10 @@ engineer_hardware:
     joint4_qlim: [-3.141592,3.141592]    
     joint3_qlim: [-1.0472,0.8727]    
     joint2_qlim: [-1.308,1.16719]    
-    steering_lf_zero_point: 1365
-    steering_lb_zero_point: 1365
-    steering_rb_zero_point: 0
-    steering_rf_zero_point: 7444
+    steering_lf_zero_point: 5982
+    steering_lb_zero_point: 699
+    steering_rb_zero_point: 6105
+    steering_rf_zero_point: 699
     leg_lf_ecd_zero_point: 109021
     leg_lb_ecd_zero_point: 153207
     leg_rb_ecd_zero_point: 2135
