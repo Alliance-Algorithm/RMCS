@@ -104,7 +104,9 @@ public:
             } else {
                 *is_leg_enable = true;
                 Eigen::Rotation2D<double> rotation(*chassis_big_yaw_angle + *joint1_theta);
-                Eigen::Vector2d move_ = rotation * (*joystick_left_);
+                // Eigen::Vector2d move_ = rotation * (*joystick_left_);
+
+                Eigen::Vector2d move_ = (*joystick_left_);
                 mode_selection();
                 if (*arm_mode == rmcs_msgs::ArmMode::Auto_Spin) {
                     leg_mode = rmcs_msgs::LegMode::Four_Wheel;

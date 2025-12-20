@@ -392,19 +392,19 @@ private:
             Steering_motors[0].configure(
                 device::DjiMotorConfig{device::DjiMotorType::GM6020}
                     .set_encoder_zero_point(
-                        static_cast<int>(engineer.get_parameter("steering_lf_zero_point").as_int())).reverse()
+                        static_cast<int>(engineer.get_parameter("steering_lf_zero_point").as_int()))
                     );
             Steering_motors[1].configure(
                 device::DjiMotorConfig{device::DjiMotorType::GM6020}
                     .set_encoder_zero_point(
                         static_cast<int>(engineer.get_parameter("steering_lb_zero_point").as_int()))
-                    .reverse());
+                    );
 
             Wheel_motors[0].configure(
                 device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(
-                    18.2).reverse());
+                    18.2));
             Wheel_motors[1].configure(
-                device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(
+                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(
                     18.2));
             Leg_Motors[0].configure(
                 device::DjiMotorConfig{device::DjiMotorType::M3508}
@@ -448,6 +448,7 @@ private:
                 ecd.update();
             }
             power_meter.update();
+            RCLCPP_INFO(this->get_logger(),"%d %d ",Steering_motors[0].get_raw_angle(),Steering_motors[1].get_raw_angle());
         }
         void command() {
             uint16_t command_[4];
@@ -569,16 +570,16 @@ private:
                 device::DjiMotorConfig{device::DjiMotorType::GM6020}
                     .set_encoder_zero_point(
                         static_cast<int>(engineer.get_parameter("steering_rb_zero_point").as_int()))
-                    .reverse());
+                    );
             Steering_motors[1].configure(
                 device::DjiMotorConfig{device::DjiMotorType::GM6020}
                     .set_encoder_zero_point(
                         static_cast<int>(engineer.get_parameter("steering_rf_zero_point").as_int()))
-                    .reverse());
+                );
             Wheel_motors[0].configure(
                 device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(18.2));
             Wheel_motors[1].configure(
-                device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(18.2));
+                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(18.2));
             Omni_Motors.configure(
                 device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(18.2));
             Leg_Motors[0].configure(
@@ -624,6 +625,8 @@ private:
                 ecd.update();
             }
             big_yaw.update();
+                        RCLCPP_INFO(this->get_logger(),"dffsf%d %d ",Steering_motors[0].get_raw_angle(),Steering_motors[1].get_raw_angle());
+
         }
 
         void command() {
