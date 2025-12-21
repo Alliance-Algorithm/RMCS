@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <eigen3/Eigen/Dense>
+#include <eigen3/Eigen/src/Core/Matrix.h>
 
 namespace rmcs_core::controller::chassis {
 class VmcSolver {
@@ -12,6 +13,11 @@ public:
         , l3_(l2)
         , l4_(l1)
         , l5_(l5) {}
+
+    void reset() {
+        tilt_angle_ = nan_;
+        leg_length_ = nan_;
+    }
 
     Eigen::Vector2d update(double phi1, double phi4) {
         if (std::isnan(phi1) || std::isnan(phi4)) {
@@ -24,20 +30,15 @@ public:
         return get_leg_posture();
     }
 
-    Eigen::Vector2d get_joint_torque(double F, double Tp) {
+    Eigen::Vector2d update_joint_torque(double F, double Tp) {
         return joint_torque_matrix_ * Eigen::Vector2d{F, Tp};
     }
 
-    Eigen::Vector2d get_virtual_torque(double T1, double T2) {
+    Eigen::Vector2d update_virtual_torque(double T1, double T2) {
         return joint_torque_matrix_.inverse() * Eigen::Vector2d{T1, T2};
     }
 
 private:
-    void reset() {
-        tilt_angle_ = nan_;
-        leg_length_ = nan_;
-    }
-
     void calculate_five_link_solution(double phi1, double phi4) {
         // The coordinate system and variable definitions are referenced from the Zhihu article:
         // https://zhuanlan.zhihu.com/p/613007726
@@ -74,10 +75,12 @@ private:
             {j21, j22}
         };
         auto rotation_matrix = Eigen::Rotation2Dd(phi0 - pi_ / 2.0);
-        Eigen::Matrix2d transform_matrix = Eigen::Vector2d{-1 / leg_length_, 1}.asDiagonal();
+        auto transform_matrix = Eigen::Matrix2d{
+            {0, -1 / leg_length_},
+            {1,                0}
+        };
 
-        joint_torque_matrix_ =
-            jacobian_matrix.transpose() * rotation_matrix * transform_matrix.transpose();
+        joint_torque_matrix_ = jacobian_matrix.transpose() * rotation_matrix * transform_matrix;
     }
 
     Eigen::Vector2d get_leg_posture() const { return Eigen::Vector2d{leg_length_, tilt_angle_}; }
