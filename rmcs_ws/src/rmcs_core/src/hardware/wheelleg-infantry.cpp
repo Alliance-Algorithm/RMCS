@@ -49,9 +49,9 @@ public:
 
 private:
     void gimbal_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
-        RCLCPP_INFO(
-            logger_, "[gimbal calibration] New yaw offset: %ld",
-            bottom_board_->gimbal_yaw_motor_.calibrate_zero_point());
+        // RCLCPP_INFO(
+        //     logger_, "[gimbal calibration] New yaw offset: %ld",
+        //     bottom_board_->gimbal_yaw_motor_.calibrate_zero_point());
         // RCLCPP_INFO(
         //     logger_, "[gimbal calibration] New pitch offset: %ld",
         //     top_board_->gimbal_pitch_motor_.calibrate_zero_point());
@@ -220,7 +220,8 @@ private:
                   {infantry, infantry_command, "/chassis/left_wheel",
                    device::DjiMotor::Config{device::DjiMotor::Type::M3508}
                        .set_reduction_ratio(13.0)
-                       .enable_multi_turn_angle()},
+                       .enable_multi_turn_angle()
+                       .set_reversed()},
                   {infantry, infantry_command, "/chassis/right_wheel",
                    device::DjiMotor::Config{device::DjiMotor::Type::M3508}
                        .set_reduction_ratio(13.0)
@@ -326,21 +327,19 @@ private:
             uint16_t control_commands[4]{};
 
             control_commands[0] = chassis_wheel_motors_[0].generate_command();
-            control_commands[1] = chassis_wheel_motors_[1].generate_command();
-            control_commands[3] = bullet_feeder_motor_.generate_command();
-
             transmit_buffer_.add_can1_transmission(
                 0x200, std::bit_cast<uint64_t>(control_commands));
 
-            transmit_buffer_.add_can1_transmission(
-                0x141,
-                gimbal_yaw_motor_.generate_torque_command(gimbal_yaw_motor_.control_torque()));
+            transmit_buffer_.add_can1_transmission(0x01, chassis_hip_motors[0].generate_command());
+            transmit_buffer_.add_can1_transmission(0x02, chassis_hip_motors[1].generate_command());
 
-            transmit_buffer_.add_can1_transmission(0x03, chassis_hip_motors[2].generate_command());
-            transmit_buffer_.add_can1_transmission(0x04, chassis_hip_motors[3].generate_command());
+            control_commands[0] = 0;
+            control_commands[1] = chassis_wheel_motors_[1].generate_command();
+            transmit_buffer_.add_can2_transmission(
+                0x200, std::bit_cast<uint64_t>(control_commands));
 
-            transmit_buffer_.add_can2_transmission(0x01, chassis_hip_motors[0].generate_command());
-            transmit_buffer_.add_can2_transmission(0x02, chassis_hip_motors[1].generate_command());
+            transmit_buffer_.add_can2_transmission(0x03, chassis_hip_motors[2].generate_command());
+            transmit_buffer_.add_can2_transmission(0x04, chassis_hip_motors[3].generate_command());
 
             transmit_buffer_.trigger_transmission();
         }
@@ -372,21 +371,12 @@ private:
             if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
                 return;
 
-            ;
-
-            // if (can_id == 0x201) {
-            //     chassis_wheel_motors_[0].store_status(can_data);
-            // } else if (can_id == 0x202) {
-            //     chassis_wheel_motors_[1].store_status(can_data);
-            // } else if (can_id == 0x203) {
-            //     bullet_feeder_motor_.store_status(can_data);
-            // } else if (can_id == 0x141) {
-            //     gimbal_yaw_motor_.store_status(can_data);
-            // } else
-            if (can_id == 0x03) {
-                chassis_hip_motors[2].store_status(can_data);
-            } else if (can_id == 0x04) {
-                chassis_hip_motors[3].store_status(can_data);
+            if (can_id == 0x201) {
+                chassis_wheel_motors_[0].store_status(can_data);
+            } else if (can_id == 0x01) {
+                chassis_hip_motors[0].store_status(can_data);
+            } else if (can_id == 0x02) {
+                chassis_hip_motors[1].store_status(can_data);
             }
         }
 
@@ -396,10 +386,12 @@ private:
             if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
                 return;
 
-            if (can_id == 0x01) {
-                chassis_hip_motors[0].store_status(can_data);
-            } else if (can_id == 0x02) {
-                chassis_hip_motors[1].store_status(can_data);
+            if (can_id == 0x202) {
+                chassis_wheel_motors_[1].store_status(can_data);
+            } else if (can_id == 0x03) {
+                chassis_hip_motors[2].store_status(can_data);
+            } else if (can_id == 0x04) {
+                chassis_hip_motors[3].store_status(can_data);
             }
         }
 
