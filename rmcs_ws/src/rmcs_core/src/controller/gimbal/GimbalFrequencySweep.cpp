@@ -163,10 +163,10 @@ private:
     double last_time = 0.0;
     double current;
 
-    float f_now = 5.0;
+    float f_now = 1.0;
     int i       = 0;
 
-    static constexpr int F_start     = 5;
+    static constexpr int F_start     = 1;
     static constexpr int F_end       = 50;
     static constexpr int Repeat_time = 20;
     static constexpr double Pi       = 3.1415926;
