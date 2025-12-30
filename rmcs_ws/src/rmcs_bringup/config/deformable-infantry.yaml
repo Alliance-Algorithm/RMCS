@@ -1,0 +1,156 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::hardware::DeformableInfantry -> deformable_infantry
+      - rmcs_core::controller::chassis::ChassisTestController -> chassis_test
+      - rmcs_core::controller::smc::SlidingModeController -> smc_controller0
+      - rmcs_core::controller::smc::SlidingModeController -> smc_controller1
+      - rmcs_core::controller::smc::SlidingModeController -> smc_controller2
+      - rmcs_core::controller::smc::SlidingModeController -> smc_controller3
+
+      - rmcs_core::controller::smc::GimbalObserver -> GimbalObserver0
+      - rmcs_core::controller::smc::GimbalObserver -> GimbalObserver1
+      - rmcs_core::controller::smc::GimbalObserver -> GimbalObserver2
+      - rmcs_core::controller::smc::GimbalObserver -> GimbalObserver3
+      - rmcs_core::broadcaster::ValueBroadcaster -> broadcaster
+
+      - rmcs_core::referee::Status -> referee_status
+      - rmcs_core::referee::Command -> referee_command
+
+      - rmcs_core::controller::chassis::ChassisController -> chassis_controller
+      - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
+      - rmcs_core::controller::chassis::DeformableChassisController -> deformable_chassis_controller
+
+deformable_infantry:
+  ros__parameters:
+    usb_pid: -1
+
+chassis_test:
+  ros__parameters:
+    min_angle_: 15
+    max_angle_: 55
+    left_front_joint_offset: 0.0
+    left_back_joint_offset: 0.0
+    right_back_joint_offset: 0.0
+    right_front_joint_offset: 0.0
+    Rod_relative_horizontal_coordinate: -9.5
+    Rod_relative_longitudinal_coordinate: 90.0
+    Rod_length: 100.0
+
+smc_controller0:
+  ros__parameters:
+    c: 2.0
+    epsilon: 1.0
+    k: 6.0
+    phi: 0.5
+    J: 2.0
+    B: 0.5
+    gear_ratio: 25.99
+    angle_error: /chassis/left_front_joint/control_angle_error
+    current_velocity: /chassis/left_front_joint/velocity
+    target_velocity: /chassis/left_front_joint/expect_velocity
+    target_acceleration: /chassis/left_front_joint/expect_acceleration
+    control_torque: /chassis/left_front_joint/control_torque
+
+smc_controller1:
+  ros__parameters:
+    c: 2.0
+    epsilon: 1.0
+    k: 6.0
+    phi: 0.5
+    J: 2.0
+    B: 0.5
+    gear_ratio: 25.99
+    angle_error: /chassis/left_back_joint/control_angle_error
+    current_velocity: /chassis/left_back_joint/velocity
+    target_velocity: /chassis/left_back_joint/expect_velocity
+    target_acceleration: /chassis/left_back_joint/expect_acceleration
+    control_torque: /chassis/left_back_joint/control_torque
+
+smc_controller2:
+  ros__parameters:
+    c: 2.0
+    epsilon: 1.0
+    k: 6.0
+    phi: 0.5
+    J: 2.0
+    B: 0.5
+    gear_ratio: 25.99
+    angle_error: /chassis/right_back_joint/control_angle_error
+    current_velocity: /chassis/right_back_joint/velocity
+    target_velocity: /chassis/right_back_joint/expect_velocity
+    target_acceleration: /chassis/right_back_joint/expect_acceleration
+    control_torque: /chassis/right_back_joint/control_torque
+
+smc_controller3:
+  ros__parameters:
+    c: 2.0
+    epsilon: 1.0
+    k: 6.0
+    phi: 0.5
+    J: 2.0
+    B: 0.5
+    gear_ratio: 25.99
+    angle_error: /chassis/right_front_joint/control_angle_error
+    current_velocity: /chassis/right_front_joint/velocity
+    target_velocity: /chassis/right_front_joint/expect_velocity
+    target_acceleration: /chassis/right_front_joint/expect_acceleration
+    control_torque: /chassis/right_front_joint/control_torque
+
+GimbalObserver0:
+  ros__parameters:
+    velocity_limit: 10.0
+    acceleration_limit: 5.0
+    control_error: /chassis/left_front_joint/control_angle_error
+    velocity: /chassis/left_front_joint/velocity
+    yaw_expect_velocity_: /chassis/left_front_joint/expect_velocity
+    yaw_expect_acceleration_: /chassis/left_front_joint/expect_acceleration
+
+GimbalObserver1:
+  ros__parameters:
+    velocity_limit: 10.0
+    acceleration_limit: 5.0
+    control_error: /chassis/left_back_joint/control_angle_error
+    velocity: /chassis/left_back_joint/velocity
+    yaw_expect_velocity_: /chassis/left_back_joint/expect_velocity
+    yaw_expect_acceleration_: /chassis/left_back_joint/expect_acceleration
+
+GimbalObserver2:
+  ros__parameters:
+    velocity_limit: 10.0
+    acceleration_limit: 5.0
+    control_error: /chassis/right_front_joint/control_angle_error
+    velocity: /chassis/right_front_joint/velocity
+    yaw_expect_velocity_: /chassis/right_front_joint/expect_velocity
+    yaw_expect_acceleration_: /chassis/right_front_joint/expect_acceleration
+
+GimbalObserver3:
+  ros__parameters:
+    velocity_limit: 10.0
+    acceleration_limit: 5.0
+    control_error: /chassis/right_back_joint/control_angle_error
+    velocity: /chassis/right_back_joint/velocity
+    yaw_expect_velocity_: /chassis/right_back_joint/expect_velocity
+    yaw_expect_acceleration_: /chassis/right_back_joint/expect_acceleration
+
+broadcaster:
+  ros__parameters:
+    forward_list:
+      - /chassis/left_front_joint/encoder_angle
+      - /chassis/left_back_joint/encoder_angle
+      - /chassis/right_front_joint/encoder_angle
+      - /chassis/right_back_joint/encoder_angle
+      - /target/input
+
+deformable_chassis_controller:
+  ros__parameters:
+    mess: 19.0
+    moment_of_inertia: 1.0
+    chassis_radius: 0.1682136321
+    rod_length: 0.190
+    wheel_radius: 0.055
+    friction_coefficient: 0.6
+    k1: 2.958580e+00
+    k2: 3.082190e-03
+    no_load_power: 11.37
