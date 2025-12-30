@@ -54,6 +54,9 @@ public:
         register_output("/chassis/right_front_joint/control_angle_error", rf_angle_error_, nan_);
         register_output("/chassis/right_back_joint/control_angle_error", rb_angle_error_, nan_);
 
+        register_output("/chassis/processed_encoder/angle", processed_encoder_angle_, nan_);*processed_encoder_angle_ = nan_;
+
+
         *mode_ = rmcs_msgs::ChassisMode::AUTO;
         chassis_control_velocity_->vector << nan_, nan_, nan_;
 
@@ -220,6 +223,8 @@ private:
         const double alpha_rb =
             wrap_deg(right_back_joint_offset_ - *right_back_joint_angle_);
 
+        *processed_encoder_angle_ = (s_lf_ + s_lb_ + s_rf_ + s_rb_) / 4.0;
+
         s_lf_ = trapezoidal_calculator(alpha_lf);
         s_lb_ = trapezoidal_calculator(alpha_lb);
         s_rf_ = trapezoidal_calculator(alpha_rf);
@@ -304,6 +309,8 @@ private:
     OutputInterface<double> lb_angle_error_;
     OutputInterface<double> rf_angle_error_;
     OutputInterface<double> rb_angle_error_;
+
+    OutputInterface<double> processed_encoder_angle_;
 
     double min_angle_;
     double max_angle_;

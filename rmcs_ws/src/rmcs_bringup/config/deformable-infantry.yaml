@@ -13,7 +13,6 @@ rmcs_executor:
       - rmcs_core::controller::smc::GimbalObserver -> GimbalObserver1
       - rmcs_core::controller::smc::GimbalObserver -> GimbalObserver2
       - rmcs_core::controller::smc::GimbalObserver -> GimbalObserver3
-      - rmcs_core::broadcaster::ValueBroadcaster -> broadcaster
 
       - rmcs_core::referee::Status -> referee_status
       - rmcs_core::referee::Command -> referee_command
@@ -25,6 +24,13 @@ rmcs_executor:
 deformable_infantry:
   ros__parameters:
     usb_pid: -1
+    usb_pid_left_board: 0xf7b6 
+    usb_pid_right_board: 0xab05
+    left_front_zero_point: 7848
+    left_back_zero_point: 5770
+    right_back_zero_point: 2380
+    right_front_zero_point: 1705
+
 
 chassis_test:
   ros__parameters:
@@ -133,15 +139,6 @@ GimbalObserver3:
     velocity: /chassis/right_back_joint/velocity
     yaw_expect_velocity_: /chassis/right_back_joint/expect_velocity
     yaw_expect_acceleration_: /chassis/right_back_joint/expect_acceleration
-
-broadcaster:
-  ros__parameters:
-    forward_list:
-      - /chassis/left_front_joint/encoder_angle
-      - /chassis/left_back_joint/encoder_angle
-      - /chassis/right_front_joint/encoder_angle
-      - /chassis/right_back_joint/encoder_angle
-      - /target/input
 
 deformable_chassis_controller:
   ros__parameters:
