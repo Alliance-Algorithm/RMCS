@@ -65,6 +65,12 @@
   <class type="rmcs_core::controller::pid::FeedforwardPidController" base_class_type="rmcs_executor::Component">
     <description>Feedforward pid controller.</description>
   </class>
+  <class type="rmcs_core::controller::smc::SlidingModeController" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
+  <class type="rmcs_core::controller::smc::GimbalObserver" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
   <class type="rmcs_core::broadcaster::TfBroadcaster" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>

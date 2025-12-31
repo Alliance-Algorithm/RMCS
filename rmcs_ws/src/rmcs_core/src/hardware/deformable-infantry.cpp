@@ -80,13 +80,13 @@ private:
     void joint_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
         if (left_board_) {
             RCLCPP_INFO(get_logger(), "[joint calibration] New left front offset: %f",
-                        left_board_->chassis_joint_motors_[0].encoder_angle());
+                        left_board_->chassis_joint_motors_[0].angle());
             RCLCPP_INFO(get_logger(), "[joint calibration] New left back offset: %f",
-                        left_board_->chassis_joint_motors_[1].encoder_angle());
+                        left_board_->chassis_joint_motors_[1].angle());
             RCLCPP_INFO(get_logger(), "[joint calibration] New right back offset: %f",
-                        right_board_->chassis_joint_motors_[2].encoder_angle());
+                        right_board_->chassis_joint_motors_[2].angle());
             RCLCPP_INFO(get_logger(), "[joint calibration] New right front offset: %f",
-                        right_board_->chassis_joint_motors_[3].encoder_angle());
+                        right_board_->chassis_joint_motors_[3].angle());
         }
     }
 
