@@ -144,7 +144,7 @@ private:
 
         // 写入数据
         csv_file_ << *yaw_velocity_ << " " << current << "\n";
-        RCLCPP_INFO(get_logger(), "%d", i++);
+        //RCLCPP_INFO(get_logger(), "%d", i++);
         // 定期刷新缓冲区以确保
         static int count = 0;
         if (++count % 100 == 0) {
