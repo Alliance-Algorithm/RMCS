@@ -22,7 +22,8 @@ public:
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , two_axis_gimbal_solver(
               *this, get_parameter("upper_limit").as_double(),
-              get_parameter("lower_limit").as_double()) {
+              get_parameter("lower_limit").as_double(),get_parameter("yaw_upper_limit").as_double()
+            ,get_parameter("yaw_lower_limit").as_double()) {
 
         register_input("/remote/joystick/left", joystick_left_);
         register_input("/remote/switch/right", switch_right_);

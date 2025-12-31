@@ -8,6 +8,9 @@
   <class type="rmcs_core::hardware::Hero" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
+  <class type="rmcs_core::hardware::Flight" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
   <class type="rmcs_core::hardware::SteeringHero" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
@@ -67,6 +70,9 @@
   </class>
   <class type="rmcs_core::broadcaster::TfBroadcaster" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
+  </class>
+  <class type="GimbalTfPublisher" base_class_type="rmcs_executor::Component">
+    <description>Dynamic TF publisher for gimbal coordinate frames</description>
   </class>
   <class type="rmcs_core::broadcaster::ValueBroadcaster" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
