@@ -96,41 +96,41 @@ public:
             return;
         }
 
-        calculate_vehicle_radius();
-        integral_yaw_angle_imu();
+        // calculate_vehicle_radius();
+        // integral_yaw_angle_imu();
 
-        const Eigen::Matrix<double, 4, 2> v_mech = update_mech_wheel_velocity_();
+        // const Eigen::Matrix<double, 4, 2> v_mech = update_mech_wheel_velocity_();
         
-        auto steering_status = calculate_steering_status();
-        auto wheel_velocities = calculate_wheel_velocities();
-        auto chassis_velocity = calculate_chassis_velocity(steering_status, wheel_velocities, v_mech);
+        // auto steering_status = calculate_steering_status();
+        // auto wheel_velocities = calculate_wheel_velocities();
+        // auto chassis_velocity = calculate_chassis_velocity(steering_status, wheel_velocities, v_mech);
 
-        auto chassis_status_expected = calculate_chassis_status_expected(chassis_velocity,v_mech);
-        auto chassis_control_velocity = calculate_chassis_control_velocity();
+        // auto chassis_status_expected = calculate_chassis_status_expected(chassis_velocity,v_mech);
+        // auto chassis_control_velocity = calculate_chassis_control_velocity();
 
-        auto chassis_acceleration = calculate_chassis_control_acceleration(
-            chassis_status_expected.velocity, chassis_control_velocity);
+        // auto chassis_acceleration = calculate_chassis_control_acceleration(
+        //     chassis_status_expected.velocity, chassis_control_velocity);
 
-        double power_limit =
-            *power_limit_ - no_load_power_ - k2_ * wheel_velocities.array().pow(2).sum();
+        // double power_limit =
+        //     *power_limit_ - no_load_power_ - k2_ * wheel_velocities.array().pow(2).sum();
 
-        auto wheel_pid_torques =
-            calculate_wheel_pid_torques(steering_status, wheel_velocities, chassis_status_expected);
+        // auto wheel_pid_torques =
+        //     calculate_wheel_pid_torques(steering_status, wheel_velocities, chassis_status_expected);
 
-        auto constrained_chassis_acceleration = constrain_chassis_control_acceleration(
-            steering_status, wheel_velocities, chassis_acceleration, wheel_pid_torques,
-            power_limit);
-        auto filtered_chassis_acceleration =
-            odom_to_base_link_vector(control_acceleration_filter_.update(
-                base_link_to_odom_vector(constrained_chassis_acceleration)));
+        // auto constrained_chassis_acceleration = constrain_chassis_control_acceleration(
+        //     steering_status, wheel_velocities, chassis_acceleration, wheel_pid_torques,
+        //     power_limit);
+        // auto filtered_chassis_acceleration =
+        //     odom_to_base_link_vector(control_acceleration_filter_.update(
+        //         base_link_to_odom_vector(constrained_chassis_acceleration)));
 
-        auto steering_torques = calculate_steering_control_torques(
-            steering_status, chassis_status_expected, filtered_chassis_acceleration);
-        auto wheel_torques = calculate_wheel_control_torques(
-            steering_status, filtered_chassis_acceleration, wheel_pid_torques);
+        // auto steering_torques = calculate_steering_control_torques(
+        //     steering_status, chassis_status_expected, filtered_chassis_acceleration);
+        // auto wheel_torques = calculate_wheel_control_torques(
+        //     steering_status, filtered_chassis_acceleration, wheel_pid_torques);
 
-        update_control_torques(steering_torques, wheel_torques);
-        update_chassis_velocity_expected(filtered_chassis_acceleration);
+        // update_control_torques(steering_torques, wheel_torques);
+        // update_chassis_velocity_expected(filtered_chassis_acceleration);
     }
 
 private:
@@ -507,6 +507,8 @@ private:
             // col 0: vx, col 1: vy
         v_mech.col(0) = v * cos_varphi_;
         v_mech.col(1) = v * sin_varphi_;
+        // v_mech.col(0) = 0.0 * cos_varphi_;
+        // v_mech.col(1) = 0.0 * sin_varphi_;
         return v_mech;
     }
 

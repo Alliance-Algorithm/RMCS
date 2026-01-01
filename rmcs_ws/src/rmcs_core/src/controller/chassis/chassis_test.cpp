@@ -209,21 +209,16 @@ private:
     }
 
     void update_lift_angle_error() {
-        if (!test_init_) {
-            init_calculator();
-            test_init_ = true;
-        }
-
         s_target_ = trapezoidal_calculator(current_target_angle_);
 
         const double alpha_lf =
-            wrap_deg(left_front_joint_offset_ - *left_front_joint_angle_);
-        const double alpha_lb =
-            wrap_deg(left_back_joint_offset_ - *left_back_joint_angle_);
+            wrap_deg(left_front_joint_offset_ - *left_front_joint_angle_) + 59.0;
+        const double alpha_lb = 
+            wrap_deg(left_back_joint_offset_ - *left_back_joint_angle_) + 59.0;
         const double alpha_rf =
-            wrap_deg(right_front_joint_offset_ - *right_front_joint_angle_);
+            wrap_deg(right_front_joint_offset_ - *right_front_joint_angle_) + 59.0;
         const double alpha_rb =
-            wrap_deg(right_back_joint_offset_ - *right_back_joint_angle_);
+            wrap_deg(right_back_joint_offset_ - *right_back_joint_angle_) + 59.0;
 
         *processed_encoder_angle_ = (alpha_lb + alpha_lf + alpha_rf + alpha_rb) / 4.0;
 

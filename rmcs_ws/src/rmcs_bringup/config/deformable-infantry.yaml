@@ -19,13 +19,13 @@ rmcs_executor:
 
       - rmcs_core::controller::chassis::ChassisTestController -> chassis_test
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
-      # - rmcs_core::controller::chassis::DeformableChassisController -> deformable_chassis_controller
+      - rmcs_core::controller::chassis::DeformableChassisController -> deformable_chassis_controller
 
 deformable_infantry:
   ros__parameters:
     usb_pid: -1
-    usb_pid_left_board: 0xf7b6 
-    usb_pid_right_board: 0xab05
+    usb_pid_left_board: 0xab05
+    usb_pid_right_board: 0xf7b6
     left_front_zero_point: 7848
     left_back_zero_point: 5770
     right_back_zero_point: 2380
@@ -35,10 +35,10 @@ chassis_test:
   ros__parameters:
     min_angle_: 15
     max_angle_: 55
-    left_front_joint_offset: 0.0
-    left_back_joint_offset: 0.0
-    right_back_joint_offset: 0.0
-    right_front_joint_offset: 0.0
+    left_front_joint_offset: 341.701991
+    left_back_joint_offset: 318.811627
+    right_back_joint_offset: 96.906386
+    right_front_joint_offset: 209.913481
     Rod_relative_horizontal_coordinate: -9.5
     Rod_relative_longitudinal_coordinate: 90.0
     Rod_length: 100.0
@@ -125,19 +125,19 @@ smc_observer2:
   ros__parameters:
     velocity_limit: 10.0
     acceleration_limit: 5.0
-    control_error: /chassis/right_front_joint/control_angle_error
-    velocity: /chassis/right_front_joint/velocity
-    yaw_expect_velocity_: /chassis/right_front_joint/expect_velocity
-    yaw_expect_acceleration_: /chassis/right_front_joint/expect_acceleration
+    control_error: /chassis/right_back_joint/control_angle_error
+    velocity: /chassis/right_back_joint/velocity
+    yaw_expect_velocity_: /chassis/right_back_joint/expect_velocity
+    yaw_expect_acceleration_: /chassis/right_back_joint/expect_acceleration
 
 smc_observer3:
   ros__parameters:
     velocity_limit: 10.0
     acceleration_limit: 5.0
-    control_error: /chassis/right_back_joint/control_angle_error
-    velocity: /chassis/right_back_joint/velocity
-    yaw_expect_velocity_: /chassis/right_back_joint/expect_velocity
-    yaw_expect_acceleration_: /chassis/right_back_joint/expect_acceleration
+    control_error: /chassis/right_front_joint/control_angle_error
+    velocity: /chassis/right_front_joint/velocity
+    yaw_expect_velocity_: /chassis/right_front_joint/expect_velocity
+    yaw_expect_acceleration_: /chassis/right_front_joint/expect_acceleration
 
 deformable_chassis_controller:
   ros__parameters:

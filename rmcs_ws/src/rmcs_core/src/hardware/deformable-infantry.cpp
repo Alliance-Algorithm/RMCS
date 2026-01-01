@@ -131,9 +131,9 @@ private:
                                    "/chassis/left_back_steering"}}
             , chassis_joint_motors_{
                   device::DjiMotor{deformableInfantry, deformableInfantry_command,
-                                   "/chassis/left_back_joint"},
+                                   "/chassis/left_front_joint"},
                   device::DjiMotor{deformableInfantry, deformableInfantry_command,
-                                   "/chassis/left_front_joint"}}
+                                   "/chassis/left_back_joint"}}
             , transmit_buffer_(*this, 32)
             , event_thread_([this]() { handle_events(); }) {
 
@@ -248,7 +248,7 @@ private:
             if (is_extended_can_id || is_remote_transmission || can_data_length < 8)
                 return;
 
-            if (can_id == 0x201) chassis_wheel_motors_[1].store_status(can_data);
+            if (can_id == 0x203) chassis_wheel_motors_[1].store_status(can_data);
             else if (can_id == 0x202) chassis_joint_motors_[1].store_status(can_data);
             else if (can_id == 0x206) chassis_steer_motors_[1].store_status(can_data);
         }
@@ -357,32 +357,32 @@ private:
         void command_update() {
             uint16_t can_commands[4];
 
-            can_commands[0] = chassis_wheel_motors_[0].generate_command();
-            can_commands[1] = chassis_joint_motors_[0].generate_command();
+            can_commands[0] = chassis_wheel_motors_[1].generate_command();
+            can_commands[1] = chassis_joint_motors_[1].generate_command();
             can_commands[2] = 0;
             can_commands[3] = 0;
             transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(can_commands));
 
-            can_commands[0] = chassis_steer_motors_[0].generate_command();
+            can_commands[0] = chassis_steer_motors_[1].generate_command();
             can_commands[1] = 0;
             can_commands[2] = 0;
             can_commands[3] = 0;
             transmit_buffer_.add_can1_transmission(0x1FE, std::bit_cast<uint64_t>(can_commands));
 
-            can_commands[0] = chassis_wheel_motors_[1].generate_command();
-            can_commands[1] = chassis_joint_motors_[1].generate_command();
+            can_commands[0] = chassis_wheel_motors_[0].generate_command();
+            can_commands[1] = chassis_joint_motors_[0].generate_command();
             can_commands[2] = 0;
             can_commands[3] = 0;
             transmit_buffer_.add_can2_transmission(0x200, std::bit_cast<uint64_t>(can_commands));
 
             can_commands[0] = 0;
-            can_commands[1] = chassis_steer_motors_[1].generate_command();
+            can_commands[1] = chassis_steer_motors_[0].generate_command();
             can_commands[2] = 0;
             can_commands[3] = 0;
             transmit_buffer_.add_can2_transmission(0x1FE, std::bit_cast<uint64_t>(can_commands));
 
             uint16_t cap_cmd[4] = {0, 0, 0, static_cast<uint16_t>(supercap_.generate_command())};
-            transmit_buffer_.add_can1_transmission(0x1FE, std::bit_cast<uint64_t>(cap_cmd));
+            transmit_buffer_.add_can2_transmission(0x1FE, std::bit_cast<uint64_t>(cap_cmd));
 
             transmit_buffer_.trigger_transmission();
         }
@@ -395,7 +395,7 @@ private:
 
             if (can_id == 0x201) chassis_wheel_motors_[0].store_status(can_data);
             else if (can_id == 0x202) chassis_joint_motors_[0].store_status(can_data);
-            else if (can_id == 0x205) chassis_steer_motors_[0].store_status(can_data);
+            else if (can_id == 0x208) chassis_steer_motors_[1].store_status(can_data);
             else if (can_id == 0x300) supercap_.store_status(can_data);
         }
 
@@ -407,7 +407,7 @@ private:
 
             if (can_id == 0x201) chassis_wheel_motors_[1].store_status(can_data);
             else if (can_id == 0x202) chassis_joint_motors_[1].store_status(can_data);
-            else if (can_id == 0x206) chassis_steer_motors_[1].store_status(can_data);
+            else if (can_id == 0x207) chassis_steer_motors_[0].store_status(can_data);
         }
 
     private:
