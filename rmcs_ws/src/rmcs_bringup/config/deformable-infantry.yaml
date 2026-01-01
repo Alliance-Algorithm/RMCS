@@ -3,21 +3,24 @@ rmcs_executor:
     update_rate: 1000.0
     components:
       - rmcs_core::hardware::DeformableInfantry -> deformable_infantry
+
+      - rmcs_core::referee::Status -> referee_status
+      - rmcs_core::referee::Command -> referee_command
+
       - rmcs_core::controller::chassis::ChassisTestController -> chassis_test
       - rmcs_core::controller::smc::SlidingModeController -> smc_controller0
       - rmcs_core::controller::smc::SlidingModeController -> smc_controller1
       - rmcs_core::controller::smc::SlidingModeController -> smc_controller2
       - rmcs_core::controller::smc::SlidingModeController -> smc_controller3
 
-      - rmcs_core::controller::smc::GimbalObserver -> GimbalObserver0
-      - rmcs_core::controller::smc::GimbalObserver -> GimbalObserver1
-      - rmcs_core::controller::smc::GimbalObserver -> GimbalObserver2
-      - rmcs_core::controller::smc::GimbalObserver -> GimbalObserver3
+      - rmcs_core::controller::smc::Smc_Observer -> smc_observer0
+      - rmcs_core::controller::smc::Smc_Observer -> smc_observer1
+      - rmcs_core::controller::smc::Smc_Observer -> smc_observer2
+      - rmcs_core::controller::smc::Smc_Observer -> smc_observer3
 
       - rmcs_core::referee::Status -> referee_status
       - rmcs_core::referee::Command -> referee_command
 
-      - rmcs_core::controller::chassis::ChassisController -> chassis_controller
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::DeformableChassisController -> deformable_chassis_controller
 
@@ -104,7 +107,7 @@ smc_controller3:
     target_acceleration: /chassis/right_front_joint/expect_acceleration
     control_torque: /chassis/right_front_joint/control_torque
 
-GimbalObserver0:
+smc_observer0:
   ros__parameters:
     velocity_limit: 10.0
     acceleration_limit: 5.0
@@ -113,7 +116,7 @@ GimbalObserver0:
     yaw_expect_velocity_: /chassis/left_front_joint/expect_velocity
     yaw_expect_acceleration_: /chassis/left_front_joint/expect_acceleration
 
-GimbalObserver1:
+smc_observer1:
   ros__parameters:
     velocity_limit: 10.0
     acceleration_limit: 5.0
@@ -122,7 +125,7 @@ GimbalObserver1:
     yaw_expect_velocity_: /chassis/left_back_joint/expect_velocity
     yaw_expect_acceleration_: /chassis/left_back_joint/expect_acceleration
 
-GimbalObserver2:
+smc_observer2:
   ros__parameters:
     velocity_limit: 10.0
     acceleration_limit: 5.0
@@ -131,7 +134,7 @@ GimbalObserver2:
     yaw_expect_velocity_: /chassis/right_front_joint/expect_velocity
     yaw_expect_acceleration_: /chassis/right_front_joint/expect_acceleration
 
-GimbalObserver3:
+smc_observer3:
   ros__parameters:
     velocity_limit: 10.0
     acceleration_limit: 5.0
