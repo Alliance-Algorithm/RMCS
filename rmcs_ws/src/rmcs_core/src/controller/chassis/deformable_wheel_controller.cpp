@@ -468,7 +468,7 @@ private:
     void calculate_vehicle_radius() {
         if (std::isfinite(*processed_encoder_angle_)){
         auto angle = *processed_encoder_angle_;
-        vehicle_radius_ = chassis_radius_ + rod_length_ * std::cos(angle);
+        vehicle_radius_ = chassis_radius_ + rod_length_ * std::cos(angle * std::numbers::pi / 180.0);
         }
     }
 
@@ -479,7 +479,7 @@ private:
             return 0.0;
         }
         const double diff =
-            std::remainder(angle - last_processed_encoder_angle_, 2.0 * std::numbers::pi);
+            std::remainder((angle - last_processed_encoder_angle_) * std::numbers::pi / 180, 2.0 * std::numbers::pi);
         last_processed_encoder_angle_ = angle;
         return diff / dt_;
     }
@@ -488,7 +488,7 @@ private:
         Eigen::Matrix<double, 4, 2> v_mech = Eigen::Matrix<double, 4, 2>::Zero();
 
         if (!std::isfinite(*processed_encoder_angle_)) {
-            processed_encoder_angle_initialized_ = false;  // avoid using stale last angle
+            processed_encoder_angle_initialized_ = false;  
             return v_mech;
         }
 
@@ -501,7 +501,7 @@ private:
 
     Eigen::Matrix<double, 4, 2> calculate_mech_wheel_velocity(double alpha, double alpha_dot) const {
         // scalar speed along the installation direction
-        const double v = -rod_length_ * std::sin(alpha) * alpha_dot;
+        const double v = -rod_length_ * std::sin(alpha * std::numbers::pi / 180.0) * alpha_dot;
 
         Eigen::Matrix<double, 4, 2> v_mech;
             // col 0: vx, col 1: vy
