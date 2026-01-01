@@ -7,7 +7,6 @@ rmcs_executor:
       - rmcs_core::referee::Status -> referee_status
       - rmcs_core::referee::Command -> referee_command
 
-      - rmcs_core::controller::chassis::ChassisTestController -> chassis_test
       - rmcs_core::controller::smc::SlidingModeController -> smc_controller0
       - rmcs_core::controller::smc::SlidingModeController -> smc_controller1
       - rmcs_core::controller::smc::SlidingModeController -> smc_controller2
@@ -18,11 +17,9 @@ rmcs_executor:
       - rmcs_core::controller::smc::Smc_Observer -> smc_observer2
       - rmcs_core::controller::smc::Smc_Observer -> smc_observer3
 
-      - rmcs_core::referee::Status -> referee_status
-      - rmcs_core::referee::Command -> referee_command
-
+      - rmcs_core::controller::chassis::ChassisTestController -> chassis_test
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
-      - rmcs_core::controller::chassis::DeformableChassisController -> deformable_chassis_controller
+      # - rmcs_core::controller::chassis::DeformableChassisController -> deformable_chassis_controller
 
 deformable_infantry:
   ros__parameters:
@@ -33,7 +30,6 @@ deformable_infantry:
     left_back_zero_point: 5770
     right_back_zero_point: 2380
     right_front_zero_point: 1705
-
 
 chassis_test:
   ros__parameters:

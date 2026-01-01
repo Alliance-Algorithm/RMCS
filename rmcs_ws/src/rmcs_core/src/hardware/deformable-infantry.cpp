@@ -1,10 +1,11 @@
+#include <array>
 #include <memory>
 #include <thread>
-#include <array>
 
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
+
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/serial_interface.hpp>
@@ -30,12 +31,17 @@ public:
         , deformable_infantry_command_(
               create_partner_component<DeformableInfantryCommand>(
                   get_component_name() + "_command", *this)) {
-        
-        using namespace rmcs_description;
 
         steers_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
-            "/steers/calibrate", rclcpp::QoS{0}, [this](std_msgs::msg::Int32::UniquePtr&& msg) {
+            "/steers/calibrate", rclcpp::QoS(1),
+            [this](std_msgs::msg::Int32::UniquePtr msg) {
                 steers_calibrate_subscription_callback(std::move(msg));
+            });
+
+        joints_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
+            "/joints/calibrate", rclcpp::QoS(1),
+            [this](std_msgs::msg::Int32::UniquePtr msg) {
+                joints_calibrate_subscription_callback(std::move(msg));
             });
 
         left_board_ = std::make_unique<LeftBoard>(
@@ -65,29 +71,31 @@ private:
     class RightBoard;
 
     void steers_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
-        if (left_board_) {
-            RCLCPP_INFO(get_logger(), "[steer calibration] New left front offset: %d",
-                        left_board_->chassis_steer_motors_[0].calibrate_zero_point());
-            RCLCPP_INFO(get_logger(), "[steer calibration] New left back offset: %d",
-                        left_board_->chassis_steer_motors_[1].calibrate_zero_point());
-            RCLCPP_INFO(get_logger(), "[steer calibration] New right back offset: %d",
-                        right_board_->chassis_steer_motors_[2].calibrate_zero_point());
-            RCLCPP_INFO(get_logger(), "[steer calibration] New right front offset: %d",
-                        right_board_->chassis_steer_motors_[3].calibrate_zero_point());
-        }
+        if (!left_board_ || !right_board_)
+            return;
+
+        RCLCPP_INFO(get_logger(), "New left front offset: %d",
+                    left_board_->chassis_steer_motors_[0].calibrate_zero_point());
+        RCLCPP_INFO(get_logger(), "New left back offset: %d",
+                    left_board_->chassis_steer_motors_[1].calibrate_zero_point());
+        RCLCPP_INFO(get_logger(), "New right back offset: %d",
+                    right_board_->chassis_steer_motors_[0].calibrate_zero_point());
+        RCLCPP_INFO(get_logger(), "New right front offset: %d",
+                    right_board_->chassis_steer_motors_[1].calibrate_zero_point());
     }
 
-    void joint_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
-        if (left_board_) {
-            RCLCPP_INFO(get_logger(), "[joint calibration] New left front offset: %f",
-                        left_board_->chassis_joint_motors_[0].encoder_angle());
-            RCLCPP_INFO(get_logger(), "[joint calibration] New left back offset: %f",
-                        left_board_->chassis_joint_motors_[1].encoder_angle());
-            RCLCPP_INFO(get_logger(), "[joint calibration] New right back offset: %f",
-                        right_board_->chassis_joint_motors_[2].encoder_angle());
-            RCLCPP_INFO(get_logger(), "[joint calibration] New right front offset: %f",
-                        right_board_->chassis_joint_motors_[3].encoder_angle());
-        }
+    void joints_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
+        if (!left_board_ || !right_board_)
+            return;
+
+        RCLCPP_INFO(get_logger(), "New left front offset: %f",
+                    left_board_->chassis_joint_motors_[0].encoder_angle());
+        RCLCPP_INFO(get_logger(), "New left back offset: %f",
+                    left_board_->chassis_joint_motors_[1].encoder_angle());
+        RCLCPP_INFO(get_logger(), "New right back offset: %f",
+                    right_board_->chassis_joint_motors_[0].encoder_angle());
+        RCLCPP_INFO(get_logger(), "New right front offset: %f",
+                    right_board_->chassis_joint_motors_[1].encoder_angle());
     }
 
     class DeformableInfantryCommand : public rmcs_executor::Component {
@@ -105,20 +113,27 @@ private:
         friend class DeformableInfantry;
 
         explicit LeftBoard(
-            DeformableInfantry& deformableInfantry, DeformableInfantryCommand& deformableInfantry_command,
+            DeformableInfantry& deformableInfantry,
+            DeformableInfantryCommand& deformableInfantry_command,
             int usb_pid = -1)
             : CBoard(usb_pid)
             , imu_(1000, 0.2, 0.0)
             , dr16_(deformableInfantry)
             , chassis_wheel_motors_{
-                  device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/left_front_wheel"},
-                  device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/left_back_wheel"}}
+                  device::DjiMotor{deformableInfantry, deformableInfantry_command,
+                                   "/chassis/left_front_wheel"},
+                  device::DjiMotor{deformableInfantry, deformableInfantry_command,
+                                   "/chassis/left_back_wheel"}}
             , chassis_steer_motors_{
-                  device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/left_front_steering"},
-                  device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/left_back_steering"}}
+                  device::DjiMotor{deformableInfantry, deformableInfantry_command,
+                                   "/chassis/left_front_steering"},
+                  device::DjiMotor{deformableInfantry, deformableInfantry_command,
+                                   "/chassis/left_back_steering"}}
             , chassis_joint_motors_{
-                  device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/left_back_joint"},
-                  device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/left_front_joint"}}
+                  device::DjiMotor{deformableInfantry, deformableInfantry_command,
+                                   "/chassis/left_back_joint"},
+                  device::DjiMotor{deformableInfantry, deformableInfantry_command,
+                                   "/chassis/left_front_joint"}}
             , transmit_buffer_(*this, 32)
             , event_thread_([this]() { handle_events(); }) {
 
@@ -139,7 +154,7 @@ private:
                         .set_reduction_ratio(11.)
                         .enable_multi_turn_angle()
                         .set_reversed());
-                        
+
             for (auto& motor : chassis_joint_motors_)
                 motor.configure(
                     device::DjiMotor::Config{device::DjiMotor::Type::M3508}
@@ -150,12 +165,14 @@ private:
             chassis_steer_motors_[0].configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::GM6020}
                     .set_reversed()
-                    .set_encoder_zero_point(static_cast<int>(deformableInfantry.get_parameter("left_front_zero_point").as_int()))
+                    .set_encoder_zero_point(static_cast<int>(
+                        deformableInfantry.get_parameter("left_front_zero_point").as_int()))
                     .enable_multi_turn_angle());
             chassis_steer_motors_[1].configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::GM6020}
                     .set_reversed()
-                    .set_encoder_zero_point(static_cast<int>(deformableInfantry.get_parameter("left_back_zero_point").as_int()))
+                    .set_encoder_zero_point(static_cast<int>(
+                        deformableInfantry.get_parameter("left_back_zero_point").as_int()))
                     .enable_multi_turn_angle());
 
             deformableInfantry.register_output("/chassis/yaw/velocity_imu", chassis_yaw_velocity_imu_, 0);
@@ -176,6 +193,8 @@ private:
                 motor.update_status();
             for (auto& motor : chassis_steer_motors_)
                 motor.update_status();
+            for (auto& motor : chassis_joint_motors_)
+                motor.update_status();
             dr16_.update_status();
         }
 
@@ -187,18 +206,19 @@ private:
             can_commands[2] = 0;
             can_commands[3] = 0;
             transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(can_commands));
+
             can_commands[0] = chassis_steer_motors_[0].generate_command();
             can_commands[1] = 0;
             can_commands[2] = 0;
             can_commands[3] = 0;
             transmit_buffer_.add_can1_transmission(0x1FE, std::bit_cast<uint64_t>(can_commands));
-            transmit_buffer_.trigger_transmission();
 
             can_commands[0] = chassis_wheel_motors_[1].generate_command();
             can_commands[1] = chassis_joint_motors_[1].generate_command();
-            can_commands[2] = 
-            can_commands[3] = 
-            transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(can_commands));
+            can_commands[2] = 0;
+            can_commands[3] = 0;
+            transmit_buffer_.add_can2_transmission(0x200, std::bit_cast<uint64_t>(can_commands));
+
             can_commands[0] = 0;
             can_commands[1] = chassis_steer_motors_[1].generate_command();
             can_commands[2] = 0;
@@ -214,23 +234,23 @@ private:
         void can1_receive_callback(
             uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
             bool is_remote_transmission, uint8_t can_data_length) override {
-            if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
+            if (is_extended_can_id || is_remote_transmission || can_data_length < 8)
                 return;
-            
+
             if (can_id == 0x201) chassis_wheel_motors_[0].store_status(can_data);
-            else if (can_id == 0x202) chassis_joint_motors_[1].store_status(can_data);
+            else if (can_id == 0x202) chassis_joint_motors_[0].store_status(can_data);
             else if (can_id == 0x205) chassis_steer_motors_[0].store_status(can_data);
         }
 
         void can2_receive_callback(
             uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
             bool is_remote_transmission, uint8_t can_data_length) override {
-            if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
+            if (is_extended_can_id || is_remote_transmission || can_data_length < 8)
                 return;
-            
-            if (can_id == 0x201) chassis_wheel_motors_[0].store_status(can_data);
+
+            if (can_id == 0x201) chassis_wheel_motors_[1].store_status(can_data);
             else if (can_id == 0x202) chassis_joint_motors_[1].store_status(can_data);
-            else if (can_id == 0x206) chassis_steer_motors_[0].store_status(can_data);
+            else if (can_id == 0x206) chassis_steer_motors_[1].store_status(can_data);
         }
 
         void uart1_receive_callback(const std::byte* uart_data, uint8_t uart_data_length) override {
@@ -264,21 +284,29 @@ private:
     class RightBoard final : private librmcs::client::CBoard {
     public:
         friend class DeformableInfantry;
-        
+
         explicit RightBoard(
-            DeformableInfantry& deformableInfantry, DeformableInfantryCommand& deformableInfantry_command,
+            DeformableInfantry& deformableInfantry,
+            DeformableInfantryCommand& deformableInfantry_command,
             int usb_pid = -1)
             : librmcs::client::CBoard(usb_pid)
             , chassis_wheel_motors_{
-                  device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/right_back_wheel"},
-                  device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/right_front_wheel"}}
+                  device::DjiMotor{deformableInfantry, deformableInfantry_command,
+                                   "/chassis/right_back_wheel"},
+                  device::DjiMotor{deformableInfantry, deformableInfantry_command,
+                                   "/chassis/right_front_wheel"}}
             , chassis_steer_motors_{
-                  device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/right_back_steering"},
-                  device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/right_front_steering"}}
+                  device::DjiMotor{deformableInfantry, deformableInfantry_command,
+                                   "/chassis/right_back_steering"},
+                  device::DjiMotor{deformableInfantry, deformableInfantry_command,
+                                   "/chassis/right_front_steering"}}
             , chassis_joint_motors_{
-                  device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/right_back_joint"},
-                  device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/right_front_joint"}}
+                  device::DjiMotor{deformableInfantry, deformableInfantry_command,
+                                   "/chassis/right_back_joint"},
+                  device::DjiMotor{deformableInfantry, deformableInfantry_command,
+                                   "/chassis/right_front_joint"}}
             , transmit_buffer_(*this, 32)
+            , supercap_(deformableInfantry, deformableInfantry_command)
             , event_thread_([this]() { handle_events(); }) {
 
             for (auto& motor : chassis_wheel_motors_)
@@ -287,24 +315,26 @@ private:
                         .set_reduction_ratio(11.)
                         .enable_multi_turn_angle()
                         .set_reversed());
-                        
+
             for (auto& motor : chassis_joint_motors_)
                 motor.configure(
                     device::DjiMotor::Config{device::DjiMotor::Type::M3508}
                         .set_reduction_ratio(1.0)
                         .set_reversed()
                         .enable_multi_turn_angle());
-            chassis_steer_motors_[2].configure(
+
+            chassis_steer_motors_[0].configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::GM6020}
                     .set_reversed()
-                    .set_encoder_zero_point(static_cast<int>(deformableInfantry.get_parameter("right_back_zero_point").as_int()))
+                    .set_encoder_zero_point(static_cast<int>(
+                        deformableInfantry.get_parameter("right_back_zero_point").as_int()))
                     .enable_multi_turn_angle());
-            chassis_steer_motors_[3].configure(
+            chassis_steer_motors_[1].configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::GM6020}
                     .set_reversed()
-                    .set_encoder_zero_point(static_cast<int>(deformableInfantry.get_parameter("right_front_zero_point").as_int()))
+                    .set_encoder_zero_point(static_cast<int>(
+                        deformableInfantry.get_parameter("right_front_zero_point").as_int()))
                     .enable_multi_turn_angle());
-            
         }
 
         ~RightBoard() final {
@@ -315,75 +345,86 @@ private:
         }
 
         void update() {
+            for (auto& motor : chassis_wheel_motors_)
+                motor.update_status();
+            for (auto& motor : chassis_steer_motors_)
+                motor.update_status();
             for (auto& motor : chassis_joint_motors_)
                 motor.update_status();
+            supercap_.update_status();
         }
-
 
         void command_update() {
             uint16_t can_commands[4];
 
-            can_commands[0] = chassis_wheel_motors_[2].generate_command();
-            can_commands[1] = chassis_joint_motors_[2].generate_command();
+            can_commands[0] = chassis_wheel_motors_[0].generate_command();
+            can_commands[1] = chassis_joint_motors_[0].generate_command();
             can_commands[2] = 0;
             can_commands[3] = 0;
             transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(can_commands));
-            can_commands[0] = chassis_steer_motors_[2].generate_command();
+
+            can_commands[0] = chassis_steer_motors_[0].generate_command();
             can_commands[1] = 0;
             can_commands[2] = 0;
             can_commands[3] = 0;
             transmit_buffer_.add_can1_transmission(0x1FE, std::bit_cast<uint64_t>(can_commands));
-            transmit_buffer_.trigger_transmission();
 
-            can_commands[0] = chassis_wheel_motors_[3].generate_command();
-            can_commands[1] = chassis_joint_motors_[3].generate_command();
-            can_commands[2] = 
-            can_commands[3] = 
-            transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(can_commands));
+            can_commands[0] = chassis_wheel_motors_[1].generate_command();
+            can_commands[1] = chassis_joint_motors_[1].generate_command();
+            can_commands[2] = 0;
+            can_commands[3] = 0;
+            transmit_buffer_.add_can2_transmission(0x200, std::bit_cast<uint64_t>(can_commands));
+
             can_commands[0] = 0;
-            can_commands[1] = chassis_steer_motors_[3].generate_command();
+            can_commands[1] = chassis_steer_motors_[1].generate_command();
             can_commands[2] = 0;
             can_commands[3] = 0;
             transmit_buffer_.add_can2_transmission(0x1FE, std::bit_cast<uint64_t>(can_commands));
+
+            uint16_t cap_cmd[4] = {0, 0, 0, static_cast<uint16_t>(supercap_.generate_command())};
+            transmit_buffer_.add_can1_transmission(0x1FE, std::bit_cast<uint64_t>(cap_cmd));
+
             transmit_buffer_.trigger_transmission();
         }
 
         void can1_receive_callback(
             uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
             bool is_remote_transmission, uint8_t can_data_length) override {
-            if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
-                return; 
-            
+            if (is_extended_can_id || is_remote_transmission || can_data_length < 8)
+                return;
+
             if (can_id == 0x201) chassis_wheel_motors_[0].store_status(can_data);
-            else if (can_id == 0x202) chassis_joint_motors_[1].store_status(can_data);
+            else if (can_id == 0x202) chassis_joint_motors_[0].store_status(can_data);
             else if (can_id == 0x205) chassis_steer_motors_[0].store_status(can_data);
+            else if (can_id == 0x300) supercap_.store_status(can_data);
         }
 
         void can2_receive_callback(
             uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
             bool is_remote_transmission, uint8_t can_data_length) override {
-            if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
-                return; 
-            
-            if (can_id == 0x201) chassis_wheel_motors_[0].store_status(can_data);
-            else if (can_id == 0x202) chassis_joint_motors_[1].store_status(can_data);
-            else if (can_id == 0x205) chassis_steer_motors_[0].store_status(can_data);
-        }
+            if (is_extended_can_id || is_remote_transmission || can_data_length < 8)
+                return;
 
+            if (can_id == 0x201) chassis_wheel_motors_[1].store_status(can_data);
+            else if (can_id == 0x202) chassis_joint_motors_[1].store_status(can_data);
+            else if (can_id == 0x206) chassis_steer_motors_[1].store_status(can_data);
+        }
 
     private:
         device::DjiMotor chassis_wheel_motors_[2];
         device::DjiMotor chassis_steer_motors_[2];
         device::DjiMotor chassis_joint_motors_[2];
-        TransmitBuffer transmit_buffer_; 
+        TransmitBuffer transmit_buffer_;
+        device::Supercap supercap_;
         std::thread event_thread_;
     };
 
     std::shared_ptr<DeformableInfantryCommand> deformable_infantry_command_;
-    std::shared_ptr<LeftBoard> left_board_;
-    std::shared_ptr<RightBoard> right_board_;
+    std::unique_ptr<LeftBoard> left_board_;
+    std::unique_ptr<RightBoard> right_board_;
 
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr steers_calibrate_subscription_;
+    rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr joints_calibrate_subscription_;
 };
 
 } // namespace rmcs_core::hardware

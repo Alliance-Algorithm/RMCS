@@ -82,7 +82,8 @@ public:
 
         register_output(
             "/chassis/left_front_wheel/control_torque", left_front_wheel_control_torque_);
-        register_output("/chassis/left_back_wheel/control_torque", left_back_wheel_control_torque_);
+        register_output(
+            "/chassis/left_back_wheel/control_torque", left_back_wheel_control_torque_);
         register_output(
             "/chassis/right_back_wheel/control_torque", right_back_wheel_control_torque_);
         register_output(

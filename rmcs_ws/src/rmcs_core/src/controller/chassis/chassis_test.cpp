@@ -5,6 +5,7 @@
 #include <limits>
 #include <numbers>
 
+#include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 
 #include <rmcs_description/tf_description.hpp>
@@ -12,6 +13,7 @@
 #include <rmcs_msgs/chassis_mode.hpp>
 #include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/switch.hpp>
+#include <rmcs_msgs/mouse.hpp>
 
 namespace rmcs_core::controller::chassis {
 
@@ -64,6 +66,7 @@ public:
     }
 
     void update() override {
+
         using rmcs_msgs::Switch;
 
         const auto right_switch = *right_switch_;
@@ -80,7 +83,6 @@ public:
 
             last_lift_left_switch_  = left_switch;
             last_lift_right_switch_ = right_switch;
-            return;
         }
 
         update_chassis_mode(right_switch, left_switch, keyboard);
@@ -223,7 +225,7 @@ private:
         const double alpha_rb =
             wrap_deg(right_back_joint_offset_ - *right_back_joint_angle_);
 
-        *processed_encoder_angle_ = (s_lf_ + s_lb_ + s_rf_ + s_rb_) / 4.0;
+        *processed_encoder_angle_ = (alpha_lb + alpha_lf + alpha_rf + alpha_rb) / 4.0;
 
         s_lf_ = trapezoidal_calculator(alpha_lf);
         s_lb_ = trapezoidal_calculator(alpha_lb);
