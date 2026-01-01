@@ -1,6 +1,6 @@
 #pragma once
 
-#include <librmcs/device/dji_motor.hpp>
+#include <librmcs/device/dji_motor_with_encoder.hpp>
 #include <rmcs_executor/component.hpp>
 
 namespace rmcs_core::hardware::device {
@@ -15,6 +15,7 @@ public:
         status_component.register_output(name_prefix + "/velocity", velocity_, 0.0);
         status_component.register_output(name_prefix + "/torque", torque_, 0.0);
         status_component.register_output(name_prefix + "/max_torque", max_torque_, 0.0);
+        status_component.register_output(name_prefix + "/encoder_angle", encoder_angle_, 0.0);
 
         command_component.register_input(name_prefix + "/control_torque", control_torque_, false);
     }
@@ -37,6 +38,8 @@ public:
         *angle_    = angle();
         *velocity_ = velocity();
         *torque_   = torque();
+        *encoder_angle_ = encoder_angle();
+        
     }
 
     double control_torque() const {
@@ -55,6 +58,7 @@ private:
     rmcs_executor::Component::OutputInterface<double> velocity_;
     rmcs_executor::Component::OutputInterface<double> torque_;
     rmcs_executor::Component::OutputInterface<double> max_torque_;
+    rmcs_executor::Component::OutputInterface<double> encoder_angle_;
 
     rmcs_executor::Component::InputInterface<double> control_torque_;
 };
