@@ -191,8 +191,8 @@ private:
             (left_switch == rmcs_msgs::Switch::MIDDLE) && (right_switch == rmcs_msgs::Switch::UP);
 
         const bool last_toggle_condition =
-            (last_lift_left_switch_ == rmcs_msgs::Switch::MIDDLE)
-            && (last_lift_right_switch_ == rmcs_msgs::Switch::UP);
+            (last_left_switch_ == rmcs_msgs::Switch::MIDDLE)
+            && (last_right_switch_ == rmcs_msgs::Switch::UP);
 
         if (toggle_condition && !last_toggle_condition) {
             current_target_angle_ =
@@ -309,9 +309,6 @@ private:
     double right_back_joint_offset_;
 
     double current_target_angle_ = 55.0;
-
-    rmcs_msgs::Switch last_lift_left_switch_  = rmcs_msgs::Switch::UNKNOWN;
-    rmcs_msgs::Switch last_lift_right_switch_ = rmcs_msgs::Switch::UNKNOWN;
 
     double lf_ = 0.0, lb_ = 0.0, rf_ = 0.0, rb_ = 0.0;
     double s_lf_ = 0.0, s_lb_ = 0.0, s_rf_ = 0.0, s_rb_ = 0.0;

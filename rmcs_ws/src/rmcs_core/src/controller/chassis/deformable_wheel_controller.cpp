@@ -13,6 +13,8 @@
 #include "controller/chassis/qcp_solver.hpp"
 #include "controller/pid/matrix_pid_calculator.hpp"
 #include "controller/pid/pid_calculator.hpp"
+
+#include "filter/alpha_beta_angle_filter.hpp"
 #include "filter/low_pass_filter.hpp"
 
 namespace rmcs_core::controller::chassis {
@@ -42,11 +44,12 @@ public:
         , chassis_velocity_expected_(Eigen::Vector3d::Zero())
         , chassis_translational_velocity_pid_(5.0, 0.0, 1.0)
         , chassis_angular_velocity_pid_(5.0, 0.0, 1.0)
-        , cos_varphi_(1, 0, -1, 0) // 0, pi/2, pi, 3pi/2
+        , cos_varphi_(1, 0, -1, 0)
         , sin_varphi_(0, 1, 0, -1)
         , steering_velocity_pid_(0.15, 0.0, 0.0)
         , steering_angle_pid_(30.0, 0.0, 0.0)
-        , wheel_velocity_pid_(0.6, 0.0, 0.0) {
+        , wheel_velocity_pid_(0.6, 0.0, 0.0)
+        , processed_encoder_ab_filter_(dt_, 0.03, 0.0006) {
 
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
@@ -96,41 +99,47 @@ public:
             return;
         }
 
-        // calculate_vehicle_radius();
-        // integral_yaw_angle_imu();
+        const EncoderState encoder = update_processed_encoder_state_();
+        if (encoder.valid) {
+            vehicle_radius_ = chassis_radius_ + rod_length_ * std::cos(encoder.alpha_rad);
+        }
 
-        // const Eigen::Matrix<double, 4, 2> v_mech = update_mech_wheel_velocity_();
-        
-        // auto steering_status = calculate_steering_status();
-        // auto wheel_velocities = calculate_wheel_velocities();
-        // auto chassis_velocity = calculate_chassis_velocity(steering_status, wheel_velocities, v_mech);
+        integral_yaw_angle_imu();
 
-        // auto chassis_status_expected = calculate_chassis_status_expected(chassis_velocity,v_mech);
-        // auto chassis_control_velocity = calculate_chassis_control_velocity();
+        const Eigen::Matrix<double, 4, 2> v_mech = calculate_mech_wheel_velocity(encoder);
 
-        // auto chassis_acceleration = calculate_chassis_control_acceleration(
-        //     chassis_status_expected.velocity, chassis_control_velocity);
+        auto steering_status = calculate_steering_status();
+        auto wheel_velocities = calculate_wheel_velocities();
+        auto chassis_velocity = calculate_chassis_velocity(steering_status, wheel_velocities, v_mech);
 
-        // double power_limit =
-        //     *power_limit_ - no_load_power_ - k2_ * wheel_velocities.array().pow(2).sum();
+        auto chassis_status_expected = calculate_chassis_status_expected(chassis_velocity, v_mech);
+        auto chassis_control_velocity = calculate_chassis_control_velocity();
 
-        // auto wheel_pid_torques =
-        //     calculate_wheel_pid_torques(steering_status, wheel_velocities, chassis_status_expected);
+        auto chassis_acceleration = calculate_chassis_control_acceleration(
+            chassis_status_expected.velocity, chassis_control_velocity);
 
-        // auto constrained_chassis_acceleration = constrain_chassis_control_acceleration(
-        //     steering_status, wheel_velocities, chassis_acceleration, wheel_pid_torques,
-        //     power_limit);
-        // auto filtered_chassis_acceleration =
-        //     odom_to_base_link_vector(control_acceleration_filter_.update(
-        //         base_link_to_odom_vector(constrained_chassis_acceleration)));
+        double power_limit =
+            *power_limit_ - no_load_power_ - k2_ * wheel_velocities.array().pow(2).sum();
 
-        // auto steering_torques = calculate_steering_control_torques(
-        //     steering_status, chassis_status_expected, filtered_chassis_acceleration);
-        // auto wheel_torques = calculate_wheel_control_torques(
-        //     steering_status, filtered_chassis_acceleration, wheel_pid_torques);
+        auto wheel_pid_torques =
+            calculate_wheel_pid_torques(steering_status, wheel_velocities, chassis_status_expected);
 
-        // update_control_torques(steering_torques, wheel_torques);
-        // update_chassis_velocity_expected(filtered_chassis_acceleration);
+        auto constrained_chassis_acceleration = constrain_chassis_control_acceleration(
+            steering_status, wheel_velocities, chassis_acceleration, wheel_pid_torques,
+            power_limit);
+
+        auto filtered_chassis_acceleration =
+            odom_to_base_link_vector(control_acceleration_filter_.update(
+                base_link_to_odom_vector(constrained_chassis_acceleration)));
+
+        auto steering_torques = calculate_steering_control_torques(
+            steering_status, chassis_status_expected, filtered_chassis_acceleration);
+
+        auto wheel_torques = calculate_wheel_control_torques(
+            steering_status, filtered_chassis_acceleration, wheel_pid_torques);
+
+        update_control_torques(steering_torques, wheel_torques);
+        update_chassis_velocity_expected(filtered_chassis_acceleration);
     }
 
 private:
@@ -144,14 +153,57 @@ private:
         Eigen::Vector4d wheel_velocity_x, wheel_velocity_y;
     };
 
+    struct EncoderState {
+        bool valid = false;
+        double alpha_rad = 0.0;
+        double alpha_dot_rad = 0.0;
+    };
+
+    static double deg2rad_(double deg) {
+        return deg * std::numbers::pi / 180.0;
+    }
+
+    EncoderState update_processed_encoder_state_() {
+        EncoderState status;
+
+        if (!std::isfinite(*processed_encoder_angle_)) {
+            processed_encoder_ab_filter_.reset();
+            return status;
+        }
+
+        const double z_rad = deg2rad_(*processed_encoder_angle_);
+        const auto [alpha_hat, alpha_dot_hat] = processed_encoder_ab_filter_.update(z_rad);
+
+        if (!std::isfinite(alpha_hat)) {
+            processed_encoder_ab_filter_.reset();
+            return status;
+        }
+
+        status.valid = true;
+        status.alpha_rad = alpha_hat;
+        status.alpha_dot_rad = alpha_dot_hat;
+        return status;
+    }
+
+    Eigen::Matrix<double, 4, 2> calculate_mech_wheel_velocity(const EncoderState& encoder) const {
+        Eigen::Matrix<double, 4, 2> v_mech = Eigen::Matrix<double, 4, 2>::Zero();
+        if (!encoder.valid) {
+            return v_mech;
+        }
+
+        const double v = -rod_length_ * std::sin(encoder.alpha_rad) * encoder.alpha_dot_rad;
+
+        v_mech.col(0) = v * cos_varphi_;
+        v_mech.col(1) = v * sin_varphi_;
+        return v_mech;
+    }
+
     void reset_all_controls() {
         control_acceleration_filter_.reset();
+        processed_encoder_ab_filter_.reset();
 
         chassis_yaw_angle_imu_ = 0.0;
         chassis_velocity_expected_ = Eigen::Vector3d::Zero();
-
-        processed_encoder_angle_initialized_ = false;
-        last_processed_encoder_angle_ = 0.0;
 
         *left_front_steering_control_torque_ = 0.0;
         *left_back_steering_control_torque_ = 0.0;
@@ -173,20 +225,20 @@ private:
         SteeringStatus steering_status;
 
         steering_status.angle = {
-            *left_front_steering_angle_,    //
-            *left_back_steering_angle_,     //
-            *right_back_steering_angle_,    //
-            *right_front_steering_angle_    //
+            *left_front_steering_angle_,
+            *left_back_steering_angle_,
+            *right_back_steering_angle_,
+            *right_front_steering_angle_
         };
         steering_status.angle.array() -= std::numbers::pi / 4;
         steering_status.cos_angle = steering_status.angle.array().cos();
         steering_status.sin_angle = steering_status.angle.array().sin();
 
         steering_status.velocity = {
-            *left_front_steering_velocity_, //
-            *left_back_steering_velocity_,  //
-            *right_back_steering_velocity_, //
-            *right_front_steering_velocity_ //
+            *left_front_steering_velocity_,
+            *left_back_steering_velocity_,
+            *right_back_steering_velocity_,
+            *right_front_steering_velocity_
         };
 
         return steering_status;
@@ -194,10 +246,10 @@ private:
 
     Eigen::Vector4d calculate_wheel_velocities() {
         return {
-            *left_front_wheel_velocity_,    //
-            *left_back_wheel_velocity_,     //
-            *right_back_wheel_velocity_,    //
-            *right_front_wheel_velocity_    //
+            *left_front_wheel_velocity_,
+            *left_back_wheel_velocity_,
+            *right_back_wheel_velocity_,
+            *right_front_wheel_velocity_
         };
     }
 
@@ -206,7 +258,6 @@ private:
         const Eigen::Vector4d& wheel_velocities,
         const Eigen::Matrix<double, 4, 2>& v_mech) const {
 
-        // project mech velocity to rolling direction -> equivalent wheel angular velocity
         const Eigen::Vector4d wheel_omega_mech =
             (v_mech.col(0).array() * steering_status.cos_angle.array()
             + v_mech.col(1).array() * steering_status.sin_angle.array()).matrix()
@@ -240,7 +291,6 @@ private:
         const double chassis_energy = calculate_energy(chassis_velocity);
         const double chassis_energy_expected = calculate_energy(chassis_velocity_expected_);
 
-        // robust scaling
         if (std::isfinite(chassis_energy) && std::isfinite(chassis_energy_expected)
             && chassis_energy_expected > chassis_energy && chassis_energy_expected > 1e-12) {
             const double k = std::sqrt(chassis_energy / chassis_energy_expected);
@@ -254,7 +304,6 @@ private:
 
         const auto& [vx, vy, vz] = chassis_status_expected.velocity;
 
-        // rigid-body wheel-center velocity + mech velocity (both in base_link)
         chassis_status_expected.wheel_velocity_x =
             (vx - vehicle_radius_ * vz * sin_varphi_.array()).matrix() + v_mech.col(0);
 
@@ -263,11 +312,11 @@ private:
 
         return chassis_status_expected;
     }
+
     Eigen::Vector3d calculate_chassis_control_velocity() {
         Eigen::Vector3d chassis_control_velocity = chassis_control_velocity_->vector;
         chassis_control_velocity.head<2>() =
             Eigen::Rotation2Dd(-std::numbers::pi / 4) * chassis_control_velocity.head<2>();
-
         return chassis_control_velocity;
     }
 
@@ -443,7 +492,6 @@ private:
             / 4.0;
 
         wheel_torques += wheel_pid_torques;
-
         return wheel_torques;
     }
 
@@ -465,53 +513,6 @@ private:
         chassis_velocity_expected_ += dt_ * acceleration_odom;
     }
 
-    void calculate_vehicle_radius() {
-        if (std::isfinite(*processed_encoder_angle_)){
-        auto angle = *processed_encoder_angle_;
-        vehicle_radius_ = chassis_radius_ + rod_length_ * std::cos(angle * std::numbers::pi / 180.0);
-        }
-    }
-
-    double calculate_processed_encoder_angle_velocity_(double angle) {
-        if (!processed_encoder_angle_initialized_) {
-            last_processed_encoder_angle_ = angle;
-            processed_encoder_angle_initialized_ = true;
-            return 0.0;
-        }
-        const double diff =
-            std::remainder((angle - last_processed_encoder_angle_) * std::numbers::pi / 180, 2.0 * std::numbers::pi);
-        last_processed_encoder_angle_ = angle;
-        return diff / dt_;
-    }
-
-    Eigen::Matrix<double, 4, 2> update_mech_wheel_velocity_() {
-        Eigen::Matrix<double, 4, 2> v_mech = Eigen::Matrix<double, 4, 2>::Zero();
-
-        if (!std::isfinite(*processed_encoder_angle_)) {
-            processed_encoder_angle_initialized_ = false;  
-            return v_mech;
-        }
-
-        const double alpha = *processed_encoder_angle_;
-        const double alpha_dot = calculate_processed_encoder_angle_velocity_(alpha);
-
-        v_mech = calculate_mech_wheel_velocity(alpha, alpha_dot);
-        return v_mech;
-    }
-
-    Eigen::Matrix<double, 4, 2> calculate_mech_wheel_velocity(double alpha, double alpha_dot) const {
-        // scalar speed along the installation direction
-        const double v = -rod_length_ * std::sin(alpha * std::numbers::pi / 180.0) * alpha_dot;
-
-        Eigen::Matrix<double, 4, 2> v_mech;
-            // col 0: vx, col 1: vy
-        v_mech.col(0) = v * cos_varphi_;
-        v_mech.col(1) = v * sin_varphi_;
-        // v_mech.col(0) = 0.0 * cos_varphi_;
-        // v_mech.col(1) = 0.0 * sin_varphi_;
-        return v_mech;
-    }
-
     Eigen::Vector3d base_link_to_odom_vector(Eigen::Vector3d vector) const {
         vector.head<2>() = Eigen::Rotation2Dd(chassis_yaw_angle_imu_) * vector.head<2>();
         return vector;
@@ -530,7 +531,7 @@ private:
 
     const double mess_;
     const double moment_of_inertia_;
-    
+
     const double chassis_radius_;
     const double rod_length_;
     const double wheel_radius_;
@@ -539,9 +540,6 @@ private:
     const double k1_, k2_, no_load_power_;
 
     double vehicle_radius_;
-
-    double last_processed_encoder_angle_ = 0.0;
-    bool processed_encoder_angle_initialized_ = false;
 
     InputInterface<Eigen::Vector2d> joystick_right_;
     InputInterface<Eigen::Vector2d> joystick_left_;
@@ -589,6 +587,8 @@ private:
     const Eigen::Vector4d cos_varphi_, sin_varphi_;
 
     pid::MatrixPidCalculator<4> steering_velocity_pid_, steering_angle_pid_, wheel_velocity_pid_;
+
+    filter::AlphaBetaAngleFilter processed_encoder_ab_filter_;
 };
 
 } // namespace rmcs_core::controller::chassis
