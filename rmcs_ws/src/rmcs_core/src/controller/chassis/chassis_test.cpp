@@ -1,3 +1,4 @@
+#include "controller/chassis/qcp_solver.hpp"
 #include <eigen3/Eigen/Dense>
 
 #include <algorithm>
@@ -72,31 +73,22 @@ public:
         const auto right_switch = *right_switch_;
         const auto left_switch  = *left_switch_;
         const auto keyboard     = *keyboard_;
-
+        do{
         if ((left_switch == Switch::UNKNOWN || right_switch == Switch::UNKNOWN)
             || (left_switch == Switch::DOWN && right_switch == Switch::DOWN)) {
             reset_all_controls();
-
-            last_right_switch_ = right_switch;
-            last_left_switch_  = left_switch;
-            last_keyboard_     = keyboard;
-
-            last_lift_left_switch_  = left_switch;
-            last_lift_right_switch_ = right_switch;
-        }
+            break;
+            }
 
         update_chassis_mode(right_switch, left_switch, keyboard);
         update_velocity_control();
 
         update_lift_target_toggle(left_switch, right_switch);
         update_lift_angle_error();
-
+        }while(false);
         last_right_switch_ = right_switch;
         last_left_switch_  = left_switch;
         last_keyboard_     = keyboard;
-
-        last_lift_left_switch_  = left_switch;
-        last_lift_right_switch_ = right_switch;
     }
 
 private:
@@ -212,13 +204,13 @@ private:
         s_target_ = trapezoidal_calculator(current_target_angle_);
 
         const double alpha_lf =
-            wrap_deg(left_front_joint_offset_ - *left_front_joint_angle_) + 59.0;
+            wrap_deg(left_front_joint_offset_) - wrap_deg(*left_front_joint_angle_) + 61.0;
         const double alpha_lb = 
-            wrap_deg(left_back_joint_offset_ - *left_back_joint_angle_) + 59.0;
+            wrap_deg(left_back_joint_offset_) - wrap_deg(*left_back_joint_angle_) + 61.0;
         const double alpha_rf =
-            wrap_deg(right_front_joint_offset_ - *right_front_joint_angle_) + 59.0;
+            wrap_deg(right_front_joint_offset_) - wrap_deg(*right_front_joint_angle_) + 61.0;
         const double alpha_rb =
-            wrap_deg(right_back_joint_offset_ - *right_back_joint_angle_) + 59.0;
+            wrap_deg(right_back_joint_offset_) - wrap_deg(*right_back_joint_angle_) + 61.0;
 
         *processed_encoder_angle_ = (alpha_lb + alpha_lf + alpha_rf + alpha_rb) / 4.0;
 
@@ -316,7 +308,7 @@ private:
     double right_front_joint_offset_;
     double right_back_joint_offset_;
 
-    double current_target_angle_ = 0.0;
+    double current_target_angle_ = 55.0;
 
     rmcs_msgs::Switch last_lift_left_switch_  = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Switch last_lift_right_switch_ = rmcs_msgs::Switch::UNKNOWN;

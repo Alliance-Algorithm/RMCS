@@ -33,12 +33,12 @@ deformable_infantry:
 
 chassis_test:
   ros__parameters:
-    min_angle_: 15
+    min_angle_: 20
     max_angle_: 55
-    left_front_joint_offset: 341.701991
-    left_back_joint_offset: 318.811627
-    right_back_joint_offset: 96.906386
-    right_front_joint_offset: 209.913481
+    left_front_joint_offset: 340.619821
+    left_back_joint_offset: 18.594644
+    right_back_joint_offset: 209.765164
+    right_front_joint_offset:  94.884871
     Rod_relative_horizontal_coordinate: -9.5
     Rod_relative_longitudinal_coordinate: 90.0
     Rod_length: 100.0
@@ -51,7 +51,7 @@ smc_controller0:
     phi: 0.5
     J: 2.0
     B: 0.5
-    gear_ratio: 25.99
+    gear_ratio: 2.0
     angle_error: /chassis/left_front_joint/control_angle_error
     current_velocity: /chassis/left_front_joint/velocity
     target_velocity: /chassis/left_front_joint/expect_velocity
@@ -66,7 +66,7 @@ smc_controller1:
     phi: 0.5
     J: 2.0
     B: 0.5
-    gear_ratio: 25.99
+    gear_ratio: 2.0
     angle_error: /chassis/left_back_joint/control_angle_error
     current_velocity: /chassis/left_back_joint/velocity
     target_velocity: /chassis/left_back_joint/expect_velocity
@@ -81,7 +81,7 @@ smc_controller2:
     phi: 0.5
     J: 2.0
     B: 0.5
-    gear_ratio: 25.99
+    gear_ratio: 2.0
     angle_error: /chassis/right_back_joint/control_angle_error
     current_velocity: /chassis/right_back_joint/velocity
     target_velocity: /chassis/right_back_joint/expect_velocity
@@ -96,7 +96,7 @@ smc_controller3:
     phi: 0.5
     J: 2.0
     B: 0.5
-    gear_ratio: 25.99
+    gear_ratio: 2.0
     angle_error: /chassis/right_front_joint/control_angle_error
     current_velocity: /chassis/right_front_joint/velocity
     target_velocity: /chassis/right_front_joint/expect_velocity

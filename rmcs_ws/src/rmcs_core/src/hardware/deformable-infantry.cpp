@@ -393,8 +393,8 @@ private:
             if (is_extended_can_id || is_remote_transmission || can_data_length < 8)
                 return;
 
-            if (can_id == 0x201) chassis_wheel_motors_[0].store_status(can_data);
-            else if (can_id == 0x202) chassis_joint_motors_[0].store_status(can_data);
+            if (can_id == 0x201) chassis_wheel_motors_[1].store_status(can_data);
+            else if (can_id == 0x202) chassis_joint_motors_[1].store_status(can_data);
             else if (can_id == 0x208) chassis_steer_motors_[1].store_status(can_data);
             else if (can_id == 0x300) supercap_.store_status(can_data);
         }
@@ -405,8 +405,8 @@ private:
             if (is_extended_can_id || is_remote_transmission || can_data_length < 8)
                 return;
 
-            if (can_id == 0x201) chassis_wheel_motors_[1].store_status(can_data);
-            else if (can_id == 0x202) chassis_joint_motors_[1].store_status(can_data);
+            if (can_id == 0x201) chassis_wheel_motors_[0].store_status(can_data);
+            else if (can_id == 0x202) chassis_joint_motors_[0].store_status(can_data);
             else if (can_id == 0x207) chassis_steer_motors_[0].store_status(can_data);
         }
 
