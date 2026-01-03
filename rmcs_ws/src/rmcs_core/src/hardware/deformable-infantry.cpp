@@ -1,4 +1,7 @@
 #include <array>
+#include <bit>
+#include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <thread>
 
@@ -61,8 +64,9 @@ public:
     }
 
     void command_update() {
-        left_board_->command_update();
-        right_board_->command_update();
+        const bool even = ((cmd_tick_++ & 1u) == 0u);
+        left_board_->command_update(even);
+        right_board_->command_update(even);
     }
 
 private:
@@ -151,7 +155,7 @@ private:
             for (auto& motor : chassis_wheel_motors_)
                 motor.configure(
                     device::DjiMotor::Config{device::DjiMotor::Type::M3508}
-                        .set_reduction_ratio(11.)
+                        .set_reduction_ratio(11.0)
                         .enable_multi_turn_angle()
                         .set_reversed());
 
@@ -198,32 +202,35 @@ private:
             dr16_.update_status();
         }
 
-        void command_update() {
-            uint16_t can_commands[4];
+        void command_update(bool even) {
+            uint16_t can_commands[4] = {0, 0, 0, 0};
 
-            can_commands[0] = chassis_wheel_motors_[0].generate_command();
-            can_commands[1] = chassis_joint_motors_[0].generate_command();
-            can_commands[2] = 0;
-            can_commands[3] = 0;
-            transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(can_commands));
+            if (even) {
+                can_commands[0] = chassis_steer_motors_[0].generate_command();
+                can_commands[1] = 0;
+                can_commands[2] = 0;
+                can_commands[3] = 0;
+                transmit_buffer_.add_can1_transmission(0x1FE, std::bit_cast<uint64_t>(can_commands));
 
-            can_commands[0] = chassis_steer_motors_[0].generate_command();
-            can_commands[1] = 0;
-            can_commands[2] = 0;
-            can_commands[3] = 0;
-            transmit_buffer_.add_can1_transmission(0x1FE, std::bit_cast<uint64_t>(can_commands));
+                can_commands[0] = 0;
+                can_commands[1] = chassis_steer_motors_[1].generate_command();
+                can_commands[2] = 0;
+                can_commands[3] = 0;
+                transmit_buffer_.add_can2_transmission(0x1FE, std::bit_cast<uint64_t>(can_commands));
+            } else {
+                can_commands[0] = chassis_wheel_motors_[0].generate_command();
+                can_commands[1] = chassis_joint_motors_[0].generate_command();
+                can_commands[2] = 0;
+                can_commands[3] = 0;
+                transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(can_commands));
 
-            can_commands[0] = chassis_wheel_motors_[1].generate_command();
-            can_commands[1] = chassis_joint_motors_[1].generate_command();
-            can_commands[2] = 0;
-            can_commands[3] = 0;
-            transmit_buffer_.add_can2_transmission(0x200, std::bit_cast<uint64_t>(can_commands));
+                can_commands[0] = chassis_wheel_motors_[1].generate_command();
+                can_commands[1] = chassis_joint_motors_[1].generate_command();
+                can_commands[2] = 0;
+                can_commands[3] = 0;
+                transmit_buffer_.add_can2_transmission(0x200, std::bit_cast<uint64_t>(can_commands));
+            }
 
-            can_commands[0] = 0;
-            can_commands[1] = chassis_steer_motors_[1].generate_command();
-            can_commands[2] = 0;
-            can_commands[3] = 0;
-            transmit_buffer_.add_can2_transmission(0x1FE, std::bit_cast<uint64_t>(can_commands));
             transmit_buffer_.trigger_transmission();
         }
 
@@ -248,7 +255,7 @@ private:
             if (is_extended_can_id || is_remote_transmission || can_data_length < 8)
                 return;
 
-            if (can_id == 0x203) chassis_wheel_motors_[1].store_status(can_data);
+            if (can_id == 0x201) chassis_wheel_motors_[1].store_status(can_data);
             else if (can_id == 0x202) chassis_joint_motors_[1].store_status(can_data);
             else if (can_id == 0x206) chassis_steer_motors_[1].store_status(can_data);
         }
@@ -312,7 +319,7 @@ private:
             for (auto& motor : chassis_wheel_motors_)
                 motor.configure(
                     device::DjiMotor::Config{device::DjiMotor::Type::M3508}
-                        .set_reduction_ratio(11.)
+                        .set_reduction_ratio(11.0)
                         .enable_multi_turn_angle()
                         .set_reversed());
 
@@ -354,35 +361,34 @@ private:
             supercap_.update_status();
         }
 
-        void command_update() {
-            uint16_t can_commands[4];
+        void command_update(bool even) {
+            uint16_t can_commands[4] = {0, 0, 0, 0};
 
-            can_commands[0] = chassis_wheel_motors_[1].generate_command();
-            can_commands[1] = chassis_joint_motors_[1].generate_command();
-            can_commands[2] = 0;
-            can_commands[3] = 0;
-            transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(can_commands));
+            if (even) {
+                can_commands[0] = 0;
+                can_commands[1] = 0;
+                can_commands[2] = 0;
+                can_commands[3] = chassis_steer_motors_[1].generate_command();
+                transmit_buffer_.add_can1_transmission(0x1FE, std::bit_cast<uint64_t>(can_commands));
 
-            can_commands[0] = chassis_steer_motors_[1].generate_command();
-            can_commands[1] = 0;
-            can_commands[2] = 0;
-            can_commands[3] = 0;
-            transmit_buffer_.add_can1_transmission(0x1FE, std::bit_cast<uint64_t>(can_commands));
+                can_commands[0] = chassis_steer_motors_[0].generate_command();
+                can_commands[1] = 0;
+                can_commands[2] = 0;
+                can_commands[3] = static_cast<uint16_t>(supercap_.generate_command());
+                transmit_buffer_.add_can2_transmission(0x1FE, std::bit_cast<uint64_t>(can_commands));
+            } else {
+                can_commands[0] = chassis_wheel_motors_[1].generate_command();
+                can_commands[1] = chassis_joint_motors_[1].generate_command();
+                can_commands[2] = 0;
+                can_commands[3] = 0;
+                transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(can_commands));
 
-            can_commands[0] = chassis_wheel_motors_[0].generate_command();
-            can_commands[1] = chassis_joint_motors_[0].generate_command();
-            can_commands[2] = 0;
-            can_commands[3] = 0;
-            transmit_buffer_.add_can2_transmission(0x200, std::bit_cast<uint64_t>(can_commands));
-
-            can_commands[0] = 0;
-            can_commands[1] = chassis_steer_motors_[0].generate_command();
-            can_commands[2] = 0;
-            can_commands[3] = 0;
-            transmit_buffer_.add_can2_transmission(0x1FE, std::bit_cast<uint64_t>(can_commands));
-
-            uint16_t cap_cmd[4] = {0, 0, 0, static_cast<uint16_t>(supercap_.generate_command())};
-            transmit_buffer_.add_can2_transmission(0x1FE, std::bit_cast<uint64_t>(cap_cmd));
+                can_commands[0] = chassis_wheel_motors_[0].generate_command();
+                can_commands[1] = chassis_joint_motors_[0].generate_command();
+                can_commands[2] = 0;
+                can_commands[3] = 0;
+                transmit_buffer_.add_can2_transmission(0x200, std::bit_cast<uint64_t>(can_commands));
+            }
 
             transmit_buffer_.trigger_transmission();
         }
@@ -407,7 +413,7 @@ private:
 
             if (can_id == 0x201) chassis_wheel_motors_[0].store_status(can_data);
             else if (can_id == 0x202) chassis_joint_motors_[0].store_status(can_data);
-            else if (can_id == 0x207) chassis_steer_motors_[0].store_status(can_data);
+            else if (can_id == 0x205) chassis_steer_motors_[0].store_status(can_data);
         }
 
     private:
@@ -425,6 +431,8 @@ private:
 
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr steers_calibrate_subscription_;
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr joints_calibrate_subscription_;
+
+    uint32_t cmd_tick_ = 0;
 };
 
 } // namespace rmcs_core::hardware

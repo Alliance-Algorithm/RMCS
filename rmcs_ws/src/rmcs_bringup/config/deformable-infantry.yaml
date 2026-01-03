@@ -21,15 +21,29 @@ rmcs_executor:
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::DeformableChassisController -> deformable_chassis_controller
 
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+
+value_broadcaster:
+  ros__parameters:
+    forward_list:
+      - /chassis/left_front_joint/velocity
+      - /chassis/left_back_joint/velocity
+      - /chassis/right_back_joint/velocity
+      - /chassis/right_front_joint/velocity
+      - /chassis/processed_encoder/angle
+      - /chassis/encoder/alpha
+      - /chassis/encoder/alpha_dot
+      - /chassis/radius
+
 deformable_infantry:
   ros__parameters:
     usb_pid: -1
     usb_pid_left_board: 0xab05
     usb_pid_right_board: 0xf7b6
-    left_front_zero_point: 7848
-    left_back_zero_point: 5770
-    right_back_zero_point: 2380
-    right_front_zero_point: 1705
+    left_front_zero_point: 4416
+    left_back_zero_point: 2379
+    right_back_zero_point: 1683
+    right_front_zero_point: 6421
 
 chassis_test:
   ros__parameters:

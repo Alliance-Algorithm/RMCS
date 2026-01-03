@@ -164,7 +164,7 @@ private:
     double update_angular_velocity_control() {
         switch (*mode_) {
         case rmcs_msgs::ChassisMode::AUTO:
-            return joystick_left_->y();
+            return angular_velocity_max_ * joystick_left_->y();
 
         case rmcs_msgs::ChassisMode::SPIN: {
             double ratio = spin_ratio_default_;

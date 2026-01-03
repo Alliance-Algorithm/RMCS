@@ -46,9 +46,9 @@ public:
         //     return;
         // }
             // if(*angle_error_ < 0.8 && *angle_error_ > -0.8){             // dead zone
-            //     *control_torque_ =0.0;
+                *control_torque_ =0.0;
             // } else {
-                *control_torque_ = std::clamp(calc_control_value(), -0.3, 0.3);
+            //     *control_torque_ = std::clamp(calc_control_value(), -1.0, 1.0);
             // }
         // RCLCPP_INFO(logger_, "control:%f", *control_torque_);    //debug
     }

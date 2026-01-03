@@ -91,6 +91,9 @@ public:
             "/chassis/right_back_wheel/control_torque", right_back_wheel_control_torque_);
         register_output(
             "/chassis/right_front_wheel/control_torque", right_front_wheel_control_torque_);
+        register_output("/chassis/encoder/alpha", encoder_alpha_);
+        register_output("/chassis/encoder/alpha_dot", encoder_alpha_dot_);
+        register_output("/chassis/radius", radius_);
     }
 
     void update() override {
@@ -98,12 +101,16 @@ public:
             reset_all_controls();
             return;
         }
-
-        const EncoderState encoder = update_processed_encoder_state_();
+        
+        EncoderState encoder = update_processed_encoder_state_();
         if (encoder.valid) {
             vehicle_radius_ = chassis_radius_ + rod_length_ * std::cos(encoder.alpha_rad);
+            *radius_ = vehicle_radius_;
         }
 
+        *encoder_alpha_ = encoder.alpha_rad;
+        *encoder_alpha_dot_ = encoder.alpha_dot_rad;
+        
         integral_yaw_angle_imu();
 
         const Eigen::Matrix<double, 4, 2> v_mech = calculate_mech_wheel_velocity(encoder);
@@ -574,6 +581,10 @@ private:
     OutputInterface<double> left_back_wheel_control_torque_;
     OutputInterface<double> right_back_wheel_control_torque_;
     OutputInterface<double> right_front_wheel_control_torque_;
+
+    OutputInterface<double> encoder_alpha_;
+    OutputInterface<double> encoder_alpha_dot_;
+    OutputInterface<double> radius_;
 
     QcpSolver qcp_solver_;
     filter::LowPassFilter<3> control_acceleration_filter_;
