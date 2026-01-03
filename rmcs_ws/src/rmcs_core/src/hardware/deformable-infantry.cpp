@@ -65,8 +65,8 @@ public:
 
     void command_update() {
         const bool even = ((cmd_tick_++ & 1u) == 0u);
-        left_board_->command_update(even);
-        right_board_->command_update(even);
+        left_board_->command_update();
+        right_board_->command_update();
     }
 
 private:
@@ -202,10 +202,9 @@ private:
             dr16_.update_status();
         }
 
-        void command_update(bool even) {
+        void command_update() {
             uint16_t can_commands[4] = {0, 0, 0, 0};
 
-            if (even) {
                 can_commands[0] = chassis_steer_motors_[0].generate_command();
                 can_commands[1] = 0;
                 can_commands[2] = 0;
@@ -217,7 +216,7 @@ private:
                 can_commands[2] = 0;
                 can_commands[3] = 0;
                 transmit_buffer_.add_can2_transmission(0x1FE, std::bit_cast<uint64_t>(can_commands));
-            } else {
+
                 can_commands[0] = chassis_wheel_motors_[0].generate_command();
                 can_commands[1] = chassis_joint_motors_[0].generate_command();
                 can_commands[2] = 0;
@@ -229,7 +228,6 @@ private:
                 can_commands[2] = 0;
                 can_commands[3] = 0;
                 transmit_buffer_.add_can2_transmission(0x200, std::bit_cast<uint64_t>(can_commands));
-            }
 
             transmit_buffer_.trigger_transmission();
         }
@@ -361,10 +359,9 @@ private:
             supercap_.update_status();
         }
 
-        void command_update(bool even) {
+        void command_update() {
             uint16_t can_commands[4] = {0, 0, 0, 0};
 
-            if (even) {
                 can_commands[0] = 0;
                 can_commands[1] = 0;
                 can_commands[2] = 0;
@@ -375,8 +372,8 @@ private:
                 can_commands[1] = 0;
                 can_commands[2] = 0;
                 can_commands[3] = static_cast<uint16_t>(supercap_.generate_command());
+
                 transmit_buffer_.add_can2_transmission(0x1FE, std::bit_cast<uint64_t>(can_commands));
-            } else {
                 can_commands[0] = chassis_wheel_motors_[1].generate_command();
                 can_commands[1] = chassis_joint_motors_[1].generate_command();
                 can_commands[2] = 0;
@@ -388,7 +385,6 @@ private:
                 can_commands[2] = 0;
                 can_commands[3] = 0;
                 transmit_buffer_.add_can2_transmission(0x200, std::bit_cast<uint64_t>(can_commands));
-            }
 
             transmit_buffer_.trigger_transmission();
         }
