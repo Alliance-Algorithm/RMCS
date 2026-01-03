@@ -1,54 +1,24 @@
+#include "librmcs/client/cboard.hpp"
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/bmi088.hpp"
-#include "hardware/device/force_sensor.hpp"
-#include "librmcs/client/cboard.hpp"
-#include <eigen3/Eigen/src/Geometry/Quaternion.h>
 #include "hardware/device/force_sensor_runtime.hpp"
 #include "hardware/device/trigger_servo.hpp"
+#include <cmath>
 #include <cstddef>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
-#include <rmcs_executor/component.hpp>
 #include "filter/low_pass_filter.hpp"
 #include <chrono>
 #include <std_msgs/msg/int32.hpp>
-#include <numeric>
-#include <algorithm>
+#include <eigen3/Eigen/src/Geometry/Quaternion.h>
 #include <tf2_ros/transform_broadcaster.h>
 #include <geometry_msgs/msg/transform_stamped.hpp>
+#include <rmcs_executor/component.hpp>
 #include <rmcs_description/tf_description.hpp>
 
 namespace rmcs_core::hardware {
-
-class QuaternionBayesFilter {
-public:
-    QuaternionBayesFilter(double confidence_ratio, double sample_rate)
-        : alpha_(confidence_ratio / (confidence_ratio + 1.0))  
-        , initialized_(false) {}
-
-    Eigen::Quaterniond update(const Eigen::Quaterniond& measurement) {
-        if (!initialized_) {
-            belief_ = measurement;
-            initialized_ = true;
-            return belief_;
-        }
-        
-        belief_ = belief_.slerp(1.0 - alpha_, measurement);
-        return belief_;
-    }
-    
-    void reset() { initialized_ = false; }
-    bool isInitialized() const { return initialized_; }
-    double getConfidence() const { return alpha_; }
-    Eigen::Quaterniond getCurrentBelief() const { return belief_; }
-
-private:
-    double alpha_;  
-    bool initialized_;
-    Eigen::Quaterniond belief_;
-};
 
 class CatapultDart
     : public rmcs_executor::Component
@@ -64,6 +34,9 @@ public:
         , pitch_angle_filter_(20.0, 1000.0)
         , pitch_velocity_filter_(20.0, 1000.0)
         , yaw_velocity_filter_(20.0, 1000.0)
+        , yaw_filter_(5.0, 1000.0)
+        , pitch_filter_(10.0, 1000.0)
+        , roll_filter_(10.0, 1000.0)
         , dart_command_(create_partner_component<DartCommand>(get_component_name() + "_command", *this))
         , dr16_(*this)
         , imu_(1000, 0.2, 0.0)
@@ -85,24 +58,25 @@ public:
                    .set_reversed()})
         , force_sensor_(*this)
         , trigger_servo_(*dart_command_, "/dart/trigger_servo")
+        //, elevating_motor_left_(*dart_command_, "/dart/elevating_motor_left")
+        //, elevating_motor_right_(*dart_command_, "/dart/elevating_motor_right")
+        //, fill_limiting_servo_(*dart_command_, "/dart/fill_limiting_servo")
         , transmit_buffer_(*this, 32)
         , event_thread_([this]() { handle_events(); }) {
-        
-        register_output("/dart/pitch/angle", pitch_angle_);
-        register_output("/tf", tf_);
-        register_output("/imu/state/final_roll", final_roll);
-        register_output("/imu/state/final_pitch", final_pitch);
-        register_output("/imu/state/final_yaw", final_yaw);
 
-        imu_sensitivity_ = this->get_parameter("imu_sensitivity").as_double();
+        register_output("/tf", tf_);
+        
+        register_output("/imu/catapult_pitch_angle", catapult_pitch_angle_);
+        register_output("/imu/catapult_roll_angle", catapult_roll_angle_);
+        register_output("/imu/catapult_yaw_angle", catapult_yaw_angle_);
+
         first_sample_spot_ = this->get_parameter("first_sample_spot").as_double();
         final_sample_spot_ = this->get_parameter("final_sample_spot").as_double();
-
+        
+        setup_imu_coordinate_mapping();
         imu_sampler_initialize();
         tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
         start_time_ = std::chrono::steady_clock::now();
-        calibration_complete_ = false;
-
         trigger_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
             "/trigger/calibrate", rclcpp::QoS{0}, [this](std_msgs::msg::Int32::UniquePtr&& msg) {
                 trigger_servo_calibrate_subscription_callback(std::move(msg));
@@ -155,11 +129,6 @@ public:
                 trigger_servo_.generate_runtime_command(uart_data_length);
             const auto trigger_servo_uart_data_ptr = command_buffer.get();
             transmit_buffer_.add_uart2_transmission(trigger_servo_uart_data_ptr, uart_data_length);
-
-            // std::string hex_string = bytes_to_hex_string(command_buffer.get(), uart_data_length);
-            // RCLCPP_INFO(
-            //     this->get_logger(), "UART2(length: %zu): [ %s ]", uart_data_length,
-            //     hex_string.c_str());
         }
 
         transmit_buffer_.trigger_transmission();
@@ -199,16 +168,10 @@ protected:
     }
 
     void accelerometer_receive_callback(int16_t x, int16_t y, int16_t z) override {
-        x = static_cast<int16_t>(x / imu_sensitivity_);
-        y = static_cast<int16_t>(y / imu_sensitivity_);
-        z = static_cast<int16_t>(z / imu_sensitivity_);
         imu_.store_accelerometer_status(x, y, z);
     }
     
     void gyroscope_receive_callback(int16_t x, int16_t y, int16_t z) override {
-        x = static_cast<int16_t>(x / imu_sensitivity_);
-        y = static_cast<int16_t>(y / imu_sensitivity_);
-        z = static_cast<int16_t>(z / imu_sensitivity_);
         imu_.store_gyroscope_status(x, y, z);
     }
 
@@ -217,10 +180,6 @@ protected:
         if (!success) {
             RCLCPP_INFO(logger_, "calibrate: uart2 data store failed");
         }
-
-        // std::string hex_string = bytes_to_hex_string(data, length);
-        // RCLCPP_INFO(this->get_logger(), "UART2(length: %hhu): [ %s ]", length,
-        // hex_string.c_str());
     }
 
     void dbus_receive_callback(const std::byte* uart_data, uint8_t uart_data_length) override {
@@ -229,11 +188,6 @@ protected:
 
 private:
     void trigger_servo_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr msg) {
-        /*
-        标定命令格式：
-        ros2 topic pub --rate 2 --times 5 /trigger/calibrate std_msgs/msg/Int32 "{'data':0}"
-        替换data值就行
-        */
         trigger_servo_.set_calibrate_mode(msg->data);
 
         std::unique_ptr<std::byte[]> command_buffer;
@@ -263,11 +217,6 @@ private:
 
         const auto trigger_servo_uart_data_ptr = command_buffer.get();
         transmit_buffer_.add_uart2_transmission(trigger_servo_uart_data_ptr, command_length);
-
-        std::string hex_string = bytes_to_hex_string(command_buffer.get(), command_length);
-        RCLCPP_INFO(
-            this->get_logger(), "UART2 Pub: (length=%zu)[ %s ]", command_length,
-            hex_string.c_str());
     }
 
     static std::string bytes_to_hex_string(const std::byte* data, size_t size) {
@@ -289,156 +238,63 @@ private:
         return result;
     }
 
-    rclcpp::Logger logger_;
-
-    filter::LowPassFilter<1> pitch_angle_filter_;
-    filter::LowPassFilter<1> pitch_velocity_filter_;
-    filter::LowPassFilter<1> yaw_velocity_filter_;
-
-    bool calibration_complete_ = false;
-    std::chrono::steady_clock::time_point start_time_;    
-
-
-    class DartCommand : public rmcs_executor::Component {
-    public:
-        explicit DartCommand(CatapultDart& robot)
-            : dart_(robot) {}
-
-        void update() override { dart_.command_update(); }
-
-        CatapultDart& dart_;
-    };
-    std::shared_ptr<DartCommand> dart_command_;
+    void setup_imu_coordinate_mapping() {
+        imu_.set_coordinate_mapping(
+            [](double x, double y, double z) -> std::tuple<double, double, double> {
+                return {x, -y, -z};
+            });
+    }
 
     void imu_sampler_initialize() {
         start_time_ = std::chrono::steady_clock::now();
-        calibration_complete_ = false;
-        sample_counter_ = 0;
-        quaternion_filter_.reset();
-        quaternion_smoother_.reset();
-        clearSamples();
+        yaw_drift_coefficient_ = 0.0;
+        
     }
 
     void processImuData() {
-        Eigen::Quaterniond raw_quaternion{
-            imu_.q0() / imu_sensitivity_, 
-            imu_.q1() / imu_sensitivity_, 
-            imu_.q2() / imu_sensitivity_, 
-            imu_.q3() / imu_sensitivity_
-        };
-        raw_quaternion.normalize();
-        
-        Eigen::Quaterniond bayes_quaternion = quaternion_filter_.update(raw_quaternion);
-        
-        Eigen::Quaterniond smoothed_quaternion = quaternion_smoother_.update(bayes_quaternion);
-        
-        Eigen::Vector3d smoothed_euler = quaternionToEuler(smoothed_quaternion);
-        
-        auto compensated = applyDriftCompensation(smoothed_euler);
-        
-        setOutputStates(compensated);
-        
-        setTfTransforms(compensated);
-    }
-
-    struct CompensatedResult { double roll, pitch, yaw; };
-
-    CompensatedResult applyDriftCompensation(const Eigen::Vector3d& angles) {
         auto current_time = std::chrono::steady_clock::now();
         double elapsed_seconds = std::chrono::duration<double>(current_time - start_time_).count();
         
-        if (!calibration_complete_) {
-            collectCalibrationSamples(angles, elapsed_seconds);
-            return {angles.x(), angles.y(), angles.z()};
-        } else {
-            double compensated_roll = angles.x() - roll_bias_;
-            double compensated_pitch = angles.y() - pitch_bias_;
-            double compensated_yaw = angles.z() - (yaw_drift_slope_ * elapsed_seconds + yaw_drift_offset_);
-
-            compensated_yaw = normalizeAngle(compensated_yaw);
-            compensated_pitch = normalizeAngle(compensated_pitch);
-            compensated_roll = normalizeAngle(compensated_roll);
-
-            return {compensated_roll, compensated_pitch, compensated_yaw};
-        }
-    }
-
-    static double normalizeAngle(double angle) {
-        while (angle > M_PI) angle -= 2 * M_PI;
-        while (angle < -M_PI) angle += 2 * M_PI;
-        return angle;
-    }
-
-    void collectCalibrationSamples(const Eigen::Vector3d& angles, double elapsed_seconds) {
-        if (sample_counter_ % 100 == 0) {  // at 1000Hz，sampling 10 times per sec
-            if (elapsed_seconds >= first_sample_spot_ && elapsed_seconds <= final_sample_spot_) {
-                roll_samples_.push_back(angles.x());
-                pitch_samples_.push_back(angles.y());
-                yaw_samples_.push_back(angles.z());
-                time_samples_.push_back(elapsed_seconds);
+        Eigen::Quaterniond imu_quaternion(imu_.q0(), imu_.q1(), imu_.q2(), imu_.q3());
+        
+        Eigen::Matrix3d rotation_matrix = imu_quaternion.toRotationMatrix();
+        
+        double roll = std::atan2(rotation_matrix(2,1), rotation_matrix(2,2));
+        double pitch = std::asin(-rotation_matrix(2,0));
+        double yaw = std::atan2(rotation_matrix(1,0), rotation_matrix(0,0));
+        
+        double transformed_roll = -roll_filter_.update(roll);
+        double transformed_pitch = pitch_filter_.update(pitch);
+        double transformed_yaw = -yaw_filter_.update(yaw);
+        
+        if (elapsed_seconds >= first_sample_spot_ && elapsed_seconds <= final_sample_spot_) {
+            yaw_samples_.push_back(transformed_yaw);
+            time_samples_.push_back(elapsed_seconds);
+            double sum_x = 0.0, sum_y = 0.0, sum_xy = 0.0, sum_xx = 0.0;
+            double n = yaw_samples_.size();
+            
+            for (int i = 0; i < n; ++i) {
+                sum_x += time_samples_[i];
+                sum_y += yaw_samples_[i];
+                sum_xy += time_samples_[i] * yaw_samples_[i];
+                sum_xx += time_samples_[i] * time_samples_[i];
+            }
+            
+            double denominator = n * sum_xx - sum_x * sum_x;
+            if (std::abs(denominator) > 1e-10) {
+                yaw_drift_coefficient_ = (n * sum_xy - sum_x * sum_y) / denominator;
             }
         }
-        sample_counter_++;
-
-        if (elapsed_seconds >= final_sample_spot_ && !calibration_complete_) {
-            calculateCompensationParameters();
-            calibration_complete_ = true;
-            RCLCPP_INFO(logger_, "IMU calibration complete with %zu samples", roll_samples_.size());
-            clearSamples();
-        }
-    }
-
-    void calculateCompensationParameters() {
-        if (roll_samples_.empty()) return;
-
-        roll_bias_ = std::accumulate(roll_samples_.begin(), roll_samples_.end(), 0.0) / roll_samples_.size();
-        pitch_bias_ = std::accumulate(pitch_samples_.begin(), pitch_samples_.end(), 0.0) / pitch_samples_.size();
         
-        calculateYawDriftCompensation();
-        
-        RCLCPP_INFO(logger_, "IMU Bias - Roll: %.6f, Pitch: %.6f, Yaw slope: %.6f", 
-                   roll_bias_, pitch_bias_, yaw_drift_slope_);
+        transformed_yaw -= ((yaw_drift_coefficient_ + 0.000512) * elapsed_seconds);
+        publishTfTransforms(transformed_roll, transformed_pitch, transformed_yaw);
+
+        *catapult_roll_angle_ = (transformed_roll / M_PI) * 180.0;
+        *catapult_pitch_angle_ = (transformed_pitch / M_PI) * 180.0;
+        *catapult_yaw_angle_ = (transformed_yaw / M_PI) * 180.0;
     }
 
-    void calculateYawDriftCompensation() {
-        if (yaw_samples_.size() < 2) return;
-
-        double sum_x = 0.0, sum_y = 0.0, sum_xy = 0.0, sum_xx = 0.0;
-        int n = yaw_samples_.size();
-        
-        for (size_t i = 0; i < n; ++i) {
-            sum_x += time_samples_[i];
-            sum_y += yaw_samples_[i];
-            sum_xy += time_samples_[i] * yaw_samples_[i];
-            sum_xx += time_samples_[i] * time_samples_[i];
-        }
-        
-        double denominator = n * sum_xx - sum_x * sum_x;
-        if (std::abs(denominator) > 1e-10) {
-            yaw_drift_slope_ = (n * sum_xy - sum_x * sum_y) / denominator;
-            yaw_drift_offset_ = (sum_y - yaw_drift_slope_ * sum_x) / n;
-        }
-    }
-
-    void clearSamples() {
-        roll_samples_.clear();
-        pitch_samples_.clear();
-        yaw_samples_.clear();
-        time_samples_.clear();
-    }
-
-    void setOutputStates(const CompensatedResult& compensated) {
-        *final_roll = compensated.roll;
-        *final_pitch = compensated.pitch;
-        *final_yaw = compensated.yaw;
-    }
-
-    void setTfTransforms(const CompensatedResult& compensated) {
-        tf_->set_state<rmcs_description::YawLink, rmcs_description::PitchLink>(compensated.yaw);
-        publishTfTransforms(compensated);
-    }
-
-    void publishTfTransforms(const CompensatedResult& compensated) {
+    void publishTfTransforms(double roll, double pitch, double yaw) {
         auto now = this->get_clock()->now();
         
         auto create_transform = [&](const std::string& parent, const std::string& child, 
@@ -464,58 +320,60 @@ private:
             r.x = x; r.y = y; r.z = z; r.w = w; 
             return r;
         };
-
         geometry_msgs::msg::Vector3 zero_trans = create_translation(0, 0, 0);
         geometry_msgs::msg::Vector3 pitch_trans = create_translation(0, 0, 0.05);
         
-        Eigen::Quaterniond yaw_quaternion = 
-        Eigen::AngleAxisd(compensated.yaw, Eigen::Vector3d::UnitZ()) *
-        Eigen::AngleAxisd(compensated.pitch, Eigen::Vector3d::UnitY()) *
-        Eigen::AngleAxisd(compensated.roll, Eigen::Vector3d::UnitX());
+        // Create quaternions for each axis rotation
+        Eigen::Quaterniond roll_quat(Eigen::AngleAxisd(roll, Eigen::Vector3d::UnitX()));
+        Eigen::Quaterniond pitch_quat(Eigen::AngleAxisd(pitch, Eigen::Vector3d::UnitY()));
+        Eigen::Quaterniond yaw_quat(Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ()));
         
-        // base_link -> gimbal_center_link
+        // Combined rotation: yaw -> pitch -> roll
+        Eigen::Quaterniond combined_quaternion = yaw_quat * pitch_quat * roll_quat;
+        
+        // Publish all TF transforms
         tf_broadcaster_->sendTransform(create_transform("base_link", "gimbal_center_link", 
             zero_trans, create_rotation(0, 0, 0, 1)));
         
-        // gimbal_center_link -> yaw_link
-        Eigen::AngleAxisd yaw_axis(compensated.yaw, Eigen::Vector3d::UnitZ());
-        Eigen::Quaterniond yaw_only_quaternion(yaw_axis);
         tf_broadcaster_->sendTransform(create_transform("gimbal_center_link", "yaw_link", 
-            zero_trans, create_rotation(yaw_only_quaternion.x(), yaw_only_quaternion.y(), 
-                                                   yaw_only_quaternion.z(), yaw_only_quaternion.w())));
+            zero_trans, create_rotation(yaw_quat.x(), yaw_quat.y(), 
+                                        yaw_quat.z(), yaw_quat.w())));
         
-        // yaw_link -> pitch_link  
-        Eigen::AngleAxisd pitch_axis(compensated.pitch, Eigen::Vector3d::UnitY());
-        Eigen::Quaterniond pitch_only_quaternion(pitch_axis);
         tf_broadcaster_->sendTransform(create_transform("yaw_link", "pitch_link", 
-            pitch_trans, create_rotation(pitch_only_quaternion.x(), pitch_only_quaternion.y(), 
-                                                    pitch_only_quaternion.z(), pitch_only_quaternion.w())));
+            pitch_trans, create_rotation(pitch_quat.x(), pitch_quat.y(), 
+                                         pitch_quat.z(), pitch_quat.w())));
         
-        // pitch_link -> odom_imu
         tf_broadcaster_->sendTransform(create_transform("pitch_link", "odom_imu", 
-            zero_trans, create_rotation(yaw_quaternion.x(), yaw_quaternion.y(), 
-                                                   yaw_quaternion.z(), yaw_quaternion.w())));
+            zero_trans, create_rotation(combined_quaternion.x(), combined_quaternion.y(), 
+                                        combined_quaternion.z(), combined_quaternion.w())));
         
-        // world -> base_link
         tf_broadcaster_->sendTransform(create_transform("world", "base_link", 
             zero_trans, create_rotation(0, 0, 0, 1)));
     }
 
-    static Eigen::Vector3d quaternionToEuler(const Eigen::Quaterniond& q) {
-        Eigen::Matrix3d m = q.toRotationMatrix();
-        return {std::atan2(m(2,1), m(2,2)), std::asin(-m(2,0)), std::atan2(m(1,0), m(0,0))};
-    }
+    rclcpp::Logger logger_;
 
-    double imu_sensitivity_;
+    filter::LowPassFilter<1> pitch_angle_filter_;
+    filter::LowPassFilter<1> pitch_velocity_filter_;
+    filter::LowPassFilter<1> yaw_velocity_filter_;
+    filter::LowPassFilter<1> yaw_filter_;
+    filter::LowPassFilter<1> pitch_filter_;
+    filter::LowPassFilter<1> roll_filter_;
+
+    std::chrono::steady_clock::time_point start_time_;    
+
+    class DartCommand : public rmcs_executor::Component {
+    public:
+        explicit DartCommand(CatapultDart& robot)
+            : dart_(robot) {}
+
+        void update() override { dart_.command_update(); }
+
+        CatapultDart& dart_;
+    };
+    std::shared_ptr<DartCommand> dart_command_;
     double first_sample_spot_;
     double final_sample_spot_;
-
-    QuaternionBayesFilter quaternion_filter_{15.0, 1000.0};   
-    QuaternionBayesFilter quaternion_smoother_{10.0, 1000.0}; 
-    size_t sample_counter_ = 0;
-    std::vector<double> roll_samples_, pitch_samples_, yaw_samples_, time_samples_;
-    
-    double roll_bias_ = 0.0, pitch_bias_ = 0.0, yaw_drift_slope_ = 0.0, yaw_drift_offset_ = 0.0;
 
     OutputInterface<rmcs_description::Tf> tf_;
     std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
@@ -529,16 +387,23 @@ private:
 
     device::ForceSensorRuntime force_sensor_;
     device::TriggerServo trigger_servo_;
+    //  device::TriggerServo elevating_motor_left_;
+    // device::TriggerServo elevating_motor_right_;
+    // device::TriggerServo fill_limiting_servo_;
 
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr trigger_calibrate_subscription_;
 
     librmcs::client::CBoard::TransmitBuffer transmit_buffer_;
     std::thread event_thread_;
     
-    OutputInterface<double> pitch_angle_;
-    OutputInterface<double> final_pitch;
-    OutputInterface<double> final_roll;
-    OutputInterface<double> final_yaw;
+    OutputInterface<double> catapult_pitch_angle_;
+    OutputInterface<double> catapult_roll_angle_;
+    OutputInterface<double> catapult_yaw_angle_;
+    OutputInterface<double> yaw_samples_output_;
+
+    double yaw_drift_coefficient_ = 0.0;
+        
+    std::vector<double> yaw_samples_, time_samples_;
 };
 } // namespace rmcs_core::hardware
 

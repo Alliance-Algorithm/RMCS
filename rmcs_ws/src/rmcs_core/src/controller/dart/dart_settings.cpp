@@ -2,6 +2,7 @@
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
+#include <cstdint>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/switch.hpp>
 #include "controller/pid/pid_calculator.hpp"
@@ -96,7 +97,7 @@ public:
                     *force_control_ = joystick_right_->x() * max_transform_rate_ * 5;
                     break;
                 } else if (is_auto_force_control_mode_ == 1) {
-                    *average_force_ = (*force_sensor_ch1_data_ + *force_sensor_ch2_data_) / 2;
+                    *average_force_ = (*force_sensor_ch1_data_ + *force_sensor_ch2_data_) * 0.5;
                     transmit_distance_to_force();
                     force_control();
                     log_count_++;
@@ -135,7 +136,7 @@ private:
     }
 
     void transmit_distance_to_force() {
-        force_control_setpoint_ = 3800.0;
+        force_control_setpoint_ = 3852.0;
     }
 
 private:
@@ -143,8 +144,8 @@ private:
     rclcpp::Logger logger_;
 
     int log_count_ = 0;
-    int is_auto_pitch_control_mode_;
-    int is_auto_force_control_mode_;
+    int64_t is_auto_pitch_control_mode_;
+    int64_t is_auto_force_control_mode_;
     double max_transform_rate_;
 
     double pitch_angle_setpoint_;

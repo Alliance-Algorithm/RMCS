@@ -15,17 +15,34 @@ public:
         register_input("/dart/yaw_motor/control_torque",     yaw_control_torque_);
         register_input("/dart/pitch_motor/velocity",   pitch_speed_);
         register_input("/dart/yaw_motor/velocity",     yaw_speed_);
-        }
+        register_input("/imu/catapult_roll_angle", final_roll_);
+        register_input("/imu/catapult_pitch_angle", final_pitch_);
+        register_input("/imu/catapult_yaw_angle", final_yaw_);
+        register_input("/force_sensor/channel_1/weight", force_sensor_ch1_data_);
+        register_input("/force_sensor/channel_2/weight", force_sensor_ch2_data_);}
     void update() override {
+        if (count_n == 100) {
         // RCLCPP_INFO(this->get_logger(), "pitch_control_torque = %f, yaw_control_torque = %f", *pitch_control_torque_, *yaw_control_torque_);
         // RCLCPP_INFO(this->get_logger(), "pitch_speed = %f, yaw_speed = %f", *pitch_speed_, *yaw_speed_);
+        RCLCPP_INFO(this->get_logger(), "final_roll = %f, final_pitch = %f, final_yaw = %f", *final_roll_, *final_pitch_, *final_yaw_); 
+        // RCLCPP_INFO(logger_, "ch1:%d, ch2:%d", *force_sensor_ch1_data_, *force_sensor_ch2_data_); 
+            count_n = 0;
+        }
+        count_n++;
     }
 private:
+    int count_n = 0;
     rclcpp::Logger logger_;
     InputInterface<double> pitch_control_torque_;
     InputInterface<double> yaw_control_torque_;
     InputInterface<double> pitch_speed_;
     InputInterface<double> yaw_speed_;
+    InputInterface<double> final_pitch_;
+    InputInterface<double> final_roll_;
+    InputInterface<double> final_yaw_;
+    InputInterface<int> force_sensor_ch1_data_;
+    InputInterface<int> force_sensor_ch2_data_;
+
 };
 } // namespace rmcs_core::controller::dart
 

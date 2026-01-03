@@ -14,9 +14,8 @@ rmcs_executor:
 catapult_dart:
   ros__parameters:
     usb_pid: -1
-    imu_sensitivity: 2.0
-    first_sample_spot: 5.0   
-    final_sample_spot: 10.0 
+    first_sample_spot: 1.0   
+    final_sample_spot: 4.0 
 
 dart_settings:
   ros__parameters: 
@@ -76,6 +75,6 @@ Value_Broadcasters:
     forward_list:
       - "/dart/pitch/angle"
       - "/dart/force_control_motor/velocity"
-      - "/imu/state/final_yaw"
-      - "/imu/state/final_pitch"
-      - "/imu/state/final_roll"
+      - "/imu/catapult_roll_angle"
+      - "/imu/catapult_pitch_angle"
+      - "/imu/catapult_yaw_angle"
