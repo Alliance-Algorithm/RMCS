@@ -94,8 +94,8 @@ public:
 private:
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
 
-    static constexpr double translational_velocity_max_ = 10.0;
-    static constexpr double angular_velocity_max_       = 16.0;
+    static constexpr double translational_velocity_max_ = 5.0;
+    static constexpr double angular_velocity_max_       = 10.0;
     static constexpr double spin_ratio_default_         = 0.6;
 
     static double wrap_deg(double deg) {
@@ -166,20 +166,20 @@ private:
         case rmcs_msgs::ChassisMode::AUTO:
             return angular_velocity_max_ * joystick_left_->y();
 
-        case rmcs_msgs::ChassisMode::SPIN: {
-            double ratio = spin_ratio_default_;
+        // case rmcs_msgs::ChassisMode::SPIN: {
+        //     double ratio = spin_ratio_default_;
 
-            const double rotary_knob = *rotary_knob_;
-            if (std::isfinite(rotary_knob)) {
-                if (rotary_knob >= -1.0 && rotary_knob <= 1.0)
-                    ratio = std::abs(rotary_knob);
-                else
-                    ratio = std::clamp(std::abs(rotary_knob), 0.0, 1.0);
-            }
+        //     const double rotary_knob = *rotary_knob_;
+        //     if (std::isfinite(rotary_knob)) {
+        //         if (rotary_knob >= -1.0 && rotary_knob <= 1.0)
+        //             ratio = std::abs(rotary_knob);
+        //         else
+        //             ratio = std::clamp(std::abs(rotary_knob), 0.0, 1.0);
+        //     }
 
-            const double angular_velocity = ratio * angular_velocity_max_;
-            return spinning_forward_ ? angular_velocity : -angular_velocity;
-        }
+        //     const double angular_velocity = ratio * angular_velocity_max_;
+        //     return spinning_forward_ ? angular_velocity : -angular_velocity;
+        // }
 
         default:
             return 0.0;

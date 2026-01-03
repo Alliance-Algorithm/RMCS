@@ -40,10 +40,10 @@ deformable_infantry:
     usb_pid: -1
     usb_pid_left_board: 0xab05
     usb_pid_right_board: 0xf7b6
-    left_front_zero_point: 4416
-    left_back_zero_point: 2379
-    right_back_zero_point: 1683
-    right_front_zero_point: 6421
+    left_front_zero_point: 335
+    left_back_zero_point: 6496
+    right_back_zero_point: 1713
+    right_front_zero_point: 6405
 
 chassis_test:
   ros__parameters:

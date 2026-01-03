@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <tuple>
@@ -198,7 +199,8 @@ private:
             return v_mech;
         }
 
-        const double v = -rod_length_ * std::sin(encoder.alpha_rad) * encoder.alpha_dot_rad;
+        double v = -rod_length_ * std::sin(encoder.alpha_rad) * encoder.alpha_dot_rad;
+        v = std::clamp(v, -0.1, 0.1);
 
         v_mech.col(0) = v * cos_varphi_;
         v_mech.col(1) = v * sin_varphi_;
