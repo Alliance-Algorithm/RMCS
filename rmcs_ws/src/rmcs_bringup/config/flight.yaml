@@ -9,8 +9,6 @@ rmcs_executor:
       - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
-      #- rmcs_core::controller::gimbal::GimbalFrequencySweep -> gimbal_frequency
-
 
       - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
       - rmcs_core::controller::shooting::HeatController -> heat_controller
@@ -94,13 +92,6 @@ pitch_angle_pid_controller:
     kp: 16.0
     ki: 0.0
     kd: 0.0
-
-# gimbal_frequency:
-#   ros__parameters:
-#     F_start: 5
-#     F_end: 50
-#     Repeat_time: 20
-
 
 friction_wheel_controller:
   ros__parameters:
