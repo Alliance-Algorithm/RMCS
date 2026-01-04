@@ -1,5 +1,6 @@
 #pragma once
 
+#include "librmcs/utility/logging.hpp"
 #include <cmath>
 
 #include <iostream>
@@ -26,11 +27,16 @@ class TwoAxisGimbalSolver {
     };
 
 public:
-    TwoAxisGimbalSolver(rmcs_executor::Component& component, double upper_limit, double lower_limit)
+    TwoAxisGimbalSolver(
+        rmcs_executor::Component& component, double upper_limit, double lower_limit,
+        double yaw_upper_limit, double yaw_lower_limit)
         : upper_limit_(std::cos(upper_limit), -std::sin(upper_limit))
-        , lower_limit_(std::cos(lower_limit), -std::sin(lower_limit)) {
+        , lower_limit_(std::cos(lower_limit), -std::sin(lower_limit))
+        , yaw_upper_limit_(std::cos(yaw_upper_limit), -std::sin(yaw_upper_limit))
+        , yaw_lower_limit_(std::cos(yaw_lower_limit), -std::sin(yaw_lower_limit)) {
 
         component.register_input("/gimbal/pitch/angle", gimbal_pitch_angle_);
+        component.register_input("/gimbal/yaw/angle", gimbal_yaw_angle_);
         component.register_input("/tf", tf_);
     }
 
@@ -104,6 +110,11 @@ public:
         update_yaw_axis();
 
         PitchLink::DirectionVector control_direction = operation.update(*this);
+        // LOG_INFO(
+        //     "x: %f, y: %f, z: %f", control_direction->x(), control_direction->y(),
+        //     control_direction->z());
+
+
         if (!control_enabled_)
             return {nan_, nan_};
 
@@ -112,6 +123,7 @@ public:
         clamp_control_direction(control_direction_yaw_link);
         if (!control_enabled_)
             return {nan_, nan_};
+
 
         control_direction_ =
             fast_tf::cast<OdomImu>(yaw_link_to_pitch_link(control_direction_yaw_link, pitch), *tf_);
@@ -167,7 +179,25 @@ private:
             *control_direction << upper_limit_.x() * projection, upper_limit_.y();
         else if (z < lower_limit_.y())
             *control_direction << lower_limit_.x() * projection, lower_limit_.y();
+
+       const auto& [x_,y_,z_] = *control_direction;
+
+        Eigen::Vector2d yaw_projection{x_,y_};
+        double yaw_norm = yaw_projection.norm();
+        if (yaw_norm > 0)
+            yaw_projection /=yaw_norm;
+        else{
+            control_enabled_ =false;
+            return;
+        }
+
+        if (y_ > yaw_upper_limit_.y())
+            *control_direction << yaw_upper_limit_.x() * yaw_projection.x(), yaw_upper_limit_.y(), z_;
+        else if (y_ < yaw_lower_limit_.y())
+            *control_direction << yaw_lower_limit_.x() * yaw_projection.x(), yaw_lower_limit_.y(), z_;
+         
     }
+
 
     static AngleError calculate_control_errors(
         const YawLink::DirectionVector& control_direction, const Eigen::Vector2d& pitch) {
@@ -179,14 +209,19 @@ private:
         double x_projected = std::sqrt(x * x + y * y);
         result.pitch_angle_error = -std::atan2(z * c - x_projected * s, z * s + x_projected * c);
 
+        // LOG_INFO("x: %f, y: %f, z: %f, yaw err: %f, pitch err: %f",x, y,
+        // z,result.yaw_angle_error,result.pitch_angle_error);
+
         return result;
     }
 
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
 
     const Eigen::Vector2d upper_limit_, lower_limit_;
+    const Eigen::Vector2d yaw_upper_limit_, yaw_lower_limit_;
 
     rmcs_executor::Component::InputInterface<double> gimbal_pitch_angle_;
+    rmcs_executor::Component::InputInterface<double> gimbal_yaw_angle_;
     rmcs_executor::Component::InputInterface<Tf> tf_;
 
     OdomImu::DirectionVector yaw_axis_filtered_{Eigen::Vector3d::UnitZ()};
