@@ -38,6 +38,9 @@
   <class type="rmcs_core::controller::chassis::SteeringWheelController" base_class_type="rmcs_executor::Component">
     <description>Steering wheel controller.</description>
   </class>
+  <class type="rmcs_core::controller::chassis::DeformableChassis" base_class_type="rmcs_executor::Component">
+    <description>Steering wheel controller.</description>
+  </class>
   <class type="rmcs_core::controller::gimbal::SimpleGimbalController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
@@ -46,6 +49,9 @@
   </class>
   <class type="rmcs_core::controller::gimbal::DualYawController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
+  </class>
+  <class type="rmcs_core::controller::gimbal::DeformableInfantryGimbalController" base_class_type="rmcs_executor::Component">
+    <description>Gimbal player viewer</description>
   </class>
   <class type="rmcs_core::controller::gimbal::PlayerViewer" base_class_type="rmcs_executor::Component">
     <description>Gimbal player viewer</description>
