@@ -1,5 +1,6 @@
 #include "controller/pid/matrix_pid_calculator.hpp"
 #include <algorithm>
+#include <cstdint>
 #include <cstdlib>
 #include <eigen3/Eigen/Dense>
 #include <rclcpp/logger.hpp>
@@ -38,14 +39,28 @@ public:
         , logger_(get_logger())
         , drive_belt_pid_calculator_(
               get_parameter("b_kp").as_double(), get_parameter("b_ki").as_double(),
-              get_parameter("b_kd").as_double()) {
+              get_parameter("b_kd").as_double())
+        , lifting_table_pid_calculator_(
+              get_parameter("lt_kp").as_double(), get_parameter("lt_ki").as_double(),
+              get_parameter("lt_kd").as_double()) {
 
         dirve_belt_working_velocity_ = get_parameter("belt_velocity").as_double();
-        sync_coefficient_ = get_parameter("sync_coefficient").as_double();
+        sync_coefficient_   = get_parameter("sync_coefficient").as_double();
         max_control_torque_ = get_parameter("max_control_torque").as_double();
 
+        lifting_table_working_velocity_ = get_parameter("lifting_velocity").as_double();
+        lifting_sync_coefficient_ = get_parameter("lifting_sync_coefficient").as_double();
+
         launch_trigger_angle_ = get_parameter("trigger_free_angle").as_int();
-        launch_lock_angle_ = get_parameter("trigger_lock_angle").as_int();
+        launch_lock_angle_    = get_parameter("trigger_lock_angle").as_int();
+
+        lifting_up_angle_     = get_parameter("lifting_up_angle").as_int();
+        lifting_middle_angle_ = get_parameter("lifting_middle_angle").as_int();
+        lifting_down_angle_   = get_parameter("lifting_down_angle").as_int();
+
+        limiting_wait_time_ = get_parameter("limiting_wait_time").as_int();
+        limiting_trigger_angle_ = get_parameter("limiting_free_angle_").as_int();
+        limiting_lock_angle_    = get_parameter("limiting_lock_angle_").as_int();
 
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
@@ -56,10 +71,12 @@ public:
         register_input("/dart/drive_belt/right/velocity", right_drive_belt_velocity_);
 
         register_output("/dart/drive_belt/left/control_torque", left_drive_belt_control_torque_, 0);
-        register_output(
-            "/dart/drive_belt/right/control_torque", right_drive_belt_control_torque_, 0);
+        register_output("/dart/drive_belt/right/control_torque", right_drive_belt_control_torque_, 0);
 
         register_output("/dart/trigger_servo/control_angle", trigger_control_angle);
+        register_output("/dart/lifting_servo/control_angle", lifting_contorl_angle);
+        register_output("/dart/limiting_servo/control_angle", limiting_contorl_angle);
+
     }
 
     void update() override {
@@ -79,6 +96,7 @@ public:
             if (last_switch_right_ == Switch::MIDDLE && *switch_right_ == Switch::DOWN) {
                 if (last_launch_stage_ == DartLaunchStages::INIT) {
                     *launch_stage_ = DartLaunchStages::LOADING;
+                    lifting_table_position_flag_ = 1;
                 } else if (last_launch_stage_ == DartLaunchStages::READY) {
                     *launch_stage_ = DartLaunchStages::CANCEL;
                 }
@@ -86,6 +104,7 @@ public:
                 if (last_launch_stage_ == DartLaunchStages::READY) {
                     *launch_stage_ = DartLaunchStages::INIT;
                     trigger_lock_flag_ = false;
+                    loading_process();
                 } else {
                     RCLCPP_INFO(logger_, "Dart has't been loaded !");
                 }
@@ -94,11 +113,13 @@ public:
             if (blocking_detection()) {
                 if (last_launch_stage_ == DartLaunchStages::LOADING) {
                     *launch_stage_ = DartLaunchStages::RESETTING;
+                    lifting_table_position_flag_ = 2;
                     trigger_lock_flag_ = true;
                     dirve_belt_block_count_ = 0;
 
                 } else if (last_launch_stage_ == DartLaunchStages::CANCEL) {
                     *launch_stage_ = DartLaunchStages::RESETTING;
+                    lifting_table_position_flag_ = 1; 
                     trigger_lock_flag_ = false;
                     dirve_belt_block_count_ = 0;
 
@@ -124,6 +145,16 @@ public:
         }
 
         *trigger_control_angle = trigger_lock_flag_ ? launch_lock_angle_ : launch_trigger_angle_;
+        *limiting_contorl_angle = limiting_lock_flag_ ? limiting_lock_angle_ : limiting_trigger_angle_;
+        switch(lifting_table_position_flag_){
+            case 0: *lifting_contorl_angle = lifting_up_angle_;
+                break;
+            case 1: *lifting_contorl_angle = lifting_middle_angle_;
+                break;
+            case 2: *lifting_contorl_angle = lifting_down_angle_;
+                break;
+            default: break;
+        }
 
         last_switch_left_ = *switch_left_;
         last_switch_right_ = *switch_right_;
@@ -174,8 +205,14 @@ private:
         return dirve_belt_block_count_ > 1000 ? true : false;
     }
 
+    void loading_process() {
+        lifting_table_position_flag_ = 0;
+    }
+
     int dirve_belt_block_count_ = 0;
     double dirve_belt_working_velocity_;
+
+    double lifting_table_working_velocity_;
 
     rclcpp::Logger logger_;
 
@@ -201,8 +238,24 @@ private:
     bool trigger_lock_flag_ = false;
     OutputInterface<uint16_t> trigger_control_angle;
 
+    uint16_t lifting_up_angle_;
+    uint16_t lifting_middle_angle_;
+    uint16_t lifting_down_angle_;
+    int lifting_table_position_flag_ = 0;       //0: up, 1: middle, 2:down
+    OutputInterface<uint16_t> lifting_contorl_angle;
+
+    uint16_t limiting_lock_angle_;
+    uint16_t limiting_trigger_angle_;
+    uint16_t limiting_wait_time_;
+    bool limiting_lock_flag_ = false;
+
+    OutputInterface<uint16_t> limiting_contorl_angle;
+
     pid::MatrixPidCalculator<2> drive_belt_pid_calculator_;
     double sync_coefficient_;
+
+    pid::MatrixPidCalculator<2> lifting_table_pid_calculator_;
+    double lifting_sync_coefficient_;
 };
 
 } // namespace rmcs_core::controller::dart

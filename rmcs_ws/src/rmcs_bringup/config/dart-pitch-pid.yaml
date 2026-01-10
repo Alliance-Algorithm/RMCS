@@ -32,13 +32,25 @@ dart_settings:
 launch_controller:
   ros__parameters:
     belt_velocity: 10.0
+    lifting_velocity: 10.0
     sync_coefficient: 0.5
+    lifting_sync_coefficient: 0.5
     b_kp: 1.0
     b_ki: 0.0
     b_kd: 0.0
+    lt_kp: 1.0
+    lt_ki: 0.0
+    lt_kd: 0.0
     max_control_torque: 2.5
     trigger_free_angle: 0x0E2A
     trigger_lock_angle: 0x0FC1
+    lifting_up_angle:     0x0000
+    lifting_middle_angle: 0x0000
+    lifting_down_angle:   0x0000
+    limiting_wait_time:   0x0000
+    limiting_free_angle_: 0x0000
+    limiting_lock_angle_: 0x0000
+
 
 actual_speed_and_control_torque_test_node:
   ros__parameters: {}

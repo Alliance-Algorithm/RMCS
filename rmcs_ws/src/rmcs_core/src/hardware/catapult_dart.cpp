@@ -6,6 +6,7 @@
 #include "hardware/device/trigger_servo.hpp"
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
@@ -58,9 +59,9 @@ public:
                    .set_reversed()})
         , force_sensor_(*this)
         , trigger_servo_(*dart_command_, "/dart/trigger_servo")
-        //, elevating_motor_left_(*dart_command_, "/dart/elevating_motor_left")
-        //, elevating_motor_right_(*dart_command_, "/dart/elevating_motor_right")
-        //, fill_limiting_servo_(*dart_command_, "/dart/fill_limiting_servo")
+        , elevating_left_(*dart_command_, "/dart/lifting_left")
+        , elevating_right_(*dart_command_, "/dart/lifting_right")
+        , limiting_servo_(*dart_command_, "/dart/limiting_servo")
         , transmit_buffer_(*this, 32)
         , event_thread_([this]() { handle_events(); }) {
 
@@ -69,6 +70,7 @@ public:
         register_output("/imu/catapult_pitch_angle", catapult_pitch_angle_);
         register_output("/imu/catapult_roll_angle", catapult_roll_angle_);
         register_output("/imu/catapult_yaw_angle", catapult_yaw_angle_);
+        register_output("/elevating/angle", elevating_angle_);
 
         first_sample_spot_ = this->get_parameter("first_sample_spot").as_double();
         final_sample_spot_ = this->get_parameter("final_sample_spot").as_double();
@@ -387,9 +389,9 @@ private:
 
     device::ForceSensorRuntime force_sensor_;
     device::TriggerServo trigger_servo_;
-    //  device::TriggerServo elevating_motor_left_;
-    // device::TriggerServo elevating_motor_right_;
-    // device::TriggerServo fill_limiting_servo_;
+    device::TriggerServo elevating_left_;
+    device::TriggerServo elevating_right_;
+    device::TriggerServo limiting_servo_;
 
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr trigger_calibrate_subscription_;
 
@@ -400,6 +402,7 @@ private:
     OutputInterface<double> catapult_roll_angle_;
     OutputInterface<double> catapult_yaw_angle_;
     OutputInterface<double> yaw_samples_output_;
+    OutputInterface<uint16_t> elevating_angle_;
 
     double yaw_drift_coefficient_ = 0.0;
         
