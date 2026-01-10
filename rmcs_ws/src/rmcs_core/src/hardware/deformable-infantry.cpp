@@ -509,7 +509,7 @@ private:
             // });
 
             // IMU mounting: faces left (+90 deg yaw), tilted up 30 deg (pitch)
-            bmi088_.set_coordinate_mapping_tilted(/*roll_rad=*/0.0, /*pitch_rad=*/ 27.73 * 180 / std::numbers::pi, /*yaw_rad=*/ 90.0 * 180 / std::numbers::pi);
+            bmi088_.set_coordinate_mapping_tilted(/*roll_rad=*/0.0 * std::numbers::pi / 180, /*pitch_rad=*/ 27.73 * std::numbers::pi / 180, /*yaw_rad=*/ 90.0 * std::numbers::pi / 180);
 
         }
         ~TopBoard() {
