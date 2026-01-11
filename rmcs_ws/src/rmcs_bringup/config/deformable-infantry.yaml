@@ -17,9 +17,10 @@ rmcs_executor:
       - rmcs_core::controller::smc::Smc_Observer -> smc_observer2
       - rmcs_core::controller::smc::Smc_Observer -> smc_observer3
 
-      - rmcs_core::controller::gimbal::SimpleGimbalController -> gimbal_controller
-      - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
-      - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
+      - rmcs_core::controller::gimbal::DeformableInfantryGimbalController -> gimbal_calculate
+      - rmcs_core::controller::gimbal::SimpleYawController -> gimbal_controller
+      # - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
+      # - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
 
       - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
       - rmcs_core::controller::shooting::HeatController -> heat_controller
@@ -68,26 +69,50 @@ chassis_controller:
     Rod_relative_longitudinal_coordinate: 90.0
     Rod_length: 100.0
 
-gimbal_controller:
+gimbal_calculate:
   ros__parameters:
     upper_limit: -0.39518
     lower_limit: 0.36
 
-yaw_angle_pid_controller:
+gimbal_controller:
   ros__parameters:
-    measurement: /gimbal/yaw/control_angle_error
-    control: /gimbal/yaw/control_velocity
-    kp: 16.0
-    ki: 0.0
-    kd: 0.0
+    yaw_angle_pid_kp: 16.0
+    yaw_angle_pid_ki: 0.0
+    yaw_angle_pid_kd: 0.0
+    yaw_velocity_pid_kp: 0.1
+    yaw_velocity_pid_ki: 0.0
+    yaw_velocity_pid_kd: 0.0
+    pitch_angle_pid_kp: 16.0
+    pitch_angle_pid_ki: 0.0
+    pitch_angle_pid_kd: 0.0
+    yaw_angle_pid_integral_min: 0.0
+    yaw_angle_pid_integral_max: 100.0
+    yaw_angle_pid_output_min: 0.0
+    yaw_angle_pid_output_max: 100.0
+    yaw_velocity_pid_integral_min: 0.0
+    yaw_velocity_pid_integral_max: 100.0
+    yaw_velocity_pid_output_min: 0.0
+    yaw_velocity_pid_output_max: 100.0
+    pitch_angle_pid_integral_min: 0.0
+    pitch_angle_pid_integral_max: 100.0
+    pitch_angle_pid_output_min: 0.0
+    pitch_angle_pid_output_max: 100.0
 
-pitch_angle_pid_controller:
-  ros__parameters:
-    measurement: /gimbal/pitch/control_angle_error
-    control: /gimbal/pitch/control_velocity
-    kp: 10.00
-    ki: 0.0
-    kd: 0.0
+# yaw_angle_pid_controller:
+#   ros__parameters:
+#     measurement: /gimbal/yaw/control_angle_error
+#     control: /gimbal/yaw/control_velocity
+#     kp: 16.0
+#     ki: 0.0
+#     kd: 0.0
+
+# pitch_angle_pid_controller:
+#   ros__parameters:
+#     measurement: /gimbal/pitch/control_angle_error
+#     control: /gimbal/pitch/control_velocity
+#     kp: 10.00
+#     ki: 0.0
+#     kd: 0.0
 
 friction_wheel_controller:
   ros__parameters:

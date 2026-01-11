@@ -26,8 +26,9 @@ public:
             get_parameter(name + "_output_min", pid.output_min);
             get_parameter(name + "_output_max", pid.output_max);
         };
-        set_pid_parameter(yaw_angle_pid_, "yaw_angle");
-        set_pid_parameter(yaw_velocity_pid_, "yaw_velocity");
+        set_pid_parameter(yaw_angle_pid, "yaw_angle_pid");
+        set_pid_parameter(yaw_velocity_pid, "yaw_velocity_pid");
+        set_pid_parameter(pitch_angle_pid, "pitch_angle_pid");
 
         register_input("/gimbal/yaw/angle", yaw_angle_);
         register_input("/gimbal/yaw/velocity", yaw_velocity_);
@@ -43,14 +44,14 @@ public:
         if (std::isnan(*control_angle_error_)) {
             *yaw_control_torque_ = nan_;
         } else {
-            *yaw_control_torque_ = yaw_velocity_pid_.update(
-                yaw_angle_pid_.update(*control_angle_error_) - *yaw_velocity_);
+            *yaw_control_torque_ = yaw_velocity_pid.update(
+                yaw_angle_pid.update(*control_angle_error_) - *yaw_velocity_);
         }
 
         if(std::isnan(*pitch_angle_error_)) {
             *pitch_control_torque_ = nan_;
         } else {
-            *pitch_control_torque_ = pitch_angle_pid_.update(*pitch_angle_error_);
+            *pitch_control_torque_ = pitch_angle_pid.update(*pitch_angle_error_);
         }
 
     }
@@ -59,9 +60,9 @@ private:
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
 
 
-    pid::PidCalculator yaw_angle_pid_;
-    pid::PidCalculator yaw_velocity_pid_;
-    pid::PidCalculator pitch_angle_pid_;
+    pid::PidCalculator yaw_angle_pid;
+    pid::PidCalculator yaw_velocity_pid;
+    pid::PidCalculator pitch_angle_pid;
 
     InputInterface<double> yaw_angle_;
     InputInterface<double> pitch_angle_error_;
