@@ -50,6 +50,9 @@
   <class type="rmcs_core::controller::gimbal::DualYawController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
+  <class type="rmcs_core::controller::gimbal::SimpleYawController" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
   <class type="rmcs_core::controller::gimbal::DeformableInfantryGimbalController" base_class_type="rmcs_executor::Component">
     <description>Gimbal player viewer</description>
   </class>
