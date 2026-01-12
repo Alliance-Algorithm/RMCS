@@ -62,8 +62,8 @@ deformable_infantry:
 
 chassis_controller:
   ros__parameters:
-    min_angle: 20
-    max_angle: 55
+    min_angle: 10.0
+    max_angle: 50.0   #机械结构有干涉不能到55度
     left_front_joint_offset: 340.619821
     left_back_joint_offset: 14.794644
     right_back_joint_offset: 209.765164
@@ -177,12 +177,12 @@ bullet_feeder_velocity_pid_controller:
 
 smc_controller0:
   ros__parameters:
-    c: 2.0
-    epsilon: 0.5
-    k: 20.0
-    phi: 0.5
-    J: 2.0
-    B: 2.0
+    c: 5.0
+    epsilon: 0.1
+    k: 11.0
+    phi: 1.8
+    J: 1.8
+    B: 3.5
     gear_ratio: 2.0
     angle_error: /chassis/left_front_joint/control_angle_error
     current_velocity: /chassis/left_front_joint/velocity
@@ -192,12 +192,12 @@ smc_controller0:
 
 smc_controller1:
   ros__parameters:
-    c: 2.0
-    epsilon: 0.5
-    k: 20.0
-    phi: 0.5
-    J: 2.0
-    B: 2.0
+    c: 5.0
+    epsilon: 0.1
+    k: 11.0
+    phi: 1.8
+    J: 1.8
+    B: 3.5
     gear_ratio: 2.0
     angle_error: /chassis/left_back_joint/control_angle_error
     current_velocity: /chassis/left_back_joint/velocity
@@ -207,12 +207,12 @@ smc_controller1:
 
 smc_controller2:
   ros__parameters:
-    c: 2.0
-    epsilon: 0.5
-    k: 20.0
-    phi: 0.5
-    J: 2.0
-    B: 2.0
+    c: 5.0
+    epsilon: 0.1
+    k: 11.0
+    phi: 1.8
+    J: 1.8
+    B: 3.5
     gear_ratio: 2.0
     angle_error: /chassis/right_back_joint/control_angle_error
     current_velocity: /chassis/right_back_joint/velocity
@@ -222,12 +222,12 @@ smc_controller2:
 
 smc_controller3:
   ros__parameters:
-    c: 2.0
-    epsilon: 0.5
-    k: 20.0
-    phi: 0.5
-    J: 2.0
-    B: 2.0
+    c: 5.0
+    epsilon: 0.1  
+    k: 11.0
+    phi: 1.8
+    J: 1.8
+    B: 3.5
     gear_ratio: 2.0
     angle_error: /chassis/right_front_joint/control_angle_error
     current_velocity: /chassis/right_front_joint/velocity
@@ -282,3 +282,4 @@ deformable_chassis_controller:
     k1: 2.958580e+00
     k2: 3.082190e-03
     no_load_power: 11.37
+    
