@@ -44,14 +44,16 @@ public:
         if (std::isnan(*control_angle_error_)) {
             *yaw_control_torque_ = nan_;
         } else {
-            *yaw_control_torque_ = yaw_velocity_pid.update(
-                yaw_angle_pid.update(*control_angle_error_) - *yaw_velocity_);
+            // *yaw_control_torque_ = yaw_velocity_pid.update(
+            //     yaw_angle_pid.update(*control_angle_error_) - *yaw_velocity_);
+                *yaw_control_torque_ = 0.0;
         }
 
         if(std::isnan(*pitch_angle_error_)) {
             *pitch_control_torque_ = nan_;
         } else {
-            *pitch_control_torque_ = pitch_angle_pid.update(*pitch_angle_error_);
+            // *pitch_control_torque_ = pitch_angle_pid.update(*pitch_angle_error_);
+            *pitch_control_torque_ = 0.0;
         }
 
     }

@@ -286,6 +286,11 @@ private:
         s_rf_ = trapezoidal_calculator(alpha_rf);
         s_rb_ = trapezoidal_calculator(alpha_rb);
 
+        RCLCPP_INFO(get_logger(), "1:%f", alpha_lf);
+        RCLCPP_INFO(get_logger(), "2:%f", alpha_lb);
+        RCLCPP_INFO(get_logger(), "3:%f", alpha_rb);
+        RCLCPP_INFO(get_logger(), "4:%f", alpha_rf);
+
         *lf_angle_error_ = s_lf_ - s_target_;
         *lb_angle_error_ = s_lb_ - s_target_;
         *rf_angle_error_ = s_rf_ - s_target_;
@@ -344,7 +349,7 @@ private:
     double right_front_joint_offset_;
     double right_back_joint_offset_;
 
-    double current_target_angle_ = 55.0;
+    double current_target_angle_ = 40.0;
 
     double s_lf_ = 0.0, s_lb_ = 0.0, s_rf_ = 0.0, s_rb_ = 0.0;
     double s_target_ = 0.0;

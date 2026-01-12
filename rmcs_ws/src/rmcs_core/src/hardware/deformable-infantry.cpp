@@ -423,7 +423,7 @@ private:
                 can_commands[0] = chassis_steer_motors_[0].generate_command();
                 can_commands[1] = 0;
                 can_commands[2] = 0;
-                can_commands[3] = static_cast<uint16_t>(supercap_.generate_command());
+                can_commands[3] = 0;
                 transmit_buffer_.add_can2_transmission(0x1FE, std::bit_cast<uint64_t>(can_commands));
 
                 can_commands[0] = chassis_wheel_motors_[1].generate_command();
@@ -437,10 +437,10 @@ private:
                 can_commands[2] = gimbal_bullet_feeder_.generate_command();
                 can_commands[3] = 0;
                 transmit_buffer_.add_can2_transmission(0x200, std::bit_cast<uint64_t>(can_commands));
-
-            transmit_buffer_.trigger_transmission();
+;
         }
 
+            transmit_buffer_.trigger_transmission()
         void can1_receive_callback(
             uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
             bool is_remote_transmission, uint8_t can_data_length) override {
