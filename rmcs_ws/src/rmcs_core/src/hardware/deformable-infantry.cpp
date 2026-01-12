@@ -34,7 +34,11 @@ public:
         , deformable_infantry_command_(
               create_partner_component<DeformableInfantryCommand>(
                   get_component_name() + "_command", *this)) {
+        using namespace rmcs_description;
 
+        register_output("/tf", tf_);
+        tf_->set_transform<PitchLink, CameraLink>(Eigen::Translation3d{0.16, 0.0, 0.15});
+        
         steers_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
             "/steers/calibrate", rclcpp::QoS(1),
             [this](std_msgs::msg::Int32::UniquePtr msg) {
@@ -142,6 +146,7 @@ private:
             DeformableInfantryCommand& deformableInfantry_command,
             int usb_pid = -1)
             : CBoard(usb_pid)
+            , tf_(deformableInfantry.tf_)      
             , imu_(1000, 0.2, 0.0)
             , gimbal_yaw_motor_(
                   deformableInfantry, deformableInfantry_command, "/gimbal/yaw")
@@ -226,8 +231,12 @@ private:
                 motor.update_status();
             for (auto& motor : chassis_joint_motors_)
                 motor.update_status();
+
             dr16_.update_status();
             gimbal_yaw_motor_.update_status();
+
+            tf_->set_state<rmcs_description::GimbalCenterLink, rmcs_description::YawLink>(
+                gimbal_yaw_motor_.angle());
         }
 
         void command_update() {
@@ -306,6 +315,8 @@ private:
         }
 
     private:
+        OutputInterface<rmcs_description::Tf>& tf_;
+
         device::Bmi088 imu_;
         device::LkMotor gimbal_yaw_motor_;
         device::Dr16 dr16_;
@@ -470,6 +481,7 @@ private:
             DeformableInfantry& deformableInfantry, DeformableInfantryCommand& deformableInfantry_command,
             int usb_pid = -1)
             : CBoard(usb_pid)
+            , tf_(deformableInfantry.tf_)
             , bmi088_(1000, 0.2, 0.0)
             , gimbal_pitch_motor_(deformableInfantry, deformableInfantry_command, "/gimbal/pitch")
             , gimbal_left_friction_(
@@ -524,9 +536,15 @@ private:
             *gimbal_yaw_velocity_bmi088_ = bmi088_.gz();
             *gimbal_pitch_velocity_bmi088_ = bmi088_.gy();
 
+            tf_->set_transform<rmcs_description::PitchLink, rmcs_description::OdomImu>(
+                gimbal_bmi088_pose.conjugate());
+
             gimbal_pitch_motor_.update_status();
             gimbal_left_friction_.update_status();
             gimbal_right_friction_.update_status();
+
+            tf_->set_state<rmcs_description::YawLink, rmcs_description::PitchLink>(
+                gimbal_pitch_motor_.angle());
 
         }
 
@@ -570,6 +588,8 @@ private:
             bmi088_.store_gyroscope_status(x, y, z);
         }
 
+        OutputInterface<rmcs_description::Tf>& tf_;
+
         OutputInterface<double> gimbal_yaw_velocity_bmi088_;
         OutputInterface<double> gimbal_pitch_velocity_bmi088_;
 
@@ -581,6 +601,8 @@ private:
         TransmitBuffer transmit_buffer_;
         std::thread event_thread_;
     };
+
+    OutputInterface<rmcs_description::Tf> tf_;
 
     std::shared_ptr<DeformableInfantryCommand> deformable_infantry_command_;
     std::unique_ptr<LeftBoard> left_board_;

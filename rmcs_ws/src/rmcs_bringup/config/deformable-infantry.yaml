@@ -19,8 +19,8 @@ rmcs_executor:
 
       - rmcs_core::controller::gimbal::DeformableInfantryGimbalController -> gimbal_calculate
       - rmcs_core::controller::gimbal::SimpleYawController -> gimbal_controller
-      # - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
-      # - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
+      - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
+      - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
 
       - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
       - rmcs_core::controller::shooting::HeatController -> heat_controller
@@ -52,10 +52,13 @@ deformable_infantry:
     usb_pid: -1
     usb_pid_left_board: 0xab05
     usb_pid_right_board: 0xf7b6
+    usb_pid_top_board: 0x6533
     left_front_zero_point: 335
     left_back_zero_point: 6496
     right_back_zero_point: 1713
     right_front_zero_point: 6405
+    yaw_motor_zero_point: 0
+    pitch_motor_zero_point: 0
 
 chassis_controller:
   ros__parameters:
@@ -98,21 +101,21 @@ gimbal_controller:
     pitch_angle_pid_output_min: 0.0
     pitch_angle_pid_output_max: 100.0
 
-# yaw_angle_pid_controller:
-#   ros__parameters:
-#     measurement: /gimbal/yaw/control_angle_error
-#     control: /gimbal/yaw/control_velocity
-#     kp: 16.0
-#     ki: 0.0
-#     kd: 0.0
+yaw_angle_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/yaw/control_angle_error
+    control: /gimbal/yaw/control_velocity
+    kp: 16.0
+    ki: 0.0
+    kd: 0.0
 
-# pitch_angle_pid_controller:
-#   ros__parameters:
-#     measurement: /gimbal/pitch/control_angle_error
-#     control: /gimbal/pitch/control_velocity
-#     kp: 10.00
-#     ki: 0.0
-#     kd: 0.0
+pitch_angle_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/pitch/control_angle_error
+    control: /gimbal/pitch/control_velocity
+    kp: 10.00
+    ki: 0.0
+    kd: 0.0
 
 friction_wheel_controller:
   ros__parameters:

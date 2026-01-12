@@ -12,11 +12,11 @@ namespace rmcs_core::controller::gimbal {
 
 using namespace rmcs_description;
 
-class DeformableInfantryGimbalController
+class SimpleGimbalController
     : public rmcs_executor::Component
     , public rclcpp::Node {
 public:
-    DeformableInfantryGimbalController()
+    SimpleGimbalController()
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
@@ -94,4 +94,4 @@ private:
 #include <pluginlib/class_list_macros.hpp>
 
 PLUGINLIB_EXPORT_CLASS(
-    rmcs_core::controller::gimbal::DeformableInfantryGimbalController, rmcs_executor::Component)
+    rmcs_core::controller::gimbal::SimpleGimbalController, rmcs_executor::Component)
