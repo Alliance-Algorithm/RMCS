@@ -18,7 +18,10 @@ rmcs_executor:
       - rmcs_core::controller::smc::Smc_Observer -> smc_observer3
 
       - rmcs_core::controller::gimbal::DeformableInfantryGimbalController -> gimbal_calculate
-      - rmcs_core::controller::gimbal::SimpleYawController -> gimbal_controller
+      # - rmcs_core::controller::gimbal::SimpleYawController -> gimbal_controller
+      # - rmcs_core::controller::pid::ErrorPidController -> yaw_target_velocity_pid_calculate
+      # - rmcs_core::controller::pid::ErrorPidController -> yaw_torque_pid_controller
+      # - rmcs_core::controller::pid::ErrorPidController -> pitch_torque_pid_controller
       - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
 
@@ -77,29 +80,30 @@ gimbal_calculate:
     upper_limit: -0.39518
     lower_limit: 0.36
 
-gimbal_controller:
-  ros__parameters:
-    yaw_angle_pid_kp: 16.0
-    yaw_angle_pid_ki: 0.0
-    yaw_angle_pid_kd: 0.0
-    yaw_velocity_pid_kp: 0.1
-    yaw_velocity_pid_ki: 0.0
-    yaw_velocity_pid_kd: 0.0
-    pitch_angle_pid_kp: 16.0
-    pitch_angle_pid_ki: 0.0
-    pitch_angle_pid_kd: 0.0
-    yaw_angle_pid_integral_min: 0.0
-    yaw_angle_pid_integral_max: 100.0
-    yaw_angle_pid_output_min: 0.0
-    yaw_angle_pid_output_max: 100.0
-    yaw_velocity_pid_integral_min: 0.0
-    yaw_velocity_pid_integral_max: 100.0
-    yaw_velocity_pid_output_min: 0.0
-    yaw_velocity_pid_output_max: 100.0
-    pitch_angle_pid_integral_min: 0.0
-    pitch_angle_pid_integral_max: 100.0
-    pitch_angle_pid_output_min: 0.0
-    pitch_angle_pid_output_max: 100.0
+# yaw_target_velocity_pid_calculate:
+#   ros__parameters:
+#     measurement: /gimbal/yaw/control_angle_error
+#     control: /gimbal/yaw/target_velocity
+#     kp: 16.0
+#     ki: 0.0
+#     kd: 0.0
+
+# yaw_torque_pid_controller:
+#   ros__parameters:
+#     measurement: /gimbal/yaw/velocity_error
+#     control: /gimbal/yaw/control_torque
+#     kp: 0.1
+#     ki: 0.0
+#     kd: 0.0
+
+# pitch_torque_pid_controller:
+#   ros__parameters:
+#     measurement: /gimbal/pitch/control_angle_error
+#     control: /gimbal/pitch/control_torque
+#     kp: 0.1
+#     ki: 0.0
+#     kd: 0.0
+#以上是双环PID，不能和下面单环PID同时使用
 
 yaw_angle_pid_controller:
   ros__parameters:
