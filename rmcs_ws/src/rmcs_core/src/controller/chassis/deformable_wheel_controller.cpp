@@ -98,60 +98,60 @@ public:
     }
 
     void update() override {
-        const auto& v_cmd = chassis_control_velocity_->vector;
-        if (!std::isfinite(v_cmd[0]) || !std::isfinite(v_cmd[1]) || !std::isfinite(v_cmd[2])) {
-            reset_all_controls();
-            return;
-        }
+        // const auto& v_cmd = chassis_control_velocity_->vector;
+        // if (!std::isfinite(v_cmd[0]) || !std::isfinite(v_cmd[1]) || !std::isfinite(v_cmd[2])) {
+        //     reset_all_controls();
+        //     return;
+        // }
 
-        EncoderState encoder = update_processed_encoder_state_();
-        if (encoder.valid) {
-            vehicle_radius_ = chassis_radius_ + rod_length_ * std::cos(encoder.alpha_rad);
-            *radius_        = vehicle_radius_;
-        }
+        // EncoderState encoder = update_processed_encoder_state_();
+        // if (encoder.valid) {
+        //     vehicle_radius_ = chassis_radius_ + rod_length_ * std::cos(encoder.alpha_rad);
+        //     *radius_        = vehicle_radius_;
+        // }
 
-        *encoder_alpha_     = encoder.alpha_rad;
-        *encoder_alpha_dot_ = encoder.alpha_dot_rad;
+        // *encoder_alpha_     = encoder.alpha_rad;
+        // *encoder_alpha_dot_ = encoder.alpha_dot_rad;
 
-        integral_yaw_angle_imu();
+        // integral_yaw_angle_imu();
 
-        const Eigen::Matrix<double, 4, 2> v_mech = calculate_mech_wheel_velocity(encoder);
-        force_inward_steering_ = should_force_inward_steering_(v_cmd, v_mech_raw_);
+        // const Eigen::Matrix<double, 4, 2> v_mech = calculate_mech_wheel_velocity(encoder);
+        // force_inward_steering_ = should_force_inward_steering_(v_cmd, v_mech_raw_);
 
-        auto steering_status  = calculate_steering_status();
-        auto wheel_velocities = calculate_wheel_velocities();
-        auto chassis_velocity =
-            calculate_chassis_velocity(steering_status, wheel_velocities, v_mech);
+        // auto steering_status  = calculate_steering_status();
+        // auto wheel_velocities = calculate_wheel_velocities();
+        // auto chassis_velocity =
+        //     calculate_chassis_velocity(steering_status, wheel_velocities, v_mech);
 
-        auto chassis_status_expected =
-            calculate_chassis_status_expected(chassis_velocity, v_mech);
-        auto chassis_control_velocity = calculate_chassis_control_velocity();
+        // auto chassis_status_expected =
+        //     calculate_chassis_status_expected(chassis_velocity, v_mech);
+        // auto chassis_control_velocity = calculate_chassis_control_velocity();
 
-        auto chassis_acceleration = calculate_chassis_control_acceleration(
-            chassis_status_expected.velocity, chassis_control_velocity);
+        // auto chassis_acceleration = calculate_chassis_control_acceleration(
+        //     chassis_status_expected.velocity, chassis_control_velocity);
 
-        double power_limit =
-            *power_limit_ - no_load_power_ - k2_ * wheel_velocities.array().pow(2).sum();
+        // double power_limit =
+        //     *power_limit_ - no_load_power_ - k2_ * wheel_velocities.array().pow(2).sum();
 
-        auto wheel_pid_torques = calculate_wheel_pid_torques(
-            steering_status, wheel_velocities, chassis_status_expected);
+        // auto wheel_pid_torques = calculate_wheel_pid_torques(
+        //     steering_status, wheel_velocities, chassis_status_expected);
 
-        auto constrained_chassis_acceleration = constrain_chassis_control_acceleration(
-            steering_status, wheel_velocities, chassis_acceleration, wheel_pid_torques,
-            power_limit);
+        // auto constrained_chassis_acceleration = constrain_chassis_control_acceleration(
+        //     steering_status, wheel_velocities, chassis_acceleration, wheel_pid_torques,
+        //     power_limit);
 
-        auto filtered_chassis_acceleration =
-            odom_to_base_link_vector(control_acceleration_filter_.update(
-                base_link_to_odom_vector(constrained_chassis_acceleration)));
+        // auto filtered_chassis_acceleration =
+        //     odom_to_base_link_vector(control_acceleration_filter_.update(
+        //         base_link_to_odom_vector(constrained_chassis_acceleration)));
 
-        auto steering_torques = calculate_steering_control_torques(
-            steering_status, chassis_status_expected, filtered_chassis_acceleration);
+        // auto steering_torques = calculate_steering_control_torques(
+        //     steering_status, chassis_status_expected, filtered_chassis_acceleration);
 
-        auto wheel_torques = calculate_wheel_control_torques(
-            steering_status, filtered_chassis_acceleration, wheel_pid_torques);
+        // auto wheel_torques = calculate_wheel_control_torques(
+        //     steering_status, filtered_chassis_acceleration, wheel_pid_torques);
 
-        update_control_torques(steering_torques, wheel_torques);
-        update_chassis_velocity_expected(filtered_chassis_acceleration);
+        // update_control_torques(steering_torques, wheel_torques);
+        // update_chassis_velocity_expected(filtered_chassis_acceleration);
     }
 
 private:

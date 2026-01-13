@@ -423,7 +423,7 @@ private:
                 can_commands[0] = chassis_steer_motors_[0].generate_command();
                 can_commands[1] = 0;
                 can_commands[2] = 0;
-                can_commands[3] = /*static_cast<uint16_t>(supercap_.generate_command())*/0;
+                can_commands[3] = /*supercap_.generate_command()*/ 0 ;
                 transmit_buffer_.add_can2_transmission(0x1FE, std::bit_cast<uint64_t>(can_commands));
 
                 can_commands[0] = chassis_wheel_motors_[1].generate_command();
@@ -449,7 +449,6 @@ private:
 
             if (can_id == 0x201) chassis_wheel_motors_[1].store_status(can_data);
             else if (can_id == 0x202) chassis_joint_motors_[1].store_status(can_data);
-            else if (can_id == 0x203) gimbal_bullet_feeder_.store_status(can_data);
             else if (can_id == 0x208) chassis_steer_motors_[1].store_status(can_data);
             // else if (can_id == 0x300) supercap_.store_status(can_data);
         }
@@ -462,6 +461,7 @@ private:
 
             if (can_id == 0x201) chassis_wheel_motors_[0].store_status(can_data);
             else if (can_id == 0x202) chassis_joint_motors_[0].store_status(can_data);
+            else if (can_id == 0x203) gimbal_bullet_feeder_.store_status(can_data);
             else if (can_id == 0x205) chassis_steer_motors_[0].store_status(can_data);
         }
 
@@ -615,8 +615,6 @@ private:
 
     uint32_t cmd_tick_ = 0;
 };
-
-
 
 } // namespace rmcs_core::hardware
 

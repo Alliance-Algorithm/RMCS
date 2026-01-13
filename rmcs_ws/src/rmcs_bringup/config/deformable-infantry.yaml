@@ -105,21 +105,21 @@ gimbal_calculate:
 #     kd: 0.0
 #以上是双环PID，不能和下面单环PID同时使用
 
-yaw_angle_pid_controller:
-  ros__parameters:
-    measurement: /gimbal/yaw/control_angle_error
-    control: /gimbal/yaw/control_velocity
-    kp: 0.0
-    ki: 0.0
-    kd: 0.0
+# yaw_angle_pid_controller:
+#   ros__parameters:
+#     measurement: /gimbal/yaw/control_angle_error
+#     control: /gimbal/yaw/control_velocity
+#     kp: 0.0
+#     ki: 0.0
+#     kd: 0.0
 
-pitch_angle_pid_controller:
-  ros__parameters:
-    measurement: /gimbal/pitch/control_angle_error
-    control: /gimbal/pitch/control_velocity
-    kp: 0.0
-    ki: 0.0
-    kd: 0.0
+# pitch_angle_pid_controller:
+#   ros__parameters:
+#     measurement: /gimbal/pitch/control_angle_error
+#     control: /gimbal/pitch/control_velocity
+#     kp: 0.0
+#     ki: 0.0
+#     kd: 0.0
 
 friction_wheel_controller:
   ros__parameters:
@@ -138,18 +138,18 @@ heat_controller:
 
 bullet_feeder_controller:
   ros__parameters:
-    bullets_per_feeder_turn: 10.0
-    shot_frequency: 24.0
+    bullets_per_feeder_turn: 8.0
+    shot_frequency: 20.0
     safe_shot_frequency: 10.0
-    eject_frequency: 15.0
-    eject_time: 0.15
-    deep_eject_frequency: 15.0
-    deep_eject_time: 0.20
+    eject_frequency: 10.0
+    eject_time: 0.05
+    deep_eject_frequency: 5.0
+    deep_eject_time: 0.2
     single_shot_max_stop_delay: 2.0
 
 shooting_recorder:
   ros__parameters:
-    friction_wheel_count: 4
+    friction_wheel_count: 2
     log_mode: 2 # 1: trigger, 2: timing
 
 left_friction_velocity_pid_controller:
@@ -175,7 +175,7 @@ bullet_feeder_velocity_pid_controller:
     measurement: /gimbal/bullet_feeder/velocity
     setpoint: /gimbal/bullet_feeder/control_velocity
     control: /gimbal/bullet_feeder/control_torque
-    kp: 0.283
+    kp: 1.583
     ki: 0.0
     kd: 0.0
 

@@ -286,11 +286,6 @@ private:
         s_rf_ = trapezoidal_calculator(alpha_rf);
         s_rb_ = trapezoidal_calculator(alpha_rb);
 
-        RCLCPP_INFO(get_logger(), "1:%f", alpha_lf);
-        RCLCPP_INFO(get_logger(), "2:%f", alpha_lb);
-        RCLCPP_INFO(get_logger(), "3:%f", alpha_rb);
-        RCLCPP_INFO(get_logger(), "4:%f", alpha_rf);
-
         *lf_angle_error_ = s_lf_ - s_target_;
         *lb_angle_error_ = s_lb_ - s_target_;
         *rf_angle_error_ = s_rf_ - s_target_;

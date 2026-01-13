@@ -40,17 +40,17 @@ public:
 
     void update() override {
 
-        if ((*switch_left_ == rmcs_msgs::Switch::DOWN && *switch_right_ == rmcs_msgs::Switch::DOWN)
-            || (*switch_left_ == rmcs_msgs::Switch::UNKNOWN && *switch_right_ == rmcs_msgs::Switch::UNKNOWN)) {
-            reset();
-            return;
-        }
-            if(*angle_error_ < 0.8 && *angle_error_ > -0.8){             // dead zone
+        // if ((*switch_left_ == rmcs_msgs::Switch::DOWN && *switch_right_ == rmcs_msgs::Switch::DOWN)
+        //     || (*switch_left_ == rmcs_msgs::Switch::UNKNOWN && *switch_right_ == rmcs_msgs::Switch::UNKNOWN)) {
+        //     reset();
+        //     return;
+        // }
+            // if(*angle_error_ < 0.8 && *angle_error_ > -0.8){             // dead zone
                 *control_torque_ =0.0;
-            } else {
-                *control_torque_ = std::clamp(calc_control_value(), -3.0, 3.0);
-            }
-        RCLCPP_INFO(logger_, "control:%f", *control_torque_);    //debug
+            // } else {
+                // *control_torque_ = std::clamp(calc_control_value(), -3.0, 3.0);
+            // }
+        // RCLCPP_INFO(logger_, "control:%f", *control_torque_);    //debug
 
     }
 
