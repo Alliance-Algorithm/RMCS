@@ -66,10 +66,16 @@ public:
         uint16_t can_commands[4];
 
         can_commands[0] = 0;
-        can_commands[1] = gimbal_bullet_feeder_.generate_command();
-        can_commands[2] = gimbal_left_friction_.generate_command();
-        can_commands[3] = gimbal_right_friction_.generate_command();
+        can_commands[1] = 0;
+        can_commands[2] = gimbal_bullet_feeder_.generate_command();
+        can_commands[3] = 0;
         transmit_buffer_.add_can2_transmission(0x200, std::bit_cast<uint64_t>(can_commands));
+
+        can_commands[0] = gimbal_left_friction_.generate_command();
+        can_commands[1] = 0;
+        can_commands[2] = 0;
+        can_commands[3] = gimbal_right_friction_.generate_command();
+        transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(can_commands));
 
         transmit_buffer_.trigger_transmission();
     }
@@ -149,19 +155,30 @@ protected:
     //     }
     // }
 
+
+    void can1_receive_callback(
+        uint32_t can_id, uint64_t can_data, bool is_extended_can_id, bool is_remote_transmission,
+        uint8_t can_data_length) override {
+        if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
+            return;
+
+        if (can_id == 0x201) {
+            gimbal_left_friction_.store_status(can_data);
+        } else if (can_id == 0x204) {
+            gimbal_right_friction_.store_status(can_data);
+        }
+    }
+
+
     void can2_receive_callback(
         uint32_t can_id, uint64_t can_data, bool is_extended_can_id, bool is_remote_transmission,
         uint8_t can_data_length) override {
         if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
             return;
 
-        if (can_id == 0x202) {
+        if (can_id == 0x203) {
             gimbal_bullet_feeder_.store_status(can_data);
-        } else if (can_id == 0x203) {
-            gimbal_left_friction_.store_status(can_data);
-        } else if (can_id == 0x204) {
-            gimbal_right_friction_.store_status(can_data);
-        }
+        } 
     }
 
     // void uart1_receive_callback(const std::byte* uart_data, uint8_t uart_data_length) override {
