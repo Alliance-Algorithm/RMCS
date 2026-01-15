@@ -73,37 +73,37 @@ public:
                 || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
 
             } else {
-                // mode_selection();
+                mode_selection();
 
-                // switch (chassis_mode) {
-                // case rmcs_msgs::ChassisMode::Flow: {
-                //     double chassis_theta = *chassis_big_yaw_angle;
-                //     angular_velocity =
-                //         std::clamp(following_velocity_controller_.update(chassis_theta),
-                //         -1.0, 1.0);
-                //     break;
-                // }
-                // case rmcs_msgs::ChassisMode::SPIN: {
-                //     angular_velocity = 5;
-                //     yaw_control_theta_in_IMU += joystick_right_->y() * 0.002;
-                //     break;
-                // }
-                // case rmcs_msgs::ChassisMode::Up_Stairs: {
-                //     is_yaw_imu_control           = false;
-                //     yaw_set_theta_in_YawFreeMode = 0.0;
-                //     move_speed_limit                  = 1.5;
-                //     move_                        = *joystick_left_;
-                //     break;
-                // }
-                // default: break;
-                // }
-                // Eigen::Rotation2D<double> rotation(*chassis_big_yaw_angle + *joint1_theta);
-                // move_ = rotation * (*joystick_left_);
+                switch (chassis_mode) {
+                case rmcs_msgs::ChassisMode::Flow: {
+                    double chassis_theta = *chassis_big_yaw_angle;
+                    angular_velocity =
+                        std::clamp(following_velocity_controller_.update(chassis_theta),
+                        -1.0, 1.0);
+                    break;
+                }
+                case rmcs_msgs::ChassisMode::SPIN: {
+                    angular_velocity = 5;
+                    yaw_control_theta_in_IMU += joystick_right_->y() * 0.002;
+                    break;
+                }
+                case rmcs_msgs::ChassisMode::Up_Stairs: {
+                    is_yaw_imu_control           = false;
+                    yaw_set_theta_in_YawFreeMode = 0.0;
+                    move_speed_limit                  = 1.5;
+                    move_                        = *joystick_left_;
+                    break;
+                }
+                default: break;
+                }
+                Eigen::Rotation2D<double> rotation(*chassis_big_yaw_angle + *joint1_theta);
+              //  move_ = rotation * (*joystick_left_);
                 move_            = (*joystick_left_);
                 angular_velocity = joystick_right_->y()*angular_velocity_limit;
-                RCLCPP_INFO(
-                    this->get_logger(), "joystick x:%f y:%f angular_velocity:%f", move_.x(),
-                    move_.y(), angular_velocity);
+                // RCLCPP_INFO(
+                //     this->get_logger(), "joystick x:%f y:%f angular_velocity:%f", move_.x(),
+                //     move_.y(), angular_velocity);
                 chassis_control_velocity_->vector << (move_ * move_speed_limit), angular_velocity;
                 // yaw_control();
                 update_virtual_buffer_energy();

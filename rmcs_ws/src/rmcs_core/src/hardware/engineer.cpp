@@ -470,7 +470,8 @@ private:
                 transmit_buffer_.add_can1_transmission(0x1FE, std::bit_cast<uint64_t>(command_));
             } else {
                 command_[0] = Wheel_motors[1].generate_command();
-                command_[1] = Leg_Motors[1].generate_command();
+               command_[1] = Leg_Motors[1].generate_command();
+               //command_[1]=0;
                 *leg_joint_lb_control_theta_error =
                     normalizeAngle(*leg_lb_target_theta_ - Leg_ecd[1].get_angle());
                 command_[2] = 0;
@@ -479,7 +480,8 @@ private:
                 command_[0] = Wheel_motors[0].generate_command();
                 *leg_joint_lf_control_theta_error =
                     normalizeAngle(*leg_lf_target_theta_ - Leg_ecd[0].get_angle());
-                command_[1] = Leg_Motors[0].generate_command();
+               command_[1] = Leg_Motors[0].generate_command();
+              // command_[1]=0;
                 command_[2] = Omni_Motors.generate_command();
                 command_[3] = 0;
                 transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(command_));
@@ -659,6 +661,7 @@ private:
             } else {
                 command_[0] = Wheel_motors[0].generate_command();
                 command_[1] = Leg_Motors[0].generate_command();
+                //command_[1]=0;
                 *leg_joint_rb_control_theta_error =
                     normalizeAngle(*leg_rb_target_theta_ - Leg_ecd[0].get_angle());
                 command_[2] = 0;
@@ -668,6 +671,7 @@ private:
                 *leg_joint_rf_control_theta_error =
                     normalizeAngle(*leg_rf_target_theta_ - Leg_ecd[1].get_angle());
                 command_[1] = Leg_Motors[1].generate_command();
+                //command_[1]=0;
                 command_[2] = Omni_Motors.generate_command();
                 command_[3] = 0;
                 transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(command_));
