@@ -550,7 +550,7 @@ private:
 
         void command_update() {
             uint16_t can_commands[4];
-            can_commands[2] = gimbal_left_friction_.generate_command();
+            can_commands[0] = gimbal_left_friction_.generate_command();
             can_commands[3] = gimbal_right_friction_.generate_command();
             transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(can_commands));
 
@@ -567,7 +567,7 @@ private:
             bool is_remote_transmission, uint8_t can_data_length) override {
             if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
                 return;
-            if (can_id == 0x203) {
+            if (can_id == 0x201) {
                 gimbal_left_friction_.store_status(can_data);
             } else if (can_id == 0x204) {
                 gimbal_right_friction_.store_status(can_data);

@@ -80,31 +80,6 @@ gimbal_calculate:
     upper_limit: -0.39518
     lower_limit: 0.36
 
-# yaw_target_velocity_pid_calculate:
-#   ros__parameters:
-#     measurement: /gimbal/yaw/control_angle_error
-#     control: /gimbal/yaw/target_velocity
-#     kp: 16.0
-#     ki: 0.0
-#     kd: 0.0
-
-# yaw_torque_pid_controller:
-#   ros__parameters:
-#     measurement: /gimbal/yaw/velocity_error
-#     control: /gimbal/yaw/control_torque
-#     kp: 0.1
-#     ki: 0.0
-#     kd: 0.0
-
-# pitch_torque_pid_controller:
-#   ros__parameters:
-#     measurement: /gimbal/pitch/control_angle_error
-#     control: /gimbal/pitch/control_torque
-#     kp: 0.1
-#     ki: 0.0
-#     kd: 0.0
-#以上是双环PID，不能和下面单环PID同时使用
-
 # yaw_angle_pid_controller:
 #   ros__parameters:
 #     measurement: /gimbal/yaw/control_angle_error
@@ -127,8 +102,8 @@ friction_wheel_controller:
       - /gimbal/left_friction
       - /gimbal/right_friction
     friction_velocities:
-      - 600.0
-      - 600.0
+      - -600.0
+      - -600.0
     friction_soft_start_stop_time: 1.0
 
 heat_controller:
