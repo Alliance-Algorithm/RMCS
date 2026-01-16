@@ -32,7 +32,7 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController -> right_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller
 
-      - rmcs_core::controller::chassis::DeformableChassis -> chassis_controller
+      - rmcs_core::controller::chassis::ChassisTestController -> chassis_controller
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::DeformableChassisController -> deformable_chassis_controller
 
@@ -56,17 +56,17 @@ deformable_infantry:
     usb_pid_left_board: 0xab05
     usb_pid_right_board: 0xf7b6
     usb_pid_top_board: 0x6533
-    left_front_zero_point: 335
-    left_back_zero_point: 6496
-    right_back_zero_point: 1713
-    right_front_zero_point: 6405
+    left_front_zero_point: 4417
+    left_back_zero_point: 7848
+    right_back_zero_point: 4467
+    right_front_zero_point: 6468
     yaw_motor_zero_point: 0
     pitch_motor_zero_point: 0
 
 chassis_controller:
   ros__parameters:
     min_angle: 10.0
-    max_angle: 50.0   #机械结构有干涉不能到55度
+    max_angle: 40.0   #机械结构有干涉不能到55度
     left_front_joint_offset: 340.619821
     left_back_joint_offset: 14.794644
     right_back_joint_offset: 209.765164
@@ -80,21 +80,21 @@ gimbal_calculate:
     upper_limit: -0.39518
     lower_limit: 0.36
 
-# yaw_angle_pid_controller:
-#   ros__parameters:
-#     measurement: /gimbal/yaw/control_angle_error
-#     control: /gimbal/yaw/control_velocity
-#     kp: 0.0
-#     ki: 0.0
-#     kd: 0.0
+yaw_angle_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/yaw/control_angle_error
+    control: /gimbal/yaw/control_velocity
+    kp: 0.0
+    ki: 0.0
+    kd: 0.0
 
-# pitch_angle_pid_controller:
-#   ros__parameters:
-#     measurement: /gimbal/pitch/control_angle_error
-#     control: /gimbal/pitch/control_velocity
-#     kp: 0.0
-#     ki: 0.0
-#     kd: 0.0
+pitch_angle_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/pitch/control_angle_error
+    control: /gimbal/pitch/control_velocity
+    kp: 0.0
+    ki: 0.0
+    kd: 0.0
 
 friction_wheel_controller:
   ros__parameters:
