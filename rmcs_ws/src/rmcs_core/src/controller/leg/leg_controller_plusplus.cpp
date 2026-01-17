@@ -42,7 +42,7 @@ public:
         , press_end_point_(get_parameter("press_end_point").as_double_array())
         , lift_end_point_(get_parameter("lift_end_point").as_double_array())
         , press_and_lift_end_point_(get_parameter("press_and_lift_end_point").as_double_array())
-        , press_again_end_point_(get_parameter("press_again_end_point").as_double_array())
+        , initial_again_end_point_(get_parameter("initial_again_end_point").as_double_array())
         , k_(get_parameter("k").as_double_array())
         , b_(get_parameter("b").as_double_array()) {
 
@@ -75,6 +75,7 @@ public:
         register_output("/leg/lb_result", lb_result_, 0);
         register_output("/leg/rf_result", rf_result_, 0);
         register_output("/leg/rb_result", rb_result_, 0);
+        register_output("/leg/velocity_in_x", velocity_in_x, 0);
 
         register_input("/arm/mode", arm_mode);
 
@@ -90,19 +91,23 @@ public:
             .set_end_point(
                 {four_wheel_angle[0], four_wheel_angle[1], four_wheel_angle[1], four_wheel_angle[0],
                  0, 0})
-            .set_total_step(2000.0);
+            .set_total_step(1000);
         std::array<double, 2> six_wheel_angle = leg_inverse_kinematic(
             forward_x_position_in_SixWheel_, backward_x_position_in_SixWheel_, false, false);
         six_wheel_trajectory
             .set_end_point(
                 {six_wheel_angle[0], six_wheel_angle[1], six_wheel_angle[1], six_wheel_angle[0], 0,
                  0})
-            .set_total_step(500.0);
+            .set_total_step(500);
+
+        down_stairs_trajectory.set_end_point({1.151109, 1.694066, 1.694066, 1.151109, 0, 0})
+            .set_total_step(1000);
         up_stairs
             .bind_real_theta_and_speed(theta_lf, theta_lb, theta_rb, theta_rf, chassis_velocity_)
             .bind_k_and_b_parameter(k_, b_)
             .init_and_trajectory_set(
-                initial_end_point_, press_end_point_, lift_end_point_, press_and_lift_end_point_,press_again_end_point_);
+                initial_end_point_, press_end_point_, lift_end_point_, press_and_lift_end_point_,
+                initial_again_end_point_);
 
         // up_stairs_initial
         //     .set_end_point(
@@ -121,7 +126,8 @@ public:
     }
 
     void update() override {
-        RCLCPP_INFO(this->get_logger(), " rf%f   rb%f",*theta_rf, *theta_rb);
+        // RCLCPP_INFO(this->get_logger(), " lf%f   lb%f", *theta_lf, *theta_lb);
+        *velocity_in_x    = (*chassis_velocity_)->x();
         auto switch_right = *switch_right_;
         auto switch_left  = *switch_left_;
         auto mouse        = *mouse_;
@@ -161,8 +167,8 @@ public:
                 {
                     *lf_result_ = (result)[0];
                     *lb_result_ = (result)[1];
-                    *rf_result_ = (result)[2];
-                    *rb_result_ = (result)[3];
+                    *rb_result_ = (result)[2];
+                    *rf_result_ = (result)[3];
                 }
             }
         }
@@ -177,11 +183,12 @@ private:
         using namespace rmcs_msgs;
 
         if (switch_left == Switch::MIDDLE && switch_right == Switch::MIDDLE) {
-           // RCLCPP_INFO(this->get_logger(),"switch -> four wheel");
+            // RCLCPP_INFO(this->get_logger(),"switch -> four wheel");
             leg_mode = rmcs_msgs::LegMode::Four_Wheel;
 
         } else if (switch_left == Switch::MIDDLE && switch_right == Switch::DOWN) {
-//RCLCPP_INFO(this->get_logger(),"switch -> six wheel");
+            // RCLCPP_INFO(this->get_logger(),"switch -> six wheel");
+            //        RCLCPP_INFO(this->get_logger(),"switch go to six ");
             leg_mode = rmcs_msgs::LegMode::Six_Wheel;
 
         } else if (switch_left == Switch::MIDDLE && switch_right == Switch::UP) {
@@ -192,42 +199,50 @@ private:
             if (keyboard.v) {
                 if (!keyboard.shift && !keyboard.ctrl) {
 
-                   // RCLCPP_INFO(this->get_logger(),"V -> six wheel");
+                    // RCLCPP_INFO(this->get_logger(),"V -> six wheel");
                     leg_mode = rmcs_msgs::LegMode::Six_Wheel;
                 }
                 if (keyboard.shift && !keyboard.ctrl) {
-                  //  RCLCPP_INFO(this->get_logger(),"V -> four wheel");
+                    //  RCLCPP_INFO(this->get_logger(),"V -> four wheel");
                     leg_mode = rmcs_msgs::LegMode::Four_Wheel;
                 }
             }
-            if (keyboard.b) {
-                leg_mode = rmcs_msgs::LegMode::Up_Stairs;
-                // up_stairs_initial.reset();
-                // up_stairs_initial.set_start_point(
-                //     {*theta_lf, *theta_lb, *theta_rb, *theta_rf, 0.0, 0.0});
-                // if (!keyboard.shift && !keyboard.ctrl) {
-                //     up_stairs_mode = rmcs_msgs::UpStairsMode::Step_By_Two;
-                // }
-                // if (keyboard.shift && !keyboard.ctrl) {
-                //     up_stairs_mode = rmcs_msgs::UpStairsMode::Step_By_Two;
-                // }
-                up_stairs.stop();
-                up_stairs.start(UpStairsState::Initial);
-            }
+
             if (keyboard.d) {
                 leg_mode = rmcs_msgs::LegMode::Four_Wheel;
-               // RCLCPP_INFO(this->get_logger(),"d -> four wheel");
+                // RCLCPP_INFO(this->get_logger(),"d -> four wheel");
+            }
+
+            if (keyboard.q) {
+                leg_mode = rmcs_msgs::LegMode::Down_Stairs;
             }
 
             if (last_arm_mode != *arm_mode) {
 
-                if (*arm_mode == rmcs_msgs::ArmMode::Customer) {
+                switch (*arm_mode) {
+                case rmcs_msgs::ArmMode::Customer: {
                     leg_mode = rmcs_msgs::LegMode::Four_Wheel;
-                } else {
+                    break;
+                };
+                case rmcs_msgs::ArmMode::Auto_Spin: {
+                    leg_mode = rmcs_msgs::LegMode::Four_Wheel;
+                    break;
+                };
+                case rmcs_msgs::ArmMode::Auto_Up_Stairs: {
+                    // RCLCPP_INFO(this->get_logger(),"arm to up");
+                    leg_mode = rmcs_msgs::LegMode::Up_Stairs;
+                    up_stairs.stop();
+                    up_stairs.start(UpStairsState::Initial);
+                    break;
+                    // mode换成上台阶
+                }
+                default: {
+                    // RCLCPP_INFO(this->get_logger(),"arm go to six ");
                     leg_mode = rmcs_msgs::LegMode::Six_Wheel;
+                    break;
+                }
                 }
             }
-
         } else {
             leg_mode = rmcs_msgs::LegMode::None;
         }
@@ -244,36 +259,35 @@ private:
 
     void leg_control() {
 
-        auto reset_leg_trajectory = [&] {
-            if (last_leg_mode != leg_mode) {
+        // RCLCPP_INFO(this->get_logger(), "leg_mode = %d", static_cast<int>(leg_mode));
+        if (last_leg_mode != leg_mode) {
 
-                if (leg_mode == rmcs_msgs::LegMode::Four_Wheel) {
-                    four_wheel_trajectory.reset();
-                    // RCLCPP_INFO(this->get_logger(), "change and reset");
-                    four_wheel_trajectory.set_start_point(
-                        {*theta_lf, *theta_lb, *theta_rb, *theta_rf, 0.0, 0.0});
-                    if (last_leg_mode == rmcs_msgs::LegMode::Up_Stairs) {
-                        four_wheel_trajectory.set_total_step(1500);
-                    }
-
-                } else if (leg_mode == rmcs_msgs::LegMode::Six_Wheel) {
-                    six_wheel_trajectory.reset();
-                    six_wheel_trajectory.set_start_point(
-                        {*theta_lf, *theta_lb, *theta_rb, *theta_rf, 0.0, 0.0});
-                    if (last_leg_mode == rmcs_msgs::LegMode::Up_Stairs) {
-                        six_wheel_trajectory.set_total_step(1500);
-                    }
-
-                } else if (leg_mode == rmcs_msgs::LegMode::Up_Stairs) {
-
+            if (leg_mode == rmcs_msgs::LegMode::Four_Wheel) {
+                four_wheel_trajectory.reset();
+                // RCLCPP_INFO(this->get_logger(), "change and reset");
+                four_wheel_trajectory.set_start_point(
+                    {*theta_lf, *theta_lb, *theta_rb, *theta_rf, 0.0, 0.0});
+                if (last_leg_mode == rmcs_msgs::LegMode::Up_Stairs
+                    || last_leg_mode == rmcs_msgs::LegMode::Down_Stairs) {
+                    four_wheel_trajectory.set_total_step(1500);
                 }
+
+            } else if (leg_mode == rmcs_msgs::LegMode::Six_Wheel) {
+                six_wheel_trajectory.reset();
+                six_wheel_trajectory.set_start_point(
+                    {*theta_lf, *theta_lb, *theta_rb, *theta_rf, 0.0, 0.0});
+                if (last_leg_mode == rmcs_msgs::LegMode::Up_Stairs) {
+                    six_wheel_trajectory.set_total_step(1500);
+                }
+
+            } else if (leg_mode == rmcs_msgs::LegMode::Up_Stairs) {
             }
-        };
-        reset_leg_trajectory();
+        }
         switch (leg_mode) {
         case rmcs_msgs::LegMode::Four_Wheel: four_wheel_controller(); break;
         case rmcs_msgs::LegMode::Six_Wheel: six_wheel_controller(); break;
         case rmcs_msgs::LegMode::Up_Stairs: up_stairs_controller(); break;
+        case rmcs_msgs::LegMode::Down_Stairs: down_stairs_controller(); break;
         case rmcs_msgs::LegMode::None: {
             (result)[0] = *theta_lf;
             (result)[1] = *theta_lb;
@@ -306,30 +320,27 @@ private:
         }
     }
 
+    void down_stairs_controller() { result = down_stairs_trajectory.trajectory(); }
     void up_stairs_controller() {
-
+        // RCLCPP_INFO(this->get_logger(),"go to up");
         if (keyboard_->shift) {
             up_stairs.processEvent(
                 rmcs_core::hardware::hsm::up_stairs_hsm::events::go_to_TwoProcess);
         }
 
-        if (keyboard_->q) {
+        if (keyboard_->ctrl) {
             up_stairs.processEvent(rmcs_core::hardware::hsm::up_stairs_hsm::events::go_to_Lift);
         }
 
-
-        if(keyboard_->ctrl){
-            up_stairs.processEvent(rmcs_core::hardware::hsm::up_stairs_hsm::events::go_to_Press_Again);
-        }
-
-
-
+        // if (keyboard_->q) {
+        //     up_stairs.processEvent(
+        //         rmcs_core::hardware::hsm::up_stairs_hsm::events::go_to_Initial_Again);
+        // }
 
         up_stairs.processEvent(rmcs_core::hardware::hsm::up_stairs_hsm::events::tick);
 
         result = up_stairs.get_result();
-            //RCLCPP_INFO(this->get_logger(), "当前期望角度 %f ",result[0]);
-            
+        // RCLCPP_INFO(this->get_logger(), "当前期望角度  lf%f  lb%f", result[0], result[1]);
     }
 
     static std::array<double, 2> leg_inverse_kinematic(
@@ -364,8 +375,6 @@ private:
         return angle;
     }
 
-
-
     std::array<double, 6> result;
     const double forward_x_position_in_FourWheel_;
     const double forward_x_position_in_SixWheel_;
@@ -374,13 +383,13 @@ private:
     const std::vector<double> press_end_point_;
     const std::vector<double> lift_end_point_;
     const std::vector<double> press_and_lift_end_point_;
-    const std::vector<double> press_again_end_point_;
+    const std::vector<double> initial_again_end_point_;
     const std::vector<double> k_;
     const std::vector<double> b_;
 
     InputInterface<rmcs_msgs::ArmMode> arm_mode;
     InputInterface<rmcs_msgs::ChassisMode> chassis_mode;
-    rmcs_msgs::ArmMode last_arm_mode;
+    rmcs_msgs::ArmMode last_arm_mode = rmcs_msgs::ArmMode::None;
 
     static constexpr double wheel_r = 0.11;
     // static constexpr double v_reference = 1.5;
@@ -396,6 +405,7 @@ private:
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
     OutputInterface<bool> is_leg_enable;
 
+    OutputInterface<double> velocity_in_x;
     OutputInterface<double> omni_l_target_vel;
     OutputInterface<double> omni_r_target_vel;
     InputInterface<double> theta_lf;
@@ -426,6 +436,9 @@ private:
     hardware::device::Trajectory<hardware::device::TrajectoryType::JOINT> four_wheel_trajectory;
     static constexpr double wheel_distance = 458.0f;
     hardware::device::Trajectory<hardware::device::TrajectoryType::JOINT> six_wheel_trajectory;
+
+    hardware::device::Trajectory<hardware::device::TrajectoryType::JOINT> down_stairs_trajectory;
+
     //  hardware::device::Trajectory<hardware::device::TrajectoryType::JOINT> up_stairs_initial;
     // hardware::device::Trajectory<hardware::device::TrajectoryType::JOINT> up_stairs_leg_press;
     // hardware::device::Trajectory<hardware::device::TrajectoryType::JOINT> up_stairs_leg_lift;

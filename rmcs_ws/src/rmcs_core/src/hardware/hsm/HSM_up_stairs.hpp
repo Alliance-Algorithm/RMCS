@@ -27,7 +27,10 @@ enum class StepSubState {
     Press,
     Lift,
     PressAndLift,
-    PressAgain
+    PressAgain,
+    LiftAgain,
+    InitialAgain,
+    Delay
 };
 enum class UpStairsEventId {
     quit,
@@ -38,8 +41,8 @@ enum class UpStairsEventId {
     go_to_Press_And_Lift,
     go_to_Press,
     go_to_Lift,
-    tof_already,// args:: double distance
-    go_to_Press_Again
+    tof_already, // args:: double distance
+    go_to_Initial_Again
 };
 
 namespace rmcs_core::hardware::hsm::up_stairs_hsm {
@@ -62,7 +65,7 @@ const UpStairsEvent go_to_Press{UpStairsEventId::go_to_Press, {}};
 
 const UpStairsEvent go_to_Lift{UpStairsEventId::go_to_Lift, {}};
 
-const UpStairsEvent go_to_Press_Again{UpStairsEventId::go_to_Press_Again, {}};
+const UpStairsEvent go_to_Initial_Again{UpStairsEventId::go_to_Initial_Again, {}};
 
 } // namespace events
 
@@ -77,12 +80,13 @@ struct UpStairsContext {
     static constexpr double v_reference = 1.5;
     std::vector<double> k;
     std::vector<double> b;
+    long int count;
 
     hardware::device::Trajectory<device::TrajectoryType::JOINT>& initial;
     hardware::device::Trajectory<device::TrajectoryType::JOINT>& press;
     hardware::device::Trajectory<device::TrajectoryType::JOINT>& lift;
     hardware::device::Trajectory<device::TrajectoryType::JOINT>& press_and_lift;
-    hardware::device::Trajectory<device::TrajectoryType::JOINT>& press_again;
+    hardware::device::Trajectory<device::TrajectoryType::JOINT>& initial_again;
 
     std::array<double, 6>& result;
 
@@ -91,20 +95,19 @@ struct UpStairsContext {
         hardware::device::Trajectory<device::TrajectoryType::JOINT>& press_,
         hardware::device::Trajectory<device::TrajectoryType::JOINT>& lift_,
         hardware::device::Trajectory<device::TrajectoryType::JOINT>& press_and_lift_,
-        hardware::device::Trajectory<device::TrajectoryType::JOINT>& press_again_,
+        hardware::device::Trajectory<device::TrajectoryType::JOINT>& initial_again_,
         std::array<double, 6>& result_buf_)
         : initial(initial_)
         , press(press_)
         , lift(lift_)
         , press_and_lift(press_and_lift_)
-        , press_again(press_again_)
+        , initial_again(initial_again_)
         , result(result_buf_) {}
 
     int calculate_steps(double k, double b) const {
         double raw =
             static_cast<double>(k) * ((**speed)->x() - v_reference) + static_cast<double>(b);
-
-        return static_cast<int>(raw);
+        std::max(static_cast<int>(raw), 1);
     }
 };
 
@@ -132,12 +135,62 @@ public:
             return StepSubState::Wait;
         }
 
-        if(event.id==UpStairsEventId::go_to_Press_Again){
-            return StepSubState::PressAgain;
+        if (event.id == UpStairsEventId::go_to_Initial_Again) {
+            return StepSubState::InitialAgain;
         }
         return std::nullopt;
     }
 };
+
+class DelayState final : public IState<StepSubState, UpStairsEventId, UpStairsContext> {
+public:
+    StepSubState getStateID() const override { return StepSubState::Delay; }
+
+
+
+
+    void enter(UpStairsContext& ctx, const EventArgs&) override {
+        ctx.count=0;
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+    std::optional<StepSubState>
+        handleEvent(const Event<UpStairsEventId>& event, UpStairsContext& ctx) override {
+        if (event.id == UpStairsEventId::go_to_Press_And_Lift) {
+            return StepSubState::PressAndLift;
+        }
+        if (event.id == UpStairsEventId::go_to_Press) {
+            return StepSubState::Press;
+        }
+        if (event.id == UpStairsEventId::go_to_Lift) {
+            return StepSubState::Lift;
+        }
+        if (event.id == UpStairsEventId::tick) {
+            ctx.count++;
+            if (ctx.count <= 500) {
+                return StepSubState::Delay;
+            } else {
+                return StepSubState::Lift;
+            }
+        }
+
+        if (event.id == UpStairsEventId::go_to_Initial_Again) {
+            return StepSubState::InitialAgain;
+        }
+        return std::nullopt;
+    }
+};
+
 class PressAndLiftState final : public IState<StepSubState, UpStairsEventId, UpStairsContext> {
 public:
     StepSubState getStateID() const override { return StepSubState::PressAndLift; }
@@ -167,8 +220,7 @@ public:
     }
 };
 
-class PressState final : public IState<StepSubState, UpStairsEventId, UpStairsContext>
- {
+class PressState final : public IState<StepSubState, UpStairsEventId, UpStairsContext> {
 public:
     StepSubState getStateID() const override { return StepSubState::Press; }
 
@@ -177,8 +229,8 @@ public:
         ctx.press.set_start_point(
             std::array<double, 6>{
                 **ctx.theta_lf, **ctx.theta_lb, **ctx.theta_rb, **ctx.theta_rf, 0.0, 0.0});
-        // ctx.press.set_total_step(static_cast<double>(ctx.calculate_steps(ctx.k[0], ctx.b[0])));
-        ctx.press.set_total_step(1000);
+        ctx.press.set_total_step(ctx.calculate_steps(ctx.k[0], ctx.b[0]));
+        // ctx.press.set_total_step(1000);
     }
 
     std::optional<StepSubState>
@@ -188,16 +240,43 @@ public:
                 ctx.result = ctx.press.trajectory();
                 return StepSubState::Press;
             } else {
-                // return StepSubState::Lift;
-                return StepSubState::Wait;
+                return StepSubState::Delay;
+                // return StepSubState::Wait;
             }
         }
         return std::nullopt;
     }
 };
 
-class LiftState final : public IState<StepSubState, UpStairsEventId, UpStairsContext>
- {
+class PressAgainState final : public IState<StepSubState, UpStairsEventId, UpStairsContext> {
+public:
+    StepSubState getStateID() const override { return StepSubState::PressAgain; }
+
+    void enter(UpStairsContext& ctx, const EventArgs&) override {
+        ctx.press.reset();
+        ctx.press.set_start_point(
+            std::array<double, 6>{
+                **ctx.theta_lf, **ctx.theta_lb, **ctx.theta_rb, **ctx.theta_rf, 0.0, 0.0});
+        ctx.press.set_total_step(ctx.calculate_steps(ctx.k[0], ctx.b[0]));
+        // ctx.press.set_total_step(1000);
+    }
+
+    std::optional<StepSubState>
+        handleEvent(const Event<UpStairsEventId>& event, UpStairsContext& ctx) override {
+        if (event.id == UpStairsEventId::tick) {
+            if (!ctx.press.get_complete()) {
+                ctx.result = ctx.press.trajectory();
+                return StepSubState::PressAgain;
+            } else {
+                return StepSubState::LiftAgain;
+                // return StepSubState::Wait;
+            }
+        }
+        return std::nullopt;
+    }
+};
+
+class LiftState final : public IState<StepSubState, UpStairsEventId, UpStairsContext> {
 public:
     StepSubState getStateID() const override { return StepSubState::Lift; }
 
@@ -206,8 +285,8 @@ public:
         ctx.lift.set_start_point(
             std::array<double, 6>{
                 **ctx.theta_lf, **ctx.theta_lb, **ctx.theta_rb, **ctx.theta_rf, 0.0, 0.0});
-        // ctx.lift.set_total_step(static_cast<double>(ctx.calculate_steps(ctx.k[1], ctx.b[1])));
-        ctx.lift.set_total_step(2000);
+        ctx.lift.set_total_step(ctx.calculate_steps(ctx.k[1], ctx.b[1]));
+        // ctx.lift.set_total_step(2000);
     }
 
     std::optional<StepSubState>
@@ -218,36 +297,64 @@ public:
                 return StepSubState::Lift;
             } else {
                 // return StepSubState::Press; // 回到 Press 循环
-                return StepSubState::Wait;
+                // return StepSubState::Wait;
+                return StepSubState::InitialAgain;
             }
         }
         return std::nullopt; // 没有处理到事件
     }
 };
 
-class PressAgainState final : public IState<StepSubState, UpStairsEventId, UpStairsContext>
- {
+class LiftAgainState final : public IState<StepSubState, UpStairsEventId, UpStairsContext> {
 public:
-    StepSubState getStateID() const override { return StepSubState::PressAgain; }
+    StepSubState getStateID() const override { return StepSubState::LiftAgain; }
 
     void enter(UpStairsContext& ctx, const EventArgs&) override {
-        ctx.press_again.reset();
-        ctx.press_again.set_start_point(
+        ctx.lift.reset();
+        ctx.lift.set_start_point(
             std::array<double, 6>{
                 **ctx.theta_lf, **ctx.theta_lb, **ctx.theta_rb, **ctx.theta_rf, 0.0, 0.0});
-        // ctx.lift.set_total_step(static_cast<double>(ctx.calculate_steps(ctx.k[1], ctx.b[1])));
-        ctx.press_again.set_total_step(1000);
+        ctx.lift.set_total_step(ctx.calculate_steps(ctx.k[1], ctx.b[1]));
+        // ctx.lift.set_total_step(2000);
     }
 
     std::optional<StepSubState>
         handleEvent(const Event<UpStairsEventId>& event, UpStairsContext& ctx) override {
         if (event.id == UpStairsEventId::tick) {
-            if (!ctx.press_again.get_complete()) {
-                ctx.result = ctx.press_again.trajectory();
-                return StepSubState::PressAgain;
+            if (!ctx.lift.get_complete()) {
+                ctx.result = ctx.lift.trajectory();
+                return StepSubState::LiftAgain;
             } else {
-                // return StepSubState::Press; // 回到 Press 循环
-                return StepSubState::Wait;
+                //return StepSubState::PressAgain; // 回到 Press 循环
+                 return StepSubState::Wait;
+            }
+        }
+        return std::nullopt; // 没有处理到事件
+    }
+};
+
+class InitialAgainState final : public IState<StepSubState, UpStairsEventId, UpStairsContext> {
+public:
+    StepSubState getStateID() const override { return StepSubState::InitialAgain; }
+
+    void enter(UpStairsContext& ctx, const EventArgs&) override {
+        ctx.initial_again.reset();
+        ctx.initial_again.set_start_point(
+            std::array<double, 6>{
+                **ctx.theta_lf, **ctx.theta_lb, **ctx.theta_rb, **ctx.theta_rf, 0.0, 0.0});
+        // ctx.lift.set_total_step(static_cast<double>(ctx.calculate_steps(ctx.k[1], ctx.b[1])));
+        ctx.initial_again.set_total_step(ctx.calculate_steps(ctx.k[2], ctx.b[2]));
+    }
+
+    std::optional<StepSubState>
+        handleEvent(const Event<UpStairsEventId>& event, UpStairsContext& ctx) override {
+        if (event.id == UpStairsEventId::tick) {
+            if (!ctx.initial_again.get_complete()) {
+                ctx.result = ctx.initial_again.trajectory();
+                return StepSubState::InitialAgain;
+            } else {
+                return StepSubState::PressAgain; // 回到 Press 循环
+                // return StepSubState::Wait;
             }
         }
         return std::nullopt; // 没有处理到事件
@@ -263,7 +370,8 @@ public:
         ctx.initial.set_start_point(
             std::array<double, 6>{
                 **ctx.theta_lf, **ctx.theta_lb, **ctx.theta_rb, **ctx.theta_rf, 0.0, 0.0});
-        ctx.initial.set_total_step(1500);
+        ctx.initial.set_total_step(1000);
+
     }
 
     std::optional<UpStairsState>
@@ -283,6 +391,7 @@ public:
         if (event.id == UpStairsEventId::go_to_TwoProcess) {
             return UpStairsState::StepByTwo;
         }
+
         return std::nullopt;         // 没有tick到
     }
 };
@@ -301,8 +410,7 @@ public:
 };
 
 class StepByTwoState
-    : public CompositeState<UpStairsState, StepSubState, UpStairsEventId, UpStairsContext>
-     {
+    : public CompositeState<UpStairsState, StepSubState, UpStairsEventId, UpStairsContext> {
 public:
     UpStairsState getStateID() const override { return UpStairsState::StepByTwo; }
 
@@ -312,6 +420,9 @@ public:
         registerInnerState<LiftState>();
         registerInnerState<WaitState>();
         registerInnerState<PressAgainState>();
+        registerInnerState<LiftAgainState>();
+        registerInnerState<InitialAgainState>();
+        registerInnerState<DelayState>();
         setInitialSubState(StepSubState::Press);
     }
 };
@@ -321,7 +432,7 @@ public:
     explicit Auto_Leg_Up_Stairs()
         : context_(
               up_stairs_initial, up_stairs_leg_press, up_stairs_leg_lift,
-              up_stairs_leg_press_and_lift, up_stairs_leg_press_again, result)
+              up_stairs_leg_press_and_lift, up_stairs_leg_initial_again, result)
         , up_stairs_hsm(context_)
         , Node{"auto_leg_up_stairs"} {}
 
@@ -335,6 +446,7 @@ public:
     void start(UpStairsState initial, const EventArgs& args = {}) {
 
         check_context_ready();
+        context_.count =0;
         up_stairs_hsm.start(initial, args);
     }
 
@@ -376,7 +488,7 @@ public:
         const std::vector<double>& initial_end_point_, const std::vector<double>& press_end_point_,
         const std::vector<double>& lift_end_point_,
         const std::vector<double>& press_and_lift_end_point_,
-    const std::vector<double>& press_again_end_point_) {
+        const std::vector<double>& initial_again_end_point_) {
 
         up_stairs_hsm.registerState<InitialState>();
         up_stairs_hsm.registerState<StepByOneState>();
@@ -396,8 +508,9 @@ public:
             {press_and_lift_end_point_[0], press_and_lift_end_point_[1],
              press_and_lift_end_point_[2], press_and_lift_end_point_[3], 0, 0});
 
-        up_stairs_leg_press_again.set_end_point({press_again_end_point_[0], press_again_end_point_[1],
-                                                  press_again_end_point_[2], press_again_end_point_[3], 0, 0});
+        up_stairs_leg_initial_again.set_end_point(
+            {initial_again_end_point_[0], initial_again_end_point_[1], initial_again_end_point_[2],
+             initial_again_end_point_[3], 0, 0});
 
         return *this;
     }
@@ -409,8 +522,8 @@ private:
     hardware::device::Trajectory<hardware::device::TrajectoryType::JOINT> up_stairs_leg_lift;
     hardware::device::Trajectory<hardware::device::TrajectoryType::JOINT>
         up_stairs_leg_press_and_lift;
-       hardware::device::Trajectory<hardware::device::TrajectoryType::JOINT>
-        up_stairs_leg_press_again;
+    hardware::device::Trajectory<hardware::device::TrajectoryType::JOINT>
+        up_stairs_leg_initial_again;
     UpStairsContext context_;
     HSM<UpStairsState, UpStairsEventId, UpStairsContext> up_stairs_hsm;
 };

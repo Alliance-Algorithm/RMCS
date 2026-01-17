@@ -69,7 +69,7 @@ public:
         return *this;
     }
 
-    Trajectory& set_total_step(double total_step_) {
+    Trajectory& set_total_step(int total_step_) {
         total_step = total_step_;
         return *this;
     }
