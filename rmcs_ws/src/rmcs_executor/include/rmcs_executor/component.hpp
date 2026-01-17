@@ -21,7 +21,7 @@ public:
     Component(Component&&)                 = delete;
     Component& operator=(Component&&)      = delete;
 
-    virtual ~Component(){};
+    virtual ~Component() = default;
 
     virtual void before_pairing(const std::map<std::string, const std::type_info&>& output_map) {
         (void)output_map;

@@ -5,9 +5,10 @@
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/serial_interface.hpp>
-#include <std_msgs/msg/int32.hpp>
-#include <std_msgs/msg/float64.hpp>
+#include <rmcs_utility/framerate.hpp>
 #include <std_msgs/msg/bool.hpp>
+#include <std_msgs/msg/float64.hpp>
+#include <std_msgs/msg/int32.hpp>
 
 #include "hardware/device/bmi088.hpp"
 #include "hardware/device/dji_motor.hpp"
@@ -32,39 +33,44 @@ public:
         , event_thread_([this]() { handle_events(); }) {
 
         for (auto& motor : chassis_wheel_motors_)
-            motor.configure(device::DjiMotor::Config{device::DjiMotor::Type::M3508}
-                                .set_reversed()
-                                .set_reduction_ratio(13.)
-                                .enable_multi_turn_angle());
+            motor.configure(
+                device::DjiMotor::Config{device::DjiMotor::Type::M3508}
+                    .set_reversed()
+                    .set_reduction_ratio(13.)
+                    .enable_multi_turn_angle());
 
-        gimbal_yaw_motor_.configure(device::LkMotor::Config{device::LkMotor::Type::MG5010E_I10}
-                                        .set_reversed()
-                                        .set_encoder_zero_point(static_cast<int>(
-                                            get_parameter("yaw_motor_zero_point").as_int())));
-        gimbal_pitch_motor_.configure(device::LkMotor::Config{device::LkMotor::Type::MG4010E_I10}
-                                          .set_encoder_zero_point(static_cast<int>(
-                                              get_parameter("pitch_motor_zero_point").as_int()))
-                                          .set_reversed());
+        gimbal_yaw_motor_.configure(
+            device::LkMotor::Config{device::LkMotor::Type::MG5010E_I10}
+                .set_reversed()
+                .set_encoder_zero_point(
+                    static_cast<int>(get_parameter("yaw_motor_zero_point").as_int())));
+        gimbal_pitch_motor_.configure(
+            device::LkMotor::Config{device::LkMotor::Type::MG4010E_I10}
+                .set_encoder_zero_point(
+                    static_cast<int>(get_parameter("pitch_motor_zero_point").as_int()))
+                .set_reversed());
 
         gimbal_left_friction_.configure(
             device::DjiMotor::Config{device::DjiMotor::Type::M3508}.set_reduction_ratio(1.));
-        gimbal_right_friction_.configure(device::DjiMotor::Config{device::DjiMotor::Type::M3508}
-                                             .set_reversed()
-                                             .set_reduction_ratio(1.));
+        gimbal_right_friction_.configure(
+            device::DjiMotor::Config{device::DjiMotor::Type::M3508}
+                .set_reversed()
+                .set_reduction_ratio(1.));
         gimbal_bullet_feeder_.configure(
             device::DjiMotor::Config{device::DjiMotor::Type::M2006}.enable_multi_turn_angle());
 
         // gimbal_motor_velocity_callback_ = create_subscription<std_msgs::msg::Int32>(
-        //     "/gimbal/yaw/velocity", rclcpp::QoS{0}, [this](std_msgs::msg::Float64::UniquePtr&& msg) {
+        //     "/gimbal/yaw/velocity", rclcpp::QoS{0}, [this](std_msgs::msg::Float64::UniquePtr&&
+        //     msg) {
         //         gimbal_motor_velocity_callback(std::move(msg));
         //     });
 
         register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
         register_output("/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
         register_output("/tf", tf_);
-        
-        using namespace rmcs_description;
 
+        using namespace rmcs_description;
+        tf_->set_transform<PitchLink, CameraLink>(Eigen::Translation3d{0.06603, 0.0, 0.082});
         tf_->set_transform<PitchLink, ImuLink>(
             Eigen::AngleAxisd{-std::numbers::pi / 2, Eigen::Vector3d::UnitZ()});
 
@@ -85,9 +91,9 @@ public:
             "/gimbal/calibrate", rclcpp::QoS{0}, [this](std_msgs::msg::Int32::UniquePtr&& msg) {
                 gimbal_calibrate_subscription_callback(std::move(msg));
             });
-            
 
-        // supercap_enabled_pub_ = this->create_subscription<std_msgs::msg::Bool>("/supercap/enabled", rclcpp::QoS(10));
+        // supercap_enabled_pub_ =
+        // this->create_subscription<std_msgs::msg::Bool>("/supercap/enabled", rclcpp::QoS(10));
 
         register_output("/referee/serial", referee_serial_);
         referee_serial_->read = [this](std::byte* buffer, size_t size) {
@@ -99,6 +105,9 @@ public:
             return size;
         };
 
+        // set_collect_can_id(true);
+        using namespace std::chrono_literals;
+        log_framerate.set_intetval(2s);
     }
 
     ~TunnelInfantry() override {
@@ -111,7 +120,8 @@ public:
         update_imu();
         dr16_.update_status();
         supercap_.update_status();
-        }
+        // update_log_can_id_status();
+    }
 
     void command_update() {
         uint16_t can_commands[4];
@@ -120,28 +130,33 @@ public:
         can_commands[1] = 0;
         can_commands[2] = 0;
         can_commands[3] = supercap_.generate_command();
-        transmit_buffer_.add_can1_transmission(0x1FE, std::bit_cast<uint64_t>(can_commands));
+        // TODO:需要确定一下超级电容在CAN1 or CAN2
+        transmit_buffer_.add_can2_transmission(
+            supercap_send_id, std::bit_cast<uint64_t>(can_commands));
 
         can_commands[0] = chassis_wheel_motors_[0].generate_command();
         can_commands[1] = chassis_wheel_motors_[1].generate_command();
         can_commands[2] = chassis_wheel_motors_[2].generate_command();
         can_commands[3] = chassis_wheel_motors_[3].generate_command();
-        transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(can_commands));
+        transmit_buffer_.add_can1_transmission(
+            chassis_wheel_motors_send_id, std::bit_cast<uint64_t>(can_commands));
 
+        // TODO:yaw的can报文内容需要纠正
+        transmit_buffer_.add_can1_transmission(
+            gimbal_motor_yaw_send_id,
+            gimbal_yaw_motor_.generate_torque_command(gimbal_yaw_motor_.control_torque()));
+        // transmit_buffer_.add_can1_transmission(0x145, gimbal_yaw_motor_.generate_command());
 
-        transmit_buffer_.add_can1_transmission(0x145, gimbal_yaw_motor_.generate_torque_command( gimbal_yaw_motor_.control_torque()
-            ));
+        transmit_buffer_.add_can2_transmission(
+            gimbal_motor_pitch_send_id,
+            gimbal_pitch_motor_.generate_torque_command(gimbal_pitch_motor_.control_velocity()));
 
-            // transmit_buffer_.add_can1_transmission(0x145, gimbal_yaw_motor_.generate_command());
-    
-
-        transmit_buffer_.add_can2_transmission(0x142, gimbal_pitch_motor_.generate_torque_command(
-            gimbal_pitch_motor_.control_velocity()));
         can_commands[0] = 0;
         can_commands[1] = gimbal_bullet_feeder_.generate_command();
         can_commands[2] = gimbal_left_friction_.generate_command();
         can_commands[3] = gimbal_right_friction_.generate_command();
-        transmit_buffer_.add_can2_transmission(0x200, std::bit_cast<uint64_t>(can_commands));
+        transmit_buffer_.add_can2_transmission(
+            gimbal_shooting_device_send_id, std::bit_cast<uint64_t>(can_commands));
 
         transmit_buffer_.trigger_transmission();
     }
@@ -176,6 +191,23 @@ private:
         *gimbal_pitch_velocity_imu_ = imu_.gx();
     }
 
+    auto update_log_can_id_status() noexcept -> void {
+        if (!log_framerate.tick())
+            return;
+
+        auto text = std::string{};
+
+        text = std::string{"Can1 ids: "};
+        for (auto id : get_can1_ids())
+            text += std::format("0x{:X} ", id);
+        RCLCPP_INFO(logger_, "%s", text.c_str());
+
+        text = std::string{"Can2 ids: "};
+        for (auto id : get_can2_ids())
+            text += std::format("0x{:X} ", id);
+        RCLCPP_INFO(logger_, "%s", text.c_str());
+    }
+
     void gimbal_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
         RCLCPP_INFO(
             logger_, "[gimbal calibration] New yaw offset: %ld",
@@ -187,65 +219,71 @@ private:
 
     // void supercap_enabled_checkout() {
     //     bool enabled = *supercap_enabled_;
-      
+
     //     RCLCPP_INFO_STREAM(
     //       get_logger(),
     //       "supercap enabled: " << std::boolalpha << enabled
     //     );
-      
+
     //     std_msgs::msg::Bool msg;
     //     msg.data = enabled;
     //     supercap_enabled_pub_->publish(msg);
     // }
 
     void gimbal_motor_velocity_callback(std_msgs::msg::Float64::UniquePtr) {
-        RCLCPP_INFO(
-            logger_, "[yaw motor velocity] : %f",
-            gimbal_yaw_motor_.velocity());
+        RCLCPP_INFO(logger_, "[yaw motor velocity] : %f", gimbal_yaw_motor_.velocity());
     }
+
+    auto set_collect_can_id(bool enable) -> void { collect_can_id = enable; }
 
 protected:
     void can1_receive_callback(
         uint32_t can_id, uint64_t can_data, bool is_extended_can_id, bool is_remote_transmission,
         uint8_t can_data_length) override {
+
+        if (collect_can_id)
+            can1_ids.insert(can_id);
+
         if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
             return;
 
-        if (can_id == 0x201) {
+        if (can_id == chassis_wheel_motors_recv_ids.at(0)) {
             auto& motor = chassis_wheel_motors_[0];
             motor.store_status(can_data);
-        } else if (can_id == 0x202) {
+        } else if (can_id == chassis_wheel_motors_recv_ids.at(1)) {
             auto& motor = chassis_wheel_motors_[1];
             motor.store_status(can_data);
-        } else if (can_id == 0x203) {
+        } else if (can_id == chassis_wheel_motors_recv_ids.at(2)) {
             auto& motor = chassis_wheel_motors_[2];
             motor.store_status(can_data);
-        } else if (can_id == 0x204) {
+        } else if (can_id == chassis_wheel_motors_recv_ids.at(3)) {
             auto& motor = chassis_wheel_motors_[3];
             motor.store_status(can_data);
-        } else if (can_id == 0x145) {
+        } else if (can_id == gimbal_motor_yaw_recv_id) {
             gimbal_yaw_motor_.store_status(can_data);
-        } else if (can_id == 0x206) {
-            gimbal_pitch_motor_.store_status(can_data);
-        } else if (can_id == 0x300) {
-            supercap_.store_status(can_data);
         }
     }
 
     void can2_receive_callback(
         uint32_t can_id, uint64_t can_data, bool is_extended_can_id, bool is_remote_transmission,
         uint8_t can_data_length) override {
+
+        if (collect_can_id)
+            can2_ids.insert(can_id);
+
         if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
             return;
 
-        if (can_id == 0x142) {
-            gimbal_pitch_motor_.store_status(can_data);
-        } else if (can_id == 0x202) {
+        if (can_id == supercap_recv_id) {
+            supercap_.store_status(can_data);
+        } else if (can_id == gimbal_bullet_feeder_recv_id) {
             gimbal_bullet_feeder_.store_status(can_data);
-        } else if (can_id == 0x203) {
+        } else if (can_id == gimbal_friction_left_recv_id) {
             gimbal_left_friction_.store_status(can_data);
-        } else if (can_id == 0x204) {
+        } else if (can_id == gimbal_friction_right_recv_id) {
             gimbal_right_friction_.store_status(can_data);
+        } else if (can_id == gimbal_motor_pitch_recv_id) {
+            gimbal_pitch_motor_.store_status(can_data);
         }
     }
 
@@ -266,8 +304,13 @@ protected:
         imu_.store_gyroscope_status(x, y, z);
     }
 
+    auto get_can1_ids() const -> const std::unordered_set<std::uint32_t>& { return can1_ids; }
+    auto get_can2_ids() const -> const std::unordered_set<std::uint32_t>& { return can2_ids; }
+
 private:
     rclcpp::Logger logger_;
+
+    rmcs_utility::Framerate log_framerate;
 
     class InfantryCommand : public rmcs_executor::Component {
     public:
@@ -278,11 +321,38 @@ private:
 
         TunnelInfantry& infantry_;
     };
+
+    bool collect_can_id = false;
+
+    std::uint32_t supercap_send_id{0x1FE};
+    std::uint32_t supercap_recv_id{0x300};
+
+    // CAN2
+    std::uint32_t chassis_wheel_motors_send_id{0x200};
+    std::array<std::uint32_t, 4> chassis_wheel_motors_recv_ids{0x201, 0x202, 0x203, 0x204};
+
+    // CAN2
+    std::uint32_t gimbal_motor_yaw_send_id{0x145};
+    std::uint32_t gimbal_motor_yaw_recv_id{0x145};
+    // CAN2
+    std::uint32_t gimbal_motor_pitch_send_id{0x142};
+    std::uint32_t gimbal_motor_pitch_recv_id{0x142};
+
+    std::uint32_t gimbal_shooting_device_send_id{0x200};
+
+    std::uint32_t gimbal_bullet_feeder_recv_id{0x202};
+    std::uint32_t gimbal_friction_left_recv_id{0x203};
+    std::uint32_t gimbal_friction_right_recv_id{0x204};
+
+    std::unordered_set<std::uint32_t> can1_ids;
+    std::unordered_set<std::uint32_t> can2_ids;
+
     std::shared_ptr<InfantryCommand> infantry_command_;
 
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr gimbal_calibrate_subscription_;
-    
-    rclcpp::Subscription<std_msgs::msg::Float64_<class ContainerAllocator>>::SharedPtr gimbal_motor_velocity_callback_;
+
+    rclcpp::Subscription<std_msgs::msg::Float64_<class ContainerAllocator>>::SharedPtr
+        gimbal_motor_velocity_callback_;
     // rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr supercap_enabled_pub_;
 
     device::DjiMotor chassis_wheel_motors_[4]{
@@ -315,8 +385,7 @@ private:
 
     std::thread event_thread_;
 
-    OutputInterface<double>bullet_feeder_control_torque;
-
+    OutputInterface<double> bullet_feeder_control_torque;
 
     // InputInterface<bool> supercap_enabled_;
 };

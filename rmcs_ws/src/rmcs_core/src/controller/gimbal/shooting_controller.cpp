@@ -32,7 +32,7 @@ public:
 
         register_input("/referee/shooter/cooling", shooter_cooling_, false);
         register_input("/referee/shooter/heat_limit", shooter_heat_limit_, false);
-        register_input("/gimbal/auto_aim/fire_control", fire_control_, false);
+        register_input("/gimbal/auto_aim/shoot_permit", shoot_permit_, false);
 
         auto friction_wheels     = get_parameter("friction_wheels").as_string_array();
         auto friction_velocities = get_parameter("friction_velocities").as_double_array();
@@ -94,8 +94,7 @@ public:
         register_output("/gimbal/shooter/mode", shoot_mode_, default_shoot_mode());
         register_output(
             "/gimbal/shooter/status", shoot_status_, rmcs_msgs::ShootStatus{false, 0, 0, 0, 0});
-        register_output(
-            "/gimbal/shooter/control_velocity",shoot_control_velocity_,nan_);
+        register_output("/gimbal/shooter/control_velocity", shoot_control_velocity_, nan_);
     }
 
     void before_updating() override {
@@ -144,23 +143,23 @@ public:
             } else {
                 decrease_speed_enabled_ = false;
             }
-    
+
             if (!last_keyboard_.e && keyboard.e) {
                 increase_speed_enabled_ = true;
             } else {
                 increase_speed_enabled_ = false;
             }
-    
+
             if (decrease_speed_enabled_) {
                 for (size_t i = 0; i < friction_count_; i++) {
-                    friction_working_velocities_[i] = 
+                    friction_working_velocities_[i] =
                         std::max(0.0, friction_working_velocities_[i] - 10.0);
                 }
             }
 
             if (increase_speed_enabled_) {
                 for (size_t i = 0; i < friction_count_; i++) {
-                    friction_working_velocities_[i] = 
+                    friction_working_velocities_[i] =
                         std::max(0.0, friction_working_velocities_[i] + 10.0);
                 }
             }
@@ -171,8 +170,8 @@ public:
                 }
 
                 bullet_feeder_enabled_ =
-                    mouse.left || switch_left == Switch::DOWN
-                    || (fire_control_.ready() && *fire_control_ && switch_right == Switch::UP);
+                    (mouse.left)
+                    || (switch_right == Switch::UP && shoot_permit_.ready() && *shoot_permit_);
 
                 const auto default_mode     = default_shoot_mode();
                 const auto alternative_mode = alternative_shoot_mode();
@@ -212,7 +211,6 @@ public:
                     bullet_count_limited_by_single_shot_ = -1;
                     single_shot_delayed_stop_counter_    = 0;
                 }
-                
             }
             update_friction_velocities();
             update_bullet_feeder_velocity();
@@ -222,7 +220,6 @@ public:
         last_switch_left_  = switch_left;
         last_mouse_        = mouse;
         last_keyboard_     = keyboard;
-
     }
 
 private:
@@ -306,9 +303,8 @@ private:
             *friction_control_velocities_[i] =
                 friction_control_velocity_percentage_ * friction_working_velocities_[i];
 
-        shoot_status_->ready = friction_control_velocity_percentage_ == 1.0;
+        shoot_status_->ready     = friction_control_velocity_percentage_ == 1.0;
         *shoot_control_velocity_ = *friction_control_velocities_[1];
-
     }
 
     void update_bullet_feeder_velocity() {
@@ -442,11 +438,10 @@ private:
     OutputInterface<rmcs_msgs::ShootMode> shoot_mode_;
     OutputInterface<rmcs_msgs::ShootStatus> shoot_status_;
 
-    InputInterface<bool> fire_control_;
+    InputInterface<bool> shoot_permit_;
     bool decrease_speed_enabled_;
     bool increase_speed_enabled_;
     OutputInterface<double> shoot_control_velocity_;
-    
 };
 
 } // namespace rmcs_core::controller::gimbal
