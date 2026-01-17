@@ -50,7 +50,7 @@ public:
             } else {
                 *control_torque_ = std::clamp(calc_control_value(), -3.0, 3.0);
             }
-        RCLCPP_INFO(logger_, "control:%f", *control_torque_);    //debug
+        // RCLCPP_INFO(logger_, "control:%f", *control_torque_);    //debug
 
     }
 

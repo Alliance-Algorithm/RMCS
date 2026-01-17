@@ -79,8 +79,8 @@ public:
 
     void command_update() {
         const bool even = ((cmd_tick_++ & 1u) == 0u);
-        left_board_->command_update();
-        right_board_->command_update();
+        left_board_->command_update(even);
+        right_board_->command_update(even);
         top_board_->command_update();
     }
 
@@ -239,9 +239,9 @@ private:
                 gimbal_yaw_motor_.angle());
         }
 
-        void command_update() {
+        void command_update(bool even) {
             uint16_t can_commands[4] = {0, 0, 0, 0};
-
+            if (even) {
                 can_commands[0] = 0;
                 can_commands[1] = chassis_steer_motors_[0].generate_command();
                 can_commands[2] = 0;
@@ -259,7 +259,7 @@ private:
                 can_commands[2] = 0;
                 can_commands[3] = 0;
                 transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(can_commands));
-
+                } else {
                 can_commands[0] = chassis_wheel_motors_[1].generate_command();
                 can_commands[1] = chassis_joint_motors_[1].generate_command();
                 can_commands[2] = 0;
@@ -269,7 +269,10 @@ private:
                 transmit_buffer_.add_can2_transmission(
                     0x142, gimbal_yaw_motor_.generate_velocity_command(
                                gimbal_yaw_motor_.control_velocity() - imu_.gy()));
+            //     transmit_buffer_.add_can1_transmission(0x142, gimbal_yaw_motor_.generate_torque_command( gimbal_yaw_motor_.control_torque()
+            // ));
 
+            }
             transmit_buffer_.trigger_transmission();
         }
 
@@ -411,9 +414,9 @@ private:
             gimbal_bullet_feeder_.update_status();
         }
 
-        void command_update() {
+        void command_update(bool even) {
             uint16_t can_commands[4] = {0, 0, 0, 0};
-
+            if(even){
                 can_commands[0] = chassis_steer_motors_[1].generate_command();
                 can_commands[1] = 0;
                 can_commands[2] = 0;
@@ -425,7 +428,7 @@ private:
                 can_commands[2] = 0;
                 can_commands[3] = chassis_steer_motors_[0].generate_command();
                 transmit_buffer_.add_can2_transmission(0x1FE, std::bit_cast<uint64_t>(can_commands));
-
+            }   else {
                 can_commands[0] = chassis_wheel_motors_[1].generate_command();
                 can_commands[1] = chassis_joint_motors_[1].generate_command();
                 can_commands[2] = 0;
@@ -437,7 +440,7 @@ private:
                 can_commands[2] = gimbal_bullet_feeder_.generate_command();
                 can_commands[3] = 0;
                 transmit_buffer_.add_can2_transmission(0x200, std::bit_cast<uint64_t>(can_commands));
-
+            }
             transmit_buffer_.trigger_transmission();
         }
 
@@ -521,7 +524,7 @@ private:
             // });
 
             // IMU mounting: faces left (+90 deg yaw), tilted up 30 deg (pitch)
-            bmi088_.set_coordinate_mapping_tilted(/*roll_rad=*/0.0 * std::numbers::pi / 180, /*pitch_rad=*/ 27.73 * std::numbers::pi / 180, /*yaw_rad=*/ 90.0 * std::numbers::pi / 180);
+            bmi088_.set_coordinate_mapping_tilted(/*roll_rad=*/0.0 * std::numbers::pi / 180, /*pitch_rad=*/ 27.73 * std::numbers::pi / 180, /*yaw_rad=*/ 0 * std::numbers::pi / 180);
 
         }
         ~TopBoard() {
