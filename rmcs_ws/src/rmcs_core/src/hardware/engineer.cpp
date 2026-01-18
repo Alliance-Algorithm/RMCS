@@ -93,7 +93,7 @@ private:
                   {engineer, engineer_command, "/arm/Joint5"},
                   {engineer, engineer_command, "/arm/Joint6"})
             , joint2_encoder(engineer, "/arm/Joint2encoder")
-            , joint3_encoder(engineer, "/arm/Joint3encoder")
+            //, joint3_encoder(engineer, "/arm/Joint3encoder")
             , dr16_(engineer)
             , transmit_buffer_(*this, 32)
             , event_thread_([this]() { handle_events(); })
@@ -154,11 +154,11 @@ private:
                     .set_encoder_zero_point(
                         static_cast<int>(engineer.get_parameter("joint2_zero_point").as_int()))
                     .enable_multi_turn_angle());
-            joint3_encoder.configure(
-                EncoderConfig{}
-                    .set_encoder_zero_point(
-                        static_cast<int>(engineer.get_parameter("joint3_zero_point").as_int()))
-                    .reverse());
+            // joint3_encoder.configure(
+            //     EncoderConfig{}
+            //         .set_encoder_zero_point(
+            //             static_cast<int>(engineer.get_parameter("joint3_zero_point").as_int()))
+            //         .reverse());
 
             bmi088_.set_coordinate_mapping(
                 [](double x, double y, double z) { return std::make_tuple(-x, -y, z); });
@@ -265,12 +265,12 @@ private:
 
         void update_arm_motors() {
             joint2_encoder.update();
-            joint3_encoder.update();
+            //joint3_encoder.update();
 
             joint[5].update_joint();
             joint[4].update_joint();
             joint[3].update_joint();
-            joint[2].update_joint().change_theta_feedback_(joint3_encoder.get_angle());
+            //joint[2].update_joint().change_theta_feedback_(joint3_encoder.get_angle());
             joint[1].update_joint().change_theta_feedback_(joint2_encoder.get_angle());
             joint[0].update_joint();
             arm_pump.update();
@@ -317,8 +317,8 @@ private:
                 joint[1].store_status(can_data);
             if (can_id == 0x141)
                 joint[0].store_status(can_data);
-            if (can_id == 0x005)
-                joint3_encoder.store_status(can_data);
+            // if (can_id == 0x005)
+            //     joint3_encoder.store_status(can_data);
             if (can_id == 0x1fb)
                 joint2_encoder.store_status(can_data);
         }
@@ -357,7 +357,7 @@ private:
 
         device::Joint joint[6];
         device::Encoder joint2_encoder;
-        device::Encoder joint3_encoder;
+        //device::Encoder joint3_encoder;
         device::Dr16 dr16_;
         librmcs::client::CBoard::TransmitBuffer transmit_buffer_;
         std::thread event_thread_;

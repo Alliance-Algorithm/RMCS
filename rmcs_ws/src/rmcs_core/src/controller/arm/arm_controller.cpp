@@ -66,6 +66,13 @@ public:
         register_output("/arm/Joint2/target_theta", target_theta[1], nan);
         register_output("/arm/Joint1/target_theta", target_theta[0], nan);
 
+        register_output("/arm/Joint6/control_torque", control_torque[5], nan);
+        register_output("/arm/Joint5/control_torque", control_torque[4], nan);
+        register_output("/arm/Joint4/control_torque", control_torque[3], nan);
+        register_output("/arm/Joint3/control_torque", control_torque[2], nan);
+        register_output("/arm/Joint2/control_torque", control_torque[1], nan);
+        register_output("/arm/Joint1/control_torque", control_torque[0], nan);
+
         register_input("/arm/Joint1/raw_angle", joint1_raw_angle);
         register_output("/arm/Joint1/zero_point", joint1_zero_point, 14381);
 
@@ -91,134 +98,134 @@ public:
         register_output("/arm/mode", arm_mode, rmcs_msgs::ArmMode::None);
     }
     void update() override {
-        auto switch_right = *switch_right_;
-        auto switch_left  = *switch_left_;
-        auto mouse        = *mouse_;
-        auto keyboard     = *keyboard_;
-        auto msg          = std_msgs::msg::Float32MultiArray();
-        msg.data          = {
-            static_cast<float>(*theta[0]),
-            -static_cast<float>(*theta[1]),
-            -(static_cast<float>(*theta[2] - std::numbers::pi / 2)),
-            static_cast<float>(*theta[3]),
-            static_cast<float>(*theta[4]),
-            static_cast<float>(*theta[5])};
-        publisher_->publish(msg);
-        if (keyboard.e) {
-            if (keyboard.ctrl && keyboard.shift) {
-                *joint1_zero_point = *joint1_raw_angle;
-                *target_theta[0]   = 0.0;
-            }
-        }
-        using namespace rmcs_msgs;
-        if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
-            || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
+        // auto switch_right = *switch_right_;
+        // auto switch_left  = *switch_left_;
+        // auto mouse        = *mouse_;
+        // auto keyboard     = *keyboard_;
+        // auto msg          = std_msgs::msg::Float32MultiArray();
+        // msg.data          = {
+        //     static_cast<float>(*theta[0]),
+        //     -static_cast<float>(*theta[1]),
+        //     -(static_cast<float>(*theta[2] - std::numbers::pi / 2)),
+        //     static_cast<float>(*theta[3]),
+        //     static_cast<float>(*theta[4]),
+        //     static_cast<float>(*theta[5])};
+        // publisher_->publish(msg);
+        // if (keyboard.e) {
+        //     if (keyboard.ctrl && keyboard.shift) {
+        //         *joint1_zero_point = *joint1_raw_angle;
+        //         *target_theta[0]   = 0.0;
+        //     }
+        // }
+        // using namespace rmcs_msgs;
+        // if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
+        //     || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
 
-            reset_motors();
-        } else {
-            *is_arm_enable = true;
+        //     reset_motors();
+        // } else {
+        //     *is_arm_enable = true;
 
-            if (switch_left == rmcs_msgs::Switch::UP && switch_right == rmcs_msgs::Switch::UP) {
-                *arm_mode = rmcs_msgs::ArmMode::DT7_Control_Position;
-            } else if (
-                switch_left == rmcs_msgs::Switch::UP && switch_right == rmcs_msgs::Switch::MIDDLE) {
-                *arm_mode = rmcs_msgs::ArmMode::DT7_Control_Orientation;
-            } else if (
-                switch_left == rmcs_msgs::Switch::DOWN
-                && switch_right == rmcs_msgs::Switch::MIDDLE) {
-                is_arm_pump_on  = true;
-                is_mine_pump_on = true;
-            } else if (
-                switch_left == rmcs_msgs::Switch::DOWN && switch_right == rmcs_msgs::Switch::UP) {
-                if (keyboard.a) {
-                    if (!keyboard.ctrl && !keyboard.shift) {
-                        is_arm_pump_on = true;
+        //     if (switch_left == rmcs_msgs::Switch::UP && switch_right == rmcs_msgs::Switch::UP) {
+        //         *arm_mode = rmcs_msgs::ArmMode::DT7_Control_Position;
+        //     } else if (
+        //         switch_left == rmcs_msgs::Switch::UP && switch_right == rmcs_msgs::Switch::MIDDLE) {
+        //         *arm_mode = rmcs_msgs::ArmMode::DT7_Control_Orientation;
+        //     } else if (
+        //         switch_left == rmcs_msgs::Switch::DOWN
+        //         && switch_right == rmcs_msgs::Switch::MIDDLE) {
+        //         is_arm_pump_on  = true;
+        //         is_mine_pump_on = true;
+        //     } else if (
+        //         switch_left == rmcs_msgs::Switch::DOWN && switch_right == rmcs_msgs::Switch::UP) {
+        //         if (keyboard.a) {
+        //             if (!keyboard.ctrl && !keyboard.shift) {
+        //                 is_arm_pump_on = true;
 
-                    } else if (keyboard.shift && !keyboard.ctrl) {
-                        is_arm_pump_on = false;
-                    }
-                }
-                if (keyboard.s) {
-                    if (!keyboard.ctrl && !keyboard.shift) {
-                        is_mine_pump_on = true;
+        //             } else if (keyboard.shift && !keyboard.ctrl) {
+        //                 is_arm_pump_on = false;
+        //             }
+        //         }
+        //         if (keyboard.s) {
+        //             if (!keyboard.ctrl && !keyboard.shift) {
+        //                 is_mine_pump_on = true;
 
-                    } else if (keyboard.shift && !keyboard.ctrl) {
-                        is_mine_pump_on = false;
-                    }
-                }
-                if (keyboard.z) {
-                    is_arm_pump_on = true;
-                    if (!keyboard.ctrl && !keyboard.shift) {
-                        *arm_mode = rmcs_msgs::ArmMode::Auto_Gold_Left;
-                        fsm_gold_l.reset();
-                    } else if (keyboard.shift && !keyboard.ctrl) {
-                        *arm_mode = rmcs_msgs::ArmMode::Auto_Gold_Mid;
-                        fsm_gold_m.reset();
-                    } else if (keyboard.ctrl && !keyboard.shift) {
-                        *arm_mode = rmcs_msgs::ArmMode::Auto_Gold_Right;
-                        fsm_gold_r.reset();
-                    }
-                }
+        //             } else if (keyboard.shift && !keyboard.ctrl) {
+        //                 is_mine_pump_on = false;
+        //             }
+        //         }
+        //         if (keyboard.z) {
+        //             is_arm_pump_on = true;
+        //             if (!keyboard.ctrl && !keyboard.shift) {
+        //                 *arm_mode = rmcs_msgs::ArmMode::Auto_Gold_Left;
+        //                 fsm_gold_l.reset();
+        //             } else if (keyboard.shift && !keyboard.ctrl) {
+        //                 *arm_mode = rmcs_msgs::ArmMode::Auto_Gold_Mid;
+        //                 fsm_gold_m.reset();
+        //             } else if (keyboard.ctrl && !keyboard.shift) {
+        //                 *arm_mode = rmcs_msgs::ArmMode::Auto_Gold_Right;
+        //                 fsm_gold_r.reset();
+        //             }
+        //         }
 
-                if (keyboard.x) {
-                    is_arm_pump_on = true;
-                    *arm_mode      = rmcs_msgs::ArmMode::Auto_Sliver;
-                    fsm_sliver.reset();
-                }
-                if (keyboard.g) {
-                    *arm_mode = rmcs_msgs::ArmMode::Auto_Walk;
-                    fsm_walk.reset();
-                }
-                if (keyboard.d) {
-                    *arm_mode = rmcs_msgs::ArmMode::Auto_Spin;
-                    fsm_walk.reset();
-                }
-                if (keyboard.b) {
-                    *arm_mode = rmcs_msgs::ArmMode::Auto_Up_Stairs;
-                    fsm_up_stairs.reset();
-                }
-                if (keyboard.f) {
-                    is_arm_pump_on  = true;
-                    is_mine_pump_on = true;
-                    if (keyboard.shift && !keyboard.ctrl) {
-                        *arm_mode = rmcs_msgs::ArmMode::Auto_Storage_LB;
-                        fsm_storage_lb.reset();
-                    } else if (keyboard.ctrl && !keyboard.shift) {
-                        *arm_mode = rmcs_msgs::ArmMode::Auto_Storage_RB;
-                        fsm_storage_rb.reset();
-                    }
-                }
+        //         if (keyboard.x) {
+        //             is_arm_pump_on = true;
+        //             *arm_mode      = rmcs_msgs::ArmMode::Auto_Sliver;
+        //             fsm_sliver.reset();
+        //         }
+        //         if (keyboard.g) {
+        //             *arm_mode = rmcs_msgs::ArmMode::Auto_Walk;
+        //             fsm_walk.reset();
+        //         }
+        //         if (keyboard.d) {
+        //             *arm_mode = rmcs_msgs::ArmMode::Auto_Spin;
+        //             fsm_walk.reset();
+        //         }
+        //         if (keyboard.b) {
+        //             *arm_mode = rmcs_msgs::ArmMode::Auto_Up_Stairs;
+        //             fsm_up_stairs.reset();
+        //         }
+        //         if (keyboard.f) {
+        //             is_arm_pump_on  = true;
+        //             is_mine_pump_on = true;
+        //             if (keyboard.shift && !keyboard.ctrl) {
+        //                 *arm_mode = rmcs_msgs::ArmMode::Auto_Storage_LB;
+        //                 fsm_storage_lb.reset();
+        //             } else if (keyboard.ctrl && !keyboard.shift) {
+        //                 *arm_mode = rmcs_msgs::ArmMode::Auto_Storage_RB;
+        //                 fsm_storage_rb.reset();
+        //             }
+        //         }
 
-                if (keyboard.r) {
-                    if (!keyboard.ctrl && !keyboard.shift) {
-                        *arm_mode = rmcs_msgs::ArmMode::Customer;
-                    };
-                }
+        //         if (keyboard.r) {
+        //             if (!keyboard.ctrl && !keyboard.shift) {
+        //                 *arm_mode = rmcs_msgs::ArmMode::Customer;
+        //             };
+        //         }
 
-            } else {
-                *arm_mode       = rmcs_msgs::ArmMode::None;
-                is_arm_pump_on  = false;
-                is_mine_pump_on = false;
-            }
-            switch (*arm_mode) {
-                using namespace rmcs_msgs;
-            case ArmMode::Auto_Gold_Left: execute_gold(fsm_gold_l); break;
-            case ArmMode::Auto_Gold_Mid: execute_gold(fsm_gold_m); break;
-            case ArmMode::Auto_Gold_Right: execute_gold(fsm_gold_r); break;
-            case ArmMode::Auto_Sliver: execute_sliver(fsm_sliver); break;
-            case ArmMode::DT7_Control_Position: execute_dt7_position(); break;
-            case ArmMode::DT7_Control_Orientation: execute_dt7_orientation(); break;
-            // case ArmMode::Customer: execute_customer(); break;
-            case ArmMode::Auto_Up_Stairs: execute_up_stairs(); break;
-            case ArmMode::Auto_Storage_LB: execute_storage(fsm_storage_lb); break;
-            case ArmMode::Auto_Storage_RB: execute_storage(fsm_storage_rb); break;
-            case ArmMode::Auto_Spin:
-            case ArmMode::Auto_Walk: execute_walk(); break;
+        //     } else {
+        //         *arm_mode       = rmcs_msgs::ArmMode::None;
+        //         is_arm_pump_on  = false;
+        //         is_mine_pump_on = false;
+        //     }
+        //     switch (*arm_mode) {
+        //         using namespace rmcs_msgs;
+        //     case ArmMode::Auto_Gold_Left: execute_gold(fsm_gold_l); break;
+        //     case ArmMode::Auto_Gold_Mid: execute_gold(fsm_gold_m); break;
+        //     case ArmMode::Auto_Gold_Right: execute_gold(fsm_gold_r); break;
+        //     case ArmMode::Auto_Sliver: execute_sliver(fsm_sliver); break;
+        //     case ArmMode::DT7_Control_Position: execute_dt7_position(); break;
+        //     case ArmMode::DT7_Control_Orientation: execute_dt7_orientation(); break;
+        //     // case ArmMode::Customer: execute_customer(); break;
+        //     case ArmMode::Auto_Up_Stairs: execute_up_stairs(); break;
+        //     case ArmMode::Auto_Storage_LB: execute_storage(fsm_storage_lb); break;
+        //     case ArmMode::Auto_Storage_RB: execute_storage(fsm_storage_rb); break;
+        //     case ArmMode::Auto_Spin:
+        //     case ArmMode::Auto_Walk: execute_walk(); break;
 
-            default: break;
-            }
-            pump_control();
-        }
+        //     default: break;
+        //     }
+        //     pump_control();
+        // }
     }
 
 private:
@@ -453,6 +460,7 @@ private:
     OutputInterface<bool> is_arm_enable;
     InputInterface<double> theta[6]; // motor_current_angle
     OutputInterface<double> target_theta[6];
+    OutputInterface<double> control_torque[6];
 
     InputInterface<int> joint1_raw_angle;
     OutputInterface<double> joint1_zero_point;
