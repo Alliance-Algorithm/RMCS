@@ -33,7 +33,7 @@
 #include <rmcs_utility/package_receive.hpp>
 #include <rmcs_utility/tick_timer.hpp>
 
-namespace rmcs_core::controller::arm {
+namespace rmcs_core::hardware::arm {
 class ArmController
     : public rmcs_executor::Component
     , public rclcpp::Node {
@@ -475,4 +475,4 @@ private:
 } // namespace rmcs_core::controller::arm
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::arm::ArmController, rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(rmcs_core::hardware::arm::ArmController, rmcs_executor::Component)

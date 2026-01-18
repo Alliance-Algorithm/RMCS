@@ -2,8 +2,8 @@ rmcs_executor:
   ros__parameters:
     update_rate: 1000.0
     components:
-      - rmcs_core::hardware::Engineer -> engineer_hardware
-      - rmcs_core::controller::arm::ArmController -> arm_controller
+      - rmcs_core::hardware::arm::Arm-> arm_hardware
+      - rmcs_core::hardware::arm::ArmController -> arm_controller
 
       # - rmcs_core::controller::leg::LegController -> leg_controller
       # - rmcs_core::controller::chassis::Chassis_Controller -> chassis_controller
@@ -46,7 +46,7 @@ rmcs_executor:
       # - rmcs_core::controller::pid::PidController -> arm_pump_velocity_pid_controller
       # - rmcs_core::controller::pid::PidController -> mine_pump_velocity_pid_controller
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
-engineer_hardware:
+arm_hardware:
   ros__parameters:
     arm_board_usb_pid: 0x1783
     # left_board_usb_pid: 0x652f
@@ -69,7 +69,7 @@ engineer_hardware:
     # leg_lb_ecd_zero_point: 153207
     # leg_rb_ecd_zero_point: 2135
     # leg_rf_ecd_zero_point: 133400
-    big_yaw_zero_point: 20485
+    # big_yaw_zero_point: 20485
 
 
 # leg_controller:
@@ -79,103 +79,103 @@ engineer_hardware:
 
 
 
-joint6_angle_pid_controller:
-  ros__parameters:
-    measurement: /arm/Joint6/control_angle_error
-    control: /arm/Joint6/control_velocity
-    kp: 9620.0
-    ki: 0.0
-    kd: 25.0
+# joint6_angle_pid_controller:
+#   ros__parameters:
+#     measurement: /arm/Joint6/control_angle_error
+#     control: /arm/Joint6/control_velocity
+#     kp: 9620.0
+#     ki: 0.0
+#     kd: 25.0
 
-joint6_velocity_pid_controller:
-  ros__parameters:
-    measurement: /arm/Joint6/velocity
-    setpoint: /arm/Joint6/control_velocity
-    control: /arm/Joint6/control_torque
-    kp: 0.021
-    ki: 0.0
-    kd: 0.0005
+# joint6_velocity_pid_controller:
+#   ros__parameters:
+#     measurement: /arm/Joint6/velocity
+#     setpoint: /arm/Joint6/control_velocity
+#     control: /arm/Joint6/control_torque
+#     kp: 0.021
+#     ki: 0.0
+#     kd: 0.0005
 
-joint5_angle_pid_controller:
-  ros__parameters:
-    measurement: /arm/Joint5/control_angle_error
-    control: /arm/Joint5/control_velocity
-    kp: 6920.0
-    ki: 0.0
-    kd: 15.0
+# joint5_angle_pid_controller:
+#   ros__parameters:
+#     measurement: /arm/Joint5/control_angle_error
+#     control: /arm/Joint5/control_velocity
+#     kp: 6920.0
+#     ki: 0.0
+#     kd: 15.0
 
-joint5_velocity_pid_controller:
-  ros__parameters:
-    measurement: /arm/Joint5/velocity
-    setpoint: /arm/Joint5/control_velocity
-    control: /arm/Joint5/control_torque
-    kp: 0.028
-    ki: 0.0
-    kd: 0.0009
+# joint5_velocity_pid_controller:
+#   ros__parameters:
+#     measurement: /arm/Joint5/velocity
+#     setpoint: /arm/Joint5/control_velocity
+#     control: /arm/Joint5/control_torque
+#     kp: 0.028
+#     ki: 0.0
+#     kd: 0.0009
 
-joint4_angle_pid_controller:
-  ros__parameters:
-    measurement: /arm/Joint4/control_angle_error
-    control: /arm/Joint4/control_velocity
-    kp: 3120.0
-    ki: 0.0
-    kd: 15.0
-joint4_velocity_pid_controller:
-  ros__parameters:
-    measurement: /arm/Joint4/velocity
-    setpoint: /arm/Joint4/control_velocity
-    control: /arm/Joint4/control_torque
-    kp: 0.06
-    ki: 0.0
-    kd: 0.001
+# joint4_angle_pid_controller:
+#   ros__parameters:
+#     measurement: /arm/Joint4/control_angle_error
+#     control: /arm/Joint4/control_velocity
+#     kp: 3120.0
+#     ki: 0.0
+#     kd: 15.0
+# joint4_velocity_pid_controller:
+#   ros__parameters:
+#     measurement: /arm/Joint4/velocity
+#     setpoint: /arm/Joint4/control_velocity
+#     control: /arm/Joint4/control_torque
+#     kp: 0.06
+#     ki: 0.0
+#     kd: 0.001
 
-joint3_angle_pid_controller:
-  ros__parameters:
-    measurement: /arm/Joint3/control_angle_error
-    control: /arm/Joint3/control_velocity
-    kp: 4290.0
-    ki: 0.0
-    kd: 20.0
-joint3_velocity_pid_controller:
-  ros__parameters:
-    measurement: /arm/Joint3/velocity
-    setpoint: /arm/Joint3/control_velocity
-    control: /arm/Joint3/control_torque
-    kp: 0.0025
-    ki: 0.0
-    kd: 0.0002
+# joint3_angle_pid_controller:
+#   ros__parameters:
+#     measurement: /arm/Joint3/control_angle_error
+#     control: /arm/Joint3/control_velocity
+#     kp: 4290.0
+#     ki: 0.0
+#     kd: 20.0
+# joint3_velocity_pid_controller:
+#   ros__parameters:
+#     measurement: /arm/Joint3/velocity
+#     setpoint: /arm/Joint3/control_velocity
+#     control: /arm/Joint3/control_torque
+#     kp: 0.0025
+#     ki: 0.0
+#     kd: 0.0002
 
-joint2_angle_pid_controller:
-  ros__parameters:
-    measurement: /arm/Joint2/control_angle_error
-    control: /arm/Joint2/control_velocity
-    kp: 4390.0
-    ki: 0.0
-    kd: 20.0
-joint2_velocity_pid_controller:
-  ros__parameters:
-    measurement: /arm/Joint2/velocity
-    setpoint: /arm/Joint2/control_velocity
-    control: /arm/Joint2/control_torque
-    kp: 0.00293
-    ki: 0.0
-    kd: 0.00004
+# joint2_angle_pid_controller:
+#   ros__parameters:
+#     measurement: /arm/Joint2/control_angle_error
+#     control: /arm/Joint2/control_velocity
+#     kp: 4390.0
+#     ki: 0.0
+#     kd: 20.0
+# joint2_velocity_pid_controller:
+#   ros__parameters:
+#     measurement: /arm/Joint2/velocity
+#     setpoint: /arm/Joint2/control_velocity
+#     control: /arm/Joint2/control_torque
+#     kp: 0.00293
+#     ki: 0.0
+#     kd: 0.00004
 
-joint1_angle_pid_controller:
-  ros__parameters:
-    measurement: /arm/Joint1/control_angle_error
-    control: /arm/Joint1/control_velocity
-    kp: 6520.0
-    ki: 0.0
-    kd: 40.0
-joint1_velocity_pid_controller:
-  ros__parameters:
-    measurement: /arm/Joint1/velocity
-    setpoint: /arm/Joint1/control_velocity
-    control: /arm/Joint1/control_torque
-    kp: 0.042
-    ki: 0.0
-    kd: 0.0001
+# joint1_angle_pid_controller:
+#   ros__parameters:
+#     measurement: /arm/Joint1/control_angle_error
+#     control: /arm/Joint1/control_velocity
+#     kp: 6520.0
+#     ki: 0.0
+#     kd: 40.0
+# joint1_velocity_pid_controller:
+#   ros__parameters:
+#     measurement: /arm/Joint1/velocity
+#     setpoint: /arm/Joint1/control_velocity
+#     control: /arm/Joint1/control_torque
+#     kp: 0.042
+#     ki: 0.0
+#     kd: 0.0001
 
 # leg_omni_l_velocity_controller:
 #   ros__parameters:
@@ -194,21 +194,21 @@ joint1_velocity_pid_controller:
 #     ki: 0.0
 #     kd: 0.0
 
-big_yaw_angle_error_pid_controller:
-  ros__parameters:
-    measurement: /chassis/big_yaw/target_angle_error
-    control: /chassis/big_yaw/control_vel
-    kp: 91.3
-    ki: 0.0
-    kd: 2.6
-big_yaw_velocity_pid_controller:
-  ros__parameters:
-    measurement: /chassis/big_yaw/velocity
-    setpoint: /chassis/big_yaw/control_vel
-    control: /chassis/big_yaw/control_torque
-    kp: 3.99
-    ki: 0.0
-    kd: 0.039
+# big_yaw_angle_error_pid_controller:
+#   ros__parameters:
+#     measurement: /chassis/big_yaw/target_angle_error
+#     control: /chassis/big_yaw/control_vel
+#     kp: 91.3
+#     ki: 0.0
+#     kd: 2.6
+# big_yaw_velocity_pid_controller:
+#   ros__parameters:
+#     measurement: /chassis/big_yaw/velocity
+#     setpoint: /chassis/big_yaw/control_vel
+#     control: /chassis/big_yaw/control_torque
+#     kp: 3.99
+#     ki: 0.0
+#     kd: 0.039
 
 
 # leg_lf_angle_error_pid_controller:
@@ -288,22 +288,22 @@ big_yaw_velocity_pid_controller:
 #     k2: 3.082190e-03
 #     no_load_power: 11.37
 
-arm_pump_velocity_pid_controller:
-  ros__parameters:
-    measurement: /arm/pump/velocity
-    setpoint: /arm/pump/target_vel
-    control: /arm/pump/control_torque
-    kp: 0.001
-    ki: 0.0
-    kd: 0.0
-mine_pump_velocity_pid_controller:
-  ros__parameters:
-    measurement: /mine/pump/velocity
-    setpoint: /mine/pump/target_vel
-    control: /mine/pump/control_torque
-    kp: 0.001
-    ki: 0.0
-    kd: 0.0
+# arm_pump_velocity_pid_controller:
+#   ros__parameters:
+#     measurement: /arm/pump/velocity
+#     setpoint: /arm/pump/target_vel
+#     control: /arm/pump/control_torque
+#     kp: 0.001
+#     ki: 0.0
+#     kd: 0.0
+# mine_pump_velocity_pid_controller:
+#   ros__parameters:
+#     measurement: /mine/pump/velocity
+#     setpoint: /mine/pump/target_vel
+#     control: /mine/pump/control_torque
+#     kp: 0.001
+#     ki: 0.0
+#     kd: 0.0
 
 
 # value_broadcaster:
