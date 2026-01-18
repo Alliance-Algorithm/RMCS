@@ -200,8 +200,9 @@ private:
             current_target_angle_ =
                 (std::abs(current_target_angle_ - max_angle_) < 1e-6) ? min_angle_ : max_angle_;
         }
-        if ((rotary_knob_switch != rmcs_msgs::Switch::MIDDLE) && (rotary_knob_switch != rmcs_msgs::Switch::UNKNOWN)) {
-            left_target_angle_ = 15.0;
+        if (left_switch == rmcs_msgs::Switch::UP && right_switch == rmcs_msgs::Switch::UP ){
+            left_target_angle_ = 22.0;
+            RCLCPP_INFO(get_logger(), "123:%f", left_target_angle_);
         } else{
             left_target_angle_ = current_target_angle_;
         }
