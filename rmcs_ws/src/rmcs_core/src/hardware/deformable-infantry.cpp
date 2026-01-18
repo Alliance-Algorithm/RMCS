@@ -56,11 +56,11 @@ public:
                 gimbal_calibrate_subscription_callback(std::move(msg));
             });
 
-        left_board_ = std::make_unique<LeftBoard>(
+        front_board_ = std::make_unique<FrontBoard>(
             *this, *deformable_infantry_command_,
             static_cast<int>(get_parameter("usb_pid_left_board").as_int()));
 
-        right_board_ = std::make_unique<RightBoard>(
+        back_board_ = std::make_unique<BackBoard>(
             *this, *deformable_infantry_command_,
             static_cast<int>(get_parameter("usb_pid_right_board").as_int()));
 
@@ -72,55 +72,56 @@ public:
     ~DeformableInfantry() override = default;
 
     void update() override {
-        left_board_->update();
-        right_board_->update();
+        front_board_->update();
+        back_board_->update();
         top_board_->update();
     }
 
     void command_update() {
         const bool even = ((cmd_tick_++ & 1u) == 0u);
-        left_board_->command_update(even);
-        right_board_->command_update(even);
+        front_board_->command_update(even);
+        back_board_->command_update(even);
         top_board_->command_update();
     }
 
 private:
     class DeformableInfantryCommand;
-    class LeftBoard;
-    class RightBoard;
+    class FrontBoard;
+    class BackBoard;
+    class TopBoard;
 
     void steers_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
-        if (!left_board_ || !right_board_)
+        if (!front_board_ || !back_board_)
             return;
 
         RCLCPP_INFO(get_logger(), "New left front offset: %d",
-                    left_board_->chassis_steer_motors_[0].calibrate_zero_point());
+                    front_board_->chassis_steer_motors_[0].calibrate_zero_point());
         RCLCPP_INFO(get_logger(), "New left back offset: %d",
-                    left_board_->chassis_steer_motors_[1].calibrate_zero_point());
+                    front_board_->chassis_steer_motors_[1].calibrate_zero_point());
         RCLCPP_INFO(get_logger(), "New right back offset: %d",
-                    right_board_->chassis_steer_motors_[0].calibrate_zero_point());
+                    back_board_->chassis_steer_motors_[0].calibrate_zero_point());
         RCLCPP_INFO(get_logger(), "New right front offset: %d",
-                    right_board_->chassis_steer_motors_[1].calibrate_zero_point());
+                    back_board_->chassis_steer_motors_[1].calibrate_zero_point());
     }
 
     void joints_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
-        if (!left_board_ || !right_board_)
+        if (!front_board_ || !back_board_)
             return;
 
         RCLCPP_INFO(get_logger(), "New left front offset: %f",
-                    left_board_->chassis_joint_motors_[0].encoder_angle());
+                    front_board_->chassis_joint_motors_[0].encoder_angle());
         RCLCPP_INFO(get_logger(), "New left back offset: %f",
-                    left_board_->chassis_joint_motors_[1].encoder_angle());
+                    front_board_->chassis_joint_motors_[1].encoder_angle());
         RCLCPP_INFO(get_logger(), "New right back offset: %f",
-                    right_board_->chassis_joint_motors_[0].encoder_angle());
+                    back_board_->chassis_joint_motors_[0].encoder_angle());
         RCLCPP_INFO(get_logger(), "New right front offset: %f",
-                    right_board_->chassis_joint_motors_[1].encoder_angle());
+                    back_board_->chassis_joint_motors_[1].encoder_angle());
     }
 
     void gimbal_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
         RCLCPP_INFO(
             get_logger(), "[gimbal calibration] New yaw offset: %ld",
-            left_board_->gimbal_yaw_motor_.calibrate_zero_point());
+            front_board_->gimbal_yaw_motor_.calibrate_zero_point());
         RCLCPP_INFO(
             get_logger(), "[gimbal calibration] New pitch offset: %ld",
             top_board_->gimbal_pitch_motor_.calibrate_zero_point());
@@ -137,11 +138,11 @@ private:
         DeformableInfantry& deformableInfantry;
     };
 
-    class LeftBoard final : private librmcs::client::CBoard {
+    class FrontBoard final : private librmcs::client::CBoard {
     public:
         friend class DeformableInfantry;
 
-        explicit LeftBoard(
+        explicit FrontBoard(
             DeformableInfantry& deformableInfantry,
             DeformableInfantryCommand& deformableInfantry_command,
             int usb_pid = -1)
@@ -153,19 +154,19 @@ private:
             , dr16_(deformableInfantry)
             , chassis_wheel_motors_{
                   device::DjiMotor{deformableInfantry, deformableInfantry_command,
-                                   "/chassis/left_front_wheel"},
+                                   "/chassis/right_front_wheel"},
                   device::DjiMotor{deformableInfantry, deformableInfantry_command,
-                                   "/chassis/left_back_wheel"}}
+                                   "/chassis/left_front_wheel"}}
             , chassis_steer_motors_{
                   device::DjiMotor{deformableInfantry, deformableInfantry_command,
-                                   "/chassis/left_front_steering"},
+                                   "/chassis/right_front_steering"},
                   device::DjiMotor{deformableInfantry, deformableInfantry_command,
-                                   "/chassis/left_back_steering"}}
+                                   "/chassis/left_front_steering"}}
             , chassis_joint_motors_{
                   device::DjiMotor{deformableInfantry, deformableInfantry_command,
-                                   "/chassis/left_front_joint"},
+                                   "/chassis/right_front_joint"},
                   device::DjiMotor{deformableInfantry, deformableInfantry_command,
-                                   "/chassis/left_back_joint"}}
+                                   "/chassis/left_front_joint"}}
             , transmit_buffer_(*this, 32)
             , event_thread_([this]() { handle_events(); }) {
 
@@ -214,7 +215,7 @@ private:
             deformableInfantry.register_output("/chassis/yaw/velocity_imu", chassis_yaw_velocity_imu_, 0);
         }
 
-        ~LeftBoard() override {
+        ~FrontBoard() override {
             stop_handling_events();
             if (event_thread_.joinable()) {
                 event_thread_.join();
@@ -335,30 +336,30 @@ private:
         OutputInterface<double> chassis_yaw_velocity_imu_;
     };
 
-    class RightBoard final : private librmcs::client::CBoard {
+    class BackBoard final : private librmcs::client::CBoard {
     public:
         friend class DeformableInfantry;
 
-        explicit RightBoard(
+        explicit BackBoard(
             DeformableInfantry& deformableInfantry,
             DeformableInfantryCommand& deformableInfantry_command,
             int usb_pid = -1)
             : librmcs::client::CBoard(usb_pid)
             , chassis_wheel_motors_{
                   device::DjiMotor{deformableInfantry, deformableInfantry_command,
-                                   "/chassis/right_back_wheel"},
+                                   "/chassis/left_back_wheel"},
                   device::DjiMotor{deformableInfantry, deformableInfantry_command,
-                                   "/chassis/right_front_wheel"}}
+                                   "/chassis/right_back_wheel"}}
             , chassis_steer_motors_{
                   device::DjiMotor{deformableInfantry, deformableInfantry_command,
-                                   "/chassis/right_back_steering"},
+                                   "/chassis/left_back_steering"},
                   device::DjiMotor{deformableInfantry, deformableInfantry_command,
-                                   "/chassis/right_front_steering"}}
+                                   "/chassis/right_back_steering"}}
             , chassis_joint_motors_{
                   device::DjiMotor{deformableInfantry, deformableInfantry_command,
-                                   "/chassis/right_back_joint"},
+                                   "/chassis/left_back_joint"},
                   device::DjiMotor{deformableInfantry, deformableInfantry_command,
-                                   "/chassis/right_front_joint"}}
+                                   "/chassis/right_back_joint"}}
             , transmit_buffer_(*this, 32)
             , supercap_(deformableInfantry, deformableInfantry_command)
             , gimbal_bullet_feeder_(
@@ -396,7 +397,7 @@ private:
                     .enable_multi_turn_angle());
         }
 
-        ~RightBoard() final {
+        ~BackBoard() final {
             stop_handling_events();
             if (event_thread_.joinable()) {
                 event_thread_.join();
@@ -608,8 +609,8 @@ private:
     OutputInterface<rmcs_description::Tf> tf_;
 
     std::shared_ptr<DeformableInfantryCommand> deformable_infantry_command_;
-    std::unique_ptr<LeftBoard> left_board_;
-    std::unique_ptr<RightBoard> right_board_;
+    std::unique_ptr<FrontBoard> front_board_;
+    std::unique_ptr<BackBoard> back_board_;
     std::unique_ptr<TopBoard> top_board_;
 
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr steers_calibrate_subscription_;

@@ -279,7 +279,8 @@ private:
         const double alpha_rb =
             wrap_deg(right_back_joint_offset_) - wrap_deg(*right_back_joint_angle_) + 61.0;
 
-        *processed_encoder_angle_ = (alpha_lb + alpha_lf + alpha_rf + alpha_rb) / 4.0;
+        // *processed_encoder_angle_ = (alpha_lb + alpha_lf + alpha_rf + alpha_rb) / 4.0;
+        *processed_encoder_angle_ = (alpha_lb + alpha_rb) / 2.0;
 
         s_lf_ = trapezoidal_calculator(alpha_lf);
         s_lb_ = trapezoidal_calculator(alpha_lb);
