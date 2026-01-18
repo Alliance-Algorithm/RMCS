@@ -41,6 +41,7 @@ public:
         register_input("/remote/joystick/left", joystick_left_);
         register_input("/remote/switch/right", right_switch_);
         register_input("/remote/switch/left", left_switch_);
+        register_input("/remote/rotary_knob_switch", rotary_knob_switch_);
         register_input("/remote/keyboard", keyboard_);
         register_input("/remote/rotary_knob", rotary_knob_);
 
@@ -73,6 +74,7 @@ public:
         const auto right_switch = *right_switch_;
         const auto left_switch  = *left_switch_;
         const auto keyboard     = *keyboard_;
+        const auto rotary_knob_switch = *rotary_knob_switch_;
         do{
         if ((left_switch == Switch::UNKNOWN || right_switch == Switch::UNKNOWN)
             || (left_switch == Switch::DOWN && right_switch == Switch::DOWN)) {
@@ -83,7 +85,7 @@ public:
         update_chassis_mode(right_switch, left_switch, keyboard);
         update_velocity_control();
 
-        update_lift_target_toggle(left_switch, right_switch);
+        update_lift_target_toggle(left_switch, right_switch,rotary_knob_switch);
         update_lift_angle_error();
         }while(false);
         last_right_switch_ = right_switch;
@@ -186,7 +188,7 @@ private:
         }
     }
 
-    void update_lift_target_toggle(rmcs_msgs::Switch left_switch, rmcs_msgs::Switch right_switch) {
+    void update_lift_target_toggle(rmcs_msgs::Switch left_switch, rmcs_msgs::Switch right_switch, rmcs_msgs::Switch rotary_knob_switch) {
         const bool toggle_condition =
             (left_switch == rmcs_msgs::Switch::MIDDLE) && (right_switch == rmcs_msgs::Switch::UP);
 
@@ -198,10 +200,16 @@ private:
             current_target_angle_ =
                 (std::abs(current_target_angle_ - max_angle_) < 1e-6) ? min_angle_ : max_angle_;
         }
+        if ((rotary_knob_switch != rmcs_msgs::Switch::MIDDLE) && (rotary_knob_switch != rmcs_msgs::Switch::UNKNOWN)) {
+            left_target_angle_ = 15.0;
+        } else{
+            left_target_angle_ = current_target_angle_;
+        }
     }
 
     void update_lift_angle_error() {
         s_target_ = trapezoidal_calculator(current_target_angle_);
+        left_target_ = trapezoidal_calculator(left_target_angle_);
 
         const double alpha_lf =
             wrap_deg(left_front_joint_offset_) - wrap_deg(*left_front_joint_angle_) + 61.0;
@@ -219,8 +227,8 @@ private:
         s_rf_ = trapezoidal_calculator(alpha_rf);
         s_rb_ = trapezoidal_calculator(alpha_rb);
 
-        const double lf_err = s_lf_ - s_target_;
-        const double lb_err = s_lb_ - s_target_;
+        const double lf_err = s_lf_ - left_target_;
+        const double lb_err = s_lb_ - left_target_;
         const double rf_err = s_rf_ - s_target_;
         const double rb_err = s_rb_ - s_target_;
 
@@ -277,6 +285,7 @@ private:
     InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<rmcs_msgs::Switch> right_switch_;
     InputInterface<rmcs_msgs::Switch> left_switch_;
+    InputInterface<rmcs_msgs::Switch> rotary_knob_switch_;
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
     InputInterface<double> rotary_knob_;
 
@@ -309,10 +318,12 @@ private:
     double right_back_joint_offset_;
 
     double current_target_angle_ = 55.0;
+    double left_target_angle_ = 55.0;
 
     double lf_ = 0.0, lb_ = 0.0, rf_ = 0.0, rb_ = 0.0;
     double s_lf_ = 0.0, s_lb_ = 0.0, s_rf_ = 0.0, s_rb_ = 0.0;
     double s_target_ = 0.0;
+    double left_target_ = 0.0;
 
     double Bx_ = 0.0;
     double By_ = 0.0;
