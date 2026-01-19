@@ -177,6 +177,10 @@ public:
                     *arm_mode = rmcs_msgs::ArmMode::Auto_Up_Stairs;
                     fsm_up_stairs.reset();
                 }
+                if(keyboard.q&&keyboard.shift){
+                    *arm_mode =rmcs_msgs::ArmMode::Auto_Down_Stairs;
+                    //rest for fsm_down_stairs.reset()
+                }
                 if (keyboard.f) {
                     is_arm_pump_on  = true;
                     is_mine_pump_on = true;

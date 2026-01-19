@@ -79,11 +79,11 @@ leg_controller:
     backward_x_position_in_SixWheel: 221.0
     initial_end_point: [1.700270, 1.680, 1.680, 1.700270]
     press_end_point: [0.799803, 0.778351, 0.778351, 0.799803]
-    lift_end_point: [0.902222, 1.403787, 1.403787,0.902222]
-    press_and_lift_end_point: [1.500270, 1.480, 1.480, 1.500270]
+    lift_end_point: [0.902222, 1.413787, 1.413787,0.902222]
+    lift_and_initial_end_point: [1.400270, 1.410, 1.410, 1.400270]
     initial_again_end_point: [1.500270, 1.480, 1.480, 1.500270]
-    k : [ -600.00, -666.67, -300.0]
-    b : [500.0, 500.0, 500.0]
+    k : [ -600.00, -600.0, -300.0,-300.0]
+    b : [400.0, 500.0, 500.0,500.0]  # press lift initial_again  lift_and_initial
 
     
 joint6_angle_pid_controller:

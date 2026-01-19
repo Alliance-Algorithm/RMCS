@@ -16,6 +16,7 @@ enum class ArmMode : uint8_t {
     Auto_Storage_RB,
     Auto_Extract,
     Auto_Up_Stairs,
+    Auto_Down_Stairs,
     Customer,
     DT7_Control_Position,
     DT7_Control_Orientation,

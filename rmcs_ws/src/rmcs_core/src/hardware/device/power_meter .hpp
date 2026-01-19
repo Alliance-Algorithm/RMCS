@@ -41,9 +41,9 @@ public:
         *power_ = static_cast<double>(feedback.power)
                 * (range_conversion_power_ / range_conversion_factor);
         if (*power_ >= 120.0f)[[unlikely]] {
-            RCLCPP_WARN(
-                rclcpp::get_logger("PowerMeter"), "Power reading is abnormally high: %.2f W",
-                *power_);
+            // RCLCPP_WARN(
+            //     rclcpp::get_logger("PowerMeter"), "Power reading is abnormally high: %.2f W",
+            //     *power_);
         }
     }
 

@@ -5,7 +5,6 @@
 namespace rmcs_msgs {
 
 enum class LegMode : uint8_t {
-
     Four_Wheel,        
     Six_Wheel,    
     None,
