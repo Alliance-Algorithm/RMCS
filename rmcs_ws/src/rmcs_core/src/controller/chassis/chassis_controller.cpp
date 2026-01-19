@@ -1,4 +1,5 @@
 #include <eigen3/Eigen/Dense>
+#include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
@@ -49,7 +50,8 @@ public:
         }
         if (!gimbal_yaw_angle_error_.ready()) {
             gimbal_yaw_angle_error_.make_and_bind_directly(0.0);
-            RCLCPP_WARN(get_logger(), "Failed to fetch \"/gimbal/yaw/control_angle_error\". Set to 0.0.");
+            RCLCPP_WARN(
+                get_logger(), "Failed to fetch \"/gimbal/yaw/control_angle_error\". Set to 0.0.");
         }
     }
 
@@ -84,11 +86,13 @@ public:
                         spinning_forward_ = !spinning_forward_;
                     }
                 } else if (!last_keyboard_.x && keyboard.x) {
-                    mode = mode == rmcs_msgs::ChassisMode::LAUNCH_RAMP ? rmcs_msgs::ChassisMode::AUTO
-                                                                       : rmcs_msgs::ChassisMode::LAUNCH_RAMP;
+                    mode = mode == rmcs_msgs::ChassisMode::LAUNCH_RAMP
+                             ? rmcs_msgs::ChassisMode::AUTO
+                             : rmcs_msgs::ChassisMode::LAUNCH_RAMP;
                 } else if (!last_keyboard_.z && keyboard.z) {
-                    mode = mode == rmcs_msgs::ChassisMode::STEP_DOWN ? rmcs_msgs::ChassisMode::AUTO
-                                                                     : rmcs_msgs::ChassisMode::STEP_DOWN;
+                    mode = mode == rmcs_msgs::ChassisMode::STEP_DOWN
+                             ? rmcs_msgs::ChassisMode::AUTO
+                             : rmcs_msgs::ChassisMode::STEP_DOWN;
                 }
                 *mode_ = mode;
             }
@@ -136,7 +140,8 @@ public:
         switch (*mode_) {
         case rmcs_msgs::ChassisMode::AUTO: break;
         case rmcs_msgs::ChassisMode::SPIN: {
-            angular_velocity = 0.6 * (spinning_forward_ ? angular_velocity_max : -angular_velocity_max);
+            angular_velocity =
+                0.6 * (spinning_forward_ ? angular_velocity_max : -angular_velocity_max);
         } break;
         case rmcs_msgs::ChassisMode::STEP_DOWN: {
             double err = calculate_unsigned_chassis_angle_error(chassis_control_angle);

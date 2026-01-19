@@ -104,4 +104,13 @@
   <class type="rmcs_core::controller::chassis::ChassisClimberController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
+  <class type="rmcs_core::hardware::ShootingTest" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>  
+  <class type="rmcs_core::controller::shooting::BulletFeederController42mmTest" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>  
+    <class type="rmcs_core::controller::shooting::FrictionWheelController_Test" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>  
 </library>

@@ -149,6 +149,7 @@ public:
                         } else {
                             // 速度环控制模式：等待光电门触发
                             if (!*photoelectric_sensor_status_) {
+                                RCLCPP_INFO(get_logger(), "Photoelectric Sensor Triggered");
                                 last_preload_flag_ = true;
                                 bullet_feeder_control_angle_ =
                                     *bullet_feeder_angle_ + bullet_feeder_angle_per_bullet_ * 1.;
@@ -321,60 +322,59 @@ private:
 
     static constexpr double putter_stroke_ = 11.5;                           ///< 推杆行程长度
 
-    static constexpr double max_bullet_feeder_control_torque_ = 0.1;      
-    static constexpr double bullet_feeder_angle_per_bullet_ =
-        2 * std::numbers::pi / 6; 
+    static constexpr double max_bullet_feeder_control_torque_ = 0.1;
+    static constexpr double bullet_feeder_angle_per_bullet_ = 2 * std::numbers::pi / 6;
 
-    InputInterface<bool> photoelectric_sensor_status_; 
-    bool last_photoelectric_sensor_status_;            
-    InputInterface<bool> bullet_fired_;               
-    bool shooted{false};                            
+    InputInterface<bool> photoelectric_sensor_status_;
+    bool last_photoelectric_sensor_status_;
+    InputInterface<bool> bullet_fired_;
+    bool shooted{false};
 
-    InputInterface<bool> friction_ready_;           
+    InputInterface<bool> friction_ready_;
 
-    InputInterface<rmcs_msgs::Switch> switch_right_; 
-    InputInterface<rmcs_msgs::Switch> switch_left_; 
-    InputInterface<rmcs_msgs::Mouse> mouse_;         
-    InputInterface<rmcs_msgs::Keyboard> keyboard_;   
+    InputInterface<rmcs_msgs::Switch> switch_right_;
+    InputInterface<rmcs_msgs::Switch> switch_left_;
+    InputInterface<rmcs_msgs::Mouse> mouse_;
+    InputInterface<rmcs_msgs::Keyboard> keyboard_;
 
     rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Switch last_switch_left_ = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Mouse last_mouse_ = rmcs_msgs::Mouse::zero();
     rmcs_msgs::Keyboard last_keyboard_ = rmcs_msgs::Keyboard::zero();
 
-    bool overdrive_mode_ = false; 
+    bool overdrive_mode_ = false;
 
-    InputInterface<double> bullet_feeder_angle_;                      
-    InputInterface<double> bullet_feeder_velocity_;                
+    InputInterface<double> bullet_feeder_angle_;
+    InputInterface<double> bullet_feeder_velocity_;
 
-    InputInterface<int64_t> control_bullet_allowance_limited_by_heat_; 
+    InputInterface<int64_t> control_bullet_allowance_limited_by_heat_;
 
-    bool last_preload_flag_ = false;                                
+    bool last_preload_flag_ = false;
 
-    bool putter_initialized = false;                 
-    int putter_faulty_count_ = 0;                    
-    double putter_startpoint = nan_;                 
-    pid::PidCalculator puttter_return_velocity_pid_; 
-    InputInterface<double> putter_velocity_;         
+    bool putter_initialized = false;
+    int putter_faulty_count_ = 0;
+    double putter_startpoint = nan_;
+    pid::PidCalculator puttter_return_velocity_pid_;
+    InputInterface<double> putter_velocity_;
 
-    pid::PidCalculator putter_velocity_pid_;         
+    pid::PidCalculator putter_velocity_pid_;
 
-    enum class ShootStage { PRELOADING, PRELOADED, SHOOTING }; 
-    ShootStage shoot_stage_ = ShootStage::PRELOADING;          
-    double bullet_feeder_control_angle_ = nan_;               
+    enum class ShootStage { PRELOADING, PRELOADED, SHOOTING };
+    ShootStage shoot_stage_ = ShootStage::PRELOADING;
+    double bullet_feeder_control_angle_ = nan_;
 
-    pid::PidCalculator bullet_feeder_velocity_pid_;       
-    pid::PidCalculator bullet_feeder_angle_pid_;          
-    OutputInterface<double> bullet_feeder_control_torque_; 
+    pid::PidCalculator bullet_feeder_velocity_pid_;
+    pid::PidCalculator bullet_feeder_angle_pid_;
+    OutputInterface<double> bullet_feeder_control_torque_;
 
-    InputInterface<double> putter_angle_;                
-    pid::PidCalculator putter_return_angle_pid;           
-    OutputInterface<double> putter_control_torque_;       
+    InputInterface<double> putter_angle_;
+    pid::PidCalculator putter_return_angle_pid;
+    OutputInterface<double> putter_control_torque_;
 
-    int bullet_feeder_faulty_count_ = 0;               
-    int bullet_feeder_cool_down_ = 0;                  
+    int bullet_feeder_faulty_count_ = 0;
+    int bullet_feeder_cool_down_ = 0;
 
-    OutputInterface<rmcs_msgs::ShootMode> shoot_mode_; 
+    OutputInterface<rmcs_msgs::ShootMode> shoot_mode_;
 };
 
 } // namespace rmcs_core::controller::shooting

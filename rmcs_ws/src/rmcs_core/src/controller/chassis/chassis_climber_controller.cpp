@@ -34,16 +34,21 @@ public:
         climber_back_control_velocity_abs_ = get_parameter("back_climber_velocity").as_double();
 
         register_output(
-            "/chassis/climber/left_front_motor/control_torque", climber_front_left_control_torque_, nan_);
+            "/chassis/climber/left_front_motor/control_torque", climber_front_left_control_torque_,
+            nan_);
         register_output(
-            "/chassis/climber/right_front_motor/control_torque", climber_front_right_control_torque_, nan_);
+            "/chassis/climber/right_front_motor/control_torque",
+            climber_front_right_control_torque_, nan_);
         register_output(
-            "/chassis/climber/left_back_motor/control_torque", climber_back_left_control_torque_, nan_);
+            "/chassis/climber/left_back_motor/control_torque", climber_back_left_control_torque_,
+            nan_);
         register_output(
-            "/chassis/climber/right_back_motor/control_torque", climber_back_right_control_torque_, nan_);
+            "/chassis/climber/right_back_motor/control_torque", climber_back_right_control_torque_,
+            nan_);
 
         register_input("/chassis/climber/left_front_motor/velocity", climber_front_left_velocity_);
-        register_input("/chassis/climber/right_front_motor/velocity", climber_front_right_velocity_);
+        register_input(
+            "/chassis/climber/right_front_motor/velocity", climber_front_right_velocity_);
         register_input("/chassis/climber/left_back_motor/velocity", climber_back_left_velocity_);
         register_input("/chassis/climber/right_back_motor/velocity", climber_back_right_velocity_);
 
@@ -79,14 +84,16 @@ public:
             double back_climber_control_velocioty;
 
             if (abs(*climber_back_left_torque_) > 0.1 && abs(*climber_back_right_torque_) > 0.1
-                && abs(*climber_back_left_velocity_) < 0.1 && abs(*climber_back_right_velocity_) < 0.1) {
+                && abs(*climber_back_left_velocity_) < 0.1
+                && abs(*climber_back_right_velocity_) < 0.1) {
                 back_climber_block_count_++;
             }
 
             if (back_climber_block_count_ >= 500) {
                 back_climber_control_velocioty = 0;
             } else {
-                back_climber_control_velocioty = climber_back_control_velocity_abs_ * back_climber_dir_;
+                back_climber_control_velocioty =
+                    climber_back_control_velocity_abs_ * back_climber_dir_;
             }
 
             front_climber_sync_control(track_control_velocity);
@@ -100,7 +107,16 @@ public:
         //     logger_, "control torque: %lf | %lf | velocity: %lf | %lf ",
         //     *climber_front_left_control_torque_, *climber_front_right_control_torque_,
         //     *climber_front_left_velocity_, *climber_front_right_velocity_);
-        // RCLCPP_INFO(logger_, "torque: %lf | %lf", *climber_back_left_torque_, *climber_back_right_torque_);
+        // RCLCPP_INFO(
+        //     logger_, "torque: %lf | %lf", *climber_back_left_torque_,
+        //     *climber_back_right_torque_);
+
+        // // RCLCPP_INFO(logger_, "front left control torque: %lf",
+        // // *climber_front_left_control_torque_); RCLCPP_INFO(
+        // //     logger_, "front right control torque: %lf", *climber_front_right_control_torque_);
+        // RCLCPP_INFO(logger_, "back left control torque: %lf",
+        // *climber_back_left_control_torque_); RCLCPP_INFO(logger_, "back right control torque:
+        // %lf", *climber_back_right_control_torque_);
     }
 
 private:
@@ -180,4 +196,5 @@ private:
 
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::chassis::ChassisClimberController, rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(
+    rmcs_core::controller::chassis::ChassisClimberController, rmcs_executor::Component)

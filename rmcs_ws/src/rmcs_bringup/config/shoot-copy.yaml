@@ -1,0 +1,78 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::hardware::ShootingTest -> shooting_test
+
+      - rmcs_core::referee::Status -> referee_status
+      - rmcs_core::referee::command::Interaction -> referee_interaction
+      - rmcs_core::referee::Command -> referee_command
+
+      - rmcs_core::controller::shooting::FrictionWheelController_Test -> friction_wheel_controller
+      - rmcs_core::controller::shooting::HeatController -> heat_controller
+      - rmcs_core::controller::shooting::BulletFeederController42mmTest -> bullet_feeder_controller
+      # - rmcs_core::controller::pid::PidController -> first_left_friction_velocity_pid_controller
+      # - rmcs_core::controller::pid::PidController -> first_right_friction_velocity_pid_controller
+
+      - rmcs_core::controller::shooting::ShootingRecorder -> shooting_recorder
+
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+
+
+shooting_test:
+  ros__parameters:
+    usb_pid_top_board: 0x2a39
+
+friction_wheel_controller:
+  ros__parameters:
+    friction_wheels:
+      - /gimbal/first_left_friction
+      - /gimbal/first_right_friction
+    friction_velocities:
+      - -365.00
+      - 365.00
+    friction_soft_start_stop_time: 1.0
+
+heat_controller:
+  ros__parameters:
+    heat_per_shot: 100000
+    reserved_heat: 0
+
+shooting_recorder:
+  ros__parameters:
+    friction_wheel_count: 2
+    log_mode: 1 # 1: trigger, 2: timing
+
+first_left_friction_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/first_left_friction/velocity
+    setpoint: /gimbal/first_left_friction/control_velocity
+    control: /gimbal/first_left_friction/control_torque
+    kp: 0.004426
+    ki: 0.00
+    kd: 0.0001
+
+first_right_friction_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/first_right_friction/velocity
+    setpoint: /gimbal/first_right_friction/control_velocity
+    control: /gimbal/first_right_friction/control_torque
+    kp: 0.004426
+    ki: 0.00
+    kd: 0.0001
+
+value_broadcaster:
+  ros__parameters:
+    forward_list:
+      - /gimbal/first_left_friction/velocity
+      - /gimbal/first_right_friction/velocity
+      - /gimbal/bullet_feeder/control_torque
+      - /gimbal/bullet_feeder/velocity
+      - /gimbal/bullet_feeder/angle
+
+
+
+
+
+
+  

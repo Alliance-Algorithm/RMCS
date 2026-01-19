@@ -9,11 +9,11 @@
 
 namespace rmcs_core::controller::shooting {
 
-class BulletFeederController42mm
+class BulletFeederController42mmTest
     : public rmcs_executor::Component
     , public rclcpp::Node {
 public:
-    BulletFeederController42mm()
+    BulletFeederController42mmTest()
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
@@ -33,15 +33,15 @@ public:
             control_bullet_allowance_limited_by_heat_);
         register_input("/gimbal/bullet_fired", bullet_fired_);
 
-        bullet_feeder_velocity_pid_.kp = 50.0;
-        bullet_feeder_velocity_pid_.ki = 10.0;
+        bullet_feeder_velocity_pid_.kp = 40.0;
+        bullet_feeder_velocity_pid_.ki = 0.40;
         bullet_feeder_velocity_pid_.kd = 0.0;
         bullet_feeder_velocity_pid_.integral_max = 60.0;
         bullet_feeder_velocity_pid_.integral_min = 0.0;
 
         bullet_feeder_angle_pid_.kp = 60.0;
         bullet_feeder_angle_pid_.ki = 0.0;
-        bullet_feeder_angle_pid_.kd = 2.0;
+        bullet_feeder_angle_pid_.kd = 0.0;
 
         register_output(
             "/gimbal/bullet_feeder/control_torque", bullet_feeder_control_torque_, nan_);
@@ -169,38 +169,37 @@ private:
         shoot_stage_ = ShootStage::PRELOADING;
         bullet_feeder_control_angle_ = bullet_feeder_compressed_zero_point_
                                      + (bullet_fed_count_ + 0.5) * bullet_feeder_angle_per_bullet_;
-        bullet_feeder_angle_pid_.output_max = 1.0;
+        bullet_feeder_angle_pid_.output_max = 1.8;
     }
 
     void set_preloaded() {
-        RCLCPP_INFO(get_logger(), "PRELOADED");
+        // RCLCPP_INFO(get_logger(), "PRELOADED");
         shoot_stage_ = ShootStage::PRELOADED;
     }
 
     void set_compressing() {
-        RCLCPP_INFO(get_logger(), "COMPRESSING");
+        // RCLCPP_INFO(get_logger(), "COMPRESSING");
         shoot_stage_ = ShootStage::COMPRESSING;
         bullet_feeder_control_angle_ = bullet_feeder_compressed_zero_point_
                                      + (bullet_fed_count_ + 1) * bullet_feeder_angle_per_bullet_;
-        bullet_feeder_angle_pid_.output_max = 0.8;
+        bullet_feeder_angle_pid_.output_max = 1.5;
     }
 
     void set_compressed() {
-        RCLCPP_INFO(get_logger(), "COMPRESSED");
+        // RCLCPP_INFO(get_logger(), "COMPRESSED");
         shoot_stage_ = ShootStage::COMPRESSED;
     }
 
     void set_shooting() {
-        RCLCPP_INFO(get_logger(), "SHOOTING");
+        // RCLCPP_INFO(get_logger(), "SHOOTING");
         shoot_stage_ = ShootStage::SHOOTING;
         bullet_feeder_control_angle_ = bullet_feeder_compressed_zero_point_
                                      + (bullet_fed_count_ + 1.2) * bullet_feeder_angle_per_bullet_;
-        bullet_feeder_angle_pid_.output_max = 1.0;
+        bullet_feeder_angle_pid_.output_max = 1.8;
     }
 
     void update_jam_detection() {
-        // RCLCPP_INFO(get_logger(), "%.2f --", *bullet_feeder_control_torque_);
-        if (*bullet_feeder_control_torque_ < 300.0) {
+        if (*bullet_feeder_control_torque_ < 200.0) {
             bullet_feeder_faulty_count_ = 0;
             return;
         }
@@ -225,7 +224,7 @@ private:
     static constexpr double inf_ = std::numeric_limits<double>::infinity();
 
     static constexpr double bullet_feeder_compressed_zero_point_ = 0.58;
-    static constexpr double bullet_feeder_angle_per_bullet_ = 2 * std::numbers::pi / 6;
+    static constexpr double bullet_feeder_angle_per_bullet_ = 2 * 5 * std::numbers::pi / 6;
 
     InputInterface<bool> friction_ready_;
     InputInterface<bool> bullet_fired_;
@@ -267,4 +266,4 @@ private:
 #include <pluginlib/class_list_macros.hpp>
 
 PLUGINLIB_EXPORT_CLASS(
-    rmcs_core::controller::shooting::BulletFeederController42mm, rmcs_executor::Component)
+    rmcs_core::controller::shooting::BulletFeederController42mmTest, rmcs_executor::Component)
