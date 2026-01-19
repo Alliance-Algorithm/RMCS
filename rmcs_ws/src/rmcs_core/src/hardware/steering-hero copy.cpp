@@ -33,8 +33,7 @@ public:
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , command_component_(
-              create_partner_component<SteeringHeroCommand>(
-                  get_component_name() + "_command", *this)) {
+              create_partner_component<SteeringHeroCommand>(get_component_name() + "_command", *this)) {
         using namespace rmcs_description;
 
         register_output("/tf", tf_);
@@ -49,11 +48,9 @@ public:
         //     *this, *command_component_,
         //     static_cast<int>(get_parameter("usb_pid_top_board").as_int()));
         bottom_board_one_ = std::make_unique<BottomBoard_one>(
-            *this, *command_component_,
-            static_cast<int>(get_parameter("usb_pid_bottom_board_one").as_int()));
+            *this, *command_component_, static_cast<int>(get_parameter("usb_pid_bottom_board_one").as_int()));
         bottom_board_two_ = std::make_unique<BottomBoard_two>(
-            *this, *command_component_,
-            static_cast<int>(get_parameter("usb_pid_bottom_board_two").as_int()));
+            *this, *command_component_, static_cast<int>(get_parameter("usb_pid_bottom_board_two").as_int()));
 
         // temperature_logging_timer_.reset(1000);
         register_output("/chassis/control_power_limit", dd, 1000000.0);
@@ -96,17 +93,17 @@ private:
         //     get_logger(), "[gimbal calibration] New top yaw offset: %ld",
         // //     top_board_->gimbal_top_yaw_motor_.calibrate_zero_point());
         RCLCPP_INFO(
-            get_logger(), "[chassis calibration] left front steering offset: %d",
+            get_logger(), "[chassis calibration] left back steering offset: %d",
             bottom_board_one_->chassis_steering_motors_[0].calibrate_zero_point());
         RCLCPP_INFO(
-            get_logger(), "[chassis calibration] left back steering offset: %d",
+            get_logger(), "[chassis calibration] right back steering offset: %d",
             bottom_board_one_->chassis_steering_motors_[1].calibrate_zero_point());
         RCLCPP_INFO(
-            get_logger(), "[chassis calibration] right back steering offset: %d",
-            bottom_board_one_->chassis_steering_motors_[2].calibrate_zero_point());
+            get_logger(), "[chassis calibration] left front steering offset: %d",
+            bottom_board_two_->chassis_steering_motors2_[0].calibrate_zero_point());
         RCLCPP_INFO(
             get_logger(), "[chassis calibration] right front steering offset: %d",
-            bottom_board_one_->chassis_steering_motors_[3].calibrate_zero_point());
+            bottom_board_two_->chassis_steering_motors2_[1].calibrate_zero_point());
     }
 
     class SteeringHeroCommand : public rmcs_executor::Component {
@@ -172,10 +169,8 @@ private:
             hero.register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
             hero.register_output("/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
 
-            hero.register_output(
-                "/gimbal/photoelectric_sensor", photoelectric_sensor_status_, false);
-            hero.register_output(
-                "/auto_aim/image_capturer/timestamp", camera_capturer_trigger_timestamp_, 0);
+            hero.register_output("/gimbal/photoelectric_sensor", photoelectric_sensor_status_, false);
+            hero.register_output("/auto_aim/image_capturer/timestamp", camera_capturer_trigger_timestamp_, 0);
             hero.register_output("/auto_aim/image_capturer/trigger", camera_capturer_trigger_, 0);
         }
 
@@ -221,13 +216,11 @@ private:
             frequency_control_flag_ = !frequency_control_flag_;
             if (frequency_control_flag_) {
                 batch_commands[0] = putter_motor_.generate_command();
-                transmit_buffer_.add_can1_transmission(
-                    0x1ff, std::bit_cast<uint32_t>(batch_commands));
+                transmit_buffer_.add_can1_transmission(0x1ff, std::bit_cast<uint32_t>(batch_commands));
             }
 
             transmit_buffer_.add_can1_transmission(
-                0x141, gimbal_bullet_feeder_.generate_torque_command(
-                           gimbal_bullet_feeder_.control_torque()));
+                0x141, gimbal_bullet_feeder_.generate_torque_command(gimbal_bullet_feeder_.control_torque()));
 
             transmit_buffer_.add_can2_transmission(0x142, gimbal_pitch_motor_.generate_command());
 
@@ -238,8 +231,8 @@ private:
 
     private:
         void can1_receive_callback(
-            uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
-            bool is_remote_transmission, uint8_t can_data_length) override {
+            uint32_t can_id, uint64_t can_data, bool is_extended_can_id, bool is_remote_transmission,
+            uint8_t can_data_length) override {
             if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
                 return;
 
@@ -255,8 +248,8 @@ private:
         }
 
         void can2_receive_callback(
-            uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
-            bool is_remote_transmission, uint8_t can_data_length) override {
+            uint32_t can_id, uint64_t can_data, bool is_extended_can_id, bool is_remote_transmission,
+            uint8_t can_data_length) override {
             if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
                 return;
 
@@ -304,8 +297,7 @@ private:
     class BottomBoard_one final : private librmcs::client::CBoard {
     public:
         friend class SteeringHero;
-        explicit BottomBoard_one(
-            SteeringHero& hero, SteeringHeroCommand& hero_command, int usb_pid = -1)
+        explicit BottomBoard_one(SteeringHero& hero, SteeringHeroCommand& hero_command, int usb_pid = -1)
             : librmcs::client::CBoard(usb_pid)
             , logger_(hero.get_logger())
             , imu_(1000, 0.2, 0.0)
@@ -324,13 +316,11 @@ private:
                        .set_reversed()})
             , chassis_wheel_motors_(
                   {hero, hero_command, "/chassis/left_back_wheel",
-                   device::DjiMotor::Config{device::DjiMotor::Type::M3508}
-                       .set_reversed()
-                       .set_reduction_ratio(2232. / 169.)},
+                   device::DjiMotor::Config{device::DjiMotor::Type::M3508}.set_reversed().set_reduction_ratio(
+                       2232. / 169.)},
                   {hero, hero_command, "/chassis/right_back_wheel",
-                   device::DjiMotor::Config{device::DjiMotor::Type::M3508}
-                       .set_reversed()
-                       .set_reduction_ratio(2232. / 169.)})
+                   device::DjiMotor::Config{device::DjiMotor::Type::M3508}.set_reversed().set_reduction_ratio(
+                       2232. / 169.)})
             , transmit_buffer_(*this, 32)
             , event_thread_([this]() { handle_events(); }) {
 
@@ -344,8 +334,7 @@ private:
                 return size;
             };
 
-            hero.register_output(
-                "/chassis/powermeter/control_enable", powermeter_control_enabled_, false);
+            hero.register_output("/chassis/powermeter/control_enable", powermeter_control_enabled_, false);
             hero.register_output(
                 "/chassis/powermeter/charge_power_limit", powermeter_charge_power_limit_, 0.);
         }
@@ -383,15 +372,15 @@ private:
 
     private:
         void can1_receive_callback(
-            uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
-            bool is_remote_transmission, uint8_t can_data_length) override {
+            uint32_t can_id, uint64_t can_data, bool is_extended_can_id, bool is_remote_transmission,
+            uint8_t can_data_length) override {
             if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
                 return;
         }
 
         void can2_receive_callback(
-            uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
-            bool is_remote_transmission, uint8_t can_data_length) override {
+            uint32_t can_id, uint64_t can_data, bool is_extended_can_id, bool is_remote_transmission,
+            uint8_t can_data_length) override {
             if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
                 return;
             if (can_id == 0x202) {
@@ -411,8 +400,7 @@ private:
 
         void calc_can_fps(double can_id) {
             auto now = std::chrono::steady_clock::now();
-            auto delta =
-                std::chrono::duration_cast<std::chrono::microseconds>(now - last_time_).count();
+            auto delta = std::chrono::duration_cast<std::chrono::microseconds>(now - last_time_).count();
 
             RCLCPP_INFO(logger_, "can id :%lf,fps:%ld", can_id, 1000000 / delta);
             last_time_ = now;
@@ -457,47 +445,38 @@ private:
     class BottomBoard_two final : private librmcs::client::CBoard {
     public:
         friend class SteeringHero;
-        explicit BottomBoard_two(
-            SteeringHero& hero, SteeringHeroCommand& hero_command, int usb_pid = -1)
+        explicit BottomBoard_two(SteeringHero& hero, SteeringHeroCommand& hero_command, int usb_pid = -1)
             : librmcs::client::CBoard(usb_pid)
             , logger_(hero.get_logger())
             , imu_(1000, 0.2, 0.0)
             , tf_(hero.tf_)
             , chassis_front_climber_motor_(
                   {hero, hero_command, "/chassis/climber/left_front_motor",
-                   device::DjiMotor::Config{device::DjiMotor::Type::M3508}.set_reduction_ratio(
-                       19.)},
+                   device::DjiMotor::Config{device::DjiMotor::Type::M3508}.set_reduction_ratio(19.)},
                   {hero, hero_command, "/chassis/climber/right_front_motor",
-                   device::DjiMotor::Config{device::DjiMotor::Type::M3508}
-                       .set_reversed()
-                       .set_reduction_ratio(19.)})
+                   device::DjiMotor::Config{device::DjiMotor::Type::M3508}.set_reversed().set_reduction_ratio(
+                       19.)})
             , chassis_back_climber_motor_(
                   {hero, hero_command, "/chassis/climber/left_back_motor",
-                   device::DjiMotor::Config{device::DjiMotor::Type::M3508}.set_reduction_ratio(
-                       19.)},
+                   device::DjiMotor::Config{device::DjiMotor::Type::M3508}.set_reduction_ratio(19.)},
                   {hero, hero_command, "/chassis/climber/right_back_motor",
-                   device::DjiMotor::Config{device::DjiMotor::Type::M3508}
-                       .set_reversed()
-                       .set_reduction_ratio(19.)})
+                   device::DjiMotor::Config{device::DjiMotor::Type::M3508}.set_reversed().set_reduction_ratio(
+                       19.)})
             , gimbal_top_yaw_motor_(
                   hero, hero_command, "/gimbal/top_yaw",
-                  device::LkMotor::Config{device::LkMotor::Type::MG5010E_I10}
-                      .set_encoder_zero_point(
-                          static_cast<int>(
-                              hero.get_parameter("top_yaw_motor_zero_point").as_int())))
+                  device::LkMotor::Config{device::LkMotor::Type::MG5010E_I10}.set_encoder_zero_point(
+                      static_cast<int>(hero.get_parameter("top_yaw_motor_zero_point").as_int())))
             // , supercap_(hero, hero_command)
             , gimbal_bottom_yaw_motor_(
                   hero, hero_command, "/gimbal/bottom_yaw",
                   device::LkMotor::Config{device::LkMotor::Type::MG6012E_I8}
                       .set_reversed()
                       .set_encoder_zero_point(
-                          static_cast<int>(
-                              hero.get_parameter("bottom_yaw_motor_zero_point").as_int())))
+                          static_cast<int>(hero.get_parameter("bottom_yaw_motor_zero_point").as_int())))
             , gimbal_pitch_motor_(
                   hero, hero_command, "/gimbal/pitch",
-                  device::LkMotor::Config{device::LkMotor::Type::MG5010E_I10}
-                      .set_encoder_zero_point(
-                          static_cast<int>(hero.get_parameter("pitch_motor_zero_point").as_int())))
+                  device::LkMotor::Config{device::LkMotor::Type::MG5010E_I10}.set_encoder_zero_point(
+                      static_cast<int>(hero.get_parameter("pitch_motor_zero_point").as_int())))
             , chassis_steering_motors2_(
                   {hero, hero_command, "/chassis/left_front_steering",
                    device::DjiMotor::Config{device::DjiMotor::Type::GM6020}
@@ -511,13 +490,11 @@ private:
                        .set_reversed()})
             , chassis_wheel_motors2_(
                   {hero, hero_command, "/chassis/left_front_wheel",
-                   device::DjiMotor::Config{device::DjiMotor::Type::M3508}
-                       .set_reversed()
-                       .set_reduction_ratio(2232. / 169.)},
+                   device::DjiMotor::Config{device::DjiMotor::Type::M3508}.set_reversed().set_reduction_ratio(
+                       2232. / 169.)},
                   {hero, hero_command, "/chassis/right_front_wheel",
-                   device::DjiMotor::Config{device::DjiMotor::Type::M3508}
-                       .set_reversed()
-                       .set_reduction_ratio(2232. / 169.)})
+                   device::DjiMotor::Config{device::DjiMotor::Type::M3508}.set_reversed().set_reduction_ratio(
+                       2232. / 169.)})
 
             , transmit_buffer_(*this, 32)
             , event_thread_([this]() { handle_events(); }) {
@@ -596,8 +573,8 @@ private:
 
     private:
         void can1_receive_callback(
-            uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
-            bool is_remote_transmission, uint8_t can_data_length) override {
+            uint32_t can_id, uint64_t can_data, bool is_extended_can_id, bool is_remote_transmission,
+            uint8_t can_data_length) override {
             if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
                 return;
 
@@ -614,8 +591,8 @@ private:
         }
 
         void can2_receive_callback(
-            uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
-            bool is_remote_transmission, uint8_t can_data_length) override {
+            uint32_t can_id, uint64_t can_data, bool is_extended_can_id, bool is_remote_transmission,
+            uint8_t can_data_length) override {
             if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
                 return;
 
@@ -645,8 +622,7 @@ private:
 
         void calc_can_fps(double can_id) {
             auto now = std::chrono::steady_clock::now();
-            auto delta =
-                std::chrono::duration_cast<std::chrono::microseconds>(now - last_time_).count();
+            auto delta = std::chrono::duration_cast<std::chrono::microseconds>(now - last_time_).count();
 
             RCLCPP_INFO(logger_, "can id :%lf,fps:%ld", can_id, 1000000 / delta);
             last_time_ = now;
