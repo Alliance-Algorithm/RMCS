@@ -340,18 +340,18 @@ private:
     void down_stairs_controller() { result = down_stairs_trajectory.trajectory(); }
     void up_stairs_controller() {
         //(this->get_logger(),"go to up");
-        // if (keyboard_->shift&&!keyboard_->ctrl) {
-        //     //RCLCPP_INFO(this->get_logger(),"go to shift");
-        //     up_stairs.processEvent(
-        //         rmcs_core::hardware::hsm::up_stairs_hsm::events::go_to_TwoProcess_lift);
-        // }
+        if (keyboard_->shift&&!keyboard_->ctrl) {
+            //RCLCPP_INFO(this->get_logger(),"go to shift");
+            up_stairs.processEvent(
+                rmcs_core::hardware::hsm::up_stairs_hsm::events::go_to_TwoProcess_lift);
+        }
 
         if (keyboard_->ctrl&&!keyboard_->shift) {
             up_stairs.processEvent(
                 rmcs_core::hardware::hsm::up_stairs_hsm::events::go_to_OneProcess);
         }
 
-        if(!keyboard_->ctrl&&keyboard_->shift){
+        if(keyboard_->ctrl&&keyboard_->shift){
             up_stairs.processEvent(rmcs_core::hardware::hsm::up_stairs_hsm::events::go_to_TwoProcess_initial);
         }
 

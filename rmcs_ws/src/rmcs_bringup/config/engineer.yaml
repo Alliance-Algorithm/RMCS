@@ -83,7 +83,7 @@ leg_controller:
     lift_and_initial_end_point: [1.400270, 1.410, 1.410, 1.400270]
     initial_again_end_point: [1.500270, 1.480, 1.480, 1.500270]
     k : [ -600.00, -600.0, -300.0,-300.0]
-    b : [400.0, 500.0, 500.0,500.0]  # press lift initial_again  lift_and_initial
+    b : [400.0, 500.0, 500.0, 900.0]  # press lift initial_again  lift_and_initial
 
     
 joint6_angle_pid_controller:
