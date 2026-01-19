@@ -4,6 +4,8 @@ rmcs_executor:
     components:
       - rmcs_core::hardware::WheelLegInfantry -> infantry_hardware
 
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+
       # - rmcs_core::referee::Status -> referee_status
       # - rmcs_core::referee::Command -> referee_command
 
@@ -23,6 +25,7 @@ rmcs_executor:
       # - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::WheelLegController -> wheel_leg_controller
 
+
       # - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
       # - rmcs_auto_aim::AutoAimController -> auto_aim_controller
 
@@ -32,10 +35,22 @@ infantry_hardware:
     usb_pid_bottom_board: 0xf30c
     yaw_motor_zero_point: 32285
     pitch_motor_zero_point: 6321
-    left_front_hip_motor_zero_point: 14944
-    left_back_hip_motor_zero_point: 28913
-    right_back_hip_motor_zero_point: 12639
-    right_front_hip_motor_zero_point: 8753
+    left_front_hip_motor_zero_point: 748
+    left_back_hip_motor_zero_point: 32855
+    right_back_hip_motor_zero_point: 32473
+    right_front_hip_motor_zero_point: 65277
+
+value_broadcaster:
+  ros__parameters:
+    forward_list:
+      - /chassis/yaw/angle
+      - /chassis/yaw/velocity
+      - /chassis/pitch/angle
+      - /chassis/pitch/velocity
+      - /chassis/velocity
+      - /chassis/left_wheel/control_torque
+      - /chassis/right_wheel/control_torque
+
 
 yaw_angle_pid_controller:
   ros__parameters:

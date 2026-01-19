@@ -74,7 +74,7 @@ public:
                            .inverse();
         prior_estimate_ += kalman_gain_ * (measurement - measurement_transition_ * prior_estimate_);
 
-        // // Update
+        // Update
         posterior_error_covariance_ =
             (Matrix<state>::Identity() - kalman_gain_ * measurement_transition_)
             * prior_error_covariance_;
