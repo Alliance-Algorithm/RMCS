@@ -219,34 +219,34 @@ private:
             , chassis_wheel_motors_(
                   {infantry, infantry_command, "/chassis/left_wheel",
                    device::DjiMotor::Config{device::DjiMotor::Type::M3508}
-                       .set_reduction_ratio(13.0)
-                       .enable_multi_turn_angle()
-                       .set_reversed()},
+                       .set_reduction_ratio(268.0 / 17)
+                       .enable_multi_turn_angle()},
                   {infantry, infantry_command, "/chassis/right_wheel",
                    device::DjiMotor::Config{device::DjiMotor::Type::M3508}
-                       .set_reduction_ratio(13.0)
-                       .enable_multi_turn_angle()})
+                       .set_reduction_ratio(268.0 / 17)
+                       .enable_multi_turn_angle()
+                       .set_reversed()})
             , chassis_hip_motors(
                   {infantry, infantry_command, "/chassis/left_front_hip",
-                   device::DmMotor::Config{device::DmMotor::Type::DM8009}.set_encoder_zero_point(
-                       static_cast<int>(
-                           infantry.get_parameter("left_front_hip_motor_zero_point").as_int()))},
-                  {infantry, infantry_command, "/chassis/left_back_hip",
-                   device::DmMotor::Config{device::DmMotor::Type::DM8009}.set_encoder_zero_point(
-                       static_cast<int>(
-                           infantry.get_parameter("left_back_hip_motor_zero_point").as_int()))},
-                  {infantry, infantry_command, "/chassis/right_back_hip",
                    device::DmMotor::Config{device::DmMotor::Type::DM8009}
                        .set_encoder_zero_point(
                            static_cast<int>(
-                               infantry.get_parameter("right_back_hip_motor_zero_point").as_int()))
+                               infantry.get_parameter("left_front_hip_motor_zero_point").as_int()))
                        .set_reversed()},
-                  {infantry, infantry_command, "/chassis/right_front_hip",
+                  {infantry, infantry_command, "/chassis/left_back_hip",
                    device::DmMotor::Config{device::DmMotor::Type::DM8009}
                        .set_encoder_zero_point(
                            static_cast<int>(
-                               infantry.get_parameter("right_front_hip_motor_zero_point").as_int()))
-                       .set_reversed()})
+                               infantry.get_parameter("left_back_hip_motor_zero_point").as_int()))
+                       .set_reversed()},
+                  {infantry, infantry_command, "/chassis/right_back_hip",
+                   device::DmMotor::Config{device::DmMotor::Type::DM8009}.set_encoder_zero_point(
+                       static_cast<int>(
+                           infantry.get_parameter("right_back_hip_motor_zero_point").as_int()))},
+                  {infantry, infantry_command, "/chassis/right_front_hip",
+                   device::DmMotor::Config{device::DmMotor::Type::DM8009}.set_encoder_zero_point(
+                       static_cast<int>(
+                           infantry.get_parameter("right_front_hip_motor_zero_point").as_int()))})
             , gimbal_yaw_motor_(
                   infantry, infantry_command, "/gimbal/yaw",
                   device::LkMotor::Config{device::LkMotor::Type::MG4010E_I10}
@@ -326,20 +326,24 @@ private:
         void command_update() {
             uint16_t control_commands[4]{};
 
+            transmit_buffer_.add_can1_transmission(
+                0x01, chassis_hip_motors[0].generate_angle_command());
+            transmit_buffer_.add_can1_transmission(
+                0x02, chassis_hip_motors[1].generate_angle_command());
+
             control_commands[0] = chassis_wheel_motors_[0].generate_command();
             transmit_buffer_.add_can1_transmission(
                 0x200, std::bit_cast<uint64_t>(control_commands));
-
-            transmit_buffer_.add_can1_transmission(0x01, chassis_hip_motors[0].generate_command());
-            transmit_buffer_.add_can1_transmission(0x02, chassis_hip_motors[1].generate_command());
 
             control_commands[0] = 0;
             control_commands[1] = chassis_wheel_motors_[1].generate_command();
             transmit_buffer_.add_can2_transmission(
                 0x200, std::bit_cast<uint64_t>(control_commands));
 
-            transmit_buffer_.add_can2_transmission(0x03, chassis_hip_motors[2].generate_command());
-            transmit_buffer_.add_can2_transmission(0x04, chassis_hip_motors[3].generate_command());
+            transmit_buffer_.add_can2_transmission(
+                0x03, chassis_hip_motors[2].generate_angle_command());
+            transmit_buffer_.add_can2_transmission(
+                0x04, chassis_hip_motors[3].generate_angle_command());
 
             transmit_buffer_.trigger_transmission();
         }
