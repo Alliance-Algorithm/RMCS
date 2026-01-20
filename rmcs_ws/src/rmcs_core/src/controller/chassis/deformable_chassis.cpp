@@ -205,7 +205,7 @@ private:
 
         case rmcs_msgs::ChassisMode::SPIN: {
             angular_velocity =
-                0.6 * (spinning_forward_ ? angular_velocity_max_ : -angular_velocity_max_);     // 0.0 for test
+                0.0 * (spinning_forward_ ? angular_velocity_max_ : -angular_velocity_max_);     // 0.0 for test
         } break;
 
         case rmcs_msgs::ChassisMode::STEP_DOWN: {

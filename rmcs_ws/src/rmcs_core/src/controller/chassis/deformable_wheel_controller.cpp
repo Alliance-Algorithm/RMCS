@@ -148,6 +148,12 @@ public:
 
         update_control_torques(steering_torques, wheel_torques);
         update_chassis_velocity_expected(filtered_chassis_acceleration);
+
+        RCLCPP_INFO(get_logger(), "rf:%f", *right_front_steering_velocity_);
+        RCLCPP_INFO(get_logger(), "lf:%f", *left_front_steering_velocity_);
+        RCLCPP_INFO(get_logger(), "lb:%f", *left_back_steering_velocity_);
+        RCLCPP_INFO(get_logger(), "rb:%f", *right_back_steering_velocity_);
+
     }
 
 private:

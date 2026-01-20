@@ -203,13 +203,13 @@ private:
                 device::DjiMotor::Config{device::DjiMotor::Type::GM6020}
                     .set_reversed()
                     .set_encoder_zero_point(static_cast<int>(
-                        deformableInfantry.get_parameter("left_front_zero_point").as_int()))
+                        deformableInfantry.get_parameter("right_front_zero_point").as_int()))
                     .enable_multi_turn_angle());
             chassis_steer_motors_[1].configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::GM6020}
                     .set_reversed()
                     .set_encoder_zero_point(static_cast<int>(
-                        deformableInfantry.get_parameter("left_back_zero_point").as_int()))
+                        deformableInfantry.get_parameter("left_front_zero_point").as_int()))
                     .enable_multi_turn_angle());
 
             deformableInfantry.register_output("/chassis/yaw/velocity_imu", chassis_yaw_velocity_imu_, 0);
@@ -387,13 +387,13 @@ private:
                 device::DjiMotor::Config{device::DjiMotor::Type::GM6020}
                     .set_reversed()
                     .set_encoder_zero_point(static_cast<int>(
-                        deformableInfantry.get_parameter("right_back_zero_point").as_int()))
+                        deformableInfantry.get_parameter("left_back_zero_point").as_int()))
                     .enable_multi_turn_angle());
             chassis_steer_motors_[1].configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::GM6020}
                     .set_reversed()
                     .set_encoder_zero_point(static_cast<int>(
-                        deformableInfantry.get_parameter("right_front_zero_point").as_int()))
+                        deformableInfantry.get_parameter("right_back_zero_point").as_int()))
                     .enable_multi_turn_angle());
         }
 
@@ -558,8 +558,8 @@ private:
             can_commands[3] = gimbal_right_friction_.generate_command();
             transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(can_commands));
 
-            transmit_buffer_.add_can2_transmission(
-                0x142, gimbal_pitch_motor_.generate_velocity_command(
+            transmit_buffer_.add_can1_transmission(
+                0x141, gimbal_pitch_motor_.generate_velocity_command(
                            gimbal_pitch_motor_.control_velocity()));
 
             transmit_buffer_.trigger_transmission();
@@ -576,6 +576,8 @@ private:
             } else if (can_id == 0x204) {
                 gimbal_right_friction_.store_status(can_data);
             }
+            if (can_id == 0x141)
+                gimbal_pitch_motor_.store_status(can_data);
         }
         void can2_receive_callback(
             uint32_t can_id, uint64_t can_data, bool is_extended_can_id,

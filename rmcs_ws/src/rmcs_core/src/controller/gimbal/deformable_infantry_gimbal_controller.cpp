@@ -57,7 +57,7 @@ public:
             *yaw_angle_error_ =
                 joystick_sensitivity * joystick_left_->y() + mouse_sensitivity * mouse_velocity_->y();
             *pitch_angle_error_ =
-                -joystick_sensitivity * joystick_left_->x() - mouse_sensitivity * mouse_velocity_->x();
+                joystick_sensitivity * joystick_left_->x() - mouse_sensitivity * mouse_velocity_->x();
         }
     }
 
