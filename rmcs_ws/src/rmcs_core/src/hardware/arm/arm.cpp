@@ -247,6 +247,7 @@ private:
             joint[5].update_joint();
             joint[4].update_joint();
             joint[3].update_joint();
+            joint[2].update_joint();
             joint[1].update_joint().change_theta_feedback_(joint2_encoder.get_angle());
             joint[0].update_joint();
             arm_pump.update();
