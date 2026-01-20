@@ -345,7 +345,7 @@ private:
     double right_front_joint_offset_;
     double right_back_joint_offset_;
 
-    double current_target_angle_ = 40.0;
+    double current_target_angle_;
 
     double s_lf_ = 0.0, s_lb_ = 0.0, s_rf_ = 0.0, s_rb_ = 0.0;
     double s_target_ = 0.0;
