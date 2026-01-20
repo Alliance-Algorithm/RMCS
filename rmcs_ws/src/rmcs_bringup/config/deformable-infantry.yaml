@@ -19,7 +19,7 @@ rmcs_executor:
 
       - rmcs_core::controller::gimbal::DeformableInfantryGimbalController -> gimbal_controller
       - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
-      - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controllers
+      - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
 
       - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
@@ -90,7 +90,7 @@ yaw_velocity_pid_controller:
     measurement: /gimbal/yaw/velocity_imu
     setpoint: /gimbal/yaw/control_velocity
     control: /gimbal/yaw/control_torque
-    kp: 30.0
+    kp: 20.0
     ki: 0.0
     kd: 0.0
 

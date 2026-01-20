@@ -589,7 +589,7 @@ private:
                 gimbal_left_friction_.store_status(can_data);
             } else if (can_id == 0x204) {
                 gimbal_right_friction_.store_status(can_data);
-            } else if (can_id == 0x203) {
+            } else if (can_id == 0x202) {
                 scope_motor.store_status(can_data);
             }
         }

@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <limits>
 #include <numbers>
 
@@ -58,6 +59,8 @@ public:
         register_input("/chassis/right_front_joint/encoder_angle", right_front_joint_angle_);
         register_input("/chassis/right_back_joint/encoder_angle", right_back_joint_angle_);
 
+        register_input("/gimbal/scope/velocity", scope_motor_velocity);
+
         register_output("/chassis/angle", chassis_angle_, nan_);
         register_output("/chassis/control_angle", chassis_control_angle_, nan_);
 
@@ -70,7 +73,7 @@ public:
         register_output("/chassis/right_back_joint/control_angle_error", rb_angle_error_, nan_);
 
         register_output("/chassis/processed_encoder/angle", processed_encoder_angle_, nan_);
-        *processed_encoder_angle_ = nan_;
+        register_output("/gimbal/scope/control_torque", scope_motor_control_torque);
 
         *mode_ = rmcs_msgs::ChassisMode::AUTO;
         chassis_control_velocity_->vector << nan_, nan_, nan_;
@@ -174,6 +177,7 @@ private:
         *rb_angle_error_ = nan_;
 
         *processed_encoder_angle_ = nan_;
+        RCLCPP_INFO(get_logger(), "%f", *scope_motor_velocity);
     }
 
     void update_velocity_control() {
@@ -293,6 +297,21 @@ private:
         *rb_angle_error_ = s_rb_ - s_target_;
     }
 
+    void scope_motor_control() {
+        if (current_target_angle_ == min_angle_){
+            *scope_motor_control_torque = 0.3;
+            // if (*scope_motor_velocity <= std::abs(0.1)){
+            //     *scope_motor_control_torque = 0.18 * 1.0 / 36.0;
+            // }
+        }
+        else{
+            *scope_motor_control_torque = -3.0;
+            // if (*scope_motor_velocity <= std::abs(0.1)){
+            //     *scope_motor_control_torque = -0.18 * 1.0 / 36.0;
+            // }
+        }
+    }
+
     double trapezoidal_calculator(double alpha_deg) const {
         const double rad = alpha_deg * pi_ / 180.0;
 
@@ -331,12 +350,16 @@ private:
     InputInterface<double> right_front_joint_angle_;
     InputInterface<double> right_back_joint_angle_;
 
+    InputInterface<double> scope_motor_velocity;
+ 
     OutputInterface<double> lf_angle_error_;
     OutputInterface<double> lb_angle_error_;
     OutputInterface<double> rf_angle_error_;
     OutputInterface<double> rb_angle_error_;
 
     OutputInterface<double> processed_encoder_angle_;
+
+    OutputInterface<double> scope_motor_control_torque;
 
     double min_angle_;
     double max_angle_;
