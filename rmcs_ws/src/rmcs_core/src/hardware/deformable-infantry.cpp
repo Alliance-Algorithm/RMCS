@@ -95,13 +95,13 @@ private:
             return;
 
         RCLCPP_INFO(get_logger(), "New left front offset: %d",
-                    front_board_->chassis_steer_motors_[0].calibrate_zero_point());
-        RCLCPP_INFO(get_logger(), "New left back offset: %d",
                     front_board_->chassis_steer_motors_[1].calibrate_zero_point());
-        RCLCPP_INFO(get_logger(), "New right back offset: %d",
+        RCLCPP_INFO(get_logger(), "New left back offset: %d",
                     back_board_->chassis_steer_motors_[0].calibrate_zero_point());
-        RCLCPP_INFO(get_logger(), "New right front offset: %d",
+        RCLCPP_INFO(get_logger(), "New right back offset: %d",
                     back_board_->chassis_steer_motors_[1].calibrate_zero_point());
+        RCLCPP_INFO(get_logger(), "New right front offset: %d",
+                    front_board_->chassis_steer_motors_[0].calibrate_zero_point());
     }
 
     void joints_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
@@ -109,13 +109,13 @@ private:
             return;
 
         RCLCPP_INFO(get_logger(), "New left front offset: %f",
-                    front_board_->chassis_joint_motors_[0].encoder_angle());
-        RCLCPP_INFO(get_logger(), "New left back offset: %f",
                     front_board_->chassis_joint_motors_[1].encoder_angle());
-        RCLCPP_INFO(get_logger(), "New right back offset: %f",
+        RCLCPP_INFO(get_logger(), "New left back offset: %f",
                     back_board_->chassis_joint_motors_[0].encoder_angle());
-        RCLCPP_INFO(get_logger(), "New right front offset: %f",
+        RCLCPP_INFO(get_logger(), "New right back offset: %f",
                     back_board_->chassis_joint_motors_[1].encoder_angle());
+        RCLCPP_INFO(get_logger(), "New right front offset: %f",
+                    front_board_->chassis_joint_motors_[0].encoder_angle());
     }
 
     void gimbal_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
