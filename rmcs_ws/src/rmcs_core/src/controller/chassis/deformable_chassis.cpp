@@ -26,7 +26,7 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , following_velocity_controller_(8.0, 0.0, 0.0)
+        , following_velocity_controller_(7.0, 0.0, 0.0)
 
         , min_angle_(get_parameter_or("min_angle", 15.0))
         , max_angle_(get_parameter_or("max_angle", 55.0))

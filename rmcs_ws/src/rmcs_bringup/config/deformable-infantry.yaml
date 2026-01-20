@@ -18,12 +18,8 @@ rmcs_executor:
       - rmcs_core::controller::smc::Smc_Observer -> smc_observer3
 
       - rmcs_core::controller::gimbal::DeformableInfantryGimbalController -> gimbal_controller
-      # - rmcs_core::controller::gimbal::SimpleYawController -> gimbal_controller
-      # - rmcs_core::controller::pid::ErrorPidController -> yaw_target_velocity_pid_calculate
-      # - rmcs_core::controller::pid::ErrorPidController -> yaw_torque_pid_controller
-      # - rmcs_core::controller::pid::ErrorPidController -> pitch_torque_pid_controller
       - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
-      # - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controllers
+      - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controllers
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
 
       - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
@@ -89,14 +85,14 @@ yaw_angle_pid_controller:
     ki: 0.0
     kd: 0.0
 
-# yaw_velocity_pid_controller:
-#   ros__parameters:
-#     measurement: /gimbal/yaw/velocity_imu
-#     setpoint: /gimbal/yaw/control_velocity
-#     control: /gimbal/yaw/raw_control_torque
-#     kp: 30.0
-#     ki: 0.0
-#     kd: 0.0
+yaw_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/yaw/velocity_imu
+    setpoint: /gimbal/yaw/control_velocity
+    control: /gimbal/yaw/control_torque
+    kp: 30.0
+    ki: 0.0
+    kd: 0.0
 
 pitch_angle_pid_controller:
   ros__parameters:

@@ -53,7 +53,7 @@ public:
             *pitch_angle_error_ = nan_;
         }
 
-        if (switch_right == rmcs_msgs::Switch::MIDDLE){
+        else{
             *yaw_angle_error_ =
                 joystick_sensitivity * joystick_left_->y() + mouse_sensitivity * mouse_velocity_->y();
             *pitch_angle_error_ =

@@ -267,11 +267,11 @@ private:
                 can_commands[3] = 0;
                 transmit_buffer_.add_can2_transmission(0x200, std::bit_cast<uint64_t>(can_commands));
 
-                transmit_buffer_.add_can2_transmission(
-                    0x142, gimbal_yaw_motor_.generate_velocity_command(
-                               gimbal_yaw_motor_.control_velocity() - imu_.gy()));
-            //     transmit_buffer_.add_can1_transmission(0x142, gimbal_yaw_motor_.generate_torque_command( gimbal_yaw_motor_.control_torque()
-            // ));
+                // transmit_buffer_.add_can2_transmission(
+                //     0x142, gimbal_yaw_motor_.generate_velocity_command(
+                //                gimbal_yaw_motor_.control_velocity() - imu_.gz()));
+                transmit_buffer_.add_can1_transmission(0x142, gimbal_yaw_motor_.generate_torque_command( gimbal_yaw_motor_.control_torque()
+            ));
 
             }
             transmit_buffer_.trigger_transmission();
@@ -492,6 +492,7 @@ private:
                   deformableInfantry, deformableInfantry_command, "/gimbal/left_friction")
             , gimbal_right_friction_(
                   deformableInfantry, deformableInfantry_command, "/gimbal/right_friction")
+            , scope_motor(deformableInfantry, deformableInfantry_command, "/gimbal/scope")
             , transmit_buffer_(*this, 32)
             , event_thread_([this]() { handle_events(); }) {
             gimbal_pitch_motor_.configure(
@@ -505,6 +506,9 @@ private:
                 device::DjiMotor::Config{device::DjiMotor::Type::M3508}
                     .set_reduction_ratio(1.)
                     .set_reversed());
+
+            scope_motor.configure(
+                device::DjiMotor::Config{device::DjiMotor::Type::M2006}.enable_multi_turn_angle());
 
             deformableInfantry.register_output(
                 "/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_bmi088_);
@@ -546,6 +550,7 @@ private:
             gimbal_pitch_motor_.update_status();
             gimbal_left_friction_.update_status();
             gimbal_right_friction_.update_status();
+            scope_motor.update_status();
 
             tf_->set_state<rmcs_description::YawLink, rmcs_description::PitchLink>(
                 gimbal_pitch_motor_.angle());
@@ -555,12 +560,12 @@ private:
         void command_update() {
             uint16_t can_commands[4];
             can_commands[0] = gimbal_left_friction_.generate_command();
+            can_commands[1] = scope_motor.generate_command();
             can_commands[3] = gimbal_right_friction_.generate_command();
-            transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(can_commands));
+            transmit_buffer_.add_can2_transmission(0x200, std::bit_cast<uint64_t>(can_commands));
 
             transmit_buffer_.add_can1_transmission(
-                0x141, gimbal_pitch_motor_.generate_velocity_command(
-                           gimbal_pitch_motor_.control_velocity()));
+                0x141, gimbal_pitch_motor_.generate_command());
 
             transmit_buffer_.trigger_transmission();
         }
@@ -571,22 +576,24 @@ private:
             bool is_remote_transmission, uint8_t can_data_length) override {
             if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
                 return;
-            if (can_id == 0x201) {
-                gimbal_left_friction_.store_status(can_data);
-            } else if (can_id == 0x204) {
-                gimbal_right_friction_.store_status(can_data);
-            }
-            if (can_id == 0x141)
+            if (can_id == 0x142)
                 gimbal_pitch_motor_.store_status(can_data);
         }
+        
         void can2_receive_callback(
             uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
             bool is_remote_transmission, uint8_t can_data_length) override {
             if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
                 return;
-            if (can_id == 0x142)
-                gimbal_pitch_motor_.store_status(can_data);
+            if (can_id == 0x201) {
+                gimbal_left_friction_.store_status(can_data);
+            } else if (can_id == 0x204) {
+                gimbal_right_friction_.store_status(can_data);
+            } else if (can_id == 0x203) {
+                scope_motor.store_status(can_data);
+            }
         }
+
         void accelerometer_receive_callback(int16_t x, int16_t y, int16_t z) override {
             bmi088_.store_accelerometer_status(x, y, z);
         }
@@ -603,6 +610,7 @@ private:
         device::LkMotor gimbal_pitch_motor_;
         device::DjiMotor gimbal_left_friction_;
         device::DjiMotor gimbal_right_friction_;
+        device::DjiMotor scope_motor;
 
         TransmitBuffer transmit_buffer_;
         std::thread event_thread_;
