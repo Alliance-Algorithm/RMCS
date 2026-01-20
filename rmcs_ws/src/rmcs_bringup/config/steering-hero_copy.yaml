@@ -40,9 +40,9 @@ hero_hardware:
     usb_pid_top_board: 0xce3b
     usb_pid_bottom_board_one: 0x4491
     usb_pid_bottom_board_two: 0x2a39
-    bottom_yaw_motor_zero_point: 7550
+    bottom_yaw_motor_zero_point: 38456
     pitch_motor_zero_point: 63917
-    top_yaw_motor_zero_point: 0
+    top_yaw_motor_zero_point: 58458
     viewer_motor_zero_point: 3030
     external_imu_port: /dev/ttyUSB0
     left_front_zero_point: 358
@@ -85,10 +85,10 @@ gimbal_controller:
 
 dual_yaw_controller:
   ros__parameters:
-    top_yaw_angle_kp: 24.5
+    top_yaw_angle_kp: 10.0
     top_yaw_angle_ki: 0.0
     top_yaw_angle_kd: 0.0
-    top_yaw_velocity_kp: 77.4
+    top_yaw_velocity_kp: 50.0
     top_yaw_velocity_ki: 0.004
     top_yaw_velocity_kd: 0.0
     bottom_yaw_angle_kp: 5.0
