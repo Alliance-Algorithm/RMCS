@@ -268,6 +268,7 @@ private:
         if (toggle_condition && !last_toggle_condition) {
             current_target_angle_ =
                 (std::abs(current_target_angle_ - max_angle_) < 1e-6) ? min_angle_ : max_angle_;
+                scope_motor_control();
         }
     }
 
@@ -299,13 +300,13 @@ private:
 
     void scope_motor_control() {
         if (current_target_angle_ == min_angle_){
-            *scope_motor_control_torque = 0.3;
+            *scope_motor_control_torque = -0.3;
             // if (*scope_motor_velocity <= std::abs(0.1)){
             //     *scope_motor_control_torque = 0.18 * 1.0 / 36.0;
             // }
         }
         else{
-            *scope_motor_control_torque = -3.0;
+            *scope_motor_control_torque = 0.3;
             // if (*scope_motor_velocity <= std::abs(0.1)){
             //     *scope_motor_control_torque = -0.18 * 1.0 / 36.0;
             // }
