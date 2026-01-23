@@ -121,6 +121,8 @@ public:
                 // 正常运行模式：摩擦轮就绪时才允许发射
                 if (*friction_ready_) {
                     // 发射触发检测
+                    // RCLCPP_INFO(get_logger(), "%.2f", *bullet_feeder_angle_);
+                    // RCLCPP_INFO(get_logger(), "%.2f", *bullet_feeder_velocity_);
                     if (switch_right != Switch::DOWN) {
                         if ((!last_mouse_.left && mouse.left)
                             || (last_switch_left_ == rmcs_msgs::Switch::MIDDLE

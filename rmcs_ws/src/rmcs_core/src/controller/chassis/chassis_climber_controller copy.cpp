@@ -32,8 +32,11 @@
 
 //         track_velocity_max_ = get_parameter("front_climber_velocity").as_double();
 //         climber_back_control_velocity_abs_ = get_parameter("back_climber_velocity").as_double();
-//         figure_torque_threshold_ =
-//             get_parameter("figure_torque_threshold").as_double(); // 读取扭矩阈值参数
+
+//         wheel_torque_threshold_ = get_parameter("wheel_torque_threshold").as_double();
+//         front_torque_threshold_ = get_parameter("front_torque_threshold").as_double();
+//         back_torque_threshold_ = get_parameter("back_torque_threshold").as_double(); //
+//         读取阈值参数
 
 //         register_output(
 //             "/chassis/climber/left_front_motor/control_torque",
@@ -66,6 +69,8 @@
 //         register_input("/remote/switch/right", switch_right_);
 //         register_input("/remote/switch/left", switch_left_);
 //         register_input("/remote/joystick/right", joystick_left_);
+
+//         register_input("/chassis/climber/angle_imu", chassis_climber_angle_imu_);
 //     }
 
 //     void update() override {
@@ -105,16 +110,21 @@
 //             }
 
 //             if (climb_stage_ == ClimbStage::PRELOADING) {
-//                 if (is_front_hang) {
+//                 back_climber_control_velocioty = 0;
+//                 if (*climber_front_left_control_torque_ > front_torque_threshold_
+//                     && *climber_front_right_control_torque_ > front_torque_threshold_) {
 //                     set_front_hang();
-//                 } // 前轮先离开地面，再检测是否着陆
+//                 } // 履带碰到台阶，再检测是否着陆
 //             } else if (climb_stage_ == ClimbStage::FRONT_HANG) {
+//                 back_climber_control_velocioty = 0;
 //                 detect_is_front_land();
 //             } else if (climb_stage_ == ClimbStage::NEXT) {
 //                 track_control_velocity = 0;
-//                 if (is_back_hang) {
+//                 // 计算支撑机构速度
+//                 if (*climber_back_left_control_torque_ > back_torque_threshold_
+//                     && *climber_back_right_control_torque_ > back_torque_threshold_) {
 //                     set_back_hang();
-//                 } // 后轮先离开地面，再检测是否着陆
+//                 } // 支撑机构开启，再检测是否着陆
 //             } else if (climb_stage_ == ClimbStage::BACK_HANG) {
 //                 detect_is_back_land();
 //             } else if (climb_stage_ == ClimbStage::LAND) {
@@ -146,8 +156,9 @@
 //         front_climber_enable_ = false;
 //     }
 
-//     //
-//     思路：以前轮电机的扭矩作为参照，来判断前轮是否上台阶，然后抬起后支撑机构，前进之后以后轮扭矩作为参照，判断是否完全上台阶
+//     // 思路：以 前轮履带的扭矩 + 陀螺仪位姿作为参照，来判断前轮是否上台阶
+//     // 然后抬起后支撑机构，
+//     // 前进之后以 后轮扭矩 + 陀螺仪位姿作为参照，判断是否完全上台阶
 
 //     void front_climber_sync_control(double setpoint) {
 //         Eigen::Vector2d setpoint_error{
@@ -180,8 +191,8 @@
 //     }
 
 //     void detect_is_front_land() {
-//         if (*left_front_wheel_torque_ > figure_torque_threshold_
-//             && *right_front_wheel_torque_ > figure_torque_threshold_) {
+//         if (*climber_front_left_control_torque_ <= front_torque_threshold_
+//             && *climber_front_right_control_torque_ <= front_torque_threshold_) {
 //             front_land_detect_count_ = 0;
 //             return;
 //         }
@@ -193,8 +204,8 @@
 //     }
 
 //     void detect_is_back_land() {
-//         if (*left_back_wheel_torque_ > figure_torque_threshold_
-//             && *right_back_wheel_torque_ > figure_torque_threshold_) {
+//         if (*left_back_wheel_torque_ > wheel_torque_threshold_
+//             && *right_back_wheel_torque_ > wheel_torque_threshold_) {
 //             back_land_detect_count_ = 0;
 //             return;
 //         }
@@ -245,10 +256,9 @@
 //     int front_land_detect_count_ = 0;
 //     int back_land_detect_count_ = 0;
 
-//     double figure_torque_threshold_ = 0.5; // 扭矩阈值
-
-//     int is_front_hang = 0;
-//     int is_back_hang = 0;
+//     double wheel_torque_threshold_ = 0.5; // 扭矩阈值
+//     double front_torque_threshold_ = 0.5; // 履带扭矩阈值
+//     double back_torque_threshold_ = 0.5;  // 支撑机构扭矩阈值
 
 //     enum class ClimbStage {
 //         PRELOADING,
@@ -269,6 +279,9 @@
 //     InputInterface<double> climber_back_left_velocity_;
 //     InputInterface<double> climber_back_right_velocity_;
 
+//     InputInterface<double> climber_front_left_torque_;
+//     InputInterface<double> climber_front_right_torque_;
+
 //     InputInterface<double> climber_back_left_torque_;
 //     InputInterface<double> climber_back_right_torque_;
 
@@ -280,6 +293,8 @@
 //     InputInterface<rmcs_msgs::Switch> switch_right_;
 //     InputInterface<rmcs_msgs::Switch> switch_left_;
 //     InputInterface<Eigen::Vector2d> joystick_left_;
+
+//     InputInterface<double> chassis_climber_angle_imu_;
 
 //     rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
 //     rmcs_msgs::Switch last_switch_left_ = rmcs_msgs::Switch::UNKNOWN;

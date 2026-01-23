@@ -1,6 +1,5 @@
 #include <cmath>
 
-#include <fstream>
 #include <limits>
 #include <string>
 
@@ -19,11 +18,11 @@
 
 namespace rmcs_core::controller::shooting {
 
-class FrictionWheelController_Test
+class FrictionWheelController
     : public rmcs_executor::Component
     , public rclcpp::Node {
 public:
-    FrictionWheelController_Test()
+    FrictionWheelController()
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
@@ -60,27 +59,6 @@ public:
         register_output("/gimbal/friction_ready", friction_ready_, false);
         register_output("/gimbal/friction_jammed", friction_jammed_, false);
         register_output("/gimbal/bullet_fired", bullet_fired_, false);
-
-        register_output(
-            "/gimbal/first_left_friction/control_torque", first_left_friction_control_torque_, 0.0);
-        register_output(
-            "/gimbal/first_right_friction/control_torque", first_right_friction_control_torque_,
-            0.0);
-        register_input("/gimbal/first_left_friction/torque", first_left_friction_torque_);
-
-        csv_file_.open("friction_data.csv", std::ios::out);
-        if (csv_file_.is_open()) {
-            csv_file_ << "Time,LeftTorque,LeftVelocity\n";
-            csv_start_time_ = GetTime();
-        }
-    }
-
-    ~FrictionWheelController_Test() {
-        if (csv_file_.is_open()) {
-            csv_file_.close();
-
-            RCLCPP_INFO(logger_, "CSV file closed");
-        }
     }
 
     void update() override {
@@ -88,43 +66,25 @@ public:
         const auto switch_left = *switch_left_;
         const auto keyboard = *keyboard_;
 
-        if (test_flag == 1) {
-            *first_left_friction_control_torque_ = sin_signal_generate(1.0, 30.0, 20.0, test_flag);
-            *first_right_friction_control_torque_ = sin_signal_generate(1.0, 30.0, 20.0, test_flag);
-            print_test();
-        } else {
-            csv_file_.close();
-            if (!csv_file_.is_open()) {
-                RCLCPP_INFO(logger_, "CSV file closed");
-            }
-
-            test_flag = 0;
-        }
-
-        if (test_flag == 0) {
-            *first_left_friction_control_torque_ = nan_;
-            *first_right_friction_control_torque_ = nan_;
-        }
-
         using namespace rmcs_msgs;
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
-            // reset_all_controls();
-            // return;
+            reset_all_controls();
+            return;
         }
 
         if (switch_right != Switch::DOWN) {
             if ((!last_keyboard_.v && keyboard.v)
                 || (last_switch_left_ == Switch::MIDDLE && switch_left == Switch::UP)) {
-
                 friction_enabled_ = !friction_enabled_;
             }
 
-            // update_friction_velocities();
-            // update_friction_status();
-            // if (*friction_jammed_)
-            //     RCLCPP_INFO(logger_, "Friction Jammed!");
-            // if (*bullet_fired_)
+            update_friction_velocities();
+            update_friction_status();
+            if (*friction_jammed_)
+                RCLCPP_INFO(logger_, "Friction Jammed!");
+            if (*bullet_fired_)
+                RCLCPP_INFO(logger_, "Bullet Fired!");
 
             last_switch_right_ = switch_right;
             last_switch_left_ = switch_left;
@@ -133,59 +93,6 @@ public:
     }
 
 private:
-    static double GetTime() {
-        using namespace std::chrono;
-        static auto start = high_resolution_clock::now();
-        auto now = high_resolution_clock::now();
-        duration<double> elapsed = now - start;
-        return elapsed.count();
-    }
-
-    static double
-        sin_signal_generate(double F_start, double F_end, double repeat_time, uint8_t& SE_signal) {
-        static double F = 0;
-        if (F == 0)
-            F = F_start;
-        static double lasttime = 0;
-        // 频率超过限定，返回0
-        if (F > F_end) {
-            SE_signal = 0;
-            return 0;
-        }
-        // 保证sin初值为0
-        if (lasttime == 0)
-            lasttime = GetTime();
-
-        double nowtime = GetTime();
-        // 计算正弦值
-        double cnt = sin(2 * 3.14159 * F * (nowtime - lasttime));
-        // 频率递增
-        if (nowtime - lasttime > ((1 / F) * repeat_time)) {
-            if (F < 24)
-                F += 0.5f;
-            else if (F >= 24 && F <= 50)
-                F += 2;
-
-            lasttime = GetTime();
-        }
-        return cnt;
-    }
-
-    void print_test() {
-        double nowtime = GetTime();
-        if (csv_file_.is_open()) {
-            RCLCPP_INFO(logger_, "111");
-            double elapsed = nowtime - csv_start_time_;
-            csv_file_ << std::fixed << std::setprecision(6) << elapsed << ","
-                      << *first_left_friction_torque_ << "," << *friction_velocities_[0] << "\n";
-        }
-        // 每100行刷新一次缓冲区
-        static int write_count = 0;
-        if (++write_count % 100 == 0) {
-            csv_file_.flush();
-        }
-    }
-
     void reset_all_controls() {
         friction_enabled_ = false;
 
@@ -243,7 +150,7 @@ private:
 
     bool detect_friction_faulty() {
         for (size_t i = 0; i < friction_count_; i++) {
-            if (abs(*friction_velocities_[i]) < abs(*friction_control_velocities_[i]) * 0.5)
+            if (abs(*friction_velocities_[i]) < abs(*friction_control_velocities_[i] * 0.5))
                 return false;
         }
         return false;
@@ -262,9 +169,8 @@ private:
                 primary_friction_velocity_decrease_integral_ += differential;
             else {
                 if (primary_friction_velocity_decrease_integral_ < -14.0
-                    && last_primary_friction_velocity_ < friction_working_velocities_[0] - 20.0) {
+                    && last_primary_friction_velocity_ < friction_working_velocities_[0] - 20.0)
                     fired = true;
-                }
 
                 primary_friction_velocity_decrease_integral_ = 0;
             }
@@ -306,13 +212,6 @@ private:
     double last_primary_friction_velocity_ = nan_;
     double primary_friction_velocity_decrease_integral_ = 0;
     OutputInterface<bool> bullet_fired_;
-
-    OutputInterface<double> first_left_friction_control_torque_;
-    OutputInterface<double> first_right_friction_control_torque_;
-    InputInterface<double> first_left_friction_torque_;
-    uint8_t test_flag = 1;
-    std::ofstream csv_file_;
-    double csv_start_time_;
 };
 
 } // namespace rmcs_core::controller::shooting
@@ -320,4 +219,4 @@ private:
 #include <pluginlib/class_list_macros.hpp>
 
 PLUGINLIB_EXPORT_CLASS(
-    rmcs_core::controller::shooting::FrictionWheelController_Test, rmcs_executor::Component)
+    rmcs_core::controller::shooting::FrictionWheelController, rmcs_executor::Component)

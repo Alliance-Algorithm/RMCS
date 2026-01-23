@@ -97,7 +97,7 @@ public:
             }
 
             front_climber_sync_control(track_control_velocity);
-            back_climber_sync_control(0);
+            back_climber_sync_control(back_climber_control_velocioty);
         }
 
         last_switch_left_ = switch_left;

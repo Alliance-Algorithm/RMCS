@@ -21,7 +21,7 @@ rmcs_executor:
 
 shooting_test:
   ros__parameters:
-    usb_pid_top_board: 0x2a39
+    usb_pid_top_board: 0xce3b
 
 friction_wheel_controller:
   ros__parameters:

@@ -1,3 +1,4 @@
+#include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/keyboard.hpp>
@@ -95,8 +96,10 @@ public:
                     if ((!last_mouse_.left && mouse.left)
                         || (last_switch_left_ == rmcs_msgs::Switch::MIDDLE
                             && switch_left == rmcs_msgs::Switch::DOWN)) {
-                        if (*control_bullet_allowance_limited_by_heat_ > 0)
+                        if (*control_bullet_allowance_limited_by_heat_ > 0 || 1) {
                             set_shooting();
+                            RCLCPP_INFO(get_logger(), "FRICTION READY");
+                        }
                     }
                 }
 

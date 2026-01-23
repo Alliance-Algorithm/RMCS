@@ -250,7 +250,7 @@ private:
                 gimbal_friction_wheels_[1].store_status(can_data);
             } else if (can_id == 0x205) {
                 putter_motor_.store_status(can_data);
-            } else if (can_id == 0x206) {
+            } else if (can_id == 0x141) {
                 gimbal_bullet_feeder_.store_status(can_data);
             }
         }

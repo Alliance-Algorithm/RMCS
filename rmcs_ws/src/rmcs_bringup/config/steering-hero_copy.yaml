@@ -17,13 +17,11 @@ rmcs_executor:
       # - rmcs_core::controller::gimbal::PlayerViewer -> gimbal_player_viewer_controller
       # - rmcs_core::controller::pid::ErrorPidController -> viewer_angle_pid_controller
 
-      # - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
-      # - rmcs_core::controller::shooting::HeatController -> heat_controller
-      # - rmcs_core::controller::shooting::PutterController -> bullet_feeder_controller
-      # - rmcs_core::controller::pid::PidController -> second_left_friction_velocity_pid_controller
-      # - rmcs_core::controller::pid::PidController -> first_left_friction_velocity_pid_controller
-      # - rmcs_core::controller::pid::PidController -> first_right_friction_velocity_pid_controller
-      # - rmcs_core::controller::pid::PidController -> second_right_friction_velocity_pid_controller
+      - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
+      - rmcs_core::controller::shooting::HeatController -> heat_controller
+      - rmcs_core::controller::shooting::PutterController -> bullet_feeder_controller
+      - rmcs_core::controller::pid::PidController -> first_left_friction_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> first_right_friction_velocity_pid_controller
 
       - rmcs_core::controller::chassis::ChassisController -> chassis_controller
       # - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
@@ -40,9 +38,9 @@ hero_hardware:
     usb_pid_top_board: 0xce3b
     usb_pid_bottom_board_one: 0x4491
     usb_pid_bottom_board_two: 0x2a39
-    bottom_yaw_motor_zero_point: 38456
+    bottom_yaw_motor_zero_point: 5256
     pitch_motor_zero_point: 63917
-    top_yaw_motor_zero_point: 58458
+    top_yaw_motor_zero_point: 59377
     viewer_motor_zero_point: 3030
     external_imu_port: /dev/ttyUSB0
     left_front_zero_point: 358
@@ -148,13 +146,9 @@ friction_wheel_controller:
     friction_wheels:
       - /gimbal/first_left_friction
       - /gimbal/first_right_friction
-      - /gimbal/second_left_friction
-      - /gimbal/second_right_friction
     friction_velocities:
       - 450.00
       - 450.00
-      - 535.00
-      - 535.00
     friction_soft_start_stop_time: 1.0
 
 heat_controller:
@@ -164,17 +158,8 @@ heat_controller:
 
 shooting_recorder:
   ros__parameters:
-    friction_wheel_count: 4
+    friction_wheel_count: 2
     log_mode: 2 # 1: trigger, 2: timing
-
-second_left_friction_velocity_pid_controller:
-  ros__parameters:
-    measurement: /gimbal/second_left_friction/velocity
-    setpoint: /gimbal/second_left_friction/control_velocity
-    control: /gimbal/second_left_friction/control_torque
-    kp: 0.003436926
-    ki: 0.00
-    kd: 0.009373434
 
 first_left_friction_velocity_pid_controller:
   ros__parameters:
@@ -190,15 +175,6 @@ first_right_friction_velocity_pid_controller:
     measurement: /gimbal/first_right_friction/velocity
     setpoint: /gimbal/first_right_friction/control_velocity
     control: /gimbal/first_right_friction/control_torque
-    kp: 0.003436926
-    ki: 0.00
-    kd: 0.009373434
-
-second_right_friction_velocity_pid_controller:
-  ros__parameters:
-    measurement: /gimbal/second_right_friction/velocity
-    setpoint: /gimbal/second_right_friction/control_velocity
-    control: /gimbal/second_right_friction/control_torque
     kp: 0.003436926
     ki: 0.00
     kd: 0.009373434
