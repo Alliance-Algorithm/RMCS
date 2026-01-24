@@ -27,7 +27,12 @@ enum class LKMotorType : uint8_t {
     MG4010E_i10V3 = 2,
     MG4010E_i36V3 = 3,
     MG8010E_i36   = 4,
-    MHF7015  = 5,
+    MHF7015       = 5,
+    MG6012_i36    = 6,
+    MG4005E_i10V3 = 7,
+    MG5010E_i10V3 = 8,
+    MG5010E_i36V3 = 9,
+    MHF6015       = 10,
 };
 
 struct LKMotorConfig {
@@ -49,9 +54,14 @@ struct LKMotorConfig {
         switch (motor_type) {
         case LKMotorType::UNKNOWN:
         case LKMotorType::MG4010E_i10V3:
+        case LKMotorType::MG5010E_i10V3:
         case LKMotorType::MG4010E_i36V3:
+        case LKMotorType::MG5010E_i36V3:
+        case LKMotorType::MG6012_i36:
+        case LKMotorType::MG4005E_i10V3:
         case LKMotorType::MG8010E_i36: iq = 66.0 / 4096; break;
         case LKMotorType::MHF7015:
+        case LKMotorType::MHF6015:
         case LKMotorType::MF7015V210T: iq = 33.0 / 4096; break;
         }
     }
@@ -92,7 +102,7 @@ public:
     LKMotor& operator=(const LKMotor&) = delete;
 
     void configure(const LKMotorConfig& config) {
-
+        using namespace rmcs_core::hardware::device;
         double torque_constant, rated_current, rated_torque, max_torque;
         switch (config.motor_type) {
         case LKMotorType::MF7015V210T:
@@ -130,7 +140,42 @@ public:
             max_torque      = 2.42;
             LSB             = 18000;
             break;
-        default: throw std::runtime_error{"Unknown motor type"};
+        case LKMotorType::MG6012_i36:
+            torque_constant = 0.175 * 36.0;
+            rated_current   = 4.0;
+            rated_torque    = 25.0;
+            max_torque      = 40.0;
+            LSB             = 648000;
+            break;
+        case LKMotorType::MG4005E_i10V3:
+            torque_constant = 0.06 * 10.0;
+            rated_current   = 1.8;
+            rated_torque    = 25.0;
+            max_torque      = 1.0;
+            LSB             = 648000;
+            break;
+        case LKMotorType::MG5010E_i10V3:
+            torque_constant = 0.1 * 10.0;
+            rated_current   = 4.4;
+            rated_torque    = 4.0;
+            max_torque      = 7.0;
+            LSB             = 648000;
+            break;
+        case LKMotorType::MG5010E_i36V3:
+            torque_constant = 0.1 * 36.0;
+            rated_current   = 4.4;
+            rated_torque    = 13.0;
+            max_torque      = 25.0;
+            LSB             = 648000;
+            break;
+        case LKMotorType::MHF6015:
+            torque_constant = 0.26;
+            rated_current   = 3.1;
+            rated_torque    = 0.82;
+            max_torque      = 3.0;
+            LSB             = 648000;
+            break;
+        default: throw std::runtime_error{"Unknown motor type"}; break;
         }
 
         encoder_zero_point_ = config.encoder_zero_point % (raw_angle_max_);
