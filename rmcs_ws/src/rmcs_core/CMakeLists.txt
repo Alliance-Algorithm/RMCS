@@ -11,7 +11,9 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 find_package (ament_cmake_auto REQUIRED)
-
+find_package (moveit_core REQUIRED)
+find_package (moveit_ros_planning_interface REQUIRED)
+find_package (moveit_ros_move_group REQUIRED)
 
 ament_auto_find_build_dependencies ()
 

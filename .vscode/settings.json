@@ -15,5 +15,6 @@
     "clangd.arguments": [
         "--query-driver=/usr/bin/c*,/usr/bin/g*,/usr/bin/C*"
     ],
-    "clangd.path": "/usr/bin/clangd"
+    "clangd.path": "/usr/bin/clangd",
+    "chatgpt.openOnStartup": true
 }

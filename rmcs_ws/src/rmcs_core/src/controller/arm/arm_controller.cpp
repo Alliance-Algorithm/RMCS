@@ -24,7 +24,7 @@
 #include <rmcs_utility/crc/dji_crc.hpp> 
 #include <rmcs_utility/package_receive.hpp>
 #include <rmcs_utility/tick_timer.hpp>
-namespace rmcs_core::hardware::arm {
+namespace rmcs_core::controller::arm {
 class ArmController
     : public rmcs_executor::Component
     , public rclcpp::Node {
@@ -34,13 +34,13 @@ public:
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
 
-        // register_input("/remote/joystick/right", joystick_right_);
-        // register_input("/remote/joystick/left", joystick_left_);
-        // register_input("/remote/switch/right", switch_right_);
-        // register_input("/remote/switch/left", switch_left_);
-        // register_input("/remote/mouse/velocity", mouse_velocity_);
-        // register_input("/remote/mouse", mouse_);
-        // register_input("/remote/keyboard", keyboard_);
+        register_input("/remote/joystick/right", joystick_right_);
+        register_input("/remote/joystick/left", joystick_left_);
+        register_input("/remote/switch/right", switch_right_);
+        register_input("/remote/switch/left", switch_left_);
+        register_input("/remote/mouse/velocity", mouse_velocity_);
+        register_input("/remote/mouse", mouse_);
+        register_input("/remote/keyboard", keyboard_);
 
         register_input("/arm/Joint6/theta", theta[5]);
         register_input("/arm/Joint5/theta", theta[4]);
@@ -65,14 +65,21 @@ public:
         register_output("/arm/Joint1/control_torque", control_torque[0], nan);
 
 
-        register_output("/arm/enable_flag", is_arm_enable, true);
+        register_output("/arm/enable_flag", is_arm_enable, false);
         
         joint_publisher =
-            create_publisher<sensor_msgs::msg::JointState>("/engineer/joint/measure", 10);
+            create_publisher<sensor_msgs::msg::JointState>("/joint_states", 10);
         
       
     }
-    void update() override {}
+    void update() override {
+       sensor_msgs::msg::JointState msg;
+       msg.header.stamp = this->now();
+       msg.header.frame_id = "arm_base_link";
+       msg.name = {"joint_1","joint_2","joint_3","joint_4","joint_5","joint_6"};
+       msg.position={0.0,0.0,*theta[2],*theta[3],*theta[4],*theta[5]};
+       joint_publisher->publish(msg);
+    }
 
 private:
 
@@ -83,13 +90,13 @@ private:
     
     // InputInterface<std::array<uint8_t, 30>> custom_controller;
 
-    // InputInterface<Eigen::Vector2d> joystick_right_;
-    // InputInterface<Eigen::Vector2d> joystick_left_;
-    // InputInterface<rmcs_msgs::Switch> switch_right_;
-    // InputInterface<rmcs_msgs::Switch> switch_left_;
-    // InputInterface<Eigen::Vector2d> mouse_velocity_;
-    // InputInterface<rmcs_msgs::Mouse> mouse_;
-    // InputInterface<rmcs_msgs::Keyboard> keyboard_;
+    InputInterface<Eigen::Vector2d> joystick_right_;
+    InputInterface<Eigen::Vector2d> joystick_left_;
+    InputInterface<rmcs_msgs::Switch> switch_right_;
+    InputInterface<rmcs_msgs::Switch> switch_left_;
+    InputInterface<Eigen::Vector2d> mouse_velocity_;
+    InputInterface<rmcs_msgs::Mouse> mouse_;
+    InputInterface<rmcs_msgs::Keyboard> keyboard_;
     OutputInterface<bool> is_arm_enable;
     InputInterface<double> theta[6]; // motor_current_angle
     OutputInterface<double> target_theta[6];
@@ -99,4 +106,4 @@ private:
 } // namespace rmcs_core::hardware::arm
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(rmcs_core::hardware::arm::ArmController, rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::arm::ArmController, rmcs_executor::Component)

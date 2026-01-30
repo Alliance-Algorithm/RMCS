@@ -19,7 +19,7 @@ def generate_launch_description():
 
   
     moveit_group_node_config = (
-        MoveItConfigsBuilder("arm")
+        MoveItConfigsBuilder("arm_description", package_name="arm_moveit_config")
         .robot_description(file_path="config/arm_description.urdf.xacro")
         .robot_description_kinematics(file_path="config/kinematics.yaml")
         .planning_pipelines(
@@ -35,12 +35,37 @@ def generate_launch_description():
         .pilz_cartesian_limits(file_path="config/pilz_cartesian_limits.yaml")
         .to_moveit_configs()
     )
+
+    robot_description_content = Command(
+        [
+            FindExecutable(name="xacro"),
+            " ",
+            PathJoinSubstitution(
+                [
+                    FindPackageShare("arm_moveit_config"),
+                    "config",
+                    "arm_description.urdf.xacro",
+                ]
+            ),
+            " ",
+            "initial_positions_file:=",
+            PathJoinSubstitution(
+                [
+                    FindPackageShare("arm_moveit_config"),
+                    "config",
+                    "initial_positions.yaml",
+                ]
+            ),
+        ]
+    )
+    robot_description = {"robot_description": robot_description_content}
     move_group_node = Node(
         package="moveit_ros_move_group",
         executable="move_group",
         output="screen",
         parameters=[
             moveit_group_node_config.to_dict(),
+             
         ],
         arguments=["--ros-args", "--log-level", "info"],
     )
@@ -70,6 +95,7 @@ def generate_launch_description():
             moveit_group_node_config.planning_pipelines,
             moveit_group_node_config.robot_description_kinematics,
             moveit_group_node_config.joint_limits,
+            moveit_group_node_config.pilz_cartesian_limits,
         ],
     )
 
@@ -87,8 +113,7 @@ def generate_launch_description():
         name="robot_state_publisher",
         output="both",
         parameters=[
-
-            moveit_group_node_config.robot_description,
+            robot_description,
         ],
     )
     ros2_controllers_path = os.path.join(
@@ -99,9 +124,9 @@ def generate_launch_description():
     ros2_control_node = Node(
         package="controller_manager",
         executable="ros2_control_node",
-        parameters=[ros2_controllers_path],
-        remappings=[
-            ("/controller_manager/robot_description", "/robot_description"),
+        parameters=[
+            robot_description,
+            ros2_controllers_path,
         ],
         output="both",
     )
@@ -126,13 +151,13 @@ def generate_launch_description():
     )
     return LaunchDescription(
         [
-            rviz_config_arg,
-            rviz_node,
+            # rviz_config_arg,
+            # rviz_node,
             static_tf,
             robot_state_publisher_node,
             move_group_node,
-            ros2_control_node,
-            joint_state_broadcaster_spawner,
-            alliance_arm_controller_spawner,
+            # ros2_control_node,
+            # joint_state_broadcaster_spawner,
+            # alliance_arm_controller_spawner,
         ]
     )

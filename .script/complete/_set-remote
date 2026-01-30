@@ -1,4 +1,4 @@
-#compdef set-remote
+  #compdef set-remote
 
 _remote_hosts() {
   local hosts=(

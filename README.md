@@ -12,7 +12,22 @@ cd /workspaces/rmcs
 source ./script/build.sh
 ```
 
+# 更新软件包列表
+sudo apt update
 
+# 安装MoveIt 2核心包（Jazzy版本）
+sudo apt install ros-jazzy-moveit
+
+# 安装常用插件和工具
+sudo apt install ros-jazzy-moveit-visual-tools
+sudo apt install ros-jazzy-moveit-task-constructor
+sudo apt install ros-jazzy-moveit-servo
+sudo apt install ros-jazzy-moveit-resources
+
+# 安装RViz2和相关工具
+sudo apt install ros-jazzy-rviz2
+sudo apt install ros-jazzy-ros2-control
+sudo apt install ros-jazzy-ros2-controllers
 
 ## Develop
 

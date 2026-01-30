@@ -11,7 +11,8 @@ from launch.substitutions import LaunchConfiguration
 
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
-
+from launch.actions import LogInfo, IncludeLaunchDescription
+from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
     def visit(
@@ -49,9 +50,18 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
                 output="screen",
             )
         )
-
-        if is_automatic:
-            pass
+        demo_launch_path = os.path.join(
+            FindPackageShare("arm_moveit_config").perform(context),
+            "launch",
+            "demo.launch.py"
+        )
+        
+        entities.append(
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource(demo_launch_path),
+            )
+        )
+       
 
         return entities
 

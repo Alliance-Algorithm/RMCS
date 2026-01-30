@@ -3,16 +3,16 @@ rmcs_executor:
     update_rate: 1000.0
     components:
       - rmcs_core::hardware::Arm-> arm_hardware
-      - rmcs_core::hardware::arm::ArmController -> arm_controller
-  
+      - rmcs_core::controller::arm::ArmController -> arm_controller
+      - rmcs_core::controller::arm::ArmConfig -> arm_config
 arm_hardware:
   ros__parameters:
     arm_board_usb_pid: 0x1783
     joint6_zero_point: 0
-    joint5_zero_point: 37361
-    joint4_zero_point: 12200
-    joint3_zero_point: 260992
-    joint2_zero_point: 52343 
+    joint5_zero_point: 37436
+    joint4_zero_point: 60266
+    joint3_zero_point: 28299
+    joint2_zero_point: 29280 
     joint1_zero_point: 52343 
     joint6_qlim: [-3.141592,3.141592]    
     joint5_qlim: [-1.93532,1.93532]    

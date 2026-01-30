@@ -2,7 +2,7 @@
 controller_manager:
   ros__parameters:
     update_rate: 100  # Hz
-
+        
     alliance_arm_controller:
       type: joint_trajectory_controller/JointTrajectoryController
 

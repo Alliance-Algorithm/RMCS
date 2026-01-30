@@ -1,5 +1,5 @@
+#include "controller/arm/joint.hpp"
 #include "hardware/device//encorder.hpp"
-#include "hardware/device//joint.hpp"
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/lk_motor.hpp"
@@ -35,9 +35,7 @@ public:
     }
     ~Arm() override = default;
     void update() override { armboard_.update(); }
-    void command() {
-        // armboard_.command();
-    }
+    void command() { armboard_.command(); }
 
 private:
     static double normalizeAngle(double angle) {
@@ -113,14 +111,14 @@ private:
                 Qlim_Stall_Config{arm.get_parameter("joint2_qlim").as_double_array()});
             joint[0].configure_joint(
                 device::LKMotorConfig{device::LKMotorType::MG5010E_i36V3}.set_encoder_zero_point(
-                    (double)(*joint1_zero_point)),
+                    static_cast<int16_t>(arm.get_parameter("joint1_zero_point").as_int())),
                 DHConfig{0, 0.05985, 1.5707963, 0},
                 Qlim_Stall_Config{arm.get_parameter("joint1_qlim").as_double_array()});
             joint2_encoder.configure(
                 EncoderConfig{EncoderType::KTH7823}
                     .set_encoder_zero_point(
                         static_cast<int>(arm.get_parameter("joint2_zero_point").as_int()))
-                    .enable_multi_turn_angle());
+                    );
         }
         ~ArmBoard() final {
             stop_handling_events();
@@ -209,8 +207,9 @@ private:
             joint[2].update_joint();
             joint[1].update_joint().change_theta_feedback_(joint2_encoder.get_angle());
             joint[0].update_joint();
-
-            // RCLCPP_INFO(this->get_logger(), "joint %f", joint[1].get_theta());
+            // RCLCPP_INFO(this->get_logger(), "joint angles: %.3f  %d ", joint[1].get_theta(),joint2_encoder.get_raw_angle());
+            // RCLCPP_INFO(this->get_logger(), "joint %d %d %d %d %d
+            // ",joint2_encoder.get_raw_angle(),joint[2].get_raw_angle(),joint[3].get_raw_angle(),joint[4].get_raw_angle(),joint[5].get_raw_angle());
         }
 
     protected:
@@ -237,8 +236,9 @@ private:
                 joint[1].store_status(can_data);
             if (can_id == 0x146)
                 joint[0].store_status(can_data);
-            if (can_id == 0x200)
+            if (can_id == 0x200) {
                 joint2_encoder.store_status(can_data);
+            }
         }
 
         void dbus_receive_callback(const std::byte* uart_data, uint8_t uart_data_length) override {
@@ -254,7 +254,6 @@ private:
         OutputInterface<double> joint1_error_angle;
 
         InputInterface<bool> is_arm_enable_;
-        InputInterface<double> joint1_zero_point;
 
         device::Joint joint[6];
         device::Encoder joint2_encoder;

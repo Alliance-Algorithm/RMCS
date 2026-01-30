@@ -48,10 +48,10 @@ struct EncoderConfig {
     EncoderConfig& reverse() { return reversed = -1.0, *this; }
     EncoderConfig& enable_multi_turn_angle() { return multi_turn_angle_enabled = true, *this; }
 };
-class Encoder //: public rclcpp::Node
+class Encoder : public rclcpp::Node
 {
 public:
-    Encoder(Component& status_component, const std::string& name_prefix) {
+    Encoder(Component& status_component, const std::string& name_prefix):rclcpp::Node("ads") {
         status_component.register_output(name_prefix + "/angle", angle_, 0.0);
         status_component.register_output(name_prefix + "/encoder", encoder_, this);
     }
@@ -74,15 +74,16 @@ public:
         if (type_ == EncoderType::Old_) {
             raw_angle = static_cast<uint32_t>((can_result) & 0x3FFFF);
         } else if (type_ == EncoderType::KTH7823) {
-            raw_angle = static_cast<uint32_t>(can_result & 0xFFFFUL);
+            raw_angle =  static_cast<uint32_t>((can_result >> 48) & 0xFFFF);
+           
         }
+
     }
     void update() {
         int32_t relative_angle = static_cast<int32_t>(raw_angle) - encoder_zero_point_;
         if (relative_angle < 0) {
             relative_angle += raw_angle_max;
         }
-
         if (!multi_turn_angle_enabled_) {
             *angle_ = this->reverse
                     * (((double)relative_angle <= (raw_angle_max) / 2.0)
