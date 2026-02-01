@@ -185,8 +185,7 @@ public:
         reverse = config.reversed;
 
         raw_angle_to_angle_coefficient_ =
-            1.0 * (1.0 / (raw_angle_max_) / config.gear_ratio) * 2.0 * std::numbers::pi;
-
+            ((1.0 / (raw_angle_max_)) / config.gear_ratio) * 2.0 * std::numbers::pi;
         angle_to_raw_angle_coefficient_ = 1.0 / raw_angle_to_angle_coefficient_;
 
         raw_velocity_to_velocity_coefficient_ = 1.0 / (config.gear_ratio * 6);
@@ -224,13 +223,12 @@ public:
         if (!multi_turn_angle_enabled_) {
             if (!angle_zero_to_2pi_enabled_) {
                 *angle_ =
-                    this->reverse
+                    reverse
                     * (((double)angle <= (raw_angle_max_) / 2.0)
                            ? (raw_angle_to_angle_coefficient_ * angle)
                            : (-2 * std::numbers::pi) + (raw_angle_to_angle_coefficient_ * angle));
             } else {
-                *angle_ =
-                    this->reverse * raw_angle_to_angle_coefficient_ * static_cast<double>(angle);
+                *angle_ = reverse * raw_angle_to_angle_coefficient_ * static_cast<double>(angle);
             }
         } else {
             auto diff = (angle - angle_multi_turn_) % (raw_angle_max_);
@@ -239,15 +237,17 @@ public:
             else if (diff > (raw_angle_max_) / 2)
                 diff -= (raw_angle_max_);
             angle_multi_turn_ += diff;
-            *angle_ = this->reverse * raw_angle_to_angle_coefficient_
-                    * static_cast<double>(angle_multi_turn_);
+            *angle_ =
+                reverse * raw_angle_to_angle_coefficient_ * static_cast<double>(angle_multi_turn_);
         }
 
         // Velocity unit: rpm
-        *velocity_ = raw_velocity_to_velocity_coefficient_ * static_cast<double>(feedback.velocity);
+        *velocity_ = reverse * raw_velocity_to_velocity_coefficient_
+                   * static_cast<double>(feedback.velocity);
 
         // Torque unit: N*m
-        *torque_ = raw_current_to_torque_coefficient_ * static_cast<double>(feedback.current);
+        *torque_ =
+            reverse * raw_current_to_torque_coefficient_ * static_cast<double>(feedback.current);
 
         last_raw_angle_ = raw_angle;
     }
@@ -266,7 +266,6 @@ public:
             result[7] = 0X00;
 
             return std::bit_cast<uint64_t>(result);
-            ;
         }
         double max_torque = (*motor_)->get_max_torque();
         torque            = std::clamp(torque, -max_torque, max_torque);
@@ -276,26 +275,6 @@ public:
         std::copy(control_current_bits.begin(), control_current_bits.end(), result.begin() + 4);
         return std::bit_cast<uint64_t>(result);
     }
-
-    // uint64_t generate_velocity_command(double radians, double max_speed_rpm) {
-    //     std::array<uint8_t, 8> result = {0};
-    //     radians = this->reverse * radians;
-    //     result[0] = 0xAD;
-
-    //     uint16_t max_speed = static_cast<uint16_t>(max_speed_rpm * 6);
-    //     auto maxSpeedBytes = std::bit_cast<std::array<uint8_t, 2>>(max_speed);
-    //     //std::copy(maxSpeedBytes.begin(), maxSpeedBytes.end(), result.begin() + 2);
-
-    //     double real_radians = radians + this->encoder_zero_point_ *
-    //     raw_angle_to_angle_coefficient_; real_radians = real_radians >= 0 ? real_radians : 2 *
-    //     std::numbers::pi + real_radians; double degrees = real_radians * this->LSB * (*
-    //     motor_)->get_gear_ratio() / std::numbers::pi; uint32_t angle_control =
-    //     static_cast<uint32_t>(degrees); auto angleControlBytes =
-    //     std::bit_cast<std::array<uint8_t, 4>>(angle_control);
-    //     std::copy(angleControlBytes.begin(), angleControlBytes.end(), result.begin() + 4);
-
-    //     return std::bit_cast<uint64_t>(result);
-    // }
 
     static uint64_t lk_stop_command() { return std::bit_cast<uint64_t>(uint64_t{0x81}); }
     static uint64_t lk_quest_command() { return std::bit_cast<uint64_t>(uint64_t{0x9C}); }

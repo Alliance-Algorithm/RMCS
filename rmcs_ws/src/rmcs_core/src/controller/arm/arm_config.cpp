@@ -2,55 +2,131 @@
 #include <Eigen/Dense>
 #include <array>
 #include <cmath>
-#include <functional>
+#include <cstddef>
+#include <limits>
 #include <rclcpp/node.hpp>
 #include <rclcpp/subscription.hpp>
 #include <rmcs_executor/component.hpp>
+#include <string>
 #include <urdf/model.h>
 namespace rmcs_core::controller::arm {
 class ArmConfig
     : public rmcs_executor::Component
     , public rclcpp::Node {
 public:
-    ArmConfig()
+    explicit ArmConfig()
         : Node(
               get_component_name(),
-              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
+        , link{
+              Link(*this, "/arm/link_1"), Link(*this, "/arm/link_2"), Link(*this, "/arm/link_3"),
+              Link(*this, "/arm/link_4"), Link(*this, "/arm/link_5"), Link(*this, "/arm/link_6"),
+          }
+          ,joint{
+              Joint(*this, "/arm/joint_1"), Joint(*this, "/arm/joint_2"), Joint(*this, "/arm/joint_3"),
+              Joint(*this, "/arm/joint_4"), Joint(*this, "/arm/joint_5"), Joint(*this, "/arm/joint_6"),
+          } {
         arm_urdf_sub = this->create_subscription<std_msgs::msg::String>(
             "/robot_description", rclcpp::QoS(1).transient_local().reliable(),
-            // Setting it to `transient_local` prevents the description from starting first, causing
-            // the sub to miss the message.
-            [this](const std_msgs::msg::String::ConstSharedPtr& msg) { this->read_urdf(msg); });
-        register_output("link1", links[0]);
-        register_output("link2", links[1]);
-        register_output("link3", links[2]);
-        register_output("link4", links[3]);
-        register_output("link5", links[4]);
-        register_output("link6", links[5]);
+            [this](const std_msgs::msg::String::ConstSharedPtr& msg) { this->load_urdf(msg); });
+
+        register_output("urdf_loaded", is_load, false);
+
+        for (std::size_t i = 0; i < num_axis; ++i) {
+            register_input(
+                "/arm/joint_" + std::to_string(i + 1) + "/motor/angle", joint_motor_angle[i]);
+            register_input(
+                "/arm/joint_" + std::to_string(i + 1) + "/motor/velocity", joint_motor_velocity[i]);
+            register_input(
+                "/arm/joint_" + std::to_string(i + 1) + "/motor/torque", joint_motor_torque[i]);
+        }
+        register_input("/arm/joint_2/encoder/angle", joint_encode_angle);
     };
 
     void update() override {
-        if (load_){
-            for (std::size_t i = 0; i < links_.size(); ++i) {
-                *links[i] = links_[i];
-            }
+        for (std::size_t i = 0; i < num_axis; ++i) {
+            const double angle = (i == 1) ? *joint_encode_angle : *joint_motor_angle[i];
+            const double vel = (i == 1) ? (*joint_motor_velocity[i]/42.0 ): *joint_motor_velocity[i];
+            const double torque =  (i == 1) ? (*joint_motor_torque[i] * 42.0 ): *joint_motor_torque[i];
+            joint[i].update(angle, vel, torque);
         }
     }
 
 private:
-    static constexpr std::size_t kNumLinks = 6;
+    static constexpr std::size_t num_axis = 6;
 
-    struct Link {
-        EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+    class Link {
+    public:
+        explicit Link(rmcs_executor::Component& status_component, const std::string& name_prefix) {
+            status_component.register_output(
+                name_prefix + "/com", com_,
+                Eigen::Vector3d::Constant(std::numeric_limits<double>::quiet_NaN()));
+            status_component.register_output(name_prefix + "/length", length_, NAN);
+            status_component.register_output(
+                name_prefix + "/inertia", inertia_,
+                Eigen::Matrix3d::Constant(std::numeric_limits<double>::quiet_NaN()));
+            status_component.register_output(name_prefix + "/mass", mass_, NAN);
+        }
+        double get_mass() const { return *mass_; }
+        double get_length() const { return *length_; }
+        Eigen::Vector3d get_com() const { return *com_; }
+        Eigen::Matrix3d get_inertia() const { return *inertia_; }
 
-        double length{0.0};
-        double mass{0.0};
-        Eigen::Vector3d com{Eigen::Vector3d::Zero()};
-        Eigen::Matrix3d inertia{Eigen::Matrix3d::Zero()};
+        void load_parameter(double m, const Eigen::Vector3d& c, const Eigen::Matrix3d& I) {
+            *mass_    = m;
+            *com_     = c;
+            *inertia_ = I;
+        }
+        void load_length(double l) { *length_ = l; }
+
+    private:
+        OutputInterface<double> length_;
+        OutputInterface<double> mass_;
+        OutputInterface<Eigen::Vector3d> com_;
+        OutputInterface<Eigen::Matrix3d> inertia_;
+    };
+    class Joint {
+    public:
+        explicit Joint(rmcs_executor::Component& status_component, const std::string& name_prefix) {
+            status_component.register_output(name_prefix + "/lower_limit", lower_limit_, NAN);
+            status_component.register_output(name_prefix + "/upper_limit", upper_limit_, NAN);
+            status_component.register_output(name_prefix + "/velocity_limit", velocity_limit_, NAN);
+            status_component.register_output(name_prefix + "/torque_limit", torque_limit_, NAN);
+            status_component.register_output(name_prefix + "/theta", theta_, NAN);
+            status_component.register_output(name_prefix + "/omega", velocity_, NAN);
+            status_component.register_output(name_prefix + "/torque", torque_, NAN);
+        }
+
+        double get_lower_limit() const { return *lower_limit_; }
+        double get_upper_limit() const { return *upper_limit_; }
+        double get_velocity_limit() const { return *velocity_limit_; }
+        double get_torque_limit() const { return *torque_limit_; }
+
+        void load_parameter(double upper, double lower, double vel, double torque) {
+            *lower_limit_    = lower;
+            *upper_limit_    = upper;
+            *velocity_limit_ = vel;
+            *torque_limit_   = torque;
+        }
+        void update(double angle, double vel, double t) {
+            *theta_    = angle;
+            *velocity_ = vel;
+            *torque_   = t;
+        };
+
+    private:
+        OutputInterface<double> lower_limit_;
+        OutputInterface<double> upper_limit_;
+        OutputInterface<double> velocity_limit_;
+        OutputInterface<double> torque_limit_;
+
+        OutputInterface<double> theta_;
+        OutputInterface<double> velocity_;
+        OutputInterface<double> torque_;
     };
 
-    void read_urdf(const std_msgs::msg::String::ConstSharedPtr& msg) {
-        if (load_)
+    void load_urdf(const std_msgs::msg::String::ConstSharedPtr& msg) {
+        if (*is_load)
             return;
         const std::string& urdf_xml = msg->data;
         urdf::Model model;
@@ -58,33 +134,64 @@ private:
             RCLCPP_ERROR(get_logger(), "URDF parse failed");
             return;
         }
-        for (std::size_t i = 0; i < 6; ++i) {
+        for (std::size_t i = 0; i < num_axis; ++i) {
             const std::string link_name = "link_" + std::to_string(i + 1);
-            auto link                   = model.getLink(link_name);
-            if (!link) {
-                RCLCPP_WARN(get_logger(), "Link [%s] not found.", link_name.c_str());
-                continue;
+            auto link_urdf              = model.getLink(link_name);
+            if (!link_urdf) {
+                RCLCPP_ERROR(get_logger(), "URDF missing link: %s", link_name.c_str());
+                return;
             }
-            if (!link->inertial) {
-                RCLCPP_WARN(get_logger(), "Link [%s] has no inertial.", link_name.c_str());
-                continue;
+            if (!link_urdf->inertial) {
+                RCLCPP_ERROR(get_logger(), "URDF link has no inertial: %s", link_name.c_str());
+                return;
             }
-            links_[i].mass = link->inertial->mass;
-            const auto& p  = link->inertial->origin.position;
-            links_[i].com  = Eigen::Vector3d(p.x, p.y, p.z);
-            const auto& I  = link->inertial;
-            links_[i].inertia << I->ixx, I->ixy, I->ixz, I->ixy, I->iyy, I->iyz, I->ixz, I->iyz,
-                I->izz;
+            const double mass = link_urdf->inertial->mass;
+
+            const auto& p = link_urdf->inertial->origin.position;
+            Eigen::Vector3d com(p.x, p.y, p.z);
+
+            const auto& I = link_urdf->inertial;
+            Eigen::Matrix3d inertia;
+            inertia << I->ixx, I->ixy, I->ixz, I->ixy, I->iyy, I->iyz, I->ixz, I->iyz, I->izz;
+
+            link[i].load_parameter(mass, com, inertia);
+
+            const std::string joint_name = "joint_" + std::to_string(i + 1);
+            auto joint_urdf              = model.getJoint(joint_name);
+            if (!joint_urdf) {
+                RCLCPP_ERROR(get_logger(), "URDF missing joint: %s", joint_name.c_str());
+                return;
+            }
+            if (!joint_urdf->limits) {
+                RCLCPP_ERROR(get_logger(), "URDF joint has no limits: %s", joint_name.c_str());
+                return;
+            }
+            joint[i].load_parameter(
+                joint_urdf->limits->upper, joint_urdf->limits->lower, joint_urdf->limits->velocity,
+                joint_urdf->limits->effort);
         }
 
-        load_ = true;
+        link[0].load_length(model.getJoint("joint_2")->parent_to_joint_origin_transform.position.z);
+        link[1].load_length(model.getJoint("joint_3")->parent_to_joint_origin_transform.position.y);
+        link[2].load_length(model.getJoint("joint_4")->parent_to_joint_origin_transform.position.x);
+        link[3].load_length(
+            model.getJoint("joint_4")->parent_to_joint_origin_transform.position.y
+            + model.getJoint("joint_5")->parent_to_joint_origin_transform.position.z);
+        link[4].load_length(0.0);
+        link[5].load_length(model.getJoint("joint_6")->parent_to_joint_origin_transform.position.y);
+        *is_load = true;
     };
 
-    bool load_{false};
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr arm_urdf_sub;
+    std::array<Link, num_axis> link;
+    std::array<Joint, num_axis> joint;
 
-    std::array<Link, kNumLinks> links_;
-    std::array<OutputInterface<Link>, kNumLinks> links{};
+    OutputInterface<bool> is_load;
+
+    std::array<InputInterface<double>, num_axis> joint_motor_angle;
+    std::array<InputInterface<double>, num_axis> joint_motor_velocity;
+    std::array<InputInterface<double>, num_axis> joint_motor_torque;
+    InputInterface<double> joint_encode_angle;
 };
 } // namespace rmcs_core::controller::arm
 #include <pluginlib/class_list_macros.hpp>

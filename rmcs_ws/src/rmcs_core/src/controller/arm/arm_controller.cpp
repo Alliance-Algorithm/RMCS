@@ -8,6 +8,7 @@
 #include <bit>
 #include <cmath>
 #include <concepts>
+#include <cstddef>
 #include <cstdint>
 #include <eigen3/Eigen/Dense>
 #include <eigen3/Eigen/src/Core/util/Meta.h>
@@ -21,9 +22,10 @@
 #include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/switch.hpp>
-#include <rmcs_utility/crc/dji_crc.hpp> 
+#include <rmcs_utility/crc/dji_crc.hpp>
 #include <rmcs_utility/package_receive.hpp>
 #include <rmcs_utility/tick_timer.hpp>
+#include <string>
 namespace rmcs_core::controller::arm {
 class ArmController
     : public rmcs_executor::Component
@@ -41,15 +43,10 @@ public:
         register_input("/remote/mouse/velocity", mouse_velocity_);
         register_input("/remote/mouse", mouse_);
         register_input("/remote/keyboard", keyboard_);
+        for (std::size_t i = 0; i < 6; ++i) {
+            register_input("/arm/joint_" + std::to_string(i + 1) + "/theta", theta[i]);
+        }
 
-        register_input("/arm/Joint6/theta", theta[5]);
-        register_input("/arm/Joint5/theta", theta[4]);
-        register_input("/arm/Joint4/theta", theta[3]);
-        register_input("/arm/Joint3/theta", theta[2]);
-        register_input("/arm/Joint2/theta", theta[1]);
-        register_input("/arm/Joint1/theta", theta[0]);
-
-        
         register_output("/arm/Joint6/target_theta", target_theta[5], nan);
         register_output("/arm/Joint5/target_theta", target_theta[4], nan);
         register_output("/arm/Joint4/target_theta", target_theta[3], nan);
@@ -57,37 +54,39 @@ public:
         register_output("/arm/Joint2/target_theta", target_theta[1], nan);
         register_output("/arm/Joint1/target_theta", target_theta[0], nan);
 
-        register_output("/arm/Joint6/control_torque", control_torque[5], nan);
-        register_output("/arm/Joint5/control_torque", control_torque[4], nan);
-        register_output("/arm/Joint4/control_torque", control_torque[3], nan);
-        register_output("/arm/Joint3/control_torque", control_torque[2], nan);
-        register_output("/arm/Joint2/control_torque", control_torque[1], nan);
-        register_output("/arm/Joint1/control_torque", control_torque[0], nan);
-
+        register_output("/arm/joint_1/motor/control_torque", control_torque[5], nan);
+        register_output("/arm/joint_2/motor/control_torque", control_torque[4], nan);
+        register_output("/arm/joint_3/motor/control_torque", control_torque[3], nan);
+        register_output("/arm/joint_4/motor/control_torque", control_torque[2], nan);
+        register_output("/arm/joint_5/motor/control_torque", control_torque[1], nan);
+        register_output("/arm/joint_6/motor/control_torque", control_torque[0], nan);
 
         register_output("/arm/enable_flag", is_arm_enable, false);
-        
-        joint_publisher =
-            create_publisher<sensor_msgs::msg::JointState>("/joint_states", 10);
-        
-      
+        register_input("/arm/link_1/mass", test);
+        joint_publisher = create_publisher<sensor_msgs::msg::JointState>("/joint_states", 10);
     }
     void update() override {
-       sensor_msgs::msg::JointState msg;
-       msg.header.stamp = this->now();
-       msg.header.frame_id = "arm_base_link";
-       msg.name = {"joint_1","joint_2","joint_3","joint_4","joint_5","joint_6"};
-       msg.position={0.0,0.0,*theta[2],*theta[3],*theta[4],*theta[5]};
-       joint_publisher->publish(msg);
+
+        //    RCLCPP_INFO(this->get_logger(),"%f",*test);
+        joint_state_publish();
     }
 
 private:
+    void joint_state_publish() {
+        sensor_msgs::msg::JointState msg;
+        msg.header.stamp    = this->now();
+        msg.header.frame_id = "arm_base_link";
+        msg.name            = {"joint_1", "joint_2", "joint_3", "joint_4", "joint_5", "joint_6"};
+        msg.position        = {0.0, *theta[1], *theta[2], *theta[3], *theta[4], *theta[5]};
+        // msg.position = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
 
+        joint_publisher->publish(msg);
+    }
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
     rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr joint_subscription;
     rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr joint_publisher;
-    
+
     // InputInterface<std::array<uint8_t, 30>> custom_controller;
 
     InputInterface<Eigen::Vector2d> joystick_right_;
@@ -102,8 +101,9 @@ private:
     OutputInterface<double> target_theta[6];
     OutputInterface<double> control_torque[6];
 
+    InputInterface<double> test;
 };
-} // namespace rmcs_core::hardware::arm
+} // namespace rmcs_core::controller::arm
 #include <pluginlib/class_list_macros.hpp>
 
 PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::arm::ArmController, rmcs_executor::Component)

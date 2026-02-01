@@ -128,7 +128,7 @@
         <mesh
           filename="package://arm_description/meshes/link_2.STL" />
       </geometry>
-    </collision>
+    </collision>  
   </link>
   <joint
     name="joint_2"
@@ -374,7 +374,7 @@
     name="joint_6"
     type="revolute">
     <origin
-      xyz="-0.002 0.119 0"
+      xyz="0.0 0.119 0"
       rpy="1.5708 0 0" />
     <parent
       link="link_5" />

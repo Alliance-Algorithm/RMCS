@@ -12,7 +12,7 @@ arm_hardware:
     joint5_zero_point: 37436
     joint4_zero_point: 60266
     joint3_zero_point: 28299
-    joint2_zero_point: 29280 
+    joint2_zero_point: 29870 
     joint1_zero_point: 52343 
     joint6_qlim: [-3.141592,3.141592]    
     joint5_qlim: [-1.93532,1.93532]    

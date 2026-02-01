@@ -151,8 +151,8 @@ def generate_launch_description():
     )
     return LaunchDescription(
         [
-            # rviz_config_arg,
-            # rviz_node,
+            rviz_config_arg,
+            rviz_node,
             static_tf,
             robot_state_publisher_node,
             move_group_node,
