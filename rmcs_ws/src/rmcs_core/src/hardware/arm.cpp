@@ -93,8 +93,7 @@ private:
             joint[2].configure(
                 LKMotorConfig{LKMotorType::MG6012_i36}.set_encoder_zero_point(
                     static_cast<int16_t>(arm.get_parameter("joint3_zero_point").as_int())));
-            joint[1].configure(
-                LKMotorConfig{LKMotorType::MF7015V210T}.reverse());
+            joint[1].configure(LKMotorConfig{LKMotorType::MF7015V210T}.reverse().set_gear_ratio(42.0));
             joint[0].configure(
                 device::LKMotorConfig{device::LKMotorType::MG5010E_i36V3}.set_encoder_zero_point(
                     static_cast<int16_t>(arm.get_parameter("joint1_zero_point").as_int())));
@@ -103,6 +102,10 @@ private:
                     static_cast<int>(arm.get_parameter("joint2_zero_point").as_int())));
         }
         ~ArmBoard() final {
+            uint64_t command_ = 0;
+            transmit_buffer_.add_can2_transmission(
+                0x145, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+            transmit_buffer_.trigger_transmission();
             stop_handling_events();
             event_thread_.join();
         }
@@ -185,6 +188,7 @@ private:
             joint[2].update();
             joint[1].update();
             joint[0].update();
+            // RCLCPP_INFO(this->get_logger(),"%d",joint[3].get_raw_angle());
         }
 
     protected:

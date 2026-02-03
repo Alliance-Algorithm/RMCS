@@ -4,8 +4,10 @@
 #include <cmath>
 #include <cstddef>
 #include <limits>
+#include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rclcpp/subscription.hpp>
+#include <rclcpp/visibility_control.hpp>
 #include <rmcs_executor/component.hpp>
 #include <string>
 #include <urdf/model.h>
@@ -46,8 +48,10 @@ public:
     void update() override {
         for (std::size_t i = 0; i < num_axis; ++i) {
             const double angle = (i == 1) ? *joint_encode_angle : *joint_motor_angle[i];
-            const double vel = (i == 1) ? (*joint_motor_velocity[i]/42.0 ): *joint_motor_velocity[i];
-            const double torque =  (i == 1) ? (*joint_motor_torque[i] * 42.0 ): *joint_motor_torque[i];
+            const double vel =
+                (i == 1) ? (*joint_motor_velocity[i]) : *joint_motor_velocity[i];
+            const double torque =
+                (i == 1) ? (*joint_motor_torque[i]) : *joint_motor_torque[i];
             joint[i].update(angle, vel, torque);
         }
     }
@@ -95,18 +99,24 @@ private:
             status_component.register_output(name_prefix + "/theta", theta_, NAN);
             status_component.register_output(name_prefix + "/omega", velocity_, NAN);
             status_component.register_output(name_prefix + "/torque", torque_, NAN);
+            status_component.register_output(
+                name_prefix + "/position", pos_,
+                Eigen::Vector3d::Constant(std::numeric_limits<double>::quiet_NaN()));
         }
 
         double get_lower_limit() const { return *lower_limit_; }
         double get_upper_limit() const { return *upper_limit_; }
         double get_velocity_limit() const { return *velocity_limit_; }
         double get_torque_limit() const { return *torque_limit_; }
+        double get_angle() { return *theta_; }
 
-        void load_parameter(double upper, double lower, double vel, double torque) {
+        void load_parameter(
+            double upper, double lower, double vel, double torque, const Eigen::Vector3d& pos) {
             *lower_limit_    = lower;
             *upper_limit_    = upper;
             *velocity_limit_ = vel;
             *torque_limit_   = torque;
+            *pos_            = pos;
         }
         void update(double angle, double vel, double t) {
             *theta_    = angle;
@@ -123,6 +133,7 @@ private:
         OutputInterface<double> theta_;
         OutputInterface<double> velocity_;
         OutputInterface<double> torque_;
+        OutputInterface<Eigen::Vector3d> pos_;
     };
 
     void load_urdf(const std_msgs::msg::String::ConstSharedPtr& msg) {
@@ -166,9 +177,12 @@ private:
                 RCLCPP_ERROR(get_logger(), "URDF joint has no limits: %s", joint_name.c_str());
                 return;
             }
+            const auto& jp = joint_urdf->parent_to_joint_origin_transform.position;
+            const Eigen::Vector3d joint_pos(jp.x, jp.y, jp.z);
+
             joint[i].load_parameter(
                 joint_urdf->limits->upper, joint_urdf->limits->lower, joint_urdf->limits->velocity,
-                joint_urdf->limits->effort);
+                joint_urdf->limits->effort, joint_pos);
         }
 
         link[0].load_length(model.getJoint("joint_2")->parent_to_joint_origin_transform.position.z);

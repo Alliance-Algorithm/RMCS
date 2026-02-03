@@ -3,20 +3,22 @@ rmcs_executor:
     update_rate: 1000.0
     components:
       - rmcs_core::hardware::Arm-> arm_hardware
-      - rmcs_core::controller::arm::ArmController -> arm_controller
       - rmcs_core::controller::arm::ArmConfig -> arm_config
+      - rmcs_core::controller::arm::ArmSolver -> arm_solver
+      - rmcs_core::controller::arm::ArmController -> arm_controller
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_
+
 arm_hardware:
   ros__parameters:
     arm_board_usb_pid: 0x1783
     joint6_zero_point: 0
     joint5_zero_point: 37436
-    joint4_zero_point: 60266
-    joint3_zero_point: 28299
-    joint2_zero_point: 29870 
+    joint4_zero_point: 28029
+    joint3_zero_point: 28134
+    joint2_zero_point: 29790 
     joint1_zero_point: 52343 
-    joint6_qlim: [-3.141592,3.141592]    
-    joint5_qlim: [-1.93532,1.93532]    
-    joint4_qlim: [-3.141592,3.141592]    
-    joint3_qlim: [-1.0472,0.8727]    
-    joint2_qlim: [-1.308,1.16719]
-    joint1_qlim: [-3.141592,3.141592]        
+
+value_:
+  ros__parameters:
+    forward_list:
+      - "/arm/joint_5/motor/control_torque"

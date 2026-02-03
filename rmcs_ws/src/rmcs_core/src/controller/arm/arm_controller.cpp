@@ -55,10 +55,9 @@ public:
         register_output("/arm/Joint1/target_theta", target_theta[0], nan);
 
         register_output("/arm/joint_1/motor/control_torque", control_torque[5], nan);
-        register_output("/arm/joint_2/motor/control_torque", control_torque[4], nan);
-        register_output("/arm/joint_3/motor/control_torque", control_torque[3], nan);
-        register_output("/arm/joint_4/motor/control_torque", control_torque[2], nan);
-        register_output("/arm/joint_5/motor/control_torque", control_torque[1], nan);
+        // register_output("/arm/joint_2/motor/control_torque", control_torque[4], nan);
+        // register_output("/arm/joint_3/motor/control_torque", control_torque[3], nan);
+        // register_output("/arm/joint_5/motor/control_torque", control_torque[1], nan);
         register_output("/arm/joint_6/motor/control_torque", control_torque[0], nan);
 
         register_output("/arm/enable_flag", is_arm_enable, false);
