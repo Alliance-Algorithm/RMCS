@@ -97,7 +97,7 @@
         xyz="-0.0014451 0.17112 -0.020056"
         rpy="0 0 0" />
       <mass
-        value="0.302" />
+        value="0.1502" />
       <inertia
         ixx="0.037649"
         ixy="0"
@@ -148,7 +148,7 @@
       effort="63"
       velocity="4.71" />
     <dynamics
-      friction="0.2" />
+      friction="2.0" />
   </joint>
   <link
     name="link_3">
@@ -157,7 +157,7 @@
         xyz="0.01602 0.094001 0.029936"
         rpy="0 0 0" />
       <mass
-        value="1.721" />
+        value="1.821" />
       <inertia
         ixx="0.27702"
         ixy="0"
@@ -217,7 +217,7 @@
         xyz="0.00010602 0.0016431 0.18301"
         rpy="0 0 0" />
       <mass
-        value="1.41" />
+        value="1.61" />
       <inertia
         ixx="0.157756532"
         ixy="0"

@@ -48,16 +48,22 @@ public:
     void update() override {
         for (std::size_t i = 0; i < num_axis; ++i) {
             const double angle = (i == 1) ? *joint_encode_angle : *joint_motor_angle[i];
-            const double vel =
-                (i == 1) ? (*joint_motor_velocity[i]) : *joint_motor_velocity[i];
-            const double torque =
-                (i == 1) ? (*joint_motor_torque[i]) : *joint_motor_torque[i];
-            joint[i].update(angle, vel, torque);
+            joint[i].update(angle, *joint_motor_velocity[i], *joint_motor_torque[i]);
         }
     }
 
 private:
     static constexpr std::size_t num_axis = 6;
+    void modify_link_length(const urdf::Model& model) {
+        link[0].load_length(model.getJoint("joint_2")->parent_to_joint_origin_transform.position.z);
+        link[1].load_length(model.getJoint("joint_3")->parent_to_joint_origin_transform.position.y);
+        link[2].load_length(model.getJoint("joint_4")->parent_to_joint_origin_transform.position.x);
+        link[3].load_length(
+            model.getJoint("joint_4")->parent_to_joint_origin_transform.position.y
+            + model.getJoint("joint_5")->parent_to_joint_origin_transform.position.z);
+        link[4].load_length(0.0);
+        link[5].load_length(model.getJoint("joint_6")->parent_to_joint_origin_transform.position.y);
+    }
 
     class Link {
     public:
@@ -97,11 +103,12 @@ private:
             status_component.register_output(name_prefix + "/velocity_limit", velocity_limit_, NAN);
             status_component.register_output(name_prefix + "/torque_limit", torque_limit_, NAN);
             status_component.register_output(name_prefix + "/theta", theta_, NAN);
-            status_component.register_output(name_prefix + "/omega", velocity_, NAN);
+            status_component.register_output(name_prefix + "/velocity", velocity_, NAN);
             status_component.register_output(name_prefix + "/torque", torque_, NAN);
             status_component.register_output(
                 name_prefix + "/position", pos_,
                 Eigen::Vector3d::Constant(std::numeric_limits<double>::quiet_NaN()));
+            status_component.register_output(name_prefix + "/friction", friction_, NAN);
         }
 
         double get_lower_limit() const { return *lower_limit_; }
@@ -111,12 +118,13 @@ private:
         double get_angle() { return *theta_; }
 
         void load_parameter(
-            double upper, double lower, double vel, double torque, const Eigen::Vector3d& pos) {
+            double upper, double lower, double vel, double torque, const Eigen::Vector3d& pos,double f) {
             *lower_limit_    = lower;
             *upper_limit_    = upper;
             *velocity_limit_ = vel;
             *torque_limit_   = torque;
             *pos_            = pos;
+            *friction_ = f;
         }
         void update(double angle, double vel, double t) {
             *theta_    = angle;
@@ -133,6 +141,9 @@ private:
         OutputInterface<double> theta_;
         OutputInterface<double> velocity_;
         OutputInterface<double> torque_;
+
+        OutputInterface<double> friction_;
+
         OutputInterface<Eigen::Vector3d> pos_;
     };
 
@@ -182,17 +193,10 @@ private:
 
             joint[i].load_parameter(
                 joint_urdf->limits->upper, joint_urdf->limits->lower, joint_urdf->limits->velocity,
-                joint_urdf->limits->effort, joint_pos);
+                joint_urdf->limits->effort, joint_pos,joint_urdf->dynamics->friction);
+            modify_link_length(model);
         }
 
-        link[0].load_length(model.getJoint("joint_2")->parent_to_joint_origin_transform.position.z);
-        link[1].load_length(model.getJoint("joint_3")->parent_to_joint_origin_transform.position.y);
-        link[2].load_length(model.getJoint("joint_4")->parent_to_joint_origin_transform.position.x);
-        link[3].load_length(
-            model.getJoint("joint_4")->parent_to_joint_origin_transform.position.y
-            + model.getJoint("joint_5")->parent_to_joint_origin_transform.position.z);
-        link[4].load_length(0.0);
-        link[5].load_length(model.getJoint("joint_6")->parent_to_joint_origin_transform.position.y);
         *is_load = true;
     };
 

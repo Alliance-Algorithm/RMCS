@@ -43,25 +43,15 @@ public:
         register_input("/remote/mouse/velocity", mouse_velocity_);
         register_input("/remote/mouse", mouse_);
         register_input("/remote/keyboard", keyboard_);
+
         for (std::size_t i = 0; i < 6; ++i) {
-            register_input("/arm/joint_" + std::to_string(i + 1) + "/theta", theta[i]);
+            const std::string joint_prefix = "/arm/joint_" + std::to_string(i + 1);
+            register_input(joint_prefix + "/theta", theta[i]);
+            register_output(joint_prefix + "/target_theta", target_theta[i], NAN);
         }
 
-        register_output("/arm/Joint6/target_theta", target_theta[5], nan);
-        register_output("/arm/Joint5/target_theta", target_theta[4], nan);
-        register_output("/arm/Joint4/target_theta", target_theta[3], nan);
-        register_output("/arm/Joint3/target_theta", target_theta[2], nan);
-        register_output("/arm/Joint2/target_theta", target_theta[1], nan);
-        register_output("/arm/Joint1/target_theta", target_theta[0], nan);
-
-        register_output("/arm/joint_1/motor/control_torque", control_torque[5], nan);
-        // register_output("/arm/joint_2/motor/control_torque", control_torque[4], nan);
-        // register_output("/arm/joint_3/motor/control_torque", control_torque[3], nan);
-        // register_output("/arm/joint_5/motor/control_torque", control_torque[1], nan);
-        register_output("/arm/joint_6/motor/control_torque", control_torque[0], nan);
-
         register_output("/arm/enable_flag", is_arm_enable, false);
-        register_input("/arm/link_1/mass", test);
+
         joint_publisher = create_publisher<sensor_msgs::msg::JointState>("/joint_states", 10);
     }
     void update() override {

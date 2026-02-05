@@ -188,7 +188,7 @@ public:
             ((1.0 / (raw_angle_max_)) / config.gear_ratio) * 2.0 * std::numbers::pi;
         angle_to_raw_angle_coefficient_ = 1.0 / raw_angle_to_angle_coefficient_;
 
-        raw_velocity_to_velocity_coefficient_ = 1.0 / (config.gear_ratio * 6);
+        raw_velocity_to_velocity_coefficient_ = 1.0 / config.gear_ratio * (std::numbers::pi / 180);
         velocity_to_raw_velocity_coefficient_ = 1.0 / raw_velocity_to_velocity_coefficient_;
 
         raw_current_to_torque_coefficient_ = // 含有传动比
@@ -241,7 +241,7 @@ public:
                 reverse * raw_angle_to_angle_coefficient_ * static_cast<double>(angle_multi_turn_);
         }
 
-        // Velocity unit: rpm
+        // Velocity unit: rad/s
         *velocity_ = reverse * raw_velocity_to_velocity_coefficient_
                    * static_cast<double>(feedback.velocity);
 
