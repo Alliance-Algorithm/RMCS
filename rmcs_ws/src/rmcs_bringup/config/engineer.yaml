@@ -5,52 +5,52 @@ rmcs_executor:
       - rmcs_core::hardware::Engineer -> engineer_hardware
       - rmcs_core::controller::arm::ArmController -> arm_controller
 
-      - rmcs_core::controller::leg::LegController -> leg_controller
-      - rmcs_core::controller::chassis::Chassis_Controller -> chassis_controller
-      - rmcs_core::controller::chassis::SteeringWheelController -> steering_wheel_controller
+      # - rmcs_core::controller::leg::LegController -> leg_controller
+      # - rmcs_core::controller::chassis::Chassis_Controller -> chassis_controller
+      # - rmcs_core::controller::chassis::SteeringWheelController -> steering_wheel_controller
             
-      - rmcs_core::controller::pid::ErrorPidController -> joint6_angle_pid_controller
-      - rmcs_core::controller::pid::PidController -> joint6_velocity_pid_controller
+      # - rmcs_core::controller::pid::ErrorPidController -> joint6_angle_pid_controller
+      # - rmcs_core::controller::pid::PidController -> joint6_velocity_pid_controller
 
-      - rmcs_core::controller::pid::ErrorPidController -> joint5_angle_pid_controller
-      - rmcs_core::controller::pid::PidController -> joint5_velocity_pid_controller
+      # - rmcs_core::controller::pid::ErrorPidController -> joint5_angle_pid_controller
+      # - rmcs_core::controller::pid::PidController -> joint5_velocity_pid_controller
 
-      - rmcs_core::controller::pid::ErrorPidController -> joint4_angle_pid_controller
-      - rmcs_core::controller::pid::PidController -> joint4_velocity_pid_controller
+      # - rmcs_core::controller::pid::ErrorPidController -> joint4_angle_pid_controller
+      # - rmcs_core::controller::pid::PidController -> joint4_velocity_pid_controller
 
-      - rmcs_core::controller::pid::ErrorPidController -> joint3_angle_pid_controller
-      - rmcs_core::controller::pid::PidController -> joint3_velocity_pid_controller
+      # - rmcs_core::controller::pid::ErrorPidController -> joint3_angle_pid_controller
+      # - rmcs_core::controller::pid::PidController -> joint3_velocity_pid_controller
 
-      - rmcs_core::controller::pid::ErrorPidController -> joint2_angle_pid_controller
-      - rmcs_core::controller::pid::PidController -> joint2_velocity_pid_controller
+      # - rmcs_core::controller::pid::ErrorPidController -> joint2_angle_pid_controller
+      # - rmcs_core::controller::pid::PidController -> joint2_velocity_pid_controller
 
-      - rmcs_core::controller::pid::ErrorPidController -> joint1_angle_pid_controller
-      - rmcs_core::controller::pid::PidController -> joint1_velocity_pid_controller
+      # - rmcs_core::controller::pid::ErrorPidController -> joint1_angle_pid_controller
+      # - rmcs_core::controller::pid::PidController -> joint1_velocity_pid_controller
 
-      - rmcs_core::controller::pid::PidController -> leg_omni_l_velocity_controller
-      - rmcs_core::controller::pid::PidController -> leg_omni_r_velocity_controller
+      # - rmcs_core::controller::pid::PidController -> leg_omni_l_velocity_controller
+      # - rmcs_core::controller::pid::PidController -> leg_omni_r_velocity_controller
 
-      - rmcs_core::controller::pid::ErrorPidController -> big_yaw_angle_error_pid_controller
-      - rmcs_core::controller::pid::PidController -> big_yaw_velocity_pid_controller
+      # - rmcs_core::controller::pid::ErrorPidController -> big_yaw_angle_error_pid_controller
+      # - rmcs_core::controller::pid::PidController -> big_yaw_velocity_pid_controller
 
-      - rmcs_core::controller::pid::ErrorPidController -> leg_lf_angle_error_pid_controller
-      - rmcs_core::controller::pid::PidController -> leg_lf_velocity_pid_controller
-      - rmcs_core::controller::pid::ErrorPidController -> leg_rf_angle_error_pid_controller
-      - rmcs_core::controller::pid::PidController -> leg_rf_velocity_pid_controller
+      # - rmcs_core::controller::pid::ErrorPidController -> leg_lf_angle_error_pid_controller
+      # - rmcs_core::controller::pid::PidController -> leg_lf_velocity_pid_controller
+      # - rmcs_core::controller::pid::ErrorPidController -> leg_rf_angle_error_pid_controller
+      # - rmcs_core::controller::pid::PidController -> leg_rf_velocity_pid_controller
 
-      - rmcs_core::controller::pid::ErrorPidController -> leg_lb_angle_error_pid_controller
-      - rmcs_core::controller::pid::PidController -> leg_lb_velocity_pid_controller
-      - rmcs_core::controller::pid::ErrorPidController -> leg_rb_angle_error_pid_controller
-      - rmcs_core::controller::pid::PidController -> leg_rb_velocity_pid_controller
+      # - rmcs_core::controller::pid::ErrorPidController -> leg_lb_angle_error_pid_controller
+      # - rmcs_core::controller::pid::PidController -> leg_lb_velocity_pid_controller
+      # - rmcs_core::controller::pid::ErrorPidController -> leg_rb_angle_error_pid_controller
+      # - rmcs_core::controller::pid::PidController -> leg_rb_velocity_pid_controller
 
       - rmcs_core::controller::pid::PidController -> arm_pump_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> mine_pump_velocity_pid_controller
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 engineer_hardware:
   ros__parameters:
-    arm_board_usb_pid: 0x1783
-    left_board_usb_pid: 0x652f
-    right_board_usb_pid: 0x75f3
+    arm_board_usb_pid: 0x488d
+    # left_board_usb_pid: 0x652f
+    # right_board_usb_pid: 0x75f3
     joint6_zero_point: 0
     joint5_zero_point: 37361
     joint4_zero_point: 12200
@@ -61,14 +61,14 @@ engineer_hardware:
     joint4_qlim: [-3.141592,3.141592]    
     joint3_qlim: [-1.0472,0.8727]    
     joint2_qlim: [-1.308,1.16719]    
-    steering_lf_zero_point: 5982
-    steering_lb_zero_point: 699
-    steering_rb_zero_point: 6105
-    steering_rf_zero_point: 699
-    leg_lf_ecd_zero_point: 109021
-    leg_lb_ecd_zero_point: 153207
-    leg_rb_ecd_zero_point: 2135
-    leg_rf_ecd_zero_point: 133400
+    # steering_lf_zero_point: 5982
+    # steering_lb_zero_point: 699
+    # steering_rb_zero_point: 6105
+    # steering_rf_zero_point: 699
+    # leg_lf_ecd_zero_point: 109021
+    # leg_lb_ecd_zero_point: 153207
+    # leg_rb_ecd_zero_point: 2135
+    # leg_rf_ecd_zero_point: 133400
     big_yaw_zero_point: 20485
 
 
@@ -194,88 +194,88 @@ leg_omni_r_velocity_controller:
     ki: 0.0
     kd: 0.0
 
-big_yaw_angle_error_pid_controller:
-  ros__parameters:
-    measurement: /chassis/big_yaw/target_angle_error
-    control: /chassis/big_yaw/control_vel
-    kp: 91.3
-    ki: 0.0
-    kd: 2.6
-big_yaw_velocity_pid_controller:
-  ros__parameters:
-    measurement: /chassis/big_yaw/velocity
-    setpoint: /chassis/big_yaw/control_vel
-    control: /chassis/big_yaw/control_torque
-    kp: 3.99
-    ki: 0.0
-    kd: 0.039
+# big_yaw_angle_error_pid_controller:
+#   ros__parameters:
+#     measurement: /chassis/big_yaw/target_angle_error
+#     control: /chassis/big_yaw/control_vel
+#     kp: 91.3
+#     ki: 0.0
+#     kd: 2.6
+# big_yaw_velocity_pid_controller:
+#   ros__parameters:
+#     measurement: /chassis/big_yaw/velocity
+#     setpoint: /chassis/big_yaw/control_vel
+#     control: /chassis/big_yaw/control_torque
+#     kp: 3.99
+#     ki: 0.0
+#     kd: 0.039
 
 
-leg_lf_angle_error_pid_controller:
-  ros__parameters:
-    measurement: /leg/joint/lf/control_theta_error
-    control: /leg/joint/lf/control_vel
-    kp: 100.0
-    ki: 0.0
-    kd: 5.0
-leg_lf_velocity_pid_controller:
-  ros__parameters:
-    measurement: /leg/joint/lf/velocity
-    setpoint: /leg/joint/lf/control_vel
-    control: /leg/joint/lf/control_torque
-    kp: 2.0
-    ki: 0.0
-    kd: 0.2
+# leg_lf_angle_error_pid_controller:
+#   ros__parameters:
+#     measurement: /leg/joint/lf/control_theta_error
+#     control: /leg/joint/lf/control_vel
+#     kp: 100.0
+#     ki: 0.0
+#     kd: 5.0
+# leg_lf_velocity_pid_controller:
+#   ros__parameters:
+#     measurement: /leg/joint/lf/velocity
+#     setpoint: /leg/joint/lf/control_vel
+#     control: /leg/joint/lf/control_torque
+#     kp: 2.0
+#     ki: 0.0
+#     kd: 0.2
 
-leg_rf_angle_error_pid_controller:
-  ros__parameters:
-    measurement: /leg/joint/rf/control_theta_error
-    control: /leg/joint/rf/control_vel
-    kp: 80.0
-    ki: 0.0
-    kd: 5.0
+# leg_rf_angle_error_pid_controller:
+#   ros__parameters:
+#     measurement: /leg/joint/rf/control_theta_error
+#     control: /leg/joint/rf/control_vel
+#     kp: 80.0
+#     ki: 0.0
+#     kd: 5.0
 
 
-leg_rf_velocity_pid_controller:
-  ros__parameters:
-    measurement: /leg/joint/rf/velocity
-    setpoint: /leg/joint/rf/control_vel
-    control: /leg/joint/rf/control_torque
-    kp: 2.0
-    ki: 0.0
-    kd: 0.2
+# leg_rf_velocity_pid_controller:
+#   ros__parameters:
+#     measurement: /leg/joint/rf/velocity
+#     setpoint: /leg/joint/rf/control_vel
+#     control: /leg/joint/rf/control_torque
+#     kp: 2.0
+#     ki: 0.0
+#     kd: 0.2
 
-leg_lb_angle_error_pid_controller:
-  ros__parameters:
-    measurement: /leg/joint/lb/control_theta_error
-    control: /leg/joint/lb/control_vel
-    kp: 6000.0
-    ki: 0.0
-    kd: 0.0
-leg_lb_velocity_pid_controller:
-  ros__parameters:
-    measurement: /leg/joint/lb/velocity
-    setpoint: /leg/joint/lb/control_vel
-    control: /leg/joint/lb/control_torque
-    kp: 0.03
-    ki: 0.0
-    kd: 0.0
+# leg_lb_angle_error_pid_controller:
+#   ros__parameters:
+#     measurement: /leg/joint/lb/control_theta_error
+#     control: /leg/joint/lb/control_vel
+#     kp: 6000.0
+#     ki: 0.0
+#     kd: 0.0
+# leg_lb_velocity_pid_controller:
+#   ros__parameters:
+#     measurement: /leg/joint/lb/velocity
+#     setpoint: /leg/joint/lb/control_vel
+#     control: /leg/joint/lb/control_torque
+#     kp: 0.03
+#     ki: 0.0
+#     kd: 0.0
 
-leg_rb_angle_error_pid_controller:
-  ros__parameters:
-    measurement: /leg/joint/rb/control_theta_error
-    control: /leg/joint/rb/control_vel
-    kp: 6000.0
-    ki: 0.0
-    kd: 0.0
-leg_rb_velocity_pid_controller:
-  ros__parameters:
-    measurement: /leg/joint/rb/velocity
-    setpoint: /leg/joint/rb/control_vel
-    control: /leg/joint/rb/control_torque
-    kp: 0.03
-    ki: 0.0
-    kd: 0.0
+# leg_rb_angle_error_pid_controller:
+#   ros__parameters:
+#     measurement: /leg/joint/rb/control_theta_error
+#     control: /leg/joint/rb/control_vel
+#     kp: 6000.0
+#     ki: 0.0
+#     kd: 0.0
+# leg_rb_velocity_pid_controller:
+#   ros__parameters:
+#     measurement: /leg/joint/rb/velocity
+#     setpoint: /leg/joint/rb/control_vel
+#     control: /leg/joint/rb/control_torque
+#     kp: 0.03
+#     ki: 0.0
+#     kd: 0.0
 
 steering_wheel_controller:
   ros__parameters:
@@ -306,9 +306,9 @@ mine_pump_velocity_pid_controller:
     kd: 0.0
 
 
-value_broadcaster:
-  ros__parameters:
-    forward_list:
-      - "/leg/joint/lf/control_torque"
-      - "/leg/joint/lb/control_torque"
+# value_broadcaster:
+#   ros__parameters:
+#     forward_list:
+#       - "/leg/joint/lf/control_torque"
+#       - "/leg/joint/lb/control_torque"
 
