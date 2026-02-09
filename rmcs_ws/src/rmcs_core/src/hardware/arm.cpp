@@ -19,7 +19,7 @@
 #include <std_msgs/msg/int32.hpp>
 namespace rmcs_core::hardware {
 
-class Arm
+class Arm final
     : public rmcs_executor::Component
     , public rclcpp::Node {
 public:

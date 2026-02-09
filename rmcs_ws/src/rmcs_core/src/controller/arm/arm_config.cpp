@@ -1,3 +1,4 @@
+#include "sensor_msgs/msg/joint_state.hpp"
 #include "std_msgs/msg/string.hpp"
 #include <Eigen/Dense>
 #include <array>
@@ -6,6 +7,7 @@
 #include <limits>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
+#include <rclcpp/publisher.hpp>
 #include <rclcpp/subscription.hpp>
 #include <rclcpp/visibility_control.hpp>
 #include <rmcs_executor/component.hpp>
@@ -31,8 +33,8 @@ public:
         arm_urdf_sub = this->create_subscription<std_msgs::msg::String>(
             "/robot_description", rclcpp::QoS(1).transient_local().reliable(),
             [this](const std_msgs::msg::String::ConstSharedPtr& msg) { this->load_urdf(msg); });
-
-        register_output("urdf_loaded", is_load, false);
+        joint_states_pub =
+            this->create_publisher<sensor_msgs::msg::JointState>("/joint_states", 10);
 
         for (std::size_t i = 0; i < num_axis; ++i) {
             register_input(
@@ -43,6 +45,7 @@ public:
                 "/arm/joint_" + std::to_string(i + 1) + "/motor/torque", joint_motor_torque[i]);
         }
         register_input("/arm/joint_2/encoder/angle", joint_encode_angle);
+        register_output("urdf_loaded", is_load, false);
     };
 
     void update() override {
@@ -50,10 +53,24 @@ public:
             const double angle = (i == 1) ? *joint_encode_angle : *joint_motor_angle[i];
             joint[i].update(angle, *joint_motor_velocity[i], *joint_motor_torque[i]);
         }
+
+        sensor_msgs::msg::JointState msg;
+        msg.header.stamp    = this->now() - rclcpp::Duration(0, 1000000); // 1ms
+        msg.header.frame_id = "base_link";
+        msg.name            = {"joint_1", "joint_2", "joint_3", "joint_4", "joint_5", "joint_6"};
+        msg.position        = {
+            0.0,
+            *joint_encode_angle,
+            *joint_motor_angle[2],
+            *joint_motor_angle[3],
+            *joint_motor_angle[4],
+            *joint_motor_angle[5]};
+        joint_states_pub->publish(msg);
     }
 
 private:
     static constexpr std::size_t num_axis = 6;
+    rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr joint_states_pub;
     void modify_link_length(const urdf::Model& model) {
         link[0].load_length(model.getJoint("joint_2")->parent_to_joint_origin_transform.position.z);
         link[1].load_length(model.getJoint("joint_3")->parent_to_joint_origin_transform.position.y);
@@ -82,12 +99,12 @@ private:
         Eigen::Vector3d get_com() const { return *com_; }
         Eigen::Matrix3d get_inertia() const { return *inertia_; }
 
-        void load_parameter(double m, const Eigen::Vector3d& c, const Eigen::Matrix3d& I) {
+        void load_parameter(const double& m, const Eigen::Vector3d& c, const Eigen::Matrix3d& I) {
             *mass_    = m;
             *com_     = c;
             *inertia_ = I;
         }
-        void load_length(double l) { *length_ = l; }
+        void load_length(const double& l) { *length_ = l; }
 
     private:
         OutputInterface<double> length_;
@@ -118,15 +135,16 @@ private:
         double get_angle() { return *theta_; }
 
         void load_parameter(
-            double upper, double lower, double vel, double torque, const Eigen::Vector3d& pos,double f) {
+            const double& upper, const double& lower, const double& vel, const double& torque,
+            const Eigen::Vector3d& pos, const double& f) {
             *lower_limit_    = lower;
             *upper_limit_    = upper;
             *velocity_limit_ = vel;
             *torque_limit_   = torque;
             *pos_            = pos;
-            *friction_ = f;
+            *friction_       = f;
         }
-        void update(double angle, double vel, double t) {
+        void update(const double& angle, const double& vel, const double& t) {
             *theta_    = angle;
             *velocity_ = vel;
             *torque_   = t;
@@ -193,11 +211,12 @@ private:
 
             joint[i].load_parameter(
                 joint_urdf->limits->upper, joint_urdf->limits->lower, joint_urdf->limits->velocity,
-                joint_urdf->limits->effort, joint_pos,joint_urdf->dynamics->friction);
-            modify_link_length(model);
+                joint_urdf->limits->effort, joint_pos, joint_urdf->dynamics->friction);
         }
+        modify_link_length(model);
 
         *is_load = true;
+        arm_urdf_sub.reset();
     };
 
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr arm_urdf_sub;

@@ -143,8 +143,8 @@
     <axis
       xyz="0 0 -1" />
     <limit
-      lower="-1.047"
-      upper="1.396"
+      lower="-1.084"
+      upper="1.426"
       effort="63"
       velocity="4.71" />
     <dynamics
@@ -321,7 +321,7 @@
     <child
       link="link_5" />
     <axis
-      xyz="0 0 1" />
+      xyz="0 0 -1" />
     <limit
       lower="-1.74"
       upper="1.74"

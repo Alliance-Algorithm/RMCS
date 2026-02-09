@@ -1,5 +1,6 @@
 #include "controller/pid/pid_calculator.hpp"
 #include <Eigen/Dense>
+#include <Eigen/src/Core/Array.h>
 #include <Eigen/src/Core/Matrix.h>
 #include <algorithm>
 #include <array>
@@ -11,10 +12,10 @@
 #include <rclcpp/visibility_control.hpp>
 #include <rmcs_executor/component.hpp>
 #include <string>
-
+#include <tuple>
 namespace rmcs_core::controller::arm {
 
-class ArmSolver
+class ArmSolver final
     : public rmcs_executor::Component
     , public rclcpp::Node {
 public:
@@ -22,7 +23,6 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
-
         for (std::size_t i = 0; i < 6; ++i) {
             const std::string joint_prefix = "/arm/joint_" + std::to_string(i + 1);
             register_input(joint_prefix + "/theta", joint_theta(static_cast<int>(i)));
@@ -44,23 +44,32 @@ public:
         register_input("urdf_loaded", is_loaded);
 
         register_input("/arm/joint_4/position", joint4_position);
+
+        const auto list = this->get_parameter("controller_list").as_string_array();
+        load_controller_list(list);
     }
 
     void update() override {
         if (!*is_loaded)
             return;
-                const auto tau_f = calculate_friction_compensation();
+        Eigen::Array<double, 6, 1> tau_cmd;
+        tau_cmd.setZero();
 
-        const auto tau = calculate_gravity_compensation() ;
-
-        for (int i = 0; i < 6; ++i) {
-            *joint_control_torque(i) = tau(i) + tau_f(i);
-        }
-        // RCLCPP_INFO(this->get_logger(),"%f %f %f %f",tau[3],*joint_velocity[3],tau[3],tau[4]);
-        RCLCPP_INFO(this->get_logger(), "%f %f %f", tau_f(1), tau(1),*joint_velocity(1));
+        // for (auto fn : controller_list) {
+        //     tau_cmd += (this->*fn)();
+        // }
+        // for (int i = 0; i < 6; ++i) {
+        //     *joint_control_torque(i) = tau_cmd(i);
+        // }
     }
 
 private:
+    Eigen::Array<double, 6, 1> calculate_pid() {
+        Eigen::Array<double, 6, 1> tau_g;
+        tau_g.setZero();
+
+        return tau_g;
+    }
     Eigen::Array<double, 6, 1> calculate_friction_compensation() {
         // tau_f = b * dq + tau_c * tanh(dq / v0);
         //@YuuuuQingChi:I manually set the friction compensation of joint1, joint5, and joint6 to 0
@@ -81,7 +90,7 @@ private:
         speed_threshold.setConstant(0.6);
         speed_threshold(1) = 0.2;
 
-         speed_threshold(2) = 0.5;
+        speed_threshold(2) = 0.5;
 
         Eigen::Array<double, 6, 1> tau_c;
         tau_c << *joint_friction(0), *joint_friction(1), *joint_friction(2), *joint_friction(3),
@@ -92,7 +101,7 @@ private:
         tau_f(0) = 0.0;
         tau_f(4) = 0.0;
         tau_f(5) = 0.0;
-      
+
         return tau_f;
     };
 
@@ -146,8 +155,50 @@ private:
 
         return tau_g;
     };
+    Eigen::Array<double,6, 1> Nan_torque(){
+        Eigen::Array<double,6, 1> tau;
+        tau.setZero();
+        return tau;
+    }
+    using controller_type = Eigen::Array<double, 6, 1> (ArmSolver::*)();
 
-    static constexpr double reverse = -1.0;
+    static constexpr std::array<std::tuple<std::string_view, controller_type>, 4> term_table_{
+        {{"gravity", &ArmSolver::calculate_gravity_compensation},
+         {"pd", &ArmSolver::calculate_pid},
+         {"friction", &ArmSolver::calculate_friction_compensation},
+         {"Nan", &ArmSolver::Nan_torque}}
+    };
+
+    std::vector<controller_type> controller_list;
+
+    void load_controller_list(const std::vector<std::string>& list) {
+        controller_list.clear();
+        controller_list.reserve(list.size());
+        std::unordered_set<std::string_view> record;
+        record.reserve(list.size());
+
+        for (const auto& l : list) {
+            const std::string_view sv{l};
+
+            if (!record.insert(sv).second)
+                continue;
+
+            bool matched = false;
+            for (const auto& [name, fn] : term_table_) {
+                if (sv == name) {
+                    controller_list.push_back(fn);
+                    matched = true;
+                    break;
+                }
+            }
+
+            if (!matched) {
+                RCLCPP_ERROR(
+                    this->get_logger(),
+                    "Unknown enable_terms entry: '%s' (allowed: gravity, pd, friction)", l.c_str());
+            }
+        }
+    }
 
     Eigen::Array<OutputInterface<double>, 6, 1> joint_control_torque;
 

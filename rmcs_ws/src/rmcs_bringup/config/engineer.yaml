@@ -18,6 +18,10 @@ arm_hardware:
     joint2_zero_point: 29790 
     joint1_zero_point: 52343 
 
+arm_solver:
+  ros__parameters:
+    controller_list: [gravity, friction]
+
 value_:
   ros__parameters:
     forward_list:
