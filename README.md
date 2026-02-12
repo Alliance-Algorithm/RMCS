@@ -1,7 +1,7 @@
 # RMCS
 RoboMaster Control System based on ROS2.
 
-快速开始: [quick-start](https://github.com/Alliance-Algorithm/RMCS/wiki/Quick-Starthttps://github.com/Alliance-Algorithm/RMCS/wiki/Quick-Start)
+快速开始: [quick-start](https://github.com/Alliance-Algorithm/RMCS/wiki/Quick-Start)
 
 ## Development
 
