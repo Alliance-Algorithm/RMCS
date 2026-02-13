@@ -93,12 +93,13 @@ RUN mkdir -p /etc/apt/keyrings && \
     echo "deb [signed-by=/etc/apt/keyrings/llvm-snapshot.gpg] https://mirrors.tuna.tsinghua.edu.cn/llvm-apt/noble/ llvm-toolchain-noble-22 main" \
         | tee /etc/apt/sources.list.d/llvm.list && \
     apt-get update && \
-    apt-get install -y clang-22 clangd-22 clang-format-22 lldb-22 && \
+    apt-get install -y --no-install-recommends clang-22 clangd-22 clang-format-22 lldb-22 && \
     update-alternatives --install /usr/bin/clang clang /usr/bin/clang-22 100 && \
     update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-22 100 && \
     update-alternatives --install /usr/bin/clangd clangd /usr/bin/clangd-22 100 && \
     update-alternatives --install /usr/bin/clang-format clang-format /usr/bin/clang-format-22 100 && \
-    update-alternatives --install /usr/bin/lldb lldb /usr/bin/lldb-22 100
+    update-alternatives --install /usr/bin/lldb lldb /usr/bin/lldb-22 100 && \
+    apt-get autoremove -y && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/*
 
 # Generate/load ssh key and setup unison
 RUN --mount=type=bind,target=/tmp/.ssh,source=.ssh,readonly=false \
