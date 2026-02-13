@@ -89,28 +89,20 @@ public:
     }
 
     void update() override {
-        static std::size_t idx = 0;
+        static std::size_t idx  = 0;
+        auto moveit_result = planned_trajectory_.load(std::memory_order::acquire);
+        if (!moveit_result || moveit_result->positions.empty())
+            return;
+        std::vector<std::vector<double>> target_theta;
 
-        std::vector<std::vector<double>> positions_local;
-        bool ok = false;
+        target_theta.reserve(moveit_result->positions.size());
+        target_theta = moveit_result->positions;
 
-        {                                         
-            std::lock_guard<std::mutex> lk(planned_mtx_);
-            ok              = planned_ok_;
-            positions_local = planned_positions_;
+        if (idx != target_theta.size() - 1) {
+            ++idx;
         }
 
-        if (!ok || positions_local.empty()) {
-            return;                              
-        }
-
-        if (idx != positions_local.size() - 1) {
-            ++idx;                                
-        }
-
-        const auto& q = positions_local[idx];
-
-    
+        const auto& q = target_theta[idx];
 
         RCLCPP_INFO(
             node_->get_logger(), "pt[%zu] q=[%.6f, %.6f, %.6f, %.6f, %.6f, %.6f]", idx, q[0], q[1],
@@ -123,10 +115,10 @@ private:
 
     std::atomic_bool moveit_running_{false};
     std::thread moveit_thread_;
-    std::mutex planned_mtx_;
-    bool planned_ok_{false};
-    std::vector<std::vector<double>> planned_positions_;
-
+    struct PlannedTraj {
+        std::vector<std::vector<double>> positions;
+    };
+    std::atomic<std::shared_ptr<const PlannedTraj>> planned_trajectory_{nullptr};
     void moveit_loop() {
         std::this_thread::sleep_for(std::chrono::seconds(1));
 
@@ -147,17 +139,12 @@ private:
             return;
         }
         const auto& trajectory_points = my_plan.trajectory.joint_trajectory.points;
-        std::vector<std::vector<double>> positions;
-        positions.reserve(trajectory_points.size());
-        for (const auto& points : trajectory_points) {
-            positions.push_back(points.positions);
+        auto result                   = std::make_shared<PlannedTraj>();
+        result->positions.reserve(trajectory_points.size());
+        for (const auto& pt : trajectory_points) {
+            result->positions.push_back(pt.positions);
         }
-
-        {
-            std::lock_guard<std::mutex> lk(planned_mtx_);
-            planned_positions_ = std::move(positions);
-            planned_ok_        = true;
-        } 
+        planned_trajectory_.store(result, std::memory_order::release);
     }
 
     InputInterface<Eigen::Vector2d> joystick_right_;
