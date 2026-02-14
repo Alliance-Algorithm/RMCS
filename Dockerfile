@@ -18,6 +18,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     vim wget curl unzip \
     zsh screen tmux \
     usbutils net-tools iputils-ping \
+    gstreamer1.0-tools gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
     ripgrep htop fzf \
     libusb-1.0-0-dev \
     libeigen3-dev \
@@ -29,11 +30,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libceres-dev \
     ros-$ROS_DISTRO-rviz2 \
     ros-$ROS_DISTRO-foxglove-bridge \
+    ros-$ROS_DISTRO-pcl-conversions \
+    ros-$ROS_DISTRO-pcl-ros \
+    libpcl-ros-dev \
+    libpcl-dev \
+    libgomp-dev \
+    libomp-dev \
+    libomp-22-dev \
     dotnet-sdk-8.0 \
     ros-$ROS_DISTRO-pcl-ros ros-$ROS_DISTRO-pcl-conversions ros-$ROS_DISTRO-pcl-msgs && \
     apt-get autoremove -y && apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/*
-
 
 # Install openvino runtime
 RUN wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB && \
@@ -81,18 +88,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     openssh-client \
     lsb-release software-properties-common gnupg sudo \
     python3-colorama python3-dpkt && \
-    wget -O ./llvm-snapshot.gpg.key https://apt.llvm.org/llvm-snapshot.gpg.key && \
-    apt-key add ./llvm-snapshot.gpg.key && \
-    rm ./llvm-snapshot.gpg.key && \
-    echo "deb https://apt.llvm.org/noble/ llvm-toolchain-noble main" > /etc/apt/sources.list.d/llvm-apt.list && \
-    apt-get update && \
-    version=`apt-cache search clangd- | grep clangd- | awk -F' ' '{print $1}' | sort -V | tail -1 | cut -d- -f2` && \
-    apt-get install -y --no-install-recommends clangd-$version && \
     update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 50 && \
     update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-14 50 && \
-    update-alternatives --install /usr/bin/clangd clangd /usr/bin/clangd-$version 50 && \
     apt-get autoremove -y && apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/*
+
+# Install latest stable llvm-toolchain
+RUN mkdir -p /etc/apt/keyrings && \
+    wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | gpg -o /etc/apt/keyrings/llvm-snapshot.gpg --dearmor && \
+    echo "deb [signed-by=/etc/apt/keyrings/llvm-snapshot.gpg] https://mirrors.tuna.tsinghua.edu.cn/llvm-apt/noble/ llvm-toolchain-noble-22 main" \
+        | tee /etc/apt/sources.list.d/llvm.list && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends clang-22 clangd-22 clang-format-22 lldb-22 && \
+    update-alternatives --install /usr/bin/clang clang /usr/bin/clang-22 100 && \
+    update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-22 100 && \
+    update-alternatives --install /usr/bin/clangd clangd /usr/bin/clangd-22 100 && \
+    update-alternatives --install /usr/bin/clang-format clang-format /usr/bin/clang-format-22 100 && \
+    update-alternatives --install /usr/bin/lldb lldb /usr/bin/lldb-22 100 && \
+    apt-get autoremove -y && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/*
 
 # Generate/load ssh key and setup unison
 RUN --mount=type=bind,target=/tmp/.ssh,source=.ssh,readonly=false \
@@ -110,6 +123,11 @@ RUN curl -LO https://github.com/neovim/neovim/releases/latest/download/nvim-linu
     tar -C /opt -xzf nvim-linux-x86_64.tar.gz && \
     rm nvim-linux-x86_64.tar.gz
 
+# Install latest stable cmake for user ubuntu
+RUN wget https://github.com/kitware/cmake/releases/download/v4.2.3/cmake-4.2.3-linux-x86_64.sh -O install.sh && \
+    mkdir -p /opt/cmake/ && bash install.sh --skip-license --prefix=/opt/cmake/ --exclude-subdir && \
+    rm install.sh
+
 # Change user
 RUN chsh -s /bin/zsh ubuntu && \
     echo "ubuntu ALL=(ALL:ALL) NOPASSWD:ALL" >> /etc/sudoers
@@ -123,11 +141,13 @@ RUN sh -c "$(wget https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools
     sed -i 's/ZSH_THEME=\"[a-z0-9\-]*\"/ZSH_THEME="af-magic"/g' ~/.zshrc && \
     echo 'source ~/env_setup.zsh' >> ~/.zshrc && \
     echo 'export PATH="${PATH}:/opt/nvim-linux-x86_64/bin"' >> ~/.zshrc && \
+    # echo 'export PATH="${PATH}:/opt/cmake/bin"' >> ~/.zshrc && \
     echo 'export PATH="${PATH}:${RMCS_PATH}/.script"' >> ~/.zshrc
 
 # Copy environment setup scripts
 COPY --chown=1000:1000 .script/template/env_setup.bash env_setup.bash
 COPY --chown=1000:1000 .script/template/env_setup.zsh env_setup.zsh
+
 
 # Runtime container, will automatically launch the main program
 FROM rmcs-base AS rmcs-runtime
@@ -149,6 +169,10 @@ RUN sh -c "$(wget https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools
     echo 'source ~/env_setup.zsh' >> ~/.zshrc && \
     echo 'export PATH=${PATH}:/rmcs_install/lib/rmcs_cli' >> ~/.zshrc && \
     chsh -s /bin/zsh root
+
+# Remove git proxy config to avoid issues when interacting with docker
+RUN git config --global --unset http.proxy || true && \
+    git config --global --unset https.proxy || true
 
 RUN mkdir -p /rmcs_install/
 

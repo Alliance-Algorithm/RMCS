@@ -16,12 +16,12 @@ class Component {
 public:
     friend class Executor;
 
-    Component(const Component&)            = delete;
+    Component(const Component&) = delete;
     Component& operator=(const Component&) = delete;
-    Component(Component&&)                 = delete;
-    Component& operator=(Component&&)      = delete;
+    Component(Component&&) = delete;
+    Component& operator=(Component&&) = delete;
 
-    virtual ~Component(){};
+    virtual ~Component() = default;
 
     virtual void before_pairing(const std::map<std::string, const std::type_info&>& output_map) {
         (void)output_map;
@@ -37,10 +37,10 @@ public:
 
         InputInterface() = default;
 
-        InputInterface(const InputInterface&)            = delete;
+        InputInterface(const InputInterface&) = delete;
         InputInterface& operator=(const InputInterface&) = delete;
-        InputInterface(InputInterface&&)                 = delete;
-        InputInterface& operator=(InputInterface&&)      = delete;
+        InputInterface(InputInterface&&) = delete;
+        InputInterface& operator=(InputInterface&&) = delete;
 
         ~InputInterface() {
             if (delete_data_when_deconstruct) {
@@ -61,7 +61,7 @@ public:
                 throw std::runtime_error("The interface has already been bound to somewhere");
 
             data_pointer_ = new T(std::forward<Args>(args)...);
-            activated     = true;
+            activated = true;
 
             delete_data_when_deconstruct = true;
         }
@@ -71,7 +71,7 @@ public:
                 throw std::runtime_error("The interface has already been bound to somewhere");
 
             data_pointer_ = const_cast<T*>(&destination);
-            activated     = true;
+            activated = true;
         }
 
         const T* operator->() const { return data_pointer_; }
@@ -84,7 +84,7 @@ public:
         }
 
         T* data_pointer_ = nullptr;
-        bool activated   = false;
+        bool activated = false;
 
         bool delete_data_when_deconstruct = false;
     };
@@ -96,10 +96,10 @@ public:
 
         OutputInterface() = default;
 
-        OutputInterface(const OutputInterface&)            = delete;
+        OutputInterface(const OutputInterface&) = delete;
         OutputInterface& operator=(const OutputInterface&) = delete;
-        OutputInterface(OutputInterface&&)                 = delete;
-        OutputInterface& operator=(OutputInterface&&)      = delete;
+        OutputInterface(OutputInterface&&) = delete;
+        OutputInterface& operator=(OutputInterface&&) = delete;
 
         ~OutputInterface() {
             if (active())
@@ -136,6 +136,7 @@ public:
     }
 
     template <typename T, typename... Args>
+    requires std::constructible_from<T, Args...>
     void register_output(const std::string& name, OutputInterface<T>& interface, Args&&... args) {
         if (interface.active())
             throw std::runtime_error("The interface has been activated");
@@ -144,6 +145,7 @@ public:
     }
 
     template <typename T, typename... Args>
+    requires std::constructible_from<T, Args...>
     std::shared_ptr<T> create_partner_component(const std::string& name, Args&&... args) {
         initializing_component_name = name.c_str();
 
@@ -182,7 +184,7 @@ private:
 
     std::vector<std::shared_ptr<Component>> partner_component_list_;
 
-    size_t dependency_count_                  = 0;
+    std::size_t dependency_count_ = 0;
     std::unordered_set<Component*> wanted_by_ = {};
 };
 
