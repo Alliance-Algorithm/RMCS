@@ -8,8 +8,6 @@
 #include <utility>
 
 #include <eigen3/Eigen/Dense>
-#include <rclcpp/logger.hpp>
-#include <rclcpp/logging.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_utility/eigen_structured_bindings.hpp>
@@ -110,10 +108,6 @@ public:
         update_yaw_axis();
 
         PitchLink::DirectionVector control_direction = operation.update(*this);
-        // LOG_INFO(
-        //     "x: %f, y: %f, z: %f", control_direction->x(), control_direction->y(),
-        //     control_direction->z());
-
 
         if (!control_enabled_)
             return {nan_, nan_};
@@ -123,7 +117,6 @@ public:
         clamp_control_direction(control_direction_yaw_link);
         if (!control_enabled_)
             return {nan_, nan_};
-
 
         control_direction_ =
             fast_tf::cast<OdomImu>(yaw_link_to_pitch_link(control_direction_yaw_link, pitch), *tf_);
@@ -208,9 +201,6 @@ private:
         result.yaw_angle_error = std::atan2(y, x);
         double x_projected = std::sqrt(x * x + y * y);
         result.pitch_angle_error = -std::atan2(z * c - x_projected * s, z * s + x_projected * c);
-
-        // LOG_INFO("x: %f, y: %f, z: %f, yaw err: %f, pitch err: %f",x, y,
-        // z,result.yaw_angle_error,result.pitch_angle_error);
 
         return result;
     }
