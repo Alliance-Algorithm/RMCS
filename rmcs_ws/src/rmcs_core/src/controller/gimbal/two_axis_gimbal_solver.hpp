@@ -173,21 +173,17 @@ private:
         else if (z < lower_limit_.y())
             *control_direction << lower_limit_.x() * projection, lower_limit_.y();
 
-       const auto& [x_,y_,z_] = *control_direction;
+       const auto& [yaw_x, yaw_y, yaw_z] = *control_direction;
 
-        Eigen::Vector2d yaw_projection{x_,y_};
-        double yaw_norm = yaw_projection.norm();
-        if (yaw_norm > 0)
-            yaw_projection /=yaw_norm;
-        else{
-            control_enabled_ =false;
-            return;
-        }
+        Eigen::Vector2d xz_projection{yaw_x, yaw_z};
+        double xz_norm = xz_projection.norm();
+        if (xz_norm > 0)
+            xz_projection /= xz_norm;
 
-        if (y_ > yaw_upper_limit_.y())
-            *control_direction << yaw_upper_limit_.x() * yaw_projection.x(), yaw_upper_limit_.y(), z_;
-        else if (y_ < yaw_lower_limit_.y())
-            *control_direction << yaw_lower_limit_.x() * yaw_projection.x(), yaw_lower_limit_.y(), z_;
+        if (yaw_y > yaw_upper_limit_.y())
+            *control_direction << yaw_upper_limit_.x() * xz_projection.x(), yaw_upper_limit_.x(), yaw_upper_limit_.x() * xz_projection.y();
+        else if (yaw_y < yaw_lower_limit_.y())
+            *control_direction << yaw_lower_limit_.x() * xz_projection.x(), yaw_lower_limit_.x(), yaw_lower_limit_.x() * xz_projection.y();
          
     }
 
