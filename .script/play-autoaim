@@ -1,0 +1,85 @@
+#!/bin/bash
+
+set -euo pipefail
+
+MONITOR_USER=""
+MONITOR_PLAYER="vlc"
+MONITOR_HOST="localhost"
+
+SDP_PATH="/tmp/auto_aim.sdp"
+
+USE_REMOTE=false
+SKIP_COPY=false
+
+function usage() {
+    echo "Usage: $0 --user <username> [--remote] [--no-copy] [--ip <monitor_ip>]"
+}
+
+# Parse arguments
+while (($# > 0)); do
+    case "$1" in
+    --user)
+        if (($# < 2)); then
+            echo "Missing --user argument"
+            usage
+            exit 1
+        fi
+        MONITOR_USER="$2"
+        shift 2
+        ;;
+    --remote)
+        USE_REMOTE=true
+        shift
+        ;;
+    --no-copy)
+        SKIP_COPY=true
+        shift
+        ;;
+    --ip)
+        if (($# < 2)); then
+            echo "Missing --ip argument"
+            usage
+            exit 1
+        fi
+        MONITOR_HOST="$2"
+        shift 2
+        ;;
+    *)
+        echo "Unknown argument: $1"
+        usage
+        exit 1
+        ;;
+    esac
+done
+
+if [[ -z "${MONITOR_USER}" ]]; then
+    echo "Missing --user argument"
+    usage
+    exit 1
+fi
+
+if [[ "${USE_REMOTE}" == true ]]; then
+    if ! scp "remote:${SDP_PATH}" "${SDP_PATH}"; then
+        echo "Failed to copy from remote. Continue? (y/n)"
+        read -r answer
+        case "$answer" in
+        [Yy]*) echo "Continuing with next steps..." ;;
+        *)
+            echo "Cancelled."
+            exit 1
+            ;;
+        esac
+    fi
+fi
+
+if [[ "${SKIP_COPY}" == false ]]; then
+    if ! scp "${SDP_PATH}" "${MONITOR_USER}@${MONITOR_HOST}:${SDP_PATH}"; then
+        echo "scp copy failed"
+        exit 1
+    fi
+    echo "File copied to host: ${SDP_PATH}"
+else
+    echo "Skipping copy; opening remote SDP directly"
+fi
+
+ssh -f "${MONITOR_USER}@${MONITOR_HOST}" "DISPLAY=:0 ${MONITOR_PLAYER} '${SDP_PATH}' --network-caching=50"
