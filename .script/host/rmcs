@@ -1,0 +1,96 @@
+#!/bin/bash
+
+set -euo pipefail
+
+readonly DEVELOPER_NAME="ubuntu"
+readonly NVIM_PATH="/opt/nvim-linux-x86_64/bin/nvim"
+readonly NVIM_PORT=6666
+readonly NVIM_HOST="localhost"
+
+function show_help() {
+    local project_dir="$1"
+    local service="$2"
+    echo "Usage: $(basename "$0") [path] [zsh|n|nvim|neovide|vim|ide]"
+    echo "  Project dir: $project_dir"
+    echo "  Service: $service"
+}
+
+function rmcs_zsh() {
+    local service="$1"
+    echo "Starting and entering container..."
+    docker compose up -d
+    docker compose exec "$service" zsh
+}
+
+function rmcs_nvim() {
+    local service="$1"
+    local timeout=10
+    local success=0
+    local port=$NVIM_PORT
+
+    echo "Starting container..."
+    docker compose up -d
+
+    echo "Checking available port and starting nvim headless server..."
+    while nc -z "$NVIM_HOST" "$port" 2>/dev/null; do
+        echo "Port $port is occupied, trying next..."
+        port=$((port + 1))
+    done
+
+    echo "Starting nvim server on port $port..."
+    docker compose exec -u "$DEVELOPER_NAME" -d "$service" \
+        "$NVIM_PATH" --headless --listen "$NVIM_HOST:$port"
+
+    for i in $(seq 1 $timeout); do
+        if nc -z "$NVIM_HOST" "$port" 2>/dev/null; then
+            echo "nvim server started on port $port"
+            success=1
+            break
+        fi
+        echo "Waiting for nvim server to start... ($i/$timeout)"
+        sleep 1
+    done
+
+    if [ $success -eq 1 ]; then
+        echo "Starting neovide..."
+        nohup neovide --server="$NVIM_HOST:$port" >/dev/null 2>&1 &
+    else
+        echo "nvim server failed to start within $timeout seconds, neovide not launched"
+        exit 1
+    fi
+}
+
+function main() {
+    local project_dir command
+
+    if [ -d "${1:-}" ]; then
+        project_dir="$(cd "$1" && pwd)"
+        command="${2:-}"
+    else
+        project_dir="$(pwd)"
+        command="${1:-}"
+    fi
+
+    cd "$project_dir" || exit 1
+
+    if [ ! -f "docker-compose.yml" ]; then
+        echo "Error: docker-compose.yml not found in current directory"
+        exit 1
+    fi
+
+    local service="rmcs-develop"
+
+    case "$command" in
+    zsh)
+        rmcs_zsh "$service"
+        ;;
+    n | nvim | neovide | vim | ide)
+        rmcs_nvim "$service"
+        ;;
+    *)
+        show_help "$project_dir" "$service"
+        ;;
+    esac
+}
+
+main "$@"
