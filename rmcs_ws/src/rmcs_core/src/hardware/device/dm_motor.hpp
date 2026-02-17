@@ -21,7 +21,11 @@
 namespace rmcs_core::hardware::device {
 using rmcs_executor::Component;
 
-enum class DMMotorType : uint8_t { UNKNOWN = 0, DM8009 };
+enum class DMMotorType : uint8_t { 
+    UNKNOWN = 0,
+    DM8009=1,
+    DM6006=2,
+    DM4310=3 };
 
 struct DMMotorConfig {
     DMMotorType motor_type;
@@ -76,7 +80,14 @@ public:
             VMAX = 25.0;
             TMAX = 40.0;
             break;
-
+        case DMMotorType::DM6006:
+            VMAX = 25.0;
+            TMAX = 11.0;
+            break;
+        case DMMotorType::DM4310:
+            VMAX = 15.0;
+            TMAX = 11.0;
+            break;
         default: throw std::runtime_error{"Unknown motor type"};
         }
         reverse     = config.reversed;

@@ -119,6 +119,13 @@ private:
             engineer.register_output("/arm/Joint5/vision", vision_theta5, NAN);
             engineer.register_output("/arm/Joint6/vision", vision_theta6, NAN);
 
+            engineer.register_output("/arm/Joint1/control_torque", control_torque1, NAN);
+            engineer.register_output("/arm/Joint2/control_torque", control_torque2, NAN);
+            engineer.register_output("/arm/Joint3/control_torque", control_torque3, NAN);
+            engineer.register_output("/arm/Joint4/control_torque", control_torque4, NAN);
+            engineer.register_output("/arm/Joint5/control_torque", control_torque5, NAN);
+            engineer.register_output("/arm/Joint6/control_torque", control_torque6, NAN);
+
             engineer_command.register_input("/arm/enable_flag", is_arm_enable_, false);        //
             engineer_command.register_input("/arm/Joint1/zero_point", joint1_zero_point, NAN); //
             engineer.register_output("yaw_imu_velocity", yaw_imu_velocity, NAN);
@@ -184,39 +191,62 @@ private:
             dr16_.update();
             update_imu();
         }
-        void command() { arm_command_update(); 
-        
-    if (enable_can_probe_) {
-        send_can_probe();
-    }}
+        void command() { 
+        // loop_counter_++;
+        arm_command_update(); 
+        // send_can_probe();
+    }
 
     private:
-    void send_can_probe()
-{
-    static uint8_t zero_data[8] = {0};
+//     void send_can_probe()
+// {
+//         using namespace device;
 
-    // 发送 0 力矩探测帧
-    transmit_buffer_.add_can1_transmission(
-        probe_tx_id_,
-        std::bit_cast<uint64_t>(zero_data)
-    );
+//     // 生成一个“零力矩 / 零速度”的 LK 电机控制命令
+//     uint64_t cmd = joint[0].generate_torque_command();
+//     transmit_buffer_.add_can2_transmission(
+//         probe_tx_id_,
+//         cmd
+//     );
+//     transmit_buffer_.trigger_transmission();
 
-    transmit_buffer_.trigger_transmission();
+//     RCLCPP_INFO(this->get_logger(), "joint111  %x", probe_tx_id_);
+//         probe_tx_id_++;
+//     if (probe_tx_id_ > 1000) {
+//         probe_tx_id_ = 1;
+//     }
+// }
+//     void send_can_probe()
+// {
+//     uint64_t cmd = device::DMMotor::dm_enable_command();
+//     transmit_buffer_.add_can1_transmission(
+//         probe_tx_id_,
+//         cmd
+//     );
+//     transmit_buffer_.trigger_transmission();
 
-    RCLCPP_DEBUG(
-        this->get_logger(),
-        "CAN probe TX = 0x%X",
-        probe_tx_id_
-    );
+//     RCLCPP_INFO(this->get_logger(), "joint111  %x", probe_tx_id_);
+//         probe_tx_id_++;
+//     if (probe_tx_id_ > 1000) {
+//         probe_tx_id_ = 1;
+//     }
+// }
+// void send_can_probe()
+// {
+//     uint64_t cmd = device::DMMotor::dm_enable_command();
+    
+//     // 只发送一次
+//     transmit_buffer_.add_can2_transmission(
+//         probe_tx_id_,
+//         cmd
+//     );
+//     transmit_buffer_.trigger_transmission();
 
-    probe_tx_id_++;
-
-    // DM6006 / 6020 常用范围
-    if (probe_tx_id_ > 0x208) {
-        probe_tx_id_ = 0x201;
-    }
-}
-
+//     RCLCPP_INFO(this->get_logger(), "joint111  %x", probe_tx_id_);
+    
+//     // 不再递增probe_tx_id_，确保只发送一次
+//     probe_tx_id_ = 1;  // 只保留probe_tx_id_为1
+// }
         void arm_command_update() {
             auto is_arm_enable = *is_arm_enable_;
             uint64_t command_;
@@ -306,7 +336,7 @@ private:
             joint[0].update_joint();
             arm_pump.update();
             mine_pump.update();
-            // RCLCPP_INFO(this->get_logger(), "joint %f", joint[1].get_theta());
+            //RCLCPP_INFO(this->get_logger(), "joint %f", joint[1].get_theta());
         }
 
         void update_imu() {
@@ -336,6 +366,13 @@ private:
             if (can_id == 0x201) {
                 mine_pump.store_status(can_data);
             }
+            //RCLCPP_INFO(this->get_logger(), "joint2  %x", can_id);
+    //         RCLCPP_INFO(
+    //     this->get_logger(),
+    //     "[loop %lu] RX CAN2 id=0x%03X",
+    //     loop_counter_,
+    //     can_id
+    // );
         }
         void can1_receive_callback(
             uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
@@ -352,7 +389,14 @@ private:
                 joint3_encoder.store_status(can_data);
             if (can_id == 0x1fb)
                 joint2_encoder.store_status(can_data);
-            RCLCPP_INFO(this->get_logger(), "joint1  %x", can_id);
+    //         RCLCPP_INFO(this->get_logger(), "joint1  %x", can_id);
+
+    // RCLCPP_INFO(
+    //     this->get_logger(),
+    //     "[loop %lu] RX CAN1 id=0x%03X",
+    //     loop_counter_,
+    //     can_id
+    // );
         }
 
         void dbus_receive_callback(const std::byte* uart_data, uint8_t uart_data_length) override {
@@ -371,8 +415,8 @@ private:
 
     private:
     // ===== CAN ID 探测相关 =====
-uint16_t probe_tx_id_ = 0x201;   // DM 系列起始
-bool     enable_can_probe_ = true;
+        // uint16_t probe_tx_id_ = 1;   
+        // uint64_t loop_counter_ = 0;
         OutputInterface<double> joint6_error_angle;
         OutputInterface<double> joint5_error_angle;
         OutputInterface<double> joint4_error_angle;
@@ -386,6 +430,13 @@ bool     enable_can_probe_ = true;
         OutputInterface<double> vision_theta4;
         OutputInterface<double> vision_theta5;
         OutputInterface<double> vision_theta6;
+        OutputInterface<double> control_torque1;
+        OutputInterface<double> control_torque2;
+        OutputInterface<double> control_torque3;
+        OutputInterface<double> control_torque4;
+        OutputInterface<double> control_torque5;
+        OutputInterface<double> control_torque6;
+
         OutputInterface<std::array<int8_t, 39>> vision_data;
         InputInterface<bool> is_arm_enable_;
         InputInterface<double> joint1_zero_point;

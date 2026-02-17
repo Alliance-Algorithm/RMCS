@@ -28,6 +28,8 @@ enum class LKMotorType : uint8_t {
     MG4010E_i36V3 = 3,
     MG8010E_i36   = 4,
     MHF7015  = 5,
+    MS5015 = 6,
+    MS5005 = 7
 };
 
 struct LKMotorConfig {
@@ -53,6 +55,8 @@ struct LKMotorConfig {
         case LKMotorType::MG8010E_i36: iq = 66.0 / 4096; break;
         case LKMotorType::MHF7015:
         case LKMotorType::MF7015V210T: iq = 33.0 / 4096; break;
+        case LKMotorType::MS5015: iq = 33.0 / 4096; break;
+        case LKMotorType::MS5005: iq = 33.0 / 4096; break;
         }
     }
     LKMotorConfig& set_encoder_zero_point(int value) { return encoder_zero_point = value, *this; }
@@ -128,6 +132,20 @@ public:
             rated_current   = 1.93;
             rated_torque    = 0.99;
             max_torque      = 2.42;
+            LSB             = 18000;
+            break;
+        case LKMotorType::MS5015:
+            torque_constant = 0.46;
+            rated_current   = 0.69;
+            rated_torque    = 0.32;
+            max_torque      = 0.41;
+            LSB             = 18000;
+            break;
+        case LKMotorType::MS5005:
+            torque_constant = 0.2;
+            rated_current   = 0.8;
+            rated_torque    = 0.18;
+            max_torque      = 0.28;
             LSB             = 18000;
             break;
         default: throw std::runtime_error{"Unknown motor type"};
