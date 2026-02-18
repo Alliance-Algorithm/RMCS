@@ -49,6 +49,10 @@ public:
                   get_component_name(),
                   rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))) {
 
+        exec_.add_node(node_);
+        spin_running_.store(true, std::memory_order_release);
+        spin_thread_ = std::thread([this] { spin_loop(); });
+
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
         register_input("/remote/switch/right", switch_right_);
@@ -67,13 +71,14 @@ public:
         move_group_ =
             std::make_unique<moveit::planning_interface::MoveGroupInterface>(node_, PLANNING_GROUP);
         move_group_->startStateMonitor();
-
-        exec_.add_node(node_);
-        spin_running_.store(true, std::memory_order_release);
-        spin_thread_ = std::thread([this] { spin_loop(); });
-
         moveit_running_.store(true, std::memory_order_release);
-        moveit_thread_ = std::thread([this] { moveit_loop(); });
+        moveit_thread_ = std::thread([this] {
+            moveit_init();
+            while (moveit_running_.load(std::memory_order_acquire)) {
+                moveit_loop();
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
+        });
     }
 
     ~ArmController() override {
@@ -89,57 +94,129 @@ public:
     }
 
     void update() override {
-        static std::size_t idx  = 0;
-        auto moveit_result = planned_trajectory_.load(std::memory_order::acquire);
-        if (!moveit_result || moveit_result->positions.empty())
-            return;
-        std::vector<std::vector<double>> target_theta;
+        // TODO: update arm mode from your control logic.
+        // set_arm_mode(...);
+        static int i = 0;
+        // set_arm_mode(rmcs_msgs::ArmMode::None);
 
-        target_theta.reserve(moveit_result->positions.size());
-        target_theta = moveit_result->positions;
+        if (i < 2000) {
+            // i = 0;
+            set_arm_mode(rmcs_msgs::ArmMode::Auto_Extract);
+        } else if (i < 5000) {
+            set_arm_mode(rmcs_msgs::ArmMode::Auto_Gold_Right);
 
-        if (idx != target_theta.size() - 1) {
-            ++idx;
+        } else {
+            i = 8000;
+        }
+        i++;
+
+        static std::size_t trajectory_steps{0};
+        if (get_arm_mode() != last_requested_arm_mode_) {
+            last_requested_arm_mode_ = get_arm_mode();
+            trajectory_steps         = 0;
+            auto request             = std::make_shared<PlanRequest>();
+            request->request_id      = next_request_id_.fetch_add(1, std::memory_order_acq_rel) + 1;
+            request->arm_mode        = get_arm_mode();
+            plan_request.store(request, std::memory_order_release);
         }
 
-        const auto& q = target_theta[idx];
+        const auto moveit_result = planned_trajectory_.load(std::memory_order_acquire);
+        if (!moveit_result) {
+            return;
+        }
+        const auto latest_plan_request = plan_request.load(std::memory_order_acquire);
+        if (!latest_plan_request) {
+            return;
+        }
+        if (moveit_result->request_id == latest_plan_request->request_id) {
+            if (moveit_result->success && !moveit_result->positions.empty()) {
 
-        RCLCPP_INFO(
-            node_->get_logger(), "pt[%zu] q=[%.6f, %.6f, %.6f, %.6f, %.6f, %.6f]", idx, q[0], q[1],
-            q[2], q[3], q[4], q[5]);
+                if (trajectory_steps < moveit_result->positions.size()) {
+                    const auto& q = moveit_result->positions[trajectory_steps];
+                    RCLCPP_INFO(
+                        node_->get_logger(),
+                        "req[%llu] pt[%zu] q=[%.6f, %.6f, %.6f, %.6f, %.6f, %.6f]",
+                        static_cast<unsigned long long>(moveit_result->request_id),
+                        trajectory_steps, q[0], q[1], q[2], q[3], q[4], q[5]);
+                    trajectory_steps++;
+                }
+            }
+        }
     }
 
 private:
+    rmcs_msgs::ArmMode last_requested_arm_mode_{rmcs_msgs::ArmMode::None};
+
+    static constexpr const char* PLANNING_GROUP = "alliance_arm";
     std::unique_ptr<moveit::planning_interface::MoveGroupInterface> move_group_;
     moveit::planning_interface::PlanningSceneInterface planning_scene_interface;
 
     std::atomic_bool moveit_running_{false};
     std::thread moveit_thread_;
-    struct PlannedTraj {
+
+    struct PlanRequest {
+        uint64_t request_id{0};
+        rmcs_msgs::ArmMode arm_mode{rmcs_msgs::ArmMode::None};
+    };
+    struct PlannedTrajectory {
+        uint64_t request_id{0};
+        bool success{false};
         std::vector<std::vector<double>> positions;
     };
-    std::atomic<std::shared_ptr<const PlannedTraj>> planned_trajectory_{nullptr};
+    std::atomic<uint64_t> next_request_id_{0};
+    std::atomic<std::shared_ptr<const PlanRequest>> plan_request{nullptr};
+    uint64_t last_planned_request_id_{0};
+    std::atomic<std::shared_ptr<const PlannedTrajectory>> planned_trajectory_{nullptr};
+
+    void set_arm_mode(rmcs_msgs::ArmMode mode) {
+        const auto current = plan_request.load(std::memory_order_acquire);
+        auto next          = std::make_shared<PlanRequest>();
+        if (current) {
+            next->request_id = current->request_id;
+        }
+        next->arm_mode = mode;
+        plan_request.store(next, std::memory_order_release);
+    }
+
+    rmcs_msgs::ArmMode get_arm_mode() const {
+        const auto current = plan_request.load(std::memory_order_acquire);
+        if (!current) {
+            return rmcs_msgs::ArmMode::None;
+        }
+        return current->arm_mode;
+    }
+
+    void moveit_init() {};
     void moveit_loop() {
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+        const auto request = plan_request.load(std::memory_order_acquire);
+        if (!request || request->request_id == last_planned_request_id_) {
+            return;
+        }
+        last_planned_request_id_ = request->request_id;
 
-        // while (state_running_.load(std::memory_order_acquire)) {
+        const rmcs_msgs::ArmMode current_mode = request->arm_mode;
         moveit::planning_interface::MoveGroupInterface::Plan my_plan;
-        geometry_msgs::msg::Pose target_pose1;
-        target_pose1.position.x = 0.48;
-        target_pose1.position.y = 0.0;
-        target_pose1.position.z = 0.4;
-        move_group_->setMaxVelocityScalingFactor(0.01);
-        move_group_->setMaxAccelerationScalingFactor(0.01);
-
-        move_group_->setPoseTarget(target_pose1);
-        move_group_->setPlanningTime(2.0);
+        {
+            // TODO: use current_mode to choose planning target/constraints.
+            geometry_msgs::msg::Pose target_pose1;
+            target_pose1.position.x = 0.48;
+            target_pose1.position.y = 0.0;
+            target_pose1.position.z = 0.4;
+            move_group_->setMaxVelocityScalingFactor(0.01);
+            move_group_->setMaxAccelerationScalingFactor(0.01);
+            move_group_->setPoseTarget(target_pose1);
+            move_group_->setPlanningTime(2.0);
+        }
         const bool success = (move_group_->plan(my_plan) == moveit::core::MoveItErrorCode::SUCCESS);
+        auto result        = std::make_shared<PlannedTrajectory>();
+        result->request_id = request->request_id;
+        result->success    = success;
         if (!success) {
             RCLCPP_WARN(node_->get_logger(), "plan failed");
+            planned_trajectory_.store(result, std::memory_order::release);
             return;
         }
         const auto& trajectory_points = my_plan.trajectory.joint_trajectory.points;
-        auto result                   = std::make_shared<PlannedTraj>();
         result->positions.reserve(trajectory_points.size());
         for (const auto& pt : trajectory_points) {
             result->positions.push_back(pt.positions);
@@ -157,7 +234,6 @@ private:
     OutputInterface<bool> is_arm_enable;
     InputInterface<double> theta[6];
     OutputInterface<double> target_theta[6];
-    static constexpr const char* PLANNING_GROUP = "alliance_arm";
 
     rclcpp::Node::SharedPtr node_;
     rclcpp::executors::SingleThreadedExecutor exec_;

@@ -7,4 +7,4 @@ if [ -z "${RMCS_ROBOT_TYPE}" ]; then
     exit 1
 fi
 
-ros2 launch rmcs_bringup rmcs.launch.py robot:=${RMCS_ROBOT_TYPE}
+ros2 launch rmcs_bringup rmcs.launch.py robot:=${RMCS_ROBOT_TYPE} "$@"

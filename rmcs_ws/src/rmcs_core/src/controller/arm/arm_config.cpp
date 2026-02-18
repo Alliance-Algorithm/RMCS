@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstddef>
 #include <limits>
+#include <mutex>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rclcpp/publisher.hpp>
@@ -49,13 +50,14 @@ public:
     };
 
     void update() override {
+        std::lock_guard<std::mutex> lock(data_mutex_);
         for (std::size_t i = 0; i < num_axis; ++i) {
             const double angle = (i == 1) ? *joint_encode_angle : *joint_motor_angle[i];
             joint[i].update(angle, *joint_motor_velocity[i], *joint_motor_torque[i]);
         }
 
         sensor_msgs::msg::JointState msg;
-        msg.header.stamp    = this->now() - rclcpp::Duration(0, 1000000); // 1ms
+        msg.header.stamp    = this->now();
         msg.header.frame_id = "base_link";
         msg.name            = {"joint_1", "joint_2", "joint_3", "joint_4", "joint_5", "joint_6"};
         msg.position        = {
@@ -65,12 +67,14 @@ public:
             *joint_motor_angle[3],
             *joint_motor_angle[4],
             *joint_motor_angle[5]};
+        msg.position = {0.0, 0, 0, 0, 0, 0};
         joint_states_pub->publish(msg);
     }
 
 private:
     static constexpr std::size_t num_axis = 6;
     rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr joint_states_pub;
+
     void modify_link_length(const urdf::Model& model) {
         link[0].load_length(model.getJoint("joint_2")->parent_to_joint_origin_transform.position.z);
         link[1].load_length(model.getJoint("joint_3")->parent_to_joint_origin_transform.position.y);
@@ -166,6 +170,7 @@ private:
     };
 
     void load_urdf(const std_msgs::msg::String::ConstSharedPtr& msg) {
+        std::lock_guard<std::mutex> lock(data_mutex_);
         if (*is_load)
             return;
         const std::string& urdf_xml = msg->data;
@@ -224,6 +229,7 @@ private:
     std::array<Joint, num_axis> joint;
 
     OutputInterface<bool> is_load;
+    std::mutex data_mutex_;
 
     std::array<InputInterface<double>, num_axis> joint_motor_angle;
     std::array<InputInterface<double>, num_axis> joint_motor_velocity;

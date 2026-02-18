@@ -6,7 +6,7 @@ from launch import (
     LaunchDescription,
     LaunchDescriptionEntity,
 )
-from launch.actions import LogInfo
+from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
 
 from launch_ros.actions import Node
@@ -59,6 +59,9 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
         entities.append(
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(demo_launch_path),
+                launch_arguments={
+                    "use_rviz": LaunchConfiguration("use_rviz")
+                }.items(),
             )
         )
        
@@ -67,6 +70,11 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
 
 
 def generate_launch_description():
-    ld = LaunchDescription([MyLaunchDescriptionEntity()])
+    ld = LaunchDescription(
+        [
+            DeclareLaunchArgument("use_rviz", default_value="false"),
+            MyLaunchDescriptionEntity(),
+        ]
+    )
 
     return ld

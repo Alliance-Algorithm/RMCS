@@ -76,6 +76,11 @@ def generate_launch_description():
         default_value="moveit.rviz",
         description="RViz configuration file",
     )
+    use_rviz_arg = DeclareLaunchArgument(
+        "use_rviz",
+        default_value="false",
+        description="Start RViz if true",
+    )
     rviz_config = PathJoinSubstitution(
         [
             FindPackageShare("arm_moveit_config"),
@@ -89,6 +94,7 @@ def generate_launch_description():
         name="rviz2",
         output="log",
         arguments=["-d", rviz_config],
+        condition=IfCondition(LaunchConfiguration("use_rviz")),
         parameters=[
             moveit_group_node_config.robot_description,
             moveit_group_node_config.robot_description_semantic,
@@ -116,48 +122,15 @@ def generate_launch_description():
             robot_description,
         ],
     )
-    ros2_controllers_path = os.path.join(
-         get_package_share_directory("arm_moveit_config"),
-        "config",
-        "ros2_controllers.yaml",
-    )
-    ros2_control_node = Node(
-        package="controller_manager",
-        executable="ros2_control_node",
-        parameters=[
-            robot_description,
-            ros2_controllers_path,
-        ],
-        output="both",
-    )
-   
-    joint_state_broadcaster_spawner = Node(
-        package="controller_manager",
-        executable="spawner",
-        arguments=[
-            "joint_state_broadcaster",
-            "--controller-manager",
-            "/controller_manager",
-        ],
-    )
-    alliance_arm_controller_spawner = Node(
-        package="controller_manager",
-        executable="spawner",
-        arguments=[
-            "alliance_arm_controller",
-            "--controller-manager",
-            "/controller_manager",
-        ],
-    )
+
     return LaunchDescription(
         [
-            # rviz_config_arg,
-            # rviz_node,
+            rviz_config_arg,
+            use_rviz_arg,
+            rviz_node,
             static_tf,
             robot_state_publisher_node,
             move_group_node,
-            # ros2_control_node,
-            # joint_state_broadcaster_spawner,
-            # alliance_arm_controller_spawner,
+           
         ]
     )
