@@ -55,12 +55,12 @@ public:
         Eigen::Array<double, 6, 1> tau_cmd;
         tau_cmd.setZero();
 
-        // for (auto fn : controller_list) {
-        //     tau_cmd += (this->*fn)();
-        // }
-        // for (int i = 0; i < 6; ++i) {
-        //     *joint_control_torque(i) = tau_cmd(i);
-        // }
+        for (auto fn : controller_list) {
+            tau_cmd += (this->*fn)();
+        }
+        for (int i = 0; i < 6; ++i) {
+            *joint_control_torque(i) = tau_cmd(i);
+        }
     }
 
 private:
@@ -118,10 +118,10 @@ private:
         const double mass_2 = (*link_mass(3) + *link_mass(2));
         const double mass_3 = (*link_mass(4) + *link_mass(5));
 
-        const double l_1m = link_com(1)->y();
-        const double l_2m = ((link_com(2)->y() * (*link_mass(2)))
-                             + ((joint4_position->y() + link_com(3)->z()) * (*link_mass(3))))
-                          / ((*link_mass(2) + *link_mass(3)));
+        const double l_1m     = link_com(1)->y();
+        const double l_2m     = ((link_com(2)->y() * (*link_mass(2)))
+                                 + ((joint4_position->y() + link_com(3)->z()) * (*link_mass(3))))
+                              / ((*link_mass(2) + *link_mass(3)));
         constexpr double l_3m = 0.08;
 
         const double l1 = *link_length(1);
@@ -155,8 +155,8 @@ private:
 
         return tau_g;
     };
-    Eigen::Array<double,6, 1> Nan_torque(){
-        Eigen::Array<double,6, 1> tau;
+    Eigen::Array<double, 6, 1> Nan_torque() {
+        Eigen::Array<double, 6, 1> tau;
         tau.setZero();
         return tau;
     }

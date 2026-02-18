@@ -96,52 +96,7 @@ public:
     void update() override {
         // TODO: update arm mode from your control logic.
         // set_arm_mode(...);
-        static int i = 0;
-        // set_arm_mode(rmcs_msgs::ArmMode::None);
-
-        if (i < 2000) {
-            // i = 0;
-            set_arm_mode(rmcs_msgs::ArmMode::Auto_Extract);
-        } else if (i < 5000) {
-            set_arm_mode(rmcs_msgs::ArmMode::Auto_Gold_Right);
-
-        } else {
-            i = 8000;
-        }
-        i++;
-
-        static std::size_t trajectory_steps{0};
-        if (get_arm_mode() != last_requested_arm_mode_) {
-            last_requested_arm_mode_ = get_arm_mode();
-            trajectory_steps         = 0;
-            auto request             = std::make_shared<PlanRequest>();
-            request->request_id      = next_request_id_.fetch_add(1, std::memory_order_acq_rel) + 1;
-            request->arm_mode        = get_arm_mode();
-            plan_request.store(request, std::memory_order_release);
-        }
-
-        const auto moveit_result = planned_trajectory_.load(std::memory_order_acquire);
-        if (!moveit_result) {
-            return;
-        }
-        const auto latest_plan_request = plan_request.load(std::memory_order_acquire);
-        if (!latest_plan_request) {
-            return;
-        }
-        if (moveit_result->request_id == latest_plan_request->request_id) {
-            if (moveit_result->success && !moveit_result->positions.empty()) {
-
-                if (trajectory_steps < moveit_result->positions.size()) {
-                    const auto& q = moveit_result->positions[trajectory_steps];
-                    RCLCPP_INFO(
-                        node_->get_logger(),
-                        "req[%llu] pt[%zu] q=[%.6f, %.6f, %.6f, %.6f, %.6f, %.6f]",
-                        static_cast<unsigned long long>(moveit_result->request_id),
-                        trajectory_steps, q[0], q[1], q[2], q[3], q[4], q[5]);
-                    trajectory_steps++;
-                }
-            }
-        }
+        update_plan_request_and_trajectory_step();
     }
 
 private:
@@ -222,6 +177,40 @@ private:
             result->positions.push_back(pt.positions);
         }
         planned_trajectory_.store(result, std::memory_order::release);
+    }
+    void update_plan_request_and_trajectory_step() {
+        static std::size_t trajectory_steps{0};
+        if (get_arm_mode() != last_requested_arm_mode_) {
+            last_requested_arm_mode_ = get_arm_mode();
+            trajectory_steps         = 0;
+            auto request             = std::make_shared<PlanRequest>();
+            request->request_id      = next_request_id_.fetch_add(1, std::memory_order_acq_rel) + 1;
+            request->arm_mode        = get_arm_mode();
+            plan_request.store(request, std::memory_order_release);
+        }
+
+        const auto moveit_result = planned_trajectory_.load(std::memory_order_acquire);
+        if (!moveit_result) {
+            return;
+        }
+        const auto latest_plan_request = plan_request.load(std::memory_order_acquire);
+        if (!latest_plan_request) {
+            return;
+        }
+        if (moveit_result->request_id == latest_plan_request->request_id) {
+            if (moveit_result->success && !moveit_result->positions.empty()) {
+
+                if (trajectory_steps < moveit_result->positions.size()) {
+                    const auto& q = moveit_result->positions[trajectory_steps];
+                    RCLCPP_INFO(
+                        node_->get_logger(),
+                        "req[%llu] pt[%zu] q=[%.6f, %.6f, %.6f, %.6f, %.6f, %.6f]",
+                        static_cast<unsigned long long>(moveit_result->request_id),
+                        trajectory_steps, q[0], q[1], q[2], q[3], q[4], q[5]);
+                    trajectory_steps++;
+                }
+            }
+        }
     }
 
     InputInterface<Eigen::Vector2d> joystick_right_;
