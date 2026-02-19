@@ -71,7 +71,7 @@ public:
         } else {
             if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
                 || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
-
+            reset_motor();
             } else {
                 mode_selection();
 
