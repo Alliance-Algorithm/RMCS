@@ -27,7 +27,6 @@ public:
         : Node{
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
-        , logger_(get_logger())
         , arm_command_(create_partner_component<armCommand>("arm_command", *this))
         , armboard_(
               *this, *arm_command_, static_cast<int>(get_parameter("arm_board_usb_pid").as_int())) {
@@ -37,14 +36,6 @@ public:
     void command() { armboard_.command(); }
 
 private:
-    static double normalizeAngle(double angle) {
-        while (angle > M_PI)
-            angle -= 2 * M_PI;
-        while (angle < -M_PI)
-            angle += 2 * M_PI;
-        return angle;
-    }
-    rclcpp::Logger logger_;
     class armCommand : public rmcs_executor::Component {
     public:
         explicit armCommand(Arm& arm)
@@ -78,8 +69,6 @@ private:
 
         {
 
-            arm_command.register_input("/arm/enable_flag", is_arm_enable_, false); //
-
             using namespace device;
             joint[5].configure(
                 LKMotorConfig{LKMotorType::MG4005E_i10V3}.reverse().set_encoder_zero_point(
@@ -93,7 +82,8 @@ private:
             joint[2].configure(
                 LKMotorConfig{LKMotorType::MG6012_i36}.set_encoder_zero_point(
                     static_cast<int16_t>(arm.get_parameter("joint3_zero_point").as_int())));
-            joint[1].configure(LKMotorConfig{LKMotorType::MF7015V210T}.reverse().set_gear_ratio(42.0));
+            joint[1].configure(
+                LKMotorConfig{LKMotorType::MF7015V210T}.reverse().set_gear_ratio(42.0));
             joint[0].configure(
                 device::LKMotorConfig{device::LKMotorType::MG5010E_i36V3}.set_encoder_zero_point(
                     static_cast<int16_t>(arm.get_parameter("joint1_zero_point").as_int())));
@@ -102,9 +92,19 @@ private:
                     static_cast<int>(arm.get_parameter("joint2_zero_point").as_int())));
         }
         ~ArmBoard() final {
-            uint64_t command_ = 0;
+            uint64_t command_{0};
             transmit_buffer_.add_can2_transmission(
                 0x145, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+                 transmit_buffer_.add_can2_transmission(
+                0x144, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+                 transmit_buffer_.add_can2_transmission(
+                0x141, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+                 transmit_buffer_.add_can1_transmission(
+                0x142, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+                  transmit_buffer_.add_can1_transmission(
+                0x143, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+                  transmit_buffer_.add_can1_transmission(
+                0x146, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
             transmit_buffer_.trigger_transmission();
             stop_handling_events();
             event_thread_.join();
@@ -112,83 +112,53 @@ private:
 
         void update() {
             using namespace device;
-            update_arm_motors();
-            dr16_.update();
-        }
-        void command() { arm_command_update(); }
-
-    private:
-        void arm_command_update() {
-            auto is_arm_enable = *is_arm_enable_;
-            uint64_t command_;
-            static bool even_phase = true;
-
-            if (even_phase) {
-
-                // *joint3_error_angle =
-                //     is_arm_enable
-                //         ? normalizeAngle(joint[2].get_target_theta() - joint[2].get_theta())
-                //         : NAN;
-                command_ = joint[2].generate_torque_command();
-                transmit_buffer_.add_can1_transmission(
-                    0x143, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
-
-                // *joint6_error_angle =
-                //     is_arm_enable
-                //         ? normalizeAngle(joint[5].get_target_theta() - joint[5].get_theta())
-                //         : NAN;
-                command_ = joint[5].generate_torque_command();
-                transmit_buffer_.add_can2_transmission(
-                    0x141, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
-
-            } else {
-                // *joint1_error_angle =
-                //     is_arm_enable ? (joint[0].get_target_theta() - joint[0].get_theta()) : NAN;
-                command_ = joint[0].generate_torque_command();
-                transmit_buffer_.add_can1_transmission(
-                    0x146, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
-
-                // *joint2_error_angle =
-                //     is_arm_enable
-                //         ? -normalizeAngle(joint[1].get_target_theta() - joint[1].get_theta())
-                //         : NAN;
-                command_ = joint[1].generate_torque_command();
-                transmit_buffer_.add_can1_transmission(
-                    0x142, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
-
-                // *joint5_error_angle =
-                //     is_arm_enable
-                //         ? normalizeAngle(joint[4].get_target_theta() - joint[4].get_theta())
-                //         : NAN;
-                command_ = joint[4].generate_torque_command();
-
-                transmit_buffer_.add_can2_transmission(
-                    0x145, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
-
-                // *joint4_error_angle =
-                //     is_arm_enable
-                //         ? normalizeAngle(joint[3].get_target_theta() - joint[3].get_theta())
-                //         : NAN;
-                command_ = joint[3].generate_torque_command();
-                transmit_buffer_.add_can2_transmission(
-                    0x144, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
-            }
-            transmit_buffer_.trigger_transmission();
-            last_is_arm_enable_ = is_arm_enable;
-
-            even_phase = !even_phase;
-        }
-
-        void update_arm_motors() {
             joint2_encoder.update();
-
             joint[5].update();
             joint[4].update();
             joint[3].update();
             joint[2].update();
             joint[1].update();
             joint[0].update();
-            // RCLCPP_INFO(this->get_logger(),"%d",joint[3].get_raw_angle());
+            dr16_.update();
+        }
+        void command() { arm_command_update(); }
+
+    private:
+        void arm_command_update() {
+            uint64_t command_;
+            static bool even_phase = true;
+
+            if (even_phase) {
+
+                command_ = joint[2].generate_torque_command();
+                transmit_buffer_.add_can1_transmission(
+                    0x143, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+
+                command_ = joint[5].generate_torque_command();
+                transmit_buffer_.add_can2_transmission(
+                    0x141, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+
+            } else {
+
+                command_ = joint[0].generate_torque_command();
+                transmit_buffer_.add_can1_transmission(
+                    0x146, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+
+                command_ = joint[1].generate_torque_command();
+                transmit_buffer_.add_can1_transmission(
+                    0x142, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+
+                command_ = joint[4].generate_torque_command();
+                transmit_buffer_.add_can2_transmission(
+                    0x145, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+
+                command_ = joint[3].generate_torque_command();
+                transmit_buffer_.add_can2_transmission(
+                    0x144, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+            }
+            transmit_buffer_.trigger_transmission();
+
+            even_phase = !even_phase;
         }
 
     protected:
@@ -225,22 +195,11 @@ private:
         }
 
     private:
-        OutputInterface<double> joint6_error_angle;
-        OutputInterface<double> joint5_error_angle;
-        OutputInterface<double> joint4_error_angle;
-        OutputInterface<double> joint3_error_angle;
-        OutputInterface<double> joint2_error_angle;
-        OutputInterface<double> joint1_error_angle;
-
-        InputInterface<bool> is_arm_enable_;
-
         device::LKMotor joint[6];
         device::Encoder joint2_encoder;
         device::Dr16 dr16_;
         librmcs::client::CBoard::TransmitBuffer transmit_buffer_;
         std::thread event_thread_;
-
-        bool last_is_arm_enable_ = true;
 
     } armboard_;
 };

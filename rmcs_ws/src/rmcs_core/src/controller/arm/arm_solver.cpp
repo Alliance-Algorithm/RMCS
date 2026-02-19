@@ -22,10 +22,28 @@ public:
     explicit ArmSolver()
         : Node(
               get_component_name(),
-              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
+        , joint_angle_pid_controller{
+              pid::PidCalculator(0.0, 0.0, 0.0), // joint_1
+              pid::PidCalculator(0.0, 0.0, 0.0), // joint_2
+              pid::PidCalculator(0.0, 0.0, 0.0), // joint_3
+              pid::PidCalculator(0.0, 0.0, 0.0), // joint_4
+              pid::PidCalculator(0.0, 0.0, 0.0), // joint_5
+              pid::PidCalculator(0.0, 0.0, 0.0), // joint_6
+          }
+        , joint_vel_pid_controller{
+              pid::PidCalculator(0.0, 0.0, 0.0), // joint_1
+              pid::PidCalculator(0.0, 0.0, 0.0), // joint_2
+              pid::PidCalculator(0.0, 0.0, 0.0), // joint_3
+              pid::PidCalculator(0.0, 0.0, 0.0), // joint_4
+              pid::PidCalculator(0.0, 0.0, 0.0), // joint_5
+              pid::PidCalculator(0.0, 0.0, 0.0), // joint_6
+          } {
+
         for (std::size_t i = 0; i < 6; ++i) {
             const std::string joint_prefix = "/arm/joint_" + std::to_string(i + 1);
             register_input(joint_prefix + "/theta", joint_theta(static_cast<int>(i)));
+            register_input(joint_prefix + "/target_theta", joint_target_theta(static_cast<int>(i)));
             register_input(joint_prefix + "/velocity", joint_velocity(static_cast<int>(i)));
             register_input(joint_prefix + "/friction", joint_friction(static_cast<int>(i)));
 
@@ -42,8 +60,8 @@ public:
         }
 
         register_input("urdf_loaded", is_loaded);
-
         register_input("/arm/joint_4/position", joint4_position);
+        register_input("/arm/enable_flag", is_arm_enable);
 
         const auto list = this->get_parameter("controller_list").as_string_array();
         load_controller_list(list);
@@ -54,21 +72,52 @@ public:
             return;
         Eigen::Array<double, 6, 1> tau_cmd;
         tau_cmd.setZero();
-
-        for (auto fn : controller_list) {
-            tau_cmd += (this->*fn)();
+        if (*is_arm_enable) {
+            for (auto fn : controller_list) {
+                tau_cmd += (this->*fn)();
+            }
+        } else {
+            tau_cmd = calculate_zero_torque();
         }
         for (int i = 0; i < 6; ++i) {
             *joint_control_torque(i) = tau_cmd(i);
         }
+        RCLCPP_INFO_THROTTLE(
+            this->get_logger(), *this->get_clock(), 200,
+            "tau_cmd=[%.6f, %.6f, %.6f, %.6f, %.6f, %.6f]", tau_cmd(0), tau_cmd(1), tau_cmd(2),
+            tau_cmd(3), tau_cmd(4), tau_cmd(5));
     }
 
 private:
     Eigen::Array<double, 6, 1> calculate_pid() {
-        Eigen::Array<double, 6, 1> tau_g;
-        tau_g.setZero();
+        const auto normalize_angle = [](double angle) {
+            while (angle > std::numbers::pi) {
+                angle -= 2.0 * std::numbers::pi;
+            }
+            while (angle < -std::numbers::pi) {
+                angle += 2.0 * std::numbers::pi;
+            }
+            return angle;
+        };
 
-        return tau_g;
+        Eigen::Array<double, 6, 1> tau_pid;
+        tau_pid.setZero();
+
+        for (std::size_t i = 0; i < 6; ++i) {
+            const int idx = static_cast<int>(i);
+
+            const double current_theta = *joint_theta(idx);
+            const double target_theta  = *joint_target_theta(idx);
+            const double current_vel   = *joint_velocity(idx);
+
+            const double angle_error = normalize_angle(target_theta - current_theta);
+            const double target_vel  = joint_angle_pid_controller(idx).update(angle_error);
+            const double vel_error   = target_vel - current_vel;
+
+            tau_pid(idx) = joint_vel_pid_controller(idx).update(vel_error);
+        }
+
+        return tau_pid;
     }
     Eigen::Array<double, 6, 1> calculate_friction_compensation() {
         // tau_f = b * dq + tau_c * tanh(dq / v0);
@@ -155,18 +204,18 @@ private:
 
         return tau_g;
     };
-    Eigen::Array<double, 6, 1> Nan_torque() {
+    Eigen::Array<double, 6, 1> calculate_zero_torque() {
         Eigen::Array<double, 6, 1> tau;
-        tau.setZero();
+        tau.fill(NAN);
         return tau;
     }
     using controller_type = Eigen::Array<double, 6, 1> (ArmSolver::*)();
 
     static constexpr std::array<std::tuple<std::string_view, controller_type>, 4> term_table_{
         {{"gravity", &ArmSolver::calculate_gravity_compensation},
-         {"pd", &ArmSolver::calculate_pid},
+         {"pid", &ArmSolver::calculate_pid},
          {"friction", &ArmSolver::calculate_friction_compensation},
-         {"Nan", &ArmSolver::Nan_torque}}
+         {"zero_torque", &ArmSolver::calculate_zero_torque}}
     };
 
     std::vector<controller_type> controller_list;
@@ -199,9 +248,12 @@ private:
             }
         }
     }
+    Eigen::Array<pid::PidCalculator, 6, 1> joint_angle_pid_controller;
+    Eigen::Array<pid::PidCalculator, 6, 1> joint_vel_pid_controller;
 
     Eigen::Array<OutputInterface<double>, 6, 1> joint_control_torque;
 
+    Eigen::Array<InputInterface<double>, 6, 1> joint_target_theta;
     Eigen::Array<InputInterface<double>, 6, 1> joint_friction;
     Eigen::Array<InputInterface<double>, 6, 1> joint_velocity;
     Eigen::Array<InputInterface<double>, 6, 1> joint_theta;
@@ -210,6 +262,7 @@ private:
     Eigen::Array<InputInterface<Eigen::Vector3d>, 6, 1> link_com;
 
     InputInterface<Eigen::Vector3d> joint4_position;
+    InputInterface<bool> is_arm_enable;
 
     InputInterface<bool> is_loaded;
 };

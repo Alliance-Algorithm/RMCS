@@ -60,6 +60,8 @@ public:
         register_input("/remote/mouse/velocity", mouse_velocity_);
         register_input("/remote/mouse", mouse_);
         register_input("/remote/keyboard", keyboard_);
+        register_input("/remote/rotary_knob_switch", rotary_knob_switch);
+
         register_output("/arm/enable_flag", is_arm_enable, false);
 
         for (std::size_t i = 0; i < 6; ++i) {
@@ -69,7 +71,7 @@ public:
         }
 
         move_group_ =
-            std::make_unique<moveit::planning_interface::MoveGroupInterface>(node_, PLANNING_GROUP);
+            std::make_unique<moveit::planning_interface::MoveGroupInterface>(node_, "alliance_arm");
         move_group_->startStateMonitor();
         moveit_running_.store(true, std::memory_order_release);
         moveit_thread_ = std::thread([this] {
@@ -94,15 +96,43 @@ public:
     }
 
     void update() override {
-        // TODO: update arm mode from your control logic.
-        // set_arm_mode(...);
+        auto switch_right = *switch_right_;
+        auto switch_left  = *switch_left_;
+        auto keyboard     = *keyboard_;
+        using namespace rmcs_msgs;
+        static bool initial_check_done{false};
+        if (!initial_check_done) {
+            *is_arm_enable = false;
+            for (std::size_t i = 0; i < std::size(theta); ++i) {
+                *target_theta[i] = *theta[i];
+            }
+            if (switch_left == Switch::DOWN && switch_right == Switch::DOWN) {
+                initial_check_done = true;
+            }
+        } else {
+            if (switch_left == Switch::DOWN && switch_right == Switch::DOWN) {
+                *is_arm_enable = false;
+                for (std::size_t i = 0; i < std::size(theta); ++i) {
+                    *target_theta[i] = *theta[i];
+                }
+                set_arm_mode(rmcs_msgs::ArmMode::None);
+            } else {
+                *is_arm_enable = true;
+                if (switch_left == Switch::UP && switch_right == Switch::UP) {
+                    set_arm_mode(rmcs_msgs::ArmMode::DT7_Control_Position);
+                } else if (switch_left == Switch::UP && switch_right == Switch::MIDDLE) {
+                    set_arm_mode(rmcs_msgs::ArmMode::DT7_Control_Orientation);
+                } else if (switch_left == Switch::MIDDLE && switch_right == Switch::UP) {
+                }
+            }
+        }
+
         update_plan_request_and_trajectory_step();
     }
 
 private:
     rmcs_msgs::ArmMode last_requested_arm_mode_{rmcs_msgs::ArmMode::None};
 
-    static constexpr const char* PLANNING_GROUP = "alliance_arm";
     std::unique_ptr<moveit::planning_interface::MoveGroupInterface> move_group_;
     moveit::planning_interface::PlanningSceneInterface planning_scene_interface;
 
@@ -115,12 +145,10 @@ private:
     };
     struct PlannedTrajectory {
         uint64_t request_id{0};
-        bool success{false};
+        bool plan_success{false};
         std::vector<std::vector<double>> positions;
     };
-    std::atomic<uint64_t> next_request_id_{0};
     std::atomic<std::shared_ptr<const PlanRequest>> plan_request{nullptr};
-    uint64_t last_planned_request_id_{0};
     std::atomic<std::shared_ptr<const PlannedTrajectory>> planned_trajectory_{nullptr};
 
     void set_arm_mode(rmcs_msgs::ArmMode mode) {
@@ -144,12 +172,13 @@ private:
     void moveit_init() {};
     void moveit_loop() {
         const auto request = plan_request.load(std::memory_order_acquire);
+        static uint64_t last_planned_request_id_{0};
+
         if (!request || request->request_id == last_planned_request_id_) {
             return;
         }
         last_planned_request_id_ = request->request_id;
 
-        const rmcs_msgs::ArmMode current_mode = request->arm_mode;
         moveit::planning_interface::MoveGroupInterface::Plan my_plan;
         {
             // TODO: use current_mode to choose planning target/constraints.
@@ -163,9 +192,10 @@ private:
             move_group_->setPlanningTime(2.0);
         }
         const bool success = (move_group_->plan(my_plan) == moveit::core::MoveItErrorCode::SUCCESS);
-        auto result        = std::make_shared<PlannedTrajectory>();
-        result->request_id = request->request_id;
-        result->success    = success;
+
+        auto result          = std::make_shared<PlannedTrajectory>();
+        result->request_id   = request->request_id;
+        result->plan_success = success;
         if (!success) {
             RCLCPP_WARN(node_->get_logger(), "plan failed");
             planned_trajectory_.store(result, std::memory_order::release);
@@ -176,16 +206,20 @@ private:
         for (const auto& pt : trajectory_points) {
             result->positions.push_back(pt.positions);
         }
+
         planned_trajectory_.store(result, std::memory_order::release);
     }
     void update_plan_request_and_trajectory_step() {
         static std::size_t trajectory_steps{0};
-        if (get_arm_mode() != last_requested_arm_mode_) {
-            last_requested_arm_mode_ = get_arm_mode();
-            trajectory_steps         = 0;
-            auto request             = std::make_shared<PlanRequest>();
-            request->request_id      = next_request_id_.fetch_add(1, std::memory_order_acq_rel) + 1;
-            request->arm_mode        = get_arm_mode();
+        const auto current_arm_mode = get_arm_mode();
+
+        if (current_arm_mode != last_requested_arm_mode_) {
+            last_requested_arm_mode_   = current_arm_mode;
+            trajectory_steps           = 0;
+            const auto current_request = plan_request.load(std::memory_order_acquire);
+            auto request               = std::make_shared<PlanRequest>();
+            request->request_id        = current_request ? (current_request->request_id + 1) : 1;
+            request->arm_mode          = current_arm_mode;
             plan_request.store(request, std::memory_order_release);
         }
 
@@ -197,8 +231,9 @@ private:
         if (!latest_plan_request) {
             return;
         }
+
         if (moveit_result->request_id == latest_plan_request->request_id) {
-            if (moveit_result->success && !moveit_result->positions.empty()) {
+            if (moveit_result->plan_success && !moveit_result->positions.empty()) {
 
                 if (trajectory_steps < moveit_result->positions.size()) {
                     const auto& q = moveit_result->positions[trajectory_steps];
@@ -217,6 +252,7 @@ private:
     InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;
     InputInterface<rmcs_msgs::Switch> switch_left_;
+    InputInterface<rmcs_msgs::Switch> rotary_knob_switch;
     InputInterface<Eigen::Vector2d> mouse_velocity_;
     InputInterface<rmcs_msgs::Mouse> mouse_;
     InputInterface<rmcs_msgs::Keyboard> keyboard_;

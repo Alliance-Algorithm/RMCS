@@ -20,7 +20,7 @@ arm_hardware:
 
 arm_solver:
   ros__parameters:
-    controller_list: [gravity, friction]
+    controller_list: [pid,gravity,friction]
 
 value_:
   ros__parameters:
