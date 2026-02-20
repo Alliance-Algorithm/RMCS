@@ -93,7 +93,7 @@ RUN mkdir -p /etc/apt/keyrings && \
     echo "deb [signed-by=/etc/apt/keyrings/llvm-snapshot.gpg] https://mirrors.tuna.tsinghua.edu.cn/llvm-apt/noble/ llvm-toolchain-noble-22 main" \
         | tee /etc/apt/sources.list.d/llvm.list && \
     apt-get update && \
-    apt-get install -y --no-install-recommends clang-22 clangd-22 clang-format-22 lldb-22 && \
+    apt-get install -y --no-install-recommends clang-22 clangd-22 clang-format-22 lldb-22 libomp-22-dev && \
     update-alternatives --install /usr/bin/clang clang /usr/bin/clang-22 100 && \
     update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-22 100 && \
     update-alternatives --install /usr/bin/clangd clangd /usr/bin/clangd-22 100 && \
