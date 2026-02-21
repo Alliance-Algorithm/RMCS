@@ -148,7 +148,7 @@
       effort="63"
       velocity="4.71" />
     <dynamics
-      friction="2.0" />
+      friction="0.8" />
   </joint>
   <link
     name="link_3">

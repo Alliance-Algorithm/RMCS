@@ -6,7 +6,6 @@ rmcs_executor:
       - rmcs_core::controller::arm::ArmConfig -> arm_config
       - rmcs_core::controller::arm::ArmSolver -> arm_solver
       - rmcs_core::controller::arm::ArmController -> arm_controller
-      - rmcs_core::broadcaster::ValueBroadcaster -> value_
 
 arm_hardware:
   ros__parameters:
@@ -20,9 +19,4 @@ arm_hardware:
 
 arm_solver:
   ros__parameters:
-    controller_list: [pid,gravity,friction]
-
-value_:
-  ros__parameters:
-    forward_list:
-      - "/arm/joint_5/motor/control_torque"
+    controller_list: [pid,gravity]

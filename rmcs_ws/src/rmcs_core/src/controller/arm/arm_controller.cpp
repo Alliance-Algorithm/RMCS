@@ -122,12 +122,30 @@ public:
                     set_arm_mode(rmcs_msgs::ArmMode::DT7_Control_Position);
                 } else if (switch_left == Switch::UP && switch_right == Switch::MIDDLE) {
                     set_arm_mode(rmcs_msgs::ArmMode::DT7_Control_Orientation);
-                } else if (switch_left == Switch::MIDDLE && switch_right == Switch::UP) {
+                } else {
+                    set_arm_mode(rmcs_msgs::ArmMode::None);
                 }
             }
         }
 
-        update_plan_request_and_trajectory_step();
+        switch (get_arm_mode()) {
+            using namespace rmcs_msgs;
+        case ArmMode::DT7_Control_Position: {
+            execute_dt7_position();
+            break;
+        }
+        case ArmMode::DT7_Control_Orientation: {
+            execute_dt7_orientation();
+            break;
+        }
+        case ArmMode::None: {
+            break;
+        }
+        default: {
+            execute_plan_request_and_trajectory_step();
+            break;
+        }
+        }
     }
 
 private:
@@ -186,8 +204,8 @@ private:
             target_pose1.position.x = 0.48;
             target_pose1.position.y = 0.0;
             target_pose1.position.z = 0.4;
-            move_group_->setMaxVelocityScalingFactor(0.01);
-            move_group_->setMaxAccelerationScalingFactor(0.01);
+            move_group_->setMaxVelocityScalingFactor(0.005);
+            move_group_->setMaxAccelerationScalingFactor(0.0051);
             move_group_->setPoseTarget(target_pose1);
             move_group_->setPlanningTime(2.0);
         }
@@ -209,7 +227,7 @@ private:
 
         planned_trajectory_.store(result, std::memory_order::release);
     }
-    void update_plan_request_and_trajectory_step() {
+    void execute_plan_request_and_trajectory_step() {
         static std::size_t trajectory_steps{0};
         const auto current_arm_mode = get_arm_mode();
 
@@ -237,17 +255,43 @@ private:
 
                 if (trajectory_steps < moveit_result->positions.size()) {
                     const auto& q = moveit_result->positions[trajectory_steps];
-                    RCLCPP_INFO(
-                        node_->get_logger(),
-                        "req[%llu] pt[%zu] q=[%.6f, %.6f, %.6f, %.6f, %.6f, %.6f]",
-                        static_cast<unsigned long long>(moveit_result->request_id),
-                        trajectory_steps, q[0], q[1], q[2], q[3], q[4], q[5]);
+                    // RCLCPP_INFO(
+                    //     node_->get_logger(),
+                    //     "req[%llu] pt[%zu] q=[%.6f, %.6f, %.6f, %.6f, %.6f, %.6f]",
+                    //     static_cast<unsigned long long>(moveit_result->request_id),
+                    //     trajectory_steps, q[0], q[1], q[2], q[3], q[4], q[5]);
+                    *target_theta[5] = q[5];
+                    *target_theta[3] = q[3];
+                    *target_theta[4] = q[4];
+                    *target_theta[2] = q[2];
+                    //   *target_theta[1] = q[1];
                     trajectory_steps++;
                 }
             }
         }
     }
-
+    void execute_dt7_orientation() {
+        if (fabs(joystick_left_->y()) > 0.01) {
+            *target_theta[5] += 0.003 * joystick_left_->y();
+        }
+        if (fabs(joystick_left_->x()) > 0.01) {
+            *target_theta[4] += 0.003 * joystick_left_->x();
+        }
+        if (fabs(joystick_right_->y()) > 0.01) {
+            *target_theta[3] += 0.003 * joystick_right_->y();
+        }
+    }
+    void execute_dt7_position() {
+        if (fabs(joystick_left_->x()) > 0.01) {
+            *target_theta[2] += 0.001 * joystick_left_->x();
+        }
+        if (fabs(joystick_right_->x()) > 0.01) {
+            // *target_theta[1] += 0.001 * joystick_right_->x();
+        }
+        if (fabs(joystick_left_->y()) > 0.01) {
+            *target_theta[0] += 0.001 * joystick_left_->y();
+        }
+    }
     InputInterface<Eigen::Vector2d> joystick_right_;
     InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;

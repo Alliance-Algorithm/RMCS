@@ -71,7 +71,7 @@ private:
 
             using namespace device;
             joint[5].configure(
-                LKMotorConfig{LKMotorType::MG4005E_i10V3}.reverse().set_encoder_zero_point(
+                LKMotorConfig{LKMotorType::MHF6015}.reverse().set_encoder_zero_point(
                     static_cast<uint16_t>(arm.get_parameter("joint6_zero_point").as_int())));
             joint[4].configure(
                 LKMotorConfig{LKMotorType::MG5010E_i10V3}.set_encoder_zero_point(

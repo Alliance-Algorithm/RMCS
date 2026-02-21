@@ -151,14 +151,14 @@ public:
             torque_constant = 0.06 * 10.0;
             rated_current   = 1.8;
             rated_torque    = 25.0;
-            max_torque      = 1.0;
+            max_torque      = 2.0;
             LSB             = 648000;
             break;
         case LKMotorType::MG5010E_i10V3:
             torque_constant = 0.1 * 10.0;
             rated_current   = 4.4;
             rated_torque    = 4.0;
-            max_torque      = 7.0;
+            max_torque      = 10.0;
             LSB             = 648000;
             break;
         case LKMotorType::MG5010E_i36V3:
@@ -255,7 +255,7 @@ public:
     uint64_t generate_torque_command() {
         std::array<uint8_t, 8> result = {0};
         result[0]                     = 0xA1;
-        double torque                 = *control_torque_;
+        double torque                 = reverse * (*control_torque_);
         if (std::isnan(torque)) {
             result[1] = 0X00;
             result[2] = 0X00;

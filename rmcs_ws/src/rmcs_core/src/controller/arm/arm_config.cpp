@@ -67,7 +67,7 @@ public:
             *joint_motor_angle[3],
             *joint_motor_angle[4],
             *joint_motor_angle[5]};
-        msg.position = {0.0, 0, 0, 0, 0, 0};
+        // msg.position = {0.0, 0, 0, 0, 0, 0};
         joint_states_pub->publish(msg);
     }
 
