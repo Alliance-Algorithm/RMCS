@@ -69,6 +69,7 @@ public:
         status_component.register_output(name_prefix + "/motor", motor_, this);
 
         command_component.register_input(name_prefix + "/control_torque", control_torque_);
+        status_component.register_output(name_prefix + "/raw_encoder", raw_encoder_, (uint16_t)0);
     }
     DMMotor(const DMMotor&)            = delete;
     DMMotor& operator=(const DMMotor&) = delete;
@@ -124,6 +125,7 @@ public:
         *id            = (rx_buff[0]) & 0xff;
         *state         = (rx_buff[0]) >> 4;
         uint16_t p_int = (rx_buff[1] << 8) | rx_buff[2];
+        *raw_encoder_  = p_int;
         uint16_t v_int = (rx_buff[3] << 4) | (rx_buff[4] >> 4);
         uint16_t t_int = ((rx_buff[4] & 0xF) << 8) | rx_buff[5];
         uint16_t angle = p_int - encoder_zero_point_;
@@ -163,6 +165,7 @@ public:
     double get_torque() { return *torque_; }
     double get_state() { return *state; }
     double get_T_coil() { return *T_coil; }
+    uint16_t get_raw_encoder() { return *raw_encoder_; }
 
 private:
     std::atomic<uint64_t> can_result_ = 0;
@@ -179,6 +182,7 @@ private:
     }
 
     int last_raw_angle_;
+    Component::OutputInterface<uint16_t> raw_encoder_;
 
     double reverse     = 1.0;
     double gear_ratio_ = 1.0;
