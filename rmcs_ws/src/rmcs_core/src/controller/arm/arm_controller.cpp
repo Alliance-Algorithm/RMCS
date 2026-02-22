@@ -103,13 +103,6 @@ public:
 
 private:
     OutputInterface<double> angle_error_[6];
-    InputInterface<Eigen::Vector2d>  joystick_right_;
-    InputInterface<Eigen::Vector2d>  joystick_left_;
-    InputInterface<rmcs_msgs::Switch> switch_right_;
-    InputInterface<rmcs_msgs::Switch> switch_left_;
-    InputInterface<Eigen::Vector2d>  mouse_velocity_;
-    InputInterface<rmcs_msgs::Mouse>    mouse_;
-    InputInterface<rmcs_msgs::Keyboard> keyboard_;
 
     OutputInterface<bool>   is_arm_enable_;
     InputInterface<double>  theta_[6];

@@ -57,7 +57,68 @@ public:
         // leftboard_.command();
         // rightboard_.command();
     }
+//         void send_can_probe()
+// {
+//         using namespace device;
 
+//     // 生成一个“零力矩 / 零速度”的 LK 电机控制命令
+//     uint64_t cmd = joint[0].generate_torque_command();
+//     transmit_buffer_.add_can2_transmission(
+//         probe_tx_id_,
+//         cmd
+//     );
+//     transmit_buffer_.trigger_transmission();
+
+//     RCLCPP_INFO(this->get_logger(), "joint111  %x", probe_tx_id_);
+//         probe_tx_id_++;
+//     if (probe_tx_id_ > 1000) {
+//         probe_tx_id_ = 1;
+//     }
+// }
+//     void send_can_probe()
+// {
+//     uint64_t cmd = device::DMMotor::dm_enable_command();
+//     transmit_buffer_.add_can1_transmission(
+//         probe_tx_id_,
+//         cmd
+//     );
+//     transmit_buffer_.trigger_transmission();
+
+//     RCLCPP_INFO(this->get_logger(), "joint111  %x", probe_tx_id_);
+//         probe_tx_id_++;
+//     if (probe_tx_id_ > 1000) {
+//         probe_tx_id_ = 1;
+//     }
+// }
+
+
+// void send_can_probe() 
+// {
+//     if (probe_tx_id_ > 0x999) return; // 探测范围 0x001~0x020
+    
+//     uint64_t cmd = device::DMMotor::dm_enable_command();
+//     transmit_buffer_.add_can1_transmission(probe_tx_id_, cmd);
+//     transmit_buffer_.trigger_transmission();
+    
+//     RCLCPP_INFO(this->get_logger(), "[PROBE] TX CAN1 id=0x%03X", probe_tx_id_);
+//     probe_tx_id_++;
+// }
+// void send_can_probe()
+// {
+//     uint64_t cmd = device::DMMotor::dm_enable_command();
+    
+//     // 只发送一次
+//     transmit_buffer_.add_can1_transmission(
+//         probe_tx_id_,
+//         cmd
+//     );
+//     transmit_buffer_.trigger_transmission();
+
+//     RCLCPP_INFO(this->get_logger(), "joint111  %x", probe_tx_id_);
+    
+//     // 不再递增probe_tx_id_，确保只发送一次
+//     probe_tx_id_ = 4;  // 只保留probe_tx_id_为1
+// }
 private:
     static double normalizeAngle(double angle) {
         while (angle > M_PI)
