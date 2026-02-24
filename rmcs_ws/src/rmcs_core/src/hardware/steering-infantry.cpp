@@ -1,5 +1,7 @@
-
+#include <algorithm>
+#include <cstring>
 #include <memory>
+#include <span>
 
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
@@ -14,9 +16,26 @@
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/lk_motor.hpp"
 #include "hardware/device/supercap.hpp"
-#include "librmcs/client/cboard.hpp"
+#include "hardware/utility/ring_buffer.hpp"
+#include <librmcs/agent/c_board.hpp>
 
 namespace rmcs_core::hardware {
+
+namespace {
+
+uint64_t span_to_uint64(std::span<const std::byte> data) {
+    uint64_t result = 0;
+    std::memcpy(&result, data.data(), std::min(data.size(), sizeof(result)));
+    return result;
+}
+
+template <typename T>
+std::span<const std::byte> as_byte_span(const T& value) {
+    return std::span<const std::byte>{
+        reinterpret_cast<const std::byte*>(&value), sizeof(value)};
+}
+
+} // namespace
 
 class SteeringInfantry
     : public rmcs_executor::Component
@@ -43,11 +62,11 @@ public:
 
         top_board_ = std::make_unique<TopBoard>(
             *this, *command_component_,
-            static_cast<int>(get_parameter("usb_pid_top_board").as_int()));
+            get_parameter("board_serial_top_board").as_string());
 
         bottom_board_ = std::make_unique<BottomBoard>(
             *this, *command_component_,
-            static_cast<int>(get_parameter("usb_pid_bottom_board").as_int()));
+            get_parameter("board_serial_bottom_board").as_string());
 
         using namespace rmcs_description;
         tf_->set_transform<PitchLink, CameraLink>(Eigen::Translation3d{0.06603, 0.0, 0.082});
@@ -99,22 +118,20 @@ private:
         SteeringInfantry& steeringInfantry;
     };
 
-    class TopBoard final : private librmcs::client::CBoard {
+    class TopBoard final : private librmcs::agent::CBoard {
     public:
         friend class SteeringInfantry;
         explicit TopBoard(
             SteeringInfantry& steeringInfantry, SteeringInfantryCommand& steeringInfantry_command,
-            int usb_pid = -1)
-            : CBoard(usb_pid)
+            std::string_view board_serial = {})
+            : librmcs::agent::CBoard(board_serial)
             , tf_(steeringInfantry.tf_)
             , bmi088_(1000, 0.2, 0.0)
             , gimbal_pitch_motor_(steeringInfantry, steeringInfantry_command, "/gimbal/pitch")
             , gimbal_left_friction_(
                   steeringInfantry, steeringInfantry_command, "/gimbal/left_friction")
             , gimbal_right_friction_(
-                  steeringInfantry, steeringInfantry_command, "/gimbal/right_friction")
-            , transmit_buffer_(*this, 32)
-            , event_thread_([this]() { handle_events(); }) {
+                  steeringInfantry, steeringInfantry_command, "/gimbal/right_friction") {
             gimbal_pitch_motor_.configure(
                 device::LkMotor::Config{device::LkMotor::Type::MG4010E_I10}.set_encoder_zero_point(
                     static_cast<int>(
@@ -145,10 +162,7 @@ private:
                 return std::make_tuple(x, y, z);
             });
         }
-        ~TopBoard() {
-            stop_handling_events();
-            event_thread_.join();
-        }
+        ~TopBoard() = default;
         void update() {
             bmi088_.update_status();
             Eigen::Quaterniond gimbal_bmi088_pose{
@@ -169,43 +183,45 @@ private:
         }
 
         void command_update() {
-            uint16_t can_commands[4];
+            uint16_t can_commands[4]{};
+            auto builder = start_transmit();
             can_commands[2] = gimbal_left_friction_.generate_command();
             can_commands[3] = gimbal_right_friction_.generate_command();
-            transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(can_commands));
+            builder.can1_transmit({.can_id = 0x200, .can_data = as_byte_span(can_commands)});
 
-            transmit_buffer_.add_can2_transmission(
-                0x142, gimbal_pitch_motor_.generate_velocity_command(
-                           gimbal_pitch_motor_.control_velocity()));
-
-            transmit_buffer_.trigger_transmission();
+            auto gimbal_pitch_command =
+                gimbal_pitch_motor_.generate_velocity_command(gimbal_pitch_motor_.control_velocity());
+            builder.can2_transmit({.can_id = 0x142, .can_data = as_byte_span(gimbal_pitch_command)});
         }
 
     private:
-        void can1_receive_callback(
-            uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
-            bool is_remote_transmission, uint8_t can_data_length) override {
-            if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
+        void can1_receive_callback(const librmcs::data::CanDataView& data) override {
+            if (data.is_extended_can_id || data.is_remote_transmission || data.can_data.size() < 8)
+                [[unlikely]]
                 return;
+            auto can_data = span_to_uint64(data.can_data);
+            auto can_id = data.can_id;
             if (can_id == 0x203) {
                 gimbal_left_friction_.store_status(can_data);
             } else if (can_id == 0x204) {
                 gimbal_right_friction_.store_status(can_data);
             }
         }
-        void can2_receive_callback(
-            uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
-            bool is_remote_transmission, uint8_t can_data_length) override {
-            if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
+        void can2_receive_callback(const librmcs::data::CanDataView& data) override {
+            if (data.is_extended_can_id || data.is_remote_transmission || data.can_data.size() < 8)
+                [[unlikely]]
                 return;
+            auto can_data = span_to_uint64(data.can_data);
+            auto can_id = data.can_id;
             if (can_id == 0x142)
                 gimbal_pitch_motor_.store_status(can_data);
         }
-        void accelerometer_receive_callback(int16_t x, int16_t y, int16_t z) override {
-            bmi088_.store_accelerometer_status(x, y, z);
+        void accelerometer_receive_callback(
+            const librmcs::data::AccelerometerDataView& data) override {
+            bmi088_.store_accelerometer_status(data.x, data.y, data.z);
         }
-        void gyroscope_receive_callback(int16_t x, int16_t y, int16_t z) override {
-            bmi088_.store_gyroscope_status(x, y, z);
+        void gyroscope_receive_callback(const librmcs::data::GyroscopeDataView& data) override {
+            bmi088_.store_gyroscope_status(data.x, data.y, data.z);
         }
         OutputInterface<rmcs_description::Tf>& tf_;
 
@@ -216,18 +232,15 @@ private:
         device::LkMotor gimbal_pitch_motor_;
         device::DjiMotor gimbal_left_friction_;
         device::DjiMotor gimbal_right_friction_;
-
-        TransmitBuffer transmit_buffer_;
-        std::thread event_thread_;
     };
-    class BottomBoard final : private librmcs::client::CBoard {
+    class BottomBoard final : private librmcs::agent::CBoard {
     public:
         friend class SteeringInfantry;
 
         explicit BottomBoard(
             SteeringInfantry& steeringInfantry, SteeringInfantryCommand& steeringInfantry_command,
-            int usb_pid = -1)
-            : librmcs::client::CBoard(usb_pid)
+            std::string_view board_serial = {})
+            : librmcs::agent::CBoard(board_serial)
             , imu_(1000, 0.2, 0.0)
             , tf_(steeringInfantry.tf_)
             , dr16_(steeringInfantry)
@@ -245,8 +258,7 @@ private:
                   {steeringInfantry, steeringInfantry_command, "/chassis/right_back_steering"},
                   {steeringInfantry, steeringInfantry_command, "/chassis/right_front_steering"})
             , supercap_(steeringInfantry, steeringInfantry_command)
-            , transmit_buffer_(*this, 32)
-            , event_thread_([this]() { handle_events(); }) {
+        {
 
             steeringInfantry.register_output("/referee/serial", referee_serial_);
 
@@ -255,7 +267,8 @@ private:
                     [&buffer](std::byte byte) { *buffer++ = byte; }, size);
             };
             referee_serial_->write = [this](const std::byte* buffer, size_t size) {
-                transmit_buffer_.add_uart1_transmission(buffer, size);
+                auto builder = start_transmit();
+                builder.uart1_transmit({.uart_data = std::span<const std::byte>{buffer, size}});
                 return size;
             };
             gimbal_yaw_motor_.configure(
@@ -307,10 +320,7 @@ private:
             steeringInfantry.register_output(
                 "/chassis/yaw/velocity_imu", chassis_yaw_velocity_imu_, 0);
         }
-        ~BottomBoard() final {
-            stop_handling_events();
-            event_thread_.join();
-        }
+        ~BottomBoard() final = default;
         void update() {
             imu_.update_status();
             *chassis_yaw_velocity_imu_ = imu_.gy();
@@ -332,36 +342,44 @@ private:
             uint16_t batch_commands[4];
             for (int i = 0; i < 4; i++)
                 batch_commands[i] = chassis_wheel_motors_[i].generate_command();
-            transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(batch_commands));
-            transmit_buffer_.add_can1_transmission(0x1FF, gimbal_bullet_feeder_.generate_command());
+
+            auto gimbal_bullet_feeder_command =
+                static_cast<uint64_t>(gimbal_bullet_feeder_.generate_command());
             if (can_transmission_mode) {
+                auto builder = start_transmit();
+                builder.can1_transmit({.can_id = 0x200, .can_data = as_byte_span(batch_commands)});
+                builder.can1_transmit(
+                    {.can_id = 0x1FF, .can_data = as_byte_span(gimbal_bullet_feeder_command)});
                 batch_commands[3] = supercap_.generate_command();
-                transmit_buffer_.add_can1_transmission(
-                    0x1FE, std::bit_cast<uint64_t>(batch_commands));
-                transmit_buffer_.trigger_transmission();
+                builder.can1_transmit({.can_id = 0x1FE, .can_data = as_byte_span(batch_commands)});
+
                 for (int i = 0; i < 4; i++) {
                     batch_commands[i] = chassis_steer_motors_[i].generate_command();
                 }
-                transmit_buffer_.add_can2_transmission(
-                    0x1FE, std::bit_cast<uint64_t>(batch_commands));
-                transmit_buffer_.trigger_transmission();
+                auto steer_builder = start_transmit();
+                steer_builder.can2_transmit(
+                    {.can_id = 0x1FE, .can_data = as_byte_span(batch_commands)});
             } else {
-                transmit_buffer_.add_can2_transmission(
-                    0x142, gimbal_yaw_motor_.generate_velocity_command(
-                               gimbal_yaw_motor_.control_velocity() - imu_.gy()));
-                transmit_buffer_.trigger_transmission();
+                auto builder = start_transmit();
+                builder.can1_transmit({.can_id = 0x200, .can_data = as_byte_span(batch_commands)});
+                builder.can1_transmit(
+                    {.can_id = 0x1FF, .can_data = as_byte_span(gimbal_bullet_feeder_command)});
+                auto gimbal_yaw_command =
+                    gimbal_yaw_motor_.generate_velocity_command(gimbal_yaw_motor_.control_velocity() - imu_.gy());
+                builder.can2_transmit({.can_id = 0x142, .can_data = as_byte_span(gimbal_yaw_command)});
             }
             can_transmission_mode = !can_transmission_mode;
         }
 
-        void dbus_receive_callback(const std::byte* uart_data, uint8_t uart_data_length) override {
-            dr16_.store_status(uart_data, uart_data_length);
+        void dbus_receive_callback(const librmcs::data::UartDataView& data) override {
+            dr16_.store_status(data.uart_data.data(), data.uart_data.size());
         }
-        void can1_receive_callback(
-            uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
-            bool is_remote_transmission, uint8_t can_data_length) override {
-            if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
+        void can1_receive_callback(const librmcs::data::CanDataView& data) override {
+            if (data.is_extended_can_id || data.is_remote_transmission || data.can_data.size() < 8)
+                [[unlikely]]
                 return;
+            auto can_data = span_to_uint64(data.can_data);
+            auto can_id = data.can_id;
             if (can_id == 0x201)
                 chassis_wheel_motors_[0].store_status(can_data);
             else if (can_id == 0x202)
@@ -375,11 +393,12 @@ private:
             else if (can_id == 0x300)
                 supercap_.store_status(can_data);
         }
-        void can2_receive_callback(
-            uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
-            bool is_remote_transmission, uint8_t can_data_length) override {
-            if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
+        void can2_receive_callback(const librmcs::data::CanDataView& data) override {
+            if (data.is_extended_can_id || data.is_remote_transmission || data.can_data.size() < 8)
+                [[unlikely]]
                 return;
+            auto can_data = span_to_uint64(data.can_data);
+            auto can_id = data.can_id;
             if (can_id == 0x142)
                 gimbal_yaw_motor_.store_status(can_data);
             else if (can_id == 0x205)
@@ -392,17 +411,19 @@ private:
                 chassis_steer_motors_[3].store_status(can_data);
         }
 
-        void uart1_receive_callback(const std::byte* uart_data, uint8_t uart_data_length) override {
+        void uart1_receive_callback(const librmcs::data::UartDataView& data) override {
+            auto uart_data = data.uart_data.data();
             referee_ring_buffer_receive_.emplace_back_multi(
-                [&uart_data](std::byte* storage) { *storage = *uart_data++; }, uart_data_length);
+                [&uart_data](std::byte* storage) { *storage = *uart_data++; }, data.uart_data.size());
         }
 
-        void accelerometer_receive_callback(int16_t x, int16_t y, int16_t z) override {
-            imu_.store_accelerometer_status(x, y, z);
+        void accelerometer_receive_callback(
+            const librmcs::data::AccelerometerDataView& data) override {
+            imu_.store_accelerometer_status(data.x, data.y, data.z);
         }
 
-        void gyroscope_receive_callback(int16_t x, int16_t y, int16_t z) override {
-            imu_.store_gyroscope_status(x, y, z);
+        void gyroscope_receive_callback(const librmcs::data::GyroscopeDataView& data) override {
+            imu_.store_gyroscope_status(data.x, data.y, data.z);
         }
 
     private:
@@ -419,12 +440,9 @@ private:
         device::DjiMotor chassis_steer_motors_[4];
         device::Supercap supercap_;
 
-        librmcs::utility::RingBuffer<std::byte> referee_ring_buffer_receive_{256};
+        rmcs_core::hardware::utility::RingBuffer<std::byte> referee_ring_buffer_receive_{256};
         OutputInterface<rmcs_msgs::SerialInterface> referee_serial_;
         OutputInterface<double> chassis_yaw_velocity_imu_;
-
-        librmcs::client::CBoard::TransmitBuffer transmit_buffer_;
-        std::thread event_thread_;
     };
 
     OutputInterface<rmcs_description::Tf> tf_;
