@@ -13,4 +13,7 @@ command -v clang &>/dev/null &&
 command -v clang++ &>/dev/null &&
     export CXX=clang++
 
-colcon build --symlink-install --merge-install "$@" --cmake-args -G Ninja
+colcon_args="--event-handlers console_cohesion+ --symlink-install --merge-install"
+cmake_args="-G Ninja -DCMAKE_MESSAGE_LOG_LEVEL=ERROR -DCMAKE_INSTALL_MESSAGE=NEVER"
+
+CLICOLOR_FORCE=1 NINJA_STATUS="" colcon build ${colcon_args} "$@" --cmake-args ${cmake_args}
