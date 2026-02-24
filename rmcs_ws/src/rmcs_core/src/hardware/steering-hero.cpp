@@ -1,11 +1,18 @@
-#include <algorithm>
+#include <cstddef>
 #include <cstring>
 #include <memory>
 #include <span>
-#include <thread>
+#include <string_view>
+#include <tuple>
+#include <utility>
 
+#include <eigen3/Eigen/Dense>
 #include <librmcs/agent/c_board.hpp>
+#include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
+#include <rclcpp/node_options.hpp>
+#include <rclcpp/qos.hpp>
+#include <rclcpp/subscription.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/serial_interface.hpp>
@@ -14,43 +21,31 @@
 
 #include "hardware/device/benewake.hpp"
 #include "hardware/device/bmi088.hpp"
+#include "hardware/device/can_packet.hpp"
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/lk_motor.hpp"
 #include "hardware/device/supercap.hpp"
 #include "hardware/utility/ring_buffer.hpp"
+#include "librmcs/data/datas.hpp"
 
 namespace rmcs_core::hardware {
-
-namespace {
-
-uint64_t span_to_uint64(std::span<const std::byte> data) {
-    uint64_t result = 0;
-    std::memcpy(&result, data.data(), std::min(data.size(), sizeof(result)));
-    return result;
-}
-
-template <typename T>
-std::span<const std::byte> as_byte_span(const T& value) {
-    return std::span<const std::byte>{
-        reinterpret_cast<const std::byte*>(&value), sizeof(value)};
-}
-
-} // namespace
 
 class SteeringHero
     : public rmcs_executor::Component
     , public rclcpp::Node {
 public:
     SteeringHero()
-        : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
+        : Node{
+              get_component_name(),
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , command_component_(
               create_partner_component<SteeringHeroCommand>(
                   get_component_name() + "_command", *this)) {
-        using namespace rmcs_description;
 
         register_output("/tf", tf_);
-        tf_->set_transform<PitchLink, CameraLink>(Eigen::Translation3d{0.16, 0.0, 0.15});
+        tf_->set_transform<rmcs_description::PitchLink, rmcs_description::CameraLink>(
+            Eigen::Translation3d{0.16, 0.0, 0.15});
 
         gimbal_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
             "/gimbal/calibrate", rclcpp::QoS{0}, [this](std_msgs::msg::Int32::UniquePtr&& msg) {
@@ -58,14 +53,17 @@ public:
             });
 
         top_board_ = std::make_unique<TopBoard>(
-            *this, *command_component_,
-            get_parameter("board_serial_top_board").as_string());
+            *this, *command_component_, get_parameter("board_serial_top_board").as_string());
         bottom_board_ = std::make_unique<BottomBoard>(
-            *this, *command_component_,
-            get_parameter("board_serial_bottom_board").as_string());
+            *this, *command_component_, get_parameter("board_serial_bottom_board").as_string());
 
         temperature_logging_timer_.reset(1000);
     }
+
+    SteeringHero(const SteeringHero&) = delete;
+    SteeringHero& operator=(const SteeringHero&) = delete;
+    SteeringHero(SteeringHero&&) = delete;
+    SteeringHero& operator=(SteeringHero&&) = delete;
 
     ~SteeringHero() override = default;
 
@@ -125,6 +123,7 @@ private:
 
         void update() override { hero_.command_update(); }
 
+    private:
         SteeringHero& hero_;
     };
     std::shared_ptr<SteeringHeroCommand> command_component_;
@@ -141,39 +140,41 @@ private:
             , benewake_(hero, "/gimbal/auto_aim/laser_distance")
             , gimbal_top_yaw_motor_(
                   hero, hero_command, "/gimbal/top_yaw",
-                  device::LkMotor::Config{device::LkMotor::Type::MG5010E_I10}
+                  device::LkMotor::Config{device::LkMotor::Type::kMG5010Ei10}
                       .set_encoder_zero_point(
                           static_cast<int>(
                               hero.get_parameter("top_yaw_motor_zero_point").as_int())))
             , gimbal_pitch_motor_(
                   hero, hero_command, "/gimbal/pitch",
-                  device::LkMotor::Config{device::LkMotor::Type::MG5010E_I10}
+                  device::LkMotor::Config{device::LkMotor::Type::kMG5010Ei10}
                       .set_encoder_zero_point(
                           static_cast<int>(hero.get_parameter("pitch_motor_zero_point").as_int())))
             , gimbal_friction_wheels_(
                   {hero, hero_command, "/gimbal/second_left_friction",
-                   device::DjiMotor::Config{device::DjiMotor::Type::M3508}.set_reduction_ratio(1.)},
+                   device::DjiMotor::Config{device::DjiMotor::Type::kM3508}.set_reduction_ratio(
+                       1.)},
                   {hero, hero_command, "/gimbal/first_left_friction",
-                   device::DjiMotor::Config{device::DjiMotor::Type::M3508}.set_reduction_ratio(1.)},
+                   device::DjiMotor::Config{device::DjiMotor::Type::kM3508}.set_reduction_ratio(
+                       1.)},
                   {hero, hero_command, "/gimbal/first_right_friction",
-                   device::DjiMotor::Config{device::DjiMotor::Type::M3508}
+                   device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
                        .set_reduction_ratio(1.)
                        .set_reversed()},
                   {hero, hero_command, "/gimbal/second_right_friction",
-                   device::DjiMotor::Config{device::DjiMotor::Type::M3508}
+                   device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
                        .set_reduction_ratio(1.)
                        .set_reversed()})
             , gimbal_bullet_feeder_(
                   hero, hero_command, "/gimbal/bullet_feeder",
-                  device::LkMotor::Config{device::LkMotor::Type::MG5010E_I10}
+                  device::LkMotor::Config{device::LkMotor::Type::kMG5010Ei10}
                       .set_reversed()
                       .enable_multi_turn_angle())
             , gimbal_scope_motor_(
                   hero, hero_command, "/gimbal/scope",
-                  device::DjiMotor::Config{device::DjiMotor::Type::M2006})
+                  device::DjiMotor::Config{device::DjiMotor::Type::kM2006})
             , gimbal_player_viewer_motor_(
                   hero, hero_command, "/gimbal/player_viewer",
-                  device::LkMotor::Config{device::LkMotor::Type::MG4005E_I10}
+                  device::LkMotor::Config{device::LkMotor::Type::kMG4005Ei10}
                       .set_encoder_zero_point(
                           static_cast<int>(hero.get_parameter("viewer_motor_zero_point").as_int()))
                       .set_reversed()) {
@@ -195,11 +196,16 @@ private:
             hero.register_output("/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
         }
 
+        TopBoard(const TopBoard&) = delete;
+        TopBoard& operator=(const TopBoard&) = delete;
+        TopBoard(TopBoard&&) = delete;
+        TopBoard& operator=(TopBoard&&) = delete;
+
         ~TopBoard() final = default;
 
         void update() {
             imu_.update_status();
-            Eigen::Quaterniond gimbal_imu_pose{imu_.q0(), imu_.q1(), imu_.q2(), imu_.q3()};
+            const Eigen::Quaterniond gimbal_imu_pose{imu_.q0(), imu_.q1(), imu_.q2(), imu_.q3()};
 
             tf_->set_transform<rmcs_description::PitchLink, rmcs_description::OdomImu>(
                 gimbal_imu_pose.conjugate());
@@ -228,69 +234,90 @@ private:
         }
 
         void command_update() {
-            uint16_t batch_commands[4]{};
             auto builder = start_transmit();
 
-            for (int i = 0; i < 4; i++)
-                batch_commands[i] = gimbal_friction_wheels_[i].generate_command();
-            builder.can1_transmit({.can_id = 0x200, .can_data = as_byte_span(batch_commands)});
+            builder.can1_transmit({
+                .can_id = 0x200,
+                .can_data =
+                    device::CanPacket8{
+                                       gimbal_friction_wheels_[0].generate_command(),
+                                       gimbal_friction_wheels_[1].generate_command(),
+                                       gimbal_friction_wheels_[2].generate_command(),
+                                       gimbal_friction_wheels_[3].generate_command(),
+                                       }
+                        .as_bytes(),
+            });
 
-            auto gimbal_bullet_feeder_command = gimbal_bullet_feeder_.generate_torque_command(
-                gimbal_bullet_feeder_.control_torque());
-            builder.can1_transmit(
-                {.can_id = 0x141, .can_data = as_byte_span(gimbal_bullet_feeder_command)});
+            builder.can1_transmit({
+                .can_id = 0x141,
+                .can_data = gimbal_bullet_feeder_
+                                .generate_torque_command(gimbal_bullet_feeder_.control_torque())
+                                .as_bytes(),
+            });
 
-            batch_commands[0] = gimbal_scope_motor_.generate_command();
-            builder.can2_transmit({.can_id = 0x200, .can_data = as_byte_span(batch_commands)});
+            builder.can2_transmit({
+                .can_id = 0x200,
+                .can_data =
+                    device::CanPacket8{
+                                       gimbal_scope_motor_.generate_command(),
+                                       device::CanPacket8::PaddingQuarter{},
+                                       device::CanPacket8::PaddingQuarter{},
+                                       device::CanPacket8::PaddingQuarter{},
+                                       }
+                        .as_bytes(),
+            });
 
-            auto gimbal_player_viewer_command = gimbal_player_viewer_motor_.generate_velocity_command(
-                gimbal_player_viewer_motor_.control_velocity());
-            builder.can2_transmit(
-                {.can_id = 0x143, .can_data = as_byte_span(gimbal_player_viewer_command)});
+            builder.can2_transmit({
+                .can_id = 0x143,
+                .can_data =
+                    gimbal_player_viewer_motor_
+                        .generate_velocity_command(gimbal_player_viewer_motor_.control_velocity())
+                        .as_bytes(),
+            });
 
-            auto gimbal_top_yaw_command = gimbal_top_yaw_motor_.generate_command();
-            builder.can2_transmit({.can_id = 0x141, .can_data = as_byte_span(gimbal_top_yaw_command)});
+            builder.can2_transmit({
+                .can_id = 0x141,
+                .can_data = gimbal_top_yaw_motor_.generate_command().as_bytes(),
+            });
 
-            auto gimbal_pitch_command = gimbal_pitch_motor_.generate_command();
-            builder.can2_transmit({.can_id = 0x142, .can_data = as_byte_span(gimbal_pitch_command)});
+            builder.can2_transmit({
+                .can_id = 0x142,
+                .can_data = gimbal_pitch_motor_.generate_command().as_bytes(),
+            });
         }
 
     private:
         void can1_receive_callback(const librmcs::data::CanDataView& data) override {
-            if (data.is_extended_can_id || data.is_remote_transmission || data.can_data.size() < 8)
-                [[unlikely]]
+            if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
                 return;
 
-            auto can_data = span_to_uint64(data.can_data);
             auto can_id = data.can_id;
             if (can_id == 0x201) {
-                gimbal_friction_wheels_[0].store_status(can_data);
+                gimbal_friction_wheels_[0].store_status(data.can_data);
             } else if (can_id == 0x202) {
-                gimbal_friction_wheels_[1].store_status(can_data);
+                gimbal_friction_wheels_[1].store_status(data.can_data);
             } else if (can_id == 0x203) {
-                gimbal_friction_wheels_[2].store_status(can_data);
+                gimbal_friction_wheels_[2].store_status(data.can_data);
             } else if (can_id == 0x204) {
-                gimbal_friction_wheels_[3].store_status(can_data);
+                gimbal_friction_wheels_[3].store_status(data.can_data);
             } else if (can_id == 0x141) {
-                gimbal_bullet_feeder_.store_status(can_data);
+                gimbal_bullet_feeder_.store_status(data.can_data);
             }
         }
 
         void can2_receive_callback(const librmcs::data::CanDataView& data) override {
-            if (data.is_extended_can_id || data.is_remote_transmission || data.can_data.size() < 8)
-                [[unlikely]]
+            if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
                 return;
 
-            auto can_data = span_to_uint64(data.can_data);
             auto can_id = data.can_id;
             if (can_id == 0x141) {
-                gimbal_top_yaw_motor_.store_status(can_data);
+                gimbal_top_yaw_motor_.store_status(data.can_data);
             } else if (can_id == 0x142) {
-                gimbal_pitch_motor_.store_status(can_data);
+                gimbal_pitch_motor_.store_status(data.can_data);
             } else if (can_id == 0x143) {
-                gimbal_player_viewer_motor_.store_status(can_data);
+                gimbal_player_viewer_motor_.store_status(data.can_data);
             } else if (can_id == 0x201) {
-                gimbal_scope_motor_.store_status(can_data);
+                gimbal_scope_motor_.store_status(data.can_data);
             }
         }
 
@@ -337,46 +364,46 @@ private:
             , dr16_(hero)
             , chassis_steering_motors_(
                   {hero, hero_command, "/chassis/left_front_steering",
-                   device::DjiMotor::Config{device::DjiMotor::Type::GM6020}
+                   device::DjiMotor::Config{device::DjiMotor::Type::kGM6020}
                        .set_encoder_zero_point(
                            static_cast<int>(hero.get_parameter("left_front_zero_point").as_int()))
                        .set_reversed()},
                   {hero, hero_command, "/chassis/left_back_steering",
-                   device::DjiMotor::Config{device::DjiMotor::Type::GM6020}
+                   device::DjiMotor::Config{device::DjiMotor::Type::kGM6020}
                        .set_encoder_zero_point(
                            static_cast<int>(hero.get_parameter("left_back_zero_point").as_int()))
                        .set_reversed()},
                   {hero, hero_command, "/chassis/right_back_steering",
-                   device::DjiMotor::Config{device::DjiMotor::Type::GM6020}
+                   device::DjiMotor::Config{device::DjiMotor::Type::kGM6020}
                        .set_encoder_zero_point(
                            static_cast<int>(hero.get_parameter("right_back_zero_point").as_int()))
                        .set_reversed()},
                   {hero, hero_command, "/chassis/right_front_steering",
-                   device::DjiMotor::Config{device::DjiMotor::Type::GM6020}
+                   device::DjiMotor::Config{device::DjiMotor::Type::kGM6020}
                        .set_encoder_zero_point(
                            static_cast<int>(hero.get_parameter("right_front_zero_point").as_int()))
                        .set_reversed()})
             , chassis_wheel_motors_(
                   {hero, hero_command, "/chassis/left_front_wheel",
-                   device::DjiMotor::Config{device::DjiMotor::Type::M3508}
+                   device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
                        .set_reversed()
                        .set_reduction_ratio(2232. / 169.)},
                   {hero, hero_command, "/chassis/left_back_wheel",
-                   device::DjiMotor::Config{device::DjiMotor::Type::M3508}
+                   device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
                        .set_reversed()
                        .set_reduction_ratio(2232. / 169.)},
                   {hero, hero_command, "/chassis/right_back_wheel",
-                   device::DjiMotor::Config{device::DjiMotor::Type::M3508}
+                   device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
                        .set_reversed()
                        .set_reduction_ratio(2232. / 169.)},
                   {hero, hero_command, "/chassis/right_front_wheel",
-                   device::DjiMotor::Config{device::DjiMotor::Type::M3508}
+                   device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
                        .set_reversed()
                        .set_reduction_ratio(2232. / 169.)})
             , supercap_(hero, hero_command)
             , gimbal_bottom_yaw_motor_(
                   hero, hero_command, "/gimbal/bottom_yaw",
-                  device::LkMotor::Config{device::LkMotor::Type::MG6012E_I8}
+                  device::LkMotor::Config{device::LkMotor::Type::kMG6012Ei8}
                       .set_reversed()
                       .set_encoder_zero_point(
                           static_cast<int>(
@@ -389,7 +416,9 @@ private:
             };
             referee_serial_->write = [this](const std::byte* buffer, size_t size) {
                 auto builder = start_transmit();
-                builder.uart1_transmit({.uart_data = std::span<const std::byte>{buffer, size}});
+                builder.uart1_transmit({
+                    .uart_data = std::span<const std::byte>{buffer, size}
+                });
                 return size;
             };
 
@@ -400,6 +429,11 @@ private:
             hero.register_output(
                 "/chassis/powermeter/charge_power_limit", powermeter_charge_power_limit_, 0.);
         }
+
+        BottomBoard(const BottomBoard&) = delete;
+        BottomBoard& operator=(const BottomBoard&) = delete;
+        BottomBoard(BottomBoard&&) = delete;
+        BottomBoard& operator=(BottomBoard&&) = delete;
 
         ~BottomBoard() final = default;
 
@@ -420,70 +454,92 @@ private:
         }
 
         void command_update() {
-            uint16_t batch_commands[4]{};
             auto builder = start_transmit();
 
-            for (int i = 0; i < 4; i++)
-                batch_commands[i] = chassis_wheel_motors_[i].generate_command();
-            builder.can1_transmit({.can_id = 0x200, .can_data = as_byte_span(batch_commands)});
+            builder.can1_transmit({
+                .can_id = 0x200,
+                .can_data =
+                    device::CanPacket8{
+                                       chassis_wheel_motors_[0].generate_command(),
+                                       chassis_wheel_motors_[1].generate_command(),
+                                       chassis_wheel_motors_[2].generate_command(),
+                                       chassis_wheel_motors_[3].generate_command(),
+                                       }
+                        .as_bytes(),
+            });
 
-            batch_commands[3] = supercap_.generate_command();
-            builder.can1_transmit({.can_id = 0x1FE, .can_data = as_byte_span(batch_commands)});
+            builder.can1_transmit({
+                .can_id = 0x1FE,
+                .can_data =
+                    device::CanPacket8{
+                                       device::CanPacket8::PaddingQuarter{},
+                                       device::CanPacket8::PaddingQuarter{},
+                                       device::CanPacket8::PaddingQuarter{},
+                                       supercap_.generate_command(),
+                                       }
+                        .as_bytes(),
+            });
 
-            for (int i = 0; i < 4; i++)
-                batch_commands[i] = chassis_steering_motors_[i].generate_command();
-            builder.can2_transmit({.can_id = 0x1FE, .can_data = as_byte_span(batch_commands)});
+            builder.can2_transmit({
+                .can_id = 0x1FE,
+                .can_data =
+                    device::CanPacket8{
+                                       chassis_steering_motors_[0].generate_command(),
+                                       chassis_steering_motors_[1].generate_command(),
+                                       chassis_steering_motors_[2].generate_command(),
+                                       chassis_steering_motors_[3].generate_command(),
+                                       }
+                        .as_bytes(),
+            });
 
-            auto gimbal_bottom_yaw_command = gimbal_bottom_yaw_motor_.generate_command();
-            builder.can2_transmit(
-                {.can_id = 0x141, .can_data = as_byte_span(gimbal_bottom_yaw_command)});
+            builder.can2_transmit({
+                .can_id = 0x141,
+                .can_data = gimbal_bottom_yaw_motor_.generate_command().as_bytes(),
+            });
         }
 
     private:
         void can1_receive_callback(const librmcs::data::CanDataView& data) override {
-            if (data.is_extended_can_id || data.is_remote_transmission || data.can_data.size() < 8)
-                [[unlikely]]
+            if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
                 return;
 
-            auto can_data = span_to_uint64(data.can_data);
             auto can_id = data.can_id;
             if (can_id == 0x201) {
-                chassis_wheel_motors_[0].store_status(can_data);
+                chassis_wheel_motors_[0].store_status(data.can_data);
             } else if (can_id == 0x202) {
-                chassis_wheel_motors_[1].store_status(can_data);
+                chassis_wheel_motors_[1].store_status(data.can_data);
             } else if (can_id == 0x203) {
-                chassis_wheel_motors_[2].store_status(can_data);
+                chassis_wheel_motors_[2].store_status(data.can_data);
             } else if (can_id == 0x204) {
-                chassis_wheel_motors_[3].store_status(can_data);
+                chassis_wheel_motors_[3].store_status(data.can_data);
             } else if (can_id == 0x300) {
-                supercap_.store_status(can_data);
+                supercap_.store_status(data.can_data);
             }
         }
 
         void can2_receive_callback(const librmcs::data::CanDataView& data) override {
-            if (data.is_extended_can_id || data.is_remote_transmission || data.can_data.size() < 8)
-                [[unlikely]]
+            if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
                 return;
 
-            auto can_data = span_to_uint64(data.can_data);
             auto can_id = data.can_id;
             if (can_id == 0x205) {
-                chassis_steering_motors_[0].store_status(can_data);
+                chassis_steering_motors_[0].store_status(data.can_data);
             } else if (can_id == 0x206) {
-                chassis_steering_motors_[1].store_status(can_data);
+                chassis_steering_motors_[1].store_status(data.can_data);
             } else if (can_id == 0x207) {
-                chassis_steering_motors_[2].store_status(can_data);
+                chassis_steering_motors_[2].store_status(data.can_data);
             } else if (can_id == 0x208) {
-                chassis_steering_motors_[3].store_status(can_data);
+                chassis_steering_motors_[3].store_status(data.can_data);
             } else if (can_id == 0x141) {
-                gimbal_bottom_yaw_motor_.store_status(can_data);
+                gimbal_bottom_yaw_motor_.store_status(data.can_data);
             }
         }
 
         void uart1_receive_callback(const librmcs::data::UartDataView& data) override {
-            auto uart_data = data.uart_data.data();
+            const auto* uart_data = data.uart_data.data();
             referee_ring_buffer_receive_.emplace_back_multi(
-                [&uart_data](std::byte* storage) { *storage = *uart_data++; }, data.uart_data.size());
+                [&uart_data](std::byte* storage) { *storage = *uart_data++; },
+                data.uart_data.size());
         }
 
         void dbus_receive_callback(const librmcs::data::UartDataView& data) override {

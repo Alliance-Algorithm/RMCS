@@ -4,27 +4,33 @@
 #include <atomic>
 #include <bit>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <numbers>
+#include <span>
 #include <string>
+#include <utility>
 
 #include <rmcs_executor/component.hpp>
+#include <rmcs_utility/endian_promise.hpp>
+
+#include "hardware/device/can_packet.hpp"
 
 namespace rmcs_core::hardware::device {
 
 class DjiMotor {
 public:
-    enum class Type : uint8_t { GM6020, GM6020_VOLTAGE, M3508, M2006 };
+    enum class Type : uint8_t { kGM6020, kGM6020Voltage, kM3508, kM2006 };
 
     struct Config {
-        explicit Config(Type motor_type) {
-            this->encoder_zero_point = 0;
-            this->motor_type = motor_type;
+        explicit Config(Type motor_type)
+            : motor_type(motor_type) {
             switch (motor_type) {
-            case Type::GM6020:
-            case Type::GM6020_VOLTAGE: reduction_ratio = 1.0; break;
-            case Type::M3508: reduction_ratio = 3591.0 / 187.0; break;
-            case Type::M2006: reduction_ratio = 36.0; break;
+            case Type::kGM6020:
+            case Type::kGM6020Voltage: reduction_ratio = 1.0; break;
+            case Type::kM3508: reduction_ratio = 3591.0 / 187.0; break;
+            case Type::kM2006: reduction_ratio = 36.0; break;
             }
             this->reversed = false;
             this->multi_turn_angle_enabled = false;
@@ -36,7 +42,7 @@ public:
         Config& enable_multi_turn_angle() { return multi_turn_angle_enabled = true, *this; }
 
         Type motor_type;
-        int encoder_zero_point;
+        int encoder_zero_point = 0;
         double reduction_ratio;
         bool reversed;
         bool multi_turn_angle_enabled;
@@ -65,16 +71,20 @@ public:
 
     DjiMotor(const DjiMotor&) = delete;
     DjiMotor& operator=(const DjiMotor&) = delete;
+    DjiMotor(DjiMotor&&) = delete;
+    DjiMotor& operator=(DjiMotor&&) = delete;
+
+    ~DjiMotor() = default;
 
     void configure(const Config& config) {
-        encoder_zero_point_ = config.encoder_zero_point % raw_angle_max_;
+        encoder_zero_point_ = config.encoder_zero_point % kRawAngleMax;
         if (encoder_zero_point_ < 0)
-            encoder_zero_point_ += raw_angle_max_;
+            encoder_zero_point_ += kRawAngleMax;
 
-        double sign = config.reversed ? -1 : 1;
+        const double sign = config.reversed ? -1 : 1;
 
         raw_angle_to_angle_coefficient_ =
-            sign / config.reduction_ratio / raw_angle_max_ * 2 * std::numbers::pi;
+            sign / config.reduction_ratio / kRawAngleMax * 2 * std::numbers::pi;
         angle_to_raw_angle_coefficient_ = 1 / raw_angle_to_angle_coefficient_;
 
         raw_velocity_to_velocity_coefficient_ =
@@ -83,26 +93,27 @@ public:
 
         double torque_constant, raw_current_max, current_max;
         switch (config.motor_type) {
-        case Type::GM6020:
+        case Type::kGM6020:
             torque_constant = 0.741;
             raw_current_max = 16384.0;
             current_max = 3.0;
             break;
-        case Type::GM6020_VOLTAGE:
+        case Type::kGM6020Voltage:
             torque_constant = 0.741;
             raw_current_max = 25000.0;
             current_max = 3.0;
             break;
-        case Type::M3508:
+        case Type::kM3508:
             torque_constant = 0.3 * 187.0 / 3591.0;
             raw_current_max = 16384.0;
             current_max = 20.0;
             break;
-        case Type::M2006:
+        case Type::kM2006:
             torque_constant = 0.18 * 1.0 / 36.0;
             raw_current_max = 16384.0;
             current_max = 10.0;
             break;
+        default: std::unreachable();
         }
 
         raw_current_to_torque_coefficient_ =
@@ -118,7 +129,9 @@ public:
         *max_torque_output_ = max_torque();
     }
 
-    void store_status(uint64_t can_data) { can_data_.store(can_data, std::memory_order_relaxed); }
+    void store_status(std::span<const std::byte> can_data) {
+        can_data_.store(CanPacket8{can_data}, std::memory_order_relaxed);
+    }
 
     void update_status() {
         const auto feedback =
@@ -131,17 +144,17 @@ public:
         const int raw_angle = feedback.angle;
         int calibrated_raw_angle = raw_angle - encoder_zero_point_;
         if (calibrated_raw_angle < 0)
-            calibrated_raw_angle += raw_angle_max_;
+            calibrated_raw_angle += kRawAngleMax;
         if (!multi_turn_angle_enabled_) {
             angle_ = raw_angle_to_angle_coefficient_ * static_cast<double>(calibrated_raw_angle);
             if (angle_ < 0)
                 angle_ += 2 * std::numbers::pi;
         } else {
-            auto diff = (calibrated_raw_angle - angle_multi_turn_) % raw_angle_max_;
-            if (diff <= -raw_angle_max_ / 2)
-                diff += raw_angle_max_;
-            else if (diff > raw_angle_max_ / 2)
-                diff -= raw_angle_max_;
+            auto diff = (calibrated_raw_angle - angle_multi_turn_) % kRawAngleMax;
+            if (diff <= -kRawAngleMax / 2)
+                diff += kRawAngleMax;
+            else if (diff > kRawAngleMax / 2)
+                diff -= kRawAngleMax;
             angle_multi_turn_ += diff;
             angle_ = raw_angle_to_angle_coefficient_ * static_cast<double>(angle_multi_turn_);
         }
@@ -153,9 +166,9 @@ public:
         // Torque unit: N*m
         torque_ = raw_current_to_torque_coefficient_ * static_cast<double>(feedback.current);
 
-        *angle_output_    = angle();
+        *angle_output_ = angle();
         *velocity_output_ = velocity();
-        *torque_output_   = torque();
+        *torque_output_ = torque();
     }
 
     double control_torque() const {
@@ -165,18 +178,18 @@ public:
             return 0.0;
     }
 
-    uint16_t generate_command() { return generate_command(control_torque()); }
+    CanPacket8::Quarter generate_command() const { return generate_command(control_torque()); }
 
-    uint16_t generate_command(double control_torque) const {
+    CanPacket8::Quarter generate_command(double control_torque) const {
         if (std::isnan(control_torque)) {
-            return 0;
+            return CanPacket8::Quarter{0};
         }
 
         control_torque = std::clamp(control_torque, -max_torque_, max_torque_);
-        double current = std::round(torque_to_raw_current_coefficient_ * control_torque);
-        BeInt16 control_current = static_cast<int16_t>(current);
+        const double current = std::round(torque_to_raw_current_coefficient_ * control_torque);
+        const rmcs_utility::be_int16_t control_current = static_cast<int16_t>(current);
 
-        return std::bit_cast<uint16_t>(control_current);
+        return std::bit_cast<CanPacket8::Quarter>(control_current);
     }
 
     int calibrate_zero_point() {
@@ -192,37 +205,17 @@ public:
     double temperature() const { return temperature_; }
 
 private:
-    struct BeInt16 {
-        int16_t value_buffer;
-
-        static constexpr int16_t transform(int16_t value) noexcept {
-            if constexpr (std::endian::native == std::endian::big)
-                return value;
-
-            uint16_t temp = static_cast<uint16_t>(value);
-            temp = static_cast<uint16_t>((temp >> 8) | (temp << 8));
-            return static_cast<int16_t>(temp);
-        }
-
-        constexpr BeInt16() = default;
-        constexpr BeInt16(int16_t value) noexcept
-            : value_buffer(transform(value)) {}
-
-        constexpr operator int16_t() const noexcept { return transform(value_buffer); }
-    };
-    static_assert(sizeof(BeInt16) == sizeof(int16_t));
-
     struct alignas(uint64_t) DjiMotorFeedback {
-        BeInt16 angle;
-        BeInt16 velocity;
-        BeInt16 current;
+        rmcs_utility::be_int16_t angle;
+        rmcs_utility::be_int16_t velocity;
+        rmcs_utility::be_int16_t current;
         uint8_t temperature;
         uint8_t unused;
     };
 
-    std::atomic<uint64_t> can_data_ = 0;
+    std::atomic<CanPacket8> can_data_;
 
-    static constexpr int raw_angle_max_ = 8192;
+    static constexpr int kRawAngleMax = 8192;
     int encoder_zero_point_, last_raw_angle_;
 
     bool multi_turn_angle_enabled_;
