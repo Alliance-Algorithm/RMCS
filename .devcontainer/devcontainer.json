@@ -14,17 +14,32 @@
 			"source": "/tmp/.X11-unix",
 			"target": "/tmp/.X11-unix",
 			"type": "bind"
+		},
+		{
+			"source": "${localEnv:HOME}",
+			"target": "/mnt/home",
+			"type": "bind"
 		}
 	],
+	"onCreateCommand": "bash -c '[ -d /mnt/home/.codex ] && ln -sfn /mnt/home/.codex ~/.codex; [ -d /mnt/home/.claude ] && ln -sfn /mnt/home/.claude ~/.claude; true'",
 	"containerEnv": {
-		"DISPLAY": "${localEnv:DISPLAY}"
+		"DISPLAY": "${localEnv:DISPLAY}",
+		"HTTP_PROXY": "${localEnv:HTTP_PROXY}",
+		"HTTPS_PROXY": "${localEnv:HTTPS_PROXY}",
+		"NO_PROXY": "${localEnv:NO_PROXY}",
+		"http_proxy": "${localEnv:http_proxy}",
+		"https_proxy": "${localEnv:https_proxy}",
+		"no_proxy": "${localEnv:no_proxy}",
+		"HOST_WORKSPACE_FOLDER": "${localWorkspaceFolder}"
 	},
 	"runArgs": [
-		"--network",
-		"host"
+		"--network=host"
 	],
 	"customizations": {
 		"vscode": {
+			"settings": {
+				"remote.autoForwardPorts": false
+			},
 			"extensions": [
 				// C++ language support
 				"llvm-vs-code-extensions.vscode-clangd",
@@ -33,7 +48,7 @@
 				"ms-python.python",
 				"ms-python.debugpy",
 				// CMake language support
-				"twxs.cmake",
+				"KylinIdeTeam.cmake-intellisence",
 				// Code spell checking
 				"streetsidesoftware.code-spell-checker",
 				// Git enhancements
