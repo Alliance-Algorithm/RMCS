@@ -4,6 +4,8 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <type_traits>
+#include <vector>
 #include <eigen3/Eigen/Dense>
 #include <eigen3/Eigen/src/Core/Matrix.h>
 #include <rclcpp/logging.hpp>
@@ -11,7 +13,7 @@
 
 namespace rmcs_core::hardware::device {
 
-enum class TrajectoryType { LINE, BEZIER, JOINT, SINGLE_JOINT };
+enum class TrajectoryType { LINE, BEZIER, JOINT };
 
 template <TrajectoryType Type>
 class Trajectory 
@@ -19,7 +21,7 @@ class Trajectory
  {
 public:
     using JointArrayType = typename std::conditional<
-        Type == TrajectoryType::SINGLE_JOINT, std::array<double, 1>, std::array<double, 6>>::type;
+        Type == TrajectoryType::JOINT, std::vector<double>, std::array<double, 6>>::type;
     JointArrayType joint_start;
     JointArrayType joint_end;
     Trajectory()
@@ -37,7 +39,18 @@ public:
     template <
         TrajectoryType T = Type, typename std::enable_if<T == TrajectoryType::JOINT, int>::type = 0>
     Trajectory& set_start_point(std::array<double, 6> joint_angles) {
-        joint_start = joint_angles;
+        joint_start.assign(joint_angles.begin(), joint_angles.end());
+        return *this;
+    }
+    template <
+        typename... Args,
+        TrajectoryType T = Type,
+        typename std::enable_if<
+            T == TrajectoryType::JOINT && sizeof...(Args) >= 1 &&
+                std::conjunction<std::is_arithmetic<Args>...>::value,
+            int>::type = 0>
+    Trajectory& set_start_point(Args... joint_angles) {
+        joint_start = {static_cast<double>(joint_angles)...};
         return *this;
     }
    
@@ -50,14 +63,18 @@ public:
     template <
         TrajectoryType T = Type, typename std::enable_if<T == TrajectoryType::JOINT, int>::type = 0>
     Trajectory& set_end_point(std::array<double, 6> joint_angles) {
-        joint_end = joint_angles;
+        joint_end.assign(joint_angles.begin(), joint_angles.end());
         return *this;
     }
     template <
-        TrajectoryType T                                                      = Type,
-        typename std::enable_if<T == TrajectoryType::SINGLE_JOINT, int>::type = 0>
-    Trajectory& set_end_point(std::array<double, 1> joint_angle) {
-        joint_end = joint_angle;
+        typename... Args,
+        TrajectoryType T = Type,
+        typename std::enable_if<
+            T == TrajectoryType::JOINT && sizeof...(Args) >= 1 &&
+                std::conjunction<std::is_arithmetic<Args>...>::value,
+            int>::type = 0>
+    Trajectory& set_end_point(Args... joint_angles) {
+        joint_end = {static_cast<double>(joint_angles)...};
         return *this;
     }
 
@@ -85,20 +102,18 @@ public:
         double alpha = (current_step - 1) / (total_step - 1);
         if (current_step == total_step + 1.0) {
             is_complete = true;
-            // RCLCPP_INFO(
-            //     this->get_logger(), "%f %f %f %f %f %f", result[0], result[1], result[2],
-            //     result[3], result[4], result[5]);
         }
 
         if (current_step <= total_step) {
-
-            if constexpr (Type == TrajectoryType::LINE || Type == TrajectoryType::BEZIER) {
+            switch (Type) {
+            case TrajectoryType::LINE:
+            case TrajectoryType::BEZIER: {
                 Eigen::Vector3d xyz_result;
-                if constexpr (Type == TrajectoryType::LINE) {
+                if (Type == TrajectoryType::LINE) {
                     Eigen::Vector3d xyz_start_eigen(xyz_start[0], xyz_start[1], xyz_start[2]);
                     Eigen::Vector3d xyz_end_eigen(xyz_end[0], xyz_end[1], xyz_end[2]);
                     xyz_result = (1 - alpha) * xyz_start_eigen + alpha * xyz_end_eigen;
-                } else if constexpr (Type == TrajectoryType::BEZIER) {
+                } else {
                     Eigen::Vector3d P0(xyz_start[0], xyz_start[1], xyz_start[2]);
                     Eigen::Vector3d P3(xyz_end[0], xyz_end[1], xyz_end[2]);
                     Eigen::Vector3d P1(xyz_control_1[0], xyz_control_1[1], xyz_control_1[2]);
@@ -117,20 +132,27 @@ public:
 
                 std::copy(xyz_result.data(), xyz_result.data() + 3, result.begin());
                 std::copy(rpy_result.data(), rpy_result.data() + 3, result.begin() + 3);
-            } else if constexpr (Type == TrajectoryType::JOINT) {
-                // double a0 = joint_start[0]
-                Eigen::VectorXd result_(6), a0(6), a1(6), a2(6), a3(6), start(6), end(6);
-                start << joint_start[0], joint_start[1], joint_start[2], joint_start[3],
-                    joint_start[4], joint_start[5];
-                end << joint_end[0], joint_end[1], joint_end[2], joint_end[3], joint_end[4],
-                    joint_end[5];
-
-                a0 = start;
-                a2      = 3.0f * (end - start) / pow(total_step, 2);
-                a3      = -2.0f * (end - start) / pow(total_step, 3);
-                result_ = a0 + a2 * pow(current_step, 2) + a3 * pow(current_step, 3);
-                std::copy(result_.data(), result_.data() + 6, result.begin());
-            } 
+                break;
+            }
+            case TrajectoryType::JOINT: {
+                const std::size_t dof = std::min(joint_start.size(), joint_end.size());
+                result.fill(0.0);
+                if (dof > 0) {
+                    Eigen::Map<const Eigen::VectorXd> start(joint_start.data(), dof);
+                    Eigen::Map<const Eigen::VectorXd> end(joint_end.data(), dof);
+                    Eigen::VectorXd result_(dof), a0(dof), a2(dof), a3(dof);
+                    a0      = start;
+                    a2      = 3.0f * (end - start) / pow(total_step, 2);
+                    a3      = -2.0f * (end - start) / pow(total_step, 3);
+                    result_ = a0 + a2 * pow(current_step, 2) + a3 * pow(current_step, 3);
+                    std::copy(
+                        result_.data(), result_.data() + std::min<std::size_t>(dof, 6), result.begin());
+                }
+                break;
+            }
+            default:
+                break;
+            }
 
             current_step++;
         }
