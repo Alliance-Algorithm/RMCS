@@ -33,11 +33,11 @@ public:
               Joint(*this, "/arm/joint_3"), Joint(*this, "/arm/joint_4"),
               Joint(*this, "/arm/joint_5"),Joint(*this, "/arm/joint_6"),
           } {
-        arm_urdf_sub = this->create_subscription<std_msgs::msg::String>(
-            "/robot_description", rclcpp::QoS(1).transient_local().reliable(),
-            [this](const std_msgs::msg::String::ConstSharedPtr& msg) { this->load_urdf(msg); });
-        joint_states_pub =
-            this->create_publisher<sensor_msgs::msg::JointState>("/joint_states", 10);
+        arm_urdf_sub = create_subscription<std_msgs::msg::String>(
+            "/robot_description",
+            rclcpp::QoS(1).transient_local().reliable(),
+            [this](const std_msgs::msg::String::ConstSharedPtr& msg){ load_urdf(msg); });
+        joint_states_pub = create_publisher<sensor_msgs::msg::JointState>("/joint_states", 10);
 
         for (std::size_t i = 0; i < num_motor; ++i) {
             register_input(
@@ -47,12 +47,12 @@ public:
             register_input(
                 "/arm/joint_" + std::to_string(i + 1) + "/motor/torque", joint_motor_torque[i]);
         }
-        register_output("urdf_loaded", is_load, false);
+        register_output("urdf_loaded", urdf_loaded, false);
     }
 
     void update() override {
         std::lock_guard<std::mutex> lock(data_mutex_);
-            auto wrap = [](double a) -> double {
+        auto wrap = [](double a) -> double {
         while (a >  M_PI) a -= 2.0 * M_PI;
         while (a < -M_PI) a += 2.0 * M_PI;
         return a;
@@ -63,7 +63,7 @@ public:
         }
 
         sensor_msgs::msg::JointState msg;
-        msg.header.stamp    = this->now();
+        msg.header.stamp    = now();
         msg.header.frame_id = "base_link";
         msg.name            = {"joint_1", "joint_2", "joint_3", "joint_4", "joint_5", "joint_6"};
         msg.position        = {
@@ -99,10 +99,6 @@ private:
                 Eigen::Matrix3d::Constant(std::numeric_limits<double>::quiet_NaN()));
             status_component.register_output(name_prefix + "/mass", mass_, NAN);
         }
-        double get_mass() const { return *mass_; }
-        double get_length() const { return *length_; }
-        Eigen::Vector3d get_com() const { return *com_; }
-        Eigen::Matrix3d get_inertia() const { return *inertia_; }
 
         void load_parameter(const double& m, const Eigen::Vector3d& c, const Eigen::Matrix3d& I) {
             *mass_    = m;
@@ -134,12 +130,6 @@ private:
             status_component.register_output(name_prefix + "/friction", friction_, NAN);
         }
 
-        double get_lower_limit() const { return *lower_limit_; }
-        double get_upper_limit() const { return *upper_limit_; }
-        double get_velocity_limit() const { return *velocity_limit_; }
-        double get_torque_limit() const { return *torque_limit_; }
-        double get_angle() { return *theta_; }
-
         void load_parameter(
             const double& upper, const double& lower, const double& vel, const double& torque,
             const Eigen::Vector3d& pos, const double& f) {
@@ -170,7 +160,7 @@ private:
 
     void load_urdf(const std_msgs::msg::String::ConstSharedPtr& msg) {
         std::lock_guard<std::mutex> lock(data_mutex_);
-        if (*is_load)
+        if (*urdf_loaded)
             return;
         const std::string& urdf_xml = msg->data;
         urdf::Model model;
@@ -212,18 +202,18 @@ private:
             }
             const auto& jp = joint_urdf->parent_to_joint_origin_transform.position;
             const Eigen::Vector3d joint_pos(jp.x, jp.y, jp.z);
-double friction = 0.0;
-if (joint_urdf->dynamics) {
-    friction = joint_urdf->dynamics->friction;
-}
+            double friction = 0.0;
+                if (joint_urdf->dynamics) {
+                friction = joint_urdf->dynamics->friction;
+                }
             joint[i].load_parameter(
                 joint_urdf->limits->upper, joint_urdf->limits->lower,
                 joint_urdf->limits->velocity, joint_urdf->limits->effort,
-                joint_pos, joint_urdf->dynamics->friction);
+                joint_pos, friction);
         }
         modify_link_length(model);
 
-        *is_load = true;
+        *urdf_loaded = true;
         arm_urdf_sub.reset();
     }
 
@@ -231,7 +221,7 @@ if (joint_urdf->dynamics) {
     std::array<Link, num_axis>  link;
     std::array<Joint, num_axis> joint;
 
-    OutputInterface<bool> is_load;
+    OutputInterface<bool> urdf_loaded;
     std::mutex data_mutex_;
 
     std::array<InputInterface<double>, num_axis> joint_motor_angle;

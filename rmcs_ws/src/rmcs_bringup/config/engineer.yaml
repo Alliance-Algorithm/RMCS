@@ -3,9 +3,8 @@ rmcs_executor:
     update_rate: 1000.0
     components:
       - rmcs_core::hardware::Arm -> arm_hardware
-      - rmcs_core::controller::arm::ArmController -> arm_controller
       - rmcs_core::controller::arm::ArmConfig -> arm_config
-      - rmcs_core::controller::arm::ArmMoveitProcess -> arm_moveit_process
+      - rmcs_core::controller::arm::ArmController -> arm_controller
 
       - rmcs_core::controller::pid::ErrorPidController -> joint5_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> joint5_velocity_pid_controller
@@ -22,7 +21,6 @@ rmcs_executor:
       - rmcs_core::controller::pid::ErrorPidController -> joint1_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> joint1_velocity_pid_controller
 
-      - rmcs_core::controller::arm::ArmSolver -> arm_solver
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 arm_hardware:
   ros__parameters:
@@ -35,10 +33,6 @@ arm_hardware:
 
 arm_config:
   ros__parameters: {}
-
-arm_solver:
-  ros__parameters:
-    controller_list: [gravity, friction]
 
 arm_controller:
   ros__parameters: {}
@@ -55,7 +49,7 @@ joint5_velocity_pid_controller:
   ros__parameters:
     measurement: /arm/joint_5/velocity
     setpoint: /arm/joint_5/control_velocity
-    control: /arm/joint_5/control_torque
+    control: /arm/joint_5/motor/control_torque
     kp: 0.028
     ki: 0.0
     kd: 0.0009
@@ -71,7 +65,7 @@ joint4_velocity_pid_controller:
   ros__parameters:
     measurement: /arm/joint_4/velocity
     setpoint: /arm/joint_4/control_velocity
-    control: /arm/joint_4/control_torque
+    control: /arm/joint_4/motor/control_torque
     kp: 0.06
     ki: 0.0
     kd: 0.001
@@ -87,7 +81,7 @@ joint3_velocity_pid_controller:
   ros__parameters:
     measurement: /arm/joint_3/velocity
     setpoint: /arm/joint_3/control_velocity
-    control: /arm/joint_3/control_torque
+    control: /arm/joint_3/motor/control_torque
     kp: 0.005
     ki: 0.0
     kd: 0.002
@@ -103,7 +97,7 @@ joint2_velocity_pid_controller:
   ros__parameters:
     measurement: /arm/joint_2/velocity
     setpoint: /arm/joint_2/control_velocity
-    control: /arm/joint_2/control_torque
+    control: /arm/joint_2/motor/control_torque
     kp: 0.0025
     ki: 0.0
     kd: 0.0004
@@ -119,7 +113,7 @@ joint1_velocity_pid_controller:
   ros__parameters:
     measurement: /arm/joint_1/velocity
     setpoint: /arm/joint_1/control_velocity
-    control: /arm/joint_1/control_torque
+    control: /arm/joint_1/motor/control_torque
     kp: 0.042
     ki: 0.0
     kd: 0.0001
@@ -129,4 +123,8 @@ value_broadcaster:
   ros__parameters:
     forward_list:
       - "/arm/joint_5/motor/control_torque"
+      - "/arm/joint_4/motor/control_torque"
+      - "/arm/joint_3/motor/control_torque"
+      - "/arm/joint_2/motor/control_torque"
+      - "/arm/joint_1/motor/control_torque"
 

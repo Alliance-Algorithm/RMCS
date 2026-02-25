@@ -1,6 +1,6 @@
 #include "hardware/device/encorder.hpp"
-#include "hardware/device/dm_motor.hpp"    // 新增：joint1,2,3 用 DM 电机
-#include "hardware/device/lk_motor.hpp"    // 保留：joint4,5 用 LK 电机
+#include "hardware/device/dm_motor.hpp"    
+#include "hardware/device/lk_motor.hpp"    
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/relay.hpp"
 #include "librmcs/device/bmi088.hpp"
@@ -40,13 +40,6 @@ public:
     void command() { armboard_.command(); }
 
 private:
-    static double normalizeAngle(double angle) {
-        while (angle > M_PI)
-            angle -= 2 * M_PI;
-        while (angle < -M_PI)
-            angle += 2 * M_PI;
-        return angle;
-    }
 
     rclcpp::Logger logger_;
 
@@ -196,22 +189,16 @@ if (++init_counter > 200)
             joint[2].update();
             joint[1].update();
             joint[0].update();
-            RCLCPP_INFO(this->get_logger(), 
-    "Joint[1] angle=%.3f rad  raw=%d", 
-    wrapToPi(Joint[1].get_angle()), 
-    Joint[1].get_raw_angle());
-            RCLCPP_INFO(this->get_logger(), 
-    "Joint[0] angle=%.3f rad  raw=%d", 
-    wrapToPi(Joint[0].get_angle()), 
+        RCLCPP_INFO(this->get_logger(), 
+    "Joint[0] angle=%.3f rad  torque=%.3f  raw=%d", 
+    wrapToPi(Joint[0].get_angle()),
+    Joint[0].get_torque(),
     Joint[0].get_raw_angle());
         RCLCPP_INFO(this->get_logger(), 
-    "Joint[0] angle=%.3f rad  torque=%.3f", 
-    wrapToPi(Joint[0].get_angle()),
-    Joint[0].get_torque());
-        RCLCPP_INFO(this->get_logger(), 
-    "Joint[1] angle=%.3f rad  torque=%.3f", 
+    "Joint[1] angle=%.3f rad  torque=%.3f  raw=%d", 
     wrapToPi(Joint[1].get_angle()),
-    Joint[1].get_torque());
+    Joint[1].get_torque(),
+    Joint[1].get_raw_angle());
     RCLCPP_INFO(this->get_logger(), 
     "joint[0] angle=%.3f rad  torque=%.3f  state=%d  raw_encoder=%u", 
     wrapToPi(joint[0].get_angle()),
@@ -258,9 +245,6 @@ if (++init_counter > 200)
                 joint[2].store_status(can_data);
             if (can_id == 0x000)
                 joint[1].store_status(can_data);
-        //         RCLCPP_INFO(this->get_logger(),
-        // "[CAN1] id=0x%03X  byte0=0x%02X",
-        // can_id, (uint8_t)(can_data));
             //RCLCPP_INFO(this->get_logger(), "joint1  %x", can_id);
     //         RCLCPP_INFO(
     //     this->get_logger(),

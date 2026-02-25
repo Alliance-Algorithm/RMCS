@@ -23,7 +23,9 @@ file (GLOB_RECURSE PROJECT_SOURCE CONFIGURE_DEPENDS
   ${PROJECT_SOURCE_DIR}/src/*.cpp
   ${PROJECT_SOURCE_DIR}/src/*.c
 )
-
+list(REMOVE_ITEM PROJECT_SOURCE
+  ${PROJECT_SOURCE_DIR}/src/controller/arm/arm_moveit_node.cpp
+)
 ament_auto_add_library (
   ${PROJECT_NAME} SHARED
   ${PROJECT_SOURCE}
@@ -37,7 +39,24 @@ include_directories(SYSTEM "/usr/include/libusb-1.0")
 
 target_link_libraries(${PROJECT_NAME} -lusb-1.0 atomic)
 
-
+add_executable(arm_moveit_node
+  ${PROJECT_SOURCE_DIR}/src/controller/arm/arm_moveit_node.cpp
+)
+target_include_directories(arm_moveit_node PRIVATE
+  ${PROJECT_SOURCE_DIR}/include
+  ${PROJECT_SOURCE_DIR}/src
+  ${PROJECT_SOURCE_DIR}/librmcs
+)
+ament_target_dependencies(arm_moveit_node
+  rclcpp                          # ROS2 核心
+  moveit_ros_planning_interface   # MoveGroupInterface
+  geometry_msgs                   # geometry_msgs::msg::Pose
+  std_msgs                        # Float64MultiArray, Bool
+  trajectory_msgs                 # JointTrajectoryPoint
+)
+install(TARGETS arm_moveit_node
+  DESTINATION lib/${PROJECT_NAME}
+)
 pluginlib_export_plugin_description_file(rmcs_executor plugins.xml)
 
 ament_auto_package()

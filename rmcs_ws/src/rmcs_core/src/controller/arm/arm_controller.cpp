@@ -29,7 +29,6 @@ public:
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
 
-
         register_output("/arm/enable_flag", is_arm_enable_, false);
 
         for (std::size_t i = 0; i < 6; ++i) {
@@ -39,7 +38,7 @@ public:
             register_output(prefix + "/control_angle_error", angle_error_[i], NAN);
         }
 
-        // 接收进程2下发的目标关节角度
+        // ── 订阅 /arm/target_joints
         target_sub_ = create_subscription<std_msgs::msg::Float64MultiArray>(
             "/arm/target_joints",
             rclcpp::QoS(1).best_effort(),
@@ -51,17 +50,13 @@ public:
                 has_pending_ = true;
             });
 
-        // 接收进程2下发的使能指令
+        // ── 订阅 /arm/enable_cmd
         enable_sub_ = create_subscription<std_msgs::msg::Bool>(
             "/arm/enable_cmd",
             rclcpp::QoS(1).best_effort(),
             [this](const std_msgs::msg::Bool::SharedPtr msg) {
                 pending_enable_.store(msg->data);
             });
-
-        // 发布关节状态给进程2（降频，避免1kHz全发）
-        joint_state_pub_ = create_publisher<std_msgs::msg::Float64MultiArray>(
-            "/arm/joint_states_raw", rclcpp::QoS(1).best_effort());
 
     }
 
@@ -82,23 +77,15 @@ public:
             }
         }
 
-        // 降频发布关节状态给进程2
-        if (++pub_counter_ >= 5) {  // 1000Hz / 5 = 200Hz
-            pub_counter_ = 0;
-            std_msgs::msg::Float64MultiArray state_msg;
-            state_msg.data.resize(6);
-            for (std::size_t i = 0; i < 6; ++i)
-                state_msg.data[i] = *theta_[i];
-            joint_state_pub_->publish(state_msg);
-        }
+        //计算角度误差
         for (std::size_t i = 0; i < 6; ++i) {
-    const double theta  = *theta_[i];
-    const double target = *target_theta_[i];
-    if (!std::isnan(theta) && !std::isnan(target))
-        *angle_error_[i] = target - theta;
-    else
-        *angle_error_[i] = NAN;
-}
+            const double theta  = *theta_[i];
+            const double target = *target_theta_[i];
+            if (!std::isnan(theta) && !std::isnan(target))
+                *angle_error_[i] = target - theta;
+            else
+                *angle_error_[i] = NAN;
+        }
     }
 
 private:
@@ -117,10 +104,9 @@ private:
     // ROS 通信
     rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr target_sub_;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr              enable_sub_;
-    rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr    joint_state_pub_;
 
     // spin 线程
-    int               pub_counter_{0};
+    // int               pub_counter_{0};
 };
 
 } // namespace rmcs_core::controller::arm
