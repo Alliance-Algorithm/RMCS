@@ -1,5 +1,5 @@
 #include "controller/pid/pid_calculator.hpp"
-#include "hardware/device/trajectory.hpp"
+#include "controller/arm/trajectory.hpp"
 #include "rmcs_msgs/arm_mode.hpp"
 #include <algorithm>
 #include <array>

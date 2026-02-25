@@ -29,25 +29,7 @@ public:
         status_component.register_input("/arm/Joint5/T", T_45);
         status_component.register_input("/arm/Joint6/T", T_56);
 
-        // status_component.register_input("/arm/Joint1/d", link_length1);
-        // status_component.register_input("/arm/Joint2/a", link_length2);
-        // status_component.register_input("/arm/Joint3/a", link_length3);
-        // status_component.register_input("/arm/Joint4/d", link_length4);
-        // status_component.register_input("/arm/Joint6/d", link_length5);
-
-        // status_component.register_input("/arm/Joint1/qlim_up", joint1_qlim_up);
-        // status_component.register_input("/arm/Joint2/qlim_up", joint2_qlim_up);
-        // status_component.register_input("/arm/Joint3/qlim_up", joint3_qlim_up);
-        // status_component.register_input("/arm/Joint4/qlim_up", joint4_qlim_up);
-        // status_component.register_input("/arm/Joint5/qlim_up", joint5_qlim_up);
-        // status_component.register_input("/arm/Joint6/qlim_up", joint6_qlim_up);
-
-        // status_component.register_input("/arm/Joint1/qlim_low", joint1_qlim_low);
-        // status_component.register_input("/arm/Joint2/qlim_low", joint2_qlim_low);
-        // status_component.register_input("/arm/Joint3/qlim_low", joint3_qlim_low);
-        // status_component.register_input("/arm/Joint4/qlim_low", joint4_qlim_low);
-        // status_component.register_input("/arm/Joint5/qlim_low", joint5_qlim_low);
-        // status_component.register_input("/arm/Joint6/qlim_low", joint6_qlim_low);
+      
     }
     Kinematic(const Kinematic&)            = delete;
     Kinematic& operator=(const Kinematic&) = delete;
@@ -226,16 +208,7 @@ private:
         return transformation;
     }
 
-    //   Eigen::Matrix<double,4,4> transform_martix (double real_theta ,double alpha,double a,double
-    //   d)
-    //   {
-    //     Eigen::Matrix<double,4,4> T_ ;
-    //     T_  << cos(real_theta), -sin(real_theta) * cos(alpha), sin(real_theta) * sin(alpha),
-    //         a * cos(real_theta), sin(real_theta), cos(real_theta) * cos(alpha),
-    //         -cos(real_theta) * sin(alpha), a * sin(real_theta), 0, sin(alpha), cos(alpha), d,
-    //         0, 0, 0, 1;
-    //     return T_;
-    //   }
+   
     static double normalizeAngle(double angle) {
 
         while (angle > M_PI)
@@ -252,25 +225,7 @@ private:
     Component::InputInterface<Eigen::Matrix4d> T_45;
     Component::InputInterface<Eigen::Matrix4d> T_56;
 
-    // Component::InputInterface<double> link_length1;
-    // Component::InputInterface<double> link_length2;
-    // Component::InputInterface<double> link_length3;
-    // Component::InputInterface<double> link_length4;
-    // Component::InputInterface<double> link_length5;
-
-    // Component::InputInterface<double> joint1_qlim_up;
-    // Component::InputInterface<double> joint2_qlim_up;
-    // Component::InputInterface<double> joint3_qlim_up;
-    // Component::InputInterface<double> joint4_qlim_up;
-    // Component::InputInterface<double> joint5_qlim_up;
-    // Component::InputInterface<double> joint6_qlim_up;
-
-    // Component::InputInterface<double> joint1_qlim_low;
-    // Component::InputInterface<double> joint2_qlim_low;
-    // Component::InputInterface<double> joint3_qlim_low;
-    // Component::InputInterface<double> joint4_qlim_low;
-    // Component::InputInterface<double> joint5_qlim_low;
-    // Component::InputInterface<double> joint6_qlim_low;
+  
     static constexpr double link_length1 = 0.05985;
     static constexpr double link_length2 = 0.41;
     static constexpr double link_length3 = -0.08307;

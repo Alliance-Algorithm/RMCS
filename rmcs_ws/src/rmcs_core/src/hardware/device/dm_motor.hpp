@@ -44,11 +44,10 @@ struct DMMotorConfig {
     DMMotorConfig& enable_multi_turn_angle() { return multi_turn_angle_enabled = true, *this; }
 };
 
-class DMMotor : rclcpp::Node {
+class DMMotor {
 public:
     DMMotor(
         Component& status_component, Component& command_component, const std::string& name_prefix)
-        : rclcpp::Node("agfdhfhf")
 
     {
         encoder_zero_point_       = 0;

@@ -4,7 +4,6 @@
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/lk_motor.hpp"
 #include "hardware/device/power_meter.hpp"
-#include "hardware/device/relay.hpp"
 #include "hardware/forwarder/cboard.hpp"
 #include "hardware/ring_buffer.hpp"
 #include "librmcs/device/bmi088.hpp"
@@ -95,8 +94,6 @@ private:
         {
 
         
-
-            
            using namespace device;
             joint[5].configure(
                 LKMotorConfig{LKMotorType::MHF6015}.reverse().set_encoder_zero_point(

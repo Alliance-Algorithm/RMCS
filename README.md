@@ -1,6 +1,14 @@
 # RMCS
 RoboMaster Control System based on ROS2.
-
+## Extra Dependency
+```zsh
+sudo apt update && sudo apt install -y \
+  ros-jazzy-moveit \
+  ros-jazzy-moveit-visual-tools \
+  ros-jazzy-moveit-servo \
+  ros-jazzy-moveit-resources \
+  ros-jazzy-rviz2
+```
 ## Dependency
 使用脚本，一键配置开发需要的软件包和插件
 ```bash
@@ -11,7 +19,6 @@ cd /workspaces/rmcs
 # 构建程序并加载构建结果至当前终端环境中
 source ./script/build.sh
 ```
-
 
 
 ## Develop

@@ -1,7 +1,6 @@
 #include "controller/pid/pid_calculator.hpp"
-#include "hardware/device/trajectory.hpp"
-//#include "hardware/hsm/HSM_up_one_stair_dev.hpp"
-#include "hardware/hsm/HSM_up_stairs_dev.hpp"
+#include "controller/arm/trajectory.hpp"
+#include "controller/leg/hsm/HSM_up_stairs_dev.hpp"
 #include "rmcs_msgs/arm_mode.hpp"
 #include <array>
 #include <cmath>

@@ -1,8 +1,8 @@
 #ifndef HSM_UP_TWO_STAIRS_HPP_H_
 #define HSM_UP_TWO_STAIRS_HPP_H_
 
-#include "hardware/device/trajectory.hpp"
-#include "hardware/hsm/HSM_dev.hpp" // 注意: 使用优化后的 HSM.hpp
+#include "controller/arm/trajectory.hpp"
+#include "controller/leg/hsm/HSM_dev.hpp" // 注意: 使用优化后的 HSM.hpp
 #include <cassert>
 #include <optional>
 #include <rclcpp/logging.hpp>
