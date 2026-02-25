@@ -1,0 +1,6 @@
+#compdef play-autoaim
+
+_arguments \
+  '--user[指定远程用户名]:用户名:' \
+  '--remote[从设备拉取 SDP 到容器]' \
+  '--no-copy[跳过容器到宿主机的拷贝]'

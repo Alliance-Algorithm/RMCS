@@ -103,7 +103,6 @@ public:
             return referee_ring_buffer_receive_.pop_front_multi(
                 [&buffer](std::byte byte) { *buffer++ = byte; }, size);
         };
-
         referee_serial_->write = [this](const std::byte* buffer, size_t size) {
             transmit_buffer_.add_uart1_transmission(buffer, size);
             return size;

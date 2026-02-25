@@ -4,7 +4,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <memory>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <rmcs_executor/component.hpp>

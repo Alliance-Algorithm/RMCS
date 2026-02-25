@@ -1,38 +1,69 @@
 #!/bin/sh
 
-if [ "$#" -ne 1 ]; then
-    echo "用法: $0 <用户名>"
-    echo "示例: $0 user"
-    exit 1
-fi
+set -e
 
-REMOTE_PLAYER="vlc"
+MONITOR_USER=""
+MONITOR_PLAYER="vlc"
+MONITOR_HOST="localhost"
 
-REMOTE_USER="$1"
-REMOTE_HOST="localhost"
+SDP_PATH="/tmp/auto_aim.sdp"
 
-REMOTE_PATH="/tmp/auto_aim.sdp"
-LOCAL_PATH="/tmp/auto_aim.sdp"
+USE_REMOTE=false
+SKIP_COPY=false
 
-scp remote:${REMOTE_PATH} ${REMOTE_PATH}
-if [ $? -ne 0 ]; then
-    echo "⚠️ 从 remote 拷贝失败。是否继续？(y/n)"
-    read -r answer
-    case "$answer" in
-    [Yy]*) echo "继续执行后续操作…" ;;
+# 参数解析
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+    --user)
+        shift
+        [ -z "$1" ] && echo "❌ --user 参数缺失" && exit 1
+        MONITOR_USER="$1"
+        ;;
+    --remote)
+        USE_REMOTE=true
+        ;;
+    --no-copy)
+        SKIP_COPY=true
+        ;;
     *)
-        echo "已取消。"
+        echo "未知参数: $1"
+        echo "用法: $0 --user <用户名> [--remote] [--no-copy]"
         exit 1
         ;;
     esac
-fi
+    shift
+done
 
-scp "${REMOTE_PATH}" "${REMOTE_USER}@${REMOTE_HOST}:${LOCAL_PATH}"
-if [ $? -ne 0 ]; then
-    echo "❌ scp 拷贝失败"
+if [ -z "$MONITOR_USER" ]; then
+    echo "❌ 缺少 --user 参数"
+    echo "用法: play-autoaim --user <用户名> [--remote] [--no-copy]"
     exit 1
 fi
 
-echo "✅ 文件已拷贝到宿主机：${LOCAL_PATH}"
+if [ "$USE_REMOTE" = true ]; then
+    scp remote:${SDP_PATH} ${SDP_PATH}
+    if [ $? -ne 0 ]; then
+        echo " 从 remote 拷贝失败。是否继续？(y/n)"
+        read -r answer
+        case "$answer" in
+        [Yy]*) echo " 继续执行后续操作…" ;;
+        *)
+            echo " 已取消。"
+            exit 1
+            ;;
+        esac
+    fi
+fi
 
-ssh -f "${REMOTE_USER}@${REMOTE_HOST}" "DISPLAY=:0 ${REMOTE_PLAYER} '${LOCAL_PATH}'"
+if [ "$SKIP_COPY" = false ]; then
+    scp "${SDP_PATH}" "${MONITOR_USER}@${MONITOR_HOST}:${SDP_PATH}"
+    if [ $? -ne 0 ]; then
+        echo " scp 拷贝失败"
+        exit 1
+    fi
+    echo " 文件已拷贝到宿主机：${SDP_PATH}"
+else
+    echo " 跳过拷贝，直接打开远程 SDP"
+fi
+
+ssh -f "${MONITOR_USER}@${MONITOR_HOST}" "DISPLAY=:0 ${MONITOR_PLAYER} '${SDP_PATH}' --network-caching=50"

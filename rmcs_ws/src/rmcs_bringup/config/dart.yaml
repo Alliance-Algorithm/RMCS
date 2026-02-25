@@ -3,40 +3,28 @@ rmcs_executor:
     update_rate: 1000.0
     components:
       - rmcs_core::hardware::CatapultDart -> dart_hardware
-      # - rmcs_core::controller::dart::DartLaunchController -> launch_controller
-      - rmcs_core::hardware::ServoTest -> servo_test
-      - rmcs_core::controller::pid::PidController -> pitch_velocity_pid_controller
+      - rmcs_core::controller::dart::DartLaunchController -> launch_controller
+      - rmcs_core::controller::dart::DartSettings -> dart_settings
+      - rmcs_core::controller::pid::PidController -> force_screw_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
-      - rmcs_core::controller::pid::PidController -> force_pid_controller
-      # - rmcs_core::controller::dart::DartSettings -> dart_settings
-      # - rmcs_core::broadcaster::ValueBroadcaster -> broadcaster
+      - rmcs_core::controller::pid::PidController -> pitch_velocity_pid_controller
+      - rmcs_core::broadcaster::ValueBroadcaster -> broadcaster
 
-# broadcaster:
-#   ros__parameters:
-#     forward_list:
-#       - /dart/force_control_motor/control_velocity
-#       - /dart/drive_belt/left/control_torque
-#       - /dart/drive_belt/left/velocity
-#       - /dart/drive_belt/right/control_torque
-#       - /dart/drive_belt/right/velocity
-#       - /dart/force_control_motor/velocity
+broadcaster:
+  ros__parameters:
+    forward_list:
+      - /dart/force_screw_motor/control_velocity
+      - /dart/force_screw_motor/velocity
+      - /dart/drive_belt/left/control_torque
+      - /dart/drive_belt/left/velocity
+      - /dart/drive_belt/right/control_torque
+      - /dart/drive_belt/right/velocity
 
 dart_hardware:
   ros__parameters:
     usb_pid: -1
     first_sample_spot: 1.0   
     final_sample_spot: 4.0 
-
-# launch_controller:
-#   ros__parameters:
-#     belt_velocity: 10.0
-#     sync_coefficient: 0.5
-#     b_kp: 1.0
-#     b_ki: 0.0
-#     b_kd: 0.0
-#     max_control_torque: 1.0
-#     trigger_free_angle: 0x0E2A
-#     trigger_lock_angle: 0x0FC1
 
 servo_test:
   ros__parameters:
@@ -49,16 +37,36 @@ servo_test:
     lifting_middle_angle_right: 0x11DB
     lifting_down_angle_right:   0x0C52
 
-# dart_settings:
-  # ros__parameters:
-    # log_enable: false
-    # screw_max_velocity: 10.0
-
 pitch_velocity_pid_controller:
   ros__parameters: 
     measurement: /dart/pitch_motor/velocity
     setpoint: /pitch/control/velocity
     control: /dart/pitch_motor/control_torque
+    kp: 0.0
+    ki: 0.0
+    kd: 0.0
+
+launch_controller:
+  ros__parameters:
+    belt_velocity: 10.0
+    sync_coefficient: 0.1
+    b_kp: 1.0
+    b_ki: 0.0
+    b_kd: 0.0
+    max_control_torque: 15.0
+    trigger_free_angle: 0x0E2A
+    trigger_lock_angle: 0x0FC1
+
+dart_settings:
+  ros__parameters:
+    log_enable: true
+    screw_max_velocity: 10.0
+
+force_screw_velocity_pid_controller:
+  ros__parameters:
+    measurement: /dart/force_screw_motor/velocity
+    setpoint: /dart/force_screw_motor/control_velocity
+    control: /dart/force_screw_motor/control_torque
     kp: 1.0
     ki: 0.0
     kd: 0.0
@@ -78,5 +86,8 @@ force_pid_controller:
     setpoint: /force/control/velocity
     control: /dart/force_control_motor/control_torque
     kp: 1.0
+    setpoint: /dart/yaw_motor/control_velocity
+    control: /dart/yaw_motor/control_torque
+    kp: 0.0
     ki: 0.0
     kd: 0.0
