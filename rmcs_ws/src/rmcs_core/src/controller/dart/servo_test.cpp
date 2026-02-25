@@ -15,21 +15,41 @@ public:
         , logger_(get_logger()) {
         trigger_lock_angle_ = get_parameter("trigger_lock_angle").as_int();
         trigger_free_angle_ = get_parameter("trigger_free_angle").as_int();
+        lifting_up_angle_left_     = get_parameter("lifting_up_angle_left").as_int();
+        lifting_middle_angle_left_ = get_parameter("lifting_middle_angle_left").as_int();
+        lifting_down_angle_left_   = get_parameter("lifting_down_angle_left").as_int();
+        lifting_up_angle_right_     = get_parameter("lifting_up_angle_right").as_int();
+        lifting_middle_angle_right_ = get_parameter("lifting_middle_angle_right").as_int();
+        lifting_down_angle_right_   = get_parameter("lifting_down_angle_right").as_int();
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
         register_input("/remote/switch/right", switch_right_);
         register_input("/remote/switch/left", switch_left_);
 
         register_output("/dart/trigger_servo/control_angle", trigger_control_angle);
+        register_output("/dart/lifting_left/control_angle", lifting_left_control_angle);
+        register_output("/dart/lifting_right/control_angle", lifting_right_control_angle);
+
     }
 
     void update() override {
         using namespace rmcs_msgs;
+
+        *trigger_control_angle = trigger_lock_angle_;
+
         if (*switch_left_ == Switch::UP && *switch_right_ == Switch::DOWN) {
-            *trigger_control_angle = trigger_lock_angle_;
+            *lifting_left_control_angle = lifting_down_angle_left_;
+            *lifting_right_control_angle = lifting_down_angle_right_;
         } else if (*switch_left_ == Switch::UP && *switch_right_ == Switch::UP) {
-            *trigger_control_angle = trigger_free_angle_;
+            *lifting_left_control_angle = lifting_up_angle_left_;
+            *lifting_right_control_angle = lifting_up_angle_right_;
         }
+
+        // if (*switch_left_ == Switch::UP && *switch_right_ == Switch::DOWN) {
+        //     *trigger_control_angle = trigger_lock_angle_;
+        // } else if (*switch_left_ == Switch::UP && *switch_right_ == Switch::UP) {
+        //     *trigger_control_angle = trigger_free_angle_;
+        // }
     }
 
 private:
@@ -43,6 +63,17 @@ private:
     uint16_t trigger_lock_angle_;
     uint16_t trigger_free_angle_;
     OutputInterface<uint16_t> trigger_control_angle;
+    OutputInterface<uint16_t> lifting_left_control_angle;
+    OutputInterface<uint16_t> lifting_right_control_angle;
+
+    uint16_t lifting_up_angle_left_;
+    uint16_t lifting_middle_angle_left_;
+    uint16_t lifting_down_angle_left_;
+    uint16_t lifting_up_angle_right_;
+    uint16_t lifting_middle_angle_right_;
+    uint16_t lifting_down_angle_right_;
+
+    
 };
 } // namespace rmcs_core::hardware
 

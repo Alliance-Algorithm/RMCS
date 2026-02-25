@@ -41,9 +41,9 @@ public:
         register_input("/remote/joystick/left",    joystick_left_);
         register_input("/remote/switch/right",     switch_right_);
         register_input("/remote/switch/left",      switch_left_);
-        register_input("/dart/pitch_motor/angle",  pitch_angle_);
         register_input("/force_sensor/channel_1/weight", force_sensor_ch1_data_);
         register_input("/force_sensor/channel_2/weight", force_sensor_ch2_data_);
+        // register_input("/dart_guidance/angle/error", yaw_pitch_angle_);
         register_output("/yaw/control/velocity",   yaw_control_velocity_);
         register_output("/force/control/velocity", force_control_);
         register_output("/pitch/control/velocity", pitch_control_velocity_);
@@ -86,7 +86,8 @@ public:
                     *pitch_control_velocity_ = joystick_right_->x() * max_transform_rate_;
                     break;
                 } else if (is_auto_pitch_control_mode_ == 1){    // double loop pid
-                    *yaw_control_velocity_ = joystick_left_->y() * max_transform_rate_;
+                    // double yaw_angle = (*yaw_pitch_angle_)[0];
+                    // *yaw_control_velocity_ = yaw_angle * max_transform_rate_;
                     pitch_control();
                     break;
                 }
@@ -125,7 +126,8 @@ private:
         pitch_angle_pid_controller.kp = pitch_angle_kp_;
         pitch_angle_pid_controller.ki = pitch_angle_ki_;
         pitch_angle_pid_controller.kd = pitch_angle_kd_;
-        *pitch_control_velocity_ = pitch_angle_pid_controller.update(pitch_angle_setpoint_ - *pitch_angle_);
+        // double pitch_angle = (*yaw_pitch_angle_)[1];
+        // *pitch_control_velocity_ = pitch_angle_pid_controller.update(pitch_angle_setpoint_ - pitch_angle);
     }
 
     void force_control() {
@@ -162,9 +164,9 @@ private:
     InputInterface<rmcs_msgs::Switch> switch_right_;
     InputInterface<rmcs_msgs::Switch> switch_left_;
 
-    InputInterface<double> pitch_angle_;
     InputInterface<int> force_sensor_ch1_data_;
     InputInterface<int> force_sensor_ch2_data_;
+    // InputInterface<Eigen::Vector2d> yaw_pitch_angle_;
 
     OutputInterface<double> yaw_control_velocity_;
     OutputInterface<double> force_control_;

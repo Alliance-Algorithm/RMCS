@@ -36,27 +36,24 @@ public:
         : Node{
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
+        , timer_interval_ms_(10)
         , logger_(get_logger())
         , drive_belt_pid_calculator_(
               get_parameter("b_kp").as_double(), get_parameter("b_ki").as_double(),
-              get_parameter("b_kd").as_double())
-        , lifting_table_pid_calculator_(
-              get_parameter("lt_kp").as_double(), get_parameter("lt_ki").as_double(),
-              get_parameter("lt_kd").as_double()) {
+              get_parameter("b_kd").as_double()) {
 
-        dirve_belt_working_velocity_ = get_parameter("belt_velocity").as_double();
+        drive_belt_working_velocity_ = get_parameter("belt_velocity").as_double();
         sync_coefficient_   = get_parameter("sync_coefficient").as_double();
         max_control_torque_ = get_parameter("max_control_torque").as_double();
-
-        lifting_table_working_velocity_ = get_parameter("lifting_velocity").as_double();
-        lifting_sync_coefficient_ = get_parameter("lifting_sync_coefficient").as_double();
 
         launch_trigger_angle_ = get_parameter("trigger_free_angle").as_int();
         launch_lock_angle_    = get_parameter("trigger_lock_angle").as_int();
 
-        lifting_up_angle_     = get_parameter("lifting_up_angle").as_int();
-        lifting_middle_angle_ = get_parameter("lifting_middle_angle").as_int();
-        lifting_down_angle_   = get_parameter("lifting_down_angle").as_int();
+        lifting_up_angle_left_     = get_parameter("lifting_up_angle_left").as_int();
+        lifting_down_angle_left_   = get_parameter("lifting_down_angle_left").as_int();
+
+        lifting_up_angle_right_     = get_parameter("lifting_up_angle_right").as_int();
+        lifting_down_angle_right_   = get_parameter("lifting_down_angle_right").as_int();
 
         limiting_wait_time_ = get_parameter("limiting_wait_time").as_int();
         limiting_trigger_angle_ = get_parameter("limiting_free_angle_").as_int();
@@ -70,13 +67,25 @@ public:
         register_input("/dart/drive_belt/left/velocity", left_drive_belt_velocity_);
         register_input("/dart/drive_belt/right/velocity", right_drive_belt_velocity_);
 
+        register_input("/dart/lifting_left/current_angle", lifting_angle_left_);
+        register_input("/dart/lifting_right/current_angle", lifting_angle_right_);
+
         register_output("/dart/drive_belt/left/control_torque", left_drive_belt_control_torque_, 0);
         register_output("/dart/drive_belt/right/control_torque", right_drive_belt_control_torque_, 0);
 
         register_output("/dart/trigger_servo/control_angle", trigger_control_angle);
-        register_output("/dart/lifting_servo/control_angle", lifting_contorl_angle);
-        register_output("/dart/limiting_servo/control_angle", limiting_contorl_angle);
+        register_output("/dart/limiting_servo/control_angle", limiting_control_angle);
+        register_output("/dart/lifting_left/control_angle", lifting_left_control_angle);
+        register_output("/dart/lifting_right/control_angle", lifting_right_control_angle);
 
+        register_output("/dart/filling/stage", filling_stage_);
+
+        timer_ = this->create_wall_timer(
+            std::chrono::milliseconds(timer_interval_ms_),
+            [this] { timer_callback(); });
+
+        // *lifting_left_control_angle = lifting_up_angle_left_;
+        // *lifting_right_control_angle = lifting_up_angle_right_;
     }
 
     void update() override {
@@ -85,26 +94,36 @@ public:
         if ((*switch_left_ == Switch::DOWN || *switch_left_ == Switch::UNKNOWN)
             && (*switch_right_ == Switch::DOWN || *switch_right_ == Switch::UNKNOWN)) {
             *launch_stage_ = DartLaunchStages::DISABLE;
+            *filling_stage_ = DartFillingStages::INIT;
             reset_all_controls();
 
         } else if (*switch_left_ == Switch::MIDDLE) {
 
             if (last_launch_stage_ == DartLaunchStages::DISABLE) {
                 *launch_stage_ = DartLaunchStages::RESETTING;
+                // *filling_stage_ = DartFillingStages::FILLING;        // assume that we already have a dart on the lifting platform at the beginning
             }
 
             if (last_switch_right_ == Switch::MIDDLE && *switch_right_ == Switch::DOWN) {
                 if (last_launch_stage_ == DartLaunchStages::INIT) {
                     *launch_stage_ = DartLaunchStages::LOADING;
-                    lifting_table_position_flag_ = 1;
                 } else if (last_launch_stage_ == DartLaunchStages::READY) {
+                    *lifting_left_control_angle = lifting_up_angle_left_;
+                    *lifting_right_control_angle = lifting_up_angle_right_;
                     *launch_stage_ = DartLaunchStages::CANCEL;
                 }
             } else if (last_switch_right_ == Switch::MIDDLE && *switch_right_ == Switch::UP) {
                 if (last_launch_stage_ == DartLaunchStages::READY) {
                     *launch_stage_ = DartLaunchStages::INIT;
                     trigger_lock_flag_ = false;
-                    loading_process();
+                    delay_and_execute(20, [this]() {
+                        *lifting_left_control_angle = lifting_up_angle_left_;
+                        *lifting_right_control_angle = lifting_up_angle_right_;
+                        *filling_stage_ = rmcs_msgs::DartFillingStages::LIFTING;
+                    });
+                    delay_and_execute(500, [this]() {
+                        loading_process();
+                    });
                 } else {
                     RCLCPP_INFO(logger_, "Dart has't been loaded !");
                 }
@@ -112,58 +131,66 @@ public:
 
             if (blocking_detection()) {
                 if (last_launch_stage_ == DartLaunchStages::LOADING) {
-                    *launch_stage_ = DartLaunchStages::RESETTING;
-                    lifting_table_position_flag_ = 2;
-                    trigger_lock_flag_ = true;
-                    dirve_belt_block_count_ = 0;
-
+                    *lifting_left_control_angle = lifting_down_angle_left_;
+                    *lifting_right_control_angle = lifting_down_angle_right_;
+                    *filling_stage_ = rmcs_msgs::DartFillingStages::DOWNING;
+                    delay_and_execute(500, [this]() {
+                        *launch_stage_ = DartLaunchStages::RESETTING;
+                        *filling_stage_ = rmcs_msgs::DartFillingStages::READY;
+                        trigger_lock_flag_ = true;
+                        drive_belt_block_count_ = 0;
+                    });
+                    // if (*lifting_angle_left_ == lifting_down_angle_left_ && *lifting_angle_right_ == lifting_down_angle_right_) {
+                        
+                    //     *launch_stage_ = DartLaunchStages::RESETTING;
+                    //     *filling_stage_ = rmcs_msgs::DartFillingStages::READY;
+                    //     trigger_lock_flag_ = true;
+                    //     drive_belt_block_count_ = 0;
+                    // }
                 } else if (last_launch_stage_ == DartLaunchStages::CANCEL) {
-                    *launch_stage_ = DartLaunchStages::RESETTING;
-                    lifting_table_position_flag_ = 1; 
-                    trigger_lock_flag_ = false;
-                    dirve_belt_block_count_ = 0;
-
+                    *lifting_left_control_angle = lifting_up_angle_left_;
+                    *lifting_right_control_angle = lifting_up_angle_right_;
+                    *filling_stage_ = rmcs_msgs::DartFillingStages::LIFTING;
+                    delay_and_execute(500, [this]() {
+                        *launch_stage_ = DartLaunchStages::RESETTING;
+                        *filling_stage_ = rmcs_msgs::DartFillingStages::INIT;
+                        trigger_lock_flag_ = false;
+                        drive_belt_block_count_ = 0;
+                    });
+                    // if (*lifting_angle_left_ == lifting_up_angle_left_ && *lifting_angle_right_ == lifting_up_angle_right_) {
+                    //     *launch_stage_ = DartLaunchStages::RESETTING;
+                    //     *filling_stage_ = rmcs_msgs::DartFillingStages::INIT;
+                    //     trigger_lock_flag_ = false;
+                    //     drive_belt_block_count_ = 0;
+                    // };
                 } else if (last_launch_stage_ == DartLaunchStages::RESETTING) {
                     *launch_stage_ =
                         trigger_lock_flag_ ? DartLaunchStages::READY : DartLaunchStages::INIT;
-                    dirve_belt_block_count_ = 0;
+                    *filling_stage_ = 
+                        trigger_lock_flag_ ? DartFillingStages::READY : DartFillingStages::INIT;
+                    drive_belt_block_count_ = 0;
                 }
             }
             double control_velocity = 0;
 
             if (*launch_stage_ == rmcs_msgs::DartLaunchStages::RESETTING) {
-                control_velocity = -dirve_belt_working_velocity_;
+                control_velocity = -drive_belt_working_velocity_;
             } else if (
                 *launch_stage_ == rmcs_msgs::DartLaunchStages::LOADING
                 || *launch_stage_ == rmcs_msgs::DartLaunchStages::CANCEL) {
-                control_velocity = dirve_belt_working_velocity_;
+                control_velocity = drive_belt_working_velocity_;
             } else {
                 control_velocity = 0;
             }
             drive_belt_sync_control(control_velocity);
-            RCLCPP_INFO(logger_, "%lf", control_velocity);
+            // RCLCPP_INFO(logger_, "%lf", control_velocity);
         }
 
         *trigger_control_angle = trigger_lock_flag_ ? launch_lock_angle_ : launch_trigger_angle_;
-        *limiting_contorl_angle = limiting_lock_flag_ ? limiting_lock_angle_ : limiting_trigger_angle_;
-        switch(lifting_table_position_flag_){
-            case 0: *lifting_contorl_angle = lifting_up_angle_;
-                break;
-            case 1: *lifting_contorl_angle = lifting_middle_angle_;
-                break;
-            case 2: *lifting_contorl_angle = lifting_down_angle_;
-                break;
-            default: break;
-        }
 
         last_switch_left_ = *switch_left_;
         last_switch_right_ = *switch_right_;
         last_launch_stage_ = *launch_stage_;
-        // RCLCPP_INFO(logger_, "%lf | %lf", *right_drive_belt_velocity_,
-        // *left_drive_belt_velocity_);
-        // RCLCPP_INFO(
-        //     logger_, "%d | %lf | %lf", static_cast<int>(*launch_stage_),
-        //     *left_drive_belt_control_torque_, *right_drive_belt_control_torque_);
     }
 
 private:
@@ -199,20 +226,49 @@ private:
         if ((abs(*left_drive_belt_velocity_) < 0.5 && abs(*left_drive_belt_control_torque_) > 0.5)
             || (abs(*right_drive_belt_velocity_) < 0.5
                 && abs(*right_drive_belt_control_torque_) > 0.5)) {
-            dirve_belt_block_count_++;
+            drive_belt_block_count_++;
         }
 
-        return dirve_belt_block_count_ > 1000 ? true : false;
+        return drive_belt_block_count_ > 1000 ? true : false;
     }
 
     void loading_process() {
-        lifting_table_position_flag_ = 0;
+        *limiting_control_angle = limiting_trigger_angle_;
+        *filling_stage_ = rmcs_msgs::DartFillingStages::FILLING;
+        delay_and_execute(2000, [this]() {
+            *limiting_control_angle = limiting_lock_angle_;
+            *filling_stage_ = rmcs_msgs::DartFillingStages::INIT;
+        });
     }
 
-    int dirve_belt_block_count_ = 0;
-    double dirve_belt_working_velocity_;
+    rclcpp::TimerBase::SharedPtr timer_;
+    int timer_interval_ms_;
+    std::function<void()> delayed_action_;
+    bool is_delaying_ = false;
+    int delay_remaining_ms_ = 0;
 
-    double lifting_table_working_velocity_;
+    void timer_callback() {
+        if (is_delaying_ && delay_remaining_ms_ > 0) {
+            delay_remaining_ms_ -= timer_interval_ms_;
+            if (delay_remaining_ms_ <= 0) {
+                is_delaying_ = false;
+                if (delayed_action_) {
+                    delayed_action_();
+                }
+            }
+        }
+    }
+
+    void delay_and_execute(int delay_ms, std::function<void()> action) {
+        if (!is_delaying_) {
+            is_delaying_ = true;
+            delay_remaining_ms_ = delay_ms;
+            delayed_action_ = std::move(action);
+        }
+    }
+
+    int drive_belt_block_count_ = 0;
+    double drive_belt_working_velocity_;
 
     rclcpp::Logger logger_;
 
@@ -223,6 +279,8 @@ private:
     rmcs_msgs::Switch last_switch_right_;
     rmcs_msgs::Switch last_switch_left_;
 
+    InputInterface<uint16_t> lifting_angle_left_;
+    InputInterface<uint16_t> lifting_angle_right_;
     OutputInterface<double> left_drive_belt_control_torque_;
     OutputInterface<double> right_drive_belt_control_torque_;
     InputInterface<double> left_drive_belt_velocity_;
@@ -238,28 +296,30 @@ private:
     bool trigger_lock_flag_ = false;
     OutputInterface<uint16_t> trigger_control_angle;
 
-    uint16_t lifting_up_angle_;
-    uint16_t lifting_middle_angle_;
-    uint16_t lifting_down_angle_;
-    int lifting_table_position_flag_ = 0;       //0: up, 1: middle, 2:down
-    OutputInterface<uint16_t> lifting_contorl_angle;
+    OutputInterface<rmcs_msgs::DartFillingStages> filling_stage_;
+    OutputInterface<bool> pulse_sending_flag_;
+
+    uint16_t lifting_up_angle_left_;
+    uint16_t lifting_down_angle_left_;
+    uint16_t lifting_up_angle_right_;
+    uint16_t lifting_down_angle_right_;
+    
+    OutputInterface<uint16_t> lifting_left_control_angle;
+    OutputInterface<uint16_t> lifting_right_control_angle;
 
     uint16_t limiting_lock_angle_;
     uint16_t limiting_trigger_angle_;
     uint16_t limiting_wait_time_;
-    bool limiting_lock_flag_ = false;
 
-    OutputInterface<uint16_t> limiting_contorl_angle;
+    OutputInterface<uint16_t> limiting_control_angle;
 
     pid::MatrixPidCalculator<2> drive_belt_pid_calculator_;
     double sync_coefficient_;
-
-    pid::MatrixPidCalculator<2> lifting_table_pid_calculator_;
-    double lifting_sync_coefficient_;
 };
 
 } // namespace rmcs_core::controller::dart
 
 #include <pluginlib/class_list_macros.hpp>
+#include <utility>
 
 PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::dart::DartLaunchController, rmcs_executor::Component)

@@ -1,0 +1,21 @@
+<library path="rmcs_dart_guidance">
+  <!-- <class type="rmcs_dartguide::DartTest" base_class_type="rmcs_executor::Component">
+    <description>Communication Test.</description>
+  </class> -->
+  <class type="rmcs_dart_guidance::DartVisionCore" base_class_type="rmcs_executor::Component">
+    <description>Image processing node.</description>
+  </class>
+  <class type="rmcs_dart_guidance::TestImageSaver" base_class_type="rmcs_executor::Component">
+    <description>test node.</description>
+  </class>
+  <class type="rmcs_dart_guidance::DebugDisplayComponent" base_class_type="rmcs_executor::Component">
+    <description>test node.</description>
+  </class>
+  <class type="rmcs_dart_guidance::ImagePublisher" base_class_type="rmcs_executor::Component">
+    <description>test node.</description>
+  </class>
+  <class type="rmcs_dart_guidance::CameraCalibrationComponent" base_class_type="rmcs_executor::Component">
+    <description>test node.</description>
+  </class>
+  
+</library>
