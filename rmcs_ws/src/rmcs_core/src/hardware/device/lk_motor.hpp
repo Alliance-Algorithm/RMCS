@@ -27,7 +27,12 @@ enum class LKMotorType : uint8_t {
     MG4010E_i10V3 = 2,
     MG4010E_i36V3 = 3,
     MG8010E_i36   = 4,
-    MHF7015  = 5,
+    MHF7015       = 5,
+    MG6012_i36    = 6,
+    MG4005E_i10V3 = 7,
+    MG5010E_i10V3 = 8,
+    MG5010E_i36V3 = 9,
+    MHF6015       = 10,
 };
 
 struct LKMotorConfig {
@@ -49,9 +54,14 @@ struct LKMotorConfig {
         switch (motor_type) {
         case LKMotorType::UNKNOWN:
         case LKMotorType::MG4010E_i10V3:
+        case LKMotorType::MG5010E_i10V3:
         case LKMotorType::MG4010E_i36V3:
+        case LKMotorType::MG5010E_i36V3:
+        case LKMotorType::MG6012_i36:
+        case LKMotorType::MG4005E_i10V3:
         case LKMotorType::MG8010E_i36: iq = 66.0 / 4096; break;
         case LKMotorType::MHF7015:
+        case LKMotorType::MHF6015:
         case LKMotorType::MF7015V210T: iq = 33.0 / 4096; break;
         }
     }
@@ -92,7 +102,7 @@ public:
     LKMotor& operator=(const LKMotor&) = delete;
 
     void configure(const LKMotorConfig& config) {
-
+        using namespace rmcs_core::hardware::device;
         double torque_constant, rated_current, rated_torque, max_torque;
         switch (config.motor_type) {
         case LKMotorType::MF7015V210T:
@@ -130,7 +140,42 @@ public:
             max_torque      = 2.42;
             LSB             = 18000;
             break;
-        default: throw std::runtime_error{"Unknown motor type"};
+        case LKMotorType::MG6012_i36:
+            torque_constant = 0.175 * 36.0;
+            rated_current   = 4.0;
+            rated_torque    = 25.0;
+            max_torque      = 40.0;
+            LSB             = 648000;
+            break;
+        case LKMotorType::MG4005E_i10V3:
+            torque_constant = 0.06 * 10.0;
+            rated_current   = 1.8;
+            rated_torque    = 25.0;
+            max_torque      = 2.0;
+            LSB             = 648000;
+            break;
+        case LKMotorType::MG5010E_i10V3:
+            torque_constant = 0.1 * 10.0;
+            rated_current   = 4.4;
+            rated_torque    = 4.0;
+            max_torque      = 10.0;
+            LSB             = 648000;
+            break;
+        case LKMotorType::MG5010E_i36V3:
+            torque_constant = 0.1 * 36.0;
+            rated_current   = 4.4;
+            rated_torque    = 13.0;
+            max_torque      = 25.0;
+            LSB             = 648000;
+            break;
+        case LKMotorType::MHF6015:
+            torque_constant = 0.26;
+            rated_current   = 3.1;
+            rated_torque    = 0.82;
+            max_torque      = 3.0;
+            LSB             = 648000;
+            break;
+        default: throw std::runtime_error{"Unknown motor type"}; break;
         }
 
         encoder_zero_point_ = config.encoder_zero_point % (raw_angle_max_);
@@ -140,11 +185,10 @@ public:
         reverse = config.reversed;
 
         raw_angle_to_angle_coefficient_ =
-            1.0 * (1.0 / (raw_angle_max_) / config.gear_ratio) * 2.0 * std::numbers::pi;
-
+            ((1.0 / (raw_angle_max_)) / config.gear_ratio) * 2.0 * std::numbers::pi;
         angle_to_raw_angle_coefficient_ = 1.0 / raw_angle_to_angle_coefficient_;
 
-        raw_velocity_to_velocity_coefficient_ = 1.0 / (config.gear_ratio * 6);
+        raw_velocity_to_velocity_coefficient_ = 1.0 / config.gear_ratio * (std::numbers::pi / 180);
         velocity_to_raw_velocity_coefficient_ = 1.0 / raw_velocity_to_velocity_coefficient_;
 
         raw_current_to_torque_coefficient_ = // 含有传动比
@@ -179,13 +223,12 @@ public:
         if (!multi_turn_angle_enabled_) {
             if (!angle_zero_to_2pi_enabled_) {
                 *angle_ =
-                    this->reverse
+                    reverse
                     * (((double)angle <= (raw_angle_max_) / 2.0)
                            ? (raw_angle_to_angle_coefficient_ * angle)
                            : (-2 * std::numbers::pi) + (raw_angle_to_angle_coefficient_ * angle));
             } else {
-                *angle_ =
-                    this->reverse * raw_angle_to_angle_coefficient_ * static_cast<double>(angle);
+                *angle_ = reverse * raw_angle_to_angle_coefficient_ * static_cast<double>(angle);
             }
         } else {
             auto diff = (angle - angle_multi_turn_) % (raw_angle_max_);
@@ -194,15 +237,17 @@ public:
             else if (diff > (raw_angle_max_) / 2)
                 diff -= (raw_angle_max_);
             angle_multi_turn_ += diff;
-            *angle_ = this->reverse * raw_angle_to_angle_coefficient_
-                    * static_cast<double>(angle_multi_turn_);
+            *angle_ =
+                reverse * raw_angle_to_angle_coefficient_ * static_cast<double>(angle_multi_turn_);
         }
 
-        // Velocity unit: rpm
-        *velocity_ = raw_velocity_to_velocity_coefficient_ * static_cast<double>(feedback.velocity);
+        // Velocity unit: rad/s
+        *velocity_ = reverse * raw_velocity_to_velocity_coefficient_
+                   * static_cast<double>(feedback.velocity);
 
         // Torque unit: N*m
-        *torque_ = raw_current_to_torque_coefficient_ * static_cast<double>(feedback.current);
+        *torque_ =
+            reverse * raw_current_to_torque_coefficient_ * static_cast<double>(feedback.current);
 
         last_raw_angle_ = raw_angle;
     }
@@ -210,7 +255,7 @@ public:
     uint64_t generate_torque_command() {
         std::array<uint8_t, 8> result = {0};
         result[0]                     = 0xA1;
-        double torque                 = *control_torque_;
+        double torque                 = reverse * (*control_torque_);
         if (std::isnan(torque)) {
             result[1] = 0X00;
             result[2] = 0X00;
@@ -221,7 +266,6 @@ public:
             result[7] = 0X00;
 
             return std::bit_cast<uint64_t>(result);
-            ;
         }
         double max_torque = (*motor_)->get_max_torque();
         torque            = std::clamp(torque, -max_torque, max_torque);
@@ -232,26 +276,6 @@ public:
         return std::bit_cast<uint64_t>(result);
     }
 
-    // uint64_t generate_velocity_command(double radians, double max_speed_rpm) {
-    //     std::array<uint8_t, 8> result = {0};
-    //     radians = this->reverse * radians;
-    //     result[0] = 0xAD;
-
-    //     uint16_t max_speed = static_cast<uint16_t>(max_speed_rpm * 6);
-    //     auto maxSpeedBytes = std::bit_cast<std::array<uint8_t, 2>>(max_speed);
-    //     //std::copy(maxSpeedBytes.begin(), maxSpeedBytes.end(), result.begin() + 2);
-
-    //     double real_radians = radians + this->encoder_zero_point_ *
-    //     raw_angle_to_angle_coefficient_; real_radians = real_radians >= 0 ? real_radians : 2 *
-    //     std::numbers::pi + real_radians; double degrees = real_radians * this->LSB * (*
-    //     motor_)->get_gear_ratio() / std::numbers::pi; uint32_t angle_control =
-    //     static_cast<uint32_t>(degrees); auto angleControlBytes =
-    //     std::bit_cast<std::array<uint8_t, 4>>(angle_control);
-    //     std::copy(angleControlBytes.begin(), angleControlBytes.end(), result.begin() + 4);
-
-    //     return std::bit_cast<uint64_t>(result);
-    // }
-
     static uint64_t lk_stop_command() { return std::bit_cast<uint64_t>(uint64_t{0x81}); }
     static uint64_t lk_quest_command() { return std::bit_cast<uint64_t>(uint64_t{0x9C}); }
     static uint64_t lk_enable_command() { return std::bit_cast<uint64_t>(uint64_t{0x88}); }
@@ -261,7 +285,7 @@ public:
     double get_velocity() { return *velocity_; }
     double get_torque() { return *torque_; }
     double get_max_torque() { return *max_torque_; }
-    double get_raw_angle() { return *raw_angle_; }
+    int get_raw_angle() { return *raw_angle_; }
 
 private:
     struct alignas(uint64_t) LKMotorFeedback {

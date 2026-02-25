@@ -3,6 +3,8 @@ rmcs_executor:
     update_rate: 1000.0
     components:
       - rmcs_core::hardware::Engineer -> engineer_hardware
+      - rmcs_core::controller::arm::ArmConfig -> arm_config
+      - rmcs_core::controller::arm::ArmSolver -> arm_solver
       - rmcs_core::controller::arm::ArmController -> arm_controller
 
       - rmcs_core::controller::leg::LegController -> leg_controller
@@ -52,15 +54,11 @@ engineer_hardware:
     left_board_usb_pid: 0x652f
     right_board_usb_pid: 0x75f3
     joint6_zero_point: 0
-    joint5_zero_point: 37361
-    joint4_zero_point: 12200
-    joint3_zero_point: 260992
-    joint2_zero_point: 52343 
-    joint6_qlim: [-3.141592,3.141592]    
-    joint5_qlim: [-1.93532,1.93532]    
-    joint4_qlim: [-3.141592,3.141592]    
-    joint3_qlim: [-1.0472,0.8727]    
-    joint2_qlim: [-1.308,1.16719]    
+    joint5_zero_point: 37436
+    joint4_zero_point: 28029
+    joint3_zero_point: 28134
+    joint2_zero_point: 29790 
+    joint1_zero_point: 52343
     steering_lf_zero_point: 3399
     steering_lb_zero_point: 681
     steering_rb_zero_point: 693
@@ -71,6 +69,9 @@ engineer_hardware:
     leg_rf_ecd_zero_point: 133400
     big_yaw_zero_point: 20485
 
+arm_solver:
+  ros__parameters:
+    controller_list: [pid, gravity]
 
 leg_controller:
   ros__parameters:

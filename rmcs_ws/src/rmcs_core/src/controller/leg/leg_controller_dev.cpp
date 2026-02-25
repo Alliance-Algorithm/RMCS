@@ -1,6 +1,6 @@
 #include "controller/pid/pid_calculator.hpp"
 #include "hardware/device/trajectory.hpp"
-#include "hardware/hsm/HSM_up_one_stair_dev.hpp"
+//#include "hardware/hsm/HSM_up_one_stair_dev.hpp"
 #include "hardware/hsm/HSM_up_stairs_dev.hpp"
 #include "rmcs_msgs/arm_mode.hpp"
 #include <array>
@@ -220,9 +220,6 @@ private:
                 // RCLCPP_INFO(this->get_logger(),"d -> four wheel");
             }
 
-            // if (keyboard.q) {
-            //     leg_mode = rmcs_msgs::LegMode::Down_Stairs;
-            // }
 
             if (last_arm_mode != *arm_mode) {
 
@@ -236,7 +233,7 @@ private:
                     break;
                 };
                 case rmcs_msgs::ArmMode::Auto_Up_Stairs: {
-                     RCLCPP_INFO(this->get_logger(),"arm to up");
+                    // RCLCPP_INFO(this->get_logger(),"arm to up");
 
                 
                         leg_mode = rmcs_msgs::LegMode::Up_Stairs;
@@ -351,7 +348,7 @@ private:
                 rmcs_core::hardware::hsm::up_stairs_hsm::events::go_to_OneProcess);
         }
 
-        if(keyboard_->ctrl&&keyboard_->shift){
+        if(!keyboard_->ctrl&&!keyboard_->shift){
             up_stairs.processEvent(rmcs_core::hardware::hsm::up_stairs_hsm::events::go_to_TwoProcess_initial);
         }
 

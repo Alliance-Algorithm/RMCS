@@ -332,12 +332,12 @@ private:
                 DHConfig{0, 0.05985, 1.5707963, 0},
                 Qlim_Stall_Config{LK_Robot.get_parameter("joint1_qlim").as_double_array()});
             joint2_encoder.configure(
-                EncoderConfig{}
+                EncoderConfig{EncoderType::Old_}
                     .set_encoder_zero_point(
                         static_cast<int>(LK_Robot.get_parameter("joint2_zero_point").as_int()))
                     .enable_multi_turn_angle());
             joint3_encoder.configure(
-                EncoderConfig{}
+                EncoderConfig{EncoderType::Old_}
                     .set_encoder_zero_point(
                         static_cast<int>(LK_Robot.get_parameter("joint3_zero_point").as_int()))
                     .reverse());
