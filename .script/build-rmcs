@@ -1,16 +1,7 @@
-#!/bin/bash
+#! /bin/bash
 
 source /opt/ros/jazzy/setup.bash
 
-cd "${RMCS_PATH}"/rmcs_ws || exit
+cd ${RMCS_PATH}/rmcs_ws
 
-[[ -x /opt/cmake/bin/cmake ]] &&
-    export PATH="/opt/cmake/bin:$PATH"
-
-command -v clang &>/dev/null &&
-    export CC=clang
-
-command -v clang++ &>/dev/null &&
-    export CXX=clang++
-
-colcon build --symlink-install --merge-install "$@" --cmake-args -G Ninja
+colcon build --symlink-install --merge-install $@

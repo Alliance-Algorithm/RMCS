@@ -34,8 +34,8 @@ rmcs_executor:
 tunnel_infantry_hardware:
   ros__parameters:
     board_serial: ""
-    yaw_motor_zero_point: 43417
-    pitch_motor_zero_point: 54062
+    yaw_motor_zero_point: 18030
+    pitch_motor_zero_point: 51697
 
 gimbal_controller:
   ros__parameters:

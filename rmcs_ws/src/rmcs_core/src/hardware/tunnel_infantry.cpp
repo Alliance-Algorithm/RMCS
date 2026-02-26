@@ -69,10 +69,8 @@ public:
                 .set_encoder_zero_point(
                     static_cast<int>(get_parameter("yaw_motor_zero_point").as_int())));
         gimbal_pitch_motor_.configure(
-            device::LkMotor::Config{device::LkMotor::Type::kMG4010Ei10}
-                .set_encoder_zero_point(
-                    static_cast<int>(get_parameter("pitch_motor_zero_point").as_int()))
-                .set_reversed());
+            device::LkMotor::Config{device::LkMotor::Type::kMG4010Ei10}.set_encoder_zero_point(
+                static_cast<int>(get_parameter("pitch_motor_zero_point").as_int())));
 
         gimbal_left_friction_.configure(
             device::DjiMotor::Config{device::DjiMotor::Type::kM3508}.set_reduction_ratio(1.));

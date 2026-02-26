@@ -30,7 +30,10 @@ public:
         explicit Config(Type type)
             : motor_type(type) {}
 
-        Config& set_encoder_zero_point(int value) { return encoder_zero_point = value, *this; }
+        Config& set_encoder_zero_point(int value) {
+            RCLCPP_INFO(rclcpp::get_logger("awa"), "%d", value);
+            return encoder_zero_point = value, *this;
+        }
         Config& set_reversed() { return reversed = true, *this; }
         Config& enable_multi_turn_angle() { return multi_turn_angle_enabled = true, *this; }
 
@@ -197,6 +200,7 @@ public:
     int64_t calibrate_zero_point() {
         multi_turn_encoder_count_ = 0;
         encoder_zero_point_ = last_raw_angle_;
+        RCLCPP_INFO(rclcpp::get_logger("awa"), "calibrate: %d", encoder_zero_point_);
         return encoder_zero_point_;
     }
 
@@ -299,7 +303,6 @@ public:
         } command alignas(CanPacket8){.velocity = to_command_velocity(control_velocity)};
 
         if (!std::isnan(torque_limit)) {
-            command.id = 0xAD;
             command.current_limit = to_command_current(torque_limit);
         }
 
