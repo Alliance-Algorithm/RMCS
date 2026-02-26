@@ -64,7 +64,7 @@ public:
                     .enable_multi_turn_angle());
 
         gimbal_yaw_motor_.configure(
-            device::DjiMotor::Config{device::DjiMotor::Type::kGM6020}
+            device::LkMotor::Config{device::LkMotor::Type::kMG5010Ei10}
                 .set_reversed()
                 .set_encoder_zero_point(
                     static_cast<int>(get_parameter("yaw_motor_zero_point").as_int())));
@@ -155,12 +155,17 @@ public:
             .can_id = 0x1FE,
             .can_data =
                 device::CanPacket8{
-                                   gimbal_yaw_motor_.generate_command(),
+                                   device::CanPacket8::PaddingQuarter{},
                                    device::CanPacket8::PaddingQuarter{},
                                    device::CanPacket8::PaddingQuarter{},
                                    supercap_.generate_command(),
                                    }
                     .as_bytes(),
+        });
+
+        builder.can1_transmit({
+            .can_id = 0x145,
+            .can_data = gimbal_yaw_motor_.generate_command().as_bytes(),
         });
 
         builder.can1_transmit({
@@ -226,7 +231,7 @@ private:
 
     void gimbal_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
         RCLCPP_INFO(
-            logger_, "[gimbal calibration] New yaw offset: %d",
+            logger_, "[gimbal calibration] New yaw offset: %ld",
             gimbal_yaw_motor_.calibrate_zero_point());
         RCLCPP_INFO(
             logger_, "[gimbal calibration] New pitch offset: %ld",
@@ -250,7 +255,7 @@ private:
         } else if (can_id == 0x204) {
             auto& motor = chassis_wheel_motors_[3];
             motor.store_status(data.can_data);
-        } else if (can_id == 0x205) {
+        } else if (can_id == 0x145) {
             gimbal_yaw_motor_.store_status(data.can_data);
         } else if (can_id == 0x206) {
             gimbal_pitch_motor_.store_status(data.can_data);
@@ -313,7 +318,7 @@ private:
     device::DjiMotor chassis_wheel_motors_[4];
     device::Supercap supercap_;
 
-    device::DjiMotor gimbal_yaw_motor_;
+    device::LkMotor gimbal_yaw_motor_;
     device::LkMotor gimbal_pitch_motor_;
 
     device::DjiMotor gimbal_left_friction_;
