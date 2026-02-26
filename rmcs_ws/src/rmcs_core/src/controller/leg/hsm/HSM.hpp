@@ -9,6 +9,8 @@
 #include <unordered_map>
 #include <vector>
 
+namespace rmcs_core::controller::leg::hsm {
+
 // --------------------------- Variant / Event ---------------------------
 using EventArgs = std::vector<std::any>;
 
@@ -235,4 +237,7 @@ private:
     SubStateId* initialSubStatePtr; // pointer used only when initialSubState is set
     bool is_subActive;
 };
+
+} // namespace rmcs_core::controller::leg::hsm
+
 #endif  // HARDWARE_HSM_HPP_H_

@@ -12,6 +12,8 @@
 #include <variant>
 #include <vector>
 
+namespace rmcs_core::controller::leg::hsm {
+
 // --------------------------- Variant / Event ---------------------------
 using EventArgs = std::vector<std::any>;
 
@@ -221,5 +223,7 @@ private:
     std::vector<std::unique_ptr<IState<SubStateId, EventId, Context>>> subStatesToRegister;
     bool is_subActive;
 };
+
+} // namespace rmcs_core::controller::leg::hsm
 
 #endif  // HARDWARE_HSM_HPP_H_

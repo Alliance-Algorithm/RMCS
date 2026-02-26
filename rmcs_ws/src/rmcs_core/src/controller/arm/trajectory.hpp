@@ -1,80 +1,88 @@
 #pragma once
 
-#include "cmath"
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstddef>
+#include <initializer_list>
+#include <stdexcept>
+#include <string>
 #include <type_traits>
 #include <vector>
-#include <eigen3/Eigen/Dense>
-#include <eigen3/Eigen/src/Core/Matrix.h>
-#include <rclcpp/logging.hpp>
-#include <rclcpp/node.hpp>
 
-namespace rmcs_core::hardware::device {
+#include <eigen3/Eigen/Dense>
+
+namespace rmcs_core::controller::arm {
 
 enum class TrajectoryType { LINE, BEZIER, JOINT };
 
 template <TrajectoryType Type>
-class Trajectory 
-//: public rclcpp::Node
- {
+class Trajectory {
 public:
-    using JointArrayType = typename std::conditional<
-        Type == TrajectoryType::JOINT, std::vector<double>, std::array<double, 6>>::type;
-    JointArrayType joint_start;
-    JointArrayType joint_end;
+    using JointArrayType =
+        typename std::conditional<Type == TrajectoryType::JOINT, std::vector<double>,
+                                  std::array<double, 6>>::type;
+    using ResultType = typename std::conditional<Type == TrajectoryType::JOINT, std::vector<double>,
+                                                 std::array<double, 6>>::type;
+
+    JointArrayType joint_start{};
+    JointArrayType joint_end{};
+
     Trajectory()
-       // : Node("trajectory_node") 
-        {
-        current_step = 1.0f;
-        is_complete  = false;
+        requires(Type != TrajectoryType::JOINT)
+        : total_step(0.0)
+        , current_step(1.0)
+        , is_complete(false) {}
+
+    explicit Trajectory(std::size_t joint_count)
+        requires(Type == TrajectoryType::JOINT)
+        : total_step(0.0)
+        , current_step(1.0)
+        , is_complete(false)
+        , joint_count_(joint_count)
+        , result(joint_count, 0.0) {
+        if (joint_count_ == 0) {
+            throw std::invalid_argument("Trajectory<JOINT>: joint_count must be greater than 0");
+        }
+        joint_start.assign(joint_count_, 0.0);
+        joint_end.assign(joint_count_, 0.0);
     }
 
-    Trajectory& set_start_point(std::array<double, 3> xyz, std::array<double, 3> rpy) {
+    Trajectory& set_start_point(std::array<double, 3> xyz, std::array<double, 3> rpy)
+        requires(Type != TrajectoryType::JOINT) {
         xyz_start = xyz;
         rpy_start = rpy;
         return *this;
     }
-    template <
-        TrajectoryType T = Type, typename std::enable_if<T == TrajectoryType::JOINT, int>::type = 0>
-    Trajectory& set_start_point(std::array<double, 6> joint_angles) {
-        joint_start.assign(joint_angles.begin(), joint_angles.end());
-        return *this;
-    }
-    template <
-        typename... Args,
-        TrajectoryType T = Type,
-        typename std::enable_if<
-            T == TrajectoryType::JOINT && sizeof...(Args) >= 1 &&
-                std::conjunction<std::is_arithmetic<Args>...>::value,
-            int>::type = 0>
-    Trajectory& set_start_point(Args... joint_angles) {
-        joint_start = {static_cast<double>(joint_angles)...};
-        return *this;
-    }
-   
 
-    Trajectory& set_end_point(std::array<double, 3> xyz, std::array<double, 3> rpy) {
+    Trajectory& set_end_point(std::array<double, 3> xyz, std::array<double, 3> rpy)
+        requires(Type != TrajectoryType::JOINT) {
         xyz_end = xyz;
         rpy_end = rpy;
         return *this;
     }
-    template <
-        TrajectoryType T = Type, typename std::enable_if<T == TrajectoryType::JOINT, int>::type = 0>
-    Trajectory& set_end_point(std::array<double, 6> joint_angles) {
-        joint_end.assign(joint_angles.begin(), joint_angles.end());
+
+    Trajectory& set_start_point(const std::vector<double>& joint_angles)
+        requires(Type == TrajectoryType::JOINT) {
+        if (joint_angles.size() != joint_count_) {
+            throw std::invalid_argument(
+                "Trajectory<JOINT>: provided joint count (" + std::to_string(joint_angles.size())
+                + ") does not match initialized joint_count (" + std::to_string(joint_count_)
+                + ")");
+        }
+        joint_start = joint_angles;
         return *this;
     }
-    template <
-        typename... Args,
-        TrajectoryType T = Type,
-        typename std::enable_if<
-            T == TrajectoryType::JOINT && sizeof...(Args) >= 1 &&
-                std::conjunction<std::is_arithmetic<Args>...>::value,
-            int>::type = 0>
-    Trajectory& set_end_point(Args... joint_angles) {
-        joint_end = {static_cast<double>(joint_angles)...};
+
+    Trajectory& set_end_point(const std::vector<double>& joint_angles)
+        requires(Type == TrajectoryType::JOINT) {
+        if (joint_angles.size() != joint_count_) {
+            throw std::invalid_argument(
+                "Trajectory<JOINT>: provided joint count (" + std::to_string(joint_angles.size())
+                + ") does not match initialized joint_count (" + std::to_string(joint_count_)
+                + ")");
+        }
+        joint_end = joint_angles;
         return *this;
     }
 
@@ -87,86 +95,98 @@ public:
     }
 
     Trajectory& set_total_step(double total_step_) {
+        if (total_step_ <= 1.0) {
+            throw std::invalid_argument("Trajectory: total_step must be greater than 1");
+        }
         total_step = total_step_;
         return *this;
     }
 
     void reset() {
-        current_step = 1.0f;
+        current_step = 1.0;
         is_complete  = false;
     }
 
     bool get_complete() const { return is_complete; }
 
-    std::array<double, 6> trajectory() {
-        double alpha = (current_step - 1) / (total_step - 1);
-        if (current_step == total_step + 1.0) {
+
+    ResultType trajectory() {
+
+        if (current_step > total_step) {
             is_complete = true;
+            return result;
         }
 
-        if (current_step <= total_step) {
-            switch (Type) {
-            case TrajectoryType::LINE:
-            case TrajectoryType::BEZIER: {
-                Eigen::Vector3d xyz_result;
-                if (Type == TrajectoryType::LINE) {
-                    Eigen::Vector3d xyz_start_eigen(xyz_start[0], xyz_start[1], xyz_start[2]);
-                    Eigen::Vector3d xyz_end_eigen(xyz_end[0], xyz_end[1], xyz_end[2]);
-                    xyz_result = (1 - alpha) * xyz_start_eigen + alpha * xyz_end_eigen;
-                } else {
-                    Eigen::Vector3d P0(xyz_start[0], xyz_start[1], xyz_start[2]);
-                    Eigen::Vector3d P3(xyz_end[0], xyz_end[1], xyz_end[2]);
-                    Eigen::Vector3d P1(xyz_control_1[0], xyz_control_1[1], xyz_control_1[2]);
-                    Eigen::Vector3d P2(xyz_control_2[0], xyz_control_2[1], xyz_control_2[2]);
-                    Eigen::Vector3d P01  = (1 - alpha) * P0 + alpha * P1;
-                    Eigen::Vector3d P12  = (1 - alpha) * P1 + alpha * P2;
-                    Eigen::Vector3d P23  = (1 - alpha) * P2 + alpha * P3;
-                    Eigen::Vector3d P012 = (1 - alpha) * P01 + alpha * P12;
-                    Eigen::Vector3d P123 = (1 - alpha) * P12 + alpha * P23;
-                    xyz_result           = (1 - alpha) * P012 + alpha * P123;
-                }
+        const double alpha = (current_step - 1.0) / (total_step - 1.0);
 
-                Eigen::Vector3d rpy_start_eigen(rpy_start[0], rpy_start[1], rpy_start[2]);
-                Eigen::Vector3d rpy_end_eigen(rpy_end[0], rpy_end[1], rpy_end[2]);
-                Eigen::Vector3d rpy_result = (1 - alpha) * rpy_start_eigen + alpha * rpy_end_eigen;
-
-                std::copy(xyz_result.data(), xyz_result.data() + 3, result.begin());
-                std::copy(rpy_result.data(), rpy_result.data() + 3, result.begin() + 3);
-                break;
-            }
-            case TrajectoryType::JOINT: {
-                const std::size_t dof = std::min(joint_start.size(), joint_end.size());
-                result.fill(0.0);
-                if (dof > 0) {
-                    Eigen::Map<const Eigen::VectorXd> start(joint_start.data(), dof);
-                    Eigen::Map<const Eigen::VectorXd> end(joint_end.data(), dof);
-                    Eigen::VectorXd result_(dof), a0(dof), a2(dof), a3(dof);
-                    a0      = start;
-                    a2      = 3.0f * (end - start) / pow(total_step, 2);
-                    a3      = -2.0f * (end - start) / pow(total_step, 3);
-                    result_ = a0 + a2 * pow(current_step, 2) + a3 * pow(current_step, 3);
-                    std::copy(
-                        result_.data(), result_.data() + std::min<std::size_t>(dof, 6), result.begin());
-                }
-                break;
-            }
-            default:
-                break;
+        if constexpr (Type == TrajectoryType::JOINT) {
+            if (joint_start.size() != joint_count_ || joint_end.size() != joint_count_) {
+                throw std::logic_error(
+                    "Trajectory<JOINT>: start/end point size does not match initialized joint_count");
             }
 
-            current_step++;
+            result.assign(joint_count_, 0.0);
+
+            const Eigen::Index dof = static_cast<Eigen::Index>(joint_count_);
+            Eigen::Map<const Eigen::VectorXd> start(joint_start.data(), dof);
+            Eigen::Map<const Eigen::VectorXd> end(joint_end.data(), dof);
+
+            Eigen::VectorXd coeff_a0(dof), coeff_a2(dof), coeff_a3(dof), values(dof);
+            coeff_a0 = start;
+            coeff_a2 = 3.0 * (end - start) / std::pow(total_step, 2);
+            coeff_a3 = -2.0 * (end - start) / std::pow(total_step, 3);
+            values   = coeff_a0 + coeff_a2 * std::pow(current_step, 2)
+                     + coeff_a3 * std::pow(current_step, 3);
+
+            std::copy(values.data(), values.data() + dof, result.begin());
+        } else {
+            result.fill(0.0);
+
+            Eigen::Vector3d xyz_result;
+            if constexpr (Type == TrajectoryType::LINE) {
+                const Eigen::Vector3d xyz_start_eigen(xyz_start[0], xyz_start[1], xyz_start[2]);
+                const Eigen::Vector3d xyz_end_eigen(xyz_end[0], xyz_end[1], xyz_end[2]);
+                xyz_result = (1.0 - alpha) * xyz_start_eigen + alpha * xyz_end_eigen;
+            } else {
+                const Eigen::Vector3d p0(xyz_start[0], xyz_start[1], xyz_start[2]);
+                const Eigen::Vector3d p3(xyz_end[0], xyz_end[1], xyz_end[2]);
+                const Eigen::Vector3d p1(xyz_control_1[0], xyz_control_1[1], xyz_control_1[2]);
+                const Eigen::Vector3d p2(xyz_control_2[0], xyz_control_2[1], xyz_control_2[2]);
+
+                const Eigen::Vector3d p01  = (1.0 - alpha) * p0 + alpha * p1;
+                const Eigen::Vector3d p12  = (1.0 - alpha) * p1 + alpha * p2;
+                const Eigen::Vector3d p23  = (1.0 - alpha) * p2 + alpha * p3;
+                const Eigen::Vector3d p012 = (1.0 - alpha) * p01 + alpha * p12;
+                const Eigen::Vector3d p123 = (1.0 - alpha) * p12 + alpha * p23;
+                xyz_result                 = (1.0 - alpha) * p012 + alpha * p123;
+            }
+
+            const Eigen::Vector3d rpy_start_eigen(rpy_start[0], rpy_start[1], rpy_start[2]);
+            const Eigen::Vector3d rpy_end_eigen(rpy_end[0], rpy_end[1], rpy_end[2]);
+            const Eigen::Vector3d rpy_result = (1.0 - alpha) * rpy_start_eigen + alpha * rpy_end_eigen;
+
+            std::copy(xyz_result.data(), xyz_result.data() + 3, result.begin());
+            std::copy(rpy_result.data(), rpy_result.data() + 3, result.begin() + 3);
+        }
+
+        current_step += 1.0;
+        if (current_step > total_step) {
+            is_complete = true;
         }
 
         return result;
     }
 
 private:
-    std::array<double, 6> result;
+    ResultType result{};
     double total_step;
     double current_step;
     bool is_complete;
-    std::array<double, 3> xyz_start, xyz_end, xyz_control_1, xyz_control_2;
-    std::array<double, 3> rpy_start, rpy_end;
+
+    std::array<double, 3> xyz_start{}, xyz_end{}, xyz_control_1{}, xyz_control_2{};
+    std::array<double, 3> rpy_start{}, rpy_end{};
+
+    std::size_t joint_count_{0};
 };
 
-} // namespace rmcs_core::hardware::device
+} // namespace rmcs_core::controller::arm

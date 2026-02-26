@@ -17,6 +17,7 @@
 #include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/switch.hpp>
+#include <vector>
 namespace rmcs_core::controller::chassis {
 class Chassis_Controller
     : public rmcs_executor::Component
@@ -195,9 +196,10 @@ private:
                             yaw_set_theta_in_YawFreeMode = 0.0;
                         }
                     }
-                    yaw_trajectory_controller.set_start_point({*chassis_big_yaw_angle})
+                    yaw_trajectory_controller.set_start_point(
+                        std::vector<double>{*chassis_big_yaw_angle})
                         .set_total_step(1400)
-                        .set_end_point({yaw_set_theta_in_YawFreeMode})
+                        .set_end_point(std::vector<double>{yaw_set_theta_in_YawFreeMode})
                         .reset();
                 } else if (*arm_mode == rmcs_msgs::ArmMode::Auto_Walk) {
                     move_speed_limit        = 4.5;
@@ -232,9 +234,11 @@ private:
             *chassis_big_yaw_target_angle_error =
                 normalizeAngle(yaw_control_theta_in_IMU - *yaw_imu_angle);
         } else {
-            std::array<double, 6> result = yaw_trajectory_controller.trajectory();
-            *chassis_big_yaw_target_angle_error =
-                normalizeAngle(result[0] - *chassis_big_yaw_angle);
+            const std::vector<double> result = yaw_trajectory_controller.trajectory();
+            if (!result.empty()) {
+                *chassis_big_yaw_target_angle_error =
+                    normalizeAngle(result[0] - *chassis_big_yaw_angle);
+            }
         }
     }
     void update_virtual_buffer_energy() {
@@ -298,7 +302,8 @@ private:
     InputInterface<double> joint1_theta;
     double yaw_control_theta_in_IMU     = NAN;
     double yaw_set_theta_in_YawFreeMode = NAN;
-    hardware::device::Trajectory<hardware::device::TrajectoryType::JOINT> yaw_trajectory_controller;
+    rmcs_core::controller::arm::Trajectory<rmcs_core::controller::arm::TrajectoryType::JOINT>
+        yaw_trajectory_controller{1};
 
     OutputInterface<double> chassis_big_yaw_target_angle_error;
     InputInterface<double> chassis_big_yaw_angle;

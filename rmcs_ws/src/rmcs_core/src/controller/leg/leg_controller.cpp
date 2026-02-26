@@ -347,12 +347,17 @@
 //     InputInterface<double> chassis_big_yaw_angle;
 //     InputInterface<double> joint1_theta;
 
-//     hardware::device::Trajectory<hardware::device::TrajectoryType::JOINT> four_wheel_trajectory;
+//     rmcs_core::controller::arm::Trajectory<rmcs_core::controller::arm::TrajectoryType::JOINT>
+//         four_wheel_trajectory;
 //     static constexpr double wheel_distance = 458.0f;
-//     hardware::device::Trajectory<hardware::device::TrajectoryType::JOINT> six_wheel_trajectory;
-//     hardware::device::Trajectory<hardware::device::TrajectoryType::JOINT> up_stairs_initial;
-//     hardware::device::Trajectory<hardware::device::TrajectoryType::JOINT> up_stairs_leg_press;
-//     hardware::device::Trajectory<hardware::device::TrajectoryType::JOINT> up_stairs_leg_lift;
+//     rmcs_core::controller::arm::Trajectory<rmcs_core::controller::arm::TrajectoryType::JOINT>
+//         six_wheel_trajectory;
+//     rmcs_core::controller::arm::Trajectory<rmcs_core::controller::arm::TrajectoryType::JOINT>
+//         up_stairs_initial;
+//     rmcs_core::controller::arm::Trajectory<rmcs_core::controller::arm::TrajectoryType::JOINT>
+//         up_stairs_leg_press;
+//     rmcs_core::controller::arm::Trajectory<rmcs_core::controller::arm::TrajectoryType::JOINT>
+//         up_stairs_leg_lift;
 //     bool initial_check_done_ = false;
 // };
 

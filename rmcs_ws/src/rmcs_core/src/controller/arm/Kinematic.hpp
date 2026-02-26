@@ -16,7 +16,7 @@
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <rmcs_executor/component.hpp>
-namespace rmcs_core::hardware::device {
+namespace rmcs_core::controller::arm {
 using rmcs_executor::Component;
 class Kinematic : public rclcpp::Node {
 public:
@@ -246,4 +246,4 @@ private:
     double yaw;
     double pitch;
 };
-} // namespace rmcs_core::hardware::device
+} // namespace rmcs_core::controller::arm

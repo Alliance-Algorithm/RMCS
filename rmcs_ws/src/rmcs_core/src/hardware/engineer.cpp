@@ -1,7 +1,7 @@
-#include "hardware/device/encorder.hpp"
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dm_motor.hpp"
 #include "hardware/device/dr16.hpp"
+#include "hardware/device/encorder.hpp"
 #include "hardware/device/lk_motor.hpp"
 #include "hardware/device/power_meter.hpp"
 #include "hardware/forwarder/cboard.hpp"
@@ -29,7 +29,9 @@ class Engineer
     , public rclcpp::Node {
 public:
     Engineer()
-        : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
+        : Node{
+              get_component_name(),
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , logger_(get_logger())
         , engineer_command_(create_partner_component<EngineerCommand>("engineer_command", *this))
         , armboard_(
@@ -48,19 +50,12 @@ public:
         rightboard_.update();
     }
     void command() {
-        // armboard_.command();
+        armboard_.command();
         leftboard_.command();
         rightboard_.command();
     }
 
 private:
-    static double normalizeAngle(double angle) {
-        while (angle > M_PI)
-            angle -= 2 * M_PI;
-        while (angle < -M_PI)
-            angle += 2 * M_PI;
-        return angle;
-    }
     rclcpp::Logger logger_;
     class EngineerCommand : public rmcs_executor::Component {
     public:
@@ -72,14 +67,16 @@ private:
     };
     std::shared_ptr<EngineerCommand> engineer_command_;
 
-    class ArmBoard final : private librmcs::client::CBoard, rclcpp::Node {
+    class ArmBoard final
+        : private librmcs::client::CBoard
+        , rclcpp::Node {
     public:
         friend class Engineer;
         explicit ArmBoard(Engineer& engineer, EngineerCommand& engineer_command, int usb_pid)
             : librmcs::client::CBoard(usb_pid)
             , rclcpp::Node{"arm_board"}
 
-             , joint(
+            , joint(
                   {engineer, engineer_command, "/arm/joint_1/motor"},
                   {engineer, engineer_command, "/arm/joint_2/motor"},
                   {engineer, engineer_command, "/arm/joint_3/motor"},
@@ -93,8 +90,7 @@ private:
 
         {
 
-        
-           using namespace device;
+            using namespace device;
             joint[5].configure(
                 LKMotorConfig{LKMotorType::MHF6015}.reverse().set_encoder_zero_point(
                     static_cast<uint16_t>(engineer.get_parameter("joint6_zero_point").as_int())));
@@ -117,19 +113,13 @@ private:
                     static_cast<int>(engineer.get_parameter("joint2_zero_point").as_int())));
         }
         ~ArmBoard() final {
-             uint64_t command_{0};
-            transmit_buffer_.add_can2_transmission(
-                0x145, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
-                 transmit_buffer_.add_can2_transmission(
-                0x144, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
-                 transmit_buffer_.add_can2_transmission(
-                0x141, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
-                 transmit_buffer_.add_can1_transmission(
-                0x142, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
-                  transmit_buffer_.add_can1_transmission(
-                0x143, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
-                  transmit_buffer_.add_can1_transmission(
-                0x146, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+            uint64_t command_{0};
+            transmit_buffer_.add_can2_transmission(0x145, command_);
+            transmit_buffer_.add_can2_transmission(0x144, command_);
+            transmit_buffer_.add_can2_transmission(0x141, command_);
+            transmit_buffer_.add_can1_transmission(0x142, command_);
+            transmit_buffer_.add_can1_transmission(0x143, command_);
+            transmit_buffer_.add_can1_transmission(0x146, command_);
             transmit_buffer_.trigger_transmission();
             stop_handling_events();
             event_thread_.join();
@@ -137,7 +127,6 @@ private:
 
         void update() {
             using namespace device;
-            
             update_arm_motors();
             dr16_.update();
         }
@@ -146,35 +135,29 @@ private:
     private:
         void arm_command_update() {
             uint64_t command_;
-            static bool even_phase = true;
+            static bool even_phase{true};
 
             if (even_phase) {
 
                 command_ = joint[2].generate_torque_command();
-                transmit_buffer_.add_can1_transmission(
-                    0x143, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+                transmit_buffer_.add_can1_transmission(0x143, command_);
 
                 command_ = joint[5].generate_torque_command();
-                transmit_buffer_.add_can2_transmission(
-                    0x141, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+                transmit_buffer_.add_can2_transmission(0x141, command_);
 
             } else {
 
                 command_ = joint[0].generate_torque_command();
-                transmit_buffer_.add_can1_transmission(
-                    0x146, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+                transmit_buffer_.add_can1_transmission(0x146, command_);
 
                 command_ = joint[1].generate_torque_command();
-                transmit_buffer_.add_can1_transmission(
-                    0x142, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+                transmit_buffer_.add_can1_transmission(0x142, command_);
 
                 command_ = joint[4].generate_torque_command();
-                transmit_buffer_.add_can2_transmission(
-                    0x145, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+                transmit_buffer_.add_can2_transmission(0x145, command_);
 
                 command_ = joint[3].generate_torque_command();
-                transmit_buffer_.add_can2_transmission(
-                    0x144, std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_})));
+                transmit_buffer_.add_can2_transmission(0x144, command_);
             }
             transmit_buffer_.trigger_transmission();
 
@@ -182,18 +165,14 @@ private:
         }
 
         void update_arm_motors() {
-        joint2_encoder.update();
+            joint2_encoder.update();
             joint[5].update();
             joint[4].update();
             joint[3].update();
             joint[2].update();
             joint[1].update();
             joint[0].update();
-          
-            // RCLCPP_INFO(this->get_logger(), "joint %f", joint[1].get_theta());
         }
-
-        
 
     protected:
         void can2_receive_callback(
@@ -203,9 +182,9 @@ private:
                 return;
             if (can_id == 0x141)
                 joint[5].store_status(can_data);
-            if (can_id == 0x145)
+            else if (can_id == 0x145)
                 joint[4].store_status(can_data);
-            if (can_id == 0x144)
+            else if (can_id == 0x144)
                 joint[3].store_status(can_data);
         }
         void can1_receive_callback(
@@ -215,11 +194,11 @@ private:
                 return;
             if (can_id == 0x143)
                 joint[2].store_status(can_data);
-            if (can_id == 0x142)
+            else if (can_id == 0x142)
                 joint[1].store_status(can_data);
-            if (can_id == 0x146)
+            else if (can_id == 0x146)
                 joint[0].store_status(can_data);
-            if (can_id == 0x200) {
+            else if (can_id == 0x200) {
                 joint2_encoder.store_status(can_data);
             }
         }
@@ -235,9 +214,10 @@ private:
         librmcs::client::CBoard::TransmitBuffer transmit_buffer_;
         std::thread event_thread_;
 
-
     } armboard_;
-    class LeftBoard final : private librmcs::client::CBoard, rclcpp::Node {
+    class LeftBoard final
+        : private librmcs::client::CBoard
+        , rclcpp::Node {
     public:
         friend class Engineer;
         explicit LeftBoard(Engineer& engineer, EngineerCommand& engineer_command, int usb_pid)
@@ -295,10 +275,9 @@ private:
                 "/leg/joint/lf/control_theta_error", leg_joint_lf_control_theta_error, NAN);
             engineer_command.register_input("/leg/joint/lb/target_theta", leg_lb_target_theta_);
             engineer_command.register_input("/leg/joint/lf/target_theta", leg_lf_target_theta_);
-            engineer_command.register_input("/leg/enable_flag", is_leg_enable_);
         }
         ~LeftBoard() final {
-            uint16_t command_[4] = {0, 0, 0, 0};
+            uint16_t command_[4]{0, 0, 0, 0};
             transmit_buffer_.add_can1_transmission(0x1FE, std::bit_cast<uint64_t>(command_));
             transmit_buffer_.add_can2_transmission(0x1FE, std::bit_cast<uint64_t>(command_));
             transmit_buffer_.add_can2_transmission(0x200, std::bit_cast<uint64_t>(command_));
@@ -321,18 +300,21 @@ private:
             for (auto& ecd : Leg_ecd) {
                 ecd.update();
             }
+            static bool flag;
+          
             power_meter.update();
-            // RCLCPP_INFO(this->get_logger(), "lf raw %d  angle %f",
-            // Steering_motors[0].get_raw_angle(),Steering_motors[0].get_angle());
-            // RCLCPP_INFO(this->get_logger(), "lb raw %d  angle %f",
-            // Steering_motors[1].get_raw_angle(),Steering_motors[1].get_angle());
         }
         void command() {
-            uint16_t command_[4];
-            auto is_chassis_and_leg_enable = *is_leg_enable_;
-
-            static int counter = 0;
-            if (counter % 2 == 0) {
+            auto normalizeAngle = [this](double angle) {
+                while (angle > M_PI)
+                    angle -= 2 * M_PI;
+                while (angle < -M_PI)
+                    angle += 2 * M_PI;
+                return angle;
+            };
+            uint16_t command_[4]{0, 0, 0, 0};
+            static bool turn{false};
+            if (turn) {
                 command_[0] = 0;
                 command_[1] = 0;
                 command_[2] = Steering_motors[1].generate_command();
@@ -345,12 +327,7 @@ private:
                 transmit_buffer_.add_can1_transmission(0x1FE, std::bit_cast<uint64_t>(command_));
             } else {
                 command_[0] = Wheel_motors[1].generate_command();
-                if (*is_leg_enable_ == true) {
-                    command_[1] = Leg_Motors[1].generate_command();
-                } else {
-                    command_[1] = 0;
-                }
-
+                command_[1] = Leg_Motors[1].generate_command();
                 *leg_joint_lb_control_theta_error =
                     normalizeAngle(*leg_lb_target_theta_ - Leg_ecd[1].get_angle());
                 command_[2] = 0;
@@ -359,66 +336,48 @@ private:
                 command_[0] = Wheel_motors[0].generate_command();
                 *leg_joint_lf_control_theta_error =
                     normalizeAngle(*leg_lf_target_theta_ - Leg_ecd[0].get_angle());
-                if (*is_leg_enable_ == true) {
-                    command_[1] = Leg_Motors[0].generate_command();
-                } else {
-                    command_[1] = 0;
-                }
+                command_[1] = Leg_Motors[0].generate_command();
                 command_[2] = Omni_Motors.generate_command();
-                // command_[2]=0;
                 command_[3] = 0;
                 transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(command_));
             }
-            if (counter > 1000) {
-                counter = 0;
-            }
+            turn = !turn;
             transmit_buffer_.trigger_transmission();
-            counter++;
         }
 
     protected:
         void can1_receive_callback(
             uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
             bool is_remote_transmission, uint8_t can_data_length) override {
-            // RCLCPP_INFO(this->get_logger(), "leftcan1  %x", can_id);
             if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
                 return;
             if (can_id == 0x205) {
                 Steering_motors[0].store_status(can_data);
-            }
-            if (can_id == 0x202) {
+            } else if (can_id == 0x202) {
                 Leg_Motors[0].store_status(can_data);
-            }
-            if (can_id == 0x201) {
+            } else if (can_id == 0x201) {
                 Wheel_motors[0].store_status(can_data);
-            }
-            if (can_id == 0x203) {
+            } else if (can_id == 0x203) {
                 Omni_Motors.store_status(can_data);
-            }
-            if (can_id == 0x321) {
+            } else if (can_id == 0x321) {
                 Leg_ecd[0].store_status(can_data);
             }
         }
         void can2_receive_callback(
             uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
             bool is_remote_transmission, uint8_t can_data_length) override {
-            // RCLCPP_INFO(this->get_logger(), "leftcan2  %x", can_id);
             if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
                 return;
 
             if (can_id == 0x207) {
                 Steering_motors[1].store_status(can_data);
-            }
-            if (can_id == 0x201) {
+            } else if (can_id == 0x201) {
                 Wheel_motors[1].store_status(can_data);
-            }
-            if (can_id == 0x202) {
+            } else if (can_id == 0x202) {
                 Leg_Motors[1].store_status(can_data);
-            }
-            if (can_id == 0x100) {
+            } else if (can_id == 0x100) {
                 power_meter.store_status(can_data);
-            }
-            if (can_id == 0x320) {
+            } else if (can_id == 0x320) {
                 Leg_ecd[1].store_status(can_data);
             }
         }
@@ -431,15 +390,17 @@ private:
         device::PowerMeter power_meter;
         device::DjiMotor Omni_Motors;
         device::DjiMotor Leg_Motors[2];
-        InputInterface<bool> is_leg_enable_;
         device::Encoder Leg_ecd[2];
+
         InputInterface<double> leg_lf_target_theta_;
         InputInterface<double> leg_lb_target_theta_;
         OutputInterface<double> leg_joint_lb_control_theta_error;
         OutputInterface<double> leg_joint_lf_control_theta_error;
     } leftboard_;
 
-    class RightBoard final : private librmcs::client::CBoard, rclcpp::Node {
+    class RightBoard final
+        : private librmcs::client::CBoard
+        , rclcpp::Node {
     public:
         friend class Engineer;
         explicit RightBoard(Engineer& engineer, EngineerCommand& engineer_command, int usb_pid)
@@ -498,7 +459,6 @@ private:
 
             engineer_command.register_input("/leg/joint/rb/target_theta", leg_rb_target_theta_);
             engineer_command.register_input("/leg/joint/rf/target_theta", leg_rf_target_theta_);
-            engineer_command.register_input("/leg/enable_flag", is_leg_enable_);
         }
 
         ~RightBoard() final {
@@ -512,9 +472,7 @@ private:
             event_thread_.join();
         }
         void update() {
-            // RCLCPP_INFO(this->get_logger(),
-            // "is_finished = %s",
-            // (*is_leg_enable_) ? "true" : "false");
+
             Omni_Motors.update();
             for (auto& motor : Steering_motors) {
                 motor.update();
@@ -529,18 +487,20 @@ private:
                 ecd.update();
             }
             big_yaw.update();
-            //   RCLCPP_INFO(this->get_logger(), "rb raw %d  angle %f",
-            //   Steering_motors[0].get_raw_angle(),Steering_motors[0].get_angle());
-            // RCLCPP_INFO(this->get_logger(), "rf raw %d  angle %f",
-            // Steering_motors[1].get_raw_angle(),Steering_motors[1].get_angle());
         }
 
         void command() {
-            uint16_t command_[4];
-            auto is_chassis_and_leg_enable = *is_leg_enable_;
+            auto normalizeAngle = [this](double angle) {
+                while (angle > M_PI)
+                    angle -= 2 * M_PI;
+                while (angle < -M_PI)
+                    angle += 2 * M_PI;
+                return angle;
+            };
 
-            static int counter = 0;
-            if (counter % 2 == 0) {
+            uint16_t command_[4];
+            static bool turn{false};
+            if (turn) {
                 command_[0] = 0;
                 command_[1] = 0;
                 command_[2] = 0;
@@ -551,36 +511,8 @@ private:
                 command_[2] = 0;
                 command_[3] = 0;
                 transmit_buffer_.add_can1_transmission(0x1FE, std::bit_cast<uint64_t>(command_));
-            } else {
-                command_[0] = Wheel_motors[0].generate_command();
-                if (*is_leg_enable_ == true) {
-                    command_[1] = Leg_Motors[0].generate_command();
-                } else {
-                    command_[1] = 0;
-                }
-                *leg_joint_rb_control_theta_error =
-                    normalizeAngle(*leg_rb_target_theta_ - Leg_ecd[0].get_angle());
-                command_[2] = 0;
-                command_[3] = 0;
-                transmit_buffer_.add_can2_transmission(0x200, std::bit_cast<uint64_t>(command_));
-                command_[0] = Wheel_motors[1].generate_command();
-                *leg_joint_rf_control_theta_error =
-                    normalizeAngle(*leg_rf_target_theta_ - Leg_ecd[1].get_angle());
-                if (*is_leg_enable_ == true) {
-                    command_[1] = Leg_Motors[1].generate_command();
-                } else {
-                    command_[1] = 0;
-                }
-                command_[2] = Omni_Motors.generate_command();
-                // command_[2]=0;
-                command_[3] = 0;
-                transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(command_));
-            }
-            if (counter > 1000) {
-                counter = 0;
-            }
-            uint64_t command_1;
-            if (counter % 2 == 0) {
+
+                uint64_t yaw_command;
                 // if (is_chassis_and_leg_enable && big_yaw.get_state() != 0
                 //     && big_yaw.get_state() != 1) {
                 //     command_1 = big_yaw.dm_clear_error_command();
@@ -592,24 +524,35 @@ private:
                 // } else {
                 //     command_1 = big_yaw.generate_torque_command();
                 // }
-                command_1 = big_yaw.dm_close_command();
-                transmit_buffer_.add_can1_transmission(
-                    (0x3), std::bit_cast<uint64_t>(std::bit_cast<uint64_t>(uint64_t{command_1})));
+                yaw_command = big_yaw.dm_close_command();
+                transmit_buffer_.add_can1_transmission((0x3), yaw_command);
+            } else {
+                command_[0] = Wheel_motors[0].generate_command();
+                *leg_joint_rb_control_theta_error =
+                    normalizeAngle(*leg_rb_target_theta_ - Leg_ecd[0].get_angle());
+                command_[1] = Leg_Motors[0].generate_command();
+                command_[2] = 0;
+                command_[3] = 0;
+                transmit_buffer_.add_can2_transmission(0x200, std::bit_cast<uint64_t>(command_));
+                command_[0] = Wheel_motors[1].generate_command();
+                *leg_joint_rf_control_theta_error =
+                    normalizeAngle(*leg_rf_target_theta_ - Leg_ecd[1].get_angle());
+                command_[1] = Leg_Motors[1].generate_command();
+                command_[2] = Omni_Motors.generate_command();
+                command_[3] = 0;
+                transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(command_));
             }
+            turn = !turn;
             transmit_buffer_.trigger_transmission();
-            counter++;
         }
 
     protected:
         void can1_receive_callback(
             uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
             bool is_remote_transmission, uint8_t can_data_length) override {
-
-            //  RCLCPP_INFO(this->get_logger(), "rightcan1  %x", can_id);
             if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
                 return;
             if (can_id == 0x201) {
-
                 Wheel_motors[1].store_status(can_data);
             }
             if (can_id == 0x202) {
@@ -628,14 +571,11 @@ private:
         void can2_receive_callback(
             uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
             bool is_remote_transmission, uint8_t can_data_length) override {
-            // RCLCPP_INFO(this->get_logger(), "rightcan2  %x", can_id);
             if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]] {
-                // RCLCPP_INFO(this->get_logger(), "%x", can_id);
                 return;
             }
 
             if (can_id == 0x201) {
-                // RCLCPP_INFO(this->get_logger(), "w0  %x", can_id);
                 Wheel_motors[0].store_status(can_data);
             }
             if (can_id == 0x202) {
@@ -664,13 +604,10 @@ private:
 
         InputInterface<double> leg_rf_target_theta_;
         InputInterface<double> leg_rb_target_theta_;
-        InputInterface<bool> is_leg_enable_;
 
         OutputInterface<double> leg_joint_rb_control_theta_error;
-
         OutputInterface<double> leg_joint_rf_control_theta_error;
 
-        double max_lf = 0.0, max_lb = 0.0, max_rb = 0.0, max_rf = 0.0;
     } rightboard_;
 };
 

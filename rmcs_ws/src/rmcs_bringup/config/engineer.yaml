@@ -186,13 +186,5 @@ steering_wheel_controller:
 value_broadcaster:
   ros__parameters:
     forward_list:
-      - "/leg/lf_result"
-      - "/leg/lb_result"
-      - "/leg/rf_result"
-      - "/leg/rb_result"
-      - "/leg/encoder/lf/angle"
-      - "/leg/encoder/lb/angle"
-      - "/leg/encoder/rb/angle"
-      - "/leg/encoder/rf/angle"
-      - "/leg/velocity_in_x"
+     
 
