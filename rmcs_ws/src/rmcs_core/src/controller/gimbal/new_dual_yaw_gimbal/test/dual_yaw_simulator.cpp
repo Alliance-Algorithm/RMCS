@@ -24,15 +24,19 @@ public:
 
         // --- Inputs: 为了打破 rmcs_executor 的循环依赖，我们不再使用 register_input ---
         // 而是通过 ROS2 订阅器接收控制力矩 (由 Relay 组件发出)
+        // BUG-1 Fix: 回调写入使用 atomic store，彻底消除与 physics_loop 的数据竞争
         top_yaw_sub_ = this->create_subscription<std_msgs::msg::Float64>(
-            "/sim_cmd/top_yaw_torque", 10,
-            [this](const std_msgs::msg::Float64::SharedPtr msg) { cmd_top_torque_ = msg->data; });
+            "/sim_cmd/top_yaw_torque", 10, [this](const std_msgs::msg::Float64::SharedPtr msg) {
+                cmd_top_torque_.store(msg->data, std::memory_order_relaxed);
+            });
         bottom_yaw_sub_ = this->create_subscription<std_msgs::msg::Float64>(
-            "/sim_cmd/bottom_yaw_torque", 10,
-            [this](const std_msgs::msg::Float64::SharedPtr msg) { cmd_bot_torque_ = msg->data; });
+            "/sim_cmd/bottom_yaw_torque", 10, [this](const std_msgs::msg::Float64::SharedPtr msg) {
+                cmd_bot_torque_.store(msg->data, std::memory_order_relaxed);
+            });
         pitch_sub_ = this->create_subscription<std_msgs::msg::Float64>(
-            "/sim_cmd/pitch_torque", 10,
-            [this](const std_msgs::msg::Float64::SharedPtr msg) { cmd_pitch_torque_ = msg->data; });
+            "/sim_cmd/pitch_torque", 10, [this](const std_msgs::msg::Float64::SharedPtr msg) {
+                cmd_pitch_torque_.store(msg->data, std::memory_order_relaxed);
+            });
 
         // --- Outputs: 模拟传感器和云台物理状态给到 Controller & Solver ---
         register_output("/gimbal/top_yaw/angle", top_yaw_angle_, 0.0);
@@ -47,12 +51,15 @@ public:
 
         // --- ROS2 Subscribers: 接收用于在 RViz 中渲染的纯视觉目标角度 ---
         // (由单独的 TargetGenerator 组件发送以防止循环依赖)
+        // BUG-2 Fix: 回调写入使用 atomic store，消除与 update() 线程的数据竞争
         vis_target_yaw_sub_ = this->create_subscription<std_msgs::msg::Float64>(
-            "/sim_cmd/vis_target_yaw", 10,
-            [this](const std_msgs::msg::Float64::SharedPtr msg) { vis_target_yaw_ = msg->data; });
+            "/sim_cmd/vis_target_yaw", 10, [this](const std_msgs::msg::Float64::SharedPtr msg) {
+                vis_target_yaw_.store(msg->data, std::memory_order_relaxed);
+            });
         vis_target_pitch_sub_ = this->create_subscription<std_msgs::msg::Float64>(
-            "/sim_cmd/vis_target_pitch", 10,
-            [this](const std_msgs::msg::Float64::SharedPtr msg) { vis_target_pitch_ = msg->data; });
+            "/sim_cmd/vis_target_pitch", 10, [this](const std_msgs::msg::Float64::SharedPtr msg) {
+                vis_target_pitch_.store(msg->data, std::memory_order_relaxed);
+            });
 
         // 可视化 Marker 发布器
         marker_pub_ = this->create_publisher<visualization_msgs::msg::MarkerArray>(
@@ -70,105 +77,133 @@ public:
         }
     }
 
-    // 此函数由 Executor 调用，通常频率为 1kHz (模拟数据回报)
+    // 此函数由 Executor 调用，通常频率为 1kHz（模拟数据回报）
     void update() override {
-        std::lock_guard<std::mutex> lock(state_mutex_);
+        // 问题-7 Fix: 在锁内只拷贝状态快照，锁外再做 ROS2 I/O（publish_markers），
+        //             避免持锁期间触发网络操作而阻塞 physics_loop 线程造成时序抖动
+        double snap_top_angle, snap_top_vel;
+        double snap_bot_angle, snap_bot_vel;
+        double snap_pitch_angle, snap_pitch_vel;
+        double snap_chassis_vel;
+        double snap_target_yaw, snap_target_pitch;
+        bool do_publish = false;
 
-        // 1. 输入力矩现已由 ROS2 原生回调函数异步更新到 cmd_*_torque_ 中
+        {
+            std::lock_guard<std::mutex> lock(state_mutex_);
 
-        // 2. 将模拟线程计算的物理状态刷新至输出接口
-        *top_yaw_angle_ = sim_top_angle_;
-        *top_yaw_velocity_ = sim_top_vel_;
-        *bottom_yaw_angle_ = sim_bot_angle_;
-        *bottom_yaw_velocity_ = sim_bot_vel_;
-        *pitch_angle_ = sim_pitch_angle_;
-        *pitch_velocity_ = sim_pitch_vel_;
+            snap_top_angle = sim_top_angle_;
+            snap_top_vel = sim_top_vel_;
+            snap_bot_angle = sim_bot_angle_;
+            snap_bot_vel = sim_bot_vel_;
+            snap_pitch_angle = sim_pitch_angle_;
+            snap_pitch_vel = sim_pitch_vel_;
+            snap_chassis_vel = sim_chassis_vel_;
 
-        *chassis_yaw_velocity_imu_ = sim_chassis_vel_;
-        // 简化的绝对角速度关系：云台绝对角速度 = 底盘角速度 + 下yaw角速度 + 上yaw角速度
-        *gimbal_yaw_velocity_imu_ = sim_chassis_vel_ + sim_bot_vel_ + sim_top_vel_;
+            // BUG-2 Fix: vis_target_* 已为 atomic，load 无需持锁
+            snap_target_yaw = vis_target_yaw_.load(std::memory_order_relaxed);
+            snap_target_pitch = vis_target_pitch_.load(std::memory_order_relaxed);
 
-        // 3. 目标误差的生成已转移到 DualYawTargetGenerator 组件中。
-        // 此处直接取回异步获取的可视化目标角度用于 RViz 渲染。
-        double target_absolute_angle = vis_target_yaw_;
-        double target_pitch_angle = vis_target_pitch_;
+            publish_count_++;
+            if (publish_count_ >= 33) {
+                do_publish = true;
+                publish_count_ = 0;
+            }
+        } // ← 锁在此释放，后续所有操作均在锁外执行
 
-        // 4. 定期发布可视化 Marker (通过降频，比如每 33 次 update 发布一次 ~30Hz)
-        publish_count_++;
-        if (publish_count_ >= 33) {
-            publish_markers(target_absolute_angle, target_pitch_angle);
-            publish_count_ = 0;
-        }
+        // 将快照状态刷新至输出接口
+        *top_yaw_angle_ = snap_top_angle;
+        *top_yaw_velocity_ = snap_top_vel;
+        *bottom_yaw_angle_ = snap_bot_angle;
+        *bottom_yaw_velocity_ = snap_bot_vel;
+        *pitch_angle_ = snap_pitch_angle;
+        *pitch_velocity_ = snap_pitch_vel;
+
+        *chassis_yaw_velocity_imu_ = snap_chassis_vel;
+        // 云台绝对角速度 = 底盘角速度 + 下Yaw相对角速度 + 上Yaw相对角速度
+        *gimbal_yaw_velocity_imu_ = snap_chassis_vel + snap_bot_vel + snap_top_vel;
+
+        // 问题-7 Fix: 在锁外发布 Marker，不再阻塞 physics_loop
+        if (do_publish)
+            publish_markers(
+                snap_bot_angle, snap_top_angle, snap_pitch_angle, snap_target_yaw,
+                snap_target_pitch);
     }
 
 private:
-    // 高频物理模拟主循环 (模拟 50kHz 物理效果)
+    // 高频物理模拟主循环
+    // BUG-3 Fix: 循环周期 20µs（50kHz），每周期积分 1 步，dt 与睡眠时长一致
     void physics_loop() {
-        const double dt = 0.00002;    // 100 microseconds
-                                      // 预设的物理参数 (可根据真实模型进行微调)
-        const double J_top = 0.01;    // 上云台转动惯量
-        const double J_bot = 0.05;    // 下云台转动惯量
-        const double J_pitch = 0.005; // Pitch转动惯量
-        const double B_top = 0.005;   // 上云台摩擦阻尼系数
-        const double B_bot = 0.01;    // 下云台摩擦阻尼系数
-        const double B_pitch = 0.002; // Pitch阻尼系数
+        // dt = 20µs，对应 50kHz 积分频率
+        constexpr double dt = 0.00002;
+        constexpr int LOOP_US = 20; // 睡眠时长 [µs]，与 dt 严格对齐
+
+        // 预设物理参数（可根据真实模型微调）
+        constexpr double J_top = 0.005;   // 上云台自身转动惯量 [kg·m²]
+        constexpr double J_bot = 0.08;    // 下云台自身转动惯量 [kg·m²]
+        constexpr double J_pitch = 0.005; // Pitch 转动惯量 [kg·m²]
+        constexpr double B_top = 0.005;   // 上云台相对阻尼系数
+        constexpr double B_bot = 0.02;    // 下云台相对阻尼系数
+        constexpr double B_pitch = 0.002; // Pitch 阻尼系数
+        // 问题-5 Fix: 下云台旋转时需带动上云台，有效惯量 = J_bot + J_top（串联结构）
+        constexpr double J_bot_eff = J_bot + J_top;
+
+        constexpr double MAX_TORQUE = 5.0;           // 电机力矩硬限幅 [N·m]
+        constexpr double TOP_YAW_LIMIT = M_PI / 3.0; // 上Yaw相对限位 ±60°
 
         while (running_) {
-            auto next_time = std::chrono::steady_clock::now() + std::chrono::microseconds(100);
+            auto next_time = std::chrono::steady_clock::now() + std::chrono::microseconds(LOOP_US);
 
             {
                 std::lock_guard<std::mutex> lock(state_mutex_);
 
-                // --- 电机扭矩物理限幅 (动力学约束) ---
-                const double MAX_TORQUE = 5.0; // 5 Nm
-                double actual_top_torque = std::clamp(cmd_top_torque_, -MAX_TORQUE, MAX_TORQUE);
-                double actual_bot_torque = std::clamp(cmd_bot_torque_, -MAX_TORQUE, MAX_TORQUE);
-                double actual_pitch_torque = std::clamp(cmd_pitch_torque_, -MAX_TORQUE, MAX_TORQUE);
+                // BUG-1 Fix: 用 atomic load 读取控制命令，不依赖 state_mutex_ 保护
+                const double actual_top_torque = std::clamp(
+                    cmd_top_torque_.load(std::memory_order_relaxed), -MAX_TORQUE, MAX_TORQUE);
+                const double actual_bot_torque = std::clamp(
+                    cmd_bot_torque_.load(std::memory_order_relaxed), -MAX_TORQUE, MAX_TORQUE);
+                const double actual_pitch_torque = std::clamp(
+                    cmd_pitch_torque_.load(std::memory_order_relaxed), -MAX_TORQUE, MAX_TORQUE);
 
-                // --- 串联刚体动力学 (在绝对空间内求解) ---
-                // 设 theta_1 为下云台绝对角，theta_2 为上云台绝对角
-                // 当前相对状态:
-                // sim_top_vel_ = d(theta_2 - theta_1)/dt
-                // sim_bot_vel_ = d(theta_1)/dt
-
+                // --- 串联刚体动力学（绝对空间求解）---
+                // sim_bot_vel_：下云台相对底盘的角速度（底盘静止时即绝对角速度）
+                // sim_top_vel_：上云台相对下云台的角速度
                 double abs_bot_vel = sim_bot_vel_;
                 double abs_top_vel = sim_bot_vel_ + sim_top_vel_;
 
-                // 摩擦力 (相对摩擦)
-                double friction_bot = B_bot * abs_bot_vel;  // 相对底盘(假设底盘速度0)
-                double friction_top = B_top * sim_top_vel_; // 相对下云台
+                // 黏性摩擦（线性阻尼）
+                double friction_bot = B_bot * abs_bot_vel;  // 下云台相对底盘
+                double friction_top = B_top * sim_top_vel_; // 上云台相对下云台
 
-                // 绝对角加速度 (牛顿第二定律)
-                // 下云台受力：底盘给的电机力 - 上云台给的电机力反作用 - 自身摩擦 + 上云台摩擦反作用
+                // 问题-5 Fix: 下云台有效惯量使用 J_bot_eff = J_bot + J_top
+                // 下云台绝对角加速度：驱动力矩 - 上云台反作用 - 自身摩擦 + 上云台摩擦反作用
                 double abs_alpha_bot =
-                    (actual_bot_torque - actual_top_torque - friction_bot + friction_top) / J_bot;
-                // 上云台受力：下云台给的电机力 - 相对摩擦力
+                    (actual_bot_torque - actual_top_torque - friction_bot + friction_top)
+                    / J_bot_eff;
+                // 上云台绝对角加速度：驱动力矩 - 相对摩擦
                 double abs_alpha_top = (actual_top_torque - friction_top) / J_top;
 
-                // Pitch 是相对独立的一轴，不影响水平向惯量(简化)
+                // Pitch 独立轴（简化：不耦合水平惯量）
                 double alpha_pitch = (actual_pitch_torque - B_pitch * sim_pitch_vel_) / J_pitch;
 
-                // 积分更新绝对速度
+                // 欧拉积分：更新绝对速度
                 abs_bot_vel += abs_alpha_bot * dt;
                 abs_top_vel += abs_alpha_top * dt;
 
-                // 更新相对速度和相对角度
+                // 转回相对速度，再积分位置
                 sim_bot_vel_ = abs_bot_vel;
                 sim_top_vel_ = abs_top_vel - abs_bot_vel;
 
                 sim_bot_angle_ += sim_bot_vel_ * dt;
                 sim_top_angle_ += sim_top_vel_ * dt;
 
-                // --- 模拟 Top Yaw 相对 Bottom Yaw 的物理硬限位: [-60°, +60°] ---
-                const double TOP_YAW_LIMIT = M_PI / 3.0; // 60 度
+                // 上Yaw物理硬限位 ±60°，撞墙后速度归零
                 if (sim_top_angle_ > TOP_YAW_LIMIT) {
                     sim_top_angle_ = TOP_YAW_LIMIT;
-                    // 撞击限位时，相对速度强制归零
-                    if (sim_top_vel_ > 0)
+                    if (sim_top_vel_ > 0.0)
                         sim_top_vel_ = 0.0;
                 } else if (sim_top_angle_ < -TOP_YAW_LIMIT) {
                     sim_top_angle_ = -TOP_YAW_LIMIT;
-                    if (sim_top_vel_ < 0)
+                    if (sim_top_vel_ < 0.0)
                         sim_top_vel_ = 0.0;
                 }
 
@@ -176,7 +211,7 @@ private:
                 sim_pitch_angle_ += sim_pitch_vel_ * dt;
             }
 
-            // 精确睡眠至下一个 100us 时刻
+            // 精确睡眠至下一个 20µs 时刻，保证 50kHz 循环频率
             std::this_thread::sleep_until(next_time);
         }
     }
@@ -194,15 +229,16 @@ private:
     // 用于可视化的异步变量
     rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr vis_target_yaw_sub_;
     rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr vis_target_pitch_sub_;
-    double vis_target_yaw_ = 0.0;
-    double vis_target_pitch_ = 0.0;
+    // BUG-2 Fix: 改为 atomic，消除回调线程与 update() 线程的数据竞争
+    std::atomic<double> vis_target_yaw_{0.0};
+    std::atomic<double> vis_target_pitch_{0.0};
 
     // 物理仿真相关
     std::thread physics_thread_;
     std::atomic<bool> running_{false};
     std::mutex state_mutex_;
 
-    // 内部物理状态 (10kHz 更新，1kHz 采样)
+    // 内部物理状态（50kHz 更新，1kHz 采样）
     double sim_top_angle_ = 0.0;
     double sim_top_vel_ = 0.0;
     double sim_bot_angle_ = 0.0;
@@ -212,15 +248,19 @@ private:
     double sim_chassis_vel_ = 0.0;
 
     // 当前生效的控制命令
-    double cmd_top_torque_ = 0.0;
-    double cmd_bot_torque_ = 0.0;
-    double cmd_pitch_torque_ = 0.0;
+    // BUG-1 Fix: 改为 atomic，消除 ROS2 回调线程与 physics_loop 线程的数据竞争
+    std::atomic<double> cmd_top_torque_{0.0};
+    std::atomic<double> cmd_bot_torque_{0.0};
+    std::atomic<double> cmd_pitch_torque_{0.0};
 
     // 可视化相关
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr marker_pub_;
     int publish_count_ = 0;
 
-    void publish_markers(double target_yaw, double target_pitch) {
+    // 问题-7 Fix: 接收状态快照参数，在锁外调用，避免持锁期间做 ROS2 I/O
+    void publish_markers(
+        double bot_angle, double top_angle, double pitch_angle, double target_yaw,
+        double target_pitch) {
         visualization_msgs::msg::MarkerArray msg;
         auto now_time = this->now();
 
@@ -240,8 +280,6 @@ private:
             marker.pose.position.y = 0.0;
             marker.pose.position.z = z_offset;
 
-            // 使用 TF2 欧拉角转四元数 (Roll=0, Pitch, Yaw)
-            // 注意：ROS 里通常 Pitch 是绕 Y 轴转，Yaw 是绕 Z 轴转。
             tf2::Quaternion q;
             q.setRPY(0, pitch, yaw);
             marker.pose.orientation.x = q.x();
@@ -260,10 +298,10 @@ private:
             return marker;
         };
 
-        // 绝对角度计算
+        // 使用快照计算绝对角度
         double chassis_yaw = 0.0;
-        double bot_yaw_abs = chassis_yaw + sim_bot_angle_;
-        double top_yaw_abs = bot_yaw_abs + sim_top_angle_;
+        double bot_yaw_abs = chassis_yaw + bot_angle;
+        double top_yaw_abs = bot_yaw_abs + top_angle;
 
         // 1. 底盘: 正方形 CUBE
         msg.markers.push_back(create_marker(
@@ -289,8 +327,8 @@ private:
         // 在双级零点时 (bot_yaw_abs == 0, sim_top_angle_ == 0, sim_pitch_angle_ == 0)
         // 它会与上方的蓝色 bottom_yaw_arrow 完全重合指向同一处水平方向
         msg.markers.push_back(create_marker(
-            4, visualization_msgs::msg::Marker::ARROW, 0.25, sim_pitch_angle_, top_yaw_abs, 0.5,
-            0.05, 0.05, 0.0, 1.0, 1.0, "pitch_arrow"));
+            4, visualization_msgs::msg::Marker::ARROW, 0.25, pitch_angle, top_yaw_abs, 0.5, 0.05,
+            0.05, 0.0, 1.0, 1.0, "pitch_arrow"));
 
         // 5. 目标角度指示: 红色半透明箭头 ARROW
         auto target_marker = create_marker(
@@ -327,18 +365,17 @@ public:
     }
 
     void update() override {
-        auto publish_torque = [](const InputInterface<double>& input,
-                                 rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr& pub) {
-            if (input.ready() && !std::isnan(*input)) {
-                std_msgs::msg::Float64 msg;
-                msg.data = *input;
-                pub->publish(msg);
-            }
+        // 问题-6 Fix: NaN 或未就绪时发零力矩，防止上一帧力矩残留驱动仿真失控
+        auto publish_or_zero = [](const InputInterface<double>& input,
+                                  rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr& pub) {
+            std_msgs::msg::Float64 msg;
+            msg.data = (input.ready() && !std::isnan(*input)) ? *input : 0.0;
+            pub->publish(msg);
         };
 
-        publish_torque(top_yaw_torque_, top_yaw_pub_);
-        publish_torque(bottom_yaw_torque_, bottom_yaw_pub_);
-        publish_torque(pitch_torque_, pitch_pub_);
+        publish_or_zero(top_yaw_torque_, top_yaw_pub_);
+        publish_or_zero(bottom_yaw_torque_, bottom_yaw_pub_);
+        publish_or_zero(pitch_torque_, pitch_pub_);
     }
 
 private:
