@@ -7,13 +7,26 @@ cd "${RMCS_PATH}"/rmcs_ws || exit
 [[ -x /opt/cmake/bin/cmake ]] &&
     export PATH="/opt/cmake/bin:$PATH"
 
-command -v clang &>/dev/null &&
+cmake_toolchain_args=()
+
+if [[ "${RMCS_USE_GCC}" != "ON" ]] &&
+    command -v clang &>/dev/null &&
+    command -v clang++ &>/dev/null &&
+    command -v llvm-ar &>/dev/null &&
+    command -v llvm-ranlib &>/dev/null &&
+    command -v ld.lld &>/dev/null; then
     export CC=clang
-
-command -v clang++ &>/dev/null &&
     export CXX=clang++
+    cmake_toolchain_args=(
+        "-DCMAKE_AR=$(command -v llvm-ar)"
+        "-DCMAKE_RANLIB=$(command -v llvm-ranlib)"
+        -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld
+        -DCMAKE_SHARED_LINKER_FLAGS=-fuse-ld=lld
+    )
+fi
 
-colcon_args="--event-handlers console_cohesion+ --symlink-install --merge-install"
-cmake_args="-G Ninja -DCMAKE_MESSAGE_LOG_LEVEL=ERROR"
+colcon_args=(--event-handlers console_cohesion+ --symlink-install --merge-install)
+cmake_args=(-G Ninja -DCMAKE_MESSAGE_LOG_LEVEL=ERROR "${cmake_toolchain_args[@]}")
 
-CLICOLOR_FORCE=1 NINJA_STATUS="" colcon build ${colcon_args} "$@" --cmake-args ${cmake_args}
+CLICOLOR_FORCE=1 NINJA_STATUS="" \
+    colcon build "${colcon_args[@]}" "$@" --cmake-args "${cmake_args[@]}"
