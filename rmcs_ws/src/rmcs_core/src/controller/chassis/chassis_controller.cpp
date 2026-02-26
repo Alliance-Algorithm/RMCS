@@ -138,6 +138,10 @@ public:
 
         switch (*mode_) {
         case rmcs_msgs::ChassisMode::AUTO: break;
+        case rmcs_msgs::ChassisMode::Flow: break;
+        case rmcs_msgs::ChassisMode::Yaw_Free: break;
+        case rmcs_msgs::ChassisMode::None: break;
+        case rmcs_msgs::ChassisMode::Up_Stairs: break;
         case rmcs_msgs::ChassisMode::SPIN: {
             angular_velocity =
                 0.6 * (spinning_forward_ ? angular_velocity_max : -angular_velocity_max);

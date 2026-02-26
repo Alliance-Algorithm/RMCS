@@ -14,8 +14,6 @@
 #include <string>
 #include <utility>
 
-#include <rclcpp/logger.hpp>
-#include <rclcpp/logging.hpp>
 #include <rmcs_executor/component.hpp>
 
 #include "hardware/device/can_packet.hpp"
@@ -24,21 +22,31 @@ namespace rmcs_core::hardware::device {
 
 class LkMotor {
 public:
-    enum class Type : uint8_t { kMG5010Ei10, kMG4010Ei10, kMG6012Ei8, kMG4005Ei10 };
+    enum class Type : uint8_t {
+        kMG5010Ei10,
+        kMG4010Ei10,
+        kMG6012Ei8,
+        kMG4005Ei10,
+        kMF7015V210T,
+        kMG4010Ei36,
+        kMG6012Ei36,
+        kMG5010Ei36,
+        kMHF7015,
+        kMHF6015,
+    };
 
     struct Config {
         explicit Config(Type type)
             : motor_type(type) {}
 
-        Config& set_encoder_zero_point(int value) {
-            RCLCPP_INFO(rclcpp::get_logger("awa"), "%d", value);
-            return encoder_zero_point = value, *this;
-        }
+        Config& set_encoder_zero_point(int value) { return encoder_zero_point = value, *this; }
+        Config& set_reduction_ratio(double value) { return reduction_ratio = value, *this; }
         Config& set_reversed() { return reversed = true, *this; }
         Config& enable_multi_turn_angle() { return multi_turn_angle_enabled = true, *this; }
 
         Type motor_type;
         int encoder_zero_point = 0;
+        double reduction_ratio = std::numeric_limits<double>::quiet_NaN();
         bool reversed = false;
         bool multi_turn_angle_enabled = false;
     };
@@ -75,45 +83,89 @@ public:
 
         double current_max;
         double torque_constant;
-        double reduction_ratio;
+        double default_reduction_ratio;
+        double default_max_torque;
+        double default_raw_angle_max = 65535.0;
 
         switch (config.motor_type) {
         case Type::kMG5010Ei10:
-            raw_angle_max_ = 65535;
+            default_raw_angle_max = 65535;
             current_max = 33.0;
             torque_constant = 0.90909;
-            reduction_ratio = 10.0;
-
-            // Note: max_torque_ should represent the ACTUAL maximum torque of the motor.
-            // This value must be taken directly from the manufacturer's documentation.
-            // It is not used in calculations and serves as a reference only.
-            // Avoid calculating it by simply multiplying the maximum current by the torque
-            // constant, as this approach leads to inaccurate and unreliable results.
-            max_torque_ = 7.0;
+            default_reduction_ratio = 10.0;
+            default_max_torque = 7.0;
             break;
         case Type::kMG4010Ei10:
-            raw_angle_max_ = 65535;
+            default_raw_angle_max = 65535;
             current_max = 33.0;
             torque_constant = 0.07;
-            reduction_ratio = 10.0;
-            max_torque_ = 4.5;
+            default_reduction_ratio = 10.0;
+            default_max_torque = 4.5;
             break;
         case Type::kMG6012Ei8:
-            raw_angle_max_ = 65535;
+            default_raw_angle_max = 65535;
             current_max = 33.0;
             torque_constant = 1.09;
-            reduction_ratio = 8.0;
-            max_torque_ = 16.0;
+            default_reduction_ratio = 8.0;
+            default_max_torque = 16.0;
             break;
         case Type::kMG4005Ei10:
-            raw_angle_max_ = 65535;
+            default_raw_angle_max = 65535;
             current_max = 33.0;
             torque_constant = 0.06;
-            reduction_ratio = 10.0;
-            max_torque_ = 2.5;
+            default_reduction_ratio = 10.0;
+            default_max_torque = 2.5;
+            break;
+        case Type::kMF7015V210T:
+            default_raw_angle_max = 65535;
+            current_max = 16.5; // Legacy firmware uses 0.5 * 33 A scale for MF/MHF series.
+            torque_constant = 0.12;
+            default_reduction_ratio = 1.0;
+            default_max_torque = 2.0;
+            break;
+        case Type::kMG4010Ei36:
+            default_raw_angle_max = 65535;
+            current_max = 33.0;
+            torque_constant = 2.58;
+            default_reduction_ratio = 1.0;
+            default_max_torque = 18.0;
+            break;
+        case Type::kMG6012Ei36:
+            default_raw_angle_max = 65535;
+            current_max = 33.0;
+            torque_constant = 6.3;
+            default_reduction_ratio = 1.0;
+            default_max_torque = 40.0;
+            break;
+        case Type::kMG5010Ei36:
+            default_raw_angle_max = 65535;
+            current_max = 33.0;
+            torque_constant = 3.6;
+            default_reduction_ratio = 1.0;
+            default_max_torque = 25.0;
+            break;
+        case Type::kMHF7015:
+            default_raw_angle_max = 65535;
+            current_max = 16.5;
+            torque_constant = 0.51;
+            default_reduction_ratio = 1.0;
+            default_max_torque = 2.42;
+            break;
+        case Type::kMHF6015:
+            default_raw_angle_max = 65535;
+            current_max = 16.5;
+            torque_constant = 0.26;
+            default_reduction_ratio = 1.0;
+            default_max_torque = 3.0;
             break;
         default: std::unreachable();
         }
+
+        raw_angle_max_ = static_cast<int>(default_raw_angle_max);
+        const double external_reduction_ratio =
+            std::isfinite(config.reduction_ratio) ? config.reduction_ratio : 1.0;
+        const double reduction_ratio = default_reduction_ratio * external_reduction_ratio;
+        max_torque_ = default_max_torque * external_reduction_ratio;
 
         // Make sure raw_angle_max_ is a power of 2
         encoder_zero_point_ = config.encoder_zero_point & (raw_angle_max_ - 1);
@@ -200,7 +252,6 @@ public:
     int64_t calibrate_zero_point() {
         multi_turn_encoder_count_ = 0;
         encoder_zero_point_ = last_raw_angle_;
-        RCLCPP_INFO(rclcpp::get_logger("awa"), "calibrate: %d", encoder_zero_point_);
         return encoder_zero_point_;
     }
 

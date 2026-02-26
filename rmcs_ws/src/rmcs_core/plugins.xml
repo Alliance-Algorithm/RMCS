@@ -17,6 +17,9 @@
   <class type = "rmcs_core::hardware::TunnelInfantry" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
+  <class type="rmcs_core::hardware::Engineer" base_class_type="rmcs_executor::Component">
+    <description>Engineer hardware plugin.</description>
+  </class>
   <class type="rmcs_core::controller::chassis::ChassisController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
@@ -28,6 +31,21 @@
   </class>
   <class type="rmcs_core::controller::chassis::SteeringWheelController" base_class_type="rmcs_executor::Component">
     <description>Steering wheel controller.</description>
+  </class>
+  <class type="rmcs_core::controller::chassis::Chassis_Controller" base_class_type="rmcs_executor::Component">
+    <description>Engineer chassis controller.</description>
+  </class>
+  <class type="rmcs_core::controller::arm::ArmConfig" base_class_type="rmcs_executor::Component">
+    <description>Arm configuration provider.</description>
+  </class>
+  <class type="rmcs_core::controller::arm::ArmSolver" base_class_type="rmcs_executor::Component">
+    <description>Arm solver controller.</description>
+  </class>
+  <class type="rmcs_core::controller::arm::ArmController" base_class_type="rmcs_executor::Component">
+    <description>Arm high-level controller.</description>
+  </class>
+  <class type="rmcs_core::controller::leg::LegController" base_class_type="rmcs_executor::Component">
+    <description>Engineer leg controller.</description>
   </class>
   <class type="rmcs_core::controller::gimbal::SimpleGimbalController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>

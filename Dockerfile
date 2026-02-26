@@ -30,6 +30,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libceres-dev \
     ros-$ROS_DISTRO-rviz2 \
     ros-$ROS_DISTRO-foxglove-bridge \
+    ros-$ROS_DISTRO-moveit \
+    ros-$ROS_DISTRO-moveit-ros-planning \
+    ros-$ROS_DISTRO-moveit-ros-planning-interface \
+    ros-$ROS_DISTRO-moveit-ros-move-group \
+    ros-$ROS_DISTRO-moveit-ros-visualization \
+    ros-$ROS_DISTRO-moveit-visual-tools \
+    ros-$ROS_DISTRO-graph-msgs \
     dotnet-sdk-8.0 \
     ros-$ROS_DISTRO-pcl-ros ros-$ROS_DISTRO-pcl-conversions ros-$ROS_DISTRO-pcl-msgs && \
     apt-get autoremove -y && apt-get clean && \
