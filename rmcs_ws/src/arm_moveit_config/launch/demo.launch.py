@@ -124,9 +124,9 @@ def generate_launch_description():
     )
 
     arm_moveit_node = Node(
-        package="rmcs_core",           # 你的 C++ 包名（CMakeLists.txt 所在目录的包）
-        executable="arm_moveit_node",  # add_executable(arm_moveit_node ...) 里的名字
-        name="arm_moveit_process",     # 运行时的节点名（ros2 node list 里看到的）
+        package="rmcs_core",          
+        executable="arm_moveit_node",  
+        name="arm_moveit_process",     
         output="screen",
     )
 
