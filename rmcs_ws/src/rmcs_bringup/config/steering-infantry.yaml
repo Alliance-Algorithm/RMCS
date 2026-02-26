@@ -31,8 +31,8 @@ rmcs_executor:
 
 steeringInfantry_hardware:
   ros__parameters:
-    usb_pid_top_board: 0x93ac
-    usb_pid_bottom_board: 0x488d
+    serial_filter_top_board: ""
+    serial_filter_bottom_board: ""
     yaw_motor_zero_point: 32285
     pitch_motor_zero_point: 6321
     left_front_zero_point: 7848

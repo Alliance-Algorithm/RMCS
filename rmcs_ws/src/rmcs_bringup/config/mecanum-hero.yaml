@@ -32,8 +32,8 @@ rmcs_executor:
 
 hero_hardware:
   ros__parameters:
-    usb_pid_top_board: 0xeb37
-    usb_pid_bottom_board: 0xc1d3
+    serial_filter_top_board: ""
+    serial_filter_bottom_board: ""
     yaw_motor_zero_point: 61054
     pitch_motor_zero_point: 54062
     external_imu_port: /dev/ttyUSB0

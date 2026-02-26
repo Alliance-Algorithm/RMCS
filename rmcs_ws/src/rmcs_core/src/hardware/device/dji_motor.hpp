@@ -1,6 +1,6 @@
 #pragma once
 
-#include <librmcs/device/dji_motor_with_encoder.hpp>
+#include "impl/dji_motor.hpp"
 #include <rmcs_executor/component.hpp>
 
 namespace rmcs_core::hardware::device {

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <librmcs/device/bmi088.hpp>
+#include "impl/bmi088.hpp"
 
 namespace rmcs_core::hardware::device {
 

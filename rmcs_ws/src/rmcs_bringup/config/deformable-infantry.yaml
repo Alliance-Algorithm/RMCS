@@ -49,10 +49,9 @@ value_broadcaster:
 
 deformable_infantry:
   ros__parameters:
-    usb_pid: -1
-    usb_pid_left_board: 0xab05
-    usb_pid_right_board: 0xf7b6
-    usb_pid_top_board: 0x6533
+    serial_filter_left_board: ""
+    serial_filter_right_board: ""
+    serial_filter_top_board: ""
     left_front_zero_point: 5816
     left_back_zero_point: 2395
     right_back_zero_point: 4445

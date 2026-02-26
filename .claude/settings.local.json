@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /home/yukikaze/Documents/workspace/RMCS/rmcs_ws/src/rmcs_core/librmcs show origin/infantry-develop:host/include/librmcs/client/cboard.hpp 2>/dev/null || echo \"NOT FOUND on infantry-develop\")",
+      "Bash(git -C /home/yukikaze/Documents/workspace/RMCS/rmcs_ws/src/rmcs_core/librmcs show origin/infantry-develop --stat | head -30 && echo \"---\" && git -C /home/yukikaze/Documents/workspace/RMCS/rmcs_ws/src/rmcs_core/librmcs log origin/infantry-develop --oneline -10)",
+      "Bash(git -C /home/yukikaze/Documents/workspace/RMCS/rmcs_ws/src/rmcs_core/librmcs ls-tree -r origin/infantry-develop --name-only | head -60)",
+      "Bash(git -C /home/yukikaze/Documents/workspace/RMCS/rmcs_ws/src/rmcs_core/librmcs ls-tree -r main --name-only | head -60)",
+      "Bash(git -C /home/yukikaze/Documents/workspace/RMCS/rmcs_ws/src/rmcs_core/librmcs show origin/infantry-develop:librmcs/client/cboard.hpp)",
+      "Bash(git -C /home/yukikaze/Documents/workspace/RMCS/rmcs_ws/src/rmcs_core/librmcs ls-tree -r main --name-only | grep -v firmware | grep -v bsp)",
+      "Bash(git -C /home/yukikaze/Documents/workspace/RMCS/rmcs_ws/src/rmcs_core/librmcs ls-tree -r main --name-only | grep -E \"device|utility\")",
+      "Bash(git -C /home/yukikaze/Documents/workspace/RMCS/rmcs_ws/src/rmcs_core/librmcs show origin/infantry-develop:librmcs/utility/ring_buffer.hpp | head -10)",
+      "WebFetch(domain:www.claude-code-hub.org)",
+      "Bash(git -C /home/yukikaze/Documents/workspace/RMCS/rmcs_ws/src/rmcs_core/librmcs show origin/infantry-develop:librmcs/device/bmi088.hpp)",
+      "Bash(git -C /home/yukikaze/Documents/workspace/RMCS/rmcs_ws/src/rmcs_core/librmcs show origin/infantry-develop:librmcs/device/dji_motor_with_encoder.hpp)",
+      "Bash(git -C /home/yukikaze/Documents/workspace/RMCS/rmcs_ws/src/rmcs_core/librmcs show origin/infantry-develop:librmcs/device/dr16.hpp)",
+      "Bash(git -C /home/yukikaze/Documents/workspace/RMCS/rmcs_ws/src/rmcs_core/librmcs show origin/infantry-develop:librmcs/device/lk_motor.hpp && echo \"===\" && git -C /home/yukikaze/Documents/workspace/RMCS/rmcs_ws/src/rmcs_core/librmcs show origin/infantry-develop:librmcs/utility/endian_promise.hpp && echo \"===\" && git -C /home/yukikaze/Documents/workspace/RMCS/rmcs_ws/src/rmcs_core/librmcs show origin/infantry-develop:librmcs/utility/ring_buffer.hpp)",
+      "Bash(git -C /home/yukikaze/Documents/workspace/RMCS/rmcs_ws/src/rmcs_core/librmcs show origin/infantry-develop:librmcs/utility/cross_os.hpp)",
+      "Bash(git -C /home/yukikaze/Documents/workspace/RMCS/rmcs_ws/src/rmcs_core/librmcs show origin/infantry-develop:librmcs/device/lk_motor.hpp | sed 's|\"../utility/cross_os.hpp\"|\"cross_os.hpp\"|g' > /home/yukikaze/Documents/workspace/RMCS/rmcs_ws/src/rmcs_core/src/hardware/device/impl/lk_motor.hpp && echo \"lk_motor.hpp created\")",
+      "Bash(grep -rn \"librmcs::agent::CBoard\\\\|start_transmit\\\\|serial_filter\" \\\\\n  /home/yukikaze/Documents/workspace/RMCS/rmcs_ws/src/rmcs_core/src/hardware/*.cpp 2>/dev/null | head -30)",
+      "WebFetch(domain:github.com)",
+      "Bash(gh release list -R Alliance-Algorithm/librmcs 2>/dev/null | head -10)",
+      "Bash(gh release view v3.0.0b2 -R Alliance-Algorithm/librmcs --json assets 2>/dev/null | python3 -c \"import json,sys; [print\\(a['name'], a['url']\\) for a in json.load\\(sys.stdin\\)['assets']]\")",
+      "Bash(sudo dpkg -i /tmp/librmcs-sdk-3.0.0-beta.2-amd64-release.deb && echo \"Installed OK\")",
+      "Bash(cd /home/yukikaze/Documents/workspace/RMCS && git submodule status)"
+    ]
+  }
+}

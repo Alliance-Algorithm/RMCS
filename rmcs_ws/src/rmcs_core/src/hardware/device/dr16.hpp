@@ -1,7 +1,7 @@
 #pragma once
 
 #include <eigen3/Eigen/Dense>
-#include <librmcs/device/dr16.hpp>
+#include "impl/dr16.hpp"
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <rmcs_executor/component.hpp>

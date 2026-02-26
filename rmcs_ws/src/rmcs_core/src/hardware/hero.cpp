@@ -1,8 +1,10 @@
+#include <array>
 #include <atomic>
+#include <cstring>
 #include <memory>
 #include <thread>
 
-#include <librmcs/client/cboard.hpp>
+#include <librmcs/agent/c_board.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
@@ -17,6 +19,7 @@
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/gy614.hpp"
 #include "hardware/device/hipnuc.hpp"
+#include "hardware/device/impl/ring_buffer.hpp"
 #include "hardware/device/lk_motor.hpp"
 #include "hardware/device/supercap.hpp"
 
@@ -42,10 +45,10 @@ public:
 
         top_board_ = std::make_unique<TopBoard>(
             *this, *command_component_,
-            static_cast<int>(get_parameter("usb_pid_top_board").as_int()));
+            get_parameter("serial_filter_top_board").as_string());
         bottom_board_ = std::make_unique<BottomBoard>(
             *this, *command_component_,
-            static_cast<int>(get_parameter("usb_pid_bottom_board").as_int()));
+            get_parameter("serial_filter_bottom_board").as_string());
     }
 
     ~Hero() override = default;
@@ -81,11 +84,18 @@ private:
     };
     std::shared_ptr<HeroCommand> command_component_;
 
-    class TopBoard final : private librmcs::client::CBoard {
+    static uint64_t can_u64(const librmcs::data::CanDataView& data) {
+        uint64_t result = 0;
+        std::memcpy(&result, data.can_data.data(), std::min(data.can_data.size(), sizeof(result)));
+        return result;
+    }
+
+    class TopBoard final : private librmcs::agent::CBoard {
     public:
         friend class Hero;
-        explicit TopBoard(Hero& hero, HeroCommand& hero_command, int usb_pid = -1)
-            : librmcs::client::CBoard(usb_pid)
+        explicit TopBoard(
+            Hero& hero, HeroCommand& hero_command, const std::string& serial_filter = {})
+            : librmcs::agent::CBoard(serial_filter)
             , tf_(hero.tf_)
             , imu_(1000, 0.2, 0.0)
             , gy614_(hero, "/friction_wheels/temperature")
@@ -114,20 +124,9 @@ private:
                   device::DjiMotor::Config{device::DjiMotor::Type::M2006})
             , gimbal_player_viewer_motor_(
                   hero, hero_command, "/gimbal/player_viewer",
-                  device::LkMotor::Config{device::LkMotor::Type::MG4005E_I10})
-            , transmit_buffer_(*this, 32)
-            , event_thread_([this]() { handle_events(); }) {
+                  device::LkMotor::Config{device::LkMotor::Type::MG4005E_I10}) {
 
             imu_.set_coordinate_mapping([](double x, double y, double z) {
-                // Get the mapping with the following code.
-                // The rotation angle must be an exact multiple of 90 degrees, otherwise use a
-                // matrix.
-
-                // Eigen::AngleAxisd pitch_link_to_imu_link{
-                //     std::numbers::pi, Eigen::Vector3d::UnitZ()};
-                // Eigen::Vector3d mapping = pitch_link_to_imu_link * Eigen::Vector3d{1, 2, 3};
-                // std::cout << mapping << std::endl;
-
                 return std::make_tuple(x, y, z);
             });
 
@@ -141,11 +140,7 @@ private:
             });
         }
 
-        ~TopBoard() final {
-            stop_handling_events();
-            event_thread_.join();
-            external_imu_thread_.request_stop();
-        }
+        ~TopBoard() final { external_imu_thread_.request_stop(); }
 
         void update() {
             imu_.update_status();
@@ -166,7 +161,7 @@ private:
             gy614_.update_status();
             benewake_.update_status();
 
-            *gimbal_yaw_velocity_imu_ = imu_.gz();
+            *gimbal_yaw_velocity_imu_   = imu_.gz();
             *gimbal_pitch_velocity_imu_ = imu_.gy();
 
             gimbal_pitch_motor_.update_status();
@@ -180,71 +175,75 @@ private:
         }
 
         void command_update() {
+            auto builder = start_transmit();
             uint16_t batch_commands[4];
+
             for (int i = 0; i < 4; i++)
                 batch_commands[i] = gimbal_friction_wheels_[i].generate_command();
-            transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(batch_commands));
+            auto raw1 = std::bit_cast<std::array<std::byte, 8>>(batch_commands);
+            builder.can1_transmit({.can_id = 0x200, .can_data = raw1});
 
-            transmit_buffer_.add_can2_transmission(0x142, gimbal_pitch_motor_.generate_command());
+            auto pitch_cmd = gimbal_pitch_motor_.generate_command();
+            auto raw2      = std::bit_cast<std::array<std::byte, 8>>(pitch_cmd);
+            builder.can2_transmit({.can_id = 0x142, .can_data = raw2});
 
             batch_commands[0] = gimbal_scope_motor_.generate_command();
             batch_commands[1] = 0;
             batch_commands[2] = 0;
             batch_commands[3] = 0;
-            transmit_buffer_.add_can1_transmission(0x1ff, std::bit_cast<uint64_t>(batch_commands));
+            auto raw3          = std::bit_cast<std::array<std::byte, 8>>(batch_commands);
+            builder.can1_transmit({.can_id = 0x1ff, .can_data = raw3});
 
-            transmit_buffer_.add_can2_transmission(
-                0x141, gimbal_player_viewer_motor_.generate_angle_command(
-                           gimbal_player_viewer_motor_.control_angle()));
-
-            transmit_buffer_.trigger_transmission();
+            auto pv_cmd = gimbal_player_viewer_motor_.generate_angle_command(
+                gimbal_player_viewer_motor_.control_angle());
+            auto raw4 = std::bit_cast<std::array<std::byte, 8>>(pv_cmd);
+            builder.can2_transmit({.can_id = 0x141, .can_data = raw4});
         }
 
     private:
-        void can1_receive_callback(
-            uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
-            bool is_remote_transmission, uint8_t can_data_length) override {
-            if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
+        void can1_receive_callback(const librmcs::data::CanDataView& data) override {
+            if (data.is_extended_can_id || data.is_remote_transmission || data.can_data.size() < 8)
+                [[unlikely]]
                 return;
-
-            if (can_id == 0x201) {
-                gimbal_friction_wheels_[0].store_status(can_data);
-            } else if (can_id == 0x202) {
-                gimbal_friction_wheels_[1].store_status(can_data);
-            } else if (can_id == 0x203) {
-                gimbal_friction_wheels_[2].store_status(can_data);
-            } else if (can_id == 0x204) {
-                gimbal_friction_wheels_[3].store_status(can_data);
-            }
+            const uint64_t raw = Hero::can_u64(data);
+            if (data.can_id == 0x201)
+                gimbal_friction_wheels_[0].store_status(raw);
+            else if (data.can_id == 0x202)
+                gimbal_friction_wheels_[1].store_status(raw);
+            else if (data.can_id == 0x203)
+                gimbal_friction_wheels_[2].store_status(raw);
+            else if (data.can_id == 0x204)
+                gimbal_friction_wheels_[3].store_status(raw);
         }
 
-        void can2_receive_callback(
-            uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
-            bool is_remote_transmission, uint8_t can_data_length) override {
-            if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
+        void can2_receive_callback(const librmcs::data::CanDataView& data) override {
+            if (data.is_extended_can_id || data.is_remote_transmission || data.can_data.size() < 8)
+                [[unlikely]]
                 return;
-
-            if (can_id == 0x142) {
-                gimbal_pitch_motor_.store_status(can_data);
-            } else if (can_id == 0x141) {
-                gimbal_player_viewer_motor_.store_status(can_data);
-            }
+            const uint64_t raw = Hero::can_u64(data);
+            if (data.can_id == 0x142)
+                gimbal_pitch_motor_.store_status(raw);
+            else if (data.can_id == 0x141)
+                gimbal_player_viewer_motor_.store_status(raw);
         }
 
-        void uart1_receive_callback(const std::byte* data, uint8_t length) override {
-            benewake_.store_status(data, length);
+        void uart1_receive_callback(const librmcs::data::UartDataView& data) override {
+            benewake_.store_status(
+                data.uart_data.data(), static_cast<uint8_t>(data.uart_data.size()));
         }
 
-        void uart2_receive_callback(const std::byte* data, uint8_t length) override {
-            gy614_.store_status(data, length);
+        void uart2_receive_callback(const librmcs::data::UartDataView& data) override {
+            gy614_.store_status(
+                data.uart_data.data(), static_cast<uint8_t>(data.uart_data.size()));
         }
 
-        void accelerometer_receive_callback(int16_t x, int16_t y, int16_t z) override {
-            imu_.store_accelerometer_status(x, y, z);
+        void accelerometer_receive_callback(
+            const librmcs::data::AccelerometerDataView& data) override {
+            imu_.store_accelerometer_status(data.x, data.y, data.z);
         }
 
-        void gyroscope_receive_callback(int16_t x, int16_t y, int16_t z) override {
-            imu_.store_gyroscope_status(x, y, z);
+        void gyroscope_receive_callback(const librmcs::data::GyroscopeDataView& data) override {
+            imu_.store_gyroscope_status(data.x, data.y, data.z);
         }
 
         void external_imu_thread_main(
@@ -288,19 +287,17 @@ private:
         device::DjiMotor gimbal_scope_motor_;
         device::LkMotor gimbal_player_viewer_motor_;
 
-        librmcs::client::CBoard::TransmitBuffer transmit_buffer_;
-        std::thread event_thread_;
-
         rmcs_core::hardware::device::Hipnuc external_imu_;
         std::atomic<bool> external_imu_available_ = false;
         std::jthread external_imu_thread_;
     };
 
-    class BottomBoard final : private librmcs::client::CBoard {
+    class BottomBoard final : private librmcs::agent::CBoard {
     public:
         friend class Hero;
-        explicit BottomBoard(Hero& hero, HeroCommand& hero_command, int usb_pid = -1)
-            : librmcs::client::CBoard(usb_pid)
+        explicit BottomBoard(
+            Hero& hero, HeroCommand& hero_command, const std::string& serial_filter = {})
+            : librmcs::agent::CBoard(serial_filter)
             , imu_(1000, 0.2, 0.0)
             , tf_(hero.tf_)
             , dr16_(hero)
@@ -323,9 +320,7 @@ private:
                   hero, hero_command, "/gimbal/bullet_feeder",
                   device::LkMotor::Config{device::LkMotor::Type::MG5010E_I10}
                       .set_reversed()
-                      .enable_multi_turn_angle())
-            , transmit_buffer_(*this, 32)
-            , event_thread_([this]() { handle_events(); }) {
+                      .enable_multi_turn_angle()) {
 
             hero.register_output("/referee/serial", referee_serial_);
             referee_serial_->read = [this](std::byte* buffer, size_t size) {
@@ -333,17 +328,15 @@ private:
                     [&buffer](std::byte byte) { *buffer++ = byte; }, size);
             };
             referee_serial_->write = [this](const std::byte* buffer, size_t size) {
-                transmit_buffer_.add_uart1_transmission(buffer, size);
+                start_transmit().uart1_transmit(
+                    {.uart_data = std::span<const std::byte>{buffer, size}});
                 return size;
             };
 
             hero.register_output("/chassis/yaw/velocity_imu", chassis_yaw_velocity_imu_, 0);
         }
 
-        ~BottomBoard() final {
-            stop_handling_events();
-            event_thread_.join();
-        }
+        ~BottomBoard() final = default;
 
         void update() {
             imu_.update_status();
@@ -364,75 +357,77 @@ private:
         }
 
         void command_update() {
+            auto builder = start_transmit();
             uint16_t batch_commands[4];
 
             for (int i = 0; i < 4; i++)
                 batch_commands[i] = chassis_wheel_motors_[i].generate_command();
-            transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(batch_commands));
+            auto raw1 = std::bit_cast<std::array<std::byte, 8>>(batch_commands);
+            builder.can1_transmit({.can_id = 0x200, .can_data = raw1});
 
-            transmit_buffer_.add_can1_transmission(
-                0x141, gimbal_bullet_feeder_.generate_torque_command(
-                           gimbal_bullet_feeder_.control_torque()));
+            auto feeder_cmd = gimbal_bullet_feeder_.generate_torque_command(
+                gimbal_bullet_feeder_.control_torque());
+            auto raw2 = std::bit_cast<std::array<std::byte, 8>>(feeder_cmd);
+            builder.can1_transmit({.can_id = 0x141, .can_data = raw2});
 
-            transmit_buffer_.add_can2_transmission(0x141, gimbal_yaw_motor_.generate_command());
+            auto yaw_cmd = gimbal_yaw_motor_.generate_command();
+            auto raw3    = std::bit_cast<std::array<std::byte, 8>>(yaw_cmd);
+            builder.can2_transmit({.can_id = 0x141, .can_data = raw3});
 
             batch_commands[0] = 0;
             batch_commands[1] = 0;
             batch_commands[2] = 0;
             batch_commands[3] = supercap_.generate_command();
-            transmit_buffer_.add_can2_transmission(0x1FE, std::bit_cast<uint64_t>(batch_commands));
-
-            transmit_buffer_.trigger_transmission();
+            auto raw4          = std::bit_cast<std::array<std::byte, 8>>(batch_commands);
+            builder.can2_transmit({.can_id = 0x1FE, .can_data = raw4});
         }
 
     private:
-        void can1_receive_callback(
-            uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
-            bool is_remote_transmission, uint8_t can_data_length) override {
-            if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
+        void can1_receive_callback(const librmcs::data::CanDataView& data) override {
+            if (data.is_extended_can_id || data.is_remote_transmission || data.can_data.size() < 8)
+                [[unlikely]]
                 return;
-
-            if (can_id == 0x201) {
-                chassis_wheel_motors_[0].store_status(can_data);
-            } else if (can_id == 0x202) {
-                chassis_wheel_motors_[1].store_status(can_data);
-            } else if (can_id == 0x203) {
-                chassis_wheel_motors_[2].store_status(can_data);
-            } else if (can_id == 0x204) {
-                chassis_wheel_motors_[3].store_status(can_data);
-            } else if (can_id == 0x141) {
-                gimbal_bullet_feeder_.store_status(can_data);
-            }
+            const uint64_t raw = Hero::can_u64(data);
+            if (data.can_id == 0x201)
+                chassis_wheel_motors_[0].store_status(raw);
+            else if (data.can_id == 0x202)
+                chassis_wheel_motors_[1].store_status(raw);
+            else if (data.can_id == 0x203)
+                chassis_wheel_motors_[2].store_status(raw);
+            else if (data.can_id == 0x204)
+                chassis_wheel_motors_[3].store_status(raw);
+            else if (data.can_id == 0x141)
+                gimbal_bullet_feeder_.store_status(raw);
         }
 
-        void can2_receive_callback(
-            uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
-            bool is_remote_transmission, uint8_t can_data_length) override {
-            if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
+        void can2_receive_callback(const librmcs::data::CanDataView& data) override {
+            if (data.is_extended_can_id || data.is_remote_transmission || data.can_data.size() < 8)
+                [[unlikely]]
                 return;
-
-            if (can_id == 0x141) {
-                gimbal_yaw_motor_.store_status(can_data);
-            } else if (can_id == 0x300) {
-                supercap_.store_status(can_data);
-            }
+            const uint64_t raw = Hero::can_u64(data);
+            if (data.can_id == 0x141)
+                gimbal_yaw_motor_.store_status(raw);
+            else if (data.can_id == 0x300)
+                supercap_.store_status(raw);
         }
 
-        void uart1_receive_callback(const std::byte* uart_data, uint8_t uart_data_length) override {
+        void uart1_receive_callback(const librmcs::data::UartDataView& data) override {
+            const std::byte* ptr = data.uart_data.data();
             referee_ring_buffer_receive_.emplace_back_multi(
-                [&uart_data](std::byte* storage) { *storage = *uart_data++; }, uart_data_length);
+                [&ptr](std::byte* storage) { *storage = *ptr++; }, data.uart_data.size());
         }
 
-        void dbus_receive_callback(const std::byte* uart_data, uint8_t uart_data_length) override {
-            dr16_.store_status(uart_data, uart_data_length);
+        void dbus_receive_callback(const librmcs::data::UartDataView& data) override {
+            dr16_.store_status(data.uart_data.data(), data.uart_data.size());
         }
 
-        void accelerometer_receive_callback(int16_t x, int16_t y, int16_t z) override {
-            imu_.store_accelerometer_status(x, y, z);
+        void accelerometer_receive_callback(
+            const librmcs::data::AccelerometerDataView& data) override {
+            imu_.store_accelerometer_status(data.x, data.y, data.z);
         }
 
-        void gyroscope_receive_callback(int16_t x, int16_t y, int16_t z) override {
-            imu_.store_gyroscope_status(x, y, z);
+        void gyroscope_receive_callback(const librmcs::data::GyroscopeDataView& data) override {
+            imu_.store_gyroscope_status(data.x, data.y, data.z);
         }
 
         device::Bmi088 imu_;
@@ -451,9 +446,6 @@ private:
 
         librmcs::utility::RingBuffer<std::byte> referee_ring_buffer_receive_{256};
         OutputInterface<rmcs_msgs::SerialInterface> referee_serial_;
-
-        librmcs::client::CBoard::TransmitBuffer transmit_buffer_;
-        std::thread event_thread_;
     };
 
     OutputInterface<rmcs_description::Tf> tf_;

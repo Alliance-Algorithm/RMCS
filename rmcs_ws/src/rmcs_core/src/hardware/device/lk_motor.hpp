@@ -2,7 +2,7 @@
 
 #include <limits>
 
-#include <librmcs/device/lk_motor.hpp>
+#include "impl/lk_motor.hpp"
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <rmcs_executor/component.hpp>
