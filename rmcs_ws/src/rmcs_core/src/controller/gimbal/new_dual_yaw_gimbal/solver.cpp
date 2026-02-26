@@ -18,9 +18,14 @@ public:
         register_input("/gimbal/yaw/control_angle_error", control_angle_error_);
         register_input("/gimbal/yaw/control_angle_shift", control_angle_shift_, false);
         register_input("/gimbal/top_yaw/angle", top_yaw_angle_);
+        register_input("/gimbal/yaw/control_angle_velocity", control_angle_velocity_, false);
 
         register_output("/gimbal/top_yaw/target_angle_error", top_yaw_target_error_, 0.0);
         register_output("/gimbal/bottom_yaw/target_angle_error", bottom_yaw_target_error_, 0.0);
+
+        register_output("/gimbal/top_yaw/target_angle_velocity", top_yaw_target_velocity_, 0.0);
+        register_output(
+            "/gimbal/bottom_yaw/target_angle_velocity", bottom_yaw_target_velocity_, 0.0);
 
         register_output("/gimbal/top_yaw/control_angle", top_yaw_control_angle_, 0.0);
         register_output(
@@ -36,16 +41,34 @@ public:
                 get_logger(), "Failed to fetch \"/gimbal/yaw/control_angle_shift\", set to NaN.");
             control_angle_shift_.bind_directly(nan_);
         }
+        if (!control_angle_velocity_.ready()) {
+            RCLCPP_INFO(
+                get_logger(), "Failed to fetch \"/gimbal/yaw/control_angle_velocity\", set to 0.");
+            control_angle_velocity_.bind_directly(0.0);
+        }
     }
 
     void update() override {
+        constexpr double TOP_YAW_LIMIT = std::numbers::pi / 3.0;
+
         if (std::isnan(*control_angle_error_)) {
             *top_yaw_target_error_ = nan_;
             *bottom_yaw_target_error_ = nan_;
+            *top_yaw_target_velocity_ = nan_;
+            *bottom_yaw_target_velocity_ = nan_;
+
         } else {
-            *top_yaw_target_error_ = *control_angle_error_;
-            double bottom_err = *top_yaw_angle_ + *control_angle_error_;
-            *bottom_yaw_target_error_ = std::remainder(bottom_err, 2.0 * std::numbers::pi);
+            double e_total = std::remainder(*control_angle_error_, 2.0 * std::numbers::pi);
+
+            double e_bot = std::remainder(e_total + *top_yaw_angle_, 2.0 * std::numbers::pi);
+
+            double top_target = std::clamp(e_bot, -TOP_YAW_LIMIT, TOP_YAW_LIMIT);
+
+            *top_yaw_target_error_ = top_target - *top_yaw_angle_;
+            *bottom_yaw_target_error_ = e_bot;
+
+            *bottom_yaw_target_velocity_ = *control_angle_velocity_;
+            *top_yaw_target_velocity_ = 0.0;
         }
 
         if (std::isnan(*control_angle_shift_)) {
@@ -62,8 +85,10 @@ private:
 
     InputInterface<double> control_angle_error_, control_angle_shift_;
     InputInterface<double> top_yaw_angle_;
+    InputInterface<double> control_angle_velocity_;
 
     OutputInterface<double> top_yaw_target_error_, bottom_yaw_target_error_;
+    OutputInterface<double> top_yaw_target_velocity_, bottom_yaw_target_velocity_;
     OutputInterface<double> top_yaw_control_angle_, bottom_yaw_control_angle_shift_;
 
     class DualYawStatus : public rmcs_executor::Component {
@@ -80,10 +105,9 @@ private:
 
         void update() override {
             double yaw_angle = *top_yaw_angle_ + *bottom_yaw_angle_;
+            yaw_angle = std::fmod(yaw_angle, 2.0 * std::numbers::pi);
             if (yaw_angle < 0)
-                yaw_angle += 2 * std::numbers::pi;
-            else if (yaw_angle > 2 * std::numbers::pi)
-                yaw_angle -= 2 * std::numbers::pi;
+                yaw_angle += 2.0 * std::numbers::pi;
             *yaw_angle_ = yaw_angle;
 
             *yaw_velocity_ = *top_yaw_velocity_ + *bottom_yaw_velocity_;

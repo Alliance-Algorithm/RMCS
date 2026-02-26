@@ -17,7 +17,6 @@ public:
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
 
-        // Load Top Yaw PID parameters
         auto set_pid_parameter = [this](pid::PidCalculator& pid, const std::string& name) {
             pid.kp = get_parameter(name + "_kp").as_double();
             pid.ki = get_parameter(name + "_ki").as_double();
@@ -40,8 +39,11 @@ public:
         register_input("/gimbal/top_yaw/target_angle_error", top_yaw_target_error_);
         register_input("/gimbal/bottom_yaw/target_angle_error", bottom_yaw_target_error_);
 
+        register_input("/gimbal/top_yaw/target_angle_velocity", top_yaw_target_velocity_);
+        register_input("/gimbal/bottom_yaw/target_angle_velocity", bottom_yaw_target_velocity_);
+
+        register_input("/gimbal/top_yaw/velocity", top_yaw_velocity_);
         register_input("/gimbal/bottom_yaw/velocity", bottom_yaw_velocity_);
-        register_input("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
         register_input("/chassis/yaw/velocity_imu", chassis_yaw_velocity_imu_);
 
         register_output("/gimbal/top_yaw/control_torque", top_yaw_control_torque_, 0.0);
@@ -50,7 +52,8 @@ public:
 
     void update() override {
         if (std::isnan(*top_yaw_target_error_) || std::isnan(*bottom_yaw_target_error_)
-            || std::isnan(*gimbal_yaw_velocity_imu_) || std::isnan(*chassis_yaw_velocity_imu_)
+            || std::isnan(*top_yaw_target_velocity_) || std::isnan(*bottom_yaw_target_velocity_)
+            || std::isnan(*top_yaw_velocity_) || std::isnan(*chassis_yaw_velocity_imu_)
             || std::isnan(*bottom_yaw_velocity_)) {
 
             *top_yaw_control_torque_ = nan_;
@@ -58,17 +61,17 @@ public:
             return;
         }
 
-        *top_yaw_control_torque_ = top_yaw_velocity_pid_.update(
-            top_yaw_angle_pid_.update(*top_yaw_target_error_) - *gimbal_yaw_velocity_imu_);
+        double desired_top_vel =
+            top_yaw_angle_pid_.update(*top_yaw_target_error_) + *top_yaw_target_velocity_;
+        *top_yaw_control_torque_ =
+            top_yaw_velocity_pid_.update(desired_top_vel - *top_yaw_velocity_);
 
         double e = *bottom_yaw_target_error_;
-        double actual_bottom_vel = *chassis_yaw_velocity_imu_ + *bottom_yaw_velocity_;
-        double de = 0.0 - actual_bottom_vel;
+        double actual_bot_vel = *chassis_yaw_velocity_imu_ + *bottom_yaw_velocity_;
+        double de = *bottom_yaw_target_velocity_ - actual_bot_vel;
 
         double s = smc_c_ * e + de;
-
         double sat_s = std::clamp(s / smc_phi_, -1.0, 1.0);
-
         double tau = smc_j_ * (smc_c_ * de + smc_k_ * s + smc_epsilon_ * sat_s);
 
         *bottom_yaw_control_torque_ = std::clamp(tau, -max_torque_, max_torque_);
@@ -87,8 +90,10 @@ private:
     double max_torque_ = 3.0;
 
     InputInterface<double> top_yaw_target_error_, bottom_yaw_target_error_;
+    InputInterface<double> top_yaw_target_velocity_, bottom_yaw_target_velocity_;
+    InputInterface<double> top_yaw_velocity_;
     InputInterface<double> bottom_yaw_velocity_;
-    InputInterface<double> gimbal_yaw_velocity_imu_, chassis_yaw_velocity_imu_;
+    InputInterface<double> chassis_yaw_velocity_imu_;
 
     OutputInterface<double> top_yaw_control_torque_, bottom_yaw_control_torque_;
 };
