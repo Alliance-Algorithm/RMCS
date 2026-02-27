@@ -48,6 +48,8 @@ public:
 
         register_output("/gimbal/top_yaw/control_torque", top_yaw_control_torque_, 0.0);
         register_output("/gimbal/bottom_yaw/control_torque", bottom_yaw_control_torque_, 0.0);
+
+        register_output("/gimbal/test/sliding_value", sliding_value_, nan_);
     }
 
     void update() override {
@@ -75,6 +77,8 @@ public:
         double tau = smc_j_ * (smc_c_ * de + smc_k_ * s + smc_epsilon_ * sat_s);
 
         *bottom_yaw_control_torque_ = std::clamp(tau, -max_torque_, max_torque_);
+
+        *sliding_value_ = s;
     }
 
 private:
@@ -96,6 +100,9 @@ private:
     InputInterface<double> chassis_yaw_velocity_imu_;
 
     OutputInterface<double> top_yaw_control_torque_, bottom_yaw_control_torque_;
+
+    // test parameter
+    OutputInterface<double> sliding_value_;
 };
 
 } // namespace rmcs_core::controller::gimbal

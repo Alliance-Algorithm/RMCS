@@ -12,14 +12,17 @@ rmcs_executor:
 
       # - rmcs_core::controller::gimbal::DualYawController -> dual_yaw_controller
       # - rmcs_core::controller::gimbal::HeroGimbalController -> gimbal_controller
+
       - rmcs_core::controller::gimbal::DualYawSolver -> new_slover
       - rmcs_core::controller::gimbal::DualYawSMCController -> new_controller
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
 
-      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       - rmcs_core::controller::gimbal::test::DualYawSimulator -> gimbal_simulator
       - rmcs_core::controller::gimbal::test::DualYawSimulatorRelay -> sim_relay
       - rmcs_core::controller::gimbal::test::DualYawTargetGenerator -> sim_upperlayers
+
+      # - rmcs_core::controller::gimbal::test::ControlTorqueOutput -> output
 
 value_broadcaster:
   ros__parameters:
@@ -32,17 +35,24 @@ value_broadcaster:
       - /gimbal/bottom_yaw/angle
       - /gimbal/top_yaw/angle
       - /gimbal/yaw/control_angle_error
+      - /gimbal/test/sliding_value
+
+output:
+  ros__parameters:
+    top_yaw: 0.0
+    bottom_yaw: 1.0
+    pitch: 0.0
 
 new_controller:
   ros__parameters:
-    top_yaw_angle_kp: 10.0
+    top_yaw_angle_kp: 24.0
     top_yaw_angle_ki: 0.0
     top_yaw_angle_kd: 0.0
-    top_yaw_velocity_kp: 10.0
-    top_yaw_velocity_ki: 0.01
-    top_yaw_velocity_kd: 10.0
+    top_yaw_velocity_kp: 70.0
+    top_yaw_velocity_ki: 0.005
+    top_yaw_velocity_kd: 2.5
     bottom_yaw_smc_c: 50.0
-    bottom_yaw_smc_k: 20.0
+    bottom_yaw_smc_k: 10.0
     bottom_yaw_smc_epsilon: 10.0
     bottom_yaw_smc_phi: 0.1
     bottom_yaw_inertia: 1.0
