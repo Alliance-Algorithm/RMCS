@@ -12,7 +12,9 @@ public:
         , l2_(l2)
         , l3_(l2)
         , l4_(l1)
-        , l5_(l5) {}
+        , l5_(l5) {
+        reset();
+    }
 
     void reset() {
         tilt_angle_ = nan_;
@@ -22,7 +24,7 @@ public:
     Eigen::Vector2d update(double phi1, double phi4) {
         if (std::isnan(phi1) || std::isnan(phi4)) {
             reset();
-            return {0.0, 0.0};
+            return Eigen::Vector2d{leg_length_, tilt_angle_};
         }
 
         calculate_five_link_solution(phi1, phi4);
@@ -83,7 +85,7 @@ private:
         joint_torque_matrix_ = jacobian_matrix.transpose() * rotation_matrix * transform_matrix;
     }
 
-    Eigen::Vector2d get_leg_posture() const { return Eigen::Vector2d{leg_length_, tilt_angle_}; }
+    Eigen::Vector2d get_leg_posture() const { return leg_posture_; }
 
     static constexpr double inf_ = std::numeric_limits<double>::infinity();
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
