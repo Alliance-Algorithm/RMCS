@@ -17,7 +17,7 @@ rmcs_executor:
       - rmcs_core::controller::gimbal::DualYawSMCController -> new_controller
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
 
-      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       - rmcs_core::controller::gimbal::test::DualYawSimulator -> gimbal_simulator
       - rmcs_core::controller::gimbal::test::DualYawSimulatorRelay -> sim_relay
       - rmcs_core::controller::gimbal::test::DualYawTargetGenerator -> sim_upperlayers
@@ -42,6 +42,14 @@ output:
     top_yaw: 0.0
     bottom_yaw: 1.0
     pitch: 0.0
+
+sim_upperlayers:
+  ros__parameters:
+    test_mode: 2
+    sine_amplitude: 1.0
+    sine_frequency: 2.0
+    noise_amplitude: 0.6
+    noise_walk_sigma: 0.003
 
 new_controller:
   ros__parameters:

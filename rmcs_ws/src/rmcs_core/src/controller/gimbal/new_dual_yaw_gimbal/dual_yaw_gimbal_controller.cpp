@@ -35,6 +35,7 @@ public:
         get_parameter("bottom_yaw_smc_phi", smc_phi_);
         get_parameter("bottom_yaw_inertia", smc_j_);
         get_parameter("bottom_yaw_max_torque", max_torque_);
+        get_parameter("bottom_yaw_accel_ff_alpha", accel_ff_alpha_);
 
         register_input("/gimbal/top_yaw/target_angle_error", top_yaw_target_error_);
         register_input("/gimbal/bottom_yaw/target_angle_error", bottom_yaw_target_error_);
@@ -74,7 +75,15 @@ public:
 
         double s = smc_c_ * e + de;
         double sat_s = std::clamp(s / smc_phi_, -1.0, 1.0);
-        double tau = smc_j_ * (smc_c_ * de + smc_k_ * s + smc_epsilon_ * sat_s);
+
+        double raw_accel_ff = (*bottom_yaw_target_velocity_ - prev_bottom_target_vel_) / dt_;
+        prev_bottom_target_vel_ = *bottom_yaw_target_velocity_;
+
+        accel_ff_filtered_ =
+            accel_ff_alpha_ * raw_accel_ff + (1.0 - accel_ff_alpha_) * accel_ff_filtered_;
+
+        double tau =
+            smc_j_ * (smc_c_ * de + smc_k_ * s + smc_epsilon_ * sat_s + accel_ff_filtered_);
 
         *bottom_yaw_control_torque_ = std::clamp(tau, -max_torque_, max_torque_);
 
@@ -83,6 +92,7 @@ public:
 
 private:
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
+    static constexpr double dt_ = 0.001;
 
     pid::PidCalculator top_yaw_angle_pid_, top_yaw_velocity_pid_;
 
@@ -92,6 +102,10 @@ private:
     double smc_phi_ = 0.1;
     double smc_j_ = 0.05;
     double max_torque_ = 3.0;
+
+    double accel_ff_alpha_ = 0.3;
+    double accel_ff_filtered_ = 0.0;
+    double prev_bottom_target_vel_ = 0.0;
 
     InputInterface<double> top_yaw_target_error_, bottom_yaw_target_error_;
     InputInterface<double> top_yaw_target_velocity_, bottom_yaw_target_velocity_;

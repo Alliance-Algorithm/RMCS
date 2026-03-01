@@ -20,6 +20,10 @@ public:
         register_input("/gimbal/top_yaw/angle", top_yaw_angle_);
         register_input("/gimbal/yaw/control_angle_velocity", control_angle_velocity_, false);
 
+        // 用于 top_yaw 运动学解耦前馈：抵消 bottom_yaw 运动对 top_yaw 基座的扰动
+        register_input("/gimbal/bottom_yaw/velocity", bottom_yaw_velocity_);
+        register_input("/chassis/yaw/velocity_imu", chassis_yaw_velocity_imu_);
+
         register_output("/gimbal/top_yaw/target_angle_error", top_yaw_target_error_, 0.0);
         register_output("/gimbal/bottom_yaw/target_angle_error", bottom_yaw_target_error_, 0.0);
 
@@ -68,7 +72,9 @@ public:
             *bottom_yaw_target_error_ = e_bot;
 
             *bottom_yaw_target_velocity_ = *control_angle_velocity_;
-            *top_yaw_target_velocity_ = 0.0;
+
+            double bot_abs_vel = *chassis_yaw_velocity_imu_ + *bottom_yaw_velocity_;
+            *top_yaw_target_velocity_ = *control_angle_velocity_ - bot_abs_vel;
         }
 
         if (std::isnan(*control_angle_shift_)) {
@@ -86,6 +92,8 @@ private:
     InputInterface<double> control_angle_error_, control_angle_shift_;
     InputInterface<double> top_yaw_angle_;
     InputInterface<double> control_angle_velocity_;
+    InputInterface<double> bottom_yaw_velocity_;
+    InputInterface<double> chassis_yaw_velocity_imu_;
 
     OutputInterface<double> top_yaw_target_error_, bottom_yaw_target_error_;
     OutputInterface<double> top_yaw_target_velocity_, bottom_yaw_target_velocity_;
