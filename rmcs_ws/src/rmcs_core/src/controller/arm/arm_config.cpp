@@ -61,6 +61,7 @@ public:
             joint[i].update(
                 wrap(*joint_motor_angle[i]), *joint_motor_velocity[i], *joint_motor_torque[i]);
         }
+        joint[5].update(0.0, 0.0, 0.0); 
 
         sensor_msgs::msg::JointState msg;
         msg.header.stamp    = now();

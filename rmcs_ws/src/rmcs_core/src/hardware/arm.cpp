@@ -189,34 +189,17 @@ if (++init_counter > 200)
             joint[2].update();
             joint[1].update();
             joint[0].update();
-        RCLCPP_INFO(this->get_logger(), 
-    "Joint[0] angle=%.3f rad  torque=%.3f  raw=%d", 
-    wrapToPi(Joint[0].get_angle()),
-    Joint[0].get_torque(),
-    Joint[0].get_raw_angle());
-        RCLCPP_INFO(this->get_logger(), 
-    "Joint[1] angle=%.3f rad  torque=%.3f  raw=%d", 
-    wrapToPi(Joint[1].get_angle()),
-    Joint[1].get_torque(),
-    Joint[1].get_raw_angle());
-    RCLCPP_INFO(this->get_logger(), 
-    "joint[0] angle=%.3f rad  torque=%.3f  state=%d  raw_encoder=%u", 
-    wrapToPi(joint[0].get_angle()),
-    joint[0].get_torque(),
-    (int)joint[0].get_state(),
-    joint[0].get_raw_encoder());
-    RCLCPP_INFO(this->get_logger(), 
-    "joint[1] angle=%.3f rad  torque=%.3f  state=%d  raw_encoder=%u", 
-    wrapToPi(joint[1].get_angle()),
-    joint[1].get_torque(),
-    (int)joint[1].get_state(),
-    joint[1].get_raw_encoder());
-    RCLCPP_INFO(this->get_logger(), 
-    "joint[2] angle=%.3f rad  torque=%.3f  state=%d  raw_encoder=%u", 
-    wrapToPi(joint[2].get_angle()),
-    joint[2].get_torque(),
-    (int)joint[2].get_state(),
-    joint[2].get_raw_encoder());
+    //     RCLCPP_INFO(this->get_logger(), 
+    // "Joint[0] angle=%.3f rad  torque=%.3f  raw=%d", 
+    // wrapToPi(Joint[0].get_angle()),
+    // Joint[0].get_torque(),
+    // Joint[0].get_raw_angle());
+    // RCLCPP_INFO(this->get_logger(), 
+    // "joint[2] angle=%.3f rad  torque=%.3f  state=%d  raw_encoder=%u", 
+    // wrapToPi(joint[2].get_angle()),
+    // joint[2].get_torque(),
+    // (int)joint[2].get_state(),
+    // joint[2].get_raw_encoder());
         }
 
     protected:
@@ -235,7 +218,6 @@ if (++init_counter > 200)
 
         }
 
-        // CAN1 接收：joint2(DM4310), joint3(DM4310)
         void can1_receive_callback(
             uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
             bool is_remote_transmission, uint8_t can_data_length) override {

@@ -75,7 +75,7 @@ joint3_angle_pid_controller:
     measurement: /arm/joint_3/control_angle_error
     control: /arm/joint_3/control_velocity
     kp: 20.0
-    ki: 0.0
+    ki: 0.1
     kd: 2.0
 joint3_velocity_pid_controller:
   ros__parameters:
@@ -91,7 +91,7 @@ joint2_angle_pid_controller:
     measurement: /arm/joint_2/control_angle_error
     control: /arm/joint_2/control_velocity
     kp: 20.0
-    ki: 0.0
+    ki: 0.1
     kd: 2.0
 joint2_velocity_pid_controller:
   ros__parameters:

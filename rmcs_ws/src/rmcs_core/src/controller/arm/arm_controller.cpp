@@ -39,26 +39,21 @@ public:
         }
         register_input("urdf_loaded", urdf_loaded);
 
-        // ── 订阅 /arm/target_joints
         target_sub_ = create_subscription<std_msgs::msg::Float64MultiArray>(
             "/arm/target_joints",
-            rclcpp::QoS(1).best_effort(),
+            rclcpp::QoS(10).best_effort(),
             [this](const std_msgs::msg::Float64MultiArray::SharedPtr msg) {
                 if (msg->data.size() < 6) return;
                 auto cmd = std::make_shared<TargetCmd>();
                 for (std::size_t i = 0; i < 6; ++i)
                     cmd->angles[i] = msg->data[i];
+                cmd->recv_time = std::chrono::steady_clock::now();
                 pending_target_.store(cmd, std::memory_order_release);
-
-                last_target_time_.store(
-                    std::chrono::steady_clock::now().time_since_epoch().count(),
-                    std::memory_order_release);
             });
 
-        // ── 订阅 /arm/enable_cmd
         enable_sub_ = create_subscription<std_msgs::msg::Bool>(
             "/arm/enable_cmd",
-            rclcpp::QoS(1).best_effort(),
+            rclcpp::QoS(10).best_effort(),
             [this](const std_msgs::msg::Bool::SharedPtr msg) {
                 pending_enable_.store(msg->data, std::memory_order_release);
             });
@@ -85,28 +80,29 @@ public:
             return std::clamp(target, lo, hi);
         };
 
+        *is_arm_enable_ = pending_enable_.load(std::memory_order_acquire);
+        const auto cmd = pending_target_.load(std::memory_order_acquire);
         if (target_initialized_) {
-            const auto now_ns  = std::chrono::steady_clock::now().time_since_epoch().count();
-            const auto last_ns = last_target_time_.load(std::memory_order_acquire);
             constexpr int64_t TIMEOUT_NS = 500'000'000LL;  // 500ms
-            if (now_ns - last_ns > TIMEOUT_NS) {
+            const bool timed_out = !cmd ||
+                (std::chrono::steady_clock::now() - cmd->recv_time).count() > TIMEOUT_NS;
+            if (timed_out) {
                 target_initialized_ = false;
                 RCLCPP_WARN(
                     get_logger(),
-                    "[ArmController] ：超过 500ms 未收到目标，回退到保持当前位置");
+                    "[ArmController] 看门狗触发：超过 500ms 未收到目标，回退到保持当前位置");
+            } else {
+                for (std::size_t i = 0; i < 6; ++i)
+                    *target_theta_[i] = cmd->angles[i];
+            }
+        } else {
+            if (cmd) {
+                for (std::size_t i = 0; i < 6; ++i)
+                    *target_theta_[i] = cmd->angles[i];
+                target_initialized_ = true;
             }
         }
-        
-        *is_arm_enable_ = pending_enable_.load(std::memory_order_acquire);
 
-        // ── 读取目标角度
-        const auto cmd = pending_target_.load(std::memory_order_acquire);
-        if (cmd) {
-            for (std::size_t i = 0; i < 6; ++i)
-                *target_theta_[i] = cmd->angles[i];
-            target_initialized_ = true;
-        }
-        // ── 计算角度误差 
         for (std::size_t i = 0; i < 6; ++i) {
             const double theta = *theta_[i];
 
@@ -127,14 +123,12 @@ public:
 
 private:
     struct TargetCmd {
-            std::array<double, 6> angles{};
-        };
+        std::array<double, 6> angles{};
+        std::chrono::steady_clock::time_point recv_time{};
+    };
     std::atomic<std::shared_ptr<const TargetCmd>> pending_target_{nullptr};
     std::atomic<bool>    pending_enable_{false};
 
-    std::atomic<int64_t> last_target_time_{0};
-
-    // 只在 update() 线程访问，不需要原子
     bool target_initialized_{false};
 
     OutputInterface<double> angle_error_[6];
