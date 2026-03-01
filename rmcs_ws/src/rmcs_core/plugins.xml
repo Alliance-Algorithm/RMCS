@@ -22,6 +22,9 @@
   </class>
   <class type="rmcs_core::controller::chassis::ChassisController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
+   </class>
+  <class type="rmcs_core::controller::chassis::WheelLegChassisController" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
   </class>
   <class type="rmcs_core::controller::chassis::ChassisPowerController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
