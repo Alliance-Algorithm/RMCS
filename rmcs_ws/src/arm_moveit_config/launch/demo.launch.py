@@ -28,9 +28,9 @@ def generate_launch_description():
         )
         .joint_limits(file_path="config/joint_limits.yaml")
         .robot_description_semantic(file_path="config/arm_description.srdf")
-        .planning_scene_monitor(
-            publish_robot_description=True, publish_robot_description_semantic=True
-        )
+        # .planning_scene_monitor(
+        #     publish_robot_description=True, publish_robot_description_semantic=True
+        # )
         .trajectory_execution(file_path="config/moveit_controllers.yaml")
         .pilz_cartesian_limits(file_path="config/pilz_cartesian_limits.yaml")
         .to_moveit_configs()

@@ -50,7 +50,7 @@ public:
         rightboard_.update();
     }
     void command() {
-        armboard_.command();
+        // armboard_.command();
         leftboard_.command();
         rightboard_.command();
     }
