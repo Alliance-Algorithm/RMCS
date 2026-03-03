@@ -290,6 +290,14 @@ private:
 
         velocity = calculate_velocity;
 
+        auto is_parked = std::abs(velocity) < 1e-2;
+
+        // if (is_parked) {
+        //     distance = last_distance_ + velocity * dt_;
+        // } else {
+        //     distance = 0.0;
+        // }
+
         distance = last_distance_ + velocity * dt_;
         last_distance_ = distance;
 
@@ -321,17 +329,17 @@ private:
         measure_state.body_pitch_angle = *chassis_pitch_angle_imu_;
         measure_state.body_pitch_velocity = filtered_gyro_velocity_.y();
 
-        // measure_state.distance = 0.0;
-        // measure_state.velocity = 0.0;
+        measure_state.distance = 0.0;
+        measure_state.velocity = 0.0;
 
-        // measure_state.yaw_angle = 0.0;
-        // measure_state.yaw_velocity = 0.0;
+        measure_state.yaw_angle = 0.0;
+        measure_state.yaw_velocity = 0.0;
 
-        // measure_state.left_tilt_angle = 0.0;
-        // measure_state.left_tilt_velocity = 0.0;
+        measure_state.left_tilt_angle = 0.0;
+        measure_state.left_tilt_velocity = 0.0;
 
-        // measure_state.right_tilt_angle = 0.0;
-        // measure_state.right_tilt_velocity = 0.0;
+        measure_state.right_tilt_angle = 0.0;
+        measure_state.right_tilt_velocity = 0.0;
 
         // measure_state.body_pitch_angle = 0.0;
         // measure_state.body_pitch_velocity = 0.0;
@@ -348,7 +356,9 @@ private:
     rmcs_msgs::WheelLegState calculate_desire_state(
         Eigen::Vector3d control_velocity, rmcs_msgs::WheelLegState measure_state) {
         rmcs_msgs::WheelLegState desire_state{};
-
+        desire_state = desire_state_solver_.update(std::move(control_velocity));
+        desire_roll_angle_ = desire_state_solver_.update_desire_roll_angle();
+        desire_leg_length_ = desire_state_solver_.update_desire_leg_length(0.13, 0.36);
         return desire_state;
     }
 
@@ -390,10 +400,9 @@ private:
         Eigen::Vector4d result{};
 
         auto error_state = desire_state.vector() - measure_state.vector();
-
         auto gain = lqr_calculator_.update(leg_posture.leg_length.x(), leg_posture.leg_length.y());
 
-        result = -gain * error_state;
+        result = -1.0 * gain * error_state;
 
         auto err_0 = error_state(0);
         auto err_1 = error_state(1);
@@ -428,10 +437,10 @@ private:
         auto output_8 = -gain_08 * err_8;
         auto output_9 = -gain_09 * err_9;
 
-        // RCLCPP_INFO(
-        //     get_logger(), "output: [%f, %f, %f, %f, %f, %f, %f, %f, %f, %f], %f, %f", output_0,
-        //     output_1, output_2, output_3, output_4, output_5, output_6, output_7, output_8,
-        //     output_9, result.x(), result.y());
+        RCLCPP_INFO(
+            get_logger(), "output: [%f, %f, %f, %f, %f, %f, %f, %f, %f, %f], %f, %f", output_0,
+            output_1, output_2, output_3, output_4, output_5, output_6, output_7, output_8,
+            output_9, result.x(), result.y());
 
         // RCLCPP_INFO(
         //     get_logger(), "measure: [%f, %f, %f, %f, %f, %f, %f, %f, %f, %f]",
@@ -441,9 +450,9 @@ private:
         //     measure_state.right_tilt_velocity, measure_state.body_pitch_angle,
         //     measure_state.body_pitch_velocity);
 
-        RCLCPP_INFO(
-            get_logger(), "x: %f, err: %f, output: %f, lw torque: %f, rw torque: %f",
-            measure_state.distance, error_state(0), output_0, result.x(), result.y());
+        // RCLCPP_INFO(
+        //     get_logger(), "x: %f, err: %f, output: %f, lw torque: %f, rw torque: %f",
+        //     measure_state.distance, error_state(0), output_0, result.x(), result.y());
 
         return result;
     }
@@ -556,6 +565,8 @@ private:
     OutputInterface<double> right_wheel_control_torque_;
 
     double d_leg_length_, d_roll_angle_;
+
+    double desire_leg_length_, desire_roll_angle_;
 
     Eigen::Vector2d last_leg_length_, last_tilt_angle_;
     Eigen::Vector2d last_dot_leg_length_, last_dot_tilt_angle_;

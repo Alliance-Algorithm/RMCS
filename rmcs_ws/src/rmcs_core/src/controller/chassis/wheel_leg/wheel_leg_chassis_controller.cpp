@@ -91,7 +91,7 @@ public:
                              : rmcs_msgs::WheelLegMode::BALANCELESS;
                 }
 
-                // change leg length
+                // Change leg length
                 if (!last_keyboard_.q && keyboard.q) {
                     leg_extended_ = !leg_extended_;
                 }

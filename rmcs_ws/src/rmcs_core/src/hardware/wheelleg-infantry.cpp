@@ -330,16 +330,20 @@ private:
             transmit_buffer_.add_can1_transmission(
                 0x200, std::bit_cast<uint64_t>(control_commands));
 
-            transmit_buffer_.add_can1_transmission(0x01, chassis_hip_motors[0].generate_command());
-            transmit_buffer_.add_can1_transmission(0x02, chassis_hip_motors[1].generate_command());
+            transmit_buffer_.add_can1_transmission(
+                0x01, chassis_hip_motors[0].generate_angle_command());
+            transmit_buffer_.add_can1_transmission(
+                0x02, chassis_hip_motors[1].generate_angle_command());
 
             control_commands[0] = 0;
             control_commands[1] = chassis_wheel_motors_[1].generate_command();
             transmit_buffer_.add_can2_transmission(
                 0x200, std::bit_cast<uint64_t>(control_commands));
 
-            transmit_buffer_.add_can2_transmission(0x03, chassis_hip_motors[2].generate_command());
-            transmit_buffer_.add_can2_transmission(0x04, chassis_hip_motors[3].generate_command());
+            transmit_buffer_.add_can2_transmission(
+                0x03, chassis_hip_motors[2].generate_angle_command());
+            transmit_buffer_.add_can2_transmission(
+                0x04, chassis_hip_motors[3].generate_angle_command());
 
             transmit_buffer_.trigger_transmission();
         }

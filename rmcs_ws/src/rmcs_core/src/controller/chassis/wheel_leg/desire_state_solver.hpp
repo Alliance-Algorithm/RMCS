@@ -19,8 +19,7 @@ public:
         desire_roll_angle_ = 0.0;
     }
 
-    rmcs_msgs::WheelLegState
-        update(rmcs_msgs::WheelLegMode mode, Eigen::Vector3d control_velocity) {
+    rmcs_msgs::WheelLegState update(Eigen::Vector3d control_velocity) {
         // x-axis translational velocity, z-axis vertical velocity, z-axis angular velocity
         auto& [vx, vz, wz] = control_velocity;
 
@@ -32,15 +31,13 @@ public:
         constexpr double power_kp_w = 0.40;
         // power_limit_velocity_w = power_kp_w * std::sqrt(referee_->chassis_power_limit_);
 
-        chassis_mode_ = mode;
-
-        switch (chassis_mode_) {
-        case rmcs_msgs::WheelLegMode::STOP: break;
-        case rmcs_msgs::WheelLegMode::SPIN: break;
-        case rmcs_msgs::WheelLegMode::FOLLOW: break;
-        case rmcs_msgs::WheelLegMode::LAUNCH_RAMP: break;
-        case rmcs_msgs::WheelLegMode::BALANCELESS: break;
-        }
+        // switch (chassis_mode_) {
+        // case rmcs_msgs::WheelLegMode::STOP: break;
+        // case rmcs_msgs::WheelLegMode::SPIN: break;
+        // case rmcs_msgs::WheelLegMode::FOLLOW: break;
+        // case rmcs_msgs::WheelLegMode::LAUNCH_RAMP: break;
+        // case rmcs_msgs::WheelLegMode::BALANCELESS: break;
+        // }
 
         if (std::abs(measure_state_.velocity) < 1e-2) {
             park_mode_ = true;
@@ -57,8 +54,8 @@ public:
         desire_state_.yaw_velocity = 0.0;
 
         // leg tilt angle:
-        desire_state_.left_tilt_angle = -0.1;
-        desire_state_.right_tilt_angle = -0.1;
+        desire_state_.left_tilt_angle = 0.0;
+        desire_state_.right_tilt_angle = 0.0;
 
         desire_state_.body_pitch_angle = 0.0;
 
@@ -90,15 +87,10 @@ private:
 
     const double initial_leg_length_;
 
-    double translate_velocity_;
-    double angular_velocity;
-
     bool park_mode_ = false;
 
     double desire_leg_length_;
     double desire_roll_angle_;
-
-    rmcs_msgs::WheelLegMode chassis_mode_;
 
     rmcs_msgs::WheelLegState measure_state_;
     rmcs_msgs::WheelLegState desire_state_;
