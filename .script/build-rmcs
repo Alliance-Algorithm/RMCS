@@ -7,10 +7,47 @@ cd "${RMCS_PATH}"/rmcs_ws || exit
 [[ -x /opt/cmake/bin/cmake ]] &&
     export PATH="/opt/cmake/bin:$PATH"
 
-command -v clang &>/dev/null &&
+cmake_toolchain_args=()
+event_handlers_args=()
+
+if [[ "${RMCS_USE_LLVM}" == "ON" ]]; then
+    missing_tools=()
+    for tool in clang clang++ llvm-ar llvm-ranlib ld.lld ninja; do
+        if ! command -v "${tool}" &>/dev/null; then
+            missing_tools+=("${tool}")
+        fi
+    done
+
+    if ((${#missing_tools[@]} > 0)); then
+        echo "> ERROR: LLVM toolchain is required when RMCS_USE_GCC is not ON."
+        echo "> Missing tools: ${missing_tools[*]}"
+        echo "> Install the missing tools, or set RMCS_USE_GCC=ON to build with GCC."
+        exit 1
+    fi
+
+    echo "> Compiling With LLVM ToolChain"
     export CC=clang
-
-command -v clang++ &>/dev/null &&
     export CXX=clang++
+    cmake_toolchain_args=(
+        "-G Ninja"
+        "-D CMAKE_MESSAGE_LOG_LEVEL=ERROR"
+        "-D CMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld"
+        "-D CMAKE_SHARED_LINKER_FLAGS=-fuse-ld=lld"
+        "-D CMAKE_AR=$(command -v llvm-ar)"
+        "-D CMAKE_RANLIB=$(command -v llvm-ranlib)"
+    )
+    event_handlers_args=(
+        --event-handlers console_cohesion+
+    )
+fi
 
-colcon build --symlink-install --merge-install "$@" --cmake-args -G Ninja
+colcon_args=(
+    --symlink-install --merge-install
+    "${event_handlers_args[@]}"
+)
+cmake_args=(
+    "${cmake_toolchain_args[@]}"
+)
+
+CLICOLOR_FORCE=1 NINJA_STATUS="" \
+    colcon build "${colcon_args[@]}" "$@" --cmake-args "${cmake_args[@]}"
