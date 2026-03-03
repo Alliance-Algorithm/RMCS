@@ -156,7 +156,12 @@ public:
                     }
 
                     if (keyboard.b) {
-                        set_arm_mode(rmcs_msgs::ArmMode::Auto_Up_Stairs);
+                        if (!keyboard.shift) {
+                            set_arm_mode(rmcs_msgs::ArmMode::Auto_Up_Two_Stairs);
+                        }
+                        if(keyboard.shift) {
+                            set_arm_mode(rmcs_msgs::ArmMode::Auto_Up_One_Stairs);
+                        }
                     }
 
                     if (keyboard.g && keyboard.shift) {

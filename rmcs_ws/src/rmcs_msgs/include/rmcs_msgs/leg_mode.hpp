@@ -8,7 +8,8 @@ enum class LegMode : uint8_t {
     Four_Wheel,        
     Six_Wheel,    
     None,
-    Up_Stairs,
+    Up_One_Stairs,
+    Up_Two_Stairs,
     Down_Stairs
 };
 

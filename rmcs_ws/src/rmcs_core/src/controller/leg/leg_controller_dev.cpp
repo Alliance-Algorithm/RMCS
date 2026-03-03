@@ -1,10 +1,8 @@
 #include "controller/arm/trajectory.hpp"
 #include "controller/leg/hsm/HSM_up_stairs_dev.hpp"
-#include "controller/pid/pid_calculator.hpp"
 #include "rmcs_msgs/arm_mode.hpp"
 #include <array>
 #include <cmath>
-#include <cstdint>
 #include <cstdlib>
 #include <eigen3/Eigen/Dense>
 #include <eigen3/Eigen/src/Core/Matrix.h>
@@ -45,8 +43,8 @@ public:
         , lift_and_initial_end_point_(get_parameter("lift_and_initial_end_point").as_double_array())
         , initial_again_end_point_(get_parameter("initial_again_end_point").as_double_array())
         , k_(get_parameter("k").as_double_array())
-        , b_(get_parameter("b").as_double_array()) 
-        ,up_stairs{*this}{
+        , b_(get_parameter("b").as_double_array())
+        , up_stairs{*this} {
 
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
@@ -56,7 +54,6 @@ public:
         register_input("/remote/mouse", mouse_);                   //
         register_input("/remote/keyboard", keyboard_);
 
-        // register_input("/move_speed_limit", speed_limit_);
         register_input("/chassis/control_velocity", chassis_velocity_);
         register_output("/leg/omni/l/target_vel", omni_l_target_vel, NAN);
         register_output("/leg/omni/r/target_vel", omni_r_target_vel, NAN);
@@ -97,17 +94,9 @@ public:
         down_stairs_trajectory
             .set_end_point(std::vector<double>{1.151109, 1.694066, 1.694066, 1.151109})
             .set_total_step(800);
-        up_stairs
-            .init_and_trajectory_set(
-                initial_end_point_, press_end_point_, lift_end_point_, lift_and_initial_end_point_,
-                initial_again_end_point_)
-            .bind("theta_lf", theta_lf_ptr)
-            .bind("theta_lb", theta_lb_ptr)
-            .bind("theta_rb", theta_rb_ptr)
-            .bind("theta_rf", theta_rf_ptr)
-            .bind("speed", chassis_velocity_ptr)
-            .bind("b", b_)
-            .bind("k", k_);
+        up_stairs.load(
+            initial_end_point_, press_end_point_, lift_end_point_, lift_and_initial_end_point_,
+            initial_again_end_point_, k_, b_);
     }
 
     void update() override {
@@ -153,7 +142,6 @@ private:
 
         if (switch_left == Switch::MIDDLE && switch_right == Switch::MIDDLE) {
             leg_mode = rmcs_msgs::LegMode::Four_Wheel;
-
         } else if (switch_left == Switch::MIDDLE && switch_right == Switch::DOWN) {
 
             leg_mode = rmcs_msgs::LegMode::Six_Wheel;
@@ -183,12 +171,20 @@ private:
                     leg_mode = rmcs_msgs::LegMode::Four_Wheel;
                     break;
                 };
-                case rmcs_msgs::ArmMode::Auto_Up_Stairs: {
-                    leg_mode = rmcs_msgs::LegMode::Up_Stairs;
+                case rmcs_msgs::ArmMode::Auto_Up_One_Stairs: {
+                    leg_mode = rmcs_msgs::LegMode::Up_One_Stairs;
                     up_stairs.stop();
+                    up_stairs.Set_One_Stairs();
                     up_stairs.start(::UpStairsState::Initial);
                     break;
-                }
+                };
+                case rmcs_msgs::ArmMode::Auto_Up_Two_Stairs: {
+                    leg_mode = rmcs_msgs::LegMode::Up_Two_Stairs;
+                    up_stairs.stop();
+                    up_stairs.Set_Two_Stairs_Lift();
+                    up_stairs.start(::UpStairsState::Initial);
+                    break;
+                };
                 case rmcs_msgs::ArmMode::Auto_Down_Stairs: {
                     leg_mode = rmcs_msgs::LegMode::Down_Stairs;
                     break;
@@ -212,16 +208,18 @@ private:
                 four_wheel_trajectory.reset();
                 four_wheel_trajectory.set_start_point(
                     std::vector<double>{*theta_lf, *theta_lb, *theta_rb, *theta_rf});
-                if (last_leg_mode == rmcs_msgs::LegMode::Up_Stairs
-                    || last_leg_mode == rmcs_msgs::LegMode::Down_Stairs) {
+                if (last_leg_mode == rmcs_msgs::LegMode::Up_Two_Stairs
+                    || last_leg_mode == rmcs_msgs::LegMode::Down_Stairs
+                    || last_leg_mode == rmcs_msgs::LegMode::Up_One_Stairs) {
                     four_wheel_trajectory.set_total_step(1500);
                 }
             } else if (leg_mode == rmcs_msgs::LegMode::Six_Wheel) {
                 six_wheel_trajectory.reset();
                 six_wheel_trajectory.set_start_point(
                     std::vector<double>{*theta_lf, *theta_lb, *theta_rb, *theta_rf});
-                if (last_leg_mode == rmcs_msgs::LegMode::Up_Stairs
-                    || last_leg_mode == rmcs_msgs::LegMode::Down_Stairs) {
+                if (last_leg_mode == rmcs_msgs::LegMode::Up_One_Stairs
+                    || last_leg_mode == rmcs_msgs::LegMode::Down_Stairs
+                    || last_leg_mode == rmcs_msgs::LegMode::Up_Two_Stairs) {
                     six_wheel_trajectory.set_total_step(1500);
                 }
 
@@ -237,7 +235,8 @@ private:
         case rmcs_msgs::LegMode::Down_Stairs:
             execute_joint_trajectory(down_stairs_trajectory);
             break;
-        case rmcs_msgs::LegMode::Up_Stairs: execute_up_stairs(); break;
+        case rmcs_msgs::LegMode::Up_One_Stairs: // to execute_up_stairs()
+        case rmcs_msgs::LegMode::Up_Two_Stairs: execute_up_stairs(); break;
         case rmcs_msgs::LegMode::None:
             leg_joint_controller(*theta_lf, *theta_lb, *theta_rb, *theta_rf);
             break;
@@ -251,25 +250,15 @@ private:
         leg_joint_controller(joints[0], joints[1], joints[2], joints[3]);
     }
     void execute_up_stairs() {
-        if (keyboard_->shift && !keyboard_->ctrl) {
+        if (keyboard_->ctrl) {
             up_stairs.processEvent(
-                rmcs_core::controller::leg::hsm::up_stairs_hsm::events::go_to_TwoProcess_lift);
-        }
-        if (keyboard_->ctrl && !keyboard_->shift) {
-            up_stairs.processEvent(
-                rmcs_core::controller::leg::hsm::up_stairs_hsm::events::go_to_OneProcess);
-        }
-        if (!keyboard_->ctrl && !keyboard_->shift) {
-            up_stairs.processEvent(
-                rmcs_core::controller::leg::hsm::up_stairs_hsm::events::go_to_TwoProcess_initial);
+                rmcs_core::controller::leg::hsm::up_stairs_hsm::events::tof_already);
         }
 
         up_stairs.processEvent(rmcs_core::controller::leg::hsm::up_stairs_hsm::events::tick);
         const auto& joints = up_stairs.get_result();
         leg_joint_controller(joints[0], joints[1], joints[2], joints[3]);
     }
-
-   
 
     void omniwheel_control() {
         Eigen::Rotation2D<double> rotation(*chassis_big_yaw_angle + *joint1_theta);
@@ -300,7 +289,7 @@ private:
         *leg_rb_target_theta = NAN;
         *leg_rf_target_theta = NAN;
     }
-     static std::array<double, 2> leg_inverse_kinematic(
+    static std::array<double, 2> leg_inverse_kinematic(
         double f_x, double b_x, bool is_front_ecd_obtuse, bool is_back_ecd_obtuse) {
         constexpr double link1 = 240.0f, link2 = 120.0f, link3 = 160.0f;
         constexpr double link_angle = 5 * std::numbers::pi / 6.0;
@@ -326,15 +315,15 @@ private:
     InputInterface<rmcs_msgs::ArmMode> arm_mode;
     InputInterface<rmcs_msgs::ChassisMode> chassis_mode;
     rmcs_msgs::ArmMode last_arm_mode = rmcs_msgs::ArmMode::None;
+    rmcs_msgs::LegMode leg_mode{rmcs_msgs::LegMode::None};
+    rmcs_msgs::LegMode last_leg_mode{rmcs_msgs::LegMode::None};
 
     static constexpr double wheel_distance = 458.0f;
-    static constexpr double wheel_r = 0.11;
-    
+    static constexpr double wheel_r        = 0.11;
+
     InputInterface<rmcs_description::BaseLink::DirectionVector> chassis_velocity_;
-    InputInterface<rmcs_description::BaseLink::DirectionVector>* chassis_velocity_ptr =
-        &chassis_velocity_;
     InputInterface<double> tof_distance_;
-    
+
     InputInterface<Eigen::Vector2d> joystick_right_;
     InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;
@@ -348,11 +337,6 @@ private:
     InputInterface<double> theta_rb;
     InputInterface<double> theta_rf;
 
-    InputInterface<double>* theta_lf_ptr = &theta_lf;
-    InputInterface<double>* theta_lb_ptr = &theta_lb;
-    InputInterface<double>* theta_rb_ptr = &theta_rb;
-    InputInterface<double>* theta_rf_ptr = &theta_rf;
-
     OutputInterface<double> omni_l_target_vel;
     OutputInterface<double> omni_r_target_vel;
     OutputInterface<double> leg_lf_target_theta;
@@ -360,10 +344,6 @@ private:
     OutputInterface<double> leg_lb_target_theta;
     OutputInterface<double> leg_rb_target_theta;
 
-    rmcs_msgs::LegMode leg_mode{rmcs_msgs::LegMode::None};
-    rmcs_msgs::LegMode last_leg_mode{rmcs_msgs::LegMode::None};
-    //    rmcs_msgs::UpStairsMode last_upstairs_mode = rmcs_msgs::UpStairsMode::Step_By_Two;
-    //    rmcs_msgs::UpStairsMode up_stairs_mode     = rmcs_msgs::UpStairsMode::Step_By_Two;
     InputInterface<double> chassis_big_yaw_angle;
     InputInterface<double> joint1_theta;
 
@@ -376,7 +356,7 @@ private:
     rmcs_core::controller::arm::Trajectory<rmcs_core::controller::arm::TrajectoryType::JOINT>
         down_stairs_trajectory{4};
 
-    hsm::up_stairs_hsm::Auto_Leg_Up_Two_Stairs up_stairs;
+    hsm::up_stairs_hsm::Auto_Leg_Up_Stairs up_stairs;
 };
 } // namespace rmcs_core::controller::leg
 #include <pluginlib/class_list_macros.hpp>

@@ -186,5 +186,13 @@ steering_wheel_controller:
 value_broadcaster:
   ros__parameters:
     forward_list:
-     
+      - "/leg/joint/lf/target_theta"
+      - "/leg/joint/lb/target_theta"
+      - "/leg/joint/rf/target_theta"
+      - "/leg/joint/rb/target_theta"
+      - "/leg/encoder/lf/angle"
+      - "/leg/encoder/lb/angle"
+      - "/leg/encoder/rb/angle"
+      - "/leg/encoder/rf/angle"
+      - "/leg/velocity_in_x"     
 

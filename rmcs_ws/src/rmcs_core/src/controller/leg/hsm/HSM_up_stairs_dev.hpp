@@ -1,9 +1,10 @@
-#pragma once    
+#pragma once
 
 #include "controller/arm/trajectory.hpp"
 #include "controller/leg/hsm/HSM_dev.hpp" // 注意: 使用优化后的 HSM.hpp
 #include <algorithm>
 #include <cassert>
+#include <limits>
 #include <optional>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
@@ -15,7 +16,6 @@
 #include <unordered_map>
 #include <variant>
 #include <vector>
-#include <rmcs_executor/component.hpp>
 
 using InputD = rmcs_executor::Component::InputInterface<double>;
 using InputVct =
@@ -44,7 +44,7 @@ enum class UpStairsEventEnum {
     go_to_Lift_And_Initial,
     go_to_Press,
     go_to_Lift,
-    tof_already,                    // args:: double distance
+    tof_already,                          // args:: double distance
     go_to_Initial_Again
 };
 
@@ -55,6 +55,8 @@ namespace rmcs_core::controller::leg::hsm::up_stairs_hsm {
 namespace events {
 using UpStairsEvent = Event<UpStairsEventId>;
 const UpStairsEvent tick{UpStairsEventId{UpStairsEventEnum::tick}, {}};
+
+const UpStairsEvent tof_already{UpStairsEventId{UpStairsEventEnum::tof_already}, {}};
 
 const UpStairsEvent quit{UpStairsEventId{UpStairsEventEnum::quit}, {}};
 
@@ -81,59 +83,40 @@ const UpStairsEvent go_to_Initial_Again{
 } // namespace events
 
 struct UpStairsContext {
-    std::unordered_map<std::string, std::any> data; // 动态存储所有依赖
-
-    // Helper getters
-    template <typename T>
-    T& get(const std::string& key) {
-        auto it = data.find(key);
-        if (it == data.end()) {
-            throw std::runtime_error("Key not found: " + key);
-        }
-        if (it->second.type() != typeid(std::reference_wrapper<T>)) {
-            throw std::runtime_error(
-                "Type mismatch for key: " + key + ", stored=" + it->second.type().name()
-                + ", requested=" + typeid(T).name());
-        }
-        return std::any_cast<std::reference_wrapper<T>>(it->second).get();
-    }
-
-    // 示例: 获取 Trajectory
-    rmcs_core::controller::arm::Trajectory<rmcs_core::controller::arm::TrajectoryType::JOINT>&
-        getTrajectory(const std::string& key) {
-        return get<rmcs_core::controller::arm::Trajectory<
-            rmcs_core::controller::arm::TrajectoryType::JOINT>>(key);
-    }
-
-    // 获取 InputD
-    InputD& getInputD(const std::string& key) { return get<InputD>(key); }
-
-    // 获取 InputVct
-    InputVct& getInputVct(const std::string& key) { return get<InputVct>(key); }
-
-    // 其他: k, b, result 等
-    std::vector<double>& getVec(const std::string& key) { return get<std::vector<double>>(key); }
-
-    std::array<double, 6>& getResult() { return get<std::array<double, 6>>("result"); }
-
-    static constexpr double v_reference = 1.5;
-    bool is_one_process                 = false;
-    bool is_two_process_lift            = false;
-    bool is_two_process_initial         = false;
-    int calculate_steps(double k, double b) {
-        double raw = k * ((*getInputVct("speed"))->x() - v_reference) + b;
-        return (std::max(static_cast<int>(raw), 200));
-    }
 };
 
-class Auto_Leg_Up_Two_Stairs : public rclcpp::Node {
+class Auto_Leg_Up_Stairs : public rclcpp::Node {
 public:
-    explicit Auto_Leg_Up_Two_Stairs(rmcs_executor::Component& state_component)
+    explicit Auto_Leg_Up_Stairs(rmcs_executor::Component& state_component)
         : context_()
         , up_stairs_hsm(context_)
         , Node{"auto_leg_up_stairs"} {
-        bind("result", result_);
-        // state_component.register_input(const std::string &name, InputInterface<T> &interface)
+        state_component.register_input("/leg/encoder/lf/angle", theta_lf_);
+        state_component.register_input("/leg/encoder/lb/angle", theta_lb_);
+        state_component.register_input("/leg/encoder/rb/angle", theta_rb_);
+        state_component.register_input("/leg/encoder/rf/angle", theta_rf_);
+        state_component.register_input("/chassis/control_velocity", speed_);
+        is_one_process_         = false;
+        is_two_process_lift_    = false;
+        is_two_process_initial_ = false;
+    }
+
+    void Set_One_Stairs() {
+        is_one_process_         = true;
+        is_two_process_lift_    = false;
+        is_two_process_initial_ = false;
+    }
+
+    void Set_Two_Stairs_Lift() {
+        is_one_process_         = false;
+        is_two_process_lift_    = true;
+        is_two_process_initial_ = false;
+    }
+
+    void Set_Two_Stairs_Initial() {
+        is_one_process_         = false;
+        is_two_process_lift_    = false;
+        is_two_process_initial_ = true;
     }
 
     void processEvent(const Event<UpStairsEventId>& event) {
@@ -143,9 +126,10 @@ public:
                 using T = std::decay_t<decltype(id)>;
 
                 if constexpr (std::is_same_v<T, UpStairsEventEnum>) {
-                    //RCLCPP_INFO(this->get_logger(), "Processing event: %d", static_cast<int>(id));
+                    // RCLCPP_INFO(this->get_logger(), "Processing event: %d",
+                    // static_cast<int>(id));
                 } else if constexpr (std::is_same_v<T, std::string>) {
-                    //RCLCPP_INFO(this->get_logger(), "Processing custom event: %s", id.c_str());
+                    // RCLCPP_INFO(this->get_logger(), "Processing custom event: %s", id.c_str());
                 }
             },
             event.id);
@@ -153,62 +137,88 @@ public:
     }
 
     void start(UpStairsState initial, const EventArgs& args = {}) {
-        check_context_ready();
-        up_stairs_hsm.start(initial, args);
-    }
-
-    void stop() { up_stairs_hsm.stop(); }
-
-    void check_context_ready() const {
-        // 动态检查关键key是否存在
-        const std::vector<std::string> required_keys = {"theta_lf", "theta_lb", "theta_rb",
-                                                        "theta_rf", "speed",    "result"};
-        for (const auto& key : required_keys) {
-            if (context_.data.find(key) == context_.data.end()) {
-                throw std::runtime_error(key + " not bound");
-            }
+        check_mode_ready();
+        if(mode_valid && load_valid) {
+            up_stairs_hsm.start(initial, args);
+        }
+        else {
+            RCLCPP_WARN(this->get_logger(), "hsm start failed!");
         }
     }
 
-    template <typename T>
-    Auto_Leg_Up_Two_Stairs& bind(const std::string& key, T& value) {
-        context_.data[key] = std::ref(value);
-        return *this;
+    void stop() { up_stairs_hsm.stop();
+        mode_valid=false;
+        result_ = {
+            std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(),
+            std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN()};
     }
 
-    std::array<double, 6>& get_result() { return context_.getResult(); }
+    void check_mode_ready() {
+        int count = static_cast<int>(is_one_process_) + static_cast<int>(is_two_process_lift_)
+                  + static_cast<int>(is_two_process_initial_);
 
-    Auto_Leg_Up_Two_Stairs& init_and_trajectory_set(
+        if (count != 1) {
+            RCLCPP_INFO_THROTTLE(
+                this->get_logger(), *this->get_clock(),
+                1000, // 毫秒
+                "mode not ready");
+         mode_valid=false;   
+        }
+        else {
+            mode_valid=true;
+        }
+    }
+
+    std::array<double, 4>& get_result() { return result_; }
+
+    Auto_Leg_Up_Stairs& load(
         const std::vector<double>& initial_end_point_, const std::vector<double>& press_end_point_,
         const std::vector<double>& lift_end_point_,
         const std::vector<double>& lift_and_initial_end_point_,
-        const std::vector<double>& initial_again_end_point_) {
+        const std::vector<double>& initial_again_end_point_, std::span<const double> k,
+        std::span<const double> b) {
+        load_valid = false;
 
-        // 绑定轨迹 (作为成员变量，但现在动态bind)
-        bind("initial", up_stairs_initial)
-            .bind("press", up_stairs_leg_press)
-            .bind("lift", up_stairs_leg_lift)
-            .bind("lift_and_initial", up_stairs_leg_lift_and_initial)
-            .bind("initial_again", up_stairs_leg_initial_again);
+        if (initial_end_point_.size() != 4 || press_end_point_.size() != 4
+            || lift_end_point_.size() != 4 || lift_and_initial_end_point_.size() != 4
+            || initial_again_end_point_.size() != 4) {
+            RCLCPP_ERROR(
+                this->get_logger(),
+                "up stairs load failed: endpoint sizes must all be 4, got initial=%zu press=%zu "
+                "lift=%zu lift_and_initial=%zu initial_again=%zu",
+                initial_end_point_.size(), press_end_point_.size(), lift_end_point_.size(),
+                lift_and_initial_end_point_.size(), initial_again_end_point_.size());
+            return *this;
+        }
 
-        // 设置端点
+        if (k.size() != 4 || b.size() != 4) {
+            RCLCPP_ERROR(
+                this->get_logger(), "up stairs load failed: k size=%zu, b size=%zu, expected 4",
+                k.size(), b.size());
+            return *this;
+        }
+
+        this->k_ = k;
+        this->b_ = b;
         up_stairs_initial.set_end_point(
-            std::vector<double>{initial_end_point_[0], initial_end_point_[1], initial_end_point_[2],
-                                initial_end_point_[3]});
+            std::vector<double>{
+                initial_end_point_[0], initial_end_point_[1], initial_end_point_[2],
+                initial_end_point_[3]});
         up_stairs_leg_press.set_end_point(
-            std::vector<double>{press_end_point_[0], press_end_point_[1], press_end_point_[2],
-                                press_end_point_[3], 0.0, 0.0});
+            std::vector<double>{
+                press_end_point_[0], press_end_point_[1], press_end_point_[2],
+                press_end_point_[3]});
         up_stairs_leg_lift.set_end_point(
-            std::vector<double>{lift_end_point_[0], lift_end_point_[1], lift_end_point_[2],
-                                lift_end_point_[3], 0.0, 0.0});
+            std::vector<double>{
+                lift_end_point_[0], lift_end_point_[1], lift_end_point_[2], lift_end_point_[3]});
         up_stairs_leg_lift_and_initial.set_end_point(
-            std::vector<double>{lift_and_initial_end_point_[0], lift_and_initial_end_point_[1],
-                                lift_and_initial_end_point_[2], lift_and_initial_end_point_[3],
-                                0.0, 0.0});
+            std::vector<double>{
+                lift_and_initial_end_point_[0], lift_and_initial_end_point_[1],
+                lift_and_initial_end_point_[2], lift_and_initial_end_point_[3]});
         up_stairs_leg_initial_again.set_end_point(
-            std::vector<double>{initial_again_end_point_[0], initial_again_end_point_[1],
-                                initial_again_end_point_[2], initial_again_end_point_[3], 0.0,
-                                0.0});
+            std::vector<double>{
+                initial_again_end_point_[0], initial_again_end_point_[1],
+                initial_again_end_point_[2], initial_again_end_point_[3]});
 
         // 注册状态使用BasicState和lambda
 
@@ -218,13 +228,10 @@ public:
                 UpStairsState::Initial,
                 [&](UpStairsContext& ctx, const EventArgs&) {
                     RCLCPP_INFO(this->get_logger(), " in initial");
-                    auto& traj = ctx.getTrajectory("initial");
-
-                    traj.reset();
-                    traj.set_start_point(
-                        std::vector<double>{*ctx.getInputD("theta_lf"), *ctx.getInputD("theta_lb"),
-                                            *ctx.getInputD("theta_rb"), *ctx.getInputD("theta_rf")});
-                    traj.set_total_step(1000);
+                    up_stairs_initial.reset();
+                    up_stairs_initial.set_start_point(
+                        {*theta_lf_, *theta_lb_, *theta_rb_, *theta_rf_});
+                    up_stairs_initial.set_total_step(1000);
                 },
                 nullptr, // no exit
                 [&](const Event<UpStairsEventId>& event,
@@ -235,29 +242,27 @@ public:
                             using T = std::decay_t<decltype(id)>;
                             if constexpr (std::is_same_v<T, UpStairsEventEnum>) {
                                 if (id == UpStairsEventEnum::tick) {
-                                    auto& traj = ctx.getTrajectory("initial");
-                                    if (!traj.get_complete()) {
-                                        const auto joints = traj.trajectory();
-                                        std::copy(joints.begin(), joints.end(), ctx.getResult().begin());
+
+                                    if (!up_stairs_initial.get_complete()) {
+                                        const auto joints = up_stairs_initial.trajectory();
+                                        std::copy(joints.begin(), joints.end(), result_.begin());
                                         return UpStairsState::Initial;
                                     } else {
                                         return std::nullopt;
                                     }
-                                } else if (id == UpStairsEventEnum::go_to_TwoProcess_lift) {
-                                    ctx.is_one_process         = false;
-                                    ctx.is_two_process_lift    = true;
-                                    ctx.is_two_process_initial = false;
-                                    return UpStairsState::StepByTwo_lift;
-                                } else if (id == UpStairsEventEnum::go_to_TwoProcess_initial) {
-                                    ctx.is_one_process         = false;
-                                    ctx.is_two_process_lift    = false;
-                                    ctx.is_two_process_initial = true;
-                                    return UpStairsState::StepByTwo_initial;
-                                } else if (id == UpStairsEventEnum::go_to_OneProcess) {
-                                    ctx.is_one_process         = true;
-                                    ctx.is_two_process_lift    = false;
-                                    ctx.is_two_process_initial = false;
-                                    return UpStairsState::StepByOne;
+                                } else if (id == UpStairsEventEnum::tof_already) {
+                                    if (is_one_process_ && !is_two_process_initial_
+                                        && !is_two_process_lift_) {
+                                        return UpStairsState::StepByOne;
+                                    } else if (
+                                        !is_one_process_ && !is_two_process_initial_
+                                        && is_two_process_lift_) {
+                                        return UpStairsState::StepByTwo_lift;
+                                    } else if (
+                                        !is_one_process_ && is_two_process_initial_
+                                        && !is_two_process_lift_) {
+                                        return UpStairsState::StepByTwo_initial;
+                                    }
                                 }
                             }
                             return std::nullopt;
@@ -301,6 +306,7 @@ public:
         stepByTwo_lift->addSubState(createLiftAgainState());
         stepByTwo_lift->addSubState(createWaitState());
         up_stairs_hsm.registerState(std::move(stepByTwo_lift));
+        load_valid = true;
         return *this;
     }
 
@@ -375,13 +381,10 @@ private:
             StepSubState::Press,
             [&](UpStairsContext& ctx, const EventArgs&) {
                 RCLCPP_INFO(this->get_logger(), "in press");
-                auto& traj = ctx.getTrajectory("press");
-                traj.reset();
-                traj.set_start_point(
-                    std::vector<double>{*ctx.getInputD("theta_lf"), *ctx.getInputD("theta_lb"),
-                                        *ctx.getInputD("theta_rb"), *ctx.getInputD("theta_rf"),
-                                        0.0, 0.0});
-                traj.set_total_step(ctx.calculate_steps(ctx.getVec("k")[0], ctx.getVec("b")[0]));
+                up_stairs_leg_press.reset();
+                up_stairs_leg_press.set_start_point(
+                    {*theta_lf_, *theta_lb_, *theta_rb_, *theta_rf_});
+                up_stairs_leg_press.set_total_step(calculate_steps(k_[0], b_[0]));
             },
             nullptr,
             [&](const Event<UpStairsEventId>& event,
@@ -391,17 +394,16 @@ private:
                         using T = std::decay_t<decltype(id)>;
                         if constexpr (std::is_same_v<T, UpStairsEventEnum>) {
                             if (id == UpStairsEventEnum::tick) {
-                                auto& traj = ctx.getTrajectory("press");
-                                if (!traj.get_complete()) {
-                                    const auto joints = traj.trajectory();
-                                    std::copy(joints.begin(), joints.end(), ctx.getResult().begin());
+                                if (!up_stairs_leg_press.get_complete()) {
+                                    const auto joints = up_stairs_leg_press.trajectory();
+                                    std::copy(joints.begin(), joints.end(), result_.begin());
                                     return StepSubState::Press;
                                 } else {
-                                    if (ctx.is_one_process) {
+                                    if (is_one_process_) {
                                         return StepSubState::Lift;
-                                    } else if (ctx.is_two_process_initial) {
+                                    } else if (is_two_process_initial_) {
                                         return StepSubState::Lift;
-                                    } else if (ctx.is_two_process_lift) {
+                                    } else if (is_two_process_lift_) {
                                         return StepSubState::LiftAndInitial;
                                     }
                                 }
@@ -418,13 +420,10 @@ private:
             StepSubState::LiftAndInitial,
             [&](UpStairsContext& ctx, const EventArgs&) {
                 RCLCPP_INFO(this->get_logger(), " in lift_and_initial");
-                auto& traj = ctx.getTrajectory("lift_and_initial");
-                traj.reset();
-                traj.set_start_point(
-                    std::vector<double>{*ctx.getInputD("theta_lf"), *ctx.getInputD("theta_lb"),
-                                        *ctx.getInputD("theta_rb"), *ctx.getInputD("theta_rf"),
-                                        0.0, 0.0});
-                traj.set_total_step(ctx.calculate_steps(ctx.getVec("k")[3], ctx.getVec("b")[3]));
+                up_stairs_leg_lift_and_initial.reset();
+                up_stairs_leg_lift_and_initial.set_start_point(
+                    {*theta_lf_, *theta_lb_, *theta_rb_, *theta_rf_});
+                up_stairs_leg_lift_and_initial.set_total_step(calculate_steps(k_[3], b_[3]));
             },
             nullptr,
             [&](const Event<UpStairsEventId>& event,
@@ -434,10 +433,9 @@ private:
                         using T = std::decay_t<decltype(id)>;
                         if constexpr (std::is_same_v<T, UpStairsEventEnum>) {
                             if (id == UpStairsEventEnum::tick) {
-                                auto& traj = ctx.getTrajectory("lift_and_initial");
-                                if (!traj.get_complete()) {
-                                    const auto joints = traj.trajectory();
-                                    std::copy(joints.begin(), joints.end(), ctx.getResult().begin());
+                                if (!up_stairs_leg_lift_and_initial.get_complete()) {
+                                    const auto joints = up_stairs_leg_lift_and_initial.trajectory();
+                                    std::copy(joints.begin(), joints.end(), result_.begin());
                                     return StepSubState::LiftAndInitial;
                                 } else {
                                     // return StepSubState::Wait;
@@ -456,13 +454,10 @@ private:
             StepSubState::Lift,
             [&](UpStairsContext& ctx, const EventArgs&) {
                 RCLCPP_INFO(this->get_logger(), " in lift");
-                auto& traj = ctx.getTrajectory("lift");
-                traj.reset();
-                traj.set_start_point(
-                    std::vector<double>{*ctx.getInputD("theta_lf"), *ctx.getInputD("theta_lb"),
-                                        *ctx.getInputD("theta_rb"), *ctx.getInputD("theta_rf"),
-                                        0.0, 0.0});
-                traj.set_total_step(ctx.calculate_steps(ctx.getVec("k")[1], ctx.getVec("b")[1]));
+                up_stairs_leg_lift.reset();
+                up_stairs_leg_lift.set_start_point(
+                    {*theta_lf_, *theta_lb_, *theta_rb_, *theta_rf_});
+                up_stairs_leg_lift.set_total_step(calculate_steps(k_[1], b_[1]));
             },
             nullptr,
             [&](const Event<UpStairsEventId>& event,
@@ -472,17 +467,16 @@ private:
                         using T = std::decay_t<decltype(id)>;
                         if constexpr (std::is_same_v<T, UpStairsEventEnum>) {
                             if (id == UpStairsEventEnum::tick) {
-                                auto& traj = ctx.getTrajectory("lift");
-                                if (!traj.get_complete()) {
-                                    const auto joints = traj.trajectory();
-                                    std::copy(joints.begin(), joints.end(), ctx.getResult().begin());
+                                if (!up_stairs_leg_lift.get_complete()) {
+                                    const auto joints = up_stairs_leg_lift.trajectory();
+                                    std::copy(joints.begin(), joints.end(), result_.begin());
                                     return StepSubState::Lift;
                                 } else {
-                                    if (ctx.is_one_process) {
+                                    if (is_one_process_) {
                                         return StepSubState::Wait;
-                                    } else if (ctx.is_two_process_initial) {
+                                    } else if (is_two_process_initial_) {
                                         return StepSubState::InitialAgain;
-                                    } else if (ctx.is_two_process_lift) {
+                                    } else if (is_two_process_lift_) {
                                         RCLCPP_INFO(
                                             this->get_logger(),
                                             "wrongly enter lift in two_process_lift");
@@ -502,13 +496,10 @@ private:
             StepSubState::InitialAgain,
             [&](UpStairsContext& ctx, const EventArgs&) {
                 RCLCPP_INFO(this->get_logger(), "in initial_again");
-                auto& traj = ctx.getTrajectory("initial_again");
-                traj.reset();
-                traj.set_start_point(
-                    std::vector<double>{*ctx.getInputD("theta_lf"), *ctx.getInputD("theta_lb"),
-                                        *ctx.getInputD("theta_rb"), *ctx.getInputD("theta_rf"),
-                                        0.0, 0.0});
-                traj.set_total_step(ctx.calculate_steps(ctx.getVec("k")[2], ctx.getVec("b")[2]));
+                up_stairs_leg_initial_again.reset();
+                up_stairs_leg_initial_again.set_start_point(
+                    {*theta_lf_, *theta_lb_, *theta_rb_, *theta_rf_});
+                up_stairs_leg_initial_again.set_total_step(calculate_steps(k_[2], b_[2]));
             },
             nullptr,
             [&](const Event<UpStairsEventId>& event,
@@ -518,10 +509,9 @@ private:
                         using T = std::decay_t<decltype(id)>;
                         if constexpr (std::is_same_v<T, UpStairsEventEnum>) {
                             if (id == UpStairsEventEnum::tick) {
-                                auto& traj = ctx.getTrajectory("initial_again");
-                                if (!traj.get_complete()) {
-                                    const auto joints = traj.trajectory();
-                                    std::copy(joints.begin(), joints.end(), ctx.getResult().begin());
+                                if (!up_stairs_leg_initial_again.get_complete()) {
+                                    const auto joints = up_stairs_leg_initial_again.trajectory();
+                                    std::copy(joints.begin(), joints.end(), result_.begin());
                                     return StepSubState::InitialAgain;
                                 } else {
                                     return StepSubState::PressAgain;
@@ -540,13 +530,10 @@ private:
             StepSubState::PressAgain,
             [&](UpStairsContext& ctx, const EventArgs&) {
                 RCLCPP_INFO(this->get_logger(), " in press again");
-                auto& traj = ctx.getTrajectory("press");
-                traj.reset();
-                traj.set_start_point(
-                    std::vector<double>{*ctx.getInputD("theta_lf"), *ctx.getInputD("theta_lb"),
-                                        *ctx.getInputD("theta_rb"), *ctx.getInputD("theta_rf"),
-                                        0.0, 0.0});
-                traj.set_total_step(ctx.calculate_steps(ctx.getVec("k")[0], ctx.getVec("b")[0]));
+                up_stairs_leg_press.reset();
+                up_stairs_leg_press.set_start_point(
+                    {*theta_lf_, *theta_lb_, *theta_rb_, *theta_rf_});
+                up_stairs_leg_press.set_total_step(calculate_steps(k_[0], b_[0]));
             },
             nullptr,
             [&](const Event<UpStairsEventId>& event,
@@ -556,10 +543,9 @@ private:
                         using T = std::decay_t<decltype(id)>;
                         if constexpr (std::is_same_v<T, UpStairsEventEnum>) {
                             if (id == UpStairsEventEnum::tick) {
-                                auto& traj = ctx.getTrajectory("press");
-                                if (!traj.get_complete()) {
-                                    const auto joints = traj.trajectory();
-                                    std::copy(joints.begin(), joints.end(), ctx.getResult().begin());
+                                if (!up_stairs_leg_press.get_complete()) {
+                                    const auto joints = up_stairs_leg_press.trajectory();
+                                    std::copy(joints.begin(), joints.end(), result_.begin());
                                     return StepSubState::PressAgain;
                                 } else {
                                     return StepSubState::LiftAgain;
@@ -577,13 +563,10 @@ private:
             StepSubState::LiftAgain,
             [&](UpStairsContext& ctx, const EventArgs&) {
                 RCLCPP_INFO(this->get_logger(), " in lift again");
-                auto& traj = ctx.getTrajectory("lift");
-                traj.reset();
-                traj.set_start_point(
-                    std::vector<double>{*ctx.getInputD("theta_lf"), *ctx.getInputD("theta_lb"),
-                                        *ctx.getInputD("theta_rb"), *ctx.getInputD("theta_rf"),
-                                        0.0, 0.0});
-                traj.set_total_step(ctx.calculate_steps(ctx.getVec("k")[1], ctx.getVec("b")[1]));
+                up_stairs_leg_lift.reset();
+                up_stairs_leg_lift.set_start_point(
+                    {*theta_lf_, *theta_lb_, *theta_rb_, *theta_rf_});
+                up_stairs_leg_lift.set_total_step(calculate_steps(k_[1], b_[1]));
             },
             nullptr,
             [&](const Event<UpStairsEventId>& event,
@@ -593,10 +576,9 @@ private:
                         using T = std::decay_t<decltype(id)>;
                         if constexpr (std::is_same_v<T, UpStairsEventEnum>) {
                             if (id == UpStairsEventEnum::tick) {
-                                auto& traj = ctx.getTrajectory("lift");
-                                if (!traj.get_complete()) {
-                                    const auto joints = traj.trajectory();
-                                    std::copy(joints.begin(), joints.end(), ctx.getResult().begin());
+                                if (!up_stairs_leg_lift.get_complete()) {
+                                    const auto joints = up_stairs_leg_lift.trajectory();
+                                    std::copy(joints.begin(), joints.end(), result_.begin());
                                     return StepSubState::LiftAgain;
                                 } else {
                                     return StepSubState::Wait;
@@ -609,21 +591,46 @@ private:
             });
     }
 
+    int calculate_steps(double k, double b) {
+        double raw = k * ((*speed_)->x() - v_reference) + b;
+        return (std::max(static_cast<int>(raw), 200));
+    }
+
+    double v_reference = 1.5;
+
     rmcs_core::controller::arm::Trajectory<rmcs_core::controller::arm::TrajectoryType::JOINT>
         up_stairs_initial{4};
     rmcs_core::controller::arm::Trajectory<rmcs_core::controller::arm::TrajectoryType::JOINT>
-        up_stairs_leg_press{6};
+        up_stairs_leg_press{4};
     rmcs_core::controller::arm::Trajectory<rmcs_core::controller::arm::TrajectoryType::JOINT>
-        up_stairs_leg_lift{6};
+        up_stairs_leg_lift{4};
     rmcs_core::controller::arm::Trajectory<rmcs_core::controller::arm::TrajectoryType::JOINT>
-        up_stairs_leg_lift_and_initial{6};
+        up_stairs_leg_lift_and_initial{4};
     rmcs_core::controller::arm::Trajectory<rmcs_core::controller::arm::TrajectoryType::JOINT>
-        up_stairs_leg_initial_again{6};
+        up_stairs_leg_initial_again{4};
 
-    std::array<double, 6> result_{};
+    std::array<double, 4> result_{
+        std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(),
+        std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN()};
+
+    rmcs_executor::Component::InputInterface<double> theta_lf_;
+    rmcs_executor::Component::InputInterface<double> theta_lb_;
+    rmcs_executor::Component::InputInterface<double> theta_rb_;
+    rmcs_executor::Component::InputInterface<double> theta_rf_;
+    rmcs_executor::Component::InputInterface<rmcs_description::BaseLink::DirectionVector> speed_;
+
+    std::span<const double> k_{};
+    std::span<const double> b_{};
+
+    bool is_one_process_;
+    bool is_two_process_lift_;
+    bool is_two_process_initial_;
+
+    bool load_valid{false};
+    bool mode_valid{false};
+
     UpStairsContext context_;
     HSM<UpStairsState, UpStairsEventId, UpStairsContext> up_stairs_hsm;
 };
 
 } // namespace rmcs_core::controller::leg::hsm::up_stairs_hsm
-

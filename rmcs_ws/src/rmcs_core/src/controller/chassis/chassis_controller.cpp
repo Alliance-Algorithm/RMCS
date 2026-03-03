@@ -1,5 +1,5 @@
-#include "controller/pid/pid_calculator.hpp"
 #include "controller/arm/trajectory.hpp"
+#include "controller/pid/pid_calculator.hpp"
 #include "rmcs_msgs/arm_mode.hpp"
 #include <algorithm>
 #include <array>
@@ -72,7 +72,7 @@ public:
         } else {
             if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
                 || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
-            reset_motor();
+                reset_motor();
             } else {
                 mode_selection();
 
@@ -80,8 +80,7 @@ public:
                 case rmcs_msgs::ChassisMode::Flow: {
                     double chassis_theta = *chassis_big_yaw_angle;
                     angular_velocity =
-                        std::clamp(following_velocity_controller_.update(chassis_theta),
-                        -1.0, 1.0);
+                        std::clamp(following_velocity_controller_.update(chassis_theta), -1.0, 1.0);
                     break;
                 }
                 case rmcs_msgs::ChassisMode::SPIN: {
@@ -92,16 +91,16 @@ public:
                 case rmcs_msgs::ChassisMode::Up_Stairs: {
                     is_yaw_imu_control           = false;
                     yaw_set_theta_in_YawFreeMode = 0.0;
-                    move_speed_limit                  = 1.5;
+                    move_speed_limit             = 1.5;
                     move_                        = *joystick_left_;
                     break;
                 }
                 default: break;
                 }
                 Eigen::Rotation2D<double> rotation(*chassis_big_yaw_angle + *joint1_theta);
-              //  move_ = rotation * (*joystick_left_);
+                //  move_ = rotation * (*joystick_left_);
                 move_            = (*joystick_left_);
-                angular_velocity = joystick_right_->y()*angular_velocity_limit;
+                angular_velocity = joystick_right_->y() * angular_velocity_limit;
                 // RCLCPP_INFO(
                 //     this->get_logger(), "joystick x:%f y:%f angular_velocity:%f", move_.x(),
                 //     move_.y(), angular_velocity);
@@ -166,8 +165,10 @@ private:
                     || *arm_mode == rmcs_msgs::ArmMode::Auto_Storage_RB
                     || *arm_mode == rmcs_msgs::ArmMode::Auto_Extract
                     || *arm_mode == rmcs_msgs::ArmMode::Customer
-                    || *arm_mode == rmcs_msgs::ArmMode::Auto_Up_Stairs) {
-                    move_speed_limit        = 1.6;
+                    || *arm_mode == rmcs_msgs::ArmMode::Auto_Up_Two_Stairs
+                    || *arm_mode == rmcs_msgs::ArmMode::Auto_Up_One_Stairs
+                    || *arm_mode == rmcs_msgs::ArmMode::Auto_Down_Stairs) {
+                    move_speed_limit   = 1.6;
                     is_yaw_imu_control = false;
                     if (*arm_mode == rmcs_msgs::ArmMode::Customer) {
                         chassis_mode                 = rmcs_msgs::ChassisMode::Yaw_Free;
@@ -196,13 +197,13 @@ private:
                             yaw_set_theta_in_YawFreeMode = 0.0;
                         }
                     }
-                    yaw_trajectory_controller.set_start_point(
-                        std::vector<double>{*chassis_big_yaw_angle})
+                    yaw_trajectory_controller
+                        .set_start_point(std::vector<double>{*chassis_big_yaw_angle})
                         .set_total_step(1400)
                         .set_end_point(std::vector<double>{yaw_set_theta_in_YawFreeMode})
                         .reset();
                 } else if (*arm_mode == rmcs_msgs::ArmMode::Auto_Walk) {
-                    move_speed_limit        = 4.5;
+                    move_speed_limit   = 4.5;
                     chassis_mode       = rmcs_msgs::ChassisMode::Flow;
                     is_yaw_imu_control = true;
                 }
@@ -285,9 +286,9 @@ private:
     pid::PidCalculator following_velocity_controller_;
     OutputInterface<double> speed_limit_;
     double move_speed_limit                              = 4.5;
-    double angular_velocity_limit                        = 16.0;             // m/s
+    double angular_velocity_limit                        = 16.0;            // m/s
     constexpr static double chassis_power_limit_referee_ = 120.0f;
-    
+
     InputInterface<Eigen::Vector2d> joystick_right_;
     InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;
