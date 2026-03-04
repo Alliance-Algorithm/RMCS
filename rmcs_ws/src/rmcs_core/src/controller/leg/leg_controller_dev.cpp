@@ -195,8 +195,6 @@ private:
                 }
                 }
             }
-        } else {
-            leg_mode = rmcs_msgs::LegMode::None;
         }
     }
 

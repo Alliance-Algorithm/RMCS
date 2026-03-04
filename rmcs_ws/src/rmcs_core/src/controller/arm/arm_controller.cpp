@@ -159,7 +159,7 @@ public:
                         if (!keyboard.shift) {
                             set_arm_mode(rmcs_msgs::ArmMode::Auto_Up_Two_Stairs);
                         }
-                        if(keyboard.shift) {
+                        if (keyboard.shift) {
                             set_arm_mode(rmcs_msgs::ArmMode::Auto_Up_One_Stairs);
                         }
                     }
@@ -207,7 +207,7 @@ public:
             break;
         }
         default: {
-            execute_plan_request_and_trajectory_step();
+            // execute_plan_request_and_trajectory_step();
             break;
         }
         }
@@ -338,23 +338,29 @@ private:
     void execute_dt7_orientation() {
         if (fabs(joystick_left_->y()) > 0.01) {
             *target_theta[5] += 0.003 * joystick_left_->y();
+            *target_theta[5] = std::clamp(*target_theta[5], -3.14, 3.14);
         }
         if (fabs(joystick_left_->x()) > 0.01) {
             *target_theta[4] += 0.003 * joystick_left_->x();
+            *target_theta[4] = std::clamp(*target_theta[4], -1.74, 1.74);
         }
         if (fabs(joystick_right_->y()) > 0.01) {
             *target_theta[3] += 0.003 * joystick_right_->y();
+            *target_theta[3] = std::clamp(*target_theta[3], -3.14, 3.14);
         }
     }
     void execute_dt7_position() {
         if (fabs(joystick_left_->x()) > 0.01) {
             *target_theta[2] += 0.001 * joystick_left_->x();
+            *target_theta[2] = std::clamp(*target_theta[2], -1.36217, 0.5335);
         }
         if (fabs(joystick_right_->x()) > 0.01) {
-            // *target_theta[1] += 0.001 * joystick_right_->x();
+            *target_theta[1] += 0.001 * joystick_right_->x();
+            *target_theta[1] = std::clamp(*target_theta[1], -1.084, 1.426);
         }
         if (fabs(joystick_left_->y()) > 0.01) {
             *target_theta[0] += 0.001 * joystick_left_->y();
+            *target_theta[0] = std::clamp(*target_theta[0], -2.34, 2.34);
         }
     }
     InputInterface<Eigen::Vector2d> joystick_right_;

@@ -24,16 +24,16 @@ public:
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , joint_angle_pid_controller{
-              pid::PidCalculator(0.0, 0.0, 0.0), // joint_1
-              pid::PidCalculator(4730.0, 0.0, 60.0), // joint_2
+              pid::PidCalculator(6000.0, 0.0, 0.0), // joint_1
+              pid::PidCalculator(33.0, 0.0, 0.0), // joint_2
               pid::PidCalculator(1100.0, 0.0, 50.0), // joint_3
               pid::PidCalculator(3000.0, 0.0, 4.0), // joint_4
               pid::PidCalculator(750.0, 0.0, 10.0), // joint_5
               pid::PidCalculator(100.0, 0.0, 4.0), // joint_6
           }
         , joint_vel_pid_controller{
-              pid::PidCalculator(0.0, 0.0, 0.0), // joint_1
-              pid::PidCalculator(0.06, 0.0, 0.005), // joint_2
+              pid::PidCalculator(0.4, 0.0, 0.0), // joint_1
+              pid::PidCalculator(15.1, 0.0, 0.00), // joint_2
               pid::PidCalculator(1.1, 0.0, 0.0), // joint_3
               pid::PidCalculator(0.135, 0.0, 0.002), // joint_4
               pid::PidCalculator(0.11, 0.0, 0.004), // joint_5
@@ -152,7 +152,7 @@ private:
         Eigen::Array<double, 6, 1> tau_f = tau_c * (joint_vel / speed_threshold).tanh();
 
         tau_f(0) = 0.0;
-        tau_f(1) = 0.0;
+        // tau_f(1) = 0.0;
         tau_f(4) = 0.0;
         tau_f(5) = 0.0;
 

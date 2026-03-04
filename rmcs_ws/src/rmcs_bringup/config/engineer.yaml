@@ -37,8 +37,8 @@ engineer_hardware:
     joint5_zero_point: 37436
     joint4_zero_point: 28029
     joint3_zero_point: 28134
-    joint2_zero_point: 29790 
-    joint1_zero_point: 52343
+    joint2_zero_point: 44546 
+    joint1_zero_point: 11371
     steering_lf_zero_point: 3399
     steering_lb_zero_point: 681
     steering_rb_zero_point: 693
@@ -51,7 +51,7 @@ engineer_hardware:
 
 arm_solver:
   ros__parameters:
-    controller_list: [pid, gravity]
+    controller_list: [pid, gravity,friction]
 
 leg_controller:
   ros__parameters:

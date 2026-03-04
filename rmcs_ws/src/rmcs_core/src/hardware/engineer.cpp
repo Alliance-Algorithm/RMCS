@@ -50,7 +50,7 @@ public:
         rightboard_.update();
     }
     void command() {
-        // armboard_.command();
+        armboard_.command();
         leftboard_.command();
         rightboard_.command();
     }
@@ -178,7 +178,6 @@ private:
             joint[2].update();
             joint[1].update();
             joint[0].update();
-            RCLCPP_INFO(get_logger(),"%d",joint[0].get_raw_angle());
         }
 
         void update_imu() {

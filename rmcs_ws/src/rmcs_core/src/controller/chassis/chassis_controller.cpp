@@ -100,11 +100,10 @@ public:
                 Eigen::Rotation2D<double> rotation(*chassis_big_yaw_angle + *joint1_theta);
                 //  move_ = rotation * (*joystick_left_);
                 move_            = (*joystick_left_);
+                if(chassis_mode != rmcs_msgs::ChassisMode::None){
                 angular_velocity = joystick_right_->y() * angular_velocity_limit;
-                // RCLCPP_INFO(
-                //     this->get_logger(), "joystick x:%f y:%f angular_velocity:%f", move_.x(),
-                //     move_.y(), angular_velocity);
                 chassis_control_velocity_->vector << (move_ * move_speed_limit), angular_velocity;
+                }
                 // yaw_control();
                 update_virtual_buffer_energy();
                 update_control_power_limit();
@@ -286,7 +285,7 @@ private:
     pid::PidCalculator following_velocity_controller_;
     OutputInterface<double> speed_limit_;
     double move_speed_limit                              = 4.5;
-    double angular_velocity_limit                        = 16.0;            // m/s
+    double angular_velocity_limit                        = 6.0;            // m/s
     constexpr static double chassis_power_limit_referee_ = 120.0f;
 
     InputInterface<Eigen::Vector2d> joystick_right_;
