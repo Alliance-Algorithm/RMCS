@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd /home/yukikaze/Documents/workspace/RMCS/rmcs_ws && colcon build --packages-select rmcs_core 2>&1 | tail -100)",
+      "Bash(find /home/yukikaze/Documents/workspace/RMCS/rmcs_ws/build/rmcs_core -name \"*.log\" 2>/dev/null | head -20)",
+      "Bash(find /home/yukikaze/Documents/workspace/RMCS/rmcs_ws/logs -name \"*.log\" 2>/dev/null | head -20)",
+      "Bash(git -C /home/yukikaze/Documents/workspace/RMCS log --oneline --follow -- rmcs_ws/src/rmcs_core/src/controller/arm/ 2>/dev/null | head -10)",
+      "Bash(git -C /home/yukikaze/Documents/workspace/RMCS log --oneline --follow -- rmcs_ws/src/rmcs_core/CMakeLists.txt 2>/dev/null | head -5)",
+      "Bash(git -C /home/yukikaze/Documents/workspace/RMCS show adf90e3 --name-only | head -30)",
+      "Bash(git -C /home/yukikaze/Documents/workspace/RMCS show adf90e3 --name-only | grep rmcs_core)",
+      "Bash(dpkg -l | grep -i moveit 2>/dev/null | head -20; echo \"---\"; dpkg -l | grep -i ros-jazzy-moveit 2>/dev/null | head -10)",
+      "Bash(find /home/yukikaze/Documents/workspace/RMCS/rmcs_ws -name \"*.cmake\" 2>/dev/null | head -10)",
+      "Bash(find /home/yukikaze/Documents/workspace/RMCS/rmcs_ws/install/rmcs_core -name \"plugins.xml\" 2>/dev/null; find /home/yukikaze/Documents/workspace/RMCS/rmcs_ws/install -name \"*.xml\" 2>/dev/null | head -10)",
+      "Bash(git -C /home/yukikaze/Documents/workspace/RMCS diff --stat)"
+    ]
+  }
+}

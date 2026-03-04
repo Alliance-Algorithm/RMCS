@@ -13,6 +13,8 @@ endif()
 
 find_package(ament_cmake_auto REQUIRED)
 ament_auto_find_build_dependencies()
+find_package(Eigen3 REQUIRED)
+find_package(moveit_ros_planning_interface QUIET)
 include(FetchContent)
 set(BUILD_STATIC_LIBRMCS ON CACHE BOOL "Build static librmcs SDK" FORCE)
 FetchContent_Declare(
@@ -27,6 +29,11 @@ file(GLOB_RECURSE PROJECT_SOURCE CONFIGURE_DEPENDS
   ${PROJECT_SOURCE_DIR}/src/*.c
 )
 
+if(NOT moveit_ros_planning_interface_FOUND)
+  message(STATUS "MoveIt not found — excluding arm_controller.cpp from build")
+  list(FILTER PROJECT_SOURCE EXCLUDE REGEX ".*arm_controller\\.cpp$")
+endif()
+
 ament_auto_add_library(
   ${PROJECT_NAME} SHARED
   ${PROJECT_SOURCE}
@@ -34,7 +41,7 @@ ament_auto_add_library(
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_SOURCE_DIR}/src)
-target_link_libraries(${PROJECT_NAME} librmcs-sdk)
+target_link_libraries(${PROJECT_NAME} librmcs-sdk Eigen3::Eigen)
 
 pluginlib_export_plugin_description_file(rmcs_executor plugins.xml)
 

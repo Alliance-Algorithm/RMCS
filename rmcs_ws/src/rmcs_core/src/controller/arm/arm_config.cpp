@@ -1,6 +1,6 @@
 #include "sensor_msgs/msg/joint_state.hpp"
 #include "std_msgs/msg/string.hpp"
-#include <Eigen/Dense>
+#include <eigen3/Eigen/Dense>
 #include <array>
 #include <cmath>
 #include <cstddef>

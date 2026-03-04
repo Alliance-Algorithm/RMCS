@@ -1,7 +1,7 @@
 #include "controller/pid/pid_calculator.hpp"
-#include <Eigen/Dense>
-#include <Eigen/src/Core/Array.h>
-#include <Eigen/src/Core/Matrix.h>
+#include <eigen3/Eigen/Dense>
+#include <eigen3/Eigen/src/Core/Array.h>
+#include <eigen3/Eigen/src/Core/Matrix.h>
 #include <algorithm>
 #include <array>
 #include <cmath>
