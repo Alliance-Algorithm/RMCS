@@ -38,7 +38,7 @@ public:
 
         // register_input("yaw_imu_velocity", yaw_imu_velocity);
         register_input("yaw_imu_angle", yaw_imu_angle);
-        register_input("/arm/Joint1/theta", joint1_theta);
+        register_input("/arm/joint_1/theta", joint1_theta);
 
         register_input("/arm/mode", arm_mode);
 

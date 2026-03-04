@@ -194,5 +194,5 @@ value_broadcaster:
       - "/leg/encoder/lb/angle"
       - "/leg/encoder/rb/angle"
       - "/leg/encoder/rf/angle"
-      - "/leg/velocity_in_x"     
+    
 

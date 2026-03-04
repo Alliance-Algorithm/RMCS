@@ -70,7 +70,7 @@ public:
 
         register_input("/arm/mode", arm_mode);
 
-        register_input("/arm/Joint1/theta", joint1_theta);
+        register_input("/arm/joint_1/theta", joint1_theta);
         register_input("/chassis/big_yaw/angle", chassis_big_yaw_angle);
 
         //  register_input("/tof/distance",tof_distance_);

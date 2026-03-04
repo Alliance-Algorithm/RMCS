@@ -87,9 +87,12 @@ private:
             , dr16_(engineer)
             , transmit_buffer_(*this, 32)
             , event_thread_([this]() { handle_events(); })
+            , bmi088_(1000, 0.2, 0)
 
         {
 
+            engineer.register_output("yaw_imu_velocity", yaw_imu_velocity, NAN);
+            engineer.register_output("yaw_imu_angle", yaw_imu_angle, NAN);
             using namespace device;
             joint[5].configure(
                 LKMotorConfig{LKMotorType::MHF6015}.reverse().set_encoder_zero_point(
@@ -111,6 +114,8 @@ private:
             joint2_encoder.configure(
                 EncoderConfig{EncoderType::KTH7823}.set_encoder_zero_point(
                     static_cast<int>(engineer.get_parameter("joint2_zero_point").as_int())));
+            bmi088_.set_coordinate_mapping(
+                [](double x, double y, double z) { return std::make_tuple(-x, -y, -z); });
         }
         ~ArmBoard() final {
             uint64_t command_{0};
@@ -129,6 +134,7 @@ private:
             using namespace device;
             update_arm_motors();
             dr16_.update();
+            update_imu();
         }
         void command() { arm_command_update(); }
 
@@ -172,6 +178,16 @@ private:
             joint[2].update();
             joint[1].update();
             joint[0].update();
+            RCLCPP_INFO(get_logger(),"%d",joint[0].get_raw_angle());
+        }
+
+        void update_imu() {
+            bmi088_.update_status();
+
+            *yaw_imu_velocity = bmi088_.gz();
+            *yaw_imu_angle    = std::atan2(
+                2.0 * (bmi088_.q0() * bmi088_.q3() + bmi088_.q1() * bmi088_.q2()),
+                1.0 - 2.0 * (bmi088_.q2() * bmi088_.q2() + bmi088_.q3() * bmi088_.q3()));
         }
 
     protected:
@@ -207,12 +223,25 @@ private:
             dr16_.store_status(uart_data, uart_data_length);
         }
 
+        void accelerometer_receive_callback(int16_t x, int16_t y, int16_t z) override {
+            bmi088_.store_accelerometer_status(x, y, z);
+        }
+
+        void gyroscope_receive_callback(int16_t x, int16_t y, int16_t z) override {
+            bmi088_.store_gyroscope_status(x, y, z);
+        }
+
+
     private:
         device::LKMotor joint[6];
         device::Encoder joint2_encoder;
         device::Dr16 dr16_;
         librmcs::client::CBoard::TransmitBuffer transmit_buffer_;
         std::thread event_thread_;
+
+        OutputInterface<double> yaw_imu_velocity;
+        OutputInterface<double> yaw_imu_angle;
+        librmcs::device::Bmi088 bmi088_;
 
     } armboard_;
     class LeftBoard final
