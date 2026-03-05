@@ -2,25 +2,25 @@ rmcs_executor:
   ros__parameters:
     update_rate: 1000.0
     components:
-      # - rmcs_core::hardware::SteeringHero -> hero_hardware
+      - rmcs_core::hardware::SteeringHero -> hero_hardware
 
-      # - rmcs_core::referee::Status -> referee_status
-      # - rmcs_core::referee::command::Interaction -> referee_interaction
-      # - rmcs_core::referee::command::interaction::Ui -> referee_ui
-      # - rmcs_core::referee::app::ui::Hero -> referee_ui_hero
-      # - rmcs_core::referee::Command -> referee_command
+      - rmcs_core::referee::Status -> referee_status
+      - rmcs_core::referee::command::Interaction -> referee_interaction
+      - rmcs_core::referee::command::interaction::Ui -> referee_ui
+      - rmcs_core::referee::app::ui::Hero -> referee_ui_hero
+      - rmcs_core::referee::Command -> referee_command
 
       # - rmcs_core::controller::gimbal::DualYawController -> dual_yaw_controller
-      # - rmcs_core::controller::gimbal::HeroGimbalController -> gimbal_controller
+      - rmcs_core::controller::gimbal::HeroGimbalController -> gimbal_controller
 
       - rmcs_core::controller::gimbal::DualYawSolver -> new_slover
       - rmcs_core::controller::gimbal::DualYawSMCController -> new_controller
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
 
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
-      - rmcs_core::controller::gimbal::test::DualYawSimulator -> gimbal_simulator
-      - rmcs_core::controller::gimbal::test::DualYawSimulatorRelay -> sim_relay
-      - rmcs_core::controller::gimbal::test::DualYawTargetGenerator -> sim_upperlayers
+      # - rmcs_core::controller::gimbal::test::DualYawSimulator -> gimbal_simulator
+      # - rmcs_core::controller::gimbal::test::DualYawSimulatorRelay -> sim_relay
+      # - rmcs_core::controller::gimbal::test::DualYawTargetGenerator -> sim_upperlayers
 
       # - rmcs_core::controller::gimbal::test::ControlTorqueOutput -> output
 
@@ -57,14 +57,14 @@ new_controller:
     top_yaw_angle_ki: 0.0
     top_yaw_angle_kd: 0.0
     top_yaw_velocity_kp: 70.0
-    top_yaw_velocity_ki: 0.005
-    top_yaw_velocity_kd: 2.5
+    top_yaw_velocity_ki: 0.000
+    top_yaw_velocity_kd: 0
     bottom_yaw_smc_c: 50.0
     bottom_yaw_smc_k: 10.0
     bottom_yaw_smc_epsilon: 10.0
     bottom_yaw_smc_phi: 0.1
     bottom_yaw_inertia: 1.0
-    bottom_yaw_max_torque: 4.0
+    bottom_yaw_max_torque: 40.0
 
 hero_hardware:
   ros__parameters:

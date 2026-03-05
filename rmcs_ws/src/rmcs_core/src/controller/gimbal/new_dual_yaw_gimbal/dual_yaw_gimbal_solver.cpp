@@ -1,8 +1,11 @@
+#include <algorithm>
 #include <cmath>
 #include <numbers>
 
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
+
+#include "controller/gimbal/new_dual_yaw_gimbal/angle_wrap.hpp"
 
 namespace rmcs_core::controller::gimbal {
 
@@ -31,7 +34,7 @@ public:
         register_output(
             "/gimbal/bottom_yaw/target_angle_velocity", bottom_yaw_target_velocity_, 0.0);
 
-        register_output("/gimbal/top_yaw/control_angle", top_yaw_control_angle_, 0.0);
+        // register_output("/gimbal/top_yaw/expect_angle", top_yaw_control_angle_, 0.0);
         register_output(
             "/gimbal/bottom_yaw/control_angle_shift", bottom_yaw_control_angle_shift_, 0.0);
 
@@ -62,13 +65,12 @@ public:
             *bottom_yaw_target_velocity_ = nan_;
 
         } else {
-            double e_total = std::remainder(*control_angle_error_, 2.0 * std::numbers::pi);
-
-            double e_bot = std::remainder(e_total + *top_yaw_angle_, 2.0 * std::numbers::pi);
+            double e_total = angle_wrap::wrap_to_pi(*control_angle_error_);
+            double e_bot = angle_wrap::wrap_to_pi(e_total + *top_yaw_angle_);
 
             double top_target = std::clamp(e_bot, -TOP_YAW_LIMIT, TOP_YAW_LIMIT);
 
-            *top_yaw_target_error_ = top_target - *top_yaw_angle_;
+            *top_yaw_target_error_ = angle_wrap::wrap_to_pi(top_target - *top_yaw_angle_);
             *bottom_yaw_target_error_ = e_bot;
 
             *bottom_yaw_target_velocity_ = *control_angle_velocity_;
@@ -112,11 +114,7 @@ private:
         }
 
         void update() override {
-            double yaw_angle = *top_yaw_angle_ + *bottom_yaw_angle_;
-            yaw_angle = std::fmod(yaw_angle, 2.0 * std::numbers::pi);
-            if (yaw_angle < 0)
-                yaw_angle += 2.0 * std::numbers::pi;
-            *yaw_angle_ = yaw_angle;
+            *yaw_angle_ = angle_wrap::wrap_to_2pi(*top_yaw_angle_ + *bottom_yaw_angle_);
 
             *yaw_velocity_ = *top_yaw_velocity_ + *bottom_yaw_velocity_;
         }

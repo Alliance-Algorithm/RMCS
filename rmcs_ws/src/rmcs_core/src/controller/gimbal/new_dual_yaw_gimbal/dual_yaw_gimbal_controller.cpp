@@ -4,6 +4,7 @@
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
 
+#include "controller/gimbal/new_dual_yaw_gimbal/angle_wrap.hpp"
 #include "controller/pid/pid_calculator.hpp"
 
 namespace rmcs_core::controller::gimbal {
@@ -46,6 +47,7 @@ public:
         register_input("/gimbal/top_yaw/velocity", top_yaw_velocity_);
         register_input("/gimbal/bottom_yaw/velocity", bottom_yaw_velocity_);
         register_input("/chassis/yaw/velocity_imu", chassis_yaw_velocity_imu_);
+        register_input("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
 
         register_output("/gimbal/top_yaw/control_torque", top_yaw_control_torque_, 0.0);
         register_output("/gimbal/bottom_yaw/control_torque", bottom_yaw_control_torque_, 0.0);
@@ -65,11 +67,12 @@ public:
         }
 
         double desired_top_vel =
-            top_yaw_angle_pid_.update(*top_yaw_target_error_) + *top_yaw_target_velocity_;
+            top_yaw_angle_pid_.update(angle_wrap::wrap_to_pi(*top_yaw_target_error_))
+            + *top_yaw_target_velocity_;
         *top_yaw_control_torque_ =
-            top_yaw_velocity_pid_.update(desired_top_vel - *top_yaw_velocity_);
+            top_yaw_velocity_pid_.update(desired_top_vel - *gimbal_yaw_velocity_imu_);
 
-        double e = *bottom_yaw_target_error_;
+        double e = angle_wrap::wrap_to_pi(*bottom_yaw_target_error_);
         double actual_bot_vel = *chassis_yaw_velocity_imu_ + *bottom_yaw_velocity_;
         double de = *bottom_yaw_target_velocity_ - actual_bot_vel;
 
@@ -112,6 +115,7 @@ private:
     InputInterface<double> top_yaw_velocity_;
     InputInterface<double> bottom_yaw_velocity_;
     InputInterface<double> chassis_yaw_velocity_imu_;
+    InputInterface<double> gimbal_yaw_velocity_imu_;
 
     OutputInterface<double> top_yaw_control_torque_, bottom_yaw_control_torque_;
 

@@ -9,9 +9,11 @@ rmcs_executor:
       # - rmcs_core::referee::command::interaction::Ui -> referee_ui
       # - rmcs_core::referee::app::ui::Hero -> referee_ui_hero
       - rmcs_core::referee::Command -> referee_command
+      # - rmcs_core::controller::gimbal::DualYawController -> dual_yaw_controller
 
       - rmcs_core::controller::gimbal::HeroGimbalController -> gimbal_controller
-      - rmcs_core::controller::gimbal::DualYawController -> dual_yaw_controller
+      - rmcs_core::controller::gimbal::DualYawSolver -> new_slover
+      - rmcs_core::controller::gimbal::DualYawSMCController -> new_controller
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
 
       # - rmcs_core::controller::gimbal::PlayerViewer -> gimbal_player_viewer_controller
@@ -26,7 +28,7 @@ rmcs_executor:
       - rmcs_core::controller::chassis::ChassisController -> chassis_controller
       # - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::SteeringWheelController -> steering_wheel_controller
-      - rmcs_core::controller::chassis::ChassisClimberController -> climber_controller
+      # - rmcs_core::controller::chassis::ChassisClimberController -> climber_controller
 
       # - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
       # - rmcs_auto_aim::AutoAimController -> auto_aim_controller
@@ -40,7 +42,7 @@ hero_hardware:
     usb_pid_bottom_board_two: 0x317e
     bottom_yaw_motor_zero_point: 5256
     pitch_motor_zero_point: 63917
-    top_yaw_motor_zero_point: 59377
+    top_yaw_motor_zero_point: 58639
     viewer_motor_zero_point: 3030
     external_imu_port: /dev/ttyUSB0
     left_front_zero_point: 358
@@ -52,18 +54,33 @@ hero_hardware:
     # right_back_zero_point: 6157
     # right_front_zero_point: 2723
 
+new_controller:
+  ros__parameters:
+    top_yaw_angle_kp: 30.0
+    top_yaw_angle_ki: 0.0
+    top_yaw_angle_kd: 0.0
+    top_yaw_velocity_kp: 15.0
+    top_yaw_velocity_ki: 0.0001
+    top_yaw_velocity_kd: 5.1
+    bottom_yaw_smc_c: 20.0
+    bottom_yaw_smc_k: 10.0
+    bottom_yaw_smc_epsilon: 1.0
+    bottom_yaw_smc_phi: 2.0
+    bottom_yaw_inertia: 0.2251
+    bottom_yaw_max_torque: 100.0
+
 value_broadcaster:
   ros__parameters:
     forward_list:
-      - /chassis/left_front_steering/angle
-      - /chassis/left_back_steering/angle
-      - /chassis/right_back_steering/angle
-      - /chassis/right_front_steering/angle  
-      - /chassis/left_front_steering/control_torque
-      - /chassis/left_back_steering/control_torque
-      - /chassis/right_back_steering/control_torque
-      - /chassis/right_front_steering/control_torque  
+      - /gimbal/yaw/control_angle_error
+      - /gimbal/top_yaw/target_angle_error
+      - /gimbal/bottom_yaw/target_angle_error
+      - /gimbal/top_yaw/control_torque
+      - /gimbal/bottom_yaw/control_torque
       - /gimbal/bottom_yaw/angle
+      - /gimbal/top_yaw/angle
+      - /gimbal/yaw/control_angle_error
+      - /gimbal/test/sliding_value
 
 climber_controller:
   ros__parameters:
