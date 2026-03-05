@@ -1,5 +1,6 @@
 // #include "controller/pid/matrix_pid_calculator.hpp"
 // #include "rmcs_msgs/switch.hpp"
+// #include <cmath>
 // #include <cstdlib>
 // #include <eigen3/Eigen/Core>
 // #include <eigen3/Eigen/src/Core/Matrix.h>
@@ -11,6 +12,10 @@
 // /*
 //     所有的电机运动方向均以令底盘升高为正方向
 //     暂时使用手动控制，遥控器键位不够用了，屏蔽自瞄和小陀螺模式
+
+//     思路：以 前轮履带的扭矩 + 陀螺仪位姿作为参照，来判断前轮是否上台阶
+//     然后抬起后支撑机构，
+//     前进之后以 后轮扭矩 + 陀螺仪位姿作为参照，判断是否完全上台阶
 // */
 
 // namespace rmcs_core::controller::chassis {
@@ -35,8 +40,9 @@
 
 //         wheel_torque_threshold_ = get_parameter("wheel_torque_threshold").as_double();
 //         front_torque_threshold_ = get_parameter("front_torque_threshold").as_double();
-//         back_torque_threshold_ = get_parameter("back_torque_threshold").as_double(); //
-//         读取阈值参数
+//         back_torque_threshold_ = get_parameter("back_torque_threshold").as_double();
+//         angle_threshold_ = get_parameter("angle_threshold").as_double();
+//         // 读取阈值参数
 
 //         register_output(
 //             "/chassis/climber/left_front_motor/control_torque",
@@ -58,6 +64,8 @@
 //         register_input("/chassis/climber/right_back_motor/velocity",
 //         climber_back_right_velocity_);
 
+//         register_input("/chassis/climber/left_front_motor/torque", climber_front_left_torque_);
+//         register_input("/chassis/climber/right_front_motor/torque", climber_front_right_torque_);
 //         register_input("/chassis/climber/left_back_motor/torque", climber_back_left_torque_);
 //         register_input("/chassis/climber/right_back_motor/torque", climber_back_right_torque_);
 
@@ -94,46 +102,49 @@
 
 //             double track_control_velocity =
 //                 front_climber_enable_ ? joystick_left_->x() * track_velocity_max_ : nan_;
-//             double back_climber_control_velocioty;
+//             double back_climber_control_velocity;
 
-//             if (abs(*climber_back_left_torque_) > 0.1 && abs(*climber_back_right_torque_) > 0.1
-//                 && abs(*climber_back_left_velocity_) < 0.1
-//                 && abs(*climber_back_right_velocity_) < 0.1) {
+//             if (fabs(*climber_back_left_torque_) > 0.1 && fabs(*climber_back_right_torque_) > 0.1
+//                 && fabs(*climber_back_left_velocity_) < 0.1
+//                 && fabs(*climber_back_right_velocity_) < 0.1) {
 //                 back_climber_block_count_++;
 //             }
 
 //             if (back_climber_block_count_ >= 500) {
-//                 back_climber_control_velocioty = 0;
+//                 back_climber_control_velocity = 0;
 //             } else {
-//                 back_climber_control_velocioty =
+//                 back_climber_control_velocity =
 //                     climber_back_control_velocity_abs_ * back_climber_dir_;
 //             }
 
-//             if (climb_stage_ == ClimbStage::PRELOADING) {
-//                 back_climber_control_velocioty = 0;
-//                 if (*climber_front_left_control_torque_ > front_torque_threshold_
-//                     && *climber_front_right_control_torque_ > front_torque_threshold_) {
+//             switch (climb_stage_) {
+//             case ClimbStage::PRELOADING:
+//                 back_climber_control_velocity = 0;
+//                 if (fabs(*climber_front_left_torque_) > front_torque_threshold_
+//                     && fabs(*climber_front_right_torque_) > front_torque_threshold_
+//                     && !is_imu_angle_flat()) {
 //                     set_front_hang();
-//                 } // 履带碰到台阶，再检测是否着陆
-//             } else if (climb_stage_ == ClimbStage::FRONT_HANG) {
-//                 back_climber_control_velocioty = 0;
+//                 }
+//                 break;
+//             case ClimbStage::FRONT_HANG:
+//                 back_climber_control_velocity = 0;
 //                 detect_is_front_land();
-//             } else if (climb_stage_ == ClimbStage::NEXT) {
+//                 break;
+//             case ClimbStage::NEXT:
 //                 track_control_velocity = 0;
 //                 // 计算支撑机构速度
-//                 if (*climber_back_left_control_torque_ > back_torque_threshold_
-//                     && *climber_back_right_control_torque_ > back_torque_threshold_) {
+//                 if (fabs(*climber_back_left_torque_) > back_torque_threshold_
+//                     && fabs(*climber_back_right_torque_) > back_torque_threshold_) {
 //                     set_back_hang();
-//                 } // 支撑机构开启，再检测是否着陆
-//             } else if (climb_stage_ == ClimbStage::BACK_HANG) {
-//                 detect_is_back_land();
-//             } else if (climb_stage_ == ClimbStage::LAND) {
-//                 track_control_velocity = 0;
-//                 back_climber_control_velocioty = 0;
+//                 }
+//                 break;
+//                 // 支撑机构开启，再检测是否着陆
+//             case ClimbStage::BACK_HANG: detect_is_back_land(); break;
+//             case ClimbStage::LAND: track_control_velocity = 0; break;
 //             }
 
 //             front_climber_sync_control(track_control_velocity);
-//             back_climber_sync_control(back_climber_control_velocioty);
+//             back_climber_sync_control(back_climber_control_velocity);
 //         }
 
 //         last_switch_left_ = switch_left;
@@ -154,11 +165,8 @@
 //         *climber_back_left_control_torque_ = 0;
 //         *climber_back_right_control_torque_ = 0;
 //         front_climber_enable_ = false;
+//         set_preloading();
 //     }
-
-//     // 思路：以 前轮履带的扭矩 + 陀螺仪位姿作为参照，来判断前轮是否上台阶
-//     // 然后抬起后支撑机构，
-//     // 前进之后以 后轮扭矩 + 陀螺仪位姿作为参照，判断是否完全上台阶
 
 //     void front_climber_sync_control(double setpoint) {
 //         Eigen::Vector2d setpoint_error{
@@ -191,8 +199,8 @@
 //     }
 
 //     void detect_is_front_land() {
-//         if (*climber_front_left_control_torque_ <= front_torque_threshold_
-//             && *climber_front_right_control_torque_ <= front_torque_threshold_) {
+//         if (fabs(*climber_front_left_torque_) > front_torque_threshold_
+//             && fabs(*climber_front_right_torque_) > front_torque_threshold_) {
 //             front_land_detect_count_ = 0;
 //             return;
 //         }
@@ -204,8 +212,9 @@
 //     }
 
 //     void detect_is_back_land() {
-//         if (*left_back_wheel_torque_ > wheel_torque_threshold_
-//             && *right_back_wheel_torque_ > wheel_torque_threshold_) {
+//         if ((fabs(*left_back_wheel_torque_) <= wheel_torque_threshold_
+//              && fabs(*right_back_wheel_torque_) <= wheel_torque_threshold_)
+//             || !is_imu_angle_flat()) {
 //             back_land_detect_count_ = 0;
 //             return;
 //         }
@@ -229,6 +238,8 @@
 //     void set_next() {
 //         RCLCPP_INFO(get_logger(), "NEXT");
 //         climb_stage_ = ClimbStage::NEXT;
+//         back_climber_dir_ = 1;
+//         back_climber_block_count_ = 0;
 //     }
 
 //     void set_back_hang() {
@@ -239,13 +250,17 @@
 //     void set_land() {
 //         RCLCPP_INFO(get_logger(), "LAND");
 //         climb_stage_ = ClimbStage::LAND;
+//         back_climber_dir_ = -1;           // 方向回收
+//         back_climber_block_count_ = 0;
 //     }
 
-//     int back_climber_block_count_;
+//     bool is_imu_angle_flat() { return std::abs(*chassis_climber_angle_imu_) < angle_threshold_; }
+
+//     int back_climber_block_count_ = 0;
 
 //     rclcpp::Logger logger_;
 //     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
-//     double sync_coefficient_;
+//     double sync_coefficient_ = 1.0;
 
 //     bool front_climber_enable_ = false;
 //     double back_climber_dir_ = 1;
@@ -259,6 +274,7 @@
 //     double wheel_torque_threshold_ = 0.5; // 扭矩阈值
 //     double front_torque_threshold_ = 0.5; // 履带扭矩阈值
 //     double back_torque_threshold_ = 0.5;  // 支撑机构扭矩阈值
+//     double angle_threshold_ = 0.2;        // IMU角度判断阈值，单位为弧度
 
 //     enum class ClimbStage {
 //         PRELOADING,
