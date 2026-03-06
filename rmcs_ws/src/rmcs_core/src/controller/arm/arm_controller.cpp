@@ -154,6 +154,7 @@ public:
                     }
 
                     if (keyboard.b) {
+                        //RCLCPP_INFO(node_->get_logger(), "%d",*arm_mode_);
                         if (!keyboard.shift) {
                             set_arm_mode(rmcs_msgs::ArmMode::Auto_Up_Two_Stairs);
                         }
@@ -190,7 +191,6 @@ public:
         }
 
         *arm_mode_ = get_arm_mode();
-
         switch (get_arm_mode()) {
             using namespace rmcs_msgs;
         case ArmMode::DT7_Control_Position: {

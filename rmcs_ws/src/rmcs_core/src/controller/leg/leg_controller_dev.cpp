@@ -100,6 +100,7 @@ public:
     }
 
     void update() override {
+        //RCLCPP_INFO(this->get_logger(), " %x",*arm_mode);
         auto switch_right               = *switch_right_;
         auto switch_left                = *switch_left_;
         auto mouse                      = *mouse_;
