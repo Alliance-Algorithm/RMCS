@@ -122,9 +122,7 @@ public:
                 } else if (switch_left == Switch::UP && switch_right == Switch::MIDDLE) {
                     set_arm_mode(rmcs_msgs::ArmMode::DT7_Control_Orientation);
                 } else if (switch_left == Switch::DOWN && switch_right == Switch::UP) {
-                    if (keyboard.a) {}
-                    if (keyboard.s) {}
-
+                   
                     if (keyboard.z) {
                         if (!keyboard.ctrl && !keyboard.shift) {
                             set_arm_mode(rmcs_msgs::ArmMode::Auto_Gold_Left);

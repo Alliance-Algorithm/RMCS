@@ -61,13 +61,12 @@ public:
         msg.header.frame_id = "base_link";
         msg.name            = {"joint_1", "joint_2", "joint_3", "joint_4", "joint_5", "joint_6"};
         msg.position        = {
-            0.0,
+            *joint_motor_angle[0],
             *joint_encode_angle,
             *joint_motor_angle[2],
             *joint_motor_angle[3],
             *joint_motor_angle[4],
             *joint_motor_angle[5]};
-        // msg.position = {0.0, 0, 0, 0, 0, 0};
         joint_states_pub->publish(msg);
     }
 

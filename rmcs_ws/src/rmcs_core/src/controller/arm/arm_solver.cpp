@@ -40,7 +40,6 @@ public:
               pid::PidCalculator(0.11, 0.0, 0.004), // joint_5
               pid::PidCalculator(0.0900, 0.0, 0.004), // joint_6
           } {
-
         for (std::size_t i = 0; i < num_axis; ++i) {
             const std::string joint_prefix = "/arm/joint_" + std::to_string(i + 1);
             register_input(joint_prefix + "/theta", joint_theta[i]);
@@ -210,7 +209,7 @@ private:
         tau.fill(NAN);
         return tau;
     }
-
+    
     static constexpr std::array<std::tuple<std::string_view, controller_type>, 4> term_table_{
         {{"gravity", &ArmSolver::calculate_gravity_compensation},
          {"pid", &ArmSolver::calculate_pid},
