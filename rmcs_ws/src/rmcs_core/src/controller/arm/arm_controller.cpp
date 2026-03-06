@@ -124,7 +124,7 @@ public:
                 } else if (switch_left == Switch::DOWN && switch_right == Switch::UP) {
                     if (keyboard.a) {}
                     if (keyboard.s) {}
-
+                   // RCLCPP_INFO(node_->get_logger(), "%d",*arm_mode_);
                     if (keyboard.z) {
                         if (!keyboard.ctrl && !keyboard.shift) {
                             set_arm_mode(rmcs_msgs::ArmMode::Auto_Gold_Left);
@@ -156,6 +156,7 @@ public:
                     }
 
                     if (keyboard.b) {
+                        //RCLCPP_INFO(node_->get_logger(), "%d",*arm_mode_);
                         if (!keyboard.shift) {
                             set_arm_mode(rmcs_msgs::ArmMode::Auto_Up_Two_Stairs);
                         }
@@ -192,7 +193,6 @@ public:
         }
 
         *arm_mode_ = get_arm_mode();
-
         switch (get_arm_mode()) {
             using namespace rmcs_msgs;
         case ArmMode::DT7_Control_Position: {

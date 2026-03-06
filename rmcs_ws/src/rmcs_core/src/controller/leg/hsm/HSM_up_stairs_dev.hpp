@@ -148,6 +148,7 @@ public:
 
     void stop() { up_stairs_hsm.stop();
         mode_valid=false;
+        count=0;
         result_ = {
             std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(),
             std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN()};
@@ -231,7 +232,7 @@ public:
                     up_stairs_initial.reset();
                     up_stairs_initial.set_start_point(
                         {*theta_lf_, *theta_lb_, *theta_rb_, *theta_rf_});
-                    up_stairs_initial.set_total_step(1000);
+                    up_stairs_initial.set_total_step(2000);
                 },
                 nullptr, // no exit
                 [&](const Event<UpStairsEventId>& event,
@@ -302,6 +303,7 @@ public:
 
         stepByTwo_lift->addSubState(createPressState());
         stepByTwo_lift->addSubState(createLiftAndInitialState());
+        stepByTwo_lift->addSubState(createDelayState());
         stepByTwo_lift->addSubState(createPressAgainState());
         stepByTwo_lift->addSubState(createLiftAgainState());
         stepByTwo_lift->addSubState(createWaitState());
@@ -332,6 +334,16 @@ private:
                             } else if (id == UpStairsEventEnum::go_to_Lift) {
                                 return StepSubState::Lift;
                             } else if (id == UpStairsEventEnum::tick) {
+                                // if(is_one_process_) {
+                                //     return StepSubState::Wait;
+                                // }
+                                //  else if(is_two_process_lift_) {
+                                //     count++;
+                                //     if(count >=1000){
+                                //         return StepSubState::PressAgain;
+                                //     }
+                                //     return StepSubState::Wait;
+                                // }
                                 return StepSubState::Wait;
                             } else if (id == UpStairsEventEnum::go_to_Initial_Again) {
                                 return StepSubState::InitialAgain;
@@ -440,6 +452,7 @@ private:
                                 } else {
                                     // return StepSubState::Wait;
                                     return StepSubState::PressAgain;
+                                    //return StepSubState::Delay;
                                 }
                             }
                         }
@@ -626,6 +639,8 @@ private:
     bool is_two_process_lift_;
     bool is_two_process_initial_;
 
+
+    int count{std::numeric_limits<int>::quiet_NaN()};
     bool load_valid{false};
     bool mode_valid{false};
 
