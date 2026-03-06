@@ -5,7 +5,7 @@ rmcs_executor:
       - rmcs_core::hardware::TunnelInfantry -> tunnel_infantry_hardware
 
       - rmcs_core::controller::gimbal::GimbalController -> gimbal_controller
-      - rmcs_core::controller::gimbal::GimbalFeedforward -> gimbal_feedward_controller
+      # - rmcs_core::controller::gimbal::GimbalFeedforward -> gimbal_feedward_controller
       - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
@@ -48,7 +48,7 @@ value_broadcaster:
 tunnel_infantry_hardware:
   ros__parameters:
     usb_pid: -1
-    yaw_motor_zero_point: 43417
+    yaw_motor_zero_point: 40262
     pitch_motor_zero_point: 54062
     imu_gx_bias: +0.001294
     imu_gy_bias: -0.000584
@@ -63,13 +63,13 @@ gimbal_controller:
     upper_limit: -0.5098
     lower_limit: 0.2262
 
-gimbal_feedward_controller:
-  ros__parameters:
-    measurement: /gimbal/yaw/raw_control_torque
-    control: /gimbal/yaw/control_torque
-    kv: 0.2148
-    ka: 0.3823
-    firc: 7.2
+# gimbal_feedward_controller:
+#   ros__parameters:
+#     measurement: /gimbal/yaw/raw_control_torque
+#     control: /gimbal/yaw/control_torque
+#     kv: 0.2148
+#     ka: 0.3823
+#     firc: 7.2
 
 yaw_angle_pid_controller:
   ros__parameters:
@@ -77,7 +77,7 @@ yaw_angle_pid_controller:
     output_min: -10.0
     measurement: /gimbal/yaw/control_angle_error
     control: /gimbal/yaw/control_velocity
-    kp: 15.0
+    kp: 10.0
     ki: 0.00
     kd: 0.0
 
@@ -85,16 +85,16 @@ yaw_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/yaw/velocity_imu
     setpoint: /gimbal/yaw/control_velocity
-    control: /gimbal/yaw/raw_control_torque
-    kp: 40.0
+    control: /gimbal/yaw/control_torque
+    kp: 30.0
     ki: 0.001
-    kd: 0.01
+    kd: 0.05
 
 pitch_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/pitch/control_angle_error
     control: /gimbal/pitch/control_velocity
-    kp: 20.0
+    kp: 15.0
     ki: 0.00
     kd: 0.1
 
