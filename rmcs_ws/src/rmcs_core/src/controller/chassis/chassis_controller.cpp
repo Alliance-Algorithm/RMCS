@@ -88,7 +88,8 @@ public:
                     set_yaw_mode(YawControlMode::IMU);
                     yaw_target_angle_ += joystick_right_->y() * 0.002;
                     angular_velocity = std::clamp(
-                        following_velocity_controller_.update(*chassis_big_yaw_angle), -1.0, 1.0);
+                        following_velocity_controller_.update(*chassis_big_yaw_angle),
+                        -angular_velocity_limit, angular_velocity_limit);
                     break;
                 }
                 case rmcs_msgs::ChassisMode::SPIN: {
@@ -97,31 +98,28 @@ public:
                     angular_velocity = 5.0;
                     break;
                 }
-                case rmcs_msgs::ChassisMode::Up_Stairs: {
-                    set_yaw_mode(YawControlMode::Encoder);
-                    if (last_chassis_mode != rmcs_msgs::ChassisMode::Up_Stairs) {
-                        yaw_trajectory_controller
-                            .set_start_point(std::vector<double>{*chassis_big_yaw_angle})
-                            .set_total_step(600)
-                            .set_end_point(std::vector<double>{0.0})
-                            .reset();
-                    }
-                    const auto result = yaw_trajectory_controller.trajectory();
-                    yaw_target_angle_ = !result.empty() ? result[0] : 0.0;
-                    angular_velocity  = joystick_right_->y() * angular_velocity_limit;
-                    break;
-                }
                 case rmcs_msgs::ChassisMode::Yaw_Free: {
                     set_yaw_mode(YawControlMode::Encoder);
-                    yaw_target_angle_ += joystick_right_->y() * 0.002;
+                    if (*arm_mode == rmcs_msgs::ArmMode::Auto_Up_One_Stairs
+                        || *arm_mode == rmcs_msgs::ArmMode::Auto_Up_Two_Stairs
+                        || *arm_mode == rmcs_msgs::ArmMode::Auto_Down_Stairs) {
+                        const auto result = yaw_trajectory_controller.trajectory();
+                        yaw_target_angle_ = !result.empty() ? result[0] : 0.0;
+                    } else {
+                        yaw_target_angle_ += joystick_right_->y() * 0.002;
+                    }
                     angular_velocity = joystick_right_->y() * angular_velocity_limit;
+
                     break;
                 }
                 default: break;
                 }
+
                 if (chassis_mode != rmcs_msgs::ChassisMode::None) {
                     auto move = *joystick_left_;
-                    if (chassis_mode == rmcs_msgs::ChassisMode::Up_Stairs) {
+                    if (*arm_mode == rmcs_msgs::ArmMode::Auto_Up_One_Stairs
+                        || *arm_mode == rmcs_msgs::ArmMode::Auto_Up_Two_Stairs
+                        || *arm_mode == rmcs_msgs::ArmMode::Auto_Down_Stairs) {
                         move.x() = 0.0;
                     }
                     // Eigen::Rotation2D<double> rotation(*chassis_big_yaw_angle + *joint1_theta);
@@ -135,8 +133,7 @@ public:
                     normalizeAngle(yaw_target_angle_ - get_yaw_feedback());
             }
         }
-        last_chassis_mode = chassis_mode;
-        last_arm_mode     = *arm_mode;
+        last_arm_mode = *arm_mode;
     }
 
 private:
@@ -173,14 +170,27 @@ private:
                 }
             }
             if (last_arm_mode != *arm_mode) {
-                if (*arm_mode == rmcs_msgs::ArmMode::Customer) {
+                switch (*arm_mode) {
+                case rmcs_msgs::ArmMode::Customer:
                     set_speed_gear(SpeedGear::Low);
                     chassis_mode = rmcs_msgs::ChassisMode::Yaw_Free;
-                } else if (*arm_mode == rmcs_msgs::ArmMode::Auto_Walk) {
+                    break;
+                case rmcs_msgs::ArmMode::Auto_Walk:
                     set_speed_gear(SpeedGear::High);
                     chassis_mode = rmcs_msgs::ChassisMode::Flow;
-                } else {
+                    break;
+                case rmcs_msgs::ArmMode::Auto_Up_One_Stairs:
+                case rmcs_msgs::ArmMode::Auto_Up_Two_Stairs:
+                case rmcs_msgs::ArmMode::Auto_Down_Stairs:
                     set_speed_gear(SpeedGear::Medium);
+                    chassis_mode = rmcs_msgs::ChassisMode::SPIN;
+                    yaw_trajectory_controller
+                        .set_start_point(std::vector<double>{*chassis_big_yaw_angle})
+                        .set_total_step(600)
+                        .set_end_point(std::vector<double>{0.0})
+                        .reset();
+                    break;
+                default: set_speed_gear(SpeedGear::Medium); break;
                 }
             }
 
@@ -222,10 +232,8 @@ private:
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
 
     InputInterface<rmcs_msgs::ArmMode> arm_mode;
-    rmcs_msgs::ArmMode last_arm_mode;
-
-    rmcs_msgs::ChassisMode chassis_mode      = rmcs_msgs::ChassisMode::None;
-    rmcs_msgs::ChassisMode last_chassis_mode = rmcs_msgs::ChassisMode::None;
+    rmcs_msgs::ArmMode last_arm_mode    = rmcs_msgs::ArmMode::None;
+    rmcs_msgs::ChassisMode chassis_mode = rmcs_msgs::ChassisMode::None;
 
     OutputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;
     OutputInterface<double> chassis_control_power_limit_;

@@ -9,7 +9,6 @@ enum class ChassisMode : uint8_t {
     Flow,            
     Yaw_Free,
     None,
-    Up_Stairs
 };
 
 } // namespace rmcs_msgs
