@@ -100,6 +100,7 @@ public:
         auto keyboard     = *keyboard_;
         using namespace rmcs_msgs;
         static bool initial_check_done{false};
+
         if (!initial_check_done) {
             *is_arm_enable = false;
             for (std::size_t i = 0; i < std::size(theta); ++i) {
@@ -108,86 +109,56 @@ public:
             if (switch_left == Switch::DOWN && switch_right == Switch::DOWN) {
                 initial_check_done = true;
             }
-        } else {
-            if (switch_left == Switch::DOWN && switch_right == Switch::DOWN) {
-                *is_arm_enable = false;
-                for (std::size_t i = 0; i < std::size(theta); ++i) {
-                    *target_theta[i] = *theta[i];
-                }
-                set_arm_mode(rmcs_msgs::ArmMode::None);
-            } else {
-                *is_arm_enable = true;
-                if (switch_left == Switch::UP && switch_right == Switch::UP) {
-                    set_arm_mode(rmcs_msgs::ArmMode::DT7_Control_Position);
-                } else if (switch_left == Switch::UP && switch_right == Switch::MIDDLE) {
-                    set_arm_mode(rmcs_msgs::ArmMode::DT7_Control_Orientation);
-                } else if (switch_left == Switch::DOWN && switch_right == Switch::UP) {
-                   
-                    if (keyboard.z) {
-                        if (!keyboard.ctrl && !keyboard.shift) {
-                            set_arm_mode(rmcs_msgs::ArmMode::Auto_Gold_Left);
+            *arm_mode_ = get_arm_mode();
+            return;
+        }
 
-                        } else if (keyboard.shift && !keyboard.ctrl) {
-                            set_arm_mode(rmcs_msgs::ArmMode::Auto_Gold_Mid);
+        if (switch_left == Switch::DOWN && switch_right == Switch::DOWN) {
+            *is_arm_enable = false;
+            for (std::size_t i = 0; i < std::size(theta); ++i) {
+                *target_theta[i] = *theta[i];
+            }
+            set_arm_mode(rmcs_msgs::ArmMode::None);
+            *arm_mode_ = get_arm_mode();
+            return;
+        }
 
-                        } else if (keyboard.ctrl && !keyboard.shift) {
-                            set_arm_mode(rmcs_msgs::ArmMode::Auto_Gold_Right);
-                        }
-                    }
+        *is_arm_enable = true;
+        if (switch_left == Switch::UP && switch_right == Switch::UP) {
+            set_arm_mode(rmcs_msgs::ArmMode::DT7_Control_Position);
+        } else if (switch_left == Switch::UP && switch_right == Switch::MIDDLE) {
+            set_arm_mode(rmcs_msgs::ArmMode::DT7_Control_Orientation);
+        } else if (switch_left == Switch::DOWN && switch_right == Switch::UP) {
 
-                    if (keyboard.x) {
-
-                        set_arm_mode(rmcs_msgs::ArmMode::Auto_Sliver);
-                    }
-
-                    if (keyboard.g) {
-                        if (!keyboard.shift) {
-                            set_arm_mode(rmcs_msgs::ArmMode::Auto_Walk);
-                        }
-                        if (keyboard.shift) {
-                            set_arm_mode(rmcs_msgs::ArmMode::Auto_Down_Stairs);
-                        }
-                    }
-
-                    if (keyboard.d) {
-                        set_arm_mode(rmcs_msgs::ArmMode::Auto_Spin);
-                    }
-
-                    if (keyboard.b) {
-                        //RCLCPP_INFO(node_->get_logger(), "%d",*arm_mode_);
-                        if (!keyboard.shift) {
-                            set_arm_mode(rmcs_msgs::ArmMode::Auto_Up_Two_Stairs);
-                        }
-                        if (keyboard.shift) {
-                            set_arm_mode(rmcs_msgs::ArmMode::Auto_Up_One_Stairs);
-                        }
-                    }
-
-                    if (keyboard.g && keyboard.shift) {
-                        set_arm_mode(rmcs_msgs::ArmMode::Auto_Down_Stairs);
-                    }
-
-                    if (keyboard.f) {
-
-                        if (keyboard.shift && !keyboard.ctrl) {
-                            set_arm_mode(rmcs_msgs::ArmMode::Auto_Storage_LB);
-
-                        } else if (keyboard.ctrl && !keyboard.shift) {
-                            set_arm_mode(rmcs_msgs::ArmMode::Auto_Storage_RB);
-                        }
-                    }
-
-                    if (keyboard.r) {
-                        if (!keyboard.ctrl && !keyboard.shift) {
-                            set_arm_mode(rmcs_msgs::ArmMode::Customer);
-                        }
-                    }
-                }
-
-                else {
-                    set_arm_mode(rmcs_msgs::ArmMode::None);
+            if (keyboard.g) {
+                if (!keyboard.shift && !keyboard.ctrl) {
+                    set_arm_mode(rmcs_msgs::ArmMode::Auto_Walk);
+                } else if (keyboard.shift && !keyboard.ctrl) {
+                    set_arm_mode(rmcs_msgs::ArmMode::Auto_Down_Stairs);
                 }
             }
+            if (keyboard.b) {
+                if (!keyboard.shift && !keyboard.ctrl) {
+                    set_arm_mode(rmcs_msgs::ArmMode::Auto_Up_Two_Stairs);
+                } else if (keyboard.shift && !keyboard.ctrl) {
+                    set_arm_mode(rmcs_msgs::ArmMode::Auto_Up_One_Stairs);
+                }
+            }
+            if (keyboard.f) {
+                if (keyboard.shift && !keyboard.ctrl) {
+                    set_arm_mode(rmcs_msgs::ArmMode::Auto_Storage_LB);
+                } else if (keyboard.ctrl && !keyboard.shift) {
+                    set_arm_mode(rmcs_msgs::ArmMode::Auto_Storage_RB);
+                }
+            }
+
+            if (keyboard.r) {
+                if (!keyboard.ctrl && !keyboard.shift) {
+                    set_arm_mode(rmcs_msgs::ArmMode::Custome);
+                }
+            }
+        } else {
+            set_arm_mode(rmcs_msgs::ArmMode::None);
         }
 
         *arm_mode_ = get_arm_mode();
