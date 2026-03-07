@@ -49,8 +49,7 @@ value_broadcaster:
 
 deformable_infantry:
   ros__parameters:
-    serial_filter_left_board: ""
-    serial_filter_right_board: ""
+    serial_filter_rmcs_board: ""
     serial_filter_top_board: ""
     left_front_zero_point: 5816
     left_back_zero_point: 2395
@@ -266,4 +265,3 @@ deformable_chassis_controller:
     k1: 2.958580e+00
     k2: 3.082190e-03
     no_load_power: 11.37
-    
