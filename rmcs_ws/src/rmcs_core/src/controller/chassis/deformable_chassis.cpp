@@ -177,7 +177,7 @@ private:
         *rb_angle_error_ = nan_;
 
         *processed_encoder_angle_ = nan_;
-        RCLCPP_INFO(get_logger(), "%f", *scope_motor_velocity);
+        // RCLCPP_INFO(get_logger(), "%f", *scope_motor_velocity);
     }
 
     void update_velocity_control() {

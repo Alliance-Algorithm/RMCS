@@ -103,13 +103,13 @@ private:
             return;
 
         RCLCPP_INFO(get_logger(), "New left front offset: %f",
-                    rmcs_board_->chassis_joint_motors_[0].angle());
+                    rmcs_board_->chassis_joint_motors_[0].encoder_angle());
         RCLCPP_INFO(get_logger(), "New left back offset: %f",
-                    rmcs_board_->chassis_joint_motors_[1].angle());
+                    rmcs_board_->chassis_joint_motors_[1].encoder_angle());
         RCLCPP_INFO(get_logger(), "New right back offset: %f",
-                    rmcs_board_->chassis_joint_motors_[2].angle());
+                    rmcs_board_->chassis_joint_motors_[2].encoder_angle());
         RCLCPP_INFO(get_logger(), "New right front offset: %f",
-                    rmcs_board_->chassis_joint_motors_[3].angle());
+                    rmcs_board_->chassis_joint_motors_[3].encoder_angle());
     }
 
     void gimbal_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
