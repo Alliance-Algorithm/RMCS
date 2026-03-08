@@ -99,7 +99,7 @@ public:
         const auto switch_right = *switch_right_;
         const auto switch_left  = *switch_left_;
         const auto keyboard     = *keyboard_;
-
+        
         do {
             if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
                 || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
@@ -276,13 +276,13 @@ private:
         s_target_ = trapezoidal_calculator(current_target_angle_);
 
         const double alpha_lf =
-            wrap_deg(left_front_joint_offset_) - wrap_deg(*left_front_joint_angle_) + 61.0;
+            wrap_deg(left_front_joint_offset_) - wrap_deg(*left_front_joint_angle_) + 10.5;
         const double alpha_lb =
-            wrap_deg(left_back_joint_offset_) - wrap_deg(*left_back_joint_angle_) + 61.0;
+            wrap_deg(left_back_joint_offset_) - wrap_deg(*left_back_joint_angle_) + 10.5;
         const double alpha_rf =
-            wrap_deg(right_front_joint_offset_) - wrap_deg(*right_front_joint_angle_) + 61.0;
+            wrap_deg(right_front_joint_offset_) - wrap_deg(*right_front_joint_angle_) + 10.5;
         const double alpha_rb =
-            wrap_deg(right_back_joint_offset_) - wrap_deg(*right_back_joint_angle_) + 61.0;
+            wrap_deg(right_back_joint_offset_) - wrap_deg(*right_back_joint_angle_) + 10.5;
 
         // *processed_encoder_angle_ = (alpha_lb + alpha_lf + alpha_rf + alpha_rb) / 4.0;
         *processed_encoder_angle_ = (alpha_lb + alpha_rb) / 2.0;

@@ -51,17 +51,17 @@ deformable_infantry:
   ros__parameters:
     serial_filter_rmcs_board: "AF-056F-2E3E-0C9E-EFAD-C0D0-15F0-2483-17D9"
     serial_filter_top_board: "D4-621A-DEE6-D79F-9303-E3D1-C4BC"
-    left_front_zero_point: 6453
-    left_back_zero_point: 3094
-    right_back_zero_point: 2355
-    right_front_zero_point: 4446
+    left_front_zero_point: 2326
+    left_back_zero_point: 1695
+    right_back_zero_point: 3820
+    right_front_zero_point: 368
     yaw_motor_zero_point:  23389
     pitch_motor_zero_point: 39636
 
 chassis_controller:
   ros__parameters:
     min_angle: 12.0    
-    max_angle: 36.0   
+    max_angle: 30.0   
     left_front_joint_offset: 257.501488
     left_back_joint_offset: 353.545434
     right_back_joint_offset: 7.591669
@@ -258,8 +258,8 @@ deformable_chassis_controller:
   ros__parameters:
     mess: 19.0
     moment_of_inertia: 1.0
-    chassis_radius: 0.1682136321
-    rod_length: 0.190
+    chassis_radius: 0.1671741
+    rod_length: 0.150
     wheel_radius: 0.055
     friction_coefficient: 0.6
     k1: 2.958580e+00
