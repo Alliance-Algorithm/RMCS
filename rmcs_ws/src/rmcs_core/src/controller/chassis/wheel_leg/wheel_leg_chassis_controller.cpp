@@ -41,7 +41,7 @@ public:
 
         register_output("/chassis/control_mode", mode_);
         register_output("/chassis/leg/extended", is_leg_extended_);
-
+        register_output("/chassis/jump/active", is_jump_active_);
         register_output("/chassis/control_velocity", chassis_control_velocity_);
     }
 
@@ -96,7 +96,15 @@ public:
                     leg_extended_ = !leg_extended_;
                 }
 
+                // Jump
+                if (!last_keyboard_.e && keyboard.e) {
+                    jump_active_ = !jump_active_;
+                }
+
+                // Climb
+
                 *is_leg_extended_ = leg_extended_;
+                *is_jump_active_ = jump_active_;
                 *mode_ = mode;
             }
 
@@ -228,8 +236,10 @@ private:
 
     OutputInterface<rmcs_msgs::WheelLegMode> mode_;
     OutputInterface<bool> is_leg_extended_;
+    OutputInterface<bool> is_jump_active_;
 
     bool leg_extended_ = false;
+    bool jump_active_ = false;
     bool spinning_forward_ = true;
     pid::PidCalculator following_velocity_controller_;
 

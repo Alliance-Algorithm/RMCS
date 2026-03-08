@@ -50,6 +50,9 @@ public:
         register_input("/chassis/control_velocity", chassis_control_velocity_);
         register_input("/chassis/control_mode", mode_);
 
+        register_input("/chassis/leg/extended", is_leg_extended_);
+        register_input("/chassis/jump/active", is_jump_active_);
+
         register_input("/chassis/left_front_hip/angle", left_front_hip_angle_);
         register_input("/chassis/left_back_hip/angle", left_back_hip_angle_);
         register_input("/chassis/right_front_hip/angle", right_front_hip_angle_);
@@ -259,7 +262,58 @@ private:
         return result;
     }
 
-    void detect_chassis_levitate() {}
+    void detect_chassis_levitate(
+        Eigen::Vector2d support_forces, rmcs_msgs::WheelLegState measure_state) {
+        auto& [left_support_force, right_support_force] = support_forces;
+
+        double levitate_force = 20.0;
+        double normal_force = 50.0;
+
+        auto average_support_force = (left_support_force + right_support_force) / 2.0;
+
+        auto mode = *mode_;
+        auto mode_active = (mode != rmcs_msgs::WheelLegMode::STOP)
+                        && (mode != rmcs_msgs::WheelLegMode::BALANCELESS);
+
+        if (mode_active) {
+            if ((average_support_force < levitate_force) && allow_levitate_) {
+                levitate_active_ = true;
+            } else if (average_support_force > normal_force) {
+                if (levitate_active_) {
+                    allow_levitate_ = false;
+                }
+                levitate_active_ = false;
+            }
+
+            if (left_support_force < levitate_force && allow_left_levitate_) {
+                left_levitate_active_ = true;
+            } else if (left_support_force > normal_force) {
+                if (left_levitate_active_) {
+                    allow_left_levitate_ = false;
+                }
+                left_levitate_active_ = false;
+            }
+
+            if (right_support_force < levitate_force) {
+                right_levitate_active_ = true;
+            } else if (right_support_force > normal_force) {
+                if (right_levitate_active_) {
+                    allow_right_levitate_ = false;
+                }
+                right_levitate_active_ = false;
+            }
+        }
+
+        if (levitate_active_) {
+            RCLCPP_INFO(
+                get_logger(), "Chassis is levitating! Average support force: %f",
+                average_support_force);
+
+            measure_state.distance = 0.0;
+        }
+    }
+
+    // void detect_chassis_fall() {}
 
     Eigen::Vector2d calculate_translational_distance(
         LegPosture leg_posture, Eigen::Vector2d wheel_velocities, Eigen::Vector4d hip_angles) {
@@ -355,10 +409,16 @@ private:
 
     rmcs_msgs::WheelLegState calculate_desire_state(
         Eigen::Vector3d control_velocity, rmcs_msgs::WheelLegState measure_state) {
+
         rmcs_msgs::WheelLegState desire_state{};
+
+        desire_state_solver_.update_measure_state(measure_state);
         desire_state = desire_state_solver_.update(std::move(control_velocity));
+
+        desire_leg_length_ =
+            desire_state_solver_.update_desire_leg_length(*is_leg_extended_, 0.13, 0.36);
         desire_roll_angle_ = desire_state_solver_.update_desire_roll_angle();
-        desire_leg_length_ = desire_state_solver_.update_desire_leg_length(0.13, 0.36);
+
         return desire_state;
     }
 
@@ -367,9 +427,9 @@ private:
         Eigen::Vector2d result;
 
         auto roll_control_force =
-            roll_angle_pid_calculator_.update(d_roll_angle_ - *chassis_roll_angle_imu_);
+            roll_angle_pid_calculator_.update(desire_roll_angle_ - *chassis_roll_angle_imu_);
         auto leg_length_control_force = leg_length_pid_calculator_.update(
-            d_leg_length_ - (leg_posture.leg_length.x() + leg_posture.leg_length.y()) / 2.0);
+            desire_leg_length_ - (leg_posture.leg_length.x() + leg_posture.leg_length.y()) / 2.0);
 
         auto calculate_compensation_feedforward_force = [this](double coefficient) {
             return (body_mess_ / 2.0 + centroid_position_coefficient_ * leg_mess_) * coefficient;
@@ -551,6 +611,9 @@ private:
     InputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;
     InputInterface<rmcs_msgs::WheelLegMode> mode_;
 
+    InputInterface<bool> is_leg_extended_;
+    InputInterface<bool> is_jump_active_;
+
     OutputInterface<double> left_front_hip_control_torque_;
     OutputInterface<double> left_back_hip_control_torque_;
     OutputInterface<double> right_front_hip_control_torque_;
@@ -564,9 +627,9 @@ private:
     OutputInterface<double> left_wheel_control_torque_;
     OutputInterface<double> right_wheel_control_torque_;
 
-    double d_leg_length_, d_roll_angle_;
-
     double desire_leg_length_, desire_roll_angle_;
+    bool levitate_active_{false}, left_levitate_active_{false}, right_levitate_active_{false};
+    bool allow_levitate_{true}, allow_left_levitate_{true}, allow_right_levitate_{true};
 
     Eigen::Vector2d last_leg_length_, last_tilt_angle_;
     Eigen::Vector2d last_dot_leg_length_, last_dot_tilt_angle_;

@@ -23,6 +23,7 @@ public:
         register_output("/chassis/desire_state", desire_state_);
         register_output("/chassis/desire_leg_length", desire_leg_length_);
         register_output("/chassis/desire_roll_angle", desire_roll_angle_);
+
         reset();
     }
 

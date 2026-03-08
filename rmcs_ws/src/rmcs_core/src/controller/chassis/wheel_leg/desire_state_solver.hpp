@@ -1,8 +1,6 @@
 #pragma once
 
-#include "rmcs_msgs/wheel_leg_mode.hpp"
 #include "rmcs_msgs/wheel_leg_state.hpp"
-#include <rmcs_msgs/chassis_mode.hpp>
 #include <rmcs_utility/eigen_structured_bindings.hpp>
 
 namespace rmcs_core::controller {
@@ -15,8 +13,12 @@ public:
     }
 
     void reset() {
+        desire_state_ = reset_state();
+
         desire_leg_length_ = initial_leg_length_;
         desire_roll_angle_ = 0.0;
+
+        jump_state_ = JumpState::IDLE;
     }
 
     rmcs_msgs::WheelLegState update(Eigen::Vector3d control_velocity) {
@@ -24,20 +26,6 @@ public:
         auto& [vx, vz, wz] = control_velocity;
 
         // desire_leg_length_ += vz * leg_length_sensitivity_;
-
-        constexpr double power_kp_x = 0.26;
-        // power_limit_velocity_x = power_kp_x * std::sqrt(referee_->chassis_power_limit_);
-
-        constexpr double power_kp_w = 0.40;
-        // power_limit_velocity_w = power_kp_w * std::sqrt(referee_->chassis_power_limit_);
-
-        // switch (chassis_mode_) {
-        // case rmcs_msgs::WheelLegMode::STOP: break;
-        // case rmcs_msgs::WheelLegMode::SPIN: break;
-        // case rmcs_msgs::WheelLegMode::FOLLOW: break;
-        // case rmcs_msgs::WheelLegMode::LAUNCH_RAMP: break;
-        // case rmcs_msgs::WheelLegMode::BALANCELESS: break;
-        // }
 
         if (std::abs(measure_state_.velocity) < 1e-2) {
             park_mode_ = true;
@@ -62,7 +50,14 @@ public:
         return desire_state_;
     }
 
-    double update_desire_leg_length(const double min, const double max) {
+    double
+        update_desire_leg_length(const bool is_leg_extended, const double min, const double max) {
+        if (is_leg_extended) {
+            desire_leg_length_ = 0.25;
+        } else {
+            desire_leg_length_ = 0.16;
+        }
+
         desire_leg_length_ = std::clamp(desire_leg_length_, min, max);
 
         return desire_leg_length_;
@@ -74,9 +69,57 @@ public:
         measure_state_ = measure_state;
     }
 
-    void update_power() {}
+    void update_jump_state(bool jump_active, double leg_length) {
+        switch (jump_state_) {
+        case JumpState::IDLE: {
+            if (jump_active) {
+                jump_state_ = JumpState::EXTEND_LEGS;
+            }
+            break;
+        }
+        case JumpState::EXTEND_LEGS: {
+            desire_leg_length_ = 0.35;
+            if (leg_length >= 0.33) {
+                jump_state_ = JumpState::CONTRACT_LEGS;
+            }
+            break;
+        }
+        case JumpState::CONTRACT_LEGS: {
+            desire_leg_length_ = 0.14;
+            break;
+        }
+        case JumpState::LEVITATE: {
+            desire_leg_length_ = 0.17;
+            if (leg_length <= 0.18) {
+                jump_state_ = JumpState::LAND;
+            }
+            break;
+        }
+        case JumpState::LAND: {
+            jump_state_ = JumpState::IDLE;
+            jump_active = false;
+            break;
+        }
+        }
+    }
+
+    void update_climb_state() {}
 
 private:
+    enum class JumpState {
+        IDLE = 0,
+        EXTEND_LEGS = 1,
+        CONTRACT_LEGS = 2,
+        LEVITATE = 3,
+        LAND = 4,
+    };
+
+    constexpr static rmcs_msgs::WheelLegState reset_state() {
+        return rmcs_msgs::WheelLegState{nan_, nan_, nan_, nan_, nan_, nan_, nan_, nan_, nan_, nan_};
+    }
+
+    constexpr static double nan_ = std::numeric_limits<double>::quiet_NaN();
+
     constexpr static double leg_length_sensitivity_ = 0.00001;
 
     constexpr static double dt_ = 0.001;
@@ -91,6 +134,8 @@ private:
 
     double desire_leg_length_;
     double desire_roll_angle_;
+
+    JumpState jump_state_ = JumpState::IDLE;
 
     rmcs_msgs::WheelLegState measure_state_;
     rmcs_msgs::WheelLegState desire_state_;
