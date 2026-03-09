@@ -39,8 +39,8 @@ sentry_hardware:
     # usb_pid_bottom_board: 0x2878
     usb_pid_bottom_board: 0x2878
     yaw_motor_zero_point: 32285
-    bottom_yaw_motor_zero_point: 4861
-    top_yaw_motor_zero_point: 47922
+    bottom_yaw_motor_zero_point: 48457
+    top_yaw_motor_zero_point: 15669
     pitch_motor_zero_point: 11634
     left_front_zero_point: 5795
     left_back_zero_point: 1694

@@ -84,12 +84,12 @@ public:
         //     get_logger(), "[steer calibration] New right front offset: %d",
         //     bottom_board_->chassis_steer_motors_[3].calibrate_zero_point());
         // RCLCPP_INFO(
-        //     get_logger(), "[gimbal calibration] New pitch offset: %ld",
+        //     get_logger(), "[gimbal calibration] New bottom_yaw offset: %ld",
         //     bottom_board_->gimbal_bottom_yaw_motor_.calibrate_zero_point());
         // Do not calibrate in update loop. Calibration should only happen on explicit command.
         // RCLCPP_INFO(
-        //     get_logger(), "[steer calibration] New right front offset: %f",
-        //     top_board_->bmi088_.gz());
+        //     get_logger(), "[gimbal calibration] New top_yaw offset: %ld",
+        //     top_board_->gimbal_top_yaw_motor_.calibrate_zero_point());
 
         // RCLCPP_INFO(
         //     get_logger(), "[gimbal calibration] New top yaw offset: %ld",
