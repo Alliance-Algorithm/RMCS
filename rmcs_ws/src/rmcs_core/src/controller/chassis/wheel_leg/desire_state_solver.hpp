@@ -86,6 +86,7 @@ public:
         }
         case JumpState::CONTRACT_LEGS: {
             desire_leg_length_ = 0.14;
+            jump_state_ = JumpState::LEVITATE;
             break;
         }
         case JumpState::LEVITATE: {
@@ -103,14 +104,20 @@ public:
         }
     }
 
-    void update_climb_state() {}
-
 private:
     enum class JumpState {
         IDLE = 0,
         EXTEND_LEGS = 1,
         CONTRACT_LEGS = 2,
         LEVITATE = 3,
+        LAND = 4,
+    };
+
+    enum class ClimbState {
+        IDLE = 0,
+        DETECT = 1,
+        CONTRACT_LEGS = 2,
+        EXTEND_LEGS = 3,
         LAND = 4,
     };
 
@@ -136,6 +143,7 @@ private:
     double desire_roll_angle_;
 
     JumpState jump_state_ = JumpState::IDLE;
+    ClimbState climb_state_ = ClimbState::IDLE;
 
     rmcs_msgs::WheelLegState measure_state_;
     rmcs_msgs::WheelLegState desire_state_;

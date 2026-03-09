@@ -23,7 +23,6 @@ rmcs_executor:
 
       - rmcs_core::controller::chassis::WheelLegController -> wheel_leg_controller
       - rmcs_core::controller::chassis::WheelLegChassisController -> chassis_controller
-      # - rmcs_core::controller::chassis::DesireStateController -> desire_state_controller
       # - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
 
 

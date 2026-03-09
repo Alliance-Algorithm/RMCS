@@ -346,11 +346,12 @@ private:
 
         auto is_parked = std::abs(velocity) < 1e-2;
 
-        // if (is_parked) {
-        //     distance = last_distance_ + velocity * dt_;
-        // } else {
-        //     distance = 0.0;
-        // }
+        // When the vehicle stops the position control is activated.
+        //  if (is_parked) {
+        //      distance = last_distance_ + velocity * dt_;
+        //  } else {
+        //      distance = 0.0;
+        //  }
 
         distance = last_distance_ + velocity * dt_;
         last_distance_ = distance;
