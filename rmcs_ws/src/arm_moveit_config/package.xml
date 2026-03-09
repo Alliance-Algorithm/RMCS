@@ -6,7 +6,7 @@
   <description>
      An automatically generated package with all the configuration and launch files for using the arm_description with the MoveIt Motion Planning Framework
   </description>
-  <maintainer email="1400982623@qq.com">yqc</maintainer>
+  <maintainer email="1400982623@qq.com">YuQingChi</maintainer>
 
   <license>BSD-3-Clause</license>
 
@@ -14,7 +14,7 @@
   <url type="bugtracker">https://github.com/moveit/moveit2/issues</url>
   <url type="repository">https://github.com/moveit/moveit2</url>
 
-  <author email="1400982623@qq.com">yqc</author>
+  <author email="1400982623@qq.com">YuQingChi</author>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
@@ -24,8 +24,6 @@
   <exec_depend>moveit_simple_controller_manager</exec_depend>
   <exec_depend>joint_state_publisher</exec_depend>
   <exec_depend>joint_state_publisher_gui</exec_depend>
-  <exec_depend>joint_state_broadcaster</exec_depend>
-  <exec_depend>joint_trajectory_controller</exec_depend>
   <exec_depend>tf2_ros</exec_depend>
   <exec_depend>xacro</exec_depend>
   <!-- The next 2 packages are required for the gazebo simulation.

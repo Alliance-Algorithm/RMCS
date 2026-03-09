@@ -36,8 +36,8 @@ public:
             [this](const std_msgs::msg::String::ConstSharedPtr& msg) { this->load_urdf(msg); });
         joint_states_pub =
             this->create_publisher<sensor_msgs::msg::JointState>("/joint_states", 10);
-
-        for (std::size_t i = 0; i < num_axis; ++i) {
+        //去除joint6输入
+        for (std::size_t i = 0; i < num_axis-1; ++i) {
             register_input(
                 "/arm/joint_" + std::to_string(i + 1) + "/motor/angle", joint_motor_angle[i]);
             register_input(
@@ -45,16 +45,16 @@ public:
             register_input(
                 "/arm/joint_" + std::to_string(i + 1) + "/motor/torque", joint_motor_torque[i]);
         }
-        register_input("/arm/joint_2/encoder/angle", joint_encode_angle);
         register_output("urdf_loaded", is_load, false);
     };
 
     void update() override {
         std::lock_guard<std::mutex> lock(data_mutex_);
-        for (std::size_t i = 0; i < num_axis; ++i) {
-            const double angle = (i == 1) ? *joint_encode_angle : *joint_motor_angle[i];
-            joint[i].update(angle, *joint_motor_velocity[i], *joint_motor_torque[i]);
+        //去除joint6
+        for (std::size_t i = 0; i < num_axis-1; ++i) {
+            joint[i].update(*joint_motor_angle[i], *joint_motor_velocity[i], *joint_motor_torque[i]);
         }
+        joint[5].update(0.0, 0.0, 0.0);   // joint_6 未安装，固定 0 
 
         sensor_msgs::msg::JointState msg;
         msg.header.stamp    = this->now();
@@ -62,11 +62,11 @@ public:
         msg.name            = {"joint_1", "joint_2", "joint_3", "joint_4", "joint_5", "joint_6"};
         msg.position        = {
             *joint_motor_angle[0],
-            *joint_encode_angle,
+            *joint_motor_angle[1],
             *joint_motor_angle[2],
             *joint_motor_angle[3],
             *joint_motor_angle[4],
-            *joint_motor_angle[5]};
+            0.0};
         joint_states_pub->publish(msg);
     }
 
@@ -233,7 +233,6 @@ private:
     std::array<InputInterface<double>, num_axis> joint_motor_angle;
     std::array<InputInterface<double>, num_axis> joint_motor_velocity;
     std::array<InputInterface<double>, num_axis> joint_motor_torque;
-    InputInterface<double> joint_encode_angle;
 };
 } // namespace rmcs_core::controller::arm
 #include <pluginlib/class_list_macros.hpp>

@@ -2,7 +2,7 @@
   <class type="rmcs_core::hardware::cboard::Status" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
-  <class type="rmcs_core::hardware::Engineer" base_class_type="rmcs_executor::Component">
+  <class type="rmcs_core::hardware::Arm" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
   <class type="rmcs_core::controller::arm::ArmConfig" base_class_type="rmcs_executor::Component">

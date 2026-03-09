@@ -5,9 +5,9 @@ moveit_setup_assistant_config:
   srdf:
     relative_path: config/arm_description.srdf
   package_settings:
-    author_name: yqc
+    author_name: YuQingChi
     author_email: 1400982623@qq.com
-    generated_timestamp: 1769520160
+    generated_timestamp: 1767824413
   control_xacro:
     command:
       - position

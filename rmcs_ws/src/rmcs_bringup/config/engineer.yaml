@@ -2,12 +2,12 @@ rmcs_executor:
   ros__parameters:
     update_rate: 1000.0
     components:
-      - rmcs_core::hardware::Engineer -> engineer_hardware
+      - rmcs_core::hardware::Arm -> arm_hardware
       - rmcs_core::controller::arm::ArmConfig -> arm_config
       - rmcs_core::controller::arm::ArmSolver -> arm_solver
       - rmcs_core::controller::arm::ArmController -> arm_controller
       
-engineer_hardware:
+arm_hardware:
   ros__parameters:
     arm_board_usb_pid: 0x488d
     joint6_zero_point: 0

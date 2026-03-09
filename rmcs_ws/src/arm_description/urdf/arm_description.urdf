@@ -6,6 +6,20 @@
   name="arm_description">
   <link
     name="base_link">
+    <inertial>
+      <origin
+        xyz="1.32154299112504E-18 7.7782856302198E-18 0.00599999999999999"
+        rpy="0 0 0" />
+      <mass
+        value="0.402123859659494" />
+      <inertia
+        ixx="0.0017915958360696"
+        ixy="2.15436653852225E-19"
+        ixz="3.77444977383238E-19"
+        iyy="0.0017915958360696"
+        iyz="6.59832203544841E-19"
+        izz="0.0035789023509695" />
+    </inertial>
     <visual>
       <origin
         xyz="0 0 0"
@@ -34,17 +48,17 @@
     name="link_1">
     <inertial>
       <origin
-        xyz="0.0 0.0 0.05919"
+        xyz="-0.008872 -0.0076588 0.05919"
         rpy="0 0 0" />
       <mass
-        value="0.536" />
+        value="0.25868" />
       <inertia
-        ixx="0.3052091"
-        ixy="-0.02572"
-        ixz="-0.1003921"
-        iyy="0.3640608"
-        iyz="0.0255497"
-        izz="0.1179245" />
+        ixx="0.00010631"
+        ixy="4.1029E-07"
+        ixz="6.453E-08"
+        iyy="0.00019756"
+        iyz="8.1039E-07"
+        izz="0.00012615" />
     </inertial>
     <visual>
       <origin
@@ -83,10 +97,10 @@
     <axis
       xyz="0 0 1" />
     <limit
-      lower="-3.1"
-      upper="3.1"
-      effort="25"
-      velocity="7.75" />
+      lower="-3"
+      upper="3"
+      effort="30"
+      velocity="5" />
     <dynamics
       friction="0.3" />
   </joint>
@@ -94,17 +108,17 @@
     name="link_2">
     <inertial>
       <origin
-        xyz="-0.0014451 0.17112 -0.020056"
+        xyz="-5.5408E-05 0.20382 0.0196"
         rpy="0 0 0" />
       <mass
-        value="0.1502" />
+        value="0.18736" />
       <inertia
-        ixx="0.037649"
-        ixy="0"
-        ixz="1.3289E-05"
-        iyy="0.036645"
-        iyz="0"
-        izz="0.0011637" />
+        ixx="0.0011226"
+        ixy="3.319E-08"
+        ixz="8.6801E-09"
+        iyy="6.675E-05"
+        iyz="1.0385E-06"
+        izz="0.001153" />
     </inertial>
     <visual>
       <origin
@@ -128,43 +142,43 @@
         <mesh
           filename="package://arm_description/meshes/link_2.STL" />
       </geometry>
-    </collision>  
+    </collision>
   </link>
   <joint
     name="joint_2"
     type="revolute">
     <origin
       xyz="0 -0.042 0.071"
-      rpy="1.5708 0 -3.1416" />
+      rpy="1.5708 0 0" />
     <parent
       link="link_1" />
     <child
       link="link_2" />
     <axis
-      xyz="0 0 -1" />
+      xyz="0 0 1" />
     <limit
-      lower="-1.084"
-      upper="1.426"
-      effort="63"
-      velocity="4.71" />
+      lower="-1.5"
+      upper="1.5"
+      effort="35"
+      velocity="5" />
     <dynamics
-      friction="0.5" />
+      friction="0.2" />
   </joint>
   <link
     name="link_3">
     <inertial>
       <origin
-        xyz="0.01602 0.094001 0.029936"
+        xyz="0.015906 -0.043689 -0.029685"
         rpy="0 0 0" />
       <mass
-        value="1.821" />
+        value="0.42456" />
       <inertia
-        ixx="0.27702"
-        ixy="0"
-        ixz="0.02648"
-        iyy="0.28195"
-        iyz="0"
-        izz="0.005747" />
+        ixx="0.00024338"
+        ixy="1.4136E-05"
+        ixz="4.2117E-07"
+        iyy="0.00016451"
+        iyz="-9.8124E-07"
+        izz="0.00030978" />
     </inertial>
     <visual>
       <origin
@@ -194,19 +208,19 @@
     name="joint_3"
     type="revolute">
     <origin
-      xyz="0 0.37 0.007"
+      xyz="0 0.37 -0.007"
       rpy="0 0 1.5708" />
     <parent
       link="link_2" />
     <child
       link="link_3" />
     <axis
-      xyz="0 0 -1" />
+      xyz="0 0 1" />
     <limit
-      lower="-1.36217"
-      upper="0.5335"
+      lower="-0.8"
+      upper="0.5"
       effort="35"
-      velocity="4.71" />
+      velocity="5" />
     <dynamics
       friction="0.2" />
   </joint>
@@ -214,17 +228,17 @@
     name="link_4">
     <inertial>
       <origin
-        xyz="0.00010602 0.0016431 0.18301"
+        xyz="0.00079034 0.0018966 0.16189"
         rpy="0 0 0" />
       <mass
-        value="1.61" />
+        value="0.25332" />
       <inertia
-        ixx="0.157756532"
-        ixy="0"
-        ixz="0.101150375"
-        iyy="0.22536253"
-        iyz="0"
-        izz="0.06816" />
+        ixx="0.00019016"
+        ixy="-1.4559E-08"
+        ixz="1.0519E-06"
+        iyy="0.00021072"
+        iyz="-8.1559E-07"
+        izz="6.0156E-05" />
     </inertial>
     <visual>
       <origin
@@ -254,8 +268,8 @@
     name="joint_4"
     type="revolute">
     <origin
-      xyz="0.03 0.1419 0.035"
-      rpy="-1.5708 0 0" />
+      xyz="0.03 -0.1419 -0.035"
+      rpy="1.5708 0 0" />
     <parent
       link="link_3" />
     <child
@@ -265,8 +279,8 @@
     <limit
       lower="-3.14"
       upper="3.14"
-      effort="18"
-      velocity="7.54" />
+      effort="20"
+      velocity="5" />
     <dynamics
       friction="0.2" />
   </joint>
@@ -274,17 +288,17 @@
     name="link_5">
     <inertial>
       <origin
-        xyz="5.5375E-07 0.0083726 -0.0014715"
+        xyz="7.8329E-07 0.009346 -0.00086416"
         rpy="0 0 0" />
       <mass
-        value="0.624" />
+        value="0.080964" />
       <inertia
-        ixx="0.072026932"
-        ixy="0"
-        ixz="0.062596148"
-        iyy="0.126477469"
-        iyz="0"
-        izz="0.05466" />
+        ixx="2.1219E-05"
+        ixy="-6.2766E-10"
+        ixz="-1.0499E-09"
+        iyy="2.8653E-05"
+        iyz="-6.0183E-08"
+        izz="1.9054E-05" />
     </inertial>
     <visual>
       <origin
@@ -323,10 +337,10 @@
     <axis
       xyz="0 0 -1" />
     <limit
-      lower="-1.74"
-      upper="1.74"
-      effort="6"
-      velocity="24.61" />
+      lower="-1.3"
+      upper="1.3"
+      effort="10"
+      velocity="5" />
     <dynamics
       friction="0.2" />
   </joint>
@@ -334,17 +348,17 @@
     name="link_6">
     <inertial>
       <origin
-        xyz="0.0021385 -0.0015806 0.054172"
+        xyz="-5.5511E-17 -7.961E-21 -0.0084425"
         rpy="0 0 0" />
       <mass
-        value="0.77108" />
+        value="0.011935" />
       <inertia
-        ixx="0.031464282"
-        ixy="0"
-        ixz="0.030962713"
-        iyy="0.06203783"
-        iyz="0"
-        izz="0.030828" />
+        ixx="9.5493E-07"
+        ixy="-4.6557E-25"
+        ixz="-1.44E-24"
+        iyy="9.5493E-07"
+        iyz="5.6455E-25"
+        izz="1.3427E-06" />
     </inertial>
     <visual>
       <origin
@@ -357,7 +371,7 @@
       <material
         name="">
         <color
-          rgba="0.75294 0.75294 0.75294 1" />
+          rgba="1 1 1 1" />
       </material>
     </visual>
     <collision>
@@ -374,7 +388,7 @@
     name="joint_6"
     type="revolute">
     <origin
-      xyz="0.0 0.119 0"
+      xyz="0 0.026 0"
       rpy="1.5708 0 0" />
     <parent
       link="link_5" />
@@ -383,10 +397,10 @@
     <axis
       xyz="0 0 1" />
     <limit
-      lower="-3.14"
-      upper="3.14"
-      effort="3"
-      velocity="10" />
+      lower="-2.9"
+      upper="2.9"
+      effort="4"
+      velocity="5" />
     <dynamics
       friction="0.2" />
   </joint>
