@@ -1,0 +1,11 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::hardware::ShootTest -> shooting_test
+      - rmcs_core::controller::shooting::Test -> dd
+
+
+shooting_test:
+  ros__parameters:
+    usb_pid_top_board: 0xce3b

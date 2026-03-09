@@ -29,8 +29,8 @@ public:
     void update_status() {
         auto status = can_data_.load(std::memory_order::relaxed);
 
-        *chassis_power_    = uint_to_double(status.chassis_power, -100.0, 400.0);
-        *chassis_voltage_  = uint_to_double(status.chassis_voltage, 0.0, 50.0);
+        *chassis_power_ = uint_to_double(status.chassis_power, -100.0, 400.0);
+        *chassis_voltage_ = uint_to_double(status.chassis_voltage, 0.0, 50.0);
         *supercap_voltage_ = uint_to_double(status.supercap_voltage, 0.0, 50.0);
         *supercap_enabled_ = status.enabled;
     }
@@ -39,7 +39,7 @@ public:
         SupercapCommand command;
 
         command.enabled = *chassis_output_status_;
-
+        // command.enabled = true;
         double power_limit = *supercap_charge_power_limit_;
         if (std::isnan(power_limit))
             command.power_limit = 0;
@@ -52,7 +52,7 @@ public:
     uint16_t generate_disable_command() const {
         SupercapCommand command;
 
-        command.enabled    = false;
+        command.enabled = false;
         double power_limit = *supercap_charge_power_limit_;
         if (std::isnan(power_limit))
             command.power_limit = 0;
@@ -70,7 +70,7 @@ public:
 private:
     static constexpr double
         uint_to_double(std::unsigned_integral auto value, double min, double max) {
-        double span   = max - min;
+        double span = max - min;
         double offset = min;
         return (double)value / (double)decltype(value)(-1) * span + offset;
     }

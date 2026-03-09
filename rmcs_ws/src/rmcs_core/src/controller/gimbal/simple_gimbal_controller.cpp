@@ -34,12 +34,25 @@ public:
 
         register_output("/gimbal/yaw/control_angle_error", yaw_angle_error_, nan_);
         register_output("/gimbal/pitch/control_angle_error", pitch_angle_error_, nan_);
+
+        // register_output("/gimbal/top_yaw/control_angle_error", top_yaw, nan_);
+
+        // register_output("/gimbal/top_yaw/control_torque", top_yaw);
     }
 
     void update() override {
         auto angle_error = calculate_angle_error();
         *yaw_angle_error_ = angle_error.yaw_angle_error;
         *pitch_angle_error_ = angle_error.pitch_angle_error;
+        // *top_yaw = angle_error.yaw_angle_error;
+
+        // RCLCPP_INFO(
+        //     get_logger(), "[steer calibration] New left front offset: %f", *yaw_angle_error_);
+
+        // *top_yaw = 0;
+
+        // *yaw_angle_error_ = 0;
+        // *pitch_angle_error_ = 0;
     }
 
     TwoAxisGimbalSolver::AngleError calculate_angle_error() {
@@ -82,11 +95,13 @@ private:
     InputInterface<Eigen::Vector2d> mouse_velocity_;
     InputInterface<rmcs_msgs::Mouse> mouse_;
 
+    InputInterface<double> velocity_;
+
     InputInterface<Eigen::Vector3d> auto_aim_control_direction_;
 
     TwoAxisGimbalSolver two_axis_gimbal_solver;
 
-    OutputInterface<double> yaw_angle_error_, pitch_angle_error_;
+    OutputInterface<double> yaw_angle_error_, pitch_angle_error_, top_yaw;
 };
 
 } // namespace rmcs_core::controller::gimbal

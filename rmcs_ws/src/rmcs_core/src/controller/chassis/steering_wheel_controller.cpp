@@ -121,6 +121,10 @@ public:
 
         update_control_torques(steering_torques, wheel_torques);
         update_chassis_velocity_expected(filtered_chassis_acceleration);
+
+        // RCLCPP_INFO(
+        //     get_logger(), "[steer calibration] New right front offset: %f",
+        //     *right_back_wheel_control_torque_);
     }
 
 private:

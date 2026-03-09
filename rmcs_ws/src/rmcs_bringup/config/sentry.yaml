@@ -2,7 +2,7 @@ rmcs_executor:
   ros__parameters:
     update_rate: 1000.0
     components:
-      - rmcs_core::hardware::SteeringInfantry -> steeringInfantry_hardware
+      - rmcs_core::hardware::Sentry -> sentry_hardware
 
       - rmcs_core::referee::Status -> referee_status
       - rmcs_core::referee::Command -> referee_command
@@ -32,15 +32,15 @@ rmcs_executor:
       # - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
       # - rmcs_auto_aim::AutoAimController -> auto_aim_controller
 
-steeringInfantry_hardware:
+sentry_hardware:
   ros__parameters:
     usb_pid_top_board: 0x4491
     # usb_pid_bottom_board: 0x488d
     # usb_pid_bottom_board: 0x2878
     usb_pid_bottom_board: 0x2878
     yaw_motor_zero_point: 32285
-    bottom_yaw_motor_zero_point: 55131
-    top_yaw_motor_zero_point: 15805
+    bottom_yaw_motor_zero_point: 4861
+    top_yaw_motor_zero_point: 47922
     pitch_motor_zero_point: 11634
     left_front_zero_point: 5795
     left_back_zero_point: 1694

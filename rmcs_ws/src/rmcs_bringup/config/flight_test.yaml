@@ -2,7 +2,7 @@ rmcs_executor:
   ros__parameters:
     update_rate: 1000.0
     components:
-      - rmcs_core::hardware::SteeringInfantry -> steeringInfantry_hardware
+      - rmcs_core::hardware::FlightTest -> FlightTest_hardware
 
       - rmcs_core::referee::Status -> referee_status
       - rmcs_core::referee::Command -> referee_command
@@ -11,12 +11,10 @@ rmcs_executor:
       - rmcs_core::referee::command::interaction::Ui -> referee_ui
       # - rmcs_core::referee::app::ui::Infantry -> referee_ui_infantry
 
-      - rmcs_core::controller::gimbal::SimpleGimbalController -> gimbal_controller
-      - rmcs_core::controller::gimbal::DualYawController -> dual_yaw_controller
+      # - rmcs_core::controller::gimbal::SimpleGimbalController -> gimbal_controller
+      # - rmcs_core::controller::gimbal::DualYawController -> dual_yaw_controller
       # - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
-      - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
-
-      # - rmcs_core::controller::pid::ErrorPidController -> top_yaw_angle_pid_controller
+      # - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
 
       - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
       - rmcs_core::controller::shooting::HeatController -> heat_controller
@@ -25,27 +23,27 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController -> right_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller
 
-      - rmcs_core::controller::chassis::ChassisController -> chassis_controller
-      - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
-      - rmcs_core::controller::chassis::SteeringWheelController -> steering_wheel_controller
+      # - rmcs_core::controller::chassis::ChassisController -> chassis_controller
+      # - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
+      # - rmcs_core::controller::chassis::SteeringWheelController -> steering_wheel_controller
 
       # - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
       # - rmcs_auto_aim::AutoAimController -> auto_aim_controller
 
-steeringInfantry_hardware:
+FlightTest_hardware:
   ros__parameters:
-    usb_pid_top_board: 0x4491
+    usb_pid_top_board: 0xf2ba
     # usb_pid_bottom_board: 0x488d
     # usb_pid_bottom_board: 0x2878
-    usb_pid_bottom_board: 0x2878
+    # usb_pid_bottom_board: 0x2878
     yaw_motor_zero_point: 32285
-    bottom_yaw_motor_zero_point: 55131
-    top_yaw_motor_zero_point: 15805
-    pitch_motor_zero_point: 11634
-    left_front_zero_point: 5795
-    left_back_zero_point: 1694
-    right_back_zero_point: 2671
-    right_front_zero_point: 6413
+    bottom_yaw_motor_zero_point: 55965
+    top_yaw_motor_zero_point: 0
+    pitch_motor_zero_point: 13802
+    left_front_zero_point: 6413
+    left_back_zero_point: 2671
+    right_back_zero_point: 1694
+    right_front_zero_point: 5795
 
 gimbal_controller:
   ros__parameters:
@@ -54,34 +52,26 @@ gimbal_controller:
 
 yaw_angle_pid_controller:
   ros__parameters:
-    measurement: /gimbal/bottom_yaw/control_angle_error
-    control: /gimbal/bottom_yaw/control_velocity
+    measurement: /gimbal/yaw/control_angle_error
+    control: /gimbal/yaw/control_velocity
     kp: 8.0
     ki: 0.0
     kd: 0.0
 
-top_yaw_angle_pid_controller:
-  ros__parameters:
-    measurement: /gimbal/top_yaw/control_angle_error
-    control: /gimbal/top_yaw/control_velocity
-    kp: 8.0
-    ki: 0.0
-    kd: 0.0
-
-dual_yaw_controller:
-  ros__parameters:
-    top_yaw_angle_kp: 1.0
-    top_yaw_angle_ki: 0.0
-    top_yaw_angle_kd: 0.0
-    top_yaw_velocity_kp: 1.0
-    top_yaw_velocity_ki: 0.0
-    top_yaw_velocity_kd: 0.0
-    bottom_yaw_angle_kp: 8.6
-    bottom_yaw_angle_ki: 0.0
-    bottom_yaw_angle_kd: 0.0
-    bottom_yaw_velocity_kp: 15.0
-    bottom_yaw_velocity_ki: 0.0
-    bottom_yaw_velocity_kd: 30.0
+# dual_yaw_controller:
+#   ros__parameters:
+#     top_yaw_angle_kp: 24.5
+#     top_yaw_angle_ki: 0.0
+#     top_yaw_angle_kd: 0.0
+#     top_yaw_velocity_kp: 77.4
+#     top_yaw_velocity_ki: 0.004
+#     top_yaw_velocity_kd: 1.0
+#     bottom_yaw_angle_kp: 8.6
+#     bottom_yaw_angle_ki: 0.0
+#     bottom_yaw_angle_kd: 0.0
+#     bottom_yaw_velocity_kp: 25.85
+#     bottom_yaw_velocity_ki: 0.0
+#     bottom_yaw_velocity_kd: 50.0
 
 pitch_angle_pid_controller:
   ros__parameters:
@@ -108,7 +98,7 @@ heat_controller:
 
 bullet_feeder_controller:
   ros__parameters:
-    bullets_per_feeder_turn: 10.0
+    bullets_per_feeder_turn: 8.0
     shot_frequency: 24.0
     safe_shot_frequency: 10.0
     eject_frequency: 15.0

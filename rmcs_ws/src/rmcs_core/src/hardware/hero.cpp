@@ -27,7 +27,9 @@ class Hero
     , public rclcpp::Node {
 public:
     Hero()
-        : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
+        : Node{
+              get_component_name(),
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , command_component_(
               create_partner_component<HeroCommand>(get_component_name() + "_command", *this)) {
         using namespace rmcs_description;

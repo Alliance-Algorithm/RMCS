@@ -21,16 +21,16 @@
 
 namespace rmcs_core::hardware {
 
-class SteeringInfantry
+class Sentry
     : public rmcs_executor::Component
     , public rclcpp::Node {
 public:
-    SteeringInfantry()
+    Sentry()
         : Node(
               get_component_name(),
               rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true))
         , command_component_(
-              create_partner_component<SteeringInfantryCommand>(
+              create_partner_component<SentryCommand>(
                   get_component_name() + "_command", *this)) {
         using namespace rmcs_description;
         register_output("/tf", tf_);
@@ -56,7 +56,7 @@ public:
         tf_->set_transform<PitchLink, CameraLink>(
             Eigen::Translation3d{0.06603, 0.0, 0.082}); // 0.06603 0.082
     }
-    ~SteeringInfantry() override = default;
+    ~Sentry() override = default;
 
     void update() override {
         top_board_->update();
@@ -129,34 +129,34 @@ private:
             get_logger(), "[steer calibration] New right front offset: %d",
             bottom_board_->chassis_steer_motors_[3].calibrate_zero_point());
     }
-    class SteeringInfantryCommand : public rmcs_executor::Component {
+    class SentryCommand : public rmcs_executor::Component {
     public:
-        explicit SteeringInfantryCommand(SteeringInfantry& steeringInfantry)
-            : steeringInfantry(steeringInfantry) {}
+        explicit SentryCommand(Sentry& sentry)
+            : sentry(sentry) {}
 
-        void update() override { steeringInfantry.command_update(); }
+        void update() override { sentry.command_update(); }
 
-        SteeringInfantry& steeringInfantry;
+        Sentry& sentry;
     };
 
     class TopBoard final : private librmcs::client::CBoard {
     public:
-        friend class SteeringInfantry;
+        friend class Sentry;
         explicit TopBoard(
-            SteeringInfantry& steeringInfantry, SteeringInfantryCommand& steeringInfantry_command,
+            Sentry& sentry, SentryCommand& sentry_command,
             int usb_pid = -1)
             : CBoard(usb_pid)
-            , tf_(steeringInfantry.tf_)
+            , tf_(sentry.tf_)
             , bmi088_(1000, 0.2, 0.0)
 
-            , gimbal_pitch_motor_(steeringInfantry, steeringInfantry_command, "/gimbal/pitch")
-            , gimbal_top_yaw_motor_(steeringInfantry, steeringInfantry_command, "/gimbal/top_yaw")
+            , gimbal_pitch_motor_(sentry, sentry_command, "/gimbal/pitch")
+            , gimbal_top_yaw_motor_(sentry, sentry_command, "/gimbal/top_yaw")
             , gimbal_bullet_feeder_(
-                  steeringInfantry, steeringInfantry_command, "/gimbal/bullet_feeder")
+                  sentry, sentry_command, "/gimbal/bullet_feeder")
             , gimbal_left_friction_(
-                  steeringInfantry, steeringInfantry_command, "/gimbal/left_friction")
+                  sentry, sentry_command, "/gimbal/left_friction")
             , gimbal_right_friction_(
-                  steeringInfantry, steeringInfantry_command, "/gimbal/right_friction")
+                  sentry, sentry_command, "/gimbal/right_friction")
             , transmit_buffer_(*this, 32)
             , event_thread_([this]() { handle_events(); }) {
             gimbal_pitch_motor_.configure(
@@ -164,12 +164,12 @@ private:
                     .set_reversed()
                     .set_encoder_zero_point(
                         static_cast<int>(
-                            steeringInfantry.get_parameter("pitch_motor_zero_point").as_int())));
+                            sentry.get_parameter("pitch_motor_zero_point").as_int())));
 
             gimbal_top_yaw_motor_.configure(
                 device::LkMotor::Config{device::LkMotor::Type::MG4010E_I10}.set_encoder_zero_point(
                     static_cast<int>(
-                        steeringInfantry.get_parameter("top_yaw_motor_zero_point").as_int())));
+                        sentry.get_parameter("top_yaw_motor_zero_point").as_int())));
 
             gimbal_bullet_feeder_.configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::M3508}
@@ -184,9 +184,9 @@ private:
                     .set_reduction_ratio(1.)
                     .set_reversed());
 
-            steeringInfantry.register_output(
+            sentry.register_output(
                 "/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_bmi088_);
-            steeringInfantry.register_output(
+            sentry.register_output(
                 "/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_bmi088_);
 
             bmi088_.set_coordinate_mapping([](double x, double y, double z) {
@@ -292,32 +292,32 @@ private:
     };
     class BottomBoard final : private librmcs::client::CBoard {
     public:
-        friend class SteeringInfantry;
+        friend class Sentry;
 
         explicit BottomBoard(
-            SteeringInfantry& steeringInfantry, SteeringInfantryCommand& steeringInfantry_command,
+            Sentry& sentry, SentryCommand& sentry_command,
             int usb_pid = -1)
             : librmcs::client::CBoard(usb_pid)
             , imu_(1000, 0.2, 0.0)
-            , tf_(steeringInfantry.tf_)
-            , dr16_(steeringInfantry)
+            , tf_(sentry.tf_)
+            , dr16_(sentry)
             , gimbal_bottom_yaw_motor_(
-                  steeringInfantry, steeringInfantry_command, "/gimbal/bottom_yaw")
+                  sentry, sentry_command, "/gimbal/bottom_yaw")
             , chassis_wheel_motors_(
-                  {steeringInfantry, steeringInfantry_command, "/chassis/left_front_wheel"},
-                  {steeringInfantry, steeringInfantry_command, "/chassis/left_back_wheel"},
-                  {steeringInfantry, steeringInfantry_command, "/chassis/right_back_wheel"},
-                  {steeringInfantry, steeringInfantry_command, "/chassis/right_front_wheel"})
+                  {sentry, sentry_command, "/chassis/left_front_wheel"},
+                  {sentry, sentry_command, "/chassis/left_back_wheel"},
+                  {sentry, sentry_command, "/chassis/right_back_wheel"},
+                  {sentry, sentry_command, "/chassis/right_front_wheel"})
             , chassis_steer_motors_(
-                  {steeringInfantry, steeringInfantry_command, "/chassis/left_front_steering"},
-                  {steeringInfantry, steeringInfantry_command, "/chassis/left_back_steering"},
-                  {steeringInfantry, steeringInfantry_command, "/chassis/right_back_steering"},
-                  {steeringInfantry, steeringInfantry_command, "/chassis/right_front_steering"})
-            , supercap_(steeringInfantry, steeringInfantry_command)
+                  {sentry, sentry_command, "/chassis/left_front_steering"},
+                  {sentry, sentry_command, "/chassis/left_back_steering"},
+                  {sentry, sentry_command, "/chassis/right_back_steering"},
+                  {sentry, sentry_command, "/chassis/right_front_steering"})
+            , supercap_(sentry, sentry_command)
             , transmit_buffer_(*this, 32)
             , event_thread_([this]() { handle_events(); }) {
 
-            steeringInfantry.register_output("/referee/serial", referee_serial_);
+            sentry.register_output("/referee/serial", referee_serial_);
 
             referee_serial_->read = [this](std::byte* buffer, size_t size) {
                 return referee_ring_buffer_receive_.pop_front_multi(
@@ -332,7 +332,7 @@ private:
                     .set_reversed()
                     .set_encoder_zero_point(
                         static_cast<int>(
-                            steeringInfantry.get_parameter("bottom_yaw_motor_zero_point")
+                            sentry.get_parameter("bottom_yaw_motor_zero_point")
                                 .as_int())));
 
             for (auto& motor : chassis_wheel_motors_)
@@ -347,30 +347,30 @@ private:
                     .set_reversed()
                     .set_encoder_zero_point(
                         static_cast<int>(
-                            steeringInfantry.get_parameter("left_front_zero_point").as_int()))
+                            sentry.get_parameter("left_front_zero_point").as_int()))
                     .enable_multi_turn_angle());
             chassis_steer_motors_[1].configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::GM6020}
                     .set_reversed()
                     .set_encoder_zero_point(
                         static_cast<int>(
-                            steeringInfantry.get_parameter("left_back_zero_point").as_int()))
+                            sentry.get_parameter("left_back_zero_point").as_int()))
                     .enable_multi_turn_angle());
             chassis_steer_motors_[2].configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::GM6020}
                     .set_reversed()
                     .set_encoder_zero_point(
                         static_cast<int>(
-                            steeringInfantry.get_parameter("right_back_zero_point").as_int()))
+                            sentry.get_parameter("right_back_zero_point").as_int()))
                     .enable_multi_turn_angle());
             chassis_steer_motors_[3].configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::GM6020}
                     .set_reversed()
                     .set_encoder_zero_point(
                         static_cast<int>(
-                            steeringInfantry.get_parameter("right_front_zero_point").as_int()))
+                            sentry.get_parameter("right_front_zero_point").as_int()))
                     .enable_multi_turn_angle());
-            steeringInfantry.register_output(
+            sentry.register_output(
                 "/chassis/yaw/velocity_imu", chassis_yaw_velocity_imu_, 0);
         }
         ~BottomBoard() final {
@@ -546,7 +546,7 @@ private:
 
     OutputInterface<rmcs_description::Tf> tf_;
 
-    std::shared_ptr<SteeringInfantryCommand> command_component_;
+    std::shared_ptr<SentryCommand> command_component_;
     std::shared_ptr<TopBoard> top_board_;
     std::shared_ptr<BottomBoard> bottom_board_;
 
@@ -558,4 +558,4 @@ private:
 
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(rmcs_core::hardware::SteeringInfantry, rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(rmcs_core::hardware::Sentry, rmcs_executor::Component)
