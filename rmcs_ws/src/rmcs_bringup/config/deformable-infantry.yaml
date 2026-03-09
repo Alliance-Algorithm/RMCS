@@ -42,10 +42,16 @@ value_broadcaster:
       - /chassis/left_back_joint/velocity
       - /chassis/right_back_joint/velocity
       - /chassis/right_front_joint/velocity
-      - /chassis/processed_encoder/angle
-      - /chassis/encoder/alpha
-      - /chassis/encoder/alpha_dot
       - /chassis/radius
+      - /chassis/left_back_joint/control_torque
+      - /chassis/right_back_joint/control_torque
+      - /chassis/left_back_joint/control_torque
+      - /chassis/right_front_joint/control_torque
+      - /chassis/left_front_joint/control_angle_error
+      - /chassis/left_back_joint/control_angle_error
+      - /chassis/right_back_joint/control_angle_error
+      - /chassis/right_front_joint/control_angle_error
+
 
 deformable_infantry:
   ros__parameters:
@@ -60,7 +66,7 @@ deformable_infantry:
 
 chassis_controller:
   ros__parameters:
-    min_angle: 12.0    
+    min_angle: 15.0    
     max_angle: 30.0   
     left_front_joint_offset: 257.501488
     left_back_joint_offset: 353.545434
@@ -166,7 +172,11 @@ smc_controller0:
     phi: 1.8
     J: 1.8
     B: 3.5
+    dead_zero_min: -1.5
+    dead_zero_max: 1.5
     gear_ratio: 2.0
+    dead_zero_min: -1.5
+    dead_zero_max: 1.5
     angle_error: /chassis/left_front_joint/control_angle_error
     current_velocity: /chassis/left_front_joint/velocity
     target_velocity: /chassis/left_front_joint/expect_velocity
@@ -181,7 +191,11 @@ smc_controller1:
     phi: 1.8
     J: 1.8
     B: 3.5
+    dead_zero_min: -1.5
+    dead_zero_max: 1.5
     gear_ratio: 2.0
+    dead_zero_min: -1.5
+    dead_zero_max: 1.5
     angle_error: /chassis/left_back_joint/control_angle_error
     current_velocity: /chassis/left_back_joint/velocity
     target_velocity: /chassis/left_back_joint/expect_velocity
@@ -196,7 +210,11 @@ smc_controller2:
     phi: 1.8
     J: 1.8
     B: 3.5
+    dead_zero_min: -1.5
+    dead_zero_max: 1.5
     gear_ratio: 2.0
+    dead_zero_min: -1.5
+    dead_zero_max: 1.5
     angle_error: /chassis/right_back_joint/control_angle_error
     current_velocity: /chassis/right_back_joint/velocity
     target_velocity: /chassis/right_back_joint/expect_velocity
@@ -211,7 +229,11 @@ smc_controller3:
     phi: 1.8
     J: 1.8
     B: 3.5
+    dead_zero_min: -1.5
+    dead_zero_max: 1.5
     gear_ratio: 2.0
+    dead_zero_min: -1.5
+    dead_zero_max: 1.5
     angle_error: /chassis/right_front_joint/control_angle_error
     current_velocity: /chassis/right_front_joint/velocity
     target_velocity: /chassis/right_front_joint/expect_velocity

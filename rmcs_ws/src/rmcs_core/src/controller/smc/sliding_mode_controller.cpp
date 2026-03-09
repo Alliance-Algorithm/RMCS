@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cmath>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
@@ -22,10 +23,20 @@ public:
         epsilon_ = get_parameter("epsilon").as_double();
         k_       = get_parameter("k").as_double();
         phi_     = get_parameter("phi").as_double();
+        get_parameter_or("dead_zero_min", dead_zero_min_, 0.0);
+        get_parameter_or("dead_zero_max", dead_zero_max_, 0.0);
 
-        moment_of_inertia_    = get_parameter("J").as_double();
+        if (dead_zero_min_ > dead_zero_max_) {
+            RCLCPP_WARN(
+                logger_,
+                "SlidingModeController: dead_zero_min (%f) > dead_zero_max (%f), swapping.",
+                dead_zero_min_, dead_zero_max_);
+            std::swap(dead_zero_min_, dead_zero_max_);
+        }
+
+        moment_of_inertia_   = get_parameter("J").as_double();
         damping_coefficient_ = get_parameter("B").as_double();
-        gear_ratio            = get_parameter("gear_ratio").as_double();
+        gear_ratio           = get_parameter("gear_ratio").as_double();
 
         register_input(get_parameter("angle_error").as_string(), angle_error_);
         register_input(get_parameter("current_velocity").as_string(), current_velocity_);
@@ -45,11 +56,11 @@ public:
             reset();
             return;
         }
-            if(*angle_error_ < 0.8 && *angle_error_ > -0.8){             // dead zone
-                *control_torque_ =0.0;
-            } else {
-                *control_torque_ = std::clamp(calc_control_value(), -1.0, 1.0);
-            }
+        if (*angle_error_ < dead_zero_max_ && *angle_error_ > dead_zero_min_) {
+            *control_torque_ = 0.0;
+        } else {
+            *control_torque_ = std::clamp(calc_control_value(), -1.0, 1.0);
+        }
 
         // RCLCPP_INFO(logger_, "control:%f", *control_torque_);    //debug
         // *control_torque_ = 0;   //debug
@@ -110,6 +121,8 @@ private:
     double epsilon_; // switch_gain_
     double k_;       // reaching_law_gain_
     double phi_;     // boundary_layer_thickness_
+    double dead_zero_min_;
+    double dead_zero_max_;
 
     // mechanical parameters
     double moment_of_inertia_;
