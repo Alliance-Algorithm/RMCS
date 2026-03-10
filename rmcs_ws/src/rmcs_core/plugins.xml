@@ -125,4 +125,10 @@
   <class type="rmcs_core::hardware::ServoTest" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
+  <class type="rmcs_core::controller::test::PWMTest" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
+  <class type="rmcs_core::hardware::CatapultDartforlibrmcsv3" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
 </library>

@@ -1,0 +1,14 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::hardware::CatapultDartforlibrmcsv3 -> catapult_dart_hardware
+      - rmcs_core::controller::test::PWMTest -> pwm_test_controller
+
+catapult_dart_hardware:
+  ros__parameters:
+    serial_filter: ""
+
+pwm_test_controller:
+  ros__parameters:
+    set_value: 0.5
