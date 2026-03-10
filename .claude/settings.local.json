@@ -33,7 +33,25 @@
       "Bash(git -C /home/yukikaze/Documents/workspace/RMCS show dev/librmcs-v3:rmcs_ws/src/rmcs_core/CMakeLists.txt)",
       "Bash(git -C /home/yukikaze/Documents/workspace/RMCS show dev/librmcs-v3:rmcs_ws/src/rmcs_executor/CMakeLists.txt 2>/dev/null || echo \"File may not have changed\")",
       "Bash(git ls-tree -r --name-only dev/librmcs-v3 | grep \"hardware.*\\\\.cpp$\")",
-      "Bash(build-rmcs --packages-select rmcs_core 2>&1)"
+      "Bash(build-rmcs --packages-select rmcs_core 2>&1)",
+      "Bash(ls /home/yukikaze/Downloads/*.pdf)",
+      "Bash(ls /home/yukikaze/Downloads/*.md /home/yukikaze/Downloads/*.txt /home/yukikaze/Downloads/*.docx 2>/dev/null; ls /home/yukikaze/Downloads/ | grep -i -E \"解算|wheel|chassis\")",
+      "Bash(find /home/yukikaze/Downloads -name \"*.pdf\" -o -name \"*.PDF\" 2>/dev/null | head -20)",
+      "Bash(find /home/yukikaze/Documents -maxdepth 3 -name \"*.md\" -type f 2>/dev/null | head -20)",
+      "Bash(find /home/yukikaze/Downloads -type f \\\\\\( -name \"*.md\" -o -name \"*.txt\" -o -name \"*.rst\" \\\\\\) 2>/dev/null | head -20)",
+      "Bash(ls -lh /home/yukikaze/Downloads/*.pdf 2>/dev/null | grep -i \"suspension\\\\|deform\\\\|active\" || echo \"No matching PDFs in filename\")",
+      "Bash(file /home/yukikaze/Downloads/*.pdf | head -20)",
+      "Bash(ls -lh /home/yukikaze/Downloads/Design*.pdf 2>/dev/null)",
+      "Bash(ls -lh \"/home/yukikaze/Downloads/Design\"* 2>/dev/null | head -5)",
+      "Bash(file /home/yukikaze/Downloads/Design*pdf | head -5)",
+      "Bash(pdftotext /home/yukikaze/Downloads/fmech-11-1707301.pdf - 2>/dev/null | head -50)",
+      "Bash(ls -lhS /home/yukikaze/Downloads/*.pdf | head -10)",
+      "Bash(pdftotext \"/home/yukikaze/Downloads/Design_\"*.pdf - 2>/dev/null | head -100)",
+      "Bash(stat /home/yukikaze/Downloads/Design*.pdf 2>&1 | grep File)",
+      "Bash(find /home/yukikaze/Documents/workspace/RMCS -name \"*.md\" -o -name \"*.txt\" -o -name \"*.doc\" -o -name \"*.docx\" 2>/dev/null | head -30)",
+      "Bash(grep -r \"可变轮距\\\\|deformable\\\\|suspension\\\\|论文\" /home/yukikaze/Documents/workspace/RMCS --include=\"*.md\" --include=\"*.txt\" 2>/dev/null | head -20)",
+      "Bash(ls -la /home/yukikaze/Downloads/*.pdf 2>/dev/null | head -20)",
+      "Bash(ls ~/Downloads/可变轮距舵轮解算.md ~/Downloads/Design_*zh-Hans.pdf 2>&1)"
     ]
   }
 }

@@ -1,6 +1,8 @@
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <numbers>
 
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
@@ -234,13 +236,28 @@ private:
 
             deformableInfantry.register_output(
                 "/chassis/yaw/velocity_imu", chassis_yaw_velocity_imu_, 0);
+
+            deformableInfantry.register_output("/chassis/roll", chassis_roll_, 0.0);
+            deformableInfantry.register_output("/chassis/pitch", chassis_pitch_, 0.0);
+            deformableInfantry.register_output("/chassis/roll_rate", chassis_roll_rate_, 0.0);
+            deformableInfantry.register_output("/chassis/pitch_rate", chassis_pitch_rate_, 0.0);
+
+            imu_.set_coordinate_mapping_tilted(0, 0, -std::numbers::pi / 2);
         }
 
         ~CombinedBoard() override = default;
 
         void update() {
             imu_.update_status();
-            *chassis_yaw_velocity_imu_ = imu_.gy();
+            *chassis_yaw_velocity_imu_ = imu_.gz();
+
+            double q0 = imu_.q0(), q1 = imu_.q1(), q2 = imu_.q2(), q3 = imu_.q3();
+            *chassis_roll_ =
+                std::atan2(2.0 * (q0 * q1 + q2 * q3), 1.0 - 2.0 * (q1 * q1 + q2 * q2));
+            *chassis_pitch_ =
+                std::asin(std::clamp(2.0 * (q0 * q2 - q3 * q1), -1.0, 1.0));
+            *chassis_roll_rate_  = imu_.gx();
+            *chassis_pitch_rate_ = imu_.gy();
 
             for (auto& motor : chassis_wheel_motors_)
                 motor.update_status();
@@ -428,6 +445,11 @@ private:
         OutputInterface<rmcs_msgs::SerialInterface> referee_serial_;
 
         OutputInterface<double> chassis_yaw_velocity_imu_;
+
+        OutputInterface<double> chassis_roll_;
+        OutputInterface<double> chassis_pitch_;
+        OutputInterface<double> chassis_roll_rate_;
+        OutputInterface<double> chassis_pitch_rate_;
     };
 
     class TopBoard final : private librmcs::agent::CBoard {

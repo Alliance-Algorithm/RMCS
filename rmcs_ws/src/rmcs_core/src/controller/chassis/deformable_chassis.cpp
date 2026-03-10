@@ -75,6 +75,21 @@ public:
         register_output("/chassis/processed_encoder/angle", processed_encoder_angle_, nan_);
         register_output("/gimbal/scope/control_torque", scope_motor_control_torque);
 
+        register_output("/chassis/left_front_joint/alpha_deg", lf_alpha_deg_, nan_);
+        register_output("/chassis/left_back_joint/alpha_deg", lb_alpha_deg_, nan_);
+        register_output("/chassis/right_back_joint/alpha_deg", rb_alpha_deg_, nan_);
+        register_output("/chassis/right_front_joint/alpha_deg", rf_alpha_deg_, nan_);
+
+        register_input("/chassis/roll", chassis_roll_, false);
+        register_input("/chassis/pitch", chassis_pitch_, false);
+        register_input("/chassis/roll_rate", chassis_roll_rate_, false);
+        register_input("/chassis/pitch_rate", chassis_pitch_rate_, false);
+
+        posture_kp_pitch_ = get_parameter_or("posture_kp_pitch", 0.0);
+        posture_kd_pitch_ = get_parameter_or("posture_kd_pitch", 0.0);
+        posture_kp_roll_  = get_parameter_or("posture_kp_roll", 0.0);
+        posture_kd_roll_  = get_parameter_or("posture_kd_roll", 0.0);
+
         *mode_ = rmcs_msgs::ChassisMode::AUTO;
         chassis_control_velocity_->vector << nan_, nan_, nan_;
 
@@ -91,6 +106,14 @@ public:
             RCLCPP_WARN(
                 get_logger(), "Failed to fetch \"/gimbal/yaw/control_angle_error\". Set to 0.0.");
         }
+        if (!chassis_roll_.ready())
+            chassis_roll_.make_and_bind_directly(0.0);
+        if (!chassis_pitch_.ready())
+            chassis_pitch_.make_and_bind_directly(0.0);
+        if (!chassis_roll_rate_.ready())
+            chassis_roll_rate_.make_and_bind_directly(0.0);
+        if (!chassis_pitch_rate_.ready())
+            chassis_pitch_rate_.make_and_bind_directly(0.0);
     }
 
     void update() override {
@@ -273,8 +296,19 @@ private:
     }
 
     void update_lift_angle_error() {
-        s_target_ = trapezoidal_calculator(current_target_angle_);
+        // 1) Posture compensation (paper formula 8)
+        double pitch_comp =
+            posture_kp_pitch_ * (*chassis_pitch_) + posture_kd_pitch_ * (*chassis_pitch_rate_);
+        double roll_comp =
+            posture_kp_roll_ * (*chassis_roll_) + posture_kd_roll_ * (*chassis_roll_rate_);
 
+        // Per-leg compensation (front/back determines pitch sign, left/right determines roll sign)
+        double comp_lf = +pitch_comp + roll_comp;
+        double comp_lb = -pitch_comp + roll_comp;
+        double comp_rb = -pitch_comp - roll_comp;
+        double comp_rf = +pitch_comp - roll_comp;
+
+        // 2) Compute each leg's current alpha
         const double alpha_lf =
             wrap_deg(left_front_joint_offset_) - wrap_deg(*left_front_joint_angle_) + 10.5;
         const double alpha_lb =
@@ -284,18 +318,31 @@ private:
         const double alpha_rb =
             wrap_deg(right_back_joint_offset_) - wrap_deg(*right_back_joint_angle_) + 10.5;
 
-        // *processed_encoder_angle_ = (alpha_lb + alpha_lf + alpha_rf + alpha_rb) / 4.0;
+        // 3) Expose per-wheel alpha to DeformableChassisController
+        *lf_alpha_deg_ = alpha_lf;
+        *lb_alpha_deg_ = alpha_lb;
+        *rb_alpha_deg_ = alpha_rb;
+        *rf_alpha_deg_ = alpha_rf;
+
+        // Keep average (backward compatibility)
         *processed_encoder_angle_ = (alpha_lb + alpha_rb) / 2.0;
 
+        // 4) Compute position error in trapezoidal space
         s_lf_ = trapezoidal_calculator(alpha_lf);
         s_lb_ = trapezoidal_calculator(alpha_lb);
         s_rf_ = trapezoidal_calculator(alpha_rf);
         s_rb_ = trapezoidal_calculator(alpha_rb);
 
-        *lf_angle_error_ = s_lf_ - s_target_;
-        *lb_angle_error_ = s_lb_ - s_target_;
-        *rf_angle_error_ = s_rf_ - s_target_;
-        *rb_angle_error_ = s_rb_ - s_target_;
+        // 5) Per-leg independent target = base target + posture compensation, clamped
+        double target_lf = std::clamp(current_target_angle_ + comp_lf, min_angle_, max_angle_);
+        double target_lb = std::clamp(current_target_angle_ + comp_lb, min_angle_, max_angle_);
+        double target_rb = std::clamp(current_target_angle_ + comp_rb, min_angle_, max_angle_);
+        double target_rf = std::clamp(current_target_angle_ + comp_rf, min_angle_, max_angle_);
+
+        *lf_angle_error_ = s_lf_ - trapezoidal_calculator(target_lf);
+        *lb_angle_error_ = s_lb_ - trapezoidal_calculator(target_lb);
+        *rf_angle_error_ = s_rf_ - trapezoidal_calculator(target_rf);
+        *rb_angle_error_ = s_rb_ - trapezoidal_calculator(target_rb);
     }
 
     void scope_motor_control() {
@@ -359,6 +406,13 @@ private:
     OutputInterface<double> rb_angle_error_;
 
     OutputInterface<double> processed_encoder_angle_;
+
+    OutputInterface<double> lf_alpha_deg_, lb_alpha_deg_, rb_alpha_deg_, rf_alpha_deg_;
+
+    InputInterface<double> chassis_roll_, chassis_pitch_;
+    InputInterface<double> chassis_roll_rate_, chassis_pitch_rate_;
+    double posture_kp_pitch_, posture_kd_pitch_;
+    double posture_kp_roll_, posture_kd_roll_;
 
     OutputInterface<double> scope_motor_control_torque;
 

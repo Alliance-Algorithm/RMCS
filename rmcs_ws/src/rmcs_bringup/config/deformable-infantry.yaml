@@ -46,6 +46,8 @@ value_broadcaster:
       - /chassis/encoder/alpha
       - /chassis/encoder/alpha_dot
       - /chassis/radius
+      - /chassis/roll
+      - /chassis/pitch
 
 deformable_infantry:
   ros__parameters:
@@ -69,6 +71,10 @@ chassis_controller:
     Rod_relative_horizontal_coordinate: -5.0
     Rod_relative_longitudinal_coordinate: 75.0
     Rod_length: 80.0
+    posture_kp_pitch: 0.0
+    posture_kd_pitch: 0.0
+    posture_kp_roll: 0.0
+    posture_kd_roll: 0.0
 
 gimbal_controller:
   ros__parameters:
