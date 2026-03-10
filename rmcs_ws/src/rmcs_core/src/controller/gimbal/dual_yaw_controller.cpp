@@ -98,6 +98,8 @@ public:
             yaw_angle -= 2 * std::numbers::pi;
         *yaw_angle_ = yaw_angle;
 
+        // RCLCPP_INFO(get_logger(), "[gimbal calibration] New top yaw offset: %f", yaw_angle);
+
         *yaw_velocity_ = *top_yaw_velocity_ + *bottom_yaw_velocity_;
     }
 

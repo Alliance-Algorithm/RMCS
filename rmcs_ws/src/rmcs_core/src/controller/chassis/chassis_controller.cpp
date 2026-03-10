@@ -19,7 +19,7 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , following_velocity_controller_(7.0, 0.0, 0.0) {
+        , following_velocity_controller_(7.0, 0.0, 2.0) {
         following_velocity_controller_.output_max = angular_velocity_max;
         following_velocity_controller_.output_min = -angular_velocity_max;
 
@@ -153,6 +153,7 @@ public:
             // err: [0, 2pi) -> [0, alignment) -> signed.
             // In step-down mode, two sides of the chassis can be used for alignment.
             // TODO: Dynamically determine the split angle based on chassis velocity.
+
             constexpr double alignment = std::numbers::pi;
             while (err > alignment / 2) {
                 chassis_control_angle -= alignment;
@@ -161,7 +162,7 @@ public:
                 err -= alignment;
             }
 
-            angular_velocity = following_velocity_controller_.update(err);
+            angular_velocity = -following_velocity_controller_.update(err);
         } break;
         case rmcs_msgs::ChassisMode::LAUNCH_RAMP: {
             double err = calculate_unsigned_chassis_angle_error(chassis_control_angle);

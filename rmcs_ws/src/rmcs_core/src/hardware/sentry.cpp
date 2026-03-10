@@ -30,8 +30,7 @@ public:
               get_component_name(),
               rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true))
         , command_component_(
-              create_partner_component<SentryCommand>(
-                  get_component_name() + "_command", *this)) {
+              create_partner_component<SentryCommand>(get_component_name() + "_command", *this)) {
         using namespace rmcs_description;
         register_output("/tf", tf_);
 
@@ -84,12 +83,12 @@ public:
         //     get_logger(), "[steer calibration] New right front offset: %d",
         //     bottom_board_->chassis_steer_motors_[3].calibrate_zero_point());
         // RCLCPP_INFO(
-        //     get_logger(), "[gimbal calibration] New pitch offset: %ld",
+        //     get_logger(), "[gimbal calibration] New bottom yaw offset: %ld",
         //     bottom_board_->gimbal_bottom_yaw_motor_.calibrate_zero_point());
-        // Do not calibrate in update loop. Calibration should only happen on explicit command.
+
         // RCLCPP_INFO(
-        //     get_logger(), "[steer calibration] New right front offset: %f",
-        //     top_board_->bmi088_.gz());
+        //     get_logger(), "[gimbal calibration] New top yaw offset: %ld",
+        //     top_board_->gimbal_top_yaw_motor_.calibrate_zero_point());
 
         // RCLCPP_INFO(
         //     get_logger(), "[gimbal calibration] New top yaw offset: %ld",
@@ -142,34 +141,27 @@ private:
     class TopBoard final : private librmcs::client::CBoard {
     public:
         friend class Sentry;
-        explicit TopBoard(
-            Sentry& sentry, SentryCommand& sentry_command,
-            int usb_pid = -1)
+        explicit TopBoard(Sentry& sentry, SentryCommand& sentry_command, int usb_pid = -1)
             : CBoard(usb_pid)
             , tf_(sentry.tf_)
             , bmi088_(1000, 0.2, 0.0)
 
             , gimbal_pitch_motor_(sentry, sentry_command, "/gimbal/pitch")
             , gimbal_top_yaw_motor_(sentry, sentry_command, "/gimbal/top_yaw")
-            , gimbal_bullet_feeder_(
-                  sentry, sentry_command, "/gimbal/bullet_feeder")
-            , gimbal_left_friction_(
-                  sentry, sentry_command, "/gimbal/left_friction")
-            , gimbal_right_friction_(
-                  sentry, sentry_command, "/gimbal/right_friction")
+            , gimbal_bullet_feeder_(sentry, sentry_command, "/gimbal/bullet_feeder")
+            , gimbal_left_friction_(sentry, sentry_command, "/gimbal/left_friction")
+            , gimbal_right_friction_(sentry, sentry_command, "/gimbal/right_friction")
             , transmit_buffer_(*this, 32)
             , event_thread_([this]() { handle_events(); }) {
             gimbal_pitch_motor_.configure(
                 device::LkMotor::Config{device::LkMotor::Type::MG4010E_I10}
                     .set_reversed()
                     .set_encoder_zero_point(
-                        static_cast<int>(
-                            sentry.get_parameter("pitch_motor_zero_point").as_int())));
+                        static_cast<int>(sentry.get_parameter("pitch_motor_zero_point").as_int())));
 
             gimbal_top_yaw_motor_.configure(
                 device::LkMotor::Config{device::LkMotor::Type::MG4010E_I10}.set_encoder_zero_point(
-                    static_cast<int>(
-                        sentry.get_parameter("top_yaw_motor_zero_point").as_int())));
+                    static_cast<int>(sentry.get_parameter("top_yaw_motor_zero_point").as_int())));
 
             gimbal_bullet_feeder_.configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::M3508}
@@ -184,10 +176,8 @@ private:
                     .set_reduction_ratio(1.)
                     .set_reversed());
 
-            sentry.register_output(
-                "/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_bmi088_);
-            sentry.register_output(
-                "/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_bmi088_);
+            sentry.register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_bmi088_);
+            sentry.register_output("/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_bmi088_);
 
             bmi088_.set_coordinate_mapping([](double x, double y, double z) {
                 // Get the mapping with the following code.
@@ -294,15 +284,12 @@ private:
     public:
         friend class Sentry;
 
-        explicit BottomBoard(
-            Sentry& sentry, SentryCommand& sentry_command,
-            int usb_pid = -1)
+        explicit BottomBoard(Sentry& sentry, SentryCommand& sentry_command, int usb_pid = -1)
             : librmcs::client::CBoard(usb_pid)
             , imu_(1000, 0.2, 0.0)
             , tf_(sentry.tf_)
             , dr16_(sentry)
-            , gimbal_bottom_yaw_motor_(
-                  sentry, sentry_command, "/gimbal/bottom_yaw")
+            , gimbal_bottom_yaw_motor_(sentry, sentry_command, "/gimbal/bottom_yaw")
             , chassis_wheel_motors_(
                   {sentry, sentry_command, "/chassis/left_front_wheel"},
                   {sentry, sentry_command, "/chassis/left_back_wheel"},
@@ -332,8 +319,7 @@ private:
                     .set_reversed()
                     .set_encoder_zero_point(
                         static_cast<int>(
-                            sentry.get_parameter("bottom_yaw_motor_zero_point")
-                                .as_int())));
+                            sentry.get_parameter("bottom_yaw_motor_zero_point").as_int())));
 
             for (auto& motor : chassis_wheel_motors_)
                 motor.configure(
@@ -346,32 +332,27 @@ private:
                 device::DjiMotor::Config{device::DjiMotor::Type::GM6020}
                     .set_reversed()
                     .set_encoder_zero_point(
-                        static_cast<int>(
-                            sentry.get_parameter("left_front_zero_point").as_int()))
+                        static_cast<int>(sentry.get_parameter("left_front_zero_point").as_int()))
                     .enable_multi_turn_angle());
             chassis_steer_motors_[1].configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::GM6020}
                     .set_reversed()
                     .set_encoder_zero_point(
-                        static_cast<int>(
-                            sentry.get_parameter("left_back_zero_point").as_int()))
+                        static_cast<int>(sentry.get_parameter("left_back_zero_point").as_int()))
                     .enable_multi_turn_angle());
             chassis_steer_motors_[2].configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::GM6020}
                     .set_reversed()
                     .set_encoder_zero_point(
-                        static_cast<int>(
-                            sentry.get_parameter("right_back_zero_point").as_int()))
+                        static_cast<int>(sentry.get_parameter("right_back_zero_point").as_int()))
                     .enable_multi_turn_angle());
             chassis_steer_motors_[3].configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::GM6020}
                     .set_reversed()
                     .set_encoder_zero_point(
-                        static_cast<int>(
-                            sentry.get_parameter("right_front_zero_point").as_int()))
+                        static_cast<int>(sentry.get_parameter("right_front_zero_point").as_int()))
                     .enable_multi_turn_angle());
-            sentry.register_output(
-                "/chassis/yaw/velocity_imu", chassis_yaw_velocity_imu_, 0);
+            sentry.register_output("/chassis/yaw/velocity_imu", chassis_yaw_velocity_imu_, 0);
         }
         ~BottomBoard() final {
             stop_handling_events();
@@ -421,6 +402,9 @@ private:
                 transmit_buffer_.add_can2_transmission(
                     0x200, std::bit_cast<uint64_t>(batch_commands_1));
 
+                transmit_buffer_.add_can1_transmission(
+                    0x141, gimbal_bottom_yaw_motor_.generate_command());
+
                 // batch_commands[3] = supercap_.generate_command();
                 // transmit_buffer_.add_can1_transmission(
                 //     0x1FE, std::bit_cast<uint64_t>(batch_commands));
@@ -440,9 +424,6 @@ private:
 
                 transmit_buffer_.add_can1_transmission(
                     0x1FE, std::bit_cast<uint64_t>(batch_commands));
-
-                transmit_buffer_.add_can1_transmission(
-                    0x141, gimbal_bottom_yaw_motor_.generate_command());
 
                 batch_commands_1[1] = chassis_steer_motors_[1].generate_command();
                 batch_commands_1[0] = chassis_steer_motors_[0].generate_command();
