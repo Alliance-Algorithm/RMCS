@@ -204,6 +204,7 @@ private:
             for (auto& motor : gimbal_friction_wheels_)
                 motor.update_status();
 
+            gimbal_scope_motor_.update_status();
             gimbal_player_viewer_motor_.update_status();
         }
 
@@ -261,6 +262,8 @@ private:
                 gimbal_friction_wheels_[2].store_status(data.can_data);
             } else if (can_id == 0x204) {
                 gimbal_friction_wheels_[3].store_status(data.can_data);
+            } else if (can_id == 0x205) {
+                gimbal_scope_motor_.store_status(data.can_data);
             }
         }
 

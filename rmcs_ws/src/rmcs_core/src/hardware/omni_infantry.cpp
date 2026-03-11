@@ -256,8 +256,6 @@ private:
             motor.store_status(data.can_data);
         } else if (can_id == 0x145) {
             gimbal_yaw_motor_.store_status(data.can_data);
-        } else if (can_id == 0x206) {
-            gimbal_pitch_motor_.store_status(data.can_data);
         } else if (can_id == 0x300) {
             supercap_.store_status(data.can_data);
         }

@@ -228,8 +228,8 @@ private:
         .joystick_channel1 = 1024,
         .joystick_channel2 = 1024,
         .joystick_channel3 = 1024,
-        .switch_right = static_cast<uint64_t>(Switch::kDown),
-        .switch_left = static_cast<uint64_t>(Switch::kDown),
+        .switch_right = static_cast<uint64_t>(Switch::kUnknown),
+        .switch_left = static_cast<uint64_t>(Switch::kUnknown),
         .padding = 0,
     })};
     static_assert(decltype(data_part1_)::is_always_lock_free);

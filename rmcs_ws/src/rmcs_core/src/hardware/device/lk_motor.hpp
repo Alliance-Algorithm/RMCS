@@ -75,7 +75,7 @@ public:
 
         switch (config.motor_type) {
         case Type::kMG5010Ei10:
-            raw_angle_max_ = 65535;
+            raw_angle_modulus_ = 1 << 16;
             current_max = 33.0;
             torque_constant = 0.90909;
             reduction_ratio = 10.0;
@@ -88,21 +88,21 @@ public:
             max_torque_ = 7.0;
             break;
         case Type::kMG4010Ei10:
-            raw_angle_max_ = 65535;
+            raw_angle_modulus_ = 1 << 16;
             current_max = 33.0;
             torque_constant = 0.07;
             reduction_ratio = 10.0;
             max_torque_ = 4.5;
             break;
         case Type::kMG6012Ei8:
-            raw_angle_max_ = 65535;
+            raw_angle_modulus_ = 1 << 16;
             current_max = 33.0;
             torque_constant = 1.09;
             reduction_ratio = 8.0;
             max_torque_ = 16.0;
             break;
         case Type::kMG4005Ei10:
-            raw_angle_max_ = 65535;
+            raw_angle_modulus_ = 1 << 16;
             current_max = 33.0;
             torque_constant = 0.06;
             reduction_ratio = 10.0;
@@ -111,14 +111,14 @@ public:
         default: std::unreachable();
         }
 
-        // Make sure raw_angle_max_ is a power of 2
-        encoder_zero_point_ = config.encoder_zero_point & (raw_angle_max_ - 1);
+        // Make sure raw_angle_modulus_ is a power of 2
+        encoder_zero_point_ = config.encoder_zero_point & (raw_angle_modulus_ - 1);
 
         multi_turn_angle_enabled_ = config.multi_turn_angle_enabled;
 
         const double sign = config.reversed ? -1.0 : 1.0;
 
-        status_angle_to_angle_coefficient_ = sign / raw_angle_max_ * 2 * std::numbers::pi;
+        status_angle_to_angle_coefficient_ = sign / raw_angle_modulus_ * 2 * std::numbers::pi;
         angle_to_command_angle_coefficient_ = sign * reduction_ratio * kRadToDeg * 100.0;
 
         status_velocity_to_velocity_coefficient_ = sign / reduction_ratio * kDegToRad;
@@ -163,19 +163,20 @@ public:
         const auto raw_angle = feedback.encoder;
         auto calibrated_raw_angle = feedback.encoder - encoder_zero_point_;
         if (calibrated_raw_angle < 0)
-            calibrated_raw_angle += raw_angle_max_;
+            calibrated_raw_angle += raw_angle_modulus_;
         if (!multi_turn_angle_enabled_) {
             angle_ = status_angle_to_angle_coefficient_ * static_cast<double>(calibrated_raw_angle);
             if (angle_ < 0)
                 angle_ += 2 * std::numbers::pi;
         } else {
             // Calculates the minimal difference between two angles and normalizes it to the range
-            // (-raw_angle_max_/2, raw_angle_max_/2].
+            // (-raw_angle_modulus_/2, raw_angle_modulus_/2].
             // This implementation leverages bitwise operations for efficiency, which is valid only
-            // when raw_angle_max_ is a power of 2.
-            auto diff = (calibrated_raw_angle - multi_turn_encoder_count_) & (raw_angle_max_ - 1);
-            if (diff > (raw_angle_max_ >> 1))
-                diff -= raw_angle_max_;
+            // when raw_angle_modulus_ is a power of 2.
+            auto diff =
+                (calibrated_raw_angle - multi_turn_encoder_count_) & (raw_angle_modulus_ - 1);
+            if (diff > (raw_angle_modulus_ >> 1))
+                diff -= raw_angle_modulus_;
 
             multi_turn_encoder_count_ += diff;
             angle_ =
@@ -336,7 +337,8 @@ public:
             command.id = 0xA4;
 
             velocity_limit =
-                velocity_to_command_velocity_coefficient_ * (1.0 / 100.0) * velocity_limit;
+                std::abs(velocity_to_command_velocity_coefficient_) * (1.0 / 100.0) *
+                velocity_limit;
             velocity_limit = std::round(
                 std::clamp<double>(
                     velocity_limit, std::numeric_limits<uint16_t>::min(),
@@ -370,7 +372,8 @@ public:
             command.id = 0xA8;
 
             velocity_limit =
-                velocity_to_command_velocity_coefficient_ * (1.0 / 100.0) * velocity_limit;
+                std::abs(velocity_to_command_velocity_coefficient_) * (1.0 / 100.0) *
+                velocity_limit;
             velocity_limit = std::round(
                 std::clamp<double>(
                     velocity_limit, std::numeric_limits<uint16_t>::min(),
@@ -463,8 +466,9 @@ private:
     int32_t to_absolute_command_angle(double angle) const {
         angle = angle_to_command_angle_coefficient_ * angle;
         angle -= std::abs(angle_to_command_angle_coefficient_)
-               * (((raw_angle_max_ - static_cast<double>(encoder_zero_point_)) / raw_angle_max_) * 2
-                  * std::numbers::pi);
+               * (((raw_angle_modulus_ - static_cast<double>(encoder_zero_point_))
+                   / raw_angle_modulus_)
+                  * 2 * std::numbers::pi);
         angle = std::round(
             std::clamp<double>(
                 angle, std::numeric_limits<int32_t>::min(), std::numeric_limits<int32_t>::max()));
@@ -476,7 +480,7 @@ private:
     static constexpr double kNan = std::numeric_limits<double>::quiet_NaN();
 
     static constexpr int kRawCurrentMax = 2048;
-    int raw_angle_max_;
+    int raw_angle_modulus_;
 
     // Constants
     static constexpr double kDegToRad = std::numbers::pi / 180;

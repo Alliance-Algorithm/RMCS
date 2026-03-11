@@ -82,23 +82,23 @@ private:
 
         // Compute feedback only if accelerometer measurement valid (avoids NaN in accelerometer
         // normalization)
-        if (!((ax == 0.0) && (ay == 0.0) && (az == 0.0))) {
+        if ((ax != 0.0) || (ay != 0.0) || (az != 0.0)) {
 
             // Normalize accelerometer measurement
-            recip_norm = 1 / std::sqrt(ax * ax + ay * ay + az * az);
+            recip_norm = 1 / std::sqrt((ax * ax) + (ay * ay) + (az * az));
             ax *= recip_norm;
             ay *= recip_norm;
             az *= recip_norm;
 
             // Estimated direction of gravity and vector perpendicular to magnetic flux
-            halfvx = q1_ * q3_ - q0_ * q2_;
-            halfvy = q0_ * q1_ + q2_ * q3_;
-            halfvz = q0_ * q0_ - 0.5 + q3_ * q3_;
+            halfvx = (q1_ * q3_) - (q0_ * q2_);
+            halfvy = (q0_ * q1_) + (q2_ * q3_);
+            halfvz = (q0_ * q0_) - 0.5 + (q3_ * q3_);
 
             // Error is sum of cross product between estimated and measured direction of gravity
-            halfex = ay * halfvz - az * halfvy;
-            halfey = az * halfvx - ax * halfvz;
-            halfez = ax * halfvy - ay * halfvx;
+            halfex = (ay * halfvz) - (az * halfvy);
+            halfey = (az * halfvx) - (ax * halfvz);
+            halfez = (ax * halfvy) - (ay * halfvx);
 
             // Compute and apply integral feedback if enabled
             if (double_ki_ > 0.0) {
@@ -130,13 +130,13 @@ private:
         qa = q0_;
         qb = q1_;
         qc = q2_;
-        q0_ += (-qb * gx - qc * gy - q3_ * gz);
-        q1_ += (qa * gx + qc * gz - q3_ * gy);
-        q2_ += (qa * gy - qb * gz + q3_ * gx);
-        q3_ += (qa * gz + qb * gy - qc * gx);
+        q0_ += ((-qb * gx) - (qc * gy) - (q3_ * gz));
+        q1_ += ((qa * gx) + (qc * gz) - (q3_ * gy));
+        q2_ += ((qa * gy) - (qb * gz) + (q3_ * gx));
+        q3_ += ((qa * gz) + (qb * gy) - (qc * gx));
 
         // Normalize quaternion
-        recip_norm = 1 / std::sqrt(q0_ * q0_ + q1_ * q1_ + q2_ * q2_ + q3_ * q3_);
+        recip_norm = 1 / std::sqrt((q0_ * q0_) + (q1_ * q1_) + (q2_ * q2_) + (q3_ * q3_));
         q0_ *= recip_norm;
         q1_ *= recip_norm;
         q2_ *= recip_norm;
@@ -150,10 +150,15 @@ private:
     struct alignas(8) ImuData {
         int16_t x, y, z;
     };
-    std::atomic<ImuData> accelerometer_data_, gyroscope_data_;
+    std::atomic<ImuData> accelerometer_data_{
+        {.x = 0, .y = 0, .z = 0}
+    };
+    std::atomic<ImuData> gyroscope_data_{
+        {.x = 0, .y = 0, .z = 0}
+    };
     static_assert(std::atomic<ImuData>::is_always_lock_free);
 
-    double ax_, ay_, az_, gx_, gy_, gz_;
+    double ax_ = 0, ay_ = 0, az_ = 0, gx_ = 0, gy_ = 0, gz_ = 0;
 
     std::function<std::tuple<double, double, double>(double, double, double)>
         coordinate_mapping_function_;
