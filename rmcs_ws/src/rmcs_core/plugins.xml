@@ -20,6 +20,9 @@
   <class type="rmcs_core::hardware::Sentry" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
+  <class type="rmcs_core::navigation::Navigation" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
   <class type = "rmcs_core::hardware::TunnelInfantry" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description> `
   </class>

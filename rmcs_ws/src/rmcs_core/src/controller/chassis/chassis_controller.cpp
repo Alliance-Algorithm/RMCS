@@ -1,3 +1,5 @@
+#include <cmath>
+
 #include <eigen3/Eigen/Dense>
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
@@ -31,6 +33,7 @@ public:
         register_input("/remote/mouse", mouse_);
         register_input("/remote/keyboard", keyboard_);
         register_input("/remote/rotary_knob", rotary_knob_);
+        register_input("/rmcs_navigation/command_velocity", navigation_command_velocity_, false);
 
         register_input("/gimbal/yaw/angle", gimbal_yaw_angle_, false);
         register_input("/gimbal/yaw/control_angle_error", gimbal_yaw_angle_error_, false);
@@ -53,6 +56,9 @@ public:
             gimbal_yaw_angle_error_.make_and_bind_directly(0.0);
             RCLCPP_WARN(
                 get_logger(), "Failed to fetch \"/gimbal/yaw/control_angle_error\". Set to 0.0.");
+        }
+        if (!navigation_command_velocity_.ready()) {
+            navigation_command_velocity_.make_and_bind_directly(Eigen::Vector3d::Constant(nan));
         }
     }
 
@@ -119,7 +125,17 @@ public:
         auto translational_velocity = update_translational_velocity_control();
         auto angular_velocity = update_angular_velocity_control();
 
-        chassis_control_velocity_->vector << translational_velocity, angular_velocity;
+        Eigen::Vector3d control_velocity;
+        control_velocity << translational_velocity, angular_velocity;
+
+        const auto& navigation_command_velocity = *navigation_command_velocity_;
+        if (std::isfinite(navigation_command_velocity[0])
+            && std::isfinite(navigation_command_velocity[1])
+            && std::isfinite(navigation_command_velocity[2])) {
+            control_velocity += navigation_command_velocity;
+        }
+
+        chassis_control_velocity_->vector = control_velocity;
     }
 
     Eigen::Vector2d update_translational_velocity_control() {
@@ -218,6 +234,7 @@ private:
     InputInterface<rmcs_msgs::Mouse> mouse_;
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
     InputInterface<double> rotary_knob_;
+    InputInterface<Eigen::Vector3d> navigation_command_velocity_;
 
     InputInterface<double> velocity_;
 
