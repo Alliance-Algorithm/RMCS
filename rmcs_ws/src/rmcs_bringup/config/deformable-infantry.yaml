@@ -85,7 +85,7 @@ yaw_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/yaw/control_angle_error
     control: /gimbal/yaw/control_velocity
-    kp: 16.0
+    kp: 24.0
     ki: 0.0
     kd: 0.0
 
