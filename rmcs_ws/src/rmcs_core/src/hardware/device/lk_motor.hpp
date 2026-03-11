@@ -200,7 +200,6 @@ public:
     int64_t calibrate_zero_point() {
         multi_turn_encoder_count_ = 0;
         encoder_zero_point_ = last_raw_angle_;
-        RCLCPP_INFO(rclcpp::get_logger("awa"), "calibrate: %d", encoder_zero_point_);
         return encoder_zero_point_;
     }
 
