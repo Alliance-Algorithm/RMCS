@@ -454,11 +454,12 @@ private:
                         deformableInfantry.get_parameter("pitch_motor_zero_point").as_int())));
 
             gimbal_left_friction_.configure(
-                device::DjiMotor::Config{device::DjiMotor::Type::kM3508}.set_reduction_ratio(1.));
+                device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
+                .set_reduction_ratio(1.)
+                .set_reversed());
             gimbal_right_friction_.configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
-                    .set_reduction_ratio(1.)
-                    .set_reversed());
+                    .set_reduction_ratio(1.));
 
             scope_motor.configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kM2006}.enable_multi_turn_angle());
@@ -501,15 +502,24 @@ private:
             builder.can1_transmit({
                 .can_id = 0x200,
                 .can_data = device::CanPacket8{
-                    gimbal_left_friction_.generate_command(),
+                    device::CanPacket8::PaddingQuarter{},
                     device::CanPacket8::PaddingQuarter{},
                     scope_motor.generate_command(),
-                    gimbal_right_friction_.generate_command(),
+                    device::CanPacket8::PaddingQuarter{},
                 }.as_bytes(),
             });
             builder.can1_transmit({
                 .can_id = 0x141,
                 .can_data = gimbal_pitch_motor_.generate_command().as_bytes(),
+            });
+            builder.can2_transmit({
+                .can_id = 0x200,
+                .can_data = device::CanPacket8{
+                    gimbal_left_friction_.generate_command(),
+                    device::CanPacket8::PaddingQuarter{},
+                    scope_motor.generate_command(),
+                    gimbal_right_friction_.generate_command(),
+                }.as_bytes(),
             });
         }
 
@@ -517,7 +527,7 @@ private:
         void can1_receive_callback(const librmcs::data::CanDataView& data) override {
             if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
                 return;
-            if (data.can_id == 0x142)
+            if (data.can_id == 0x141)
                 gimbal_pitch_motor_.store_status(data.can_data);
             else if (data.can_id == 0x203)
                 scope_motor.store_status(data.can_data);

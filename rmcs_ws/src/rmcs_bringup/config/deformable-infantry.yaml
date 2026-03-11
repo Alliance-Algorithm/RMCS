@@ -57,12 +57,12 @@ deformable_infantry:
   ros__parameters:
     serial_filter_rmcs_board: "AF-056F-2E3E-0C9E-EFAD-C0D0-15F0-2483-17D9"
     serial_filter_top_board: "D4-621A-DEE6-D79F-9303-E3D1-C4BC"
-    left_front_zero_point: 2326
-    left_back_zero_point: 1695
-    right_back_zero_point: 3820
-    right_front_zero_point: 368
-    yaw_motor_zero_point:  23389
-    pitch_motor_zero_point: 39636
+    left_front_zero_point: 6516
+    left_back_zero_point: 5812
+    right_back_zero_point: 7870
+    right_front_zero_point: 4472
+    yaw_motor_zero_point:  8690
+    pitch_motor_zero_point: 40499 
 
 chassis_controller:
   ros__parameters:
@@ -72,7 +72,7 @@ chassis_controller:
     left_back_joint_offset: 353.545434
     right_back_joint_offset: 7.591669
     right_front_joint_offset: 303.265736
-    Rod_relative_horizontal_coordinate: -5.0
+    Rod_relative_horizontal_coordinate: 5.0
     Rod_relative_longitudinal_coordinate: 75.0
     Rod_length: 80.0
 
@@ -112,8 +112,8 @@ friction_wheel_controller:
       - /gimbal/left_friction
       - /gimbal/right_friction
     friction_velocities:
-      - -600.0
-      - -600.0
+      - 600.0
+      - 600.0
     friction_soft_start_stop_time: 1.0
 
 heat_controller:
@@ -135,7 +135,7 @@ bullet_feeder_controller:
 shooting_recorder:
   ros__parameters:
     friction_wheel_count: 2
-    log_mode: 2 # 1: trigger, 2: timing
+    log_mode: 1 # 1: trigger, 2: timing
 
 left_friction_velocity_pid_controller:
   ros__parameters:
@@ -278,7 +278,7 @@ smc_observer3:
 
 deformable_chassis_controller:
   ros__parameters:
-    mess: 19.0
+    mess: 21.0
     moment_of_inertia: 1.0
     chassis_radius: 0.1671741
     rod_length: 0.150

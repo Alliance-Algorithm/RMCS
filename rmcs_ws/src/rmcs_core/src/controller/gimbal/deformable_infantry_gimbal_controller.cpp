@@ -80,7 +80,7 @@ public:
         if (!two_axis_gimbal_solver.enabled())
             return two_axis_gimbal_solver.update(TwoAxisGimbalSolver::SetToLevel());
 
-        constexpr double joystick_sensitivity = 0.006;
+        constexpr double joystick_sensitivity = 0.06;
         constexpr double mouse_sensitivity = 0.5;
 
         double yaw_shift =
