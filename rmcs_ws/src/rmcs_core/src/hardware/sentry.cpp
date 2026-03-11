@@ -406,6 +406,7 @@ private:
                     0x141, gimbal_bottom_yaw_motor_.generate_command());
 
                 // batch_commands[3] = supercap_.generate_command();
+
                 // transmit_buffer_.add_can1_transmission(
                 //     0x1FE, std::bit_cast<uint64_t>(batch_commands));
                 // transmit_buffer_.trigger_transmission();
@@ -429,7 +430,7 @@ private:
                 batch_commands_1[0] = chassis_steer_motors_[0].generate_command();
 
                 batch_commands_1[2] = 0;
-                batch_commands_1[3] = 0;
+                batch_commands_1[3] = supercap_.generate_command();
 
                 transmit_buffer_.add_can2_transmission(
                     0x1FE, std::bit_cast<uint64_t>(batch_commands_1));
@@ -460,11 +461,6 @@ private:
                 chassis_steer_motors_[2].store_status(can_data);
             else if (can_id == 0x141)
                 gimbal_bottom_yaw_motor_.store_status(can_data);
-            ;
-            // else if (can_id == 0x205)
-            //     gimbal_bullet_feeder_.store_status(can_data);
-            // else if (can_id == 0x300)
-            //     supercap_.store_status(can_data);
         }
         void can2_receive_callback(
             uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
@@ -489,6 +485,8 @@ private:
                 chassis_steer_motors_[0].store_status(can_data);
             else if (can_id == 0x206)
                 chassis_steer_motors_[1].store_status(can_data);
+            else if (can_id == 0x300)
+                supercap_.store_status(can_data);
         }
 
         void uart1_receive_callback(const std::byte* uart_data, uint8_t uart_data_length) override {
