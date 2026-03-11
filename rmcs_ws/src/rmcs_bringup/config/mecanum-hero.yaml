@@ -2,7 +2,7 @@ rmcs_executor:
   ros__parameters:
     update_rate: 1000.0
     components:
-      - rmcs_core::hardware::Hero -> hero_hardware
+      - rmcs_core::hardware::MecanumHero -> hero_hardware
 
       - rmcs_core::referee::Status -> referee_status
       - rmcs_core::referee::Command -> referee_command
@@ -27,13 +27,10 @@ rmcs_executor:
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::OmniWheelController -> omni_wheel_controller
 
-      # - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
-      # - rmcs_auto_aim::AutoAimController -> auto_aim_controller
-
 hero_hardware:
   ros__parameters:
-    usb_pid_top_board: 0xeb37
-    usb_pid_bottom_board: 0xc1d3
+    board_serial_top_board: "(TODO)"
+    board_serial_bottom_board: "(TODO)"
     yaw_motor_zero_point: 61054
     pitch_motor_zero_point: 54062
     external_imu_port: /dev/ttyUSB0
