@@ -335,9 +335,8 @@ public:
         if (!std::isnan(velocity_limit)) {
             command.id = 0xA4;
 
-            velocity_limit =
-                std::abs(velocity_to_command_velocity_coefficient_) * (1.0 / 100.0) *
-                velocity_limit;
+            velocity_limit = std::abs(velocity_to_command_velocity_coefficient_) * (1.0 / 100.0)
+                           * velocity_limit;
             velocity_limit = std::round(
                 std::clamp<double>(
                     velocity_limit, std::numeric_limits<uint16_t>::min(),
@@ -370,9 +369,8 @@ public:
         if (!std::isnan(velocity_limit)) {
             command.id = 0xA8;
 
-            velocity_limit =
-                std::abs(velocity_to_command_velocity_coefficient_) * (1.0 / 100.0) *
-                velocity_limit;
+            velocity_limit = std::abs(velocity_to_command_velocity_coefficient_) * (1.0 / 100.0)
+                           * velocity_limit;
             velocity_limit = std::round(
                 std::clamp<double>(
                     velocity_limit, std::numeric_limits<uint16_t>::min(),
@@ -464,10 +462,11 @@ private:
 
     int32_t to_absolute_command_angle(double angle) const {
         angle = angle_to_command_angle_coefficient_ * angle;
-        angle -= std::abs(angle_to_command_angle_coefficient_)
-               * (((raw_angle_modulus_ - static_cast<double>(encoder_zero_point_))
-                   / raw_angle_modulus_)
-                  * 2 * std::numbers::pi);
+        const auto one_turn = std::abs(angle_to_command_angle_coefficient_) * 2 * std::numbers::pi;
+        // TODO: The offset should be N turns (calculated from the motor's reported multi-turn angle
+        // vs encoder position at startup), not hardcoded to 1 turn.
+        angle -= one_turn;
+        angle += one_turn * static_cast<double>(encoder_zero_point_) / raw_angle_modulus_;
         angle = std::round(
             std::clamp<double>(
                 angle, std::numeric_limits<int32_t>::min(), std::numeric_limits<int32_t>::max()));
