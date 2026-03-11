@@ -30,6 +30,7 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller
 
       - rmcs_core::controller::chassis::DeformableChassis -> chassis_controller
+      # - rmcs_core::controller::chassis::ChassisTestController -> chassis_test_controller
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::DeformableChassisController -> deformable_chassis_controller
 
@@ -39,19 +40,10 @@ value_broadcaster:
   ros__parameters:
     forward_list:
       - /chassis/left_front_joint/velocity
-      - /chassis/left_back_joint/velocity
-      - /chassis/right_back_joint/velocity
-      - /chassis/right_front_joint/velocity
-      - /chassis/radius
-      - /chassis/left_back_joint/control_torque
-      - /chassis/right_back_joint/control_torque
-      - /chassis/left_back_joint/control_torque
-      - /chassis/right_front_joint/control_torque
+      - /chassis/left_front_joint/control_torque
       - /chassis/left_front_joint/control_angle_error
-      - /chassis/left_back_joint/control_angle_error
-      - /chassis/right_back_joint/control_angle_error
-      - /chassis/right_front_joint/control_angle_error
-
+      - /chassis/left_front_joint/expect_velocity
+      - /chassis/left_front_joint/expect_acceleration
 
 deformable_infantry:
   ros__parameters:
@@ -66,15 +58,28 @@ deformable_infantry:
 
 chassis_controller:
   ros__parameters:
-    min_angle: 15.0    
-    max_angle: 30.0   
-    left_front_joint_offset: 257.501488
-    left_back_joint_offset: 353.545434
-    right_back_joint_offset: 7.591669
-    right_front_joint_offset: 303.265736
+    min_angle: 11.0    
+    max_angle: 45.0   
+    left_front_joint_offset: 257.171488
+    left_back_joint_offset: 354.015434
+    right_back_joint_offset: 7.971669
+    right_front_joint_offset: 302.935736
     Rod_relative_horizontal_coordinate: 5.0
     Rod_relative_longitudinal_coordinate: 75.0
     Rod_length: 80.0
+
+
+# chassis_test_controller:
+#   ros__parameters:
+#     body_length: 0.001
+#     body_width: 0.001
+#     arm_length: 0.155
+#     pivot_offset: 0.17389
+#     pivot_z: 0.14
+#     alpha_nom_deg: 30.0
+#     alpha_min_deg: 11.0
+#     alpha_max_deg: 48.0
+#     print_debug: false
 
 gimbal_controller:
   ros__parameters:
@@ -175,8 +180,6 @@ smc_controller0:
     dead_zero_min: -1.5
     dead_zero_max: 1.5
     gear_ratio: 2.0
-    dead_zero_min: -1.5
-    dead_zero_max: 1.5
     angle_error: /chassis/left_front_joint/control_angle_error
     current_velocity: /chassis/left_front_joint/velocity
     target_velocity: /chassis/left_front_joint/expect_velocity
@@ -194,8 +197,6 @@ smc_controller1:
     dead_zero_min: -1.5
     dead_zero_max: 1.5
     gear_ratio: 2.0
-    dead_zero_min: -1.5
-    dead_zero_max: 1.5
     angle_error: /chassis/left_back_joint/control_angle_error
     current_velocity: /chassis/left_back_joint/velocity
     target_velocity: /chassis/left_back_joint/expect_velocity
@@ -213,8 +214,6 @@ smc_controller2:
     dead_zero_min: -1.5
     dead_zero_max: 1.5
     gear_ratio: 2.0
-    dead_zero_min: -1.5
-    dead_zero_max: 1.5
     angle_error: /chassis/right_back_joint/control_angle_error
     current_velocity: /chassis/right_back_joint/velocity
     target_velocity: /chassis/right_back_joint/expect_velocity
@@ -232,8 +231,6 @@ smc_controller3:
     dead_zero_min: -1.5
     dead_zero_max: 1.5
     gear_ratio: 2.0
-    dead_zero_min: -1.5
-    dead_zero_max: 1.5
     angle_error: /chassis/right_front_joint/control_angle_error
     current_velocity: /chassis/right_front_joint/velocity
     target_velocity: /chassis/right_front_joint/expect_velocity

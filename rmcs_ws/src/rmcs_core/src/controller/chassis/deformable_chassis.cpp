@@ -276,13 +276,13 @@ private:
         s_target_ = trapezoidal_calculator(current_target_angle_);
 
         const double alpha_lf =
-            wrap_deg(left_front_joint_offset_) - wrap_deg(*left_front_joint_angle_) + 10.5;
+            wrap_deg(left_front_joint_offset_) - wrap_deg(*left_front_joint_angle_) + 10.81767;
         const double alpha_lb =
-            wrap_deg(left_back_joint_offset_) - wrap_deg(*left_back_joint_angle_) + 10.5;
+            wrap_deg(left_back_joint_offset_) - wrap_deg(*left_back_joint_angle_) + 10.38748;
         const double alpha_rf =
-            wrap_deg(right_front_joint_offset_) - wrap_deg(*right_front_joint_angle_) + 10.5;
+            wrap_deg(right_front_joint_offset_) - wrap_deg(*right_front_joint_angle_) + 10.57454;
         const double alpha_rb =
-            wrap_deg(right_back_joint_offset_) - wrap_deg(*right_back_joint_angle_) + 10.5;
+            wrap_deg(right_back_joint_offset_) - wrap_deg(*right_back_joint_angle_) + 10.326716;
 
         // *processed_encoder_angle_ = (alpha_lb + alpha_lf + alpha_rf + alpha_rb) / 4.0;
         *processed_encoder_angle_ = (alpha_lb + alpha_rb) / 2.0;

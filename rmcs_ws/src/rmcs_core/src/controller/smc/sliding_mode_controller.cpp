@@ -58,12 +58,12 @@ public:
         }
         if (*angle_error_ < dead_zero_max_ && *angle_error_ > dead_zero_min_) {
             *control_torque_ = 0.0;
-        } else {
-            *control_torque_ = std::clamp(calc_control_value(), -1.0, 1.0);
+        } else if(*angle_error_ < 20.0 && *angle_error_ > -10.0) {
+            *control_torque_ = std::clamp(calc_control_value(), -0.1, 0.05);
+        }else{
+            *control_torque_ = std::clamp(calc_control_value(), -1.5, 0.5);
         }
 
-        // RCLCPP_INFO(logger_, "control:%f", *control_torque_);    //debug
-        // *control_torque_ = 0;   //debug
     }
 
 private:
