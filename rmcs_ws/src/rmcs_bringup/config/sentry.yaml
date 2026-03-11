@@ -3,6 +3,7 @@ rmcs_executor:
     update_rate: 1000.0
     components:
       - rmcs_core::hardware::Sentry -> sentry_hardware
+      - rmcs_core::navigation::Navigation -> rmcs_navigation
 
       - rmcs_core::referee::Status -> referee_status
       - rmcs_core::referee::Command -> referee_command
