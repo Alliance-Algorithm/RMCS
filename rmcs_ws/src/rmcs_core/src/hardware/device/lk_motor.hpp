@@ -281,10 +281,15 @@ public:
 
     CanPacket8 generate_torque_command() const { return generate_torque_command(control_torque()); }
 
-    /// @brief The host sends this command to control the motor's speed, along with a torque limit.
-    /// @note After receiving the command, the motor responds to the host. The motor's response data
-    /// is the same as the `generate_status_request` command (only the command byte 0 is
-    /// different, here it is 0xA2/0xAD).
+    /// @brief The host sends this command to control the motor's speed, with an optional torque
+    /// limit.
+    /// @note Three firmware variants exist:
+    /// - Version A: 0xA2 only, torque limit field ignored.
+    /// - Version B: 0xA2 and 0xAD; 0xAD is the dedicated torque-limited variant.
+    /// - Version C: 0xA2 only, torque limit field honored.
+    /// The variant cannot be detected at runtime, so this implementation always sends 0xA2 for
+    /// broad compatibility (A and C), at the cost of not using Version B's dedicated 0xAD.
+    /// Response layout is the same as `generate_status_request` (command byte = 0xA2).
     CanPacket8
         generate_velocity_command(double control_velocity, double torque_limit = kNan) const {
         if (std::isnan(control_velocity))
@@ -302,6 +307,7 @@ public:
         } command alignas(CanPacket8){.velocity = to_command_velocity(control_velocity)};
 
         if (!std::isnan(torque_limit)) {
+            // Keep using 0xA2 here; see the compatibility note above.
             command.current_limit = to_command_current(torque_limit);
         }
 
