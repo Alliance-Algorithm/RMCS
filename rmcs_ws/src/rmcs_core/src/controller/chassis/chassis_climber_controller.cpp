@@ -57,7 +57,7 @@ public:
 
         register_input("/remote/switch/right", switch_right_);
         register_input("/remote/switch/left", switch_left_);
-        register_input("/remote/joystick/right", joystick_left_);
+        register_input("/remote/joystick/right", joystick_right_);
     }
 
     void update() override {
@@ -80,43 +80,35 @@ public:
             }
 
             double track_control_velocity =
-                front_climber_enable_ ? joystick_left_->x() * track_velocity_max_ : nan_;
-            double back_climber_control_velocioty;
+                front_climber_enable_ ? joystick_right_->x() * track_velocity_max_ : nan_;
+            double back_climber_control_velocity;
 
-            if (abs(*climber_back_left_torque_) > 0.1 && abs(*climber_back_right_torque_) > 0.1
-                && abs(*climber_back_left_velocity_) < 0.1
-                && abs(*climber_back_right_velocity_) < 0.1) {
+            if (std::abs(*climber_back_left_torque_) > 0.1
+                && std::abs(*climber_back_right_torque_) > 0.1
+                && std::abs(*climber_back_left_velocity_) < 0.1
+                && std::abs(*climber_back_right_velocity_) < 0.1) {
                 back_climber_block_count_++;
             }
 
             if (back_climber_block_count_ >= 500) {
-                back_climber_control_velocioty = 0;
+                back_climber_control_velocity = 0;
             } else {
-                back_climber_control_velocioty =
+                back_climber_control_velocity =
                     climber_back_control_velocity_abs_ * back_climber_dir_;
             }
 
-            front_climber_sync_control(track_control_velocity);
-            back_climber_sync_control(back_climber_control_velocioty);
+            dual_motor_sync_control(
+                track_control_velocity, *climber_front_left_velocity_,
+                *climber_front_right_velocity_, front_velocity_pid_calculator_,
+                *climber_front_left_control_torque_, *climber_front_right_control_torque_);
+            dual_motor_sync_control(
+                back_climber_control_velocity, *climber_back_left_velocity_,
+                *climber_back_right_velocity_, back_velocity_pid_calculator_,
+                *climber_back_left_control_torque_, *climber_back_right_control_torque_);
         }
 
         last_switch_left_ = switch_left;
         last_switch_right_ = switch_right;
-
-        // RCLCPP_INFO(
-        //     logger_, "control torque: %lf | %lf | velocity: %lf | %lf ",
-        //     *climber_front_left_control_torque_, *climber_front_right_control_torque_,
-        //     *climber_front_left_velocity_, *climber_front_right_velocity_);
-        // RCLCPP_INFO(
-        //     logger_, "torque: %lf | %lf", *climber_back_left_torque_,
-        //     *climber_back_right_torque_);
-
-        // // RCLCPP_INFO(logger_, "front left control torque: %lf",
-        // // *climber_front_left_control_torque_); RCLCPP_INFO(
-        // //     logger_, "front right control torque: %lf", *climber_front_right_control_torque_);
-        // RCLCPP_INFO(logger_, "back left control torque: %lf",
-        // *climber_back_left_control_torque_); RCLCPP_INFO(logger_, "back right control torque:
-        // %lf", *climber_back_right_control_torque_);
     }
 
 private:
@@ -128,34 +120,22 @@ private:
         front_climber_enable_ = false;
     }
 
-    void front_climber_sync_control(double setpoint) {
-        Eigen::Vector2d setpoint_error{
-            setpoint - *climber_front_left_velocity_, setpoint - *climber_front_right_velocity_};
+    void dual_motor_sync_control(
+        double setpoint, double left_velocity, double right_velocity,
+        pid::MatrixPidCalculator<2>& pid_calculator, double& left_torque_out,
+        double& right_torque_out) const {
+
+        Eigen::Vector2d setpoint_error{setpoint - left_velocity, setpoint - right_velocity};
 
         Eigen::Vector2d relative_velocity{
-            *climber_front_left_velocity_ - *climber_front_right_velocity_,
-            *climber_front_right_velocity_ - *climber_front_left_velocity_};
+            left_velocity - right_velocity, right_velocity - left_velocity};
 
         Eigen::Vector2d control_error = setpoint_error - sync_coefficient_ * relative_velocity;
 
-        auto control_torques = front_velocity_pid_calculator_.update(control_error);
+        auto control_torques = pid_calculator.update(control_error);
 
-        *climber_front_left_control_torque_ = control_torques[0];
-        *climber_front_right_control_torque_ = control_torques[1];
-    }
-
-    void back_climber_sync_control(double setpoint) {
-        Eigen::Vector2d setpoint_error{
-            setpoint - *climber_back_left_velocity_, setpoint - *climber_back_right_velocity_};
-
-        Eigen::Vector2d relative_velocity{
-            *climber_back_left_velocity_ - *climber_back_right_velocity_,
-            *climber_back_right_velocity_ - *climber_back_left_velocity_};
-
-        Eigen::Vector2d control_torques = setpoint_error - sync_coefficient_ * relative_velocity;
-
-        *climber_back_left_control_torque_ = control_torques[0];
-        *climber_back_right_control_torque_ = control_torques[1];
+        left_torque_out = control_torques[0];
+        right_torque_out = control_torques[1];
     }
 
     int back_climber_block_count_;
@@ -185,7 +165,7 @@ private:
 
     InputInterface<rmcs_msgs::Switch> switch_right_;
     InputInterface<rmcs_msgs::Switch> switch_left_;
-    InputInterface<Eigen::Vector2d> joystick_left_;
+    InputInterface<Eigen::Vector2d> joystick_right_;
 
     rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Switch last_switch_left_ = rmcs_msgs::Switch::UNKNOWN;
