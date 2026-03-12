@@ -45,11 +45,11 @@ public:
         register_output("/gimbal/top_yaw/control_torque", top_yaw_control_torque_, 0.0);
         register_output("/gimbal/bottom_yaw/control_torque", bottom_yaw_control_torque_, 0.0);
 
-        register_output("/gimbal/top_yaw/control_angle", top_yaw_control_torque_, 0.0);
-        register_output("/gimbal/bottom_yaw/control_angle_shift", bottom_yaw_control_torque_, 0.0);
+        register_output("/gimbal/top_yaw/control_angle", top_yaw_control_angle_, nan_);
+        register_output("/gimbal/bottom_yaw/control_angle_shift", bottom_yaw_control_angle_shift_, nan_);
 
-        status_component_ =
-            create_partner_component<DualYawStatus>(get_component_name() + "_status");
+        register_output("/gimbal/yaw/angle", yaw_angle_, 0.0);
+        register_output("/gimbal/yaw/velocity", yaw_velocity_, 0.0);
     }
 
     void before_updating() override {
@@ -80,6 +80,15 @@ public:
             *top_yaw_control_angle_ = 0.0;
             *bottom_yaw_control_angle_shift_ = *control_angle_shift_;
         }
+
+        double yaw_angle = *top_yaw_angle_ + *bottom_yaw_angle_;
+        if (yaw_angle < 0)
+            yaw_angle += 2 * std::numbers::pi;
+        else if (yaw_angle > 2 * std::numbers::pi)
+            yaw_angle -= 2 * std::numbers::pi;
+        *yaw_angle_ = yaw_angle;
+
+        *yaw_velocity_ = *top_yaw_velocity_ + *bottom_yaw_velocity_;
     }
 
 private:
@@ -110,36 +119,7 @@ private:
     OutputInterface<double> top_yaw_control_angle_;
     OutputInterface<double> bottom_yaw_control_angle_shift_;
 
-    class DualYawStatus : public rmcs_executor::Component {
-    public:
-        explicit DualYawStatus() {
-            register_input("/gimbal/top_yaw/angle", top_yaw_angle_);
-            register_input("/gimbal/top_yaw/velocity", top_yaw_velocity_);
-            register_input("/gimbal/bottom_yaw/angle", bottom_yaw_angle_);
-            register_input("/gimbal/bottom_yaw/velocity", bottom_yaw_velocity_);
-
-            register_output("/gimbal/yaw/angle", yaw_angle_, 0.0);
-            register_output("/gimbal/yaw/velocity", yaw_velocity_, 0.0);
-        }
-
-        void update() override {
-            double yaw_angle = *top_yaw_angle_ + *bottom_yaw_angle_;
-            if (yaw_angle < 0)
-                yaw_angle += 2 * std::numbers::pi;
-            else if (yaw_angle > 2 * std::numbers::pi)
-                yaw_angle -= 2 * std::numbers::pi;
-            *yaw_angle_ = yaw_angle;
-
-            *yaw_velocity_ = *top_yaw_velocity_ + *bottom_yaw_velocity_;
-        }
-
-    private:
-        InputInterface<double> top_yaw_angle_, top_yaw_velocity_;
-        InputInterface<double> bottom_yaw_angle_, bottom_yaw_velocity_;
-
-        OutputInterface<double> yaw_angle_, yaw_velocity_;
-    };
-    std::shared_ptr<DualYawStatus> status_component_;
+    OutputInterface<double> yaw_angle_, yaw_velocity_;
 };
 } // namespace rmcs_core::controller::gimbal
 
