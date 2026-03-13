@@ -1,12 +1,13 @@
 from typing import List, Optional
 import os
+import yaml
 
 from launch import (
     LaunchContext,
     LaunchDescription,
     LaunchDescriptionEntity,
 )
-from launch.actions import LogInfo
+from launch.actions import ExecuteProcess, LogInfo
 from launch.substitutions import LaunchConfiguration
 
 from launch_ros.actions import Node
@@ -49,6 +50,39 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
                 output="log",  # stdout and stderr are logged to launch log file and stderr to the screen.
             )
         )
+
+        # Conditionally launch optional processes declared in the config yaml.
+        config_path = os.path.join(
+            FindPackageShare("rmcs_bringup").perform(context),
+            "config",
+            robot_name + ".yaml",
+        )
+        with open(config_path, "r") as f:
+            config = yaml.safe_load(f)
+
+        xrce_cfg = config.get("xrce_dds_agent")
+        if xrce_cfg is not None:
+            device = xrce_cfg.get("device", "/dev/ttyS0")
+            baudrate = str(xrce_cfg.get("baudrate", 921600))
+            entities.append(
+                LogInfo(msg=f"Starting MicroXRCEAgent on {device} @ {baudrate} baud")
+            )
+            entities.append(
+                ExecuteProcess(
+                    cmd=[
+                        "sudo",
+                        "MicroXRCEAgent",
+                        "serial",
+                        "--dev",
+                        device,
+                        "-b",
+                        baudrate,
+                    ],
+                    output="log",
+                    respawn=True,
+                    respawn_delay=1.0,
+                )
+            )
 
         if is_automatic:
             pass

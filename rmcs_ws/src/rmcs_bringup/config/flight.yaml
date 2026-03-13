@@ -3,7 +3,10 @@ rmcs_executor:
     update_rate: 1000.0
     components:
       - rmcs_core::hardware::Flight -> flight_hardware
-  
+
 flight_hardware:
   ros__parameters:
-    foo: bar
+
+xrce_dds_agent:
+  device: /dev/ttyS0
+  baudrate: 921600
