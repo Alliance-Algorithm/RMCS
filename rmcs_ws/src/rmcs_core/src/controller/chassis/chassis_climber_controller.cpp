@@ -83,30 +83,35 @@ public:
                 front_climber_enable_ ? joystick_right_->x() * track_velocity_max_ : nan_;
             double back_climber_control_velocity;
 
-            if (std::abs(*climber_back_left_torque_) > 0.1
-                && std::abs(*climber_back_right_torque_) > 0.1
-                && std::abs(*climber_back_left_velocity_) < 0.1
-                && std::abs(*climber_back_right_velocity_) < 0.1) {
+            if ((std::abs(*climber_back_left_torque_) > 0.1
+                 && std::abs(*climber_back_right_velocity_) < 0.1)
+                || (std::abs(*climber_back_left_velocity_) < 0.1
+                    && std::abs(*climber_back_right_torque_) > 0.1)) {
                 back_climber_block_count_++;
-            }
-
-            if (back_climber_block_count_ >= 500) {
-                back_climber_control_velocity = 0;
-            } else {
-                back_climber_control_velocity =
-                    climber_back_control_velocity_abs_ * back_climber_dir_;
             }
 
             dual_motor_sync_control(
                 track_control_velocity, *climber_front_left_velocity_,
                 *climber_front_right_velocity_, front_velocity_pid_calculator_,
                 *climber_front_left_control_torque_, *climber_front_right_control_torque_);
-            dual_motor_sync_control(
-                back_climber_control_velocity, *climber_back_left_velocity_,
-                *climber_back_right_velocity_, back_velocity_pid_calculator_,
-                *climber_back_left_control_torque_, *climber_back_right_control_torque_);
-        }
 
+            if (back_climber_block_count_ >= 500) {
+                back_climber_control_velocity = 0;
+                // *climber_back_left_control_torque_ = 0;
+                // *climber_back_right_control_torque_ = 0;
+                // last_switch_left_ = switch_left;
+                // last_switch_right_ = switch_right;
+                // return;
+            } else {
+                back_climber_control_velocity =
+                    climber_back_control_velocity_abs_ * back_climber_dir_;
+            }
+
+            // dual_motor_sync_control(
+            //     back_climber_control_velocity, *climber_back_left_velocity_,
+            //     *climber_back_right_velocity_, back_velocity_pid_calculator_,
+            //     *climber_back_left_control_torque_, *climber_back_right_control_torque_);
+        }
         last_switch_left_ = switch_left;
         last_switch_right_ = switch_right;
     }
@@ -145,7 +150,7 @@ private:
     double sync_coefficient_;
 
     bool front_climber_enable_ = false;
-    double back_climber_dir_ = 1;
+    double back_climber_dir_ = -1;
 
     double track_velocity_max_;
     double climber_back_control_velocity_abs_;
