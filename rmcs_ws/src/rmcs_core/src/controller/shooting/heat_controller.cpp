@@ -33,6 +33,8 @@ public:
 
         *control_bullet_allowance_ = std::max<int64_t>(
             0, (*shooter_heat_limit_ - shooter_heat_ - reserved_heat) / heat_per_shot);
+
+        RCLCPP_INFO(get_logger(), "[gimbal calibration] New pitch offset: %ld", heat_per_shot);
     }
 
 private:
