@@ -56,5 +56,11 @@ cmake_args=(
     "${cmake_toolchain_args[@]}"
 )
 
+if [[ "${ROS_VERSION}" == "2" ]]; then
+    cmake_args+=("-DBUILD_SYSTEM=ROS2")
+elif [[ "${ROS_VERSION}" == "1" ]]; then
+    cmake_args+=("-DBUILD_SYSTEM=ROS1")
+fi
+
 CLICOLOR_FORCE=1 NINJA_STATUS="" \
     colcon build "${colcon_args[@]}" "$@" --cmake-args "${cmake_args[@]}"

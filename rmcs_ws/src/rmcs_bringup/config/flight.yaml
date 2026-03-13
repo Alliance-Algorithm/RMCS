@@ -1,0 +1,9 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::hardware::Flight -> flight_hardware
+  
+flight_hardware:
+  ros__parameters:
+    foo: bar
