@@ -3,7 +3,6 @@ rmcs_executor:
     update_rate: 1000.0
     components:
       - rmcs_core::hardware::Sentry -> sentry_hardware
-      - rmcs_core::navigation::Navigation -> rmcs_navigation
 
       - rmcs_core::referee::Status -> referee_status
       - rmcs_core::referee::Command -> referee_command
@@ -25,6 +24,8 @@ rmcs_executor:
       - rmcs_core::controller::chassis::ChassisController -> chassis_controller
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::SteeringWheelController -> steering_wheel_controller
+
+      - rmcs::Brain -> rmcs_navigation
 
 sentry_hardware:
   ros__parameters:

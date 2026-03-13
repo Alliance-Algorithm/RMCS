@@ -70,8 +70,14 @@ public:
             joystick_sensitivity * joystick_left_->y() + mouse_sensitivity * mouse_velocity_->y();
         double pitch_shift =
             -joystick_sensitivity * joystick_left_->x() - mouse_sensitivity * mouse_velocity_->x();
-        if (navigation_command_velocity_.ready() && std::isfinite((*navigation_command_velocity_)[2]))
-            yaw_shift += (*navigation_command_velocity_)[2] * control_dt_;
+
+        // Navigation Control
+        if (navigation_command_velocity_.ready()) {
+            auto yaw_speed = navigation_command_velocity_->z();
+            if (std::isfinite(yaw_speed)) {
+                yaw_shift += yaw_speed * control_dt_;
+            }
+        }
 
         return two_axis_gimbal_solver.update(
             TwoAxisGimbalSolver::SetControlShift(yaw_shift, pitch_shift));

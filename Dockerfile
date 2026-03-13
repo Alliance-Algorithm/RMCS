@@ -29,8 +29,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libsuitesparse-dev \
     libceres-dev \
     ros-$ROS_DISTRO-rviz2 \
+    ros-$ROS_DISTRO-navigation2 \
     ros-$ROS_DISTRO-foxglove-bridge \
-    dotnet-sdk-8.0 \
     ros-$ROS_DISTRO-pcl-ros ros-$ROS_DISTRO-pcl-conversions ros-$ROS_DISTRO-pcl-msgs && \
     apt-get autoremove -y && apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/*
