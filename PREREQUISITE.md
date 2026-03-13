@@ -30,6 +30,14 @@ cd / && rm -rf /tmp/fastdds
 
 This would roughly take ~50s to compile for a 9950x cpu using 16 threads.
 
+To run the uxrce dds client:
+
+```bash
+sudo MicroXRCEAgent serial --dev /dev/ttyS0 -b 921600
+```
+
+Note that the baudrate should be the same as the one configured in the flight controller.
+
 ## Dependencies for Odin1 Driver
 
 Odin1 driver requires cv-bridge which is no longer used by the main upstream.
