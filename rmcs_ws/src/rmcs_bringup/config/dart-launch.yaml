@@ -3,22 +3,11 @@ rmcs_executor:
     update_rate: 1000.0
     components:
       - rmcs_core::hardware::CatapultDartV3Full -> dart_hardware
-      - rmcs_core::controller::dart::DartLaunchController -> launch_controller
+      - rmcs_core::controller::dart::DartLaunchControllerV2 -> launch_controller
       - rmcs_core::controller::dart::DartSettings -> dart_settings
       - rmcs_core::controller::pid::PidController -> force_screw_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> pitch_velocity_pid_controller
-      - rmcs_core::broadcaster::ValueBroadcaster -> broadcaster
-
-broadcaster:
-  ros__parameters:
-    forward_list:
-      - /force/control/velocity
-      - /dart/force_screw_motor/velocity
-      - /dart/drive_belt/left/control_torque
-      - /dart/drive_belt/left/velocity
-      - /dart/drive_belt/right/control_torque
-      - /dart/drive_belt/right/velocity
 
 dart_hardware:
   ros__parameters:
@@ -28,24 +17,15 @@ dart_hardware:
 
 launch_controller:
   ros__parameters:
-    belt_velocity: 10.0
-    sync_coefficient: 0.1
+    belt_velocity: 15.0
+    sync_coefficient: 0.5
+    max_control_torque: 15.0
     b_kp: 1.0
     b_ki: 0.0
     b_kd: 0.0
-    max_control_torque: 15.0
-    # Trigger servo: PWM value 0.0–1.0 (PWMServo: 0.5ms–2.5ms in 20ms period)
-    trigger_free_value: 0.6
-    trigger_lock_value: 0.4
-    # Lifting UART servo angles
-    lifting_up_angle_left:      0x0656
-    lifting_down_angle_left:    0x0DE3
-    lifting_up_angle_right:     0x08C7
-    lifting_down_angle_right:   0x0C54
-    # Limiting servo angles
-    limiting_wait_time:   16
-    limiting_free_angle_: 0x0001
-    limiting_lock_angle_: 0x0050
+    # Trigger servo PWM value 0.0–1.0 (from dart-filling-test calibration)
+    trigger_free_value: 0.75
+    trigger_lock_value: 0.63
 
 dart_settings:
   ros__parameters:
@@ -53,16 +33,13 @@ dart_settings:
     is_auto_pitch_control_mode: 0
     is_auto_force_control_mode: 0
     max_transform_rate: 5.0
-    # Pitch angle PID (used when is_auto_pitch_control_mode = 1)
     pitch_angle_kp: 0.0
     pitch_angle_ki: 0.0
     pitch_angle_kd: 0.0
-    # Force control PID (used when is_auto_force_control_mode = 1)
     force_control_kp: 0.001
     force_control_ki: 0.0
     force_control_kd: 0.0
 
-# dart_settings outputs /force/control/velocity as the velocity setpoint for the screw motor
 force_screw_velocity_pid_controller:
   ros__parameters:
     measurement: /dart/force_screw_motor/velocity
@@ -86,6 +63,6 @@ pitch_velocity_pid_controller:
     measurement: /dart/pitch_motor/velocity
     setpoint: /pitch/control/velocity
     control: /dart/pitch_motor/control_torque
-    kp: 0.0
+    kp: 1.0
     ki: 0.0
     kd: 0.0

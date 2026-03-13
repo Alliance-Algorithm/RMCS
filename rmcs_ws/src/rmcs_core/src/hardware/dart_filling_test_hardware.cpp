@@ -1,18 +1,24 @@
-// #include "librmcs/client/cboard.hpp"
+// #include <rclcpp/node.hpp>
+// #include <rmcs_executor/component.hpp>
+
+// #include "hardware/device/can_packet.hpp"
+// #include "hardware/device/dji_motor.hpp"
+// #include "hardware/device/force_sensor.hpp"
+// #include "hardware/device/pwm_servo.hpp"
+// #include "librmcs/agent/c_board.hpp"
 // #include "hardware/device/dr16.hpp"
 // #include "hardware/device/trigger_servo.hpp"
+
 // #include <cmath>
 // #include <cstddef>
 // #include <cstdint>
 // #include <rclcpp/logger.hpp>
 // #include <rclcpp/logging.hpp>
-// #include <rclcpp/node.hpp>
 // #include <rmcs_msgs/serial_interface.hpp>
 // #include <std_msgs/msg/int32.hpp>
 // #include <eigen3/Eigen/src/Geometry/Quaternion.h>
 // #include <tf2_ros/transform_broadcaster.h>
 // #include <geometry_msgs/msg/transform_stamped.hpp>
-// #include <rmcs_executor/component.hpp>
 // #include <rmcs_description/tf_description.hpp>
 // #include <rmcs_msgs/dart_launch_stage.hpp>
 
@@ -21,29 +27,32 @@
 // class DartFillingTestHardware
 //     : public rmcs_executor::Component
 //     , public rclcpp::Node
-//     , private librmcs::client::CBoard {
+//     , private librmcs::agent::CBoard {
 // public:
 //     DartFillingTestHardware()
 //         : Node{
 //               get_component_name(),
 //               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
-//         , librmcs::client::CBoard{static_cast<int>(get_parameter("usb_pid").as_int())}
-//         , logger_(get_logger())
-//         , dart_command_(create_partner_component<DartCommand>(get_component_name() + "_command",
-//         *this)) , dr16_(*this) , trigger_servo_(*dart_command_, "/dart/trigger_servo",
-//         TRIGGER_SERVO_ID) , limiting_servo_(*dart_command_, "/dart/limiting_servo",
-//         LIMITING_SERVO_ID) , lifting_left_(*dart_command_, "/dart/lifting_left", LIFTING_LEFT_ID)
-//         , lifting_right_(*dart_command_, "/dart/lifting_right", LIFTING_RIGHT_ID)
-//         , transmit_buffer_(*this, 32)
-//         , event_thread_([this]() { handle_events(); }) {
+//         , librmcs::agent::CBoard{get_parameter("serial_filter").as_string()}
+//         , logger_{get_logger()}
+//         , dart_command_(create_partner_component<DartCommand>(get_component_name() + "_command",*this)) 
+//         , dr16_(*this) 
+//         , limiting_servo_(dart_command_, "/dart/limiting_servo",LIMITING_SERVO_ID) 
+//         , lifting_left_(*this, *this->dart_command_, "/dart/lifting_left", LIFTING_LEFT_ID)
+//         , lifting_right_(*this, *this->dart_command_, "/dart/lifting_right", LIFTING_RIGHT_ID)
+//         , left_belt_motor_{*this, *this->dart_command_, "/dart/left_belt_motor"}
+//         , right_belt_motor_{*this, *this->dart_command_, "/dart/right_belt_motor"}
+//         , yaw_control_motor_{*this, *this->dart_command_, "/dart/yaw_control_motor"}
+//         , pitch_control_motor_{*this, *this->dart_command_, "/dart/pitch_control_motor"}
+//         , screw_motor_{*this, *this->dart_command_, "/dart/screw_motor"}
+//         , trigger_servo_{"/dart/trigger_servo", *this->dart_command_, 20.0, 0.5, 2.5}
+//         , force_sensor_{*this}
+//         // , transmit_buffer_(*this, 32)
+//         // , event_thread_([this]() { handle_events(); }) 
+//         {
 //         register_output("/dart/lifting_left/current_angle", lifting_current_angle_left_);
 //         register_output("/dart/lifting_right/current_angle", lifting_current_angle_right_);
 
-//         trigger_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
-//             "/trigger/calibrate", rclcpp::QoS{0}, [this](std_msgs::msg::Int32::UniquePtr&& msg) {
-//                 trigger_servo_calibrate_subscription_callback(trigger_servo_, std::move(msg),
-//                 trigger_servo_uart_data_ptr);
-//             });
 //         limiting_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
 //             "/limiting/calibrate", rclcpp::QoS{0}, [this](std_msgs::msg::Int32::UniquePtr&& msg)
 //             {
@@ -64,22 +73,22 @@
 //             });
 
 //         register_output("/referee/serial", referee_serial_);
-//         referee_serial_->read = [this](std::byte* buffer, size_t size) {
-//             return referee_ring_buffer_receive_.pop_front_multi(
-//                 [&buffer](std::byte byte) { *buffer++ = byte; }, size);
-//         };
+//         // referee_serial_->read = [this](std::byte* buffer, size_t size) {
+//         //     return referee_ring_buffer_receive_.pop_front_multi(
+//         //         [&buffer](std::byte byte) { *buffer++ = byte; }, size);
+//         // };
 
-//         referee_serial_->write = [this](const std::byte* buffer, size_t size) {
-//             transmit_buffer_.add_uart1_transmission(buffer, size);
-//             return size;
-//         };
+//         // referee_serial_->write = [this](const std::byte* buffer, size_t size) {
+//         //     transmit_buffer_.add_uart1_transmission(buffer, size);
+//         //     return size;
+//         // };
 
 //         last_read_left_time_ = this->now();
 //         last_read_right_time_ = this->now();
 //     }
 
 //     ~DartFillingTestHardware() override {
-//         stop_handling_events();
+//         // stop_handling_events();
 //         event_thread_.join();
 //     }
 
@@ -298,17 +307,19 @@
 
 //     std::shared_ptr<DartCommand> dart_command_;
 //     device::Dr16 dr16_;
-//     device::TriggerServo trigger_servo_;
 //     device::TriggerServo limiting_servo_;
 //     device::TriggerServo lifting_left_;
 //     device::TriggerServo lifting_right_;
+//     device::DjiMotor left_belt_motor_, right_belt_motor_;
+//     device::DjiMotor yaw_control_motor_, pitch_control_motor_;
+//     device::DjiMotor screw_motor_;
+//     device::PWMServo trigger_servo_;
+//     device::ForceSensor force_sensor_;
 //     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr trigger_calibrate_subscription_;
 //     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr limiting_calibrate_subscription_;
 //     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr lifting_left_calibrate_subscription_;
 //     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr lifting_right_calibrate_subscription_;
-//     librmcs::utility::RingBuffer<std::byte> referee_ring_buffer_receive_{256};
 //     OutputInterface<rmcs_msgs::SerialInterface> referee_serial_;
-//     librmcs::client::CBoard::TransmitBuffer transmit_buffer_;
 //     std::thread event_thread_;
 //     OutputInterface<uint16_t> lifting_current_angle_left_;
 //     OutputInterface<uint16_t> lifting_current_angle_right_;

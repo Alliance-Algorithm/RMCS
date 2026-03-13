@@ -98,20 +98,23 @@ public:
                     *force_control_ = joystick_right_->x() * max_transform_rate_ * 5;
                     break;
                 } else if (is_auto_force_control_mode_ == 1) {
-                    *average_force_ = (*force_sensor_ch1_data_ + *force_sensor_ch2_data_) * 0.5;
                     transmit_distance_to_force();
                     force_control();
-                    log_count_++;
-                    if (log_count_ == 100) {
-                        log_count_ = 0;
-                        RCLCPP_INFO(logger_, "ch1:%d, ch2:%d", *force_sensor_ch1_data_, *force_sensor_ch2_data_);
-                    }
-                }    
+                }
             }
         } while(false);
 
+        // Force sensor: always update average and log periodically for verification
+        *average_force_ = (*force_sensor_ch1_data_ + *force_sensor_ch2_data_) * 0.5;
+        log_count_++;
+        if (log_count_ >= 100) {
+            log_count_ = 0;
+            RCLCPP_INFO(logger_, "[ForceSensor] ch1: %d  ch2: %d  avg: %.1f",
+                        *force_sensor_ch1_data_, *force_sensor_ch2_data_, *average_force_);
+        }
+
         // RCLCPP_INFO(this->get_logger(), "yaw_control_speed = %f, pitch_control_speed = %f, force_control_speed = %f", *yaw_control_velocity_, *pitch_control_velocity_, *force_control_);
-     
+
     };
 
 private: 

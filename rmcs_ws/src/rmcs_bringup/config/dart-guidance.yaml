@@ -2,60 +2,54 @@ rmcs_executor:
   ros__parameters:
     update_rate: 1000.0
     components:
-    - rmcs_dart_guidance::DartVisionCore -> dart_vision_core
-    - rmcs_dart_guidance::DebugDisplayComponent -> debug_display
-    - rmcs_dart_guidance::ImagePublisher -> image_publisher
-    - rmcs_dart_guidance::ImagePublisher -> camera_parameter_image_publisher
-    - rmcs_dart_guidance::CameraCalibrationComponent -> dart_vision_calibration
+      - rmcs_core::hardware::CatapultDartV4 -> dart_hardware
+      - rmcs_dart_guidance::manager::DartManager -> dart_manager
+      - rmcs_dart_guidance::manager::RemoteCommandBridge -> remote_cmd_bridge
+      # - rmcs_dart_guidance::manager::WebCommandBridge -> web_cmd_bridge
+      - rmcs_core::controller::dart::DartLaunchSetting -> launch_setting
+      - rmcs_core::controller::dart::DartSettingController -> dart_setting
+      - rmcs_core::controller::pid::PidController -> force_screw_velocity_pid_controller
 
-dart_vision_core:
+dart_hardware:
   ros__parameters:
-    invert_image: false
-    exposure_time: 5000
-    gain: 11.0
-    L_H: 0.0
-    L_S: 0.0
-    L_V: 200.0
-    U_H: 180.0
-    U_S: 30.0
-    U_V: 255.0
-    enable_image_saving: false
-    image_save_directory: "./saved_images"
-    image_save_interval_ms: 1000
-    save_raw_image: true
-    save_processed_image: false
+    serial_filter: ""
+    first_sample_spot: 1.0
+    final_sample_spot: 4.0
 
-debug_display:
+dart_manager:
   ros__parameters:
-    raw_image_topic: "/dart_guidance/raw_image"
-    processed_image_topic: "/dart_guidance/processed_image"
-    target_topic: "/dart_guidance/target_position"
-    display_raw: false
-    display_processed: true
-    max_fps: 30
-    window_scale: 1.0
-    save_on_error: false
-    save_directory: "./debug_saved"
+    max_transform_rate: 15.0
+    manual_force_scale: 15.0
 
-image_publisher:
+remote_cmd_bridge:
   ros__parameters:
-    Interface_name: "/dart_guidance/camera/display_image"
-    topic_name: "/dart_guidance/processed_image"
-    publish_freq: 15.0
-    image_type: "mono8"
+    joystick_sensitivity: 0.01
 
-camera_parameter_image_publisher:
+launch_setting:
   ros__parameters:
-    Interface_name: "/dart_guidance/camera/camera_image"   
-    topic_name: "/dart_guidance/camera/camera_image"       
-    publish_freq: 30.0                                     
-    image_type: "bgr8"
+    belt_velocity: 15.0
+    sync_coefficient: 0.1
+    max_control_torque: 15.0
+    trigger_free_value: 0.75
+    trigger_lock_value: 0.63
+    b_kp: 1.0
+    b_ki: 0.0
+    b_kd: 0.0
 
-dart_vision_calibration:
+dart_setting:
   ros__parameters:
-    image_topic: "/dart_guidance/camera/camera_image"
-    board_width:  7        
-    board_height: 7        
-    square_size: 0.006     
-    save_path: "./calibration_results"
-    enabled: true  
+    yaw_kp: 1.0
+    yaw_ki: 0.0
+    yaw_kd: 0.0
+    pitch_kp: 1.0
+    pitch_ki: 0.0
+    pitch_kd: 0.0
+
+force_screw_velocity_pid_controller:
+  ros__parameters:
+    measurement: /dart/force_screw/velocity
+    setpoint:    /force/control/velocity
+    control:     /dart/force_screw/control_torque
+    kp: 1.0
+    ki: 0.0
+    kd: 0.0
