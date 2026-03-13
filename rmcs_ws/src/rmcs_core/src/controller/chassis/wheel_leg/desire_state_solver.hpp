@@ -22,9 +22,6 @@ public:
     }
 
     rmcs_msgs::WheelLegState update(Eigen::Vector3d control_velocity) {
-        // x-axis translational velocity, z-axis vertical velocity, z-axis angular velocity
-        auto& [vx, vz, wz] = control_velocity;
-
         // desire_leg_length_ += vz * leg_length_sensitivity_;
 
         if (std::abs(measure_state_.velocity) < 1e-2) {
@@ -34,7 +31,7 @@ public:
         }
 
         // distance :always 0 during velocity control
-        desire_state_.distance = 0.0; // else measure.distance
+        desire_state_.distance = 0.0;
         desire_state_.velocity = 0.0;
 
         // yaw angle:
@@ -43,11 +40,19 @@ public:
 
         // leg tilt angle:
         desire_state_.left_tilt_angle = 0.0;
+        desire_state_.left_tilt_velocity = 0.0;
+
         desire_state_.right_tilt_angle = 0.0;
+        desire_state_.right_tilt_velocity = 0.0;
 
         desire_state_.body_pitch_angle = 0.0;
+        desire_state_.body_pitch_velocity = 0.0;
 
         return desire_state_;
+    }
+
+    void update_measure_state(rmcs_msgs::WheelLegState& measure_state) {
+        measure_state_ = measure_state;
     }
 
     double
@@ -57,17 +62,12 @@ public:
         } else {
             desire_leg_length_ = 0.16;
         }
-
         desire_leg_length_ = std::clamp(desire_leg_length_, min, max);
 
         return desire_leg_length_;
     }
 
     double update_desire_roll_angle() const { return desire_roll_angle_; }
-
-    void update_measure_state(rmcs_msgs::WheelLegState& measure_state) {
-        measure_state_ = measure_state;
-    }
 
     void update_jump_state(bool jump_active, double leg_length) {
         switch (jump_state_) {
@@ -86,7 +86,9 @@ public:
         }
         case JumpState::CONTRACT_LEGS: {
             desire_leg_length_ = 0.14;
-            jump_state_ = JumpState::LEVITATE;
+            if (leg_length <= 0.15) {
+                jump_state_ = JumpState::LEVITATE;
+            }
             break;
         }
         case JumpState::LEVITATE: {
@@ -98,11 +100,15 @@ public:
         }
         case JumpState::LAND: {
             jump_state_ = JumpState::IDLE;
-            jump_active = false;
             break;
         }
         }
     }
+
+    void update_climb_state(bool climb_active, double leg_length) {}
+
+    double desire_leg_length() const { return desire_leg_length_; }
+    double desire_roll_angle() const { return desire_roll_angle_; }
 
 private:
     enum class JumpState {
@@ -120,6 +126,27 @@ private:
         EXTEND_LEGS = 3,
         LAND = 4,
     };
+
+    void update_desire_state(Eigen::Vector3d control_velocity, double control_angle) {
+        // Update desire state based on control velocity and measure state
+
+        // x-axis translational velocity, z-axis vertical velocity, z-axis angular velocity
+        auto& [vx, vz, wz] = control_velocity;
+
+        // distance :always 0 during velocity control
+        desire_state_.distance = 0.0;
+        desire_state_.velocity = vx;
+
+        desire_state_.yaw_angle = 0.0; // or
+        desire_state_.yaw_velocity = wz;
+
+        desire_state_.left_tilt_angle = 0.0;
+        desire_state_.left_tilt_velocity = 0.0;
+        desire_state_.right_tilt_angle = 0.0;
+        desire_state_.right_tilt_velocity = 0.0;
+        desire_state_.body_pitch_angle = 0.0;
+        desire_state_.body_pitch_velocity = 0.0;
+    }
 
     constexpr static rmcs_msgs::WheelLegState reset_state() {
         return rmcs_msgs::WheelLegState{nan_, nan_, nan_, nan_, nan_, nan_, nan_, nan_, nan_, nan_};
@@ -143,7 +170,7 @@ private:
     double desire_roll_angle_;
 
     JumpState jump_state_ = JumpState::IDLE;
-    ClimbState climb_state_ = ClimbState::IDLE;
+    // ClimbState climb_state_ = ClimbState::IDLE;
 
     rmcs_msgs::WheelLegState measure_state_;
     rmcs_msgs::WheelLegState desire_state_;

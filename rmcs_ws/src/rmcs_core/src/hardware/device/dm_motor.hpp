@@ -87,6 +87,12 @@ public:
         if (motor_state_ == 0) {
             return generate_enable_command();
         } else if (motor_state_ == 1) {
+            // if (!std::isnan(control_angle())) {
+            //     return generate_angle_command();
+            // } else if (!std::isnan(control_torque())) {
+            //     return generate_torque_command(control_torque());
+            // }
+
             return generate_torque_command(control_torque());
         } else {
             return generate_clear_error_command();

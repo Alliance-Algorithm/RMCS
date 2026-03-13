@@ -42,7 +42,9 @@ public:
         , chassis_gyro_velocity_filter_(5.0, 1000.0)
         , desire_state_solver_(0.15)
         , roll_angle_pid_calculator_(1.0, 0.0, 1.0)
-        , leg_length_pid_calculator_(350.0, 0.0, 0.0) {
+        , leg_length_pid_calculator_(350.0, 0.0, 0.0)
+        , balanceless_left_wheel_pid_calculator_(3.0, 0.0, 0.0)
+        , balanceless_right_wheel_pid_calculator_(3.0, 0.0, 0.0) {
 
         register_input("/chassis/left_front_hip/max_torque", hip_motor_max_control_torque_);
         register_input("/chassis/left_wheel/max_torque", wheel_motor_max_control_torque_);
@@ -50,8 +52,14 @@ public:
         register_input("/chassis/control_velocity", chassis_control_velocity_);
         register_input("/chassis/control_mode", mode_);
 
-        register_input("/chassis/leg/extended", is_leg_extended_);
-        register_input("/chassis/jump/active", is_jump_active_);
+        register_input("/chassis/control_angle", chassis_control_angle_);
+
+        register_input("/chassis/status/balanceless", is_balanceless_);
+        register_input("/chassis/status/rescue_tip_over", is_rescue_tip_over_);
+
+        register_input("/chassis/status/leg_extended", is_leg_extended_);
+        register_input("/chassis/status/jump", is_jump_active_);
+        register_input("/chassis/status/climb", is_climb_active_);
 
         register_input("/chassis/left_front_hip/angle", left_front_hip_angle_);
         register_input("/chassis/left_back_hip/angle", left_back_hip_angle_);
@@ -112,20 +120,30 @@ public:
         auto wheel_velocities = calculate_wheel_velocities();
 
         auto leg_posture = calculate_leg_posture(hip_angles);
-        auto distance = calculate_translational_distance(leg_posture, wheel_velocities, hip_angles);
+        auto distance = calculate_translational_distance(leg_posture, wheel_velocities);
 
         // State: [s ds phi d_phi theta_l d_theta_l theta_r d_theta_r theta_b d_theta_b]
         auto measure_state = calculate_measure_state(distance, leg_posture);
 
         // Controller
         auto chassis_control_velocity = calculate_chassis_control_velocity();
-        auto desire_state = calculate_desire_state(chassis_control_velocity, measure_state);
-
         auto leg_forces = calculate_leg_force(leg_posture, measure_state);
+
+        auto desire_state = calculate_desire_state(chassis_control_velocity, measure_state);
         auto control_torques = calculate_control_torques(desire_state, measure_state, leg_posture);
 
-        update_hip_control_angles();
+        if (*is_balanceless_) {
+            update_hip_zero_point_control_angles();
+            calculate_balanceless_control_torques(chassis_control_velocity, wheel_velocities);
+            return;
+        }
 
+        if (*is_rescue_tip_over_) {
+            update_hip_rescue_tip_over_control_torques();
+            return;
+        }
+
+        // update_hip_zero_point_control_angles();
         update_hip_and_wheel_torques(leg_forces, control_torques);
 
         // *left_front_hip_control_torque_ = 0.0;
@@ -138,8 +156,8 @@ public:
         //     *left_back_hip_control_torque_, *right_back_hip_control_torque_,
         //     *right_front_hip_control_torque_);
 
-        // *left_wheel_control_torque_ = 0.0;
-        // *right_wheel_control_torque_ = 0.0;
+        *left_wheel_control_torque_ = 0.0;
+        *right_wheel_control_torque_ = 0.0;
     }
 
 private:
@@ -201,8 +219,6 @@ private:
         result.leg_length = Eigen::Vector2d{left_leg_length, right_leg_length};
         result.tilt_angle = Eigen::Vector2d{left_tilt_angle, right_tilt_angle};
 
-        // RCLCPP_INFO(get_logger(), "left angle: %f", left_tilt_angle);
-
         result.diff_leg_length = (result.leg_length - last_leg_length_) / dt_;
         last_leg_length_ = result.leg_length;
         result.diff_tilt_angle = (result.tilt_angle - last_tilt_angle_) / dt_;
@@ -233,7 +249,7 @@ private:
             right_leg_force * std::cos(leg_posture.tilt_angle.y())
             + right_leg_torque * std::sin(leg_posture.tilt_angle.y()) / leg_posture.leg_length.y();
 
-        //@todo: test
+        // todo: test
         auto left_wheel_vertical_accel =
             *chassis_z_axis_acceleration_imu_
             - leg_posture.second_order_diff_leg_length.x() * std::cos(leg_posture.tilt_angle.x())
@@ -262,61 +278,8 @@ private:
         return result;
     }
 
-    void detect_chassis_levitate(
-        Eigen::Vector2d support_forces, rmcs_msgs::WheelLegState measure_state) {
-        auto& [left_support_force, right_support_force] = support_forces;
-
-        double levitate_force = 20.0;
-        double normal_force = 50.0;
-
-        auto average_support_force = (left_support_force + right_support_force) / 2.0;
-
-        auto mode = *mode_;
-        auto mode_active = (mode != rmcs_msgs::WheelLegMode::STOP)
-                        && (mode != rmcs_msgs::WheelLegMode::BALANCELESS);
-
-        if (mode_active) {
-            if ((average_support_force < levitate_force) && allow_levitate_) {
-                levitate_active_ = true;
-            } else if (average_support_force > normal_force) {
-                if (levitate_active_) {
-                    allow_levitate_ = false;
-                }
-                levitate_active_ = false;
-            }
-
-            if (left_support_force < levitate_force && allow_left_levitate_) {
-                left_levitate_active_ = true;
-            } else if (left_support_force > normal_force) {
-                if (left_levitate_active_) {
-                    allow_left_levitate_ = false;
-                }
-                left_levitate_active_ = false;
-            }
-
-            if (right_support_force < levitate_force) {
-                right_levitate_active_ = true;
-            } else if (right_support_force > normal_force) {
-                if (right_levitate_active_) {
-                    allow_right_levitate_ = false;
-                }
-                right_levitate_active_ = false;
-            }
-        }
-
-        if (levitate_active_) {
-            RCLCPP_INFO(
-                get_logger(), "Chassis is levitating! Average support force: %f",
-                average_support_force);
-
-            measure_state.distance = 0.0;
-        }
-    }
-
-    // void detect_chassis_fall() {}
-
-    Eigen::Vector2d calculate_translational_distance(
-        LegPosture leg_posture, Eigen::Vector2d wheel_velocities, Eigen::Vector4d hip_angles) {
+    Eigen::Vector2d
+        calculate_translational_distance(LegPosture leg_posture, Eigen::Vector2d wheel_velocities) {
         Eigen::Vector2d result;
         auto& [distance, velocity] = result;
 
@@ -339,19 +302,19 @@ private:
 
         // Velocity ​​estimation is referenced from the article:
         // https://zhuanlan.zhihu.com/p/689921165
-        auto estimate_velocity = velocity_kalman_filter_.update(
-            Eigen::Vector2d{calculate_velocity, *chassis_x_axis_acceleration_imu_});
+        // auto estimate_velocity = velocity_kalman_filter_.update(
+        //     Eigen::Vector2d{calculate_velocity, *chassis_x_axis_acceleration_imu_});
 
         velocity = calculate_velocity;
 
         auto is_parked = std::abs(velocity) < 1e-2;
-
         // When the vehicle stops the position control is activated.
-        //  if (is_parked) {
-        //      distance = last_distance_ + velocity * dt_;
-        //  } else {
-        //      distance = 0.0;
-        //  }
+        if (!last_is_parked_ && is_parked) {
+            distance = last_distance_ + velocity * dt_;
+        } else {
+            distance = 0.0;
+        }
+        last_is_parked_ = is_parked;
 
         distance = last_distance_ + velocity * dt_;
         last_distance_ = distance;
@@ -363,17 +326,17 @@ private:
         calculate_measure_state(Eigen::Vector2d distance, LegPosture leg_posture) {
         rmcs_msgs::WheelLegState measure_state;
 
-        filtered_gyro_velocity_ = chassis_gyro_velocity_filter_.update(
-            Eigen::Vector3d{
-                *chassis_roll_velocity_imu_, *chassis_pitch_velocity_imu_,
-                *chassis_yaw_velocity_imu_});
+        // filtered_gyro_velocity_ = chassis_gyro_velocity_filter_.update(
+        //     Eigen::Vector3d{
+        //         *chassis_roll_velocity_imu_, *chassis_pitch_velocity_imu_,
+        //         *chassis_yaw_velocity_imu_});
         leg_posture.tilt_angle.array() += *chassis_pitch_angle_imu_;
 
         measure_state.distance = distance.x();
         measure_state.velocity = distance.y();
 
         measure_state.yaw_angle = *chassis_yaw_angle_imu_;
-        measure_state.yaw_velocity = filtered_gyro_velocity_.z();
+        measure_state.yaw_velocity = *chassis_yaw_velocity_imu_;
 
         measure_state.left_tilt_angle = leg_posture.tilt_angle.x();
         measure_state.left_tilt_velocity = leg_posture.diff_tilt_angle.x();
@@ -382,24 +345,87 @@ private:
         measure_state.right_tilt_velocity = leg_posture.diff_tilt_angle.y();
 
         measure_state.body_pitch_angle = *chassis_pitch_angle_imu_;
-        measure_state.body_pitch_velocity = filtered_gyro_velocity_.y();
+        measure_state.body_pitch_velocity = *chassis_pitch_velocity_imu_;
 
-        measure_state.distance = 0.0;
-        measure_state.velocity = 0.0;
+        // measure_state.distance = 0.0;
+        // measure_state.velocity = 0.0;
 
-        measure_state.yaw_angle = 0.0;
-        measure_state.yaw_velocity = 0.0;
+        // measure_state.yaw_angle = 0.0;
+        // measure_state.yaw_velocity = 0.0;
 
-        measure_state.left_tilt_angle = 0.0;
-        measure_state.left_tilt_velocity = 0.0;
+        // measure_state.left_tilt_angle = 0.0;
+        // measure_state.left_tilt_velocity = 0.0;
 
-        measure_state.right_tilt_angle = 0.0;
-        measure_state.right_tilt_velocity = 0.0;
+        // measure_state.right_tilt_angle = 0.0;
+        // measure_state.right_tilt_velocity = 0.0;
 
         // measure_state.body_pitch_angle = 0.0;
         // measure_state.body_pitch_velocity = 0.0;
 
         return measure_state;
+    }
+
+    rmcs_msgs::WheelLegState detect_chassis_levitate(
+        Eigen::Vector2d support_forces, rmcs_msgs::WheelLegState measure_state) {
+        auto& [left_support_force, right_support_force] = support_forces;
+
+        double levitate_force = 20.0;
+        double normal_force = 50.0;
+
+        auto average_support_force = (left_support_force + right_support_force) / 2.0;
+
+        auto mode = *mode_;
+        auto mode_active = mode != rmcs_msgs::WheelLegMode::BALANCELESS;
+
+        if (mode_active) {
+            if (average_support_force < levitate_force) {
+                levitate_active_ = true;
+            } else if (average_support_force > normal_force) {
+                levitate_active_ = false;
+            }
+
+            if (left_support_force < levitate_force) {
+                left_levitate_active_ = true;
+            } else if (left_support_force > normal_force) {
+                left_levitate_active_ = false;
+            }
+
+            if (right_support_force < levitate_force) {
+                right_levitate_active_ = true;
+            } else if (right_support_force > normal_force) {
+                right_levitate_active_ = false;
+            }
+        } else {
+            levitate_active_ = false;
+            left_levitate_active_ = false;
+            right_levitate_active_ = false;
+        }
+
+        if (levitate_active_) {
+            RCLCPP_INFO(
+                get_logger(), "Chassis is levitating! Average support force: %f",
+                average_support_force);
+            measure_state.distance = 0.0;
+        }
+        return measure_state;
+    }
+
+    // When the vehicle is about to fall, reset the leg length.
+    void detect_chassis_fall() {
+        // Detect pitch and roll angle
+        if (fabs(*chassis_roll_angle_imu_ - desire_roll_angle_) > about_to_fall_roll_angle_) {
+            about_to_fall_ = true;
+        }
+
+        if (levitate_active_) {
+            about_to_fall_ = false;
+        }
+
+        // It will inactive when rotating, climbing, or launching ramp.
+        if (*is_climb_active_ || *mode_ == rmcs_msgs::WheelLegMode::LAUNCH_RAMP
+            || *mode_ == rmcs_msgs::WheelLegMode::SPIN) {
+            about_to_fall_ = false;
+        }
     }
 
     Eigen::Vector3d calculate_chassis_control_velocity() {
@@ -410,7 +436,6 @@ private:
 
     rmcs_msgs::WheelLegState calculate_desire_state(
         Eigen::Vector3d control_velocity, rmcs_msgs::WheelLegState measure_state) {
-
         rmcs_msgs::WheelLegState desire_state{};
 
         desire_state_solver_.update_measure_state(measure_state);
@@ -460,8 +485,20 @@ private:
         LegPosture leg_posture) {
         Eigen::Vector4d result{};
 
-        auto error_state = desire_state.vector() - measure_state.vector();
+        Eigen::Vector<double, 10> error_state = desire_state.vector() - measure_state.vector();
         auto gain = lqr_calculator_.update(leg_posture.leg_length.x(), leg_posture.leg_length.y());
+
+        if (levitate_active_) {
+            // When levitating, only keep your legs vertical,and only remain legs' outputs.
+            // set zero
+            error_state(0, 0) = 0.0; // distance
+            error_state(1, 0) = 0.0; // velocity
+            error_state(2, 0) = 0.0; // yaw angle
+            error_state(3, 0) = 0.0; // yaw velocity
+
+            error_state(8, 0) = 0.0; // body pitch angle
+            error_state(9, 0) = 0.0; // body pitch velocity
+        }
 
         result = -1.0 * gain * error_state;
 
@@ -498,10 +535,10 @@ private:
         auto output_8 = -gain_08 * err_8;
         auto output_9 = -gain_09 * err_9;
 
-        RCLCPP_INFO(
-            get_logger(), "output: [%f, %f, %f, %f, %f, %f, %f, %f, %f, %f], %f, %f", output_0,
-            output_1, output_2, output_3, output_4, output_5, output_6, output_7, output_8,
-            output_9, result.x(), result.y());
+        // RCLCPP_INFO(
+        //     get_logger(), "output: [%f, %f, %f, %f, %f, %f, %f, %f, %f, %f], %f, %f", output_0,
+        //     output_1, output_2, output_3, output_4, output_5, output_6, output_7, output_8,
+        //     output_9, result.x(), result.y());
 
         // RCLCPP_INFO(
         //     get_logger(), "measure: [%f, %f, %f, %f, %f, %f, %f, %f, %f, %f]",
@@ -518,12 +555,31 @@ private:
         return result;
     }
 
-    void update_hip_control_angles() {
-        *left_front_hip_control_angle_ = 0.2;
-        *left_back_hip_control_angle_ = -0.2;
-        *right_front_hip_control_angle_ = -0.2;
-        *right_back_hip_control_angle_ = 0.2;
+    void calculate_balanceless_control_torques(
+        Eigen::Vector3d chassis_control_velocity, Eigen::Vector2d wheel_velocities) {
+        auto& [chassis_control_velocity_x, chassis_control_velocity_y, chassis_control_velocity_z] =
+            chassis_control_velocity;
+        auto& [left_wheel_velocity, right_wheel_velocity] = wheel_velocities;
+
+        double left_wheel_control_torque = balanceless_left_wheel_pid_calculator_.update(
+            (chassis_control_velocity_x - chassis_control_velocity_y) - left_wheel_velocity);
+        double right_wheel_control_torque = balanceless_right_wheel_pid_calculator_.update(
+            (chassis_control_velocity_x + chassis_control_velocity_y) - right_wheel_velocity);
+
+        *left_wheel_control_torque_ = clamp_wheel_control_torque(left_wheel_control_torque);
+        *right_wheel_control_torque_ = clamp_wheel_control_torque(right_wheel_control_torque);
     }
+
+    void update_hip_zero_point_control_angles() {
+        *left_front_hip_control_angle_ = 0.0;
+        *left_back_hip_control_angle_ = 0.0;
+        *right_front_hip_control_angle_ = 0.0;
+        *right_back_hip_control_angle_ = 0.0;
+
+        reset_control_torques();
+    }
+
+    void update_hip_rescue_tip_over_control_torques() { reset_control_angles(); }
 
     void update_hip_and_wheel_torques(Eigen::Vector2d leg_forces, Eigen::Vector4d control_torques) {
         auto& [left_leg_force, right_leg_force] = leg_forces;
@@ -535,6 +591,11 @@ private:
         auto right_hip_control_torque =
             right_leg_vmc_solver_.update_joint_torque(right_leg_force, right_leg_control_torque);
 
+        if (levitate_active_) {
+            *left_wheel_control_torque_ = 0.0;
+            *right_wheel_control_torque_ = 0.0;
+        }
+
         *left_wheel_control_torque_ = clamp_wheel_control_torque(left_wheel_control_torque);
         *right_wheel_control_torque_ = clamp_wheel_control_torque(right_wheel_control_torque);
 
@@ -542,6 +603,8 @@ private:
         *left_back_hip_control_torque_ = clamp_hip_control_torque(-left_hip_control_torque.y());
         *right_back_hip_control_torque_ = clamp_hip_control_torque(right_hip_control_torque.y());
         *right_front_hip_control_torque_ = clamp_hip_control_torque(-right_hip_control_torque.x());
+
+        reset_control_angles();
     }
 
     static double clamp_wheel_control_torque(const double& torque) {
@@ -550,6 +613,20 @@ private:
 
     static double clamp_hip_control_torque(const double& torque) {
         return std::clamp(torque, -15., 15.);
+    }
+
+    void reset_control_torques() {
+        *left_front_hip_control_torque_ = nan_;
+        *left_back_hip_control_torque_ = nan_;
+        *right_front_hip_control_torque_ = nan_;
+        *right_back_hip_control_torque_ = nan_;
+    }
+
+    void reset_control_angles() {
+        *left_front_hip_control_angle_ = nan_;
+        *left_back_hip_control_angle_ = nan_;
+        *right_front_hip_control_angle_ = nan_;
+        *right_back_hip_control_angle_ = nan_;
     }
 
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
@@ -562,6 +639,8 @@ private:
 
     static constexpr double max_leg_length_ = 0.36;
     static constexpr double min_leg_length_ = 0.13;
+
+    static constexpr double about_to_fall_roll_angle_ = 0.6;
 
     static constexpr double sigma_q_ = 1.0;
     static constexpr double sigma_v_ = 0.75;
@@ -612,8 +691,14 @@ private:
     InputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;
     InputInterface<rmcs_msgs::WheelLegMode> mode_;
 
+    InputInterface<double> chassis_control_angle_;
+
+    InputInterface<bool> is_balanceless_;
+    InputInterface<bool> is_rescue_tip_over_;
+
     InputInterface<bool> is_leg_extended_;
     InputInterface<bool> is_jump_active_;
+    InputInterface<bool> is_climb_active_;
 
     OutputInterface<double> left_front_hip_control_torque_;
     OutputInterface<double> left_back_hip_control_torque_;
@@ -630,11 +715,13 @@ private:
 
     double desire_leg_length_, desire_roll_angle_;
     bool levitate_active_{false}, left_levitate_active_{false}, right_levitate_active_{false};
-    bool allow_levitate_{true}, allow_left_levitate_{true}, allow_right_levitate_{true};
+
+    bool about_to_fall_{false};
 
     Eigen::Vector2d last_leg_length_, last_tilt_angle_;
     Eigen::Vector2d last_dot_leg_length_, last_dot_tilt_angle_;
     double last_distance_;
+    bool last_is_parked_{false};
 
     Eigen::Vector3d filtered_gyro_velocity_;
 
@@ -645,6 +732,8 @@ private:
     DesireStateSolver desire_state_solver_;
 
     pid::PidCalculator roll_angle_pid_calculator_, leg_length_pid_calculator_;
+    pid::PidCalculator balanceless_left_wheel_pid_calculator_,
+        balanceless_right_wheel_pid_calculator_;
     lqr::LqrCalculator lqr_calculator_;
 };
 } // namespace rmcs_core::controller::chassis

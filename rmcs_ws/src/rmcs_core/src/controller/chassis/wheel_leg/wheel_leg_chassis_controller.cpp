@@ -36,12 +36,20 @@ public:
         register_input("/gimbal/yaw/angle", gimbal_yaw_angle_, false);
         register_input("/gimbal/yaw/control_angle_error", gimbal_yaw_angle_error_, false);
 
+        register_input("/chassis/yaw/angle", chassis_yaw_angle_imu_);
+
         register_output("/chassis/angle", chassis_angle_, nan);
         register_output("/chassis/control_angle", chassis_control_angle_, nan);
 
         register_output("/chassis/control_mode", mode_);
-        register_output("/chassis/leg/extended", is_leg_extended_);
-        register_output("/chassis/jump/active", is_jump_active_);
+
+        register_output("/chassis/status/balanceless", is_balanceless_, false);
+        register_output("/chassis/status/rescue_tip_over", is_rescue_tip_over_, false);
+
+        register_output("/chassis/status/leg_extended", is_leg_extended_, false);
+        register_output("/chassis/status/jump", is_jump_active_, false);
+        register_output("/chassis/status/climb", is_climb_active_, false);
+
         register_output("/chassis/control_velocity", chassis_control_velocity_);
     }
 
@@ -73,6 +81,12 @@ public:
 
             auto mode = *mode_;
             if (switch_left != Switch::DOWN) {
+                if (last_switch_right_ == Switch::DOWN && switch_right == Switch::MIDDLE) {
+                    if (mode == rmcs_msgs::WheelLegMode::BALANCELESS) {
+                        mode = rmcs_msgs::WheelLegMode::FOLLOW;
+                    }
+                }
+
                 if ((last_switch_right_ == Switch::MIDDLE && switch_right == Switch::DOWN)
                     || (!last_keyboard_.c && keyboard.c)) {
                     if (mode == rmcs_msgs::WheelLegMode::SPIN) {
@@ -85,30 +99,37 @@ public:
                     mode = mode == rmcs_msgs::WheelLegMode::LAUNCH_RAMP
                              ? rmcs_msgs::WheelLegMode::FOLLOW
                              : rmcs_msgs::WheelLegMode::LAUNCH_RAMP;
-                } else if (!last_keyboard_.z && keyboard.z) {
+                } else if (!last_keyboard_.b && keyboard.b) {
                     mode = mode == rmcs_msgs::WheelLegMode::BALANCELESS
                              ? rmcs_msgs::WheelLegMode::FOLLOW
                              : rmcs_msgs::WheelLegMode::BALANCELESS;
                 }
 
                 // Change leg length
-                if (!last_keyboard_.q && keyboard.q) {
+                if (!last_keyboard_.z && keyboard.z) {
                     leg_extended_ = !leg_extended_;
                 }
 
                 // Jump
-                if (!last_keyboard_.e && keyboard.e) {
-                    jump_active_ = !jump_active_;
-                }
+                jump_active_ = !last_keyboard_.e && keyboard.e;
 
                 // Climb
+                climb_active_ = !last_keyboard_.q && keyboard.q;
 
+                // Rescue tip-over
+                rescue_tip_over_ = !last_keyboard_.r && keyboard.r;
+
+                *is_balanceless_ = mode == rmcs_msgs::WheelLegMode::BALANCELESS;
                 *is_leg_extended_ = leg_extended_;
                 *is_jump_active_ = jump_active_;
+                *is_climb_active_ = climb_active_;
+                *is_rescue_tip_over_ = rescue_tip_over_;
+
                 *mode_ = mode;
             }
 
             update_velocity_control();
+            update_chassis_angle_control();
         } while (false);
 
         last_switch_right_ = switch_right;
@@ -117,7 +138,7 @@ public:
     }
 
     void reset_all_controls() {
-        *mode_ = rmcs_msgs::WheelLegMode::STOP;
+        *mode_ = rmcs_msgs::WheelLegMode::BALANCELESS;
 
         *chassis_control_velocity_ = {nan, nan, nan};
     }
@@ -144,45 +165,38 @@ public:
         return translational_velocity;
     }
 
+    void update_chassis_angle_control() {
+        double chassis_control_angle = nan;
+
+        *chassis_control_angle_ = chassis_control_angle;
+    }
+
     double update_angular_velocity_control() {
         double angular_velocity = 0.0;
         double chassis_control_angle = nan;
 
         switch (*mode_) {
-        case rmcs_msgs::WheelLegMode::STOP: break;
+        case rmcs_msgs::WheelLegMode::BALANCELESS:
+        case rmcs_msgs::WheelLegMode::RESCUE_TIP_OVER: break;
         case rmcs_msgs::WheelLegMode::SPIN: {
             angular_velocity =
                 0.6 * (spinning_forward_ ? angular_velocity_max : -angular_velocity_max);
+            chassis_control_angle =
+                *chassis_yaw_angle_imu_; // When spinning, yaw angle's output is set to zero.
         } break;
-
         case rmcs_msgs::WheelLegMode::FOLLOW:
-        case rmcs_msgs::WheelLegMode::BALANCELESS: {
-            double err = calculate_unsigned_chassis_angle_error(chassis_control_angle);
-
-            // err: [0, 2pi) -> [0, alignment) -> signed.
-            // In step-down mode, two sides of the chassis can be used for alignment.
-            // TODO: Dynamically determine the split angle based on chassis velocity.
-            constexpr double alignment = std::numbers::pi;
-            while (err > alignment / 2) {
-                chassis_control_angle -= alignment;
-                if (chassis_control_angle < 0)
-                    chassis_control_angle += 2 * std::numbers::pi;
-                err -= alignment;
-            }
-
-            angular_velocity = following_velocity_controller_.update(err);
-        } break;
         case rmcs_msgs::WheelLegMode::LAUNCH_RAMP: {
             double err = calculate_unsigned_chassis_angle_error(chassis_control_angle);
-
             // err: [0, 2pi) -> signed
-            // In launch ramp mode, only one direction can be used for alignment.
+            // Only one direction can be used for alignment.
             // TODO: Dynamically determine the split angle based on chassis velocity.
             constexpr double alignment = 2 * std::numbers::pi;
             if (err > alignment / 2)
                 err -= alignment;
 
             angular_velocity = following_velocity_controller_.update(err);
+
+            chassis_control_angle = 0.0;
         } break;
         }
         *chassis_angle_ = 2 * std::numbers::pi - *gimbal_yaw_angle_;
@@ -232,17 +246,26 @@ private:
     rmcs_msgs::Keyboard last_keyboard_ = rmcs_msgs::Keyboard::zero();
 
     InputInterface<double> gimbal_yaw_angle_, gimbal_yaw_angle_error_;
+    InputInterface<double> chassis_yaw_angle_imu_;
+
     OutputInterface<double> chassis_angle_, chassis_control_angle_;
 
     OutputInterface<rmcs_msgs::WheelLegMode> mode_;
+
+    OutputInterface<bool> is_balanceless_;
+    OutputInterface<bool> is_rescue_tip_over_;
+
     OutputInterface<bool> is_leg_extended_;
     OutputInterface<bool> is_jump_active_;
+    OutputInterface<bool> is_climb_active_;
 
-    bool leg_extended_ = false;
-    bool jump_active_ = false;
     bool spinning_forward_ = true;
+    bool leg_extended_ = false, jump_active_ = false, climb_active_ = false,
+         rescue_tip_over_ = false, launch_ramp_active_ = false;
+
     pid::PidCalculator following_velocity_controller_;
 
+    OutputInterface<double> chassis_yaw_control_angle_;
     OutputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;
 };
 
