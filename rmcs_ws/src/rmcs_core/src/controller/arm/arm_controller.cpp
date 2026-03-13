@@ -118,34 +118,34 @@ public:
                 set_arm_mode(rmcs_msgs::ArmMode::None);
             } else {
                 *is_arm_enable = true;
-                if (switch_left == Switch::UP && switch_right == Switch::UP) {
-                    set_arm_mode(rmcs_msgs::ArmMode::DT7_Control_Position);
-                } else if (switch_left == Switch::UP && switch_right == Switch::MIDDLE) {
-                    set_arm_mode(rmcs_msgs::ArmMode::DT7_Control_Orientation);
-                } else {
-                    set_arm_mode(rmcs_msgs::ArmMode::None);
-                }
+                // if (switch_left == Switch::UP && switch_right == Switch::UP) {
+                //     set_arm_mode(rmcs_msgs::ArmMode::DT7_Control_Position);
+                // } else if (switch_left == Switch::UP && switch_right == Switch::MIDDLE) {
+                //     set_arm_mode(rmcs_msgs::ArmMode::DT7_Control_Orientation);
+                // } else {
+                //     set_arm_mode(rmcs_msgs::ArmMode::None);
+                // }
             }
         }
 
-        switch (get_arm_mode()) {
-            using namespace rmcs_msgs;
-        case ArmMode::DT7_Control_Position: {
-            execute_dt7_position();
-            break;
-        }
-        case ArmMode::DT7_Control_Orientation: {
-            execute_dt7_orientation();
-            break;
-        }
-        case ArmMode::None: {
-            break;
-        }
-        default: {
-            execute_plan_request_and_trajectory_step();
-            break;
-        }
-        }
+        // switch (get_arm_mode()) {
+        //     using namespace rmcs_msgs;
+        //     case ArmMode::DT7_Control_Position: {
+        //         execute_dt7_position();
+        //         break;
+        //     }
+        //     case ArmMode::DT7_Control_Orientation: {
+        //         execute_dt7_orientation();
+        //         break;
+        //     }
+        //     case ArmMode::None: {
+        //         break;
+        //     }
+        //     default: {
+        //         execute_plan_request_and_trajectory_step();
+        //         break;
+        // }
+        // }
     }
 
 private:
