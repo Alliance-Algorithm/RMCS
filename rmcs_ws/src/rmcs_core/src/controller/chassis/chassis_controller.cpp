@@ -21,10 +21,10 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , following_velocity_controller_(7.0, 0.0, 2.0) {
+        , following_velocity_controller_(7.0, 0.0, 0.0) {
         navigation_velocity_scale_ = get_parameter_or<double>("navigation_velocity_scale", 1.0);
 
-        following_velocity_controller_.output_max = angular_velocity_max;
+        following_velocity_controller_.output_max = +angular_velocity_max;
         following_velocity_controller_.output_min = -angular_velocity_max;
 
         register_input("/remote/joystick/right", joystick_right_);
