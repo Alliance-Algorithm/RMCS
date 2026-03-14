@@ -44,6 +44,10 @@ gimbal_controller:
     upper_limit: -0.39518
     lower_limit: 0.36
 
+chassis_controller:
+  ros__parameters:
+    navigation_velocity_scale: 4.0
+
 dual_yaw_controller:
   ros__parameters:
     top_yaw_angle_kp: 1.0

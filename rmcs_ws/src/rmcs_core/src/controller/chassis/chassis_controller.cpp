@@ -22,6 +22,8 @@ public:
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , following_velocity_controller_(7.0, 0.0, 2.0) {
+        navigation_velocity_scale_ = get_parameter_or<double>("navigation_velocity_scale", 1.0);
+
         following_velocity_controller_.output_max = angular_velocity_max;
         following_velocity_controller_.output_min = -angular_velocity_max;
 
@@ -130,26 +132,26 @@ public:
         auto keyboard = *keyboard_;
         Eigen::Vector2d keyboard_move{keyboard.w - keyboard.s, keyboard.a - keyboard.d};
 
-        // Navigation Control
-        auto navigation_move = Eigen::Vector2d{Eigen::Vector2d::Zero()};
-        if (navigation_command_velocity_.ready()) {
-            auto raw_command = *navigation_command_velocity_;
-            if (std::isfinite(raw_command.x()) && std::isfinite(raw_command.y())) {
-                navigation_move.x() = raw_command.x();
-                navigation_move.y() = raw_command.y();
-            }
-        }
-
-        auto translational_velocity =
-            Eigen::Rotation2Dd{*gimbal_yaw_angle_}
-            * Eigen::Vector2d{*joystick_right_ + keyboard_move + navigation_move};
+        auto translational_velocity = Eigen::Rotation2Dd{*gimbal_yaw_angle_}
+                                    * Eigen::Vector2d{*joystick_right_ + keyboard_move};
 
         if (translational_velocity.norm() > 1.0)
             translational_velocity.normalize();
 
         translational_velocity *= translational_velocity_max;
 
-        return translational_velocity;
+        // Navigation Control
+        auto nav_velocity_odom = Eigen::Vector2d{Eigen::Vector2d::Zero()};
+        if (navigation_command_velocity_.ready()) {
+            auto raw_command = *navigation_command_velocity_;
+            if (std::isfinite(raw_command.x()) && std::isfinite(raw_command.y())) {
+                nav_velocity_odom.x() = raw_command.x() * navigation_velocity_scale_;
+                nav_velocity_odom.y() = raw_command.y() * navigation_velocity_scale_;
+            }
+        }
+        auto nav_velocity = Eigen::Rotation2Dd{*gimbal_yaw_angle_} * nav_velocity_odom;
+
+        return translational_velocity + nav_velocity;
     }
 
     double update_angular_velocity_control() {
@@ -239,6 +241,7 @@ private:
     rmcs_msgs::Keyboard last_keyboard_ = rmcs_msgs::Keyboard::zero();
 
     InputInterface<double> gimbal_yaw_angle_, gimbal_yaw_angle_error_;
+    double navigation_velocity_scale_ = 1.0;
     OutputInterface<double> chassis_angle_, chassis_control_angle_;
 
     OutputInterface<rmcs_msgs::ChassisMode> mode_;
