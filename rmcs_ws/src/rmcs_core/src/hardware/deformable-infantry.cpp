@@ -500,15 +500,6 @@ private:
         void command_update() {
             auto builder = start_transmit();
             builder.can1_transmit({
-                .can_id = 0x200,
-                .can_data = device::CanPacket8{
-                    device::CanPacket8::PaddingQuarter{},
-                    device::CanPacket8::PaddingQuarter{},
-                    scope_motor.generate_command(),
-                    device::CanPacket8::PaddingQuarter{},
-                }.as_bytes(),
-            });
-            builder.can1_transmit({
                 .can_id = 0x141,
                 .can_data = gimbal_pitch_motor_.generate_command().as_bytes(),
             });
@@ -529,8 +520,6 @@ private:
                 return;
             if (data.can_id == 0x141)
                 gimbal_pitch_motor_.store_status(data.can_data);
-            else if (data.can_id == 0x203)
-                scope_motor.store_status(data.can_data);
         }
 
         void can2_receive_callback(const librmcs::data::CanDataView& data) override {
@@ -540,6 +529,8 @@ private:
                 gimbal_left_friction_.store_status(data.can_data);
             else if (data.can_id == 0x204)
                 gimbal_right_friction_.store_status(data.can_data);
+            else if (data.can_id == 0x203)
+                scope_motor.store_status(data.can_data);
         }
 
         void accelerometer_receive_callback(

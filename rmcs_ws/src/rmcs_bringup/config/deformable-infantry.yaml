@@ -58,12 +58,12 @@ deformable_infantry:
 
 chassis_controller:
   ros__parameters:
-    min_angle: 12.0   
-    max_angle: 32.0   
-    left_front_joint_offset: 257.171488
-    left_back_joint_offset: 354.015434
-    right_back_joint_offset: 7.971669
-    right_front_joint_offset: 302.935736
+    min_angle: 13.0    
+    max_angle: 30.0   
+    left_front_joint_offset: 257.501488
+    left_back_joint_offset: 353.545434
+    right_back_joint_offset: 7.591669
+    right_front_joint_offset: 303.265736
     Rod_relative_horizontal_coordinate: 5.0
     Rod_relative_longitudinal_coordinate: 75.0
     Rod_length: 80.0
@@ -179,7 +179,6 @@ smc_controller0:
     B: 3.5
     dead_zero_min: -1.5
     dead_zero_max: 1.5
-    gear_ratio: 2.0
     angle_error: /chassis/left_front_joint/control_angle_error
     current_velocity: /chassis/left_front_joint/velocity
     target_velocity: /chassis/left_front_joint/expect_velocity
@@ -196,7 +195,6 @@ smc_controller1:
     B: 3.5
     dead_zero_min: -1.5
     dead_zero_max: 1.5
-    gear_ratio: 2.0
     angle_error: /chassis/left_back_joint/control_angle_error
     current_velocity: /chassis/left_back_joint/velocity
     target_velocity: /chassis/left_back_joint/expect_velocity
@@ -213,7 +211,6 @@ smc_controller2:
     B: 3.5
     dead_zero_min: -1.5
     dead_zero_max: 1.5
-    gear_ratio: 2.0
     angle_error: /chassis/right_back_joint/control_angle_error
     current_velocity: /chassis/right_back_joint/velocity
     target_velocity: /chassis/right_back_joint/expect_velocity
@@ -230,7 +227,6 @@ smc_controller3:
     B: 3.5
     dead_zero_min: -1.5
     dead_zero_max: 1.5
-    gear_ratio: 2.0
     angle_error: /chassis/right_front_joint/control_angle_error
     current_velocity: /chassis/right_front_joint/velocity
     target_velocity: /chassis/right_front_joint/expect_velocity

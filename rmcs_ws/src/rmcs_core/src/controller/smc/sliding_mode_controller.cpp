@@ -36,7 +36,6 @@ public:
 
         moment_of_inertia_   = get_parameter("J").as_double();
         damping_coefficient_ = get_parameter("B").as_double();
-        gear_ratio           = get_parameter("gear_ratio").as_double();
 
         register_input(get_parameter("angle_error").as_string(), angle_error_);
         register_input(get_parameter("current_velocity").as_string(), current_velocity_);
@@ -128,7 +127,6 @@ private:
     double moment_of_inertia_;
     double damping_coefficient_;
     double sliding_surface_value_integral_ = 0;
-    double gear_ratio; // 传动增益，传动比*效率的倒数
 
     // observed variables
     InputInterface<double> angle_error_;
