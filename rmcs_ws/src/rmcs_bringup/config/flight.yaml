@@ -29,9 +29,9 @@ rmcs_executor:
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
 
-xrce_dds_agent:
-  device: /dev/ttyS0
-  baudrate: 921600
+# xrce_dds_agent:
+#   device: /dev/ttyS0
+#   baudrate: 921600
 
 value_broadcaster:
   ros__parameters:
@@ -39,7 +39,7 @@ value_broadcaster:
       - /gimbal/pitch/angle
       - /gimbal/pitch/velocity
       - /gimbal/pitch/torque
-      - /gimbal/pitch/control_torque
+      # - /gimbal/pitch/control_torque
       - /gimbal/pitch/control_angle_error
       - /gimbal/pitch/control_velocity
       - /gimbal/pitch/velocity_imu
@@ -76,26 +76,26 @@ yaw_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/yaw/control_angle_error
     control: /gimbal/yaw/control_velocity
-    kp: 25.0
+    kp: 2.0
     ki: 0.0
-    kd: 0.0003
+    kd: 0.0
 
 yaw_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/yaw/velocity_imu
     setpoint: /gimbal/yaw/control_velocity
     control: /gimbal/yaw/control_torque
-    kp: 10.0
+    kp: 4.0
     ki: 0.0
-    kd: 0.01
+    kd: 0.005
 
 pitch_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/pitch/control_angle_error
     control: /gimbal/pitch/control_velocity
-    kp: 16.0
+    kp: 8.0
     ki: 0.0
-    kd: 60.0
+    kd: 0.0
 
 friction_wheel_controller:
   ros__parameters:

@@ -3,7 +3,6 @@
 #include <rclcpp/logging.hpp>
 #include <cmath>
 
-#include <iostream>
 #include <limits>
 #include <utility>
 

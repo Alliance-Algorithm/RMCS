@@ -1,5 +1,3 @@
-#include <limits>
-
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
@@ -7,9 +5,6 @@
 #include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/switch.hpp>
-
-#include "controller/gimbal/precise_two_axis_gimbal_solver.hpp"
-#include "controller/gimbal/two_axis_gimbal_solver.hpp"
 
 namespace rmcs_core::controller::gimbal {
 

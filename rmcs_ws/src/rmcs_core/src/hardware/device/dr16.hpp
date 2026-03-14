@@ -81,8 +81,12 @@ public:
 
         auto channel_to_double = [](int32_t value) {
             value -= 1024;
-            if (-660 <= value && value <= 660)
+            constexpr int32_t deadzone = 10;
+            if (-660 <= value && value <= 660) {
+                if (value > -deadzone && value < deadzone)
+                    return 0.0;
                 return value / 660.0;
+            }
             return 0.0;
         };
         joystick_right_.y = -channel_to_double(static_cast<uint16_t>(part1.joystick_channel0));

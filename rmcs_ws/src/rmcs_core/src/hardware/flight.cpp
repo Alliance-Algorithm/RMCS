@@ -1,4 +1,3 @@
-#include <atomic>
 #include <cstdint>
 #include <memory>
 #include <mutex>
@@ -140,21 +139,11 @@ public:
         update_imu();
         dr16_.update_status();
         update_local_position();
-        // RCLCPP_INFO(
-        //     logger_, "[gimbal calibration] New pitch offset: %ld",
-        //     gimbal_pitch_motor_.calibrate_zero_point());
     }
 
     void command_update() {
-        auto yaw_cmd = gimbal_yaw_motor_.generate_torque_command();
+        auto yaw_cmd = gimbal_yaw_motor_.generate_command();
         auto pitch_cmd = gimbal_pitch_motor_.generate_command();
-
-        // RCLCPP_INFO(
-        //     logger_, "[gimbal calibration] New yaw offset: %ld",
-        //     gimbal_yaw_motor_.calibrate_zero_point());
-        // RCLCPP_INFO(
-        //     logger_, "[gimbal calibration] New pitch offset: %ld",
-        //     gimbal_pitch_motor_.calibrate_zero_point());
 
         device::CanPacket8 dji_cmds{
             gimbal_bullet_feeder_.generate_command(),
@@ -164,7 +153,7 @@ public:
 
         start_transmit()
             .can1_transmit({.can_id = 0x141, .can_data = yaw_cmd.as_bytes()})
-            .can2_transmit({.can_id = 0x141, .can_data = pitch_cmd.as_bytes()})
+            .can2_transmit({.can_id = 0x142, .can_data = pitch_cmd.as_bytes()})
             .can1_transmit({.can_id = 0x200, .can_data = dji_cmds.as_bytes()});
     }
 
@@ -230,12 +219,12 @@ private:
     }
 
     void gimbal_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
-        RCLCPP_INFO(
-            logger_, "[gimbal calibration] New yaw offset: %ld",
-            gimbal_yaw_motor_.calibrate_zero_point());
-        RCLCPP_INFO(
-            logger_, "[gimbal calibration] New pitch offset: %ld",
-            gimbal_pitch_motor_.calibrate_zero_point());
+        // RCLCPP_INFO(
+        //     logger_, "[gimbal calibration] New yaw offset: %ld",
+        //     gimbal_yaw_motor_.calibrate_zero_point());
+        // RCLCPP_INFO(
+        //     logger_, "[gimbal calibration] New pitch offset: %ld",
+        //     gimbal_pitch_motor_.calibrate_zero_point());
     }
 
     // ---- Shared odometry snapshot (filled by SDK callback, read by update()) ----
@@ -377,23 +366,28 @@ protected:
         if (data.is_extended_can_id || data.is_remote_transmission || data.can_data.size() < 8)
             [[unlikely]] return;
 
-        if (data.can_id == 0x141) {
-            gimbal_yaw_motor_.store_status(data.can_data);
-        } else if (data.can_id == 0x201) {
+         if (data.can_id == 0x201) {
             gimbal_bullet_feeder_.store_status(data.can_data);
         } else if (data.can_id == 0x204) {
             gimbal_left_friction_.store_status(data.can_data);
         } else if (data.can_id == 0x203) {
             gimbal_right_friction_.store_status(data.can_data);
         }
+         else if (data.can_id == 0x141) {
+            gimbal_yaw_motor_.store_status(data.can_data);
+        }
+                
+
     }
 
     void can2_receive_callback(const librmcs::data::CanDataView& data) override {
         if (data.is_remote_transmission || data.is_extended_can_id || data.can_data.size() < 8)
             [[unlikely]] return;
-        if (data.can_id == 0x141) {
+        if (data.can_id == 0x142) {
             gimbal_pitch_motor_.store_status(data.can_data);
         }
+
+
     }
 
     void uart1_receive_callback(const librmcs::data::UartDataView& data) override {

@@ -112,7 +112,7 @@ public:
             raw_angle_modulus_ = 1 << 16;
             current_max = 33.0;
             torque_constant = 0.51;
-            reduction_ratio = 8.0;
+            reduction_ratio = 1.0;
             max_torque_ = 2.42;
             break;
         default: std::unreachable();
