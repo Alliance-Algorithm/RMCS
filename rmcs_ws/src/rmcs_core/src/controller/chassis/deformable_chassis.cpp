@@ -137,6 +137,7 @@ public:
 
             update_velocity_control();
             update_lift_target_toggle(switch_left, switch_right);
+            update_lift_special_toggle(switch_left, switch_right);
             update_lift_angle_error();
         } while (false);
 
@@ -168,7 +169,7 @@ private:
         *chassis_angle_         = nan_;
         *chassis_control_angle_ = nan_;
 
-        current_target_angle_ = min_angle_;
+        current_target_angle_ = max_angle_;
         test_init_            = false;
 
         *lf_angle_error_ = nan_;
@@ -270,10 +271,33 @@ private:
                 (std::abs(current_target_angle_ - max_angle_) < 1e-6) ? min_angle_ : max_angle_;
                 scope_motor_control();
         }
+        lf_current_target_angle_ = current_target_angle_;
+        lb_current_target_angle_ = current_target_angle_;
+        rb_current_target_angle_ = current_target_angle_;
+        rf_current_target_angle_ = current_target_angle_;
     }
 
+    void update_lift_special_toggle(rmcs_msgs::Switch left_switch, rmcs_msgs::Switch right_switch){
+        if ((left_switch == rmcs_msgs::Switch::DOWN) && (right_switch == rmcs_msgs::Switch::UP)
+            && !(left_switch == rmcs_msgs::Switch::DOWN) && (right_switch == rmcs_msgs::Switch::UP)) {
+            lf_current_target_angle_ = max_angle_;
+            rf_current_target_angle_ = max_angle_;   
+            lb_current_target_angle_ = min_angle_;
+            rb_current_target_angle_ = min_angle_;    
+        }
+        if((left_switch == rmcs_msgs::Switch::UP) && (right_switch == rmcs_msgs::Switch::DOWN)
+            && !(left_switch == rmcs_msgs::Switch::UP) && (right_switch == rmcs_msgs::Switch::DOWN)) {
+            lf_current_target_angle_ = min_angle_;
+            rf_current_target_angle_ = min_angle_;   
+            lb_current_target_angle_ = max_angle_;
+            rb_current_target_angle_ = max_angle_;
+        }
+    }
     void update_lift_angle_error() {
-        s_target_ = trapezoidal_calculator(current_target_angle_);
+        double lf_s_target_ = trapezoidal_calculator(lf_current_target_angle_);
+        double lb_s_target_ = trapezoidal_calculator(lb_current_target_angle_);
+        double rb_s_target_ = trapezoidal_calculator(rb_current_target_angle_);
+        double rf_s_target_ = trapezoidal_calculator(rf_current_target_angle_);
 
         const double alpha_lf =
             wrap_deg(left_front_joint_offset_) - wrap_deg(*left_front_joint_angle_) + 10.81767;
@@ -284,7 +308,6 @@ private:
         const double alpha_rb =
             wrap_deg(right_back_joint_offset_) - wrap_deg(*right_back_joint_angle_) + 10.326716;
 
-        // *processed_encoder_angle_ = (alpha_lb + alpha_lf + alpha_rf + alpha_rb) / 4.0;
         *processed_encoder_angle_ = (alpha_lb + alpha_rb) / 2.0;
 
         s_lf_ = trapezoidal_calculator(alpha_lf);
@@ -292,10 +315,10 @@ private:
         s_rf_ = trapezoidal_calculator(alpha_rf);
         s_rb_ = trapezoidal_calculator(alpha_rb);
 
-        *lf_angle_error_ = s_lf_ - s_target_;
-        *lb_angle_error_ = s_lb_ - s_target_;
-        *rf_angle_error_ = s_rf_ - s_target_;
-        *rb_angle_error_ = s_rb_ - s_target_;
+        *lf_angle_error_ = s_lf_ - lf_s_target_;
+        *lb_angle_error_ = s_lb_ - lb_s_target_;
+        *rf_angle_error_ = s_rf_ - rf_s_target_;
+        *rb_angle_error_ = s_rb_ - rb_s_target_;
     }
 
     void scope_motor_control() {
@@ -370,9 +393,9 @@ private:
     double right_back_joint_offset_;
 
     double current_target_angle_;
+    double lf_current_target_angle_,lb_current_target_angle_,rb_current_target_angle_,rf_current_target_angle_;
 
-    double s_lf_ = 0.0, s_lb_ = 0.0, s_rf_ = 0.0, s_rb_ = 0.0;
-    double s_target_ = 0.0;
+    double s_lf_ = 0.0, s_lb_ = 0.0, s_rf_ = 0.0, s_rb_ = 0.0;  
 
     double Bx_ = 0.0;
     double By_ = 0.0;
