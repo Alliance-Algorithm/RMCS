@@ -35,9 +35,7 @@ class OmniInfantry
     , private librmcs::agent::CBoard {
 public:
     OmniInfantry()
-        : Node{
-              get_component_name(),
-              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
+        : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , librmcs::agent::CBoard{get_parameter("board_serial").as_string()}
         , logger_(get_logger())
         , infantry_command_(
@@ -99,10 +97,11 @@ public:
             return std::make_tuple(y, -x, z);
         });
 
-        using namespace rmcs_description; // NOLINT(google-build-using-namespace)
-        tf_->set_transform<PitchLink, CameraLink>(Eigen::Translation3d{0.06603, 0.0, 0.082});
+        using namespace rmcs_description;                // NOLINT(google-build-using-namespace)
+        tf_->set_transform<PitchLink, CameraLink>(Eigen::Translation3d{0.140, 0.0, 0.0455});
+        tf_->set_transform<PitchLink, MuzzleLink>(Eigen::Translation3d{0.0, 0.0, 0.0});
 
-        constexpr double gimbal_center_height = 0.32059;
+        constexpr double gimbal_center_height = 0.32059; // pitch轴离地高度
         constexpr double wheel_distance_x = 0.15897, wheel_distance_y = 0.15897;
         tf_->set_transform<BaseLink, GimbalCenterLink>(
             Eigen::Translation3d{0, 0, gimbal_center_height});

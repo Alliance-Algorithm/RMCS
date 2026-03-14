@@ -29,7 +29,7 @@ public:
         register_input("/remote/switch/left", switch_left_);
         register_input("/remote/mouse/velocity", mouse_velocity_);
         register_input("/remote/mouse", mouse_);
-
+        register_input("/gimbal/auto_aim/auto_aim_enabled", auto_aim_enabled_, false);
         register_input("/gimbal/auto_aim/control_direction", auto_aim_control_direction_, false);
 
         register_output("/gimbal/yaw/control_angle_error", yaw_angle_error_, nan_);
@@ -52,11 +52,18 @@ public:
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN))
             return two_axis_gimbal_solver.update(TwoAxisGimbalSolver::SetDisabled());
 
-        if (auto_aim_control_direction_.ready() && (mouse.right || switch_right == Switch::UP)
-            && !auto_aim_control_direction_->isZero())
+        const bool auto_aim_requested = auto_aim_enabled_.ready() && *auto_aim_enabled_
+                                     && (mouse.right || switch_right == Switch::UP);
+        const bool auto_aim_direction_valid =
+            auto_aim_control_direction_.ready() && auto_aim_control_direction_->allFinite()
+            && auto_aim_control_direction_->squaredNorm() > min_auto_aim_direction_norm_squared_;
+
+        if (auto_aim_requested && auto_aim_direction_valid) {
+            const auto target_direction = auto_aim_control_direction_->normalized();
             return two_axis_gimbal_solver.update(
                 TwoAxisGimbalSolver::SetControlDirection(
-                    OdomImu::DirectionVector(*auto_aim_control_direction_)));
+                    OdomImu::DirectionVector(target_direction)));
+        }
 
         if (!two_axis_gimbal_solver.enabled())
             return two_axis_gimbal_solver.update(TwoAxisGimbalSolver::SetToLevel());
@@ -75,6 +82,7 @@ public:
 
 private:
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
+    static constexpr double min_auto_aim_direction_norm_squared_ = 1e-6;
 
     InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;
@@ -82,6 +90,7 @@ private:
     InputInterface<Eigen::Vector2d> mouse_velocity_;
     InputInterface<rmcs_msgs::Mouse> mouse_;
 
+    InputInterface<bool> auto_aim_enabled_;
     InputInterface<Eigen::Vector3d> auto_aim_control_direction_;
 
     TwoAxisGimbalSolver two_axis_gimbal_solver;

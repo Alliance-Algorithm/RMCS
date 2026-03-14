@@ -35,7 +35,7 @@ ament_auto_add_library(
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_SOURCE_DIR}/src)
-target_link_libraries(${PROJECT_NAME} PRIVATE librmcs-sdk)
+target_link_libraries(${PROJECT_NAME} librmcs-sdk)
 
 pluginlib_export_plugin_description_file(rmcs_executor plugins.xml)
 
