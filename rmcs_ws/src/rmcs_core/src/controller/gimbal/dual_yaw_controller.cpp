@@ -1,4 +1,3 @@
-
 #include <numbers>
 
 #include <eigen3/Eigen/Dense>
@@ -46,7 +45,8 @@ public:
         register_output("/gimbal/bottom_yaw/control_torque", bottom_yaw_control_torque_, 0.0);
 
         register_output("/gimbal/top_yaw/control_angle", top_yaw_control_angle_, nan_);
-        register_output("/gimbal/bottom_yaw/control_angle_shift", bottom_yaw_control_angle_shift_, nan_);
+        register_output(
+            "/gimbal/bottom_yaw/control_angle_shift", bottom_yaw_control_angle_shift_, nan_);
 
         register_output("/gimbal/yaw/angle", yaw_angle_, 0.0);
         register_output("/gimbal/yaw/velocity", yaw_velocity_, 0.0);
@@ -65,8 +65,20 @@ public:
             *top_yaw_control_torque_ = nan_;
             *bottom_yaw_control_torque_ = nan_;
         } else {
-            *top_yaw_control_torque_ = top_yaw_velocity_pid_.update(
-                top_yaw_angle_pid_.update(*control_angle_error_) - *gimbal_yaw_velocity_imu_);
+
+            /// @FIXME:
+            ///  The implement of dual yaw controlling is not completed
+            ///  Let it stable as a common gimbal
+            {
+                auto true_angle = *top_yaw_angle_;
+                if (true_angle > std::numbers::pi)
+                    true_angle -= 2 * std::numbers::pi;
+
+                const auto velocity = top_yaw_angle_pid_.update(-true_angle);
+                const auto torque = top_yaw_velocity_pid_.update(velocity);
+
+                *top_yaw_control_torque_ = torque;
+            }
 
             *bottom_yaw_control_torque_ = bottom_yaw_velocity_pid_.update(
                 bottom_yaw_angle_pid_.update(bottom_yaw_control_error())

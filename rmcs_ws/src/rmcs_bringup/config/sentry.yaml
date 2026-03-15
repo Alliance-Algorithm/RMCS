@@ -25,6 +25,7 @@ rmcs_executor:
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::SteeringWheelController -> steering_wheel_controller
 
+      # Alliance-Algorithm/rmcs-navigation
       - rmcs::Brain -> rmcs_navigation
 
 # The positive direction is the one that battery exists
@@ -33,7 +34,7 @@ sentry_hardware:
     board_serial_top_board: "d4-1d2b"
     board_serial_bottom_board: "d4-041d"
     bottom_yaw_motor_zero_point: 46114
-    top_yaw_motor_zero_point: 55799
+    top_yaw_motor_zero_point: 55835
     pitch_motor_zero_point: 11634
     left_front_zero_point: 5800
     left_back_zero_point: 1704
@@ -51,10 +52,10 @@ chassis_controller:
 
 dual_yaw_controller:
   ros__parameters:
-    top_yaw_angle_kp: 1.0
+    top_yaw_angle_kp: 5.0
     top_yaw_angle_ki: 0.0
     top_yaw_angle_kd: 0.0
-    top_yaw_velocity_kp: 1.0
+    top_yaw_velocity_kp: 5.0
     top_yaw_velocity_ki: 0.0
     top_yaw_velocity_kd: 0.0
     bottom_yaw_angle_kp: 8.6
