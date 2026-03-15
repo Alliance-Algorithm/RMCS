@@ -45,17 +45,17 @@ gimbal_controller:
     yaw_angle_kp: 15.0
     yaw_angle_ki: 0.0
     yaw_angle_kd: 0.0
-    yaw_velocity_kp: 40.0
+    yaw_velocity_kp: 4.4
     yaw_velocity_ki: 0.0
-    yaw_velocity_kd: 0.01
+    yaw_velocity_kd: 0.0
     pitch_angle_kp: 20.0
     pitch_angle_ki: 0.0
     pitch_angle_kd: 0.1
     pitch_velocity_kp: 6.0
     pitch_velocity_ki: 0.0
     pitch_velocity_kd: 0.0
-    yaw_acc_ff_gain: 3.0
-    pitch_acc_ff_gain: 0.5
+    yaw_acc_ff_gain: 0.33
+    pitch_acc_ff_gain: 0.33
 
 friction_wheel_controller:
   ros__parameters:
