@@ -1,7 +1,7 @@
 #!/bin/python3
 
 import socket
-import os
+import time
 
 SOCKET_PATH = "/tmp/sync-remote"
 
@@ -27,4 +27,5 @@ def wait_for_sync_complete():
 
 
 if __name__ == "__main__":
+    time.sleep(1)
     exit(wait_for_sync_complete())
