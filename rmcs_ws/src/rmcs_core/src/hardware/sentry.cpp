@@ -1,6 +1,10 @@
 #include <cstddef>
+#include <format>
 #include <memory>
+#include <print>
+#include <ranges>
 #include <span>
+#include <sstream>
 #include <string_view>
 #include <tuple>
 #include <utility>
@@ -19,6 +23,7 @@
 #include <rmcs_msgs/serial_interface.hpp>
 #include <rmcs_utility/ring_buffer.hpp>
 #include <std_msgs/msg/int32.hpp>
+#include <std_srvs/srv/trigger.hpp>
 
 #include "hardware/device/bmi088.hpp"
 #include "hardware/device/can_packet.hpp"
@@ -49,6 +54,13 @@ public:
             "/steers/calibrate", rclcpp::QoS{0}, [this](std_msgs::msg::Int32::UniquePtr&& msg) {
                 steers_calibrate_subscription_callback(std::move(msg));
             });
+        status_service_ = Node::create_service<std_srvs::srv::Trigger>(
+            "/rmcs/service/status",
+            [this](
+                const std_srvs::srv::Trigger::Request::SharedPtr&,
+                const std_srvs::srv::Trigger::Response::SharedPtr& response) {
+                status_service_callback(response);
+            });
 
         top_board_ = std::make_unique<TopBoard>(
             *this, *command_component_, get_parameter("board_serial_top_board").as_string());
@@ -78,6 +90,36 @@ public:
     }
 
 private:
+    auto status_service_callback(const std::shared_ptr<std_srvs::srv::Trigger::Response>& response)
+        -> void {
+        response->success = true;
+
+        auto feedback_message = std::ostringstream{};
+
+        std::println(feedback_message, "Gimbal:");
+
+        std::println(
+            feedback_message, "  -  Bottom Yaw: {}",
+            bottom_board_->gimbal_bottom_yaw_motor_.last_raw_angle());
+        std::println(
+            feedback_message, "  -     Top Yaw: {}",
+            top_board_->gimbal_top_yaw_motor_.last_raw_angle());
+        std::println(
+            feedback_message, "  - Pitch Angle: {}",
+            top_board_->gimbal_pitch_motor_.last_raw_angle());
+
+        std::println(feedback_message, "Chassis:");
+
+        constexpr auto position =
+            std::array{"right back", "right front", "left front", "left back"};
+        for (auto&& [index, motor] :
+             std::views::zip(position, bottom_board_->chassis_steer_motors_)) {
+            std::println(feedback_message, "  - {:11}: {}", index, motor.last_raw_angle());
+        }
+
+        response->message = feedback_message.str();
+    }
+
     void gimbal_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
         RCLCPP_INFO(
             get_logger(), "[gimbal calibration] New yaw offset: %ld",
@@ -159,8 +201,8 @@ private:
 
                 // Eigen::AngleAxisd pitch_link_to_bmi088_link{
                 //     std::numbers::pi / 2, Eigen::Vector3d::UnitZ()};
-                // Eigen::Vector3d mapping = pitch_link_to_bmi088_link * Eigen::Vector3d{1, 2, 3};
-                // std::cout << mapping << std::endl;
+                // Eigen::Vector3d mapping = pitch_link_to_bmi088_link *
+                // Eigen::Vector3d{1, 2, 3}; std::cout << mapping << std::endl;
 
                 return std::make_tuple(-x, -y, z);
             });
@@ -204,11 +246,11 @@ private:
                 .can_id = 0x200,
                 .can_data =
                     device::CanPacket8{
-                                       gimbal_right_friction_.generate_command(),
-                                       gimbal_left_friction_.generate_command(),
-                                       device::CanPacket8::PaddingQuarter{},
-                                       gimbal_bullet_feeder_.generate_command(),
-                                       }
+                        gimbal_right_friction_.generate_command(),
+                        gimbal_left_friction_.generate_command(),
+                        device::CanPacket8::PaddingQuarter{},
+                        gimbal_bullet_feeder_.generate_command(),
+                    }
                         .as_bytes(),
             });
 
@@ -299,9 +341,8 @@ private:
                     [&buffer](std::byte byte) noexcept { *buffer++ = byte; }, size);
             };
             referee_serial_->write = [this](const std::byte* buffer, size_t size) {
-                start_transmit().uart1_transmit({
-                    .uart_data = std::span<const std::byte>{buffer, size}
-                });
+                start_transmit().uart1_transmit(
+                    {.uart_data = std::span<const std::byte>{buffer, size}});
                 return size;
             };
 
@@ -381,13 +422,13 @@ private:
                         .can_id = 0x200,
                         .can_data =
                             device::CanPacket8{
-                                               chassis_wheel_motors_[1].generate_command(),
-                                               chassis_wheel_motors_[0].generate_command(),
-                                               device::CanPacket8::PaddingQuarter{},
-                                               device::CanPacket8::PaddingQuarter{},
-                                               }
+                                chassis_wheel_motors_[1].generate_command(),
+                                chassis_wheel_motors_[0].generate_command(),
+                                device::CanPacket8::PaddingQuarter{},
+                                device::CanPacket8::PaddingQuarter{},
+                            }
                                 .as_bytes(),
-                })
+                    })
                     .can2_transmit({
                         .can_id = 0x200,
                         .can_data =
@@ -405,13 +446,13 @@ private:
                         .can_id = 0x1FE,
                         .can_data =
                             device::CanPacket8{
-                                               chassis_steer_motors_[1].generate_command(),
-                                               chassis_steer_motors_[0].generate_command(),
-                                               device::CanPacket8::PaddingQuarter{},
-                                               device::CanPacket8::PaddingQuarter{},
-                                               }
+                                chassis_steer_motors_[1].generate_command(),
+                                chassis_steer_motors_[0].generate_command(),
+                                device::CanPacket8::PaddingQuarter{},
+                                device::CanPacket8::PaddingQuarter{},
+                            }
                                 .as_bytes(),
-                })
+                    })
                     .can2_transmit({
                         .can_id = 0x1FE,
                         .can_data =
@@ -503,6 +544,8 @@ private:
 
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr gimbal_calibrate_subscription_;
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr steers_calibrate_subscription_;
+
+    std::shared_ptr<rclcpp::Service<std_srvs::srv::Trigger>> status_service_;
 };
 
 } // namespace rmcs_core::hardware
