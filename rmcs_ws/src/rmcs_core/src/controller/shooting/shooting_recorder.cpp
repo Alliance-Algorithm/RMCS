@@ -96,7 +96,12 @@ public:
         }
         v = *shoot_timestamp_;
 
+        static constexpr size_t max_velocities_size = 1000;
+
         velocities.push_back(*initial_speed_);
+        if (velocities.size() > max_velocities_size) {
+            velocities.erase(velocities.begin());
+        }
 
         analysis3();
 
@@ -160,9 +165,6 @@ private:
     double v;
     double aim_velocity;
 
-    double start_time_ = 0.0;
-    double vv = 0.0;
-
 private:
     static std::string timestamp_to_string(double timestamp) {
         auto time = static_cast<std::time_t>(timestamp);
@@ -189,7 +191,12 @@ private:
         sort(velocities.begin(), velocities.end());
 
         range_ = velocities.back() - velocities.front();
-        range2_ = velocities[int(velocities.size() - 2)] - velocities[1];
+
+        if (velocities.size() >= 3) {
+            range2_ = velocities[int(velocities.size() - 2)] - velocities[1];
+        } else {
+            range2_ = range_;
+        }
 
         velocity_max = velocities.back();
         velocity_min = velocities.front();

@@ -155,7 +155,7 @@ private:
     void dual_motor_sync_control(
         double setpoint, double left_velocity, double right_velocity,
         pid::MatrixPidCalculator<2>& pid_calculator, double& left_torque_out,
-        double& right_torque_out) const {
+        double& right_torque_out) {
 
         if (std::isnan(setpoint)) {
             left_torque_out = nan_;

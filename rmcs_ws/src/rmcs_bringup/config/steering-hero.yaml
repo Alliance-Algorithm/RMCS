@@ -25,6 +25,7 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController -> first_right_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> second_left_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> second_right_friction_velocity_pid_controller
+      # - rmcs_core::controller::shooting::ShootingRecorder -> shooting_recorder
 
       - rmcs_core::controller::chassis::ChassisController -> chassis_controller
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
@@ -171,7 +172,7 @@ friction_wheel_controller:
     friction_velocities:
       - 450.00
       - 450.00
-      - -535.00
+      - 535.00
       - 535.00
     friction_soft_start_stop_time: 1.0
 

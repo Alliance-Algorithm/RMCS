@@ -147,11 +147,15 @@ private:
             gimbal_friction_wheels_[0].configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kM3508}.set_reduction_ratio(1.));
             gimbal_friction_wheels_[1].configure(
-                device::DjiMotor::Config{device::DjiMotor::Type::kM3508}.set_reduction_ratio(1.));
+                device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
+                    .set_reversed()
+                    .set_reduction_ratio(1.));
             gimbal_friction_wheels_[2].configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kM3508}.set_reduction_ratio(1.));
             gimbal_friction_wheels_[3].configure(
-                device::DjiMotor::Config{device::DjiMotor::Type::kM3508}.set_reduction_ratio(1.));
+                device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
+                    .set_reversed()
+                    .set_reduction_ratio(1.));
             gimbal_bullet_feeder_.configure(
                 device::LkMotor::Config{device::LkMotor::Type::kMG5010Ei10}
                     .set_reversed()
