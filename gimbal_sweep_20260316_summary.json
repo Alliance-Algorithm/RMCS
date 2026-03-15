@@ -1,0 +1,89 @@
+{
+  "summary": {
+    "samples": 75743,
+    "duration_s": 75.742,
+    "cycles_seen": 8,
+    "full_cycles_completed": 7,
+    "yaw_freq_min_hz": 0.5,
+    "yaw_freq_max_hz": 5.99945,
+    "yaw_error_rms_rad": 0.11690597123898808,
+    "yaw_error_p95_rad": 0.21896110699999996,
+    "yaw_error_max_rad": 0.276884059,
+    "pitch_error_rms_rad": 0.020554161450712132,
+    "pitch_error_p95_rad": 0.029360078399999996,
+    "pitch_error_max_rad": 0.037619734,
+    "yaw_torque_abs_mean": 33.6304125688496,
+    "yaw_torque_abs_p95": 116.96259354989996,
+    "yaw_torque_abs_max": 158.282154025,
+    "pitch_torque_abs_mean": 2.4400326312162974,
+    "pitch_torque_abs_p95": 3.6408406778,
+    "pitch_torque_abs_max": 5.861326345,
+    "actual_pitch_mean_rad": 0.0197143246268302,
+    "actual_pitch_std_rad": 0.005707463514987524,
+    "actual_pitch_min_rad": -0.004385755,
+    "actual_pitch_max_rad": 0.03849922,
+    "yaw_cmd_actual_corr": 0.8860643781019477
+  },
+  "freq_bins": [
+    {
+      "freq_bin": "0.5-1",
+      "samples": 7280,
+      "yaw_error_rms_rad": 0.030201466867593844,
+      "yaw_error_p95_rad": 0.07210230129999995,
+      "yaw_torque_abs_p95": 8.076725572999997,
+      "imu_yaw_velocity_rms": 1.6555121818256835,
+      "gain_ratio_std": 0.9470069310596427,
+      "lag_ms_by_xcorr": 0.0
+    },
+    {
+      "freq_bin": "1-2",
+      "samples": 14544,
+      "yaw_error_rms_rad": 0.06595163795640417,
+      "yaw_error_p95_rad": 0.11695040705,
+      "yaw_torque_abs_p95": 9.845769073049999,
+      "imu_yaw_velocity_rms": 2.1651503359426263,
+      "gain_ratio_std": 0.8133902954298472,
+      "lag_ms_by_xcorr": -10.0
+    },
+    {
+      "freq_bin": "2-3",
+      "samples": 14544,
+      "yaw_error_rms_rad": 0.149522369172024,
+      "yaw_error_p95_rad": 0.24469920284999988,
+      "yaw_torque_abs_p95": 16.317882465749992,
+      "imu_yaw_velocity_rms": 3.8351418467551706,
+      "gain_ratio_std": 0.911322911518823,
+      "lag_ms_by_xcorr": -38.0
+    },
+    {
+      "freq_bin": "3-4",
+      "samples": 13923,
+      "yaw_error_rms_rad": 0.09480747839638565,
+      "yaw_error_p95_rad": 0.2128187173,
+      "yaw_torque_abs_p95": 63.0762809736,
+      "imu_yaw_velocity_rms": 5.003030109685816,
+      "gain_ratio_std": 0.9803140292343595,
+      "lag_ms_by_xcorr": -6.0
+    },
+    {
+      "freq_bin": "4-5",
+      "samples": 12726,
+      "yaw_error_rms_rad": 0.1202375590183108,
+      "yaw_error_p95_rad": 0.18448844875,
+      "yaw_torque_abs_p95": 101.04886828675,
+      "imu_yaw_velocity_rms": 4.010546709841777,
+      "gain_ratio_std": 0.5750422259151886,
+      "lag_ms_by_xcorr": 10.0
+    },
+    {
+      "freq_bin": "5-6",
+      "samples": 12726,
+      "yaw_error_rms_rad": 0.16127356265830622,
+      "yaw_error_p95_rad": 0.229579596,
+      "yaw_torque_abs_p95": 144.214174396,
+      "imu_yaw_velocity_rms": 3.410773976566524,
+      "gain_ratio_std": 0.39378638817727674,
+      "lag_ms_by_xcorr": 10.0
+    }
+  ]
+}

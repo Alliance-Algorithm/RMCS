@@ -12,7 +12,7 @@ rmcs_executor:
       - rmcs_core::referee::app::ui::Infantry -> referee_ui_infantry
 
       - sp_vision_25::bridge::SpVisionBridge -> sp_vision_bridge
-      - rmcs_core::controller::gimbal::OmniInfantryPlannerGimbalController -> gimbal_controller
+      - rmcs_core::controller::gimbal::OmniInfantryGimbalSweep -> gimbal_controller
 
       - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
       - rmcs_core::controller::shooting::HeatController -> heat_controller
@@ -40,22 +40,17 @@ sp_vision_bridge:
 
 gimbal_controller:
   ros__parameters:
-    upper_limit: -0.5098
-    lower_limit: 0.2262
-    yaw_angle_kp: 15.0
-    yaw_angle_ki: 0.0
-    yaw_angle_kd: 0.0
-    yaw_velocity_kp: 4.4
-    yaw_velocity_ki: 0.0
-    yaw_velocity_kd: 0.0
-    pitch_angle_kp: 20.0
-    pitch_angle_ki: 0.0
-    pitch_angle_kd: 0.1
-    pitch_velocity_kp: 6.0
-    pitch_velocity_ki: 0.0
-    pitch_velocity_kd: 0.0
-    yaw_acc_ff_gain: 0.33
-    pitch_acc_ff_gain: 0.33
+    duration: 10.0
+    yaw_torque_bias: 0.0
+    pitch_torque_bias: 0.0
+    yaw_torque_amplitude: 20.0
+    pitch_torque_amplitude: 0.0
+    yaw_start_frequency: 0.5
+    yaw_end_frequency: 6.0
+    pitch_start_frequency: 0.5
+    pitch_end_frequency: 6.0
+    output_csv_path: /tmp/rmcs/gimbal_sweep.csv
+    csv_decimation: 1
 
 friction_wheel_controller:
   ros__parameters:
