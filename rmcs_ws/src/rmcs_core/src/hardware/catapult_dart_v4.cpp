@@ -26,6 +26,7 @@
 #include "hardware/device/bmi088.hpp"
 #include "hardware/device/can_packet.hpp"
 #include "hardware/device/dji_motor.hpp"
+#include "hardware/device/lk_motor.hpp"
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/force_sensor.hpp"
 #include "hardware/device/pwm_servo.hpp"
@@ -56,6 +57,8 @@ public:
         , force_screw_motor_{*this, *dart_command_, "/dart/force_screw"}
         , drive_belt_motor_left_{*this, *dart_command_, "/dart/drive_belt/left"}
         , drive_belt_motor_right_{*this, *dart_command_, "/dart/drive_belt/right"}
+        , lifting_left_motor_{*this, *dart_command_, "/dart/lifting_left"}
+        , lifting_right_motor_{*this, *dart_command_, "/dart/lifting_right"}
         , force_sensor_{*this}
         , trigger_servo_{"/dart/trigger_servo", *dart_command_, 20.0, 0.5, 2.5}
 
@@ -87,6 +90,13 @@ public:
         register_output("/imu/catapult_pitch_angle", catapult_pitch_angle_);
         register_output("/imu/catapult_roll_angle", catapult_roll_angle_);
         register_output("/imu/catapult_yaw_angle", catapult_yaw_angle_);
+
+        lifting_left_motor_.configure(
+            device::LkMotor::Config{device::LkMotor::Type::kMG4005Ei10}
+                .enable_multi_turn_angle());
+        lifting_right_motor_.configure(
+            device::LkMotor::Config{device::LkMotor::Type::kMG4005Ei10}
+                .enable_multi_turn_angle());
 
         force_sensor_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
             "/force_sensor/calibrate", rclcpp::QoS{0},
@@ -152,6 +162,16 @@ public:
             });
             pub_time_count_ = 0;
         }
+
+        board.can1_transmit({
+            .can_id   = 0x141,
+            .can_data = lifting_left_motor_.generate_velocity_command().as_bytes(),
+        });
+
+        board.can1_transmit({
+            .can_id   = 0x145,
+            .can_data = lifting_right_motor_.generate_velocity_command().as_bytes(),
+        });
 
         board.can2_transmit({
             .can_id   = 0x200,
@@ -389,6 +409,9 @@ private:
     device::DjiMotor force_screw_motor_;
     device::DjiMotor drive_belt_motor_left_;
     device::DjiMotor drive_belt_motor_right_;
+
+    device::LkMotor lifting_left_motor_;
+    device::LkMotor lifting_right_motor_;
 
     device::ForceSensor force_sensor_;
 

@@ -53,6 +53,9 @@ public:
         register_input("/force_sensor/channel_1/weight", force_sensor_ch1_data_);
         register_input("/force_sensor/channel_2/weight", force_sensor_ch2_data_);
 
+        register_input("/dart/lifting_left/angle",  lifting_left_angle_);
+        register_input("/dart/lifting_right/angle", lifting_right_angle_);
+
         // Trigger servo: PWM double value
         register_output("/dart/trigger_servo/value", trigger_value_, trigger_lock_value_);
 
@@ -63,8 +66,11 @@ public:
         register_output("/dart/drive_belt/left/control_torque",   belt_left_torque_,   0.0);
         register_output("/dart/drive_belt/right/control_torque",  belt_right_torque_,  0.0);
 
+        register_output("/dart/lifting_left/control_velocity", lifting_left_angle_shift_);
+        register_output("/dart/lifting_right/control_velocity", lifting_right_angle_shift_);
         register_output("/dart/filling/stage", filling_stage_); 
         register_output("/force/sensor/average",   average_force_);
+        register_output("/dart/limiting_servo/control_angle", limiting_control_angle_);
 
         timer_ = this->create_wall_timer(
             std::chrono::milliseconds(timer_interval_ms_),
@@ -89,9 +95,9 @@ public:
             *pitch_torque_ = std::clamp(joystick_right_->x() * max_torque_,
                                         -max_torque_,  max_torque_);
 
-            double belt_cmd = joystick_right_->y() * max_belt_torque_;
-            *belt_left_torque_  = std::clamp(belt_cmd, -max_belt_torque_, max_belt_torque_);
-            *belt_right_torque_ = std::clamp(belt_cmd, -max_belt_torque_, max_belt_torque_);
+            double lifting_cmd = joystick_right_->y() * max_belt_torque_;
+            *lifting_left_angle_shift_ = lifting_cmd;
+            *lifting_right_angle_shift_ = -lifting_cmd;
 
             *force_screw_torque_ = 0.0;
 
@@ -118,8 +124,11 @@ public:
             log_count_ = 0;
             RCLCPP_INFO(logger_, "[ForceSensor] ch1: %d  ch2: %d  avg: %.1f",
                         *force_sensor_ch1_data_, *force_sensor_ch2_data_, *average_force_);
+            RCLCPP_INFO(logger_, "[Lifting] left: %.4f rad  right: %.4f rad",
+                        *lifting_left_angle_, *lifting_right_angle_);
         }
 
+        *limiting_control_angle_ = 0;
         last_switch_left_  = sw_left;
         last_switch_right_ = sw_right;
     }
@@ -178,7 +187,13 @@ private:
     OutputInterface<double> force_screw_torque_;
     OutputInterface<double> belt_left_torque_;
     OutputInterface<double> belt_right_torque_;
+    OutputInterface<double> lifting_left_angle_shift_;
+    OutputInterface<double> lifting_right_angle_shift_;
 
+    // LK lifting motor angle feedback (radians, multi-turn)
+    InputInterface<double> lifting_left_angle_;
+    InputInterface<double> lifting_right_angle_;
+    OutputInterface<uint16_t> limiting_control_angle_; 
     OutputInterface<double> average_force_;
 
     // Stage output (used by broadcaster)

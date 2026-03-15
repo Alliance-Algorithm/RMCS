@@ -19,7 +19,7 @@ dart_hardware:
 dart_manager:
   ros__parameters:
     max_transform_rate: 15.0
-    manual_force_scale: 15.0
+    manual_force_scale: 5.0
 
 remote_cmd_bridge:
   ros__parameters:
@@ -32,7 +32,7 @@ launch_setting:
     max_control_torque: 15.0
     trigger_free_value: 0.75
     trigger_lock_value: 0.63
-    b_kp: 1.0
+    b_kp: 2.0
     b_ki: 0.0
     b_kd: 0.0
 

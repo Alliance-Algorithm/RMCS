@@ -2,7 +2,7 @@ rmcs_executor:
   ros__parameters:
     update_rate: 1000.0
     components:
-      - rmcs_core::hardware::CatapultDartV3Full -> catapult_dart
+      - rmcs_core::hardware::CatapultDartV3Lk -> catapult_dart
       - rmcs_core::controller::dart::DartFillingTest -> launch_controller
 
 catapult_dart:

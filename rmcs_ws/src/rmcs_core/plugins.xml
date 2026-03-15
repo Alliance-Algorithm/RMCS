@@ -152,4 +152,7 @@
   <class type="rmcs_core::controller::dart::DartSettingController" base_class_type="rmcs_executor::Component">
     <description>Dart setting controller: subscribes to RemoteCommandBridge delta commands, outputs yaw/pitch/force control velocities.</description>
   </class>
+  <class type="rmcs_core::controller::dart::DartLaunchSettingV2" base_class_type="rmcs_executor::Component">
+    <description>Launch setting V2: belt + trigger + LK lifting angle control.</description>
+  </class>
 </library>

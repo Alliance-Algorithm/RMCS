@@ -31,6 +31,7 @@ public:
 
         register_output("/dart/yaw_motor/control_torque",   yaw_torque_,   0.0);
         register_output("/dart/pitch_motor/control_torque", pitch_torque_, 0.0);
+        
     }
 
     void update() override {
