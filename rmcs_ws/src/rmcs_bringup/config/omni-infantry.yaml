@@ -12,10 +12,7 @@ rmcs_executor:
       - rmcs_core::referee::app::ui::Infantry -> referee_ui_infantry
 
       - sp_vision_25::bridge::SpVisionBridge -> sp_vision_bridge
-      - rmcs_core::controller::gimbal::SimpleGimbalController -> gimbal_controller
-      - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
-      - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
-      - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
+      - rmcs_core::controller::gimbal::OmniInfantryPlannerGimbalController -> gimbal_controller
 
       - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
       - rmcs_core::controller::shooting::HeatController -> heat_controller
@@ -45,33 +42,28 @@ gimbal_controller:
   ros__parameters:
     upper_limit: -0.5098
     lower_limit: 0.2262
-
-yaw_angle_pid_controller:
-  ros__parameters:
-    output_max: 10.0
-    output_min: -10.0
-    measurement: /gimbal/yaw/control_angle_error
-    control: /gimbal/yaw/control_velocity
-    kp: 15.0
-    ki: 0.0
-    kd: 0.0
-
-yaw_velocity_pid_controller:
-  ros__parameters:
-    measurement: /gimbal/yaw/velocity_imu
-    setpoint: /gimbal/yaw/control_velocity
-    control: /gimbal/yaw/control_torque
-    kp: 40.0
-    ki: 0.001
-    kd: 0.01
-
-pitch_angle_pid_controller:
-  ros__parameters:
-    measurement: /gimbal/pitch/control_angle_error
-    control: /gimbal/pitch/control_velocity
-    kp: 20.0
-    ki: 0.0
-    kd: 0.1
+    yaw_angle_kp: 15.0
+    yaw_angle_ki: 0.0
+    yaw_angle_kd: 0.0
+    yaw_angle_output_max: 10.0
+    yaw_angle_output_min: -10.0
+    yaw_velocity_kp: 40.0
+    yaw_velocity_ki: 0.001
+    yaw_velocity_kd: 0.01
+    yaw_velocity_output_max: 7.0
+    yaw_velocity_output_min: -7.0
+    pitch_angle_kp: 20.0
+    pitch_angle_ki: 0.0
+    pitch_angle_kd: 0.1
+    pitch_angle_output_max: 10.0
+    pitch_angle_output_min: -10.0
+    pitch_velocity_kp: 20.0
+    pitch_velocity_ki: 0.0
+    pitch_velocity_kd: 0.01
+    pitch_velocity_output_max: 4.5
+    pitch_velocity_output_min: -4.5
+    yaw_acc_ff_gain: 1.0
+    pitch_acc_ff_gain: 1.0
 
 friction_wheel_controller:
   ros__parameters:
