@@ -137,6 +137,7 @@ public:
 
         *T_mos  = (double)(rx_buff[6]);
         *T_coil = (double)(rx_buff[7]);
+        *raw_angle_   =  p_int;
     }
 
     uint64_t generate_torque_command() {
@@ -163,6 +164,7 @@ public:
     double get_torque() { return *torque_; }
     double get_state() { return *state; }
     double get_T_coil() { return *T_coil; }
+    int get_raw_angle() { return *raw_angle_; }
 
 private:
     std::atomic<uint64_t> can_result_ = 0;
@@ -204,6 +206,7 @@ private:
     Component::OutputInterface<double> torque_;
     Component::OutputInterface<double> T_mos;
     Component::OutputInterface<double> T_coil;
+    Component::OutputInterface<int> raw_angle_;
 
     Component::OutputInterface<DMMotor*> motor_;
 

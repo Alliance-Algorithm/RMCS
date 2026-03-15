@@ -66,7 +66,7 @@ public:
             *joint_motor_angle[2],
             *joint_motor_angle[3],
             *joint_motor_angle[4],
-            0.0};
+            0.0};//joint6先置0
         joint_states_pub->publish(msg);
     }
 

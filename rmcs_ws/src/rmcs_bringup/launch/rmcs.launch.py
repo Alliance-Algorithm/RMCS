@@ -11,6 +11,12 @@ from launch.substitutions import LaunchConfiguration
 
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
+from launch.substitutions import (
+      LaunchConfiguration,
+      Command,
+      FindExecutable,
+      PathJoinSubstitution,
+  )
 from launch.actions import LogInfo, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 
@@ -50,21 +56,42 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
                 output="screen",
             )
         )
-        demo_launch_path = os.path.join(
-            FindPackageShare("arm_moveit_config").perform(context),
-            "launch",
-            "demo.launch.py"
-        )
+        # demo_launch_path = os.path.join(
+        #     FindPackageShare("arm_moveit_config").perform(context),
+        #     "launch",
+        #     "demo.launch.py"
+        # )
         
-        entities.append(
-            IncludeLaunchDescription(
-                PythonLaunchDescriptionSource(demo_launch_path),
-                launch_arguments={
-                    "use_rviz": LaunchConfiguration("use_rviz")
-                }.items(),
-            )
+        # entities.append(
+        #     IncludeLaunchDescription(
+        #         PythonLaunchDescriptionSource(demo_launch_path),
+        #         launch_arguments={
+        #             "use_rviz": LaunchConfiguration("use_rviz")
+        #         }.items(),
+        #     )
+        # )
+        arm_urdf_path = os.path.join(
+              FindPackageShare("arm_description").perform(context),
+              "urdf",
+              "arm_description.urdf",
         )
-       
+        with open(arm_urdf_path, "r", encoding="utf-8") as f:
+              robot_description_xml = f.read()
+
+        entities.append(
+              Node(
+                  package="robot_state_publisher",
+                  executable="robot_state_publisher",
+                  name="robot_state_publisher",
+                  output="screen",
+                  parameters=[
+                      {
+                          "robot_description": robot_description_xml,
+                          "publish_frequency": 50.0,
+                      }
+                  ],
+              )
+        )
 
         return entities
 
