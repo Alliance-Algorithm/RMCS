@@ -36,30 +36,9 @@ ament_auto_add_library(
 include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_SOURCE_DIR}/src)
 
-set(ODIN_DRIVER_DIR "${PROJECT_SOURCE_DIR}/../odin_ros_driver")
-include_directories(SYSTEM "${ODIN_DRIVER_DIR}/include")
-
-execute_process(
-  COMMAND uname -m
-  OUTPUT_VARIABLE _HOST_ARCH
-  OUTPUT_STRIP_TRAILING_WHITESPACE
-)
-
-if(_HOST_ARCH MATCHES "arm|aarch64")
-  set(ODIN_HOST_API_LIB "${ODIN_DRIVER_DIR}/lib/liblydHostApi_arm.a")
-else()
-  set(ODIN_HOST_API_LIB "${ODIN_DRIVER_DIR}/lib/liblydHostApi_amd.a")
-endif()
-
-if(NOT EXISTS "${ODIN_HOST_API_LIB}")
-  message(FATAL_ERROR "Missing Odin Host API library: ${ODIN_HOST_API_LIB}")
-endif()
-
 target_link_libraries(
   ${PROJECT_NAME}
   librmcs-sdk
-  usb-1.0
-  ${ODIN_HOST_API_LIB}
   pthread
   ${CMAKE_DL_LIBS}
 )

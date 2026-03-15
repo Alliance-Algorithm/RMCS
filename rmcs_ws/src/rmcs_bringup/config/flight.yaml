@@ -33,6 +33,15 @@ rmcs_executor:
 #   device: /dev/ttyS0
 #   baudrate: 921600
 
+odin_ros_driver:
+  # Bring up the same host_sdk_sample node used by odin1_ros2.launch.py.
+  # Flight only needs /odin1/odometry, so the auxiliary depth/reprojection/RViz nodes stay off.
+  enabled: true
+  config_file: "" # Empty uses odin_ros_driver/config/control_command.yaml
+  node_name: host_sdk_sample
+  respawn: true
+  respawn_delay: 1.0
+
 value_broadcaster:
   ros__parameters:
     forward_list:

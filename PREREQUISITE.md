@@ -19,16 +19,42 @@ Then, compile the library from source.
 mkdir -p /tmp/fastdds
 git clone https://github.com/eProsima/Fast-CDR.git
 mkdir Fast-CDR/build && cd Fast-CDR/build
-cmake .. -DCMAKE_INSTALL_PREFIX=/workspaces/RMCS/rmcs_ws/install -DBUILD_SHARED_LIBS=ON
+cmake .. -DCMAKE_INSTALL_PREFIX=/workspaces/RMCS/rmcs_ws/install -DBUILD_SHARED_LIBS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON
 cmake --build . --target install -j
 cd /tmp/fastdds && git clone https://github.com/eProsima/Fast-DDS.git
 mkdir Fast-DDS/build && cd Fast-DDS/build
-cmake .. -DCMAKE_INSTALL_PREFIX=/workspaces/RMCS/rmcs_ws/install -DBUILD_SHARED_LIBS=ON
+cmake .. -DCMAKE_INSTALL_PREFIX=/workspaces/RMCS/rmcs_ws/install -DBUILD_SHARED_LIBS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON
 cmake --build . --target install -j
 cd / && rm -rf /tmp/fastdds
 ```
 
 This would roughly take ~50s to compile for a 9950x cpu using 16 threads.
+
+And then compile the agent:
+
+```bash
+build-rmcs \
+    --packages-skip microxrcedds_agent \
+    --cmake-clean-cache \
+    --cmake-force-configure
+
+build-rmcs \
+    --packages-select microxrcedds_agent \
+    --cmake-clean-cache \
+    --cmake-force-configure \
+    --cmake-args \
+      '-DBUILD_SHARED_LIBS=OFF' \
+      '-DUAGENT_BUILD_EXECUTABLE=ON' \
+      '-DUAGENT_USE_SYSTEM_FASTCDR=ON' \
+      '-DUAGENT_USE_SYSTEM_FASTDDS=ON' \
+      '-Dfastcdr_SHARED_LIBS=OFF' \
+      '-Dfastdds_SHARED_LIBS=OFF' \
+      '-Dfastcdr_DIR=/workspaces/RMCS/rmcs_ws/install/lib/cmake/fastcdr' \
+      '-Dfastdds_DIR=/workspaces/RMCS/rmcs_ws/install/share/fastdds/cmake' \
+      '-DCMAKE_PREFIX_PATH:PATH=/workspaces/RMCS/rmcs_ws/install;/opt/ros/jazzy'
+```
+
+This would roughly take ~30s to compile for a 9950x cpu using 16 threads.
 
 To run the uxrce dds client:
 
