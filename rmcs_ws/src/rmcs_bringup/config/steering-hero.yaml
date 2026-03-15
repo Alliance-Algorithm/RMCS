@@ -13,6 +13,7 @@ rmcs_executor:
       - rmcs_core::controller::gimbal::HeroGimbalController -> gimbal_controller
       - rmcs_core::controller::gimbal::DualYawController -> dual_yaw_controller
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
+      - rmcs_core::controller::pid::PidController -> pitch_velocity_pid_controller
 
       # - rmcs_core::controller::gimbal::PlayerViewer -> gimbal_player_viewer_controller
       # - rmcs_core::controller::pid::ErrorPidController -> viewer_angle_pid_controller
@@ -28,7 +29,7 @@ rmcs_executor:
       - rmcs_core::controller::chassis::ChassisController -> chassis_controller
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::SteeringWheelController -> steering_wheel_controller
-      - rmcs_core::controller::chassis::ChassisClimberController -> climber_controller
+      # - rmcs_core::controller::chassis::ChassisClimberController -> climber_controller
 
       # - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
       # - rmcs_auto_aim::AutoAimController -> auto_aim_controller
@@ -40,9 +41,9 @@ hero_hardware:
     board_serial_top_board: "D4-2BCA-2E47-76CD-23BC-0B78-684B"
     board_serial_bottom_board_one: "D4-7973-19A9-EA40-4A3E-306F-10F9"
     board_serial_bottom_board_two: "D4-3674-7174-8768-879E-E44A-3931"
-    bottom_yaw_motor_zero_point: 50656
+    bottom_yaw_motor_zero_point: 52508
     pitch_motor_zero_point: 63917
-    top_yaw_motor_zero_point: 59095
+    top_yaw_motor_zero_point: 58744
     viewer_motor_zero_point: 3030
     external_imu_port: /dev/ttyUSB0
     left_front_zero_point: 4438
@@ -69,16 +70,29 @@ value_broadcaster:
       - /chassis/left_back_steering/control_torque
       - /chassis/right_back_steering/control_torque
       - /chassis/right_front_steering/control_torque  
-      - /gimbal/bottom_yaw/angle
+      - /gimbal/pitch/control_torque
+      - /gimbal/pitch/velocity
+      - /gimbal/pitch/control_velocity
+      - /gimbal/pitch/control_angle_error
+      - /chassis/climber/left_back_motor/torque
+      - /chassis/climber/right_back_motor/torque
+      - /chassis/climber/left_back_motor/velocity
+      - /chassis/climber/right_back_motor/velocity
+      - /chassis/climber/right_back_motor/control_torque
+      - /chassis/climber/left_back_motor/control_torque
 
 climber_controller:
   ros__parameters:
     front_climber_velocity: 50.0
-    back_climber_velocity: 10.0
-    front_kp: 2.0
+    back_climber_velocity: 20.0
+    sync_coefficient: 0.3
+    climb_timeout_limit: 800
+    back_climber_burst_velocity: 20.0  
+    back_climber_burst_duration: 300  
+    front_kp: 1.0
     front_ki: 0.0
     front_kd: 0.5
-    back_kp: 2.0
+    back_kp: 1.0
     back_ki: 0.0
     back_kd: 0.0
 
@@ -121,18 +135,18 @@ pitch_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/pitch/control_angle_error
     control: /gimbal/pitch/control_velocity
-    kp: 28.00
+    kp: 28.0 #28.00
     ki: 0.0
-    kd: 0.6
+    kd: 0.6 #0.6
 
 pitch_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/pitch/velocity_imu
     setpoint: /gimbal/pitch/control_velocity
     control: /gimbal/pitch/control_torque
-    kp: 45.00
+    kp: 45.0 #45.00
     ki: 0.00
-    kd: 1.00
+    kd: 1.0 #1.00
 
 gimbal_player_viewer_controller:
   ros__parameters:

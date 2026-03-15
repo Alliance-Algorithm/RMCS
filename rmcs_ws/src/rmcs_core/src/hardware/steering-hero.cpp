@@ -180,7 +180,7 @@ private:
                 //     std::numbers::pi / 2, Eigen::Vector3d::UnitZ()};
                 // Eigen::Vector3d mapping = pitch_link_to_bmi088_link * Eigen::Vector3d{1, 2, 3};
                 // std::cout << mapping << std::endl;
-                return std::make_tuple(x, y, z);
+                return std::make_tuple(-x, -y, z);
             });
         }
 
@@ -251,12 +251,12 @@ private:
 
             builder.can2_transmit({
                 .can_id = 0x141,
-                .can_data = gimbal_top_yaw_motor_.generate_torque_command().as_bytes(),
+                .can_data = gimbal_top_yaw_motor_.generate_command().as_bytes(),
             });
 
             builder.can2_transmit({
                 .can_id = 0x142,
-                .can_data = gimbal_pitch_motor_.generate_torque_command().as_bytes(),
+                .can_data = gimbal_pitch_motor_.generate_command().as_bytes(),
             });
         }
 
@@ -289,9 +289,7 @@ private:
                 gimbal_top_yaw_motor_.store_status(data.can_data);
             } else if (can_id == 0x142) {
                 gimbal_pitch_motor_.store_status(data.can_data);
-                RCLCPP_INFO(logger_, "0x142 receive");
             }
-            RCLCPP_INFO(logger_, "canid: %d", can_id);
         }
 
         void accelerometer_receive_callback(
@@ -367,6 +365,22 @@ private:
                 device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
                     .set_reversed()
                     .set_reduction_ratio(2232. / 169.));
+
+            chassis_front_climber_motor_[0].configure(
+                device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
+                    .set_reversed()
+                    .set_reduction_ratio(19.));
+            chassis_front_climber_motor_[1].configure(
+                device::DjiMotor::Config{device::DjiMotor::Type::kM3508}.set_reduction_ratio(19.));
+            chassis_back_climber_motor_[0].configure(
+                device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
+                    .enable_multi_turn_angle()
+                    .set_reduction_ratio(19.));
+            chassis_back_climber_motor_[1].configure(
+                device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
+                    .set_reversed()
+                    .enable_multi_turn_angle()
+                    .set_reduction_ratio(19.));
 
             steering_hero.register_output(
                 "/chassis/yaw/velocity_imu", chassis_yaw_velocity_imu_, 0);
@@ -473,17 +487,6 @@ private:
 
         void gyroscope_receive_callback(const librmcs::data::GyroscopeDataView& data) override {
             imu_.store_gyroscope_status(data.x, data.y, data.z);
-        }
-
-        // test
-        std::chrono::steady_clock::time_point last_time_;
-        void calc_can_fps(double can_id) {
-            auto now = std::chrono::steady_clock::now();
-            auto delta =
-                std::chrono::duration_cast<std::chrono::microseconds>(now - last_time_).count();
-
-            RCLCPP_INFO(logger_, "can id :%lf,fps:%ld", can_id, 1000000 / delta);
-            last_time_ = now;
         }
 
         rclcpp::Logger logger_;
@@ -648,18 +651,6 @@ private:
         }
 
         rclcpp::Logger logger_;
-
-        // test
-        std::chrono::steady_clock::time_point last_time_;
-        void calc_can_fps(double can_id) {
-            auto now = std::chrono::steady_clock::now();
-            auto delta =
-                std::chrono::duration_cast<std::chrono::microseconds>(now - last_time_).count();
-
-            RCLCPP_INFO(logger_, "can id :%lf,fps:%ld", can_id, 1000000 / delta);
-            last_time_ = now;
-        }
-        // test
 
         void uart1_receive_callback(const librmcs::data::UartDataView& data) override {
             const auto* uart_data = data.uart_data.data();
