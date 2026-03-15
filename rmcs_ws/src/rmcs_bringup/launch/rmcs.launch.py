@@ -47,7 +47,8 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
                 ],
                 respawn=True,
                 respawn_delay=1.0,
-                output="log",  # stdout and stderr are logged to launch log file and stderr to the screen.
+                output="screen",
+                emulate_tty=True,
             )
         )
 
@@ -60,12 +61,23 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
         with open(config_path, "r") as f:
             config = yaml.safe_load(f)
 
-        odin_cfg = config.get("odin_ros_driver")
+        odin_cfg = config.get("odin_ros_driver", {}).get("ros__parameters")
         if odin_cfg is not None and odin_cfg.get("enabled", True):
             odin_share = FindPackageShare("odin_ros_driver").perform(context)
-            odin_config_file = odin_cfg.get("config_file") or os.path.join(
+            default_odin_config_file = os.path.join(
                 odin_share, "config", "control_command.yaml"
             )
+            odin_config_file = odin_cfg.get("config_file") or default_odin_config_file
+            if not os.path.isfile(odin_config_file):
+                entities.append(
+                    LogInfo(
+                        msg=(
+                            f"Odin config '{odin_config_file}' was not found; "
+                            f"falling back to '{default_odin_config_file}'"
+                        )
+                    )
+                )
+                odin_config_file = default_odin_config_file
             node_name = odin_cfg.get("node_name", "host_sdk_sample")
             respawn = odin_cfg.get("respawn", True)
             respawn_delay = float(odin_cfg.get("respawn_delay", 1.0))
@@ -85,11 +97,12 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
                     parameters=[{"config_file": odin_config_file}],
                     respawn=respawn,
                     respawn_delay=respawn_delay,
-                    output="log",
+                    output="screen",
+                    emulate_tty=True,
                 )
             )
 
-        xrce_cfg = config.get("xrce_dds_agent")
+        xrce_cfg = config.get("xrce_dds_agent", {}).get("ros__parameters")
         if xrce_cfg is not None:
             device = xrce_cfg.get("device", "/dev/ttyS0")
             baudrate = str(xrce_cfg.get("baudrate", 921600))
@@ -99,7 +112,6 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
             entities.append(
                 ExecuteProcess(
                     cmd=[
-                        "sudo",
                         "MicroXRCEAgent",
                         "serial",
                         "--dev",

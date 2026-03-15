@@ -29,18 +29,23 @@ rmcs_executor:
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
 
+xrce_dds_agent:
+  ros__parameters:
+    device: /dev/ttyACM0
+    baudrate: 921600
 # xrce_dds_agent:
 #   device: /dev/ttyS0
 #   baudrate: 921600
 
 odin_ros_driver:
-  # Bring up the same host_sdk_sample node used by odin1_ros2.launch.py.
-  # Flight only needs /odin1/odometry, so the auxiliary depth/reprojection/RViz nodes stay off.
-  enabled: true
-  config_file: "" # Empty uses odin_ros_driver/config/control_command.yaml
-  node_name: host_sdk_sample
-  respawn: true
-  respawn_delay: 1.0
+  ros__parameters:
+    # Bring up the same host_sdk_sample node used by odin1_ros2.launch.py.
+    # Flight only needs /odin1/odometry, so the auxiliary depth/reprojection/RViz nodes stay off.
+    enabled: true
+    config_file: "/rmcs_install/share/odin_ros_driver/config/control_command.yaml" # Empty uses odin_ros_driver/config/control_command.yaml
+    node_name: host_sdk_sample
+    respawn: true
+    respawn_delay: 1.0
 
 value_broadcaster:
   ros__parameters:
@@ -118,7 +123,7 @@ friction_wheel_controller:
 
 heat_controller:
   ros__parameters:
-    heat_per_shot: 10000
+    heat_per_shot: 10
     reserved_heat: 0
 
 bullet_feeder_controller:
