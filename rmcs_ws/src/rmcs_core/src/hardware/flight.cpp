@@ -11,8 +11,8 @@
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/serial_interface.hpp>
-#include <std_msgs/msg/int32.hpp>
 #include <rmcs_utility/ring_buffer.hpp>
+#include <std_msgs/msg/int32.hpp>
 
 #include <librmcs/agent/c_board.hpp>
 
@@ -33,8 +33,7 @@ public:
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , librmcs::agent::CBoard{}
-        , local_position_interface_{
-              *this, px4_ros2::PoseFrame::LocalNED, px4_ros2::VelocityFrame::LocalNED}
+        , local_position_interface_{*this, px4_ros2::PoseFrame::LocalNED, px4_ros2::VelocityFrame::LocalNED}
         , logger_(get_logger())
         , flight_command_(
               create_partner_component<FlightCommand>(get_component_name() + "_command", *this))
@@ -55,8 +54,7 @@ public:
         odin_odom_qos.reliability(RMW_QOS_POLICY_RELIABILITY_RELIABLE);
         odin_odom_qos.durability(RMW_QOS_POLICY_DURABILITY_VOLATILE);
         odin_odometry_subscription_ = create_subscription<nav_msgs::msg::Odometry>(
-            "/odin1/odometry",
-            odin_odom_qos,
+            "/odin1/odometry", odin_odom_qos,
             [this](const nav_msgs::msg::Odometry::ConstSharedPtr& msg) {
                 odin_odometry_subscription_callback(*msg);
             });
@@ -120,7 +118,9 @@ public:
                 [&buffer](std::byte byte) noexcept { *buffer++ = byte; }, size);
         };
         referee_serial_->write = [this](const std::byte* buffer, size_t size) {
-            start_transmit().uart1_transmit({std::span{buffer, size}});
+            start_transmit().uart1_transmit({
+                std::span{buffer, size}
+            });
             return size;
         };
     }
@@ -139,13 +139,11 @@ public:
         auto pitch_cmd = gimbal_pitch_motor_.generate_command();
 
         device::CanPacket8 dji_cmds{
-            gimbal_bullet_feeder_.generate_command(),
-            device::CanPacket8::PaddingQuarter{},
-            gimbal_right_friction_.generate_command(),
-            gimbal_left_friction_.generate_command()};
+            gimbal_bullet_feeder_.generate_command(), device::CanPacket8::PaddingQuarter{},
+            gimbal_right_friction_.generate_command(), gimbal_left_friction_.generate_command()};
 
         start_transmit()
-            .can1_transmit({.can_id = 0x141, .can_data = yaw_cmd.as_bytes()})
+            .can2_transmit({.can_id = 0x141, .can_data = yaw_cmd.as_bytes()})
             .can2_transmit({.can_id = 0x142, .can_data = pitch_cmd.as_bytes()})
             .can1_transmit({.can_id = 0x200, .can_data = dji_cmds.as_bytes()});
     }
@@ -190,8 +188,7 @@ private:
 
         meas.position_xy = Eigen::Vector2f{snap.pos_x, snap.pos_y};
         meas.position_xy_variance = Eigen::Vector2f{
-            snap.cov_xx > 0.f ? snap.cov_xx : 0.1f,
-            snap.cov_yy > 0.f ? snap.cov_yy : 0.1f};
+            snap.cov_xx > 0.f ? snap.cov_xx : 0.1f, snap.cov_yy > 0.f ? snap.cov_yy : 0.1f};
 
         meas.position_z = snap.pos_z;
         meas.position_z_variance = snap.cov_zz > 0.f ? snap.cov_zz : 0.1f;
@@ -202,8 +199,7 @@ private:
             snap.vel_cov_yy > 0.f ? snap.vel_cov_yy : 0.1f};
 
         // ROS Odometry stores quaternions as (x, y, z, w); Eigen ctor is (w, x, y, z)
-        meas.attitude_quaternion =
-            Eigen::Quaternionf{snap.q_w, snap.q_x, snap.q_y, snap.q_z};
+        meas.attitude_quaternion = Eigen::Quaternionf{snap.q_w, snap.q_x, snap.q_y, snap.q_z};
         meas.attitude_variance = Eigen::Vector3f{0.05f, 0.05f, 0.05f};
 
         try {
@@ -238,6 +234,10 @@ private:
     bool odom_ready_{false};
 
     void odin_odometry_subscription_callback(const nav_msgs::msg::Odometry& msg) {
+        RCLCPP_INFO_THROTTLE(
+            logger_, *get_clock(), 1000, "Received odometry message with timestamp %u.%u",
+            msg.header.stamp.sec, msg.header.stamp.nanosec);
+
         OdomSnapshot snap{};
         snap.timestamp_sample = rclcpp::Time{msg.header.stamp};
         snap.pos_x = static_cast<float>(msg.pose.pose.position.x);
@@ -265,30 +265,27 @@ private:
 protected:
     void can1_receive_callback(const librmcs::data::CanDataView& data) override {
         if (data.is_extended_can_id || data.is_remote_transmission || data.can_data.size() < 8)
-            [[unlikely]] return;
+            [[unlikely]]
+            return;
 
-         if (data.can_id == 0x201) {
+        if (data.can_id == 0x201) {
             gimbal_bullet_feeder_.store_status(data.can_data);
         } else if (data.can_id == 0x204) {
             gimbal_left_friction_.store_status(data.can_data);
         } else if (data.can_id == 0x203) {
             gimbal_right_friction_.store_status(data.can_data);
         }
-         else if (data.can_id == 0x141) {
-            gimbal_yaw_motor_.store_status(data.can_data);
-        }
-                
-
     }
 
     void can2_receive_callback(const librmcs::data::CanDataView& data) override {
         if (data.is_remote_transmission || data.is_extended_can_id || data.can_data.size() < 8)
-            [[unlikely]] return;
+            [[unlikely]]
+            return;
         if (data.can_id == 0x142) {
             gimbal_pitch_motor_.store_status(data.can_data);
+        } else if (data.can_id == 0x141) {
+            gimbal_yaw_motor_.store_status(data.can_data);
         }
-
-
     }
 
     void uart1_receive_callback(const librmcs::data::UartDataView& data) override {
@@ -302,8 +299,7 @@ protected:
         dr16_.store_status(data.uart_data.data(), data.uart_data.size());
     }
 
-    void accelerometer_receive_callback(
-        const librmcs::data::AccelerometerDataView& data) override {
+    void accelerometer_receive_callback(const librmcs::data::AccelerometerDataView& data) override {
         bmi088_.store_accelerometer_status(data.x, data.y, data.z);
     }
 
