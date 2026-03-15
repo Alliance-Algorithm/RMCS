@@ -4,7 +4,6 @@
 #include <span>
 #include <string_view>
 #include <tuple>
-#include <utility>
 
 #include <eigen3/Eigen/Dense>
 #include <librmcs/agent/c_board.hpp>
@@ -41,12 +40,13 @@ public:
         , command_component_(
               create_partner_component<SteeringHeroCommand>(
                   get_component_name() + "_command", *this)) {
+
         register_output("/tf", tf_);
 
-        // gimbal_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
-        //     "/gimbal/calibrate", rclcpp::QoS{0}, [this](std_msgs::msg::Int32::UniquePtr&& msg) {
-        //         gimbal_calibrate_subscription_callback(std::move(msg));
-        //     });
+        gimbal_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
+            "/gimbal/calibrate", rclcpp::QoS{0}, [this](std_msgs::msg::Int32::UniquePtr&& msg) {
+                gimbal_calibrate_subscription_callback(std::move(msg));
+            });
 
         top_board_ = std::make_unique<TopBoard>(
             *this, *command_component_, get_parameter("board_serial_top_board").as_string());
@@ -289,7 +289,9 @@ private:
                 gimbal_top_yaw_motor_.store_status(data.can_data);
             } else if (can_id == 0x142) {
                 gimbal_pitch_motor_.store_status(data.can_data);
+                RCLCPP_INFO(logger_, "0x142 receive");
             }
+            RCLCPP_INFO(logger_, "canid: %d", can_id);
         }
 
         void accelerometer_receive_callback(
@@ -408,7 +410,7 @@ private:
             });
 
             builder.can1_transmit({
-                .can_id = 0x200,
+                .can_id = 0x1FE,
                 .can_data =
                     device::CanPacket8{
                                        device::CanPacket8::PaddingQuarter{},
@@ -441,8 +443,7 @@ private:
                 chassis_wheel_motors_[1].store_status(data.can_data);
             } else if (can_id == 0x202) {
                 chassis_wheel_motors_[0].store_status(data.can_data);
-            }
-            if (can_id == 0x206) {
+            } else if (can_id == 0x206) {
                 chassis_steering_motors_[0].store_status(data.can_data);
             } else if (can_id == 0x208) {
                 chassis_steering_motors_[1].store_status(data.can_data);
@@ -474,16 +475,16 @@ private:
             imu_.store_gyroscope_status(data.x, data.y, data.z);
         }
 
-        // // test
-        // std::chrono::steady_clock::time_point last_time_;
-        // void calc_can_fps(double can_id) {
-        //     auto now = std::chrono::steady_clock::now();
-        //     auto delta =
-        //         std::chrono::duration_cast<std::chrono::microseconds>(now - last_time_).count();
+        // test
+        std::chrono::steady_clock::time_point last_time_;
+        void calc_can_fps(double can_id) {
+            auto now = std::chrono::steady_clock::now();
+            auto delta =
+                std::chrono::duration_cast<std::chrono::microseconds>(now - last_time_).count();
 
-        //     RCLCPP_INFO(logger_, "can id :%lf,fps:%ld", can_id, 1000000 / delta);
-        //     last_time_ = now;
-        // }
+            RCLCPP_INFO(logger_, "can id :%lf,fps:%ld", can_id, 1000000 / delta);
+            last_time_ = now;
+        }
 
         rclcpp::Logger logger_;
 
@@ -494,7 +495,6 @@ private:
         device::DjiMotor chassis_wheel_motors_[2];
 
         OutputInterface<double> chassis_yaw_velocity_imu_;
-        OutputInterface<rmcs_msgs::SerialInterface> referee_serial_;
         OutputInterface<double> gimbal_yaw_velocity_imu_;
         OutputInterface<double> gimbal_pitch_velocity_imu_;
     };
@@ -545,16 +545,26 @@ private:
                         static_cast<int>(
                             steering_hero.get_parameter("bottom_yaw_motor_zero_point").as_int())));
             steering_hero.register_output("/referee/serial", referee_serial_);
+            referee_serial_->read = [this](std::byte* buffer, size_t size) {
+                return referee_ring_buffer_receive_.pop_front_n(
+                    [&buffer](std::byte byte) noexcept { *buffer++ = byte; }, size);
+            };
+            referee_serial_->write = [this](const std::byte* buffer, size_t size) {
+                start_transmit().uart1_transmit({
+                    .uart_data = std::span<const std::byte>{buffer, size}
+                });
+                return size;
+            };
             steering_hero.register_output(
                 "/chassis/powermeter/control_enable", powermeter_control_enabled_, false);
             steering_hero.register_output(
                 "/chassis/powermeter/charge_power_limit", powermeter_charge_power_limit_, 0.);
         }
 
-        BottomBoard_two(const TopBoard&) = delete;
-        BottomBoard_two& operator=(const TopBoard&) = delete;
-        BottomBoard_two(TopBoard&&) = delete;
-        BottomBoard_two& operator=(TopBoard&&) = delete;
+        BottomBoard_two(const BottomBoard_two&) = delete;
+        BottomBoard_two& operator=(const BottomBoard_two&) = delete;
+        BottomBoard_two(BottomBoard_two&&) = delete;
+        BottomBoard_two& operator=(BottomBoard_two&&) = delete;
 
         ~BottomBoard_two() final = default;
 
@@ -618,8 +628,7 @@ private:
                 chassis_wheel_motors2_[1].store_status(data.can_data);
             } else if (can_id == 0x204) {
                 chassis_wheel_motors2_[0].store_status(data.can_data);
-            }
-            if (can_id == 0x205) {
+            } else if (can_id == 0x205) {
                 chassis_steering_motors2_[0].store_status(data.can_data);
             } else if (can_id == 0x207) {
                 chassis_steering_motors2_[1].store_status(data.can_data);
@@ -639,9 +648,9 @@ private:
         }
 
         rclcpp::Logger logger_;
+
         // test
         std::chrono::steady_clock::time_point last_time_;
-
         void calc_can_fps(double can_id) {
             auto now = std::chrono::steady_clock::now();
             auto delta =
@@ -651,6 +660,7 @@ private:
             last_time_ = now;
         }
         // test
+
         void uart1_receive_callback(const librmcs::data::UartDataView& data) override {
             const auto* uart_data = data.uart_data.data();
             referee_ring_buffer_receive_.emplace_back_n(
@@ -692,7 +702,6 @@ private:
 
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr gimbal_calibrate_subscription_;
 
-    std::shared_ptr<SteeringHeroCommand> command_component;
     std::shared_ptr<TopBoard> top_board_;
     std::shared_ptr<BottomBoard_one> bottom_board_one_;
     std::shared_ptr<BottomBoard_two> bottom_board_two_;
