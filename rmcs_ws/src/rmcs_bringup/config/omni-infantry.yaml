@@ -11,6 +11,7 @@ rmcs_executor:
       - rmcs_core::referee::command::interaction::Ui -> referee_ui
       - rmcs_core::referee::app::ui::Infantry -> referee_ui_infantry
 
+      - sp_vision_25::bridge::SpVisionBridge -> sp_vision_bridge
       - rmcs_core::controller::gimbal::SimpleGimbalController -> gimbal_controller
       - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
@@ -32,6 +33,13 @@ infantry_hardware:
     board_serial: ""
     yaw_motor_zero_point: 40186
     pitch_motor_zero_point: 53650
+
+sp_vision_bridge:
+  ros__parameters:
+    config_file: configs/standard3.yaml
+    bullet_speed_fallback: 23.0
+    result_timeout: 0.2
+    debug: false
 
 gimbal_controller:
   ros__parameters:
