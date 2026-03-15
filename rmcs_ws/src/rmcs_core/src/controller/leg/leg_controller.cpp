@@ -1,5 +1,5 @@
 #include "controller/arm/trajectory.hpp"
-#include "controller/leg/hsm/HSM_up_stairs_dev.hpp"
+#include "controller/leg/hsm/up_stairs_interface.hpp"
 #include "rmcs_msgs/arm_mode.hpp"
 #include <array>
 #include <cmath>
@@ -37,14 +37,14 @@ public:
               get_parameter("forward_x_position_in_SixWheel").as_double())
         , backward_x_position_in_SixWheel_(
               get_parameter("backward_x_position_in_SixWheel").as_double())
-        , initial_end_point_(get_parameter("initial_end_point").as_double_array())
-        , press_end_point_(get_parameter("press_end_point").as_double_array())
-        , lift_end_point_(get_parameter("lift_end_point").as_double_array())
-        , lift_and_initial_end_point_(get_parameter("lift_and_initial_end_point").as_double_array())
-        , initial_again_end_point_(get_parameter("initial_again_end_point").as_double_array())
-        , k_(get_parameter("k").as_double_array())
-        , b_(get_parameter("b").as_double_array())
-        , up_stairs{*this} {
+        , initial_parameter_(get_parameter("initial_parameter").as_double_array())
+        , press_parameter_(get_parameter("press_parameter").as_double_array())
+        , lift_parameter_(get_parameter("lift_parameter").as_double_array())
+        , lift_and_initial_parameter_(get_parameter("lift_and_initial_parameter").as_double_array())
+        , initial_again_parameter_(get_parameter("initial_again_parameter").as_double_array())
+        , press_again_parameter_(get_parameter("press_again_parameter").as_double_array())
+        , lift_again_parameter_(get_parameter("lift_again_parameter").as_double_array())
+        , up_stairs{*this,this->get_logger()} {
 
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
@@ -95,8 +95,13 @@ public:
             .set_end_point(std::vector<double>{1.151109, 1.694066, 1.694066, 1.151109})
             .set_total_step(800);
         up_stairs.load(
-            initial_end_point_, press_end_point_, lift_end_point_, lift_and_initial_end_point_,
-            initial_again_end_point_, k_, b_);
+            initial_parameter_,
+            press_parameter_,
+            lift_parameter_,
+            lift_and_initial_parameter_,
+            initial_again_parameter_,
+            press_again_parameter_,
+            lift_again_parameter_);
     }
 
     void update() override {
@@ -163,19 +168,22 @@ private:
             if (last_arm_mode != *arm_mode) {
 
                 switch (*arm_mode) {
-                case rmcs_msgs::ArmMode::Custome:
+                case rmcs_msgs::ArmMode::Custome:{
+                    leg_mode = rmcs_msgs::LegMode::Four_Wheel;
+                    break;
+                }
                 case rmcs_msgs::ArmMode::Auto_Up_One_Stairs: {
                     leg_mode = rmcs_msgs::LegMode::Up_One_Stairs;
                     up_stairs.stop();
                     up_stairs.Set_One_Stairs();
-                    up_stairs.start(::UpStairsState::Initial);
+                    up_stairs.start();
                     break;
                 };
                 case rmcs_msgs::ArmMode::Auto_Up_Two_Stairs: {
                     leg_mode = rmcs_msgs::LegMode::Up_Two_Stairs;
                     up_stairs.stop();
                     up_stairs.Set_Two_Stairs_Lift();
-                    up_stairs.start(::UpStairsState::Initial);
+                    up_stairs.start();
                     break;
                 };
                 case rmcs_msgs::ArmMode::Auto_Down_Stairs: {
@@ -250,11 +258,10 @@ private:
     }
     void execute_up_stairs() {
         if (keyboard_->ctrl) {
-            up_stairs.processEvent(
-                rmcs_core::controller::leg::hsm::up_stairs_hsm::events::tof_already);
+            (void)up_stairs.resume();
         }
 
-        up_stairs.processEvent(rmcs_core::controller::leg::hsm::up_stairs_hsm::events::tick);
+        up_stairs.tick();
         const auto& joints = up_stairs.get_result();
         leg_joint_controller(joints[0], joints[1], joints[2], joints[3]);
     }
@@ -303,13 +310,13 @@ private:
     const double forward_x_position_in_FourWheel_;
     const double forward_x_position_in_SixWheel_;
     const double backward_x_position_in_SixWheel_;
-    const std::vector<double> initial_end_point_;
-    const std::vector<double> press_end_point_;
-    const std::vector<double> lift_end_point_;
-    const std::vector<double> lift_and_initial_end_point_;
-    const std::vector<double> initial_again_end_point_;
-    std::vector<double> k_;
-    std::vector<double> b_;
+    const std::vector<double> initial_parameter_;
+    const std::vector<double> press_parameter_;
+    const std::vector<double> lift_parameter_;
+    const std::vector<double> lift_and_initial_parameter_;
+    const std::vector<double> initial_again_parameter_;
+    const std::vector<double> press_again_parameter_;
+    const std::vector<double> lift_again_parameter_;
 
     InputInterface<rmcs_msgs::ArmMode> arm_mode;
     InputInterface<rmcs_msgs::ChassisMode> chassis_mode;
@@ -355,7 +362,7 @@ private:
     rmcs_core::controller::arm::Trajectory<rmcs_core::controller::arm::TrajectoryType::JOINT>
         down_stairs_trajectory{4};
 
-    hsm::up_stairs_hsm::Auto_Leg_Up_Stairs up_stairs;
+    hsm::up_stairs::Auto_Leg_Up_Stairs up_stairs;
 };
 } // namespace rmcs_core::controller::leg
 #include <pluginlib/class_list_macros.hpp>
