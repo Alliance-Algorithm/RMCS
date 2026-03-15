@@ -13,7 +13,7 @@ MaxEmptyLinesToKeep: 1
 
 AlignAfterOpenBracket: AlwaysBreak
 
-AlignArrayOfStructures: Right
+# AlignArrayOfStructures: Right
 
 AlignConsecutiveAssignments:
     Enabled: false
