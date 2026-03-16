@@ -68,6 +68,8 @@ Note that the baudrate should be the same as the one configured in the flight co
 
 Odin1 driver requires cv-bridge which is no longer used by the main upstream.
 
+@zlq04222
+
 ```bash
 sudo apt-get install ros-jazzy-cv-bridge
 ```
