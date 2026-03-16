@@ -12,6 +12,7 @@
 
 #include "controller/gimbal/two_axis_gimbal_solver.hpp"
 #include "controller/pid/pid_calculator.hpp"
+#include "filter/low_pass_filter.hpp"
 
 namespace rmcs_core::controller::gimbal {
 
@@ -32,8 +33,8 @@ Eigen::Vector3d planner_direction(double yaw, double pitch) {
     return direction;
 }
 
-Eigen::Vector3d planner_direction_dot(
-    double yaw, double pitch, double yaw_velocity, double pitch_velocity) {
+Eigen::Vector3d
+    planner_direction_dot(double yaw, double pitch, double yaw_velocity, double pitch_velocity) {
     const double sin_yaw = std::sin(yaw);
     const double cos_yaw = std::cos(yaw);
     const double sin_pitch = std::sin(pitch);
@@ -45,11 +46,7 @@ Eigen::Vector3d planner_direction_dot(
 }
 
 Eigen::Vector3d planner_direction_ddot(
-    double yaw,
-    double pitch,
-    double yaw_velocity,
-    double pitch_velocity,
-    double yaw_acceleration,
+    double yaw, double pitch, double yaw_velocity, double pitch_velocity, double yaw_acceleration,
     double pitch_acceleration) {
     const double sin_yaw = std::sin(yaw);
     const double cos_yaw = std::cos(yaw);
@@ -63,22 +60,18 @@ Eigen::Vector3d planner_direction_ddot(
     const Eigen::Vector3d d_yawpitch{sin_pitch * sin_yaw, -sin_pitch * cos_yaw, 0.0};
 
     return d_yaw * yaw_acceleration + d_pitch * pitch_acceleration
-         + d_yawyaw * std::pow(yaw_velocity, 2)
-         + d_pitchpitch * std::pow(pitch_velocity, 2)
+         + d_yawyaw * std::pow(yaw_velocity, 2) + d_pitchpitch * std::pow(pitch_velocity, 2)
          + 2.0 * d_yawpitch * yaw_velocity * pitch_velocity;
 }
 
 Eigen::Vector2d solve_joint_velocity(
-    const Eigen::Vector3d& direction,
-    const Eigen::Vector3d& direction_derivative,
-    const Eigen::Vector3d& yaw_axis,
-    const Eigen::Vector3d& pitch_axis) {
+    const Eigen::Vector3d& direction, const Eigen::Vector3d& direction_derivative,
+    const Eigen::Vector3d& yaw_axis, const Eigen::Vector3d& pitch_axis) {
     Eigen::Matrix<double, 3, 2> jacobian;
     jacobian.col(0) = yaw_axis.cross(direction);
     jacobian.col(1) = pitch_axis.cross(direction);
 
-    Eigen::Vector2d result =
-        jacobian.completeOrthogonalDecomposition().solve(direction_derivative);
+    Eigen::Vector2d result = jacobian.completeOrthogonalDecomposition().solve(direction_derivative);
     if (!result.allFinite())
         result.setZero();
     return result;
@@ -88,8 +81,7 @@ void load_optional_parameter(rclcpp::Node& node, const std::string& name, double
     node.get_parameter(name, value);
 }
 
-void configure_pid(
-    rclcpp::Node& node, const std::string& prefix, pid::PidCalculator& calculator) {
+void configure_pid(rclcpp::Node& node, const std::string& prefix, pid::PidCalculator& calculator) {
     load_optional_parameter(node, prefix + "_integral_min", calculator.integral_min);
     load_optional_parameter(node, prefix + "_integral_max", calculator.integral_max);
     load_optional_parameter(node, prefix + "_integral_split_min", calculator.integral_split_min);
@@ -112,8 +104,7 @@ public:
               *this, get_parameter("upper_limit").as_double(),
               get_parameter("lower_limit").as_double())
         , yaw_angle_pid_(
-              get_parameter("yaw_angle_kp").as_double(),
-              get_parameter("yaw_angle_ki").as_double(),
+              get_parameter("yaw_angle_kp").as_double(), get_parameter("yaw_angle_ki").as_double(),
               get_parameter("yaw_angle_kd").as_double())
         , yaw_velocity_pid_(
               get_parameter("yaw_velocity_kp").as_double(),
@@ -141,6 +132,8 @@ public:
         register_input("/remote/mouse", mouse_);
 
         register_input("/tf", tf_);
+        register_input("/gimbal/yaw/velocity", yaw_velocity_);
+        register_input("/gimbal/pitch/velocity", pitch_velocity_);
         register_input("/gimbal/yaw/velocity_imu", yaw_velocity_imu_);
         register_input("/gimbal/pitch/velocity_imu", pitch_velocity_imu_);
 
@@ -150,8 +143,7 @@ public:
         register_input("/gimbal/auto_aim/plan_yaw_velocity", plan_yaw_velocity_, false);
         register_input("/gimbal/auto_aim/plan_yaw_acceleration", plan_yaw_acceleration_, false);
         register_input("/gimbal/auto_aim/plan_pitch_velocity", plan_pitch_velocity_, false);
-        register_input(
-            "/gimbal/auto_aim/plan_pitch_acceleration", plan_pitch_acceleration_, false);
+        register_input("/gimbal/auto_aim/plan_pitch_acceleration", plan_pitch_acceleration_, false);
 
         register_output("/gimbal/yaw/control_torque", yaw_control_torque_, nan_);
         register_output("/gimbal/pitch/control_torque", pitch_control_torque_, nan_);
@@ -194,7 +186,8 @@ public:
         *yaw_angle_error_ = angle_error.yaw_angle_error;
         *pitch_angle_error_ = angle_error.pitch_angle_error;
 
-        if (!std::isfinite(angle_error.yaw_angle_error) || !std::isfinite(angle_error.pitch_angle_error)) {
+        if (!std::isfinite(angle_error.yaw_angle_error)
+            || !std::isfinite(angle_error.pitch_angle_error)) {
             reset_torque_outputs();
             return;
         }
@@ -212,9 +205,8 @@ public:
         const double pitch_velocity_ref =
             pitch_angle_pid_.update(angle_error.pitch_angle_error) + velocity_ff.y();
 
-        *yaw_control_torque_ =
-            yaw_velocity_pid_.update(yaw_velocity_ref - *yaw_velocity_imu_)
-            + yaw_acc_ff_gain_ * acceleration_ff.x();
+        *yaw_control_torque_ = yaw_velocity_pid_.update(yaw_velocity_ref - yaw_velocity_imu())
+                             + yaw_acc_ff_gain_ * acceleration_ff.x();
         *pitch_control_torque_ =
             pitch_velocity_pid_.update(pitch_velocity_ref - *pitch_velocity_imu_)
             + pitch_acc_ff_gain_ * acceleration_ff.y();
@@ -230,8 +222,9 @@ private:
     }
 
     TwoAxisGimbalSolver::AngleError update_auto_aim_control() {
-        return gimbal_solver_.update(TwoAxisGimbalSolver::SetControlDirection{
-            OdomImu::DirectionVector{*auto_aim_control_direction_}});
+        return gimbal_solver_.update(
+            TwoAxisGimbalSolver::SetControlDirection{
+                OdomImu::DirectionVector{*auto_aim_control_direction_}});
     }
 
     TwoAxisGimbalSolver::AngleError update_manual_control() {
@@ -262,8 +255,8 @@ private:
         const Eigen::Vector3d direction_ddot = planner_direction_ddot(
             yaw, pitch, yaw_velocity, pitch_velocity, yaw_acceleration, pitch_acceleration);
 
-        const auto yaw_axis_in_world =
-            fast_tf::cast<OdomImu>(GimbalCenterLink::DirectionVector{Eigen::Vector3d::UnitZ()}, *tf_);
+        const auto yaw_axis_in_world = fast_tf::cast<OdomImu>(
+            GimbalCenterLink::DirectionVector{Eigen::Vector3d::UnitZ()}, *tf_);
         const auto pitch_axis_in_world =
             fast_tf::cast<OdomImu>(YawLink::DirectionVector{Eigen::Vector3d::UnitY()}, *tf_);
         Eigen::Vector3d yaw_axis = *yaw_axis_in_world;
@@ -294,6 +287,12 @@ private:
         reset_torque_outputs();
     }
 
+    double yaw_velocity_imu() {
+        const double chassis_yaw_velocity_imu = *yaw_velocity_imu_ - *yaw_velocity_;
+        return /*chassis_yaw_velocity_imu_filter_.update(chassis_yaw_velocity_imu) +*/
+            *yaw_velocity_;
+    }
+
     InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;
     InputInterface<rmcs_msgs::Switch> switch_left_;
@@ -301,8 +300,12 @@ private:
     InputInterface<rmcs_msgs::Mouse> mouse_;
 
     InputInterface<Tf> tf_;
+    InputInterface<double> yaw_velocity_;
+    InputInterface<double> pitch_velocity_;
     InputInterface<double> yaw_velocity_imu_;
     InputInterface<double> pitch_velocity_imu_;
+
+    filter::LowPassFilter<> chassis_yaw_velocity_imu_filter_{0.5, 1000.0};
 
     InputInterface<Eigen::Vector3d> auto_aim_control_direction_;
     InputInterface<double> plan_yaw_;
@@ -332,5 +335,4 @@ private:
 #include <pluginlib/class_list_macros.hpp>
 
 PLUGINLIB_EXPORT_CLASS(
-    rmcs_core::controller::gimbal::OmniInfantryPlannerGimbalController,
-    rmcs_executor::Component)
+    rmcs_core::controller::gimbal::OmniInfantryPlannerGimbalController, rmcs_executor::Component)
