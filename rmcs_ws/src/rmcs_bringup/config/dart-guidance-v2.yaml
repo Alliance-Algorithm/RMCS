@@ -19,7 +19,7 @@ dart_hardware:
 
 dart_manager:
   ros__parameters:
-    max_transform_rate: 15.0
+    max_transform_rate: 5.0
     manual_force_scale: 5.0
     limiting_open_angle:  500    # uint16_t，需实测标定
     limiting_close_angle: 1000   # uint16_t，需实测标定
@@ -27,7 +27,7 @@ dart_manager:
     lifting_stall_threshold:     0.1    # rad/s，低于此值视为堵转
     lifting_stall_confirm_ticks: 100    # 连续帧数 = 0.1s @ 1kHz
     lifting_stall_min_run_ticks: 500    # 启动后最少运行帧数，避免启动瞬间误触发
-    lifting_stall_timeout_ticks: 5000   # 超时帧数 = 5s
+    lifting_stall_timeout_ticks: 2000   # 超时帧数 = 5s
 
 remote_cmd_bridge:
   ros__parameters:
@@ -35,9 +35,9 @@ remote_cmd_bridge:
 
 launch_setting:
   ros__parameters:
-    belt_velocity: 15.0
+    belt_velocity: 10.0
     sync_coefficient: 0.1
-    max_control_torque: 15.0
+    max_control_torque: 2.5
     trigger_free_value: 0.75
     trigger_lock_value: 0.63
     b_kp: 5.0

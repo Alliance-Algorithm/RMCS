@@ -29,10 +29,10 @@ launch_setting:
   ros__parameters:
     belt_velocity: 15.0
     sync_coefficient: 0.1
-    max_control_torque: 15.0
+    max_control_torque: 2.5
     trigger_free_value: 0.75
     trigger_lock_value: 0.63
-    b_kp: 2.0
+    b_kp: 1.0
     b_ki: 0.0
     b_kd: 0.0
 
