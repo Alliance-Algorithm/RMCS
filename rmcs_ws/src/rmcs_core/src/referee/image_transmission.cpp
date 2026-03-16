@@ -18,11 +18,11 @@
 
 namespace rmcs_core::referee {
 
-class Vision
+class ImageTransmissionLink
     : public rmcs_executor::Component
     , public rclcpp::Node {
 public:
-    Vision()
+    ImageTransmissionLink()
         : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , logger_(get_logger()) {
 
@@ -36,11 +36,11 @@ public:
         if (std::system(stty_command.c_str()) != 0)
             throw std::runtime_error{"Unable to call '" + stty_command + "'"};
         // register_input("/referee/vision/serial", serial_);
-        register_output("/referee/vision/serial", serial_, path, 921600, serial::Timeout::simpleTimeout(0));
+        register_output("/referee/image_transmission/serial", serial_, path, 921600, serial::Timeout::simpleTimeout(0));
 
-        register_output("/referee/vision/custom", custom_data_ );
-        register_output("/referee/vision/controller_keyboard", controller_keyboard_, rmcs_msgs::Keyboard::zero());
-        register_output("/referee/vision/controller_mouse", controller_mouse_, rmcs_msgs::Mouse::zero());
+        register_output("/referee/image_transmission/custom", custom_data_ );
+        register_output("/referee/image_transmission/controller_keyboard", controller_keyboard_, rmcs_msgs::Keyboard::zero());
+        register_output("/referee/image_transmission/controller_mouse", controller_mouse_, rmcs_msgs::Mouse::zero());
 
         std::fill((*custom_data_).begin(), (*custom_data_).end(), 0);
         
@@ -86,11 +86,11 @@ public:
         }
 
         if (custom_watchdog_.tick()) {
-            RCLCPP_ERROR(logger_, "Vision custom data receiving timeout. Set data to zero.");
+            RCLCPP_WARN(logger_, "Vision custom data receiving timeout. Set data to zero.");
             std::fill((*custom_data_).begin(), (*custom_data_).end(), 0);
         }
         if (controller_watchdog_.tick()) {
-            RCLCPP_ERROR(logger_, "Vision controller data receiving timeout. Set data to zero.");
+            RCLCPP_WARN(logger_, "Vision controller data receiving timeout. Set data to zero.");
             *controller_keyboard_ = rmcs_msgs::Keyboard::zero();
             *controller_mouse_ = rmcs_msgs::Mouse::zero();
         }
@@ -154,4 +154,4 @@ private:
 
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(rmcs_core::referee::Vision, rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(rmcs_core::referee::ImageTransmissionLink, rmcs_executor::Component)

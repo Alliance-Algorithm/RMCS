@@ -327,9 +327,7 @@ private:
             }
             for (auto& ecd : Leg_ecd) {
                 ecd.update();
-            }
-            static bool flag;
-          
+            }          
             power_meter.update();
         }
         void command() {
@@ -484,7 +482,7 @@ private:
                 "/leg/joint/rb/control_theta_error", leg_joint_rb_control_theta_error, NAN);
             engineer.register_output(
                 "/leg/joint/rf/control_theta_error", leg_joint_rf_control_theta_error, NAN);
-
+                engineer_command.register_input("/arm/enable_flag", is_arm_enable);
             engineer_command.register_input("/leg/joint/rb/target_theta", leg_rb_target_theta_);
             engineer_command.register_input("/leg/joint/rf/target_theta", leg_rf_target_theta_);
         }
@@ -541,19 +539,18 @@ private:
                 transmit_buffer_.add_can1_transmission(0x1FE, std::bit_cast<uint64_t>(command_));
 
                 uint64_t yaw_command;
-                // if (is_chassis_and_leg_enable && big_yaw.get_state() != 0
-                //     && big_yaw.get_state() != 1) {
-                //     command_1 = big_yaw.dm_clear_error_command();
-                // } else if (!is_chassis_and_leg_enable) {
-                //     command_1 = big_yaw.dm_close_command();
-                // } else if (is_chassis_and_leg_enable && big_yaw.get_state() == 0) {
-                //     command_1 = big_yaw.dm_enable_command();
+                if (*is_arm_enable && big_yaw.get_state() != 0
+                    && big_yaw.get_state() != 1) {
+                    yaw_command = big_yaw.dm_clear_error_command();
+                } else if (!*is_arm_enable) {
+                    yaw_command = big_yaw.dm_close_command();
+                } else if (*is_arm_enable && big_yaw.get_state() == 0) {
+                    yaw_command = big_yaw.dm_enable_command();
 
-                // } else {
-                //     command_1 = big_yaw.generate_torque_command();
-                // }
-                yaw_command = big_yaw.dm_close_command();
-                transmit_buffer_.add_can1_transmission((0x3), yaw_command);
+                } else {
+                    yaw_command = big_yaw.generate_torque_command();
+                }
+                transmit_buffer_.add_can2_transmission(0x3, yaw_command);
             } else {
                 command_[0] = Wheel_motors[0].generate_command();
                 *leg_joint_rb_control_theta_error =
@@ -571,6 +568,7 @@ private:
                 transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(command_));
             }
             turn = !turn;
+           
             transmit_buffer_.trigger_transmission();
         }
 
@@ -632,6 +630,7 @@ private:
 
         InputInterface<double> leg_rf_target_theta_;
         InputInterface<double> leg_rb_target_theta_;
+        InputInterface<bool> is_arm_enable;
 
         OutputInterface<double> leg_joint_rb_control_theta_error;
         OutputInterface<double> leg_joint_rf_control_theta_error;

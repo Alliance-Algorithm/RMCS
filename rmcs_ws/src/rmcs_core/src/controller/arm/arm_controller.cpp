@@ -9,16 +9,19 @@
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <eigen3/Eigen/Dense>
 #include <eigen3/Eigen/src/Core/util/Meta.h>
 #include <fstream>
 #include <limits>
 #include <memory>
+#include <numbers>
 #include <string>
 
 #include <atomic>
 #include <chrono>
 #include <mutex>
+#include <sys/cdefs.h>
 #include <thread>
 
 #include <moveit/move_group_interface/move_group_interface.hpp>
@@ -62,6 +65,8 @@ public:
 
         register_output("/arm/mode", arm_mode_);
         register_output("/arm/enable_flag", is_arm_enable, false);
+
+        register_input("/referee/image_transmission/custom", custom_data_);
 
         for (std::size_t i = 0; i < 6; ++i) {
             const std::string joint_prefix = "/arm/joint_" + std::to_string(i + 1);
@@ -170,6 +175,10 @@ public:
         }
         case ArmMode::DT7_Control_Orientation: {
             execute_dt7_orientation();
+            break;
+        }
+        case ArmMode::Custome: {
+            execute_custom();
             break;
         }
         case ArmMode::None: {
@@ -304,6 +313,31 @@ private:
             }
         }
     }
+    void execute_custom() {
+        struct __attribute__((packed)) CustomFrame {
+            std::array<std::uint8_t, 2> reserved{};
+            std::uint16_t joint[6];
+           
+        };
+        const auto& custom_data = *custom_data_;
+        std::array<std::uint8_t, sizeof(CustomFrame)> raw{};
+        std::copy_n(custom_data.begin(), raw.size(), raw.begin());
+        const auto frame = std::bit_cast<CustomFrame>(raw);
+        constexpr auto pi      = std::numbers::pi;
+        constexpr auto raw_max = static_cast<double>(std::numeric_limits<std::uint16_t>::max());
+
+        const auto raw_to_angle = [](std::uint16_t raw) {
+            auto angle = static_cast<double>(raw) / raw_max * 2.0 * pi;
+            if (angle > pi) {
+                angle -=  2.0 * pi;
+            }
+            return angle;
+        };
+
+        for (std::size_t i = 0; i < 6; ++i) {
+            *target_theta[i] = raw_to_angle(frame.joint[i]);
+        }
+    }
     void execute_dt7_orientation() {
         if (fabs(joystick_left_->y()) > 0.01) {
             *target_theta[5] += 0.003 * joystick_left_->y();
@@ -344,6 +378,8 @@ private:
     InputInterface<double> theta[6];
     OutputInterface<double> target_theta[6];
     OutputInterface<rmcs_msgs::ArmMode> arm_mode_;
+
+    InputInterface<std::array<uint8_t, 30>> custom_data_;
 
     rclcpp::Node::SharedPtr node_;
     rclcpp::executors::SingleThreadedExecutor exec_;

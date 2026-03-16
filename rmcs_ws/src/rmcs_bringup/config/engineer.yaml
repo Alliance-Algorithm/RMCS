@@ -6,9 +6,10 @@ rmcs_executor:
       - rmcs_core::controller::arm::ArmConfig -> arm_config
       - rmcs_core::controller::arm::ArmSolver -> arm_solver
       - rmcs_core::controller::arm::ArmController -> arm_controller
-
+      - rmcs_core::referee::ImageTransmissionLink -> image_transmission
       - rmcs_core::controller::leg::LegController -> leg_controller
-      - rmcs_core::controller::chassis::Chassis_Controller -> chassis_controller
+
+      - rmcs_core::controller::chassis::ChassisController -> chassis_controller
       - rmcs_core::controller::chassis::SteeringWheelController -> steering_wheel_controller
             
       - rmcs_core::controller::pid::PidController -> leg_omni_l_velocity_controller
@@ -47,7 +48,11 @@ engineer_hardware:
     leg_lb_ecd_zero_point: 153207
     leg_rb_ecd_zero_point: 2135
     leg_rf_ecd_zero_point: 133400
-    big_yaw_zero_point: 20485
+    big_yaw_zero_point: 30133
+
+image_transmission:
+  ros__parameters:
+    path: /dev/ttyUSB0    
 
 arm_solver:
   ros__parameters:
@@ -67,8 +72,6 @@ leg_controller:
     b : [400.0, 800.0, 600.0, 1800.0]  # press lift initial_again  lift_and_initial
 
     
-
-
 leg_omni_l_velocity_controller:
   ros__parameters:
     measurement: /leg/omni/l/velocity
@@ -173,11 +176,11 @@ leg_rb_velocity_pid_controller:
 
 steering_wheel_controller:
   ros__parameters:
-    mess: 30.0
-    moment_of_inertia: 1.0
+    mess: 35.0
+    moment_of_inertia: 2.0
     vehicle_radius: 0.3238
     wheel_radius: 0.055
-    friction_coefficient: 0.6
+    friction_coefficient: 0.7
     k1: 2.958580e+00
     k2: 3.082190e-03
     no_load_power: 15.37

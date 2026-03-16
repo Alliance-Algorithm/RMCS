@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cmath>
 #include <eigen3/Eigen/Dense>
+#include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
@@ -13,7 +14,7 @@
 #include <vector>
 namespace rmcs_core::controller::chassis {
 
-class Chassis_Controller
+class ChassisController
     : public rmcs_executor::Component
     , public rclcpp::Node {
     enum class YawControlMode : uint8_t {
@@ -28,11 +29,11 @@ class Chassis_Controller
     };
 
 public:
-    Chassis_Controller()
+    ChassisController()
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , following_velocity_controller_(1.0, 0.0, 0.0) {
+        , following_velocity_controller_(9.0, 0.0, 0.0) {
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
         register_input("/remote/switch/right", switch_right_);
@@ -42,6 +43,8 @@ public:
         register_input("yaw_imu_angle", yaw_imu_angle_);
         register_input("/arm/joint_1/theta", joint1_theta_);
         register_input("/arm/mode", arm_mode_);
+
+        register_input("/steering/power_meter/power", chassis_power_);
 
         register_output(
             "/chassis/big_yaw/target_angle_error", chassis_big_yaw_target_angle_error_, NAN);
@@ -79,7 +82,7 @@ public:
 
         mode_selection();
 
-        double angular_velocity{0.0};
+        static double angular_velocity{0.0};
         switch (chassis_mode_) {
         case rmcs_msgs::ChassisMode::Flow: {
             set_yaw_mode(YawControlMode::IMU);
@@ -87,6 +90,7 @@ public:
             angular_velocity = std::clamp(
                 following_velocity_controller_.update(*chassis_big_yaw_angle_),
                 -angular_velocity_limit_, angular_velocity_limit_);
+               
             break;
         }
         case rmcs_msgs::ChassisMode::SPIN: {
@@ -115,8 +119,9 @@ public:
             if (is_stair_mode()) {
                 move.x() = 0.0;
             }
-            // Eigen::Rotation2D<double> rotation(*chassis_big_yaw_angle_ + *joint1_theta_);
-            // move_ = rotation * (*joystick_left_);
+            Eigen::Rotation2D<double> rotation(*chassis_big_yaw_angle_ + *joint1_theta_);
+            move = rotation * (*joystick_left_);
+          
             chassis_control_velocity_->vector << (move * *speed_limit_), angular_velocity;
         } else {
             chassis_control_velocity_->vector << NAN, NAN, NAN;
@@ -125,15 +130,26 @@ public:
         *chassis_big_yaw_target_angle_error_ =
             normalize_angle(yaw_target_angle_ - get_yaw_feedback());
 
+        // Virtual buffer energy power control
+        constexpr double dt  = 0.001; // 1ms update cycle
+        double chassis_power = *chassis_power_;
+        virtual_buffer_energy_ += dt * (power_limit_ - chassis_power);
+        virtual_buffer_energy_ =
+            std::clamp(virtual_buffer_energy_, 0.0, virtual_buffer_energy_limit_);
+
+        *chassis_control_power_limit_ =
+            power_limit_ * (virtual_buffer_energy_ / virtual_buffer_energy_limit_);
+
         last_arm_mode_ = *arm_mode_;
     }
 
 private:
     static double speed_gear_value(SpeedGear gear) {
         switch (gear) {
-        case SpeedGear::High: return 3.5;
-        case SpeedGear::Medium: return 2.5;
+        case SpeedGear::Medium: return 2.0;
         case SpeedGear::Low: return 0.8;
+        case SpeedGear::High:
+        default: return 2.0;
         }
     }
 
@@ -145,8 +161,10 @@ private:
         if (switch_left == Switch::MIDDLE
             && (switch_right == Switch::MIDDLE || switch_right == Switch::DOWN)) {
             chassis_mode_ = ChassisMode::Flow;
+            set_speed_gear(SpeedGear::High);
         } else if (switch_left == Switch::MIDDLE && switch_right == Switch::UP) {
             chassis_mode_ = ChassisMode::SPIN;
+            set_speed_gear(SpeedGear::High);
         } else if (switch_left == Switch::DOWN && switch_right == Switch::UP) {
             if (keyboard.c) {
                 if (!keyboard.shift && !keyboard.ctrl) {
@@ -183,6 +201,7 @@ private:
                 case rmcs_msgs::ArmMode::Auto_Up_Two_Stairs:
                 case rmcs_msgs::ArmMode::Auto_Down_Stairs:
                     set_speed_gear(SpeedGear::Medium);
+                    chassis_mode_ = rmcs_msgs::ChassisMode::Yaw_Free;
                     yaw_trajectory_controller_
                         .set_start_point(std::vector<double>{*chassis_big_yaw_angle_})
                         .set_total_step(600)
@@ -216,13 +235,11 @@ private:
         *chassis_big_yaw_target_angle_error_ = NAN;
         *chassis_control_velocity_           = {NAN, NAN, NAN};
         *chassis_control_power_limit_        = 0.0;
+        virtual_buffer_energy_               = virtual_buffer_energy_limit_;
     }
     static double normalize_angle(double angle) {
-        while (angle > M_PI)
-            angle -= 2 * M_PI;
-        while (angle < -M_PI)
-            angle += 2 * M_PI;
-        return angle;
+        angle = std::fmod(angle + M_PI, 2 * M_PI);
+        return angle < 0 ? angle + M_PI : angle - M_PI;
     }
     bool is_stair_mode() {
         return *arm_mode_ == rmcs_msgs::ArmMode::Auto_Up_One_Stairs
@@ -240,9 +257,14 @@ private:
     rmcs_msgs::ChassisMode chassis_mode_ = rmcs_msgs::ChassisMode::None;
 
     OutputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;
+    InputInterface<double> chassis_power_;
     OutputInterface<double> chassis_control_power_limit_;
     OutputInterface<double> speed_limit_;
-    double angular_velocity_limit_ = 6.0;
+
+    static constexpr double power_limit_                 = 120.0;
+    static constexpr double virtual_buffer_energy_limit_ = 1.0;
+    double virtual_buffer_energy_                        = virtual_buffer_energy_limit_;
+    double angular_velocity_limit_                       = 10.0;
     pid::PidCalculator following_velocity_controller_;
     InputInterface<double> joint1_theta_;
 
@@ -257,4 +279,4 @@ private:
 } // namespace rmcs_core::controller::chassis
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::chassis::Chassis_Controller, rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::chassis::ChassisController, rmcs_executor::Component)

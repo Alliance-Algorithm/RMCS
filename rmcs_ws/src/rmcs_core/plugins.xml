@@ -38,7 +38,7 @@
   <class type="rmcs_core::hardware::cboard::GyroCalibrator" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
-   <class type="rmcs_core::referee::Vision" base_class_type="rmcs_executor::Component">
+   <class type="rmcs_core::referee::ImageTransmissionLink" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
   <class type="rmcs_core::hardware::LK_Robot" base_class_type="rmcs_executor::Component">
@@ -56,7 +56,7 @@
    <class type="rmcs_core::controller::arm::Arm" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
-  <class type="rmcs_core::controller::chassis::Chassis_Controller" base_class_type="rmcs_executor::Component">
+  <class type="rmcs_core::controller::chassis::ChassisController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
   <class type="rmcs_core::controller::chassis::SteeringWheelController" base_class_type="rmcs_executor::Component">
