@@ -118,7 +118,7 @@ public:
                 [&buffer](std::byte byte) noexcept { *buffer++ = byte; }, size);
         };
         referee_serial_->write = [this](const std::byte* buffer, size_t size) {
-            start_transmit().uart1_transmit({
+            start_transmit().uart2_transmit({
                 std::span{buffer, size}
             });
             return size;
@@ -182,24 +182,58 @@ private:
             odom_ready_ = false;
         }
 
+        const auto& odin_to_px4_rotation = odin1_base_link_to_px4_rotation();
+        const auto& odin_to_px4_offset = odin1_base_link_to_px4_translation();
+
+        Eigen::Quaternionf odom_to_odin_q{snap.q_w, snap.q_x, snap.q_y, snap.q_z};
+        odom_to_odin_q.normalize();
+
+        Eigen::Isometry3f odom_to_odin = Eigen::Isometry3f::Identity();
+        odom_to_odin.linear() = odom_to_odin_q.toRotationMatrix();
+        odom_to_odin.translation() = Eigen::Vector3f{snap.pos_x, snap.pos_y, snap.pos_z};
+
+        Eigen::Isometry3f odin_to_px4 = Eigen::Isometry3f::Identity();
+        odin_to_px4.linear() = odin_to_px4_rotation;
+        odin_to_px4.translation() = odin_to_px4_offset;
+
+        const Eigen::Isometry3f odom_to_px4 = odom_to_odin * odin_to_px4;
+
+        // nav_msgs/Odometry twists are reported in child_frame_id, which is odin1_base_link here.
+        const Eigen::Vector3f odin_linear_velocity{
+            snap.vel_x, snap.vel_y, snap.vel_z};
+        const Eigen::Vector3f odin_angular_velocity{
+            snap.ang_x, snap.ang_y, snap.ang_z};
+        const Eigen::Vector3f px4_velocity_odom =
+            odom_to_odin.linear()
+            * (odin_linear_velocity + odin_angular_velocity.cross(odin_to_px4_offset));
+
+        Eigen::Matrix3f odin_velocity_covariance = Eigen::Matrix3f::Zero();
+        odin_velocity_covariance.diagonal() =
+            Eigen::Vector3f{snap.vel_cov_xx, snap.vel_cov_yy, snap.vel_cov_zz};
+        const Eigen::Matrix3f px4_velocity_covariance =
+            odom_to_odin.linear() * odin_velocity_covariance * odom_to_odin.linear().transpose();
+
         px4_ros2::LocalPositionMeasurement meas{};
         meas.timestamp_sample =
             snap.timestamp_sample.nanoseconds() > 0 ? snap.timestamp_sample : get_clock()->now();
 
-        meas.position_xy = Eigen::Vector2f{snap.pos_x, snap.pos_y};
+        meas.position_xy = odom_to_px4.translation().head<2>();
         meas.position_xy_variance = Eigen::Vector2f{
             snap.cov_xx > 0.f ? snap.cov_xx : 0.1f, snap.cov_yy > 0.f ? snap.cov_yy : 0.1f};
 
-        meas.position_z = snap.pos_z;
+        meas.position_z = odom_to_px4.translation().z();
         meas.position_z_variance = snap.cov_zz > 0.f ? snap.cov_zz : 0.1f;
 
-        meas.velocity_xy = Eigen::Vector2f{snap.vel_x, snap.vel_y};
+        meas.velocity_xy = px4_velocity_odom.head<2>();
         meas.velocity_xy_variance = Eigen::Vector2f{
-            snap.vel_cov_xx > 0.f ? snap.vel_cov_xx : 0.1f,
-            snap.vel_cov_yy > 0.f ? snap.vel_cov_yy : 0.1f};
+            px4_velocity_covariance(0, 0) > 0.f ? px4_velocity_covariance(0, 0) : 0.1f,
+            px4_velocity_covariance(1, 1) > 0.f ? px4_velocity_covariance(1, 1) : 0.1f};
 
-        // ROS Odometry stores quaternions as (x, y, z, w); Eigen ctor is (w, x, y, z)
-        meas.attitude_quaternion = Eigen::Quaternionf{snap.q_w, snap.q_x, snap.q_y, snap.q_z};
+        meas.velocity_z = px4_velocity_odom.z();
+        meas.velocity_z_variance =
+            px4_velocity_covariance(2, 2) > 0.f ? px4_velocity_covariance(2, 2) : 0.1f;
+
+        meas.attitude_quaternion = Eigen::Quaternionf{odom_to_px4.linear()};
         meas.attitude_variance = Eigen::Vector3f{0.05f, 0.05f, 0.05f};
 
         try {
@@ -223,10 +257,11 @@ private:
     struct OdomSnapshot {
         rclcpp::Time timestamp_sample{};
         float pos_x{}, pos_y{}, pos_z{};
-        float vel_x{}, vel_y{};
+        float vel_x{}, vel_y{}, vel_z{};
+        float ang_x{}, ang_y{}, ang_z{};
         float q_x{}, q_y{}, q_z{}, q_w{1.f};
         float cov_xx{}, cov_yy{}, cov_zz{};
-        float vel_cov_xx{}, vel_cov_yy{};
+        float vel_cov_xx{}, vel_cov_yy{}, vel_cov_zz{};
     };
 
     std::mutex odom_mutex_;
@@ -245,6 +280,10 @@ private:
         snap.pos_z = static_cast<float>(msg.pose.pose.position.z);
         snap.vel_x = static_cast<float>(msg.twist.twist.linear.x);
         snap.vel_y = static_cast<float>(msg.twist.twist.linear.y);
+        snap.vel_z = static_cast<float>(msg.twist.twist.linear.z);
+        snap.ang_x = static_cast<float>(msg.twist.twist.angular.x);
+        snap.ang_y = static_cast<float>(msg.twist.twist.angular.y);
+        snap.ang_z = static_cast<float>(msg.twist.twist.angular.z);
         snap.q_x = static_cast<float>(msg.pose.pose.orientation.x);
         snap.q_y = static_cast<float>(msg.pose.pose.orientation.y);
         snap.q_z = static_cast<float>(msg.pose.pose.orientation.z);
@@ -254,12 +293,34 @@ private:
         snap.cov_zz = static_cast<float>(msg.pose.covariance[14]);
         snap.vel_cov_xx = static_cast<float>(msg.twist.covariance[0]);
         snap.vel_cov_yy = static_cast<float>(msg.twist.covariance[7]);
+        snap.vel_cov_zz = static_cast<float>(msg.twist.covariance[14]);
 
         {
             std::lock_guard<std::mutex> lock(odom_mutex_);
             latest_odom_ = snap;
             odom_ready_ = true;
         }
+    }
+
+    static const Eigen::Matrix3f& odin1_base_link_to_px4_rotation() {
+        static const Eigen::Matrix3f rotation = [] {
+            Eigen::Matrix3f matrix;
+            // Odin axes are x->down, y->left, z->front. PX4 expects body FRD.
+            matrix << 0.f, 0.f, 1.f,
+                      0.f, -1.f, 0.f,
+                      1.f, 0.f, 0.f;
+            return matrix;
+        }();
+        return rotation;
+    }
+
+    static const Eigen::Vector3f& odin1_base_link_to_px4_translation() {
+        static const Eigen::Vector3f translation = [] {
+            // Odin is mounted 135 mm below, 312 mm right, and 296 mm behind the PX4 controller.
+            // This is the odin1_base_link -> PX4 origin offset expressed in Odin axes.
+            return Eigen::Vector3f{-0.135f, 0.312f, 0.296f};
+        }();
+        return translation;
     }
 
 protected:
@@ -288,7 +349,7 @@ protected:
         }
     }
 
-    void uart1_receive_callback(const librmcs::data::UartDataView& data) override {
+    void uart2_receive_callback(const librmcs::data::UartDataView& data) override {
         const std::byte* ptr = data.uart_data.data();
         referee_ring_buffer_receive_.emplace_back_n(
             [&ptr](std::byte* storage) noexcept { new (storage) std::byte{*ptr++}; },
