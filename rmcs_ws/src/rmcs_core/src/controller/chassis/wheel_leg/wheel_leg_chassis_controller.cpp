@@ -117,7 +117,7 @@ public:
                 climb_active_ = !last_keyboard_.q && keyboard.q;
 
                 // Rescue tip-over
-                rescue_tip_over_ = !last_keyboard_.r && keyboard.r;
+                rescue_tip_over_ = !last_keyboard_.g && keyboard.g;
 
                 *is_balanceless_ = mode == rmcs_msgs::WheelLegMode::BALANCELESS;
                 *is_leg_extended_ = leg_extended_;
@@ -177,7 +177,6 @@ public:
 
         switch (*mode_) {
         case rmcs_msgs::WheelLegMode::BALANCELESS:
-        case rmcs_msgs::WheelLegMode::RESCUE_TIP_OVER: break;
         case rmcs_msgs::WheelLegMode::SPIN: {
             angular_velocity =
                 0.6 * (spinning_forward_ ? angular_velocity_max : -angular_velocity_max);
@@ -230,7 +229,7 @@ private:
 
     // Maximum control velocities
     static constexpr double translational_velocity_max = 2.0;
-    static constexpr double angular_velocity_max = 16.0;
+    static constexpr double angular_velocity_max = 2.0;
 
     InputInterface<Eigen::Vector2d> joystick_right_;
     InputInterface<Eigen::Vector2d> joystick_left_;

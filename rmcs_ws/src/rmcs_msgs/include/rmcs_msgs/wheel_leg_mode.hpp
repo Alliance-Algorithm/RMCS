@@ -8,6 +8,5 @@ enum class WheelLegMode : uint8_t {
     SPIN = 1,
     FOLLOW = 2,
     LAUNCH_RAMP = 3,
-    RESCUE_TIP_OVER = 4,
 };
 }

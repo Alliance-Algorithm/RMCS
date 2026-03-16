@@ -137,7 +137,7 @@ private:
         desire_state_.distance = 0.0;
         desire_state_.velocity = vx;
 
-        desire_state_.yaw_angle = 0.0; // or
+        desire_state_.yaw_angle = 0.0; //
         desire_state_.yaw_velocity = wz;
 
         desire_state_.left_tilt_angle = 0.0;
