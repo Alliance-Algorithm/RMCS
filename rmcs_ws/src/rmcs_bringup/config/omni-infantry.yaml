@@ -11,7 +11,7 @@ rmcs_executor:
       - rmcs_core::referee::command::interaction::Ui -> referee_ui
       - rmcs_core::referee::app::ui::Infantry -> referee_ui_infantry
 
-      - sp_vision_25::bridge::SpVisionBridge -> sp_vision_bridge
+      - sp_vision_25::bridge::SpVisionResponseTestBridge -> sp_vision_bridge
       - rmcs_core::controller::gimbal::OmniInfantryPlannerGimbalController -> gimbal_controller
 
       - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
@@ -37,6 +37,17 @@ sp_vision_bridge:
     bullet_speed_fallback: 23.0
     result_timeout: 0.2
     debug: false
+    virtual_center_distance: 2.0
+    virtual_center_yaw: 0.0
+    virtual_center_height: 0.0
+    virtual_angular_velocity: 8.0
+    virtual_base_radius: 0.25
+    virtual_radius_delta: 0.05
+    virtual_height_delta: 0.0
+    virtual_initial_phase: 0.0
+    fire_control_enabled: true
+    output_csv_path: /tmp/sp_vision_response_test.csv
+    csv_decimation: 1
 
 gimbal_controller:
   ros__parameters:
@@ -53,7 +64,7 @@ gimbal_controller:
     yaw_velocity_ki: 0.0
     yaw_velocity_kd: 0.0
 
-    yaw_acc_ff_gain: 0.16
+    yaw_acc_ff_gain: 0.08
 
     pitch_angle_kp: 12.0
     pitch_angle_ki: 0.0
@@ -63,7 +74,7 @@ gimbal_controller:
     pitch_velocity_ki: 0.0
     pitch_velocity_kd: 0.0
 
-    pitch_acc_ff_gain: 0.16
+    pitch_acc_ff_gain: 0.0
 
 friction_wheel_controller:
   ros__parameters:
