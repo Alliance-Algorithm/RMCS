@@ -78,7 +78,7 @@ public:
         case Type::kMG5010Ei10:
             raw_angle_max_ = 65535;
             current_max = 33.0;
-            torque_constant = 0.90909;
+            torque_constant = 0.1;
             reduction_ratio = 10.0;
 
             // Note: max_torque_ should represent the ACTUAL maximum torque of the motor.
@@ -98,7 +98,7 @@ public:
         case Type::kMG6012Ei8:
             raw_angle_max_ = 65535;
             current_max = 33.0;
-            torque_constant = 1.09;
+            torque_constant = 1.09 / 8.0;
             reduction_ratio = 8.0;
             max_torque_ = 16.0;
             break;
