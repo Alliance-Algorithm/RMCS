@@ -154,9 +154,9 @@ private:
                     command_ = joint_1.generate_torque_command();
                     transmit_buffer_.add_can1_transmission(0x055, command_);
                 }
-                command_ = big_yaw.generate_velocity_command(0.0, 2000);
+                command_ = big_yaw.generate_torque_command();
                 transmit_buffer_.add_can1_transmission(0x141, command_);
-                
+
                 command_ = gripper.generate_torque_command();
                 transmit_buffer_.add_can2_transmission(0x146, command_);
                 command_ = joint_6.generate_velocity_command(0.0, 1400);

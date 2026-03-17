@@ -5,6 +5,7 @@ rmcs_executor:
       - rmcs_core::hardware::Arm -> arm_hardware
       - rmcs_core::controller::arm::ArmConfig -> arm_config
       - rmcs_core::controller::arm::ArmSolver -> arm_solver
+      - rmcs_core::controller::pid::PidController -> big_yaw_velocity_pid_controller
 
       
 arm_hardware:
@@ -22,5 +23,15 @@ arm_hardware:
 arm_solver:
   ros__parameters:
     controller_list: [gravity,friction]
-    
 
+big_yaw_velocity_pid_controller:
+  ros__parameters:
+    measurement: /chassis/big_yaw/velocity
+    setpoint: 0.0
+    control: /chassis/big_yaw/control_torque
+    kp: 2.2
+    ki: 0.0
+    kd: 0.0
+    output_min: -3.0
+    output_max: 3.0
+    

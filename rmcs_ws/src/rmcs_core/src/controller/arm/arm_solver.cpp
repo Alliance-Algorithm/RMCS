@@ -52,7 +52,6 @@ public:
         }
 
         register_output("/arm/gripper/motor/control_torque", gripper_control_torque, NAN);
-        register_output("/chassis/big_yaw/control_torque", big_yaw_control_torque, NAN);
         register_output("/arm/joint_123/dm_enable_command", startup_dm_enable_joint123_, false);
 
         for (std::size_t i = 0; i < num_axis; ++i) {
@@ -288,7 +287,6 @@ private:
     InputInterface<Eigen::Vector3d> joint4_position;
     InputInterface<bool> is_arm_enable;
     OutputInterface<double> gripper_control_torque;
-    OutputInterface<double> big_yaw_control_torque;
     OutputInterface<bool> startup_dm_enable_joint123_;
 
     InputInterface<bool> is_loaded;
