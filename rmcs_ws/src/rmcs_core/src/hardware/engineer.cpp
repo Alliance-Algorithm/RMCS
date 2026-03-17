@@ -83,6 +83,7 @@ private:
                   {engineer, engineer_command, "/arm/joint_4/motor"},
                   {engineer, engineer_command, "/arm/joint_5/motor"},
                   {engineer, engineer_command, "/arm/joint_6/motor"})
+            , gripper{engineer, engineer_command, "/arm/gripper/motor"}
             , joint2_encoder(engineer, "/arm/joint_2/encoder")
             , dr16_(engineer)
             , transmit_buffer_(*this, 32)
@@ -94,6 +95,9 @@ private:
             engineer.register_output("yaw_imu_velocity", yaw_imu_velocity, NAN);
             engineer.register_output("yaw_imu_angle", yaw_imu_angle, NAN);
             using namespace device;
+            gripper.configure(
+                LKMotorConfig{LKMotorType::MG4005E_i10V3}.set_encoder_zero_point(
+                    static_cast<uint16_t>(engineer.get_parameter("gripper_zero_point").as_int())));
             joint[5].configure(
                 LKMotorConfig{LKMotorType::MHF6015}.reverse().set_encoder_zero_point(
                     static_cast<uint16_t>(engineer.get_parameter("joint6_zero_point").as_int())));
@@ -109,8 +113,11 @@ private:
             joint[1].configure(
                 LKMotorConfig{LKMotorType::MF7015V210T}.reverse().set_gear_ratio(42.0));
             joint[0].configure(
-                device::LKMotorConfig{device::LKMotorType::MG5010E_i36V3}.set_encoder_zero_point(
-                    static_cast<int16_t>(engineer.get_parameter("joint1_zero_point").as_int())));
+                device::LKMotorConfig{device::LKMotorType::MG5010E_i36V3}
+                    .reverse()
+                    .set_encoder_zero_point(
+                        static_cast<int16_t>(
+                            engineer.get_parameter("joint1_zero_point").as_int())));
             joint2_encoder.configure(
                 EncoderConfig{EncoderType::KTH7823}.set_encoder_zero_point(
                     static_cast<int>(engineer.get_parameter("joint2_zero_point").as_int())));
@@ -122,6 +129,7 @@ private:
             transmit_buffer_.add_can2_transmission(0x145, command_);
             transmit_buffer_.add_can2_transmission(0x144, command_);
             transmit_buffer_.add_can2_transmission(0x141, command_);
+            transmit_buffer_.add_can2_transmission(0x147, command_);
             transmit_buffer_.add_can1_transmission(0x142, command_);
             transmit_buffer_.add_can1_transmission(0x143, command_);
             transmit_buffer_.add_can1_transmission(0x146, command_);
@@ -135,11 +143,12 @@ private:
             update_arm_motors();
             dr16_.update();
             update_imu();
+            RCLCPP_INFO(get_logger(),"%f",gripper.get_angle());
         }
-        void command() { arm_command_update(); }
+        void command() { update_arm_command(); }
 
     private:
-        void arm_command_update() {
+        void update_arm_command() {
             uint64_t command_;
             static bool even_phase{true};
 
@@ -150,6 +159,9 @@ private:
 
                 command_ = joint[5].generate_torque_command();
                 transmit_buffer_.add_can2_transmission(0x141, command_);
+
+                command_ = gripper.generate_torque_command();
+                transmit_buffer_.add_can2_transmission(0x147, command_);
 
             } else {
 
@@ -178,6 +190,7 @@ private:
             joint[2].update();
             joint[1].update();
             joint[0].update();
+            gripper.update();
         }
 
         void update_imu() {
@@ -201,6 +214,9 @@ private:
                 joint[4].store_status(can_data);
             else if (can_id == 0x144)
                 joint[3].store_status(can_data);
+            else if (can_id == 0x147) {
+                gripper.store_status(can_data);
+            };
         }
         void can1_receive_callback(
             uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
@@ -230,9 +246,9 @@ private:
             bmi088_.store_gyroscope_status(x, y, z);
         }
 
-
     private:
         device::LKMotor joint[6];
+        device::LKMotor gripper;
         device::Encoder joint2_encoder;
         device::Dr16 dr16_;
         librmcs::client::CBoard::TransmitBuffer transmit_buffer_;
@@ -327,7 +343,7 @@ private:
             }
             for (auto& ecd : Leg_ecd) {
                 ecd.update();
-            }          
+            }
             power_meter.update();
         }
         void command() {
@@ -482,7 +498,7 @@ private:
                 "/leg/joint/rb/control_theta_error", leg_joint_rb_control_theta_error, NAN);
             engineer.register_output(
                 "/leg/joint/rf/control_theta_error", leg_joint_rf_control_theta_error, NAN);
-                engineer_command.register_input("/arm/enable_flag", is_arm_enable);
+            engineer_command.register_input("/arm/enable_flag", is_arm_enable);
             engineer_command.register_input("/leg/joint/rb/target_theta", leg_rb_target_theta_);
             engineer_command.register_input("/leg/joint/rf/target_theta", leg_rf_target_theta_);
         }
@@ -539,8 +555,7 @@ private:
                 transmit_buffer_.add_can1_transmission(0x1FE, std::bit_cast<uint64_t>(command_));
 
                 uint64_t yaw_command;
-                if (*is_arm_enable && big_yaw.get_state() != 0
-                    && big_yaw.get_state() != 1) {
+                if (*is_arm_enable && big_yaw.get_state() != 0 && big_yaw.get_state() != 1) {
                     yaw_command = big_yaw.dm_clear_error_command();
                 } else if (!*is_arm_enable) {
                     yaw_command = big_yaw.dm_close_command();
@@ -568,7 +583,7 @@ private:
                 transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(command_));
             }
             turn = !turn;
-           
+
             transmit_buffer_.trigger_transmission();
         }
 

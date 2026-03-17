@@ -4,9 +4,14 @@ rmcs_executor:
     components:
       - rmcs_core::hardware::Engineer -> engineer_hardware
       - rmcs_core::controller::arm::ArmConfig -> arm_config
-      - rmcs_core::controller::arm::ArmSolver -> arm_solver
       - rmcs_core::controller::arm::ArmController -> arm_controller
+      - rmcs_core::controller::arm::ArmSolver -> arm_solver
+
       - rmcs_core::referee::ImageTransmissionLink -> image_transmission
+
+      - rmcs_core::controller::pid::ErrorPidController -> gripper_error_pid_controller
+      - rmcs_core::controller::pid::PidController -> gripper_velocity_pid_controller
+
       - rmcs_core::controller::leg::LegController -> leg_controller
 
       - rmcs_core::controller::chassis::ChassisController -> chassis_controller
@@ -28,17 +33,19 @@ rmcs_executor:
       - rmcs_core::controller::pid::ErrorPidController -> leg_rb_angle_error_pid_controller
       - rmcs_core::controller::pid::PidController -> leg_rb_velocity_pid_controller
 
+    
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 engineer_hardware:
   ros__parameters:
     arm_board_usb_pid: 0x1783
     left_board_usb_pid: 0x652f
     right_board_usb_pid: 0x75f3
+    gripper_zero_point: 46048
     joint6_zero_point: 0
     joint5_zero_point: 37436
     joint4_zero_point: 28029
     joint3_zero_point: 28134
-    joint2_zero_point: 44546 
+    joint2_zero_point: 61315 
     joint1_zero_point: 11371
     steering_lf_zero_point: 3399
     steering_lb_zero_point: 681
@@ -71,7 +78,22 @@ leg_controller:
     press_again_parameter: [0.799803, 0.778351, 0.778351, 0.799803, -600.0, 400.0]
     lift_again_parameter: [0.902222, 1.413787, 1.413787, 0.902222, -600.0, 800.0]
 
-    
+gripper_angle_pid_controller:
+  ros__parameters:
+    measurement: /arm/gripper/target_theta_error
+    control: /arm/gripper/control_vel
+    kp: 0.0
+    ki: 0.0
+    kd: 0.0
+gripper_velocity_pid_controller:
+  ros__parameters:
+    measurement: /arm/gripper/motor/velocity
+    setpoint: /arm/gripper/control_vel
+    control: /arm/gripper/motor/control_torque
+    kp: 0.0
+    ki: 0.0
+    kd: 0.0
+
 leg_omni_l_velocity_controller:
   ros__parameters:
     measurement: /leg/omni/l/velocity

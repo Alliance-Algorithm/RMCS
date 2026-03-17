@@ -33,6 +33,7 @@
 
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/arm_mode.hpp>
+#include <rmcs_msgs/gripper_mode.hpp>
 #include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/switch.hpp>
@@ -73,7 +74,10 @@ public:
             register_input(joint_prefix + "/theta", theta[i]);
             register_output(joint_prefix + "/target_theta", target_theta[i], NAN);
         }
-
+        register_output("/arm/gripper/target_theta", target_theta[6], NAN);
+        register_input("/arm/gripper/motor/angle", theta[6], NAN);
+        register_output(" /arm/gripper/target_theta_error", gripper_target_theta_error, NAN);
+        
         move_group_ =
             std::make_unique<moveit::planning_interface::MoveGroupInterface>(node_, "alliance_arm");
         move_group_->startStateMonitor();
@@ -115,14 +119,18 @@ public:
                 initial_check_done = true;
             }
             *arm_mode_ = get_arm_mode();
+            set_arm_mode(rmcs_msgs::ArmMode::None);
+            set_gripper_mode(rmcs_msgs::GripperMode::None);
             return;
         }
 
-        if (switch_left == Switch::DOWN && switch_right == Switch::DOWN) {
+        if ((switch_left == Switch::DOWN && switch_right == Switch::DOWN)
+            || switch_left == Switch::UNKNOWN) {
             *is_arm_enable = false;
             for (std::size_t i = 0; i < std::size(theta); ++i) {
                 *target_theta[i] = *theta[i];
             }
+            set_gripper_mode(rmcs_msgs::GripperMode::None);
             set_arm_mode(rmcs_msgs::ArmMode::None);
             *arm_mode_ = get_arm_mode();
             return;
@@ -189,6 +197,14 @@ public:
             break;
         }
         }
+
+        auto knob = *rotary_knob_switch;
+        if (knob == Switch::UP) {
+            set_gripper_mode(rmcs_msgs::GripperMode::Open);
+        } else if (knob == Switch::DOWN) {
+            set_gripper_mode(rmcs_msgs::GripperMode::Close);
+        }
+        gripper_control();
     }
 
 private:
@@ -221,6 +237,9 @@ private:
         next->arm_mode = mode;
         plan_request.store(next, std::memory_order_release);
     }
+
+    void set_gripper_mode(rmcs_msgs::GripperMode mode) { gripper_mode_ = mode; }
+    rmcs_msgs::GripperMode get_gripper_mode() const { return gripper_mode_; }
 
     rmcs_msgs::ArmMode get_arm_mode() const {
         const auto current = plan_request.load(std::memory_order_acquire);
@@ -317,19 +336,18 @@ private:
         struct __attribute__((packed)) CustomFrame {
             std::array<std::uint8_t, 2> reserved{};
             std::uint16_t joint[6];
-           
         };
         const auto& custom_data = *custom_data_;
         std::array<std::uint8_t, sizeof(CustomFrame)> raw{};
         std::copy_n(custom_data.begin(), raw.size(), raw.begin());
-        const auto frame = std::bit_cast<CustomFrame>(raw);
+        const auto frame       = std::bit_cast<CustomFrame>(raw);
         constexpr auto pi      = std::numbers::pi;
         constexpr auto raw_max = static_cast<double>(std::numeric_limits<std::uint16_t>::max());
 
         const auto raw_to_angle = [](std::uint16_t raw) {
             auto angle = static_cast<double>(raw) / raw_max * 2.0 * pi;
             if (angle > pi) {
-                angle -=  2.0 * pi;
+                angle -= 2.0 * pi;
             }
             return angle;
         };
@@ -366,6 +384,14 @@ private:
             *target_theta[0] = std::clamp(*target_theta[0], -2.34, 2.34);
         }
     }
+    void gripper_control() {
+        switch (get_gripper_mode()) {
+        case rmcs_msgs::GripperMode::Open: *target_theta[6] = -1.53; break;
+        case rmcs_msgs::GripperMode::Close: *target_theta[6] = 0.0; break;
+        case rmcs_msgs::GripperMode::Custom:
+        case rmcs_msgs::GripperMode::None: break;
+        }
+    }
     InputInterface<Eigen::Vector2d> joystick_right_;
     InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;
@@ -374,10 +400,14 @@ private:
     InputInterface<Eigen::Vector2d> mouse_velocity_;
     InputInterface<rmcs_msgs::Mouse> mouse_;
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
+
     OutputInterface<bool> is_arm_enable;
-    InputInterface<double> theta[6];
-    OutputInterface<double> target_theta[6];
+    InputInterface<double> theta[7];
+    OutputInterface<double> target_theta[7];
     OutputInterface<rmcs_msgs::ArmMode> arm_mode_;
+
+    rmcs_msgs::GripperMode gripper_mode_{rmcs_msgs::GripperMode::None};
+    OutputInterface<double> gripper_target_theta_error;
 
     InputInterface<std::array<uint8_t, 30>> custom_data_;
 
