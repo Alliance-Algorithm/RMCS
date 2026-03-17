@@ -11,14 +11,14 @@ rmcs_executor:
 arm_hardware:
   ros__parameters:
     arm_board_usb_pid: 0x488d
-    gripper_zero_point: 44185
-    joint6_zero_point: 19640
-    joint5_zero_point: 47466
+    gripper_zero_point: 15504
+    joint6_zero_point: 19344
+    joint5_zero_point: 47964
     joint4_zero_point: 4017
-    joint3_zero_point: 30000
+    joint3_zero_point: 30453
     joint2_zero_point: 54221
     joint1_zero_point: 28268
-    big_yaw_zero_point: 20485
+    big_yaw_zero_point: 40607
 
 arm_solver:
   ros__parameters:

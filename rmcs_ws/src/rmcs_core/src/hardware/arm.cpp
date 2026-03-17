@@ -99,7 +99,7 @@ private:
                 DMMotorConfig{DMMotorType::DM6006}.set_encoder_zero_point(
                     static_cast<uint16_t>(arm.get_parameter("joint1_zero_point").as_int())));
             big_yaw.configure(
-                LKMotorConfig{LKMotorType::MHF7015}.reverse().set_encoder_zero_point(
+                LKMotorConfig{LKMotorType::MHF7015}.set_encoder_zero_point(
                     static_cast<uint16_t>(arm.get_parameter("big_yaw_zero_point").as_int())));
         }
         ~ArmBoard() final {
@@ -125,8 +125,10 @@ private:
             uint64_t command_;
             static bool even_phase{true};
             const bool should_enable_dm_joint123 = arm_command_.should_enable_dm_joint123();
-            // RCLCPP_INFO(this->get_logger(), "joint5 control torque: %f %d",
-            // joint_3.get_angle(),joint_3.get_raw_angle());
+            // RCLCPP_INFO(
+            //     this->get_logger(), "joint5 control torque: %f %f %f %f %d %d %d %d",
+            //     big_yaw.get_angle(), joint_1.get_angle(), joint_2.get_angle(), joint_3.get_angle(),
+            //     joint_4.get_raw_angle(), joint_5.get_raw_angle(), joint_6.get_raw_angle(), gripper.get_raw_angle());
 
             if (should_enable_dm_joint123) {
                 command_ = device::DMMotor::dm_enable_command();
@@ -137,7 +139,7 @@ private:
 
             if (even_phase) {
                 if (!should_enable_dm_joint123) {
-                    command_ = joint_3.generate_torque_command();
+                    command_ = joint_3.dm_enable_command();
                     transmit_buffer_.add_can1_transmission(0x003, command_);
 
                     command_ = joint_2.generate_torque_command();
