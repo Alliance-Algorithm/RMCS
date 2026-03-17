@@ -85,7 +85,7 @@ public:
             break;
         case DMMotorType::DM4310:
             VMAX = 15.0;
-            TMAX = 20.0;
+            TMAX = 12.0;
             break;
 
         default: throw std::runtime_error{"Unknown motor type"};
@@ -148,6 +148,7 @@ public:
             torque = 0.0;
         }
         torque           = std::clamp(torque, -TMAX, TMAX);
+        torque_debug = torque;
         uint16_t tor_tmp = double_to_uint(torque, -TMAX, TMAX, 12);
         uint8_t tx_buff[8] = {0, 0, 0, 0, 0, 0, 0, 0};
         tx_buff[6]         = ((0 & 0xf) << 4) | (tor_tmp >> 8);
@@ -166,11 +167,11 @@ public:
     double get_state() { return *state; }
     double get_T_coil() { return *T_coil; }
     int get_raw_angle() { return *raw_angle_; }
-    double get_control_torque() const { return *control_torque_; }
+    double get_control_torque() const { return torque_debug; }
 
 private:
     std::atomic<uint64_t> can_result_ = 0;
-
+double torque_debug;
     static double uint_to_double(int x_int, double x_min, double x_max, int bits) {
         double span   = x_max - x_min;
         double offset = x_min;
@@ -183,7 +184,7 @@ private:
     }
 
     int last_raw_angle_;
-
+double torque;
     double reverse     = 1.0;
     double gear_ratio_ = 1.0;
 

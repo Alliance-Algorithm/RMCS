@@ -193,7 +193,7 @@ private:
         const double l_2m = ((link_com(2)->y() * (*link_mass(2)))
                              + ((joint4_position->y() + link_com(3)->z()) * (*link_mass(3))))
                           / ((*link_mass(2) + *link_mass(3)));
-        constexpr double l_3m = 0.07;
+        constexpr double l_3m = 0.16;
 
         const double l1 = *link_length(1);
         const double l2 = *link_length(2);
@@ -219,10 +219,11 @@ private:
         Eigen::Array<double, 6, 1> tau_g;
         tau_g.setZero();
 
-        tau_g(1) = reverse * joint2_tau_g;
-        tau_g(2) = reverse * joint_3_tau_g;
+        tau_g(1) = reverse * joint2_tau_g / 3.0;
+        tau_g(2) =  reverse * joint_3_tau_g;
         tau_g(3) = joint_4_tau_g;
         tau_g(4) = reverse * joint_5_tau_g;
+        RCLCPP_INFO(get_logger(),"%f",tau_g(1) );
         return tau_g;
     };
     Eigen::Array<double, 6, 1> calculate_zero_torque() {

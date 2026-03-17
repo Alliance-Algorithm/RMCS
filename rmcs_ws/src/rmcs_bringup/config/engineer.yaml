@@ -15,7 +15,7 @@ arm_hardware:
     joint6_zero_point: 19344
     joint5_zero_point: 47964
     joint4_zero_point: 4017
-    joint3_zero_point: 30453
+    joint3_zero_point: 51845
     joint2_zero_point: 54221
     joint1_zero_point: 28268
     big_yaw_zero_point: 40607
@@ -29,7 +29,7 @@ big_yaw_velocity_pid_controller:
     measurement: /chassis/big_yaw/velocity
     setpoint: 0.0
     control: /chassis/big_yaw/control_torque
-    kp: 2.2
+    kp: 1.5
     ki: 0.0
     kd: 0.0
     output_min: -3.0
