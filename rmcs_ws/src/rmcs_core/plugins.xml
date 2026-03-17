@@ -153,10 +153,10 @@
     <description>Dart setting controller: subscribes to RemoteCommandBridge delta commands, outputs yaw/pitch/force control velocities.</description>
   </class>
   <class type="rmcs_core::controller::dart::DartLaunchSettingV2" base_class_type="rmcs_executor::Component">
-    <description>Launch setting V2: belt + trigger + LK lifting angle control.</description>
+    <description>Launch setting V2: belt + trigger execution with task-level velocity, torque limit, and hold torque.</description>
   </class>
   <class type="rmcs_core::controller::dart::DartFilling" base_class_type="rmcs_executor::Component">
-    <description>Launch setting V2: belt + trigger + LK lifting angle control.</description>
+    <description>Dart filling execution: maps manager lifting and limiting commands to LK motor velocity and calibrated servo angles.</description>
   </class>
   <class type="rmcs_core::hardware::CatapultDartFillingTest" base_class_type="rmcs_executor::Component">
     <description>Launch setting V2: belt + trigger + LK lifting angle control.</description>
