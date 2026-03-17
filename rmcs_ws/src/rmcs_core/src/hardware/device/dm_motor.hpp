@@ -85,7 +85,7 @@ public:
             break;
         case DMMotorType::DM4310:
             VMAX = 15.0;
-            TMAX = 11.0;
+            TMAX = 20.0;
             break;
 
         default: throw std::runtime_error{"Unknown motor type"};
@@ -98,11 +98,11 @@ public:
             encoder_zero_point_ += (raw_angle_max_);
 
         raw_angle_to_angle_coefficient_ =
-            1.0 * reverse * 2 * std::numbers::pi / (raw_angle_max_ * gear_ratio_);
+            1.0  * 2 * std::numbers::pi / (raw_angle_max_ * gear_ratio_);
         angle_to_raw_angle_coefficient_ = 1.0 / raw_angle_to_angle_coefficient_;
 
         raw_velocity_to_velocity_coefficient_ =
-            1.0 * (reverse * 60.0) / (2 * std::numbers::pi * gear_ratio_);
+             60.0 / (2 * std::numbers::pi * gear_ratio_);
         velocity_to_raw_velocity_coefficient_ = 1.0 / raw_velocity_to_velocity_coefficient_;
 
         raw_current_to_torque_coefficient_ = 1.0 * config.gear_ratio;
@@ -129,11 +129,12 @@ public:
         uint16_t angle = p_int - encoder_zero_point_;
         if (angle < 0)
             angle += raw_angle_max_;
-        *angle_    = angle < raw_angle_max_ / 2
+        *angle_    =( angle < raw_angle_max_ / 2
                        ? raw_angle_to_angle_coefficient_ * angle
-                       : -2 * std::numbers::pi + raw_angle_to_angle_coefficient_ * angle;
-        *velocity_ = uint_to_double(v_int, -VMAX, VMAX, 12);
-        *torque_   = uint_to_double(t_int, -TMAX, TMAX, 12);
+                       : -2 * std::numbers::pi + raw_angle_to_angle_coefficient_ * angle)* reverse;
+                    
+        *velocity_ = uint_to_double(v_int, -VMAX, VMAX, 12)* reverse;
+        *torque_   = uint_to_double(t_int, -TMAX, TMAX, 12)* reverse;
 
         *T_mos  = (double)(rx_buff[6]);
         *T_coil = (double)(rx_buff[7]);
@@ -142,7 +143,7 @@ public:
 
     uint64_t generate_torque_command() {
         uint64_t result;
-        double torque = *control_torque_;
+        double torque = reverse*(*control_torque_) ;
         if (std::isnan(torque)) {
             torque = 0.0;
         }
@@ -165,6 +166,7 @@ public:
     double get_state() { return *state; }
     double get_T_coil() { return *T_coil; }
     int get_raw_angle() { return *raw_angle_; }
+    double get_control_torque() const { return *control_torque_; }
 
 private:
     std::atomic<uint64_t> can_result_ = 0;

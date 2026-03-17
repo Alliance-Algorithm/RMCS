@@ -36,8 +36,7 @@ public:
             [this](const std_msgs::msg::String::ConstSharedPtr& msg) { this->load_urdf(msg); });
         joint_states_pub =
             this->create_publisher<sensor_msgs::msg::JointState>("/joint_states", 10);
-        //去除joint6输入
-        for (std::size_t i = 0; i < num_axis-1; ++i) {
+        for (std::size_t i = 0; i < num_axis; ++i) {
             register_input(
                 "/arm/joint_" + std::to_string(i + 1) + "/motor/angle", joint_motor_angle[i]);
             register_input(
@@ -50,11 +49,9 @@ public:
 
     void update() override {
         std::lock_guard<std::mutex> lock(data_mutex_);
-        //去除joint6
-        for (std::size_t i = 0; i < num_axis-1; ++i) {
+        for (std::size_t i = 0; i < num_axis; ++i) {
             joint[i].update(*joint_motor_angle[i], *joint_motor_velocity[i], *joint_motor_torque[i]);
         }
-        joint[5].update(0.0, 0.0, 0.0);   // joint_6 未安装，固定 0 
 
         sensor_msgs::msg::JointState msg;
         msg.header.stamp    = this->now();
@@ -66,7 +63,7 @@ public:
             *joint_motor_angle[2],
             *joint_motor_angle[3],
             *joint_motor_angle[4],
-            0.0};//joint6先置0
+            *joint_motor_angle[5]};
         joint_states_pub->publish(msg);
     }
 
