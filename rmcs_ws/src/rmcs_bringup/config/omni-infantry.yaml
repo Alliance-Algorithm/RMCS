@@ -37,12 +37,12 @@ sp_vision_bridge:
     bullet_speed_fallback: 23.0
     result_timeout: 0.2
     debug: false
-    virtual_center_distance: 2.0
+    virtual_center_distance: 6.0
     virtual_center_yaw: 0.0
     virtual_center_height: 0.0
     virtual_angular_velocity: 8.0
-    virtual_base_radius: 0.25
-    virtual_radius_delta: 0.05
+    virtual_base_radius: 0.2
+    virtual_radius_delta: 0.025
     virtual_height_delta: 0.0
     virtual_initial_phase: 0.0
     fire_control_enabled: true
@@ -92,7 +92,7 @@ heat_controller:
 bullet_feeder_controller:
   ros__parameters:
     bullets_per_feeder_turn: 8.0
-    shot_frequency: 20.0
+    shot_frequency: 10.0
     safe_shot_frequency: 10.0
     eject_frequency: 10.0
     eject_time: 0.05
