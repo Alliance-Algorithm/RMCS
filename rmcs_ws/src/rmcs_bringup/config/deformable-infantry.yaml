@@ -38,12 +38,18 @@ rmcs_executor:
 value_broadcaster:
   ros__parameters:
     forward_list:
-      - /chassis/left_front_joint/velocity
+      - /smc/smc_controller0/damping_term
+      - /smc/smc_controller0/feedforward_term
+      - /smc/smc_controller0/c_velocity_error_term
+      - /smc/smc_controller0/tanh_term
+      - /smc/smc_controller0/k_sliding_term
+      - /smc/smc_controller0/sliding_surface_term
+      - /smc/smc_controller0/raw_control_torque
+      - /smc/smc_controller0/sliding_surface_value
       - /chassis/left_front_joint/control_torque
-      - /chassis/left_front_joint/control_angle_error`
-      - /chassis/left_front_joint/expect_velocity
-      - /chassis/left_front_joint/expect_acceleration
-
+      - /chassis/left_back_joint/expect_velocity
+      - /chassis/left_front_joint/velocity
+      - /chassis/left_front_joint/control_angle_error
 deformable_infantry:
   ros__parameters:
     serial_filter_rmcs_board: "AF-056F-2E3E-0C9E-EFAD-C0D0-15F0-2483-17D9"
@@ -57,8 +63,8 @@ deformable_infantry:
 
 chassis_controller:
   ros__parameters:
-    min_angle: 13.0    
-    max_angle: 30.0   
+    min_angle: 11.0    
+    max_angle: 40.0   
     left_front_joint_offset: 257.501488
     left_back_joint_offset: 353.545434
     right_back_joint_offset: 7.591669
@@ -148,14 +154,15 @@ bullet_feeder_velocity_pid_controller:
 
 smc_controller0:
   ros__parameters:
-    c: 5.0
-    epsilon: 0.1
-    k: 11.0
-    phi: 1.8
+    c: 0.025
+    epsilon: 0.2
+    k: 0.15
+    phi: 0.2
     J: 1.8
-    B: 3.5
-    dead_zero_min: -1.5
-    dead_zero_max: 1.5
+    B: 0.0004
+    dead_zero_min: -0.8
+    dead_zero_max: 0.8
+    angle_error_deadzone: 1.1
     angle_error: /chassis/left_front_joint/control_angle_error
     current_velocity: /chassis/left_front_joint/velocity
     target_velocity: /chassis/left_front_joint/expect_velocity
@@ -164,14 +171,15 @@ smc_controller0:
 
 smc_controller1:
   ros__parameters:
-    c: 5.0
-    epsilon: 0.1
-    k: 11.0
-    phi: 1.8
+    c: 0.025
+    epsilon: 0.2
+    k: 0.15
+    phi: 0.2
     J: 1.8
-    B: 3.5
-    dead_zero_min: -1.5
-    dead_zero_max: 1.5
+    B: 0.0004
+    dead_zero_min: -0.8
+    dead_zero_max: 0.8
+    angle_error_deadzone: 1.1
     angle_error: /chassis/left_back_joint/control_angle_error
     current_velocity: /chassis/left_back_joint/velocity
     target_velocity: /chassis/left_back_joint/expect_velocity
@@ -180,14 +188,15 @@ smc_controller1:
 
 smc_controller2:
   ros__parameters:
-    c: 5.0
-    epsilon: 0.1
-    k: 11.0
-    phi: 1.8
+    c: 0.025
+    epsilon: 0.2
+    k: 0.15
+    phi: 0.2
     J: 1.8
-    B: 3.5
-    dead_zero_min: -1.5
-    dead_zero_max: 1.5
+    B: 0.0004
+    dead_zero_min: -0.8
+    dead_zero_max: 0.8
+    angle_error_deadzone: 1.1
     angle_error: /chassis/right_back_joint/control_angle_error
     current_velocity: /chassis/right_back_joint/velocity
     target_velocity: /chassis/right_back_joint/expect_velocity
@@ -196,14 +205,15 @@ smc_controller2:
 
 smc_controller3:
   ros__parameters:
-    c: 5.0
-    epsilon: 0.1  
-    k: 11.0
-    phi: 1.8
+    c: 0.025
+    epsilon: 0.2
+    k: 0.15
+    phi: 0.2
     J: 1.8
-    B: 3.5
-    dead_zero_min: -1.5
-    dead_zero_max: 1.5
+    B: 0.0004
+    dead_zero_min: -0.8
+    dead_zero_max: 0.8
+    angle_error_deadzone: 1.1
     angle_error: /chassis/right_front_joint/control_angle_error
     current_velocity: /chassis/right_front_joint/velocity
     target_velocity: /chassis/right_front_joint/expect_velocity
@@ -212,8 +222,8 @@ smc_controller3:
 
 smc_observer0:
   ros__parameters:
-    velocity_limit: 300.0
-    acceleration_limit: 5.0
+    velocity_limit: 1.0
+    acceleration_limit: 3.0
     control_error: /chassis/left_front_joint/control_angle_error
     velocity: /chassis/left_front_joint/velocity
     yaw_expect_velocity_: /chassis/left_front_joint/expect_velocity
@@ -221,8 +231,8 @@ smc_observer0:
 
 smc_observer1:
   ros__parameters:
-    velocity_limit: 300.0
-    acceleration_limit: 5.0
+    velocity_limit: 180.0
+    acceleration_limit: 3.0
     control_error: /chassis/left_back_joint/control_angle_error
     velocity: /chassis/left_back_joint/velocity
     yaw_expect_velocity_: /chassis/left_back_joint/expect_velocity
@@ -230,8 +240,8 @@ smc_observer1:
 
 smc_observer2:
   ros__parameters:
-    velocity_limit: 300.0
-    acceleration_limit: 5.0
+    velocity_limit: 180.0
+    acceleration_limit: 3.0
     control_error: /chassis/right_back_joint/control_angle_error
     velocity: /chassis/right_back_joint/velocity
     yaw_expect_velocity_: /chassis/right_back_joint/expect_velocity
@@ -239,8 +249,8 @@ smc_observer2:
 
 smc_observer3:
   ros__parameters:
-    velocity_limit: 300.0
-    acceleration_limit: 5.0
+    velocity_limit: 180.0
+    acceleration_limit: 3.0
     control_error: /chassis/right_front_joint/control_angle_error
     velocity: /chassis/right_front_joint/velocity
     yaw_expect_velocity_: /chassis/right_front_joint/expect_velocity
