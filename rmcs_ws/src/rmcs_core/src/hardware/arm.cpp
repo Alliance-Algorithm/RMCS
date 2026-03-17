@@ -101,6 +101,15 @@ private:
             big_yaw.configure(
                 LKMotorConfig{LKMotorType::MHF7015}.set_encoder_zero_point(
                     static_cast<uint16_t>(arm.get_parameter("big_yaw_zero_point").as_int())));
+
+            big_yaw_zero_point_ = static_cast<int>(arm.get_parameter("big_yaw_zero_point").as_int());
+            joint1_zero_point_  = static_cast<int>(arm.get_parameter("joint1_zero_point").as_int());
+            joint2_zero_point_  = static_cast<int>(arm.get_parameter("joint2_zero_point").as_int());
+            joint3_zero_point_  = static_cast<int>(arm.get_parameter("joint3_zero_point").as_int());
+            joint4_zero_point_  = static_cast<int>(arm.get_parameter("joint4_zero_point").as_int());
+            joint5_zero_point_  = static_cast<int>(arm.get_parameter("joint5_zero_point").as_int());
+            joint6_zero_point_  = static_cast<int>(arm.get_parameter("joint6_zero_point").as_int());
+            gripper_zero_point_ = static_cast<int>(arm.get_parameter("gripper_zero_point").as_int());
         }
         ~ArmBoard() final {
             uint64_t command_{0};
@@ -201,14 +210,21 @@ private:
             custom_frame_[6] = static_cast<uint8_t>((custom_cmdid_ >> 8) & 0xFF);
 
             // data[0..15]: big_yaw, joint1..joint6, gripper (uint16_t)
-            const uint16_t payload_u16[8] = {static_cast<uint16_t>(big_yaw.get_raw_angle()),
-                                             static_cast<uint16_t>(joint_1.get_raw_angle()),
-                                             static_cast<uint16_t>(joint_2.get_raw_angle()),
-                                             static_cast<uint16_t>(joint_3.get_raw_angle()),
-                                             static_cast<uint16_t>(joint_4.get_raw_angle()),
-                                             static_cast<uint16_t>(joint_5.get_raw_angle()),
-                                             static_cast<uint16_t>(joint_6.get_raw_angle()),
-                                             static_cast<uint16_t>(gripper.get_raw_angle())};
+            // 减去零点，wrap到[0, max)
+            auto offset_angle = [](int raw, int zero, int max) -> uint16_t {
+                int a = raw - zero;
+                if (a < 0) a += max;
+                return static_cast<uint16_t>(a);
+            };
+            const uint16_t payload_u16[8] = {
+                offset_angle(big_yaw.get_raw_angle(), big_yaw_zero_point_, 65535),
+                offset_angle(joint_1.get_raw_angle(), joint1_zero_point_, 65535),
+                offset_angle(joint_2.get_raw_angle(), joint2_zero_point_, 65535),
+                offset_angle(joint_3.get_raw_angle(), joint3_zero_point_, 65535),
+                offset_angle(joint_4.get_raw_angle(), joint4_zero_point_, 32768),
+                offset_angle(joint_5.get_raw_angle(), joint5_zero_point_, 65535),
+                offset_angle(joint_6.get_raw_angle(), joint6_zero_point_, 32768),
+                offset_angle(gripper.get_raw_angle(), gripper_zero_point_, 65535)};
 
             for (std::size_t i = 0; i < 8; ++i) {
                 const uint16_t value         = payload_u16[i];
@@ -278,6 +294,14 @@ private:
         std::array<uint8_t, custom_frame_size_> custom_frame_{};
         uint8_t custom_sequence_{3};
         uint8_t custom_tick_{0};
+        int big_yaw_zero_point_{0};
+        int joint1_zero_point_{0};
+        int joint2_zero_point_{0};
+        int joint3_zero_point_{0};
+        int joint4_zero_point_{0};
+        int joint5_zero_point_{0};
+        int joint6_zero_point_{0};
+        int gripper_zero_point_{0};
         librmcs::client::CBoard::TransmitBuffer transmit_buffer_;
         std::thread event_thread_;
     } armboard_;
