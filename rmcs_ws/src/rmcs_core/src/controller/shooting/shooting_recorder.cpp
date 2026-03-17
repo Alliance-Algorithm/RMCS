@@ -85,7 +85,7 @@ public:
         switch (log_mode_) {
         case LogMode::TRIGGER:
             // It will be triggered by shooting action
-            if (*shoot_timestamp_ == last_shoot_timestamp_ || v == *shoot_timestamp_)
+            if (*shoot_timestamp_ == last_shoot_timestamp_)
                 return;
             break;
         case LogMode::TIMING:
@@ -94,39 +94,39 @@ public:
                 return;
             break;
         }
-        v = *shoot_timestamp_;
+        // v = *shoot_timestamp_;
 
-        static constexpr size_t max_velocities_size = 1000;
+        // static constexpr size_t max_velocities_size = 1000;
 
-        velocities.push_back(*initial_speed_);
-        if (velocities.size() > max_velocities_size) {
-            velocities.erase(velocities.begin());
-        }
+        // velocities.push_back(*initial_speed_);
+        // if (velocities.size() > max_velocities_size) {
+        //     velocities.erase(velocities.begin());
+        // }
 
-        analysis3();
+        // analysis3();
 
-        auto log_text = std::string{};
-        auto timestamp = timestamp_to_string(*shoot_timestamp_);
+        // auto log_text = std::string{};
+        // auto timestamp = timestamp_to_string(*shoot_timestamp_);
 
-        if (friction_wheel_count_ == 2) {
-            log_text = fmt::format(
-                "{},{},{:.3f},{:.3f},{:.3f},{:.3f},{:.3f},{:.3f},{:.3f}", *initial_speed_,
-                (int)velocities.size(), //
-                velocity_, excellence_rate_, pass_rate_, range_, range2_, velocity_max,
-                velocity_min);
-        }
+        // if (friction_wheel_count_ == 2) {
+        //     log_text = fmt::format(
+        //         "{},{},{:.3f},{:.3f},{:.3f},{:.3f},{:.3f},{:.3f},{:.3f}", *initial_speed_,
+        //         (int)velocities.size(), //
+        //         velocity_, excellence_rate_, pass_rate_, range_, range2_, velocity_max,
+        //         velocity_min);
+        // }
 
-        log_stream_ << log_text << std::endl;
-        RCLCPP_INFO(get_logger(), "%s", log_text.c_str());
+        // log_stream_ << log_text << std::endl;
+        // RCLCPP_INFO(get_logger(), "%s", log_text.c_str());
 
-        log_velocity = fmt::format("{:.3f}", *initial_speed_);
-        std::ofstream outFile("shoot_recorder", std::ios::app);
-        if (outFile.is_open()) {
-            outFile << log_velocity << std::endl;
-            outFile.close();
-        }
+        // log_velocity = fmt::format("{:.3f}", *initial_speed_);
+        // std::ofstream outFile("shoot_recorder", std::ios::app);
+        // if (outFile.is_open()) {
+        //     outFile << log_velocity << std::endl;
+        //     outFile.close();
+        // }
 
-        last_shoot_timestamp_ = *shoot_timestamp_;
+        // last_shoot_timestamp_ = *shoot_timestamp_;
     }
 
 private:

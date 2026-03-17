@@ -1,3 +1,4 @@
+#include <atomic>
 #include <cstddef>
 #include <cstring>
 #include <memory>
@@ -165,6 +166,8 @@ private:
                     .set_reduction_ratio(1.)
                     .enable_multi_turn_angle());
 
+            dd = steering_hero.get_parameter("dd").as_int();
+
             steering_hero.register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
             steering_hero.register_output("/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
 
@@ -262,6 +265,11 @@ private:
                 .can_id = 0x142,
                 .can_data = gimbal_pitch_motor_.generate_command().as_bytes(),
             });
+
+            builder.gpio_digital_read({
+                .channel = 7,
+                .falling_edge = true,
+            });
         }
 
     private:
@@ -296,6 +304,15 @@ private:
             }
         }
 
+        void gpio_digital_read_result_callback(
+            const librmcs::data::GpioDigitalDataView& data) override {
+            *photoelectric_sensor_status_ = false;
+            if (data.channel == 7) {
+                *photoelectric_sensor_status_ = true;
+                RCLCPP_INFO(logger_, "trigger!");
+            }
+        }
+
         void accelerometer_receive_callback(
             const librmcs::data::AccelerometerDataView& data) override {
             imu_.store_accelerometer_status(data.x, data.y, data.z);
@@ -306,6 +323,8 @@ private:
         }
 
         void putter_receive_callback(bool status) { *photoelectric_sensor_status_ = status; }
+
+        uint8_t dd;
 
         rclcpp::Logger logger_;
         OutputInterface<rmcs_description::Tf>& tf_;
@@ -324,6 +343,7 @@ private:
         OutputInterface<bool> photoelectric_sensor_status_;
         OutputInterface<bool> camera_capturer_trigger_;
         OutputInterface<std::time_t> camera_capturer_trigger_timestamp_;
+        std::atomic<bool> photoelectric_sensor_status_atomic{false};
     };
 
     class BottomBoard_one final : private librmcs::agent::CBoard {
@@ -388,8 +408,7 @@ private:
 
             steering_hero.register_output(
                 "/chassis/yaw/velocity_imu", chassis_yaw_velocity_imu_, 0);
-            steering_hero.register_output(
-                "/chassis/pitch_imu", chassis_pitch_imu_, 0.0);
+            steering_hero.register_output("/chassis/pitch_imu", chassis_pitch_imu_, 0.0);
         }
         BottomBoard_one(const BottomBoard_one&) = delete;
         BottomBoard_one& operator=(const BottomBoard_one&) = delete;

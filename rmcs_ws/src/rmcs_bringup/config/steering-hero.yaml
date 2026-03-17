@@ -39,6 +39,7 @@ rmcs_executor:
 
 hero_hardware:
   ros__parameters:
+    dd: 7
     board_serial_top_board: "D4-2BCA-2E47-76CD-23BC-0B78-684B"
     board_serial_bottom_board_one: "D4-7973-19A9-EA40-4A3E-306F-10F9"
     board_serial_bottom_board_two: "D4-3674-7174-8768-879E-E44A-3931"
