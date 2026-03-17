@@ -68,7 +68,7 @@ gimbal_controller:
     pitch_angle_ki: 0.0
     pitch_angle_kd: 0.1
 
-    pitch_velocity_kp: 5.0
+    pitch_velocity_kp: 4.0
     pitch_velocity_ki: 0.0
     pitch_velocity_kd: 0.0
 
@@ -80,8 +80,8 @@ friction_wheel_controller:
       - /gimbal/left_friction
       - /gimbal/right_friction
     friction_velocities:
-      - 760.0
-      - 760.0
+      - 800.0
+      - 800.0
     friction_soft_start_stop_time: 1.0
 
 heat_controller:
