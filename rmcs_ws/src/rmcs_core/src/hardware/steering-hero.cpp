@@ -388,6 +388,8 @@ private:
 
             steering_hero.register_output(
                 "/chassis/yaw/velocity_imu", chassis_yaw_velocity_imu_, 0);
+            steering_hero.register_output(
+                "/chassis/pitch_imu", chassis_pitch_imu_, 0.0);
         }
         BottomBoard_one(const BottomBoard_one&) = delete;
         BottomBoard_one& operator=(const BottomBoard_one&) = delete;
@@ -400,6 +402,7 @@ private:
             imu_.update_status();
 
             *chassis_yaw_velocity_imu_ = imu_.gz();
+            *chassis_pitch_imu_ = -std::asin(2.0 * (imu_.q0() * imu_.q2() - imu_.q3() * imu_.q1()));
 
             chassis_front_climber_motor_[0].update_status();
             chassis_front_climber_motor_[1].update_status();
@@ -502,6 +505,7 @@ private:
         device::DjiMotor chassis_wheel_motors_[2];
 
         OutputInterface<double> chassis_yaw_velocity_imu_;
+        OutputInterface<double> chassis_pitch_imu_;
         OutputInterface<double> gimbal_yaw_velocity_imu_;
         OutputInterface<double> gimbal_pitch_velocity_imu_;
     };

@@ -34,6 +34,7 @@ public:
 
         register_input("/gimbal/yaw/angle", gimbal_yaw_angle_, false);
         register_input("/gimbal/yaw/control_angle_error", gimbal_yaw_angle_error_, false);
+        register_input("/chassis/climbing_forward_velocity", climbing_forward_velocity_, nan);
 
         register_output("/chassis/angle", chassis_angle_, nan);
         register_output("/chassis/control_angle", chassis_control_angle_, nan);
@@ -118,6 +119,10 @@ public:
     }
 
     Eigen::Vector2d update_translational_velocity_control() {
+        if (!std::isnan(*climbing_forward_velocity_)) {
+            return Eigen::Vector2d{*climbing_forward_velocity_, 0.0};
+        }
+
         auto keyboard = *keyboard_;
         Eigen::Vector2d keyboard_move{keyboard.w - keyboard.s, keyboard.a - keyboard.d};
 
@@ -133,6 +138,12 @@ public:
     }
 
     double update_angular_velocity_control() {
+        if (!std::isnan(*climbing_forward_velocity_)) {
+            *chassis_angle_ = 2 * std::numbers::pi - *gimbal_yaw_angle_;
+            *chassis_control_angle_ = nan;
+            return 0.0;
+        }
+
         double angular_velocity = 0.0;
         double chassis_control_angle = nan;
 
@@ -218,6 +229,7 @@ private:
     rmcs_msgs::Keyboard last_keyboard_ = rmcs_msgs::Keyboard::zero();
 
     InputInterface<double> gimbal_yaw_angle_, gimbal_yaw_angle_error_;
+    InputInterface<double> climbing_forward_velocity_;
     OutputInterface<double> chassis_angle_, chassis_control_angle_;
 
     OutputInterface<rmcs_msgs::ChassisMode> mode_;
