@@ -199,10 +199,8 @@ private:
         const Eigen::Isometry3f odom_to_px4 = odom_to_odin * odin_to_px4;
 
         // nav_msgs/Odometry twists are reported in child_frame_id, which is odin1_base_link here.
-        const Eigen::Vector3f odin_linear_velocity{
-            snap.vel_x, snap.vel_y, snap.vel_z};
-        const Eigen::Vector3f odin_angular_velocity{
-            snap.ang_x, snap.ang_y, snap.ang_z};
+        const Eigen::Vector3f odin_linear_velocity{snap.vel_x, snap.vel_y, snap.vel_z};
+        const Eigen::Vector3f odin_angular_velocity{snap.ang_x, snap.ang_y, snap.ang_z};
         const Eigen::Vector3f px4_velocity_odom =
             odom_to_odin.linear()
             * (odin_linear_velocity + odin_angular_velocity.cross(odin_to_px4_offset));
@@ -238,6 +236,9 @@ private:
 
         try {
             local_position_interface_.update(meas);
+            RCLCPP_INFO(
+                logger_, "Published local position measurement with timestamp %f",
+                meas.timestamp_sample.seconds());
         } catch (const px4_ros2::NavigationInterfaceInvalidArgument& e) {
             RCLCPP_ERROR_THROTTLE(
                 logger_, *get_clock(), 1000, "Navigation update error: %s", e.what());
@@ -306,9 +307,7 @@ private:
         static const Eigen::Matrix3f rotation = [] {
             Eigen::Matrix3f matrix;
             // Odin axes are x->down, y->left, z->front. PX4 expects body FRD.
-            matrix << 0.f, 0.f, 1.f,
-                      0.f, -1.f, 0.f,
-                      1.f, 0.f, 0.f;
+            matrix << 0.f, 0.f, 1.f, 0.f, -1.f, 0.f, 1.f, 0.f, 0.f;
             return matrix;
         }();
         return rotation;
@@ -318,7 +317,8 @@ private:
         static const Eigen::Vector3f translation = [] {
             // Odin is mounted 135 mm below, 312 mm right, and 296 mm behind the PX4 controller.
             // This is the odin1_base_link -> PX4 origin offset expressed in Odin axes.
-            return Eigen::Vector3f{-0.135f, 0.312f, 0.296f};
+            // return Eigen::Vector3f{-0.135f, 0.312f, 0.296f};
+            return Eigen::Vector3f{-0.0f, 0.0f, 0.0f};
         }();
         return translation;
     }
