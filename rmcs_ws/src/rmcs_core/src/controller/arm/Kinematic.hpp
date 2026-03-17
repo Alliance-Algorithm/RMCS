@@ -104,8 +104,8 @@ public:
         double d2       = A * A + B * B + (link_length2) * (link_length2)-L_fake * L_fake;
         double theta2_1 = atan2(k22, k21) - atan2(-d2, sqrt(k21 * k21 + k22 * k22 - d2 * d2));
         double theta2_2 = atan2(k22, k21) - atan2(-d2, -sqrt(k21 * k21 + k22 * k22 - d2 * d2));
-        theta2_1        = normalizeAngle(theta2_1);
-        theta2_2        = normalizeAngle(theta2_2);
+        theta2_1        = normalize_angle(theta2_1);
+        theta2_2        = normalize_angle(theta2_2);
         // RCLCPP_INFO(
         //     this->get_logger(), "%f %f %f  %f %f", x_e,y_e, T_R(1, 2),
         //     theta2_1 * 180 / std::numbers::pi, theta2_2 * 180 / std::numbers::pi);
@@ -121,10 +121,10 @@ public:
         double theta3_2_2 =
             atan2(cos(theta2_2 - beta), sin(theta2_2 - beta)) - atan2(d32, -sqrt(1 - d32 * d32));
 
-        theta3_1_1 = normalizeAngle(theta3_1_1);
-        theta3_1_2 = normalizeAngle(theta3_1_2);
-        theta3_2_1 = normalizeAngle(theta3_2_1);
-        theta3_2_2 = normalizeAngle(theta3_2_2);
+        theta3_1_1 = normalize_angle(theta3_1_1);
+        theta3_1_2 = normalize_angle(theta3_1_2);
+        theta3_2_1 = normalize_angle(theta3_2_1);
+        theta3_2_2 = normalize_angle(theta3_2_2);
         if (theta2_1 >= (joint2_qlim[0]) && theta2_1 <= (joint2_qlim[1])) {
             theta2 = theta2_1;
             if (theta3_1_1 >= (joint3_qlim[0]) && theta3_1_1 <= (joint3_qlim[1]))
@@ -178,9 +178,9 @@ public:
         theta4 = atan2(-r23 / cos(theta5), r33 / cos(theta5));
         theta6 = atan2(-r12 / cos(theta5), r11 / cos(theta5));
 
-        theta5 = normalizeAngle(theta5) + std::numbers::pi / 2.0;
-        theta4 = normalizeAngle(theta4);
-        theta6 = normalizeAngle(theta6);
+        theta5 = normalize_angle(theta5) + std::numbers::pi / 2.0;
+        theta4 = normalize_angle(theta4);
+        theta6 = normalize_angle(theta6);
         if (theta4 > 3.141592 || theta4 < -3.141592)
             theta4 = NAN;
         if (theta5 > joint5_qlim[1] || theta5 < joint5_qlim[0])
@@ -209,13 +209,9 @@ private:
     }
 
    
-    static double normalizeAngle(double angle) {
-
-        while (angle > M_PI)
-            angle -= 2 * M_PI;
-        while (angle < -M_PI)
-            angle += 2 * M_PI;
-        return angle;
+    static double normalize_angle(double angle) {
+        angle = std::fmod(angle + M_PI, 2 * M_PI);
+        return angle < 0 ? angle + M_PI : angle - M_PI;
     }
 
     Component::InputInterface<Eigen::Matrix4d> T_01;

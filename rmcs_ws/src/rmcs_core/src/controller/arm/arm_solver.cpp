@@ -96,12 +96,9 @@ public:
 private:
     using controller_type = TorqueVec (ArmSolver::*)();
 
-    static double normalize_angle(double angle) noexcept {
-        while (angle > std::numbers::pi)
-            angle -= 2.0 * std::numbers::pi;
-        while (angle < -std::numbers::pi)
-            angle += 2.0 * std::numbers::pi;
-        return angle;
+     static double normalize_angle(double angle) {
+        angle = std::fmod(angle + M_PI, 2 * M_PI);
+        return angle < 0 ? angle + M_PI : angle - M_PI;
     }
 
     TorqueVec calculate_pid() {

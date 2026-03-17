@@ -33,7 +33,7 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , following_velocity_controller_(9.0, 0.0, 0.0) {
+        , following_velocity_controller_(7.0, 0.0, 0.0) {
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
         register_input("/remote/switch/right", switch_right_);
@@ -90,7 +90,7 @@ public:
             angular_velocity = std::clamp(
                 following_velocity_controller_.update(*chassis_big_yaw_angle_),
                 -angular_velocity_limit_, angular_velocity_limit_);
-               
+
             break;
         }
         case rmcs_msgs::ChassisMode::SPIN: {
@@ -104,7 +104,12 @@ public:
             if (is_stair_mode()) {
                 const auto result = yaw_trajectory_controller_.trajectory();
                 yaw_target_angle_ = !result.empty() ? result[0] : 0.0;
-            } else {
+            }
+            else if (*arm_mode_ == rmcs_msgs::ArmMode::Custome) {
+                yaw_target_angle_ = *chassis_big_yaw_angle_;
+            
+            } 
+            else {
                 yaw_target_angle_ += joystick_right_->y() * 0.002;
             }
             angular_velocity = joystick_right_->y() * angular_velocity_limit_;
@@ -121,7 +126,7 @@ public:
             }
             Eigen::Rotation2D<double> rotation(*chassis_big_yaw_angle_ + *joint1_theta_);
             move = rotation * (*joystick_left_);
-          
+
             chassis_control_velocity_->vector << (move * *speed_limit_), angular_velocity;
         } else {
             chassis_control_velocity_->vector << NAN, NAN, NAN;
@@ -130,16 +135,7 @@ public:
         *chassis_big_yaw_target_angle_error_ =
             normalize_angle(yaw_target_angle_ - get_yaw_feedback());
 
-        // Virtual buffer energy power control
-        constexpr double dt  = 0.001; // 1ms update cycle
-        double chassis_power = *chassis_power_;
-        virtual_buffer_energy_ += dt * (power_limit_ - chassis_power);
-        virtual_buffer_energy_ =
-            std::clamp(virtual_buffer_energy_, 0.0, virtual_buffer_energy_limit_);
-
-        *chassis_control_power_limit_ =
-            power_limit_ * (virtual_buffer_energy_ / virtual_buffer_energy_limit_);
-
+        calculate_virtual_energy();
         last_arm_mode_ = *arm_mode_;
     }
 
@@ -245,6 +241,17 @@ private:
         return *arm_mode_ == rmcs_msgs::ArmMode::Auto_Up_One_Stairs
             || *arm_mode_ == rmcs_msgs::ArmMode::Auto_Up_Two_Stairs
             || *arm_mode_ == rmcs_msgs::ArmMode::Auto_Down_Stairs;
+    }
+    void calculate_virtual_energy() {
+        // Virtual buffer energy power control
+        constexpr double dt  = 0.001; // 1ms update cycle
+        double chassis_power = *chassis_power_;
+        virtual_buffer_energy_ += dt * (power_limit_ - chassis_power);
+        virtual_buffer_energy_ =
+            std::clamp(virtual_buffer_energy_, 0.0, virtual_buffer_energy_limit_);
+
+        *chassis_control_power_limit_ =
+            power_limit_ * (virtual_buffer_energy_ / virtual_buffer_energy_limit_);
     }
     InputInterface<Eigen::Vector2d> joystick_right_;
     InputInterface<Eigen::Vector2d> joystick_left_;

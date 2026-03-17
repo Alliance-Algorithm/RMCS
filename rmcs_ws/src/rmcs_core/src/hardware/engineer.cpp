@@ -66,7 +66,10 @@ private:
         Engineer& engineer_;
     };
     std::shared_ptr<EngineerCommand> engineer_command_;
-
+    static double normalize_angle(double angle) {
+        angle = std::fmod(angle + M_PI, 2 * M_PI);
+        return angle < 0 ? angle + M_PI : angle - M_PI;
+    }
     class ArmBoard final
         : private librmcs::client::CBoard
         , rclcpp::Node {
@@ -143,7 +146,6 @@ private:
             update_arm_motors();
             dr16_.update();
             update_imu();
-            RCLCPP_INFO(get_logger(),"%f",gripper.get_angle());
         }
         void command() { update_arm_command(); }
 
@@ -347,13 +349,7 @@ private:
             power_meter.update();
         }
         void command() {
-            auto normalizeAngle = [this](double angle) {
-                while (angle > M_PI)
-                    angle -= 2 * M_PI;
-                while (angle < -M_PI)
-                    angle += 2 * M_PI;
-                return angle;
-            };
+
             uint16_t command_[4]{0, 0, 0, 0};
             static bool turn{false};
             if (turn) {
@@ -371,13 +367,13 @@ private:
                 command_[0] = Wheel_motors[1].generate_command();
                 command_[1] = Leg_Motors[1].generate_command();
                 *leg_joint_lb_control_theta_error =
-                    normalizeAngle(*leg_lb_target_theta_ - Leg_ecd[1].get_angle());
+                    normalize_angle(*leg_lb_target_theta_ - Leg_ecd[1].get_angle());
                 command_[2] = 0;
                 command_[3] = 0;
                 transmit_buffer_.add_can2_transmission(0x200, std::bit_cast<uint64_t>(command_));
                 command_[0] = Wheel_motors[0].generate_command();
                 *leg_joint_lf_control_theta_error =
-                    normalizeAngle(*leg_lf_target_theta_ - Leg_ecd[0].get_angle());
+                    normalize_angle(*leg_lf_target_theta_ - Leg_ecd[0].get_angle());
                 command_[1] = Leg_Motors[0].generate_command();
                 command_[2] = Omni_Motors.generate_command();
                 command_[3] = 0;
@@ -532,7 +528,7 @@ private:
         }
 
         void command() {
-            auto normalizeAngle = [this](double angle) {
+            auto normalize_angle = [this](double angle) {
                 while (angle > M_PI)
                     angle -= 2 * M_PI;
                 while (angle < -M_PI)
@@ -569,14 +565,14 @@ private:
             } else {
                 command_[0] = Wheel_motors[0].generate_command();
                 *leg_joint_rb_control_theta_error =
-                    normalizeAngle(*leg_rb_target_theta_ - Leg_ecd[0].get_angle());
+                    normalize_angle(*leg_rb_target_theta_ - Leg_ecd[0].get_angle());
                 command_[1] = Leg_Motors[0].generate_command();
                 command_[2] = 0;
                 command_[3] = 0;
                 transmit_buffer_.add_can2_transmission(0x200, std::bit_cast<uint64_t>(command_));
                 command_[0] = Wheel_motors[1].generate_command();
                 *leg_joint_rf_control_theta_error =
-                    normalizeAngle(*leg_rf_target_theta_ - Leg_ecd[1].get_angle());
+                    normalize_angle(*leg_rf_target_theta_ - Leg_ecd[1].get_angle());
                 command_[1] = Leg_Motors[1].generate_command();
                 command_[2] = Omni_Motors.generate_command();
                 command_[3] = 0;

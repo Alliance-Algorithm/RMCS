@@ -76,7 +76,7 @@ public:
         }
         register_output("/arm/gripper/target_theta", target_theta[6], NAN);
         register_input("/arm/gripper/motor/angle", theta[6], NAN);
-        register_output(" /arm/gripper/target_theta_error", gripper_target_theta_error, NAN);
+        register_output("/arm/gripper/target_theta_error", gripper_target_theta_error, NAN);
         
         move_group_ =
             std::make_unique<moveit::planning_interface::MoveGroupInterface>(node_, "alliance_arm");
@@ -115,6 +115,7 @@ public:
             for (std::size_t i = 0; i < std::size(theta); ++i) {
                 *target_theta[i] = *theta[i];
             }
+            *gripper_target_theta_error = NAN;
             if (switch_left == Switch::DOWN && switch_right == Switch::DOWN) {
                 initial_check_done = true;
             }
@@ -130,6 +131,7 @@ public:
             for (std::size_t i = 0; i < std::size(theta); ++i) {
                 *target_theta[i] = *theta[i];
             }
+            *gripper_target_theta_error = NAN;
             set_gripper_mode(rmcs_msgs::GripperMode::None);
             set_arm_mode(rmcs_msgs::ArmMode::None);
             *arm_mode_ = get_arm_mode();
@@ -200,6 +202,7 @@ public:
 
         auto knob = *rotary_knob_switch;
         if (knob == Switch::UP) {
+            RCLCPP_INFO(node_->get_logger(),"dfs");
             set_gripper_mode(rmcs_msgs::GripperMode::Open);
         } else if (knob == Switch::DOWN) {
             set_gripper_mode(rmcs_msgs::GripperMode::Close);
@@ -334,26 +337,33 @@ private:
     }
     void execute_custom() {
         struct __attribute__((packed)) CustomFrame {
-            std::array<std::uint8_t, 2> reserved{};
-            std::uint16_t joint[6];
+            uint16_t big_yaw;
+            uint16_t joint[6];
+            uint16_t gripper;
         };
         const auto& custom_data = *custom_data_;
         std::array<std::uint8_t, sizeof(CustomFrame)> raw{};
         std::copy_n(custom_data.begin(), raw.size(), raw.begin());
-        const auto frame       = std::bit_cast<CustomFrame>(raw);
-        constexpr auto pi      = std::numbers::pi;
-        constexpr auto raw_max = static_cast<double>(std::numeric_limits<std::uint16_t>::max());
+        const auto frame  = std::bit_cast<CustomFrame>(raw);
+        constexpr auto pi = std::numbers::pi;
 
-        const auto raw_to_angle = [](std::uint16_t raw) {
-            auto angle = static_cast<double>(raw) / raw_max * 2.0 * pi;
+        const auto raw_to_angle = [](std::uint16_t raw, double divisor) {
+            auto angle = static_cast<double>(raw) / divisor * 2.0 * pi;
             if (angle > pi) {
                 angle -= 2.0 * pi;
             }
             return angle;
         };
 
+        RCLCPP_INFO(
+            node_->get_logger(),
+            "joint: [%u, %u, %u, %u, %u, %u]",
+            frame.joint[0], frame.joint[1], frame.joint[2],
+            frame.joint[3], frame.joint[4], frame.joint[5]);
+
         for (std::size_t i = 0; i < 6; ++i) {
-            *target_theta[i] = raw_to_angle(frame.joint[i]);
+            double divisor = (i == 3 || i == 5) ? 32768.0 : 65536.0;
+            // *target_theta[i] = raw_to_angle(frame.joint[i], divisor);
         }
     }
     void execute_dt7_orientation() {
@@ -385,13 +395,24 @@ private:
         }
     }
     void gripper_control() {
+        
+        auto unwrap = [](double angle) -> double {
+            return angle < 0 ? angle + 2.0 * M_PI : angle;
+        };
+
+        constexpr double closed_angle = 0.0;
+        constexpr double open_angle   = -1.5;
+
         switch (get_gripper_mode()) {
-        case rmcs_msgs::GripperMode::Open: *target_theta[6] = -1.53; break;
-        case rmcs_msgs::GripperMode::Close: *target_theta[6] = 0.0; break;
+        case rmcs_msgs::GripperMode::Open: *target_theta[6] = open_angle; break;
+        case rmcs_msgs::GripperMode::Close: *target_theta[6] = closed_angle; break;
         case rmcs_msgs::GripperMode::Custom:
         case rmcs_msgs::GripperMode::None: break;
         }
+
+        *gripper_target_theta_error = unwrap(*target_theta[6]) - unwrap(*theta[6]);
     }
+
     InputInterface<Eigen::Vector2d> joystick_right_;
     InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;

@@ -9,7 +9,7 @@ rmcs_executor:
 
       - rmcs_core::referee::ImageTransmissionLink -> image_transmission
 
-      - rmcs_core::controller::pid::ErrorPidController -> gripper_error_pid_controller
+      - rmcs_core::controller::pid::ErrorPidController -> gripper_error_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> gripper_velocity_pid_controller
 
       - rmcs_core::controller::leg::LegController -> leg_controller
@@ -78,19 +78,20 @@ leg_controller:
     press_again_parameter: [0.799803, 0.778351, 0.778351, 0.799803, -600.0, 400.0]
     lift_again_parameter: [0.902222, 1.413787, 1.413787, 0.902222, -600.0, 800.0]
 
-gripper_angle_pid_controller:
+gripper_error_angle_pid_controller:
   ros__parameters:
     measurement: /arm/gripper/target_theta_error
     control: /arm/gripper/control_vel
-    kp: 0.0
+    kp: 100.0
     ki: 0.0
     kd: 0.0
+
 gripper_velocity_pid_controller:
   ros__parameters:
     measurement: /arm/gripper/motor/velocity
     setpoint: /arm/gripper/control_vel
     control: /arm/gripper/motor/control_torque
-    kp: 0.0
+    kp: 0.1
     ki: 0.0
     kd: 0.0
 
@@ -116,7 +117,7 @@ big_yaw_angle_error_pid_controller:
   ros__parameters:
     measurement: /chassis/big_yaw/target_angle_error
     control: /chassis/big_yaw/control_vel
-    kp: 91.3
+    kp: 51.3
     ki: 0.0
     kd: 2.6
 big_yaw_velocity_pid_controller:
@@ -124,7 +125,7 @@ big_yaw_velocity_pid_controller:
     measurement: /chassis/big_yaw/velocity
     setpoint: /chassis/big_yaw/control_vel
     control: /chassis/big_yaw/control_torque
-    kp: 3.99
+    kp: 6.99
     ki: 0.0
     kd: 0.039
 
