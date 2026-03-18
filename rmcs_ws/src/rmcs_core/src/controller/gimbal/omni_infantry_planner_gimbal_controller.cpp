@@ -4,6 +4,7 @@
 #include <utility>
 
 #include <eigen3/Eigen/Dense>
+#include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
@@ -146,7 +147,7 @@ public:
         register_input("/gimbal/auto_aim/plan_pitch_acceleration", plan_pitch_acceleration_, false);
 
         register_output("/gimbal/yaw/control_torque", yaw_control_torque_, nan_);
-        register_output("/gimbal/pitch/control_torque", pitch_control_torque_, nan_);
+        register_output("/gimbal/pitch/control_velocity", pitch_control_velocity_, nan_);
         register_output("/gimbal/yaw/control_angle_error", yaw_angle_error_, nan_);
         register_output("/gimbal/pitch/control_angle_error", pitch_angle_error_, nan_);
     }
@@ -205,11 +206,12 @@ public:
         const double pitch_velocity_ref =
             pitch_angle_pid_.update(angle_error.pitch_angle_error) + velocity_ff.y();
 
-        *yaw_control_torque_ = yaw_velocity_pid_.update(yaw_velocity_ref - yaw_velocity_imu())
+        *yaw_control_torque_ = yaw_velocity_pid_.update(yaw_velocity_ref - *yaw_velocity_imu_)
                              + yaw_acc_ff_gain_ * acceleration_ff.x();
-        *pitch_control_torque_ =
-            pitch_velocity_pid_.update(pitch_velocity_ref - *pitch_velocity_imu_)
-            + pitch_acc_ff_gain_ * acceleration_ff.y();
+        // *pitch_control_torque_ =
+        //     pitch_velocity_pid_.update(pitch_velocity_ref - *pitch_velocity_)
+        //     + pitch_acc_ff_gain_ * acceleration_ff.y();
+        *pitch_control_velocity_ = pitch_velocity_ref;
     }
 
 private:
@@ -277,7 +279,7 @@ private:
         pitch_angle_pid_.reset();
         pitch_velocity_pid_.reset();
         *yaw_control_torque_ = nan_;
-        *pitch_control_torque_ = nan_;
+        *pitch_control_velocity_ = nan_;
     }
 
     void reset_all_controls() {
@@ -325,7 +327,7 @@ private:
     double pitch_acc_ff_gain_;
 
     OutputInterface<double> yaw_control_torque_;
-    OutputInterface<double> pitch_control_torque_;
+    OutputInterface<double> pitch_control_velocity_;
     OutputInterface<double> yaw_angle_error_;
     OutputInterface<double> pitch_angle_error_;
 };

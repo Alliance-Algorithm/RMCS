@@ -1,6 +1,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <tuple>
 
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
@@ -467,9 +468,11 @@ private:
             , scope_motor(deformableInfantry, deformableInfantry_command, "/gimbal/scope") {
 
             gimbal_pitch_motor_.configure(
-                device::LkMotor::Config{device::LkMotor::Type::kMG4010Ei10}.set_encoder_zero_point(
-                    static_cast<int>(
-                        deformableInfantry.get_parameter("pitch_motor_zero_point").as_int())));
+                device::LkMotor::Config{device::LkMotor::Type::kMG4010Ei10}
+                    .set_reversed()
+                    .set_encoder_zero_point(
+                        static_cast<int>(
+                            deformableInfantry.get_parameter("pitch_motor_zero_point").as_int())));
 
             gimbal_left_friction_.configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
@@ -486,10 +489,13 @@ private:
             deformableInfantry.register_output(
                 "/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_bmi088_);
 
-            bmi088_.set_coordinate_mapping_tilted(
-                /*roll_rad=*/0.0 * std::numbers::pi / 180,
-                /*pitch_rad=*/27.73 * std::numbers::pi / 180,
-                /*yaw_rad=*/0 * std::numbers::pi / 180);
+            const auto mapping_matrix =
+                Eigen::AngleAxisd{27.73 * std::numbers::pi / 180, Eigen::Vector3d::UnitY()}
+                    .matrix();
+            bmi088_.set_coordinate_mapping([mapping_matrix](double x, double y, double z) {
+                auto result = (mapping_matrix * Eigen::Vector3d{x, y, z}).eval();
+                return std::make_tuple(result.x(), result.y(), result.z());
+            });
         }
 
         ~TopBoard() = default;
@@ -518,7 +524,7 @@ private:
             auto builder = start_transmit();
             builder.can1_transmit({
                 .can_id = 0x141,
-                .can_data = gimbal_pitch_motor_.generate_torque_command().as_bytes(),
+                .can_data = gimbal_pitch_motor_.generate_velocity_command().as_bytes(),
             });
             builder.can2_transmit({
                 .can_id = 0x200,
