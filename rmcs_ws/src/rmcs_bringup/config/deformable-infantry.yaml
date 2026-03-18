@@ -17,7 +17,7 @@ rmcs_executor:
       - rmcs_core::controller::smc::Smc_Observer -> smc_observer2
       - rmcs_core::controller::smc::Smc_Observer -> smc_observer3
 
-      - rmcs_core::controller::gimbal::OmniInfantryGimbalSweep -> gimbal_controller
+      - rmcs_core::controller::gimbal::OmniInfantryPlannerGimbalController -> gimbal_controller
 
       - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
       - rmcs_core::controller::shooting::HeatController -> heat_controller
@@ -73,21 +73,29 @@ chassis_controller:
 
 gimbal_controller:
   ros__parameters:
-    duration: 10.0
+    upper_limit: -0.174533 # -25 deg
+    lower_limit: 0.436332 # 10 deg
 
-    yaw_torque_bias: 0.0
-    pitch_torque_bias: 0.0
+    yaw_angle_kp: 14.2
+    yaw_angle_ki: 0.0
+    yaw_angle_kd: 0.0
 
-    yaw_torque_amplitude: 10.0
-    pitch_torque_amplitude: 0.0
+    yaw_velocity_kp: 6.4
+    yaw_velocity_ki: 0.0
+    yaw_velocity_kd: 0.0
 
-    yaw_start_frequency: 0.5
-    yaw_end_frequency: 6.0
-    pitch_start_frequency: 0.5
-    pitch_end_frequency: 6.0
+    yaw_acc_ff_gain: 0.20
 
-    output_csv_path: /tmp/rmcs/gimbal_sweep.csv
-    csv_decimation: 1
+    # Placeholder pitch gains copied from omni-infantry until pitch sweep is available.
+    pitch_angle_kp: 12.0
+    pitch_angle_ki: 0.0
+    pitch_angle_kd: 0.1
+
+    pitch_velocity_kp: 4.0
+    pitch_velocity_ki: 0.0
+    pitch_velocity_kd: 0.0
+
+    pitch_acc_ff_gain: 0.0
 
 friction_wheel_controller:
   ros__parameters:
