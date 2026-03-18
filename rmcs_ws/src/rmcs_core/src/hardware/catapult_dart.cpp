@@ -114,7 +114,7 @@ public:
             });
 
         force_sensor_calibrate_ = create_subscription<std_msgs::msg::Int32>(
-            "/force_sensor/calibrate", rclcpp::QoS{0},
+            "/force_sensor/calibrate", rclcpp::QoS{10},
             [this](std_msgs::msg::Int32::UniquePtr&& msg) {
                 force_sensor_calibrate_subscription_callback(std::move(msg));
             });
@@ -323,8 +323,9 @@ private:
         auto board = start_transmit();
         board.can1_transmit({
             .can_id = 0x201,
-            .can_data = device::CanPacket8{0}.as_bytes(),
+            .can_data = device::CanPacket8{0x0F}.as_bytes(),
         });
+        RCLCPP_INFO(logger_, "calibrate");
     }
 
     void trigger_servo_calibrate_subscription_callback(
