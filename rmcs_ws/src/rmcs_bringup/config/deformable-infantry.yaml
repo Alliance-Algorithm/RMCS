@@ -1,0 +1,269 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::hardware::DeformableInfantry -> deformable_infantry
+
+      - rmcs_core::referee::Status -> referee_status
+      - rmcs_core::referee::Command -> referee_command
+
+      - rmcs_core::controller::smc::SlidingModeController -> smc_controller0
+      - rmcs_core::controller::smc::SlidingModeController -> smc_controller1
+      - rmcs_core::controller::smc::SlidingModeController -> smc_controller2
+      - rmcs_core::controller::smc::SlidingModeController -> smc_controller3
+
+      - rmcs_core::controller::smc::Smc_Observer -> smc_observer0
+      - rmcs_core::controller::smc::Smc_Observer -> smc_observer1
+      - rmcs_core::controller::smc::Smc_Observer -> smc_observer2
+      - rmcs_core::controller::smc::Smc_Observer -> smc_observer3
+
+      - rmcs_core::controller::gimbal::DeformableInfantryGimbalController -> gimbal_controller
+      - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
+      - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
+
+      - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
+      - rmcs_core::controller::shooting::HeatController -> heat_controller
+      - rmcs_core::controller::shooting::BulletFeederController17mm -> bullet_feeder_controller
+      - rmcs_core::controller::pid::PidController -> left_friction_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> right_friction_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller
+
+      - rmcs_core::controller::chassis::DeformableChassis -> chassis_controller
+      # - rmcs_core::controller::chassis::ChassisTestController -> chassis_test_controller
+      - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
+      - rmcs_core::controller::chassis::DeformableChassisController -> deformable_chassis_controller
+
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+
+value_broadcaster:
+  ros__parameters:
+    forward_list:
+      - /smc/smc_controller0/damping_term
+      - /smc/smc_controller0/feedforward_term
+      - /smc/smc_controller0/c_velocity_error_term
+      - /smc/smc_controller0/tanh_term
+      - /smc/smc_controller0/k_sliding_term
+      - /smc/smc_controller0/sliding_surface_term
+      - /smc/smc_controller0/raw_control_torque
+      - /smc/smc_controller0/sliding_surface_value
+      - /chassis/left_front_joint/control_torque
+      - /chassis/left_back_joint/expect_velocity
+      - /chassis/left_front_joint/velocity
+      - /chassis/left_front_joint/control_angle_error
+deformable_infantry:
+  ros__parameters:
+    serial_filter_rmcs_board: "AF-056F-2E3E-0C9E-EFAD-C0D0-15F0-2483-17D9"
+    serial_filter_top_board: "D4-621A-DEE6-D79F-9303-E3D1-C4BC"
+    left_front_zero_point: 6516
+    left_back_zero_point: 5812
+    right_back_zero_point: 7870
+    right_front_zero_point: 4472
+    yaw_motor_zero_point:  43925
+    pitch_motor_zero_point: 40499 
+
+chassis_controller:
+  ros__parameters:
+    min_angle: 20.0    
+    max_angle: 30.0   
+    left_front_joint_offset: 257.501488
+    left_back_joint_offset: 353.545434
+    right_back_joint_offset: 7.591669
+    right_front_joint_offset: 303.265736
+    Rod_relative_horizontal_coordinate: 5.0
+    Rod_relative_longitudinal_coordinate: 75.0
+    Rod_length: 80.0
+
+gimbal_controller:
+  ros__parameters:
+    upper_limit: -25.0
+    lower_limit: 10.0
+
+yaw_angle_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/yaw/control_angle_error
+    control: /gimbal/yaw/control_velocity
+    kp: 24.0
+    ki: 0.0
+    kd: 0.01
+
+pitch_angle_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/pitch/control_angle_error
+    control: /gimbal/pitch/control_velocity
+    kp: 10.0
+    ki: 0.0
+    kd: 0.01
+
+friction_wheel_controller:
+  ros__parameters:
+    friction_wheels:
+      - /gimbal/left_friction
+      - /gimbal/right_friction
+    friction_velocities:
+      - 700.0
+      - 700.0
+    friction_soft_start_stop_time: 1.0
+
+heat_controller:
+  ros__parameters:
+    heat_per_shot: 10000
+    reserved_heat: 0
+
+bullet_feeder_controller:
+  ros__parameters:
+    bullets_per_feeder_turn: 8.0
+    shot_frequency: 20.0
+    safe_shot_frequency: 10.0
+    eject_frequency: 10.0
+    eject_time: 0.05
+    deep_eject_frequency: 5.0
+    deep_eject_time: 0.2
+    single_shot_max_stop_delay: 2.0
+
+shooting_recorder:
+  ros__parameters:
+    friction_wheel_count: 2
+    log_mode: 1 # 1: trigger, 2: timing
+
+left_friction_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/left_friction/velocity
+    setpoint: /gimbal/left_friction/control_velocity
+    control: /gimbal/left_friction/control_torque
+    kp: 0.003436926
+    ki: 0.00
+    kd: 0.009373434
+
+right_friction_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/right_friction/velocity
+    setpoint: /gimbal/right_friction/control_velocity
+    control: /gimbal/right_friction/control_torque
+    kp: 0.003436926
+    ki: 0.00
+    kd: 0.009373434
+
+bullet_feeder_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/bullet_feeder/velocity
+    setpoint: /gimbal/bullet_feeder/control_velocity
+    control: /gimbal/bullet_feeder/control_torque
+    kp: 1.583
+    ki: 0.0
+    kd: 0.0
+
+smc_controller0:
+  ros__parameters:
+    c: 0.025
+    epsilon: 0.2
+    k: 0.15
+    phi: 0.2
+    J: 1.8
+    B: 0.0004
+    dead_zero_min: -0.8
+    dead_zero_max: 0.8
+    angle_error_deadzone: 1.1
+    angle_error: /chassis/left_front_joint/control_angle_error
+    current_velocity: /chassis/left_front_joint/velocity
+    target_velocity: /chassis/left_front_joint/expect_velocity
+    target_acceleration: /chassis/left_front_joint/expect_acceleration
+    control_torque: /chassis/left_front_joint/control_torque
+
+smc_controller1:
+  ros__parameters:
+    c: 0.025
+    epsilon: 0.2
+    k: 0.15
+    phi: 0.2
+    J: 1.8
+    B: 0.0004
+    dead_zero_min: -0.8
+    dead_zero_max: 0.8
+    angle_error_deadzone: 1.1
+    angle_error: /chassis/left_back_joint/control_angle_error
+    current_velocity: /chassis/left_back_joint/velocity
+    target_velocity: /chassis/left_back_joint/expect_velocity
+    target_acceleration: /chassis/left_back_joint/expect_acceleration
+    control_torque: /chassis/left_back_joint/control_torque
+
+smc_controller2:
+  ros__parameters:
+    c: 0.025
+    epsilon: 0.2
+    k: 0.15
+    phi: 0.2
+    J: 1.8
+    B: 0.0004
+    dead_zero_min: -0.8
+    dead_zero_max: 0.8
+    angle_error_deadzone: 1.1
+    angle_error: /chassis/right_back_joint/control_angle_error
+    current_velocity: /chassis/right_back_joint/velocity
+    target_velocity: /chassis/right_back_joint/expect_velocity
+    target_acceleration: /chassis/right_back_joint/expect_acceleration
+    control_torque: /chassis/right_back_joint/control_torque
+
+smc_controller3:
+  ros__parameters:
+    c: 0.025
+    epsilon: 0.2
+    k: 0.15
+    phi: 0.2
+    J: 1.8
+    B: 0.0004
+    dead_zero_min: -0.8
+    dead_zero_max: 0.8
+    angle_error_deadzone: 1.1
+    angle_error: /chassis/right_front_joint/control_angle_error
+    current_velocity: /chassis/right_front_joint/velocity
+    target_velocity: /chassis/right_front_joint/expect_velocity
+    target_acceleration: /chassis/right_front_joint/expect_acceleration
+    control_torque: /chassis/right_front_joint/control_torque
+
+smc_observer0:
+  ros__parameters:
+    velocity_limit: 1.0
+    acceleration_limit: 3.0
+    control_error: /chassis/left_front_joint/control_angle_error
+    velocity: /chassis/left_front_joint/velocity
+    yaw_expect_velocity_: /chassis/left_front_joint/expect_velocity
+    yaw_expect_acceleration_: /chassis/left_front_joint/expect_acceleration
+
+smc_observer1:
+  ros__parameters:
+    velocity_limit: 1.0
+    acceleration_limit: 3.0
+    control_error: /chassis/left_back_joint/control_angle_error
+    velocity: /chassis/left_back_joint/velocity
+    yaw_expect_velocity_: /chassis/left_back_joint/expect_velocity
+    yaw_expect_acceleration_: /chassis/left_back_joint/expect_acceleration
+
+smc_observer2:
+  ros__parameters:
+    velocity_limit: 1.0
+    acceleration_limit: 3.0
+    control_error: /chassis/right_back_joint/control_angle_error
+    velocity: /chassis/right_back_joint/velocity
+    yaw_expect_velocity_: /chassis/right_back_joint/expect_velocity
+    yaw_expect_acceleration_: /chassis/right_back_joint/expect_acceleration
+
+smc_observer3:
+  ros__parameters:
+    velocity_limit: 1.0
+    acceleration_limit: 3.0
+    control_error: /chassis/right_front_joint/control_angle_error
+    velocity: /chassis/right_front_joint/velocity
+    yaw_expect_velocity_: /chassis/right_front_joint/expect_velocity
+    yaw_expect_acceleration_: /chassis/right_front_joint/expect_acceleration
+
+deformable_chassis_controller:
+  ros__parameters:
+    mess: 21.0
+    moment_of_inertia: 1.0
+    chassis_radius: 0.1671741
+    rod_length: 0.150
+    wheel_radius: 0.055
+    friction_coefficient: 0.6
+    k1: 2.958580e+00
+    k2: 3.082190e-03
+    no_load_power: 11.37

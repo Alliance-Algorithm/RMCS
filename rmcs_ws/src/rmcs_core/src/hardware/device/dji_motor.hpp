@@ -53,11 +53,16 @@ public:
         const std::string& name_prefix)
         : angle_(0.0)
         , velocity_(0.0)
-        , torque_(0.0) {
+        , torque_(0.0)
+        , temperature_(0.0)
+        , encoder_angle_(0.0) {
         status_component.register_output(name_prefix + "/angle", angle_output_, 0.0);
         status_component.register_output(name_prefix + "/velocity", velocity_output_, 0.0);
         status_component.register_output(name_prefix + "/torque", torque_output_, 0.0);
+        status_component.register_output(name_prefix + "/temperature", temperature_output_, 0.0);
         status_component.register_output(name_prefix + "/max_torque", max_torque_output_, 0.0);
+        status_component.register_output(
+            name_prefix + "/encoder_angle", encoder_angle_output_, 0.0);
 
         command_component.register_input(name_prefix + "/control_torque", control_torque_, false);
     }
@@ -167,10 +172,13 @@ public:
 
         // Torque unit: N*m
         torque_ = raw_current_to_torque_coefficient_ * static_cast<double>(feedback.current);
+        encoder_angle_ = static_cast<double>(raw_angle) * 360.0 / static_cast<double>(kRawAngleMax);
 
         *angle_output_ = angle();
         *velocity_output_ = velocity();
         *torque_output_ = torque();
+        *temperature_output_ = temperature();
+        *encoder_angle_output_ = encoder_angle();
     }
 
     double control_torque() const {
@@ -205,6 +213,7 @@ public:
     double torque() const { return torque_; }
     double max_torque() const { return max_torque_; }
     double temperature() const { return temperature_; }
+    double encoder_angle() const { return encoder_angle_; }
 
 private:
     struct alignas(uint64_t) DjiMotorFeedback {
@@ -232,11 +241,14 @@ private:
     double torque_;
     double max_torque_;
     double temperature_;
+    double encoder_angle_;
 
     rmcs_executor::Component::OutputInterface<double> angle_output_;
     rmcs_executor::Component::OutputInterface<double> velocity_output_;
     rmcs_executor::Component::OutputInterface<double> torque_output_;
+    rmcs_executor::Component::OutputInterface<double> temperature_output_;
     rmcs_executor::Component::OutputInterface<double> max_torque_output_;
+    rmcs_executor::Component::OutputInterface<double> encoder_angle_output_;
 
     rmcs_executor::Component::InputInterface<double> control_torque_;
 };

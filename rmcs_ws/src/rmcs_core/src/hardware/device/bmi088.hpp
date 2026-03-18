@@ -29,6 +29,40 @@ public:
         coordinate_mapping_function_ = std::move(mapping_function);
     }
 
+    void set_coordinate_mapping_tilted(
+        double roll_rad, double pitch_rad, double yaw_rad,
+        std::function<std::tuple<double, double, double>(double, double, double)> base_mapping =
+            {}) {
+
+        const double cr = std::cos(roll_rad), sr = std::sin(roll_rad);
+        const double cp = std::cos(pitch_rad), sp = std::sin(pitch_rad);
+        const double cy = std::cos(yaw_rad), sy = std::sin(yaw_rad);
+
+        const double r00 = cy * cp;
+        const double r01 = cy * sp * sr - sy * cr;
+        const double r02 = cy * sp * cr + sy * sr;
+
+        const double r10 = sy * cp;
+        const double r11 = sy * sp * sr + cy * cr;
+        const double r12 = sy * sp * cr - cy * sr;
+
+        const double r20 = -sp;
+        const double r21 = cp * sr;
+        const double r22 = cp * cr;
+
+        coordinate_mapping_function_ =
+            [base_mapping = std::move(base_mapping),
+             r00, r01, r02, r10, r11, r12, r20, r21, r22](double x, double y, double z) mutable {
+                if (base_mapping) {
+                    std::tie(x, y, z) = base_mapping(x, y, z);
+                }
+                const double tx = r00 * x + r10 * y + r20 * z;
+                const double ty = r01 * x + r11 * y + r21 * z;
+                const double tz = r02 * x + r12 * y + r22 * z;
+                return std::make_tuple(tx, ty, tz);
+            };
+    }
+
     void store_accelerometer_status(int16_t x, int16_t y, int16_t z) {
         accelerometer_data_.store({x, y, z}, std::memory_order::relaxed);
     }
