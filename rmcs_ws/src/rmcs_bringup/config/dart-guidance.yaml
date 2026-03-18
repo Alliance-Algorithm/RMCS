@@ -6,14 +6,15 @@ rmcs_executor:
       - rmcs_dart_guidance::DartVisionCore           -> dart_vision
       - rmcs_dart_guidance::ImagePublisher           -> dart_camera_image_publisher
       - rmcs_dart_guidance::ImagePublisher           -> dart_display_image_publisher
-      - rmcs_dart_guidance::manager::DartManagerV2   -> dart_manager
-      - rmcs_dart_guidance::manager::RemoteCommandBridge -> remote_cmd_bridge
+      - rmcs_dart_guidance::manager::AutoAimOnlyComponent -> auto_aim_only
+      # - rmcs_dart_guidance::manager::DartManagerV2   -> dart_manager
+      # - rmcs_dart_guidance::manager::RemoteCommandBridge -> remote_cmd_bridge
       # - rmcs_dart_guidance::manager::WebCommandBridge -> web_cmd_bridge
-      - rmcs_core::controller::dart::DartLaunchSettingV2 -> launch_setting
-      - rmcs_core::controller::dart::DartFilling -> dart_filling
+      # - rmcs_core::controller::dart::DartLaunchSettingV2 -> launch_setting
+      # - rmcs_core::controller::dart::DartFilling -> dart_filling
       - rmcs_core::controller::dart::DartSettingController -> dart_setting
-      - rmcs_core::controller::pid::PidController    -> force_screw_velocity_pid_controller
-      - rmcs_core::broadcaster::ValueBroadcaster -> broadcaster
+      # - rmcs_core::controller::pid::PidController    -> force_screw_velocity_pid_controller
+      # - rmcs_core::broadcaster::ValueBroadcaster -> broadcaster
 
 dart_hardware:
   ros__parameters:
@@ -52,19 +53,45 @@ dart_display_image_publisher:
     publish_freq: 60.0
     image_type: mono8
 
+auto_aim_only:
+  ros__parameters:
+    auto_start: true
+    success_gate: false
+    restart_on_terminal: false
+    target_position_interface: /dart_guidance/camera/target_position
+    tracking_interface: /dart_guidance/tracker/tracking
+    control_velocity_interface: /pitch/control/velocity
+    aim_ready_interface: /dart/manager/aim/ready
+    aim_error_interface: /dart/manager/aim/error_px
+    desired_target_interface: /dart/manager/aim/desired_target_px
+    state_interface: /dart/auto_aim_test/state
+    desired_target_px: [701.0, 565.0]
+    aim_yaw_gain: 0.08
+    aim_pitch_gain: 0.08
+    aim_deadband_px: [3.0, 3.0]
+    aim_ready_exit_deadband_px: [5.0, 5.0]
+    aim_ready_confirm_ticks: 20
+    aim_timeout_ticks: 5000
+    aim_timeout_returns_success: true
+    aim_min_transform_rate: 1.0
+    auto_aim_max_transform_rate: 10.0
+
 dart_manager:
   ros__parameters:
     max_transform_rate: 5.0
-    auto_aim_max_transform_rate: 5.0
+    auto_aim_max_transform_rate: 10.0
     manual_force_scale: 5.0
     dart_count: 4
     aim_reference_pixel: [701.0, 565.0]
     aim_dart_offsets_px: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-    aim_yaw_gain: 0.05
-    aim_pitch_gain: 0.05
+    aim_yaw_gain: 0.08
+    aim_pitch_gain: 0.08
     aim_deadband_px: [3.0, 3.0]
+    aim_ready_exit_deadband_px: [5.0, 5.0]
     aim_ready_confirm_ticks: 20
     aim_timeout_ticks: 5000
+    aim_timeout_returns_success: true
+    aim_min_transform_rate: 1.0
     limiting_fill_ticks:  1000
     lifting_stall_threshold:     0.1    # rad/s，低于此值视为堵转
     lifting_stall_confirm_ticks: 100    # 连续帧数 = 0.1s @ 1kHz
