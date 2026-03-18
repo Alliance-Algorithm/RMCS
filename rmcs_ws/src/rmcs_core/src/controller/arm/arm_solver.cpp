@@ -223,7 +223,7 @@ private:
         tau_g(2) =  reverse * joint_3_tau_g;
         tau_g(3) = joint_4_tau_g;
         tau_g(4) = reverse * joint_5_tau_g;
-        RCLCPP_INFO(get_logger(),"%f",tau_g(1) );
+        // RCLCPP_INFO(get_logger(),"%f",tau_g(1) );
         return tau_g;
     };
     Eigen::Array<double, 6, 1> calculate_zero_torque() {

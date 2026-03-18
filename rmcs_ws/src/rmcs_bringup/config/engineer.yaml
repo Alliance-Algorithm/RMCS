@@ -12,9 +12,9 @@ arm_hardware:
   ros__parameters:
     arm_board_usb_pid: 0x488d
     gripper_zero_point: 15504
-    joint6_zero_point: 19344
-    joint5_zero_point: 47964
-    joint4_zero_point: 4017
+    joint6_zero_point: 19394
+    joint5_zero_point: 47491
+    joint4_zero_point: 4030
     joint3_zero_point: 51845
     joint2_zero_point: 54221
     joint1_zero_point: 28268
@@ -29,9 +29,9 @@ big_yaw_velocity_pid_controller:
     measurement: /chassis/big_yaw/velocity
     setpoint: 0.0
     control: /chassis/big_yaw/control_torque
-    kp: 1.5
+    kp: 1.2
     ki: 0.0
     kd: 0.0
-    output_min: -3.0
-    output_max: 3.0
+    output_min: -2.0
+    output_max: 2.0
     
