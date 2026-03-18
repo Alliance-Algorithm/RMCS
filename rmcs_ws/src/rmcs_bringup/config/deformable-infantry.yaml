@@ -17,9 +17,7 @@ rmcs_executor:
       - rmcs_core::controller::smc::Smc_Observer -> smc_observer2
       - rmcs_core::controller::smc::Smc_Observer -> smc_observer3
 
-      - rmcs_core::controller::gimbal::DeformableInfantryGimbalController -> gimbal_controller
-      - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
-      - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
+      - rmcs_core::controller::gimbal::OmniInfantryGimbalSweep -> gimbal_controller
 
       - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
       - rmcs_core::controller::shooting::HeatController -> heat_controller
@@ -75,24 +73,21 @@ chassis_controller:
 
 gimbal_controller:
   ros__parameters:
-    upper_limit: -0.174533 # -25 deg 
-    lower_limit: 0.436332 # 10 deg 
+    duration: 10.0
 
-yaw_angle_pid_controller:
-  ros__parameters:
-    measurement: /gimbal/yaw/control_angle_error
-    control: /gimbal/yaw/control_velocity
-    kp: 24.0
-    ki: 0.0
-    kd: 0.01
+    yaw_torque_bias: 0.0
+    pitch_torque_bias: 0.0
 
-pitch_angle_pid_controller:
-  ros__parameters:
-    measurement: /gimbal/pitch/control_angle_error
-    control: /gimbal/pitch/control_velocity
-    kp: 10.0
-    ki: 0.0
-    kd: 0.01
+    yaw_torque_amplitude: 10.0
+    pitch_torque_amplitude: 0.0
+
+    yaw_start_frequency: 0.5
+    yaw_end_frequency: 6.0
+    pitch_start_frequency: 0.5
+    pitch_end_frequency: 6.0
+
+    output_csv_path: /tmp/rmcs/gimbal_sweep.csv
+    csv_decimation: 1
 
 friction_wheel_controller:
   ros__parameters:
@@ -148,7 +143,7 @@ bullet_feeder_velocity_pid_controller:
     measurement: /gimbal/bullet_feeder/velocity
     setpoint: /gimbal/bullet_feeder/control_velocity
     control: /gimbal/bullet_feeder/control_torque
-    kp: 1.583
+    kp: 1.3
     ki: 0.0
     kd: 0.0
 

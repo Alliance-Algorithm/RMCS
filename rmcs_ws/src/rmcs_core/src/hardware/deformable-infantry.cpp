@@ -336,10 +336,7 @@ private:
                 });
                 builder.can1_transmit({
                     .can_id = 0x142,
-                    .can_data = gimbal_yaw_motor_
-                                    .generate_velocity_command(
-                                        gimbal_yaw_motor_.control_velocity() - imu_.gz())
-                                    .as_bytes(),
+                    .can_data = gimbal_yaw_motor_.generate_torque_command().as_bytes(),
                 });
             }
         }
@@ -501,7 +498,7 @@ private:
             auto builder = start_transmit();
             builder.can1_transmit({
                 .can_id = 0x141,
-                .can_data = gimbal_pitch_motor_.generate_command().as_bytes(),
+                .can_data = gimbal_pitch_motor_.generate_torque_command().as_bytes(),
             });
             builder.can2_transmit({
                 .can_id = 0x200,
