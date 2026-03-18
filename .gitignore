@@ -70,3 +70,6 @@ record/
 
 # For temperary development
 develop_ws
+
+# Keep nested standalone repos out of the RMCS index.
+rmcs_ws/src/rmcs_dart_guidance/

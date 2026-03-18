@@ -2,7 +2,7 @@
 // README at: https://github.com/devcontainers/templates/tree/main/src/docker-existing-dockerfile
 {
 	"name": "rmcs-develop",
-	"image": "qzhhhi/rmcs-develop:latest",
+	"image": "qzhhhi/rmcs-	:latest",
 	"privileged": true,
 	"mounts": [
 		{

@@ -6,15 +6,15 @@ rmcs_executor:
       - rmcs_dart_guidance::DartVisionCore           -> dart_vision
       - rmcs_dart_guidance::ImagePublisher           -> dart_camera_image_publisher
       - rmcs_dart_guidance::ImagePublisher           -> dart_display_image_publisher
-      - rmcs_dart_guidance::manager::AutoAimOnlyComponent -> auto_aim_only
-      # - rmcs_dart_guidance::manager::DartManagerV2   -> dart_manager
-      # - rmcs_dart_guidance::manager::RemoteCommandBridge -> remote_cmd_bridge
-      # - rmcs_dart_guidance::manager::WebCommandBridge -> web_cmd_bridge
-      # - rmcs_core::controller::dart::DartLaunchSettingV2 -> launch_setting
-      # - rmcs_core::controller::dart::DartFilling -> dart_filling
+      # - rmcs_dart_guidance::manager::AutoAimOnlyComponent -> auto_aim_only
+      - rmcs_dart_guidance::manager::DartManagerV2   -> dart_manager
+      - rmcs_dart_guidance::manager::RemoteCommandBridge -> remote_cmd_bridge
+      - rmcs_dart_guidance::manager::WebCommandBridge -> web_cmd_bridge
+      - rmcs_core::controller::dart::DartLaunchSettingV2 -> launch_setting
+      - rmcs_core::controller::dart::DartFilling -> dart_filling
       - rmcs_core::controller::dart::DartSettingController -> dart_setting
-      # - rmcs_core::controller::pid::PidController    -> force_screw_velocity_pid_controller
-      # - rmcs_core::broadcaster::ValueBroadcaster -> broadcaster
+      - rmcs_core::controller::pid::PidController    -> force_screw_velocity_pid_controller
+      - rmcs_core::broadcaster::ValueBroadcaster -> broadcaster
 
 dart_hardware:
   ros__parameters:
@@ -27,11 +27,11 @@ dart_vision:
     invert_image: true
     exposure_time: 3000
     gain: 11.0
-    L_H: 0.0
+    L_H: 45.0
     L_S: 0.0
     L_V: 200.0
-    U_H: 180.0
-    U_S: 30.0
+    U_H: 90.0
+    U_S: 255.0
     U_V: 255.0
     enable_image_saving: false
     image_save_directory: "./saved_images"
@@ -92,7 +92,7 @@ dart_manager:
     aim_timeout_ticks: 5000
     aim_timeout_returns_success: true
     aim_min_transform_rate: 1.0
-    limiting_fill_ticks:  1000
+    limiting_fill_ticks:  2000
     lifting_stall_threshold:     0.1    # rad/s，低于此值视为堵转
     lifting_stall_confirm_ticks: 100    # 连续帧数 = 0.1s @ 1kHz
     lifting_stall_min_run_ticks: 500    # 启动后最少运行帧数，避免启动瞬间误触发
@@ -113,8 +113,8 @@ launch_setting:
 dart_filling:
   ros__parameters:
     lifting_velocity: 3.0
-    limiting_free_angle: 500
-    limiting_lock_angle: 1000
+    limiting_free_angle: 0x0BFF
+    limiting_lock_angle: 0x0B53
 
 dart_setting:
   ros__parameters:

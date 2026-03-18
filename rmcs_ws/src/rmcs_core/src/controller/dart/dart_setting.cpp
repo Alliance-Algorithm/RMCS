@@ -26,12 +26,15 @@ public:
               get_parameter("pitch_kd").as_double()} {
 
         register_input("/pitch/control/velocity", yaw_pitch_vel_setpoint_);
-        register_input("/dart/yaw_motor/velocity",   yaw_velocity_);
+        register_input("/dart/yaw_motor/velocity", yaw_velocity_);
         register_input("/dart/pitch_motor/velocity", pitch_velocity_);
         register_input("/force/control/velocity", force_vel_setpoint_);
 
-        register_output("/dart/yaw_motor/control_torque",   yaw_torque_,   0.0);
+        register_output("/dart/yaw_motor/control_torque", yaw_torque_, 0.0);
         register_output("/dart/pitch_motor/control_torque", pitch_torque_, 0.0);
+
+        register_input("/force_sensor/channel_1/weight", weight_ch1_);
+        register_input("/force_sensor/channel_2/weight", weight_ch2_);
 
         try {
             log_enable_ = get_parameter("log_enable").as_bool();
@@ -42,12 +45,12 @@ public:
 
     void update() override {
         const Eigen::Vector2d& yaw_pitch_velocity = *yaw_pitch_vel_setpoint_;
-        *yaw_torque_   = yaw_pid_.update(yaw_pitch_velocity[0] - *yaw_velocity_);
+        *yaw_torque_ = yaw_pid_.update(yaw_pitch_velocity[0] - *yaw_velocity_);
         *pitch_torque_ = pitch_pid_.update(yaw_pitch_velocity[1] - *pitch_velocity_);
 
         if (log_enable_) {
             if (log_counter_++ >= 1000) {
-                RCLCPP_INFO(get_logger(), "Manual force control velocity: %.3f", *force_vel_setpoint_);
+                RCLCPP_INFO(get_logger(), "ch1 : %d | ch2 : %d", *weight_ch1_, *weight_ch2_);
                 log_counter_ = 0;
             }
         }
@@ -58,12 +61,15 @@ private:
     pid::PidCalculator pitch_pid_;
 
     InputInterface<Eigen::Vector2d> yaw_pitch_vel_setpoint_;
-    InputInterface<double>          yaw_velocity_;
-    InputInterface<double>          pitch_velocity_;
-    InputInterface<double>          force_vel_setpoint_;
+    InputInterface<double> yaw_velocity_;
+    InputInterface<double> pitch_velocity_;
+    InputInterface<double> force_vel_setpoint_;
 
     OutputInterface<double> yaw_torque_;
     OutputInterface<double> pitch_torque_;
+
+    InputInterface<int> weight_ch1_;
+    InputInterface<int> weight_ch2_;
 
     bool log_enable_ = false;
     uint32_t log_counter_ = 0;
@@ -72,5 +78,4 @@ private:
 } // namespace rmcs_core::controller::dart
 
 #include <pluginlib/class_list_macros.hpp>
-PLUGINLIB_EXPORT_CLASS(
-    rmcs_core::controller::dart::DartSettingController, rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::dart::DartSettingController, rmcs_executor::Component)
