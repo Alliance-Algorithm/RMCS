@@ -355,16 +355,18 @@ private:
             return angle;
         };
 
-        RCLCPP_INFO(
-            node_->get_logger(),
-            "joint: [%u, %u, %u, %u, %u, %u]",
-            frame.joint[0], frame.joint[1], frame.joint[2],
-            frame.joint[3], frame.joint[4], frame.joint[5]);
-
+        std::array<double, 6> angles{};
         for (std::size_t i = 0; i < 6; ++i) {
             double divisor = (i == 3 || i == 5) ? 32768.0 : 65536.0;
-            // *target_theta[i] = raw_to_angle(frame.joint[i], divisor);
+            angles[i] = raw_to_angle(frame.joint[i], divisor);
+            // *target_theta[i] = angles[i];
         }
+
+        RCLCPP_INFO(
+            node_->get_logger(),
+            "joint: [%.4f, %.4f, %.4f, %.4f, %.4f, %.4f]",
+            angles[0], angles[1], angles[2],
+            angles[3], angles[4], angles[5]);
     }
     void execute_dt7_orientation() {
         if (fabs(joystick_left_->y()) > 0.01) {
