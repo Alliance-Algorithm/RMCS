@@ -41,14 +41,12 @@ public:
         tf_->set_transform<PitchLink, CameraLink>(Eigen::Translation3d{0.16, 0.0, 0.15});
 
         steers_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
-            "/steers/calibrate", rclcpp::QoS(1),
-            [this](std_msgs::msg::Int32::UniquePtr msg) {
+            "/steers/calibrate", rclcpp::QoS(1), [this](std_msgs::msg::Int32::UniquePtr msg) {
                 steers_calibrate_subscription_callback(std::move(msg));
             });
 
         joints_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
-            "/joints/calibrate", rclcpp::QoS(1),
-            [this](std_msgs::msg::Int32::UniquePtr msg) {
+            "/joints/calibrate", rclcpp::QoS(1), [this](std_msgs::msg::Int32::UniquePtr msg) {
                 joints_calibrate_subscription_callback(std::move(msg));
             });
 
@@ -88,28 +86,36 @@ private:
         if (!rmcs_board_)
             return;
 
-        RCLCPP_INFO(get_logger(), "New left front offset: %d",
-                    rmcs_board_->chassis_steer_motors_[0].calibrate_zero_point());
-        RCLCPP_INFO(get_logger(), "New left back offset: %d",
-                    rmcs_board_->chassis_steer_motors_[1].calibrate_zero_point());
-        RCLCPP_INFO(get_logger(), "New right back offset: %d",
-                    rmcs_board_->chassis_steer_motors_[2].calibrate_zero_point());
-        RCLCPP_INFO(get_logger(), "New right front offset: %d",
-                    rmcs_board_->chassis_steer_motors_[3].calibrate_zero_point());
+        RCLCPP_INFO(
+            get_logger(), "New left front offset: %d",
+            rmcs_board_->chassis_steer_motors_[0].calibrate_zero_point());
+        RCLCPP_INFO(
+            get_logger(), "New left back offset: %d",
+            rmcs_board_->chassis_steer_motors_[1].calibrate_zero_point());
+        RCLCPP_INFO(
+            get_logger(), "New right back offset: %d",
+            rmcs_board_->chassis_steer_motors_[2].calibrate_zero_point());
+        RCLCPP_INFO(
+            get_logger(), "New right front offset: %d",
+            rmcs_board_->chassis_steer_motors_[3].calibrate_zero_point());
     }
 
     void joints_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
         if (!rmcs_board_)
             return;
 
-        RCLCPP_INFO(get_logger(), "New left front offset: %f",
-                    rmcs_board_->chassis_joint_motors_[0].encoder_angle());
-        RCLCPP_INFO(get_logger(), "New left back offset: %f",
-                    rmcs_board_->chassis_joint_motors_[1].encoder_angle());
-        RCLCPP_INFO(get_logger(), "New right back offset: %f",
-                    rmcs_board_->chassis_joint_motors_[2].encoder_angle());
-        RCLCPP_INFO(get_logger(), "New right front offset: %f",
-                    rmcs_board_->chassis_joint_motors_[3].encoder_angle());
+        RCLCPP_INFO(
+            get_logger(), "New left front offset: %f",
+            rmcs_board_->chassis_joint_motors_[0].encoder_angle());
+        RCLCPP_INFO(
+            get_logger(), "New left back offset: %f",
+            rmcs_board_->chassis_joint_motors_[1].encoder_angle());
+        RCLCPP_INFO(
+            get_logger(), "New right back offset: %f",
+            rmcs_board_->chassis_joint_motors_[2].encoder_angle());
+        RCLCPP_INFO(
+            get_logger(), "New right front offset: %f",
+            rmcs_board_->chassis_joint_motors_[3].encoder_angle());
     }
 
     void gimbal_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
@@ -138,42 +144,37 @@ private:
         explicit CombinedBoard(
             DeformableInfantry& deformableInfantry,
             DeformableInfantryCommand& deformableInfantry_command,
-            std::string serial_filter = {})
+            std::string serial_filter =
+                {
+        })
             : librmcs::agent::RmcsBoard(serial_filter)
             , tf_(deformableInfantry.tf_)
             , imu_(1000, 0.2, 0.0)
             , gimbal_yaw_motor_(deformableInfantry, deformableInfantry_command, "/gimbal/yaw")
             , dr16_(deformableInfantry)
-            , chassis_wheel_motors_{
-                  device::DjiMotor{deformableInfantry, deformableInfantry_command,
-                                   "/chassis/left_front_wheel"},
-                  device::DjiMotor{deformableInfantry, deformableInfantry_command,
-                                   "/chassis/left_back_wheel"},
-                  device::DjiMotor{deformableInfantry, deformableInfantry_command,
-                                   "/chassis/right_back_wheel"},
-                  device::DjiMotor{deformableInfantry, deformableInfantry_command,
-                                   "/chassis/right_front_wheel"}}
-            , chassis_steer_motors_{
-                  device::DjiMotor{deformableInfantry, deformableInfantry_command,
-                                   "/chassis/left_front_steering"},
-                  device::DjiMotor{deformableInfantry, deformableInfantry_command,
-                                   "/chassis/left_back_steering"},
-                  device::DjiMotor{deformableInfantry, deformableInfantry_command,
-                                   "/chassis/right_back_steering"},
-                  device::DjiMotor{deformableInfantry, deformableInfantry_command,
-                                   "/chassis/right_front_steering"}}
-            , chassis_joint_motors_{
-                  device::DjiMotor{deformableInfantry, deformableInfantry_command,
-                                   "/chassis/left_front_joint"},
-                  device::DjiMotor{deformableInfantry, deformableInfantry_command,
-                                   "/chassis/left_back_joint"},
-                  device::DjiMotor{deformableInfantry, deformableInfantry_command,
-                                   "/chassis/right_back_joint"},
-                  device::DjiMotor{deformableInfantry, deformableInfantry_command,
-                                   "/chassis/right_front_joint"}}
-            , supercap_(deformableInfantry, deformableInfantry_command)
-            , gimbal_bullet_feeder_(
-                  deformableInfantry, deformableInfantry_command, "/gimbal/bullet_feeder") {
+            , chassis_wheel_motors_{device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/left_front_wheel"}, device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/left_back_wheel"}, device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/right_back_wheel"}, device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/right_front_wheel"}},
+            chassis_steer_motors_{
+                device::DjiMotor{
+                    deformableInfantry, deformableInfantry_command, "/chassis/left_front_steering"},
+                device::DjiMotor{
+                    deformableInfantry, deformableInfantry_command, "/chassis/left_back_steering"},
+                device::DjiMotor{
+                    deformableInfantry, deformableInfantry_command, "/chassis/right_back_steering"},
+                device::DjiMotor{
+                    deformableInfantry, deformableInfantry_command,
+                    "/chassis/right_front_steering"}},
+            chassis_joint_motors_{
+                device::DjiMotor{
+                    deformableInfantry, deformableInfantry_command, "/chassis/left_front_joint"},
+                device::DjiMotor{
+                    deformableInfantry, deformableInfantry_command, "/chassis/left_back_joint"},
+                device::DjiMotor{
+                    deformableInfantry, deformableInfantry_command, "/chassis/right_back_joint"},
+                device::DjiMotor{
+                    deformableInfantry, deformableInfantry_command, "/chassis/right_front_joint"}},
+            supercap_(deformableInfantry, deformableInfantry_command),
+            gimbal_bullet_feeder_(
+                deformableInfantry, deformableInfantry_command, "/gimbal/bullet_feeder") {
 
             deformableInfantry.register_output("/referee/serial", referee_serial_);
             referee_serial_->read = [this](std::byte* buffer, size_t size) {
@@ -181,8 +182,9 @@ private:
                     [&buffer](std::byte byte) noexcept { *buffer++ = byte; }, size);
             };
             referee_serial_->write = [this](const std::byte* buffer, size_t size) {
-                start_transmit().uart2_transmit(
-                    {.uart_data = std::span<const std::byte>{buffer, size}});
+                start_transmit().uart2_transmit({
+                    .uart_data = std::span<const std::byte>{buffer, size}
+                });
                 return size;
             };
 
@@ -210,26 +212,30 @@ private:
             chassis_steer_motors_[0].configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kGM6020}
                     .set_reversed()
-                    .set_encoder_zero_point(static_cast<int>(
-                        deformableInfantry.get_parameter("left_front_zero_point").as_int()))
+                    .set_encoder_zero_point(
+                        static_cast<int>(
+                            deformableInfantry.get_parameter("left_front_zero_point").as_int()))
                     .enable_multi_turn_angle());
             chassis_steer_motors_[1].configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kGM6020}
                     .set_reversed()
-                    .set_encoder_zero_point(static_cast<int>(
-                        deformableInfantry.get_parameter("left_back_zero_point").as_int()))
+                    .set_encoder_zero_point(
+                        static_cast<int>(
+                            deformableInfantry.get_parameter("left_back_zero_point").as_int()))
                     .enable_multi_turn_angle());
             chassis_steer_motors_[2].configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kGM6020}
                     .set_reversed()
-                    .set_encoder_zero_point(static_cast<int>(
-                        deformableInfantry.get_parameter("right_back_zero_point").as_int()))
+                    .set_encoder_zero_point(
+                        static_cast<int>(
+                            deformableInfantry.get_parameter("right_back_zero_point").as_int()))
                     .enable_multi_turn_angle());
             chassis_steer_motors_[3].configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kGM6020}
                     .set_reversed()
-                    .set_encoder_zero_point(static_cast<int>(
-                        deformableInfantry.get_parameter("right_front_zero_point").as_int()))
+                    .set_encoder_zero_point(
+                        static_cast<int>(
+                            deformableInfantry.get_parameter("right_front_zero_point").as_int()))
                     .enable_multi_turn_angle());
 
             deformableInfantry.register_output(
@@ -263,76 +269,92 @@ private:
             if (even) {
                 builder.can0_transmit({
                     .can_id = 0x1FE,
-                    .can_data = device::CanPacket8{
-                        chassis_steer_motors_[0].generate_command(),
-                        device::CanPacket8::PaddingQuarter{},
-                        device::CanPacket8::PaddingQuarter{},
-                        device::CanPacket8::PaddingQuarter{},
-                    }.as_bytes(),
+                    .can_data =
+                        device::CanPacket8{
+                                           chassis_steer_motors_[0].generate_command(),
+                                           device::CanPacket8::PaddingQuarter{},
+                                           device::CanPacket8::PaddingQuarter{},
+                                           device::CanPacket8::PaddingQuarter{},
+                                           }
+                            .as_bytes(),
                 });
                 builder.can1_transmit({
                     .can_id = 0x1FE,
-                    .can_data = device::CanPacket8{
-                        device::CanPacket8::PaddingQuarter{},
-                        device::CanPacket8::PaddingQuarter{},
-                        device::CanPacket8::PaddingQuarter{},
-                        chassis_steer_motors_[1].generate_command(),
-                    }.as_bytes(),
+                    .can_data =
+                        device::CanPacket8{
+                                           device::CanPacket8::PaddingQuarter{},
+                                           device::CanPacket8::PaddingQuarter{},
+                                           device::CanPacket8::PaddingQuarter{},
+                                           chassis_steer_motors_[1].generate_command(),
+                                           }
+                            .as_bytes(),
                 });
                 builder.can2_transmit({
                     .can_id = 0x1FE,
-                    .can_data = device::CanPacket8{
-                        chassis_steer_motors_[2].generate_command(),
-                        device::CanPacket8::PaddingQuarter{},
-                        device::CanPacket8::PaddingQuarter{},
-                        device::CanPacket8::PaddingQuarter{},
-                    }.as_bytes(),
+                    .can_data =
+                        device::CanPacket8{
+                                           chassis_steer_motors_[2].generate_command(),
+                                           device::CanPacket8::PaddingQuarter{},
+                                           device::CanPacket8::PaddingQuarter{},
+                                           device::CanPacket8::PaddingQuarter{},
+                                           }
+                            .as_bytes(),
                 });
                 builder.can3_transmit({
                     .can_id = 0x1FE,
-                    .can_data = device::CanPacket8{
-                        chassis_steer_motors_[3].generate_command(),
-                        device::CanPacket8::PaddingQuarter{},
-                        device::CanPacket8::PaddingQuarter{},
-                        device::CanPacket8::PaddingQuarter{},
-                    }.as_bytes(),
+                    .can_data =
+                        device::CanPacket8{
+                                           chassis_steer_motors_[3].generate_command(),
+                                           device::CanPacket8::PaddingQuarter{},
+                                           device::CanPacket8::PaddingQuarter{},
+                                           device::CanPacket8::PaddingQuarter{},
+                                           }
+                            .as_bytes(),
                 });
             } else {
                 builder.can0_transmit({
                     .can_id = 0x200,
-                    .can_data = device::CanPacket8{
-                        chassis_wheel_motors_[0].generate_command(),
-                        chassis_joint_motors_[0].generate_command(),
-                        device::CanPacket8::PaddingQuarter{},
-                        device::CanPacket8::PaddingQuarter{},
-                    }.as_bytes(),
+                    .can_data =
+                        device::CanPacket8{
+                                           chassis_wheel_motors_[0].generate_command(),
+                                           chassis_joint_motors_[0].generate_command(),
+                                           device::CanPacket8::PaddingQuarter{},
+                                           device::CanPacket8::PaddingQuarter{},
+                                           }
+                            .as_bytes(),
                 });
                 builder.can1_transmit({
                     .can_id = 0x200,
-                    .can_data = device::CanPacket8{
-                        chassis_wheel_motors_[1].generate_command(),
-                        chassis_joint_motors_[1].generate_command(),
-                        device::CanPacket8::PaddingQuarter{},
-                        device::CanPacket8::PaddingQuarter{},
-                    }.as_bytes(),
+                    .can_data =
+                        device::CanPacket8{
+                                           chassis_wheel_motors_[1].generate_command(),
+                                           chassis_joint_motors_[1].generate_command(),
+                                           device::CanPacket8::PaddingQuarter{},
+                                           device::CanPacket8::PaddingQuarter{},
+                                           }
+                            .as_bytes(),
                 });
                 builder.can2_transmit({
                     .can_id = 0x200,
-                    .can_data = device::CanPacket8{
-                        chassis_wheel_motors_[2].generate_command(),
-                        chassis_joint_motors_[2].generate_command(),
-                        gimbal_bullet_feeder_.generate_command(),
-                        device::CanPacket8::PaddingQuarter{},
-                    }.as_bytes(),
+                    .can_data =
+                        device::CanPacket8{
+                                           chassis_wheel_motors_[2].generate_command(),
+                                           chassis_joint_motors_[2].generate_command(),
+                                           gimbal_bullet_feeder_.generate_command(),
+                                           device::CanPacket8::PaddingQuarter{},
+                                           }
+                            .as_bytes(),
                 });
                 builder.can3_transmit({
                     .can_id = 0x200,
-                    .can_data = device::CanPacket8{
-                        chassis_wheel_motors_[3].generate_command(),
-                        chassis_joint_motors_[3].generate_command(),
-                        device::CanPacket8::PaddingQuarter{},
-                        device::CanPacket8::PaddingQuarter{},
-                    }.as_bytes(),
+                    .can_data =
+                        device::CanPacket8{
+                                           chassis_wheel_motors_[3].generate_command(),
+                                           chassis_joint_motors_[3].generate_command(),
+                                           device::CanPacket8::PaddingQuarter{},
+                                           device::CanPacket8::PaddingQuarter{},
+                                           }
+                            .as_bytes(),
                 });
                 builder.can1_transmit({
                     .can_id = 0x142,
@@ -433,8 +455,7 @@ private:
 
         explicit TopBoard(
             DeformableInfantry& deformableInfantry,
-            DeformableInfantryCommand& deformableInfantry_command,
-            std::string serial_filter = {})
+            DeformableInfantryCommand& deformableInfantry_command, std::string serial_filter = {})
             : CBoard(serial_filter)
             , tf_(deformableInfantry.tf_)
             , bmi088_(1000, 0.2, 0.0)
@@ -452,11 +473,10 @@ private:
 
             gimbal_left_friction_.configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
-                .set_reduction_ratio(1.)
-                .set_reversed());
+                    .set_reduction_ratio(1.)
+                    .set_reversed());
             gimbal_right_friction_.configure(
-                device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
-                    .set_reduction_ratio(1.));
+                device::DjiMotor::Config{device::DjiMotor::Type::kM3508}.set_reduction_ratio(1.));
 
             scope_motor.configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kM2006}.enable_multi_turn_angle());
@@ -479,7 +499,7 @@ private:
             Eigen::Quaterniond gimbal_bmi088_pose{
                 bmi088_.q0(), bmi088_.q1(), bmi088_.q2(), bmi088_.q3()};
 
-            *gimbal_yaw_velocity_bmi088_   = bmi088_.gz();
+            *gimbal_yaw_velocity_bmi088_ = bmi088_.gz();
             *gimbal_pitch_velocity_bmi088_ = bmi088_.gy();
 
             tf_->set_transform<rmcs_description::PitchLink, rmcs_description::OdomImu>(
@@ -502,12 +522,14 @@ private:
             });
             builder.can2_transmit({
                 .can_id = 0x200,
-                .can_data = device::CanPacket8{
-                    gimbal_left_friction_.generate_command(),
-                    device::CanPacket8::PaddingQuarter{},
-                    scope_motor.generate_command(),
-                    gimbal_right_friction_.generate_command(),
-                }.as_bytes(),
+                .can_data =
+                    device::CanPacket8{
+                                       gimbal_left_friction_.generate_command(),
+                                       device::CanPacket8::PaddingQuarter{},
+                                       scope_motor.generate_command(),
+                                       gimbal_right_friction_.generate_command(),
+                                       }
+                        .as_bytes(),
             });
         }
 
