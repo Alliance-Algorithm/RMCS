@@ -106,7 +106,8 @@ public:
 
         double control_torque = std::clamp(calc_raw_control_torque_(), -torque_limit_, torque_limit_);
         control_torque        = apply_terminal_velocity_limit_(control_torque);
-        *control_torque_      = std::clamp(control_torque, -torque_limit_, torque_limit_);
+        // *control_torque_      = std::clamp(control_torque, -torque_limit_, torque_limit_);
+        *control_torque_ = 0.0;
     }
 
 private:
