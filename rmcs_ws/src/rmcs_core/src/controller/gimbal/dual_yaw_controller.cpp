@@ -44,6 +44,9 @@ public:
 
         register_output("/gimbal/top_yaw/control_torque", top_yaw_control_torque_, 0.0);
         register_output("/gimbal/bottom_yaw/control_torque", bottom_yaw_control_torque_, 0.0);
+        register_output("/gimbal/top_yaw/control_angle", top_yaw_control_angle_, nan_);
+        register_output(
+            "/gimbal/bottom_yaw/control_angle_shift", bottom_yaw_control_angle_shift_, nan_);
 
         status_component_ =
             create_partner_component<DualYawStatus>(get_component_name() + "_status");

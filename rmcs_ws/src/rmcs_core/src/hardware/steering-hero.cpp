@@ -166,8 +166,6 @@ private:
                     .set_reduction_ratio(1.)
                     .enable_multi_turn_angle());
 
-            dd = steering_hero.get_parameter("dd").as_int();
-
             steering_hero.register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
             steering_hero.register_output("/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
 
@@ -323,8 +321,6 @@ private:
         }
 
         void putter_receive_callback(bool status) { *photoelectric_sensor_status_ = status; }
-
-        uint8_t dd;
 
         rclcpp::Logger logger_;
         OutputInterface<rmcs_description::Tf>& tf_;
