@@ -29,8 +29,8 @@ public:
               pid::PidCalculator(200.0, 0.0, 0.0), // joint_2
               pid::PidCalculator(800.0, 0.0, 10.0), // joint_3
               pid::PidCalculator(250.0, 0.0, 1.0), // joint_4
-              pid::PidCalculator(300.0, 0.0, 10.0), // joint_5
-              pid::PidCalculator(140.0, 0.0, 1.0), // joint_6
+              pid::PidCalculator(600.0, 0.0, 10.0), // joint_5
+              pid::PidCalculator(200.0, 0.0, 1.0), // joint_6
           }
         , joint_vel_pid_controller{
               pid::PidCalculator(0.3, 0.0, 0.0), // joint_1
