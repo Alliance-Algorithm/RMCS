@@ -20,13 +20,26 @@ dart_hardware:
 
 dart_manager:
   ros__parameters:
+    launch_prepare_enable_visual_assist: false
     max_transform_rate: 5.0
     manual_force_scale: 5.0
-    limiting_fill_ticks:  1000
+    limiting_fill_ticks:  200
     lifting_stall_threshold:     0.1    # rad/s，低于此值视为堵转
     lifting_stall_confirm_ticks: 100    # 连续帧数 = 0.1s @ 1kHz
     lifting_stall_min_run_ticks: 500    # 启动后最少运行帧数，避免启动瞬间误触发
     lifting_stall_timeout_ticks: 2000   # 超时帧数 = 5s
+    dart_count: 4
+    aim_reference_pixel: [0.0, 0.0]                 # 基准像素，后续现场标定
+    aim_dart_offsets_px: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]  # 每发相对修正
+    aim_deadband_px: [3.0, 3.0]
+    aim_ready_exit_deadband_px: [5.0, 5.0]
+    aim_accept_deadband_px: [8.0, 8.0]
+    aim_yaw_gain: 0.08
+    aim_pitch_gain: 0.08
+    aim_ready_confirm_ticks: 5
+    aim_timeout_ticks: 3000
+    aim_min_transform_rate: 0.0
+    auto_aim_max_transform_rate: 5.0
 
 launch_setting:
   ros__parameters:
@@ -43,8 +56,8 @@ launch_setting:
 dart_filling:
   ros__parameters:
     lifting_velocity: 3.0
-    limiting_free_angle: 500
-    limiting_lock_angle: 1000
+    limiting_free_angle: 0x0BFF
+    limiting_lock_angle: 0x0B53
 
 dart_setting:
   ros__parameters:
