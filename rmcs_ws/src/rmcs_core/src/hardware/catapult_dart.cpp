@@ -163,7 +163,7 @@ public:
         if (pub_time_count_++ > 100) {
             board.can1_transmit({
                 .can_id   = 0x301,
-                .can_data = device::CanPacket8::PaddingQuarter{}.as_bytes(),
+                .can_data = device::CanPacket8{0}.as_bytes(),
             });
             pub_time_count_ = 0;
         }

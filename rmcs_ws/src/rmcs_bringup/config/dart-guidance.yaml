@@ -3,6 +3,9 @@ rmcs_executor:
     update_rate: 1000.0
     components:
       - rmcs_core::hardware::CatapultDartV3Lk        -> dart_hardware
+      - rmcs_dart_guidance::DartVisionCore           -> dart_vision
+      - rmcs_dart_guidance::ImagePublisher           -> dart_camera_image_publisher
+      - rmcs_dart_guidance::ImagePublisher           -> dart_display_image_publisher
       - rmcs_dart_guidance::manager::DartManagerV2   -> dart_manager
       - rmcs_dart_guidance::manager::RemoteCommandBridge -> remote_cmd_bridge
       # - rmcs_dart_guidance::manager::WebCommandBridge -> web_cmd_bridge
@@ -18,10 +21,50 @@ dart_hardware:
     first_sample_spot: 1.0
     final_sample_spot: 4.0
 
+dart_vision:
+  ros__parameters:
+    invert_image: true
+    exposure_time: 3000
+    gain: 11.0
+    L_H: 0.0
+    L_S: 0.0
+    L_V: 200.0
+    U_H: 180.0
+    U_S: 30.0
+    U_V: 255.0
+    enable_image_saving: false
+    image_save_directory: "./saved_images"
+    image_save_interval_ms: 1000
+    save_raw_image: true
+    save_processed_image: false
+
+dart_camera_image_publisher:
+  ros__parameters:
+    Interface_name: /dart_guidance/camera/camera_image
+    topic_name: /dart_guidance/camera/camera_image
+    publish_freq: 60.0
+    image_type: bgr8
+
+dart_display_image_publisher:
+  ros__parameters:
+    Interface_name: /dart_guidance/camera/display_image
+    topic_name: /dart_guidance/camera/display_image
+    publish_freq: 60.0
+    image_type: mono8
+
 dart_manager:
   ros__parameters:
     max_transform_rate: 5.0
+    auto_aim_max_transform_rate: 5.0
     manual_force_scale: 5.0
+    dart_count: 4
+    aim_reference_pixel: [701.0, 565.0]
+    aim_dart_offsets_px: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    aim_yaw_gain: 0.05
+    aim_pitch_gain: 0.05
+    aim_deadband_px: [3.0, 3.0]
+    aim_ready_confirm_ticks: 20
+    aim_timeout_ticks: 5000
     limiting_fill_ticks:  1000
     lifting_stall_threshold:     0.1    # rad/s，低于此值视为堵转
     lifting_stall_confirm_ticks: 100    # 连续帧数 = 0.1s @ 1kHz
@@ -54,6 +97,7 @@ dart_setting:
     pitch_kp: 1.0
     pitch_ki: 0.0
     pitch_kd: 0.0
+    log_enable: true
 
 force_screw_velocity_pid_controller:
   ros__parameters:

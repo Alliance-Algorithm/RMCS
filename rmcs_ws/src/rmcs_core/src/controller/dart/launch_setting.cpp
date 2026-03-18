@@ -84,7 +84,6 @@ public:
 
         double torque_limit =
             belt_torque_limit_.ready() ? std::abs(*belt_torque_limit_) : max_control_torque_;
-        torque_limit = std::min(torque_limit, max_control_torque_);
 
         if (control_mode == BeltControlMode::WAIT_HOLD) {
             apply_hold_torque();
