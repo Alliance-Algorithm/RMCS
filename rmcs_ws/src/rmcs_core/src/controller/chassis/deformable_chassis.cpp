@@ -277,18 +277,20 @@ private:
         rf_current_target_angle_ = current_target_angle_;
     }
 
-    void update_lift_special_toggle(rmcs_msgs::Switch left_switch, rmcs_msgs::Switch right_switch){
-        if ((left_switch == rmcs_msgs::Switch::DOWN) && (right_switch == rmcs_msgs::Switch::UP)
-            && !(left_switch == rmcs_msgs::Switch::DOWN) && (right_switch == rmcs_msgs::Switch::UP)) {
+    void update_lift_special_toggle(rmcs_msgs::Switch left_switch, rmcs_msgs::Switch right_switch) {
+        const bool front_high_rear_low =
+            left_switch == rmcs_msgs::Switch::DOWN && right_switch == rmcs_msgs::Switch::UP;
+        const bool front_low_rear_high =
+            left_switch == rmcs_msgs::Switch::UP && right_switch == rmcs_msgs::Switch::DOWN;
+
+        if (front_high_rear_low) {
             lf_current_target_angle_ = max_angle_;
-            rf_current_target_angle_ = max_angle_;   
+            rf_current_target_angle_ = max_angle_;
             lb_current_target_angle_ = min_angle_;
-            rb_current_target_angle_ = min_angle_;    
-        }
-        if((left_switch == rmcs_msgs::Switch::UP) && (right_switch == rmcs_msgs::Switch::DOWN)
-            && !(left_switch == rmcs_msgs::Switch::UP) && (right_switch == rmcs_msgs::Switch::DOWN)) {
+            rb_current_target_angle_ = min_angle_;
+        } else if (front_low_rear_high) {
             lf_current_target_angle_ = min_angle_;
-            rf_current_target_angle_ = min_angle_;   
+            rf_current_target_angle_ = min_angle_;
             lb_current_target_angle_ = max_angle_;
             rb_current_target_angle_ = max_angle_;
         }

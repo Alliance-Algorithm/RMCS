@@ -63,8 +63,8 @@ deformable_infantry:
 
 chassis_controller:
   ros__parameters:
-    min_angle: 20.0    
-    max_angle: 30.0   
+    min_angle: 11.0
+    max_angle: 40.0
     left_front_joint_offset: 257.501488
     left_back_joint_offset: 353.545434
     right_back_joint_offset: 7.591669
@@ -75,8 +75,8 @@ chassis_controller:
 
 gimbal_controller:
   ros__parameters:
-    upper_limit: -25.0
-    lower_limit: 10.0
+    upper_limit: -0.174533 # -25 deg 
+    lower_limit: 0.436332 # 10 deg 
 
 yaw_angle_pid_controller:
   ros__parameters:
