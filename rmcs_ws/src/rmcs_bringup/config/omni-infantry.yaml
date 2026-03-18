@@ -34,7 +34,7 @@ infantry_hardware:
 sp_vision_bridge:
   ros__parameters:
     config_file: configs/standard3.yaml
-    bullet_speed_fallback: 23.0
+    bullet_speed_fallback: 27.0
     result_timeout: 0.2
     debug: false
     virtual_center_distance: 6.0
