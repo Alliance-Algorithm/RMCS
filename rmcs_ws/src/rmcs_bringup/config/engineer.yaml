@@ -11,6 +11,8 @@ rmcs_executor:
 
       - rmcs_core::controller::pid::ErrorPidController -> gripper_error_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> gripper_velocity_pid_controller
+      - rmcs_core::controller::pid::ErrorPidController -> image_pitch_angle_pid_controller
+      - rmcs_core::controller::pid::PidController -> image_pitch_velocity_pid_controller
 
       - rmcs_core::controller::leg::LegController -> leg_controller
 
@@ -40,7 +42,8 @@ engineer_hardware:
     arm_board_usb_pid: 0x1783
     left_board_usb_pid: 0x652f
     right_board_usb_pid: 0x75f3
-    gripper_zero_point: 46048
+    gripper_zero_point: 54033
+    image_pitch_zero_point: 44733
     joint6_zero_point: 0
     joint5_zero_point: 37436
     joint4_zero_point: 28029
@@ -60,6 +63,12 @@ engineer_hardware:
 image_transmission:
   ros__parameters:
     path: /dev/ttyUSB0    
+
+arm_controller:
+  ros__parameters:
+    image_pitch_target_theta: 0.0
+    image_pitch_qmin: 2.2
+    image_pitch_qmax: -0.7
 
 arm_solver:
   ros__parameters:
@@ -95,6 +104,23 @@ gripper_velocity_pid_controller:
     ki: 0.0
     kd: 0.0
 
+image_pitch_angle_pid_controller:
+  ros__parameters:
+    measurement: /arm/image_pitch/target_theta_error
+    control: /arm/image_pitch/control_vel
+    kp: 200.0
+    ki: 0.0
+    kd: 0.0
+
+image_pitch_velocity_pid_controller:
+  ros__parameters:
+    measurement: /arm/image_pitch/motor/velocity
+    setpoint: /arm/image_pitch/control_vel
+    control: /arm/image_pitch/motor/control_torque
+    kp: 0.1
+    ki: 0.0
+    kd: 0.0
+
 leg_omni_l_velocity_controller:
   ros__parameters:
     measurement: /leg/omni/l/velocity
@@ -117,7 +143,7 @@ big_yaw_angle_error_pid_controller:
   ros__parameters:
     measurement: /chassis/big_yaw/target_angle_error
     control: /chassis/big_yaw/control_vel
-    kp: 51.3
+    kp: 31.3
     ki: 0.0
     kd: 2.6
 big_yaw_velocity_pid_controller:
@@ -125,7 +151,7 @@ big_yaw_velocity_pid_controller:
     measurement: /chassis/big_yaw/velocity
     setpoint: /chassis/big_yaw/control_vel
     control: /chassis/big_yaw/control_torque
-    kp: 6.99
+    kp: 3.99
     ki: 0.0
     kd: 0.039
 

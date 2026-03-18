@@ -43,6 +43,7 @@ public:
         register_input("yaw_imu_angle", yaw_imu_angle_);
         register_input("/arm/joint_1/theta", joint1_theta_);
         register_input("/arm/mode", arm_mode_);
+        register_input("/arm/custom_big_yaw", custom_big_yaw_);
 
         register_input("/steering/power_meter/power", chassis_power_);
 
@@ -104,12 +105,9 @@ public:
             if (is_stair_mode()) {
                 const auto result = yaw_trajectory_controller_.trajectory();
                 yaw_target_angle_ = !result.empty() ? result[0] : 0.0;
-            }
-            else if (*arm_mode_ == rmcs_msgs::ArmMode::Custome) {
-                yaw_target_angle_ = *chassis_big_yaw_angle_;
-            
-            } 
-            else {
+            } else if (*arm_mode_ == rmcs_msgs::ArmMode::Custome) {
+                yaw_target_angle_ = *custom_big_yaw_;
+            } else {
                 yaw_target_angle_ += joystick_right_->y() * 0.002;
             }
             angular_velocity = joystick_right_->y() * angular_velocity_limit_;
@@ -274,6 +272,7 @@ private:
     double angular_velocity_limit_                       = 10.0;
     pid::PidCalculator following_velocity_controller_;
     InputInterface<double> joint1_theta_;
+    InputInterface<double> custom_big_yaw_;
 
     YawControlMode yaw_control_mode_ = YawControlMode::IMU;
     InputInterface<double> yaw_imu_angle_;

@@ -77,7 +77,11 @@ public:
         register_output("/arm/gripper/target_theta", target_theta[6], NAN);
         register_input("/arm/gripper/motor/angle", theta[6], NAN);
         register_output("/arm/gripper/target_theta_error", gripper_target_theta_error, NAN);
-        
+        register_input("/arm/image_pitch/motor/angle", image_pitch_theta_, NAN);
+        register_output(
+            "/arm/image_pitch/target_theta_error", image_pitch_target_theta_error_, NAN);
+        register_output("/arm/custom_big_yaw", custom_big_yaw_output_, 0.0);
+
         move_group_ =
             std::make_unique<moveit::planning_interface::MoveGroupInterface>(node_, "alliance_arm");
         move_group_->startStateMonitor();
@@ -107,6 +111,7 @@ public:
         auto switch_right = *switch_right_;
         auto switch_left  = *switch_left_;
         auto keyboard     = *keyboard_;
+        auto mouse        = *mouse_;
         using namespace rmcs_msgs;
         static bool initial_check_done{false};
 
@@ -115,7 +120,11 @@ public:
             for (std::size_t i = 0; i < std::size(theta); ++i) {
                 *target_theta[i] = *theta[i];
             }
-            *gripper_target_theta_error = NAN;
+            *gripper_target_theta_error       = NAN;
+            image_pitch_target_theta_         = *image_pitch_theta_;
+            *image_pitch_target_theta_error_  = NAN;
+            image_pitch_theta1_offset_        = 0.0;
+            last_mouse_                       = mouse;
             if (switch_left == Switch::DOWN && switch_right == Switch::DOWN) {
                 initial_check_done = true;
             }
@@ -131,7 +140,11 @@ public:
             for (std::size_t i = 0; i < std::size(theta); ++i) {
                 *target_theta[i] = *theta[i];
             }
-            *gripper_target_theta_error = NAN;
+            *gripper_target_theta_error       = NAN;
+            image_pitch_target_theta_         = *image_pitch_theta_;
+            *image_pitch_target_theta_error_  = NAN;
+            image_pitch_theta1_offset_        = 0.0;
+            last_mouse_                       = mouse;
             set_gripper_mode(rmcs_msgs::GripperMode::None);
             set_arm_mode(rmcs_msgs::ArmMode::None);
             *arm_mode_ = get_arm_mode();
@@ -172,9 +185,16 @@ public:
                     set_arm_mode(rmcs_msgs::ArmMode::Custome);
                 }
             }
+            if (mouse.left && !last_mouse_.left) {
+                image_pitch_theta1_offset_ += 0.05;
+            }
+            if (mouse.right && !last_mouse_.right) {
+                image_pitch_theta1_offset_ -= 0.05;
+            }
         } else {
             set_arm_mode(rmcs_msgs::ArmMode::None);
         }
+        last_mouse_ = mouse;
 
         *arm_mode_ = get_arm_mode();
         switch (get_arm_mode()) {
@@ -202,12 +222,12 @@ public:
 
         auto knob = *rotary_knob_switch;
         if (knob == Switch::UP) {
-            RCLCPP_INFO(node_->get_logger(),"dfs");
             set_gripper_mode(rmcs_msgs::GripperMode::Open);
         } else if (knob == Switch::DOWN) {
             set_gripper_mode(rmcs_msgs::GripperMode::Close);
         }
         gripper_control();
+        image_pitch_control();
     }
 
 private:
@@ -358,15 +378,16 @@ private:
         std::array<double, 6> angles{};
         for (std::size_t i = 0; i < 6; ++i) {
             double divisor = (i == 3 || i == 5) ? 32768.0 : 65536.0;
-            angles[i] = raw_to_angle(frame.joint[i], divisor);
-            // *target_theta[i] = angles[i];
+            angles[i]      = raw_to_angle(frame.joint[i], divisor);
+            if (i == 2 || i == 5) {
+                angles[i] = -angles[i];
+            }
+            *target_theta[i] = angles[i];
         }
 
-        RCLCPP_INFO(
-            node_->get_logger(),
-            "joint: [%.4f, %.4f, %.4f, %.4f, %.4f, %.4f]",
-            angles[0], angles[1], angles[2],
-            angles[3], angles[4], angles[5]);
+        *custom_big_yaw_output_ = raw_to_angle(frame.big_yaw, 65536.0);
+
+        
     }
     void execute_dt7_orientation() {
         if (fabs(joystick_left_->y()) > 0.01) {
@@ -397,13 +418,10 @@ private:
         }
     }
     void gripper_control() {
-        
-        auto unwrap = [](double angle) -> double {
-            return angle < 0 ? angle + 2.0 * M_PI : angle;
-        };
+        auto unwrap = [](double angle) -> double { return angle < 0 ? angle + 2.0 * M_PI : angle; };
 
         constexpr double closed_angle = 0.0;
-        constexpr double open_angle   = -1.5;
+        constexpr double open_angle   = -2.1;
 
         switch (get_gripper_mode()) {
         case rmcs_msgs::GripperMode::Open: *target_theta[6] = open_angle; break;
@@ -413,6 +431,26 @@ private:
         }
 
         *gripper_target_theta_error = unwrap(*target_theta[6]) - unwrap(*theta[6]);
+    }
+
+    void image_pitch_control() {
+
+        double qmin = -3;
+        double qmax = 3;
+        node_->get_parameter("image_pitch_qmin", qmin);
+        node_->get_parameter("image_pitch_qmax", qmax);
+        if (qmin > qmax) {
+            std::swap(qmin, qmax);
+        }
+
+        image_pitch_target_theta_ = *theta[1] + image_pitch_theta1_offset_;
+        image_pitch_target_theta_         = std::clamp(image_pitch_target_theta_, qmin, qmax);
+
+        *image_pitch_target_theta_error_  = image_pitch_target_theta_ - *image_pitch_theta_;
+        RCLCPP_INFO_THROTTLE(
+            node_->get_logger(), *node_->get_clock(), 100,
+            "image_pitch target=%.3f, theta1=%.3f, offset=%.3f  %f",
+            image_pitch_target_theta_, *theta[1], image_pitch_theta1_offset_,*image_pitch_theta_);
     }
 
     InputInterface<Eigen::Vector2d> joystick_right_;
@@ -431,8 +469,15 @@ private:
 
     rmcs_msgs::GripperMode gripper_mode_{rmcs_msgs::GripperMode::None};
     OutputInterface<double> gripper_target_theta_error;
+    
+    InputInterface<double> image_pitch_theta_;
+    double image_pitch_target_theta_{0.0};
+    double image_pitch_theta1_offset_{0.0};
+    rmcs_msgs::Mouse last_mouse_{rmcs_msgs::Mouse::zero()};
+    OutputInterface<double> image_pitch_target_theta_error_;
 
     InputInterface<std::array<uint8_t, 30>> custom_data_;
+    OutputInterface<double> custom_big_yaw_output_;
 
     rclcpp::Node::SharedPtr node_;
     rclcpp::executors::SingleThreadedExecutor exec_;

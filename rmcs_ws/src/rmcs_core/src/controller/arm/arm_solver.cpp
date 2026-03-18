@@ -25,20 +25,20 @@ public:
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , joint_angle_pid_controller{
-              pid::PidCalculator(6000.0, 0.0, 0.0), // joint_1
-              pid::PidCalculator(33.0, 0.0, 0.0), // joint_2
-              pid::PidCalculator(1100.0, 0.0, 50.0), // joint_3
-              pid::PidCalculator(3000.0, 0.0, 4.0), // joint_4
-              pid::PidCalculator(750.0, 0.0, 10.0), // joint_5
-              pid::PidCalculator(100.0, 0.0, 4.0), // joint_6
+              pid::PidCalculator(500.0, 0.0, 0.0), // joint_1
+              pid::PidCalculator(200.0, 0.0, 0.0), // joint_2
+              pid::PidCalculator(800.0, 0.0, 10.0), // joint_3
+              pid::PidCalculator(250.0, 0.0, 1.0), // joint_4
+              pid::PidCalculator(300.0, 0.0, 10.0), // joint_5
+              pid::PidCalculator(140.0, 0.0, 1.0), // joint_6
           }
         , joint_vel_pid_controller{
-              pid::PidCalculator(0.4, 0.0, 0.0), // joint_1
-              pid::PidCalculator(15.1, 0.0, 0.00), // joint_2
-              pid::PidCalculator(1.1, 0.0, 0.0), // joint_3
-              pid::PidCalculator(0.135, 0.0, 0.002), // joint_4
-              pid::PidCalculator(0.11, 0.0, 0.004), // joint_5
-              pid::PidCalculator(0.0900, 0.0, 0.004), // joint_6
+              pid::PidCalculator(0.3, 0.0, 0.0), // joint_1
+              pid::PidCalculator(1.3, 0.0, 0.00), // joint_2
+              pid::PidCalculator(0.6, 0.0, 0.004), // joint_3
+              pid::PidCalculator(0.65, 0.0, 0.002), // joint_4
+              pid::PidCalculator(0.121, 0.0, 0.004), // joint_5
+              pid::PidCalculator(0.01400, 0.0, 0.004), // joint_6
           } {
         for (std::size_t i = 0; i < num_axis; ++i) {
             const std::string joint_prefix = "/arm/joint_" + std::to_string(i + 1);

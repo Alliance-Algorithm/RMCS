@@ -87,6 +87,7 @@ private:
                   {engineer, engineer_command, "/arm/joint_5/motor"},
                   {engineer, engineer_command, "/arm/joint_6/motor"})
             , gripper{engineer, engineer_command, "/arm/gripper/motor"}
+            , image_pitch{engineer, engineer_command, "/arm/image_pitch/motor"}
             , joint2_encoder(engineer, "/arm/joint_2/encoder")
             , dr16_(engineer)
             , transmit_buffer_(*this, 32)
@@ -98,6 +99,9 @@ private:
             engineer.register_output("yaw_imu_velocity", yaw_imu_velocity, NAN);
             engineer.register_output("yaw_imu_angle", yaw_imu_angle, NAN);
             using namespace device;
+            image_pitch.configure(
+                LKMotorConfig{LKMotorType::MG4010E_i10V3}.reverse().set_encoder_zero_point(
+                    static_cast<int>(engineer.get_parameter("image_pitch_zero_point").as_int())));
             gripper.configure(
                 LKMotorConfig{LKMotorType::MG4005E_i10V3}.set_encoder_zero_point(
                     static_cast<uint16_t>(engineer.get_parameter("gripper_zero_point").as_int())));
@@ -133,6 +137,7 @@ private:
             transmit_buffer_.add_can2_transmission(0x144, command_);
             transmit_buffer_.add_can2_transmission(0x141, command_);
             transmit_buffer_.add_can2_transmission(0x147, command_);
+            transmit_buffer_.add_can1_transmission(0x148, command_);
             transmit_buffer_.add_can1_transmission(0x142, command_);
             transmit_buffer_.add_can1_transmission(0x143, command_);
             transmit_buffer_.add_can1_transmission(0x146, command_);
@@ -155,15 +160,17 @@ private:
             static bool even_phase{true};
 
             if (even_phase) {
+                command_ = image_pitch.generate_torque_command();
+                transmit_buffer_.add_can1_transmission(0x148, command_);
 
                 command_ = joint[2].generate_torque_command();
                 transmit_buffer_.add_can1_transmission(0x143, command_);
 
-                command_ = joint[5].generate_torque_command();
-                transmit_buffer_.add_can2_transmission(0x141, command_);
-
                 command_ = gripper.generate_torque_command();
                 transmit_buffer_.add_can2_transmission(0x147, command_);
+
+                command_ = joint[5].generate_torque_command();
+                transmit_buffer_.add_can2_transmission(0x141, command_);
 
             } else {
 
@@ -193,6 +200,7 @@ private:
             joint[1].update();
             joint[0].update();
             gripper.update();
+            image_pitch.update();
         }
 
         void update_imu() {
@@ -218,7 +226,7 @@ private:
                 joint[3].store_status(can_data);
             else if (can_id == 0x147) {
                 gripper.store_status(can_data);
-            };
+            } 
         }
         void can1_receive_callback(
             uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
@@ -233,7 +241,9 @@ private:
                 joint[0].store_status(can_data);
             else if (can_id == 0x200) {
                 joint2_encoder.store_status(can_data);
-            }
+            }else if (can_id == 0x148) {
+                image_pitch.store_status(can_data);
+            };
         }
 
         void dbus_receive_callback(const std::byte* uart_data, uint8_t uart_data_length) override {
@@ -251,6 +261,7 @@ private:
     private:
         device::LKMotor joint[6];
         device::LKMotor gripper;
+        device::LKMotor image_pitch;
         device::Encoder joint2_encoder;
         device::Dr16 dr16_;
         librmcs::client::CBoard::TransmitBuffer transmit_buffer_;
