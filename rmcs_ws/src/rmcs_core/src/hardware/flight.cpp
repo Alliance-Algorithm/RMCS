@@ -1,3 +1,4 @@
+#include <cmath>
 #include <cstdint>
 #include <memory>
 #include <mutex>
@@ -5,6 +6,7 @@
 
 #include <nav_msgs/msg/odometry.hpp>
 #include <px4_ros2/navigation/experimental/local_position_measurement_interface.hpp>
+#include <px4_ros2/utils/frame_conversion.hpp>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/node.hpp>
 
@@ -171,6 +173,11 @@ private:
     }
 
     void update_local_position() {
+        // Rate-limit to 50 Hz: skip unless 20 update cycles (20 ms) have elapsed
+        if (++odom_publish_counter_ < 20)
+            return;
+        odom_publish_counter_ = 0;
+
         OdomSnapshot snap;
         {
             std::lock_guard<std::mutex> lock(odom_mutex_);
@@ -180,35 +187,68 @@ private:
             odom_ready_ = false;
         }
 
-        Eigen::Quaternionf odom_to_odin_q{snap.q_w, snap.q_x, snap.q_y, snap.q_z};
-        odom_to_odin_q.normalize();
+        // Validate: reject any snapshot containing NaN values
+        if (std::isnan(snap.pos_x) || std::isnan(snap.pos_y) || std::isnan(snap.pos_z)
+            || std::isnan(snap.vel_x) || std::isnan(snap.vel_y) || std::isnan(snap.vel_z)
+            || std::isnan(snap.q_w) || std::isnan(snap.q_x) || std::isnan(snap.q_y)
+            || std::isnan(snap.q_z)) {
+            RCLCPP_WARN_THROTTLE(
+                logger_, *get_clock(), 1000,
+                "Odometry snapshot contains NaN, skipping publish");
+            return;
+        }
 
         px4_ros2::LocalPositionMeasurement meas{};
         meas.timestamp_sample =
             snap.timestamp_sample.nanoseconds() > 0 ? snap.timestamp_sample : get_clock()->now();
 
-        meas.position_xy = Eigen::Vector2f{snap.pos_x, snap.pos_y};
-        meas.position_xy_variance = Eigen::Vector2f{
-            snap.cov_xx > 0.f ? snap.cov_xx : 0.1f, snap.cov_yy > 0.f ? snap.cov_yy : 0.1f};
+        // Odin publishes in ENU frame; PX4 expects NED.
+        // ENU→NED position: (x_ned, y_ned, z_ned) = (y_enu, x_enu, -z_enu)
+        float ned_pos_x = snap.pos_y;
+        float ned_pos_y = snap.pos_x;
+        float ned_pos_z = -snap.pos_z;
 
-        meas.position_z = snap.pos_z;
-        meas.position_z_variance = snap.cov_zz > 0.f ? snap.cov_zz : 0.1f;
+        float ned_vel_x = snap.vel_y;
+        float ned_vel_y = snap.vel_x;
+        float ned_vel_z = -snap.vel_z;
 
-        meas.velocity_xy = Eigen::Vector2f{snap.vel_x, snap.vel_y};
-        meas.velocity_xy_variance = Eigen::Vector2f{
-            snap.vel_cov_xx > 0.f ? snap.vel_cov_xx : 0.1f,
-            snap.vel_cov_yy > 0.f ? snap.vel_cov_yy : 0.1f};
+        meas.position_xy = Eigen::Vector2f{ned_pos_x, ned_pos_y};
+        meas.position_z = ned_pos_z;
 
-        meas.velocity_z = snap.vel_z;
-        meas.velocity_z_variance = snap.vel_cov_zz > 0.f ? snap.vel_cov_zz : 0.1f;
+        // Covariance: only provide if source has valid (>0) values; swap x↔y for NED
+        bool pos_cov_valid = snap.cov_xx > 0.f && snap.cov_yy > 0.f && snap.cov_zz > 0.f
+            && !std::isnan(snap.cov_xx) && !std::isnan(snap.cov_yy) && !std::isnan(snap.cov_zz);
+        if (pos_cov_valid) {
+            meas.position_xy_variance = Eigen::Vector2f{snap.cov_yy, snap.cov_xx};
+            meas.position_z_variance = snap.cov_zz;
+        } else {
+            // No valid covariance from source; omit position entirely rather than fabricate
+            meas.position_xy = std::nullopt;
+            meas.position_z = std::nullopt;
+        }
 
-        meas.attitude_quaternion = odom_to_odin_q;
+        bool vel_cov_valid = snap.vel_cov_xx > 0.f && snap.vel_cov_yy > 0.f
+            && snap.vel_cov_zz > 0.f && !std::isnan(snap.vel_cov_xx)
+            && !std::isnan(snap.vel_cov_yy) && !std::isnan(snap.vel_cov_zz);
+        if (vel_cov_valid) {
+            meas.velocity_xy = Eigen::Vector2f{ned_vel_x, ned_vel_y};
+            meas.velocity_xy_variance = Eigen::Vector2f{snap.vel_cov_yy, snap.vel_cov_xx};
+            meas.velocity_z = ned_vel_z;
+            meas.velocity_z_variance = snap.vel_cov_zz;
+        }
+        // If vel covariance invalid, omit velocity (leave as nullopt)
+
+        // Attitude: convert quaternion from ENU to NED
+        Eigen::Quaternionf q_enu{snap.q_w, snap.q_x, snap.q_y, snap.q_z};
+        q_enu.normalize();
+        meas.attitude_quaternion = px4_ros2::attitudeEnuToNed(q_enu);
         meas.attitude_variance = Eigen::Vector3f{0.05f, 0.05f, 0.05f};
 
         try {
             local_position_interface_.update(meas);
-            RCLCPP_INFO(
-                logger_, "Published local position measurement with timestamp %f",
+            RCLCPP_INFO_THROTTLE(
+                logger_, *get_clock(), 1000,
+                "Published local position measurement with timestamp %f",
                 meas.timestamp_sample.seconds());
         } catch (const px4_ros2::NavigationInterfaceInvalidArgument& e) {
             RCLCPP_ERROR_THROTTLE(
@@ -239,6 +279,7 @@ private:
     std::mutex odom_mutex_;
     OdomSnapshot latest_odom_;
     bool odom_ready_{false};
+    uint32_t odom_publish_counter_{0};
 
     void odin_odometry_subscription_callback(const nav_msgs::msg::Odometry& msg) {
         RCLCPP_INFO_THROTTLE(
