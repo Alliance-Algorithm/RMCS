@@ -125,6 +125,7 @@ public:
         configure_pid(*this, "yaw_velocity", yaw_velocity_pid_);
         configure_pid(*this, "pitch_angle", pitch_angle_pid_);
         configure_pid(*this, "pitch_velocity", pitch_velocity_pid_);
+        load_optional_parameter(*this, "yaw_vel_ff_gain", yaw_vel_ff_gain_);
 
         register_input("/remote/joystick/left", joystick_left_);
         register_input("/remote/switch/right", switch_right_);
@@ -207,6 +208,7 @@ public:
             pitch_angle_pid_.update(angle_error.pitch_angle_error) + velocity_ff.y();
 
         *yaw_control_torque_ = yaw_velocity_pid_.update(yaw_velocity_ref - *yaw_velocity_imu_)
+                             + yaw_vel_ff_gain_ * velocity_ff.x()
                              + yaw_acc_ff_gain_ * acceleration_ff.x();
         // *pitch_control_torque_ =
         //     pitch_velocity_pid_.update(pitch_velocity_ref - *pitch_velocity_)
@@ -323,6 +325,7 @@ private:
     pid::PidCalculator yaw_velocity_pid_;
     pid::PidCalculator pitch_angle_pid_;
     pid::PidCalculator pitch_velocity_pid_;
+    double yaw_vel_ff_gain_ = 0.0;
     double yaw_acc_ff_gain_;
     double pitch_acc_ff_gain_;
 

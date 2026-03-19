@@ -17,7 +17,7 @@ rmcs_executor:
       - rmcs_core::controller::smc::Smc_Observer -> smc_observer2
       - rmcs_core::controller::smc::Smc_Observer -> smc_observer3
 
-      - sp_vision_25::bridge::SpVisionResponseTestBridge -> sp_vision_bridge
+      - sp_vision_25::bridge::SpVisionBridge -> sp_vision_bridge
       - rmcs_core::controller::gimbal::OmniInfantryPlannerGimbalController -> gimbal_controller
 
       - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
@@ -37,13 +37,13 @@ rmcs_executor:
 sp_vision_bridge:
   ros__parameters:
     config_file: configs/standard4.yaml
-    bullet_speed_fallback: 27.0
+    bullet_speed_fallback: 28.0
     result_timeout: 0.2
     debug: false
     virtual_center_distance: 6.0
     virtual_center_yaw: 0.0
     virtual_center_height: 0.0
-    virtual_angular_velocity: 8.0
+    virtual_angular_velocity: 4.0
     virtual_base_radius: 0.2
     virtual_radius_delta: 0.025
     virtual_height_delta: 0.0
@@ -103,7 +103,8 @@ gimbal_controller:
     yaw_velocity_ki: 0.0
     yaw_velocity_kd: 0.0
 
-    yaw_acc_ff_gain: 0.05
+    yaw_vel_ff_gain: 0.47
+    yaw_acc_ff_gain: 0.00
 
     # Placeholder pitch gains copied from omni-infantry until pitch sweep is available.
     pitch_angle_kp: 8.0
@@ -122,8 +123,8 @@ friction_wheel_controller:
       - /gimbal/left_friction
       - /gimbal/right_friction
     friction_velocities:
-      - 700.0
-      - 700.0
+      - 800.0
+      - 800.0
     friction_soft_start_stop_time: 1.0
 
 heat_controller:
@@ -134,7 +135,7 @@ heat_controller:
 bullet_feeder_controller:
   ros__parameters:
     bullets_per_feeder_turn: 8.0
-    shot_frequency: 20.0
+    shot_frequency: 10.0
     safe_shot_frequency: 10.0
     eject_frequency: 10.0
     eject_time: 0.05
