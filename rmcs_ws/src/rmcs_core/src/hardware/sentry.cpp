@@ -298,7 +298,7 @@ private:
 
             builder.can1_transmit({
                 .can_id = 0x141,
-                .can_data = gimbal_top_yaw_motor_.generate_torque_command().as_bytes(),
+                .can_data = gimbal_top_yaw_motor_.generate_velocity_command().as_bytes(),
             });
 
             builder.can2_transmit({
