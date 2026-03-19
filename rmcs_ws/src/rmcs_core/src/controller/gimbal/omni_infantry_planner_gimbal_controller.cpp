@@ -134,7 +134,7 @@ public:
         register_input("/remote/mouse", mouse_);
 
         register_input("/tf", tf_);
-        register_input("/gimbal/yaw/velocity", yaw_velocity_);
+        register_input("/gimbal/top_yaw/velocity", yaw_velocity_);
         register_input("/gimbal/pitch/velocity", pitch_velocity_);
         register_input("/gimbal/yaw/velocity_imu", yaw_velocity_imu_);
         register_input("/gimbal/pitch/velocity_imu", pitch_velocity_imu_);
@@ -147,7 +147,7 @@ public:
         register_input("/gimbal/auto_aim/plan_pitch_velocity", plan_pitch_velocity_, false);
         register_input("/gimbal/auto_aim/plan_pitch_acceleration", plan_pitch_acceleration_, false);
 
-        register_output("/gimbal/yaw/control_torque", yaw_control_torque_, nan_);
+        register_output("/gimbal/top_yaw/control_torque", yaw_control_torque_, nan_);
         register_output("/gimbal/pitch/control_velocity", pitch_control_velocity_, nan_);
         register_output("/gimbal/yaw/control_angle_error", yaw_angle_error_, nan_);
         register_output("/gimbal/pitch/control_angle_error", pitch_angle_error_, nan_);
@@ -207,7 +207,7 @@ public:
         const double pitch_velocity_ref =
             pitch_angle_pid_.update(angle_error.pitch_angle_error) + velocity_ff.y();
 
-        *yaw_control_torque_ = yaw_velocity_pid_.update(yaw_velocity_ref - *yaw_velocity_imu_)
+        *yaw_control_torque_ = yaw_velocity_pid_.update(yaw_velocity_ref - *yaw_velocity_)
                              + yaw_vel_ff_gain_ * velocity_ff.x()
                              + yaw_acc_ff_gain_ * acceleration_ff.x();
         // *pitch_control_torque_ =

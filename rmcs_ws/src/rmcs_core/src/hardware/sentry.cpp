@@ -1,3 +1,5 @@
+#include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <format>
 #include <memory>
@@ -20,6 +22,7 @@
 #include <rclcpp/subscription.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/hard_sync_snapshot.hpp>
 #include <rmcs_msgs/serial_interface.hpp>
 #include <rmcs_utility/ring_buffer.hpp>
 #include <std_msgs/msg/int32.hpp>
@@ -34,6 +37,8 @@
 
 namespace rmcs_core::hardware {
 
+using Clock = std::chrono::steady_clock;
+
 class Sentry
     : public rmcs_executor::Component
     , public rclcpp::Node {
@@ -44,7 +49,9 @@ public:
               rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true))
         , command_component_(
               create_partner_component<SentryCommand>(get_component_name() + "_command", *this)) {
+        register_input("/predefined/timestamp", timestamp_);
         register_output("/tf", tf_);
+        register_output("/gimbal/hard_sync_snapshot", hard_sync_snapshot_);
 
         gimbal_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
             "/gimbal/calibrate", rclcpp::QoS{0}, [this](std_msgs::msg::Int32::UniquePtr&& msg) {
@@ -79,9 +86,15 @@ public:
 
     ~Sentry() override = default;
 
+    void before_updating() override {
+        top_board_->request_hard_sync_read();
+        next_hard_sync_log_time_ = Clock::now() + std::chrono::seconds(1);
+    }
+
     void update() override {
         top_board_->update();
         bottom_board_->update();
+        update_hard_sync_snapshot();
     }
 
     void command_update() {
@@ -90,6 +103,27 @@ public:
     }
 
 private:
+    void update_hard_sync_snapshot() {
+        if (!hard_sync_pending_.exchange(false, std::memory_order_relaxed))
+            return;
+
+        hard_sync_snapshot_->valid = true;
+        hard_sync_snapshot_->exposure_timestamp = *timestamp_;
+        hard_sync_snapshot_->qw = top_board_->bmi088_.q0();
+        hard_sync_snapshot_->qx = top_board_->bmi088_.q1();
+        hard_sync_snapshot_->qy = top_board_->bmi088_.q2();
+        hard_sync_snapshot_->qz = top_board_->bmi088_.q3();
+        ++hard_sync_snapshot_count_;
+
+        if (*timestamp_ >= next_hard_sync_log_time_) {
+            RCLCPP_INFO(
+                get_logger(), "[hard sync] published %zu snapshots in the last second",
+                hard_sync_snapshot_count_);
+            hard_sync_snapshot_count_ = 0;
+            next_hard_sync_log_time_ = *timestamp_ + std::chrono::seconds(1);
+        }
+    }
+
     auto status_service_callback(const std::shared_ptr<std_srvs::srv::Trigger::Response>& response)
         -> void {
         response->success = true;
@@ -163,6 +197,7 @@ private:
         explicit TopBoard(
             Sentry& sentry, SentryCommand& sentry_command, std::string_view board_serial = {})
             : librmcs::agent::CBoard(board_serial)
+            , hard_sync_pending_(sentry.hard_sync_pending_)
             , tf_(sentry.tf_)
             , bmi088_(1000, 0.2, 0.0)
             , gimbal_pitch_motor_(sentry, sentry_command, "/gimbal/pitch")
@@ -214,6 +249,13 @@ private:
         TopBoard& operator=(TopBoard&&) = delete;
 
         ~TopBoard() override = default;
+
+        void request_hard_sync_read() {
+            start_transmit().gpio_digital_read({
+                .channel = 1,
+                .falling_edge = true,
+            });
+        }
 
         void update() {
             bmi088_.update_status();
@@ -298,6 +340,14 @@ private:
             bmi088_.store_gyroscope_status(data.x, data.y, data.z);
         }
 
+        void
+            gpio_digital_read_result_callback(const librmcs::data::GpioDigitalDataView& data)
+                override {
+            if (data.channel == 1 && !data.high)
+                hard_sync_pending_.store(true, std::memory_order_relaxed);
+        }
+
+        std::atomic<bool>& hard_sync_pending_;
         OutputInterface<rmcs_description::Tf>& tf_;
 
         OutputInterface<double> gimbal_yaw_velocity_bmi088_;
@@ -536,7 +586,12 @@ private:
         OutputInterface<double> chassis_yaw_velocity_imu_;
     };
 
+    InputInterface<Clock::time_point> timestamp_;
     OutputInterface<rmcs_description::Tf> tf_;
+    OutputInterface<rmcs_msgs::HardSyncSnapshot> hard_sync_snapshot_;
+    std::atomic<bool> hard_sync_pending_{false};
+    size_t hard_sync_snapshot_count_ = 0;
+    Clock::time_point next_hard_sync_log_time_{};
 
     std::shared_ptr<SentryCommand> command_component_;
     std::unique_ptr<TopBoard> top_board_;

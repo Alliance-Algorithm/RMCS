@@ -10,9 +10,9 @@ rmcs_executor:
       - rmcs_core::referee::command::Interaction -> referee_interaction
       - rmcs_core::referee::command::interaction::Ui -> referee_ui
 
-      - rmcs_core::controller::gimbal::SimpleGimbalController -> gimbal_controller
+      - sp_vision_25::bridge::SpVisionBridge -> sp_vision_bridge
+      - rmcs_core::controller::gimbal::OmniInfantryPlannerGimbalController -> gimbal_controller
       - rmcs_core::controller::gimbal::DualYawController -> dual_yaw_controller
-      - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
 
       - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
       - rmcs_core::controller::shooting::HeatController -> heat_controller
@@ -26,7 +26,7 @@ rmcs_executor:
       - rmcs_core::controller::chassis::SteeringWheelController -> steering_wheel_controller
 
       # Alliance-Algorithm/rmcs-navigation
-      - rmcs::Brain -> rmcs_navigation
+      # - rmcs::Brain -> rmcs_navigation
 
 # The positive direction is the one that battery exists
 sentry_hardware:
@@ -41,10 +41,50 @@ sentry_hardware:
     right_back_zero_point: 2677
     right_front_zero_point: 6422
 
+sp_vision_bridge:
+  ros__parameters:
+    config_file: configs/standard4.yaml
+    bullet_speed_fallback: 28.0
+    result_timeout: 0.2
+    debug: false
+    virtual_center_distance: 5.0
+    virtual_center_yaw: 0.0
+    virtual_center_height: 0.0
+    virtual_angular_velocity: 4.0
+    virtual_base_radius: 0.2
+    virtual_radius_delta: 0.025
+    virtual_height_delta: 0.0
+    virtual_initial_phase: 0.0
+    fire_control_enabled: true
+    output_csv_path: /tmp/sp_vision_response_test.csv
+    csv_decimation: 1
+
 gimbal_controller:
   ros__parameters:
     upper_limit: -0.39518
     lower_limit: 0.36
+
+    yaw_angle_kp: 20.0
+    yaw_angle_ki: 0.0
+    yaw_angle_kd: 0.0
+
+    yaw_velocity_kp: 3.7
+    yaw_velocity_ki: 0.0
+    yaw_velocity_kd: 0.0
+
+    yaw_vel_ff_gain: 6.00
+    yaw_acc_ff_gain: 0.10
+
+    # Placeholder pitch gains copied from omni-infantry until pitch sweep is available.
+    pitch_angle_kp: 12.0
+    pitch_angle_ki: 0.0
+    pitch_angle_kd: 0.0
+
+    pitch_velocity_kp: 0.0
+    pitch_velocity_ki: 0.0
+    pitch_velocity_kd: 0.0
+
+    pitch_acc_ff_gain: 0.0
 
 chassis_controller:
   ros__parameters:
@@ -83,8 +123,8 @@ friction_wheel_controller:
       - /gimbal/left_friction
       - /gimbal/right_friction
     friction_velocities:
-      - 600.0
-      - 600.0
+      - 800.0
+      - 800.0
     friction_soft_start_stop_time: 1.0
 
 heat_controller:
@@ -106,3 +146,40 @@ bullet_feeder_controller:
 left_friction_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/left_friction/velocity
+    setpoint: /gimbal/left_friction/control_velocity
+    control: /gimbal/left_friction/control_torque
+    kp: 0.003436926
+    ki: 0.00
+    kd: 0.009373434
+
+right_friction_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/right_friction/velocity
+    setpoint: /gimbal/right_friction/control_velocity
+    control: /gimbal/right_friction/control_torque
+    kp: 0.003436926
+    ki: 0.00
+    kd: 0.009373434
+
+bullet_feeder_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/bullet_feeder/velocity
+    setpoint: /gimbal/bullet_feeder/control_velocity
+    control: /gimbal/bullet_feeder/control_torque
+    kp: 0.283
+    ki: 0.0
+    kd: 0.0
+
+steering_wheel_controller:
+  ros__parameters:
+    mess: 22.0
+    moment_of_inertia: 0.77852676
+    vehicle_radius: 0.26870058
+    wheel_radius: 0.055
+    friction_coefficient: 0.5
+    k1: 2.958580e+00
+    k2: 3.082190e-03
+    no_load_power: 11.37
+    chassis_translation_kp: 8.0
+    chassis_translation_ki: 0.0
+    chassis_translation_kd: 0.0
