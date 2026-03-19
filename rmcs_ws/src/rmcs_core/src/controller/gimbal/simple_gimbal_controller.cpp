@@ -1,3 +1,4 @@
+#include <cmath>
 #include <limits>
 
 #include <rclcpp/node.hpp>
@@ -29,6 +30,7 @@ public:
         register_input("/remote/switch/left", switch_left_);
         register_input("/remote/mouse/velocity", mouse_velocity_);
         register_input("/remote/mouse", mouse_);
+        register_input("/rmcs_navigation/command_velocity", navigation_command_velocity_, false);
 
         register_input("/gimbal/auto_aim/control_direction", auto_aim_control_direction_, false);
 
@@ -69,18 +71,28 @@ public:
         double pitch_shift =
             -joystick_sensitivity * joystick_left_->x() - mouse_sensitivity * mouse_velocity_->x();
 
+        // Navigation Control
+        if (navigation_command_velocity_.ready()) {
+            auto yaw_speed = navigation_command_velocity_->z();
+            if (std::isfinite(yaw_speed)) {
+                yaw_shift += yaw_speed * control_dt_;
+            }
+        }
+
         return two_axis_gimbal_solver.update(
             TwoAxisGimbalSolver::SetControlShift(yaw_shift, pitch_shift));
     }
 
 private:
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
+    static constexpr double control_dt_ = 1e-3;
 
     InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;
     InputInterface<rmcs_msgs::Switch> switch_left_;
     InputInterface<Eigen::Vector2d> mouse_velocity_;
     InputInterface<rmcs_msgs::Mouse> mouse_;
+    InputInterface<Eigen::Vector3d> navigation_command_velocity_;
 
     InputInterface<Eigen::Vector3d> auto_aim_control_direction_;
 
