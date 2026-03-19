@@ -33,13 +33,13 @@ sentry_hardware:
   ros__parameters:
     board_serial_top_board: "d4-1d2b"
     board_serial_bottom_board: "d4-041d"
-    bottom_yaw_motor_zero_point: 46114
+    bottom_yaw_motor_zero_point: 44749
     top_yaw_motor_zero_point: 55835
     pitch_motor_zero_point: 11634
-    left_front_zero_point: 5800
-    left_back_zero_point: 1704
-    right_back_zero_point: 2673
-    right_front_zero_point: 6432
+    left_front_zero_point: 5828
+    left_back_zero_point: 5115
+    right_back_zero_point: 2677
+    right_front_zero_point: 6422
 
 gimbal_controller:
   ros__parameters:
@@ -55,7 +55,7 @@ dual_yaw_controller:
     top_yaw_angle_kp: 5.0
     top_yaw_angle_ki: 0.0
     top_yaw_angle_kd: 0.0
-    top_yaw_velocity_kp: 5.0
+    top_yaw_velocity_kp: 7.0
     top_yaw_velocity_ki: 0.0
     top_yaw_velocity_kd: 0.0
     bottom_yaw_angle_kp: 8.6
@@ -64,6 +64,10 @@ dual_yaw_controller:
     bottom_yaw_velocity_kp: 16.0
     bottom_yaw_velocity_ki: 0.1
     bottom_yaw_velocity_kd: 50.0
+    bottom_yaw_velocity_integral_min: -10.0
+    bottom_yaw_velocity_integral_max: +10.0
+    bottom_yaw_velocity_output_min: -16.0
+    bottom_yaw_velocity_output_max: +16.0
 
 pitch_angle_pid_controller:
   ros__parameters:

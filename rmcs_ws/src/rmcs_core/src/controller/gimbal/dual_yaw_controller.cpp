@@ -1,3 +1,4 @@
+#include <cmath>
 #include <numbers>
 
 #include <eigen3/Eigen/Dense>
@@ -37,6 +38,7 @@ public:
 
         register_input("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
         register_input("/chassis/yaw/velocity_imu", chassis_yaw_velocity_imu_);
+        register_input("/referee/chassis/output_status", chassis_output_status_, false);
 
         register_input("/gimbal/yaw/control_angle_error", control_angle_error_);
         register_input("/gimbal/yaw/control_angle_shift", control_angle_shift_, false);
@@ -58,10 +60,17 @@ public:
                 get_logger(), "Failed to fetch \"/gimbal/yaw/control_angle_shift\", set to NaN.");
             control_angle_shift_.bind_directly(nan_);
         }
+        if (!chassis_output_status_.ready()) {
+            RCLCPP_WARN(
+                get_logger(),
+                "Failed to fetch \"/referee/chassis/output_status\", fallback to enabled.");
+            chassis_output_status_.bind_directly(true);
+        }
     }
 
     void update() override {
-        if (std::isnan(*control_angle_error_)) {
+        if (std::isnan(*control_angle_error_) || !*chassis_output_status_) {
+            reset_pid_states();
             *top_yaw_control_torque_ = nan_;
             *bottom_yaw_control_torque_ = nan_;
         } else {
@@ -70,9 +79,7 @@ public:
             ///  The implement of dual yaw controlling is not completed
             ///  Let it stable as a common gimbal
             {
-                auto true_angle = *top_yaw_angle_;
-                if (true_angle > std::numbers::pi)
-                    true_angle -= 2 * std::numbers::pi;
+                auto true_angle = std::remainder(*top_yaw_angle_, 2 * std::numbers::pi);
 
                 const auto velocity = top_yaw_angle_pid_.update(-true_angle);
                 const auto torque = top_yaw_velocity_pid_.update(velocity);
@@ -107,18 +114,23 @@ private:
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
 
     double bottom_yaw_control_error() {
-        double err = *top_yaw_angle_ + *control_angle_error_;
-        if (err > std::numbers::pi)
-            err -= 2 * std::numbers::pi;
-        return err;
+        return std::remainder(*top_yaw_angle_ + *control_angle_error_, 2 * std::numbers::pi);
     }
 
     double bottom_yaw_velocity_imu() { return *chassis_yaw_velocity_imu_ + *bottom_yaw_velocity_; }
+
+    void reset_pid_states() {
+        top_yaw_angle_pid_.reset();
+        top_yaw_velocity_pid_.reset();
+        bottom_yaw_angle_pid_.reset();
+        bottom_yaw_velocity_pid_.reset();
+    }
 
     InputInterface<double> top_yaw_angle_, top_yaw_velocity_;
     InputInterface<double> bottom_yaw_angle_, bottom_yaw_velocity_;
 
     InputInterface<double> gimbal_yaw_velocity_imu_, chassis_yaw_velocity_imu_;
+    InputInterface<bool> chassis_output_status_;
 
     InputInterface<double> control_angle_error_, control_angle_shift_;
 

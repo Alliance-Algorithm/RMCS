@@ -1,6 +1,7 @@
 #include <cmath>
 
 #include <eigen3/Eigen/Dense>
+#include <numbers>
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
@@ -161,8 +162,7 @@ public:
         switch (*mode_) {
         case rmcs_msgs::ChassisMode::AUTO: break;
         case rmcs_msgs::ChassisMode::SPIN: {
-            angular_velocity =
-                0.6 * (spinning_forward_ ? angular_velocity_max : -angular_velocity_max);
+            angular_velocity = (spinning_forward_ ? angular_velocity_max : -angular_velocity_max);
         } break;
         case rmcs_msgs::ChassisMode::STEP_DOWN: {
             double err = calculate_unsigned_chassis_angle_error(chassis_control_angle);
@@ -224,7 +224,7 @@ private:
 
     // Maximum control velocities
     static constexpr double translational_velocity_max = 10.0;
-    static constexpr double angular_velocity_max = 16.0;
+    static constexpr double angular_velocity_max = 2 * std::numbers::pi * 0.8;
 
     InputInterface<Eigen::Vector2d> joystick_right_;
     InputInterface<Eigen::Vector2d> joystick_left_;
