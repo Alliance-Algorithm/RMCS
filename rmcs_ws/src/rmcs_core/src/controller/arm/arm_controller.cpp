@@ -62,14 +62,18 @@ public:
         register_input("/remote/keyboard", keyboard_);
         register_input("/remote/rotary_knob_switch", rotary_knob_switch);
 
-        register_output("/arm/enable_flag", is_arm_enable, false);
+        register_output("/main/arm/enable_flag", is_arm_enable, false);
 
         for (std::size_t i = 0; i < 6; ++i) {
-            const std::string joint_prefix = "/arm/joint_" + std::to_string(i + 1);
+            const std::string joint_prefix = "/main/arm/joint_" + std::to_string(i + 1);
             register_input(joint_prefix + "/theta", theta[i]);
+
             register_output(joint_prefix + "/target_theta", target_theta[i], NAN);
         }
-
+        for (std::size_t i = 0; i < 6; ++i) {
+            const std::string joint_prefix = "/sub/arm/joint_" + std::to_string(i + 1);
+            register_input(joint_prefix + "/motor/angle", sub_theta[i]);
+        }
         move_group_ =
             std::make_unique<moveit::planning_interface::MoveGroupInterface>(node_, "alliance_arm");
         move_group_->startStateMonitor();
@@ -118,34 +122,11 @@ public:
                 set_arm_mode(rmcs_msgs::ArmMode::None);
             } else {
                 *is_arm_enable = true;
-                // if (switch_left == Switch::UP && switch_right == Switch::UP) {
-                //     set_arm_mode(rmcs_msgs::ArmMode::DT7_Control_Position);
-                // } else if (switch_left == Switch::UP && switch_right == Switch::MIDDLE) {
-                //     set_arm_mode(rmcs_msgs::ArmMode::DT7_Control_Orientation);
-                // } else {
-                //     set_arm_mode(rmcs_msgs::ArmMode::None);
-                // }
+                for (std::size_t i = 0; i < std::size(theta); ++i) {
+                    *target_theta[i] = *sub_theta[i];
+                }
             }
         }
-
-        // switch (get_arm_mode()) {
-        //     using namespace rmcs_msgs;
-        //     case ArmMode::DT7_Control_Position: {
-        //         execute_dt7_position();
-        //         break;
-        //     }
-        //     case ArmMode::DT7_Control_Orientation: {
-        //         execute_dt7_orientation();
-        //         break;
-        //     }
-        //     case ArmMode::None: {
-        //         break;
-        //     }
-        //     default: {
-        //         execute_plan_request_and_trajectory_step();
-        //         break;
-        // }
-        // }
     }
 
 private:
@@ -302,6 +283,7 @@ private:
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
     OutputInterface<bool> is_arm_enable;
     InputInterface<double> theta[6];
+    InputInterface<double> sub_theta[6];
     OutputInterface<double> target_theta[6];
 
     rclcpp::Node::SharedPtr node_;

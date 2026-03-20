@@ -21,7 +21,11 @@
 namespace rmcs_core::hardware::device {
 using rmcs_executor::Component;
 
-enum class DMMotorType : uint8_t { UNKNOWN = 0, DM8009 };
+enum class DMMotorType : uint8_t { 
+    UNKNOWN = 0,
+    DM8009  = 1,
+    DM6006  = 2,
+    DM4310  = 3 };
 
 struct DMMotorConfig {
     DMMotorType motor_type;
@@ -44,11 +48,10 @@ struct DMMotorConfig {
     DMMotorConfig& enable_multi_turn_angle() { return multi_turn_angle_enabled = true, *this; }
 };
 
-class DMMotor : rclcpp::Node {
+class DMMotor {
 public:
     DMMotor(
         Component& status_component, Component& command_component, const std::string& name_prefix)
-        : rclcpp::Node("agfdhfhf")
 
     {
         encoder_zero_point_       = 0;
@@ -76,6 +79,14 @@ public:
             VMAX = 25.0;
             TMAX = 40.0;
             break;
+        case DMMotorType::DM6006:
+            VMAX = 25.0;
+            TMAX = 11.0;
+            break;
+        case DMMotorType::DM4310:
+            VMAX = 15.0;
+            TMAX = 12.0;
+            break;
 
         default: throw std::runtime_error{"Unknown motor type"};
         }
@@ -87,11 +98,11 @@ public:
             encoder_zero_point_ += (raw_angle_max_);
 
         raw_angle_to_angle_coefficient_ =
-            1.0 * reverse * 2 * std::numbers::pi / (raw_angle_max_ * gear_ratio_);
+            1.0  * 2 * std::numbers::pi / (raw_angle_max_ * gear_ratio_);
         angle_to_raw_angle_coefficient_ = 1.0 / raw_angle_to_angle_coefficient_;
 
         raw_velocity_to_velocity_coefficient_ =
-            1.0 * (reverse * 60.0) / (2 * std::numbers::pi * gear_ratio_);
+             60.0 / (2 * std::numbers::pi * gear_ratio_);
         velocity_to_raw_velocity_coefficient_ = 1.0 / raw_velocity_to_velocity_coefficient_;
 
         raw_current_to_torque_coefficient_ = 1.0 * config.gear_ratio;
@@ -118,23 +129,26 @@ public:
         uint16_t angle = p_int - encoder_zero_point_;
         if (angle < 0)
             angle += raw_angle_max_;
-        *angle_    = angle < raw_angle_max_ / 2
+        *angle_    =( angle < raw_angle_max_ / 2
                        ? raw_angle_to_angle_coefficient_ * angle
-                       : -2 * std::numbers::pi + raw_angle_to_angle_coefficient_ * angle;
-        *velocity_ = uint_to_double(v_int, -VMAX, VMAX, 12);
-        *torque_   = uint_to_double(t_int, -TMAX, TMAX, 12);
+                       : -2 * std::numbers::pi + raw_angle_to_angle_coefficient_ * angle)* reverse;
+                    
+        *velocity_ = uint_to_double(v_int, -VMAX, VMAX, 12)* reverse;
+        *torque_   = uint_to_double(t_int, -TMAX, TMAX, 12)* reverse;
 
         *T_mos  = (double)(rx_buff[6]);
         *T_coil = (double)(rx_buff[7]);
+        *raw_angle_   =  p_int;
     }
 
     uint64_t generate_torque_command() {
         uint64_t result;
-        double torque = *control_torque_;
+        double torque = reverse*(*control_torque_) ;
         if (std::isnan(torque)) {
             torque = 0.0;
         }
         torque           = std::clamp(torque, -TMAX, TMAX);
+        torque_debug = torque;
         uint16_t tor_tmp = double_to_uint(torque, -TMAX, TMAX, 12);
         uint8_t tx_buff[8] = {0, 0, 0, 0, 0, 0, 0, 0};
         tx_buff[6]         = ((0 & 0xf) << 4) | (tor_tmp >> 8);
@@ -152,10 +166,12 @@ public:
     double get_torque() { return *torque_; }
     double get_state() { return *state; }
     double get_T_coil() { return *T_coil; }
+    int get_raw_angle() { return *raw_angle_; }
+    double get_control_torque() const { return torque_debug; }
 
 private:
     std::atomic<uint64_t> can_result_ = 0;
-
+double torque_debug;
     static double uint_to_double(int x_int, double x_min, double x_max, int bits) {
         double span   = x_max - x_min;
         double offset = x_min;
@@ -168,7 +184,7 @@ private:
     }
 
     int last_raw_angle_;
-
+double torque;
     double reverse     = 1.0;
     double gear_ratio_ = 1.0;
 
@@ -193,6 +209,7 @@ private:
     Component::OutputInterface<double> torque_;
     Component::OutputInterface<double> T_mos;
     Component::OutputInterface<double> T_coil;
+    Component::OutputInterface<int> raw_angle_;
 
     Component::OutputInterface<DMMotor*> motor_;
 

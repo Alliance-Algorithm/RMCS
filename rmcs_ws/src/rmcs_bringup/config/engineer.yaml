@@ -6,17 +6,30 @@ rmcs_executor:
       - rmcs_core::controller::arm::ArmConfig -> arm_config
       - rmcs_core::controller::arm::ArmSolver -> arm_solver
       - rmcs_core::controller::arm::ArmController -> arm_controller
-
+      - rmcs_core::controller::arm::SubArmController -> sub_arm_controller
 arm_hardware:
   ros__parameters:
-    arm_board_usb_pid: 0x1783
-    joint6_zero_point: 0
-    joint5_zero_point: 37436
-    joint4_zero_point: 28029
-    joint3_zero_point: 28134
-    joint2_zero_point: 29790 
-    joint1_zero_point: 52343 
+    main_arm_board_usb_pid: 0x1783
+    sub_arm_board_usb_pid: 0x488d
+    main_joint6_zero_point: 0
+    main_joint5_zero_point: 37436
+    main_joint4_zero_point: 28029
+    main_joint3_zero_point: 28134
+    main_joint2_zero_point: 61315
+    main_joint1_zero_point: 11371
+
+    sub_joint6_zero_point: 19394
+    sub_joint5_zero_point: 47491
+    sub_joint4_zero_point: 4030
+    sub_joint3_zero_point: 51845
+    sub_joint2_zero_point: 54221
+    sub_joint1_zero_point: 28268
 
 arm_solver:
   ros__parameters:
     controller_list: [pid,gravity]
+
+sub_arm_controller:
+  ros__parameters:
+    controller_list: [friction,gravity]
+

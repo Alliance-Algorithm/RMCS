@@ -24,12 +24,12 @@ public:
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , link{
-              Link(*this, "/arm/link_1"), Link(*this, "/arm/link_2"), Link(*this, "/arm/link_3"),
-              Link(*this, "/arm/link_4"), Link(*this, "/arm/link_5"), Link(*this, "/arm/link_6"),
+              Link(*this, "/main/arm/link_1"), Link(*this, "/main/arm/link_2"), Link(*this, "/main/arm/link_3"),
+              Link(*this, "/main/arm/link_4"), Link(*this, "/main/arm/link_5"), Link(*this, "/main/arm/link_6"),
           }
           ,joint{
-              Joint(*this, "/arm/joint_1"), Joint(*this, "/arm/joint_2"), Joint(*this, "/arm/joint_3"),
-              Joint(*this, "/arm/joint_4"), Joint(*this, "/arm/joint_5"), Joint(*this, "/arm/joint_6"),
+              Joint(*this, "/main/arm/joint_1"), Joint(*this, "/main/arm/joint_2"), Joint(*this, "/main/arm/joint_3"),
+              Joint(*this, "/main/arm/joint_4"), Joint(*this, "/main/arm/joint_5"), Joint(*this, "/main/arm/joint_6"),
           } {
         arm_urdf_sub = this->create_subscription<std_msgs::msg::String>(
             "/robot_description", rclcpp::QoS(1).transient_local().reliable(),
@@ -39,14 +39,14 @@ public:
 
         for (std::size_t i = 0; i < num_axis; ++i) {
             register_input(
-                "/arm/joint_" + std::to_string(i + 1) + "/motor/angle", joint_motor_angle[i]);
+                "/main/arm/joint_" + std::to_string(i + 1) + "/motor/angle", joint_motor_angle[i]);
             register_input(
-                "/arm/joint_" + std::to_string(i + 1) + "/motor/velocity", joint_motor_velocity[i]);
+                "/main/arm/joint_" + std::to_string(i + 1) + "/motor/velocity", joint_motor_velocity[i]);
             register_input(
-                "/arm/joint_" + std::to_string(i + 1) + "/motor/torque", joint_motor_torque[i]);
+                "/main/arm/joint_" + std::to_string(i + 1) + "/motor/torque", joint_motor_torque[i]);
         }
-        register_input("/arm/joint_2/encoder/angle", joint_encode_angle);
-        register_output("urdf_loaded", is_load, false);
+        register_input("/main/arm/joint_2/encoder/angle", joint_encode_angle);
+        register_output("main_urdf_loaded", is_load, false);
     };
 
     void update() override {
