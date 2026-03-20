@@ -17,7 +17,7 @@ include(FetchContent)
 set(BUILD_STATIC_LIBRMCS ON CACHE BOOL "Build static librmcs SDK" FORCE)
 fetchcontent_declare(
   librmcs
-  SOURCE_DIR /workspaces/dev-sp-vision/develop_ws/librmcs-sdk-src-3.0.1-0.dev.4.gbaf538b
+  SOURCE_DIR /workspaces/RMCS/librmcs-sdk-src-3.0.1-0.dev.4.gbaf538b
 )
 fetchcontent_makeavailable(librmcs)
 

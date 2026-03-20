@@ -13,6 +13,7 @@
 
 #include "controller/gimbal/two_axis_gimbal_solver.hpp"
 #include "controller/pid/pid_calculator.hpp"
+#include "filter/low_pass_filter.hpp"
 
 namespace rmcs_core::controller::gimbal {
 
@@ -133,7 +134,7 @@ public:
         register_input("/remote/mouse", mouse_);
 
         register_input("/tf", tf_);
-        register_input("/gimbal/bottom_yaw/velocity", yaw_velocity_);
+        register_input("/gimbal/yaw/velocity", yaw_velocity_);
         register_input("/gimbal/pitch/velocity", pitch_velocity_);
         register_input("/gimbal/yaw/velocity_imu", yaw_velocity_imu_);
         register_input("/gimbal/pitch/velocity_imu", pitch_velocity_imu_);
@@ -146,7 +147,7 @@ public:
         register_input("/gimbal/auto_aim/plan_pitch_velocity", plan_pitch_velocity_, false);
         register_input("/gimbal/auto_aim/plan_pitch_acceleration", plan_pitch_acceleration_, false);
 
-        register_output("/gimbal/bottom_yaw/control_torque", yaw_control_torque_, nan_);
+        register_output("/gimbal/yaw/control_torque", yaw_control_torque_, nan_);
         register_output("/gimbal/pitch/control_velocity", pitch_control_velocity_, nan_);
         register_output("/gimbal/yaw/control_angle_error", yaw_angle_error_, nan_);
         register_output("/gimbal/pitch/control_angle_error", pitch_angle_error_, nan_);
@@ -206,7 +207,7 @@ public:
         const double pitch_velocity_ref =
             pitch_angle_pid_.update(angle_error.pitch_angle_error) + velocity_ff.y();
 
-        *yaw_control_torque_ = yaw_velocity_pid_.update(yaw_velocity_ref - *yaw_velocity_)
+        *yaw_control_torque_ = yaw_velocity_pid_.update(yaw_velocity_ref - *yaw_velocity_imu_)
                              + yaw_vel_ff_gain_ * velocity_ff.x()
                              + yaw_acc_ff_gain_ * acceleration_ff.x();
         // *pitch_control_torque_ =
@@ -237,7 +238,7 @@ private:
         double yaw_shift =
             joystick_sensitivity_ * joystick_left_->y() + mouse_sensitivity_ * mouse_velocity_->y();
         double pitch_shift = -joystick_sensitivity_ * joystick_left_->x()
-                           - mouse_sensitivity_ * mouse_velocity_->x();
+                           + mouse_sensitivity_ * mouse_velocity_->x();
         return gimbal_solver_.update(TwoAxisGimbalSolver::SetControlShift{yaw_shift, pitch_shift});
     }
 
@@ -290,6 +291,12 @@ private:
         reset_torque_outputs();
     }
 
+    double yaw_velocity_imu() {
+        const double chassis_yaw_velocity_imu = *yaw_velocity_imu_ - *yaw_velocity_;
+        return /*chassis_yaw_velocity_imu_filter_.update(chassis_yaw_velocity_imu) +*/
+            *yaw_velocity_;
+    }
+
     InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;
     InputInterface<rmcs_msgs::Switch> switch_left_;
@@ -301,6 +308,8 @@ private:
     InputInterface<double> pitch_velocity_;
     InputInterface<double> yaw_velocity_imu_;
     InputInterface<double> pitch_velocity_imu_;
+
+    filter::LowPassFilter<> chassis_yaw_velocity_imu_filter_{0.5, 1000.0};
 
     InputInterface<Eigen::Vector3d> auto_aim_control_direction_;
     InputInterface<double> plan_yaw_;
