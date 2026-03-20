@@ -162,9 +162,6 @@ private:
                     leg_mode = rmcs_msgs::LegMode::Four_Wheel;
                 }
             }
-            if (keyboard.s) {
-                leg_mode = rmcs_msgs::LegMode::Four_Wheel;
-            }
             if (last_arm_mode != *arm_mode) {
 
                 switch (*arm_mode) {

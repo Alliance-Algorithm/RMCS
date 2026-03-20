@@ -110,7 +110,7 @@ public:
             } else {
                 yaw_target_angle_ += joystick_right_->y() * 0.002;
             }
-            angular_velocity = joystick_right_->y() * angular_velocity_limit_;
+            angular_velocity = 0.0;
 
             break;
         }
