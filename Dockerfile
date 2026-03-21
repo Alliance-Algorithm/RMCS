@@ -29,8 +29,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libsuitesparse-dev \
     libceres-dev \
     ros-$ROS_DISTRO-rviz2 \
+    ros-$ROS_DISTRO-navigation2 \
     ros-$ROS_DISTRO-foxglove-bridge \
-    dotnet-sdk-8.0 \
     ros-$ROS_DISTRO-pcl-ros ros-$ROS_DISTRO-pcl-conversions ros-$ROS_DISTRO-pcl-msgs && \
     apt-get autoremove -y && apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/*
@@ -82,18 +82,33 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     openssh-client \
     lsb-release software-properties-common gnupg sudo \
     python3-colorama python3-dpkt && \
-    wget -O ./llvm-snapshot.gpg.key https://apt.llvm.org/llvm-snapshot.gpg.key && \
-    apt-key add ./llvm-snapshot.gpg.key && \
-    rm ./llvm-snapshot.gpg.key && \
-    echo "deb https://apt.llvm.org/noble/ llvm-toolchain-noble main" > /etc/apt/sources.list.d/llvm-apt.list && \
-    apt-get update && \
-    version=`apt-cache search clangd- | grep clangd- | awk -F' ' '{print $1}' | sort -V | tail -1 | cut -d- -f2` && \
-    apt-get install -y --no-install-recommends clangd-$version && \
     update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 50 && \
     update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-14 50 && \
-    update-alternatives --install /usr/bin/clangd clangd /usr/bin/clangd-$version 50 && \
     apt-get autoremove -y && apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/*
+
+# Install llvm-toolchain
+ARG LLVM_VERSION=22
+RUN mkdir -p /etc/apt/keyrings && \
+    wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor -o /etc/apt/keyrings/apt.llvm.org.gpg && \
+    chmod 644 /etc/apt/keyrings/apt.llvm.org.gpg && \
+    echo "deb [signed-by=/etc/apt/keyrings/apt.llvm.org.gpg] https://apt.llvm.org/noble/ llvm-toolchain-noble-${LLVM_VERSION} main" \
+    > /etc/apt/sources.list.d/llvm.list && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+    libomp-${LLVM_VERSION}-dev \
+    clang-${LLVM_VERSION} clangd-${LLVM_VERSION} clang-format-${LLVM_VERSION} clang-tidy-${LLVM_VERSION} \
+    lldb-${LLVM_VERSION} lld-${LLVM_VERSION} llvm-${LLVM_VERSION} && \
+    update-alternatives --install /usr/bin/clang clang /usr/bin/clang-${LLVM_VERSION} 50 && \
+    update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-${LLVM_VERSION} 50 && \
+    update-alternatives --install /usr/bin/clangd clangd /usr/bin/clangd-${LLVM_VERSION} 50 && \
+    update-alternatives --install /usr/bin/clang-format clang-format /usr/bin/clang-format-${LLVM_VERSION} 50 && \
+    update-alternatives --install /usr/bin/clang-tidy clang-tidy /usr/bin/clang-tidy-${LLVM_VERSION} 50 && \
+    update-alternatives --install /usr/bin/lldb lldb /usr/bin/lldb-${LLVM_VERSION} 50 && \
+    update-alternatives --install /usr/bin/llvm-ar llvm-ar /usr/bin/llvm-ar-${LLVM_VERSION} 50 && \
+    update-alternatives --install /usr/bin/llvm-ranlib llvm-ranlib /usr/bin/llvm-ranlib-${LLVM_VERSION} 50 && \
+    update-alternatives --install /usr/bin/ld.lld ld.lld /usr/bin/ld.lld-${LLVM_VERSION} 50 && \
+    apt-get autoremove -y && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/*
 
 # Generate/load ssh key and setup unison
 RUN --mount=type=bind,target=/tmp/.ssh,source=.ssh,readonly=false \
@@ -110,6 +125,12 @@ RUN curl -LO https://github.com/neovim/neovim/releases/latest/download/nvim-linu
     rm -rf /opt/nvim && \
     tar -C /opt -xzf nvim-linux-x86_64.tar.gz && \
     rm nvim-linux-x86_64.tar.gz
+ENV PATH="${PATH}:/opt/nvim-linux-x86_64/bin"
+
+# Install latest stable cmake for user ubuntu
+RUN wget https://github.com/kitware/cmake/releases/download/v4.2.3/cmake-4.2.3-linux-x86_64.sh -O install.sh && \
+    mkdir -p /opt/cmake/ && bash install.sh --skip-license --prefix=/opt/cmake/ --exclude-subdir && \
+    rm install.sh
 
 # Change user
 RUN chsh -s /bin/zsh ubuntu && \
@@ -122,13 +143,14 @@ USER ubuntu
 # Install oh my zsh, change theme to af-magic and setup environment of zsh
 RUN sh -c "$(wget https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh -O -)" && \
     sed -i 's/ZSH_THEME=\"[a-z0-9\-]*\"/ZSH_THEME="af-magic"/g' ~/.zshrc && \
-    echo 'source ~/env_setup.zsh' >> ~/.zshrc && \
-    echo 'export PATH="${PATH}:/opt/nvim-linux-x86_64/bin"' >> ~/.zshrc && \
-    echo 'export PATH="${PATH}:${RMCS_PATH}/.script"' >> ~/.zshrc
+    echo '# Hint: uncomment and set RMCS_PATH if RMCS is not located at /workspaces/RMCS.' >> ~/.zshrc && \
+    echo '# export RMCS_PATH="/workspaces/RMCS"' >> ~/.zshrc && \
+    echo 'source ~/env_setup.zsh' >> ~/.zshrc
 
 # Copy environment setup scripts
 COPY --chown=1000:1000 .script/template/env_setup.bash env_setup.bash
 COPY --chown=1000:1000 .script/template/env_setup.zsh env_setup.zsh
+
 
 # Runtime container, will automatically launch the main program
 FROM rmcs-base AS rmcs-runtime

@@ -1,0 +1,45 @@
+#!/usr/bin/env sh
+set -eu
+
+usage() {
+    cat <<'EOF'
+Usage: setup-clangd <path>
+Creates symlinks in core/:
+    .clangd -> ../<path>/.clangd
+    compile_commands.json -> ../<path>/build/compile_commands.json
+
+Example: setup-clangd firmware/rmcs_board
+EOF
+}
+
+if [ "$#" -ne 1 ]; then
+    usage
+    exit 1
+fi
+
+core_dir=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
+root_dir=$(CDPATH='' cd -- "$core_dir/.." && pwd)
+target="$root_dir/$1"
+
+if [ ! -d "$target" ]; then
+    echo "Error: directory '$1' does not exist." >&2
+    exit 1
+fi
+
+link_clangd="$core_dir/.clangd"
+link_compile="$core_dir/compile_commands.json"
+
+for link in "$link_clangd" "$link_compile"; do
+    if [ -L "$link" ]; then
+        rm -f "$link"
+    elif [ -e "$link" ]; then
+        echo "Error: $link exists and is not a symlink." >&2
+        exit 1
+    fi
+done
+
+(
+    cd "$core_dir"
+    ln -s "../$1/.clangd" .clangd
+    ln -s "../$1/build/compile_commands.json" compile_commands.json
+)

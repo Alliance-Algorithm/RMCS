@@ -1,0 +1,5 @@
+#!/bin/zsh
+
+set -euo pipefail
+
+ssh-remote "bash -lc 'source ~/env_setup.bash && msg=\$(ros2 service call /rmcs/service/status std_srvs/srv/Trigger \"{}\" | sed -n \"s/.*message='\\''\\(.*\\)'\\'')/\\1/p\") && printf \"%b\\n\" \"\$msg\"'"

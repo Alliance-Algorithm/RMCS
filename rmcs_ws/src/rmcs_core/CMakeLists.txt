@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.24)
 project(rmcs_core)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -13,15 +13,13 @@ endif()
 
 find_package(ament_cmake_auto REQUIRED)
 ament_auto_find_build_dependencies()
-
 include(FetchContent)
 set(BUILD_STATIC_LIBRMCS ON CACHE BOOL "Build static librmcs SDK" FORCE)
-FetchContent_Declare(
+fetchcontent_declare(
   librmcs
-  URL https://github.com/Alliance-Algorithm/librmcs/releases/download/v3.0.0b2/librmcs-sdk-src-3.0.0-beta.2.zip
-  DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+  SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../librmcs-sdk-src-3.0.1-0.dev.4.gbaf538b
 )
-FetchContent_MakeAvailable(librmcs)
+fetchcontent_makeavailable(librmcs)
 
 file(GLOB_RECURSE PROJECT_SOURCE CONFIGURE_DEPENDS
   ${PROJECT_SOURCE_DIR}/src/*.cpp
@@ -35,7 +33,6 @@ ament_auto_add_library(
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_SOURCE_DIR}/src)
-
 target_link_libraries(${PROJECT_NAME} librmcs-sdk)
 
 pluginlib_export_plugin_description_file(rmcs_executor plugins.xml)

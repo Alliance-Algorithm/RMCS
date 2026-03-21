@@ -32,8 +32,8 @@ public:
             "/gimbal/control_bullet_allowance/limited_by_heat",
             control_bullet_allowance_limited_by_heat_);
 
-        bullet_feeder_velocity_pid_.kp           = 50.0;
-        bullet_feeder_velocity_pid_.ki           = 10.0;
+        bullet_feeder_velocity_pid_.kp           = 5.5;
+        bullet_feeder_velocity_pid_.ki           = 1.1;
         bullet_feeder_velocity_pid_.kd           = 0.0;
         bullet_feeder_velocity_pid_.integral_max = 60.0;
         bullet_feeder_velocity_pid_.integral_min = 0.0;
@@ -200,7 +200,7 @@ private:
 
     void update_jam_detection() {
         // RCLCPP_INFO(get_logger(), "%.2f --", *bullet_feeder_control_torque_);
-        if (*bullet_feeder_control_torque_ < 300.0) {
+        if (*bullet_feeder_control_torque_ < 33.0) {
             bullet_feeder_faulty_count_ = 0;
             return;
         }

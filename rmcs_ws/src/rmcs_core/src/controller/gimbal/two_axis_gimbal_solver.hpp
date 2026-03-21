@@ -45,7 +45,7 @@ public:
         PitchLink::DirectionVector update(TwoAxisGimbalSolver& super) const override {
             auto odom_dir = fast_tf::cast<OdomImu>(
                 PitchLink::DirectionVector{Eigen::Vector3d::UnitX()}, *super.tf_);
-            if (odom_dir->x() == 0 || odom_dir->y() == 0)
+            if (std::abs(odom_dir->x()) < 1e-6 && std::abs(odom_dir->y()) < 1e-6)
                 return {};
 
             super.control_enabled_ = true;
@@ -136,7 +136,7 @@ private:
 
         auto yaw_axis = fast_tf::cast<PitchLink>(yaw_axis_filtered_, *tf_);
         pitch = {yaw_axis->z(), yaw_axis->x()};
-        pitch.normalized();
+        pitch.normalize();
 
         const auto& [x, y, z] = *dir;
         dir_yaw_link = {x * pitch.x() - z * pitch.y(), y, x * pitch.y() + z * pitch.x()};

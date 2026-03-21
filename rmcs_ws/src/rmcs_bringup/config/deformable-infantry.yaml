@@ -17,9 +17,8 @@ rmcs_executor:
       - rmcs_core::controller::smc::Smc_Observer -> smc_observer2
       - rmcs_core::controller::smc::Smc_Observer -> smc_observer3
 
+      - sp_vision_25::bridge::SpVisionBridge -> sp_vision_bridge
       - rmcs_core::controller::gimbal::DeformableInfantryGimbalController -> gimbal_controller
-      - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
-      - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
 
       - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
       - rmcs_core::controller::shooting::HeatController -> heat_controller
@@ -34,6 +33,24 @@ rmcs_executor:
       - rmcs_core::controller::chassis::DeformableChassisController -> deformable_chassis_controller
 
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+
+sp_vision_bridge:
+  ros__parameters:
+    config_file: configs/standard4.yaml
+    bullet_speed_fallback: 28.0
+    result_timeout: 0.2
+    debug: false
+    virtual_center_distance: 6.0
+    virtual_center_yaw: 0.0
+    virtual_center_height: 0.0
+    virtual_angular_velocity: 4.0
+    virtual_base_radius: 0.2
+    virtual_radius_delta: 0.025
+    virtual_height_delta: 0.0
+    virtual_initial_phase: 0.0
+    fire_control_enabled: true
+    output_csv_path: /tmp/sp_vision_response_test.csv
+    csv_decimation: 1
 
 value_broadcaster:
   ros__parameters:
@@ -58,8 +75,8 @@ deformable_infantry:
     left_back_zero_point: 5812
     right_back_zero_point: 7870
     right_front_zero_point: 4472
-    yaw_motor_zero_point:  43925
-    pitch_motor_zero_point: 40499 
+    yaw_motor_zero_point: 43925
+    pitch_motor_zero_point: 15838
 
 chassis_controller:
   ros__parameters:
@@ -75,24 +92,30 @@ chassis_controller:
 
 gimbal_controller:
   ros__parameters:
-    upper_limit: -0.174533 # -25 deg 
-    lower_limit: 0.436332 # 10 deg 
+    upper_limit: -0.436332 # -25 deg
+    lower_limit: 0.174533 # 10 deg
 
-yaw_angle_pid_controller:
-  ros__parameters:
-    measurement: /gimbal/yaw/control_angle_error
-    control: /gimbal/yaw/control_velocity
-    kp: 24.0
-    ki: 0.0
-    kd: 0.01
+    yaw_angle_kp: 14.2
+    yaw_angle_ki: 0.0
+    yaw_angle_kd: 0.0
 
-pitch_angle_pid_controller:
-  ros__parameters:
-    measurement: /gimbal/pitch/control_angle_error
-    control: /gimbal/pitch/control_velocity
-    kp: 10.0
-    ki: 0.0
-    kd: 0.01
+    yaw_velocity_kp: 6.4
+    yaw_velocity_ki: 0.0
+    yaw_velocity_kd: 0.0
+
+    yaw_vel_ff_gain: 0.47
+    yaw_acc_ff_gain: 0.00
+
+    # Placeholder pitch gains copied from omni-infantry until pitch sweep is available.
+    pitch_angle_kp: 8.0
+    pitch_angle_ki: 0.0
+    pitch_angle_kd: 0.0
+
+    pitch_velocity_kp: 0.0
+    pitch_velocity_ki: 0.0
+    pitch_velocity_kd: 0.0
+
+    pitch_acc_ff_gain: 0.0
 
 friction_wheel_controller:
   ros__parameters:
@@ -100,8 +123,8 @@ friction_wheel_controller:
       - /gimbal/left_friction
       - /gimbal/right_friction
     friction_velocities:
-      - 700.0
-      - 700.0
+      - 800.0
+      - 800.0
     friction_soft_start_stop_time: 1.0
 
 heat_controller:
@@ -112,7 +135,7 @@ heat_controller:
 bullet_feeder_controller:
   ros__parameters:
     bullets_per_feeder_turn: 8.0
-    shot_frequency: 20.0
+    shot_frequency: 10.0
     safe_shot_frequency: 10.0
     eject_frequency: 10.0
     eject_time: 0.05
@@ -148,7 +171,7 @@ bullet_feeder_velocity_pid_controller:
     measurement: /gimbal/bullet_feeder/velocity
     setpoint: /gimbal/bullet_feeder/control_velocity
     control: /gimbal/bullet_feeder/control_torque
-    kp: 1.583
+    kp: 1.3
     ki: 0.0
     kd: 0.0
 

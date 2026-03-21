@@ -1,6 +1,6 @@
-#!/bin/sh
+#!/bin/bash
 
-set -e
+set -euo pipefail
 
 MONITOR_USER=""
 MONITOR_PLAYER="vlc"
@@ -11,59 +11,75 @@ SDP_PATH="/tmp/auto_aim.sdp"
 USE_REMOTE=false
 SKIP_COPY=false
 
-# 参数解析
-while [ "$#" -gt 0 ]; do
+function usage() {
+    echo "Usage: $0 --user <username> [--remote] [--no-copy] [--ip <monitor_ip>]"
+}
+
+# Parse arguments
+while (($# > 0)); do
     case "$1" in
     --user)
-        shift
-        [ -z "$1" ] && echo "❌ --user 参数缺失" && exit 1
-        MONITOR_USER="$1"
+        if (($# < 2)); then
+            echo "Missing --user argument"
+            usage
+            exit 1
+        fi
+        MONITOR_USER="$2"
+        shift 2
         ;;
     --remote)
         USE_REMOTE=true
+        shift
         ;;
     --no-copy)
         SKIP_COPY=true
+        shift
+        ;;
+    --ip)
+        if (($# < 2)); then
+            echo "Missing --ip argument"
+            usage
+            exit 1
+        fi
+        MONITOR_HOST="$2"
+        shift 2
         ;;
     *)
-        echo "未知参数: $1"
-        echo "用法: $0 --user <用户名> [--remote] [--no-copy]"
+        echo "Unknown argument: $1"
+        usage
         exit 1
         ;;
     esac
-    shift
 done
 
-if [ -z "$MONITOR_USER" ]; then
-    echo "❌ 缺少 --user 参数"
-    echo "用法: play-autoaim --user <用户名> [--remote] [--no-copy]"
+if [[ -z "${MONITOR_USER}" ]]; then
+    echo "Missing --user argument"
+    usage
     exit 1
 fi
 
-if [ "$USE_REMOTE" = true ]; then
-    scp remote:${SDP_PATH} ${SDP_PATH}
-    if [ $? -ne 0 ]; then
-        echo " 从 remote 拷贝失败。是否继续？(y/n)"
+if [[ "${USE_REMOTE}" == true ]]; then
+    if ! scp "remote:${SDP_PATH}" "${SDP_PATH}"; then
+        echo "Failed to copy from remote. Continue? (y/n)"
         read -r answer
         case "$answer" in
-        [Yy]*) echo " 继续执行后续操作…" ;;
+        [Yy]*) echo "Continuing with next steps..." ;;
         *)
-            echo " 已取消。"
+            echo "Cancelled."
             exit 1
             ;;
         esac
     fi
 fi
 
-if [ "$SKIP_COPY" = false ]; then
-    scp "${SDP_PATH}" "${MONITOR_USER}@${MONITOR_HOST}:${SDP_PATH}"
-    if [ $? -ne 0 ]; then
-        echo " scp 拷贝失败"
+if [[ "${SKIP_COPY}" == false ]]; then
+    if ! scp "${SDP_PATH}" "${MONITOR_USER}@${MONITOR_HOST}:${SDP_PATH}"; then
+        echo "scp copy failed"
         exit 1
     fi
-    echo " 文件已拷贝到宿主机：${SDP_PATH}"
+    echo "File copied to host: ${SDP_PATH}"
 else
-    echo " 跳过拷贝，直接打开远程 SDP"
+    echo "Skipping copy; opening remote SDP directly"
 fi
 
 ssh -f "${MONITOR_USER}@${MONITOR_HOST}" "DISPLAY=:0 ${MONITOR_PLAYER} '${SDP_PATH}' --network-caching=50"

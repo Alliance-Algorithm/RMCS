@@ -1,0 +1,45 @@
+#!/bin/zsh
+
+set -euo pipefail
+
+usage() {
+    cat <<'EOF'
+Usage: save-map-once <remote|local>
+
+  remote  Trigger robot-side /save_pcd_map service via ssh remote.
+  local   Trigger local container /save_pcd_map service.
+EOF
+}
+
+if (( $# != 1 )); then
+    usage
+    exit 1
+fi
+
+readonly mode="$1"
+readonly service_call='ros2 service call /save_pcd_map std_srvs/srv/Trigger "{}"'
+
+call_local() {
+    bash -lc "source ~/env_setup.bash && ${service_call}"
+}
+
+call_remote() {
+    ssh-remote "bash -lc 'source ~/env_setup.bash && ${service_call}'"
+}
+
+case "$mode" in
+remote)
+    call_remote
+    ;;
+local)
+    call_local
+    ;;
+--help|-h)
+    usage
+    ;;
+*)
+    echo "Error: unsupported mode '$mode'."
+    usage
+    exit 1
+    ;;
+esac

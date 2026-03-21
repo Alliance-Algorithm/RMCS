@@ -133,6 +133,8 @@ public:
     }
 
     void store_status(std::span<const std::byte> can_data) {
+        if (can_data.size() != 8) [[unlikely]]
+            return;
         can_data_.store(CanPacket8{can_data}, std::memory_order_relaxed);
     }
 
@@ -199,6 +201,7 @@ public:
         encoder_zero_point_ = last_raw_angle_;
         return encoder_zero_point_;
     }
+    int last_raw_angle() const { return last_raw_angle_; }
 
     double angle() const { return angle_; }
     double velocity() const { return velocity_; }

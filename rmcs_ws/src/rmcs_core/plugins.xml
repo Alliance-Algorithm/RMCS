@@ -1,125 +1,38 @@
 <library path="rmcs_core">
-  <class type="rmcs_core::hardware::cboard::Status" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
-  </class>
-  <class type="rmcs_core::hardware::Infantry" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
-  </class>
-  <class type="rmcs_core::hardware::Hero" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
-  </class>
-  <class type="rmcs_core::hardware::SteeringHero" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
-  </class>
-  <class type="rmcs_core::hardware::SteeringInfantry" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
-  </class>
-  <class type = "rmcs_core::hardware::TunnelInfantry" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
-  </class>
-  <class type="rmcs_core::hardware::DeformableInfantry" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
-  </class>
-  <class type="rmcs_core::controller::chassis::ChassisController" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
-  </class>
-  <class type="rmcs_core::controller::chassis::ChassisPowerController" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
-  </class>
-  <class type="rmcs_core::controller::chassis::OmniWheelController" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
-  </class>
-  <class type="rmcs_core::controller::chassis::ChassisTestController" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
-  </class>
-  <class type="rmcs_core::controller::chassis::DeformableChassisController" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
-  </class>
-  <class type="rmcs_core::controller::chassis::SteeringWheelController" base_class_type="rmcs_executor::Component">
-    <description>Steering wheel controller.</description>
-  </class>
-  <class type="rmcs_core::controller::chassis::DeformableChassis" base_class_type="rmcs_executor::Component">
-    <description>Steering wheel controller.</description>
-  </class>
-  <class type="rmcs_core::controller::gimbal::SimpleGimbalController" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
-  </class>
-  <class type="rmcs_core::controller::gimbal::HeroGimbalController" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
-  </class>
-  <class type="rmcs_core::controller::gimbal::DualYawController" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
-  </class>
-  <class type="rmcs_core::controller::gimbal::SimpleYawController" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
-  </class>
-  <class type="rmcs_core::controller::gimbal::DeformableInfantryGimbalController" base_class_type="rmcs_executor::Component">
-    <description>Gimbal player viewer</description>
-  </class>
-  <class type="rmcs_core::controller::gimbal::PlayerViewer" base_class_type="rmcs_executor::Component">
-    <description>Gimbal player viewer</description>
-  </class>
-  <class type="rmcs_core::controller::shooting::FrictionWheelController" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
-  </class>
-  <class type="rmcs_core::controller::shooting::HeatController" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
-  </class>
-  <class type="rmcs_core::controller::shooting::BulletFeederController17mm" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
-  </class>
-  <class type="rmcs_core::controller::shooting::BulletFeederController42mm" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
-  </class>
-  <class type="rmcs_core::controller::shooting::ShootingRecorder" base_class_type="rmcs_executor::Component">
-    <description>the recorder of Hero</description>
-  </class>
-  <class type="rmcs_core::controller::pid::PidController" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
-  </class>
-  <class type="rmcs_core::controller::pid::ErrorPidController" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
-  </class>
-  <class type="rmcs_core::controller::pid::FeedforwardPidController" base_class_type="rmcs_executor::Component">
-    <description>Feedforward pid controller.</description>
-  </class>
-  <class type="rmcs_core::controller::smc::SlidingModeController" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
-  </class>
-  <class type="rmcs_core::controller::smc::Smc_Observer" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
-  </class>
-  <class type="rmcs_core::broadcaster::TfBroadcaster" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
-  </class>
-  <class type="rmcs_core::broadcaster::ValueBroadcaster" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
-  </class>
-  <class type="rmcs_core::hardware::cboard::Command" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
-  </class>
-  <class type="rmcs_core::hardware::referee::Status" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
-  </class>
-  <class type="rmcs_core::hardware::cboard::GyroCalibrator" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
-  </class>
-    <class type="rmcs_core::referee::Status" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
-  </class>
-  <class type="rmcs_core::referee::Command" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
-  </class>
-  <class type="rmcs_core::referee::command::Interaction" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
-  </class>
-  <class type="rmcs_core::referee::command::interaction::Ui" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
-  </class>
-  <class type="rmcs_core::referee::app::ui::Infantry" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
-  </class>
-  <class type="rmcs_core::referee::app::ui::Hero" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
-  </class>
+  <class type="rmcs_core::hardware::MecanumHero" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::hardware::SteeringHero" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::hardware::OmniInfantry" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::hardware::SteeringInfantry" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::hardware::DeformableInfantry" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::hardware::Sentry" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::chassis::ChassisController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::chassis::ChassisPowerController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::chassis::OmniWheelController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::chassis::SteeringWheelController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::chassis::DeformableChassisController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::chassis::DeformableChassis" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::gimbal::SimpleGimbalController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::gimbal::OmniInfantryPlannerGimbalController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::gimbal::OmniInfantryGimbalSweep" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::gimbal::HeroGimbalController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::gimbal::DualYawController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::gimbal::DeformableInfantryGimbalController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::gimbal::PlayerViewer" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::shooting::FrictionWheelController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::shooting::HeatController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::shooting::BulletFeederController17mm" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::shooting::BulletFeederController42mm" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::shooting::ShootingRecorder" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::pid::PidController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::pid::ErrorPidController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::smc::SlidingModeController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::smc::Smc_Observer" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::broadcaster::TfBroadcaster" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::broadcaster::ValueBroadcaster" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::referee::Status" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::referee::Command" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::referee::command::Interaction" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::referee::command::interaction::Ui" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::referee::app::ui::Infantry" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::referee::app::ui::Hero" base_class_type="rmcs_executor::Component" />
 </library>

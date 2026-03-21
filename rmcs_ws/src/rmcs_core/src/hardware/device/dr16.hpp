@@ -69,17 +69,17 @@ public:
         // unaligned memory to properly aligned structures without violating alignment or strict
         // aliasing rules.
 
-        uint64_t part1;
+        uint64_t part1{};
         std::memcpy(&part1, uart_data, 6);
         uart_data += 6;
         data_part1_.store(part1, std::memory_order::relaxed);
 
-        uint64_t part2;
+        uint64_t part2{};
         std::memcpy(&part2, uart_data, 8);
         uart_data += 8;
         data_part2_.store(part2, std::memory_order::relaxed);
 
-        uint32_t part3;
+        uint32_t part3{};
         std::memcpy(&part3, uart_data, 4);
         uart_data += 4;
         data_part3_.store(part3, std::memory_order::relaxed);
@@ -93,8 +93,7 @@ public:
             value -= 1024;
             if (-660 <= value && value <= 660)
                 return value / 660.0;
-            else
-                return 0.0;
+            return 0.0;
         };
         joystick_right_.y = -channel_to_double(static_cast<uint16_t>(part1.joystick_channel0));
         joystick_right_.x = channel_to_double(static_cast<uint16_t>(part1.joystick_channel1));
@@ -138,25 +137,25 @@ public:
     }
 
     struct Vector {
-        constexpr static inline Vector zero() { return {0, 0}; }
+        constexpr static Vector zero() { return {.x = 0, .y = 0}; }
         double x, y;
     };
 
-    enum class Switch : uint8_t { UNKNOWN = 0, UP = 1, DOWN = 2, MIDDLE = 3 };
+    enum class Switch : uint8_t { kUnknown = 0, kUp = 1, kDown = 2, kMiddle = 3 };
 
-    PACKED_STRUCT(Mouse {
-        constexpr static inline Mouse zero() {
+    struct [[gnu::packed]] Mouse {
+        constexpr static Mouse zero() {
             constexpr uint8_t zero = 0;
             return std::bit_cast<Mouse>(zero);
         }
 
         bool left  : 1;
         bool right : 1;
-    });
+    };
     static_assert(sizeof(Mouse) == 1);
 
-    PACKED_STRUCT(Keyboard {
-        constexpr static inline Keyboard zero() {
+    struct [[gnu::packed]] Keyboard {
+        constexpr static Keyboard zero() {
             constexpr uint16_t zero = 0;
             return std::bit_cast<Keyboard>(zero);
         }
@@ -177,7 +176,7 @@ public:
         bool c     : 1;
         bool v     : 1;
         bool b     : 1;
-    });
+    };
     static_assert(sizeof(Keyboard) == 2);
 
     Eigen::Vector2d joystick_right() const { return to_eigen_vector(joystick_right_); }
@@ -186,9 +185,7 @@ public:
     rmcs_msgs::Switch switch_right() const {
         return std::bit_cast<rmcs_msgs::Switch>(switch_right_);
     }
-    rmcs_msgs::Switch switch_left() const {
-        return std::bit_cast<rmcs_msgs::Switch>(switch_left_);
-    }
+    rmcs_msgs::Switch switch_left() const { return std::bit_cast<rmcs_msgs::Switch>(switch_left_); }
 
     Eigen::Vector2d mouse_velocity() const { return to_eigen_vector(mouse_velocity_); }
 
@@ -224,7 +221,7 @@ private:
         }
     }
 
-    PACKED_STRUCT(Dr16DataPart1 {
+    struct [[gnu::packed]] Dr16DataPart1 {
         uint64_t joystick_channel0 : 11;
         uint64_t joystick_channel1 : 11;
         uint64_t joystick_channel2 : 11;
@@ -234,39 +231,53 @@ private:
         uint64_t switch_left  : 2;
 
         uint64_t padding : 16;
-    });
+    };
     static_assert(sizeof(Dr16DataPart1) == 8);
-    std::atomic<uint64_t> data_part1_{std::bit_cast<uint64_t>(
-        Dr16DataPart1{1024, 1024, 1024, 1024, (uint64_t)Switch::DOWN, (uint64_t)Switch::DOWN, 0})};
+    std::atomic<uint64_t> data_part1_{std::bit_cast<uint64_t>(Dr16DataPart1{
+        .joystick_channel0 = 1024,
+        .joystick_channel1 = 1024,
+        .joystick_channel2 = 1024,
+        .joystick_channel3 = 1024,
+        .switch_right = static_cast<uint64_t>(Switch::kUnknown),
+        .switch_left = static_cast<uint64_t>(Switch::kUnknown),
+        .padding = 0,
+    })};
     static_assert(decltype(data_part1_)::is_always_lock_free);
 
-    PACKED_STRUCT(Dr16DataPart2 {
+    struct [[gnu::packed]] Dr16DataPart2 {
         int16_t mouse_velocity_x;
         int16_t mouse_velocity_y;
         int16_t mouse_velocity_z;
 
         bool mouse_left;
         bool mouse_right;
-    });
+    };
     static_assert(sizeof(Dr16DataPart2) == 8);
-    std::atomic<uint64_t> data_part2_{
-        std::bit_cast<uint64_t>(Dr16DataPart2{0, 0, 0, false, false})};
+    std::atomic<uint64_t> data_part2_{std::bit_cast<uint64_t>(Dr16DataPart2{
+        .mouse_velocity_x = 0,
+        .mouse_velocity_y = 0,
+        .mouse_velocity_z = 0,
+        .mouse_left = false,
+        .mouse_right = false,
+    })};
     static_assert(decltype(data_part2_)::is_always_lock_free);
 
-    PACKED_STRUCT(Dr16DataPart3 {
+    struct [[gnu::packed]] Dr16DataPart3 {
         Keyboard keyboard;
         uint16_t rotary_knob;
-    });
+    };
     static_assert(sizeof(Dr16DataPart3) == 4);
-    std::atomic<uint32_t> data_part3_ = {
-        std::bit_cast<uint32_t>(Dr16DataPart3{Keyboard::zero(), 0})};
+    std::atomic<uint32_t> data_part3_ = {std::bit_cast<uint32_t>(Dr16DataPart3{
+        .keyboard = Keyboard::zero(),
+        .rotary_knob = 0,
+    })};
     static_assert(decltype(data_part3_)::is_always_lock_free);
 
     Vector joystick_right_ = Vector::zero();
     Vector joystick_left_ = Vector::zero();
 
-    Switch switch_right_ = Switch::UNKNOWN;
-    Switch switch_left_ = Switch::UNKNOWN;
+    Switch switch_right_ = Switch::kUnknown;
+    Switch switch_left_ = Switch::kUnknown;
 
     Vector mouse_velocity_ = Vector::zero();
 

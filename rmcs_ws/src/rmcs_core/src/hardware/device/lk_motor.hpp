@@ -10,7 +10,6 @@
 #include <limits>
 #include <numbers>
 #include <span>
-#include <stdexcept>
 #include <string>
 #include <utility>
 
@@ -24,7 +23,7 @@ namespace rmcs_core::hardware::device {
 
 class LkMotor {
 public:
-    enum class Type : uint8_t { kMG5010Ei10, kMG4010Ei10, kMG6012Ei8, kMG4005Ei10, kMG5010Ei36 };
+    enum class Type : uint8_t { kMG5010Ei10, kMG4010Ei10, kMG6012Ei8, kMG4005Ei10 };
 
     struct Config {
         explicit Config(Type type)
@@ -70,14 +69,12 @@ public:
         multi_turn_encoder_count_ = 0;
         last_raw_angle_ = 0;
 
-        double current_max;
         double torque_constant;
         double reduction_ratio;
 
         switch (config.motor_type) {
         case Type::kMG5010Ei10:
-            raw_angle_max_ = 65535;
-            current_max = 33.0;
+            raw_angle_modulus_ = 1 << 16;
             torque_constant = 0.1;
             reduction_ratio = 10.0;
 
@@ -89,57 +86,50 @@ public:
             max_torque_ = 7.0;
             break;
         case Type::kMG4010Ei10:
-            raw_angle_max_ = 65535;
-            current_max = 33.0;
+            raw_angle_modulus_ = 1 << 16;
             torque_constant = 0.07;
             reduction_ratio = 10.0;
             max_torque_ = 4.5;
             break;
         case Type::kMG6012Ei8:
-            raw_angle_max_ = 65535;
-            current_max = 33.0;
+            raw_angle_modulus_ = 1 << 16;
             torque_constant = 1.09 / 8.0;
             reduction_ratio = 8.0;
             max_torque_ = 16.0;
             break;
         case Type::kMG4005Ei10:
-            raw_angle_max_ = 65535;
-            current_max = 33.0;
+            raw_angle_modulus_ = 1 << 16;
             torque_constant = 0.06;
             reduction_ratio = 10.0;
             max_torque_ = 2.5;
             break;
-        case Type::kMG5010Ei36:
-            raw_angle_max_ = 65535;
-            current_max = 33.0;
-            torque_constant = 0.3;
-            reduction_ratio = 36.0;
-            max_torque_ = 25.0;
-            break;
         default: std::unreachable();
         }
 
-        // Make sure raw_angle_max_ is a power of 2
-        encoder_zero_point_ = config.encoder_zero_point & (raw_angle_max_ - 1);
+        // Make sure raw_angle_modulus_ is a power of 2
+        encoder_zero_point_ = config.encoder_zero_point & (raw_angle_modulus_ - 1);
 
         multi_turn_angle_enabled_ = config.multi_turn_angle_enabled;
 
         const double sign = config.reversed ? -1.0 : 1.0;
 
-        status_angle_to_angle_coefficient_ = sign / raw_angle_max_ * 2 * std::numbers::pi;
+        status_angle_to_angle_coefficient_ = sign / raw_angle_modulus_ * 2 * std::numbers::pi;
         angle_to_command_angle_coefficient_ = sign * reduction_ratio * kRadToDeg * 100.0;
 
         status_velocity_to_velocity_coefficient_ = sign / reduction_ratio * kDegToRad;
         velocity_to_command_velocity_coefficient_ = sign * reduction_ratio * kRadToDeg * 100.0;
 
         status_current_to_torque_coefficient_ =
-            sign * (current_max / kRawCurrentMax) * torque_constant * reduction_ratio;
+            sign * (kProtocolCurrentMax / kRawCurrentMax) * torque_constant * reduction_ratio;
         torque_to_command_current_coefficient_ = 1 / status_current_to_torque_coefficient_;
 
         *max_torque_output_ = max_torque();
     }
 
     void store_status(std::span<const std::byte> can_data) {
+        if (can_data.size() != 8) [[unlikely]]
+            return;
+
         const CanPacket8 can_packet{can_data};
         const struct [[gnu::packed]] {
             uint8_t command;
@@ -168,19 +158,20 @@ public:
         const auto raw_angle = feedback.encoder;
         auto calibrated_raw_angle = feedback.encoder - encoder_zero_point_;
         if (calibrated_raw_angle < 0)
-            calibrated_raw_angle += raw_angle_max_;
+            calibrated_raw_angle += raw_angle_modulus_;
         if (!multi_turn_angle_enabled_) {
             angle_ = status_angle_to_angle_coefficient_ * static_cast<double>(calibrated_raw_angle);
             if (angle_ < 0)
                 angle_ += 2 * std::numbers::pi;
         } else {
             // Calculates the minimal difference between two angles and normalizes it to the range
-            // (-raw_angle_max_/2, raw_angle_max_/2].
+            // (-raw_angle_modulus_/2, raw_angle_modulus_/2].
             // This implementation leverages bitwise operations for efficiency, which is valid only
-            // when raw_angle_max_ is a power of 2.
-            auto diff = (calibrated_raw_angle - multi_turn_encoder_count_) & (raw_angle_max_ - 1);
-            if (diff > (raw_angle_max_ >> 1))
-                diff -= raw_angle_max_;
+            // when raw_angle_modulus_ is a power of 2.
+            auto diff =
+                (calibrated_raw_angle - multi_turn_encoder_count_) & (raw_angle_modulus_ - 1);
+            if (diff > (raw_angle_modulus_ >> 1))
+                diff -= raw_angle_modulus_;
 
             multi_turn_encoder_count_ += diff;
             angle_ =
@@ -206,6 +197,8 @@ public:
         encoder_zero_point_ = last_raw_angle_;
         return encoder_zero_point_;
     }
+
+    int64_t last_raw_angle() const { return last_raw_angle_; }
 
     double angle() const { return angle_; }
     double velocity() const { return velocity_; }
@@ -285,10 +278,15 @@ public:
 
     CanPacket8 generate_torque_command() const { return generate_torque_command(control_torque()); }
 
-    /// @brief The host sends this command to control the motor's speed, along with a torque limit.
-    /// @note After receiving the command, the motor responds to the host. The motor's response data
-    /// is the same as the `generate_status_request` command (only the command byte 0 is
-    /// different, here it is 0xA2/0xAD).
+    /// @brief The host sends this command to control the motor's speed, with an optional torque
+    /// limit.
+    /// @note Three firmware variants exist:
+    /// - Version A: 0xA2 only, torque limit field ignored.
+    /// - Version B: 0xA2 and 0xAD; 0xAD is the dedicated torque-limited variant.
+    /// - Version C: 0xA2 only, torque limit field honored.
+    /// The variant cannot be detected at runtime, so this implementation always sends 0xA2 for
+    /// broad compatibility (A and C), at the cost of not using Version B's dedicated 0xAD.
+    /// Response layout is the same as `generate_status_request` (command byte = 0xA2).
     CanPacket8
         generate_velocity_command(double control_velocity, double torque_limit = kNan) const {
         if (std::isnan(control_velocity))
@@ -306,7 +304,7 @@ public:
         } command alignas(CanPacket8){.velocity = to_command_velocity(control_velocity)};
 
         if (!std::isnan(torque_limit)) {
-            command.id = 0xAD;
+            // Keep using 0xA2 here; see the compatibility note above.
             command.current_limit = to_command_current(torque_limit);
         }
 
@@ -340,8 +338,8 @@ public:
         if (!std::isnan(velocity_limit)) {
             command.id = 0xA4;
 
-            velocity_limit =
-                velocity_to_command_velocity_coefficient_ * (1.0 / 100.0) * velocity_limit;
+            velocity_limit = std::abs(velocity_to_command_velocity_coefficient_) * (1.0 / 100.0)
+                           * velocity_limit;
             velocity_limit = std::round(
                 std::clamp<double>(
                     velocity_limit, std::numeric_limits<uint16_t>::min(),
@@ -374,8 +372,8 @@ public:
         if (!std::isnan(velocity_limit)) {
             command.id = 0xA8;
 
-            velocity_limit =
-                velocity_to_command_velocity_coefficient_ * (1.0 / 100.0) * velocity_limit;
+            velocity_limit = std::abs(velocity_to_command_velocity_coefficient_) * (1.0 / 100.0)
+                           * velocity_limit;
             velocity_limit = std::round(
                 std::clamp<double>(
                     velocity_limit, std::numeric_limits<uint16_t>::min(),
@@ -393,9 +391,6 @@ public:
     CanPacket8 generate_command() {
         if (first_generate_auto_command_) [[unlikely]] {
             first_generate_auto_command_ = false;
-            if (!control_angle_shift_.ready() && !control_angle_.ready()
-                && !control_velocity_.ready() && !control_torque_.ready())
-                throw std::runtime_error{"[LkMotor] No manipulating available!"};
 
             if (!control_angle_shift_.ready())
                 control_angle_shift_.bind_directly(kNan);
@@ -470,9 +465,11 @@ private:
 
     int32_t to_absolute_command_angle(double angle) const {
         angle = angle_to_command_angle_coefficient_ * angle;
-        angle -= std::abs(angle_to_command_angle_coefficient_)
-               * (((raw_angle_max_ - static_cast<double>(encoder_zero_point_)) / raw_angle_max_) * 2
-                  * std::numbers::pi);
+        const auto one_turn = std::abs(angle_to_command_angle_coefficient_) * 2 * std::numbers::pi;
+        // TODO: The offset should be N turns (calculated from the motor's reported multi-turn angle
+        // vs encoder position at startup), not hardcoded to 1 turn.
+        angle -= one_turn;
+        angle += one_turn * static_cast<double>(encoder_zero_point_) / raw_angle_modulus_;
         angle = std::round(
             std::clamp<double>(
                 angle, std::numeric_limits<int32_t>::min(), std::numeric_limits<int32_t>::max()));
@@ -483,8 +480,10 @@ private:
     // Limits
     static constexpr double kNan = std::numeric_limits<double>::quiet_NaN();
 
+    // LK protocol maps the raw current field range [-2048, 2048] to [-33A, 33A].
     static constexpr int kRawCurrentMax = 2048;
-    int raw_angle_max_;
+    static constexpr double kProtocolCurrentMax = 33.0;
+    int raw_angle_modulus_;
 
     // Constants
     static constexpr double kDegToRad = std::numbers::pi / 180;

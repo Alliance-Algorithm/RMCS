@@ -34,6 +34,9 @@ public:
     }
 
     void store_status(std::span<const std::byte> can_data) {
+        if (can_data.size() != 8) [[unlikely]]
+            return;
+
         can_data_.store(CanPacket8{can_data}, std::memory_order_relaxed);
     }
 

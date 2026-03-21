@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <bit>
 #include <cstddef>
 #include <cstdint>
@@ -15,10 +16,8 @@ requires(std::is_integral_v<T> || std::is_floating_point_v<T>)
         sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8,
         "Endian swap is only defined for 2, 4, and 8-byte types");
 
-    T result;
-
-    const auto* value_bytes = reinterpret_cast<const std::byte*>(&value);
-    auto* result_bytes = reinterpret_cast<std::byte*>(&result);
+    const auto value_bytes = std::bit_cast<std::array<std::byte, sizeof(T)>>(value);
+    std::array<std::byte, sizeof(T)> result_bytes;
 
     if constexpr (sizeof(T) == 8) {        // 64-bit
         result_bytes[0] = value_bytes[7];
@@ -41,13 +40,12 @@ requires(std::is_integral_v<T> || std::is_floating_point_v<T>)
         return 0;
     }
 
-    return result;
+    return std::bit_cast<T>(result_bytes);
 }
 
 template <typename T, std::endian target_endian>
-requires(std::is_integral_v<T> || std::is_floating_point_v<T>)
-struct [[gnu::packed]] EndianContainer final {
-    T value_buffer;
+requires(std::is_integral_v<T> || std::is_floating_point_v<T>) struct EndianContainer final {
+    std::array<std::byte, sizeof(T)> value_buffer;
 
     [[nodiscard]] static T transform(const T& value) noexcept {
         if constexpr (std::endian::native == target_endian) {
@@ -57,24 +55,32 @@ struct [[gnu::packed]] EndianContainer final {
         }
     }
 
+    [[nodiscard]] static auto encode(T value) noexcept -> std::array<std::byte, sizeof(T)> {
+        return std::bit_cast<std::array<std::byte, sizeof(T)>>(transform(value));
+    }
+
+    [[nodiscard]] static T decode(const std::array<std::byte, sizeof(T)>& buffer) noexcept {
+        return transform(std::bit_cast<T>(buffer));
+    }
+
     EndianContainer() = default;
 
     // Storage in
     EndianContainer(const T& value) noexcept // NOLINT(google-explicit-constructor)
-        : value_buffer(transform(value)) {}
+        : value_buffer(encode(value)) {}
 
     template <typename U>
     explicit EndianContainer(U const& value) noexcept
-        : value_buffer(transform(T(value))) {}
+        : value_buffer(encode(T(value))) {}
 
     // Storage out
     template <typename U>
     operator U() const noexcept { // NOLINT(google-explicit-constructor)
-        return U(transform(value_buffer));
+        return U(decode(value_buffer));
     }
 
     operator T() const noexcept { // NOLINT(google-explicit-constructor)
-        return transform(value_buffer);
+        return decode(value_buffer);
     }
 
     template <typename U>
@@ -123,27 +129,27 @@ struct [[gnu::packed]] EndianContainer final {
         *this = T(*this) / value;
         return *this;
     }
-    EndianContainer& operator%=(const T& value) noexcept {
+    EndianContainer& operator%=(const T& value) noexcept requires std::is_integral_v<T> {
         *this = T(*this) % value;
         return *this;
     }
-    EndianContainer& operator&=(const T& value) noexcept {
+    EndianContainer& operator&=(const T& value) noexcept requires std::is_integral_v<T> {
         *this = T(*this) & value;
         return *this;
     }
-    EndianContainer& operator|=(const T& value) noexcept {
+    EndianContainer& operator|=(const T& value) noexcept requires std::is_integral_v<T> {
         *this = T(*this) | value;
         return *this;
     }
-    EndianContainer& operator^=(const T& value) noexcept {
+    EndianContainer& operator^=(const T& value) noexcept requires std::is_integral_v<T> {
         *this = T(*this) ^ value;
         return *this;
     }
-    EndianContainer& operator<<=(const T& value) noexcept {
+    EndianContainer& operator<<=(const T& value) noexcept requires std::is_integral_v<T> {
         *this = T(T(*this) << value);
         return *this;
     }
-    EndianContainer& operator>>=(const T& value) noexcept {
+    EndianContainer& operator>>=(const T& value) noexcept requires std::is_integral_v<T> {
         *this = T(T(*this) >> value);
         return *this;
     }
@@ -152,9 +158,10 @@ struct [[gnu::packed]] EndianContainer final {
         return out;
     }
     friend std::istream& operator>>(std::istream& in, EndianContainer& value) {
-        T val;
-        in >> val;
-        value = val;
+        T val{};
+        if (in >> val) {
+            value = val;
+        }
         return in;
     }
 };

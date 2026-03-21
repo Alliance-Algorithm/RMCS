@@ -19,5 +19,4 @@ services:
       - WAYLAND_DISPLAY=${WAYLAND_DISPLAY}
     network_mode: host
     tty: true
-    stdin_open: true 
-
+    stdin_open: true

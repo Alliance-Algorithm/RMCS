@@ -1,4 +1,13 @@
-#! /bin/bash
+#!/bin/bash
 
-rm -rf ${RMCS_PATH}/rmcs_ws/build ${RMCS_PATH}/rmcs_ws/install ${RMCS_PATH}/rmcs_ws/log
+: "${RMCS_PATH:=/workspaces/RMCS}"
 
+if [[ -z "${RMCS_PATH}" || "${RMCS_PATH}" == "/" ]]; then
+    echo "Invalid RMCS_PATH: '${RMCS_PATH}'"
+    exit 1
+fi
+
+rm -rf -- \
+    "${RMCS_PATH}/rmcs_ws/build" \
+    "${RMCS_PATH}/rmcs_ws/install" \
+    "${RMCS_PATH}/rmcs_ws/log"

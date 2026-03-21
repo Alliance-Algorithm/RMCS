@@ -29,40 +29,6 @@ public:
         coordinate_mapping_function_ = std::move(mapping_function);
     }
 
-    void set_coordinate_mapping_tilted(
-        double roll_rad, double pitch_rad, double yaw_rad,
-        std::function<std::tuple<double, double, double>(double, double, double)> base_mapping =
-            {}) {
-
-        const double cr = std::cos(roll_rad), sr = std::sin(roll_rad);
-        const double cp = std::cos(pitch_rad), sp = std::sin(pitch_rad);
-        const double cy = std::cos(yaw_rad), sy = std::sin(yaw_rad);
-
-        const double r00 = cy * cp;
-        const double r01 = cy * sp * sr - sy * cr;
-        const double r02 = cy * sp * cr + sy * sr;
-
-        const double r10 = sy * cp;
-        const double r11 = sy * sp * sr + cy * cr;
-        const double r12 = sy * sp * cr - cy * sr;
-
-        const double r20 = -sp;
-        const double r21 = cp * sr;
-        const double r22 = cp * cr;
-
-        coordinate_mapping_function_ =
-            [base_mapping = std::move(base_mapping),
-             r00, r01, r02, r10, r11, r12, r20, r21, r22](double x, double y, double z) mutable {
-                if (base_mapping) {
-                    std::tie(x, y, z) = base_mapping(x, y, z);
-                }
-                const double tx = r00 * x + r10 * y + r20 * z;
-                const double ty = r01 * x + r11 * y + r21 * z;
-                const double tz = r02 * x + r12 * y + r22 * z;
-                return std::make_tuple(tx, ty, tz);
-            };
-    }
-
     void store_accelerometer_status(int16_t x, int16_t y, int16_t z) {
         accelerometer_data_.store({x, y, z}, std::memory_order::relaxed);
     }
@@ -116,23 +82,23 @@ private:
 
         // Compute feedback only if accelerometer measurement valid (avoids NaN in accelerometer
         // normalization)
-        if (!((ax == 0.0) && (ay == 0.0) && (az == 0.0))) {
+        if ((ax != 0.0) || (ay != 0.0) || (az != 0.0)) {
 
             // Normalize accelerometer measurement
-            recip_norm = 1 / std::sqrt(ax * ax + ay * ay + az * az);
+            recip_norm = 1 / std::sqrt((ax * ax) + (ay * ay) + (az * az));
             ax *= recip_norm;
             ay *= recip_norm;
             az *= recip_norm;
 
             // Estimated direction of gravity and vector perpendicular to magnetic flux
-            halfvx = q1_ * q3_ - q0_ * q2_;
-            halfvy = q0_ * q1_ + q2_ * q3_;
-            halfvz = q0_ * q0_ - 0.5 + q3_ * q3_;
+            halfvx = (q1_ * q3_) - (q0_ * q2_);
+            halfvy = (q0_ * q1_) + (q2_ * q3_);
+            halfvz = (q0_ * q0_) - 0.5 + (q3_ * q3_);
 
             // Error is sum of cross product between estimated and measured direction of gravity
-            halfex = ay * halfvz - az * halfvy;
-            halfey = az * halfvx - ax * halfvz;
-            halfez = ax * halfvy - ay * halfvx;
+            halfex = (ay * halfvz) - (az * halfvy);
+            halfey = (az * halfvx) - (ax * halfvz);
+            halfez = (ax * halfvy) - (ay * halfvx);
 
             // Compute and apply integral feedback if enabled
             if (double_ki_ > 0.0) {
@@ -164,13 +130,13 @@ private:
         qa = q0_;
         qb = q1_;
         qc = q2_;
-        q0_ += (-qb * gx - qc * gy - q3_ * gz);
-        q1_ += (qa * gx + qc * gz - q3_ * gy);
-        q2_ += (qa * gy - qb * gz + q3_ * gx);
-        q3_ += (qa * gz + qb * gy - qc * gx);
+        q0_ += ((-qb * gx) - (qc * gy) - (q3_ * gz));
+        q1_ += ((qa * gx) + (qc * gz) - (q3_ * gy));
+        q2_ += ((qa * gy) - (qb * gz) + (q3_ * gx));
+        q3_ += ((qa * gz) + (qb * gy) - (qc * gx));
 
         // Normalize quaternion
-        recip_norm = 1 / std::sqrt(q0_ * q0_ + q1_ * q1_ + q2_ * q2_ + q3_ * q3_);
+        recip_norm = 1 / std::sqrt((q0_ * q0_) + (q1_ * q1_) + (q2_ * q2_) + (q3_ * q3_));
         q0_ *= recip_norm;
         q1_ *= recip_norm;
         q2_ *= recip_norm;
@@ -184,10 +150,15 @@ private:
     struct alignas(8) ImuData {
         int16_t x, y, z;
     };
-    std::atomic<ImuData> accelerometer_data_, gyroscope_data_;
+    std::atomic<ImuData> accelerometer_data_{
+        {.x = 0, .y = 0, .z = 0}
+    };
+    std::atomic<ImuData> gyroscope_data_{
+        {.x = 0, .y = 0, .z = 0}
+    };
     static_assert(std::atomic<ImuData>::is_always_lock_free);
 
-    double ax_, ay_, az_, gx_, gy_, gz_;
+    double ax_ = 0, ay_ = 0, az_ = 0, gx_ = 0, gy_ = 0, gz_ = 0;
 
     std::function<std::tuple<double, double, double>(double, double, double)>
         coordinate_mapping_function_;
