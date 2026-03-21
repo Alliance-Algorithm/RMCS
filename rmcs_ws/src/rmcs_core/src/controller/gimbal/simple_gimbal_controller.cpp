@@ -69,7 +69,7 @@ public:
         double yaw_shift =
             joystick_sensitivity * joystick_left_->y() + mouse_sensitivity * mouse_velocity_->y();
         double pitch_shift =
-            -joystick_sensitivity * joystick_left_->x() - mouse_sensitivity * mouse_velocity_->x();
+            -joystick_sensitivity * joystick_left_->x() + mouse_sensitivity * mouse_velocity_->x();
 
         // Navigation Control
         if (navigation_command_velocity_.ready()) {

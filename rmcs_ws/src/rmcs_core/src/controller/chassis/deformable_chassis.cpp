@@ -136,7 +136,7 @@ public:
             }
 
             update_velocity_control();
-            update_lift_target_toggle(switch_left, switch_right);
+            update_lift_target_toggle(switch_left, switch_right, keyboard);
             update_lift_special_toggle(switch_left, switch_right);
             update_lift_angle_error();
         } while (false);
@@ -258,15 +258,18 @@ private:
         return err;
     }
 
-    void update_lift_target_toggle(rmcs_msgs::Switch left_switch, rmcs_msgs::Switch right_switch) {
-        const bool toggle_condition =
+    void update_lift_target_toggle(
+        rmcs_msgs::Switch left_switch, rmcs_msgs::Switch right_switch, rmcs_msgs::Keyboard keyboard
+    ) {
+        const bool switch_toggle_condition =
             (left_switch == rmcs_msgs::Switch::MIDDLE) && (right_switch == rmcs_msgs::Switch::UP);
+        const bool keyboard_toggle_condition = !last_keyboard_.r && keyboard.r;
 
-        const bool last_toggle_condition =
+        const bool last_switch_toggle_condition =
             (last_switch_left_ == rmcs_msgs::Switch::MIDDLE)
             && (last_switch_right_ == rmcs_msgs::Switch::UP);
 
-        if (toggle_condition && !last_toggle_condition) {
+        if ((switch_toggle_condition && !last_switch_toggle_condition) || keyboard_toggle_condition) {
             current_target_angle_ =
                 (std::abs(current_target_angle_ - max_angle_) < 1e-6) ? min_angle_ : max_angle_;
                 scope_motor_control();
@@ -326,13 +329,13 @@ private:
 
     void scope_motor_control() {
         if (current_target_angle_ == min_angle_){
-            *scope_motor_control_torque = -0.0;
+            *scope_motor_control_torque = -0.3;
             // if (*scope_motor_velocity <= std::abs(0.1)){
             //     *scope_motor_control_torque = 0.18 * 1.0 / 36.0;
             // }
         }
         else{
-            *scope_motor_control_torque = 0.0;
+            *scope_motor_control_torque = 0.3;
             // if (*scope_motor_velocity <= std::abs(0.1)){
             //     *scope_motor_control_torque = -0.18 * 1.0 / 36.0;
             // }
