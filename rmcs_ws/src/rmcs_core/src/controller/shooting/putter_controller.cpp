@@ -127,7 +127,7 @@ public:
 
                 if (!bullet_feeder_cool_down_) {
                     RCLCPP_INFO(get_logger(), "Jamming Solved, Retrying...");
-                    set_preloading();
+                    set_preloaded();
                 }
             } else {
                 // 正常运行模式：摩擦轮就绪时才允许发射
@@ -262,7 +262,7 @@ private:
     }
 
     void set_preloading() {
-        RCLCPP_INFO(get_logger(), "PRELOADING");
+        // RCLCPP_INFO(get_logger(), "PRELOADING");
         shoot_stage_ = ShootStage::PRELOADING;
         // 盲拨方案：直接增加目标角度
         if (!std::isnan(bullet_feeder_control_angle_)) {
@@ -272,20 +272,20 @@ private:
     }
 
     void set_preloaded() {
-        RCLCPP_INFO(get_logger(), "PRELOADED");
+        // RCLCPP_INFO(get_logger(), "PRELOADED");
         shoot_stage_ = ShootStage::PRELOADED;
         last_preload_flag_ = false;
     }
 
     void set_shooting() {
-        RCLCPP_INFO(get_logger(), "SHOOTING");
+        // RCLCPP_INFO(get_logger(), "SHOOTING");
         shoot_stage_ = ShootStage::SHOOTING;
         shoot_start_time_ = std::chrono::steady_clock::now();
         shot_delay_pending_ = true;
     }
 
     void set_updating() {
-        RCLCPP_INFO(get_logger(), "UPDATING");
+        // RCLCPP_INFO(get_logger(), "UPDATING");
         shoot_stage_ = ShootStage::UPDATING;
     }
 
@@ -341,8 +341,8 @@ private:
             const double delay_ms =
                 std::chrono::duration<double, std::milli>(now - shoot_start_time_).count();
             *shoot_delay_ms_ = delay_ms;
-            RCLCPP_INFO(
-                get_logger(), "Shoot delay[%zu]: %.3f ms", shoot_delay_sample_count_, delay_ms);
+            // RCLCPP_INFO(
+            //     get_logger(), "Shoot delay[%zu]: %.3f ms", shoot_delay_sample_count_, delay_ms);
             log_shoot_delay(delay_ms);
             shot_delay_pending_ = false;
         }

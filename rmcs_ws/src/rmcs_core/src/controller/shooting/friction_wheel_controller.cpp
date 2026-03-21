@@ -169,7 +169,7 @@ private:
                 primary_friction_velocity_decrease_integral_ += differential;
             else {
                 if (primary_friction_velocity_decrease_integral_ < -14.0
-                    && last_primary_friction_velocity_ < friction_working_velocities_[0] - 20.0)
+                    && last_primary_friction_velocity_ < friction_working_velocities_[0] - 25.0)
                     fired = true;
 
                 primary_friction_velocity_decrease_integral_ = 0;
