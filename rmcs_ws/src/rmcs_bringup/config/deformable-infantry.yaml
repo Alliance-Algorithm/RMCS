@@ -75,7 +75,7 @@ deformable_infantry:
     left_back_zero_point: 5812
     right_back_zero_point: 7870
     right_front_zero_point: 4472
-    yaw_motor_zero_point: 43925
+    yaw_motor_zero_point: 11624
     pitch_motor_zero_point: 15838
 
 chassis_controller:
@@ -85,7 +85,7 @@ chassis_controller:
     left_front_joint_offset: 257.501488
     left_back_joint_offset: 353.545434
     right_back_joint_offset: 7.591669
-    right_front_joint_offset: 303.265736
+    right_front_joint_offset: 273.986725
     Rod_relative_horizontal_coordinate: 5.0
     Rod_relative_longitudinal_coordinate: 75.0
     Rod_length: 80.0

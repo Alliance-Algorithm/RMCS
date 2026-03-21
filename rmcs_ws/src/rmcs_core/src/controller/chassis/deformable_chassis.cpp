@@ -151,7 +151,7 @@ private:
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
 
     static constexpr double translational_velocity_max_ = 10.0;
-    static constexpr double angular_velocity_max_       = 16.0;
+    static constexpr double angular_velocity_max_       = 20.0;
 
     static double wrap_deg(double deg) {
         deg = std::fmod(deg, 360.0);
@@ -321,6 +321,7 @@ private:
         *lb_angle_error_ = s_lb_ - lb_s_target_;
         *rf_angle_error_ = s_rf_ - rf_s_target_;
         *rb_angle_error_ = s_rb_ - rb_s_target_;
+        RCLCPP_INFO(get_logger(), "lf_error: %f, lb_error: %f, rf_error: %f, rb_error: %f", alpha_lf, alpha_lb, alpha_rf, alpha_rb);
     }
 
     void scope_motor_control() {
