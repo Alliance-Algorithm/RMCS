@@ -13,6 +13,9 @@ SHELL ["/bin/bash", "-c"]
 ENV TZ=Asia/Shanghai \
     DEBIAN_FRONTEND=noninteractive
 
+ARG FASTDDS_TAG=v2.12.2
+ARG MICROXRCE_AGENT_TAG=v2.4.2
+
 # Install tools and libraries.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     vim wget curl unzip \
@@ -55,6 +58,30 @@ RUN git clone https://github.com/Livox-SDK/Livox-SDK2.git && \
     make -j && \
     make install && \
     cd ../.. && rm -rf Livox-SDK2
+
+# Install Micro XRCE-DDS Agent as a standalone dependency in rmcs-base.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends libasio-dev && \
+    git clone --branch "${MICROXRCE_AGENT_TAG}" --depth 1 https://github.com/eProsima/Micro-XRCE-DDS-Agent.git /tmp/Micro-XRCE-DDS-Agent && \
+    sed -Ei "s|(set\\(_fastdds_tag )[^)]*(\\))|\\1${FASTDDS_TAG}\\2|" /tmp/Micro-XRCE-DDS-Agent/CMakeLists.txt && \
+    cmake -S /tmp/Micro-XRCE-DDS-Agent -B /tmp/micro-xrce-dds-agent-build \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DBUILD_SHARED_LIBS=OFF \
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+        -DUAGENT_SUPERBUILD=ON \
+        -DUAGENT_BUILD_EXECUTABLE=ON \
+        -DUAGENT_USE_SYSTEM_FASTCDR=OFF \
+        -DUAGENT_USE_SYSTEM_FASTDDS=OFF \
+        -DUAGENT_LOGGER_PROFILE=OFF \
+        -DUAGENT_P2P_PROFILE=OFF \
+        -DCMAKE_PREFIX_PATH="/opt/ros/${ROS_DISTRO}" && \
+    cmake --build /tmp/micro-xrce-dds-agent-build --target uagent -j"$(nproc)" && \
+    agent_bin="$(find /tmp/micro-xrce-dds-agent-build -type f -name MicroXRCEAgent -print -quit)" && \
+    test -n "${agent_bin}" && \
+    install -Dm755 "${agent_bin}" /usr/local/bin/MicroXRCEAgent && \
+    apt-get purge -y --auto-remove libasio-dev && \
+    apt-get autoremove -y && apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/*
 
 # Mount rmcs source and install dependencies
 RUN --mount=type=bind,target=/rmcs_ws/src,source=rmcs_ws/src,readonly \
