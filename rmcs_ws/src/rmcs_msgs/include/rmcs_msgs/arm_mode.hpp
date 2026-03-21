@@ -6,6 +6,7 @@ namespace rmcs_msgs {
 
 enum class ArmMode : uint8_t {
     Auto_Walk,
+    Auto_Spin,
     Auto_Storage_LB,
     Auto_Storage_RB,
     Auto_Extract,

@@ -180,11 +180,20 @@ public:
                 }
             }
 
+            if(keyboard.s){
+                set_arm_mode(rmcs_msgs::ArmMode::Auto_Spin);
+            }
+
+
+
             if (keyboard.r) {
                 if (!keyboard.ctrl && !keyboard.shift) {
                     set_arm_mode(rmcs_msgs::ArmMode::Custome);
                 }
             }
+
+
+
             if (mouse.left && !last_mouse_.left) {
                 image_pitch_theta1_offset_ += 0.05;
             }

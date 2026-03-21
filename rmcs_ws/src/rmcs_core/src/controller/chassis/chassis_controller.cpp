@@ -91,7 +91,6 @@ public:
             angular_velocity = std::clamp(
                 following_velocity_controller_.update(*chassis_big_yaw_angle_),
                 -angular_velocity_limit_, angular_velocity_limit_);
-
             break;
         }
         case rmcs_msgs::ChassisMode::SPIN: {
@@ -175,17 +174,22 @@ private:
                 if (!keyboard.shift && !keyboard.ctrl) {
                     chassis_mode_ = rmcs_msgs::ChassisMode::Flow;
                 }
-            }
-            if (keyboard.s) {
-                if (!keyboard.shift && !keyboard.ctrl) {
-                    chassis_mode_ = rmcs_msgs::ChassisMode::SPIN;
+                if (keyboard.shift && !keyboard.ctrl) {
+                    chassis_mode_ = rmcs_msgs::ChassisMode::Yaw_Free;
                 }
+            }
+            if(keyboard.f){
+                set_speed_gear(SpeedGear::Low);
             }
             if (last_arm_mode_ != *arm_mode_) {
                 switch (*arm_mode_) {
                 case rmcs_msgs::ArmMode::Custome:
                     set_speed_gear(SpeedGear::Low);
                     chassis_mode_ = rmcs_msgs::ChassisMode::Yaw_Free;
+                    break;
+                case rmcs_msgs::ArmMode::Auto_Spin:
+                    set_speed_gear(SpeedGear::High);
+                    chassis_mode_ = rmcs_msgs::ChassisMode::SPIN;
                     break;
                 case rmcs_msgs::ArmMode::Auto_Walk:
                     set_speed_gear(SpeedGear::High);
