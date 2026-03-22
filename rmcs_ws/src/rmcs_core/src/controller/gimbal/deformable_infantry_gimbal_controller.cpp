@@ -228,7 +228,7 @@ private:
         const double yaw_shift =
             joystick_sensitivity_ * joystick_left_->y() + mouse_sensitivity_ * mouse_velocity_->y();
         const double pitch_shift =
-            -joystick_sensitivity_ * joystick_left_->x() - mouse_sensitivity_ * mouse_velocity_->x();
+            -joystick_sensitivity_ * joystick_left_->x() + mouse_sensitivity_ * mouse_velocity_->x();
         return gimbal_solver_.update(TwoAxisGimbalSolver::SetControlShift{yaw_shift, pitch_shift});
     }
 

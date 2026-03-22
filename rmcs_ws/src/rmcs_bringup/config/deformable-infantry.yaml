@@ -80,8 +80,8 @@ deformable_infantry:
 
 chassis_controller:
   ros__parameters:
-    min_angle: 11.0
-    max_angle: 40.0
+    min_angle: 11.5
+    max_angle: 42.0
     left_front_joint_offset: 257.501488
     left_back_joint_offset: 353.545434
     right_back_joint_offset: 7.591669
@@ -284,7 +284,7 @@ deformable_chassis_controller:
     mess: 21.0
     moment_of_inertia: 1.0
     chassis_radius: 0.1671741
-    rod_length: 0.150
+    rod_length: 0.10607
     wheel_radius: 0.055
     friction_coefficient: 0.6
     k1: 2.958580e+00
