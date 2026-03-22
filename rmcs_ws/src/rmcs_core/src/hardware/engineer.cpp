@@ -151,7 +151,7 @@ private:
             update_arm_motors();
             dr16_.update();
             update_imu();
-            // RCLCPP_INFO(get_logger(),"%d",gripper.get_raw_angle());
+            RCLCPP_INFO(get_logger(),"%d",image_pitch.get_raw_angle());
         }
         void command() { update_arm_command(); }
 
