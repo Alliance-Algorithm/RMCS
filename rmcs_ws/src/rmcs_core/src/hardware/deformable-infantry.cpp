@@ -282,7 +282,7 @@ private:
 
         void update() {
             imu_.update_status();
-            *chassis_yaw_velocity_imu_ = imu_.gy();
+            *chassis_yaw_velocity_imu_ = imu_.gz();
 
             for (auto& motor : chassis_wheel_motors_)
                 motor.update_status();
