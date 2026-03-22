@@ -58,8 +58,9 @@ CATKIN_IGNORE
 .vscode/
 
 # Hik camera log files
-MvFGSdkLog
-MvSdkLog
+MvFGSdkLog/
+MvSdkLog/
+logs/
 
 # SSH key files
 id_rsa
@@ -70,3 +71,4 @@ record/
 
 # For temperary development
 develop_ws
+.venv
