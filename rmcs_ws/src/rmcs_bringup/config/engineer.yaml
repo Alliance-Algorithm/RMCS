@@ -43,7 +43,7 @@ engineer_hardware:
     left_board_usb_pid: 0x652f
     right_board_usb_pid: 0x75f3
     gripper_zero_point: 6264
-    image_pitch_zero_point: 44733
+    image_pitch_zero_point: 47534
     joint6_zero_point: 0
     joint5_zero_point: 37436
     joint4_zero_point: 28029
