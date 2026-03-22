@@ -138,7 +138,7 @@ private:
             //     this->get_logger(), "joint5 control torque: %f %f %f %f %d %d %d %d",
             //     big_yaw.get_angle(), joint_1.get_angle(), joint_2.get_angle(), joint_3.get_angle(),
             //     joint_4.get_raw_angle(), joint_5.get_raw_angle(), joint_6.get_raw_angle(), gripper.get_raw_angle());
-// RCLCPP_INFO(get_logger(),"%d %d %d",joint_4.get_raw_angle(),joint_5.get_raw_angle(),joint_6.get_raw_angle());
+RCLCPP_INFO(get_logger(),"%d %d %d",joint_4.get_raw_angle(),joint_5.get_raw_angle(),joint_6.get_raw_angle());
             if (should_enable_dm_joint123) {
                 command_ = device::DMMotor::dm_enable_command();
                 transmit_buffer_.add_can1_transmission(0x055, command_);

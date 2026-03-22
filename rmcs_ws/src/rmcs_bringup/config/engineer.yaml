@@ -12,7 +12,7 @@ arm_hardware:
   ros__parameters:
     arm_board_usb_pid: 0x488d
     gripper_zero_point: 15504
-    joint6_zero_point: 19394
+    joint6_zero_point: 11896
     joint5_zero_point: 47491
     joint4_zero_point: 4030
     joint3_zero_point: 51845
