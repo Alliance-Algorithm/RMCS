@@ -15,13 +15,13 @@ find_package(ament_cmake_auto REQUIRED)
 ament_auto_find_build_dependencies()
 include(FetchContent)
 set(BUILD_STATIC_LIBRMCS ON CACHE BOOL "Build static librmcs SDK" FORCE)
-FetchContent_Declare(
+fetchcontent_declare(
   librmcs
-  URL https://github.com/Alliance-Algorithm/librmcs/releases/download/v3.0.0/librmcs-sdk-src-3.0.0.zip
-  URL_HASH SHA256=b39f51c21baacdcbf3f0176119b8850137a108b88a67e12395d37d89e5ef53e8
+  URL https://github.com/Alliance-Algorithm/librmcs/releases/download/v3.1.0b1/librmcs-sdk-src-3.1.0-beta.1.zip
+  URL_HASH SHA256=ec68a8b0e9441bd9e35b859139b3875c559944f7c0ecb4a1539bcdc75442fec4
   DOWNLOAD_EXTRACT_TIMESTAMP TRUE
 )
-FetchContent_MakeAvailable(librmcs)
+fetchcontent_makeavailable(librmcs)
 
 file(GLOB_RECURSE PROJECT_SOURCE CONFIGURE_DEPENDS
   ${PROJECT_SOURCE_DIR}/src/*.cpp
