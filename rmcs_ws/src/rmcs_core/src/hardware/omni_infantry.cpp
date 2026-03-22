@@ -1,3 +1,5 @@
+#include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <cstring>
 #include <memory>
@@ -16,6 +18,7 @@
 #include <rclcpp/subscription.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/hard_sync_snapshot.hpp>
 #include <rmcs_msgs/serial_interface.hpp>
 #include <rmcs_utility/ring_buffer.hpp>
 #include <std_msgs/msg/int32.hpp>
@@ -28,6 +31,8 @@
 #include "hardware/device/supercap.hpp"
 
 namespace rmcs_core::hardware {
+
+using Clock = std::chrono::steady_clock;
 
 class OmniInfantry
     : public rmcs_executor::Component
@@ -83,9 +88,11 @@ public:
         gimbal_bullet_feeder_.configure(
             device::DjiMotor::Config{device::DjiMotor::Type::kM2006}.enable_multi_turn_angle());
 
+        register_input("/predefined/timestamp", timestamp_);
         register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
         register_output("/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
         register_output("/tf", tf_);
+        register_output("/gimbal/hard_sync_snapshot", hard_sync_snapshot_);
 
         bmi088_.set_coordinate_mapping([](double x, double y, double z) {
             // Get the mapping with the following code.
@@ -140,9 +147,19 @@ public:
 
     ~OmniInfantry() override = default;
 
+    void before_updating() override {
+        start_transmit().gpio_digital_read({
+            .channel = 1,
+            .falling_edge = true,
+            .pull = librmcs::data::GpioPull::kUp,
+        });
+        next_hard_sync_log_time_ = Clock::now() + std::chrono::seconds(1);
+    }
+
     void update() override {
         update_motors();
         update_imu();
+        update_hard_sync_snapshot();
         dr16_.update_status();
         supercap_.update_status();
     }
@@ -181,7 +198,7 @@ public:
 
         builder.can2_transmit({
             .can_id = 0x142,
-            .can_data = gimbal_pitch_motor_.generate_velocity_command().as_bytes(),
+            .can_data = gimbal_pitch_motor_.generate_torque_command().as_bytes(),
         });
 
         builder.can2_transmit({
@@ -226,6 +243,27 @@ private:
 
         *gimbal_yaw_velocity_imu_ = bmi088_.gz();
         *gimbal_pitch_velocity_imu_ = bmi088_.gy();
+    }
+
+    void update_hard_sync_snapshot() {
+        if (!hard_sync_pending_.exchange(false, std::memory_order_relaxed))
+            return;
+
+        hard_sync_snapshot_->valid = true;
+        hard_sync_snapshot_->exposure_timestamp = *timestamp_;
+        hard_sync_snapshot_->qw = bmi088_.q0();
+        hard_sync_snapshot_->qx = bmi088_.q1();
+        hard_sync_snapshot_->qy = bmi088_.q2();
+        hard_sync_snapshot_->qz = bmi088_.q3();
+        ++hard_sync_snapshot_count_;
+
+        if (*timestamp_ >= next_hard_sync_log_time_) {
+            RCLCPP_INFO(
+                logger_, "[hard sync] published %zu snapshots in the last second",
+                hard_sync_snapshot_count_);
+            hard_sync_snapshot_count_ = 0;
+            next_hard_sync_log_time_ = *timestamp_ + std::chrono::seconds(1);
+        }
     }
 
     void gimbal_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
@@ -296,6 +334,12 @@ private:
         bmi088_.store_gyroscope_status(data.x, data.y, data.z);
     }
 
+    void
+        gpio_digital_read_result_callback(const librmcs::data::GpioDigitalDataView& data) override {
+        if (data.channel == 1 && !data.high)
+            hard_sync_pending_.store(true, std::memory_order_relaxed);
+    }
+
 private:
     rclcpp::Logger logger_;
 
@@ -326,10 +370,15 @@ private:
     device::Dr16 dr16_;
     device::Bmi088 bmi088_;
 
+    InputInterface<Clock::time_point> timestamp_;
     OutputInterface<double> gimbal_yaw_velocity_imu_;
     OutputInterface<double> gimbal_pitch_velocity_imu_;
 
     OutputInterface<rmcs_description::Tf> tf_;
+    OutputInterface<rmcs_msgs::HardSyncSnapshot> hard_sync_snapshot_;
+    std::atomic<bool> hard_sync_pending_{false};
+    size_t hard_sync_snapshot_count_ = 0;
+    Clock::time_point next_hard_sync_log_time_{};
 
     rmcs_utility::RingBuffer<std::byte> referee_ring_buffer_receive_{256};
     OutputInterface<rmcs_msgs::SerialInterface> referee_serial_;
