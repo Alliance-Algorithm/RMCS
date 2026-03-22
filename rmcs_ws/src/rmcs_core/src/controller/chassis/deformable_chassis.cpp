@@ -79,6 +79,10 @@ public:
         chassis_control_velocity_->vector << nan_, nan_, nan_;
 
         current_target_angle_ = max_angle_;
+        lf_current_target_angle_ = max_angle_;
+        lb_current_target_angle_ = max_angle_;
+        rf_current_target_angle_ = max_angle_;
+        rb_current_target_angle_ = max_angle_;
     }
 
     void before_updating() override {
@@ -137,7 +141,6 @@ public:
 
             update_velocity_control();
             update_lift_target_toggle(switch_left, switch_right, keyboard);
-            update_lift_special_toggle(switch_left, switch_right);
             update_lift_angle_error();
         } while (false);
 
@@ -268,25 +271,23 @@ private:
         const bool last_switch_toggle_condition =
             (last_switch_left_ == rmcs_msgs::Switch::MIDDLE)
             && (last_switch_right_ == rmcs_msgs::Switch::UP);
+        const bool front_high_rear_low =
+            !last_keyboard_.b && keyboard.b;
+        const bool front_low_rear_high =
+            !last_keyboard_.g && keyboard.g;
+        const bool uphill = 
+            !last_keyboard_.ctrl && keyboard.ctrl;
 
         if ((switch_toggle_condition && !last_switch_toggle_condition) || keyboard_toggle_condition) {
             current_target_angle_ =
                 (std::abs(current_target_angle_ - max_angle_) < 1e-6) ? min_angle_ : max_angle_;
                 scope_motor_control();
-        }
-        lf_current_target_angle_ = current_target_angle_;
-        lb_current_target_angle_ = current_target_angle_;
-        rb_current_target_angle_ = current_target_angle_;
-        rf_current_target_angle_ = current_target_angle_;
-    }
-
-    void update_lift_special_toggle(rmcs_msgs::Switch left_switch, rmcs_msgs::Switch right_switch) {
-        const bool front_high_rear_low =
-            left_switch == rmcs_msgs::Switch::DOWN && right_switch == rmcs_msgs::Switch::UP;
-        const bool front_low_rear_high =
-            left_switch == rmcs_msgs::Switch::UP && right_switch == rmcs_msgs::Switch::DOWN;
-
-        if (front_high_rear_low) {
+        } else if(uphill){
+            lf_current_target_angle_ = min_angle_;
+            rf_current_target_angle_ = min_angle_;
+            lb_current_target_angle_ = min_angle_ + 10.0;
+            rb_current_target_angle_ = min_angle_ + 10.0;
+        } else if (front_high_rear_low) {
             lf_current_target_angle_ = max_angle_;
             rf_current_target_angle_ = max_angle_;
             lb_current_target_angle_ = min_angle_;
@@ -297,7 +298,12 @@ private:
             lb_current_target_angle_ = max_angle_;
             rb_current_target_angle_ = max_angle_;
         }
+        lf_current_target_angle_ = current_target_angle_;
+        lb_current_target_angle_ = current_target_angle_;
+        rb_current_target_angle_ = current_target_angle_;
+        rf_current_target_angle_ = current_target_angle_;
     }
+    
     void update_lift_angle_error() {
         double lf_s_target_ = trapezoidal_calculator(lf_current_target_angle_);
         double lb_s_target_ = trapezoidal_calculator(lb_current_target_angle_);

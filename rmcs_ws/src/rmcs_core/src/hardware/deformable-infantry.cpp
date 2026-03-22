@@ -318,10 +318,10 @@ private:
                     .can_id = 0x1FE,
                     .can_data =
                         device::CanPacket8{
-                                           device::CanPacket8::PaddingQuarter{},
-                                           device::CanPacket8::PaddingQuarter{},
-                                           device::CanPacket8::PaddingQuarter{},
                                            chassis_steer_motors_[1].generate_command(),
+                                           device::CanPacket8::PaddingQuarter{},
+                                           device::CanPacket8::PaddingQuarter{},
+                                           device::CanPacket8::PaddingQuarter{},
                                            }
                             .as_bytes(),
                 });
@@ -422,7 +422,7 @@ private:
                 chassis_wheel_motors_[1].store_status(data.can_data);
             else if (data.can_id == 0x202)
                 chassis_joint_motors_[1].store_status(data.can_data);
-            else if (data.can_id == 0x208)
+            else if (data.can_id == 0x205)
                 chassis_steer_motors_[1].store_status(data.can_data);
             else if (data.can_id == 0x142)
                 gimbal_yaw_motor_.store_status(data.can_data);
