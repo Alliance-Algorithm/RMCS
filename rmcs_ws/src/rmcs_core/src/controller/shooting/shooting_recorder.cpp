@@ -26,16 +26,16 @@ public:
         register_input("/referee/shooter/initial_speed", initial_speed_);
         register_input("/referee/shooter/shoot_timestamp", shoot_timestamp_);
 
-        if (friction_wheel_count_ == 2) {
-            const auto topic = std::array{
-                "/gimbal/first_left_friction/control_velocity",
-                "/gimbal/first_right_friction/control_velocity",
-            };
-            for (int i = 0; i < 2; i++)
-                register_input(topic[i], friction_wheels_velocity_[i]);
-            register_input("/gimbal/first_left_friction/velocity", friction_velocities_[0]);
-            register_input("/gimbal/first_right_friction/velocity", friction_velocities_[1]);
-        }
+        // if (friction_wheel_count_ == 4) {
+        //     const auto topic = std::array{
+        //         "/gimbal/first_left_friction/control_velocity",
+        //         "/gimbal/first_right_friction/control_velocity",
+        //     };
+        //     for (int i = 0; i < 2; i++)
+        //         register_input(topic[i], friction_wheels_velocity_[i]);
+        //     register_input("/gimbal/first_left_friction/velocity", friction_velocities_[0]);
+        //     register_input("/gimbal/first_right_friction/velocity", friction_velocities_[1]);
+        // }
 
         using namespace std::chrono;
         auto now = high_resolution_clock::now();

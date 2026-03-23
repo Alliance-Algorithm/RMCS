@@ -90,6 +90,9 @@ public:
             last_switch_left_ = switch_left;
             last_keyboard_ = keyboard;
         }
+        if (!friction_enabled_) {
+            reset_all_controls();
+        }
     }
 
 private:

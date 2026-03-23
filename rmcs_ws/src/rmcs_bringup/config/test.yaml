@@ -1,0 +1,58 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::hardware::SteeringHero -> hero_hardware
+      # - rmcs_core::controller::pid::PidController -> test_pid_controller
+
+      # - rmcs_core::referee::Status -> referee_status
+      # - rmcs_core::referee::command::Interaction -> referee_interaction
+      # - rmcs_core::referee::command::interaction::Ui -> referee_ui
+      # - rmcs_core::referee::app::ui::Hero -> referee_ui_hero
+      # - rmcs_core::referee::Command -> referee_command
+
+      # - rmcs_core::controller::gimbal::HeroGimbalController -> gimbal_controller
+      # - rmcs_core::controller::gimbal::DualYawController -> dual_yaw_controller
+      # - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
+      # - rmcs_core::controller::pid::PidController -> pitch_velocity_pid_controller
+
+      # - rmcs_core::controller::gimbal::PlayerViewer -> gimbal_player_viewer_controller
+      # - rmcs_core::controller::pid::ErrorPidController -> viewer_angle_pid_controller
+
+      # - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
+      # - rmcs_core::controller::shooting::HeatController -> heat_controller
+      # - rmcs_core::controller::shooting::PutterController -> bullet_feeder_controller
+      # - rmcs_core::controller::pid::PidController -> first_left_friction_velocity_pid_controller
+      # - rmcs_core::controller::pid::PidController -> first_right_friction_velocity_pid_controller
+      # - rmcs_core::controller::pid::PidController -> second_left_friction_velocity_pid_controller
+      # - rmcs_core::controller::pid::PidController -> second_right_friction_velocity_pid_controller
+      # - rmcs_core::controller::shooting::ShootingRecorder -> shooting_recorder
+
+      # - rmcs_core::controller::chassis::ChassisController -> chassis_controller
+      # - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
+      # - rmcs_core::controller::chassis::SteeringWheelController -> steering_wheel_controller
+      # - rmcs_core::controller::chassis::ChassisClimberController -> climber_controller
+
+      # - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
+      # - rmcs_auto_aim::AutoAimController -> auto_aim_controller
+
+      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+
+hero_hardware:
+  ros__parameters:
+    board_serial_bottom_board_two: "D4-3674-7174-8768-879E-E44A-3931"
+    test: 6.0
+    bottom_yaw_motor_zero_point: 52508
+    pitch_motor_zero_point: 35701
+    top_yaw_motor_zero_point: 58744
+    viewer_motor_zero_point: 3030
+    external_imu_port: /dev/ttyUSB0
+    bullet_feeder_motor_zero_point: 15111
+    left_front_zero_point: 4433
+    right_front_zero_point: 7177
+    left_back_zero_point:  6919
+    right_back_zero_point: 5120
+    # left_front_zero_point: 3473
+    # left_back_zero_point: 6124
+    # right_back_zero_point: 6157
+    # right_front_zero_point: 2723

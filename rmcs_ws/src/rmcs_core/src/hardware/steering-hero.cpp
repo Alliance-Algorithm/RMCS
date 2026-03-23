@@ -93,6 +93,9 @@ private:
             get_logger(), "[gimbal calibration] New top yaw offset: %ld",
             top_board_->gimbal_top_yaw_motor_.calibrate_zero_point());
         RCLCPP_INFO(
+            get_logger(), "[gimbal calibration] New bullet feeder offset: %ld",
+            top_board_->gimbal_bullet_feeder_.calibrate_zero_point());
+        RCLCPP_INFO(
             get_logger(), "[chassis calibration] left front steering offset: %d",
             bottom_board_one_->chassis_steering_motors_[0].calibrate_zero_point());
         RCLCPP_INFO(
@@ -159,6 +162,9 @@ private:
                     .set_reduction_ratio(1.));
             gimbal_bullet_feeder_.configure(
                 device::LkMotor::Config{device::LkMotor::Type::kMG5010Ei10}
+                    .set_encoder_zero_point(
+                        static_cast<int>(
+                            steering_hero.get_parameter("bullet_feeder_motor_zero_point").as_int()))
                     .set_reversed()
                     .enable_multi_turn_angle());
             putter_motor_.configure(
@@ -265,7 +271,7 @@ private:
             });
 
             builder.gpio_digital_read({
-                .channel = 7,
+                .channel = 1,
                 .falling_edge = true,
             });
         }
@@ -305,7 +311,7 @@ private:
         void gpio_digital_read_result_callback(
             const librmcs::data::GpioDigitalDataView& data) override {
             *photoelectric_sensor_status_ = false;
-            if (data.channel == 7) {
+            if (data.channel == 1) {
                 *photoelectric_sensor_status_ = true;
                 RCLCPP_INFO(logger_, "trigger!");
             }
