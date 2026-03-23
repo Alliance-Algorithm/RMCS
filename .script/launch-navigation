@@ -1,0 +1,3 @@
+#! /usr/bin/env bash
+
+ssh-remote "bash -lc 'source ~/env_setup.bash && ros2 launch rmcs-navigation custom.launch.py mode:=online'"
