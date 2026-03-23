@@ -224,7 +224,7 @@ private:
 
     // Maximum control velocities
     static constexpr double translational_velocity_max = 10.0;
-    static constexpr double angular_velocity_max = 2 * std::numbers::pi * 0.8;
+    static constexpr double angular_velocity_max = 2 * std::numbers::pi * 2.0;
 
     InputInterface<Eigen::Vector2d> joystick_right_;
     InputInterface<Eigen::Vector2d> joystick_left_;

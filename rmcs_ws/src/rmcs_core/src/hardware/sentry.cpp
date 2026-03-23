@@ -1,6 +1,8 @@
+#include <cmath>
 #include <cstddef>
 #include <format>
 #include <memory>
+#include <numbers>
 #include <print>
 #include <ranges>
 #include <span>
@@ -33,6 +35,18 @@
 #include "hardware/device/supercap.hpp"
 
 namespace rmcs_core::hardware {
+
+namespace {
+
+double wrap_single_turn(double angle) {
+    return std::remainder(angle, 2.0 * std::numbers::pi_v<double>);
+}
+
+Eigen::Quaterniond top_board_pitch_compensation(double pitch_angle) {
+    return Eigen::Quaterniond{Eigen::AngleAxisd{-pitch_angle, Eigen::Vector3d::UnitY()}};
+}
+
+} // namespace
 
 class Sentry
     : public rmcs_executor::Component
@@ -216,22 +230,24 @@ private:
         ~TopBoard() override = default;
 
         void update() {
+            gimbal_top_yaw_motor_.update_status();
+            gimbal_pitch_motor_.update_status();
+
+            const auto pitch_angle = wrap_single_turn(gimbal_pitch_motor_.angle());
+
             bmi088_.update_status();
             const Eigen::Quaterniond gimbal_bmi088_pose{
                 bmi088_.q0(), bmi088_.q1(), bmi088_.q2(), bmi088_.q3()};
 
             tf_->set_transform<rmcs_description::PitchLink, rmcs_description::OdomImu>(
-                gimbal_bmi088_pose.conjugate());
+                top_board_pitch_compensation(pitch_angle) * gimbal_bmi088_pose.conjugate());
 
             *gimbal_yaw_velocity_bmi088_ = bmi088_.gz();
             *gimbal_pitch_velocity_bmi088_ = bmi088_.gy();
 
-            gimbal_pitch_motor_.update_status();
             gimbal_bullet_feeder_.update_status();
             gimbal_left_friction_.update_status();
             gimbal_right_friction_.update_status();
-
-            gimbal_top_yaw_motor_.update_status();
 
             tf_->set_state<rmcs_description::YawLink, rmcs_description::PitchLink>(
                 gimbal_pitch_motor_.angle());
