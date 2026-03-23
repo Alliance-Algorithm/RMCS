@@ -34,7 +34,7 @@ infantry_hardware:
 sp_vision_bridge:
   ros__parameters:
     config_file: configs/standard3.yaml
-    bullet_speed_fallback: 27.0
+    bullet_speed_fallback: 24.5
     result_timeout: 0.2
     debug: false
     virtual_center_distance: 6.0
@@ -64,11 +64,11 @@ gimbal_controller:
 
     yaw_acc_ff_gain: 0.16
 
-    pitch_angle_kp: 12.0
-    pitch_angle_ki: 0.0
+    pitch_angle_kp: 14.0
+    pitch_angle_ki: 0.01
     pitch_angle_kd: 0.1
 
-    pitch_velocity_kp: 4.0
+    pitch_velocity_kp: 5.0
     pitch_velocity_ki: 0.0
     pitch_velocity_kd: 0.0
 
@@ -80,8 +80,8 @@ friction_wheel_controller:
       - /gimbal/left_friction
       - /gimbal/right_friction
     friction_velocities:
-      - 800.0
-      - 800.0
+      - 750.0
+      - 750.0
     friction_soft_start_stop_time: 1.0
 
 heat_controller:
@@ -92,7 +92,7 @@ heat_controller:
 bullet_feeder_controller:
   ros__parameters:
     bullets_per_feeder_turn: 8.0
-    shot_frequency: 10.0
+    shot_frequency: 23.0
     safe_shot_frequency: 10.0
     eject_frequency: 10.0
     eject_time: 0.05
