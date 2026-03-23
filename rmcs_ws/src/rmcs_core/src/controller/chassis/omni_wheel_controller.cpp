@@ -192,8 +192,8 @@ private:
 
     static constexpr double mess_ = 22.0;
     static constexpr double moment_of_inertia_ = 4.08;
-    static constexpr double chassis_radius_x_ = 0.5, chassis_radius_y_ = 0.5;
-    static constexpr double wheel_radius_ = 0.07;
+    static constexpr double chassis_radius_x_ = 0.148, chassis_radius_y_ = 0.148;
+    static constexpr double wheel_radius_ = 0.075;
     static constexpr double friction_coefficient_ = 0.6;
 
     InputInterface<double> wheel_motor_max_control_torque_;
