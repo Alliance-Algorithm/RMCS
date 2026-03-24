@@ -130,8 +130,19 @@ public:
                 *bullet_feeder_control_torque_ = bullet_feeder_velocity_pid_.update(velocity_err);
 
                 if (!bullet_feeder_cool_down_) {
+                    // if (*photoelectric_sensor_status_) {
+                    //     RCLCPP_INFO(
+                    //         get_logger(), "Photoelectric Sensor Triggered during Jam
+                    //         Protection");
+                    //     *bullet_feeder_control_torque_ = 0.;
+                    //     bullet_feeder_cool_down_ = 0;
+                    //     // 认为是满链状态，直接设置为预装弹完成
+                    //     set_preloaded();
+                    // } else {
                     RCLCPP_INFO(get_logger(), "Jamming Solved, Retrying...");
                     set_preloading();
+                    // 认为是卡弹状态，继续保持在后退位置直到冷却结束
+                    // }
                 }
             } else {
                 // 正常运行模式：摩擦轮就绪时才允许发射
@@ -146,14 +157,7 @@ public:
                             if (
                                 // *control_bullet_allowance_limited_by_heat_ > 0 &&
                                 shoot_stage_ == ShootStage::PRELOADED)
-                                if (last_photoelectric_sensor_status_
-                                    && *photoelectric_sensor_status_) {
-                                    RCLCPP_INFO(
-                                        get_logger(), "Photoelectric sensor triggered, shooting!");
-                                    set_shooting();
-                                } else {
-                                    set_preloading();
-                                }
+                                set_shooting();
                         }
                     }
                     if (shoot_stage_ == ShootStage::UPDATING) {
@@ -179,10 +183,11 @@ public:
 
                         update_jam_detection();
                     } else if (shoot_stage_ == ShootStage::SHOOTING) {
+                        // 发射状态：供弹盘不发力
                         *bullet_feeder_control_torque_ = 0;
                         RCLCPP_INFO(
-                            get_logger(), "Shooting! Angle: %.2f, Velocity: %.2f",
-                            *bullet_feeder_angle_, *bullet_feeder_velocity_);
+                            get_logger(), "bullet torque: %f, %f", *bullet_feeder_control_torque_,
+                            *bullet_feeder_torque_);
                     } else {
                         // 其他状态：角度环保持角度不变防止弹链退弹
                         double velocity_err =
@@ -199,7 +204,6 @@ public:
                             if (!shooted) {
                                 RCLCPP_INFO(get_logger(), "%f", *putter_angle_);
                             }
-                            last_photoelectric_sensor_status_ = false;
                             shooted = true;
                         }
 
@@ -212,6 +216,7 @@ public:
                                 *putter_control_torque_ = 0.;
                                 set_updating();
                                 shooted = false;
+                                last_shoot_flag_ = false;
                             } else {
                                 *putter_control_torque_ =
                                     putter_return_velocity_pid_.update(-80. - *putter_velocity_);
@@ -252,7 +257,6 @@ private:
         last_switch_left_ = rmcs_msgs::Switch::UNKNOWN;
         last_mouse_ = rmcs_msgs::Mouse::zero();
         last_keyboard_ = rmcs_msgs::Keyboard::zero();
-        last_photoelectric_sensor_status_ = false;
         bullet_feeder_reset();
 
         overdrive_mode_ = false;
@@ -283,9 +287,6 @@ private:
 
     void set_preloading() {
         // RCLCPP_INFO(get_logger(), "PRELOADING");
-        if (*photoelectric_sensor_status_) {
-            last_photoelectric_sensor_status_ = true;
-        }
         shoot_stage_ = ShootStage::PRELOADING;
         // 盲拨方案：直接增加目标角度
         if (!std::isnan(bullet_feeder_control_angle_)) {
@@ -296,9 +297,6 @@ private:
 
     void set_preloaded() {
         // RCLCPP_INFO(get_logger(), "PRELOADED");
-        if (*photoelectric_sensor_status_) {
-            last_photoelectric_sensor_status_ = true;
-        }
         shoot_stage_ = ShootStage::PRELOADED;
         last_preload_flag_ = false;
     }
@@ -322,13 +320,13 @@ private:
         } else {
             bullet_feeder_faulty_count_ = 0;
         }
-        if (bullet_feeder_faulty_count_ >= 500)
+        if (bullet_feeder_faulty_count_ >= 1000)
             enter_jam_protection();
     }
 
     void update_putter_jam_detection() {
         if ((*putter_control_torque_ > -0.03 && shoot_stage_ == ShootStage::PRELOADING)
-            || ((*putter_control_torque_ < 0.08) && shoot_stage_ == ShootStage::SHOOTING)
+            || ((*putter_control_torque_ < 0.05) && shoot_stage_ == ShootStage::SHOOTING)
             || std::isnan(*putter_control_torque_)) {
             putter_faulty_count_ = 0;
             return;
@@ -456,7 +454,6 @@ private:
     InputInterface<bool> photoelectric_sensor_status_;
     InputInterface<bool> bullet_fired_;
     bool shooted{false};
-    bool last_photoelectric_sensor_status_ = false;
 
     InputInterface<bool> friction_ready_;
 
@@ -479,6 +476,7 @@ private:
     InputInterface<int64_t> control_bullet_allowance_limited_by_heat_;
 
     bool last_preload_flag_ = false;
+    bool last_shoot_flag_ = false;
 
     bool putter_initialized = false;
     int putter_faulty_count_ = 0;
@@ -489,7 +487,7 @@ private:
     pid::PidCalculator putter_velocity_pid_;
 
     enum class ShootStage { PRELOADING, PRELOADED, SHOOTING, UPDATING };
-    ShootStage shoot_stage_ = ShootStage::PRELOADING;
+    ShootStage shoot_stage_ = ShootStage::PRELOADED;
     double bullet_feeder_control_angle_ = nan_;
 
     pid::PidCalculator bullet_feeder_velocity_pid_;

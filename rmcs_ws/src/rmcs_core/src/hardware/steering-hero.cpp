@@ -191,7 +191,7 @@ private:
                 //     std::numbers::pi / 2, Eigen::Vector3d::UnitZ()};
                 // Eigen::Vector3d mapping = pitch_link_to_bmi088_link * Eigen::Vector3d{1, 2, 3};
                 // std::cout << mapping << std::endl;
-                return std::make_tuple(-x, -y, z);
+                return std::make_tuple(x, y, z);
             });
         }
 
