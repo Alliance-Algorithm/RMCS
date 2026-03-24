@@ -101,10 +101,12 @@ public:
                              : rmcs_msgs::ChassisMode::STEP_DOWN;
                 }
 
-                if (navigation_rotate_chassis_.ready()) {
-                    mode = *navigation_rotate_chassis_ ? rmcs_msgs::ChassisMode::SPIN
-                                                       : rmcs_msgs::ChassisMode::AUTO;
+                // Navigation Mode
+                if (switch_right == Switch::UP && navigation_rotate_chassis_.ready()) {
+                    const auto rotate = *navigation_rotate_chassis_;
+                    mode = rotate ? ChassisMode::SPIN : ChassisMode::AUTO;
                 }
+
                 *mode_ = mode;
             }
 

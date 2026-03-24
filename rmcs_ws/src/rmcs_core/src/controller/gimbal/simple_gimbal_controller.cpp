@@ -36,14 +36,16 @@ public:
         register_input("/remote/switch/left", switch_left_);
         register_input("/remote/mouse/velocity", mouse_velocity_);
         register_input("/remote/mouse", mouse_);
-        register_input("/rmcs_navigation/gimbal_velocity", navigation_command_velocity_, false);
-        register_input("/rmcs_navigation/gimbal_scanning", navigation_gimbal_scanning_, false);
 
         register_input("/gimbal/auto_aim/control_direction", auto_aim_control_direction_, false);
         register_input("/gimbal/pitch/angle", gimbal_pitch_angle_);
 
         register_output("/gimbal/yaw/control_angle_error", yaw_angle_error_, nan_);
         register_output("/gimbal/pitch/control_angle_error", pitch_angle_error_, nan_);
+
+        // Only For Navigation, Not Required
+        register_input("/rmcs_navigation/gimbal_velocity", navigation_gimbal_velocity_, false);
+        register_input("/rmcs_navigation/gimbal_scanning", navigation_gimbal_scanning_, false);
     }
 
     void update() override {
@@ -80,24 +82,59 @@ public:
             -joystick_sensitivity * joystick_left_->x() - mouse_sensitivity * mouse_velocity_->x();
 
         // Navigation Control
-        if (navigation_command_velocity_.ready()) {
-            auto yaw_speed = navigation_command_velocity_->x();
-            if (std::isfinite(yaw_speed))
-                yaw_shift += yaw_speed * control_dt_;
+        {
+            // Navigation Direction
+            if (navigation_gimbal_velocity_.ready()) {
+                auto yaw_speed = navigation_gimbal_velocity_->x();
+                if (std::isfinite(yaw_speed))
+                    yaw_shift += yaw_speed * control_dt_;
 
-            auto pitch_speed = navigation_command_velocity_->y();
-            if (std::isfinite(pitch_speed))
-                pitch_shift += pitch_speed * control_dt_;
+                auto pitch_speed = navigation_gimbal_velocity_->y();
+                if (std::isfinite(pitch_speed))
+                    pitch_shift += pitch_speed * control_dt_;
+            }
+
+            // Scanning Mode
+            if (switch_left != Switch::DOWN && switch_right == Switch::UP)
+                update_navigation_gimbal_scanning(yaw_shift, pitch_shift);
         }
-
-        apply_navigation_gimbal_scanning(yaw_shift, pitch_shift);
 
         return two_axis_gimbal_solver.update(
             TwoAxisGimbalSolver::SetControlShift(yaw_shift, pitch_shift));
     }
 
 private:
-    void apply_navigation_gimbal_scanning(double& yaw_shift, double& pitch_shift) {
+    static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
+    static constexpr double control_dt_ = 1e-3;
+
+    InputInterface<Eigen::Vector2d> joystick_left_;
+    InputInterface<rmcs_msgs::Switch> switch_right_;
+    InputInterface<rmcs_msgs::Switch> switch_left_;
+    InputInterface<Eigen::Vector2d> mouse_velocity_;
+    InputInterface<rmcs_msgs::Mouse> mouse_;
+
+    InputInterface<Eigen::Vector3d> auto_aim_control_direction_;
+    InputInterface<double> gimbal_pitch_angle_;
+
+    const double upper_limit_;
+    const double lower_limit_;
+
+    TwoAxisGimbalSolver two_axis_gimbal_solver;
+
+    OutputInterface<double> yaw_angle_error_, pitch_angle_error_;
+
+    // For Navigation
+    InputInterface<Eigen::Vector2d> navigation_gimbal_velocity_;
+    InputInterface<bool> navigation_gimbal_scanning_;
+
+    bool last_navigation_gimbal_scanning_ = false;
+    double navigation_scan_yaw_speed_ = 0.0;
+    double navigation_scan_pitch_speed_ = 0.0;
+    double navigation_scan_pitch_upper_ = 0.0;
+    double navigation_scan_pitch_lower_ = 0.0;
+    double scanning_pitch_direction_ = +1.0;
+
+    void update_navigation_gimbal_scanning(double& yaw_shift, double& pitch_shift) {
         const auto scanning_enabled =
             navigation_gimbal_scanning_.ready() && *navigation_gimbal_scanning_;
         if (!scanning_enabled) {
@@ -129,36 +166,6 @@ private:
 
         last_navigation_gimbal_scanning_ = true;
     }
-
-    static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
-    static constexpr double control_dt_ = 1e-3;
-
-    InputInterface<Eigen::Vector2d> joystick_left_;
-    InputInterface<rmcs_msgs::Switch> switch_right_;
-    InputInterface<rmcs_msgs::Switch> switch_left_;
-    InputInterface<Eigen::Vector2d> mouse_velocity_;
-    InputInterface<rmcs_msgs::Mouse> mouse_;
-
-    InputInterface<Eigen::Vector3d> auto_aim_control_direction_;
-    InputInterface<double> gimbal_pitch_angle_;
-
-    const double upper_limit_;
-    const double lower_limit_;
-
-    TwoAxisGimbalSolver two_axis_gimbal_solver;
-
-    OutputInterface<double> yaw_angle_error_, pitch_angle_error_;
-
-    // For Navigation
-    InputInterface<Eigen::Vector2d> navigation_command_velocity_;
-    InputInterface<bool> navigation_gimbal_scanning_;
-
-    double navigation_scan_yaw_speed_ = 0.0;
-    double navigation_scan_pitch_speed_ = 0.0;
-    double navigation_scan_pitch_upper_ = 0.0;
-    double navigation_scan_pitch_lower_ = 0.0;
-    double scanning_pitch_direction_ = +1.0;
-    bool last_navigation_gimbal_scanning_ = false;
 };
 
 } // namespace rmcs_core::controller::gimbal
