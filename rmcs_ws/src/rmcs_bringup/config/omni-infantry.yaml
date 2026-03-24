@@ -73,17 +73,7 @@ gimbal_controller:
     low_speed_delay_time: 0.0
     fire_thresh: 0.0035
     max_yaw_acc: 500.0
-    Q_yaw:
-      - 9000000.0
-      - 0.0
-    R_yaw:
-      - 1.0
     max_pitch_acc: 100.0
-    Q_pitch:
-      - 9000000.0
-      - 0.0
-    R_pitch:
-      - 1.0
 
     yaw_angle_kp: 14.5
     yaw_angle_ki: 0.0

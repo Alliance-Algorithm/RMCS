@@ -1,8 +1,6 @@
-#include <array>
 #include <chrono>
 #include <cmath>
 #include <limits>
-#include <stdexcept>
 #include <string>
 #include <utility>
 
@@ -97,20 +95,6 @@ void configure_pid(rclcpp::Node& node, const std::string& prefix, pid::PidCalcul
     load_optional_parameter(node, prefix + "_output_max", calculator.output_max);
 }
 
-std::array<double, 2> read_vector_parameter_2(rclcpp::Node& node, const std::string& name) {
-    const auto values = node.get_parameter(name).as_double_array();
-    if (values.size() != 2)
-        throw std::runtime_error("Expected 2 values for parameter: " + name);
-    return {values[0], values[1]};
-}
-
-std::array<double, 1> read_vector_parameter_1(rclcpp::Node& node, const std::string& name) {
-    const auto values = node.get_parameter(name).as_double_array();
-    if (values.size() != 1)
-        throw std::runtime_error("Expected 1 value for parameter: " + name);
-    return {values[0]};
-}
-
 PlannerConfig load_planner_config(rclcpp::Node& node) {
     PlannerConfig config;
     config.yaw_offset = node.get_parameter("yaw_offset").as_double() * kDegToRad;
@@ -120,11 +104,7 @@ PlannerConfig load_planner_config(rclcpp::Node& node) {
     config.high_speed_delay_time = node.get_parameter("high_speed_delay_time").as_double();
     config.decision_speed = node.get_parameter("decision_speed").as_double();
     config.max_yaw_acc = node.get_parameter("max_yaw_acc").as_double();
-    config.q_yaw = read_vector_parameter_2(node, "Q_yaw");
-    config.r_yaw = read_vector_parameter_1(node, "R_yaw");
     config.max_pitch_acc = node.get_parameter("max_pitch_acc").as_double();
-    config.q_pitch = read_vector_parameter_2(node, "Q_pitch");
-    config.r_pitch = read_vector_parameter_1(node, "R_pitch");
     return config;
 }
 
