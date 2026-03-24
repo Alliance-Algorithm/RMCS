@@ -14,6 +14,7 @@ rmcs_executor:
       # - sp_vision_25::bridge::SpVisionBridge -> sp_vision_bridge
       - rmcs_core::controller::gimbal::VirtualTargetSnapshotProvider -> virtual_target_snapshot_provider
       - rmcs_core::controller::gimbal::OmniInfantryGimbalController -> gimbal_controller
+      - rmcs_core::controller::gimbal::AutoAimResponseRecorder -> auto_aim_response_recorder
 
       - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
       - rmcs_core::controller::shooting::HeatController -> heat_controller
@@ -103,6 +104,12 @@ gimbal_controller:
     pitch_velocity_kd: 0.0
 
     pitch_acc_ff_gain: 0.0
+
+auto_aim_response_recorder:
+  ros__parameters:
+    output_csv_path: /tmp/sp_vision_response_test.csv
+    csv_decimation: 1
+    require_auto_aim_request: true
 
 friction_wheel_controller:
   ros__parameters:
