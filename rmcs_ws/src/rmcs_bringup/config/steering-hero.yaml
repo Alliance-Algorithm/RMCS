@@ -36,16 +36,16 @@ rmcs_executor:
       # - rmcs_auto_aim::AutoAimController -> auto_aim_controller
 
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
-      - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
+      # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
 
 hero_hardware:
   ros__parameters:
     board_serial_top_board: "D4-2BCA-2E47-76CD-23BC-0B78-684B"
     board_serial_bottom_board_one: "D4-7973-19A9-EA40-4A3E-306F-10F9"
     board_serial_bottom_board_two: "D4-3674-7174-8768-879E-E44A-3931"
-    bottom_yaw_motor_zero_point: 52508
+    bottom_yaw_motor_zero_point: 50561
     pitch_motor_zero_point: 40651 #35701
-    top_yaw_motor_zero_point: 58744
+    top_yaw_motor_zero_point: 59386
     viewer_motor_zero_point: 3030
     external_imu_port: /dev/ttyUSB0
     bullet_feeder_motor_zero_point: 15111
@@ -58,15 +58,16 @@ hero_hardware:
     # right_back_zero_point: 6157
     # right_front_zero_point: 2723
 
-# tf_broadcaster:
-#   ros__parameters:
-#     publish_rate: 100.0
-#     frames:
-#        -
 
-# value_broadcaster:
-#   ros__parameters:
-#     forward_list:
+
+value_broadcaster:
+  ros__parameters:
+    forward_list:
+        - /chassis/power
+        - /referee/chassis/power
+        - /referee/chassis/power_limit
+        - /chassis/control_power_limit
+        - /chassis/supercap/voltage
         # - /gimbal/putter/velocity
         # - /gimbal/first_left_friction/velocity
         # - /gimbal/first_second_friction/velocity
@@ -246,7 +247,7 @@ steering_wheel_controller:
   ros__parameters:
     mess: 22.0
     moment_of_inertia: 1.08
-    vehicle_radius: 0.28284271247462
+    vehicle_radius: 0.318198
     wheel_radius: 0.055
     friction_coefficient: 0.6
     k1: 2.958580e+00

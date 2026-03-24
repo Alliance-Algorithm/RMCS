@@ -89,17 +89,17 @@ public:
 
         // RCLCPP_INFO(logger_, "%lf", *chassis_pitch_imu_);
 
-        bool rotary_knob_to_up =
-            (last_rotary_knob_switch_ != Switch::UP && rotary_knob_switch == Switch::UP);
-        bool rotary_knob_from_up =
-            (last_rotary_knob_switch_ == Switch::UP && rotary_knob_switch != Switch::UP);
+        bool rotary_knob_to_down =
+            (last_rotary_knob_switch_ != Switch::DOWN && rotary_knob_switch == Switch::DOWN);
+        bool rotary_knob_from_down =
+            (last_rotary_knob_switch_ == Switch::DOWN && rotary_knob_switch != Switch::DOWN);
 
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
             reset_all_controls();
         } else {
             handle_auto_climb_requests(
-                (!last_keyboard_.g && keyboard.g) || rotary_knob_to_up, rotary_knob_from_up,
+                (!last_keyboard_.g && keyboard.g) || rotary_knob_to_down, rotary_knob_from_down,
                 rotary_knob_switch);
 
             if (auto_climb_state_ != AutoClimbState::IDLE) {

@@ -178,6 +178,8 @@ private:
             steering_hero.register_output(
                 "/gimbal/photoelectric_sensor", photoelectric_sensor_status_, false);
             steering_hero.register_output(
+                "/gimbal/grayscale_sensor", grayscale_sensor_status_, false);
+            steering_hero.register_output(
                 "/auto_aim/image_capturer/timestamp", camera_capturer_trigger_timestamp_, 0);
             steering_hero.register_output(
                 "/auto_aim/image_capturer/trigger", camera_capturer_trigger_, 0);
@@ -201,6 +203,7 @@ private:
         TopBoard& operator=(TopBoard&&) = delete;
 
         ~TopBoard() final = default;
+
         void update() {
             imu_.update_status();
             Eigen::Quaterniond gimbal_imu_pose{imu_.q0(), imu_.q1(), imu_.q2(), imu_.q3()};
@@ -271,8 +274,15 @@ private:
             });
 
             builder.gpio_digital_read({
-                .channel = 1,
+                .channel = 2,
                 .falling_edge = true,
+                .pull = librmcs::data::GpioPull::kUp,
+            });
+
+            builder.gpio_digital_read({
+                .channel = 7,
+                .falling_edge = true,
+                .pull = librmcs::data::GpioPull::kUp,
             });
         }
 
@@ -311,9 +321,13 @@ private:
         void gpio_digital_read_result_callback(
             const librmcs::data::GpioDigitalDataView& data) override {
             *photoelectric_sensor_status_ = false;
-            if (data.channel == 1) {
+            *grayscale_sensor_status_ = false;
+            if (data.channel == 2) {
                 *photoelectric_sensor_status_ = true;
-                RCLCPP_INFO(logger_, "trigger!");
+                RCLCPP_INFO(logger_, "Photoelectric sensor trigger!");
+            } else if (data.channel == 7) {
+                *grayscale_sensor_status_ = true;
+                RCLCPP_INFO(logger_, "Grayscale sensor trigger!");
             }
         }
 
@@ -343,6 +357,7 @@ private:
         OutputInterface<double> gimbal_yaw_velocity_imu_;
         OutputInterface<double> gimbal_pitch_velocity_imu_;
         OutputInterface<bool> photoelectric_sensor_status_;
+        OutputInterface<bool> grayscale_sensor_status_;
         OutputInterface<bool> camera_capturer_trigger_;
         OutputInterface<std::time_t> camera_capturer_trigger_timestamp_;
         std::atomic<bool> photoelectric_sensor_status_atomic{false};
