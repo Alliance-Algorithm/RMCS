@@ -10,3 +10,6 @@
 [submodule "rmcs_ws/src/sp_vision_25"]
 	path = rmcs_ws/src/sp_vision_25
 	url = https://github.com/Alliance-Algorithm/sp_vision_25.git
+[submodule "rmcs_ws/src/rmcs_core/third_party/tinympc"]
+	path = rmcs_ws/src/rmcs_core/third_party/tinympc
+	url = https://github.com/Alliance-Algorithm/TinyMPC.git
