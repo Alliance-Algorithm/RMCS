@@ -77,8 +77,13 @@ public:
     }
 
     bool should_auto_aim_takeover(rmcs_msgs::Switch switch_right) const {
-        return switch_right == rmcs_msgs::Switch::UP && auto_aim_enabled_.ready()
-            && auto_aim_control_direction_.ready() && *auto_aim_enabled_;
+        if (switch_right != rmcs_msgs::Switch::UP || !auto_aim_enabled_.ready()
+            || !auto_aim_control_direction_.ready() || !*auto_aim_enabled_) {
+            return false;
+        }
+
+        constexpr double direction_eps = 1e-6;
+        return !auto_aim_control_direction_->isApprox(Eigen::Vector3d::UnitX(), direction_eps);
     }
 
     TwoAxisGimbalSolver::AngleError update_auto_aim_control() {

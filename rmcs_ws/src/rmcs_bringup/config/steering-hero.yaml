@@ -32,11 +32,7 @@ rmcs_executor:
       - rmcs_core::controller::chassis::SteeringWheelController -> steering_wheel_controller
       - rmcs_core::controller::chassis::ChassisClimberController -> climber_controller
 
-      # - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
-      # - rmcs_auto_aim::AutoAimController -> auto_aim_controller
-
-      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
-      # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 
       - rmcs::AutoAimComponent -> auto_aim_component
 
