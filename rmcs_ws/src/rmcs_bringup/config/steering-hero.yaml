@@ -38,6 +38,8 @@ rmcs_executor:
       # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
 
+      - rmcs::AutoAimComponent -> auto_aim_component
+
 hero_hardware:
   ros__parameters:
     board_serial_top_board: "D4-2BCA-2E47-76CD-23BC-0B78-684B"
