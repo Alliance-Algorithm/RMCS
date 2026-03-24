@@ -293,7 +293,8 @@ private:
 
             dr16_.update_status();
             gimbal_yaw_motor_.update_status();
-            supercap_.update_status();
+            if (supercap_status_received_.load(std::memory_order_relaxed))
+                supercap_.update_status();
             gimbal_bullet_feeder_.update_status();
 
             tf_->set_state<rmcs_description::GimbalCenterLink, rmcs_description::YawLink>(
@@ -332,7 +333,7 @@ private:
                                            chassis_steer_motors_[2].generate_command(),
                                            device::CanPacket8::PaddingQuarter{},
                                            device::CanPacket8::PaddingQuarter{},
-                                           device::CanPacket8::PaddingQuarter{},
+                                           supercap_.generate_command(),
                                            }
                             .as_bytes(),
                 });
@@ -439,7 +440,10 @@ private:
                 gimbal_bullet_feeder_.store_status(data.can_data);
             else if (data.can_id == 0x205)
                 chassis_steer_motors_[2].store_status(data.can_data);
-            // Supercap mapping is reserved on CAN2 for now.
+            else if (data.can_id == 0x300) {
+                supercap_.store_status(data.can_data);
+                supercap_status_received_.store(true, std::memory_order_relaxed);
+            }
         }
 
         void can3_receive_callback(const librmcs::data::CanDataView& data) override {
@@ -477,6 +481,7 @@ private:
         device::DjiMotor chassis_steer_motors_[4];
         device::DjiMotor chassis_joint_motors_[4];
         device::Supercap supercap_;
+        std::atomic<bool> supercap_status_received_{false};
         device::DjiMotor gimbal_bullet_feeder_;
 
         rmcs_utility::RingBuffer<std::byte> referee_ring_buffer_receive_{256};
