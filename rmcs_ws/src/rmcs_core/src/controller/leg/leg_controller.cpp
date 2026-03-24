@@ -43,8 +43,7 @@ public:
         , lift_and_initial_parameter_(get_parameter("lift_and_initial_parameter").as_double_array())
         , initial_again_parameter_(get_parameter("initial_again_parameter").as_double_array())
         , press_again_parameter_(get_parameter("press_again_parameter").as_double_array())
-        , lift_again_parameter_(get_parameter("lift_again_parameter").as_double_array())
-        , up_stairs{*this,this->get_logger()} {
+        , lift_again_parameter_(get_parameter("lift_again_parameter").as_double_array()) {
 
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
@@ -94,14 +93,16 @@ public:
         down_stairs_trajectory
             .set_end_point(std::vector<double>{1.151109, 1.694066, 1.694066, 1.151109})
             .set_total_step(800);
-        up_stairs.load(
-            initial_parameter_,
-            press_parameter_,
-            lift_parameter_,
-            lift_and_initial_parameter_,
-            initial_again_parameter_,
-            press_again_parameter_,
-            lift_again_parameter_);
+        up_stairs[0]
+            .configure(hsm::up_stairs::UpStairsType::OneStairs)
+            .load(
+                initial_parameter_, press_parameter_, lift_parameter_, lift_and_initial_parameter_,
+                initial_again_parameter_, press_again_parameter_, lift_again_parameter_);
+        up_stairs[1]
+            .configure(hsm::up_stairs::UpStairsType::TwoStairsLift)
+            .load(
+                initial_parameter_, press_parameter_, lift_parameter_, lift_and_initial_parameter_,
+                initial_again_parameter_, press_again_parameter_, lift_again_parameter_);
     }
 
     void update() override {
@@ -167,7 +168,7 @@ private:
             }
             if (last_arm_mode != *arm_mode) {
                 switch (*arm_mode) {
-                case rmcs_msgs::ArmMode::Custome:{
+                case rmcs_msgs::ArmMode::Custome: {
                     leg_mode = rmcs_msgs::LegMode::Four_Wheel;
                     break;
                 }
@@ -177,16 +178,14 @@ private:
                 }
                 case rmcs_msgs::ArmMode::Auto_Up_One_Stairs: {
                     leg_mode = rmcs_msgs::LegMode::Up_One_Stairs;
-                    up_stairs.stop();
-                    up_stairs.Set_One_Stairs();
-                    up_stairs.start();
+                    up_stairs[0].stop();
+                    up_stairs[0].start();
                     break;
                 };
                 case rmcs_msgs::ArmMode::Auto_Up_Two_Stairs: {
                     leg_mode = rmcs_msgs::LegMode::Up_Two_Stairs;
-                    up_stairs.stop();
-                    up_stairs.Set_Two_Stairs_Lift();
-                    up_stairs.start();
+                    up_stairs[1].stop();
+                    up_stairs[1].start();
                     break;
                 };
                 case rmcs_msgs::ArmMode::Auto_Down_Stairs: {
@@ -260,12 +259,10 @@ private:
         leg_joint_controller(joints[0], joints[1], joints[2], joints[3]);
     }
     void execute_up_stairs() {
-        if (keyboard_->ctrl) {
-            (void)up_stairs.resume();
-        }
-
-        up_stairs.tick();
-        const auto& joints = up_stairs.get_result();
+        auto& up_stairs_runner =
+            leg_mode == rmcs_msgs::LegMode::Up_Two_Stairs ? up_stairs[1] : up_stairs[0];
+        up_stairs_runner.tick();
+        const auto& joints = up_stairs_runner.get_result();
         leg_joint_controller(joints[0], joints[1], joints[2], joints[3]);
     }
 
@@ -365,7 +362,10 @@ private:
     rmcs_core::controller::arm::Trajectory<rmcs_core::controller::arm::TrajectoryType::JOINT>
         down_stairs_trajectory{4};
 
-    hsm::up_stairs::Auto_Leg_Up_Stairs up_stairs;
+    hsm::up_stairs::Auto_Leg_Up_Stairs up_stairs[2]{
+        {*this, this->get_logger()},
+        {*this, this->get_logger()}
+    };
 };
 } // namespace rmcs_core::controller::leg
 #include <pluginlib/class_list_macros.hpp>

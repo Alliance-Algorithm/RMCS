@@ -2,24 +2,17 @@
 
 #include <cstddef>
 #include <functional>
+#include <memory>
 #include <optional>
-#include <unordered_set>
 #include <utility>
 #include <vector>
 
 namespace rmcs_core::controller::leg::hsm::linear {
 
 enum class RunnerStatus {
-    Idle,
     Running,
     Paused,
     Completed,
-    Fault,
-};
-
-enum class PauseReason {
-    None,
-    Breakpoint,
 };
 
 template <typename LayerId>
@@ -27,26 +20,9 @@ struct StartRequest {
     std::vector<LayerId> layers{};
 };
 
-struct LayerTickResult {
-    enum class Code {
-        Running,
-        Completed,
-        Fault,
-    };
-
-    Code code{Code::Running};
-
-    static LayerTickResult running() {
-        return {};
-    }
-
-    static LayerTickResult completed() {
-        return {Code::Completed};
-    }
-
-    static LayerTickResult fault() {
-        return {Code::Fault};
-    }
+enum class LayerTickResult {
+    Running,
+    Completed,
 };
 
 template <typename Ctx>
@@ -54,154 +30,211 @@ class ILayer {
 public:
     virtual ~ILayer() = default;
 
-    virtual bool onEnter(Ctx& ctx) = 0;
+    virtual bool onEnter(Ctx& ctx)           = 0;
     virtual LayerTickResult onTick(Ctx& ctx) = 0;
-    virtual void onExit(Ctx& ctx) = 0;
+    virtual void onExit(Ctx& ctx)            = 0;
+};
+
+template <typename LayerId>
+class IConnection {
+public:
+    virtual ~IConnection() = default;
+
+    virtual LayerId getConnectionId() const = 0;
+    virtual bool allowTransition() { return true; }
+};
+
+template <typename LayerId>
+class LambdaConnection : public IConnection<LayerId> {
+public:
+    using Func = std::function<bool()>;
+
+    LambdaConnection(LayerId id, Func func)
+        : id_(id)
+        , func_(std::move(func)) {}
+
+    LayerId getConnectionId() const override { return id_; }
+
+    bool allowTransition() override { return func_ ? func_() : true; }
+
+private:
+    LayerId id_;
+    Func func_;
 };
 
 template <typename Ctx, typename LayerId>
 class LinearLayerRunner {
 public:
-    using LayerContract = ILayer<Ctx>;
-    using Resolver = std::function<LayerContract*(LayerId)>;
+    using Resolver = std::function<ILayer<Ctx>*(LayerId)>;
 
     explicit LinearLayerRunner(Resolver resolver)
         : resolver_(std::move(resolver)) {}
 
+    bool add_connection(LayerId id, std::function<bool()> func) {
+        return setConnection(std::make_unique<LambdaConnection<LayerId>>(id, std::move(func)));
+    }
+
+    void clearConnections() { connections_.clear(); }
+
     bool start(const StartRequest<LayerId>& request, Ctx& ctx) {
         if (!resolver_ || request.layers.empty()) {
-            setFault();
             return false;
         }
 
-        plan_ = request.layers;
+        plan_          = request.layers;
         current_index_ = 0;
         pending_boundary_index_.reset();
-        setRunning();
-        return enterCurrentLayer(ctx);
-    }
-
-    void stop() {
-        plan_.clear();
-        breakpoints_.clear();
-        current_index_ = 0;
-        pending_boundary_index_.reset();
-        status_ = RunnerStatus::Idle;
-        pause_reason_ = PauseReason::None;
-    }
-
-    void tick(Ctx& ctx) {
-        if (status_ != RunnerStatus::Running) {
-            return;
-        }
-        if (current_index_ >= plan_.size()) {
-            status_ = RunnerStatus::Completed;
-            pause_reason_ = PauseReason::None;
-            return;
-        }
-
-        LayerContract* layer = resolveCurrentLayer();
-        if (!layer) {
-            setFault();
-            return;
-        }
-
-        const LayerTickResult result = layer->onTick(ctx);
-        switch (result.code) {
-        case LayerTickResult::Code::Running:
-            return;
-        case LayerTickResult::Code::Fault:
-            setFault();
-            return;
-        case LayerTickResult::Code::Completed:
-            layer->onExit(ctx);
-            transitionToBoundary(current_index_ + 1, ctx);
-            return;
-        }
-    }
-
-    bool resume(Ctx& ctx) {
-        if (status_ != RunnerStatus::Paused || pause_reason_ != PauseReason::Breakpoint
-            || !pending_boundary_index_) {
-            return false;
-        }
-
-        setRunning();
-        current_index_ = *pending_boundary_index_;
-        pending_boundary_index_.reset();
-        return enterCurrentLayer(ctx);
-    }
-
-    bool addBreakpoint(std::size_t boundary_index) {
-        if (boundary_index == 0 || boundary_index >= plan_.size()) {
-            return false;
-        }
-        return breakpoints_.insert(boundary_index).second;
-    }
-
-    bool removeBreakpoint(std::size_t boundary_index) {
-        return breakpoints_.erase(boundary_index) > 0;
-    }
-
-    void clearBreakpoints() {
-        breakpoints_.clear();
-    }
-
-private:
-    void setRunning() {
         status_ = RunnerStatus::Running;
-        pause_reason_ = PauseReason::None;
-    }
 
-    void setFault() {
-        status_ = RunnerStatus::Fault;
-        pause_reason_ = PauseReason::None;
-    }
-
-    bool enterCurrentLayer(Ctx& ctx) {
-        if (current_index_ >= plan_.size()) {
-            status_ = RunnerStatus::Completed;
-            pause_reason_ = PauseReason::None;
-            return false;
-        }
-
-        LayerContract* layer = resolveCurrentLayer();
-        if (!layer || !layer->onEnter(ctx)) {
-            setFault();
+        if (!enterCurrentLayer(ctx)) {
+            stop();
             return false;
         }
         return true;
     }
 
-    LayerContract* resolveCurrentLayer() const {
+    std::optional<LayerId> current_layer_id() const {
+        if (status_ == RunnerStatus::Completed) {
+            if (plan_.empty()) {
+                return std::nullopt;
+            }
+            return plan_.back();
+        }
+        if (status_ == RunnerStatus::Paused) {
+            if (pending_boundary_index_ && *pending_boundary_index_ > 0
+                && *pending_boundary_index_ <= plan_.size()) {
+                return plan_[*pending_boundary_index_ - 1];
+            }
+            if (current_index_ < plan_.size()) {
+                return plan_[current_index_];
+            }
+        }
+        if (status_ == RunnerStatus::Running) {
+            if (current_index_ < plan_.size()) {
+                return plan_[current_index_];
+            }
+        }
+        return std::nullopt;
+    }
+
+    void stop() {
+        plan_.clear();
+        current_index_ = 0;
+        pending_boundary_index_.reset();
+        status_ = RunnerStatus::Paused;
+    }
+
+    void tick(Ctx& ctx) {
+        if (status_ == RunnerStatus::Paused && !pending_boundary_index_)
+            return;
+        if (pending_boundary_index_) {
+            transitionToBoundary(*pending_boundary_index_, ctx);
+            return;
+        }
+
+        if (current_index_ >= plan_.size()) {
+            status_ = RunnerStatus::Completed;
+            return;
+        }
+
+        ILayer<Ctx>* layer = resolveCurrentLayer();
+        status_            = RunnerStatus::Running;
+        if (!layer) {
+            status_ = RunnerStatus::Paused;
+            return;
+        }
+
+        const LayerTickResult result = layer->onTick(ctx);
+        switch (result) {
+        case LayerTickResult::Running: return;
+        case LayerTickResult::Completed:
+            layer->onExit(ctx);
+            pending_boundary_index_ = current_index_ + 1;
+            transitionToBoundary(*pending_boundary_index_, ctx);
+            return;
+        }
+    }
+
+private:
+    bool setConnection(std::unique_ptr<IConnection<LayerId>> connection) {
+        if (!connection) {
+            return false;
+        }
+
+        const LayerId id = connection->getConnectionId();
+        for (auto& item : connections_) {
+            if (item && item->getConnectionId() == id) {
+                item = std::move(connection);
+                return true;
+            }
+        }
+
+        connections_.push_back(std::move(connection));
+        return true;
+    }
+    bool enterCurrentLayer(Ctx& ctx) {
+        if (current_index_ >= plan_.size()) {
+            status_ = RunnerStatus::Completed;
+            return false;
+        }
+
+        ILayer<Ctx>* layer = resolveCurrentLayer();
+        if (!layer) {
+            return false;
+        }
+        return layer->onEnter(ctx);
+    }
+
+    ILayer<Ctx>* resolveCurrentLayer() const {
         return resolver_ ? resolver_(plan_[current_index_]) : nullptr;
+    }
+
+    IConnection<LayerId>* resolveConnectionForLayer(LayerId id) const {
+        for (const auto& item : connections_) {
+            if (item && item->getConnectionId() == id) {
+                return item.get();
+            }
+        }
+        return nullptr;
+    }
+    bool allowTransitionFromCurrentLayer() const {
+        if (current_index_ >= plan_.size()) {
+            return true;
+        }
+
+        IConnection<LayerId>* connection = resolveConnectionForLayer(plan_[current_index_]);
+        if (!connection) {
+            return true; // 默认是allow
+        }
+        return connection->allowTransition();
     }
 
     void transitionToBoundary(std::size_t next_index, Ctx& ctx) {
         if (next_index >= plan_.size()) {
+            pending_boundary_index_.reset();
             status_ = RunnerStatus::Completed;
-            pause_reason_ = PauseReason::None;
             return;
         }
 
-        if (breakpoints_.contains(next_index)) {
+        if (!allowTransitionFromCurrentLayer()) {
             pending_boundary_index_ = next_index;
-            status_ = RunnerStatus::Paused;
-            pause_reason_ = PauseReason::Breakpoint;
+            status_                 = RunnerStatus::Paused;
             return;
         }
 
+        status_ = RunnerStatus::Running;
         current_index_ = next_index;
-        (void)enterCurrentLayer(ctx);
+        pending_boundary_index_.reset();
+        if (!enterCurrentLayer(ctx)) {
+            stop();
+        }
     }
-
     Resolver resolver_;
     std::vector<LayerId> plan_{};
-    std::unordered_set<std::size_t> breakpoints_{};
+    std::vector<std::unique_ptr<IConnection<LayerId>>> connections_{};
     std::optional<std::size_t> pending_boundary_index_{};
     std::size_t current_index_{0};
-    RunnerStatus status_{RunnerStatus::Idle};
-    PauseReason pause_reason_{PauseReason::None};
+    RunnerStatus status_{RunnerStatus::Paused};
 };
 
 } // namespace rmcs_core::controller::leg::hsm::linear
