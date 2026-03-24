@@ -26,6 +26,10 @@ public:
         register_input("/referee/serial", serial_);
 
         register_output("/referee/game/stage", game_stage_, rmcs_msgs::GameStage::UNKNOWN);
+        register_output("/referee/game/red_score", red_score_, 0);
+        register_output("/referee/game/blue_score", blue_score_, 0);
+        register_output("/referee/game/current_round", current_round_, 0);
+        register_output("/referee/game/total_rounds", total_rounds_, 0);
 
         register_output("/referee/id", robot_id_, rmcs_msgs::RobotId::UNKNOWN);
         register_output("/referee/shooter/cooling", robot_shooter_cooling_, 0);
@@ -122,6 +126,11 @@ private:
         auto& data = reinterpret_cast<GameStatus&>(frame_.body.data);
 
         *game_stage_ = static_cast<rmcs_msgs::GameStage>(data.game_stage);
+        *red_score_ = data.red_score;
+        *blue_score_ = data.blue_score;
+        *current_round_ = data.current_round;
+        *total_rounds_ = data.total_rounds;
+
         if (*game_stage_ == rmcs_msgs::GameStage::STARTED)
             game_status_watchdog_.reset(30'000);
         else
@@ -195,6 +204,8 @@ private:
 
     rmcs_utility::TickTimer game_status_watchdog_;
     OutputInterface<rmcs_msgs::GameStage> game_stage_;
+    OutputInterface<uint32_t> red_score_, blue_score_;
+    OutputInterface<uint8_t> current_round_, total_rounds_;
 
     rmcs_utility::TickTimer robot_status_watchdog_;
     OutputInterface<rmcs_msgs::RobotId> robot_id_;

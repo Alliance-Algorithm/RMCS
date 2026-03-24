@@ -9,6 +9,11 @@ struct __attribute__((packed)) GameStatus {
     uint8_t game_stage : 4;
     uint16_t stage_remain_time;
     uint64_t sync_timestamp;
+
+    uint32_t red_score;
+    uint32_t blue_score;
+    uint8_t current_round;
+    uint8_t total_rounds;
 };
 
 struct __attribute__((packed)) GameRobotHp {
