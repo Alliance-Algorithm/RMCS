@@ -11,7 +11,8 @@ rmcs_executor:
       - rmcs_core::referee::command::interaction::Ui -> referee_ui
       - rmcs_core::referee::app::ui::Infantry -> referee_ui_infantry
 
-      - sp_vision_25::bridge::SpVisionBridge -> sp_vision_bridge
+      # - sp_vision_25::bridge::SpVisionBridge -> sp_vision_bridge
+      - rmcs_core::controller::gimbal::VirtualTargetSnapshotProvider -> virtual_target_snapshot_provider
       - rmcs_core::controller::gimbal::OmniInfantryGimbalController -> gimbal_controller
 
       - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
@@ -34,25 +35,54 @@ infantry_hardware:
 sp_vision_bridge:
   ros__parameters:
     config_file: configs/standard3.yaml
-    bullet_speed_fallback: 24.5
-    result_timeout: 0.2
     debug: false
+
+virtual_target_snapshot_provider:
+  ros__parameters:
+    virtual_valid: true
+    virtual_converged: false
+    virtual_armor_count: 4
+    virtual_armor_type: small
+    virtual_armor_name: three
+
     virtual_center_distance: 6.0
     virtual_center_yaw: 0.0
     virtual_center_height: 0.0
+    virtual_center_velocity_x: 0.0
+    virtual_center_velocity_y: 0.0
+    virtual_center_velocity_z: 0.0
     virtual_angular_velocity: 8.0
     virtual_base_radius: 0.2
     virtual_radius_delta: 0.025
     virtual_height_delta: 0.0
     virtual_initial_phase: 0.0
-    fire_control_enabled: true
-    output_csv_path: /tmp/sp_vision_response_test.csv
-    csv_decimation: 1
 
 gimbal_controller:
   ros__parameters:
+    bullet_speed_fallback: 24.5
+    result_timeout: 0.2
+
     upper_limit: -0.5098
     lower_limit: 0.2262
+
+    yaw_offset: 2.0
+    pitch_offset: 0.0
+    decision_speed: 7.0
+    high_speed_delay_time: 0.0
+    low_speed_delay_time: 0.0
+    fire_thresh: 0.0035
+    max_yaw_acc: 500.0
+    Q_yaw:
+      - 9000000.0
+      - 0.0
+    R_yaw:
+      - 1.0
+    max_pitch_acc: 100.0
+    Q_pitch:
+      - 9000000.0
+      - 0.0
+    R_pitch:
+      - 1.0
 
     yaw_angle_kp: 14.5
     yaw_angle_ki: 0.0

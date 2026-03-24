@@ -22,6 +22,7 @@ fetchcontent_declare(
   DOWNLOAD_EXTRACT_TIMESTAMP TRUE
 )
 fetchcontent_makeavailable(librmcs)
+add_subdirectory(third_party/tinympc/src/tinympc)
 
 file(GLOB_RECURSE PROJECT_SOURCE CONFIGURE_DEPENDS
   ${PROJECT_SOURCE_DIR}/src/*.cpp
@@ -36,6 +37,7 @@ ament_auto_add_library(
 include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_SOURCE_DIR}/src)
 target_link_libraries(${PROJECT_NAME} librmcs-sdk)
+target_link_libraries(${PROJECT_NAME} tinympcstatic)
 
 pluginlib_export_plugin_description_file(rmcs_executor plugins.xml)
 
