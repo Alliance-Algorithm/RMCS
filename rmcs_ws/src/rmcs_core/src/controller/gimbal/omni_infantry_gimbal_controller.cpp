@@ -193,6 +193,8 @@ public:
             "/gimbal/auto_aim/control_direction", control_direction_, Eigen::Vector3d::Zero());
         register_output("/gimbal/auto_aim/fire_control", fire_control_, false);
         register_output("/gimbal/auto_aim/laser_distance", laser_distance_, 0.0);
+        register_output("/gimbal/auto_aim/plan_target_yaw", plan_target_yaw_, 0.0);
+        register_output("/gimbal/auto_aim/plan_target_pitch", plan_target_pitch_, 0.0);
         register_output("/gimbal/auto_aim/plan_yaw", plan_yaw_, 0.0);
         register_output("/gimbal/auto_aim/plan_pitch", plan_pitch_, 0.0);
         register_output("/gimbal/auto_aim/plan_yaw_velocity", plan_yaw_velocity_, 0.0);
@@ -292,6 +294,8 @@ private:
         *control_direction_ = planner_direction(result.yaw, result.pitch);
         *fire_control_ = result.fire;
         *laser_distance_ = result.control_xyza.head<3>().norm();
+        *plan_target_yaw_ = result.target_yaw;
+        *plan_target_pitch_ = result.target_pitch;
         *plan_yaw_ = result.yaw;
         *plan_pitch_ = result.pitch;
         *plan_yaw_velocity_ = result.yaw_velocity;
@@ -305,6 +309,8 @@ private:
         *control_direction_ = Eigen::Vector3d::Zero();
         *fire_control_ = false;
         *laser_distance_ = 0.0;
+        *plan_target_yaw_ = 0.0;
+        *plan_target_pitch_ = 0.0;
         *plan_yaw_ = 0.0;
         *plan_pitch_ = 0.0;
         *plan_yaw_velocity_ = 0.0;
@@ -417,6 +423,8 @@ private:
     OutputInterface<Eigen::Vector3d> control_direction_;
     OutputInterface<bool> fire_control_;
     OutputInterface<double> laser_distance_;
+    OutputInterface<double> plan_target_yaw_;
+    OutputInterface<double> plan_target_pitch_;
     OutputInterface<double> plan_yaw_;
     OutputInterface<double> plan_pitch_;
     OutputInterface<double> plan_yaw_velocity_;
