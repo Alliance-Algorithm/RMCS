@@ -36,7 +36,7 @@ public:
         register_input("/remote/mouse", mouse_);
         register_input("/remote/keyboard", keyboard_);
         register_input("/remote/rotary_knob", rotary_knob_);
-        register_input("/rmcs_navigation/command_velocity", navigation_command_velocity_, false);
+        register_input("/rmcs_navigation/chassis_velocity", navigation_command_velocity_, false);
 
         register_input("/gimbal/yaw/angle", gimbal_yaw_angle_, false);
         register_input("/gimbal/yaw/control_angle_error", gimbal_yaw_angle_error_, false);
@@ -57,9 +57,6 @@ public:
             gimbal_yaw_angle_error_.make_and_bind_directly(0.0);
             RCLCPP_WARN(
                 get_logger(), "Failed to fetch \"/gimbal/yaw/control_angle_error\". Set to 0.0.");
-        }
-        if (!navigation_command_velocity_.ready()) {
-            navigation_command_velocity_.make_and_bind_directly(Eigen::Vector3d::Constant(nan));
         }
     }
 
@@ -145,10 +142,8 @@ public:
         auto nav_velocity_odom = Eigen::Vector2d{Eigen::Vector2d::Zero()};
         if (navigation_command_velocity_.ready()) {
             auto raw_command = *navigation_command_velocity_;
-            if (std::isfinite(raw_command.x()) && std::isfinite(raw_command.y())) {
-                nav_velocity_odom.x() = raw_command.x() * navigation_velocity_scale_;
-                nav_velocity_odom.y() = raw_command.y() * navigation_velocity_scale_;
-            }
+            if (std::isfinite(raw_command.x()) && std::isfinite(raw_command.y()))
+                nav_velocity_odom = *navigation_command_velocity_ * navigation_velocity_scale_;
         }
         auto nav_velocity = Eigen::Rotation2Dd{*gimbal_yaw_angle_} * nav_velocity_odom;
 
@@ -223,7 +218,7 @@ private:
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
     // Maximum control velocities
-    static constexpr double translational_velocity_max = 10.0;
+    static constexpr double translational_velocity_max = 20.0;
     static constexpr double angular_velocity_max = 2 * std::numbers::pi * 2.0;
 
     InputInterface<Eigen::Vector2d> joystick_right_;
@@ -234,7 +229,6 @@ private:
     InputInterface<rmcs_msgs::Mouse> mouse_;
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
     InputInterface<double> rotary_knob_;
-    InputInterface<Eigen::Vector3d> navigation_command_velocity_;
 
     rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Switch last_switch_left_ = rmcs_msgs::Switch::UNKNOWN;
@@ -249,6 +243,9 @@ private:
     pid::PidCalculator following_velocity_controller_;
 
     OutputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;
+
+    // For Navigation
+    InputInterface<Eigen::Vector2d> navigation_command_velocity_;
 };
 
 } // namespace rmcs_core::controller::chassis

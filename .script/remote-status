@@ -2,4 +2,41 @@
 
 set -euo pipefail
 
-ssh-remote "bash -lc 'source ~/env_setup.bash && msg=\$(ros2 service call /rmcs/service/status std_srvs/srv/Trigger \"{}\" | sed -n \"s/.*message='\\''\\(.*\\)'\\'')/\\1/p\") && printf \"%b\\n\" \"\$msg\"'"
+robot_status="/rmcs/service/robot_status"
+referee_status="/rmcs_navigation/service/referee_status"
+
+ssh-remote bash -s -- "${robot_status}" "${referee_status}" <<'EOF'
+set -euo pipefail
+
+source ~/env_setup.bash
+
+services=("$@")
+all_services="$(ros2 service list || true)"
+
+call_status_service() {
+    local service="$1"
+    local raw
+    local msg
+
+    if ! printf "%s\n" "$all_services" | grep -Fxq "$service"; then
+        printf "[WARN] service not found: %s\n\n" "$service"
+        return
+    fi
+
+    printf "=== %s ===\n" "$service"
+    raw="$(ros2 service call "$service" std_srvs/srv/Trigger "{}" 2>&1 || true)"
+    msg="$(printf "%s\n" "$raw" | sed -n "s/.*message='\\(.*\\)'.*/\\1/p")"
+
+    if [ -z "$msg" ]; then
+        printf "[WARN] failed to parse message: %s\n%s\n" "$service" "$raw"
+    else
+        printf "%b\n" "$msg"
+    fi
+
+    printf "\n"
+}
+
+for service in "${services[@]}"; do
+    call_status_service "$service"
+done
+EOF

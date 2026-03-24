@@ -26,7 +26,7 @@ rmcs_executor:
       - rmcs_core::controller::chassis::SteeringWheelController -> steering_wheel_controller
 
       # Alliance-Algorithm/rmcs-navigation
-      - rmcs::Brain -> rmcs_navigation
+      - rmcs_navigation::Navigation -> rmcs_navigation
 
 # The positive direction is the one that battery exists
 sentry_hardware:
@@ -41,6 +41,10 @@ sentry_hardware:
     right_back_zero_point: 2677
     right_front_zero_point: 6422
 
+rmcs_navigation:
+  ros__parameters:
+    config_name: "rmul"
+
 gimbal_controller:
   ros__parameters:
     upper_limit: -0.39518
@@ -48,7 +52,7 @@ gimbal_controller:
 
 chassis_controller:
   ros__parameters:
-    navigation_velocity_scale: 4.0
+    navigation_velocity_scale: 1.0
 
 dual_yaw_controller:
   ros__parameters:
@@ -83,8 +87,8 @@ friction_wheel_controller:
       - /gimbal/left_friction
       - /gimbal/right_friction
     friction_velocities:
-      - 600.0
-      - 600.0
+      - 690.0
+      - 690.0
     friction_soft_start_stop_time: 1.0
 
 heat_controller:
@@ -106,3 +110,40 @@ bullet_feeder_controller:
 left_friction_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/left_friction/velocity
+    setpoint: /gimbal/left_friction/control_velocity
+    control: /gimbal/left_friction/control_torque
+    kp: 0.003436926
+    ki: 0.00
+    kd: 0.009373434
+
+right_friction_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/right_friction/velocity
+    setpoint: /gimbal/right_friction/control_velocity
+    control: /gimbal/right_friction/control_torque
+    kp: 0.003436926
+    ki: 0.00
+    kd: 0.009373434
+
+bullet_feeder_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/bullet_feeder/velocity
+    setpoint: /gimbal/bullet_feeder/control_velocity
+    control: /gimbal/bullet_feeder/control_torque
+    kp: 0.283
+    ki: 0.0
+    kd: 0.0
+
+steering_wheel_controller:
+  ros__parameters:
+    mess: 22.0
+    moment_of_inertia: 0.77852676
+    vehicle_radius: 0.26870058
+    wheel_radius: 0.055
+    friction_coefficient: 0.5
+    k1: 2.958580e+00
+    k2: 3.082190e-03
+    no_load_power: 11.37
+    chassis_translation_kp: 8.0
+    chassis_translation_ki: 0.0
+    chassis_translation_kd: 0.0

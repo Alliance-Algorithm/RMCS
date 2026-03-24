@@ -30,7 +30,7 @@ public:
         register_input("/remote/switch/left", switch_left_);
         register_input("/remote/mouse/velocity", mouse_velocity_);
         register_input("/remote/mouse", mouse_);
-        register_input("/rmcs_navigation/command_velocity", navigation_command_velocity_, false);
+        register_input("/rmcs_navigation/gimbal_velocity", navigation_command_velocity_, false);
 
         register_input("/gimbal/auto_aim/control_direction", auto_aim_control_direction_, false);
 
@@ -73,10 +73,13 @@ public:
 
         // Navigation Control
         if (navigation_command_velocity_.ready()) {
-            auto yaw_speed = navigation_command_velocity_->z();
-            if (std::isfinite(yaw_speed)) {
+            auto yaw_speed = navigation_command_velocity_->x();
+            if (std::isfinite(yaw_speed))
                 yaw_shift += yaw_speed * control_dt_;
-            }
+
+            auto pitch_speed = navigation_command_velocity_->y();
+            if (std::isfinite(pitch_speed))
+                pitch_shift += pitch_speed * control_dt_;
         }
 
         return two_axis_gimbal_solver.update(
@@ -92,13 +95,15 @@ private:
     InputInterface<rmcs_msgs::Switch> switch_left_;
     InputInterface<Eigen::Vector2d> mouse_velocity_;
     InputInterface<rmcs_msgs::Mouse> mouse_;
-    InputInterface<Eigen::Vector3d> navigation_command_velocity_;
 
     InputInterface<Eigen::Vector3d> auto_aim_control_direction_;
 
     TwoAxisGimbalSolver two_axis_gimbal_solver;
 
     OutputInterface<double> yaw_angle_error_, pitch_angle_error_;
+
+    // For Navigation
+    InputInterface<Eigen::Vector2d> navigation_command_velocity_;
 };
 
 } // namespace rmcs_core::controller::gimbal

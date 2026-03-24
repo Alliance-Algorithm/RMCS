@@ -36,9 +36,9 @@ public:
         , control_acceleration_filter_(5.0, 1000.0)
         , chassis_velocity_expected_(Eigen::Vector3d::Zero())
         , chassis_translational_velocity_pid_{
-            get_parameter_or<double>("chassis_translation_kp", 5.0),
+            get_parameter_or<double>("chassis_translation_kp", 0.0),
             get_parameter_or<double>("chassis_translation_ki", 0.0),
-            get_parameter_or<double>("chassis_translation_kd", 1.0),
+            get_parameter_or<double>("chassis_translation_kd", 0.0),
         }
         , chassis_angular_velocity_pid_(5.0, 0.0, 1.0)
         , cos_varphi_(1, 0, -1, 0) // 0, pi/2, pi, 3pi/2

@@ -68,8 +68,10 @@ public:
             "/steers/calibrate", rclcpp::QoS{0}, [this](std_msgs::msg::Int32::UniquePtr&& msg) {
                 steers_calibrate_subscription_callback(std::move(msg));
             });
+
+        // For command: remote-status
         status_service_ = Node::create_service<std_srvs::srv::Trigger>(
-            "/rmcs/service/status",
+            "/rmcs/service/robot_status",
             [this](
                 const std_srvs::srv::Trigger::Request::SharedPtr&,
                 const std_srvs::srv::Trigger::Response::SharedPtr& response) {
@@ -109,26 +111,24 @@ private:
         response->success = true;
 
         auto feedback_message = std::ostringstream{};
+        auto text = [&]<typename... Args>(std::format_string<Args...> format, Args&&... args) {
+            std::println(feedback_message, format, std::forward<Args>(args)...);
+        };
 
-        std::println(feedback_message, "Gimbal:");
+        text("Gimbal Status");
+        text("-  Bottom Yaw: {}", bottom_board_->gimbal_bottom_yaw_motor_.last_raw_angle());
+        text("-     Top Yaw: {}", top_board_->gimbal_top_yaw_motor_.last_raw_angle());
+        text("- Pitch Angle: {}", top_board_->gimbal_pitch_motor_.last_raw_angle());
 
-        std::println(
-            feedback_message, "  -  Bottom Yaw: {}",
-            bottom_board_->gimbal_bottom_yaw_motor_.last_raw_angle());
-        std::println(
-            feedback_message, "  -     Top Yaw: {}",
-            top_board_->gimbal_top_yaw_motor_.last_raw_angle());
-        std::println(
-            feedback_message, "  - Pitch Angle: {}",
-            top_board_->gimbal_pitch_motor_.last_raw_angle());
-
-        std::println(feedback_message, "Chassis:");
-
+        text("Chassis Status");
         constexpr auto position =
-            std::array{"right back", "right front", "left front", "left back"};
+            std::array<std::string_view, 4>{"right back", "right front", "left front", "left back"};
+        constexpr auto max_length =
+            std::ranges::max_element(position, {}, &std::string_view::size)->size();
+
         for (auto&& [index, motor] :
              std::views::zip(position, bottom_board_->chassis_steer_motors_)) {
-            std::println(feedback_message, "  - {:11}: {}", index, motor.last_raw_angle());
+            text("- {:{}}: {}", index, max_length, motor.last_raw_angle());
         }
 
         response->message = feedback_message.str();
