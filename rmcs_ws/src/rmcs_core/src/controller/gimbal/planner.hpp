@@ -27,12 +27,7 @@ struct PlannerConfig {
     double decision_speed = 7.0;
 
     double max_yaw_acc = 500.0;
-    std::array<double, 2> q_yaw{9e6, 0.0};
-    std::array<double, 1> r_yaw{1.0};
-
     double max_pitch_acc = 100.0;
-    std::array<double, 2> q_pitch{9e6, 0.0};
-    std::array<double, 1> r_pitch{1.0};
 };
 
 struct PlannerResult {
@@ -50,6 +45,11 @@ struct PlannerResult {
 };
 
 namespace detail {
+
+inline constexpr std::array<double, 2> kQYaw{9e6, 0.0};
+inline constexpr std::array<double, 1> kRYaw{1.0};
+inline constexpr std::array<double, 2> kQPitch{9e6, 0.0};
+inline constexpr std::array<double, 1> kRPitch{1.0};
 
 inline double limit_rad(double angle) {
     constexpr double kPi = std::numbers::pi_v<double>;
@@ -326,8 +326,8 @@ private:
         Eigen::VectorXd f{
             {0, 0}
         };
-        Eigen::Matrix<double, 2, 1> Q(config_.q_yaw.data());
-        Eigen::Matrix<double, 1, 1> R(config_.r_yaw.data());
+        Eigen::Matrix<double, 2, 1> Q(detail::kQYaw.data());
+        Eigen::Matrix<double, 1, 1> R(detail::kRYaw.data());
 
         if (tiny_setup(
                 &yaw_solver_, A, B, f, Q.asDiagonal(), R.asDiagonal(), 1.0, 2, 1, kHorizon, 0)
@@ -354,8 +354,8 @@ private:
         Eigen::VectorXd f{
             {0, 0}
         };
-        Eigen::Matrix<double, 2, 1> Q(config_.q_pitch.data());
-        Eigen::Matrix<double, 1, 1> R(config_.r_pitch.data());
+        Eigen::Matrix<double, 2, 1> Q(detail::kQPitch.data());
+        Eigen::Matrix<double, 1, 1> R(detail::kRPitch.data());
 
         if (tiny_setup(
                 &pitch_solver_, A, B, f, Q.asDiagonal(), R.asDiagonal(), 1.0, 2, 1, kHorizon, 0)
