@@ -49,6 +49,8 @@ gimbal_controller:
   ros__parameters:
     upper_limit: -0.39518
     lower_limit: 0.36
+    navigation_scan_yaw_speed: 1.2
+    navigation_scan_pitch_speed: 0.45
 
 chassis_controller:
   ros__parameters:

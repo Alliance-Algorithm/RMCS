@@ -37,6 +37,7 @@ public:
         register_input("/remote/keyboard", keyboard_);
         register_input("/remote/rotary_knob", rotary_knob_);
         register_input("/rmcs_navigation/chassis_velocity", navigation_command_velocity_, false);
+        register_input("/rmcs_navigation/rotate_chassis", navigation_rotate_chassis_, false);
 
         register_input("/gimbal/yaw/angle", gimbal_yaw_angle_, false);
         register_input("/gimbal/yaw/control_angle_error", gimbal_yaw_angle_error_, false);
@@ -98,6 +99,11 @@ public:
                     mode = mode == rmcs_msgs::ChassisMode::STEP_DOWN
                              ? rmcs_msgs::ChassisMode::AUTO
                              : rmcs_msgs::ChassisMode::STEP_DOWN;
+                }
+
+                if (navigation_rotate_chassis_.ready()) {
+                    mode = *navigation_rotate_chassis_ ? rmcs_msgs::ChassisMode::SPIN
+                                                       : rmcs_msgs::ChassisMode::AUTO;
                 }
                 *mode_ = mode;
             }
@@ -246,6 +252,7 @@ private:
 
     // For Navigation
     InputInterface<Eigen::Vector2d> navigation_command_velocity_;
+    InputInterface<bool> navigation_rotate_chassis_;
 };
 
 } // namespace rmcs_core::controller::chassis
