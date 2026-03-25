@@ -79,7 +79,7 @@ deformable_infantry:
     left_back_zero_point: 1033
     right_back_zero_point: 5154
     right_front_zero_point: 1718
-    yaw_motor_zero_point: 30689
+    yaw_motor_zero_point:  41176
     pitch_motor_zero_point: 15838
 
 chassis_controller:
@@ -287,8 +287,8 @@ deformable_chassis_controller:
   ros__parameters:
     mess: 22.5
     moment_of_inertia: 1.0
-    chassis_radius: 0.1671741
-    rod_length: 0.10607
+    chassis_radius: 0.2364198
+    rod_length: 0.150
     wheel_radius: 0.055
     friction_coefficient: 0.6
     k1: 2.958580e+00
