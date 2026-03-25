@@ -23,7 +23,7 @@ namespace rmcs_core::hardware::device {
 
 class LkMotor {
 public:
-    enum class Type : uint8_t { kMG5010Ei10, kMG4010Ei10, kMG6012Ei8, kMG4005Ei10 };
+    enum class Type : uint8_t { kMG5010Ei10, kMG4010Ei10, kMG6012Ei8, kMG4005Ei10, kMG5010Ei36 };
 
     struct Config {
         explicit Config(Type type)
@@ -102,6 +102,12 @@ public:
             torque_constant = 0.06;
             reduction_ratio = 10.0;
             max_torque_ = 2.5;
+            break;
+        case Type::kMG5010Ei36:
+            raw_angle_modulus_ = 1 << 16;
+            torque_constant = 0.3;
+            reduction_ratio = 36.0;
+            max_torque_ = 25.0;
             break;
         default: std::unreachable();
         }
