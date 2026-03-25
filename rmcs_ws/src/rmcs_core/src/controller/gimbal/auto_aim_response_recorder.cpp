@@ -82,6 +82,16 @@ public:
         register_input("/gimbal/auto_aim/plan_yaw_acceleration", plan_yaw_acceleration_, false);
         register_input(
             "/gimbal/auto_aim/plan_pitch_acceleration", plan_pitch_acceleration_, false);
+        register_input("/gimbal/auto_aim/yaw_velocity_ff", yaw_velocity_ff_, false);
+        register_input("/gimbal/auto_aim/pitch_velocity_ff", pitch_velocity_ff_, false);
+        register_input("/gimbal/auto_aim/yaw_acceleration_ff", yaw_acceleration_ff_, false);
+        register_input("/gimbal/auto_aim/pitch_acceleration_ff", pitch_acceleration_ff_, false);
+        register_input("/gimbal/auto_aim/yaw_velocity_ref", yaw_velocity_ref_, false);
+        register_input("/gimbal/auto_aim/pitch_velocity_ref", pitch_velocity_ref_, false);
+        register_input("/gimbal/auto_aim/yaw_velocity_feedback", yaw_velocity_feedback_, false);
+        register_input("/gimbal/auto_aim/pitch_velocity_feedback", pitch_velocity_feedback_, false);
+        register_input("/gimbal/auto_aim/chassis_yaw_velocity_imu", chassis_yaw_velocity_imu_, false);
+        register_input("/gimbal/auto_aim/yaw_chassis_spin_torque_ff", yaw_chassis_spin_torque_ff_, false);
 
         register_input("/gimbal/yaw/control_angle_error", yaw_control_angle_error_, false);
         register_input("/gimbal/pitch/control_angle_error", pitch_control_angle_error_, false);
@@ -124,6 +134,26 @@ public:
             plan_yaw_acceleration_.make_and_bind_directly(nan_);
         if (!plan_pitch_acceleration_.ready())
             plan_pitch_acceleration_.make_and_bind_directly(nan_);
+        if (!yaw_velocity_ff_.ready())
+            yaw_velocity_ff_.make_and_bind_directly(nan_);
+        if (!pitch_velocity_ff_.ready())
+            pitch_velocity_ff_.make_and_bind_directly(nan_);
+        if (!yaw_acceleration_ff_.ready())
+            yaw_acceleration_ff_.make_and_bind_directly(nan_);
+        if (!pitch_acceleration_ff_.ready())
+            pitch_acceleration_ff_.make_and_bind_directly(nan_);
+        if (!yaw_velocity_ref_.ready())
+            yaw_velocity_ref_.make_and_bind_directly(nan_);
+        if (!pitch_velocity_ref_.ready())
+            pitch_velocity_ref_.make_and_bind_directly(nan_);
+        if (!yaw_velocity_feedback_.ready())
+            yaw_velocity_feedback_.make_and_bind_directly(nan_);
+        if (!pitch_velocity_feedback_.ready())
+            pitch_velocity_feedback_.make_and_bind_directly(nan_);
+        if (!chassis_yaw_velocity_imu_.ready())
+            chassis_yaw_velocity_imu_.make_and_bind_directly(nan_);
+        if (!yaw_chassis_spin_torque_ff_.ready())
+            yaw_chassis_spin_torque_ff_.make_and_bind_directly(nan_);
         if (!yaw_control_angle_error_.ready())
             yaw_control_angle_error_.make_and_bind_directly(nan_);
         if (!pitch_control_angle_error_.ready())
@@ -185,6 +215,11 @@ public:
                     << *plan_target_pitch_ << ',' << *plan_yaw_ << ',' << *plan_pitch_ << ','
                     << *plan_yaw_velocity_ << ',' << *plan_pitch_velocity_ << ','
                     << *plan_yaw_acceleration_ << ',' << *plan_pitch_acceleration_ << ','
+                    << *yaw_velocity_ff_ << ',' << *pitch_velocity_ff_ << ','
+                    << *yaw_acceleration_ff_ << ',' << *pitch_acceleration_ff_ << ','
+                    << *yaw_velocity_ref_ << ',' << *pitch_velocity_ref_ << ','
+                    << *yaw_velocity_feedback_ << ',' << *pitch_velocity_feedback_ << ','
+                    << *chassis_yaw_velocity_imu_ << ',' << *yaw_chassis_spin_torque_ff_ << ','
                     << actual_yaw << ',' << actual_pitch << ',' << *yaw_velocity_imu_ << ','
                     << *pitch_velocity_imu_ << ',' << yaw_error << ',' << pitch_error << ','
                     << (*fire_control_ ? 1 : 0) << ',' << *laser_distance_ << ','
@@ -242,6 +277,11 @@ private:
                        "planner_active,plan_target_yaw,plan_target_pitch,"
                        "plan_yaw,plan_pitch,plan_yaw_velocity,plan_pitch_velocity,"
                        "plan_yaw_acceleration,plan_pitch_acceleration,"
+                       "yaw_velocity_ff,pitch_velocity_ff,"
+                       "yaw_acceleration_ff,pitch_acceleration_ff,"
+                       "yaw_velocity_ref,pitch_velocity_ref,"
+                       "yaw_velocity_feedback,pitch_velocity_feedback,"
+                       "chassis_yaw_velocity_imu,yaw_chassis_spin_torque_ff,"
                        "actual_yaw,actual_pitch,actual_yaw_velocity,actual_pitch_velocity,"
                        "yaw_error,pitch_error,fire_control,laser_distance,"
                        "yaw_control_angle_error,pitch_control_angle_error,"
@@ -277,6 +317,16 @@ private:
     InputInterface<double> plan_pitch_velocity_;
     InputInterface<double> plan_yaw_acceleration_;
     InputInterface<double> plan_pitch_acceleration_;
+    InputInterface<double> yaw_velocity_ff_;
+    InputInterface<double> pitch_velocity_ff_;
+    InputInterface<double> yaw_acceleration_ff_;
+    InputInterface<double> pitch_acceleration_ff_;
+    InputInterface<double> yaw_velocity_ref_;
+    InputInterface<double> pitch_velocity_ref_;
+    InputInterface<double> yaw_velocity_feedback_;
+    InputInterface<double> pitch_velocity_feedback_;
+    InputInterface<double> chassis_yaw_velocity_imu_;
+    InputInterface<double> yaw_chassis_spin_torque_ff_;
     InputInterface<double> yaw_control_angle_error_;
     InputInterface<double> pitch_control_angle_error_;
     InputInterface<double> yaw_control_torque_;
