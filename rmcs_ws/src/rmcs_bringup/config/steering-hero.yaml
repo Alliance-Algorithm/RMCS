@@ -6,8 +6,8 @@ rmcs_executor:
 
       - rmcs_core::referee::Status -> referee_status
       - rmcs_core::referee::command::Interaction -> referee_interaction
-      # - rmcs_core::referee::command::interaction::Ui -> referee_ui
-      # - rmcs_core::referee::app::ui::Hero -> referee_ui_hero
+      - rmcs_core::referee::command::interaction::Ui -> referee_ui
+      - rmcs_core::referee::app::ui::Hero -> referee_ui_hero
       - rmcs_core::referee::Command -> referee_command
 
       - rmcs_core::controller::gimbal::HeroGimbalController -> gimbal_controller
@@ -35,7 +35,7 @@ rmcs_executor:
       # - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
       # - rmcs_auto_aim::AutoAimController -> auto_aim_controller
 
-      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
 
 hero_hardware:
@@ -43,20 +43,21 @@ hero_hardware:
     board_serial_top_board: "D4-2BCA-2E47-76CD-23BC-0B78-684B"
     board_serial_bottom_board_one: "D4-7973-19A9-EA40-4A3E-306F-10F9"
     board_serial_bottom_board_two: "D4-3674-7174-8768-879E-E44A-3931"
-    bottom_yaw_motor_zero_point: 50561
-    pitch_motor_zero_point: 40651 #35701
-    top_yaw_motor_zero_point: 59386
+    bottom_yaw_motor_zero_point: 58460
+    pitch_motor_zero_point: 14637 #35701
+    top_yaw_motor_zero_point: 59425
     viewer_motor_zero_point: 3030
     external_imu_port: /dev/ttyUSB0
-    bullet_feeder_motor_zero_point: 15111
-    left_front_zero_point: 4430
-    right_front_zero_point: 1017
-    left_back_zero_point:  3778
-    right_back_zero_point: 5792
+    bullet_feeder_motor_zero_point: 43027
+    left_front_zero_point: 4437
+    right_front_zero_point: 1036
+    left_back_zero_point:  3790
+    right_back_zero_point: 5796
     # left_front_zero_point: 3473
     # left_back_zero_point: 6124
     # right_back_zero_point: 6157
     # right_front_zero_point: 2723
+
 
 
 
@@ -190,8 +191,8 @@ friction_wheel_controller:
       - /gimbal/second_left_friction
       - /gimbal/second_right_friction
     friction_velocities:
-      - 375.00
-      - 375.00
+      - 385.00
+      - 385.00
       - 520.00
       - 520.00
     friction_soft_start_stop_time: 1.0

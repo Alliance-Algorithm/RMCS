@@ -324,10 +324,10 @@ private:
             *grayscale_sensor_status_ = false;
             if (data.channel == 2) {
                 *photoelectric_sensor_status_ = true;
-                RCLCPP_INFO(logger_, "Photoelectric sensor trigger!");
+                // RCLCPP_INFO(logger_, "Photoelectric sensor trigger!");
             } else if (data.channel == 7) {
                 *grayscale_sensor_status_ = true;
-                RCLCPP_INFO(logger_, "Grayscale sensor trigger!");
+                // RCLCPP_INFO(logger_, "Grayscale sensor trigger!");
             }
         }
 
