@@ -96,8 +96,8 @@ chassis_controller:
 
 gimbal_controller:
   ros__parameters:
-    upper_limit: -0.436332 # -25 deg
-    lower_limit: 0.174533 # 10 deg
+    upper_limit: -0.3839724354 # -22 deg
+    lower_limit: 0.1 # 6 deg
 
     yaw_angle_kp: 14.2
     yaw_angle_ki: 0.0
