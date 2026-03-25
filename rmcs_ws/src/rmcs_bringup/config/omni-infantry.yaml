@@ -14,7 +14,7 @@ rmcs_executor:
       - sp_vision_25::bridge::SpVisionBridge -> sp_vision_bridge
       # - rmcs_core::controller::gimbal::VirtualTargetSnapshotProvider -> virtual_target_snapshot_provider
       - rmcs_core::controller::gimbal::OmniInfantryGimbalController -> gimbal_controller
-      - rmcs_core::controller::gimbal::AutoAimResponseRecorder -> auto_aim_response_recorder
+      # - rmcs_core::controller::gimbal::AutoAimResponseRecorder -> auto_aim_response_recorder
 
       - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
       - rmcs_core::controller::shooting::HeatController -> heat_controller
@@ -67,11 +67,11 @@ gimbal_controller:
     lower_limit: 0.2262
 
     yaw_offset: 1.5
-    pitch_offset: -1.4
+    pitch_offset: 0.8
     decision_speed: 7.0
     high_speed_delay_time: 0.0
     low_speed_delay_time: 0.0
-    fire_thresh: 0.0035
+    fire_thresh: 0.01
     max_yaw_acc: 400.0
     max_pitch_acc: 100.0
 
@@ -110,8 +110,8 @@ friction_wheel_controller:
       - /gimbal/left_friction
       - /gimbal/right_friction
     friction_velocities:
-      - 750.0
-      - 750.0
+      - 720.0
+      - 720.0
     friction_soft_start_stop_time: 1.0
 
 heat_controller:
@@ -122,7 +122,7 @@ heat_controller:
 bullet_feeder_controller:
   ros__parameters:
     bullets_per_feeder_turn: 8.0
-    shot_frequency: 23.0
+    shot_frequency: 18.0
     safe_shot_frequency: 10.0
     eject_frequency: 10.0
     eject_time: 0.05

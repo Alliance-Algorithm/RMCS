@@ -134,15 +134,37 @@ private:
             robot_status_watchdog_.reset(5'000);
 
         auto& data = reinterpret_cast<RobotStatus&>(frame_.body.data);
+        const auto new_shooter_cooling = static_cast<int64_t>(data.shooter_barrel_cooling_value);
+        const auto new_shooter_heat_limit =
+            static_cast<int64_t>(1000) * data.shooter_barrel_heat_limit;
+        const auto new_chassis_power_limit =
+            data.chassis_power_limit == std::numeric_limits<uint16_t>::max()
+                ? std::numeric_limits<double>::infinity()
+                : static_cast<double>(data.chassis_power_limit);
 
         *robot_id_ = static_cast<rmcs_msgs::RobotId>(data.robot_id);
-        *robot_shooter_cooling_ = data.shooter_barrel_cooling_value;
-        *robot_shooter_heat_limit_ = static_cast<int64_t>(1000) * data.shooter_barrel_heat_limit;
 
-        if (data.chassis_power_limit == std::numeric_limits<uint16_t>::max())
-            *robot_chassis_power_limit_ = std::numeric_limits<double>::infinity();
-        else
-            *robot_chassis_power_limit_ = static_cast<double>(data.chassis_power_limit);
+        if (*robot_shooter_cooling_ != new_shooter_cooling) {
+            RCLCPP_INFO(
+                logger_, "robot_shooter_cooling updated: %ld -> %ld",
+                static_cast<long>(*robot_shooter_cooling_), static_cast<long>(new_shooter_cooling));
+            *robot_shooter_cooling_ = new_shooter_cooling;
+        }
+
+        if (*robot_shooter_heat_limit_ != new_shooter_heat_limit) {
+            RCLCPP_INFO(
+                logger_, "robot_shooter_heat_limit updated: %ld -> %ld",
+                static_cast<long>(*robot_shooter_heat_limit_),
+                static_cast<long>(new_shooter_heat_limit));
+            *robot_shooter_heat_limit_ = new_shooter_heat_limit;
+        }
+
+        if (*robot_chassis_power_limit_ != new_chassis_power_limit) {
+            RCLCPP_INFO(
+                logger_, "robot_chassis_power_limit updated: %.17g -> %.17g",
+                *robot_chassis_power_limit_, new_chassis_power_limit);
+            *robot_chassis_power_limit_ = new_chassis_power_limit;
+        }
 
         *chassis_output_status_ = static_cast<bool>(data.power_management_chassis_output);
     }
@@ -178,7 +200,7 @@ private:
     // When referee system loses connection unexpectedly,
     // use these indicators make sure the robot safe.
     // Muzzle: Cooling priority with level 1
-    static constexpr int64_t safe_shooter_cooling = 40;
+    static constexpr int64_t safe_shooter_cooling = 14;
     static constexpr int64_t safe_shooter_heat_limit = 50'000;
     // Chassis: Health priority with level 1
     static constexpr double safe_chassis_power_limit = 45;
