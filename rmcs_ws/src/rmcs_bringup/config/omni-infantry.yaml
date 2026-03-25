@@ -60,14 +60,14 @@ virtual_target_snapshot_provider:
 
 gimbal_controller:
   ros__parameters:
-    bullet_speed_fallback: 24.5
+    bullet_speed_fallback: 23.5
     result_timeout: 0.2
 
     upper_limit: -0.5098
     lower_limit: 0.2262
 
-    yaw_offset: 2.0
-    pitch_offset: 0.0
+    yaw_offset: 1.5
+    pitch_offset: -1.4
     decision_speed: 7.0
     high_speed_delay_time: 0.0
     low_speed_delay_time: 0.0
