@@ -11,8 +11,8 @@ rmcs_executor:
       - rmcs_core::referee::command::interaction::Ui -> referee_ui
       - rmcs_core::referee::app::ui::Infantry -> referee_ui_infantry
 
-      # - sp_vision_25::bridge::SpVisionBridge -> sp_vision_bridge
-      - rmcs_core::controller::gimbal::VirtualTargetSnapshotProvider -> virtual_target_snapshot_provider
+      - sp_vision_25::bridge::SpVisionBridge -> sp_vision_bridge
+      # - rmcs_core::controller::gimbal::VirtualTargetSnapshotProvider -> virtual_target_snapshot_provider
       - rmcs_core::controller::gimbal::OmniInfantryGimbalController -> gimbal_controller
       - rmcs_core::controller::gimbal::AutoAimResponseRecorder -> auto_aim_response_recorder
 
@@ -46,7 +46,7 @@ virtual_target_snapshot_provider:
     virtual_armor_type: small
     virtual_armor_name: three
 
-    virtual_center_distance: 6.0
+    virtual_center_distance: 2.0
     virtual_center_yaw: 0.0
     virtual_center_height: 0.0
     virtual_center_velocity_x: 0.0
@@ -72,7 +72,7 @@ gimbal_controller:
     high_speed_delay_time: 0.0
     low_speed_delay_time: 0.0
     fire_thresh: 0.0035
-    max_yaw_acc: 500.0
+    max_yaw_acc: 400.0
     max_pitch_acc: 100.0
 
     yaw_angle_kp: 14.5
@@ -82,8 +82,10 @@ gimbal_controller:
     yaw_velocity_kp: 6.4
     yaw_velocity_ki: 0.0
     yaw_velocity_kd: 0.0
-
+    
+    yaw_vel_ff_gain: 1.0
     yaw_acc_ff_gain: 0.16
+    yaw_chassis_spin_torque_ff_gain: -0.22
 
     pitch_angle_kp: 14.0
     pitch_angle_ki: 0.01
@@ -92,7 +94,8 @@ gimbal_controller:
     pitch_velocity_kp: 5.0
     pitch_velocity_ki: 0.0
     pitch_velocity_kd: 0.0
-
+    
+    pitch_vel_ff_gain: 1.0
     pitch_acc_ff_gain: 0.0
 
 auto_aim_response_recorder:

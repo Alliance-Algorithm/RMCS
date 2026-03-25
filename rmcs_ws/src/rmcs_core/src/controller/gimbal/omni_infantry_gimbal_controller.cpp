@@ -2,8 +2,6 @@
 #include <cmath>
 #include <limits>
 #include <string>
-#include <utility>
-
 #include <eigen3/Eigen/Dense>
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
@@ -38,50 +36,6 @@ Eigen::Vector3d planner_direction(double yaw, double pitch) {
     return direction;
 }
 
-Eigen::Vector3d
-    planner_direction_dot(double yaw, double pitch, double yaw_velocity, double pitch_velocity) {
-    const double sin_yaw = std::sin(yaw);
-    const double cos_yaw = std::cos(yaw);
-    const double sin_pitch = std::sin(pitch);
-    const double cos_pitch = std::cos(pitch);
-
-    const Eigen::Vector3d d_yaw{-cos_pitch * sin_yaw, cos_pitch * cos_yaw, 0.0};
-    const Eigen::Vector3d d_pitch{-sin_pitch * cos_yaw, -sin_pitch * sin_yaw, -cos_pitch};
-    return d_yaw * yaw_velocity + d_pitch * pitch_velocity;
-}
-
-Eigen::Vector3d planner_direction_ddot(
-    double yaw, double pitch, double yaw_velocity, double pitch_velocity, double yaw_acceleration,
-    double pitch_acceleration) {
-    const double sin_yaw = std::sin(yaw);
-    const double cos_yaw = std::cos(yaw);
-    const double sin_pitch = std::sin(pitch);
-    const double cos_pitch = std::cos(pitch);
-
-    const Eigen::Vector3d d_yaw{-cos_pitch * sin_yaw, cos_pitch * cos_yaw, 0.0};
-    const Eigen::Vector3d d_pitch{-sin_pitch * cos_yaw, -sin_pitch * sin_yaw, -cos_pitch};
-    const Eigen::Vector3d d_yawyaw{-cos_pitch * cos_yaw, -cos_pitch * sin_yaw, 0.0};
-    const Eigen::Vector3d d_pitchpitch{-cos_pitch * cos_yaw, -cos_pitch * sin_yaw, sin_pitch};
-    const Eigen::Vector3d d_yawpitch{sin_pitch * sin_yaw, -sin_pitch * cos_yaw, 0.0};
-
-    return d_yaw * yaw_acceleration + d_pitch * pitch_acceleration
-         + d_yawyaw * std::pow(yaw_velocity, 2) + d_pitchpitch * std::pow(pitch_velocity, 2)
-         + 2.0 * d_yawpitch * yaw_velocity * pitch_velocity;
-}
-
-Eigen::Vector2d solve_joint_velocity(
-    const Eigen::Vector3d& direction, const Eigen::Vector3d& direction_derivative,
-    const Eigen::Vector3d& yaw_axis, const Eigen::Vector3d& pitch_axis) {
-    Eigen::Matrix<double, 3, 2> jacobian;
-    jacobian.col(0) = yaw_axis.cross(direction);
-    jacobian.col(1) = pitch_axis.cross(direction);
-
-    Eigen::Vector2d result = jacobian.completeOrthogonalDecomposition().solve(direction_derivative);
-    if (!result.allFinite())
-        result.setZero();
-    return result;
-}
-
 void load_optional_parameter(rclcpp::Node& node, const std::string& name, double& value) {
     node.get_parameter(name, value);
 }
@@ -93,6 +47,12 @@ void configure_pid(rclcpp::Node& node, const std::string& prefix, pid::PidCalcul
     load_optional_parameter(node, prefix + "_integral_split_max", calculator.integral_split_max);
     load_optional_parameter(node, prefix + "_output_min", calculator.output_min);
     load_optional_parameter(node, prefix + "_output_max", calculator.output_max);
+}
+
+double parameter_or_declare(rclcpp::Node& node, const std::string& name, double default_value) {
+    if (!node.has_parameter(name))
+        node.declare_parameter<double>(name, default_value);
+    return node.get_parameter(name).as_double();
 }
 
 PlannerConfig load_planner_config(rclcpp::Node& node) {
@@ -114,6 +74,11 @@ class OmniInfantryGimbalController
     : public rmcs_executor::Component
     , public rclcpp::Node {
 public:
+    struct YawVelocityFeedback {
+        double chassis = 0.0;
+        double total = 0.0;
+    };
+
     OmniInfantryGimbalController()
         : Node(
               get_component_name(),
@@ -137,7 +102,11 @@ public:
               get_parameter("pitch_velocity_kp").as_double(),
               get_parameter("pitch_velocity_ki").as_double(),
               get_parameter("pitch_velocity_kd").as_double())
+        , yaw_vel_ff_gain_(parameter_or_declare(*this, "yaw_vel_ff_gain", 1.0))
+        , pitch_vel_ff_gain_(parameter_or_declare(*this, "pitch_vel_ff_gain", 1.0))
         , yaw_acc_ff_gain_(get_parameter("yaw_acc_ff_gain").as_double())
+        , yaw_chassis_spin_torque_ff_gain_(
+              parameter_or_declare(*this, "yaw_chassis_spin_torque_ff_gain", 0.0))
         , pitch_acc_ff_gain_(get_parameter("pitch_acc_ff_gain").as_double()) {
         if (!has_parameter("bullet_speed_fallback"))
             declare_parameter<double>("bullet_speed_fallback", 23.0);
@@ -161,9 +130,7 @@ public:
         register_input("/remote/mouse", mouse_);
 
         register_input("/predefined/timestamp", timestamp_);
-        register_input("/tf", tf_);
         register_input("/gimbal/yaw/velocity", yaw_velocity_);
-        register_input("/gimbal/pitch/velocity", pitch_velocity_);
         register_input("/gimbal/yaw/velocity_imu", yaw_velocity_imu_);
         register_input("/gimbal/pitch/velocity_imu", pitch_velocity_imu_);
         register_input("/referee/shooter/initial_speed", bullet_speed_, false);
@@ -181,6 +148,17 @@ public:
         register_output("/gimbal/auto_aim/plan_yaw_acceleration", plan_yaw_acceleration_, 0.0);
         register_output("/gimbal/auto_aim/plan_pitch_velocity", plan_pitch_velocity_, 0.0);
         register_output("/gimbal/auto_aim/plan_pitch_acceleration", plan_pitch_acceleration_, 0.0);
+        register_output("/gimbal/auto_aim/yaw_velocity_ff", yaw_velocity_ff_, 0.0);
+        register_output("/gimbal/auto_aim/pitch_velocity_ff", pitch_velocity_ff_, 0.0);
+        register_output("/gimbal/auto_aim/yaw_acceleration_ff", yaw_acceleration_ff_, 0.0);
+        register_output("/gimbal/auto_aim/pitch_acceleration_ff", pitch_acceleration_ff_, 0.0);
+        register_output("/gimbal/auto_aim/yaw_velocity_ref", yaw_velocity_ref_, 0.0);
+        register_output("/gimbal/auto_aim/pitch_velocity_ref", pitch_velocity_ref_, 0.0);
+        register_output("/gimbal/auto_aim/yaw_velocity_feedback", yaw_velocity_feedback_, 0.0);
+        register_output("/gimbal/auto_aim/pitch_velocity_feedback", pitch_velocity_feedback_, 0.0);
+        register_output(
+            "/gimbal/auto_aim/chassis_yaw_velocity_imu", chassis_yaw_velocity_imu_, 0.0);
+        register_output("/gimbal/auto_aim/yaw_chassis_spin_torque_ff", yaw_chassis_spin_torque_ff_, 0.0);
 
         register_output("/gimbal/yaw/control_torque", yaw_control_torque_, nan_);
         register_output("/gimbal/pitch/control_torque", pitch_control_torque_, nan_);
@@ -194,6 +172,7 @@ public:
         if (!target_snapshot_.ready())
             target_snapshot_.make_and_bind_directly(rmcs_msgs::TargetSnapshot{});
         clear_planner_outputs();
+        clear_control_diagnostics();
     }
 
     void update() override {
@@ -204,6 +183,7 @@ public:
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
             clear_planner_outputs();
+            clear_control_diagnostics();
             reset_all_controls();
             return;
         }
@@ -222,24 +202,39 @@ public:
             return;
         }
 
-        Eigen::Vector2d velocity_ff = Eigen::Vector2d::Zero();
-        Eigen::Vector2d acceleration_ff = Eigen::Vector2d::Zero();
-        if (planner_active) {
-            const auto planner_feedforward = compute_planner_feedforward();
-            velocity_ff = planner_feedforward.first;
-            acceleration_ff = planner_feedforward.second;
-        }
+        const YawVelocityFeedback yaw_feedback = yaw_velocity_feedback();
+        const double pitch_feedback = *pitch_velocity_imu_;
+        const double yaw_velocity_ff = planner_active ? yaw_vel_ff_gain_ * *plan_yaw_velocity_ : 0.0;
+        const double pitch_velocity_ff =
+            planner_active ? pitch_vel_ff_gain_ * *plan_pitch_velocity_ : 0.0;
+        const double yaw_acceleration_ff =
+            planner_active ? yaw_acc_ff_gain_ * *plan_yaw_acceleration_ : 0.0;
+        const double pitch_acceleration_ff =
+            planner_active ? pitch_acc_ff_gain_ * *plan_pitch_acceleration_ : 0.0;
+        const double yaw_chassis_spin_torque_ff =
+            planner_active ? yaw_chassis_spin_torque_ff_gain_ * yaw_feedback.chassis : 0.0;
 
         const double yaw_velocity_ref =
-            yaw_angle_pid_.update(angle_error.yaw_angle_error) + velocity_ff.x();
+            yaw_angle_pid_.update(angle_error.yaw_angle_error) + yaw_velocity_ff;
         const double pitch_velocity_ref =
-            pitch_angle_pid_.update(angle_error.pitch_angle_error) + velocity_ff.y();
+            pitch_angle_pid_.update(angle_error.pitch_angle_error) + pitch_velocity_ff;
 
-        *yaw_control_torque_ = yaw_velocity_pid_.update(yaw_velocity_ref - yaw_velocity_imu())
-                             + yaw_acc_ff_gain_ * acceleration_ff.x();
+        *yaw_velocity_ff_ = yaw_velocity_ff;
+        *pitch_velocity_ff_ = pitch_velocity_ff;
+        *yaw_acceleration_ff_ = yaw_acceleration_ff;
+        *pitch_acceleration_ff_ = pitch_acceleration_ff;
+        *yaw_velocity_ref_ = yaw_velocity_ref;
+        *pitch_velocity_ref_ = pitch_velocity_ref;
+        *yaw_velocity_feedback_ = yaw_feedback.total;
+        *pitch_velocity_feedback_ = pitch_feedback;
+        *chassis_yaw_velocity_imu_ = yaw_feedback.chassis;
+        *yaw_chassis_spin_torque_ff_ = yaw_chassis_spin_torque_ff;
+
+        *yaw_control_torque_ =
+            yaw_velocity_pid_.update(yaw_velocity_ref - yaw_feedback.total) + yaw_acceleration_ff
+            + yaw_chassis_spin_torque_ff;
         *pitch_control_torque_ =
-            pitch_velocity_pid_.update(pitch_velocity_ref - *pitch_velocity_imu_)
-            + pitch_acc_ff_gain_ * acceleration_ff.y();
+            pitch_velocity_pid_.update(pitch_velocity_ref - pitch_feedback) + pitch_acceleration_ff;
     }
 
 private:
@@ -299,6 +294,19 @@ private:
         *plan_pitch_acceleration_ = 0.0;
     }
 
+    void clear_control_diagnostics() {
+        *yaw_velocity_ff_ = 0.0;
+        *pitch_velocity_ff_ = 0.0;
+        *yaw_acceleration_ff_ = 0.0;
+        *pitch_acceleration_ff_ = 0.0;
+        *yaw_velocity_ref_ = 0.0;
+        *pitch_velocity_ref_ = 0.0;
+        *yaw_velocity_feedback_ = 0.0;
+        *pitch_velocity_feedback_ = 0.0;
+        *chassis_yaw_velocity_imu_ = 0.0;
+        *yaw_chassis_spin_torque_ff_ = 0.0;
+    }
+
     TwoAxisGimbalSolver::AngleError
         update_auto_aim_control(const Eigen::Vector3d& control_direction) {
         return gimbal_solver_.update(
@@ -316,44 +324,12 @@ private:
         return gimbal_solver_.update(TwoAxisGimbalSolver::SetControlShift{yaw_shift, pitch_shift});
     }
 
-    std::pair<Eigen::Vector2d, Eigen::Vector2d> compute_planner_feedforward() const {
-        const double yaw = *plan_yaw_;
-        const double pitch = *plan_pitch_;
-        const double yaw_velocity = *plan_yaw_velocity_;
-        const double pitch_velocity = *plan_pitch_velocity_;
-        const double yaw_acceleration = *plan_yaw_acceleration_;
-        const double pitch_acceleration = *plan_pitch_acceleration_;
-
-        const Eigen::Vector3d direction = planner_direction(yaw, pitch);
-        if (direction.squaredNorm() <= 1e-18)
-            return {Eigen::Vector2d::Zero(), Eigen::Vector2d::Zero()};
-
-        const Eigen::Vector3d direction_dot =
-            planner_direction_dot(yaw, pitch, yaw_velocity, pitch_velocity);
-        const Eigen::Vector3d direction_ddot = planner_direction_ddot(
-            yaw, pitch, yaw_velocity, pitch_velocity, yaw_acceleration, pitch_acceleration);
-
-        const auto yaw_axis_in_world = fast_tf::cast<OdomImu>(
-            GimbalCenterLink::DirectionVector{Eigen::Vector3d::UnitZ()}, *tf_);
-        const auto pitch_axis_in_world =
-            fast_tf::cast<OdomImu>(YawLink::DirectionVector{Eigen::Vector3d::UnitY()}, *tf_);
-        Eigen::Vector3d yaw_axis = *yaw_axis_in_world;
-        Eigen::Vector3d pitch_axis = *pitch_axis_in_world;
-        yaw_axis.normalize();
-        pitch_axis.normalize();
-
-        const Eigen::Vector2d velocity_ff =
-            solve_joint_velocity(direction, direction_dot, yaw_axis, pitch_axis);
-        const Eigen::Vector2d acceleration_ff =
-            solve_joint_velocity(direction, direction_ddot, yaw_axis, pitch_axis);
-        return {velocity_ff, acceleration_ff};
-    }
-
     void reset_torque_outputs() {
         yaw_angle_pid_.reset();
         yaw_velocity_pid_.reset();
         pitch_angle_pid_.reset();
         pitch_velocity_pid_.reset();
+        clear_control_diagnostics();
         *yaw_control_torque_ = nan_;
         *pitch_control_torque_ = nan_;
     }
@@ -365,9 +341,12 @@ private:
         reset_torque_outputs();
     }
 
-    double yaw_velocity_imu() {
+    YawVelocityFeedback yaw_velocity_feedback() {
         const double chassis_yaw_velocity_imu = *yaw_velocity_imu_ - *yaw_velocity_;
-        return chassis_yaw_velocity_imu_filter_.update(chassis_yaw_velocity_imu) + *yaw_velocity_;
+        return {
+            chassis_yaw_velocity_imu,
+            chassis_yaw_velocity_imu_filter_.update(chassis_yaw_velocity_imu) + *yaw_velocity_,
+        };
     }
 
     InputInterface<Eigen::Vector2d> joystick_left_;
@@ -377,9 +356,7 @@ private:
     InputInterface<rmcs_msgs::Mouse> mouse_;
 
     InputInterface<std::chrono::steady_clock::time_point> timestamp_;
-    InputInterface<Tf> tf_;
     InputInterface<double> yaw_velocity_;
-    InputInterface<double> pitch_velocity_;
     InputInterface<double> yaw_velocity_imu_;
     InputInterface<double> pitch_velocity_imu_;
     InputInterface<float> bullet_speed_;
@@ -394,7 +371,10 @@ private:
     pid::PidCalculator yaw_velocity_pid_;
     pid::PidCalculator pitch_angle_pid_;
     pid::PidCalculator pitch_velocity_pid_;
+    double yaw_vel_ff_gain_;
+    double pitch_vel_ff_gain_;
     double yaw_acc_ff_gain_;
+    double yaw_chassis_spin_torque_ff_gain_;
     double pitch_acc_ff_gain_;
 
     std::chrono::duration<double> planner_result_timeout_{0.2};
@@ -411,6 +391,16 @@ private:
     OutputInterface<double> plan_yaw_acceleration_;
     OutputInterface<double> plan_pitch_velocity_;
     OutputInterface<double> plan_pitch_acceleration_;
+    OutputInterface<double> yaw_velocity_ff_;
+    OutputInterface<double> pitch_velocity_ff_;
+    OutputInterface<double> yaw_acceleration_ff_;
+    OutputInterface<double> pitch_acceleration_ff_;
+    OutputInterface<double> yaw_velocity_ref_;
+    OutputInterface<double> pitch_velocity_ref_;
+    OutputInterface<double> yaw_velocity_feedback_;
+    OutputInterface<double> pitch_velocity_feedback_;
+    OutputInterface<double> chassis_yaw_velocity_imu_;
+    OutputInterface<double> yaw_chassis_spin_torque_ff_;
 
     OutputInterface<double> yaw_control_torque_;
     OutputInterface<double> pitch_control_torque_;
