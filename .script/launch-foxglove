@@ -1,0 +1,3 @@
+#! /usr/bin/env bash
+
+ssh-remote "bash -lc 'source ~/env_setup.bash && ros2 launch foxglove_bridge foxglove_bridge_launch.xml port:=8765'"

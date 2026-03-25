@@ -1,0 +1,400 @@
+#!/bin/zsh
+
+set -euo pipefail
+
+usage() {
+    cat <<'EOF'
+Usage:
+  record-lidar start [--seconds N]
+  record-lidar list-session
+  record-lidar list-recorded
+  record-lidar stop-session [--session NAME]
+
+Subcommands:
+  start         Start recording all /livox* topics.
+  list-session  List active remote ros2 bag recording processes.
+  list-recorded List recorded bags with topics, size and duration.
+  stop-session  Stop remote recording screen sessions.
+
+Options (for start):
+  --seconds N   Record for N seconds on remote via screen, then auto stop.
+Options (for stop-session):
+  --session     Stop a specific screen session.
+  --help, -h    Show this help message.
+
+Without --seconds, start runs in foreground and blocks this terminal.
+EOF
+}
+
+record_action=""
+record_seconds=""
+record_session=""
+
+if (( $# == 0 )); then
+    usage
+    exit 1
+fi
+
+case "$1" in
+start|list-session|list-recorded|stop-session)
+    record_action="$1"
+    shift
+    ;;
+--help|-h)
+    usage
+    exit 0
+    ;;
+*)
+    echo "Error: unsupported subcommand '$1'."
+    usage
+    exit 1
+    ;;
+esac
+
+if [[ "${record_action}" == "start" ]]; then
+    while (( $# > 0 )); do
+        case "$1" in
+        --seconds)
+            if (( $# < 2 )); then
+                echo "Error: --seconds requires a value."
+                usage
+                exit 1
+            fi
+
+            if [[ ! "$2" =~ ^[1-9][0-9]*$ ]]; then
+                echo "Error: --seconds must be a positive integer."
+                usage
+                exit 1
+            fi
+
+            record_seconds="$2"
+            shift 2
+            ;;
+        --help|-h)
+            usage
+            exit 0
+            ;;
+        *)
+            echo "Error: unsupported argument '$1'."
+            usage
+            exit 1
+            ;;
+        esac
+    done
+else
+    if [[ "${record_action}" == "list-session" ]] || [[ "${record_action}" == "list-recorded" ]]; then
+        while (( $# > 0 )); do
+            case "$1" in
+            --help|-h)
+                usage
+                exit 0
+                ;;
+            *)
+                echo "Error: subcommand '${record_action}' does not accept argument '$1'."
+                usage
+                exit 1
+                ;;
+            esac
+        done
+    else
+        while (( $# > 0 )); do
+            case "$1" in
+            --session)
+                if (( $# < 2 )); then
+                    echo "Error: --session requires a value."
+                    usage
+                    exit 1
+                fi
+                record_session="$2"
+                shift 2
+                ;;
+            --help|-h)
+                usage
+                exit 0
+                ;;
+            *)
+                echo "Error: unsupported argument '$1'."
+                usage
+                exit 1
+                ;;
+            esac
+        done
+    fi
+fi
+
+remote_script='source ~/env_setup.bash && bash -s'
+
+if [[ "${record_action}" == "start" ]] && [[ -z "${record_seconds}" ]]; then
+    remote_ssh_cmd=(ssh -tt remote)
+else
+    remote_ssh_cmd=(ssh remote)
+fi
+
+"${remote_ssh_cmd[@]}" \
+    "RECORD_ACTION='${record_action}' RECORD_SECONDS='${record_seconds}' RECORD_SESSION='${record_session}' bash -lc '${remote_script}'" <<'EOF'
+set -euo pipefail
+
+readonly RECORD_ROOT="${HOME}/record-lidar"
+
+build_bag_dir() {
+    local timestamp
+    timestamp="$(date +%Y%m%d-%H%M%S)"
+    printf '%s/livox-%s' "${RECORD_ROOT}" "${timestamp}"
+}
+
+collect_livox_topics() {
+    mapfile -t all_topics < <(ros2 topic list)
+
+    livox_topics=()
+    for topic in "${all_topics[@]}"; do
+        if [[ "${topic}" == /livox* ]]; then
+            livox_topics+=("${topic}")
+        fi
+    done
+}
+
+record_foreground() {
+    local bag_dir="$1"
+    shift
+    local topics=("$@")
+    local bag_pid=""
+    local status=0
+
+    cleanup_foreground() {
+        if [[ -n "${bag_pid}" ]] && kill -0 "${bag_pid}" >/dev/null 2>&1; then
+            kill -INT "${bag_pid}" >/dev/null 2>&1 || true
+            wait "${bag_pid}" >/dev/null 2>&1 || true
+        fi
+    }
+
+    trap cleanup_foreground EXIT INT TERM HUP
+
+    ros2 bag record -o "${bag_dir}" "${topics[@]}" &
+    bag_pid="$!"
+
+    if ! wait "${bag_pid}"; then
+        status=$?
+    fi
+
+    trap - EXIT INT TERM HUP
+    return "${status}"
+}
+
+record_with_timeout() {
+    local seconds="$1"
+    local bag_dir="$2"
+    shift 2
+    local topics=("$@")
+
+    if ! command -v screen >/dev/null 2>&1; then
+        echo "Error: screen is not installed on remote."
+        exit 1
+    fi
+
+    local session_name
+    local record_cmd
+    local stop_cmd
+
+    session_name="record-lidar-$(date +%Y%m%d-%H%M%S)"
+    printf -v record_cmd 'source ~/env_setup.bash && ros2 bag record -o %q' "${bag_dir}"
+    for topic in "${topics[@]}"; do
+        printf -v record_cmd '%s %q' "${record_cmd}" "${topic}"
+    done
+
+    echo "Starting detached screen session: ${session_name}"
+    screen -dmS "${session_name}" bash -lc "${record_cmd}"
+
+    printf -v stop_cmd 'sleep %q; screen -S %q -X stuff $'"'"'\003'"'"'; sleep 2; screen -S %q -X quit >/dev/null 2>&1 || true' \
+        "${seconds}" "${session_name}" "${session_name}"
+    nohup bash -lc "${stop_cmd}" >/tmp/record-lidar-stop-${session_name}.log 2>&1 < /dev/null &
+
+    echo "Will stop automatically after ${seconds}s."
+    echo "Recorder started in background; this terminal will not block."
+}
+
+collect_record_sessions() {
+    local line
+    record_sessions=()
+
+    while IFS= read -r line; do
+        if [[ "${line}" =~ [0-9]+\.(record-lidar-[^[:space:]]+) ]]; then
+            record_sessions+=("${BASH_REMATCH[1]}")
+        fi
+    done < <(screen -ls 2>/dev/null || true)
+}
+
+list_recorded_bags() {
+    local -a bag_dirs
+    local -a sorted_bag_dirs
+    local -a topic_lines
+    local bag_dir
+    local bag_info
+    local bag_size
+    local bag_duration
+    local info_line
+    local topic_line
+
+    shopt -s nullglob
+    bag_dirs=("${RECORD_ROOT}"/livox-*)
+    shopt -u nullglob
+
+    if (( ${#bag_dirs[@]} == 0 )); then
+        echo "Recorded bags:"
+        echo "  (none)"
+        return
+    fi
+
+    mapfile -t sorted_bag_dirs < <(printf '%s\n' "${bag_dirs[@]}" | sort)
+
+    echo "Recorded bags:"
+    for bag_dir in "${sorted_bag_dirs[@]}"; do
+        bag_info="$(ros2 bag info "${bag_dir}" 2>/dev/null || true)"
+        bag_size="unknown"
+        bag_duration="unknown"
+        topic_lines=()
+
+        while IFS= read -r info_line; do
+            if [[ "${info_line}" == "Bag size:"* ]]; then
+                bag_size="${info_line#Bag size: }"
+                continue
+            fi
+
+            if [[ "${info_line}" == "Duration:"* ]]; then
+                bag_duration="${info_line#Duration: }"
+                continue
+            fi
+
+            if [[ "${info_line}" == *"Topic:"* ]]; then
+                topic_line="${info_line#*Topic: }"
+                topic_line="${topic_line%% | Type:*}"
+                topic_lines+=("${topic_line}")
+            fi
+        done <<< "${bag_info}"
+
+        if [[ "${bag_size}" == "unknown" ]]; then
+            bag_size="$(du -sh "${bag_dir}" 2>/dev/null | awk '{print $1}')"
+            if [[ -z "${bag_size}" ]]; then
+                bag_size="unknown"
+            fi
+        fi
+
+        echo "  Path: ${bag_dir}"
+        echo "  Size: ${bag_size}"
+        echo "  Duration: ${bag_duration}"
+        echo "  Topics:"
+
+        if (( ${#topic_lines[@]} == 0 )); then
+            echo "    (unavailable)"
+        else
+            printf '    %s\n' "${topic_lines[@]}"
+        fi
+    done
+}
+
+stop_one_session() {
+    local session_name="$1"
+
+    if ! screen -S "${session_name}" -Q select . >/dev/null 2>&1; then
+        echo "Session not found: ${session_name}"
+        return 1
+    fi
+
+    echo "Stopping session: ${session_name}"
+    screen -S "${session_name}" -X stuff $'\003'
+    sleep 2
+    screen -S "${session_name}" -X quit >/dev/null 2>&1 || true
+    return 0
+}
+
+stop_recording() {
+    local target_session="${1:-}"
+    local stopped_count=0
+
+    if [[ -n "${target_session}" ]]; then
+        if stop_one_session "${target_session}"; then
+            echo "Stopped 1 session."
+        else
+            exit 1
+        fi
+        return
+    fi
+
+    collect_record_sessions
+
+    if (( ${#record_sessions[@]} == 0 )); then
+        echo "No active record-lidar screen sessions found."
+        return
+    fi
+
+    for session_name in "${record_sessions[@]}"; do
+        if stop_one_session "${session_name}"; then
+            ((stopped_count += 1))
+        fi
+    done
+
+    echo "Stopped ${stopped_count} session(s)."
+}
+
+main() {
+    local action
+    local seconds
+    local bag_dir
+
+    action="${RECORD_ACTION:-start}"
+    seconds="${RECORD_SECONDS:-}"
+
+    case "${action}" in
+    start)
+        bag_dir="$(build_bag_dir)"
+
+        mkdir -p "${RECORD_ROOT}"
+        collect_livox_topics
+
+        if (( ${#livox_topics[@]} == 0 )); then
+            echo "Error: no /livox topics found on remote."
+            exit 1
+        fi
+
+        echo "Recording /livox topics:"
+        printf '  %s\n' "${livox_topics[@]}"
+        echo "Output directory: ${bag_dir}"
+
+        if [[ -n "${seconds}" ]]; then
+            record_with_timeout "${seconds}" "${bag_dir}" "${livox_topics[@]}"
+        else
+            record_foreground "${bag_dir}" "${livox_topics[@]}"
+        fi
+        ;;
+    list-session)
+        local -a active_records
+        local line
+
+        active_records=()
+        while IFS= read -r line; do
+            if [[ "${line}" == *"ros2 bag record"* ]] && [[ "${line}" != *"record-lidar list-session"* ]]; then
+                active_records+=("${line}")
+            fi
+        done < <(ps -eo pid,args)
+
+        echo "Active remote recording processes:"
+        if (( ${#active_records[@]} > 0 )); then
+            printf '  %s\n' "${active_records[@]}"
+        else
+            echo "  (none)"
+        fi
+        ;;
+    list-recorded)
+        list_recorded_bags
+        ;;
+    stop-session)
+        stop_recording "${RECORD_SESSION:-}"
+        ;;
+    *)
+        echo "Error: unsupported remote action '${action}'."
+        exit 1
+        ;;
+    esac
+}
+
+main
+EOF

@@ -1,0 +1,56 @@
+#compdef record-lidar
+
+_record_lidar_remote_sessions() {
+    local -a sessions
+    local line
+    local output
+
+    output="$(ssh remote "screen -ls 2>/dev/null || true" 2>/dev/null)"
+
+    sessions=()
+    while IFS= read -r line; do
+        if [[ "${line}" =~ [0-9]+\.(record-lidar-[^[:space:]]+) ]]; then
+            sessions+=("${match[1]}")
+        fi
+    done <<< "${output}"
+
+    if (( ${#sessions[@]} > 0 )); then
+        compadd -- "${sessions[@]}"
+    fi
+}
+
+if (( CURRENT == 2 )); then
+    compadd -- start list-session list-recorded stop-session
+    return
+fi
+
+case "${words[2]}" in
+start)
+    if [[ "${words[CURRENT]}" == -* ]] || [[ "${words[CURRENT-1]}" == "start" ]]; then
+        compadd -- --seconds --help -h
+    fi
+    ;;
+list-session)
+    if [[ "${words[CURRENT]}" == -* ]] || [[ "${words[CURRENT-1]}" == "list-session" ]]; then
+        compadd -- --help -h
+    fi
+    ;;
+list-recorded)
+    if [[ "${words[CURRENT]}" == -* ]] || [[ "${words[CURRENT-1]}" == "list-recorded" ]]; then
+        compadd -- --help -h
+    fi
+    ;;
+stop-session)
+    if [[ "${words[CURRENT-1]}" == "--session" ]]; then
+        _record_lidar_remote_sessions
+        return
+    fi
+
+    if [[ "${words[CURRENT]}" == -* ]] || [[ "${words[CURRENT-1]}" == "stop-session" ]]; then
+        compadd -- --session --help -h
+    fi
+    ;;
+*)
+    _message 'unknown subcommand'
+    ;;
+esac

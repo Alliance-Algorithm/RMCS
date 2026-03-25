@@ -19,11 +19,17 @@ class Status
     , public rclcpp::Node {
 public:
     Status()
-        : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
+        : Node{
+              get_component_name(),
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , logger_(get_logger()) {
         register_input("/referee/serial", serial_);
 
         register_output("/referee/game/stage", game_stage_, rmcs_msgs::GameStage::UNKNOWN);
+        register_output("/referee/game/red_score", red_score_, 0);
+        register_output("/referee/game/blue_score", blue_score_, 0);
+        register_output("/referee/game/current_round", current_round_, 0);
+        register_output("/referee/game/total_rounds", total_rounds_, 0);
 
         register_output("/referee/id", robot_id_, rmcs_msgs::RobotId::UNKNOWN);
         register_output("/referee/shooter/cooling", robot_shooter_cooling_, 0);
@@ -34,6 +40,7 @@ public:
         register_output("/referee/chassis/output_status", chassis_output_status_, false);
 
         register_output("/referee/robots/hp", robots_hp_);
+        register_output("/referee/current_hp", robot_current_hp_);
         register_output("/referee/shooter/bullet_allowance", robot_bullet_allowance_, false);
         register_output(
             "/referee/shooter/42mm_bullet_allowance", robot_42mm_bullet_allowance_, false);
@@ -119,6 +126,11 @@ private:
         auto& data = reinterpret_cast<GameStatus&>(frame_.body.data);
 
         *game_stage_ = static_cast<rmcs_msgs::GameStage>(data.game_stage);
+        *red_score_ = data.red_score;
+        *blue_score_ = data.blue_score;
+        *current_round_ = data.current_round;
+        *total_rounds_ = data.total_rounds;
+
         if (*game_stage_ == rmcs_msgs::GameStage::STARTED)
             game_status_watchdog_.reset(30'000);
         else
@@ -135,6 +147,7 @@ private:
 
         auto& data = reinterpret_cast<RobotStatus&>(frame_.body.data);
 
+        *robot_current_hp_ = data.current_hp;
         *robot_id_ = static_cast<rmcs_msgs::RobotId>(data.robot_id);
         *robot_shooter_cooling_ = data.shooter_barrel_cooling_value;
         *robot_shooter_heat_limit_ = static_cast<int64_t>(1000) * data.shooter_barrel_heat_limit;
@@ -191,6 +204,8 @@ private:
 
     rmcs_utility::TickTimer game_status_watchdog_;
     OutputInterface<rmcs_msgs::GameStage> game_stage_;
+    OutputInterface<uint32_t> red_score_, blue_score_;
+    OutputInterface<uint8_t> current_round_, total_rounds_;
 
     rmcs_utility::TickTimer robot_status_watchdog_;
     OutputInterface<rmcs_msgs::RobotId> robot_id_;
@@ -203,6 +218,7 @@ private:
     OutputInterface<double> robot_buffer_energy_;
 
     OutputInterface<GameRobotHp> robots_hp_;
+    OutputInterface<uint16_t> robot_current_hp_;
     OutputInterface<uint16_t> robot_bullet_allowance_;
     OutputInterface<uint16_t> robot_42mm_bullet_allowance_;
 
