@@ -29,8 +29,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libsuitesparse-dev \
     libceres-dev \
     ros-$ROS_DISTRO-rviz2 \
+    ros-$ROS_DISTRO-navigation2 \
     ros-$ROS_DISTRO-foxglove-bridge \
-    dotnet-sdk-8.0 \
     ros-$ROS_DISTRO-pcl-ros ros-$ROS_DISTRO-pcl-conversions ros-$ROS_DISTRO-pcl-msgs && \
     apt-get autoremove -y && apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/*
@@ -96,6 +96,7 @@ RUN mkdir -p /etc/apt/keyrings && \
     > /etc/apt/sources.list.d/llvm.list && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
+    libomp-${LLVM_VERSION}-dev \
     clang-${LLVM_VERSION} clangd-${LLVM_VERSION} clang-format-${LLVM_VERSION} clang-tidy-${LLVM_VERSION} \
     lldb-${LLVM_VERSION} lld-${LLVM_VERSION} llvm-${LLVM_VERSION} && \
     update-alternatives --install /usr/bin/clang clang /usr/bin/clang-${LLVM_VERSION} 50 && \
