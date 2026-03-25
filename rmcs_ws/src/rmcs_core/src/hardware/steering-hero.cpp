@@ -58,8 +58,12 @@ public:
         bottom_board_two_ = std::make_unique<BottomBoard_two>(
             *this, *command_component_, get_parameter("board_serial_bottom_board_two").as_string());
 
+        tf_->set_transform<rmcs_description::YawLink, rmcs_description::PitchLink>(
+            Eigen::Translation3d{0.06, 0.0, 0.0});
         tf_->set_transform<rmcs_description::PitchLink, rmcs_description::CameraLink>(
-            Eigen::Translation3d{0.06603, 0.0, 0.082});
+            Eigen::Translation3d{0.142, 0.0, 0.1091});
+        tf_->set_transform<rmcs_description::PitchLink, rmcs_description::MuzzleLink>(
+            Eigen::Translation3d{0.17281, 0.0, 0.0});
     }
 
     SteeringHero(const SteeringHero&) = delete;

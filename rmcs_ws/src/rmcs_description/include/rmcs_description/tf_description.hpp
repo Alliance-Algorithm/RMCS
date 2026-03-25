@@ -73,7 +73,7 @@ struct OmniLinkRight : fast_tf::Link<OmniLinkRight> {
 
 template <>
 struct fast_tf::Joint<rmcs_description::GimbalCenterLink> : fast_tf::ModificationTrackable {
-    using Parent                   = rmcs_description::BaseLink;
+    using Parent = rmcs_description::BaseLink;
     Eigen::Translation3d transform = Eigen::Translation3d::Identity();
 };
 
@@ -92,34 +92,38 @@ template <>
 struct fast_tf::Joint<rmcs_description::PitchLink> : fast_tf::ModificationTrackable {
     using Parent = rmcs_description::YawLink;
 
+    void set_transform(const Eigen::Translation3d& translation) { translation_ = translation; }
     void set_state(double angle) { angle_ = angle; }
-    auto get_transform() const { return Eigen::AngleAxisd{angle_, Eigen::Vector3d::UnitY()}; }
+    auto get_transform() const {
+        return translation_ * Eigen::AngleAxisd{angle_, Eigen::Vector3d::UnitY()};
+    }
 
 private:
-    double angle_;
+    double angle_{0.0};
+    Eigen::Translation3d translation_ = Eigen::Translation3d::Identity();
 };
 
 template <>
 struct fast_tf::Joint<rmcs_description::MuzzleLink> : fast_tf::ModificationTrackable {
-    using Parent                   = rmcs_description::PitchLink;
+    using Parent = rmcs_description::PitchLink;
     Eigen::Translation3d transform = Eigen::Translation3d::Identity();
 };
 
 template <>
 struct fast_tf::Joint<rmcs_description::TransmitterLink> : fast_tf::ModificationTrackable {
-    using Parent                   = rmcs_description::PitchLink;
+    using Parent = rmcs_description::PitchLink;
     Eigen::Translation3d transform = Eigen::Translation3d::Identity();
 };
 
 template <>
 struct fast_tf::Joint<rmcs_description::CameraLink> : fast_tf::ModificationTrackable {
-    using Parent                = rmcs_description::PitchLink;
+    using Parent = rmcs_description::PitchLink;
     Eigen::Isometry3d transform = Eigen::Isometry3d::Identity();
 };
 
 template <>
 struct fast_tf::Joint<rmcs_description::OdomImu> : fast_tf::ModificationTrackable {
-    using Parent                 = rmcs_description::PitchLink;
+    using Parent = rmcs_description::PitchLink;
     Eigen::Quaterniond transform = Eigen::Quaterniond::Identity();
 };
 
@@ -135,7 +139,7 @@ private:
 };
 template <>
 struct fast_tf::Joint<rmcs_description::LeftFrontWheelLink> : fast_tf::ModificationTrackable {
-    using Parent                = rmcs_description::BaseLink;
+    using Parent = rmcs_description::BaseLink;
     Eigen::Isometry3d transform = Eigen::Isometry3d::Identity();
     void set_state(double angle) {
         auto rotation = Eigen::AngleAxisd{std::numbers::pi / 4, Eigen::Vector3d::UnitZ()}
@@ -146,7 +150,7 @@ struct fast_tf::Joint<rmcs_description::LeftFrontWheelLink> : fast_tf::Modificat
 
 template <>
 struct fast_tf::Joint<rmcs_description::LeftBackWheelLink> : fast_tf::ModificationTrackable {
-    using Parent                = rmcs_description::BaseLink;
+    using Parent = rmcs_description::BaseLink;
     Eigen::Isometry3d transform = Eigen::Isometry3d::Identity();
     void set_state(double angle) {
         auto rotation = Eigen::AngleAxisd{std::numbers::pi / 4 * 3, Eigen::Vector3d::UnitZ()}
@@ -157,7 +161,7 @@ struct fast_tf::Joint<rmcs_description::LeftBackWheelLink> : fast_tf::Modificati
 
 template <>
 struct fast_tf::Joint<rmcs_description::RightBackWheelLink> : fast_tf::ModificationTrackable {
-    using Parent                = rmcs_description::BaseLink;
+    using Parent = rmcs_description::BaseLink;
     Eigen::Isometry3d transform = Eigen::Isometry3d::Identity();
     void set_state(double angle) {
         auto rotation = Eigen::AngleAxisd{-std::numbers::pi / 4 * 3, Eigen::Vector3d::UnitZ()}
@@ -168,7 +172,7 @@ struct fast_tf::Joint<rmcs_description::RightBackWheelLink> : fast_tf::Modificat
 
 template <>
 struct fast_tf::Joint<rmcs_description::RightFrontWheelLink> : fast_tf::ModificationTrackable {
-    using Parent                = rmcs_description::BaseLink;
+    using Parent = rmcs_description::BaseLink;
     Eigen::Isometry3d transform = Eigen::Isometry3d::Identity();
     void set_state(double angle) {
         auto rotation = Eigen::AngleAxisd{-std::numbers::pi / 4, Eigen::Vector3d::UnitZ()}
