@@ -75,8 +75,8 @@ deformable_infantry:
   ros__parameters:
     serial_filter_rmcs_board: "AF-056F-2E3E-0C9E-EFAD-C0D0-15F0-2483-17D9"
     serial_filter_top_board: "D4-621A-DEE6-D79F-9303-E3D1-C4BC"
-    left_front_zero_point: 6516
-    left_back_zero_point: 1033
+    left_front_zero_point: 3748
+    left_back_zero_point: 2337
     right_back_zero_point: 5154
     right_front_zero_point: 1718
     yaw_motor_zero_point:  41176
