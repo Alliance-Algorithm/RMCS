@@ -81,7 +81,9 @@ dart_manager:
     max_transform_rate: 5.0
     auto_aim_max_transform_rate: 10.0
     manual_force_scale: 5.0
-    dart_count: 4
+    dart_count: 4  # 每次装填的飞镖数量
+    belt_down_distance: 0.15  # m - 传送带下行距离（滑台蓄力行程）
+    belt_pulley_radius: 0.02  # m - 传送带滑轮半径（用于距离-角度转换）
     aim_reference_pixel: [701.0, 565.0]
     aim_dart_offsets_px: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
     aim_yaw_gain: 0.08
@@ -109,6 +111,20 @@ launch_setting:
     b_ki: 0.0
     b_kd: 0.0
     belt_hold_torque: 15.0   # manager 未提供保留力矩时的回退值
+
+# 位置控制器参数（新增）
+belt_position_controller:
+  ros__parameters:
+    position_kp: 5.0  # 位置环比例增益
+    velocity_kp: 1.0  # 速度环比例增益
+    velocity_ki: 0.0  # 速度环积分增益
+    velocity_kd: 0.0  # 速度环微分增益
+    sync_coefficient: 0.1  # 同步阻尼系数
+    max_control_torque: 5.0  # N⋅m - 最大扭矩限制
+    belt_acceleration: 50.0  # rad/s² - 加速度（用于速度规划）
+    belt_position_tolerance: 0.002  # rad - 位置误差阈值
+    trigger_free_value: 0.75  # 扳机释放值
+    trigger_lock_value: 0.63  # 扳机锁定值
 
 dart_filling:
   ros__parameters:

@@ -161,4 +161,7 @@
   <class type="rmcs_core::hardware::CatapultDartFillingTest" base_class_type="rmcs_executor::Component">
     <description>Launch setting V2: belt + trigger + LK lifting angle control.</description>
   </class>
+  <class type="rmcs_core::controller::dart::DartBeltPositionController" base_class_type="rmcs_executor::Component">
+    <description>Belt position controller: cascaded position-velocity-torque control with trapezoidal velocity profiling and dual-motor synchronization.</description>
+  </class>
 </library>

@@ -35,16 +35,6 @@
 #include "hardware/device/trigger_servo.hpp"
 #include "librmcs/agent/c_board.hpp"
 
-/*
-CatapultDartV3Lk — catapult_dart_v3_full 的变体
-升降电机替换为瓴控4005 (LkMotor MG4005Ei10)，挂 CAN1 (0x141 左, 0x145 右)。
-限位舵机保留 TriggerServo (UART2, ID=0x03)。
-
-升降电机接口 (double, rad):
-  输出: /dart/lifting_left/angle, /dart/lifting_left/velocity 等
-  输入: /dart/lifting_left/control_velocity (由 DartFilling 写入)
-*/
-
 namespace rmcs_core::hardware {
 
 class CatapultDartV3Lk
@@ -53,7 +43,9 @@ class CatapultDartV3Lk
     , private librmcs::agent::CBoard {
 public:
     CatapultDartV3Lk()
-        : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
+        : Node{
+              get_component_name(),
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , librmcs::agent::CBoard{get_parameter("serial_filter").as_string()}
         , dart_command_(
               create_partner_component<DartCommand>(get_component_name() + "_command", *this))
@@ -162,7 +154,9 @@ public:
         auto board = start_transmit();
 
         // Trigger servo: PWM via GPIO
-        board.gpio_analog_transmit({.channel = 1, .value = trigger_servo_.generate_duty_cycle()});
+        // TODO: gpio_analog_transmit not available in librmcs v3.0.0
+        // board.gpio_analog_transmit({.channel = 1, .value =
+        // trigger_servo_.generate_duty_cycle()});
 
         // Force sensor: polling command on CAN1 (every 100 cycles)
         if (pub_time_count_++ > 100) {
