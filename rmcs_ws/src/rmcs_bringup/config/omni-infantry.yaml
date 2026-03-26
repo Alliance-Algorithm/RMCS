@@ -16,6 +16,9 @@ rmcs_executor:
       - rmcs_core::controller::gimbal::OmniInfantryGimbalController -> gimbal_controller
       # - rmcs_core::controller::gimbal::AutoAimResponseRecorder -> auto_aim_response_recorder
 
+      # - rmcs_core::controller::identification::SweptFrequencyController -> pitch_swept_frequency_controller
+      # - rmcs_core::controller::identification::StaticTorqueTestController -> pitch_static_torque_test_controller
+
       - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
       - rmcs_core::controller::shooting::HeatController -> heat_controller
       - rmcs_core::controller::shooting::BulletFeederController17mm -> bullet_feeder_controller
@@ -82,7 +85,7 @@ gimbal_controller:
     yaw_velocity_kp: 6.4
     yaw_velocity_ki: 0.0
     yaw_velocity_kd: 0.0
-    
+
     yaw_vel_ff_gain: 1.0
     yaw_acc_ff_gain: 0.16
     yaw_chassis_spin_torque_ff_gain: -0.22
@@ -94,7 +97,7 @@ gimbal_controller:
     pitch_velocity_kp: 5.0
     pitch_velocity_ki: 0.0
     pitch_velocity_kd: 0.0
-    
+
     pitch_vel_ff_gain: 1.0
     pitch_acc_ff_gain: 0.0
 
@@ -156,3 +159,37 @@ bullet_feeder_velocity_pid_controller:
     kp: 1.583
     ki: 0.0
     kd: 0.0
+
+pitch_swept_frequency_controller:
+  ros__parameters:
+    target: /gimbal/pitch
+
+    sweep: true
+    logarithmic: true
+    start_freq: 0.1
+    end_freq: 50.0
+    duration: 60.0
+    amplitude: 6.0
+
+    pid: true
+    setpoint: 0.0
+    position_kp: 14.0
+    position_ki: 0.0
+    position_kd: 0.0
+    velocity_kp: 2.0
+    velocity_ki: 0.0
+    velocity_kd: 0.0
+    dc_offset: 0.0
+
+pitch_static_torque_test_controller:
+  ros__parameters:
+    target: /gimbal/pitch
+    interval_angle: 0.017453293 # 1 deg
+    wait_time: 3.0
+    border_clip: 0.043633231 # 2.5 deg
+    position_kp: 14.0
+    position_ki: 0.1
+    position_kd: 0.0
+    velocity_kp: 2.0
+    velocity_ki: 0.0
+    velocity_kd: 0.0
