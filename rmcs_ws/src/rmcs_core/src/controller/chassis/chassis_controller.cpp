@@ -19,7 +19,7 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , following_velocity_controller_(10.0, 0.0, 1.2) {
+        , following_velocity_controller_(10.0, 0.0, 2.4) {
         following_velocity_controller_.output_max = angular_velocity_max;
         following_velocity_controller_.output_min = -angular_velocity_max;
 
@@ -34,7 +34,7 @@ public:
 
         register_input("/gimbal/yaw/angle", gimbal_yaw_angle_, false);
         register_input("/gimbal/yaw/control_angle_error", gimbal_yaw_angle_error_, false);
-        register_input("/chassis/climbing_forward_velocity", climbing_forward_velocity_, nan);
+        register_input("/chassis/climbing_forward_velocity", climbing_forward_velocity_, false);
 
         register_output("/chassis/angle", chassis_angle_, nan);
         register_output("/chassis/control_angle", chassis_control_angle_, nan);
@@ -61,6 +61,19 @@ public:
         auto switch_right = *switch_right_;
         auto switch_left = *switch_left_;
         auto keyboard = *keyboard_;
+        auto mode = *mode_;
+
+        if (mode != rmcs_msgs::ChassisMode::AUTO) {
+            reverse_facing_ = false;
+        }
+
+        if (mode == rmcs_msgs::ChassisMode::AUTO && !last_keyboard_.b && keyboard.b) {
+            reverse_facing_ = !reverse_facing_;
+        }
+
+        if (!std::isnan(*climbing_forward_velocity_)) {
+            reverse_facing_ = false;
+        }
 
         do {
             if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
@@ -69,7 +82,6 @@ public:
                 break;
             }
 
-            auto mode = *mode_;
             if (switch_left != Switch::DOWN) {
                 if (last_switch_right_ == Switch::MIDDLE && switch_right == Switch::DOWN) {
                     if (mode == rmcs_msgs::ChassisMode::SPIN) {
@@ -94,6 +106,9 @@ public:
                              ? rmcs_msgs::ChassisMode::AUTO
                              : rmcs_msgs::ChassisMode::STEP_DOWN;
                 }
+                if (mode != rmcs_msgs::ChassisMode::AUTO) {
+                    reverse_facing_ = false;
+                }
                 *mode_ = mode;
             }
 
@@ -107,6 +122,7 @@ public:
 
     void reset_all_controls() {
         *mode_ = rmcs_msgs::ChassisMode::AUTO;
+        reverse_facing_ = false;
 
         *chassis_control_velocity_ = {nan, nan, nan};
     }
@@ -138,17 +154,46 @@ public:
     }
 
     double update_angular_velocity_control() {
-        if (!std::isnan(*climbing_forward_velocity_)) {
-            *chassis_angle_ = 2 * std::numbers::pi - *gimbal_yaw_angle_;
-            *chassis_control_angle_ = nan;
-            return 0.0;
-        }
-
         double angular_velocity = 0.0;
         double chassis_control_angle = nan;
 
+        auto apply_reverse_facing = [this](double& err, double& control_angle) {
+            if (reverse_facing_) {
+                err += std::numbers::pi;
+                if (err >= 2 * std::numbers::pi)
+                    err -= 2 * std::numbers::pi;
+
+                control_angle += std::numbers::pi;
+                if (control_angle >= 2 * std::numbers::pi)
+                    control_angle -= 2 * std::numbers::pi;
+            }
+        };
+
+        if (!std::isnan(*climbing_forward_velocity_)) {
+            double err = calculate_unsigned_chassis_angle_error(chassis_control_angle);
+
+            constexpr double alignment = 2 * std::numbers::pi;
+            if (err > alignment / 2)
+                err -= alignment;
+
+            angular_velocity = following_velocity_controller_.update(err);
+
+            *chassis_angle_ = 2 * std::numbers::pi - *gimbal_yaw_angle_;
+            *chassis_control_angle_ = chassis_control_angle;
+            return angular_velocity;
+        }
+
         switch (*mode_) {
-        case rmcs_msgs::ChassisMode::AUTO: break;
+        case rmcs_msgs::ChassisMode::AUTO: {
+            double err = calculate_unsigned_chassis_angle_error(chassis_control_angle);
+            apply_reverse_facing(err, chassis_control_angle);
+
+            constexpr double alignment = 2 * std::numbers::pi;
+            if (err > alignment / 2)
+                err -= alignment;
+
+            angular_velocity = following_velocity_controller_.update(err);
+        } break;
         case rmcs_msgs::ChassisMode::SPIN: {
             angular_velocity =
                 0.6 * (spinning_forward_ ? angular_velocity_max : -angular_velocity_max);
@@ -234,6 +279,7 @@ private:
 
     OutputInterface<rmcs_msgs::ChassisMode> mode_;
     bool spinning_forward_ = true;
+    bool reverse_facing_ = false;
     pid::PidCalculator following_velocity_controller_;
 
     OutputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;

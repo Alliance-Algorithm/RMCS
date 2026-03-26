@@ -201,8 +201,8 @@ private:
 
                 // Eigen::AngleAxisd pitch_link_to_bmi088_link{
                 //     std::numbers::pi / 2, Eigen::Vector3d::UnitZ()};
-                // Eigen::Vector3d mapping = pitch_link_to_bmi088_link * Eigen::Vector3d{1, 2, 3};
-                // std::cout << mapping << std::endl;
+                // Eigen::Vector3d mapping = pitch_link_to_bmi088_link * Eigen::Vector3d{1, 2,
+                // 3}; std::cout << mapping << std::endl;
                 return std::make_tuple(x, y, z);
             });
         }
@@ -225,7 +225,6 @@ private:
             *gimbal_pitch_velocity_imu_ = imu_.gy();
 
             gimbal_top_yaw_motor_.update_status();
-
             gimbal_pitch_motor_.update_status();
 
             for (auto& motor : gimbal_friction_wheels_)
