@@ -7,6 +7,7 @@
 #include <rmcs_msgs/chassis_mode.hpp>
 #include <rmcs_msgs/game_stage.hpp>
 #include <rmcs_msgs/mouse.hpp>
+#include <rmcs_msgs/target_snapshot.hpp>
 
 #include "referee/app/ui/shape/shape.hpp"
 #include "referee/app/ui/widget/crosshair.hpp"
@@ -64,6 +65,7 @@ public:
         register_input("/gimbal/left_friction/control_velocity", left_friction_control_velocity_);
         register_input("/gimbal/left_friction/velocity", left_friction_velocity_);
         register_input("/gimbal/right_friction/velocity", right_friction_velocity_);
+        register_input("/gimbal/auto_aim/target_snapshot", target_snapshot_, false);
 
         register_input("/remote/mouse", mouse_);
 
@@ -72,8 +74,14 @@ public:
         // register_input("/auto_aim/ui_target", auto_aim_target_, false);
     }
 
+    void before_updating() override {
+        if (!target_snapshot_.ready())
+            target_snapshot_.make_and_bind_directly(rmcs_msgs::TargetSnapshot{});
+    }
+
     void update() override {
         update_chassis_direction_indicator();
+        update_enemy_distance_indicator();
 
         chassis_control_power_limit_indicator_.set_value(*chassis_control_power_limit_);
         supercap_control_power_limit_indicator_.set_value(*supercap_charge_power_limit_);
@@ -91,6 +99,33 @@ public:
     }
 
 private:
+    void update_enemy_distance_indicator() {
+        const auto& snapshot = *target_snapshot_;
+        if (!snapshot.valid) {
+            enemy_distance_indicator_.set_visible(false);
+            return;
+        }
+
+        constexpr double reference_distance = 2.0;
+        constexpr double pixels_per_meter = 160.0;
+        constexpr double min_green_distance = 1.5;
+        constexpr double max_green_distance = 2.5;
+
+        const double center_distance = std::hypot(snapshot.state[0], snapshot.state[2]);
+        const double y_offset = (center_distance - reference_distance) * pixels_per_meter;
+        const int y = std::clamp(
+            static_cast<int>(std::lround(static_cast<double>(y_center) + y_offset)), 0,
+            static_cast<int>(screen_height));
+
+        enemy_distance_indicator_.set_color(
+            min_green_distance <= center_distance && center_distance <= max_green_distance
+                ? Shape::Color::GREEN
+                : Shape::Color::PINK);
+        enemy_distance_indicator_.set_y(static_cast<uint16_t>(y));
+        enemy_distance_indicator_.set_y2(static_cast<uint16_t>(y));
+        enemy_distance_indicator_.set_visible(true);
+    }
+
     void update_time_reminder() {
         if (!game_stage_.ready())
             return;
@@ -152,6 +187,7 @@ private:
     InputInterface<double> left_friction_control_velocity_;
     InputInterface<double> left_friction_velocity_;
     InputInterface<double> right_friction_velocity_;
+    InputInterface<rmcs_msgs::TargetSnapshot> target_snapshot_;
 
     InputInterface<rmcs_msgs::Mouse> mouse_;
 
@@ -164,6 +200,8 @@ private:
 
     Line horizontal_center_guidelines_[2];
     Line vertical_center_guidelines_[2];
+    Line enemy_distance_indicator_{
+        Shape::Color::GREEN, 3, x_center - 400, y_center, x_center + 400, y_center, false};
 
     Float chassis_power_number_;
     Line yaw_indicator_guidelines_[2];

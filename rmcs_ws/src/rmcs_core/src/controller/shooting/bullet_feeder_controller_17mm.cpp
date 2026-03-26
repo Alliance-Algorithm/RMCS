@@ -82,6 +82,7 @@ public:
             reset_all_controls();
         } else {
             int64_t bullet_allowance = 0;
+            const bool auto_fire_enabled = update_auto_fire_enabled();
 
             if (switch_right != Switch::DOWN) {
                 shoot_mode = keyboard.f ? ShootMode::SINGLE : ShootMode::AUTOMATIC;
@@ -103,8 +104,7 @@ public:
 
                 if (*friction_ready_) {
                     if (shoot_mode == ShootMode::AUTOMATIC) {
-                        const bool auto_fire_enabled =
-                            mouse.right || (switch_right == Switch::UP && *rotary_knob_ >= 0.7);
+
                         bool triggered = mouse.left || switch_left == Switch::DOWN
                                       || (auto_fire_enabled && *fire_control_);
                         bullet_allowance =
@@ -131,6 +131,16 @@ private:
         *shoot_mode_ = rmcs_msgs::ShootMode::AUTOMATIC;
 
         *bullet_feeder_control_velocity_ = nan_;
+    }
+
+    bool update_auto_fire_enabled() {
+        if (mouse_->right)
+            mouse_right_pressed_time_++;
+        else
+            mouse_right_pressed_time_ = 0;
+
+        return mouse_right_pressed_time_ > 500
+            || (*switch_right_ == rmcs_msgs::Switch::UP && *rotary_knob_ >= 0.7);
     }
 
     void update_bullet_feeder_velocity(int64_t bullet_allowance) {
@@ -196,6 +206,8 @@ private:
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
 
     rclcpp::Logger logger_;
+
+    int mouse_right_pressed_time_ = 0;
 
     double bullet_feeder_working_velocity, bullet_feeder_safe_shot_velocity;
     double bullet_feeder_eject_velocity_, bullet_feeder_deep_eject_velocity_;
