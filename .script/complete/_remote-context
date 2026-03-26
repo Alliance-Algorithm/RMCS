@@ -1,0 +1,54 @@
+#compdef remote-context
+
+_arguments \
+  '1:key:->key' \
+  '2:value:->value'
+
+case "$state" in
+  key)
+    local -a key_words key_desc
+    key_words=(
+      game_stage
+      robot_health
+      robot_bullet
+      red_score
+      blue_score
+    )
+    key_desc=(
+      '比赛阶段(enum)'
+      '机器人血量(uint16)'
+      '剩余弹量(uint16)'
+      '红方得分(uint32)'
+      '蓝方得分(uint32)'
+    )
+    compadd -V key_items -d key_desc -- $key_words
+    ;;
+  value)
+    case "${words[2]}" in
+      game_stage)
+        local -a stage_words stage_desc
+        stage_words=(
+          not_start
+          preparation
+          referee_check
+          countdown
+          started
+          settling
+          unknown
+        )
+        stage_desc=(
+          '未开始(0)'
+          '准备(1)'
+          '裁判检查(2)'
+          '倒计时(3)'
+          '进行中(4)'
+          '结算(5)'
+          '未知(255)'
+        )
+        compadd -V game_stage_items -d stage_desc -- $stage_words
+        ;;
+      *)
+        ;;
+    esac
+    ;;
+esac

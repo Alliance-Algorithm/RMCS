@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+TOPIC="/rmcs_navigation/mock_context"
+
+usage() {
+    cat <<'EOF'
+Usage: remote-context <key> <value>
+
+key:
+  game_stage | robot_health | robot_bullet | red_score | blue_score
+
+value:
+  - game_stage: not_start | preparation | referee_check | countdown | started | settling | unknown
+                (also accepts 0..5 and 255)
+  - others: integer
+
+Examples:
+  remote-context game_stage started
+  remote-context game_stage 4
+  remote-context robot_health 350
+EOF
+}
+
+if [[ $# -ne 2 ]]; then
+    usage
+    exit 1
+fi
+
+key="$1"
+raw_value="$2"
+
+case "$key" in
+    game_stage|robot_health|robot_bullet|red_score|blue_score)
+        ;;
+    *)
+        echo "Invalid key: ${key}" >&2
+        usage
+        exit 1
+        ;;
+esac
+
+value="$raw_value"
+if [[ "$key" == "game_stage" ]]; then
+    normalized="${raw_value,,}"
+    case "$normalized" in
+        not_start) value=0 ;;
+        preparation) value=1 ;;
+        referee_check) value=2 ;;
+        countdown) value=3 ;;
+        started) value=4 ;;
+        settling) value=5 ;;
+        unknown) value=255 ;;
+        *)
+            if [[ "$normalized" =~ ^[0-9]+$ ]]; then
+                value="$normalized"
+            else
+                echo "Invalid game_stage value: ${raw_value}" >&2
+                usage
+                exit 1
+            fi
+            ;;
+    esac
+
+    if (( value < 0 || (value > 5 && value != 255) )); then
+        echo "game_stage out of range: ${value} (expected 0..5 or 255)" >&2
+        exit 1
+    fi
+else
+    if ! [[ "$raw_value" =~ ^[0-9]+$ ]]; then
+        echo "${key} must be an integer: ${raw_value}" >&2
+        exit 1
+    fi
+fi
+
+payload="${key}: ${value}"
+echo "[remote-context] key: ${key}"
+echo "[remote-context] value: ${value}"
+echo "[remote-context] topic: ${TOPIC}"
+echo "[remote-context] payload(to publish): ${payload}"
+
+ssh remote bash -s -- "$key" "$value" "$TOPIC" <<'EOF'
+set -euo pipefail
+
+key="$1"
+value="$2"
+topic="$3"
+
+set +u
+if [[ -f "$HOME/env_setup.bash" ]]; then
+    source "$HOME/env_setup.bash"
+fi
+set -u
+
+ros2 topic pub -1 "$topic" std_msgs/msg/String "{data: '${key}: ${value}'}"
+EOF
+
+echo "Published ${key}=${value} to remote topic ${TOPIC}"
