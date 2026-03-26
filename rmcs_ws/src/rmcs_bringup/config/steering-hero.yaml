@@ -68,7 +68,7 @@ value_broadcaster:
         - /referee/chassis/power
         - /referee/chassis/power_limit
         - /chassis/control_power_limit
-        - /chassis/supercap/voltage
+        # - /chassis/supercap/voltage
         # - /gimbal/putter/velocity
         # - /gimbal/first_left_friction/velocity
         # - /gimbal/first_second_friction/velocity
@@ -78,26 +78,7 @@ value_broadcaster:
         # - /gimbal/first_second_friction/control_torque
         # - /gimbal/second_left_friction/control_torque
         # - /gimbal/second_right_friction/control_torque
-      # - /chassis/left_front_steering/angle
-      # - /chassis/left_back_steering/angle
-      # - /chassis/right_back_steering/angle
-      # - /chassis/right_front_steering/angle  
-      # - /chassis/left_front_steering/control_torque
-      # - /chassis/left_back_steering/control_torque
-      # - /chassis/right_back_steering/control_torque
-      # - /chassis/right_front_steering/control_torque  
-      # - /gimbal/pitch/control_torque
-      # - /gimbal/pitch/velocity
-      # - /gimbal/pitch/control_velocity
-      # - /gimbal/pitch/control_angle_error
-      # - /gimbal/bullet_feeder/phase_zero
-      # - /gimbal/bullet_feeder/alignment_error
-      # - /chassis/climber/left_back_motor/torque
-      # - /chassis/climber/right_back_motor/torque
-      # - /chassis/climber/left_back_motor/velocity
-      # - /chassis/climber/right_back_motor/velocity
-      # - /chassis/climber/right_back_motor/control_torque
-      # - /chassis/climber/left_back_motor/control_torque
+    
 
 climber_controller:
   ros__parameters:
@@ -106,11 +87,8 @@ climber_controller:
     auto_climb_dash_velocity: 3.0
     auto_climb_support_retract_velocity: 30.0
     sync_coefficient: 0.3
-    climb_timeout_limit: 1000
     first_stair_approach_pitch: 0.485
-    second_stair_approach_pitch: 0.35
-    back_climber_burst_velocity: 15.0  
-    back_climber_burst_duration: 300  
+    second_stair_approach_pitch: 0.35    
     front_kp: 1.0
     front_ki: 0.0
     front_kd: 0.5

@@ -2,7 +2,6 @@
 #include "rmcs_msgs/keyboard.hpp"
 #include "rmcs_msgs/switch.hpp"
 #include <cmath>
-#include <cstdint>
 #include <cstdlib>
 #include <eigen3/Eigen/Core>
 #include <limits>
@@ -14,7 +13,7 @@
 
 namespace rmcs_core::controller::chassis {
 
-enum class AutoClimbState { IDLE, APPROACH, SUPPORT_DEPLOY, DASH, SUPPORT_RETRACT };
+enum class AutoClimbState { IDLE, ALIGN, APPROACH, SUPPORT_DEPLOY, DASH, SUPPORT_RETRACT };
 
 class ChassisClimberController
     : public rmcs_executor::Component
@@ -38,15 +37,8 @@ public:
         auto_climb_support_retract_velocity_abs_ =
             get_parameter("auto_climb_support_retract_velocity").as_double();
         sync_coefficient_ = get_parameter("sync_coefficient").as_double();
-        climb_timeout_limit_ = get_parameter("climb_timeout_limit").as_int();
         first_stair_approach_pitch_ = get_parameter("first_stair_approach_pitch").as_double();
         second_stair_approach_pitch_ = get_parameter("second_stair_approach_pitch").as_double();
-
-        burst_velocity_abs_ = get_parameter("back_climber_burst_velocity").as_double();
-        burst_duration_ = get_parameter("back_climber_burst_duration").as_int();
-
-        back_climber_block_count_ = 0;
-        back_climber_timer_ = 0;
 
         register_output(
             "/chassis/climber/left_front_motor/control_torque", climber_front_left_control_torque_,
@@ -73,10 +65,12 @@ public:
 
         register_input("/remote/switch/right", switch_right_);
         register_input("/remote/switch/left", switch_left_);
-        register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/keyboard", keyboard_);
         register_input("/remote/rotary_knob_switch", rotary_knob_switch_);
         register_input("/chassis/pitch_imu", chassis_pitch_imu_);
+
+        register_input("/gimbal/yaw/angle", gimbal_yaw_angle_);
+        register_input("/gimbal/yaw/control_angle_error", gimbal_yaw_angle_error_);
     }
 
     void update() override {
@@ -102,11 +96,7 @@ public:
                 (!last_keyboard_.g && keyboard.g) || rotary_knob_to_down, rotary_knob_from_down,
                 rotary_knob_switch);
 
-            if (auto_climb_state_ != AutoClimbState::IDLE) {
-                apply_auto_climb_control(update_auto_climb_control());
-            } else if (switch_left != Switch::DOWN) {
-                update_manual_control();
-            }
+            apply_auto_climb_control(update_auto_climb_control());
         }
 
         last_switch_left_ = switch_left;
@@ -117,8 +107,8 @@ public:
 
 private:
     struct AutoClimbControl {
-        double front_track_velocity = 0.0;
-        double back_climber_velocity = 0.0;
+        double front_track_velocity = nan_;
+        double back_climber_velocity = nan_;
         double override_chassis_vx = nan_;
     };
 
@@ -141,9 +131,9 @@ private:
         auto_climb_continue_ = true;
         auto_climb_stair_index_ = 0;
         auto_climb_support_block_count_ = 0;
-        enter_auto_climb_state(AutoClimbState::APPROACH);
+        enter_auto_climb_state(AutoClimbState::ALIGN);
 
-        RCLCPP_INFO(logger_, "Auto climb started by %s.", source);
+        RCLCPP_INFO(logger_, "Auto climb started by %s. Entering ALIGN.", source);
     }
 
     void abort_auto_climb(const char* reason) {
@@ -152,10 +142,15 @@ private:
     }
 
     AutoClimbControl update_auto_climb_control() {
+        if (auto_climb_state_ == AutoClimbState::IDLE) {
+            return {};
+        }
+
         auto_climb_timer_++;
 
         switch (auto_climb_state_) {
         case AutoClimbState::IDLE: return {};
+        case AutoClimbState::ALIGN: return update_auto_climb_align();
         case AutoClimbState::APPROACH: return update_auto_climb_approach();
         case AutoClimbState::SUPPORT_DEPLOY: return update_auto_climb_support_deploy();
         case AutoClimbState::DASH: return update_auto_climb_dash();
@@ -163,6 +158,33 @@ private:
         }
 
         return {};
+    }
+
+    AutoClimbControl update_auto_climb_align() {
+        AutoClimbControl control{
+            .front_track_velocity = 0.0,
+            .back_climber_velocity = 0.0,
+            .override_chassis_vx = 0.0,
+        };
+
+        double gimbal_yaw_angle_error = *gimbal_yaw_angle_error_;
+        if (gimbal_yaw_angle_error < 0)
+            gimbal_yaw_angle_error += 2 * std::numbers::pi;
+
+        double err = gimbal_yaw_angle_error + *gimbal_yaw_angle_;
+        while (err >= std::numbers::pi)
+            err -= 2 * std::numbers::pi;
+        while (err < -std::numbers::pi)
+            err += 2 * std::numbers::pi;
+
+        RCLCPP_INFO_THROTTLE(logger_, *get_clock(), 500, "ALIGN: err=%.3f", err);
+
+        if (std::abs(err) < kAutoClimbAlignThreshold) {
+            enter_auto_climb_state(AutoClimbState::APPROACH);
+            RCLCPP_INFO(logger_, "Chassis aligned. Entering APPROACH.");
+        }
+
+        return control;
     }
 
     AutoClimbControl update_auto_climb_approach() {
@@ -293,70 +315,13 @@ private:
             *climber_back_left_control_torque_, *climber_back_right_control_torque_);
     }
 
-    void update_manual_control() {
-        *climbing_forward_velocity_ = nan_;
-
-        // if (last_switch_right_ == Switch::MIDDLE && switch_right == Switch::UP) {
-        //     front_climber_enable_ = !front_climber_enable_;
-        // } else if (last_switch_right_ == Switch::MIDDLE && switch_right == Switch::DOWN) {
-        //     back_climber_dir_ = -1 * back_climber_dir_;
-        //     reset_back_safety_counters();
-        // }
-
-        double track_control_velocity =
-            front_climber_enable_ ? joystick_right_->x() * track_velocity_max_ : nan_;
-
-        dual_motor_sync_control(
-            track_control_velocity, *climber_front_left_velocity_, *climber_front_right_velocity_,
-            front_velocity_pid_calculator_, *climber_front_left_control_torque_,
-            *climber_front_right_control_torque_);
-
-        double back_climber_control_velocity = 0.0;
-        back_climber_timer_++;
-        bool force_zero_torque = false;
-
-        if (is_back_climber_blocked()) {
-            back_climber_block_count_++;
-        }
-
-        if (back_climber_dir_ == -1) {
-            if (back_climber_timer_ < burst_duration_) {
-                back_climber_control_velocity = burst_velocity_abs_ * back_climber_dir_;
-            } else {
-                force_zero_torque = true;
-            }
-        } else {
-            back_climber_control_velocity = climber_back_control_velocity_abs_ * back_climber_dir_;
-        }
-
-        if (!force_zero_torque) {
-            if (back_climber_block_count_ >= 500) {
-                RCLCPP_WARN_THROTTLE(logger_, *get_clock(), 1000, "Back climber STALLED.");
-                back_climber_control_velocity = 0.0;
-            } else if (back_climber_timer_ >= climb_timeout_limit_) {
-                RCLCPP_WARN_THROTTLE(logger_, *get_clock(), 1000, "Back climber TIMEOUT.");
-                back_climber_control_velocity = 0.0;
-            }
-
-            dual_motor_sync_control(
-                back_climber_control_velocity, *climber_back_left_velocity_,
-                *climber_back_right_velocity_, back_velocity_pid_calculator_,
-                *climber_back_left_control_torque_, *climber_back_right_control_torque_);
-        } else {
-            *climber_back_left_control_torque_ = 0.0;
-            *climber_back_right_control_torque_ = 0.0;
-        }
-    }
-
     void reset_all_controls() {
-        *climber_front_left_control_torque_ = 0;
-        *climber_front_right_control_torque_ = 0;
-        *climber_back_left_control_torque_ = 0;
-        *climber_back_right_control_torque_ = 0;
-        front_climber_enable_ = false;
+        *climber_front_left_control_torque_ = nan_;
+        *climber_front_right_control_torque_ = nan_;
+        *climber_back_left_control_torque_ = nan_;
+        *climber_back_right_control_torque_ = nan_;
         *climbing_forward_velocity_ = nan_;
         stop_auto_climb();
-        reset_back_safety_counters();
     }
 
     void stop_auto_climb() {
@@ -371,11 +336,6 @@ private:
         auto_climb_state_ = state;
         auto_climb_timer_ = 0;
         auto_climb_support_block_count_ = 0;
-    }
-
-    void reset_back_safety_counters() {
-        back_climber_block_count_ = 0;
-        back_climber_timer_ = 0;
     }
 
     bool is_back_climber_blocked() const {
@@ -407,12 +367,10 @@ private:
         right_torque_out = control_torques[1];
     }
 
-    int back_climber_block_count_;
-    int back_climber_timer_;
-
     rclcpp::Logger logger_;
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
     static constexpr double kAutoClimbApproachVelocity = 1.0;
+    static constexpr double kAutoClimbAlignThreshold = 0.05;
     static constexpr double kAutoClimbLeveledPitchThreshold = 0.1;
     static constexpr double kBackClimberBlockedTorqueThreshold = 0.1;
     static constexpr double kBackClimberBlockedVelocityThreshold = 0.1;
@@ -423,15 +381,8 @@ private:
     static constexpr int kAutoClimbMaxStairs = 2;
 
     double sync_coefficient_;
-    int64_t climb_timeout_limit_;
     double first_stair_approach_pitch_;
     double second_stair_approach_pitch_;
-
-    double burst_velocity_abs_;
-    int64_t burst_duration_;
-
-    bool front_climber_enable_ = false;
-    double back_climber_dir_ = -1;
 
     double track_velocity_max_;
     double climber_back_control_velocity_abs_;
@@ -460,11 +411,11 @@ private:
 
     InputInterface<rmcs_msgs::Switch> switch_right_;
     InputInterface<rmcs_msgs::Switch> switch_left_;
-    InputInterface<Eigen::Vector2d> joystick_right_;
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
     InputInterface<rmcs_msgs::Switch> rotary_knob_switch_;
 
     InputInterface<double> chassis_pitch_imu_;
+    InputInterface<double> gimbal_yaw_angle_, gimbal_yaw_angle_error_;
 
     rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Switch last_switch_left_ = rmcs_msgs::Switch::UNKNOWN;

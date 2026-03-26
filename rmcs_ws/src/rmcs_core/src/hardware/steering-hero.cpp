@@ -73,6 +73,12 @@ public:
         top_board_->update();
         bottom_board_one_->update();
         bottom_board_two_->update();
+
+        tf_->set_state<rmcs_description::GimbalCenterLink, rmcs_description::YawLink>(
+            bottom_board_two_->gimbal_bottom_yaw_motor_.angle()
+            + top_board_->gimbal_top_yaw_motor_.angle());
+        tf_->set_state<rmcs_description::YawLink, rmcs_description::PitchLink>(
+            top_board_->gimbal_pitch_motor_.angle());
     }
 
     void command_update() {
@@ -191,8 +197,8 @@ private:
 
                 // Eigen::AngleAxisd pitch_link_to_bmi088_link{
                 //     std::numbers::pi / 2, Eigen::Vector3d::UnitZ()};
-                // Eigen::Vector3d mapping = pitch_link_to_bmi088_link * Eigen::Vector3d{1, 2, 3};
-                // std::cout << mapping << std::endl;
+                // Eigen::Vector3d mapping = pitch_link_to_bmi088_link * Eigen::Vector3d{1, 2,
+                // 3}; std::cout << mapping << std::endl;
                 return std::make_tuple(x, y, z);
             });
         }
@@ -215,10 +221,7 @@ private:
             *gimbal_pitch_velocity_imu_ = imu_.gy();
 
             gimbal_top_yaw_motor_.update_status();
-
             gimbal_pitch_motor_.update_status();
-            tf_->set_state<rmcs_description::YawLink, rmcs_description::PitchLink>(
-                gimbal_pitch_motor_.angle());
 
             for (auto& motor : gimbal_friction_wheels_)
                 motor.update_status();
@@ -555,7 +558,6 @@ private:
             : librmcs::agent::CBoard(board_serial)
             , logger_(steering_hero.get_logger())
             , imu_(1000, 0.2, 0.0)
-            , tf_(steering_hero.tf_)
             , dr16_(steering_hero)
             , supercap_(steering_hero, steering_hero_command)
             , chassis_steering_motors2_(
@@ -626,9 +628,6 @@ private:
                 motor.update_status();
 
             gimbal_bottom_yaw_motor_.update_status();
-
-            tf_->set_state<rmcs_description::GimbalCenterLink, rmcs_description::YawLink>(
-                gimbal_bottom_yaw_motor_.angle());
         }
 
         void command_update() {
@@ -717,7 +716,6 @@ private:
         }
 
         device::Bmi088 imu_;
-        OutputInterface<rmcs_description::Tf>& tf_;
 
         OutputInterface<bool> powermeter_control_enabled_;
         OutputInterface<double> powermeter_charge_power_limit_;
