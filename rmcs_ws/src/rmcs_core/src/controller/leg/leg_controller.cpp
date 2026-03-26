@@ -9,6 +9,7 @@
 #include <numbers>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
+#include <rclcpp/parameter.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/arm_mode.hpp>
@@ -19,6 +20,7 @@
 #include <rmcs_msgs/switch.hpp>
 #include <rmcs_msgs/up_stairs_mode.hpp>
 #include <std_msgs/msg/float64_multi_array.hpp>
+#include <map>
 #include <vector>
 
 namespace rmcs_core::controller::leg {
@@ -36,14 +38,7 @@ public:
         , forward_x_position_in_SixWheel_(
               get_parameter("forward_x_position_in_SixWheel").as_double())
         , backward_x_position_in_SixWheel_(
-              get_parameter("backward_x_position_in_SixWheel").as_double())
-        , initial_parameter_(get_parameter("initial_parameter").as_double_array())
-        , press_parameter_(get_parameter("press_parameter").as_double_array())
-        , lift_parameter_(get_parameter("lift_parameter").as_double_array())
-        , lift_and_initial_parameter_(get_parameter("lift_and_initial_parameter").as_double_array())
-        , initial_again_parameter_(get_parameter("initial_again_parameter").as_double_array())
-        , press_again_parameter_(get_parameter("press_again_parameter").as_double_array())
-        , lift_again_parameter_(get_parameter("lift_again_parameter").as_double_array()) {
+              get_parameter("backward_x_position_in_SixWheel").as_double()) {
 
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
@@ -93,16 +88,40 @@ public:
         down_stairs_trajectory
             .set_end_point(std::vector<double>{1.151109, 1.694066, 1.694066, 1.151109})
             .set_total_step(800);
-        up_stairs[0]
-            .configure(hsm::up_stairs::UpStairsType::OneStairs)
-            .load(
-                initial_parameter_, press_parameter_, lift_parameter_, lift_and_initial_parameter_,
-                initial_again_parameter_, press_again_parameter_, lift_again_parameter_);
-        up_stairs[1]
-            .configure(hsm::up_stairs::UpStairsType::TwoStairsLift)
-            .load(
-                initial_parameter_, press_parameter_, lift_parameter_, lift_and_initial_parameter_,
-                initial_again_parameter_, press_again_parameter_, lift_again_parameter_);
+
+        std::map<std::string, rclcpp::Parameter> up_stairs_parameters_raw;
+        const bool loaded_up_stairs_parameters =
+            get_node_parameters_interface()->get_parameters_by_prefix(
+                "up_stairs.params", up_stairs_parameters_raw);
+        if (!loaded_up_stairs_parameters) {
+            RCLCPP_ERROR(
+                get_logger(),
+                "Failed to load parameters with prefix 'up_stairs.params'. "
+                "Expected keys like 'up_stairs.params.initial'.");
+        }
+
+        hsm::up_stairs::LayerParameters up_stairs_parameters;
+        up_stairs_parameters.reserve(up_stairs_parameters_raw.size());
+        for (const auto& [name, parameter] : up_stairs_parameters_raw) {
+            if (parameter.get_type() != rclcpp::ParameterType::PARAMETER_DOUBLE_ARRAY) {
+                RCLCPP_ERROR(
+                    get_logger(),
+                    "up_stairs.params.%s must be a double array, but got type=%u",
+                    name.c_str(), static_cast<unsigned int>(parameter.get_type()));
+                continue;
+            }
+            up_stairs_parameters.emplace(name, parameter.as_double_array());
+        }
+
+        up_stairs[0].set_layers({"initial", "press", "lift"});
+        up_stairs[0].set_layer_connections("initial", []() { return true; });
+        up_stairs[0].load(up_stairs_parameters);
+
+        up_stairs[1].set_layers(
+            {"initial", "press", "lift", "lift_and_initial", "press_again", "lift_again"});
+        up_stairs[1].set_layer_connections("initial", []() { return true; });
+        up_stairs[1].set_layer_connections("lift_and_initial", []() { return true; });
+        up_stairs[1].load(up_stairs_parameters);
     }
 
     void update() override {
@@ -310,13 +329,6 @@ private:
     const double forward_x_position_in_FourWheel_;
     const double forward_x_position_in_SixWheel_;
     const double backward_x_position_in_SixWheel_;
-    const std::vector<double> initial_parameter_;
-    const std::vector<double> press_parameter_;
-    const std::vector<double> lift_parameter_;
-    const std::vector<double> lift_and_initial_parameter_;
-    const std::vector<double> initial_again_parameter_;
-    const std::vector<double> press_again_parameter_;
-    const std::vector<double> lift_again_parameter_;
 
     InputInterface<rmcs_msgs::ArmMode> arm_mode;
     InputInterface<rmcs_msgs::ChassisMode> chassis_mode;
