@@ -1,3 +1,4 @@
+#include "filter/low_pass_filter.hpp"
 #include "hardware/endian_promise.hpp"
 #include "sensor_msgs/msg/joint_state.hpp"
 #include "std_msgs/msg/float32_multi_array.hpp"
@@ -14,6 +15,7 @@
 #include <eigen3/Eigen/src/Core/util/Meta.h>
 #include <fstream>
 #include <limits>
+#include <map>
 #include <memory>
 #include <numbers>
 #include <string>
@@ -46,7 +48,8 @@ namespace rmcs_core::controller::arm {
 class ArmController final : public rmcs_executor::Component {
 public:
     ArmController()
-        : node_(
+        : custom_joint_filter_(0.2)
+        , node_(
               std::make_shared<rclcpp::Node>(
                   get_component_name(),
                   rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))) {
@@ -72,14 +75,15 @@ public:
         for (std::size_t i = 0; i < 6; ++i) {
             const std::string joint_prefix = "/arm/joint_" + std::to_string(i + 1);
             register_input(joint_prefix + "/theta", theta[i]);
+            register_input(joint_prefix + "/lower_limit", joint_lower_limit_[i]);
+            register_input(joint_prefix + "/upper_limit", joint_upper_limit_[i]);
             register_output(joint_prefix + "/target_theta", target_theta[i], NAN);
         }
         register_output("/arm/gripper/target_theta", target_theta[6], NAN);
         register_input("/arm/gripper/motor/angle", theta[6], NAN);
         register_output("/arm/gripper/target_theta_error", gripper_target_theta_error, NAN);
         register_input("/arm/image_pitch/motor/angle", image_pitch_theta_, NAN);
-        register_output(
-            "/arm/image_pitch/target_theta_error", image_pitch_target_theta_error_, NAN);
+        register_output("/arm/image_pitch/target_theta", image_pitch_target_theta_, NAN);
         register_output("/arm/custom_big_yaw", custom_big_yaw_output_, 0.0);
 
         move_group_ =
@@ -87,7 +91,6 @@ public:
         move_group_->startStateMonitor();
         moveit_running_.store(true, std::memory_order_release);
         moveit_thread_ = std::thread([this] {
-            moveit_init();
             while (moveit_running_.load(std::memory_order_acquire)) {
                 moveit_loop();
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -108,6 +111,9 @@ public:
     }
 
     void update() override {
+        *arm_mode_ = get_arm_mode();
+
+        auto knob         = *rotary_knob_switch;
         auto switch_right = *switch_right_;
         auto switch_left  = *switch_left_;
         auto keyboard     = *keyboard_;
@@ -117,47 +123,32 @@ public:
 
         if (!initial_check_done) {
             *is_arm_enable = false;
-            for (std::size_t i = 0; i < std::size(theta); ++i) {
-                *target_theta[i] = *theta[i];
-            }
-            *gripper_target_theta_error       = NAN;
-            image_pitch_target_theta_         = *image_pitch_theta_;
-            *image_pitch_target_theta_error_  = NAN;
-            image_pitch_theta1_offset_        = 0.0;
-            last_mouse_                       = mouse;
             if (switch_left == Switch::DOWN && switch_right == Switch::DOWN) {
                 initial_check_done = true;
             }
-            *arm_mode_ = get_arm_mode();
-            set_arm_mode(rmcs_msgs::ArmMode::None);
-            set_gripper_mode(rmcs_msgs::GripperMode::None);
+            reset();
             return;
         }
 
         if ((switch_left == Switch::DOWN && switch_right == Switch::DOWN)
             || switch_left == Switch::UNKNOWN) {
-            *is_arm_enable = false;
-            for (std::size_t i = 0; i < std::size(theta); ++i) {
-                *target_theta[i] = *theta[i];
-            }
-            *gripper_target_theta_error       = NAN;
-            image_pitch_target_theta_         = *image_pitch_theta_;
-            *image_pitch_target_theta_error_  = NAN;
-            image_pitch_theta1_offset_        = 0.0;
-            last_mouse_                       = mouse;
-            set_gripper_mode(rmcs_msgs::GripperMode::None);
-            set_arm_mode(rmcs_msgs::ArmMode::None);
-            *arm_mode_ = get_arm_mode();
+            reset();
             return;
+        } else {
+            *is_arm_enable = true;
         }
 
-        *is_arm_enable = true;
+        if (knob == Switch::UP) {
+            set_gripper_mode(rmcs_msgs::GripperMode::Open);
+        } else if (knob == Switch::DOWN) {
+            set_gripper_mode(rmcs_msgs::GripperMode::Close);
+        }
+
         if (switch_left == Switch::UP && switch_right == Switch::UP) {
             set_arm_mode(rmcs_msgs::ArmMode::DT7_Control_Position);
         } else if (switch_left == Switch::UP && switch_right == Switch::MIDDLE) {
             set_arm_mode(rmcs_msgs::ArmMode::DT7_Control_Orientation);
         } else if (switch_left == Switch::DOWN && switch_right == Switch::UP) {
-
             if (keyboard.g) {
                 if (!keyboard.shift && !keyboard.ctrl) {
                     set_arm_mode(rmcs_msgs::ArmMode::Auto_Walk);
@@ -179,21 +170,14 @@ public:
                     set_arm_mode(rmcs_msgs::ArmMode::Auto_Storage_RB);
                 }
             }
-
-            if(keyboard.s){
+            if (keyboard.s) {
                 set_arm_mode(rmcs_msgs::ArmMode::Auto_Spin);
             }
-
-
-
             if (keyboard.r) {
                 if (!keyboard.ctrl && !keyboard.shift) {
                     set_arm_mode(rmcs_msgs::ArmMode::Custome);
                 }
             }
-
-
-
             if (mouse.left && !last_mouse_.left) {
                 image_pitch_theta1_offset_ += 0.05;
             }
@@ -203,9 +187,7 @@ public:
         } else {
             set_arm_mode(rmcs_msgs::ArmMode::None);
         }
-        last_mouse_ = mouse;
 
-        *arm_mode_ = get_arm_mode();
         switch (get_arm_mode()) {
             using namespace rmcs_msgs;
         case ArmMode::DT7_Control_Position: {
@@ -220,23 +202,21 @@ public:
             execute_custom();
             break;
         }
+        case ArmMode::Auto_Walk: {
+            execute_plan_request_and_trajectory_step();
+            break;
+        }
         case ArmMode::None: {
             break;
         }
         default: {
-            // execute_plan_request_and_trajectory_step();
             break;
         }
         }
 
-        auto knob = *rotary_knob_switch;
-        if (knob == Switch::UP) {
-            set_gripper_mode(rmcs_msgs::GripperMode::Open);
-        } else if (knob == Switch::DOWN) {
-            set_gripper_mode(rmcs_msgs::GripperMode::Close);
-        }
         gripper_control();
         image_pitch_control();
+        last_mouse_ = mouse;
     }
 
 private:
@@ -261,6 +241,9 @@ private:
     std::atomic<std::shared_ptr<const PlannedTrajectory>> planned_trajectory_{nullptr};
 
     void set_arm_mode(rmcs_msgs::ArmMode mode) {
+        if (mode != rmcs_msgs::ArmMode::Auto_Walk) {
+            last_requested_arm_mode_ = mode;
+        }
         const auto current = plan_request.load(std::memory_order_acquire);
         auto next          = std::make_shared<PlanRequest>();
         if (current) {
@@ -281,42 +264,60 @@ private:
         return current->arm_mode;
     }
 
-    void moveit_init() {};
     void moveit_loop() {
+        static std::vector<double> auto_walk_joint_target;
+        static bool moveit_parameter_initialized{false};
+
+        if (!moveit_parameter_initialized) {
+            node_->get_parameter("auto_walk_joint_target", auto_walk_joint_target);
+            moveit_parameter_initialized = true;
+        }
+
         const auto request = plan_request.load(std::memory_order_acquire);
         static uint64_t last_planned_request_id_{0};
-
         if (!request || request->request_id == last_planned_request_id_) {
             return;
         }
         last_planned_request_id_ = request->request_id;
 
-        moveit::planning_interface::MoveGroupInterface::Plan my_plan;
-        {
-            // TODO: use current_mode to choose planning target/constraints.
-            geometry_msgs::msg::Pose target_pose1;
-            target_pose1.position.x = 0.48;
-            target_pose1.position.y = 0.0;
-            target_pose1.position.z = 0.4;
-            move_group_->setMaxVelocityScalingFactor(0.005);
-            move_group_->setMaxAccelerationScalingFactor(0.0051);
-            move_group_->setPoseTarget(target_pose1);
-            move_group_->setPlanningTime(2.0);
-        }
-        const bool success = (move_group_->plan(my_plan) == moveit::core::MoveItErrorCode::SUCCESS);
-
         auto result          = std::make_shared<PlannedTrajectory>();
         result->request_id   = request->request_id;
+        result->plan_success = false;
+
+        moveit::planning_interface::MoveGroupInterface::Plan my_plan;
+
+        move_group_->setStartStateToCurrentState();
+        move_group_->clearPoseTargets();
+        move_group_->setMaxVelocityScalingFactor(0.005);
+        move_group_->setMaxAccelerationScalingFactor(0.005);
+        move_group_->setPlanningTime(2.0);
+        switch (request->arm_mode) {
+        case rmcs_msgs::ArmMode::Auto_Walk: {
+            move_group_->setJointValueTarget(
+                std::map<std::string, double>{
+                    {"joint_1", auto_walk_joint_target[0]},
+                    {"joint_2", auto_walk_joint_target[1]},
+                    {"joint_3", auto_walk_joint_target[2]},
+                    {"joint_4", auto_walk_joint_target[3]},
+                    {"joint_5", auto_walk_joint_target[4]},
+                    {"joint_6", auto_walk_joint_target[5]},
+            });
+            break;
+        }
+        default: {
+            break;
+        }
+        }
+        const bool success = (move_group_->plan(my_plan) == moveit::core::MoveItErrorCode::SUCCESS);
         result->plan_success = success;
         if (!success) {
             RCLCPP_WARN(node_->get_logger(), "plan failed");
-            planned_trajectory_.store(result, std::memory_order::release);
-            return;
-        }
-        const auto& trajectory_points = my_plan.trajectory.joint_trajectory.points;
-        result->positions.reserve(trajectory_points.size());
-        for (const auto& pt : trajectory_points) {
-            result->positions.push_back(pt.positions);
+        } else {
+            const auto& trajectory_points = my_plan.trajectory.joint_trajectory.points;
+            result->positions.reserve(trajectory_points.size());
+            for (const auto& pt : trajectory_points) {
+                result->positions.push_back(pt.positions);
+            }
         }
 
         planned_trajectory_.store(result, std::memory_order::release);
@@ -346,19 +347,11 @@ private:
 
         if (moveit_result->request_id == latest_plan_request->request_id) {
             if (moveit_result->plan_success && !moveit_result->positions.empty()) {
-
                 if (trajectory_steps < moveit_result->positions.size()) {
                     const auto& q = moveit_result->positions[trajectory_steps];
-                    // RCLCPP_INFO(
-                    //     node_->get_logger(),
-                    //     "req[%llu] pt[%zu] q=[%.6f, %.6f, %.6f, %.6f, %.6f, %.6f]",
-                    //     static_cast<unsigned long long>(moveit_result->request_id),
-                    //     trajectory_steps, q[0], q[1], q[2], q[3], q[4], q[5]);
-                    *target_theta[5] = q[5];
-                    *target_theta[3] = q[3];
-                    *target_theta[4] = q[4];
-                    *target_theta[2] = q[2];
-                    //   *target_theta[1] = q[1];
+                    for (std::size_t i = 0; i < std::min<std::size_t>(6, q.size()); ++i) {
+                        // *target_theta[i] = q[i];
+                    }
                     trajectory_steps++;
                 }
             }
@@ -383,47 +376,54 @@ private:
             }
             return angle;
         };
-
-        std::array<double, 6> angles{};
-        for (std::size_t i = 0; i < 6; ++i) {
-            double divisor = (i == 3 || i == 5) ? 32768.0 : 65536.0;
-            angles[i]      = raw_to_angle(frame.joint[i], divisor);
+        Eigen::Vector<double, 6> angles;
+        for (Eigen::Index i = 0; i < angles.size(); ++i) {
+            const auto joint_index = static_cast<std::size_t>(i);
+            double divisor         = (joint_index == 3 || joint_index == 5) ? 32768.0 : 65536.0;
+            angles[i]              = raw_to_angle(frame.joint[joint_index], divisor);
             if (i == 2 || i == 5) {
                 angles[i] = -angles[i];
             }
-            *target_theta[i] = angles[i];
+        }
+        const auto filtered_angles = custom_joint_filter_.update(angles);
+        for (Eigen::Index i = 0; i < filtered_angles.size(); ++i) {
+            *target_theta[static_cast<std::size_t>(i)] = filtered_angles[i];
         }
 
         *custom_big_yaw_output_ = raw_to_angle(frame.big_yaw, 65536.0);
-
-        
     }
     void execute_dt7_orientation() {
         if (fabs(joystick_left_->y()) > 0.01) {
             *target_theta[5] += 0.003 * joystick_left_->y();
-            *target_theta[5] = std::clamp(*target_theta[5], -3.14, 3.14);
+            *target_theta[5] =
+                std::clamp(*target_theta[5], *joint_lower_limit_[5], *joint_upper_limit_[5]);
         }
         if (fabs(joystick_left_->x()) > 0.01) {
             *target_theta[4] += 0.003 * joystick_left_->x();
-            *target_theta[4] = std::clamp(*target_theta[4], -1.74, 1.74);
+            *target_theta[4] =
+                std::clamp(*target_theta[4], *joint_lower_limit_[4], *joint_upper_limit_[4]);
         }
         if (fabs(joystick_right_->y()) > 0.01) {
             *target_theta[3] += 0.003 * joystick_right_->y();
-            *target_theta[3] = std::clamp(*target_theta[3], -3.14, 3.14);
+            *target_theta[3] =
+                std::clamp(*target_theta[3], *joint_lower_limit_[3], *joint_upper_limit_[3]);
         }
     }
     void execute_dt7_position() {
         if (fabs(joystick_left_->x()) > 0.01) {
             *target_theta[2] += 0.001 * joystick_left_->x();
-            *target_theta[2] = std::clamp(*target_theta[2], -1.36217, 0.5335);
+            *target_theta[2] =
+                std::clamp(*target_theta[2], *joint_lower_limit_[2], *joint_upper_limit_[2]);
         }
         if (fabs(joystick_right_->x()) > 0.01) {
             *target_theta[1] += 0.001 * joystick_right_->x();
-            *target_theta[1] = std::clamp(*target_theta[1], -1.084, 1.426);
+            *target_theta[1] =
+                std::clamp(*target_theta[1], *joint_lower_limit_[1], *joint_upper_limit_[1]);
         }
         if (fabs(joystick_left_->y()) > 0.01) {
             *target_theta[0] += 0.001 * joystick_left_->y();
-            *target_theta[0] = std::clamp(*target_theta[0], -2.34, 2.34);
+            *target_theta[0] =
+                std::clamp(*target_theta[0], *joint_lower_limit_[0], *joint_upper_limit_[0]);
         }
     }
     void gripper_control() {
@@ -448,18 +448,23 @@ private:
         double qmax = 3;
         node_->get_parameter("image_pitch_qmin", qmin);
         node_->get_parameter("image_pitch_qmax", qmax);
-        if (qmin > qmax) {
-            std::swap(qmin, qmax);
+        double target_theta        = *theta[1] + image_pitch_theta1_offset_;
+        target_theta               = std::clamp(target_theta, qmin, qmax);
+        *image_pitch_target_theta_ = target_theta;
+    }
+    void reset() {
+
+        *is_arm_enable = false;
+        for (std::size_t i = 0; i < std::size(theta); ++i) {
+            *target_theta[i] = *theta[i];
         }
-
-        image_pitch_target_theta_ = *theta[1] + image_pitch_theta1_offset_;
-        image_pitch_target_theta_         = std::clamp(image_pitch_target_theta_, qmin, qmax);
-
-        *image_pitch_target_theta_error_  = image_pitch_target_theta_ - *image_pitch_theta_;
-        RCLCPP_INFO_THROTTLE(
-            node_->get_logger(), *node_->get_clock(), 100,
-            "image_pitch target=%.3f, theta1=%.3f, offset=%.3f  %f",
-            image_pitch_target_theta_, *theta[1], image_pitch_theta1_offset_,*image_pitch_theta_);
+        *gripper_target_theta_error = NAN;
+        *image_pitch_target_theta_  = NAN;
+        image_pitch_theta1_offset_  = 0.0;
+        last_mouse_                 = *mouse_;
+        custom_joint_filter_.reset();
+        set_gripper_mode(rmcs_msgs::GripperMode::None);
+        set_arm_mode(rmcs_msgs::ArmMode::None);
     }
 
     InputInterface<Eigen::Vector2d> joystick_right_;
@@ -473,20 +478,22 @@ private:
 
     OutputInterface<bool> is_arm_enable;
     InputInterface<double> theta[7];
+    std::array<InputInterface<double>, 6> joint_lower_limit_;
+    std::array<InputInterface<double>, 6> joint_upper_limit_;
     OutputInterface<double> target_theta[7];
     OutputInterface<rmcs_msgs::ArmMode> arm_mode_;
 
     rmcs_msgs::GripperMode gripper_mode_{rmcs_msgs::GripperMode::None};
     OutputInterface<double> gripper_target_theta_error;
-    
+
     InputInterface<double> image_pitch_theta_;
-    double image_pitch_target_theta_{0.0};
     double image_pitch_theta1_offset_{0.0};
     rmcs_msgs::Mouse last_mouse_{rmcs_msgs::Mouse::zero()};
-    OutputInterface<double> image_pitch_target_theta_error_;
+    OutputInterface<double> image_pitch_target_theta_;
 
     InputInterface<std::array<uint8_t, 30>> custom_data_;
     OutputInterface<double> custom_big_yaw_output_;
+    filter::LowPassFilter<6> custom_joint_filter_;
 
     rclcpp::Node::SharedPtr node_;
     rclcpp::executors::SingleThreadedExecutor exec_;

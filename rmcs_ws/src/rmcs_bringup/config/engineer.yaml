@@ -11,7 +11,7 @@ rmcs_executor:
 
       - rmcs_core::controller::pid::ErrorPidController -> gripper_error_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> gripper_velocity_pid_controller
-      - rmcs_core::controller::pid::ErrorPidController -> image_pitch_angle_pid_controller
+      - rmcs_core::controller::pid::PidController -> image_pitch_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> image_pitch_velocity_pid_controller
 
       - rmcs_core::controller::leg::LegController -> leg_controller
@@ -66,7 +66,7 @@ image_transmission:
 
 arm_controller:
   ros__parameters:
-    image_pitch_target_theta: 0.0
+    auto_walk_joint_target: [0.0, 1.23, -1.36, 0.0, 0.63, 0.0]
     image_pitch_qmin: 2.2
     image_pitch_qmax: -0.7
 
@@ -108,7 +108,8 @@ gripper_velocity_pid_controller:
 
 image_pitch_angle_pid_controller:
   ros__parameters:
-    measurement: /arm/image_pitch/target_theta_error
+    measurement: /arm/image_pitch/motor/angle
+    setpoint: /arm/image_pitch/target_theta
     control: /arm/image_pitch/control_vel
     kp: 200.0
     ki: 0.0
