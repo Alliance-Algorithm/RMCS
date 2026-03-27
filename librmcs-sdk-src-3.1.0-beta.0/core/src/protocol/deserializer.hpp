@@ -27,15 +27,9 @@ public:
 
     virtual void uart_deserialized_callback(FieldId id, const data::UartDataView& data) = 0;
 
-    virtual void gpio_digital_data_deserialized_callback(const data::GpioDigitalDataView& data) = 0;
+    virtual void gpio_digital_deserialized_callback(const data::GpioDigitalDataView& data) = 0;
 
-    virtual void gpio_analog_data_deserialized_callback(const data::GpioAnalogDataView& data) = 0;
-
-    virtual void
-        gpio_digital_read_config_deserialized_callback(const data::GpioReadConfigView& data) = 0;
-
-    virtual void
-        gpio_analog_read_config_deserialized_callback(const data::GpioReadConfigView& data) = 0;
+    virtual void gpio_analog_deserialized_callback(const data::GpioAnalogDataView& data) = 0;
 
     virtual void accelerometer_deserialized_callback(const data::AccelerometerDataView& data) = 0;
 

@@ -171,7 +171,7 @@ coroutine::LifoTask<bool> Deserializer::process_gpio_field(FieldId) {
         data::GpioDigitalDataView data_view{};
         data_view.channel = channel;
         data_view.high = payload_type == GpioHeader::PayloadEnum::kDigitalWriteHigh;
-        callback_.gpio_digital_data_deserialized_callback(data_view);
+        callback_.gpio_digital_deserialized_callback(data_view);
         break;
     }
     case GpioHeader::PayloadEnum::kAnalogWrite: {
@@ -185,51 +185,7 @@ coroutine::LifoTask<bool> Deserializer::process_gpio_field(FieldId) {
         data_view.value = payload.get<GpioAnalogPayload::Value>();
         consume_peeked();
 
-        callback_.gpio_analog_data_deserialized_callback(data_view);
-        break;
-    }
-    case GpioHeader::PayloadEnum::kDigitalRead:
-    case GpioHeader::PayloadEnum::kAnalogRead: {
-        const auto* payload_bytes = co_await peek_bytes(sizeof(GpioReadConfigPayload));
-        if (!payload_bytes) [[unlikely]]
-            co_return false;
-
-        auto payload = GpioReadConfigPayload::CRef{payload_bytes};
-        data::GpioReadConfigView data_view{};
-        data_view.channel = channel;
-        data_view.asap = payload.get<GpioReadConfigPayload::Asap>();
-        data_view.rising_edge = payload.get<GpioReadConfigPayload::RisingEdge>();
-        data_view.falling_edge = payload.get<GpioReadConfigPayload::FallingEdge>();
-        data_view.period_ms = payload.get<GpioReadConfigPayload::PeriodMs>();
-        consume_peeked();
-
-        if (payload_type == GpioHeader::PayloadEnum::kDigitalRead) {
-            callback_.gpio_digital_read_config_deserialized_callback(data_view);
-        } else {
-            callback_.gpio_analog_read_config_deserialized_callback(data_view);
-        }
-        break;
-    }
-    case GpioHeader::PayloadEnum::kDigitalReadResultLow:
-    case GpioHeader::PayloadEnum::kDigitalReadResultHigh: {
-        data::GpioDigitalDataView data_view{};
-        data_view.channel = channel;
-        data_view.high = payload_type == GpioHeader::PayloadEnum::kDigitalReadResultHigh;
-        callback_.gpio_digital_data_deserialized_callback(data_view);
-        break;
-    }
-    case GpioHeader::PayloadEnum::kAnalogReadResult: {
-        const auto* payload_bytes = co_await peek_bytes(sizeof(GpioAnalogPayload));
-        if (!payload_bytes) [[unlikely]]
-            co_return false;
-
-        auto payload = GpioAnalogPayload::CRef{payload_bytes};
-        data::GpioAnalogDataView data_view{};
-        data_view.channel = channel;
-        data_view.value = payload.get<GpioAnalogPayload::Value>();
-        consume_peeked();
-
-        callback_.gpio_analog_data_deserialized_callback(data_view);
+        callback_.gpio_analog_deserialized_callback(data_view);
         break;
     }
     default: co_return false;

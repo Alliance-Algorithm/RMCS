@@ -87,6 +87,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     apt-get autoremove -y && apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/*
 
+# Install Node.js 22 LTS for developer CLIs
+RUN mkdir -p /etc/apt/keyrings && \
+    curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | \
+    gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg && \
+    chmod 644 /etc/apt/keyrings/nodesource.gpg && \
+    echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_22.x nodistro main" \
+    > /etc/apt/sources.list.d/nodesource.list && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends nodejs && \
+    apt-get autoremove -y && apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/*
+
 # Install llvm-toolchain
 ARG LLVM_VERSION=22
 RUN mkdir -p /etc/apt/keyrings && \
@@ -138,7 +150,17 @@ RUN chsh -s /bin/zsh ubuntu && \
 WORKDIR /home/ubuntu
 ENV USER=ubuntu
 ENV WORKDIR=/home/ubuntu
+ENV NPM_CONFIG_PREFIX=/home/ubuntu/.npm-global
+ENV PATH="${PATH}:/home/ubuntu/.npm-global/bin"
 USER ubuntu
+
+# Install developer agent CLIs in the unprivileged user's npm prefix
+RUN mkdir -p "${NPM_CONFIG_PREFIX}" && \
+    npm install -g @openai/codex @anthropic-ai/claude-code && \
+    node -v && \
+    npm -v && \
+    codex --version && \
+    claude --version
 
 # Install oh my zsh, change theme to af-magic and setup environment of zsh
 RUN sh -c "$(wget https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh -O -)" && \

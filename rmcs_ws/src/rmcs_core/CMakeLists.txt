@@ -17,7 +17,7 @@ include(FetchContent)
 set(BUILD_STATIC_LIBRMCS ON CACHE BOOL "Build static librmcs SDK" FORCE)
 fetchcontent_declare(
   librmcs
-  SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../librmcs-sdk-src-3.0.1-0.dev.4.gbaf538b
+  SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../librmcs-sdk-src-3.1.0-beta.0
 )
 fetchcontent_makeavailable(librmcs)
 

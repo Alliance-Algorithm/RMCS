@@ -98,13 +98,6 @@ struct GpioHeader : utility::Bitfield<2> {
     using Channel = utility::BitfieldMember<8, 8>;
 };
 
-struct GpioReadConfigPayload : utility::Bitfield<2> {
-    using Asap = utility::BitfieldMember<0, 1>;
-    using RisingEdge = utility::BitfieldMember<1, 1>;
-    using FallingEdge = utility::BitfieldMember<2, 1>;
-    using PeriodMs = utility::BitfieldMember<3, 13, uint16_t>;
-};
-
 struct GpioAnalogPayload : utility::Bitfield<2> {
     using Value = utility::BitfieldMember<0, 16, uint16_t>;
 };

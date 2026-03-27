@@ -52,14 +52,6 @@ struct GpioAnalogDataView {
     uint16_t value;
 };
 
-struct GpioReadConfigView {
-    uint8_t channel;
-    uint16_t period_ms = 0;
-    bool asap = false;
-    bool rising_edge = false;
-    bool falling_edge = false;
-};
-
 struct AccelerometerDataView {
     int16_t x;
     int16_t y;
@@ -85,10 +77,6 @@ public:
     virtual bool can_receive_callback(DataId id, const CanDataView& data) = 0;
 
     virtual bool uart_receive_callback(DataId id, const UartDataView& data) = 0;
-
-    virtual void gpio_digital_read_result_callback(const GpioDigitalDataView& data) = 0;
-
-    virtual void gpio_analog_read_result_callback(const GpioAnalogDataView& data) = 0;
 
     virtual void accelerometer_receive_callback(const AccelerometerDataView& data) = 0;
 

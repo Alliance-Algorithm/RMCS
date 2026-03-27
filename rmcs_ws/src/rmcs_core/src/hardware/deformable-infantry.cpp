@@ -541,12 +541,7 @@ private:
 
         ~TopBoard() = default;
 
-        void request_hard_sync_read() {
-            start_transmit().gpio_digital_read({
-                .channel = 1,
-                .falling_edge = true,
-            });
-        }
+        void request_hard_sync_read() {}
 
         void update() {
             bmi088_.update_status();
@@ -613,13 +608,6 @@ private:
 
         void gyroscope_receive_callback(const librmcs::data::GyroscopeDataView& data) override {
             bmi088_.store_gyroscope_status(data.x, data.y, data.z);
-        }
-
-        void
-            gpio_digital_read_result_callback(const librmcs::data::GpioDigitalDataView& data)
-                override {
-            if (data.channel == 1 && !data.high)
-                hard_sync_pending_.store(true, std::memory_order_relaxed);
         }
 
         std::atomic<bool>& hard_sync_pending_;

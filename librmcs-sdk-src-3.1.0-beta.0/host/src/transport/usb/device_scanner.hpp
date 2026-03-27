@@ -240,8 +240,6 @@ private:
             return false;
         }
 
-        return true;
-
         const std::string_view product_string{product_buf, static_cast<size_t>(n)};
         if (product_string != "RMCS Agent v" LIBRMCS_PROJECT_VERSION_STRING) {
             info.result = DeviceInfo::ProtocolVersionMismatch{std::string{product_string}};
