@@ -20,6 +20,7 @@ fetchcontent_declare(
   SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../librmcs-sdk-src-3.1.0-beta.0
 )
 fetchcontent_makeavailable(librmcs)
+add_subdirectory(third_party/tinympc/src/tinympc)
 
 file(GLOB_RECURSE PROJECT_SOURCE CONFIGURE_DEPENDS
   ${PROJECT_SOURCE_DIR}/src/*.cpp
@@ -34,6 +35,7 @@ ament_auto_add_library(
 include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_SOURCE_DIR}/src)
 target_link_libraries(${PROJECT_NAME} librmcs-sdk)
+target_link_libraries(${PROJECT_NAME} tinympcstatic)
 
 pluginlib_export_plugin_description_file(rmcs_executor plugins.xml)
 

@@ -114,6 +114,40 @@
 - 明确所有下游消费者及其依赖关系
 - 不再考虑切换到另一套输出契约
 
+### 第一阶段检查结果
+
+当前阶段已经完成接口契约核对，结论如下：
+
+1. 当前 `sp_vision_25` 子模块 HEAD 为 `b84f3a4`，与本地 `main` 一致；本地 `dev/omni` 为 `285fa0c`。
+2. 当前接入到 RMCS 的桥接实现是 `rmcs_ws/src/sp_vision_25/src/sp_vision_bridge.cpp` 中的 planner-output 模型，而不是 `target_snapshot` 模型。
+3. 当前 `SpVisionBridge` 已确认输出以下接口：
+   - `/gimbal/auto_aim/control_direction`：`Eigen::Vector3d`
+   - `/gimbal/auto_aim/fire_control`：`bool`
+   - `/gimbal/auto_aim/laser_distance`：`double`
+   - `/gimbal/auto_aim/plan_yaw`：`double`
+   - `/gimbal/auto_aim/plan_pitch`：`double`
+   - `/gimbal/auto_aim/plan_yaw_velocity`：`double`
+   - `/gimbal/auto_aim/plan_yaw_acceleration`：`double`
+   - `/gimbal/auto_aim/plan_pitch_velocity`：`double`
+   - `/gimbal/auto_aim/plan_pitch_acceleration`：`double`
+4. 当前 `SpVisionBridge` 已确认输入以下接口：
+   - `/gimbal/hard_sync_snapshot`：`rmcs_msgs::HardSyncSnapshot`
+   - `/predefined/timestamp`：`std::chrono::steady_clock::time_point`
+   - `/referee/shooter/initial_speed`：`float`，可选，未接入时回退到 `bullet_speed_fallback`
+5. `DeformableInfantryGimbalController` 已完整消费 `control_direction + plan_*` 全套 planner 输出，并在 `before_updating()` 中为全部可选输入绑定安全默认值。
+6. `BulletFeederController17mm` 已消费 `/gimbal/auto_aim/fire_control`，且在视觉未接入时默认绑定 `false`，不会误触发开火。
+7. `deformable-infantry.yaml` 当前已经引用：
+   - `sp_vision_25::bridge::SpVisionBridge -> sp_vision_bridge`
+   - `rmcs_core::controller::gimbal::DeformableInfantryGimbalController -> gimbal_controller`
+   - `rmcs_core::controller::shooting::BulletFeederController17mm -> bullet_feeder_controller`
+8. `dev/omni` 分支里的 `SpVisionBridge` 依赖 `rmcs_msgs/target_snapshot.hpp`，而当前 RMCS 工作树中不存在该头文件，因此如果直接切换到该契约，至少需要补一轮 `rmcs_msgs + controller + bringup` 级别的改造。
+
+阶段一结论：
+
+- 当前分支应锁定 planner-output 契约
+- 不应在本轮移植中切换到 `target_snapshot` 契约
+- 下一阶段应进入 DAG 接线与输入输出链路完整性核对
+
 ---
 
 ## 阶段二：校验 RMCS 链路完整性
@@ -174,6 +208,52 @@
 - `deformable-infantry.yaml` 可以形成完整 DAG
 - 所有关键视觉接口都能成功接线
 - 启动阶段不会因为接口缺失、重名、类型不匹配而失败
+
+### 第二阶段检查结果
+
+当前阶段已经完成静态 DAG 与关键接口链路核对，结论如下：
+
+1. `deformable-infantry.yaml` 中视觉主链已正确声明：
+   - `sp_vision_25::bridge::SpVisionBridge -> sp_vision_bridge`
+   - `rmcs_core::controller::gimbal::DeformableInfantryGimbalController -> gimbal_controller`
+   - `rmcs_core::controller::shooting::BulletFeederController17mm -> bullet_feeder_controller`
+2. `sp_vision_bridge` 的必需输入链路已确认完整：
+   - `/gimbal/hard_sync_snapshot` 由 `rmcs_core::hardware::DeformableInfantry` 提供
+   - `/predefined/timestamp` 由 executor 内置 `PredefinedMsgProvider` 提供
+   - `/referee/shooter/initial_speed` 由 `rmcs_core::referee::Status` 提供，且在 bridge 中是可选输入
+3. `deformable gimbal` 的视觉消费链路已确认完整：
+   - `/gimbal/auto_aim/control_direction`
+   - `/gimbal/auto_aim/plan_yaw`
+   - `/gimbal/auto_aim/plan_pitch`
+   - `/gimbal/auto_aim/plan_yaw_velocity`
+   - `/gimbal/auto_aim/plan_yaw_acceleration`
+   - `/gimbal/auto_aim/plan_pitch_velocity`
+   - `/gimbal/auto_aim/plan_pitch_acceleration`
+4. `bullet_feeder` 的视觉消费链路已确认完整：
+   - `/gimbal/auto_aim/fire_control` 由 `BulletFeederController17mm` 消费
+   - `/gimbal/friction_ready` 与 `/gimbal/bullet_fired` 由 `FrictionWheelController` 提供
+   - `/gimbal/control_bullet_allowance/limited_by_heat` 由 `HeatController` 提供
+5. deformable 硬件对控制量的消费链路已确认完整：
+   - `/gimbal/yaw/control_torque` 由 yaw 电机命令输入消费
+   - `/gimbal/pitch/control_velocity` 由 pitch 电机命令输入消费
+   - `/gimbal/bullet_feeder/control_velocity` 由 `PidController` 转换为 `/gimbal/bullet_feeder/control_torque` 后再由硬件消费
+6. deformable 控制器依赖的非视觉输入链也已确认存在：
+   - `/remote/joystick/left`、`/remote/switch/*`、`/remote/mouse*`、`/remote/keyboard`、`/remote/rotary_knob` 由 `device::Dr16` 提供
+   - `/gimbal/yaw/velocity`、`/gimbal/pitch/velocity`、`/gimbal/bullet_feeder/velocity` 由电机状态输出提供
+   - `/gimbal/yaw/velocity_imu`、`/gimbal/pitch/velocity_imu` 由 deformable 顶板 BMI088 输出提供
+7. 当前静态检查中未发现视觉相关接口名冲突、缺失必需输入或明显类型不匹配。
+
+当前阶段发现的非阻塞问题：
+
+- `deformable-infantry.yaml` 中 `sp_vision_bridge` 仍保留了 `virtual_*`、`fire_control_enabled`、`output_csv_path`、`csv_decimation` 等更像 `SpVisionResponseTestBridge` 的参数；当前 `SpVisionBridge` 实现并不会使用这些参数。
+- `/gimbal/auto_aim/laser_distance` 在 deformable 链路中当前没有活跃消费者，但这不会阻塞 DAG。
+- 容器内可以使用build-rmcs 脚本进行构建
+
+阶段二结论：
+
+- 从静态接线角度看，`deformable-infantry` 已具备完整视觉 DAG
+- 当前阻塞点不在接口配线，而在后续的配置正确性、时序质量与实机调参
+- 下一阶段应转向 deformable 专用视觉配置、外参与控制参数核对
 
 ---
 
@@ -236,6 +316,7 @@
 ### 重点检查文件
 
 - `rmcs_ws/src/rmcs_bringup/config/deformable-infantry.yaml`
+- `rmcs_ws/src/sp_vision_25/configs/deformable-infantry.yaml`
 - `rmcs_ws/src/sp_vision_25/configs/standard4.yaml`
 - `rmcs_ws/src/sp_vision_25/configs/standard3.yaml`
 - `rmcs_ws/src/rmcs_core/src/controller/gimbal/deformable_infantry_gimbal_controller.cpp`
@@ -246,6 +327,34 @@
 - 外参、弹速、曝光、控制器参数与实机一致
 - planner 前馈不会导致明显振荡或滞后
 - 自动瞄准和开火逻辑达到可调试状态
+
+### 第三阶段执行结果
+
+当前阶段已经完成一轮“可安全落地”的配置整理，结果如下：
+
+1. 已新增 `rmcs_ws/src/sp_vision_25/configs/deformable-infantry.yaml`，以当前 `standard4.yaml` 的有效参数为基线，单独承载 deformable 的视觉配置。
+2. 已将 `rmcs_ws/src/rmcs_bringup/config/deformable-infantry.yaml` 的 `sp_vision_bridge.config_file` 切换到 `configs/deformable-infantry.yaml`，避免后续 deformable 与其他机器人共享同一份通用配置文件。
+3. 已删除 `deformable-infantry.yaml` 中 `virtual_*`、`fire_control_enabled`、`output_csv_path`、`csv_decimation` 等仅对 `SpVisionResponseTestBridge` 有意义、但对当前 `SpVisionBridge` 无效的参数，减少误导。
+4. 已显式补出 `manual_joystick_sensitivity` 与 `manual_mouse_sensitivity`，使 deformable 当前手动操控灵敏度不再依赖控制器内默认值。
+5. 已删除 `gimbal_controller` 中未被 `DeformableInfantryGimbalController` 实际读取的 `pitch_velocity_*` 与 `pitch_acc_ff_gain` 参数，并保留注释说明“deformable pitch 当前仍由硬件层做速度控制”。
+6. 已确认 `standard3.yaml` 与原 `standard4.yaml` 的主要差异集中在三类：
+   - 推理设备：`GPU` vs `CPU`
+   - 视觉零偏：`yaw_offset` / `pitch_offset`
+   - 机械外参：`t_camera2gimbal`
+   这说明当前 deformable 使用的 `standard4` 基线本身并不是简单沿用 omni 的配置。
+
+当前阶段仍未完成、且必须依赖实机/容器环境的工作：
+
+- 校验 `deformable-infantry.yaml` 中 `bullet_speed_fallback: 28.0` 与裁判系统真实弹速是否一致
+- 校验 `deformable-infantry.yaml` 中 yaw/pitch 控制参数是否适配当前硬件极限与安装位姿
+- 校验 `deformable-infantry.yaml` 中上下限 `upper_limit` / `lower_limit` 是否覆盖完整可用俯仰范围
+- 在 devcontainer / ROS 环境中补做 build 与 launch 验证；当前宿主机缺少 `colcon` 与 ROS 安装，只完成了 YAML 语法级校验
+
+阶段三结论：
+
+- deformable 现在已经拥有独立的视觉配置入口，后续外参和规划参数可以单独演进
+- 当前最值得继续推进的是实机参数核对，而不是继续做接口层改造
+- 下一阶段应转入编译、启动、数据流与闭环联调验证
 
 ---
 
@@ -277,7 +386,6 @@
 - `/gimbal/auto_aim/fire_control` -> `bullet_feeder_controller_17mm`
 
 #### 3. 失效保护验证
-
 确认 vision 数据过期时：
 
 - `control_direction` 清零
@@ -338,6 +446,7 @@
 ### sp_vision_25
 - `rmcs_ws/src/sp_vision_25/src/sp_vision_bridge.cpp`
 - `rmcs_ws/src/sp_vision_25/plugins.xml`
+- `rmcs_ws/src/sp_vision_25/configs/deformable-infantry.yaml`
 - `rmcs_ws/src/sp_vision_25/configs/standard4.yaml`
 - `rmcs_ws/src/sp_vision_25/configs/standard3.yaml`
 

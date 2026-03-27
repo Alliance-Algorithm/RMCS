@@ -41,20 +41,7 @@ rmcs_executor:
 sp_vision_bridge:
   ros__parameters:
     config_file: configs/standard4.yaml
-    bullet_speed_fallback: 28.0
-    result_timeout: 0.2
     debug: false
-    virtual_center_distance: 6.0
-    virtual_center_yaw: 0.0
-    virtual_center_height: 0.0
-    virtual_angular_velocity: 4.0
-    virtual_base_radius: 0.2
-    virtual_radius_delta: 0.025
-    virtual_height_delta: 0.0
-    virtual_initial_phase: 0.0
-    fire_control_enabled: true
-    output_csv_path: /tmp/sp_vision_response_test.csv
-    csv_decimation: 1
 
 value_broadcaster:
   ros__parameters:
@@ -96,8 +83,23 @@ chassis_controller:
 
 gimbal_controller:
   ros__parameters:
+    bullet_speed_fallback: 28.0
+    result_timeout: 0.2
+
     upper_limit: -0.3839724354 # -22 deg
     lower_limit: 0.1 # 6 deg
+
+    yaw_offset: 3.3
+    pitch_offset: -1.7
+    decision_speed: 7.0
+    high_speed_delay_time: 0.0
+    low_speed_delay_time: 0.0
+    fire_thresh: 0.0025
+    max_yaw_acc: 500.0
+    max_pitch_acc: 100.0
+
+    manual_joystick_sensitivity: 0.006
+    manual_mouse_sensitivity: 0.5
 
     yaw_angle_kp: 14.2
     yaw_angle_ki: 0.0
@@ -109,17 +111,14 @@ gimbal_controller:
 
     yaw_vel_ff_gain: 0.47
     yaw_acc_ff_gain: 0.00
+    yaw_chassis_spin_torque_ff_gain: 0.0
 
-    # Placeholder pitch gains copied from omni-infantry until pitch sweep is available.
+    # Deformable pitch remains velocity-controlled in the hardware layer, so only the angle loop
+    # and planner velocity feedforward are used here until a dedicated pitch sweep is available.
     pitch_angle_kp: 8.0
     pitch_angle_ki: 0.0
     pitch_angle_kd: 0.0
-
-    pitch_velocity_kp: 0.0
-    pitch_velocity_ki: 0.0
-    pitch_velocity_kd: 0.0
-
-    pitch_acc_ff_gain: 0.0
+    pitch_vel_ff_gain: 1.0
 
 friction_wheel_controller:
   ros__parameters:
@@ -157,6 +156,7 @@ left_friction_velocity_pid_controller:
     measurement: /gimbal/left_friction/velocity
     setpoint: /gimbal/left_friction/control_velocity
     control: /gimbal/left_friction/control_torque
+    
     kp: 0.003436926
     ki: 0.00
     kd: 0.009373434

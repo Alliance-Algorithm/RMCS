@@ -48,7 +48,6 @@ sp_vision_bridge:
     fire_control_enabled: true
     output_csv_path: /tmp/sp_vision_response_test.csv
     csv_decimation: 1
-
 gimbal_controller:
   ros__parameters:
     upper_limit: -0.5098

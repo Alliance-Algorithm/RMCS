@@ -37,7 +37,10 @@
       "Bash(grep -r \"InputInterface\\\\|OutputInterface\" /home/yukikaze/Documents/workspace/RMCS/rmcs_ws/src/rmcs_core/src/controller/pid/*.hpp 2>/dev/null || echo \"No hpp files in pid directory\")",
       "Bash(build-rmcs --packages-select rmcs_core)",
       "Bash(RMCS_PATH=/home/yukikaze/Documents/workspace/RMCS bash /home/yukikaze/Documents/workspace/RMCS/.script/build-rmcs --packages-select rmcs_core 2>&1)",
-      "Bash(ls -la /home/yukikaze/Documents/workspace/RMCS/rmcs_ws/src/rmcs_core/src/controller/chassis/*.hpp)"
+      "Bash(ls -la /home/yukikaze/Documents/workspace/RMCS/rmcs_ws/src/rmcs_core/src/controller/chassis/*.hpp)",
+      "Bash(git -C rmcs_ws/src/sp_vision_25 log --oneline main -10)",
+      "Bash(git -C rmcs_ws/src/sp_vision_25 log --oneline dev/omni -10)",
+      "Bash(git:*)"
     ]
   }
 }
