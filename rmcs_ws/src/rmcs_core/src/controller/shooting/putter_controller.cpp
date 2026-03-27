@@ -48,8 +48,6 @@ public:
         register_input("/gimbal/putter/angle", putter_angle_);
         register_input("/gimbal/putter/velocity", putter_velocity_);
 
-        register_input("/gimbal/auto_aim/shoot_enable", auto_aim_shoot_enable_, false);
-
         last_preload_flag_ = false;
 
         bullet_feeder_velocity_pid_.kp = 50.0;
@@ -90,8 +88,6 @@ public:
         const auto switch_left = *switch_left_;
         const auto mouse = *mouse_;
         const auto keyboard = *keyboard_;
-        const bool auto_aim_takeover = *auto_aim_shoot_enable_;
-        // const bool bullet_fired_now = *bullet_fired_;
 
         using namespace rmcs_msgs;
 
@@ -99,13 +95,6 @@ public:
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
             reset_all_controls();
             return;
-        }
-
-        if (last_auto_aim_takeover_ != auto_aim_takeover) {
-            RCLCPP_INFO(
-                get_logger(), "Shoot control source switched to: %s",
-                auto_aim_takeover ? "AUTO_AIM" : "MANUAL");
-            last_auto_aim_takeover_ = auto_aim_takeover;
         }
 
         // 推杆已初始化后的正常控制流程
@@ -127,24 +116,25 @@ public:
             } else {
                 // 正常运行模式：摩擦轮就绪时才允许发射
                 if (*friction_ready_) {
-                    bool shoot_triggered = false;
-                    if (auto_aim_takeover) {
-                        // 自瞄接管时采用电平触发：持续允许则持续触发发弹流程。
-                        shoot_triggered = true;
-                    } else if (switch_right != Switch::DOWN) {
-                        // 发射触发检测（手动模式）
-                        shoot_triggered = (!last_mouse_.left && mouse.left)
-                                       || (last_switch_left_ == rmcs_msgs::Switch::MIDDLE
-                                           && switch_left == rmcs_msgs::Switch::DOWN);
-                    }
-                    if (
-                        // *control_bullet_allowance_limited_by_heat_ > 0 &&
-                        shoot_triggered && shoot_stage_ == ShootStage::PRELOADED) {
-                        if (last_photoelectric_sensor_status_ && *photoelectric_sensor_status_) {
-                            RCLCPP_INFO(get_logger(), "Photoelectric sensor triggered, shooting!");
-                            set_shooting();
-                        } else {
-                            set_preloading();
+
+                    // 发射触发检测
+                    // RCLCPP_INFO(get_logger(), "%.2f", *bullet_feeder_angle_);
+                    // RCLCPP_INFO(get_logger(), "%.2f", *bullet_feeder_velocity_);
+                    if (switch_right != Switch::DOWN) {
+                        if ((!last_mouse_.left && mouse.left)
+                            || (last_switch_left_ == rmcs_msgs::Switch::MIDDLE
+                                && switch_left == rmcs_msgs::Switch::DOWN)) {
+                            RCLCPP_INFO(
+                                get_logger(), "now :%ld",
+                                *control_bullet_allowance_limited_by_heat_);
+                            if (*control_bullet_allowance_limited_by_heat_ > 0
+                                && (shoot_stage_ == ShootStage::PRELOADED || shoot_first)) {
+                                RCLCPP_INFO(
+                                    get_logger(), "shoot: %ld",
+                                    *control_bullet_allowance_limited_by_heat_);
+                                set_shooting();
+                                shoot_first = false;
+                            }
                         }
                     }
 
@@ -282,7 +272,6 @@ private:
     void set_resetting() {
         shoot_stage_ = ShootStage::RESETTING;
         bullet_feeder_reset();
-        last_auto_aim_takeover_ = false;
     }
 
     void set_preloading() {
@@ -386,9 +375,6 @@ private:
 
     static constexpr double max_bullet_feeder_control_torque_ = 0.1;
     static constexpr double bullet_feeder_angle_per_bullet_ = 2 * std::numbers::pi / 6;
-    static constexpr double bullet_feeder_offset = 0.1;
-
-    InputInterface<bool> auto_aim_shoot_enable_;
 
     InputInterface<bool> photoelectric_sensor_status_;
     bool last_photoelectric_sensor_status_;
@@ -440,17 +426,6 @@ private:
     int bullet_feeder_faulty_count_ = 0;
     int bullet_feeder_cool_down_ = 0;
     int bullet_ready_count_ = 0;
-
-    OutputInterface<double> shoot_delay_ms_;
-
-    std::chrono::steady_clock::time_point shoot_start_time_{};
-    bool shot_delay_pending_ = false;
-    bool last_bullet_fired_ = false;
-    bool last_auto_aim_takeover_ = false;
-
-    std::ofstream shoot_delay_log_stream_;
-    std::string shoot_delay_log_path_;
-    std::size_t shoot_delay_sample_count_ = 0;
 
     OutputInterface<rmcs_msgs::ShootMode> shoot_mode_;
 };
