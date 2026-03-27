@@ -184,16 +184,7 @@ public:
         }
 
         switch (*mode_) {
-        case rmcs_msgs::ChassisMode::AUTO: {
-            double err = calculate_unsigned_chassis_angle_error(chassis_control_angle);
-            apply_reverse_facing(err, chassis_control_angle);
-
-            constexpr double alignment = 2 * std::numbers::pi;
-            if (err > alignment / 2)
-                err -= alignment;
-
-            angular_velocity = following_velocity_controller_.update(err);
-        } break;
+        case rmcs_msgs::ChassisMode::AUTO: break;
         case rmcs_msgs::ChassisMode::SPIN: {
             angular_velocity =
                 0.6 * (spinning_forward_ ? angular_velocity_max : -angular_velocity_max);
