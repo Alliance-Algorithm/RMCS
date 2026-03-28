@@ -52,6 +52,7 @@ private:
             , logger_(std::move(logger))
             , tof_(test, "/tof")
 
+
             , transmit_buffer_(*this, 32)
             , event_thread_([this]() { handle_events(); }) {}
 
@@ -59,39 +60,55 @@ private:
             stop_handling_events();
             event_thread_.join();
         }
-        void before_updating() {}
+        void before_updating() {
+
+        }
         void update() {
-            //    RCLCPP_INFO(logger_, "Received UART1 data");
+   
 
             tof_.update();
         }
-        void command_update() {}
+        void command_update() {
+
+        }
 
     private:
+ 
         void uart2_receive_callback(const std::byte* data, uint8_t length) override {
+            // 把收到的 data 写入环形缓冲（用值捕获，mutable 允许在 lambda 中修改 data 指针）
+            ring_buff.emplace_back_multi(
+                [data](std::byte* storage) mutable { *storage = *data++; }, length);
 
-            RCLCPP_INFO(logger_, "Received UART2 length:%x",length);
-            if (length < 6) {
-                RCLCPP_INFO(logger_, "too short length: %x", length);
-                return;
+            // 如果缓冲有数据并且至少能组成一帧（16 字节），就尝试解析（可能连续解析多帧）
+            while (ring_buff.front() && ring_buff.readable() >= 16) {
+                // 先读取并弹出第一个字节，作为可能的帧头
+                std::byte rx_data[16];
+                std::byte* rx_ptr = rx_data;
+
+                // 先弹出一个字节到 rx_data[0]
+                ring_buff.pop_front_multi([&rx_ptr](std::byte storage) { *rx_ptr++ = storage; }, 1);
+
+                // 如果第一个字节不是帧头 0x57，则丢弃它并继续（寻找下一个可能的帧头）
+                if (rx_data[0] != std::byte{0x57}) {
+                    // 不是帧头：继续循环，下一次会检查新的第一个字节
+                    continue;
+                }
+
+                // 已确认帧头，弹出剩余 15 字节组成完整 16 字节帧
+                ring_buff.pop_front_multi(
+                    [&rx_ptr](std::byte storage) { *rx_ptr++ = storage; }, 15);
+
+                // 打印收到的前 5 个字节（以两位十六进制显示），用于调试
+                // RCLCPP_INFO(
+                //     logger_, "%02x %02x %02x %02x %02x", std::to_integer<unsigned int>(rx_data[0]),
+                //     std::to_integer<unsigned int>(rx_data[8]),
+                //     std::to_integer<unsigned int>(rx_data[9]),
+                //     std::to_integer<unsigned int>(rx_data[10]),
+                //     std::to_integer<unsigned int>(rx_data[11]));
+
+                // 把整帧数据传给解析函数（传入 rx_data 的起始地址）
+                tof_.store_status(rx_data, 16);
             }
-
-
-            if (std::to_integer<uint8_t>(data[length - 1]) != 0x0A) {
-                RCLCPP_INFO(
-                    logger_, "Invalid back: 0x%02x", std::to_integer<uint8_t>(data[length - 1]));
-
-                return;
-            }
-
-            RCLCPP_INFO(
-                logger_, " 0x%02x  0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x",
-                std::to_integer<uint8_t>(data[0]), std::to_integer<uint8_t>(data[1]),
-                std::to_integer<uint8_t>(data[2]), std::to_integer<uint8_t>(data[3]),
-                std::to_integer<uint8_t>(data[4]), std::to_integer<uint8_t>(data[5]),
-                std::to_integer<uint8_t>(data[6]));
-
-            tof_.store_status(data, length);
         }
 
         rclcpp::Logger logger_;
