@@ -6,7 +6,7 @@ from launch import (
     LaunchDescription,
     LaunchDescriptionEntity,
 )
-from launch.actions import LogInfo
+from launch.actions import DeclareLaunchArgument, LogInfo
 from launch.substitutions import LaunchConfiguration
 
 from launch_ros.actions import Node
@@ -20,6 +20,9 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
         entities = []
 
         robot_config = LaunchConfiguration("robot").perform(context)
+        auto_aim_config = LaunchConfiguration("enable_auto_aim").perform(context).strip().lower()
+        enable_auto_aim = auto_aim_config in {"1", "true", "yes", "on"}
+
         if robot_config.startswith("auto."):
             is_automatic = True
             robot_name = robot_config[5:]
@@ -50,6 +53,20 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
             )
         )
 
+        if enable_auto_aim:
+            entities.append(LogInfo(msg="Auto Aim: ENABLED (launching rmcs_auto_aim_v2)."))
+            entities.append(
+                Node(
+                    package="rmcs_auto_aim_v2",
+                    executable="rmcs_auto_aim_v2_runtime",
+                    respawn=True,
+                    respawn_delay=1.0,
+                    output="log",
+                )
+            )
+        else:
+            entities.append(LogInfo(msg="Auto Aim: DISABLED (rmcs_auto_aim_v2 will not be launched)."))
+
         if is_automatic:
             pass
 
@@ -57,6 +74,15 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
 
 
 def generate_launch_description():
-    ld = LaunchDescription([MyLaunchDescriptionEntity()])
+    ld = LaunchDescription(
+        [
+            DeclareLaunchArgument(
+                "enable_auto_aim",
+                default_value="true",
+                description="Whether to launch rmcs_auto_aim_v2 auto-aim runtime node.",
+            ),
+            MyLaunchDescriptionEntity(),
+        ]
+    )
 
     return ld

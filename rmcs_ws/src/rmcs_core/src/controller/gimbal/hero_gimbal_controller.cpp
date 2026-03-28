@@ -54,7 +54,13 @@ public:
             *yaw_control_angle_shift_ = nan_;
             *pitch_control_angle_ = nan_;
 
-            if (should_auto_aim_takeover(switch_right)) {
+            const bool auto_aim_takeover = should_auto_aim_takeover(switch_right);
+            if (!auto_aim_takeover && auto_aim_takeover_last_cycle_) {
+                imu_gimbal_solver.update(TwoAxisGimbalSolver::SetDisabled{});
+            }
+            auto_aim_takeover_last_cycle_ = auto_aim_takeover;
+
+            if (auto_aim_takeover) {
                 auto angle_error = update_auto_aim_control();
                 *yaw_angle_error_ = angle_error.yaw_angle_error;
                 *pitch_angle_error_ = angle_error.pitch_angle_error;
@@ -69,6 +75,7 @@ public:
 
     void reset_all_control() {
         imu_gimbal_solver.update(TwoAxisGimbalSolver::SetDisabled{});
+        auto_aim_takeover_last_cycle_ = false;
 
         *yaw_angle_error_ = nan_;
         *pitch_angle_error_ = nan_;
@@ -81,6 +88,9 @@ public:
             || !auto_aim_control_direction_.ready() || !*auto_aim_enabled_) {
             return false;
         }
+
+        if (!auto_aim_control_direction_->allFinite())
+            return false;
 
         constexpr double direction_eps = 1e-6;
         return !auto_aim_control_direction_->isApprox(Eigen::Vector3d::UnitX(), direction_eps);
@@ -121,6 +131,7 @@ private:
     InputInterface<Eigen::Vector3d> auto_aim_control_direction_;
 
     TwoAxisGimbalSolver imu_gimbal_solver;
+    bool auto_aim_takeover_last_cycle_{false};
 
     OutputInterface<double> yaw_angle_error_, pitch_angle_error_;
     OutputInterface<double> yaw_control_angle_shift_, pitch_control_angle_;

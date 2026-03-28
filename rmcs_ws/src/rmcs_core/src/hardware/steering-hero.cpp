@@ -62,8 +62,6 @@ public:
             Eigen::Translation3d{0.06, 0.0, 0.0});
         tf_->set_transform<rmcs_description::PitchLink, rmcs_description::CameraLink>(
             Eigen::Translation3d{0.142, 0.0, 0.1091});
-        tf_->set_transform<rmcs_description::PitchLink, rmcs_description::MuzzleLink>(
-            Eigen::Translation3d{0.17281, 0.0, 0.0});
     }
 
     SteeringHero(const SteeringHero&) = delete;
