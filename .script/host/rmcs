@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/env bash
 
 set -euo pipefail
 
@@ -15,10 +15,14 @@ function show_help() {
     echo "  Service: $service"
 }
 
+function start_container() {
+    docker compose up -d --no-recreate --no-build
+}
+
 function rmcs_zsh() {
     local service="$1"
     echo "Starting and entering container..."
-    docker compose up -d
+    start_container
     docker compose exec "$service" zsh
 }
 
@@ -29,7 +33,7 @@ function rmcs_nvim() {
     local port=$NVIM_PORT
 
     echo "Starting container..."
-    docker compose up -d
+    start_container
 
     echo "Checking available port and starting nvim headless server..."
     while nc -z "$NVIM_HOST" "$port" 2>/dev/null; do
