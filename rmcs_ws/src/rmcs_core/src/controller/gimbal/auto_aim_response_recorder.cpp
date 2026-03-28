@@ -58,7 +58,6 @@ public:
             *this, "output_csv_path", std::string{"/tmp/auto_aim_response.csv"});
         declare_parameter_if_missing(*this, "csv_decimation", int64_t{1});
         declare_parameter_if_missing(*this, "require_auto_aim_request", true);
-        declare_parameter_if_missing(*this, "result_timeout", 0.2);
 
         register_input("/tf", tf_);
         register_input("/predefined/timestamp", timestamp_);
@@ -71,6 +70,7 @@ public:
         register_input("/referee/shooter/initial_speed", bullet_speed_, false);
 
         register_input("/gimbal/auto_aim/target_snapshot", target_snapshot_, false);
+        register_input("/gimbal/auto_aim/control_direction", control_direction_, false);
         register_input("/gimbal/auto_aim/fire_control", fire_control_, false);
         register_input("/gimbal/auto_aim/laser_distance", laser_distance_, false);
         register_input("/gimbal/auto_aim/plan_target_yaw", plan_target_yaw_, false);
@@ -112,10 +112,12 @@ public:
             bullet_speed_.bind_directly(std::numeric_limits<float>::quiet_NaN());
         if (!target_snapshot_.ready())
             target_snapshot_.make_and_bind_directly(rmcs_msgs::TargetSnapshot{});
+        if (!control_direction_.ready())
+            control_direction_.make_and_bind_directly(Eigen::Vector3d::Zero());
         if (!fire_control_.ready())
             fire_control_.bind_directly(false);
         if (!laser_distance_.ready())
-            laser_distance_.bind_directly(nan_);
+            laser_distance_.bind_directly(0.0);
         if (!plan_target_yaw_.ready())
             plan_target_yaw_.make_and_bind_directly(nan_);
         if (!plan_target_pitch_.ready())
@@ -164,8 +166,6 @@ public:
         csv_path_ = get_parameter("output_csv_path").as_string();
         csv_decimation_ = get_parameter("csv_decimation").as_int();
         require_auto_aim_request_ = get_parameter("require_auto_aim_request").as_bool();
-        planner_result_timeout_ =
-            std::chrono::duration<double>(get_parameter("result_timeout").as_double());
         if (csv_path_.empty())
             throw std::runtime_error{"output_csv_path cannot be empty"};
         if (csv_decimation_ <= 0)
@@ -191,12 +191,14 @@ public:
             std::max(0.0, std::chrono::duration<double>(*timestamp_ - start_time_).count());
         const auto snapshot = *target_snapshot_;
         const auto [actual_yaw, actual_pitch] = current_world_yaw_pitch();
-        const bool planner_active = auto_aim_planner_active(snapshot);
+        const bool planner_active = control_direction_->squaredNorm() > 1e-18;
         const double target_age =
             std::chrono::duration<double>(*timestamp_ - snapshot.timestamp).count();
 
-        const double yaw_error = planner_active ? current_yaw_error(actual_yaw) : nan_;
-        const double pitch_error = planner_active ? current_pitch_error(actual_pitch) : nan_;
+        const double yaw_error =
+            planner_active ? limit_rad(*plan_yaw_ - actual_yaw) : nan_;
+        const double pitch_error =
+            planner_active ? (*plan_pitch_ - actual_pitch) : nan_;
 
         csv_stream_ << *update_count_ << ',' << elapsed_seconds << ','
                     << static_cast<double>(*bullet_speed_) << ','
@@ -231,38 +233,6 @@ public:
 private:
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
 
-    bool auto_aim_requested() const {
-        return mouse_->right || *switch_right_ == rmcs_msgs::Switch::UP;
-    }
-
-    bool target_snapshot_fresh(const rmcs_msgs::TargetSnapshot& snapshot) const {
-        if (!snapshot.valid)
-            return false;
-        return std::chrono::duration<double>(*timestamp_ - snapshot.timestamp) <= planner_result_timeout_;
-    }
-
-    bool auto_aim_planner_active(const rmcs_msgs::TargetSnapshot& snapshot) const {
-        if (std::isfinite(*plan_yaw_) || std::isfinite(*plan_pitch_))
-            return true;
-        return auto_aim_requested() && target_snapshot_fresh(snapshot);
-    }
-
-    double current_yaw_error(double actual_yaw) const {
-        if (std::isfinite(*yaw_control_angle_error_))
-            return *yaw_control_angle_error_;
-        if (std::isfinite(*plan_yaw_))
-            return limit_rad(*plan_yaw_ - actual_yaw);
-        return nan_;
-    }
-
-    double current_pitch_error(double actual_pitch) const {
-        if (std::isfinite(*pitch_control_angle_error_))
-            return *pitch_control_angle_error_;
-        if (std::isfinite(*plan_pitch_))
-            return *plan_pitch_ - actual_pitch;
-        return nan_;
-    }
-
     bool should_log_this_cycle() const {
         if (!require_auto_aim_request_)
             return true;
@@ -272,7 +242,7 @@ private:
             return false;
         if (*switch_left_ == Switch::DOWN)
             return false;
-        return auto_aim_requested();
+        return mouse_->right || *switch_right_ == Switch::UP;
     }
 
     std::pair<double, double> current_world_yaw_pitch() const {
@@ -336,6 +306,7 @@ private:
     InputInterface<float> bullet_speed_;
 
     InputInterface<rmcs_msgs::TargetSnapshot> target_snapshot_;
+    InputInterface<Eigen::Vector3d> control_direction_;
     InputInterface<bool> fire_control_;
     InputInterface<double> laser_distance_;
     InputInterface<double> plan_target_yaw_;
@@ -364,7 +335,6 @@ private:
     Clock::time_point start_time_{};
     bool start_time_initialized_ = false;
     bool require_auto_aim_request_ = true;
-    std::chrono::duration<double> planner_result_timeout_{0.2};
     std::string csv_path_;
     int64_t csv_decimation_ = 1;
     std::size_t log_count_ = 0;

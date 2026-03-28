@@ -195,6 +195,8 @@ public:
         register_output("/gimbal/yaw/angle", yaw_angle_, 0.0);
         register_output("/gimbal/yaw/velocity", yaw_velocity_, 0.0);
 
+        register_output(
+            "/gimbal/auto_aim/control_direction", control_direction_, Eigen::Vector3d::Zero());
         register_output("/gimbal/auto_aim/fire_control", fire_control_, false);
     }
 
@@ -235,6 +237,7 @@ public:
         }
 
         if (mode_ == Mode::kAutoAim) {
+            *control_direction_ = auto_plan->upper_control_direction;
             *fire_control_ = auto_plan->fire;
             apply_control(
                 ControlTarget{
@@ -294,7 +297,10 @@ private:
         *pitch_control_torque_ = nan_;
     }
 
-    void clear_auto_outputs() { *fire_control_ = false; }
+    void clear_auto_outputs() {
+        *control_direction_ = Eigen::Vector3d::Zero();
+        *fire_control_ = false;
+    }
 
     void enter_disabled_state() {
         clear_auto_outputs();
@@ -654,6 +660,7 @@ private:
     OutputInterface<double> yaw_angle_;
     OutputInterface<double> yaw_velocity_;
 
+    OutputInterface<Eigen::Vector3d> control_direction_;
     OutputInterface<bool> fire_control_;
 };
 
