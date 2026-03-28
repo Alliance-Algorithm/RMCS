@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/usr/bin/env bash
 
 set -euo pipefail
 
@@ -124,11 +124,7 @@ fi
 
 remote_script='source ~/env_setup.bash && bash -s'
 
-if [[ "${record_action}" == "start" ]] && [[ -z "${record_seconds}" ]]; then
-    remote_ssh_cmd=(ssh -tt remote)
-else
-    remote_ssh_cmd=(ssh remote)
-fi
+remote_ssh_cmd=(ssh remote)
 
 "${remote_ssh_cmd[@]}" \
     "RECORD_ACTION='${record_action}' RECORD_SECONDS='${record_seconds}' RECORD_SESSION='${record_session}' bash -lc '${remote_script}'" <<'EOF'
@@ -143,7 +139,15 @@ build_bag_dir() {
 }
 
 collect_livox_topics() {
-    mapfile -t all_topics < <(ros2 topic list)
+    local topic_output
+
+    if ! topic_output="$(ros2 topic list 2>&1)"; then
+        echo "Error: failed to list ROS topics on remote."
+        echo "Details: ${topic_output}"
+        exit 1
+    fi
+
+    mapfile -t all_topics <<< "${topic_output}"
 
     livox_topics=()
     for topic in "${all_topics[@]}"; do

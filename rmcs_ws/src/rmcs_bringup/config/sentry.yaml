@@ -32,7 +32,7 @@ sentry_hardware:
   ros__parameters:
     board_serial_top_board: "d4-2184"
     board_serial_bottom_board: "d4-041d"
-    bottom_yaw_motor_zero_point: 16469
+    bottom_yaw_motor_zero_point: 49242
     top_yaw_motor_zero_point: 43156
     pitch_motor_zero_point: 1446
     left_front_zero_point: 5818
