@@ -7,6 +7,7 @@
 #include <rmcs_msgs/chassis_mode.hpp>
 #include <rmcs_msgs/game_stage.hpp>
 #include <rmcs_msgs/mouse.hpp>
+#include <rmcs_msgs/shoot_condiction.hpp>
 #include <rmcs_msgs/shoot_mode.hpp>
 
 #include "referee/app/ui/shape/shape.hpp"
@@ -25,7 +26,6 @@ public:
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , status_ring_(26.5, 26.5, 600, 40)
-        , rangefinder_()
         , chassis_direction_indicator_(Shape::Color::PINK, 8, x_center, y_center, 0, 0, 84, 84)
         , time_reminder_(Shape::Color::PINK, 50, 5, x_center + 150, y_center + 65, 0, false) {
 
@@ -55,7 +55,10 @@ public:
         register_input("/gimbal/pitch/angle", gimbal_pitch_angle_);
         // register_input("/gimbal/auto_aim/laser_distance", laser_distance_);
 
+        register_input("/gimbal/shooter/condiction", shoot_condiction_);
+
         register_input("/gimbal/shooter/mode", shoot_mode_);
+
         // register_input("/gimbal/scope/active", is_scope_active_);
 
         register_input("/remote/mouse", mouse_);
@@ -65,14 +68,15 @@ public:
 
     void update() override {
         update_normal_ui();
-        update_sniper_ui();
+        // update_sniper_ui();
+        // update_state_word();
 
         // if (*is_scope_active_) {
         //     set_normal_ui_visible(false);
         //     rangefinder_.set_visible(true);
         // } else {
         set_normal_ui_visible(true);
-        rangefinder_.set_visible(false);
+        // rangefinder_.set_visible(false);
         // }
     }
 
@@ -93,7 +97,7 @@ private:
             *left_friction_control_velocity_ > 0);
         status_ring_.update_supercap(*supercap_voltage_, true);
         status_ring_.update_battery_power(*chassis_voltage_);
-        update_static_status_ring();
+        // update_static_status_ring();
     }
 
     void update_sniper_ui() {
@@ -121,6 +125,30 @@ private:
         auto precise_enable = *shoot_mode_ == rmcs_msgs::ShootMode::PRECISE;
 
         status_ring_.update_static_parts({auto_aim_enable, precise_enable});
+    }
+
+    void update_state_word() {
+
+        const char* text = "OK";
+        auto color = Shape::Color::GREEN;
+
+        if (*shoot_condiction_ == rmcs_msgs::ShootCondiction::FRICTION_WAITING) {
+            text = "  WAITING ";
+        } else if (*shoot_condiction_ == rmcs_msgs::ShootCondiction::SHOOT) {
+            text = "  SHOOT   ";
+        } else if (*shoot_condiction_ == rmcs_msgs::ShootCondiction::FIRED) {
+            text = "  FIRED   ";
+        } else if (*shoot_condiction_ == rmcs_msgs::ShootCondiction::JAM) {
+            text = "   JAM    ";
+        } else if (*shoot_condiction_ == rmcs_msgs::ShootCondiction::PRELOADING) {
+            text = "PRELOADING";
+        }
+
+        state_word_.set_value(text);
+        state_word_.set_font_size(30);
+        state_word_.set_color(color);
+        state_word_.set_visible(true);
+        state_word_.set_xy(x_center - 800, y_center + 200);
     }
 
     void update_chassis_direction_indicator() {
@@ -188,6 +216,7 @@ private:
     // InputInterface<double> laser_distance_;
 
     InputInterface<rmcs_msgs::ShootMode> shoot_mode_;
+    InputInterface<rmcs_msgs::ShootCondiction> shoot_condiction_;
     // InputInterface<bool> is_scope_active_;
 
     StatusRing status_ring_;
@@ -195,6 +224,7 @@ private:
 
     Arc chassis_direction_indicator_, chassis_control_direction_indicator_;
 
+    Text state_word_;
     Integer time_reminder_;
 };
 

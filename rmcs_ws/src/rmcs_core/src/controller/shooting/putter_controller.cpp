@@ -2,6 +2,7 @@
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/mouse.hpp>
+#include <rmcs_msgs/shoot_condiction.hpp>
 #include <rmcs_msgs/shoot_mode.hpp>
 #include <rmcs_msgs/switch.hpp>
 
@@ -81,6 +82,7 @@ public:
         register_output("/gimbal/putter/control_torque", putter_control_torque_, nan_);
 
         register_output("/gimbal/shooter/mode", shoot_mode_, rmcs_msgs::ShootMode::SINGLE);
+        register_output("/gimbal/shooter/condiction", shoot_condiction_);
     }
 
     void update() override {
@@ -95,6 +97,20 @@ public:
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
             reset_all_controls();
             return;
+        }
+
+        if (*friction_ready_) {
+            if (shoot_stage_ == ShootStage::RESETTING || bullet_feeder_cool_down_ > 0) {
+                *shoot_condiction_ = rmcs_msgs::ShootCondiction::JAM;
+            } else if (shoot_stage_ == ShootStage::PRELOADED) {
+                *shoot_condiction_ = rmcs_msgs::ShootCondiction::SHOOT;
+            } else if (shoot_stage_ == ShootStage::SHOOTING) {
+                *shoot_condiction_ = rmcs_msgs::ShootCondiction::FIRED;
+            } else {
+                *shoot_condiction_ = rmcs_msgs::ShootCondiction::PRELOADING;
+            }
+        } else {
+            *shoot_condiction_ = rmcs_msgs::ShootCondiction::FRICTION_WAITING;
         }
 
         // 推杆已初始化后的正常控制流程
@@ -362,6 +378,7 @@ private:
         while (std::abs(reference_angle - *bullet_feeder_angle_) > pi / 6) {
             reference_angle += (pi / 3);
         }
+        RCLCPP_INFO(get_logger(), "%f, %f", reference_angle, *bullet_feeder_angle_);
         bullet_feeder_control_angle_ = reference_angle;
     }
 
@@ -428,6 +445,7 @@ private:
     int bullet_ready_count_ = 0;
 
     OutputInterface<rmcs_msgs::ShootMode> shoot_mode_;
+    OutputInterface<rmcs_msgs::ShootCondiction> shoot_condiction_;
 };
 
 } // namespace rmcs_core::controller::shooting

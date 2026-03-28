@@ -136,7 +136,7 @@
 
 //                 if (!bullet_feeder_cool_down_) {
 //                     RCLCPP_INFO(get_logger(), "Jamming Solved, Retrying...");
-//                     set_resetting();
+//                     set_preloading();
 //                 }
 //             } else {
 //                 // 正常运行模式：摩擦轮就绪时才允许发射
@@ -199,7 +199,7 @@
 //                     } else if (shoot_stage_ == ShootStage::RESETTING) {
 
 //                         const auto angle_err = bullet_feeder_control_angle_ -
-//                         *bullet_feeder_angle_; if (std::abs(angle_err) < 0.1) {
+//                         *bullet_feeder_angle_; if (std::abs(angle_err) < 0.2) {
 //                             RCLCPP_INFO(get_logger(), "RESETED");
 //                             set_preloaded();
 //                         }
@@ -209,7 +209,7 @@
 //                         *bullet_feeder_control_torque_ =
 //                             bullet_feeder_velocity_pid_.update(velocity_err);
 
-//                         update_reset_detection();
+//                         // update_reset_detection();
 //                     } else {
 //                         // 其他状态：角度环保持角度不变防止弹链退弹
 //                         double velocity_err =

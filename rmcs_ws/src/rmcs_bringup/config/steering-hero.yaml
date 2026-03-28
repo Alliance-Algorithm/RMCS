@@ -46,11 +46,11 @@ hero_hardware:
     top_yaw_motor_zero_point: 59425
     viewer_motor_zero_point: 3030
     external_imu_port: /dev/ttyUSB0
-    bullet_feeder_motor_zero_point: 43027
+    bullet_feeder_motor_zero_point: 21854
     left_front_zero_point: 4437
-    right_front_zero_point: 1036
-    left_back_zero_point:  3790
-    right_back_zero_point: 5796
+    right_front_zero_point: 1029
+    left_back_zero_point:  3693
+    right_back_zero_point: 5801
     # left_front_zero_point: 3473
     # left_back_zero_point: 6124
     # right_back_zero_point: 6157
@@ -62,10 +62,11 @@ hero_hardware:
 value_broadcaster:
   ros__parameters:
     forward_list:
-        - /chassis/power
-        - /referee/chassis/power
-        - /referee/chassis/power_limit
-        - /chassis/control_power_limit
+      - /shoot/heat
+        # - /chassis/power
+        # - /referee/chassis/power
+        # - /referee/chassis/power_limit
+        # - /chassis/control_power_limit
         # - /chassis/supercap/voltage
         # - /gimbal/putter/velocity
         # - /gimbal/first_left_friction/velocity
@@ -167,10 +168,10 @@ friction_wheel_controller:
       - /gimbal/second_left_friction
       - /gimbal/second_right_friction
     friction_velocities:
-      - 385.00
-      - 385.00
-      - 520.00
-      - 520.00
+      - 380.00
+      - 380.00
+      - 542.00
+      - 542.00
     friction_soft_start_stop_time: 1.0
 
 heat_controller:
