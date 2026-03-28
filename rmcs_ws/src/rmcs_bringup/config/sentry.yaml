@@ -10,9 +10,12 @@ rmcs_executor:
       - rmcs_core::referee::command::Interaction -> referee_interaction
       - rmcs_core::referee::command::interaction::Ui -> referee_ui
 
-      - rmcs_core::controller::gimbal::SimpleGimbalController -> gimbal_controller
-      - rmcs_core::controller::gimbal::DualYawController -> dual_yaw_controller
-      - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
+      - sp_vision_25::bridge::SpVisionBridge -> sp_vision_bridge
+      # - rmcs_core::controller::gimbal::VirtualTargetSnapshotProvider -> virtual_target_snapshot_provider
+      - rmcs_core::controller::gimbal::SentryGimbalController -> gimbal_controller
+      # - rmcs_core::controller::gimbal::AutoAimResponseRecorder -> auto_aim_response_recorder
+
+      # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
 
       - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
       - rmcs_core::controller::shooting::HeatController -> heat_controller
@@ -20,6 +23,12 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController -> left_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> right_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller
+
+      # Identification examples (disabled by default)
+      # - rmcs_core::controller::identification::SweptFrequencyController -> pitch_swept_frequency_controller
+      # - rmcs_core::controller::identification::StaticTorqueTestController -> pitch_static_torque_test_controller
+      # - rmcs_core::controller::identification::SweptFrequencyController -> top_yaw_swept_frequency_controller
+      # - rmcs_core::controller::identification::SweptFrequencyController -> bottom_yaw_swept_frequency_controller
 
       - rmcs_core::controller::chassis::ChassisController -> chassis_controller
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
@@ -32,6 +41,7 @@ sentry_hardware:
   ros__parameters:
     board_serial_top_board: "d4-2184"
     board_serial_bottom_board: "d4-041d"
+    board_serial_gimbal_board: "d4-1d2b"
     bottom_yaw_motor_zero_point: 49242
     top_yaw_motor_zero_point: 43156
     pitch_motor_zero_point: 1446
@@ -40,6 +50,11 @@ sentry_hardware:
     right_back_zero_point: 2655
     right_front_zero_point: 6425
 
+sp_vision_bridge:
+  ros__parameters:
+    config_file: configs/sentry.yaml
+    debug: false
+
 rmcs_navigation:
   ros__parameters:
     config_name: "rmul"
@@ -47,41 +62,73 @@ rmcs_navigation:
 
 gimbal_controller:
   ros__parameters:
+    bullet_speed_fallback: 23.0
+    result_timeout: 0.2
+
     upper_limit: -0.39518
     lower_limit: 0.36
     navigation_scan_yaw_speed: 1.2
     navigation_scan_pitch_speed: 0.45
 
+    yaw_offset: 0.0
+    pitch_offset: 0.6
+    decision_speed: 10.0
+    high_speed_delay_time: 0.026
+    low_speed_delay_time: 0.010
+    fire_thresh: 0.025
+    max_yaw_acc: 500.0
+    max_pitch_acc: 100.0
+
+    top_yaw_angle_kp: 30.0
+    top_yaw_angle_ki: 0.0
+    top_yaw_angle_kd: 0.0
+    top_yaw_velocity_kp: 2.160
+    top_yaw_velocity_ki: 0.0
+    top_yaw_velocity_kd: 0.0
+
+    bottom_yaw_angle_kp: 8.8
+    bottom_yaw_angle_ki: 0.0
+    bottom_yaw_angle_kd: 0.0
+    bottom_yaw_velocity_kp: 3.064
+    bottom_yaw_velocity_ki: 0.0
+    bottom_yaw_velocity_kd: 0.0
+
+    pitch_angle_kp: 40.0
+    pitch_angle_ki: 0.0
+    pitch_angle_kd: 0.01
+    pitch_velocity_kp: 2.5
+    pitch_velocity_ki: 0.0
+    pitch_velocity_kd: 0.0
+
+    k_top_to_bottom: -1.0
+
+    bottom_yaw_vel_ff_gain: 1.0
+    bottom_yaw_acc_ff_gain: 0.087017
+    bottom_yaw_viscous_ff_gain: 0.002495
+    # bottom_yaw_coulomb_ff_gain: 0.457343
+    # bottom_yaw_coulomb_ff_tanh_gain: 100.0
+    top_yaw_vel_ff_gain: 1.0
+    top_yaw_acc_ff_gain: 0.018
+    top_yaw_viscous_ff_gain: 0.231
+    # top_yaw_coulomb_ff_gain: 1.12
+    # top_yaw_coulomb_ff_tanh_gain: 100.0
+    pitch_vel_ff_gain: 1.0
+    pitch_acc_ff_gain: 0.0033
+    pitch_viscous_ff_gain: 0.33
+    # pitch_coulomb_ff_gain: 0.95
+    # pitch_coulomb_ff_tanh_gain: 100.0
+    pitch_gravity_ff_gain: 2.128
+    pitch_gravity_ff_phase: 1.438
+
+auto_aim_response_recorder:
+  ros__parameters:
+    output_csv_path: /tmp/sp_vision_response_test.csv
+    csv_decimation: 1
+    require_auto_aim_request: true
+
 chassis_controller:
   ros__parameters:
     navigation_velocity_scale: 1.0
-
-dual_yaw_controller:
-  ros__parameters:
-    top_yaw_angle_kp: 5.0
-    top_yaw_angle_ki: 0.0
-    top_yaw_angle_kd: 0.0
-    top_yaw_velocity_kp: 7.0
-    top_yaw_velocity_ki: 0.0
-    top_yaw_velocity_kd: 0.0
-    bottom_yaw_angle_kp: 8.6
-    bottom_yaw_angle_ki: 0.0
-    bottom_yaw_angle_kd: 0.0
-    bottom_yaw_velocity_kp: 2.0
-    bottom_yaw_velocity_ki: 0.1
-    bottom_yaw_velocity_kd: 6.25
-    bottom_yaw_velocity_integral_min: -10.0
-    bottom_yaw_velocity_integral_max: +10.0
-    bottom_yaw_velocity_output_min: -16.0
-    bottom_yaw_velocity_output_max: +16.0
-
-pitch_angle_pid_controller:
-  ros__parameters:
-    measurement: /gimbal/pitch/control_angle_error
-    control: /gimbal/pitch/control_velocity
-    kp: 15.0
-    ki: 0.0
-    kd: 0.0
 
 friction_wheel_controller:
   ros__parameters:
@@ -89,8 +136,8 @@ friction_wheel_controller:
       - /gimbal/left_friction
       - /gimbal/right_friction
     friction_velocities:
-      - 690.0
-      - 690.0
+      - 660.0
+      - 660.0
     friction_soft_start_stop_time: 1.0
 
 heat_controller:
@@ -100,8 +147,8 @@ heat_controller:
 
 bullet_feeder_controller:
   ros__parameters:
-    bullets_per_feeder_turn: 10.0
-    shot_frequency: 24.0
+    bullets_per_feeder_turn: 9.0
+    shot_frequency: 28.0
     safe_shot_frequency: 10.0
     eject_frequency: 15.0
     eject_time: 0.15
@@ -149,3 +196,89 @@ steering_wheel_controller:
     chassis_translation_kp: 8.0
     chassis_translation_ki: 0.0
     chassis_translation_kd: 0.0
+
+pitch_swept_frequency_controller:
+  ros__parameters:
+    target: /gimbal/pitch
+
+    sweep: true
+    logarithmic: true
+    start_freq: 0.1
+    end_freq: 50.0
+    duration: 60.0
+    amplitude: 6.0
+
+    pid: true
+    setpoint: 0.0
+    position_kp: 14.0
+    position_ki: 0.0
+    position_kd: 0.0
+    velocity_kp: 2.0
+    velocity_ki: 0.0
+    velocity_kd: 0.0
+    dc_offset: 0.0
+
+pitch_static_torque_test_controller:
+  ros__parameters:
+    target: /gimbal/pitch
+    interval_angle: 0.017453293 # 1 deg
+    wait_time: 3.0
+    border_clip: 0.043633231 # 2.5 deg
+    position_kp: 14.0
+    position_ki: 0.1
+    position_kd: 0.0
+    velocity_kp: 2.0
+    velocity_ki: 0.0
+    velocity_kd: 0.0
+
+top_yaw_swept_frequency_controller:
+  ros__parameters:
+    target: /gimbal/top_yaw
+
+    sweep: true
+    logarithmic: true
+    start_freq: 0.1
+    end_freq: 50.0
+    duration: 120.0
+    amplitude: 10.0
+
+    pid: true
+    setpoint: 0.0
+    position_kp: 8.0
+    position_ki: 0.0
+    position_kd: 0.0
+    velocity_kp: 2.0
+    velocity_ki: 0.0
+    velocity_kd: 0.0
+    dc_offset: 0.0
+
+bottom_yaw_swept_frequency_controller:
+  ros__parameters:
+    target: /gimbal/bottom_yaw
+
+    sweep: true
+    logarithmic: true
+    start_freq: 0.1
+    end_freq: 5.0
+    duration: 80.0
+    amplitude: 4.0
+
+virtual_target_snapshot_provider:
+  ros__parameters:
+    virtual_valid: true
+    virtual_converged: false
+    virtual_armor_count: 4
+    virtual_armor_type: small
+    virtual_armor_name: three
+
+    virtual_center_distance: 2.0
+    virtual_center_yaw: 0.0
+    virtual_center_height: -0.6
+    virtual_center_velocity_x: 0.0
+    virtual_center_velocity_y: 0.0
+    virtual_center_velocity_z: 0.0
+    virtual_angular_velocity: 0.0
+    virtual_base_radius: 0.2
+    virtual_radius_delta: 0.025
+    virtual_height_delta: 0.0
+    virtual_initial_phase: 0.0

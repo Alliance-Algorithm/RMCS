@@ -19,20 +19,9 @@ public:
         , measurement_(*this, "measurement")
         , setpoint_(*this, "setpoint")
         , feedforward_(*this, "feedforward", 0.0)
-        , pid_calculator_(
-              get_parameter("kp").as_double(), get_parameter("ki").as_double(),
-              get_parameter("kd").as_double()) {
+        , pid_calculator_(make_pid_calculator(*this, "")) {
 
         register_output(get_parameter("control").as_string(), control_);
-
-        get_parameter("integral_min", pid_calculator_.integral_min);
-        get_parameter("integral_max", pid_calculator_.integral_max);
-
-        get_parameter("integral_split_min", pid_calculator_.integral_split_min);
-        get_parameter("integral_split_max", pid_calculator_.integral_split_max);
-
-        get_parameter("output_min", pid_calculator_.output_min);
-        get_parameter("output_max", pid_calculator_.output_max);
     }
 
     void update() override {

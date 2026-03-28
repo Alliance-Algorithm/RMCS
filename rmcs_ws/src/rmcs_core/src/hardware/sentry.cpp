@@ -1,3 +1,5 @@
+#include <atomic>
+#include <chrono>
 #include <cmath>
 #include <cstddef>
 #include <format>
@@ -22,6 +24,7 @@
 #include <rclcpp/subscription.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/hard_sync_snapshot.hpp>
 #include <rmcs_msgs/serial_interface.hpp>
 #include <rmcs_utility/ring_buffer.hpp>
 #include <std_msgs/msg/int32.hpp>
@@ -36,14 +39,12 @@
 
 namespace rmcs_core::hardware {
 
+using Clock = std::chrono::steady_clock;
+
 namespace {
 
 double wrap_single_turn(double angle) {
     return std::remainder(angle, 2.0 * std::numbers::pi_v<double>);
-}
-
-Eigen::Quaterniond top_board_pitch_compensation(double pitch_angle) {
-    return Eigen::Quaterniond{Eigen::AngleAxisd{-pitch_angle, Eigen::Vector3d::UnitY()}};
 }
 
 } // namespace
@@ -51,6 +52,11 @@ Eigen::Quaterniond top_board_pitch_compensation(double pitch_angle) {
 class Sentry
     : public rmcs_executor::Component
     , public rclcpp::Node {
+    class SentryCommand;
+    class GimbalBoard;
+    class TopBoard;
+    class BottomBoard;
+
 public:
     Sentry()
         : Node(
@@ -58,7 +64,9 @@ public:
               rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true))
         , command_component_(
               create_partner_component<SentryCommand>(get_component_name() + "_command", *this)) {
+        register_input("/predefined/timestamp", timestamp_);
         register_output("/tf", tf_);
+        register_output("/gimbal/hard_sync_snapshot", hard_sync_snapshot_);
 
         gimbal_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
             "/gimbal/calibrate", rclcpp::QoS{0}, [this](std_msgs::msg::Int32::UniquePtr&& msg) {
@@ -84,8 +92,13 @@ public:
         bottom_board_ = std::make_unique<BottomBoard>(
             *this, *command_component_, get_parameter("board_serial_bottom_board").as_string());
 
+        gimbal_board_ = std::make_unique<GimbalBoard>(
+            *this, get_parameter("board_serial_gimbal_board").as_string());
+
+        tf_->set_transform<rmcs_description::BottomYawLink, rmcs_description::TopYawLink>(
+            Eigen::Translation3d{0.08, 0.0, 0.0});
         tf_->set_transform<rmcs_description::PitchLink, rmcs_description::CameraLink>(
-            Eigen::Translation3d{0.06603, 0.0, 0.082});
+            Eigen::Translation3d{0.07128, 0.0, 0.0481});
     }
 
     Sentry(const Sentry&) = delete;
@@ -95,9 +108,18 @@ public:
 
     ~Sentry() override = default;
 
+    void before_updating() override {
+        gimbal_board_->begin_hard_sync_capture();
+        next_hard_sync_log_time_ = Clock::now() + std::chrono::seconds(1);
+    }
+
     void update() override {
         top_board_->update();
         bottom_board_->update();
+        gimbal_board_->update();
+        tf_->set_transform<rmcs_description::PitchLink, rmcs_description::OdomGimbalImu>(
+            gimbal_board_->imu_pose().conjugate());
+        update_hard_sync_snapshot();
     }
 
     void command_update() {
@@ -161,6 +183,28 @@ private:
             bottom_board_->chassis_steer_motors_[1].calibrate_zero_point());
     }
 
+    void update_hard_sync_snapshot() {
+        if (!hard_sync_pending_.exchange(false, std::memory_order_relaxed))
+            return;
+
+        hard_sync_snapshot_->valid = true;
+        hard_sync_snapshot_->exposure_timestamp = *timestamp_;
+        const Eigen::Quaterniond gimbal_board_imu_pose = gimbal_board_->imu_pose();
+        hard_sync_snapshot_->qw = gimbal_board_imu_pose.w();
+        hard_sync_snapshot_->qx = gimbal_board_imu_pose.x();
+        hard_sync_snapshot_->qy = gimbal_board_imu_pose.y();
+        hard_sync_snapshot_->qz = gimbal_board_imu_pose.z();
+        ++hard_sync_snapshot_count_;
+
+        if (*timestamp_ >= next_hard_sync_log_time_) {
+            RCLCPP_INFO(
+                get_logger(), "[hard sync] published %zu snapshots in the last second",
+                hard_sync_snapshot_count_);
+            hard_sync_snapshot_count_ = 0;
+            next_hard_sync_log_time_ = *timestamp_ + std::chrono::seconds(1);
+        }
+    }
+
     class SentryCommand : public rmcs_executor::Component {
     public:
         explicit SentryCommand(Sentry& sentry)
@@ -169,6 +213,68 @@ private:
         void update() override { sentry.command_update(); }
 
         Sentry& sentry;
+    };
+
+    class GimbalBoard final : private librmcs::agent::CBoard {
+    public:
+        explicit GimbalBoard(Sentry& sentry, std::string_view board_serial = {})
+            : librmcs::agent::CBoard(board_serial)
+            , sentry_(sentry) {
+            bmi088_.set_coordinate_mapping([](double x, double y, double z) {
+                // Get the mapping with the following code.
+                // The rotation angle must be an exact multiple of 90 degrees, otherwise
+                // use a matrix.
+
+                // Eigen::AngleAxisd pitch_link_to_bmi088_link{
+                //     std::numbers::pi / 2, Eigen::Vector3d::UnitZ()};
+                // Eigen::Vector3d mapping = pitch_link_to_bmi088_link *
+                // Eigen::Vector3d{1, 2, 3}; std::cout << mapping << std::endl;
+
+                return std::make_tuple(y, -x, z);
+            });
+        }
+
+        GimbalBoard(const GimbalBoard&) = delete;
+        GimbalBoard& operator=(const GimbalBoard&) = delete;
+        GimbalBoard(GimbalBoard&&) = delete;
+        GimbalBoard& operator=(GimbalBoard&&) = delete;
+
+        ~GimbalBoard() override = default;
+
+        void begin_hard_sync_capture() {
+            start_transmit().gpio_digital_read({
+                .channel = 7,
+                .falling_edge = true,
+                .pull = librmcs::data::GpioPull::kUp,
+            });
+        }
+
+        void update() {
+            bmi088_.update_status();
+            imu_pose_ = Eigen::Quaterniond{bmi088_.q0(), bmi088_.q1(), bmi088_.q2(), bmi088_.q3()};
+        }
+
+        auto imu_pose() const -> Eigen::Quaterniond { return imu_pose_; }
+
+    private:
+        void accelerometer_receive_callback(
+            const librmcs::data::AccelerometerDataView& data) override {
+            bmi088_.store_accelerometer_status(data.x, data.y, data.z);
+        }
+
+        void gyroscope_receive_callback(const librmcs::data::GyroscopeDataView& data) override {
+            bmi088_.store_gyroscope_status(data.x, data.y, data.z);
+        }
+
+        void gpio_digital_read_result_callback(
+            const librmcs::data::GpioDigitalDataView& data) override {
+            if (data.channel == 7 && !data.high)
+                sentry_.hard_sync_pending_.store(true, std::memory_order_relaxed);
+        }
+
+        Sentry& sentry_;
+        device::Bmi088 bmi088_{1000, 0.2, 0.0};
+        Eigen::Quaterniond imu_pose_ = Eigen::Quaterniond::Identity();
     };
 
     class TopBoard final : private librmcs::agent::CBoard {
@@ -239,8 +345,8 @@ private:
             const Eigen::Quaterniond gimbal_bmi088_pose{
                 bmi088_.q0(), bmi088_.q1(), bmi088_.q2(), bmi088_.q3()};
 
-            tf_->set_transform<rmcs_description::PitchLink, rmcs_description::OdomImu>(
-                top_board_pitch_compensation(pitch_angle) * gimbal_bmi088_pose.conjugate());
+            tf_->set_transform<rmcs_description::BottomYawLink, rmcs_description::OdomImu>(
+                gimbal_bmi088_pose.conjugate());
 
             *gimbal_yaw_velocity_bmi088_ = bmi088_.gz();
             *gimbal_pitch_velocity_bmi088_ = bmi088_.gy();
@@ -249,10 +355,10 @@ private:
             gimbal_left_friction_.update_status();
             gimbal_right_friction_.update_status();
 
-            tf_->set_state<rmcs_description::YawLink, rmcs_description::PitchLink>(
-                gimbal_pitch_motor_.angle());
-            // tf_->set_state<rmcs_description::YawLink, rmcs_description::PitchLink>(
-            //     gimbal_top_yaw_motor_.angle());
+            // std::cerr << "top_yaw: " << gimbal_top_yaw_motor_.angle() << '\n';
+            tf_->set_state<rmcs_description::BottomYawLink, rmcs_description::TopYawLink>(
+                gimbal_top_yaw_motor_.angle());
+            tf_->set_state<rmcs_description::TopYawLink, rmcs_description::PitchLink>(pitch_angle);
         }
 
         void command_update() {
@@ -277,7 +383,7 @@ private:
 
             builder.can2_transmit({
                 .can_id = 0x141,
-                .can_data = gimbal_pitch_motor_.generate_velocity_command().as_bytes(),
+                .can_data = gimbal_pitch_motor_.generate_torque_command().as_bytes(),
             });
         }
 
@@ -552,9 +658,15 @@ private:
         OutputInterface<double> chassis_yaw_velocity_imu_;
     };
 
+    InputInterface<Clock::time_point> timestamp_;
     OutputInterface<rmcs_description::Tf> tf_;
+    OutputInterface<rmcs_msgs::HardSyncSnapshot> hard_sync_snapshot_;
+    std::atomic<bool> hard_sync_pending_{false};
+    size_t hard_sync_snapshot_count_ = 0;
+    Clock::time_point next_hard_sync_log_time_{};
 
     std::shared_ptr<SentryCommand> command_component_;
+    std::unique_ptr<GimbalBoard> gimbal_board_;
     std::unique_ptr<TopBoard> top_board_;
     std::unique_ptr<BottomBoard> bottom_board_;
 

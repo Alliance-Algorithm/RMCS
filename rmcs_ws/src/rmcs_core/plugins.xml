@@ -9,6 +9,7 @@
   <class type="rmcs_core::controller::chassis::OmniWheelController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::SteeringWheelController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::gimbal::SimpleGimbalController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::gimbal::SentryGimbalController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::gimbal::OmniInfantryGimbalController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::gimbal::HeroGimbalController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::gimbal::DualYawController" base_class_type="rmcs_executor::Component" />
@@ -20,6 +21,8 @@
   <class type="rmcs_core::controller::shooting::BulletFeederController17mm" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::shooting::BulletFeederController42mm" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::shooting::ShootingRecorder" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::identification::SweptFrequencyController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::identification::StaticTorqueTestController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::pid::PidController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::pid::ErrorPidController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::broadcaster::TfBroadcaster" base_class_type="rmcs_executor::Component" />
