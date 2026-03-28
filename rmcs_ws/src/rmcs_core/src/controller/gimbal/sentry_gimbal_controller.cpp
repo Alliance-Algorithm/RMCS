@@ -355,10 +355,10 @@ private:
         return fast_tf::lookup_transform<BottomYawLink, TopYawLink>(*tf_).translation();
     }
 
-    TwoAxisGimbalSolver::AngleError
-        upper_angle_error(const Eigen::Vector3d& control_direction) {
-        return upper_gimbal_solver_.update(TwoAxisGimbalSolver::SetControlDirection{
-            fast_tf::cast<OdomImu>(OdomGimbalImu::DirectionVector{control_direction}, *tf_)});
+    TwoAxisGimbalSolver::AngleError upper_angle_error(const Eigen::Vector3d& control_direction) {
+        return upper_gimbal_solver_.update(
+            TwoAxisGimbalSolver::SetControlDirection{
+                fast_tf::cast<OdomImu>(OdomGimbalImu::DirectionVector{control_direction}, *tf_)});
     }
 
     ControlTarget update_manual_target() {
