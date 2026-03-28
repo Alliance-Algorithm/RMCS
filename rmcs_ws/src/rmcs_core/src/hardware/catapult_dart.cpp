@@ -37,12 +37,12 @@
 
 namespace rmcs_core::hardware {
 
-class CatapultDartV3Lk
+class CatapultDart
     : public rmcs_executor::Component
     , public rclcpp::Node
     , private librmcs::agent::CBoard {
 public:
-    CatapultDartV3Lk()
+    CatapultDart()
         : Node{
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
@@ -76,11 +76,14 @@ public:
         force_screw_motor_.configure(
             device::DjiMotor::Config{device::DjiMotor::Type::kM3508}.set_reduction_ratio(19.));
         drive_belt_motor_left_.configure(
-            device::DjiMotor::Config{device::DjiMotor::Type::kM3508}.set_reduction_ratio(19.));
+            device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
+                .set_reduction_ratio(19.)
+                .enable_multi_turn_angle());
         drive_belt_motor_right_.configure(
             device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
                 .set_reversed()
-                .set_reduction_ratio(19.));
+                .set_reduction_ratio(19.)
+                .enable_multi_turn_angle());
 
         lifting_left_motor_.configure(
             device::LkMotor::Config{device::LkMotor::Type::kMG4005Ei10}.enable_multi_turn_angle());
@@ -130,11 +133,11 @@ public:
         };
     }
 
-    CatapultDartV3Lk(const CatapultDartV3Lk&) = delete;
-    CatapultDartV3Lk& operator=(const CatapultDartV3Lk&) = delete;
-    CatapultDartV3Lk(CatapultDartV3Lk&&) = delete;
-    CatapultDartV3Lk& operator=(CatapultDartV3Lk&&) = delete;
-    ~CatapultDartV3Lk() override = default;
+    CatapultDart(const CatapultDart&) = delete;
+    CatapultDart& operator=(const CatapultDart&) = delete;
+    CatapultDart(CatapultDart&&) = delete;
+    CatapultDart& operator=(CatapultDart&&) = delete;
+    ~CatapultDart() override = default;
 
     void update() override {
         dr16_.update_status();
@@ -148,15 +151,24 @@ public:
         lifting_right_motor_.update_status();
         imu_.update_status();
         processImuData();
+
+        // 调试：打印多圈角度（每200次打印一次）
+        // if (++angle_debug_counter_ >= 200) {
+        //     angle_debug_counter_ = 0;
+        //     RCLCPP_INFO(
+        //         logger_,
+        //         "[Multi-turn Angle] left_belt=%.4f rad, right_belt=%.4f rad, "
+        //         "lifting_left=%.4f rad, lifting_right=%.4f rad",
+        //         drive_belt_motor_left_.angle(), drive_belt_motor_right_.angle(),
+        //         lifting_left_motor_.angle(), lifting_right_motor_.angle());
+        // }
     }
 
     void command_update() {
         auto board = start_transmit();
 
         // Trigger servo: PWM via GPIO
-        // TODO: gpio_analog_transmit not available in librmcs v3.0.0
-        // board.gpio_analog_transmit({.channel = 1, .value =
-        // trigger_servo_.generate_duty_cycle()});
+        board.gpio_analog_write({.channel = 1, .value = trigger_servo_.generate_duty_cycle()});
 
         // Force sensor: polling command on CAN1 (every 100 cycles)
         if (pub_time_count_++ > 100) {
@@ -479,12 +491,12 @@ private:
 
     class DartCommand : public rmcs_executor::Component {
     public:
-        explicit DartCommand(CatapultDartV3Lk& dart)
+        explicit DartCommand(CatapultDart& dart)
             : dart_(dart) {}
         void update() override { dart_.command_update(); }
 
     private:
-        CatapultDartV3Lk& dart_;
+        CatapultDart& dart_;
     };
 
     std::shared_ptr<DartCommand> dart_command_;
@@ -534,6 +546,7 @@ private:
     int pub_time_count_ = 0;
     int force_sensor_frame_count_ = 0;
     int can2_unknown_count_ = 0;
+    int angle_debug_counter_ = 0;
 
     double first_sample_spot_ = 1.0;
     double final_sample_spot_ = 4.0;
@@ -547,4 +560,4 @@ private:
 } // namespace rmcs_core::hardware
 
 #include <pluginlib/class_list_macros.hpp>
-PLUGINLIB_EXPORT_CLASS(rmcs_core::hardware::CatapultDartV3Lk, rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(rmcs_core::hardware::CatapultDart, rmcs_executor::Component)

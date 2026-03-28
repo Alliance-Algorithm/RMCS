@@ -27,19 +27,18 @@ enum class BeltControlMode : uint8_t {
     HOLD_TORQUE = 5,      // 保持扭矩模式
 };
 
-class DartLaunchSettingV2
+class DartLaunchSetting
     : public rmcs_executor::Component
     , public rclcpp::Node {
 public:
-    DartLaunchSettingV2()
-        : Node{get_component_name(),
-               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
+    DartLaunchSetting()
+        : Node{
+              get_component_name(),
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , velocity_pid_{
-              get_parameter("velocity_kp").as_double(),
-              get_parameter("velocity_ki").as_double(),
-              get_parameter("velocity_kd").as_double()} {
+              get_parameter("b_kp").as_double(), get_parameter("b_ki").as_double(),
+              get_parameter("b_kd").as_double()} {
 
-        // 加载参数
         position_kp_ = get_parameter("position_kp").as_double();
         sync_coefficient_ = get_parameter("sync_coefficient").as_double();
         max_control_torque_ = get_parameter("max_control_torque").as_double();
@@ -50,14 +49,13 @@ public:
         trigger_lock_value_ = get_parameter("trigger_lock_value").as_double();
         default_belt_hold_torque_ = get_parameter("belt_hold_torque").as_double();
 
-        // 注册输入接口 - 统一控制模式
-        register_input("/dart/manager/belt/control_mode", belt_control_mode_);
-        register_input("/dart/manager/belt/command", belt_command_, false);
-        register_input("/dart/manager/belt/target_position", belt_target_position_, false);
+        register_input("/dart/manager/belt/control_mode", belt_control_mode_, true);
+        register_input("/dart/manager/belt/command", belt_command_, true);
+        register_input("/dart/manager/belt/target_position", belt_target_position_, true);
         register_input("/dart/manager/belt/target_velocity", belt_target_velocity_, false);
-        register_input("/dart/manager/belt/max_velocity", belt_max_velocity_, false);
-        register_input("/dart/manager/belt/torque_limit", belt_torque_limit_, false);
-        register_input("/dart/manager/belt/hold_torque", belt_hold_torque_input_, false);
+        register_input("/dart/manager/belt/max_velocity", belt_max_velocity_, true);
+        register_input("/dart/manager/belt/torque_limit", belt_torque_limit_, true);
+        register_input("/dart/manager/belt/hold_torque", belt_hold_torque_input_, true);
         register_input("/dart/manager/belt/wait_zero_velocity", belt_wait_zero_velocity_, false);
         register_input("/dart/manager/belt/zero_calibration", belt_zero_calibration_, false);
         register_input("/dart/manager/trigger/lock_enable", trigger_lock_enable_);
@@ -69,7 +67,6 @@ public:
         register_input("/force_sensor/channel_1/weight", force_sensor_ch1_, false);
         register_input("/force_sensor/channel_2/weight", force_sensor_ch2_, false);
 
-        // 注册输出接口
         register_output("/dart/drive_belt/left/control_torque", left_belt_torque_, 0.0);
         register_output("/dart/drive_belt/right/control_torque", right_belt_torque_, 0.0);
         register_output("/dart/trigger_servo/value", trigger_value_, trigger_lock_value_);
@@ -77,15 +74,15 @@ public:
     }
 
     void update() override {
-        // 处理零点校准命令
         if (belt_zero_calibration_.ready() && *belt_zero_calibration_) {
             calibrate_zero_position();
         }
 
-        // 根据控制模式执行相应控制
-        BeltControlMode mode = static_cast<BeltControlMode>(*belt_control_mode_);
+        BeltControlMode mode = BeltControlMode::IDLE;
+        if (belt_control_mode_.ready()) {
+            mode = static_cast<BeltControlMode>(*belt_control_mode_);
+        }
 
-        // 如果是速度控制模式，根据 belt_command 决定具体行为
         if (mode == BeltControlMode::VELOCITY_CONTROL && belt_command_.ready()) {
             mode = process_velocity_command();
         }
@@ -93,6 +90,9 @@ public:
         if (mode != control_mode_) {
             velocity_pid_.reset();
             control_mode_ = mode;
+            if (control_mode_ == BeltControlMode::HOLD_POSITION) {
+                target_hold_position_ = get_avg_position();
+            }
         }
 
         switch (mode) {
@@ -105,7 +105,6 @@ public:
         default: idle_mode(); break;
         }
 
-        // 扳机控制
         *trigger_value_ = *trigger_lock_enable_ ? trigger_lock_value_ : trigger_free_value_;
     }
 
@@ -125,38 +124,48 @@ private:
             return BeltControlMode::VELOCITY_CONTROL;
         default:
             return belt_wait_zero_velocity_.ready() && *belt_wait_zero_velocity_
-                       ? BeltControlMode::WAIT_ZERO
-                       : BeltControlMode::HOLD_TORQUE;
+                     ? BeltControlMode::WAIT_ZERO
+                     : BeltControlMode::HOLD_TORQUE;
         }
     }
 
-    // 零点校准：将当前位置设为零点
     void calibrate_zero_position() {
         left_zero_offset_ = *left_belt_angle_;
         right_zero_offset_ = *right_belt_angle_;
     }
 
-    // 获取相对于零点的位置（rad）
     double get_left_position() const { return *left_belt_angle_ - left_zero_offset_; }
     double get_right_position() const { return *right_belt_angle_ - right_zero_offset_; }
     double get_avg_position() const { return (get_left_position() + get_right_position()) / 2.0; }
 
-    // 梯形速度规划：计算当前应有的速度（rad/s）
     double compute_profile_velocity(double current_pos, double target_pos, double max_vel) const {
+        if (max_vel <= 0.0 || belt_acceleration_ <= 0.0) {
+            return 0.0;
+        }
+
         double distance = target_pos - current_pos;
+        if (std::abs(distance) <= 1e-9) {
+            return 0.0;
+        }
+
         double direction = (distance > 0) ? 1.0 : -1.0;
         double abs_distance = std::abs(distance);
 
-        // 从最大速度减速到零所需的距离
         double decel_distance = (max_vel * max_vel) / (2.0 * belt_acceleration_);
 
         if (abs_distance > decel_distance) {
-            // 加速或匀速阶段
             return direction * max_vel;
         } else {
-            // 减速阶段
             return direction * std::sqrt(2.0 * belt_acceleration_ * abs_distance);
         }
+    }
+
+    double select_torque_limit() const {
+        if (!belt_torque_limit_.ready()) {
+            return max_control_torque_;
+        }
+        const double limit = std::abs(*belt_torque_limit_);
+        return limit > 1e-9 ? limit : max_control_torque_;
     }
 
     // 位置控制模式
@@ -168,27 +177,28 @@ private:
 
         double target_pos = *belt_target_position_;
         double max_vel = std::abs(*belt_max_velocity_);
-        double torque_limit =
-            belt_torque_limit_.ready() ? std::abs(*belt_torque_limit_) : max_control_torque_;
+        double torque_limit = select_torque_limit();
 
-        // 位置环（外环）
-        double left_pos = get_left_position();
-        double right_pos = get_right_position();
-        double avg_pos = (left_pos + right_pos) / 2.0;
-
-        double left_pos_error = target_pos - left_pos;
-        double right_pos_error = target_pos - right_pos;
+        // 使用平均位置做速度规划，避免多层位置环叠加导致速度突变
+        double avg_pos = get_avg_position();
 
         // 速度规划（中环）
         double profile_velocity = compute_profile_velocity(avg_pos, target_pos, max_vel);
+        double left_vel_setpoint = profile_velocity;
+        double right_vel_setpoint = profile_velocity;
 
-        // 位置反馈生成速度设定值
-        double left_vel_setpoint = position_kp_ * left_pos_error;
-        double right_vel_setpoint = position_kp_ * right_pos_error;
-
-        // 限制到规划速度
-        left_vel_setpoint = std::clamp(left_vel_setpoint, -max_vel, max_vel);
-        right_vel_setpoint = std::clamp(right_vel_setpoint, -max_vel, max_vel);
+        // 调试日志（每100次打印一次）
+        static int debug_counter = 0;
+        if (++debug_counter >= 100) {
+            debug_counter = 0;
+            RCLCPP_INFO(
+                get_logger(),
+                "[position_control] avg_pos=%.4f, target=%.4f, error=%.4f, "
+                "profile_vel=%.4f, max_vel=%.4f, left_angle=%.4f, right_angle=%.4f, "
+                "left_offset=%.4f, right_offset=%.4f",
+                avg_pos, target_pos, std::abs(target_pos - avg_pos), profile_velocity, max_vel,
+                *left_belt_angle_, *right_belt_angle_, left_zero_offset_, right_zero_offset_);
+        }
 
         // 同步控制 + 扭矩控制（内环）
         sync_velocity_control(left_vel_setpoint, right_vel_setpoint, torque_limit);
@@ -200,8 +210,7 @@ private:
 
     // 速度控制模式
     void velocity_control() {
-        double torque_limit =
-            belt_torque_limit_.ready() ? std::abs(*belt_torque_limit_) : max_control_torque_;
+        double torque_limit = select_torque_limit();
         sync_velocity_control(velocity_command_value_, velocity_command_value_, torque_limit);
         *position_reached_ = false;
     }
@@ -228,11 +237,13 @@ private:
     // 保持扭矩模式
     void hold_torque_mode() {
         double hold_torque = 0.0;
+        double torque_limit = select_torque_limit();
         if (belt_hold_torque_input_.ready()) {
             hold_torque = *belt_hold_torque_input_;
         } else if (prev_belt_cmd_ == rmcs_msgs::DartSliderStatus::DOWN) {
             hold_torque = default_belt_hold_torque_;
         }
+        hold_torque = std::clamp(hold_torque, -torque_limit, torque_limit);
 
         *left_belt_torque_ = hold_torque;
         *right_belt_torque_ = hold_torque;
@@ -263,20 +274,20 @@ private:
     }
 
     // 参数
-    double position_kp_;               // 位置环比例增益
-    double sync_coefficient_;          // 同步阻尼系数
-    double max_control_torque_;        // N⋅m - 最大扭矩限制
-    double belt_acceleration_;         // rad/s² - 加速度
-    double position_tolerance_;        // rad - 位置误差阈值
-    double default_velocity_;          // rad/s - 默认速度
-    double trigger_free_value_;        // 扳机释放值
-    double trigger_lock_value_;        // 扳机锁定值
-    double default_belt_hold_torque_;  // N⋅m - 默认保持扭矩
+    double position_kp_;              // 位置环比例增益
+    double sync_coefficient_;         // 同步阻尼系数
+    double max_control_torque_;       // N⋅m - 最大扭矩限制
+    double belt_acceleration_;        // rad/s² - 加速度
+    double position_tolerance_;       // rad - 位置误差阈值
+    double default_velocity_;         // rad/s - 默认速度
+    double trigger_free_value_;       // 扳机释放值
+    double trigger_lock_value_;       // 扳机锁定值
+    double default_belt_hold_torque_; // N⋅m - 默认保持扭矩
 
     // 状态变量
-    double left_zero_offset_{0.0};     // 左电机零点偏移（rad）
-    double right_zero_offset_{0.0};    // 右电机零点偏移（rad）
-    double target_hold_position_{0.0}; // 保持模式的目标位置（rad）
+    double left_zero_offset_{0.0};       // 左电机零点偏移（rad）
+    double right_zero_offset_{0.0};      // 右电机零点偏移（rad）
+    double target_hold_position_{0.0};   // 保持模式的目标位置（rad）
     double velocity_command_value_{0.0}; // 速度控制命令值
     rmcs_msgs::DartSliderStatus prev_belt_cmd_{rmcs_msgs::DartSliderStatus::WAIT};
     BeltControlMode control_mode_{BeltControlMode::IDLE};
@@ -284,7 +295,6 @@ private:
     // PID 控制器
     pid::MatrixPidCalculator<2> velocity_pid_;
 
-    // 输入接口
     InputInterface<uint8_t> belt_control_mode_;
     InputInterface<rmcs_msgs::DartSliderStatus> belt_command_;
     InputInterface<double> belt_target_position_;
@@ -301,7 +311,6 @@ private:
     InputInterface<double> right_belt_velocity_;
     InputInterface<int> force_sensor_ch1_, force_sensor_ch2_;
 
-    // 输出接口
     OutputInterface<double> left_belt_torque_;
     OutputInterface<double> right_belt_torque_;
     OutputInterface<double> trigger_value_;
@@ -311,5 +320,4 @@ private:
 } // namespace rmcs_core::controller::dart
 
 #include <pluginlib/class_list_macros.hpp>
-PLUGINLIB_EXPORT_CLASS(
-    rmcs_core::controller::dart::DartLaunchSettingV2, rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::dart::DartLaunchSetting, rmcs_executor::Component)

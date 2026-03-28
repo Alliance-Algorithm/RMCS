@@ -2,18 +2,18 @@ rmcs_executor:
   ros__parameters:
     update_rate: 1000.0
     components:
-      - rmcs_core::hardware::CatapultDartV3Lk        -> dart_hardware
-      - rmcs_dart_guidance::DartVisionCore           -> dart_vision
-      - rmcs_dart_guidance::ImagePublisher           -> dart_camera_image_publisher
-      - rmcs_dart_guidance::ImagePublisher           -> dart_display_image_publisher
+      # - rmcs_dart_guidance::DartVisionCore           -> dart_vision
+      # - rmcs_dart_guidance::ImagePublisher           -> dart_camera_image_publisher
+      # - rmcs_dart_guidance::ImagePublisher           -> dart_display_image_publisher
       # - rmcs_dart_guidance::manager::AutoAimOnlyComponent -> auto_aim_only
-      - rmcs_dart_guidance::manager::DartManagerV2   -> dart_manager
       - rmcs_dart_guidance::manager::RemoteCommandBridge -> remote_cmd_bridge
       - rmcs_dart_guidance::manager::WebCommandBridge -> web_cmd_bridge
-      - rmcs_core::controller::dart::DartLaunchSettingV2 -> launch_setting
+      - rmcs_dart_guidance::manager::DartManager   -> dart_manager
+      - rmcs_core::controller::dart::DartLaunchSetting -> launch_setting
       - rmcs_core::controller::dart::DartFilling -> dart_filling
       - rmcs_core::controller::dart::DartSettingController -> dart_setting
       - rmcs_core::controller::pid::PidController    -> force_screw_velocity_pid_controller
+      - rmcs_core::hardware::CatapultDart            -> dart_hardware
       - rmcs_core::broadcaster::ValueBroadcaster -> broadcaster
 
 dart_hardware:
@@ -81,9 +81,15 @@ dart_manager:
     max_transform_rate: 5.0
     auto_aim_max_transform_rate: 10.0
     manual_force_scale: 5.0
-    dart_count: 4  # 每次装填的飞镖数量
-    belt_down_distance: 0.15  # m - 传送带下行距离（滑台蓄力行程）
-    belt_pulley_radius: 0.02  # m - 传送带滑轮半径（用于距离-角度转换）
+    belt_down_distance: 0.01  # m - 传送带下行距离（滑台蓄力行程）
+    belt_pulley_radius: 0.0195  # m - 传送带滑轮半径（用于距离-角度转换）
+    belt_prepare_down_decel_distance: 0.02  # m - 下行减速窗口长度（从减速起点到最终下位）
+    belt_prepare_down_ramp_ticks: 400       # ticks - 下行斜坡减速时长
+    belt_prepare_down_hold_torque: 5.0      # N⋅m - 下行完成后保持张力
+    belt_prepare_down_zero_velocity_threshold: 0.15  # rad/s - 斜坡结束零速阈值
+    belt_prepare_down_zero_confirm_ticks: 60         # ticks - 零速确认帧数
+    belt_prepare_down_ramp_timeout_ticks: 10000       # ticks - 下行斜坡阶段超时
+    belt_up_target_position: 1.0  # rad - 上行终点（可略大于0避免机械限位超调）
     aim_reference_pixel: [701.0, 565.0]
     aim_dart_offsets_px: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
     aim_yaw_gain: 0.08
@@ -94,11 +100,12 @@ dart_manager:
     aim_timeout_ticks: 5000
     aim_timeout_returns_success: true
     aim_min_transform_rate: 1.0
-    limiting_fill_ticks:  2000
-    lifting_stall_threshold:     0.1    # rad/s，低于此值视为堵转
-    lifting_stall_confirm_ticks: 100    # 连续帧数 = 0.1s @ 1kHz
-    lifting_stall_min_run_ticks: 500    # 启动后最少运行帧数，避免启动瞬间误触发
-    lifting_stall_timeout_ticks: 2000   # 超时帧数 = 5s
+    limiting_fill_ticks:  200
+    belt_stall_velocity_threshold: 0.15  # rad/s，低于此值且扭矩高时视为皮带可疑堵转
+    belt_stall_torque_threshold: 0.8     # N⋅m，堵转判定的力矩阈值
+    belt_stall_confirm_ticks: 100        # 连续帧数确认皮带堵转
+    belt_stall_min_run_ticks: 300        # 启动后最少运行帧数，避免起停误判
+    slider_init_timeout_ticks: 3000      # ticks - 无接驳件测试环境下，SliderInit 超时返回 SUCCESS 的阈值
 
 launch_setting:
   ros__parameters:
@@ -107,24 +114,13 @@ launch_setting:
     max_control_torque: 2.5
     trigger_free_value: 0.75
     trigger_lock_value: 0.63
+    position_kp: 5.0  # 位置环比例增益
+    belt_acceleration: 20.0  # rad/s² - 加速度（用于速度规划）
+    position_tolerance: 0.002  # rad - 位置误差阈值
     b_kp: 1.0
     b_ki: 0.0
     b_kd: 0.0
-    belt_hold_torque: 15.0   # manager 未提供保留力矩时的回退值
-
-# 位置控制器参数（新增）
-belt_position_controller:
-  ros__parameters:
-    position_kp: 5.0  # 位置环比例增益
-    velocity_kp: 1.0  # 速度环比例增益
-    velocity_ki: 0.0  # 速度环积分增益
-    velocity_kd: 0.0  # 速度环微分增益
-    sync_coefficient: 0.1  # 同步阻尼系数
-    max_control_torque: 5.0  # N⋅m - 最大扭矩限制
-    belt_acceleration: 50.0  # rad/s² - 加速度（用于速度规划）
-    belt_position_tolerance: 0.002  # rad - 位置误差阈值
-    trigger_free_value: 0.75  # 扳机释放值
-    trigger_lock_value: 0.63  # 扳机锁定值
+    belt_hold_torque: 5.0   # manager 未提供保留力矩时的回退值
 
 dart_filling:
   ros__parameters:
