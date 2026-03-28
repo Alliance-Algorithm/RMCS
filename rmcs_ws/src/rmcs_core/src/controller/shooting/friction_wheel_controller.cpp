@@ -167,18 +167,18 @@ private:
         // The first friction wheel in the list is considered the primary one, meaning we only
         // monitor the speed drop of this wheel to detect whether a bullet has been fired.
         if (!std::isnan(last_primary_friction_velocity_)) {
-            double differential = *friction_velocities_[0] - last_primary_friction_velocity_;
+            double differential = *friction_velocities_[2] - last_primary_friction_velocity_;
             if (differential < 0.1)
                 primary_friction_velocity_decrease_integral_ += differential;
             else {
                 if (primary_friction_velocity_decrease_integral_ < -14.0
-                    && last_primary_friction_velocity_ < friction_working_velocities_[0] - 25.0)
+                    && last_primary_friction_velocity_ < friction_working_velocities_[2] - 25.0)
                     fired = true;
 
                 primary_friction_velocity_decrease_integral_ = 0;
             }
         }
-        last_primary_friction_velocity_ = *friction_velocities_[0];
+        last_primary_friction_velocity_ = *friction_velocities_[2];
 
         return fired;
     }

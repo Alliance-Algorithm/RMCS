@@ -26,9 +26,7 @@ public:
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , status_ring_(26.5, 26.5, 600, 40)
-        , rangefinder_()
         , chassis_direction_indicator_(Shape::Color::PINK, 8, x_center, y_center, 0, 0, 84, 84)
-        , state_word_(Shape::Color::WHITE, 32, 3, x_center - 140, y_center + 320, "BOOTING", true)
         , time_reminder_(Shape::Color::PINK, 50, 5, x_center + 150, y_center + 65, 0, false) {
 
         chassis_control_direction_indicator_.set_x(x_center);
@@ -70,15 +68,15 @@ public:
 
     void update() override {
         update_normal_ui();
-        update_sniper_ui();
-        update_state_word();
+        // update_sniper_ui();
+        // update_state_word();
 
         // if (*is_scope_active_) {
         //     set_normal_ui_visible(false);
         //     rangefinder_.set_visible(true);
         // } else {
         set_normal_ui_visible(true);
-        rangefinder_.set_visible(false);
+        // rangefinder_.set_visible(false);
         // }
     }
 
@@ -99,7 +97,7 @@ private:
             *left_friction_control_velocity_ > 0);
         status_ring_.update_supercap(*supercap_voltage_, true);
         status_ring_.update_battery_power(*chassis_voltage_);
-        update_static_status_ring();
+        // update_static_status_ring();
     }
 
     void update_sniper_ui() {

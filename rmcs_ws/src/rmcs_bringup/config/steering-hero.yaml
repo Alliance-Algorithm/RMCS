@@ -25,7 +25,7 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController -> first_right_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> second_left_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> second_right_friction_velocity_pid_controller
-      # - rmcs_core::controller::shooting::ShootingRecorder -> shooting_recorder
+      - rmcs_core::controller::shooting::ShootingRecorder -> shooting_recorder
 
       - rmcs_core::controller::chassis::ChassisController -> chassis_controller
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
@@ -48,11 +48,11 @@ hero_hardware:
     top_yaw_motor_zero_point: 59425
     viewer_motor_zero_point: 3030
     external_imu_port: /dev/ttyUSB0
-    bullet_feeder_motor_zero_point: 43027
-    left_front_zero_point: 4433
-    right_front_zero_point: 1004
-    left_back_zero_point:  3871
-    right_back_zero_point: 5799
+    bullet_feeder_motor_zero_point: 21854
+    left_front_zero_point: 4437
+    right_front_zero_point: 1029
+    left_back_zero_point:  3693
+    right_back_zero_point: 5801
     # left_front_zero_point: 3473
     # left_back_zero_point: 6124
     # right_back_zero_point: 6157
@@ -64,15 +64,16 @@ hero_hardware:
 value_broadcaster:
   ros__parameters:
     forward_list:
+      - /shoot/heat
         # - /chassis/power
         # - /referee/chassis/power
         # - /referee/chassis/power_limit
         # - /chassis/control_power_limit
         # - /chassis/supercap/voltage
         # - /gimbal/putter/velocity
-        - /gimbal/first_left_friction/velocity
+        # - /gimbal/first_left_friction/velocity
         # - /gimbal/first_second_friction/velocity
-        - /gimbal/second_left_friction/velocity
+        # - /gimbal/second_left_friction/velocity
         # - /gimbal/second_right_friction/velocity
         # - /gimbal/first_left_friction/control_torque
         # - /gimbal/first_second_friction/control_torque
@@ -171,8 +172,8 @@ friction_wheel_controller:
     friction_velocities:
       - 380.00
       - 380.00
-      - 540.00
-      - 540.00
+      - 542.00
+      - 542.00
     friction_soft_start_stop_time: 1.0
 
 heat_controller:
