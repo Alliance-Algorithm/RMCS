@@ -1,3 +1,8 @@
+#include <chrono>
+#include <filesystem>
+#include <fstream>
+#include <string>
+
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/keyboard.hpp>
@@ -83,6 +88,15 @@ public:
 
         register_output("/gimbal/shooter/mode", shoot_mode_, rmcs_msgs::ShootMode::SINGLE);
         register_output("/gimbal/shooter/condiction", shoot_condiction_);
+
+        register_output("/gimbal/shoot/delay_ms", shoot_delay_ms_, nan_);
+        // initialize_shoot_delay_log();
+    }
+
+    ~PutterController() {
+        // if (shoot_delay_log_stream_.is_open()) {
+        //     shoot_delay_log_stream_.close();
+        // }
     }
 
     void update() override {
@@ -90,12 +104,14 @@ public:
         const auto switch_left = *switch_left_;
         const auto mouse = *mouse_;
         const auto keyboard = *keyboard_;
+        const bool bullet_fired_now = *bullet_fired_;
 
         using namespace rmcs_msgs;
 
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
             reset_all_controls();
+            // update_shoot_delay_measurement(bullet_fired_now);
             return;
         }
 
@@ -217,13 +233,14 @@ public:
                         if (shooted) {
                             // 子弹已发出：推杆复位
                             const auto angle_err = putter_startpoint - *putter_angle_;
-                            if (angle_err > -0.05) {
+                            if (angle_err > -0.1) {
                                 *putter_control_torque_ = 0.;
                                 set_preloading();
                                 shooted = false;
                             } else {
                                 *putter_control_torque_ =
                                     putter_return_velocity_pid_.update(-80. - *putter_velocity_);
+                                putter_timeout_detection();
                             }
                         } else {
                             // 子弹未发出：继续推进
@@ -247,6 +264,8 @@ public:
             update_putter_jam_detection();
         }
 
+        // update_shoot_delay_measurement(bullet_fired_now);
+
         // 保存当前状态用于下次比较
         last_switch_right_ = switch_right;
         last_switch_left_ = switch_left;
@@ -269,7 +288,7 @@ private:
         bullet_feeder_angle_pid_.reset();
         *bullet_feeder_control_torque_ = nan_;
 
-        // shoot_stage_ = ShootStage::PRELOADING;
+        shoot_stage_ = ShootStage::PRELOADING;
 
         putter_initialized = false;
         putter_startpoint = nan_;
@@ -283,6 +302,10 @@ private:
 
         bullet_feeder_faulty_count_ = 0;
         bullet_feeder_cool_down_ = 0;
+
+        shot_delay_pending_ = false;
+        last_bullet_fired_ = false;
+        *shoot_delay_ms_ = nan_;
     }
 
     void set_resetting() {
@@ -309,6 +332,8 @@ private:
     void set_shooting() {
         RCLCPP_INFO(get_logger(), "SHOOTING");
         shoot_stage_ = ShootStage::SHOOTING;
+        shoot_start_time_ = std::chrono::steady_clock::now();
+        shot_delay_pending_ = true;
     }
 
     void set_updating() { shoot_stage_ = ShootStage::UPDATING; }
@@ -363,6 +388,21 @@ private:
         }
     }
 
+    void putter_timeout_detection() {
+        // 推杆在发射状态下长时间不推出，认为已经完成推杆，直接进入下一个状态
+        if (shoot_stage_ == ShootStage::SHOOTING) {
+            if (shooted) {
+                if (putter_timeout_count_ < 1600)
+                    ++putter_timeout_count_;
+                else {
+                    putter_timeout_count_ = 0;
+                    set_preloading();
+                    shooted = false;
+                }
+            }
+        }
+    }
+
     void enter_jam_protection() {
         // 设置目标角度为当前角度后退 60 度
         bullet_feeder_control_angle_ = *bullet_feeder_angle_ - bullet_feeder_angle_per_bullet_;
@@ -381,6 +421,65 @@ private:
         RCLCPP_INFO(get_logger(), "%f, %f", reference_angle, *bullet_feeder_angle_);
         bullet_feeder_control_angle_ = reference_angle;
     }
+
+    // void update_shoot_delay_measurement(bool bullet_fired_now) {
+    //     const bool bullet_fired_rising_edge = bullet_fired_now && !last_bullet_fired_;
+
+    //     if (shot_delay_pending_ && bullet_fired_rising_edge) {
+    //         const auto now = std::chrono::steady_clock::now();
+    //         const double delay_ms =
+    //             std::chrono::duration<double, std::milli>(now - shoot_start_time_).count();
+    //         *shoot_delay_ms_ = delay_ms;
+    //         // RCLCPP_INFO(
+    //         //     get_logger(), "Shoot delay[%zu]: %.3f ms", shoot_delay_sample_count_,
+    //         delay_ms); log_shoot_delay(delay_ms); shot_delay_pending_ = false;
+    //     }
+
+    //     // Shot ended without a bullet_fired edge: drop this sample.
+    //     if (shot_delay_pending_ && shoot_stage_ != ShootStage::SHOOTING)
+    //         shot_delay_pending_ = false;
+
+    //     last_bullet_fired_ = bullet_fired_now;
+    // }
+
+    // void initialize_shoot_delay_log() {
+    //     using namespace std::chrono;
+    //     const std::filesystem::path log_dir{"/robot_shoot"};
+    //     std::error_code ec;
+    //     std::filesystem::create_directories(log_dir, ec);
+    //     if (ec) {
+    //         RCLCPP_WARN(
+    //             get_logger(), "Failed to create shoot delay log directory %s: %s",
+    //             log_dir.c_str(), ec.message().c_str());
+    //     }
+
+    //     const auto now = system_clock::now();
+    //     const auto ms = duration_cast<milliseconds>(now.time_since_epoch()).count();
+    //     shoot_delay_log_path_ = (log_dir / ("shoot_delay_" + std::to_string(ms) +
+    //     ".log")).string(); shoot_delay_log_stream_.open(shoot_delay_log_path_);
+
+    //     if (!shoot_delay_log_stream_.is_open()) {
+    //         RCLCPP_WARN(
+    //             get_logger(), "Failed to open shoot delay log file: %s",
+    //             shoot_delay_log_path_.c_str());
+    //         return;
+    //     }
+
+    //     shoot_delay_log_stream_ << "shot_index,delay_ms,timestamp_ms" << std::endl;
+    //     RCLCPP_INFO(get_logger(), "Shoot delay log file: %s", shoot_delay_log_path_.c_str());
+    // }
+
+    // void log_shoot_delay(double delay_ms) {
+    //     if (!shoot_delay_log_stream_.is_open())
+    //         return;
+
+    //     using namespace std::chrono;
+    //     const auto timestamp_ms =
+    //         duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+    //     shoot_delay_log_stream_ << shoot_delay_sample_count_++ << ',' << delay_ms << ','
+    //                             << timestamp_ms << std::endl;
+    //     shoot_delay_log_stream_.flush();
+    // }
 
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN(); ///< 非数值常量
     static constexpr double inf_ = std::numeric_limits<double>::infinity();  ///< 无穷大常量
@@ -422,6 +521,7 @@ private:
 
     bool putter_initialized = false;
     int putter_faulty_count_ = 0;
+    int putter_timeout_count_ = 0;
     double putter_startpoint = nan_;
     pid::PidCalculator putter_return_velocity_pid_;
     InputInterface<double> putter_velocity_;
@@ -446,6 +546,16 @@ private:
 
     OutputInterface<rmcs_msgs::ShootMode> shoot_mode_;
     OutputInterface<rmcs_msgs::ShootCondiction> shoot_condiction_;
+
+    OutputInterface<double> shoot_delay_ms_;
+
+    std::chrono::steady_clock::time_point shoot_start_time_{};
+    bool shot_delay_pending_ = false;
+    bool last_bullet_fired_ = false;
+
+    std::ofstream shoot_delay_log_stream_;
+    std::string shoot_delay_log_path_;
+    std::size_t shoot_delay_sample_count_ = 0;
 };
 
 } // namespace rmcs_core::controller::shooting
