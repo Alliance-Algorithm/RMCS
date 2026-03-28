@@ -11,16 +11,21 @@
 #include <cstddef>
 #include <functional>
 #include <limits>
+#include <map>
 #include <optional>
 #include <rclcpp/logging.hpp>
+#include <rclcpp/node.hpp>
+#include <rclcpp/parameter.hpp>
+#include <stdexcept>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
 namespace rmcs_core::controller::leg::hsm::up_stairs {
 
-inline constexpr std::size_t LegJointCount = 4;
+inline constexpr std::size_t LegJointCount       = 4;
 inline constexpr std::size_t FullLayerParamCount = LegJointCount + 2;
 inline constexpr std::size_t HalfLayerParamCount = (LegJointCount / 2) + 2;
 
@@ -38,18 +43,7 @@ public:
         reset();
     }
 
-    bool loaded() const { return loaded_; }
-
-    void unload() {
-        loaded_ = false;
-        active_layer_.reset();
-        reset();
-    }
-
-    void reset() {
-        active_layer_.reset();
-        trajectory_.reset();
-    }
+    void reset() { trajectory_.reset(); }
 
     bool beginLayer(
         const LayerId& layer, const std::array<double, LegJointCount>& start_joints,
@@ -65,11 +59,8 @@ public:
         std::array<double, LegJointCount> end_point{};
         double k = 0.0;
         double b = 0.0;
-        if (!decodeLayerParameter(*parameter, end_point, k, b)) {
-            return false;
-        }
+        decodeLayerParameter(*parameter, end_point, k, b);
 
-        active_layer_ = layer;
         trajectory_.reset();
         trajectory_.set_start_point(toVector(start_joints));
         trajectory_.set_end_point(toVector(end_point));
@@ -77,32 +68,28 @@ public:
         return true;
     }
 
-    bool tickLayer(const LayerId& layer, std::array<double, LegJointCount>& out_joints) {
-        if (loaded_ && active_layer_ && *active_layer_ == layer) {
-            if (trajectory_.get_complete()) {
-                return true;
-            }
+    bool tickLayer(std::array<double, LegJointCount>& out_joints) {
+        if (trajectory_.get_complete()) {
+            return true;
+        }
 
-            const auto joints = trajectory_.trajectory();
-            std::copy(joints.begin(), joints.end(), out_joints.begin());
-            return false;
-        } else
-            return false;
+        const auto joints = trajectory_.trajectory();
+        std::copy(joints.begin(), joints.end(), out_joints.begin());
+        return false;
     }
 
 private:
     static constexpr int MinStep       = 200;
-    static constexpr int MaxStep       = 4000;
+    static constexpr int MaxStep       = 2500;
     static constexpr double VReference = 1.5;
 
-    static bool decodeLayerParameter(
+    static void decodeLayerParameter(
         const std::vector<double>& parameter, std::array<double, LegJointCount>& end_point,
         double& k, double& b) {
         if (parameter.size() == FullLayerParamCount) {
             std::copy_n(parameter.begin(), LegJointCount, end_point.begin());
             k = parameter[LegJointCount];
             b = parameter[LegJointCount + 1];
-            return true;
         }
         if (parameter.size() == HalfLayerParamCount) {
             end_point[0] = parameter[0];
@@ -111,9 +98,7 @@ private:
             end_point[3] = parameter[0];
             k            = parameter[2];
             b            = parameter[3];
-            return true;
         }
-        return false;
     }
 
     static std::vector<double> toVector(const std::array<double, LegJointCount>& values) {
@@ -131,16 +116,11 @@ private:
         if (it == layer_parameters_.end()) {
             return nullptr;
         }
-        const auto& parameter = it->second;
-        if (parameter.size() != FullLayerParamCount && parameter.size() != HalfLayerParamCount) {
-            return nullptr;
-        }
-        return &parameter;
+        return &(it->second);
     }
 
     LayerParameters layer_parameters_{};
     bool loaded_{false};
-    std::optional<LayerId> active_layer_{};
     rmcs_core::controller::arm::Trajectory<rmcs_core::controller::arm::TrajectoryType::JOINT>
         trajectory_;
 };
@@ -173,7 +153,7 @@ public:
     linear::LayerTickResult onTick(UpStairsRunnerContext& ctx) override {
         std::array<double, LegJointCount> output_state =
             ctx.result ? *ctx.result : std::array<double, LegJointCount>{};
-        const bool layer_complete = ctx.planner->tickLayer(layer_id_, output_state);
+        const bool layer_complete = ctx.planner->tickLayer(output_state);
         if (ctx.result) {
             *ctx.result = output_state;
         }
@@ -189,19 +169,14 @@ private:
     LayerId layer_id_;
 };
 
-inline std::array<double, LegJointCount> makeNaNResult() {
-    return {
-        std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(),
-        std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN()};
-}
-
 class Auto_Leg_Up_Stairs {
 public:
     using LayerRunner = linear::LinearLayerRunner<UpStairsRunnerContext, LayerId>;
 
-    Auto_Leg_Up_Stairs(rmcs_executor::Component& component, const rclcpp::Logger& logger)
-        : logger_(logger)
-        , context_{
+    Auto_Leg_Up_Stairs(
+        rmcs_executor::Component& component, std::string_view name,
+        std::vector<std::string_view> layer_ids)
+        : context_{
               &planner_, [this]() { return readCurrentLegJoints(); },
               [this]() { return readCurrentSpeedX(); }, &result_}
         , runner_([this](LayerId id) { return resolveLayer(id); }) {
@@ -211,103 +186,93 @@ public:
         component.register_input("/leg/encoder/rb/angle", theta_rb_);
         component.register_input("/leg/encoder/rf/angle", theta_rf_);
         component.register_input("/chassis/control_velocity", speed_);
-    }
-
-    bool start() {
-        linear::StartRequest<LayerId> linear_request;
-        linear_request.layers = defaultPlan();
-
-        if (!runner_.start(linear_request, context_)) {
-            RCLCPP_WARN(logger_, "up one stairs start failed: runner rejected request");
-            return false;
-        }
-        return true;
-    }
-
-    void set_layers(std::initializer_list<LayerId> ids) {
+        plan_.clear();
         layers_.clear();
-        layers_.reserve(ids.size());
-        for (const auto& id : ids) {
+        plan_.assign(layer_ids.begin(), layer_ids.end());
+
+        layers_.reserve(plan_.size());
+        for (const auto& id : plan_) {
             layers_.emplace_back(id);
         }
+
+        const auto load_from_component = [this, &component, &name]() {
+            auto* node = dynamic_cast<rclcpp::Node*>(&component);
+            if (node == nullptr) {
+                resetResult();
+                throw std::runtime_error{
+                    "Failed to load up stairs layer parameters: component is not an rclcpp::Node."};
+            }
+
+            std::map<std::string, rclcpp::Parameter> raw;
+            const std::string prefix = std::string(name) + ".params";
+            const bool loaded =
+                node->get_node_parameters_interface()->get_parameters_by_prefix(prefix, raw);
+
+            if (!loaded || raw.empty()) {
+                resetResult();
+                throw std::runtime_error{
+                    "Failed to load up stairs layer parameters: no parameters found with prefix '"
+                    + prefix + "'."};
+            }
+
+            LayerParameters parsed;
+            parsed.reserve(plan_.size());
+            for (const auto& layer_id : plan_) {
+                const auto iter = raw.find(layer_id);
+                if (iter == raw.end()) {
+                    resetResult();
+                    throw std::runtime_error{
+                        "Failed to load up stairs layer parameters: missing parameters for layer '"
+                        + layer_id + "'."};
+                }
+                const auto parameter = (iter->second).as_double_array();
+                if (parameter.size() != FullLayerParamCount
+                    && parameter.size() != HalfLayerParamCount) {
+                    resetResult();
+                    throw std::runtime_error{
+                        "failed to load up stairs layer parameters: invalid parameter size for "
+                        "layer "
+                        + layer_id};
+                }
+                parsed.emplace(layer_id, parameter);
+            }
+            planner_.load(parsed);
+        };
+
+        load_from_component();
     }
+
+    void start() { runner_.start(plan_); }
 
     void set_layer_connections(const LayerId& id, std::function<bool()> func) {
         runner_.add_connection(id, std::move(func));
     }
 
-    std::vector<LayerId> defaultPlan() const {
-        std::vector<LayerId> ids;
-        ids.reserve(layers_.size());
-        for (const auto& layer : layers_) {
-            ids.push_back(layer.getLayerId());
+    void tick() {
+        if (runner_.status() == linear::RunnerStatus::Fault) {
+            throw std::runtime_error{
+                "haven't load planner or context correctly "};
         }
-        return ids;
-    }
-
-    void tick() { runner_.tick(context_); }
-
-    bool addLayerConnection(const LayerId& id, std::function<bool()> connection) {
-
-        return runner_.add_connection(id, std::move(connection));
+        runner_.tick(context_);
     }
 
     void clearLayerConnections() { runner_.clearConnections(); }
 
     std::optional<LayerId> get_current_layer_id() const { return runner_.current_layer_id(); }
 
-    void stop() {
-        runner_.stop();
-        resetResult();
-    }
-
     const std::array<double, LegJointCount>& get_result() const { return result_; }
 
-    Auto_Leg_Up_Stairs& load(const LayerParameters& layer_parameters) {
-        if (!validateLayerParameters(layer_parameters)) {
-            planner_.unload();
-            resetResult();
-            return *this;
-        }
-
-        planner_.load(layer_parameters);
-        resetResult();
-        return *this;
-    }
-
 private:
-    void resetResult() { result_ = makeNaNResult(); }
+    void resetResult() {
+        result_ = {
+            std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(),
+            std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN()};
+    }
     std::array<double, LegJointCount> readCurrentLegJoints() const {
         return {*theta_lf_, *theta_lb_, *theta_rb_, *theta_rf_};
     }
 
     double readCurrentSpeedX() const { return (*speed_)->x(); }
-
-    bool validateLayerParameters(const LayerParameters& layer_parameters) {
-        const auto plan = defaultPlan();
-        if (plan.empty()) {
-            RCLCPP_ERROR(logger_, "up stairs load failed: layer sequence is empty");
-            return false;
-        }
-        for (const auto& id : plan) {
-            const auto iter = layer_parameters.find(id);
-            if (iter == layer_parameters.end()) {
-                RCLCPP_ERROR(
-                    logger_, "up stairs load failed: missing parameter for layer '%s'", id.c_str());
-                return false;
-            }
-            if (iter->second.size() != FullLayerParamCount
-                && iter->second.size() != HalfLayerParamCount) {
-                RCLCPP_ERROR(
-                    logger_,
-                    "up stairs load failed: layer '%s' size=%zu expected=%zu(one-side) or "
-                    "%zu(full)",
-                    id.c_str(), iter->second.size(), HalfLayerParamCount, FullLayerParamCount);
-                return false;
-            }
-        }
-        return true;
-    }
 
     linear::ILayer<UpStairsRunnerContext>* resolveLayer(const LayerId& id) {
         auto it = std::find_if(layers_.begin(), layers_.end(), [id](const UpStairsLayer& layer) {
@@ -317,11 +282,11 @@ private:
         return (it == layers_.end()) ? nullptr : &(*it);
     }
 
-    rclcpp::Logger logger_;
     UpStairsPlanner planner_;
     std::array<double, LegJointCount> result_{};
     UpStairsRunnerContext context_{};
     std::vector<UpStairsLayer> layers_{};
+    std::vector<LayerId> plan_{};
 
     rmcs_executor::Component::InputInterface<double> theta_lf_;
     rmcs_executor::Component::InputInterface<double> theta_lb_;

@@ -79,7 +79,7 @@ leg_controller:
     forward_x_position_in_FourWheel: 243.0
     forward_x_position_in_SixWheel: 250.0
     backward_x_position_in_SixWheel: 221.0
-    up_stairs:
+    up_one_stairs:
       params:
         initial: [1.700270, 1.680, 0.0, 2000.0]
         press: [0.799803, 0.778351, -600.0, 400.0]
@@ -88,6 +88,16 @@ leg_controller:
         initial_again: [1.500270, 1.480, -300.0, 600.0]
         press_again: [0.799803, 0.778351, -600.0, 400.0]
         lift_again: [0.902222, 1.413787, -600.0, 800.0]
+    up_two_stairs:
+      params:
+        initial: [1.700270, 1.680, 0.0, 2000.0]
+        press: [0.799803, 0.778351, -600.0, 400.0]
+        lift: [0.902222, 1.413787, -600.0, 800.0]
+        lift_and_initial: [1.400270, 1.410, -100.0, 1800.0]
+        initial_again: [1.500270, 1.480, -300.0, 600.0]
+        press_again: [0.799803, 0.778351, -600.0, 400.0]
+        lift_again: [0.902222, 1.413787, -600.0, 800.0]
+
 
 gripper_error_angle_pid_controller:
   ros__parameters:

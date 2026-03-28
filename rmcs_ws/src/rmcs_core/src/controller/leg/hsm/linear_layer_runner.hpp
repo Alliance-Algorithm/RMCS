@@ -13,11 +13,7 @@ enum class RunnerStatus {
     Running,
     Paused,
     Completed,
-};
-
-template <typename LayerId>
-struct StartRequest {
-    std::vector<LayerId> layers{};
+    Fault,
 };
 
 enum class LayerTickResult {
@@ -76,21 +72,12 @@ public:
 
     void clearConnections() { connections_.clear(); }
 
-    bool start(const StartRequest<LayerId>& request, Ctx& ctx) {
-        if (!resolver_ || request.layers.empty()) {
-            return false;
-        }
-
-        plan_          = request.layers;
+    void start(const std::vector<LayerId>& layers) {
+        plan_          = layers;
         current_index_ = 0;
         pending_boundary_index_.reset();
-        status_ = RunnerStatus::Running;
-
-        if (!enterCurrentLayer(ctx)) {
-            stop();
-            return false;
-        }
-        return true;
+        current_layer_entered_ = false;
+        status_                = RunnerStatus::Running;
     }
 
     std::optional<LayerId> current_layer_id() const {
@@ -114,21 +101,28 @@ public:
                 return plan_[current_index_];
             }
         }
+        if (status_ == RunnerStatus::Fault) {
+            if (current_index_ < plan_.size()) {
+                return plan_[current_index_];
+            }
+        }
         return std::nullopt;
     }
 
-    void stop() {
-        plan_.clear();
-        current_index_ = 0;
-        pending_boundary_index_.reset();
-        status_ = RunnerStatus::Paused;
-    }
+    RunnerStatus status() const { return status_; }
 
     void tick(Ctx& ctx) {
+        if (status_ == RunnerStatus::Completed) {
+            return;
+        }
+        if (status_ == RunnerStatus::Fault) {
+            return;
+        }
+
         if (status_ == RunnerStatus::Paused && !pending_boundary_index_)
             return;
         if (pending_boundary_index_) {
-            transitionToBoundary(*pending_boundary_index_, ctx);
+            transitionToBoundary(*pending_boundary_index_);
             return;
         }
 
@@ -140,8 +134,16 @@ public:
         ILayer<Ctx>* layer = resolveCurrentLayer();
         status_            = RunnerStatus::Running;
         if (!layer) {
-            status_ = RunnerStatus::Paused;
+            status_ = RunnerStatus::Fault;
             return;
+        }
+
+        if (!current_layer_entered_) {
+            if (!layer->onEnter(ctx)) {
+                status_ = RunnerStatus::Fault;
+                return;
+            }
+            current_layer_entered_ = true;
         }
 
         const LayerTickResult result = layer->onTick(ctx);
@@ -150,7 +152,7 @@ public:
         case LayerTickResult::Completed:
             layer->onExit(ctx);
             pending_boundary_index_ = current_index_ + 1;
-            transitionToBoundary(*pending_boundary_index_, ctx);
+            transitionToBoundary(*pending_boundary_index_);
             return;
         }
     }
@@ -172,19 +174,6 @@ private:
         connections_.push_back(std::move(connection));
         return true;
     }
-    bool enterCurrentLayer(Ctx& ctx) {
-        if (current_index_ >= plan_.size()) {
-            status_ = RunnerStatus::Completed;
-            return false;
-        }
-
-        ILayer<Ctx>* layer = resolveCurrentLayer();
-        if (!layer) {
-            return false;
-        }
-        return layer->onEnter(ctx);
-    }
-
     ILayer<Ctx>* resolveCurrentLayer() const {
         return resolver_ ? resolver_(plan_[current_index_]) : nullptr;
     }
@@ -209,7 +198,7 @@ private:
         return connection->allowTransition();
     }
 
-    void transitionToBoundary(std::size_t next_index, Ctx& ctx) {
+    void transitionToBoundary(std::size_t next_index) {
         if (next_index >= plan_.size()) {
             pending_boundary_index_.reset();
             status_ = RunnerStatus::Completed;
@@ -222,18 +211,17 @@ private:
             return;
         }
 
-        status_ = RunnerStatus::Running;
-        current_index_ = next_index;
+        status_               = RunnerStatus::Running;
+        current_index_        = next_index;
+        current_layer_entered_ = false;
         pending_boundary_index_.reset();
-        if (!enterCurrentLayer(ctx)) {
-            stop();
-        }
     }
     Resolver resolver_;
     std::vector<LayerId> plan_{};
     std::vector<std::unique_ptr<IConnection<LayerId>>> connections_{};
     std::optional<std::size_t> pending_boundary_index_{};
     std::size_t current_index_{0};
+    bool current_layer_entered_{false};
     RunnerStatus status_{RunnerStatus::Paused};
 };
 
