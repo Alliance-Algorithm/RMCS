@@ -33,7 +33,7 @@ rmcs_executor:
 infantry_hardware:
   ros__parameters:
     board_serial: ""
-    yaw_motor_zero_point: 34754
+    yaw_motor_zero_point: 3385
     pitch_motor_zero_point: 53137
 
 sp_vision_bridge:
