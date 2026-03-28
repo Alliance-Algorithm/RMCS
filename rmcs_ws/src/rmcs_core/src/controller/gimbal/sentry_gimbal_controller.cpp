@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstddef>
 #include <limits>
 #include <numbers>
 #include <optional>
@@ -26,6 +27,10 @@ namespace {
 
 constexpr double kDegToRad = 1.0 / 57.3;
 constexpr double kControlDt = Planner::kDt;
+constexpr double kNavigationNodDuration = 0.5;
+constexpr double kNavigationNodHalfDuration = 0.25;
+constexpr double kNavigationNodBasePitch = 0.0;
+constexpr double kNavigationNodPeakPitch = std::numbers::pi_v<double> / 6.0;
 
 double limit_rad(double angle) {
     constexpr double kPi = std::numbers::pi_v<double>;
@@ -130,6 +135,14 @@ public:
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , upper_limit_(get_parameter("upper_limit").as_double())
         , lower_limit_(get_parameter("lower_limit").as_double())
+        , navigation_scan_yaw_speed_(parameter_or_declare(*this, "navigation_scan_yaw_speed", 0.0))
+        , navigation_scan_pitch_(clamp_pitch(
+              parameter_or_declare(*this, "navigation_scan_pitch", 0.0), upper_limit_,
+              lower_limit_))
+        , navigation_nod_base_pitch_(
+              clamp_pitch(kNavigationNodBasePitch, upper_limit_, lower_limit_))
+        , navigation_nod_peak_pitch_(
+              clamp_pitch(kNavigationNodPeakPitch, upper_limit_, lower_limit_))
         , planner_config_(load_planner_config(*this))
         , rotation_planner_(planner_config_)
         , upper_gimbal_solver_(*this, upper_limit_, lower_limit_)
@@ -187,6 +200,9 @@ public:
         register_input("/referee/shooter/initial_speed", bullet_speed_, false);
         register_input("/gimbal/auto_aim/target_snapshot", target_snapshot_, false);
 
+        register_input("/rmcs_navigation/nod_count", navigation_nod_count_);
+        register_input("/rmcs_navigation/detect_targets", navigation_detect_targets_);
+
         register_output("/gimbal/top_yaw/control_torque", top_yaw_control_torque_, nan_);
         register_output("/gimbal/bottom_yaw/control_torque", bottom_yaw_control_torque_, nan_);
         register_output("/gimbal/pitch/control_torque", pitch_control_torque_, nan_);
@@ -209,21 +225,38 @@ public:
         enter_disabled_state();
         previous_actual_yaw_ = current_barrel_yaw_pitch().first;
         previous_yaw_timestamp_ = *timestamp_;
+        navigation_nod_count_old_ = *navigation_nod_count_;
+        navigation_nod_active_ = false;
+        navigation_nod_elapsed_ = 0.0;
+        navigation_scan_active_ = false;
         mode_ = Mode::kDisabled;
     }
 
     void update() override {
+        sync_navigation_nod_count();
         const auto actual_yaw_pitch = current_barrel_yaw_pitch();
         *yaw_angle_ = *bottom_yaw_angle_;
         *yaw_velocity_ = compute_actual_yaw_velocity(actual_yaw_pitch.first);
 
         const Mode requested_mode = select_requested_mode();
+        const bool has_target_snapshot = has_fresh_target_snapshot();
         std::optional<AutoAimPlan> auto_plan;
+        std::optional<ControlTarget> navigation_scan_target;
         Mode next_mode = requested_mode;
         if (requested_mode == Mode::kAutoAim) {
-            auto_plan = make_auto_aim_plan();
-            if (!auto_plan.has_value())
+            if (has_target_snapshot)
+                auto_plan = make_auto_aim_plan();
+
+            if (auto_plan.has_value()) {
+                reset_navigation_scan();
+            } else if (!has_target_snapshot && navigation_scan_enabled()) {
+                navigation_scan_target = make_navigation_scan_target();
+            } else {
+                reset_navigation_scan();
                 next_mode = Mode::kManual;
+            }
+        } else {
+            reset_navigation_scan();
         }
 
         if (next_mode != mode_) {
@@ -237,20 +270,32 @@ public:
         }
 
         if (mode_ == Mode::kAutoAim) {
-            *control_direction_ = auto_plan->upper_control_direction;
-            *fire_control_ = auto_plan->fire;
-            apply_control(
-                ControlTarget{
+            ControlTarget target;
+            if (auto_plan.has_value()) {
+                *control_direction_ = auto_plan->upper_control_direction;
+                *fire_control_ = auto_plan->fire;
+                target = ControlTarget{
                     .bottom_yaw = auto_plan->bottom_yaw,
                     .top_yaw = auto_plan->top_yaw,
                     .pitch = auto_plan->pitch,
                     .upper_control_direction = auto_plan->upper_control_direction,
-                });
+                };
+            } else {
+                clear_auto_outputs();
+                target = *navigation_scan_target;
+            }
+
+            apply_navigation_nod(target);
+            if (target.upper_control_direction.has_value())
+                *control_direction_ = *target.upper_control_direction;
+            apply_control(target);
             return;
         }
 
         clear_auto_outputs();
-        apply_control(update_manual_target());
+        auto manual_target = update_manual_target();
+        apply_navigation_nod(manual_target);
+        apply_control(manual_target);
     }
 
 private:
@@ -282,6 +327,18 @@ private:
         manual_pitch_target_ =
             clamp_pitch(wrap_relative_angle(*pitch_angle_), upper_limit_, lower_limit_);
     }
+
+    bool has_fresh_target_snapshot() const {
+        const auto snapshot = *target_snapshot_;
+        return snapshot.valid
+            && std::chrono::duration<double>(*timestamp_ - snapshot.timestamp) <= result_timeout_;
+    }
+
+    bool navigation_scan_enabled() const {
+        return navigation_detect_targets_.ready() && *navigation_detect_targets_;
+    }
+
+    void reset_navigation_scan() { navigation_scan_active_ = false; }
 
     void reset_all_controls() {
         upper_gimbal_solver_.update(TwoAxisGimbalSolver::SetDisabled{});
@@ -318,6 +375,17 @@ private:
         previous_actual_yaw_ = actual_yaw;
         previous_yaw_timestamp_ = now;
         return velocity;
+    }
+
+    void sync_navigation_nod_count() {
+        if (!navigation_nod_count_.ready())
+            return;
+
+        if (*navigation_nod_count_ < navigation_nod_count_old_) {
+            navigation_nod_count_old_ = *navigation_nod_count_;
+            navigation_nod_active_ = false;
+            navigation_nod_elapsed_ = 0.0;
+        }
     }
 
     std::pair<double, double> current_barrel_yaw_pitch() const {
@@ -385,6 +453,70 @@ private:
                     .target = manual_pitch_target_,
                 },
         };
+    }
+
+    ControlTarget make_navigation_scan_target() {
+        if (!navigation_scan_active_) {
+            navigation_scan_bottom_yaw_target_ = current_bottom_world_yaw();
+            navigation_scan_active_ = true;
+        }
+
+        navigation_scan_bottom_yaw_target_ =
+            limit_rad(navigation_scan_bottom_yaw_target_ + navigation_scan_yaw_speed_ * kControlDt);
+        return {
+            .bottom_yaw =
+                AxisCommand{
+                    .target = navigation_scan_bottom_yaw_target_,
+                    .velocity_ff = navigation_scan_yaw_speed_,
+                },
+            .top_yaw =
+                AxisCommand{
+                    .target = 0.0,
+                },
+            .pitch =
+                AxisCommand{
+                    .target = navigation_scan_pitch_,
+                },
+        };
+    }
+
+    double navigation_nod_pitch_target() const {
+        const double rising_scale = navigation_nod_elapsed_ / kNavigationNodHalfDuration;
+        const double falling_scale =
+            (kNavigationNodDuration - navigation_nod_elapsed_) / kNavigationNodHalfDuration;
+        const double scale = std::clamp(
+            navigation_nod_elapsed_ < kNavigationNodHalfDuration ? rising_scale : falling_scale,
+            0.0, 1.0);
+        return navigation_nod_base_pitch_
+             + (navigation_nod_peak_pitch_ - navigation_nod_base_pitch_) * scale;
+    }
+
+    void apply_navigation_nod(ControlTarget& target) {
+        if (!navigation_nod_count_.ready())
+            return;
+
+        if (!navigation_nod_active_) {
+            if (*navigation_nod_count_ == navigation_nod_count_old_)
+                return;
+            navigation_nod_active_ = true;
+            navigation_nod_elapsed_ = 0.0;
+        }
+
+        const double pitch_target = navigation_nod_pitch_target();
+        target.pitch.target = pitch_target;
+        target.pitch.velocity_ff = 0.0;
+        target.pitch.acceleration_ff = 0.0;
+        if (target.upper_control_direction.has_value()) {
+            target.upper_control_direction = direction_from_yaw_pitch(
+                limit_rad(target.bottom_yaw.target + target.top_yaw.target), pitch_target);
+        }
+
+        navigation_nod_elapsed_ += kControlDt;
+        if (navigation_nod_elapsed_ >= kNavigationNodDuration) {
+            navigation_nod_active_ = false;
+            navigation_nod_elapsed_ = 0.0;
+            ++navigation_nod_count_old_;
+        }
     }
 
     std::optional<AutoAimPlan> make_auto_aim_plan() {
@@ -593,6 +725,10 @@ private:
 
     const double upper_limit_;
     const double lower_limit_;
+    const double navigation_scan_yaw_speed_;
+    const double navigation_scan_pitch_;
+    const double navigation_nod_base_pitch_;
+    const double navigation_nod_peak_pitch_;
     const PlannerConfig planner_config_;
     Planner rotation_planner_;
     TwoAxisGimbalSolver upper_gimbal_solver_;
@@ -631,6 +767,11 @@ private:
     double manual_pitch_target_ = 0.0;
     double previous_actual_yaw_ = 0.0;
     std::chrono::steady_clock::time_point previous_yaw_timestamp_{};
+    bool navigation_scan_active_ = false;
+    double navigation_scan_bottom_yaw_target_ = 0.0;
+    size_t navigation_nod_count_old_ = 0;
+    bool navigation_nod_active_ = false;
+    double navigation_nod_elapsed_ = 0.0;
 
     InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;
@@ -651,6 +792,9 @@ private:
 
     InputInterface<float> bullet_speed_;
     InputInterface<rmcs_msgs::TargetSnapshot> target_snapshot_;
+
+    InputInterface<size_t> navigation_nod_count_;
+    InputInterface<bool> navigation_detect_targets_;
 
     OutputInterface<double> top_yaw_control_torque_;
     OutputInterface<double> bottom_yaw_control_torque_;
