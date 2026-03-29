@@ -69,7 +69,7 @@ public:
 
         register_output("/dart/drive_belt/left/control_torque", left_belt_torque_, 0.0);
         register_output("/dart/drive_belt/right/control_torque", right_belt_torque_, 0.0);
-        register_output("/dart/trigger_servo/value", trigger_value_, trigger_lock_value_);
+        register_output("/dart/trigger_servo/control_angle", trigger_value_, trigger_lock_value_);
         register_output("/dart/belt/position_reached", position_reached_, false);
     }
 
@@ -257,9 +257,45 @@ private:
         *position_reached_ = false;
     }
 
-    // 同步速度控制
+    // 同步速度控制（带速度限制）
     void sync_velocity_control(
         double left_vel_setpoint, double right_vel_setpoint, double torque_limit) {
+
+        // 速度限制：如果超速，将速度设定值限制为当前速度（停止加速）
+        const double velocity_limit_factor = 1.2;
+        double left_vel_limit = std::abs(left_vel_setpoint) * velocity_limit_factor;
+        double right_vel_limit = std::abs(right_vel_setpoint) * velocity_limit_factor;
+
+        // 检查是否超速，如果超速则限制速度设定值
+        if (std::abs(*left_belt_velocity_) > left_vel_limit) {
+            // 超速：将设定值限制为当前速度的符号 × 限制值
+            left_vel_setpoint = std::copysign(left_vel_limit, left_vel_setpoint);
+
+            static int left_overspeed_counter = 0;
+            if (++left_overspeed_counter >= 100) {
+                left_overspeed_counter = 0;
+                RCLCPP_WARN(
+                    get_logger(),
+                    "[sync_velocity_control] LEFT OVERSPEED: vel=%.4f, limit=%.4f, clamped setpoint=%.4f",
+                    *left_belt_velocity_, left_vel_limit, left_vel_setpoint);
+            }
+        }
+
+        if (std::abs(*right_belt_velocity_) > right_vel_limit) {
+            // 超速：将设定值限制为当前速度的符号 × 限制值
+            right_vel_setpoint = std::copysign(right_vel_limit, right_vel_setpoint);
+
+            static int right_overspeed_counter = 0;
+            if (++right_overspeed_counter >= 100) {
+                right_overspeed_counter = 0;
+                RCLCPP_WARN(
+                    get_logger(),
+                    "[sync_velocity_control] RIGHT OVERSPEED: vel=%.4f, limit=%.4f, clamped setpoint=%.4f",
+                    *right_belt_velocity_, right_vel_limit, right_vel_setpoint);
+            }
+        }
+
+        // 正常 PID 控制（使用可能被限制后的速度设定值）
         Eigen::Vector2d vel_error{
             left_vel_setpoint - *left_belt_velocity_, right_vel_setpoint - *right_belt_velocity_};
         Eigen::Vector2d relative_velocity{

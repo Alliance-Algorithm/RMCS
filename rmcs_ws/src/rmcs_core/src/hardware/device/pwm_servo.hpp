@@ -17,7 +17,7 @@ public:
         , duty_scale_(
               ((max_position_high_time - min_position_high_time) / pwm_cycle_time)
               * std::numeric_limits<uint16_t>::max()) {
-        command_component.register_input(name + "/value", value_);
+        command_component.register_input(name + "/control_angle", value_);
     }
     constexpr uint16_t generate_duty_cycle() const {
         double value = std::clamp(*value_, 0.0, 1.0);

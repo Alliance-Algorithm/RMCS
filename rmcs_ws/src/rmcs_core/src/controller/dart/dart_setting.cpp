@@ -48,12 +48,12 @@ public:
         *yaw_torque_ = yaw_pid_.update(yaw_pitch_velocity[0] - *yaw_velocity_);
         *pitch_torque_ = pitch_pid_.update(yaw_pitch_velocity[1] - *pitch_velocity_);
 
-        if (log_enable_) {
-            if (log_counter_++ >= 1000) {
-                RCLCPP_INFO(get_logger(), "ch1 : %d | ch2 : %d", *weight_ch1_, *weight_ch2_);
-                log_counter_ = 0;
-            }
-        }
+        // if (log_enable_) {
+        //     if (log_counter_++ >= 1000) {
+        //         RCLCPP_INFO(get_logger(), "ch1 : %d | ch2 : %d", *weight_ch1_, *weight_ch2_);
+        //         log_counter_ = 0;
+        //     }
+        // }
     }
 
 private:
