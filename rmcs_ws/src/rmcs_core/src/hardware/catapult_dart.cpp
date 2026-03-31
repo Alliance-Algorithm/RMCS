@@ -234,12 +234,12 @@ protected:
         const auto can_id = data.can_id;
 
         if (can_id == 0x302) {
-            force_sensor_frame_count_++;
-            if (force_sensor_frame_count_ % 200 == 1) {
-                RCLCPP_INFO(
-                    logger_, "[ForceSensor CAN1:0x302] raw(%zu): %s", data.can_data.size(),
-                    bytes_to_hex_string(data.can_data.data(), data.can_data.size()).c_str());
-            }
+            // force_sensor_frame_count_++;
+            // if (force_sensor_frame_count_ % 200 == 1) {
+            //     RCLCPP_INFO(
+            //         logger_, "[ForceSensor CAN1:0x302] raw(%zu): %s", data.can_data.size(),
+            //         bytes_to_hex_string(data.can_data.data(), data.can_data.size()).c_str());
+            // }
             force_sensor_.store_status(data.can_data);
         } else if (can_id == LK_LIFTING_LEFT_ID) {
             lifting_left_motor_.store_status(data.can_data);
@@ -546,7 +546,6 @@ private:
     int pub_time_count_ = 0;
     int force_sensor_frame_count_ = 0;
     int can2_unknown_count_ = 0;
-    int angle_debug_counter_ = 0;
 
     double first_sample_spot_ = 1.0;
     double final_sample_spot_ = 4.0;

@@ -104,6 +104,12 @@ dart_manager:
     aim_timeout_returns_success: true
     aim_min_transform_rate: 1.0
     limiting_fill_ticks:  200
+    # 升降堵转检测参数
+    lifting_stall_threshold: 0.5         # rad/s - 升降堵转速度阈值
+    lifting_stall_confirm_ticks: 100     # ticks - 升降堵转确认帧数
+    lifting_stall_min_run_ticks: 500     # ticks - 升降最小运行帧数
+    lifting_stall_timeout_ticks: 5000    # ticks - 升降超时帧数
+    # 传送带堵转检测参数（保留用于兼容）
     belt_stall_velocity_threshold: 0.15  # rad/s，低于此值且扭矩高时视为皮带可疑堵转
     belt_stall_torque_threshold: 0.5     # N⋅m，堵转判定的力矩阈值
     belt_stall_confirm_ticks: 100        # 连续帧数确认皮带堵转
