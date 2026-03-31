@@ -39,6 +39,9 @@ public:
         register_output("/chassis/right_back_joint/target_angle", right_back_target_angle_, nan_);
         register_output("/chassis/right_front_joint/target_angle", right_front_target_angle_, nan_);
 
+        register_input("/chassis/left_back_joint/angle", lb_joint_angle_);
+        register_input("/chassis/left_back_joint/torque", lb_joint_torque_);
+
         if (control_mode_ == ControlMode::kFunction && function_type_ != "sine") {
             RCLCPP_WARN(
                 get_logger(),
@@ -91,10 +94,10 @@ public:
         const double target_angle_deg = compute_target_angle_deg(elapsed_s);
         const double target_angle_rad = deg_to_rad_(target_angle_deg);
 
-        *left_front_target_angle_ = target_angle_rad;
-        *left_back_target_angle_ = target_angle_rad;
-        *right_back_target_angle_ = target_angle_rad;
-        *right_front_target_angle_ = target_angle_rad;
+        *left_back_target_angle_ = target_angle_rad - (init_deg * deg2rad);
+        *right_back_target_angle_ = target_angle_rad - (init_deg * deg2rad);
+        *right_front_target_angle_ = target_angle_rad - (init_deg * deg2rad);
+        *left_front_target_angle_ = target_angle_rad - (init_deg * deg2rad);
 
         if (print_debug_) {
             RCLCPP_INFO_THROTTLE(
@@ -103,6 +106,11 @@ public:
                 control_mode_ == ControlMode::kFixed ? "fixed" : "function", target_angle_deg,
                 target_angle_rad, elapsed_s);
         }
+
+        RCLCPP_INFO(
+            get_logger(),
+            "LB joint: angle=%.3f deg, torque=%.3f Nm",
+            *lb_joint_angle_ * rad2deg + init_deg, *lb_joint_torque_);
     }
 
 private:
@@ -165,6 +173,10 @@ private:
     OutputInterface<double> right_back_target_angle_;
     OutputInterface<double> right_front_target_angle_;
 
+    InputInterface<double> lb_joint_angle_;
+    InputInterface<double> lb_joint_torque_;
+    
+
     ControlMode control_mode_;
     std::string function_type_;
 
@@ -175,6 +187,10 @@ private:
     double function_phase_deg_;
 
     bool print_debug_;
+
+    double init_deg = 25.0;
+    double deg2rad = std::numbers::pi / 180.0;
+    double rad2deg = 180.0 / std::numbers::pi;
 
     Clock::time_point start_time_;
 };

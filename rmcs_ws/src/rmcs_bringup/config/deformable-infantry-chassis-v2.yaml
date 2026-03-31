@@ -2,16 +2,16 @@ rmcs_executor:
   ros__parameters:
     update_rate: 1000.0
     components:
-      - rmcs_core::hardware::DeformableInfantryChassisV2 -> deformable_infantry_chassis_v2
+      - rmcs_core::hardware::DeformableInfantryV2 -> deformable_infantry_chassis_v2
 
-      - rmcs_core::test::output::AngleOutput -> angle_output
+      # - rmcs_core::test::output::AngleOutput -> angle_output
 
-      # - rmcs_core::controller::chassis::ChassisControllerV2 -> chassis_controller_v2
+      - rmcs_core::controller::chassis::ChassisControllerV2 -> chassis_controller_v2
 
-      # - rmcs_core::controller::adrc::AdrcController -> lb_joint_adrc_controller
-      # - rmcs_core::controller::adrc::AdrcController -> rb_joint_adrc_controller
-      # - rmcs_core::controller::adrc::AdrcController -> rf_joint_adrc_controller
-      # - rmcs_core::controller::adrc::AdrcController -> lf_joint_adrc_controller
+      - rmcs_core::controller::adrc::AdrcController -> lb_joint_adrc_controller
+      - rmcs_core::controller::adrc::AdrcController -> rb_joint_adrc_controller
+      - rmcs_core::controller::adrc::AdrcController -> rf_joint_adrc_controller
+      - rmcs_core::controller::adrc::AdrcController -> lf_joint_adrc_controller
 
       # - rmcs_core::referee::Status -> referee_status
       # - rmcs_core::referee::Command -> referee_command
@@ -41,7 +41,6 @@ rmcs_executor:
       # - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller
 
       # - rmcs_core::controller::chassis::DeformableChassis -> chassis_controller
-      # - rmcs_core::controller::chassis::ChassisControllerV2 -> chassis_controller_v2
       
       # - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       # - rmcs_core::controller::chassis::DeformableChassisController -> deformable_chassis_controller
@@ -102,13 +101,13 @@ chassis_controller_v2:
 
     # all angle parameters are in degrees
     # fixed mode
-    target_angle_deg: 30.0
+    target_angle_deg: 26.0
 
     # function mode (default sine)
     function_type: sine
-    function_offset_deg: 30.0
-    function_amplitude_deg: 5.0
-    function_frequency_hz: 0.5
+    function_offset_deg: 35.0
+    function_amplitude_deg: 15.0
+    function_frequency_hz: 1.0
     function_phase_deg: 0.0
 
     print_debug: false
@@ -217,8 +216,8 @@ lf_joint_adrc_controller:
     alpha1: 0.75
     alpha2: 0.7
     delta: 0.02
-    u_min: -25.0
-    u_max: 25.0
+    u_min: -100.0
+    u_max: 100.0
 
 rf_joint_adrc_controller:
   ros__parameters:
@@ -240,8 +239,8 @@ rf_joint_adrc_controller:
     alpha1: 0.75
     alpha2: 0.7
     delta: 0.02
-    u_min: -25.0
-    u_max: 25.0
+    u_min: -100.0
+    u_max: 100.0
 
 
 lb_joint_adrc_controller:
@@ -264,8 +263,8 @@ lb_joint_adrc_controller:
     alpha1: 0.75
     alpha2: 0.7
     delta: 0.02
-    u_min: -25.0
-    u_max: 25.0
+    u_min: -100.0
+    u_max: 100.0
 
 rb_joint_adrc_controller:
   ros__parameters:
@@ -287,16 +286,10 @@ rb_joint_adrc_controller:
     alpha1: 0.75
     alpha2: 0.7
     delta: 0.02
-    u_min: -25.0
-    u_max: 25.0
+    u_min: -100.0
+    u_max: 100.0
 
-#     k1: 30.0
-#     k2: 17.0
-#     alpha1: 0.75
-#     alpha2: 0.7
-#     delta: 0.02
-#     u_min: -25.0
-#     u_max: 25.0
+
 
 # deformable_chassis_controller:
 #   ros__parameters:
