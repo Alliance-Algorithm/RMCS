@@ -48,6 +48,7 @@ public:
         register_input("/dart/manager/belt/target_velocity", belt_target_velocity_, false);
         register_input("/dart/manager/belt/torque_limit", belt_torque_limit_, true);
         register_input("/dart/manager/belt/hold_torque", belt_hold_torque_input_, true);
+        register_input("/dart/manager/belt/torque_offset", belt_torque_offset_, false);
         register_input("/dart/manager/belt/wait_zero_velocity", belt_wait_zero_velocity_, false);
         register_input("/dart/manager/belt/zero_calibration", belt_zero_calibration_, false);
         register_input("/dart/manager/trigger/lock_enable", trigger_lock_enable_);
@@ -272,6 +273,11 @@ private:
         Eigen::Vector2d control_torques =
             velocity_pid_.update(vel_error) - sync_coefficient_ * relative_velocity;
 
+        // 添加常态力矩偏移（用于减速阶段补偿负载）
+        double torque_offset = belt_torque_offset_.ready() ? *belt_torque_offset_ : 0.0;
+        control_torques[0] += torque_offset;
+        control_torques[1] += torque_offset;
+
         *left_belt_torque_ = std::clamp(control_torques[0], -torque_limit, torque_limit);
         *right_belt_torque_ = std::clamp(control_torques[1], -torque_limit, torque_limit);
     }
@@ -299,6 +305,7 @@ private:
     InputInterface<double> belt_target_velocity_;
     InputInterface<double> belt_torque_limit_;
     InputInterface<double> belt_hold_torque_input_;
+    InputInterface<double> belt_torque_offset_;
     InputInterface<bool> belt_wait_zero_velocity_;
     InputInterface<bool> belt_zero_calibration_;
     InputInterface<bool> trigger_lock_enable_;

@@ -3,8 +3,7 @@ rmcs_executor:
     update_rate: 1000.0
     components:
       # - rmcs_dart_guidance::DartVisionCore           -> dart_vision
-      # - rmcs_dart_guidance::ImagePublisher           -> dart_camera_image_publisher
-      # - rmcs_dart_guidance::ImagePublisher           -> dart_display_image_publisher
+      # - rmcs_dart_guidance::ImagePublisher            -> dart_display_image_publisher
       # - rmcs_dart_guidance::manager::AutoAimOnlyComponent -> auto_aim_only
       - rmcs_dart_guidance::manager::RemoteCommandBridge -> remote_cmd_bridge
       - rmcs_dart_guidance::manager::WebCommandBridge -> web_cmd_bridge
@@ -82,12 +81,14 @@ dart_manager:
     auto_aim_max_transform_rate: 10.0
     manual_force_scale: 5.0
     # 传送带下行控制参数
-    belt_down_distance: 0.15  # m - 传送带下行距离（滑台蓄力行程）
+    belt_down_distance: 0.70  # m - 传送带下行距离（滑台蓄力行程）
     belt_pulley_radius: 0.0195  # m - 传送带滑轮半径（用于距离-角度转换）
     belt_prepare_down_velocity_first: 5.0   # rad/s - 第一发下行速度（较慢）
     belt_prepare_down_velocity: 10.0        # rad/s - 后续发射下行速度
     belt_prepare_torque_limit: 5.0          # N⋅m - 下行扭矩限制
+    belt_prepare_up_torque_limit: 1.5       # N⋅m - 上行扭矩限制
     belt_prepare_down_ramp_ticks: 400       # ticks - 下行斜坡减速时长
+    belt_prepare_down_torque_offset: 2.0    # N⋅m - 减速阶段常态力矩偏移（补偿接驳件负载）
     belt_prepare_down_hold_torque: 5.0      # N⋅m - 下行完成后保持张力
     belt_prepare_down_zero_velocity_threshold: 0.15  # rad/s - 斜坡结束零速阈值
     belt_prepare_down_zero_confirm_ticks: 60         # ticks - 零速确认帧数
@@ -119,7 +120,7 @@ dart_manager:
 launch_setting:
   ros__parameters:
     belt_velocity: 10.0      # rad/s - manager 未提供目标速度时的回退值
-    sync_coefficient: 0.3    # 同步阻尼系数（增大以增强左右电机同步）
+    sync_coefficient: 0.5    # 同步阻尼系数（增大以增强左右电机同步）
     max_control_torque: 2.5  # N⋅m - 最大扭矩限制
     trigger_free_value: 0.75   # 扳机释放角度
     trigger_lock_value: 0.63   # 扳机锁定角度
