@@ -26,7 +26,7 @@
   <class type="rmcs_core::controller::pid::PidController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::pid::ErrorPidController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::smc::SlidingModeController" base_class_type="rmcs_executor::Component" />
-  <class type="rmcs_core::controller::smc::Smc_Observer" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::smc::SmcObserver" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::broadcaster::TfBroadcaster" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::broadcaster::ValueBroadcaster" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::referee::Status" base_class_type="rmcs_executor::Component" />
