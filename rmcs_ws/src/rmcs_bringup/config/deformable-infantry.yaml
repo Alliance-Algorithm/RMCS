@@ -287,8 +287,8 @@ deformable_chassis_controller:
   ros__parameters:
     mess: 22.5
     moment_of_inertia: 1.0
-    chassis_radius: 0.1671741
-    rod_length: 0.10607
+    chassis_radius: 0.2341741
+    rod_length: 0.150
     wheel_radius: 0.055
     friction_coefficient: 0.6
     k1: 2.958580e+00
