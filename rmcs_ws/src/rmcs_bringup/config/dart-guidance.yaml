@@ -83,16 +83,26 @@ dart_manager:
     # 传送带下行控制参数
     belt_down_distance: 0.70  # m - 传送带下行距离（滑台蓄力行程）
     belt_pulley_radius: 0.0195  # m - 传送带滑轮半径（用于距离-角度转换）
-    belt_prepare_down_velocity_first: 5.0   # rad/s - 第一发下行速度（较慢）
+    belt_prepare_down_velocity_first: 8.0   # rad/s - 第一发下行速度（较慢）
     belt_prepare_down_velocity: 10.0        # rad/s - 后续发射下行速度
-    belt_prepare_torque_limit: 5.0          # N⋅m - 下行扭矩限制
+    belt_prepare_torque_limit: 7.5          # N⋅m - 下行扭矩限制
     belt_prepare_up_torque_limit: 1.5       # N⋅m - 上行扭矩限制
     belt_prepare_down_ramp_ticks: 400       # ticks - 下行斜坡减速时长
-    belt_prepare_down_torque_offset: 2.0    # N⋅m - 减速阶段常态力矩偏移（补偿接驳件负载）
+    belt_prepare_down_torque_offset: 5.0    # N⋅m - 减速阶段常态力矩偏移（补偿接驳件负载）
     belt_prepare_down_hold_torque: 5.0      # N⋅m - 下行完成后保持张力
     belt_prepare_down_zero_velocity_threshold: 0.15  # rad/s - 斜坡结束零速阈值
     belt_prepare_down_zero_confirm_ticks: 60         # ticks - 零速确认帧数
     belt_prepare_down_ramp_timeout_ticks: 5000       # ticks - 下行斜坡阶段超时
+    # 传送带上行控制参数
+    belt_up_distance: 0.70                           # m - 上行目标距离（略低于下行起点0.70m）
+    belt_up_speed_switch_distance: 0.05              # m - 速度切换点（从慢速5.0切换到快速15.0）
+    belt_prepare_up_velocity: 15.0                   # rad/s - 上行速度
+    belt_up_decel_target_velocity: 2.0               # rad/s - 上行减速阶段目标速度
+    belt_up_decel_torque_offset: 0.0                 # N⋅m - 上行减速阶段力矩偏移
+    belt_up_stall_velocity_threshold: 0.15           # rad/s - 上行堵转速度阈值
+    belt_up_stall_confirm_ticks: 100                 # ticks - 上行堵转确认帧数
+    belt_up_stall_min_run_ticks: 300                 # ticks - 上行堵转最小运行帧数
+    belt_up_decel_timeout_ticks: 3000                # ticks - 上行减速超时帧数
     # 瞄准控制参数
     aim_reference_pixel: [701.0, 565.0]
     aim_dart_offsets_px: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
