@@ -227,7 +227,7 @@ private:
                 joint[3].store_status(can_data);
             else if (can_id == 0x147) {
                 gripper.store_status(can_data);
-            } 
+            }
         }
         void can1_receive_callback(
             uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
@@ -242,7 +242,7 @@ private:
                 joint[0].store_status(can_data);
             else if (can_id == 0x200) {
                 joint2_encoder.store_status(can_data);
-            }else if (can_id == 0x148) {
+            } else if (can_id == 0x148) {
                 image_pitch.store_status(can_data);
             };
         }
@@ -345,6 +345,14 @@ private:
             event_thread_.join();
         }
         void update() {
+            // RCLCPP_INFO(
+            //     this->get_logger(), "lf  raw angle %d angle %f", Leg_ecd[0].get_raw_angle(),
+            //     Leg_ecd[0].get_angle());
+              RCLCPP_INFO(
+                this->get_logger(), " lf raw %d angle %f",
+                Steering_motors[0].get_raw_angle(), Steering_motors[0].get_angle());
+
+
             Omni_Motors.update();
             for (auto& motor : Steering_motors) {
                 motor.update();
@@ -367,12 +375,12 @@ private:
             if (turn) {
                 command_[0] = 0;
                 command_[1] = 0;
-                command_[2] = Steering_motors[1].generate_command();
-                command_[3] = 0;
-                transmit_buffer_.add_can2_transmission(0x1FE, std::bit_cast<uint64_t>(command_));
-                command_[0] = Steering_motors[0].generate_command();
-                command_[1] = 0;
                 command_[2] = 0;
+                command_[3] = Steering_motors[1].generate_command();
+                transmit_buffer_.add_can2_transmission(0x1FE, std::bit_cast<uint64_t>(command_));
+                command_[0] = 0;
+                command_[1] = 0;
+                command_[2] = Steering_motors[0].generate_command();
                 command_[3] = 0;
                 transmit_buffer_.add_can1_transmission(0x1FE, std::bit_cast<uint64_t>(command_));
             } else {
@@ -401,7 +409,9 @@ private:
             bool is_remote_transmission, uint8_t can_data_length) override {
             if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
                 return;
-            if (can_id == 0x205) {
+
+             //RCLCPP_INFO(this->get_logger(), "Received CAN frame with ID: 0x%X", can_id);
+            if (can_id == 0x207) {
                 Steering_motors[0].store_status(can_data);
             } else if (can_id == 0x202) {
                 Leg_Motors[0].store_status(can_data);
@@ -418,8 +428,8 @@ private:
             bool is_remote_transmission, uint8_t can_data_length) override {
             if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
                 return;
-
-            if (can_id == 0x207) {
+            // RCLCPP_INFO(this->get_logger(), "Received CAN frame with ID: 0x%X", can_id);
+            if (can_id == 0x208) {
                 Steering_motors[1].store_status(can_data);
             } else if (can_id == 0x201) {
                 Wheel_motors[1].store_status(can_data);
@@ -427,7 +437,7 @@ private:
                 Leg_Motors[1].store_status(can_data);
             } else if (can_id == 0x100) {
                 power_meter.store_status(can_data);
-            } else if (can_id == 0x320) {
+            } else if (can_id == 0x319) {
                 Leg_ecd[1].store_status(can_data);
             }
         }
@@ -522,6 +532,15 @@ private:
             event_thread_.join();
         }
         void update() {
+            //         RCLCPP_INFO(
+            // this->get_logger(), "rb ecd raw angle %d angle %f rf raw %d angle %f",
+            // Leg_ecd[0].get_raw_angle(),Leg_ecd[0].get_angle(), Leg_ecd[1].get_raw_angle(),
+            // Leg_ecd[1].get_angle());
+
+            // RCLCPP_INFO(
+            //     this->get_logger(), "rb motor raw angle %d angle %f rf raw %d angle %f",
+            //     Steering_motors[0].get_raw_angle(), Steering_motors[0].get_angle(),
+            //     Steering_motors[1].get_raw_angle(), Steering_motors[1].get_angle());
 
             Omni_Motors.update();
             for (auto& motor : Steering_motors) {
@@ -551,10 +570,10 @@ private:
             uint16_t command_[4];
             static bool turn{false};
             if (turn) {
-                command_[0] = 0;
+                command_[0] = Steering_motors[0].generate_command();
                 command_[1] = 0;
                 command_[2] = 0;
-                command_[3] = Steering_motors[0].generate_command();
+                command_[3] = 0;
                 transmit_buffer_.add_can2_transmission(0x1FE, std::bit_cast<uint64_t>(command_));
                 command_[0] = 0;
                 command_[1] = Steering_motors[1].generate_command();
@@ -601,6 +620,7 @@ private:
             bool is_remote_transmission, uint8_t can_data_length) override {
             if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
                 return;
+
             if (can_id == 0x201) {
                 Wheel_motors[1].store_status(can_data);
             }
@@ -613,7 +633,7 @@ private:
             if (can_id == 0x206) {
                 Steering_motors[1].store_status(can_data);
             }
-            if (can_id == 0x322) {
+            if (can_id == 0x320) {
                 Leg_ecd[1].store_status(can_data);
             }
         }
@@ -623,20 +643,20 @@ private:
             if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]] {
                 return;
             }
-
+            // RCLCPP_INFO(this->get_logger(), "Received CAN frame with ID: 0x%X", can_id);
             if (can_id == 0x201) {
                 Wheel_motors[0].store_status(can_data);
             }
             if (can_id == 0x202) {
                 Leg_Motors[0].store_status(can_data);
             }
-            if (can_id == 0x208) {
+            if (can_id == 0x205) {
                 Steering_motors[0].store_status(can_data);
             }
             if (can_id == 0x33) {
                 big_yaw.store_status(can_data);
             }
-            if (can_id == 0x319) {
+            if (can_id == 0x322) {
                 Leg_ecd[0].store_status(can_data);
             }
         }

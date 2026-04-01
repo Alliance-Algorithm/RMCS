@@ -50,14 +50,14 @@ engineer_hardware:
     joint3_zero_point: 28134
     joint2_zero_point: 61315 
     joint1_zero_point: 11371
-    steering_lf_zero_point: 3399
-    steering_lb_zero_point: 681
-    steering_rb_zero_point: 693
-    steering_rf_zero_point: 5435
-    leg_lf_ecd_zero_point: 109021
-    leg_lb_ecd_zero_point: 153207
-    leg_rb_ecd_zero_point: 2135
-    leg_rf_ecd_zero_point: 133400
+    steering_lf_zero_point: 1343
+    steering_lb_zero_point: 4096
+    steering_rb_zero_point: 0
+    steering_rf_zero_point: 4096
+    leg_lf_ecd_zero_point: 223679
+    leg_lb_ecd_zero_point: 153149
+    leg_rb_ecd_zero_point: 219758
+    leg_rf_ecd_zero_point: 112271
     big_yaw_zero_point: 30133
 
 image_transmission:
