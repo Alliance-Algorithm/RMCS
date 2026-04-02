@@ -151,9 +151,11 @@ private:
                     static_cast<int>(
                         steering_hero.get_parameter("top_yaw_motor_zero_point").as_int())));
             gimbal_pitch_motor_.configure(
-                device::LkMotor::Config{device::LkMotor::Type::kMG5010Ei10}.set_encoder_zero_point(
-                    static_cast<int>(
-                        steering_hero.get_parameter("pitch_motor_zero_point").as_int())));
+                device::LkMotor::Config{device::LkMotor::Type::kMG5010Ei10}
+                    .set_encoder_zero_point(
+                        static_cast<int>(
+                            steering_hero.get_parameter("pitch_motor_zero_point").as_int()))
+                    .enable_multi_turn_angle());
             gimbal_friction_wheels_[0].configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kM3508}.set_reduction_ratio(1.));
             gimbal_friction_wheels_[1].configure(

@@ -65,9 +65,9 @@ public:
                 else
                     gimbal_mode_keyboard_ = GimbalMode::IMU;
             }
-            *gimbal_mode_ =
-                *switch_right_ == Switch::UP ? GimbalMode::ENCODER : gimbal_mode_keyboard_;
-            // *gimbal_mode_ = gimbal_mode_keyboard_;
+            // *gimbal_mode_ =
+            //     *switch_right_ == Switch::UP ? GimbalMode::ENCODER : gimbal_mode_keyboard_;
+            *gimbal_mode_ = gimbal_mode_keyboard_;
 
             if (*gimbal_mode_ == GimbalMode::IMU) {
                 auto angle_error = update_imu_control();

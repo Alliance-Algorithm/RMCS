@@ -43,16 +43,16 @@ hero_hardware:
     board_serial_top_board: "D4-2BCA-2E47-76CD-23BC-0B78-684B"
     board_serial_bottom_board_one: "D4-7973-19A9-EA40-4A3E-306F-10F9"
     board_serial_bottom_board_two: "D4-3674-7174-8768-879E-E44A-3931"
-    bottom_yaw_motor_zero_point: 58460
-    pitch_motor_zero_point: 14637 #35701
-    top_yaw_motor_zero_point: 59425
+    bottom_yaw_motor_zero_point: 51232
+    pitch_motor_zero_point: 14691 #35701
+    top_yaw_motor_zero_point: 58842
     viewer_motor_zero_point: 3030
     external_imu_port: /dev/ttyUSB0
     bullet_feeder_motor_zero_point: 21854
-    left_front_zero_point: 4437
-    right_front_zero_point: 1029
-    left_back_zero_point:  3693
-    right_back_zero_point: 5801
+    left_front_zero_point: 4420
+    right_front_zero_point: 1016
+    left_back_zero_point:  3830
+    right_back_zero_point: 5798
     # left_front_zero_point: 3473
     # left_back_zero_point: 6124
     # right_back_zero_point: 6157
@@ -99,8 +99,8 @@ climber_controller:
 
 gimbal_controller:
   ros__parameters:
-    upper_limit: -0.6266
-    lower_limit: 0.4629
+    upper_limit: -0.69
+    lower_limit: 0.3009
 
 dual_yaw_controller:
   ros__parameters:
