@@ -151,7 +151,6 @@ private:
             update_arm_motors();
             dr16_.update();
             update_imu();
-            // RCLCPP_INFO(get_logger(),"%d %f",image_pitch.get_raw_angle(),joint[2].get_angle());
         }
         void command() { update_arm_command(); }
 
@@ -345,13 +344,6 @@ private:
             event_thread_.join();
         }
         void update() {
-            // RCLCPP_INFO(
-            //     this->get_logger(), "lf  raw angle %d angle %f", Leg_ecd[0].get_raw_angle(),
-            //     Leg_ecd[0].get_angle());
-              RCLCPP_INFO(
-                this->get_logger(), " lf raw %d angle %f",
-                Steering_motors[0].get_raw_angle(), Steering_motors[0].get_angle());
-
 
             Omni_Motors.update();
             for (auto& motor : Steering_motors) {
@@ -409,8 +401,6 @@ private:
             bool is_remote_transmission, uint8_t can_data_length) override {
             if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
                 return;
-
-             //RCLCPP_INFO(this->get_logger(), "Received CAN frame with ID: 0x%X", can_id);
             if (can_id == 0x207) {
                 Steering_motors[0].store_status(can_data);
             } else if (can_id == 0x202) {
@@ -428,7 +418,6 @@ private:
             bool is_remote_transmission, uint8_t can_data_length) override {
             if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
                 return;
-            // RCLCPP_INFO(this->get_logger(), "Received CAN frame with ID: 0x%X", can_id);
             if (can_id == 0x208) {
                 Steering_motors[1].store_status(can_data);
             } else if (can_id == 0x201) {
@@ -532,16 +521,7 @@ private:
             event_thread_.join();
         }
         void update() {
-            //         RCLCPP_INFO(
-            // this->get_logger(), "rb ecd raw angle %d angle %f rf raw %d angle %f",
-            // Leg_ecd[0].get_raw_angle(),Leg_ecd[0].get_angle(), Leg_ecd[1].get_raw_angle(),
-            // Leg_ecd[1].get_angle());
-
-            // RCLCPP_INFO(
-            //     this->get_logger(), "rb motor raw angle %d angle %f rf raw %d angle %f",
-            //     Steering_motors[0].get_raw_angle(), Steering_motors[0].get_angle(),
-            //     Steering_motors[1].get_raw_angle(), Steering_motors[1].get_angle());
-
+            
             Omni_Motors.update();
             for (auto& motor : Steering_motors) {
                 motor.update();
@@ -643,7 +623,6 @@ private:
             if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]] {
                 return;
             }
-            // RCLCPP_INFO(this->get_logger(), "Received CAN frame with ID: 0x%X", can_id);
             if (can_id == 0x201) {
                 Wheel_motors[0].store_status(can_data);
             }

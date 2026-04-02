@@ -56,8 +56,8 @@ engineer_hardware:
     steering_rf_zero_point: 4096
     leg_lf_ecd_zero_point: 223679
     leg_lb_ecd_zero_point: 153149
-    leg_rb_ecd_zero_point: 219758
-    leg_rf_ecd_zero_point: 112271
+    leg_rb_ecd_zero_point: 222758
+    leg_rf_ecd_zero_point: 123271
     big_yaw_zero_point: 30133
 
 image_transmission:
@@ -67,8 +67,8 @@ image_transmission:
 arm_controller:
   ros__parameters:
     auto_walk_joint_target: [0.0, 1.23, -1.36, 0.0, 0.63, 0.0]
-    image_pitch_qmin: 2.2
-    image_pitch_qmax: -0.7
+    image_pitch_qmin: -0.7
+    image_pitch_qmax: 2.2
 
 arm_solver:
   ros__parameters:
@@ -76,7 +76,7 @@ arm_solver:
 
 leg_controller:
   ros__parameters:
-    forward_x_position_in_FourWheel: 243.0
+    forward_x_position_in_FourWheel: 242.0
     forward_x_position_in_SixWheel: 250.0
     backward_x_position_in_SixWheel: 221.0
     up_one_stairs:
