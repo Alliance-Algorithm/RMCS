@@ -79,30 +79,30 @@ dart_manager:
   ros__parameters:
     max_transform_rate: 5.0
     auto_aim_max_transform_rate: 10.0
-    manual_force_scale: 5.0
+    manual_force_scale: 15.0
     # 传送带下行控制参数
-    belt_down_distance: 0.70  # m - 传送带下行距离（滑台蓄力行程）
+    belt_down_distance: 0.65  # m - 传送带下行距离（滑台蓄力行程）
     belt_pulley_radius: 0.0195  # m - 传送带滑轮半径（用于距离-角度转换）
     belt_prepare_down_velocity_first: 8.0   # rad/s - 第一发下行速度（较慢）
     belt_prepare_down_velocity: 10.0        # rad/s - 后续发射下行速度
-    belt_prepare_torque_limit: 7.5          # N⋅m - 下行扭矩限制
+    belt_prepare_torque_limit: 15.0          # N⋅m - 下行扭矩限制
     belt_prepare_up_torque_limit: 1.5       # N⋅m - 上行扭矩限制
     belt_prepare_down_ramp_ticks: 400       # ticks - 下行斜坡减速时长
-    belt_prepare_down_torque_offset: 5.0    # N⋅m - 减速阶段常态力矩偏移（补偿接驳件负载）
-    belt_prepare_down_hold_torque: 5.0      # N⋅m - 下行完成后保持张力
-    belt_prepare_down_zero_velocity_threshold: 0.15  # rad/s - 斜坡结束零速阈值
+    belt_prepare_down_torque_offset: 10.0    # N⋅m - 减速阶段常态力矩偏移（补偿接驳件负载）
+    belt_prepare_down_hold_torque: 12.0      # N⋅m - 下行完成后保持张力
+    belt_prepare_down_zero_velocity_threshold: 0.05  # rad/s - 斜坡结束零速阈值
     belt_prepare_down_zero_confirm_ticks: 60         # ticks - 零速确认帧数
     belt_prepare_down_ramp_timeout_ticks: 5000       # ticks - 下行斜坡阶段超时
     # 传送带上行控制参数
     belt_up_distance: 0.70                           # m - 上行目标距离（略低于下行起点0.70m）
-    belt_up_speed_switch_distance: 0.05              # m - 速度切换点（从慢速5.0切换到快速15.0）
+    belt_up_speed_switch_distance: 0.005              # m - 速度切换点（从慢速5.0切换到快速15.0）
     belt_prepare_up_velocity: 15.0                   # rad/s - 上行速度
-    belt_up_decel_target_velocity: 2.0               # rad/s - 上行减速阶段目标速度
+    belt_up_decel_target_velocity: 3.0               # rad/s - 上行减速阶段目标速度
     belt_up_decel_torque_offset: 0.0                 # N⋅m - 上行减速阶段力矩偏移
     belt_up_stall_velocity_threshold: 0.15           # rad/s - 上行堵转速度阈值
     belt_up_stall_confirm_ticks: 100                 # ticks - 上行堵转确认帧数
     belt_up_stall_min_run_ticks: 300                 # ticks - 上行堵转最小运行帧数
-    belt_up_decel_timeout_ticks: 3000                # ticks - 上行减速超时帧数
+    belt_up_decel_timeout_ticks: 5000                # ticks - 上行减速超时帧数
     # 瞄准控制参数
     aim_reference_pixel: [701.0, 565.0]
     aim_dart_offsets_px: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
@@ -120,6 +120,15 @@ dart_manager:
     lifting_stall_confirm_ticks: 100     # ticks - 升降堵转确认帧数
     lifting_stall_min_run_ticks: 500     # ticks - 升降最小运行帧数
     lifting_stall_timeout_ticks: 5000    # ticks - 升降超时帧数
+    # 力矩闭环参数
+    enable_force_calibration: true       # 启用力矩闭环（第一发目标9525±30，后续用记录值）
+    force_tolerance: 5.0                 # N - 力值容差（第二发及以后）
+    force_settle_ticks: 50               # ticks - 力值稳定确认帧数
+    force_timeout_ticks: 1000            # ticks - 力矩闭环超时帧数
+    force_kp: 1.0                        # PID参数Kp（需调试）
+    force_ki: 0.0                        # PID参数Ki（需调试）
+    force_kd: 0.0                       # PID参数Kd（需调试）
+    force_max_velocity: 5.0              # rad/s - 丝杆电机最大速度限制
     # 传送带堵转检测参数（保留用于兼容）
     belt_stall_velocity_threshold: 0.15  # rad/s，低于此值且扭矩高时视为皮带可疑堵转
     belt_stall_torque_threshold: 0.5     # N⋅m，堵转判定的力矩阈值
@@ -133,7 +142,7 @@ launch_setting:
     sync_coefficient: 0.5    # 同步阻尼系数（增大以增强左右电机同步）
     max_control_torque: 2.5  # N⋅m - 最大扭矩限制
     trigger_free_value: 0.75   # 扳机释放角度
-    trigger_lock_value: 0.63   # 扳机锁定角度
+    trigger_lock_value: 0.62   # 扳机锁定角度
     position_kp: 5.0           # 位置环比例增益
     belt_acceleration: 10.0    # rad/s² - 加速度（用于速度规划）
     position_tolerance: 0.002  # rad - 位置误差阈值
@@ -172,3 +181,7 @@ broadcaster:
     forward_list:
       - /dart/drive_belt/left/control_torque
       - /dart/drive_belt/right/control_torque
+      - /dart/drive_belt/left/torque
+      - /dart/drive_belt/right/torque
+      - /dart/drive_belt/left/velocity
+      - /dart/drive_belt/right/velocity

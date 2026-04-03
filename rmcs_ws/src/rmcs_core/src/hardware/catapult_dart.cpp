@@ -544,7 +544,6 @@ private:
     OutputInterface<rmcs_msgs::SerialInterface> referee_serial_;
 
     int pub_time_count_ = 0;
-    int force_sensor_frame_count_ = 0;
     int can2_unknown_count_ = 0;
 
     double first_sample_spot_ = 1.0;
