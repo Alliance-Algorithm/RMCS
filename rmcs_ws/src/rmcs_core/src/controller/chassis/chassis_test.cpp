@@ -24,7 +24,7 @@ public:
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , min_angle_rad_(deg_to_rad_(get_parameter_or("min_angle", 15.0)))
-        , max_angle_rad_(deg_to_rad_(get_parameter_or("max_angle", 55.0))) {
+        , max_angle_rad_(deg_to_rad_(get_parameter_or("max_angle", 35.0))) {
 
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
@@ -32,10 +32,10 @@ public:
         register_input("/remote/switch/left", left_switch_);
         register_input("/remote/keyboard", keyboard_);
         register_input("/remote/rotary_knob", rotary_knob_);
-        register_input("/chassis/left_front_joint/physical_angle", left_front_joint_angle_);
-        register_input("/chassis/left_back_joint/physical_angle", left_back_joint_angle_);
-        register_input("/chassis/right_back_joint/physical_angle", right_back_joint_angle_);
-        register_input("/chassis/right_front_joint/physical_angle", right_front_joint_angle_);
+        register_input("/chassis/left_front_joint/angle", left_front_joint_angle_);
+        register_input("/chassis/left_back_joint/angle", left_back_joint_angle_);
+        register_input("/chassis/right_back_joint/angle", right_back_joint_angle_);
+        register_input("/chassis/right_front_joint/angle", right_front_joint_angle_);
 
         register_output("/chassis/control_mode", mode_);
         register_output("/chassis/control_velocity", chassis_control_velocity_);
