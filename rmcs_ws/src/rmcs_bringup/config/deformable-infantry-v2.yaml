@@ -7,11 +7,11 @@ rmcs_executor:
       - rmcs_core::referee::Status -> referee_status
       - rmcs_core::referee::Command -> referee_command
 
-      - rmcs_core::referee::command::Interaction -> referee_interaction
-      - rmcs_core::referee::command::interaction::Ui -> referee_ui
-      - rmcs_core::referee::app::ui::Infantry -> referee_ui_infantry
-
-      - rmcs_core::controller::chassis::DeformableChassis -> chassis_controller
+      - rmcs_core::controller::chassis::ChassisTestV2Controller -> chassis_test_controller
+      # - rmcs_core::controller::adrc::AdrcController -> lf_joint_adrc_controller
+      # - rmcs_core::controller::adrc::AdrcController -> lb_joint_adrc_controller
+      # - rmcs_core::controller::adrc::AdrcController -> rb_joint_adrc_controller
+      # - rmcs_core::controller::adrc::AdrcController -> rf_joint_adrc_controller
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::DeformableChassisController -> deformable_chassis_controller
 
@@ -24,8 +24,7 @@ value_broadcaster:
       - /chassis/left_back_joint/control_torque
       - /chassis/right_front_joint/control_torque
       - /chassis/right_back_joint/control_torque
-      - /chassis/left_front_joint/velocity
-      - /chassis/left_front_joint/control_angle_error
+
 deformable_infantry:
   ros__parameters:
     serial_filter_rmcs_board: ""
@@ -36,23 +35,90 @@ deformable_infantry:
 
 # NOTE: V2 uses LK motor built-in encoder zero point for joints.
 # Joint motor: MG5010 i36, zero at 62.5deg, range 62.5deg -> 8deg (360deg system)
-chassis_controller:
+chassis_test_controller:
   ros__parameters:
     min_angle: 8.0
     max_angle: 62.5
 
-    # Outer loop: angle PID (angle_error -> velocity_ref)
-    joint_angle_kp: 2.0
-    joint_angle_ki: 0.0
-    joint_angle_kd: 0.0
+lf_joint_adrc_controller:
+  ros__parameters:
+    measurement: /chassis/left_front_joint/physical_angle
+    setpoint: /chassis/left_front_joint/target_angle
+    control: /chassis/left_front_joint/control_torque
+    kt: 1.0
+    td_h: 0.001
+    td_r: 1.4
+    dt: 0.001
+    b0: 0.0496
+    eso_w0: 250.0
+    eso_auto_beta: true
+    k1: 30.0
+    k2: 17.0
+    alpha1: 0.75
+    alpha2: 0.7
+    delta: 0.02
+    u_min: -300.0
+    u_max: 300.0
 
-    # Inner loop: velocity PID (velocity_error -> torque)
-    joint_velocity_kp: 1.0
-    joint_velocity_ki: 0.0
-    joint_velocity_kd: 0.0
+lb_joint_adrc_controller:
+  ros__parameters:
+    measurement: /chassis/left_back_joint/physical_angle
+    setpoint: /chassis/left_back_joint/target_angle
+    control: /chassis/left_back_joint/control_torque
+    kt: 1.0
+    td_h: 0.001
+    td_r: 1.4
+    dt: 0.001
+    b0: 0.0496
+    eso_w0: 250.0
+    eso_auto_beta: true
+    k1: 30.0
+    k2: 17.0
+    alpha1: 0.75
+    alpha2: 0.7
+    delta: 0.02
+    u_min: -300.0
+    u_max: 300.0
 
-    joint_velocity_limit: 500.0
-    joint_torque_limit: 10.0
+rb_joint_adrc_controller:
+  ros__parameters:
+    measurement: /chassis/right_back_joint/physical_angle
+    setpoint: /chassis/right_back_joint/target_angle
+    control: /chassis/right_back_joint/control_torque
+    kt: 1.0
+    td_h: 0.001
+    td_r: 1.4
+    dt: 0.001
+    b0: 0.0496
+    eso_w0: 250.0
+    eso_auto_beta: true
+    k1: 30.0
+    k2: 17.0
+    alpha1: 0.75
+    alpha2: 0.7
+    delta: 0.02
+    u_min: -300.0
+    u_max: 300.0
+
+rf_joint_adrc_controller:
+  ros__parameters:
+    measurement: /chassis/right_front_joint/physical_angle
+    setpoint: /chassis/right_front_joint/target_angle
+    control: /chassis/right_front_joint/control_torque
+    kt: 1.0
+    td_h: 0.001
+    td_r: 1.4
+    dt: 0.001
+    b0: 0.0496
+    eso_w0: 250.0
+    eso_auto_beta: true
+    k1: 30.0
+    k2: 17.0
+    alpha1: 0.75
+    alpha2: 0.7
+    delta: 0.02
+    u_min: -300.0
+    u_max: 300.0
 
 deformable_chassis_controller:
   ros__parameters:

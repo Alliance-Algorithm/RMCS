@@ -1,5 +1,7 @@
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <span>
 #include <string>
@@ -22,6 +24,7 @@
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/lk_motor.hpp"
+#include "hardware/device/supercap.hpp"
 
 namespace rmcs_core::hardware {
 
@@ -39,9 +42,6 @@ public:
         using namespace rmcs_description;
 
         register_output("/tf", tf_);
-\
-        register_output("/chassis/power", chassis_power_, 0.0);
-        register_output("/chassis/voltage", chassis_voltage_, 0.0);
 
         tf_->set_transform<PitchLink, CameraLink>(Eigen::Translation3d{0.16, 0.0, 0.15});
         tf_->set_transform<PitchLink, OdomImu>(Eigen::Quaterniond::Identity());
@@ -65,9 +65,7 @@ public:
 
     ~DeformableInfantryV2() override = default;
 
-    void update() override {
-        rmcs_board_->update();
-    }
+    void update() override { rmcs_board_->update(); }
 
     void command_update() {
         const bool even = ((cmd_tick_++ & 1u) == 0u);
@@ -128,11 +126,14 @@ private:
     public:
         friend class DeformableInfantryV2;
 
+        static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
+
         explicit BottomBoard(
             DeformableInfantryV2& deformableInfantry,
             DeformableInfantryV2Command& deformableInfantry_command,
             std::string serial_filter = {})
             : librmcs::agent::RmcsBoard(serial_filter)
+            , deformable_infantry_(deformableInfantry)
             , imu_(1000, 0.2, 0.0)
             , dr16_(deformableInfantry)
             , chassis_wheel_motors_{device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/left_front_wheel"}, device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/left_back_wheel"}, device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/right_back_wheel"}, device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/right_front_wheel"}},
@@ -154,7 +155,8 @@ private:
                 device::LkMotor{
                     deformableInfantry, deformableInfantry_command, "/chassis/right_back_joint"},
                 device::LkMotor{
-                    deformableInfantry, deformableInfantry_command, "/chassis/right_front_joint"}} {
+                    deformableInfantry, deformableInfantry_command, "/chassis/right_front_joint"}},
+            supercap_(deformableInfantry, deformableInfantry_command) {
 
             deformableInfantry.register_output("/referee/serial", referee_serial_);
             referee_serial_->read = [this](std::byte* buffer, size_t size) {
@@ -213,6 +215,27 @@ private:
 
             deformableInfantry.register_output(
                 "/chassis/yaw/velocity_imu", chassis_yaw_velocity_imu_, 0);
+            deformableInfantry.register_output(
+                "/chassis/left_front_joint/physical_angle", left_front_joint_physical_angle_, nan_);
+            deformableInfantry.register_output(
+                "/chassis/left_back_joint/physical_angle", left_back_joint_physical_angle_, nan_);
+            deformableInfantry.register_output(
+                "/chassis/right_back_joint/physical_angle", right_back_joint_physical_angle_, nan_);
+            deformableInfantry.register_output(
+                "/chassis/right_front_joint/physical_angle", right_front_joint_physical_angle_,
+                nan_);
+            deformableInfantry.register_output(
+                "/chassis/left_front_joint/physical_velocity", left_front_joint_physical_velocity_,
+                nan_);
+            deformableInfantry.register_output(
+                "/chassis/left_back_joint/physical_velocity", left_back_joint_physical_velocity_,
+                nan_);
+            deformableInfantry.register_output(
+                "/chassis/right_back_joint/physical_velocity", right_back_joint_physical_velocity_,
+                nan_);
+            deformableInfantry.register_output(
+                "/chassis/right_front_joint/physical_velocity",
+                right_front_joint_physical_velocity_, nan_);
         }
 
         ~BottomBoard() override = default;
@@ -228,7 +251,36 @@ private:
             for (auto& motor : chassis_joint_motors_)
                 motor.update_status();
 
+            update_joint_physical_feedback_(
+                0, left_front_joint_physical_angle_, left_front_joint_physical_velocity_);
+            update_joint_physical_feedback_(
+                1, left_back_joint_physical_angle_, left_back_joint_physical_velocity_);
+            update_joint_physical_feedback_(
+                2, right_back_joint_physical_angle_, right_back_joint_physical_velocity_);
+            update_joint_physical_feedback_(
+                3, right_front_joint_physical_angle_, right_front_joint_physical_velocity_);
+
+            if (joint_status_received_[0].load(std::memory_order_relaxed)
+                && joint_status_received_[1].load(std::memory_order_relaxed)
+                && joint_status_received_[2].load(std::memory_order_relaxed)
+                && joint_status_received_[3].load(std::memory_order_relaxed)) {
+                RCLCPP_INFO_THROTTLE(
+                    deformable_infantry_.get_logger(), *deformable_infantry_.get_clock(), 1000,
+                    "joint raw angle[deg] lf=%.2f lb=%.2f rb=%.2f rf=%.2f | physical angle[deg] "
+                    "lf=%.2f lb=%.2f rb=%.2f rf=%.2f",
+                    chassis_joint_motors_[0].angle() * 180.0 / std::numbers::pi,
+                    chassis_joint_motors_[1].angle() * 180.0 / std::numbers::pi,
+                    chassis_joint_motors_[2].angle() * 180.0 / std::numbers::pi,
+                    chassis_joint_motors_[3].angle() * 180.0 / std::numbers::pi,
+                    *left_front_joint_physical_angle_ * 180.0 / std::numbers::pi,
+                    *left_back_joint_physical_angle_ * 180.0 / std::numbers::pi,
+                    *right_back_joint_physical_angle_ * 180.0 / std::numbers::pi,
+                    *right_front_joint_physical_angle_ * 180.0 / std::numbers::pi);
+            }
+
             dr16_.update_status();
+            if (supercap_status_received_.load(std::memory_order_relaxed))
+                supercap_.update_status();
         }
 
         void command_update(bool even) {
@@ -264,7 +316,7 @@ private:
                                            chassis_steer_motors_[2].generate_command(),
                                            device::CanPacket8::PaddingQuarter{},
                                            device::CanPacket8::PaddingQuarter{},
-                                           device::CanPacket8::PaddingQuarter{},
+                                           supercap_.generate_command(),
                                            }
                             .as_bytes(),
                 });
@@ -343,11 +395,33 @@ private:
                     .can_id = 0x141,
                     .can_data = chassis_joint_motors_[3].generate_command().as_bytes(),
                 });
-
             }
         }
 
     private:
+        DeformableInfantryV2& deformable_infantry_;
+
+        static constexpr double joint_zero_physical_angle_rad_ = 62.5 * std::numbers::pi / 180.0;
+
+        static double to_physical_angle_(double motor_angle) {
+            return joint_zero_physical_angle_rad_ - motor_angle;
+        }
+
+        static double to_physical_velocity_(double motor_velocity) { return -motor_velocity; }
+
+        void update_joint_physical_feedback_(
+            size_t index, OutputInterface<double>& angle_output,
+            OutputInterface<double>& velocity_output) {
+            if (!joint_status_received_[index].load(std::memory_order_relaxed)) {
+                *angle_output = nan_;
+                *velocity_output = nan_;
+                return;
+            }
+
+            *angle_output = to_physical_angle_(chassis_joint_motors_[index].angle());
+            *velocity_output = to_physical_velocity_(chassis_joint_motors_[index].velocity());
+        }
+
         void dbus_receive_callback(const librmcs::data::UartDataView& data) override {
             dr16_.store_status(data.uart_data.data(), data.uart_data.size());
         }
@@ -357,9 +431,10 @@ private:
                 return;
             if (data.can_id == 0x201)
                 chassis_wheel_motors_[0].store_status(data.can_data);
-            else if (data.can_id == 0x141)
+            else if (data.can_id == 0x141) {
                 chassis_joint_motors_[0].store_status(data.can_data);
-            else if (data.can_id == 0x205)
+                joint_status_received_[0].store(true, std::memory_order_relaxed);
+            } else if (data.can_id == 0x205)
                 chassis_steer_motors_[0].store_status(data.can_data);
         }
 
@@ -368,9 +443,10 @@ private:
                 return;
             if (data.can_id == 0x201)
                 chassis_wheel_motors_[1].store_status(data.can_data);
-            else if (data.can_id == 0x141)
+            else if (data.can_id == 0x141) {
                 chassis_joint_motors_[1].store_status(data.can_data);
-            else if (data.can_id == 0x205)
+                joint_status_received_[1].store(true, std::memory_order_relaxed);
+            } else if (data.can_id == 0x205)
                 chassis_steer_motors_[1].store_status(data.can_data);
         }
 
@@ -379,10 +455,15 @@ private:
                 return;
             if (data.can_id == 0x201)
                 chassis_wheel_motors_[2].store_status(data.can_data);
-            else if (data.can_id == 0x141)
+            else if (data.can_id == 0x141) {
                 chassis_joint_motors_[2].store_status(data.can_data);
-            else if (data.can_id == 0x205)
+                joint_status_received_[2].store(true, std::memory_order_relaxed);
+            } else if (data.can_id == 0x205)
                 chassis_steer_motors_[2].store_status(data.can_data);
+            else if (data.can_id == 0x300) {
+                supercap_.store_status(data.can_data);
+                supercap_status_received_.store(true, std::memory_order_relaxed);
+            }
         }
 
         void can3_receive_callback(const librmcs::data::CanDataView& data) override {
@@ -390,9 +471,10 @@ private:
                 return;
             if (data.can_id == 0x201)
                 chassis_wheel_motors_[3].store_status(data.can_data);
-            else if (data.can_id == 0x141)
+            else if (data.can_id == 0x141) {
                 chassis_joint_motors_[3].store_status(data.can_data);
-            else if (data.can_id == 0x205)
+                joint_status_received_[3].store(true, std::memory_order_relaxed);
+            } else if (data.can_id == 0x205)
                 chassis_steer_motors_[3].store_status(data.can_data);
         }
 
@@ -416,18 +498,25 @@ private:
         device::DjiMotor chassis_wheel_motors_[4];
         device::DjiMotor chassis_steer_motors_[4];
         device::LkMotor chassis_joint_motors_[4];
+        std::atomic<bool> joint_status_received_[4] = {false, false, false, false};
+        device::Supercap supercap_;
+        std::atomic<bool> supercap_status_received_{false};
 
         rmcs_utility::RingBuffer<std::byte> referee_ring_buffer_receive_{256};
         OutputInterface<rmcs_msgs::SerialInterface> referee_serial_;
 
         OutputInterface<double> chassis_yaw_velocity_imu_;
+        OutputInterface<double> left_front_joint_physical_angle_;
+        OutputInterface<double> left_back_joint_physical_angle_;
+        OutputInterface<double> right_back_joint_physical_angle_;
+        OutputInterface<double> right_front_joint_physical_angle_;
+        OutputInterface<double> left_front_joint_physical_velocity_;
+        OutputInterface<double> left_back_joint_physical_velocity_;
+        OutputInterface<double> right_back_joint_physical_velocity_;
+        OutputInterface<double> right_front_joint_physical_velocity_;
     };
 
-
     OutputInterface<rmcs_description::Tf> tf_;
-
-    OutputInterface<double> chassis_power_;
-    OutputInterface<double> chassis_voltage_;
 
     std::shared_ptr<DeformableInfantryV2Command> deformable_infantry_command_;
     std::unique_ptr<BottomBoard> rmcs_board_;

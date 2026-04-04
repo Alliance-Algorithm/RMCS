@@ -54,15 +54,15 @@ public:
 
         if (use_error_input_mode_) {
             RCLCPP_WARN(
-                get_logger(),
-                "ADRC V2 setpoint/target not found, using error-input mode: measurement input is treated as error (setpoint - measurement)."
-            );
+                get_logger(), "ADRC V2 setpoint/target not found, using error-input mode: "
+                              "measurement input is treated as error (setpoint - measurement).");
         }
     }
 
     void update() override {
         const double measurement_or_error = *measurement_;
         if (!std::isfinite(measurement_or_error)) {
+            disable_output_();
             return;
         }
 
@@ -75,6 +75,7 @@ public:
         } else {
             reference = *setpoint_;
             if (!std::isfinite(reference)) {
+                disable_output_();
                 return;
             }
             measurement = measurement_or_error;
@@ -95,6 +96,11 @@ public:
     }
 
 private:
+    void disable_output_() {
+        *control_ = std::numeric_limits<double>::quiet_NaN();
+        last_u_ = 0.0;
+    }
+
     TD::Config load_td_config() {
         TD::Config cfg;
         const double h = get_parameter_or("dt", 0.001);

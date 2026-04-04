@@ -15,21 +15,16 @@
 
 namespace rmcs_core::controller::chassis {
 
-class ChassisTestController
+class ChassisTestV2Controller
     : public rmcs_executor::Component
     , public rclcpp::Node {
 public:
-    ChassisTestController()
+    ChassisTestV2Controller()
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-
-        , min_angle_(get_parameter_or("min_angle", 15.0))
-        , max_angle_(get_parameter_or("max_angle", 55.0))
-        , left_front_joint_offset_(get_parameter_or("left_front_joint_offset", 0.0))
-        , left_back_joint_offset_(get_parameter_or("left_back_joint_offset", 0.0))
-        , right_front_joint_offset_(get_parameter_or("right_front_joint_offset", 0.0))
-        , right_back_joint_offset_(get_parameter_or("right_back_joint_offset", 0.0)) {
+        , min_angle_rad_(deg_to_rad_(get_parameter_or("min_angle", 15.0)))
+        , max_angle_rad_(deg_to_rad_(get_parameter_or("max_angle", 55.0))) {
 
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
@@ -37,42 +32,39 @@ public:
         register_input("/remote/switch/left", left_switch_);
         register_input("/remote/keyboard", keyboard_);
         register_input("/remote/rotary_knob", rotary_knob_);
-
-        register_input("/chassis/left_front_joint/encoder_angle", left_front_joint_angle_);
-        register_input("/chassis/left_back_joint/encoder_angle", left_back_joint_angle_);
-        register_input("/chassis/right_front_joint/encoder_angle", right_front_joint_angle_);
-        register_input("/chassis/right_back_joint/encoder_angle", right_back_joint_angle_);
+        register_input("/chassis/left_front_joint/physical_angle", left_front_joint_angle_);
+        register_input("/chassis/left_back_joint/physical_angle", left_back_joint_angle_);
+        register_input("/chassis/right_back_joint/physical_angle", right_back_joint_angle_);
+        register_input("/chassis/right_front_joint/physical_angle", right_front_joint_angle_);
 
         register_output("/chassis/control_mode", mode_);
         register_output("/chassis/control_velocity", chassis_control_velocity_);
 
-        register_output("/chassis/left_front_joint/control_angle_error", lf_angle_error_, nan_);
-        register_output("/chassis/left_back_joint/control_angle_error", lb_angle_error_, nan_);
-        register_output("/chassis/right_front_joint/control_angle_error", rf_angle_error_, nan_);
-        register_output("/chassis/right_back_joint/control_angle_error", rb_angle_error_, nan_);
+        register_output("/chassis/left_front_joint/target_angle", left_front_target_angle_, nan_);
+        register_output("/chassis/left_back_joint/target_angle", left_back_target_angle_, nan_);
+        register_output("/chassis/right_back_joint/target_angle", right_back_target_angle_, nan_);
+        register_output("/chassis/right_front_joint/target_angle", right_front_target_angle_, nan_);
 
         *mode_ = rmcs_msgs::ChassisMode::AUTO;
         chassis_control_velocity_->vector << nan_, nan_, nan_;
-
-        current_target_angle_ = max_angle_;
     }
 
     void update() override {
         using rmcs_msgs::Switch;
 
         const auto right_switch = *right_switch_;
-        const auto left_switch  = *left_switch_;
-        const auto keyboard     = *keyboard_;
+        const auto left_switch = *left_switch_;
+        const auto keyboard = *keyboard_;
 
         if ((left_switch == Switch::UNKNOWN || right_switch == Switch::UNKNOWN)
             || (left_switch == Switch::DOWN && right_switch == Switch::DOWN)) {
             reset_all_controls();
 
             last_right_switch_ = right_switch;
-            last_left_switch_  = left_switch;
-            last_keyboard_     = keyboard;
+            last_left_switch_ = left_switch;
+            last_keyboard_ = keyboard;
 
-            last_lift_left_switch_  = left_switch;
+            last_lift_left_switch_ = left_switch;
             last_lift_right_switch_ = right_switch;
             return;
         }
@@ -80,14 +72,21 @@ public:
         update_chassis_mode(right_switch, left_switch, keyboard);
         update_velocity_control();
 
-        update_lift_target_toggle(left_switch, right_switch);
-        update_lift_angle_error();
+        if (!joint_target_active_) {
+            publish_current_joint_target_angles();
+        }
+
+        if (joint_target_active_) {
+            update_lift_target_toggle(left_switch, right_switch);
+        }
+
+        publish_joint_target_angles();
 
         last_right_switch_ = right_switch;
-        last_left_switch_  = left_switch;
-        last_keyboard_     = keyboard;
+        last_left_switch_ = left_switch;
+        last_keyboard_ = keyboard;
 
-        last_lift_left_switch_  = left_switch;
+        last_lift_left_switch_ = left_switch;
         last_lift_right_switch_ = right_switch;
     }
 
@@ -95,45 +94,70 @@ private:
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
 
     static constexpr double translational_velocity_max_ = 10.0;
-    static constexpr double angular_velocity_max_       = 16.0;
-    static constexpr double spin_ratio_default_         = 0.6;
+    static constexpr double angular_velocity_max_ = 16.0;
+    static constexpr double spin_ratio_default_ = 0.6;
 
-    static double wrap_deg(double deg) {
-        deg = std::fmod(deg, 360.0);
-        if (deg >= 180.0)
-            deg -= 360.0;
-        if (deg < -180.0)
-            deg += 360.0;
-        return deg;
-    }
+    static double deg_to_rad_(double deg) { return deg * std::numbers::pi / 180.0; }
 
     void reset_all_controls() {
         *mode_ = rmcs_msgs::ChassisMode::AUTO;
         chassis_control_velocity_->vector << nan_, nan_, nan_;
 
-        current_target_angle_ = min_angle_;
+        *left_front_target_angle_ = nan_;
+        *left_back_target_angle_ = nan_;
+        *right_back_target_angle_ = nan_;
+        *right_front_target_angle_ = nan_;
 
-        *lf_angle_error_ = nan_;
-        *lb_angle_error_ = nan_;
-        *rf_angle_error_ = nan_;
-        *rb_angle_error_ = nan_;
+        joint_target_active_ = false;
+    }
+
+    bool publish_current_joint_target_angles() {
+        const Eigen::Vector4d current_angles{
+            *left_front_joint_angle_, *left_back_joint_angle_, *right_back_joint_angle_,
+            *right_front_joint_angle_};
+        if (!current_angles.array().isFinite().all()) {
+            return false;
+        }
+
+        *left_front_target_angle_ = current_angles[0];
+        *left_back_target_angle_ = current_angles[1];
+        *right_back_target_angle_ = current_angles[2];
+        *right_front_target_angle_ = current_angles[3];
+        current_target_angle_rad_ = current_angles.mean();
+        joint_target_active_ = true;
+        return true;
+    }
+
+    void publish_joint_target_angles() {
+        if (!joint_target_active_) {
+            *left_front_target_angle_ = nan_;
+            *left_back_target_angle_ = nan_;
+            *right_back_target_angle_ = nan_;
+            *right_front_target_angle_ = nan_;
+            return;
+        }
+
+        *left_front_target_angle_ = current_target_angle_rad_;
+        *left_back_target_angle_ = current_target_angle_rad_;
+        *right_back_target_angle_ = current_target_angle_rad_;
+        *right_front_target_angle_ = current_target_angle_rad_;
     }
 
     void update_chassis_mode(
-        rmcs_msgs::Switch right_switch,
-        rmcs_msgs::Switch left_switch,
+        rmcs_msgs::Switch right_switch, rmcs_msgs::Switch left_switch,
         const rmcs_msgs::Keyboard& keyboard) {
 
         auto mode = *mode_;
         if (left_switch != rmcs_msgs::Switch::DOWN) {
-            if (last_right_switch_ == rmcs_msgs::Switch::MIDDLE && right_switch == rmcs_msgs::Switch::DOWN) {
+            if (last_right_switch_ == rmcs_msgs::Switch::MIDDLE
+                && right_switch == rmcs_msgs::Switch::DOWN) {
                 mode = (mode == rmcs_msgs::ChassisMode::SPIN) ? rmcs_msgs::ChassisMode::AUTO
-                                                             : rmcs_msgs::ChassisMode::SPIN;
+                                                              : rmcs_msgs::ChassisMode::SPIN;
                 if (mode == rmcs_msgs::ChassisMode::SPIN)
                     spinning_forward_ = !spinning_forward_;
             } else if (!last_keyboard_.c && keyboard.c) {
                 mode = (mode == rmcs_msgs::ChassisMode::SPIN) ? rmcs_msgs::ChassisMode::AUTO
-                                                             : rmcs_msgs::ChassisMode::SPIN;
+                                                              : rmcs_msgs::ChassisMode::SPIN;
                 if (mode == rmcs_msgs::ChassisMode::SPIN)
                     spinning_forward_ = !spinning_forward_;
             }
@@ -143,7 +167,7 @@ private:
 
     void update_velocity_control() {
         const Eigen::Vector2d translational_velocity = update_translational_velocity_control();
-        const double angular_velocity                = update_angular_velocity_control();
+        const double angular_velocity = update_angular_velocity_control();
         chassis_control_velocity_->vector << translational_velocity, angular_velocity;
     }
 
@@ -162,8 +186,7 @@ private:
 
     double update_angular_velocity_control() {
         switch (*mode_) {
-        case rmcs_msgs::ChassisMode::AUTO:
-            return 0.0;
+        case rmcs_msgs::ChassisMode::AUTO: return 0.0;
 
         case rmcs_msgs::ChassisMode::SPIN: {
             double ratio = spin_ratio_default_;
@@ -180,8 +203,7 @@ private:
             return spinning_forward_ ? angular_velocity : -angular_velocity;
         }
 
-        default:
-            return 0.0;
+        default: return 0.0;
         }
     }
 
@@ -189,101 +211,52 @@ private:
         const bool toggle_condition =
             (left_switch == rmcs_msgs::Switch::MIDDLE) && (right_switch == rmcs_msgs::Switch::UP);
 
-        const bool last_toggle_condition =
-            (last_lift_left_switch_ == rmcs_msgs::Switch::MIDDLE)
-            && (last_lift_right_switch_ == rmcs_msgs::Switch::UP);
+        const bool last_toggle_condition = (last_lift_left_switch_ == rmcs_msgs::Switch::MIDDLE)
+                                        && (last_lift_right_switch_ == rmcs_msgs::Switch::UP);
 
         if (toggle_condition && !last_toggle_condition) {
-            current_target_angle_ =
-                (std::abs(current_target_angle_ - max_angle_) < 1e-6) ? min_angle_ : max_angle_;
+            current_target_angle_rad_ =
+                (std::abs(current_target_angle_rad_ - max_angle_rad_) < 1e-6) ? min_angle_rad_
+                                                                              : max_angle_rad_;
         }
     }
 
-    void update_lift_angle_error() {
-
-        const double alpha_lf =
-            wrap_deg(left_front_joint_offset_ - *left_front_joint_angle_);
-        const double alpha_lb =
-            wrap_deg(left_back_joint_offset_ - *left_back_joint_angle_);
-        const double alpha_rf =
-            wrap_deg(right_front_joint_offset_ - *right_front_joint_angle_);
-        const double alpha_rb =
-            wrap_deg(right_back_joint_offset_ - *right_back_joint_angle_);
-
-        const double lf_err = s_lf_ - s_target_;
-        const double lb_err = s_lb_ - s_target_;
-        const double rf_err = s_rf_ - s_target_;
-        const double rb_err = s_rb_ - s_target_;
-
-        *lf_angle_error_ = lf_err;
-        *lb_angle_error_ = lb_err;
-        *rf_angle_error_ = rf_err;
-        *rb_angle_error_ = rb_err;
-    }
-
-    void init_calculator() {
-        const double alpha_lf =
-            wrap_deg(left_front_joint_offset_ - *left_front_joint_angle_);
-        const double alpha_lb =
-            wrap_deg(left_back_joint_offset_ - *left_back_joint_angle_);
-        const double alpha_rf =
-            wrap_deg(right_front_joint_offset_ - *right_front_joint_angle_);
-        const double alpha_rb =
-            wrap_deg(right_back_joint_offset_ - *right_back_joint_angle_);
-
-        s_lf_ = lf_;
-        s_lb_ = lb_;
-        s_rf_ = rf_;
-        s_rb_ = rb_;
-    }
-
-private:
     InputInterface<Eigen::Vector2d> joystick_right_;
     InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<rmcs_msgs::Switch> right_switch_;
     InputInterface<rmcs_msgs::Switch> left_switch_;
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
     InputInterface<double> rotary_knob_;
+    InputInterface<double> left_front_joint_angle_;
+    InputInterface<double> left_back_joint_angle_;
+    InputInterface<double> right_back_joint_angle_;
+    InputInterface<double> right_front_joint_angle_;
 
     OutputInterface<rmcs_msgs::ChassisMode> mode_;
     OutputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;
 
+    OutputInterface<double> left_front_target_angle_;
+    OutputInterface<double> left_back_target_angle_;
+    OutputInterface<double> right_back_target_angle_;
+    OutputInterface<double> right_front_target_angle_;
+
     rmcs_msgs::Switch last_right_switch_ = rmcs_msgs::Switch::UNKNOWN;
-    rmcs_msgs::Switch last_left_switch_  = rmcs_msgs::Switch::UNKNOWN;
-    rmcs_msgs::Keyboard last_keyboard_   = rmcs_msgs::Keyboard::zero();
+    rmcs_msgs::Switch last_left_switch_ = rmcs_msgs::Switch::UNKNOWN;
+    rmcs_msgs::Keyboard last_keyboard_ = rmcs_msgs::Keyboard::zero();
 
     bool spinning_forward_ = true;
+    bool joint_target_active_ = false;
 
-    InputInterface<double> left_front_joint_angle_;
-    InputInterface<double> left_back_joint_angle_;
-    InputInterface<double> right_front_joint_angle_;
-    InputInterface<double> right_back_joint_angle_;
+    const double min_angle_rad_;
+    const double max_angle_rad_;
+    double current_target_angle_rad_ = nan_;
 
-    OutputInterface<double> lf_angle_error_;
-    OutputInterface<double> lb_angle_error_;
-    OutputInterface<double> rf_angle_error_;
-    OutputInterface<double> rb_angle_error_;
-
-    double min_angle_;
-    double max_angle_;
-    double left_front_joint_offset_;
-    double left_back_joint_offset_;
-    double right_front_joint_offset_;
-    double right_back_joint_offset_;
-
-    double current_target_angle_ = 0.0;
-
-    rmcs_msgs::Switch last_lift_left_switch_  = rmcs_msgs::Switch::UNKNOWN;
+    rmcs_msgs::Switch last_lift_left_switch_ = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Switch last_lift_right_switch_ = rmcs_msgs::Switch::UNKNOWN;
-
-    double lf_ = 0.0, lb_ = 0.0, rf_ = 0.0, rb_ = 0.0;
-    double s_lf_ = 0.0, s_lb_ = 0.0, s_rf_ = 0.0, s_rb_ = 0.0;
-    double s_target_ = 0.0;
-
-    static constexpr double pi_ = std::numbers::pi;
 };
 
 } // namespace rmcs_core::controller::chassis
 
 #include <pluginlib/class_list_macros.hpp>
-PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::chassis::ChassisTestController, rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(
+    rmcs_core::controller::chassis::ChassisTestV2Controller, rmcs_executor::Component)

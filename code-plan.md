@@ -1,44 +1,128 @@
-
-  # 改进 DeformableWheelController：每轮独立关节状态 + 正确的非对称半径运动学
-
-  ## Summary
-
-  - 当前草案需要修正两点：不要让 rmcs_ws/src/rmcs_core/src/controller/chassis/deformable_wheel_controller.cpp 直接读取原始 joint 电机角度；也不要在 R_i 非对称后继续沿用现在的 vx/vy 平均观测公式。
-  - 硬件相关的角度标定和方向统一继续放在 rmcs_ws/src/rmcs_core/src/controller/chassis/deformable_chassis.cpp；wheel controller 只消费“几何意义正确”的每轮 joint 状态。
-  - 本次实现以当前分支的 V2 运行链路为主，但接口设计保持可迁移到 V1/V2，不把 legacy/V2 差异塞进 wheel controller。
-
-  ## Key Changes
-
-  - 在 rmcs_ws/src/rmcs_core/src/controller/chassis/deformable_chassis.cpp 新增 8 个输出接口：/chassis/<wheel>_joint/geometry_angle 和 /chassis/<wheel>_joint/geometry_velocity，<wheel> 为 left_front、
-    left_back、right_back、right_front，单位分别固定为 rad 和 rad/s。
-  - 几何接口由 DeformableChassis 用现有 joint_angle_deg() 统一生成，再转成 rad，并通过 4 个 AlphaBetaAngleFilter 估计平滑角度和角速度；/chassis/processed_encoder/angle 保留为四轮几何角平均值的兼容/调试
-    输出，不再作为主控制输入。
-  - 在 rmcs_ws/src/rmcs_core/src/controller/chassis/deformable_wheel_controller.cpp 移除单一 /chassis/processed_encoder/angle 输入和 EncoderState，改为 JointStates { alpha_rad, alpha_dot_rad, radius,
-    valid }，由四轮 geometry_angle/geometry_velocity 填充。
-  - 将 vehicle_radius_ 改为 Eigen::Vector4d vehicle_radii_，按 R_i = chassis_radius_ + rod_length_ * cos(alpha_i) 逐轮计算。
-  - 将机械补偿速度改为逐轮 v_mech_i = -rod_length_ * sin(alpha_i) * alpha_dot_i，逐元素限幅后再投影到径向方向。
-  - 重写 calculate_chassis_velocity()：先计算每轮接地点速度 u_i = wheel_radius_ * (omega_i - omega_mech_i) * [cos(zeta_i), sin(zeta_i)]，再用 8 个方程 u_ix = vx - wz R_i sin(varphi_i)、u_iy = vy + wz
-    R_i cos(varphi_i) 做 8x3 最小二乘求解 [vx, vy, wz]，彻底消除对向轮半径不等时 yaw 项泄漏到 vx/vy 的问题。
-  - calculate_chassis_status_expected()、calculate_wheel_control_torques()、calculate_steering_control_torques()、calculate_ellipse_parameters() 中所有依赖 vehicle_radius_ 的位置统一改成逐轮 R_i，不再保
-    留标量半径分支。
-  - 菱形打滑约束继续保留现有近似模型，但 rhombus_top 改为使用 mean(vehicle_radii_)，本轮不扩展为更大的约束模型重写。
-  - 删除 controller 内部单个 processed_encoder_ab_filter_ 和 1kHz 的 RCLCPP_INFO 半径日志；/chassis/encoder/alpha、/chassis/encoder/alpha_dot、/chassis/radius 保留为四轮平均调试输出，避免现有可视化面板
-    立刻失效。
-  - 任意一轮 geometry_angle/geometry_velocity 当周期非有限时，wheel controller 当周期回退到名义对称模型：vehicle_radii_ = chassis_radius_ + rod_length_、v_mech = 0、调试输出给出名义值，控制输出必须保持
-    有限且不复用陈旧非对称半径。
-
-  ## Test Plan
-
-  - build-rmcs --packages-select rmcs_core 编译通过，且不需要修改 component 列表或 YAML 连线。
-  - 四轮几何角和几何角速度完全相同时，新实现的底盘观测和力矩分配与当前平均角版本在浮点容差内一致。
-  - 非对称静态工况下，前后或左右轮几何角不同但几何角速度为 0，纯自旋指令不应被观测成虚假的 vx 或 vy。
-  - 非对称动态工况下，四轮几何角速度不同，v_mech_i 应逐轮变化，轮速补偿和舵向控制输出保持有限且方向一致。
-  - 将任意一轮几何输入置为 NaN 时，controller 应回退到名义对称模型，而不是继续使用旧的非对称半径。
-
-  ## Assumptions
-
-  - 当前机构的变形只改变轮心到底盘中心的径向距离 R_i，不改变轮位方向 varphi = {0, pi/2, pi, 3pi/2} 和轮序。
-  - 原始 joint 反馈到几何角的映射关系仍由 DeformableChassis 负责，DeformableWheelController 不重复实现 V1/V2 标定逻辑。
-  - 改完后不会再有其他组件消费 /chassis/processed_encoder/angle 作为主闭环输入；它只作为兼容/调试输出保留。
-
-
+# Code Plan
+## 目标
+统一 `deformable-infantry-v2` 中 joint 相关控制链的角度语义：
+- 原始角：
+  - `/chassis/*_joint/angle`
+  - 表示电机内部零点角
+- 物理角：
+  - `/chassis/*_joint/physical_angle`
+  - 表示真实机构物理角
+- 物理角速度：
+  - `/chassis/*_joint/physical_velocity`
+并让以下模块统一使用物理角语义：
+- `DeformableInfantryV2`
+- `DeformableChassisController` (`deformable_wheel_controller.cpp`)
+- `ChassisTestV2Controller`
+- `AdrcController` 的 joint measurement 配置
+## 已确认映射关系
+- 电机原始角增大时，真实物理角减小，并朝 `8 deg` 方向变化
+- 电机零点对应真实物理角 `62.5 deg`
+因此映射公式为：
+```cpp
+physical_angle = 62.5deg - motor_angle
+physical_velocity = -motor_velocity
+单位统一为：
+- physical_angle: rad
+- physical_velocity: rad/s
+已实施方向
+1. V2 hardware 发布 physical 语义
+在 rmcs_ws/src/rmcs_core/src/hardware/deformable-infantry-v2.cpp 中：
+- 新增输出：
+  - /chassis/left_front_joint/physical_angle
+  - /chassis/left_back_joint/physical_angle
+  - /chassis/right_back_joint/physical_angle
+  - /chassis/right_front_joint/physical_angle
+  - /chassis/left_front_joint/physical_velocity
+  - /chassis/left_back_joint/physical_velocity
+  - /chassis/right_back_joint/physical_velocity
+  - /chassis/right_front_joint/physical_velocity
+- 在 joint motor 状态更新后，将原始 angle/velocity 映射为 physical 角和角速度并输出
+3. deformable wheel controller 使用 physical 角
+在 rmcs_ws/src/rmcs_core/src/controller/chassis/deformable_wheel_controller.cpp 中：
+- joint 输入改为：
+  - /chassis/*_joint/physical_angle
+  - /chassis/*_joint/physical_velocity
+- 轮距计算：
+  - R_i = chassis_radius + rod_length * cos(physical_angle_i)
+- 机构附加速度：
+  - v_mech = -rod_length * sin(physical_angle_i) * physical_velocity_i
+- 所有依赖 JointStates 的动力学和力矩计算自动继承 physical 语义
+- 增加节流日志打印：
+  - 四轮 physical 角
+  - 四轮轮距
+4. chassis test 使用 physical 角
+在 rmcs_ws/src/rmcs_core/src/controller/chassis/chassis_test.cpp 中：
+- 新增四路 physical angle 输入
+- 正常模式下：
+  - 继续按 min_angle/max_angle 发布 joint target_angle
+- 双 DOWN 时：
+  - /chassis/control_velocity = NaN
+  - 四轮 target_angle = 当前四轮 physical_angle
+- 这样不修改 ADRC，也能让误差接近 0，使输出力矩接近 0
+5. ADRC measurement 切换到 physical angle
+在 rmcs_ws/src/rmcs_bringup/config/deformable-infantry-v2.yaml 中：
+- 4 个 joint ADRC 的 measurement 改为：
+  - /chassis/*_joint/physical_angle
+- setpoint 继续使用：
+  - /chassis/*_joint/target_angle
+这样 measurement 和 setpoint 使用同一套物理角语义。
+6. 主配置切换到 ChassisTestV2Controller + ADRC
+在 deformable-infantry-v2.yaml 中：
+- 使用：
+  - rmcs_core::controller::chassis::ChassisTestV2Controller -> chassis_test_controller
+- 启用：
+  - 4 个 AdrcController
+  - ChassisPowerController
+  - DeformableChassisController
+- 更新 value_broadcaster 观测项：
+  - 去掉旧的 control_angle_error
+  - 增加 physical_angle/physical_velocity/target_angle
+7. pluginlib 注册
+在 rmcs_ws/src/rmcs_core/plugins.xml 中：
+- 新增：
+  - rmcs_core::controller::chassis::ChassisTestV2Controller
+否则 executor 无法加载新控制器。
+当前需要重点验证
+1. 启动验证
+确认以下组件能成功加载：
+- DeformableInfantryV2
+- ChassisTestV2Controller
+- AdrcController x4
+- ChassisPowerController
+- DeformableChassisController
+2. topic 验证
+确认以下话题存在并有合理数值：
+- /chassis/left_front_joint/physical_angle
+- /chassis/left_back_joint/physical_angle
+- /chassis/right_back_joint/physical_angle
+- /chassis/right_front_joint/physical_angle
+- /chassis/left_front_joint/physical_velocity
+- /chassis/left_front_joint/target_angle
+3. 映射方向验证
+检查：
+- 电机原始角增大时，physical_angle 是否减小
+- 伸长到最大时，physical angle 是否接近 8 deg
+- 零位时，physical angle 是否接近 62.5 deg
+4. 双 DOWN 验证
+在 left_switch == DOWN && right_switch == DOWN 时：
+- /chassis/control_velocity 应为 NaN
+- 四轮 target_angle 应锁定到当前四轮 physical_angle
+- control_torque 应明显减小并趋近于 0
+5. 底盘动力学验证
+检查：
+- 四轮 physical angle 相同时，四轮轮距应一致
+- 非对称姿态时，四轮轮距应按预期分化
+- deformable_wheel_controller 日志中的 physical angle / radius 是否符合机械直觉
+后续可选优化
+1. 发布更多调试量
+可选新增：
+- 四轮 vehicle_radius
+- 四轮 v_mech
+- physical angle 的 deg 版 broadcaster
+2. 统一 DeformableChassis 旧逻辑
+若后续还继续使用 DeformableChassis，需要将其 V2 分支也统一切换到 physical angle 语义，避免老逻辑继续读取原始电机角。
+风险点
+1. plugins.xml 未同步部署时，运行时仍会报 ChassisTestV2Controller 不存在
+2. 配置未同步时，runtime 可能仍加载旧版 deformable-infantry-v2.yaml
+3. physical_angle 接口如果未正确发布，会导致 ADRC 或 wheel controller 再次缺边
+4. 如果 supercap 板卡实机没有回传，状态会保持默认，但不应再造成 DAG 启动失败

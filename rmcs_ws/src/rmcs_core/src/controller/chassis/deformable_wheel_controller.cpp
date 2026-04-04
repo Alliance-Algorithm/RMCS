@@ -68,15 +68,15 @@ public:
         register_input("/chassis/right_back_wheel/velocity", right_back_wheel_velocity_);
         register_input("/chassis/right_front_wheel/velocity", right_front_wheel_velocity_);
 
-        register_input("/chassis/left_front_joint/angle", left_front_joint_angle_);
-        register_input("/chassis/left_back_joint/angle", left_back_joint_angle_);
-        register_input("/chassis/right_back_joint/angle", right_back_joint_angle_);
-        register_input("/chassis/right_front_joint/angle", right_front_joint_angle_);
+        register_input("/chassis/left_front_joint/physical_angle", left_front_joint_angle_);
+        register_input("/chassis/left_back_joint/physical_angle", left_back_joint_angle_);
+        register_input("/chassis/right_back_joint/physical_angle", right_back_joint_angle_);
+        register_input("/chassis/right_front_joint/physical_angle", right_front_joint_angle_);
 
-        register_input("/chassis/left_front_joint/velocity", left_front_joint_velocity_);
-        register_input("/chassis/left_back_joint/velocity", left_back_joint_velocity_);
-        register_input("/chassis/right_back_joint/velocity", right_back_joint_velocity_);
-        register_input("/chassis/right_front_joint/velocity", right_front_joint_velocity_);
+        register_input("/chassis/left_front_joint/physical_velocity", left_front_joint_velocity_);
+        register_input("/chassis/left_back_joint/physical_velocity", left_back_joint_velocity_);
+        register_input("/chassis/right_back_joint/physical_velocity", right_back_joint_velocity_);
+        register_input("/chassis/right_front_joint/physical_velocity", right_front_joint_velocity_);
 
         register_input("/chassis/yaw/velocity_imu", chassis_yaw_velocity_imu_);
         register_input("/chassis/control_velocity", chassis_control_velocity_);
@@ -115,6 +115,15 @@ public:
             *radius_ = vehicle_radii_.mean();
             *encoder_alpha_ = joints.alpha_rad.mean();
             *encoder_alpha_dot_ = joints.alpha_dot_rad.mean();
+            RCLCPP_INFO_THROTTLE(
+                get_logger(), *get_clock(), 1000,
+                "physical joint angle[deg] lf=%.2f lb=%.2f rb=%.2f rf=%.2f, radius[m] lf=%.3f "
+                "lb=%.3f rb=%.3f rf=%.3f",
+                joints.alpha_rad[0] * 180.0 / std::numbers::pi,
+                joints.alpha_rad[1] * 180.0 / std::numbers::pi,
+                joints.alpha_rad[2] * 180.0 / std::numbers::pi,
+                joints.alpha_rad[3] * 180.0 / std::numbers::pi, vehicle_radii_[0],
+                vehicle_radii_[1], vehicle_radii_[2], vehicle_radii_[3]);
         } else {
             *radius_ = nan_;
             *encoder_alpha_ = nan_;
