@@ -231,10 +231,10 @@ private:
                 logger_, "[chassis calibration] right front steering offset: %d",
                 chassis_steering_motors_[3].calibrate_zero_point());
 
-            // chassis_front_climber_motor_[0].update_status();
-            // chassis_front_climber_motor_[1].update_status();
-            // chassis_back_climber_motor_[0].update_status();
-            // chassis_back_climber_motor_[1].update_status();
+            chassis_front_climber_motor_[0].update_status();
+            chassis_front_climber_motor_[1].update_status();
+            chassis_back_climber_motor_[0].update_status();
+            chassis_back_climber_motor_[1].update_status();
 
             for (auto& motor : chassis_wheel_motors_)
                 motor.update_status();
@@ -243,43 +243,59 @@ private:
         }
 
         void command_update() {
-            auto builder = start_transmit();
+            if (can1_transmission_mode_) {
+                auto builder = start_transmit();
 
-            builder.can1_transmit({
-                .can_id = 0x200,
-                .can_data =
-                    device::CanPacket8{
-                                       chassis_wheel_motors_[0].generate_command(),
-                                       chassis_wheel_motors_[1].generate_command(),
-                                       chassis_wheel_motors_[2].generate_command(),
-                                       chassis_wheel_motors_[3].generate_command(),
-                                       }
-                        .as_bytes(),
-            });
+                builder.can1_transmit({
+                    .can_id = 0x200,
+                    .can_data =
+                        device::CanPacket8{
+                                           chassis_wheel_motors_[0].generate_command(),
+                                           chassis_wheel_motors_[1].generate_command(),
+                                           chassis_wheel_motors_[2].generate_command(),
+                                           chassis_wheel_motors_[3].generate_command(),
+                                           }
+                            .as_bytes(),
+                });
+                builder.can1_transmit({
+                    .can_id = 0x1FE,
+                    .can_data =
+                        device::CanPacket8{
+                                           device::CanPacket8::PaddingQuarter{},
+                                           device::CanPacket8::PaddingQuarter{},
+                                           device::CanPacket8::PaddingQuarter{},
+                                           supercap_.generate_command(),
+                                           }
+                            .as_bytes(),
+                });
 
-            builder.can2_transmit({
-                .can_id = 0x1FE,
-                .can_data =
-                    device::CanPacket8{
-                                       chassis_steering_motors_[0].generate_command(),
-                                       chassis_steering_motors_[1].generate_command(),
-                                       chassis_steering_motors_[2].generate_command(),
-                                       chassis_steering_motors_[3].generate_command(),
-                                       }
-                        .as_bytes(),
-            });
+                builder.can2_transmit({
+                    .can_id = 0x200,
+                    .can_data =
+                        device::CanPacket8{
+                                           chassis_back_climber_motor_[0].generate_command(),
+                                           chassis_back_climber_motor_[1].generate_command(),
+                                           chassis_front_climber_motor_[0].generate_command(),
+                                           chassis_front_climber_motor_[1].generate_command(),
+                                           }
+                            .as_bytes(),
+                });
+            } else {
+                auto builder = start_transmit();
 
-            // builder.can2_transmit({
-            //     .can_id = 0x200,
-            //     .can_data =
-            //         device::CanPacket8{
-            //                            chassis_back_climber_motor_[0].generate_command(),
-            //                            chassis_back_climber_motor_[1].generate_command(),
-            //                            chassis_front_climber_motor_[0].generate_command(),
-            //                            chassis_front_climber_motor_[1].generate_command(),
-            //                            }
-            //             .as_bytes(),
-            // });
+                builder.can1_transmit({
+                    .can_id = 0x1FE,
+                    .can_data =
+                        device::CanPacket8{
+                                           chassis_steering_motors_[0].generate_command(),
+                                           chassis_steering_motors_[1].generate_command(),
+                                           chassis_steering_motors_[2].generate_command(),
+                                           chassis_steering_motors_[3].generate_command(),
+                                           }
+                            .as_bytes(),
+                });
+            }
+            can1_transmission_mode_ = !can1_transmission_mode_;
         }
 
     private:
@@ -287,24 +303,32 @@ private:
             if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
                 return;
             auto can_id = data.can_id;
-            if (can_id == 0x201) {
-                chassis_wheel_motors_[0].store_status(data.can_data);
-            } else if (can_id == 0x202) {
-                chassis_wheel_motors_[1].store_status(data.can_data);
-            } else if (can_id == 0x203) {
-                chassis_wheel_motors_[2].store_status(data.can_data);
-            } else if (can_id == 0x204) {
-                chassis_wheel_motors_[3].store_status(data.can_data);
+
+            if (!can1_transmission_mode_) {
+                if (can_id == 0x201) {
+                    chassis_wheel_motors_[0].store_status(data.can_data);
+                } else if (can_id == 0x202) {
+                    chassis_wheel_motors_[1].store_status(data.can_data);
+                } else if (can_id == 0x203) {
+                    chassis_wheel_motors_[2].store_status(data.can_data);
+                } else if (can_id == 0x204) {
+                    chassis_wheel_motors_[3].store_status(data.can_data);
+                } else if (can_id == 0x300) {
+                    supercap_.store_status(data.can_data);
+                }
+
+            } else {
+                if (can_id == 0x205) {
+                    chassis_steering_motors_[0].store_status(data.can_data);
+                } else if (can_id == 0x206) {
+                    chassis_steering_motors_[1].store_status(data.can_data);
+                } else if (can_id == 0x207) {
+                    chassis_steering_motors_[2].store_status(data.can_data);
+                } else if (can_id == 0x208) {
+                    chassis_steering_motors_[3].store_status(data.can_data);
+                }
             }
-            if (can_id == 0x205) {
-                chassis_steering_motors_[0].store_status(data.can_data);
-            } else if (can_id == 0x206) {
-                chassis_steering_motors_[1].store_status(data.can_data);
-            } else if (can_id == 0x207) {
-                chassis_steering_motors_[2].store_status(data.can_data);
-            } else if (can_id == 0x208) {
-                chassis_steering_motors_[3].store_status(data.can_data);
-            }
+            can1_receive_callback_mode_ = !can1_receive_callback_mode_;
 
             //  else if (can_id == 0x300) {
             //     supercap_.store_status(data.can_data);
@@ -347,9 +371,10 @@ private:
             imu_.store_gyroscope_status(data.x, data.y, data.z);
         }
 
-        rclcpp::Logger logger_;
+        bool can1_transmission_mode_ = true;
+        bool can1_receive_callback_mode_ = true;
 
-        short enable = 0;
+        rclcpp::Logger logger_;
 
         device::Bmi088 imu_;
 
