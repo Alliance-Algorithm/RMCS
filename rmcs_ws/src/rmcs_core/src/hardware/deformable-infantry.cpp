@@ -68,11 +68,19 @@ public:
 
         rmcs_board_ = std::make_unique<CombinedBoard>(
             *this, *deformable_infantry_command_,
-            get_parameter("serial_filter_rmcs_board").as_string());
+            get_parameter("serial_filter_rmcs_board").as_string(),
+            librmcs::agent::AdvancedOptions{
+                .dangerously_skip_version_checks =
+                    get_parameter("skip_rmcs_board_version_check").as_bool(),
+            });
 
         top_board_ = std::make_unique<TopBoard>(
             *this, *deformable_infantry_command_,
-            get_parameter("serial_filter_top_board").as_string());
+            get_parameter("serial_filter_top_board").as_string(),
+            librmcs::agent::AdvancedOptions{
+                .dangerously_skip_version_checks =
+                    get_parameter("skip_top_board_version_check").as_bool(),
+            });
     }
 
     ~DeformableInfantry() override = default;
@@ -182,8 +190,9 @@ private:
         explicit CombinedBoard(
             DeformableInfantry& deformableInfantry,
             DeformableInfantryCommand& deformableInfantry_command,
-            std::string serial_filter = {})
-            : librmcs::agent::RmcsBoard(serial_filter)
+            std::string serial_filter = {},
+            librmcs::agent::AdvancedOptions options = {})
+            : librmcs::agent::RmcsBoard(serial_filter, options)
             , tf_(deformableInfantry.tf_)
             , imu_(1000, 0.2, 0.0)
             , gimbal_yaw_motor_(deformableInfantry, deformableInfantry_command, "/gimbal/yaw")
@@ -496,8 +505,9 @@ private:
 
         explicit TopBoard(
             DeformableInfantry& deformableInfantry,
-            DeformableInfantryCommand& deformableInfantry_command, std::string serial_filter = {})
-            : CBoard(serial_filter)
+            DeformableInfantryCommand& deformableInfantry_command, std::string serial_filter = {},
+            librmcs::agent::AdvancedOptions options = {})
+            : CBoard(serial_filter, options)
             , hard_sync_pending_(deformableInfantry.hard_sync_pending_)
             , tf_(deformableInfantry.tf_)
             , bmi088_(1000, 0.2, 0.0)

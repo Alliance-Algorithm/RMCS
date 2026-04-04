@@ -107,7 +107,6 @@ public:
         if (encoder.valid) {
             vehicle_radius_ = chassis_radius_ + (rod_length_ * std::cos(encoder.alpha_rad));
             *radius_ = vehicle_radius_;
-            RCLCPP_INFO(get_logger(), "Vehicle radius: %f", vehicle_radius_);
         }
 
         *encoder_alpha_ = encoder.alpha_rad;

@@ -266,7 +266,7 @@ private:
     ) {
         const bool switch_toggle_condition =
             (left_switch == rmcs_msgs::Switch::MIDDLE) && (right_switch == rmcs_msgs::Switch::UP);
-        const bool keyboard_toggle_condition = !last_keyboard_.r && keyboard.r;
+        const bool keyboard_toggle_condition = !last_keyboard_.e && keyboard.e;
 
         const bool last_switch_toggle_condition =
             (last_switch_left_ == rmcs_msgs::Switch::MIDDLE)
@@ -330,7 +330,6 @@ private:
         *lb_angle_error_ = s_lb_ - lb_s_target_;
         *rf_angle_error_ = s_rf_ - rf_s_target_;
         *rb_angle_error_ = s_rb_ - rb_s_target_;
-        RCLCPP_INFO(get_logger(), "lf_error: %f, lb_error: %f, rf_error: %f, rb_error: %f", alpha_lf, alpha_lb, alpha_rf, alpha_rb);
     }
 
     void scope_motor_control() {

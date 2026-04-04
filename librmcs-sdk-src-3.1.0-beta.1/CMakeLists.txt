@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.28)
 project(librmcs_wrapper VERSION 3 LANGUAGES C CXX)
-set(LIBRMCS_PROJECT_VERSION "3.1.0-beta.0")
-set(LIBRMCS_DEBIAN_VERSION "3.1.0~beta.0")
+set(LIBRMCS_PROJECT_VERSION "3.1.0-beta.1")
+set(LIBRMCS_DEBIAN_VERSION "3.1.0~beta.1")
 add_subdirectory(host)

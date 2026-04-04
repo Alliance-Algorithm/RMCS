@@ -11,6 +11,7 @@
 #include <rclcpp/node.hpp>
 
 #include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/switch.hpp>
 
 namespace rmcs_core::controller::chassis {
 
@@ -30,11 +31,12 @@ public:
         , alpha_nom_deg_(get_parameter_or("alpha_nom_deg", 30.0))
         , alpha_min_deg_(get_parameter_or("alpha_min_deg", 11.0))
         , alpha_max_deg_(get_parameter_or("alpha_max_deg", 48.0))
+        , max_tilt_deg_(get_parameter_or("max_tilt_deg", 10.0))
         , print_debug_(get_parameter_or("print_debug", false)) {
 
-        register_input("/chassis/imu/roll_deg", imu_roll_deg_, false);
-        register_input("/chassis/imu/pitch_deg", imu_pitch_deg_, false);
-        register_input("/chassis/imu/yaw_deg", imu_yaw_deg_, false);
+        register_input("/remote/joystick/left", joystick_left_, false);
+        register_input("/remote/switch/right", switch_right_, false);
+        register_input("/remote/switch/left", switch_left_, false);
 
         register_output("/chassis/test/body_height", body_height_, nan_);
 
@@ -47,21 +49,20 @@ public:
     }
 
     void update() override {
-        if (!imu_roll_deg_.ready() || !imu_pitch_deg_.ready() || !imu_yaw_deg_.ready()) {
+        if (!joystick_left_.ready() || !switch_right_.ready() || !switch_left_.ready()) {
             publish_nan_outputs_();
             RCLCPP_WARN_THROTTLE(
                 get_logger(), *get_clock(), 1000,
-                "Missing IMU inputs. Waiting for /chassis/imu/roll_deg, /chassis/imu/pitch_deg, "
-                "/chassis/imu/yaw_deg.");
+                "Missing remote inputs. Waiting for /remote/joystick/left, "
+                "/remote/switch/right and /remote/switch/left.");
             return;
         }
 
-        if (!std::isfinite(*imu_roll_deg_) || !std::isfinite(*imu_pitch_deg_)
-            || !std::isfinite(*imu_yaw_deg_)) {
+        if (!std::isfinite(joystick_left_->x()) || !std::isfinite(joystick_left_->y())) {
             publish_nan_outputs_();
             RCLCPP_WARN_THROTTLE(
                 get_logger(), *get_clock(), 1000,
-                "Received non-finite IMU value(s). Output is set to NaN.");
+                "Received non-finite joystick value(s). Output is set to NaN.");
             return;
         }
 
@@ -73,15 +74,11 @@ public:
             return;
         }
 
-        const IMUInput imu_input{
-            .roll_deg = *imu_roll_deg_,
-            .pitch_deg = *imu_pitch_deg_,
-            .yaw_deg = *imu_yaw_deg_,
-        };
+        const BodyAttitudeInput body_attitude_input = build_body_attitude_input_();
 
         double solved_body_height = nan_;
         const std::array<double, leg_count_> angles_deg =
-            compute_leg_angles_deg_(imu_input, solved_body_height);
+            compute_leg_angles_deg_(body_attitude_input, solved_body_height);
 
         *body_height_ = solved_body_height;
 
@@ -93,7 +90,9 @@ public:
         if (print_debug_) {
             RCLCPP_INFO_THROTTLE(
                 get_logger(), *get_clock(), 1000,
-                "chassis_test_solver: h=%.4f, lf=%.3f, lb=%.3f, rb=%.3f, rf=%.3f", *body_height_,
+                "chassis_test_solver: roll=%.2f, pitch=%.2f, h=%.4f, lf=%.3f, lb=%.3f, rb=%.3f, "
+                "rf=%.3f",
+                body_attitude_input.roll_deg, body_attitude_input.pitch_deg, *body_height_,
                 *left_front_target_angle_, *left_back_target_angle_, *right_back_target_angle_,
                 *right_front_target_angle_);
         }
@@ -109,7 +108,7 @@ private:
     static constexpr double pi_  = std::numbers::pi;
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
 
-    struct IMUInput {
+    struct BodyAttitudeInput {
         double roll_deg;
         double pitch_deg;
         double yaw_deg;
@@ -135,8 +134,9 @@ private:
     bool parameters_are_valid_() const {
         return std::isfinite(body_length_) && std::isfinite(body_width_) && std::isfinite(arm_length_)
             && std::isfinite(pivot_offset_) && std::isfinite(pivot_z_) && std::isfinite(alpha_nom_deg_)
-            && std::isfinite(alpha_min_deg_) && std::isfinite(alpha_max_deg_) && body_length_ > 0.0
-            && body_width_ > 0.0 && arm_length_ > 0.0 && alpha_min_deg_ <= alpha_max_deg_;
+            && std::isfinite(alpha_min_deg_) && std::isfinite(alpha_max_deg_)
+            && std::isfinite(max_tilt_deg_) && body_length_ > 0.0 && body_width_ > 0.0
+            && arm_length_ > 0.0 && alpha_min_deg_ <= alpha_max_deg_ && max_tilt_deg_ >= 0.0;
     }
 
     RobotParams build_params_() const {
@@ -159,6 +159,27 @@ private:
         *left_back_target_angle_  = nan_;
         *right_back_target_angle_ = nan_;
         *right_front_target_angle_ = nan_;
+    }
+
+    BodyAttitudeInput build_body_attitude_input_() const {
+        BodyAttitudeInput input{
+            .roll_deg = 0.0,
+            .pitch_deg = 0.0,
+            .yaw_deg = 0.0,
+        };
+
+        if (*switch_right_ != rmcs_msgs::Switch::UP || *switch_left_ != rmcs_msgs::Switch::DOWN) {
+            return input;
+        }
+
+        Eigen::Vector2d tilt_ratio = *joystick_left_;
+        if (tilt_ratio.norm() > 1.0) {
+            tilt_ratio.normalize();
+        }
+
+        input.roll_deg = clamp_(tilt_ratio.x(), -1.0, 1.0) * max_tilt_deg_;
+        input.pitch_deg = clamp_(tilt_ratio.y(), -1.0, 1.0) * max_tilt_deg_;
+        return input;
     }
 
     static double deg_to_rad_(double deg) {
@@ -296,11 +317,14 @@ private:
     }
 
     std::array<double, leg_count_>
-        compute_leg_angles_deg_(const IMUInput& imu_input, double& body_height_out) const {
+        compute_leg_angles_deg_(const BodyAttitudeInput& body_attitude_input, double& body_height_out)
+            const {
 
         const RobotParams params = build_params_();
         const Eigen::Matrix3d rotation_world_body =
-            euler_zyx_to_rotation_matrix_(imu_input.roll_deg, imu_input.pitch_deg, imu_input.yaw_deg);
+            euler_zyx_to_rotation_matrix_(
+                body_attitude_input.roll_deg, body_attitude_input.pitch_deg,
+                body_attitude_input.yaw_deg);
 
         const auto corners = build_body_corners_(params);
         const auto radials = build_radials_(corners);
@@ -344,9 +368,9 @@ private:
         return output_angles_deg;
     }
 
-    InputInterface<double> imu_roll_deg_;
-    InputInterface<double> imu_pitch_deg_;
-    InputInterface<double> imu_yaw_deg_;
+    InputInterface<Eigen::Vector2d> joystick_left_;
+    InputInterface<rmcs_msgs::Switch> switch_right_;
+    InputInterface<rmcs_msgs::Switch> switch_left_;
 
     OutputInterface<double> body_height_;
 
@@ -363,6 +387,7 @@ private:
     double alpha_nom_deg_;
     double alpha_min_deg_;
     double alpha_max_deg_;
+    double max_tilt_deg_;
 
     bool print_debug_;
 };

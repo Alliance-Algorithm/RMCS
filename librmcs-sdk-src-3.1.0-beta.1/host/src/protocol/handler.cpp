@@ -16,6 +16,7 @@
 #include "host/src/logging/logging.hpp"
 #include "host/src/protocol/stream_buffer.hpp"
 #include "host/src/transport/transport.hpp"
+#include "librmcs/agent/common.hpp"
 #include "librmcs/data/datas.hpp"
 
 namespace librmcs::host::protocol {
@@ -47,14 +48,24 @@ public:
             logging::get_logger().error("Unexpected uart field id: ", static_cast<int>(id));
     }
 
-    void gpio_digital_deserialized_callback(const data::GpioDigitalDataView& data) override {
-        (void)data;
-        logging::get_logger().error("Unexpected gpio digital field in uplink");
+    void gpio_digital_data_deserialized_callback(const data::GpioDigitalDataView& data) override {
+        callback_.gpio_digital_read_result_callback(data);
     }
 
-    void gpio_analog_deserialized_callback(const data::GpioAnalogDataView& data) override {
+    void gpio_analog_data_deserialized_callback(const data::GpioAnalogDataView& data) override {
+        callback_.gpio_analog_read_result_callback(data);
+    }
+
+    void gpio_digital_read_config_deserialized_callback(
+        const data::GpioReadConfigView& data) override {
         (void)data;
-        logging::get_logger().error("Unexpected gpio analog field in uplink");
+        logging::get_logger().error("Unexpected gpio digital read config field in uplink");
+    }
+
+    void gpio_analog_read_config_deserialized_callback(
+        const data::GpioReadConfigView& data) override {
+        (void)data;
+        logging::get_logger().error("Unexpected gpio analog read config field in uplink");
     }
 
     void accelerometer_deserialized_callback(const data::AccelerometerDataView& data) override {
@@ -102,12 +113,17 @@ struct PacketBuilderImpl {
         return process_result(serializer_.write_uart(field_id, view));
     }
 
-    [[nodiscard]] bool write_gpio_digital(const data::GpioDigitalDataView& view) noexcept {
-        return process_result(serializer_.write_gpio_digital(view));
+    [[nodiscard]] bool write_gpio_digital_data(const data::GpioDigitalDataView& view) noexcept {
+        return process_result(serializer_.write_gpio_digital_data(view));
     }
 
-    [[nodiscard]] bool write_gpio_analog(const data::GpioAnalogDataView& view) noexcept {
-        return process_result(serializer_.write_gpio_analog(view));
+    [[nodiscard]] bool
+        write_gpio_digital_read_config(const data::GpioReadConfigView& view) noexcept {
+        return process_result(serializer_.write_gpio_digital_read_config(view));
+    }
+
+    [[nodiscard]] bool write_gpio_analog_data(const data::GpioAnalogDataView& view) noexcept {
+        return process_result(serializer_.write_gpio_analog_data(view));
     }
 
     [[nodiscard]] bool write_imu_accelerometer(const data::AccelerometerDataView& view) noexcept {
@@ -161,12 +177,21 @@ bool Handler::PacketBuilder::write_uart(
     return std::launder(reinterpret_cast<PacketBuilderImpl*>(storage_))->write_uart(field_id, view);
 }
 
-bool Handler::PacketBuilder::write_gpio_digital(const data::GpioDigitalDataView& view) noexcept {
-    return std::launder(reinterpret_cast<PacketBuilderImpl*>(storage_))->write_gpio_digital(view);
+bool Handler::PacketBuilder::write_gpio_digital_data(
+    const data::GpioDigitalDataView& view) noexcept {
+    return std::launder(reinterpret_cast<PacketBuilderImpl*>(storage_))
+        ->write_gpio_digital_data(view);
 }
 
-bool Handler::PacketBuilder::write_gpio_analog(const data::GpioAnalogDataView& view) noexcept {
-    return std::launder(reinterpret_cast<PacketBuilderImpl*>(storage_))->write_gpio_analog(view);
+bool Handler::PacketBuilder::write_gpio_digital_read_config(
+    const data::GpioReadConfigView& view) noexcept {
+    return std::launder(reinterpret_cast<PacketBuilderImpl*>(storage_))
+        ->write_gpio_digital_read_config(view);
+}
+
+bool Handler::PacketBuilder::write_gpio_analog_data(const data::GpioAnalogDataView& view) noexcept {
+    return std::launder(reinterpret_cast<PacketBuilderImpl*>(storage_))
+        ->write_gpio_analog_data(view);
 }
 
 bool Handler::PacketBuilder::write_imu_accelerometer(
@@ -180,8 +205,15 @@ bool Handler::PacketBuilder::write_imu_gyroscope(const data::GyroscopeDataView& 
 }
 
 Handler::Handler(
-    uint16_t usb_vid, int32_t usb_pid, std::string_view serial_filter, data::DataCallback& callback)
-    : impl_(new Impl(transport::create_usb_transport(usb_vid, usb_pid, serial_filter), callback)) {}
+    uint16_t usb_vid, int32_t usb_pid, std::string_view serial_filter,
+    const agent::AdvancedOptions& options, data::DataCallback& callback)
+    : impl_(new Impl(
+          transport::usb::create_transport(
+              usb_vid, usb_pid, serial_filter,
+              transport::usb::ConnectionOptions{
+                  .dangerously_skip_version_checks = options.dangerously_skip_version_checks,
+              }),
+          callback)) {}
 
 Handler::Handler(Handler&& other) noexcept
     : impl_(std::exchange(other.impl_, nullptr)) {}

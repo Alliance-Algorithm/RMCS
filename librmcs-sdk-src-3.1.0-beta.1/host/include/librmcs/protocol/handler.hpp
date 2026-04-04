@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <string_view>
 
+#include <librmcs/agent/common.hpp>
 #include <librmcs/data/datas.hpp>
 #include <librmcs/export.hpp>
 
@@ -23,9 +24,11 @@ public:
 
         bool write_uart(data::DataId field_id, const data::UartDataView& view) noexcept;
 
-        bool write_gpio_digital(const data::GpioDigitalDataView& view) noexcept;
+        bool write_gpio_digital_data(const data::GpioDigitalDataView& view) noexcept;
 
-        bool write_gpio_analog(const data::GpioAnalogDataView& view) noexcept;
+        bool write_gpio_digital_read_config(const data::GpioReadConfigView& view) noexcept;
+
+        bool write_gpio_analog_data(const data::GpioAnalogDataView& view) noexcept;
 
         bool write_imu_accelerometer(const data::AccelerometerDataView& view) noexcept;
 
@@ -41,7 +44,7 @@ public:
 
     Handler(
         uint16_t usb_vid, int32_t usb_pid, std::string_view serial_filter,
-        data::DataCallback& callback);
+        const agent::AdvancedOptions& options, data::DataCallback& callback);
 
     Handler(const Handler&) = delete;
     Handler& operator=(const Handler&) = delete;

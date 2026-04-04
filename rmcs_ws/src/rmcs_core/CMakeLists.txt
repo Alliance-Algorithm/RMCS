@@ -17,7 +17,7 @@ include(FetchContent)
 set(BUILD_STATIC_LIBRMCS ON CACHE BOOL "Build static librmcs SDK" FORCE)
 fetchcontent_declare(
   librmcs
-  SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../librmcs-sdk-src-3.1.0-beta.0
+  SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../librmcs-sdk-src-3.1.0-beta.1
 )
 fetchcontent_makeavailable(librmcs)
 add_subdirectory(third_party/tinympc/src/tinympc)

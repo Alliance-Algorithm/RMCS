@@ -199,7 +199,9 @@ public:
             return;
         }
 
-        const YawVelocityFeedback yaw_feedback = yaw_velocity_feedback();
+        // Manual yaw tuning expects the legacy raw IMU feedback path.
+        const YawVelocityFeedback yaw_feedback =
+            planner_active ? yaw_velocity_feedback() : YawVelocityFeedback{.chassis = 0.0, .total = *yaw_velocity_imu_};
         const double pitch_feedback = *pitch_velocity_imu_;
         const double yaw_velocity_ff =
             planner_active ? yaw_vel_ff_gain_ * *plan_yaw_velocity_ : 0.0;

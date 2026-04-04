@@ -26,15 +26,17 @@
 #include "host/src/utility/final_action.hpp"
 #include "host/src/utility/ring_buffer.hpp"
 
-namespace librmcs::host::transport {
-namespace usb {
+namespace librmcs::host::transport::usb {
 
 class Usb : public Transport {
 public:
-    explicit Usb(uint16_t usb_vid, int32_t usb_pid, std::string_view serial_filter)
+    explicit Usb(
+        uint16_t usb_vid, int32_t usb_pid, std::string_view serial_filter,
+        const ConnectionOptions& options)
         : logger_(logging::get_logger())
         , free_transmit_transfers_(kTransmitTransferCount) {
-        usb_init(usb_vid, usb_pid, serial_filter);
+
+        usb_init(usb_vid, usb_pid, serial_filter, options);
         utility::FinalAction rollback_on_failure{[this]() noexcept {
             destroy_free_transmit_transfers();
             libusb_release_interface(libusb_device_handle_, kTargetInterface);
@@ -169,7 +171,9 @@ private:
         libusb_transfer* transfer_;
     };
 
-    void usb_init(uint16_t vendor_id, int32_t product_id, std::string_view serial_filter) {
+    void usb_init(
+        uint16_t vendor_id, int32_t product_id, std::string_view serial_filter,
+        const ConnectionOptions& options) {
         if (const int ret = libusb_init(&libusb_context_); ret != 0) [[unlikely]] {
             throw std::runtime_error(
                 std::format(
@@ -177,17 +181,34 @@ private:
         }
         utility::FinalAction exit_libusb{[this]() noexcept { libusb_exit(libusb_context_); }};
 
-        libusb_device_handle_ =
-            DeviceScanner::select_device(libusb_context_, vendor_id, product_id, serial_filter);
+        libusb_device_handle_ = DeviceScanner::select_device(
+            libusb_context_, vendor_id, product_id, serial_filter, options);
         utility::FinalAction close_device_handle{
             [this]() noexcept { libusb_close(libusb_device_handle_); }};
 
+        const int auto_detach_ret =
+            libusb_set_auto_detach_kernel_driver(libusb_device_handle_, 1);
+        if (auto_detach_ret != 0 && auto_detach_ret != LIBUSB_ERROR_NOT_SUPPORTED) {
+            logger_.warn(
+                "Failed to enable libusb auto-detach on interface {}: {} ({})",
+                kTargetInterface, auto_detach_ret, helper::libusb_errname(auto_detach_ret));
+        }
+
         if (const int ret = libusb_claim_interface(libusb_device_handle_, kTargetInterface);
             ret != 0) [[unlikely]] {
+            const char* hint = "";
+            if (ret == LIBUSB_ERROR_BUSY)
+                hint = " Another driver or process may already own the interface.";
+            else if (ret == LIBUSB_ERROR_ACCESS)
+                hint = " Check USB permissions or udev rules for this device.";
             throw std::runtime_error(
                 std::format(
-                    "Failed to claim interface {}: {} ({})", kTargetInterface, ret,
-                    helper::libusb_errname(ret)));
+                    "Failed to claim interface {}: {} ({}){}.{}", kTargetInterface, ret,
+                    helper::libusb_errname(ret),
+                    auto_detach_ret == LIBUSB_ERROR_NOT_SUPPORTED
+                        ? " libusb auto-detach is not supported on this platform."
+                        : "",
+                    hint));
         }
 
         // Libusb successfully initialized
@@ -350,11 +371,10 @@ private:
         std::chrono::steady_clock::time_point::min();
 };
 
-} // namespace usb
-
-std::unique_ptr<Transport>
-    create_usb_transport(uint16_t usb_vid, int32_t usb_pid, std::string_view serial_filter) {
-    return std::make_unique<usb::Usb>(usb_vid, usb_pid, serial_filter);
+std::unique_ptr<Transport> create_transport(
+    uint16_t usb_vid, int32_t usb_pid, std::string_view serial_filter,
+    const ConnectionOptions& options) {
+    return std::make_unique<usb::Usb>(usb_vid, usb_pid, serial_filter, options);
 }
 
-} // namespace librmcs::host::transport
+} // namespace librmcs::host::transport::usb

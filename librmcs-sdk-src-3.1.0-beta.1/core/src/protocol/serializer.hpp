@@ -120,7 +120,7 @@ public:
         return SerializeResult::kSuccess;
     }
 
-    SerializeResult write_gpio_digital(const data::GpioDigitalDataView& view) noexcept {
+    SerializeResult write_gpio_digital_data(const data::GpioDigitalDataView& view) noexcept {
         const auto payload_type = view.high ? GpioHeader::PayloadEnum::kDigitalWriteHigh
                                             : GpioHeader::PayloadEnum::kDigitalWriteLow;
         const std::size_t required = required_gpio_size(FieldId::kGpio, payload_type);
@@ -137,12 +137,45 @@ public:
         cursor += sizeof(GpioHeader);
         header.set<GpioHeader::PayloadType>(payload_type);
         header.set<GpioHeader::Channel>(view.channel);
+        header.set<GpioHeader::Pull>(data::GpioPull::kNone);
 
         utility::assert_debug(cursor == dst.data() + dst.size());
         return SerializeResult::kSuccess;
     }
 
-    SerializeResult write_gpio_analog(const data::GpioAnalogDataView& view) noexcept {
+    SerializeResult write_gpio_digital_read_config(const data::GpioReadConfigView& view) noexcept {
+        LIBRMCS_VERIFY_LIKELY(
+            view.period_ms <= ((1U << 13) - 1U), SerializeResult::kInvalidArgument);
+
+        const std::size_t required =
+            required_gpio_size(FieldId::kGpio, GpioHeader::PayloadEnum::kDigitalRead);
+        LIBRMCS_VERIFY_LIKELY(required, SerializeResult::kInvalidArgument);
+
+        auto dst = buffer_.allocate(required);
+        LIBRMCS_VERIFY_LIKELY(!dst.empty(), SerializeResult::kBadAlloc);
+        utility::assert_debug(dst.size() == required);
+        std::byte* cursor = dst.data();
+
+        write_field_header(cursor, FieldId::kGpio);
+
+        auto header = GpioHeader::Ref(cursor);
+        cursor += sizeof(GpioHeader);
+        header.set<GpioHeader::PayloadType>(GpioHeader::PayloadEnum::kDigitalRead);
+        header.set<GpioHeader::Channel>(view.channel);
+        header.set<GpioHeader::Pull>(view.pull);
+
+        auto payload = GpioReadConfigPayload::Ref(cursor);
+        cursor += sizeof(GpioReadConfigPayload);
+        payload.set<GpioReadConfigPayload::Asap>(view.asap);
+        payload.set<GpioReadConfigPayload::RisingEdge>(view.rising_edge);
+        payload.set<GpioReadConfigPayload::FallingEdge>(view.falling_edge);
+        payload.set<GpioReadConfigPayload::PeriodMs>(view.period_ms);
+
+        utility::assert_debug(cursor == dst.data() + dst.size());
+        return SerializeResult::kSuccess;
+    }
+
+    SerializeResult write_gpio_analog_data(const data::GpioAnalogDataView& view) noexcept {
         const std::size_t required =
             required_gpio_size(FieldId::kGpio, GpioHeader::PayloadEnum::kAnalogWrite);
         LIBRMCS_VERIFY_LIKELY(required, SerializeResult::kInvalidArgument);
@@ -158,6 +191,90 @@ public:
         cursor += sizeof(GpioHeader);
         header.set<GpioHeader::PayloadType>(GpioHeader::PayloadEnum::kAnalogWrite);
         header.set<GpioHeader::Channel>(view.channel);
+        header.set<GpioHeader::Pull>(data::GpioPull::kNone);
+
+        auto payload = GpioAnalogPayload::Ref(cursor);
+        cursor += sizeof(GpioAnalogPayload);
+        payload.set<GpioAnalogPayload::Value>(view.value);
+
+        utility::assert_debug(cursor == dst.data() + dst.size());
+        return SerializeResult::kSuccess;
+    }
+
+    SerializeResult write_gpio_analog_read_config(const data::GpioReadConfigView& view) noexcept {
+        LIBRMCS_VERIFY_LIKELY(
+            view.period_ms <= ((1U << 13) - 1U), SerializeResult::kInvalidArgument);
+        LIBRMCS_VERIFY_LIKELY(
+            !view.falling_edge && !view.rising_edge, SerializeResult::kInvalidArgument);
+
+        const std::size_t required =
+            required_gpio_size(FieldId::kGpio, GpioHeader::PayloadEnum::kAnalogRead);
+        LIBRMCS_VERIFY_LIKELY(required, SerializeResult::kInvalidArgument);
+
+        auto dst = buffer_.allocate(required);
+        LIBRMCS_VERIFY_LIKELY(!dst.empty(), SerializeResult::kBadAlloc);
+        utility::assert_debug(dst.size() == required);
+        std::byte* cursor = dst.data();
+
+        write_field_header(cursor, FieldId::kGpio);
+
+        auto header = GpioHeader::Ref(cursor);
+        cursor += sizeof(GpioHeader);
+        header.set<GpioHeader::PayloadType>(GpioHeader::PayloadEnum::kAnalogRead);
+        header.set<GpioHeader::Channel>(view.channel);
+        header.set<GpioHeader::Pull>(view.pull);
+
+        auto payload = GpioReadConfigPayload::Ref(cursor);
+        cursor += sizeof(GpioReadConfigPayload);
+        payload.set<GpioReadConfigPayload::Asap>(view.asap);
+        payload.set<GpioReadConfigPayload::RisingEdge>(false);
+        payload.set<GpioReadConfigPayload::FallingEdge>(false);
+        payload.set<GpioReadConfigPayload::PeriodMs>(view.period_ms);
+
+        utility::assert_debug(cursor == dst.data() + dst.size());
+        return SerializeResult::kSuccess;
+    }
+
+    SerializeResult write_gpio_digital_read_result(const data::GpioDigitalDataView& view) noexcept {
+        const auto payload_type = view.high ? GpioHeader::PayloadEnum::kDigitalReadResultHigh
+                                            : GpioHeader::PayloadEnum::kDigitalReadResultLow;
+        const std::size_t required = required_gpio_size(FieldId::kGpio, payload_type);
+        LIBRMCS_VERIFY_LIKELY(required, SerializeResult::kInvalidArgument);
+
+        auto dst = buffer_.allocate(required);
+        LIBRMCS_VERIFY_LIKELY(!dst.empty(), SerializeResult::kBadAlloc);
+        utility::assert_debug(dst.size() == required);
+        std::byte* cursor = dst.data();
+
+        write_field_header(cursor, FieldId::kGpio);
+
+        auto header = GpioHeader::Ref(cursor);
+        cursor += sizeof(GpioHeader);
+        header.set<GpioHeader::PayloadType>(payload_type);
+        header.set<GpioHeader::Channel>(view.channel);
+        header.set<GpioHeader::Pull>(data::GpioPull::kNone);
+
+        utility::assert_debug(cursor == dst.data() + dst.size());
+        return SerializeResult::kSuccess;
+    }
+
+    SerializeResult write_gpio_analog_read_result(const data::GpioAnalogDataView& view) noexcept {
+        const std::size_t required =
+            required_gpio_size(FieldId::kGpio, GpioHeader::PayloadEnum::kAnalogReadResult);
+        LIBRMCS_VERIFY_LIKELY(required, SerializeResult::kInvalidArgument);
+
+        auto dst = buffer_.allocate(required);
+        LIBRMCS_VERIFY_LIKELY(!dst.empty(), SerializeResult::kBadAlloc);
+        utility::assert_debug(dst.size() == required);
+        std::byte* cursor = dst.data();
+
+        write_field_header(cursor, FieldId::kGpio);
+
+        auto header = GpioHeader::Ref(cursor);
+        cursor += sizeof(GpioHeader);
+        header.set<GpioHeader::PayloadType>(GpioHeader::PayloadEnum::kAnalogReadResult);
+        header.set<GpioHeader::Channel>(view.channel);
+        header.set<GpioHeader::Pull>(data::GpioPull::kNone);
 
         auto payload = GpioAnalogPayload::Ref(cursor);
         cursor += sizeof(GpioAnalogPayload);
@@ -285,8 +402,15 @@ private:
         std::size_t payload_bytes = 0;
         switch (payload) {
         case GpioHeader::PayloadEnum::kDigitalWriteLow:
-        case GpioHeader::PayloadEnum::kDigitalWriteHigh: payload_bytes = 0; break;
+        case GpioHeader::PayloadEnum::kDigitalWriteHigh:
+        case GpioHeader::PayloadEnum::kDigitalReadResultLow:
+        case GpioHeader::PayloadEnum::kDigitalReadResultHigh: payload_bytes = 0; break;
+        case GpioHeader::PayloadEnum::kDigitalRead:
+        case GpioHeader::PayloadEnum::kAnalogRead:
+            payload_bytes = sizeof(GpioReadConfigPayload);
+            break;
         case GpioHeader::PayloadEnum::kAnalogWrite:
+        case GpioHeader::PayloadEnum::kAnalogReadResult:
             payload_bytes = sizeof(GpioAnalogPayload);
             break;
         default: return 0;

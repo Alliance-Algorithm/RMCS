@@ -15,6 +15,8 @@
 #include <sys/types.h>
 
 #include "core/src/utility/assert.hpp"
+#include "host/src/logging/logging.hpp"
+#include "host/src/transport/transport.hpp"
 #include "host/src/transport/usb/helper.hpp"
 #include "host/src/utility/final_action.hpp"
 
@@ -24,7 +26,7 @@ class DeviceScanner {
 public:
     static libusb_device_handle* select_device(
         libusb_context* context, uint16_t vendor_id, int32_t product_id,
-        std::string_view serial_filter) {
+        std::string_view serial_filter, const ConnectionOptions& options) {
         libusb_device** device_list = nullptr;
         const ssize_t device_count = libusb_get_device_list(context, &device_list);
         if (device_count < 0) {
@@ -38,7 +40,8 @@ public:
         const utility::FinalAction free_device_list{
             [&device_list]() noexcept { libusb_free_device_list(device_list, 1); }};
 
-        auto infos = scan_devices(device_list, device_count, vendor_id, product_id, serial_filter);
+        auto infos =
+            scan_devices(device_list, device_count, vendor_id, product_id, serial_filter, options);
 
         std::vector<libusb_device_handle*> devices_opened;
         for (const auto& info : infos) {
@@ -52,7 +55,7 @@ public:
 
             const bool multiple_compatible_devices = devices_opened.size() > 1;
             const auto report = generate_device_discovery_report(
-                infos, vendor_id, product_id, serial_filter, multiple_compatible_devices);
+                infos, vendor_id, product_id, serial_filter, options, multiple_compatible_devices);
             throw std::runtime_error(
                 std::format(
                     "{}\n\n{}",
@@ -118,7 +121,7 @@ private:
 
     static std::vector<DeviceInfo> scan_devices(
         libusb_device** device_list, ssize_t device_count, uint16_t vendor_id, int32_t product_id,
-        std::string_view serial_filter) {
+        std::string_view serial_filter, const ConnectionOptions& options) {
         std::vector<DeviceInfo> infos;
         infos.reserve(static_cast<size_t>(device_count));
 
@@ -155,7 +158,7 @@ private:
             if (!read_and_match_serial_number(handle, serial_filter, info))
                 continue;
 
-            if (!match_product_version(handle, info))
+            if (!match_product_version(handle, info, options.dangerously_skip_version_checks))
                 continue;
 
             info.result = DeviceInfo::Matched{handle};
@@ -225,7 +228,8 @@ private:
         return filter_it == filter_end;
     }
 
-    static bool match_product_version(libusb_device_handle* handle, DeviceInfo& info) {
+    static bool match_product_version(
+        libusb_device_handle* handle, DeviceInfo& info, bool warn_only_when_mismatch) {
         if (info.descriptor.iProduct == 0) {
             info.result = DeviceInfo::MissingProductString{};
             return false;
@@ -242,6 +246,15 @@ private:
 
         const std::string_view product_string{product_buf, static_cast<size_t>(n)};
         if (product_string != "RMCS Agent v" LIBRMCS_PROJECT_VERSION_STRING) {
+            if (warn_only_when_mismatch) {
+                logging::get_logger().warn(
+                    "USB device firmware version mismatch: found '{}', expected "
+                    "'RMCS Agent v{}'. Continuing because "
+                    "dangerously_skip_version_checks is enabled.",
+                    product_string, LIBRMCS_PROJECT_VERSION_STRING);
+                return true;
+            }
+
             info.result = DeviceInfo::ProtocolVersionMismatch{std::string{product_string}};
             return false;
         }
@@ -251,19 +264,24 @@ private:
 
     static std::string generate_device_discovery_report(
         std::span<const DeviceInfo> infos, uint16_t vendor_id, int32_t product_id,
-        std::string_view serial_filter, bool multiple_compatible_devices) {
+        std::string_view serial_filter, const ConnectionOptions& options,
+        bool multiple_compatible_devices) {
         const std::string pid_text = product_id >= 0 ? std::format("0x{:04x}", product_id) : "Any";
         const std::string serial_filter_text =
             serial_filter.empty() ? "Any" : std::string{serial_filter};
+        const std::string firmware_filter_text =
+            options.dangerously_skip_version_checks
+                ? "Any"
+                : std::string{"v" LIBRMCS_PROJECT_VERSION_STRING};
 
         std::string report = std::format(
             "Target Specs:\n"
             "- VID: 0x{:04x}\n"
             "- PID: {}\n"
             "- Serial Filter: {}\n"
-            "- Firmware: v{}\n\n"
+            "- Firmware: {}\n\n"
             "Discovered Devices:\n",
-            vendor_id, pid_text, serial_filter_text, LIBRMCS_PROJECT_VERSION_STRING);
+            vendor_id, pid_text, serial_filter_text, firmware_filter_text);
 
         DiscoveryTroubleshooting troubleshooting = {};
         std::size_t reported_device_count = 0;
