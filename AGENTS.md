@@ -83,7 +83,7 @@ set-robot <type> → launch-rmcs → rmcs.launch.py → rmcs_executor (respawn=t
 - `omni-infantry.yaml`：四轮全向步兵
 - `steering-infantry.yaml`：舵轮步兵
 - `mecanum-hero.yaml`：麦克纳姆轮英雄
-
+- `deformable-infantry.yaml`: 带关节可变轮距的舵轮步兵
 ## 组件 DAG (以最简单的 omni-infantry 为例)
 
 ```text
@@ -194,7 +194,8 @@ Partner component `infantry_hardware_command` 消费：
 - `ChassisController`：遥控 + 云台误差 → `/chassis/control_{mode,velocity,angle}`
 - `ChassisPowerController`：裁判功率 + 超级电容 → `/chassis/control_power_limit`
 - `OmniWheelController`：→ 四轮 `/chassis/*_wheel/control_torque`
-
+- `DeformableChassis` : Deformable-infantry的特化的ChassisController, 融合了底盘和关节的控制量输入
+- `DeformableWheelController`: Deformable-infantry的特化的底盘控制器，融合了关节的分速度和轮距的计算
 ### 裁判/UI 层
 `Status` 解帧 → `Ui`/`Infantry` 生成 UI → `Interaction` 汇总 → `Command` 编码写回 `/referee/serial`
 
