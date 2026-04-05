@@ -1,128 +1,203 @@
-# Code Plan
-## 目标
-统一 `deformable-infantry-v2` 中 joint 相关控制链的角度语义：
-- 原始角：
-  - `/chassis/*_joint/angle`
-  - 表示电机内部零点角
-- 物理角：
-  - `/chassis/*_joint/physical_angle`
-  - 表示真实机构物理角
-- 物理角速度：
-  - `/chassis/*_joint/physical_velocity`
-并让以下模块统一使用物理角语义：
-- `DeformableInfantryV2`
-- `DeformableChassisController` (`deformable_wheel_controller.cpp`)
-- `ChassisTestV2Controller`
-- `AdrcController` 的 joint measurement 配置
-## 已确认映射关系
-- 电机原始角增大时，真实物理角减小，并朝 `8 deg` 方向变化
-- 电机零点对应真实物理角 `62.5 deg`
-因此映射公式为：
-```cpp
-physical_angle = 62.5deg - motor_angle
-physical_velocity = -motor_velocity
-单位统一为：
-- physical_angle: rad
-- physical_velocity: rad/s
-已实施方向
-1. V2 hardware 发布 physical 语义
-在 rmcs_ws/src/rmcs_core/src/hardware/deformable-infantry-v2.cpp 中：
-- 新增输出：
-  - /chassis/left_front_joint/physical_angle
-  - /chassis/left_back_joint/physical_angle
-  - /chassis/right_back_joint/physical_angle
-  - /chassis/right_front_joint/physical_angle
-  - /chassis/left_front_joint/physical_velocity
-  - /chassis/left_back_joint/physical_velocity
-  - /chassis/right_back_joint/physical_velocity
-  - /chassis/right_front_joint/physical_velocity
-- 在 joint motor 状态更新后，将原始 angle/velocity 映射为 physical 角和角速度并输出
-3. deformable wheel controller 使用 physical 角
-在 rmcs_ws/src/rmcs_core/src/controller/chassis/deformable_wheel_controller.cpp 中：
-- joint 输入改为：
-  - /chassis/*_joint/physical_angle
-  - /chassis/*_joint/physical_velocity
-- 轮距计算：
-  - R_i = chassis_radius + rod_length * cos(physical_angle_i)
-- 机构附加速度：
-  - v_mech = -rod_length * sin(physical_angle_i) * physical_velocity_i
-- 所有依赖 JointStates 的动力学和力矩计算自动继承 physical 语义
-- 增加节流日志打印：
-  - 四轮 physical 角
-  - 四轮轮距
-4. chassis test 使用 physical 角
-在 rmcs_ws/src/rmcs_core/src/controller/chassis/chassis_test.cpp 中：
-- 新增四路 physical angle 输入
-- 正常模式下：
-  - 继续按 min_angle/max_angle 发布 joint target_angle
-- 双 DOWN 时：
-  - /chassis/control_velocity = NaN
-  - 四轮 target_angle = 当前四轮 physical_angle
-- 这样不修改 ADRC，也能让误差接近 0，使输出力矩接近 0
-5. ADRC measurement 切换到 physical angle
-在 rmcs_ws/src/rmcs_bringup/config/deformable-infantry-v2.yaml 中：
-- 4 个 joint ADRC 的 measurement 改为：
-  - /chassis/*_joint/physical_angle
-- setpoint 继续使用：
-  - /chassis/*_joint/target_angle
-这样 measurement 和 setpoint 使用同一套物理角语义。
-6. 主配置切换到 ChassisTestV2Controller + ADRC
-在 deformable-infantry-v2.yaml 中：
-- 使用：
-  - rmcs_core::controller::chassis::ChassisTestV2Controller -> chassis_test_controller
-- 启用：
-  - 4 个 AdrcController
-  - ChassisPowerController
-  - DeformableChassisController
-- 更新 value_broadcaster 观测项：
-  - 去掉旧的 control_angle_error
-  - 增加 physical_angle/physical_velocity/target_angle
-7. pluginlib 注册
-在 rmcs_ws/src/rmcs_core/plugins.xml 中：
-- 新增：
-  - rmcs_core::controller::chassis::ChassisTestV2Controller
-否则 executor 无法加载新控制器。
-当前需要重点验证
-1. 启动验证
-确认以下组件能成功加载：
-- DeformableInfantryV2
-- ChassisTestV2Controller
-- AdrcController x4
-- ChassisPowerController
-- DeformableChassisController
-2. topic 验证
-确认以下话题存在并有合理数值：
-- /chassis/left_front_joint/physical_angle
-- /chassis/left_back_joint/physical_angle
-- /chassis/right_back_joint/physical_angle
-- /chassis/right_front_joint/physical_angle
-- /chassis/left_front_joint/physical_velocity
-- /chassis/left_front_joint/target_angle
-3. 映射方向验证
-检查：
-- 电机原始角增大时，physical_angle 是否减小
-- 伸长到最大时，physical angle 是否接近 8 deg
-- 零位时，physical angle 是否接近 62.5 deg
-4. 双 DOWN 验证
-在 left_switch == DOWN && right_switch == DOWN 时：
-- /chassis/control_velocity 应为 NaN
-- 四轮 target_angle 应锁定到当前四轮 physical_angle
-- control_torque 应明显减小并趋近于 0
-5. 底盘动力学验证
-检查：
-- 四轮 physical angle 相同时，四轮轮距应一致
-- 非对称姿态时，四轮轮距应按预期分化
-- deformable_wheel_controller 日志中的 physical angle / radius 是否符合机械直觉
-后续可选优化
-1. 发布更多调试量
-可选新增：
-- 四轮 vehicle_radius
-- 四轮 v_mech
-- physical angle 的 deg 版 broadcaster
-2. 统一 DeformableChassis 旧逻辑
-若后续还继续使用 DeformableChassis，需要将其 V2 分支也统一切换到 physical angle 语义，避免老逻辑继续读取原始电机角。
-风险点
-1. plugins.xml 未同步部署时，运行时仍会报 ChassisTestV2Controller 不存在
-2. 配置未同步时，runtime 可能仍加载旧版 deformable-infantry-v2.yaml
-3. physical_angle 接口如果未正确发布，会导致 ADRC 或 wheel controller 再次缺边
-4. 如果 supercap 板卡实机没有回传，状态会保持默认，但不应再造成 DAG 启动失败
+实施 Checklist
+阶段 0：先统一语义
+1. 明确 wheel-demo.cpp 的几何反馈量只认：
+   - /chassis/*_joint/physical_angle
+   - /chassis/*_joint/physical_velocity
+2. 明确新增目标量接口的语义是：
+   - target_physical_*
+   - 不是 motor angle
+   - 不是 encoder angle
+   - 不是中间控制变量
+3. 确认 /chassis/control_velocity 当前上游坐标系语义：
+   - 是否仍沿用旧控制器的 -pi/4 约定
+   - 还是已经是 base_link 物理坐标
+阶段 1：给 DeformableChassis 增加目标几何输出
+1. 在 DeformableChassis 中新增四个输出成员：
+   - left_front_joint_target_physical_angle_
+   - left_back_joint_target_physical_angle_
+   - right_back_joint_target_physical_angle_
+   - right_front_joint_target_physical_angle_
+2. 增加 register_output(...)：
+   - /chassis/left_front_joint/target_physical_angle
+   - /chassis/left_back_joint/target_physical_angle
+   - /chassis/right_back_joint/target_physical_angle
+   - /chassis/right_front_joint/target_physical_angle
+3. 梳理 lf_current_target_angle_ / lb_current_target_angle_ / rb_current_target_angle_ / rf_current_target_angle_ 的单位和语义：
+   - 确认是否已经是物理角
+   - 如果不是，先补一层映射再输出
+4. 在 update_lift_target_toggle() / update_lift_angle_error() 所在链路中，保证每帧都更新这些 target output
+5. 验证 target angle 在以下模式下是否正确：
+   - 普通升降
+   - front_high_rear_low
+   - front_low_rear_high
+   - uphill
+阶段 2：在 wheel-demo.cpp 增加目标几何输入
+1. 新增四个输入成员：
+   - left_front_joint_target_physical_angle_
+   - left_back_joint_target_physical_angle_
+   - right_back_joint_target_physical_angle_
+   - right_front_joint_target_physical_angle_
+2. 增加对应 register_input(...)：
+   - /chassis/left_front_joint/target_physical_angle
+   - /chassis/left_back_joint/target_physical_angle
+   - /chassis/right_back_joint/target_physical_angle
+   - /chassis/right_front_joint/target_physical_angle
+3. 保留当前 feedback 输入不变：
+   - /chassis/*_joint/physical_angle
+   - /chassis/*_joint/physical_velocity
+阶段 3：重构 joint 状态结构
+1. 将当前 JointStates 拆成两套：
+   - JointFeedbackStates
+   - JointTargetStates
+2. JointFeedbackStates 包含：
+   - alpha
+   - alpha_dot
+   - alpha_ddot
+   - radius
+   - radius_dot
+   - radius_ddot
+   - valid
+3. JointTargetStates 包含：
+   - alpha
+   - alpha_dot
+   - alpha_ddot
+   - radius
+   - radius_dot
+   - radius_ddot
+   - has_velocity
+   - has_acceleration
+   - valid
+4. 抽一个共享几何 helper：
+   - 输入 alpha / alpha_dot / alpha_ddot
+   - 输出 radius / radius_dot / radius_ddot
+阶段 4：实现 feedback 状态更新
+1. 保留现有 update_joint_states_() 思路，但改名为：
+   - update_joint_feedback_states_()
+2. 继续从 feedback 接口读取：
+   - physical_angle
+   - physical_velocity
+3. 继续在这里计算：
+   - R
+   - dot(R)
+   - ddot(R)
+4. ddot(R) 第一版可继续用反馈速度差分
+5. reset 时清理 feedback 差分缓存
+阶段 5：实现 target 状态更新
+1. 新增：
+   - update_joint_target_states_()
+2. 第一版只读取：
+   - target_physical_angle
+3. 如果还没有 target_velocity：
+   - 用相邻两帧 target_angle 差分估计 target_alpha_dot
+4. 第一版建议：
+   - target_alpha_ddot = 0
+   - target_radius_ddot = 0
+5. 由 target 几何计算：
+   - R*
+   - dot(R)*
+   - ddot(R)*
+6. reset 时清理 target 差分缓存：
+   - last_joint_target_angle_
+   - last_joint_target_velocity_
+阶段 6：函数级切换到 feedback / target
+1. 保持使用 feedback：
+   - update_joint_feedback_states_()
+   - calculate_chassis_velocity(...)
+   - debug 输出
+2. 改成使用 target：
+   - calculate_chassis_status_expected(...)
+   - calculate_steering_control_torques(...)
+3. 间接受 target 影响：
+   - calculate_wheel_pid_torques(...)
+   - 因为它依赖 chassis_status_expected
+4. 第一阶段可暂时不动或只部分切换：
+   - calculate_wheel_control_torques(...)
+   - calculate_ellipse_parameters(...)
+   - constrain_chassis_control_acceleration(...)
+阶段 7：修正 calculate_chassis_status_expected(...)
+1. 输入从 joint_feedback 改为 joint_target
+2. 每轮目标轮心速度改为：
+   - v_i^* = v^* + wz^* R_i^* e_t,i + dot(R_i)^* e_r,i
+3. 生成：
+   - wheel_velocity_x
+   - wheel_velocity_y
+4. 检查这里是否还需要受 chassis_velocity_expected_ 的能量裁剪影响
+5. 验证：
+   - 目标角变化时，轮心速度能否提前响应，而不是等反馈变化后才响应
+阶段 8：修正 calculate_steering_control_torques(...)
+1. 输入改成 joint_target
+2. 目标角 zeta_i^* 使用 target wheel velocity
+3. 目标舵速 dot(zeta_i)^* 使用：
+   - R_i^*
+   - dot(R_i)^*
+   - 第一版可不使用 ddot(R_i)^* 或直接置 0
+4. 保留现有二环结构：
+   - angle PID
+   - velocity PID
+5. 验证：
+   - 关节快速动作时，舵向是否不再慢半拍
+阶段 9：检查 control_velocity 坐标映射
+1. 对照旧 deformable_wheel_controller 的：
+   - Rotation2Dd(-pi/4)
+2. 明确当前新模型是否仍需该旋转
+3. 用最简单工况验证：
+   - 纯前进
+   - 纯左移
+   - 原地旋转
+4. 若出现整体 45 deg 偏移，再决定是否保留坐标变换
+阶段 10：编译与最小运行验证
+1. 编译 rmcs_core
+2. 确认 plugin 正常注册
+3. 在 yaml 中仅替换组件类型，确保无需额外链路
+4. 检查 DAG 是否缺接口
+5. 先看目标接口是否已连通：
+   - target_physical_angle 是否可达 wheel-demo.cpp
+阶段 11：第一轮行为验证
+1. 对称升降姿态：
+   - 新旧控制器行为是否接近
+2. 前高后低：
+   - 目标舵向是否明显比旧控制器更一致
+3. 变形过程中小平移：
+   - 是否减少“轮/舵慢半拍”
+4. 旋转叠加变形：
+   - 是否仍稳定
+5. 记录异常：
+   - 舵抖
+   - 轮速抖
+   - 控制方向偏转
+   - 功率异常
+阶段 12：第二阶段补 target_velocity
+1. 在 DeformableChassis 新增输出：
+   - /chassis/*_joint/target_physical_velocity
+2. 在 wheel-demo.cpp 新增输入并读取
+3. 不再用差分 target_angle 估计 dot(alpha)^*
+4. 更新：
+   - target.radius_dot
+5. 再验证舵速前馈是否更平滑
+阶段 13：第三阶段补 target_acceleration
+1. 在 DeformableChassis 新增输出：
+   - /chassis/*_joint/target_physical_acceleration
+2. wheel-demo.cpp 新增输入
+3. 完整启用：
+   - target.radius_ddot
+4. 让 calculate_steering_control_torques(...) 使用完整：
+   - ddot(R_i)^*
+5. 再决定是否把轮速前馈也升级到 dot(omega_i)^*
+阶段 14：约束层完整化
+1. 先确认主控制链稳定
+2. 再重推：
+   - calculate_ellipse_parameters(...)
+   - constrain_chassis_control_acceleration(...)
+3. 逐步从“旧约束近似”迁移到：
+   - 基于独立轮 target 几何的约束
+4. 后续再考虑：
+   - 轮功率
+   - 关节功率
+   - 摩擦约束
+   - 法向载荷模型
+建议执行顺序
+1. 先做 target_physical_angle
+2. 再把 calculate_chassis_status_expected(...) 和 calculate_steering_control_torques(...) 切到 target
+3. 编译、跑通、验证
+4. 再补 target_physical_velocity
+5. 最后补 target_physical_acceleration 和完整约束
