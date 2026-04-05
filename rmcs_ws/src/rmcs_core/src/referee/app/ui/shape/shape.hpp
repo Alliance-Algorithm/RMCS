@@ -292,7 +292,7 @@ private:
 
     uint8_t priority_ = 15;
     uint8_t sync_confidence_ : 5 = max_update_times;
-    bool is_text_shape_      : 1 = true;
+    bool is_text_shape_      : 1 = false;
     bool last_time_modified_ : 1 = false;
     bool visible_            : 1 = false;
 };

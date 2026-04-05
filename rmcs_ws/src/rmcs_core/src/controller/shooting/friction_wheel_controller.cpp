@@ -154,7 +154,7 @@ private:
     bool detect_friction_faulty() {
         for (size_t i = 0; i < friction_count_; i++) {
             if (abs(*friction_velocities_[i]) < abs(*friction_control_velocities_[i] * 0.5))
-                return false;
+                return true;
         }
         return false;
     }
