@@ -43,6 +43,11 @@ public:
         trigger_lock_value_ = get_parameter("trigger_lock_value").as_double();
         default_belt_hold_torque_ = get_parameter("belt_hold_torque").as_double();
 
+        // 减速阶段PID参数（高增益，快速响应）
+        decel_kp_ = get_parameter("b_decel_kp").as_double();
+        decel_ki_ = get_parameter("b_decel_ki").as_double();
+        decel_kd_ = get_parameter("b_decel_kd").as_double();
+
         register_input("/dart/manager/belt/command", belt_command_, true);
         register_input("/dart/manager/belt/target_position", belt_target_position_, false);
         register_input("/dart/manager/belt/target_velocity", belt_target_velocity_, false);
@@ -51,6 +56,8 @@ public:
         register_input("/dart/manager/belt/torque_offset", belt_torque_offset_, false);
         register_input("/dart/manager/belt/wait_zero_velocity", belt_wait_zero_velocity_, false);
         register_input("/dart/manager/belt/zero_calibration", belt_zero_calibration_, false);
+        register_input("/dart/manager/belt/error_gain", belt_error_gain_, false);
+        register_input("/dart/manager/belt/use_decel_pid", belt_use_decel_pid_, false);
         register_input("/dart/manager/trigger/lock_enable", trigger_lock_enable_);
 
         register_input("/dart/drive_belt/left/angle", left_belt_angle_);
@@ -149,9 +156,9 @@ private:
             bool left_within_tolerance = std::abs(left_error) < position_tolerance_;
             bool left_overshot = false;
             if (prev_belt_cmd_ == rmcs_msgs::DartSliderStatus::DOWN) {
-                left_overshot = (left_error < 0);  // 下行越界
+                left_overshot = (left_error < 0); // 下行越界
             } else if (prev_belt_cmd_ == rmcs_msgs::DartSliderStatus::UP) {
-                left_overshot = (left_error > 0);  // 上行越界
+                left_overshot = (left_error > 0); // 上行越界
             }
             bool left_reached = left_within_tolerance || left_overshot;
 
@@ -159,9 +166,9 @@ private:
             bool right_within_tolerance = std::abs(right_error) < position_tolerance_;
             bool right_overshot = false;
             if (prev_belt_cmd_ == rmcs_msgs::DartSliderStatus::DOWN) {
-                right_overshot = (right_error < 0);  // 下行越界
+                right_overshot = (right_error < 0); // 下行越界
             } else if (prev_belt_cmd_ == rmcs_msgs::DartSliderStatus::UP) {
-                right_overshot = (right_error > 0);  // 上行越界
+                right_overshot = (right_error > 0); // 上行越界
             }
             bool right_reached = right_within_tolerance || right_overshot;
 
@@ -213,23 +220,18 @@ private:
         *position_reached_ = false;
     }
 
-    // 同步速度控制（带速度限制）
+    // 同步速度控制（带速度限制、动态PID切换和error增益）
     void sync_velocity_control(
         double left_vel_setpoint, double right_vel_setpoint, double torque_limit) {
 
-        // 速度限制：如果超速，将速度设定值限制为当前速度（停止加速）
-        const double velocity_limit_factor = 1.3;  // 增大容差，从1.2提升到1.3
-        const double min_velocity_for_overspeed_check = 1.0;  // rad/s - 低于此值不检测超速（从0.5提升到1.0）
+        const double velocity_limit_factor = 1.3;
+        const double min_velocity_for_overspeed_check = 1.0;
 
-        // 左电机超速检测（只在目标速度较大时检测，避免零附近误报）
+        // 左电机超速检测
         if (std::abs(left_vel_setpoint) > min_velocity_for_overspeed_check) {
             double left_vel_limit = std::abs(left_vel_setpoint) * velocity_limit_factor;
-
-            // 检查是否超速，如果超速则限制速度设定值
             if (std::abs(*left_belt_velocity_) > left_vel_limit) {
-                // 超速：将设定值限制为当前速度的符号 × 限制值
                 left_vel_setpoint = std::copysign(left_vel_limit, left_vel_setpoint);
-
                 static int left_overspeed_counter = 0;
                 if (++left_overspeed_counter >= 100) {
                     left_overspeed_counter = 0;
@@ -242,15 +244,11 @@ private:
             }
         }
 
-        // 右电机超速检测（只在目标速度较大时检测，避免零附近误报）
+        // 右电机超速检测
         if (std::abs(right_vel_setpoint) > min_velocity_for_overspeed_check) {
             double right_vel_limit = std::abs(right_vel_setpoint) * velocity_limit_factor;
-
-            // 检查是否超速，如果超速则限制速度设定值
             if (std::abs(*right_belt_velocity_) > right_vel_limit) {
-                // 超速：将设定值限制为当前速度的符号 × 限制值
                 right_vel_setpoint = std::copysign(right_vel_limit, right_vel_setpoint);
-
                 static int right_overspeed_counter = 0;
                 if (++right_overspeed_counter >= 100) {
                     right_overspeed_counter = 0;
@@ -263,9 +261,31 @@ private:
             }
         }
 
-        // 正常 PID 控制（使用可能被限制后的速度设定值）
+        bool use_decel_pid = belt_use_decel_pid_.ready() && *belt_use_decel_pid_;
+        if (use_decel_pid != current_use_decel_pid_) {
+            if (use_decel_pid) {
+                // 切换到减速PID参数
+                velocity_pid_.kp = decel_kp_;
+                velocity_pid_.ki = decel_ki_;
+                velocity_pid_.kd = decel_kd_;
+            } else {
+                // 切换回正常PID参数
+                velocity_pid_.kp = get_parameter("b_kp").as_double();
+                velocity_pid_.ki = get_parameter("b_ki").as_double();
+                velocity_pid_.kd = get_parameter("b_kd").as_double();
+            }
+            current_use_decel_pid_ = use_decel_pid;
+        }
+
+        // 计算速度误差
         Eigen::Vector2d vel_error{
             left_vel_setpoint - *left_belt_velocity_, right_vel_setpoint - *right_belt_velocity_};
+
+        // 应用error增益倍数
+        double error_gain = belt_error_gain_.ready() ? *belt_error_gain_ : 1.0;
+        vel_error *= error_gain;
+
+        // 同步控制
         Eigen::Vector2d relative_velocity{
             *left_belt_velocity_ - *right_belt_velocity_,
             *right_belt_velocity_ - *left_belt_velocity_};
@@ -273,8 +293,9 @@ private:
         Eigen::Vector2d control_torques =
             velocity_pid_.update(vel_error) - sync_coefficient_ * relative_velocity;
 
-        // 添加常态力矩偏移（用于减速阶段补偿负载）
+        // 负载补偿：静态力矩偏移
         double torque_offset = belt_torque_offset_.ready() ? *belt_torque_offset_ : 0.0;
+
         control_torques[0] += torque_offset;
         control_torques[1] += torque_offset;
 
@@ -291,12 +312,18 @@ private:
     double trigger_lock_value_;       // 扳机锁定值
     double default_belt_hold_torque_; // N⋅m - 默认保持扭矩
 
+    // 减速阶段PID参数
+    double decel_kp_;
+    double decel_ki_;
+    double decel_kd_;
+
     // 状态变量
     double left_zero_offset_{0.0};       // 左电机零点偏移（rad）
     double right_zero_offset_{0.0};      // 右电机零点偏移（rad）
     double velocity_command_value_{0.0}; // 速度控制命令值
     rmcs_msgs::DartSliderStatus prev_belt_cmd_{rmcs_msgs::DartSliderStatus::WAIT};
     BeltControlMode control_mode_{BeltControlMode::IDLE};
+    bool current_use_decel_pid_{false};  // 当前是否使用减速PID参数
 
     pid::MatrixPidCalculator<2> velocity_pid_;
 
@@ -308,6 +335,8 @@ private:
     InputInterface<double> belt_torque_offset_;
     InputInterface<bool> belt_wait_zero_velocity_;
     InputInterface<bool> belt_zero_calibration_;
+    InputInterface<double> belt_error_gain_;
+    InputInterface<bool> belt_use_decel_pid_;
     InputInterface<bool> trigger_lock_enable_;
     InputInterface<double> left_belt_angle_;
     InputInterface<double> right_belt_angle_;
