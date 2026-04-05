@@ -37,8 +37,8 @@ deformable_infantry:
 # Joint motor: MG5010 i36, zero at 62.5deg, range 62.5deg -> 8deg (360deg system)
 chassis_test_controller:
   ros__parameters:
-    min_angle: 15.0
-    max_angle: 35.0
+    min_angle: 5.0
+    max_angle: 55.0
 
 lf_joint_adrc_controller:
   ros__parameters:
@@ -47,9 +47,9 @@ lf_joint_adrc_controller:
     control: /chassis/left_front_joint/control_torque
     kt: 1.0
     td_h: 0.001
-    td_r: 1.4
+    td_r: 50.0
     dt: 0.001
-    b0: 0.694
+    b0: 0.550
     eso_w0: 250.0
     eso_auto_beta: true
     k1: 30.0
@@ -67,9 +67,9 @@ lb_joint_adrc_controller:
     control: /chassis/left_back_joint/control_torque
     kt: 1.0
     td_h: 0.001
-    td_r: 1.4
+    td_r: 50.0
     dt: 0.001
-    b0: 0.694
+    b0: 0.550
     eso_w0: 250.0
     eso_auto_beta: true
     k1: 30.0
@@ -87,9 +87,9 @@ rb_joint_adrc_controller:
     control: /chassis/right_back_joint/control_torque
     kt: 1.0
     td_h: 0.001
-    td_r: 1.4
+    td_r: 50.0
     dt: 0.001
-    b0: 0.694
+    b0: 0.550
     eso_w0: 250.0
     eso_auto_beta: true
     k1: 30.0
@@ -107,9 +107,9 @@ rf_joint_adrc_controller:
     control: /chassis/right_front_joint/control_torque
     kt: 1.0
     td_h: 0.001
-    td_r: 1.4
+    td_r: 50.0
     dt: 0.001
-    b0: 0.694
+    b0: 0.550
     eso_w0: 250.0
     eso_auto_beta: true
     k1: 30.0
