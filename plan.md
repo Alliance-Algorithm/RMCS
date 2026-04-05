@@ -4,6 +4,20 @@
 
 将当前 `deformable_wheel_controller` 从“刚性舵轮公式替换 `R -> R_i` 并补一个 `v_mech`”的工程近似，升级为一套完整的、可推导的、适用于可变轮距舵轮底盘的统一模型。
 
+## 总目标
+
+将 `deformable infantry v2` 的关节目标、底盘 target 几何、舵向前馈与约束层统一到同一套 physical-angle 语义下，形成一条完整、连续、可退化运行的控制链。
+
+具体要求如下：
+
+- `physical_angle` 作为唯一用于轮距计算与 target 几何建模的关节角语义
+- `target_physical_angle`、`target_physical_velocity`、`target_physical_acceleration` 作为底盘 target 几何的标准输入
+- joint 电机控制链仍保留 raw motor angle 语义，即 `/chassis/*_joint/target_angle` 继续服务于关节电机控制器
+- 关节目标切换时输出连续的 target 轨迹，而不是角度阶跃
+- 变形过程中，`WheelDemoController` 能基于 target 几何实时修正舵向与轮速参考
+- 当 target 缺失或失活时，控制器应具备清晰、安全的回退策略，而不是进入半退化状态
+- 先打通对称 target 切换链路，再逐步扩展到四轮独立 target 与完整 Jacobian/约束模型
+
 ## 已知条件与前提
 
 本计划针对 `deformable infantry v2` 底盘。

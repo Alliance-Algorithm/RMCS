@@ -6,6 +6,10 @@ services:
     command: >
       bash -c "
         sudo chown -R ${CONTAINER_USER}:${CONTAINER_USER} ${CONTAINER_HOME}/.config
+        sudo chown -R ${CONTAINER_USER}:${CONTAINER_USER} ${CONTAINER_HOME}/.opencode
+        grep -q '/.opencode/bin' ${CONTAINER_HOME}/.bashrc || printf '\n# opencode\nexport PATH=\"$HOME/.opencode/bin:$PATH\"\n' >> ${CONTAINER_HOME}/.bashrc
+        grep -q '/.opencode/bin' ${CONTAINER_HOME}/.profile || printf '\n# opencode\nexport PATH=\"$HOME/.opencode/bin:$PATH\"\n' >> ${CONTAINER_HOME}/.profile
+        grep -q '/.opencode/bin' ${CONTAINER_HOME}/.zshrc || printf '\n# opencode\nexport PATH=\"$HOME/.opencode/bin:$PATH\"\n' >> ${CONTAINER_HOME}/.zshrc
         exec bash
       "
     volumes:
@@ -13,6 +17,8 @@ services:
       - /tmp/.X11-unix:/tmp/.X11-unix:bind
       - /run/user/1000/wayland-0:/run/user/1000/wayland-0
       - ${HOST_NVIM_DIR}:${CONTAINER_HOME}/.config/nvim/:bind
+      - ${HOST_OPENCODE_CONFIG_DIR}:${CONTAINER_HOME}/.config/opencode:bind
+      - ${HOST_OPENCODE_HOME_DIR}:${CONTAINER_HOME}/.opencode:bind
       - .:/workspaces/RMCS:bind
     environment:
       - DISPLAY=${DISPLAY}
