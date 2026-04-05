@@ -1,4 +1,6 @@
 #include <algorithm>
+#include <rclcpp/logger.hpp>
+#include <rclcpp/logging.hpp>
 
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
@@ -31,8 +33,8 @@ public:
         if (*bullet_fired_)
             shooter_heat_ += heat_per_shot + 10;
 
-        *control_bullet_allowance_ = std::max<int64_t>(
-            0, (*shooter_heat_limit_ - shooter_heat_ - reserved_heat) / heat_per_shot);
+        *control_bullet_allowance_ =
+            std::max<int64_t>(0, (100 - shooter_heat_ - reserved_heat) / heat_per_shot);
     }
 
 private:

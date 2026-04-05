@@ -192,11 +192,10 @@ private:
                 device::LkMotor::Config{device::LkMotor::Type::kMG4010Ei10}.set_encoder_zero_point(
                     static_cast<int>(sentry.get_parameter("top_yaw_motor_zero_point").as_int())));
 
-            gimbal_bullet_feeder_.configure(
-                device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
-                    .enable_multi_turn_angle()
-                    .set_reversed()
-                    .set_reduction_ratio(19 * 2));
+            gimbal_bullet_feeder_.configure(device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
+                                                .enable_multi_turn_angle()
+                                                .set_reversed()
+                                                .set_reduction_ratio(19 * 2));
 
             gimbal_left_friction_.configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kM3508}.set_reduction_ratio(1.));
@@ -365,16 +364,14 @@ private:
             gimbal_bottom_yaw_motor_.configure(
                 device::LkMotor::Config{device::LkMotor::Type::kMG6012Ei8}
                     .set_reversed()
-                    .set_encoder_zero_point(
-                        static_cast<int>(
-                            sentry.get_parameter("bottom_yaw_motor_zero_point").as_int())));
+                    .set_encoder_zero_point(static_cast<int>(
+                        sentry.get_parameter("bottom_yaw_motor_zero_point").as_int())));
 
             for (auto& motor : chassis_wheel_motors_)
-                motor.configure(
-                    device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
-                        .set_reduction_ratio(11.)
-                        .enable_multi_turn_angle()
-                        .set_reversed());
+                motor.configure(device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
+                                    .set_reduction_ratio(11.)
+                                    .enable_multi_turn_angle()
+                                    .set_reversed());
             chassis_steer_motors_[2].configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kGM6020}
                     .set_reversed()

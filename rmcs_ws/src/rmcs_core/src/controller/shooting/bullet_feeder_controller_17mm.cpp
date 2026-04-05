@@ -156,6 +156,8 @@ private:
 
     void update_jam_detection() {
         auto control_velocity = *bullet_feeder_control_velocity_;
+        RCLCPP_INFO(
+            logger_, "[gimbal calibration] New yaw offset: %f", *bullet_feeder_control_velocity_);
         if (control_velocity > 0.0) {
             auto velocity = *bullet_feeder_velocity_;
             if (velocity > control_velocity / 2) {
