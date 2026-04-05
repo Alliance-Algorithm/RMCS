@@ -13,7 +13,7 @@ rmcs_executor:
       - rmcs_core::controller::adrc::AdrcController -> rb_joint_adrc_controller
       - rmcs_core::controller::adrc::AdrcController -> rf_joint_adrc_controller
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
-      - rmcs_core::controller::chassis::DeformableChassisController -> deformable_chassis_controller
+      - rmcs_core::controller::chassis::WheelDemoController -> wheel_demo_controller
 
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 
@@ -120,7 +120,7 @@ rf_joint_adrc_controller:
     u_min: -200.0
     u_max: 200.0
 
-deformable_chassis_controller:
+wheel_demo_controller:
   ros__parameters:
     mess: 12.5
     moment_of_inertia: 1.0

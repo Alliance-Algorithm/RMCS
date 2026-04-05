@@ -126,6 +126,19 @@ public:
         register_output("/chassis/right_front_joint/control_torque", rf_control_torque_, nan_);
         register_output("/chassis/right_back_joint/control_torque", rb_control_torque_, nan_);
 
+        register_output(
+            "/chassis/left_front_joint/target_physical_angle",
+            left_front_joint_target_physical_angle_, nan_);
+        register_output(
+            "/chassis/left_back_joint/target_physical_angle",
+            left_back_joint_target_physical_angle_, nan_);
+        register_output(
+            "/chassis/right_back_joint/target_physical_angle",
+            right_back_joint_target_physical_angle_, nan_);
+        register_output(
+            "/chassis/right_front_joint/target_physical_angle",
+            right_front_joint_target_physical_angle_, nan_);
+
         register_output("/chassis/processed_encoder/angle", processed_encoder_angle_, nan_);
 
         *mode_ = rmcs_msgs::ChassisMode::AUTO;
@@ -281,6 +294,12 @@ private:
         *rf_angle_error_ = nan_;
         *rb_angle_error_ = nan_;
 
+        *left_front_joint_target_physical_angle_ = current_target_angle_ * std::numbers::pi / 180.0;
+        *left_back_joint_target_physical_angle_ = current_target_angle_ * std::numbers::pi / 180.0;
+        *right_back_joint_target_physical_angle_ = current_target_angle_ * std::numbers::pi / 180.0;
+        *right_front_joint_target_physical_angle_ =
+            current_target_angle_ * std::numbers::pi / 180.0;
+
         *processed_encoder_angle_ = nan_;
         // RCLCPP_INFO(get_logger(), "%f", *scope_motor_velocity);
     }
@@ -365,6 +384,8 @@ private:
     void update_lift_target_toggle(
         rmcs_msgs::Switch left_switch, rmcs_msgs::Switch right_switch,
         rmcs_msgs::Keyboard keyboard) {
+        bool apply_symmetric_target = false;
+
         const bool switch_toggle_condition =
             (left_switch == rmcs_msgs::Switch::MIDDLE) && (right_switch == rmcs_msgs::Switch::UP);
         const bool keyboard_toggle_condition = !last_keyboard_.r && keyboard.r;
@@ -379,6 +400,7 @@ private:
             || keyboard_toggle_condition) {
             current_target_angle_ =
                 (std::abs(current_target_angle_ - max_angle_) < 1e-6) ? min_angle_ : max_angle_;
+            apply_symmetric_target = true;
         } else if (uphill) {
             lf_current_target_angle_ = min_angle_;
             rf_current_target_angle_ = min_angle_;
@@ -394,14 +416,28 @@ private:
             rf_current_target_angle_ = min_angle_;
             lb_current_target_angle_ = max_angle_;
             rb_current_target_angle_ = max_angle_;
+        } else {
+            apply_symmetric_target = true;
         }
-        lf_current_target_angle_ = current_target_angle_;
-        lb_current_target_angle_ = current_target_angle_;
-        rb_current_target_angle_ = current_target_angle_;
-        rf_current_target_angle_ = current_target_angle_;
+
+        if (apply_symmetric_target) {
+            lf_current_target_angle_ = current_target_angle_;
+            lb_current_target_angle_ = current_target_angle_;
+            rb_current_target_angle_ = current_target_angle_;
+            rf_current_target_angle_ = current_target_angle_;
+        }
     }
 
     void update_lift_angle_error() {
+        *left_front_joint_target_physical_angle_ =
+            lf_current_target_angle_ * std::numbers::pi / 180.0;
+        *left_back_joint_target_physical_angle_ =
+            lb_current_target_angle_ * std::numbers::pi / 180.0;
+        *right_back_joint_target_physical_angle_ =
+            rb_current_target_angle_ * std::numbers::pi / 180.0;
+        *right_front_joint_target_physical_angle_ =
+            rf_current_target_angle_ * std::numbers::pi / 180.0;
+
         double lf_s_target_ = trapezoidal_calculator(lf_current_target_angle_);
         double lb_s_target_ = trapezoidal_calculator(lb_current_target_angle_);
         double rb_s_target_ = trapezoidal_calculator(rb_current_target_angle_);
@@ -514,6 +550,11 @@ private:
     OutputInterface<double> lb_control_torque_;
     OutputInterface<double> rf_control_torque_;
     OutputInterface<double> rb_control_torque_;
+
+    OutputInterface<double> left_front_joint_target_physical_angle_;
+    OutputInterface<double> left_back_joint_target_physical_angle_;
+    OutputInterface<double> right_back_joint_target_physical_angle_;
+    OutputInterface<double> right_front_joint_target_physical_angle_;
 
     OutputInterface<double> processed_encoder_angle_;
 

@@ -1,211 +1,572 @@
-# 计划：DeformableChassisController 支持每轮独立关节角度
+# 计划：Deformable Infantry V2 完整 Jacobian 解算推导
 
-## 背景
+## 目标
 
-当前 `DeformableChassisController` 使用**单个平均关节角度**（`processed_encoder_angle_`，由 `DeformableChassis` 将4个关节角取平均后输出），导致：
-- 4个轮共享一个 `vehicle_radius_`（轮距 R）
-- 4个轮的 `v_mech` 只有方向不同，幅值完全相同
+将当前 `deformable_wheel_controller` 从“刚性舵轮公式替换 `R -> R_i` 并补一个 `v_mech`”的工程近似，升级为一套完整的、可推导的、适用于可变轮距舵轮底盘的统一模型。
 
-实际上每个关节电机独立运动（特别是在前高后低、下台阶、上坡等模式下），V2 硬件已通过 LK MG5010Ei36 电机提供每轮独立的角度和角速度反馈。本次重构让底盘控制器读取每轮独立的关节角，获得正确的轮距 R_i 和速度补偿 v_mech_i。
+## 总目标
 
-### v_mech 方向分析
+将 `deformable infantry v2` 的关节目标、底盘 target 几何、舵向前馈与约束层统一到同一套 physical-angle 语义下，形成一条完整、连续、可退化运行的控制链。
 
-当前 v_mech 的**方向是正确的**：每个轮的机械速度沿径向（从底盘中心指向轮心方向 phi_i）。问题在于**幅值**：4个轮共享同一个 `v = -rod_length * sin(alpha_avg) * alpha_dot_avg`。改为每轮独立后，每轮有自己的 `v_i = -rod_length * sin(alpha_i) * alpha_dot_i`。
+具体要求如下：
 
-## 修改文件
+- `physical_angle` 作为唯一用于轮距计算与 target 几何建模的关节角语义
+- `target_physical_angle`、`target_physical_velocity`、`target_physical_acceleration` 作为底盘 target 几何的标准输入
+- joint 电机控制链仍保留 raw motor angle 语义，即 `/chassis/*_joint/target_angle` 继续服务于关节电机控制器
+- 关节目标切换时输出连续的 target 轨迹，而不是角度阶跃
+- 变形过程中，`WheelDemoController` 能基于 target 几何实时修正舵向与轮速参考
+- 当 target 缺失或失活时，控制器应具备清晰、安全的回退策略，而不是进入半退化状态
+- 先打通对称 target 切换链路，再逐步扩展到四轮独立 target 与完整 Jacobian/约束模型
 
-仅修改一个文件：
-- `rmcs_ws/src/rmcs_core/src/controller/chassis/deformable_wheel_controller.cpp`
+## 已知条件与前提
 
-## 实现步骤
+本计划针对 `deformable infantry v2` 底盘。
 
-### 第1步：添加每轮关节输入
+已知机械与控制前提如下：
 
-移除单个 `processed_encoder_angle_` 输入，替换为8个输入（4个角度 + 4个角速度）：
+- `deformable infantry v2` 是在舵轮底盘基础上，融合关节分速度与可变轮距实现解算的底盘
+- 当前分析与后续重构的核心对象是 `DeformableWheelController`
+- 基础舵轮解算可参考 `rmcs_notebook/chapters/algorithm/steering_wheel.typ`
+- 本计划的目标不是继续沿用 rigid swerve 的闭式公式做局部修补，而是在现有舵轮模型基础上推导完整的可变轮距 Jacobian 模型
 
-```cpp
-// 移除：
-InputInterface<double> processed_encoder_angle_;
+四个轮模块的固定射线方向约定如下：
 
-// 添加：
-InputInterface<double> left_front_joint_angle_;
-InputInterface<double> left_back_joint_angle_;
-InputInterface<double> right_back_joint_angle_;
-InputInterface<double> right_front_joint_angle_;
+- 模块顺序为：左前、左后、右后、右前
+- 四个关节各自所在射线都与底盘坐标轴成 `45 deg`
+- 因此四个模块相对底盘中心的几何方位可建模为四条固定对角射线
 
-InputInterface<double> left_front_joint_velocity_;
-InputInterface<double> left_back_joint_velocity_;
-InputInterface<double> right_back_joint_velocity_;
-InputInterface<double> right_front_joint_velocity_;
+关节角的物理语义约定如下：
+
+- `alpha_i` 表示第 `i` 个关节的物理角
+- `alpha_i` 的物理意义为“连杆与地面的夹角”
+- 关节运动范围上限为 `62.5 deg`
+- 关节运动范围下限为 `8 deg`
+
+在上述角度定义下，本计划采用如下轮距模型：
+
+```text
+R_i(alpha_i) = R_0 + L cos(alpha_i)
 ```
 
-在构造函数中注册，读取硬件接口：
-- `/chassis/left_front_joint/angle`、`/chassis/left_front_joint/velocity`
-- `/chassis/left_back_joint/angle`、`/chassis/left_back_joint/velocity`
-- `/chassis/right_back_joint/angle`、`/chassis/right_back_joint/velocity`
-- `/chassis/right_front_joint/angle`、`/chassis/right_front_joint/velocity`
+其物理含义为：
 
-### 第2步：用每轮 JointStates 替换单个 EncoderState
+- 当 `alpha_i = 62.5 deg` 时，轮距较小
+- 当 `alpha_i = 8 deg` 时，轮距较大
 
-```cpp
-struct JointStates {
-    Eigen::Vector4d alpha_rad;      // 每轮关节角度 [rad]
-    Eigen::Vector4d alpha_dot_rad;  // 每轮关节角速度 [rad/s]
-    Eigen::Vector4d radius;         // 每轮 R_i = chassis_radius + rod_length * cos(alpha_i)
-    bool valid = false;
-};
+说明：
+
+- 若后续实物零点、编码器正方向、物理角正方向与上述假设不一致，则应只在 `alpha_i` 的映射层修正，不应修改后续 Jacobian 主体推导
+- 本计划默认四个模块的径向射线方向固定，仅轮心沿各自射线做伸缩，不考虑射线方向本身随机构改变
+- 后续所有关于轮心位置、轮心速度、底盘速度观测、舵向目标和动力学分配的推导，都基于上述几何前提展开
+
+目标场景包括：
+
+- 前后不同高
+- 四轮独立姿态
+- 变形过程中保持舵向与轮速控制连续
+- 高速旋转和关节变形叠加
+
+核心原则：
+
+- 先统一几何和运动学
+- 再从统一模型推导观测器
+- 再推导舵向和轮速前馈
+- 最后再做动力学分配和约束优化
+
+不要继续在 rigid swerve 的闭式公式上局部打补丁。
+
+## 当前版本定位
+
+当前代码可以视作：
+
+- 对称变形
+- 慢速变形
+- 小范围姿态变化
+
+下的工程近似模型。
+
+它已经正确引入了：
+
+- 每轮独立轮距 `R_i`
+- 每轮独立径向速度 `dot(R_i)`
+
+但仍缺少完整的：
+
+- Jacobian 观测模型
+- 舵向角速度前馈中的 `omega dot(R_i)` 和 `ddot(R_i)` 项
+- 基于统一几何的动力学分配
+
+## 坐标定义
+
+底盘坐标系 `B`：
+
+- `x` 向前
+- `y` 向左
+- `z` 向上
+
+四个轮模块沿固定对角射线分布：
+
+- 左前：`phi_1 = pi / 4`
+- 左后：`phi_2 = 3 pi / 4`
+- 右后：`phi_3 = -3 pi / 4`
+- 右前：`phi_4 = -pi / 4`
+
+定义每个轮的径向单位向量与切向单位向量：
+
+```text
+e_r,i = [cos(phi_i), sin(phi_i)]^T
+e_t,i = [-sin(phi_i), cos(phi_i)]^T
 ```
 
-移除 `update_processed_encoder_state_()` 和单个 `AlphaBetaAngleFilter`。可选择使用4个独立的滤波器，或直接使用电机输出值（LK电机内置编码器精度足够）。
+其中：
 
-### 第3步：每轮独立轮距 R_i
+- `e_r,i` 表示底盘中心指向该轮中心的方向
+- `e_t,i` 表示绕底盘中心转动时该轮中心的瞬时切向方向
 
-将 `double vehicle_radius_` 替换为 `Eigen::Vector4d vehicle_radii_`：
+## 关节几何
 
-```cpp
-vehicle_radii_[i] = chassis_radius_ + rod_length_ * cos(alpha_i);
+设第 `i` 个关节的物理角为 `alpha_i`，语义为“连杆与地面的夹角”。
+
+V2 已知机构范围：
+
+- 上限：`62.5 deg`
+- 下限：`8 deg`
+
+轮心到底盘中心的距离定义为：
+
+```text
+R_i(alpha_i) = R_0 + L cos(alpha_i)
 ```
 
-### 第4步：每轮独立 v_mech
+其中：
 
-更新 `calculate_mech_wheel_velocity()`，计算每轮独立的径向速度幅值：
+- `R_0` 为固定基座半径
+- `L` 为连杆长度
 
-```cpp
-Eigen::Matrix<double, 4, 2> calculate_mech_wheel_velocity(const JointStates& joints) const {
-    Eigen::Matrix<double, 4, 2> v_mech = Eigen::Matrix<double, 4, 2>::Zero();
-    if (!joints.valid) return v_mech;
+于是轮心位置：
 
-    // 每轮径向速度：v_i = -rod_length * sin(alpha_i) * alpha_dot_i
-    Eigen::Vector4d v = -rod_length_ * joints.alpha_rad.array().sin()
-                                      * joints.alpha_dot_rad.array();
-    v = v.cwiseMax(-0.1).cwiseMin(0.1);  // 逐元素限幅
-
-    // 方向为径向 (cos(phi_i), sin(phi_i))，这是正确的
-    v_mech.col(0) = v.array() * cos_varphi_.array();
-    v_mech.col(1) = v.array() * sin_varphi_.array();
-    return v_mech;
-}
+```text
+p_i = R_i e_r,i
 ```
 
-### 第5步：底盘速度观测（每轮 R_i 加权）
+一阶导数：
 
-更新 `calculate_chassis_velocity()`。
-
-对于 phi = {0, pi/2, pi, 3pi/2} 的布局：
-
-- **dx0 和 dy0 不受 R_i 影响**（因为对应轮的 sin(phi) 或 cos(phi) 为0）：
-  - `dx0 = r/4 * sum(omega_eff_i * cos(zeta_i))`（不变）
-  - `dy0 = r/4 * sum(omega_eff_i * sin(zeta_i))`（不变）
-
-- **dtheta0 使用每轮 1/R_i 加权**：
-
-  ```cpp
-  velocity.z() = -(one_quarter_r) *
-      (-wheel_eff[0] * sin_angle[0] / vehicle_radii_[0]
-       + wheel_eff[1] * cos_angle[1] / vehicle_radii_[1]
-       + wheel_eff[2] * sin_angle[2] / vehicle_radii_[2]
-       - wheel_eff[3] * cos_angle[3] / vehicle_radii_[3]);
-  ```
-
-  推导：对每个轮 i 可独立估计 dtheta0，取加权平均：
-  - 轮1 (phi=0): `dtheta0 = (u_1y - dy0) / R_1`
-  - 轮2 (phi=pi/2): `dtheta0 = (dx0 - u_2x) / R_2`
-  - 轮3 (phi=pi): `dtheta0 = (dy0 - u_3y) / R_3`
-  - 轮4 (phi=3pi/2): `dtheta0 = (u_4x - dx0) / R_4`
-
-### 第6步：期望轮速（每轮 R_i）
-
-更新 `calculate_chassis_status_expected()`：
-
-```cpp
-// 每轮使用各自的 R_i
-chassis_status.wheel_velocity_x =
-    (vx - vehicle_radii_.array() * vz * sin_varphi_.array()).matrix() + v_mech.col(0);
-chassis_status.wheel_velocity_y =
-    (vy + vehicle_radii_.array() * vz * cos_varphi_.array()).matrix() + v_mech.col(1);
+```text
+dot(p_i) = dot(R_i) e_r,i
+dot(R_i) = -L sin(alpha_i) dot(alpha_i)
 ```
 
-### 第7步：轮电机力矩（每轮 R_i）
+二阶导数：
 
-更新 `calculate_wheel_control_torques()`：
-
-```cpp
-Eigen::Vector4d wheel_torques =
-    wheel_radius_
-    * (ax * mess_ * steering_status.cos_angle.array()
-       + ay * mess_ * steering_status.sin_angle.array()
-       + az * moment_of_inertia_
-             * (cos_varphi_.array() * steering_status.sin_angle.array()
-                - sin_varphi_.array() * steering_status.cos_angle.array())
-             / vehicle_radii_.array())  // <-- 每轮 R_i
-    / 4.0;
+```text
+ddot(p_i) = ddot(R_i) e_r,i
+ddot(R_i) = -L cos(alpha_i) dot(alpha_i)^2 - L sin(alpha_i) ddot(alpha_i)
 ```
 
-### 第8步：舵电机控制（每轮 R_i）
+注：当前代码只显式用了 `dot(R_i)`，若要推导完整前馈，`ddot(R_i)` 也需要进入模型。
 
-更新 `calculate_steering_control_torques()`：
+## 轮心速度模型
 
-```cpp
-// 舵向控制速度公式中使用每轮 R_i
-steering_control_velocities =
-    vx * ay - vy * ax - vz * (vx * vx + vy * vy)
-    + vehicle_radii_.array() * (az * vx - vz * (ax + vz * vy)) * cos_varphi_.array()
-    + vehicle_radii_.array() * (az * vy - vz * (ay - vz * vx)) * sin_varphi_.array();
+设底盘中心平动速度为：
 
-// 奇异点处理也用每轮 R_i
-auto x = ax - vehicle_radii_[i] * (az * sin_varphi_[i] + 0 * cos_varphi_[i]);
-auto y = ay + vehicle_radii_[i] * (az * cos_varphi_[i] - 0 * sin_varphi_[i]);
+```text
+v = [vx, vy]^T
+omega = wz
 ```
 
-### 第9步：QCP 功率约束参数（每轮 R_i）
+二维平面内刚体上点 `p_i` 的绝对速度为：
 
-更新 `calculate_ellipse_parameters()`，将所有 `vehicle_radius_` 替换为每轮 `vehicle_radii_`：
-
-```cpp
-// b 系数：每轮 1/R_i
-b = (k1_ * mess_ * moment_of_inertia_ * wheel_radius_ * wheel_radius_ / 8.0)
-  * angular_acceleration_direction
-  * (cos_alpha_minus_gamma.array() * sin_alpha_minus_varphi.array()
-     / vehicle_radii_.array()).sum();
-
-// c 系数：每轮 1/R_i^2
-c = (k1_ * moment_of_inertia_ * moment_of_inertia_ * wheel_radius_ * wheel_radius_ / 16.0)
-  * (sin_alpha_minus_varphi.array().square() / vehicle_radii_.array().square()).sum();
-
-// e 系数：每轮 1/R_i
-e = (moment_of_inertia_ * wheel_radius_ / 4.0)
-  * angular_acceleration_direction
-  * (double_k1_torque_base_plus_wheel_velocities.array()
-     * sin_alpha_minus_varphi.array() / vehicle_radii_.array()).sum();
+```text
+v_i = v + omega J p_i + dot(p_i)
 ```
 
-### 第10步：菱形打滑约束（使用平均 R）
+其中：
 
-```cpp
-// 菱形约束使用平均 R 作为保守近似
-const double avg_radius = vehicle_radii_.mean();
-const double rhombus_top = rhombus_right * mess_ * avg_radius / moment_of_inertia_;
+```text
+J = [0 -1
+     1  0]
 ```
 
-### 第11步：清理旧代码
+代入 `p_i = R_i e_r,i` 后得到：
 
-- 移除 `AlphaBetaAngleFilter processed_encoder_ab_filter_`
-- 移除 `EncoderState` 结构体和 `update_processed_encoder_state_()`
-- 移除或保留 `encoder_alpha_`、`encoder_alpha_dot_`、`radius_` 输出接口（可保留 `radius_` 输出平均值用于调试）
+```text
+v_i = v + omega R_i e_t,i + dot(R_i) e_r,i
+```
 
-## 变量替换汇总
+这是整套推导的核心公式。
 
-| 旧（单个值） | 新（每轮独立） |
-|---|---|
-| `double vehicle_radius_` | `Eigen::Vector4d vehicle_radii_` |
-| `processed_encoder_angle_` 输入 | 4x 关节角度 + 4x 关节角速度 输入 |
-| `EncoderState` | `JointStates`（Vector4d 成员） |
-| `v = -rod_length * sin(α) * α̇`（标量） | `v_i = -rod_length * sin(α_i) * α̇_i`（Vector4d） |
-| `/ vehicle_radius_` | `/ vehicle_radii_.array()` 或 `/ vehicle_radii_[i]` |
+含义拆解：
 
-## 验证方式
+- `v`：底盘整体平动带来的轮心速度
+- `omega R_i e_t,i`：底盘转动带来的轮心切向速度
+- `dot(R_i) e_r,i`：关节伸缩带来的轮心径向速度
 
-1. `build-rmcs --packages-select rmcs_core` —— 编译通过
-2. 检查 `deformable-infantry-v2.yaml` 中接口名是否匹配
-3. 当4个关节角相同时，行为应与当前单编码器版本完全一致（回归测试）
-4. 非对称关节运动时（如前高后低），底盘不应漂移或出现虚假速度
+## 滚动约束与无侧滑约束
+
+设第 `i` 个轮子的滚动方向单位向量为：
+
+```text
+s_i = [cos(zeta_i), sin(zeta_i)]^T
+```
+
+法向单位向量：
+
+```text
+n_i = [-sin(zeta_i), cos(zeta_i)]^T
+```
+
+无侧滑约束：
+
+```text
+n_i^T v_i = 0
+```
+
+轮速约束：
+
+```text
+s_i^T v_i = r omega_i
+```
+
+代入轮心速度公式：
+
+```text
+r omega_i = s_i^T v + omega R_i s_i^T e_t,i + dot(R_i) s_i^T e_r,i
+```
+
+再利用：
+
+```text
+s_i^T e_r,i = cos(zeta_i - phi_i)
+s_i^T e_t,i = sin(zeta_i - phi_i)
+```
+
+得到标量形式：
+
+```text
+r omega_i = s_i^T v + omega R_i sin(zeta_i - phi_i) + dot(R_i) cos(zeta_i - phi_i)
+```
+
+## 底盘速度观测
+
+将上式整理成关于 `vx, vy, wz` 的线性方程：
+
+```text
+cos(zeta_i) vx + sin(zeta_i) vy + R_i sin(zeta_i - phi_i) wz
+= r omega_i - dot(R_i) cos(zeta_i - phi_i)
+```
+
+四个轮联立写为：
+
+```text
+A x = b
+```
+
+其中：
+
+```text
+x = [vx, vy, wz]^T
+```
+
+第 `i` 行定义为：
+
+```text
+A_i = [cos(zeta_i), sin(zeta_i), R_i sin(zeta_i - phi_i)]
+b_i = r omega_i - dot(R_i) cos(zeta_i - phi_i)
+```
+
+由于 4 个方程、3 个未知数，是超定系统，推荐直接用最小二乘：
+
+```text
+x_hat = (A^T A)^(-1) A^T b
+```
+
+更稳妥的形式是加权最小二乘：
+
+```text
+x_hat = (A^T W A)^(-1) A^T W b
+```
+
+权重 `W` 可用于表达：
+
+- 某个轮打滑时可信度下降
+- 某个轮接地较差
+- 某个轮传感器异常
+
+这一步应作为新的 `vx, vy, wz` 观测器核心，而不是继续使用 rigid swerve 的闭式合成公式。
+
+## 目标舵向与目标轮速
+
+给定目标底盘速度 `v_cmd = [vx, vy]^T`、目标角速度 `w_cmd`，以及期望关节状态对应的 `R_i, dot(R_i)`，第 `i` 个轮的目标轮心速度为：
+
+```text
+v_i^* = v_cmd + w_cmd R_i e_t,i + dot(R_i) e_r,i
+```
+
+目标舵向：
+
+```text
+zeta_i^* = atan2(v_i,y^*, v_i,x^*)
+```
+
+目标轮速：
+
+```text
+omega_i^* = ||v_i^*|| / r
+```
+
+该写法比 rigid swerve 的手工展开式更适合可变轮距底盘，因为所有几何变化都已经被统一吸收到 `v_i^*` 里。
+
+## 舵向角速度推导
+
+若二维向量：
+
+```text
+u = [u_x, u_y]^T
+zeta = atan2(u_y, u_x)
+```
+
+则：
+
+```text
+dot(zeta) = (u_x dot(u_y) - u_y dot(u_x)) / ||u||^2
+```
+
+令：
+
+```text
+u_i = v_i = v + omega R_i e_t,i + dot(R_i) e_r,i
+```
+
+于是：
+
+```text
+dot(zeta_i) = (u_i,x dot(u_i,y) - u_i,y dot(u_i,x)) / ||u_i||^2
+```
+
+因此关键是继续求 `dot(u_i)`。
+
+## 轮心速度导数
+
+由：
+
+```text
+u_i = v + omega R_i e_t,i + dot(R_i) e_r,i
+```
+
+求导得：
+
+```text
+dot(u_i) = a + dot(omega) R_i e_t,i + omega dot(R_i) e_t,i + ddot(R_i) e_r,i
+```
+
+其中：
+
+```text
+a = [ax, ay]^T
+dot(omega) = az
+```
+
+这是完整可变轮距模型下的舵向速度前馈基础。
+
+和当前工程近似相比，新增的关键项是：
+
+- `omega dot(R_i) e_t,i`
+- `ddot(R_i) e_r,i`
+
+这两项正是“边变形边旋转”时误差明显增大的来源。
+
+## 轮速导数与轮电机前馈
+
+目标轮速已定义为：
+
+```text
+omega_i^* = ||u_i^*|| / r
+```
+
+继续求导：
+
+```text
+dot(omega_i^*) = (u_i^{*T} dot(u_i^*)) / (r ||u_i^*||)
+```
+
+其中 `dot(u_i^*)` 使用上一节的完整公式。
+
+如果要继续做轮电机前馈，可以把它建立在：
+
+- `omega_i^*`
+- `dot(omega_i^*)`
+
+之上，而不要继续只从 rigid swerve 的力分配闭式公式出发。
+
+## 平面动力学分配
+
+若第 `i` 个轮沿其滚动方向 `s_i` 提供接地点驱动力 `f_i`，则整车平面 wrench 满足：
+
+```text
+sum_i f_i s_i = m a
+sum_i f_i (p_i x s_i) = J az
+```
+
+其中二维叉乘标量为：
+
+```text
+p_i x s_i = R_i sin(zeta_i - phi_i)
+```
+
+将 4 个轮堆叠为矩阵：
+
+```text
+B f = tau
+```
+
+其中：
+
+```text
+tau = [m ax, m ay, J az]^T
+```
+
+第 `i` 列：
+
+```text
+B_i = [cos(zeta_i), sin(zeta_i), R_i sin(zeta_i - phi_i)]^T
+```
+
+推荐采用最小范数分配：
+
+```text
+f = B^T (B B^T)^(-1) tau
+```
+
+轮电机力矩：
+
+```text
+tau_wheel,i = r f_i
+```
+
+注意：
+
+- 这和速度观测矩阵有统一的几何结构
+- 更适合后续加入约束优化
+
+## 舵电机控制推荐形式
+
+舵电机控制可以沿用现有二环结构，但目标量必须来自完整模型：
+
+```text
+zeta_i_ref = atan2(u_i,y^*, u_i,x^*)
+dot(zeta_i)_ref = (u_x dot(u_y) - u_y dot(u_x)) / ||u||^2
+tau_steer = PID_vel(dot(zeta)_ref + PID_ang(zeta_ref - zeta) - dot(zeta))
+```
+
+这样结构上仍与现有 notebook 一致，但数学来源已经统一。
+
+## 约束优化的正确接入位置
+
+功率约束、摩擦约束、打滑约束，不应再从 rigid swerve 的旧闭式参数直接替换 `R -> R_i`。
+
+推荐顺序：
+
+1. 先完成统一几何与观测模型
+2. 先完成目标舵向、目标轮速、目标轮力分配
+3. 再在 `f_i` 或 `tau_wheel,i` 层加入约束
+4. 若要考虑关节动作代价，再把 joint actuator 功率、速度、加速度约束并入优化变量
+
+否则很容易得到“数学形式像对了，但物理意义不完整”的约束器。
+
+## 推荐实现步骤
+
+### 第1步：统一几何层
+
+实现每轮状态：
+
+- `phi_i`
+- `alpha_i`
+- `dot(alpha_i)`
+- `R_i`
+- `dot(R_i)`
+- 可选 `ddot(R_i)`
+
+并集中放在一个 Geometry/ModuleState 结构里。
+
+### 第2步：重写速度观测器
+
+基于矩阵：
+
+```text
+A_i = [cos(zeta_i), sin(zeta_i), R_i sin(zeta_i - phi_i)]
+b_i = r omega_i - dot(R_i) cos(zeta_i - phi_i)
+```
+
+最小二乘求 `vx, vy, wz`。
+
+### 第3步：重写目标舵向/轮速生成
+
+直接由：
+
+```text
+u_i^* = v_cmd + w_cmd R_i e_t,i + dot(R_i) e_r,i
+```
+
+生成：
+
+- `zeta_i_ref`
+- `omega_i_ref`
+
+### 第4步：补全舵向速度前馈
+
+使用：
+
+```text
+dot(u_i) = a + az R_i e_t,i + omega dot(R_i) e_t,i + ddot(R_i) e_r,i
+```
+
+推 `dot(zeta_i)`。
+
+### 第5步：重写轮力分配
+
+使用：
+
+```text
+B_i = [cos(zeta_i), sin(zeta_i), R_i sin(zeta_i - phi_i)]^T
+```
+
+从目标底盘加速度求每轮驱动力，再换算为轮力矩。
+
+### 第6步：最后再接约束
+
+将：
+
+- 电机力矩限制
+- 地面摩擦限制
+- 功率限制
+- 关节功率限制
+
+放在统一分配器之后逐步加入。
+
+## 推导时的检查点
+
+推公式时可以一直检查以下退化情况：
+
+1. 若四轮 `R_i` 相同且 `dot(R_i) = 0`
+则应严格退化为普通舵轮公式。
+
+2. 若 `wz = 0`
+则每个轮的目标方向应仅由 `v + dot(R_i) e_r,i` 决定。
+
+3. 若 `v = 0` 但 `wz != 0`
+则轮心速度应为纯切向加径向叠加。
+
+4. 若 `dot(R_i)` 很大
+则舵向应明显偏向径向分量，而不能仍接近 rigid swerve 的切向解。
+
+5. 若 `u_i = 0`
+则 `atan2` 和 `dot(zeta_i)` 会奇异，需要单独定义降级策略。
+
+## 本计划的使用方式
+
+后续如果要正式实现，建议按下面顺序推进：
+
+1. 先在 notebook 或文档里把本计划中的运动学公式写完整
+2. 再把 `deformable_wheel_controller.cpp` 重构为几何层 + 观测层 + 分配层
+3. 先确保无约束版本工作稳定
+4. 最后再逐步恢复功率/摩擦/QCP 约束
