@@ -154,10 +154,12 @@ launch_setting:
     b_kp: 1.0                  # 速度环比例增益
     b_ki: 0.0                  # 速度环积分增益
     b_kd: 0.0                  # 速度环微分增益
+    b_integral_max: 50.0       # 速度环积分上限（绝对值）
     # 减速PID参数（减速阶段，更激进）
     b_decel_kp: 0.826           # 减速阶段比例增益
     b_decel_ki: 0.1            # 减速阶段积分增益
     b_decel_kd: 0.01            # 减速阶段微分增益
+    b_decel_integral_max: 50.0 # 减速阶段积分上限（绝对值）
     belt_hold_torque: 5.0      # N⋅m - manager 未提供保留力矩时的回退值
 
 dart_filling:
