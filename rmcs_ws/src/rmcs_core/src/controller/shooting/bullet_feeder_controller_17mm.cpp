@@ -105,8 +105,7 @@ public:
                     if (shoot_mode == ShootMode::AUTOMATIC) {
                         const bool auto_fire_enabled =
                             mouse.right || (switch_right == Switch::UP && *rotary_knob_ >= 0.7);
-                        bool triggered = mouse.left || switch_left == Switch::DOWN
-                                      || (auto_fire_enabled && *fire_control_);
+                        bool triggered = mouse.left || (auto_fire_enabled && *fire_control_);
                         bullet_allowance =
                             triggered ? *control_bullet_allowance_limited_by_heat_ : 0;
                     } else {
