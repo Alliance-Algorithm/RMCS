@@ -1,0 +1,39 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_dart_guidance::manager::DartManager -> dart_manager
+      - rmcs_dart_guidance::manager::RemoteCommandBridge -> remote_cmd_bridge
+      - rmcs_dart_guidance::manager::GuiBridgeEndpoint -> gui_bridge_endpoint
+      - rmcs_dart_guidance::manager::sim::DartManagerSimCommandBridge -> dart_manager_sim_command_bridge
+      - rmcs_dart_guidance::manager::sim::DartManagerSimFeedbackBridge -> dart_manager_sim_feedback_bridge
+
+dart_manager:
+  ros__parameters:
+    launch_prepare_enable_visual_assist: false
+    max_transform_rate: 5.0
+    manual_force_scale: 5.0
+    limiting_fill_ticks: 200
+    lifting_stall_threshold: 0.1
+    lifting_stall_confirm_ticks: 100
+    lifting_stall_min_run_ticks: 500
+    lifting_stall_timeout_ticks: 2000
+    dart_count: 4
+    aim_reference_pixel: [0.0, 0.0]
+    aim_dart_offsets_px: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    aim_deadband_px: [3.0, 3.0]
+    aim_ready_exit_deadband_px: [5.0, 5.0]
+    aim_accept_deadband_px: [8.0, 8.0]
+    aim_yaw_gain: 0.08
+    aim_pitch_gain: 0.08
+    aim_ready_confirm_ticks: 5
+    aim_timeout_ticks: 3000
+    aim_min_transform_rate: 0.0
+    auto_aim_max_transform_rate: 5.0
+
+gui_bridge_endpoint:
+  ros__parameters:
+    enabled: true
+    listen_address: 127.0.0.1
+    listen_port: 18081
+    fail_on_bind_error: false

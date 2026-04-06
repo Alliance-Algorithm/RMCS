@@ -3,9 +3,10 @@ rmcs_executor:
     update_rate: 1000.0
     components:
       - rmcs_core::hardware::CatapultDartV3Lk        -> dart_hardware
-      - rmcs_dart_guidance::manager::DartManagerV2   -> dart_manager
+      - rmcs_dart_guidance::manager::DartManager   -> dart_manager
       - rmcs_dart_guidance::manager::RemoteCommandBridge -> remote_cmd_bridge
-      # - rmcs_dart_guidance::manager::WebCommandBridge -> web_cmd_bridge
+      - rmcs_dart_guidance::manager::GuiBridgeEndpoint -> gui_bridge_endpoint
+
       - rmcs_core::controller::dart::DartLaunchSettingV2 -> launch_setting
       - rmcs_core::controller::dart::DartFilling -> dart_filling
       - rmcs_core::controller::dart::DartSettingController -> dart_setting
@@ -40,6 +41,13 @@ dart_manager:
     aim_timeout_ticks: 3000
     aim_min_transform_rate: 0.0
     auto_aim_max_transform_rate: 5.0
+
+gui_bridge_endpoint:
+  ros__parameters:
+    enabled: true
+    listen_address: 127.0.0.1
+    listen_port: 18081
+    fail_on_bind_error: false
 
 launch_setting:
   ros__parameters:
