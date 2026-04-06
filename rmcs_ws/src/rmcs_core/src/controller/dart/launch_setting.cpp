@@ -193,7 +193,7 @@ private:
 
     // 零速度闭环模式（低刚度）
     void wait_zero_velocity() {
-        sync_velocity_control(0.0, 0.0, max_control_torque_ * 0.5);
+        sync_velocity_control(0.0, 0.0, select_torque_limit());
         *position_reached_ = true;
     }
 
