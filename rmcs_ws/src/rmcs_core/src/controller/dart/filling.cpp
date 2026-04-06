@@ -3,8 +3,8 @@
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
 
-#include <rmcs_msgs/dart_limiting_servo_status.hpp>
-#include <rmcs_msgs/dart_slider_status.hpp>
+#include <rmcs_msgs/dart_mechanism_command.hpp>
+#include <rmcs_msgs/dart_servo_command.hpp>
 
 namespace rmcs_core::controller::dart {
 
@@ -31,11 +31,11 @@ public:
 
     void update() override {
         switch (*lifting_command_) {
-        case rmcs_msgs::DartSliderStatus::UP:
+        case rmcs_msgs::DartMechanismCommand::UP:
             *lifting_left_vel_ = -lifting_velocity_;
             *lifting_right_vel_ = +lifting_velocity_;
             break;
-        case rmcs_msgs::DartSliderStatus::DOWN:
+        case rmcs_msgs::DartMechanismCommand::DOWN:
             *lifting_left_vel_ = +lifting_velocity_;
             *lifting_right_vel_ = -lifting_velocity_;
             break;
@@ -46,13 +46,13 @@ public:
         }
 
         switch (*limiting_command_) {
-        case rmcs_msgs::DartLimitingServoStatus::FREE:
+        case rmcs_msgs::DartServoCommand::FREE:
             *limiting_servo_angle_ = limiting_free_angle_;
             break;
-        case rmcs_msgs::DartLimitingServoStatus::LOCK:
+        case rmcs_msgs::DartServoCommand::LOCK:
             *limiting_servo_angle_ = limiting_lock_angle_;
             break;
-        case rmcs_msgs::DartLimitingServoStatus::WAIT: break;
+        case rmcs_msgs::DartServoCommand::WAIT: break;
         }
     }
 
@@ -61,8 +61,8 @@ private:
     uint16_t limiting_free_angle_;
     uint16_t limiting_lock_angle_;
 
-    InputInterface<rmcs_msgs::DartSliderStatus> lifting_command_;
-    InputInterface<rmcs_msgs::DartLimitingServoStatus> limiting_command_;
+    InputInterface<rmcs_msgs::DartMechanismCommand> lifting_command_;
+    InputInterface<rmcs_msgs::DartServoCommand> limiting_command_;
 
     OutputInterface<double> lifting_left_vel_;
     OutputInterface<double> lifting_right_vel_;

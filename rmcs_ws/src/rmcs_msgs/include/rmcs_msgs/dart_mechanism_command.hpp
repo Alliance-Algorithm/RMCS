@@ -2,7 +2,7 @@
 
 namespace rmcs_msgs {
 
-enum class DartSliderStatus {
+enum class DartMechanismCommand {
     UP = 0,
     DOWN = 1,
     WAIT = 2,

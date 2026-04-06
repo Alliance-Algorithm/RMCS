@@ -2,7 +2,7 @@
 
 namespace rmcs_msgs {
 
-enum class DartLimitingServoStatus {
+enum class DartServoCommand {
     FREE = 0,
     LOCK = 1,
     WAIT = 2,
