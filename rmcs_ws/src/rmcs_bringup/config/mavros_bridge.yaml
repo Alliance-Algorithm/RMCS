@@ -1,0 +1,31 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::hardware::FlightMavros -> flight_mavros_hardware
+
+mavros:
+  ros__parameters:
+    enabled: true
+    fcu_url: serial:///dev/ttyACM0:921600
+    gcs_url: ""
+    target_system_id: 1
+    target_component_id: 1
+    fcu_protocol: v2.0
+    respawn: true
+    respawn_delay: 1.0
+
+odin_ros_driver:
+  ros__parameters:
+    enabled: true
+    config_file: "/rmcs_install/share/odin_ros_driver/config/control_command.yaml"
+    node_name: host_sdk_sample
+    respawn: true
+    respawn_delay: 1.0
+
+flight_mavros_hardware:
+  ros__parameters:
+    odin_odometry_topic: /odin1/odometry
+    mavros_pose_topic: /mavros/vision_pose/pose_cov
+    mavros_twist_topic: /mavros/vision_speed/speed_twist_cov
+    mavros_pose_frame_id: odom

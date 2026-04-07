@@ -7,7 +7,7 @@ from launch import (
     LaunchDescription,
     LaunchDescriptionEntity,
 )
-from launch.actions import ExecuteProcess, LogInfo
+from launch.actions import LogInfo
 from launch.substitutions import LaunchConfiguration
 
 from launch_ros.actions import Node
@@ -102,26 +102,44 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
                 )
             )
 
-        xrce_cfg = config.get("xrce_dds_agent", {}).get("ros__parameters")
-        if xrce_cfg is not None:
-            device = xrce_cfg.get("device", "/dev/ttyS0")
-            baudrate = str(xrce_cfg.get("baudrate", 921600))
+        mavros_cfg = config.get("mavros", {}).get("ros__parameters")
+        if mavros_cfg is not None and mavros_cfg.get("enabled", True):
+            fcu_url = mavros_cfg.get(
+                "fcu_url",
+                f"serial://{mavros_cfg.get('device', '/dev/ttyACM0')}:{mavros_cfg.get('baudrate', 921600)}",
+            )
+            gcs_url = mavros_cfg.get("gcs_url", "")
+            target_system_id = int(mavros_cfg.get("target_system_id", 1))
+            target_component_id = int(mavros_cfg.get("target_component_id", 1))
+            fcu_protocol = mavros_cfg.get("fcu_protocol", "v2.0")
+            respawn = mavros_cfg.get("respawn", True)
+            respawn_delay = float(mavros_cfg.get("respawn_delay", 1.0))
             entities.append(
-                LogInfo(msg=f"Starting MicroXRCEAgent on {device} @ {baudrate} baud")
+                LogInfo(
+                    msg=(
+                        f"Starting ROS 2 MAVROS on '{fcu_url}' "
+                        f"(target {target_system_id}:{target_component_id})"
+                    )
+                )
             )
             entities.append(
-                ExecuteProcess(
-                    cmd=[
-                        "MicroXRCEAgent",
-                        "serial",
-                        "--dev",
-                        device,
-                        "-b",
-                        baudrate,
+                Node(
+                    package="mavros",
+                    executable="mavros_node",
+                    namespace="mavros",
+                    parameters=[
+                        {
+                            "fcu_url": fcu_url,
+                            "gcs_url": gcs_url,
+                            "tgt_system": target_system_id,
+                            "tgt_component": target_component_id,
+                            "fcu_protocol": fcu_protocol,
+                        }
                     ],
-                    output="log",
-                    respawn=True,
-                    respawn_delay=1.0,
+                    respawn=respawn,
+                    respawn_delay=respawn_delay,
+                    output="screen",
+                    emulate_tty=True,
                 )
             )
 
