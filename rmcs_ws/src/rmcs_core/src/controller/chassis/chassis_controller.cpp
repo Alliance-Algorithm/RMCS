@@ -178,11 +178,12 @@ private:
                     chassis_mode_ = rmcs_msgs::ChassisMode::Yaw_Free;
                 }
             }
-            if(keyboard.f){
+            if (keyboard.f) {
                 set_speed_gear(SpeedGear::Low);
             }
             if (last_arm_mode_ != *arm_mode_) {
                 switch (*arm_mode_) {
+                case rmcs_msgs::ArmMode::Auto_Linear:
                 case rmcs_msgs::ArmMode::Custome:
                     set_speed_gear(SpeedGear::Low);
                     chassis_mode_ = rmcs_msgs::ChassisMode::Yaw_Free;

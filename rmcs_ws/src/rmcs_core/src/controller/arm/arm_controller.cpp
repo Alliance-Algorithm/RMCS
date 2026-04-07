@@ -334,6 +334,7 @@ private:
         moveit::planning_interface::MoveGroupInterface::Plan my_plan;
         move_group_->setStartStateToCurrentState();
         move_group_->clearPoseTargets();
+        move_group_->setMaxAccelerationScalingFactor(0.05);
         move_group_->setMaxVelocityScalingFactor(0.03);
         move_group_->setPlanningTime(5.0);
         switch (request->arm_mode) {
@@ -354,7 +355,8 @@ private:
         }
         case rmcs_msgs::ArmMode::Auto_Linear: {
             const static double distance = 0.1;
-        move_group_->setMaxVelocityScalingFactor(0.05);
+            move_group_->setMaxVelocityScalingFactor(0.05);
+            move_group_->setMaxAccelerationScalingFactor(0.05);
 
             geometry_msgs::msg::Pose start_pose = move_group_->getCurrentPose().pose;
             const auto target_pose = linear_point_transformer(start_pose, {1, 0, 0}, distance);
@@ -386,6 +388,7 @@ private:
                 result->positions.push_back(pt.positions);
             }
             RCLCPP_INFO(node_->get_logger(), "plan stored");
+            RCLCPP_INFO(node_->get_logger(), "size: %d",static_cast<int>(trajectory_points.size()));
         }
 
         planned_trajectory_.store(result, std::memory_order::release);
