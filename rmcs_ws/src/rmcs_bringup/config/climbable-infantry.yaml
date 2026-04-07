@@ -39,17 +39,18 @@ rmcs_executor:
 
 Infantry_hardware:
   ros__parameters:
-    board_serial_bottom_board: "D4-6A83-030D-F3D0-9103-F8A5-1246"
+    board_serial_bottom_board_one: "D4-6A83-030D-F3D0-9103-F8A5-1246"
+    board_serial_bottom_board_two: "D4-6654-1C0F-7353-AA15-A77B-313D"
     # bottom_yaw_motor_zero_point: 52508
     # pitch_motor_zero_point: 40651 #35701
     # top_yaw_motor_zero_point: 58744
     # viewer_motor_zero_point: 3030
     # external_imu_port: /dev/ttyUSB0
     # bullet_feeder_motor_zero_point: 15111
-    left_front_zero_point: 4516
-    left_back_zero_point:  3841
-    right_back_zero_point: 5159
-    right_front_zero_point: 7190
+    left_front_zero_point: 5816
+    left_back_zero_point:  3776
+    right_back_zero_point: 3084
+    right_front_zero_point: 5077
     # left_front_zero_point: 3473
     # left_back_zero_point: 6124
     # right_back_zero_point: 6157
@@ -58,15 +59,16 @@ Infantry_hardware:
 value_broadcaster:
   ros__parameters:
     forward_list:
-        - /gimbal/putter/velocity
-        - /gimbal/first_left_friction/velocity
-        - /gimbal/first_second_friction/velocity
-        - /gimbal/second_left_friction/velocity
-        - /gimbal/second_right_friction/velocity
-        - /gimbal/first_left_friction/control_torque
-        - /gimbal/first_second_friction/control_torque
-        - /gimbal/second_left_friction/control_torque
-        - /gimbal/second_right_friction/control_torque
+        - /chassis/pitch_imu
+        # - /gimbal/putter/velocity
+        # - /gimbal/first_left_friction/velocity
+        # - /gimbal/first_second_friction/velocity
+        # - /gimbal/second_left_friction/velocity
+        # - /gimbal/second_right_friction/velocity
+        # - /gimbal/first_left_friction/control_torque
+        # - /gimbal/first_second_friction/control_torque
+        # - /gimbal/second_left_friction/control_torque
+        # - /gimbal/second_right_friction/control_torque
       # - /chassis/left_front_steering/angle
       # - /chassis/left_back_steering/angle
       # - /chassis/right_back_steering/angle
@@ -96,8 +98,8 @@ climber_controller:
     auto_climb_support_retract_velocity: 30.0
     sync_coefficient: 0.3
     climb_timeout_limit: 1000
-    first_stair_approach_pitch: 0.485
-    second_stair_approach_pitch: 0.35
+    first_stair_approach_pitch: 0.560
+    second_stair_approach_pitch: 0.370
     back_climber_burst_velocity: 15.0  
     back_climber_burst_duration: 300  
     front_kp: 1.0

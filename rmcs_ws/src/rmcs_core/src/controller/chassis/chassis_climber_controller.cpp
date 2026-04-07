@@ -87,7 +87,7 @@ public:
         auto keyboard = *keyboard_;
         auto rotary_knob_switch = *rotary_knob_switch_;
 
-        // RCLCPP_INFO(logger_, "%lf", *chassis_pitch_imu_);
+        // RCLCPP_INFO(logger_, "%lf", *climber_front_left_control_torque_);
 
         bool rotary_knob_to_up =
             (last_rotary_knob_switch_ != Switch::UP && rotary_knob_switch == Switch::UP);
@@ -192,9 +192,9 @@ private:
 
     AutoClimbControl update_auto_climb_support_deploy() {
         AutoClimbControl control{
-            .front_track_velocity = 0.0,
+            .front_track_velocity = track_velocity_max_,
             .back_climber_velocity = climber_back_control_velocity_abs_,
-            .override_chassis_vx = 0.2,
+            .override_chassis_vx = 2.5,
         };
 
         if (is_back_climber_blocked()) {
@@ -303,7 +303,7 @@ private:
         //     reset_back_safety_counters();
         // }
 
-        double track_control_velocity =
+        double track_control_velocity = 
             front_climber_enable_ ? joystick_right_->x() * track_velocity_max_ : nan_;
 
         dual_motor_sync_control(
@@ -412,7 +412,7 @@ private:
 
     rclcpp::Logger logger_;
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
-    static constexpr double kAutoClimbApproachVelocity = 1.0;
+    static constexpr double kAutoClimbApproachVelocity = 2.5;
     static constexpr double kAutoClimbLeveledPitchThreshold = 0.1;
     static constexpr double kBackClimberBlockedTorqueThreshold = 0.1;
     static constexpr double kBackClimberBlockedVelocityThreshold = 0.1;
