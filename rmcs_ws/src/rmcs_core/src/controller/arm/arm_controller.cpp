@@ -377,8 +377,6 @@ private:
             break;
         }
         }
-        // const bool success = (move_group_->plan(my_plan) ==
-        // moveit::core::MoveItErrorCode::SUCCESS); result->plan_success = success;
         if (!(result->plan_success)) {
             RCLCPP_WARN(node_->get_logger(), "plan failed");
         } else {
@@ -388,7 +386,7 @@ private:
                 result->positions.push_back(pt.positions);
             }
             RCLCPP_INFO(node_->get_logger(), "plan stored");
-            RCLCPP_INFO(node_->get_logger(), "size: %d",static_cast<int>(trajectory_points.size()));
+            RCLCPP_INFO(node_->get_logger(), "size:%d",static_cast<int>(trajectory_points.size()));
         }
 
         planned_trajectory_.store(result, std::memory_order::release);
