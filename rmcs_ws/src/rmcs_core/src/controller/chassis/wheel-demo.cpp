@@ -765,24 +765,24 @@ private:
     }
 
     static constexpr std::array<double, 4> phi_ = {
-        std::numbers::pi / 4,
-        std::numbers::pi * 3 / 4,
-        -std::numbers::pi * 3 / 4,
-        -std::numbers::pi / 4,
+        0.0,
+        std::numbers::pi / 2,
+        std::numbers::pi,
+        -std::numbers::pi / 2,
     };
 
     static constexpr std::array<double, 4> phi_cos_ = {
-        0.7071067811865476,  // cos(π/4)
-        -0.7071067811865476, // cos(3π/4)
-        -0.7071067811865476, // cos(-3π/4)
-        0.7071067811865476,  // cos(-π/4)
+        1.0,
+        0.0,
+        -1.0,
+        0.0,
     };
 
     static constexpr std::array<double, 4> phi_sin_ = {
-        0.7071067811865476,  // sin(π/4)
-        0.7071067811865476,  // sin(3π/4)
-        -0.7071067811865476, // sin(-3π/4)
-        -0.7071067811865476, // sin(-π/4)
+        0.0,
+        1.0,
+        0.0,
+        -1.0,
     };
 
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();

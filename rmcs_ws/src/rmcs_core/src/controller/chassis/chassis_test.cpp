@@ -335,8 +335,11 @@ private:
     }
 
     double update_angular_velocity_control() {
+        const double manual_ratio = std::clamp((*joystick_left_).x(), -1.0, 1.0);
+        const double manual_angular_velocity = manual_ratio * angular_velocity_max_;
+
         switch (*mode_) {
-        case rmcs_msgs::ChassisMode::AUTO: return 0.0;
+        case rmcs_msgs::ChassisMode::AUTO: return manual_angular_velocity;
 
         case rmcs_msgs::ChassisMode::SPIN: {
             double ratio = spin_ratio_default_;
@@ -349,8 +352,10 @@ private:
                     ratio = std::clamp(std::abs(rotary_knob), 0.0, 1.0);
             }
 
-            const double angular_velocity = ratio * angular_velocity_max_;
-            return spinning_forward_ ? angular_velocity : -angular_velocity;
+            const double spin_base =
+                (spinning_forward_ ? 1.0 : -1.0) * ratio * angular_velocity_max_;
+            return std::clamp(
+                spin_base + manual_angular_velocity, -angular_velocity_max_, angular_velocity_max_);
         }
 
         default: return 0.0;
