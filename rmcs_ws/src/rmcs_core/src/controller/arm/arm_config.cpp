@@ -55,7 +55,8 @@ public:
             const double angle = (i == 1) ? *joint_encode_angle : *joint_motor_angle[i];
             joint[i].update(angle, *joint_motor_velocity[i], *joint_motor_torque[i]);
         }
-
+      static std::size_t count{0};  
+      if(++count >=9){
         sensor_msgs::msg::JointState msg;
         msg.header.stamp    = this->now();
         msg.header.frame_id = "base_link";
@@ -67,7 +68,16 @@ public:
             *joint_motor_angle[3],
             *joint_motor_angle[4],
             *joint_motor_angle[5]};
+        msg.velocity        = {
+            *joint_motor_velocity[0],
+            *joint_motor_velocity[1],
+            *joint_motor_velocity[2],
+            *joint_motor_velocity[3],
+            *joint_motor_velocity[4],
+            *joint_motor_velocity[5]};
         joint_states_pub->publish(msg);
+    count = 0;  
+    }
     }
 
 private:

@@ -7,6 +7,7 @@
 #include "hardware/forwarder/cboard.hpp"
 #include "hardware/ring_buffer.hpp"
 #include "librmcs/device/bmi088.hpp"
+#include <algorithm>
 #include <bitset>
 #include <cmath>
 #include <cstddef>
@@ -148,6 +149,7 @@ private:
 
         void update() {
             using namespace device;
+            //RCLCPP_INFO(this->get_logger(), "joint5,raw_angle: %d, angle: %f", joint[5].get_raw_angle(), joint[5].get_angle());
             update_arm_motors();
             dr16_.update();
             update_imu();
@@ -572,6 +574,8 @@ private:
                 } else {
                     yaw_command = big_yaw.generate_torque_command();
                 }
+
+                //yaw_command = big_yaw.dm_enable_command();
                 transmit_buffer_.add_can2_transmission(0x3, yaw_command);
             } else {
                 command_[0] = Wheel_motors[0].generate_command();

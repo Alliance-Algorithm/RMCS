@@ -3,6 +3,7 @@
 #include "sensor_msgs/msg/joint_state.hpp"
 #include "std_msgs/msg/float32_multi_array.hpp"
 
+#include <Eigen/src/Core/Matrix.h>
 #include <algorithm>
 #include <array>
 #include <bit>
@@ -19,6 +20,7 @@
 #include <memory>
 #include <numbers>
 #include <string>
+#include <tf2_eigen/tf2_eigen.hpp>
 
 #include <atomic>
 #include <chrono>
@@ -29,7 +31,8 @@
 #include <moveit/move_group_interface/move_group_interface.hpp>
 #include <moveit/planning_interface/planning_interface.hpp>
 #include <moveit/planning_scene_interface/planning_scene_interface.hpp>
-#include <rclcpp/executors/single_threaded_executor.hpp>
+#include <moveit_msgs/msg/move_it_error_codes.hpp>
+#include <rclcpp/executors/multi_threaded_executor.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 
@@ -55,7 +58,6 @@ public:
                   rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))) {
 
         exec_.add_node(node_);
-        spin_running_.store(true, std::memory_order_release);
         spin_thread_ = std::thread([this] { spin_loop(); });
 
         register_input("/remote/joystick/right", joystick_right_);
@@ -86,22 +88,27 @@ public:
         register_output("/arm/image_pitch/target_theta", image_pitch_target_theta_, NAN);
         register_output("/arm/custom_big_yaw", custom_big_yaw_output_, 0.0);
 
-        move_group_ =
-            std::make_unique<moveit::planning_interface::MoveGroupInterface>(node_, "alliance_arm");
-        move_group_->startStateMonitor();
         moveit_running_.store(true, std::memory_order_release);
         moveit_thread_ = std::thread([this] {
+            move_group_ = std::make_unique<moveit::planning_interface::MoveGroupInterface>(
+                node_, "alliance_arm");
+            move_group_->startStateMonitor();
             while (moveit_running_.load(std::memory_order_acquire)) {
-                moveit_loop();
-                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                try {
+                    moveit_loop();
+                } catch (const std::exception& e) {
+                    RCLCPP_ERROR(node_->get_logger(), "moveit_loop exception: %s", e.what());
+                } catch (...) {
+                    RCLCPP_ERROR(node_->get_logger(), "moveit_loop exception: unknown");
+                }
+
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
             }
         });
     }
 
     ~ArmController() override {
         moveit_running_.store(false, std::memory_order_release);
-        spin_running_.store(false, std::memory_order_release);
-
         exec_.cancel();
 
         if (moveit_thread_.joinable())
@@ -178,6 +185,14 @@ public:
                     set_arm_mode(rmcs_msgs::ArmMode::Custome);
                 }
             }
+            if (keyboard.w) {
+                set_arm_mode(rmcs_msgs::ArmMode::Auto_Linear);
+            }
+
+            if (keyboard.a) {
+                // RCLCPP_INFO(node_->get_logger(),"press a ");
+                set_arm_mode(rmcs_msgs::ArmMode::None);
+            }
             if (mouse.left && !last_mouse_.left) {
                 image_pitch_theta1_offset_ += 0.05;
             }
@@ -206,6 +221,10 @@ public:
             execute_plan_request_and_trajectory_step();
             break;
         }
+        case ArmMode::Auto_Linear: {
+            execute_plan_request_and_trajectory_step();
+            break;
+        }
         case ArmMode::None: {
             break;
         }
@@ -223,7 +242,6 @@ private:
     rmcs_msgs::ArmMode last_requested_arm_mode_{rmcs_msgs::ArmMode::None};
 
     std::unique_ptr<moveit::planning_interface::MoveGroupInterface> move_group_;
-    moveit::planning_interface::PlanningSceneInterface planning_scene_interface;
 
     std::atomic_bool moveit_running_{false};
     std::thread moveit_thread_;
@@ -241,7 +259,7 @@ private:
     std::atomic<std::shared_ptr<const PlannedTrajectory>> planned_trajectory_{nullptr};
 
     void set_arm_mode(rmcs_msgs::ArmMode mode) {
-        if (mode != rmcs_msgs::ArmMode::Auto_Walk) {
+        if (mode != rmcs_msgs::ArmMode::Auto_Walk && mode != rmcs_msgs::ArmMode::Auto_Linear) {
             last_requested_arm_mode_ = mode;
         }
         const auto current = plan_request.load(std::memory_order_acquire);
@@ -268,6 +286,35 @@ private:
         static std::vector<double> auto_walk_joint_target;
         static bool moveit_parameter_initialized{false};
 
+        // 打印函数（建议单独写一个）
+        auto print_pose = [this](const std::string& name, const geometry_msgs::msg::Pose& pose) {
+            // 位置
+            double x = pose.position.x;
+            double y = pose.position.y;
+            double z = pose.position.z;
+
+            // 四元数 → RPY
+            tf2::Quaternion q(
+                pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w);
+
+            double roll, pitch, yaw;
+            tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
+
+            RCLCPP_INFO(
+                node_->get_logger(), "%s: [x=%.4f, y=%.4f, z=%.4f | r=%.4f, p=%.4f, y=%.4f]",
+                name.c_str(), x, y, z, roll, pitch, yaw);
+        };
+        const auto linear_point_transformer = [](const geometry_msgs::msg::Pose& start_pose,
+                                                 const Eigen::Vector3d& local_dir,
+                                                 double distance) {
+            Eigen::Isometry3d T;
+            tf2::fromMsg(start_pose, T);
+
+            Eigen::Vector3d p_local = local_dir.normalized() * distance;
+
+            T.translation() += T.linear() * p_local;
+            return tf2::toMsg(T);
+        };
         if (!moveit_parameter_initialized) {
             node_->get_parameter("auto_walk_joint_target", auto_walk_joint_target);
             moveit_parameter_initialized = true;
@@ -285,14 +332,13 @@ private:
         result->plan_success = false;
 
         moveit::planning_interface::MoveGroupInterface::Plan my_plan;
-
         move_group_->setStartStateToCurrentState();
         move_group_->clearPoseTargets();
-        move_group_->setMaxVelocityScalingFactor(0.005);
-        move_group_->setMaxAccelerationScalingFactor(0.005);
-        move_group_->setPlanningTime(2.0);
+        move_group_->setMaxVelocityScalingFactor(0.03);
+        move_group_->setPlanningTime(5.0);
         switch (request->arm_mode) {
         case rmcs_msgs::ArmMode::Auto_Walk: {
+            move_group_->setPlanningPipelineId("ompl");
             move_group_->setJointValueTarget(
                 std::map<std::string, double>{
                     {"joint_1", auto_walk_joint_target[0]},
@@ -302,15 +348,36 @@ private:
                     {"joint_5", auto_walk_joint_target[4]},
                     {"joint_6", auto_walk_joint_target[5]},
             });
+            result->plan_success =
+                (move_group_->plan(my_plan) == moveit::core::MoveItErrorCode::SUCCESS);
+            break;
+        }
+        case rmcs_msgs::ArmMode::Auto_Linear: {
+            const static double distance = 0.1;
+        move_group_->setMaxVelocityScalingFactor(0.05);
+
+            geometry_msgs::msg::Pose start_pose = move_group_->getCurrentPose().pose;
+            const auto target_pose = linear_point_transformer(start_pose, {1, 0, 0}, distance);
+            move_group_->setGoalOrientationTolerance(0.2); // rad，大概 6°
+            move_group_->setGoalPositionTolerance(0.01);   // 1mm
+            move_group_->setPlanningPipelineId("pilz_industrial_motion_planner");
+            move_group_->setPlannerId("LIN");
+            move_group_->setPoseTarget(target_pose, "link_6");
+
+            print_pose("start_pose", start_pose);
+            print_pose("target_pose", target_pose);
+            const auto plan_result = move_group_->plan(my_plan);
+
+            result->plan_success = (plan_result == moveit::core::MoveItErrorCode::SUCCESS);
             break;
         }
         default: {
             break;
         }
         }
-        const bool success = (move_group_->plan(my_plan) == moveit::core::MoveItErrorCode::SUCCESS);
-        result->plan_success = success;
-        if (!success) {
+        // const bool success = (move_group_->plan(my_plan) ==
+        // moveit::core::MoveItErrorCode::SUCCESS); result->plan_success = success;
+        if (!(result->plan_success)) {
             RCLCPP_WARN(node_->get_logger(), "plan failed");
         } else {
             const auto& trajectory_points = my_plan.trajectory.joint_trajectory.points;
@@ -318,6 +385,7 @@ private:
             for (const auto& pt : trajectory_points) {
                 result->positions.push_back(pt.positions);
             }
+            RCLCPP_INFO(node_->get_logger(), "plan stored");
         }
 
         planned_trajectory_.store(result, std::memory_order::release);
@@ -349,8 +417,18 @@ private:
             if (moveit_result->plan_success && !moveit_result->positions.empty()) {
                 if (trajectory_steps < moveit_result->positions.size()) {
                     const auto& q = moveit_result->positions[trajectory_steps];
-                    for (std::size_t i = 0; i < std::min<std::size_t>(6, q.size()); ++i) {
-                        // *target_theta[i] = q[i];
+
+                    Eigen::Vector<double, 6> q_eigen;
+                    for (Eigen::Index i = 0; i < q_eigen.size(); ++i) {
+                        q_eigen[i] = q[static_cast<std::size_t>(i)];
+                    }
+
+                    const auto filtered_angles = custom_joint_filter_.update(q_eigen);
+                    for (Eigen::Index i = 0; i < filtered_angles.size(); ++i) {
+                        *target_theta[static_cast<std::size_t>(i)] = q[i];
+                        //     RCLCPP_INFO(
+                        //         node_->get_logger(), "Setting joint_%zu target to %f", i + 1,
+                        //         *target_theta[i]);
                     }
                     trajectory_steps++;
                 }
@@ -496,15 +574,9 @@ private:
     filter::LowPassFilter<6> custom_joint_filter_;
 
     rclcpp::Node::SharedPtr node_;
-    rclcpp::executors::SingleThreadedExecutor exec_;
-    std::atomic_bool spin_running_{false};
+    rclcpp::executors::MultiThreadedExecutor exec_;
     std::thread spin_thread_;
-    void spin_loop() {
-        while (spin_running_.load(std::memory_order_acquire)) {
-            exec_.spin_some();
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        }
-    }
+    void spin_loop() { exec_.spin(); }
 };
 
 } // namespace rmcs_core::controller::arm

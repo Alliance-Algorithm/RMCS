@@ -42,9 +42,9 @@ engineer_hardware:
     arm_board_usb_pid: 0x1783
     left_board_usb_pid: 0x652f
     right_board_usb_pid: 0x75f3
-    gripper_zero_point: 6264
+    gripper_zero_point: 26298
     image_pitch_zero_point: 47534
-    joint6_zero_point: 0
+    joint6_zero_point: 61801
     joint5_zero_point: 37436
     joint4_zero_point: 28029
     joint3_zero_point: 28134
@@ -251,12 +251,12 @@ steering_wheel_controller:
 value_broadcaster:
   ros__parameters:
     forward_list:
-      - "/leg/joint/lf/target_theta"
-      - "/leg/joint/lb/target_theta"
-      - "/leg/joint/rf/target_theta"
-      - "/leg/joint/rb/target_theta"
       - "/leg/encoder/lf/angle"
       - "/leg/encoder/lb/angle"
       - "/leg/encoder/rb/angle"
       - "/leg/encoder/rf/angle"
+      - "/arm/joint_6/theta"
+      - "/arm/joint_6/velocity"
+      - "/arm/joint_2/theta"
+      - "/arm/joint_2/velocity"
     

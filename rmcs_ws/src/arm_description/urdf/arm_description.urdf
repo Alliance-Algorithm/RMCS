@@ -144,7 +144,7 @@
       xyz="0 0 -1" />
     <limit
       lower="-1.084"
-      upper="1.426"
+      upper="1.528"
       effort="63"
       velocity="4.71" />
     <dynamics
@@ -203,7 +203,7 @@
     <axis
       xyz="0 0 -1" />
     <limit
-      lower="-1.36217"
+      lower="-1.37217"
       upper="0.5335"
       effort="35"
       velocity="4.71" />
@@ -263,8 +263,8 @@
     <axis
       xyz="0 0 1" />
     <limit
-      lower="-3.14"
-      upper="3.14"
+      lower="-3.1415926"
+      upper="3.1415926"
       effort="18"
       velocity="7.54" />
     <dynamics
@@ -323,8 +323,8 @@
     <axis
       xyz="0 0 -1" />
     <limit
-      lower="-1.74"
-      upper="1.74"
+      lower="-1.967"
+      upper="1.917"
       effort="6"
       velocity="24.61" />
     <dynamics
@@ -383,8 +383,8 @@
     <axis
       xyz="0 0 1" />
     <limit
-      lower="-3.14"
-      upper="3.14"
+      lower="-3.1415926"
+      upper="3.1415926"
       effort="3"
       velocity="10" />
     <dynamics

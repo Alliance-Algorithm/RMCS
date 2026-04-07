@@ -23,7 +23,7 @@ def generate_launch_description():
         .robot_description(file_path="config/arm_description.urdf.xacro")
         .robot_description_kinematics(file_path="config/kinematics.yaml")
         .planning_pipelines(
-            pipelines=["ompl", "chomp"],
+            pipelines=["ompl", "chomp", "pilz_industrial_motion_planner"],
             default_planning_pipeline="ompl",
         )
         .joint_limits(file_path="config/joint_limits.yaml")
