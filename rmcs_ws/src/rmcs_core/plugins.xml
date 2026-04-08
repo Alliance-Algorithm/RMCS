@@ -153,7 +153,13 @@
     <description>Dart setting controller: subscribes to RemoteCommandBridge delta commands, outputs yaw/pitch/force control velocities.</description>
   </class>
   <class type="rmcs_core::controller::dart::DartLaunchSettingV2" base_class_type="rmcs_executor::Component">
-    <description>Launch setting V2: belt + trigger execution with task-level velocity, torque limit, and hold torque.</description>
+    <description>Launch setting V2: trigger servo execution that maps manager lock state to PWM value.</description>
+  </class>
+  <class type="rmcs_core::controller::dart::DartBeltController" base_class_type="rmcs_executor::Component">
+    <description>Dart belt controller: dual-belt synchronized PID control with trapezoidal velocity planning.</description>
+  </class>
+  <class type="rmcs_core::controller::dart::DartBeltStatus" base_class_type="rmcs_executor::Component">
+    <description>Dart belt status: stall detection for the drive belt, outputs a block flag.</description>
   </class>
   <class type="rmcs_core::controller::dart::DartFilling" base_class_type="rmcs_executor::Component">
     <description>Dart filling execution: maps manager lifting and limiting commands to LK motor velocity and calibrated servo angles.</description>
