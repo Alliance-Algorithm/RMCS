@@ -335,7 +335,7 @@ private:
     }
 
     double update_angular_velocity_control() {
-        const double manual_ratio = std::clamp((*joystick_left_).x(), -1.0, 1.0);
+        const double manual_ratio = std::clamp((*joystick_left_).y(), -1.0, 1.0);
         const double manual_angular_velocity = manual_ratio * angular_velocity_max_;
 
         switch (*mode_) {

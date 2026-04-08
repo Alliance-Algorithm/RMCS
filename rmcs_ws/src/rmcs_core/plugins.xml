@@ -5,11 +5,13 @@
   <class type="rmcs_core::hardware::SteeringInfantry" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::hardware::DeformableInfantry" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::hardware::DeformableInfantryV2" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::hardware::DeformableInfantryOmni" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::hardware::DeformableInfantryChasssisV2" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::hardware::Sentry" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::ChassisController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::ChassisPowerController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::OmniWheelController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::chassis::DeformableOmniWheelController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::SteeringWheelController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::DeformableChassisController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::DeformableChassis" base_class_type="rmcs_executor::Component" />
