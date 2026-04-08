@@ -1,9 +1,9 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdint>
 #include <limits>
 #include <numbers>
-#include <tuple>
 
 #include <eigen3/Eigen/Dense>
 #include <rclcpp/logging.hpp>
@@ -30,6 +30,8 @@ class WheelDemoController
         RightFront = 3,
         Count = 4
     };
+
+    static constexpr size_t kWheelCount = static_cast<size_t>(WheelIndex::Count);
 
     struct EllipseParameters {
         double a, b, c, d, e, f;
@@ -233,7 +235,7 @@ private:
         Eigen::Vector4d wheel_velocity_y = Eigen::Vector4d::Zero();
     };
 
-    struct JointFeedbackStates {
+    struct JointStateData {
         Eigen::Vector4d alpha_rad = Eigen::Vector4d::Zero();
         Eigen::Vector4d alpha_dot_rad = Eigen::Vector4d::Zero();
         Eigen::Vector4d alpha_ddot_rad = Eigen::Vector4d::Zero();
@@ -243,17 +245,14 @@ private:
         bool valid = false;
     };
 
-    struct JointTargetStates {
-        Eigen::Vector4d alpha_rad = Eigen::Vector4d::Zero();
-        Eigen::Vector4d alpha_dot_rad = Eigen::Vector4d::Zero();
-        Eigen::Vector4d alpha_ddot_rad = Eigen::Vector4d::Zero();
-        Eigen::Vector4d radius = Eigen::Vector4d::Zero();
-        Eigen::Vector4d radius_dot = Eigen::Vector4d::Zero();
-        Eigen::Vector4d radius_ddot = Eigen::Vector4d::Zero();
+    struct JointFeedbackStates : JointStateData {};
+
+    struct JointTargetStates : JointStateData {
         bool has_velocity = false;
         bool has_acceleration = false;
-        bool valid = false;
     };
+
+    enum class JointStateSource : uint8_t { Target, Feedback };
 
     struct JointStateView {
         const Eigen::Vector4d& alpha_rad;
@@ -262,19 +261,39 @@ private:
         const Eigen::Vector4d& radius;
         const Eigen::Vector4d& radius_dot;
         const Eigen::Vector4d& radius_ddot;
+        JointStateSource source;
         bool valid;
     };
 
     static JointStateView
         select_joint_state(const JointTargetStates& target, const JointFeedbackStates& feedback) {
         if (target.valid) {
-            return {target.alpha_rad,  target.alpha_dot_rad, target.alpha_ddot_rad, target.radius,
-                    target.radius_dot, target.radius_ddot,   target.valid};
-        } else {
-            return {feedback.alpha_rad, feedback.alpha_dot_rad, feedback.alpha_ddot_rad,
-                    feedback.radius,    feedback.radius_dot,    feedback.radius_ddot,
-                    feedback.valid};
+            return {
+                target.alpha_rad,  target.alpha_dot_rad, target.alpha_ddot_rad,    target.radius,
+                target.radius_dot, target.radius_ddot,   JointStateSource::Target, target.valid};
         }
+
+        return {feedback.alpha_rad,         feedback.alpha_dot_rad,
+                feedback.alpha_ddot_rad,    feedback.radius,
+                feedback.radius_dot,        feedback.radius_ddot,
+                JointStateSource::Feedback, feedback.valid};
+    }
+
+    [[nodiscard]] static Eigen::Vector4d read_required_inputs_(
+        const InputInterface<double>& left_front, const InputInterface<double>& left_back,
+        const InputInterface<double>& right_back, const InputInterface<double>& right_front) {
+        return {*left_front, *left_back, *right_back, *right_front};
+    }
+
+    [[nodiscard]] static Eigen::Vector4d read_optional_inputs_(
+        const InputInterface<double>& left_front, const InputInterface<double>& left_back,
+        const InputInterface<double>& right_back, const InputInterface<double>& right_front) {
+        return {
+            left_front.ready() ? *left_front : nan_,
+            left_back.ready() ? *left_back : nan_,
+            right_back.ready() ? *right_back : nan_,
+            right_front.ready() ? *right_front : nan_,
+        };
     }
 
     static void populate_joint_geometry_(
@@ -289,12 +308,12 @@ private:
 
     [[nodiscard]] JointFeedbackStates update_joint_feedback_states_() {
         JointFeedbackStates joint;
-        joint.alpha_rad = {
-            *left_front_joint_angle_, *left_back_joint_angle_, *right_back_joint_angle_,
-            *right_front_joint_angle_};
-        joint.alpha_dot_rad = {
-            *left_front_joint_velocity_, *left_back_joint_velocity_, *right_back_joint_velocity_,
-            *right_front_joint_velocity_};
+        joint.alpha_rad = read_required_inputs_(
+            left_front_joint_angle_, left_back_joint_angle_, right_back_joint_angle_,
+            right_front_joint_angle_);
+        joint.alpha_dot_rad = read_required_inputs_(
+            left_front_joint_velocity_, left_back_joint_velocity_, right_back_joint_velocity_,
+            right_front_joint_velocity_);
 
         if (!joint.alpha_rad.array().isFinite().all()
             || !joint.alpha_dot_rad.array().isFinite().all())
@@ -320,37 +339,17 @@ private:
 
     [[nodiscard]] JointTargetStates update_joint_target_states_() {
         JointTargetStates joint;
-        joint.alpha_rad = {
-            left_front_joint_target_physical_angle_.ready()
-                ? *left_front_joint_target_physical_angle_
-                : nan_,
-            left_back_joint_target_physical_angle_.ready() ? *left_back_joint_target_physical_angle_
-                                                           : nan_,
-            right_back_joint_target_physical_angle_.ready()
-                ? *right_back_joint_target_physical_angle_
-                : nan_,
-            right_front_joint_target_physical_angle_.ready()
-                ? *right_front_joint_target_physical_angle_
-                : nan_,
-        };
+        joint.alpha_rad = read_optional_inputs_(
+            left_front_joint_target_physical_angle_, left_back_joint_target_physical_angle_,
+            right_back_joint_target_physical_angle_, right_front_joint_target_physical_angle_);
 
         if (!joint.alpha_rad.array().isFinite().all())
             return joint;
 
-        const Eigen::Vector4d target_velocity = {
-            left_front_joint_target_physical_velocity_.ready()
-                ? *left_front_joint_target_physical_velocity_
-                : nan_,
-            left_back_joint_target_physical_velocity_.ready()
-                ? *left_back_joint_target_physical_velocity_
-                : nan_,
-            right_back_joint_target_physical_velocity_.ready()
-                ? *right_back_joint_target_physical_velocity_
-                : nan_,
-            right_front_joint_target_physical_velocity_.ready()
-                ? *right_front_joint_target_physical_velocity_
-                : nan_,
-        };
+        const Eigen::Vector4d target_velocity = read_optional_inputs_(
+            left_front_joint_target_physical_velocity_, left_back_joint_target_physical_velocity_,
+            right_back_joint_target_physical_velocity_,
+            right_front_joint_target_physical_velocity_);
         if (target_velocity.array().isFinite().all()) {
             joint.alpha_dot_rad = target_velocity;
             joint.has_velocity = true;
@@ -359,20 +358,11 @@ private:
             joint.has_velocity = true;
         }
 
-        const Eigen::Vector4d target_acceleration = {
-            left_front_joint_target_physical_acceleration_.ready()
-                ? *left_front_joint_target_physical_acceleration_
-                : nan_,
-            left_back_joint_target_physical_acceleration_.ready()
-                ? *left_back_joint_target_physical_acceleration_
-                : nan_,
-            right_back_joint_target_physical_acceleration_.ready()
-                ? *right_back_joint_target_physical_acceleration_
-                : nan_,
-            right_front_joint_target_physical_acceleration_.ready()
-                ? *right_front_joint_target_physical_acceleration_
-                : nan_,
-        };
+        const Eigen::Vector4d target_acceleration = read_optional_inputs_(
+            left_front_joint_target_physical_acceleration_,
+            left_back_joint_target_physical_acceleration_,
+            right_back_joint_target_physical_acceleration_,
+            right_front_joint_target_physical_acceleration_);
         if (target_acceleration.array().isFinite().all()) {
             joint.alpha_ddot_rad = target_acceleration;
             joint.has_acceleration = true;
@@ -424,29 +414,29 @@ private:
 
     [[nodiscard]] SteeringStatus calculate_steering_status() const {
         SteeringStatus steering_status;
-        steering_status.angle = {
-            *left_front_steering_angle_, *left_back_steering_angle_, *right_back_steering_angle_,
-            *right_front_steering_angle_};
+        steering_status.angle = read_required_inputs_(
+            left_front_steering_angle_, left_back_steering_angle_, right_back_steering_angle_,
+            right_front_steering_angle_);
         steering_status.angle.array() -= std::numbers::pi / 4;
         steering_status.cos_angle = steering_status.angle.array().cos();
         steering_status.sin_angle = steering_status.angle.array().sin();
 
-        for (size_t i = 0; i < static_cast<size_t>(WheelIndex::Count); ++i) {
+        for (size_t i = 0; i < kWheelCount; ++i) {
             const double angle_minus_phi = steering_status.angle[i] - phi_[i];
             steering_status.sin_angle_minus_phi[i] = std::sin(angle_minus_phi);
             steering_status.cos_angle_minus_phi[i] = std::cos(angle_minus_phi);
         }
 
-        steering_status.velocity = {
-            *left_front_steering_velocity_, *left_back_steering_velocity_,
-            *right_back_steering_velocity_, *right_front_steering_velocity_};
+        steering_status.velocity = read_required_inputs_(
+            left_front_steering_velocity_, left_back_steering_velocity_,
+            right_back_steering_velocity_, right_front_steering_velocity_);
         return steering_status;
     }
 
     [[nodiscard]] Eigen::Vector4d calculate_wheel_velocities() const {
-        return {
-            *left_front_wheel_velocity_, *left_back_wheel_velocity_, *right_back_wheel_velocity_,
-            *right_front_wheel_velocity_};
+        return read_required_inputs_(
+            left_front_wheel_velocity_, left_back_wheel_velocity_, right_back_wheel_velocity_,
+            right_front_wheel_velocity_);
     }
 
     /**
@@ -464,7 +454,7 @@ private:
 
         Eigen::Matrix<double, 4, 3> a;
         Eigen::Vector4d b;
-        for (size_t i = 0; i < static_cast<size_t>(WheelIndex::Count); ++i) {
+        for (size_t i = 0; i < kWheelCount; ++i) {
             a(i, 0) = steering_status.cos_angle[i];
             a(i, 1) = steering_status.sin_angle[i];
             a(i, 2) = joint.radius[i] * steering_status.sin_angle_minus_phi[i];
@@ -502,7 +492,7 @@ private:
         const double vx = chassis_status_expected.velocity.x();
         const double vy = chassis_status_expected.velocity.y();
         const double vz = chassis_status_expected.velocity.z();
-        for (size_t i = 0; i < static_cast<size_t>(WheelIndex::Count); ++i) {
+        for (size_t i = 0; i < kWheelCount; ++i) {
             const Eigen::Vector2d wheel_velocity = Eigen::Vector2d(vx, vy)
                                                  + vz * joint.radius[i] * tangential_unit_fast_(i)
                                                  + joint.radius_dot[i] * radial_unit_fast_(i);
@@ -592,7 +582,7 @@ private:
         const Eigen::Vector4d& wheel_torque_base) const {
         EllipseParameters params{0, 0, 0, 0, 0, 0};
 
-        for (size_t i = 0; i < static_cast<size_t>(WheelIndex::Count); ++i) {
+        for (size_t i = 0; i < kWheelCount; ++i) {
             const double constraint_radius =
                 joint_target.valid ? joint_target.radius[i] : vehicle_radius_[i];
             const double cos_alpha_minus_gamma =
@@ -645,7 +635,7 @@ private:
         Eigen::Vector4d steering_control_velocity;
         Eigen::Vector4d steering_control_angle;
 
-        for (size_t i = 0; i < static_cast<size_t>(WheelIndex::Count); ++i) {
+        for (size_t i = 0; i < kWheelCount; ++i) {
             const double ux = chassis_status_expected.wheel_velocity_x[i];
             const double uy = chassis_status_expected.wheel_velocity_y[i];
             const double dot_r_squared = ux * ux + uy * uy;
@@ -690,7 +680,7 @@ private:
         const auto joint = select_joint_state(joint_target, joint_feedback);
 
         Eigen::Matrix<double, 3, 4> map;
-        for (size_t i = 0; i < static_cast<size_t>(WheelIndex::Count); ++i) {
+        for (size_t i = 0; i < kWheelCount; ++i) {
             map(0, i) = steering_status.cos_angle[i];
             map(1, i) = steering_status.sin_angle[i];
             map(2, i) = joint.radius[i] * std::sin(steering_status.angle[i] - phi_[i]);
@@ -765,24 +755,24 @@ private:
     }
 
     static constexpr std::array<double, 4> phi_ = {
-        std::numbers::pi / 4,
-        std::numbers::pi * 3 / 4,
-        -std::numbers::pi * 3 / 4,
-        -std::numbers::pi / 4,
+        0.0,
+        std::numbers::pi / 2,
+        std::numbers::pi,
+        -std::numbers::pi / 2,
     };
 
     static constexpr std::array<double, 4> phi_cos_ = {
-        0.7071067811865476,  // cos(π/4)
-        -0.7071067811865476, // cos(3π/4)
-        -0.7071067811865476, // cos(-3π/4)
-        0.7071067811865476,  // cos(-π/4)
+        1.0,
+        0.0,
+        -1.0,
+        0.0,
     };
 
     static constexpr std::array<double, 4> phi_sin_ = {
-        0.7071067811865476,  // sin(π/4)
-        0.7071067811865476,  // sin(3π/4)
-        -0.7071067811865476, // sin(-3π/4)
-        -0.7071067811865476, // sin(-π/4)
+        0.0,
+        1.0,
+        0.0,
+        -1.0,
     };
 
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();

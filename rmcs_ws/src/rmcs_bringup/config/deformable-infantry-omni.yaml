@@ -1,0 +1,132 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::hardware::DeformableInfantryOmni -> deformable_infantry
+
+      - rmcs_core::referee::Status -> referee_status
+
+      - rmcs_core::controller::chassis::ChassisTestV2Controller -> chassis_test_controller
+      - rmcs_core::controller::adrc::AdrcController -> lf_joint_adrc_controller
+      - rmcs_core::controller::adrc::AdrcController -> lb_joint_adrc_controller
+      - rmcs_core::controller::adrc::AdrcController -> rb_joint_adrc_controller
+      - rmcs_core::controller::adrc::AdrcController -> rf_joint_adrc_controller
+      - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
+      - rmcs_core::controller::chassis::OmniWheelController -> deformable_omni_wheel_controller
+
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+
+value_broadcaster:
+  ros__parameters:
+    forward_list:
+      - /chassis/left_front_joint/control_torque
+      - /chassis/left_back_joint/control_torque
+      - /chassis/right_front_joint/control_torque
+      - /chassis/right_back_joint/control_torque
+      - /chassis/encoder/alpha
+      - /chassis/encoder/alpha_dot
+      - /chassis/radius
+      - /chassis/control_power_limit
+
+deformable_infantry:
+  ros__parameters:
+    serial_filter_rmcs_board: ""
+
+# NOTE: Omni chassis-only variant still follows V2 joint control chain.
+# Joint motor: MG5010 i36, zero at 62.5deg, range 62.5deg -> 8deg (360deg system)
+chassis_test_controller:
+  ros__parameters:
+    min_angle: 13.0
+    max_angle: 55.0
+
+lf_joint_adrc_controller:
+  ros__parameters:
+    measurement: /chassis/left_front_joint/angle
+    setpoint: /chassis/left_front_joint/target_angle
+    control: /chassis/left_front_joint/control_torque
+    kt: 1.0
+    td_h: 0.001
+    td_r: 50.0
+    dt: 0.001
+    b0: 0.550
+    eso_w0: 250.0
+    eso_auto_beta: true
+    k1: 30.0
+    k2: 17.0
+    alpha1: 0.75
+    alpha2: 0.7
+    delta: 0.02
+    u_min: -200.0
+    u_max: 200.0
+
+lb_joint_adrc_controller:
+  ros__parameters:
+    measurement: /chassis/left_back_joint/angle
+    setpoint: /chassis/left_back_joint/target_angle
+    control: /chassis/left_back_joint/control_torque
+    kt: 1.0
+    td_h: 0.001
+    td_r: 50.0
+    dt: 0.001
+    b0: 0.550
+    eso_w0: 250.0
+    eso_auto_beta: true
+    k1: 30.0
+    k2: 17.0
+    alpha1: 0.75
+    alpha2: 0.7
+    delta: 0.02
+    u_min: -200.0
+    u_max: 200.0
+
+rb_joint_adrc_controller:
+  ros__parameters:
+    measurement: /chassis/right_back_joint/angle
+    setpoint: /chassis/right_back_joint/target_angle
+    control: /chassis/right_back_joint/control_torque
+    kt: 1.0
+    td_h: 0.001
+    td_r: 50.0
+    dt: 0.001
+    b0: 0.550
+    eso_w0: 250.0
+    eso_auto_beta: true
+    k1: 30.0
+    k2: 17.0
+    alpha1: 0.75
+    alpha2: 0.7
+    delta: 0.02
+    u_min: -200.0
+    u_max: 200.0
+
+rf_joint_adrc_controller:
+  ros__parameters:
+    measurement: /chassis/right_front_joint/angle
+    setpoint: /chassis/right_front_joint/target_angle
+    control: /chassis/right_front_joint/control_torque
+    kt: 1.0
+    td_h: 0.001
+    td_r: 50.0
+    dt: 0.001
+    b0: 0.550
+    eso_w0: 250.0
+    eso_auto_beta: true
+    k1: 30.0
+    k2: 17.0
+    alpha1: 0.75
+    alpha2: 0.7
+    delta: 0.02
+    u_min: -200.0
+    u_max: 200.0
+
+deformable_omni_wheel_controller:
+  ros__parameters:
+    mess: 12.5
+    moment_of_inertia: 1.0
+    chassis_radius: 0.2341741
+    rod_length: 0.150
+    wheel_radius: 0.055
+    friction_coefficient: 66.6
+    k1: 2.958580e+00
+    k2: 3.082190e-03
+    no_load_power: 11.37
