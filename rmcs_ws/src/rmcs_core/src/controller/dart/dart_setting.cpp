@@ -6,8 +6,9 @@
 
 namespace rmcs_core::controller::dart {
 
-// Reads yaw/pitch velocity setpoints from DartManager (/pitch/control/velocity, Eigen::Vector2d,
-// [0]=yaw [1]=pitch), applies internal PID controllers, and outputs motor torques directly.
+// Reads yaw/pitch velocity setpoints from DartManager
+// (/dart/manager/setting/yaw_pitch_manual_velocity, Eigen::Vector2d, [0]=yaw [1]=pitch),
+// applies internal PID controllers, and outputs motor torques directly.
 // Force control is fully handled by DartManager + external force_screw_velocity_pid_controller.
 class DartSettingController
     : public rmcs_executor::Component
@@ -25,7 +26,8 @@ public:
               get_parameter("pitch_ki").as_double(),
               get_parameter("pitch_kd").as_double()} {
 
-        register_input("/pitch/control/velocity", yaw_pitch_vel_setpoint_);
+        register_input(
+            "/dart/manager/setting/yaw_pitch_manual_velocity", yaw_pitch_vel_setpoint_);
         register_input("/dart/yaw_motor/velocity",   yaw_velocity_);
         register_input("/dart/pitch_motor/velocity", pitch_velocity_);
 

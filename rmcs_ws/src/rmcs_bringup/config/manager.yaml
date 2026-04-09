@@ -12,7 +12,14 @@ dart_manager:
   ros__parameters:
     launch_prepare_enable_visual_assist: false
     max_transform_rate: 5.0
+    manual_yaw_velocity_scale: 1.0
+    manual_pitch_velocity_scale: 1.0
+    manual_force_velocity_scale: 5.0
     manual_force_scale: 5.0
+    manual_remote_deadband: 0.08
+    manual_gui_timeout_ticks: 250
+    manual_belt_velocity: 10.0
+    manual_belt_torque_limit: 2.5
     limiting_fill_ticks: 200
     lifting_stall_threshold: 0.1
     lifting_stall_confirm_ticks: 100
@@ -30,6 +37,9 @@ dart_manager:
     aim_timeout_ticks: 3000
     aim_min_transform_rate: 0.0
     auto_aim_max_transform_rate: 5.0
+    force_auto_deadband: 0.5
+    force_auto_confirm_ticks: 5
+    force_auto_timeout_ticks: 3000
 
 gui_bridge_endpoint:
   ros__parameters:

@@ -164,6 +164,9 @@
   <class type="rmcs_core::controller::dart::DartFilling" base_class_type="rmcs_executor::Component">
     <description>Dart filling execution: maps manager lifting and limiting commands to LK motor velocity and calibrated servo angles.</description>
   </class>
+  <class type="rmcs_core::controller::dart::DartFillingStatus" base_class_type="rmcs_executor::Component">
+    <description>Dart filling status: detects lift stall/arrival and publishes /dart_manager/lift/arrive_flag.</description>
+  </class>
   <class type="rmcs_core::hardware::CatapultDartFillingTest" base_class_type="rmcs_executor::Component">
     <description>Launch setting V2: belt + trigger + LK lifting angle control.</description>
   </class>
