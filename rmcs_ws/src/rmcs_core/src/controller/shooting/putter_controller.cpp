@@ -12,6 +12,7 @@
 #include <rmcs_msgs/switch.hpp>
 
 #include "controller/pid/pid_calculator.hpp"
+#include <rmcs_msgs/gimbal_mode.hpp>
 
 namespace rmcs_core::controller::shooting {
 
@@ -91,6 +92,9 @@ public:
 
         register_output("/gimbal/shoot/delay_ms", shoot_delay_ms_, nan_);
         // initialize_shoot_delay_log();
+
+        //auto_aim
+        register_input("/gimbal/auto_aim/fire_control", fire_control_, false);
     }
 
     ~PutterController() {
@@ -152,22 +156,41 @@ public:
                     // 发射触发检测
                     // RCLCPP_INFO(get_logger(), "%.2f", *bullet_feeder_angle_);
                     // RCLCPP_INFO(get_logger(), "%.2f", *bullet_feeder_velocity_);
+
+                    // if (switch_right != Switch::DOWN) {
+                    //     if ((!last_mouse_.left && mouse.left)
+                    //         || (last_switch_left_ == rmcs_msgs::Switch::MIDDLE
+                    //             && switch_left == rmcs_msgs::Switch::DOWN)) {
                     if (switch_right != Switch::DOWN) {
-                        if ((!last_mouse_.left && mouse.left)
-                            || (last_switch_left_ == rmcs_msgs::Switch::MIDDLE
-                                && switch_left == rmcs_msgs::Switch::DOWN)) {
-                            RCLCPP_INFO(
-                                get_logger(), "now :%ld",
-                                *control_bullet_allowance_limited_by_heat_);
+
+                    const auto now = std::chrono::steady_clock::now();
+
+                    const bool manual_trigger =
+                        (!last_mouse_.left && mouse.left)
+                        || (last_switch_left_ == rmcs_msgs::Switch::MIDDLE
+                            && switch_left == rmcs_msgs::Switch::DOWN);
+
+                    const bool auto_fire_now =
+                    (switch_right == Switch::UP) && (*fire_control_);
+
+                    const bool auto_trigger =
+                    auto_fire_now && (now - last_fire_time_ > std::chrono::milliseconds(800));
+
+                    if (manual_trigger || auto_trigger) {
+                            // RCLCPP_INFO(
+                            //     get_logger(), "now :%ld",
+                            //     *control_bullet_allowance_limited_by_heat_);
                             if (*control_bullet_allowance_limited_by_heat_ > 0
                                 && (shoot_stage_ == ShootStage::PRELOADED || shoot_first)) {
-                                RCLCPP_INFO(
-                                    get_logger(), "shoot: %ld",
-                                    *control_bullet_allowance_limited_by_heat_);
+                                // RCLCPP_INFO(
+                                //     get_logger(), "shoot: %ld",
+                                //     *control_bullet_allowance_limited_by_heat_);
                                 set_shooting();
+                                last_fire_time_ = now;
                                 shoot_first = false;
                             }
                         }
+
                     }
 
                     if (shoot_stage_ == ShootStage::UPDATING) {
@@ -422,65 +445,6 @@ private:
         bullet_feeder_control_angle_ = reference_angle;
     }
 
-    // void update_shoot_delay_measurement(bool bullet_fired_now) {
-    //     const bool bullet_fired_rising_edge = bullet_fired_now && !last_bullet_fired_;
-
-    //     if (shot_delay_pending_ && bullet_fired_rising_edge) {
-    //         const auto now = std::chrono::steady_clock::now();
-    //         const double delay_ms =
-    //             std::chrono::duration<double, std::milli>(now - shoot_start_time_).count();
-    //         *shoot_delay_ms_ = delay_ms;
-    //         // RCLCPP_INFO(
-    //         //     get_logger(), "Shoot delay[%zu]: %.3f ms", shoot_delay_sample_count_,
-    //         delay_ms); log_shoot_delay(delay_ms); shot_delay_pending_ = false;
-    //     }
-
-    //     // Shot ended without a bullet_fired edge: drop this sample.
-    //     if (shot_delay_pending_ && shoot_stage_ != ShootStage::SHOOTING)
-    //         shot_delay_pending_ = false;
-
-    //     last_bullet_fired_ = bullet_fired_now;
-    // }
-
-    // void initialize_shoot_delay_log() {
-    //     using namespace std::chrono;
-    //     const std::filesystem::path log_dir{"/robot_shoot"};
-    //     std::error_code ec;
-    //     std::filesystem::create_directories(log_dir, ec);
-    //     if (ec) {
-    //         RCLCPP_WARN(
-    //             get_logger(), "Failed to create shoot delay log directory %s: %s",
-    //             log_dir.c_str(), ec.message().c_str());
-    //     }
-
-    //     const auto now = system_clock::now();
-    //     const auto ms = duration_cast<milliseconds>(now.time_since_epoch()).count();
-    //     shoot_delay_log_path_ = (log_dir / ("shoot_delay_" + std::to_string(ms) +
-    //     ".log")).string(); shoot_delay_log_stream_.open(shoot_delay_log_path_);
-
-    //     if (!shoot_delay_log_stream_.is_open()) {
-    //         RCLCPP_WARN(
-    //             get_logger(), "Failed to open shoot delay log file: %s",
-    //             shoot_delay_log_path_.c_str());
-    //         return;
-    //     }
-
-    //     shoot_delay_log_stream_ << "shot_index,delay_ms,timestamp_ms" << std::endl;
-    //     RCLCPP_INFO(get_logger(), "Shoot delay log file: %s", shoot_delay_log_path_.c_str());
-    // }
-
-    // void log_shoot_delay(double delay_ms) {
-    //     if (!shoot_delay_log_stream_.is_open())
-    //         return;
-
-    //     using namespace std::chrono;
-    //     const auto timestamp_ms =
-    //         duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
-    //     shoot_delay_log_stream_ << shoot_delay_sample_count_++ << ',' << delay_ms << ','
-    //                             << timestamp_ms << std::endl;
-    //     shoot_delay_log_stream_.flush();
-    // }
-
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN(); ///< 非数值常量
     static constexpr double inf_ = std::numeric_limits<double>::infinity();  ///< 无穷大常量
 
@@ -556,6 +520,9 @@ private:
     std::ofstream shoot_delay_log_stream_;
     std::string shoot_delay_log_path_;
     std::size_t shoot_delay_sample_count_ = 0;
+
+    InputInterface<bool> fire_control_;
+    std::chrono::steady_clock::time_point last_fire_time_{};
 };
 
 } // namespace rmcs_core::controller::shooting

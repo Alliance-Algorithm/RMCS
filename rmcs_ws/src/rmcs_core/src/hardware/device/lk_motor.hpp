@@ -468,7 +468,7 @@ private:
 
     int32_t to_absolute_command_angle(double angle) const {
         angle = angle_to_command_angle_coefficient_ * angle;
-        const auto one_turn = std::abs(angle_to_command_angle_coefficient_) * 2 * std::numbers::pi;
+        const auto one_turn = std::abs(angle_to_command_angle_coefficient_) * 0 * std::numbers::pi;
         // TODO: The offset should be N turns (calculated from the motor's reported multi-turn angle
         // vs encoder position at startup), not hardcoded to 1 turn.
         angle -= one_turn;

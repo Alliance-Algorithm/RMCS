@@ -35,24 +35,25 @@ rmcs_executor:
       # - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
       # - rmcs_auto_aim::AutoAimController -> auto_aim_controller
 
-      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
 
+      - sp_vision_25::bridge::HeroAutoAimBridge -> hero_auto_aim_bridge   
 hero_hardware:
   ros__parameters:
     board_serial_top_board: "D4-2BCA-2E47-76CD-23BC-0B78-684B"
     board_serial_bottom_board_one: "D4-7973-19A9-EA40-4A3E-306F-10F9"
     board_serial_bottom_board_two: "D4-3674-7174-8768-879E-E44A-3931"
-    bottom_yaw_motor_zero_point: 58460
-    pitch_motor_zero_point: 14637 #35701
-    top_yaw_motor_zero_point: 59425
+    bottom_yaw_motor_zero_point: 51141
+    pitch_motor_zero_point: 15148 #35701
+    top_yaw_motor_zero_point: 11140
     viewer_motor_zero_point: 3030
     external_imu_port: /dev/ttyUSB0
     bullet_feeder_motor_zero_point: 21854
-    left_front_zero_point: 4437
-    right_front_zero_point: 1029
-    left_back_zero_point:  3693
-    right_back_zero_point: 5801
+    left_front_zero_point: 4462
+    right_front_zero_point: 998
+    left_back_zero_point:  3761
+    right_back_zero_point: 5857
     # left_front_zero_point: 3473
     # left_back_zero_point: 6124
     # right_back_zero_point: 6157
@@ -79,6 +80,10 @@ value_broadcaster:
         # - /gimbal/first_second_friction/control_torque
         # - /gimbal/second_left_friction/control_torque
         # - /gimbal/second_right_friction/control_torque
+      - /gimbal/yaw/angle
+      - /gimbal/pitch/angle
+      - /gimbal/auto_aim/plan_pitch
+      - /gimbal/auto_aim/plan_yaw
     
 
 climber_controller:
@@ -107,7 +112,7 @@ dual_yaw_controller:
     top_yaw_angle_kp: 10.0
     top_yaw_angle_ki: 0.0
     top_yaw_angle_kd: 0.0
-    top_yaw_velocity_kp: 50.0
+    top_yaw_velocity_kp: 40.0
     top_yaw_velocity_ki: 0.004
     top_yaw_velocity_kd: 0.0
     bottom_yaw_angle_kp: 5.0
@@ -145,9 +150,9 @@ pitch_velocity_pid_controller:
     measurement: /gimbal/pitch/velocity_imu
     setpoint: /gimbal/pitch/control_velocity
     control: /gimbal/pitch/control_torque
-    kp: 15.0 #45.00
+    kp: 11.0 #45.00
     ki: 0.00
-    kd: 2.0 #1.00
+    kd: 2.6 #1.00
 
 gimbal_player_viewer_controller:
   ros__parameters:
@@ -221,7 +226,7 @@ second_right_friction_velocity_pid_controller:
     control: /gimbal/second_right_friction/control_torque
     kp: 0.001
     ki: 0.00
-    kd: 0.00
+    kd: 0.001
   
 steering_wheel_controller:
   ros__parameters:
@@ -271,3 +276,10 @@ auto_aim_controller:
     record: false
     raw_img_pub: false # Set false in actual use
     image_viewer_type: 2
+
+hero_auto_aim_bridge:                                                                                                 
+    ros__parameters:                                                                                                    
+      config_file: "configs/standard3.yaml"                                                                             
+      bullet_speed_fallback: 11.5                                                                                      
+      result_timeout: 0.1   # 0.08                                                                                     
+      debug: false

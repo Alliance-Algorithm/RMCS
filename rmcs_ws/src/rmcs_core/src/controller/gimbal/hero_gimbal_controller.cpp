@@ -66,7 +66,7 @@ public:
                     gimbal_mode_keyboard_ = GimbalMode::IMU;
             }
             *gimbal_mode_ =
-                *switch_right_ == Switch::UP ? GimbalMode::ENCODER : gimbal_mode_keyboard_;
+                *switch_right_ == Switch::UP ? GimbalMode::IMU : gimbal_mode_keyboard_;
             // *gimbal_mode_ = gimbal_mode_keyboard_;
 
             if (*gimbal_mode_ == GimbalMode::IMU) {
@@ -77,6 +77,8 @@ public:
                 encoder_gimbal_solver.update(PreciseTwoAxisGimbalSolver::SetDisabled{});
                 *yaw_control_angle_shift_ = nan_;
                 *pitch_control_angle_ = nan_;
+                // RCLCPP_INFO(get_logger(), "IMU control enabled.");
+
             } else {
                 imu_gimbal_solver.update(TwoAxisGimbalSolver::SetDisabled{});
                 *yaw_angle_error_ = nan_;
@@ -85,7 +87,7 @@ public:
                 auto control_angle = update_encoder_control();
                 *yaw_control_angle_shift_ = control_angle.yaw_shift;
                 *pitch_control_angle_ = control_angle.pitch_angle;
-            }
+}
         } while (false);
 
         last_keyboard_ = *keyboard_;
