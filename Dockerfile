@@ -19,22 +19,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     zsh screen tmux \
     usbutils net-tools iputils-ping \
     gstreamer1.0-tools gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
-    ripgrep htop fzf \
+    ripgrep htop fzf npm \
     libusb-1.0-0-dev \
     libeigen3-dev \
     libopencv-dev \
-    libgoogle-glog-dev \
-    libgflags-dev \
     libatlas-base-dev \
     libsuitesparse-dev \
     libceres-dev \
     ros-$ROS_DISTRO-rviz2 \
     ros-$ROS_DISTRO-navigation2 \
     ros-$ROS_DISTRO-foxglove-bridge \
-    ros-$ROS_DISTRO-pcl-ros ros-$ROS_DISTRO-pcl-conversions ros-$ROS_DISTRO-pcl-msgs && \
+    ros-$ROS_DISTRO-pcl-ros ros-$ROS_DISTRO-pcl-conversions ros-$ROS_DISTRO-pcl-msgs \
+    lua5.4 liblua5.4-dev && \
     apt-get autoremove -y && apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/*
-
 
 # Install openvino runtime
 RUN wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB && \
@@ -150,6 +148,7 @@ RUN sh -c "$(wget https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools
 # Copy environment setup scripts
 COPY --chown=1000:1000 .script/template/env_setup.bash env_setup.bash
 COPY --chown=1000:1000 .script/template/env_setup.zsh env_setup.zsh
+
 
 
 # Runtime container, will automatically launch the main program
