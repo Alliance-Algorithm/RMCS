@@ -33,9 +33,9 @@
 
 #include "tools/math_tools.hpp"
 
-//少开火逻辑
+// 少开火逻辑
 
-//弹道解算
+// 弹道解算
 namespace sp_vision_25::bridge {
 namespace {
 
@@ -58,7 +58,7 @@ Eigen::Vector3d angles_to_direction(double yaw, double pitch) {
 
 Eigen::Quaterniond tf_to_gimbal_pose(const rmcs_description::Tf& tf) {
     auto q = tf.get_transform<rmcs_description::PitchLink, rmcs_description::OdomImu>();
-    q = q.conjugate();  
+    q = q.conjugate();
     q.normalize();
     return q;
 }
@@ -111,7 +111,7 @@ std::filesystem::path prepare_runtime_config(
 
     return runtime_config;
 }
-    void draw_reprojected_armor(
+void draw_reprojected_armor(
     cv::Mat& frame, const auto_aim::Solver& solver, auto_aim::ArmorType armor_type,
     auto_aim::ArmorName armor_name, const Eigen::Vector4d& xyza, const cv::Scalar& color,
     int thickness = 2) {
@@ -119,7 +119,7 @@ std::filesystem::path prepare_runtime_config(
     tools::draw_points(frame, image_points, color, thickness);
 }
 
-    void draw_debug_frame(
+void draw_debug_frame(
     const cv::Mat& source_frame, const std::list<auto_aim::Armor>& armors,
     const std::list<auto_aim::Target>& targets, const auto_aim::Solver& solver,
     const auto_aim::Tracker& tracker, const Clock::time_point& frame_timestamp,
@@ -142,13 +142,9 @@ std::filesystem::path prepare_runtime_config(
         debug_frame, fmt::format("laser={:.2f}m", laser_distance), {10, 60}, {255, 255, 255});
 
     tools::draw_text(
-    debug_frame,
-    has_planner_result
-        ? "green=current red=control"
-        : "green=current red=control (no planner)",
-    {10, 90},
-    cv::Scalar{255, 255, 255},
-    0.6, 2);
+        debug_frame,
+        has_planner_result ? "green=current red=control" : "green=current red=control (no planner)",
+        {10, 90}, cv::Scalar{255, 255, 255}, 0.6, 2);
 
     for (const auto& armor : armors) {
         auto info = fmt::format(
@@ -211,7 +207,7 @@ public:
         register_output("/gimbal/auto_aim/plan_pitch", plan_pitch_, 0.0);
         register_input("/gimbal/pitch/angle", gimbal_pitch_angle_);
         register_input("/gimbal/yaw/angle", gimbal_yaw_angle_);
-        //前馈
+        // 前馈
     }
 
     ~HeroAutoAimBridge() override {
@@ -233,7 +229,7 @@ public:
 
         result_timeout_ =
             std::chrono::duration<double>(get_parameter("result_timeout").as_double());
-        
+
         debug_ = get_parameter("debug").as_bool();
 
         const auto config_path = resolve_path_parameter(
@@ -360,11 +356,10 @@ private:
 
                 auto armors = detector.detect(frame);
                 auto targets = tracker.track(armors, frame_timestamp);
-                if (!targets.empty())
-                    {store_latest_target(targets.front(), frame_timestamp);
-                    //RCLCPP_INFO(get_logger(), "Latest target found.");
-                    }
-                else
+                if (!targets.empty()) {
+                    store_latest_target(targets.front(), frame_timestamp);
+                    // RCLCPP_INFO(get_logger(), "Latest target found.");
+                } else
                     store_latest_target(std::nullopt, frame_timestamp);
 
                 if (debug_) {
@@ -424,33 +419,35 @@ private:
                 result.laser_distance = plan.control ? planner.debug_xyza.head<3>().norm() : 0.0;
                 result.plan_yaw = plan.yaw;
                 result.plan_pitch = plan.pitch;
-                RCLCPP_INFO(get_logger(), "Planned yaw: %f, pitch: %f", result.plan_yaw, result.plan_pitch);
-                RCLCPP_INFO(get_logger(), " yaw: %f ,pitch: %f", *gimbal_yaw_angle_,*gimbal_pitch_angle_);
-                  const auto tf = load_latest_tf();
-                const auto gimbal_pose = tf_to_gimbal_pose(tf);
-                const auto imu_ypr = tools::eulers(gimbal_pose, 2, 1, 0);
-                const auto armor_ypd = tools::xyz2ypd(planner.debug_xyza.head<3>());
-                  RCLCPP_INFO(
-            get_logger(),
-            "imu_yaw: %f, imu_pitch: %f",
-            imu_ypr[0], imu_ypr[1]);
+                // RCLCPP_INFO(get_logger(), "Planned yaw: %f, pitch: %f", result.plan_yaw,
+                // result.plan_pitch); RCLCPP_INFO(get_logger(), " yaw: %f ,pitch: %f",
+                // *gimbal_yaw_angle_,*gimbal_pitch_angle_);
+                //               const auto tf = load_latest_tf();
+                //             const auto gimbal_pose = tf_to_gimbal_pose(tf);
+                //             const auto imu_ypr = tools::eulers(gimbal_pose, 2, 1, 0);
+                //             const auto armor_ypd = tools::xyz2ypd(planner.debug_xyza.head<3>());
+                //               RCLCPP_INFO(
+                //         get_logger(),
+                //         "imu_yaw: %f, imu_pitch: %f",
+                //         imu_ypr[0], imu_ypr[1]);
 
-        RCLCPP_INFO(
-            get_logger(),
-            "debug_xyza x: %f, y: %f, z: %f, armor_yaw: %f",
-            planner.debug_xyza[0], planner.debug_xyza[1], planner.debug_xyza[2], planner.debug_xyza[3]);
+                //     RCLCPP_INFO(
+                //         get_logger(),
+                //         "debug_xyza x: %f, y: %f, z: %f, armor_yaw: %f",
+                //         planner.debug_xyza[0], planner.debug_xyza[1], planner.debug_xyza[2],
+                //         planner.debug_xyza[3]);
 
-        RCLCPP_INFO(
-            get_logger(),
-            "debug_los_yaw: %f, debug_los_pitch: %f, debug_distance: %f",
-            armor_ypd[0], armor_ypd[1], armor_ypd[2]);
-            if (target_state.target.has_value()) {
-      const auto ekf_x = target_state.target->ekf_x();
-      RCLCPP_INFO(
-          get_logger(),
-          "target_ekf center_x: %f, center_y: %f, center_z: %f, yaw: %f, vyaw: %f",
-          ekf_x[0], ekf_x[2], ekf_x[4], ekf_x[6], ekf_x[7]);
-  }
+                //     RCLCPP_INFO(
+                //         get_logger(),
+                //         "debug_los_yaw: %f, debug_los_pitch: %f, debug_distance: %f",
+                //         armor_ypd[0], armor_ypd[1], armor_ypd[2]);
+                //         if (target_state.target.has_value()) {
+                //   const auto ekf_x = target_state.target->ekf_x();
+                //   RCLCPP_INFO(
+                //       get_logger(),
+                //       "target_ekf center_x: %f, center_y: %f, center_z: %f, yaw: %f, vyaw: %f",
+                //       ekf_x[0], ekf_x[2], ekf_x[4], ekf_x[6], ekf_x[7]);
+                //   }
                 result.plan_yaw_velocity = plan.yaw_vel;
                 result.plan_yaw_acceleration = plan.yaw_acc;
                 result.plan_pitch_velocity = plan.pitch_vel;

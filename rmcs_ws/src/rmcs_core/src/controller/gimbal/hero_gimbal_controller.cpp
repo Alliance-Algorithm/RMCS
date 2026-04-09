@@ -66,7 +66,7 @@ public:
                     gimbal_mode_keyboard_ = GimbalMode::IMU;
             }
             *gimbal_mode_ =
-                *switch_right_ == Switch::UP ? GimbalMode::IMU : gimbal_mode_keyboard_;
+                *switch_right_ == Switch::UP ? GimbalMode::ENCODER : gimbal_mode_keyboard_;
             // *gimbal_mode_ = gimbal_mode_keyboard_;
 
             if (*gimbal_mode_ == GimbalMode::IMU) {
@@ -87,7 +87,7 @@ public:
                 auto control_angle = update_encoder_control();
                 *yaw_control_angle_shift_ = control_angle.yaw_shift;
                 *pitch_control_angle_ = control_angle.pitch_angle;
-}
+            }
         } while (false);
 
         last_keyboard_ = *keyboard_;
@@ -131,8 +131,15 @@ public:
     }
 
     PreciseTwoAxisGimbalSolver::ControlAngle update_encoder_control() {
+        if (auto_aim_control_direction_.ready()
+            && (mouse_->right || *switch_right_ == rmcs_msgs::Switch::UP)
+            && !auto_aim_control_direction_->isZero()) {
+            return encoder_gimbal_solver.update(
+                PreciseTwoAxisGimbalSolver::SetControlDirection{
+                    OdomImu::DirectionVector{*auto_aim_control_direction_}});
+        }
         if (!encoder_gimbal_solver.enabled())
-            return encoder_gimbal_solver.update(PreciseTwoAxisGimbalSolver::SetControlPitch{-0.31});
+            return encoder_gimbal_solver.update(PreciseTwoAxisGimbalSolver::SetControlPitch{0.0});
 
         constexpr double joystick_sensitivity = 0.006 * 0.1;
         constexpr double mouse_yaw_sensitivity = 0.5 * 0.114;
