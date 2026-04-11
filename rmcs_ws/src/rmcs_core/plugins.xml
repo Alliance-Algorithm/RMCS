@@ -150,10 +150,10 @@
     <description>Launch setting controller: subscribes to DartManager belt/trigger commands, outputs belt torques and trigger servo value.</description>
   </class>
   <class type="rmcs_core::controller::dart::DartSettingController" base_class_type="rmcs_executor::Component">
-    <description>Dart setting controller: subscribes to RemoteCommandBridge delta commands, outputs yaw/pitch/force control velocities.</description>
+    <description>Dart setting controller: consumes /dart_manager angle/force errors, outputs yaw/pitch/force control velocities for external velocity PID closure.</description>
   </class>
-  <class type="rmcs_core::controller::dart::DartLaunchSettingV2" base_class_type="rmcs_executor::Component">
-    <description>Launch setting V2: trigger servo execution that maps manager lock state to PWM value.</description>
+  <class type="rmcs_core::controller::dart::DartLaunchercontroller" base_class_type="rmcs_executor::Component">
+    <description>Launcher controller: trigger servo execution that maps manager lock state to PWM value.</description>
   </class>
   <class type="rmcs_core::controller::dart::DartBeltController" base_class_type="rmcs_executor::Component">
     <description>Dart belt controller: dual-belt synchronized PID control with trapezoidal velocity planning.</description>

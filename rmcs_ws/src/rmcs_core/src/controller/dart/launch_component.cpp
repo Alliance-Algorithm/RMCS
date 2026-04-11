@@ -7,10 +7,46 @@
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/dart_mechanism_command.hpp>
 #include <rmcs_msgs/dart_motor_exit_mode.hpp>
+#include <rmcs_msgs/dart_servo_command.hpp>
 
 #include "controller/pid/matrix_pid_calculator.hpp"
 
 namespace rmcs_core::controller::dart {
+
+// DartLaunchercontroller 负责将 manager 发布的扳机命令映射为舵机 PWM 值。
+class DartLaunchercontroller
+    : public rmcs_executor::Component
+    , public rclcpp::Node {
+public:
+    DartLaunchercontroller()
+        : Node{
+              get_component_name(),
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
+        , trigger_free_value_(get_parameter("trigger_free_value").as_double())
+        , trigger_lock_value_(get_parameter("trigger_lock_value").as_double()) {
+        register_input("/dart_manager/trigger/command", trigger_command_);
+        register_output("/dart/trigger_servo/value", trigger_value_, trigger_lock_value_);
+    }
+
+    void update() override {
+        switch (*trigger_command_) {
+        case rmcs_msgs::DartServoCommand::FREE:
+            *trigger_value_ = trigger_free_value_;
+            break;
+        case rmcs_msgs::DartServoCommand::LOCK:
+            *trigger_value_ = trigger_lock_value_;
+            break;
+        case rmcs_msgs::DartServoCommand::WAIT: break;
+        }
+    }
+
+private:
+    double trigger_free_value_;
+    double trigger_lock_value_;
+
+    InputInterface<rmcs_msgs::DartServoCommand> trigger_command_;
+    OutputInterface<double> trigger_value_;
+};
 
 // DartBeltController 负责同步带的闭环和同步控制，并对速度目标增加梯形加速规划。
 class DartBeltController
@@ -264,5 +300,7 @@ private:
 } // namespace rmcs_core::controller::dart
 
 #include <pluginlib/class_list_macros.hpp>
+PLUGINLIB_EXPORT_CLASS(
+    rmcs_core::controller::dart::DartLaunchercontroller, rmcs_executor::Component)
 PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::dart::DartBeltController, rmcs_executor::Component)
 PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::dart::DartBeltStatus, rmcs_executor::Component)
