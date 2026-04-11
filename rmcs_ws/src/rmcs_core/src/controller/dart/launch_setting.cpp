@@ -206,7 +206,8 @@ private:
         } else if (prev_belt_cmd_ == rmcs_msgs::DartSliderStatus::DOWN) {
             hold_torque = default_belt_hold_torque_;
         }
-        hold_torque = std::clamp(hold_torque, -torque_limit, torque_limit);
+        double torque_offset = belt_torque_offset_.ready() ? *belt_torque_offset_ : 0.0;
+        hold_torque = std::clamp(hold_torque + torque_offset, -torque_limit, torque_limit);
 
         *left_belt_torque_ = hold_torque;
         *right_belt_torque_ = hold_torque;

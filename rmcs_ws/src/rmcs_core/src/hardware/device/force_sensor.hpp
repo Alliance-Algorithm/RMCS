@@ -1,5 +1,6 @@
 #pragma once
 
+#include "filter/mean_low_pass_filter.hpp"
 #include "hardware/device/can_packet.hpp"
 #include <atomic>
 #include <bit>
@@ -13,7 +14,9 @@ namespace rmcs_core::hardware::device {
 
 class ForceSensor {
 public:
-    explicit ForceSensor(rmcs_executor::Component& status_component) {
+    explicit ForceSensor(rmcs_executor::Component& status_component)
+        : filter_ch1_(10, 0.2)
+        , filter_ch2_(10, 0.2) {
         status_component.register_output("/force_sensor/channel_1/weight", weight_ch1_, nan_);
         status_component.register_output("/force_sensor/channel_2/weight", weight_ch2_, nan_);
     }
@@ -35,8 +38,11 @@ public:
             static_cast<uint32_t>(status.ch2_0) << 24 | static_cast<uint32_t>(status.ch2_1) << 16
             | static_cast<uint32_t>(status.ch2_2) << 8  | static_cast<uint32_t>(status.ch2_3);
 
-        *weight_ch1_ = std::bit_cast<int>(ch1_weight);
-        *weight_ch2_ = std::bit_cast<int>(ch2_weight);
+        double raw_ch1 = static_cast<double>(std::bit_cast<int>(ch1_weight));
+        double raw_ch2 = static_cast<double>(std::bit_cast<int>(ch2_weight));
+
+        *weight_ch1_ = static_cast<int>(std::round(filter_ch1_.update(raw_ch1)));
+        *weight_ch2_ = static_cast<int>(std::round(filter_ch2_.update(raw_ch2)));
     }
 
     // static uint64_t generate_command() { return 0x00; }
@@ -57,6 +63,9 @@ private:
 
     rmcs_executor::Component::OutputInterface<int> weight_ch1_;
     rmcs_executor::Component::OutputInterface<int> weight_ch2_;
+
+    filter::MeanLowPassFilter<> filter_ch1_;
+    filter::MeanLowPassFilter<> filter_ch2_;
 };
 
 } // namespace rmcs_core::hardware::device
