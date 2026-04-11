@@ -28,10 +28,10 @@ value_broadcaster:
 deformable_infantry:
   ros__parameters:
     serial_filter_rmcs_board: ""
-    left_front_zero_point: 7165
-    left_back_zero_point: 2410
-    right_back_zero_point: 7202
-    right_front_zero_point: 2427
+    left_front_zero_point: 289
+    left_back_zero_point: 6552
+    right_back_zero_point: 7244
+    right_front_zero_point: 5203
 
 # NOTE: V2 uses LK motor built-in encoder zero point for joints.
 # Joint motor: MG5010 i36, zero at 62.5deg, range 62.5deg -> 8deg (360deg system)
