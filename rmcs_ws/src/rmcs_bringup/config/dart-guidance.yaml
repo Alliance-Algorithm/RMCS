@@ -5,12 +5,15 @@ rmcs_executor:
       - rmcs_core::hardware::CatapultDartV3Lk        -> dart_hardware
       - rmcs_dart_guidance::manager::DartManager   -> dart_manager
       - rmcs_dart_guidance::manager::RemoteCommandBridge -> remote_cmd_bridge
-      - rmcs_dart_guidance::manager::GuiBridgeEndpoint -> gui_bridge_endpoint
 
-      - rmcs_core::controller::dart::DartLaunchSettingV2 -> launch_setting
+      - rmcs_core::controller::dart::DartLaunchercontroller -> trigger_setting
+      - rmcs_core::controller::dart::DartBeltController -> dart_belt_controller
+      - rmcs_core::controller::dart::DartBeltStatus -> dart_belt_status
       - rmcs_core::controller::dart::DartFilling -> dart_filling
       - rmcs_core::controller::dart::DartFillingStatus -> dart_filling_status
       - rmcs_core::controller::dart::DartSettingController -> dart_setting
+      - rmcs_core::controller::pid::PidController    -> yaw_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController    -> pitch_velocity_pid_controller
       - rmcs_core::controller::pid::PidController    -> force_screw_velocity_pid_controller
       - rmcs_core::broadcaster::ValueBroadcaster -> broadcaster
 
@@ -28,9 +31,13 @@ dart_manager:
     manual_pitch_velocity_scale: 1.0
     manual_force_velocity_scale: 5.0
     manual_force_scale: 5.0
+    belt_down_velocity: 10.0
+    belt_up_velocity: 10.0
+    manual_max_velocity: 10.0
+    lift_velocity: 3.0
+    force_setpoint: 0
+    force_allowable_error: 5
     manual_remote_deadband: 0.08
-    manual_gui_timeout_ticks: 250
-    manual_belt_velocity: 10.0
     manual_belt_torque_limit: 2.5
     limiting_fill_ticks:  200
     lifting_stall_threshold:     0.1    # rad/s，低于此值视为堵转
@@ -53,24 +60,28 @@ dart_manager:
     force_auto_confirm_ticks: 5
     force_auto_timeout_ticks: 3000
 
-gui_bridge_endpoint:
+trigger_setting:
   ros__parameters:
-    enabled: true
-    listen_address: 127.0.0.1
-    listen_port: 18081
-    fail_on_bind_error: false
-
-launch_setting:
-  ros__parameters:
-    belt_velocity: 10.0      # manager 未提供目标速度时的回退值
-    sync_coefficient: 0.1
-    max_control_torque: 2.5
     trigger_free_value: 0.75
     trigger_lock_value: 0.63
+
+dart_belt_controller:
+  ros__parameters:
     b_kp: 1.0
     b_ki: 0.0
     b_kd: 0.0
+    belt_velocity: 10.0      # manager 未提供目标速度时的回退值
+    belt_acceleration: 20.0
+    sync_coefficient: 0.1
+    max_control_torque: 2.5
     belt_hold_torque: 15.0   # manager 未提供保留力矩时的回退值
+
+dart_belt_status:
+  ros__parameters:
+    stall_velocity_threshold: 0.1
+    stall_torque_threshold: 0.1
+    stall_confirm_ticks: 100
+    stall_min_run_ticks: 500
 
 dart_filling:
   ros__parameters:
@@ -87,17 +98,41 @@ dart_filling_status:
 
 dart_setting:
   ros__parameters:
-    yaw_kp: 1.0
-    yaw_ki: 0.0
-    yaw_kd: 0.0
-    pitch_kp: 1.0
-    pitch_ki: 0.0
-    pitch_kd: 0.0
+    yaw_error_to_velocity_gain: 1.0
+    pitch_error_to_velocity_gain: 1.0
+    force_error_kp: 0.2
+    force_error_ki: 0.0
+    force_error_kd: 0.0
+    force_error_integral_min: -10.0
+    force_error_integral_max: 10.0
+    force_error_integral_split_min: -20.0
+    force_error_integral_split_max: 20.0
+    yaw_max_velocity: 5.0
+    pitch_max_velocity: 5.0
+    force_max_velocity: 5.0
+
+yaw_velocity_pid_controller:
+  ros__parameters:
+    measurement: /dart/yaw_motor/velocity
+    setpoint:    /dart/yaw_motor/control_velocity
+    control:     /dart/yaw_motor/control_torque
+    kp: 1.0
+    ki: 0.0
+    kd: 0.0
+
+pitch_velocity_pid_controller:
+  ros__parameters:
+    measurement: /dart/pitch_motor/velocity
+    setpoint:    /dart/pitch_motor/control_velocity
+    control:     /dart/pitch_motor/control_torque
+    kp: 1.0
+    ki: 0.0
+    kd: 0.0
 
 force_screw_velocity_pid_controller:
   ros__parameters:
     measurement: /dart/force_screw_motor/velocity
-    setpoint:    /dart/manager/setting/force_manual_velocity
+    setpoint:    /dart/force_screw_motor/control_velocity
     control:     /dart/force_screw_motor/control_torque
     kp: 1.0
     ki: 0.0
