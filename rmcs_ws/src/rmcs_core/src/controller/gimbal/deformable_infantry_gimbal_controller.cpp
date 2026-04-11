@@ -101,7 +101,8 @@ public:
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , gimbal_solver_(
               *this, get_parameter("upper_limit").as_double(),
-              get_parameter("lower_limit").as_double())
+              get_parameter("lower_limit").as_double(), 
+              true)
         , yaw_angle_pid_(
               get_parameter("yaw_angle_kp").as_double(), get_parameter("yaw_angle_ki").as_double(),
               get_parameter("yaw_angle_kd").as_double())

@@ -26,9 +26,10 @@ class TwoAxisGimbalSolver {
     };
 
 public:
-    TwoAxisGimbalSolver(rmcs_executor::Component& component, double upper_limit, double lower_limit)
+    TwoAxisGimbalSolver(rmcs_executor::Component& component, double upper_limit, double lower_limit, bool use_encoder_pitch = false)
         : upper_limit_(std::cos(upper_limit), -std::sin(upper_limit))
-        , lower_limit_(std::cos(lower_limit), -std::sin(lower_limit)) {
+        , lower_limit_(std::cos(lower_limit), -std::sin(lower_limit))
+        , use_encoder_pitch_(use_encoder_pitch) {
 
         component.register_input("/gimbal/pitch/angle", gimbal_pitch_angle_);
         component.register_input("/tf", tf_);
@@ -107,7 +108,9 @@ public:
         if (!control_enabled_)
             return {nan_, nan_};
 
-        auto [control_direction_yaw_link, pitch] = pitch_link_to_yaw_link(control_direction);
+        auto [control_direction_yaw_link, pitch] = use_encoder_pitch_
+            ? pitch_link_to_yaw_link_from_encoder(control_direction)
+            : pitch_link_to_yaw_link(control_direction);
 
         clamp_control_direction(control_direction_yaw_link);
         if (!control_enabled_)
@@ -142,6 +145,28 @@ private:
         dir_yaw_link = {x * pitch.x() - z * pitch.y(), y, x * pitch.y() + z * pitch.x()};
 
         return result;
+    }
+
+    auto pitch_link_to_yaw_link_from_encoder(const PitchLink::DirectionVector& dir) const
+    -> std::pair<YawLink::DirectionVector, Eigen::Vector2d> {
+
+    std::pair<YawLink::DirectionVector, Eigen::Vector2d> result;
+    auto& [dir_yaw_link, pitch_cs] = result;
+
+    // 获取编码器弧度反馈
+    double theta = *gimbal_pitch_angle_; 
+
+    // 构造当前 Pitch 轴的余弦和正弦
+    // 注意：根据你的机械安装，可能需要符号取反，例如 -sin(theta)
+    pitch_cs = {std::cos(theta), -std::sin(theta)}; 
+
+    const auto& [x, y, z] = *dir;
+    // 执行坐标系转换：PitchLink -> YawLink
+    dir_yaw_link = {x * pitch_cs.x() - z * pitch_cs.y(), 
+                    y, 
+                    x * pitch_cs.y() + z * pitch_cs.x()};
+
+    return result;
     }
 
     static PitchLink::DirectionVector
@@ -185,6 +210,7 @@ private:
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
 
     const Eigen::Vector2d upper_limit_, lower_limit_;
+    bool use_encoder_pitch_;
 
     rmcs_executor::Component::InputInterface<double> gimbal_pitch_angle_;
     rmcs_executor::Component::InputInterface<Tf> tf_;
