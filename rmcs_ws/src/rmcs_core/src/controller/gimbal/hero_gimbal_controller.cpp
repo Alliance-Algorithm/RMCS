@@ -1,3 +1,4 @@
+#include <cmath>
 #include <limits>
 
 #include <rclcpp/node.hpp>
@@ -65,9 +66,9 @@ public:
                 else
                     gimbal_mode_keyboard_ = GimbalMode::IMU;
             }
-            // *gimbal_mode_ =
-            //     *switch_right_ == Switch::UP ? GimbalMode::ENCODER : gimbal_mode_keyboard_;
-            *gimbal_mode_ = gimbal_mode_keyboard_;
+            *gimbal_mode_ =
+                *switch_right_ == Switch::UP ? GimbalMode::ENCODER : gimbal_mode_keyboard_;
+            // *gimbal_mode_ = gimbal_mode_keyboard_;
 
             if (*gimbal_mode_ == GimbalMode::IMU) {
                 auto angle_error = update_imu_control();
@@ -130,7 +131,7 @@ public:
 
     PreciseTwoAxisGimbalSolver::ControlAngle update_encoder_control() {
         if (!encoder_gimbal_solver.enabled())
-            return encoder_gimbal_solver.update(PreciseTwoAxisGimbalSolver::SetControlPitch{-0.31});
+            return encoder_gimbal_solver.update(PreciseTwoAxisGimbalSolver::SetControlPitch{0.0});
 
         constexpr double joystick_sensitivity = 0.006 * 0.1;
         constexpr double mouse_yaw_sensitivity = 0.5 * 0.114;

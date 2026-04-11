@@ -25,7 +25,7 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController -> first_right_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> second_left_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> second_right_friction_velocity_pid_controller
-      # - rmcs_core::controller::shooting::ShootingRecorder -> shooting_recorder
+      - rmcs_core::controller::shooting::ShootingRecorder -> shooting_recorder
 
       - rmcs_core::controller::chassis::ChassisController -> chassis_controller
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
@@ -65,20 +65,24 @@ value_broadcaster:
   ros__parameters:
     forward_list:
         # - /shoot/heat
-      - /chassis/power
-      - /referee/chassis/power
+        # - /chassis/power
+        # - /referee/chassis/power
         # - /referee/chassis/power_limit
-      - /chassis/control_power_limit
+        # - /chassis/control_power_limit
         # - /chassis/supercap/voltage
         # - /gimbal/putter/velocity
-        # - /gimbal/first_left_friction/velocity
+        - /gimbal/first_left_friction/velocity
         # - /gimbal/first_second_friction/velocity
-        # - /gimbal/second_left_friction/velocity
+        - /gimbal/second_left_friction/velocity
         # - /gimbal/second_right_friction/velocity
         # - /gimbal/first_left_friction/control_torque
         # - /gimbal/first_second_friction/control_torque
         # - /gimbal/second_left_friction/control_torque
         # - /gimbal/second_right_friction/control_torque
+        # - /gimbal/bottom_yaw/torque
+        # - /gimbal/bottom_yaw/angle
+        # - /gimbal/top_yaw/angle
+        # - /gimbal/pitch/angle
     
 
 climber_controller:
@@ -107,7 +111,7 @@ dual_yaw_controller:
     top_yaw_angle_kp: 10.0
     top_yaw_angle_ki: 0.0
     top_yaw_angle_kd: 0.0
-    top_yaw_velocity_kp: 50.0
+    top_yaw_velocity_kp: 40.0
     top_yaw_velocity_ki: 0.004
     top_yaw_velocity_kd: 0.0
     bottom_yaw_angle_kp: 5.0
@@ -136,16 +140,16 @@ pitch_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/pitch/control_angle_error
     control: /gimbal/pitch/control_velocity
-    kp: 30.0 #28.00
+    kp: 15.0 
     ki: 0.0
-    kd: 0.6 #0.6
+    kd: 3.6 
 
 pitch_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/pitch/velocity_imu
     setpoint: /gimbal/pitch/control_velocity
     control: /gimbal/pitch/control_torque
-    kp: 15.0 #45.00
+    kp: 40.0 #45.00
     ki: 0.00
     kd: 2.0 #1.00
 
@@ -170,10 +174,10 @@ friction_wheel_controller:
       - /gimbal/second_left_friction
       - /gimbal/second_right_friction
     friction_velocities:
-      - 380.00
-      - 380.00
-      - 542.00
-      - 542.00
+      - 368.00
+      - 368.00
+      - 532.00
+      - 532.00
     friction_soft_start_stop_time: 1.0
 
 heat_controller:
@@ -192,36 +196,36 @@ first_left_friction_velocity_pid_controller:
     measurement: /gimbal/first_left_friction/velocity
     setpoint: /gimbal/first_left_friction/control_velocity
     control: /gimbal/first_left_friction/control_torque
-    kp: 0.0016
+    kp: 0.0008
     ki: 0.00
-    kd: 0.001
+    kd: 0.000055
 
 first_right_friction_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/first_right_friction/velocity
     setpoint: /gimbal/first_right_friction/control_velocity
     control: /gimbal/first_right_friction/control_torque
-    kp: 0.0016
+    kp: 0.0008
     ki: 0.00
-    kd: 0.001
+    kd: 0.000055
 
 second_left_friction_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/second_left_friction/velocity
     setpoint: /gimbal/second_left_friction/control_velocity
     control: /gimbal/second_left_friction/control_torque
-    kp: 0.001
+    kp: 0.0005
     ki: 0.00
-    kd: 0.001
+    kd: 0.00004
 
 second_right_friction_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/second_right_friction/velocity
     setpoint: /gimbal/second_right_friction/control_velocity
     control: /gimbal/second_right_friction/control_torque
-    kp: 0.001
+    kp: 0.0005
     ki: 0.00
-    kd: 0.00
+    kd: 0.00004
   
 steering_wheel_controller:
   ros__parameters:

@@ -77,7 +77,7 @@ public:
             *top_yaw_control_angle_ = nan_;
             *bottom_yaw_control_angle_shift_ = nan_;
         } else {
-            *top_yaw_control_angle_ = 0.0;
+            *top_yaw_control_angle_ = *top_yaw_angle_;
             *bottom_yaw_control_angle_shift_ = *control_angle_shift_;
         }
     }
