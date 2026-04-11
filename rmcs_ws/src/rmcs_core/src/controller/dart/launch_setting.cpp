@@ -42,11 +42,18 @@ public:
         trigger_free_value_ = get_parameter("trigger_free_value").as_double();
         trigger_lock_value_ = get_parameter("trigger_lock_value").as_double();
         default_belt_hold_torque_ = get_parameter("belt_hold_torque").as_double();
+        normal_kp_ = get_parameter("b_kp").as_double();
+        normal_ki_ = get_parameter("b_ki").as_double();
+        normal_kd_ = get_parameter("b_kd").as_double();
+        normal_integral_max_ = get_optional_parameter("b_integral_max", 50.0);
 
         // 减速阶段PID参数（高增益，快速响应）
         decel_kp_ = get_parameter("b_decel_kp").as_double();
         decel_ki_ = get_parameter("b_decel_ki").as_double();
         decel_kd_ = get_parameter("b_decel_kd").as_double();
+        decel_integral_max_ = get_optional_parameter("b_decel_integral_max", 50.0);
+
+        apply_velocity_pid_gains(false);
 
         register_input("/dart/manager/belt/command", belt_command_, true);
         register_input("/dart/manager/belt/target_position", belt_target_position_, false);
@@ -100,6 +107,30 @@ public:
     }
 
 private:
+    double get_optional_parameter(const char* name, double fallback) const {
+        return has_parameter(name) ? get_parameter(name).as_double() : fallback;
+    }
+
+    void set_velocity_pid_integral_limit(double integral_max) {
+        velocity_pid_.integral_min.setConstant(-std::abs(integral_max));
+        velocity_pid_.integral_max.setConstant(std::abs(integral_max));
+    }
+
+    void apply_velocity_pid_gains(bool use_decel_pid) {
+        if (use_decel_pid) {
+            velocity_pid_.kp = decel_kp_;
+            velocity_pid_.ki = decel_ki_;
+            velocity_pid_.kd = decel_kd_;
+            set_velocity_pid_integral_limit(decel_integral_max_);
+            return;
+        }
+
+        velocity_pid_.kp = normal_kp_;
+        velocity_pid_.ki = normal_ki_;
+        velocity_pid_.kd = normal_kd_;
+        set_velocity_pid_integral_limit(normal_integral_max_);
+    }
+
     // 处理速度控制命令（UP/DOWN/WAIT）
     BeltControlMode process_velocity_command() {
         switch (*belt_command_) {
@@ -264,17 +295,7 @@ private:
 
         bool use_decel_pid = belt_use_decel_pid_.ready() && *belt_use_decel_pid_;
         if (use_decel_pid != current_use_decel_pid_) {
-            if (use_decel_pid) {
-                // 切换到减速PID参数
-                velocity_pid_.kp = decel_kp_;
-                velocity_pid_.ki = decel_ki_;
-                velocity_pid_.kd = decel_kd_;
-            } else {
-                // 切换回正常PID参数
-                velocity_pid_.kp = get_parameter("b_kp").as_double();
-                velocity_pid_.ki = get_parameter("b_ki").as_double();
-                velocity_pid_.kd = get_parameter("b_kd").as_double();
-            }
+            apply_velocity_pid_gains(use_decel_pid);
             current_use_decel_pid_ = use_decel_pid;
         }
 
@@ -312,11 +333,16 @@ private:
     double trigger_free_value_;       // 扳机释放值
     double trigger_lock_value_;       // 扳机锁定值
     double default_belt_hold_torque_; // N⋅m - 默认保持扭矩
+    double normal_kp_;
+    double normal_ki_;
+    double normal_kd_;
+    double normal_integral_max_;
 
     // 减速阶段PID参数
     double decel_kp_;
     double decel_ki_;
     double decel_kd_;
+    double decel_integral_max_;
 
     // 状态变量
     double left_zero_offset_{0.0};       // 左电机零点偏移（rad）
