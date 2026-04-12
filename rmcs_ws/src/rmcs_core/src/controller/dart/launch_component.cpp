@@ -30,12 +30,8 @@ public:
 
     void update() override {
         switch (*trigger_command_) {
-        case rmcs_msgs::DartServoCommand::FREE:
-            *trigger_value_ = trigger_free_value_;
-            break;
-        case rmcs_msgs::DartServoCommand::LOCK:
-            *trigger_value_ = trigger_lock_value_;
-            break;
+        case rmcs_msgs::DartServoCommand::FREE: *trigger_value_ = trigger_free_value_; break;
+        case rmcs_msgs::DartServoCommand::LOCK: *trigger_value_ = trigger_lock_value_; break;
         case rmcs_msgs::DartServoCommand::WAIT: break;
         }
     }

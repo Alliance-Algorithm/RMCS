@@ -2,15 +2,13 @@ rmcs_executor:
   ros__parameters:
     update_rate: 1000.0
     components:
-      - rmcs_core::hardware::CatapultDartV3Lk        -> dart_hardware
+      - rmcs_core::hardware::CatapultDart        -> dart_hardware
       - rmcs_dart_guidance::manager::DartManager   -> dart_manager
       - rmcs_dart_guidance::manager::RemoteCommandBridge -> remote_cmd_bridge
 
       - rmcs_core::controller::dart::DartLaunchercontroller -> trigger_setting
       - rmcs_core::controller::dart::DartBeltController -> dart_belt_controller
-      - rmcs_core::controller::dart::DartBeltStatus -> dart_belt_status
       - rmcs_core::controller::dart::DartFilling -> dart_filling
-      - rmcs_core::controller::dart::DartFillingStatus -> dart_filling_status
       - rmcs_core::controller::dart::DartSettingController -> dart_setting
       - rmcs_core::controller::pid::PidController    -> yaw_velocity_pid_controller
       - rmcs_core::controller::pid::PidController    -> pitch_velocity_pid_controller
@@ -40,7 +38,12 @@ dart_manager:
     manual_remote_deadband: 0.08
     manual_belt_torque_limit: 2.5
     limiting_fill_ticks:  200
+    belt_stall_velocity_threshold: 0.1
+    belt_stall_torque_threshold: 0.1
+    belt_stall_confirm_ticks: 100
+    belt_stall_min_run_ticks: 500
     lifting_stall_threshold:     0.1    # rad/s，低于此值视为堵转
+    lifting_stall_torque_threshold: 0.1
     lifting_stall_confirm_ticks: 100    # 连续帧数 = 0.1s @ 1kHz
     lifting_stall_min_run_ticks: 500    # 启动后最少运行帧数，避免启动瞬间误触发
     lifting_stall_timeout_ticks: 2000   # 超时帧数 = 5s
@@ -76,25 +79,11 @@ dart_belt_controller:
     max_control_torque: 2.5
     belt_hold_torque: 15.0   # manager 未提供保留力矩时的回退值
 
-dart_belt_status:
-  ros__parameters:
-    stall_velocity_threshold: 0.1
-    stall_torque_threshold: 0.1
-    stall_confirm_ticks: 100
-    stall_min_run_ticks: 500
-
 dart_filling:
   ros__parameters:
     lifting_velocity: 3.0
     limiting_free_angle: 0x0BFF
     limiting_lock_angle: 0x0B53
-
-dart_filling_status:
-  ros__parameters:
-    lifting_stall_threshold: 0.1
-    lifting_stall_torque_threshold: 0.1
-    lifting_stall_confirm_ticks: 100
-    lifting_stall_min_run_ticks: 500
 
 dart_setting:
   ros__parameters:

@@ -170,4 +170,7 @@
   <class type="rmcs_core::hardware::CatapultDartFillingTest" base_class_type="rmcs_executor::Component">
     <description>Launch setting V2: belt + trigger + LK lifting angle control.</description>
   </class>
+  <class type="rmcs_core::hardware::CatapultDart" base_class_type="rmcs_executor::Component">
+    <description>Launch setting V2: belt + trigger + LK lifting angle control.</description>
+  </class>
 </library>
