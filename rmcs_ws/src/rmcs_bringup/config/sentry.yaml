@@ -136,14 +136,14 @@ friction_wheel_controller:
       - /gimbal/left_friction
       - /gimbal/right_friction
     friction_velocities:
-      - 660.0
-      - 660.0
+      - 630.0
+      - 630.0
     friction_soft_start_stop_time: 1.0
 
 heat_controller:
   ros__parameters:
     heat_per_shot: 10000
-    reserved_heat: 0
+    reserved_heat: 10000
 
 bullet_feeder_controller:
   ros__parameters:
