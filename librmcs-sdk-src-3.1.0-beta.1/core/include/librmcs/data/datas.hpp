@@ -52,12 +52,19 @@ struct GpioAnalogDataView {
     uint16_t value;
 };
 
+enum class GpioPull : uint8_t {
+    kNone = 0,
+    kUp = 1,
+    kDown = 2,
+};
+
 struct GpioReadConfigView {
     uint8_t channel;
     uint16_t period_ms = 0;
     bool asap = false;
     bool rising_edge = false;
     bool falling_edge = false;
+    GpioPull pull = GpioPull::kNone;
 };
 
 struct AccelerometerDataView {

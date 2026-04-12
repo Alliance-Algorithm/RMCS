@@ -26,7 +26,6 @@
 #include "hardware/device/can_packet.hpp"
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
-#include "hardware/device/can_packet.hpp"
 #include "hardware/device/lk_motor.hpp"
 #include "hardware/device/supercap.hpp"
 #include "hardware/utility/ring_buffer.hpp"
@@ -136,7 +135,9 @@ private:
         explicit TopBoard(
             SteeringHero& hero, SteeringHeroCommand& hero_command,
             std::string_view board_serial = {})
-            : librmcs::agent::CBoard(board_serial)
+            : librmcs::agent::CBoard(
+                  board_serial,
+                  librmcs::agent::AdvancedOptions{.dangerously_skip_version_checks = true})
             , tf_(hero.tf_)
             , imu_(1000, 0.2, 0.0)
             , benewake_(hero, "/gimbal/auto_aim/laser_distance")
@@ -181,9 +182,8 @@ private:
                           static_cast<int>(hero.get_parameter("viewer_motor_zero_point").as_int()))
                       .set_reversed()) {
 
-            imu_.set_coordinate_mapping([](double x, double y, double z) {
-                return std::make_tuple(-x, -y, z);
-            });
+            imu_.set_coordinate_mapping(
+                [](double x, double y, double z) { return std::make_tuple(-x, -y, z); });
 
             hero.register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
             hero.register_output("/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
@@ -205,7 +205,7 @@ private:
 
             benewake_.update_status();
 
-            *gimbal_yaw_velocity_imu_   = imu_.gz();
+            *gimbal_yaw_velocity_imu_ = imu_.gz();
             *gimbal_pitch_velocity_imu_ = imu_.gy();
 
             gimbal_top_yaw_motor_.update_status();
@@ -351,7 +351,9 @@ private:
         explicit BottomBoard(
             SteeringHero& hero, SteeringHeroCommand& hero_command,
             std::string_view board_serial = {})
-            : librmcs::agent::CBoard(board_serial)
+            : librmcs::agent::CBoard(
+                  board_serial,
+                  librmcs::agent::AdvancedOptions{.dangerously_skip_version_checks = true})
             , imu_(1000, 0.2, 0.0)
             , tf_(hero.tf_)
             , dr16_(hero)

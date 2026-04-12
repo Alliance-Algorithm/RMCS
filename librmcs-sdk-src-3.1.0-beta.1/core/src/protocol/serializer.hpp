@@ -137,6 +137,7 @@ public:
         cursor += sizeof(GpioHeader);
         header.set<GpioHeader::PayloadType>(payload_type);
         header.set<GpioHeader::Channel>(view.channel);
+        header.set<GpioHeader::Pull>(data::GpioPull::kNone);
 
         utility::assert_debug(cursor == dst.data() + dst.size());
         return SerializeResult::kSuccess;
@@ -161,6 +162,7 @@ public:
         cursor += sizeof(GpioHeader);
         header.set<GpioHeader::PayloadType>(GpioHeader::PayloadEnum::kDigitalRead);
         header.set<GpioHeader::Channel>(view.channel);
+        header.set<GpioHeader::Pull>(view.pull);
 
         auto payload = GpioReadConfigPayload::Ref(cursor);
         cursor += sizeof(GpioReadConfigPayload);
@@ -189,6 +191,7 @@ public:
         cursor += sizeof(GpioHeader);
         header.set<GpioHeader::PayloadType>(GpioHeader::PayloadEnum::kAnalogWrite);
         header.set<GpioHeader::Channel>(view.channel);
+        header.set<GpioHeader::Pull>(data::GpioPull::kNone);
 
         auto payload = GpioAnalogPayload::Ref(cursor);
         cursor += sizeof(GpioAnalogPayload);
@@ -219,6 +222,7 @@ public:
         cursor += sizeof(GpioHeader);
         header.set<GpioHeader::PayloadType>(GpioHeader::PayloadEnum::kAnalogRead);
         header.set<GpioHeader::Channel>(view.channel);
+        header.set<GpioHeader::Pull>(view.pull);
 
         auto payload = GpioReadConfigPayload::Ref(cursor);
         cursor += sizeof(GpioReadConfigPayload);
@@ -248,6 +252,7 @@ public:
         cursor += sizeof(GpioHeader);
         header.set<GpioHeader::PayloadType>(payload_type);
         header.set<GpioHeader::Channel>(view.channel);
+        header.set<GpioHeader::Pull>(data::GpioPull::kNone);
 
         utility::assert_debug(cursor == dst.data() + dst.size());
         return SerializeResult::kSuccess;
@@ -269,6 +274,7 @@ public:
         cursor += sizeof(GpioHeader);
         header.set<GpioHeader::PayloadType>(GpioHeader::PayloadEnum::kAnalogReadResult);
         header.set<GpioHeader::Channel>(view.channel);
+        header.set<GpioHeader::Pull>(data::GpioPull::kNone);
 
         auto payload = GpioAnalogPayload::Ref(cursor);
         cursor += sizeof(GpioAnalogPayload);

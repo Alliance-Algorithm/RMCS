@@ -25,7 +25,6 @@
 #include "hardware/device/can_packet.hpp"
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
-#include "hardware/device/can_packet.hpp"
 #include "hardware/device/lk_motor.hpp"
 #include "hardware/device/supercap.hpp"
 
@@ -121,7 +120,9 @@ private:
         explicit TopBoard(
             SteeringInfantry& steering_infantry, SteeringInfantryCommand& steering_infantry_command,
             std::string_view board_serial = {})
-            : librmcs::agent::CBoard(board_serial)
+            : librmcs::agent::CBoard(
+                  board_serial,
+                  librmcs::agent::AdvancedOptions{.dangerously_skip_version_checks = true})
             , tf_(steering_infantry.tf_)
             , bmi088_(1000, 0.2, 0.0)
             , gimbal_pitch_motor_(steering_infantry, steering_infantry_command, "/gimbal/pitch")
@@ -146,9 +147,8 @@ private:
             steering_infantry.register_output(
                 "/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_bmi088_);
 
-            bmi088_.set_coordinate_mapping([](double x, double y, double z) {
-                return std::make_tuple(x, y, z);
-            });
+            bmi088_.set_coordinate_mapping(
+                [](double x, double y, double z) { return std::make_tuple(x, y, z); });
         }
 
         TopBoard(const TopBoard&) = delete;
@@ -166,7 +166,7 @@ private:
             tf_->set_transform<rmcs_description::PitchLink, rmcs_description::OdomImu>(
                 gimbal_bmi088_pose.conjugate());
 
-            *gimbal_yaw_velocity_bmi088_   = bmi088_.gz();
+            *gimbal_yaw_velocity_bmi088_ = bmi088_.gz();
             *gimbal_pitch_velocity_bmi088_ = bmi088_.gy();
 
             gimbal_pitch_motor_.update_status();
@@ -244,7 +244,9 @@ private:
         explicit BottomBoard(
             SteeringInfantry& steering_infantry, SteeringInfantryCommand& steering_infantry_command,
             std::string_view board_serial = {})
-            : librmcs::agent::CBoard(board_serial)
+            : librmcs::agent::CBoard(
+                  board_serial,
+                  librmcs::agent::AdvancedOptions{.dangerously_skip_version_checks = true})
             , imu_(1000, 0.2, 0.0)
             , tf_(steering_infantry.tf_)
             , dr16_(steering_infantry)

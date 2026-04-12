@@ -16,6 +16,7 @@
 #include "host/src/logging/logging.hpp"
 #include "host/src/protocol/stream_buffer.hpp"
 #include "host/src/transport/transport.hpp"
+#include "librmcs/agent/common.hpp"
 #include "librmcs/data/datas.hpp"
 
 namespace librmcs::host::protocol {
@@ -204,8 +205,15 @@ bool Handler::PacketBuilder::write_imu_gyroscope(const data::GyroscopeDataView& 
 }
 
 Handler::Handler(
-    uint16_t usb_vid, int32_t usb_pid, std::string_view serial_filter, data::DataCallback& callback)
-    : impl_(new Impl(transport::create_usb_transport(usb_vid, usb_pid, serial_filter), callback)) {}
+    uint16_t usb_vid, int32_t usb_pid, std::string_view serial_filter,
+    const agent::AdvancedOptions& options, data::DataCallback& callback)
+    : impl_(new Impl(
+          transport::usb::create_transport(
+              usb_vid, usb_pid, serial_filter,
+              transport::usb::ConnectionOptions{
+                  .dangerously_skip_version_checks = options.dangerously_skip_version_checks,
+              }),
+          callback)) {}
 
 Handler::Handler(Handler&& other) noexcept
     : impl_(std::exchange(other.impl_, nullptr)) {}

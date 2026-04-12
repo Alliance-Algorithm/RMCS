@@ -100,7 +100,9 @@ private:
             std::string serial_filter =
                 {
         })
-            : librmcs::agent::RmcsBoard(serial_filter)
+            : librmcs::agent::RmcsBoard(
+                  serial_filter,
+                  librmcs::agent::AdvancedOptions{.dangerously_skip_version_checks = true})
             , deformable_infantry_(deformable_infantry)
             , imu_(1000, 0.2, 0.0)
             , dr16_(deformable_infantry)

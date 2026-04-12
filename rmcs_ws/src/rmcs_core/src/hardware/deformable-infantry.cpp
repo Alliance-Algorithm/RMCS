@@ -182,8 +182,12 @@ private:
         explicit CombinedBoard(
             DeformableInfantry& deformableInfantry,
             DeformableInfantryCommand& deformableInfantry_command,
-            std::string serial_filter = {})
-            : librmcs::agent::RmcsBoard(serial_filter)
+            std::string serial_filter =
+                {
+        })
+            : librmcs::agent::RmcsBoard(
+                  serial_filter,
+                  librmcs::agent::AdvancedOptions{.dangerously_skip_version_checks = true})
             , tf_(deformableInfantry.tf_)
             , imu_(1000, 0.2, 0.0)
             , gimbal_yaw_motor_(deformableInfantry, deformableInfantry_command, "/gimbal/yaw")
@@ -497,7 +501,9 @@ private:
         explicit TopBoard(
             DeformableInfantry& deformableInfantry,
             DeformableInfantryCommand& deformableInfantry_command, std::string serial_filter = {})
-            : CBoard(serial_filter)
+            : CBoard(
+                  serial_filter,
+                  librmcs::agent::AdvancedOptions{.dangerously_skip_version_checks = true})
             , hard_sync_pending_(deformableInfantry.hard_sync_pending_)
             , tf_(deformableInfantry.tf_)
             , bmi088_(1000, 0.2, 0.0)
@@ -615,9 +621,8 @@ private:
             bmi088_.store_gyroscope_status(data.x, data.y, data.z);
         }
 
-        void
-            gpio_digital_read_result_callback(const librmcs::data::GpioDigitalDataView& data)
-                override {
+        void gpio_digital_read_result_callback(
+            const librmcs::data::GpioDigitalDataView& data) override {
             if (data.channel == 1 && !data.high)
                 hard_sync_pending_.store(true, std::memory_order_relaxed);
         }

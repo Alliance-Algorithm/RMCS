@@ -196,7 +196,9 @@ private:
         friend class Sentry;
         explicit TopBoard(
             Sentry& sentry, SentryCommand& sentry_command, std::string_view board_serial = {})
-            : librmcs::agent::CBoard(board_serial)
+            : librmcs::agent::CBoard(
+                  board_serial,
+                  librmcs::agent::AdvancedOptions{.dangerously_skip_version_checks = true})
             , hard_sync_pending_(sentry.hard_sync_pending_)
             , tf_(sentry.tf_)
             , bmi088_(1000, 0.2, 0.0)
@@ -288,11 +290,11 @@ private:
                 .can_id = 0x200,
                 .can_data =
                     device::CanPacket8{
-                        gimbal_right_friction_.generate_command(),
-                        gimbal_left_friction_.generate_command(),
-                        device::CanPacket8::PaddingQuarter{},
-                        gimbal_bullet_feeder_.generate_command(),
-                    }
+                                       gimbal_right_friction_.generate_command(),
+                                       gimbal_left_friction_.generate_command(),
+                                       device::CanPacket8::PaddingQuarter{},
+                                       gimbal_bullet_feeder_.generate_command(),
+                                       }
                         .as_bytes(),
             });
 
@@ -340,9 +342,8 @@ private:
             bmi088_.store_gyroscope_status(data.x, data.y, data.z);
         }
 
-        void
-            gpio_digital_read_result_callback(const librmcs::data::GpioDigitalDataView& data)
-                override {
+        void gpio_digital_read_result_callback(
+            const librmcs::data::GpioDigitalDataView& data) override {
             if (data.channel == 1 && !data.high)
                 hard_sync_pending_.store(true, std::memory_order_relaxed);
         }
@@ -368,7 +369,9 @@ private:
 
         explicit BottomBoard(
             Sentry& sentry, SentryCommand& sentry_command, std::string_view board_serial = {})
-            : librmcs::agent::CBoard(board_serial)
+            : librmcs::agent::CBoard(
+                  board_serial,
+                  librmcs::agent::AdvancedOptions{.dangerously_skip_version_checks = true})
             , imu_(1000, 0.2, 0.0)
             , tf_(sentry.tf_)
             , dr16_(sentry)
@@ -391,8 +394,9 @@ private:
                     [&buffer](std::byte byte) noexcept { *buffer++ = byte; }, size);
             };
             referee_serial_->write = [this](const std::byte* buffer, size_t size) {
-                start_transmit().uart1_transmit(
-                    {.uart_data = std::span<const std::byte>{buffer, size}});
+                start_transmit().uart1_transmit({
+                    .uart_data = std::span<const std::byte>{buffer, size}
+                });
                 return size;
             };
 
@@ -472,13 +476,13 @@ private:
                         .can_id = 0x200,
                         .can_data =
                             device::CanPacket8{
-                                chassis_wheel_motors_[1].generate_command(),
-                                chassis_wheel_motors_[0].generate_command(),
-                                device::CanPacket8::PaddingQuarter{},
-                                device::CanPacket8::PaddingQuarter{},
-                            }
+                                               chassis_wheel_motors_[1].generate_command(),
+                                               chassis_wheel_motors_[0].generate_command(),
+                                               device::CanPacket8::PaddingQuarter{},
+                                               device::CanPacket8::PaddingQuarter{},
+                                               }
                                 .as_bytes(),
-                    })
+                })
                     .can2_transmit({
                         .can_id = 0x200,
                         .can_data =
@@ -496,13 +500,13 @@ private:
                         .can_id = 0x1FE,
                         .can_data =
                             device::CanPacket8{
-                                chassis_steer_motors_[1].generate_command(),
-                                chassis_steer_motors_[0].generate_command(),
-                                device::CanPacket8::PaddingQuarter{},
-                                device::CanPacket8::PaddingQuarter{},
-                            }
+                                               chassis_steer_motors_[1].generate_command(),
+                                               chassis_steer_motors_[0].generate_command(),
+                                               device::CanPacket8::PaddingQuarter{},
+                                               device::CanPacket8::PaddingQuarter{},
+                                               }
                                 .as_bytes(),
-                    })
+                })
                     .can2_transmit({
                         .can_id = 0x1FE,
                         .can_data =

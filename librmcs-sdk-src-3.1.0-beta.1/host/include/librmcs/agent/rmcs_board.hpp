@@ -3,6 +3,7 @@
 #include <stdexcept>
 #include <string_view>
 
+#include <librmcs/agent/common.hpp>
 #include <librmcs/data/datas.hpp>
 #include <librmcs/protocol/handler.hpp>
 
@@ -10,8 +11,8 @@ namespace librmcs::agent {
 
 class RmcsBoard : private data::DataCallback {
 public:
-    explicit RmcsBoard(std::string_view serial_filter = {})
-        : handler_(0xA11C, 0xAF01, serial_filter, *this) {}
+    explicit RmcsBoard(std::string_view serial_filter = {}, const AdvancedOptions& options = {})
+        : handler_(0xA11C, 0xAF01, serial_filter, options, *this) {}
 
     RmcsBoard(const RmcsBoard&) = delete;
     RmcsBoard& operator=(const RmcsBoard&) = delete;

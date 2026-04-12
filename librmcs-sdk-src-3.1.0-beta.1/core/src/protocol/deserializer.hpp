@@ -177,21 +177,23 @@ private:
 
         constexpr const std::byte* await_resume() const noexcept {
             utility::assert_debug(owner_.requested_bytes_);
+
             // Discard mode cancels outstanding peeks by returning nullptr.
-            if (owner_.discard_mode_) [[unlikely]] {
+            if (owner_.discard_mode_) [[unlikely]]
                 return nullptr;
-            } else if (owner_.pending_bytes_) {
+
+            if (owner_.pending_bytes_) {
                 utility::assert_debug(owner_.pending_bytes_ == owner_.requested_bytes_);
                 return owner_.pending_bytes_buffer_;
-            } else {
-                utility::assert_debug(owner_.input_cursor_);
-                utility::assert_debug(owner_.input_end_ >= owner_.input_cursor_);
-                utility::assert_debug(
-                    std::cmp_greater_equal(
-                        owner_.input_end_ - owner_.input_cursor_, owner_.requested_bytes_));
-
-                return owner_.input_cursor_;
             }
+
+            utility::assert_debug(owner_.input_cursor_);
+            utility::assert_debug(owner_.input_end_ >= owner_.input_cursor_);
+            utility::assert_debug(
+                std::cmp_greater_equal(
+                    owner_.input_end_ - owner_.input_cursor_, owner_.requested_bytes_));
+
+            return owner_.input_cursor_;
         }
 
     protected:

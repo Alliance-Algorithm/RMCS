@@ -138,7 +138,16 @@ public:
     virtual void receive(std::function<void(std::span<const std::byte>)> callback) = 0;
 };
 
-std::unique_ptr<Transport>
-    create_usb_transport(uint16_t usb_vid, int32_t usb_pid, std::string_view serial_filter);
+namespace usb {
+
+struct ConnectionOptions {
+    bool dangerously_skip_version_checks = false;
+};
+
+std::unique_ptr<Transport> create_transport(
+    uint16_t usb_vid, int32_t usb_pid, std::string_view serial_filter,
+    const ConnectionOptions& options);
+
+} // namespace usb
 
 } // namespace librmcs::host::transport

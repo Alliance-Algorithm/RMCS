@@ -95,7 +95,8 @@ struct GpioHeader : utility::Bitfield<2> {
     };
 
     using PayloadType = utility::BitfieldMember<4, 4, PayloadEnum>;
-    using Channel = utility::BitfieldMember<8, 8>;
+    using Channel = utility::BitfieldMember<8, 6>;
+    using Pull = utility::BitfieldMember<14, 2, data::GpioPull>;
 };
 
 struct GpioReadConfigPayload : utility::Bitfield<2> {

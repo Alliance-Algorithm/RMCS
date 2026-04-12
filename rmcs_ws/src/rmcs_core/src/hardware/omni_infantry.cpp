@@ -43,7 +43,8 @@ public:
         : Node{
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
-        , librmcs::agent::CBoard{get_parameter("board_serial").as_string()}
+        , librmcs::agent::
+              CBoard{get_parameter("board_serial").as_string(), librmcs::agent::AdvancedOptions{.dangerously_skip_version_checks = true}}
         , logger_(get_logger())
         , infantry_command_(
               create_partner_component<InfantryCommand>(get_component_name() + "_command", *this))

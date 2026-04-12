@@ -154,6 +154,7 @@ coroutine::LifoTask<bool> Deserializer::process_uart_field(FieldId field_id) {
 coroutine::LifoTask<bool> Deserializer::process_gpio_field(FieldId) {
     GpioHeader::PayloadEnum payload_type;
     std::uint8_t channel = 0;
+    data::GpioPull pull = data::GpioPull::kNone;
     {
         const auto* header_bytes = co_await peek_bytes(sizeof(GpioHeader));
         if (!header_bytes) [[unlikely]]
@@ -162,6 +163,7 @@ coroutine::LifoTask<bool> Deserializer::process_gpio_field(FieldId) {
         auto header = GpioHeader::CRef{header_bytes};
         payload_type = header.get<GpioHeader::PayloadType>();
         channel = header.get<GpioHeader::Channel>();
+        pull = header.get<GpioHeader::Pull>();
         consume_peeked();
     }
 
@@ -201,7 +203,12 @@ coroutine::LifoTask<bool> Deserializer::process_gpio_field(FieldId) {
         data_view.rising_edge = payload.get<GpioReadConfigPayload::RisingEdge>();
         data_view.falling_edge = payload.get<GpioReadConfigPayload::FallingEdge>();
         data_view.period_ms = payload.get<GpioReadConfigPayload::PeriodMs>();
+        data_view.pull = pull;
         consume_peeked();
+
+        if (data_view.pull != data::GpioPull::kNone && data_view.pull != data::GpioPull::kUp
+            && data_view.pull != data::GpioPull::kDown)
+            co_return false;
 
         if (payload_type == GpioHeader::PayloadEnum::kDigitalRead) {
             callback_.gpio_digital_read_config_deserialized_callback(data_view);
