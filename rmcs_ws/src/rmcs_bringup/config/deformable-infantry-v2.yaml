@@ -7,13 +7,22 @@ rmcs_executor:
       - rmcs_core::referee::Status -> referee_status
       - rmcs_core::referee::Command -> referee_command
 
-      - rmcs_core::controller::chassis::ChassisTestV2Controller -> chassis_test_controller
-      - rmcs_core::controller::adrc::AdrcController -> lf_joint_adrc_controller
-      - rmcs_core::controller::adrc::AdrcController -> lb_joint_adrc_controller
-      - rmcs_core::controller::adrc::AdrcController -> rb_joint_adrc_controller
-      - rmcs_core::controller::adrc::AdrcController -> rf_joint_adrc_controller
+      - rmcs_core::referee::command::Interaction -> referee_interaction
+      - rmcs_core::referee::command::interaction::Ui -> referee_ui
+      - rmcs_core::referee::app::ui::Infantry -> referee_ui_infantry
+
+      - rmcs_core::controller::gimbal::SimpleGimbalController -> gimbal_controller
+
+      - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
+      - rmcs_core::controller::shooting::HeatController -> heat_controller
+      - rmcs_core::controller::shooting::BulletFeederController17mm -> bullet_feeder_controller
+      - rmcs_core::controller::pid::PidController -> left_friction_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> right_friction_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller
+
+      - rmcs_core::controller::chassis::DeformableChassis -> chassis_controller
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
-      - rmcs_core::controller::chassis::WheelDemoController -> wheel_demo_controller
+      - rmcs_core::controller::chassis::DeformableChassisController -> deformable_chassis_controller
 
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 
@@ -28,99 +37,99 @@ value_broadcaster:
 deformable_infantry:
   ros__parameters:
     serial_filter_rmcs_board: ""
+    serial_filter_top_board: ""
     left_front_zero_point: 289
     left_back_zero_point: 6552
     right_back_zero_point: 7244
     right_front_zero_point: 5203
+    yaw_motor_zero_point: 30689
+    pitch_motor_zero_point: 15838
 
-# NOTE: V2 uses LK motor built-in encoder zero point for joints.
-# Joint motor: MG5010 i36, zero at 62.5deg, range 62.5deg -> 8deg (360deg system)
-chassis_test_controller:
+chassis_controller:
   ros__parameters:
     min_angle: 5.0
     max_angle: 55.0
 
-lf_joint_adrc_controller:
+gimbal_controller:
   ros__parameters:
-    measurement: /chassis/left_front_joint/angle
-    setpoint: /chassis/left_front_joint/target_angle
-    control: /chassis/left_front_joint/control_torque
-    kt: 1.0
-    td_h: 0.001
-    td_r: 50.0
-    dt: 0.001
-    b0: 0.550
-    eso_w0: 250.0
-    eso_auto_beta: true
-    k1: 30.0
-    k2: 17.0
-    alpha1: 0.75
-    alpha2: 0.7
-    delta: 0.02
-    u_min: -200.0
-    u_max: 200.0
+    upper_limit: -0.436332 # -25 deg
+    lower_limit: 0.174533 # 10 deg
 
-lb_joint_adrc_controller:
+    yaw_angle_kp: 14.2
+    yaw_angle_ki: 0.0
+    yaw_angle_kd: 0.0
+
+    yaw_velocity_kp: 6.4
+    yaw_velocity_ki: 0.0
+    yaw_velocity_kd: 0.0
+
+    yaw_vel_ff_gain: 0.47
+    yaw_acc_ff_gain: 0.00
+
+    pitch_angle_kp: 8.0
+    pitch_angle_ki: 0.0
+    pitch_angle_kd: 0.0
+
+    pitch_velocity_kp: 0.0
+    pitch_velocity_ki: 0.0
+    pitch_velocity_kd: 0.0
+
+    pitch_acc_ff_gain: 0.0
+
+friction_wheel_controller:
   ros__parameters:
-    measurement: /chassis/left_back_joint/angle
-    setpoint: /chassis/left_back_joint/target_angle
-    control: /chassis/left_back_joint/control_torque
-    kt: 1.0
-    td_h: 0.001
-    td_r: 50.0
-    dt: 0.001
-    b0: 0.550
-    eso_w0: 250.0
-    eso_auto_beta: true
-    k1: 30.0
-    k2: 17.0
-    alpha1: 0.75
-    alpha2: 0.7
-    delta: 0.02
-    u_min: -200.0
-    u_max: 200.0
+    friction_wheels:
+      - /gimbal/left_friction
+      - /gimbal/right_friction
+    friction_velocities:
+      - 700.0
+      - 700.0
+    friction_soft_start_stop_time: 1.0
 
-rb_joint_adrc_controller:
+heat_controller:
   ros__parameters:
-    measurement: /chassis/right_back_joint/angle
-    setpoint: /chassis/right_back_joint/target_angle
-    control: /chassis/right_back_joint/control_torque
-    kt: 1.0
-    td_h: 0.001
-    td_r: 50.0
-    dt: 0.001
-    b0: 0.550
-    eso_w0: 250.0
-    eso_auto_beta: true
-    k1: 30.0
-    k2: 17.0
-    alpha1: 0.75
-    alpha2: 0.7
-    delta: 0.02
-    u_min: -200.0
-    u_max: 200.0
+    heat_per_shot: 10000
+    reserved_heat: 0
 
-rf_joint_adrc_controller:
+bullet_feeder_controller:
   ros__parameters:
-    measurement: /chassis/right_front_joint/angle
-    setpoint: /chassis/right_front_joint/target_angle
-    control: /chassis/right_front_joint/control_torque
-    kt: 1.0
-    td_h: 0.001
-    td_r: 50.0
-    dt: 0.001
-    b0: 0.550
-    eso_w0: 250.0
-    eso_auto_beta: true
-    k1: 30.0
-    k2: 17.0
-    alpha1: 0.75
-    alpha2: 0.7
-    delta: 0.02
-    u_min: -200.0
-    u_max: 200.0
+    bullets_per_feeder_turn: 8.0
+    shot_frequency: 10.0
+    safe_shot_frequency: 10.0
+    eject_frequency: 10.0
+    eject_time: 0.05
+    deep_eject_frequency: 5.0
+    deep_eject_time: 0.2
+    single_shot_max_stop_delay: 2.0
 
-wheel_demo_controller:
+left_friction_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/left_friction/velocity
+    setpoint: /gimbal/left_friction/control_velocity
+    control: /gimbal/left_friction/control_torque
+    kp: 0.003436926
+    ki: 0.00
+    kd: 0.009373434
+
+right_friction_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/right_friction/velocity
+    setpoint: /gimbal/right_friction/control_velocity
+    control: /gimbal/right_friction/control_torque
+    kp: 0.003436926
+    ki: 0.00
+    kd: 0.009373434
+
+bullet_feeder_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/bullet_feeder/velocity
+    setpoint: /gimbal/bullet_feeder/control_velocity
+    control: /gimbal/bullet_feeder/control_torque
+    kp: 1.3
+    ki: 0.0
+    kd: 0.0
+
+deformable_chassis_controller:
   ros__parameters:
     mess: 12.5
     moment_of_inertia: 1.0
