@@ -27,6 +27,7 @@ public:
 
     double update(double err) {
         if (!std::isfinite(err)) {
+            reset();
             return nan;
         } else {
             double control = kp * err;

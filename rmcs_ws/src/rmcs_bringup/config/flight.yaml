@@ -5,9 +5,9 @@ rmcs_executor:
       - rmcs_core::hardware::Flight -> flight_hardware
       - rmcs_core::referee::Status -> referee_status
 
+      - rmcs_core::controller::gimbal::HoldController -> hold_controller
       - rmcs_core::controller::gimbal::FlightGimbalController -> gimbal_controller
-      - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
-      - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
+      - rmcs_core::controller::gimbal::FlightYawController -> yaw_controller
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
 
       - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
@@ -29,7 +29,6 @@ value_broadcaster:
       - /gimbal/pitch/angle
       - /gimbal/pitch/velocity
       - /gimbal/pitch/torque
-      - /gimbal/pitch/control_torque
       - /gimbal/pitch/control_angle_error
       - /gimbal/pitch/control_velocity
       - /gimbal/pitch/velocity_imu
@@ -40,6 +39,8 @@ value_broadcaster:
       - /gimbal/yaw/control_torque
       - /gimbal/yaw/control_angle_error
       - /gimbal/yaw/control_velocity
+      - /gimbal/yaw/velocity_imu
+
 
 tf_broadcaster:
   ros__parameters:
@@ -55,37 +56,54 @@ referee_status:
   ros__parameters:
     path: /dev/tty0
 
+hold_controller:
+  ros__parameters:
+    # Joystick is Eigen::Vector2d normalized to [-1,1]. 0.03 is ~3% deflection.
+    joystick_deadband: 0.03
+    # Mouse velocity is in per-tick counts; 0.5 is a conservative quiet threshold.
+    mouse_deadband: 0.5
+
 gimbal_controller:
   ros__parameters:
-    upper_limit: -0.15
-    lower_limit: 0.50
+    upper_limit: -1.00
+    lower_limit: 0.60
     yaw_upper_limit: -0.349
     yaw_lower_limit: 0.349
+    # SetToLevel must converge below this |yaw_err|/|pitch_err| (rad) before
+    # hold mode is permitted. ~0.02 rad ≈ 1.1°.
+    hold_level_threshold: 0.02
+    # Hold mode IMU damping gain (Nm·s/rad for yaw, (rad/s)·s/rad for pitch).
+    # P comes from PID on encoder error; D comes from here via IMU velocity.
+    # Higher → stiffer disturbance rejection. IMU is smooth so these can be large.
+    hold_yaw_kd: 8.0
+    hold_pitch_kd: 0.5
 
-yaw_angle_pid_controller:
+yaw_controller:
   ros__parameters:
-    measurement: /gimbal/yaw/control_angle_error
-    control: /gimbal/yaw/control_velocity
-    kp: 4.0
-    ki: 0.0
-    kd: 0.0003
+    # true  -> cascade PID (outer angle + inner velocity)
+    # false -> single-loop PID (angle error -> torque)
+    cascade_mode: false
 
-yaw_velocity_pid_controller:
-  ros__parameters:
-    measurement: /gimbal/yaw/velocity_imu
-    setpoint: /gimbal/yaw/control_velocity
-    control: /gimbal/yaw/control_torque
-    kp: 4.0
-    ki: 0.0
-    kd: 0.0
+    outer_kp: 3.7399
+    outer_ki: 0.0
+    outer_kd: 0.0
+
+    inner_kp: 384.4384
+    inner_ki: 499.9430
+    inner_kd: 4.8254
+
+    single_kp: 70.8943
+    single_ki: 0.0
+    single_kd: 1440.0
 
 pitch_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/pitch/control_angle_error
+    feedforward: /gimbal/pitch/hold_feedforward
     control: /gimbal/pitch/control_velocity
-    kp: 5.0
+    kp: 10.0
     ki: 0.0
-    kd: 0.0
+    kd: 400.0
 
 friction_wheel_controller:
   ros__parameters:

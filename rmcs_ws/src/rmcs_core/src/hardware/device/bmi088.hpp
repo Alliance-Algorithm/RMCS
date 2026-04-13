@@ -54,6 +54,10 @@ public:
             std::tie(ax_, ay_, az_) = coordinate_mapping_function_(ax_, ay_, az_);
         }
 
+        // gx_ -= gyro_bias_x_;
+        // gy_ -= gyro_bias_y_;
+        // gz_ -= gyro_bias_z_;
+
         mahony_ahrs_update_imu(ax_, ay_, az_, gx_, gy_, gz_);
     }
 
@@ -69,6 +73,12 @@ public:
     double& q1() { return q1_; }
     double& q2() { return q2_; }
     double& q3() { return q3_; }
+
+    void reset_integral() {
+        integral_fbx_ = 0.0;
+        integral_fby_ = 0.0;
+        integral_fbz_ = 0.0;
+    }
 
 private:
     void mahony_ahrs_update_imu(double ax, double ay, double az, double gx, double gy, double gz) {
@@ -168,6 +178,10 @@ private:
 
     // Integral error terms scaled by Ki
     double integral_fbx_ = 0.0, integral_fby_ = 0.0, integral_fbz_ = 0.0;
+
+// public:
+//     // Gyroscope bias correction (in mapped coordinate frame)
+//     double gyro_bias_x_ = 0.0, gyro_bias_y_ = 0.0, gyro_bias_z_ = 0.0;
 };
 
 } // namespace rmcs_core::hardware::device

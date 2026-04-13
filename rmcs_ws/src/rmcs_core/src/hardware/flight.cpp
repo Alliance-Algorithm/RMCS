@@ -17,6 +17,7 @@
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/serial_interface.hpp>
+#include <rmcs_msgs/switch.hpp>
 #include <rmcs_utility/ring_buffer.hpp>
 #include <std_msgs/msg/int32.hpp>
 
@@ -118,6 +119,18 @@ public:
         update_motors();
         update_imu();
         dr16_.update_status();
+
+        if (dr16_.switch_left() == rmcs_msgs::Switch::DOWN
+            && dr16_.switch_right() == rmcs_msgs::Switch::DOWN) {
+            bmi088_.reset_integral();
+            if (++gyro_debug_counter_ >= 500) {
+                gyro_debug_counter_ = 0;
+                RCLCPP_INFO(
+                    logger_, "[gyro-debug] gz=%.6f yaw_vel=%.6f gy=%.6f pitch_vel=%.6f",
+                    bmi088_.gz(), gimbal_yaw_motor_.velocity(),
+                    bmi088_.gy(), gimbal_pitch_motor_.velocity());
+            }
+        }
     }
 
     void command_update() {
@@ -152,6 +165,21 @@ private:
 
     void update_imu() {
         bmi088_.update_status();
+
+        // Estimate gyro bias using encoder velocity as reference
+        // (valid when chassis is stationary, e.g. flight robot)
+        // gz()/gy() now hold THIS frame's bias-corrected values,
+        // so add back current bias to recover raw gyro reading.
+        // constexpr double kBiasAlpha = 0.001;
+        // constexpr double kMaxBias = 0.1; // rad/s, ~5.7 deg/s max correction
+        // double gz_raw = bmi088_.gz() + bmi088_.gyro_bias_z_;
+        // double gy_raw = bmi088_.gy() + bmi088_.gyro_bias_y_;
+        // bmi088_.gyro_bias_z_ = std::clamp(
+        //     bmi088_.gyro_bias_z_ + kBiasAlpha * (gz_raw - gimbal_yaw_motor_.velocity()),
+        //     -kMaxBias, kMaxBias);
+        // bmi088_.gyro_bias_y_ = std::clamp(
+        //     bmi088_.gyro_bias_y_ + kBiasAlpha * (gy_raw - gimbal_pitch_motor_.velocity()),
+        //     -kMaxBias, kMaxBias);
         Eigen::Quaterniond gimbal_imu_pose{bmi088_.q0(), bmi088_.q1(), bmi088_.q2(), bmi088_.q3()};
         tf_->set_transform<rmcs_description::PitchLink, rmcs_description::OdomImu>(
             gimbal_imu_pose.conjugate());
@@ -245,6 +273,7 @@ private:
     OutputInterface<rmcs_description::Tf> tf_;
     OutputInterface<rmcs_msgs::SerialInterface> referee_serial_;
 
+    int gyro_debug_counter_ = 0;
     rmcs_utility::RingBuffer<std::byte> referee_ring_buffer_receive_{256};
 };
 
