@@ -7,9 +7,9 @@
 [submodule "rmcs_ws/src/hikcamera"]
 	path = rmcs_ws/src/hikcamera
 	url = https://github.com/Alliance-Algorithm/ros2-hikcamera
-[submodule "rmcs_ws/src/sp_vision_25"]
-	path = rmcs_ws/src/sp_vision_25
-	url = https://github.com/Alliance-Algorithm/sp_vision_25.git
 [submodule "rmcs_ws/src/rmcs_core/third_party/tinympc"]
 	path = rmcs_ws/src/rmcs_core/third_party/tinympc
 	url = https://github.com/Alliance-Algorithm/TinyMPC.git
+[submodule "rmcs_ws/src/sp_vision_25"]
+	path = rmcs_ws/src/sp_vision_25
+	url = https://github.com/noskillzheng/sp_vision_25.git
