@@ -1,14 +1,19 @@
-#include <array>
 #include <cmath>
 #include <cstdint>
 #include <mutex>
+#include <numbers>
+#include <string>
 
 #include <eigen3/Eigen/Geometry>
-#include <geometry_msgs/msg/pose_with_covariance_stamped.hpp>
-#include <geometry_msgs/msg/twist_with_covariance_stamped.hpp>
-#include <nav_msgs/msg/odometry.hpp>
+
+#include <geometry_msgs/msg/pose_stamped.hpp>
+#include <geometry_msgs/msg/transform_stamped.hpp>
+#include <rclcpp/duration.hpp>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/node.hpp>
+#include <tf2/exceptions.h>
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
 
 #include <rmcs_executor/component.hpp>
 
@@ -20,170 +25,170 @@ class FlightMavros
 public:
     FlightMavros()
         : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
-        , logger_(get_logger()) {
-        mavros_pose_publisher_ = create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>(
-            get_parameter("mavros_pose_topic").as_string(), rclcpp::QoS{10}.reliable());
-        mavros_twist_publisher_ = create_publisher<geometry_msgs::msg::TwistWithCovarianceStamped>(
-            get_parameter("mavros_twist_topic").as_string(), rclcpp::QoS{10}.reliable());
+        , logger_(get_logger())
+        , tf_buffer_(get_clock())
+        , tf_listener_(tf_buffer_) {
+        load_parameters();
 
-        auto odin_odom_qos = rclcpp::QoS{1};
-        odin_odom_qos.reliability(RMW_QOS_POLICY_RELIABILITY_RELIABLE);
-        odin_odom_qos.durability(RMW_QOS_POLICY_DURABILITY_VOLATILE);
-
-        odin_odometry_subscription_ = create_subscription<nav_msgs::msg::Odometry>(
-            get_parameter("odin_odometry_topic").as_string(), odin_odom_qos,
-            [this](const nav_msgs::msg::Odometry::ConstSharedPtr& msg) {
-                odin_odometry_subscription_callback(*msg);
-            });
+        mavros_pose_publisher_ = create_publisher<geometry_msgs::msg::PoseStamped>(
+            mavros_pose_topic_, rclcpp::QoS{10}.reliable());
 
         RCLCPP_INFO(
-            logger_, "FlightMavros bridging '%s' -> '%s' and '%s'.",
-            odin_odometry_subscription_->get_topic_name(), mavros_pose_publisher_->get_topic_name(),
-            mavros_twist_publisher_->get_topic_name());
+            logger_,
+            "FlightMavros bridging TF '%s' -> '%s' to '%s' with sensor RPY [%.1f, %.1f, %.1f] "
+            "deg.",
+            source_frame_id_.c_str(), target_frame_id_.c_str(),
+            mavros_pose_publisher_->get_topic_name(), radians_to_degrees(sensor_roll_offset_rad_),
+            radians_to_degrees(sensor_pitch_offset_rad_),
+            radians_to_degrees(sensor_yaw_offset_rad_));
     }
 
     ~FlightMavros() override = default;
 
-    void update() override { update_local_position(); }
+    void update() override {
+        update_pose_from_tf();
+        if (++update_counter_ >= publish_interval_updates_) {
+            update_counter_ = 0;
+            publish_pose();
+        }
+    }
 
 private:
-    void update_local_position() {
-        if (++odom_publish_counter_ < 20)
-            return;
-        odom_publish_counter_ = 0;
+    static double radians_to_degrees(double radians) {
+        return radians * 180.0 / std::numbers::pi_v<double>;
+    }
 
-        OdomSnapshot snap;
+    static Eigen::Quaterniond quaternion_from_rpy(double roll, double pitch, double yaw) {
+        const Eigen::AngleAxisd roll_rotation{roll, Eigen::Vector3d::UnitX()};
+        const Eigen::AngleAxisd pitch_rotation{pitch, Eigen::Vector3d::UnitY()};
+        const Eigen::AngleAxisd yaw_rotation{yaw, Eigen::Vector3d::UnitZ()};
+        return Eigen::Quaterniond{roll_rotation * pitch_rotation * yaw_rotation};
+    }
+
+    void load_parameters() {
+        mavros_pose_topic_ = get_parameter("mavros_pose_topic").as_string();
+        mavros_pose_frame_id_ = get_parameter("mavros_pose_frame_id").as_string();
+        target_frame_id_ = get_parameter("target_frame_id").as_string();
+        source_frame_id_ = get_parameter("source_frame_id").as_string();
+        output_rate_hz_ = get_parameter("output_rate").as_double();
+        sensor_roll_offset_rad_ = get_parameter("sensor_roll_offset_rad").as_double();
+        sensor_pitch_offset_rad_ = get_parameter("sensor_pitch_offset_rad").as_double();
+        sensor_yaw_offset_rad_ = get_parameter("sensor_yaw_offset_rad").as_double();
+
+        publish_interval_updates_ =
+            static_cast<std::uint32_t>(std::max(1.0, std::round(1000.0 / output_rate_hz_)));
+    }
+
+    Eigen::Quaterniond sensor_to_body_rotation() const {
+        auto sensor_to_body = quaternion_from_rpy(
+            sensor_roll_offset_rad_, sensor_pitch_offset_rad_, sensor_yaw_offset_rad_);
+        sensor_to_body.normalize();
+        return sensor_to_body;
+    }
+
+    static bool finite_transform(const geometry_msgs::msg::TransformStamped& transform) {
+        const auto& t = transform.transform.translation;
+        const auto& r = transform.transform.rotation;
+        return std::isfinite(t.x) && std::isfinite(t.y) && std::isfinite(t.z) && std::isfinite(r.x)
+            && std::isfinite(r.y) && std::isfinite(r.z) && std::isfinite(r.w);
+    }
+
+    Eigen::Vector3d rotate_world_position(const geometry_msgs::msg::Vector3& position) const {
+        return Eigen::Vector3d{position.x, position.y, position.z};
+    }
+
+    Eigen::Quaterniond
+        rotate_body_orientation(const geometry_msgs::msg::Quaternion& orientation) const {
+        const Eigen::Quaterniond quat_sensor{
+            orientation.w, orientation.x, orientation.y, orientation.z};
+
+        Eigen::Quaterniond quat_body = quat_sensor * sensor_to_body_rotation();
+        quat_body.normalize();
+        return quat_body;
+    }
+
+    void update_pose_from_tf() {
+        geometry_msgs::msg::TransformStamped transform;
+        try {
+            transform =
+                tf_buffer_.lookupTransform(target_frame_id_, source_frame_id_, tf2::TimePointZero);
+        } catch (const tf2::TransformException& ex) {
+            RCLCPP_WARN_THROTTLE(
+                logger_, *get_clock(), 1000, "TF lookup failed for '%s' -> '%s': %s",
+                source_frame_id_.c_str(), target_frame_id_.c_str(), ex.what());
+            return;
+        }
+
+        if (!finite_transform(transform))
+            return;
+
+        const rclcpp::Time tf_stamp{transform.header.stamp};
+
+        std::lock_guard<std::mutex> lock(pose_mutex_);
+        if (last_tf_stamp_.nanoseconds() != 0 && tf_stamp <= last_tf_stamp_)
+            return;
+
+        const Eigen::Vector3d rotated_position =
+            rotate_world_position(transform.transform.translation);
+        const Eigen::Quaterniond rotated_orientation =
+            rotate_body_orientation(transform.transform.rotation);
+
+        latest_pose_.position.x = rotated_position.x();
+        latest_pose_.position.y = rotated_position.y();
+        latest_pose_.position.z = rotated_position.z();
+        latest_pose_.orientation.x = rotated_orientation.x();
+        latest_pose_.orientation.y = rotated_orientation.y();
+        latest_pose_.orientation.z = rotated_orientation.z();
+        latest_pose_.orientation.w = rotated_orientation.w();
+        last_tf_stamp_ = tf_stamp;
+        pose_ready_ = true;
+
+        RCLCPP_INFO_THROTTLE(
+            logger_, *get_clock(), 1000, "Received TF '%s' -> '%s'.", source_frame_id_.c_str(),
+            target_frame_id_.c_str());
+    }
+
+    void publish_pose() {
+        geometry_msgs::msg::Pose pose;
         {
-            std::lock_guard<std::mutex> lock(odom_mutex_);
-            if (!odom_ready_)
+            std::lock_guard<std::mutex> lock(pose_mutex_);
+            if (!pose_ready_)
                 return;
-            snap = latest_odom_;
-            odom_ready_ = false;
+
+            pose = latest_pose_;
         }
 
-        if (std::isnan(snap.pos_x) || std::isnan(snap.pos_y) || std::isnan(snap.pos_z)
-            || std::isnan(snap.vel_x) || std::isnan(snap.vel_y) || std::isnan(snap.vel_z)
-            || std::isnan(snap.q_w) || std::isnan(snap.q_x) || std::isnan(snap.q_y)
-            || std::isnan(snap.q_z)) {
-            RCLCPP_WARN_THROTTLE(
-                logger_, *get_clock(), 1000, "Odometry snapshot contains NaN, skipping publish");
-            return;
-        }
-
-        const auto timestamp =
-            snap.timestamp_sample.nanoseconds() > 0 ? snap.timestamp_sample : get_clock()->now();
-        Eigen::Quaterniond orientation{
-            static_cast<double>(snap.q_w), static_cast<double>(snap.q_x),
-            static_cast<double>(snap.q_y), static_cast<double>(snap.q_z)};
-        if (orientation.norm() <= 1e-6) {
-            RCLCPP_WARN_THROTTLE(
-                logger_, *get_clock(), 1000, "Odometry snapshot contains invalid quaternion");
-            return;
-        }
-        orientation.normalize();
-
-        geometry_msgs::msg::PoseWithCovarianceStamped pose_msg{};
-        pose_msg.header.stamp = timestamp;
-        pose_msg.header.frame_id = get_parameter("mavros_pose_frame_id").as_string();
-        pose_msg.pose.pose.position.x = snap.pos_x;
-        pose_msg.pose.pose.position.y = snap.pos_y;
-        pose_msg.pose.pose.position.z = snap.pos_z;
-        pose_msg.pose.pose.orientation.x = orientation.x();
-        pose_msg.pose.pose.orientation.y = orientation.y();
-        pose_msg.pose.pose.orientation.z = orientation.z();
-        pose_msg.pose.pose.orientation.w = orientation.w();
-        pose_msg.pose.covariance = make_pose_covariance(snap);
-
-        geometry_msgs::msg::TwistWithCovarianceStamped twist_msg{};
-        twist_msg.header.stamp = timestamp;
-        twist_msg.header.frame_id = get_parameter("mavros_pose_frame_id").as_string();
-        twist_msg.twist.twist.linear.x = snap.vel_x;
-        twist_msg.twist.twist.linear.y = snap.vel_y;
-        twist_msg.twist.twist.linear.z = snap.vel_z;
-        twist_msg.twist.twist.angular.x = snap.ang_x;
-        twist_msg.twist.twist.angular.y = snap.ang_y;
-        twist_msg.twist.twist.angular.z = snap.ang_z;
-        twist_msg.twist.covariance = make_twist_covariance(snap);
-
+        geometry_msgs::msg::PoseStamped pose_msg{};
+        pose_msg.header.stamp = get_clock()->now();
+        pose_msg.header.frame_id = mavros_pose_frame_id_;
+        pose_msg.pose = pose;
         mavros_pose_publisher_->publish(pose_msg);
-        mavros_twist_publisher_->publish(twist_msg);
-    }
 
-    struct OdomSnapshot {
-        rclcpp::Time timestamp_sample{};
-        float pos_x{}, pos_y{}, pos_z{};
-        float vel_x{}, vel_y{}, vel_z{};
-        float ang_x{}, ang_y{}, ang_z{};
-        float q_x{}, q_y{}, q_z{}, q_w{1.f};
-        float cov_xx{}, cov_yy{}, cov_zz{};
-        float vel_cov_xx{}, vel_cov_yy{}, vel_cov_zz{};
-    };
-
-    static std::array<double, 36> make_pose_covariance(const OdomSnapshot& snap) {
-        std::array<double, 36> covariance{};
-        covariance[0] = sanitize_covariance(snap.cov_xx, 0.05);
-        covariance[7] = sanitize_covariance(snap.cov_yy, 0.05);
-        covariance[14] = sanitize_covariance(snap.cov_zz, 0.05);
-        covariance[21] = 0.05;
-        covariance[28] = 0.05;
-        covariance[35] = 0.05;
-        return covariance;
-    }
-
-    static std::array<double, 36> make_twist_covariance(const OdomSnapshot& snap) {
-        std::array<double, 36> covariance{};
-        covariance[0] = sanitize_covariance(snap.vel_cov_xx, 0.1);
-        covariance[7] = sanitize_covariance(snap.vel_cov_yy, 0.1);
-        covariance[14] = sanitize_covariance(snap.vel_cov_zz, 0.1);
-        covariance[21] = 0.1;
-        covariance[28] = 0.1;
-        covariance[35] = 0.1;
-        return covariance;
-    }
-
-    static double sanitize_covariance(float value, double fallback) {
-        return std::isfinite(value) && value > 0.f ? static_cast<double>(value) : fallback;
-    }
-
-    void odin_odometry_subscription_callback(const nav_msgs::msg::Odometry& msg) {
-        OdomSnapshot snap{};
-        snap.timestamp_sample = rclcpp::Time{msg.header.stamp};
-        snap.pos_x = static_cast<float>(msg.pose.pose.position.x);
-        snap.pos_y = static_cast<float>(msg.pose.pose.position.y);
-        snap.pos_z = static_cast<float>(msg.pose.pose.position.z);
-        snap.vel_x = static_cast<float>(msg.twist.twist.linear.x);
-        snap.vel_y = static_cast<float>(msg.twist.twist.linear.y);
-        snap.vel_z = static_cast<float>(msg.twist.twist.linear.z);
-        snap.ang_x = static_cast<float>(msg.twist.twist.angular.x);
-        snap.ang_y = static_cast<float>(msg.twist.twist.angular.y);
-        snap.ang_z = static_cast<float>(msg.twist.twist.angular.z);
-        snap.q_x = static_cast<float>(msg.pose.pose.orientation.x);
-        snap.q_y = static_cast<float>(msg.pose.pose.orientation.y);
-        snap.q_z = static_cast<float>(msg.pose.pose.orientation.z);
-        snap.q_w = static_cast<float>(msg.pose.pose.orientation.w);
-        snap.cov_xx = static_cast<float>(msg.pose.covariance[0]);
-        snap.cov_yy = static_cast<float>(msg.pose.covariance[7]);
-        snap.cov_zz = static_cast<float>(msg.pose.covariance[14]);
-        snap.vel_cov_xx = static_cast<float>(msg.twist.covariance[0]);
-        snap.vel_cov_yy = static_cast<float>(msg.twist.covariance[7]);
-        snap.vel_cov_zz = static_cast<float>(msg.twist.covariance[14]);
-
-        std::lock_guard<std::mutex> lock(odom_mutex_);
-        latest_odom_ = snap;
-        odom_ready_ = true;
+        RCLCPP_INFO_THROTTLE(
+            logger_, *get_clock(), 1000, "Published MAVROS vision pose at %.1f Hz to '%s'.",
+            output_rate_hz_, mavros_pose_publisher_->get_topic_name());
     }
 
     rclcpp::Logger logger_;
-    rclcpp::Publisher<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr
-        mavros_pose_publisher_;
-    rclcpp::Publisher<geometry_msgs::msg::TwistWithCovarianceStamped>::SharedPtr
-        mavros_twist_publisher_;
-    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odin_odometry_subscription_;
+    std::string mavros_pose_topic_;
+    std::string mavros_pose_frame_id_;
+    std::string target_frame_id_;
+    std::string source_frame_id_;
+    double output_rate_hz_;
+    double sensor_roll_offset_rad_;
+    double sensor_pitch_offset_rad_;
+    double sensor_yaw_offset_rad_;
+    std::uint32_t publish_interval_updates_;
+    tf2_ros::Buffer tf_buffer_;
+    tf2_ros::TransformListener tf_listener_;
 
-    std::mutex odom_mutex_;
-    OdomSnapshot latest_odom_;
-    bool odom_ready_{false};
-    uint32_t odom_publish_counter_{0};
+    rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr mavros_pose_publisher_;
+
+    std::mutex pose_mutex_;
+    geometry_msgs::msg::Pose latest_pose_{};
+    rclcpp::Time last_tf_stamp_{};
+    std::uint32_t update_counter_{0};
+    bool pose_ready_{false};
 };
 
 } // namespace rmcs_core::hardware

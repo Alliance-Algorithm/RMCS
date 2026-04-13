@@ -25,7 +25,12 @@ odin_ros_driver:
 
 flight_mavros_hardware:
   ros__parameters:
-    odin_odometry_topic: /odin1/odometry
-    mavros_pose_topic: /mavros/vision_pose/pose_cov
-    mavros_twist_topic: /mavros/vision_speed/speed_twist_cov
+    target_frame_id: odom
+    source_frame_id: odin1_base_link
+    output_rate: 50.0
+    # Keep odom position as-is; only correct the vision sensor orientation.
+    sensor_roll_offset_rad: 0.0
+    sensor_pitch_offset_rad: 0.0
+    sensor_yaw_offset_rad: 0.0
+    mavros_pose_topic: /mavros/vision_pose/pose
     mavros_pose_frame_id: odom

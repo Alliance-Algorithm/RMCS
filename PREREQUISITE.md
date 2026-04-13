@@ -76,3 +76,9 @@ sudo apt-get install ros-jazzy-cv-bridge
 
 Note that you might have to modify Odin1's source code to compile it.
 Some of the code refer to `<cv_bridge/cv_bridge.h>` instead of `.hpp`.
+
+## Conversions
+
+When drone moving forward, odin1's `position.x` decreases;
+When drone moving left, odin1's `position.y` decreases;
+When drone moving up, odin1's `position.z` increases.

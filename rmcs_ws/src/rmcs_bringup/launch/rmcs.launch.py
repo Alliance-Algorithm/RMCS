@@ -104,6 +104,11 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
 
         mavros_cfg = config.get("mavros", {}).get("ros__parameters")
         if mavros_cfg is not None and mavros_cfg.get("enabled", True):
+            mavros_share = FindPackageShare("mavros").perform(context)
+            pluginlists_yaml = os.path.join(
+                mavros_share, "launch", "px4_pluginlists.yaml"
+            )
+            px4_config_yaml = os.path.join(mavros_share, "launch", "px4_config.yaml")
             fcu_url = mavros_cfg.get(
                 "fcu_url",
                 f"serial://{mavros_cfg.get('device', '/dev/ttyACM0')}:{mavros_cfg.get('baudrate', 921600)}",
@@ -128,13 +133,15 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
                     executable="mavros_node",
                     namespace="mavros",
                     parameters=[
+                        pluginlists_yaml,
+                        px4_config_yaml,
                         {
                             "fcu_url": fcu_url,
                             "gcs_url": gcs_url,
                             "tgt_system": target_system_id,
                             "tgt_component": target_component_id,
                             "fcu_protocol": fcu_protocol,
-                        }
+                        },
                     ],
                     respawn=respawn,
                     respawn_delay=respawn_delay,
