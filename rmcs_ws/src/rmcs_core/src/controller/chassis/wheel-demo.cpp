@@ -42,7 +42,7 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , mass_(get_parameter("mess").as_double())
+        , mass_(get_parameter("mass").as_double())
         , moment_of_inertia_(get_parameter("moment_of_inertia").as_double())
         , chassis_radius_(get_parameter("chassis_radius").as_double())
         , rod_length_(get_parameter("rod_length").as_double())

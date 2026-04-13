@@ -11,7 +11,7 @@ rmcs_executor:
       - rmcs_core::referee::command::interaction::Ui -> referee_ui
       - rmcs_core::referee::app::ui::Infantry -> referee_ui_infantry
 
-      - rmcs_core::controller::gimbal::SimpleGimbalController -> gimbal_controller
+      - rmcs_core::controller::gimbal::DeformableInfantryGimbalController -> gimbal_controller
 
       - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
       - rmcs_core::controller::shooting::HeatController -> heat_controller
@@ -22,7 +22,12 @@ rmcs_executor:
 
       - rmcs_core::controller::chassis::DeformableChassis -> chassis_controller
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
-      - rmcs_core::controller::chassis::DeformableChassisController -> deformable_chassis_controller
+      - rmcs_core::controller::chassis::WheelDemoController -> deformable_chassis_controller
+
+      - rmcs_core::controller::adrc::AdrcController -> lf_joint_adrc_controller
+      - rmcs_core::controller::adrc::AdrcController -> lb_joint_adrc_controller
+      - rmcs_core::controller::adrc::AdrcController -> rb_joint_adrc_controller
+      - rmcs_core::controller::adrc::AdrcController -> rf_joint_adrc_controller
 
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 
@@ -36,14 +41,14 @@ value_broadcaster:
 
 deformable_infantry:
   ros__parameters:
-    serial_filter_rmcs_board: ""
-    serial_filter_top_board: ""
+    serial_filter_rmcs_board: "AF-3CE0-2D2A-6CDC-89D0-CA40-90D7-46B5-4970"
+    serial_filter_top_board: "D4-0262-9E84-E715-CADB-9894-7241"
     left_front_zero_point: 289
     left_back_zero_point: 6552
     right_back_zero_point: 7244
     right_front_zero_point: 5203
-    yaw_motor_zero_point: 30689
-    pitch_motor_zero_point: 15838
+    yaw_motor_zero_point: 23405
+    pitch_motor_zero_point: 23111
 
 chassis_controller:
   ros__parameters:
@@ -70,7 +75,7 @@ gimbal_controller:
     pitch_angle_ki: 0.0
     pitch_angle_kd: 0.0
 
-    pitch_velocity_kp: 0.0
+    pitch_velocity_kp: 6.0
     pitch_velocity_ki: 0.0
     pitch_velocity_kd: 0.0
 
@@ -94,7 +99,7 @@ heat_controller:
 bullet_feeder_controller:
   ros__parameters:
     bullets_per_feeder_turn: 8.0
-    shot_frequency: 10.0
+    shot_frequency: 30.0
     safe_shot_frequency: 10.0
     eject_frequency: 10.0
     eject_time: 0.05
@@ -125,13 +130,13 @@ bullet_feeder_velocity_pid_controller:
     measurement: /gimbal/bullet_feeder/velocity
     setpoint: /gimbal/bullet_feeder/control_velocity
     control: /gimbal/bullet_feeder/control_torque
-    kp: 1.3
+    kp: 1.5
     ki: 0.0
     kd: 0.0
 
 deformable_chassis_controller:
   ros__parameters:
-    mess: 12.5
+    mess: 22.5
     moment_of_inertia: 1.0
     chassis_radius: 0.2341741
     rod_length: 0.150
@@ -140,3 +145,83 @@ deformable_chassis_controller:
     k1: 2.958580e+00
     k2: 3.082190e-03
     no_load_power: 11.37
+
+lf_joint_adrc_controller:
+  ros__parameters:
+    measurement: /chassis/left_front_joint/angle
+    setpoint: /chassis/left_front_joint/target_angle
+    control: /chassis/left_front_joint/control_torque
+    kt: 1.0
+    td_h: 0.001
+    td_r: 50.0
+    dt: 0.001
+    b0: 0.550
+    eso_w0: 250.0
+    eso_auto_beta: true
+    k1: 30.0
+    k2: 17.0
+    alpha1: 0.75
+    alpha2: 0.7
+    delta: 0.02
+    u_min: -200.0
+    u_max: 200.0
+
+lb_joint_adrc_controller:
+  ros__parameters:
+    measurement: /chassis/left_back_joint/angle
+    setpoint: /chassis/left_back_joint/target_angle
+    control: /chassis/left_back_joint/control_torque
+    kt: 1.0
+    td_h: 0.001
+    td_r: 50.0
+    dt: 0.001
+    b0: 0.550
+    eso_w0: 250.0
+    eso_auto_beta: true
+    k1: 30.0
+    k2: 17.0
+    alpha1: 0.75
+    alpha2: 0.7
+    delta: 0.02
+    u_min: -200.0
+    u_max: 200.0
+
+rb_joint_adrc_controller:
+  ros__parameters:
+    measurement: /chassis/right_back_joint/angle
+    setpoint: /chassis/right_back_joint/target_angle
+    control: /chassis/right_back_joint/control_torque
+    kt: 1.0
+    td_h: 0.001
+    td_r: 50.0
+    dt: 0.001
+    b0: 0.550
+    eso_w0: 250.0
+    eso_auto_beta: true
+    k1: 30.0
+    k2: 17.0
+    alpha1: 0.75
+    alpha2: 0.7
+    delta: 0.02
+    u_min: -200.0
+    u_max: 200.0
+
+rf_joint_adrc_controller:
+  ros__parameters:
+    measurement: /chassis/right_front_joint/angle
+    setpoint: /chassis/right_front_joint/target_angle
+    control: /chassis/right_front_joint/control_torque
+    kt: 1.0
+    td_h: 0.001
+    td_r: 50.0
+    dt: 0.001
+    b0: 0.550
+    eso_w0: 250.0
+    eso_auto_beta: true
+    k1: 30.0
+    k2: 17.0
+    alpha1: 0.75
+    alpha2: 0.7
+    delta: 0.02
+    u_min: -200.0
+    u_max: 200.0

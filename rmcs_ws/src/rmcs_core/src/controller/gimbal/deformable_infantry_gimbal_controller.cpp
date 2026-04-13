@@ -4,6 +4,7 @@
 #include <utility>
 
 #include <eigen3/Eigen/Dense>
+#include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
@@ -101,8 +102,7 @@ public:
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , gimbal_solver_(
               *this, get_parameter("upper_limit").as_double(),
-              get_parameter("lower_limit").as_double(), 
-              true)
+              get_parameter("lower_limit").as_double(), true)
         , yaw_angle_pid_(
               get_parameter("yaw_angle_kp").as_double(), get_parameter("yaw_angle_ki").as_double(),
               get_parameter("yaw_angle_kd").as_double())
@@ -206,6 +206,10 @@ public:
                              + yaw_vel_ff_gain_ * velocity_ff.x()
                              + yaw_acc_ff_gain_ * acceleration_ff.x();
         // Deformable pitch remains velocity-controlled in the hardware layer.
+        RCLCPP_INFO_THROTTLE(
+            get_logger(), *get_clock(), 200,
+            "pitch control velocity: %.6f, pitch angle error: %.6f", pitch_velocity_ref,
+            angle_error.pitch_angle_error);
         *pitch_control_velocity_ = pitch_velocity_ref;
     }
 
@@ -228,8 +232,8 @@ private:
 
         const double yaw_shift =
             joystick_sensitivity_ * joystick_left_->y() + mouse_sensitivity_ * mouse_velocity_->y();
-        const double pitch_shift =
-            -joystick_sensitivity_ * joystick_left_->x() + mouse_sensitivity_ * mouse_velocity_->x();
+        const double pitch_shift = -joystick_sensitivity_ * joystick_left_->x()
+                                 + mouse_sensitivity_ * mouse_velocity_->x();
         return gimbal_solver_.update(TwoAxisGimbalSolver::SetControlShift{yaw_shift, pitch_shift});
     }
 
@@ -322,5 +326,4 @@ private:
 #include <pluginlib/class_list_macros.hpp>
 
 PLUGINLIB_EXPORT_CLASS(
-    rmcs_core::controller::gimbal::DeformableInfantryGimbalController,
-    rmcs_executor::Component)
+    rmcs_core::controller::gimbal::DeformableInfantryGimbalController, rmcs_executor::Component)

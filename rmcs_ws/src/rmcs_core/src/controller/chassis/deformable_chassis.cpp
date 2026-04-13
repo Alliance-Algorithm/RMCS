@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
@@ -26,6 +27,13 @@ class DeformableChassis
     , public rclcpp::Node {
 public:
     enum class JointFeedbackSource : uint8_t { kLegacyEncoderAngle, kMotorAngle };
+    enum JointIndex : size_t {
+        kLeftFront = 0,
+        kLeftBack = 1,
+        kRightBack = 2,
+        kRightFront = 3,
+        kJointCount = 4,
+    };
 
     DeformableChassis()
         : Node(
@@ -39,42 +47,10 @@ public:
         , left_back_joint_offset_(get_parameter_or("left_back_joint_offset", 0.0))
         , right_front_joint_offset_(get_parameter_or("right_front_joint_offset", 0.0))
         , right_back_joint_offset_(get_parameter_or("right_back_joint_offset", 0.0))
-        , Bx_(get_parameter_or("Rod_relative_horizontal_coordinate", 0.0))
-        , By_(get_parameter_or("Rod_relative_longitudinal_coordinate", 0.0))
-        , L_(get_parameter_or("Rod_length", 0.0))
-
-        , joint_velocity_limit_(get_parameter_or("joint_velocity_limit", 500.0))
-        , joint_torque_limit_(get_parameter_or("joint_torque_limit", 10.0)) {
-
-        double joint_angle_kp = get_parameter_or("joint_angle_kp", 2.0);
-        double joint_angle_ki = get_parameter_or("joint_angle_ki", 0.0);
-        double joint_angle_kd = get_parameter_or("joint_angle_kd", 0.0);
-        double joint_velocity_kp = get_parameter_or("joint_velocity_kp", 1.0);
-        double joint_velocity_ki = get_parameter_or("joint_velocity_ki", 0.0);
-        double joint_velocity_kd = get_parameter_or("joint_velocity_kd", 0.0);
-
-        lf_angle_pid_ = pid::PidCalculator(joint_angle_kp, joint_angle_ki, joint_angle_kd);
-        lb_angle_pid_ = pid::PidCalculator(joint_angle_kp, joint_angle_ki, joint_angle_kd);
-        rf_angle_pid_ = pid::PidCalculator(joint_angle_kp, joint_angle_ki, joint_angle_kd);
-        rb_angle_pid_ = pid::PidCalculator(joint_angle_kp, joint_angle_ki, joint_angle_kd);
-
-        lf_velocity_pid_ =
-            pid::PidCalculator(joint_velocity_kp, joint_velocity_ki, joint_velocity_kd);
-        lb_velocity_pid_ =
-            pid::PidCalculator(joint_velocity_kp, joint_velocity_ki, joint_velocity_kd);
-        rf_velocity_pid_ =
-            pid::PidCalculator(joint_velocity_kp, joint_velocity_ki, joint_velocity_kd);
-        rb_velocity_pid_ =
-            pid::PidCalculator(joint_velocity_kp, joint_velocity_ki, joint_velocity_kd);
-
-        lf_velocity_pid_.output_max = joint_torque_limit_;
-        lf_velocity_pid_.output_min = -joint_torque_limit_;
-        lb_velocity_pid_.output_max = joint_torque_limit_;
-        lb_velocity_pid_.output_min = -joint_torque_limit_;
-        rf_velocity_pid_.output_max = joint_torque_limit_;
-        rf_velocity_pid_.output_min = -joint_torque_limit_;
-        rb_velocity_pid_.output_max = joint_torque_limit_;
-        rb_velocity_pid_.output_min = -joint_torque_limit_;
+        , target_physical_velocity_limit_(
+              deg_to_rad(get_parameter_or("target_physical_velocity_limit", 180.0)))
+        , target_physical_acceleration_limit_(
+              deg_to_rad(get_parameter_or("target_physical_acceleration_limit", 720.0))) {
 
         following_velocity_controller_.output_max = angular_velocity_max_;
         following_velocity_controller_.output_min = -angular_velocity_max_;
@@ -121,10 +97,14 @@ public:
         register_output("/chassis/right_front_joint/control_angle_error", rf_angle_error_, nan_);
         register_output("/chassis/right_back_joint/control_angle_error", rb_angle_error_, nan_);
 
-        register_output("/chassis/left_front_joint/control_torque", lf_control_torque_, nan_);
-        register_output("/chassis/left_back_joint/control_torque", lb_control_torque_, nan_);
-        register_output("/chassis/right_front_joint/control_torque", rf_control_torque_, nan_);
-        register_output("/chassis/right_back_joint/control_torque", rb_control_torque_, nan_);
+        register_output(
+            "/chassis/left_front_joint/target_angle", left_front_joint_target_angle_, nan_);
+        register_output(
+            "/chassis/left_back_joint/target_angle", left_back_joint_target_angle_, nan_);
+        register_output(
+            "/chassis/right_back_joint/target_angle", right_back_joint_target_angle_, nan_);
+        register_output(
+            "/chassis/right_front_joint/target_angle", right_front_joint_target_angle_, nan_);
 
         register_output(
             "/chassis/left_front_joint/target_physical_angle",
@@ -138,6 +118,30 @@ public:
         register_output(
             "/chassis/right_front_joint/target_physical_angle",
             right_front_joint_target_physical_angle_, nan_);
+        register_output(
+            "/chassis/left_front_joint/target_physical_velocity",
+            left_front_joint_target_physical_velocity_, nan_);
+        register_output(
+            "/chassis/left_back_joint/target_physical_velocity",
+            left_back_joint_target_physical_velocity_, nan_);
+        register_output(
+            "/chassis/right_back_joint/target_physical_velocity",
+            right_back_joint_target_physical_velocity_, nan_);
+        register_output(
+            "/chassis/right_front_joint/target_physical_velocity",
+            right_front_joint_target_physical_velocity_, nan_);
+        register_output(
+            "/chassis/left_front_joint/target_physical_acceleration",
+            left_front_joint_target_physical_acceleration_, nan_);
+        register_output(
+            "/chassis/left_back_joint/target_physical_acceleration",
+            left_back_joint_target_physical_acceleration_, nan_);
+        register_output(
+            "/chassis/right_back_joint/target_physical_acceleration",
+            right_back_joint_target_physical_acceleration_, nan_);
+        register_output(
+            "/chassis/right_front_joint/target_physical_acceleration",
+            right_front_joint_target_physical_acceleration_, nan_);
 
         register_output("/chassis/processed_encoder/angle", processed_encoder_angle_, nan_);
 
@@ -287,21 +291,32 @@ private:
         *chassis_control_angle_ = nan_;
 
         current_target_angle_ = max_angle_;
-        test_init_ = false;
+        joint_target_active_ = false;
 
         *lf_angle_error_ = nan_;
         *lb_angle_error_ = nan_;
         *rf_angle_error_ = nan_;
         *rb_angle_error_ = nan_;
 
-        *left_front_joint_target_physical_angle_ = current_target_angle_ * std::numbers::pi / 180.0;
-        *left_back_joint_target_physical_angle_ = current_target_angle_ * std::numbers::pi / 180.0;
-        *right_back_joint_target_physical_angle_ = current_target_angle_ * std::numbers::pi / 180.0;
-        *right_front_joint_target_physical_angle_ =
-            current_target_angle_ * std::numbers::pi / 180.0;
+        *left_front_joint_target_angle_ = nan_;
+        *left_back_joint_target_angle_ = nan_;
+        *right_back_joint_target_angle_ = nan_;
+        *right_front_joint_target_angle_ = nan_;
+
+        *left_front_joint_target_physical_angle_ = nan_;
+        *left_back_joint_target_physical_angle_ = nan_;
+        *right_back_joint_target_physical_angle_ = nan_;
+        *right_front_joint_target_physical_angle_ = nan_;
+        *left_front_joint_target_physical_velocity_ = nan_;
+        *left_back_joint_target_physical_velocity_ = nan_;
+        *right_back_joint_target_physical_velocity_ = nan_;
+        *right_front_joint_target_physical_velocity_ = nan_;
+        *left_front_joint_target_physical_acceleration_ = nan_;
+        *left_back_joint_target_physical_acceleration_ = nan_;
+        *right_back_joint_target_physical_acceleration_ = nan_;
+        *right_front_joint_target_physical_acceleration_ = nan_;
 
         *processed_encoder_angle_ = nan_;
-        // RCLCPP_INFO(get_logger(), "%f", *scope_motor_velocity);
     }
 
     void update_velocity_control() {
@@ -325,15 +340,20 @@ private:
     }
 
     double update_angular_velocity_control() {
+        const double manual_angular_velocity =
+            std::clamp((*joystick_left_).y(), -1.0, 1.0) * angular_velocity_max_;
         double angular_velocity = 0.0;
         double chassis_control_angle = nan_;
 
         switch (*mode_) {
-        case rmcs_msgs::ChassisMode::AUTO: break;
+        case rmcs_msgs::ChassisMode::AUTO: angular_velocity = manual_angular_velocity; break;
 
         case rmcs_msgs::ChassisMode::SPIN: {
             angular_velocity =
                 0.6 * (spinning_forward_ ? angular_velocity_max_ : -angular_velocity_max_);
+            angular_velocity = std::clamp(
+                angular_velocity + manual_angular_velocity, -angular_velocity_max_,
+                angular_velocity_max_);
         } break;
 
         case rmcs_msgs::ChassisMode::STEP_DOWN: {
@@ -385,6 +405,7 @@ private:
         rmcs_msgs::Switch left_switch, rmcs_msgs::Switch right_switch,
         rmcs_msgs::Keyboard keyboard) {
         bool apply_symmetric_target = false;
+        constexpr double rotary_knob_edge_threshold = 0.7;
 
         const bool switch_toggle_condition =
             (left_switch == rmcs_msgs::Switch::MIDDLE) && (right_switch == rmcs_msgs::Switch::UP);
@@ -392,8 +413,14 @@ private:
 
         const bool last_switch_toggle_condition = (last_switch_left_ == rmcs_msgs::Switch::MIDDLE)
                                                && (last_switch_right_ == rmcs_msgs::Switch::UP);
-        const bool front_high_rear_low = !last_keyboard_.b && keyboard.b;
-        const bool front_low_rear_high = !last_keyboard_.g && keyboard.g;
+        const bool rotary_knob_front_high_rear_low = last_rotary_knob_ > -rotary_knob_edge_threshold
+                                                  && *rotary_knob_ <= -rotary_knob_edge_threshold;
+        const bool rotary_knob_front_low_rear_high = last_rotary_knob_ < rotary_knob_edge_threshold
+                                                  && *rotary_knob_ >= rotary_knob_edge_threshold;
+        const bool front_high_rear_low =
+            (!last_keyboard_.b && keyboard.b) || rotary_knob_front_high_rear_low;
+        const bool front_low_rear_high =
+            (!last_keyboard_.g && keyboard.g) || rotary_knob_front_low_rear_high;
         const bool uphill = !last_keyboard_.ctrl && keyboard.ctrl;
 
         if ((switch_toggle_condition && !last_switch_toggle_condition)
@@ -426,81 +453,186 @@ private:
             rb_current_target_angle_ = current_target_angle_;
             rf_current_target_angle_ = current_target_angle_;
         }
+
+        last_rotary_knob_ = *rotary_knob_;
     }
 
     void update_lift_angle_error() {
-        *left_front_joint_target_physical_angle_ =
-            lf_current_target_angle_ * std::numbers::pi / 180.0;
-        *left_back_joint_target_physical_angle_ =
-            lb_current_target_angle_ * std::numbers::pi / 180.0;
-        *right_back_joint_target_physical_angle_ =
-            rb_current_target_angle_ * std::numbers::pi / 180.0;
-        *right_front_joint_target_physical_angle_ =
-            rf_current_target_angle_ * std::numbers::pi / 180.0;
+        if (!joint_target_active_ && !publish_current_joint_target_angles()) {
+            publish_nan_joint_targets();
+            return;
+        }
 
-        double lf_s_target_ = trapezoidal_calculator(lf_current_target_angle_);
-        double lb_s_target_ = trapezoidal_calculator(lb_current_target_angle_);
-        double rb_s_target_ = trapezoidal_calculator(rb_current_target_angle_);
-        double rf_s_target_ = trapezoidal_calculator(rf_current_target_angle_);
+        current_target_physical_angles_rad_[kLeftFront] = deg_to_rad(lf_current_target_angle_);
+        current_target_physical_angles_rad_[kLeftBack] = deg_to_rad(lb_current_target_angle_);
+        current_target_physical_angles_rad_[kRightBack] = deg_to_rad(rb_current_target_angle_);
+        current_target_physical_angles_rad_[kRightFront] = deg_to_rad(rf_current_target_angle_);
 
-        const double alpha_lf = joint_angle_deg(
-            left_front_joint_angle_, left_front_joint_encoder_angle_, left_front_joint_offset_,
-            10.81767);
-        const double alpha_lb = joint_angle_deg(
-            left_back_joint_angle_, left_back_joint_encoder_angle_, left_back_joint_offset_,
-            10.38748);
-        const double alpha_rf = joint_angle_deg(
-            right_front_joint_angle_, right_front_joint_encoder_angle_, right_front_joint_offset_,
-            10.57454);
-        const double alpha_rb = joint_angle_deg(
-            right_back_joint_angle_, right_back_joint_encoder_angle_, right_back_joint_offset_,
-            10.326716);
-
-        *processed_encoder_angle_ = (alpha_lb + alpha_rb + alpha_lf + alpha_rf) / 4.0;
-
-        s_lf_ = trapezoidal_calculator(alpha_lf);
-        s_lb_ = trapezoidal_calculator(alpha_lb);
-        s_rf_ = trapezoidal_calculator(alpha_rf);
-        s_rb_ = trapezoidal_calculator(alpha_rb);
-
-        *lf_angle_error_ = s_lf_ - lf_s_target_;
-        *lb_angle_error_ = s_lb_ - lb_s_target_;
-        *rf_angle_error_ = s_rf_ - rf_s_target_;
-        *rb_angle_error_ = s_rb_ - rb_s_target_;
-
-        double lf_velocity_ref = lf_angle_pid_.update(*lf_angle_error_);
-        double lb_velocity_ref = lb_angle_pid_.update(*lb_angle_error_);
-        double rf_velocity_ref = rf_angle_pid_.update(*rf_angle_error_);
-        double rb_velocity_ref = rb_angle_pid_.update(*rb_angle_error_);
-
-        lf_velocity_ref =
-            std::clamp(lf_velocity_ref, -joint_velocity_limit_, joint_velocity_limit_);
-        lb_velocity_ref =
-            std::clamp(lb_velocity_ref, -joint_velocity_limit_, joint_velocity_limit_);
-        rf_velocity_ref =
-            std::clamp(rf_velocity_ref, -joint_velocity_limit_, joint_velocity_limit_);
-        rb_velocity_ref =
-            std::clamp(rb_velocity_ref, -joint_velocity_limit_, joint_velocity_limit_);
-
-        double lf_torque = lf_velocity_pid_.update(lf_velocity_ref - *left_front_joint_velocity_);
-        double lb_torque = lb_velocity_pid_.update(lb_velocity_ref - *left_back_joint_velocity_);
-        double rf_torque = rf_velocity_pid_.update(rf_velocity_ref - *right_front_joint_velocity_);
-        double rb_torque = rb_velocity_pid_.update(rb_velocity_ref - *right_back_joint_velocity_);
-
-        *lf_control_torque_ = lf_torque;
-        *lb_control_torque_ = lb_torque;
-        *rf_control_torque_ = rf_torque;
-        *rb_control_torque_ = rb_torque;
+        update_joint_target_trajectory();
+        publish_joint_target_angles();
     }
 
-    double trapezoidal_calculator(double alpha_deg) const {
-        const double rad = alpha_deg * pi_ / 180.0;
+    static double deg_to_rad(double deg) { return deg * std::numbers::pi / 180.0; }
 
-        const double term = Bx_ * std::cos(rad) + By_ * std::sin(rad);
-        const double t = (Bx_ * std::sin(rad) - By_ * std::cos(rad) + 15.0);
+    static double physical_to_motor_angle(double physical_angle_rad) {
+        return joint_zero_physical_angle_rad_ - physical_angle_rad;
+    }
 
-        const double inside = L_ * L_ - t * t;
-        return term + std::sqrt(std::max(0.0, inside));
+    static double motor_to_physical_angle(double motor_angle_rad) {
+        return joint_zero_physical_angle_rad_ - motor_angle_rad;
+    }
+
+    bool publish_current_joint_target_angles() {
+        const std::array<InputInterface<double>*, kJointCount> motor_angle_inputs{
+            &left_front_joint_angle_, &left_back_joint_angle_, &right_back_joint_angle_,
+            &right_front_joint_angle_};
+
+        std::array<double, kJointCount> current_motor_angles{};
+        std::array<double, kJointCount> current_physical_angles{};
+        for (size_t i = 0; i < kJointCount; ++i) {
+            if (!motor_angle_inputs[i]->ready() || !std::isfinite(*(*motor_angle_inputs[i]))) {
+                return false;
+            }
+            current_motor_angles[i] = *(*motor_angle_inputs[i]);
+            current_physical_angles[i] = motor_to_physical_angle(current_motor_angles[i]);
+        }
+
+        joint_target_angle_state_rad_ = current_motor_angles;
+        joint_target_physical_angle_state_rad_ = current_physical_angles;
+        joint_target_physical_velocity_state_rad_ = {0.0, 0.0, 0.0, 0.0};
+        joint_target_physical_acceleration_state_rad_ = {0.0, 0.0, 0.0, 0.0};
+        current_target_physical_angles_rad_ = current_physical_angles;
+        joint_target_active_ = true;
+        return true;
+    }
+
+    void update_joint_target_trajectory() {
+        for (size_t i = 0; i < kJointCount; ++i) {
+            double& angle_state = joint_target_physical_angle_state_rad_[i];
+            double& velocity_state = joint_target_physical_velocity_state_rad_[i];
+            double& acceleration_state = joint_target_physical_acceleration_state_rad_[i];
+            const double target_angle = current_target_physical_angles_rad_[i];
+
+            if (!std::isfinite(target_angle) || !std::isfinite(angle_state)) {
+                continue;
+            }
+
+            const double position_error = target_angle - angle_state;
+            const double stopping_distance =
+                velocity_state * velocity_state / (2.0 * target_physical_acceleration_limit_);
+
+            double desired_velocity = 0.0;
+            if (std::abs(position_error) > 1e-6 && std::abs(position_error) > stopping_distance) {
+                desired_velocity = std::copysign(target_physical_velocity_limit_, position_error);
+            }
+
+            const double velocity_error = desired_velocity - velocity_state;
+            acceleration_state = std::clamp(
+                velocity_error / dt_, -target_physical_acceleration_limit_,
+                target_physical_acceleration_limit_);
+
+            velocity_state += acceleration_state * dt_;
+            velocity_state = std::clamp(
+                velocity_state, -target_physical_velocity_limit_, target_physical_velocity_limit_);
+            angle_state += velocity_state * dt_;
+
+            const double next_error = target_angle - angle_state;
+            if ((position_error > 0.0 && next_error < 0.0)
+                || (position_error < 0.0 && next_error > 0.0)
+                || (std::abs(next_error) < 1e-5 && std::abs(velocity_state) < 1e-3)) {
+                angle_state = target_angle;
+                velocity_state = 0.0;
+                acceleration_state = 0.0;
+            }
+
+            joint_target_angle_state_rad_[i] = physical_to_motor_angle(angle_state);
+        }
+    }
+
+    void publish_joint_target_angles() {
+        if (!joint_target_active_) {
+            publish_nan_joint_targets();
+            return;
+        }
+
+        *left_front_joint_target_angle_ = joint_target_angle_state_rad_[kLeftFront];
+        *left_back_joint_target_angle_ = joint_target_angle_state_rad_[kLeftBack];
+        *right_back_joint_target_angle_ = joint_target_angle_state_rad_[kRightBack];
+        *right_front_joint_target_angle_ = joint_target_angle_state_rad_[kRightFront];
+
+        *left_front_joint_target_physical_angle_ =
+            joint_target_physical_angle_state_rad_[kLeftFront];
+        *left_back_joint_target_physical_angle_ = joint_target_physical_angle_state_rad_[kLeftBack];
+        *right_back_joint_target_physical_angle_ =
+            joint_target_physical_angle_state_rad_[kRightBack];
+        *right_front_joint_target_physical_angle_ =
+            joint_target_physical_angle_state_rad_[kRightFront];
+
+        *left_front_joint_target_physical_velocity_ =
+            joint_target_physical_velocity_state_rad_[kLeftFront];
+        *left_back_joint_target_physical_velocity_ =
+            joint_target_physical_velocity_state_rad_[kLeftBack];
+        *right_back_joint_target_physical_velocity_ =
+            joint_target_physical_velocity_state_rad_[kRightBack];
+        *right_front_joint_target_physical_velocity_ =
+            joint_target_physical_velocity_state_rad_[kRightFront];
+
+        *left_front_joint_target_physical_acceleration_ =
+            joint_target_physical_acceleration_state_rad_[kLeftFront];
+        *left_back_joint_target_physical_acceleration_ =
+            joint_target_physical_acceleration_state_rad_[kLeftBack];
+        *right_back_joint_target_physical_acceleration_ =
+            joint_target_physical_acceleration_state_rad_[kRightBack];
+        *right_front_joint_target_physical_acceleration_ =
+            joint_target_physical_acceleration_state_rad_[kRightFront];
+
+        std::array<double, kJointCount> current_physical_angles{};
+        current_physical_angles[kLeftFront] = motor_to_physical_angle(*left_front_joint_angle_);
+        current_physical_angles[kLeftBack] = motor_to_physical_angle(*left_back_joint_angle_);
+        current_physical_angles[kRightBack] = motor_to_physical_angle(*right_back_joint_angle_);
+        current_physical_angles[kRightFront] = motor_to_physical_angle(*right_front_joint_angle_);
+
+        *lf_angle_error_ = current_physical_angles[kLeftFront]
+                         - joint_target_physical_angle_state_rad_[kLeftFront];
+        *lb_angle_error_ =
+            current_physical_angles[kLeftBack] - joint_target_physical_angle_state_rad_[kLeftBack];
+        *rb_angle_error_ = current_physical_angles[kRightBack]
+                         - joint_target_physical_angle_state_rad_[kRightBack];
+        *rf_angle_error_ = current_physical_angles[kRightFront]
+                         - joint_target_physical_angle_state_rad_[kRightFront];
+
+        *processed_encoder_angle_ =
+            rad_to_deg_
+            * (current_physical_angles[kLeftFront] + current_physical_angles[kLeftBack]
+               + current_physical_angles[kRightBack] + current_physical_angles[kRightFront])
+            / 4.0;
+    }
+
+    void publish_nan_joint_targets() {
+        *left_front_joint_target_angle_ = nan_;
+        *left_back_joint_target_angle_ = nan_;
+        *right_back_joint_target_angle_ = nan_;
+        *right_front_joint_target_angle_ = nan_;
+
+        *left_front_joint_target_physical_angle_ = nan_;
+        *left_back_joint_target_physical_angle_ = nan_;
+        *right_back_joint_target_physical_angle_ = nan_;
+        *right_front_joint_target_physical_angle_ = nan_;
+
+        *left_front_joint_target_physical_velocity_ = nan_;
+        *left_back_joint_target_physical_velocity_ = nan_;
+        *right_back_joint_target_physical_velocity_ = nan_;
+        *right_front_joint_target_physical_velocity_ = nan_;
+
+        *left_front_joint_target_physical_acceleration_ = nan_;
+        *left_back_joint_target_physical_acceleration_ = nan_;
+        *right_back_joint_target_physical_acceleration_ = nan_;
+        *right_front_joint_target_physical_acceleration_ = nan_;
+
+        *lf_angle_error_ = nan_;
+        *lb_angle_error_ = nan_;
+        *rb_angle_error_ = nan_;
+        *rf_angle_error_ = nan_;
     }
 
 private:
@@ -516,6 +648,7 @@ private:
     rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Switch last_switch_left_ = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Keyboard last_keyboard_ = rmcs_msgs::Keyboard::zero();
+    double last_rotary_knob_ = 0.0;
 
     InputInterface<double> gimbal_yaw_angle_, gimbal_yaw_angle_error_;
     OutputInterface<double> chassis_angle_, chassis_control_angle_;
@@ -546,15 +679,23 @@ private:
     OutputInterface<double> rf_angle_error_;
     OutputInterface<double> rb_angle_error_;
 
-    OutputInterface<double> lf_control_torque_;
-    OutputInterface<double> lb_control_torque_;
-    OutputInterface<double> rf_control_torque_;
-    OutputInterface<double> rb_control_torque_;
+    OutputInterface<double> left_front_joint_target_angle_;
+    OutputInterface<double> left_back_joint_target_angle_;
+    OutputInterface<double> right_back_joint_target_angle_;
+    OutputInterface<double> right_front_joint_target_angle_;
 
     OutputInterface<double> left_front_joint_target_physical_angle_;
     OutputInterface<double> left_back_joint_target_physical_angle_;
     OutputInterface<double> right_back_joint_target_physical_angle_;
     OutputInterface<double> right_front_joint_target_physical_angle_;
+    OutputInterface<double> left_front_joint_target_physical_velocity_;
+    OutputInterface<double> left_back_joint_target_physical_velocity_;
+    OutputInterface<double> right_back_joint_target_physical_velocity_;
+    OutputInterface<double> right_front_joint_target_physical_velocity_;
+    OutputInterface<double> left_front_joint_target_physical_acceleration_;
+    OutputInterface<double> left_back_joint_target_physical_acceleration_;
+    OutputInterface<double> right_back_joint_target_physical_acceleration_;
+    OutputInterface<double> right_front_joint_target_physical_acceleration_;
 
     OutputInterface<double> processed_encoder_angle_;
 
@@ -570,19 +711,19 @@ private:
     double lf_current_target_angle_, lb_current_target_angle_, rb_current_target_angle_,
         rf_current_target_angle_;
 
-    double s_lf_ = 0.0, s_lb_ = 0.0, s_rf_ = 0.0, s_rb_ = 0.0;
+    bool joint_target_active_ = false;
+    std::array<double, kJointCount> current_target_physical_angles_rad_ = {0.0, 0.0, 0.0, 0.0};
+    std::array<double, kJointCount> joint_target_angle_state_rad_ = {0.0, 0.0, 0.0, 0.0};
+    std::array<double, kJointCount> joint_target_physical_angle_state_rad_ = {0.0, 0.0, 0.0, 0.0};
+    std::array<double, kJointCount> joint_target_physical_velocity_state_rad_ = {
+        0.0, 0.0, 0.0, 0.0};
+    std::array<double, kJointCount> joint_target_physical_acceleration_state_rad_ = {
+        0.0, 0.0, 0.0, 0.0};
+    double target_physical_velocity_limit_;
+    double target_physical_acceleration_limit_;
 
-    double Bx_ = 0.0;
-    double By_ = 0.0;
-    double L_ = 0.0;
-
-    pid::PidCalculator lf_angle_pid_, lb_angle_pid_, rf_angle_pid_, rb_angle_pid_;
-    pid::PidCalculator lf_velocity_pid_, lb_velocity_pid_, rf_velocity_pid_, rb_velocity_pid_;
-
-    double joint_velocity_limit_ = 500.0;
-    double joint_torque_limit_ = 10.0;
-
-    bool test_init_ = false;
+    static constexpr double dt_ = 1e-3;
+    static constexpr double joint_zero_physical_angle_rad_ = 1.090830782496456;
 
     static constexpr double pi_ = std::numbers::pi;
 };

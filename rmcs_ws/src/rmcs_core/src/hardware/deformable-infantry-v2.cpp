@@ -383,7 +383,7 @@ private:
                                            chassis_steer_motors_[1].generate_command(),
                                            device::CanPacket8::PaddingQuarter{},
                                            device::CanPacket8::PaddingQuarter{},
-                                           device::CanPacket8::PaddingQuarter{},
+                                           supercap_.generate_command(),
                                            }
                             .as_bytes(),
                 });
@@ -394,7 +394,7 @@ private:
                                            chassis_steer_motors_[2].generate_command(),
                                            device::CanPacket8::PaddingQuarter{},
                                            device::CanPacket8::PaddingQuarter{},
-                                           supercap_.generate_command(),
+                                           device::CanPacket8::PaddingQuarter{},
                                            }
                             .as_bytes(),
                 });
@@ -530,6 +530,10 @@ private:
                 joint_status_received_[1].store(true, std::memory_order_relaxed);
             } else if (data.can_id == 0x205)
                 chassis_steer_motors_[1].store_status(data.can_data);
+            else if (data.can_id == 0x300) {
+                supercap_.store_status(data.can_data);
+                supercap_status_received_.store(true, std::memory_order_relaxed);
+            }
         }
 
         void can2_receive_callback(const librmcs::data::CanDataView& data) override {
@@ -546,10 +550,6 @@ private:
                 gimbal_bullet_feeder_.store_status(data.can_data);
             } else if (data.can_id == 0x205)
                 chassis_steer_motors_[2].store_status(data.can_data);
-            else if (data.can_id == 0x300) {
-                supercap_.store_status(data.can_data);
-                supercap_status_received_.store(true, std::memory_order_relaxed);
-            }
         }
 
         void can3_receive_callback(const librmcs::data::CanDataView& data) override {
@@ -606,14 +606,14 @@ private:
         OutputInterface<double> right_front_joint_physical_velocity_;
     };
 
-    class TopBoard final : private librmcs::agent::RmcsBoard {
+    class TopBoard final : private librmcs::agent::CBoard {
     public:
         friend class DeformableInfantryV2;
 
         explicit TopBoard(
             DeformableInfantryV2& deformableInfantry,
             DeformableInfantryV2Command& deformableInfantry_command, std::string serial_filter = {})
-            : librmcs::agent::RmcsBoard(
+            : librmcs::agent::CBoard(
                   serial_filter,
                   librmcs::agent::AdvancedOptions{.dangerously_skip_version_checks = true})
             , hard_sync_pending_(deformableInfantry.hard_sync_pending_)
@@ -650,7 +650,7 @@ private:
 
             bmi088_.set_coordinate_mapping([](double x, double y, double z) {
                 // Top board BMI088 maps to gimbal frame as (-x, -y, z).
-                return std::make_tuple(-x, -y, z);
+                return std::make_tuple(-y, x, z);
             });
         }
 
@@ -666,7 +666,7 @@ private:
                 bmi088_.q0(), bmi088_.q1(), bmi088_.q2(), bmi088_.q3()};
 
             *gimbal_yaw_velocity_bmi088_ = bmi088_.gz();
-            *gimbal_pitch_velocity_bmi088_ = bmi088_.gy();
+            *gimbal_pitch_velocity_bmi088_ = gimbal_pitch_motor_.velocity();
 
             tf_->set_transform<rmcs_description::PitchLink, rmcs_description::OdomImu>(
                 gimbal_bmi088_pose.conjugate());
@@ -682,7 +682,13 @@ private:
 
         void command_update() {
             auto builder = start_transmit();
-            builder.can0_transmit({
+            ;
+            builder.can1_transmit({
+                .can_id = 0x141,
+                .can_data = gimbal_pitch_motor_.generate_velocity_command().as_bytes(),
+            });
+
+            builder.can2_transmit({
                 .can_id = 0x200,
                 .can_data =
                     device::CanPacket8{
@@ -692,10 +698,6 @@ private:
                                        device::CanPacket8::PaddingQuarter{},
                                        }
                         .as_bytes(),
-            });
-            builder.can1_transmit({
-                .can_id = 0x141,
-                .can_data = gimbal_pitch_motor_.generate_velocity_command().as_bytes(),
             });
         }
 
@@ -709,7 +711,7 @@ private:
                 gimbal_pitch_motor_.store_status(data.can_data);
         }
 
-        void can0_receive_callback(const librmcs::data::CanDataView& data) override {
+        void can2_receive_callback(const librmcs::data::CanDataView& data) override {
             if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
                 return;
             if (data.can_id == 0x201)
