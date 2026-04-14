@@ -646,7 +646,7 @@ private:
             deformableInfantry.register_output(
                 "/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_bmi088_);
             deformableInfantry.register_output(
-                "/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_bmi088_);
+                "/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_encoder_);
 
             bmi088_.set_coordinate_mapping([](double x, double y, double z) {
                 // Top board BMI088 maps to gimbal frame as (-x, -y, z).
@@ -662,20 +662,26 @@ private:
 
         void update() {
             bmi088_.update_status();
-            Eigen::Quaterniond gimbal_bmi088_pose{
-                bmi088_.q0(), bmi088_.q1(), bmi088_.q2(), bmi088_.q3()};
-
-            *gimbal_yaw_velocity_bmi088_ = bmi088_.gz();
-            *gimbal_pitch_velocity_bmi088_ = gimbal_pitch_motor_.velocity();
-
-            tf_->set_transform<rmcs_description::PitchLink, rmcs_description::OdomImu>(
-                gimbal_bmi088_pose.conjugate());
-
             gimbal_pitch_motor_.update_status();
             gimbal_left_friction_.update_status();
             gimbal_right_friction_.update_status();
             scope_motor_.update_status();
 
+            Eigen::Quaterniond const odom_imu_to_yaw_link{
+                bmi088_.q0(), bmi088_.q1(), bmi088_.q2(), bmi088_.q3()};
+            Eigen::Quaterniond const yaw_link_to_odom_imu = odom_imu_to_yaw_link.conjugate();
+            Eigen::Quaterniond pitch_link_to_odom_imu = yaw_link_to_odom_imu
+                                                      * Eigen::Quaterniond{Eigen::AngleAxisd{
+                                                          -gimbal_pitch_motor_.angle(),
+                                                          Eigen::Vector3d::UnitY()}};
+            pitch_link_to_odom_imu.normalize();
+
+            *gimbal_yaw_velocity_bmi088_ = bmi088_.gz();
+            *gimbal_pitch_velocity_encoder_ = gimbal_pitch_motor_.velocity();
+            // V2 mounts the BMI088 on the yaw link, so synthesize the pitch-link pose with the
+            // pitch encoder before publishing the TF tree.
+            tf_->set_transform<rmcs_description::PitchLink, rmcs_description::OdomImu>(
+                pitch_link_to_odom_imu);
             tf_->set_state<rmcs_description::YawLink, rmcs_description::PitchLink>(
                 gimbal_pitch_motor_.angle());
         }
@@ -735,7 +741,7 @@ private:
         OutputInterface<rmcs_description::Tf>& tf_;
 
         OutputInterface<double> gimbal_yaw_velocity_bmi088_;
-        OutputInterface<double> gimbal_pitch_velocity_bmi088_;
+        OutputInterface<double> gimbal_pitch_velocity_encoder_;
 
         device::Bmi088 bmi088_;
         device::LkMotor gimbal_pitch_motor_;
