@@ -104,23 +104,11 @@
   <class type="rmcs_core::hardware::ForceSensorReceive" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
-  <class type="rmcs_core::controller::dart::DartLaunchController" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
-  </class>
   <class type="rmcs_core::hardware::CatapultDart" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
+    <description>Catapult dart hardware.</description>
   </class>
-  <class type="rmcs_core::controller::dart::DartSettings" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
-  </class>
-  <class type="rmcs_core::controller::dart::Test" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
-  </class>
-  <class type="rmcs_core::hardware::DartFillingTestHardware" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
-  </class>
-  <class type="rmcs_core::controller::dart::DartFillingTest" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
+  <class type="rmcs_core::controller::dart::DartTriggerController" base_class_type="rmcs_executor::Component">
+    <description>Trigger controller: maps DartManager trigger commands to trigger servo PWM values.</description>
   </class>
   <class type="rmcs_core::hardware::ServoTest" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
@@ -128,32 +116,8 @@
   <class type="rmcs_core::controller::test::PWMTest" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
-  <class type="rmcs_core::hardware::CatapultDartforlibrmcsv3" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
-  </class>
-  <class type="rmcs_core::hardware::CatapultDartV3Full" base_class_type="rmcs_executor::Component">
-    <description>Full-featured catapult dart hardware with librmcs v3 API.</description>
-  </class>
-  <class type="rmcs_core::hardware::CatapultDartV3Lk" base_class_type="rmcs_executor::Component">
-    <description>Catapult dart hardware v3 with LK4005 lifting motors (CAN1 0x141/0x142).</description>
-  </class>
-  <class type="rmcs_core::controller::dart::DartLaunchControllerV2" base_class_type="rmcs_executor::Component">
-    <description>Launch controller Phase 1: belt + trigger only, no lifting/limiting.</description>
-  </class>
-  <class type="rmcs_core::controller::dart::DartLaunchControllerV2Full" base_class_type="rmcs_executor::Component">
-    <description>Launch controller Phase 2: full filling sequence with LK4005 lifting + limiting servo.</description>
-  </class>
-  <class type="rmcs_core::hardware::CatapultDartV4" base_class_type="rmcs_executor::Component">
-    <description>Catapult dart hardware v4: force_screw path renamed to /dart/force_screw for DartManager compatibility.</description>
-  </class>
-  <class type="rmcs_core::controller::dart::DartLaunchSetting" base_class_type="rmcs_executor::Component">
-    <description>Launch setting controller: subscribes to DartManager belt/trigger commands, outputs belt torques and trigger servo value.</description>
-  </class>
   <class type="rmcs_core::controller::dart::DartSettingController" base_class_type="rmcs_executor::Component">
     <description>Dart setting controller: consumes /dart_manager angle/force errors, outputs yaw/pitch/force control velocities for external velocity PID closure.</description>
-  </class>
-  <class type="rmcs_core::controller::dart::DartLaunchercontroller" base_class_type="rmcs_executor::Component">
-    <description>Launcher controller: trigger servo execution that maps manager lock state to PWM value.</description>
   </class>
   <class type="rmcs_core::controller::dart::DartBeltController" base_class_type="rmcs_executor::Component">
     <description>Dart belt controller: dual-belt synchronized PID control with trapezoidal velocity planning.</description>
@@ -166,11 +130,5 @@
   </class>
   <class type="rmcs_core::controller::dart::DartFillingStatus" base_class_type="rmcs_executor::Component">
     <description>Dart filling status: detects lift stall/arrival and publishes /dart_manager/lift/arrive_flag.</description>
-  </class>
-  <class type="rmcs_core::hardware::CatapultDartFillingTest" base_class_type="rmcs_executor::Component">
-    <description>Launch setting V2: belt + trigger + LK lifting angle control.</description>
-  </class>
-  <class type="rmcs_core::hardware::CatapultDart" base_class_type="rmcs_executor::Component">
-    <description>Launch setting V2: belt + trigger + LK lifting angle control.</description>
   </class>
 </library>

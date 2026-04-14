@@ -98,7 +98,6 @@ public:
         yaw_drift_coefficient_ = 0.0;
         tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
 
-        register_output("/tf", tf_);
         register_output("/imu/catapult_pitch_angle", catapult_pitch_angle_);
         register_output("/imu/catapult_roll_angle", catapult_roll_angle_);
         register_output("/imu/catapult_yaw_angle", catapult_yaw_angle_);
@@ -325,7 +324,7 @@ private:
     static constexpr uint32_t LK_LIFTING_LEFT_ID = 0x141;
     static constexpr uint32_t LK_LIFTING_RIGHT_ID = 0x145;
 
-    void force_sensor_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr msg) {
+    void force_sensor_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
         auto board = start_transmit();
         board.can1_transmit({
             .can_id = 0x201,
@@ -531,7 +530,6 @@ private:
 
     std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
 
-    OutputInterface<rmcs_description::Tf> tf_;
     OutputInterface<double> catapult_pitch_angle_;
     OutputInterface<double> catapult_roll_angle_;
     OutputInterface<double> catapult_yaw_angle_;

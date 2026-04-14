@@ -14,11 +14,11 @@
 namespace rmcs_core::controller::dart {
 
 // DartLaunchercontroller 负责将 manager 发布的扳机命令映射为舵机 PWM 值。
-class DartLaunchercontroller
+class DartTriggerController
     : public rmcs_executor::Component
     , public rclcpp::Node {
 public:
-    DartLaunchercontroller()
+    DartTriggerController()
         : Node{
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
@@ -296,7 +296,6 @@ private:
 } // namespace rmcs_core::controller::dart
 
 #include <pluginlib/class_list_macros.hpp>
-PLUGINLIB_EXPORT_CLASS(
-    rmcs_core::controller::dart::DartLaunchercontroller, rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::dart::DartTriggerController, rmcs_executor::Component)
 PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::dart::DartBeltController, rmcs_executor::Component)
 PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::dart::DartBeltStatus, rmcs_executor::Component)

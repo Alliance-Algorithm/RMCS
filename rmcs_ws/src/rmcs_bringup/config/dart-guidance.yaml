@@ -6,14 +6,21 @@ rmcs_executor:
       - rmcs_dart_guidance::manager::DartManager   -> dart_manager
       - rmcs_dart_guidance::manager::RemoteCommandBridge -> remote_cmd_bridge
 
-      - rmcs_core::controller::dart::DartLaunchercontroller -> trigger_setting
+      - rmcs_core::controller::dart::DartTriggerController -> trigger_setting
       - rmcs_core::controller::dart::DartBeltController -> dart_belt_controller
       - rmcs_core::controller::dart::DartFilling -> dart_filling
       - rmcs_core::controller::dart::DartSettingController -> dart_setting
       - rmcs_core::controller::pid::PidController    -> yaw_velocity_pid_controller
       - rmcs_core::controller::pid::PidController    -> pitch_velocity_pid_controller
       - rmcs_core::controller::pid::PidController    -> force_screw_velocity_pid_controller
-      - rmcs_core::broadcaster::ValueBroadcaster -> broadcaster
+      # - rmcs_core::broadcaster::ValueBroadcaster -> broadcaster
+
+
+broadcaster:
+  ros__parameters:
+    forward_list:
+      - /dart/drive_belt/left/control_torque
+      - /dart/drive_belt/right/control_torque
 
 dart_hardware:
   ros__parameters:
@@ -23,11 +30,7 @@ dart_hardware:
 
 dart_manager:
   ros__parameters:
-    launch_prepare_enable_visual_assist: false
     max_transform_rate: 5.0
-    manual_yaw_velocity_scale: 1.0
-    manual_pitch_velocity_scale: 1.0
-    manual_force_velocity_scale: 5.0
     manual_force_scale: 5.0
     belt_down_velocity: 10.0
     belt_up_velocity: 10.0
@@ -35,8 +38,6 @@ dart_manager:
     lift_velocity: 3.0
     force_setpoint: 0
     force_allowable_error: 5
-    manual_remote_deadband: 0.08
-    manual_belt_torque_limit: 2.5
     limiting_fill_ticks:  200
     belt_stall_velocity_threshold: 0.1
     belt_stall_torque_threshold: 0.1
@@ -47,22 +48,7 @@ dart_manager:
     lifting_stall_confirm_ticks: 100    # 连续帧数 = 0.1s @ 1kHz
     lifting_stall_min_run_ticks: 500    # 启动后最少运行帧数，避免启动瞬间误触发
     lifting_stall_timeout_ticks: 2000   # 超时帧数 = 5s
-    dart_count: 4
-    aim_reference_pixel: [0.0, 0.0]                 # 基准像素，后续现场标定
-    aim_dart_offsets_px: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]  # 每发相对修正
-    aim_deadband_px: [3.0, 3.0]
-    aim_ready_exit_deadband_px: [5.0, 5.0]
-    aim_accept_deadband_px: [8.0, 8.0]
-    aim_yaw_gain: 0.08
-    aim_pitch_gain: 0.08
-    aim_ready_confirm_ticks: 5
-    aim_timeout_ticks: 3000
-    aim_min_transform_rate: 0.0
-    auto_aim_max_transform_rate: 5.0
-    force_auto_deadband: 0.5
-    force_auto_confirm_ticks: 5
-    force_auto_timeout_ticks: 3000
-
+    
 trigger_setting:
   ros__parameters:
     trigger_free_value: 0.75
@@ -126,9 +112,3 @@ force_screw_velocity_pid_controller:
     kp: 1.0
     ki: 0.0
     kd: 0.0
-
-broadcaster:
-  ros__parameters:
-    forward_list:
-      - /dart/drive_belt/left/control_torque
-      - /dart/drive_belt/right/control_torque
