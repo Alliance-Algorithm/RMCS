@@ -125,7 +125,7 @@ private:
                     [&buffer](std::byte byte) noexcept { *buffer++ = byte; }, size);
             };
             referee_serial_->write = [this](const std::byte* buffer, size_t size) {
-                start_transmit().uart2_transmit({
+                start_transmit().uart0_transmit({
                     .uart_data = std::span<const std::byte>{buffer, size}
                 });
                 return size;
