@@ -333,23 +333,23 @@ private:
             update_joint_physical_feedback_(
                 3, right_front_joint_physical_angle_, right_front_joint_physical_velocity_);
 
-            if (joint_status_received_[0].load(std::memory_order_relaxed)
-                && joint_status_received_[1].load(std::memory_order_relaxed)
-                && joint_status_received_[2].load(std::memory_order_relaxed)
-                && joint_status_received_[3].load(std::memory_order_relaxed)) {
-                RCLCPP_INFO_THROTTLE(
-                    deformable_infantry_.get_logger(), *deformable_infantry_.get_clock(), 1000,
-                    "joint raw angle[deg] lf=%.2f lb=%.2f rb=%.2f rf=%.2f | physical angle[deg] "
-                    "lf=%.2f lb=%.2f rb=%.2f rf=%.2f",
-                    chassis_joint_motors_[0].angle() * 180.0 / std::numbers::pi,
-                    chassis_joint_motors_[1].angle() * 180.0 / std::numbers::pi,
-                    chassis_joint_motors_[2].angle() * 180.0 / std::numbers::pi,
-                    chassis_joint_motors_[3].angle() * 180.0 / std::numbers::pi,
-                    *left_front_joint_physical_angle_ * 180.0 / std::numbers::pi,
-                    *left_back_joint_physical_angle_ * 180.0 / std::numbers::pi,
-                    *right_back_joint_physical_angle_ * 180.0 / std::numbers::pi,
-                    *right_front_joint_physical_angle_ * 180.0 / std::numbers::pi);
-            }
+            // if (joint_status_received_[0].load(std::memory_order_relaxed)
+            //     && joint_status_received_[1].load(std::memory_order_relaxed)
+            //     && joint_status_received_[2].load(std::memory_order_relaxed)
+            //     && joint_status_received_[3].load(std::memory_order_relaxed)) {
+            //     RCLCPP_INFO_THROTTLE(
+            //         deformable_infantry_.get_logger(), *deformable_infantry_.get_clock(), 1000,
+            //         "joint raw angle[deg] lf=%.2f lb=%.2f rb=%.2f rf=%.2f | physical angle[deg] "
+            //         "lf=%.2f lb=%.2f rb=%.2f rf=%.2f",
+            //         chassis_joint_motors_[0].angle() * 180.0 / std::numbers::pi,
+            //         chassis_joint_motors_[1].angle() * 180.0 / std::numbers::pi,
+            //         chassis_joint_motors_[2].angle() * 180.0 / std::numbers::pi,
+            //         chassis_joint_motors_[3].angle() * 180.0 / std::numbers::pi,
+            //         *left_front_joint_physical_angle_ * 180.0 / std::numbers::pi,
+            //         *left_back_joint_physical_angle_ * 180.0 / std::numbers::pi,
+            //         *right_back_joint_physical_angle_ * 180.0 / std::numbers::pi,
+            //         *right_front_joint_physical_angle_ * 180.0 / std::numbers::pi);
+            // }
 
             dr16_.update_status();
             gimbal_yaw_motor_.update_status();
@@ -650,7 +650,7 @@ private:
 
             bmi088_.set_coordinate_mapping([](double x, double y, double z) {
                 // Top board BMI088 maps to gimbal frame as (-x, -y, z).
-                return std::make_tuple(-y, x, z);
+                return std::make_tuple(y, -x, z);
             });
         }
 
