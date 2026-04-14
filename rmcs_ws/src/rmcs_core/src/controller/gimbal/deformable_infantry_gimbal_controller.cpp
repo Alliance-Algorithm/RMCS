@@ -206,10 +206,6 @@ public:
                              + yaw_vel_ff_gain_ * velocity_ff.x()
                              + yaw_acc_ff_gain_ * acceleration_ff.x();
         // Deformable pitch remains velocity-controlled in the hardware layer.
-        RCLCPP_INFO_THROTTLE(
-            get_logger(), *get_clock(), 200,
-            "pitch control velocity: %.6f, pitch angle error: %.6f", pitch_velocity_ref,
-            angle_error.pitch_angle_error);
         *pitch_control_velocity_ = pitch_velocity_ref;
     }
 

@@ -242,7 +242,7 @@ private:
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
 
     static constexpr double translational_velocity_max_ = 10.0;
-    static constexpr double angular_velocity_max_ = 20.0;
+    static constexpr double angular_velocity_max_ = 25.0;
     static constexpr double rad_to_deg_ = 180.0 / std::numbers::pi;
 
     static double wrap_deg(double deg) {
