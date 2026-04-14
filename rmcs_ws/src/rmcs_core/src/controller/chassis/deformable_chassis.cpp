@@ -340,19 +340,17 @@ private:
     }
 
     double update_angular_velocity_control() {
-        const double manual_angular_velocity =
-            std::clamp((*joystick_left_).y(), -1.0, 1.0) * angular_velocity_max_;
         double angular_velocity = 0.0;
         double chassis_control_angle = nan_;
 
         switch (*mode_) {
-        case rmcs_msgs::ChassisMode::AUTO: angular_velocity = manual_angular_velocity; break;
+        case rmcs_msgs::ChassisMode::AUTO: break;
 
         case rmcs_msgs::ChassisMode::SPIN: {
             angular_velocity =
                 0.6 * (spinning_forward_ ? angular_velocity_max_ : -angular_velocity_max_);
             angular_velocity = std::clamp(
-                angular_velocity + manual_angular_velocity, -angular_velocity_max_,
+                angular_velocity, -angular_velocity_max_,
                 angular_velocity_max_);
         } break;
 
