@@ -43,22 +43,22 @@ deformable_infantry:
   ros__parameters:
     serial_filter_rmcs_board: "AF-3CE0-2D2A-6CDC-89D0-CA40-90D7-46B5-4970"
     serial_filter_top_board: "D4-0262-9E84-E715-CADB-9894-7241"
-    left_front_zero_point: 289
-    left_back_zero_point: 6552
-    right_back_zero_point: 7244
-    right_front_zero_point: 5203
+    left_front_zero_point: 374
+    left_back_zero_point: 5801
+    right_back_zero_point: 7817
+    right_front_zero_point: 7136
     yaw_motor_zero_point: 56216
     pitch_motor_zero_point: 10898
 
 chassis_controller:
   ros__parameters:
-    min_angle: 5.0
-    max_angle: 55.0
+    min_angle: 7.0
+    max_angle: 58.0
 
 gimbal_controller:
   ros__parameters:
     upper_limit: -0.436332 # -25 deg
-    lower_limit: 0.174533 # 10 deg
+    lower_limit: 0.05 # 10 deg
 
     yaw_angle_kp: 14.2
     yaw_angle_ki: 0.0
@@ -155,7 +155,7 @@ lf_joint_adrc_controller:
     td_h: 0.001
     td_r: 50.0
     dt: 0.001
-    b0: 0.550
+    b0: 0.60
     eso_w0: 250.0
     eso_auto_beta: true
     k1: 30.0
@@ -175,7 +175,7 @@ lb_joint_adrc_controller:
     td_h: 0.001
     td_r: 50.0
     dt: 0.001
-    b0: 0.550
+    b0: 0.60
     eso_w0: 250.0
     eso_auto_beta: true
     k1: 30.0
@@ -195,7 +195,7 @@ rb_joint_adrc_controller:
     td_h: 0.001
     td_r: 50.0
     dt: 0.001
-    b0: 0.550
+    b0: 0.60
     eso_w0: 250.0
     eso_auto_beta: true
     k1: 30.0
@@ -215,7 +215,7 @@ rf_joint_adrc_controller:
     td_h: 0.001
     td_r: 50.0
     dt: 0.001
-    b0: 0.550
+    b0: 0.60
     eso_w0: 250.0
     eso_auto_beta: true
     k1: 30.0
