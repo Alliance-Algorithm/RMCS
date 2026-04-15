@@ -12,14 +12,14 @@ arm_hardware:
     main_arm_board_usb_pid: 0x1783
     sub_arm_board_usb_pid: 0x488d
     main_joint6_zero_point: 0
-    main_joint5_zero_point: 37436
-    main_joint4_zero_point: 28029
-    main_joint3_zero_point: 28134
+    main_joint5_zero_point: 4196
+    main_joint4_zero_point: 731
+    main_joint3_zero_point: 9211
     main_joint2_zero_point: 61315
-    main_joint1_zero_point: 11371
+    main_joint1_zero_point: 32883
 
-    sub_joint6_zero_point: 19394
-    sub_joint5_zero_point: 47491
+    sub_joint6_zero_point: 22700
+    sub_joint5_zero_point: 4020
     sub_joint4_zero_point: 4030
     sub_joint3_zero_point: 51845
     sub_joint2_zero_point: 54221
@@ -27,7 +27,7 @@ arm_hardware:
 
 arm_solver:
   ros__parameters:
-    controller_list: [pid,gravity]
+    controller_list: [gravity,friction]
 
 sub_arm_controller:
   ros__parameters:

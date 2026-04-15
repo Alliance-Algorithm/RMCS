@@ -11,9 +11,7 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 find_package (ament_cmake_auto REQUIRED)
-find_package (moveit_core REQUIRED)
-find_package (moveit_ros_planning_interface REQUIRED)
-find_package (moveit_ros_move_group REQUIRED)
+find_package (Eigen3 REQUIRED)
 
 ament_auto_find_build_dependencies ()
 
@@ -33,7 +31,7 @@ include_directories(${PROJECT_SOURCE_DIR}/librmcs)
 
 include_directories(SYSTEM "/usr/include/libusb-1.0")
 
-target_link_libraries(${PROJECT_NAME} -lusb-1.0 atomic)
+target_link_libraries(${PROJECT_NAME} Eigen3::Eigen -lusb-1.0 atomic)
 
 
 pluginlib_export_plugin_description_file(rmcs_executor plugins.xml)

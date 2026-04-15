@@ -6,13 +6,11 @@ from launch import (
     LaunchDescription,
     LaunchDescriptionEntity,
 )
-from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
 
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
-from launch.actions import LogInfo, IncludeLaunchDescription
-from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.actions import LogInfo
 
 class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
     def visit(
@@ -34,6 +32,28 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
             )
         )
 
+        arm_urdf_path = os.path.join(
+            FindPackageShare("arm_description").perform(context),
+            "urdf",
+            "arm_description.urdf",
+        )
+        with open(arm_urdf_path, "r") as urdf_file:
+            robot_description = urdf_file.read()
+
+        entities.append(
+            Node(
+                package="robot_state_publisher",
+                executable="robot_state_publisher",
+                name="robot_state_publisher",
+                parameters=[
+                    {
+                        "robot_description": robot_description,
+                    },
+                ],
+                output="both",
+            )
+        )
+
         entities.append(
             Node(
                 package="rmcs_executor",
@@ -50,29 +70,12 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
                 output="screen",
             )
         )
-        demo_launch_path = os.path.join(
-            FindPackageShare("arm_moveit_config").perform(context),
-            "launch",
-            "demo.launch.py"
-        )
-        
-        entities.append(
-            IncludeLaunchDescription(
-                PythonLaunchDescriptionSource(demo_launch_path),
-                launch_arguments={
-                    "use_rviz": LaunchConfiguration("use_rviz")
-                }.items(),
-            )
-        )
-       
-
         return entities
 
 
 def generate_launch_description():
     ld = LaunchDescription(
         [
-            DeclareLaunchArgument("use_rviz", default_value="false"),
             MyLaunchDescriptionEntity(),
         ]
     )

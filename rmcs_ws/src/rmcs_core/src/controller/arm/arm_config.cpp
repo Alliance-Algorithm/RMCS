@@ -67,7 +67,6 @@ public:
             *joint_motor_angle[3],
             *joint_motor_angle[4],
             *joint_motor_angle[5]};
-        // msg.position = {0.0, 0, 0, 0, 0, 0};
         joint_states_pub->publish(msg);
     }
 
@@ -170,6 +169,7 @@ private:
     };
 
     void load_urdf(const std_msgs::msg::String::ConstSharedPtr& msg) {
+        RCLCPP_INFO(get_logger(), "Entered ArmConfig::load_urdf callback");
         std::lock_guard<std::mutex> lock(data_mutex_);
         if (*is_load)
             return;
