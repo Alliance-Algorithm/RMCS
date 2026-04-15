@@ -13,19 +13,29 @@
 #include "full_robot_id.hpp"
 #include "game_stage.hpp"
 #include "gimbal_mode.hpp"
-#include "hard_sync_snapshot.hpp"
 #include "keyboard.hpp"
 #include "mouse.hpp"
 #include "robot_color.hpp"
 #include "robot_id.hpp"
-#include "robots_hp.hpp"
 #include "serial_interface.hpp"
 #include "shoot_mode.hpp"
 #include "shoot_status.hpp"
 #include "switch.hpp"
-#include "target_snapshot.hpp"
 
 namespace rmcs_msgs {
+
+constexpr auto to_string(GameStage stage) noexcept -> const char* {
+    switch (stage) {
+    case GameStage::NOT_START: return "NOT_START";
+    case GameStage::PREPARATION: return "PREPARATION";
+    case GameStage::REFEREE_CHECK: return "REFEREE_CHECK";
+    case GameStage::COUNTDOWN: return "COUNTDOWN";
+    case GameStage::STARTED: return "STARTED";
+    case GameStage::SETTLING: return "SETTLING";
+    case GameStage::UNKNOWN: return "UNKNOWN";
+    }
+    return "INVALID";
+}
 
 constexpr auto to_string(ChassisMode mode) noexcept -> const char* {
     switch (mode) {
@@ -34,7 +44,7 @@ constexpr auto to_string(ChassisMode mode) noexcept -> const char* {
     case ChassisMode::STEP_DOWN: return "STEP_DOWN";
     case ChassisMode::LAUNCH_RAMP: return "LAUNCH_RAMP";
     }
-    return "UNREACHABLE";
+    return "INVALID";
 }
 
 constexpr auto to_string(GimbalMode mode) noexcept -> const char* {
@@ -42,7 +52,7 @@ constexpr auto to_string(GimbalMode mode) noexcept -> const char* {
     case GimbalMode::IMU: return "IMU";
     case GimbalMode::ENCODER: return "ENCODER";
     }
-    return "UNREACHABLE";
+    return "INVALID";
 }
 
 constexpr auto to_string(RobotColor color) noexcept -> const char* {
@@ -51,7 +61,7 @@ constexpr auto to_string(RobotColor color) noexcept -> const char* {
     case RobotColor::RED: return "RED";
     case RobotColor::BLUE: return "BLUE";
     }
-    return "UNREACHABLE";
+    return "INVALID";
 }
 
 constexpr auto to_string(ArmorID id) noexcept -> const char* {
@@ -69,7 +79,7 @@ constexpr auto to_string(ArmorID id) noexcept -> const char* {
     case ArmorID::Outpost: return "Outpost";
     case ArmorID::Base: return "Base";
     }
-    return "UNREACHABLE";
+    return "INVALID";
 }
 
 constexpr auto to_string(RobotId::Value id) noexcept -> const char* {
@@ -98,7 +108,7 @@ constexpr auto to_string(RobotId::Value id) noexcept -> const char* {
     case RobotId::BLUE_OUTPOST: return "BLUE_OUTPOST";
     case RobotId::BLUE_BASE: return "BLUE_BASE";
     }
-    return "UNREACHABLE";
+    return "INVALID";
 }
 
 constexpr auto to_string(RobotId id) noexcept -> const char* {
@@ -113,7 +123,7 @@ constexpr auto to_string(ShootMode mode) noexcept -> const char* {
     case ShootMode::LOW_LATENCY: return "LOW_LATENCY";
     case ShootMode::OVERDRIVE: return "OVERDRIVE";
     }
-    return "UNREACHABLE";
+    return "INVALID";
 }
 
 constexpr auto to_string(Switch value) noexcept -> const char* {
@@ -123,30 +133,7 @@ constexpr auto to_string(Switch value) noexcept -> const char* {
     case Switch::DOWN: return "DOWN";
     case Switch::MIDDLE: return "MIDDLE";
     }
-    return "UNREACHABLE";
-}
-
-constexpr auto to_string(TargetSnapshotArmorType type) noexcept -> const char* {
-    switch (type) {
-    case TargetSnapshotArmorType::BIG: return "BIG";
-    case TargetSnapshotArmorType::SMALL: return "SMALL";
-    }
-    return "UNREACHABLE";
-}
-
-constexpr auto to_string(TargetSnapshotArmorName name) noexcept -> const char* {
-    switch (name) {
-    case TargetSnapshotArmorName::ONE: return "ONE";
-    case TargetSnapshotArmorName::TWO: return "TWO";
-    case TargetSnapshotArmorName::THREE: return "THREE";
-    case TargetSnapshotArmorName::FOUR: return "FOUR";
-    case TargetSnapshotArmorName::FIVE: return "FIVE";
-    case TargetSnapshotArmorName::SENTRY: return "SENTRY";
-    case TargetSnapshotArmorName::OUTPOST: return "OUTPOST";
-    case TargetSnapshotArmorName::BASE: return "BASE";
-    case TargetSnapshotArmorName::NOT_ARMOR: return "NOT_ARMOR";
-    }
-    return "UNREACHABLE";
+    return "INVALID";
 }
 
 constexpr auto to_string(FullRobotId::Value id) noexcept -> const char* {
@@ -188,7 +175,7 @@ constexpr auto to_string(FullRobotId::Value id) noexcept -> const char* {
     case FullRobotId::BLUE_AERIAL_CLIENT: return "BLUE_AERIAL_CLIENT";
     case FullRobotId::REFEREE_SERVER: return "REFEREE_SERVER";
     }
-    return "UNREACHABLE";
+    return "INVALID";
 }
 
 constexpr auto to_string(FullRobotId id) noexcept -> const char* {
@@ -257,20 +244,6 @@ struct std::formatter<rmcs_msgs::ShootMode> : std::formatter<const char*> {
 template <>
 struct std::formatter<rmcs_msgs::Switch> : std::formatter<const char*> {
     auto format(rmcs_msgs::Switch value, std::format_context& ctx) const {
-        return std::formatter<const char*>::format(rmcs_msgs::to_string(value), ctx);
-    }
-};
-
-template <>
-struct std::formatter<rmcs_msgs::TargetSnapshotArmorType> : std::formatter<const char*> {
-    auto format(rmcs_msgs::TargetSnapshotArmorType value, std::format_context& ctx) const {
-        return std::formatter<const char*>::format(rmcs_msgs::to_string(value), ctx);
-    }
-};
-
-template <>
-struct std::formatter<rmcs_msgs::TargetSnapshotArmorName> : std::formatter<const char*> {
-    auto format(rmcs_msgs::TargetSnapshotArmorName value, std::format_context& ctx) const {
         return std::formatter<const char*>::format(rmcs_msgs::to_string(value), ctx);
     }
 };
