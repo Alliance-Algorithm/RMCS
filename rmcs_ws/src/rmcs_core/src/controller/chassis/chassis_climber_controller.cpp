@@ -412,7 +412,7 @@ private:
 
     rclcpp::Logger logger_;
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
-    static constexpr double kAutoClimbApproachVelocity = 2.5;
+    static constexpr double kAutoClimbApproachVelocity = 1.8;
     static constexpr double kAutoClimbLeveledPitchThreshold = 0.1;
     static constexpr double kBackClimberBlockedTorqueThreshold = 0.1;
     static constexpr double kBackClimberBlockedVelocityThreshold = 0.1;

@@ -10,10 +10,11 @@ rmcs_executor:
       # - rmcs_core::referee::app::ui::Hero -> referee_ui_hero
       - rmcs_core::referee::Command -> referee_command
 
-      # - rmcs_core::controller::gimbal::HeroGimbalController -> gimbal_controller
-      # - rmcs_core::controller::gimbal::DualYawController -> dual_yaw_controller
-      # - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
-      # - rmcs_core::controller::pid::PidController -> pitch_velocity_pid_controller
+      - rmcs_core::controller::gimbal::SimpleGimbalController -> gimbal_controller
+      - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
+      - rmcs_core::controller::pid::PidController -> pitch_velocity_pid_controller
+      - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
+      - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
 
       # - rmcs_core::controller::gimbal::PlayerViewer -> gimbal_player_viewer_controller
       # - rmcs_core::controller::pid::ErrorPidController -> viewer_angle_pid_controller
@@ -23,8 +24,6 @@ rmcs_executor:
       # - rmcs_core::controller::shooting::PutterController -> bullet_feeder_controller
       # - rmcs_core::controller::pid::PidController -> first_left_friction_velocity_pid_controller
       # - rmcs_core::controller::pid::PidController -> first_right_friction_velocity_pid_controller
-      # - rmcs_core::controller::pid::PidController -> second_left_friction_velocity_pid_controller
-      # - rmcs_core::controller::pid::PidController -> second_right_friction_velocity_pid_controller
       # - rmcs_core::controller::shooting::ShootingRecorder -> shooting_recorder
 
       - rmcs_core::controller::chassis::ChassisController -> chassis_controller
@@ -39,10 +38,11 @@ rmcs_executor:
 
 Infantry_hardware:
   ros__parameters:
+    board_serial_top_board: "todo"
     board_serial_bottom_board_one: "D4-6A83-030D-F3D0-9103-F8A5-1246"
     board_serial_bottom_board_two: "D4-6654-1C0F-7353-AA15-A77B-313D"
     # bottom_yaw_motor_zero_point: 52508
-    # pitch_motor_zero_point: 40651 #35701
+    # pitch_motor_zero_point: 40651 
     # top_yaw_motor_zero_point: 58744
     # viewer_motor_zero_point: 3030
     # external_imu_port: /dev/ttyUSB0
@@ -51,10 +51,6 @@ Infantry_hardware:
     left_back_zero_point:  3776
     right_back_zero_point: 3084
     right_front_zero_point: 5077
-    # left_front_zero_point: 3473
-    # left_back_zero_point: 6124
-    # right_back_zero_point: 6157
-    # right_front_zero_point: 2723
 
 value_broadcaster:
   ros__parameters:
@@ -93,9 +89,9 @@ value_broadcaster:
 climber_controller:
   ros__parameters:
     front_climber_velocity: 60.0
-    back_climber_velocity: 20.0
+    back_climber_velocity: 30.0
     auto_climb_dash_velocity: 3.0
-    auto_climb_support_retract_velocity: 30.0
+    auto_climb_support_retract_velocity: 60.0
     sync_coefficient: 0.3
     climb_timeout_limit: 1000
     first_stair_approach_pitch: 0.560
@@ -114,36 +110,6 @@ gimbal_controller:
     upper_limit: -0.6266
     lower_limit: 0.4629
 
-dual_yaw_controller:
-  ros__parameters:
-    top_yaw_angle_kp: 10.0
-    top_yaw_angle_ki: 0.0
-    top_yaw_angle_kd: 0.0
-    top_yaw_velocity_kp: 50.0
-    top_yaw_velocity_ki: 0.004
-    top_yaw_velocity_kd: 0.0
-    bottom_yaw_angle_kp: 5.0
-    bottom_yaw_angle_ki: 0.0
-    bottom_yaw_angle_kd: 0.0
-    bottom_yaw_velocity_kp: 10.0
-    bottom_yaw_velocity_ki: 0.0
-    bottom_yaw_velocity_kd: 50.0
-
-# dual_yaw_controller:
-#   ros__parameters:
-#     top_yaw_angle_kp: 24.5
-#     top_yaw_angle_ki: 0.0
-#     top_yaw_angle_kd: 0.0
-#     top_yaw_velocity_kp: 77.4
-#     top_yaw_velocity_ki: 0.004
-#     top_yaw_velocity_kd: 1.0
-#     bottom_yaw_angle_kp: 8.6
-#     bottom_yaw_angle_ki: 0.0
-#     bottom_yaw_angle_kd: 0.0
-#     bottom_yaw_velocity_kp: 25.85
-#     bottom_yaw_velocity_ki: 0.0
-#     bottom_yaw_velocity_kd: 50.0
-    
 pitch_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/pitch/control_angle_error
@@ -161,6 +127,23 @@ pitch_velocity_pid_controller:
     ki: 0.00
     kd: 2.0 #1.00
 
+yaw_angle_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/yaw/control_angle_error
+    control: /gimbal/yaw/control_velocity
+    kp: 15.0 #28.00
+    ki: 0.0
+    kd: 0.6 #0.6
+
+yaw_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/yaw/velocity_imu
+    setpoint: /gimbal/yaw/control_velocity
+    control: /gimbal/yaw/control_torque
+    kp: 40.0 #45.00
+    ki: 0.00
+    kd: 0.01 #1.00
+
 gimbal_player_viewer_controller:
   ros__parameters:
     upper_limit: 0.0101
@@ -177,10 +160,8 @@ viewer_angle_pid_controller:
 friction_wheel_controller:
   ros__parameters:
     friction_wheels:
-      - /gimbal/first_left_friction
-      - /gimbal/first_right_friction
-      - /gimbal/second_left_friction
-      - /gimbal/second_right_friction
+      - /gimbal/left_friction
+      - /gimbal/right_friction
     friction_velocities:
       - 375.00
       - 375.00
