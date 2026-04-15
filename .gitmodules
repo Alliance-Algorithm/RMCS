@@ -13,15 +13,6 @@
 [submodule "rmcs_ws/src/rmcs_core/third_party/tinympc"]
 	path = rmcs_ws/src/rmcs_core/third_party/tinympc
 	url = https://github.com/Alliance-Algorithm/TinyMPC.git
-[submodule "rmcs_ws/src/skills/rmcs-navigation"]
-	path = rmcs_ws/src/skills/rmcs-navigation
-	url = https://github.com/Alliance-Algorithm/rmcs-navigation.git
-[submodule "rmcs_ws/src/skills/rmcs_local_map"]
-	path = rmcs_ws/src/skills/rmcs_local_map
-	url = https://github.com/Alliance-Algorithm/rmcs-local-map.git
-[submodule "rmcs_ws/src/skills/point_lio"]
-	path = rmcs_ws/src/skills/point_lio
-	url = https://github.com/Alliance-Algorithm/point_lio.git
-[submodule "rmcs_ws/src/skills/livox_ros_driver2"]
-	path = rmcs_ws/src/skills/livox_ros_driver2
-	url = https://github.com/Alliance-Algorithm/livox_ros_driver2.git
+[submodule "rmcs_ws/src/rmcs-navigation-deps"]
+	path = rmcs_ws/src/rmcs-navigation-deps
+	url = git@github.com:Alliance-Algorithm/rmcs-navigation-deps
