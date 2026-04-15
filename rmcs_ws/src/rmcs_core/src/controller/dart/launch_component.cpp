@@ -44,7 +44,7 @@ private:
     OutputInterface<double> trigger_value_;
 };
 
-// DartBeltController 负责同步带的闭环和同步控制，并对速度目标增加梯形加速规划。
+// DartBeltController 负责同步带的闭环和同步控制，并对上游速度目标变化做梯形速度规划。
 class DartBeltController
     : public rmcs_executor::Component
     , public rclcpp::Node {
@@ -76,10 +76,14 @@ public:
         const double requested_velocity = requested_belt_velocity();
         const auto [control_mode, velocity_target] = resolve_control_mode(requested_velocity);
 
+        if (control_mode != BeltControlMode::WAIT_HOLD) {
+            retained_velocity_target_ = velocity_target;
+        }
+
         if (control_mode != control_mode_) {
             belt_pid_.reset();
             if (control_mode == BeltControlMode::WAIT_HOLD) {
-                planned_velocity_ = 0.0;
+                reset_trapezoidal_plan();
             }
             control_mode_ = control_mode;
         }
@@ -89,7 +93,8 @@ public:
             return;
         }
 
-        update_planned_velocity(velocity_target);
+        update_trapezoidal_target(velocity_target);
+        update_planned_velocity();
         drive_belt_sync_control(planned_velocity_, max_control_torque_);
     }
 
@@ -108,11 +113,18 @@ private:
         return rmcs_msgs::DartMechanismCommand::WAIT;
     }
 
+    rmcs_msgs::ExitMode active_belt_exit_mode() const {
+        if (belt_exit_mode_.ready()) {
+            return *belt_exit_mode_;
+        }
+        return rmcs_msgs::ExitMode::WAIT_ZERO_VELOCITY;
+    }
+
     double requested_belt_velocity() const {
         if (belt_target_velocity_.ready()) {
-            return std::abs(*belt_target_velocity_);
+            return sanitize_velocity_magnitude(*belt_target_velocity_);
         }
-        return belt_velocity_;
+        return sanitize_velocity_magnitude(belt_velocity_);
     }
 
     std::pair<BeltControlMode, double> resolve_control_mode(double requested_velocity) {
@@ -122,14 +134,13 @@ private:
         case rmcs_msgs::DartMechanismCommand::UP:
             return {BeltControlMode::MOVE_UP, -requested_velocity};
         default:
-            if (belt_exit_mode_.ready()) {
-                return {
-                    *belt_exit_mode_ == rmcs_msgs::ExitMode::WAIT_HOLD_TORQUE
-                        ? BeltControlMode::WAIT_HOLD
-                        : BeltControlMode::WAIT_ZERO,
-                    0.0};
+            switch (active_belt_exit_mode()) {
+            case rmcs_msgs::ExitMode::WAIT_HOLD_TORQUE:
+                return {BeltControlMode::WAIT_HOLD, 0.0};
+            case rmcs_msgs::ExitMode::KEEP: return {control_mode_, retained_velocity_target_};
+            case rmcs_msgs::ExitMode::WAIT_ZERO_VELOCITY:
+            default: return {BeltControlMode::WAIT_ZERO, 0.0};
             }
-            return {BeltControlMode::WAIT_ZERO, 0.0};
         }
     }
 
@@ -140,9 +151,44 @@ private:
         return 1.0 / 1000.0;
     }
 
-    void update_planned_velocity(double target_velocity) {
-        const double max_delta = std::max(0.0, belt_acceleration_) * control_dt();
-        planned_velocity_ = approach_value(planned_velocity_, target_velocity, max_delta);
+    void update_trapezoidal_target(double velocity_target) {
+        if (almost_equal(planned_velocity_target_, velocity_target)) {
+            return;
+        }
+
+        // 上游目标变化时，从当前规划速度续接到新目标，避免速度指令跳变。
+        planned_velocity_target_ = velocity_target;
+    }
+
+    void update_planned_velocity() {
+        planned_velocity_ = approach_value(
+            planned_velocity_, planned_velocity_target_, trapezoidal_velocity_delta_limit());
+    }
+
+    void reset_trapezoidal_plan() {
+        planned_velocity_ = 0.0;
+        planned_velocity_target_ = 0.0;
+    }
+
+    double trapezoidal_velocity_delta_limit() const {
+        if (!std::isfinite(belt_acceleration_) || belt_acceleration_ <= 0.0) {
+            return 0.0;
+        }
+
+        return belt_acceleration_ * control_dt();
+    }
+
+    static double sanitize_velocity_magnitude(double velocity) {
+        if (!std::isfinite(velocity)) {
+            return 0.0;
+        }
+
+        return std::abs(velocity);
+    }
+
+    static bool almost_equal(double lhs, double rhs) {
+        constexpr double epsilon = 1e-9;
+        return std::abs(lhs - rhs) <= epsilon;
     }
 
     static double approach_value(double current, double target, double max_delta) {
@@ -188,6 +234,8 @@ private:
     double max_control_torque_;
     double default_belt_hold_torque_{0.0};
     double planned_velocity_{0.0};
+    double planned_velocity_target_{0.0};
+    double retained_velocity_target_{0.0};
 
     BeltControlMode control_mode_{BeltControlMode::WAIT_ZERO};
 

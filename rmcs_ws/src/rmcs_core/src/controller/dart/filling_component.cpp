@@ -45,6 +45,9 @@ public:
             *lifting_right_vel_ = -requested_velocity;
             break;
         default:
+            if (active_lift_exit_mode() == rmcs_msgs::ExitMode::KEEP) {
+                break;
+            }
             *lifting_left_vel_ = 0.0;
             *lifting_right_vel_ = 0.0;
             break;
@@ -62,6 +65,13 @@ public:
     }
 
 private:
+    rmcs_msgs::ExitMode active_lift_exit_mode() const {
+        if (lift_exit_mode_.ready()) {
+            return *lift_exit_mode_;
+        }
+        return rmcs_msgs::ExitMode::WAIT_ZERO_VELOCITY;
+    }
+
     double requested_lift_velocity() const {
         if (lift_target_velocity_.ready()) {
             return std::abs(*lift_target_velocity_);
