@@ -310,7 +310,7 @@ private:
     pid::PidCalculator yaw_angle_pid_;
     pid::PidCalculator yaw_velocity_pid_;
     pid::PidCalculator pitch_angle_pid_;
-    double joystick_sensitivity_ = 0.006;
+    double joystick_sensitivity_ = 0.003;
     double mouse_sensitivity_ = 0.5;
     double yaw_vel_ff_gain_ = 0.0;
     double yaw_acc_ff_gain_;
