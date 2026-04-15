@@ -30,7 +30,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-$ROS_DISTRO-navigation2 ros-$ROS_DISTRO-nav2-msgs \
     ros-$ROS_DISTRO-foxglove-bridge \
     ros-$ROS_DISTRO-pcl-ros ros-$ROS_DISTRO-pcl-conversions ros-$ROS_DISTRO-pcl-msgs \
-    lua5.4 liblua5.4-dev && \
+    lua5.4 liblua5.4-0 liblua5.4-dev && \
     apt-get autoremove -y && apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/*
 

@@ -15,6 +15,7 @@
 
 #include <eigen3/Eigen/Dense>
 #include <librmcs/agent/c_board.hpp>
+#include <librmcs/agent/rmcs_board_lite.hpp>
 #include <librmcs/data/datas.hpp>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
@@ -277,12 +278,13 @@ private:
         Eigen::Quaterniond imu_pose_ = Eigen::Quaterniond::Identity();
     };
 
-    class TopBoard final : private librmcs::agent::CBoard {
+    class TopBoard final : private librmcs::agent::RmcsBoardLite {
     public:
         friend class Sentry;
         explicit TopBoard(
-            Sentry& sentry, SentryCommand& sentry_command, std::string_view board_serial = {})
-            : librmcs::agent::CBoard(board_serial)
+            Sentry& sentry, SentryCommand& sentry_command, std::string_view board_serial = {},
+            librmcs::agent::AdvancedOptions options = {})
+            : librmcs::agent::RmcsBoardLite(board_serial, options)
             , tf_(sentry.tf_)
             , bmi088_(1000, 0.2, 0.0)
             , gimbal_pitch_motor_(sentry, sentry_command, "/gimbal/pitch")
@@ -298,11 +300,10 @@ private:
                 device::LkMotor::Config{device::LkMotor::Type::kMG4010Ei10}.set_encoder_zero_point(
                     static_cast<int>(sentry.get_parameter("top_yaw_motor_zero_point").as_int())));
 
-            gimbal_bullet_feeder_.configure(
-                device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
-                    .enable_multi_turn_angle()
-                    .set_reversed()
-                    .set_reduction_ratio(19 * 2));
+            gimbal_bullet_feeder_.configure(device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
+                                                .enable_multi_turn_angle()
+                                                .set_reversed()
+                                                .set_reduction_ratio(19 * 2));
 
             gimbal_left_friction_.configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kM3508}.set_reduction_ratio(1.));
@@ -364,7 +365,7 @@ private:
         void command_update() {
             auto builder = start_transmit();
 
-            builder.can1_transmit({
+            builder.can0_transmit({
                 .can_id = 0x200,
                 .can_data =
                     device::CanPacket8{
@@ -376,7 +377,7 @@ private:
                         .as_bytes(),
             });
 
-            builder.can1_transmit({
+            builder.can0_transmit({
                 .can_id = 0x141,
                 .can_data = gimbal_top_yaw_motor_.generate_torque_command().as_bytes(),
             });
@@ -388,7 +389,7 @@ private:
         }
 
     private:
-        void can1_receive_callback(const librmcs::data::CanDataView& data) override {
+        void can0_receive_callback(const librmcs::data::CanDataView& data) override {
             if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
                 return;
             auto can_id = data.can_id;
@@ -471,16 +472,14 @@ private:
             gimbal_bottom_yaw_motor_.configure(
                 device::LkMotor::Config{device::LkMotor::Type::kMG6012Ei8}
                     .set_reversed()
-                    .set_encoder_zero_point(
-                        static_cast<int>(
-                            sentry.get_parameter("bottom_yaw_motor_zero_point").as_int())));
+                    .set_encoder_zero_point(static_cast<int>(
+                        sentry.get_parameter("bottom_yaw_motor_zero_point").as_int())));
 
             for (auto& motor : chassis_wheel_motors_)
-                motor.configure(
-                    device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
-                        .set_reduction_ratio(11.)
-                        .enable_multi_turn_angle()
-                        .set_reversed());
+                motor.configure(device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
+                                    .set_reduction_ratio(11.)
+                                    .enable_multi_turn_angle()
+                                    .set_reversed());
             chassis_steer_motors_[2].configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kGM6020}
                     .set_reversed()

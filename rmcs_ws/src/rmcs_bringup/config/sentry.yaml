@@ -39,11 +39,11 @@ rmcs_executor:
 # The positive direction is the one that battery exists
 sentry_hardware:
   ros__parameters:
-    board_serial_top_board: "d4-2184"
-    board_serial_bottom_board: "d4-041d"
+    board_serial_top_board: "af-da30"
+    board_serial_bottom_board: "d4-2184"
     board_serial_gimbal_board: "d4-1d2b"
     bottom_yaw_motor_zero_point: 49242
-    top_yaw_motor_zero_point: 43156
+    top_yaw_motor_zero_point: 46044
     pitch_motor_zero_point: 1446
     left_front_zero_point: 5818
     left_back_zero_point: 5136
@@ -58,7 +58,8 @@ sp_vision_bridge:
 rmcs_navigation:
   ros__parameters:
     config_name: "rmul"
-    use_mock_interface: false
+    command_vel_name: "/cmd_vel_smoothed"
+    mock_context: false
 
 gimbal_controller:
   ros__parameters:
@@ -189,7 +190,7 @@ steering_wheel_controller:
     moment_of_inertia: 0.77852676
     vehicle_radius: 0.26870058
     wheel_radius: 0.055
-    friction_coefficient: 0.5
+    friction_coefficient: 0.666
     k1: 2.958580e+00
     k2: 3.082190e-03
     no_load_power: 11.37
