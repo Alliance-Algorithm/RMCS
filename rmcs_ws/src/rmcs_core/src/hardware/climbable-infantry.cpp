@@ -136,7 +136,8 @@ private:
             gimbal_pitch_motor_.configure(
                 device::LkMotor::Config{device::LkMotor::Type::kMG4010Ei10}.set_encoder_zero_point(
                     static_cast<int>(
-                        climbable_infantry.get_parameter("pitch_motor_zero_point").as_int())));
+                        climbable_infantry.get_parameter("pitch_motor_zero_point").as_int()))
+                    );
             gimbal_left_friction_.configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kM3508}.set_reduction_ratio(1.));
             gimbal_right_friction_.configure(
@@ -150,7 +151,7 @@ private:
                 "/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
 
             imu_.set_coordinate_mapping(
-                [](double x, double y, double z) { return std::make_tuple(-x, -y, z); });
+                [](double x, double y, double z) { return std::make_tuple(x, y, z); });
         }
 
         TopBoard(const TopBoard&) = delete;
@@ -519,10 +520,6 @@ private:
 
             gimbal_bullet_feeder_.configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
-                    .set_encoder_zero_point(
-                        static_cast<int>(
-                            climbable_infantry.get_parameter("bullet_feeder_motor_zero_point")
-                                .as_int()))
                     .set_reversed()
                     .enable_multi_turn_angle());
 

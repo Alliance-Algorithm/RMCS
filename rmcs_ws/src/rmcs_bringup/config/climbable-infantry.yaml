@@ -12,7 +12,7 @@ rmcs_executor:
 
       - rmcs_core::controller::gimbal::SimpleGimbalController -> gimbal_controller
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
-      - rmcs_core::controller::pid::PidController -> pitch_velocity_pid_controller
+      # - rmcs_core::controller::pid::PidController -> pitch_velocity_pid_controller
       - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
 
@@ -38,11 +38,11 @@ rmcs_executor:
 
 Infantry_hardware:
   ros__parameters:
-    board_serial_top_board: "todo"
+    board_serial_top_board: "D4-632C-37BC-6A17-ACA2-E3FE-91E9"
     board_serial_bottom_board_one: "D4-6A83-030D-F3D0-9103-F8A5-1246"
     board_serial_bottom_board_two: "D4-6654-1C0F-7353-AA15-A77B-313D"
-    # bottom_yaw_motor_zero_point: 52508
-    # pitch_motor_zero_point: 40651 
+    yaw_motor_zero_point: 45399
+    pitch_motor_zero_point: 23003
     # top_yaw_motor_zero_point: 58744
     # viewer_motor_zero_point: 3030
     # external_imu_port: /dev/ttyUSB0
@@ -113,8 +113,8 @@ gimbal_controller:
 pitch_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/pitch/control_angle_error
-    control: /gimbal/pitch/control_velocity
-    kp: 30.0 #28.00
+    control: /gimbal/pitch/control_torque
+    kp: 1.00
     ki: 0.0
     kd: 0.6 #0.6
 
@@ -123,9 +123,9 @@ pitch_velocity_pid_controller:
     measurement: /gimbal/pitch/velocity_imu
     setpoint: /gimbal/pitch/control_velocity
     control: /gimbal/pitch/control_torque
-    kp: 15.0 #45.00
+    kp: 15.0
     ki: 0.00
-    kd: 2.0 #1.00
+    kd: 2.0 #2.00
 
 yaw_angle_pid_controller:
   ros__parameters:

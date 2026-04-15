@@ -169,7 +169,7 @@ private:
         AutoClimbControl control{
             .front_track_velocity = track_velocity_max_,
             .back_climber_velocity = 0.0,
-            .override_chassis_vx = kAutoClimbApproachVelocity,
+            .override_chassis_vx = 1.0,
         };
 
         double pitch = *chassis_pitch_imu_;
