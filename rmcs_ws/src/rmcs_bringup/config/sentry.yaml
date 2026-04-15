@@ -10,9 +10,8 @@ rmcs_executor:
       - rmcs_core::referee::command::Interaction -> referee_interaction
       - rmcs_core::referee::command::interaction::Ui -> referee_ui
 
-      - sp_vision_25::bridge::SpVisionBridge -> sp_vision_bridge
-      # - rmcs_core::controller::gimbal::VirtualTargetSnapshotProvider -> virtual_target_snapshot_provider
       - rmcs_core::controller::gimbal::SentryGimbalController -> gimbal_controller
+      # - rmcs_core::controller::gimbal::VirtualTargetSnapshotProvider -> virtual_target_snapshot_provider
       # - rmcs_core::controller::gimbal::AutoAimResponseRecorder -> auto_aim_response_recorder
 
       # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
@@ -34,6 +33,7 @@ rmcs_executor:
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::SteeringWheelController -> steering_wheel_controller
 
+      # - sp_vision_25::bridge::SpVisionBridge -> sp_vision_bridge
       - rmcs::navigation::Navigation -> rmcs_navigation
 
 # The positive direction is the one that battery exists
@@ -45,10 +45,10 @@ sentry_hardware:
     bottom_yaw_motor_zero_point: 49242
     top_yaw_motor_zero_point: 46044
     pitch_motor_zero_point: 1446
-    left_front_zero_point: 5818
-    left_back_zero_point: 5136
-    right_back_zero_point: 2655
-    right_front_zero_point: 6425
+    left_front_zero_point: 5768
+    left_back_zero_point: 5110
+    right_back_zero_point: 2685
+    right_front_zero_point: 6434
 
 sp_vision_bridge:
   ros__parameters:
@@ -57,9 +57,14 @@ sp_vision_bridge:
 
 rmcs_navigation:
   ros__parameters:
-    config_name: "rmul"
-    command_vel_name: "/cmd_vel_smoothed"
+    # 策略名称：
+    # - fast-push-output "速推前哨站"
+    # - kill-robots "杀伤优先"
+    decision: "fast-push-output"
+    command_vel_name: "/cmd_vel"
     mock_context: false
+    endpoint: "mock"
+    enable_goal_topic_forward: true
 
 gimbal_controller:
   ros__parameters:

@@ -1,0 +1,17 @@
+# rmcs_bringup/config/navigation.yaml
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs::navigation::Navigation -> rmcs_navigation
+
+rmcs_navigation:
+  ros__parameters:
+    # 策略名称：
+    # - fast-push-output "速推前哨站"
+    # - kill-robots "杀伤优先"
+    decision: "fast-push-output"
+    command_vel_name: "/cmd_vel_smoothed"
+    mock_context: true
+    endpoint: "mock"
+    enable_goal_topic_forward: true
