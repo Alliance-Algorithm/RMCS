@@ -22,7 +22,7 @@ rmcs_executor:
 
       - rmcs_core::controller::chassis::DeformableChassis -> chassis_controller
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
-      - rmcs_core::controller::chassis::WheelDemoController -> deformable_chassis_controller
+      - rmcs_core::controller::chassis::OmniWheelController -> deformable_chassis_controller
 
       - rmcs_core::controller::adrc::AdrcController -> lf_joint_adrc_controller
       - rmcs_core::controller::adrc::AdrcController -> lb_joint_adrc_controller
@@ -52,7 +52,7 @@ deformable_infantry:
 
 chassis_controller:
   ros__parameters:
-    min_angle: 7.0
+    min_angle: 20.0
     max_angle: 58.0
 
 gimbal_controller:
@@ -136,12 +136,12 @@ bullet_feeder_velocity_pid_controller:
 
 deformable_chassis_controller:
   ros__parameters:
-    mass: 22.5
+    mess: 22.5
     moment_of_inertia: 1.0
     chassis_radius: 0.2341741
     rod_length: 0.150
     wheel_radius: 0.055
-    friction_coefficient: 0.6
+    friction_coefficient: 6.6
     k1: 2.958580e+00
     k2: 3.082190e-03
     no_load_power: 11.37

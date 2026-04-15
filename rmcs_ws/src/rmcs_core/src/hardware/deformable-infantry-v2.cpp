@@ -685,7 +685,7 @@ private:
                 pitch_link_to_odom_imu);
 
             tf_->set_state<rmcs_description::YawLink, rmcs_description::PitchLink>(
-                gimbal_pitch_motor_.angle());
+                gimbal_pitch_motor_.angle() - 10335/std::numbers::pi * 180.0 * 65535);
         }
 
         void command_update() {
