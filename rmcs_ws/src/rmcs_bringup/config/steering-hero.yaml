@@ -142,7 +142,7 @@ pitch_angle_pid_controller:
     control: /gimbal/pitch/control_velocity
     kp: 15.0 
     ki: 0.0
-    kd: 3.6 
+    kd: 3.2 
 
 pitch_velocity_pid_controller:
   ros__parameters:
