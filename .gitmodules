@@ -15,4 +15,4 @@
 	url = https://github.com/Alliance-Algorithm/TinyMPC.git
 [submodule "rmcs_ws/src/rmcs-navigation-deps"]
 	path = rmcs_ws/src/rmcs-navigation-deps
-	url = git@github.com:Alliance-Algorithm/rmcs-navigation-deps
+	url = https://github.com/Alliance-Algorithm/rmcs-navigation-deps.git
