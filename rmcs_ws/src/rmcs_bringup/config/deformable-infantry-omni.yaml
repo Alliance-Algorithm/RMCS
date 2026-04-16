@@ -69,11 +69,26 @@ chassis_controller:
     active_suspension_enable: false
     active_suspension_mass: 22.5
     active_suspension_rod_length: 0.150
+<<<<<<< HEAD
     active_suspension_spring_k: 20.0
     active_suspension_damping_k: 2.0
     active_suspension_gravity_comp_gain: 0.10
     active_suspension_airborne_torque_threshold: 2.0
     active_suspension_torque_limit: 15.0
+=======
+    active_suspension_Kz: 150.0
+    active_suspension_Kp: 200.0
+    active_suspension_Dp: 20.0
+    active_suspension_Kr: 200.0
+    active_suspension_Dr: 20.0
+    active_suspension_D_leg: 10.0
+    active_suspension_com_height: 0.15
+    active_suspension_wheel_base_half_x: 0.1655864
+    active_suspension_wheel_base_half_y: 0.1655864
+    active_suspension_gravity_comp_gain: 1.0
+    active_suspension_control_acceleration_limit: 6.0
+    active_suspension_torque_limit: 80.0
+>>>>>>> 76ddbb1 (test)
 
 gimbal_controller:
   ros__parameters:
@@ -163,6 +178,9 @@ deformable_chassis_controller:
     mess: 22.5
     moment_of_inertia: 1.0
     chassis_radius: 0.2341741
+    com_height: 0.15
+    chassis_radius_x: 0.1655864
+    chassis_radius_y: 0.1655864
     rod_length: 0.150
     wheel_radius: 0.055
     friction_coefficient: 66.6

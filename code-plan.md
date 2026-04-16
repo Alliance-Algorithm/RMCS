@@ -1,6 +1,6 @@
 # 主动悬挂 ADRC 方案 — 实现步骤
 
-## 修改文件清单
+## Step 1: QcpSolver 扩展
 
 | 文件 | 变更类型 | 说明 |
 |------|---------|------|
@@ -199,6 +199,36 @@ void switch_adrc_mode_(bool suspension) {
     }
     // 注意: 不调用 reset() — ESO 和 TD 的状态需要保留以实现平滑过渡
 }
+```
+
+### 成员变量: 替换弹簧/阻尼参数（修改 ~line 966-968）
+
+替换:
+```cpp
+double active_suspension_spring_k_;
+double active_suspension_damping_k_;
+```
+
+为:
+```cpp
+double active_suspension_Kz_;
+double active_suspension_Kp_;
+double active_suspension_Dp_;
+double active_suspension_Kr_;
+double active_suspension_Dr_;
+double active_suspension_D_leg_;
+double active_suspension_com_height_;
+double active_suspension_wheel_base_half_;
+```
+
+### 成员变量: 添加新输入（line 907 之后）
+
+```cpp
+InputInterface<double> chassis_imu_pitch_;
+InputInterface<double> chassis_imu_roll_;
+InputInterface<double> chassis_imu_pitch_rate_;
+InputInterface<double> chassis_imu_roll_rate_;
+InputInterface<Eigen::Vector2d> chassis_control_acceleration_;
 ```
 
 ---

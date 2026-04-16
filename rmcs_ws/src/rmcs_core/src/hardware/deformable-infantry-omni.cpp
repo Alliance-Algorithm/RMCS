@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cstddef>
@@ -177,20 +178,19 @@ private:
             , imu_(1000, 0.2, 0.0)
             , gimbal_yaw_motor_(deformableInfantry, deformableInfantry_command, "/gimbal/yaw")
             , dr16_(deformableInfantry)
-            , chassis_wheel_motors_{device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/left_front_wheel"}, device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/left_back_wheel"}, device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/right_back_wheel"}, device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/right_front_wheel"}}
-            , chassis_joint_motors_{
-                  device::LkMotor{
-                      deformableInfantry, deformableInfantry_command, "/chassis/left_front_joint"},
-                  device::LkMotor{
-                      deformableInfantry, deformableInfantry_command, "/chassis/left_back_joint"},
-                  device::LkMotor{
-                      deformableInfantry, deformableInfantry_command, "/chassis/right_back_joint"},
-                  device::LkMotor{
-                      deformableInfantry, deformableInfantry_command,
-                      "/chassis/right_front_joint"}}
-            , supercap_(deformableInfantry, deformableInfantry_command)
-            , gimbal_bullet_feeder_(
-                  deformableInfantry, deformableInfantry_command, "/gimbal/bullet_feeder") {
+            , chassis_wheel_motors_{device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/left_front_wheel"}, device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/left_back_wheel"}, device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/right_back_wheel"}, device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/right_front_wheel"}},
+            chassis_joint_motors_{
+                device::LkMotor{
+                    deformableInfantry, deformableInfantry_command, "/chassis/left_front_joint"},
+                device::LkMotor{
+                    deformableInfantry, deformableInfantry_command, "/chassis/left_back_joint"},
+                device::LkMotor{
+                    deformableInfantry, deformableInfantry_command, "/chassis/right_back_joint"},
+                device::LkMotor{
+                    deformableInfantry, deformableInfantry_command, "/chassis/right_front_joint"}},
+            supercap_(deformableInfantry, deformableInfantry_command),
+            gimbal_bullet_feeder_(
+                deformableInfantry, deformableInfantry_command, "/gimbal/bullet_feeder") {
 
             deformableInfantry.register_output("/referee/serial", referee_serial_);
             referee_serial_->read = [this](std::byte* buffer, size_t size) {
@@ -222,11 +222,23 @@ private:
                         .set_reversed()
                         .enable_multi_turn_angle());
 
+            imu_.set_coordinate_mapping([](double x, double y, double z) {
+                // Keep the existing chassis yaw axis mapping explicit until the bottom-board IMU
+                // installation is re-validated on hardware.
+                return std::make_tuple(x, y, z);
+            });
+
             gimbal_bullet_feeder_.configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kM2006}.enable_multi_turn_angle());
 
             deformableInfantry.register_output(
                 "/chassis/yaw/velocity_imu", chassis_yaw_velocity_imu_, 0);
+            deformableInfantry.register_output("/chassis/imu/pitch", chassis_imu_pitch_, 0.0);
+            deformableInfantry.register_output("/chassis/imu/roll", chassis_imu_roll_, 0.0);
+            deformableInfantry.register_output(
+                "/chassis/imu/pitch_rate", chassis_imu_pitch_rate_, 0.0);
+            deformableInfantry.register_output(
+                "/chassis/imu/roll_rate", chassis_imu_roll_rate_, 0.0);
             deformableInfantry.register_output(
                 "/chassis/left_front_joint/physical_angle", left_front_joint_physical_angle_, nan_);
             deformableInfantry.register_output(
@@ -259,6 +271,21 @@ private:
         void update() {
             imu_.update_status();
             *chassis_yaw_velocity_imu_ = imu_.gz();
+            {
+                const double q0 = imu_.q0();
+                const double q1 = imu_.q1();
+                const double q2 = imu_.q2();
+                const double q3 = imu_.q3();
+
+                double sin_pitch = 2.0 * (q0 * q2 - q3 * q1);
+                sin_pitch = std::clamp(sin_pitch, -1.0, 1.0);
+
+                *chassis_imu_pitch_ = std::asin(sin_pitch);
+                *chassis_imu_roll_ =
+                    std::atan2(2.0 * (q0 * q1 + q2 * q3), 1.0 - 2.0 * (q1 * q1 + q2 * q2));
+                *chassis_imu_pitch_rate_ = imu_.gy();
+                *chassis_imu_roll_rate_ = imu_.gx();
+            }
 
             for (auto& motor : chassis_wheel_motors_)
                 motor.update_status();
@@ -489,6 +516,10 @@ private:
         OutputInterface<rmcs_msgs::SerialInterface> referee_serial_;
 
         OutputInterface<double> chassis_yaw_velocity_imu_;
+        OutputInterface<double> chassis_imu_pitch_;
+        OutputInterface<double> chassis_imu_roll_;
+        OutputInterface<double> chassis_imu_pitch_rate_;
+        OutputInterface<double> chassis_imu_roll_rate_;
         OutputInterface<double> left_front_joint_physical_angle_;
         OutputInterface<double> left_back_joint_physical_angle_;
         OutputInterface<double> right_back_joint_physical_angle_;
