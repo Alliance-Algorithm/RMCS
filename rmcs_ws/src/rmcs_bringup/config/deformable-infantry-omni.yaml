@@ -15,7 +15,7 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController -> right_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller
 
-      - rmcs_core::controller::chassis::ChassisTestV2Controller -> chassis_test_controller
+      - rmcs_core::controller::chassis::DeformableChassis -> chassis_test_controller
       - rmcs_core::controller::adrc::AdrcController -> lf_joint_adrc_controller
       - rmcs_core::controller::adrc::AdrcController -> lb_joint_adrc_controller
       - rmcs_core::controller::adrc::AdrcController -> rb_joint_adrc_controller
@@ -39,10 +39,10 @@ value_broadcaster:
 
 deformable_infantry:
   ros__parameters:
-    serial_filter_rmcs_board: ""
-    serial_filter_top_board: ""
-    yaw_motor_zero_point: 34754
-    pitch_motor_zero_point: 53137
+    serial_filter_rmcs_board: "AF-3CE0-2D2A-6CDC-89D0-CA40-90D7-46B5-4970"
+    serial_filter_top_board: "D4-0262-9E84-E715-CADB-9894-7241"
+    yaw_motor_zero_point: 56216
+    pitch_motor_zero_point: 10898
 
 gimbal_controller:
   ros__parameters:
@@ -126,7 +126,7 @@ bullet_feeder_velocity_pid_controller:
 # Joint motor: MG5010 i36, zero at 62.5deg, range 62.5deg -> 8deg (360deg system)
 chassis_test_controller:
   ros__parameters:
-    min_angle: 13.0
+    min_angle: 5.0
     max_angle: 55.0
 
 lf_joint_adrc_controller:

@@ -291,6 +291,10 @@ private:
         *chassis_control_angle_ = nan_;
 
         current_target_angle_ = max_angle_;
+        lf_current_target_angle_ = current_target_angle_;
+        lb_current_target_angle_ = current_target_angle_;
+        rb_current_target_angle_ = current_target_angle_;
+        rf_current_target_angle_ = current_target_angle_;
         joint_target_active_ = false;
 
         *lf_angle_error_ = nan_;
@@ -441,8 +445,6 @@ private:
             rf_current_target_angle_ = min_angle_;
             lb_current_target_angle_ = max_angle_;
             rb_current_target_angle_ = max_angle_;
-        } else {
-            apply_symmetric_target = true;
         }
 
         if (apply_symmetric_target) {
