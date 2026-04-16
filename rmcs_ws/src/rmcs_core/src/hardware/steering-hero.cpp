@@ -234,6 +234,9 @@ private:
             if (last_camera_capturer_trigger_timestamp_ != *camera_capturer_trigger_timestamp_)
                 *camera_capturer_trigger_ = true;
             last_camera_capturer_trigger_timestamp_ = *camera_capturer_trigger_timestamp_;
+
+            *photoelectric_sensor_status_ = photoelectric_sensor_status_atomic.load();
+            *grayscale_sensor_status_ = grayscale_sensor_status_atomic.load();
         }
 
         void command_update() {
@@ -279,14 +282,14 @@ private:
             });
 
             builder.gpio_digital_read({
-                .channel = 2,
-                .falling_edge = true,
+                .channel = 7,
+                .period_ms = 20,
                 .pull = librmcs::data::GpioPull::kUp,
             });
 
             builder.gpio_digital_read({
-                .channel = 7,
-                .falling_edge = true,
+                .channel = 5,
+                .period_ms = 20,
                 .pull = librmcs::data::GpioPull::kUp,
             });
         }
@@ -325,14 +328,10 @@ private:
 
         void gpio_digital_read_result_callback(
             const librmcs::data::GpioDigitalDataView& data) override {
-            *photoelectric_sensor_status_ = false;
-            *grayscale_sensor_status_ = false;
-            if (data.channel == 2) {
-                *photoelectric_sensor_status_ = true;
-                // RCLCPP_INFO(logger_, "Photoelectric sensor trigger!");
-            } else if (data.channel == 7) {
-                *grayscale_sensor_status_ = true;
-                // RCLCPP_INFO(logger_, "Grayscale sensor trigger!");
+            if (data.channel == 7) {
+                photoelectric_sensor_status_atomic.store(!data.high);
+            } else if (data.channel == 5) {
+                grayscale_sensor_status_atomic.store(!data.high);
             }
         }
 
@@ -344,8 +343,6 @@ private:
         void gyroscope_receive_callback(const librmcs::data::GyroscopeDataView& data) override {
             imu_.store_gyroscope_status(data.x, data.y, data.z);
         }
-
-        void putter_receive_callback(bool status) { *photoelectric_sensor_status_ = status; }
 
         rclcpp::Logger logger_;
         OutputInterface<rmcs_description::Tf>& tf_;
@@ -366,6 +363,7 @@ private:
         OutputInterface<bool> camera_capturer_trigger_;
         OutputInterface<std::time_t> camera_capturer_trigger_timestamp_;
         std::atomic<bool> photoelectric_sensor_status_atomic{false};
+        std::atomic<bool> grayscale_sensor_status_atomic{false};
     };
 
     class BottomBoard_one final : private librmcs::agent::CBoard {

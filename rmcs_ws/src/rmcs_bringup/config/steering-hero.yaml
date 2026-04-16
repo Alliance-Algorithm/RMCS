@@ -25,7 +25,7 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController -> first_right_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> second_left_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> second_right_friction_velocity_pid_controller
-      # - rmcs_core::controller::shooting::ShootingRecorder -> shooting_recorder
+      - rmcs_core::controller::shooting::ShootingRecorder -> shooting_recorder
 
       - rmcs_core::controller::chassis::ChassisController -> chassis_controller
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
@@ -82,6 +82,7 @@ value_broadcaster:
         # - /gimbal/second_right_friction/control_torque
       - /gimbal/yaw/angle
       - /gimbal/pitch/angle
+      - /gimbal/pitch/control_angle
       - /gimbal/auto_aim/plan_pitch
       - /gimbal/auto_aim/plan_yaw
     
@@ -141,18 +142,18 @@ pitch_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/pitch/control_angle_error
     control: /gimbal/pitch/control_velocity
-    kp: 30.0 #28.00
+    kp: 12.0 #28.00
     ki: 0.0
-    kd: 0.6 #0.6
+    kd: 3.2 #0.6
 
 pitch_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/pitch/velocity_imu
     setpoint: /gimbal/pitch/control_velocity
     control: /gimbal/pitch/control_torque
-    kp: 11.0 #45.00
+    kp: 40.0 #45.00
     ki: 0.00
-    kd: 2.6 #1.00
+    kd: 2.0 #1.00
 
 gimbal_player_viewer_controller:
   ros__parameters:
@@ -175,10 +176,10 @@ friction_wheel_controller:
       - /gimbal/second_left_friction
       - /gimbal/second_right_friction
     friction_velocities:
-      - 380.00
-      - 380.00
-      - 542.00
-      - 542.00
+      - 368.00
+      - 368.00
+      - 532.00
+      - 532.00
     friction_soft_start_stop_time: 1.0
 
 heat_controller:
@@ -197,36 +198,36 @@ first_left_friction_velocity_pid_controller:
     measurement: /gimbal/first_left_friction/velocity
     setpoint: /gimbal/first_left_friction/control_velocity
     control: /gimbal/first_left_friction/control_torque
-    kp: 0.0016
+    kp: 0.0008
     ki: 0.00
-    kd: 0.001
+    kd: 0.000055
 
 first_right_friction_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/first_right_friction/velocity
     setpoint: /gimbal/first_right_friction/control_velocity
     control: /gimbal/first_right_friction/control_torque
-    kp: 0.0016
+    kp: 0.0008
     ki: 0.00
-    kd: 0.001
+    kd: 0.000055
 
 second_left_friction_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/second_left_friction/velocity
     setpoint: /gimbal/second_left_friction/control_velocity
     control: /gimbal/second_left_friction/control_torque
-    kp: 0.001
+    kp: 0.0005
     ki: 0.00
-    kd: 0.001
+    kd: 0.00004
 
 second_right_friction_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/second_right_friction/velocity
     setpoint: /gimbal/second_right_friction/control_velocity
     control: /gimbal/second_right_friction/control_torque
-    kp: 0.001
+    kp: 0.0005
     ki: 0.00
-    kd: 0.001
+    kd: 0.00004
   
 steering_wheel_controller:
   ros__parameters:
@@ -280,6 +281,6 @@ auto_aim_controller:
 hero_auto_aim_bridge:                                                                                                 
     ros__parameters:                                                                                                    
       config_file: "configs/standard3.yaml"                                                                             
-      bullet_speed_fallback: 11.5                                                                                      
+      bullet_speed_fallback: 11.7                                                                                      
       result_timeout: 0.1   # 0.08                                                                                     
       debug: false

@@ -18,7 +18,7 @@ roi:
   width: 600
   height: 600
 
-use_roi: false
+use_roi: false #其他参数改的有效果的话再试一下
 
 #####-----传统方法参数-----#####
 threshold: 150
@@ -37,23 +37,18 @@ max_temp_lost_count: 5
 outpost_max_temp_lost_count: 75
 
 #aimer参数
-yaw_offset: 1.1 # degree 
-pitch_offset: -2.2 # degree 
+yaw_offset: 1.2 # degree 111
+pitch_offset: -2.2 # degree 111
 comming_angle: 55 # degree
 leaving_angle: 20 # degree
 decision_speed: 5 # rad/s
-shoot_time_delay: 0.0     # 固定发射链路延迟
-high_speed_delay_time: 0.0 # s
-low_speed_delay_time: 0.0 # s 
+shoot_time_delay: 0.217      # 固定发射链路延迟
+high_speed_delay_time: 0.0   # 速度相关的额外补偿，先置 0
+low_speed_delay_time: 0.0
 phase_fire_thresh: 6.0       # degree
 impact_switch_margin: 3.0    # degree
-impact_select_iters: 5
+impact_select_iters: 3
 
-spin_fire_family_mode: even
-spin_phase_fire_window_steps: 2
-spin_family_height_margin: 0.01
-centerline_enter_speed: 1.5
-centerline_exit_speed: 0.5
 
 #shooter参数  没有用
 first_tolerance: 30 # 近距离射击容差，degree
@@ -102,10 +97,9 @@ t_camera2gimbal: [0.1420, 0.0, 0.1091]
 fire_thresh: 0.0025
 
 max_yaw_acc: 500
-Q_yaw: [9e6, 0] 
-R_yaw: [1] 
+Q_yaw: [9e6, 0] # [1e3, 0] 111
+R_yaw: [1] #10 111
 
 max_pitch_acc: 100
-Q_pitch: [9e6, 0] 
-R_pitch: [1] 
-
+Q_pitch: [9e6, 0] # [1e3, 0] 111
+R_pitch: [1] #10 111

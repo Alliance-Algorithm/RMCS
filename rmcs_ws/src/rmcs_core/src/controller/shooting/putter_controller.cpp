@@ -1,6 +1,3 @@
-#include <chrono>
-#include <filesystem>
-#include <fstream>
 #include <string>
 
 #include <rclcpp/node.hpp>
@@ -50,12 +47,11 @@ public:
             control_bullet_allowance_limited_by_heat_);
 
         register_input("/gimbal/photoelectric_sensor", photoelectric_sensor_status_);
+        register_input("/gimbal/grayscale_sensor", grayscale_sensor_status_);
         register_input("/gimbal/bullet_fired", bullet_fired_);
 
         register_input("/gimbal/putter/angle", putter_angle_);
         register_input("/gimbal/putter/velocity", putter_velocity_);
-
-        last_preload_flag_ = false;
 
         bullet_feeder_velocity_pid_.kp = 50.0;
         bullet_feeder_velocity_pid_.ki = 10.0;
@@ -63,9 +59,9 @@ public:
         bullet_feeder_velocity_pid_.integral_max = 60.0;
         bullet_feeder_velocity_pid_.integral_min = 0.0;
 
-        bullet_feeder_angle_pid_.kp = 8.0;
+        bullet_feeder_angle_pid_.kp = 4.2;
         bullet_feeder_angle_pid_.ki = 0.0;
-        bullet_feeder_angle_pid_.kd = 2.0;
+        bullet_feeder_angle_pid_.kd = 1.0;
 
         putter_return_velocity_pid_.kp = 0.0015;
         putter_return_velocity_pid_.ki = 0.00005;
@@ -91,31 +87,24 @@ public:
         register_output("/gimbal/shooter/condiction", shoot_condiction_);
 
         register_output("/gimbal/shoot/delay_ms", shoot_delay_ms_, nan_);
-        // initialize_shoot_delay_log();
 
-        //auto_aim
+        // auto_aim
         register_input("/gimbal/auto_aim/fire_control", fire_control_, false);
     }
 
-    ~PutterController() {
-        // if (shoot_delay_log_stream_.is_open()) {
-        //     shoot_delay_log_stream_.close();
-        // }
-    }
+    ~PutterController() {}
 
     void update() override {
         const auto switch_right = *switch_right_;
         const auto switch_left = *switch_left_;
         const auto mouse = *mouse_;
         const auto keyboard = *keyboard_;
-        const bool bullet_fired_now = *bullet_fired_;
 
         using namespace rmcs_msgs;
 
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
             reset_all_controls();
-            // update_shoot_delay_measurement(bullet_fired_now);
             return;
         }
 
@@ -163,38 +152,38 @@ public:
                     //             && switch_left == rmcs_msgs::Switch::DOWN)) {
                     if (switch_right != Switch::DOWN) {
 
-                    const auto now = std::chrono::steady_clock::now();
+                        const auto now = std::chrono::steady_clock::now();
 
-                    const bool manual_trigger =
-                        (!last_mouse_.left && mouse.left)
-                        || (last_switch_left_ == rmcs_msgs::Switch::MIDDLE
-                            && switch_left == rmcs_msgs::Switch::DOWN);
+                        const bool manual_trigger = (!last_mouse_.left && mouse.left)
+                                                 || (last_switch_left_ == rmcs_msgs::Switch::MIDDLE
+                                                     && switch_left == rmcs_msgs::Switch::DOWN);
 
-                    const bool auto_fire_now =
-                    (switch_right == Switch::UP) && (*fire_control_);
+                        const bool auto_fire_now = (switch_right == Switch::UP) && (*fire_control_);
 
-                    const bool auto_trigger =
-                    auto_fire_now && (now - last_fire_time_ > std::chrono::milliseconds(800));
+                        const bool auto_trigger =
+                            auto_fire_now
+                            && (now - last_fire_time_ > std::chrono::milliseconds(800));
 
-                    if (manual_trigger || auto_trigger) {
-                            // RCLCPP_INFO(
-                            //     get_logger(), "now :%ld",
-                            //     *control_bullet_allowance_limited_by_heat_);
+                        if (manual_trigger || auto_trigger) {
                             if (*control_bullet_allowance_limited_by_heat_ > 0
                                 && (shoot_stage_ == ShootStage::PRELOADED || shoot_first)) {
-                                // RCLCPP_INFO(
-                                //     get_logger(), "shoot: %ld",
-                                //     *control_bullet_allowance_limited_by_heat_);
                                 set_shooting();
                                 last_fire_time_ = now;
                                 shoot_first = false;
                             }
                         }
-
                     }
 
                     if (shoot_stage_ == ShootStage::UPDATING) {
                         wait_bullet_ready();
+                    }
+
+                    if (shoot_stage_ == ShootStage::COMPRESSED) {
+                        if (*grayscale_sensor_status_) {
+                            set_preloaded();
+                        } else {
+                            set_preloading();
+                        }
                     }
 
                     if (shoot_stage_ == ShootStage::PRELOADING) {
@@ -202,12 +191,11 @@ public:
                         if (std::isnan(bullet_feeder_control_angle_)) {
                             bullet_feeder_control_angle_ =
                                 *bullet_feeder_angle_ + bullet_feeder_angle_per_bullet_;
-                            last_preload_flag_ = true;
                         }
 
                         const auto angle_err = bullet_feeder_control_angle_ - *bullet_feeder_angle_;
                         if (angle_err < 0.1) {
-                            set_preloaded();
+                            set_compressed();
                         }
                         double velocity_err =
                             bullet_feeder_angle_pid_.update(angle_err) - *bullet_feeder_velocity_;
@@ -227,7 +215,7 @@ public:
                         const auto angle_err = bullet_feeder_control_angle_ - *bullet_feeder_angle_;
                         if (angle_err < 0.1) {
                             RCLCPP_INFO(get_logger(), "RESETED");
-                            set_preloaded();
+                            set_compressed();
                         }
                         double velocity_err =
                             bullet_feeder_angle_pid_.update(angle_err) - *bullet_feeder_velocity_;
@@ -287,8 +275,6 @@ public:
             update_putter_jam_detection();
         }
 
-        // update_shoot_delay_measurement(bullet_fired_now);
-
         // 保存当前状态用于下次比较
         last_switch_right_ = switch_right;
         last_switch_left_ = switch_left;
@@ -302,8 +288,6 @@ private:
         last_switch_left_ = rmcs_msgs::Switch::UNKNOWN;
         last_mouse_ = rmcs_msgs::Mouse::zero();
         last_keyboard_ = rmcs_msgs::Keyboard::zero();
-
-        overdrive_mode_ = false;
 
         bullet_feeder_control_angle_ = nan_;
         bullet_feeder_angle_pid_.output_max = inf_;
@@ -320,14 +304,9 @@ private:
         putter_return_angle_pid.reset();
         *putter_control_torque_ = nan_;
 
-        last_preload_flag_ = false;
-        last_photoelectric_sensor_status_ = false;
-
         bullet_feeder_faulty_count_ = 0;
         bullet_feeder_cool_down_ = 0;
 
-        shot_delay_pending_ = false;
-        last_bullet_fired_ = false;
         *shoot_delay_ms_ = nan_;
     }
 
@@ -343,20 +322,21 @@ private:
         if (!std::isnan(bullet_feeder_control_angle_)) {
             bullet_feeder_control_angle_ += bullet_feeder_angle_per_bullet_;
         }
-        last_preload_flag_ = true;
+    }
+
+    void set_compressed() {
+        RCLCPP_INFO(get_logger(), "COMPRESSED");
+        shoot_stage_ = ShootStage::COMPRESSED;
     }
 
     void set_preloaded() {
         RCLCPP_INFO(get_logger(), "PRELOADED");
         shoot_stage_ = ShootStage::PRELOADED;
-        last_preload_flag_ = false;
     }
 
     void set_shooting() {
         RCLCPP_INFO(get_logger(), "SHOOTING");
         shoot_stage_ = ShootStage::SHOOTING;
-        shoot_start_time_ = std::chrono::steady_clock::now();
-        shot_delay_pending_ = true;
     }
 
     void set_updating() { shoot_stage_ = ShootStage::UPDATING; }
@@ -457,7 +437,7 @@ private:
     static constexpr double bullet_feeder_angle_per_bullet_ = 2 * std::numbers::pi / 6;
 
     InputInterface<bool> photoelectric_sensor_status_;
-    bool last_photoelectric_sensor_status_;
+    InputInterface<bool> grayscale_sensor_status_;
     InputInterface<bool> bullet_fired_;
     bool shooted{false};
     bool shoot_first{true};
@@ -474,14 +454,10 @@ private:
     rmcs_msgs::Mouse last_mouse_ = rmcs_msgs::Mouse::zero();
     rmcs_msgs::Keyboard last_keyboard_ = rmcs_msgs::Keyboard::zero();
 
-    bool overdrive_mode_ = false;
-
     InputInterface<double> bullet_feeder_angle_;
     InputInterface<double> bullet_feeder_velocity_;
 
     InputInterface<int64_t> control_bullet_allowance_limited_by_heat_;
-
-    bool last_preload_flag_ = false;
 
     bool putter_initialized = false;
     int putter_faulty_count_ = 0;
@@ -492,7 +468,7 @@ private:
 
     pid::PidCalculator putter_velocity_pid_;
 
-    enum class ShootStage { RESETTING, PRELOADING, PRELOADED, SHOOTING, UPDATING };
+    enum class ShootStage { RESETTING, PRELOADING, COMPRESSED, PRELOADED, SHOOTING, UPDATING };
     ShootStage shoot_stage_ = ShootStage::PRELOADING;
     double bullet_feeder_control_angle_ = nan_;
 
@@ -512,14 +488,6 @@ private:
     OutputInterface<rmcs_msgs::ShootCondiction> shoot_condiction_;
 
     OutputInterface<double> shoot_delay_ms_;
-
-    std::chrono::steady_clock::time_point shoot_start_time_{};
-    bool shot_delay_pending_ = false;
-    bool last_bullet_fired_ = false;
-
-    std::ofstream shoot_delay_log_stream_;
-    std::string shoot_delay_log_path_;
-    std::size_t shoot_delay_sample_count_ = 0;
 
     InputInterface<bool> fire_control_;
     std::chrono::steady_clock::time_point last_fire_time_{};

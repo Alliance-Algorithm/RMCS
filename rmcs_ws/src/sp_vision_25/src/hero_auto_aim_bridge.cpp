@@ -33,9 +33,6 @@
 
 #include "tools/math_tools.hpp"
 
-// 少开火逻辑
-
-// 弹道解算
 namespace sp_vision_25::bridge {
 namespace {
 
@@ -55,6 +52,14 @@ Eigen::Vector3d angles_to_direction(double yaw, double pitch) {
         direction.setZero();
     return direction;
 }
+
+// constexpr double kFireYawTolerance = 0.2 / kRadToDeg;
+// constexpr double kFirePitchTolerance = 0.2 / kRadToDeg;
+
+// std::array<double, 2> yaw_pitch_from_direction(const Eigen::Vector3d& direction) {
+//     const double xy_norm = std::hypot(direction.x(), direction.y());
+//     return {std::atan2(direction.y(), direction.x()), std::atan2(-direction.z(), xy_norm)};
+// }
 
 Eigen::Quaterniond tf_to_gimbal_pose(const rmcs_description::Tf& tf) {
     auto q = tf.get_transform<rmcs_description::PitchLink, rmcs_description::OdomImu>();
@@ -189,7 +194,7 @@ public:
             declare_parameter<std::string>(
                 "config_file", package_share + "/configs/standard3.yaml");
         if (!has_parameter("bullet_speed_fallback"))
-            declare_parameter<double>("bullet_speed_fallback", 11.5);
+            declare_parameter<double>("bullet_speed_fallback", 11.7);
         if (!has_parameter("result_timeout"))
             declare_parameter<double>("result_timeout", 0.2);
         if (!has_parameter("debug"))
@@ -282,6 +287,20 @@ private:
         std::lock_guard<std::mutex> lock(tf_mutex_);
         return latest_tf_;
     }
+
+    // std::array<double, 2> current_world_yaw_pitch() {
+    //     const auto tf = load_latest_tf();
+    //     auto direction = fast_tf::cast<rmcs_description::OdomImu>(
+    //         rmcs_description::PitchLink::DirectionVector{Eigen::Vector3d::UnitX()}, tf);
+
+    //     Eigen::Vector3d vector = *direction;
+    //     if (vector.norm() > 1e-9)
+    //         vector.normalize();
+    //     else
+    //         vector = Eigen::Vector3d::UnitX();
+
+    //     return yaw_pitch_from_direction(vector);
+    // }
 
     void store_result(const VisionResult& result) {
         std::lock_guard<std::mutex> lock(result_mutex_);
@@ -413,15 +432,29 @@ private:
                 VisionResult result;
                 result.timestamp = target_state.timestamp;
                 result.valid = plan.control;
+                // const auto [actual_yaw, actual_pitch] = current_world_yaw_pitch();
+
+                // const double yaw_error =
+                //     plan.control ? tools::limit_rad(plan.yaw - actual_yaw) : 0.0;
+                // const double pitch_error = plan.control ? (plan.pitch - actual_pitch) : 0.0;
+
+                // const bool angle_aligned = plan.control && std::abs(yaw_error) <
+                // kFireYawTolerance
+                //                         && std::abs(pitch_error) < kFirePitchTolerance;
+
+                // // result.fire_control = plan.control && plan.fire && angle_aligned;
                 result.fire_control = plan.control && plan.fire;
                 result.direction = plan.control ? angles_to_direction(plan.yaw, plan.pitch)
                                                 : Eigen::Vector3d::Zero();
                 result.laser_distance = plan.control ? planner.debug_xyza.head<3>().norm() : 0.0;
                 result.plan_yaw = plan.yaw;
                 result.plan_pitch = plan.pitch;
-                // RCLCPP_INFO(get_logger(), "Planned yaw: %f, pitch: %f", result.plan_yaw,
-                // result.plan_pitch); RCLCPP_INFO(get_logger(), " yaw: %f ,pitch: %f",
-                // *gimbal_yaw_angle_,*gimbal_pitch_angle_);
+                // RCLCPP_INFO(
+                //     get_logger(), "Planned yaw: %f, pitch: %f", result.plan_yaw,
+                //     result.plan_pitch);
+                // RCLCPP_INFO(
+                //     get_logger(), " yaw: %f ,pitch: %f", *gimbal_yaw_angle_,
+                //     *gimbal_pitch_angle_);
                 //               const auto tf = load_latest_tf();
                 //             const auto gimbal_pose = tf_to_gimbal_pose(tf);
                 //             const auto imu_ypr = tools::eulers(gimbal_pose, 2, 1, 0);
@@ -491,8 +524,8 @@ private:
     std::mutex tf_mutex_;
     rmcs_description::Tf latest_tf_;
 
-    std::atomic<double> bullet_speed_snapshot_{11.5};
-    float bullet_speed_fallback_storage_ = 11.5F;
+    std::atomic<double> bullet_speed_snapshot_{11.7};
+    float bullet_speed_fallback_storage_ = 11.7F;
     std::chrono::duration<double> result_timeout_{0.1};
     bool debug_ = false;
     std::string runtime_config_path_;
