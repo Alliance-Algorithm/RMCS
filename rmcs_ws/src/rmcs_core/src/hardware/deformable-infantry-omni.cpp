@@ -563,24 +563,25 @@ private:
             gimbal_right_friction_.update_status();
             scope_motor_.update_status();
 
+            const double pitch_encoder_angle = gimbal_pitch_motor_.angle();
             Eigen::Quaterniond const odom_imu_to_yaw_link{
                 bmi088_.q0(), bmi088_.q1(), bmi088_.q2(), bmi088_.q3()};
             Eigen::Quaterniond const yaw_link_to_odom_imu = odom_imu_to_yaw_link.conjugate();
-            Eigen::Quaterniond pitch_link_to_odom_imu = yaw_link_to_odom_imu
-                                                      * Eigen::Quaterniond{Eigen::AngleAxisd{
-                                                          -gimbal_pitch_motor_.angle(),
-                                                          Eigen::Vector3d::UnitY()}};
+            Eigen::Quaterniond pitch_link_to_odom_imu = Eigen::Quaterniond{Eigen::AngleAxisd{
+                                                          -pitch_encoder_angle,
+                                                          Eigen::Vector3d::UnitY()}}
+                                                      * yaw_link_to_odom_imu;
             pitch_link_to_odom_imu.normalize();
 
             *gimbal_yaw_velocity_bmi088_ = bmi088_.gz();
             *gimbal_pitch_velocity_encoder_ = gimbal_pitch_motor_.velocity();
-            // V2 mounts the BMI088 on the yaw link, so synthesize the pitch-link pose with the
-            // pitch encoder before publishing the TF tree.
+            // The BMI088 is mounted on the yaw link. fast_tf stores PitchLink -> OdomImu, so use
+            // the encoder pitch from the TF tree to move the yaw-link pose back into PitchLink.
             tf_->set_transform<rmcs_description::PitchLink, rmcs_description::OdomImu>(
                 pitch_link_to_odom_imu);
 
             tf_->set_state<rmcs_description::YawLink, rmcs_description::PitchLink>(
-                gimbal_pitch_motor_.angle() - 10335 / std::numbers::pi * 180.0 * 65535);
+                pitch_encoder_angle);
         }
 
         void command_update() {
