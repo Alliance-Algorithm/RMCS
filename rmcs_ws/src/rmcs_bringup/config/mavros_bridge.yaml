@@ -1,9 +1,9 @@
+---
 rmcs_executor:
   ros__parameters:
     update_rate: 1000.0
     components:
       - rmcs_core::hardware::FlightMavros -> flight_mavros_hardware
-
 mavros:
   ros__parameters:
     enabled: true
@@ -14,23 +14,23 @@ mavros:
     fcu_protocol: v2.0
     respawn: true
     respawn_delay: 1.0
-
 odin_ros_driver:
   ros__parameters:
     enabled: true
-    config_file: "/rmcs_install/share/odin_ros_driver/config/control_command.yaml"
+    config_file: >-
+      /rmcs_install/share/odin_ros_driver/config/control_command.yaml
     node_name: host_sdk_sample
     respawn: true
     respawn_delay: 1.0
-
 flight_mavros_hardware:
   ros__parameters:
     target_frame_id: odom
     source_frame_id: odin1_base_link
-    output_rate: 50.0
-    # Keep odom position as-is; only correct the vision sensor orientation.
-    sensor_roll_offset_rad: 0.0
-    sensor_pitch_offset_rad: 0.0
+    output_rate: 30.0
+    # Keep odom position as-is; only correct the vision sensor orientation for
+    # the reversed front-facing Odin mount.
+    sensor_roll_offset_rad: 3.141592653589793
+    sensor_pitch_offset_rad: 1.5707963267948966
     sensor_yaw_offset_rad: 0.0
     mavros_pose_topic: /mavros/vision_pose/pose
     mavros_pose_frame_id: odom

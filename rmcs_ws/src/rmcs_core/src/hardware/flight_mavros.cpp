@@ -150,19 +150,35 @@ private:
 
     void publish_pose() {
         geometry_msgs::msg::Pose pose;
+        rclcpp::Time tf_stamp;
         {
             std::lock_guard<std::mutex> lock(pose_mutex_);
             if (!pose_ready_)
                 return;
 
+            if (last_tf_stamp_ == last_published_tf_stamp_)
+                return;
+
+            tf_stamp = last_tf_stamp_;
             pose = latest_pose_;
         }
 
+        const rclcpp::Duration max_pose_age = rclcpp::Duration::from_seconds(1.0 / output_rate_hz_);
+        const rclcpp::Time now = get_clock()->now();
+        if ((now - tf_stamp) >= max_pose_age)
+            return;
+
         geometry_msgs::msg::PoseStamped pose_msg{};
-        pose_msg.header.stamp = get_clock()->now();
+        pose_msg.header.stamp = now;
         pose_msg.header.frame_id = mavros_pose_frame_id_;
         pose_msg.pose = pose;
         mavros_pose_publisher_->publish(pose_msg);
+
+        {
+            std::lock_guard<std::mutex> lock(pose_mutex_);
+            if (last_tf_stamp_ == tf_stamp)
+                last_published_tf_stamp_ = tf_stamp;
+        }
 
         RCLCPP_INFO_THROTTLE(
             logger_, *get_clock(), 1000, "Published MAVROS vision pose at %.1f Hz to '%s'.",
@@ -187,6 +203,7 @@ private:
     std::mutex pose_mutex_;
     geometry_msgs::msg::Pose latest_pose_{};
     rclcpp::Time last_tf_stamp_{};
+    rclcpp::Time last_published_tf_stamp_{};
     std::uint32_t update_counter_{0};
     bool pose_ready_{false};
 };

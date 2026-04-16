@@ -7,18 +7,6 @@
 [submodule "rmcs_ws/src/serial"]
 	path = rmcs_ws/src/serial
 	url = https://github.com/Alliance-Algorithm/ros2-serial.git
-[submodule "rmcs_ws/src/micro-xrce-dds-agent"]
-	path = rmcs_ws/src/micro-xrce-dds-agent
-	url = https://github.com/eProsima/Micro-XRCE-DDS-Agent.git
-[submodule "rmcs_ws/src/px4_msgs"]
-	path = rmcs_ws/src/px4_msgs
-	url = https://github.com/PX4/px4_msgs.git
-[submodule "rmcs_ws/src/px4_ros_com"]
-	path = rmcs_ws/src/px4_ros_com
-	url = https://github.com/PX4/px4_ros_com.git
-[submodule "rmcs_ws/src/px4-ros2-interface-lib"]
-	path = rmcs_ws/src/px4-ros2-interface-lib
-	url = https://github.com/Auterion/px4-ros2-interface-lib
 [submodule "rmcs_ws/src/odin_ros_driver"]
 	path = rmcs_ws/src/odin_ros_driver
 	url = https://github.com/Alliance-Algorithm/odin_ros_driver.git
