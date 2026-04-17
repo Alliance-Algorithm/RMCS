@@ -25,6 +25,10 @@ public:
         , eso_(load_eso_config())
         , nlesf_(load_nlesf_config()) {
         register_input(get_parameter("measurement").as_string(), measurement_);
+        if (has_parameter("limit")) {
+            register_input(get_parameter("limit").as_string(), limit_);
+            use_dynamic_limit_ = true;
+        }
 
         if (has_parameter("setpoint")) {
             register_input(get_parameter("setpoint").as_string(), setpoint_);
@@ -60,6 +64,11 @@ public:
     }
 
     void update() override {
+        if (!refresh_limit_()) {
+            disable_output_();
+            return;
+        }
+
         const double measurement_or_error = *measurement_;
         if (!std::isfinite(measurement_or_error)) {
             disable_output_();
@@ -96,6 +105,33 @@ public:
     }
 
 private:
+    bool refresh_limit_() {
+        if (!use_dynamic_limit_) {
+            return true;
+        }
+
+        if (!limit_.ready()) {
+            return false;
+        }
+
+        const double raw_limit = *limit_;
+        if (!std::isfinite(raw_limit)) {
+            return false;
+        }
+
+        const double effective_limit = std::max(0.0, raw_limit);
+        if (std::isfinite(last_limit_) && std::abs(effective_limit - last_limit_) <= 1e-9) {
+            return true;
+        }
+
+        auto cfg = nlesf_.config();
+        cfg.u_min = -effective_limit;
+        cfg.u_max = effective_limit;
+        nlesf_.set_config(cfg);
+        last_limit_ = effective_limit;
+        return true;
+    }
+
     void disable_output_() {
         *control_ = std::numeric_limits<double>::quiet_NaN();
         last_u_ = 0.0;
@@ -138,6 +174,9 @@ private:
 
     InputInterface<double> measurement_;
     InputInterface<double> setpoint_;
+
+    InputInterface<double> limit_;
+
     OutputInterface<double> control_;
 
     TD td_;
@@ -145,10 +184,12 @@ private:
     NLESF nlesf_;
 
     bool use_error_input_mode_ = false;
+    bool use_dynamic_limit_ = false;
 
     double b0_ = 1.0;
     double kt_ = 1.0;
     double last_u_ = 0.0;
+    double last_limit_ = std::numeric_limits<double>::quiet_NaN();
 
     double output_min_ = -std::numeric_limits<double>::infinity();
     double output_max_ = std::numeric_limits<double>::infinity();

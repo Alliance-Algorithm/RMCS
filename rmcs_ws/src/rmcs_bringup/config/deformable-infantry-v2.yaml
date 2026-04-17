@@ -23,6 +23,7 @@ rmcs_executor:
       - rmcs_core::controller::chassis::DeformableChassis -> chassis_controller
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::WheelDemoController -> deformable_chassis_controller
+      - rmcs_core::controller::chassis::ActiveSuspension -> active_suspension
 
       - rmcs_core::controller::adrc::AdrcController -> lf_joint_adrc_controller
       - rmcs_core::controller::adrc::AdrcController -> lb_joint_adrc_controller
@@ -147,6 +148,11 @@ deformable_chassis_controller:
     k2: 3.082190e-03
     no_load_power: 11.37
 
+active_suspension:
+  ros__parameters:
+    switch_torque_limit: 200.0
+    steady_torque_limit: 50.0
+
 lf_joint_adrc_controller:
   ros__parameters:
     measurement: /chassis/left_front_joint/angle
@@ -164,8 +170,7 @@ lf_joint_adrc_controller:
     alpha1: 0.75
     alpha2: 0.7
     delta: 0.02
-    u_min: -200.0
-    u_max: 200.0
+    limit: /chassis/left_front_joint/torque_limit
 
 lb_joint_adrc_controller:
   ros__parameters:
@@ -184,8 +189,7 @@ lb_joint_adrc_controller:
     alpha1: 0.75
     alpha2: 0.7
     delta: 0.02
-    u_min: -200.0
-    u_max: 200.0
+    limit: /chassis/left_back_joint/torque_limit
 
 rb_joint_adrc_controller:
   ros__parameters:
@@ -204,8 +208,7 @@ rb_joint_adrc_controller:
     alpha1: 0.75
     alpha2: 0.7
     delta: 0.02
-    u_min: -200.0
-    u_max: 200.0
+    limit: /chassis/right_back_joint/torque_limit
 
 rf_joint_adrc_controller:
   ros__parameters:
@@ -224,5 +227,4 @@ rf_joint_adrc_controller:
     alpha1: 0.75
     alpha2: 0.7
     delta: 0.02
-    u_min: -200.0
-    u_max: 200.0
+    limit: /chassis/right_front_joint/torque_limit

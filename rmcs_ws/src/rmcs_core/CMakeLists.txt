@@ -16,12 +16,12 @@ ament_auto_find_build_dependencies()
 include(FetchContent)
 set(BUILD_STATIC_LIBRMCS ON CACHE BOOL "Build static librmcs SDK" FORCE)
 set(LIBRMCS_SOURCE_DIR
-  "${CMAKE_CURRENT_SOURCE_DIR}/../../../librmcs-sdk-src-3.1.0-beta.1"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../../../librmcs-sdk-src-3.1.0"
 )
 
 if(NOT EXISTS "${LIBRMCS_SOURCE_DIR}/CMakeLists.txt")
   message(FATAL_ERROR
-    "Expected librmcs v3.1.0-beta.1 source tree at ${LIBRMCS_SOURCE_DIR}, but it was not found"
+    "Expected librmcs v3.1.0 source tree at ${LIBRMCS_SOURCE_DIR}, but it was not found"
   )
 endif()
 

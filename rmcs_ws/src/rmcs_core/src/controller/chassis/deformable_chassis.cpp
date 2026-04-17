@@ -244,7 +244,7 @@ private:
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
 
     static constexpr double translational_velocity_max_ = 10.0;
-    static constexpr double angular_velocity_max_ = 20.0;
+    static constexpr double angular_velocity_max_ = 25.0;
     static constexpr double rad_to_deg_ = 180.0 / std::numbers::pi;
 
     static double wrap_deg(double deg) {
@@ -293,6 +293,10 @@ private:
         *chassis_control_angle_ = nan_;
 
         current_target_angle_ = max_angle_;
+        lf_current_target_angle_ = current_target_angle_;
+        lb_current_target_angle_ = current_target_angle_;
+        rb_current_target_angle_ = current_target_angle_;
+        rf_current_target_angle_ = current_target_angle_;
         joint_target_active_ = false;
 
         *scope_motor_control_torque = nan_;

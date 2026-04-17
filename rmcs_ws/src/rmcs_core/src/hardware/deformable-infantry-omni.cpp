@@ -156,7 +156,7 @@ private:
         DeformableInfantryOmni& deformableInfantry;
     };
 
-    class BottomBoard final : private librmcs::agent::RmcsBoard {
+    class BottomBoard final : private librmcs::agent::RmcsBoardPro {
     public:
         friend class DeformableInfantryOmni;
 
@@ -197,7 +197,7 @@ private:
                     [&buffer](std::byte byte) noexcept { *buffer++ = byte; }, size);
             };
             referee_serial_->write = [this](const std::byte* buffer, size_t size) {
-                start_transmit().uart0_transmit({
+                start_transmit().uart2_transmit({
                     .uart_data = std::span<const std::byte>{buffer, size}
                 });
                 return size;
@@ -288,6 +288,18 @@ private:
         void command_update() {
             auto builder = start_transmit();
 
+            builder.can1_transmit({
+                .can_id = 0x1FE,
+                .can_data =
+                    device::CanPacket8{
+                                       device::CanPacket8::PaddingQuarter{},
+                                       device::CanPacket8::PaddingQuarter{},
+                                       device::CanPacket8::PaddingQuarter{},
+                                       supercap_.generate_command(),
+                                       }
+                        .as_bytes(),
+            });
+
             builder.can0_transmit({
                 .can_id = 0x200,
                 .can_data =
@@ -357,6 +369,7 @@ private:
 
     private:
         DeformableInfantryOmni& deformable_infantry_;
+        OutputInterface<rmcs_description::Tf>& tf_;
 
         static constexpr double joint_zero_physical_angle_rad_ = 62.5 * std::numbers::pi / 180.0;
         static constexpr double chassis_radius_base_ = 0.2341741;

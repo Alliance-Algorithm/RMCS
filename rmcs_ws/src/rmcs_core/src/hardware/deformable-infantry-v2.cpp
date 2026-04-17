@@ -22,7 +22,7 @@
 #include <std_msgs/msg/int32.hpp>
 
 #include <librmcs/agent/c_board.hpp>
-#include <librmcs/agent/rmcs_board.hpp>
+#include <librmcs/agent/rmcs_board_lite.hpp>
 
 #include "hardware/device/bmi088.hpp"
 #include "hardware/device/can_packet.hpp"
@@ -180,7 +180,7 @@ private:
         DeformableInfantryV2& deformableInfantry;
     };
 
-    class BottomBoard final : private librmcs::agent::RmcsBoard {
+    class BottomBoard final : private librmcs::agent::RmcsBoardLite {
     public:
         friend class DeformableInfantryV2;
 
@@ -192,7 +192,7 @@ private:
             std::string serial_filter =
                 {
         })
-            : librmcs::agent::RmcsBoard(
+            : librmcs::agent::RmcsBoardLite(
                   serial_filter,
                   librmcs::agent::AdvancedOptions{.dangerously_skip_version_checks = true})
             , deformable_infantry_(deformableInfantry)
@@ -593,7 +593,7 @@ private:
                 chassis_steer_motors_[3].store_status(data.can_data);
         }
 
-        void uart2_receive_callback(const librmcs::data::UartDataView& data) override {
+        void uart0_receive_callback(const librmcs::data::UartDataView& data) override {
             const std::byte* ptr = data.uart_data.data();
             referee_ring_buffer_receive_.emplace_back_n(
                 [&ptr](std::byte* storage) noexcept { *storage = *ptr++; }, data.uart_data.size());
