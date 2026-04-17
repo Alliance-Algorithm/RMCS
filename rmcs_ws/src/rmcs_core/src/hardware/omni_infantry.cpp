@@ -1,10 +1,13 @@
+#include <atomic>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <memory>
 #include <span>
 #include <tuple>
 #include <utility>
 
+#include <boost/lockfree/spsc_queue.hpp>
 #include <eigen3/Eigen/Dense>
 #include <librmcs/agent/c_board.hpp>
 #include <librmcs/data/datas.hpp>
@@ -28,6 +31,11 @@
 #include "hardware/device/supercap.hpp"
 
 namespace rmcs_core::hardware {
+
+struct CameraTriggerEvent {
+    std::uint64_t seq{};
+    std::chrono::steady_clock::time_point timestamp{};
+};
 
 class OmniInfantry
     : public rmcs_executor::Component
@@ -84,6 +92,8 @@ public:
         register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
         register_output("/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
         register_output("/tf", tf_);
+        register_output("/camera/trigger/seq", camera_trigger_seq_);
+        register_output("/camera/trigger/timestamp", camera_trigger_timestamp_);
 
         bmi088_.set_coordinate_mapping([](double x, double y, double z) {
             // Get the mapping with the following code.
@@ -139,7 +149,16 @@ public:
 
     ~OmniInfantry() override = default;
 
+    void before_updating() override {
+        start_transmit().gpio_digital_read({
+            .channel = 1,
+            .falling_edge = true,
+            .pull = librmcs::data::GpioPull::kUp,
+        });
+    }
+
     void update() override {
+        update_camera_trigger();
         update_motors();
         update_imu();
         dr16_.update_status();
@@ -197,6 +216,23 @@ public:
     }
 
 private:
+    void update_camera_trigger() {
+        auto event = CameraTriggerEvent{};
+        while (camera_trigger_events_.pop(event)) {
+            latest_camera_trigger_ = event;
+        }
+
+        if (auto dropped = dropped_camera_trigger_count_.exchange(0, std::memory_order::relaxed);
+            dropped != 0) {
+            RCLCPP_WARN(
+                logger_, "Dropped %lu camera trigger events before executor update",
+                static_cast<unsigned long>(dropped));
+        }
+
+        *camera_trigger_seq_ = latest_camera_trigger_.seq;
+        *camera_trigger_timestamp_ = latest_camera_trigger_.timestamp;
+    }
+
     void update_motors() {
         using namespace rmcs_description; // NOLINT(google-build-using-namespace)
         for (auto& motor : chassis_wheel_motors_)
@@ -295,6 +331,21 @@ private:
         bmi088_.store_gyroscope_status(data.x, data.y, data.z);
     }
 
+    void
+        gpio_digital_read_result_callback(const librmcs::data::GpioDigitalDataView& data) override {
+        const auto is_camera_trigger = (data.channel == 1 && !data.high);
+        if (!is_camera_trigger)
+            return;
+
+        auto event = CameraTriggerEvent{
+            .seq = ++next_camera_trigger_seq_,
+            .timestamp = std::chrono::steady_clock::now(),
+        };
+
+        if (!camera_trigger_events_.push(event))
+            dropped_camera_trigger_count_.fetch_add(1, std::memory_order::relaxed);
+    }
+
 private:
     rclcpp::Logger logger_;
 
@@ -329,6 +380,14 @@ private:
     OutputInterface<double> gimbal_pitch_velocity_imu_;
 
     OutputInterface<rmcs_description::Tf> tf_;
+    OutputInterface<std::uint64_t> camera_trigger_seq_;
+    OutputInterface<std::chrono::steady_clock::time_point> camera_trigger_timestamp_;
+
+    boost::lockfree::spsc_queue<CameraTriggerEvent, boost::lockfree::capacity<64>>
+        camera_trigger_events_;
+    std::uint64_t next_camera_trigger_seq_{0};
+    std::atomic<std::uint64_t> dropped_camera_trigger_count_{0};
+    CameraTriggerEvent latest_camera_trigger_{};
 
     rmcs_utility::RingBuffer<std::byte> referee_ring_buffer_receive_{256};
     OutputInterface<rmcs_msgs::SerialInterface> referee_serial_;
