@@ -5,6 +5,11 @@ rmcs_executor:
       - rmcs_core::hardware::DeformableInfantryOmni -> deformable_infantry
 
       - rmcs_core::referee::Status -> referee_status
+      - rmcs_core::referee::Command -> referee_command
+
+      - rmcs_core::referee::command::Interaction -> referee_interaction
+      - rmcs_core::referee::command::interaction::Ui -> referee_ui
+      - rmcs_core::referee::app::ui::Infantry -> referee_ui_infantry
 
       - rmcs_core::controller::gimbal::DeformableInfantryGimbalController -> gimbal_controller
 
@@ -15,13 +20,14 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController -> right_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller
 
-      - rmcs_core::controller::chassis::DeformableChassis -> chassis_test_controller
+      - rmcs_core::controller::chassis::DeformableChassis -> chassis_controller
+      - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
+      - rmcs_core::controller::chassis::DeformableOmniWheelController -> deformable_chassis_controller
+
       - rmcs_core::controller::adrc::AdrcController -> lf_joint_adrc_controller
       - rmcs_core::controller::adrc::AdrcController -> lb_joint_adrc_controller
       - rmcs_core::controller::adrc::AdrcController -> rb_joint_adrc_controller
       - rmcs_core::controller::adrc::AdrcController -> rf_joint_adrc_controller
-      - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
-      - rmcs_core::controller::chassis::OmniWheelController -> deformable_omni_wheel_controller
 
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 
@@ -32,42 +38,49 @@ value_broadcaster:
       - /chassis/left_back_joint/control_torque
       - /chassis/right_front_joint/control_torque
       - /chassis/right_back_joint/control_torque
-      - /chassis/encoder/alpha
-      - /chassis/encoder/alpha_dot
-      - /chassis/radius
-      - /chassis/control_power_limit
 
 deformable_infantry:
   ros__parameters:
     serial_filter_rmcs_board: "AF-3CE0-2D2A-6CDC-89D0-CA40-90D7-46B5-4970"
     serial_filter_top_board: "D4-0262-9E84-E715-CADB-9894-7241"
+    left_front_zero_point: 374
+    left_back_zero_point: 5801
+    right_back_zero_point: 7817
+    right_front_zero_point: 7136
     yaw_motor_zero_point: 56216
     pitch_motor_zero_point: 10898
 
+chassis_controller:
+  ros__parameters:
+    min_angle: 20.0
+    max_angle: 58.0
+
 gimbal_controller:
   ros__parameters:
-    upper_limit: -0.5098
-    lower_limit: 0.2262
+    upper_limit: -0.61 # -35 deg
+    lower_limit: 0.05 # 6 deg
 
-    yaw_angle_kp: 8.0
+    yaw_angle_kp: 14.2
     yaw_angle_ki: 0.0
-    yaw_angle_kd: 0.01
+    yaw_angle_kd: 0.0
 
-    yaw_velocity_kp: 5.4
+    yaw_velocity_kp: 6.4
     yaw_velocity_ki: 0.0
-    yaw_velocity_kd: 0.01
+    yaw_velocity_kd: 0.0
 
-    yaw_acc_ff_gain: 0.1
+    yaw_vel_ff_gain: 0.47
+    yaw_acc_ff_gain: 0.00
 
-    pitch_angle_kp: 12.0
+    pitch_angle_kp: 8.0
     pitch_angle_ki: 0.0
-    pitch_angle_kd: 0.1
+    pitch_angle_kd: 0.0
 
-    pitch_velocity_kp: 4.0
+    pitch_velocity_kp: 6.0
     pitch_velocity_ki: 0.0
     pitch_velocity_kd: 0.0
 
-    pitch_acc_ff_gain: 0.1
+    pitch_acc_ff_gain: 0.0
+
 
 friction_wheel_controller:
   ros__parameters:
@@ -75,24 +88,24 @@ friction_wheel_controller:
       - /gimbal/left_friction
       - /gimbal/right_friction
     friction_velocities:
-      - 700.0
-      - 700.0
+      - 600.0
+      - 600.0
     friction_soft_start_stop_time: 1.0
 
 heat_controller:
   ros__parameters:
     heat_per_shot: 10000
-    reserved_heat: 10000
+    reserved_heat: 0
 
 bullet_feeder_controller:
   ros__parameters:
     bullets_per_feeder_turn: 8.0
-    shot_frequency: 10.0
+    shot_frequency: 30.0
     safe_shot_frequency: 10.0
     eject_frequency: 10.0
     eject_time: 0.05
     deep_eject_frequency: 5.0
-    deep_eject_time: 0.20
+    deep_eject_time: 0.2
     single_shot_max_stop_delay: 2.0
 
 left_friction_velocity_pid_controller:
@@ -101,7 +114,7 @@ left_friction_velocity_pid_controller:
     setpoint: /gimbal/left_friction/control_velocity
     control: /gimbal/left_friction/control_torque
     kp: 0.003436926
-    ki: 0.0
+    ki: 0.00
     kd: 0.009373434
 
 right_friction_velocity_pid_controller:
@@ -110,7 +123,7 @@ right_friction_velocity_pid_controller:
     setpoint: /gimbal/right_friction/control_velocity
     control: /gimbal/right_friction/control_torque
     kp: 0.003436926
-    ki: 0.0
+    ki: 0.00
     kd: 0.009373434
 
 bullet_feeder_velocity_pid_controller:
@@ -118,16 +131,21 @@ bullet_feeder_velocity_pid_controller:
     measurement: /gimbal/bullet_feeder/velocity
     setpoint: /gimbal/bullet_feeder/control_velocity
     control: /gimbal/bullet_feeder/control_torque
-    kp: 1.583
+    kp: 1.5
     ki: 0.0
     kd: 0.0
 
-# NOTE: Omni chassis-only variant still follows V2 joint control chain.
-# Joint motor: MG5010 i36, zero at 62.5deg, range 62.5deg -> 8deg (360deg system)
-chassis_test_controller:
+deformable_chassis_controller:
   ros__parameters:
-    min_angle: 5.0
-    max_angle: 55.0
+    mess: 22.5
+    moment_of_inertia: 1.0
+    chassis_radius: 0.2341741
+    rod_length: 0.150
+    wheel_radius: 0.055
+    friction_coefficient: 6.6
+    k1: 2.958580e+00
+    k2: 3.082190e-03
+    no_load_power: 11.37
 
 lf_joint_adrc_controller:
   ros__parameters:
@@ -138,7 +156,7 @@ lf_joint_adrc_controller:
     td_h: 0.001
     td_r: 50.0
     dt: 0.001
-    b0: 0.550
+    b0: 0.60
     eso_w0: 250.0
     eso_auto_beta: true
     k1: 30.0
@@ -158,7 +176,7 @@ lb_joint_adrc_controller:
     td_h: 0.001
     td_r: 50.0
     dt: 0.001
-    b0: 0.550
+    b0: 0.60
     eso_w0: 250.0
     eso_auto_beta: true
     k1: 30.0
@@ -178,7 +196,7 @@ rb_joint_adrc_controller:
     td_h: 0.001
     td_r: 50.0
     dt: 0.001
-    b0: 0.550
+    b0: 0.60
     eso_w0: 250.0
     eso_auto_beta: true
     k1: 30.0
@@ -198,7 +216,7 @@ rf_joint_adrc_controller:
     td_h: 0.001
     td_r: 50.0
     dt: 0.001
-    b0: 0.550
+    b0: 0.60
     eso_w0: 250.0
     eso_auto_beta: true
     k1: 30.0
@@ -208,15 +226,3 @@ rf_joint_adrc_controller:
     delta: 0.02
     u_min: -200.0
     u_max: 200.0
-
-deformable_omni_wheel_controller:
-  ros__parameters:
-    mess: 12.5
-    moment_of_inertia: 1.0
-    chassis_radius: 0.2341741
-    rod_length: 0.150
-    wheel_radius: 0.055
-    friction_coefficient: 66.6
-    k1: 2.958580e+00
-    k2: 3.082190e-03
-    no_load_power: 11.37

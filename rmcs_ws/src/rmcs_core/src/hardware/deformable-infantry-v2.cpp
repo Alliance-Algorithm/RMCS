@@ -9,6 +9,7 @@
 #include <string>
 #include <tuple>
 
+#include <eigen3/Eigen/Dense>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
@@ -309,6 +310,10 @@ private:
             deformableInfantry.register_output(
                 "/chassis/right_front_joint/physical_velocity",
                 right_front_joint_physical_velocity_, nan_);
+            deformableInfantry.register_output("/chassis/encoder/alpha", encoder_alpha_, nan_);
+            deformableInfantry.register_output(
+                "/chassis/encoder/alpha_dot", encoder_alpha_dot_, nan_);
+            deformableInfantry.register_output("/chassis/radius", radius_, nan_);
         }
 
         ~BottomBoard() override = default;
@@ -332,6 +337,8 @@ private:
                 2, right_back_joint_physical_angle_, right_back_joint_physical_velocity_);
             update_joint_physical_feedback_(
                 3, right_front_joint_physical_angle_, right_front_joint_physical_velocity_);
+
+            update_geometry_feedback_();
 
             // if (joint_status_received_[0].load(std::memory_order_relaxed)
             //     && joint_status_received_[1].load(std::memory_order_relaxed)
@@ -484,6 +491,8 @@ private:
         DeformableInfantryV2& deformable_infantry_;
 
         static constexpr double joint_zero_physical_angle_rad_ = 62.5 * std::numbers::pi / 180.0;
+        static constexpr double chassis_radius_base_ = 0.2341741;
+        static constexpr double rod_length_ = 0.150;
 
         static double to_physical_angle_(double motor_angle) {
             return joint_zero_physical_angle_rad_ - motor_angle;
@@ -502,6 +511,26 @@ private:
 
             *angle_output = to_physical_angle_(chassis_joint_motors_[index].angle());
             *velocity_output = to_physical_velocity_(chassis_joint_motors_[index].velocity());
+        }
+
+        void update_geometry_feedback_() {
+            const Eigen::Vector4d alpha_rad{
+                *left_front_joint_physical_angle_, *left_back_joint_physical_angle_,
+                *right_back_joint_physical_angle_, *right_front_joint_physical_angle_};
+            const Eigen::Vector4d alpha_dot_rad{
+                *left_front_joint_physical_velocity_, *left_back_joint_physical_velocity_,
+                *right_back_joint_physical_velocity_, *right_front_joint_physical_velocity_};
+
+            if (!alpha_rad.array().isFinite().all() || !alpha_dot_rad.array().isFinite().all()) {
+                *encoder_alpha_ = nan_;
+                *encoder_alpha_dot_ = nan_;
+                *radius_ = nan_;
+                return;
+            }
+
+            *encoder_alpha_ = alpha_rad.mean();
+            *encoder_alpha_dot_ = alpha_dot_rad.mean();
+            *radius_ = (chassis_radius_base_ + rod_length_ * alpha_rad.array().cos()).mean();
         }
 
         void dbus_receive_callback(const librmcs::data::UartDataView& data) override {
@@ -604,6 +633,9 @@ private:
         OutputInterface<double> left_back_joint_physical_velocity_;
         OutputInterface<double> right_back_joint_physical_velocity_;
         OutputInterface<double> right_front_joint_physical_velocity_;
+        OutputInterface<double> encoder_alpha_;
+        OutputInterface<double> encoder_alpha_dot_;
+        OutputInterface<double> radius_;
     };
 
     class TopBoard final : private librmcs::agent::CBoard {
@@ -662,28 +694,31 @@ private:
 
         void update() {
             bmi088_.update_status();
+
             gimbal_pitch_motor_.update_status();
             gimbal_left_friction_.update_status();
             gimbal_right_friction_.update_status();
             scope_motor_.update_status();
 
+            const double pitch_encoder_angle = gimbal_pitch_motor_.angle();
             Eigen::Quaterniond const odom_imu_to_yaw_link{
                 bmi088_.q0(), bmi088_.q1(), bmi088_.q2(), bmi088_.q3()};
             Eigen::Quaterniond const yaw_link_to_odom_imu = odom_imu_to_yaw_link.conjugate();
-            Eigen::Quaterniond pitch_link_to_odom_imu = yaw_link_to_odom_imu
-                                                      * Eigen::Quaterniond{Eigen::AngleAxisd{
-                                                          -gimbal_pitch_motor_.angle(),
-                                                          Eigen::Vector3d::UnitY()}};
+            Eigen::Quaterniond pitch_link_to_odom_imu = Eigen::Quaterniond{Eigen::AngleAxisd{
+                                                          -pitch_encoder_angle,
+                                                          Eigen::Vector3d::UnitY()}}
+                                                      * yaw_link_to_odom_imu;
             pitch_link_to_odom_imu.normalize();
 
             *gimbal_yaw_velocity_bmi088_ = bmi088_.gz();
             *gimbal_pitch_velocity_encoder_ = gimbal_pitch_motor_.velocity();
-            // V2 mounts the BMI088 on the yaw link, so synthesize the pitch-link pose with the
-            // pitch encoder before publishing the TF tree.
+            // The BMI088 is mounted on the yaw link. fast_tf stores PitchLink -> OdomImu, so use
+            // the encoder pitch from the TF tree to move the yaw-link pose back into PitchLink.
             tf_->set_transform<rmcs_description::PitchLink, rmcs_description::OdomImu>(
                 pitch_link_to_odom_imu);
+
             tf_->set_state<rmcs_description::YawLink, rmcs_description::PitchLink>(
-                gimbal_pitch_motor_.angle());
+                pitch_encoder_angle);
         }
 
         void command_update() {

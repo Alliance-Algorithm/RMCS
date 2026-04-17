@@ -86,6 +86,8 @@ public:
         register_input(
             "/chassis/right_back_joint/encoder_angle", right_back_joint_encoder_angle_, false);
 
+        register_output("/gimbal/scope/control_torque", scope_motor_control_torque, nan_);
+
         register_output("/chassis/angle", chassis_angle_, nan_);
         register_output("/chassis/control_angle", chassis_control_angle_, nan_);
 
@@ -297,6 +299,8 @@ private:
         rf_current_target_angle_ = current_target_angle_;
         joint_target_active_ = false;
 
+        *scope_motor_control_torque = nan_;
+
         *lf_angle_error_ = nan_;
         *lb_angle_error_ = nan_;
         *rf_angle_error_ = nan_;
@@ -353,9 +357,8 @@ private:
         case rmcs_msgs::ChassisMode::SPIN: {
             angular_velocity =
                 0.6 * (spinning_forward_ ? angular_velocity_max_ : -angular_velocity_max_);
-            angular_velocity = std::clamp(
-                angular_velocity, -angular_velocity_max_,
-                angular_velocity_max_);
+            angular_velocity =
+                std::clamp(angular_velocity, -angular_velocity_max_, angular_velocity_max_);
         } break;
 
         case rmcs_msgs::ChassisMode::STEP_DOWN: {
@@ -406,12 +409,11 @@ private:
     void update_lift_target_toggle(
         rmcs_msgs::Switch left_switch, rmcs_msgs::Switch right_switch,
         rmcs_msgs::Keyboard keyboard) {
-        bool apply_symmetric_target = false;
         constexpr double rotary_knob_edge_threshold = 0.7;
 
         const bool switch_toggle_condition =
             (left_switch == rmcs_msgs::Switch::MIDDLE) && (right_switch == rmcs_msgs::Switch::UP);
-        const bool keyboard_toggle_condition = !last_keyboard_.r && keyboard.r;
+        const bool keyboard_toggle_condition = !last_keyboard_.q && keyboard.q;
 
         const bool last_switch_toggle_condition = (last_switch_left_ == rmcs_msgs::Switch::MIDDLE)
                                                && (last_switch_right_ == rmcs_msgs::Switch::UP);
@@ -423,35 +425,42 @@ private:
             (!last_keyboard_.b && keyboard.b) || rotary_knob_front_high_rear_low;
         const bool front_low_rear_high =
             (!last_keyboard_.g && keyboard.g) || rotary_knob_front_low_rear_high;
-        const bool uphill = !last_keyboard_.ctrl && keyboard.ctrl;
-
-        if ((switch_toggle_condition && !last_switch_toggle_condition)
-            || keyboard_toggle_condition) {
-            current_target_angle_ =
-                (std::abs(current_target_angle_ - max_angle_) < 1e-6) ? min_angle_ : max_angle_;
-            apply_symmetric_target = true;
-        } else if (uphill) {
-            lf_current_target_angle_ = min_angle_;
-            rf_current_target_angle_ = min_angle_;
-            lb_current_target_angle_ = min_angle_ + 10.0;
-            rb_current_target_angle_ = min_angle_ + 10.0;
-        } else if (front_high_rear_low) {
-            lf_current_target_angle_ = max_angle_;
-            rf_current_target_angle_ = max_angle_;
-            lb_current_target_angle_ = min_angle_;
-            rb_current_target_angle_ = min_angle_;
-        } else if (front_low_rear_high) {
-            lf_current_target_angle_ = min_angle_;
-            rf_current_target_angle_ = min_angle_;
-            lb_current_target_angle_ = max_angle_;
-            rb_current_target_angle_ = max_angle_;
-        }
+        const bool uphill = keyboard.ctrl;
 
         if (apply_symmetric_target) {
             lf_current_target_angle_ = current_target_angle_;
             lb_current_target_angle_ = current_target_angle_;
             rb_current_target_angle_ = current_target_angle_;
             rf_current_target_angle_ = current_target_angle_;
+        }
+
+        if ((switch_toggle_condition && !last_switch_toggle_condition)
+            || keyboard_toggle_condition) {
+            if (apply_symmetric_target == true) {
+                current_target_angle_ =
+                    (std::abs(current_target_angle_ - max_angle_) < 1e-6) ? min_angle_ : max_angle_;
+                    scope_motor_control();
+            } else {
+                apply_symmetric_target = true;
+            }
+        } else if (uphill) {
+            lf_current_target_angle_ = min_angle_;
+            rf_current_target_angle_ = min_angle_;
+            lb_current_target_angle_ = min_angle_ + 25.0;
+            rb_current_target_angle_ = min_angle_ + 25.0;
+            scope_motor_control();  
+        } else if (front_high_rear_low) {
+            lf_current_target_angle_ = max_angle_;
+            rf_current_target_angle_ = max_angle_;
+            lb_current_target_angle_ = min_angle_;
+            rb_current_target_angle_ = min_angle_;
+            apply_symmetric_target = false;
+        } else if (front_low_rear_high) {
+            lf_current_target_angle_ = min_angle_;
+            rf_current_target_angle_ = min_angle_;
+            lb_current_target_angle_ = max_angle_;
+            rb_current_target_angle_ = max_angle_;
+            apply_symmetric_target = false;
         }
 
         last_rotary_knob_ = *rotary_knob_;
@@ -480,6 +489,21 @@ private:
 
     static double motor_to_physical_angle(double motor_angle_rad) {
         return joint_zero_physical_angle_rad_ - motor_angle_rad;
+    }
+
+    void scope_motor_control() {
+        if (current_target_angle_ == min_angle_ && *mode_ != rmcs_msgs::ChassisMode::SPIN){
+            *scope_motor_control_torque = -0.3;
+            // if (*scope_motor_velocity <= std::abs(0.1)){
+            //     *scope_motor_control_torque = 0.18 * 1.0 / 36.0;
+            // }
+        }
+        else{
+            *scope_motor_control_torque = 0.3;
+            // if (*scope_motor_velocity <= std::abs(0.1)){
+            //     *scope_motor_control_torque = -0.18 * 1.0 / 36.0;
+            // }
+        }
     }
 
     bool publish_current_joint_target_angles() {
@@ -657,6 +681,7 @@ private:
     OutputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;
 
     bool spinning_forward_ = true;
+    bool apply_symmetric_target = true;
     pid::PidCalculator following_velocity_controller_;
 
     InputInterface<double> left_front_joint_angle_;
@@ -673,6 +698,8 @@ private:
     InputInterface<double> left_back_joint_encoder_angle_;
     InputInterface<double> right_front_joint_encoder_angle_;
     InputInterface<double> right_back_joint_encoder_angle_;
+
+    OutputInterface<double> scope_motor_control_torque;
 
     OutputInterface<double> lf_angle_error_;
     OutputInterface<double> lb_angle_error_;

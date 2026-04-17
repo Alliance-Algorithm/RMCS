@@ -35,6 +35,7 @@ public:
 
         component.register_input("/gimbal/pitch/angle", gimbal_pitch_angle_);
         component.register_input("/tf", tf_);
+
     }
 
     class SetDisabled : public Operation {
@@ -158,8 +159,8 @@ private:
         // Deformable infantry V2 mounts the IMU on the yaw link. The TF tree therefore exposes a
         // synthesized PitchLink -> OdomImu transform, while the PitchLink -> YawLink relation
         // here still comes directly from the pitch encoder.
-        const double theta = *gimbal_pitch_angle_;
-        pitch_cs = {std::cos(theta), -std::sin(theta)};
+        const double encoder_pitch = *gimbal_pitch_angle_;
+        pitch_cs = {std::cos(encoder_pitch), -std::sin(encoder_pitch)};
 
         const auto& [x, y, z] = *dir;
         dir_yaw_link = {
