@@ -81,9 +81,7 @@ dart_manager:
     auto_aim_max_transform_rate: 10.0
     manual_force_scale: 3.0
     launch_prepare_enable_visual_assist: false
-    belt_down_distance: 0.70  # m - 传送带下行距离（滑台蓄力行程）
-    belt_up_distance: 0.70                           # m - 上行目标距离（略低于下行起点0.70m）
-    belt_prepare_up_velocity: 12.0                   # rad/s - 上行速度
+    belt_down_distance: 0.74 
     # 瞄准控制参数
     aim_reference_pixel: [701.0, 565.0]
     aim_dart_offsets_px: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
@@ -95,38 +93,26 @@ dart_manager:
     aim_timeout_ticks: 5000
     aim_timeout_returns_success: true
     aim_min_transform_rate: 1.0
-    limiting_fill_ticks:  200
     # 力矩闭环参数
     enable_force_calibration: false       # 启用力矩闭环（第一发目标9525±30，后续用记录值）
     force_tolerance: 5.0                 # N - 力值容差（第二发及以后）
     force_settle_ticks: 1000               # ticks - 力值稳定确认帧数
     force_timeout_ticks: 1200            # ticks - 力矩闭环超时帧数
     force_kp: 1.0                        # PID参数Kp（需调试）
-    force_ki: 0.0                        # PID参数Ki（需调试）
-    force_kd: 0.0                       # PID参数Kd（需调试）
+    force_ki: 0.1                        # PID参数Ki（需调试）
+    force_kd: 0.01                       # PID参数Kd（需调试）
     force_channel: 1                     # 力闭环使用的传感器通道（1=ch1, 2=ch2）
 
 launch_setting:
   ros__parameters:
     belt_velocity: 10.0      # rad/s - manager 未提供目标速度时的回退值
     sync_coefficient: 0.5    # 同步阻尼系数（增大以增强左右电机同步）
-    max_control_torque: 15.0  # N⋅m - 最大扭矩限制
     trigger_free_value: 0.73   # 扳机释放角度
     trigger_lock_value: 0.63    # 扳机锁定角度
-    position_kp: 5.0            # 位置环比例增益
-    belt_acceleration: 10.0     # rad/s² - 加速度（用于速度规划）
-    position_tolerance: 0.01    # rad - 位置误差阈值
     # 正常PID参数（匀速阶段）
     b_kp: 1.0                  # 速度环比例增益
     b_ki: 0.0                  # 速度环积分增益
     b_kd: 0.0                  # 速度环微分增益
-    b_integral_max: 50.0       # 速度环积分上限（绝对值）
-    # 减速PID参数（减速阶段，更激进）
-    b_decel_kp: 0.826           # 减速阶段比例增益
-    b_decel_ki: 0.1            # 减速阶段积分增益
-    b_decel_kd: 0.01            # 减速阶段微分增益
-    b_decel_integral_max: 50.0 # 减速阶段积分上限（绝对值）
-    belt_hold_torque: 5.0      # N⋅m - manager 未提供保留力矩时的回退值
 
 dart_filling:
   ros__parameters:

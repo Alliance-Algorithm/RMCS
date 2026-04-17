@@ -36,24 +36,12 @@ public:
               get_parameter("b_kd").as_double()} {
 
         sync_coefficient_ = get_parameter("sync_coefficient").as_double();
-        max_control_torque_ = get_parameter("max_control_torque").as_double();
-        position_tolerance_ = get_parameter("position_tolerance").as_double();
         default_velocity_ = get_parameter("belt_velocity").as_double();
         trigger_free_value_ = get_parameter("trigger_free_value").as_double();
         trigger_lock_value_ = get_parameter("trigger_lock_value").as_double();
-        default_belt_hold_torque_ = get_parameter("belt_hold_torque").as_double();
-        normal_kp_ = get_parameter("b_kp").as_double();
-        normal_ki_ = get_parameter("b_ki").as_double();
-        normal_kd_ = get_parameter("b_kd").as_double();
-        normal_integral_max_ = get_optional_parameter("b_integral_max", 50.0);
-
-        // 减速阶段PID参数（高增益，快速响应）
-        decel_kp_ = get_parameter("b_decel_kp").as_double();
-        decel_ki_ = get_parameter("b_decel_ki").as_double();
-        decel_kd_ = get_parameter("b_decel_kd").as_double();
-        decel_integral_max_ = get_optional_parameter("b_decel_integral_max", 50.0);
-
-        apply_velocity_pid_gains(false);
+        kp_ = get_parameter("b_kp").as_double();
+        ki_ = get_parameter("b_ki").as_double();
+        kd_ = get_parameter("b_kd").as_double();
 
         register_input("/dart/manager/belt/command", belt_command_, true);
         register_input("/dart/manager/belt/target_position", belt_target_position_, false);
@@ -116,19 +104,11 @@ private:
         velocity_pid_.integral_max.setConstant(std::abs(integral_max));
     }
 
-    void apply_velocity_pid_gains(bool use_decel_pid) {
-        if (use_decel_pid) {
-            velocity_pid_.kp = decel_kp_;
-            velocity_pid_.ki = decel_ki_;
-            velocity_pid_.kd = decel_kd_;
-            set_velocity_pid_integral_limit(decel_integral_max_);
-            return;
-        }
-
-        velocity_pid_.kp = normal_kp_;
-        velocity_pid_.ki = normal_ki_;
-        velocity_pid_.kd = normal_kd_;
-        set_velocity_pid_integral_limit(normal_integral_max_);
+    void apply_velocity_pid_gains() {
+        velocity_pid_.kp = kp_;
+        velocity_pid_.ki = ki_;
+        velocity_pid_.kd = kd_;
+        set_velocity_pid_integral_limit(50.0);
     }
 
     // 处理速度控制命令（UP/DOWN/WAIT）
@@ -162,10 +142,10 @@ private:
 
     double select_torque_limit() const {
         if (!belt_torque_limit_.ready()) {
-            return max_control_torque_;
+            return 10.0;
         }
         const double limit = std::abs(*belt_torque_limit_);
-        return limit > 1e-9 ? limit : max_control_torque_;
+        return limit > 1e-9 ? limit : 10.0;
     }
 
     // 速度控制模式（读取角度判断是否到达目标）
@@ -184,7 +164,7 @@ private:
             double right_error = target_pos - right_pos;
 
             // 左电机到达判断
-            bool left_within_tolerance = std::abs(left_error) < position_tolerance_;
+            bool left_within_tolerance = std::abs(left_error) < 0.01;
             bool left_overshot = false;
             if (prev_belt_cmd_ == rmcs_msgs::DartSliderStatus::DOWN) {
                 left_overshot = (left_error < 0); // 下行越界
@@ -194,7 +174,7 @@ private:
             bool left_reached = left_within_tolerance || left_overshot;
 
             // 右电机到达判断
-            bool right_within_tolerance = std::abs(right_error) < position_tolerance_;
+            bool right_within_tolerance = std::abs(right_error) < 0.01;
             bool right_overshot = false;
             if (prev_belt_cmd_ == rmcs_msgs::DartSliderStatus::DOWN) {
                 right_overshot = (right_error < 0); // 下行越界
@@ -235,7 +215,7 @@ private:
         if (belt_hold_torque_input_.ready()) {
             hold_torque = *belt_hold_torque_input_;
         } else if (prev_belt_cmd_ == rmcs_msgs::DartSliderStatus::DOWN) {
-            hold_torque = default_belt_hold_torque_;
+            hold_torque = 5.0;
         }
         double torque_offset = belt_torque_offset_.ready() ? *belt_torque_offset_ : 0.0;
         hold_torque = std::clamp(hold_torque + torque_offset, -torque_limit, torque_limit);
@@ -293,11 +273,7 @@ private:
             }
         }
 
-        bool use_decel_pid = belt_use_decel_pid_.ready() && *belt_use_decel_pid_;
-        if (use_decel_pid != current_use_decel_pid_) {
-            apply_velocity_pid_gains(use_decel_pid);
-            current_use_decel_pid_ = use_decel_pid;
-        }
+        apply_velocity_pid_gains();
 
         // 计算速度误差
         Eigen::Vector2d vel_error{
@@ -326,23 +302,13 @@ private:
     }
 
     // 参数
-    double sync_coefficient_;         // 同步阻尼系数
-    double max_control_torque_;       // N⋅m - 最大扭矩限制
-    double position_tolerance_;       // rad - 位置误差阈值
-    double default_velocity_;         // rad/s - 默认速度
-    double trigger_free_value_;       // 扳机释放值
-    double trigger_lock_value_;       // 扳机锁定值
-    double default_belt_hold_torque_; // N⋅m - 默认保持扭矩
-    double normal_kp_;
-    double normal_ki_;
-    double normal_kd_;
-    double normal_integral_max_;
-
-    // 减速阶段PID参数
-    double decel_kp_;
-    double decel_ki_;
-    double decel_kd_;
-    double decel_integral_max_;
+    double sync_coefficient_;   // 同步阻尼系数
+    double default_velocity_;   // rad/s - 默认速度
+    double trigger_free_value_; // 扳机释放值
+    double trigger_lock_value_; // 扳机锁定值
+    double kp_;
+    double ki_;
+    double kd_;
 
     // 状态变量
     double left_zero_offset_{0.0};       // 左电机零点偏移（rad）
@@ -350,7 +316,6 @@ private:
     double velocity_command_value_{0.0}; // 速度控制命令值
     rmcs_msgs::DartSliderStatus prev_belt_cmd_{rmcs_msgs::DartSliderStatus::WAIT};
     BeltControlMode control_mode_{BeltControlMode::IDLE};
-    bool current_use_decel_pid_{false};  // 当前是否使用减速PID参数
 
     pid::MatrixPidCalculator<2> velocity_pid_;
 
