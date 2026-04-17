@@ -81,14 +81,17 @@ gimbal_controller:
 
     pitch_acc_ff_gain: 0.0
 
+    pitch_fusion_enabled: true
+    pitch_fusion_alpha: 0.98  
+
 friction_wheel_controller:
   ros__parameters:
     friction_wheels:
       - /gimbal/left_friction
       - /gimbal/right_friction
     friction_velocities:
-      - 700.0
-      - 700.0
+      - 600.0
+      - 600.0
     friction_soft_start_stop_time: 1.0
 
 heat_controller:

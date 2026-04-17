@@ -22,7 +22,7 @@ rmcs_executor:
 
       - rmcs_core::controller::chassis::DeformableChassis -> chassis_controller
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
-      - rmcs_core::controller::chassis::SteeringWheelController -> deformable_chassis_controller
+      - rmcs_core::controller::chassis::WheelDemoController -> deformable_chassis_controller
 
       - rmcs_core::controller::adrc::AdrcController -> lf_joint_adrc_controller
       - rmcs_core::controller::adrc::AdrcController -> lb_joint_adrc_controller
@@ -81,14 +81,17 @@ gimbal_controller:
 
     pitch_acc_ff_gain: 0.0
 
+    pitch_fusion_enabled: true
+    pitch_fusion_alpha: 0.98
+
 friction_wheel_controller:
   ros__parameters:
     friction_wheels:
       - /gimbal/left_friction
       - /gimbal/right_friction
     friction_velocities:
-      - 700.0
-      - 700.0
+      - 600.0
+      - 600.0
     friction_soft_start_stop_time: 1.0
 
 heat_controller:

@@ -4,6 +4,7 @@
 
 #include <iostream>
 #include <limits>
+#include <numbers>
 #include <utility>
 
 #include <eigen3/Eigen/Dense>
@@ -35,6 +36,12 @@ public:
 
         component.register_input("/gimbal/pitch/angle", gimbal_pitch_angle_);
         component.register_input("/tf", tf_);
+
+        // Try to read pitch fusion parameters from ROS parameters (optional)
+        if (auto* node = dynamic_cast<rclcpp::Node*>(&component)) {
+            node->get_parameter_or("pitch_fusion_enabled", pitch_fusion_enabled_, true);
+            node->get_parameter_or("pitch_fusion_alpha", pitch_fusion_alpha_, 0.98);
+        }
     }
 
     class SetDisabled : public Operation {
@@ -158,8 +165,35 @@ private:
         // Deformable infantry V2 mounts the IMU on the yaw link. The TF tree therefore exposes a
         // synthesized PitchLink -> OdomImu transform, while the PitchLink -> YawLink relation
         // here still comes directly from the pitch encoder.
-        const double theta = *gimbal_pitch_angle_;
-        pitch_cs = {std::cos(theta), -std::sin(theta)};
+        const double encoder_pitch = *gimbal_pitch_angle_;
+        double pitch_angle = encoder_pitch;  // Default: use encoder only
+
+        if (pitch_fusion_enabled_) {
+            // Extract pitch angle from IMU
+            double imu_pitch = extract_pitch_from_imu();
+
+            // Initialize fused angle on first call
+            if (!fusion_initialized_) {
+                fused_pitch_angle_ = encoder_pitch;
+                encoder_pitch_prev_ = encoder_pitch;
+                fusion_initialized_ = true;
+            }
+
+            double encoder_delta = encoder_pitch - encoder_pitch_prev_;
+            
+            if (encoder_delta > std::numbers::pi)
+                encoder_delta -= 2.0 * std::numbers::pi;
+            if (encoder_delta < -std::numbers::pi)
+                encoder_delta += 2.0 * std::numbers::pi;
+
+            fused_pitch_angle_ = pitch_fusion_alpha_ * (fused_pitch_angle_ + encoder_delta)
+                               + (1.0 - pitch_fusion_alpha_) * imu_pitch;
+
+            encoder_pitch_prev_ = encoder_pitch;
+            pitch_angle = fused_pitch_angle_;
+        }
+
+        pitch_cs = {std::cos(pitch_angle), -std::sin(pitch_angle)};
 
         const auto& [x, y, z] = *dir;
         dir_yaw_link = {
@@ -169,6 +203,21 @@ private:
         };
 
         return result;
+    }
+
+    double extract_pitch_from_imu() const {
+        auto pitch_x_in_odom = fast_tf::cast<OdomImu>(
+            PitchLink::DirectionVector{Eigen::Vector3d::UnitX()}, *tf_);
+
+        const auto& [x, y, z] = *pitch_x_in_odom;
+
+        double horizontal_norm = std::sqrt(x * x + y * y);
+        
+        if (horizontal_norm < 1e-9) {
+            return 0.0;
+        }
+        
+        return std::atan2(-z, horizontal_norm);
     }
 
     static PitchLink::DirectionVector
@@ -221,6 +270,13 @@ private:
 
     bool control_enabled_ = false;
     OdomImu::DirectionVector control_direction_;
+
+    // Pitch fusion parameters and state (mutable for use in const methods)
+    mutable bool pitch_fusion_enabled_ = true;
+    mutable double pitch_fusion_alpha_ = 0.98;
+    mutable double fused_pitch_angle_ = 0.0;
+    mutable double encoder_pitch_prev_ = 0.0;
+    mutable bool fusion_initialized_ = false;
 };
 
 } // namespace rmcs_core::controller::gimbal
