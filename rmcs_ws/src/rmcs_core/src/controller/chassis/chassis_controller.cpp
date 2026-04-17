@@ -1,4 +1,8 @@
+#include <algorithm>
+#include <cmath>
 #include <eigen3/Eigen/Dense>
+#include <limits>
+#include <numbers>
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
@@ -86,9 +90,15 @@ public:
                         spinning_forward_ = !spinning_forward_;
                     }
                 } else if (!last_keyboard_.x && keyboard.x) {
-                    update_following_mode(mode, StepDownFacing::REAR);
+                    mode = rmcs_msgs::ChassisMode::STEP_DOWN;
+                    step_down_facing_ = StepDownFacing::FRONT;
                 } else if (!last_keyboard_.z && keyboard.z) {
-                    update_following_mode(mode, StepDownFacing::FRONT);
+                    if (mode == rmcs_msgs::ChassisMode::STEP_DOWN) {
+                        mode = rmcs_msgs::ChassisMode::AUTO;
+                    } else {
+                        mode = rmcs_msgs::ChassisMode::STEP_DOWN;
+                        step_down_facing_ = StepDownFacing::BACK;
+                    }
                 }
                 *mode_ = mode;
             }
@@ -103,14 +113,14 @@ public:
 
     void reset_all_controls() {
         *mode_ = rmcs_msgs::ChassisMode::AUTO;
-        step_down_facing_ = StepDownFacing::FRONT;
+        step_down_facing_ = StepDownFacing::BACK;
 
         *chassis_control_velocity_ = {nan, nan, nan};
     }
 
     void update_velocity_control() {
         auto translational_velocity = update_translational_velocity_control();
-        auto angular_velocity = update_angular_velocity_control();
+        auto angular_velocity = update_angular_velocity_control(translational_velocity);
 
         chassis_control_velocity_->vector << translational_velocity, angular_velocity;
     }
@@ -134,7 +144,7 @@ public:
         return translational_velocity;
     }
 
-    double update_angular_velocity_control() {
+    double update_angular_velocity_control(const Eigen::Vector2d& translational_velocity) {
         double angular_velocity = 0.0;
         double chassis_control_angle = nan;
 
@@ -153,22 +163,21 @@ public:
         }
 
         switch (*mode_) {
-        case rmcs_msgs::ChassisMode::AUTO: break;
+        case rmcs_msgs::ChassisMode::AUTO: {
+            angular_velocity =
+                update_following_angular_velocity(StepDownFacing::BACK, chassis_control_angle);
+
+            // Keep AUTO rear-following gentle at low translation speed and fully enabled at max.
+            angular_velocity *=
+                std::clamp(translational_velocity.norm() / translational_velocity_max, 0.0, 0.3);
+        } break;
         case rmcs_msgs::ChassisMode::SPIN: {
             angular_velocity =
                 0.6 * (spinning_forward_ ? angular_velocity_max : -angular_velocity_max);
         } break;
         case rmcs_msgs::ChassisMode::STEP_DOWN: {
-            double err = calculate_unsigned_chassis_angle_error(chassis_control_angle);
-            if (step_down_facing_ == StepDownFacing::REAR) {
-                chassis_control_angle =
-                    normalize_positive_angle(chassis_control_angle + std::numbers::pi);
-                err = normalize_positive_angle(err + std::numbers::pi);
-            }
-
-            err = normalize_signed_angle(err);
-
-            angular_velocity = following_velocity_controller_.update(err);
+            angular_velocity =
+                update_following_angular_velocity(step_down_facing_, chassis_control_angle);
         } break;
         case rmcs_msgs::ChassisMode::LAUNCH_RAMP: {
             double err = calculate_unsigned_chassis_angle_error(chassis_control_angle);
@@ -203,21 +212,19 @@ public:
     }
 
 private:
-    enum class StepDownFacing { FRONT, REAR };
+    enum class StepDownFacing { FRONT, BACK };
 
-    void update_following_mode(rmcs_msgs::ChassisMode& mode, StepDownFacing target_facing) {
-        if (mode != rmcs_msgs::ChassisMode::STEP_DOWN) {
-            mode = rmcs_msgs::ChassisMode::STEP_DOWN;
-            step_down_facing_ = target_facing;
-            return;
+    double update_following_angular_velocity(
+        StepDownFacing target_facing, double& chassis_control_angle) {
+        double err = calculate_unsigned_chassis_angle_error(chassis_control_angle);
+        if (target_facing == StepDownFacing::BACK) {
+            chassis_control_angle =
+                normalize_positive_angle(chassis_control_angle + std::numbers::pi);
+            err = normalize_positive_angle(err + std::numbers::pi);
         }
 
-        if (step_down_facing_ == target_facing) {
-            mode = rmcs_msgs::ChassisMode::AUTO;
-            return;
-        }
-
-        step_down_facing_ = target_facing;
+        err = normalize_signed_angle(err);
+        return following_velocity_controller_.update(err);
     }
 
     static double normalize_positive_angle(double angle) {
@@ -261,7 +268,7 @@ private:
 
     OutputInterface<rmcs_msgs::ChassisMode> mode_;
     bool spinning_forward_ = true;
-    StepDownFacing step_down_facing_ = StepDownFacing::FRONT;
+    StepDownFacing step_down_facing_ = StepDownFacing::BACK;
     pid::PidCalculator following_velocity_controller_;
 
     OutputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;

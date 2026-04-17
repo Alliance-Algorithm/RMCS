@@ -81,9 +81,9 @@ public:
         } else {
             *top_yaw_control_angle_ = top_yaw_encoder_angle_;
             *bottom_yaw_control_angle_shift_ = *control_angle_shift_;
-            RCLCPP_INFO(
-                get_logger(), "top:%lf,bottom:%lf", *top_yaw_angle_,
-                *bottom_yaw_control_angle_shift_);
+            // RCLCPP_INFO(
+            //     get_logger(), "top:%lf,bottom:%lf", *top_yaw_angle_,
+            //     *bottom_yaw_control_angle_shift_);
         }
     }
 

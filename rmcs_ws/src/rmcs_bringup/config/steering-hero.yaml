@@ -43,9 +43,9 @@ hero_hardware:
     board_serial_top_board: "D4-2BCA-2E47-76CD-23BC-0B78-684B"
     board_serial_bottom_board_one: "D4-7973-19A9-EA40-4A3E-306F-10F9"
     board_serial_bottom_board_two: "D4-3674-7174-8768-879E-E44A-3931"
-    bottom_yaw_motor_zero_point: 51141
+    bottom_yaw_motor_zero_point: 51338
     pitch_motor_zero_point: 15148 #35701
-    top_yaw_motor_zero_point: 11140
+    top_yaw_motor_zero_point: 11087
     viewer_motor_zero_point: 3030
     external_imu_port: /dev/ttyUSB0
     bullet_feeder_motor_zero_point: 21854
