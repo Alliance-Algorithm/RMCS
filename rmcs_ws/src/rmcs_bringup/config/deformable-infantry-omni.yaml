@@ -57,8 +57,8 @@ chassis_controller:
 
 gimbal_controller:
   ros__parameters:
-    upper_limit: -0.436332 # -25 deg
-    lower_limit: 0.05 # 10 deg
+    upper_limit: -0.61 # -35 deg
+    lower_limit: 0.05 # 6 deg
 
     yaw_angle_kp: 14.2
     yaw_angle_ki: 0.0
@@ -81,8 +81,6 @@ gimbal_controller:
 
     pitch_acc_ff_gain: 0.0
 
-    pitch_fusion_enabled: true
-    pitch_fusion_alpha: 0.98  
 
 friction_wheel_controller:
   ros__parameters:

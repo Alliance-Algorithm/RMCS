@@ -442,8 +442,8 @@ private:
         } else if (uphill) {
             lf_current_target_angle_ = min_angle_;
             rf_current_target_angle_ = min_angle_;
-            lb_current_target_angle_ = min_angle_ + 10.0;
-            rb_current_target_angle_ = min_angle_ + 10.0;
+            lb_current_target_angle_ = min_angle_ + 25.0;
+            rb_current_target_angle_ = min_angle_ + 25.0;
             scope_motor_control();  
         } else if (front_high_rear_low) {
             lf_current_target_angle_ = max_angle_;
