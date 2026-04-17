@@ -1,6 +1,7 @@
 #include <cmath>
 #include <limits>
 
+#include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
@@ -60,15 +61,14 @@ public:
                 break;
             }
 
-            if (!last_keyboard_.q && keyboard_->q) {
+            if (!last_keyboard_.e && keyboard_->e) {
                 if (gimbal_mode_keyboard_ == GimbalMode::IMU)
                     gimbal_mode_keyboard_ = GimbalMode::ENCODER;
                 else
                     gimbal_mode_keyboard_ = GimbalMode::IMU;
             }
-            *gimbal_mode_ =
-                *switch_right_ == Switch::UP ? GimbalMode::ENCODER : gimbal_mode_keyboard_;
-            // *gimbal_mode_ = gimbal_mode_keyboard_;
+
+            *gimbal_mode_ = gimbal_mode_keyboard_;
 
             if (*gimbal_mode_ == GimbalMode::IMU) {
                 auto angle_error = update_imu_control();
@@ -137,10 +137,10 @@ public:
         constexpr double mouse_yaw_sensitivity = 0.5 * 0.114;
         constexpr double mouse_pitch_sensitivity = 0.5 * 0.095;
 
-        double yaw_shift = joystick_sensitivity * joystick_left_->y()
-                         + mouse_yaw_sensitivity * mouse_velocity_->y();
-        double pitch_shift = -joystick_sensitivity * joystick_left_->x()
-                           + mouse_pitch_sensitivity * mouse_velocity_->x();
+        double yaw_shift = mouse_yaw_sensitivity * mouse_velocity_->y();
+        // joystick_sensitivity * joystick_left_->y()
+
+        double pitch_shift = mouse_pitch_sensitivity * mouse_velocity_->x();
 
         return encoder_gimbal_solver.update(
             PreciseTwoAxisGimbalSolver::SetControlShift{yaw_shift, pitch_shift});
