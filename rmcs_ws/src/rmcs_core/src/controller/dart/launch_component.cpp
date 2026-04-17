@@ -1,6 +1,5 @@
 #include <algorithm>
 #include <cmath>
-#include <cstdint>
 
 #include <eigen3/Eigen/Dense>
 #include <rclcpp/node.hpp>
@@ -25,7 +24,7 @@ public:
         , trigger_free_value_(get_parameter("trigger_free_value").as_double())
         , trigger_lock_value_(get_parameter("trigger_lock_value").as_double()) {
         register_input("/dart_manager/trigger/command", trigger_command_);
-        register_output("/dart/trigger_servo/value", trigger_value_, trigger_lock_value_);
+        register_output("/dart/trigger_servo/value", trigger_value_, trigger_free_value_);
     }
 
     void update() override {
@@ -135,8 +134,7 @@ private:
             return {BeltControlMode::MOVE_UP, -requested_velocity};
         default:
             switch (active_belt_exit_mode()) {
-            case rmcs_msgs::ExitMode::WAIT_HOLD_TORQUE:
-                return {BeltControlMode::WAIT_HOLD, 0.0};
+            case rmcs_msgs::ExitMode::WAIT_HOLD_TORQUE: return {BeltControlMode::WAIT_HOLD, 0.0};
             case rmcs_msgs::ExitMode::KEEP: return {control_mode_, retained_velocity_target_};
             case rmcs_msgs::ExitMode::WAIT_ZERO_VELOCITY:
             default: return {BeltControlMode::WAIT_ZERO, 0.0};
@@ -250,100 +248,8 @@ private:
     OutputInterface<double> right_belt_torque_;
 };
 
-// DartBeltStatus 负责同步带堵转检测，输出 manager 所需的 arrive_flag。
-class DartBeltStatus
-    : public rmcs_executor::Component
-    , public rclcpp::Node {
-public:
-    DartBeltStatus()
-        : Node{
-              get_component_name(),
-              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
-        , stall_velocity_threshold_(get_parameter("stall_velocity_threshold").as_double())
-        , stall_torque_threshold_(get_parameter("stall_torque_threshold").as_double())
-        , stall_confirm_ticks_(static_cast<uint64_t>(get_parameter("stall_confirm_ticks").as_int()))
-        , stall_min_run_ticks_(
-              static_cast<uint64_t>(get_parameter("stall_min_run_ticks").as_int())) {
-        register_input("/dart_manager/belt/command", belt_command_, false);
-        register_input("/dart/drive_belt/left/velocity", belt_left_velocity_);
-        register_input("/dart/drive_belt/left/torque", belt_left_torque_);
-        register_input("/dart/drive_belt/right/velocity", belt_right_velocity_);
-        register_input("/dart/drive_belt/right/torque", belt_right_torque_);
-
-        register_output("/dart_manager/belt/arrive_flag", belt_arrive_flag_, false);
-    }
-
-    void update() override {
-        const rmcs_msgs::DartMechanismCommand command = active_belt_command();
-
-        if (command != prev_belt_command_) {
-            running_ticks_ = 0;
-            stall_counter_ = 0;
-            set_arrive_flag(false);
-            prev_belt_command_ = command;
-        }
-
-        const bool is_running_command = command == rmcs_msgs::DartMechanismCommand::UP
-                                     || command == rmcs_msgs::DartMechanismCommand::DOWN;
-        if (!is_running_command) {
-            running_ticks_ = 0;
-            stall_counter_ = 0;
-            set_arrive_flag(false);
-            return;
-        }
-
-        ++running_ticks_;
-        if (running_ticks_ <= stall_min_run_ticks_) {
-            set_arrive_flag(false);
-            return;
-        }
-
-        const double avg_velocity =
-            (std::abs(*belt_left_velocity_) + std::abs(*belt_right_velocity_)) / 2.0;
-        const bool torque_active = std::abs(*belt_left_torque_) > stall_torque_threshold_
-                                || std::abs(*belt_right_torque_) > stall_torque_threshold_;
-
-        if (avg_velocity < stall_velocity_threshold_ && torque_active) {
-            ++stall_counter_;
-            set_arrive_flag(stall_counter_ >= stall_confirm_ticks_);
-            return;
-        }
-
-        stall_counter_ = 0;
-        set_arrive_flag(false);
-    }
-
-private:
-    rmcs_msgs::DartMechanismCommand active_belt_command() const {
-        if (belt_command_.ready()) {
-            return *belt_command_;
-        }
-        return rmcs_msgs::DartMechanismCommand::WAIT;
-    }
-
-    void set_arrive_flag(bool flag) { *belt_arrive_flag_ = flag; }
-
-    double stall_velocity_threshold_;
-    double stall_torque_threshold_;
-    uint64_t stall_confirm_ticks_;
-    uint64_t stall_min_run_ticks_;
-
-    rmcs_msgs::DartMechanismCommand prev_belt_command_{rmcs_msgs::DartMechanismCommand::WAIT};
-    uint64_t running_ticks_{0};
-    uint64_t stall_counter_{0};
-
-    InputInterface<rmcs_msgs::DartMechanismCommand> belt_command_;
-    InputInterface<double> belt_left_velocity_;
-    InputInterface<double> belt_left_torque_;
-    InputInterface<double> belt_right_velocity_;
-    InputInterface<double> belt_right_torque_;
-
-    OutputInterface<bool> belt_arrive_flag_;
-};
-
 } // namespace rmcs_core::controller::dart
 
 #include <pluginlib/class_list_macros.hpp>
 PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::dart::DartTriggerController, rmcs_executor::Component)
 PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::dart::DartBeltController, rmcs_executor::Component)
-PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::dart::DartBeltStatus, rmcs_executor::Component)

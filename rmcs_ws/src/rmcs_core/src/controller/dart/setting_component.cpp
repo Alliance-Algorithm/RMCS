@@ -3,6 +3,7 @@
 #include <cstdint>
 
 #include <eigen3/Eigen/Dense>
+#include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
 
@@ -33,6 +34,9 @@ public:
         register_input("/dart_manager/angle/error_vector", angle_error_vector_);
         register_input("/dart_manager/force/error", force_error_);
 
+        register_input("/force_sensor/channel_1/weight", force_sensor_ch1_);
+        register_input("/force_sensor/channel_2/weight", force_sensor_ch2_);
+
         register_output("/dart/yaw_motor/control_velocity", yaw_control_velocity_, 0.0);
         register_output("/dart/pitch_motor/control_velocity", pitch_control_velocity_, 0.0);
         register_output("/dart/force_screw_motor/control_velocity", force_control_velocity_, 0.0);
@@ -58,7 +62,15 @@ public:
         *pitch_control_velocity_ =
             limit_velocity(angle_error[1], pitch_error_to_velocity_gain_, pitch_max_velocity_);
         *force_control_velocity_ = update_force_control_velocity(*force_error_);
+
+        if (count++ == 2000) {
+            RCLCPP_INFO(
+                get_logger(), "[ForSensor]: (%5d,%5d)", *force_sensor_ch1_, *force_sensor_ch2_);
+            count = 0;
+        }
     }
+
+    int count = 0;
 
 private:
     static double sanitize_max_velocity(const double max_velocity) {
@@ -116,6 +128,9 @@ private:
 
     InputInterface<Eigen::Vector2d> angle_error_vector_;
     InputInterface<int32_t> force_error_;
+
+    InputInterface<int32_t> force_sensor_ch1_;
+    InputInterface<int32_t> force_sensor_ch2_;
 
     OutputInterface<double> yaw_control_velocity_;
     OutputInterface<double> pitch_control_velocity_;

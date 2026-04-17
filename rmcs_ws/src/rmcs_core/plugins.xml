@@ -122,9 +122,6 @@
   <class type="rmcs_core::controller::dart::DartBeltController" base_class_type="rmcs_executor::Component">
     <description>Dart belt controller: dual-belt synchronized PID control with trapezoidal velocity planning.</description>
   </class>
-  <class type="rmcs_core::controller::dart::DartBeltStatus" base_class_type="rmcs_executor::Component">
-    <description>Dart belt status: stall detection for the drive belt, outputs a block flag.</description>
-  </class>
   <class type="rmcs_core::controller::dart::DartFilling" base_class_type="rmcs_executor::Component">
     <description>Dart filling execution: maps manager lifting and limiting commands to LK motor velocity and calibrated servo angles.</description>
   </class>
