@@ -96,26 +96,28 @@ gimbal_controller:
     upper_limit: -0.61 # -35 deg
     lower_limit: 0.05 # 6 deg
 
-    yaw_angle_kp: 14.2
+    yaw_angle_kp: 20.0
     yaw_angle_ki: 0.0
     yaw_angle_kd: 0.0
 
-    yaw_velocity_kp: 6.4
+    yaw_velocity_kp: 8.0
     yaw_velocity_ki: 0.0
     yaw_velocity_kd: 0.0
 
     yaw_vel_ff_gain: 0.47
     yaw_acc_ff_gain: 0.00
 
-    pitch_angle_kp: 8.0
+    pitch_angle_kp: 40.0
     pitch_angle_ki: 0.0
     pitch_angle_kd: 0.0
 
-    pitch_velocity_kp: 6.0
+    pitch_velocity_kp: 3.0
     pitch_velocity_ki: 0.0
     pitch_velocity_kd: 0.0
 
-    pitch_acc_ff_gain: 0.0
+    pitch_acc_ff_gain: 0.10
+
+    pitch_torque_control: true
 
     pitch_fusion_enabled: true
     pitch_fusion_alpha: 0.98

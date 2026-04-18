@@ -114,11 +114,18 @@ public:
               get_parameter("pitch_angle_kp").as_double(),
               get_parameter("pitch_angle_ki").as_double(),
               get_parameter("pitch_angle_kd").as_double())
-        , yaw_acc_ff_gain_(get_parameter("yaw_acc_ff_gain").as_double()) {
+        , pitch_velocity_pid_(
+              get_parameter("pitch_velocity_kp").as_double(),
+              get_parameter("pitch_velocity_ki").as_double(),
+              get_parameter("pitch_velocity_kd").as_double())
+        , yaw_acc_ff_gain_(get_parameter("yaw_acc_ff_gain").as_double())
+        , pitch_acc_ff_gain_(get_parameter("pitch_acc_ff_gain").as_double()) {
         configure_pid(*this, "yaw_angle", yaw_angle_pid_);
         configure_pid(*this, "yaw_velocity", yaw_velocity_pid_);
         configure_pid(*this, "pitch_angle", pitch_angle_pid_);
+        configure_pid(*this, "pitch_velocity", pitch_velocity_pid_);
         load_optional_parameter(*this, "yaw_vel_ff_gain", yaw_vel_ff_gain_);
+        get_parameter("pitch_torque_control", pitch_torque_control_enabled_);
         load_optional_parameter(*this, "manual_joystick_sensitivity", joystick_sensitivity_);
         load_optional_parameter(*this, "manual_mouse_sensitivity", mouse_sensitivity_);
 
@@ -144,6 +151,7 @@ public:
 
         register_output("/gimbal/yaw/control_torque", yaw_control_torque_, nan_);
         register_output("/gimbal/pitch/control_velocity", pitch_control_velocity_, nan_);
+        register_output("/gimbal/pitch/control_torque", pitch_control_torque_, nan_);
         register_output("/gimbal/yaw/control_angle_error", yaw_angle_error_, nan_);
         register_output("/gimbal/pitch/control_angle_error", pitch_angle_error_, nan_);
     }
@@ -205,8 +213,16 @@ public:
         *yaw_control_torque_ = yaw_velocity_pid_.update(yaw_velocity_ref - *yaw_velocity_imu_)
                              + yaw_vel_ff_gain_ * velocity_ff.x()
                              + yaw_acc_ff_gain_ * acceleration_ff.x();
-        // Deformable pitch remains velocity-controlled in the hardware layer.
-        *pitch_control_velocity_ = pitch_velocity_ref;
+        if (pitch_torque_control_enabled_) {
+            *pitch_control_velocity_ = nan_;
+            *pitch_control_torque_ =
+                pitch_velocity_pid_.update(pitch_velocity_ref - *pitch_velocity_imu_)
+              + pitch_acc_ff_gain_ * acceleration_ff.y();
+        } else {
+            pitch_velocity_pid_.reset();
+            *pitch_control_velocity_ = pitch_velocity_ref;
+            *pitch_control_torque_ = nan_;
+        }
     }
 
 private:
@@ -270,8 +286,10 @@ private:
         yaw_angle_pid_.reset();
         yaw_velocity_pid_.reset();
         pitch_angle_pid_.reset();
+        pitch_velocity_pid_.reset();
         *yaw_control_torque_ = nan_;
         *pitch_control_velocity_ = nan_;
+        *pitch_control_torque_ = nan_;
     }
 
     void reset_all_controls() {
@@ -306,13 +324,17 @@ private:
     pid::PidCalculator yaw_angle_pid_;
     pid::PidCalculator yaw_velocity_pid_;
     pid::PidCalculator pitch_angle_pid_;
+    pid::PidCalculator pitch_velocity_pid_;
     double joystick_sensitivity_ = 0.003;
     double mouse_sensitivity_ = 0.5;
     double yaw_vel_ff_gain_ = 0.0;
     double yaw_acc_ff_gain_;
+    double pitch_acc_ff_gain_;
+    bool pitch_torque_control_enabled_ = false;
 
     OutputInterface<double> yaw_control_torque_;
     OutputInterface<double> pitch_control_velocity_;
+    OutputInterface<double> pitch_control_torque_;
     OutputInterface<double> yaw_angle_error_;
     OutputInterface<double> pitch_angle_error_;
 };
