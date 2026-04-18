@@ -53,8 +53,8 @@ deformable_infantry:
 
 chassis_controller:
   ros__parameters:
-    min_angle: 20.0
-    max_angle: 58.0
+    min_angle: 10.0
+    max_angle: 70.0
 
 gimbal_controller:
   ros__parameters:

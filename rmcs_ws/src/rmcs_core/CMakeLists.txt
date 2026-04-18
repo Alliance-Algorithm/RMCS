@@ -15,13 +15,23 @@ find_package(ament_cmake_auto REQUIRED)
 ament_auto_find_build_dependencies()
 include(FetchContent)
 set(BUILD_STATIC_LIBRMCS ON CACHE BOOL "Build static librmcs SDK" FORCE)
-set(LIBRMCS_SOURCE_DIR
+set(LIBRMCS_SOURCE_CANDIDATES
+  "${CMAKE_CURRENT_SOURCE_DIR}/../../../librmcs-sdk-src-3.1.0-beta.1"
   "${CMAKE_CURRENT_SOURCE_DIR}/../../../librmcs-sdk-src-3.1.0"
 )
+set(LIBRMCS_SOURCE_DIR "")
+foreach(candidate IN LISTS LIBRMCS_SOURCE_CANDIDATES)
+  if(EXISTS "${candidate}/CMakeLists.txt"
+     AND EXISTS "${candidate}/host/include/librmcs/agent/rmcs_board.hpp")
+    set(LIBRMCS_SOURCE_DIR "${candidate}")
+    break()
+  endif()
+endforeach()
 
-if(NOT EXISTS "${LIBRMCS_SOURCE_DIR}/CMakeLists.txt")
+if(LIBRMCS_SOURCE_DIR STREQUAL "")
   message(FATAL_ERROR
-    "Expected librmcs v3.1.0 source tree at ${LIBRMCS_SOURCE_DIR}, but it was not found"
+    "Expected a librmcs source tree that provides librmcs/agent/rmcs_board.hpp. "
+    "Checked candidates: ${LIBRMCS_SOURCE_CANDIDATES}"
   )
 endif()
 
