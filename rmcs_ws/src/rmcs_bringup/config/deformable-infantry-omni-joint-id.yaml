@@ -32,9 +32,9 @@ joint_sweep_controller:
     joint_lower_limit_deg: 20.0
     joint_upper_limit_deg: 58.0
     test_angles_deg:
-      - 22.0
+      - 24.0
       - 39.0
-      - 56.0
+      - 54.0
 
 lf_joint_controller:
   ros__parameters:

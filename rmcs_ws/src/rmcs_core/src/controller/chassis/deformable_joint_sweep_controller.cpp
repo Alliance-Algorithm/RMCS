@@ -2,8 +2,10 @@
 #include <array>
 #include <chrono>
 #include <cmath>
+#include <iomanip>
 #include <limits>
 #include <numbers>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -39,6 +41,62 @@ std::size_t parse_joint_index(const std::string& joint_name) {
 
 double deg_to_rad(double deg) { return deg * std::numbers::pi / 180.0; }
 
+struct NormalizedAngleLimits {
+    double lower_deg;
+    double upper_deg;
+    bool reordered;
+};
+
+NormalizedAngleLimits normalize_angle_limits(double lower_deg, double upper_deg) {
+    return {std::min(lower_deg, upper_deg), std::max(lower_deg, upper_deg), lower_deg > upper_deg};
+}
+
+std::string format_angle_interval(double lower_deg, double upper_deg) {
+    std::ostringstream stream;
+    stream << std::fixed << std::setprecision(3) << "[" << lower_deg << ", " << upper_deg << "]";
+    return stream.str();
+}
+
+std::string build_limit_value_error(double lower_deg, double upper_deg) {
+    std::ostringstream stream;
+    stream << std::fixed << std::setprecision(3)
+           << "joint sweep angle limits must be finite: joint_lower_limit_deg=" << lower_deg
+           << ", joint_upper_limit_deg=" << upper_deg;
+    return stream.str();
+}
+
+std::string build_zero_width_limit_error(
+    double raw_lower_deg, double raw_upper_deg, const NormalizedAngleLimits& normalized_limits) {
+    std::ostringstream stream;
+    stream << std::fixed << std::setprecision(3)
+           << "joint sweep angle limits collapse to a zero-width interval: "
+           << "joint_lower_limit_deg=" << raw_lower_deg
+           << ", joint_upper_limit_deg=" << raw_upper_deg
+           << ", effective_limits_deg="
+           << format_angle_interval(normalized_limits.lower_deg, normalized_limits.upper_deg);
+    return stream.str();
+}
+
+std::string build_amplitude_limit_error(
+    double raw_lower_deg, double raw_upper_deg, const NormalizedAngleLimits& normalized_limits,
+    double angle_amplitude_deg, double test_angle_deg) {
+    std::ostringstream stream;
+    stream << std::fixed << std::setprecision(3);
+
+    const double sweep_lower_deg = test_angle_deg - angle_amplitude_deg;
+    const double sweep_upper_deg = test_angle_deg + angle_amplitude_deg;
+
+    stream << "joint sweep angle amplitude exceeds configured angle limits: "
+           << "test_angle_deg=" << test_angle_deg
+           << ", angle_amplitude_deg=" << angle_amplitude_deg
+           << ", requested_sweep_deg=" << format_angle_interval(sweep_lower_deg, sweep_upper_deg)
+           << ", joint_lower_limit_deg=" << raw_lower_deg
+           << ", joint_upper_limit_deg=" << raw_upper_deg
+           << ", effective_limits_deg="
+           << format_angle_interval(normalized_limits.lower_deg, normalized_limits.upper_deg);
+    return stream.str();
+}
+
 } // namespace
 
 class DeformableJointSweepController
@@ -51,14 +109,35 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , swept_joint_index_(parse_joint_index(get_parameter("swept_joint").as_string()))
-        , duration_seconds_(get_parameter("duration").as_double())
-        , settle_duration_seconds_(get_parameter_or("settle_duration", 1.0))
-        , angle_amplitude_rad_(deg_to_rad(get_parameter("angle_amplitude_deg").as_double()))
-        , start_frequency_hz_(get_parameter("start_frequency_hz").as_double())
-        , end_frequency_hz_(get_parameter("end_frequency_hz").as_double())
-        , lower_angle_limit_rad_(deg_to_rad(get_parameter("joint_lower_limit_deg").as_double()))
-        , upper_angle_limit_rad_(deg_to_rad(get_parameter("joint_upper_limit_deg").as_double())) {
+        , swept_joint_index_(0)
+        , duration_seconds_(0.0)
+        , settle_duration_seconds_(0.0)
+        , angle_amplitude_rad_(0.0)
+        , start_frequency_hz_(0.0)
+        , end_frequency_hz_(0.0)
+        , lower_angle_limit_rad_(0.0)
+        , upper_angle_limit_rad_(0.0) {
+        swept_joint_index_ = parse_joint_index(get_parameter("swept_joint").as_string());
+        duration_seconds_ = get_parameter("duration").as_double();
+        settle_duration_seconds_ = get_parameter_or("settle_duration", 1.0);
+
+        const double angle_amplitude_deg = get_parameter("angle_amplitude_deg").as_double();
+        angle_amplitude_rad_ = deg_to_rad(angle_amplitude_deg);
+
+        start_frequency_hz_ = get_parameter("start_frequency_hz").as_double();
+        end_frequency_hz_ = get_parameter("end_frequency_hz").as_double();
+
+        const double raw_lower_angle_limit_deg = get_parameter("joint_lower_limit_deg").as_double();
+        const double raw_upper_angle_limit_deg = get_parameter("joint_upper_limit_deg").as_double();
+        if (!std::isfinite(raw_lower_angle_limit_deg) || !std::isfinite(raw_upper_angle_limit_deg))
+            throw std::runtime_error{
+                build_limit_value_error(raw_lower_angle_limit_deg, raw_upper_angle_limit_deg)};
+
+        const NormalizedAngleLimits normalized_limits =
+            normalize_angle_limits(raw_lower_angle_limit_deg, raw_upper_angle_limit_deg);
+        lower_angle_limit_rad_ = deg_to_rad(normalized_limits.lower_deg);
+        upper_angle_limit_rad_ = deg_to_rad(normalized_limits.upper_deg);
+
         if (duration_seconds_ <= 0.0)
             throw std::runtime_error{"joint sweep parameter \"duration\" must be positive"};
         if (settle_duration_seconds_ < 0.0)
@@ -69,27 +148,36 @@ public:
         if (!std::isfinite(angle_amplitude_rad_) || angle_amplitude_rad_ <= 0.0)
             throw std::runtime_error{
                 "joint sweep parameter \"angle_amplitude_deg\" must be positive"};
-        if (lower_angle_limit_rad_ >= upper_angle_limit_rad_)
-            throw std::runtime_error{"joint sweep angle limits must satisfy lower < upper"};
+        if (normalized_limits.lower_deg == normalized_limits.upper_deg)
+            throw std::runtime_error{build_zero_width_limit_error(
+                raw_lower_angle_limit_deg, raw_upper_angle_limit_deg, normalized_limits)};
+        if (normalized_limits.reordered) {
+            RCLCPP_WARN(
+                get_logger(),
+                "joint sweep angle limits were provided in reverse order; using normalized "
+                "interval [%.3f, %.3f] deg from joint_lower_limit_deg=%.3f and "
+                "joint_upper_limit_deg=%.3f",
+                normalized_limits.lower_deg, normalized_limits.upper_deg,
+                raw_lower_angle_limit_deg, raw_upper_angle_limit_deg);
+        }
 
         if (has_parameter("test_angles_deg")) {
-            for (double value : get_parameter("test_angles_deg").as_double_array())
+            for (double value : get_parameter("test_angles_deg").as_double_array()) {
+                if (!std::isfinite(value))
+                    throw std::runtime_error{
+                        "joint sweep parameter \"test_angles_deg\" must be finite"};
+                if (value - angle_amplitude_deg < normalized_limits.lower_deg
+                    || value + angle_amplitude_deg > normalized_limits.upper_deg) {
+                    throw std::runtime_error{build_amplitude_limit_error(
+                        raw_lower_angle_limit_deg, raw_upper_angle_limit_deg, normalized_limits,
+                        angle_amplitude_deg, value)};
+                }
                 test_angles_rad_.push_back(deg_to_rad(value));
+            }
         }
         if (test_angles_rad_.empty())
             throw std::runtime_error{
                 "joint sweep parameter \"test_angles_deg\" must contain at least one angle"};
-
-        for (double angle : test_angles_rad_) {
-            if (!std::isfinite(angle))
-                throw std::runtime_error{
-                    "joint sweep parameter \"test_angles_deg\" must be finite"};
-            if (angle - angle_amplitude_rad_ < lower_angle_limit_rad_
-                || angle + angle_amplitude_rad_ > upper_angle_limit_rad_) {
-                throw std::runtime_error{
-                    "joint sweep angle amplitude exceeds configured angle limits"};
-            }
-        }
 
         register_input("/predefined/timestamp", timestamp_);
         register_input("/predefined/update_count", update_count_);
