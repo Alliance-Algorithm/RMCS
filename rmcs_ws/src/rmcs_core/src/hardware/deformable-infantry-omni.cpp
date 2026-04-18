@@ -177,20 +177,19 @@ private:
             , imu_(1000, 0.2, 0.0)
             , gimbal_yaw_motor_(deformableInfantry, deformableInfantry_command, "/gimbal/yaw")
             , dr16_(deformableInfantry)
-            , chassis_wheel_motors_{device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/left_front_wheel"}, device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/left_back_wheel"}, device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/right_back_wheel"}, device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/right_front_wheel"}}
-            , chassis_joint_motors_{
-                  device::LkMotor{
-                      deformableInfantry, deformableInfantry_command, "/chassis/left_front_joint"},
-                  device::LkMotor{
-                      deformableInfantry, deformableInfantry_command, "/chassis/left_back_joint"},
-                  device::LkMotor{
-                      deformableInfantry, deformableInfantry_command, "/chassis/right_back_joint"},
-                  device::LkMotor{
-                      deformableInfantry, deformableInfantry_command,
-                      "/chassis/right_front_joint"}}
-            , supercap_(deformableInfantry, deformableInfantry_command)
-            , gimbal_bullet_feeder_(
-                  deformableInfantry, deformableInfantry_command, "/gimbal/bullet_feeder") {
+            , chassis_wheel_motors_{device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/left_front_wheel"}, device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/left_back_wheel"}, device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/right_back_wheel"}, device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/right_front_wheel"}},
+            chassis_joint_motors_{
+                device::LkMotor{
+                    deformableInfantry, deformableInfantry_command, "/chassis/left_front_joint"},
+                device::LkMotor{
+                    deformableInfantry, deformableInfantry_command, "/chassis/left_back_joint"},
+                device::LkMotor{
+                    deformableInfantry, deformableInfantry_command, "/chassis/right_back_joint"},
+                device::LkMotor{
+                    deformableInfantry, deformableInfantry_command, "/chassis/right_front_joint"}},
+            supercap_(deformableInfantry, deformableInfantry_command),
+            gimbal_bullet_feeder_(
+                deformableInfantry, deformableInfantry_command, "/gimbal/bullet_feeder") {
 
             deformableInfantry.register_output("/referee/serial", referee_serial_);
             referee_serial_->read = [this](std::byte* buffer, size_t size) {
@@ -336,6 +335,17 @@ private:
                 builder.can2_transmit({
                     .can_id = 0x142,
                     .can_data = gimbal_yaw_motor_.generate_torque_command().as_bytes(),
+                });
+                builder.can1_transmit({
+                    .can_id = 0x1FE,
+                    .can_data =
+                        device::CanPacket8{
+                                           device::CanPacket8::PaddingQuarter{},
+                                           device::CanPacket8::PaddingQuarter{},
+                                           device::CanPacket8::PaddingQuarter{},
+                                           supercap_.generate_command(),
+                                           }
+                            .as_bytes(),
                 });
             } else {
                 builder.can0_transmit({
@@ -569,10 +579,11 @@ private:
             Eigen::Quaterniond const odom_imu_to_yaw_link{
                 bmi088_.q0(), bmi088_.q1(), bmi088_.q2(), bmi088_.q3()};
             Eigen::Quaterniond const yaw_link_to_odom_imu = odom_imu_to_yaw_link.conjugate();
-            Eigen::Quaterniond pitch_link_to_odom_imu = Eigen::Quaterniond{Eigen::AngleAxisd{
-                                                          -pitch_encoder_angle,
-                                                          Eigen::Vector3d::UnitY()}}
-                                                      * yaw_link_to_odom_imu;
+            Eigen::Quaterniond pitch_link_to_odom_imu =
+                Eigen::Quaterniond{
+                    Eigen::AngleAxisd{-pitch_encoder_angle, Eigen::Vector3d::UnitY()}
+            }
+                * yaw_link_to_odom_imu;
             pitch_link_to_odom_imu.normalize();
 
             *gimbal_yaw_velocity_bmi088_ = bmi088_.gz();
