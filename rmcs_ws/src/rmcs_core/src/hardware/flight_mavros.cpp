@@ -48,8 +48,9 @@ public:
 
     void update() override {
         update_pose_from_tf();
-        if (++update_counter_ >= publish_interval_updates_) {
-            update_counter_ = 0;
+        publish_credit_ += output_rate_hz_ / 1000.0;
+        while (publish_credit_ >= 1.0) {
+            publish_credit_ -= 1.0;
             publish_pose();
         }
     }
@@ -76,8 +77,7 @@ private:
         sensor_pitch_offset_rad_ = get_parameter("sensor_pitch_offset_rad").as_double();
         sensor_yaw_offset_rad_ = get_parameter("sensor_yaw_offset_rad").as_double();
 
-        publish_interval_updates_ =
-            static_cast<std::uint32_t>(std::max(1.0, std::round(1000.0 / output_rate_hz_)));
+        output_rate_hz_ = std::max(0.0, output_rate_hz_);
     }
 
     Eigen::Quaterniond sensor_to_body_rotation() const {
@@ -153,36 +153,34 @@ private:
     void publish_pose() {
         geometry_msgs::msg::Pose pose;
         rclcpp::Time pose_received_time{0, 0, get_clock()->get_clock_type()};
-        std::int64_t tf_stamp_ns = 0;
         {
             std::lock_guard<std::mutex> lock(pose_mutex_);
             if (!pose_ready_)
                 return;
-
-            if (last_tf_stamp_ns_ == last_published_tf_stamp_ns_)
-                return;
-
-            tf_stamp_ns = last_tf_stamp_ns_;
             pose_received_time = last_pose_received_time_;
             pose = latest_pose_;
         }
 
-        const rclcpp::Duration max_pose_age = rclcpp::Duration::from_seconds(1.0 / output_rate_hz_);
-        const rclcpp::Time now = get_clock()->now();
-        if ((now - pose_received_time) >= max_pose_age)
+        const rclcpp::Duration max_pose_age = rclcpp::Duration::from_seconds(1.0);
+        rclcpp::Time publish_stamp = get_clock()->now();
+        if ((publish_stamp - pose_received_time) >= max_pose_age)
             return;
-
-        geometry_msgs::msg::PoseStamped pose_msg{};
-        pose_msg.header.stamp = now;
-        pose_msg.header.frame_id = mavros_pose_frame_id_;
-        pose_msg.pose = pose;
-        mavros_pose_publisher_->publish(pose_msg);
 
         {
             std::lock_guard<std::mutex> lock(pose_mutex_);
-            if (last_tf_stamp_ns_ == tf_stamp_ns)
-                last_published_tf_stamp_ns_ = tf_stamp_ns;
+            if (last_published_stamp_ns_ != 0
+                && publish_stamp.nanoseconds() <= last_published_stamp_ns_) {
+                publish_stamp =
+                    rclcpp::Time{last_published_stamp_ns_ + 1, get_clock()->get_clock_type()};
+            }
+            last_published_stamp_ns_ = publish_stamp.nanoseconds();
         }
+
+        geometry_msgs::msg::PoseStamped pose_msg{};
+        pose_msg.header.stamp = publish_stamp;
+        pose_msg.header.frame_id = mavros_pose_frame_id_;
+        pose_msg.pose = pose;
+        mavros_pose_publisher_->publish(pose_msg);
 
         RCLCPP_INFO_THROTTLE(
             logger_, *get_clock(), 1000, "Published MAVROS vision pose at %.1f Hz to '%s'.",
@@ -198,7 +196,6 @@ private:
     double sensor_roll_offset_rad_;
     double sensor_pitch_offset_rad_;
     double sensor_yaw_offset_rad_;
-    std::uint32_t publish_interval_updates_;
     tf2_ros::Buffer tf_buffer_;
     tf2_ros::TransformListener tf_listener_;
 
@@ -207,9 +204,9 @@ private:
     std::mutex pose_mutex_;
     geometry_msgs::msg::Pose latest_pose_{};
     std::int64_t last_tf_stamp_ns_{0};
-    std::int64_t last_published_tf_stamp_ns_{0};
     rclcpp::Time last_pose_received_time_;
-    std::uint32_t update_counter_{0};
+    std::int64_t last_published_stamp_ns_{0};
+    double publish_credit_{0.0};
     bool pose_ready_{false};
 };
 
