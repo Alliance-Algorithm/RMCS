@@ -50,7 +50,18 @@ public:
         , target_physical_velocity_limit_(
               deg_to_rad(get_parameter_or("target_physical_velocity_limit", 180.0)))
         , target_physical_acceleration_limit_(
-              deg_to_rad(get_parameter_or("target_physical_acceleration_limit", 720.0))) {
+              deg_to_rad(get_parameter_or("target_physical_acceleration_limit", 720.0)))
+        , active_suspension_enable_(get_parameter_or("active_suspension_enable", false))
+        , active_suspension_mass_(get_parameter_or("active_suspension_mass", 22.5))
+        , active_suspension_rod_length_(get_parameter_or("active_suspension_rod_length", 0.150))
+        , active_suspension_spring_k_(get_parameter_or("active_suspension_spring_k", 150.0))
+        , active_suspension_damping_k_(get_parameter_or("active_suspension_damping_k", 10.0))
+        , active_suspension_gravity_comp_gain_(
+              get_parameter_or("active_suspension_gravity_comp_gain", 0.8))
+        , active_suspension_airborne_torque_threshold_(
+              get_parameter_or("active_suspension_airborne_torque_threshold", 5.0))
+        , active_suspension_torque_limit_(
+              std::abs(get_parameter_or("active_suspension_torque_limit", 80.0))) {
 
         following_velocity_controller_.output_max = angular_velocity_max_;
         following_velocity_controller_.output_min = -angular_velocity_max_;
@@ -72,10 +83,30 @@ public:
         register_input("/chassis/right_front_joint/angle", right_front_joint_angle_, false);
         register_input("/chassis/right_back_joint/angle", right_back_joint_angle_, false);
 
-        register_input("/chassis/left_front_joint/velocity", left_front_joint_velocity_, false);
-        register_input("/chassis/left_back_joint/velocity", left_back_joint_velocity_, false);
-        register_input("/chassis/right_front_joint/velocity", right_front_joint_velocity_, false);
-        register_input("/chassis/right_back_joint/velocity", right_back_joint_velocity_, false);
+        register_input(
+            "/chassis/left_front_joint/physical_angle", left_front_joint_physical_angle_, false);
+        register_input(
+            "/chassis/left_back_joint/physical_angle", left_back_joint_physical_angle_, false);
+        register_input(
+            "/chassis/right_front_joint/physical_angle", right_front_joint_physical_angle_, false);
+        register_input(
+            "/chassis/right_back_joint/physical_angle", right_back_joint_physical_angle_, false);
+        register_input(
+            "/chassis/left_front_joint/physical_velocity", left_front_joint_physical_velocity_,
+            false);
+        register_input(
+            "/chassis/left_back_joint/physical_velocity", left_back_joint_physical_velocity_,
+            false);
+        register_input(
+            "/chassis/right_back_joint/physical_velocity", right_back_joint_physical_velocity_,
+            false);
+        register_input(
+            "/chassis/right_front_joint/physical_velocity", right_front_joint_physical_velocity_,
+            false);
+        register_input("/chassis/left_front_joint/torque", left_front_joint_torque_, false);
+        register_input("/chassis/left_back_joint/torque", left_back_joint_torque_, false);
+        register_input("/chassis/right_back_joint/torque", right_back_joint_torque_, false);
+        register_input("/chassis/right_front_joint/torque", right_front_joint_torque_, false);
 
         register_input(
             "/chassis/left_front_joint/encoder_angle", left_front_joint_encoder_angle_, false);
@@ -144,6 +175,26 @@ public:
         register_output(
             "/chassis/right_front_joint/target_physical_acceleration",
             right_front_joint_target_physical_acceleration_, nan_);
+        register_output(
+            "/chassis/left_front_joint/suspension_mode", left_front_joint_suspension_mode_, false);
+        register_output(
+            "/chassis/left_back_joint/suspension_mode", left_back_joint_suspension_mode_, false);
+        register_output(
+            "/chassis/right_back_joint/suspension_mode", right_back_joint_suspension_mode_, false);
+        register_output(
+            "/chassis/right_front_joint/suspension_mode", right_front_joint_suspension_mode_,
+            false);
+        register_output(
+            "/chassis/left_front_joint/suspension_torque", left_front_joint_suspension_torque_,
+            nan_);
+        register_output(
+            "/chassis/left_back_joint/suspension_torque", left_back_joint_suspension_torque_, nan_);
+        register_output(
+            "/chassis/right_back_joint/suspension_torque", right_back_joint_suspension_torque_,
+            nan_);
+        register_output(
+            "/chassis/right_front_joint/suspension_torque", right_front_joint_suspension_torque_,
+            nan_);
 
         register_output("/chassis/processed_encoder/angle", processed_encoder_angle_, nan_);
 
@@ -184,6 +235,14 @@ public:
             RCLCPP_WARN(
                 get_logger(), "Failed to fetch \"/gimbal/yaw/control_angle_error\". Set to 0.0.");
         }
+        if (!left_front_joint_torque_.ready())
+            left_front_joint_torque_.make_and_bind_directly(0.0);
+        if (!left_back_joint_torque_.ready())
+            left_back_joint_torque_.make_and_bind_directly(0.0);
+        if (!right_back_joint_torque_.ready())
+            right_back_joint_torque_.make_and_bind_directly(0.0);
+        if (!right_front_joint_torque_.ready())
+            right_front_joint_torque_.make_and_bind_directly(0.0);
         validate_joint_feedback_inputs();
     }
 
@@ -285,6 +344,170 @@ private:
         return wrap_deg(joint_offset) - wrap_deg(*joint_encoder_angle) + legacy_fixed_compensation;
     }
 
+    void clear_suspension_outputs() {
+        joint_suspension_active_.fill(false);
+
+        *left_front_joint_suspension_mode_ = false;
+        *left_back_joint_suspension_mode_ = false;
+        *right_back_joint_suspension_mode_ = false;
+        *right_front_joint_suspension_mode_ = false;
+
+        *left_front_joint_suspension_torque_ = nan_;
+        *left_back_joint_suspension_torque_ = nan_;
+        *right_back_joint_suspension_torque_ = nan_;
+        *right_front_joint_suspension_torque_ = nan_;
+    }
+
+    void update_current_joint_feedback(
+        std::array<double, kJointCount>& current_motor_angles,
+        std::array<double, kJointCount>& current_physical_angles,
+        std::array<double, kJointCount>& current_physical_velocities,
+        std::array<double, kJointCount>& current_joint_torques) const {
+        const std::array<const InputInterface<double>*, kJointCount> motor_angle_inputs{
+            &left_front_joint_angle_, &left_back_joint_angle_, &right_back_joint_angle_,
+            &right_front_joint_angle_};
+        const std::array<const InputInterface<double>*, kJointCount> physical_angle_inputs{
+            &left_front_joint_physical_angle_, &left_back_joint_physical_angle_,
+            &right_back_joint_physical_angle_, &right_front_joint_physical_angle_};
+        const std::array<const InputInterface<double>*, kJointCount> physical_velocity_inputs{
+            &left_front_joint_physical_velocity_, &left_back_joint_physical_velocity_,
+            &right_back_joint_physical_velocity_, &right_front_joint_physical_velocity_};
+        const std::array<const InputInterface<double>*, kJointCount> torque_inputs{
+            &left_front_joint_torque_, &left_back_joint_torque_, &right_back_joint_torque_,
+            &right_front_joint_torque_};
+
+        current_motor_angles.fill(nan_);
+        current_physical_angles.fill(nan_);
+        current_physical_velocities.fill(nan_);
+        current_joint_torques.fill(nan_);
+
+        for (size_t i = 0; i < kJointCount; ++i) {
+            if (motor_angle_inputs[i]->ready() && std::isfinite(*(*motor_angle_inputs[i]))) {
+                current_motor_angles[i] = *(*motor_angle_inputs[i]);
+                current_physical_angles[i] = motor_to_physical_angle(current_motor_angles[i]);
+            }
+
+            if (physical_angle_inputs[i]->ready() && std::isfinite(*(*physical_angle_inputs[i]))) {
+                current_physical_angles[i] = *(*physical_angle_inputs[i]);
+            }
+            if (physical_velocity_inputs[i]->ready()
+                && std::isfinite(*(*physical_velocity_inputs[i]))) {
+                current_physical_velocities[i] = *(*physical_velocity_inputs[i]);
+            }
+            if (torque_inputs[i]->ready() && std::isfinite(*(*torque_inputs[i]))) {
+                current_joint_torques[i] = *(*torque_inputs[i]);
+            }
+        }
+    }
+
+    bool initialize_joint_target_states_from_feedback(
+        const std::array<double, kJointCount>& current_motor_angles,
+        const std::array<double, kJointCount>& current_physical_angles) {
+        for (size_t i = 0; i < kJointCount; ++i) {
+            if (!std::isfinite(current_motor_angles[i])
+                || !std::isfinite(current_physical_angles[i]))
+                return false;
+        }
+
+        joint_target_angle_state_rad_ = current_motor_angles;
+        joint_target_physical_angle_state_rad_ = current_physical_angles;
+        joint_target_physical_velocity_state_rad_ = {0.0, 0.0, 0.0, 0.0};
+        joint_target_physical_acceleration_state_rad_ = {0.0, 0.0, 0.0, 0.0};
+        current_target_physical_angles_rad_ = current_physical_angles;
+        joint_target_active_ = true;
+        return true;
+    }
+
+    void sync_joint_target_state_from_feedback(
+        JointIndex index, double current_motor_angle, double current_physical_angle) {
+        joint_target_angle_state_rad_[index] = current_motor_angle;
+        joint_target_physical_angle_state_rad_[index] = current_physical_angle;
+        joint_target_physical_velocity_state_rad_[index] = 0.0;
+        joint_target_physical_acceleration_state_rad_[index] = 0.0;
+    }
+
+    void update_active_suspension(
+        const std::array<double, kJointCount>& current_motor_angles,
+        const std::array<double, kJointCount>& current_physical_angles,
+        const std::array<double, kJointCount>& current_physical_velocities,
+        const std::array<double, kJointCount>& current_joint_torques,
+        const std::array<OutputInterface<bool>*, kJointCount>& suspension_mode_outputs,
+        const std::array<OutputInterface<double>*, kJointCount>& suspension_torque_outputs) {
+        constexpr double gravity = 9.81;
+        constexpr double target_tolerance = 5.0 * std::numbers::pi / 180.0;
+        const double rest_angle = deg_to_rad(min_angle_);
+
+        for (size_t i = 0; i < kJointCount; ++i) {
+            const double alpha = current_physical_angles[i];
+            const double alpha_dot = current_physical_velocities[i];
+            const double target = current_target_physical_angles_rad_[i];
+
+            if (!std::isfinite(alpha) || !std::isfinite(alpha_dot) || !std::isfinite(target)) {
+                joint_suspension_active_[i] = false;
+                **suspension_mode_outputs[i] = false;
+                **suspension_torque_outputs[i] = nan_;
+                continue;
+            }
+
+            const bool target_is_deployed = target <= rest_angle + 1e-6;
+            if (!target_is_deployed) {
+                if (joint_suspension_active_[i] && std::isfinite(current_motor_angles[i])) {
+                    sync_joint_target_state_from_feedback(
+                        static_cast<JointIndex>(i), current_motor_angles[i], alpha);
+                }
+                joint_suspension_active_[i] = false;
+                **suspension_mode_outputs[i] = false;
+                **suspension_torque_outputs[i] = nan_;
+                continue;
+            }
+
+            double tau_gravity = active_suspension_gravity_comp_gain_
+                               * (active_suspension_mass_ / static_cast<double>(kJointCount))
+                               * gravity * active_suspension_rod_length_ * std::sin(alpha);
+            double tau_spring = active_suspension_spring_k_ * (target - alpha);
+            double tau_damper = -active_suspension_damping_k_ * alpha_dot;
+            double tau_total = tau_gravity + tau_spring + tau_damper;
+
+            const double actual_torque = current_joint_torques[i];
+            const bool torque_available =
+                std::isfinite(actual_torque) && std::abs(actual_torque) > 1e-6;
+            if (torque_available
+                && std::abs(actual_torque) < active_suspension_airborne_torque_threshold_
+                && std::abs(alpha - target) < target_tolerance) {
+                tau_total += tau_gravity * 0.5;
+            }
+
+            tau_total = std::clamp(
+                tau_total, -active_suspension_torque_limit_, active_suspension_torque_limit_);
+
+            joint_suspension_active_[i] = true;
+            **suspension_mode_outputs[i] = true;
+            **suspension_torque_outputs[i] = tau_total;
+        }
+    }
+
+    void update_joint_suspension_control(
+        const std::array<double, kJointCount>& current_motor_angles,
+        const std::array<double, kJointCount>& current_physical_angles,
+        const std::array<double, kJointCount>& current_physical_velocities,
+        const std::array<double, kJointCount>& current_joint_torques) {
+        const std::array<OutputInterface<bool>*, kJointCount> suspension_mode_outputs{
+            &left_front_joint_suspension_mode_, &left_back_joint_suspension_mode_,
+            &right_back_joint_suspension_mode_, &right_front_joint_suspension_mode_};
+        const std::array<OutputInterface<double>*, kJointCount> suspension_torque_outputs{
+            &left_front_joint_suspension_torque_, &left_back_joint_suspension_torque_,
+            &right_back_joint_suspension_torque_, &right_front_joint_suspension_torque_};
+
+        if (!active_suspension_enable_) {
+            clear_suspension_outputs();
+            return;
+        }
+
+        update_active_suspension(
+            current_motor_angles, current_physical_angles, current_physical_velocities,
+            current_joint_torques, suspension_mode_outputs, suspension_torque_outputs);
+    }
+
     void reset_all_controls() {
         *mode_ = rmcs_msgs::ChassisMode::AUTO;
 
@@ -324,6 +547,7 @@ private:
         *right_back_joint_target_physical_acceleration_ = nan_;
         *right_front_joint_target_physical_acceleration_ = nan_;
 
+        clear_suspension_outputs();
         *processed_encoder_angle_ = nan_;
     }
 
@@ -467,7 +691,17 @@ private:
     }
 
     void update_lift_angle_error() {
-        if (!joint_target_active_ && !publish_current_joint_target_angles()) {
+        std::array<double, kJointCount> current_motor_angles{};
+        std::array<double, kJointCount> current_physical_angles{};
+        std::array<double, kJointCount> current_physical_velocities{};
+        std::array<double, kJointCount> current_joint_torques{};
+        update_current_joint_feedback(
+            current_motor_angles, current_physical_angles, current_physical_velocities,
+            current_joint_torques);
+
+        if (!joint_target_active_
+            && !initialize_joint_target_states_from_feedback(
+                current_motor_angles, current_physical_angles)) {
             publish_nan_joint_targets();
             return;
         }
@@ -477,8 +711,11 @@ private:
         current_target_physical_angles_rad_[kRightBack] = deg_to_rad(rb_current_target_angle_);
         current_target_physical_angles_rad_[kRightFront] = deg_to_rad(rf_current_target_angle_);
 
+        update_joint_suspension_control(
+            current_motor_angles, current_physical_angles, current_physical_velocities,
+            current_joint_torques);
         update_joint_target_trajectory();
-        publish_joint_target_angles();
+        publish_joint_target_angles(current_physical_angles);
     }
 
     static double deg_to_rad(double deg) { return deg * std::numbers::pi / 180.0; }
@@ -573,7 +810,8 @@ private:
         }
     }
 
-    void publish_joint_target_angles() {
+    void publish_joint_target_angles(
+        const std::array<double, kJointCount>& current_physical_angles) {
         if (!joint_target_active_) {
             publish_nan_joint_targets();
             return;
@@ -610,26 +848,36 @@ private:
         *right_front_joint_target_physical_acceleration_ =
             joint_target_physical_acceleration_state_rad_[kRightFront];
 
-        std::array<double, kJointCount> current_physical_angles{};
-        current_physical_angles[kLeftFront] = motor_to_physical_angle(*left_front_joint_angle_);
-        current_physical_angles[kLeftBack] = motor_to_physical_angle(*left_back_joint_angle_);
-        current_physical_angles[kRightBack] = motor_to_physical_angle(*right_back_joint_angle_);
-        current_physical_angles[kRightFront] = motor_to_physical_angle(*right_front_joint_angle_);
+        *lf_angle_error_ = std::isfinite(current_physical_angles[kLeftFront])
+                             ? current_physical_angles[kLeftFront]
+                                   - joint_target_physical_angle_state_rad_[kLeftFront]
+                             : nan_;
+        *lb_angle_error_ = std::isfinite(current_physical_angles[kLeftBack])
+                             ? current_physical_angles[kLeftBack]
+                                   - joint_target_physical_angle_state_rad_[kLeftBack]
+                             : nan_;
+        *rb_angle_error_ = std::isfinite(current_physical_angles[kRightBack])
+                             ? current_physical_angles[kRightBack]
+                                   - joint_target_physical_angle_state_rad_[kRightBack]
+                             : nan_;
+        *rf_angle_error_ = std::isfinite(current_physical_angles[kRightFront])
+                             ? current_physical_angles[kRightFront]
+                                   - joint_target_physical_angle_state_rad_[kRightFront]
+                             : nan_;
 
-        *lf_angle_error_ = current_physical_angles[kLeftFront]
-                         - joint_target_physical_angle_state_rad_[kLeftFront];
-        *lb_angle_error_ =
-            current_physical_angles[kLeftBack] - joint_target_physical_angle_state_rad_[kLeftBack];
-        *rb_angle_error_ = current_physical_angles[kRightBack]
-                         - joint_target_physical_angle_state_rad_[kRightBack];
-        *rf_angle_error_ = current_physical_angles[kRightFront]
-                         - joint_target_physical_angle_state_rad_[kRightFront];
+        bool all_joint_angles_finite = true;
+        double physical_angle_sum = 0.0;
+        for (double current_physical_angle : current_physical_angles) {
+            if (!std::isfinite(current_physical_angle)) {
+                all_joint_angles_finite = false;
+                break;
+            }
+            physical_angle_sum += current_physical_angle;
+        }
 
-        *processed_encoder_angle_ =
-            rad_to_deg_
-            * (current_physical_angles[kLeftFront] + current_physical_angles[kLeftBack]
-               + current_physical_angles[kRightBack] + current_physical_angles[kRightFront])
-            / 4.0;
+        *processed_encoder_angle_ = all_joint_angles_finite ? rad_to_deg_ * physical_angle_sum
+                                                                  / static_cast<double>(kJointCount)
+                                                            : nan_;
     }
 
     void publish_nan_joint_targets() {
@@ -657,6 +905,8 @@ private:
         *lb_angle_error_ = nan_;
         *rb_angle_error_ = nan_;
         *rf_angle_error_ = nan_;
+
+        clear_suspension_outputs();
     }
 
 private:
@@ -689,10 +939,18 @@ private:
     InputInterface<double> right_front_joint_angle_;
     InputInterface<double> right_back_joint_angle_;
 
-    InputInterface<double> left_front_joint_velocity_;
-    InputInterface<double> left_back_joint_velocity_;
-    InputInterface<double> right_front_joint_velocity_;
-    InputInterface<double> right_back_joint_velocity_;
+    InputInterface<double> left_front_joint_physical_angle_;
+    InputInterface<double> left_back_joint_physical_angle_;
+    InputInterface<double> right_front_joint_physical_angle_;
+    InputInterface<double> right_back_joint_physical_angle_;
+    InputInterface<double> left_front_joint_physical_velocity_;
+    InputInterface<double> left_back_joint_physical_velocity_;
+    InputInterface<double> right_front_joint_physical_velocity_;
+    InputInterface<double> right_back_joint_physical_velocity_;
+    InputInterface<double> left_front_joint_torque_;
+    InputInterface<double> left_back_joint_torque_;
+    InputInterface<double> right_front_joint_torque_;
+    InputInterface<double> right_back_joint_torque_;
 
     InputInterface<double> left_front_joint_encoder_angle_;
     InputInterface<double> left_back_joint_encoder_angle_;
@@ -723,6 +981,14 @@ private:
     OutputInterface<double> left_back_joint_target_physical_acceleration_;
     OutputInterface<double> right_back_joint_target_physical_acceleration_;
     OutputInterface<double> right_front_joint_target_physical_acceleration_;
+    OutputInterface<bool> left_front_joint_suspension_mode_;
+    OutputInterface<bool> left_back_joint_suspension_mode_;
+    OutputInterface<bool> right_back_joint_suspension_mode_;
+    OutputInterface<bool> right_front_joint_suspension_mode_;
+    OutputInterface<double> left_front_joint_suspension_torque_;
+    OutputInterface<double> left_back_joint_suspension_torque_;
+    OutputInterface<double> right_back_joint_suspension_torque_;
+    OutputInterface<double> right_front_joint_suspension_torque_;
 
     OutputInterface<double> processed_encoder_angle_;
 
@@ -748,6 +1014,15 @@ private:
         0.0, 0.0, 0.0, 0.0};
     double target_physical_velocity_limit_;
     double target_physical_acceleration_limit_;
+    bool active_suspension_enable_;
+    double active_suspension_mass_;
+    double active_suspension_rod_length_;
+    double active_suspension_spring_k_;
+    double active_suspension_damping_k_;
+    double active_suspension_gravity_comp_gain_;
+    double active_suspension_airborne_torque_threshold_;
+    double active_suspension_torque_limit_;
+    std::array<bool, kJointCount> joint_suspension_active_ = {false, false, false, false};
 
     static constexpr double dt_ = 1e-3;
     static constexpr double joint_zero_physical_angle_rad_ = 1.090830782496456;
