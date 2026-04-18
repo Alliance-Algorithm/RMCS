@@ -27,7 +27,8 @@ public:
         : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , logger_(get_logger())
         , tf_buffer_(get_clock())
-        , tf_listener_(tf_buffer_) {
+        , tf_listener_(tf_buffer_)
+        , last_pose_received_time_{0, 0, get_clock()->get_clock_type()} {
         load_parameters();
 
         mavros_pose_publisher_ = create_publisher<geometry_msgs::msg::PoseStamped>(
@@ -122,10 +123,10 @@ private:
         if (!finite_transform(transform))
             return;
 
-        const rclcpp::Time tf_stamp{transform.header.stamp};
+        const auto tf_stamp_ns = rclcpp::Time{transform.header.stamp}.nanoseconds();
 
         std::lock_guard<std::mutex> lock(pose_mutex_);
-        if (last_tf_stamp_.nanoseconds() != 0 && tf_stamp <= last_tf_stamp_)
+        if (last_tf_stamp_ns_ != 0 && tf_stamp_ns <= last_tf_stamp_ns_)
             return;
 
         const Eigen::Vector3d rotated_position =
@@ -140,7 +141,8 @@ private:
         latest_pose_.orientation.y = rotated_orientation.y();
         latest_pose_.orientation.z = rotated_orientation.z();
         latest_pose_.orientation.w = rotated_orientation.w();
-        last_tf_stamp_ = tf_stamp;
+        last_tf_stamp_ns_ = tf_stamp_ns;
+        last_pose_received_time_ = get_clock()->now();
         pose_ready_ = true;
 
         RCLCPP_INFO_THROTTLE(
@@ -150,22 +152,24 @@ private:
 
     void publish_pose() {
         geometry_msgs::msg::Pose pose;
-        rclcpp::Time tf_stamp;
+        rclcpp::Time pose_received_time{0, 0, get_clock()->get_clock_type()};
+        std::int64_t tf_stamp_ns = 0;
         {
             std::lock_guard<std::mutex> lock(pose_mutex_);
             if (!pose_ready_)
                 return;
 
-            if (last_tf_stamp_ == last_published_tf_stamp_)
+            if (last_tf_stamp_ns_ == last_published_tf_stamp_ns_)
                 return;
 
-            tf_stamp = last_tf_stamp_;
+            tf_stamp_ns = last_tf_stamp_ns_;
+            pose_received_time = last_pose_received_time_;
             pose = latest_pose_;
         }
 
         const rclcpp::Duration max_pose_age = rclcpp::Duration::from_seconds(1.0 / output_rate_hz_);
         const rclcpp::Time now = get_clock()->now();
-        if ((now - tf_stamp) >= max_pose_age)
+        if ((now - pose_received_time) >= max_pose_age)
             return;
 
         geometry_msgs::msg::PoseStamped pose_msg{};
@@ -176,8 +180,8 @@ private:
 
         {
             std::lock_guard<std::mutex> lock(pose_mutex_);
-            if (last_tf_stamp_ == tf_stamp)
-                last_published_tf_stamp_ = tf_stamp;
+            if (last_tf_stamp_ns_ == tf_stamp_ns)
+                last_published_tf_stamp_ns_ = tf_stamp_ns;
         }
 
         RCLCPP_INFO_THROTTLE(
@@ -202,8 +206,9 @@ private:
 
     std::mutex pose_mutex_;
     geometry_msgs::msg::Pose latest_pose_{};
-    rclcpp::Time last_tf_stamp_{};
-    rclcpp::Time last_published_tf_stamp_{};
+    std::int64_t last_tf_stamp_ns_{0};
+    std::int64_t last_published_tf_stamp_ns_{0};
+    rclcpp::Time last_pose_received_time_;
     std::uint32_t update_counter_{0};
     bool pose_ready_{false};
 };
