@@ -194,7 +194,7 @@ private:
         AutoClimbControl control{
             .front_track_velocity = track_velocity_max_,
             .back_climber_velocity = climber_back_control_velocity_abs_,
-            .override_chassis_vx = 2.5,
+            .override_chassis_vx = auto_climb_dash_velocity_,
         };
 
         if (is_back_climber_blocked()) {
@@ -303,7 +303,7 @@ private:
         //     reset_back_safety_counters();
         // }
 
-        double track_control_velocity = 
+        double track_control_velocity =
             front_climber_enable_ ? joystick_right_->x() * track_velocity_max_ : nan_;
 
         dual_motor_sync_control(

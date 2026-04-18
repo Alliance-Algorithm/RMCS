@@ -52,8 +52,7 @@ public:
         top_board_ = std::make_unique<TopBoard>(
             *this, *command_component_, get_parameter("board_serial_top_board").as_string());
         bottom_board_one_ = std::make_unique<BottomBoard_one>(
-            *this, *command_component_, *top_board_,
-            get_parameter("board_serial_bottom_board_one").as_string());
+            *this, *command_component_, get_parameter("board_serial_bottom_board_one").as_string());
 
         bottom_board_two_ = std::make_unique<BottomBoard_two>(
             *this, *command_component_, get_parameter("board_serial_bottom_board_two").as_string());
@@ -134,10 +133,11 @@ private:
                   climbable_infantry, climbable_infantry_command, "/gimbal/right_friction") {
 
             gimbal_pitch_motor_.configure(
-                device::LkMotor::Config{device::LkMotor::Type::kMG4010Ei10}.set_encoder_zero_point(
-                    static_cast<int>(
-                        climbable_infantry.get_parameter("pitch_motor_zero_point").as_int()))
-                    );
+                device::LkMotor::Config{device::LkMotor::Type::kMG4010Ei10}
+                    .set_encoder_zero_point(
+                        static_cast<int>(
+                            climbable_infantry.get_parameter("pitch_motor_zero_point").as_int()))
+                    .enable_multi_turn_angle());
             gimbal_left_friction_.configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kM3508}.set_reduction_ratio(1.));
             gimbal_right_friction_.configure(
@@ -188,8 +188,8 @@ private:
                 .can_id = 0x200,
                 .can_data =
                     device::CanPacket8{
-                                       gimbal_left_friction_.generate_command(),
                                        gimbal_right_friction_.generate_command(),
+                                       gimbal_left_friction_.generate_command(),
                                        device::CanPacket8::PaddingQuarter{},
                                        device::CanPacket8::PaddingQuarter{},
                                        }
@@ -208,9 +208,9 @@ private:
                 return;
             auto can_id = data.can_id;
             if (can_id == 0x201) {
-                gimbal_left_friction_.store_status(data.can_data);
-            } else if (can_id == 0x202) {
                 gimbal_right_friction_.store_status(data.can_data);
+            } else if (can_id == 0x202) {
+                gimbal_left_friction_.store_status(data.can_data);
             } else if (can_id == 0x142) {
                 gimbal_pitch_motor_.store_status(data.can_data);
             }
@@ -246,10 +246,10 @@ private:
         friend class ClimbableInfantry;
         explicit BottomBoard_one(
             ClimbableInfantry& climbable_infantry,
-            ClimbableInfantryCommand& climbable_infantry_command, TopBoard& top_board,
+            ClimbableInfantryCommand& climbable_infantry_command,
             std::string_view board_serial = {})
             : librmcs::agent::CBoard(board_serial)
-            , top_board_(top_board)
+
             , logger_(climbable_infantry.get_logger())
             , imu_(1000, 0.2, 0.0)
             , dr16_(climbable_infantry)
@@ -480,7 +480,6 @@ private:
             imu_.store_gyroscope_status(data.x, data.y, data.z);
         }
 
-        TopBoard& top_board_;
         rclcpp::Logger logger_;
 
         device::Bmi088 imu_;
@@ -596,7 +595,7 @@ private:
             });
 
             builder.can2_transmit({
-                .can_id = 0x1FF,
+                .can_id = 0x200,
                 .can_data =
                     device::CanPacket8{
                                        gimbal_bullet_feeder_.generate_command(),
@@ -630,7 +629,7 @@ private:
                 return;
             auto can_id = data.can_id;
 
-            if (can_id == 0x205) {
+            if (can_id == 0x201) {
                 gimbal_bullet_feeder_.store_status(data.can_data);
             }
         }
