@@ -82,6 +82,9 @@ gimbal_controller:
 
     pitch_acc_ff_gain: 0.0
 
+    pitch_fusion_enabled: true
+    pitch_fusion_alpha: 0.98
+
 
 friction_wheel_controller:
   ros__parameters:
