@@ -131,6 +131,9 @@ private:
         power_limit += excess_power_limit;
         power_limit *= virtual_buffer_energy_ / virtual_buffer_energy_limit_;
 
+        if (power_limit > 165.0)
+            power_limit = 165.0;
+
         *chassis_control_power_limit_ = power_limit;
     }
 
