@@ -275,3 +275,108 @@ leg_force = gravity_force_per_wheel
   - YAML 语法检查
   - `git diff --check`
   - 代码静态阅读和定点修改
+
+## 最近一次整理：Joint Controller / Chassis 职责边界规范化
+
+### 步骤
+
+1. 重新梳理 `DeformableChassis` 和 `DeformableJointController` 的现有职责。
+   - 确认 `DeformableJointController` 实际上已经更接近“关节局部执行器”：
+     - 输入 `measurement_angle / setpoint_angle / mode_input / suspension_torque`
+     - 输出 `control_torque`
+     - 内部只做 ADRC 模式切换、局部前馈和限幅
+   - 确认真正职责混杂的是 `DeformableChassis`：
+     - 既做遥控/底盘模式状态机
+     - 又做关节目标轨迹生成
+     - 又做悬挂接管与悬挂辅助力矩输出
+     - 还夹带了 `scope_motor_control`
+
+2. 重构 `DeformableJointController`，但不改外部接口和运行语义。
+   - 新增 `ModeConfig`，把 normal / suspension 两套 ADRC 参数打包
+   - 新增 `InputSnapshot`，明确 joint-local servo 每周期真正使用的输入
+   - 把 `update()` 拆成清晰阶段：
+     - `register_interfaces_()`
+     - `load_mode_configs_()`
+     - `read_inputs_()`
+     - `update_mode_selection_()`
+     - `effective_output_limits_()`
+     - `initialize_if_needed_()`
+     - `run_joint_servo_()`
+     - `publish_control_output_()`
+   - 内部把 `suspension_torque` 输入语义标注为“joint torque feedforward input”，避免误读成悬挂状态机本体
+
+3. 重构 `DeformableChassis`，把高层 joint intent pipeline 显式化。
+   - 新增 `JointFeedbackFrame`，把 motor / physical / torque feedback 聚合
+   - 新增 `SuspensionOutputHandles`，集中管理每腿 `suspension_mode / suspension_torque` 输出句柄
+   - 把 `update()` 改成更清晰的高层流程：
+     - `update_mode_from_inputs_()`
+     - `update_velocity_control()`
+     - `update_lift_target_toggle()`
+     - `run_joint_intent_pipeline_()`
+   - 把原来散在 `update_lift_angle_error()` 里的工作拆出来：
+     - `read_joint_feedback_frame_()`
+     - `refresh_requested_joint_targets_from_deploy_state_()`
+     - `apply_suspension_intent_()`
+     - `run_joint_intent_pipeline_()`
+   - 在代码注释里明确：
+     - `DeformableChassis` 负责 high-level joint intent
+     - `DeformableJointController` 负责 joint-local servo execution
+
+4. 整理 `deformable-infantry-omni.yaml` 参数分组与注释。
+   - `chassis_controller` 参数按：
+     - deploy geometry / chassis-owned joint intent
+     - joint intent trajectory limits
+   - `*_joint_controller` 参数按：
+     - joint-local servo inputs
+     - normal ADRC servo mode
+     - suspension ADRC servo mode
+     - joint-local feedforward / limit shaping
+
+### 解决的问题
+
+- 解决了“看代码时不容易分清谁在做什么”的问题。
+  - 现在 `DeformableJointController` 的定位更明确：
+    - 不负责接地判据
+    - 不负责底盘姿态/遥控模式
+    - 不负责悬挂状态机
+    - 只负责把上游 joint intent 执行成 `control_torque`
+
+- 解决了 `DeformableChassis` 内部高层逻辑流程不够清晰的问题。
+  - 以前 `update()` 到 `update_lift_angle_error()` 这一段像“所有事情都在一起做”
+  - 现在已经能明确读出：
+    - 输入模式处理
+    - joint feedback 归一化
+    - deploy target 生成
+    - suspension intent 覆盖
+    - joint target 发布
+
+- 解决了配置文件参数语义不容易一眼看懂的问题。
+  - 现在 YAML 中能直接看出：
+    - 哪些参数属于 chassis 高层意图生成
+    - 哪些参数属于 joint controller 的局部执行
+
+- 保留了现有 DAG 接口和现有行为语义，没有把职责整理变成一轮功能重写。
+
+### 遇到的问题
+
+- 当前代码历史上已经把多层职责揉在一起，所以这轮只能先做“文件内职责收口”，还没有拆成新的独立组件。
+  - 尤其是 `DeformableChassis` 仍然比较大
+  - 只是现在内部职责边界比之前清楚了
+
+- `DeformableJointController` 虽然已经被规范成 joint-local servo，但它仍然保留了 `mode_input` 和 `suspension_torque` 两个上游语义输入。
+  - 这在职责上是合理的
+  - 但名字上仍然容易让人误解成“joint controller 内部在做悬挂状态机”
+  - 这次通过注释和内部命名做了缓解，没有改外部接口名
+
+- `DeformableChassis` 中的悬挂逻辑目前仍然和 deploy target / joint trajectory 紧耦合。
+  - 这次没有继续拆出独立 `SuspensionCoordinator` 组件
+  - 主要是为了保持现有 YAML 和行为不变
+
+- 当前环境依然无法做真实编译验证。
+  - `.script/build-rmcs` 仍然失败
+  - 原因是当前终端缺少 `/opt/ros/jazzy/setup.bash`
+  - 且脚本期望的工作区路径是 `/workspaces/RMCS/rmcs_ws`
+  - 所以这轮职责整理只做了：
+    - `clang-format`
+    - `git diff --check`
+    - 静态代码检查

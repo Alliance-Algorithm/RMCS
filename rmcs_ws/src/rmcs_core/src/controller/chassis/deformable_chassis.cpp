@@ -446,12 +446,25 @@ private:
         return joint_feedback;
     }
 
-    void refresh_requested_joint_targets_from_deploy_state_() {
+    bool prone_override_requested_() const { return keyboard_.ready() && keyboard_->ctrl; }
+
+    bool suspension_requested_by_input_() const {
+        return active_suspension_enable_ && prone_override_requested_();
+    }
+
+    bool refresh_requested_joint_targets_from_deploy_state_() {
         requested_target_physical_angles_rad_[kLeftFront] = deg_to_rad(lf_current_target_angle_);
         requested_target_physical_angles_rad_[kLeftBack] = deg_to_rad(lb_current_target_angle_);
         requested_target_physical_angles_rad_[kRightBack] = deg_to_rad(rb_current_target_angle_);
         requested_target_physical_angles_rad_[kRightFront] = deg_to_rad(rf_current_target_angle_);
+
+        const bool prone_override = prone_override_requested_();
+        if (prone_override) {
+            requested_target_physical_angles_rad_.fill(deg_to_rad(min_angle_));
+        }
+
         current_target_physical_angles_rad_ = requested_target_physical_angles_rad_;
+        return prone_override;
     }
 
     SuspensionOutputHandles suspension_output_handles_() {
@@ -640,7 +653,7 @@ private:
     }
 
     void apply_suspension_intent_(const JointFeedbackFrame& joint_feedback) {
-        if (!active_suspension_enable_) {
+        if (!suspension_requested_by_input_()) {
             clear_suspension_outputs();
             return;
         }
@@ -830,7 +843,6 @@ private:
             (!last_keyboard_.b && keyboard.b) || rotary_knob_front_high_rear_low;
         const bool front_low_rear_high =
             (!last_keyboard_.g && keyboard.g) || rotary_knob_front_low_rear_high;
-        const bool uphill = keyboard.ctrl;
 
         if (apply_symmetric_target) {
             lf_current_target_angle_ = current_target_angle_;
@@ -844,13 +856,6 @@ private:
             current_target_angle_ =
                 (std::abs(current_target_angle_ - max_angle_) < 1e-6) ? min_angle_ : max_angle_;
             apply_symmetric_target = true;
-            scope_motor_control();
-        } else if (uphill) {
-            lf_current_target_angle_ = min_angle_;
-            rf_current_target_angle_ = min_angle_;
-            lb_current_target_angle_ = min_angle_ + 25.0;
-            rb_current_target_angle_ = min_angle_ + 25.0;
-            scope_motor_control();
         } else if (front_high_rear_low) {
             lf_current_target_angle_ = max_angle_;
             rf_current_target_angle_ = max_angle_;
@@ -880,7 +885,8 @@ private:
             return;
         }
 
-        refresh_requested_joint_targets_from_deploy_state_();
+        const bool prone_override = refresh_requested_joint_targets_from_deploy_state_();
+        scope_motor_control(prone_override);
         apply_suspension_intent_(joint_feedback);
         update_joint_target_trajectory();
         publish_joint_target_angles(joint_feedback.physical_angles);
@@ -896,8 +902,9 @@ private:
         return joint_zero_physical_angle_rad_ - motor_angle_rad;
     }
 
-    void scope_motor_control() {
-        if (current_target_angle_ == min_angle_ && *mode_ != rmcs_msgs::ChassisMode::SPIN) {
+    void scope_motor_control(bool prone_override = false) {
+        const bool prone_target_active = prone_override || current_target_angle_ == min_angle_;
+        if (prone_target_active && *mode_ != rmcs_msgs::ChassisMode::SPIN) {
             *scope_motor_control_torque = -0.3;
             // if (*scope_motor_velocity <= std::abs(0.1)){
             //     *scope_motor_control_torque = 0.18 * 1.0 / 36.0;
