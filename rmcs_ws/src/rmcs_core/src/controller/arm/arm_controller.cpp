@@ -59,7 +59,9 @@ public:
 
         exec_.add_node(node_);
         spin_thread_ = std::thread([this] { spin_loop(); });
-
+        move_group_ =
+            std::make_unique<moveit::planning_interface::MoveGroupInterface>(node_, "alliance_arm");
+        move_group_->startStateMonitor();
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
         register_input("/remote/switch/right", switch_right_);
@@ -83,6 +85,8 @@ public:
         }
         register_output("/arm/gripper/target_theta", target_theta[6], NAN);
         register_input("/arm/gripper/motor/angle", theta[6], NAN);
+        register_input("/arm/gripper/motor/velocity", gripper_velocity_, NAN);
+        register_input("/arm/gripper/motor/torque", gripper_torque_, NAN);
         register_output("/arm/gripper/target_theta_error", gripper_target_theta_error, NAN);
         register_input("/arm/image_pitch/motor/angle", image_pitch_theta_, NAN);
         register_output("/arm/image_pitch/target_theta", image_pitch_target_theta_, NAN);
@@ -90,9 +94,6 @@ public:
 
         moveit_running_.store(true, std::memory_order_release);
         moveit_thread_ = std::thread([this] {
-            move_group_ = std::make_unique<moveit::planning_interface::MoveGroupInterface>(
-                node_, "alliance_arm");
-            move_group_->startStateMonitor();
             while (moveit_running_.load(std::memory_order_acquire)) {
                 try {
                     moveit_loop();
@@ -145,17 +146,20 @@ public:
             *is_arm_enable = true;
         }
 
-        if (knob == Switch::UP) {
-            set_gripper_mode(rmcs_msgs::GripperMode::Open);
-        } else if (knob == Switch::DOWN) {
-            set_gripper_mode(rmcs_msgs::GripperMode::Close);
-        }
-
         if (switch_left == Switch::UP && switch_right == Switch::UP) {
             set_arm_mode(rmcs_msgs::ArmMode::DT7_Control_Position);
         } else if (switch_left == Switch::UP && switch_right == Switch::MIDDLE) {
             set_arm_mode(rmcs_msgs::ArmMode::DT7_Control_Orientation);
         } else if (switch_left == Switch::DOWN && switch_right == Switch::UP) {
+            if (knob == Switch::UP) {
+                // set_gripper_mode(rmcs_msgs::GripperMode::Open);
+                set_arm_mode(rmcs_msgs::ArmMode::Auto_Up_One_Stairs);
+
+            } else if (knob == Switch::DOWN) {
+                set_arm_mode(rmcs_msgs::ArmMode::Auto_Down_Stairs);
+
+                // set_gripper_mode(rmcs_msgs::GripperMode::Close);
+            }
             if (keyboard.g) {
                 if (!keyboard.shift && !keyboard.ctrl) {
                     set_arm_mode(rmcs_msgs::ArmMode::Auto_Walk);
@@ -193,6 +197,9 @@ public:
                 // RCLCPP_INFO(node_->get_logger(),"press a ");
                 set_arm_mode(rmcs_msgs::ArmMode::None);
             }
+            if (keyboard.d) {
+                set_arm_mode(rmcs_msgs::ArmMode::Auto_Right_Circle);
+            }
             if (mouse.left && !last_mouse_.left) {
                 image_pitch_theta1_offset_ += 0.05;
             }
@@ -217,10 +224,7 @@ public:
             execute_custom();
             break;
         }
-        case ArmMode::Auto_Walk: {
-            execute_plan_request_and_trajectory_step();
-            break;
-        }
+        case ArmMode::Auto_Walk:
         case ArmMode::Auto_Linear: {
             execute_plan_request_and_trajectory_step();
             break;
@@ -315,6 +319,49 @@ private:
             T.translation() += T.linear() * p_local;
             return tf2::toMsg(T);
         };
+        const auto compute_circle_target =
+            [](const geometry_msgs::msg::Pose& current_link6_pose_in_base,
+               const Eigen::Vector3d& local_dir, double angle_rad) {
+                Eigen::Isometry3d T_base_link6 = Eigen::Isometry3d::Identity();
+                tf2::fromMsg(current_link6_pose_in_base, T_base_link6);
+
+                // A 点: 圆心，在当前 link_6 局部坐标系下
+                const Eigen::Vector3d center_local = local_dir;
+
+                // B 点初始与当前 link_6 完全重合，所以初始位置是 link_6 原点 (0,0,0)
+                // 初始半径向量 = B0 - A
+                const Eigen::Vector3d radius_vec0 = -center_local;
+                if (radius_vec0.norm() < 1e-9) {
+                    throw std::invalid_argument(
+                        "circle center must not coincide with current link_6 origin");
+                }
+
+                // 在 link_6 局部 xy 平面绕局部 +z 轴旋转
+                const Eigen::AngleAxisd rot_about_local_z(angle_rad, Eigen::Vector3d::UnitZ());
+
+                // 新的 B 点位置，仍然表达在当前 link_6 局部系下
+                const Eigen::Vector3d pos_local = center_local + rot_about_local_z * radius_vec0;
+
+                // 让 B 的 x 轴始终与圆心-点B 连线共线。
+                // 这里选“从圆心指向 B”的方向，这样 angle=0 时姿态与当前 link_6 完全一致。
+                Eigen::Vector3d x_axis_local = (pos_local - center_local).normalized();
+                Eigen::Vector3d z_axis_local = Eigen::Vector3d::UnitZ();
+                Eigen::Vector3d y_axis_local = z_axis_local.cross(x_axis_local).normalized();
+                z_axis_local                 = x_axis_local.cross(y_axis_local).normalized();
+
+                Eigen::Matrix3d R_link6_to_B;
+                R_link6_to_B.col(0)            = x_axis_local;
+                R_link6_to_B.col(1)            = y_axis_local;
+                R_link6_to_B.col(2)            = z_axis_local;
+                Eigen::Isometry3d T_link6_to_B = Eigen::Isometry3d::Identity();
+                T_link6_to_B.linear()          = R_link6_to_B;
+                T_link6_to_B.translation()     = pos_local;
+
+                // 变换到 base_link
+
+                Eigen::Isometry3d T_base_B = T_base_link6 * T_link6_to_B;
+                return tf2::toMsg(T_base_B);
+            };
         if (!moveit_parameter_initialized) {
             node_->get_parameter("auto_walk_joint_target", auto_walk_joint_target);
             moveit_parameter_initialized = true;
@@ -366,13 +413,43 @@ private:
             move_group_->setPlannerId("LIN");
             move_group_->setPoseTarget(target_pose, "link_6");
 
-            print_pose("start_pose", start_pose);
-            print_pose("target_pose", target_pose);
+            // print_pose("start_pose", start_pose);
+            // print_pose("target_pose", target_pose);
             const auto plan_result = move_group_->plan(my_plan);
 
             result->plan_success = (plan_result == moveit::core::MoveItErrorCode::SUCCESS);
             break;
         }
+            // case rmcs_msgs::ArmMode::Auto_Right_Circle: {
+            //     const static double theta_deg = 10;
+            //     const Eigen::Vector3d circle_center{-0.08, 0.0, 0.0};
+            //     double theta_rad = theta_deg * M_PI / 180.0;
+
+            //     const std::string ee_link = "link_6";
+            //     const auto start_pose     = move_group_->getCurrentPose(ee_link).pose;
+
+            //     const auto via_pose =
+            //         compute_circle_target(start_pose, circle_center, theta_rad * 0.5); // 二分
+            //     const auto target_pose = compute_circle_target(start_pose, circle_center,
+            //     theta_rad);
+
+            //     geometry_msgs::msg::PointStamped via_point;
+            //     via_point.header.frame_id = move_group_->getPlanningFrame();
+            //     via_point.point           = via_pose.position;
+
+            //     moveit_msgs::msg::Constraints circ_path =
+            //         kinematic_constraints::constructGoalConstraints(ee_link, via_point, 1e-3);
+            //     circ_path.name = "interim";
+            //     move_group_->setStartStateToCurrentState();
+            //     move_group_->clearPoseTargets();
+            //     move_group__>clearPathConstraints();
+            //     move_group_->setPlannerId("CIRC");
+            //     move_group_->setMaxVelocityScalingFactor(0.05);
+            //     move_group_->setMaxAccelerationScalingFactor(0.05);
+            //     move_group_->setGoalPositionTolerance(1e-3);
+            //     move_group_->setGoalOrientationTolerance(2e-2);
+            // }
+
         default: {
             break;
         }
@@ -386,7 +463,7 @@ private:
                 result->positions.push_back(pt.positions);
             }
             RCLCPP_INFO(node_->get_logger(), "plan stored");
-            RCLCPP_INFO(node_->get_logger(), "size:%d",static_cast<int>(trajectory_points.size()));
+            RCLCPP_INFO(node_->get_logger(), "size:%d", static_cast<int>(trajectory_points.size()));
         }
 
         planned_trajectory_.store(result, std::memory_order::release);
@@ -508,12 +585,27 @@ private:
     void gripper_control() {
         auto unwrap = [](double angle) -> double { return angle < 0 ? angle + 2.0 * M_PI : angle; };
 
-        constexpr double closed_angle = 0.0;
-        constexpr double open_angle   = -2.1;
+        // constexpr double closed_angle = 0.0;
+        // constexpr double open_angle   = -2.1;
 
         switch (get_gripper_mode()) {
-        case rmcs_msgs::GripperMode::Open: *target_theta[6] = open_angle; break;
-        case rmcs_msgs::GripperMode::Close: *target_theta[6] = closed_angle; break;
+        case rmcs_msgs::GripperMode::Open: {
+            if (*gripper_velocity_ < 0.05 && *gripper_torque_ > 30) {
+                *target_theta[6] = *theta[6];
+            } else {
+                *target_theta[6] = *theta[6] + 0.05;
+            }
+            break;
+        }
+        case rmcs_msgs::GripperMode::Close: {
+            if (*gripper_velocity_ < 0.05 && *gripper_torque_ > 30) {
+                *target_theta[6] = *theta[6];
+            } else {
+                *target_theta[6] = *theta[6] - 0.05;
+            }
+
+            break;
+        }
         case rmcs_msgs::GripperMode::Custom:
         case rmcs_msgs::GripperMode::None: break;
         }
@@ -557,6 +649,8 @@ private:
 
     OutputInterface<bool> is_arm_enable;
     InputInterface<double> theta[7];
+    InputInterface<double> gripper_velocity_;
+    InputInterface<double> gripper_torque_;
     std::array<InputInterface<double>, 6> joint_lower_limit_;
     std::array<InputInterface<double>, 6> joint_upper_limit_;
     OutputInterface<double> target_theta[7];

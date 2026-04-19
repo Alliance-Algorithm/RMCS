@@ -17,7 +17,7 @@ class ArmSolver final
     , public rclcpp::Node {
 
     static constexpr std::size_t num_axis = 6;
-    using TorqueVec = Eigen::Array<double, num_axis, 1>;
+    using TorqueVec                       = Eigen::Array<double, num_axis, 1>;
 
 public:
     explicit ArmSolver()
@@ -30,7 +30,7 @@ public:
               pid::PidCalculator(800.0, 0.0, 10.0), // joint_3
               pid::PidCalculator(250.0, 0.0, 1.0), // joint_4
               pid::PidCalculator(600.0, 0.0, 10.0), // joint_5
-              pid::PidCalculator(220.0, 0.0, 7.0), // joint_6
+              pid::PidCalculator(190.0, 0.0, 1.0), // joint_6
           }
         , joint_vel_pid_controller{
               pid::PidCalculator(0.3, 0.0, 0.0), // joint_1
@@ -38,7 +38,7 @@ public:
               pid::PidCalculator(0.6, 0.0, 0.004), // joint_3
               pid::PidCalculator(0.65, 0.0, 0.002), // joint_4
               pid::PidCalculator(0.121, 0.0, 0.004), // joint_5
-              pid::PidCalculator(0.12000, 0.0, 2.0), // joint_6
+              pid::PidCalculator(0.1080000, 0.0, 2.7), // joint_6
           } {
         for (std::size_t i = 0; i < num_axis; ++i) {
             const std::string joint_prefix = "/arm/joint_" + std::to_string(i + 1);
@@ -49,9 +49,7 @@ public:
             register_input(joint_prefix + "/velocity", joint_velocity[i]);
             register_input(joint_prefix + "/friction", joint_friction[i]);
 
-            register_output(
-                joint_prefix + "/motor/control_torque", joint_control_torque[i],
-                NAN);
+            register_output(joint_prefix + "/motor/control_torque", joint_control_torque[i], NAN);
         }
 
         for (std::size_t i = 0; i < num_axis; ++i) {
@@ -91,12 +89,13 @@ public:
         for (std::size_t i = 0; i < num_axis; ++i) {
             *joint_control_torque[i] = tau_cmd(i);
         }
+        *joint_control_torque[5] = NAN;
     }
 
 private:
     using controller_type = TorqueVec (ArmSolver::*)();
 
-     static double normalize_angle(double angle) {
+    static double normalize_angle(double angle) {
         angle = std::fmod(angle + M_PI, 2 * M_PI);
         return angle < 0 ? angle + M_PI : angle - M_PI;
     }
@@ -164,10 +163,10 @@ private:
         const double mass_2 = (*link_mass[3] + *link_mass[2]);
         const double mass_3 = (*link_mass[4] + *link_mass[5]);
 
-        const double l_1m     = link_com[1]->y();
-        const double l_2m     = ((link_com[2]->y() * (*link_mass[2]))
-                                 + ((joint4_position->y() + link_com[3]->z()) * (*link_mass[3])))
-                              / ((*link_mass[2] + *link_mass[3]));
+        const double l_1m = link_com[1]->y();
+        const double l_2m = ((link_com[2]->y() * (*link_mass[2]))
+                             + ((joint4_position->y() + link_com[3]->z()) * (*link_mass[3])))
+                          / ((*link_mass[2] + *link_mass[3]));
         constexpr double l_3m = 0.08;
 
         const double l1  = *link_length[1];
@@ -206,7 +205,7 @@ private:
         tau.fill(NAN);
         return tau;
     }
-    
+
     static constexpr std::array<std::tuple<std::string_view, controller_type>, 4> term_table_{
         {{"gravity", &ArmSolver::calculate_gravity_compensation},
          {"pid", &ArmSolver::calculate_pid},
@@ -241,7 +240,9 @@ private:
             if (!matched) {
                 RCLCPP_ERROR(
                     this->get_logger(),
-                    "Unknown enable_terms entry: '%s' (allowed: gravity, pid, friction, zero_torque)", l.c_str());
+                    "Unknown enable_terms entry: '%s' (allowed: gravity, pid, friction, "
+                    "zero_torque)",
+                    l.c_str());
             }
         }
     }
@@ -265,7 +266,6 @@ private:
     bool last_arm_enable_ = false;
 
     InputInterface<bool> is_loaded;
-
 };
 
 } // namespace rmcs_core::controller::arm

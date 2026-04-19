@@ -90,9 +90,9 @@ public:
         if (distance_valid) {
 
             *distance_ = package.calculate_distance();
-            RCLCPP_INFO(this->get_logger(), "距离为：%f", *distance_);
+            //RCLCPP_INFO(this->get_logger(), "距离为：%f", *distance_);
         } else {
-            RCLCPP_INFO(this->get_logger(), "failed invalid data");
+            //RCLCPP_INFO(this->get_logger(), "failed invalid data");
             *distance_ = std::numeric_limits<double>::quiet_NaN();
         }
     }

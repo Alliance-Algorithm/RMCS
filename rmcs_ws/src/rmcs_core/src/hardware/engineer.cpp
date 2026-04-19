@@ -1,19 +1,24 @@
+#include "hardware/device/bmi088.hpp"
+#include "hardware/device/can_package.hpp"
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dm_motor.hpp"
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/encorder.hpp"
 #include "hardware/device/lk_motor.hpp"
 #include "hardware/device/power_meter.hpp"
+#include "hardware/device/tof.hpp"
 #include "hardware/forwarder/cboard.hpp"
 #include "hardware/ring_buffer.hpp"
-#include "librmcs/device/bmi088.hpp"
 #include <algorithm>
+#include <bit>
 #include <bitset>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
-#include <librmcs/client/cboard.hpp>
+#include <cstring>
+#include <librmcs/agent/c_board.hpp>
+#include <librmcs/data/datas.hpp>
 #include <memory>
 #include <numbers>
 #include <rclcpp/logging.hpp>
@@ -22,7 +27,27 @@
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/serial_interface.hpp>
+#include <span>
 #include <std_msgs/msg/int32.hpp>
+#include <string>
+
+namespace {
+
+bool decode_can_data(const librmcs::data::CanDataView& data, uint64_t& payload) {
+    if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission
+        || data.can_data.size() < sizeof(payload)) [[unlikely]]
+        return false;
+
+    std::memcpy(&payload, data.can_data.data(), sizeof(payload));
+    return true;
+}
+
+uint8_t uart_length(const librmcs::data::UartDataView& data) {
+    return static_cast<uint8_t>(data.uart_data.size());
+}
+
+} // namespace
+
 namespace rmcs_core::hardware {
 
 class Engineer
@@ -35,15 +60,11 @@ public:
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , logger_(get_logger())
         , engineer_command_(create_partner_component<EngineerCommand>("engineer_command", *this))
-        , armboard_(
-              *this, *engineer_command_,
-              static_cast<int>(get_parameter("arm_board_usb_pid").as_int()))
+        , armboard_(*this, *engineer_command_, get_parameter("board_serial_arm_board").as_string())
         , leftboard_(
-              *this, *engineer_command_,
-              static_cast<int>(get_parameter("left_board_usb_pid").as_int()))
+              *this, *engineer_command_, get_parameter("board_serial_left_board").as_string())
         , rightboard_(
-              *this, *engineer_command_,
-              static_cast<int>(get_parameter("right_board_usb_pid").as_int())) {}
+              *this, *engineer_command_, get_parameter("board_serial_right_board").as_string()) {}
     ~Engineer() override = default;
     void update() override {
         armboard_.update();
@@ -71,15 +92,16 @@ private:
         angle = std::fmod(angle + M_PI, 2 * M_PI);
         return angle < 0 ? angle + M_PI : angle - M_PI;
     }
+
     class ArmBoard final
-        : private librmcs::client::CBoard
+        : private librmcs::agent::CBoard
         , rclcpp::Node {
     public:
         friend class Engineer;
-        explicit ArmBoard(Engineer& engineer, EngineerCommand& engineer_command, int usb_pid)
-            : librmcs::client::CBoard(usb_pid)
+        explicit ArmBoard(
+            Engineer& engineer, EngineerCommand& engineer_command, const std::string& serial_filter)
+            : librmcs::agent::CBoard(serial_filter)
             , rclcpp::Node{"arm_board"}
-
             , joint(
                   {engineer, engineer_command, "/arm/joint_1/motor"},
                   {engineer, engineer_command, "/arm/joint_2/motor"},
@@ -91,8 +113,6 @@ private:
             , image_pitch{engineer, engineer_command, "/arm/image_pitch/motor"}
             , joint2_encoder(engineer, "/arm/joint_2/encoder")
             , dr16_(engineer)
-            , transmit_buffer_(*this, 32)
-            , event_thread_([this]() { handle_events(); })
             , bmi088_(1000, 0.2, 0)
 
         {
@@ -133,62 +153,77 @@ private:
                 [](double x, double y, double z) { return std::make_tuple(-x, -y, -z); });
         }
         ~ArmBoard() final {
-            uint64_t command_{0};
-            transmit_buffer_.add_can2_transmission(0x145, command_);
-            transmit_buffer_.add_can2_transmission(0x144, command_);
-            transmit_buffer_.add_can2_transmission(0x141, command_);
-            transmit_buffer_.add_can2_transmission(0x147, command_);
-            transmit_buffer_.add_can1_transmission(0x148, command_);
-            transmit_buffer_.add_can1_transmission(0x142, command_);
-            transmit_buffer_.add_can1_transmission(0x143, command_);
-            transmit_buffer_.add_can1_transmission(0x146, command_);
-            transmit_buffer_.trigger_transmission();
-            stop_handling_events();
-            event_thread_.join();
+            auto tx = start_transmit();
+            for (int i = 0; i < 10; i++) {
+                tx.can2_transmit({.can_id = 0x145, .can_data = joint[4].lk_close().as_bytes()});
+                tx.can2_transmit({.can_id = 0x144, .can_data = joint[3].lk_close().as_bytes()});
+                tx.can2_transmit({.can_id = 0x141, .can_data = joint[5].lk_close().as_bytes()});
+                tx.can2_transmit({.can_id = 0x147, .can_data = gripper.lk_close().as_bytes()});
+                tx.can1_transmit({.can_id = 0x148, .can_data = image_pitch.lk_close().as_bytes()});
+                tx.can1_transmit({.can_id = 0x142, .can_data = joint[1].lk_close().as_bytes()});
+                tx.can1_transmit({.can_id = 0x143, .can_data = joint[2].lk_close().as_bytes()});
+                tx.can1_transmit({.can_id = 0x146, .can_data = joint[0].lk_close().as_bytes()});
+            }
         }
 
         void update() {
             using namespace device;
-            //RCLCPP_INFO(this->get_logger(), "joint5,raw_angle: %d, angle: %f", joint[5].get_raw_angle(), joint[5].get_angle());
+            // RCLCPP_INFO(this->get_logger(), "joint1,raw_angle: %d",
+            // joint[0].get_raw_angle());
             update_arm_motors();
-            dr16_.update();
+            dr16_.update_status();
             update_imu();
         }
         void command() { update_arm_command(); }
 
     private:
         void update_arm_command() {
-            uint64_t command_;
             static bool even_phase{true};
+            auto tx = start_transmit();
 
             if (even_phase) {
-                command_ = image_pitch.generate_torque_command();
-                transmit_buffer_.add_can1_transmission(0x148, command_);
+                tx.can1_transmit({
+                    .can_id   = 0x148,
+                    .can_data = image_pitch.generate_torque_command().as_bytes(),
+                });
 
-                command_ = joint[2].generate_torque_command();
-                transmit_buffer_.add_can1_transmission(0x143, command_);
+                tx.can1_transmit({
+                    .can_id   = 0x143,
+                    .can_data = joint[2].generate_torque_command().as_bytes(),
+                });
 
-                command_ = gripper.generate_torque_command();
-                transmit_buffer_.add_can2_transmission(0x147, command_);
+                tx.can2_transmit({
+                    .can_id   = 0x147,
+                    .can_data = gripper.generate_torque_command().as_bytes(),
+                });
 
-                command_ = joint[5].generate_torque_command();
-                transmit_buffer_.add_can2_transmission(0x141, command_);
+                tx.can2_transmit({
+                    .can_id   = 0x141,
+                    .can_data = joint[5].generate_torque_command().as_bytes(),
+                });
 
             } else {
 
-                command_ = joint[0].generate_torque_command();
-                transmit_buffer_.add_can1_transmission(0x146, command_);
+                tx.can1_transmit({
+                    .can_id   = 0x146,
+                    .can_data = joint[0].generate_torque_command().as_bytes(),
+                });
 
-                command_ = joint[1].generate_torque_command();
-                transmit_buffer_.add_can1_transmission(0x142, command_);
+                tx.can1_transmit({
+                    .can_id   = 0x142,
+                    .can_data = joint[1].generate_torque_command().as_bytes(),
+                });
 
-                command_ = joint[4].generate_torque_command();
-                transmit_buffer_.add_can2_transmission(0x145, command_);
+                tx.can2_transmit({
+                    .can_id   = 0x145,
+                    .can_data = joint[4].generate_torque_command().as_bytes(),
+                });
 
-                command_ = joint[3].generate_torque_command();
-                transmit_buffer_.add_can2_transmission(0x144, command_);
+                tx.can2_transmit({
+                    .can_id   = 0x144,
+                    .can_data = joint[3].generate_torque_command().as_bytes(),
+                });
             }
-            transmit_buffer_.trigger_transmission();
 
             even_phase = !even_phase;
         }
@@ -215,49 +250,53 @@ private:
         }
 
     protected:
-        void can2_receive_callback(
-            uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
-            bool is_remote_transmission, uint8_t can_data_length) override {
-            if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
+        void can2_receive_callback(const librmcs::data::CanDataView& data) override {
+            if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
+                [[unlikely]]
                 return;
-            if (can_id == 0x141)
-                joint[5].store_status(can_data);
-            else if (can_id == 0x145)
-                joint[4].store_status(can_data);
-            else if (can_id == 0x144)
-                joint[3].store_status(can_data);
-            else if (can_id == 0x147) {
-                gripper.store_status(can_data);
+
+            if (data.can_id == 0x141)
+                joint[5].store_status(data.can_data);
+            else if (data.can_id == 0x145)
+                joint[4].store_status(data.can_data);
+            else if (data.can_id == 0x144)
+                joint[3].store_status(data.can_data);
+            else if (data.can_id == 0x147) {
+                gripper.store_status(data.can_data);
             }
         }
-        void can1_receive_callback(
-            uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
-            bool is_remote_transmission, uint8_t can_data_length) override {
-            if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
+        void can1_receive_callback(const librmcs::data::CanDataView& data) override {
+            uint64_t can_data;
+            if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
+                [[unlikely]]
                 return;
-            if (can_id == 0x143)
-                joint[2].store_status(can_data);
-            else if (can_id == 0x142)
-                joint[1].store_status(can_data);
-            else if (can_id == 0x146)
-                joint[0].store_status(can_data);
-            else if (can_id == 0x200) {
+
+            if (data.can_id == 0x143)
+                joint[2].store_status(data.can_data);
+            else if (data.can_id == 0x142)
+                joint[1].store_status(data.can_data);
+            else if (data.can_id == 0x146)
+                joint[0].store_status(data.can_data);
+            else if (data.can_id == 0x200) {
+                if (!decode_can_data(data, can_data)) [[unlikely]]
+                    return;
                 joint2_encoder.store_status(can_data);
-            } else if (can_id == 0x148) {
-                image_pitch.store_status(can_data);
+            } else if (data.can_id == 0x148) {
+                image_pitch.store_status(data.can_data);
             };
         }
 
-        void dbus_receive_callback(const std::byte* uart_data, uint8_t uart_data_length) override {
-            dr16_.store_status(uart_data, uart_data_length);
+        void dbus_receive_callback(const librmcs::data::UartDataView& data) override {
+            dr16_.store_status(data.uart_data.data(), uart_length(data));
         }
 
-        void accelerometer_receive_callback(int16_t x, int16_t y, int16_t z) override {
-            bmi088_.store_accelerometer_status(x, y, z);
+        void accelerometer_receive_callback(
+            const librmcs::data::AccelerometerDataView& data) override {
+            bmi088_.store_accelerometer_status(data.x, data.y, data.z);
         }
 
-        void gyroscope_receive_callback(int16_t x, int16_t y, int16_t z) override {
-            bmi088_.store_gyroscope_status(x, y, z);
+        void gyroscope_receive_callback(const librmcs::data::GyroscopeDataView& data) override {
+            bmi088_.store_gyroscope_status(data.x, data.y, data.z);
         }
 
     private:
@@ -266,24 +305,21 @@ private:
         device::LKMotor image_pitch;
         device::Encoder joint2_encoder;
         device::Dr16 dr16_;
-        librmcs::client::CBoard::TransmitBuffer transmit_buffer_;
-        std::thread event_thread_;
 
         OutputInterface<double> yaw_imu_velocity;
         OutputInterface<double> yaw_imu_angle;
-        librmcs::device::Bmi088 bmi088_;
+        device::Bmi088 bmi088_;
 
     } armboard_;
     class LeftBoard final
-        : private librmcs::client::CBoard
+        : private librmcs::agent::CBoard
         , rclcpp::Node {
     public:
         friend class Engineer;
-        explicit LeftBoard(Engineer& engineer, EngineerCommand& engineer_command, int usb_pid)
-            : librmcs::client::CBoard(usb_pid)
+        explicit LeftBoard(
+            Engineer& engineer, EngineerCommand& engineer_command, const std::string& serial_filter)
+            : librmcs::agent::CBoard(serial_filter)
             , rclcpp::Node{"left_board"}
-            , transmit_buffer_(*this, 32)
-            , event_thread_([this]() { handle_events(); })
             , Steering_motors(
                   {engineer, engineer_command, "/steering/steering/lf"},
                   {engineer, engineer_command, "/steering/steering/lb"})
@@ -291,6 +327,7 @@ private:
                   {engineer, engineer_command, "/steering/wheel/lf"},
                   {engineer, engineer_command, "/steering/wheel/lb"})
             , power_meter(engineer, "/steering/power_meter")
+            , tof(engineer, "/leg/tof")
             , Omni_Motors(engineer, engineer_command, "/leg/omni/l")
             , Leg_Motors(
                   {engineer, engineer_command, "/leg/joint/lf"},
@@ -336,14 +373,51 @@ private:
             engineer_command.register_input("/leg/joint/lf/target_theta", leg_lf_target_theta_);
         }
         ~LeftBoard() final {
-            uint16_t command_[4]{0, 0, 0, 0};
-            transmit_buffer_.add_can1_transmission(0x1FE, std::bit_cast<uint64_t>(command_));
-            transmit_buffer_.add_can2_transmission(0x1FE, std::bit_cast<uint64_t>(command_));
-            transmit_buffer_.add_can2_transmission(0x200, std::bit_cast<uint64_t>(command_));
-            transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(command_));
-            transmit_buffer_.trigger_transmission();
-            stop_handling_events();
-            event_thread_.join();
+            auto tx = start_transmit();
+            tx.can1_transmit({
+                .can_id = 0x1FE,
+                .can_data =
+                    device::CanPacket8{
+                                       device::CanPacket8::PaddingQuarter{},
+                                       device::CanPacket8::PaddingQuarter{},
+                                       device::CanPacket8::PaddingQuarter{},
+                                       device::CanPacket8::PaddingQuarter{},
+                                       }
+                        .as_bytes(),
+            });
+            tx.can2_transmit({
+                .can_id = 0x1FE,
+                .can_data =
+                    device::CanPacket8{
+                                       device::CanPacket8::PaddingQuarter{},
+                                       device::CanPacket8::PaddingQuarter{},
+                                       device::CanPacket8::PaddingQuarter{},
+                                       device::CanPacket8::PaddingQuarter{},
+                                       }
+                        .as_bytes(),
+            });
+            tx.can2_transmit({
+                .can_id = 0x200,
+                .can_data =
+                    device::CanPacket8{
+                                       device::CanPacket8::PaddingQuarter{},
+                                       device::CanPacket8::PaddingQuarter{},
+                                       device::CanPacket8::PaddingQuarter{},
+                                       device::CanPacket8::PaddingQuarter{},
+                                       }
+                        .as_bytes(),
+            });
+            tx.can1_transmit({
+                .can_id = 0x200,
+                .can_data =
+                    device::CanPacket8{
+                                       device::CanPacket8::PaddingQuarter{},
+                                       device::CanPacket8::PaddingQuarter{},
+                                       device::CanPacket8::PaddingQuarter{},
+                                       device::CanPacket8::PaddingQuarter{},
+                                       }
+                        .as_bytes(),
+            });
         }
         void update() {
 
@@ -361,84 +435,134 @@ private:
                 ecd.update();
             }
             power_meter.update();
+            tof.update();
         }
         void command() {
 
-            uint16_t command_[4]{0, 0, 0, 0};
             static bool turn{false};
+            auto tx = start_transmit();
             if (turn) {
-                command_[0] = 0;
-                command_[1] = 0;
-                command_[2] = 0;
-                command_[3] = Steering_motors[1].generate_command();
-                transmit_buffer_.add_can2_transmission(0x1FE, std::bit_cast<uint64_t>(command_));
-                command_[0] = 0;
-                command_[1] = 0;
-                command_[2] = Steering_motors[0].generate_command();
-                command_[3] = 0;
-                transmit_buffer_.add_can1_transmission(0x1FE, std::bit_cast<uint64_t>(command_));
+                tx.can2_transmit({
+                    .can_id = 0x1FE,
+                    .can_data =
+                        device::CanPacket8{
+                                           device::CanPacket8::PaddingQuarter{},
+                                           device::CanPacket8::PaddingQuarter{},
+                                           device::CanPacket8::PaddingQuarter{},
+                                           Steering_motors[1].generate_command(),
+                                           }
+                            .as_bytes(),
+                });
+                tx.can1_transmit({
+                    .can_id = 0x1FE,
+                    .can_data =
+                        device::CanPacket8{
+                                           device::CanPacket8::PaddingQuarter{},
+                                           device::CanPacket8::PaddingQuarter{},
+                                           Steering_motors[0].generate_command(),
+                                           device::CanPacket8::PaddingQuarter{},
+                                           }
+                            .as_bytes(),
+                });
             } else {
-                command_[0] = Wheel_motors[1].generate_command();
-                command_[1] = Leg_Motors[1].generate_command();
                 *leg_joint_lb_control_theta_error =
                     normalize_angle(*leg_lb_target_theta_ - Leg_ecd[1].get_angle());
-                command_[2] = 0;
-                command_[3] = 0;
-                transmit_buffer_.add_can2_transmission(0x200, std::bit_cast<uint64_t>(command_));
-                command_[0] = Wheel_motors[0].generate_command();
+                tx.can2_transmit({
+                    .can_id = 0x200,
+                    .can_data =
+                        device::CanPacket8{
+                                           Wheel_motors[1].generate_command(),
+                                           Leg_Motors[1].generate_command(),
+                                           device::CanPacket8::PaddingQuarter{},
+                                           device::CanPacket8::PaddingQuarter{},
+                                           }
+                            .as_bytes(),
+                });
                 *leg_joint_lf_control_theta_error =
                     normalize_angle(*leg_lf_target_theta_ - Leg_ecd[0].get_angle());
-                command_[1] = Leg_Motors[0].generate_command();
-                command_[2] = Omni_Motors.generate_command();
-                command_[3] = 0;
-                transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(command_));
+                tx.can1_transmit({
+                    .can_id = 0x200,
+                    .can_data =
+                        device::CanPacket8{
+                                           Wheel_motors[0].generate_command(),
+                                           Leg_Motors[0].generate_command(),
+                                           Omni_Motors.generate_command(),
+                                           device::CanPacket8::PaddingQuarter{},
+                                           }
+                            .as_bytes(),
+                });
             }
             turn = !turn;
-            transmit_buffer_.trigger_transmission();
         }
 
     protected:
-        void can1_receive_callback(
-            uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
-            bool is_remote_transmission, uint8_t can_data_length) override {
-            if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
+        void can1_receive_callback(const librmcs::data::CanDataView& data) override {
+            uint64_t can_data;
+            if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
+                [[unlikely]]
                 return;
-            if (can_id == 0x207) {
-                Steering_motors[0].store_status(can_data);
-            } else if (can_id == 0x202) {
-                Leg_Motors[0].store_status(can_data);
-            } else if (can_id == 0x201) {
-                Wheel_motors[0].store_status(can_data);
-            } else if (can_id == 0x203) {
-                Omni_Motors.store_status(can_data);
-            } else if (can_id == 0x321) {
+
+            if (data.can_id == 0x207) {
+                Steering_motors[0].store_status(data.can_data);
+            } else if (data.can_id == 0x202) {
+                Leg_Motors[0].store_status(data.can_data);
+            } else if (data.can_id == 0x201) {
+                Wheel_motors[0].store_status(data.can_data);
+            } else if (data.can_id == 0x203) {
+                Omni_Motors.store_status(data.can_data);
+            } else if (data.can_id == 0x321) {
+                if (!decode_can_data(data, can_data)) [[unlikely]]
+                    return;
                 Leg_ecd[0].store_status(can_data);
             }
         }
-        void can2_receive_callback(
-            uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
-            bool is_remote_transmission, uint8_t can_data_length) override {
-            if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
+        void can2_receive_callback(const librmcs::data::CanDataView& data) override {
+            uint64_t can_data;
+            if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
+                [[unlikely]]
                 return;
-            if (can_id == 0x208) {
-                Steering_motors[1].store_status(can_data);
-            } else if (can_id == 0x201) {
-                Wheel_motors[1].store_status(can_data);
-            } else if (can_id == 0x202) {
-                Leg_Motors[1].store_status(can_data);
-            } else if (can_id == 0x100) {
+
+            if (data.can_id == 0x208) {
+                Steering_motors[1].store_status(data.can_data);
+            } else if (data.can_id == 0x201) {
+                Wheel_motors[1].store_status(data.can_data);
+            } else if (data.can_id == 0x202) {
+                Leg_Motors[1].store_status(data.can_data);
+            } else if (data.can_id == 0x100) {
+                if (!decode_can_data(data, can_data)) [[unlikely]]
+                    return;
                 power_meter.store_status(can_data);
-            } else if (can_id == 0x319) {
+            } else if (data.can_id == 0x319) {
+                if (!decode_can_data(data, can_data)) [[unlikely]]
+                    return;
                 Leg_ecd[1].store_status(can_data);
             }
         }
 
+        void uart2_receive_callback(const librmcs::data::UartDataView& data) override {
+            auto* uart_data = data.uart_data.data();
+            ring_buff.emplace_back_multi(
+                [uart_data](std::byte* storage) mutable { *storage = *uart_data++; },
+                data.uart_data.size());
+            while (ring_buff.front() && ring_buff.readable() >= 16) {
+                std::byte rx_data[16];
+                std::byte* rx_ptr = rx_data;
+                ring_buff.pop_front_multi([&rx_ptr](std::byte storage) { *rx_ptr++ = storage; }, 1);
+                if (rx_data[0] != std::byte{0x57}) {
+                    continue;
+                }
+                ring_buff.pop_front_multi(
+                    [&rx_ptr](std::byte storage) { *rx_ptr++ = storage; }, 15);
+                tof.store_status(rx_data, 16);
+            }
+        }
+
     private:
-        librmcs::client::CBoard::TransmitBuffer transmit_buffer_;
-        std::thread event_thread_;
+        RingBuffer<std::byte> ring_buff{16};
         device::DjiMotor Steering_motors[2];
         device::DjiMotor Wheel_motors[2];
         device::PowerMeter power_meter;
+        device::Tof tof;
         device::DjiMotor Omni_Motors;
         device::DjiMotor Leg_Motors[2];
         device::Encoder Leg_ecd[2];
@@ -450,15 +574,14 @@ private:
     } leftboard_;
 
     class RightBoard final
-        : private librmcs::client::CBoard
+        : private librmcs::agent::CBoard
         , rclcpp::Node {
     public:
         friend class Engineer;
-        explicit RightBoard(Engineer& engineer, EngineerCommand& engineer_command, int usb_pid)
-            : librmcs::client::CBoard(usb_pid)
+        explicit RightBoard(
+            Engineer& engineer, EngineerCommand& engineer_command, const std::string& serial_filter)
+            : librmcs::agent::CBoard(serial_filter)
             , rclcpp::Node{"right_board"}
-            , transmit_buffer_(*this, 32)
-            , event_thread_([this]() { handle_events(); })
             , Steering_motors(
                   {engineer, engineer_command, "/steering/steering/rb"},
                   {engineer, engineer_command, "/steering/steering/rf"})
@@ -513,17 +636,62 @@ private:
         }
 
         ~RightBoard() final {
-            uint16_t command_[4] = {0, 0, 0, 0};
-            transmit_buffer_.add_can1_transmission(0x1FE, std::bit_cast<uint64_t>(command_));
-            transmit_buffer_.add_can2_transmission(0x1FE, std::bit_cast<uint64_t>(command_));
-            transmit_buffer_.add_can2_transmission(0x200, std::bit_cast<uint64_t>(command_));
-            transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(command_));
-            transmit_buffer_.trigger_transmission();
-            stop_handling_events();
-            event_thread_.join();
+            auto tx = start_transmit();
+            tx.can1_transmit({
+                .can_id = 0x1FE,
+                .can_data =
+                    device::CanPacket8{
+                                       device::CanPacket8::PaddingQuarter{},
+                                       device::CanPacket8::PaddingQuarter{},
+                                       device::CanPacket8::PaddingQuarter{},
+                                       device::CanPacket8::PaddingQuarter{},
+                                       }
+                        .as_bytes(),
+            });
+            tx.can2_transmit({
+                .can_id = 0x1FE,
+                .can_data =
+                    device::CanPacket8{
+                                       device::CanPacket8::PaddingQuarter{},
+                                       device::CanPacket8::PaddingQuarter{},
+                                       device::CanPacket8::PaddingQuarter{},
+                                       device::CanPacket8::PaddingQuarter{},
+                                       }
+                        .as_bytes(),
+            });
+            tx.can2_transmit({
+                .can_id = 0x200,
+                .can_data =
+                    device::CanPacket8{
+                                       device::CanPacket8::PaddingQuarter{},
+                                       device::CanPacket8::PaddingQuarter{},
+                                       device::CanPacket8::PaddingQuarter{},
+                                       device::CanPacket8::PaddingQuarter{},
+                                       }
+                        .as_bytes(),
+            });
+            tx.can1_transmit({
+                .can_id = 0x200,
+                .can_data =
+                    device::CanPacket8{
+                                       device::CanPacket8::PaddingQuarter{},
+                                       device::CanPacket8::PaddingQuarter{},
+                                       device::CanPacket8::PaddingQuarter{},
+                                       device::CanPacket8::PaddingQuarter{},
+                                       }
+                        .as_bytes(),
+            });
+            tx.can2_transmit({
+                .can_id   = 0x3,
+                .can_data = big_yaw.dm_close_command().as_bytes(),
+            });
         }
         void update() {
-            
+            // RCLCPP_INFO(
+            //     this->get_logger(), "rf angle :%f,rb raw angle:%f", Leg_ecd[1].get_angle(),
+            //     Leg_ecd[0].get_angle());
+            // RCLCPP_INFO(
+            // this->get_logger(), "yaw raw  angle :%d", big_yaw.get_raw_angle());
             Omni_Motors.update();
             for (auto& motor : Steering_motors) {
                 motor.update();
@@ -549,21 +717,34 @@ private:
                 return angle;
             };
 
-            uint16_t command_[4];
             static bool turn{false};
+            auto tx = start_transmit();
             if (turn) {
-                command_[0] = Steering_motors[0].generate_command();
-                command_[1] = 0;
-                command_[2] = 0;
-                command_[3] = 0;
-                transmit_buffer_.add_can2_transmission(0x1FE, std::bit_cast<uint64_t>(command_));
-                command_[0] = 0;
-                command_[1] = Steering_motors[1].generate_command();
-                command_[2] = 0;
-                command_[3] = 0;
-                transmit_buffer_.add_can1_transmission(0x1FE, std::bit_cast<uint64_t>(command_));
 
-                uint64_t yaw_command;
+                tx.can2_transmit({
+                    .can_id = 0x1FE,
+                    .can_data =
+                        device::CanPacket8{
+                                           Steering_motors[0].generate_command(),
+                                           device::CanPacket8::PaddingQuarter{},
+                                           device::CanPacket8::PaddingQuarter{},
+                                           device::CanPacket8::PaddingQuarter{},
+                                           }
+                            .as_bytes(),
+                });
+                tx.can1_transmit({
+                    .can_id = 0x1FE,
+                    .can_data =
+                        device::CanPacket8{
+                                           device::CanPacket8::PaddingQuarter{},
+                                           Steering_motors[1].generate_command(),
+                                           device::CanPacket8::PaddingQuarter{},
+                                           device::CanPacket8::PaddingQuarter{},
+                                           }
+                            .as_bytes(),
+                });
+
+                device::CanPacket8 yaw_command;
                 if (*is_arm_enable && big_yaw.get_state() != 0 && big_yaw.get_state() != 1) {
                     yaw_command = big_yaw.dm_clear_error_command();
                 } else if (!*is_arm_enable) {
@@ -575,78 +756,93 @@ private:
                     yaw_command = big_yaw.generate_torque_command();
                 }
 
-                //yaw_command = big_yaw.dm_enable_command();
-                transmit_buffer_.add_can2_transmission(0x3, yaw_command);
+                // yaw_command = big_yaw.dm_enable_command();
+                tx.can2_transmit({
+                    .can_id   = 0x3,
+                    .can_data = yaw_command.as_bytes(),
+                });
             } else {
-                command_[0] = Wheel_motors[0].generate_command();
                 *leg_joint_rb_control_theta_error =
                     normalize_angle(*leg_rb_target_theta_ - Leg_ecd[0].get_angle());
-                command_[1] = Leg_Motors[0].generate_command();
-                command_[2] = 0;
-                command_[3] = 0;
-                transmit_buffer_.add_can2_transmission(0x200, std::bit_cast<uint64_t>(command_));
-                command_[0] = Wheel_motors[1].generate_command();
+                tx.can2_transmit({
+                    .can_id = 0x200,
+                    .can_data =
+                        device::CanPacket8{
+                                           Wheel_motors[0].generate_command(),
+                                           Leg_Motors[0].generate_command(),
+                                           device::CanPacket8::PaddingQuarter{},
+                                           device::CanPacket8::PaddingQuarter{},
+                                           }
+                            .as_bytes(),
+                });
                 *leg_joint_rf_control_theta_error =
                     normalize_angle(*leg_rf_target_theta_ - Leg_ecd[1].get_angle());
-                command_[1] = Leg_Motors[1].generate_command();
-                command_[2] = Omni_Motors.generate_command();
-                command_[3] = 0;
-                transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(command_));
+                tx.can1_transmit({
+                    .can_id = 0x200,
+                    .can_data =
+                        device::CanPacket8{
+                                           Wheel_motors[1].generate_command(),
+                                           Leg_Motors[1].generate_command(),
+                                           Omni_Motors.generate_command(),
+                                           device::CanPacket8::PaddingQuarter{},
+                                           }
+                            .as_bytes(),
+                });
             }
             turn = !turn;
-
-            transmit_buffer_.trigger_transmission();
         }
 
     protected:
-        void can1_receive_callback(
-            uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
-            bool is_remote_transmission, uint8_t can_data_length) override {
-            if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
+        void can1_receive_callback(const librmcs::data::CanDataView& data) override {
+            uint64_t can_data;
+            if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
+                [[unlikely]]
                 return;
 
-            if (can_id == 0x201) {
-                Wheel_motors[1].store_status(can_data);
+            if (data.can_id == 0x201) {
+                Wheel_motors[1].store_status(data.can_data);
             }
-            if (can_id == 0x202) {
-                Leg_Motors[1].store_status(can_data);
+            if (data.can_id == 0x202) {
+                Leg_Motors[1].store_status(data.can_data);
             }
-            if (can_id == 0x203) {
-                Omni_Motors.store_status(can_data);
+            if (data.can_id == 0x203) {
+                Omni_Motors.store_status(data.can_data);
             }
-            if (can_id == 0x206) {
-                Steering_motors[1].store_status(can_data);
+            if (data.can_id == 0x206) {
+                Steering_motors[1].store_status(data.can_data);
             }
-            if (can_id == 0x320) {
+            if (data.can_id == 0x320) {
+                if (!decode_can_data(data, can_data)) [[unlikely]]
+                    return;
                 Leg_ecd[1].store_status(can_data);
             }
         }
-        void can2_receive_callback(
-            uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
-            bool is_remote_transmission, uint8_t can_data_length) override {
-            if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]] {
+        void can2_receive_callback(const librmcs::data::CanDataView& data) override {
+            uint64_t can_data;
+            if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
+                [[unlikely]]
                 return;
+
+            if (data.can_id == 0x201) {
+                Wheel_motors[0].store_status(data.can_data);
             }
-            if (can_id == 0x201) {
-                Wheel_motors[0].store_status(can_data);
+            if (data.can_id == 0x202) {
+                Leg_Motors[0].store_status(data.can_data);
             }
-            if (can_id == 0x202) {
-                Leg_Motors[0].store_status(can_data);
+            if (data.can_id == 0x205) {
+                Steering_motors[0].store_status(data.can_data);
             }
-            if (can_id == 0x205) {
-                Steering_motors[0].store_status(can_data);
+            if (data.can_id == 0x33) {
+                big_yaw.store_status(data.can_data);
             }
-            if (can_id == 0x33) {
-                big_yaw.store_status(can_data);
-            }
-            if (can_id == 0x322) {
+            if (data.can_id == 0x322) {
+                if (!decode_can_data(data, can_data)) [[unlikely]]
+                    return;
                 Leg_ecd[0].store_status(can_data);
             }
         }
 
     private:
-        librmcs::client::CBoard::TransmitBuffer transmit_buffer_;
-        std::thread event_thread_;
         device::DjiMotor Steering_motors[2];
         device::DjiMotor Wheel_motors[2];
         device::DjiMotor Omni_Motors;

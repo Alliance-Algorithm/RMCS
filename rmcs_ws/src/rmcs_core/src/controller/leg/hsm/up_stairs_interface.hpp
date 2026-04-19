@@ -81,7 +81,7 @@ public:
 private:
     static constexpr int MinStep       = 200;
     static constexpr int MaxStep       = 2500;
-    static constexpr double VReference = 1.5;
+    static constexpr double VReference = 2.0;
 
     static void decodeLayerParameter(
         const std::vector<double>& parameter, std::array<double, LegJointCount>& end_point,

@@ -118,12 +118,12 @@ public:
 
         if (chassis_mode_ != rmcs_msgs::ChassisMode::None) {
             auto move = *joystick_left_;
-            if (is_stair_mode()) {
-                move.x() = 0.0;
-            }
-            Eigen::Rotation2D<double> rotation(*chassis_big_yaw_angle_ + *joint1_theta_);
-            move = rotation * (*joystick_left_);
 
+            Eigen::Rotation2D<double> rotation(*chassis_big_yaw_angle_+*joint1_theta_ );
+            move = rotation * (*joystick_left_);
+            if (is_stair_mode()) {
+                move.y() = 0.0;
+            }
             chassis_control_velocity_->vector << (move * *speed_limit_), angular_velocity;
         } else {
             chassis_control_velocity_->vector << NAN, NAN, NAN;
@@ -142,7 +142,7 @@ private:
         case SpeedGear::Medium: return 2.0;
         case SpeedGear::Low: return 0.8;
         case SpeedGear::High:
-        default: return 2.0;
+        default: return 3.0;
         }
     }
 

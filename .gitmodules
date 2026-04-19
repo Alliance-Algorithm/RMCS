@@ -1,6 +1,3 @@
-[submodule "rmcs_ws/src/rmcs_core/librmcs"]
-	path = rmcs_ws/src/rmcs_core/librmcs
-	url = https://github.com/Alliance-Algorithm/librmcs.git
 [submodule "rmcs_ws/src/fast_tf"]
 	path = rmcs_ws/src/fast_tf
 	url = https://github.com/qzhhhi/FastTF.git
@@ -15,9 +12,6 @@
 	url = git@github.com:Alliance-Algorithm/librmcs.git
 [submodule "rmcs_ws/src/rmcs_core/include/rmcs_core/librmcs"]
 	path = rmcs_ws/src/rmcs_core/include/rmcs_core/librmcs
-	url = git@github.com:Alliance-Algorithm/librmcs.git
-[submodule "rmcs_ws/src/rmcs_core/librmcs"]
-	path = rmcs_ws/src/rmcs_core/librmcs
 	url = git@github.com:Alliance-Algorithm/librmcs.git
 [submodule "rmcs_ws/src/serial"]
 	path = rmcs_ws/src/serial

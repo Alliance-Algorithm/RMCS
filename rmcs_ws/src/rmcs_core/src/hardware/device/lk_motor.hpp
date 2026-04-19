@@ -4,15 +4,18 @@
 #include <atomic>
 #include <bit>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <numbers>
+#include <span>
 #include <stdexcept>
 
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <rmcs_executor/component.hpp>
 
+#include "hardware/device/can_package.hpp"
 #include "hardware/endian_promise.hpp"
 
 #include <rclcpp/logging.hpp>
@@ -205,13 +208,17 @@ public:
         angle_multi_turn_          = 0;
     }
 
-    void store_status(uint64_t can_result) {
-        uint8_t command_byte = static_cast<uint8_t>(can_result);
+    void store_status(std::span<const std::byte> can_result) {
+        if (can_result.size() != sizeof(CanPacket8)) [[unlikely]]
+            return;
+
+        uint8_t command_byte = std::to_integer<uint8_t>(can_result.front());
         if (command_byte == 0x9C || command_byte == 0xA4 || command_byte == 0xA1
             || command_byte == 0xAD) {
-            can_result_.store(can_result, std::memory_order::relaxed);
+            can_result_.store(CanPacket8{can_result}, std::memory_order::relaxed);
         }
     }
+
     void update() {
         auto feedback =
             std::bit_cast<LKMotorFeedback>(can_result_.load(std::memory_order::relaxed));
@@ -252,7 +259,7 @@ public:
         last_raw_angle_ = raw_angle;
     }
 
-    uint64_t generate_torque_command() {
+    CanPacket8 generate_torque_command() {
         std::array<uint8_t, 8> result = {0};
         result[0]                     = 0xA1;
         double torque                 = reverse * (*control_torque_);
@@ -265,7 +272,7 @@ public:
             result[6] = 0X00;
             result[7] = 0X00;
 
-            return std::bit_cast<uint64_t>(result);
+            return CanPacket8{std::bit_cast<uint64_t>(result)};
         }
         double max_torque = (*motor_)->get_max_torque();
         torque            = std::clamp(torque, -max_torque, max_torque);
@@ -273,13 +280,14 @@ public:
         int16_t control_current   = static_cast<int16_t>(current);
         auto control_current_bits = std::bit_cast<std::array<uint8_t, 2>>(control_current);
         std::copy(control_current_bits.begin(), control_current_bits.end(), result.begin() + 4);
-        return std::bit_cast<uint64_t>(result);
+        return CanPacket8{std::bit_cast<uint64_t>(result)};
     }
 
-    static uint64_t lk_stop_command() { return std::bit_cast<uint64_t>(uint64_t{0x81}); }
-    static uint64_t lk_quest_command() { return std::bit_cast<uint64_t>(uint64_t{0x9C}); }
-    static uint64_t lk_enable_command() { return std::bit_cast<uint64_t>(uint64_t{0x88}); }
-    static uint64_t lk_close_command() { return std::bit_cast<uint64_t>(uint64_t{0x80}); }
+    static CanPacket8 lk_stop_command() { return CanPacket8{uint64_t{0x81}}; }
+    static CanPacket8 lk_quest_command() { return CanPacket8{uint64_t{0x9C}}; }
+    static CanPacket8 lk_enable_command() { return CanPacket8{uint64_t{0x88}}; }
+    static CanPacket8 lk_close_command() { return CanPacket8{uint64_t{0x80}}; }
+    static CanPacket8 lk_close() { return CanPacket8{uint64_t(LK_CLOSE)}; }
 
     double get_angle() { return *angle_; }
     double get_velocity() { return *velocity_; }
@@ -296,7 +304,7 @@ private:
         uint16_t encoder;
     };
 
-    std::atomic<uint64_t> can_result_ = 0;
+    std::atomic<CanPacket8> can_result_{CanPacket8{uint64_t{0}}};
 
     static constexpr uint16_t raw_angle_max_ = 65535;
     int last_raw_angle_;
@@ -309,6 +317,8 @@ private:
     double raw_angle_to_angle_coefficient_, angle_to_raw_angle_coefficient_;
     double raw_velocity_to_velocity_coefficient_, velocity_to_raw_velocity_coefficient_;
     double raw_current_to_torque_coefficient_, torque_to_raw_current_coefficient_;
+
+    static constexpr uint8_t LK_CLOSE[8] = {0xA1, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
     Component::OutputInterface<double> gear_ratio_;
     Component::OutputInterface<double> max_torque_;

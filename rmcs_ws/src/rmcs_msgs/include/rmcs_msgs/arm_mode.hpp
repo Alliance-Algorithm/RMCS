@@ -17,6 +17,8 @@ enum class ArmMode : uint8_t {
     DT7_Control_Position,
     DT7_Control_Orientation,
     Auto_Linear,
+    Auto_Left_Circle,
+    Auto_Right_Circle,
     None
 };
 

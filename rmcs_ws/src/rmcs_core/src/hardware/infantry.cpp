@@ -7,6 +7,7 @@
 #include <std_msgs/msg/int32.hpp>
 
 #include "hardware/device/dji_motor.hpp"
+#include "hardware/device/can_package.hpp"
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/imu.hpp"
 #include "hardware/device/supercap.hpp"
@@ -97,36 +98,46 @@ public:
     void update() override {
         update_motors();
         update_imu();
-        dr16_.update();
+        dr16_.update_status();
         supercap_.update();
     }
 
     void command_update() {
-        uint16_t can_commands[4];
+        auto can_packet_to_u64 = [](const device::CanPacket8& packet) {
+            return std::bit_cast<uint64_t>(packet);
+        };
 
-        can_commands[0] = gimbal_yaw_motor_.generate_command();
-        can_commands[1] = gimbal_pitch_motor_.generate_command();
-        can_commands[2] = 0;
-        can_commands[3] = supercap_.generate_command();
-        transmit_buffer_.add_can1_transmission(0x1FE, std::bit_cast<uint64_t>(can_commands));
+        transmit_buffer_.add_can1_transmission(
+            0x1FE, can_packet_to_u64(device::CanPacket8{
+                       gimbal_yaw_motor_.generate_command(),
+                       gimbal_pitch_motor_.generate_command(),
+                       device::CanPacket8::PaddingQuarter{},
+                       device::CanPacket8::Quarter{supercap_.generate_command()},
+                   }));
 
-        can_commands[0] = chassis_wheel_motors_[0].generate_command();
-        can_commands[1] = chassis_wheel_motors_[1].generate_command();
-        can_commands[2] = chassis_wheel_motors_[2].generate_command();
-        can_commands[3] = chassis_wheel_motors_[3].generate_command();
-        transmit_buffer_.add_can1_transmission(0x200, std::bit_cast<uint64_t>(can_commands));
+        transmit_buffer_.add_can1_transmission(
+            0x200, can_packet_to_u64(device::CanPacket8{
+                       chassis_wheel_motors_[0].generate_command(),
+                       chassis_wheel_motors_[1].generate_command(),
+                       chassis_wheel_motors_[2].generate_command(),
+                       chassis_wheel_motors_[3].generate_command(),
+                   }));
 
-        can_commands[0] = 0;
-        can_commands[1] = gimbal_pitch_motor_.generate_command();
-        can_commands[2] = 0;
-        can_commands[3] = 0;
-        transmit_buffer_.add_can2_transmission(0x1FE, std::bit_cast<uint64_t>(can_commands));
+        transmit_buffer_.add_can2_transmission(
+            0x1FE, can_packet_to_u64(device::CanPacket8{
+                       device::CanPacket8::PaddingQuarter{},
+                       gimbal_pitch_motor_.generate_command(),
+                       device::CanPacket8::PaddingQuarter{},
+                       device::CanPacket8::PaddingQuarter{},
+                   }));
 
-        can_commands[0] = 0;
-        can_commands[1] = gimbal_bullet_feeder_.generate_command();
-        can_commands[2] = gimbal_left_friction_.generate_command();
-        can_commands[3] = gimbal_right_friction_.generate_command();
-        transmit_buffer_.add_can2_transmission(0x200, std::bit_cast<uint64_t>(can_commands));
+        transmit_buffer_.add_can2_transmission(
+            0x200, can_packet_to_u64(device::CanPacket8{
+                       device::CanPacket8::PaddingQuarter{},
+                       gimbal_bullet_feeder_.generate_command(),
+                       gimbal_left_friction_.generate_command(),
+                       gimbal_right_friction_.generate_command(),
+                   }));
 
         transmit_buffer_.trigger_transmission();
     }
@@ -191,20 +202,20 @@ protected:
 
         if (can_id == 0x201) {
             auto& motor = chassis_wheel_motors_[0];
-            motor.store_status(can_data);
+            motor.store_status(device::CanPacket8{can_data}.as_bytes());
         } else if (can_id == 0x202) {
             auto& motor = chassis_wheel_motors_[1];
-            motor.store_status(can_data);
+            motor.store_status(device::CanPacket8{can_data}.as_bytes());
         } else if (can_id == 0x203) {
             auto& motor = chassis_wheel_motors_[2];
-            motor.store_status(can_data);
+            motor.store_status(device::CanPacket8{can_data}.as_bytes());
         } else if (can_id == 0x204) {
             auto& motor = chassis_wheel_motors_[3];
-            motor.store_status(can_data);
+            motor.store_status(device::CanPacket8{can_data}.as_bytes());
         } else if (can_id == 0x205) {
-            gimbal_yaw_motor_.store_status(can_data);
+            gimbal_yaw_motor_.store_status(device::CanPacket8{can_data}.as_bytes());
         } else if (can_id == 0x206) {
-            gimbal_pitch_motor_.store_status(can_data);
+            gimbal_pitch_motor_.store_status(device::CanPacket8{can_data}.as_bytes());
         } else if (can_id == 0x300) {
             supercap_.store_status(can_data);
         }
@@ -217,13 +228,13 @@ protected:
             return;
 
         if (can_id == 0x202) {
-            gimbal_bullet_feeder_.store_status(can_data);
+            gimbal_bullet_feeder_.store_status(device::CanPacket8{can_data}.as_bytes());
         } else if (can_id == 0x203) {
-            gimbal_left_friction_.store_status(can_data);
+            gimbal_left_friction_.store_status(device::CanPacket8{can_data}.as_bytes());
         } else if (can_id == 0x204) {
-            gimbal_right_friction_.store_status(can_data);
+            gimbal_right_friction_.store_status(device::CanPacket8{can_data}.as_bytes());
         } else if (can_id == 0x206) {
-            gimbal_pitch_motor_.store_status(can_data);
+            gimbal_pitch_motor_.store_status(device::CanPacket8{can_data}.as_bytes());
         }
     }
 

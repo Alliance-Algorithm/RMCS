@@ -3,8 +3,10 @@
 #include <atomic>
 #include <bit>
 #include <cmath>
+#include <cstddef>
 #include <cstring>
 #include <numbers>
+#include <span>
 #include <rclcpp/node.hpp>
 #include <stdexcept>
 
@@ -12,6 +14,7 @@
 #include <rclcpp/logging.hpp>
 #include <rmcs_executor/component.hpp>
 
+#include "hardware/device/can_package.hpp"
 #include "hardware/endian_promise.hpp"
 
 namespace rmcs_core::hardware::device {
@@ -128,7 +131,12 @@ public:
         angle_multi_turn_         = 0;
     }
 
-    void store_status(uint64_t can_data) { can_data_.store(can_data, std::memory_order::relaxed); }
+    void store_status(std::span<const std::byte> can_data) {
+        if (can_data.size() != sizeof(CanPacket8)) [[unlikely]]
+            return;
+        can_data_.store(CanPacket8{can_data}, std::memory_order::relaxed);
+    }
+
 
     void update() {
         auto feedback = std::bit_cast<DjiMotorFeedback>(can_data_.load(std::memory_order::relaxed));
@@ -160,21 +168,19 @@ public:
         last_raw_angle_ = raw_angle;
     }
 
-    uint16_t generate_command() const {
+    CanPacket8::Quarter generate_command() const {
         double torque = *control_torque_;
         if (std::isnan(torque)) {
-            return 0;
+            return CanPacket8::Quarter{0};
         }
-
-        be_int16_t control_current;
 
         double max_torque = (*motor_)->get_max_torque();
         torque            = std::clamp(torque, -max_torque, max_torque);
 
-        double current  = std::round((*motor_)->torque_to_raw_current_coefficient_ * torque);
-        control_current = static_cast<int16_t>(current);
+        double current = std::round((*motor_)->torque_to_raw_current_coefficient_ * torque);
+        const be_int16_t control_current = static_cast<int16_t>(current);
 
-        return std::bit_cast<uint16_t>(control_current);
+        return std::bit_cast<CanPacket8::Quarter>(control_current);
     }
 
     int calibrate_zero_point() {
@@ -202,7 +208,7 @@ private:
         be_int16_t control_current[4];
     };
 
-    std::atomic<uint64_t> can_data_ = 0;
+    std::atomic<CanPacket8> can_data_{CanPacket8{uint64_t{0}}};
 
     int raw_angle_;
     static constexpr int raw_angle_max_ = 8192;

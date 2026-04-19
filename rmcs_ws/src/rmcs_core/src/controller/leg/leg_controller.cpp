@@ -45,7 +45,7 @@ public:
               {*this, "up_one_stairs", {"initial", "press", "lift"}},
               {*this,
                "up_two_stairs",
-               {"initial", "press", "lift", "lift_and_initial", "press_again", "lift_again"}}} {
+               {"initial", "press", "lift_and_initial", "press_again", "lift_again"}}} {
 
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
@@ -74,7 +74,7 @@ public:
         register_input("/arm/joint_1/theta", joint1_theta);
         register_input("/chassis/big_yaw/angle", chassis_big_yaw_angle);
 
-        //  register_input("/tof/distance",tof_distance_);
+        register_input("/leg/tof/distance", tof_distance_);
 
         std::array<double, 2> four_wheel_angle = leg_inverse_kinematic(
             forward_x_position_in_FourWheel_, wheel_distance - forward_x_position_in_FourWheel_,
@@ -93,21 +93,53 @@ public:
                     six_wheel_angle[0], six_wheel_angle[1], six_wheel_angle[1], six_wheel_angle[0]})
             .set_total_step(500);
         down_stairs_trajectory
-            .set_end_point(std::vector<double>{1.151109, 1.694066, 1.694066, 1.151109})
+            .set_end_point(std::vector<double>{1.109164, 1.55792, 1.55792,1.109164})
             .set_total_step(800);
+
+        // const auto tof_k = this->get_parameter("tof_k").as_double();
+        // const auto tof_b = this->get_parameter("tof_b").as_double();
+        // const auto v_ref = this->get_parameter("v_ref").as_double();
         up_stairs[0].set_layer_connections("initial", [this]() {
             if (keyboard_->ctrl) {
                 return true;
             };
+            if ((*tof_distance_) <= 0.35) {
+                return true;
+            }
+            // if ((*tof_distance_)
+            //         <= (this->get_parameter("tof_k").as_double()
+            //                 * ((*chassis_velocity_)->x() -
+            //                 this->get_parameter("v_ref").as_double())
+            //             + this->get_parameter("tof_b").as_double())
+            //     && (*chassis_velocity_)->x() > 0.0) {
+            //     return true;
+            // }
             return false;
         });
 
-        up_stairs[1].set_layer_connections("initial", []() { return true; });
+        up_stairs[1].set_layer_connections("initial", [this]() {
+            if (keyboard_->ctrl) {
+                return true;
+            };
+            // if ((*tof_distance_) <= 0.3) {
+            //     return true;
+            // };
+            // if ((*tof_distance_)
+            //         <= (this->get_parameter("tof_k").as_double()
+            //                 * ((*chassis_velocity_)->x() -
+            //                 this->get_parameter("v_ref").as_double())
+            //             + this->get_parameter("tof_b").as_double())
+            //     && (*chassis_velocity_)->x() > 0.0) {
+            //     return true;
+            // }
+
+            return false;
+        });
         up_stairs[1].set_layer_connections("lift_and_initial", []() { return true; });
     }
 
     void update() override {
-        // RCLCPP_INFO(this->get_logger(), " %x",*arm_mode);
+        RCLCPP_INFO(this->get_logger(), "distance %f", *tof_distance_);
         auto switch_right               = *switch_right_;
         auto switch_left                = *switch_left_;
         auto mouse                      = *mouse_;

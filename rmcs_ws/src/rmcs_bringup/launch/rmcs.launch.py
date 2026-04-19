@@ -13,7 +13,6 @@ from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 from launch.actions import LogInfo, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from moveit_configs_utils import MoveItConfigsBuilder
 
 class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
     def visit(
@@ -35,30 +34,11 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
             )
         )
 
-        moveit_config = (
-            MoveItConfigsBuilder("arm_description", package_name="arm_moveit_config")
-            .robot_description(file_path="config/arm_description.urdf.xacro")
-            .robot_description_kinematics(file_path="config/kinematics.yaml")
-            .planning_pipelines(
-                pipelines=["ompl", "chomp", "pilz_industrial_motion_planner"],
-                default_planning_pipeline="ompl",
-            )
-            .joint_limits(file_path="config/joint_limits.yaml")
-            .robot_description_semantic(file_path="config/arm_description.srdf")
-            .planning_scene_monitor(
-                publish_robot_description=True, publish_robot_description_semantic=True
-            )
-            .trajectory_execution(file_path="config/moveit_controllers.yaml")
-            .pilz_cartesian_limits(file_path="config/pilz_cartesian_limits.yaml")
-            .to_moveit_configs()
-        )
-
         entities.append(
             Node(
                 package="rmcs_executor",
                 executable="rmcs_executor",
                 parameters=[
-                    moveit_config.to_dict(),
                     os.path.join(
                         FindPackageShare("rmcs_bringup").perform(context),
                         "config",
