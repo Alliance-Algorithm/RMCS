@@ -21,7 +21,6 @@
   <class type="rmcs_core::controller::chassis::WheelDemoController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::ChassisControllerV2" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::ChassisTestV2Controller" base_class_type="rmcs_executor::Component" />
-  <class type="rmcs_core::controller::chassis::ActiveSuspension" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::gimbal::SimpleGimbalController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::gimbal::OmniInfantryPlannerGimbalController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::gimbal::OmniInfantryGimbalSweep" base_class_type="rmcs_executor::Component" />

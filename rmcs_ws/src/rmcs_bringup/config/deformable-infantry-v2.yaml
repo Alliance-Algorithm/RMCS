@@ -170,14 +170,10 @@ deformable_chassis_controller:
     k2: 3.082190e-03
     no_load_power: 11.37
 
-lf_joint_controller:
+lf_joint_adrc_controller:
   ros__parameters:
-    measurement_angle: /chassis/left_front_joint/physical_angle
-    measurement_velocity: /chassis/left_front_joint/physical_velocity
-    setpoint_angle: /chassis/left_front_joint/target_physical_angle
-    setpoint_velocity: /chassis/left_front_joint/target_physical_velocity
-    mode_input: /chassis/left_front_joint/suspension_mode
-    suspension_torque: /chassis/left_front_joint/suspension_torque
+    measurement: /chassis/left_front_joint/angle
+    setpoint: /chassis/left_front_joint/target_angle
     control: /chassis/left_front_joint/control_torque
     dt: 0.001
     b0: 0.60
@@ -191,20 +187,6 @@ lf_joint_controller:
     alpha1: 0.75
     alpha2: 0.7
     delta: 0.02
-    output_min: -80.0
-    output_max: 80.0
-    suspension_td_h: 0.001
-    suspension_td_r: 10.0
-    suspension_eso_w0: 80.0
-    suspension_k1: 8.0
-    suspension_k2: 5.0
-    suspension_alpha1: 0.75
-    suspension_alpha2: 0.7
-    suspension_delta: 0.02
-    suspension_output_min: -80.0
-    suspension_output_max: 80.0
-    torque_feedforward_gain: 0.0
-    suspension_torque_feedforward_gain: 1.0
 
 lb_joint_controller:
   ros__parameters:
@@ -227,20 +209,6 @@ lb_joint_controller:
     alpha1: 0.75
     alpha2: 0.7
     delta: 0.02
-    output_min: -80.0
-    output_max: 80.0
-    suspension_td_h: 0.001
-    suspension_td_r: 10.0
-    suspension_eso_w0: 80.0
-    suspension_k1: 8.0
-    suspension_k2: 5.0
-    suspension_alpha1: 0.75
-    suspension_alpha2: 0.7
-    suspension_delta: 0.02
-    suspension_output_min: -80.0
-    suspension_output_max: 80.0
-    torque_feedforward_gain: 0.0
-    suspension_torque_feedforward_gain: 1.0
 
 rb_joint_controller:
   ros__parameters:
@@ -263,20 +231,6 @@ rb_joint_controller:
     alpha1: 0.75
     alpha2: 0.7
     delta: 0.02
-    output_min: -80.0
-    output_max: 80.0
-    suspension_td_h: 0.001
-    suspension_td_r: 10.0
-    suspension_eso_w0: 80.0
-    suspension_k1: 8.0
-    suspension_k2: 5.0
-    suspension_alpha1: 0.75
-    suspension_alpha2: 0.7
-    suspension_delta: 0.02
-    suspension_output_min: -80.0
-    suspension_output_max: 80.0
-    torque_feedforward_gain: 0.0
-    suspension_torque_feedforward_gain: 1.0
 
 rf_joint_controller:
   ros__parameters:
@@ -299,17 +253,3 @@ rf_joint_controller:
     alpha1: 0.75
     alpha2: 0.7
     delta: 0.02
-    output_min: -80.0
-    output_max: 80.0
-    suspension_td_h: 0.001
-    suspension_td_r: 10.0
-    suspension_eso_w0: 80.0
-    suspension_k1: 8.0
-    suspension_k2: 5.0
-    suspension_alpha1: 0.75
-    suspension_alpha2: 0.7
-    suspension_delta: 0.02
-    suspension_output_min: -80.0
-    suspension_output_max: 80.0
-    torque_feedforward_gain: 0.0
-    suspension_torque_feedforward_gain: 1.0
