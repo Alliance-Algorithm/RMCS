@@ -63,7 +63,7 @@ public:
 
         update_virtual_buffer_energy();
 
-        boost_mode_ = keyboard.shift || rotary_knob < -0.9;
+        boost_mode_ = keyboard.shift || keyboard.ctrl || rotary_knob < -0.9;
         update_control_power_limit();
     }
 

@@ -38,7 +38,13 @@
       "Bash(build-rmcs --packages-select rmcs_core)",
       "Bash(RMCS_PATH=/home/yukikaze/Documents/workspace/RMCS bash /home/yukikaze/Documents/workspace/RMCS/.script/build-rmcs --packages-select rmcs_core 2>&1)",
       "Bash(ls -la /home/yukikaze/Documents/workspace/RMCS/rmcs_ws/src/rmcs_core/src/controller/chassis/*.hpp)",
-      "Bash(bash .script/build-rmcs --packages-select rmcs_core rmcs_bringup)"
+      "Bash(bash .script/build-rmcs --packages-select rmcs_core rmcs_bringup)",
+      "Bash(grep -r \"class.*Controller\" /home/yukikaze/Documents/workspace/RMCS/rmcs_ws/src/rmcs_core/src/controller/chassis/*.cpp)",
+      "Bash(grep -r \"class.*Controller\\\\|class.*Board\\\\|struct.*Config\" /home/yukikaze/Documents/workspace/RMCS/rmcs_ws/src/rmcs_core/src/hardware/device/*.hpp)",
+      "Bash(xargs basename:*)",
+      "Bash(grep -h \"class.*:\" /home/yukikaze/Documents/workspace/RMCS/rmcs_ws/src/rmcs_core/src/hardware/deformable-infantry*.cpp)",
+      "Bash(grep -h \"class.*:\" /home/yukikaze/Documents/workspace/RMCS/rmcs_ws/src/rmcs_core/src/controller/chassis/deformable*.cpp)",
+      "Bash(grep -E \"\\\\.hpp$\")"
     ]
   }
 }

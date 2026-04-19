@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <limits>
 #include <numbers>
+#include <vector>
 
 #include <eigen3/Eigen/Dense>
 #include <rclcpp/node.hpp>
@@ -31,6 +32,9 @@ public:
         , k1_(get_parameter("k1").as_double())
         , k2_(get_parameter("k2").as_double())
         , no_load_power_(get_parameter("no_load_power").as_double())
+        , com_height_(get_parameter_or("com_height", 0.0))
+        , chassis_radius_x_(get_parameter_or("chassis_radius_x", 0.2341741 / std::numbers::sqrt2))
+        , chassis_radius_y_(get_parameter_or("chassis_radius_y", 0.2341741 / std::numbers::sqrt2))
         , translational_velocity_pid_calculator_(5.0, 0.0, 0.0)
         , angular_velocity_pid_calculator_(5.0, 0.0, 0.0)
         , wheel_velocity_pid_(0.6, 0.0, 0.0) {
@@ -179,8 +183,35 @@ private:
                        + k2_ * wheel_velocities.array().pow(2).sum() - no_load_power_
                        - *power_limit_;
 
-        auto result = qcp_solver_.solve(
-            {1.0, 1.0}, {x_max, std::abs(y_max)}, {rhombus_right, rhombus_top}, {a, b, c, d, e, f});
+        Eigen::Vector2d result = Eigen::Vector2d::Constant(nan_);
+        if (com_height_ > 1e-6) {
+            const double dir_x = -(lambda_1 + lambda_2) / 2.0;
+            const double dir_y = (lambda_1 - lambda_2) / 2.0;
+            const double coeff = -com_height_ / (std::numbers::sqrt2 * wheel_radius_);
+            const double gamma_1 = coeff * (+dir_x / chassis_radius_x_ + dir_y / chassis_radius_y_);
+            const double gamma_2 = coeff * (-dir_x / chassis_radius_x_ + dir_y / chassis_radius_y_);
+
+            const double force_to_torque = friction_coefficient_ * wheel_radius_;
+            const double rhs = force_to_torque * mess_ * g_ / 4.0;
+            const std::vector<QcpSolver::HalfPlaneConstraint> half_planes = {
+                { lambda_1 - force_to_torque * gamma_1,  y_sign, rhs},
+                {-lambda_1 - force_to_torque * gamma_1, -y_sign, rhs},
+                { lambda_2 - force_to_torque * gamma_2,  y_sign, rhs},
+                {-lambda_2 - force_to_torque * gamma_2, -y_sign, rhs},
+                {-lambda_1 + force_to_torque * gamma_1,  y_sign, rhs},
+                { lambda_1 + force_to_torque * gamma_1, -y_sign, rhs},
+                {-lambda_2 + force_to_torque * gamma_2,  y_sign, rhs},
+                { lambda_2 + force_to_torque * gamma_2, -y_sign, rhs},
+            };
+            result = qcp_solver_.solve(
+                {1.0, 1.0}, {x_max, std::abs(y_max)}, half_planes, {a, b, c, d, e, f});
+        }
+
+        if (!result.array().isFinite().all()) {
+            result = qcp_solver_.solve(
+                {1.0, 1.0}, {x_max, std::abs(y_max)}, {rhombus_right, rhombus_top},
+                {a, b, c, d, e, f});
+        }
         result.y() *= y_sign;
         return result;
     }
@@ -208,6 +239,9 @@ private:
     const double wheel_radius_;
     const double friction_coefficient_;
     const double k1_, k2_, no_load_power_;
+    const double com_height_;
+    const double chassis_radius_x_;
+    const double chassis_radius_y_;
 
     InputInterface<double> wheel_motor_max_control_torque_;
 
