@@ -1,10 +1,16 @@
 #pragma once
+
+#include "hardware/device/can_package.hpp"
 #include "hardware/endian_promise.hpp"
+
 #include <algorithm>
 #include <atomic>
+#include <bit>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <span>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
@@ -26,8 +32,11 @@ public:
     PowerMeter(const PowerMeter&)            = delete;
     PowerMeter& operator=(const PowerMeter&) = delete;
 
-    void store_status(uint64_t can_result) {
-        can_data_.store(can_result, std::memory_order::relaxed);
+    void store_status(std::span<const std::byte> can_result) {
+        if (can_result.size() != sizeof(CanPacket8)) [[unlikely]]
+            return;
+
+        can_data_.store(CanPacket8{can_result}, std::memory_order::relaxed);
     }
 
     void update() {
@@ -62,7 +71,7 @@ private:
     static constexpr double range_conversion_voltage_ = 65.535;
     static constexpr double range_conversion_current_ = 65.535;
     static constexpr double range_conversion_power_   = 650.535;
-    std::atomic<uint64_t> can_data_                   = 0;
+    std::atomic<CanPacket8> can_data_{CanPacket8{uint64_t{0}}};
     Component::OutputInterface<double> voltage_;
     Component::OutputInterface<double> current_;
     Component::OutputInterface<double> power_;

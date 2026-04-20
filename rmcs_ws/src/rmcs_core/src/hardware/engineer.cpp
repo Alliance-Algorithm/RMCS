@@ -31,23 +31,6 @@
 #include <std_msgs/msg/int32.hpp>
 #include <string>
 
-namespace {
-
-bool decode_can_data(const librmcs::data::CanDataView& data, uint64_t& payload) {
-    if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission
-        || data.can_data.size() < sizeof(payload)) [[unlikely]]
-        return false;
-
-    std::memcpy(&payload, data.can_data.data(), sizeof(payload));
-    return true;
-}
-
-uint8_t uart_length(const librmcs::data::UartDataView& data) {
-    return static_cast<uint8_t>(data.uart_data.size());
-}
-
-} // namespace
-
 namespace rmcs_core::hardware {
 
 class Engineer
@@ -266,7 +249,6 @@ private:
             }
         }
         void can1_receive_callback(const librmcs::data::CanDataView& data) override {
-            uint64_t can_data;
             if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
                 [[unlikely]]
                 return;
@@ -278,16 +260,14 @@ private:
             else if (data.can_id == 0x146)
                 joint[0].store_status(data.can_data);
             else if (data.can_id == 0x200) {
-                if (!decode_can_data(data, can_data)) [[unlikely]]
-                    return;
-                joint2_encoder.store_status(can_data);
+                joint2_encoder.store_status(data.can_data);
             } else if (data.can_id == 0x148) {
                 image_pitch.store_status(data.can_data);
             };
         }
 
         void dbus_receive_callback(const librmcs::data::UartDataView& data) override {
-            dr16_.store_status(data.uart_data.data(), uart_length(data));
+            dr16_.store_status(data.uart_data.data(), static_cast<uint8_t>(data.uart_data.size()));
         }
 
         void accelerometer_receive_callback(
@@ -497,7 +477,6 @@ private:
 
     protected:
         void can1_receive_callback(const librmcs::data::CanDataView& data) override {
-            uint64_t can_data;
             if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
                 [[unlikely]]
                 return;
@@ -511,13 +490,10 @@ private:
             } else if (data.can_id == 0x203) {
                 Omni_Motors.store_status(data.can_data);
             } else if (data.can_id == 0x321) {
-                if (!decode_can_data(data, can_data)) [[unlikely]]
-                    return;
-                Leg_ecd[0].store_status(can_data);
+                Leg_ecd[0].store_status(data.can_data);
             }
         }
         void can2_receive_callback(const librmcs::data::CanDataView& data) override {
-            uint64_t can_data;
             if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
                 [[unlikely]]
                 return;
@@ -529,13 +505,9 @@ private:
             } else if (data.can_id == 0x202) {
                 Leg_Motors[1].store_status(data.can_data);
             } else if (data.can_id == 0x100) {
-                if (!decode_can_data(data, can_data)) [[unlikely]]
-                    return;
-                power_meter.store_status(can_data);
+                power_meter.store_status(data.can_data);
             } else if (data.can_id == 0x319) {
-                if (!decode_can_data(data, can_data)) [[unlikely]]
-                    return;
-                Leg_ecd[1].store_status(can_data);
+                Leg_ecd[1].store_status(data.can_data);
             }
         }
 
@@ -794,7 +766,6 @@ private:
 
     protected:
         void can1_receive_callback(const librmcs::data::CanDataView& data) override {
-            uint64_t can_data;
             if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
                 [[unlikely]]
                 return;
@@ -812,13 +783,10 @@ private:
                 Steering_motors[1].store_status(data.can_data);
             }
             if (data.can_id == 0x320) {
-                if (!decode_can_data(data, can_data)) [[unlikely]]
-                    return;
-                Leg_ecd[1].store_status(can_data);
+                Leg_ecd[1].store_status(data.can_data);
             }
         }
         void can2_receive_callback(const librmcs::data::CanDataView& data) override {
-            uint64_t can_data;
             if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
                 [[unlikely]]
                 return;
@@ -836,9 +804,7 @@ private:
                 big_yaw.store_status(data.can_data);
             }
             if (data.can_id == 0x322) {
-                if (!decode_can_data(data, can_data)) [[unlikely]]
-                    return;
-                Leg_ecd[0].store_status(can_data);
+                Leg_ecd[0].store_status(data.can_data);
             }
         }
 

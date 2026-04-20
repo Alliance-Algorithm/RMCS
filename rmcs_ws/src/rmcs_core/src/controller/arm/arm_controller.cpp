@@ -2,7 +2,6 @@
 #include "hardware/endian_promise.hpp"
 #include "sensor_msgs/msg/joint_state.hpp"
 #include "std_msgs/msg/float32_multi_array.hpp"
-
 #include <Eigen/src/Core/Matrix.h>
 #include <algorithm>
 #include <array>
@@ -28,6 +27,8 @@
 #include <sys/cdefs.h>
 #include <thread>
 
+#include <geometry_msgs/msg/point_stamped.hpp>
+#include <moveit/kinematic_constraints/utils.hpp>
 #include <moveit/move_group_interface/move_group_interface.hpp>
 #include <moveit/planning_interface/planning_interface.hpp>
 #include <moveit/planning_scene_interface/planning_scene_interface.hpp>
@@ -381,6 +382,7 @@ private:
         moveit::planning_interface::MoveGroupInterface::Plan my_plan;
         move_group_->setStartStateToCurrentState();
         move_group_->clearPoseTargets();
+        move_group_->clearPathConstraints();
         move_group_->setMaxAccelerationScalingFactor(0.05);
         move_group_->setMaxVelocityScalingFactor(0.03);
         move_group_->setPlanningTime(5.0);
@@ -420,35 +422,38 @@ private:
             result->plan_success = (plan_result == moveit::core::MoveItErrorCode::SUCCESS);
             break;
         }
-            // case rmcs_msgs::ArmMode::Auto_Right_Circle: {
-            //     const static double theta_deg = 10;
-            //     const Eigen::Vector3d circle_center{-0.08, 0.0, 0.0};
-            //     double theta_rad = theta_deg * M_PI / 180.0;
+        case rmcs_msgs::ArmMode::Auto_Right_Circle: {
+            const static double theta_deg = 10;
+            const Eigen::Vector3d circle_center{-0.08, 0.0, 0.0};
+            double theta_rad = theta_deg * M_PI / 180.0;
 
-            //     const std::string ee_link = "link_6";
-            //     const auto start_pose     = move_group_->getCurrentPose(ee_link).pose;
+            move_group_->setMaxVelocityScalingFactor(0.05);
+            move_group_->setMaxAccelerationScalingFactor(0.05);
+            move_group_->setGoalPositionTolerance(0.01);
+            move_group_->setGoalOrientationTolerance(2e-2);
 
-            //     const auto via_pose =
-            //         compute_circle_target(start_pose, circle_center, theta_rad * 0.5); // 二分
-            //     const auto target_pose = compute_circle_target(start_pose, circle_center,
-            //     theta_rad);
+            const auto start_pose = move_group_->getCurrentPose("link_6").pose;
 
-            //     geometry_msgs::msg::PointStamped via_point;
-            //     via_point.header.frame_id = move_group_->getPlanningFrame();
-            //     via_point.point           = via_pose.position;
+            const auto via_pose =
+                compute_circle_target(start_pose, circle_center, theta_rad * 0.5); // 二分
+            const auto target_pose = compute_circle_target(start_pose, circle_center, theta_rad);
 
-            //     moveit_msgs::msg::Constraints circ_path =
-            //         kinematic_constraints::constructGoalConstraints(ee_link, via_point, 1e-3);
-            //     circ_path.name = "interim";
-            //     move_group_->setStartStateToCurrentState();
-            //     move_group_->clearPoseTargets();
-            //     move_group__>clearPathConstraints();
-            //     move_group_->setPlannerId("CIRC");
-            //     move_group_->setMaxVelocityScalingFactor(0.05);
-            //     move_group_->setMaxAccelerationScalingFactor(0.05);
-            //     move_group_->setGoalPositionTolerance(1e-3);
-            //     move_group_->setGoalOrientationTolerance(2e-2);
-            // }
+            geometry_msgs::msg::PointStamped via_point;
+            via_point.header.frame_id = move_group_->getPlanningFrame();
+            via_point.point           = via_pose.position;
+
+            moveit_msgs::msg::Constraints circ_path =
+                kinematic_constraints::constructGoalConstraints("link_6", via_point, 1e-3);
+            circ_path.name = "interim";
+            move_group_->setPlanningPipelineId("pilz_industrial_motion_planner");
+            move_group_->setPlannerId("CIRC");
+            move_group_->setPathConstraints(circ_path);
+            move_group_->setPoseTarget(target_pose, "link_6");
+            const auto plan_result = move_group_->plan(my_plan);
+            move_group_->clearPathConstraints();
+            result->plan_success = (plan_result == moveit::core::MoveItErrorCode::SUCCESS);
+            break;
+        }
 
         default: {
             break;
