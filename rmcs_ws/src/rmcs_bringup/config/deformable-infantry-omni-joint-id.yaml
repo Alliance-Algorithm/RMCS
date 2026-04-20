@@ -20,6 +20,9 @@ deformable_infantry:
     right_front_zero_point: 7136
     yaw_motor_zero_point: 56216
     pitch_motor_zero_point: 10898
+    debug_log_supercap: false
+    debug_log_wheel_motor: false
+    debug_log_deformable_joint_motor: false
 
 joint_sweep_controller:
   ros__parameters:

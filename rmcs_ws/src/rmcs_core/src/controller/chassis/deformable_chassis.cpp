@@ -782,13 +782,9 @@ private:
         case rmcs_msgs::ChassisMode::STEP_DOWN: {
             double err = calculate_unsigned_chassis_angle_error(chassis_control_angle);
 
-            constexpr double alignment = std::numbers::pi;
-            while (err > alignment / 2) {
-                chassis_control_angle -= alignment;
-                if (chassis_control_angle < 0)
-                    chassis_control_angle += 2 * std::numbers::pi;
+            constexpr double alignment = 2 * std::numbers::pi;
+            if (err > alignment / 2)
                 err -= alignment;
-            }
 
             angular_velocity = following_velocity_controller_.update(err);
         } break;

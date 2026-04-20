@@ -188,6 +188,8 @@ private:
                     deformableInfantry, deformableInfantry_command, "/chassis/right_back_joint"},
                 device::LkMotor{
                     deformableInfantry, deformableInfantry_command, "/chassis/right_front_joint"}},
+            next_chassis_feedback_log_time_(Clock::now() + std::chrono::seconds(1)),
+            next_supercap_feedback_log_time_(Clock::now() + std::chrono::seconds(1)),
             supercap_(deformableInfantry, deformableInfantry_command),
             gimbal_bullet_feeder_(
                 deformableInfantry, deformableInfantry_command, "/gimbal/bullet_feeder") {
@@ -198,7 +200,7 @@ private:
                     [&buffer](std::byte byte) noexcept { *buffer++ = byte; }, size);
             };
             referee_serial_->write = [this](const std::byte* buffer, size_t size) {
-                start_transmit().uart0_transmit({
+                start_transmit().uart2_transmit({
                     .uart_data = std::span<const std::byte>{buffer, size}
                 });
                 return size;
@@ -264,6 +266,12 @@ private:
             deformableInfantry.register_output(
                 "/chassis/encoder/alpha_dot", encoder_alpha_dot_, nan_);
             deformableInfantry.register_output("/chassis/radius", radius_, nan_);
+
+            deformableInfantry.get_parameter_or("debug_log_supercap", debug_log_supercap_, false);
+            deformableInfantry.get_parameter_or(
+                "debug_log_wheel_motor", debug_log_wheel_motor_, false);
+            deformableInfantry.get_parameter_or(
+                "debug_log_deformable_joint_motor", debug_log_deformable_joint_motor_, false);
         }
 
         ~BottomBoard() override = default;
@@ -302,11 +310,15 @@ private:
                 3, right_front_joint_physical_angle_, right_front_joint_physical_velocity_);
 
             update_geometry_feedback_();
+            if (debug_log_wheel_motor_ || debug_log_deformable_joint_motor_)
+                log_chassis_feedback_once_per_second_();
 
             dr16_.update_status();
             gimbal_yaw_motor_.update_status();
             if (supercap_status_received_.load(std::memory_order_relaxed))
                 supercap_.update_status();
+            if (debug_log_supercap_)
+                log_supercap_feedback_once_per_second_();
             gimbal_bullet_feeder_.update_status();
 
             tf_->set_state<rmcs_description::GimbalCenterLink, rmcs_description::YawLink>(
@@ -441,6 +453,79 @@ private:
             *radius_ = (chassis_radius_base_ + rod_length_ * alpha_rad.array().cos()).mean();
         }
 
+        void log_chassis_feedback_once_per_second_() {
+            const auto now = Clock::now();
+            if (now < next_chassis_feedback_log_time_)
+                return;
+
+            const auto wheel_rx = [this](size_t index) {
+                return wheel_status_received_[index].load(std::memory_order_relaxed) ? 'Y' : 'N';
+            };
+            const auto joint_rx = [this](size_t index) {
+                return joint_status_received_[index].load(std::memory_order_relaxed) ? 'Y' : 'N';
+            };
+
+            if (debug_log_wheel_motor_) {
+                RCLCPP_INFO(
+                    deformable_infantry_.get_logger(),
+                    "[wheel motor] angle(rad) lf=% .3f lb=% .3f rb=% .3f rf=% .3f | "
+                    "encoder(deg) lf=% .1f lb=% .1f rb=% .1f rf=% .1f | "
+                    "rx=[%c %c %c %c]",
+                    chassis_wheel_motors_[0].angle(), chassis_wheel_motors_[1].angle(),
+                    chassis_wheel_motors_[2].angle(), chassis_wheel_motors_[3].angle(),
+                    chassis_wheel_motors_[0].encoder_angle(),
+                    chassis_wheel_motors_[1].encoder_angle(),
+                    chassis_wheel_motors_[2].encoder_angle(),
+                    chassis_wheel_motors_[3].encoder_angle(),
+                    wheel_rx(0), wheel_rx(1), wheel_rx(2), wheel_rx(3));
+            }
+
+            if (debug_log_deformable_joint_motor_) {
+                RCLCPP_INFO(
+                    deformable_infantry_.get_logger(),
+                    "[deformable joint motor] angle(rad) lf=% .3f lb=% .3f rb=% .3f rf=% .3f | "
+                    "velocity(rad/s) lf=% .3f lb=% .3f rb=% .3f rf=% .3f | "
+                    "rx=[%c %c %c %c]",
+                    *left_front_joint_physical_angle_, *left_back_joint_physical_angle_,
+                    *right_back_joint_physical_angle_, *right_front_joint_physical_angle_,
+                    *left_front_joint_physical_velocity_, *left_back_joint_physical_velocity_,
+                    *right_back_joint_physical_velocity_, *right_front_joint_physical_velocity_,
+                    joint_rx(0), joint_rx(1), joint_rx(2), joint_rx(3));
+            }
+
+            next_chassis_feedback_log_time_ = now + std::chrono::seconds(1);
+        }
+
+        void log_supercap_feedback_once_per_second_() {
+            const auto now = Clock::now();
+            if (now < next_supercap_feedback_log_time_)
+                return;
+
+            const bool supercap_rx = supercap_status_received_.load(std::memory_order_relaxed);
+            auto supercap_raw_packet = latest_supercap_status_.load(std::memory_order_relaxed);
+            const auto supercap_raw_bytes = supercap_raw_packet.as_bytes();
+
+            RCLCPP_INFO(
+                deformable_infantry_.get_logger(),
+                "[supercap] can1 rx=%c id=0x300 enabled=%d supercap_v=% .3f chassis_v=% .3f "
+                "power=% .3f raw=[%02X %02X %02X %02X %02X %02X %02X %02X]",
+                supercap_rx ? 'Y' : 'N',
+                supercap_rx ? (supercap_.supercap_enabled() ? 1 : 0) : -1,
+                supercap_rx ? supercap_.supercap_voltage() : nan_,
+                supercap_rx ? supercap_.chassis_voltage() : nan_,
+                supercap_rx ? supercap_.chassis_power() : nan_,
+                std::to_integer<unsigned int>(supercap_raw_bytes[0]),
+                std::to_integer<unsigned int>(supercap_raw_bytes[1]),
+                std::to_integer<unsigned int>(supercap_raw_bytes[2]),
+                std::to_integer<unsigned int>(supercap_raw_bytes[3]),
+                std::to_integer<unsigned int>(supercap_raw_bytes[4]),
+                std::to_integer<unsigned int>(supercap_raw_bytes[5]),
+                std::to_integer<unsigned int>(supercap_raw_bytes[6]),
+                std::to_integer<unsigned int>(supercap_raw_bytes[7]));
+
+            next_supercap_feedback_log_time_ = now + std::chrono::seconds(1);
+        }
+
         void dbus_receive_callback(const librmcs::data::UartDataView& data) override {
             dr16_.store_status(data.uart_data.data(), data.uart_data.size());
         }
@@ -448,9 +533,10 @@ private:
         void can0_receive_callback(const librmcs::data::CanDataView& data) override {
             if (data.is_extended_can_id || data.is_remote_transmission)
                 return;
-            if (data.can_id == 0x201)
+            if (data.can_id == 0x201) {
                 chassis_wheel_motors_[0].store_status(data.can_data);
-            else if (data.can_id == 0x141) {
+                wheel_status_received_[0].store(true, std::memory_order_relaxed);
+            } else if (data.can_id == 0x141) {
                 chassis_joint_motors_[0].store_status(data.can_data);
                 joint_status_received_[0].store(true, std::memory_order_relaxed);
             }
@@ -459,12 +545,16 @@ private:
         void can1_receive_callback(const librmcs::data::CanDataView& data) override {
             if (data.is_extended_can_id || data.is_remote_transmission)
                 return;
-            if (data.can_id == 0x201)
+            if (data.can_id == 0x201) {
                 chassis_wheel_motors_[1].store_status(data.can_data);
-            else if (data.can_id == 0x141) {
+                wheel_status_received_[1].store(true, std::memory_order_relaxed);
+            } else if (data.can_id == 0x141) {
                 chassis_joint_motors_[1].store_status(data.can_data);
                 joint_status_received_[1].store(true, std::memory_order_relaxed);
             } else if (data.can_id == 0x300) {
+                if (data.can_data.size() == 8)
+                    latest_supercap_status_.store(
+                        device::CanPacket8{data.can_data}, std::memory_order_relaxed);
                 supercap_.store_status(data.can_data);
                 supercap_status_received_.store(true, std::memory_order_relaxed);
             }
@@ -473,9 +563,10 @@ private:
         void can2_receive_callback(const librmcs::data::CanDataView& data) override {
             if (data.is_extended_can_id || data.is_remote_transmission)
                 return;
-            if (data.can_id == 0x201)
+            if (data.can_id == 0x201) {
                 chassis_wheel_motors_[2].store_status(data.can_data);
-            else if (data.can_id == 0x141) {
+                wheel_status_received_[2].store(true, std::memory_order_relaxed);
+            } else if (data.can_id == 0x141) {
                 chassis_joint_motors_[2].store_status(data.can_data);
                 joint_status_received_[2].store(true, std::memory_order_relaxed);
             } else if (data.can_id == 0x142) {
@@ -488,15 +579,16 @@ private:
         void can3_receive_callback(const librmcs::data::CanDataView& data) override {
             if (data.is_extended_can_id || data.is_remote_transmission)
                 return;
-            if (data.can_id == 0x201)
+            if (data.can_id == 0x201) {
                 chassis_wheel_motors_[3].store_status(data.can_data);
-            else if (data.can_id == 0x141) {
+                wheel_status_received_[3].store(true, std::memory_order_relaxed);
+            } else if (data.can_id == 0x141) {
                 chassis_joint_motors_[3].store_status(data.can_data);
                 joint_status_received_[3].store(true, std::memory_order_relaxed);
             }
         }
 
-        void uart0_receive_callback(const librmcs::data::UartDataView& data) override {
+        void uart2_receive_callback(const librmcs::data::UartDataView& data) override {
             const std::byte* ptr = data.uart_data.data();
             referee_ring_buffer_receive_.emplace_back_n(
                 [&ptr](std::byte* storage) noexcept { *storage = *ptr++; }, data.uart_data.size());
@@ -518,8 +610,15 @@ private:
         device::Dr16 dr16_;
         device::DjiMotor chassis_wheel_motors_[4];
         device::LkMotor chassis_joint_motors_[4];
+        std::atomic<bool> wheel_status_received_[4] = {false, false, false, false};
         std::atomic<bool> joint_status_received_[4] = {false, false, false, false};
+        bool debug_log_supercap_ = false;
+        bool debug_log_wheel_motor_ = false;
+        bool debug_log_deformable_joint_motor_ = false;
+        Clock::time_point next_chassis_feedback_log_time_;
+        Clock::time_point next_supercap_feedback_log_time_;
         device::Supercap supercap_;
+        std::atomic<device::CanPacket8> latest_supercap_status_{device::CanPacket8{uint64_t{0}}};
         std::atomic<bool> supercap_status_received_{false};
         device::DjiMotor gimbal_bullet_feeder_;
 
