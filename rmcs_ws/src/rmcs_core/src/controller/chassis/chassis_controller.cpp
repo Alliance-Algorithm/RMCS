@@ -38,6 +38,7 @@ public:
 
         register_input("/gimbal/yaw/angle", gimbal_yaw_angle_, false);
         register_input("/gimbal/yaw/control_angle_error", gimbal_yaw_angle_error_, false);
+        register_input("/chassis/velocity", chassis_velocity_, false);
         register_input("/chassis/climbing_forward_velocity", climbing_forward_velocity_, false);
 
         register_output("/chassis/angle", chassis_angle_, nan);
@@ -56,6 +57,10 @@ public:
             gimbal_yaw_angle_error_.make_and_bind_directly(0.0);
             RCLCPP_WARN(
                 get_logger(), "Failed to fetch \"/gimbal/yaw/control_angle_error\". Set to 0.0.");
+        }
+        chassis_velocity_feedback_ready_ = chassis_velocity_.ready();
+        if (!chassis_velocity_feedback_ready_) {
+            chassis_velocity_.make_and_bind_directly(0.0, 0.0, 0.0);
         }
     }
 
@@ -168,8 +173,11 @@ public:
                 update_following_angular_velocity(StepDownFacing::BACK, chassis_control_angle);
 
             // Keep AUTO rear-following gentle at low translation speed and fully enabled at max.
+            const double measured_translational_speed =
+                chassis_velocity_feedback_ready_ ? chassis_velocity_->vector.head<2>().norm()
+                                                 : translational_velocity.norm();
             angular_velocity *=
-                std::clamp(translational_velocity.norm() / translational_velocity_max, 0.0, 0.3);
+                std::clamp(measured_translational_speed / translational_velocity_max, 0.0, 0.3);
         } break;
         case rmcs_msgs::ChassisMode::SPIN: {
             angular_velocity =
@@ -263,11 +271,13 @@ private:
     rmcs_msgs::Keyboard last_keyboard_ = rmcs_msgs::Keyboard::zero();
 
     InputInterface<double> gimbal_yaw_angle_, gimbal_yaw_angle_error_;
+    InputInterface<rmcs_description::BaseLink::DirectionVector> chassis_velocity_;
     InputInterface<double> climbing_forward_velocity_;
     OutputInterface<double> chassis_angle_, chassis_control_angle_;
 
     OutputInterface<rmcs_msgs::ChassisMode> mode_;
     bool spinning_forward_ = true;
+    bool chassis_velocity_feedback_ready_ = false;
     StepDownFacing step_down_facing_ = StepDownFacing::BACK;
     pid::PidCalculator following_velocity_controller_;
 
