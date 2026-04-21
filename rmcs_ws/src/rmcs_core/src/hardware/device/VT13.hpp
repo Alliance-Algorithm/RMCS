@@ -6,6 +6,7 @@
 
 #include <atomic>
 #include <bit>
+#include <string>
 
 #include <eigen3/Eigen/Dense>
 #include <rclcpp/logger.hpp>
@@ -27,43 +28,65 @@
 
 namespace rmcs_core::hardware::device {
 
-class Dr16 {
+class VT13 {
 public:
-    explicit Dr16(rmcs_executor::Component& component) {
+    enum class StoreStatus : uint8_t {
+        kOk,
+        kLengthMismatch,
+        kHeaderMismatch,
+        kCrcMismatch,
+    };
+
+    explicit VT13(
+        rmcs_executor::Component& component, const std::string& topic_prefix = "/remote/vt13") {
         component.register_output(
-            "/remote/joystick/right", joystick_right_output_, Eigen::Vector2d::Zero());
+            topic_prefix + "/joystick/right", joystick_right_output_, Eigen::Vector2d::Zero());
         component.register_output(
-            "/remote/joystick/left", joystick_left_output_, Eigen::Vector2d::Zero());
+            topic_prefix + "/joystick/left", joystick_left_output_, Eigen::Vector2d::Zero());
 
         component.register_output(
-            "/remote/VT13switch/state", switch_output_, rmcs_msgs::VT13Switch::UNKNOWN);
+            topic_prefix + "/switch/state", switch_output_, rmcs_msgs::VT13Switch::UNKNOWN);
 
         component.register_output(
-            "/remote/mouse/velocity", mouse_velocity_output_, Eigen::Vector2d::Zero());
-        component.register_output("/remote/mouse/mouse_wheel", mouse_wheel_output_);
+            topic_prefix + "/mouse/velocity", mouse_velocity_output_, Eigen::Vector2d::Zero());
+        component.register_output(topic_prefix + "/mouse/mouse_wheel", mouse_wheel_output_);
 
-        component.register_output("/remote/mouse", mouse_output_);
+        component.register_output(topic_prefix + "/mouse", mouse_output_);
         std::memset(&*mouse_output_, 0, sizeof(*mouse_output_));
-        component.register_output("/remote/keyboard", keyboard_output_);
+        component.register_output(topic_prefix + "/keyboard", keyboard_output_);
         std::memset(&*keyboard_output_, 0, sizeof(*keyboard_output_));
 
-        component.register_output("/remote/mouse/middle", mouse_middle_output_);
-        component.register_output("/remote/button/pause", pause_button_output_);
-        component.register_output("/remote/button/left", button_left_output_);
-        component.register_output("/remote/button/right", button_right_output_);
-        component.register_output("/remote/button/trigger", trigger_output_);
+        component.register_output(topic_prefix + "/mouse/middle", mouse_middle_output_);
+        component.register_output(topic_prefix + "/button/pause", pause_button_output_);
+        component.register_output(topic_prefix + "/button/left", button_left_output_);
+        component.register_output(topic_prefix + "/button/right", button_right_output_);
+        component.register_output(topic_prefix + "/button/trigger", trigger_output_);
 
-        component.register_output("/remote/rotary_knob", rotary_knob_output_);
+        component.register_output(topic_prefix + "/rotary_knob", rotary_knob_output_);
 
-        // Simulate the rotary knob as a switch, with anti-shake algorithm.
+        // Keep VT13 outputs isolated so the existing DR16 control path is untouched.
     }
 
-    void store_status(const std::byte* uart_data, size_t uart_data_length) {
-        if (uart_data_length != frame_size || !verify_frame(uart_data))
-            return;
+    static constexpr size_t frame_size_bytes() noexcept { return frame_size; }
+
+    static const char* store_status_to_cstr(StoreStatus status) {
+        switch (status) {
+        case StoreStatus::kOk: return "ok";
+        case StoreStatus::kLengthMismatch: return "length_mismatch";
+        case StoreStatus::kHeaderMismatch: return "header_mismatch";
+        case StoreStatus::kCrcMismatch: return "crc_mismatch";
+        }
+
+        return "unknown";
+    }
+
+    StoreStatus store_status(const std::byte* uart_data, size_t uart_data_length) {
+        const auto status = check_frame(uart_data, uart_data_length);
+        if (status != StoreStatus::kOk)
+            return status;
 
         // Avoid using reinterpret_cast here because it does not account for pointer alignment.
-        // Dr16DataPart structures are aligned, and using reinterpret_cast on potentially unaligned
+        // VT13 data structures are aligned, and using reinterpret_cast on potentially unaligned
         // uart_data can cause undefined behavior on architectures that enforce strict alignment
         // requirements (e.g., ARM).
         // Directly accessing unaligned memory through a casted pointer can lead to crashes,
@@ -90,6 +113,8 @@ public:
         std::memcpy(&part4, uart_data, 4);
         uart_data += 4;
         data_part4_.store(part4, std::memory_order::relaxed);
+
+        return StoreStatus::kOk;
     }
 
     void update_status() {
@@ -227,28 +252,33 @@ private:
 
     static Eigen::Vector2d to_eigen_vector(Vector vector) { return {vector.x, vector.y}; }
 
-    static bool verify_frame(const std::byte* uart_data) {
+    static StoreStatus check_frame(const std::byte* uart_data, size_t uart_data_length) {
+        if (uart_data_length != frame_size)
+            return StoreStatus::kLengthMismatch;
+
         if (std::to_integer<uint8_t>(uart_data[0]) != 0xA9
             || std::to_integer<uint8_t>(uart_data[1]) != 0x53)
-            return false;
+            return StoreStatus::kHeaderMismatch;
 
-        uint16_t expected_crc{};
-        std::memcpy(
-            &expected_crc,
-            uart_data + frame_size - sizeof(expected_crc),
-            sizeof(expected_crc));
+        const uint16_t expected_crc = static_cast<uint16_t>(
+            std::to_integer<uint8_t>(uart_data[frame_size - 2])
+            | (static_cast<uint16_t>(std::to_integer<uint8_t>(uart_data[frame_size - 1])) << 8));
 
-        return calculate_crc16_ccitt_false(uart_data, frame_size - sizeof(expected_crc))
-            == expected_crc;
+        return calculate_crc16_vt13(uart_data, frame_size - sizeof(expected_crc)) == expected_crc
+                 ? StoreStatus::kOk
+                 : StoreStatus::kCrcMismatch;
     }
 
-    static uint16_t calculate_crc16_ccitt_false(const std::byte* data, size_t length) {
+    static uint16_t calculate_crc16_vt13(const std::byte* data, size_t length) {
+        // DJI's official VT13 sample code uses the reflected CRC16 variant with an initial
+        // value of 0xFFFF and transmits the checksum low byte first. This does not match the
+        // CCITT-FALSE description in the PDF manual, but it matches real device output.
         uint16_t crc = 0xFFFF;
         while (length--) {
-            crc ^= static_cast<uint16_t>(std::to_integer<uint8_t>(*data++)) << 8;
+            crc ^= static_cast<uint16_t>(std::to_integer<uint8_t>(*data++));
             for (int bit = 0; bit < 8; ++bit) {
-                crc = (crc & 0x8000) != 0 ? static_cast<uint16_t>((crc << 1) ^ 0x1021)
-                                          : static_cast<uint16_t>(crc << 1);
+                crc = (crc & 0x0001) != 0 ? static_cast<uint16_t>((crc >> 1) ^ 0x8408)
+                                          : static_cast<uint16_t>(crc >> 1);
             }
         }
         return crc;
