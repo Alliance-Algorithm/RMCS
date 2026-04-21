@@ -67,6 +67,28 @@ image_transmission:
 arm_controller:
   ros__parameters:
     auto_walk_joint_target: [0.0, 1.23, -1.36, 0.0, 0.63, 0.0]
+    auto_storage_lb:
+      params:
+        step1_pose:
+          target_pose: [0.35, -0.12, 0.42, 0.0, 1.20, 0.0]
+          velocity_scaling: 0.05
+          acceleration_scaling: 0.05
+        step2_pose:
+          target_pose: [0.38, -0.10, 0.36, 0.0, 1.35, 0.10]
+          velocity_scaling: 0.04
+          acceleration_scaling: 0.04
+        step3_lin:
+          target_pose: [0.42, -0.08, 0.30, 0.0, 1.45, 0.10]
+          velocity_scaling: 0.03
+          acceleration_scaling: 0.03
+        step4_lin:
+          target_pose: [0.46, -0.05, 0.26, 0.0, 1.50, 0.12]
+          velocity_scaling: 0.02
+          acceleration_scaling: 0.02
+        step5_pose:
+          target_pose: [0.40, -0.02, 0.34, 0.0, 1.25, 0.05]
+          velocity_scaling: 0.03
+          acceleration_scaling: 0.03
     image_pitch_qmin: -0.7
     image_pitch_qmax: 2.2
 

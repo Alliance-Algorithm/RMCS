@@ -151,8 +151,6 @@ private:
 
         void update() {
             using namespace device;
-            // RCLCPP_INFO(this->get_logger(), "joint1,raw_angle: %d",
-            // joint[0].get_raw_angle());
             update_arm_motors();
             dr16_.update_status();
             update_imu();
@@ -638,11 +636,6 @@ private:
             });
         }
         void update() {
-            // RCLCPP_INFO(
-            //     this->get_logger(), "rf angle :%f,rb raw angle:%f", Leg_ecd[1].get_angle(),
-            //     Leg_ecd[0].get_angle());
-            // RCLCPP_INFO(
-            // this->get_logger(), "yaw raw  angle :%d", big_yaw.get_raw_angle());
             Omni_Motors.update();
             for (auto& motor : Steering_motors) {
                 motor.update();

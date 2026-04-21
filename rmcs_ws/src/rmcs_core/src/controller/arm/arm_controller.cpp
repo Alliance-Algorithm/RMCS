@@ -20,6 +20,7 @@
 #include <numbers>
 #include <string>
 #include <tf2_eigen/tf2_eigen.hpp>
+#include <vector>
 
 #include <atomic>
 #include <chrono>
@@ -28,10 +29,12 @@
 #include <thread>
 
 #include <geometry_msgs/msg/point_stamped.hpp>
+#include <geometry_msgs/msg/pose.hpp>
 #include <moveit/kinematic_constraints/utils.hpp>
 #include <moveit/move_group_interface/move_group_interface.hpp>
 #include <moveit/planning_interface/planning_interface.hpp>
 #include <moveit/planning_scene_interface/planning_scene_interface.hpp>
+#include <moveit/robot_state/robot_state.hpp>
 #include <moveit_msgs/msg/move_it_error_codes.hpp>
 #include <rclcpp/executors/multi_threaded_executor.hpp>
 #include <rclcpp/logging.hpp>
@@ -96,13 +99,8 @@ public:
         moveit_running_.store(true, std::memory_order_release);
         moveit_thread_ = std::thread([this] {
             while (moveit_running_.load(std::memory_order_acquire)) {
-                try {
-                    moveit_loop();
-                } catch (const std::exception& e) {
-                    RCLCPP_ERROR(node_->get_logger(), "moveit_loop exception: %s", e.what());
-                } catch (...) {
-                    RCLCPP_ERROR(node_->get_logger(), "moveit_loop exception: unknown");
-                }
+
+                moveit_loop();
 
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
             }
@@ -148,58 +146,57 @@ public:
         }
 
         if (switch_left == Switch::UP && switch_right == Switch::UP) {
-            set_arm_mode(rmcs_msgs::ArmMode::DT7_Control_Position);
-        } else if (switch_left == Switch::UP && switch_right == Switch::MIDDLE) {
-            set_arm_mode(rmcs_msgs::ArmMode::DT7_Control_Orientation);
-        } else if (switch_left == Switch::DOWN && switch_right == Switch::UP) {
-            if (knob == Switch::UP) {
-                // set_gripper_mode(rmcs_msgs::GripperMode::Open);
-                set_arm_mode(rmcs_msgs::ArmMode::Auto_Up_One_Stairs);
-
-            } else if (knob == Switch::DOWN) {
-                set_arm_mode(rmcs_msgs::ArmMode::Auto_Down_Stairs);
-
-                // set_gripper_mode(rmcs_msgs::GripperMode::Close);
+            if (last_switch_left_ != Switch::UP || last_switch_right_ != Switch::UP) {
+                set_arm_mode(rmcs_msgs::ArmMode::DT7_Control_Position);
             }
-            if (keyboard.g) {
+        } else if (switch_left == Switch::UP && switch_right == Switch::MIDDLE) {
+            if (last_switch_left_ != Switch::UP || last_switch_right_ != Switch::MIDDLE) {
+                set_arm_mode(rmcs_msgs::ArmMode::DT7_Control_Orientation);
+            }
+        } else if (switch_left == Switch::DOWN && switch_right == Switch::UP) {
+            if (knob != last_rotary_knob_switch_) {
+                if (knob == Switch::UP) {
+                    set_arm_mode(rmcs_msgs::ArmMode::Auto_Up_One_Stairs);
+                } else if (knob == Switch::DOWN) {
+                    set_arm_mode(rmcs_msgs::ArmMode::Auto_Down_Stairs);
+                }
+            }
+            if (keyboard.g && !last_keyboard_.g) {
                 if (!keyboard.shift && !keyboard.ctrl) {
                     set_arm_mode(rmcs_msgs::ArmMode::Auto_Walk);
                 } else if (keyboard.shift && !keyboard.ctrl) {
                     set_arm_mode(rmcs_msgs::ArmMode::Auto_Down_Stairs);
                 }
             }
-            if (keyboard.b) {
+            if (keyboard.b && !last_keyboard_.b) {
                 if (!keyboard.shift && !keyboard.ctrl) {
                     set_arm_mode(rmcs_msgs::ArmMode::Auto_Up_Two_Stairs);
                 } else if (keyboard.shift && !keyboard.ctrl) {
                     set_arm_mode(rmcs_msgs::ArmMode::Auto_Up_One_Stairs);
                 }
             }
-            if (keyboard.f) {
+            if (keyboard.f && !last_keyboard_.f) {
                 if (keyboard.shift && !keyboard.ctrl) {
                     set_arm_mode(rmcs_msgs::ArmMode::Auto_Storage_LB);
                 } else if (keyboard.ctrl && !keyboard.shift) {
                     set_arm_mode(rmcs_msgs::ArmMode::Auto_Storage_RB);
                 }
             }
-            if (keyboard.s) {
+            if (keyboard.s && !last_keyboard_.s) {
                 set_arm_mode(rmcs_msgs::ArmMode::Auto_Spin);
             }
-            if (keyboard.r) {
+            if (keyboard.r && !last_keyboard_.r) {
                 if (!keyboard.ctrl && !keyboard.shift) {
                     set_arm_mode(rmcs_msgs::ArmMode::Custome);
                 }
             }
-            if (keyboard.w) {
-                set_arm_mode(rmcs_msgs::ArmMode::Auto_Linear);
+            if (keyboard.w && !last_keyboard_.w) {
+                if (!keyboard.ctrl && !keyboard.shift) {
+                    set_arm_mode(rmcs_msgs::ArmMode::Auto_Linear);
+                }
             }
-
-            if (keyboard.a) {
-                // RCLCPP_INFO(node_->get_logger(),"press a ");
+            if (keyboard.a && !last_keyboard_.a) {
                 set_arm_mode(rmcs_msgs::ArmMode::None);
-            }
-            if (keyboard.d) {
-                set_arm_mode(rmcs_msgs::ArmMode::Auto_Right_Circle);
             }
             if (mouse.left && !last_mouse_.left) {
                 image_pitch_theta1_offset_ += 0.05;
@@ -226,7 +223,8 @@ public:
             break;
         }
         case ArmMode::Auto_Walk:
-        case ArmMode::Auto_Linear: {
+        case ArmMode::Auto_Linear:
+        case ArmMode::Auto_Storage_LB: {
             execute_plan_request_and_trajectory_step();
             break;
         }
@@ -237,15 +235,16 @@ public:
             break;
         }
         }
-
+        last_switch_left_        = switch_left;
+        last_switch_right_       = switch_right;
+        last_rotary_knob_switch_ = knob;
+        last_keyboard_           = keyboard;
+        last_mouse_              = mouse;
         gripper_control();
         image_pitch_control();
-        last_mouse_ = mouse;
     }
 
 private:
-    rmcs_msgs::ArmMode last_requested_arm_mode_{rmcs_msgs::ArmMode::None};
-
     std::unique_ptr<moveit::planning_interface::MoveGroupInterface> move_group_;
 
     std::atomic_bool moveit_running_{false};
@@ -264,13 +263,13 @@ private:
     std::atomic<std::shared_ptr<const PlannedTrajectory>> planned_trajectory_{nullptr};
 
     void set_arm_mode(rmcs_msgs::ArmMode mode) {
-        if (mode != rmcs_msgs::ArmMode::Auto_Walk && mode != rmcs_msgs::ArmMode::Auto_Linear) {
-            last_requested_arm_mode_ = mode;
-        }
         const auto current = plan_request.load(std::memory_order_acquire);
         auto next          = std::make_shared<PlanRequest>();
         if (current) {
             next->request_id = current->request_id;
+        }
+        if (mode != rmcs_msgs::ArmMode::None) {
+            ++next->request_id;
         }
         next->arm_mode = mode;
         plan_request.store(next, std::memory_order_release);
@@ -289,83 +288,49 @@ private:
 
     void moveit_loop() {
         static std::vector<double> auto_walk_joint_target;
-        static bool moveit_parameter_initialized{false};
+        static std::array<std::array<double, 6>, 5> auto_storage_lb_target_rpy;
+        static std::array<bool, 5> auto_storage_lb_lin_mask;
+        static std::array<double, 5> auto_storage_lb_velocity_scaling;
+        static std::array<double, 5> auto_storage_lb_acceleration_scaling;
+        static bool parameter_initialized{false};
+        const std::array<std::string, 5> auto_storage_lb_names = {
+            "step1_pose", "step2_pose", "step3_lin", "step4_lin", "step5_pose"};
 
-        // 打印函数（建议单独写一个）
-        auto print_pose = [this](const std::string& name, const geometry_msgs::msg::Pose& pose) {
-            // 位置
-            double x = pose.position.x;
-            double y = pose.position.y;
-            double z = pose.position.z;
-
-            // 四元数 → RPY
-            tf2::Quaternion q(
-                pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w);
-
-            double roll, pitch, yaw;
-            tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
-
-            RCLCPP_INFO(
-                node_->get_logger(), "%s: [x=%.4f, y=%.4f, z=%.4f | r=%.4f, p=%.4f, y=%.4f]",
-                name.c_str(), x, y, z, roll, pitch, yaw);
-        };
         const auto linear_point_transformer = [](const geometry_msgs::msg::Pose& start_pose,
                                                  const Eigen::Vector3d& local_dir,
                                                  double distance) {
             Eigen::Isometry3d T;
             tf2::fromMsg(start_pose, T);
-
             Eigen::Vector3d p_local = local_dir.normalized() * distance;
-
             T.translation() += T.linear() * p_local;
             return tf2::toMsg(T);
         };
-        const auto compute_circle_target =
-            [](const geometry_msgs::msg::Pose& current_link6_pose_in_base,
-               const Eigen::Vector3d& local_dir, double angle_rad) {
-                Eigen::Isometry3d T_base_link6 = Eigen::Isometry3d::Identity();
-                tf2::fromMsg(current_link6_pose_in_base, T_base_link6);
 
-                // A 点: 圆心，在当前 link_6 局部坐标系下
-                const Eigen::Vector3d center_local = local_dir;
-
-                // B 点初始与当前 link_6 完全重合，所以初始位置是 link_6 原点 (0,0,0)
-                // 初始半径向量 = B0 - A
-                const Eigen::Vector3d radius_vec0 = -center_local;
-                if (radius_vec0.norm() < 1e-9) {
-                    throw std::invalid_argument(
-                        "circle center must not coincide with current link_6 origin");
-                }
-
-                // 在 link_6 局部 xy 平面绕局部 +z 轴旋转
-                const Eigen::AngleAxisd rot_about_local_z(angle_rad, Eigen::Vector3d::UnitZ());
-
-                // 新的 B 点位置，仍然表达在当前 link_6 局部系下
-                const Eigen::Vector3d pos_local = center_local + rot_about_local_z * radius_vec0;
-
-                // 让 B 的 x 轴始终与圆心-点B 连线共线。
-                // 这里选“从圆心指向 B”的方向，这样 angle=0 时姿态与当前 link_6 完全一致。
-                Eigen::Vector3d x_axis_local = (pos_local - center_local).normalized();
-                Eigen::Vector3d z_axis_local = Eigen::Vector3d::UnitZ();
-                Eigen::Vector3d y_axis_local = z_axis_local.cross(x_axis_local).normalized();
-                z_axis_local                 = x_axis_local.cross(y_axis_local).normalized();
-
-                Eigen::Matrix3d R_link6_to_B;
-                R_link6_to_B.col(0)            = x_axis_local;
-                R_link6_to_B.col(1)            = y_axis_local;
-                R_link6_to_B.col(2)            = z_axis_local;
-                Eigen::Isometry3d T_link6_to_B = Eigen::Isometry3d::Identity();
-                T_link6_to_B.linear()          = R_link6_to_B;
-                T_link6_to_B.translation()     = pos_local;
-
-                // 变换到 base_link
-
-                Eigen::Isometry3d T_base_B = T_base_link6 * T_link6_to_B;
-                return tf2::toMsg(T_base_B);
-            };
-        if (!moveit_parameter_initialized) {
+        if (!parameter_initialized) {
             node_->get_parameter("auto_walk_joint_target", auto_walk_joint_target);
-            moveit_parameter_initialized = true;
+            for (std::size_t i = 0; i < auto_storage_lb_names.size(); ++i) {
+                const auto& name = auto_storage_lb_names[i];
+                auto_storage_lb_lin_mask[i] =
+                    name.size() >= 4 && name.compare(name.size() - 4, 4, "_lin") == 0;
+
+                const std::string prefix =
+                    "auto_storage_lb.params." + auto_storage_lb_names[i] + ".";
+                std::vector<double> target_pose_values;
+
+                node_->get_parameter(prefix + "target_pose", target_pose_values);
+                node_->get_parameter(
+                    prefix + "velocity_scaling", auto_storage_lb_velocity_scaling[i]);
+                node_->get_parameter(
+                    prefix + "acceleration_scaling", auto_storage_lb_acceleration_scaling[i]);
+
+                auto_storage_lb_target_rpy[i][0] = target_pose_values[0];
+                auto_storage_lb_target_rpy[i][1] = target_pose_values[1];
+                auto_storage_lb_target_rpy[i][2] = target_pose_values[2];
+                auto_storage_lb_target_rpy[i][3] = target_pose_values[3];
+                auto_storage_lb_target_rpy[i][4] = target_pose_values[4];
+                auto_storage_lb_target_rpy[i][5] = target_pose_values[5];
+            }
+            parameter_initialized = true;
         }
 
         const auto request = plan_request.load(std::memory_order_acquire);
@@ -373,7 +338,6 @@ private:
         if (!request || request->request_id == last_planned_request_id_) {
             return;
         }
-        last_planned_request_id_ = request->request_id;
 
         auto result          = std::make_shared<PlannedTrajectory>();
         result->request_id   = request->request_id;
@@ -389,6 +353,7 @@ private:
         switch (request->arm_mode) {
         case rmcs_msgs::ArmMode::Auto_Walk: {
             move_group_->setPlanningPipelineId("ompl");
+            move_group_->setPlannerId("");
             move_group_->setJointValueTarget(
                 std::map<std::string, double>{
                     {"joint_1", auto_walk_joint_target[0]},
@@ -398,67 +363,93 @@ private:
                     {"joint_5", auto_walk_joint_target[4]},
                     {"joint_6", auto_walk_joint_target[5]},
             });
-            result->plan_success =
-                (move_group_->plan(my_plan) == moveit::core::MoveItErrorCode::SUCCESS);
             break;
         }
         case rmcs_msgs::ArmMode::Auto_Linear: {
-            const static double distance = 0.1;
-            move_group_->setMaxVelocityScalingFactor(0.05);
-            move_group_->setMaxAccelerationScalingFactor(0.05);
-
+            const static double distance        = 0.1;
             geometry_msgs::msg::Pose start_pose = move_group_->getCurrentPose().pose;
             const auto target_pose = linear_point_transformer(start_pose, {1, 0, 0}, distance);
-            move_group_->setGoalOrientationTolerance(0.2); // rad，大概 6°
-            move_group_->setGoalPositionTolerance(0.01);   // 1mm
+            move_group_->setGoalOrientationTolerance(0.2);
+            move_group_->setGoalPositionTolerance(0.01);
             move_group_->setPlanningPipelineId("pilz_industrial_motion_planner");
             move_group_->setPlannerId("LIN");
             move_group_->setPoseTarget(target_pose, "link_6");
-
-            // print_pose("start_pose", start_pose);
-            // print_pose("target_pose", target_pose);
-            const auto plan_result = move_group_->plan(my_plan);
-
-            result->plan_success = (plan_result == moveit::core::MoveItErrorCode::SUCCESS);
             break;
         }
-        case rmcs_msgs::ArmMode::Auto_Right_Circle: {
-            const static double theta_deg = 10;
-            const Eigen::Vector3d circle_center{-0.08, 0.0, 0.0};
-            double theta_rad = theta_deg * M_PI / 180.0;
+        case rmcs_msgs::ArmMode::Auto_Storage_LB: {
+            auto current_state = move_group_->getCurrentState();
 
-            move_group_->setMaxVelocityScalingFactor(0.05);
-            move_group_->setMaxAccelerationScalingFactor(0.05);
-            move_group_->setGoalPositionTolerance(0.01);
-            move_group_->setGoalOrientationTolerance(2e-2);
+            result->positions.clear();
+            result->plan_success = true;
 
-            const auto start_pose = move_group_->getCurrentPose("link_6").pose;
+            for (std::size_t i = 0; i < auto_storage_lb_names.size(); ++i) {
+                move_group_->clearPoseTargets();
+                move_group_->clearPathConstraints();
+                move_group_->setStartState(*current_state);
+                move_group_->setPlanningTime(5.0);
+                move_group_->setGoalOrientationTolerance(0.2);
+                move_group_->setGoalPositionTolerance(0.01);
+                move_group_->setMaxVelocityScalingFactor(auto_storage_lb_velocity_scaling[i]);
+                move_group_->setMaxAccelerationScalingFactor(
+                    auto_storage_lb_acceleration_scaling[i]);
 
-            const auto via_pose =
-                compute_circle_target(start_pose, circle_center, theta_rad * 0.5); // 二分
-            const auto target_pose = compute_circle_target(start_pose, circle_center, theta_rad);
+                if (auto_storage_lb_lin_mask[i]) {
+                    move_group_->setPlanningPipelineId("pilz_industrial_motion_planner");
+                    move_group_->setPlannerId("LIN");
+                } else {
+                    move_group_->setPlanningPipelineId("ompl");
+                    move_group_->setPlannerId("");
+                }
+                move_group_->setPositionTarget(
+                    auto_storage_lb_target_rpy[i][0], auto_storage_lb_target_rpy[i][1],
+                    auto_storage_lb_target_rpy[i][2], "link_6");
+                move_group_->setRPYTarget(
+                    auto_storage_lb_target_rpy[i][3], auto_storage_lb_target_rpy[i][4],
+                    auto_storage_lb_target_rpy[i][5], "link_6");
 
-            geometry_msgs::msg::PointStamped via_point;
-            via_point.header.frame_id = move_group_->getPlanningFrame();
-            via_point.point           = via_pose.position;
+                moveit::planning_interface::MoveGroupInterface::Plan segment_plan;
+                if (move_group_->plan(segment_plan) != moveit::core::MoveItErrorCode::SUCCESS) {
+                    RCLCPP_WARN(
+                        node_->get_logger(), "Auto_Storage_LB segment %s plan failed",
+                        auto_storage_lb_names[i].c_str());
+                    result->plan_success = false;
+                    break;
+                }
 
-            moveit_msgs::msg::Constraints circ_path =
-                kinematic_constraints::constructGoalConstraints("link_6", via_point, 1e-3);
-            circ_path.name = "interim";
-            move_group_->setPlanningPipelineId("pilz_industrial_motion_planner");
-            move_group_->setPlannerId("CIRC");
-            move_group_->setPathConstraints(circ_path);
-            move_group_->setPoseTarget(target_pose, "link_6");
-            const auto plan_result = move_group_->plan(my_plan);
-            move_group_->clearPathConstraints();
-            result->plan_success = (plan_result == moveit::core::MoveItErrorCode::SUCCESS);
-            break;
+                const auto& trajectory_points = segment_plan.trajectory.joint_trajectory.points;
+                const std::size_t start_index = (i == 0) ? 0 : 1;
+                for (std::size_t j = start_index; j < trajectory_points.size(); ++j) {
+                    result->positions.push_back(trajectory_points[j].positions);
+                }
+
+                const auto& joint_names = segment_plan.trajectory.joint_trajectory.joint_names;
+                const auto& last_point  = trajectory_points.back();
+                auto next_state = std::make_shared<moveit::core::RobotState>(*current_state);
+                next_state->setVariablePositions(joint_names, last_point.positions);
+                next_state->update();
+                current_state = next_state;
+            }
+
+            if (!result->plan_success) {
+                RCLCPP_WARN(node_->get_logger(), "Auto_Storage_LB composite plan failed");
+            } else {
+                RCLCPP_INFO(
+                    node_->get_logger(), "Auto_Storage_LB stored size:%d",
+                    static_cast<int>(result->positions.size()));
+            }
+            last_planned_request_id_ = request->request_id;
+            planned_trajectory_.store(result, std::memory_order::release);
+            return;
         }
-
         default: {
-            break;
+            last_planned_request_id_ = request->request_id;
+            planned_trajectory_.store(result, std::memory_order::release);
+            return;
         }
         }
+        result->plan_success =
+            (move_group_->plan(my_plan) == moveit::core::MoveItErrorCode::SUCCESS);
+
         if (!(result->plan_success)) {
             RCLCPP_WARN(node_->get_logger(), "plan failed");
         } else {
@@ -467,24 +458,24 @@ private:
             for (const auto& pt : trajectory_points) {
                 result->positions.push_back(pt.positions);
             }
-            RCLCPP_INFO(node_->get_logger(), "plan stored");
-            RCLCPP_INFO(node_->get_logger(), "size:%d", static_cast<int>(trajectory_points.size()));
+            RCLCPP_INFO(
+                node_->get_logger(), "plan stored size:%d",
+                static_cast<int>(trajectory_points.size()));
         }
 
+        last_planned_request_id_ = request->request_id;
         planned_trajectory_.store(result, std::memory_order::release);
     }
     void execute_plan_request_and_trajectory_step() {
         static std::size_t trajectory_steps{0};
-        const auto current_arm_mode = get_arm_mode();
-
-        if (current_arm_mode != last_requested_arm_mode_) {
-            last_requested_arm_mode_   = current_arm_mode;
-            trajectory_steps           = 0;
-            const auto current_request = plan_request.load(std::memory_order_acquire);
-            auto request               = std::make_shared<PlanRequest>();
-            request->request_id        = current_request ? (current_request->request_id + 1) : 1;
-            request->arm_mode          = current_arm_mode;
-            plan_request.store(request, std::memory_order_release);
+        static uint64_t last_executed_request_id{0};
+        const auto current_request = plan_request.load(std::memory_order_acquire);
+        if (!current_request) {
+            return;
+        }
+        if (current_request->request_id != last_executed_request_id) {
+            trajectory_steps         = 0;
+            last_executed_request_id = current_request->request_id;
         }
 
         const auto moveit_result = planned_trajectory_.load(std::memory_order_acquire);
@@ -500,18 +491,8 @@ private:
             if (moveit_result->plan_success && !moveit_result->positions.empty()) {
                 if (trajectory_steps < moveit_result->positions.size()) {
                     const auto& q = moveit_result->positions[trajectory_steps];
-
-                    Eigen::Vector<double, 6> q_eigen;
-                    for (Eigen::Index i = 0; i < q_eigen.size(); ++i) {
-                        q_eigen[i] = q[static_cast<std::size_t>(i)];
-                    }
-
-                    const auto filtered_angles = custom_joint_filter_.update(q_eigen);
-                    for (Eigen::Index i = 0; i < filtered_angles.size(); ++i) {
-                        *target_theta[static_cast<std::size_t>(i)] = q[i];
-                        //     RCLCPP_INFO(
-                        //         node_->get_logger(), "Setting joint_%zu target to %f", i + 1,
-                        //         *target_theta[i]);
+                    for (std::size_t i = 0; i < q.size(); ++i) {
+                        *target_theta[i] = q[i];
                     }
                     trajectory_steps++;
                 }
@@ -590,9 +571,6 @@ private:
     void gripper_control() {
         auto unwrap = [](double angle) -> double { return angle < 0 ? angle + 2.0 * M_PI : angle; };
 
-        // constexpr double closed_angle = 0.0;
-        // constexpr double open_angle   = -2.1;
-
         switch (get_gripper_mode()) {
         case rmcs_msgs::GripperMode::Open: {
             if (*gripper_velocity_ < 0.05 && *gripper_torque_ > 30) {
@@ -611,7 +589,7 @@ private:
 
             break;
         }
-        case rmcs_msgs::GripperMode::Custom:
+
         case rmcs_msgs::GripperMode::None: break;
         }
 
@@ -637,12 +615,21 @@ private:
         *gripper_target_theta_error = NAN;
         *image_pitch_target_theta_  = NAN;
         image_pitch_theta1_offset_  = 0.0;
+        last_switch_left_           = *switch_left_;
+        last_switch_right_          = *switch_right_;
+        last_rotary_knob_switch_    = *rotary_knob_switch;
+        last_keyboard_              = *keyboard_;
         last_mouse_                 = *mouse_;
         custom_joint_filter_.reset();
         set_gripper_mode(rmcs_msgs::GripperMode::None);
         set_arm_mode(rmcs_msgs::ArmMode::None);
     }
 
+    rmcs_msgs::Switch last_switch_left_{rmcs_msgs::Switch::UNKNOWN};
+    rmcs_msgs::Switch last_switch_right_{rmcs_msgs::Switch::UNKNOWN};
+    rmcs_msgs::Switch last_rotary_knob_switch_{rmcs_msgs::Switch::UNKNOWN};
+    rmcs_msgs::Keyboard last_keyboard_{rmcs_msgs::Keyboard::zero()};
+    rmcs_msgs::Mouse last_mouse_{rmcs_msgs::Mouse::zero()};
     InputInterface<Eigen::Vector2d> joystick_right_;
     InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;
@@ -666,7 +653,6 @@ private:
 
     InputInterface<double> image_pitch_theta_;
     double image_pitch_theta1_offset_{0.0};
-    rmcs_msgs::Mouse last_mouse_{rmcs_msgs::Mouse::zero()};
     OutputInterface<double> image_pitch_target_theta_;
 
     InputInterface<std::array<uint8_t, 30>> custom_data_;
