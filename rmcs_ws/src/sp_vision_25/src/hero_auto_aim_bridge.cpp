@@ -194,7 +194,7 @@ public:
             declare_parameter<std::string>(
                 "config_file", package_share + "/configs/standard3.yaml");
         if (!has_parameter("bullet_speed_fallback"))
-            declare_parameter<double>("bullet_speed_fallback", 11.7);
+            declare_parameter<double>("bullet_speed_fallback", 11.5);
         if (!has_parameter("result_timeout"))
             declare_parameter<double>("result_timeout", 0.2);
         if (!has_parameter("debug"))
@@ -524,8 +524,8 @@ private:
     std::mutex tf_mutex_;
     rmcs_description::Tf latest_tf_;
 
-    std::atomic<double> bullet_speed_snapshot_{11.7};
-    float bullet_speed_fallback_storage_ = 11.7F;
+    std::atomic<double> bullet_speed_snapshot_{11.5};
+    float bullet_speed_fallback_storage_ = 11.5F;
     std::chrono::duration<double> result_timeout_{0.1};
     bool debug_ = false;
     std::string runtime_config_path_;

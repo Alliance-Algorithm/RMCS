@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <limits>
+#include <rclcpp/logging.hpp>
 #include <utility>
 #include <vector>
 
@@ -435,7 +436,7 @@ Plan Planner::plan_from_shot_state(Target target_at_shot, double bullet_speed) {
     clear_debug_targets();
 
     if (bullet_speed < 10 || bullet_speed > 12)
-        bullet_speed = 11.7;
+        bullet_speed = 11.5;
 
     const TrackingMode mode = select_tracking_mode(target_at_shot);
 

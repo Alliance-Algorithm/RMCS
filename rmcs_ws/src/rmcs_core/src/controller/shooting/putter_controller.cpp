@@ -158,7 +158,10 @@ public:
                                                  || (last_switch_left_ == rmcs_msgs::Switch::MIDDLE
                                                      && switch_left == rmcs_msgs::Switch::DOWN);
 
-                        const bool auto_fire_now = (switch_right == Switch::UP) && (*fire_control_);
+                        // const bool auto_fire_now = (switch_right == Switch::UP) &&
+                        // (*fire_control_);
+                        const bool auto_fire_now =
+                            (switch_right == Switch::UP || mouse.right) && (*fire_control_);
 
                         const bool auto_trigger =
                             auto_fire_now
@@ -215,7 +218,7 @@ public:
                         const auto angle_err = bullet_feeder_control_angle_ - *bullet_feeder_angle_;
                         if (angle_err < 0.1) {
                             RCLCPP_INFO(get_logger(), "RESETED");
-                            set_compressed();
+                            set_preloaded();
                         }
                         double velocity_err =
                             bullet_feeder_angle_pid_.update(angle_err) - *bullet_feeder_velocity_;

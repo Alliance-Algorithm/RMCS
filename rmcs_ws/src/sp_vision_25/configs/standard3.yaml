@@ -1,5 +1,5 @@
-enemy_color: "red"
-# enemy_color: "blue"
+# enemy_color: "red"
+enemy_color: "blue"
 
 #神经网络参数
 yolo_name: yolov5
@@ -37,23 +37,23 @@ max_temp_lost_count: 5
 outpost_max_temp_lost_count: 75
 
 #aimer参数
-yaw_offset: 1.1 # degree 
-pitch_offset: -2.2 # degree 
+yaw_offset: 0.5 # degree 111
+pitch_offset: -2.6 # degree 111
 comming_angle: 55 # degree
 leaving_angle: 20 # degree
 decision_speed: 5 # rad/s
-shoot_time_delay: 0.0     # 固定发射链路延迟
+shoot_time_delay: 0.01     # 固定发射链路延迟 111
 high_speed_delay_time: 0.0 # s
 low_speed_delay_time: 0.0 # s 
-phase_fire_thresh: 6.0       # degree
-impact_switch_margin: 3.0    # degree
+phase_fire_thresh: 6.0       # degree  222
+impact_switch_margin: 3.0    # degree  222
 impact_select_iters: 5
 
 spin_fire_family_mode: even
 spin_phase_fire_window_steps: 2
 spin_family_height_margin: 0.01
-centerline_enter_speed: 1.5
-centerline_exit_speed: 0.5
+centerline_enter_speed: 0.0 # 111
+centerline_exit_speed: 0.0 # 111
 
 #shooter参数  没有用
 first_tolerance: 30 # 近距离射击容差，degree
