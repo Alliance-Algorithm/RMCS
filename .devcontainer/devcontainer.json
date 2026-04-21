@@ -30,7 +30,8 @@
 		"http_proxy": "${localEnv:http_proxy}",
 		"https_proxy": "${localEnv:https_proxy}",
 		"no_proxy": "${localEnv:no_proxy}",
-		"HOST_WORKSPACE_FOLDER": "${localWorkspaceFolder}"
+		"HOST_WORKSPACE_FOLDER": "${localWorkspaceFolder}",
+		"MVCAM_COMMON_RUNENV": "/workspaces/RMCS/rmcs_ws/install/lib"
 	},
 	"runArgs": [
 		"--network=host"

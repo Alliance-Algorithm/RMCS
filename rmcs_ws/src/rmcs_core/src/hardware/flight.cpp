@@ -1,3 +1,5 @@
+#include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -16,6 +18,7 @@
 #include <rclcpp/subscription.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/hard_sync_snapshot.hpp>
 #include <rmcs_msgs/serial_interface.hpp>
 #include <rmcs_msgs/switch.hpp>
 #include <rmcs_utility/ring_buffer.hpp>
@@ -28,6 +31,8 @@
 #include "hardware/device/lk_motor.hpp"
 
 namespace rmcs_core::hardware {
+
+using Clock = std::chrono::steady_clock;
 
 class Flight
     : public rmcs_executor::Component
@@ -64,9 +69,17 @@ public:
                                             .set_reversed()
                                             .enable_multi_turn_angle());
 
+        imu_gx_bias_ = get_parameter("imu_gx_bias").as_double();
+        imu_gy_bias_ = get_parameter("imu_gy_bias").as_double();
+        imu_gz_bias_ = get_parameter("imu_gz_bias").as_double();
+
+        register_input("/predefined/timestamp", timestamp_);
         register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
         register_output("/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
+        register_output("/gimbal/yaw/gyro_raw", gimbal_yaw_gyro_raw_);
+        register_output("/gimbal/pitch/gyro_raw", gimbal_pitch_gyro_raw_);
         register_output("/tf", tf_);
+        register_output("/gimbal/hard_sync_snapshot", hard_sync_snapshot_);
 
         bmi088_.set_coordinate_mapping(
             [](double x, double y, double z) { return std::make_tuple(-x, z, y); });
@@ -118,19 +131,23 @@ public:
     void update() override {
         update_motors();
         update_imu();
+        update_hard_sync_snapshot();
         dr16_.update_status();
 
         if (dr16_.switch_left() == rmcs_msgs::Switch::DOWN
             && dr16_.switch_right() == rmcs_msgs::Switch::DOWN) {
             bmi088_.reset_integral();
+        }
+
             if (++gyro_debug_counter_ >= 500) {
                 gyro_debug_counter_ = 0;
                 RCLCPP_INFO(
-                    logger_, "[gyro-debug] gz=%.6f yaw_vel=%.6f gy=%.6f pitch_vel=%.6f",
+                    logger_,
+                    "[gyro-debug] gz=%.6f yaw_vel=%.6f gy=%.6f pitch_vel=%.6f yaw_angle=%.6f",
                     bmi088_.gz(), gimbal_yaw_motor_.velocity(),
-                    bmi088_.gy(), gimbal_pitch_motor_.velocity());
+                    bmi088_.gy(), gimbal_pitch_motor_.velocity(),
+                    gimbal_yaw_motor_.angle());
             }
-        }
     }
 
     void command_update() {
@@ -166,26 +183,36 @@ private:
     void update_imu() {
         bmi088_.update_status();
 
-        // Estimate gyro bias using encoder velocity as reference
-        // (valid when chassis is stationary, e.g. flight robot)
-        // gz()/gy() now hold THIS frame's bias-corrected values,
-        // so add back current bias to recover raw gyro reading.
-        // constexpr double kBiasAlpha = 0.001;
-        // constexpr double kMaxBias = 0.1; // rad/s, ~5.7 deg/s max correction
-        // double gz_raw = bmi088_.gz() + bmi088_.gyro_bias_z_;
-        // double gy_raw = bmi088_.gy() + bmi088_.gyro_bias_y_;
-        // bmi088_.gyro_bias_z_ = std::clamp(
-        //     bmi088_.gyro_bias_z_ + kBiasAlpha * (gz_raw - gimbal_yaw_motor_.velocity()),
-        //     -kMaxBias, kMaxBias);
-        // bmi088_.gyro_bias_y_ = std::clamp(
-        //     bmi088_.gyro_bias_y_ + kBiasAlpha * (gy_raw - gimbal_pitch_motor_.velocity()),
-        //     -kMaxBias, kMaxBias);
         Eigen::Quaterniond gimbal_imu_pose{bmi088_.q0(), bmi088_.q1(), bmi088_.q2(), bmi088_.q3()};
         tf_->set_transform<rmcs_description::PitchLink, rmcs_description::OdomImu>(
             gimbal_imu_pose.conjugate());
 
-        *gimbal_yaw_velocity_imu_ = bmi088_.gz();
-        *gimbal_pitch_velocity_imu_ = bmi088_.gy();
+        *gimbal_yaw_velocity_imu_ = bmi088_.gz() - imu_gz_bias_;
+        *gimbal_pitch_velocity_imu_ = bmi088_.gy() - imu_gy_bias_;
+        *gimbal_yaw_gyro_raw_ = bmi088_.gz();
+        *gimbal_pitch_gyro_raw_ = bmi088_.gy();
+    }
+
+    void update_hard_sync_snapshot() {
+        // When GPIO hard-sync is available, use the edge-triggered path for
+        // precise exposure-aligned timestamps.  Otherwise fall back to a
+        // soft snapshot that publishes the latest IMU pose every tick so
+        // that vision can still run over a plain USB camera connection.
+        const bool gpio_triggered =
+            hard_sync_pending_.exchange(false, std::memory_order_relaxed);
+
+        if (!gpio_triggered && gpio_ever_triggered_)
+            // GPIO path was active before — keep using it exclusively.
+            return;
+        if (gpio_triggered)
+            gpio_ever_triggered_ = true;
+
+        hard_sync_snapshot_->valid = true;
+        hard_sync_snapshot_->exposure_timestamp = *timestamp_;
+        hard_sync_snapshot_->qw = bmi088_.q0();
+        hard_sync_snapshot_->qx = bmi088_.q1();
+        hard_sync_snapshot_->qy = bmi088_.q2();
+        hard_sync_snapshot_->qz = bmi088_.q3();
     }
 
     void gimbal_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
@@ -195,6 +222,8 @@ private:
         RCLCPP_INFO(
             logger_, "[gimbal calibration] New pitch offset: %ld",
             gimbal_pitch_motor_.calibrate_zero_point());
+        gimbal_yaw_motor_.calibrate_zero_point();
+        gimbal_pitch_motor_.calibrate_zero_point();
     }
 
     class FlightCommand : public rmcs_executor::Component {
@@ -254,6 +283,11 @@ protected:
         bmi088_.store_gyroscope_status(data.x, data.y, data.z);
     }
 
+    void gpio_digital_read_result_callback(const librmcs::data::GpioDigitalDataView& data) override {
+        if (data.channel == 1 && !data.high)
+            hard_sync_pending_.store(true, std::memory_order_relaxed);
+    }
+
 private:
     rclcpp::Logger logger_;
     std::shared_ptr<FlightCommand> command_component_;
@@ -267,11 +301,19 @@ private:
 
     device::Dr16 dr16_;
     device::Bmi088 bmi088_;
+    double imu_gx_bias_, imu_gy_bias_, imu_gz_bias_;
 
     OutputInterface<double> gimbal_yaw_velocity_imu_;
     OutputInterface<double> gimbal_pitch_velocity_imu_;
+    OutputInterface<double> gimbal_yaw_gyro_raw_;
+    OutputInterface<double> gimbal_pitch_gyro_raw_;
     OutputInterface<rmcs_description::Tf> tf_;
     OutputInterface<rmcs_msgs::SerialInterface> referee_serial_;
+    OutputInterface<rmcs_msgs::HardSyncSnapshot> hard_sync_snapshot_;
+
+    InputInterface<Clock::time_point> timestamp_;
+    std::atomic<bool> hard_sync_pending_{false};
+    bool gpio_ever_triggered_ = false;
 
     int gyro_debug_counter_ = 0;
     rmcs_utility::RingBuffer<std::byte> referee_ring_buffer_receive_{256};

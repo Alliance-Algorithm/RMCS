@@ -5,9 +5,11 @@ rmcs_executor:
       - rmcs_core::hardware::Flight -> flight_hardware
       - rmcs_core::referee::Status -> referee_status
 
-      - rmcs_core::controller::gimbal::HoldController -> hold_controller
+      # - rmcs_core::controller::gimbal::HoldController -> hold_controller
+      - sp_vision_25::bridge::SpVisionBridge -> sp_vision_bridge
+
       - rmcs_core::controller::gimbal::FlightGimbalController -> gimbal_controller
-      - rmcs_core::controller::gimbal::FlightYawController -> yaw_controller
+      - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
 
       - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
@@ -16,6 +18,8 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController -> left_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> right_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller
+
+      - rmcs_core::controller::gimbal::AutoAimResponseRecorder -> aim_recorder
 
       - rmcs_core::referee::command::Interaction -> referee_interaction
       - rmcs_core::referee::Command -> referee_command
@@ -38,8 +42,9 @@ value_broadcaster:
       - /gimbal/yaw/torque
       - /gimbal/yaw/control_torque
       - /gimbal/yaw/control_angle_error
-      - /gimbal/yaw/control_velocity
       - /gimbal/yaw/velocity_imu
+      - /gimbal/yaw/gyro_raw
+      - /gimbal/pitch/gyro_raw
 
 
 tf_broadcaster:
@@ -51,6 +56,19 @@ flight_hardware:
     board_serial: "d4-9d44"
     yaw_motor_zero_point: 55555
     pitch_motor_zero_point: 18578
+    imu_gx_bias: 0.0
+    imu_gy_bias: 0.0
+    imu_gz_bias: 0.0
+
+sp_vision_bridge:
+  ros__parameters:
+    config_file: configs/flight.yaml
+    debug: true
+
+aim_recorder:
+  ros__parameters:
+    output_csv_path: /tmp/flight_auto_aim.csv
+    csv_decimation: 10
 
 referee_status:
   ros__parameters:
@@ -62,6 +80,11 @@ hold_controller:
     joystick_deadband: 0.03
     # Mouse velocity is in per-tick counts; 0.5 is a conservative quiet threshold.
     mouse_deadband: 0.5
+    # Hold mode IMU damping gain (Nm·s/rad for yaw, (rad/s)·s/rad for pitch).
+    # P comes from the angle PID on encoder error; D comes from here via IMU velocity.
+    # Higher → stiffer disturbance rejection. IMU is smooth so these can be large.
+    hold_yaw_kd: 0.001
+    hold_pitch_kd: 0.05
 
 gimbal_controller:
   ros__parameters:
@@ -72,34 +95,35 @@ gimbal_controller:
     # SetToLevel must converge below this |yaw_err|/|pitch_err| (rad) before
     # hold mode is permitted. ~0.02 rad ≈ 1.1°.
     hold_level_threshold: 0.02
-    # Hold mode IMU damping gain (Nm·s/rad for yaw, (rad/s)·s/rad for pitch).
-    # P comes from PID on encoder error; D comes from here via IMU velocity.
-    # Higher → stiffer disturbance rejection. IMU is smooth so these can be large.
-    hold_yaw_kd: 8.0
-    hold_pitch_kd: 0.5
+    # Planner parameters (from sp_vision_bridge → gimbal_controller migration)
+    bullet_speed_fallback: 23.0
+    result_timeout: 0.2
+    yaw_offset: 0.0
+    pitch_offset: 0.0
+    fire_thresh: 0.0035
+    low_speed_delay_time: 0.0
+    high_speed_delay_time: 0.0
+    decision_speed: 7.0
+    max_yaw_acc: 500.0
+    max_pitch_acc: 100.0
+    # Feedforward gains (replaces GimbalFeedforwardMixer)
+    yaw_vel_ff_gain: 0.0
+    yaw_acc_ff_gain: 0.0
+    pitch_vel_ff_gain: 1.0
 
-yaw_controller:
+yaw_angle_pid_controller:
   ros__parameters:
-    # true  -> cascade PID (outer angle + inner velocity)
-    # false -> single-loop PID (angle error -> torque)
-    cascade_mode: false
-
-    outer_kp: 3.7399
-    outer_ki: 0.0
-    outer_kd: 0.0
-
-    inner_kp: 384.4384
-    inner_ki: 499.9430
-    inner_kd: 4.8254
-
-    single_kp: 70.8943
-    single_ki: 0.0
-    single_kd: 1440.0
+    measurement: /gimbal/yaw/control_angle_error
+    feedforward: /gimbal/yaw/feedforward
+    control: /gimbal/yaw/control_torque
+    kp: 70.8943
+    ki: 0.0
+    kd: 1440.0
 
 pitch_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/pitch/control_angle_error
-    feedforward: /gimbal/pitch/hold_feedforward
+    feedforward: /gimbal/pitch/feedforward
     control: /gimbal/pitch/control_velocity
     kp: 10.0
     ki: 0.0

@@ -1,0 +1,77 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::hardware::Flight -> flight_hardware
+      - rmcs_core::controller::gimbal::HoldController -> hold_controller
+      - rmcs_core::controller::gimbal::FlightGimbalController -> gimbal_controller
+      - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
+      - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
+
+      - sp_vision_25::bridge::CalibrationCaptureBridge -> calibration_capture
+
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
+
+value_broadcaster:
+  ros__parameters:
+    forward_list:
+      - /gimbal/pitch/angle
+      - /gimbal/pitch/velocity
+      - /gimbal/yaw/angle
+      - /gimbal/yaw/velocity
+
+tf_broadcaster:
+  ros__parameters:
+    tf: /tf
+
+flight_hardware:
+  ros__parameters:
+    board_serial: "d4-9d44"
+    yaw_motor_zero_point: 55555
+    pitch_motor_zero_point: 18578
+    imu_gx_bias: 0.0
+    imu_gy_bias: 0.0
+    imu_gz_bias: 0.0
+
+hold_controller:
+  ros__parameters:
+    joystick_deadband: 0.03
+    mouse_deadband: 0.5
+    hold_yaw_kd: 0.001
+    hold_pitch_kd: 0.05
+
+gimbal_controller:
+  ros__parameters:
+    upper_limit: -1.00
+    lower_limit: 0.60
+    yaw_upper_limit: -0.349
+    yaw_lower_limit: 0.349
+    hold_level_threshold: 0.02
+
+yaw_angle_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/yaw/control_angle_error
+    feedforward: /gimbal/yaw/hold_feedforward
+    control: /gimbal/yaw/control_torque
+    kp: 70.8943
+    ki: 0.0
+    kd: 1440.0
+
+pitch_angle_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/pitch/control_angle_error
+    feedforward: /gimbal/pitch/hold_feedforward
+    control: /gimbal/pitch/control_velocity
+    kp: 10.0
+    ki: 0.0
+    kd: 400.0
+
+calibration_capture:
+  ros__parameters:
+    config_file: configs/preview.yaml
+    output_folder: /workspaces/RMCS/rmcs_ws/src/sp_vision_25/calibration/data
+    pattern_cols: 10
+    pattern_rows: 7
+    jpeg_quality: 80
+    topic: /camera/image/compressed

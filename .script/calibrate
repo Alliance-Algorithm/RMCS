@@ -1,0 +1,74 @@
+#!/bin/bash
+
+source /opt/ros/jazzy/setup.bash
+source ~/env_setup.bash
+
+: "${RMCS_PATH:=/workspaces/RMCS}"
+
+CALIBRATION_YAML="${RMCS_PATH}/rmcs_ws/src/sp_vision_25/configs/calibration.yaml"
+FLIGHT_VISION_YAML="${RMCS_PATH}/rmcs_ws/src/sp_vision_25/configs/flight.yaml"
+DATA_DIR="${RMCS_PATH}/rmcs_ws/src/sp_vision_25/calibration/data"
+
+if [[ ! -d "${DATA_DIR}" ]] || [[ -z "$(ls "${DATA_DIR}"/*.jpg 2>/dev/null)" ]]; then
+    echo "> ERROR: No calibration data found in ${DATA_DIR}"
+    echo "> Run 'set-robot calibration && launch-rmcs' to capture data first."
+    exit 1
+fi
+
+count=$(ls "${DATA_DIR}"/*.jpg 2>/dev/null | wc -l)
+echo "> Found ${count} calibration images in ${DATA_DIR}"
+
+inject_yaml_key() {
+    local file="$1" key="$2" value="$3"
+    if grep -q "^${key}:" "$file"; then
+        sed -i "s|^${key}:.*|${key}: ${value}|" "$file"
+    else
+        echo "${key}: ${value}" >> "$file"
+    fi
+}
+
+echo ""
+echo "========== Step 1: Camera Intrinsics =========="
+intrinsics_output=$(calibrate_camera "${DATA_DIR}" -c="${CALIBRATION_YAML}" 2>&1)
+echo "${intrinsics_output}"
+
+camera_matrix=$(echo "${intrinsics_output}" | grep '^camera_matrix:' | head -1 | sed 's/^camera_matrix: //')
+distort_coeffs=$(echo "${intrinsics_output}" | grep '^distort_coeffs:' | head -1 | sed 's/^distort_coeffs: //')
+
+if [[ -z "${camera_matrix}" ]] || [[ -z "${distort_coeffs}" ]]; then
+    echo ""
+    echo "> ERROR: Failed to parse intrinsics from calibrate_camera output."
+    exit 1
+fi
+
+inject_yaml_key "${CALIBRATION_YAML}" "camera_matrix" "${camera_matrix}"
+inject_yaml_key "${CALIBRATION_YAML}" "distort_coeffs" "${distort_coeffs}"
+inject_yaml_key "${FLIGHT_VISION_YAML}" "camera_matrix" "${camera_matrix}"
+inject_yaml_key "${FLIGHT_VISION_YAML}" "distort_coeffs" "${distort_coeffs}"
+echo ""
+echo "> Auto-injected intrinsics into calibration.yaml and flight.yaml"
+
+echo ""
+echo "========== Step 2: Hand-Eye Calibration =========="
+handeye_output=$(calibrate_handeye "${DATA_DIR}" -c="${CALIBRATION_YAML}" 2>&1)
+echo "${handeye_output}"
+
+R_camera2gimbal=$(echo "${handeye_output}" | grep '^R_camera2gimbal:' | head -1 | sed 's/^R_camera2gimbal: //')
+t_camera2gimbal=$(echo "${handeye_output}" | grep '^t_camera2gimbal:' | head -1 | sed 's/^t_camera2gimbal: //')
+
+if [[ -z "${R_camera2gimbal}" ]] || [[ -z "${t_camera2gimbal}" ]]; then
+    echo ""
+    echo "> ERROR: Failed to parse hand-eye results from calibrate_handeye output."
+    exit 1
+fi
+
+inject_yaml_key "${CALIBRATION_YAML}" "R_camera2gimbal" "${R_camera2gimbal}"
+inject_yaml_key "${CALIBRATION_YAML}" "t_camera2gimbal" "${t_camera2gimbal}"
+inject_yaml_key "${FLIGHT_VISION_YAML}" "R_camera2gimbal" "${R_camera2gimbal}"
+inject_yaml_key "${FLIGHT_VISION_YAML}" "t_camera2gimbal" "${t_camera2gimbal}"
+
+echo ""
+echo "> All calibration results saved to:"
+echo ">   ${CALIBRATION_YAML}"
+echo ">   ${FLIGHT_VISION_YAML}"
+echo "> flight.yaml is ready for auto-aim integration."

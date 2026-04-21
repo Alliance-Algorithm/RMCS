@@ -1,5 +1,6 @@
 <library path="rmcs_core">
   <class type="rmcs_core::hardware::Flight" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::hardware::FlightBooster" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::hardware::MecanumHero" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::hardware::SteeringHero" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::hardware::OmniInfantry" base_class_type="rmcs_executor::Component" />
@@ -10,7 +11,6 @@
   <class type="rmcs_core::controller::chassis::OmniWheelController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::SteeringWheelController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::gimbal::FlightGimbalController" base_class_type="rmcs_executor::Component" />
-  <class type="rmcs_core::controller::gimbal::FlightYawController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::gimbal::HoldController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::gimbal::SimpleGimbalController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::gimbal::OmniInfantryGimbalController" base_class_type="rmcs_executor::Component" />

@@ -1,8 +1,13 @@
 #!/bin/bash
 
-# if arg[1] == "-r"
+LOG_DIR="$HOME/.rmcs_logs"
+mkdir -p "$LOG_DIR"
+LOG_FILE="$LOG_DIR/$(date +%Y%m%d_%H%M%S).log"
+
 if [ "$1" == "-r" ]; then
-    ssh-remote "service rmcs restart && service rmcs attach"
+    ssh-remote "service rmcs restart && service rmcs attach" 2>&1 | tee "$LOG_FILE"
 else
-    ssh-remote "service rmcs attach"
+    ssh-remote "service rmcs attach" 2>&1 | tee "$LOG_FILE"
 fi
+
+echo "Log saved: $LOG_FILE"

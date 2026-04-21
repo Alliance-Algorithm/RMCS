@@ -12,6 +12,7 @@ services:
     environment:
       - DISPLAY=${DISPLAY}
       - WAYLAND_DISPLAY=${WAYLAND_DISPLAY}
+      - MVCAM_COMMON_RUNENV=/workspaces/RMCS/rmcs_ws/install/lib
     network_mode: host
     tty: true
     stdin_open: true

@@ -1,0 +1,11 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 100.0
+    components:
+      - sp_vision_25::bridge::CameraPreviewBridge -> camera_preview
+
+camera_preview:
+  ros__parameters:
+    config_file: configs/preview.yaml
+    jpeg_quality: 80
+    topic: /camera/image/compressed
