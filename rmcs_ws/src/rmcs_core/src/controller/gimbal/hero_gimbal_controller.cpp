@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cmath>
 #include <limits>
 
@@ -10,7 +11,6 @@
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/switch.hpp>
 
-#include "controller/gimbal/precise_two_axis_gimbal_solver.hpp"
 #include "controller/gimbal/two_axis_gimbal_solver.hpp"
 
 namespace rmcs_core::controller::gimbal {
@@ -25,12 +25,9 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , imu_gimbal_solver(
-              *this, get_parameter("upper_limit").as_double(),
-              get_parameter("lower_limit").as_double())
-        , encoder_gimbal_solver(
-              *this, get_parameter("upper_limit").as_double(),
-              get_parameter("lower_limit").as_double()) {
+        , upper_limit_(get_parameter("upper_limit").as_double())
+        , lower_limit_(get_parameter("lower_limit").as_double())
+        , imu_gimbal_solver(*this, upper_limit_, lower_limit_) {
 
         register_input("/remote/joystick/left", joystick_left_);
         register_input("/remote/switch/left", switch_left_);
@@ -40,13 +37,14 @@ public:
         register_input("/remote/keyboard", keyboard_);
 
         register_input("/gimbal/auto_aim/control_direction", auto_aim_control_direction_, false);
+        register_input("/gimbal/pitch/angle", gimbal_pitch_angle_);
 
         register_output("/gimbal/mode", gimbal_mode_, rmcs_msgs::GimbalMode::IMU);
 
         register_output("/gimbal/yaw/control_angle_error", yaw_angle_error_, nan_);
         register_output("/gimbal/pitch/control_angle_error", pitch_angle_error_, nan_);
         register_output("/gimbal/yaw/control_angle_shift", yaw_control_angle_shift_, nan_);
-        register_output("/gimbal/pitch/control_angle", pitch_control_angle_, nan_);
+        register_output("/gimbal/pitch/control_angle_shift", pitch_control_angle_shift_, nan_);
     }
 
     void update() override {
@@ -75,17 +73,16 @@ public:
                 *yaw_angle_error_ = angle_error.yaw_angle_error;
                 *pitch_angle_error_ = angle_error.pitch_angle_error;
 
-                encoder_gimbal_solver.update(PreciseTwoAxisGimbalSolver::SetDisabled{});
                 *yaw_control_angle_shift_ = nan_;
-                *pitch_control_angle_ = nan_;
+                *pitch_control_angle_shift_ = nan_;
             } else {
                 imu_gimbal_solver.update(TwoAxisGimbalSolver::SetDisabled{});
                 *yaw_angle_error_ = nan_;
                 *pitch_angle_error_ = nan_;
 
-                auto control_angle = update_encoder_control();
-                *yaw_control_angle_shift_ = control_angle.yaw_shift;
-                *pitch_control_angle_ = control_angle.pitch_angle;
+                auto control_shift = update_encoder_control();
+                *yaw_control_angle_shift_ = control_shift.yaw_shift;
+                *pitch_control_angle_shift_ = control_shift.pitch_shift;
             }
         } while (false);
 
@@ -94,7 +91,6 @@ public:
 
     void reset_all_control() {
         imu_gimbal_solver.update(TwoAxisGimbalSolver::SetDisabled{});
-        encoder_gimbal_solver.update(PreciseTwoAxisGimbalSolver::SetDisabled{});
 
         gimbal_mode_keyboard_ = rmcs_msgs::GimbalMode::IMU;
         *gimbal_mode_ = rmcs_msgs::GimbalMode::IMU;
@@ -102,7 +98,7 @@ public:
         *yaw_angle_error_ = nan_;
         *pitch_angle_error_ = nan_;
         *yaw_control_angle_shift_ = nan_;
-        *pitch_control_angle_ = nan_;
+        *pitch_control_angle_shift_ = nan_;
     }
 
     TwoAxisGimbalSolver::AngleError update_imu_control() {
@@ -129,21 +125,36 @@ public:
             TwoAxisGimbalSolver::SetControlShift{yaw_shift, pitch_shift});
     }
 
-    PreciseTwoAxisGimbalSolver::ControlAngle update_encoder_control() {
-        if (!encoder_gimbal_solver.enabled())
-            return encoder_gimbal_solver.update(PreciseTwoAxisGimbalSolver::SetControlPitch{0.0});
+    struct EncoderControlShift {
+        double yaw_shift, pitch_shift;
+    };
 
-        constexpr double joystick_sensitivity = 0.006 * 0.1;
+    EncoderControlShift update_encoder_control() const {
         constexpr double mouse_yaw_sensitivity = 0.5 * 0.114;
         constexpr double mouse_pitch_sensitivity = 0.5 * 0.095;
 
-        double yaw_shift = mouse_yaw_sensitivity * mouse_velocity_->y();
-        // joystick_sensitivity * joystick_left_->y()
+        EncoderControlShift control_shift;
+        control_shift.yaw_shift = mouse_yaw_sensitivity * mouse_velocity_->y();
 
-        double pitch_shift = mouse_pitch_sensitivity * mouse_velocity_->x();
+        double desired_pitch_shift = mouse_pitch_sensitivity * mouse_velocity_->x();
+        control_shift.pitch_shift = clamp_encoder_pitch_shift(desired_pitch_shift);
+        return control_shift;
+    }
 
-        return encoder_gimbal_solver.update(
-            PreciseTwoAxisGimbalSolver::SetControlShift{yaw_shift, pitch_shift});
+    double clamp_encoder_pitch_shift(double pitch_shift) const {
+        const double current_pitch_angle = *gimbal_pitch_angle_;
+        if (std::isnan(current_pitch_angle))
+            return nan_;
+
+        if (current_pitch_angle < upper_limit_) {
+            return std::clamp(pitch_shift, 0.0, lower_limit_ - current_pitch_angle);
+        }
+        if (current_pitch_angle > lower_limit_) {
+            return std::clamp(pitch_shift, upper_limit_ - current_pitch_angle, 0.0);
+        }
+
+        return std::clamp(
+            pitch_shift, upper_limit_ - current_pitch_angle, lower_limit_ - current_pitch_angle);
     }
 
 private:
@@ -159,15 +170,16 @@ private:
     rmcs_msgs::Keyboard last_keyboard_ = rmcs_msgs::Keyboard::zero();
 
     InputInterface<Eigen::Vector3d> auto_aim_control_direction_;
+    InputInterface<double> gimbal_pitch_angle_;
 
     rmcs_msgs::GimbalMode gimbal_mode_keyboard_ = rmcs_msgs::GimbalMode::IMU;
     OutputInterface<rmcs_msgs::GimbalMode> gimbal_mode_;
 
+    const double upper_limit_, lower_limit_;
     TwoAxisGimbalSolver imu_gimbal_solver;
-    PreciseTwoAxisGimbalSolver encoder_gimbal_solver;
 
     OutputInterface<double> yaw_angle_error_, pitch_angle_error_;
-    OutputInterface<double> yaw_control_angle_shift_, pitch_control_angle_;
+    OutputInterface<double> yaw_control_angle_shift_, pitch_control_angle_shift_;
 };
 
 } // namespace rmcs_core::controller::gimbal
