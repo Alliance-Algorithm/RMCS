@@ -120,7 +120,6 @@ public:
         uint16_t v_int = (rx_buff[3] << 4) | (rx_buff[4] >> 4);
         uint16_t t_int = ((rx_buff[4] & 0xF) << 8) | rx_buff[5];
 
-        raw_angle      = p_int;
         uint16_t angle = p_int - encoder_zero_point_;
         if (angle < 0)
             angle += raw_angle_max_;
@@ -156,7 +155,6 @@ public:
     }
 
     double get_angle() { return *angle_; }
-    uint16_t get_raw_angle() { return raw_angle; }
     double get_velocity() { return *velocity_; }
     double get_torque() { return *torque_; }
     double get_state() { return *state; }
@@ -177,7 +175,6 @@ private:
     }
 
     int last_raw_angle_;
-    uint16_t raw_angle=NAN;
     double reverse     = 1.0;
     double gear_ratio_ = 1.0;
 

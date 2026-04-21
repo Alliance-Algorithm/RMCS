@@ -307,7 +307,6 @@ private:
                   {engineer, engineer_command, "/steering/wheel/lf"},
                   {engineer, engineer_command, "/steering/wheel/lb"})
             , power_meter(engineer, "/steering/power_meter")
-            , tof(engineer, "/leg/tof")
             , Omni_Motors(engineer, engineer_command, "/leg/omni/l")
             , Leg_Motors(
                   {engineer, engineer_command, "/leg/joint/lf"},
@@ -415,7 +414,6 @@ private:
                 ecd.update();
             }
             power_meter.update();
-            tof.update();
         }
         void command() {
 
@@ -511,30 +509,10 @@ private:
             }
         }
 
-        void uart2_receive_callback(const librmcs::data::UartDataView& data) override {
-            auto* uart_data = data.uart_data.data();
-            ring_buff.emplace_back_multi(
-                [uart_data](std::byte* storage) mutable { *storage = *uart_data++; },
-                data.uart_data.size());
-            while (ring_buff.front() && ring_buff.readable() >= 16) {
-                std::byte rx_data[16];
-                std::byte* rx_ptr = rx_data;
-                ring_buff.pop_front_multi([&rx_ptr](std::byte storage) { *rx_ptr++ = storage; }, 1);
-                if (rx_data[0] != std::byte{0x57}) {
-                    continue;
-                }
-                ring_buff.pop_front_multi(
-                    [&rx_ptr](std::byte storage) { *rx_ptr++ = storage; }, 15);
-                tof.store_status(rx_data, 16);
-            }
-        }
-
     private:
-        RingBuffer<std::byte> ring_buff{16};
         device::DjiMotor Steering_motors[2];
         device::DjiMotor Wheel_motors[2];
         device::PowerMeter power_meter;
-        device::Tof tof;
         device::DjiMotor Omni_Motors;
         device::DjiMotor Leg_Motors[2];
         device::Encoder Leg_ecd[2];
@@ -554,6 +532,7 @@ private:
             Engineer& engineer, EngineerCommand& engineer_command, const std::string& serial_filter)
             : librmcs::agent::CBoard(serial_filter)
             , rclcpp::Node{"right_board"}
+            , tof(engineer, "/leg/tof")
             , Steering_motors(
                   {engineer, engineer_command, "/steering/steering/rb"},
                   {engineer, engineer_command, "/steering/steering/rf"})
@@ -678,6 +657,7 @@ private:
                 ecd.update();
             }
             big_yaw.update();
+            tof.update();
         }
 
         void command() {
@@ -809,6 +789,26 @@ private:
         }
 
     private:
+        void uart2_receive_callback(const librmcs::data::UartDataView& data) override {
+            auto* uart_data = data.uart_data.data();
+            ring_buff.emplace_back_multi(
+                [uart_data](std::byte* storage) mutable { *storage = *uart_data++; },
+                data.uart_data.size());
+            while (ring_buff.front() && ring_buff.readable() >= 16) {
+                std::byte rx_data[16];
+                std::byte* rx_ptr = rx_data;
+                ring_buff.pop_front_multi([&rx_ptr](std::byte storage) { *rx_ptr++ = storage; }, 1);
+                if (rx_data[0] != std::byte{0x57}) {
+                    continue;
+                }
+                ring_buff.pop_front_multi(
+                    [&rx_ptr](std::byte storage) { *rx_ptr++ = storage; }, 15);
+                tof.store_status(rx_data, 16);
+            }
+        }
+
+        RingBuffer<std::byte> ring_buff{16};
+        device::Tof tof;
         device::DjiMotor Steering_motors[2];
         device::DjiMotor Wheel_motors[2];
         device::DjiMotor Omni_Motors;

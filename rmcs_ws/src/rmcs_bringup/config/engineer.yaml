@@ -40,8 +40,8 @@ rmcs_executor:
 engineer_hardware:
   ros__parameters:
     board_serial_arm_board: ""
-    board_serial_left_board: "D4-D354-B7C8-A457-ECB1-11A9-998E"
-    board_serial_right_board: "D4-18B8-2958-0D33-4168-27CE-86B2"
+    board_serial_left_board: "D4-18B8-2958-0D33-4168-27CE-86B2"
+    board_serial_right_board: "D4-D354-B7C8-A457-ECB1-11A9-998E"
     gripper_zero_point: 26298
     image_pitch_zero_point: 47534
     joint6_zero_point: 61801
