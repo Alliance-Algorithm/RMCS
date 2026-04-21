@@ -89,6 +89,7 @@ public:
             last_switch_right_ = switch_right;
             last_switch_left_ = switch_left;
             last_keyboard_ = keyboard;
+            // RCLCPP_INFO(logger_, "Bullet Fired: {%d}", *bullet_fired_);
         }
         if (!friction_enabled_) {
             reset_all_controls();
@@ -171,8 +172,8 @@ private:
             if (differential < 0.1)
                 primary_friction_velocity_decrease_integral_ += differential;
             else {
-                if (primary_friction_velocity_decrease_integral_ < -14.0
-                    && last_primary_friction_velocity_ < friction_working_velocities_[0] - 25.0)
+                if (primary_friction_velocity_decrease_integral_ < -10.0
+                    && last_primary_friction_velocity_ < friction_working_velocities_[0] - 15.0)
                     fired = true;
 
                 primary_friction_velocity_decrease_integral_ = 0;

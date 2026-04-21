@@ -169,7 +169,7 @@ private:
         AutoClimbControl control{
             .front_track_velocity = track_velocity_max_,
             .back_climber_velocity = 0.0,
-            .override_chassis_vx = 1.0,
+            .override_chassis_vx = kAutoClimbApproachVelocity,
         };
 
         double pitch = *chassis_pitch_imu_;
@@ -194,7 +194,7 @@ private:
         AutoClimbControl control{
             .front_track_velocity = track_velocity_max_,
             .back_climber_velocity = climber_back_control_velocity_abs_,
-            .override_chassis_vx = auto_climb_dash_velocity_,
+            .override_chassis_vx = 0.3,
         };
 
         if (is_back_climber_blocked()) {
@@ -231,18 +231,33 @@ private:
         RCLCPP_INFO_THROTTLE(
             logger_, *get_clock(), 500, "DASH (step %d): pitch=%.3f, timer=%d",
             auto_climb_stair_index_ + 1, pitch, auto_climb_timer_);
+        if (auto_climb_stair_index_ == 0) {
+            if (is_leveled || timeout) {
+                enter_auto_climb_state(AutoClimbState::SUPPORT_RETRACT);
 
-        if (is_leveled || timeout) {
-            enter_auto_climb_state(AutoClimbState::SUPPORT_RETRACT);
+                if (timeout) {
+                    RCLCPP_WARN(
+                        logger_, "Auto climb DASH timeout on step %d. Entering SUPPORT_RETRACT.",
+                        auto_climb_stair_index_ + 1);
+                } else {
+                    RCLCPP_INFO(
+                        logger_, "Auto climb reached platform on step %d.",
+                        auto_climb_stair_index_ + 1);
+                }
+            }
+        } else {
+            if (is_leveled || timeout) {
+                enter_auto_climb_state(AutoClimbState::SUPPORT_RETRACT);
 
-            if (timeout) {
-                RCLCPP_WARN(
-                    logger_, "Auto climb DASH timeout on step %d. Entering SUPPORT_RETRACT.",
-                    auto_climb_stair_index_ + 1);
-            } else {
-                RCLCPP_INFO(
-                    logger_, "Auto climb reached platform on step %d.",
-                    auto_climb_stair_index_ + 1);
+                if (pitch < 0 || timeout) {
+                    RCLCPP_WARN(
+                        logger_, "Auto climb DASH timeout on step %d. Entering SUPPORT_RETRACT.",
+                        auto_climb_stair_index_ + 1);
+                } else {
+                    RCLCPP_INFO(
+                        logger_, "Auto climb reached platform on step %d.",
+                        auto_climb_stair_index_ + 1);
+                }
             }
         }
 
@@ -412,13 +427,13 @@ private:
 
     rclcpp::Logger logger_;
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
-    static constexpr double kAutoClimbApproachVelocity = 1.8;
+    static constexpr double kAutoClimbApproachVelocity = 1.0;
     static constexpr double kAutoClimbLeveledPitchThreshold = 0.1;
     static constexpr double kBackClimberBlockedTorqueThreshold = 0.1;
     static constexpr double kBackClimberBlockedVelocityThreshold = 0.1;
     static constexpr int kAutoClimbSupportConfirmTicks = 50;
     static constexpr int kAutoClimbDashMinTicks = 500;
-    static constexpr int kAutoClimbDashTimeoutTicks = 3000;
+    static constexpr int kAutoClimbDashTimeoutTicks = 3000; // 3000;
     static constexpr int kAutoClimbSupportRetractTicks = 1000;
     static constexpr int kAutoClimbMaxStairs = 2;
 

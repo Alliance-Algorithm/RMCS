@@ -19,7 +19,7 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , following_velocity_controller_(10.0, 0.0, 1.2) {
+        , following_velocity_controller_(5.0, 0.0, 0.0) {
         following_velocity_controller_.output_max = angular_velocity_max;
         following_velocity_controller_.output_min = -angular_velocity_max;
 
@@ -151,7 +151,7 @@ public:
         case rmcs_msgs::ChassisMode::AUTO: break;
         case rmcs_msgs::ChassisMode::SPIN: {
             angular_velocity =
-                0.4 * (spinning_forward_ ? angular_velocity_max : -angular_velocity_max);
+                0.6 * (spinning_forward_ ? angular_velocity_max : -angular_velocity_max);
         } break;
         case rmcs_msgs::ChassisMode::STEP_DOWN: {
             double err = calculate_unsigned_chassis_angle_error(chassis_control_angle);

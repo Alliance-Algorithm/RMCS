@@ -20,7 +20,7 @@ public:
 
         register_input("/referee/shooter/initial_speed", initial_speed_);
         register_input("/referee/shooter/shoot_timestamp", shoot_timestamp_);
-        register_input("/friction_wheels/temperature", fractional_temperature_);
+        // register_input("/friction_wheels/temperature", fractional_temperature_);
 
         if (friction_wheel_count_ == 2) {
             const auto topic = std::array{
@@ -70,9 +70,9 @@ public:
 
         if (friction_wheel_count_ == 2) {
             log_text = fmt::format(
-                "{},{},{},{},{}", timestamp, *initial_speed_,       //
-                *friction_wheels_velocity_[0], *friction_wheels_velocity_[1],
-                *fractional_temperature_);
+                "{},{},{},{}", timestamp, *initial_speed_, //
+                *friction_wheels_velocity_[0], *friction_wheels_velocity_[1]);
+            // *fractional_temperature_);
         } else if (friction_wheel_count_ == 4) {
             log_text = fmt::format(
                 "{},{},{},{},{},{},{}", timestamp, *initial_speed_, //
