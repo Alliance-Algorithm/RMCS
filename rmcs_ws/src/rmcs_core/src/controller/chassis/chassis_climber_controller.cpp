@@ -194,7 +194,7 @@ private:
         AutoClimbControl control{
             .front_track_velocity = track_velocity_max_,
             .back_climber_velocity = climber_back_control_velocity_abs_,
-            .override_chassis_vx = 0.3,
+            .override_chassis_vx = 0.5,
         };
 
         if (is_back_climber_blocked()) {
@@ -434,7 +434,7 @@ private:
     static constexpr int kAutoClimbSupportConfirmTicks = 50;
     static constexpr int kAutoClimbDashMinTicks = 500;
     static constexpr int kAutoClimbDashTimeoutTicks = 3000; // 3000;
-    static constexpr int kAutoClimbSupportRetractTicks = 1000;
+    static constexpr int kAutoClimbSupportRetractTicks = 1200;
     static constexpr int kAutoClimbMaxStairs = 2;
 
     double sync_coefficient_;

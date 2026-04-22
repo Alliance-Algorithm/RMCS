@@ -144,12 +144,10 @@ private:
                 device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
                     .set_reduction_ratio(1.)
                     .set_reversed());
-
             climbable_infantry.register_output(
                 "/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
             climbable_infantry.register_output(
                 "/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
-
             imu_.set_coordinate_mapping(
                 [](double x, double y, double z) { return std::make_tuple(x, y, z); });
         }
@@ -249,8 +247,8 @@ private:
             ClimbableInfantryCommand& climbable_infantry_command,
             std::string_view board_serial = {})
             : librmcs::agent::CBoard(board_serial)
-
             , logger_(climbable_infantry.get_logger())
+            , tf_(climbable_infantry.tf_)
             , imu_(1000, 0.2, 0.0)
             , dr16_(climbable_infantry)
             , supercap_(climbable_infantry, climbable_infantry_command)
@@ -358,7 +356,11 @@ private:
             chassis_front_climber_motor_[1].update_status();
             chassis_back_climber_motor_[0].update_status();
             chassis_back_climber_motor_[1].update_status();
+
             gimbal_yaw_motor_.update_status();
+
+            tf_->set_state<rmcs_description::GimbalCenterLink, rmcs_description::YawLink>(
+                gimbal_yaw_motor_.angle());
 
             for (auto& motor : chassis_wheel_motors_)
                 motor.update_status();
@@ -395,7 +397,7 @@ private:
 
             builder.can2_transmit({
                 .can_id = 0x141,
-                .can_data = gimbal_yaw_motor_.generate_command().as_bytes(),
+                .can_data = gimbal_yaw_motor_.generate_torque_command().as_bytes(),
             });
 
             // builder.can1_transmit({
@@ -481,6 +483,8 @@ private:
         }
 
         rclcpp::Logger logger_;
+
+        OutputInterface<rmcs_description::Tf>& tf_;
 
         device::Bmi088 imu_;
         device::Dr16 dr16_;

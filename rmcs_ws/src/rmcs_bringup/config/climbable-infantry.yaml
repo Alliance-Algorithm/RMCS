@@ -37,7 +37,7 @@ rmcs_executor:
       # - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
       # - rmcs_auto_aim::AutoAimController -> auto_aim_controller
 
-      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 
 Infantry_hardware:
   ros__parameters:
@@ -58,9 +58,11 @@ Infantry_hardware:
 value_broadcaster:
   ros__parameters:
     forward_list:
-    # - /gimbal/yaw/control_angle_error
-      - /gimbal/left_friction/velocity
-      - /gimbal/right_friction/velocity
+    - /gimbal/yaw/velocity
+    - /gimbal/yaw/control_velocity
+    # - /gimbal/yaw/control_torque
+      # - /gimbal/left_friction/velocity
+      # - /gimbal/right_friction/velocity
         # - /chassis/pitch_imu
         # - /gimbal/pitch/velocity_imu
         # - /gimbal/pitch/angle
@@ -100,7 +102,7 @@ value_broadcaster:
 climber_controller:
   ros__parameters:
     front_climber_velocity: 60.0
-    back_climber_velocity: 15.0
+    back_climber_velocity: 20.0
     auto_climb_dash_velocity: 3.0
     auto_climb_support_retract_velocity: 45.0
     sync_coefficient: 0.8
@@ -142,18 +144,18 @@ yaw_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/yaw/control_angle_error
     control: /gimbal/yaw/control_velocity
-    kp: 15.0 #20.00
+    kp: 20.0 #20.00
     ki: 0.0
-    kd: 0.0 #0.8
+    kd: 1.2 #0.8
 
 yaw_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/yaw/velocity_imu
     setpoint: /gimbal/yaw/control_velocity
     control: /gimbal/yaw/control_torque
-    kp: 40.0 #50.00
-    ki: 0.001
-    kd: 0.01 #
+    kp: 3.5 #50.00
+    ki: 0.00
+    kd: 0.2 #
 
 gimbal_player_viewer_controller:
   ros__parameters:
@@ -180,7 +182,7 @@ friction_wheel_controller:
 
 heat_controller:
   ros__parameters:
-    heat_per_shot: 10
+    heat_per_shot: 10000
     reserved_heat: 0
 
 bullet_feeder_controller:

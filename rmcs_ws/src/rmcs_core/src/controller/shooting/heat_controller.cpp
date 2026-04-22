@@ -29,16 +29,14 @@ public:
 
     void update() override {
 
-        int64_t shooter_cooling = *shooter_cooling_;
-        shooter_heat_ = std::max<int64_t>(0, shooter_heat_ - shooter_cooling);
+        shooter_heat_ = std::max<int64_t>(0, shooter_heat_ - *shooter_cooling_);
 
-        if (*bullet_fired_)
-            shooter_heat_ += heat_per_shot + shooter_cooling;
+        if (*bullet_fired_) {
+            shooter_heat_ += heat_per_shot + 10;
+        }
 
         *control_bullet_allowance_ = std::max<int64_t>(
             0, (*shooter_heat_limit_ - shooter_heat_ - reserved_heat) / heat_per_shot);
-        // RCLCPP_INFO(get_logger(), "shooter heat limit: {%ld}", *shooter_heat_limit_);
-        // RCLCPP_INFO(get_logger(), "Control bullet allowance: {%ld}", *control_bullet_allowance_);
     }
 
 private:
