@@ -1,0 +1,358 @@
+<?xml version="1.0"?>
+<robot name="engineer_single_side_schematic">
+  <!--
+    Simplified mirrored suspension model inferred from the agreed geometry.
+
+    Coordinate convention:
+    - base_link origin is the left/lower pivot
+    - x forward
+    - y left
+    - z up
+
+    Zero joint state corresponds to the current six-wheel side-view geometry:
+    - link1 = 240 mm
+    - link2 = 120 mm
+    - link3 = 160 mm
+    - angle(link1, link2) = 120 deg, fixed
+    - upper-pivot to omni center = 130 mm
+    - angle(link3, omni branch) = 70 deg, fixed
+    - wheel diameter = 110 mm
+
+    The right rocker is mirrored onto the body right-side installation face.
+    This URDF is a schematic kinematic model, not a production CAD export.
+  -->
+
+  <material name="pivot_red">
+    <color rgba="0.70 0.18 0.20 1.0"/>
+  </material>
+
+  <material name="link_blue">
+    <color rgba="0.13 0.36 0.58 1.0"/>
+  </material>
+
+  <material name="link_orange">
+    <color rgba="0.82 0.47 0.08 1.0"/>
+  </material>
+
+  <material name="link_brown">
+    <color rgba="0.50 0.31 0.15 1.0"/>
+  </material>
+
+  <material name="wheel_dark">
+    <color rgba="0.15 0.16 0.18 1.0"/>
+  </material>
+
+  <material name="rim_light">
+    <color rgba="0.82 0.86 0.90 1.0"/>
+  </material>
+
+  <link name="base_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <sphere radius="0.012"/>
+      </geometry>
+      <material name="pivot_red"/>
+    </visual>
+  </link>
+
+  <joint name="body_fixed_joint" type="fixed">
+    <origin xyz="-0.0 -0.080 0.0" rpy="0 0 0"/>
+    <parent link="base_link"/>
+    <child link="body_link"/>
+  </joint>
+
+  <link name="body_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.320 0.160 0.120"/>
+      </geometry>
+      <material name="link_blue"/>
+    </visual>
+  </link>
+
+  <joint name="right_pivot_fixed_joint" type="fixed">
+    <origin xyz="0 -0.160 0" rpy="0 0 0"/>
+    <parent link="base_link"/>
+    <child link="right_base_pivot_link"/>
+  </joint>
+
+  <link name="right_base_pivot_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <sphere radius="0.012"/>
+      </geometry>
+      <material name="pivot_red"/>
+    </visual>
+  </link>
+
+  <joint name="rocker_joint" type="revolute">
+    <origin xyz="0 0 0" rpy="0 -1.1702121132 0"/>
+    <parent link="base_link"/>
+    <child link="rocker_link"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-3.14159" upper="3.14159" effort="30" velocity="4.0"/>
+  </joint>
+
+  <link name="rocker_link">
+    <!-- link1 branch to rear wheel center -->
+    <visual>
+      <origin xyz="-0.1105 0 -0.0467947647" rpy="0 -1.9713805404 0"/>
+      <geometry>
+        <cylinder radius="0.008" length="0.24"/>
+      </geometry>
+      <material name="link_blue"/>
+    </visual>
+
+    <!-- link2 branch to upper pivot -->
+    <visual>
+      <origin xyz="0.0478877275 0 -0.0361492124" rpy="0 2.2174096644 0"/>
+      <geometry>
+        <cylinder radius="0.008" length="0.12"/>
+      </geometry>
+      <material name="link_orange"/>
+    </visual>
+
+    <visual>
+      <origin xyz="0.095775455 0 -0.0722984248" rpy="0 0 0"/>
+      <geometry>
+        <sphere radius="0.010"/>
+      </geometry>
+      <material name="pivot_red"/>
+    </visual>
+  </link>
+
+  <joint name="rear_wheel_joint" type="continuous">
+    <origin xyz="-0.221 0 -0.0935895293" rpy="0 0 0"/>
+    <parent link="rocker_link"/>
+    <child link="rear_wheel_link"/>
+    <axis xyz="0 1 0"/>
+  </joint>
+
+  <link name="rear_wheel_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="1.57079632679 0 0"/>
+      <geometry>
+        <cylinder radius="0.055" length="0.030"/>
+      </geometry>
+      <material name="wheel_dark"/>
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="1.57079632679 0 0"/>
+      <geometry>
+        <cylinder radius="0.020" length="0.032"/>
+      </geometry>
+      <material name="rim_light"/>
+    </visual>
+  </link>
+
+  <joint name="upper_pivot_joint" type="revolute">
+    <origin xyz="0.095775455 0 -0.0722984248" rpy="0 -1.2695027610 0"/>
+    <parent link="rocker_link"/>
+    <child link="front_assembly_link"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-3.14159" upper="3.14159" effort="30" velocity="4.0"/>
+  </joint>
+
+  <link name="front_assembly_link">
+    <!-- link3 branch to front wheel center -->
+    <visual>
+      <origin xyz="0.0771122725 0 -0.0213001743" rpy="0 1.8402990878 0"/>
+      <geometry>
+        <cylinder radius="0.008" length="0.16"/>
+      </geometry>
+      <material name="link_blue"/>
+    </visual>
+
+    <!-- fixed omni branch from the same upper pivot -->
+    <visual>
+      <origin xyz="0.0051661463 0 -0.0647943742" rpy="0 3.0620295642 0"/>
+      <geometry>
+        <cylinder radius="0.007" length="0.13"/>
+      </geometry>
+      <material name="link_brown"/>
+    </visual>
+  </link>
+
+  <joint name="front_wheel_joint" type="continuous">
+    <origin xyz="0.1542245450 0 -0.0426003487" rpy="0 0 0"/>
+    <parent link="front_assembly_link"/>
+    <child link="front_wheel_link"/>
+    <axis xyz="0 1 0"/>
+  </joint>
+
+  <link name="front_wheel_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="1.57079632679 0 0"/>
+      <geometry>
+        <cylinder radius="0.055" length="0.030"/>
+      </geometry>
+      <material name="wheel_dark"/>
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="1.57079632679 0 0"/>
+      <geometry>
+        <cylinder radius="0.020" length="0.032"/>
+      </geometry>
+      <material name="rim_light"/>
+    </visual>
+  </link>
+
+  <joint name="omni_wheel_joint" type="continuous">
+    <origin xyz="0.0103322925 0 -0.1295887485" rpy="0 0 0"/>
+    <parent link="front_assembly_link"/>
+    <child link="omni_wheel_link"/>
+    <axis xyz="0 1 0"/>
+  </joint>
+
+  <link name="omni_wheel_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="1.57079632679 0 0"/>
+      <geometry>
+        <cylinder radius="0.055" length="0.024"/>
+      </geometry>
+      <material name="wheel_dark"/>
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="1.57079632679 0 0"/>
+      <geometry>
+        <cylinder radius="0.020" length="0.026"/>
+      </geometry>
+      <material name="rim_light"/>
+    </visual>
+  </link>
+
+  <joint name="right_rocker_joint" type="revolute">
+    <origin xyz="0 0 0" rpy="0 -1.1702121132 0"/>
+    <parent link="right_base_pivot_link"/>
+    <child link="right_rocker_link"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-3.14159" upper="3.14159" effort="30" velocity="4.0"/>
+  </joint>
+
+  <link name="right_rocker_link">
+    <visual>
+      <origin xyz="-0.1105 0 -0.0467947647" rpy="0 -1.9713805404 0"/>
+      <geometry>
+        <cylinder radius="0.008" length="0.24"/>
+      </geometry>
+      <material name="link_blue"/>
+    </visual>
+
+    <visual>
+      <origin xyz="0.0478877275 0 -0.0361492124" rpy="0 2.2174096644 0"/>
+      <geometry>
+        <cylinder radius="0.008" length="0.12"/>
+      </geometry>
+      <material name="link_orange"/>
+    </visual>
+
+    <visual>
+      <origin xyz="0.095775455 0 -0.0722984248" rpy="0 0 0"/>
+      <geometry>
+        <sphere radius="0.010"/>
+      </geometry>
+      <material name="pivot_red"/>
+    </visual>
+  </link>
+
+  <joint name="right_rear_wheel_joint" type="continuous">
+    <origin xyz="-0.221 0 -0.0935895293" rpy="0 0 0"/>
+    <parent link="right_rocker_link"/>
+    <child link="right_rear_wheel_link"/>
+    <axis xyz="0 1 0"/>
+  </joint>
+
+  <link name="right_rear_wheel_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="1.57079632679 0 0"/>
+      <geometry>
+        <cylinder radius="0.055" length="0.030"/>
+      </geometry>
+      <material name="wheel_dark"/>
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="1.57079632679 0 0"/>
+      <geometry>
+        <cylinder radius="0.020" length="0.032"/>
+      </geometry>
+      <material name="rim_light"/>
+    </visual>
+  </link>
+
+  <joint name="right_upper_pivot_joint" type="revolute">
+    <origin xyz="0.095775455 0 -0.0722984248" rpy="0 -1.2695027610 0"/>
+    <parent link="right_rocker_link"/>
+    <child link="right_front_assembly_link"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-3.14159" upper="3.14159" effort="30" velocity="4.0"/>
+  </joint>
+
+  <link name="right_front_assembly_link">
+    <visual>
+      <origin xyz="0.0771122725 0 -0.0213001743" rpy="0 1.8402990878 0"/>
+      <geometry>
+        <cylinder radius="0.008" length="0.16"/>
+      </geometry>
+      <material name="link_blue"/>
+    </visual>
+
+    <visual>
+      <origin xyz="0.0051661463 0 -0.0647943742" rpy="0 3.0620295642 0"/>
+      <geometry>
+        <cylinder radius="0.007" length="0.13"/>
+      </geometry>
+      <material name="link_brown"/>
+    </visual>
+  </link>
+
+  <joint name="right_front_wheel_joint" type="continuous">
+    <origin xyz="0.1542245450 0 -0.0426003487" rpy="0 0 0"/>
+    <parent link="right_front_assembly_link"/>
+    <child link="right_front_wheel_link"/>
+    <axis xyz="0 1 0"/>
+  </joint>
+
+  <link name="right_front_wheel_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="1.57079632679 0 0"/>
+      <geometry>
+        <cylinder radius="0.055" length="0.030"/>
+      </geometry>
+      <material name="wheel_dark"/>
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="1.57079632679 0 0"/>
+      <geometry>
+        <cylinder radius="0.020" length="0.032"/>
+      </geometry>
+      <material name="rim_light"/>
+    </visual>
+  </link>
+
+  <joint name="right_omni_wheel_joint" type="continuous">
+    <origin xyz="0.0103322925 0 -0.1295887485" rpy="0 0 0"/>
+    <parent link="right_front_assembly_link"/>
+    <child link="right_omni_wheel_link"/>
+    <axis xyz="0 1 0"/>
+  </joint>
+
+  <link name="right_omni_wheel_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="1.57079632679 0 0"/>
+      <geometry>
+        <cylinder radius="0.055" length="0.024"/>
+      </geometry>
+      <material name="wheel_dark"/>
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="1.57079632679 0 0"/>
+      <geometry>
+        <cylinder radius="0.020" length="0.026"/>
+      </geometry>
+      <material name="rim_light"/>
+    </visual>
+  </link>
+</robot>
