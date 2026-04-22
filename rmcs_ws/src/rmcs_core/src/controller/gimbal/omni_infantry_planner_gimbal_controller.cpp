@@ -13,7 +13,6 @@
 
 #include "controller/gimbal/two_axis_gimbal_solver.hpp"
 #include "controller/pid/pid_calculator.hpp"
-#include "filter/low_pass_filter.hpp"
 
 namespace rmcs_core::controller::gimbal {
 
@@ -291,12 +290,6 @@ private:
         reset_torque_outputs();
     }
 
-    double yaw_velocity_imu() {
-        const double chassis_yaw_velocity_imu = *yaw_velocity_imu_ - *yaw_velocity_;
-        return /*chassis_yaw_velocity_imu_filter_.update(chassis_yaw_velocity_imu) +*/
-            *yaw_velocity_;
-    }
-
     InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;
     InputInterface<rmcs_msgs::Switch> switch_left_;
@@ -308,8 +301,6 @@ private:
     InputInterface<double> pitch_velocity_;
     InputInterface<double> yaw_velocity_imu_;
     InputInterface<double> pitch_velocity_imu_;
-
-    filter::LowPassFilter<> chassis_yaw_velocity_imu_filter_{0.5, 1000.0};
 
     InputInterface<Eigen::Vector3d> auto_aim_control_direction_;
     InputInterface<double> plan_yaw_;

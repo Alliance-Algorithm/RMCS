@@ -162,7 +162,8 @@ public:
         }
 
         if (has_parameter("test_angles_deg")) {
-            for (double value : get_parameter("test_angles_deg").as_double_array()) {
+            const auto test_angles_deg = get_parameter("test_angles_deg").as_double_array();
+            for (double value : test_angles_deg) {
                 if (!std::isfinite(value))
                     throw std::runtime_error{
                         "joint sweep parameter \"test_angles_deg\" must be finite"};

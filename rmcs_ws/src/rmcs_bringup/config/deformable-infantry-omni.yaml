@@ -68,31 +68,30 @@ deformable_infantry:
 chassis_controller:
   ros__parameters:
     # Deploy geometry / chassis-owned joint intent
-    min_angle: 20.0
-    max_angle: 70.0
+    min_angle: 8.0
+    max_angle: 58.0
     active_suspension_enable: true
-    active_suspension_mass: 22.5
-    active_suspension_rod_length: 0.150
-    active_suspension_Kz: 100.0
-    active_suspension_Kp: 0.0
-    active_suspension_Dp: 0.0
-    active_suspension_Kr: 0.0
-    active_suspension_Dr: 0.0
-    active_suspension_D_leg: 5.0
-    active_suspension_com_height: 0.15
-    active_suspension_wheel_base_half_x: 0.1655864
-    active_suspension_wheel_base_half_y: 0.1655864
-    active_suspension_gravity_comp_gain: 1.00
-    active_suspension_control_acceleration_limit: 0.0
-    active_suspension_preload_angle_deg: 4.0
-    active_suspension_entry_offset_deg: 6.0
-    active_suspension_ride_height_offset_deg: 6.0
-    active_suspension_hold_travel_deg: 12.0
-    active_suspension_activation_velocity_threshold_deg: 8.0
-    # Chassis-owned joint intent trajectory limits
-    active_suspension_target_velocity_limit_deg: 30.0
-    active_suspension_target_acceleration_limit_deg: 120.0
-    active_suspension_torque_limit: 40.0
+
+    # IMU attitude correction at min-angle stance.
+    # pitch < 0: front high. roll > 0: right high.
+    active_suspension_Kp: 8.0
+    active_suspension_pitch_ki: 0.35
+    active_suspension_Dp: 0.28
+    active_suspension_Kr: 8.0
+    active_suspension_roll_ki: 0.35
+    active_suspension_Dr: 0.28
+    active_suspension_pitch_angle_diff_limit_deg: 45.0
+    active_suspension_roll_angle_diff_limit_deg: 45.0
+    active_suspension_pid_integral_limit_deg: 20.0
+
+    # Chassis-owned joint intent trajectory limits while attitude correction is active.
+    active_suspension_target_velocity_limit_deg: 80.0
+    active_suspension_target_acceleration_limit_deg: 360.0
+
+    # Automatic IMU mounting-error calibration.
+    # When all four requested joint targets stay equal for 2s, average pitch/roll from 2s to 5s.
+    chassis_imu_calibration_wait_s: 2.0
+    chassis_imu_calibration_sample_s: 3.0
 
 gimbal_controller:
   ros__parameters:

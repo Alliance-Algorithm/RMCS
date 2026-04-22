@@ -227,7 +227,7 @@ private:
             imu_.set_coordinate_mapping([](double x, double y, double z) {
                 // Keep the existing chassis yaw axis mapping explicit until the bottom-board IMU
                 // installation is re-validated on hardware.
-                return std::make_tuple(x, y, z);
+                return std::make_tuple(-y, x, z);
             });
 
             gimbal_bullet_feeder_.configure(
@@ -288,10 +288,15 @@ private:
                 double sin_pitch = 2.0 * (q0 * q2 - q3 * q1);
                 sin_pitch = std::clamp(sin_pitch, -1.0, 1.0);
 
-                *chassis_imu_pitch_ = std::asin(sin_pitch);
-                *chassis_imu_roll_ =
+                const double standard_pitch = std::asin(sin_pitch);
+                const double standard_roll =
                     std::atan2(2.0 * (q0 * q1 + q2 * q3), 1.0 - 2.0 * (q1 * q1 + q2 * q2));
-                *chassis_imu_pitch_rate_ = imu_.gy();
+
+                // Export chassis attitude using the requested convention:
+                // pitch < 0 when the front is higher, roll > 0 when the left side is higher.
+                *chassis_imu_pitch_ = -standard_pitch;
+                *chassis_imu_roll_ = standard_roll;
+                *chassis_imu_pitch_rate_ = -imu_.gy();
                 *chassis_imu_roll_rate_ = imu_.gx();
             }
 

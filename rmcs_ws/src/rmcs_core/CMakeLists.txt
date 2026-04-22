@@ -59,4 +59,4 @@ target_link_libraries(${PROJECT_NAME} librmcs-sdk)
 
 pluginlib_export_plugin_description_file(rmcs_executor plugins.xml)
 
-ament_auto_package()
+ament_auto_package(USE_SCOPED_HEADER_INSTALL_DIR)
