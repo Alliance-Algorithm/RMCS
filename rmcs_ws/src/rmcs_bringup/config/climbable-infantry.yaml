@@ -102,9 +102,9 @@ value_broadcaster:
 climber_controller:
   ros__parameters:
     front_climber_velocity: 60.0
-    back_climber_velocity: 20.0
+    back_climber_velocity: 13.0
     auto_climb_dash_velocity: 3.0
-    auto_climb_support_retract_velocity: 45.0
+    auto_climb_support_retract_velocity: 47.0
     sync_coefficient: 0.8
     climb_timeout_limit: 1000
     first_stair_approach_pitch: 0.590
