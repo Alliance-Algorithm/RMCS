@@ -19,8 +19,8 @@ namespace rmcs_core::controller::shooting {
  *
  * 发射机制说明：
  * 由于光电门放置于弹舱口，经测试，双中先触发推杆向后复位，然后堵转检测复位完毕，
- * 默认情况下会给一点点的力保证推杆不会滑下去，再然后上弹采用速度环，在光电门被触发时
- * 记录角度并转为角度环，然后推杆检测发弹根据两部分来检测，一是摩擦轮，二是推杆的行程
+ * 默认情况下会给一点点的力保证推杆不会滑下去，全程使用角度环推进，利用灰度检测决定是否推弹
+ * 推杆检测发弹根据两部分来检测，一是摩擦轮，二是推杆的行程
  * 整套方案以于暑假前完成压力测试
  */
 class PutterController
@@ -141,7 +141,6 @@ public:
             } else {
                 // 正常运行模式：摩擦轮就绪时才允许发射
                 if (*friction_ready_) {
-
                     // 发射触发检测
                     // RCLCPP_INFO(get_logger(), "%.2f", *bullet_feeder_angle_);
                     // RCLCPP_INFO(get_logger(), "%.2f", *bullet_feeder_velocity_);
@@ -177,7 +176,17 @@ public:
                         }
                     }
 
+                    if (shoot_stage_ == ShootStage::COMPRESSED) {
+                        // 暂存模式：等待灰度传感器状态更新以判断是否完成推弹
+                        if (*grayscale_sensor_status_) {
+                            set_preloaded();
+                        } else {
+                            set_preloading();
+                        }
+                    }
+
                     if (shoot_stage_ == ShootStage::UPDATING) {
+                        // 缓冲模式：使推杆和供弹盘不发生运动冲突
                         wait_bullet_ready();
                     }
 
@@ -213,6 +222,7 @@ public:
                         bullet_feeder_velocity_pid_.reset();
                         bullet_feeder_angle_pid_.reset();
                         *bullet_feeder_control_torque_ = 0.;
+
                     } else if (shoot_stage_ == ShootStage::RESETTING) {
 
                         const auto angle_err = bullet_feeder_control_angle_ - *bullet_feeder_angle_;
@@ -424,17 +434,13 @@ private:
         while (std::abs(reference_angle - *bullet_feeder_angle_) > pi / 6) {
             reference_angle += (pi / 3);
         }
-        RCLCPP_INFO(get_logger(), "%f, %f", reference_angle, *bullet_feeder_angle_);
         bullet_feeder_control_angle_ = reference_angle;
     }
 
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN(); ///< 非数值常量
     static constexpr double inf_ = std::numeric_limits<double>::infinity();  ///< 无穷大常量
 
-    static constexpr double low_latency_velocity_ = 5.0;                     ///<
-    // 低延迟预装弹速度
-
-    static constexpr double putter_stroke_ = 11.5; ///< 推杆行程长度
+    static constexpr double putter_stroke_ = 11.5;                           ///< 推杆行程长度
 
     static constexpr double max_bullet_feeder_control_torque_ = 0.1;
     static constexpr double bullet_feeder_angle_per_bullet_ = 2 * std::numbers::pi / 6;

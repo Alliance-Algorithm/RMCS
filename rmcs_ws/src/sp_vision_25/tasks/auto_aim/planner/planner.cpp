@@ -2,7 +2,6 @@
 
 #include <cmath>
 #include <limits>
-#include <rclcpp/logging.hpp>
 #include <utility>
 #include <vector>
 
