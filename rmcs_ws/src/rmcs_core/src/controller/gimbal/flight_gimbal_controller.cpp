@@ -1,4 +1,3 @@
-#include <asm-generic/errno.h>
 #include <chrono>
 #include <cmath>
 #include <limits>
@@ -12,52 +11,11 @@
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/switch.hpp>
-#include <rmcs_msgs/target_snapshot.hpp>
 #include <rmcs_utility/eigen_structured_bindings.hpp>
-
-#include "controller/gimbal/planner.hpp"
 
 namespace rmcs_core::controller::gimbal {
 
 using namespace rmcs_description; // NOLINT(google-build-using-namespace)
-
-namespace {
-
-constexpr double kDegToRad = 1.0 / 57.3;
-
-Eigen::Vector3d planner_direction(double yaw, double pitch) {
-    Eigen::Vector3d direction{
-        std::cos(pitch) * std::cos(yaw),
-        std::cos(pitch) * std::sin(yaw),
-        -std::sin(pitch),
-    };
-    if (direction.norm() > 1e-9)
-        direction.normalize();
-    else
-        direction.setZero();
-    return direction;
-}
-
-PlannerConfig load_planner_config(rclcpp::Node& node) {
-    PlannerConfig config;
-    config.yaw_offset = node.get_parameter("yaw_offset").as_double() * kDegToRad;
-    config.pitch_offset = node.get_parameter("pitch_offset").as_double() * kDegToRad;
-    config.fire_thresh = node.get_parameter("fire_thresh").as_double();
-    config.low_speed_delay_time = node.get_parameter("low_speed_delay_time").as_double();
-    config.high_speed_delay_time = node.get_parameter("high_speed_delay_time").as_double();
-    config.decision_speed = node.get_parameter("decision_speed").as_double();
-    config.max_yaw_acc = node.get_parameter("max_yaw_acc").as_double();
-    config.max_pitch_acc = node.get_parameter("max_pitch_acc").as_double();
-    return config;
-}
-
-double parameter_or_declare(rclcpp::Node& node, const std::string& name, double default_value) {
-    if (!node.has_parameter(name))
-        node.declare_parameter<double>(name, default_value);
-    return node.get_parameter(name).as_double();
-}
-
-} // namespace
 
 class FlightTwoAxisGimbalSolver {
     class Operation {
@@ -272,11 +230,7 @@ public:
         , solver_(
               *this, get_parameter("upper_limit").as_double(), get_parameter("lower_limit").as_double(),
               get_parameter("yaw_upper_limit").as_double(),
-              get_parameter("yaw_lower_limit").as_double())
-        , planner_(load_planner_config(*this))
-        , yaw_vel_ff_gain_(parameter_or_declare(*this, "yaw_vel_ff_gain", 0.0))
-        , yaw_acc_ff_gain_(parameter_or_declare(*this, "yaw_acc_ff_gain", 0.0))
-        , pitch_vel_ff_gain_(parameter_or_declare(*this, "pitch_vel_ff_gain", 1.0)) {
+              get_parameter("yaw_lower_limit").as_double()) {
         register_input("/remote/joystick/left", joystick_left_);
         register_input("/remote/switch/right", switch_right_);
         register_input("/remote/switch/left", switch_left_);
@@ -287,11 +241,6 @@ public:
         register_input("/gimbal/yaw/angle", gimbal_yaw_angle_);
         register_input("/gimbal/pitch/angle", gimbal_pitch_angle_);
 
-        // Target snapshot + planner dependencies
-        register_input("/gimbal/auto_aim/target_snapshot", target_snapshot_, false);
-        register_input("/predefined/timestamp", timestamp_);
-        register_input("/referee/shooter/initial_speed", bullet_speed_, false);
-
         // Hold feedforward inputs (optional — HoldController may not be loaded)
         register_input("/gimbal/yaw/hold_feedforward", hold_yaw_ff_, false);
         register_input("/gimbal/pitch/hold_feedforward", hold_pitch_ff_, false);
@@ -300,27 +249,16 @@ public:
         // update_manual_or_hold_control() falls through to the pre-hold behavior.
         register_input("/gimbal/hold/desired", hold_desired_, false);
 
-        if (!has_parameter("bullet_speed_fallback"))
-            declare_parameter<double>("bullet_speed_fallback", 23.0);
-        if (!has_parameter("result_timeout"))
-            declare_parameter<double>("result_timeout", 0.2);
+        // Unified auto-aim interface — populated by either SpVisionPlanner or
+        // rmcs::AutoAimComponent (rmcs_auto_aim_v2). Whichever is loaded in yaml
+        // owns the topics; the other stays absent and we fall back to defaults.
+        register_input("/gimbal/auto_aim/control_direction", auto_aim_direction_, false);
+        register_input("/gimbal/auto_aim/auto_aim_enabled", auto_aim_enabled_, false);
+        register_input("/gimbal/auto_aim/shoot_enable", auto_aim_shoot_enable_, false);
+        register_input("/gimbal/auto_aim/yaw_feedforward", auto_aim_yaw_ff_, false);
+        register_input("/gimbal/auto_aim/pitch_feedforward", auto_aim_pitch_ff_, false);
 
-        planner_result_timeout_ =
-            std::chrono::duration<double>(get_parameter("result_timeout").as_double());
-        bullet_speed_fallback_storage_ =
-            static_cast<float>(get_parameter("bullet_speed_fallback").as_double());
-
-        // Planner outputs
-        register_output(
-            "/gimbal/auto_aim/control_direction", control_direction_, Eigen::Vector3d::Zero());
         register_output("/gimbal/auto_aim/fire_control", fire_control_, false);
-        register_output("/gimbal/auto_aim/laser_distance", laser_distance_, 0.0);
-        register_output("/gimbal/auto_aim/plan_yaw", plan_yaw_, 0.0);
-        register_output("/gimbal/auto_aim/plan_pitch", plan_pitch_, 0.0);
-        register_output("/gimbal/auto_aim/plan_yaw_velocity", plan_yaw_velocity_, 0.0);
-        register_output("/gimbal/auto_aim/plan_yaw_acceleration", plan_yaw_acceleration_, 0.0);
-        register_output("/gimbal/auto_aim/plan_pitch_velocity", plan_pitch_velocity_, 0.0);
-        register_output("/gimbal/auto_aim/plan_pitch_acceleration", plan_pitch_acceleration_, 0.0);
 
         // Unified feedforward outputs (replaces separate Mixer component)
         register_output("/gimbal/yaw/feedforward", yaw_ff_output_, 0.0);
@@ -332,47 +270,52 @@ public:
     }
 
     void before_updating() override {
-        if (!bullet_speed_.ready())
-            bullet_speed_.bind_directly(bullet_speed_fallback_storage_);
-        if (!target_snapshot_.ready())
-            target_snapshot_.make_and_bind_directly(rmcs_msgs::TargetSnapshot{});
         if (!hold_yaw_ff_.ready())
             hold_yaw_ff_.bind_directly(zero_ff_);
         if (!hold_pitch_ff_.ready())
             hold_pitch_ff_.bind_directly(zero_ff_);
-        clear_planner_outputs();
+        if (!auto_aim_direction_.ready())
+            auto_aim_direction_.make_and_bind_directly(Eigen::Vector3d::Zero());
+        if (!auto_aim_enabled_.ready())
+            auto_aim_enabled_.bind_directly(const_false_);
+        if (!auto_aim_shoot_enable_.ready())
+            auto_aim_shoot_enable_.bind_directly(const_false_);
+        if (!auto_aim_yaw_ff_.ready())
+            auto_aim_yaw_ff_.bind_directly(zero_ff_);
+        if (!auto_aim_pitch_ff_.ready())
+            auto_aim_pitch_ff_.bind_directly(zero_ff_);
+
+        *fire_control_ = false;
         *yaw_ff_output_ = 0.0;
         *pitch_ff_output_ = 0.0;
     }
 
     void update() override {
-        // Phase 1: unconditionally update planner outputs (aligned with omni)
-        const PlannerResult planner_result = update_planner_outputs();
-        const bool planner_active = auto_aim_requested() && planner_result.control;
+        const bool auto_aim_active =
+            auto_aim_requested() && *auto_aim_enabled_ && !auto_aim_direction_->isZero();
 
-        // Phase 2: angle control
         const auto angle_error =
-            planner_active ? update_auto_aim_control(*control_direction_)
-                           : update_manual_or_hold_control();
+            auto_aim_active ? update_auto_aim_control(*auto_aim_direction_)
+                            : update_manual_or_hold_control();
+
+        *fire_control_ = auto_aim_active && *auto_aim_shoot_enable_;
 
         if (std::isfinite(angle_error.yaw_angle_error)
-            && std::abs(angle_error.yaw_angle_error)<kYawDeadband){
-            *yaw_angle_error_=0.0;
-            }else {
-                *yaw_angle_error_ =angle_error.yaw_angle_error;
-            }
+            && std::abs(angle_error.yaw_angle_error) < kYawDeadband) {
+            *yaw_angle_error_ = 0.0;
+        } else {
+            *yaw_angle_error_ = angle_error.yaw_angle_error;
+        }
 
-        // Phase 3: feedforward routing
-        update_feedforward(planner_active);
+        update_feedforward(auto_aim_active);
 
-        // Phase 4: pitch deadband
-        if (!std::isfinite(angle_error.pitch_angle_error)) {
-            *pitch_angle_error_ = angle_error.pitch_angle_error;
-        } else if (std::abs(angle_error.pitch_angle_error) < kPitchDeadband) {
+        if (std::isfinite(angle_error.pitch_angle_error)
+            && std::abs(angle_error.pitch_angle_error) < kPitchDeadband) {
             *pitch_angle_error_ = 0.0;
-        } 
+        } else {
+            *pitch_angle_error_ = angle_error.pitch_angle_error;
+        }
         *hold_active_output_ = hold_active_;
-
     }
 
 private:
@@ -380,55 +323,10 @@ private:
         return *switch_right_ == rmcs_msgs::Switch::UP;
     }
 
-    PlannerResult update_planner_outputs() {
-        const auto now = *timestamp_;
-        const auto snapshot = *target_snapshot_;
-
-        const double age_s = std::chrono::duration<double>(now - snapshot.timestamp).count();
-        const bool fresh = snapshot.valid && age_s <= planner_result_timeout_.count();
-        if (!fresh) {
-            clear_planner_outputs();
-            return {};
-        }
-
-        const PlannerResult result = planner_.plan(
-            std::optional<rmcs_msgs::TargetSnapshot>{snapshot}, now,
-            static_cast<double>(*bullet_speed_));
-        if (!result.control) {
-            clear_planner_outputs();
-            return {};
-        }
-
-        *control_direction_ = planner_direction(result.yaw, result.pitch);
-        *fire_control_ = result.fire;
-        *laser_distance_ = result.control_xyza.head<3>().norm();
-        *plan_yaw_ = result.yaw;
-        *plan_pitch_ = result.pitch;
-        *plan_yaw_velocity_ = result.yaw_velocity;
-        *plan_yaw_acceleration_ = result.yaw_acceleration;
-        *plan_pitch_velocity_ = result.pitch_velocity;
-        *plan_pitch_acceleration_ = result.pitch_acceleration;
-        return result;
-    }
-
-    void clear_planner_outputs() {
-        *control_direction_ = Eigen::Vector3d::Zero();
-        *fire_control_ = false;
-        *laser_distance_ = 0.0;
-        *plan_yaw_ = 0.0;
-        *plan_pitch_ = 0.0;
-        *plan_yaw_velocity_ = 0.0;
-        *plan_yaw_acceleration_ = 0.0;
-        *plan_pitch_velocity_ = 0.0;
-        *plan_pitch_acceleration_ = 0.0;
-    }
-
-    void update_feedforward(bool planner_active) {
-        if (planner_active) {
-            *yaw_ff_output_ =
-                yaw_vel_ff_gain_ * *plan_yaw_velocity_
-                + yaw_acc_ff_gain_ * *plan_yaw_acceleration_;
-            *pitch_ff_output_ = pitch_vel_ff_gain_ * *plan_pitch_velocity_;
+    void update_feedforward(bool auto_aim_active) {
+        if (auto_aim_active) {
+            *yaw_ff_output_ = *auto_aim_yaw_ff_;
+            *pitch_ff_output_ = *auto_aim_pitch_ff_;
         } else if (hold_active_) {
             *yaw_ff_output_ = *hold_yaw_ff_;
             *pitch_ff_output_ = *hold_pitch_ff_;
@@ -512,16 +410,16 @@ private:
     }
 
     static constexpr double kNan = std::numeric_limits<double>::quiet_NaN();
-    static constexpr double kPitchDeadband = 1e-1;
-    static constexpr double kYawDeadband = 1e-1;
-
-    // TODO: temporary auto-aim diagnostics — remove after verification
+    static constexpr double kPitchDeadband = 1e-3;
+    static constexpr double kYawDeadband = 1e-3;
 
     const double hold_level_threshold_;
+    bool const_false_ = false;
     bool level_reached_ = false;
     bool hold_active_ = false;
     double hold_target_yaw_ = 0.0;
     double hold_target_pitch_ = 0.0;
+    double zero_ff_ = 0.0;
 
     InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;
@@ -534,36 +432,18 @@ private:
     InputInterface<double> gimbal_pitch_angle_;
     InputInterface<bool> hold_desired_;
 
-    // Planner inputs
-    InputInterface<rmcs_msgs::TargetSnapshot> target_snapshot_;
-    InputInterface<std::chrono::steady_clock::time_point> timestamp_;
-    InputInterface<float> bullet_speed_;
-
     // Hold feedforward inputs (optional, from HoldController)
     InputInterface<double> hold_yaw_ff_;
     InputInterface<double> hold_pitch_ff_;
 
-    // Planner instance + config
-    Planner planner_;
-    std::chrono::duration<double> planner_result_timeout_{0.2};
-    float bullet_speed_fallback_storage_ = 23.0F;
-    double zero_ff_ = 0.0;
+    // Unified auto-aim inputs (source-agnostic)
+    InputInterface<Eigen::Vector3d> auto_aim_direction_;
+    InputInterface<bool> auto_aim_enabled_;
+    InputInterface<bool> auto_aim_shoot_enable_;
+    InputInterface<double> auto_aim_yaw_ff_;
+    InputInterface<double> auto_aim_pitch_ff_;
 
-    // FF gain parameters
-    const double yaw_vel_ff_gain_;
-    const double yaw_acc_ff_gain_;
-    const double pitch_vel_ff_gain_;
-
-    // Planner outputs
-    OutputInterface<Eigen::Vector3d> control_direction_;
     OutputInterface<bool> fire_control_;
-    OutputInterface<double> laser_distance_;
-    OutputInterface<double> plan_yaw_;
-    OutputInterface<double> plan_pitch_;
-    OutputInterface<double> plan_yaw_velocity_;
-    OutputInterface<double> plan_yaw_acceleration_;
-    OutputInterface<double> plan_pitch_velocity_;
-    OutputInterface<double> plan_pitch_acceleration_;
 
     FlightTwoAxisGimbalSolver solver_;
 

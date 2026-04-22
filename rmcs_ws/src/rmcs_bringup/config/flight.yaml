@@ -6,7 +6,13 @@ rmcs_executor:
       - rmcs_core::referee::Status -> referee_status
 
       # - rmcs_core::controller::gimbal::HoldController -> hold_controller
-      - sp_vision_25::bridge::SpVisionBridge -> sp_vision_bridge
+
+      # ====== Auto-aim backend (choose one) ======
+      # Option A: sp_vision_25 → SpVisionPlanner
+      # - sp_vision_25::bridge::SpVisionBridge -> sp_vision_bridge
+      # - rmcs_core::controller::gimbal::SpVisionPlanner -> sp_vision_planner
+      # Option B: rmcs_auto_aim_v2
+      - rmcs::AutoAimComponent -> auto_aim_v2
 
       - rmcs_core::controller::gimbal::FlightGimbalController -> gimbal_controller
       - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
@@ -56,9 +62,6 @@ flight_hardware:
     board_serial: "d4-9d44"
     yaw_motor_zero_point: 55555
     pitch_motor_zero_point: 18578
-    imu_gx_bias: 0.0
-    imu_gy_bias: 0.0
-    imu_gz_bias: 0.0
 
 sp_vision_bridge:
   ros__parameters:
@@ -95,7 +98,12 @@ gimbal_controller:
     # SetToLevel must converge below this |yaw_err|/|pitch_err| (rad) before
     # hold mode is permitted. ~0.02 rad ≈ 1.1°.
     hold_level_threshold: 0.02
-    # Planner parameters (from sp_vision_bridge → gimbal_controller migration)
+
+sp_vision_planner:
+  ros__parameters:
+    # Consumed when Option A (sp_vision_25 → SpVisionPlanner) is enabled.
+    # Publishes the unified /gimbal/auto_aim/* interface that gimbal_controller
+    # consumes; rmcs_auto_aim_v2 publishes the same topics under Option B.
     bullet_speed_fallback: 23.0
     result_timeout: 0.2
     yaw_offset: 0.0
@@ -106,7 +114,8 @@ gimbal_controller:
     decision_speed: 7.0
     max_yaw_acc: 500.0
     max_pitch_acc: 100.0
-    # Feedforward gains (replaces GimbalFeedforwardMixer)
+    # Feedforward gains (scaled velocities/accelerations are published as
+    # /gimbal/auto_aim/yaw_feedforward and /gimbal/auto_aim/pitch_feedforward).
     yaw_vel_ff_gain: 0.0
     yaw_acc_ff_gain: 0.0
     pitch_vel_ff_gain: 1.0

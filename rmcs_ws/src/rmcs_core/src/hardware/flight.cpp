@@ -69,15 +69,9 @@ public:
                                             .set_reversed()
                                             .enable_multi_turn_angle());
 
-        imu_gx_bias_ = get_parameter("imu_gx_bias").as_double();
-        imu_gy_bias_ = get_parameter("imu_gy_bias").as_double();
-        imu_gz_bias_ = get_parameter("imu_gz_bias").as_double();
-
         register_input("/predefined/timestamp", timestamp_);
         register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
         register_output("/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
-        register_output("/gimbal/yaw/gyro_raw", gimbal_yaw_gyro_raw_);
-        register_output("/gimbal/pitch/gyro_raw", gimbal_pitch_gyro_raw_);
         register_output("/tf", tf_);
         register_output("/gimbal/hard_sync_snapshot", hard_sync_snapshot_);
 
@@ -187,10 +181,8 @@ private:
         tf_->set_transform<rmcs_description::PitchLink, rmcs_description::OdomImu>(
             gimbal_imu_pose.conjugate());
 
-        *gimbal_yaw_velocity_imu_ = bmi088_.gz() - imu_gz_bias_;
-        *gimbal_pitch_velocity_imu_ = bmi088_.gy() - imu_gy_bias_;
-        *gimbal_yaw_gyro_raw_ = bmi088_.gz();
-        *gimbal_pitch_gyro_raw_ = bmi088_.gy();
+        *gimbal_yaw_velocity_imu_ = bmi088_.gz();
+        *gimbal_pitch_velocity_imu_ = bmi088_.gy();
     }
 
     void update_hard_sync_snapshot() {
@@ -301,7 +293,6 @@ private:
 
     device::Dr16 dr16_;
     device::Bmi088 bmi088_;
-    double imu_gx_bias_, imu_gy_bias_, imu_gz_bias_;
 
     OutputInterface<double> gimbal_yaw_velocity_imu_;
     OutputInterface<double> gimbal_pitch_velocity_imu_;
