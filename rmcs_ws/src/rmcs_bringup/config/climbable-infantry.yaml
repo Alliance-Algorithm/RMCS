@@ -29,7 +29,7 @@ rmcs_executor:
       
       
 
-      - rmcs_core::controller::chassis::ChassisController -> chassis_controller
+      - rmcs_core::controller::chassis::ClimbableInfantryChassisController -> chassis_controller
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::SteeringWheelController -> steering_wheel_controller
       - rmcs_core::controller::chassis::ChassisClimberController -> climber_controller
@@ -102,15 +102,12 @@ value_broadcaster:
 climber_controller:
   ros__parameters:
     front_climber_velocity: 60.0
-    back_climber_velocity: 13.0
+    back_climber_velocity: 15.0 #13.0
     auto_climb_dash_velocity: 3.0
-    auto_climb_support_retract_velocity: 47.0
+    auto_climb_support_retract_velocity: 30.0 #47.0
     sync_coefficient: 0.8
-    climb_timeout_limit: 1000
     first_stair_approach_pitch: 0.590
     second_stair_approach_pitch: 0.345
-    back_climber_burst_velocity: 15.0  
-    back_climber_burst_duration: 300  
     front_kp: 1.0
     front_ki: 0.0
     front_kd: 0.5
@@ -144,16 +141,16 @@ yaw_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/yaw/control_angle_error
     control: /gimbal/yaw/control_velocity
-    kp: 20.0 #20.00
+    kp: 15.0 #20.00
     ki: 0.0
-    kd: 1.2 #0.8
+    kd: 0.8 #0.8
 
 yaw_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/yaw/velocity_imu
     setpoint: /gimbal/yaw/control_velocity
     control: /gimbal/yaw/control_torque
-    kp: 3.5 #50.00
+    kp: 2.5 #50.00
     ki: 0.00
     kd: 0.2 #
 
