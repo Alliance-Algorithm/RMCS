@@ -110,11 +110,11 @@ gimbal_controller:
 
 dual_yaw_controller:
   ros__parameters:
-    top_yaw_angle_kp: 10.0
+    top_yaw_angle_kp: 22.0
     top_yaw_angle_ki: 0.0
     top_yaw_angle_kd: 0.0
-    top_yaw_velocity_kp: 50.0
-    top_yaw_velocity_ki: 0.002
+    top_yaw_velocity_kp: 90.0
+    top_yaw_velocity_ki: 0.004
     top_yaw_velocity_kd: 0.0
     bottom_yaw_angle_kp: 5.0
     bottom_yaw_angle_ki: 0.0
@@ -142,18 +142,18 @@ pitch_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/pitch/control_angle_error
     control: /gimbal/pitch/control_velocity
-    kp: 22. #28.00
+    kp: 22.0 #28.00
     ki: 0.0
-    kd: 0.0 #0.6
+    kd: 0.1 #0.6
 
 pitch_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/pitch/velocity_imu
     setpoint: /gimbal/pitch/control_velocity
     control: /gimbal/pitch/control_torque
-    kp: 42.0 #45.00
+    kp: 44.0 #45.00
     ki: 0.00
-    kd: 0. #1.00
+    kd: 0.3 #1.00
 
 gimbal_player_viewer_controller0:
   ros__parameters:
@@ -229,6 +229,11 @@ second_right_friction_velocity_pid_controller:
     ki: 0.00
     kd: 0.00004
   
+steering_wheel_status:
+  ros__parameters:
+    vehicle_radius: 0.318198
+    wheel_radius: 0.055
+
 steering_wheel_controller:
   ros__parameters:
     mess: 22.0

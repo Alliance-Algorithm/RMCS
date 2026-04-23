@@ -1,5 +1,5 @@
-# enemy_color: "red"
-enemy_color: "blue"
+enemy_color: "red"
+# enemy_color: "blue"
 
 #神经网络参数
 yolo_name: yolov5
@@ -38,7 +38,7 @@ outpost_max_temp_lost_count: 75
 
 #aimer参数
 yaw_offset: 0.5 # degree 111
-pitch_offset: -2.6 # degree 111
+pitch_offset: -2.1 # degree 111
 comming_angle: 55 # degree
 leaving_angle: 20 # degree
 decision_speed: 5 # rad/s
