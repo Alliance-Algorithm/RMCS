@@ -146,7 +146,7 @@ pitch_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/pitch/control_angle_error
     control: /gimbal/pitch/control_velocity
-    kp: 25.6
+    kp: 14.2
     ki: 0.0
     kd: 0.0
 
@@ -155,8 +155,8 @@ pitch_velocity_pid_controller:
     measurement: /gimbal/pitch/velocity_imu
     setpoint: /gimbal/pitch/control_velocity
     control: /gimbal/pitch/control_torque
-    kp: 14.11
-    ki: 0.0040
+    kp: 8.92
+    ki: 0.0026
     kd: 0.0
     integral_min: -2500.0
     integral_max: 2500.0

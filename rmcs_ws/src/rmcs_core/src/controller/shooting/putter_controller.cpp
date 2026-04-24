@@ -53,8 +53,8 @@ public:
         register_input("/gimbal/putter/angle", putter_angle_);
         register_input("/gimbal/putter/velocity", putter_velocity_);
 
-        bullet_feeder_velocity_pid_.kp = 50.0;
-        bullet_feeder_velocity_pid_.ki = 10.0;
+        bullet_feeder_velocity_pid_.kp = 5.0;
+        bullet_feeder_velocity_pid_.ki = 1.0;
         bullet_feeder_velocity_pid_.kd = 0.0;
         bullet_feeder_velocity_pid_.integral_max = 60.0;
         bullet_feeder_velocity_pid_.integral_min = 0.0;
