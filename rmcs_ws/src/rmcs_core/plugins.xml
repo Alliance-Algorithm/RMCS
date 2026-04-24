@@ -35,6 +35,9 @@
   <class type="rmcs_core::controller::chassis::SteeringWheelController" base_class_type="rmcs_executor::Component">
     <description>Steering wheel controller.</description>
   </class>
+  <class type="rmcs_core::controller::chassis::SteeringWheelStatus" base_class_type="rmcs_executor::Component">
+    <description>Steering wheel controller.</description>
+  </class>
   <class type="rmcs_core::controller::gimbal::SimpleGimbalController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
@@ -111,6 +114,9 @@
     <description>Test plugin.</description>
   </class>
   <class type="rmcs_core::controller::chassis::ChassisClimberController" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
+  <class type="rmcs_core::controller::chassis::ClimbableInfantryChassisClimberController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
   <class type="rmcs_core::hardware::ShootingTest" base_class_type="rmcs_executor::Component">

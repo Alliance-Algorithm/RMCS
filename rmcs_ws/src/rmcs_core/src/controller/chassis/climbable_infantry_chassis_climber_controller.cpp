@@ -23,11 +23,11 @@ enum class AutoClimbState {
     FORERAKED
 };
 
-class ChassisClimberController
+class ClimbableInfantryChassisClimberController
     : public rmcs_executor::Component
     , public rclcpp::Node {
 public:
-    ChassisClimberController()
+    ClimbableInfantryChassisClimberController()
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
@@ -567,4 +567,5 @@ private:
 #include <pluginlib/class_list_macros.hpp>
 
 PLUGINLIB_EXPORT_CLASS(
-    rmcs_core::controller::chassis::ChassisClimberController, rmcs_executor::Component)
+    rmcs_core::controller::chassis::ClimbableInfantryChassisClimberController,
+    rmcs_executor::Component)

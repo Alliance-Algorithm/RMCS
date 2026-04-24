@@ -29,10 +29,12 @@ rmcs_executor:
       
       
 
+
+      - rmcs_core::controller::chassis::SteeringWheelStatus -> steering_wheel_status
       - rmcs_core::controller::chassis::ClimbableInfantryChassisController -> chassis_controller
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::SteeringWheelController -> steering_wheel_controller
-      - rmcs_core::controller::chassis::ChassisClimberController -> climber_controller
+      - rmcs_core::controller::chassis::ClimbableInfantryChassisClimberController -> climber_controller
 
       # - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
       # - rmcs_auto_aim::AutoAimController -> auto_aim_controller
@@ -224,6 +226,11 @@ bullet_feeder_velocity_pid_controller:
     kp: 0.7
     ki: 0.0
     kd: 0.0
+  
+steering_wheel_status:
+  ros__parameters:
+    vehicle_radius: 0.28284271247462
+    wheel_radius: 0.055
   
 steering_wheel_controller:
   ros__parameters:
