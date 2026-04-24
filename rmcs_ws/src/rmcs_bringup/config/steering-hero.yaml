@@ -39,7 +39,16 @@ rmcs_executor:
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
 
-      - sp_vision_25::bridge::HeroAutoAimBridge -> hero_auto_aim_bridge   
+      - sp_vision_25::bridge::HeroAutoAimBridge -> hero_auto_aim_bridge 
+
+      # - rmcs_core::controller::identification::SweptFrequencyController -> pitch_swept_frequency_controller
+      # - rmcs_core::controller::identification::StaticTorqueTestController -> pitch_static_torque_test_controller
+      # - rmcs_core::controller::identification::SweptFrequencyController -> top_yaw_swept_frequency_controller
+      # - rmcs_core::controller::identification::SweptFrequencyController -> bottom_yaw_swept_frequency_controller
+
+  
+
+
 hero_hardware:
   ros__parameters:
     board_serial_top_board: "D4-2BCA-2E47-76CD-23BC-0B78-684B"
@@ -85,6 +94,10 @@ value_broadcaster:
         # - /gimbal/bottom_yaw/angle
         # - /gimbal/top_yaw/angle
         # - /gimbal/pitch/angle
+
+        - /gimbal/pitch/velocity_imu
+        - /gimbal/pitch/control_velocity
+        - /gimbal/pitch/control_torque
     
 
 climber_controller:
@@ -110,18 +123,22 @@ gimbal_controller:
 
 dual_yaw_controller:
   ros__parameters:
-    top_yaw_angle_kp: 22.0
+    top_yaw_angle_kp: 22.2
     top_yaw_angle_ki: 0.0
     top_yaw_angle_kd: 0.0
-    top_yaw_velocity_kp: 90.0
-    top_yaw_velocity_ki: 0.004
+    top_yaw_velocity_kp: 8.92
+    top_yaw_velocity_ki: 0.0026
     top_yaw_velocity_kd: 0.0
-    bottom_yaw_angle_kp: 5.0
+    top_yaw_velocity_integral_min: -2500.0
+    top_yaw_velocity_integral_max: 2500.0
+    bottom_yaw_angle_kp: 13.9
     bottom_yaw_angle_ki: 0.0
     bottom_yaw_angle_kd: 0.0
-    bottom_yaw_velocity_kp: 10.0
-    bottom_yaw_velocity_ki: 0.0
-    bottom_yaw_velocity_kd: 50.0
+    bottom_yaw_velocity_kp: 3.0
+    bottom_yaw_velocity_ki: 0.0006
+    bottom_yaw_velocity_kd: 0.0
+    bottom_yaw_velocity_integral_min: -2500.0
+    bottom_yaw_velocity_integral_max: 2500.0
 
 # dual_yaw_controller:
 #   ros__parameters:
@@ -142,18 +159,20 @@ pitch_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/pitch/control_angle_error
     control: /gimbal/pitch/control_velocity
-    kp: 22.0 #28.00
+    kp: 25.6
     ki: 0.0
-    kd: 0.1 #0.6
+    kd: 0.0
 
 pitch_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/pitch/velocity_imu
     setpoint: /gimbal/pitch/control_velocity
     control: /gimbal/pitch/control_torque
-    kp: 44.0 #45.00
-    ki: 0.00
-    kd: 0.3 #1.00
+    kp: 14.11
+    ki: 0.0040
+    kd: 0.0
+    integral_min: -2500.0
+    integral_max: 2500.0
 
 gimbal_player_viewer_controller0:
   ros__parameters:
@@ -289,3 +308,56 @@ hero_auto_aim_bridge:
       bullet_speed_fallback: 11.4                                                                                      
       result_timeout: 0.1   # 0.08                                                                                     
       debug: false
+
+pitch_swept_frequency_controller:
+  ros__parameters:
+    target: /gimbal/pitch
+
+    sweep: true
+    logarithmic: true
+    start_freq: 0.1
+    end_freq: 10.0
+    duration: 60.0
+    amplitude: 10.0
+
+    pid: true
+    setpoint: 0.0
+    position_kp: 20.0
+    position_ki: 0.0
+    position_kd: 0.0
+    velocity_kp: 1.65
+    velocity_ki: 0.0
+    velocity_kd: 0.0
+    dc_offset: 0.0
+
+top_yaw_swept_frequency_controller:
+  ros__parameters:
+    target: /gimbal/top_yaw
+
+    sweep: true
+    logarithmic: true
+    start_freq: 0.1
+    end_freq: 10.0
+    duration: 60.0
+    amplitude: 20.0
+
+    pid: true
+    setpoint: 0.0
+    position_kp: 10.0
+    position_ki: 0.0
+    position_kd: 0.0
+    velocity_kp: 3.0
+    velocity_ki: 0.0
+    velocity_kd: 0.0
+    dc_offset: 0.0
+
+bottom_yaw_swept_frequency_controller:
+  ros__parameters:
+    target: /gimbal/bottom_yaw
+
+    sweep: true
+    logarithmic: true
+    start_freq: 0.1
+    end_freq: 4.0
+    duration: 80.0
+    amplitude: 2.0
