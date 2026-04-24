@@ -36,6 +36,117 @@ namespace rmcs_core::hardware {
 
 using Clock = std::chrono::steady_clock;
 
+namespace {
+
+class RmcsBoardLiteCompat : private librmcs::data::DataCallback {
+public:
+    explicit RmcsBoardLiteCompat(
+        std::string_view serial_filter = {},
+        const librmcs::agent::AdvancedOptions& options = {})
+        : handler_(0xA11C, 0xA801, serial_filter, options, *this) {}
+
+    RmcsBoardLiteCompat(const RmcsBoardLiteCompat&) = delete;
+    RmcsBoardLiteCompat& operator=(const RmcsBoardLiteCompat&) = delete;
+    RmcsBoardLiteCompat(RmcsBoardLiteCompat&&) = delete;
+    RmcsBoardLiteCompat& operator=(RmcsBoardLiteCompat&&) = delete;
+    ~RmcsBoardLiteCompat() override = default;
+
+    class PacketBuilder {
+        friend class RmcsBoardLiteCompat;
+
+    public:
+        PacketBuilder& can0_transmit(const librmcs::data::CanDataView& data) {
+            if (!builder_.write_can(librmcs::data::DataId::kCan0, data)) [[unlikely]]
+                throw std::invalid_argument{"CAN0 transmission failed: Invalid CAN data"};
+            return *this;
+        }
+        PacketBuilder& can1_transmit(const librmcs::data::CanDataView& data) {
+            if (!builder_.write_can(librmcs::data::DataId::kCan1, data)) [[unlikely]]
+                throw std::invalid_argument{"CAN1 transmission failed: Invalid CAN data"};
+            return *this;
+        }
+        PacketBuilder& can2_transmit(const librmcs::data::CanDataView& data) {
+            if (!builder_.write_can(librmcs::data::DataId::kCan2, data)) [[unlikely]]
+                throw std::invalid_argument{"CAN2 transmission failed: Invalid CAN data"};
+            return *this;
+        }
+        PacketBuilder& can3_transmit(const librmcs::data::CanDataView& data) {
+            if (!builder_.write_can(librmcs::data::DataId::kCan3, data)) [[unlikely]]
+                throw std::invalid_argument{"CAN3 transmission failed: Invalid CAN data"};
+            return *this;
+        }
+
+        PacketBuilder& uart0_transmit(const librmcs::data::UartDataView& data) {
+            if (!builder_.write_uart(librmcs::data::DataId::kUart0, data)) [[unlikely]]
+                throw std::invalid_argument{"UART0 transmission failed: Invalid UART data"};
+            return *this;
+        }
+        PacketBuilder& uart1_transmit(const librmcs::data::UartDataView& data) {
+            if (!builder_.write_uart(librmcs::data::DataId::kUart1, data)) [[unlikely]]
+                throw std::invalid_argument{"UART1 transmission failed: Invalid UART data"};
+            return *this;
+        }
+
+    private:
+        explicit PacketBuilder(librmcs::host::protocol::Handler& handler) noexcept
+            : builder_(handler.start_transmit()) {}
+
+        librmcs::host::protocol::Handler::PacketBuilder builder_;
+    };
+
+    PacketBuilder start_transmit() noexcept { return PacketBuilder{handler_}; }
+
+private:
+    bool can_receive_callback(
+        librmcs::data::DataId id, const librmcs::data::CanDataView& data) final {
+        switch (id) {
+        case librmcs::data::DataId::kCan0: can0_receive_callback(data); return true;
+        case librmcs::data::DataId::kCan1: can1_receive_callback(data); return true;
+        case librmcs::data::DataId::kCan2: can2_receive_callback(data); return true;
+        case librmcs::data::DataId::kCan3: can3_receive_callback(data); return true;
+        default: return false;
+        }
+    }
+
+    virtual void can0_receive_callback(const librmcs::data::CanDataView& data) { (void)data; }
+    virtual void can1_receive_callback(const librmcs::data::CanDataView& data) { (void)data; }
+    virtual void can2_receive_callback(const librmcs::data::CanDataView& data) { (void)data; }
+    virtual void can3_receive_callback(const librmcs::data::CanDataView& data) { (void)data; }
+
+    bool uart_receive_callback(
+        librmcs::data::DataId id, const librmcs::data::UartDataView& data) final {
+        switch (id) {
+        case librmcs::data::DataId::kUartDbus: dbus_receive_callback(data); return true;
+        case librmcs::data::DataId::kUart0: uart0_receive_callback(data); return true;
+        case librmcs::data::DataId::kUart1: uart1_receive_callback(data); return true;
+        default: return false;
+        }
+    }
+
+    virtual void dbus_receive_callback(const librmcs::data::UartDataView& data) { (void)data; }
+    virtual void uart0_receive_callback(const librmcs::data::UartDataView& data) { (void)data; }
+    virtual void uart1_receive_callback(const librmcs::data::UartDataView& data) { (void)data; }
+
+    void gpio_digital_read_result_callback(const librmcs::data::GpioDigitalDataView& data) final {
+        (void)data;
+    }
+    void gpio_analog_read_result_callback(const librmcs::data::GpioAnalogDataView& data) final {
+        (void)data;
+    }
+
+    void accelerometer_receive_callback(
+        const librmcs::data::AccelerometerDataView& data) override {
+        (void)data;
+    }
+    void gyroscope_receive_callback(const librmcs::data::GyroscopeDataView& data) override {
+        (void)data;
+    }
+
+    librmcs::host::protocol::Handler handler_;
+};
+
+} // namespace
+
 class DeformableInfantryOmni
     : public rmcs_executor::Component
     , public rclcpp::Node {
@@ -65,7 +176,7 @@ public:
                 gimbal_calibrate_subscription_callback(std::move(msg));
             });
 
-        rmcs_board_ = std::make_unique<BottomBoard>(
+        rmcs_board_lite = std::make_unique<BottomBoard>(
             *this, *deformable_infantry_command_,
             get_parameter("serial_filter_rmcs_board").as_string());
         top_board_ = std::make_unique<TopBoard>(
@@ -81,14 +192,14 @@ public:
     }
 
     void update() override {
-        rmcs_board_->update();
+        rmcs_board_lite->update();
         top_board_->update();
         update_hard_sync_snapshot();
     }
 
     void command_update() {
         const bool even = ((cmd_tick_++ & 1u) == 0u);
-        rmcs_board_->command_update(even);
+        rmcs_board_lite->command_update(even);
         top_board_->command_update();
     }
 
@@ -119,30 +230,30 @@ private:
     }
 
     void joints_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
-        if (!rmcs_board_)
+        if (!rmcs_board_lite)
             return;
 
         RCLCPP_INFO(
             get_logger(), "New left front offset: %ld",
-            rmcs_board_->chassis_joint_motors_[0].calibrate_zero_point());
+            rmcs_board_lite->chassis_joint_motors_[0].calibrate_zero_point());
         RCLCPP_INFO(
             get_logger(), "New left back offset: %ld",
-            rmcs_board_->chassis_joint_motors_[1].calibrate_zero_point());
+            rmcs_board_lite->chassis_joint_motors_[1].calibrate_zero_point());
         RCLCPP_INFO(
             get_logger(), "New right back offset: %ld",
-            rmcs_board_->chassis_joint_motors_[2].calibrate_zero_point());
+            rmcs_board_lite->chassis_joint_motors_[2].calibrate_zero_point());
         RCLCPP_INFO(
             get_logger(), "New right front offset: %ld",
-            rmcs_board_->chassis_joint_motors_[3].calibrate_zero_point());
+            rmcs_board_lite->chassis_joint_motors_[3].calibrate_zero_point());
     }
 
     void gimbal_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
-        if (!rmcs_board_ || !top_board_)
+        if (!rmcs_board_lite || !top_board_)
             return;
 
         RCLCPP_INFO(
             get_logger(), "[gimbal calibration] New yaw offset: %ld",
-            rmcs_board_->gimbal_yaw_motor_.calibrate_zero_point());
+            rmcs_board_lite->gimbal_yaw_motor_.calibrate_zero_point());
         RCLCPP_INFO(
             get_logger(), "[gimbal calibration] New pitch offset: %ld",
             top_board_->gimbal_pitch_motor_.calibrate_zero_point());
@@ -158,7 +269,7 @@ private:
         DeformableInfantryOmni& deformableInfantry;
     };
 
-    class BottomBoard final : private librmcs::agent::RmcsBoard {
+    class BottomBoard final : private RmcsBoardLiteCompat {
     public:
         friend class DeformableInfantryOmni;
 
@@ -170,7 +281,7 @@ private:
             std::string serial_filter =
                 {
         })
-            : librmcs::agent::RmcsBoard(
+            : RmcsBoardLiteCompat(
                   serial_filter,
                   librmcs::agent::AdvancedOptions{.dangerously_skip_version_checks = true})
             , deformable_infantry_(deformableInfantry)
@@ -200,7 +311,7 @@ private:
                     [&buffer](std::byte byte) noexcept { *buffer++ = byte; }, size);
             };
             referee_serial_->write = [this](const std::byte* buffer, size_t size) {
-                start_transmit().uart2_transmit({
+                start_transmit().uart0_transmit({
                     .uart_data = std::span<const std::byte>{buffer, size}
                 });
                 return size;
@@ -593,7 +704,7 @@ private:
             }
         }
 
-        void uart2_receive_callback(const librmcs::data::UartDataView& data) override {
+        void uart0_receive_callback(const librmcs::data::UartDataView& data) override {
             const std::byte* ptr = data.uart_data.data();
             referee_ring_buffer_receive_.emplace_back_n(
                 [&ptr](std::byte* storage) noexcept { *storage = *ptr++; }, data.uart_data.size());
@@ -804,7 +915,7 @@ private:
     Clock::time_point next_hard_sync_log_time_{};
 
     std::shared_ptr<DeformableInfantryOmniCommand> deformable_infantry_command_;
-    std::unique_ptr<BottomBoard> rmcs_board_;
+    std::unique_ptr<BottomBoard> rmcs_board_lite;
     std::unique_ptr<TopBoard> top_board_;
     uint32_t cmd_tick_ = 0;
 
