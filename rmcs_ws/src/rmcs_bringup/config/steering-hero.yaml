@@ -39,7 +39,16 @@ rmcs_executor:
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
 
-      - sp_vision_25::bridge::HeroAutoAimBridge -> hero_auto_aim_bridge   
+      - sp_vision_25::bridge::HeroAutoAimBridge -> hero_auto_aim_bridge 
+
+      # - rmcs_core::controller::identification::SweptFrequencyController -> pitch_swept_frequency_controller
+      # - rmcs_core::controller::identification::StaticTorqueTestController -> pitch_static_torque_test_controller
+      # - rmcs_core::controller::identification::SweptFrequencyController -> top_yaw_swept_frequency_controller
+      # - rmcs_core::controller::identification::SweptFrequencyController -> bottom_yaw_swept_frequency_controller
+
+  
+
+
 hero_hardware:
   ros__parameters:
     board_serial_top_board: "D4-2BCA-2E47-76CD-23BC-0B78-684B"
@@ -85,6 +94,10 @@ value_broadcaster:
         # - /gimbal/bottom_yaw/angle
         # - /gimbal/top_yaw/angle
         # - /gimbal/pitch/angle
+
+        - /gimbal/pitch/velocity_imu
+        - /gimbal/pitch/control_velocity
+        - /gimbal/pitch/control_torque
     
 
 climber_controller:
@@ -295,3 +308,56 @@ hero_auto_aim_bridge:
       bullet_speed_fallback: 11.5                                                                                      
       result_timeout: 0.1   # 0.08                                                                                     
       debug: false
+
+pitch_swept_frequency_controller:
+  ros__parameters:
+    target: /gimbal/pitch
+
+    sweep: true
+    logarithmic: true
+    start_freq: 0.1
+    end_freq: 10.0
+    duration: 60.0
+    amplitude: 10.0
+
+    pid: true
+    setpoint: 0.0
+    position_kp: 20.0
+    position_ki: 0.0
+    position_kd: 0.0
+    velocity_kp: 1.65
+    velocity_ki: 0.0
+    velocity_kd: 0.0
+    dc_offset: 0.0
+
+top_yaw_swept_frequency_controller:
+  ros__parameters:
+    target: /gimbal/top_yaw
+
+    sweep: true
+    logarithmic: true
+    start_freq: 0.1
+    end_freq: 10.0
+    duration: 60.0
+    amplitude: 20.0
+
+    pid: true
+    setpoint: 0.0
+    position_kp: 10.0
+    position_ki: 0.0
+    position_kd: 0.0
+    velocity_kp: 3.0
+    velocity_ki: 0.0
+    velocity_kd: 0.0
+    dc_offset: 0.0
+
+bottom_yaw_swept_frequency_controller:
+  ros__parameters:
+    target: /gimbal/bottom_yaw
+
+    sweep: true
+    logarithmic: true
+    start_freq: 0.1
+    end_freq: 4.0
+    duration: 80.0
+    amplitude: 2.0
