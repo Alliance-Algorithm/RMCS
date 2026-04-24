@@ -219,9 +219,15 @@ private:
 
         Eigen::Vector2d control_torques =
             belt_pid_.update(setpoint_error) - sync_coefficient_ * relative_velocity;
-
-        *left_belt_torque_ = std::clamp(control_torques[0], -torque_limit, torque_limit);
-        *right_belt_torque_ = std::clamp(control_torques[1], -torque_limit, torque_limit);
+        if (control_mode_ == BeltControlMode::MOVE_UP) {
+            *left_belt_torque_ =
+                std::clamp(control_torques[0], 0.5 * -torque_limit, 0.5 * torque_limit);
+            *right_belt_torque_ =
+                std::clamp(control_torques[1], 0.5 * -torque_limit, 0.5 * torque_limit);
+        } else {
+            *left_belt_torque_ = std::clamp(control_torques[0], -torque_limit, torque_limit);
+            *right_belt_torque_ = std::clamp(control_torques[1], -torque_limit, torque_limit);
+        }
     }
 
     pid::MatrixPidCalculator<2> belt_pid_;
