@@ -33,13 +33,13 @@ sentry_hardware:
     board_serial_top_board: "af-da30"
     board_serial_bottom_board: "d4-2184"
     board_serial_gimbal_board: "d4-1d2b"
-    bottom_yaw_motor_zero_point: 15151
-    top_yaw_motor_zero_point: 4453
+    bottom_yaw_motor_zero_point: 26163
+    top_yaw_motor_zero_point: 4540
     pitch_motor_zero_point: 1446
-    left_front_zero_point: 5768
-    left_back_zero_point: 5110
-    right_back_zero_point: 2685
-    right_front_zero_point: 6434
+    left_front_zero_point: 7131
+    left_back_zero_point: 3740
+    right_back_zero_point: 1327
+    right_front_zero_point: 5147
 
 rmcs_navigation:
   ros__parameters:
