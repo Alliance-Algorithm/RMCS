@@ -12,9 +12,7 @@
 namespace rmcs_core::hardware::device {
 class TriggerServo {
 public:
-    TriggerServo(rmcs_executor::Component& command_component,
-                 const std::string& name,
-                 uint8_t id)
+    TriggerServo(rmcs_executor::Component& command_component, const std::string& name, uint8_t id)
         : id_(id) {
         command_component.register_input(name + "/control_angle", control_angle_);
     }
@@ -27,13 +25,12 @@ public:
         MOTOR_RUNTIME_CONTROL,
         MOTOR_DISABLE_CONTROL,
         READ_CURRENT_ANGLE,
+        READ_SERVO_ID,
     };
 
     bool calibrate_mode() const { return is_calibrate_mode_; }
     void set_calibrate_mode(bool mode) { is_calibrate_mode_ = mode; }
-    uint16_t get_target_angle() const {
-        return *control_angle_;
-    }
+    uint16_t get_target_angle() const { return *control_angle_; }
 
     std::unique_ptr<std::byte[]> generate_runtime_command(size_t& output_length) {
         size_t size = sizeof(WrightControlAngleCommand);
@@ -56,10 +53,10 @@ public:
         return buffer;
     }
 
-    static std::unique_ptr<std::byte[]> generate_sync_run_command(size_t& output_length
-                                                         , uint8_t cowork_id_one, uint8_t cowork_id_two
-                                                         , uint16_t control_angle_one, uint16_t control_angle_two
-                                                         , uint16_t runtime_one, uint16_t runtime_two) {
+    static std::unique_ptr<std::byte[]> generate_sync_run_command(
+        size_t& output_length, uint8_t cowork_id_one, uint8_t cowork_id_two,
+        uint16_t control_angle_one, uint16_t control_angle_two, uint16_t runtime_one,
+        uint16_t runtime_two) {
         size_t size = sizeof(WrightSyncControlAngleCommand);
         std::unique_ptr<std::byte[]> buffer = std::make_unique<std::byte[]>(size);
         WrightSyncControlAngleCommand command;
@@ -88,7 +85,7 @@ public:
     }
 
     std::unique_ptr<std::byte[]>
-    generate_calibrate_command(CalibrateOperation calibrate_operation, size_t& output_length) {
+        generate_calibrate_command(CalibrateOperation calibrate_operation, size_t& output_length) {
         switch (calibrate_operation) {
         case CalibrateOperation::SWITCH_TO_SERVO_MODE: {
             SwitchServoModeCommand command;
@@ -132,13 +129,16 @@ public:
             command.checksum = command.calculate_checksum();
             return copy_to_buffer(command, output_length);
         }
-        default:
-            output_length = 0;
-            return nullptr;
+        case CalibrateOperation::READ_SERVO_ID: {
+            ReadServoIDCommand command;
+            command.checksum = command.calculate_checksum();
+            return copy_to_buffer(command, output_length);
+        }
+        default: output_length = 0; return nullptr;
         }
     }
 
-    std::pair<bool, uint16_t> calibrate_current_angle (
+    std::pair<bool, uint16_t> calibrate_current_angle(
         const rclcpp::Logger& logger, const std::byte* uart_data, size_t uart_data_length) {
         if (uart_data_length != sizeof(ReadAngleReceiveData)) {
             RCLCPP_INFO(logger, "UART data length not match");
@@ -161,8 +161,9 @@ public:
             return {false, 0x0000};
         }
         if (checksum != package.calculate_checksum()) {
-            RCLCPP_INFO(logger, "Checksum error: receive:%x,calc:%x",
-                        checksum, package.calculate_checksum());
+            RCLCPP_INFO(
+                logger, "Checksum error: receive:%x,calc:%x", checksum,
+                package.calculate_checksum());
             return {false, 0x0000};
         }
 
@@ -170,24 +171,24 @@ public:
                                | static_cast<uint16_t>(package.current_angle[1]);
         current_angle_.store(current_angle, std::memory_order_release);
 
-        RCLCPP_INFO(logger, "%d Current Angle: 0x%04X", id_,  current_angle);
+        RCLCPP_INFO(logger, "%d Current Angle: 0x%04X", id_, current_angle);
         return {true, current_angle};
     }
 
     std::pair<bool, uint16_t> fixable_calibrate_current_angle(
-        const rclcpp::Logger& logger,
-        const std::byte* uart_data,
-        size_t uart_data_length,
+        const rclcpp::Logger& logger, const std::byte* uart_data, size_t uart_data_length,
         uint16_t& out_angle) {
         if (uart_data_length < 7) {
-            RCLCPP_WARN(logger, "UART data too short: %zu bytes (need at least 7)", uart_data_length);
+            RCLCPP_WARN(
+                logger, "UART data too short: %zu bytes (need at least 7)", uart_data_length);
             return {false, 0x0000};
         }
 
-        if (static_cast<uint8_t>(uart_data[0]) != 0xFF || 
-            static_cast<uint8_t>(uart_data[1]) != 0xF5) {
-            RCLCPP_DEBUG(logger, "UART header mismatch: %02X %02X",
-                         static_cast<uint8_t>(uart_data[0]), static_cast<uint8_t>(uart_data[1]));
+        if (static_cast<uint8_t>(uart_data[0]) != 0xFF
+            || static_cast<uint8_t>(uart_data[1]) != 0xF5) {
+            RCLCPP_DEBUG(
+                logger, "UART header mismatch: %02X %02X", static_cast<uint8_t>(uart_data[0]),
+                static_cast<uint8_t>(uart_data[1]));
             return {false, 0x0000};
         }
 
@@ -197,13 +198,15 @@ public:
             uint8_t data_length = static_cast<uint8_t>(uart_data[3]);
             uint8_t servo_status = static_cast<uint8_t>(uart_data[4]);
             uint8_t angle_high = static_cast<uint8_t>(uart_data[5]);
-            uint8_t angle_low  = static_cast<uint8_t>(uart_data[6]);
+            uint8_t angle_low = static_cast<uint8_t>(uart_data[6]);
             uint8_t received_checksum = static_cast<uint8_t>(uart_data[7]);
 
-            uint8_t calculated_checksum = ~(id + data_length + servo_status + angle_high + angle_low);
+            uint8_t calculated_checksum =
+                ~(id + data_length + servo_status + angle_high + angle_low);
             if (received_checksum != calculated_checksum) {
-                RCLCPP_WARN(logger, "Checksum error: received 0x%02X, calculated 0x%02X",
-                            received_checksum, calculated_checksum);
+                RCLCPP_WARN(
+                    logger, "Checksum error: received 0x%02X, calculated 0x%02X", received_checksum,
+                    calculated_checksum);
             }
         }
 
@@ -251,9 +254,11 @@ private:
         uint8_t checksum;
 
         uint8_t calculate_checksum() const {
-            uint8_t check = id + data_length + command_type + command_address + command_address_length 
-                          + cowork_id_one + control_angle_one[0] + control_angle_one[1] + runtime_one[0] + runtime_one[1] 
-                          + cowork_id_two + control_angle_two[0] + control_angle_two[1] + runtime_two[0] + runtime_two[1];
+            uint8_t check = id + data_length + command_type + command_address
+                          + command_address_length + cowork_id_one + control_angle_one[0]
+                          + control_angle_one[1] + runtime_one[0] + runtime_one[1] + cowork_id_two
+                          + control_angle_two[0] + control_angle_two[1] + runtime_two[0]
+                          + runtime_two[1];
             return ~check;
         }
     };
@@ -369,6 +374,20 @@ private:
         }
     };
 
+    struct __attribute__((packed)) ReadServoIDCommand {
+        uint8_t header[2] = {0xFF, 0xFF};
+        uint8_t id = 0xFE;
+        uint8_t data_length = 0x04;
+        uint8_t servo_status = 0x02;
+        uint8_t current_angle[2] = {0x05, 0x01};
+        uint8_t checksum;
+
+        uint8_t calculate_checksum() const {
+            uint8_t check = id + data_length + servo_status + current_angle[0] + current_angle[1];
+            return ~check;
+        }
+    };
+
     template <typename T>
     std::unique_ptr<std::byte[]> copy_to_buffer(const T& cmd, size_t& out_len) {
         auto buffer = std::make_unique<std::byte[]>(sizeof(T));
@@ -379,7 +398,7 @@ private:
 
     rmcs_executor::Component::InputInterface<uint16_t> control_angle_;
     std::atomic<bool> is_calibrate_mode_ = false;
-    std::atomic<uint16_t> current_angle_{0}; 
+    std::atomic<uint16_t> current_angle_{0};
     uint8_t id_;
 };
 

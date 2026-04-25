@@ -2,8 +2,9 @@ rmcs_executor:
   ros__parameters:
     update_rate: 1000.0
     components:
-      # - rmcs_dart_guidance::DartVisionCore           -> dart_vision
-      # - rmcs_dart_guidance::ImagePublisher            -> dart_display_image_publisher
+      # - rmcs_dart_guidance::DartVisionCore -> dart_vision
+      # - rmcs_dart_guidance::ImagePublisher -> dart_display_image_publisher
+      # - rmcs_dart_guidance::ImageDisplayer -> debug_display
       # - rmcs_dart_guidance::manager::AutoAimOnlyComponent -> auto_aim_only
       - rmcs_dart_guidance::manager::RemoteCommandBridge -> remote_cmd_bridge
       - rmcs_dart_guidance::manager::WebCommandBridge -> web_cmd_bridge
@@ -12,7 +13,12 @@ rmcs_executor:
       - rmcs_core::controller::dart::DartFilling -> dart_filling
       - rmcs_core::controller::dart::DartSettingController -> dart_setting
       - rmcs_core::controller::pid::PidController    -> force_screw_velocity_pid_controller
+      # Spring dynamics model with two-point auto-calibration (PRIOR)
+      - rmcs_core::controller::dart::SpringDynamicsModel -> spring_model
+      # Kalman filter using spring model as prior (POSTERIOR)
+      - rmcs_core::controller::dart::ForceKalmanFilter -> force_kalman
       - rmcs_core::hardware::CatapultDart            -> dart_hardware
+      - rmcs_dart_guidance::test::ForceSensorRecorder -> force_sensor_recorder
       - rmcs_core::broadcaster::ValueBroadcaster -> broadcaster
 
 dart_hardware:
@@ -32,11 +38,20 @@ dart_vision:
     U_H: 90.0
     U_S: 255.0
     U_V: 255.0
+    # 图像保存配置
     enable_image_saving: false
     image_save_directory: "./saved_images"
     image_save_interval_ms: 1000
     save_raw_image: true
     save_processed_image: false
+    # 视频录制配置
+    enable_video_recording: false
+    video_save_directory: "./saved_videos"
+    video_codec: "H264"              # "H264" or "MJPEG" 
+    video_fps: 30
+    video_rotation_minutes: 5        # create new video file every m minutes
+    record_raw_video: true
+    record_processed_video: true
 
 dart_camera_image_publisher:
   ros__parameters:
@@ -51,6 +66,19 @@ dart_display_image_publisher:
     topic_name: /dart_guidance/camera/display_image
     publish_freq: 60.0
     image_type: mono8
+
+debug_display:
+  ros__parameters:
+    raw_image_topic: "/dart_guidance/camera/camera_image"
+    processed_image_topic: "/dart_guidance/camera/display_image"
+    target_topic: "/dart_guidance/camera/target_position"
+    display_raw: true
+    display_processed: true
+    max_fps: 30
+    window_scale: 1.0
+    save_on_error: false
+    save_directory: "./debug_saved"
+
 
 auto_aim_only:
   ros__parameters:
@@ -77,11 +105,26 @@ auto_aim_only:
 
 dart_manager:
   ros__parameters:
-    max_transform_rate: 5.0
+    dart_forebody: "A1"              # 镖体构型标识
+    max_transform_rate: 15.0
     auto_aim_max_transform_rate: 10.0
-    manual_force_scale: 3.0
+    manual_force_scale: 10.0
     launch_prepare_enable_visual_assist: false
-    belt_down_distance: 0.74 
+    belt_down_distance: 0.82
+
+    # === 力闭环控制开关 ===
+    enable_force_calibration: false       # true=启用力闭环, false=禁用（直接跳过）
+    use_kalman_filtered_force: false      # true=使用卡尔曼滤波力值, false=使用原始传感器
+    # 注意：use_kalman_filtered_force 仅在 enable_force_calibration=true 时有效
+
+    # === 力闭环参数（仅当 enable_force_calibration=true 时使用）===
+    force_tolerance: 5.0                 # N - 力值容差（第二发及以后）
+    force_settle_ticks: 1000               # ticks - 力值稳定确认帧数
+    force_timeout_ticks: 1200            # ticks - 力矩闭环超时帧数
+    force_kp: 1.0                        # PID参数Kp（需调试）
+    force_ki: 0.1                        # PID参数Ki（需调试）
+    force_kd: 0.01                       # PID参数Kd（需调试）
+    force_channel: 2                     # 力闭环使用的传感器通道（1=ch1, 2=ch2）
     # 瞄准控制参数
     aim_reference_pixel: [701.0, 565.0]
     aim_dart_offsets_px: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
@@ -90,26 +133,45 @@ dart_manager:
     aim_deadband_px: [3.0, 3.0]
     aim_ready_exit_deadband_px: [5.0, 5.0]
     aim_ready_confirm_ticks: 20
-    aim_timeout_ticks: 5000
     aim_timeout_returns_success: true
     aim_min_transform_rate: 1.0
-    # 力矩闭环参数
-    enable_force_calibration: false       # 启用力矩闭环（第一发目标9525±30，后续用记录值）
-    force_tolerance: 5.0                 # N - 力值容差（第二发及以后）
-    force_settle_ticks: 1000               # ticks - 力值稳定确认帧数
-    force_timeout_ticks: 1200            # ticks - 力矩闭环超时帧数
-    force_kp: 1.0                        # PID参数Kp（需调试）
-    force_ki: 0.1                        # PID参数Ki（需调试）
-    force_kd: 0.01                       # PID参数Kd（需调试）
-    force_channel: 1                     # 力闭环使用的传感器通道（1=ch1, 2=ch2）
+    # 像素到角度映射参数（用于视觉制导测试）
+    yaw_transform_rate: 0.01
+    enable_pixel_to_angle: true
+    pixel_to_angle_image_center: [701.0, 565.0]  # 图像中心像素坐标
+    pixel_to_angle_yaw_scale: 0.0001            # rad/px，水平方向映射系数
+    pixel_to_angle_pitch_scale: 0.0             # rad/px，垂直方向映射系数（暂时忽略）
+    pixel_to_angle_yaw_offset: 0.0              # rad，yaw基准偏移
+    pixel_to_angle_pitch_offset: 0.0            # rad，pitch基准偏移
+    # 力矩闭环参数（已移至上方 enable_force_calibration 区域）
+    # Kalman filter force calibration (requires ForceKalmanFilter component enabled)
+force_sensor_recorder:
+  ros__parameters:
+    output_file_path: "force_sensor_recording.md"
+    dart_forebody: "标准镖体 v2.1"
 
+force_kalman:
+  ros__parameters:
+    Q_force: 100000.0      # Process noise: force (g^2), ~100g std
+    Q_rate: 500000.0       # Process noise: force rate (g^2/s^2), ~700g/s std
+    R_sensor: 20000.0      # Measurement noise (g^2), ~140g std (±1N sensor noise)
+
+    model_weight: 0.5
+
+spring_model:
+  ros__parameters:
+    screw_top_angle_rad: 0.0 
+    preload_force_g: 0.0
+
+    spring_K2: 0.0                  # Nonlinear stiffness (g/m^n), 0=pure linear
+    spring_exponent: 2.0            # Nonlinearity exponent
+    
 launch_setting:
   ros__parameters:
     belt_velocity: 10.0      # rad/s - manager 未提供目标速度时的回退值
     sync_coefficient: 0.5    # 同步阻尼系数（增大以增强左右电机同步）
-    trigger_free_value: 0.73   # 扳机释放角度
-    trigger_lock_value: 0.63    # 扳机锁定角度
-    # 正常PID参数（匀速阶段）
+    trigger_free_value: 0.625
+    trigger_lock_value: 0.51
     b_kp: 1.0                  # 速度环比例增益
     b_ki: 0.0                  # 速度环积分增益
     b_kd: 0.0                  # 速度环微分增益
@@ -122,12 +184,36 @@ dart_filling:
 
 dart_setting:
   ros__parameters:
+    # 速度环PID参数
     yaw_kp: 1.0
     yaw_ki: 0.0
     yaw_kd: 0.0
     pitch_kp: 1.0
     pitch_ki: 0.0
     pitch_kd: 0.0
+    # 速度环积分限幅
+    yaw_integral_limit: 100.0          # 速度环积分上限
+    pitch_integral_limit: 100.0
+    yaw_output_limit: 10000.0          # 速度环输出力矩上限
+    pitch_output_limit: 10000.0
+    velocity_integral_clear_threshold: 50.0  # rad/s，速度误差超过此值时清除积分
+
+    # 角度环PID参数
+    yaw_angle_kp: 10.0
+    yaw_angle_ki: 0.0
+    yaw_angle_kd: 0.5
+    pitch_angle_kp: 10.0
+    pitch_angle_ki: 0.0
+    pitch_angle_kd: 0.5
+    # 角度环积分限幅
+    yaw_angle_integral_limit: 50.0     # 角度环积分上限
+    pitch_angle_integral_limit: 50.0
+    yaw_angle_output_limit: 100.0      # 角度环输出速度上限 (rad/s)
+    pitch_angle_output_limit: 100.0
+    angle_integral_clear_threshold: 0.5  # rad (约28.6度)，角度误差超过此值时清除积分
+
+    # 控制模式
+    angle_control_dry_run: true        # true=测试模式（不输出力矩，只打印日志），false=正常控制
     log_enable: true
 
 force_screw_velocity_pid_controller:

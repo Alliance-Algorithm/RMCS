@@ -164,4 +164,10 @@
   <class type="rmcs_core::controller::dart::DartBeltPositionController" base_class_type="rmcs_executor::Component">
     <description>Belt position controller: cascaded position-velocity-torque control with trapezoidal velocity profiling and dual-motor synchronization.</description>
   </class>
+  <class type="rmcs_core::controller::dart::SpringDynamicsModel" base_class_type="rmcs_executor::Component">
+    <description>Spring dynamics model with two-point auto-calibration. Maps screw motor angle to spring elongation and predicted force.</description>
+  </class>
+  <class type="rmcs_core::controller::dart::ForceKalmanFilter" base_class_type="rmcs_executor::Component">
+    <description>Kalman filter that uses SpringDynamicsModel as prior. Fuses model prediction with sensor measurements.</description>
+  </class>
 </library>

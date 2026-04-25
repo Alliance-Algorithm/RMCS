@@ -33,20 +33,21 @@
 #include "hardware/device/lk_motor.hpp"
 #include "hardware/device/pwm_servo.hpp"
 #include "hardware/device/trigger_servo.hpp"
-#include "librmcs/agent/c_board.hpp"
+#include "librmcs/agent/rmcs_board_pro.hpp"
 
 namespace rmcs_core::hardware {
 
 class CatapultDart
     : public rmcs_executor::Component
     , public rclcpp::Node
-    , private librmcs::agent::CBoard {
+    , private librmcs::agent::RmcsBoardPro {
 public:
     CatapultDart()
         : Node{
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
-        , librmcs::agent::CBoard{get_parameter("serial_filter").as_string()}
+        , librmcs::agent::
+              RmcsBoardPro{get_parameter("serial_filter").as_string(), {.dangerously_skip_version_checks = true}}
         , dart_command_(
               create_partner_component<DartCommand>(get_component_name() + "_command", *this))
         , logger_{get_logger()}
@@ -69,12 +70,16 @@ public:
         , dr16_{*this}
         , imu_{1000, 0.2, 0.0} {
 
+        RCLCPP_INFO(logger_, "[CatapultDart] Initializing with LIMITING_SERVO_ID=0x%02X", LIMITING_SERVO_ID);
+
         pitch_motor_.configure(
             device::DjiMotor::Config{device::DjiMotor::Type::kM3508}.set_reduction_ratio(19.));
         yaw_motor_.configure(
             device::DjiMotor::Config{device::DjiMotor::Type::kM3508}.set_reduction_ratio(19.));
         force_screw_motor_.configure(
-            device::DjiMotor::Config{device::DjiMotor::Type::kM3508}.set_reduction_ratio(19.));
+            device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
+                .set_reduction_ratio(19.)
+                .enable_multi_turn_angle());
         drive_belt_motor_left_.configure(
             device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
                 .set_reduction_ratio(19.)
@@ -153,22 +158,24 @@ public:
         processImuData();
 
         // 调试：打印多圈角度（每200次打印一次）
-        // if (++angle_debug_counter_ >= 200) {
-        //     angle_debug_counter_ = 0;
-        //     RCLCPP_INFO(
-        //         logger_,
-        //         "[Multi-turn Angle] left_belt=%.4f rad, right_belt=%.4f rad, "
-        //         "lifting_left=%.4f rad, lifting_right=%.4f rad",
-        //         drive_belt_motor_left_.angle(), drive_belt_motor_right_.angle(),
-        //         lifting_left_motor_.angle(), lifting_right_motor_.angle());
-        // }
+        if (++angle_debug_counter_ >= 200) {
+            angle_debug_counter_ = 0;
+            RCLCPP_INFO(
+                logger_,
+                "[Multi-turn Angle] force_screw=%.4f rad, left_belt=%.4f rad, right_belt=%.4f rad, "
+                "lifting_left=%.4f rad, lifting_right=%.4f rad",
+                force_screw_motor_.angle(), drive_belt_motor_left_.angle(), drive_belt_motor_right_.angle(),
+                lifting_left_motor_.angle(), lifting_right_motor_.angle());
+        }
     }
 
     void command_update() {
         auto board = start_transmit();
 
         // Trigger servo: PWM via GPIO
-        board.gpio_analog_write({.channel = 1, .value = trigger_servo_.generate_duty_cycle()});
+        board.gpio_analog_write(
+            librmcs::spec::rmcs_board_pro::kGpioDescriptors[1],
+            librmcs::data::GpioAnalogDataView{.value = trigger_servo_.generate_duty_cycle()});
 
         // Force sensor: polling command on CAN1 (every 100 cycles)
         if (pub_time_count_++ > 100) {
@@ -204,14 +211,14 @@ public:
         });
 
         // LK4005 lifting motors on CAN1 (unicast per motor)
-        // board.can1_transmit({
-        //     .can_id   = LK_LIFTING_LEFT_ID,
-        //     .can_data = lifting_left_motor_.generate_velocity_command().as_bytes(),
-        // });
-        // board.can1_transmit({
-        //     .can_id   = LK_LIFTING_RIGHT_ID,
-        //     .can_data = lifting_right_motor_.generate_velocity_command().as_bytes(),
-        // });
+        board.can3_transmit({
+            .can_id = 0x141,
+            .can_data = lifting_left_motor_.generate_velocity_command().as_bytes(),
+        });
+        board.can3_transmit({
+            .can_id = 0x145,
+            .can_data = lifting_right_motor_.generate_velocity_command().as_bytes(),
+        });
 
         // Limiting servo on UART2 (only send when target changes)
         if (!limiting_servo_.calibrate_mode()) {
@@ -219,10 +226,15 @@ public:
             if (current_target != last_limiting_angle_) {
                 size_t uart_data_length;
                 auto command_buffer = limiting_servo_.generate_runtime_command(uart_data_length);
-                board.uart2_transmit({
-                    .uart_data = std::span{command_buffer.get(), uart_data_length}
-                });
-                last_limiting_angle_ = current_target;
+                try {
+                    board.uart2_transmit({
+                        .uart_data = std::span{command_buffer.get(), uart_data_length}
+                    });
+                    last_limiting_angle_ = current_target;
+                    RCLCPP_DEBUG(get_logger(), "UART2 runtime cmd sent: angle=0x%04X", current_target);
+                } catch (const std::exception& e) {
+                    RCLCPP_ERROR(get_logger(), "UART2 runtime transmit failed: %s", e.what());
+                }
             }
         }
     }
@@ -241,10 +253,6 @@ protected:
             //         bytes_to_hex_string(data.can_data.data(), data.can_data.size()).c_str());
             // }
             force_sensor_.store_status(data.can_data);
-        } else if (can_id == LK_LIFTING_LEFT_ID) {
-            lifting_left_motor_.store_status(data.can_data);
-        } else if (can_id == LK_LIFTING_RIGHT_ID) {
-            lifting_right_motor_.store_status(data.can_data);
         }
     }
 
@@ -252,16 +260,6 @@ protected:
         if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
             return;
         const auto can_id = data.can_id;
-
-        if (can_id != 0x201 && can_id != 0x202 && can_id != 0x203 && can_id != 0x205
-            && can_id != 0x206) {
-            can2_unknown_count_++;
-            if (can2_unknown_count_ % 50 == 1) {
-                RCLCPP_INFO(
-                    logger_, "[CAN2 unknown] id=0x%03X raw(%zu): %s", can_id, data.can_data.size(),
-                    bytes_to_hex_string(data.can_data.data(), data.can_data.size()).c_str());
-            }
-        }
 
         if (can_id == 0x201) {
             pitch_motor_.store_status(data.can_data);
@@ -276,19 +274,43 @@ protected:
         }
     }
 
-    void uart1_receive_callback(const librmcs::data::UartDataView& data) override {
-        std::lock_guard lock(referee_mutex_);
-        for (auto byte : data.uart_data) {
-            referee_ring_buffer_receive_.push_back(byte);
+    void can3_receive_callback(const librmcs::data::CanDataView& data) override {
+        if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
+            return;
+
+        const auto can_id = data.can_id;
+        if (can_id == 0x141) {
+            lifting_left_motor_.store_status(data.can_data);
+        } else if (can_id == 0x145) {
+            lifting_right_motor_.store_status(data.can_data);
         }
     }
+
+    // void uart1_receive_callback(const librmcs::data::UartDataView& data) override {
+    //     std::lock_guard lock(referee_mutex_);
+    //     for (auto byte : data.uart_data) {
+    //         referee_ring_buffer_receive_.push_back(byte);
+    //     }
+
+    //     const auto* raw_data = data.uart_data.data();
+    //     const size_t length = data.uart_data.size();
+
+    //     RCLCPP_DEBUG(
+    //         logger_, "UART2 received: len=%zu [%s]", length,
+    //         bytes_to_hex_string(raw_data, length).c_str());
+
+    //     if (length < 3) {
+    //         RCLCPP_WARN(logger_, "UART2 data too short: %zu bytes", length);
+    //         return;
+    //     }
+    // }
 
     void uart2_receive_callback(const librmcs::data::UartDataView& data) override {
         const auto* raw_data = data.uart_data.data();
         const size_t length = data.uart_data.size();
 
-        RCLCPP_DEBUG(
-            logger_, "UART2 received: len=%zu [%s]", length,
+        RCLCPP_INFO(
+            logger_, "UART2 Recv: (length=%zu)[ %s ]", length,
             bytes_to_hex_string(raw_data, length).c_str());
 
         if (length < 3) {
@@ -304,7 +326,9 @@ protected:
             if (!result.first)
                 RCLCPP_INFO(logger_, "calibrate: uart2 limiting data store failed");
         } else {
-            RCLCPP_DEBUG(logger_, "UART2: unknown servo id 0x%02X", servo_id);
+            RCLCPP_INFO(
+                logger_, "UART2: unknown servo id 0x%02X (expected 0x%02X)", servo_id,
+                LIMITING_SERVO_ID);
         }
     }
 
@@ -321,7 +345,7 @@ protected:
     }
 
 private:
-    static constexpr uint8_t LIMITING_SERVO_ID = 0x03;
+    static constexpr uint8_t LIMITING_SERVO_ID = 0x02;
     static constexpr uint32_t LK_LIFTING_LEFT_ID = 0x141;
     static constexpr uint32_t LK_LIFTING_RIGHT_ID = 0x145;
 
@@ -362,16 +386,23 @@ private:
         } else if (msg->data == 6) {
             command_buffer = servo.generate_calibrate_command(
                 device::TriggerServo::CalibrateOperation::READ_CURRENT_ANGLE, command_length);
+        } else if (msg->data == 7) {
+            command_buffer = servo.generate_calibrate_command(
+                device::TriggerServo::CalibrateOperation::READ_SERVO_ID, command_length);
         }
 
         if (command_buffer && command_length > 0) {
             auto board = start_transmit();
-            board.uart2_transmit({
-                .uart_data = std::span{command_buffer.get(), command_length}
-            });
-            RCLCPP_INFO(
-                logger_, "UART2 Pub: (length=%zu)[ %s ]", command_length,
-                bytes_to_hex_string(command_buffer.get(), command_length).c_str());
+            try {
+                board.uart2_transmit({
+                    .uart_data = std::span{command_buffer.get(), command_length}
+                });
+                RCLCPP_INFO(
+                    logger_, "UART2 Pub: (length=%zu)[ %s ]", command_length,
+                    bytes_to_hex_string(command_buffer.get(), command_length).c_str());
+            } catch (const std::exception& e) {
+                RCLCPP_ERROR(logger_, "UART2 transmit failed: %s", e.what());
+            }
         }
     }
 
@@ -544,7 +575,6 @@ private:
     OutputInterface<rmcs_msgs::SerialInterface> referee_serial_;
 
     int pub_time_count_ = 0;
-    int can2_unknown_count_ = 0;
 
     double first_sample_spot_ = 1.0;
     double final_sample_spot_ = 4.0;
@@ -553,6 +583,7 @@ private:
     std::vector<double> time_samples_;
 
     uint16_t last_limiting_angle_ = 0xFFFF;
+    int angle_debug_counter_ = 0;
 };
 
 } // namespace rmcs_core::hardware
