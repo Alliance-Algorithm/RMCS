@@ -2,6 +2,7 @@
   <class type="rmcs_core::hardware::MecanumHero" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::hardware::SteeringHero" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::hardware::OmniInfantry" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::hardware::Sentry" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::hardware::SteeringInfantry" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::ChassisController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::ChassisPowerController" base_class_type="rmcs_executor::Component" />
