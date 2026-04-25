@@ -149,30 +149,74 @@ public:
                     //     if ((!last_mouse_.left && mouse.left)
                     //         || (last_switch_left_ == rmcs_msgs::Switch::MIDDLE
                     //             && switch_left == rmcs_msgs::Switch::DOWN)) {
+                    // if (switch_right != Switch::DOWN) {
+
+                    //     const auto now = std::chrono::steady_clock::now();
+
+                    //     const bool manual_trigger = (!last_mouse_.left && mouse.left)
+                    //                              || (last_switch_left_ ==
+                    //                              rmcs_msgs::Switch::MIDDLE
+                    //                                  && switch_left == rmcs_msgs::Switch::DOWN);
+
+                    //     // const bool auto_fire_now = (switch_right == Switch::UP) &&
+                    //     // (*fire_control_);
+                    //     const bool auto_fire_now =
+                    //         (switch_right == Switch::UP || mouse.right) && (*fire_control_);
+
+                    //     const bool auto_trigger =
+                    //         auto_fire_now
+                    //         && (now - last_fire_time_ > std::chrono::milliseconds(800));
+
+                    //     if (manual_trigger || auto_trigger) {
+                    //         if (*control_bullet_allowance_limited_by_heat_ > 0
+                    //             && (shoot_stage_ == ShootStage::PRELOADED || shoot_first)) {
+                    //             set_shooting();
+                    //             last_fire_time_ = now;
+                    //             shoot_first = false;
+                    //         }
+                    //     }
+                    // }
                     if (switch_right != Switch::DOWN) {
 
                         const auto now = std::chrono::steady_clock::now();
+                        const bool left_click_edge = (!last_mouse_.left && mouse.left);
+                        if (left_click_edge) {
+                            if (now - last_click_time_ < std::chrono::milliseconds(500)) {
+                                click_count_++;
+                            } else {
+                                click_count_ = 1;
+                            }
+                            last_click_time_ = now;
+                        }
 
-                        const bool manual_trigger = (!last_mouse_.left && mouse.left)
-                                                 || (last_switch_left_ == rmcs_msgs::Switch::MIDDLE
-                                                     && switch_left == rmcs_msgs::Switch::DOWN);
+                        const bool manual_trigger =
+                            (!last_mouse_.left && mouse.left && !mouse.right)
+                            || (last_switch_left_ == rmcs_msgs::Switch::MIDDLE
+                                && switch_left == rmcs_msgs::Switch::DOWN);
 
                         // const bool auto_fire_now = (switch_right == Switch::UP) &&
                         // (*fire_control_);
                         const bool auto_fire_now =
-                            (switch_right == Switch::UP || mouse.right) && (*fire_control_);
+                            (switch_right == Switch::UP || (mouse.right && mouse.left))
+                            && (*fire_control_);
+
+                        const bool auto_trigger_emergence = mouse.right          // 必须一直按着右键
+                                                         && (click_count_ >= 2); // 左键双击
 
                         const bool auto_trigger =
                             auto_fire_now
                             && (now - last_fire_time_ > std::chrono::milliseconds(800));
 
-                        if (manual_trigger || auto_trigger) {
+                        if (manual_trigger || auto_trigger || auto_trigger_emergence) {
                             if (*control_bullet_allowance_limited_by_heat_ > 0
                                 && (shoot_stage_ == ShootStage::COMPRESSED || shoot_first)) {
                                 set_shooting();
                                 last_fire_time_ = now;
                                 shoot_first = false;
                             }
+                        }
+                        if (auto_trigger_emergence) {
+                            click_count_ = 0;
                         }
                     }
 
@@ -491,6 +535,8 @@ private:
 
     InputInterface<bool> fire_control_;
     std::chrono::steady_clock::time_point last_fire_time_{};
+    std::chrono::steady_clock::time_point last_click_time_{};
+    int click_count_ = 0;
 };
 
 } // namespace rmcs_core::controller::shooting

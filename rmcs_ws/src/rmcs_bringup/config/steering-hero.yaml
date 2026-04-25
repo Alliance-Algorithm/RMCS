@@ -305,7 +305,7 @@ auto_aim_controller:
 hero_auto_aim_bridge:                                                                                                 
     ros__parameters:                                                                                                    
       config_file: "configs/standard3.yaml"                                                                             
-      bullet_speed_fallback: 11.5                                                                                      
+      bullet_speed_fallback: 11.4                                                                                      
       result_timeout: 0.1   # 0.08                                                                                     
       debug: false
 
