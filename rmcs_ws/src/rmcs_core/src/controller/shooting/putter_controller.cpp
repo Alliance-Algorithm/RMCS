@@ -53,8 +53,8 @@ public:
         register_input("/gimbal/putter/angle", putter_angle_);
         register_input("/gimbal/putter/velocity", putter_velocity_);
 
-        bullet_feeder_velocity_pid_.kp = 5.0;
-        bullet_feeder_velocity_pid_.ki = 1.0;
+        bullet_feeder_velocity_pid_.kp = 5.5;
+        bullet_feeder_velocity_pid_.ki = 1.1;
         bullet_feeder_velocity_pid_.kd = 0.0;
         bullet_feeder_velocity_pid_.integral_max = 60.0;
         bullet_feeder_velocity_pid_.integral_min = 0.0;
@@ -168,7 +168,7 @@ public:
 
                         if (manual_trigger || auto_trigger) {
                             if (*control_bullet_allowance_limited_by_heat_ > 0
-                                && (shoot_stage_ == ShootStage::PRELOADED || shoot_first)) {
+                                && (shoot_stage_ == ShootStage::COMPRESSED || shoot_first)) {
                                 set_shooting();
                                 last_fire_time_ = now;
                                 shoot_first = false;
@@ -176,26 +176,18 @@ public:
                         }
                     }
 
-                    if (shoot_stage_ == ShootStage::COMPRESSED) {
-                        // 暂存模式：等待灰度传感器状态更新以判断是否完成推弹
-                        if (*grayscale_sensor_status_) {
-                            set_preloaded();
-                        } else {
-                            set_preloading();
-                        }
-                    }
+                    // if (shoot_stage_ == ShootStage::COMPRESSED) {
+                    //     // 暂存模式：等待灰度传感器状态更新以判断是否完成推弹
+                    //     if (1 || *grayscale_sensor_status_) {
+                    //         set_preloaded();
+                    //     } else {
+                    //         set_preloading();
+                    //     }
+                    // }
 
                     if (shoot_stage_ == ShootStage::UPDATING) {
                         // 缓冲模式：使推杆和供弹盘不发生运动冲突
                         wait_bullet_ready();
-                    }
-
-                    if (shoot_stage_ == ShootStage::COMPRESSED) {
-                        if (*grayscale_sensor_status_) {
-                            set_preloaded();
-                        } else {
-                            set_preloading();
-                        }
                     }
 
                     if (shoot_stage_ == ShootStage::PRELOADING) {
@@ -364,8 +356,7 @@ private:
     }
 
     void update_jam_detection() {
-        // RCLCPP_INFO(get_logger(), "%.2f --", *bullet_feeder_control_torque_);
-        if (*bullet_feeder_control_torque_ < 300.0 || std::isnan(*bullet_feeder_control_torque_)) {
+        if (*bullet_feeder_control_torque_ < 33.0 || std::isnan(*bullet_feeder_control_torque_)) {
             bullet_feeder_faulty_count_ = 0;
             return;
         }

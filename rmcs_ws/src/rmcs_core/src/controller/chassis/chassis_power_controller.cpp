@@ -132,7 +132,7 @@ private:
         power_limit += excess_power_limit;
         power_limit *= virtual_buffer_energy_ / virtual_buffer_energy_limit_;
 
-        *chassis_control_power_limit_ = power_limit;
+        *chassis_control_power_limit_ = 1000000;
     }
 
     void update_ui() {

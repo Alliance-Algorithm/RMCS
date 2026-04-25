@@ -59,7 +59,7 @@ hero_hardware:
     top_yaw_motor_zero_point: 11035
     viewer_motor_zero_point: 3030
     external_imu_port: /dev/ttyUSB0
-    bullet_feeder_motor_zero_point: 21854
+    bullet_feeder_motor_zero_point: 11865
     left_front_zero_point: 4437
     right_front_zero_point: 1043
     left_back_zero_point:  3784
@@ -76,7 +76,7 @@ value_broadcaster:
   ros__parameters:
     forward_list:
         # - /shoot/heat
-        # - /chassis/power
+        - /chassis/power
         # - /referee/chassis/power
         # - /referee/chassis/power_limit
         # - /chassis/control_power_limit
