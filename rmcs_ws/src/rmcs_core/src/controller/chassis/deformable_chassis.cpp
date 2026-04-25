@@ -152,6 +152,7 @@ public:
               std::abs(get_parameter_or(
                   "active_suspension_pid_integral_limit_deg", max_angle_ - min_angle_))
               * std::numbers::pi / 180.0)
+        , spin_ratio_(std::clamp(get_parameter_or("spin_ratio", 0.6), 0.0, 1.0))
         , chassis_imu_calibration_wait_time_(
               std::max(get_parameter_or("chassis_imu_calibration_wait_s", 2.0), 0.0))
         , chassis_imu_calibration_sample_time_(
@@ -819,7 +820,7 @@ private:
 
         case rmcs_msgs::ChassisMode::SPIN: {
             angular_velocity =
-                0.6 * (spinning_forward_ ? angular_velocity_max_ : -angular_velocity_max_);
+                spin_ratio_ * (spinning_forward_ ? angular_velocity_max_ : -angular_velocity_max_);
             angular_velocity =
                 std::clamp(angular_velocity, -angular_velocity_max_, angular_velocity_max_);
         } break;
@@ -827,9 +828,14 @@ private:
         case rmcs_msgs::ChassisMode::STEP_DOWN: {
             double err = calculate_unsigned_chassis_angle_error(chassis_control_angle);
 
-            constexpr double alignment = 2 * std::numbers::pi;
-            if (err > alignment / 2)
+            // In step-down mode, front/back can both be used for alignment.
+            constexpr double alignment = std::numbers::pi;
+            while (err > alignment / 2) {
+                chassis_control_angle -= alignment;
+                if (chassis_control_angle < 0)
+                    chassis_control_angle += 2 * std::numbers::pi;
                 err -= alignment;
+            }
 
             angular_velocity = following_velocity_controller_.update(err);
         } break;
@@ -1158,6 +1164,7 @@ private:
     bool spinning_forward_ = true;
     bool apply_symmetric_target = true;
     pid::PidCalculator following_velocity_controller_;
+    const double spin_ratio_;
 
     InputInterface<double> left_front_joint_angle_;
     InputInterface<double> left_back_joint_angle_;
