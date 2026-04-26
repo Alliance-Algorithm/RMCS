@@ -1,0 +1,65 @@
+#!/bin/env bash
+
+set -euo pipefail
+
+# 定义需要查询的服务列表
+services=(
+    "/rmcs/service/robot_status"
+)
+
+# 使用 bash 远程执行，并传递服务列表作为参数
+ssh remote bash -s -- "${services[@]}" <<'EOF'
+set -euo pipefail
+
+# 1. 环境准备
+set +u
+if [ -f ~/env_setup.bash ]; then
+    source ~/env_setup.bash
+fi
+set -u
+
+# 获取所有可用服务列表
+all_services="$(ros2 service list 2>/dev/null || true)"
+input_services=("${@}")
+
+# 2. 定义单个服务查询函数
+call_status_service() {
+    local service="$1"
+
+    if ! printf "%s\n" "$all_services" | grep -Fxq "$service"; then
+        printf "[warn] service not found: %s\n\n" "$service"
+        return
+    fi
+
+    printf "=== %s ===\n" "$service"
+    local raw
+    raw="$(ros2 service call "$service" std_srvs/srv/Trigger "{}" 2>&1 || true)"
+
+    local msg
+    msg="$(printf "%s\n" "$raw" | sed -n "s/.*message='\(.*\)'.*/\1/p")"
+
+    if [[ -z "$msg" ]]; then
+        printf "[warn] failed to parse message: %s\n%s\n" "$service" "$raw"
+    else
+        printf "%b\n" "$msg"
+    fi
+    printf "\n"
+}
+
+# 3. 并发执行逻辑
+tmp_dir=$(mktemp -d)
+trap 'rm -rf "${tmp_dir}"' EXIT
+
+for i in "${!input_services[@]}"; do
+    call_status_service "${input_services[$i]}" > "${tmp_dir}/${i}" 2>&1 &
+done
+
+wait
+
+# 4. 按原始顺序汇总输出
+for i in "${!input_services[@]}"; do
+    if [ -f "${tmp_dir}/${i}" ]; then
+        cat "${tmp_dir}/${i}"
+    fi
+done
+EOF
