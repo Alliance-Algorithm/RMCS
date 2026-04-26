@@ -42,6 +42,20 @@ public:
             return;
         }
 
+        if (input_.enable_autoaim()) {
+            const auto& dir = *input_.auto_aim_control_direction;
+            const auto xy_norm = std::hypot(dir.x(), dir.y());
+            const auto auto_aim_target = ControlTarget{
+                .bottom_yaw = {.target = std::atan2(dir.y(), dir.x())},
+                .top_yaw = {.target = 0.0},
+                .pitch =
+                    {.target =
+                         std::clamp(std::atan2(-dir.z(), xy_norm), upper_limit_, lower_limit_)},
+            };
+            apply_control(auto_aim_target);
+            return;
+        }
+
         const double yaw_shift = kJoystickSensitivity * input_.joystick_left->y()
                                + kMouseSensitivity * input_.mouse_velocity->y();
         const double pitch_shift = -kJoystickSensitivity * input_.joystick_left->x()
@@ -110,6 +124,9 @@ private:
             component.register_input("/gimbal/pitch/angle", pitch_angle);
             component.register_input("/gimbal/pitch/velocity", pitch_velocity);
             component.register_input("/chassis/yaw/velocity_imu", chassis_yaw_velocity_imu);
+
+            component.register_input(
+                "/gimbal/auto_aim/control_direction", auto_aim_control_direction, false);
         }
 
         auto enable_control() const noexcept -> bool {
@@ -119,6 +136,17 @@ private:
                 return false;
             }
             return true;
+        }
+
+        auto enable_autoaim() const noexcept -> bool {
+            using namespace rmcs_msgs;
+            if (*switch_right != Switch::UP)
+                return false;
+            if (!auto_aim_control_direction.ready())
+                return false;
+            const auto& dir = *auto_aim_control_direction;
+            return !dir.isZero() && std::isfinite(dir.x()) && std::isfinite(dir.y())
+                && std::isfinite(dir.z());
         }
 
         InputInterface<Eigen::Vector2d> joystick_left;
@@ -136,6 +164,7 @@ private:
         InputInterface<double> pitch_angle;
         InputInterface<double> pitch_velocity;
         InputInterface<double> chassis_yaw_velocity_imu;
+        InputInterface<Eigen::Vector3d> auto_aim_control_direction;
     } input_{*this};
 
     struct Output {
