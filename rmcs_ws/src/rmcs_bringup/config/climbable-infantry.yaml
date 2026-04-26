@@ -156,33 +156,20 @@ yaw_velocity_pid_controller:
     ki: 0.00
     kd: 0.2 #
 
-gimbal_player_viewer_controller:
-  ros__parameters:
-    upper_limit: 0.0101
-    lower_limit: 0.6191
-
-viewer_angle_pid_controller:
-  ros__parameters:
-    measurement: /gimbal/player_viewer/control_angle_error
-    control: /gimbal/player_viewer/control_velocity
-    kp: 17.00
-    ki: 0.00
-    kd: 2.00
-
 friction_wheel_controller:
   ros__parameters:
     friction_wheels:
       - /gimbal/left_friction
       - /gimbal/right_friction
     friction_velocities:
-      - 615.0
-      - 615.0
+      - 590.0
+      - 590.0
     friction_soft_start_stop_time: 1.0
 
 heat_controller:
   ros__parameters:
     heat_per_shot: 10000
-    reserved_heat: 0
+    reserved_heat: 25000
 
 bullet_feeder_controller:
   ros__parameters:
