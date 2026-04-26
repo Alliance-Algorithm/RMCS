@@ -26,6 +26,7 @@ rmcs_executor:
       - rmcs_core::controller::chassis::SteeringWheelController -> steering_wheel_controller
 
       # - rmcs::navigation::Navigation -> rmcs_navigation
+      - rmcs::AutoAimComponent -> auto_aim_component
 
 # The positive direction is the one that battery exists
 sentry_hardware:
