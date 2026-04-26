@@ -1,10 +1,13 @@
 
+#include <cmath>
+#include <limits>
 #include <numbers>
 
 #include <eigen3/Eigen/Dense>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/gimbal_mode.hpp>
 
 #include "controller/pid/pid_calculator.hpp"
 
@@ -40,6 +43,7 @@ public:
         register_input("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
         register_input("/chassis/yaw/velocity_imu", chassis_yaw_velocity_imu_);
 
+        register_input("/gimbal/mode", gimbal_mode_);
         register_input("/gimbal/yaw/control_angle_error", control_angle_error_);
         register_input("/gimbal/yaw/control_angle_shift", control_angle_shift_, false);
 
@@ -74,17 +78,32 @@ public:
                 - bottom_yaw_velocity_imu());
         }
 
-        if (std::isnan(*control_angle_shift_)) {
+        const auto mode = *gimbal_mode_;
+        if (mode == rmcs_msgs::GimbalMode::ENCODER) {
+            const bool entering_encoder = last_gimbal_mode_ != rmcs_msgs::GimbalMode::ENCODER;
+            if (entering_encoder) {
+                if (std::isfinite(*top_yaw_angle_)) {
+                    top_yaw_encoder_angle_ = *top_yaw_angle_;
+                    top_yaw_encoder_locked_ = true;
+                } else {
+                    top_yaw_encoder_angle_ = nan_;
+                    top_yaw_encoder_locked_ = false;
+                }
+            }
+
+            *bottom_yaw_control_angle_shift_ = *control_angle_shift_;
+            if (top_yaw_encoder_locked_)
+                *top_yaw_control_angle_ = top_yaw_encoder_angle_;
+            else
+                *top_yaw_control_angle_ = nan_;
+        } else {
             *top_yaw_control_angle_ = nan_;
             *bottom_yaw_control_angle_shift_ = nan_;
-            top_yaw_encoder_angle_ = *top_yaw_control_angle_;
-        } else {
-            *top_yaw_control_angle_ = top_yaw_encoder_angle_;
-            *bottom_yaw_control_angle_shift_ = *control_angle_shift_;
-            // RCLCPP_INFO(
-            //     get_logger(), "top:%lf,bottom:%lf", *top_yaw_angle_,
-            //     *bottom_yaw_control_angle_shift_);
+            top_yaw_encoder_angle_ = nan_;
+            top_yaw_encoder_locked_ = false;
         }
+
+        last_gimbal_mode_ = mode;
     }
 
 private:
@@ -104,6 +123,7 @@ private:
 
     InputInterface<double> gimbal_yaw_velocity_imu_, chassis_yaw_velocity_imu_;
 
+    InputInterface<rmcs_msgs::GimbalMode> gimbal_mode_;
     InputInterface<double> control_angle_error_, control_angle_shift_;
 
     pid::PidCalculator top_yaw_angle_pid_, top_yaw_velocity_pid_;
@@ -115,7 +135,9 @@ private:
     OutputInterface<double> top_yaw_control_angle_;
     OutputInterface<double> bottom_yaw_control_angle_shift_;
 
-    double top_yaw_encoder_angle_;
+    rmcs_msgs::GimbalMode last_gimbal_mode_ = rmcs_msgs::GimbalMode::IMU;
+    bool top_yaw_encoder_locked_ = false;
+    double top_yaw_encoder_angle_ = nan_;
 
     class DualYawStatus : public rmcs_executor::Component {
     public:
