@@ -19,8 +19,7 @@ enum class AutoClimbState {
     APPROACH,
     SUPPORT_DEPLOY,
     DASH,
-    SUPPORT_RETRACT,
-    FORERAKED
+    SUPPORT_RETRACT
 };
 
 class ChassisClimberController
@@ -161,10 +160,7 @@ private:
     AutoClimbControl update_auto_climb_control() {
 
         if (auto_climb_state_ == AutoClimbState::IDLE) {
-            detect_is_foreraked();
-            if (auto_climb_state_ == AutoClimbState::IDLE) {
-                return {};
-            }
+            return {};
         }
 
         auto_climb_timer_++;
@@ -176,7 +172,6 @@ private:
         case AutoClimbState::SUPPORT_DEPLOY: return update_auto_climb_support_deploy();
         case AutoClimbState::DASH: return update_auto_climb_dash();
         case AutoClimbState::SUPPORT_RETRACT: return update_auto_climb_support_retract();
-        case AutoClimbState::FORERAKED: return update_forerake_defend();
         }
 
         return {};
@@ -377,25 +372,6 @@ private:
         return control;
     }
 
-    AutoClimbControl update_forerake_defend() {
-        AutoClimbControl control{
-            .front_track_velocity = track_velocity_max_,
-            .back_climber_velocity = 0.0,
-            .override_chassis_vx = nan_,
-        };
-
-        double pitch = *chassis_pitch_imu_;
-        bool is_leveled = std::abs(pitch) < kAutoClimbLeveledPitchThreshold
-                       && auto_climb_timer_ > kAutoClimbDashMinTicks;
-        bool timeout = auto_climb_timer_ > kAutoClimbForerakedTimeoutTicks;
-
-        if (is_leveled || timeout) {
-            enter_auto_climb_state(AutoClimbState::IDLE);
-        }
-
-        return control;
-    }
-
     void apply_auto_climb_control(const AutoClimbControl& control) {
         *climbing_forward_velocity_ = control.override_chassis_vx;
 
@@ -483,33 +459,18 @@ private:
         right_torque_out = control_torques[1];
     }
 
-    void detect_is_foreraked() {
-        if (auto_climb_state_ != AutoClimbState::IDLE) {
-            return;
-        }
-
-        double pitch = *chassis_pitch_imu_;
-        bool is_foreraked = pitch < kForerakedetectPitchThreshold;
-        if (is_foreraked) {
-            RCLCPP_INFO(get_logger(), "Enter foreraked");
-            enter_auto_climb_state(AutoClimbState::FORERAKED);
-        }
-    }
-
     rclcpp::Logger logger_;
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
     static constexpr double kAutoClimbApproachVelocity = 1.0;
     static constexpr double kAutoClimbAlignThreshold = 0.10;
     static constexpr double kAutoClimbAlignVelocityThreshold = 0.2;
     static constexpr double kAutoClimbLeveledPitchThreshold = 0.1;
-    static constexpr double kForerakedetectPitchThreshold = -0.05;
     static constexpr double kBackClimberBlockedTorqueThreshold = 0.1;
     static constexpr double kBackClimberBlockedVelocityThreshold = 0.1;
     static constexpr int kAutoClimbAlignConfirmTicks = 50;
     static constexpr int kAutoClimbSupportConfirmTicks = 50;
     static constexpr int kAutoClimbDashMinTicks = 500;
     static constexpr int kAutoClimbDashTimeoutTicks = 3000;
-    static constexpr int kAutoClimbForerakedTimeoutTicks = 2000;
     static constexpr int kAutoClimbSupportRetractTicks = 1000;
     static constexpr int kAutoClimbMaxStairs = 2;
     static constexpr int kManualSupportRetractConfirmTicks = 50;
