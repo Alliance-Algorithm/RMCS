@@ -495,8 +495,7 @@ private:
 
     bool suspension_requested_by_switch_() const {
         return switch_left_.ready() && switch_right_.ready()
-            && *switch_left_ == rmcs_msgs::Switch::DOWN
-            && *switch_right_ == rmcs_msgs::Switch::UP;
+            && *switch_left_ == rmcs_msgs::Switch::DOWN && *switch_right_ == rmcs_msgs::Switch::UP;
     }
 
     bool suspension_requested_by_input_() const {
@@ -666,8 +665,8 @@ private:
         constexpr double max_attitude = 30.0 * std::numbers::pi / 180.0;
         const double base_target_angle = deg_to_rad(min_angle_);
         const double max_target_angle = deg_to_rad(max_angle_);
-        const double corrected_pitch =
-            std::clamp(*chassis_imu_pitch_ - chassis_imu_pitch_offset_, -max_attitude, max_attitude);
+        const double corrected_pitch = std::clamp(
+            *chassis_imu_pitch_ - chassis_imu_pitch_offset_, -max_attitude, max_attitude);
         const double corrected_roll =
             std::clamp(*chassis_imu_roll_ - chassis_imu_roll_offset_, -max_attitude, max_attitude);
         const double corrected_pitch_rate = *chassis_imu_pitch_rate_;
@@ -692,18 +691,18 @@ private:
         const double left_roll_add = std::max(roll_angle_diff, 0.0);
         const double right_roll_add = std::max(-roll_angle_diff, 0.0);
 
-        current_target_physical_angles_rad_[kLeftFront] =
-            std::clamp(base_target_angle + front_pitch_add + left_roll_add, base_target_angle,
-                max_target_angle);
-        current_target_physical_angles_rad_[kLeftBack] =
-            std::clamp(base_target_angle + back_pitch_add + left_roll_add, base_target_angle,
-                max_target_angle);
-        current_target_physical_angles_rad_[kRightBack] =
-            std::clamp(base_target_angle + back_pitch_add + right_roll_add, base_target_angle,
-                max_target_angle);
-        current_target_physical_angles_rad_[kRightFront] =
-            std::clamp(base_target_angle + front_pitch_add + right_roll_add, base_target_angle,
-                max_target_angle);
+        current_target_physical_angles_rad_[kLeftFront] = std::clamp(
+            base_target_angle + front_pitch_add + left_roll_add, base_target_angle,
+            max_target_angle);
+        current_target_physical_angles_rad_[kLeftBack] = std::clamp(
+            base_target_angle + back_pitch_add + left_roll_add, base_target_angle,
+            max_target_angle);
+        current_target_physical_angles_rad_[kRightBack] = std::clamp(
+            base_target_angle + back_pitch_add + right_roll_add, base_target_angle,
+            max_target_angle);
+        current_target_physical_angles_rad_[kRightFront] = std::clamp(
+            base_target_angle + front_pitch_add + right_roll_add, base_target_angle,
+            max_target_angle);
 
         joint_suspension_active_.fill(true);
     }
@@ -945,7 +944,7 @@ private:
     }
 
     void scope_motor_control(bool prone_override = false) {
-        const bool prone_target_active = prone_override || current_target_angle_ == min_angle_;
+        const bool prone_target_active = prone_override;
         if (prone_target_active && *mode_ != rmcs_msgs::ChassisMode::SPIN) {
             *scope_motor_control_torque = -0.3;
             // if (*scope_motor_velocity <= std::abs(0.1)){

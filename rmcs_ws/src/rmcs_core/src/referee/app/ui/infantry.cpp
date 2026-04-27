@@ -46,16 +46,12 @@ public:
             "deformable_leg_min_angle_deg", deformable_leg_min_angle_deg, deformable_leg_min_angle_deg);
         get_parameter_or(
             "deformable_leg_max_angle_deg", deformable_leg_max_angle_deg, deformable_leg_max_angle_deg);
-        deformable_chassis_top_view_.set_angle_range(
+        deformable_chassis_leg_arcs_.set_angle_range(
             deformable_leg_min_angle_deg, deformable_leg_max_angle_deg);
-
-        chassis_control_direction_indicator_.set_x(x_center);
-        chassis_control_direction_indicator_.set_y(y_center);
 
         register_input("/chassis/control_mode", chassis_mode_);
 
         register_input("/chassis/angle", chassis_angle_);
-        register_input("/chassis/control_angle", chassis_control_angle_);
 
         register_input("/chassis/supercap/voltage", supercap_voltage_);
         register_input("/chassis/supercap/enabled", supercap_enabled_);
@@ -94,7 +90,7 @@ public:
 
     void update() override {
         update_chassis_direction_indicator();
-        update_deformable_chassis_top_view();
+        update_deformable_chassis_leg_arcs();
 
         chassis_control_power_limit_indicator_.set_value(*chassis_control_power_limit_);
         supercap_control_power_limit_indicator_.set_value(*supercap_charge_power_limit_);
@@ -128,33 +124,12 @@ private:
             chassis_mode == rmcs_msgs::ChassisMode::SPIN ? Shape::Color::GREEN
                                                          : Shape::Color::PINK);
         chassis_direction_indicator_.set_angle(to_referee_angle(*chassis_angle_), 30);
-
-        bool chassis_control_direction_indicator_visible = false;
-        if (!std::isnan(*chassis_control_angle_)) {
-            if (chassis_mode == rmcs_msgs::ChassisMode::STEP_DOWN) {
-                chassis_control_direction_indicator_visible = true;
-                chassis_control_direction_indicator_.set_color(Shape::Color::CYAN);
-                chassis_control_direction_indicator_.set_width(8);
-                chassis_control_direction_indicator_.set_r(92);
-                chassis_control_direction_indicator_.set_angle(
-                    to_referee_angle(*chassis_control_angle_), 30);
-            } else if (chassis_mode == rmcs_msgs::ChassisMode::LAUNCH_RAMP) {
-                chassis_control_direction_indicator_visible = true;
-                chassis_control_direction_indicator_.set_color(Shape::Color::CYAN);
-                chassis_control_direction_indicator_.set_width(28);
-                chassis_control_direction_indicator_.set_r(102);
-                chassis_control_direction_indicator_.set_angle(
-                    to_referee_angle(*chassis_control_angle_), 4);
-            }
-        }
-        chassis_control_direction_indicator_.set_visible(
-            chassis_control_direction_indicator_visible);
     }
 
-    void update_deformable_chassis_top_view() {
+    void update_deformable_chassis_leg_arcs() {
         if (!left_front_joint_physical_angle_.ready() || !left_back_joint_physical_angle_.ready()
             || !right_back_joint_physical_angle_.ready() || !right_front_joint_physical_angle_.ready()) {
-            deformable_chassis_top_view_.set_visible(false);
+            deformable_chassis_leg_arcs_.set_visible(false);
             return;
         }
 
@@ -164,14 +139,14 @@ private:
             *right_back_joint_physical_angle_,
             *right_front_joint_physical_angle_,
         };
-        deformable_chassis_top_view_.update(*chassis_angle_, leg_angles);
+        deformable_chassis_leg_arcs_.update(*chassis_angle_, leg_angles);
     }
 
     static constexpr uint16_t screen_width = 1920, screen_height = 1080;
     static constexpr uint16_t x_center = screen_width / 2, y_center = screen_height / 2;
 
     InputInterface<rmcs_msgs::ChassisMode> chassis_mode_;
-    InputInterface<double> chassis_angle_, chassis_control_angle_;
+    InputInterface<double> chassis_angle_;
 
     InputInterface<double> supercap_voltage_;
     InputInterface<bool> supercap_enabled_;
@@ -207,8 +182,8 @@ private:
     Float chassis_power_number_;
     Line yaw_indicator_guidelines_[2];
 
-    Arc chassis_direction_indicator_, chassis_control_direction_indicator_;
-    DeformableChassisTopView deformable_chassis_top_view_;
+    Arc chassis_direction_indicator_;
+    DeformableChassisLegArcs deformable_chassis_leg_arcs_;
 
     Float chassis_control_power_limit_indicator_, supercap_control_power_limit_indicator_;
 
