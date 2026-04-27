@@ -53,7 +53,7 @@ Infantry_hardware:
     # external_imu_port: /dev/ttyUSB0
     # bullet_feeder_motor_zero_point: 15111
     left_front_zero_point: 5816
-    left_back_zero_point:  3776
+    left_back_zero_point: 3776
     right_back_zero_point: 3084
     right_front_zero_point: 5077
 

@@ -251,8 +251,8 @@ private:
             , tf_(climbable_infantry.tf_)
             , imu_(1000, 0.2, 0.0)
             , dr16_(climbable_infantry)
-            , supercap_(climbable_infantry, climbable_infantry_command)
             , gimbal_yaw_motor_(climbable_infantry, climbable_infantry_command, "/gimbal/yaw")
+            , supercap_(climbable_infantry, climbable_infantry_command)
             , chassis_front_climber_motor_(
                   {climbable_infantry, climbable_infantry_command,
                    "/chassis/climber/left_front_motor"},
@@ -340,7 +340,6 @@ private:
         void update() {
             imu_.update_status();
             dr16_.update_status();
-            supercap_.update_status();
 
             *chassis_yaw_velocity_imu_ = imu_.gz();
             *chassis_pitch_imu_ = -std::asin(2.0 * (imu_.q0() * imu_.q2() - imu_.q3() * imu_.q1()));
@@ -358,6 +357,7 @@ private:
             chassis_back_climber_motor_[1].update_status();
 
             gimbal_yaw_motor_.update_status();
+            supercap_.update_status();
 
             tf_->set_state<rmcs_description::GimbalCenterLink, rmcs_description::YawLink>(
                 gimbal_yaw_motor_.angle());
@@ -388,9 +388,9 @@ private:
                 .can_data =
                     device::CanPacket8{
                                        chassis_steering_motors_[0].generate_command(),
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
                                        chassis_steering_motors_[1].generate_command(),
+                                       device::CanPacket8::PaddingQuarter{},
+                                       supercap_.generate_command(),
                                        }
                         .as_bytes(),
             });
@@ -399,18 +399,6 @@ private:
                 .can_id = 0x141,
                 .can_data = gimbal_yaw_motor_.generate_torque_command().as_bytes(),
             });
-
-            // builder.can1_transmit({
-            //     .can_id = 0x1FE,
-            //     .can_data =
-            //         device::CanPacket8{
-            //                            device::CanPacket8::PaddingQuarter{},
-            //                            device::CanPacket8::PaddingQuarter{},
-            //                            device::CanPacket8::PaddingQuarter{},
-            //                            supercap_.generate_command(),
-            //                            }
-            //             .as_bytes(),
-            // });
 
             builder.can2_transmit({
                 .can_id = 0x200,
@@ -437,7 +425,7 @@ private:
                 chassis_wheel_motors_[1].store_status(data.can_data);
             } else if (can_id == 0x205) {
                 chassis_steering_motors_[0].store_status(data.can_data);
-            } else if (can_id == 0x208) {
+            } else if (can_id == 0x206) {
                 chassis_steering_motors_[1].store_status(data.can_data);
             } else if (can_id == 0x300) {
                 supercap_.store_status(data.can_data);
@@ -488,8 +476,10 @@ private:
 
         device::Bmi088 imu_;
         device::Dr16 dr16_;
-        device::Supercap supercap_;
+
         device::LkMotor gimbal_yaw_motor_;
+
+        device::Supercap supercap_;
 
         device::DjiMotor chassis_front_climber_motor_[2];
         device::DjiMotor chassis_back_climber_motor_[2];
@@ -512,6 +502,7 @@ private:
             std::string_view board_serial = {})
             : librmcs::agent::CBoard(board_serial)
             , logger_(climbable_infantry.get_logger())
+
             , gimbal_bullet_feeder_(
                   climbable_infantry, climbable_infantry_command, "/gimbal/bullet_feeder")
             , chassis_steering_motors_(
@@ -591,9 +582,9 @@ private:
                 .can_data =
                     device::CanPacket8{
                                        device::CanPacket8::PaddingQuarter{},
-                                       chassis_steering_motors_[0].generate_command(),
-                                       chassis_steering_motors_[1].generate_command(),
                                        device::CanPacket8::PaddingQuarter{},
+                                       chassis_steering_motors_[1].generate_command(),
+                                       chassis_steering_motors_[0].generate_command(),
                                        }
                         .as_bytes(),
             });
@@ -621,7 +612,7 @@ private:
                 chassis_wheel_motors_[0].store_status(data.can_data);
             } else if (can_id == 0x203) {
                 chassis_wheel_motors_[1].store_status(data.can_data);
-            } else if (can_id == 0x206) {
+            } else if (can_id == 0x208) {
                 chassis_steering_motors_[0].store_status(data.can_data);
             } else if (can_id == 0x207) {
                 chassis_steering_motors_[1].store_status(data.can_data);
