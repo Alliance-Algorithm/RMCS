@@ -53,4 +53,7 @@ bootstrap_dir() {
 bootstrap_dir "/mnt/host-agent-source/codex" "${HOME}/.codex" "Codex state"
 bootstrap_dir "/mnt/host-agent-source/opencode-config" "${HOME}/.config/opencode" "OpenCode config"
 bootstrap_dir "/mnt/host-agent-source/opencode-data" "${HOME}/.local/share/opencode" "OpenCode data"
+bootstrap_dir "/mnt/host-agent-source/opencode-local-state" "${HOME}/.local/state/opencode" "OpenCode local state"
+bootstrap_dir "/mnt/host-agent-source/opencode-cache" "${HOME}/.cache/opencode" "OpenCode cache"
+bootstrap_dir "/mnt/host-agent-source/oh-my-opencode-data" "${HOME}/.local/share/oh-my-opencode" "Oh My OpenCode data"
 bootstrap_dir "/mnt/host-agent-source/opencode-skills" "${HOME}/.opencode/skills" "OpenCode skills"

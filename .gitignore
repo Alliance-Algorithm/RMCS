@@ -77,9 +77,15 @@ develop_ws
 !/.devcontainer/state/.gitignore
 !/.devcontainer/state/codex/
 !/.devcontainer/state/codex/.gitignore
+!/.devcontainer/state/opencode-cache/
+!/.devcontainer/state/opencode-cache/.gitignore
 !/.devcontainer/state/opencode-config/
 !/.devcontainer/state/opencode-config/.gitignore
 !/.devcontainer/state/opencode-data/
 !/.devcontainer/state/opencode-data/.gitignore
+!/.devcontainer/state/oh-my-opencode-data/
+!/.devcontainer/state/oh-my-opencode-data/.gitignore
+!/.devcontainer/state/opencode-local-state/
+!/.devcontainer/state/opencode-local-state/.gitignore
 !/.devcontainer/state/opencode-skills/
 !/.devcontainer/state/opencode-skills/.gitignore

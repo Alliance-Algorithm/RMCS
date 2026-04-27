@@ -9,14 +9,32 @@ services:
     command: |
       bash -lc '
         mkdir -p \
+          "${CONTAINER_HOME}/.cache" \
+          "${CONTAINER_HOME}/.cache/opencode" \
+          "${CONTAINER_HOME}/.config" \
           "${CONTAINER_HOME}/.codex" \
+          "${CONTAINER_HOME}/.local" \
+          "${CONTAINER_HOME}/.local/share" \
+          "${CONTAINER_HOME}/.local/state" \
           "${CONTAINER_HOME}/.config/opencode" \
+          "${CONTAINER_HOME}/.local/share/oh-my-opencode" \
           "${CONTAINER_HOME}/.local/share/opencode" \
+          "${CONTAINER_HOME}/.local/state/opencode" \
+          "${CONTAINER_HOME}/.opencode" \
           "${CONTAINER_HOME}/.opencode/skills"
         sudo chown -R "${CONTAINER_USER}:${CONTAINER_USER}" \
+          "${CONTAINER_HOME}/.cache" \
+          "${CONTAINER_HOME}/.cache/opencode" \
+          "${CONTAINER_HOME}/.config" \
           "${CONTAINER_HOME}/.codex" \
+          "${CONTAINER_HOME}/.local" \
+          "${CONTAINER_HOME}/.local/share" \
+          "${CONTAINER_HOME}/.local/state" \
           "${CONTAINER_HOME}/.config/opencode" \
+          "${CONTAINER_HOME}/.local/share/oh-my-opencode" \
           "${CONTAINER_HOME}/.local/share/opencode" \
+          "${CONTAINER_HOME}/.local/state/opencode" \
+          "${CONTAINER_HOME}/.opencode" \
           "${CONTAINER_HOME}/.opencode/skills"
         bash /workspaces/RMCS/.devcontainer/bootstrap-agent-state.sh
         exec sleep infinity
@@ -26,13 +44,19 @@ services:
       - /tmp/.X11-unix:/tmp/.X11-unix:bind
       - /run/user/1000/wayland-0:/run/user/1000/wayland-0
       - ${HOST_CODEX_SOURCE_DIR}:/mnt/host-agent-source/codex:ro
+      - ${HOST_OPENCODE_CACHE_SOURCE_DIR}:/mnt/host-agent-source/opencode-cache:ro
       - ${HOST_OPENCODE_CONFIG_SOURCE_DIR}:/mnt/host-agent-source/opencode-config:ro
       - ${HOST_OPENCODE_DATA_SOURCE_DIR}:/mnt/host-agent-source/opencode-data:ro
+      - ${HOST_OPENCODE_LOCAL_STATE_SOURCE_DIR}:/mnt/host-agent-source/opencode-local-state:ro
+      - ${HOST_OH_MY_OPENCODE_DATA_SOURCE_DIR}:/mnt/host-agent-source/oh-my-opencode-data:ro
       - ${HOST_OPENCODE_SKILLS_SOURCE_DIR}:/mnt/host-agent-source/opencode-skills:ro
       - ${HOST_NVIM_DIR}:${CONTAINER_HOME}/.config/nvim/:bind
       - ./.devcontainer/state/codex:${CONTAINER_HOME}/.codex:bind
+      - ./.devcontainer/state/opencode-cache:${CONTAINER_HOME}/.cache/opencode:bind
       - ./.devcontainer/state/opencode-config:${CONTAINER_HOME}/.config/opencode:bind
+      - ./.devcontainer/state/oh-my-opencode-data:${CONTAINER_HOME}/.local/share/oh-my-opencode:bind
       - ./.devcontainer/state/opencode-data:${CONTAINER_HOME}/.local/share/opencode:bind
+      - ./.devcontainer/state/opencode-local-state:${CONTAINER_HOME}/.local/state/opencode:bind
       - ./.devcontainer/state/opencode-skills:${CONTAINER_HOME}/.opencode/skills:bind
       - .:/workspaces/RMCS:bind
     environment:
