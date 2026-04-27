@@ -71,3 +71,15 @@ record/
 # For temperary development
 develop_ws
 .venv
+
+# Dev container persistent state
+/.devcontainer/state/*
+!/.devcontainer/state/.gitignore
+!/.devcontainer/state/codex/
+!/.devcontainer/state/codex/.gitignore
+!/.devcontainer/state/opencode-config/
+!/.devcontainer/state/opencode-config/.gitignore
+!/.devcontainer/state/opencode-data/
+!/.devcontainer/state/opencode-data/.gitignore
+!/.devcontainer/state/opencode-skills/
+!/.devcontainer/state/opencode-skills/.gitignore

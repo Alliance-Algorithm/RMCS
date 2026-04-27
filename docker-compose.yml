@@ -1,28 +1,49 @@
 services:
   rmcs-develop:
-    image: qzhhhi/rmcs-develop:latest
+    build:
+      context: .
+      dockerfile: .devcontainer/Dockerfile
+    image: rmcs-develop:codex-opencode
     user: "${CONTAINER_USER}"
     privileged: true
-    command: >
-      bash -c "
-        sudo chown -R ${CONTAINER_USER}:${CONTAINER_USER} ${CONTAINER_HOME}/.config
-        sudo chown -R ${CONTAINER_USER}:${CONTAINER_USER} ${CONTAINER_HOME}/.opencode
-        grep -q '/.opencode/bin' ${CONTAINER_HOME}/.bashrc || printf '\n# opencode\nexport PATH=\"$HOME/.opencode/bin:$PATH\"\n' >> ${CONTAINER_HOME}/.bashrc
-        grep -q '/.opencode/bin' ${CONTAINER_HOME}/.profile || printf '\n# opencode\nexport PATH=\"$HOME/.opencode/bin:$PATH\"\n' >> ${CONTAINER_HOME}/.profile
-        grep -q '/.opencode/bin' ${CONTAINER_HOME}/.zshrc || printf '\n# opencode\nexport PATH=\"$HOME/.opencode/bin:$PATH\"\n' >> ${CONTAINER_HOME}/.zshrc
-        exec bash
-      "
+    command: |
+      bash -lc '
+        mkdir -p \
+          "${CONTAINER_HOME}/.codex" \
+          "${CONTAINER_HOME}/.config/opencode" \
+          "${CONTAINER_HOME}/.local/share/opencode" \
+          "${CONTAINER_HOME}/.opencode/skills"
+        sudo chown -R "${CONTAINER_USER}:${CONTAINER_USER}" \
+          "${CONTAINER_HOME}/.codex" \
+          "${CONTAINER_HOME}/.config/opencode" \
+          "${CONTAINER_HOME}/.local/share/opencode" \
+          "${CONTAINER_HOME}/.opencode/skills"
+        bash /workspaces/RMCS/.devcontainer/bootstrap-agent-state.sh
+        exec sleep infinity
+      '
     volumes:
       - /dev:/dev:bind
       - /tmp/.X11-unix:/tmp/.X11-unix:bind
       - /run/user/1000/wayland-0:/run/user/1000/wayland-0
+      - ${HOST_CODEX_SOURCE_DIR}:/mnt/host-agent-source/codex:ro
+      - ${HOST_OPENCODE_CONFIG_SOURCE_DIR}:/mnt/host-agent-source/opencode-config:ro
+      - ${HOST_OPENCODE_DATA_SOURCE_DIR}:/mnt/host-agent-source/opencode-data:ro
+      - ${HOST_OPENCODE_SKILLS_SOURCE_DIR}:/mnt/host-agent-source/opencode-skills:ro
       - ${HOST_NVIM_DIR}:${CONTAINER_HOME}/.config/nvim/:bind
-      - ${HOST_OPENCODE_CONFIG_DIR}:${CONTAINER_HOME}/.config/opencode:bind
-      - ${HOST_OPENCODE_HOME_DIR}:${CONTAINER_HOME}/.opencode:bind
+      - ./.devcontainer/state/codex:${CONTAINER_HOME}/.codex:bind
+      - ./.devcontainer/state/opencode-config:${CONTAINER_HOME}/.config/opencode:bind
+      - ./.devcontainer/state/opencode-data:${CONTAINER_HOME}/.local/share/opencode:bind
+      - ./.devcontainer/state/opencode-skills:${CONTAINER_HOME}/.opencode/skills:bind
       - .:/workspaces/RMCS:bind
     environment:
       - DISPLAY=${DISPLAY}
       - WAYLAND_DISPLAY=${WAYLAND_DISPLAY}
+      - HTTP_PROXY=${HTTP_PROXY}
+      - HTTPS_PROXY=${HTTPS_PROXY}
+      - NO_PROXY=${NO_PROXY}
+      - http_proxy=${http_proxy}
+      - https_proxy=${https_proxy}
+      - no_proxy=${no_proxy}
     network_mode: host
     tty: true
     stdin_open: true
