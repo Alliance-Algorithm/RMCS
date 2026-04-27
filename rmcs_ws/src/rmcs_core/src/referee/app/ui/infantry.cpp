@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 
@@ -10,6 +11,7 @@
 
 #include "referee/app/ui/shape/shape.hpp"
 #include "referee/app/ui/widget/crosshair.hpp"
+#include "referee/app/ui/widget/deformable_chassis_top_view.hpp"
 #include "referee/app/ui/widget/status_ring.hpp"
 
 namespace rmcs_core::referee::app::ui {
@@ -38,6 +40,15 @@ public:
         , supercap_control_power_limit_indicator_(Shape::Color::WHITE, 20, 2, x_center + 10, 790, 0)
         , time_reminder_(Shape::Color::PINK, 50, 5, x_center + 150, y_center + 65, 0, false) {
 
+        double deformable_leg_min_angle_deg = 8.0;
+        double deformable_leg_max_angle_deg = 58.0;
+        get_parameter_or(
+            "deformable_leg_min_angle_deg", deformable_leg_min_angle_deg, deformable_leg_min_angle_deg);
+        get_parameter_or(
+            "deformable_leg_max_angle_deg", deformable_leg_max_angle_deg, deformable_leg_max_angle_deg);
+        deformable_chassis_top_view_.set_angle_range(
+            deformable_leg_min_angle_deg, deformable_leg_max_angle_deg);
+
         chassis_control_direction_indicator_.set_x(x_center);
         chassis_control_direction_indicator_.set_y(y_center);
 
@@ -59,6 +70,15 @@ public:
         register_input("/chassis/right_back_wheel/velocity", right_back_velocity_);
         register_input("/chassis/right_front_wheel/velocity", right_front_velocity_);
 
+        register_input(
+            "/chassis/left_front_joint/physical_angle", left_front_joint_physical_angle_, false);
+        register_input(
+            "/chassis/left_back_joint/physical_angle", left_back_joint_physical_angle_, false);
+        register_input(
+            "/chassis/right_back_joint/physical_angle", right_back_joint_physical_angle_, false);
+        register_input(
+            "/chassis/right_front_joint/physical_angle", right_front_joint_physical_angle_, false);
+
         register_input("/referee/shooter/bullet_allowance", robot_bullet_allowance_);
 
         register_input("/gimbal/left_friction/control_velocity", left_friction_control_velocity_);
@@ -74,6 +94,7 @@ public:
 
     void update() override {
         update_chassis_direction_indicator();
+        update_deformable_chassis_top_view();
 
         chassis_control_power_limit_indicator_.set_value(*chassis_control_power_limit_);
         supercap_control_power_limit_indicator_.set_value(*supercap_charge_power_limit_);
@@ -130,6 +151,22 @@ private:
             chassis_control_direction_indicator_visible);
     }
 
+    void update_deformable_chassis_top_view() {
+        if (!left_front_joint_physical_angle_.ready() || !left_back_joint_physical_angle_.ready()
+            || !right_back_joint_physical_angle_.ready() || !right_front_joint_physical_angle_.ready()) {
+            deformable_chassis_top_view_.set_visible(false);
+            return;
+        }
+
+        const std::array<double, 4> leg_angles = {
+            *left_front_joint_physical_angle_,
+            *left_back_joint_physical_angle_,
+            *right_back_joint_physical_angle_,
+            *right_front_joint_physical_angle_,
+        };
+        deformable_chassis_top_view_.update(*chassis_angle_, leg_angles);
+    }
+
     static constexpr uint16_t screen_width = 1920, screen_height = 1080;
     static constexpr uint16_t x_center = screen_width / 2, y_center = screen_height / 2;
 
@@ -146,6 +183,8 @@ private:
 
     InputInterface<double> left_front_velocity_, left_back_velocity_, right_back_velocity_,
         right_front_velocity_;
+    InputInterface<double> left_front_joint_physical_angle_, left_back_joint_physical_angle_,
+        right_back_joint_physical_angle_, right_front_joint_physical_angle_;
 
     InputInterface<uint16_t> robot_bullet_allowance_;
 
@@ -169,6 +208,7 @@ private:
     Line yaw_indicator_guidelines_[2];
 
     Arc chassis_direction_indicator_, chassis_control_direction_indicator_;
+    DeformableChassisTopView deformable_chassis_top_view_;
 
     Float chassis_control_power_limit_indicator_, supercap_control_power_limit_indicator_;
 
