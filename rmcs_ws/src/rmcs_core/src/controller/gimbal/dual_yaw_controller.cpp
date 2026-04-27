@@ -110,9 +110,16 @@ private:
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
 
     double bottom_yaw_control_error() {
-        double err = *top_yaw_angle_ + *control_angle_error_;
-        if (err > std::numbers::pi)
-            err -= 2 * std::numbers::pi;
+        if (!std::isfinite(*top_yaw_angle_) || !std::isfinite(*control_angle_error_))
+            return nan_;
+
+        // Avoid relying on top_yaw_angle in [0, 2pi) and control_angle_error in [-pi, pi].
+        constexpr double alignment = 2 * std::numbers::pi;
+        double err =
+            std::fmod(*top_yaw_angle_ + *control_angle_error_ + std::numbers::pi, alignment);
+        if (err < 0)
+            err += alignment;
+        err -= std::numbers::pi;
         return err;
     }
 

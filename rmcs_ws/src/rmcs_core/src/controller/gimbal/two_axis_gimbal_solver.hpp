@@ -108,13 +108,22 @@ public:
             return {nan_, nan_};
 
         auto [control_direction_yaw_link, pitch] = pitch_link_to_yaw_link(control_direction);
+        if (!control_enabled_)
+            return {nan_, nan_};
 
         clamp_control_direction(control_direction_yaw_link);
         if (!control_enabled_)
             return {nan_, nan_};
 
-        control_direction_ =
-            fast_tf::cast<OdomImu>(yaw_link_to_pitch_link(control_direction_yaw_link, pitch), *tf_);
+        auto control_direction_pitch_link =
+            yaw_link_to_pitch_link(control_direction_yaw_link, pitch);
+        if (control_direction_pitch_link->norm() <= direction_norm_epsilon_) {
+            control_enabled_ = false;
+            return {nan_, nan_};
+        }
+        control_direction_pitch_link->normalize();
+
+        control_direction_ = fast_tf::cast<OdomImu>(control_direction_pitch_link, *tf_);
         return calculate_control_errors(control_direction_yaw_link, pitch);
     }
 
@@ -128,7 +137,7 @@ private:
         yaw_axis_filtered_->normalize();
     }
 
-    auto pitch_link_to_yaw_link(const PitchLink::DirectionVector& dir) const
+    auto pitch_link_to_yaw_link(const PitchLink::DirectionVector& dir)
         -> std::pair<YawLink::DirectionVector, Eigen::Vector2d> {
 
         std::pair<YawLink::DirectionVector, Eigen::Vector2d> result;
@@ -136,7 +145,12 @@ private:
 
         auto yaw_axis = fast_tf::cast<PitchLink>(yaw_axis_filtered_, *tf_);
         pitch = {yaw_axis->z(), yaw_axis->x()};
-        pitch.normalized();
+        double pitch_norm = pitch.norm();
+        if (pitch_norm <= direction_norm_epsilon_) {
+            control_enabled_ = false;
+            return result;
+        }
+        pitch /= pitch_norm;
 
         const auto& [x, y, z] = *dir;
         dir_yaw_link = {x * pitch.x() - z * pitch.y(), y, x * pitch.y() + z * pitch.x()};
@@ -183,6 +197,7 @@ private:
     }
 
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
+    static constexpr double direction_norm_epsilon_ = 1e-9;
 
     const Eigen::Vector2d upper_limit_, lower_limit_;
 
