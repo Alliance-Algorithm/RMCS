@@ -46,7 +46,7 @@ Infantry_hardware:
     board_serial_top_board: "D4-632C-37BC-6A17-ACA2-E3FE-91E9"
     board_serial_bottom_board_one: "D4-6A83-030D-F3D0-9103-F8A5-1246"
     board_serial_bottom_board_two: "D4-6654-1C0F-7353-AA15-A77B-313D"
-    yaw_motor_zero_point: 12279
+    yaw_motor_zero_point: 8054
     pitch_motor_zero_point: 21931
     # top_yaw_motor_zero_point: 58744
     # viewer_motor_zero_point: 3030
