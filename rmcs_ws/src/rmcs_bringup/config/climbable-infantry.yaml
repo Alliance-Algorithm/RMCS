@@ -27,9 +27,6 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController -> right_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller
       
-      
-
-
       - rmcs_core::controller::chassis::SteeringWheelStatus -> steering_wheel_status
       - rmcs_core::controller::chassis::ClimbableInfantryChassisController -> chassis_controller
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
@@ -164,7 +161,7 @@ friction_wheel_controller:
     friction_velocities:
       - 590.0
       - 590.0
-    friction_soft_start_stop_time: 1.0
+    friction_soft_start_stop_time: 0.3
 
 heat_controller:
   ros__parameters:
@@ -174,7 +171,7 @@ heat_controller:
 bullet_feeder_controller:
   ros__parameters:
     bullets_per_feeder_turn: 9.0
-    shot_frequency: 30.0
+    shot_frequency: 60.0
     safe_shot_frequency: 10.0
     eject_frequency: 10.0
     eject_time: 0.05
