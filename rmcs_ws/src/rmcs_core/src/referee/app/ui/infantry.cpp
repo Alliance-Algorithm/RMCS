@@ -31,13 +31,7 @@ public:
         , vertical_center_guidelines_(
               {Shape::Color::WHITE, 2, x_center, 800, x_center, y_center + 110},
               {Shape::Color::WHITE, 2, x_center, y_center - 110, x_center, 200})
-        , chassis_power_number_(Shape::Color::WHITE, 20, 2, x_center - 40, 860, 0)
-        , yaw_indicator_guidelines_(
-              {Shape::Color::WHITE, 2, x_center - 32, 830, x_center + 32, 830},
-              {Shape::Color::WHITE, 2, x_center, 830, x_center, 820})
         , chassis_direction_indicator_(Shape::Color::PINK, 8, x_center, y_center, 0, 0, 84, 84)
-        , chassis_control_power_limit_indicator_(Shape::Color::WHITE, 20, 2, x_center + 10, 820, 0)
-        , supercap_control_power_limit_indicator_(Shape::Color::WHITE, 20, 2, x_center + 10, 790, 0)
         , time_reminder_(Shape::Color::PINK, 50, 5, x_center + 150, y_center + 65, 0, false) {
 
         double deformable_leg_min_angle_deg = 8.0;
@@ -57,9 +51,6 @@ public:
         register_input("/chassis/supercap/enabled", supercap_enabled_);
 
         register_input("/chassis/voltage", chassis_voltage_);
-        register_input("/chassis/power", chassis_power_);
-        register_input("/chassis/control_power_limit", chassis_control_power_limit_);
-        register_input("/chassis/supercap/charge_power_limit", supercap_charge_power_limit_);
 
         register_input("/chassis/left_front_wheel/velocity", left_front_velocity_);
         register_input("/chassis/left_back_wheel/velocity", left_back_velocity_);
@@ -91,11 +82,6 @@ public:
     void update() override {
         update_chassis_direction_indicator();
         update_deformable_chassis_leg_arcs();
-
-        chassis_control_power_limit_indicator_.set_value(*chassis_control_power_limit_);
-        supercap_control_power_limit_indicator_.set_value(*supercap_charge_power_limit_);
-
-        chassis_power_number_.set_value(*chassis_power_);
 
         status_ring_.update_bullet_allowance(*robot_bullet_allowance_);
         status_ring_.update_friction_wheel_speed(
@@ -152,9 +138,6 @@ private:
     InputInterface<bool> supercap_enabled_;
 
     InputInterface<double> chassis_voltage_;
-    InputInterface<double> chassis_power_;
-    InputInterface<double> chassis_control_power_limit_;
-    InputInterface<double> supercap_charge_power_limit_;
 
     InputInterface<double> left_front_velocity_, left_back_velocity_, right_back_velocity_,
         right_front_velocity_;
@@ -179,13 +162,8 @@ private:
     Line horizontal_center_guidelines_[2];
     Line vertical_center_guidelines_[2];
 
-    Float chassis_power_number_;
-    Line yaw_indicator_guidelines_[2];
-
     Arc chassis_direction_indicator_;
     DeformableChassisLegArcs deformable_chassis_leg_arcs_;
-
-    Float chassis_control_power_limit_indicator_, supercap_control_power_limit_indicator_;
 
     Integer time_reminder_;
 };
