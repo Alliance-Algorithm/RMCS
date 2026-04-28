@@ -3,7 +3,7 @@
 set -euo pipefail
 
 readonly DEVELOPER_NAME="ubuntu"
-readonly NVIM_PATH="/opt/nvim-linux-x86_64/bin/nvim"
+readonly NVIM_PATH="/opt/nvim/bin/nvim"
 readonly NVIM_PORT=6666
 readonly NVIM_HOST="localhost"
 

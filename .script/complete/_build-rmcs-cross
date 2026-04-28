@@ -1,0 +1,5 @@
+#compdef build-rmcs-cross
+
+_arguments \
+  '--target-arch=[Cross compile target architecture]:target:(arm64 amd64)' \
+  '*:colcon build args:'
