@@ -35,8 +35,8 @@ public:
             if (std::isfinite(leg_angles[i]))
                 last_leg_angles_[i] = leg_angles[i];
             update_leg_(
-                legs_[i], last_chassis_angle_ + leg_base_mid_angles_[i], leg_radii_[i],
-                last_leg_angles_[i]);
+                legs_[i], last_chassis_angle_ + leg_base_mid_angles_[i], leg_radii_near_[i],
+                leg_radii_far_[i], last_leg_angles_[i]);
         }
     }
 
@@ -49,14 +49,16 @@ private:
     static constexpr uint16_t center_x_ = 1920 / 2;
     static constexpr uint16_t center_y_ = 1080 / 2;
 
-    static constexpr uint16_t front_leg_radius_ = 98;
-    static constexpr uint16_t rear_leg_radius_ = 110;
+    static constexpr uint16_t front_leg_radius_near_ = 102;
+    static constexpr uint16_t rear_leg_radius_near_ = 112;
+    static constexpr uint16_t front_leg_radius_far_ = 132;
+    static constexpr uint16_t rear_leg_radius_far_ = 142;
 
-    static constexpr uint16_t prone_leg_width_ = 8;
-    static constexpr uint16_t upright_leg_width_ = 13;
+    static constexpr uint16_t prone_leg_width_ = 6;
+    static constexpr uint16_t upright_leg_width_ = 16;
 
-    static constexpr uint16_t upright_leg_half_angle_ = 8;
-    static constexpr uint16_t prone_leg_half_angle_ = 15;
+    static constexpr uint16_t upright_leg_half_angle_ = 10;
+    static constexpr uint16_t prone_leg_half_angle_ = 6;
 
     static constexpr double front_pair_offset_deg_ = 28.0;
     static constexpr double rear_pair_offset_deg_ = 28.0;
@@ -76,11 +78,18 @@ private:
         -front_pair_offset_deg_ * degrees_to_radians_,
     };
 
-    static constexpr std::array<uint16_t, 4> leg_radii_ = {
-        front_leg_radius_,
-        rear_leg_radius_,
-        rear_leg_radius_,
-        front_leg_radius_,
+    static constexpr std::array<uint16_t, 4> leg_radii_near_ = {
+        front_leg_radius_near_,
+        rear_leg_radius_near_,
+        rear_leg_radius_near_,
+        front_leg_radius_near_,
+    };
+
+    static constexpr std::array<uint16_t, 4> leg_radii_far_ = {
+        front_leg_radius_far_,
+        rear_leg_radius_far_,
+        rear_leg_radius_far_,
+        front_leg_radius_far_,
     };
 
     static uint16_t to_referee_angle_(double angle) {
@@ -108,8 +117,13 @@ private:
         return Shape::Color::WHITE;
     }
 
-    void update_leg_(Arc& leg, double body_angle, uint16_t radius, double leg_angle) const {
+    void update_leg_(
+        Arc& leg, double body_angle, uint16_t near_radius, uint16_t far_radius,
+        double leg_angle) const {
         const double normalized_extension = normalized_leg_extension_(leg_angle);
+        // Min angle looks like a thin leg stretching radially outward from the center ring.
+        const uint16_t radius = static_cast<uint16_t>(std::lround(
+            far_radius - normalized_extension * (far_radius - near_radius)));
         const uint16_t half_angle = static_cast<uint16_t>(std::lround(
             prone_leg_half_angle_
             - normalized_extension * (prone_leg_half_angle_ - upright_leg_half_angle_)));
