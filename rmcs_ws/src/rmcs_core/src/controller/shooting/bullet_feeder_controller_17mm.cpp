@@ -53,7 +53,7 @@ public:
         register_input("/remote/mouse", mouse_);
         register_input("/remote/keyboard", keyboard_);
 
-        register_input("/gimbal/auto_aim/fire_control", fire_control_, false);
+        register_input("/auto_aim/should_shoot", fire_control_, false);
 
         register_input("/gimbal/bullet_feeder/velocity", bullet_feeder_velocity_);
         register_output(

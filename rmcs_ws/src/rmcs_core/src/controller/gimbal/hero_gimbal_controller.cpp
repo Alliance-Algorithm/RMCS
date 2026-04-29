@@ -37,7 +37,7 @@ public:
         register_input("/remote/mouse", mouse_);
         register_input("/remote/keyboard", keyboard_);
 
-        register_input("/gimbal/auto_aim/control_direction", auto_aim_control_direction_, false);
+        register_input("/auto_aim/control_direction", auto_aim_control_direction_, false);
 
         register_output("/gimbal/mode", gimbal_mode_, rmcs_msgs::GimbalMode::IMU);
 
