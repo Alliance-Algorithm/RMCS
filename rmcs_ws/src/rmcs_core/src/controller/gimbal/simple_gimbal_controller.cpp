@@ -30,7 +30,7 @@ public:
         register_input("/remote/mouse/velocity", mouse_velocity_);
         register_input("/remote/mouse", mouse_);
 
-        register_input("/gimbal/auto_aim/control_direction", auto_aim_control_direction_, false);
+        register_input("/auto_aim/control_direction", auto_aim_control_direction_, false);
 
         register_output("/gimbal/yaw/control_angle_error", yaw_angle_error_, nan_);
         register_output("/gimbal/pitch/control_angle_error", pitch_angle_error_, nan_);

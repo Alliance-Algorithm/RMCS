@@ -1,3 +1,5 @@
+#include "controller/pid/pid_calculator.hpp"
+
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -11,8 +13,6 @@
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/switch.hpp>
-
-#include "controller/pid/pid_calculator.hpp"
 
 namespace rmcs_core::controller::gimbal {
 using namespace rmcs_description;
@@ -126,7 +126,7 @@ private:
             component.register_input("/chassis/yaw/velocity_imu", chassis_yaw_velocity_imu);
 
             component.register_input(
-                "/gimbal/auto_aim/control_direction", auto_aim_control_direction, false);
+                "/auto_aim/control_direction", auto_aim_control_direction, false);
         }
 
         auto enable_control() const noexcept -> bool {
