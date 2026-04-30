@@ -45,6 +45,30 @@ build-rmcs-cross --target-arch amd64
 build-rmcs-cross --target-arch arm64 --packages-up-to rmcs_executor
 ```
 
+若需要让现有 `sync-remote`、`env_setup` 等继续使用默认目录，可在 cross 构建成功后自动链接默认目录：
+
+```bash
+build-rmcs-cross --target-arch arm64 --link-default
+```
+
+链接方向等价于在 `rmcs_ws` 下执行：
+
+```bash
+ln -sfn build-cross-arm64 build
+ln -sfn install-cross-arm64 install
+ln -sfn log-cross-arm64 log
+```
+
+也就是创建或更新默认目录名，让 `build`、`install`、`log` 这三个软链接分别指向对应的 `*-cross-arm64` 目录。
+
+切回 native 构建时，直接运行：
+
+```bash
+build-rmcs
+```
+
+`build-rmcs` 会自动识别上述 cross 默认软链接，删除软链接并恢复成普通目录。
+
 ## 4. 构建环境隔离约束
 
 `build-rmcs-cross` 会显式清理并重建以下环境，避免 host/target 串用：
