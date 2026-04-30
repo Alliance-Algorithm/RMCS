@@ -4,6 +4,7 @@ rmcs_executor:
     components:
       - rmcs_core::hardware::CatapultDart        -> dart_hardware
       - rmcs_dart_guidance::manager::DartManager   -> dart_manager
+      - rmcs_dart_guidance::DartVisionCore         -> dart_vision_core
       - rmcs_dart_guidance::manager::RemoteCommandBridge -> remote_cmd_bridge
       # - rmcs_dart_guidance::manager::HostBridge -> host_bridge
 
@@ -50,6 +51,37 @@ dart_manager:
     lifting_stall_confirm_ticks: 150    # 连续帧数 = 0.1s @ 1kHz
     lifting_stall_min_run_ticks: 300    # 启动后最少运行帧数，避免启动瞬间误触发
     lifting_stall_timeout_ticks: 2000   # 超时帧数 = 5s
+    vision_aim.allowable_error.x: 5
+    vision_aim.allowable_error.y: 5
+    vision_aim.timeout_ticks: 3000
+    vision_aim.shot_profiles.0.reference_point.x: 640
+    vision_aim.shot_profiles.0.reference_point.y: 360
+    vision_aim.shot_profiles.0.offset.x: 0
+    vision_aim.shot_profiles.0.offset.y: 0
+    vision_aim.shot_profiles.1.reference_point.x: 640
+    vision_aim.shot_profiles.1.reference_point.y: 360
+    vision_aim.shot_profiles.1.offset.x: 8
+    vision_aim.shot_profiles.1.offset.y: -3
+    vision_aim.shot_profiles.2.reference_point.x: 640
+    vision_aim.shot_profiles.2.reference_point.y: 360
+    vision_aim.shot_profiles.2.offset.x: 10
+    vision_aim.shot_profiles.2.offset.y: -5
+    vision_aim.shot_profiles.3.reference_point.x: 640
+    vision_aim.shot_profiles.3.reference_point.y: 360
+    vision_aim.shot_profiles.3.offset.x: 12
+    vision_aim.shot_profiles.3.offset.y: -6
+
+dart_vision_core:
+  ros__parameters:
+    invert_image: false
+    exposure_time: 3000
+    gain: 1.0
+    L_H: 0.0
+    L_S: 0.0
+    L_V: 0.0
+    U_H: 180.0
+    U_S: 255.0
+    U_V: 255.0
 
 host_bridge:
   ros__parameters:
