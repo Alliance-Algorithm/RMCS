@@ -53,14 +53,14 @@ value_broadcaster:
 
 deformable_infantry:
   ros__parameters:
-    serial_filter_rmcs_board: "AF-73B2-E8A1-A544-79ED-5BDA-D088-7F21-A6A6"
+    serial_filter_rmcs_board: "AF-23FB-EE32-B892-1302-AE70-D640-7B4E-0CBF"
     serial_filter_top_board: "AF-ABAC-786D-1B53-99F6-00A2-42A6-AA95-9D69"
     left_front_zero_point: 374
     left_back_zero_point: 5801
     right_back_zero_point: 7817
     right_front_zero_point: 7136
-    yaw_motor_zero_point: 56216
-    pitch_motor_zero_point: 10898
+    yaw_motor_zero_point: 39442
+    pitch_motor_zero_point: 56556
     debug_log_supercap: false
     debug_log_wheel_motor: false
     debug_log_deformable_joint_motor: false
@@ -68,8 +68,8 @@ deformable_infantry:
 chassis_controller:
   ros__parameters:
     # Deploy geometry / chassis-owned joint intent
-    min_angle: 8.0
-    max_angle: 58.0
+    min_angle: 20.0
+    max_angle: 50.0
     active_suspension_enable: true
 
     # IMU attitude correction at min-angle stance.

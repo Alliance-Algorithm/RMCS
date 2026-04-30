@@ -950,12 +950,12 @@ private:
 
         void command_update() {
             auto builder = start_transmit();
-            builder.can1_transmit({
+            builder.can0_transmit({
                 .can_id = 0x141,
                 .can_data = gimbal_pitch_motor_.generate_command().as_bytes(),
             });
 
-            builder.can2_transmit({
+            builder.can1_transmit({
                 .can_id = 0x200,
                 .can_data =
                     device::CanPacket8{
@@ -971,14 +971,14 @@ private:
     private:
         void uart1_receive_callback(const librmcs::data::UartDataView&) override {}
 
-        void can1_receive_callback(const librmcs::data::CanDataView& data) override {
+        void can0_receive_callback(const librmcs::data::CanDataView& data) override {
             if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
                 return;
             if (data.can_id == 0x141)
                 gimbal_pitch_motor_.store_status(data.can_data);
         }
 
-        void can2_receive_callback(const librmcs::data::CanDataView& data) override {
+        void can1_receive_callback(const librmcs::data::CanDataView& data) override {
             if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
                 return;
             if (data.can_id == 0x201)
