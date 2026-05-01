@@ -8,13 +8,10 @@
 #include <numbers>
 #include <span>
 #include <string>
-#include <tuple>
 
-#include <eigen3/Eigen/Dense>
-#include <rclcpp/logger.hpp>
-#include <rclcpp/logging.hpp>
+#include <eigen3/Eigen/Geometry>
+
 #include <rclcpp/node.hpp>
-
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/hard_sync_snapshot.hpp>
@@ -23,7 +20,7 @@
 #include <std_msgs/msg/int32.hpp>
 
 #include <librmcs/agent/c_board.hpp>
-#include <librmcs/agent/rmcs_board.hpp>
+#include <librmcs/agent/rmcs_board_lite.hpp>
 
 #include "hardware/device/bmi088.hpp"
 #include "hardware/device/can_packet.hpp"
@@ -41,8 +38,7 @@ namespace {
 class RmcsBoardLiteCompat : private librmcs::data::DataCallback {
 public:
     explicit RmcsBoardLiteCompat(
-        std::string_view serial_filter = {},
-        const librmcs::agent::AdvancedOptions& options = {})
+        std::string_view serial_filter = {}, const librmcs::agent::AdvancedOptions& options = {})
         : handler_(0xA11C, 0xA801, serial_filter, options, *this) {}
 
     RmcsBoardLiteCompat(const RmcsBoardLiteCompat&) = delete;
@@ -134,8 +130,7 @@ private:
         (void)data;
     }
 
-    void accelerometer_receive_callback(
-        const librmcs::data::AccelerometerDataView& data) override {
+    void accelerometer_receive_callback(const librmcs::data::AccelerometerDataView& data) override {
         (void)data;
     }
     void gyroscope_receive_callback(const librmcs::data::GyroscopeDataView& data) override {
@@ -592,8 +587,8 @@ private:
                     chassis_wheel_motors_[0].encoder_angle(),
                     chassis_wheel_motors_[1].encoder_angle(),
                     chassis_wheel_motors_[2].encoder_angle(),
-                    chassis_wheel_motors_[3].encoder_angle(),
-                    wheel_rx(0), wheel_rx(1), wheel_rx(2), wheel_rx(3));
+                    chassis_wheel_motors_[3].encoder_angle(), wheel_rx(0), wheel_rx(1), wheel_rx(2),
+                    wheel_rx(3));
             }
 
             if (debug_log_deformable_joint_motor_) {
@@ -625,8 +620,7 @@ private:
                 deformable_infantry_.get_logger(),
                 "[supercap] can1 rx=%c id=0x300 enabled=%d supercap_v=% .3f chassis_v=% .3f "
                 "power=% .3f raw=[%02X %02X %02X %02X %02X %02X %02X %02X]",
-                supercap_rx ? 'Y' : 'N',
-                supercap_rx ? (supercap_.supercap_enabled() ? 1 : 0) : -1,
+                supercap_rx ? 'Y' : 'N', supercap_rx ? (supercap_.supercap_enabled() ? 1 : 0) : -1,
                 supercap_rx ? supercap_.supercap_voltage() : nan_,
                 supercap_rx ? supercap_.chassis_voltage() : nan_,
                 supercap_rx ? supercap_.chassis_power() : nan_,

@@ -22,7 +22,7 @@
 #include <std_msgs/msg/int32.hpp>
 
 #include <librmcs/agent/c_board.hpp>
-#include <librmcs/agent/rmcs_board.hpp>
+#include <librmcs/agent/rmcs_board_lite.hpp>
 
 #include "hardware/device/bmi088.hpp"
 #include "hardware/device/can_packet.hpp"
@@ -180,7 +180,7 @@ private:
         DeformableInfantryV2& deformableInfantry;
     };
 
-    class BottomBoard final : private librmcs::agent::RmcsBoard {
+    class BottomBoard final : private librmcs::agent::RmcsBoardLite {
     public:
         friend class DeformableInfantryV2;
 
@@ -192,7 +192,7 @@ private:
             std::string serial_filter =
                 {
         })
-            : librmcs::agent::RmcsBoard(
+            : librmcs::agent::RmcsBoardLite(
                   serial_filter,
                   librmcs::agent::AdvancedOptions{.dangerously_skip_version_checks = true})
             , deformable_infantry_(deformableInfantry)
@@ -704,10 +704,11 @@ private:
             Eigen::Quaterniond const odom_imu_to_yaw_link{
                 bmi088_.q0(), bmi088_.q1(), bmi088_.q2(), bmi088_.q3()};
             Eigen::Quaterniond const yaw_link_to_odom_imu = odom_imu_to_yaw_link.conjugate();
-            Eigen::Quaterniond pitch_link_to_odom_imu = Eigen::Quaterniond{Eigen::AngleAxisd{
-                                                          -pitch_encoder_angle,
-                                                          Eigen::Vector3d::UnitY()}}
-                                                      * yaw_link_to_odom_imu;
+            Eigen::Quaterniond pitch_link_to_odom_imu =
+                Eigen::Quaterniond{
+                    Eigen::AngleAxisd{-pitch_encoder_angle, Eigen::Vector3d::UnitY()}
+            }
+                * yaw_link_to_odom_imu;
             pitch_link_to_odom_imu.normalize();
 
             *gimbal_yaw_velocity_bmi088_ = bmi088_.gz();

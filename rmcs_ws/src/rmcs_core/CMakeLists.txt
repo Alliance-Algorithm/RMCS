@@ -8,40 +8,20 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-packed-bitfield-compat")
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  add_compile_options(-O2 -Wall -Wextra -Wpedantic)
+    add_compile_options(-O2 -Wall -Wextra -Wpedantic)
 endif()
 
 find_package(ament_cmake_auto REQUIRED)
 ament_auto_find_build_dependencies()
 include(FetchContent)
 set(BUILD_STATIC_LIBRMCS ON CACHE BOOL "Build static librmcs SDK" FORCE)
-set(LIBRMCS_SOURCE_CANDIDATES
-  "${CMAKE_CURRENT_SOURCE_DIR}/../../../librmcs-sdk-src-3.1.0-beta.1"
-  "${CMAKE_CURRENT_SOURCE_DIR}/../../../librmcs-sdk-src-3.1.0"
-)
-set(LIBRMCS_SOURCE_DIR "")
-foreach(candidate IN LISTS LIBRMCS_SOURCE_CANDIDATES)
-  if(EXISTS "${candidate}/CMakeLists.txt"
-     AND EXISTS "${candidate}/host/include/librmcs/agent/rmcs_board.hpp")
-    set(LIBRMCS_SOURCE_DIR "${candidate}")
-    break()
-  endif()
-endforeach()
-
-if(LIBRMCS_SOURCE_DIR STREQUAL "")
-  message(FATAL_ERROR
-    "Expected a librmcs source tree that provides librmcs/agent/rmcs_board.hpp. "
-    "Checked candidates: ${LIBRMCS_SOURCE_CANDIDATES}"
-  )
-endif()
-
-message(STATUS "Using librmcs SDK source from: ${LIBRMCS_SOURCE_DIR}")
-
-fetchcontent_declare(
+FetchContent_Declare(
   librmcs
-  SOURCE_DIR ${LIBRMCS_SOURCE_DIR}
+  URL https://github.com/Alliance-Algorithm/librmcs/releases/download/v3.1.0/librmcs-sdk-src-3.1.0.zip
+  URL_HASH SHA256=07107e251745ddb23f7b3e39edec5d6910be1a197025d167ec9849c5c80dd954
+  DOWNLOAD_EXTRACT_TIMESTAMP TRUE
 )
-fetchcontent_makeavailable(librmcs)
+FetchContent_MakeAvailable(librmcs)
 
 file(GLOB_RECURSE PROJECT_SOURCE CONFIGURE_DEPENDS
   ${PROJECT_SOURCE_DIR}/src/*.cpp
@@ -59,4 +39,4 @@ target_link_libraries(${PROJECT_NAME} librmcs-sdk)
 
 pluginlib_export_plugin_description_file(rmcs_executor plugins.xml)
 
-ament_auto_package(USE_SCOPED_HEADER_INSTALL_DIR)
+ament_auto_package()
