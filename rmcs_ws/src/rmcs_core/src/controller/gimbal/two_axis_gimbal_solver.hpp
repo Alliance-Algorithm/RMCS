@@ -1,14 +1,7 @@
 #pragma once
 
-#include <cmath>
-
-#include <iostream>
-#include <limits>
-#include <utility>
-
-#include <eigen3/Eigen/Dense>
-#include <rclcpp/logger.hpp>
-#include <rclcpp/logging.hpp>
+#include <eigen3/Eigen/Geometry>
+#include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_utility/eigen_structured_bindings.hpp>
@@ -165,7 +158,7 @@ private:
         // synthesized PitchLink -> OdomImu transform, while the PitchLink -> YawLink relation
         // here still comes directly from the pitch encoder.
         const double encoder_pitch = *gimbal_pitch_angle_;
-        double pitch_angle = encoder_pitch;  // Default: use encoder only
+        double pitch_angle = encoder_pitch; // Default: use encoder only
 
         if (pitch_fusion_enabled_) {
             // Extract pitch angle from IMU
@@ -179,7 +172,7 @@ private:
             }
 
             double encoder_delta = encoder_pitch - encoder_pitch_prev_;
-            
+
             if (encoder_delta > std::numbers::pi)
                 encoder_delta -= 2.0 * std::numbers::pi;
             if (encoder_delta < -std::numbers::pi)
@@ -205,17 +198,17 @@ private:
     }
 
     double extract_pitch_from_imu() const {
-        auto pitch_x_in_odom = fast_tf::cast<OdomImu>(
-            PitchLink::DirectionVector{Eigen::Vector3d::UnitX()}, *tf_);
+        auto pitch_x_in_odom =
+            fast_tf::cast<OdomImu>(PitchLink::DirectionVector{Eigen::Vector3d::UnitX()}, *tf_);
 
         const auto& [x, y, z] = *pitch_x_in_odom;
 
         double horizontal_norm = std::sqrt(x * x + y * y);
-        
+
         if (horizontal_norm < 1e-9) {
             return 0.0;
         }
-        
+
         return std::atan2(-z, horizontal_norm);
     }
 
@@ -269,7 +262,7 @@ private:
 
     bool control_enabled_ = false;
     OdomImu::DirectionVector control_direction_;
-    
+
     // Pitch fusion parameters and state (mutable for use in const methods)
     mutable bool pitch_fusion_enabled_ = true;
     mutable double pitch_fusion_alpha_ = 0.98;
