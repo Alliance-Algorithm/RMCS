@@ -113,8 +113,8 @@ private:
     static Shape::Color chassis_direction_indicator_color(rmcs_msgs::ChassisMode mode) {
         switch (mode) {
         case rmcs_msgs::ChassisMode::SPIN: return Shape::Color::GREEN;
-        case rmcs_msgs::ChassisMode::AUTO: return Shape::Color::WHITE;
-        case rmcs_msgs::ChassisMode::STEP_DOWN: return Shape::Color::CYAN;
+        case rmcs_msgs::ChassisMode::AUTO: return Shape::Color::CYAN;
+        case rmcs_msgs::ChassisMode::STEP_DOWN: return Shape::Color::WHITE;
         default: return Shape::Color::PINK;
         }
     }

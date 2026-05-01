@@ -53,7 +53,7 @@ value_broadcaster:
 
 deformable_infantry:
   ros__parameters:
-    serial_filter_rmcs_board: "AF-2713-E328-1A3D-1C11-3D87-3026-5FF4-4D2D"
+    serial_filter_rmcs_board: "AF-73B2-E8A1-A544-79ED-5BDA-D088-7F21-A6A6"
     serial_filter_top_board: "D4-0262-9E84-E715-CADB-9894-7241"
     left_front_zero_point: 374
     left_back_zero_point: 5801
@@ -215,8 +215,6 @@ lf_joint_controller:
     mode_input: /chassis/left_front_joint/suspension_mode
     suspension_torque: /chassis/left_front_joint/suspension_torque
     control: /chassis/left_front_joint/control_torque
-    eso_z2_output: /chassis/left_front_joint/eso_z2
-    eso_z3_output: /chassis/left_front_joint/eso_z3
 
     # Normal ADRC servo mode
     dt: 0.001
@@ -264,8 +262,6 @@ lb_joint_controller:
     mode_input: /chassis/left_back_joint/suspension_mode
     suspension_torque: /chassis/left_back_joint/suspension_torque
     control: /chassis/left_back_joint/control_torque
-    eso_z2_output: /chassis/left_back_joint/eso_z2
-    eso_z3_output: /chassis/left_back_joint/eso_z3
     dt: 0.001
     b0: -0.60
     kt: 1.0
@@ -307,8 +303,6 @@ rb_joint_controller:
     mode_input: /chassis/right_back_joint/suspension_mode
     suspension_torque: /chassis/right_back_joint/suspension_torque
     control: /chassis/right_back_joint/control_torque
-    eso_z2_output: /chassis/right_back_joint/eso_z2
-    eso_z3_output: /chassis/right_back_joint/eso_z3
     dt: 0.001
     b0: -0.60
     kt: 1.0
@@ -350,8 +344,6 @@ rf_joint_controller:
     mode_input: /chassis/right_front_joint/suspension_mode
     suspension_torque: /chassis/right_front_joint/suspension_torque
     control: /chassis/right_front_joint/control_torque
-    eso_z2_output: /chassis/right_front_joint/eso_z2
-    eso_z3_output: /chassis/right_front_joint/eso_z3
     dt: 0.001
     b0: -0.60
     kt: 1.0
