@@ -127,6 +127,7 @@ private:
 
             component.register_input(
                 "/auto_aim/control_direction", auto_aim_control_direction, false);
+            component.register_input("/auto_aim/should_control", auto_aim_should_control, false);
         }
 
         auto enable_control() const noexcept -> bool {
@@ -142,11 +143,15 @@ private:
             using namespace rmcs_msgs;
             if (*switch_right != Switch::UP)
                 return false;
+            if (!auto_aim_should_control.ready() || !*auto_aim_should_control)
+                return false;
             if (!auto_aim_control_direction.ready())
                 return false;
             const auto& dir = *auto_aim_control_direction;
-            return !dir.isZero() && std::isfinite(dir.x()) && std::isfinite(dir.y())
-                && std::isfinite(dir.z());
+            if (!std::isfinite(dir.x()) || !std::isfinite(dir.y()) || !std::isfinite(dir.z()))
+                return false;
+
+            return true;
         }
 
         InputInterface<Eigen::Vector2d> joystick_left;
@@ -164,6 +169,7 @@ private:
         InputInterface<double> pitch_angle;
         InputInterface<double> pitch_velocity;
         InputInterface<double> chassis_yaw_velocity_imu;
+        InputInterface<bool> auto_aim_should_control;
         InputInterface<Eigen::Vector3d> auto_aim_control_direction;
     } input_{*this};
 

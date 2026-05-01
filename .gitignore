@@ -71,5 +71,8 @@ id_rsa.pub
 # Recording files
 record/
 
+# Docker Compose override (personal config)
+docker-compose.override.yml
+
 # For temperary development
 develop_ws

@@ -6,7 +6,8 @@ from launch import (
     LaunchDescription,
     LaunchDescriptionEntity,
 )
-from launch.actions import LogInfo
+from launch.actions import IncludeLaunchDescription, LogInfo
+from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 
 from launch_ros.actions import Node
@@ -28,10 +29,7 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
             robot_name = robot_config
 
         entities.append(
-            LogInfo(
-                msg=f"Starting RMCS on robot '{robot_config}'{'(automatic)' if is_automatic else ''} -> {robot_name}.yaml"
-            )
-        )
+            LogInfo(msg=f"Starting RMCS on robot -> {robot_name}.yaml"))
 
         entities.append(
             Node(
@@ -46,12 +44,20 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
                 ],
                 respawn=True,
                 respawn_delay=1.0,
-                output="log",  # stdout and stderr are logged to launch log file and stderr to the screen.
+                output="log",
             )
         )
 
         if is_automatic:
             pass
+
+        entities.append(
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource([
+                    FindPackageShare('rmcs_auto_aim_v2'), '/launch.py'
+                ])
+            )
+        )
 
         return entities
 

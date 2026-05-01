@@ -73,7 +73,7 @@ gimbal_controller:
     top_yaw_angle_kp: 45.0
     top_yaw_angle_ki: 0.0
     top_yaw_angle_kd: 0.0
-    top_yaw_velocity_kp: 2.160
+    top_yaw_velocity_kp: 3.0
     top_yaw_velocity_ki: 0.0
     top_yaw_velocity_kd: 0.0
 
