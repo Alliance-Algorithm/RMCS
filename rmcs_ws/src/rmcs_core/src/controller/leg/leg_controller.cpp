@@ -42,10 +42,10 @@ public:
         , backward_x_position_in_SixWheel_(
               get_parameter("backward_x_position_in_SixWheel").as_double())
         , up_stairs{
-              {*this, "up_one_stairs", {"initial", "press", "lift"}},
+              {*this, "up_one_stairs", {"initial", "press","wait", "lift"}},
               {*this,
                "up_two_stairs",
-               {"initial", "press", "lift_and_initial", "press_again", "lift_again"}}} {
+               {"initial", "press","wait", "lift", "initial_again", "press_again", "wait","lift_again"}}} {
 
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
@@ -63,6 +63,14 @@ public:
         register_input("/leg/encoder/lb/angle", theta_lb);
         register_input("/leg/encoder/rb/angle", theta_rb);
         register_input("/leg/encoder/rf/angle", theta_rf);
+        register_input("/leg/joint/lf/velocity", leg_lf_joint_velocity_, NAN);
+        register_input("/leg/joint/lf/control_vel", leg_lf_joint_control_velocity_, NAN);
+        register_output(
+            "/leg/joint/lf/control_velocity_error", leg_lf_joint_control_velocity_error_);
+        register_input("/leg/joint/rf/velocity", leg_rf_joint_velocity_, NAN);
+        register_input("/leg/joint/rf/control_vel", leg_rf_joint_control_velocity_, NAN);
+        register_output(
+            "/leg/joint/rf/control_velocity_error", leg_rf_joint_control_velocity_error_);
 
         register_output("/leg/joint/lf/target_theta", leg_lf_target_theta, NAN);
         register_output("/leg/joint/rf/target_theta", leg_rf_target_theta, NAN);
@@ -93,7 +101,7 @@ public:
                     six_wheel_angle[0], six_wheel_angle[1], six_wheel_angle[1], six_wheel_angle[0]})
             .set_total_step(500);
         down_stairs_trajectory
-            .set_end_point(std::vector<double>{1.109164, 1.55792, 1.55792,1.109164})
+            .set_end_point(std::vector<double>{1.109164, 1.55792, 1.55792, 1.109164})
             .set_total_step(800);
 
         // const auto tof_k = this->get_parameter("tof_k").as_double();
@@ -103,7 +111,7 @@ public:
             if (keyboard_->ctrl) {
                 return true;
             };
-            if ((*tof_distance_) <= 0.35) {
+            if ((*tof_distance_) <= this->get_parameter("tof_b").as_double()) {
                 return true;
             }
             // if ((*tof_distance_)
@@ -116,14 +124,24 @@ public:
             // }
             return false;
         });
+        up_stairs[0].set_layer_connections("press", [this]() {
+            // constexpr int kDelayTicks = 300; // 1000Hz 下就是 300ms
+            // static int press_delay_count_{0};
+            // if (press_delay_count_ < kDelayTicks) {
+            //     ++press_delay_count_;
+            //     return false;
+            // }
 
+            // press_delay_count_ = 0;
+            return true;
+        });
         up_stairs[1].set_layer_connections("initial", [this]() {
             if (keyboard_->ctrl) {
                 return true;
             };
-            // if ((*tof_distance_) <= 0.3) {
-            //     return true;
-            // };
+            if ((*tof_distance_) <= this->get_parameter("tof_b").as_double()) {
+                return true;
+            };
             // if ((*tof_distance_)
             //         <= (this->get_parameter("tof_k").as_double()
             //                 * ((*chassis_velocity_)->x() -
@@ -135,11 +153,30 @@ public:
 
             return false;
         });
-        up_stairs[1].set_layer_connections("lift_and_initial", []() { return true; });
+        up_stairs[1].set_layer_connections("press", [this]() {
+            // constexpr int kDelayTicks = 300; // 1000Hz 下就是 300ms
+            // static int press_delay_count_{0};
+            // if (press_delay_count_ < kDelayTicks) {
+            //     ++press_delay_count_;
+            //     return false;
+            // }
+
+            // press_delay_count_ = 0;
+            return true;
+        });
+        up_stairs[1].set_layer_connections("press_again", [this]() {
+            // constexpr int kDelayTicks = 300; // 1000Hz 下就是 300ms
+            // static int press_delay_count_{0};
+            // if (press_delay_count_ < kDelayTicks) {
+            //     ++press_delay_count_;
+            //     return false;
+            // }
+            // press_delay_count_ = 0;
+            return true;
+        });
     }
 
     void update() override {
-        RCLCPP_INFO(this->get_logger(), "distance %f", *tof_distance_);
         auto switch_right               = *switch_right_;
         auto switch_left                = *switch_left_;
         auto mouse                      = *mouse_;
@@ -163,6 +200,7 @@ public:
                 mode_selection();
                 omniwheel_control();
                 leg_control();
+                velocity_error_control();
                 last_arm_mode = *arm_mode;
                 last_leg_mode = leg_mode;
             }
@@ -233,7 +271,6 @@ private:
     }
 
     void leg_control() {
-
         if (last_leg_mode != leg_mode) {
 
             if (leg_mode == rmcs_msgs::LegMode::Four_Wheel) {
@@ -275,7 +312,7 @@ private:
         case rmcs_msgs::LegMode::Down_Stairs:
             execute_joint_trajectory(down_stairs_trajectory);
             break;
-        case rmcs_msgs::LegMode::Up_One_Stairs: // to execute_up_stairs()
+        case rmcs_msgs::LegMode::Up_One_Stairs:
         case rmcs_msgs::LegMode::Up_Two_Stairs: execute_up_stairs(); break;
         case rmcs_msgs::LegMode::None:
             leg_joint_controller(*theta_lf, *theta_lb, *theta_rb, *theta_rf);
@@ -306,6 +343,19 @@ private:
 
             *omni_l_target_vel = rotated_velocity.x() / wheel_r;
             *omni_r_target_vel = rotated_velocity.x() / wheel_r;
+            // if (leg_mode == rmcs_msgs::LegMode::Up_One_Stairs
+            //     || leg_mode == rmcs_msgs::LegMode::Up_Two_Stairs) {
+                
+            //     auto id_one = up_stairs[0].get_current_layer_id();
+            //     auto id_two = up_stairs[1].get_current_layer_id();
+            //     if ((id_one && *id_one == "initial")
+            //         || (id_two && (*id_two == "initial" || *id_two == "initial_again"))) {
+            //         *omni_l_target_vel = rotated_velocity.x() / wheel_r;
+            //         auto k             = this->get_parameter("error_param").as_double();
+            //         *omni_r_target_vel =
+            //             rotated_velocity.x() / wheel_r + k * (*theta_lf - *theta_rf);
+            //     }
+            // }
         } else {
             *omni_l_target_vel = NAN;
             *omni_r_target_vel = NAN;
@@ -325,6 +375,20 @@ private:
         *leg_lb_target_theta = NAN;
         *leg_rb_target_theta = NAN;
         *leg_rf_target_theta = NAN;
+        *leg_lf_joint_control_velocity_error_=NAN;
+        *leg_rf_joint_control_velocity_error_=NAN;
+    }
+
+    void velocity_error_control() {
+        // RCLCPP_INFO(this->get_logger(), "lf%f ", *leg_lf_joint_control_velocity_);
+
+        auto k = this->get_parameter("error_param").as_double();
+        *leg_lf_joint_control_velocity_error_ =
+            (*leg_lf_joint_control_velocity_ - *leg_lf_joint_velocity_);
+            // + k * (*theta_rf - *theta_lf);
+        *leg_rf_joint_control_velocity_error_ =
+            (*leg_rf_joint_control_velocity_ - *leg_rf_joint_velocity_);
+            // + k * (*theta_lf - *theta_rf);
     }
     static std::array<double, 2> leg_inverse_kinematic(
         double f_x, double b_x, bool is_front_ecd_obtuse, bool is_back_ecd_obtuse) {
@@ -373,7 +437,13 @@ private:
     OutputInterface<double> leg_rf_target_theta;
     OutputInterface<double> leg_lb_target_theta;
     OutputInterface<double> leg_rb_target_theta;
+    InputInterface<double> leg_lf_joint_velocity_;
+    InputInterface<double> leg_lf_joint_control_velocity_;
+    OutputInterface<double> leg_lf_joint_control_velocity_error_;
 
+    InputInterface<double> leg_rf_joint_velocity_;
+    InputInterface<double> leg_rf_joint_control_velocity_;
+    OutputInterface<double> leg_rf_joint_control_velocity_error_;
     InputInterface<double> chassis_big_yaw_angle;
     InputInterface<double> joint1_theta;
 

@@ -9,10 +9,10 @@
 #include <cstdint>
 #include <cstring>
 #include <numbers>
-#include <span>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <rmcs_executor/component.hpp>
+#include <span>
 #include <stdexcept>
 
 #include "hardware/device/can_package.hpp"
@@ -109,7 +109,6 @@ public:
         can_result_.store(CanPacket8{can_result}, std::memory_order::relaxed);
     }
 
-
     void update() {
         uint8_t rx_buff[8];
         auto packet = can_result_.load(std::memory_order_relaxed);
@@ -119,6 +118,8 @@ public:
         uint16_t p_int = (rx_buff[1] << 8) | rx_buff[2];
         uint16_t v_int = (rx_buff[3] << 4) | (rx_buff[4] >> 4);
         uint16_t t_int = ((rx_buff[4] & 0xF) << 8) | rx_buff[5];
+
+        raw_angle_ = p_int;
 
         uint16_t angle = p_int - encoder_zero_point_;
         if (angle < 0)
@@ -135,7 +136,7 @@ public:
 
     CanPacket8 generate_torque_command() {
         uint64_t result = 0;
-        double torque = *control_torque_;
+        double torque   = *control_torque_;
         if (std::isnan(torque)) {
             torque = 0.0;
         }
@@ -153,7 +154,7 @@ public:
     static CanPacket8 dm_clear_error_command() {
         return CanPacket8{std::bit_cast<uint64_t>(DM_CLEAR_ERROR)};
     }
-
+    int get_raw_angle() { return  raw_angle_;}
     double get_angle() { return *angle_; }
     double get_velocity() { return *velocity_; }
     double get_torque() { return *torque_; }
@@ -175,6 +176,7 @@ private:
     }
 
     int last_raw_angle_;
+    int raw_angle_;
     double reverse     = 1.0;
     double gear_ratio_ = 1.0;
 

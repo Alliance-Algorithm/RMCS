@@ -224,6 +224,9 @@ public:
         }
         case ArmMode::Auto_Walk:
         case ArmMode::Auto_Linear:
+        case ArmMode::Auto_Extract_LB:
+        case ArmMode::Auto_Extract_RB:
+        case ArmMode::Auto_Storage_RB:
         case ArmMode::Auto_Storage_LB: {
             execute_plan_request_and_trajectory_step();
             break;
@@ -258,6 +261,7 @@ private:
         uint64_t request_id{0};
         bool plan_success{false};
         std::vector<std::vector<double>> positions;
+        std::vector<int> steps;
     };
     std::atomic<std::shared_ptr<const PlanRequest>> plan_request{nullptr};
     std::atomic<std::shared_ptr<const PlannedTrajectory>> planned_trajectory_{nullptr};
@@ -287,15 +291,53 @@ private:
     }
 
     void moveit_loop() {
-        static std::vector<double> auto_walk_joint_target;
-        static std::array<std::array<double, 6>, 5> auto_storage_lb_target_rpy;
-        static std::array<bool, 5> auto_storage_lb_lin_mask;
-        static std::array<double, 5> auto_storage_lb_velocity_scaling;
-        static std::array<double, 5> auto_storage_lb_acceleration_scaling;
-        static bool parameter_initialized{false};
-        const std::array<std::string, 5> auto_storage_lb_names = {
-            "step1_pose", "step2_pose", "step3_lin", "step4_lin", "step5_pose"};
 
+        static std::vector<double> auto_walk_joint_target;
+        static constexpr std::size_t AutoStepCount                   = 5;
+        const std::array<std::string, AutoStepCount> auto_step_names = {
+            "step1_pose", "step2_pose", "step3_lin", "step4_lin", "step5_pose"};
+        struct AutoMineConfig {
+            std::array<std::array<double, 6>, AutoStepCount> step_rpy{};
+            std::array<bool, AutoStepCount> lin_mask{};
+            std::array<double, AutoStepCount> velocity_scaling{};
+            std::array<double, AutoStepCount> acceleration_scaling{};
+        };
+        static AutoMineConfig auto_storage_lb_config;
+        static AutoMineConfig auto_storage_rb_config;
+        static AutoMineConfig auto_extract_lb_config;
+        static AutoMineConfig auto_extract_rb_config;
+        static bool parameter_initialized{false};
+
+        const auto load_auto_mine_config =
+            [this, &auto_step_names](const std::string& mine_name, AutoMineConfig& config) {
+                for (std::size_t i = 0; i < auto_step_names.size(); ++i) {
+                    const auto& step_name = auto_step_names[i];
+                    config.lin_mask[i]    = step_name.size() >= 4
+                                      && step_name.compare(step_name.size() - 4, 4, "_lin") == 0;
+
+                    const std::string prefix = mine_name + ".params." + step_name + ".";
+                    std::vector<double> target_pose_values;
+
+                    node_->get_parameter(prefix + "target_pose", target_pose_values);
+                    node_->get_parameter(prefix + "velocity_scaling", config.velocity_scaling[i]);
+                    node_->get_parameter(
+                        prefix + "acceleration_scaling", config.acceleration_scaling[i]);
+
+                    for (std::size_t j = 0; j < 6; ++j) {
+                        config.step_rpy[i][j] = target_pose_values[j];
+                    }
+                }
+            };
+
+        const auto get_auto_mine_config = [&](rmcs_msgs::ArmMode mode) -> AutoMineConfig* {
+            switch (mode) {
+            case rmcs_msgs::ArmMode::Auto_Storage_LB: return &auto_storage_lb_config;
+            case rmcs_msgs::ArmMode::Auto_Storage_RB: return &auto_storage_rb_config;
+            case rmcs_msgs::ArmMode::Auto_Extract_LB: return &auto_extract_lb_config;
+            case rmcs_msgs::ArmMode::Auto_Extract_RB: return &auto_extract_rb_config;
+            default: return nullptr;
+            }
+        };
         const auto linear_point_transformer = [](const geometry_msgs::msg::Pose& start_pose,
                                                  const Eigen::Vector3d& local_dir,
                                                  double distance) {
@@ -306,30 +348,110 @@ private:
             return tf2::toMsg(T);
         };
 
+        const auto auto_between_pose_builder = [this, &get_auto_mine_config]() {
+            double b             = node_->get_parameter("b").as_double();
+            double k_in          = node_->get_parameter("k_in").as_double();
+            double k_out         = node_->get_parameter("k_out").as_double();
+            double k_out_reverse = node_->get_parameter("k_out_reverse").as_double();
+            double k{0.5};
+
+            auto* config = get_auto_mine_config(this->get_arm_mode());
+            if (!config) {
+                return std::array<double, 6>{};
+            }
+
+            std::array<double, 6> target          = config->step_rpy[1];
+            std::array<double, 6> between_pose    = config->step_rpy[0];
+            geometry_msgs::msg::Pose current_pose = move_group_->getCurrentPose("link_6").pose;
+
+            const Eigen::Vector3d current_xyz(
+                current_pose.position.x, current_pose.position.y, current_pose.position.z);
+            const Eigen::Vector3d target_xyz(target[0], target[1], target[2]);
+
+            const Eigen::Vector3d delta_xyz = target_xyz - current_xyz;
+            switch (this->get_arm_mode()) {
+            case rmcs_msgs::ArmMode::Auto_Storage_LB:
+            case rmcs_msgs::ArmMode::Auto_Extract_LB: {
+
+                if (delta_xyz.x() > 0 && delta_xyz.x() < b) {
+                    k = k_out_reverse;
+                } else if (delta_xyz.x() < 0 && delta_xyz.x() > -b) {
+                    k = k_out;
+                } else {
+                    k = k_in;
+                }
+                between_pose[0] = k * (current_xyz.x()) + (1 - k) * (target_xyz.x());
+
+                if (delta_xyz.y() < 0 && delta_xyz.y() > -b) {
+                    k = k_out_reverse;
+                } else if (delta_xyz.y() > 0 && delta_xyz.y() < b) {
+                    k = k_out;
+                } else {
+                    k = k_in;
+                }
+                between_pose[1] = k * (current_xyz.y()) + (1 - k) * (target_xyz.y());
+
+                if (delta_xyz.z() > 0 && delta_xyz.z() < b) {
+                    k = k_out_reverse;
+                } else if (delta_xyz.z() < 0 && delta_xyz.z() > -b) {
+                    k = k_out;
+                } else {
+                    k = k_in;
+                }
+                between_pose[2] = k * (current_xyz.z()) + (1 - k) * (target_xyz.z());
+
+                break;
+            }
+            case rmcs_msgs::ArmMode::Auto_Storage_RB:
+            case rmcs_msgs::ArmMode::Auto_Extract_RB: {
+                if (delta_xyz.x() > 0 && delta_xyz.x() < b) {
+                    k = k_out_reverse;
+                } else if (delta_xyz.x() < 0 && delta_xyz.x() > -b) {
+                    k = k_out;
+                } else {
+                    k = k_in;
+                }
+                between_pose[0] = k * (current_xyz.x()) + (1 - k) * (target_xyz.x());
+
+                if (delta_xyz.y() < 0 && delta_xyz.y() > -b) {
+                    k = k_out;
+                } else if (delta_xyz.y() > 0 && delta_xyz.y() < b) {
+                    k = k_out_reverse;
+                } else {
+                    k = k_in;
+                }
+                between_pose[1] = k * (current_xyz.y()) + (1 - k) * (target_xyz.y());
+
+                if (delta_xyz.z() > 0 && delta_xyz.z() > b) {
+                    k = k_out_reverse;
+                } else if (delta_xyz.z() < 0 && delta_xyz.z() > -b) {
+                    k = k_out;
+                } else {
+                    k = k_in;
+                }
+                between_pose[2] = k * (current_xyz.z()) + (1 - k) * (target_xyz.z());
+
+                break;
+            }
+            }
+
+            tf2::Quaternion current_q;
+            tf2::fromMsg(current_pose.orientation, current_q);
+            tf2::Quaternion target_q;
+            target_q.setRPY(target[3], target[4], target[5]);
+            tf2::Quaternion q_mid = current_q.slerp(target_q, k_in);
+            tf2::Matrix3x3(q_mid).getRPY(between_pose[3], between_pose[4], between_pose[5]);
+            return between_pose;
+        };
+
         if (!parameter_initialized) {
             node_->get_parameter("auto_walk_joint_target", auto_walk_joint_target);
-            for (std::size_t i = 0; i < auto_storage_lb_names.size(); ++i) {
-                const auto& name = auto_storage_lb_names[i];
-                auto_storage_lb_lin_mask[i] =
-                    name.size() >= 4 && name.compare(name.size() - 4, 4, "_lin") == 0;
 
-                const std::string prefix =
-                    "auto_storage_lb.params." + auto_storage_lb_names[i] + ".";
-                std::vector<double> target_pose_values;
+            load_auto_mine_config("auto_storage_lb", auto_storage_lb_config);
+            load_auto_mine_config("auto_storage_rb", auto_storage_rb_config);
+            load_auto_mine_config("auto_extract_lb", auto_extract_lb_config);
+            load_auto_mine_config("auto_extract_rb", auto_extract_rb_config);
 
-                node_->get_parameter(prefix + "target_pose", target_pose_values);
-                node_->get_parameter(
-                    prefix + "velocity_scaling", auto_storage_lb_velocity_scaling[i]);
-                node_->get_parameter(
-                    prefix + "acceleration_scaling", auto_storage_lb_acceleration_scaling[i]);
-
-                auto_storage_lb_target_rpy[i][0] = target_pose_values[0];
-                auto_storage_lb_target_rpy[i][1] = target_pose_values[1];
-                auto_storage_lb_target_rpy[i][2] = target_pose_values[2];
-                auto_storage_lb_target_rpy[i][3] = target_pose_values[3];
-                auto_storage_lb_target_rpy[i][4] = target_pose_values[4];
-                auto_storage_lb_target_rpy[i][5] = target_pose_values[5];
-            }
             parameter_initialized = true;
         }
 
@@ -376,42 +498,54 @@ private:
             move_group_->setPoseTarget(target_pose, "link_6");
             break;
         }
-        case rmcs_msgs::ArmMode::Auto_Storage_LB: {
+        case rmcs_msgs::ArmMode::Auto_Storage_LB:
+        case rmcs_msgs::ArmMode::Auto_Storage_RB:
+        case rmcs_msgs::ArmMode::Auto_Extract_LB:
+        case rmcs_msgs::ArmMode::Auto_Extract_RB: {
+            auto* config = get_auto_mine_config(request->arm_mode);
+            if (!config) {
+                last_planned_request_id_ = request->request_id;
+                planned_trajectory_.store(result, std::memory_order::release);
+                return;
+            }
             auto current_state = move_group_->getCurrentState();
 
             result->positions.clear();
+            result->steps.clear();
             result->plan_success = true;
 
-            for (std::size_t i = 0; i < auto_storage_lb_names.size(); ++i) {
+            for (std::size_t i = 0; i < auto_step_names.size(); ++i) {
                 move_group_->clearPoseTargets();
                 move_group_->clearPathConstraints();
                 move_group_->setStartState(*current_state);
                 move_group_->setPlanningTime(5.0);
                 move_group_->setGoalOrientationTolerance(0.2);
                 move_group_->setGoalPositionTolerance(0.01);
-                move_group_->setMaxVelocityScalingFactor(auto_storage_lb_velocity_scaling[i]);
-                move_group_->setMaxAccelerationScalingFactor(
-                    auto_storage_lb_acceleration_scaling[i]);
-
-                if (auto_storage_lb_lin_mask[i]) {
+                move_group_->setMaxVelocityScalingFactor(config->velocity_scaling[i]);
+                move_group_->setMaxAccelerationScalingFactor(config->acceleration_scaling[i]);
+                if (i == 0) {
+                    config->step_rpy[0] = auto_between_pose_builder();
+                }
+                if (config->lin_mask[i]) {
                     move_group_->setPlanningPipelineId("pilz_industrial_motion_planner");
                     move_group_->setPlannerId("LIN");
                 } else {
                     move_group_->setPlanningPipelineId("ompl");
                     move_group_->setPlannerId("");
                 }
+
                 move_group_->setPositionTarget(
-                    auto_storage_lb_target_rpy[i][0], auto_storage_lb_target_rpy[i][1],
-                    auto_storage_lb_target_rpy[i][2], "link_6");
+                    config->step_rpy[i][0], config->step_rpy[i][1], config->step_rpy[i][2],
+                    "link_6");
                 move_group_->setRPYTarget(
-                    auto_storage_lb_target_rpy[i][3], auto_storage_lb_target_rpy[i][4],
-                    auto_storage_lb_target_rpy[i][5], "link_6");
+                    config->step_rpy[i][3], config->step_rpy[i][4], config->step_rpy[i][5],
+                    "link_6");
 
                 moveit::planning_interface::MoveGroupInterface::Plan segment_plan;
                 if (move_group_->plan(segment_plan) != moveit::core::MoveItErrorCode::SUCCESS) {
                     RCLCPP_WARN(
-                        node_->get_logger(), "Auto_Storage_LB segment %s plan failed",
-                        auto_storage_lb_names[i].c_str());
+                        node_->get_logger(), "Auto sequence segment %s plan failed",
+                        auto_step_names[i].c_str());
                     result->plan_success = false;
                     break;
                 }
@@ -421,7 +555,7 @@ private:
                 for (std::size_t j = start_index; j < trajectory_points.size(); ++j) {
                     result->positions.push_back(trajectory_points[j].positions);
                 }
-
+                result->steps.push_back(static_cast<int>(result->positions.size()) - 1);
                 const auto& joint_names = segment_plan.trajectory.joint_trajectory.joint_names;
                 const auto& last_point  = trajectory_points.back();
                 auto next_state = std::make_shared<moveit::core::RobotState>(*current_state);
@@ -431,10 +565,10 @@ private:
             }
 
             if (!result->plan_success) {
-                RCLCPP_WARN(node_->get_logger(), "Auto_Storage_LB composite plan failed");
+                RCLCPP_WARN(node_->get_logger(), "Auto_Mine composite plan failed");
             } else {
                 RCLCPP_INFO(
-                    node_->get_logger(), "Auto_Storage_LB stored size:%d",
+                    node_->get_logger(), "Auto_Mine stored size:%d",
                     static_cast<int>(result->positions.size()));
             }
             last_planned_request_id_ = request->request_id;
@@ -493,6 +627,25 @@ private:
                     const auto& q = moveit_result->positions[trajectory_steps];
                     for (std::size_t i = 0; i < q.size(); ++i) {
                         *target_theta[i] = q[i];
+                    }
+                    switch (get_arm_mode()) {
+                    case rmcs_msgs::ArmMode::Auto_Extract_LB:
+                    case rmcs_msgs::ArmMode::Auto_Extract_RB: {
+                        if (trajectory_steps == moveit_result->steps[2] && !is_gripper_complete) {
+                            set_gripper_mode(rmcs_msgs::GripperMode::Close);
+                            trajectory_steps--;
+                        }
+                        break;
+                    }
+                    case rmcs_msgs::ArmMode::Auto_Storage_RB:
+                    case rmcs_msgs::ArmMode::Auto_Storage_LB: {
+                        if (trajectory_steps == moveit_result->steps[2] && !is_gripper_complete) {
+                            set_gripper_mode(rmcs_msgs::GripperMode::Open);
+                            trajectory_steps--;
+                        }
+                        break;
+                    }
+                    default: break;
                     }
                     trajectory_steps++;
                 }
@@ -573,29 +726,42 @@ private:
 
         switch (get_gripper_mode()) {
         case rmcs_msgs::GripperMode::Open: {
-            if (*gripper_velocity_ < 0.05 && *gripper_torque_ > 30) {
+            if (*gripper_velocity_ < 0.05 && *gripper_velocity_ > 0 && *gripper_torque_ > 30) {
                 *target_theta[6] = *theta[6];
+                set_gripper_mode(rmcs_msgs::GripperMode::None);
+                is_gripper_complete = true;
             } else {
-                *target_theta[6] = *theta[6] + 0.05;
+                is_gripper_complete = false;
+                *target_theta[6]    = *theta[6] + 0.05;
             }
             break;
         }
         case rmcs_msgs::GripperMode::Close: {
-            if (*gripper_velocity_ < 0.05 && *gripper_torque_ > 30) {
+            if (*gripper_velocity_ < 0 && *gripper_velocity_ > -0.05 && *gripper_torque_ < -30) {
                 *target_theta[6] = *theta[6];
+                set_gripper_mode(rmcs_msgs::GripperMode::None);
+                is_gripper_complete = true;
             } else {
-                *target_theta[6] = *theta[6] - 0.05;
+                is_gripper_complete = false;
+                *target_theta[6]    = *theta[6] - 0.05;
             }
 
             break;
         }
 
-        case rmcs_msgs::GripperMode::None: break;
+        default: {
+            is_gripper_complete = false;
+        } break;
         }
 
         *gripper_target_theta_error = unwrap(*target_theta[6]) - unwrap(*theta[6]);
     }
-
+    // bool gripper_judgement() {
+    //     if (*gripper_velocity_ < 0.05 && *gripper_torque_ > 30)
+    //         return true;
+    //     else
+    //         return false;
+    // }
     void image_pitch_control() {
 
         double qmin = -3;
@@ -643,6 +809,7 @@ private:
     InputInterface<double> theta[7];
     InputInterface<double> gripper_velocity_;
     InputInterface<double> gripper_torque_;
+    bool is_gripper_complete{false};
     std::array<InputInterface<double>, 6> joint_lower_limit_;
     std::array<InputInterface<double>, 6> joint_upper_limit_;
     OutputInterface<double> target_theta[7];

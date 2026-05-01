@@ -61,6 +61,17 @@ public:
     }
 
 private:
+    static double normalize_angle(double angle) {
+        if (std::isnan(angle) || std::isinf(angle)) {
+            return NAN;
+        }
+        angle = fmod(angle, 2 * M_PI);
+        if (angle > M_PI)
+            angle -= 2 * M_PI;
+        if (angle < -M_PI)
+            angle += 2 * M_PI;
+        return angle;
+    };
     rclcpp::Logger logger_;
     class EngineerCommand : public rmcs_executor::Component {
     public:
@@ -71,10 +82,6 @@ private:
         Engineer& engineer_;
     };
     std::shared_ptr<EngineerCommand> engineer_command_;
-    static double normalize_angle(double angle) {
-        angle = std::fmod(angle + M_PI, 2 * M_PI);
-        return angle < 0 ? angle + M_PI : angle - M_PI;
-    }
 
     class ArmBoard final
         : private librmcs::agent::CBoard
@@ -133,7 +140,7 @@ private:
                 EncoderConfig{EncoderType::KTH7823}.set_encoder_zero_point(
                     static_cast<int>(engineer.get_parameter("joint2_zero_point").as_int())));
             bmi088_.set_coordinate_mapping(
-                [](double x, double y, double z) { return std::make_tuple(-x, -y, -z); });
+                [](double x, double y, double z) { return std::make_tuple(-x, -y, +z); });
         }
         ~ArmBoard() final {
             auto tx = start_transmit();
@@ -145,7 +152,7 @@ private:
                 tx.can1_transmit({.can_id = 0x148, .can_data = image_pitch.lk_close().as_bytes()});
                 tx.can1_transmit({.can_id = 0x142, .can_data = joint[1].lk_close().as_bytes()});
                 tx.can1_transmit({.can_id = 0x143, .can_data = joint[2].lk_close().as_bytes()});
-                tx.can1_transmit({.can_id = 0x146, .can_data = joint[0].lk_close().as_bytes()});
+                tx.can1_transmit({.can_id = 0x141, .can_data = joint[0].lk_close().as_bytes()});
             }
         }
 
@@ -186,7 +193,7 @@ private:
             } else {
 
                 tx.can1_transmit({
-                    .can_id   = 0x146,
+                    .can_id   = 0x141,
                     .can_data = joint[0].generate_torque_command().as_bytes(),
                 });
 
@@ -236,13 +243,13 @@ private:
                 [[unlikely]]
                 return;
 
-            if (data.can_id == 0x141)
+            if (data.can_id == 0x141) {
                 joint[5].store_status(data.can_data);
-            else if (data.can_id == 0x145)
+            } else if (data.can_id == 0x145) {
                 joint[4].store_status(data.can_data);
-            else if (data.can_id == 0x144)
+            } else if (data.can_id == 0x144) {
                 joint[3].store_status(data.can_data);
-            else if (data.can_id == 0x147) {
+            } else if (data.can_id == 0x147) {
                 gripper.store_status(data.can_data);
             }
         }
@@ -251,13 +258,13 @@ private:
                 [[unlikely]]
                 return;
 
-            if (data.can_id == 0x143)
+            if (data.can_id == 0x143) {
                 joint[2].store_status(data.can_data);
-            else if (data.can_id == 0x142)
+            } else if (data.can_id == 0x142) {
                 joint[1].store_status(data.can_data);
-            else if (data.can_id == 0x146)
+            } else if (data.can_id == 0x141) {
                 joint[0].store_status(data.can_data);
-            else if (data.can_id == 0x200) {
+            } else if (data.can_id == 0x200) {
                 joint2_encoder.store_status(data.can_data);
             } else if (data.can_id == 0x148) {
                 image_pitch.store_status(data.can_data);
@@ -397,7 +404,6 @@ private:
             });
         }
         void update() {
-
             Omni_Motors.update();
             for (auto& motor : Steering_motors) {
                 motor.update();
@@ -412,6 +418,10 @@ private:
                 ecd.update();
             }
             power_meter.update();
+            *leg_joint_lf_control_theta_error =
+                normalize_angle(*leg_lf_target_theta_ - Leg_ecd[0].get_angle());
+            *leg_joint_lb_control_theta_error =
+                normalize_angle(*leg_lb_target_theta_ - Leg_ecd[1].get_angle());
         }
         void command() {
 
@@ -441,8 +451,6 @@ private:
                             .as_bytes(),
                 });
             } else {
-                *leg_joint_lb_control_theta_error =
-                    normalize_angle(*leg_lb_target_theta_ - Leg_ecd[1].get_angle());
                 tx.can2_transmit({
                     .can_id = 0x200,
                     .can_data =
@@ -454,8 +462,7 @@ private:
                                            }
                             .as_bytes(),
                 });
-                *leg_joint_lf_control_theta_error =
-                    normalize_angle(*leg_lf_target_theta_ - Leg_ecd[0].get_angle());
+
                 tx.can1_transmit({
                     .can_id = 0x200,
                     .can_data =
@@ -476,7 +483,6 @@ private:
             if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
                 [[unlikely]]
                 return;
-
             if (data.can_id == 0x207) {
                 Steering_motors[0].store_status(data.can_data);
             } else if (data.can_id == 0x202) {
@@ -493,7 +499,6 @@ private:
             if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
                 [[unlikely]]
                 return;
-
             if (data.can_id == 0x208) {
                 Steering_motors[1].store_status(data.can_data);
             } else if (data.can_id == 0x201) {
@@ -651,16 +656,13 @@ private:
             }
             big_yaw.update();
             tof.update();
+            *leg_joint_rf_control_theta_error =
+                normalize_angle(*leg_rf_target_theta_ - Leg_ecd[1].get_angle());
+            *leg_joint_rb_control_theta_error =
+                normalize_angle(*leg_rb_target_theta_ - Leg_ecd[0].get_angle());
         }
 
         void command() {
-            auto normalize_angle = [this](double angle) {
-                while (angle > M_PI)
-                    angle -= 2 * M_PI;
-                while (angle < -M_PI)
-                    angle += 2 * M_PI;
-                return angle;
-            };
 
             static bool turn{false};
             auto tx = start_transmit();
@@ -701,14 +703,12 @@ private:
                     yaw_command = big_yaw.generate_torque_command();
                 }
 
-                // yaw_command = big_yaw.dm_enable_command();
                 tx.can2_transmit({
                     .can_id   = 0x3,
                     .can_data = yaw_command.as_bytes(),
                 });
             } else {
-                *leg_joint_rb_control_theta_error =
-                    normalize_angle(*leg_rb_target_theta_ - Leg_ecd[0].get_angle());
+
                 tx.can2_transmit({
                     .can_id = 0x200,
                     .can_data =
@@ -720,8 +720,7 @@ private:
                                            }
                             .as_bytes(),
                 });
-                *leg_joint_rf_control_theta_error =
-                    normalize_angle(*leg_rf_target_theta_ - Leg_ecd[1].get_angle());
+
                 tx.can1_transmit({
                     .can_id = 0x200,
                     .can_data =
@@ -745,17 +744,13 @@ private:
 
             if (data.can_id == 0x201) {
                 Wheel_motors[1].store_status(data.can_data);
-            }
-            if (data.can_id == 0x202) {
+            } else if (data.can_id == 0x202) {
                 Leg_Motors[1].store_status(data.can_data);
-            }
-            if (data.can_id == 0x203) {
+            } else if (data.can_id == 0x203) {
                 Omni_Motors.store_status(data.can_data);
-            }
-            if (data.can_id == 0x206) {
+            } else if (data.can_id == 0x206) {
                 Steering_motors[1].store_status(data.can_data);
-            }
-            if (data.can_id == 0x320) {
+            } else if (data.can_id == 0x320) {
                 Leg_ecd[1].store_status(data.can_data);
             }
         }
@@ -766,17 +761,13 @@ private:
 
             if (data.can_id == 0x201) {
                 Wheel_motors[0].store_status(data.can_data);
-            }
-            if (data.can_id == 0x202) {
+            } else if (data.can_id == 0x202) {
                 Leg_Motors[0].store_status(data.can_data);
-            }
-            if (data.can_id == 0x205) {
+            } else if (data.can_id == 0x205) {
                 Steering_motors[0].store_status(data.can_data);
-            }
-            if (data.can_id == 0x33) {
+            } else if (data.can_id == 0x33) {
                 big_yaw.store_status(data.can_data);
-            }
-            if (data.can_id == 0x322) {
+            } else if (data.can_id == 0x322) {
                 Leg_ecd[0].store_status(data.can_data);
             }
         }
@@ -815,6 +806,10 @@ private:
 
         OutputInterface<double> leg_joint_rb_control_theta_error;
         OutputInterface<double> leg_joint_rf_control_theta_error;
+        // InputInterface<double> leg_rf_joint_velocity_;
+        // InputInterface<double> leg_rf_joint_control_velocity_;
+        // InputInterface<double> leg_lf_encoder_angle_;
+        // OutputInterface<double> leg_rf_joint_control_velocity_error_;
 
     } rightboard_;
 };

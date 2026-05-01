@@ -56,6 +56,7 @@ public:
         register_output("/move_speed_limit", speed_limit_, 3.0);
     }
     void update() override {
+       // RCLCPP_INFO(this->get_logger(),"%f",joystick_right_->y());
         using namespace rmcs_msgs;
 
         static bool initial_check_done_ = false;
