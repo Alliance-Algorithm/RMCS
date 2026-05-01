@@ -34,6 +34,7 @@ public:
         register_output("/referee/chassis/output_status", chassis_output_status_, false);
 
         register_output("/referee/robots/hp", robots_hp_);
+        register_output("/referee/current_hp", robot_current_hp_);
         register_output("/referee/shooter/bullet_allowance", robot_bullet_allowance_, false);
         register_output(
             "/referee/shooter/42mm_bullet_allowance", robot_42mm_bullet_allowance_, false);
@@ -135,6 +136,7 @@ private:
 
         auto& data = reinterpret_cast<RobotStatus&>(frame_.body.data);
 
+        *robot_current_hp_ = data.current_hp;
         *robot_id_ = static_cast<rmcs_msgs::RobotId>(data.robot_id);
         *robot_shooter_cooling_ = data.shooter_barrel_cooling_value;
         *robot_shooter_heat_limit_ = static_cast<int64_t>(1000) * data.shooter_barrel_heat_limit;
@@ -203,6 +205,7 @@ private:
     OutputInterface<double> robot_buffer_energy_;
 
     OutputInterface<GameRobotHp> robots_hp_;
+    OutputInterface<uint16_t> robot_current_hp_;
     OutputInterface<uint16_t> robot_bullet_allowance_;
     OutputInterface<uint16_t> robot_42mm_bullet_allowance_;
 
