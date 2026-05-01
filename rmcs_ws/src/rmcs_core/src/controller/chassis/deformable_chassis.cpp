@@ -1262,7 +1262,7 @@ private:
     }
 
     void scope_motor_control(bool prone_override = false) {
-        const bool prone_target_active = prone_override || current_target_angle_ == min_angle_;
+        const bool prone_target_active = prone_override;
         if (prone_target_active && *mode_ != rmcs_msgs::ChassisMode::SPIN) {
             *scope_motor_control_torque = -0.3;
             // if (*scope_motor_velocity <= std::abs(0.1)){
