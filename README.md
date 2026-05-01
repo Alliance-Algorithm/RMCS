@@ -39,6 +39,28 @@ code ./RMCS
 
 VSCode 将拉起一个 `Docker` 容器，容器中已配置好完整开发环境，之后所有工作将在容器内进行。
 
+开发容器会基于 `qzhhhi/rmcs-develop:latest` 构建一个轻量叠加层，
+额外安装 `Codex` 与 `OpenCode`。它们的配置和运行数据会持久化到仓库内的
+`.devcontainer/state/`，因此即使重建容器，登录态和本地配置也会保留。
+
+首次启动容器时，如果 `.devcontainer/state/` 下对应目录还是空的，
+容器会自动从宿主机已有的 `~/.codex`、`~/.config/opencode`、
+`~/.local/share/opencode` 与 `~/.opencode/skills` 导入初始配置。
+导入只会在 state 目录未初始化时发生一次；后续重建容器将直接复用
+`.devcontainer/state/`，不会再用宿主机配置覆盖容器内更新后的内容。
+
+如果你不用 VSCode，也可以直接在仓库根目录启动同一套开发容器：
+
+```bash
+docker compose up -d rmcs-develop
+docker compose exec -it rmcs-develop zsh
+```
+
+如果你想重新从宿主机导入配置，可以先清空对应的
+`.devcontainer/state/codex`、`.devcontainer/state/opencode-config`、
+`.devcontainer/state/opencode-data` 或 `.devcontainer/state/opencode-skills`
+目录（保留 `.gitignore` 即可），再重新启动容器。
+
 如果 `Dev Containers` 在启动时卡住很长一段时间，可以尝试 [这个解决方案](docs/zh-cn/fix_devcontainer_stuck.md)。
 
 ### Step 3：配置 VSCode

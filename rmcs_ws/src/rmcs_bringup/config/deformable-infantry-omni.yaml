@@ -71,8 +71,23 @@ chassis_controller:
     min_angle: 8.0
     max_angle: 58.0
     active_suspension_enable: true
+    spin_ratio: 0.45
 
-    # IMU attitude correction at min-angle stance.
+    # Suspension geometry / support model.
+    active_suspension_mass: 22.5
+    active_suspension_rod_length: 0.150
+    active_suspension_Kz: 150.0
+    active_suspension_D_leg: 10.0
+    active_suspension_torque_limit: 80.0
+    active_suspension_gravity_comp_gain: 1.0
+    active_suspension_control_acceleration_limit: 6.0
+    active_suspension_preload_angle_deg: 8.0
+    active_suspension_entry_offset_deg: 1.5
+    active_suspension_ride_height_offset_deg: 3.0
+    active_suspension_hold_travel_deg: 5.0
+    active_suspension_activation_velocity_threshold_deg: 15.0
+
+    # IMU attitude correction as suspension force bias.
     # pitch < 0: front high. roll > 0: right high.
     active_suspension_Kp: 8.0
     active_suspension_pitch_ki: 0.35
@@ -200,6 +215,8 @@ lf_joint_controller:
     mode_input: /chassis/left_front_joint/suspension_mode
     suspension_torque: /chassis/left_front_joint/suspension_torque
     control: /chassis/left_front_joint/control_torque
+    eso_z2_output: /chassis/left_front_joint/eso_z2
+    eso_z3_output: /chassis/left_front_joint/eso_z3
 
     # Normal ADRC servo mode
     dt: 0.001
@@ -247,6 +264,8 @@ lb_joint_controller:
     mode_input: /chassis/left_back_joint/suspension_mode
     suspension_torque: /chassis/left_back_joint/suspension_torque
     control: /chassis/left_back_joint/control_torque
+    eso_z2_output: /chassis/left_back_joint/eso_z2
+    eso_z3_output: /chassis/left_back_joint/eso_z3
     dt: 0.001
     b0: -0.60
     kt: 1.0
@@ -288,6 +307,8 @@ rb_joint_controller:
     mode_input: /chassis/right_back_joint/suspension_mode
     suspension_torque: /chassis/right_back_joint/suspension_torque
     control: /chassis/right_back_joint/control_torque
+    eso_z2_output: /chassis/right_back_joint/eso_z2
+    eso_z3_output: /chassis/right_back_joint/eso_z3
     dt: 0.001
     b0: -0.60
     kt: 1.0
@@ -329,6 +350,8 @@ rf_joint_controller:
     mode_input: /chassis/right_front_joint/suspension_mode
     suspension_torque: /chassis/right_front_joint/suspension_torque
     control: /chassis/right_front_joint/control_torque
+    eso_z2_output: /chassis/right_front_joint/eso_z2
+    eso_z3_output: /chassis/right_front_joint/eso_z3
     dt: 0.001
     b0: -0.60
     kt: 1.0
