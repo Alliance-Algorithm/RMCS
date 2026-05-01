@@ -29,7 +29,7 @@ rmcs_executor:
       - rmcs_core::controller::chassis::DeformableJointController -> rb_joint_controller
       - rmcs_core::controller::chassis::DeformableJointController -> rf_joint_controller
 
-      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 
 value_broadcaster:
   ros__parameters:
@@ -59,8 +59,8 @@ deformable_infantry:
     left_back_zero_point: 5801
     right_back_zero_point: 7817
     right_front_zero_point: 7136
-    yaw_motor_zero_point: 17772
-    pitch_motor_zero_point: 10898
+    yaw_motor_zero_point: 50642
+    pitch_motor_zero_point: 6245
     debug_log_supercap: false
     debug_log_wheel_motor: false
     debug_log_deformable_joint_motor: false
@@ -138,7 +138,6 @@ gimbal_controller:
 
     pitch_fusion_enabled: true
     pitch_fusion_alpha: 0.98
-
 
 friction_wheel_controller:
   ros__parameters:
