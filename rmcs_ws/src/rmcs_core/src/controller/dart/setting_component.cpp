@@ -60,18 +60,19 @@ public:
 
     void update() override {
         const Eigen::Vector2d& angle_error = *angle_error_vector_;
+
         *yaw_control_velocity_ =
             limit_velocity(angle_error[0], yaw_error_to_velocity_gain_, yaw_max_velocity_);
         *pitch_control_velocity_ =
             limit_velocity(angle_error[1], pitch_error_to_velocity_gain_, pitch_max_velocity_);
         *force_control_velocity_ = update_force_control_velocity(*force_error_);
 
-        if (count++ == 1000) {
+        if (count++ == 100) {
             auto pitch = *pitch_angle_ / std::numbers::pi * 180 + 90;
 
             RCLCPP_INFO(
-                get_logger(), "[ForSensor]: (%5d,%5d),[Pitch]: %5f", *force_sensor_ch1_,
-                *force_sensor_ch2_, -pitch);
+                get_logger(), "[ForSensor]: (%5d,%5d),[Pitch]: %5f,x: %5f| y:%5f",
+                *force_sensor_ch1_, *force_sensor_ch2_, -pitch, angle_error.x(), angle_error.y());
 
             count = 0;
         }

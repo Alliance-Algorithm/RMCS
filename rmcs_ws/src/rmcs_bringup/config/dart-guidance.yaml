@@ -6,7 +6,6 @@ rmcs_executor:
       - rmcs_dart_guidance::manager::DartManager   -> dart_manager
       - rmcs_dart_guidance::DartVisionCore         -> dart_vision_core
       - rmcs_dart_guidance::manager::RemoteCommandBridge -> remote_cmd_bridge
-      # - rmcs_dart_guidance::manager::HostBridge -> host_bridge
 
       - rmcs_core::controller::dart::DartTriggerController -> trigger_setting
       - rmcs_core::controller::dart::DartBeltController -> dart_belt_controller
@@ -55,7 +54,7 @@ dart_manager:
     vision_aim.allowable_error.y: 5
     vision_aim.timeout_ticks: 3000
     vision_aim.shot_profiles.0.reference_point.x: 640
-    vision_aim.shot_profiles.0.reference_point.y: 360
+    vision_aim.shot_profiles.0.reference_point.y: 600
     vision_aim.shot_profiles.0.offset.x: 0
     vision_aim.shot_profiles.0.offset.y: 0
     vision_aim.shot_profiles.1.reference_point.x: 640
@@ -74,12 +73,12 @@ dart_manager:
 dart_vision_core:
   ros__parameters:
     invert_image: false
-    exposure_time: 3000
-    gain: 1.0
-    L_H: 0.0
+    exposure_time: 1000
+    gain: 0.0
+    L_H: 45.0
     L_S: 0.0
-    L_V: 0.0
-    U_H: 180.0
+    L_V: 200.0
+    U_H: 90.0
     U_S: 255.0
     U_V: 255.0
 
@@ -115,7 +114,7 @@ dart_filling:
 
 dart_setting:
   ros__parameters:
-    yaw_error_to_velocity_gain: 1.0
+    yaw_error_to_velocity_gain: -1.0
     pitch_error_to_velocity_gain: 1.0
     force_error_kp: 0.2
     force_error_ki: 0.0
@@ -133,7 +132,7 @@ yaw_velocity_pid_controller:
     measurement: /dart/yaw_motor/velocity
     setpoint:    /dart/yaw_motor/control_velocity
     control:     /dart/yaw_motor/control_torque
-    kp: 1.0
+    kp: 0.6
     ki: 0.0
     kd: 0.0
 
@@ -142,7 +141,7 @@ pitch_velocity_pid_controller:
     measurement: /dart/pitch_motor/velocity
     setpoint:    /dart/pitch_motor/control_velocity
     control:     /dart/pitch_motor/control_torque
-    kp: 1.0
+    kp: 0.6
     ki: 0.0
     kd: 0.0
 

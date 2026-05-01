@@ -70,7 +70,9 @@ public:
         , imu_{1000, 0.2, 0.0} {
 
         pitch_motor_.configure(
-            device::DjiMotor::Config{device::DjiMotor::Type::kM3508}.set_reduction_ratio(19.));
+            device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
+                .set_reduction_ratio(19.)
+                .set_reversed());
         yaw_motor_.configure(
             device::DjiMotor::Config{device::DjiMotor::Type::kM3508}.set_reduction_ratio(19.));
         force_screw_motor_.configure(
