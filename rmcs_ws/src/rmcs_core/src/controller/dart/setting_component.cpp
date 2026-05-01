@@ -67,7 +67,7 @@ public:
             limit_velocity(angle_error[1], pitch_error_to_velocity_gain_, pitch_max_velocity_);
         *force_control_velocity_ = update_force_control_velocity(*force_error_);
 
-        if (count++ == 100) {
+        if (count++ == 1000) {
             auto pitch = *pitch_angle_ / std::numbers::pi * 180 + 90;
 
             RCLCPP_INFO(
