@@ -2,7 +2,7 @@ rmcs_executor:
   ros__parameters:
     update_rate: 1000.0
     components:
-      - rmcs_core::hardware::SteeringHero -> hero_hardware
+      - rmcs_core::hardware::SteeringHeroLittle -> hero_hardware
 
       - rmcs_core::referee::Status -> referee_status
       - rmcs_core::referee::command::Interaction -> referee_interaction
@@ -52,16 +52,15 @@ rmcs_executor:
 hero_hardware:
   ros__parameters:
     board_serial_top_board: "D4-2BCA-2E47-76CD-23BC-0B78-684B"
-    board_serial_bottom_board_one: "D4-7973-19A9-EA40-4A3E-306F-10F9"
-    board_serial_bottom_board_two: "D4-3674-7174-8768-879E-E44A-3931"
+    serial_bottom_rmcs_board: "AF-60BB-7484-FA24-F3FC-399B-454D-22FA-1B1D"
     bottom_yaw_motor_zero_point: 25912
     pitch_motor_zero_point: 37034 
     top_yaw_motor_zero_point: 11035
     viewer_motor_zero_point: 3030
     external_imu_port: /dev/ttyUSB0
     bullet_feeder_motor_zero_point: 11865
-    left_front_zero_point: 4437
-    right_front_zero_point: 1043
+    left_front_zero_point: 1717
+    right_front_zero_point: 7762
     left_back_zero_point:  3784
     right_back_zero_point: 5814
     # left_front_zero_point: 3473
@@ -75,6 +74,10 @@ hero_hardware:
 value_broadcaster:
   ros__parameters:
     forward_list:
+        - /chassis/left_front_steering/angle
+        - /chassis/left_back_steering/angle
+        - /chassis/right_front_steering/angle
+        - /chassis/right_back_steering/angle
         # - /shoot/heat
         - /chassis/power
         # - /referee/chassis/power

@@ -64,7 +64,7 @@ public:
 
         update_virtual_buffer_energy();
 
-        boost_mode_ = keyboard.shift || rotary_knob < -0.9;
+        boost_mode_ = keyboard.shift || rotary_knob < -0.9 || rotary_knob > 0.9 || keyboard.g;
         update_control_power_limit();
     }
 
@@ -109,9 +109,10 @@ private:
         double power_limit;
 
         if (boost_mode_ && *supercap_enabled_)
-            power_limit = *mode_ == rmcs_msgs::ChassisMode::LAUNCH_RAMP
-                            ? inf_
-                            : *chassis_power_limit_referee_ + 80.0;
+            power_limit = inf_;
+        // power_limit = *mode_ == rmcs_msgs::ChassisMode::LAUNCH_RAMP
+        //                 ? inf_
+        //                 : *chassis_power_limit_referee_ + 80.0;
         else
             power_limit = *chassis_power_limit_referee_;
         chassis_power_limit_expected_ = power_limit;
@@ -132,7 +133,7 @@ private:
         power_limit += excess_power_limit;
         power_limit *= virtual_buffer_energy_ / virtual_buffer_energy_limit_;
 
-        *chassis_control_power_limit_ = 1000000;
+        *chassis_control_power_limit_ = power_limit;
     }
 
     void update_ui() {

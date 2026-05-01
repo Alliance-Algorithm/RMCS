@@ -134,4 +134,9 @@
     <class type="rmcs_core::controller::pid::FrictionWheelPidRecorder" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class> 
+      <class type="rmcs_core::hardware::SteeringHeroLittle" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class> 
+
+  
 </library>
