@@ -2,6 +2,7 @@
 #include <numbers>
 
 #include <eigen3/Eigen/Dense>
+#include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
 
@@ -44,9 +45,9 @@ public:
 
         register_output("/gimbal/top_yaw/control_torque", top_yaw_control_torque_, 0.0);
         register_output("/gimbal/bottom_yaw/control_torque", bottom_yaw_control_torque_, 0.0);
-
-        register_output("/gimbal/top_yaw/control_angle", top_yaw_control_torque_, 0.0);
-        register_output("/gimbal/bottom_yaw/control_angle_shift", bottom_yaw_control_torque_, 0.0);
+        register_output("/gimbal/top_yaw/control_angle", top_yaw_control_angle_, nan_);
+        register_output(
+            "/gimbal/bottom_yaw/control_angle_shift", bottom_yaw_control_angle_shift_, nan_);
 
         status_component_ =
             create_partner_component<DualYawStatus>(get_component_name() + "_status");
@@ -76,9 +77,13 @@ public:
         if (std::isnan(*control_angle_shift_)) {
             *top_yaw_control_angle_ = nan_;
             *bottom_yaw_control_angle_shift_ = nan_;
+            top_yaw_encoder_angle_ = *top_yaw_control_angle_;
         } else {
-            *top_yaw_control_angle_ = 0.0;
+            *top_yaw_control_angle_ = top_yaw_encoder_angle_;
             *bottom_yaw_control_angle_shift_ = *control_angle_shift_;
+            // RCLCPP_INFO(
+            //     get_logger(), "top:%lf,bottom:%lf", *top_yaw_angle_,
+            //     *bottom_yaw_control_angle_shift_);
         }
     }
 
@@ -109,6 +114,8 @@ private:
 
     OutputInterface<double> top_yaw_control_angle_;
     OutputInterface<double> bottom_yaw_control_angle_shift_;
+
+    double top_yaw_encoder_angle_;
 
     class DualYawStatus : public rmcs_executor::Component {
     public:

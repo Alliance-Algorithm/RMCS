@@ -1,4 +1,8 @@
+#include <algorithm>
+#include <cmath>
 #include <eigen3/Eigen/Dense>
+#include <limits>
+#include <numbers>
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
@@ -19,7 +23,7 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , following_velocity_controller_(7.0, 0.0, 0.0) {
+        , following_velocity_controller_(10.0, 0.0, 2.4) {
         following_velocity_controller_.output_max = angular_velocity_max;
         following_velocity_controller_.output_min = -angular_velocity_max;
 
@@ -34,6 +38,8 @@ public:
 
         register_input("/gimbal/yaw/angle", gimbal_yaw_angle_, false);
         register_input("/gimbal/yaw/control_angle_error", gimbal_yaw_angle_error_, false);
+        register_input("/chassis/velocity", chassis_velocity_, false);
+        register_input("/chassis/climbing_forward_velocity", climbing_forward_velocity_, false);
 
         register_output("/chassis/angle", chassis_angle_, nan);
         register_output("/chassis/control_angle", chassis_control_angle_, nan);
@@ -52,14 +58,19 @@ public:
             RCLCPP_WARN(
                 get_logger(), "Failed to fetch \"/gimbal/yaw/control_angle_error\". Set to 0.0.");
         }
+        chassis_velocity_feedback_ready_ = chassis_velocity_.ready();
+        if (!chassis_velocity_feedback_ready_) {
+            chassis_velocity_.make_and_bind_directly(0.0, 0.0, 0.0);
+        }
     }
 
     void update() override {
         using namespace rmcs_msgs;
 
         auto switch_right = *switch_right_;
-        auto switch_left  = *switch_left_;
-        auto keyboard     = *keyboard_;
+        auto switch_left = *switch_left_;
+        auto keyboard = *keyboard_;
+        auto mode = *mode_;
 
         do {
             if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
@@ -68,30 +79,31 @@ public:
                 break;
             }
 
-            auto mode = *mode_;
             if (switch_left != Switch::DOWN) {
                 if (last_switch_right_ == Switch::MIDDLE && switch_right == Switch::DOWN) {
                     if (mode == rmcs_msgs::ChassisMode::SPIN) {
                         mode = rmcs_msgs::ChassisMode::STEP_DOWN;
                     } else {
-                        mode              = rmcs_msgs::ChassisMode::SPIN;
+                        mode = rmcs_msgs::ChassisMode::SPIN;
                         spinning_forward_ = !spinning_forward_;
                     }
                 } else if (!last_keyboard_.c && keyboard.c) {
                     if (mode == rmcs_msgs::ChassisMode::SPIN) {
                         mode = rmcs_msgs::ChassisMode::AUTO;
                     } else {
-                        mode              = rmcs_msgs::ChassisMode::SPIN;
+                        mode = rmcs_msgs::ChassisMode::SPIN;
                         spinning_forward_ = !spinning_forward_;
                     }
                 } else if (!last_keyboard_.x && keyboard.x) {
-                    mode = mode == rmcs_msgs::ChassisMode::LAUNCH_RAMP
-                             ? rmcs_msgs::ChassisMode::AUTO
-                             : rmcs_msgs::ChassisMode::LAUNCH_RAMP;
+                    mode = rmcs_msgs::ChassisMode::STEP_DOWN;
+                    step_down_facing_ = StepDownFacing::FRONT;
                 } else if (!last_keyboard_.z && keyboard.z) {
-                    mode = mode == rmcs_msgs::ChassisMode::STEP_DOWN
-                             ? rmcs_msgs::ChassisMode::AUTO
-                             : rmcs_msgs::ChassisMode::STEP_DOWN;
+                    if (mode == rmcs_msgs::ChassisMode::STEP_DOWN) {
+                        mode = rmcs_msgs::ChassisMode::AUTO;
+                    } else {
+                        mode = rmcs_msgs::ChassisMode::STEP_DOWN;
+                        step_down_facing_ = StepDownFacing::BACK;
+                    }
                 }
                 *mode_ = mode;
             }
@@ -100,24 +112,29 @@ public:
         } while (false);
 
         last_switch_right_ = switch_right;
-        last_switch_left_  = switch_left;
-        last_keyboard_     = keyboard;
+        last_switch_left_ = switch_left;
+        last_keyboard_ = keyboard;
     }
 
     void reset_all_controls() {
         *mode_ = rmcs_msgs::ChassisMode::AUTO;
+        step_down_facing_ = StepDownFacing::BACK;
 
         *chassis_control_velocity_ = {nan, nan, nan};
     }
 
     void update_velocity_control() {
         auto translational_velocity = update_translational_velocity_control();
-        auto angular_velocity       = update_angular_velocity_control();
+        auto angular_velocity = update_angular_velocity_control(translational_velocity);
 
         chassis_control_velocity_->vector << translational_velocity, angular_velocity;
     }
 
     Eigen::Vector2d update_translational_velocity_control() {
+        if (!std::isnan(*climbing_forward_velocity_)) {
+            return Eigen::Vector2d{*climbing_forward_velocity_, 0.0};
+        }
+
         auto keyboard = *keyboard_;
         Eigen::Vector2d keyboard_move{keyboard.w - keyboard.s, keyboard.a - keyboard.d};
 
@@ -132,31 +149,43 @@ public:
         return translational_velocity;
     }
 
-    double update_angular_velocity_control() {
-        double angular_velocity      = 0.0;
+    double update_angular_velocity_control(const Eigen::Vector2d& translational_velocity) {
+        double angular_velocity = 0.0;
         double chassis_control_angle = nan;
 
+        if (!std::isnan(*climbing_forward_velocity_)) {
+            double err = calculate_unsigned_chassis_angle_error(chassis_control_angle);
+
+            constexpr double alignment = 2 * std::numbers::pi;
+            if (err > alignment / 2)
+                err -= alignment;
+
+            angular_velocity = following_velocity_controller_.update(err);
+
+            *chassis_angle_ = 2 * std::numbers::pi - *gimbal_yaw_angle_;
+            *chassis_control_angle_ = chassis_control_angle;
+            return angular_velocity;
+        }
+
         switch (*mode_) {
-        case rmcs_msgs::ChassisMode::AUTO: break;
+        case rmcs_msgs::ChassisMode::AUTO: {
+            angular_velocity =
+                update_following_angular_velocity(StepDownFacing::BACK, chassis_control_angle);
+
+            // Keep AUTO rear-following gentle at low translation speed and fully enabled at max.
+            const double measured_translational_speed =
+                chassis_velocity_feedback_ready_ ? chassis_velocity_->vector.head<2>().norm()
+                                                 : translational_velocity.norm();
+            angular_velocity *=
+                std::clamp(measured_translational_speed / translational_velocity_max, 0.0, 0.3);
+        } break;
         case rmcs_msgs::ChassisMode::SPIN: {
             angular_velocity =
                 0.6 * (spinning_forward_ ? angular_velocity_max : -angular_velocity_max);
         } break;
         case rmcs_msgs::ChassisMode::STEP_DOWN: {
-            double err = calculate_unsigned_chassis_angle_error(chassis_control_angle);
-
-            // err: [0, 2pi) -> [0, alignment) -> signed.
-            // In step-down mode, two sides of the chassis can be used for alignment.
-            // TODO: Dynamically determine the split angle based on chassis velocity.
-            constexpr double alignment = std::numbers::pi;
-            while (err > alignment / 2) {
-                chassis_control_angle -= alignment;
-                if (chassis_control_angle < 0)
-                    chassis_control_angle += 2 * std::numbers::pi;
-                err -= alignment;
-            }
-
-            angular_velocity = following_velocity_controller_.update(err);
+            angular_velocity =
+                update_following_angular_velocity(step_down_facing_, chassis_control_angle);
         } break;
         case rmcs_msgs::ChassisMode::LAUNCH_RAMP: {
             double err = calculate_unsigned_chassis_angle_error(chassis_control_angle);
@@ -171,38 +200,62 @@ public:
             angular_velocity = following_velocity_controller_.update(err);
         } break;
         }
-        *chassis_angle_         = 2 * std::numbers::pi - *gimbal_yaw_angle_;
+        *chassis_angle_ = 2 * std::numbers::pi - *gimbal_yaw_angle_;
         *chassis_control_angle_ = chassis_control_angle;
 
         return angular_velocity;
     }
 
     double calculate_unsigned_chassis_angle_error(double& chassis_control_angle) {
-        chassis_control_angle = *gimbal_yaw_angle_error_;
-        if (chassis_control_angle < 0)
-            chassis_control_angle += 2 * std::numbers::pi;
-        // chassis_control_angle: [0, 2pi).
+        chassis_control_angle = normalize_positive_angle(*gimbal_yaw_angle_error_);
 
         // err = setpoint         -       measurement
         //          ^                          ^
         //          |gimbal_yaw_angle_error    |chassis_angle
         //                                            ^
         //                                            |(2pi - gimbal_yaw_angle)
-        double err = chassis_control_angle + *gimbal_yaw_angle_;
-        if (err >= 2 * std::numbers::pi)
-            err -= 2 * std::numbers::pi;
-        // err: [0, 2pi).
+        double err = normalize_positive_angle(chassis_control_angle + *gimbal_yaw_angle_);
 
         return err;
     }
 
 private:
-    static constexpr double inf = std::numeric_limits<double>::infinity();
+    enum class StepDownFacing { FRONT, BACK };
+
+    double update_following_angular_velocity(
+        StepDownFacing target_facing, double& chassis_control_angle) {
+        double err = calculate_unsigned_chassis_angle_error(chassis_control_angle);
+        if (target_facing == StepDownFacing::BACK) {
+            chassis_control_angle =
+                normalize_positive_angle(chassis_control_angle + std::numbers::pi);
+            err = normalize_positive_angle(err + std::numbers::pi);
+        }
+
+        err = normalize_signed_angle(err);
+        return following_velocity_controller_.update(err);
+    }
+
+    static double normalize_positive_angle(double angle) {
+        constexpr double full_turn = 2 * std::numbers::pi;
+        while (angle >= full_turn)
+            angle -= full_turn;
+        while (angle < 0.0)
+            angle += full_turn;
+        return angle;
+    }
+
+    static double normalize_signed_angle(double angle) {
+        angle = normalize_positive_angle(angle);
+        if (angle > std::numbers::pi)
+            angle -= 2 * std::numbers::pi;
+        return angle;
+    }
+
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
     // Maximum control velocities
     static constexpr double translational_velocity_max = 10.0;
-    static constexpr double angular_velocity_max       = 16.0;
+    static constexpr double angular_velocity_max = 16.0;
 
     InputInterface<Eigen::Vector2d> joystick_right_;
     InputInterface<Eigen::Vector2d> joystick_left_;
@@ -214,14 +267,18 @@ private:
     InputInterface<double> rotary_knob_;
 
     rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
-    rmcs_msgs::Switch last_switch_left_  = rmcs_msgs::Switch::UNKNOWN;
-    rmcs_msgs::Keyboard last_keyboard_   = rmcs_msgs::Keyboard::zero();
+    rmcs_msgs::Switch last_switch_left_ = rmcs_msgs::Switch::UNKNOWN;
+    rmcs_msgs::Keyboard last_keyboard_ = rmcs_msgs::Keyboard::zero();
 
     InputInterface<double> gimbal_yaw_angle_, gimbal_yaw_angle_error_;
+    InputInterface<rmcs_description::BaseLink::DirectionVector> chassis_velocity_;
+    InputInterface<double> climbing_forward_velocity_;
     OutputInterface<double> chassis_angle_, chassis_control_angle_;
 
     OutputInterface<rmcs_msgs::ChassisMode> mode_;
     bool spinning_forward_ = true;
+    bool chassis_velocity_feedback_ready_ = false;
+    StepDownFacing step_down_facing_ = StepDownFacing::BACK;
     pid::PidCalculator following_velocity_controller_;
 
     OutputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;

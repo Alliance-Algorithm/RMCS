@@ -25,7 +25,47 @@ public:
         : upper_limit_(upper_limit)
         , lower_limit_(lower_limit) {
         component.register_input("/gimbal/pitch/angle", gimbal_pitch_angle_);
+        component.register_input("/tf", tf_);
     }
+
+    struct SetControlDirection : Operation {
+        friend class PreciseTwoAxisGimbalSolver;
+
+        explicit SetControlDirection(OdomImu::DirectionVector target)
+            : target_(std::move(target)) {}
+
+    private:
+        double update(PreciseTwoAxisGimbalSolver& super) const {
+            if (!super.tf_.ready()) {
+                super.control_pitch_angle_ = PreciseTwoAxisGimbalSolver::nan_;
+                return PreciseTwoAxisGimbalSolver::nan_;
+            }
+
+            auto dir_yaw_link = fast_tf::cast<YawLink>(target_, *super.tf_);
+            Eigen::Vector3d dir = *dir_yaw_link;
+
+            const double norm = dir.norm();
+            if (norm < kEps) {
+                super.control_pitch_angle_ = PreciseTwoAxisGimbalSolver::nan_;
+                return PreciseTwoAxisGimbalSolver::nan_;
+            }
+            dir /= norm;
+
+            const double xy_norm = std::hypot(dir.x(), dir.y());
+
+            // 在 YawLink 中，yaw 是相对当前总 yaw 的增量
+            const double yaw_shift = std::atan2(dir.y(), dir.x());
+
+            // 机械 pitch 约定：水平为 0，低头为正，所以是负号
+            const double pitch_angle = -std::atan2(dir.z(), std::max(xy_norm, kEps));
+
+            super.set_pitch_angle(pitch_angle);
+            return yaw_shift;
+        }
+
+        static constexpr double kEps = 1e-9;
+        OdomImu::DirectionVector target_;
+    };
 
     struct SetDisabled : Operation {
         friend class PreciseTwoAxisGimbalSolver;
@@ -91,6 +131,7 @@ private:
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
 
     rmcs_executor::Component::InputInterface<double> gimbal_pitch_angle_;
+    rmcs_executor::Component::InputInterface<rmcs_description::Tf> tf_;
 
     const double upper_limit_, lower_limit_;
 

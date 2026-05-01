@@ -90,6 +90,9 @@ public:
             last_switch_left_ = switch_left;
             last_keyboard_ = keyboard;
         }
+        if (!friction_enabled_) {
+            reset_all_controls();
+        }
     }
 
 private:
@@ -150,7 +153,7 @@ private:
 
     bool detect_friction_faulty() {
         for (size_t i = 0; i < friction_count_; i++) {
-            if (*friction_velocities_[i] < *friction_control_velocities_[i] * 0.5)
+            if (abs(*friction_velocities_[i]) < abs(*friction_control_velocities_[i] * 0.5))
                 return true;
         }
         return false;
@@ -164,18 +167,18 @@ private:
         // The first friction wheel in the list is considered the primary one, meaning we only
         // monitor the speed drop of this wheel to detect whether a bullet has been fired.
         if (!std::isnan(last_primary_friction_velocity_)) {
-            double differential = *friction_velocities_[0] - last_primary_friction_velocity_;
+            double differential = *friction_velocities_[2] - last_primary_friction_velocity_;
             if (differential < 0.1)
                 primary_friction_velocity_decrease_integral_ += differential;
             else {
                 if (primary_friction_velocity_decrease_integral_ < -14.0
-                    && last_primary_friction_velocity_ < friction_working_velocities_[0] - 20.0)
+                    && last_primary_friction_velocity_ < friction_working_velocities_[2] - 25.0)
                     fired = true;
 
                 primary_friction_velocity_decrease_integral_ = 0;
             }
         }
-        last_primary_friction_velocity_ = *friction_velocities_[0];
+        last_primary_friction_velocity_ = *friction_velocities_[2];
 
         return fired;
     }
