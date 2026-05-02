@@ -1,4 +1,4 @@
-#include <eigen3/Eigen/Eigen>
+#include <Eigen/Eigen>
 #include <rclcpp/node.hpp>
 
 #include <rmcs_executor/component.hpp>

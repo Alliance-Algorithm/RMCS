@@ -4,7 +4,7 @@
 
 #include <memory>
 
-#include <eigen3/Eigen/Dense>
+#include <Eigen/Dense>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <rmcs_executor/component.hpp>

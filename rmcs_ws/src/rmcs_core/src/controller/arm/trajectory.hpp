@@ -10,7 +10,7 @@
 #include <type_traits>
 #include <vector>
 
-#include <eigen3/Eigen/Dense>
+#include <Eigen/Dense>
 
 namespace rmcs_core::controller::arm {
 

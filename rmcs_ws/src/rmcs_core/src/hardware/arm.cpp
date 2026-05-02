@@ -6,7 +6,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
-#include <librmcs/client/cboard.hpp>
+#include <librmcs/agent/c_board.hpp>
+#include <librmcs/data/datas.hpp>
 #include <memory>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
@@ -28,9 +29,7 @@ public:
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , logger_(get_logger())
         , arm_command_(create_partner_component<armCommand>("arm_command", *this))
-        , armboard_(
-              *this, *arm_command_, static_cast<int>(get_parameter("arm_board_usb_pid").as_int())) {
-    }
+        , armboard_(*this, *arm_command_, get_parameter("board_serial_arm_board").as_string()) {}
     ~Arm() override = default;
     void update() override { armboard_.update(); }
     void command() { armboard_.command(); }
@@ -56,12 +55,12 @@ private:
     std::shared_ptr<armCommand> arm_command_;
 
     class ArmBoard final
-        : private librmcs::client::CBoard
+        : private librmcs::agent::CBoard
         , rclcpp::Node {
     public:
         friend class Arm;
-        explicit ArmBoard(Arm& arm, armCommand& arm_command, int usb_pid)
-            : librmcs::client::CBoard(usb_pid)
+        explicit ArmBoard(Arm& arm, armCommand& arm_command, const std::string serial_filter)
+            : librmcs::agent::CBoard(serial_filter)
             , rclcpp::Node{"arm_board"}
             , arm_command_(arm_command)
             , big_yaw(arm, arm_command, "/chassis/big_yaw")
@@ -71,57 +70,43 @@ private:
             , joint_4(arm, arm_command, "/arm/joint_4/motor")
             , joint_5(arm, arm_command, "/arm/joint_5/motor")
             , joint_6(arm, arm_command, "/arm/joint_6/motor")
-            , gripper(arm, arm_command, "/arm/gripper/motor")
-            , transmit_buffer_(*this, 32)
-            , event_thread_([this]() { handle_events(); })
 
         {
             using namespace device;
-            gripper.configure(
-                LKMotorConfig{LKMotorType::MF4015}.reverse().set_encoder_zero_point(
-                    static_cast<uint16_t>(arm.get_parameter("gripper_zero_point").as_int())));
             joint_6.configure(
                 LKMotorConfig{LKMotorType::MS5005}.reverse().set_encoder_zero_point(
                     static_cast<uint16_t>(arm.get_parameter("joint6_zero_point").as_int())));
             joint_5.configure(
-                LKMotorConfig{LKMotorType::MG5010E_i10V3}.set_encoder_zero_point(
+                LKMotorConfig{LKMotorType::MG4010E_i10V3}.set_encoder_zero_point(
                     static_cast<uint16_t>(arm.get_parameter("joint5_zero_point").as_int())));
             joint_4.configure(
-                LKMotorConfig{LKMotorType::MS5015}.set_encoder_zero_point(
+                LKMotorConfig{LKMotorType::MHF5015}.set_encoder_zero_point(
                     static_cast<uint16_t>(arm.get_parameter("joint4_zero_point").as_int())));
             joint_3.configure(
-                DMMotorConfig{DMMotorType::DM4310}.reverse().set_encoder_zero_point(
+                LKMotorConfig{LKMotorType::MG4010E_i36V3}.reverse().set_encoder_zero_point(
                     static_cast<uint16_t>(arm.get_parameter("joint3_zero_point").as_int())));
             joint_2.configure(
-                DMMotorConfig{DMMotorType::DM4310}.set_encoder_zero_point(
+                LKMotorConfig{LKMotorType::MG4010E_i36V3}.set_encoder_zero_point(
                     static_cast<uint16_t>(arm.get_parameter("joint2_zero_point").as_int())));
             joint_1.configure(
-                DMMotorConfig{DMMotorType::DM6006}.set_encoder_zero_point(
+                LKMotorConfig{LKMotorType::MS7015}.set_encoder_zero_point(
                     static_cast<uint16_t>(arm.get_parameter("joint1_zero_point").as_int())));
             big_yaw.configure(
                 LKMotorConfig{LKMotorType::MHF7015}.set_encoder_zero_point(
                     static_cast<uint16_t>(arm.get_parameter("big_yaw_zero_point").as_int())));
 
-            big_yaw_zero_point_ = static_cast<int>(arm.get_parameter("big_yaw_zero_point").as_int());
-            joint1_zero_point_  = static_cast<int>(arm.get_parameter("joint1_zero_point").as_int());
-            joint2_zero_point_  = static_cast<int>(arm.get_parameter("joint2_zero_point").as_int());
-            joint3_zero_point_  = static_cast<int>(arm.get_parameter("joint3_zero_point").as_int());
-            joint4_zero_point_  = static_cast<int>(arm.get_parameter("joint4_zero_point").as_int());
-            joint5_zero_point_  = static_cast<int>(arm.get_parameter("joint5_zero_point").as_int());
-            joint6_zero_point_  = static_cast<int>(arm.get_parameter("joint6_zero_point").as_int());
-            gripper_zero_point_ = static_cast<int>(arm.get_parameter("gripper_zero_point").as_int());
+            big_yaw_zero_point_ =
+                static_cast<int>(arm.get_parameter("big_yaw_zero_point").as_int());
+            joint1_zero_point_ = static_cast<int>(arm.get_parameter("joint1_zero_point").as_int());
+            joint2_zero_point_ = static_cast<int>(arm.get_parameter("joint2_zero_point").as_int());
+            joint3_zero_point_ = static_cast<int>(arm.get_parameter("joint3_zero_point").as_int());
+            joint4_zero_point_ = static_cast<int>(arm.get_parameter("joint4_zero_point").as_int());
+            joint5_zero_point_ = static_cast<int>(arm.get_parameter("joint5_zero_point").as_int());
+            joint6_zero_point_ = static_cast<int>(arm.get_parameter("joint6_zero_point").as_int());
+            gripper_zero_point_ =
+                static_cast<int>(arm.get_parameter("gripper_zero_point").as_int());
         }
-        ~ArmBoard() final {
-            uint64_t command_{0};
-            // transmit_buffer_.add_can2_transmission(0x001, command_);
-            // transmit_buffer_.add_can2_transmission(0x142, command_);
-            // transmit_buffer_.add_can2_transmission(0x143, command_);
-            // transmit_buffer_.add_can1_transmission(0x001, command_);
-            // transmit_buffer_.add_can1_transmission(0x003, command_);
-            // transmit_buffer_.trigger_transmission();
-            stop_handling_events();
-            event_thread_.join();
-        }
+        ~ArmBoard() final {}
 
         void update() {
             using namespace device;
@@ -131,57 +116,74 @@ private:
 
     private:
         void arm_command_update() {
-            uint64_t command_;
             static bool even_phase{true};
+            auto tx                              = start_transmit();
             const bool should_enable_dm_joint123 = arm_command_.should_enable_dm_joint123();
             // RCLCPP_INFO(
             //     this->get_logger(), "joint5 control torque: %f %f %f %f %d %d %d %d",
-            //     big_yaw.get_angle(), joint_1.get_angle(), joint_2.get_angle(), joint_3.get_angle(),
-            //     joint_4.get_raw_angle(), joint_5.get_raw_angle(), joint_6.get_raw_angle(), gripper.get_raw_angle());
-// RCLCPP_INFO(get_logger(),"%d %d %d",joint_4.get_raw_angle(),joint_5.get_raw_angle(),joint_6.get_raw_angle());
-            if (should_enable_dm_joint123) {
-                command_ = device::DMMotor::dm_enable_command();
-                transmit_buffer_.add_can1_transmission(0x055, command_);
-                transmit_buffer_.add_can1_transmission(0x034, command_);
-                transmit_buffer_.add_can1_transmission(0x003, command_);
-            }
+            //     big_yaw.get_angle(), joint_1.get_angle(), joint_2.get_angle(),
+            //     joint_3.get_angle(), joint_4.get_raw_angle(), joint_5.get_raw_angle(),
+            //     joint_6.get_raw_angle(), gripper.get_raw_angle());
+            // RCLCPP_INFO(get_logger(),"%d %d
+            // %d",joint_4.get_raw_angle(),joint_5.get_raw_angle(),joint_6.get_raw_angle());
+
+            // if (should_enable_dm_joint123) {
+            //     command_ = device::DMMotor::dm_enable_command();
+            //     transmit_buffer_.add_can1_transmission(0x055, command_);
+            //     transmit_buffer_.add_can1_transmission(0x034, command_);
+            //     transmit_buffer_.add_can1_transmission(0x003, command_);
+            //       tx.can1_transmit({
+            //     .can_id   = 0x3,
+            //     .can_data = big_yaw.dm_close_command().as_bytes(),
+            // });
+            // }
 
             if (even_phase) {
-                if (!should_enable_dm_joint123) {
-                    command_ = joint_3.generate_torque_command();
-                    transmit_buffer_.add_can1_transmission(0x003, command_);
 
-                    command_ = joint_2.generate_torque_command();
-                    transmit_buffer_.add_can1_transmission(0x034, command_);
-                }
+                tx.can1_transmit({
+                    .can_id   = 0x003,
+                    .can_data = joint_3.generate_torque_command().as_bytes(),
+                });
 
-                command_ = joint_5.generate_torque_command();
-                transmit_buffer_.add_can2_transmission(0x144, command_);
-                command_ = joint_4.generate_velocity_command(0.0, 800);
-                transmit_buffer_.add_can2_transmission(0x143, command_);
+                tx.can1_transmit({
+                    .can_id   = 0x034,
+                    .can_data = joint_2.generate_torque_command().as_bytes(),
+                });
+
+                tx.can2_transmit({
+                    .can_id   = 0x144,
+                    .can_data = joint_5.generate_torque_command().as_bytes(),
+                });
+
+                tx.can2_transmit({
+                    .can_id   = 0x143,
+                    .can_data = joint_4.generate_velocity_command(0.0, 800).as_bytes(),
+                });
 
             } else {
-                if (!should_enable_dm_joint123) {
-                    command_ = joint_1.generate_torque_command();
-                    transmit_buffer_.add_can1_transmission(0x055, command_);
-                }
-                command_ = big_yaw.generate_torque_command();
-                transmit_buffer_.add_can1_transmission(0x141, command_);
 
-                command_ = gripper.generate_torque_command();
-                transmit_buffer_.add_can2_transmission(0x146, command_);
-                command_ = joint_6.generate_velocity_command(0.0, 1400);
-                transmit_buffer_.add_can2_transmission(0x145, command_);
+                tx.can1_transmit({
+                    .can_id   = 0x055,
+                    .can_data = joint_1.generate_torque_command().as_bytes(),
+                });
+
+                tx.can1_transmit({
+                    .can_id   = 0x141,
+                    .can_data = big_yaw.generate_torque_command().as_bytes(),
+                });
+
+                tx.can2_transmit({
+                    .can_id   = 0x145,
+                    .can_data = joint_6.generate_velocity_command(0.0, 1400).as_bytes(),
+                });
             }
 
             usart_send();
-            transmit_buffer_.trigger_transmission();
 
             even_phase = !even_phase;
         }
 
         void update_arm_motors() {
-            gripper.update();
             joint_6.update();
             joint_5.update();
             joint_4.update();
@@ -213,7 +215,8 @@ private:
             // 减去零点，wrap到[0, max)
             auto offset_angle = [](int raw, int zero, int max) -> uint16_t {
                 int a = raw - zero;
-                if (a < 0) a += max;
+                if (a < 0)
+                    a += max;
                 return static_cast<uint16_t>(a);
             };
             const uint16_t payload_u16[8] = {
@@ -235,62 +238,58 @@ private:
             // crc16 for whole frame (39 bytes)
             rmcs_utility::dji_crc::append_crc16(custom_frame_.data(), custom_frame_.size());
 
-            if (!transmit_buffer_.add_uart2_transmission(
-                    reinterpret_cast<const std::byte*>(custom_frame_.data()),
-                    static_cast<uint8_t>(custom_frame_.size()))) {
-                RCLCPP_WARN(
-                    get_logger(), "Failed to enqueue custom UART2 frame (size=%u)",
-                    static_cast<unsigned>(custom_frame_.size()));
-            }
+            auto builder = start_transmit();
+            builder.uart2_transmit({
+                .uart_data = std::as_bytes(std::span{custom_frame_}),
+            });
         }
 
     protected:
-        void can2_receive_callback(
-            uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
-            bool is_remote_transmission, uint8_t can_data_length) override {
-            if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
+        void can2_receive_callback(const librmcs::data::CanDataView& data) override {
+            if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
+                [[unlikely]]
                 return;
-            if (can_id == 0x145) {
-                joint_6.store_status(can_data);
+
+            if (data.can_id == 0x145) {
+                joint_6.store_status(data.can_data);
+            } else if (data.can_id == 0x144) {
+                joint_5.store_status(data.can_data);
+            } else if (data.can_id == 0x143) {
+                joint_4.store_status(data.can_data);
             }
-            if (can_id == 0x144)
-                joint_5.store_status(can_data);
-            if (can_id == 0x143)
-                joint_4.store_status(can_data);
-            if (can_id == 0x146)
-                gripper.store_status(can_data);
-            // RCLCPP_INFO(get_logger(), "%x", can_id);
         }
-        void can1_receive_callback(
-            uint32_t can_id, uint64_t can_data, bool is_extended_can_id,
-            bool is_remote_transmission, uint8_t can_data_length) override {
-            if (is_extended_can_id || is_remote_transmission || can_data_length < 8) [[unlikely]]
+
+        void can1_receive_callback(const librmcs::data::CanDataView& data) override {
+            if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
+                [[unlikely]]
                 return;
-            if (can_id == 0x023)
-                joint_3.store_status(can_data);
-            if (can_id == 0x033)
-                joint_2.store_status(can_data);
-            if (can_id == 0x044)
-                joint_1.store_status(can_data);
-            if (can_id == 0x141)
-                big_yaw.store_status(can_data);
+
+            if (data.can_id == 0x023) {
+                joint_3.store_status(data.can_data);
+            } else if (data.can_id == 0x033) {
+                joint_2.store_status(data.can_data);
+            } else if (data.can_id == 0x044) {
+                joint_1.store_status(data.can_data);
+            } else if (data.can_id == 0x141) {
+                big_yaw.store_status(data.can_data);
+            }
         }
 
     private:
         armCommand& arm_command_;
         device::LKMotor big_yaw;
-        device::DMMotor joint_1; // transmit_buffer_.trigger_transmission();
-        device::DMMotor joint_2;
-        device::DMMotor joint_3;
+        device::LKMotor joint_1; // transmit_buffer_.trigger_transmission();
+        device::LKMotor joint_2;
+        device::LKMotor joint_3;
         device::LKMotor joint_4;
         device::LKMotor joint_5;
         device::LKMotor joint_6;
-        device::LKMotor gripper;
         static constexpr uint8_t custom_sof_{0xA5};
         static constexpr uint16_t custom_datalength_{30};
         static constexpr uint16_t custom_cmdid_{0x0302};
         static constexpr uint8_t custom_send_divider_{34};
         static constexpr std::size_t custom_frame_size_{39};
+        static_assert(custom_frame_size_ <= 1023);
         std::array<uint8_t, custom_frame_size_> custom_frame_{};
         uint8_t custom_sequence_{3};
         uint8_t custom_tick_{0};
@@ -302,8 +301,6 @@ private:
         int joint5_zero_point_{0};
         int joint6_zero_point_{0};
         int gripper_zero_point_{0};
-        librmcs::client::CBoard::TransmitBuffer transmit_buffer_;
-        std::thread event_thread_;
     } armboard_;
 };
 
