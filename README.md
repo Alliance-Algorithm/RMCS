@@ -19,6 +19,11 @@ RoboMaster Control System based on ROS2.
 docker pull qzhhhi/rmcs-develop:latest
 ```
 
+如需交叉编译环境，可下载：
+```bash
+docker pull qzhhhi/rmcs-develop:latest-full
+```
+
 也可自行使用 `Dockerfile` 构建，参见 [镜像构建指南](docs/zh-cn/build_docker_image.md)。
 
 ### Step 2：克隆并打开仓库
@@ -88,6 +93,19 @@ build-rmcs
 构建完毕后，基于 `clangd` 的 `C++` 代码提示将可用。此时可以正常编写代码。
 
 Note: 用于开发的所有脚本均位于 `.script` 中，参见 开发脚本手册(TODO)。
+
+如需在 `latest-full` 中执行交叉编译，请根据当前容器架构选择对向目标：
+```bash
+build-rmcs-cross --target-arch arm64
+```
+适用于 `linux/amd64` 的 `latest-full` 变体。
+
+```bash
+build-rmcs-cross --target-arch amd64
+```
+适用于 `linux/arm64` 的 `latest-full` 变体。
+
+详见 [交叉编译使用说明](docs/zh-cn/cross_build.md)。
 
 ### Step 5 (Optional)：运行
 

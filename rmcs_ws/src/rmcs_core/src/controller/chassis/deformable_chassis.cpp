@@ -446,7 +446,7 @@ private:
     static constexpr double kMinimumArmingTime_ = 0.02;
 
     static constexpr double translational_velocity_max_ = 10.0;
-    static constexpr double angular_velocity_max_ = 25.0;
+    static constexpr double angular_velocity_max_ = 30.0;
     static constexpr double rad_to_deg_ = 180.0 / std::numbers::pi;
     static constexpr std::array<double, kJointCount> kPitchSigns_ = {-1.0, 1.0, 1.0, -1.0};
     static constexpr std::array<double, kJointCount> kRollSigns_ = {1.0, 1.0, -1.0, -1.0};

@@ -154,9 +154,6 @@ public:
         register_output(
             "/chassis/right_front_wheel/control_torque", right_front_wheel_control_torque_);
 
-        register_output("/chassis/encoder/alpha", encoder_alpha_);
-        register_output("/chassis/encoder/alpha_dot", encoder_alpha_dot_);
-        register_output("/chassis/radius", radius_);
     }
 
     void update() override {
@@ -169,9 +166,6 @@ public:
         const JointTargetStates joint_target = update_joint_target_states_();
         if (joint_feedback.valid) {
             vehicle_radius_ = joint_feedback.radius;
-            *radius_ = vehicle_radius_.mean();
-            *encoder_alpha_ = joint_feedback.alpha_rad.mean();
-            *encoder_alpha_dot_ = joint_feedback.alpha_dot_rad.mean();
             RCLCPP_INFO_THROTTLE(
                 get_logger(), *get_clock(), 1000,
                 "physical joint angle[deg] lf=%.2f lb=%.2f rb=%.2f rf=%.2f, radius[m] lf=%.3f "
@@ -181,10 +175,6 @@ public:
                 joint_feedback.alpha_rad[2] * 180.0 / std::numbers::pi,
                 joint_feedback.alpha_rad[3] * 180.0 / std::numbers::pi, vehicle_radius_[0],
                 vehicle_radius_[1], vehicle_radius_[2], vehicle_radius_[3]);
-        } else {
-            *radius_ = nan_;
-            *encoder_alpha_ = nan_;
-            *encoder_alpha_dot_ = nan_;
         }
 
         integral_yaw_angle_imu();
@@ -391,10 +381,6 @@ private:
         last_joint_velocity_valid_ = false;
         last_joint_target_angle_ = Eigen::Vector4d::Zero();
         last_joint_target_angle_valid_ = false;
-
-        *encoder_alpha_ = nan_;
-        *encoder_alpha_dot_ = nan_;
-        *radius_ = nan_;
 
         *left_front_steering_control_torque_ = 0.0;
         *left_back_steering_control_torque_ = 0.0;
@@ -856,10 +842,6 @@ private:
     OutputInterface<double> left_back_wheel_control_torque_;
     OutputInterface<double> right_back_wheel_control_torque_;
     OutputInterface<double> right_front_wheel_control_torque_;
-
-    OutputInterface<double> encoder_alpha_;
-    OutputInterface<double> encoder_alpha_dot_;
-    OutputInterface<double> radius_;
 
     QcpSolver qcp_solver_;
     filter::LowPassFilter<3> control_acceleration_filter_;
