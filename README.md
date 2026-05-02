@@ -277,3 +277,5 @@ build-rmcs && wait-sync && attach-remote -r
 ```
 
 可以触发 RMCS 构建，`wait-sync` 等待文件同步完成，接下来重启 RMCS 守护进程后，显示实时输出。
+
+ps: 无人机自稳需要 `ros-jazzy-mavros` 和 `ros-jazzy-cv-bridge` 这两个包。
