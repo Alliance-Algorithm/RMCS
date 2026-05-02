@@ -53,16 +53,16 @@ hero_hardware:
   ros__parameters:
     board_serial_top_board: "D4-2BCA-2E47-76CD-23BC-0B78-684B"
     serial_bottom_rmcs_board: "AF-60BB-7484-FA24-F3FC-399B-454D-22FA-1B1D"
-    bottom_yaw_motor_zero_point: 25912
-    pitch_motor_zero_point: 37034 
-    top_yaw_motor_zero_point: 11035
+    bottom_yaw_motor_zero_point: 6914
+    pitch_motor_zero_point: 0 
+    top_yaw_motor_zero_point: 0
     viewer_motor_zero_point: 3030
     external_imu_port: /dev/ttyUSB0
     bullet_feeder_motor_zero_point: 11865
-    left_front_zero_point: 1717
-    right_front_zero_point: 7762
-    left_back_zero_point:  3784
-    right_back_zero_point: 5814
+    left_front_zero_point: 5814
+    right_front_zero_point: 3806
+    left_back_zero_point:  7825
+    right_back_zero_point: 1767
     # left_front_zero_point: 3473
     # left_back_zero_point: 6124
     # right_back_zero_point: 6157
@@ -75,33 +75,22 @@ value_broadcaster:
   ros__parameters:
     forward_list:
         - /chassis/left_front_steering/angle
-        - /chassis/left_back_steering/angle
+        - /chassis/left_front_steering/velocity
+        - /chassis/left_front_steering/control_torque
+        - /chassis/left_front_steering/torque        
         - /chassis/right_front_steering/angle
+        - /chassis/right_front_steering/velocity
+        - /chassis/right_front_steering/control_torque
+        - /chassis/right_front_steering/torque        
+        - /chassis/left_back_steering/angle
+        - /chassis/left_back_steering/velocity
+        - /chassis/left_back_steering/control_torque
+        - /chassis/left_back_steering/torque        
         - /chassis/right_back_steering/angle
-        # - /shoot/heat
-        - /chassis/power
-        # - /referee/chassis/power
-        # - /referee/chassis/power_limit
-        # - /chassis/control_power_limit
-        # - /chassis/supercap/voltage
-        # - /gimbal/putter/velocity
-        - /gimbal/first_left_friction/velocity
-        # - /gimbal/first_second_friction/velocity
-        - /gimbal/second_left_friction/velocity
-        # - /gimbal/second_right_friction/velocity
-        # - /gimbal/first_left_friction/control_torque
-        # - /gimbal/first_second_friction/control_torque
-        # - /gimbal/second_left_friction/control_torque
-        # - /gimbal/second_right_friction/control_torque
-        # - /gimbal/bottom_yaw/torque
-        # - /gimbal/bottom_yaw/angle
-        # - /gimbal/top_yaw/angle
-        # - /gimbal/pitch/angle
+        - /chassis/right_back_steering/velocity
+        - /chassis/right_back_steering/control_torque
+        - /chassis/right_back_steering/torque        
 
-        - /gimbal/pitch/velocity_imu
-        - /gimbal/pitch/control_velocity
-        - /gimbal/pitch/control_torque
-    
 
 climber_controller:
   ros__parameters:
@@ -110,8 +99,8 @@ climber_controller:
     auto_climb_dash_velocity: 3.0
     auto_climb_support_retract_velocity: 30.0
     sync_coefficient: 0.3
-    first_stair_approach_pitch: 0.485
-    second_stair_approach_pitch: 0.35    
+    first_stair_approach_pitch: 0.458
+    second_stair_approach_pitch: 0.354    
     front_kp: 1.0
     front_ki: 0.0
     front_kd: 0.5
@@ -253,7 +242,7 @@ second_right_friction_velocity_pid_controller:
   
 steering_wheel_status:
   ros__parameters:
-    vehicle_radius: 0.318198
+    vehicle_radius: 0.286378
     wheel_radius: 0.055
 
 steering_wheel_controller:

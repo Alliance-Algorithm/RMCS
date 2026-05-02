@@ -1,7 +1,11 @@
 #include <atomic>
+#include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
+#include <map>
 #include <memory>
+#include <mutex>
 #include <span>
 #include <string_view>
 #include <tuple>
@@ -30,6 +34,76 @@
 #include "hardware/device/supercap.hpp"
 
 namespace rmcs_core::hardware {
+
+class CanReceiveRateCounter {
+public:
+    explicit CanReceiveRateCounter(rclcpp::Logger logger, std::string_view channel_name)
+        : logger_(logger)
+        , channel_name_(channel_name) {}
+
+    void record(std::uint32_t can_id) {
+        const auto now = Clock::now();
+
+        std::lock_guard lock{mutex_};
+        auto& status = statuses_[can_id];
+        ++status.receive_count;
+        status.last_receive_time = now;
+
+        report_if_due(now);
+    }
+
+    void report_if_due() {
+        const auto now = Clock::now();
+
+        std::lock_guard lock{mutex_};
+        report_if_due(now);
+    }
+
+private:
+    using Clock = std::chrono::steady_clock;
+
+    struct Status {
+        std::size_t receive_count{0};
+        Clock::time_point last_receive_time{};
+    };
+
+    void report_if_due(Clock::time_point now) {
+        if (statuses_.empty())
+            return;
+
+        if (last_report_time_ == Clock::time_point{}) {
+            last_report_time_ = now;
+            return;
+        }
+
+        const auto elapsed = now - last_report_time_;
+        if (elapsed < kReportInterval)
+            return;
+
+        const auto elapsed_seconds = std::chrono::duration<double>(elapsed).count();
+        for (auto& [can_id, status] : statuses_) {
+            const bool attached = now - status.last_receive_time <= kMissTimeout;
+            RCLCPP_INFO(
+                logger_, "[can rx] %.*s id=0x%03X rate=%.1fHz status=%s",
+                static_cast<int>(channel_name_.size()), channel_name_.data(),
+                static_cast<unsigned int>(can_id),
+                static_cast<double>(status.receive_count) / elapsed_seconds,
+                attached ? "attach" : "miss");
+            status.receive_count = 0;
+        }
+
+        last_report_time_ = now;
+    }
+
+    static constexpr std::chrono::milliseconds kReportInterval{1000};
+    static constexpr std::chrono::milliseconds kMissTimeout{1000};
+
+    rclcpp::Logger logger_;
+    std::string_view channel_name_;
+    std::mutex mutex_;
+    Clock::time_point last_report_time_{};
+    std::map<std::uint32_t, Status> statuses_;
+};
 
 class SteeringHeroLittle
     : public rmcs_executor::Component
@@ -370,6 +444,10 @@ private:
             std::string_view board_serial = {})
             : librmcs::agent::RmcsBoardLite(board_serial, {.dangerously_skip_version_checks = true})
             , logger_(steering_hero.get_logger())
+            // , can0_receive_rate_counter_(logger_, "bottom/can0")
+            // , can1_receive_rate_counter_(logger_, "bottom/can1")
+            // , can2_receive_rate_counter_(logger_, "bottom/can2")
+            // , can3_receive_rate_counter_(logger_, "bottom/can3")
             , imu_(1000, 0.2, 0.0)
             , dr16_(steering_hero)
             , supercap_(steering_hero, steering_hero_command)
@@ -434,11 +512,11 @@ private:
                     .set_reduction_ratio(2232. / 169.));
 
             chassis_front_climber_motor_[0].configure(
+                device::DjiMotor::Config{device::DjiMotor::Type::kM3508}.set_reduction_ratio(19.));
+            chassis_front_climber_motor_[1].configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
                     .set_reversed()
                     .set_reduction_ratio(19.));
-            chassis_front_climber_motor_[1].configure(
-                device::DjiMotor::Config{device::DjiMotor::Type::kM3508}.set_reduction_ratio(19.));
             chassis_back_climber_motor_[0].configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
                     .enable_multi_turn_angle()
@@ -485,6 +563,11 @@ private:
         ~BottomBoard() final = default;
 
         void update() {
+            // can0_receive_rate_counter_.report_if_due();
+            // can1_receive_rate_counter_.report_if_due();
+            // can2_receive_rate_counter_.report_if_due();
+            // can3_receive_rate_counter_.report_if_due();
+
             imu_.update_status();
             dr16_.update_status();
             supercap_.update_status();
@@ -508,17 +591,17 @@ private:
         void command_update() {
             auto builder = start_transmit();
 
-            // builder.can0_transmit({
-            //     .can_id = 0x200,
-            //     .can_data =
-            //         device::CanPacket8{
-            //                            chassis_wheel_motors_[0].generate_command(),
-            //                            chassis_wheel_motors_[1].generate_command(),
-            //                            device::CanPacket8::PaddingQuarter{},
-            //                            device::CanPacket8::PaddingQuarter{},
-            //                            }
-            //             .as_bytes(),
-            // });
+            builder.can0_transmit({
+                .can_id = 0x200,
+                .can_data =
+                    device::CanPacket8{
+                                       chassis_wheel_motors_[0].generate_command(),
+                                       chassis_wheel_motors_[1].generate_command(),
+                                       device::CanPacket8::PaddingQuarter{},
+                                       device::CanPacket8::PaddingQuarter{},
+                                       }
+                        .as_bytes(),
+            });
 
             builder.can0_transmit({
                 .can_id = 0x1FE,
@@ -532,46 +615,46 @@ private:
                         .as_bytes(),
             });
 
-            // builder.can1_transmit({
-            //     .can_id = 0x200,
-            //     .can_data =
-            //         device::CanPacket8{
-            //                            device::CanPacket8::PaddingQuarter{},
-            //                            device::CanPacket8::PaddingQuarter{},
-            //                            chassis_wheel_motors_[2].generate_command(),
-            //                            chassis_wheel_motors_[3].generate_command(),
-            //                            }
-            //             .as_bytes(),
-            // });
+            builder.can1_transmit({
+                .can_id = 0x200,
+                .can_data =
+                    device::CanPacket8{
+                                       device::CanPacket8::PaddingQuarter{},
+                                       device::CanPacket8::PaddingQuarter{},
+                                       chassis_wheel_motors_[2].generate_command(),
+                                       chassis_wheel_motors_[3].generate_command(),
+                                       }
+                        .as_bytes(),
+            });
 
             builder.can1_transmit({
                 .can_id = 0x1FE,
                 .can_data =
                     device::CanPacket8{
                                        device::CanPacket8::PaddingQuarter{},
-                                       chassis_steering_motors_[2].generate_command(),
                                        chassis_steering_motors_[3].generate_command(),
+                                       chassis_steering_motors_[2].generate_command(),
                                        device::CanPacket8::PaddingQuarter{},
                                        }
                         .as_bytes(),
             });
 
-            // builder.can2_transmit({
-            //     .can_id = 0x200,
-            //     .can_data =
-            //         device::CanPacket8{
-            //                            chassis_front_climber_motor_[0].generate_command(),
-            //                            chassis_back_climber_motor_[1].generate_command(),
-            //                            chassis_back_climber_motor_[0].generate_command(),
-            //                            chassis_front_climber_motor_[1].generate_command(),
-            //                            }
-            //             .as_bytes(),
-            // });
+            builder.can2_transmit({
+                .can_id = 0x200,
+                .can_data =
+                    device::CanPacket8{
+                                       chassis_front_climber_motor_[0].generate_command(),
+                                       chassis_back_climber_motor_[1].generate_command(),
+                                       chassis_front_climber_motor_[1].generate_command(),
+                                       chassis_back_climber_motor_[0].generate_command(),
+                                       }
+                        .as_bytes(),
+            });
 
-            // builder.can3_transmit({
-            //     .can_id = 0x141,
-            //     .can_data = gimbal_bottom_yaw_motor_.generate_command().as_bytes(),
-            // });
+            builder.can3_transmit({
+                .can_id = 0x141,
+                .can_data = gimbal_bottom_yaw_motor_.generate_command().as_bytes(),
+            });
         }
 
     private:
@@ -579,6 +662,7 @@ private:
             if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
                 return;
             auto can_id = data.can_id;
+            // can0_receive_rate_counter_.record(can_id);
             if (can_id == 0x201) {
                 chassis_wheel_motors_[0].store_status(data.can_data);
             } else if (can_id == 0x202) {
@@ -594,7 +678,7 @@ private:
             if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
                 return;
             auto can_id = data.can_id;
-            RCLCPP_INFO(logger_, "can1_id : %x", can_id);
+            // can1_receive_rate_counter_.record(can_id);
             if (can_id == 0x203) {
                 chassis_wheel_motors_[2].store_status(data.can_data);
             } else if (can_id == 0x204) {
@@ -612,14 +696,14 @@ private:
             if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
                 return;
             auto can_id = data.can_id;
-            // RCLCPP_INFO(logger_, "can2 id: %o", can_id);
+            // can2_receive_rate_counter_.record(can_id);
             if (can_id == 0x201) {
                 chassis_front_climber_motor_[0].store_status(data.can_data);
-            } else if (can_id == 0x204) {
-                chassis_front_climber_motor_[1].store_status(data.can_data);
             } else if (can_id == 0x203) {
-                chassis_back_climber_motor_[0].store_status(data.can_data);
+                chassis_front_climber_motor_[1].store_status(data.can_data);
             } else if (can_id == 0x202) {
+                chassis_back_climber_motor_[0].store_status(data.can_data);
+            } else if (can_id == 0x204) {
                 chassis_back_climber_motor_[1].store_status(data.can_data);
             }
         }
@@ -628,7 +712,7 @@ private:
             if (data.is_extended_can_id || data.is_remote_transmission)
                 return;
             auto can_id = data.can_id;
-            // RCLCPP_INFO(logger_, "can3 id: %o", can_id);
+            // can3_receive_rate_counter_.record(can_id);
             if (can_id == 0x141) {
                 gimbal_bottom_yaw_motor_.store_status(data.can_data);
             }
@@ -654,6 +738,10 @@ private:
         }
 
         rclcpp::Logger logger_;
+        // CanReceiveRateCounter can0_receive_rate_counter_;
+        // CanReceiveRateCounter can1_receive_rate_counter_;
+        // CanReceiveRateCounter can2_receive_rate_counter_;
+        // CanReceiveRateCounter can3_receive_rate_counter_;
 
         device::Bmi088 imu_;
         device::Dr16 dr16_;
