@@ -931,10 +931,11 @@ private:
             Eigen::Quaterniond const odom_imu_to_yaw_link{
                 bmi088_.q0(), bmi088_.q1(), bmi088_.q2(), bmi088_.q3()};
             Eigen::Quaterniond const yaw_link_to_odom_imu = odom_imu_to_yaw_link.conjugate();
-            Eigen::Quaterniond pitch_link_to_odom_imu = Eigen::Quaterniond{Eigen::AngleAxisd{
-                                                          -pitch_encoder_angle,
-                                                          Eigen::Vector3d::UnitY()}}
-                                                      * yaw_link_to_odom_imu;
+            Eigen::Quaterniond pitch_link_to_odom_imu =
+                Eigen::Quaterniond{
+                    Eigen::AngleAxisd{-pitch_encoder_angle, Eigen::Vector3d::UnitY()}
+            }
+                * yaw_link_to_odom_imu;
             pitch_link_to_odom_imu.normalize();
 
             *gimbal_yaw_velocity_bmi088_ = bmi088_.gz();
