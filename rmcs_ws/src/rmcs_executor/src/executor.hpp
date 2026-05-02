@@ -140,7 +140,11 @@ private:
                 RCLCPP_FATAL(
                     get_logger(), "Component [%s]:", component->get_component_name().c_str());
                 for (const auto& input : component->input_list_) {
-                    const auto& output = output_map[input.name];
+                    const auto output_iter = output_map.find(input.name);
+                    if (output_iter == output_map.end())
+                        continue;
+
+                    const auto& output = output_iter->second;
                     if (output->component->dependency_count_ == 0)
                         continue;
                     RCLCPP_FATAL(

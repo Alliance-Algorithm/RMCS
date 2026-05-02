@@ -10,7 +10,7 @@
 #include <rmcs_msgs/mouse.hpp>
 
 #include "referee/app/ui/shape/shape.hpp"
-#include "referee/app/ui/widget/crosshair.hpp"
+#include "referee/app/ui/widget/crosshair_circle.hpp"
 #include "referee/app/ui/widget/deformable_chassis_top_view.hpp"
 #include "referee/app/ui/widget/status_ring.hpp"
 
@@ -23,7 +23,7 @@ class Infantry
 public:
     Infantry()
         : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
-        , crosshair_(Shape::Color::WHITE, x_center - 12, y_center - 37)
+        , crosshair_circle_(Shape::Color::WHITE, x_center - 24, y_center - 15, 8, 2)
         , status_ring_(26.5, 26.5, 600, 300)
         , horizontal_center_guidelines_(
               {Shape::Color::WHITE, 2, x_center - 360, y_center, x_center - 110, y_center},
@@ -106,10 +106,17 @@ private:
             return static_cast<int>(
                 std::round((2 * std::numbers::pi - angle) / std::numbers::pi * 180));
         };
-        chassis_direction_indicator_.set_color(
-            chassis_mode == rmcs_msgs::ChassisMode::SPIN ? Shape::Color::GREEN
-                                                         : Shape::Color::PINK);
+        chassis_direction_indicator_.set_color(chassis_direction_indicator_color(chassis_mode));
         chassis_direction_indicator_.set_angle(to_referee_angle(*chassis_angle_), 30);
+    }
+
+    static Shape::Color chassis_direction_indicator_color(rmcs_msgs::ChassisMode mode) {
+        switch (mode) {
+        case rmcs_msgs::ChassisMode::SPIN: return Shape::Color::GREEN;
+        case rmcs_msgs::ChassisMode::AUTO: return Shape::Color::CYAN;
+        case rmcs_msgs::ChassisMode::STEP_DOWN: return Shape::Color::WHITE;
+        default: return Shape::Color::PINK;
+        }
     }
 
     void update_deformable_chassis_leg_arcs() {
@@ -156,7 +163,7 @@ private:
 
     // InputInterface<std::pair<uint16_t, uint16_t>> auto_aim_target_;
 
-    CrossHair crosshair_;
+    CrossHairCircle crosshair_circle_;
     StatusRing status_ring_;
 
     Line horizontal_center_guidelines_[2];

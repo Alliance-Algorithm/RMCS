@@ -29,7 +29,8 @@ rmcs_executor:
       - rmcs_core::controller::chassis::DeformableJointController -> rb_joint_controller
       - rmcs_core::controller::chassis::DeformableJointController -> rf_joint_controller
 
-      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      - rmcs::AutoAimComponent -> auto_aim_component
 
 value_broadcaster:
   ros__parameters:
@@ -53,17 +54,36 @@ value_broadcaster:
 
 deformable_infantry:
   ros__parameters:
-    serial_filter_rmcs_board: "AF-2713-E328-1A3D-1C11-3D87-3026-5FF4-4D2D"
+    serial_filter_rmcs_board: "AF-73B2-E8A1-A544-79ED-5BDA-D088-7F21-A6A6"
     serial_filter_top_board: "D4-0262-9E84-E715-CADB-9894-7241"
     left_front_zero_point: 374
     left_back_zero_point: 5801
     right_back_zero_point: 7817
     right_front_zero_point: 7136
-    yaw_motor_zero_point: 17772
-    pitch_motor_zero_point: 10898
+    yaw_motor_zero_point: 50642
+    pitch_motor_zero_point: 6245
     debug_log_supercap: false
     debug_log_wheel_motor: false
     debug_log_deformable_joint_motor: false
+
+    upper_limit: -0.61 # -35 deg
+    lower_limit: 0.05 # 6 deg
+
+    yaw_angle_kp: 20.0
+    yaw_angle_ki: 0.0
+    yaw_angle_kd: 0.0
+
+    yaw_velocity_kp: 8.0
+    yaw_velocity_ki: 0.0
+    yaw_velocity_kd: 0.0
+
+    pitch_angle_kp: 40.0
+    pitch_angle_ki: 0.0
+    pitch_angle_kd: 0.0
+
+    pitch_velocity_kp: 3.0
+    pitch_velocity_ki: 0.0
+    pitch_velocity_kd: 0.0
 
 chassis_controller:
   ros__parameters:
@@ -71,8 +91,23 @@ chassis_controller:
     min_angle: 8.0
     max_angle: 58.0
     active_suspension_enable: true
+    spin_ratio: 0.45
 
-    # IMU attitude correction at min-angle stance.
+    # Suspension geometry / support model.
+    active_suspension_mass: 22.5
+    active_suspension_rod_length: 0.150
+    active_suspension_Kz: 150.0
+    active_suspension_D_leg: 10.0
+    active_suspension_torque_limit: 80.0
+    active_suspension_gravity_comp_gain: 1.0
+    active_suspension_control_acceleration_limit: 6.0
+    active_suspension_preload_angle_deg: 8.0
+    active_suspension_entry_offset_deg: 1.5
+    active_suspension_ride_height_offset_deg: 3.0
+    active_suspension_hold_travel_deg: 5.0
+    active_suspension_activation_velocity_threshold_deg: 15.0
+
+    # IMU attitude correction as suspension force bias.
     # pitch < 0: front high. roll > 0: right high.
     active_suspension_Kp: 8.0
     active_suspension_pitch_ki: 0.35
@@ -123,7 +158,6 @@ gimbal_controller:
 
     pitch_fusion_enabled: true
     pitch_fusion_alpha: 0.98
-
 
 friction_wheel_controller:
   ros__parameters:

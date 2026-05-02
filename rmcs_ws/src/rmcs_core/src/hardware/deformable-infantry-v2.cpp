@@ -23,7 +23,8 @@
 #include <rmcs_utility/ring_buffer.hpp>
 #include <std_msgs/msg/int32.hpp>
 
-#include <librmcs/agent/rmcs_board.hpp>
+#include <librmcs/agent/c_board.hpp>
+#include <librmcs/agent/rmcs_board_lite.hpp>
 
 #include "hardware/device/bmi088.hpp"
 #include "hardware/device/can_packet.hpp"
@@ -290,7 +291,7 @@ private:
         DeformableInfantryV2& deformableInfantry;
     };
 
-    class BottomBoard final : private RmcsBoardLiteCompat {
+    class BottomBoard final : private librmcs::agent::RmcsBoard {
     public:
         friend class DeformableInfantryV2;
 
@@ -302,7 +303,7 @@ private:
             std::string serial_filter =
                 {
         })
-            : RmcsBoardLiteCompat(
+            : librmcs::agent::RmcsBoard(
                   serial_filter,
                   librmcs::agent::AdvancedOptions{.dangerously_skip_version_checks = true})
             , deformable_infantry_(deformableInfantry)
