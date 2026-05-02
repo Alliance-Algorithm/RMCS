@@ -751,6 +751,7 @@ private:
             } else if (data.can_id == 0x206) {
                 Steering_motors[1].store_status(data.can_data);
             } else if (data.can_id == 0x320) {
+
                 Leg_ecd[1].store_status(data.can_data);
             }
         }
@@ -758,7 +759,6 @@ private:
             if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
                 [[unlikely]]
                 return;
-
             if (data.can_id == 0x201) {
                 Wheel_motors[0].store_status(data.can_data);
             } else if (data.can_id == 0x202) {
@@ -806,10 +806,6 @@ private:
 
         OutputInterface<double> leg_joint_rb_control_theta_error;
         OutputInterface<double> leg_joint_rf_control_theta_error;
-        // InputInterface<double> leg_rf_joint_velocity_;
-        // InputInterface<double> leg_rf_joint_control_velocity_;
-        // InputInterface<double> leg_lf_encoder_angle_;
-        // OutputInterface<double> leg_rf_joint_control_velocity_error_;
 
     } rightboard_;
 };

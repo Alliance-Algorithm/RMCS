@@ -27,7 +27,6 @@
 #include <mutex>
 #include <sys/cdefs.h>
 #include <thread>
-
 #include <geometry_msgs/msg/point_stamped.hpp>
 #include <geometry_msgs/msg/pose.hpp>
 #include <moveit/kinematic_constraints/utils.hpp>
@@ -422,7 +421,7 @@ private:
                 }
                 between_pose[1] = k * (current_xyz.y()) + (1 - k) * (target_xyz.y());
 
-                if (delta_xyz.z() > 0 && delta_xyz.z() > b) {
+                if (delta_xyz.z() > 0 && delta_xyz.z() <b) {
                     k = k_out_reverse;
                 } else if (delta_xyz.z() < 0 && delta_xyz.z() > -b) {
                     k = k_out;

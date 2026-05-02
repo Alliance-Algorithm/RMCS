@@ -58,7 +58,7 @@ engineer_hardware:
     leg_lb_ecd_zero_point: 153149
     leg_rb_ecd_zero_point: 220758
     leg_rf_ecd_zero_point: 119271
-    big_yaw_zero_point: 54557
+    big_yaw_zero_point: 54236
 
 image_transmission:
   ros__parameters:
@@ -72,6 +72,72 @@ arm_controller:
     k_out_reverse: -0.4
     b: 0.2
     auto_storage_lb:
+      params:
+        step1_pose:
+          target_pose: [0.35, -0.12, 0.42, 0.0, 1.20, 0.0]
+          velocity_scaling: 0.05
+          acceleration_scaling: 0.05
+        step2_pose:
+          target_pose: [0.38, -0.10, 0.36, 0.0, 1.35, 0.10]
+          velocity_scaling: 0.04
+          acceleration_scaling: 0.04
+        step3_lin:
+          target_pose: [0.42, -0.08, 0.30, 0.0, 1.45, 0.10]
+          velocity_scaling: 0.03
+          acceleration_scaling: 0.03
+        step4_lin:
+          target_pose: [0.46, -0.05, 0.26, 0.0, 1.50, 0.12]
+          velocity_scaling: 0.02
+          acceleration_scaling: 0.02
+        step5_pose:
+          target_pose: [0.40, -0.02, 0.34, 0.0, 1.25, 0.05]
+          velocity_scaling: 0.03
+          acceleration_scaling: 0.03
+    auto_storage_rb:
+      params:
+        step1_pose:
+          target_pose: [0.35, -0.12, 0.42, 0.0, 1.20, 0.0]
+          velocity_scaling: 0.05
+          acceleration_scaling: 0.05
+        step2_pose:
+          target_pose: [0.38, -0.10, 0.36, 0.0, 1.35, 0.10]
+          velocity_scaling: 0.04
+          acceleration_scaling: 0.04
+        step3_lin:
+          target_pose: [0.42, -0.08, 0.30, 0.0, 1.45, 0.10]
+          velocity_scaling: 0.03
+          acceleration_scaling: 0.03
+        step4_lin:
+          target_pose: [0.46, -0.05, 0.26, 0.0, 1.50, 0.12]
+          velocity_scaling: 0.02
+          acceleration_scaling: 0.02
+        step5_pose:
+          target_pose: [0.40, -0.02, 0.34, 0.0, 1.25, 0.05]
+          velocity_scaling: 0.03
+          acceleration_scaling: 0.03
+    auto_extract_lb:
+      params:
+        step1_pose:
+          target_pose: [0.35, -0.12, 0.42, 0.0, 1.20, 0.0]
+          velocity_scaling: 0.05
+          acceleration_scaling: 0.05
+        step2_pose:
+          target_pose: [0.38, -0.10, 0.36, 0.0, 1.35, 0.10]
+          velocity_scaling: 0.04
+          acceleration_scaling: 0.04
+        step3_lin:
+          target_pose: [0.42, -0.08, 0.30, 0.0, 1.45, 0.10]
+          velocity_scaling: 0.03
+          acceleration_scaling: 0.03
+        step4_lin:
+          target_pose: [0.46, -0.05, 0.26, 0.0, 1.50, 0.12]
+          velocity_scaling: 0.02
+          acceleration_scaling: 0.02
+        step5_pose:
+          target_pose: [0.40, -0.02, 0.34, 0.0, 1.25, 0.05]
+          velocity_scaling: 0.03
+          acceleration_scaling: 0.03
+    auto_extract_rb:
       params:
         step1_pose:
           target_pose: [0.35, -0.12, 0.42, 0.0, 1.20, 0.0]
@@ -123,8 +189,8 @@ leg_controller:
         lift: [1.016670, 1.150821, -200.0, 400.0]
         lift_and_initial: [1.400270, 1.410, -100.0, 1000.0]
         initial_again: [1.600270, 1.550, -300.0, 700.0]
-        press_again: [0.802736, 0.693103, -200.0, 500.0]
-        lift_again: [1.016670, 1.250821, -200.0, 400.0]
+        press_again: [0.802736, 0.693103, -200.0, 400.0]
+        lift_again: [0.956670, 1.350821, -200.0, 400.0]
 
 
 gripper_error_angle_pid_controller:
