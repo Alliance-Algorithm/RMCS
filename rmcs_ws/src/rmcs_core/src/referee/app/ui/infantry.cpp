@@ -23,7 +23,7 @@ class Infantry
 public:
     Infantry()
         : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
-        , crosshair_circle_(Shape::Color::WHITE, x_center - 24, y_center - 15, 8, 2)
+        , crosshair_circle_(Shape::Color::WHITE, x_center - 2, y_center - 30, 8, 2)
         , status_ring_(26.5, 26.5, 600, 300)
         , horizontal_center_guidelines_(
               {Shape::Color::WHITE, 2, x_center - 360, y_center, x_center - 110, y_center},
@@ -37,9 +37,11 @@ public:
         double deformable_leg_min_angle_deg = 8.0;
         double deformable_leg_max_angle_deg = 58.0;
         get_parameter_or(
-            "deformable_leg_min_angle_deg", deformable_leg_min_angle_deg, deformable_leg_min_angle_deg);
+            "deformable_leg_min_angle_deg", deformable_leg_min_angle_deg,
+            deformable_leg_min_angle_deg);
         get_parameter_or(
-            "deformable_leg_max_angle_deg", deformable_leg_max_angle_deg, deformable_leg_max_angle_deg);
+            "deformable_leg_max_angle_deg", deformable_leg_max_angle_deg,
+            deformable_leg_max_angle_deg);
         deformable_chassis_leg_arcs_.set_angle_range(
             deformable_leg_min_angle_deg, deformable_leg_max_angle_deg);
 
@@ -121,7 +123,8 @@ private:
 
     void update_deformable_chassis_leg_arcs() {
         if (!left_front_joint_physical_angle_.ready() || !left_back_joint_physical_angle_.ready()
-            || !right_back_joint_physical_angle_.ready() || !right_front_joint_physical_angle_.ready()) {
+            || !right_back_joint_physical_angle_.ready()
+            || !right_front_joint_physical_angle_.ready()) {
             deformable_chassis_leg_arcs_.set_visible(false);
             return;
         }
