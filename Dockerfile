@@ -113,6 +113,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     apt-get autoremove -y && apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/*
 
+# Install Node.js 24 LTS (required by agent CLIs)
+RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - && \
+    apt-get install -y --no-install-recommends nodejs && \
+    apt-get autoremove -y && apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/*
+
 # Install llvm-toolchain
 ARG LLVM_VERSION=22
 RUN mkdir -p /etc/apt/keyrings && \
@@ -172,6 +178,15 @@ RUN case "${TARGETARCH}" in \
 # Change user
 RUN chsh -s /bin/zsh ubuntu && \
     echo "ubuntu ALL=(ALL:ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Precreate generic XDG-style parent directories for direct bind mounts under ubuntu's home.
+RUN mkdir -p \
+        /home/ubuntu/.agents \
+        /home/ubuntu/.cache \
+        /home/ubuntu/.config \
+        /home/ubuntu/.local/share \
+        /home/ubuntu/.local/state && \
+    chown -R ubuntu:ubuntu /home/ubuntu/.agents /home/ubuntu/.cache /home/ubuntu/.config /home/ubuntu/.local
 WORKDIR /home/ubuntu
 ENV USER=ubuntu
 ENV WORKDIR=/home/ubuntu
