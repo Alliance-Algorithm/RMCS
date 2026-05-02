@@ -32,6 +32,7 @@
 #include "tools/img_tools.hpp"
 
 #include "tools/math_tools.hpp"
+#include <rmcs_msgs/robot_id.hpp>
 
 namespace sp_vision_25::bridge {
 namespace {
@@ -194,7 +195,7 @@ public:
             declare_parameter<std::string>(
                 "config_file", package_share + "/configs/standard3.yaml");
         if (!has_parameter("bullet_speed_fallback"))
-            declare_parameter<double>("bullet_speed_fallback", 11.4);
+            declare_parameter<double>("bullet_speed_fallback", 11.8);
         if (!has_parameter("result_timeout"))
             declare_parameter<double>("result_timeout", 0.2);
         if (!has_parameter("debug"))
@@ -212,7 +213,7 @@ public:
         register_output("/gimbal/auto_aim/plan_pitch", plan_pitch_, 0.0);
         register_input("/gimbal/pitch/angle", gimbal_pitch_angle_);
         register_input("/gimbal/yaw/angle", gimbal_yaw_angle_);
-        // 前馈
+        register_input("/referee/id", robot_id_, false);
     }
 
     ~HeroAutoAimBridge() override {
@@ -251,6 +252,11 @@ public:
         bullet_speed_snapshot_.store(
             static_cast<double>(*bullet_speed_), std::memory_order_relaxed);
         store_latest_tf(*tf_);
+        if (robot_id_.ready()) {
+            if (auto color = enemy_color_from_robot_id(*robot_id_)) {
+                runtime_enemy_color_.store(static_cast<int>(*color), std::memory_order_relaxed);
+            }
+        }
         publish_latest_result(*timestamp_);
     }
 
@@ -287,20 +293,6 @@ private:
         std::lock_guard<std::mutex> lock(tf_mutex_);
         return latest_tf_;
     }
-
-    // std::array<double, 2> current_world_yaw_pitch() {
-    //     const auto tf = load_latest_tf();
-    //     auto direction = fast_tf::cast<rmcs_description::OdomImu>(
-    //         rmcs_description::PitchLink::DirectionVector{Eigen::Vector3d::UnitX()}, tf);
-
-    //     Eigen::Vector3d vector = *direction;
-    //     if (vector.norm() > 1e-9)
-    //         vector.normalize();
-    //     else
-    //         vector = Eigen::Vector3d::UnitX();
-
-    //     return yaw_pitch_from_direction(vector);
-    // }
 
     void store_result(const VisionResult& result) {
         std::lock_guard<std::mutex> lock(result_mutex_);
@@ -347,6 +339,13 @@ private:
         }
     }
 
+    std::optional<auto_aim::Color> enemy_color_from_robot_id(rmcs_msgs::RobotId robot_id) {
+        if (robot_id == rmcs_msgs::RobotId::UNKNOWN)
+            return std::nullopt;
+
+        return robot_id.color() == rmcs_msgs::RobotColor::RED ? auto_aim::blue : auto_aim::red;
+    }
+
     void detect_main(const std::string& runtime_config_path) {
         try {
             io::Camera camera(runtime_config_path);
@@ -374,7 +373,9 @@ private:
                 }
 
                 auto armors = detector.detect(frame);
-                auto targets = tracker.track(armors, frame_timestamp);
+                const auto enemy_color = static_cast<auto_aim::Color>(
+                    runtime_enemy_color_.load(std::memory_order_relaxed));
+                auto targets = tracker.track(armors, frame_timestamp, enemy_color);
                 if (!targets.empty()) {
                     store_latest_target(targets.front(), frame_timestamp);
                     // RCLCPP_INFO(get_logger(), "Latest target found.");
@@ -432,55 +433,12 @@ private:
                 VisionResult result;
                 result.timestamp = target_state.timestamp;
                 result.valid = plan.control;
-                // const auto [actual_yaw, actual_pitch] = current_world_yaw_pitch();
-
-                // const double yaw_error =
-                //     plan.control ? tools::limit_rad(plan.yaw - actual_yaw) : 0.0;
-                // const double pitch_error = plan.control ? (plan.pitch - actual_pitch) : 0.0;
-
-                // const bool angle_aligned = plan.control && std::abs(yaw_error) <
-                // kFireYawTolerance
-                //                         && std::abs(pitch_error) < kFirePitchTolerance;
-
-                // // result.fire_control = plan.control && plan.fire && angle_aligned;
                 result.fire_control = plan.control && plan.fire;
                 result.direction = plan.control ? angles_to_direction(plan.yaw, plan.pitch)
                                                 : Eigen::Vector3d::Zero();
                 result.laser_distance = plan.control ? planner.debug_xyza.head<3>().norm() : 0.0;
                 result.plan_yaw = plan.yaw;
                 result.plan_pitch = plan.pitch;
-                // RCLCPP_INFO(
-                //     get_logger(), "Planned yaw: %f, pitch: %f", result.plan_yaw,
-                //     result.plan_pitch);
-                // RCLCPP_INFO(
-                //     get_logger(), " yaw: %f ,pitch: %f", *gimbal_yaw_angle_,
-                //     *gimbal_pitch_angle_);
-                //               const auto tf = load_latest_tf();
-                //             const auto gimbal_pose = tf_to_gimbal_pose(tf);
-                //             const auto imu_ypr = tools::eulers(gimbal_pose, 2, 1, 0);
-                //             const auto armor_ypd = tools::xyz2ypd(planner.debug_xyza.head<3>());
-                //               RCLCPP_INFO(
-                //         get_logger(),
-                //         "imu_yaw: %f, imu_pitch: %f",
-                //         imu_ypr[0], imu_ypr[1]);
-
-                //     RCLCPP_INFO(
-                //         get_logger(),
-                //         "debug_xyza x: %f, y: %f, z: %f, armor_yaw: %f",
-                //         planner.debug_xyza[0], planner.debug_xyza[1], planner.debug_xyza[2],
-                //         planner.debug_xyza[3]);
-
-                //     RCLCPP_INFO(
-                //         get_logger(),
-                //         "debug_los_yaw: %f, debug_los_pitch: %f, debug_distance: %f",
-                //         armor_ypd[0], armor_ypd[1], armor_ypd[2]);
-                //         if (target_state.target.has_value()) {
-                //   const auto ekf_x = target_state.target->ekf_x();
-                //   RCLCPP_INFO(
-                //       get_logger(),
-                //       "target_ekf center_x: %f, center_y: %f, center_z: %f, yaw: %f, vyaw: %f",
-                //       ekf_x[0], ekf_x[2], ekf_x[4], ekf_x[6], ekf_x[7]);
-                //   }
                 result.plan_yaw_velocity = plan.yaw_vel;
                 result.plan_yaw_acceleration = plan.yaw_acc;
                 result.plan_pitch_velocity = plan.pitch_vel;
@@ -524,11 +482,13 @@ private:
     std::mutex tf_mutex_;
     rmcs_description::Tf latest_tf_;
 
-    std::atomic<double> bullet_speed_snapshot_{11.4};
-    float bullet_speed_fallback_storage_ = 11.F;
+    std::atomic<double> bullet_speed_snapshot_{11.8};
+    float bullet_speed_fallback_storage_ = 11.8F;
     std::chrono::duration<double> result_timeout_{0.1};
     bool debug_ = false;
     std::string runtime_config_path_;
+    InputInterface<rmcs_msgs::RobotId> robot_id_;
+    std::atomic<int> runtime_enemy_color_{static_cast<int>(auto_aim::red)};
 };
 
 } // namespace sp_vision_25::bridge

@@ -89,7 +89,7 @@ private:
 
     double centerline_enter_speed_ = 0.0;
     double centerline_exit_speed_ = 0.0;
-    TrackingMode tracking_mode_ = TrackingMode::armor;
+    TrackingMode tracking_mode_ = TrackingMode::centerline;
 
     int locked_impact_id_ = -1;
     int locked_family_parity_ = -1;

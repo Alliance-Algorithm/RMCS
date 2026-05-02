@@ -200,8 +200,7 @@ public:
                             (switch_right == Switch::UP || (mouse.right && mouse.left))
                             && (*fire_control_);
 
-                        const bool auto_trigger_emergence = mouse.right          // 必须一直按着右键
-                                                         && (click_count_ >= 2); // 左键双击
+                        const bool auto_trigger_emergence = mouse.right && (click_count_ >= 2);
 
                         const bool auto_trigger =
                             auto_fire_now
@@ -209,7 +208,7 @@ public:
 
                         if (manual_trigger || auto_trigger || auto_trigger_emergence) {
                             if (*control_bullet_allowance_limited_by_heat_ > 0
-                                && (shoot_stage_ == ShootStage::COMPRESSED || shoot_first)) {
+                                && (shoot_stage_ == ShootStage::PRELOADED || shoot_first)) {
                                 set_shooting();
                                 last_fire_time_ = now;
                                 shoot_first = false;
@@ -220,14 +219,14 @@ public:
                         }
                     }
 
-                    // if (shoot_stage_ == ShootStage::COMPRESSED) {
-                    //     // 暂存模式：等待灰度传感器状态更新以判断是否完成推弹
-                    //     if (1 || *grayscale_sensor_status_) {
-                    //         set_preloaded();
-                    //     } else {
-                    //         set_preloading();
-                    //     }
-                    // }
+                    if (shoot_stage_ == ShootStage::COMPRESSED) {
+                        // 暂存模式：等待灰度传感器状态更新以判断是否完成推弹
+                        if (*grayscale_sensor_status_) {
+                            set_preloaded();
+                        } else {
+                            set_preloading();
+                        }
+                    }
 
                     if (shoot_stage_ == ShootStage::UPDATING) {
                         // 缓冲模式：使推杆和供弹盘不发生运动冲突
@@ -264,7 +263,7 @@ public:
                         const auto angle_err = bullet_feeder_control_angle_ - *bullet_feeder_angle_;
                         if (angle_err < 0.1) {
                             RCLCPP_INFO(get_logger(), "RESETED");
-                            set_preloaded();
+                            set_compressed();
                         }
                         double velocity_err =
                             bullet_feeder_angle_pid_.update(angle_err) - *bullet_feeder_velocity_;
