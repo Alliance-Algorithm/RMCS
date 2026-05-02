@@ -102,6 +102,30 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
                 )
             )
 
+        auto_aim_cfg = config.get("auto_aim_runtime", {}).get("ros__parameters")
+        if auto_aim_cfg is not None and auto_aim_cfg.get("enabled", True):
+            package = auto_aim_cfg.get("package", "rmcs_auto_aim_v2")
+            executable = auto_aim_cfg.get("executable", "rmcs_auto_aim_v2_runtime")
+            node_name = auto_aim_cfg.get("node_name", "auto_aim_runtime")
+            respawn = auto_aim_cfg.get("respawn", True)
+            respawn_delay = float(auto_aim_cfg.get("respawn_delay", 1.0))
+            entities.append(
+                LogInfo(
+                    msg=f"Starting auto aim runtime '{node_name}' from {package}/{executable}"
+                )
+            )
+            entities.append(
+                Node(
+                    package=package,
+                    executable=executable,
+                    name=node_name,
+                    respawn=respawn,
+                    respawn_delay=respawn_delay,
+                    output="screen",
+                    emulate_tty=True,
+                )
+            )
+
         mavros_cfg = config.get("mavros", {}).get("ros__parameters")
         if mavros_cfg is not None and mavros_cfg.get("enabled", True):
             mavros_share = FindPackageShare("mavros").perform(context)

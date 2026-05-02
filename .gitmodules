@@ -4,9 +4,13 @@
 [submodule "rmcs_ws/src/hikcamera"]
 	path = rmcs_ws/src/hikcamera
 	url = https://github.com/Alliance-Algorithm/ros2-hikcamera.git
+	branch =2.0
 [submodule "rmcs_ws/src/serial"]
 	path = rmcs_ws/src/serial
 	url = https://github.com/Alliance-Algorithm/ros2-serial.git
 [submodule "rmcs_ws/src/odin_ros_driver"]
 	path = rmcs_ws/src/odin_ros_driver
 	url = https://github.com/Alliance-Algorithm/odin_ros_driver.git
+[submodule "rmcs_ws/src/rmcs_auto_aim_v2"]
+	path = rmcs_ws/src/rmcs_auto_aim_v2
+	url = https://github.com/Alliance-Algorithm/rmcs_auto_aim_v2.git

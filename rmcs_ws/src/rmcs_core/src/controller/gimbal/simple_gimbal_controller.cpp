@@ -1,6 +1,8 @@
 #include <cstdlib>
 #include <limits>
+#include <utility>
 
+#include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
@@ -8,6 +10,7 @@
 #include <rmcs_msgs/switch.hpp>
 
 #include "controller/gimbal/two_axis_gimbal_solver.hpp"
+#include "debug/rclcpp_diagnostic_log.hpp"
 
 namespace rmcs_core::controller::gimbal {
 
@@ -48,14 +51,29 @@ public:
             *pitch_angle_error_ = angle_error.pitch_angle_error;
         }
 
-        // RCLCPP_INFO(get_logger(), "[gimbal calibration] New pitch offset: %f",
-        // *pitch_angle_error_);
+        if constexpr (RMCS_RCLCPP_DIAGNOSTIC_LOGS) {
+            RCLCPP_INFO_THROTTLE(
+                get_logger(), *get_clock(), 5000,
+                "Gimbal controller output: yaw_error=%.6f pitch_error=%.6f",
+                *yaw_angle_error_, *pitch_angle_error_);
+        }
     }
 
     TwoAxisGimbalSolver::AngleError calculate_angle_error() {
         auto switch_right = *switch_right_;
         auto switch_left = *switch_left_;
         auto mouse = *mouse_;
+
+        if constexpr (RMCS_RCLCPP_DIAGNOSTIC_LOGS) {
+            RCLCPP_INFO_THROTTLE(
+                get_logger(), *get_clock(), 5000,
+                "Gimbal remote input: switch_left=%u switch_right=%u joystick_left=(%.3f, %.3f) "
+                "mouse_velocity=(%.3f, %.3f) mouse_left=%d mouse_right=%d",
+                static_cast<unsigned>(std::to_underlying(switch_left)),
+                static_cast<unsigned>(std::to_underlying(switch_right)), joystick_left_->x(),
+                joystick_left_->y(), mouse_velocity_->x(), mouse_velocity_->y(), mouse.left,
+                mouse.right);
+        }
 
         using namespace rmcs_msgs;
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)

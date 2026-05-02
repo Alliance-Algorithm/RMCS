@@ -1,13 +1,14 @@
-#include <cmath>
+#include <atomic>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <mutex>
+#include <span>
 #include <tuple>
+#include <utility>
 
-#include <nav_msgs/msg/odometry.hpp>
-#include <px4_ros2/navigation/experimental/local_position_measurement_interface.hpp>
-#include <px4_ros2/utils/frame_conversion.hpp>
-#include <rclcpp/logger.hpp>
+#include <eigen3/Eigen/Geometry>
+
+#include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 
 #include <rmcs_description/tf_description.hpp>
@@ -18,6 +19,7 @@
 
 #include <librmcs/agent/c_board.hpp>
 
+#include "debug/rclcpp_diagnostic_log.hpp"
 #include "hardware/device/bmi088.hpp"
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
@@ -31,10 +33,10 @@ class Flight
     , private librmcs::agent::CBoard {
 public:
     Flight()
-        : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
-        , librmcs::agent::CBoard{}
-        , local_position_interface_{*this, px4_ros2::PoseFrame::LocalNED, px4_ros2::VelocityFrame::LocalNED}
-        , logger_(get_logger())
+        : Node{
+              get_component_name(),
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
+        , librmcs::agent::CBoard{get_parameter("board_serial").as_string()}
         , flight_command_(
               create_partner_component<FlightCommand>(get_component_name() + "_command", *this))
         , gimbal_yaw_motor_(*this, *flight_command_, "/gimbal/yaw")
@@ -44,22 +46,6 @@ public:
         , gimbal_bullet_feeder_(*this, *flight_command_, "/gimbal/bullet_feeder")
         , dr16_(*this)
         , bmi088_(500.0, 0.3, 0.005) {
-
-        if (!local_position_interface_.doRegister()) {
-            throw std::runtime_error("Failed to register LocalPositionMeasurementInterface");
-        }
-        RCLCPP_INFO(logger_, "LocalPositionMeasurementInterface registered successfully.");
-
-        auto odin_odom_qos = rclcpp::QoS{1};
-        odin_odom_qos.reliability(RMW_QOS_POLICY_RELIABILITY_RELIABLE);
-        odin_odom_qos.durability(RMW_QOS_POLICY_DURABILITY_VOLATILE);
-        odin_odometry_subscription_ = create_subscription<nav_msgs::msg::Odometry>(
-            "/odin1/odometry", odin_odom_qos,
-            [this](const nav_msgs::msg::Odometry::ConstSharedPtr& msg) {
-                odin_odometry_subscription_callback(*msg);
-            });
-        RCLCPP_INFO(logger_, "Subscribed to Odin driver odometry on /odin1/odometry.");
-
         gimbal_yaw_motor_.configure(
             device::LkMotor::Config{device::LkMotor::Type::kMHF7015}
                 .set_reversed()
@@ -118,7 +104,7 @@ public:
                 [&buffer](std::byte byte) noexcept { *buffer++ = byte; }, size);
         };
         referee_serial_->write = [this](const std::byte* buffer, size_t size) {
-            start_transmit().uart2_transmit({
+            start_transmit().uart1_transmit({
                 std::span{buffer, size}
             });
             return size;
@@ -131,12 +117,13 @@ public:
         update_motors();
         update_imu();
         dr16_.update_status();
-        update_local_position();
     }
 
     void command_update() {
         auto yaw_cmd = gimbal_yaw_motor_.generate_command();
         auto pitch_cmd = gimbal_pitch_motor_.generate_command();
+        const auto yaw_command_count = ++yaw_can_command_count_;
+        const auto pitch_command_count = ++pitch_can_command_count_;
 
         device::CanPacket8 dji_cmds{
             gimbal_bullet_feeder_.generate_command(), device::CanPacket8::PaddingQuarter{},
@@ -146,6 +133,22 @@ public:
             .can2_transmit({.can_id = 0x141, .can_data = yaw_cmd.as_bytes()})
             .can2_transmit({.can_id = 0x142, .can_data = pitch_cmd.as_bytes()})
             .can1_transmit({.can_id = 0x200, .can_data = dji_cmds.as_bytes()});
+
+        if constexpr (RMCS_RCLCPP_DIAGNOSTIC_LOGS) {
+            RCLCPP_INFO_THROTTLE(
+                get_logger(), *get_clock(), 5000,
+                "Flight CAN command: yaw_ctrl_vel=%.6f yaw_ctrl_torque=%.6f "
+                "pitch_ctrl_vel=%.6f pitch_ctrl_torque=%.6f cmd_count(yaw=%llu,pitch=%llu) "
+                "fb_count(yaw=%llu,pitch=%llu)",
+                gimbal_yaw_motor_.control_velocity(), gimbal_yaw_motor_.control_torque(),
+                gimbal_pitch_motor_.control_velocity(), gimbal_pitch_motor_.control_torque(),
+                static_cast<unsigned long long>(yaw_command_count),
+                static_cast<unsigned long long>(pitch_command_count),
+                static_cast<unsigned long long>(
+                    yaw_can_feedback_count_.load(std::memory_order_relaxed)),
+                static_cast<unsigned long long>(
+                    pitch_can_feedback_count_.load(std::memory_order_relaxed)));
+        }
     }
 
 private:
@@ -160,6 +163,20 @@ private:
         gimbal_bullet_feeder_.update_status();
         gimbal_left_friction_.update_status();
         gimbal_right_friction_.update_status();
+
+        if constexpr (RMCS_RCLCPP_DIAGNOSTIC_LOGS) {
+            RCLCPP_INFO_THROTTLE(
+                get_logger(), *get_clock(), 5000,
+                "Flight CAN feedback: yaw(angle=%.6f,velocity=%.6f,torque=%.6f,count=%llu) "
+                "pitch(angle=%.6f,velocity=%.6f,torque=%.6f,count=%llu)",
+                gimbal_yaw_motor_.angle(), gimbal_yaw_motor_.velocity(), gimbal_yaw_motor_.torque(),
+                static_cast<unsigned long long>(
+                    yaw_can_feedback_count_.load(std::memory_order_relaxed)),
+                gimbal_pitch_motor_.angle(), gimbal_pitch_motor_.velocity(),
+                gimbal_pitch_motor_.torque(),
+                static_cast<unsigned long long>(
+                    pitch_can_feedback_count_.load(std::memory_order_relaxed)));
+        }
     }
 
     void update_imu() {
@@ -172,148 +189,7 @@ private:
         *gimbal_pitch_velocity_imu_ = bmi088_.gy();
     }
 
-    void update_local_position() {
-        // Rate-limit to 50 Hz: skip unless 20 update cycles (20 ms) have elapsed
-        if (++odom_publish_counter_ < 20)
-            return;
-        odom_publish_counter_ = 0;
-
-        OdomSnapshot snap;
-        {
-            std::lock_guard<std::mutex> lock(odom_mutex_);
-            if (!odom_ready_)
-                return;
-            snap = latest_odom_;
-            odom_ready_ = false;
-        }
-
-        // Validate: reject any snapshot containing NaN values
-        if (std::isnan(snap.pos_x) || std::isnan(snap.pos_y) || std::isnan(snap.pos_z)
-            || std::isnan(snap.vel_x) || std::isnan(snap.vel_y) || std::isnan(snap.vel_z)
-            || std::isnan(snap.q_w) || std::isnan(snap.q_x) || std::isnan(snap.q_y)
-            || std::isnan(snap.q_z)) {
-            RCLCPP_WARN_THROTTLE(
-                logger_, *get_clock(), 1000,
-                "Odometry snapshot contains NaN, skipping publish");
-            return;
-        }
-
-        px4_ros2::LocalPositionMeasurement meas{};
-        meas.timestamp_sample =
-            snap.timestamp_sample.nanoseconds() > 0 ? snap.timestamp_sample : get_clock()->now();
-
-        // Odin publishes in ENU frame; PX4 expects NED.
-        // ENU→NED position: (x_ned, y_ned, z_ned) = (y_enu, x_enu, -z_enu)
-        float ned_pos_x = snap.pos_y;
-        float ned_pos_y = snap.pos_x;
-        float ned_pos_z = -snap.pos_z;
-
-        float ned_vel_x = snap.vel_y;
-        float ned_vel_y = snap.vel_x;
-        float ned_vel_z = -snap.vel_z;
-
-        meas.position_xy = Eigen::Vector2f{ned_pos_x, ned_pos_y};
-        meas.position_z = ned_pos_z;
-
-        // Covariance: only provide if source has valid (>0) values; swap x↔y for NED
-        bool pos_cov_valid = snap.cov_xx > 0.f && snap.cov_yy > 0.f && snap.cov_zz > 0.f
-            && !std::isnan(snap.cov_xx) && !std::isnan(snap.cov_yy) && !std::isnan(snap.cov_zz);
-        if (pos_cov_valid) {
-            meas.position_xy_variance = Eigen::Vector2f{snap.cov_yy, snap.cov_xx};
-            meas.position_z_variance = snap.cov_zz;
-        } else {
-            // No valid covariance from source; omit position entirely rather than fabricate
-            meas.position_xy = std::nullopt;
-            meas.position_z = std::nullopt;
-        }
-
-        bool vel_cov_valid = snap.vel_cov_xx > 0.f && snap.vel_cov_yy > 0.f
-            && snap.vel_cov_zz > 0.f && !std::isnan(snap.vel_cov_xx)
-            && !std::isnan(snap.vel_cov_yy) && !std::isnan(snap.vel_cov_zz);
-        if (vel_cov_valid) {
-            meas.velocity_xy = Eigen::Vector2f{ned_vel_x, ned_vel_y};
-            meas.velocity_xy_variance = Eigen::Vector2f{snap.vel_cov_yy, snap.vel_cov_xx};
-            meas.velocity_z = ned_vel_z;
-            meas.velocity_z_variance = snap.vel_cov_zz;
-        }
-        // If vel covariance invalid, omit velocity (leave as nullopt)
-
-        // Attitude: convert quaternion from ENU to NED
-        Eigen::Quaternionf q_enu{snap.q_w, snap.q_x, snap.q_y, snap.q_z};
-        q_enu.normalize();
-        meas.attitude_quaternion = px4_ros2::attitudeEnuToNed(q_enu);
-        meas.attitude_variance = Eigen::Vector3f{0.05f, 0.05f, 0.05f};
-
-        try {
-            local_position_interface_.update(meas);
-            RCLCPP_INFO_THROTTLE(
-                logger_, *get_clock(), 1000,
-                "Published local position measurement with timestamp %f",
-                meas.timestamp_sample.seconds());
-        } catch (const px4_ros2::NavigationInterfaceInvalidArgument& e) {
-            RCLCPP_ERROR_THROTTLE(
-                logger_, *get_clock(), 1000, "Navigation update error: %s", e.what());
-        }
-    }
-
-    void gimbal_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
-        // RCLCPP_INFO(
-        //     logger_, "[gimbal calibration] New yaw offset: %ld",
-        //     gimbal_yaw_motor_.calibrate_zero_point());
-        // RCLCPP_INFO(
-        //     logger_, "[gimbal calibration] New pitch offset: %ld",
-        //     gimbal_pitch_motor_.calibrate_zero_point());
-    }
-
-    // ---- Shared odometry snapshot (filled by ROS subscription, read by update()) ----
-    struct OdomSnapshot {
-        rclcpp::Time timestamp_sample{};
-        float pos_x{}, pos_y{}, pos_z{};
-        float vel_x{}, vel_y{}, vel_z{};
-        float ang_x{}, ang_y{}, ang_z{};
-        float q_x{}, q_y{}, q_z{}, q_w{1.f};
-        float cov_xx{}, cov_yy{}, cov_zz{};
-        float vel_cov_xx{}, vel_cov_yy{}, vel_cov_zz{};
-    };
-
-    std::mutex odom_mutex_;
-    OdomSnapshot latest_odom_;
-    bool odom_ready_{false};
-    uint32_t odom_publish_counter_{0};
-
-    void odin_odometry_subscription_callback(const nav_msgs::msg::Odometry& msg) {
-        RCLCPP_INFO_THROTTLE(
-            logger_, *get_clock(), 1000, "Received odometry message with timestamp %u.%u",
-            msg.header.stamp.sec, msg.header.stamp.nanosec);
-
-        OdomSnapshot snap{};
-        snap.timestamp_sample = rclcpp::Time{msg.header.stamp};
-        snap.pos_x = static_cast<float>(msg.pose.pose.position.x);
-        snap.pos_y = static_cast<float>(msg.pose.pose.position.y);
-        snap.pos_z = static_cast<float>(msg.pose.pose.position.z);
-        snap.vel_x = static_cast<float>(msg.twist.twist.linear.x);
-        snap.vel_y = static_cast<float>(msg.twist.twist.linear.y);
-        snap.vel_z = static_cast<float>(msg.twist.twist.linear.z);
-        snap.ang_x = static_cast<float>(msg.twist.twist.angular.x);
-        snap.ang_y = static_cast<float>(msg.twist.twist.angular.y);
-        snap.ang_z = static_cast<float>(msg.twist.twist.angular.z);
-        snap.q_x = static_cast<float>(msg.pose.pose.orientation.x);
-        snap.q_y = static_cast<float>(msg.pose.pose.orientation.y);
-        snap.q_z = static_cast<float>(msg.pose.pose.orientation.z);
-        snap.q_w = static_cast<float>(msg.pose.pose.orientation.w);
-        snap.cov_xx = static_cast<float>(msg.pose.covariance[0]);
-        snap.cov_yy = static_cast<float>(msg.pose.covariance[7]);
-        snap.cov_zz = static_cast<float>(msg.pose.covariance[14]);
-        snap.vel_cov_xx = static_cast<float>(msg.twist.covariance[0]);
-        snap.vel_cov_yy = static_cast<float>(msg.twist.covariance[7]);
-        snap.vel_cov_zz = static_cast<float>(msg.twist.covariance[14]);
-
-        {
-            std::lock_guard<std::mutex> lock(odom_mutex_);
-            latest_odom_ = snap;
-            odom_ready_ = true;
-        }
-    }
+    void gimbal_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {}
 
 protected:
     void can1_receive_callback(const librmcs::data::CanDataView& data) override {
@@ -335,13 +211,15 @@ protected:
             [[unlikely]]
             return;
         if (data.can_id == 0x142) {
+            ++pitch_can_feedback_count_;
             gimbal_pitch_motor_.store_status(data.can_data);
         } else if (data.can_id == 0x141) {
+            ++yaw_can_feedback_count_;
             gimbal_yaw_motor_.store_status(data.can_data);
         }
     }
 
-    void uart2_receive_callback(const librmcs::data::UartDataView& data) override {
+    void uart1_receive_callback(const librmcs::data::UartDataView& data) override {
         const std::byte* ptr = data.uart_data.data();
         referee_ring_buffer_receive_.emplace_back_n(
             [&ptr](std::byte* storage) noexcept { new (storage) std::byte{*ptr++}; },
@@ -361,10 +239,6 @@ protected:
     }
 
 private:
-    // ---- Members ----
-    px4_ros2::LocalPositionMeasurementInterface local_position_interface_;
-    rclcpp::Logger logger_;
-
     class FlightCommand : public rmcs_executor::Component {
     public:
         explicit FlightCommand(Flight& flight)
@@ -375,7 +249,6 @@ private:
 
     std::shared_ptr<FlightCommand> flight_command_;
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr gimbal_calibrate_subscription_;
-    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odin_odometry_subscription_;
     device::LkMotor gimbal_yaw_motor_;
     device::LkMotor gimbal_pitch_motor_;
 
@@ -385,6 +258,11 @@ private:
 
     device::Dr16 dr16_;
     device::Bmi088 bmi088_;
+
+    std::atomic<std::uint64_t> yaw_can_command_count_{0};
+    std::atomic<std::uint64_t> pitch_can_command_count_{0};
+    std::atomic<std::uint64_t> yaw_can_feedback_count_{0};
+    std::atomic<std::uint64_t> pitch_can_feedback_count_{0};
 
     OutputInterface<double> gimbal_yaw_velocity_imu_;
     OutputInterface<double> gimbal_pitch_velocity_imu_;

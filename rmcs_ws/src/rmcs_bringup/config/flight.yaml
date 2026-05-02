@@ -3,11 +3,13 @@ rmcs_executor:
     update_rate: 1000.0
     components:
       - rmcs_core::hardware::Flight -> flight_hardware
+      - rmcs_core::hardware::FlightMavros -> flight_mavros_hardware
       - rmcs_core::referee::Status -> referee_status
 
-      - rmcs_core::controller::gimbal::SimpleGimbalController -> gimbal_controller
+      - rmcs_core::controller::gimbal::HoldController -> hold_controller
+      - rmcs_core::controller::gimbal::FlightGimbalController -> gimbal_controller
+      - rmcs::AutoAimComponent -> auto_aim_component
       - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
-      - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
 
       - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
@@ -23,27 +25,36 @@ rmcs_executor:
 
       - rmcs_core::referee::Command -> referee_command
 
-      # - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
-      # - rmcs_auto_aim::AutoAimController -> auto_aim_controller
 
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
 
-xrce_dds_agent:
+mavros:
   ros__parameters:
-    device: /dev/ttyACM0
-    baudrate: 921600
-# xrce_dds_agent:
-#   device: /dev/ttyS0
-#   baudrate: 921600
+    enabled: false
+    fcu_url: serial:///dev/ttyACM0:921600
+    gcs_url: ""
+    target_system_id: 1
+    target_component_id: 1
+    fcu_protocol: v2.0
+    respawn: true
+    respawn_delay: 1.0
 
 odin_ros_driver:
   ros__parameters:
-    # Bring up the same host_sdk_sample node used by odin1_ros2.launch.py.
-    # Flight only needs /odin1/odometry, so the auxiliary depth/reprojection/RViz nodes stay off.
+    # FlightMavros reads odom -> odin1_base_link TF and forwards it to MAVROS vision pose.
     enabled: true
     config_file: "/rmcs_install/share/odin_ros_driver/config/control_command.yaml" # Empty uses odin_ros_driver/config/control_command.yaml
     node_name: host_sdk_sample
+    respawn: true
+    respawn_delay: 1.0
+
+auto_aim_runtime:
+  ros__parameters:
+    enabled: true
+    package: rmcs_auto_aim_v2
+    executable: rmcs_auto_aim_v2_runtime
+    node_name: auto_aim_runtime
     respawn: true
     respawn_delay: 1.0
 
@@ -71,45 +82,57 @@ tf_broadcaster:
 
 flight_hardware:
   ros__parameters:
-    usb_pid: -1
+    board_serial: "d4-9d44"
     yaw_motor_zero_point: 38745
     pitch_motor_zero_point: 51586
+
+flight_mavros_hardware:
+  ros__parameters:
+    target_frame_id: odom
+    source_frame_id: odin1_base_link
+    output_rate: 30.0
+    sensor_roll_offset_rad: 3.141592653589793
+    sensor_pitch_offset_rad: 1.5707963267948966
+    sensor_yaw_offset_rad: 0.0
+    mavros_pose_topic: /mavros/vision_pose/pose
+    mavros_pose_frame_id: odom
 
 referee_status:
   ros__parameters:
     path: /dev/tty0
+
+hold_controller:
+  ros__parameters:
+    joystick_deadband: 0.03
+    mouse_deadband: 0.5
 
 gimbal_controller:
   ros__parameters:
     upper_limit: -0.15
     lower_limit: 0.50
     yaw_upper_limit: -0.349
-    yaw_lower_limit: 0.349
+    yaw_lower_limit: 3.14
+    hold_level_threshold: 0.01
+    hold_yaw_kd: 8.0
+    hold_pitch_kd: 0.5
 
 yaw_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/yaw/control_angle_error
-    control: /gimbal/yaw/control_velocity
-    kp: 2.0
-    ki: 0.0
-    kd: 0.0
-
-yaw_velocity_pid_controller:
-  ros__parameters:
-    measurement: /gimbal/yaw/velocity_imu
-    setpoint: /gimbal/yaw/control_velocity
+    feedforward: /gimbal/yaw/hold_feedforward
     control: /gimbal/yaw/control_torque
-    kp: 4.0
+    kp: 70.8943
     ki: 0.0
-    kd: 0.005
+    kd: 1440.0
 
 pitch_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/pitch/control_angle_error
+    feedforward: /gimbal/pitch/hold_feedforward
     control: /gimbal/pitch/control_velocity
-    kp: 8.0
+    kp: 10.0
     ki: 0.0
-    kd: 0.0
+    kd: 400.0
 
 friction_wheel_controller:
   ros__parameters:

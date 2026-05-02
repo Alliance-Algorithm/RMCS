@@ -1,0 +1,67 @@
+#!/bin/bash
+
+set -euo pipefail
+
+: "${RMCS_PATH:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+
+header="${RMCS_PATH}/rmcs_ws/src/rmcs_core/src/debug/rclcpp_diagnostic_log.hpp"
+
+usage() {
+    cat <<'EOF'
+Usage: rclcpp-log <insert|cancel>
+
+Commands:
+  insert  Enable RMCS diagnostic RCLCPP logs
+  cancel  Disable RMCS diagnostic RCLCPP logs
+EOF
+}
+
+set_state() {
+    local value="$1"
+
+    if [[ ! -f "${header}" ]]; then
+        echo "> ERROR: Cannot find ${header}"
+        exit 1
+    fi
+
+    python3 - "$header" "$value" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+path = Path(sys.argv[1])
+value = sys.argv[2]
+text = path.read_text(encoding="utf-8")
+updated, count = re.subn(
+    r"^#define RMCS_RCLCPP_DIAGNOSTIC_LOGS [01]$",
+    f"#define RMCS_RCLCPP_DIAGNOSTIC_LOGS {value}",
+    text,
+    count=1,
+    flags=re.MULTILINE,
+)
+
+if count != 1:
+    raise SystemExit(f"> ERROR: Cannot update {path}")
+
+path.write_text(updated, encoding="utf-8")
+PY
+}
+
+case "${1:-}" in
+insert)
+    set_state 1
+    echo "> RMCS diagnostic RCLCPP logs enabled. Rebuild rmcs_core to apply."
+    ;;
+cancel)
+    set_state 0
+    echo "> RMCS diagnostic RCLCPP logs disabled. Rebuild rmcs_core to apply."
+    ;;
+-h|--help|help|"")
+    usage
+    ;;
+*)
+    echo "> ERROR: Unknown command '${1}'"
+    usage
+    exit 1
+    ;;
+esac

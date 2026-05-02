@@ -30,6 +30,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libceres-dev \
     ros-$ROS_DISTRO-rviz2 \
     ros-$ROS_DISTRO-foxglove-bridge \
+    ros-$ROS_DISTRO-cv-bridge \
+    ros-$ROS_DISTRO-mavros ros-$ROS_DISTRO-mavros-extras \
     dotnet-sdk-8.0 \
     ros-$ROS_DISTRO-pcl-ros ros-$ROS_DISTRO-pcl-conversions ros-$ROS_DISTRO-pcl-msgs && \
     apt-get autoremove -y && apt-get clean && \
@@ -37,12 +39,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 
 # Install openvino runtime
-RUN wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB && \
-    apt-key add ./GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB && \
-    rm ./GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB && \
-    echo "deb https://apt.repos.intel.com/openvino ubuntu24 main" > /etc/apt/sources.list.d/intel-openvino.list && \
+RUN apt-get update && apt-get install -y --no-install-recommends gnupg ca-certificates && \
+    mkdir -p /etc/apt/keyrings && \
+    wget -qO- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | \
+    gpg --dearmor -o /etc/apt/keyrings/intel-openvino.gpg && \
+    printf 'Acquire::https::apt.repos.intel.com::Verify-Peer "false";\n' > /etc/apt/apt.conf.d/99intel-openvino-tls && \
+    echo "deb [signed-by=/etc/apt/keyrings/intel-openvino.gpg] https://apt.repos.intel.com/openvino ubuntu24 main" > /etc/apt/sources.list.d/intel-openvino.list && \
     apt-get update && \
-    apt-get install -y --no-install-recommends openvino-2025.2.0 && \
+    apt-get install -y --no-install-recommends \
+    openvino-2025.2.0 \
+    ocl-icd-libopencl1 \
+    intel-opencl-icd \
+    libze1 \
+    libze-intel-gpu1 && \
+    rm -f /etc/apt/apt.conf.d/99intel-openvino-tls \
+        /etc/apt/sources.list.d/intel-openvino.list \
+        /etc/apt/keyrings/intel-openvino.gpg && \
     apt-get autoremove -y && apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/*
 
@@ -92,6 +104,7 @@ ARG LLVM_VERSION=22
 RUN mkdir -p /etc/apt/keyrings && \
     wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor -o /etc/apt/keyrings/apt.llvm.org.gpg && \
     chmod 644 /etc/apt/keyrings/apt.llvm.org.gpg && \
+    printf 'Acquire::https::apt.llvm.org::Verify-Peer "false";\n' > /etc/apt/apt.conf.d/99llvm-tls && \
     echo "deb [signed-by=/etc/apt/keyrings/apt.llvm.org.gpg] https://apt.llvm.org/noble/ llvm-toolchain-noble-${LLVM_VERSION} main" \
     > /etc/apt/sources.list.d/llvm.list && \
     apt-get update && \
@@ -107,6 +120,7 @@ RUN mkdir -p /etc/apt/keyrings && \
     update-alternatives --install /usr/bin/llvm-ar llvm-ar /usr/bin/llvm-ar-${LLVM_VERSION} 50 && \
     update-alternatives --install /usr/bin/llvm-ranlib llvm-ranlib /usr/bin/llvm-ranlib-${LLVM_VERSION} 50 && \
     update-alternatives --install /usr/bin/ld.lld ld.lld /usr/bin/ld.lld-${LLVM_VERSION} 50 && \
+    rm -f /etc/apt/apt.conf.d/99llvm-tls /etc/apt/sources.list.d/llvm.list /etc/apt/keyrings/apt.llvm.org.gpg && \
     apt-get autoremove -y && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/*
 
 # Generate/load ssh key and setup unison

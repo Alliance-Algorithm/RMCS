@@ -5,6 +5,7 @@
 
 #include "controller/pid/pid_calculator.hpp"
 #include "controller/pid/smart_input.hpp"
+#include "debug/rclcpp_diagnostic_log.hpp"
 
 namespace rmcs_core::controller::pid {
 
@@ -38,6 +39,12 @@ public:
     void update() override {
         auto err = *setpoint_ - *measurement_;
         *control_ = *feedforward_ + pid_calculator_.update(err);
+        if constexpr (RMCS_RCLCPP_DIAGNOSTIC_LOGS) {
+            RCLCPP_INFO_THROTTLE(
+                get_logger(), *get_clock(), 5000,
+                "PID output: measurement=%.6f setpoint=%.6f feedforward=%.6f control=%.6f",
+                *measurement_, *setpoint_, *feedforward_, *control_);
+        }
     }
 
 private:
