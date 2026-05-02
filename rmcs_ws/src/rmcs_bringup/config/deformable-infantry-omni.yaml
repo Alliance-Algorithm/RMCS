@@ -30,7 +30,7 @@ rmcs_executor:
       - rmcs_core::controller::chassis::DeformableJointController -> rf_joint_controller
 
       # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
-      - rmcs::AutoAimComponent -> auto_aim_component
+      # - rmcs::AutoAimComponent -> auto_aim_component
 
 value_broadcaster:
   ros__parameters:
@@ -69,13 +69,13 @@ deformable_infantry:
     upper_limit: -0.61 # -35 deg
     lower_limit: 0.05 # 6 deg
 
-    yaw_angle_kp: 20.0
+    yaw_angle_kp: 25.0
     yaw_angle_ki: 0.0
-    yaw_angle_kd: 0.0
+    yaw_angle_kd: 0.5
 
-    yaw_velocity_kp: 8.0
+    yaw_velocity_kp: 12.0
     yaw_velocity_ki: 0.0
-    yaw_velocity_kd: 0.0
+    yaw_velocity_kd: 0.3
 
     pitch_angle_kp: 40.0
     pitch_angle_ki: 0.0
@@ -130,10 +130,13 @@ chassis_controller:
 
 gimbal_controller:
   ros__parameters:
+    inertia: 2.7228  # kg·m²
+    friction: 1.65   # Nm/(rad/s)
+
     upper_limit: -0.61 # -35 deg
     lower_limit: 0.05 # 6 deg
 
-    yaw_angle_kp: 20.0
+    yaw_angle_kp: 12.0
     yaw_angle_ki: 0.0
     yaw_angle_kd: 0.0
 

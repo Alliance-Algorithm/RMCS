@@ -31,6 +31,10 @@ public:
         get_parameter("pitch_torque_control", pitch_torque_control_enabled_);
         get_parameter("manual_joystick_sensitivity", joystick_sensitivity_);
         get_parameter("manual_mouse_sensitivity", mouse_sensitivity_);
+
+        // Feedforward parameters
+        yaw_inertia_ = get_parameter("inertia").as_double();
+        yaw_friction_ = get_parameter("friction").as_double();
     }
 
     auto update() -> void override {
@@ -64,8 +68,27 @@ public:
         const auto yaw_velocity_ref = yaw_angle_pid_.update(angle_error.yaw_angle_error);
         const auto pitch_velocity_ref = pitch_angle_pid_.update(angle_error.pitch_angle_error);
 
-        *output_.yaw_control_torque =
-            yaw_velocity_pid_.update(yaw_velocity_ref - *input_.yaw_velocity_imu);
+        // Calculate acceleration from velocity derivative with low-pass filter
+        double yaw_accel_raw = 0.0;
+        if (std::isfinite(last_yaw_velocity_ref_)) {
+            yaw_accel_raw = (yaw_velocity_ref - last_yaw_velocity_ref_) * 1000.0;  // dt = 1ms
+        }
+        last_yaw_velocity_ref_ = yaw_velocity_ref;
+
+        // Low-pass filter for acceleration (alpha = 0.1 for smoothing)
+        const double alpha = 0.1;
+        if (std::isfinite(filtered_yaw_accel_)) {
+            filtered_yaw_accel_ = alpha * yaw_accel_raw + (1.0 - alpha) * filtered_yaw_accel_;
+        } else {
+            filtered_yaw_accel_ = 0.0;
+        }
+
+        // Feedforward control: torque = J * accel + b * velocity
+        const auto yaw_velocity_error = yaw_velocity_ref - *input_.yaw_velocity_imu;
+        const auto yaw_feedforward = yaw_inertia_ * filtered_yaw_accel_ + yaw_friction_ * yaw_velocity_ref;
+        const auto yaw_feedback = yaw_velocity_pid_.update(yaw_velocity_error);
+
+        *output_.yaw_control_torque = yaw_feedforward + yaw_feedback;
         if (pitch_torque_control_enabled_) {
             *output_.pitch_control_velocity = kNaN;
             *output_.pitch_control_torque =
@@ -167,6 +190,8 @@ private:
         yaw_velocity_pid_.reset();
         pitch_angle_pid_.reset();
         pitch_velocity_pid_.reset();
+        last_yaw_velocity_ref_ = kNaN;
+        filtered_yaw_accel_ = kNaN;
         *output_.yaw_control_torque = kNaN;
         *output_.pitch_control_velocity = kNaN;
         *output_.pitch_control_torque = kNaN;
@@ -207,6 +232,12 @@ private:
     double joystick_sensitivity_ = 0.003;
     double mouse_sensitivity_ = 0.5;
     bool pitch_torque_control_enabled_ = false;
+
+    // Feedforward parameters
+    double yaw_inertia_;
+    double yaw_friction_;
+    double last_yaw_velocity_ref_ = kNaN;
+    double filtered_yaw_accel_ = kNaN;
 };
 
 } // namespace rmcs_core::controller::gimbal
