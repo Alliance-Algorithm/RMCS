@@ -180,7 +180,7 @@ public:
                 gimbal_calibrate_subscription_callback(std::move(msg));
             });
 
-        rmcs_board_ = std::make_unique<BottomBoard>(
+        rmcs_board_lite = std::make_unique<BottomBoard>(
             *this, *deformable_infantry_command_,
             get_parameter("serial_filter_rmcs_board").as_string());
         top_board_ = std::make_unique<TopBoard>(
@@ -196,14 +196,14 @@ public:
     }
 
     void update() override {
-        rmcs_board_->update();
+        rmcs_board_lite->update();
         top_board_->update();
         update_hard_sync_snapshot();
     }
 
     void command_update() {
         const bool even = ((cmd_tick_++ & 1u) == 0u);
-        rmcs_board_->command_update(even);
+        rmcs_board_lite->command_update(even);
         top_board_->command_update();
     }
 
@@ -234,48 +234,48 @@ private:
     }
 
     void steers_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
-        if (!rmcs_board_)
+        if (!rmcs_board_lite)
             return;
 
         RCLCPP_INFO(
             get_logger(), "New left front offset: %d",
-            rmcs_board_->chassis_steer_motors_[0].calibrate_zero_point());
+            rmcs_board_lite->chassis_steer_motors_[0].calibrate_zero_point());
         RCLCPP_INFO(
             get_logger(), "New left back offset: %d",
-            rmcs_board_->chassis_steer_motors_[1].calibrate_zero_point());
+            rmcs_board_lite->chassis_steer_motors_[1].calibrate_zero_point());
         RCLCPP_INFO(
             get_logger(), "New right back offset: %d",
-            rmcs_board_->chassis_steer_motors_[2].calibrate_zero_point());
+            rmcs_board_lite->chassis_steer_motors_[2].calibrate_zero_point());
         RCLCPP_INFO(
             get_logger(), "New right front offset: %d",
-            rmcs_board_->chassis_steer_motors_[3].calibrate_zero_point());
+            rmcs_board_lite->chassis_steer_motors_[3].calibrate_zero_point());
     }
 
     void joints_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
-        if (!rmcs_board_)
+        if (!rmcs_board_lite)
             return;
 
         RCLCPP_INFO(
             get_logger(), "New left front offset: %ld",
-            rmcs_board_->chassis_joint_motors_[0].calibrate_zero_point());
+            rmcs_board_lite->chassis_joint_motors_[0].calibrate_zero_point());
         RCLCPP_INFO(
             get_logger(), "New left back offset: %ld",
-            rmcs_board_->chassis_joint_motors_[1].calibrate_zero_point());
+            rmcs_board_lite->chassis_joint_motors_[1].calibrate_zero_point());
         RCLCPP_INFO(
             get_logger(), "New right back offset: %ld",
-            rmcs_board_->chassis_joint_motors_[2].calibrate_zero_point());
+            rmcs_board_lite->chassis_joint_motors_[2].calibrate_zero_point());
         RCLCPP_INFO(
             get_logger(), "New right front offset: %ld",
-            rmcs_board_->chassis_joint_motors_[3].calibrate_zero_point());
+            rmcs_board_lite->chassis_joint_motors_[3].calibrate_zero_point());
     }
 
     void gimbal_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
-        if (!rmcs_board_ || !top_board_)
+        if (!rmcs_board_lite || !top_board_)
             return;
 
         RCLCPP_INFO(
             get_logger(), "[gimbal calibration] New yaw offset: %ld",
-            rmcs_board_->gimbal_yaw_motor_.calibrate_zero_point());
+            rmcs_board_lite->gimbal_yaw_motor_.calibrate_zero_point());
         RCLCPP_INFO(
             get_logger(), "[gimbal calibration] New pitch offset: %ld",
             top_board_->gimbal_pitch_motor_.calibrate_zero_point());
@@ -291,7 +291,7 @@ private:
         DeformableInfantryV2& deformableInfantry;
     };
 
-    class BottomBoard final : private librmcs::agent::RmcsBoard {
+    class BottomBoard final : private RmcsBoardLiteCompat {
     public:
         friend class DeformableInfantryV2;
 
@@ -303,7 +303,7 @@ private:
             std::string serial_filter =
                 {
         })
-            : librmcs::agent::RmcsBoard(
+            : RmcsBoardLiteCompat(
                   serial_filter,
                   librmcs::agent::AdvancedOptions{.dangerously_skip_version_checks = true})
             , deformable_infantry_(deformableInfantry)
@@ -931,11 +931,10 @@ private:
             Eigen::Quaterniond const odom_imu_to_yaw_link{
                 bmi088_.q0(), bmi088_.q1(), bmi088_.q2(), bmi088_.q3()};
             Eigen::Quaterniond const yaw_link_to_odom_imu = odom_imu_to_yaw_link.conjugate();
-            Eigen::Quaterniond pitch_link_to_odom_imu =
-                Eigen::Quaterniond{
-                    Eigen::AngleAxisd{-pitch_encoder_angle, Eigen::Vector3d::UnitY()}
-            }
-                * yaw_link_to_odom_imu;
+            Eigen::Quaterniond pitch_link_to_odom_imu = Eigen::Quaterniond{Eigen::AngleAxisd{
+                                                          -pitch_encoder_angle,
+                                                          Eigen::Vector3d::UnitY()}}
+                                                      * yaw_link_to_odom_imu;
             pitch_link_to_odom_imu.normalize();
 
             *gimbal_yaw_velocity_bmi088_ = bmi088_.gz();
@@ -1020,7 +1019,7 @@ private:
     Clock::time_point next_hard_sync_log_time_{};
 
     std::shared_ptr<DeformableInfantryV2Command> deformable_infantry_command_;
-    std::unique_ptr<BottomBoard> rmcs_board_;
+    std::unique_ptr<BottomBoard> rmcs_board_lite;
     std::unique_ptr<TopBoard> top_board_;
 
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr steers_calibrate_subscription_;
