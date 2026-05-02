@@ -19,7 +19,7 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , following_velocity_controller_(10.0, 0.0, 2.4) {
+        , following_velocity_controller_(9.0 , 0.0, 1000.0) {
         following_velocity_controller_.output_max = angular_velocity_max;
         following_velocity_controller_.output_min = -angular_velocity_max;
 

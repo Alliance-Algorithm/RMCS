@@ -41,18 +41,18 @@ rmcs_executor:
 Infantry_hardware:
   ros__parameters:
     board_serial_top_board: "D4-632C-37BC-6A17-ACA2-E3FE-91E9"
-    board_serial_bottom_board_one: "D4-6A83-030D-F3D0-9103-F8A5-1246"
-    board_serial_bottom_board_two: "D4-6654-1C0F-7353-AA15-A77B-313D"
-    yaw_motor_zero_point: 8054
-    pitch_motor_zero_point: 21931
+    board_serial_bottom_board: "AF-EEF5-24BA-6675-F1B1-C797-50AF-869C-870E"
+    yaw_motor_zero_point: 7570
+    pitch_motor_zero_point: 24243
     # top_yaw_motor_zero_point: 58744
     # viewer_motor_zero_point: 3030
     # external_imu_port: /dev/ttyUSB0
     # bullet_feeder_motor_zero_point: 15111
-    left_front_zero_point: 5816
-    left_back_zero_point: 3776
-    right_back_zero_point: 3084
-    right_front_zero_point: 5077
+    left_front_zero_point: 5806
+    right_front_zero_point: 5092
+    left_back_zero_point: 3759
+    right_back_zero_point: 3103
+    
 
 value_broadcaster:
   ros__parameters:
@@ -140,18 +140,18 @@ yaw_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/yaw/control_angle_error
     control: /gimbal/yaw/control_velocity
-    kp: 15.0 #20.00
+    kp: 20.0 #20.00
     ki: 0.0
-    kd: 0.8 #0.8
+    kd: 0.9 #0.9
 
 yaw_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/yaw/velocity_imu
     setpoint: /gimbal/yaw/control_velocity
     control: /gimbal/yaw/control_torque
-    kp: 2.5 #50.00
+    kp: 2.5 #2.5
     ki: 0.00
-    kd: 0.2 #
+    kd: 0.6 #0.6
 
 friction_wheel_controller:
   ros__parameters:
@@ -166,7 +166,7 @@ friction_wheel_controller:
 heat_controller:
   ros__parameters:
     heat_per_shot: 10000
-    reserved_heat: 25000
+    reserved_heat: 5000
 
 bullet_feeder_controller:
   ros__parameters:
