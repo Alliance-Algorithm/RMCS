@@ -442,7 +442,8 @@ private:
         explicit BottomBoard(
             SteeringHeroLittle& steering_hero, SteeringHeroLittleCommand& steering_hero_command,
             std::string_view board_serial = {})
-            : librmcs::agent::RmcsBoardLite(board_serial, {.dangerously_skip_version_checks = true})
+            : librmcs::agent::RmcsBoardLite(
+                  board_serial, {.dangerously_skip_version_checks = false})
             , logger_(steering_hero.get_logger())
             // , can0_receive_rate_counter_(logger_, "bottom/can0")
             // , can1_receive_rate_counter_(logger_, "bottom/can1")

@@ -435,7 +435,7 @@ Plan Planner::plan_from_shot_state(Target target_at_shot, double bullet_speed) {
     clear_debug_targets();
 
     if (bullet_speed < 10 || bullet_speed > 12)
-        bullet_speed = 11.8;
+        bullet_speed = 11.7;
 
     const TrackingMode mode = select_tracking_mode(target_at_shot);
 

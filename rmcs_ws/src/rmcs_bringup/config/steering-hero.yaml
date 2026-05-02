@@ -36,7 +36,7 @@ rmcs_executor:
       # - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
       # - rmcs_auto_aim::AutoAimController -> auto_aim_controller
 
-      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
 
       - sp_vision_25::bridge::HeroAutoAimBridge -> hero_auto_aim_bridge 
@@ -55,7 +55,6 @@ hero_hardware:
     board_serial_bottom_board_one: "D4-7973-19A9-EA40-4A3E-306F-10F9"
     board_serial_bottom_board_two: "D4-3674-7174-8768-879E-E44A-3931"
     bottom_yaw_motor_zero_point: 25912
-    # bottom_yaw_motor_zero_point: 25431  little
     pitch_motor_zero_point: 37034 
     top_yaw_motor_zero_point: 65509
     viewer_motor_zero_point: 3030
@@ -65,10 +64,6 @@ hero_hardware:
     right_front_zero_point: 1043
     left_back_zero_point:  3784
     right_back_zero_point: 5814
-    # left_front_zero_point: 3473
-    # left_back_zero_point: 6124
-    # right_back_zero_point: 6157
-    # right_front_zero_point: 2723
 
 
 
@@ -144,21 +139,6 @@ dual_yaw_controller:
     bottom_yaw_velocity_kd: 0.0
     bottom_yaw_velocity_integral_min: -2500.0
     bottom_yaw_velocity_integral_max: 2500.0
-
-# dual_yaw_controller:
-#   ros__parameters:
-#     top_yaw_angle_kp: 24.5
-#     top_yaw_angle_ki: 0.0
-#     top_yaw_angle_kd: 0.0
-#     top_yaw_velocity_kp: 77.4
-#     top_yaw_velocity_ki: 0.004
-#     top_yaw_velocity_kd: 1.0
-#     bottom_yaw_angle_kp: 8.6
-#     bottom_yaw_angle_ki: 0.0
-#     bottom_yaw_angle_kd: 0.0
-#     bottom_yaw_velocity_kp: 25.85
-#     bottom_yaw_velocity_ki: 0.0
-#     bottom_yaw_velocity_kd: 50.0
     
 pitch_angle_pid_controller:
   ros__parameters:
@@ -310,8 +290,8 @@ auto_aim_controller:
 hero_auto_aim_bridge:                                                                                                 
     ros__parameters:                                                                                                    
       config_file: "configs/standard3.yaml"                                                                             
-      bullet_speed_fallback: 11.8                                                                                  
-      result_timeout: 0.08   # 0.08                                                                                     
+      bullet_speed_fallback: 11.7                                                                                  
+      result_timeout: 0.1   # 0.08                                                                                     
       debug: false
 
 pitch_swept_frequency_controller:

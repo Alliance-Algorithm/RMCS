@@ -144,38 +144,6 @@ public:
                     // 发射触发检测
                     // RCLCPP_INFO(get_logger(), "%.2f", *bullet_feeder_angle_);
                     // RCLCPP_INFO(get_logger(), "%.2f", *bullet_feeder_velocity_);
-
-                    // if (switch_right != Switch::DOWN) {
-                    //     if ((!last_mouse_.left && mouse.left)
-                    //         || (last_switch_left_ == rmcs_msgs::Switch::MIDDLE
-                    //             && switch_left == rmcs_msgs::Switch::DOWN)) {
-                    // if (switch_right != Switch::DOWN) {
-
-                    //     const auto now = std::chrono::steady_clock::now();
-
-                    //     const bool manual_trigger = (!last_mouse_.left && mouse.left)
-                    //                              || (last_switch_left_ ==
-                    //                              rmcs_msgs::Switch::MIDDLE
-                    //                                  && switch_left == rmcs_msgs::Switch::DOWN);
-
-                    //     // const bool auto_fire_now = (switch_right == Switch::UP) &&
-                    //     // (*fire_control_);
-                    //     const bool auto_fire_now =
-                    //         (switch_right == Switch::UP || mouse.right) && (*fire_control_);
-
-                    //     const bool auto_trigger =
-                    //         auto_fire_now
-                    //         && (now - last_fire_time_ > std::chrono::milliseconds(800));
-
-                    //     if (manual_trigger || auto_trigger) {
-                    //         if (*control_bullet_allowance_limited_by_heat_ > 0
-                    //             && (shoot_stage_ == ShootStage::PRELOADED || shoot_first)) {
-                    //             set_shooting();
-                    //             last_fire_time_ = now;
-                    //             shoot_first = false;
-                    //         }
-                    //     }
-                    // }
                     if (switch_right != Switch::DOWN) {
 
                         const auto now = std::chrono::steady_clock::now();
@@ -204,7 +172,7 @@ public:
 
                         const bool auto_trigger =
                             auto_fire_now
-                            && (now - last_fire_time_ > std::chrono::milliseconds(800));
+                            && (now - last_fire_time_ > std::chrono::milliseconds(1000));
 
                         if (manual_trigger || auto_trigger || auto_trigger_emergence) {
                             if (*control_bullet_allowance_limited_by_heat_ > 0
