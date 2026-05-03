@@ -36,15 +36,24 @@ public:
         register_input("/remote/mouse", mouse_);
         register_input("/remote/keyboard", keyboard_);
 
-        register_input("/gimbal/auto_aim/control_direction", auto_aim_control_direction_, false);
-        register_input("/gimbal/pitch/angle", gimbal_pitch_angle_);
-
         register_output("/gimbal/mode", gimbal_mode_, rmcs_msgs::GimbalMode::IMU);
 
+        register_input("/gimbal/pitch/angle", gimbal_pitch_angle_);
         register_output("/gimbal/yaw/control_angle_error", yaw_angle_error_, nan_);
         register_output("/gimbal/pitch/control_angle_error", pitch_angle_error_, nan_);
         register_output("/gimbal/yaw/control_angle_shift", yaw_control_angle_shift_, nan_);
         register_output("/gimbal/pitch/control_angle_shift", pitch_control_angle_shift_, nan_);
+
+        register_input("/auto_aim/control_direction", auto_aim_control_direction_, false);
+        register_input("/auto_aim/should_control", auto_aim_should_control_, false);
+    }
+
+    void before_updating() override {
+        if (!auto_aim_control_direction_.ready())
+            auto_aim_control_direction_.make_and_bind_directly(Eigen::Vector3d::Zero());
+
+        if (!auto_aim_should_control_.ready())
+            auto_aim_should_control_.make_and_bind_directly(false);
     }
 
     void update() override {
@@ -102,9 +111,7 @@ public:
     }
 
     TwoAxisGimbalSolver::AngleError update_imu_control() {
-        if (auto_aim_control_direction_.ready()
-            && (mouse_->right || *switch_right_ == rmcs_msgs::Switch::UP)
-            && !auto_aim_control_direction_->isZero()) {
+        if (can_use_auto_aim()) {
             return imu_gimbal_solver.update(
                 TwoAxisGimbalSolver::SetControlDirection{
                     OdomImu::DirectionVector{*auto_aim_control_direction_}});
@@ -123,6 +130,20 @@ public:
 
         return imu_gimbal_solver.update(
             TwoAxisGimbalSolver::SetControlShift{yaw_shift, pitch_shift});
+    }
+
+    bool can_use_auto_aim() const {
+        if (!*auto_aim_should_control_)
+            return false;
+
+        if (!(mouse_->right || *switch_right_ == rmcs_msgs::Switch::UP))
+            return false;
+
+        const auto& direction = *auto_aim_control_direction_;
+        if (!direction.allFinite())
+            return false;
+
+        return !direction.isZero(1e-6);
     }
 
     struct EncoderControlShift {
@@ -169,7 +190,6 @@ private:
 
     rmcs_msgs::Keyboard last_keyboard_ = rmcs_msgs::Keyboard::zero();
 
-    InputInterface<Eigen::Vector3d> auto_aim_control_direction_;
     InputInterface<double> gimbal_pitch_angle_;
 
     rmcs_msgs::GimbalMode gimbal_mode_keyboard_ = rmcs_msgs::GimbalMode::IMU;
@@ -177,6 +197,9 @@ private:
 
     const double upper_limit_, lower_limit_;
     TwoAxisGimbalSolver imu_gimbal_solver;
+
+    InputInterface<bool> auto_aim_should_control_;
+    InputInterface<Eigen::Vector3d> auto_aim_control_direction_;
 
     OutputInterface<double> yaw_angle_error_, pitch_angle_error_;
     OutputInterface<double> yaw_control_angle_shift_, pitch_control_angle_shift_;
