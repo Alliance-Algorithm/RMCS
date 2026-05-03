@@ -1,0 +1,273 @@
+#!/usr/bin/env python3
+
+import concurrent.futures
+import ipaddress
+import json
+import socket
+import sys
+
+
+SSH_PORT = 2022
+CONNECT_TIMEOUT = 0.25
+BANNER_TIMEOUT = 0.35
+DEFAULT_192_168_SEGMENTS = range(1, 11)
+SKIP_PREFIXES = ("lo", "docker", "br-", "veth", "zt", "tailscale")
+
+
+def print_usage():
+    print(
+        """
+Usage: scan-robot [--json] [subnet ...]
+
+Examples:
+  scan-robot
+  scan-robot --json
+  scan-robot 192.168.1.0/24
+  scan-robot 192.168.1.0/24 192.168.2.0/24
+""".strip()
+    )
+
+
+def parse_args(argv):
+    json_mode = False
+    subnet_args = []
+
+    for arg in argv:
+        if arg in ("-h", "--help"):
+            print_usage()
+            sys.exit(0)
+        if arg == "--json":
+            json_mode = True
+            continue
+        subnet_args.append(arg)
+
+    return json_mode, subnet_args
+
+
+def parse_networks(subnet_args):
+    if subnet_args:
+        networks = []
+        for raw in subnet_args:
+            try:
+                networks.append(ipaddress.ip_network(raw, strict=False))
+            except ValueError:
+                sys.exit(f"Error: Invalid subnet '{raw}'.")
+
+        bad = [str(network) for network in networks if network.version != 4]
+        if bad:
+            sys.exit(
+                f"Error: Only IPv4 subnets are supported: {', '.join(bad)}"
+            )
+
+        return dedupe_networks(networks)
+
+    return default_networks()
+
+
+def default_networks():
+    psutil = __import__("psutil")
+
+    stats = psutil.net_if_stats()
+    networks = []
+
+    for iface, addrs in psutil.net_if_addrs().items():
+        if iface.startswith(SKIP_PREFIXES):
+            continue
+
+        iface_stat = stats.get(iface)
+        if iface_stat is not None and not iface_stat.isup:
+            continue
+
+        for addr in addrs:
+            if addr.family != socket.AF_INET or not addr.netmask:
+                continue
+
+            ip = ipaddress.ip_address(addr.address)
+            if ip.is_loopback:
+                continue
+
+            interface = ipaddress.ip_interface(f"{addr.address}/{addr.netmask}")
+            if not interface.ip.is_private:
+                continue
+
+            networks.extend(expanded_networks(interface))
+            break
+
+    networks = dedupe_networks(networks)
+    if not networks:
+        sys.exit("Error: No usable private IPv4 interfaces found.")
+
+    return networks
+
+
+def expanded_networks(interface):
+    ip = interface.ip
+    if ip.packed[0] == 192 and ip.packed[1] == 168:
+        return [
+            ipaddress.ip_network(f"192.168.{segment}.0/24")
+            for segment in DEFAULT_192_168_SEGMENTS
+        ]
+
+    return [ipaddress.ip_network(f"{ip}/24", strict=False)]
+
+
+def dedupe_networks(networks):
+    seen = set()
+    ordered = []
+    for network in networks:
+        if network in seen:
+            continue
+        seen.add(network)
+        ordered.append(network)
+    return ordered
+
+
+def host_candidates(networks):
+    hosts = []
+    seen = set()
+    for network in networks:
+        for host in network.hosts():
+            host_str = str(host)
+            if host_str in seen:
+                continue
+            seen.add(host_str)
+            hosts.append(host_str)
+    return hosts
+
+
+def probe_host(host):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.settimeout(CONNECT_TIMEOUT)
+        if sock.connect_ex((host, SSH_PORT)) != 0:
+            return None
+
+        sock.settimeout(BANNER_TIMEOUT)
+        banner = ""
+        try:
+            banner = sock.recv(256).decode("utf-8", errors="replace").strip()
+        except OSError:
+            pass
+
+    if banner and not banner.startswith("SSH-"):
+        return None
+
+    hostname, hostname_source = reverse_lookup(host)
+    return {
+        "ip": host,
+        "hostname": hostname or "unknown",
+        "hostname_source": hostname_source,
+        "port": SSH_PORT,
+        "banner": banner or "unknown",
+    }
+
+
+def reverse_lookup(host):
+    old_timeout = socket.getdefaulttimeout()
+    socket.setdefaulttimeout(BANNER_TIMEOUT)
+    try:
+        hostname = socket.gethostbyaddr(host)[0]
+        if hostname.endswith("."):
+            hostname = hostname[:-1]
+        return hostname, "ptr"
+    except OSError:
+        return "", "unknown"
+    finally:
+        socket.setdefaulttimeout(old_timeout)
+
+
+def scan(networks):
+    targets = host_candidates(networks)
+    max_workers = min(128, max(8, len(targets)))
+    results = []
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as pool:
+        futures = [pool.submit(probe_host, host) for host in targets]
+        for future in concurrent.futures.as_completed(futures):
+            result = future.result()
+            if result is not None:
+                results.append(result)
+
+    return sorted(
+        results,
+        key=lambda item: tuple(int(part) for part in item["ip"].split(".")),
+    )
+
+
+def format_table(results):
+    rows = []
+    for index, result in enumerate(results):
+        rows.append(
+            {
+                "index": str(index),
+                "ip": result["ip"],
+                "hostname": result["hostname"],
+                "hostname_source": result["hostname_source"],
+                "port": str(result["port"]),
+                "banner": result["banner"],
+            }
+        )
+
+    widths = {
+        "index": max(len("INDEX"), *(len(row["index"]) for row in rows)),
+        "ip": max(len("IP"), *(len(row["ip"]) for row in rows)),
+        "hostname": max(len("HOSTNAME"), *(len(row["hostname"]) for row in rows)),
+        "hostname_source": max(
+            len("NAME_SOURCE"), *(len(row["hostname_source"]) for row in rows)
+        ),
+        "port": max(len("PORT"), *(len(row["port"]) for row in rows)),
+    }
+
+    header = (
+        f"{'INDEX':<{widths['index']}}  "
+        f"{'IP':<{widths['ip']}}  "
+        f"{'HOSTNAME':<{widths['hostname']}}  "
+        f"{'NAME_SOURCE':<{widths['hostname_source']}}  "
+        f"{'PORT':<{widths['port']}}  BANNER"
+    )
+    separator = (
+        f"{'-' * widths['index']}  "
+        f"{'-' * widths['ip']}  "
+        f"{'-' * widths['hostname']}  "
+        f"{'-' * widths['hostname_source']}  "
+        f"{'-' * widths['port']}  {'-' * 6}"
+    )
+
+    lines = [header, separator]
+    for row in rows:
+        lines.append(
+            f"{row['index']:<{widths['index']}}  "
+            f"{row['ip']:<{widths['ip']}}  "
+            f"{row['hostname']:<{widths['hostname']}}  "
+            f"{row['hostname_source']:<{widths['hostname_source']}}  "
+            f"{row['port']:<{widths['port']}}  {row['banner']}"
+        )
+    return "\n".join(lines)
+
+
+def print_results(results, networks, json_mode):
+    if json_mode:
+        print(json.dumps(results, indent=2, sort_keys=True))
+        return
+
+    print("Scanning subnets:")
+    for network in networks:
+        print(f"  - {network}")
+
+    if not results:
+        print("No robot candidates found.")
+        return
+
+    print("Results:")
+    print(format_table(results))
+
+
+def main(argv):
+    json_mode, subnet_args = parse_args(argv)
+    networks = parse_networks(subnet_args)
+    results = scan(networks)
+    print_results(results, networks, json_mode)
+    return 0 if results else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
