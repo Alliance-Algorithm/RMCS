@@ -30,7 +30,7 @@ rmcs_executor:
       - rmcs_core::controller::chassis::DeformableJointController -> rf_joint_controller
 
       # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
-      - rmcs::AutoAimComponent -> auto_aim_component
+      # - rmcs::AutoAimComponent -> auto_aim_component
 
 value_broadcaster:
   ros__parameters:
@@ -56,6 +56,7 @@ deformable_infantry:
   ros__parameters:
     serial_filter_rmcs_board: "AF-73B2-E8A1-A544-79ED-5BDA-D088-7F21-A6A6"
     serial_filter_top_board: "D4-0262-9E84-E715-CADB-9894-7241"
+    serial_filter_imu: "AF-8217-B05F-811B-6F3E-04EA-448E-9D03-CA2C"
     left_front_zero_point: 374
     left_back_zero_point: 5801
     right_back_zero_point: 7817
@@ -66,32 +67,13 @@ deformable_infantry:
     debug_log_wheel_motor: false
     debug_log_deformable_joint_motor: false
 
-    upper_limit: -0.61 # -35 deg
-    lower_limit: 0.05 # 6 deg
-
-    yaw_angle_kp: 20.0
-    yaw_angle_ki: 0.0
-    yaw_angle_kd: 0.0
-
-    yaw_velocity_kp: 8.0
-    yaw_velocity_ki: 0.0
-    yaw_velocity_kd: 0.0
-
-    pitch_angle_kp: 40.0
-    pitch_angle_ki: 0.0
-    pitch_angle_kd: 0.0
-
-    pitch_velocity_kp: 3.0
-    pitch_velocity_ki: 0.0
-    pitch_velocity_kd: 0.0
-
 chassis_controller:
   ros__parameters:
     # Deploy geometry / chassis-owned joint intent
     min_angle: 8.0
     max_angle: 58.0
     active_suspension_enable: true
-    spin_ratio: 0.45
+    spin_ratio: 1.0
 
     # Suspension geometry / support model.
     active_suspension_mass: 22.5
@@ -130,19 +112,20 @@ chassis_controller:
 
 gimbal_controller:
   ros__parameters:
+    inertia: 2.0  # kg·m²
+    friction: 1.65   # Nm/(rad/s)
+
     upper_limit: -0.61 # -35 deg
     lower_limit: 0.05 # 6 deg
+    use_encoder_pitch: false
 
-    yaw_angle_kp: 20.0
+    yaw_angle_kp: 12.0
     yaw_angle_ki: 0.0
     yaw_angle_kd: 0.0
 
     yaw_velocity_kp: 8.0
     yaw_velocity_ki: 0.0
     yaw_velocity_kd: 0.0
-
-    yaw_vel_ff_gain: 0.47
-    yaw_acc_ff_gain: 0.00
 
     pitch_angle_kp: 40.0
     pitch_angle_ki: 0.0
@@ -152,12 +135,7 @@ gimbal_controller:
     pitch_velocity_ki: 0.0
     pitch_velocity_kd: 0.0
 
-    pitch_acc_ff_gain: 0.10
-
     pitch_torque_control: true
-
-    pitch_fusion_enabled: true
-    pitch_fusion_alpha: 0.98
 
 friction_wheel_controller:
   ros__parameters:

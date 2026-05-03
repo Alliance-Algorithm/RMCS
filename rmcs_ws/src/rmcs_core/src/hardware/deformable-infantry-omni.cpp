@@ -8,6 +8,7 @@
 #include <numbers>
 #include <span>
 #include <string>
+#include <tuple>
 
 #include <eigen3/Eigen/Geometry>
 
@@ -32,115 +33,6 @@
 namespace rmcs_core::hardware {
 
 using Clock = std::chrono::steady_clock;
-
-namespace {
-
-class RmcsBoardLiteCompat : private librmcs::data::DataCallback {
-public:
-    explicit RmcsBoardLiteCompat(
-        std::string_view serial_filter = {}, const librmcs::agent::AdvancedOptions& options = {})
-        : handler_(0xA11C, 0xA801, serial_filter, options, *this) {}
-
-    RmcsBoardLiteCompat(const RmcsBoardLiteCompat&) = delete;
-    RmcsBoardLiteCompat& operator=(const RmcsBoardLiteCompat&) = delete;
-    RmcsBoardLiteCompat(RmcsBoardLiteCompat&&) = delete;
-    RmcsBoardLiteCompat& operator=(RmcsBoardLiteCompat&&) = delete;
-    ~RmcsBoardLiteCompat() override = default;
-
-    class PacketBuilder {
-        friend class RmcsBoardLiteCompat;
-
-    public:
-        PacketBuilder& can0_transmit(const librmcs::data::CanDataView& data) {
-            if (!builder_.write_can(librmcs::data::DataId::kCan0, data)) [[unlikely]]
-                throw std::invalid_argument{"CAN0 transmission failed: Invalid CAN data"};
-            return *this;
-        }
-        PacketBuilder& can1_transmit(const librmcs::data::CanDataView& data) {
-            if (!builder_.write_can(librmcs::data::DataId::kCan1, data)) [[unlikely]]
-                throw std::invalid_argument{"CAN1 transmission failed: Invalid CAN data"};
-            return *this;
-        }
-        PacketBuilder& can2_transmit(const librmcs::data::CanDataView& data) {
-            if (!builder_.write_can(librmcs::data::DataId::kCan2, data)) [[unlikely]]
-                throw std::invalid_argument{"CAN2 transmission failed: Invalid CAN data"};
-            return *this;
-        }
-        PacketBuilder& can3_transmit(const librmcs::data::CanDataView& data) {
-            if (!builder_.write_can(librmcs::data::DataId::kCan3, data)) [[unlikely]]
-                throw std::invalid_argument{"CAN3 transmission failed: Invalid CAN data"};
-            return *this;
-        }
-
-        PacketBuilder& uart0_transmit(const librmcs::data::UartDataView& data) {
-            if (!builder_.write_uart(librmcs::data::DataId::kUart0, data)) [[unlikely]]
-                throw std::invalid_argument{"UART0 transmission failed: Invalid UART data"};
-            return *this;
-        }
-        PacketBuilder& uart1_transmit(const librmcs::data::UartDataView& data) {
-            if (!builder_.write_uart(librmcs::data::DataId::kUart1, data)) [[unlikely]]
-                throw std::invalid_argument{"UART1 transmission failed: Invalid UART data"};
-            return *this;
-        }
-
-    private:
-        explicit PacketBuilder(librmcs::host::protocol::Handler& handler) noexcept
-            : builder_(handler.start_transmit()) {}
-
-        librmcs::host::protocol::Handler::PacketBuilder builder_;
-    };
-
-    PacketBuilder start_transmit() noexcept { return PacketBuilder{handler_}; }
-
-private:
-    bool can_receive_callback(
-        librmcs::data::DataId id, const librmcs::data::CanDataView& data) final {
-        switch (id) {
-        case librmcs::data::DataId::kCan0: can0_receive_callback(data); return true;
-        case librmcs::data::DataId::kCan1: can1_receive_callback(data); return true;
-        case librmcs::data::DataId::kCan2: can2_receive_callback(data); return true;
-        case librmcs::data::DataId::kCan3: can3_receive_callback(data); return true;
-        default: return false;
-        }
-    }
-
-    virtual void can0_receive_callback(const librmcs::data::CanDataView& data) { (void)data; }
-    virtual void can1_receive_callback(const librmcs::data::CanDataView& data) { (void)data; }
-    virtual void can2_receive_callback(const librmcs::data::CanDataView& data) { (void)data; }
-    virtual void can3_receive_callback(const librmcs::data::CanDataView& data) { (void)data; }
-
-    bool uart_receive_callback(
-        librmcs::data::DataId id, const librmcs::data::UartDataView& data) final {
-        switch (id) {
-        case librmcs::data::DataId::kUartDbus: dbus_receive_callback(data); return true;
-        case librmcs::data::DataId::kUart0: uart0_receive_callback(data); return true;
-        case librmcs::data::DataId::kUart1: uart1_receive_callback(data); return true;
-        default: return false;
-        }
-    }
-
-    virtual void dbus_receive_callback(const librmcs::data::UartDataView& data) { (void)data; }
-    virtual void uart0_receive_callback(const librmcs::data::UartDataView& data) { (void)data; }
-    virtual void uart1_receive_callback(const librmcs::data::UartDataView& data) { (void)data; }
-
-    void gpio_digital_read_result_callback(const librmcs::data::GpioDigitalDataView& data) final {
-        (void)data;
-    }
-    void gpio_analog_read_result_callback(const librmcs::data::GpioAnalogDataView& data) final {
-        (void)data;
-    }
-
-    void accelerometer_receive_callback(const librmcs::data::AccelerometerDataView& data) override {
-        (void)data;
-    }
-    void gyroscope_receive_callback(const librmcs::data::GyroscopeDataView& data) override {
-        (void)data;
-    }
-
-    librmcs::host::protocol::Handler handler_;
-};
-
-} // namespace
 
 class DeformableInfantryOmni
     : public rmcs_executor::Component
@@ -177,6 +69,7 @@ public:
         top_board_ = std::make_unique<TopBoard>(
             *this, *deformable_infantry_command_,
             get_parameter("serial_filter_top_board").as_string());
+        imu_ = std::make_unique<ImuBoard>(*this, get_parameter("serial_filter_imu").as_string());
     }
 
     ~DeformableInfantryOmni() override = default;
@@ -189,6 +82,7 @@ public:
     void update() override {
         rmcs_board_lite->update();
         top_board_->update();
+        imu_->update();
         update_hard_sync_snapshot();
     }
 
@@ -201,6 +95,7 @@ public:
 private:
     class DeformableInfantryOmniCommand;
     class BottomBoard;
+    class ImuBoard;
     class TopBoard;
 
     void update_hard_sync_snapshot() {
@@ -209,10 +104,10 @@ private:
 
         hard_sync_snapshot_->valid = true;
         hard_sync_snapshot_->exposure_timestamp = *timestamp_;
-        hard_sync_snapshot_->qw = top_board_->bmi088_.q0();
-        hard_sync_snapshot_->qx = top_board_->bmi088_.q1();
-        hard_sync_snapshot_->qy = top_board_->bmi088_.q2();
-        hard_sync_snapshot_->qz = top_board_->bmi088_.q3();
+        hard_sync_snapshot_->qw = imu_->bmi088_.q0();
+        hard_sync_snapshot_->qx = imu_->bmi088_.q1();
+        hard_sync_snapshot_->qy = imu_->bmi088_.q2();
+        hard_sync_snapshot_->qz = imu_->bmi088_.q3();
         ++hard_sync_snapshot_count_;
 
         if (*timestamp_ >= next_hard_sync_log_time_) {
@@ -264,7 +159,7 @@ private:
         DeformableInfantryOmni& deformableInfantry;
     };
 
-    class BottomBoard final : private RmcsBoardLiteCompat {
+    class BottomBoard final : private librmcs::agent::RmcsBoardLite {
     public:
         friend class DeformableInfantryOmni;
 
@@ -276,7 +171,7 @@ private:
             std::string serial_filter =
                 {
         })
-            : RmcsBoardLiteCompat(
+            : librmcs::agent::RmcsBoardLite(
                   serial_filter,
                   librmcs::agent::AdvancedOptions{.dangerously_skip_version_checks = true})
             , deformable_infantry_(deformableInfantry)
@@ -753,6 +648,55 @@ private:
         OutputInterface<double> radius_;
     };
 
+    class ImuBoard final : private librmcs::agent::RmcsBoardLite {
+    public:
+        friend class DeformableInfantryOmni;
+
+        explicit ImuBoard(
+            DeformableInfantryOmni& deformableInfantry, std::string serial_filter = {})
+            : librmcs::agent::RmcsBoardLite(
+                  serial_filter,
+                  librmcs::agent::AdvancedOptions{.dangerously_skip_version_checks = true})
+            , tf_(deformableInfantry.tf_)
+            , bmi088_(1000, 0.2, 0.0) {
+
+            deformableInfantry.register_output(
+                "/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
+
+            bmi088_.set_coordinate_mapping(
+                [](double x, double y, double z) { return std::make_tuple(x, z, -y); });
+        }
+
+        ~ImuBoard() override = default;
+
+        void update() {
+            bmi088_.update_status();
+            Eigen::Quaterniond const gimbal_imu_pose{
+                bmi088_.q0(), bmi088_.q1(), bmi088_.q2(), bmi088_.q3()};
+
+            tf_->set_transform<rmcs_description::PitchLink, rmcs_description::OdomImu>(
+                gimbal_imu_pose.conjugate());
+
+            *gimbal_pitch_velocity_imu_ = bmi088_.gy();
+        }
+
+    private:
+        void accelerometer_receive_callback(
+            const librmcs::data::AccelerometerDataView& data) override {
+            bmi088_.store_accelerometer_status(data.x, data.y, data.z);
+        }
+
+        void gyroscope_receive_callback(const librmcs::data::GyroscopeDataView& data) override {
+            bmi088_.store_gyroscope_status(data.x, data.y, data.z);
+        }
+
+        OutputInterface<rmcs_description::Tf>& tf_;
+
+        OutputInterface<double> gimbal_pitch_velocity_imu_;
+
+        device::Bmi088 bmi088_;
+    };
+
     class TopBoard final : private librmcs::agent::CBoard {
     public:
         friend class DeformableInfantryOmni;
@@ -792,12 +736,9 @@ private:
                 device::DjiMotor::Config{device::DjiMotor::Type::kM2006}.enable_multi_turn_angle());
 
             deformableInfantry.register_output(
-                "/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_bmi088_);
-            deformableInfantry.register_output(
-                "/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_encoder_);
+                "/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
 
             bmi088_.set_coordinate_mapping([](double x, double y, double z) {
-                // Top board BMI088 maps to gimbal frame as (-x, -y, z).
                 return std::make_tuple(y, -x, z);
             });
         }
@@ -810,29 +751,14 @@ private:
 
         void update() {
             bmi088_.update_status();
-
             gimbal_pitch_motor_.update_status();
             gimbal_left_friction_.update_status();
             gimbal_right_friction_.update_status();
             scope_motor_.update_status();
 
             const double pitch_encoder_angle = gimbal_pitch_motor_.angle();
-            Eigen::Quaterniond const odom_imu_to_yaw_link{
-                bmi088_.q0(), bmi088_.q1(), bmi088_.q2(), bmi088_.q3()};
-            Eigen::Quaterniond const yaw_link_to_odom_imu = odom_imu_to_yaw_link.conjugate();
-            Eigen::Quaterniond pitch_link_to_odom_imu =
-                Eigen::Quaterniond{
-                    Eigen::AngleAxisd{-pitch_encoder_angle, Eigen::Vector3d::UnitY()}
-            }
-                * yaw_link_to_odom_imu;
-            pitch_link_to_odom_imu.normalize();
 
-            *gimbal_yaw_velocity_bmi088_ = bmi088_.gz();
-            *gimbal_pitch_velocity_encoder_ = gimbal_pitch_motor_.velocity();
-            // The BMI088 is mounted on the yaw link. fast_tf stores PitchLink -> OdomImu, so use
-            // the encoder pitch from the TF tree to move the yaw-link pose back into PitchLink.
-            tf_->set_transform<rmcs_description::PitchLink, rmcs_description::OdomImu>(
-                pitch_link_to_odom_imu);
+            *gimbal_yaw_velocity_imu_ = bmi088_.gz();
 
             tf_->set_state<rmcs_description::YawLink, rmcs_description::PitchLink>(
                 pitch_encoder_angle);
@@ -890,10 +816,7 @@ private:
 
         std::atomic<bool>& hard_sync_pending_;
         OutputInterface<rmcs_description::Tf>& tf_;
-
-        OutputInterface<double> gimbal_yaw_velocity_bmi088_;
-        OutputInterface<double> gimbal_pitch_velocity_encoder_;
-
+        OutputInterface<double> gimbal_yaw_velocity_imu_;
         device::Bmi088 bmi088_;
         device::LkMotor gimbal_pitch_motor_;
         device::DjiMotor gimbal_left_friction_;
@@ -910,6 +833,7 @@ private:
 
     std::shared_ptr<DeformableInfantryOmniCommand> deformable_infantry_command_;
     std::unique_ptr<BottomBoard> rmcs_board_lite;
+    std::unique_ptr<ImuBoard> imu_;
     std::unique_ptr<TopBoard> top_board_;
     uint32_t cmd_tick_ = 0;
 

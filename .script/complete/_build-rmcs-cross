@@ -1,0 +1,6 @@
+#compdef build-rmcs-cross
+
+_arguments \
+  '--target-arch=[Cross compile target architecture]:target:(arm64 amd64)' \
+  '--link-default[Link build/install/log to cross build output directories]' \
+  '*:colcon build args:'
