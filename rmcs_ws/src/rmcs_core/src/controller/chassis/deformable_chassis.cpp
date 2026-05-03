@@ -425,7 +425,7 @@ public:
 
             update_mode_from_inputs_(switch_left, switch_right, keyboard);
             update_velocity_control();
-            update_lift_target_toggle(switch_left, switch_right, keyboard);
+            update_lift_target_toggle(keyboard);
             run_joint_intent_pipeline_();
         } while (false);
 
@@ -1182,25 +1182,15 @@ private:
         return err;
     }
 
-    void update_lift_target_toggle(
-        rmcs_msgs::Switch left_switch, rmcs_msgs::Switch right_switch,
-        rmcs_msgs::Keyboard keyboard) {
+    void update_lift_target_toggle(rmcs_msgs::Keyboard keyboard) {
         constexpr double rotary_knob_edge_threshold = 0.7;
 
-        const bool switch_toggle_condition =
-            (left_switch == rmcs_msgs::Switch::MIDDLE) && (right_switch == rmcs_msgs::Switch::UP);
         const bool keyboard_toggle_condition = !last_keyboard_.q && keyboard.q;
-
-        const bool last_switch_toggle_condition = (last_switch_left_ == rmcs_msgs::Switch::MIDDLE)
-                                               && (last_switch_right_ == rmcs_msgs::Switch::UP);
-        const bool rotary_knob_front_high_rear_low = last_rotary_knob_ > -rotary_knob_edge_threshold
-                                                  && *rotary_knob_ <= -rotary_knob_edge_threshold;
-        const bool rotary_knob_front_low_rear_high = last_rotary_knob_ < rotary_knob_edge_threshold
-                                                  && *rotary_knob_ >= rotary_knob_edge_threshold;
-        const bool front_high_rear_low =
-            (!last_keyboard_.b && keyboard.b) || rotary_knob_front_high_rear_low;
-        const bool front_low_rear_high =
-            (!last_keyboard_.g && keyboard.g) || rotary_knob_front_low_rear_high;
+        const bool rotary_knob_toggle_condition =
+            last_rotary_knob_ < rotary_knob_edge_threshold
+            && *rotary_knob_ >= rotary_knob_edge_threshold;
+        const bool front_high_rear_low = !last_keyboard_.b && keyboard.b;
+        const bool front_low_rear_high = !last_keyboard_.g && keyboard.g;
 
         if (apply_symmetric_target) {
             lf_current_target_angle_ = current_target_angle_;
@@ -1209,8 +1199,7 @@ private:
             rf_current_target_angle_ = current_target_angle_;
         }
 
-        if ((switch_toggle_condition && !last_switch_toggle_condition)
-            || keyboard_toggle_condition) {
+        if (rotary_knob_toggle_condition || keyboard_toggle_condition) {
             current_target_angle_ =
                 (std::abs(current_target_angle_ - max_angle_) < 1e-6) ? min_angle_ : max_angle_;
             apply_symmetric_target = true;
