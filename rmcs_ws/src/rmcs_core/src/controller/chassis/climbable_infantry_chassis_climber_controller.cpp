@@ -506,11 +506,11 @@ private:
     static constexpr double kBackClimberBlockedTorqueThreshold = 0.1;
     static constexpr double kBackClimberBlockedVelocityThreshold = 0.1;
     static constexpr int kAutoClimbAlignConfirmTicks = 50;
-    static constexpr int kAutoClimbSupportConfirmTicks = 50;
+    static constexpr int kAutoClimbSupportConfirmTicks = 100;
     static constexpr int kAutoClimbDashMinTicks = 500;
     static constexpr int kAutoClimbDashTimeoutTicks = 3000;
     static constexpr int kAutoClimbForerakedTimeoutTicks = 2000;
-    static constexpr int kAutoClimbSupportRetractTicks = 1000;
+    static constexpr int kAutoClimbSupportRetractTicks = 1500;
     static constexpr int kAutoClimbMaxStairs = 2;
     static constexpr int kManualSupportRetractConfirmTicks = 50;
 

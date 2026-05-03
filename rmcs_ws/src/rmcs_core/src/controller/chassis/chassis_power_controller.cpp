@@ -33,6 +33,7 @@ public:
 
         register_input("/referee/chassis/power_limit", chassis_power_limit_referee_);
         register_input("/referee/chassis/buffer_energy", chassis_buffer_energy_referee_);
+        register_input("/chassis/climber/left_front_motor/velocity", chassis_climber_left_front_motor_velocity_);
 
         register_output("/chassis/supercap/charge_power_limit", supercap_charge_power_limit_, 0.0);
         register_output("/chassis/control_power_limit", chassis_control_power_limit_, 0.0);
@@ -63,7 +64,7 @@ public:
 
         update_virtual_buffer_energy();
 
-        boost_mode_ = keyboard.shift || rotary_knob < -0.9;
+        boost_mode_ = keyboard.shift || rotary_knob < -0.9 || rotary_knob > 0.9 || keyboard.g;
         update_control_power_limit();
     }
 
@@ -106,9 +107,9 @@ private:
 
     void update_control_power_limit() {
         double power_limit;
-
+        double chassis_climber_left_front_motor = *chassis_climber_left_front_motor_velocity_;
         if (boost_mode_ && *supercap_enabled_)
-            power_limit = *mode_ == rmcs_msgs::ChassisMode::LAUNCH_RAMP
+            power_limit = (*mode_ == rmcs_msgs::ChassisMode::LAUNCH_RAMP) || (chassis_climber_left_front_motor > 0.5)
                             ? inf_
                             : *chassis_power_limit_referee_ + 80.0;
         else
@@ -159,6 +160,8 @@ private:
 
     InputInterface<double> chassis_power_limit_referee_;
     InputInterface<double> chassis_buffer_energy_referee_;
+
+    InputInterface<double> chassis_climber_left_front_motor_velocity_;
 
     bool boost_mode_ = false;
     OutputInterface<double> supercap_charge_power_limit_;
