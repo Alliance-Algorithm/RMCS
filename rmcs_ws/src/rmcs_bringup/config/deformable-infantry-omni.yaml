@@ -144,9 +144,6 @@ gimbal_controller:
     yaw_velocity_ki: 0.0
     yaw_velocity_kd: 0.0
 
-    yaw_vel_ff_gain: 0.47
-    yaw_acc_ff_gain: 0.00
-
     pitch_angle_kp: 40.0
     pitch_angle_ki: 0.0
     pitch_angle_kd: 0.0
@@ -154,8 +151,6 @@ gimbal_controller:
     pitch_velocity_kp: 3.0
     pitch_velocity_ki: 0.0
     pitch_velocity_kd: 0.0
-
-    pitch_acc_ff_gain: 0.10
 
     pitch_torque_control: true
 
