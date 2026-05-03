@@ -3,7 +3,7 @@
 set -euo pipefail
 
 MONITOR_USER=""
-MONITOR_PLAYER="vlc"
+MONITOR_PLAYER="celluloid"
 MONITOR_HOST="localhost"
 
 SDP_PATH="/tmp/auto_aim.sdp"
@@ -82,4 +82,4 @@ else
     echo "Skipping copy; opening remote SDP directly"
 fi
 
-ssh -f "${MONITOR_USER}@${MONITOR_HOST}" "DISPLAY=:0 ${MONITOR_PLAYER} '${SDP_PATH}' --network-caching=50"
+ssh -f "${MONITOR_USER}@${MONITOR_HOST}" "DISPLAY=:1 ${MONITOR_PLAYER} '${SDP_PATH}' > /dev/null 2>&1 &"

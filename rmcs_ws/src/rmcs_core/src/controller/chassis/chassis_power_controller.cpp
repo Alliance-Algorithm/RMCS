@@ -112,7 +112,7 @@ private:
         double chassis_climber_left_front_motor = *chassis_climber_left_front_motor_velocity_;
         if (boost_mode_ && *supercap_enabled_)
             power_limit = (*mode_ == rmcs_msgs::ChassisMode::LAUNCH_RAMP)
-                               || (chassis_climber_left_front_motor > 0.5)
+                               || ((chassis_climber_left_front_motor < 0.5) || *rotary_knob_ > 0.9)
                             ? inf_
                             : *chassis_power_limit_referee_ + 80.0;
         else
@@ -130,7 +130,7 @@ private:
                               0.0, 1.0);
 
         // Maximum excess power when virtual buffer energy is full.
-        constexpr double excess_power_limit = 0; // 15
+        constexpr double excess_power_limit = 8; // 15
 
         power_limit += excess_power_limit;
         power_limit *= virtual_buffer_energy_ / virtual_buffer_energy_limit_;
