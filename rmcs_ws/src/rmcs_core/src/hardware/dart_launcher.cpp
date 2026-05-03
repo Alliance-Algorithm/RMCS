@@ -1,4 +1,4 @@
-#include <chrono>
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -11,18 +11,14 @@
 #include <span>
 #include <sstream>
 #include <string>
-#include <vector>
 
 #include <eigen3/Eigen/Dense>
-#include <geometry_msgs/msg/transform_stamped.hpp>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
-#include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/serial_interface.hpp>
 #include <std_msgs/msg/int32.hpp>
-#include <tf2_ros/transform_broadcaster.h>
 
 #include "filter/low_pass_filter.hpp"
 #include "hardware/device/bmi088.hpp"
@@ -63,7 +59,7 @@ public:
         , drive_belt_motor_right_{*this, *dart_command_, "/dart/drive_belt/right"}
         , force_sensor_{*this}
         , trigger_servo_{"/dart/trigger_servo", *dart_command_, 20.0, 0.5, 2.5}
-        , limiting_servo_{*dart_command_, "/dart/limiting_servo", 0x03}
+        , limiting_servo_{*dart_command_, "/dart/limiting_servo", 0x02}
         , lifting_left_motor_{*this, *dart_command_, "/dart/lifting_left"}
         , lifting_right_motor_{*this, *dart_command_, "/dart/lifting_right"}
         , dr16_{*this}
@@ -92,13 +88,7 @@ public:
         lifting_right_motor_.configure(
             device::LkMotor::Config{device::LkMotor::Type::kMG4005Ei10}.enable_multi_turn_angle());
 
-        first_sample_spot_ = this->get_parameter("first_sample_spot").as_double();
-        final_sample_spot_ = this->get_parameter("final_sample_spot").as_double();
-
         setup_imu_coordinate_mapping();
-        start_time_ = std::chrono::steady_clock::now();
-        yaw_drift_coefficient_ = 0.0;
-        tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
 
         register_output("/imu/catapult_pitch_angle", catapult_pitch_angle_);
         register_output("/imu/catapult_roll_angle", catapult_roll_angle_);
@@ -388,97 +378,22 @@ private:
     }
 
     void processImuData() {
-        auto current_time = std::chrono::steady_clock::now();
-        double elapsed_seconds = std::chrono::duration<double>(current_time - start_time_).count();
-
         Eigen::Quaterniond imu_quat(imu_.q0(), imu_.q1(), imu_.q2(), imu_.q3());
         Eigen::Matrix3d rot = imu_quat.toRotationMatrix();
 
-        double roll = std::atan2(rot(2, 1), rot(2, 2));
-        double pitch = std::asin(-rot(2, 0));
+        // On the Dart installation, the mechanically observed front/back pitch maps to the
+        // standard roll term, while left/right tilt maps to the standard pitch term.
+        double sensor_roll = std::atan2(rot(2, 1), rot(2, 2));
+        double sensor_pitch = std::asin(std::clamp(-rot(2, 0), -1.0, 1.0));
         double yaw = std::atan2(rot(1, 0), rot(0, 0));
 
-        double t_roll = -roll_filter_.update(roll);
-        double t_pitch = pitch_filter_.update(pitch);
+        double mechanical_pitch = -roll_filter_.update(sensor_roll);
+        double mechanical_roll = pitch_filter_.update(sensor_pitch);
         double t_yaw = -yaw_filter_.update(yaw);
 
-        if (elapsed_seconds >= first_sample_spot_ && elapsed_seconds <= final_sample_spot_) {
-            yaw_samples_.push_back(t_yaw);
-            time_samples_.push_back(elapsed_seconds);
-
-            double sum_x = 0.0, sum_y = 0.0, sum_xy = 0.0, sum_xx = 0.0;
-            double n = static_cast<double>(yaw_samples_.size());
-            for (size_t i = 0; i < yaw_samples_.size(); ++i) {
-                sum_x += time_samples_[i];
-                sum_y += yaw_samples_[i];
-                sum_xy += time_samples_[i] * yaw_samples_[i];
-                sum_xx += time_samples_[i] * time_samples_[i];
-            }
-            double denominator = n * sum_xx - sum_x * sum_x;
-            if (std::abs(denominator) > 1e-10)
-                yaw_drift_coefficient_ = (n * sum_xy - sum_x * sum_y) / denominator;
-        }
-
-        t_yaw -= (yaw_drift_coefficient_ + 0.000512) * elapsed_seconds;
-        publishTfTransforms(t_roll, t_pitch, t_yaw);
-
-        *catapult_roll_angle_ = (t_roll / M_PI) * 180.0;
-        *catapult_pitch_angle_ = (t_pitch / M_PI) * 180.0;
+        *catapult_pitch_angle_ = (mechanical_pitch / M_PI) * 180.0;
+        *catapult_roll_angle_ = (mechanical_roll / M_PI) * 180.0;
         *catapult_yaw_angle_ = (t_yaw / M_PI) * 180.0;
-    }
-
-    void publishTfTransforms(double roll, double pitch, double yaw) {
-        auto now = this->get_clock()->now();
-
-        auto make_tf = [&](const std::string& parent, const std::string& child,
-                           const geometry_msgs::msg::Vector3& trans,
-                           const geometry_msgs::msg::Quaternion& rot) {
-            geometry_msgs::msg::TransformStamped tf;
-            tf.header.stamp = now;
-            tf.header.frame_id = parent;
-            tf.child_frame_id = child;
-            tf.transform.translation = trans;
-            tf.transform.rotation = rot;
-            return tf;
-        };
-
-        auto make_vec = [](double x, double y, double z) {
-            geometry_msgs::msg::Vector3 v;
-            v.x = x;
-            v.y = y;
-            v.z = z;
-            return v;
-        };
-
-        auto make_quat = [](double x, double y, double z, double w) {
-            geometry_msgs::msg::Quaternion q;
-            q.x = x;
-            q.y = y;
-            q.z = z;
-            q.w = w;
-            return q;
-        };
-
-        Eigen::Quaterniond roll_q(Eigen::AngleAxisd(roll, Eigen::Vector3d::UnitX()));
-        Eigen::Quaterniond pitch_q(Eigen::AngleAxisd(pitch, Eigen::Vector3d::UnitY()));
-        Eigen::Quaterniond yaw_q(Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ()));
-        Eigen::Quaterniond combined = yaw_q * pitch_q * roll_q;
-
-        auto zero = make_vec(0, 0, 0);
-        auto p_trans = make_vec(0, 0, 0.05);
-        auto id_rot = make_quat(0, 0, 0, 1);
-
-        tf_broadcaster_->sendTransform(make_tf("base_link", "gimbal_center_link", zero, id_rot));
-        tf_broadcaster_->sendTransform(make_tf(
-            "gimbal_center_link", "yaw_link", zero,
-            make_quat(yaw_q.x(), yaw_q.y(), yaw_q.z(), yaw_q.w())));
-        tf_broadcaster_->sendTransform(make_tf(
-            "yaw_link", "pitch_link", p_trans,
-            make_quat(pitch_q.x(), pitch_q.y(), pitch_q.z(), pitch_q.w())));
-        tf_broadcaster_->sendTransform(make_tf(
-            "pitch_link", "odom_imu", zero,
-            make_quat(combined.x(), combined.y(), combined.z(), combined.w())));
-        tf_broadcaster_->sendTransform(make_tf("world", "base_link", zero, id_rot));
     }
 
     class DartCommand : public rmcs_executor::Component {
@@ -501,8 +416,6 @@ private:
     filter::LowPassFilter<1> pitch_filter_;
     filter::LowPassFilter<1> roll_filter_;
 
-    std::chrono::steady_clock::time_point start_time_;
-
     device::DjiMotor pitch_motor_;
     device::DjiMotor yaw_motor_;
     device::DjiMotor force_screw_motor_;
@@ -521,8 +434,6 @@ private:
     device::Dr16 dr16_;
     device::Bmi088 imu_;
 
-    std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
-
     OutputInterface<double> catapult_pitch_angle_;
     OutputInterface<double> catapult_roll_angle_;
     OutputInterface<double> catapult_yaw_angle_;
@@ -535,12 +446,6 @@ private:
     OutputInterface<rmcs_msgs::SerialInterface> referee_serial_;
 
     int pub_time_count_ = 0;
-
-    double first_sample_spot_ = 1.0;
-    double final_sample_spot_ = 4.0;
-    double yaw_drift_coefficient_ = 0.0;
-    std::vector<double> yaw_samples_;
-    std::vector<double> time_samples_;
 
     uint16_t last_limiting_angle_ = 0xFFFF;
 };

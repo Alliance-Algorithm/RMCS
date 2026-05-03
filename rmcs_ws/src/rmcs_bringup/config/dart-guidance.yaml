@@ -4,8 +4,11 @@ rmcs_executor:
     components:
       - rmcs_core::hardware::CatapultDart        -> dart_hardware
       - rmcs_dart_guidance::manager::DartManager   -> dart_manager
-      # - rmcs_dart_guidance::DartVisionCore         -> dart_vision_core
       - rmcs_dart_guidance::manager::RemoteCommandBridge -> remote_cmd_bridge
+
+      - rmcs_dart_guidance::DartVisionCore         -> dart_vision_core
+      - rmcs_dart_guidance::ImagePublisher -> dart_display_image_publisher
+      - rmcs_dart_guidance::ImagePublisher -> dart_camera_image_publisher
 
       - rmcs_core::controller::dart::DartTriggerController -> trigger_setting
       - rmcs_core::controller::dart::DartBeltController -> dart_belt_controller
@@ -14,14 +17,35 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController    -> yaw_velocity_pid_controller
       - rmcs_core::controller::pid::PidController    -> pitch_velocity_pid_controller
       - rmcs_core::controller::pid::PidController    -> force_screw_velocity_pid_controller
-      # - rmcs_core::broadcaster::ValueBroadcaster -> broadcaster
+      - rmcs_core::broadcaster::ValueBroadcaster -> broadcaster
 
 
 broadcaster:
   ros__parameters:
     forward_list:
-      - /dart/drive_belt/left/control_torque
-      - /dart/drive_belt/right/control_torque
+      - /imu/catapult_pitch_angle
+      - /imu/catapult_yaw_angle
+      - /imu/catapult_roll_angle
+      - /force_sensor/channel_1/weight
+      - /force_sensor/channel_2/weight
+
+dart_camera_image_publisher:
+  ros__parameters:
+    Interface_name: /dart_guidance/camera/camera_image
+    topic_name: /dart_guidance/camera/camera_image
+    publish_freq: 60.0
+    image_type: bgr8
+
+dart_display_image_publisher:
+  ros__parameters:
+    Interface_name: /dart_guidance/camera/display_image
+    topic_name: /dart_guidance/camera/display_image
+    publish_freq: 60.0
+    image_type: mono8
+
+remote_cmd_bridge:
+  ros__parameters:
+    vision_enable: true
 
 dart_hardware:
   ros__parameters:
@@ -52,28 +76,28 @@ dart_manager:
     lifting_stall_timeout_ticks: 2000   # 超时帧数 = 5s
     vision_aim.allowable_error.x: 5
     vision_aim.allowable_error.y: 5
-    vision_aim.timeout_ticks: 3000
-    vision_aim.shot_profiles.0.reference_point.x: 710
-    vision_aim.shot_profiles.0.reference_point.y: 135
+    vision_aim.timeout_ticks: 20000
+    vision_aim.shot_profiles.0.reference_point.x: 865
+    vision_aim.shot_profiles.0.reference_point.y: 820
     vision_aim.shot_profiles.0.offset.x: 0
     vision_aim.shot_profiles.0.offset.y: 0
-    vision_aim.shot_profiles.1.reference_point.x: 700
-    vision_aim.shot_profiles.1.reference_point.y: 105
+    vision_aim.shot_profiles.1.reference_point.x: 770
+    vision_aim.shot_profiles.1.reference_point.y: 700
     vision_aim.shot_profiles.1.offset.x: 0
     vision_aim.shot_profiles.1.offset.y: 0
-    vision_aim.shot_profiles.2.reference_point.x: 704
+    vision_aim.shot_profiles.2.reference_point.x: 770
     vision_aim.shot_profiles.2.reference_point.y: 190
     vision_aim.shot_profiles.2.offset.x: 0
     vision_aim.shot_profiles.2.offset.y: 0
-    vision_aim.shot_profiles.3.reference_point.x: 704
+    vision_aim.shot_profiles.3.reference_point.x: 770
     vision_aim.shot_profiles.3.reference_point.y: 190
     vision_aim.shot_profiles.3.offset.x: 0
     vision_aim.shot_profiles.3.offset.y: 0
 
 dart_vision_core:
   ros__parameters:
-    invert_image: false
-    exposure_time: 1000
+    invert_image: true
+    exposure_time: 3000
     gain: 0.0
     L_H: 45.0
     L_S: 0.0
@@ -92,7 +116,7 @@ host_bridge:
 
 trigger_setting:
   ros__parameters:
-    trigger_free_value: 0.60
+    trigger_free_value: 0.625
     trigger_lock_value: 0.45
 
 dart_belt_controller:
@@ -115,7 +139,7 @@ dart_filling:
 dart_setting:
   ros__parameters:
     yaw_error_to_velocity_gain: -1.0
-    pitch_error_to_velocity_gain: 1.0
+    pitch_error_to_velocity_gain: -1.0
     force_error_kp: 0.2
     force_error_ki: 0.0
     force_error_kd: 0.0
@@ -132,7 +156,7 @@ yaw_velocity_pid_controller:
     measurement: /dart/yaw_motor/velocity
     setpoint:    /dart/yaw_motor/control_velocity
     control:     /dart/yaw_motor/control_torque
-    kp: 0.6
+    kp: 0.5
     ki: 0.0
     kd: 0.0
 
@@ -141,7 +165,7 @@ pitch_velocity_pid_controller:
     measurement: /dart/pitch_motor/velocity
     setpoint:    /dart/pitch_motor/control_velocity
     control:     /dart/pitch_motor/control_torque
-    kp: 0.6
+    kp: 0.5
     ki: 0.0
     kd: 0.0
 
