@@ -25,7 +25,7 @@ rmcs_executor:
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::SteeringWheelController -> steering_wheel_controller
 
-      # - rmcs::navigation::Navigation -> rmcs_navigation
+      - rmcs::navigation::Navigation -> rmcs_navigation
       - rmcs::AutoAimComponent -> auto_aim_component
 
 # The positive direction is the one that battery exists
@@ -34,7 +34,7 @@ sentry_hardware:
     board_serial_top_board: "af-da30"
     board_serial_bottom_board: "d4-2184"
     board_serial_gimbal_board: "d4-1d2b"
-    bottom_yaw_motor_zero_point: 26163
+    bottom_yaw_motor_zero_point: 55811
     top_yaw_motor_zero_point: 4540
     pitch_motor_zero_point: 1446
     left_front_zero_point: 7131
@@ -61,7 +61,7 @@ gimbal_controller:
     top_yaw_angle_kp: 30.0
     top_yaw_angle_ki: 0.0
     top_yaw_angle_kd: 0.0
-    top_yaw_velocity_kp: 3.0
+    top_yaw_velocity_kp: 2.160
     top_yaw_velocity_ki: 0.0
     top_yaw_velocity_kd: 0.0
 
@@ -72,7 +72,7 @@ gimbal_controller:
     bottom_yaw_velocity_ki: 0.0
     bottom_yaw_velocity_kd: 0.0
 
-    pitch_angle_kp: 20.0
+    pitch_angle_kp: 40.0
     pitch_angle_ki: 0.0
     pitch_angle_kd: 0.01
     pitch_velocity_kp: 2.5
@@ -160,6 +160,6 @@ steering_wheel_controller:
     k1: 2.958580e+00
     k2: 3.082190e-03
     no_load_power: 11.37
-    chassis_translation_kp: 8.0
-    chassis_translation_ki: 0.0
-    chassis_translation_kd: 0.0
+    chassis_translation_kp: 20.0
+    chassis_translation_ki: 0.05
+    chassis_translation_kd: 0.00
