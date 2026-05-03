@@ -22,7 +22,7 @@ rmcs_executor:
 
       - rmcs_core::controller::chassis::DeformableChassis -> chassis_controller
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
-      - rmcs_core::controller::chassis::SteeringWheelController -> deformable_chassis_controller
+      - rmcs_core::controller::chassis::WheelDemoController -> deformable_chassis_controller
 
       - rmcs_core::controller::chassis::DeformableJointController -> lf_joint_controller
       - rmcs_core::controller::chassis::DeformableJointController -> lb_joint_controller
@@ -170,15 +170,16 @@ bullet_feeder_velocity_pid_controller:
     measurement: /gimbal/bullet_feeder/velocity
     setpoint: /gimbal/bullet_feeder/control_velocity
     control: /gimbal/bullet_feeder/control_torque
-    kp: 1.5
+    kp: 1.4
     ki: 0.0
     kd: 0.0
 
 deformable_chassis_controller:
   ros__parameters:
-    mess: 23.0
+    mass: 23.0
     moment_of_inertia: 1.0
-    vehicle_radius: 0.34678
+    chassis_radius: 0.2341741
+    rod_length: 0.150
     wheel_radius: 0.055
     friction_coefficient: 0.6
     k1: 2.958580e+00
