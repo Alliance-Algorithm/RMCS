@@ -203,6 +203,8 @@ public:
     }
     int last_raw_angle() const { return last_raw_angle_; }
 
+    int last_raw_angle() const { return last_raw_angle_; }
+
     double angle() const { return angle_; }
     double velocity() const { return velocity_; }
     double torque() const { return torque_; }
