@@ -71,6 +71,7 @@ chassis_controller:
     min_angle: 20.0
     max_angle: 50.0
     active_suspension_enable: true
+    spin_ratio: 1.0
 
     # IMU attitude correction at min-angle stance.
     # pitch < 0: front high. roll > 0: right high.
@@ -95,17 +96,18 @@ chassis_controller:
 
 gimbal_controller:
   ros__parameters:
-    inertia: 1.5  # kg·m²
+    inertia: 1.0  # kg·m²
     friction: 1.65   # Nm/(rad/s)
 
     upper_limit: -0.61 # -35 deg
     lower_limit: 0.05 # 6 deg
+    use_encoder_pitch: true
 
-    yaw_angle_kp: 8.0
+    yaw_angle_kp: 10.0
     yaw_angle_ki: 0.0
     yaw_angle_kd: 0.0
 
-    yaw_velocity_kp: 5.0
+    yaw_velocity_kp: 8.0
     yaw_velocity_ki: 0.0
     yaw_velocity_kd: 0.0
 

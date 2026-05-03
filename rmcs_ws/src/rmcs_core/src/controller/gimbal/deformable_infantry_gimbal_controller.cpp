@@ -206,7 +206,7 @@ private:
 
     TwoAxisGimbalSolver gimbal_solver_{
         *this, get_parameter("upper_limit").as_double(), get_parameter("lower_limit").as_double(),
-        true};
+        get_parameter("use_encoder_pitch").as_bool()};
 
     pid::PidCalculator yaw_angle_pid_{
         get_parameter("yaw_angle_kp").as_double(),
