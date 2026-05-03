@@ -12,17 +12,17 @@ namespace rmcs_core::controller::pid {
 template <size_t n, bool use_matrix_gain = false>
 class MatrixPidCalculator {
     using Vector = Eigen::Vector<double, n>;
-    using Gain   = std::conditional<use_matrix_gain, Eigen::Matrix<double, n, n>, double>::type;
+    using Gain = std::conditional<use_matrix_gain, Eigen::Matrix<double, n, n>, double>::type;
 
 public:
     MatrixPidCalculator(Gain kp, Gain ki, Gain kd)
         : kp(std::move(kp))
         , ki(std::move(ki))
         , kd(std::move(kd)) {
-        integral_min.setConstant(-inf);
-        integral_max.setConstant(inf);
+        integral_min.setConstant(-100);
+        integral_max.setConstant(+100);
         output_min.setConstant(-inf);
-        output_max.setConstant(inf);
+        output_max.setConstant(+inf);
         reset();
     }
 
@@ -35,7 +35,7 @@ public:
 
     Vector update(Vector err) {
         Vector control = kp * err + ki * err_integral_;
-        err_integral_  = exclude_nan(clamp(err_integral_ + err, integral_min, integral_max));
+        err_integral_ = exclude_nan(clamp(err_integral_ + err, integral_min, integral_max));
 
         control += exclude_nan(kd * (err - last_err_));
         last_err_ = err;

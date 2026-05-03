@@ -127,7 +127,11 @@ private:
 
             component.register_input(
                 "/auto_aim/control_direction", auto_aim_control_direction, false);
-            component.register_input("/auto_aim/should_control", auto_aim_should_control, false);
+            component.register_input("/auto_aim/yaw_rate", auto_aim_yaw_rate, false);
+            component.register_input("/auto_aim/pitch_rate", auto_aim_pitch_rate, false);
+            component.register_input("/auto_aim/yaw_acc", auto_aim_yaw_acc, false);
+            component.register_input("/auto_aim/pitch_acc", auto_aim_pitch_acc, false);
+            component.register_input("/auto_aim/feedforward_valid", auto_aim_feedforward_valid, false);
         }
 
         auto enable_control() const noexcept -> bool {
@@ -143,15 +147,11 @@ private:
             using namespace rmcs_msgs;
             if (*switch_right != Switch::UP)
                 return false;
-            if (!auto_aim_should_control.ready() || !*auto_aim_should_control)
-                return false;
             if (!auto_aim_control_direction.ready())
                 return false;
             const auto& dir = *auto_aim_control_direction;
-            if (!std::isfinite(dir.x()) || !std::isfinite(dir.y()) || !std::isfinite(dir.z()))
-                return false;
-
-            return true;
+            return !dir.isZero() && std::isfinite(dir.x()) && std::isfinite(dir.y())
+                && std::isfinite(dir.z());
         }
 
         InputInterface<Eigen::Vector2d> joystick_left;
@@ -169,8 +169,12 @@ private:
         InputInterface<double> pitch_angle;
         InputInterface<double> pitch_velocity;
         InputInterface<double> chassis_yaw_velocity_imu;
-        InputInterface<bool> auto_aim_should_control;
         InputInterface<Eigen::Vector3d> auto_aim_control_direction;
+        InputInterface<double> auto_aim_yaw_rate;
+        InputInterface<double> auto_aim_pitch_rate;
+        InputInterface<double> auto_aim_yaw_acc;
+        InputInterface<double> auto_aim_pitch_acc;
+        InputInterface<bool> auto_aim_feedforward_valid;
     } input_{*this};
 
     struct Output {

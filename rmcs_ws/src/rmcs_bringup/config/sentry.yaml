@@ -25,7 +25,7 @@ rmcs_executor:
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::SteeringWheelController -> steering_wheel_controller
 
-      # - rmcs::navigation::Navigation -> rmcs_navigation
+      - rmcs::navigation::Navigation -> rmcs_navigation
       - rmcs::AutoAimComponent -> auto_aim_component
 
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
@@ -73,7 +73,7 @@ gimbal_controller:
     top_yaw_angle_kp: 45.0
     top_yaw_angle_ki: 0.0
     top_yaw_angle_kd: 0.0
-    top_yaw_velocity_kp: 3.0
+    top_yaw_velocity_kp: 2.160
     top_yaw_velocity_ki: 0.0
     top_yaw_velocity_kd: 0.0
 
@@ -172,6 +172,6 @@ steering_wheel_controller:
     k1: 2.958580e+00
     k2: 3.082190e-03
     no_load_power: 11.37
-    chassis_translation_kp: 8.0
-    chassis_translation_ki: 0.0
-    chassis_translation_kd: 0.0
+    chassis_translation_kp: 20.0
+    chassis_translation_ki: 0.05
+    chassis_translation_kd: 0.00
