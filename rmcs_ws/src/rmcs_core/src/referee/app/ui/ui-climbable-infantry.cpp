@@ -6,6 +6,7 @@
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/chassis_mode.hpp>
 #include <rmcs_msgs/game_stage.hpp>
+#include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/mouse.hpp>
 
 #include "referee/app/ui/shape/shape.hpp"
@@ -27,6 +28,11 @@ public:
               {Shape::Color::WHITE, 2, x_center - 32, 830, x_center + 32, 830},
               {Shape::Color::WHITE, 2, x_center, 830, x_center, 820})
         , chassis_direction_indicator_(Shape::Color::PINK, 8, x_center, y_center, 0, 0, 84, 84)
+        ,front_climber_motor_direction_indicator_{{
+            Shape::Color::CYAN, 60, x_center, y_center, 0, 0, 64, 64
+        }, {
+            Shape::Color::CYAN, 60, x_center, y_center, 0, 0, 64, 64
+        }}
         , chassis_control_power_limit_indicator_(Shape::Color::WHITE, 20, 2, x_center + 10, 820, 0)
         , supercap_control_power_limit_indicator_(Shape::Color::WHITE, 20, 2, x_center + 10, 790, 0)
         , time_reminder_(Shape::Color::PINK, 50, 5, x_center + 150, y_center + 65, 0, false) {
@@ -59,6 +65,7 @@ public:
         register_input("/gimbal/right_friction/velocity", right_friction_velocity_);
 
         register_input("/remote/mouse", mouse_);
+        register_input("/remote/keyboard", keyboard_);
 
         register_input("/referee/game/stage", game_stage_);
 
@@ -91,15 +98,42 @@ private:
 
     void update_chassis_direction_indicator() {
         auto chassis_mode = *chassis_mode_;
+        auto keyboard = *keyboard_;
 
         auto to_referee_angle = [](double angle) {
             return static_cast<int>(
                 std::round((2 * std::numbers::pi - angle) / std::numbers::pi * 180));
         };
+
+        int climber_motor_angle;
+        int half_intervel_angle = 30;
         chassis_direction_indicator_.set_color(
             chassis_mode == rmcs_msgs::ChassisMode::SPIN ? Shape::Color::GREEN
                                                          : Shape::Color::PINK);
         chassis_direction_indicator_.set_angle(to_referee_angle(*chassis_angle_), 30);
+        if (keyboard.g) {
+            front_climber_motor_direction_indicator_[0].set_color(Shape::Color::ORANGE);
+            front_climber_motor_direction_indicator_[1].set_color(Shape::Color::ORANGE);
+            front_climber_motor_direction_indicator_[0].set_width(90);
+            front_climber_motor_direction_indicator_[1].set_width(90);
+            front_climber_motor_direction_indicator_[0].set_r(100);
+            front_climber_motor_direction_indicator_[1].set_r(100);
+        } else {
+            front_climber_motor_direction_indicator_[0].set_color(Shape::Color::CYAN);
+            front_climber_motor_direction_indicator_[1].set_color(Shape::Color::CYAN);
+            front_climber_motor_direction_indicator_[0].set_width(30);
+            front_climber_motor_direction_indicator_[1].set_width(30);
+            front_climber_motor_direction_indicator_[0].set_r(80);
+            front_climber_motor_direction_indicator_[1].set_r(80);
+        }
+        climber_motor_angle = to_referee_angle(*chassis_angle_);
+        front_climber_motor_direction_indicator_[1].set_angle(
+            climber_motor_angle + half_intervel_angle, 5);
+        if (climber_motor_angle - half_intervel_angle < 0) {
+            climber_motor_angle += 360;
+        }
+        front_climber_motor_direction_indicator_[0].set_angle(
+            climber_motor_angle - half_intervel_angle, 5);
 
         bool chassis_control_direction_indicator_visible = false;
         if (!std::isnan(*chassis_control_angle_)) {
@@ -121,6 +155,8 @@ private:
         }
         chassis_control_direction_indicator_.set_visible(
             chassis_control_direction_indicator_visible);
+        front_climber_motor_direction_indicator_[0].set_visible(true);
+        front_climber_motor_direction_indicator_[1].set_visible(true);
     }
 
     static constexpr uint16_t screen_width = 1920, screen_height = 1080;
@@ -147,6 +183,7 @@ private:
     InputInterface<double> right_friction_velocity_;
 
     InputInterface<rmcs_msgs::Mouse> mouse_;
+    InputInterface<rmcs_msgs::Keyboard> keyboard_;
 
     InputInterface<rmcs_msgs::GameStage> game_stage_;
 
@@ -159,6 +196,7 @@ private:
     Line yaw_indicator_guidelines_[2];
 
     Arc chassis_direction_indicator_, chassis_control_direction_indicator_;
+    Arc front_climber_motor_direction_indicator_[2];
 
     Float chassis_control_power_limit_indicator_, supercap_control_power_limit_indicator_;
 

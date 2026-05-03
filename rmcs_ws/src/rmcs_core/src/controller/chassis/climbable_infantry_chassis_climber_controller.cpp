@@ -316,7 +316,7 @@ private:
 
     AutoClimbControl update_auto_climb_dash() {
         AutoClimbControl control{
-            .front_track_velocity = track_velocity_max_,
+            .front_track_velocity = 0.0,
             .back_climber_velocity = climber_back_control_velocity_abs_,
             .override_chassis_vx = auto_climb_dash_velocity_,
         };
@@ -349,7 +349,7 @@ private:
 
     AutoClimbControl update_auto_climb_support_retract() {
         AutoClimbControl control{
-            .front_track_velocity = track_velocity_max_,
+            .front_track_velocity = 0.0,
             .back_climber_velocity = -auto_climb_support_retract_velocity_abs_,
             .override_chassis_vx = auto_climb_dash_velocity_,
         };
@@ -498,7 +498,7 @@ private:
 
     rclcpp::Logger logger_;
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
-    static constexpr double kAutoClimbApproachVelocity = 1.0;
+    static constexpr double kAutoClimbApproachVelocity = 1.5;
     static constexpr double kAutoClimbAlignThreshold = 0.10;
     static constexpr double kAutoClimbAlignVelocityThreshold = 0.2;
     static constexpr double kAutoClimbLeveledPitchThreshold = 0.1;
