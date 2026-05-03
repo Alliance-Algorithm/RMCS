@@ -1,0 +1,934 @@
+#!/usr/bin/env python3
+
+import concurrent.futures
+import ipaddress
+import json
+import os
+import re
+import select
+import socket
+import subprocess
+import sys
+import termios
+import threading
+import time
+
+from colorama import Fore, Style
+
+
+SSH_PORT = 2022
+SSH_USER = "root"
+CONNECT_TIMEOUT = 0.25
+BANNER_TIMEOUT = 0.35
+SSH_PROBE_TIMEOUT = 2.0
+DEFAULT_192_168_SEGMENTS = range(1, 11)
+SKIP_PREFIXES = ("lo", "docker", "br-", "veth", "zt", "tailscale")
+SPINNER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+REFRESH_INTERVAL = 0.08
+TOKYO_BG = "\033[48;2;36;40;59m"
+TOKYO_ACCENT = "\033[38;2;122;162;247m"
+TOKYO_IP = "\033[38;2;158;206;106m"
+TOKYO_HOST = "\033[38;2;187;154;247m"
+TOKYO_BANNER = "\033[38;2;192;202;245m"
+
+
+class RawTerminal:
+    def __init__(self):
+        self._fd = sys.stdin.fileno()
+
+    def __enter__(self):
+        self._old = termios.tcgetattr(self._fd)
+        new = termios.tcgetattr(self._fd)
+        new[3] &= ~(termios.ECHO | termios.ICANON)
+        new[6][termios.VMIN] = 1
+        new[6][termios.VTIME] = 0
+        termios.tcsetattr(self._fd, termios.TCSANOW, new)
+        return self
+
+    def __exit__(self, *_):
+        termios.tcsetattr(self._fd, termios.TCSANOW, self._old)
+
+    @staticmethod
+    def read_key():
+        raw = sys.stdin.buffer.raw.read(1)
+        if raw == b"\x03":
+            raise KeyboardInterrupt
+        if raw in (b"\r", b"\n"):
+            return "enter"
+        if raw == b"\t":
+            return "next"
+        if raw in (b"w", b"W"):
+            return "prev"
+        if raw in (b"s", b"S"):
+            return "next"
+        if raw == b"\x0e":
+            return "next"
+        if raw == b"\x10":
+            return "prev"
+        if raw in (b"\x7f", b"\x08"):
+            return "backspace"
+        if raw == b"\x1b":
+            if not RawTerminal.key_ready(0.02):
+                return "quit"
+            nxt = sys.stdin.buffer.raw.read(1)
+            if nxt != b"[":
+                return "escape"
+            if not RawTerminal.key_ready(0.02):
+                return "escape"
+            direction = sys.stdin.buffer.raw.read(1)
+            if direction == b"A":
+                return "prev"
+            if direction == b"B":
+                return "next"
+            if direction == b"Z":
+                return "prev"
+            return "escape"
+        if raw in (b"q", b"Q"):
+            return "quit"
+        if len(raw) == 1 and 32 <= raw[0] <= 126:
+            return raw.decode()
+        return None
+
+    @staticmethod
+    def key_ready(timeout):
+        ready, _, _ = select.select([sys.stdin], [], [], timeout)
+        return bool(ready)
+
+
+def print_usage():
+    print(
+        """
+Usage: scan-remote [--json] [subnet ...]
+
+Examples:
+  scan-remote
+  scan-remote --json
+  scan-remote 192.168.1.0/24
+  scan-remote 192.168.1.0/24 192.168.2.0/24
+""".strip()
+    )
+
+
+def parse_args(argv):
+    json_mode = False
+    complete_subnets_mode = False
+    subnet_args = []
+
+    for arg in argv:
+        if arg in ("-h", "--help"):
+            print_usage()
+            sys.exit(0)
+        if arg == "--json":
+            json_mode = True
+            continue
+        if arg == "--complete-subnets":
+            complete_subnets_mode = True
+            continue
+        subnet_args.append(arg)
+
+    return json_mode, complete_subnets_mode, subnet_args
+
+
+def parse_networks(subnet_args):
+    if subnet_args:
+        networks = []
+        for raw in subnet_args:
+            try:
+                networks.append(ipaddress.ip_network(raw, strict=False))
+            except ValueError:
+                sys.exit(f"Error: Invalid subnet '{raw}'.")
+
+        bad = [str(network) for network in networks if network.version != 4]
+        if bad:
+            sys.exit(
+                f"Error: Only IPv4 subnets are supported: {', '.join(bad)}"
+            )
+
+        return dedupe_networks(networks)
+
+    return default_networks()
+
+
+def default_networks():
+    psutil = __import__("psutil")
+
+    stats = psutil.net_if_stats()
+    networks = []
+
+    for iface, addrs in psutil.net_if_addrs().items():
+        if iface.startswith(SKIP_PREFIXES):
+            continue
+
+        iface_stat = stats.get(iface)
+        if iface_stat is not None and not iface_stat.isup:
+            continue
+
+        for addr in addrs:
+            if addr.family != socket.AF_INET or not addr.netmask:
+                continue
+
+            ip = ipaddress.ip_address(addr.address)
+            if ip.is_loopback:
+                continue
+
+            interface = ipaddress.ip_interface(f"{addr.address}/{addr.netmask}")
+            if not interface.ip.is_private:
+                continue
+
+            networks.extend(expanded_networks(interface))
+            break
+
+    networks = dedupe_networks(networks)
+    if not networks:
+        sys.exit("Error: No usable private IPv4 interfaces found.")
+
+    return networks
+
+
+def expanded_networks(interface):
+    ip = interface.ip
+    if ip.packed[0] == 192 and ip.packed[1] == 168:
+        return [
+            ipaddress.ip_network(f"192.168.{segment}.0/24")
+            for segment in DEFAULT_192_168_SEGMENTS
+        ]
+
+    return [ipaddress.ip_network(f"{ip}/24", strict=False)]
+
+
+def dedupe_networks(networks):
+    seen = set()
+    ordered = []
+    for network in networks:
+        if network in seen:
+            continue
+        seen.add(network)
+        ordered.append(network)
+    return ordered
+
+
+def host_candidates(networks):
+    hosts = []
+    seen = set()
+    for network in networks:
+        for host in network.hosts():
+            host_str = str(host)
+            if host_str in seen:
+                continue
+            seen.add(host_str)
+            hosts.append(host_str)
+    return hosts
+
+
+def probe_host(host):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.settimeout(CONNECT_TIMEOUT)
+        if sock.connect_ex((host, SSH_PORT)) != 0:
+            return None
+
+        sock.settimeout(BANNER_TIMEOUT)
+        banner = ""
+        try:
+            banner = sock.recv(256).decode("utf-8", errors="replace").strip()
+        except OSError:
+            pass
+
+    if banner and not banner.startswith("SSH-"):
+        return None
+
+    hostname, hostname_source = ssh_lookup(host)
+    if not hostname:
+        hostname, hostname_source = reverse_lookup(host)
+
+    return {
+        "ip": host,
+        "hostname": hostname or "unknown",
+        "hostname_source": hostname_source,
+        "hostname_label": format_hostname_label(hostname or "unknown", hostname_source),
+        "port": SSH_PORT,
+        "banner": banner or "unknown",
+    }
+
+
+def ssh_lookup(host):
+    avahi_name = ssh_run(host, "grep -E '^host-name=' /etc/avahi/avahi-daemon.conf | cut -d= -f2-")
+    if avahi_name:
+        return avahi_name, "avahi"
+
+    runtime_name = ssh_run(host, "hostname")
+    if runtime_name:
+        return runtime_name, "hostname"
+
+    return "", "unknown"
+
+
+def format_hostname_label(hostname, hostname_source):
+    if hostname_source == "avahi":
+        return f"{hostname} [avahi]"
+    if hostname_source == "hostname":
+        return f"{hostname} [hostname]"
+    return hostname
+
+
+def ssh_run(host, remote_command):
+    command = [
+        "ssh",
+        "-p",
+        str(SSH_PORT),
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        f"ConnectTimeout={int(SSH_PROBE_TIMEOUT)}",
+        "-o",
+        "StrictHostKeyChecking=no",
+        "-o",
+        "UserKnownHostsFile=/dev/null",
+        "-o",
+        "LogLevel=ERROR",
+        f"{SSH_USER}@{host}",
+        remote_command,
+    ]
+
+    try:
+        completed = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=SSH_PROBE_TIMEOUT + 0.5,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return "", "unknown"
+
+    output = completed.stdout.strip()
+    if completed.returncode == 0 and output:
+        return output
+    return ""
+
+
+def reverse_lookup(host):
+    old_timeout = socket.getdefaulttimeout()
+    socket.setdefaulttimeout(BANNER_TIMEOUT)
+    try:
+        hostname = socket.gethostbyaddr(host)[0]
+        if hostname.endswith("."):
+            hostname = hostname[:-1]
+        return hostname, "ptr"
+    except OSError:
+        return "", "unknown"
+    finally:
+        socket.setdefaulttimeout(old_timeout)
+
+
+def set_remote(address):
+    ssh_path = os.path.join(os.getenv("HOME"), ".ssh", "config")
+    try:
+        with open(ssh_path, "r", encoding="utf-8") as file:
+            config = file.read()
+    except FileNotFoundError:
+        sys.exit("Error: SSH config file not found.")
+
+    ipv6 = ":" in address
+    address = re.sub(r"(?<!%)%(?!%)", "%%", address)
+
+    config, n1 = re.subn(
+        r"Host remote\n    HostName [^\n]+",
+        f"Host remote\n    HostName {address}",
+        config,
+    )
+    config, n2 = re.subn(
+        r"(Host remote\n(?:(?!Host ).+\n)*)    AddressFamily inet6?",
+        rf"\1    AddressFamily {'inet6' if ipv6 else 'inet'}",
+        config,
+    )
+
+    if not n1 or not n2:
+        sys.exit("Error: Cannot find expected entries in SSH config.")
+
+    with open(ssh_path, "w", encoding="utf-8") as file:
+        file.write(config)
+
+
+def scan(networks):
+    return scan_all_networks(networks)
+
+
+def scan_all_networks(networks, on_progress=None, on_found=None):
+    results, _ = scan_all_networks_until_selected(
+        networks,
+        None,
+        on_progress,
+        on_found,
+    )
+    return results
+
+
+def scan_all_networks_until_selected(
+    networks,
+    on_key=None,
+    on_progress=None,
+    on_found=None,
+):
+    network_targets = {
+        network: host_candidates([network])
+        for network in networks
+    }
+    total_targets = sum(len(targets) for targets in network_targets.values())
+    max_workers = min(128, max(8, total_targets))
+    results = []
+    progress = {
+        network: {
+            "scanned": 0,
+            "total": len(targets),
+            "found": 0,
+            "done": len(targets) == 0,
+        }
+        for network, targets in network_targets.items()
+    }
+
+    if on_progress is not None:
+        for network, state in progress.items():
+            on_progress(
+                network,
+                state["scanned"],
+                state["total"],
+                state["found"],
+                state["done"],
+            )
+
+    selected_result = None
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as pool:
+        future_to_network = {
+            pool.submit(probe_host, host): network
+            for network, host in iter_interleaved_targets(network_targets)
+        }
+        pending = set(future_to_network)
+
+        while pending:
+            if on_key is not None and RawTerminal.key_ready(0.02):
+                key = RawTerminal.read_key()
+                if key is not None:
+                    selected_result = on_key(key)
+                    if selected_result is not None:
+                        break
+
+            done, pending = concurrent.futures.wait(
+                pending,
+                timeout=0.02,
+                return_when=concurrent.futures.FIRST_COMPLETED,
+            )
+
+            for future in done:
+                network = future_to_network[future]
+                state = progress[network]
+                state["scanned"] += 1
+
+                result = future.result()
+                if result is not None:
+                    state["found"] += 1
+                    results.append(result)
+                    if on_found is not None:
+                        on_found(network, result)
+
+                state["done"] = state["scanned"] >= state["total"]
+                if on_progress is not None:
+                    on_progress(
+                        network,
+                        state["scanned"],
+                        state["total"],
+                        state["found"],
+                        state["done"],
+                    )
+
+        if selected_result is not None:
+            pool.shutdown(wait=False, cancel_futures=True)
+            return sort_results(results), selected_result
+
+    return sort_results(results), None
+
+
+def iter_interleaved_targets(network_targets):
+    pending = [
+        [network, iter(targets)]
+        for network, targets in network_targets.items()
+        if targets
+    ]
+
+    while pending:
+        next_pending = []
+        for network, target_iter in pending:
+            try:
+                yield network, next(target_iter)
+                next_pending.append([network, target_iter])
+            except StopIteration:
+                continue
+        pending = next_pending
+
+
+def scan_network(network, on_progress=None, on_found=None):
+    targets = host_candidates([network])
+    max_workers = min(128, max(8, len(targets)))
+    scanned = 0
+    found = 0
+    results = []
+
+    if on_progress is not None:
+        on_progress(network, scanned, len(targets), found, False)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as pool:
+        futures = [pool.submit(probe_host, host) for host in targets]
+        for future in concurrent.futures.as_completed(futures):
+            scanned += 1
+            result = future.result()
+            if result is not None:
+                found += 1
+                results.append(result)
+                if on_found is not None:
+                    on_found(network, result)
+            if on_progress is not None:
+                on_progress(network, scanned, len(targets), found, False)
+
+    if on_progress is not None:
+        on_progress(network, scanned, len(targets), found, True)
+
+    return sort_results(results)
+
+
+def sort_results(results):
+    return sorted(
+        results,
+        key=lambda item: tuple(int(part) for part in item["ip"].split(".")),
+    )
+
+
+class ProgressView:
+    def __init__(self, networks):
+        self.networks = [str(network) for network in networks]
+        self.network_width = max((len(network) for network in self.networks), default=0)
+        self.state = {
+            network: {
+                "scanned": 0,
+                "total": len(host_candidates([ipaddress.ip_network(network)])),
+                "found": 0,
+                "done": False,
+                "results": [],
+            }
+            for network in self.networks
+        }
+        self._frame = 0
+        self._rendered_lines = 0
+        self._lock = threading.Lock()
+        self._stop_event = threading.Event()
+        self._thread = None
+        self._selection = None
+        self._prompt = None
+
+    def start(self):
+        self._thread = threading.Thread(target=self._refresh_loop, daemon=True)
+        self._thread.start()
+
+    def stop(self):
+        self._stop_event.set()
+        if self._thread is not None:
+            self._thread.join()
+        self.render()
+
+    def _refresh_loop(self):
+        while not self._stop_event.wait(REFRESH_INTERVAL):
+            self.render()
+
+    def update_progress(self, network, scanned, total, found, done):
+        with self._lock:
+            key = str(network)
+            self.state[key]["scanned"] = scanned
+            self.state[key]["total"] = total
+            self.state[key]["found"] = found
+            self.state[key]["done"] = done
+
+    def add_result(self, network, result):
+        with self._lock:
+            key = str(network)
+            self.state[key]["results"].append(result)
+
+    def render(self):
+        with self._lock:
+            lines = []
+            frame = SPINNER_FRAMES[self._frame % len(SPINNER_FRAMES)]
+            self._frame += 1
+            result_ip_width = len("IP")
+            result_hostname_width = len("HOSTNAME")
+
+            for network in self.networks:
+                for result in self.state[network]["results"]:
+                    result_ip_width = max(result_ip_width, len(result["ip"]))
+                    result_hostname_width = max(
+                        result_hostname_width, len(result["hostname_label"])
+                    )
+
+            for network in self.networks:
+                current = self.state[network]
+                prefix = (
+                    f"{Fore.GREEN}✔{Style.RESET_ALL}"
+                    if current["done"]
+                    else f"{Fore.CYAN}{frame}{Style.RESET_ALL}"
+                )
+                if current["done"]:
+                    status = (
+                        f"{Fore.GREEN}done{Style.RESET_ALL}, found "
+                        f"{Fore.YELLOW}{current['found']}{Style.RESET_ALL}"
+                    )
+                else:
+                    status = (
+                        f"{Fore.CYAN}scanning{Style.RESET_ALL} "
+                        f"{current['scanned']}/{current['total']}, found "
+                        f"{Fore.YELLOW}{current['found']}{Style.RESET_ALL}"
+                    )
+                lines.append(
+                    f"{prefix} [ {Fore.MAGENTA}{network:<{self.network_width}}"
+                    f"{Style.RESET_ALL} ]    {status}"
+                )
+                for result in current["results"]:
+                    selected = self._selection == (network, result["ip"])
+                    marker = "❯" if selected else ">"
+                    if selected:
+                        line = (
+                            f"{TOKYO_BG}  {TOKYO_ACCENT}{marker} "
+                            f"{TOKYO_IP}{result['ip']:<{result_ip_width}}  "
+                            f"{TOKYO_HOST}{result['hostname_label']:<{result_hostname_width}}  "
+                            f"{TOKYO_BANNER}{result['banner']}{Style.RESET_ALL}"
+                        )
+                    else:
+                        line = (
+                            f"  {Fore.CYAN}{marker}{Style.RESET_ALL} "
+                            f"{Fore.GREEN}{result['ip']:<{result_ip_width}}{Style.RESET_ALL}  "
+                            f"{Fore.MAGENTA}{result['hostname_label']:<{result_hostname_width}}{Style.RESET_ALL}  "
+                            f"{Fore.LIGHTBLACK_EX}{result['banner']}{Style.RESET_ALL}"
+                        )
+                    lines.append(line)
+
+            if self._prompt:
+                lines.append("")
+                lines.append(self._prompt)
+
+            if self._rendered_lines:
+                sys.stdout.write(f"\033[{self._rendered_lines}F")
+            for line in lines:
+                sys.stdout.write("\033[2K")
+                sys.stdout.write(line)
+                sys.stdout.write("\n")
+            for _ in range(max(0, self._rendered_lines - len(lines))):
+                sys.stdout.write("\033[2K\n")
+            sys.stdout.flush()
+            self._rendered_lines = len(lines)
+
+    def set_selection(self, network, ip, prompt):
+        with self._lock:
+            self._selection = (network, ip)
+            self._prompt = prompt
+        self.render()
+
+    def clear_prompt(self):
+        with self._lock:
+            self._prompt = None
+        self.render()
+
+    def flatten_results(self):
+        with self._lock:
+            flattened = []
+            for network in self.networks:
+                ordered = sorted(
+                    self.state[network]["results"],
+                    key=lambda item: tuple(int(part) for part in item["ip"].split(".")),
+                )
+                for result in ordered:
+                    flattened.append((network, result))
+            return flattened
+
+
+def format_table(results):
+    rows = []
+    for index, result in enumerate(results):
+        rows.append(
+            {
+                "index": str(index),
+                "ip": result["ip"],
+                "hostname": result["hostname_label"],
+                "hostname_source": result["hostname_source"],
+                "port": str(result["port"]),
+                "banner": result["banner"],
+            }
+        )
+
+    widths = {
+        "index": max(len("INDEX"), *(len(row["index"]) for row in rows)),
+        "ip": max(len("IP"), *(len(row["ip"]) for row in rows)),
+        "hostname": max(len("HOSTNAME"), *(len(row["hostname"]) for row in rows)),
+        "hostname_source": max(
+            len("NAME_SOURCE"), *(len(row["hostname_source"]) for row in rows)
+        ),
+        "port": max(len("PORT"), *(len(row["port"]) for row in rows)),
+    }
+
+    header = (
+        f"{'INDEX':<{widths['index']}}  "
+        f"{'IP':<{widths['ip']}}  "
+        f"{'HOSTNAME':<{widths['hostname']}}  "
+        f"{'NAME_SOURCE':<{widths['hostname_source']}}  "
+        f"{'PORT':<{widths['port']}}  BANNER"
+    )
+    separator = (
+        f"{'-' * widths['index']}  "
+        f"{'-' * widths['ip']}  "
+        f"{'-' * widths['hostname']}  "
+        f"{'-' * widths['hostname_source']}  "
+        f"{'-' * widths['port']}  {'-' * 6}"
+    )
+
+    lines = [header, separator]
+    for row in rows:
+        lines.append(
+            f"{row['index']:<{widths['index']}}  "
+            f"{row['ip']:<{widths['ip']}}  "
+            f"{row['hostname']:<{widths['hostname']}}  "
+            f"{row['hostname_source']:<{widths['hostname_source']}}  "
+            f"{row['port']:<{widths['port']}}  {row['banner']}"
+        )
+    return "\n".join(lines)
+
+
+def print_results(results, json_mode, interactive_mode):
+    if json_mode:
+        print(json.dumps(results, indent=2, sort_keys=True))
+        return
+
+    if interactive_mode:
+        return
+
+    if not results:
+        print(f"{Fore.YELLOW}No robot candidates found.{Style.RESET_ALL}")
+        return
+
+    print(f"{Fore.CYAN}Results:{Style.RESET_ALL}")
+    print(format_table(results))
+
+
+def interactive_select_remote(view):
+    candidates = view.flatten_results()
+    if not candidates:
+        return None
+
+    selected = 0
+    confirm_mode = False
+    confirm_buf = ""
+
+    def render_prompt():
+        network, result = candidates[selected]
+        if confirm_mode:
+            prompt = (
+                f"Set {Fore.GREEN}{result['ip']}{Style.RESET_ALL} as "
+                f"{Fore.CYAN}remote{Style.RESET_ALL}? [Y/n] {confirm_buf}"
+            )
+        else:
+            prompt = (
+                "Select result with Tab/Shift+Tab/↑/↓/W/S/Ctrl+N/Ctrl+P, "
+                "press Enter to continue, q/Esc/Ctrl+C to exit."
+            )
+        view.set_selection(network, result["ip"], prompt)
+
+    def confirm_choice():
+        _, result = candidates[selected]
+        set_remote(result["ip"])
+        view.clear_prompt()
+        print(
+            f"Successfully set remote host to "
+            f"{Fore.LIGHTGREEN_EX}{result['ip']}{Style.RESET_ALL}."
+        )
+        return result["ip"]
+
+    render_prompt()
+    with RawTerminal():
+        while True:
+            key = RawTerminal.read_key()
+            if key is None:
+                continue
+
+            if confirm_mode:
+                if key == "enter":
+                    answer = confirm_buf.strip().lower()
+                    if answer in ("", "y", "yes"):
+                        return confirm_choice()
+                    if answer in ("n", "no"):
+                        confirm_mode = False
+                        confirm_buf = ""
+                        render_prompt()
+                    continue
+                if key == "backspace":
+                    confirm_buf = confirm_buf[:-1]
+                    render_prompt()
+                    continue
+                if key == "escape":
+                    confirm_mode = False
+                    confirm_buf = ""
+                    render_prompt()
+                    continue
+                if key in ("next", "prev"):
+                    confirm_mode = False
+                    confirm_buf = ""
+                elif isinstance(key, str) and len(key) == 1:
+                    confirm_buf += key
+                    render_prompt()
+                    continue
+
+            if key == "next":
+                selected = (selected + 1) % len(candidates)
+                confirm_mode = False
+                confirm_buf = ""
+                render_prompt()
+                continue
+            if key == "prev":
+                selected = (selected - 1) % len(candidates)
+                confirm_mode = False
+                confirm_buf = ""
+                render_prompt()
+                continue
+            if key == "enter":
+                confirm_mode = True
+                confirm_buf = ""
+                render_prompt()
+                continue
+
+
+def interactive_scan_and_select(networks):
+    view = ProgressView(networks)
+    selected = {"index": 0, "key": None}
+
+    def sync_selection(candidates):
+        if not candidates:
+            selected["index"] = 0
+            selected["key"] = None
+            return
+
+        if selected["key"] is not None:
+            for index, (network, result) in enumerate(candidates):
+                if (network, result["ip"]) == selected["key"]:
+                    selected["index"] = index
+                    return
+
+        selected["index"] %= len(candidates)
+        network, result = candidates[selected["index"]]
+        selected["key"] = (network, result["ip"])
+
+    def render_prompt():
+        candidates = view.flatten_results()
+        if not candidates:
+            view.set_selection(
+                None,
+                None,
+                "Scanning... press q/Esc/Ctrl+C to exit. Selection becomes available once a result appears.",
+            )
+            return
+
+        sync_selection(candidates)
+        network, result = candidates[selected["index"]]
+        selected["key"] = (network, result["ip"])
+        scan_done = all(view.state[network_name]["done"] for network_name in view.networks)
+        prompt = (
+            "Scan complete. Select with Tab/Shift+Tab/↑/↓/W/S/Ctrl+N/Ctrl+P, "
+            "press Enter to set selected remote, q/Esc/Ctrl+C to exit."
+            if scan_done
+            else "Select with Tab/Shift+Tab/↑/↓/W/S/Ctrl+N/Ctrl+P, press Enter to set immediately, q/Esc/Ctrl+C to exit."
+        )
+        view.set_selection(
+            network,
+            result["ip"],
+            prompt,
+        )
+
+    def on_key(key):
+        if key in ("quit", "escape"):
+            raise KeyboardInterrupt
+
+        candidates = view.flatten_results()
+        if not candidates:
+            return None
+
+        sync_selection(candidates)
+
+        if key == "next":
+            selected["index"] = (selected["index"] + 1) % len(candidates)
+            network, result = candidates[selected["index"]]
+            selected["key"] = (network, result["ip"])
+            render_prompt()
+            return None
+        if key == "prev":
+            selected["index"] = (selected["index"] - 1) % len(candidates)
+            network, result = candidates[selected["index"]]
+            selected["key"] = (network, result["ip"])
+            render_prompt()
+            return None
+        if key == "enter":
+            _, result = candidates[selected["index"]]
+            return result
+        return None
+
+    def wait_for_final_selection():
+        with RawTerminal():
+            while True:
+                key = RawTerminal.read_key()
+                chosen = on_key(key)
+                if chosen is not None:
+                    return chosen
+
+    view.start()
+    try:
+        render_prompt()
+        with RawTerminal():
+            results, chosen = scan_all_networks_until_selected(
+                networks,
+                on_key=on_key,
+                on_progress=view.update_progress,
+                on_found=lambda network, result: (view.add_result(network, result), render_prompt()),
+            )
+        if chosen is None and results:
+            render_prompt()
+            chosen = wait_for_final_selection()
+    finally:
+        view.stop()
+
+    return results, chosen
+
+
+def main(argv):
+    json_mode, complete_subnets_mode, subnet_args = parse_args(argv)
+    networks = parse_networks(subnet_args)
+
+    if complete_subnets_mode:
+        for network in networks:
+            print(network)
+        return 0
+
+    interactive_mode = not json_mode and sys.stdout.isatty()
+
+    if not interactive_mode:
+        results = scan(networks)
+    else:
+        results, chosen = interactive_scan_and_select(networks)
+        time.sleep(0.05)
+        if chosen is not None:
+            set_remote(chosen["ip"])
+            print(
+                f"Successfully set remote host to "
+                f"{Fore.LIGHTGREEN_EX}{chosen['ip']}{Style.RESET_ALL}."
+            )
+            return 0
+
+    print_results(results, json_mode, interactive_mode)
+    return 0 if results else 1
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main(sys.argv[1:]))
+    except KeyboardInterrupt:
+        sys.exit(1)
