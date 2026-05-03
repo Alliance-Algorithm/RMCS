@@ -30,7 +30,7 @@ rmcs_executor:
       - rmcs_core::controller::chassis::DeformableJointController -> rf_joint_controller
 
       # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
-      # - rmcs::AutoAimComponent -> auto_aim_component
+      - rmcs::AutoAimComponent -> auto_aim_component
 
 value_broadcaster:
   ros__parameters:

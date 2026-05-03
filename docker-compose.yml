@@ -2,7 +2,7 @@ services:
   rmcs-develop:
     build:
       context: .
-      dockerfile: .devcontainer/Dockerfile
+      dockerfile: ./Dockerfile
     image: rmcs-develop:codex-opencode
     user: "${CONTAINER_USER}"
     privileged: true
