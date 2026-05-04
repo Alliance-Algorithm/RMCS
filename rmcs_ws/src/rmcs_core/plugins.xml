@@ -7,11 +7,13 @@
   <class type="rmcs_core::hardware::ClimbableInfantry" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::ChassisController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::ChassisClimberController" base_class_type="rmcs_executor::Component" />  
+  <class type="rmcs_core::controller::chassis::ClimbableInfantryChassisClimberController" base_class_type="rmcs_executor::Component" />  
   <class type="rmcs_core::controller::chassis::ClimbableInfantryChassisController" base_class_type="rmcs_executor::Component" />  
   <class type="rmcs_core::controller::chassis::ChassisPowerController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::OmniWheelController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::SteeringWheelController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::ClimbableSteeringWheelController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::chassis::SteeringWheelStatus" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::gimbal::SimpleGimbalController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::gimbal::ClimbableInfantryGimbalController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::gimbal::HeroGimbalController" base_class_type="rmcs_executor::Component" />

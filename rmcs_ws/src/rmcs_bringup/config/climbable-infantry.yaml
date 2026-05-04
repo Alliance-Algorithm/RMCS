@@ -30,7 +30,7 @@ rmcs_executor:
       - rmcs_core::controller::chassis::ClimbableSteeringWheelController -> steering_wheel_controller
       - rmcs_core::controller::chassis::ClimbableInfantryChassisClimberController -> climber_controller
 
-      - rmcs::AutoAimComponent -> auto_aim_component
+      #- rmcs::AutoAimComponent -> auto_aim_component
 
       # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 

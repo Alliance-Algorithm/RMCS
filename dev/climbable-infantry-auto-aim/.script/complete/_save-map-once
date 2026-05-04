@@ -1,4 +1,0 @@
-#compdef save-map-once
-
-_arguments \
-  '1:mode:(remote local)'
