@@ -12,8 +12,6 @@
 #include <rmcs_msgs/switch.hpp>
 #include <rmcs_utility/eigen_structured_bindings.hpp>
 
-
-
 namespace rmcs_core::controller::gimbal {
 
 using namespace rmcs_description; // NOLINT(google-build-using-namespace)
@@ -40,8 +38,8 @@ public:
     // Called on hold-mode exit so that the next SetControlShift starts from "here",
     // not from a stale target that predates the hold period.
     void anchor_to_current_pose() {
-        control_direction_ = fast_tf::cast<OdomImu>(
-            PitchLink::DirectionVector{Eigen::Vector3d::UnitX()}, *tf_);
+        control_direction_ =
+            fast_tf::cast<OdomImu>(PitchLink::DirectionVector{Eigen::Vector3d::UnitX()}, *tf_);
         control_enabled_ = true;
     }
 
@@ -152,8 +150,8 @@ private:
         return result;
     }
 
-    static PitchLink::DirectionVector
-        yaw_link_to_pitch_link(const YawLink::DirectionVector& direction, const Eigen::Vector2d& pitch) {
+    static PitchLink::DirectionVector yaw_link_to_pitch_link(
+        const YawLink::DirectionVector& direction, const Eigen::Vector2d& pitch) {
         const auto& [x, y, z] = *direction;
         return {x * pitch.x() + z * pitch.y(), y, -x * pitch.y() + z * pitch.x()};
     }
@@ -185,11 +183,11 @@ private:
         xz_projection /= xz_norm;
 
         if (yaw_y > yaw_upper_limit_.y()) {
-            *control_direction << yaw_upper_limit_.x() * xz_projection.x(),
-                yaw_upper_limit_.y(), yaw_upper_limit_.x() * xz_projection.y();
+            *control_direction << yaw_upper_limit_.x() * xz_projection.x(), yaw_upper_limit_.y(),
+                yaw_upper_limit_.x() * xz_projection.y();
         } else if (yaw_y < yaw_lower_limit_.y()) {
-            *control_direction << yaw_lower_limit_.x() * xz_projection.x(),
-                yaw_lower_limit_.y(), yaw_lower_limit_.x() * xz_projection.y();
+            *control_direction << yaw_lower_limit_.x() * xz_projection.x(), yaw_lower_limit_.y(),
+                yaw_lower_limit_.x() * xz_projection.y();
         }
     }
 
@@ -231,7 +229,8 @@ public:
         , hold_yaw_kd_(get_parameter("hold_yaw_kd").as_double())
         , hold_pitch_kd_(get_parameter("hold_pitch_kd").as_double())
         , solver_(
-              *this, get_parameter("upper_limit").as_double(), get_parameter("lower_limit").as_double(),
+              *this, get_parameter("upper_limit").as_double(),
+              get_parameter("lower_limit").as_double(),
               get_parameter("yaw_upper_limit").as_double(),
               get_parameter("yaw_lower_limit").as_double()) {
         register_input("/remote/joystick/left", joystick_left_);
@@ -239,7 +238,15 @@ public:
         register_input("/remote/switch/left", switch_left_);
         register_input("/remote/mouse/velocity", mouse_velocity_);
         register_input("/remote/mouse", mouse_);
-        register_input("/gimbal/auto_aim/control_direction", auto_aim_control_direction_, false);
+        register_input("/auto_aim/should_control", auto_aim_should_control_, false);
+        register_input("/auto_aim/control_direction", auto_aim_control_direction_, false);
+        register_input("/auto_aim/robot_center", auto_aim_robot_center_, false);
+        register_input("/auto_aim/should_shoot", auto_aim_should_shoot_, false);
+        register_input("/auto_aim/yaw_rate", auto_aim_yaw_rate_, false);
+        register_input("/auto_aim/pitch_rate", auto_aim_pitch_rate_, false);
+        register_input("/auto_aim/yaw_acc", auto_aim_yaw_acc_, false);
+        register_input("/auto_aim/pitch_acc", auto_aim_pitch_acc_, false);
+        register_input("/auto_aim/feedforward_valid", auto_aim_feedforward_valid_, false);
         register_input("/gimbal/yaw/velocity_imu", yaw_velocity_imu_);
         register_input("/gimbal/pitch/velocity_imu", pitch_velocity_imu_);
         register_input("/gimbal/yaw/velocity", yaw_velocity_encoder_);
@@ -255,9 +262,13 @@ public:
         register_output("/gimbal/pitch/control_angle_error", pitch_angle_error_, kNan);
         register_output("/gimbal/yaw/hold_feedforward", yaw_hold_feedforward_, 0.0);
         register_output("/gimbal/pitch/hold_feedforward", pitch_hold_feedforward_, 0.0);
+        register_output("/gimbal/auto_aim/fire_control", fire_control_, false);
     }
 
     void update() override {
+        *fire_control_ = switch_right_.ready() && *switch_right_ == rmcs_msgs::Switch::UP
+                      && auto_aim_should_shoot_.ready() && *auto_aim_should_shoot_;
+
         auto angle_error = calculate_angle_error();
         *yaw_angle_error_ = angle_error.yaw_angle_error;
 
@@ -299,6 +310,19 @@ private:
             level_reached_ = false;
             hold_active_ = false;
             return solver_.update(FlightTwoAxisGimbalSolver::SetDisabled{});
+        }
+
+        if (switch_right == Switch::UP) {
+            hold_active_ = false;
+            if (auto_aim_has_control()) {
+                level_reached_ = true;
+                return solver_.update(
+                    FlightTwoAxisGimbalSolver::SetControlDirection{
+                        OdomImu::DirectionVector{*auto_aim_control_direction_}});
+            }
+
+            level_reached_ = false;
+            return solver_.update(FlightTwoAxisGimbalSolver::SetToLevel{});
         }
 
         if (!solver_.enabled()) {
@@ -348,14 +372,18 @@ private:
         return solver_.update(FlightTwoAxisGimbalSolver::SetControlShift(yaw_shift, pitch_shift));
     }
 
-    static double wrap_pi(double x) {
-        return std::remainder(x, 2.0 * std::numbers::pi);
+    static double wrap_pi(double x) { return std::remainder(x, 2.0 * std::numbers::pi); }
+
+    bool auto_aim_has_control() const {
+        return auto_aim_should_control_.ready() && *auto_aim_should_control_
+            && auto_aim_control_direction_.ready() && auto_aim_control_direction_->allFinite()
+            && auto_aim_control_direction_->squaredNorm() > 1e-18;
     }
 
     static constexpr double kNan = std::numeric_limits<double>::quiet_NaN();
     static constexpr double kPitchDeadband = 2e-3;
     // LPF on IMU velocity for hold damping: f_c ≈ 50 Hz, removes gyro noise above 50 Hz.
-    // α = dt / (τ + dt), τ = 1/(2π·50) 
+    // α = dt / (τ + dt), τ = 1/(2π·50)
     static constexpr double kVelFilterAlpha = 0.12;
 
     const double hold_level_threshold_;
@@ -373,7 +401,15 @@ private:
     InputInterface<rmcs_msgs::Switch> switch_left_;
     InputInterface<Eigen::Vector2d> mouse_velocity_;
     InputInterface<rmcs_msgs::Mouse> mouse_;
+    InputInterface<bool> auto_aim_should_control_;
     InputInterface<Eigen::Vector3d> auto_aim_control_direction_;
+    InputInterface<Eigen::Vector3d> auto_aim_robot_center_;
+    InputInterface<bool> auto_aim_should_shoot_;
+    InputInterface<double> auto_aim_yaw_rate_;
+    InputInterface<double> auto_aim_pitch_rate_;
+    InputInterface<double> auto_aim_yaw_acc_;
+    InputInterface<double> auto_aim_pitch_acc_;
+    InputInterface<bool> auto_aim_feedforward_valid_;
     InputInterface<double> yaw_velocity_imu_;
     InputInterface<double> pitch_velocity_imu_;
     InputInterface<double> yaw_velocity_encoder_;
@@ -386,6 +422,7 @@ private:
     OutputInterface<double> pitch_angle_error_;
     OutputInterface<double> yaw_hold_feedforward_;
     OutputInterface<double> pitch_hold_feedforward_;
+    OutputInterface<bool> fire_control_;
 
     FlightTwoAxisGimbalSolver solver_;
 };
