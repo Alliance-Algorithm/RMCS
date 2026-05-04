@@ -38,7 +38,7 @@ public:
               pid::PidCalculator(0.6, 0.0, 0.004), // joint_3
               pid::PidCalculator(0.65, 0.0, 0.002), // joint_4
               pid::PidCalculator(0.121, 0.0, 0.004), // joint_5
-              pid::PidCalculator(0.1080000, 0.0, 2.7), // joint_6
+              pid::PidCalculator(0.1080000, 0.0, 0.0), // joint_6
           } {
         for (std::size_t i = 0; i < num_axis; ++i) {
             const std::string joint_prefix = "/arm/joint_" + std::to_string(i + 1);
@@ -89,7 +89,7 @@ public:
         for (std::size_t i = 0; i < num_axis; ++i) {
             *joint_control_torque[i] = tau_cmd(i);
         }
-        *joint_control_torque[5] = NAN;
+        //*joint_control_torque[5] = NAN;
     }
 
 private:
