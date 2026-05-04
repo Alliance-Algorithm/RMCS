@@ -31,6 +31,7 @@ public:
         register_input("/remote/mouse", mouse_);
 
         register_input("/auto_aim/control_direction", auto_aim_control_direction_, false);
+        register_input("/auto_aim/should_control", auto_aim_should_control_, false);
 
         register_output("/gimbal/yaw/control_angle_error", yaw_angle_error_, nan_);
         register_output("/gimbal/pitch/control_angle_error", pitch_angle_error_, nan_);
@@ -47,12 +48,17 @@ public:
         auto switch_left = *switch_left_;
         auto mouse = *mouse_;
 
+        const auto& dir = *auto_aim_control_direction_;
+
         using namespace rmcs_msgs;
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN))
             return two_axis_gimbal_solver.update(TwoAxisGimbalSolver::SetDisabled());
 
-        if (auto_aim_control_direction_.ready() && (mouse.right || switch_right == Switch::UP)
+        if (auto_aim_control_direction_.ready()
+            && (auto_aim_should_control_.ready() || *auto_aim_should_control_)
+            && (mouse.right || switch_right == Switch::UP)
+            && (std::isfinite(dir.x()) && std::isfinite(dir.y()) && std::isfinite(dir.z()))
             && !auto_aim_control_direction_->isZero())
             return two_axis_gimbal_solver.update(
                 TwoAxisGimbalSolver::SetControlDirection(
@@ -83,6 +89,7 @@ private:
     InputInterface<rmcs_msgs::Mouse> mouse_;
 
     InputInterface<Eigen::Vector3d> auto_aim_control_direction_;
+    InputInterface<bool> auto_aim_should_control_;
 
     TwoAxisGimbalSolver two_axis_gimbal_solver;
 

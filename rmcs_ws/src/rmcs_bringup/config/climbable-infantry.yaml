@@ -122,9 +122,9 @@ pitch_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/pitch/control_angle_error
     control: /gimbal/pitch/control_velocity
-    kp: 15.0 #5.0
+    kp: 15.0 #15.0 30.0
     ki: 0.0
-    kd: 0.0 #1.5
+    kd: 1.5 #1.5 10.0
 
 pitch_velocity_pid_controller:
   ros__parameters:
@@ -133,7 +133,7 @@ pitch_velocity_pid_controller:
     control: /gimbal/pitch/control_torque
     kp: 40.0 #
     ki: 0.00
-    kd: 0.8 #
+    kd: 0.8 #0.8 2.4
 
 yaw_angle_pid_controller:
   ros__parameters:
@@ -141,7 +141,7 @@ yaw_angle_pid_controller:
     control: /gimbal/yaw/control_velocity
     kp: 20.0 #20.00
     ki: 0.0
-    kd: 0.9 #0.9
+    kd: 0.9 #0.9 10.0
 
 yaw_velocity_pid_controller:
   ros__parameters:
@@ -150,7 +150,7 @@ yaw_velocity_pid_controller:
     control: /gimbal/yaw/control_torque
     kp: 2.5 #2.5
     ki: 0.00
-    kd: 0.6 #0.6
+    kd: 0.6 #0.6 1.8
 
 friction_wheel_controller:
   ros__parameters:
