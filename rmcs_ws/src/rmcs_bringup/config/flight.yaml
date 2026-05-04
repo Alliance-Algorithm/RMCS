@@ -9,7 +9,8 @@ rmcs_executor:
       - rmcs_core::controller::gimbal::HoldController -> hold_controller
       - rmcs_core::controller::gimbal::FlightGimbalController -> gimbal_controller
       - rmcs::AutoAimComponent -> auto_aim_component
-      - rmcs_core::controller::gimbal::FlightYawController -> yaw_controller
+      - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
+      - rmcs_core::controller::pid::ErrorPidController -> yaw_velocity_pid_controller
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
 
       - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
@@ -59,7 +60,6 @@ value_broadcaster:
       - /gimbal/yaw/torque
       - /gimbal/yaw/control_torque
       - /gimbal/yaw/control_angle_error
-      - /gimbal/yaw/control_velocity
       - /gimbal/yaw/velocity_imu
 
 
@@ -110,23 +110,22 @@ gimbal_controller:
     hold_yaw_kd: 8.0
     hold_pitch_kd: 0.5
 
-yaw_controller:
+yaw_angle_pid_controller:
   ros__parameters:
-    # true  -> cascade PID (outer angle + inner velocity)
-    # false -> single-loop PID (angle error -> torque)
-    cascade_mode: false
+    measurement: /gimbal/yaw/control_angle_error
+    feedforward: /gimbal/yaw/hold_feedforward
+    control: /gimbal/yaw/control_velocity
+    kp: 140.0
+    ki: 0.0
+    kd: 2000.0
 
-    outer_kp: 3.7399
-    outer_ki: 0.0
-    outer_kd: 0.0
-
-    inner_kp: 384.4384
-    inner_ki: 499.9430
-    inner_kd: 4.8254
-
-    single_kp: 70.8943
-    single_ki: 0.0
-    single_kd: 1440.0
+yaw_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/yaw/control_velocity
+    control: /gimbal/yaw/control_torque
+    kp: 200.0
+    ki: 0.0
+    kd: 1400.0
 
 pitch_angle_pid_controller:
   ros__parameters:

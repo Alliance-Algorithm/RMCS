@@ -1,4 +1,5 @@
 #include <asm-generic/errno.h>
+#include <chrono>
 #include <cmath>
 #include <limits>
 #include <numbers>
@@ -238,6 +239,7 @@ public:
         register_input("/remote/switch/left", switch_left_);
         register_input("/remote/mouse/velocity", mouse_velocity_);
         register_input("/remote/mouse", mouse_);
+        register_input("/predefined/timestamp", timestamp_);
         register_input("/auto_aim/should_control", auto_aim_should_control_, false);
         register_input("/auto_aim/control_direction", auto_aim_control_direction_, false);
         register_input("/auto_aim/robot_center", auto_aim_robot_center_, false);
@@ -309,21 +311,33 @@ private:
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
             level_reached_ = false;
             hold_active_ = false;
+            last_auto_aim_direction_ready_ = false;
             return solver_.update(FlightTwoAxisGimbalSolver::SetDisabled{});
         }
 
         if (switch_right == Switch::UP) {
             hold_active_ = false;
             if (auto_aim_has_control()) {
+                last_auto_aim_direction_ = OdomImu::DirectionVector{*auto_aim_control_direction_};
+                last_auto_aim_update_time_ = *timestamp_;
+                last_auto_aim_direction_ready_ = true;
                 level_reached_ = true;
                 return solver_.update(
-                    FlightTwoAxisGimbalSolver::SetControlDirection{
-                        OdomImu::DirectionVector{*auto_aim_control_direction_}});
+                    FlightTwoAxisGimbalSolver::SetControlDirection{last_auto_aim_direction_});
+            }
+
+            if (last_auto_aim_recent()) {
+                level_reached_ = true;
+                return solver_.update(
+                    FlightTwoAxisGimbalSolver::SetControlDirection{last_auto_aim_direction_});
             }
 
             level_reached_ = false;
+            last_auto_aim_direction_ready_ = false;
             return solver_.update(FlightTwoAxisGimbalSolver::SetToLevel{});
         }
+
+        last_auto_aim_direction_ready_ = false;
 
         if (!solver_.enabled()) {
             level_reached_ = false;
@@ -380,8 +394,14 @@ private:
             && auto_aim_control_direction_->squaredNorm() > 1e-18;
     }
 
+    bool last_auto_aim_recent() const {
+        return last_auto_aim_direction_ready_
+            && *timestamp_ - last_auto_aim_update_time_ <= kAutoAimNoTargetLevelDelay;
+    }
+
     static constexpr double kNan = std::numeric_limits<double>::quiet_NaN();
     static constexpr double kPitchDeadband = 2e-3;
+    static constexpr auto kAutoAimNoTargetLevelDelay = std::chrono::seconds{1};
     // LPF on IMU velocity for hold damping: f_c ≈ 50 Hz, removes gyro noise above 50 Hz.
     // α = dt / (τ + dt), τ = 1/(2π·50)
     static constexpr double kVelFilterAlpha = 0.12;
@@ -395,12 +415,16 @@ private:
     double hold_target_pitch_ = 0.0;
     double filtered_yaw_vel_ = 0.0;
     double filtered_pitch_vel_ = 0.0;
+    bool last_auto_aim_direction_ready_ = false;
+    std::chrono::steady_clock::time_point last_auto_aim_update_time_{};
+    OdomImu::DirectionVector last_auto_aim_direction_{Eigen::Vector3d::UnitX()};
 
     InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;
     InputInterface<rmcs_msgs::Switch> switch_left_;
     InputInterface<Eigen::Vector2d> mouse_velocity_;
     InputInterface<rmcs_msgs::Mouse> mouse_;
+    InputInterface<std::chrono::steady_clock::time_point> timestamp_;
     InputInterface<bool> auto_aim_should_control_;
     InputInterface<Eigen::Vector3d> auto_aim_control_direction_;
     InputInterface<Eigen::Vector3d> auto_aim_robot_center_;
