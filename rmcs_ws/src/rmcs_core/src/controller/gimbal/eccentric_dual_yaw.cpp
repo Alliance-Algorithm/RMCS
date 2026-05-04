@@ -113,6 +113,7 @@ private:
             component.register_input("/remote/switch/right", switch_right);
             component.register_input("/remote/switch/left", switch_left);
             component.register_input("/remote/mouse/velocity", mouse_velocity);
+            component.register_input("/remote/mouse", mouse);
 
             component.register_input("/predefined/timestamp", timestamp);
             component.register_input("/tf", tf);
@@ -131,7 +132,8 @@ private:
             component.register_input("/auto_aim/pitch_rate", auto_aim_pitch_rate, false);
             component.register_input("/auto_aim/yaw_acc", auto_aim_yaw_acc, false);
             component.register_input("/auto_aim/pitch_acc", auto_aim_pitch_acc, false);
-            component.register_input("/auto_aim/feedforward_valid", auto_aim_feedforward_valid, false);
+            component.register_input(
+                "/auto_aim/feedforward_valid", auto_aim_feedforward_valid, false);
         }
 
         auto enable_control() const noexcept -> bool {
@@ -145,7 +147,7 @@ private:
 
         auto enable_autoaim() const noexcept -> bool {
             using namespace rmcs_msgs;
-            if (*switch_right != Switch::UP)
+            if (*switch_right != Switch::UP && !mouse->right)
                 return false;
             if (!auto_aim_control_direction.ready())
                 return false;
@@ -158,6 +160,7 @@ private:
         InputInterface<rmcs_msgs::Switch> switch_right;
         InputInterface<rmcs_msgs::Switch> switch_left;
         InputInterface<Eigen::Vector2d> mouse_velocity;
+        InputInterface<rmcs_msgs::Mouse> mouse;
 
         InputInterface<std::chrono::steady_clock::time_point> timestamp;
         InputInterface<Tf> tf;
@@ -169,6 +172,7 @@ private:
         InputInterface<double> pitch_angle;
         InputInterface<double> pitch_velocity;
         InputInterface<double> chassis_yaw_velocity_imu;
+
         InputInterface<Eigen::Vector3d> auto_aim_control_direction;
         InputInterface<double> auto_aim_yaw_rate;
         InputInterface<double> auto_aim_pitch_rate;
