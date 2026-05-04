@@ -119,52 +119,34 @@ private:
             static bool even_phase{true};
             auto tx                              = start_transmit();
             const bool should_enable_dm_joint123 = arm_command_.should_enable_dm_joint123();
-            // RCLCPP_INFO(
-            //     this->get_logger(), "joint5 control torque: %f %f %f %f %d %d %d %d",
-            //     big_yaw.get_angle(), joint_1.get_angle(), joint_2.get_angle(),
-            //     joint_3.get_angle(), joint_4.get_raw_angle(), joint_5.get_raw_angle(),
-            //     joint_6.get_raw_angle(), gripper.get_raw_angle());
-            // RCLCPP_INFO(get_logger(),"%d %d
-            // %d",joint_4.get_raw_angle(),joint_5.get_raw_angle(),joint_6.get_raw_angle());
-
-            // if (should_enable_dm_joint123) {
-            //     command_ = device::DMMotor::dm_enable_command();
-            //     transmit_buffer_.add_can1_transmission(0x055, command_);
-            //     transmit_buffer_.add_can1_transmission(0x034, command_);
-            //     transmit_buffer_.add_can1_transmission(0x003, command_);
-            //       tx.can1_transmit({
-            //     .can_id   = 0x3,
-            //     .can_data = big_yaw.dm_close_command().as_bytes(),
-            // });
-            // }
 
             if (even_phase) {
 
                 tx.can1_transmit({
-                    .can_id   = 0x003,
+                    .can_id   = 0x142,
                     .can_data = joint_3.generate_torque_command().as_bytes(),
                 });
 
                 tx.can1_transmit({
-                    .can_id   = 0x034,
+                    .can_id   = 0x145,
                     .can_data = joint_2.generate_torque_command().as_bytes(),
                 });
 
                 tx.can2_transmit({
-                    .can_id   = 0x144,
+                    .can_id   = 0x145,
                     .can_data = joint_5.generate_torque_command().as_bytes(),
                 });
 
                 tx.can2_transmit({
-                    .can_id   = 0x143,
-                    .can_data = joint_4.generate_velocity_command(0.0, 800).as_bytes(),
+                    .can_id   = 0x141,
+                    .can_data = joint_4.generate_torque_command().as_bytes(),
                 });
 
             } else {
 
                 tx.can1_transmit({
-                    .can_id   = 0x055,
-                    .can_data = joint_1.generate_torque_command().as_bytes(),
+                    .can_id   = 0x143,
+                    .can_data = joint_1.lk_quest_command().as_bytes(),
                 });
 
                 tx.can1_transmit({
@@ -173,8 +155,8 @@ private:
                 });
 
                 tx.can2_transmit({
-                    .can_id   = 0x145,
-                    .can_data = joint_6.generate_velocity_command(0.0, 1400).as_bytes(),
+                    .can_id   = 0x146,
+                    .can_data = joint_6.lk_quest_command().as_bytes(),
                 });
             }
 
@@ -227,7 +209,8 @@ private:
                 offset_angle(joint_4.get_raw_angle(), joint4_zero_point_, 32768),
                 offset_angle(joint_5.get_raw_angle(), joint5_zero_point_, 65535),
                 offset_angle(joint_6.get_raw_angle(), joint6_zero_point_, 32768),
-                offset_angle(gripper.get_raw_angle(), gripper_zero_point_, 65535)};
+                0,
+            };
 
             for (std::size_t i = 0; i < 8; ++i) {
                 const uint16_t value         = payload_u16[i];
@@ -249,12 +232,11 @@ private:
             if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
                 [[unlikely]]
                 return;
-
-            if (data.can_id == 0x145) {
+            if (data.can_id == 0x146) {
                 joint_6.store_status(data.can_data);
-            } else if (data.can_id == 0x144) {
+            } else if (data.can_id == 0x145) {
                 joint_5.store_status(data.can_data);
-            } else if (data.can_id == 0x143) {
+            } else if (data.can_id == 0x141) {
                 joint_4.store_status(data.can_data);
             }
         }
@@ -263,14 +245,13 @@ private:
             if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
                 [[unlikely]]
                 return;
-
-            if (data.can_id == 0x023) {
+            if (data.can_id == 0x142) {
                 joint_3.store_status(data.can_data);
-            } else if (data.can_id == 0x033) {
+            } else if (data.can_id == 0x145) {
                 joint_2.store_status(data.can_data);
-            } else if (data.can_id == 0x044) {
+            } else if (data.can_id == 0x143) {
                 joint_1.store_status(data.can_data);
-            } else if (data.can_id == 0x141) {
+            } else if (data.can_id == 0x141) { 
                 big_yaw.store_status(data.can_data);
             }
         }
