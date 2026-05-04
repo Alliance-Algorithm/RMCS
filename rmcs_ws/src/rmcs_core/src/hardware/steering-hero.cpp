@@ -113,7 +113,58 @@ private:
         RCLCPP_INFO(
             get_logger(), "[chassis calibration] right back steering offset: %d",
             bottom_board_two_->chassis_steering_motors2_[1].calibrate_zero_point());
+        RCLCPP_INFO(
+            get_logger(), "[chassis calibration] left front wheel offset: %d",
+            bottom_board_one_->chassis_wheel_motors_[0].calibrate_zero_point());
+        RCLCPP_INFO(
+            get_logger(), "[chassis calibration] right front wheel offset: %d",
+            bottom_board_one_->chassis_wheel_motors_[1].calibrate_zero_point());
+        RCLCPP_INFO(
+            get_logger(), "[chassis calibration] left back wheel offset: %d",
+            bottom_board_two_->chassis_wheel_motors2_[0].calibrate_zero_point());
+        RCLCPP_INFO(
+            get_logger(), "[chassis calibration] right back wheel offset: %d",
+            bottom_board_two_->chassis_wheel_motors2_[1].calibrate_zero_point());
+        RCLCPP_INFO(
+            get_logger(), "[booster calibration] left front friction wheel offset: %d",
+            top_board_->gimbal_friction_wheels_[0].calibrate_zero_point());
+        RCLCPP_INFO(
+            get_logger(), "[booster calibration] right front friction wheel offset: %d",
+            top_board_->gimbal_friction_wheels_[1].calibrate_zero_point());
+        RCLCPP_INFO(
+            get_logger(), "[booster calibration] left back friction wheel offset: %d",
+            top_board_->gimbal_friction_wheels_[2].calibrate_zero_point());
+        RCLCPP_INFO(
+            get_logger(), "[booster calibration] right back friction wheel offset: %d",
+            top_board_->gimbal_friction_wheels_[3].calibrate_zero_point());
     }
+
+    // void gimbal_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
+    //     RCLCPP_INFO(
+    //         get_logger(), "[gimbal calibration] New bottom yaw offset: %ld",
+    //         bottom_board_two_->gimbal_bottom_yaw_motor_.calibrate_zero_point());
+    //     RCLCPP_INFO(
+    //         get_logger(), "[gimbal calibration] New pitch offset: %ld",
+    //         top_board_->gimbal_pitch_motor_.calibrate_zero_point());
+    //     RCLCPP_INFO(
+    //         get_logger(), "[gimbal calibration] New top yaw offset: %ld",
+    //         top_board_->gimbal_top_yaw_motor_.calibrate_zero_point());
+    //     RCLCPP_INFO(
+    //         get_logger(), "[gimbal calibration] New bullet feeder offset: %ld",
+    //         top_board_->gimbal_bullet_feeder_.calibrate_zero_point());
+    //     RCLCPP_INFO(
+    //         get_logger(), "[chassis calibration] left front steering offset: %d",
+    //         bottom_board_one_->chassis_steering_motors_[0].calibrate_zero_point());
+    //     RCLCPP_INFO(
+    //         get_logger(), "[chassis calibration] right front steering offset: %d",
+    //         bottom_board_one_->chassis_steering_motors_[1].calibrate_zero_point());
+    //     RCLCPP_INFO(
+    //         get_logger(), "[chassis calibration] left back steering offset: %d",
+    //         bottom_board_two_->chassis_steering_motors2_[0].calibrate_zero_point());
+    //     RCLCPP_INFO(
+    //         get_logger(), "[chassis calibration] right back steering offset: %d",
+    //         bottom_board_two_->chassis_steering_motors2_[1].calibrate_zero_point());
+    // }
 
     class SteeringHeroCommand : public rmcs_executor::Component {
     public:
@@ -300,6 +351,7 @@ private:
                 return;
             auto can_id = data.can_id;
             if (can_id == 0x204) {
+
                 gimbal_friction_wheels_[0].store_status(data.can_data);
             } else if (can_id == 0x202) {
                 gimbal_friction_wheels_[1].store_status(data.can_data);
@@ -499,6 +551,7 @@ private:
             if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
                 return;
             auto can_id = data.can_id;
+
             if (can_id == 0x201) {
                 chassis_wheel_motors_[1].store_status(data.can_data);
             } else if (can_id == 0x202) {
@@ -672,6 +725,7 @@ private:
 
             if (can_id == 0x203) {
                 chassis_wheel_motors2_[1].store_status(data.can_data);
+
             } else if (can_id == 0x204) {
                 chassis_wheel_motors2_[0].store_status(data.can_data);
             } else if (can_id == 0x205) {

@@ -60,10 +60,10 @@ hero_hardware:
     viewer_motor_zero_point: 3030
     external_imu_port: /dev/ttyUSB0
     bullet_feeder_motor_zero_point: 11865
-    left_front_zero_point: 4437
-    right_front_zero_point: 1043
-    left_back_zero_point:  3784
-    right_back_zero_point: 5814
+    left_front_zero_point: 4394
+    right_front_zero_point: 1020
+    left_back_zero_point:  3776
+    right_back_zero_point: 5791
 
 
 
@@ -180,16 +180,16 @@ friction_wheel_controller:
       - /gimbal/second_left_friction
       - /gimbal/second_right_friction
     friction_velocities:
-      - 371.00
-      - 371.00
-      - 579.00
-      - 579.00
+      - 365.00
+      - 365.00
+      - 569.00
+      - 569.00
     friction_soft_start_stop_time: 1.0
 
 heat_controller:
   ros__parameters:
     heat_per_shot: 100000
-    reserved_heat: 0
+    reserved_heat: 20000
 
 shooting_recorder:
   ros__parameters:
