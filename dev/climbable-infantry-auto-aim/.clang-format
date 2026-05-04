@@ -1,0 +1,57 @@
+BasedOnStyle: LLVM
+
+ColumnLimit: 100
+
+IndentWidth: 4
+ContinuationIndentWidth: 4
+ConstructorInitializerIndentWidth: 4
+AccessModifierOffset: -4
+
+Standard: c++20
+
+MaxEmptyLinesToKeep: 1
+
+AlignAfterOpenBracket: AlwaysBreak
+
+AlignArrayOfStructures: Right
+
+AlignConsecutiveAssignments:
+    Enabled: false
+AlignConsecutiveBitFields:
+    Enabled: true
+    AcrossEmptyLines: false
+    AcrossComments: false
+AlignConsecutiveDeclarations:
+    Enabled: false
+AlignConsecutiveMacros:
+    Enabled: true
+    AcrossEmptyLines: false
+    AcrossComments: false
+# AlignConsecutiveShortCaseStatements:
+#     Enabled: false
+AlignEscapedNewlines: Left
+AlignOperands: AlignAfterOperator
+AlignTrailingComments:
+    Kind: Always
+    OverEmptyLines: 64
+PointerAlignment: Left
+
+AllowAllArgumentsOnNextLine: true
+AllowAllParametersOfDeclarationOnNextLine: true
+AllowShortBlocksOnASingleLine: Empty
+AllowShortCaseLabelsOnASingleLine: true
+
+IndentPPDirectives: AfterHash
+PPIndentWidth: 1
+
+BreakBeforeBinaryOperators: NonAssignment
+BreakBeforeConceptDeclarations: Always
+BreakConstructorInitializers: BeforeComma
+BreakInheritanceList: BeforeComma
+FixNamespaceComments: true
+IncludeBlocks: Preserve
+IndentWrappedFunctionNames: true
+
+AlwaysBreakTemplateDeclarations: Yes
+IndentRequiresClause: false
+RequiresClausePosition: SingleLine

@@ -1,0 +1,224 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::hardware::ClimbableInfantry -> Infantry_hardware
+
+      - rmcs_core::referee::Status -> referee_status
+      - rmcs_core::referee::command::Interaction -> referee_interaction
+      - rmcs_core::referee::command::interaction::Ui -> referee_ui
+      - rmcs_core::referee::app::ui::UIClimbableInfantry -> referee_ui_infantry
+      - rmcs_core::referee::Command -> referee_command
+
+      - rmcs_core::controller::gimbal::ClimbableInfantryGimbalController -> gimbal_controller
+      - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
+      - rmcs_core::controller::pid::PidController -> pitch_velocity_pid_controller
+      - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
+      - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
+
+      - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
+      - rmcs_core::controller::shooting::HeatController -> heat_controller
+      - rmcs_core::controller::shooting::BulletFeederController17mm -> bullet_feeder_controller
+      # - rmcs_core::controller::shooting::ShootingRecorder -> shooting_recorder
+      - rmcs_core::controller::pid::PidController -> left_friction_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> right_friction_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller
+      
+      - rmcs_core::controller::chassis::SteeringWheelStatus -> steering_wheel_status
+      - rmcs_core::controller::chassis::ClimbableInfantryChassisController -> chassis_controller
+      - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
+      - rmcs_core::controller::chassis::ClimbableSteeringWheelController -> steering_wheel_controller
+      - rmcs_core::controller::chassis::ClimbableInfantryChassisClimberController -> climber_controller
+
+      - rmcs::AutoAimComponent -> auto_aim_component
+
+      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+
+Infantry_hardware:
+  ros__parameters:
+    board_serial_top_board: "D4-632C-37BC-6A17-ACA2-E3FE-91E9"
+    board_serial_bottom_board: "AF-EEF5-24BA-6675-F1B1-C797-50AF-869C-870E"
+    yaw_motor_zero_point: 7570
+    pitch_motor_zero_point: 24243
+    # top_yaw_motor_zero_point: 58744
+    # viewer_motor_zero_point: 3030
+    # external_imu_port: /dev/ttyUSB0
+    # bullet_feeder_motor_zero_point: 15111
+    left_front_zero_point: 5806
+    right_front_zero_point: 5092
+    left_back_zero_point: 3759
+    right_back_zero_point: 3103
+    
+
+value_broadcaster:
+  ros__parameters:
+    forward_list:
+    - /gimbal/yaw/velocity
+    - /gimbal/yaw/control_velocity
+    # - /gimbal/yaw/control_torque
+      # - /gimbal/left_friction/velocity
+      # - /gimbal/right_friction/velocity
+        # - /chassis/pitch_imu
+        # - /gimbal/pitch/velocity_imu
+        # - /gimbal/pitch/angle
+        # - /gimbal/yaw/angle
+        # - /chassis/climber/right_back_motor/control_torque
+        # - /chassis/climber/left_back_motor/control_torque
+        # - /gimbal/putter/velocity
+        # - /gimbal/first_left_friction/velocity
+        # - /gimbal/first_second_friction/velocity
+        # - /gimbal/second_left_friction/velocity
+        # - /gimbal/second_right_friction/velocity
+        # - /gimbal/first_left_friction/control_torque
+        # - /gimbal/first_second_friction/control_torque
+        # - /gimbal/second_left_friction/control_torque
+        # - /gimbal/second_right_friction/control_torque
+      # - /chassis/left_front_steering/angle
+      # - /chassis/left_back_steering/angle
+      # - /chassis/right_back_steering/angle
+      # - /chassis/right_front_steering/angle  
+      # - /chassis/left_front_steering/control_torque
+      # - /chassis/left_back_steering/control_torque
+      # - /chassis/right_back_steering/control_torque
+      # - /chassis/right_front_steering/control_torque  
+      # - /gimbal/pitch/control_torque
+      # - /gimbal/pitch/velocity
+      # - /gimbal/pitch/control_velocity
+      # - /gimbal/pitch/control_angle_error
+      # - /gimbal/bullet_feeder/phase_zero
+      # - /gimbal/bullet_feeder/alignment_error
+      # - /chassis/climber/left_back_motor/torque
+      # - /chassis/climber/right_back_motor/torque
+      # - /chassis/climber/left_back_motor/velocity
+      # - /chassis/climber/right_back_motor/velocity
+      # - /chassis/climber/right_back_motor/control_torque
+      # - /chassis/climber/left_back_motor/control_torque
+
+climber_controller:
+  ros__parameters:
+    front_climber_velocity: 60.0
+    back_climber_velocity: 20.0 #13.0
+    auto_climb_dash_velocity: 20.0 #3.0
+    auto_climb_support_retract_velocity: 40.0 #47.0
+    sync_coefficient: 0.8
+    first_stair_approach_pitch: 0.590
+    second_stair_approach_pitch: 0.320
+    front_kp: 1.0
+    front_ki: 0.0
+    front_kd: 0.5
+    back_kp: 1.0
+    back_ki: 0.0
+    back_kd: 0.0
+
+gimbal_controller:
+  ros__parameters:
+    upper_limit: -0.54
+    lower_limit: 0.274
+
+pitch_angle_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/pitch/control_angle_error
+    control: /gimbal/pitch/control_velocity
+    kp: 15.0 #15.0 30.0
+    ki: 0.0
+    kd: 1.5 #1.5 10.0
+
+pitch_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/pitch/velocity_imu
+    setpoint: /gimbal/pitch/control_velocity
+    control: /gimbal/pitch/control_torque
+    kp: 40.0 #
+    ki: 0.00
+    kd: 0.8 #0.8 2.4
+
+yaw_angle_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/yaw/control_angle_error
+    control: /gimbal/yaw/control_velocity
+    kp: 20.0 #20.00
+    ki: 0.0
+    kd: 0.9 #0.9 10.0
+
+yaw_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/yaw/velocity_imu
+    setpoint: /gimbal/yaw/control_velocity
+    control: /gimbal/yaw/control_torque
+    kp: 2.5 #2.5
+    ki: 0.00
+    kd: 0.6 #0.6 1.8
+
+friction_wheel_controller:
+  ros__parameters:
+    friction_wheels:
+      - /gimbal/left_friction
+      - /gimbal/right_friction
+    friction_velocities:
+      - 590.0
+      - 590.0
+    friction_soft_start_stop_time: 0.3
+
+heat_controller:
+  ros__parameters:
+    heat_per_shot: 10000
+    reserved_heat: 5000
+
+bullet_feeder_controller:
+  ros__parameters:
+    bullets_per_feeder_turn: 9.0
+    shot_frequency: 60.0
+    safe_shot_frequency: 10.0
+    eject_frequency: 10.0
+    eject_time: 0.05
+    deep_eject_frequency: 5.0
+    deep_eject_time: 0.2
+    single_shot_max_stop_delay: 2.0
+
+shooting_recorder:
+  ros__parameters:
+    friction_wheel_count: 2
+    log_mode: 1 # 1: trigger, 2: timing
+
+left_friction_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/left_friction/velocity
+    setpoint: /gimbal/left_friction/control_velocity
+    control: /gimbal/left_friction/control_torque
+    kp: 0.003436926 #0.003436926 #0.0016
+    ki: 0.00
+    kd: 0.009373434 #0.009373434 #0.001
+
+right_friction_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/right_friction/velocity
+    setpoint: /gimbal/right_friction/control_velocity
+    control: /gimbal/right_friction/control_torque
+    kp: 0.003436926 #0.0016
+    ki: 0.00
+    kd: 0.009373434 #0.009373434 #0.001
+
+bullet_feeder_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/bullet_feeder/velocity
+    setpoint: /gimbal/bullet_feeder/control_velocity
+    control: /gimbal/bullet_feeder/control_torque
+    kp: 0.7
+    ki: 0.0
+    kd: 0.0
+  
+steering_wheel_status:
+  ros__parameters:
+    vehicle_radius: 0.28284271247462
+    wheel_radius: 0.055
+  
+steering_wheel_controller:
+  ros__parameters:
+    mess: 22.0
+    moment_of_inertia: 1.08
+    vehicle_radius: 0.28284271247462
+    wheel_radius: 0.055
+    friction_coefficient: 0.6
+    k1: 2.958580e+00
+    k2: 3.082190e-03
+    no_load_power: 11.37

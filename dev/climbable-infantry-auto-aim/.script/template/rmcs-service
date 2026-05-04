@@ -1,0 +1,73 @@
+#! /bin/bash
+
+set -e
+
+start() {
+    if [[ -z "$HOME" ]]; then
+        export HOME=/root
+    fi
+
+    if is_running; then
+        echo 'Error: RMCS daemon is still running!'
+        exit 1
+    fi
+
+    source ~/env_setup.bash
+
+    if [ -z "${RMCS_ROBOT_TYPE}" ]; then
+        echo "Error: Please set robot type first (e.g. 'set-robot sentry')."
+        exit 1
+    fi
+
+    screen -dmS rmcs bash -c "ros2 launch rmcs_bringup rmcs.launch.py robot:=${RMCS_ROBOT_TYPE}"
+
+    sleep 0.1
+    
+    if is_running; then
+        echo "Successfully started RMCS daemon."
+    else
+        echo "Error: Failed to start RMCS daemon."
+        exit 1
+    fi
+}
+
+attach() {
+    screen -r rmcs
+}
+
+stop() {
+    if is_running; then
+        screen -S rmcs -X quit
+        echo "Successfully stopped RMCS daemon."
+    fi
+}
+
+is_running() {
+    if ls '/run/screen/S-root' 2>/dev/null | grep -q '.*\.rmcs'; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+case "$1" in
+    start)
+        start
+        ;;
+    attach)
+        attach
+        ;;
+    stop)
+        stop
+        ;;
+    restart)
+        stop
+        start
+        ;;
+    *)
+        echo 'Usage: service rmcs {start|attach|stop|restart}'
+        exit 1
+        ;;
+esac
+
+exit 0

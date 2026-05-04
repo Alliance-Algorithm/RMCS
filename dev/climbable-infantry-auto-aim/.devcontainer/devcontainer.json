@@ -1,0 +1,44 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the
+// README at: https://github.com/devcontainers/templates/tree/main/src/docker-existing-dockerfile
+{
+	"name": "rmcs-develop",
+	"image": "qzhhhi/rmcs-develop:latest",
+	"privileged": true,
+	"mounts": [
+		{
+			"source": "/dev",
+			"target": "/dev",
+			"type": "bind"
+		},
+		{
+			"source": "/tmp/.X11-unix",
+			"target": "/tmp/.X11-unix",
+			"type": "bind"
+		}
+	],
+	"containerEnv": {
+		"DISPLAY": "${localEnv:DISPLAY}"
+	},
+	"runArgs": [
+		"--network",
+		"host"
+	],
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				// C++ language support
+				"llvm-vs-code-extensions.vscode-clangd",
+				// Python language support
+				"ms-python.vscode-pylance",
+				"ms-python.python",
+				"ms-python.debugpy",
+				// CMake language support
+				"twxs.cmake",
+				// Code spell checking
+				"streetsidesoftware.code-spell-checker",
+				// Git enhancements
+				"mhutchie.git-graph"
+			]
+		}
+	}
+}

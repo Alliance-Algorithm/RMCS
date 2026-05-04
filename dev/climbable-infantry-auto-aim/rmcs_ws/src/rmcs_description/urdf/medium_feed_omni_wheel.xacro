@@ -1,0 +1,120 @@
+<?xml version="1.0"?>
+
+<robot name="medium_feed_omni_wheel" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+
+  <xacro:property name="wheel_distance_x" value="0.31794" />
+  <xacro:property name="wheel_distance_y" value="0.31794" />
+
+  <xacro:property name="gimbal_center_height" value="0.32059" />
+
+
+  <material name="white">
+    <color rgba="1 1 1 1" />
+  </material>
+  <xacro:macro name="stl_visual" params="filename">
+    <visual>
+      <geometry>
+        <mesh filename="package://rmcs_description/meshes/visual/${filename}" />
+      </geometry>
+      <material name="white" />
+    </visual>
+  </xacro:macro>
+
+
+  <link name="base_link">
+    <xacro:stl_visual filename="base_link.stl" />
+  </link>
+
+  <xacro:macro name="generate_wheel" params="name rpy xyz">
+    <link name="${name}_wheel_link">
+      <xacro:stl_visual filename="wheel_link.stl" />
+    </link>
+    <joint name="${name}_wheel" type="continuous">
+      <axis xyz="1 0 0" />
+      <parent link="base_link" />
+      <child link="${name}_wheel_link" />
+      <origin rpy="${rpy}" xyz="${xyz}" />
+    </joint>
+  </xacro:macro>
+
+  <xacro:generate_wheel name="left_front" rpy="0 0 ${pi/4}"
+    xyz="${wheel_distance_x/2} ${wheel_distance_y/2} 0" />
+
+  <xacro:generate_wheel name="left_back" rpy="0 0 ${pi/4*3}"
+    xyz="-${wheel_distance_x/2} ${wheel_distance_y/2} 0" />
+
+  <xacro:generate_wheel name="right_back" rpy="0 0 -${pi/4*3}"
+    xyz="-${wheel_distance_x/2} -${wheel_distance_y/2} 0" />
+
+  <xacro:generate_wheel name="right_front" rpy="0 0 -${pi/4}"
+    xyz="${wheel_distance_x/2} -${wheel_distance_y/2} 0" />
+
+
+  <link name="yaw_link">
+    <xacro:stl_visual filename="yaw_link.stl" />
+  </link>
+  <joint name="yaw" type="continuous">
+    <axis xyz="0 0 1" />
+    <parent link="base_link" />
+    <child link="yaw_link" />
+    <origin xyz="0 0 ${gimbal_center_height}" />
+  </joint>
+
+  <link name="pitch_link">
+    <xacro:stl_visual filename="pitch_link.stl" />
+  </link>
+  <joint name="pitch" type="continuous">
+    <axis xyz="0 1 0" />
+    <parent link="yaw_link" />
+    <child link="pitch_link" />
+    <origin xyz="0 0 0" />
+  </joint>
+
+  <link name="imu_link" />
+  <joint name="imu" type="fixed">
+    <parent link="pitch_link" />
+    <child link="imu_link" />
+    <origin rpy = "0 0 ${pi/2}" xyz="0 0 0" />
+  </joint>
+
+  <link name="muzzle_link" />
+  <joint name="muzzle" type="fixed">
+    <parent link="pitch_link" />
+    <child link="muzzle_link" />
+    <origin xyz="0.059 0 0" />
+  </joint>
+
+  <link name="camera_link" />
+  <joint name="camera" type="fixed">
+    <parent link="pitch_link" />
+    <child link="camera_link" />
+    <origin xyz="0.06603 0 0.082" />
+  </joint>
+
+  <link name="omni_link_left_front" />
+  <joint name="omni" type="fixed">
+    <parent link="yaw_link" />
+    <child link="omni_link_left_front" />
+    <origin xyz="" />
+  </joint>
+  <link name="omni_link_right_front" />
+  <joint name="omni" type="fixed">
+    <parent link="yaw_link" />
+    <child link="omni_link_right_front" />
+    <origin xyz="" />
+  </joint>
+  <link name="omni_link_left" />
+  <joint name="omni" type="fixed">
+    <parent link="yaw_link" />
+    <child link="omni_link_left" />
+    <origin xyz="" />
+  </joint>
+  <link name="omni_link_right" />
+  <joint name="omni" type="fixed">
+    <parent link="yaw_link" />
+    <child link="omni_link_right" />
+    <origin xyz="" />
+  </joint>
+
+</robot>

@@ -1,0 +1,275 @@
+#!/bin/python3
+
+import sys
+import re
+import os
+
+from colorama import Fore, Style
+
+
+def main():
+    if len(sys.argv) <= 1 or len(sys.argv) > 2 or sys.argv[1] in ("-h", "--help"):
+        print("Usage: set-remote <remote_host>")
+        print("    1. IPv4 / IPv6 address (e.g., 169.254.233.233)")
+        print(
+            "    2. IPv4 / IPv6 link-local address (e.g., fe80::c6d0:e3ff:fed7:ed12%eth0)"
+        )
+        print("    3. mDNS hostname (e.g., my-sentry.local)")
+        sys.exit(1)
+
+    host_remote = sys.argv[1]
+    if host_remote.endswith(".local") or host_remote.endswith(".local."):
+        print("An mDNS hostname was provided. Will resolve it to an IP address.")
+        host_remote = mdns_lookup(host_remote)
+
+    set_remote(host_remote)
+    print(
+        f"Successfully set remote host to {Fore.LIGHTGREEN_EX}{host_remote}{Style.RESET_ALL}."
+    )
+
+
+def mdns_lookup(hostname):
+    import dpkt
+    import psutil
+    import select
+    import socket
+    import struct
+
+    mdns_udp_port = 5353
+
+    dns_query = dpkt.dns.DNS(
+        b"\x00\x00\x01\x00\x00\x01\x00\x00" + b"\x00\x00\x00\x00\x00\x00\x01\x00\x01"
+    )
+    dns_query.qd[0].name = hostname
+    dns_query.qd[0].type = dpkt.dns.DNS_A
+    dns_query_packet4 = dns_query.pack()
+    dns_query.qd[0].type = dpkt.dns.DNS_AAAA
+    dns_query_packet6 = dns_query.pack()
+
+    socks = {}
+    sock_groups = []
+
+    print("Sending mDNS query packet to interfaces...")
+    for interface, addresses in psutil.net_if_addrs().items():
+        print(f"    - {interface}: ", end="")
+        if interface.startswith("lo") or interface.startswith("loopback"):
+            print(f"{Fore.LIGHTBLACK_EX}Skipped (loopback interface).{Style.RESET_ALL}")
+            continue
+        elif interface.startswith("docker") or interface.startswith("br-"):
+            print(f"{Fore.LIGHTBLACK_EX}Skipped (docker interface).{Style.RESET_ALL}")
+            continue
+
+        interface_ip4 = None
+        interface_ip6 = None
+
+        for addr in addresses:
+            if addr.family == socket.AF_INET:
+                interface_ip4 = addr.address
+            elif addr.family == socket.AF_INET6:
+                if addr.address.startswith("fe80"):
+                    interface_ip6 = addr.address
+
+        sock_group = [interface, None, None]
+
+        if interface_ip4 is not None:
+            multicast_group4 = "224.0.0.251"  # IPv4 mDNS multicast group
+
+            sock4 = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock4.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock4.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+            sock4.bind(("0.0.0.0", mdns_udp_port))
+
+            # Join the IPv4 multicast group with the given interface
+            sock4.setsockopt(
+                socket.IPPROTO_IP,
+                socket.IP_ADD_MEMBERSHIP,
+                struct.pack(
+                    "4s4s",
+                    socket.inet_aton(multicast_group4),
+                    socket.inet_aton(interface_ip4),
+                ),
+            )
+            # Set the receiving interface
+            sock4.setsockopt(socket.SOL_SOCKET, 25, interface.encode("utf-8") + b"\0")
+            # Set the sending interface
+            sock4.setsockopt(
+                socket.IPPROTO_IP,
+                socket.IP_MULTICAST_IF,
+                socket.inet_aton(interface_ip4),
+            )
+
+            sock4.sendto(dns_query_packet4, (multicast_group4, mdns_udp_port))
+            sock4.sendto(dns_query_packet6, (multicast_group4, mdns_udp_port))
+
+            sock_group[1] = sock4
+            socks[sock4] = interface
+
+        if interface_ip6 is not None:
+            multicast_group6 = "ff02::fb"  # IPv6 mDNS multicast group
+
+            sock6 = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
+            sock6.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock6.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+            sock6.bind(("::", mdns_udp_port))
+
+            interface_index = socket.if_nametoindex(interface)
+            # Join the IPv6 multicast group with the given interface
+            sock6.setsockopt(
+                socket.IPPROTO_IPV6,
+                socket.IPV6_JOIN_GROUP,
+                struct.pack(
+                    "16si",
+                    socket.inet_pton(socket.AF_INET6, multicast_group6),
+                    interface_index,
+                ),
+            )
+            # Set the receiving interface
+            sock6.setsockopt(socket.SOL_SOCKET, 25, interface.encode("utf-8") + b"\0")
+            # Set the sending interface
+            sock6.setsockopt(
+                socket.IPPROTO_IPV6,
+                socket.IPV6_MULTICAST_IF,
+                interface_index,
+            )
+
+            sock6.sendto(dns_query_packet6, (multicast_group6, mdns_udp_port))
+
+            sock_group[2] = sock6
+            socks[sock6] = interface
+
+        if interface_ip4 is not None and interface_ip6 is not None:
+            ip_version = "IPv4 & IPv6"
+        elif interface_ip4 is not None:
+            ip_version = "IPv4"
+        elif interface_ip6 is not None:
+            ip_version = "IPv6"
+        else:
+            print(f"{Fore.LIGHTBLACK_EX}Skipped (interface down).{Style.RESET_ALL}")
+            continue
+
+        print(
+            f"{Fore.LIGHTGREEN_EX}Query sent successfully ({ip_version}).{Style.RESET_ALL}"
+        )
+        sock_groups.append(sock_group)
+
+    discovered_list = []
+
+    while True:
+        ready_socks, _, _ = select.select(socks.keys(), [], [], 1.0)
+
+        if not ready_socks:
+            index = input(
+                "Enter the index to select a address, or press Enter to search again: "
+                if discovered_list
+                else "No addresses found. Press Enter to search again or Ctrl+C to exit: "
+            )
+            if index:
+                index = int(index)
+                _, ip = discovered_list[index]
+                return ip
+            else:
+                print("\033[A\r\033[KRe-sending mDNS query packet...")
+                for interface, sock4, sock6 in sock_groups:
+                    if sock4 is not None:
+                        sock4.sendto(
+                            dns_query_packet4, (multicast_group4, mdns_udp_port)
+                        )
+                        sock4.sendto(
+                            dns_query_packet6, (multicast_group4, mdns_udp_port)
+                        )
+                    if sock6 is not None:
+                        sock6.sendto(
+                            dns_query_packet6, (multicast_group6, mdns_udp_port)
+                        )
+
+                    if sock4 is not None and sock6 is not None:
+                        ip_version = "IPv4 & IPv6"
+                    elif sock4 is not None:
+                        ip_version = "IPv4"
+                    elif sock6 is not None:
+                        ip_version = "IPv6"
+                    print(
+                        f"    - {interface}: "
+                        f"{Fore.LIGHTGREEN_EX}Query re-sent successfully ({ip_version}).{Style.RESET_ALL}"
+                    )
+
+            continue
+
+        for sock in ready_socks:
+            m = sock.recvfrom(1024)
+
+            try:
+                dns = dpkt.dns.DNS(m[0])
+            except dpkt.UnpackError:
+                continue
+
+            if len(dns.an) == 0:
+                continue
+
+            host = dns.an[0].name
+            if host != hostname:
+                continue
+            if dns.an[0].type == dpkt.dns.DNS_A:
+                ip = socket.inet_ntoa(dns.an[0].rdata)
+            elif dns.an[0].type == dpkt.dns.DNS_AAAA:
+                ip = socket.inet_ntop(socket.AF_INET6, dns.an[0].rdata)
+                if ip.startswith("fe80"):
+                    interface = socks[sock]
+                    ip = f"{ip}%{interface}"
+            else:
+                continue
+
+            if (host, ip) not in discovered_list:
+                print(
+                    f"{Fore.LIGHTBLACK_EX}>>  {Fore.LIGHTCYAN_EX}{len(discovered_list)}.{Style.RESET_ALL} {host}: {Fore.LIGHTGREEN_EX}{ip}{Style.RESET_ALL}"
+                )
+                discovered_list.append((host, ip))
+
+
+def set_remote(address):
+    ssh_path = os.path.join(os.getenv("HOME"), ".ssh", "config")
+    try:
+        # judge input type
+        if address.find(":") != -1:
+            ipv6 = True
+        else:
+            ipv6 = False
+
+        # find single '%' in host_remote and replace it with double '%%'
+        address = re.sub(r"(?<!%)%(?!%)", "%%", address)
+
+        # Update the HostName for the 'remote' host entry in the SSH config
+        with open(ssh_path, "r") as file:
+            config = file.read()
+        config, update_count = re.subn(
+            r"Host remote\n    HostName [^\n]+",
+            f"Host remote\n    HostName {address}",
+            config,
+        )
+        if update_count == 0:
+            print("Error: Cannot find any place to modify HostName in SSH config.")
+            sys.exit(1)
+
+        # Update the AddressFamily for the 'remote' host entry in the SSH config
+        config, update_count = re.subn(
+            r"AddressFamily inet6?",
+            f"AddressFamily inet{'6' if ipv6 else ''}",
+            config,
+        )
+        if update_count == 0:
+            print("Error: Cannot find any place to modify AddressFamily in SSH config.")
+            sys.exit(1)
+
+        with open(ssh_path, "w") as file:
+            file.write(config)
+
+    except FileNotFoundError:
+        print("Error: SSH config file not found.")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        sys.exit(1)
