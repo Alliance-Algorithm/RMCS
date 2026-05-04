@@ -1,7 +1,6 @@
-#include <cmath>
+#include "controller/pid/pid_calculator.hpp"
 
 #include <eigen3/Eigen/Dense>
-#include <numbers>
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
@@ -9,8 +8,6 @@
 #include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/switch.hpp>
-
-#include "controller/pid/pid_calculator.hpp"
 
 namespace rmcs_core::controller::chassis {
 
@@ -23,7 +20,6 @@ public:
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , following_velocity_controller_(7.0, 0.0, 0.0) {
-        navigation_velocity_scale_ = get_parameter_or<double>("navigation_velocity_scale", 1.0);
 
         following_velocity_controller_.output_max = +angular_velocity_max;
         following_velocity_controller_.output_min = -angular_velocity_max;
@@ -36,16 +32,17 @@ public:
         register_input("/remote/mouse", mouse_);
         register_input("/remote/keyboard", keyboard_);
         register_input("/remote/rotary_knob", rotary_knob_);
-        register_input("/rmcs_navigation/chassis_velocity", navigation_command_velocity_, false);
-        register_input("/rmcs_navigation/rotate_chassis", navigation_rotate_chassis_, false);
 
         register_input("/gimbal/yaw/angle", gimbal_yaw_angle_, false);
         register_input("/gimbal/yaw/control_angle_error", gimbal_yaw_angle_error_, false);
 
+        register_input("/rmcs_navigation/enable_control", navigation_enable_control_, false);
+        register_input("/rmcs_navigation/chassis_velocity", navigation_command_velocity_, false);
+        register_input("/rmcs_navigation/chassis_behavior", navigation_chassis_behavior_, false);
+
         register_output("/chassis/angle", chassis_angle_, nan);
         register_output("/chassis/control_angle", chassis_control_angle_, nan);
-
-        register_output("/chassis/control_mode", mode_);
+        register_output("/chassis/control_mode", mode_, ChassisMode::AUTO);
         register_output("/chassis/control_velocity", chassis_control_velocity_);
     }
 
@@ -58,6 +55,15 @@ public:
             gimbal_yaw_angle_error_.make_and_bind_directly(0.0);
             RCLCPP_WARN(
                 get_logger(), "Failed to fetch \"/gimbal/yaw/control_angle_error\". Set to 0.0.");
+        }
+
+        // Navigation Control Unavailable, Make It Manual Mode
+        if (!navigation_enable_control_.ready()) {
+            navigation_enable_control_.make_and_bind_directly(false);
+            navigation_command_velocity_.make_and_bind_directly(Eigen::Vector2d::Zero());
+            navigation_chassis_behavior_.make_and_bind_directly(ChassisMode::AUTO);
+
+            RCLCPP_INFO(get_logger(), "Manual mode without navigation");
         }
     }
 
@@ -77,34 +83,42 @@ public:
 
             auto mode = *mode_;
             if (switch_left != Switch::DOWN) {
+                // Right Switch: MIDDLE -> DOWN
+                // Switch ChassisMode Between SPIN And STEP_DOWN
                 if (last_switch_right_ == Switch::MIDDLE && switch_right == Switch::DOWN) {
-                    if (mode == rmcs_msgs::ChassisMode::SPIN) {
-                        mode = rmcs_msgs::ChassisMode::STEP_DOWN;
+                    if (mode == ChassisMode::SPIN) {
+                        mode = ChassisMode::STEP_DOWN;
                     } else {
-                        mode = rmcs_msgs::ChassisMode::SPIN;
+                        mode = ChassisMode::SPIN;
                         spinning_forward_ = !spinning_forward_;
                     }
-                } else if (!last_keyboard_.c && keyboard.c) {
-                    if (mode == rmcs_msgs::ChassisMode::SPIN) {
-                        mode = rmcs_msgs::ChassisMode::AUTO;
+                }
+                // Press Key: Z
+                // Switch ChassisMode To STEP_DOWN
+                else if (!last_keyboard_.z && keyboard.z) {
+                    mode = (mode == ChassisMode::STEP_DOWN) ? ChassisMode::AUTO
+                                                            : ChassisMode::STEP_DOWN;
+                }
+                // Press Key: C
+                // Switch ChassisMode To SPIN
+                else if (!last_keyboard_.c && keyboard.c) {
+                    if (mode == ChassisMode::SPIN) {
+                        mode = ChassisMode::AUTO;
                     } else {
-                        mode = rmcs_msgs::ChassisMode::SPIN;
+                        mode = ChassisMode::SPIN;
                         spinning_forward_ = !spinning_forward_;
                     }
-                } else if (!last_keyboard_.x && keyboard.x) {
-                    mode = mode == rmcs_msgs::ChassisMode::LAUNCH_RAMP
-                             ? rmcs_msgs::ChassisMode::AUTO
-                             : rmcs_msgs::ChassisMode::LAUNCH_RAMP;
-                } else if (!last_keyboard_.z && keyboard.z) {
-                    mode = mode == rmcs_msgs::ChassisMode::STEP_DOWN
-                             ? rmcs_msgs::ChassisMode::AUTO
-                             : rmcs_msgs::ChassisMode::STEP_DOWN;
+                }
+                // Press Key: X
+                // Switch ChassisMode To LAUNCH_RAMP
+                else if (!last_keyboard_.x && keyboard.x) {
+                    mode = (mode == ChassisMode::LAUNCH_RAMP) ? ChassisMode::AUTO
+                                                              : ChassisMode::LAUNCH_RAMP;
                 }
 
-                // Navigation Mode
-                if (switch_right == Switch::UP && navigation_rotate_chassis_.ready()) {
-                    const auto rotate = *navigation_rotate_chassis_;
-                    mode = rotate ? ChassisMode::SPIN : ChassisMode::AUTO;
+                // Navigation Control Here
+                if (*navigation_enable_control_) {
+                    mode = *navigation_chassis_behavior_;
                 }
 
                 *mode_ = mode;
@@ -148,10 +162,10 @@ public:
 
         // Navigation Control
         auto nav_velocity_odom = Eigen::Vector2d{Eigen::Vector2d::Zero()};
-        if (navigation_command_velocity_.ready()) {
+        if (*navigation_enable_control_) {
             auto raw_command = *navigation_command_velocity_;
             if (std::isfinite(raw_command.x()) && std::isfinite(raw_command.y()))
-                nav_velocity_odom = *navigation_command_velocity_ * navigation_velocity_scale_;
+                nav_velocity_odom = *navigation_command_velocity_;
         }
         auto nav_velocity = Eigen::Rotation2Dd{*gimbal_yaw_angle_} * nav_velocity_odom;
 
@@ -222,6 +236,8 @@ public:
     }
 
 private:
+    using ChassisMode = rmcs_msgs::ChassisMode;
+
     static constexpr double inf = std::numeric_limits<double>::infinity();
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
@@ -243,7 +259,6 @@ private:
     rmcs_msgs::Keyboard last_keyboard_ = rmcs_msgs::Keyboard::zero();
 
     InputInterface<double> gimbal_yaw_angle_, gimbal_yaw_angle_error_;
-    double navigation_velocity_scale_ = 1.0;
     OutputInterface<double> chassis_angle_, chassis_control_angle_;
 
     OutputInterface<rmcs_msgs::ChassisMode> mode_;
@@ -253,8 +268,9 @@ private:
     OutputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;
 
     // For Navigation
+    InputInterface<bool> navigation_enable_control_;
     InputInterface<Eigen::Vector2d> navigation_command_velocity_;
-    InputInterface<bool> navigation_rotate_chassis_;
+    InputInterface<ChassisMode> navigation_chassis_behavior_;
 };
 
 } // namespace rmcs_core::controller::chassis
