@@ -7,11 +7,25 @@ services:
       - /dev:/dev:bind
       - /tmp/.X11-unix:/tmp/.X11-unix:bind
       - /run/user/1000/wayland-0:/run/user/1000/wayland-0:bind
-      - ${HOME}/.config/:${CONTAINER_HOME}/.config/:bind
+      - ${HOME}/.config/:${CONTAINER_HOME:-/home/ubuntu}/.config/:bind
+      - ${HOME}/.cache/opencode:${CONTAINER_HOME:-/home/ubuntu}/.cache/opencode:bind
+      - ${HOME}/.local/share/opencode:${CONTAINER_HOME:-/home/ubuntu}/.local/share/opencode:bind
+      - ${HOME}/.local/state:${CONTAINER_HOME:-/home/ubuntu}/.local/state:bind
+      - ${HOME}/.nvm:${CONTAINER_HOME:-/home/ubuntu}/.nvm:ro
+      - ${HOME}/dotfiles:${HOME}/dotfiles:bind
+      - ${HOME}/.local/share/rmcs-nvim-linux-x86_64:/opt/nvim-linux-x86_64:ro
       - .:/workspaces/RMCS:bind
     environment:
       - DISPLAY=${DISPLAY}
       - WAYLAND_DISPLAY=${WAYLAND_DISPLAY}
+      - PATH=${CONTAINER_HOME:-/home/ubuntu}/.nvm/versions/node/v24.11.0/bin:/opt/nvim-linux-x86_64/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
     network_mode: host
     tty: true
     stdin_open: true

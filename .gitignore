@@ -76,5 +76,7 @@ develop_ws
 #AI generated files
 .serena
 docs/superpowers
+.superpowers
 /scripts
 /outcmaes
+docker-compose.yml
