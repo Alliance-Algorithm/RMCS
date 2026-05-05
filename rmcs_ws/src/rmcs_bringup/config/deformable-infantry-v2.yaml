@@ -29,28 +29,15 @@ rmcs_executor:
       - rmcs_core::controller::chassis::DeformableJointController -> rb_joint_controller
       - rmcs_core::controller::chassis::DeformableJointController -> rf_joint_controller
 
-      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 
 value_broadcaster:
   ros__parameters:
     forward_list:
-      - /chassis/left_front_joint/torque
-      - /chassis/left_back_joint/torque
-      - /chassis/right_front_joint/torque
-      - /chassis/right_back_joint/torque
-      - /chassis/left_front_joint/suspension_mode
-      - /chassis/left_back_joint/suspension_mode
-      - /chassis/right_front_joint/suspension_mode
-      - /chassis/right_back_joint/suspension_mode
-      - /chassis/left_front_joint/suspension_torque
-      - /chassis/left_back_joint/suspension_torque
-      - /chassis/right_front_joint/suspension_torque
-      - /chassis/right_back_joint/suspension_torque
-      - /chassis/left_front_joint/control_torque
-      - /chassis/left_back_joint/control_torque
-      - /chassis/right_front_joint/control_torque
-      - /chassis/right_back_joint/control_torque
-
+      - /gimbal/yaw/angle
+      - /gimbal/yaw/target_angle
+      - /gimbal/pitch/angle
+      - /gimbal/pitch/target_angle
 deformable_infantry:
   ros__parameters:
     serial_filter_rmcs_board: "AF-23FB-EE32-B892-1302-AE70-D640-7B4E-0CBF"
@@ -97,21 +84,21 @@ chassis_controller:
 gimbal_controller:
   ros__parameters:
     inertia: 0.0  # kg·m²
-    friction: 0.0   # Nm/(rad/s)
+    friction: 0.0  # Nm/(rad/s)
 
     upper_limit: -0.61 # -35 deg
     lower_limit: 0.05 # 6 deg
     use_encoder_pitch: true
 
-    yaw_angle_kp: 12.0
+    yaw_angle_kp: 10.0
     yaw_angle_ki: 0.0
     yaw_angle_kd: 0.0
 
-    yaw_velocity_kp: 8.0
+    yaw_velocity_kp: 6.0
     yaw_velocity_ki: 0.0
     yaw_velocity_kd: 0.0
 
-    pitch_angle_kp: 20.0
+    pitch_angle_kp: 15.0
     pitch_angle_ki: 0.0
     pitch_angle_kd: 0.0
 
