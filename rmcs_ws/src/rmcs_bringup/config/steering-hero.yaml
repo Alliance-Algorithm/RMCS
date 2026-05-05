@@ -11,7 +11,6 @@ rmcs_executor:
       - rmcs_core::referee::Command -> referee_command
 
       - rmcs_core::controller::gimbal::HeroGimbalController -> gimbal_controller
-      - rmcs_core::controller::gimbal::DualYawController -> dual_yaw_controller
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> pitch_velocity_pid_controller
 
@@ -108,9 +107,6 @@ gimbal_controller:
   ros__parameters:
     upper_limit: -0.753376
     lower_limit: 0.257038
-
-dual_yaw_controller:
-  ros__parameters:
     top_yaw_angle_kp: 22.2
     top_yaw_angle_ki: 0.0
     top_yaw_angle_kd: 0.0
@@ -127,21 +123,6 @@ dual_yaw_controller:
     bottom_yaw_velocity_kd: 0.0
     bottom_yaw_velocity_integral_min: -2500.0
     bottom_yaw_velocity_integral_max: 2500.0
-
-# dual_yaw_controller:
-#   ros__parameters:
-#     top_yaw_angle_kp: 24.5
-#     top_yaw_angle_ki: 0.0
-#     top_yaw_angle_kd: 0.0
-#     top_yaw_velocity_kp: 77.4
-#     top_yaw_velocity_ki: 0.004
-#     top_yaw_velocity_kd: 1.0
-#     bottom_yaw_angle_kp: 8.6
-#     bottom_yaw_angle_ki: 0.0
-#     bottom_yaw_angle_kd: 0.0
-#     bottom_yaw_velocity_kp: 25.85
-#     bottom_yaw_velocity_ki: 0.0
-#     bottom_yaw_velocity_kd: 50.0
     
 pitch_angle_pid_controller:
   ros__parameters:
