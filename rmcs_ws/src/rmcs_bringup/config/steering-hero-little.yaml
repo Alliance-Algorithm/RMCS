@@ -37,7 +37,7 @@ rmcs_executor:
       # - rmcs_auto_aim::AutoAimController -> auto_aim_controller
 
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
-      # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
+      - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
 
       - sp_vision_25::bridge::HeroAutoAimBridge -> hero_auto_aim_bridge 
 
@@ -51,14 +51,14 @@ rmcs_executor:
 
 hero_hardware:
   ros__parameters:
-    board_serial_top_board: "D4-2BCA-2E47-76CD-23BC-0B78-684B"
+    board_serial_top_board: "AF-BFF7-0B6F-46A5-2B4B-AA20-89C2-E180-64B9"
     serial_bottom_rmcs_board: "AF-60BB-7484-FA24-F3FC-399B-454D-22FA-1B1D"
-    bottom_yaw_motor_zero_point: 6914
-    pitch_motor_zero_point: 0 
-    top_yaw_motor_zero_point: 0
+    bottom_yaw_motor_zero_point: 35833
+    pitch_motor_zero_point: 47885
+    top_yaw_motor_zero_point: 49457
     viewer_motor_zero_point: 3030
     external_imu_port: /dev/ttyUSB0
-    bullet_feeder_motor_zero_point: 11865
+    bullet_feeder_motor_zero_point: 41415
     left_front_zero_point: 5814
     right_front_zero_point: 3806
     left_back_zero_point:  7825
