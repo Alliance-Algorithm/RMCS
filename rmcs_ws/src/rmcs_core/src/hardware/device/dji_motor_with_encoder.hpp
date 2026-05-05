@@ -19,7 +19,11 @@
 
 namespace rmcs_core::hardware::device {
 
-class DjiMotor {
+/// @brief DjiMotor variant that exposes encoder angle via CAN feedback.
+///
+/// Differs from DjiMotor in the CAN packet layout: bytes 6-7 carry a
+/// 16-bit encoder angle (little-endian) instead of temperature + unused.
+class DjiMotorWithEncoder {
 public:
     enum class Type : uint8_t { kGM6020, kGM6020Voltage, kM3508, kM2006 };
 
@@ -48,33 +52,36 @@ public:
         bool multi_turn_angle_enabled;
     };
 
-    DjiMotor(
+    DjiMotorWithEncoder(
         rmcs_executor::Component& status_component, rmcs_executor::Component& command_component,
         const std::string& name_prefix)
         : angle_(0.0)
         , velocity_(0.0)
-        , torque_(0.0) {
+        , torque_(0.0)
+        , encoder_angle_(0.0) {
         status_component.register_output(name_prefix + "/angle", angle_output_, 0.0);
         status_component.register_output(name_prefix + "/velocity", velocity_output_, 0.0);
         status_component.register_output(name_prefix + "/torque", torque_output_, 0.0);
         status_component.register_output(name_prefix + "/max_torque", max_torque_output_, 0.0);
+        status_component.register_output(
+            name_prefix + "/encoder_angle", encoder_angle_output_, 0.0);
 
         command_component.register_input(name_prefix + "/control_torque", control_torque_, false);
     }
 
-    DjiMotor(
+    DjiMotorWithEncoder(
         rmcs_executor::Component& status_component, rmcs_executor::Component& command_component,
         const std::string& name_prefix, const Config& config)
-        : DjiMotor(status_component, command_component, name_prefix) {
+        : DjiMotorWithEncoder(status_component, command_component, name_prefix) {
         configure(config);
     }
 
-    DjiMotor(const DjiMotor&) = delete;
-    DjiMotor& operator=(const DjiMotor&) = delete;
-    DjiMotor(DjiMotor&&) = delete;
-    DjiMotor& operator=(DjiMotor&&) = delete;
+    DjiMotorWithEncoder(const DjiMotorWithEncoder&) = delete;
+    DjiMotorWithEncoder& operator=(const DjiMotorWithEncoder&) = delete;
+    DjiMotorWithEncoder(DjiMotorWithEncoder&&) = delete;
+    DjiMotorWithEncoder& operator=(DjiMotorWithEncoder&&) = delete;
 
-    ~DjiMotor() = default;
+    ~DjiMotorWithEncoder() = default;
 
     void configure(const Config& config) {
         encoder_zero_point_ = config.encoder_zero_point % kRawAngleMax;
@@ -139,9 +146,6 @@ public:
         const auto feedback =
             std::bit_cast<DjiMotorFeedback>(can_data_.load(std::memory_order::relaxed));
 
-        // Temperature unit: celsius
-        temperature_ = static_cast<double>(feedback.temperature);
-
         // Angle unit: rad
         const int raw_angle = feedback.angle;
         int calibrated_raw_angle = raw_angle - encoder_zero_point_;
@@ -167,10 +171,12 @@ public:
 
         // Torque unit: N*m
         torque_ = raw_current_to_torque_coefficient_ * static_cast<double>(feedback.current);
+        encoder_angle_ = static_cast<double>(feedback.encoder_angle) * 360.0 / 65535.0;
 
         *angle_output_ = angle();
         *velocity_output_ = velocity();
         *torque_output_ = torque();
+        *encoder_angle_output_ = encoder_angle();
     }
 
     double control_torque() const {
@@ -199,22 +205,20 @@ public:
         encoder_zero_point_ = last_raw_angle_;
         return encoder_zero_point_;
     }
-
     int last_raw_angle() const { return last_raw_angle_; }
 
     double angle() const { return angle_; }
     double velocity() const { return velocity_; }
     double torque() const { return torque_; }
     double max_torque() const { return max_torque_; }
-    double temperature() const { return temperature_; }
+    double encoder_angle() const { return encoder_angle_; }
 
 private:
     struct alignas(uint64_t) DjiMotorFeedback {
         rmcs_utility::be_int16_t angle;
         rmcs_utility::be_int16_t velocity;
         rmcs_utility::be_int16_t current;
-        uint8_t temperature;
-        uint8_t unused;
+        rmcs_utility::le_uint16_t encoder_angle;
     };
 
     std::atomic<CanPacket8> can_data_;
@@ -233,12 +237,13 @@ private:
     double velocity_;
     double torque_;
     double max_torque_;
-    double temperature_;
+    double encoder_angle_;
 
     rmcs_executor::Component::OutputInterface<double> angle_output_;
     rmcs_executor::Component::OutputInterface<double> velocity_output_;
     rmcs_executor::Component::OutputInterface<double> torque_output_;
     rmcs_executor::Component::OutputInterface<double> max_torque_output_;
+    rmcs_executor::Component::OutputInterface<double> encoder_angle_output_;
 
     rmcs_executor::Component::InputInterface<double> control_torque_;
 };

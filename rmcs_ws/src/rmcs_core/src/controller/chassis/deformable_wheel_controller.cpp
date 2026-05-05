@@ -1,20 +1,20 @@
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <cstdint>
 #include <limits>
 #include <numbers>
-#include <tuple>
 
 #include <eigen3/Eigen/Dense>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
+
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
-#include <rmcs_utility/eigen_structured_bindings.hpp>
 
 #include "controller/chassis/qcp_solver.hpp"
 #include "controller/pid/matrix_pid_calculator.hpp"
 #include "controller/pid/pid_calculator.hpp"
-
 #include "filter/low_pass_filter.hpp"
 
 namespace rmcs_core::controller::chassis {
@@ -23,14 +23,26 @@ class DeformableChassisController
     : public rmcs_executor::Component
     , public rclcpp::Node {
 
-    using Formula = std::tuple<double, double, double>;
+    enum class WheelIndex : size_t {
+        LeftFront = 0,
+        LeftBack = 1,
+        RightBack = 2,
+        RightFront = 3,
+        Count = 4
+    };
+
+    static constexpr size_t kWheelCount = static_cast<size_t>(WheelIndex::Count);
+
+    struct EllipseParameters {
+        double a, b, c, d, e, f;
+    };
 
 public:
     explicit DeformableChassisController()
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , mess_(get_parameter("mess").as_double())
+        , mass_(get_parameter("mass").as_double())
         , moment_of_inertia_(get_parameter("moment_of_inertia").as_double())
         , chassis_radius_(get_parameter("chassis_radius").as_double())
         , rod_length_(get_parameter("rod_length").as_double())
@@ -39,13 +51,19 @@ public:
         , k1_(get_parameter("k1").as_double())
         , k2_(get_parameter("k2").as_double())
         , no_load_power_(get_parameter("no_load_power").as_double())
-        , vehicle_radii_(Eigen::Vector4d::Constant(chassis_radius_ + rod_length_))
+        , ellipse_coeff_quadratic_translational_(
+              k1_ * mass_ * mass_ * wheel_radius_ * wheel_radius_ / 16.0)
+        , ellipse_coeff_cross_term_(
+              k1_ * mass_ * moment_of_inertia_ * wheel_radius_ * wheel_radius_ / 8.0)
+        , ellipse_coeff_quadratic_angular_(
+              k1_ * moment_of_inertia_ * moment_of_inertia_ * wheel_radius_ * wheel_radius_ / 16.0)
+        , ellipse_coeff_linear_translational_(mass_ * wheel_radius_ / 4.0)
+        , ellipse_coeff_linear_angular_(moment_of_inertia_ * wheel_radius_ / 4.0)
+        , vehicle_radius_(Eigen::Vector4d::Constant(chassis_radius_ + rod_length_))
         , control_acceleration_filter_(5.0, 1000.0)
         , chassis_velocity_expected_(Eigen::Vector3d::Zero())
         , chassis_translational_velocity_pid_(5.0, 0.0, 1.0)
         , chassis_angular_velocity_pid_(5.0, 0.0, 1.0)
-        , cos_varphi_(1, 0, -1, 0)
-        , sin_varphi_(0, 1, 0, -1)
         , steering_velocity_pid_(0.15, 0.0, 0.0)
         , steering_angle_pid_(30.0, 0.0, 0.0)
         , wheel_velocity_pid_(0.6, 0.0, 0.0) {
@@ -78,6 +96,43 @@ public:
         register_input("/chassis/right_back_joint/physical_velocity", right_back_joint_velocity_);
         register_input("/chassis/right_front_joint/physical_velocity", right_front_joint_velocity_);
 
+        register_input(
+            "/chassis/left_front_joint/target_physical_angle",
+            left_front_joint_target_physical_angle_, false);
+        register_input(
+            "/chassis/left_back_joint/target_physical_angle",
+            left_back_joint_target_physical_angle_, false);
+        register_input(
+            "/chassis/right_back_joint/target_physical_angle",
+            right_back_joint_target_physical_angle_, false);
+        register_input(
+            "/chassis/right_front_joint/target_physical_angle",
+            right_front_joint_target_physical_angle_, false);
+        register_input(
+            "/chassis/left_front_joint/target_physical_velocity",
+            left_front_joint_target_physical_velocity_, false);
+        register_input(
+            "/chassis/left_back_joint/target_physical_velocity",
+            left_back_joint_target_physical_velocity_, false);
+        register_input(
+            "/chassis/right_back_joint/target_physical_velocity",
+            right_back_joint_target_physical_velocity_, false);
+        register_input(
+            "/chassis/right_front_joint/target_physical_velocity",
+            right_front_joint_target_physical_velocity_, false);
+        register_input(
+            "/chassis/left_front_joint/target_physical_acceleration",
+            left_front_joint_target_physical_acceleration_, false);
+        register_input(
+            "/chassis/left_back_joint/target_physical_acceleration",
+            left_back_joint_target_physical_acceleration_, false);
+        register_input(
+            "/chassis/right_back_joint/target_physical_acceleration",
+            right_back_joint_target_physical_acceleration_, false);
+        register_input(
+            "/chassis/right_front_joint/target_physical_acceleration",
+            right_front_joint_target_physical_acceleration_, false);
+
         register_input("/chassis/yaw/velocity_imu", chassis_yaw_velocity_imu_);
         register_input("/chassis/control_velocity", chassis_control_velocity_);
         register_input("/chassis/control_power_limit", power_limit_);
@@ -98,9 +153,7 @@ public:
             "/chassis/right_back_wheel/control_torque", right_back_wheel_control_torque_);
         register_output(
             "/chassis/right_front_wheel/control_torque", right_front_wheel_control_torque_);
-        register_output("/chassis/encoder/alpha", encoder_alpha_);
-        register_output("/chassis/encoder/alpha_dot", encoder_alpha_dot_);
-        register_output("/chassis/radius", radius_);
+
     }
 
     void update() override {
@@ -109,61 +162,48 @@ public:
             return;
         }
 
-        JointStates joints = update_joint_states_();
-        if (joints.valid) {
-            vehicle_radii_ = joints.radius;
-            *radius_ = vehicle_radii_.mean();
-            *encoder_alpha_ = joints.alpha_rad.mean();
-            *encoder_alpha_dot_ = joints.alpha_dot_rad.mean();
+        const JointFeedbackStates joint_feedback = update_joint_feedback_states_();
+        const JointTargetStates joint_target = update_joint_target_states_();
+        if (joint_feedback.valid) {
+            vehicle_radius_ = joint_feedback.radius;
             RCLCPP_INFO_THROTTLE(
                 get_logger(), *get_clock(), 1000,
                 "physical joint angle[deg] lf=%.2f lb=%.2f rb=%.2f rf=%.2f, radius[m] lf=%.3f "
                 "lb=%.3f rb=%.3f rf=%.3f",
-                joints.alpha_rad[0] * 180.0 / std::numbers::pi,
-                joints.alpha_rad[1] * 180.0 / std::numbers::pi,
-                joints.alpha_rad[2] * 180.0 / std::numbers::pi,
-                joints.alpha_rad[3] * 180.0 / std::numbers::pi, vehicle_radii_[0],
-                vehicle_radii_[1], vehicle_radii_[2], vehicle_radii_[3]);
-        } else {
-            *radius_ = nan_;
-            *encoder_alpha_ = nan_;
-            *encoder_alpha_dot_ = nan_;
+                joint_feedback.alpha_rad[0] * 180.0 / std::numbers::pi,
+                joint_feedback.alpha_rad[1] * 180.0 / std::numbers::pi,
+                joint_feedback.alpha_rad[2] * 180.0 / std::numbers::pi,
+                joint_feedback.alpha_rad[3] * 180.0 / std::numbers::pi, vehicle_radius_[0],
+                vehicle_radius_[1], vehicle_radius_[2], vehicle_radius_[3]);
         }
 
         integral_yaw_angle_imu();
 
-        const Eigen::Matrix<double, 4, 2> v_mech = calculate_mech_wheel_velocity(joints);
-
-        auto steering_status = calculate_steering_status();
-        auto wheel_velocities = calculate_wheel_velocities();
-        auto chassis_velocity =
-            calculate_chassis_velocity(steering_status, wheel_velocities, v_mech);
-
-        auto chassis_status_expected = calculate_chassis_status_expected(chassis_velocity, v_mech);
-        auto chassis_control_velocity = calculate_chassis_control_velocity();
-
-        auto chassis_acceleration = calculate_chassis_control_acceleration(
+        const auto steering_status = calculate_steering_status();
+        const auto wheel_velocities = calculate_wheel_velocities();
+        const auto chassis_velocity =
+            calculate_chassis_velocity(steering_status, wheel_velocities, joint_feedback);
+        auto chassis_status_expected =
+            calculate_chassis_status_expected(chassis_velocity, joint_target, joint_feedback);
+        const auto chassis_control_velocity = calculate_chassis_control_velocity();
+        const auto chassis_acceleration = calculate_chassis_control_acceleration(
             chassis_status_expected.velocity, chassis_control_velocity);
-
-        double power_limit =
+        const double power_limit =
             *power_limit_ - no_load_power_ - k2_ * wheel_velocities.array().pow(2).sum();
-
-        auto wheel_pid_torques =
+        const auto wheel_pid_torques =
             calculate_wheel_pid_torques(steering_status, wheel_velocities, chassis_status_expected);
-
-        auto constrained_chassis_acceleration = constrain_chassis_control_acceleration(
-            steering_status, wheel_velocities, chassis_acceleration, wheel_pid_torques,
-            power_limit);
-
-        auto filtered_chassis_acceleration =
+        const auto constrained_chassis_acceleration = constrain_chassis_control_acceleration(
+            steering_status, wheel_velocities, joint_target, chassis_acceleration,
+            wheel_pid_torques, power_limit);
+        const auto filtered_chassis_acceleration =
             odom_to_base_link_vector(control_acceleration_filter_.update(
                 base_link_to_odom_vector(constrained_chassis_acceleration)));
-
-        auto steering_torques = calculate_steering_control_torques(
-            steering_status, chassis_status_expected, filtered_chassis_acceleration);
-
-        auto wheel_torques = calculate_wheel_control_torques(
-            steering_status, filtered_chassis_acceleration, wheel_pid_torques);
+        const auto steering_torques = calculate_steering_control_torques(
+            steering_status, chassis_status_expected, joint_target, joint_feedback,
+            filtered_chassis_acceleration);
+        const auto wheel_torques = calculate_wheel_control_torques(
+            steering_status, joint_target, joint_feedback, filtered_chassis_acceleration,
+            wheel_pid_torques);
 
         update_control_torques(steering_torques, wheel_torques);
         update_chassis_velocity_expected(filtered_chassis_acceleration);
@@ -171,56 +211,164 @@ public:
 
 private:
     struct SteeringStatus {
-        Eigen::Vector4d angle, cos_angle, sin_angle;
-        Eigen::Vector4d velocity;
+        Eigen::Vector4d angle = Eigen::Vector4d::Zero();
+        Eigen::Vector4d cos_angle = Eigen::Vector4d::Zero();
+        Eigen::Vector4d sin_angle = Eigen::Vector4d::Zero();
+        Eigen::Vector4d velocity = Eigen::Vector4d::Zero();
+        Eigen::Vector4d sin_angle_minus_phi = Eigen::Vector4d::Zero();
+        Eigen::Vector4d cos_angle_minus_phi = Eigen::Vector4d::Zero();
     };
 
     struct ChassisStatus {
-        Eigen::Vector3d velocity;
-        Eigen::Vector4d wheel_velocity_x, wheel_velocity_y;
+        Eigen::Vector3d velocity = Eigen::Vector3d::Zero();
+        Eigen::Vector4d wheel_velocity_x = Eigen::Vector4d::Zero();
+        Eigen::Vector4d wheel_velocity_y = Eigen::Vector4d::Zero();
     };
 
-    struct JointStates {
+    struct JointStateData {
         Eigen::Vector4d alpha_rad = Eigen::Vector4d::Zero();
         Eigen::Vector4d alpha_dot_rad = Eigen::Vector4d::Zero();
+        Eigen::Vector4d alpha_ddot_rad = Eigen::Vector4d::Zero();
         Eigen::Vector4d radius = Eigen::Vector4d::Zero();
+        Eigen::Vector4d radius_dot = Eigen::Vector4d::Zero();
+        Eigen::Vector4d radius_ddot = Eigen::Vector4d::Zero();
         bool valid = false;
     };
 
-    JointStates update_joint_states_() const {
-        JointStates status;
-        status.alpha_rad = {
-            *left_front_joint_angle_, *left_back_joint_angle_, *right_back_joint_angle_,
-            *right_front_joint_angle_};
-        status.alpha_dot_rad = {
-            *left_front_joint_velocity_, *left_back_joint_velocity_, *right_back_joint_velocity_,
-            *right_front_joint_velocity_};
+    struct JointFeedbackStates : JointStateData {};
 
-        const bool finite = status.alpha_rad.array().isFinite().all()
-                         && status.alpha_dot_rad.array().isFinite().all();
-        if (!finite) {
-            return status;
+    struct JointTargetStates : JointStateData {
+        bool has_velocity = false;
+        bool has_acceleration = false;
+    };
+
+    enum class JointStateSource : uint8_t { Target, Feedback };
+
+    struct JointStateView {
+        const Eigen::Vector4d& alpha_rad;
+        const Eigen::Vector4d& alpha_dot_rad;
+        const Eigen::Vector4d& alpha_ddot_rad;
+        const Eigen::Vector4d& radius;
+        const Eigen::Vector4d& radius_dot;
+        const Eigen::Vector4d& radius_ddot;
+        JointStateSource source;
+        bool valid;
+    };
+
+    static JointStateView
+        select_joint_state(const JointTargetStates& target, const JointFeedbackStates& feedback) {
+        if (target.valid) {
+            return {
+                target.alpha_rad,  target.alpha_dot_rad, target.alpha_ddot_rad,    target.radius,
+                target.radius_dot, target.radius_ddot,   JointStateSource::Target, target.valid};
         }
 
-        status.radius = chassis_radius_ + rod_length_ * status.alpha_rad.array().cos();
-        status.valid = status.radius.array().isFinite().all();
-        return status;
+        return {feedback.alpha_rad,         feedback.alpha_dot_rad,
+                feedback.alpha_ddot_rad,    feedback.radius,
+                feedback.radius_dot,        feedback.radius_ddot,
+                JointStateSource::Feedback, feedback.valid};
     }
 
-    Eigen::Matrix<double, 4, 2> calculate_mech_wheel_velocity(const JointStates& joints) const {
-        Eigen::Matrix<double, 4, 2> v_mech = Eigen::Matrix<double, 4, 2>::Zero();
-        if (!joints.valid) {
-            return v_mech;
+    [[nodiscard]] static Eigen::Vector4d read_required_inputs_(
+        const InputInterface<double>& left_front, const InputInterface<double>& left_back,
+        const InputInterface<double>& right_back, const InputInterface<double>& right_front) {
+        return {*left_front, *left_back, *right_back, *right_front};
+    }
+
+    [[nodiscard]] static Eigen::Vector4d read_optional_inputs_(
+        const InputInterface<double>& left_front, const InputInterface<double>& left_back,
+        const InputInterface<double>& right_back, const InputInterface<double>& right_front) {
+        return {
+            left_front.ready() ? *left_front : nan_,
+            left_back.ready() ? *left_back : nan_,
+            right_back.ready() ? *right_back : nan_,
+            right_front.ready() ? *right_front : nan_,
+        };
+    }
+
+    static void populate_joint_geometry_(
+        const Eigen::Vector4d& alpha_rad, const Eigen::Vector4d& alpha_dot_rad,
+        const Eigen::Vector4d& alpha_ddot_rad, double chassis_radius, double rod_length,
+        Eigen::Vector4d& radius, Eigen::Vector4d& radius_dot, Eigen::Vector4d& radius_ddot) {
+        radius = chassis_radius + rod_length * alpha_rad.array().cos();
+        radius_dot = -rod_length * alpha_rad.array().sin() * alpha_dot_rad.array();
+        radius_ddot = -rod_length * alpha_rad.array().cos() * alpha_dot_rad.array().square()
+                    - rod_length * alpha_rad.array().sin() * alpha_ddot_rad.array();
+    }
+
+    [[nodiscard]] JointFeedbackStates update_joint_feedback_states_() {
+        JointFeedbackStates joint;
+        joint.alpha_rad = read_required_inputs_(
+            left_front_joint_angle_, left_back_joint_angle_, right_back_joint_angle_,
+            right_front_joint_angle_);
+        joint.alpha_dot_rad = read_required_inputs_(
+            left_front_joint_velocity_, left_back_joint_velocity_, right_back_joint_velocity_,
+            right_front_joint_velocity_);
+
+        if (!joint.alpha_rad.array().isFinite().all()
+            || !joint.alpha_dot_rad.array().isFinite().all())
+            return joint;
+
+        if (last_joint_velocity_valid_) {
+            joint.alpha_ddot_rad = (joint.alpha_dot_rad - last_joint_velocity_) / dt_;
         }
 
-        const Eigen::Vector4d v =
-            (-rod_length_ * joints.alpha_rad.array().sin() * joints.alpha_dot_rad.array())
-                .cwiseMax(-0.1)
-                .cwiseMin(0.1);
+        last_joint_velocity_ = joint.alpha_dot_rad;
+        last_joint_velocity_valid_ = true;
 
-        v_mech.col(0) = v.array() * cos_varphi_.array();
-        v_mech.col(1) = v.array() * sin_varphi_.array();
-        return v_mech;
+        populate_joint_geometry_(
+            joint.alpha_rad, joint.alpha_dot_rad, joint.alpha_ddot_rad, chassis_radius_,
+            rod_length_, joint.radius, joint.radius_dot, joint.radius_ddot);
+
+        joint.valid = joint.radius.array().isFinite().all()
+                   && joint.radius_dot.array().isFinite().all()
+                   && joint.radius_ddot.array().isFinite().all();
+
+        return joint;
+    }
+
+    [[nodiscard]] JointTargetStates update_joint_target_states_() {
+        JointTargetStates joint;
+        joint.alpha_rad = read_optional_inputs_(
+            left_front_joint_target_physical_angle_, left_back_joint_target_physical_angle_,
+            right_back_joint_target_physical_angle_, right_front_joint_target_physical_angle_);
+
+        if (!joint.alpha_rad.array().isFinite().all())
+            return joint;
+
+        const Eigen::Vector4d target_velocity = read_optional_inputs_(
+            left_front_joint_target_physical_velocity_, left_back_joint_target_physical_velocity_,
+            right_back_joint_target_physical_velocity_,
+            right_front_joint_target_physical_velocity_);
+        if (target_velocity.array().isFinite().all()) {
+            joint.alpha_dot_rad = target_velocity;
+            joint.has_velocity = true;
+        } else if (last_joint_target_angle_valid_) {
+            joint.alpha_dot_rad = (joint.alpha_rad - last_joint_target_angle_) / dt_;
+            joint.has_velocity = true;
+        }
+
+        const Eigen::Vector4d target_acceleration = read_optional_inputs_(
+            left_front_joint_target_physical_acceleration_,
+            left_back_joint_target_physical_acceleration_,
+            right_back_joint_target_physical_acceleration_,
+            right_front_joint_target_physical_acceleration_);
+        if (target_acceleration.array().isFinite().all()) {
+            joint.alpha_ddot_rad = target_acceleration;
+            joint.has_acceleration = true;
+        }
+
+        last_joint_target_angle_ = joint.alpha_rad;
+        last_joint_target_angle_valid_ = true;
+
+        populate_joint_geometry_(
+            joint.alpha_rad, joint.alpha_dot_rad, joint.alpha_ddot_rad, chassis_radius_,
+            rod_length_, joint.radius, joint.radius_dot, joint.radius_ddot);
+
+        joint.valid = joint.radius.array().isFinite().all()
+                   && joint.radius_dot.array().isFinite().all()
+                   && joint.radius_ddot.array().isFinite().all();
+        return joint;
     }
 
     void reset_all_controls() {
@@ -228,11 +376,11 @@ private:
 
         chassis_yaw_angle_imu_ = 0.0;
         chassis_velocity_expected_ = Eigen::Vector3d::Zero();
-        vehicle_radii_ = Eigen::Vector4d::Constant(chassis_radius_ + rod_length_);
-
-        *encoder_alpha_ = nan_;
-        *encoder_alpha_dot_ = nan_;
-        *radius_ = nan_;
+        vehicle_radius_ = Eigen::Vector4d::Constant(chassis_radius_ + rod_length_);
+        last_joint_velocity_ = Eigen::Vector4d::Zero();
+        last_joint_velocity_valid_ = false;
+        last_joint_target_angle_ = Eigen::Vector4d::Zero();
+        last_joint_target_angle_valid_ = false;
 
         *left_front_steering_control_torque_ = 0.0;
         *left_back_steering_control_torque_ = 0.0;
@@ -250,136 +398,149 @@ private:
         chassis_yaw_angle_imu_ = std::fmod(chassis_yaw_angle_imu_, 2 * std::numbers::pi);
     }
 
-    SteeringStatus calculate_steering_status() {
+    [[nodiscard]] SteeringStatus calculate_steering_status() const {
         SteeringStatus steering_status;
-
-        steering_status.angle = {
-            *left_front_steering_angle_, *left_back_steering_angle_, *right_back_steering_angle_,
-            *right_front_steering_angle_};
+        steering_status.angle = read_required_inputs_(
+            left_front_steering_angle_, left_back_steering_angle_, right_back_steering_angle_,
+            right_front_steering_angle_);
         steering_status.angle.array() -= std::numbers::pi / 4;
         steering_status.cos_angle = steering_status.angle.array().cos();
         steering_status.sin_angle = steering_status.angle.array().sin();
 
-        steering_status.velocity = {
-            *left_front_steering_velocity_, *left_back_steering_velocity_,
-            *right_back_steering_velocity_, *right_front_steering_velocity_};
+        for (size_t i = 0; i < kWheelCount; ++i) {
+            const double angle_minus_phi = steering_status.angle[i] - phi_[i];
+            steering_status.sin_angle_minus_phi[i] = std::sin(angle_minus_phi);
+            steering_status.cos_angle_minus_phi[i] = std::cos(angle_minus_phi);
+        }
 
+        steering_status.velocity = read_required_inputs_(
+            left_front_steering_velocity_, left_back_steering_velocity_,
+            right_back_steering_velocity_, right_front_steering_velocity_);
         return steering_status;
     }
 
-    Eigen::Vector4d calculate_wheel_velocities() {
-        return {
-            *left_front_wheel_velocity_, *left_back_wheel_velocity_, *right_back_wheel_velocity_,
-            *right_front_wheel_velocity_};
+    [[nodiscard]] Eigen::Vector4d calculate_wheel_velocities() const {
+        return read_required_inputs_(
+            left_front_wheel_velocity_, left_back_wheel_velocity_, right_back_wheel_velocity_,
+            right_front_wheel_velocity_);
     }
 
-    Eigen::Vector3d calculate_chassis_velocity(
-        const SteeringStatus& steering_status, const Eigen::Vector4d& wheel_velocities,
-        const Eigen::Matrix<double, 4, 2>& v_mech) const {
+    /**
+     * @brief Observe chassis velocity from wheel velocities using least squares
+     *
+     * Solves: A·x = b for x = [vx, vy, ωz]
+     * where A_i = [cos(ζᵢ), sin(ζᵢ), R_i·sin(ζᵢ - φᵢ)]
+     *       b_i = r·ωᵢ - Ṙᵢ·cos(ζᵢ - φᵢ)
+     */
+    [[nodiscard]] Eigen::Vector3d calculate_chassis_velocity(
+        const SteeringStatus& steering_status, Eigen::Ref<const Eigen::Vector4d> wheel_velocities,
+        const JointFeedbackStates& joint) const {
+        Eigen::Vector4d wheel_velocities_eff = wheel_velocities;
+        if (joint.valid) {
+            const Eigen::Vector4d clamped_radius_dot =
+                joint.radius_dot.cwiseMax(-0.1).cwiseMin(0.1);
+            const Eigen::Vector4d wheel_omega_mech =
+                (clamped_radius_dot.array() * phi_cos_vec_.array()
+                     * steering_status.cos_angle.array()
+                 + clamped_radius_dot.array() * phi_sin_vec_.array()
+                       * steering_status.sin_angle.array())
+                / wheel_radius_;
+            wheel_velocities_eff -= wheel_omega_mech;
+        }
 
-        const Eigen::Vector4d wheel_omega_mech =
-            (v_mech.col(0).array() * steering_status.cos_angle.array()
-             + v_mech.col(1).array() * steering_status.sin_angle.array())
-                .matrix()
-            / wheel_radius_;
-
-        const Eigen::Vector4d wheel_velocities_eff = wheel_velocities - wheel_omega_mech;
-
-        Eigen::Vector3d velocity;
         const double one_quarter_r = wheel_radius_ / 4.0;
-
+        Eigen::Vector3d velocity;
         velocity.x() = one_quarter_r * wheel_velocities_eff.dot(steering_status.cos_angle);
         velocity.y() = one_quarter_r * wheel_velocities_eff.dot(steering_status.sin_angle);
         velocity.z() =
             -one_quarter_r
-            * (-wheel_velocities_eff[0] * steering_status.sin_angle[0] / vehicle_radii_[0]
-               + wheel_velocities_eff[1] * steering_status.cos_angle[1] / vehicle_radii_[1]
-               + wheel_velocities_eff[2] * steering_status.sin_angle[2] / vehicle_radii_[2]
-               - wheel_velocities_eff[3] * steering_status.cos_angle[3] / vehicle_radii_[3]);
-
+            * (-wheel_velocities_eff[0] * steering_status.sin_angle[0] / vehicle_radius_[0]
+               + wheel_velocities_eff[1] * steering_status.cos_angle[1] / vehicle_radius_[1]
+               + wheel_velocities_eff[2] * steering_status.sin_angle[2] / vehicle_radius_[2]
+               - wheel_velocities_eff[3] * steering_status.cos_angle[3] / vehicle_radius_[3]);
         return velocity;
     }
 
-    ChassisStatus calculate_chassis_status_expected(
-        const Eigen::Vector3d& chassis_velocity, const Eigen::Matrix<double, 4, 2>& v_mech) {
-
-        auto calculate_energy = [this](const Eigen::Vector3d& velocity) {
-            return mess_ * velocity.head<2>().squaredNorm()
-                 + moment_of_inertia_ * velocity.z() * velocity.z();
-        };
-
-        const double chassis_energy = calculate_energy(chassis_velocity);
-        const double chassis_energy_expected = calculate_energy(chassis_velocity_expected_);
+    /**
+     * @brief Calculate expected chassis status with energy scaling
+     *
+     * Wheel center velocity: v_i = v + ω·R_i·e_t,i + Ṙᵢ·e_r,i
+     */
+    [[nodiscard]] ChassisStatus calculate_chassis_status_expected(
+        Eigen::Ref<const Eigen::Vector3d> chassis_velocity, const JointTargetStates& joint_target,
+        const JointFeedbackStates& joint_feedback) {
+        const double chassis_energy = calculate_chassis_energy(chassis_velocity);
+        const double chassis_energy_expected = calculate_chassis_energy(chassis_velocity_expected_);
 
         if (std::isfinite(chassis_energy) && std::isfinite(chassis_energy_expected)
             && chassis_energy_expected > chassis_energy && chassis_energy_expected > 1e-12) {
             const double k = std::sqrt(chassis_energy / chassis_energy_expected);
-            if (std::isfinite(k) && k >= 0.0) {
+            if (std::isfinite(k) && k >= 0.0)
                 chassis_velocity_expected_ *= k;
-            }
         }
 
         ChassisStatus chassis_status_expected;
         chassis_status_expected.velocity = odom_to_base_link_vector(chassis_velocity_expected_);
 
-        const auto& [vx, vy, vz] = chassis_status_expected.velocity;
+        const auto joint = select_joint_state(joint_target, joint_feedback);
 
-        chassis_status_expected.wheel_velocity_x =
-            (vx - vehicle_radii_.array() * vz * sin_varphi_.array()).matrix() + v_mech.col(0);
-
-        chassis_status_expected.wheel_velocity_y =
-            (vy + vehicle_radii_.array() * vz * cos_varphi_.array()).matrix() + v_mech.col(1);
+        const double vx = chassis_status_expected.velocity.x();
+        const double vy = chassis_status_expected.velocity.y();
+        const double vz = chassis_status_expected.velocity.z();
+        for (size_t i = 0; i < kWheelCount; ++i) {
+            const double radius = joint.valid ? joint.radius[i] : vehicle_radius_[i];
+            const double clamped_radius_dot =
+                joint.valid ? std::clamp(joint.radius_dot[i], -0.1, 0.1) : 0.0;
+            const Eigen::Vector2d wheel_velocity = Eigen::Vector2d(vx, vy)
+                                                 + vz * radius * tangential_unit_fast_(i)
+                                                 + clamped_radius_dot * radial_unit_fast_(i);
+            chassis_status_expected.wheel_velocity_x[i] = wheel_velocity.x();
+            chassis_status_expected.wheel_velocity_y[i] = wheel_velocity.y();
+        }
 
         return chassis_status_expected;
     }
 
-    Eigen::Vector3d calculate_chassis_control_velocity() {
+    [[nodiscard]] Eigen::Vector3d calculate_chassis_control_velocity() const {
         Eigen::Vector3d chassis_control_velocity = chassis_control_velocity_->vector;
         chassis_control_velocity.head<2>() =
             Eigen::Rotation2Dd(-std::numbers::pi / 4) * chassis_control_velocity.head<2>();
         return chassis_control_velocity;
     }
 
-    Eigen::Vector3d calculate_chassis_control_acceleration(
-        const Eigen::Vector3d& chassis_velocity_expected,
-        const Eigen::Vector3d& chassis_control_velocity) {
-
-        Eigen::Vector2d translational_control_velocity = chassis_control_velocity.head<2>();
-        Eigen::Vector2d translational_velocity = chassis_velocity_expected.head<2>();
+    [[nodiscard]] Eigen::Vector3d calculate_chassis_control_acceleration(
+        Eigen::Ref<const Eigen::Vector3d> chassis_velocity_expected,
+        Eigen::Ref<const Eigen::Vector3d> chassis_control_velocity) {
         Eigen::Vector2d translational_control_acceleration =
             chassis_translational_velocity_pid_.update(
-                translational_control_velocity - translational_velocity);
+                chassis_control_velocity.head<2>() - chassis_velocity_expected.head<2>());
 
-        const double& angular_control_velocity = chassis_control_velocity[2];
-        const double& angular_velocity = chassis_velocity_expected[2];
-        double angular_control_acceleration =
-            chassis_angular_velocity_pid_.update(angular_control_velocity - angular_velocity);
+        const double angular_control_acceleration = chassis_angular_velocity_pid_.update(
+            chassis_control_velocity[2] - chassis_velocity_expected[2]);
 
         Eigen::Vector3d chassis_control_acceleration;
         chassis_control_acceleration << translational_control_acceleration,
             angular_control_acceleration;
-
         if (chassis_control_acceleration.lpNorm<1>() < 1e-1)
             chassis_control_acceleration.setZero();
-
         return chassis_control_acceleration;
     }
 
-    Eigen::Vector4d calculate_wheel_pid_torques(
-        const SteeringStatus& steering_status, const Eigen::Vector4d& wheel_velocities,
+    [[nodiscard]] Eigen::Vector4d calculate_wheel_pid_torques(
+        const SteeringStatus& steering_status, Eigen::Ref<const Eigen::Vector4d> wheel_velocities,
         const ChassisStatus& chassis_status_expected) {
-        Eigen::Vector4d wheel_control_velocity =
+        const Eigen::Vector4d wheel_control_velocity =
             chassis_status_expected.wheel_velocity_x.array() * steering_status.cos_angle.array()
             + chassis_status_expected.wheel_velocity_y.array() * steering_status.sin_angle.array();
         return wheel_velocity_pid_.update(
             wheel_control_velocity / wheel_radius_ - wheel_velocities);
     }
 
-    Eigen::Vector3d constrain_chassis_control_acceleration(
-        const SteeringStatus& steering_status, const Eigen::Vector4d& wheel_velocities,
-        const Eigen::Vector3d& chassis_acceleration, const Eigen::Vector4d& wheel_pid_torques,
-        const double& power_limit) {
-
+    [[nodiscard]] Eigen::Vector3d constrain_chassis_control_acceleration(
+        const SteeringStatus& steering_status, Eigen::Ref<const Eigen::Vector4d> wheel_velocities,
+        const JointTargetStates& joint_target,
+        Eigen::Ref<const Eigen::Vector3d> chassis_acceleration,
+        Eigen::Ref<const Eigen::Vector4d> wheel_pid_torques, const double& power_limit) {
         Eigen::Vector2d translational_acceleration_direction = chassis_acceleration.head<2>();
         double translational_acceleration_max = translational_acceleration_direction.norm();
         if (translational_acceleration_max > 0.0)
@@ -390,16 +551,24 @@ private:
         angular_acceleration_max *= angular_acceleration_direction;
 
         const double rhombus_right = friction_coefficient_ * g_;
-        const double rhombus_top =
-            rhombus_right * mess_ * vehicle_radii_.mean() / moment_of_inertia_;
+        const double constraint_radius =
+            joint_target.valid ? joint_target.radius.mean() : vehicle_radius_.mean();
+        const double rhombus_top = rhombus_right * mass_ * constraint_radius / moment_of_inertia_;
 
-        auto [a, b, c, d, e, f] = calculate_ellipse_parameters(
-            steering_status, wheel_velocities, translational_acceleration_direction,
+        const auto params = calculate_ellipse_parameters(
+            steering_status, wheel_velocities, joint_target, translational_acceleration_direction,
             angular_acceleration_direction, wheel_pid_torques);
+
+        const QcpSolver::QuadraticConstraint quadratic_constraint{
+            params.a, params.b, params.c, params.d, params.e, params.f - power_limit};
 
         Eigen::Vector2d best_point = qcp_solver_.solve(
             {1.0, 0.2}, {translational_acceleration_max, angular_acceleration_max},
-            {rhombus_right, rhombus_top}, {a, b, c, d, e, f - power_limit});
+            {rhombus_right, rhombus_top}, quadratic_constraint);
+
+        const double min_translational = 0.3 * rhombus_right;
+        if (best_point.x() < min_translational && translational_acceleration_max > min_translational)
+            best_point.x() = min_translational;
 
         Eigen::Vector3d best_acceleration;
         best_acceleration << best_point.x() * translational_acceleration_direction,
@@ -407,131 +576,139 @@ private:
         return best_acceleration;
     }
 
-    Eigen::Vector<double, 6> calculate_ellipse_parameters(
+    [[nodiscard]] EllipseParameters calculate_ellipse_parameters(
         const SteeringStatus& steering_status, const Eigen::Vector4d& wheel_velocities,
+        const JointTargetStates& joint_target,
         const Eigen::Vector2d& translational_acceleration_direction,
-        const double& angular_acceleration_direction, const Eigen::Vector4d& wheel_torque_base) {
-        Eigen::Vector4d cos_alpha_minus_gamma =
-            steering_status.cos_angle.array() * translational_acceleration_direction.x()
-            + steering_status.sin_angle.array() * translational_acceleration_direction.y();
-        Eigen::Vector4d sin_alpha_minus_varphi =
-            cos_varphi_.array() * steering_status.sin_angle.array()
-            - sin_varphi_.array() * steering_status.cos_angle.array();
-        Eigen::Vector4d double_k1_torque_base_plus_wheel_velocities =
-            2 * k1_ * wheel_torque_base.array() + wheel_velocities.array();
+        const double& angular_acceleration_direction,
+        const Eigen::Vector4d& wheel_torque_base) const {
+        EllipseParameters params{0, 0, 0, 0, 0, 0};
 
-        Eigen::Vector<double, 6> formula;
-        auto& [a, b, c, d, e, f] = formula;
+        for (size_t i = 0; i < kWheelCount; ++i) {
+            const double constraint_radius =
+                joint_target.valid ? joint_target.radius[i] : vehicle_radius_[i];
+            const double cos_alpha_minus_gamma =
+                steering_status.cos_angle[i] * translational_acceleration_direction.x()
+                + steering_status.sin_angle[i] * translational_acceleration_direction.y();
+            const double sin_alpha_minus_varphi = steering_status.sin_angle_minus_phi[i];
+            const double double_k1_torque_base_plus_wheel_velocity =
+                2 * k1_ * wheel_torque_base[i] + wheel_velocities[i];
 
-        a = (k1_ * mess_ * mess_ * wheel_radius_ * wheel_radius_ / 16.0)
-          * cos_alpha_minus_gamma.array().pow(2).sum();
-        b = (k1_ * mess_ * moment_of_inertia_ * wheel_radius_ * wheel_radius_ / 8.0)
-          * angular_acceleration_direction
-          * (cos_alpha_minus_gamma.array() * sin_alpha_minus_varphi.array()
-             / vehicle_radii_.array())
-                .sum();
-        c = (k1_ * moment_of_inertia_ * moment_of_inertia_ * wheel_radius_ * wheel_radius_ / 16.0)
-          * (sin_alpha_minus_varphi.array().pow(2) / vehicle_radii_.array().square()).sum();
-        d = (mess_ * wheel_radius_ / 4.0)
-          * (double_k1_torque_base_plus_wheel_velocities.array() * cos_alpha_minus_gamma.array())
-                .sum();
-        e = (moment_of_inertia_ * wheel_radius_ / 4.0) * angular_acceleration_direction
-          * (double_k1_torque_base_plus_wheel_velocities.array() * sin_alpha_minus_varphi.array()
-             / vehicle_radii_.array())
-                .sum();
-        f = (wheel_torque_base.array()
-             * (k1_ * wheel_torque_base.array() + wheel_velocities.array()))
-                .sum();
+            params.a += ellipse_coeff_quadratic_translational_ * cos_alpha_minus_gamma
+                      * cos_alpha_minus_gamma;
+            params.b += ellipse_coeff_cross_term_ * angular_acceleration_direction
+                      * cos_alpha_minus_gamma * sin_alpha_minus_varphi / constraint_radius;
+            params.c += ellipse_coeff_quadratic_angular_ * sin_alpha_minus_varphi
+                      * sin_alpha_minus_varphi / (constraint_radius * constraint_radius);
+            params.d += ellipse_coeff_linear_translational_
+                      * double_k1_torque_base_plus_wheel_velocity * cos_alpha_minus_gamma;
+            params.e += ellipse_coeff_linear_angular_ * angular_acceleration_direction
+                      * double_k1_torque_base_plus_wheel_velocity * sin_alpha_minus_varphi
+                      / constraint_radius;
+            params.f += wheel_torque_base[i] * (k1_ * wheel_torque_base[i] + wheel_velocities[i]);
+        }
 
-        return formula;
+        return params;
     }
 
-    Eigen::Vector4d calculate_steering_control_torques(
+    [[nodiscard]] Eigen::Vector4d calculate_steering_control_torques(
         const SteeringStatus& steering_status, const ChassisStatus& chassis_status_expected,
+        const JointTargetStates& joint_target, const JointFeedbackStates& joint_feedback,
         const Eigen::Vector3d& chassis_acceleration) {
+        const double vx = chassis_status_expected.velocity.x();
+        const double vy = chassis_status_expected.velocity.y();
+        const double vz = chassis_status_expected.velocity.z();
+        const double ax = chassis_acceleration.x();
+        const double ay = chassis_acceleration.y();
+        const double az = chassis_acceleration.z();
 
-        const auto& [vx, vy, vz] = chassis_status_expected.velocity;
-        const auto& [ax, ay, az] = chassis_acceleration;
+        const auto joint = select_joint_state(joint_target, joint_feedback);
+        if (!joint.valid) [[unlikely]]
+            return Eigen::Vector4d::Zero();
 
         Eigen::Vector4d dot_r_squared = chassis_status_expected.wheel_velocity_x.array().square()
                                       + chassis_status_expected.wheel_velocity_y.array().square();
 
-        Eigen::Vector4d steering_control_velocities =
+        Eigen::Vector4d steering_control_velocity =
             vx * ay - vy * ax - vz * (vx * vx + vy * vy)
-            + vehicle_radii_.array() * (az * vx - vz * (ax + vz * vy)) * cos_varphi_.array()
-            + vehicle_radii_.array() * (az * vy - vz * (ay - vz * vx)) * sin_varphi_.array();
-        Eigen::Vector4d steering_control_angles;
+            + joint.radius.array() * (az * vx - vz * (ax + vz * vy)) * phi_cos_vec_.array()
+            + joint.radius.array() * (az * vy - vz * (ay - vz * vx)) * phi_sin_vec_.array();
+        Eigen::Vector4d steering_control_angle;
 
-        for (int i = 0; i < steering_control_velocities.size(); ++i) {
+        for (size_t i = 0; i < kWheelCount; ++i) {
             if (dot_r_squared[i] > 1e-2) {
-                steering_control_velocities[i] /= dot_r_squared[i];
-                steering_control_angles[i] = std::atan2(
+                steering_control_velocity[i] /= dot_r_squared[i];
+                steering_control_angle[i] = std::atan2(
                     chassis_status_expected.wheel_velocity_y[i],
                     chassis_status_expected.wheel_velocity_x[i]);
             } else {
-                auto x = ax - vehicle_radii_[i] * (az * sin_varphi_[i] + 0 * cos_varphi_[i]);
-                auto y = ay + vehicle_radii_[i] * (az * cos_varphi_[i] - 0 * sin_varphi_[i]);
+                const double x =
+                    ax - joint.radius[i] * (az * phi_sin_vec_[i] + vz * vz * phi_cos_vec_[i]);
+                const double y =
+                    ay + joint.radius[i] * (az * phi_cos_vec_[i] - vz * vz * phi_sin_vec_[i]);
                 if (x * x + y * y > 1e-6) {
-                    steering_control_velocities[i] = 0.0;
-                    steering_control_angles[i] = std::atan2(y, x);
+                    steering_control_velocity[i] = 0.0;
+                    steering_control_angle[i] = std::atan2(y, x);
                 } else {
-                    steering_control_velocities[i] = nan_;
-                    steering_control_angles[i] = nan_;
+                    steering_control_velocity[i] = nan_;
+                    steering_control_angle[i] = nan_;
                 }
             }
         }
 
-        Eigen::Vector4d steering_torques = steering_velocity_pid_.update(
-            steering_control_velocities
+        Eigen::Vector4d steering_torque = steering_velocity_pid_.update(
+            steering_control_velocity
             + steering_angle_pid_.update(
-                (steering_control_angles - steering_status.angle).unaryExpr([](double diff) {
+                (steering_control_angle - steering_status.angle).unaryExpr([](double diff) {
                     diff = std::fmod(diff, std::numbers::pi);
-                    if (diff < -std::numbers::pi / 2) {
+                    if (diff < -std::numbers::pi / 2)
                         diff += std::numbers::pi;
-                    } else if (diff > std::numbers::pi / 2) {
+                    else if (diff > std::numbers::pi / 2)
                         diff -= std::numbers::pi;
-                    }
                     return diff;
                 }))
             - steering_status.velocity);
-        return steering_torques.unaryExpr([](double v) { return std::isnan(v) ? 0.0 : v; });
+
+        return steering_torque.unaryExpr([](double v) { return std::isnan(v) ? 0.0 : v; });
     }
 
-    Eigen::Vector4d calculate_wheel_control_torques(
-        const SteeringStatus& steering_status, const Eigen::Vector3d& chassis_acceleration,
-        const Eigen::Vector4d& wheel_pid_torques) {
+    [[nodiscard]] Eigen::Vector4d calculate_wheel_control_torques(
+        const SteeringStatus& steering_status, const JointTargetStates& joint_target,
+        const JointFeedbackStates& joint_feedback, const Eigen::Vector3d& chassis_acceleration,
+        const Eigen::Vector4d& wheel_pid_torques) const {
+        const auto joint = select_joint_state(joint_target, joint_feedback);
 
-        const auto& [ax, ay, az] = chassis_acceleration;
-        Eigen::Vector4d wheel_torques =
+        const double ax = chassis_acceleration.x();
+        const double ay = chassis_acceleration.y();
+        const double az = chassis_acceleration.z();
+
+        Eigen::Vector4d wheel_torque =
             wheel_radius_
-            * (ax * mess_ * steering_status.cos_angle.array()
-               + ay * mess_ * steering_status.sin_angle.array()
-               + az * moment_of_inertia_
-                     * (cos_varphi_.array() * steering_status.sin_angle.array()
-                        - sin_varphi_.array() * steering_status.cos_angle.array())
-                     / vehicle_radii_.array())
+            * (ax * mass_ * steering_status.cos_angle.array()
+               + ay * mass_ * steering_status.sin_angle.array()
+               + az * moment_of_inertia_ * steering_status.sin_angle_minus_phi.array()
+                     / joint.radius.array())
             / 4.0;
 
-        wheel_torques += wheel_pid_torques;
-        return wheel_torques;
+        wheel_torque += wheel_pid_torques;
+        return wheel_torque;
     }
 
     void update_control_torques(
-        const Eigen::Vector4d& steering_torques, const Eigen::Vector4d& wheel_torques) {
-        *left_front_steering_control_torque_ = steering_torques[0];
-        *left_back_steering_control_torque_ = steering_torques[1];
-        *right_back_steering_control_torque_ = steering_torques[2];
-        *right_front_steering_control_torque_ = steering_torques[3];
+        const Eigen::Vector4d& steering_torque, const Eigen::Vector4d& wheel_torque) {
+        *left_front_steering_control_torque_ = steering_torque[0];
+        *left_back_steering_control_torque_ = steering_torque[1];
+        *right_back_steering_control_torque_ = steering_torque[2];
+        *right_front_steering_control_torque_ = steering_torque[3];
 
-        *left_front_wheel_control_torque_ = wheel_torques[0];
-        *left_back_wheel_control_torque_ = wheel_torques[1];
-        *right_back_wheel_control_torque_ = wheel_torques[2];
-        *right_front_wheel_control_torque_ = wheel_torques[3];
+        *left_front_wheel_control_torque_ = wheel_torque[0];
+        *left_back_wheel_control_torque_ = wheel_torque[1];
+        *right_back_wheel_control_torque_ = wheel_torque[2];
+        *right_front_wheel_control_torque_ = wheel_torque[3];
     }
 
     void update_chassis_velocity_expected(const Eigen::Vector3d& chassis_acceleration) {
-        auto acceleration_odom = base_link_to_odom_vector(chassis_acceleration);
-        chassis_velocity_expected_ += dt_ * acceleration_odom;
+        chassis_velocity_expected_ += dt_ * base_link_to_odom_vector(chassis_acceleration);
     }
 
     Eigen::Vector3d base_link_to_odom_vector(Eigen::Vector3d vector) const {
@@ -544,23 +721,81 @@ private:
         return vector;
     }
 
-    static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
-    static constexpr double inf_ = std::numeric_limits<double>::infinity();
+    [[nodiscard]] double calculate_chassis_energy(const Eigen::Vector3d& velocity) const {
+        return mass_ * velocity.head<2>().squaredNorm()
+             + moment_of_inertia_ * velocity.z() * velocity.z();
+    }
 
+    static Eigen::Vector2d radial_unit_(double phi) { return {std::cos(phi), std::sin(phi)}; }
+
+    static Eigen::Vector2d tangential_unit_(double phi) { return {-std::sin(phi), std::cos(phi)}; }
+
+    [[nodiscard]] Eigen::Vector2d radial_unit_fast_(size_t wheel_index) const {
+        return {phi_cos_[wheel_index], phi_sin_[wheel_index]};
+    }
+
+    [[nodiscard]] Eigen::Vector2d tangential_unit_fast_(size_t wheel_index) const {
+        return {-phi_sin_[wheel_index], phi_cos_[wheel_index]};
+    }
+
+    static double wrap_to_half_pi_(double diff) {
+        diff = std::fmod(diff, std::numbers::pi);
+        if (diff < -std::numbers::pi / 2)
+            diff += std::numbers::pi;
+        else if (diff > std::numbers::pi / 2)
+            diff -= std::numbers::pi;
+        return diff;
+    }
+
+    static constexpr std::array<double, 4> phi_ = {
+        0.0,
+        std::numbers::pi / 2,
+        std::numbers::pi,
+        -std::numbers::pi / 2,
+    };
+
+    static constexpr std::array<double, 4> phi_cos_ = {
+        1.0,
+        0.0,
+        -1.0,
+        0.0,
+    };
+
+    static constexpr std::array<double, 4> phi_sin_ = {
+        0.0,
+        1.0,
+        0.0,
+        -1.0,
+    };
+
+    static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
     static constexpr double dt_ = 1e-3;
     static constexpr double g_ = 9.81;
 
-    const double mess_;
+    const double mass_;
     const double moment_of_inertia_;
-
     const double chassis_radius_;
     const double rod_length_;
     const double wheel_radius_;
     const double friction_coefficient_;
+    const double k1_;
+    const double k2_;
+    const double no_load_power_;
 
-    const double k1_, k2_, no_load_power_;
+    // Precomputed constants for calculate_ellipse_parameters
+    const double ellipse_coeff_quadratic_translational_; // k1 * mass^2 * wheel_radius^2 / 16
+    const double ellipse_coeff_cross_term_; // k1 * mass * moment_of_inertia * wheel_radius^2 / 8
+    const double ellipse_coeff_quadratic_angular_; // k1 * moment_of_inertia^2 * wheel_radius^2 / 16
+    const double ellipse_coeff_linear_translational_; // mass * wheel_radius / 4
+    const double ellipse_coeff_linear_angular_;       // moment_of_inertia * wheel_radius / 4
 
-    Eigen::Vector4d vehicle_radii_;
+    Eigen::Vector4d vehicle_radius_;
+    const Eigen::Vector4d phi_cos_vec_{1.0, 0.0, -1.0, 0.0};
+    const Eigen::Vector4d phi_sin_vec_{0.0, 1.0, 0.0, -1.0};
+    Eigen::Vector4d last_joint_velocity_ = Eigen::Vector4d::Zero();
+    bool last_joint_velocity_valid_ = false;
+    Eigen::Vector4d last_joint_target_angle_ = Eigen::Vector4d::Zero();
+    bool last_joint_target_angle_valid_ = false;
 
     InputInterface<Eigen::Vector2d> joystick_right_;
     InputInterface<Eigen::Vector2d> joystick_left_;
@@ -590,6 +825,19 @@ private:
     InputInterface<double> right_back_joint_velocity_;
     InputInterface<double> right_front_joint_velocity_;
 
+    InputInterface<double> left_front_joint_target_physical_angle_;
+    InputInterface<double> left_back_joint_target_physical_angle_;
+    InputInterface<double> right_back_joint_target_physical_angle_;
+    InputInterface<double> right_front_joint_target_physical_angle_;
+    InputInterface<double> left_front_joint_target_physical_velocity_;
+    InputInterface<double> left_back_joint_target_physical_velocity_;
+    InputInterface<double> right_back_joint_target_physical_velocity_;
+    InputInterface<double> right_front_joint_target_physical_velocity_;
+    InputInterface<double> left_front_joint_target_physical_acceleration_;
+    InputInterface<double> left_back_joint_target_physical_acceleration_;
+    InputInterface<double> right_back_joint_target_physical_acceleration_;
+    InputInterface<double> right_front_joint_target_physical_acceleration_;
+
     InputInterface<double> chassis_yaw_velocity_imu_;
     InputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;
     InputInterface<double> power_limit_;
@@ -604,10 +852,6 @@ private:
     OutputInterface<double> right_back_wheel_control_torque_;
     OutputInterface<double> right_front_wheel_control_torque_;
 
-    OutputInterface<double> encoder_alpha_;
-    OutputInterface<double> encoder_alpha_dot_;
-    OutputInterface<double> radius_;
-
     QcpSolver qcp_solver_;
     filter::LowPassFilter<3> control_acceleration_filter_;
 
@@ -616,10 +860,9 @@ private:
 
     pid::MatrixPidCalculator<2> chassis_translational_velocity_pid_;
     pid::PidCalculator chassis_angular_velocity_pid_;
-
-    const Eigen::Vector4d cos_varphi_, sin_varphi_;
-
-    pid::MatrixPidCalculator<4> steering_velocity_pid_, steering_angle_pid_, wheel_velocity_pid_;
+    pid::MatrixPidCalculator<4> steering_velocity_pid_;
+    pid::MatrixPidCalculator<4> steering_angle_pid_;
+    pid::MatrixPidCalculator<4> wheel_velocity_pid_;
 };
 
 } // namespace rmcs_core::controller::chassis

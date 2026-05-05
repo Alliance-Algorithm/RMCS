@@ -25,7 +25,7 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , mess_(get_parameter("mess").as_double())
+        , mass_(get_parameter("mass").as_double())
         , moment_of_inertia_(get_parameter("moment_of_inertia").as_double())
         , wheel_radius_(get_parameter("wheel_radius").as_double())
         , friction_coefficient_(get_parameter("friction_coefficient").as_double())
@@ -124,7 +124,7 @@ private:
 
         Eigen::Vector3d err = chassis_control_velocity_->vector - chassis_velocity;
         Eigen::Vector2d translational_torque =
-            (-std::numbers::sqrt2 / 4 * wheel_radius_) * mess_
+            (-std::numbers::sqrt2 / 4 * wheel_radius_) * mass_
             * translational_velocity_pid_calculator_.update(err.head<2>());
         result.torque.x() = translational_torque.norm();
 
@@ -169,7 +169,7 @@ private:
 
         const auto& [t1, t2, t3, t4] = wheel_pid_torques;
 
-        const double rhombus_top = (friction_coefficient_ * mess_ * g_ * wheel_radius_) / 4;
+        const double rhombus_top = (friction_coefficient_ * mass_ * g_ * wheel_radius_) / 4;
         const double rhombus_right = rhombus_top / std::max(std::abs(lambda_1), std::abs(lambda_2));
 
         const double a = 4 * k1_;
@@ -192,7 +192,7 @@ private:
             const double gamma_2 = coeff * (-dir_x / chassis_radius_x_ + dir_y / chassis_radius_y_);
 
             const double force_to_torque = friction_coefficient_ * wheel_radius_;
-            const double rhs = force_to_torque * mess_ * g_ / 4.0;
+            const double rhs = force_to_torque * mass_ * g_ / 4.0;
             const std::vector<QcpSolver::HalfPlaneConstraint> half_planes = {
                 { lambda_1 - force_to_torque * gamma_1,  y_sign, rhs},
                 {-lambda_1 - force_to_torque * gamma_1, -y_sign, rhs},
@@ -234,7 +234,7 @@ private:
 
     static constexpr double g_ = 9.81;
 
-    const double mess_;
+    const double mass_;
     const double moment_of_inertia_;
     const double wheel_radius_;
     const double friction_coefficient_;

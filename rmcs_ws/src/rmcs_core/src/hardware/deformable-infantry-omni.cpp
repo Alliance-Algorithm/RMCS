@@ -26,6 +26,7 @@
 #include "hardware/device/bmi088.hpp"
 #include "hardware/device/can_packet.hpp"
 #include "hardware/device/dji_motor.hpp"
+#include "hardware/device/dji_motor_with_encoder.hpp"
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/lk_motor.hpp"
 #include "hardware/device/supercap.hpp"
@@ -179,7 +180,7 @@ private:
             , imu_(1000, 0.2, 0.0)
             , gimbal_yaw_motor_(deformableInfantry, deformableInfantry_command, "/gimbal/yaw")
             , dr16_(deformableInfantry)
-            , chassis_wheel_motors_{device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/left_front_wheel"}, device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/left_back_wheel"}, device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/right_back_wheel"}, device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/right_front_wheel"}},
+            , chassis_wheel_motors_{device::DjiMotorWithEncoder{deformableInfantry, deformableInfantry_command, "/chassis/left_front_wheel"}, device::DjiMotorWithEncoder{deformableInfantry, deformableInfantry_command, "/chassis/left_back_wheel"}, device::DjiMotorWithEncoder{deformableInfantry, deformableInfantry_command, "/chassis/right_back_wheel"}, device::DjiMotorWithEncoder{deformableInfantry, deformableInfantry_command, "/chassis/right_front_wheel"}},
             chassis_joint_motors_{
                 device::LkMotor{
                     deformableInfantry, deformableInfantry_command, "/chassis/left_front_joint"},
@@ -214,7 +215,7 @@ private:
 
             for (auto& motor : chassis_wheel_motors_)
                 motor.configure(
-                    device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
+                    device::DjiMotorWithEncoder::Config{device::DjiMotorWithEncoder::Type::kM3508}
                         .set_reduction_ratio(11.0)
                         .enable_multi_turn_angle()
                         .set_reversed());
@@ -613,7 +614,7 @@ private:
         device::Bmi088 imu_;
         device::LkMotor gimbal_yaw_motor_;
         device::Dr16 dr16_;
-        device::DjiMotor chassis_wheel_motors_[4];
+        device::DjiMotorWithEncoder chassis_wheel_motors_[4];
         device::LkMotor chassis_joint_motors_[4];
         std::atomic<bool> wheel_status_received_[4] = {false, false, false, false};
         std::atomic<bool> joint_status_received_[4] = {false, false, false, false};

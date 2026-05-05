@@ -75,6 +75,7 @@ public:
     }
 
     void command_update() {
+
         top_board_->command_update();
         bottom_board_->command_update();
     }
@@ -103,7 +104,6 @@ private:
             get_logger(), "[steer calibration] New right front offset: %d",
             bottom_board_->chassis_steer_motors_[3].calibrate_zero_point());
     }
-
     class SteeringInfantryCommand : public rmcs_executor::Component {
     public:
         explicit SteeringInfantryCommand(SteeringInfantry& steering_infantry)
@@ -120,9 +120,7 @@ private:
         explicit TopBoard(
             SteeringInfantry& steering_infantry, SteeringInfantryCommand& steering_infantry_command,
             std::string_view board_serial = {})
-            : librmcs::agent::CBoard(
-                  board_serial,
-                  librmcs::agent::AdvancedOptions{.dangerously_skip_version_checks = true})
+            : librmcs::agent::CBoard(board_serial)
             , tf_(steering_infantry.tf_)
             , bmi088_(1000, 0.2, 0.0)
             , gimbal_pitch_motor_(steering_infantry, steering_infantry_command, "/gimbal/pitch")
@@ -147,8 +145,18 @@ private:
             steering_infantry.register_output(
                 "/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_bmi088_);
 
-            bmi088_.set_coordinate_mapping(
-                [](double x, double y, double z) { return std::make_tuple(x, y, z); });
+            bmi088_.set_coordinate_mapping([](double x, double y, double z) {
+                // Get the mapping with the following code.
+                // The rotation angle must be an exact multiple of 90 degrees, otherwise
+                // use a matrix.
+
+                // Eigen::AngleAxisd pitch_link_to_bmi088_link{
+                //     std::numbers::pi / 2, Eigen::Vector3d::UnitZ()};
+                // Eigen::Vector3d mapping = pitch_link_to_bmi088_link * Eigen::Vector3d{1, 2, 3};
+                // std::cout << mapping << std::endl;
+
+                return std::make_tuple(x, y, z);
+            });
         }
 
         TopBoard(const TopBoard&) = delete;
@@ -225,7 +233,6 @@ private:
         void gyroscope_receive_callback(const librmcs::data::GyroscopeDataView& data) override {
             bmi088_.store_gyroscope_status(data.x, data.y, data.z);
         }
-
         OutputInterface<rmcs_description::Tf>& tf_;
 
         OutputInterface<double> gimbal_yaw_velocity_bmi088_;
@@ -244,9 +251,7 @@ private:
         explicit BottomBoard(
             SteeringInfantry& steering_infantry, SteeringInfantryCommand& steering_infantry_command,
             std::string_view board_serial = {})
-            : librmcs::agent::CBoard(
-                  board_serial,
-                  librmcs::agent::AdvancedOptions{.dangerously_skip_version_checks = true})
+            : librmcs::agent::CBoard(board_serial)
             , imu_(1000, 0.2, 0.0)
             , tf_(steering_infantry.tf_)
             , dr16_(steering_infantry)
@@ -500,6 +505,8 @@ private:
         bool can_transmission_mode_ = true;
         device::Bmi088 imu_;
         OutputInterface<rmcs_description::Tf>& tf_;
+        OutputInterface<bool> powermeter_control_enabled_;
+        OutputInterface<double> powermeter_charge_power_limit_;
 
         device::Dr16 dr16_;
         device::LkMotor gimbal_yaw_motor_;

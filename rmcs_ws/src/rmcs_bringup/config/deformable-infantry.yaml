@@ -9,7 +9,7 @@ rmcs_executor:
 
       - rmcs_core::referee::command::Interaction -> referee_interaction
       - rmcs_core::referee::command::interaction::Ui -> referee_ui
-      - rmcs_core::referee::app::ui::Infantry -> referee_ui_infantry
+      - rmcs_core::referee::app::ui::DeformableInfantry -> referee_ui_infantry
 
       - rmcs_core::controller::smc::SlidingModeController -> smc_controller0
       - rmcs_core::controller::smc::SlidingModeController -> smc_controller1
@@ -32,7 +32,6 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller
 
       - rmcs_core::controller::chassis::DeformableChassis -> chassis_controller
-      # - rmcs_core::controller::chassis::ChassisTestController -> chassis_test_controller
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::DeformableChassisController -> deformable_chassis_controller
 
@@ -286,7 +285,7 @@ smc_observer3:
 
 deformable_chassis_controller:
   ros__parameters:
-    mess: 22.5
+    mass: 22.5
     moment_of_inertia: 1.0
     chassis_radius: 0.2341741
     rod_length: 0.150

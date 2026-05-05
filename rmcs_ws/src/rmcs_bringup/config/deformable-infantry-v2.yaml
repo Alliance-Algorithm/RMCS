@@ -9,7 +9,7 @@ rmcs_executor:
 
       - rmcs_core::referee::command::Interaction -> referee_interaction
       - rmcs_core::referee::command::interaction::Ui -> referee_ui
-      - rmcs_core::referee::app::ui::Infantry -> referee_ui_infantry
+      - rmcs_core::referee::app::ui::DeformableInfantry -> referee_ui_infantry
 
       - rmcs_core::controller::gimbal::DeformableInfantryGimbalController -> gimbal_controller
 
@@ -22,7 +22,7 @@ rmcs_executor:
 
       - rmcs_core::controller::chassis::DeformableChassis -> chassis_controller
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
-      - rmcs_core::controller::chassis::WheelDemoController -> deformable_chassis_controller
+      - rmcs_core::controller::chassis::DeformableChassisController -> deformable_chassis_controller
 
       - rmcs_core::controller::chassis::DeformableJointController -> lf_joint_controller
       - rmcs_core::controller::chassis::DeformableJointController -> lb_joint_controller
