@@ -46,7 +46,7 @@ engineer_hardware:
     image_pitch_zero_point: 47534
     joint6_zero_point: 61801
     joint5_zero_point: 37436
-    joint4_zero_point: 33989
+    joint4_zero_point: 31596
     joint3_zero_point: 28459
     joint2_zero_point: 41331 
     joint1_zero_point: 14865
@@ -76,38 +76,38 @@ arm_controller:
           acceleration_scaling: 0.03
         step2_pose:
           target_pose: [-0.138798,0.338888,0.355177, -0.714410 ,-1.365410 ,2.684959]
-          velocity_scaling: 0.03
-          acceleration_scaling: 0.03
+          velocity_scaling: 0.02
+          acceleration_scaling: 0.02
         step3_pose:
-          target_pose: [-0.328852, 0.165367, 0.289939, -0.352762, -1.361484, 3.049787]
-          velocity_scaling: 0.03
-          acceleration_scaling: 0.03
+          target_pose: [-0.318852, 0.160367, 0.329939, -0.002762, -1.571484, 3.049787]
+          velocity_scaling: 0.02
+          acceleration_scaling: 0.02
         step4_lin:
           lin: [-1.0,0.0,0.0,0.15]
-          velocity_scaling: 0.02
-          acceleration_scaling: 0.03
+          velocity_scaling: 0.03
+          acceleration_scaling: 0.2
         step5_lin:
           lin: [0.0,0.0,1.0,0.08]
           velocity_scaling: 0.05
           acceleration_scaling: 0.03
         step6_pose:
           target_pose: [0.221731,0.002842,0.308955,-3.084697,-1.097439,3.096949]
-          velocity_scaling: 0.03
+          velocity_scaling: 0.06
           acceleration_scaling: 0.03
     auto_storage_rb:
       threshold: [0.15,-0.08,0.32,0.5]
       params:
         step1_pose:
           target_pose: [0.281561,-0.033675, 0.388642, 0.725640, -1.475059, -0.839970]
-          velocity_scaling: 0.03
+          velocity_scaling: 0.02
           acceleration_scaling: 0.03
         step2_pose:
           target_pose: [-0.138156,-0.340795,0.360307,0.593263,-1.490951,-2.549442]
           velocity_scaling: 0.02
-          acceleration_scaling: 0.02
+          acceleration_scaling: 0.03
         step3_pose:
-          target_pose: [-0.321210,-0.161399, 0.301385, 1.943944, -1.493285, 1.673210]
-          velocity_scaling: 0.03
+          target_pose: [-0.321210,-0.168399, 0.321385, 1.573944, -1.493285, 1.673210]
+          velocity_scaling: 0.02
           acceleration_scaling: 0.03
         step4_lin:
           lin: [-1.0,0.0,0.0,0.15]
@@ -119,22 +119,22 @@ arm_controller:
           acceleration_scaling: 0.03
         step6_pose:
           target_pose: [0.221731,0.002842,0.308955,-3.084697,-1.097439,3.096949]
-          velocity_scaling: 0.03
+          velocity_scaling: 0.06
           acceleration_scaling: 0.03
     auto_extract_lb:
       threshold: [0.10,0.08,0.32,0.5]
       params:
         step1_pose:
           target_pose: [0.281561,-0.033675, 0.388642, 0.725640, -1.475059, -0.839970]
-          velocity_scaling: 0.03
+          velocity_scaling: 0.05
           acceleration_scaling: 0.03
         step2_pose:
           target_pose: [0.002843,0.285341,0.269419 ,-1.974588, -1.453901 ,-2.682938]
-          velocity_scaling: 0.03
+          velocity_scaling: 0.05
           acceleration_scaling: 0.03
         step3_pose:
-          target_pose: [-0.248779, 0.125352, 0.168452, 0.105336, -1.491699, 2.627386]
-          velocity_scaling: 0.03
+          target_pose: [-0.248779, 0.125352, 0.168452, 0.00, -1.571699, 2.627386]
+          velocity_scaling: 0.05
           acceleration_scaling: 0.03
         step4_lin:
           lin: [0.0,0.0,-1.0,0.08]
@@ -160,8 +160,8 @@ arm_controller:
           velocity_scaling: 0.05
           acceleration_scaling: 0.03
         step3_pose:
-          target_pose: [-0.240603,-0.136261,0.187260,-2.676866,-1.518567,0.028266]
-          velocity_scaling: 0.05
+          target_pose: [-0.240603,-0.136261,0.173260,-2.676866,-1.518567,0.028266]
+          velocity_scaling: 0.04
           acceleration_scaling: 0.03          
         step4_lin:
           lin: [0.0,0.0,-1.0,0.08]
@@ -169,7 +169,7 @@ arm_controller:
           acceleration_scaling: 0.03
         step5_lin:
           lin: [1.0,0.0,0.0,0.15]
-          velocity_scaling: 0.05
+          velocity_scaling: 0.06
           acceleration_scaling: 0.03
         step6_pose:
           target_pose: [0.221731,0.002842,0.308955,-3.084697,-1.097439,3.096949]

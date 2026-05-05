@@ -106,7 +106,7 @@ public:
         });
     }
 
-    ~ArmController() override {
+    ~ArmController() {
         moveit_running_.store(false, std::memory_order_release);
         exec_.cancel();
 
@@ -116,7 +116,7 @@ public:
             spin_thread_.join();
     }
 
-    void update() override {
+    void update() {
         *arm_mode_ = get_arm_mode();
 
         auto knob         = *rotary_knob_switch;
@@ -309,7 +309,7 @@ private:
         static std::vector<double> auto_walk_joint_target;
         static constexpr std::size_t AutoStepCount                   = 6;
         const std::array<std::string, AutoStepCount> auto_step_names = {
-            "step1_pose", "step2_pose","step3_pose","step4_lin", "step5_lin", "step6_pose"};
+            "step1_pose", "step2_pose", "step3_pose", "step4_lin", "step5_lin", "step6_pose"};
         struct AutoMineConfig {
             std::array<std::array<double, 6>, AutoStepCount> step_rpy{};
             std::array<bool, AutoStepCount> lin_mask{};
@@ -364,40 +364,6 @@ private:
             case rmcs_msgs::ArmMode::Auto_Extract_RB: return &auto_extract_rb_config;
             default: return nullptr;
             }
-        };
-        const auto auto_between_pose_builder = [this, &get_auto_mine_config]() {
-            auto* config = get_auto_mine_config(this->get_arm_mode());
-            if (!config) {
-                return std::array<double, 6>{};
-            }
-
-            std::array<double, 6> target          = config->step_rpy[1];
-            std::array<double, 6> between_pose    = config->step_rpy[0];
-            geometry_msgs::msg::Pose current_pose = move_group_->getCurrentPose("link_6").pose;
-
-            const Eigen::Vector3d current_xyz(
-                current_pose.position.x, current_pose.position.y, current_pose.position.z);
-            const Eigen::Vector3d target_xyz(target[0], target[1], target[2]);
-            const Eigen::Vector3d threshold_xyz = config->threshold_point;
-            const double gain                   = config->threshold_gain;
-
-            const Eigen::Array3d delta        = (current_xyz - target_xyz).array().abs();
-            const Eigen::Vector3d between_xyz = (current_xyz.array()
-                                                 + (2
-                                                        * (((current_xyz - threshold_xyz).array()
-                                                            <= 0.0)
-                                                               .cast<double>())
-                                                    - 1)
-                                                       * gain * delta)
-                                                    .matrix();
-            between_pose[0] = between_xyz.x();
-            between_pose[1] = between_xyz.y();
-            between_pose[2] = between_xyz.z();
-
-            between_pose[3] = target[3];
-            between_pose[4] = target[4];
-            between_pose[5] = target[5];
-            return between_pose;
         };
 
         if (!parameter_initialized) {
@@ -478,6 +444,8 @@ private:
             return;
         }
         case rmcs_msgs::ArmMode::Auto_Walk: {
+            move_group_->setMaxVelocityScalingFactor(0.03);
+            move_group_->setMaxAccelerationScalingFactor(0.03);
             move_group_->setPlanningPipelineId("ompl");
             move_group_->setPlannerId("");
             move_group_->setJointValueTarget(
@@ -493,7 +461,7 @@ private:
             const auto current_rpy  = move_group_->getCurrentRPY("link_6");
             if (current_rpy.size() == 3) {
                 RCLCPP_INFO(
-                    node_->get_logger(), "xyzrpy %.6f %.6f %.6f %.6f %.6f %.6f",
+                    node_->get_logger(), "autowalkxyzrpy %.6f %.6f %.6f %.6f %.6f %.6f",
                     current_pose.position.x, current_pose.position.y, current_pose.position.z,
                     current_rpy[0], current_rpy[1], current_rpy[2]);
             }
@@ -522,11 +490,11 @@ private:
                 planned_trajectory_.store(result, std::memory_order::release);
                 return;
             }
-            //config->step_rpy[0] = auto_between_pose_builder();
-            // RCLCPP_INFO(
-            //     node_->get_logger(), "xyzrpy %f %f %f %f %f %f", config->step_rpy[0][0],
-            //     config->step_rpy[0][1], config->step_rpy[0][2], config->step_rpy[0][3],
-            //     config->step_rpy[0][4], config->step_rpy[0][5]);
+            // config->step_rpy[0] = auto_between_pose_builder();
+            //  RCLCPP_INFO(
+            //      node_->get_logger(), "xyzrpy %f %f %f %f %f %f", config->step_rpy[0][0],
+            //      config->step_rpy[0][1], config->step_rpy[0][2], config->step_rpy[0][3],
+            //      config->step_rpy[0][4], config->step_rpy[0][5]);
             auto current_state = move_group_->getCurrentState();
 
             result->positions.clear();
@@ -666,6 +634,10 @@ private:
                         if (trajectory_steps == static_cast<std::size_t>(moveit_result->steps[3])
                             && !is_gripper_complete) {
                             set_gripper_mode(rmcs_msgs::GripperMode::Close);
+                            trajectory_steps--;
+                        }
+                        if(trajectory_steps == 0&&!is_gripper_complete){
+                            set_gripper_mode(rmcs_msgs::GripperMode::Open);
                             trajectory_steps--;
                         }
                         break;
