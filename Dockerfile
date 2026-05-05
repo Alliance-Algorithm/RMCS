@@ -36,11 +36,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libatlas-base-dev \
     libsuitesparse-dev \
     libceres-dev \
-    ros-$ROS_DISTRO-rviz2 \
-    ros-$ROS_DISTRO-navigation2 \
-    ros-$ROS_DISTRO-foxglove-bridge \
-    ros-$ROS_DISTRO-pcl-ros ros-$ROS_DISTRO-pcl-conversions ros-$ROS_DISTRO-pcl-msgs && \
-    apt-get autoremove -y && apt-get clean && \
+    ros-$ROS_DISTRO-rviz2 ros-$ROS_DISTRO-foxglove-bridge \
+    ros-$ROS_DISTRO-pcl-ros ros-$ROS_DISTRO-pcl-conversions ros-$ROS_DISTRO-pcl-msgs \
+    ros-$ROS_DISTRO-navigation2 ros-$ROS_DISTRO-nav2-msgs \
+    lua5.4 liblua5.4-0 liblua5.4-dev && \
+    apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/*
 
 
@@ -54,7 +54,7 @@ RUN if [ "${TARGETARCH}" = "amd64" ]; then \
             > /etc/apt/sources.list.d/intel-openvino.list && \
         apt-get update && \
         apt-get install -y --no-install-recommends openvino-2025.2.0 && \
-        apt-get autoremove -y && apt-get clean && \
+        apt-get clean && \
         rm -rf /var/lib/apt/lists/* /tmp/*; \
     else \
         echo "Skipping OpenVINO install on ${TARGETARCH}"; \
@@ -74,7 +74,7 @@ RUN git clone https://github.com/Livox-SDK/Livox-SDK2.git && \
 RUN --mount=type=bind,target=/rmcs_ws/src,source=rmcs_ws/src,readonly \
     apt-get update && \
     rosdep install --from-paths /rmcs_ws/src --ignore-src -r -y && \
-    apt-get autoremove -y && apt-get clean && \
+    apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/*
 
 # Build Unison from source because upstream does not ship arm64 release binaries
@@ -109,20 +109,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-colorama python3-dpkt && \
     update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 50 && \
     update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-14 50 && \
-    apt-get autoremove -y && apt-get clean && \
+    apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/*
 
-# Install OpenAI Codex CLI
-RUN mkdir -p /etc/apt/keyrings && \
-    curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
-    | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg && \
-    chmod 644 /etc/apt/keyrings/nodesource.gpg && \
-    echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_22.x nodistro main" \
-    > /etc/apt/sources.list.d/nodesource.list && \
-    apt-get update && \
+# Install Node.js 24 LTS (required by agent CLIs)
+RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - && \
     apt-get install -y --no-install-recommends nodejs && \
-    npm install -g @openai/codex && \
-    apt-get autoremove -y && apt-get clean && \
+    apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/*
 
 # Install llvm-toolchain
@@ -146,7 +139,7 @@ RUN mkdir -p /etc/apt/keyrings && \
     update-alternatives --install /usr/bin/llvm-ar llvm-ar /usr/bin/llvm-ar-${LLVM_VERSION} 50 && \
     update-alternatives --install /usr/bin/llvm-ranlib llvm-ranlib /usr/bin/llvm-ranlib-${LLVM_VERSION} 50 && \
     update-alternatives --install /usr/bin/ld.lld ld.lld /usr/bin/ld.lld-${LLVM_VERSION} 50 && \
-    apt-get autoremove -y && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/*
+    apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/*
 
 # Generate/load ssh key and setup unison
 RUN --mount=type=bind,target=/tmp/.ssh,source=.ssh,readonly=false \
@@ -184,6 +177,15 @@ RUN case "${TARGETARCH}" in \
 # Change user
 RUN chsh -s /bin/zsh ubuntu && \
     echo "ubuntu ALL=(ALL:ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Precreate generic XDG-style parent directories for direct bind mounts under ubuntu's home.
+RUN mkdir -p \
+        /home/ubuntu/.agents \
+        /home/ubuntu/.cache \
+        /home/ubuntu/.config \
+        /home/ubuntu/.local/share \
+        /home/ubuntu/.local/state && \
+    chown -R ubuntu:ubuntu /home/ubuntu/.agents /home/ubuntu/.cache /home/ubuntu/.config /home/ubuntu/.local
 WORKDIR /home/ubuntu
 ENV USER=ubuntu
 ENV WORKDIR=/home/ubuntu
@@ -220,7 +222,7 @@ RUN apt-get update && \
         "binutils-${cross_pkg_triplet}" && \
     update-alternatives --install "/usr/bin/${cross_triplet}-gcc" "${cross_triplet}-gcc" "/usr/bin/${cross_triplet}-gcc-14" 50 && \
     update-alternatives --install "/usr/bin/${cross_triplet}-g++" "${cross_triplet}-g++" "/usr/bin/${cross_triplet}-g++-14" 50 && \
-    apt-get autoremove -y && apt-get clean && \
+    apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/*
 
 RUN mkdir -p /opt/sysroots && \
@@ -263,7 +265,7 @@ FROM rmcs-base AS rmcs-runtime
 # Install runtime tools
 RUN apt-get update && \
     apt-get install -y --no-install-recommends tini openssh-server avahi-daemon orphan-sysvinit-scripts && \
-    apt-get autoremove -y && apt-get clean && \
+    apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* && \
     echo 'Port 2022' >> /etc/ssh/sshd_config && \
     echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config && \

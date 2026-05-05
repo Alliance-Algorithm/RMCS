@@ -2,31 +2,16 @@
   <class type="rmcs_core::hardware::MecanumHero" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::hardware::SteeringHero" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::hardware::OmniInfantry" base_class_type="rmcs_executor::Component" />
-  <class type="rmcs_core::hardware::SteeringInfantry" base_class_type="rmcs_executor::Component" />
-  <class type="rmcs_core::hardware::DeformableInfantry" base_class_type="rmcs_executor::Component" />
-  <class type="rmcs_core::hardware::DeformableInfantryV2" base_class_type="rmcs_executor::Component" />
-  <class type="rmcs_core::hardware::DeformableInfantryOmni" base_class_type="rmcs_executor::Component" />
-  <class type="rmcs_core::hardware::DeformableInfantryChasssisV2" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::hardware::Sentry" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::hardware::SteeringInfantry" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::ChassisController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::ChassisPowerController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::OmniWheelController" base_class_type="rmcs_executor::Component" />
-  <class type="rmcs_core::controller::chassis::DeformableOmniWheelController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::SteeringWheelController" base_class_type="rmcs_executor::Component" />
-  <class type="rmcs_core::controller::chassis::DeformableChassisController" base_class_type="rmcs_executor::Component" />
-  <class type="rmcs_core::controller::chassis::DeformableChassis" base_class_type="rmcs_executor::Component" />
-  <class type="rmcs_core::controller::chassis::DeformableJointController" base_class_type="rmcs_executor::Component" />
-  <class type="rmcs_core::controller::chassis::DeformableJointSweepController" base_class_type="rmcs_executor::Component" />
-  <class type="rmcs_core::controller::chassis::DeformableJointSweepRecorder" base_class_type="rmcs_executor::Component" />
-  <class type="rmcs_core::controller::chassis::WheelDemoController" base_class_type="rmcs_executor::Component" />
-  <class type="rmcs_core::controller::chassis::ChassisControllerV2" base_class_type="rmcs_executor::Component" />
-  <class type="rmcs_core::controller::chassis::ChassisTestV2Controller" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::gimbal::SimpleGimbalController" base_class_type="rmcs_executor::Component" />
-  <class type="rmcs_core::controller::gimbal::OmniInfantryPlannerGimbalController" base_class_type="rmcs_executor::Component" />
-  <class type="rmcs_core::controller::gimbal::OmniInfantryGimbalSweep" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::gimbal::HeroGimbalController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::gimbal::DualYawController" base_class_type="rmcs_executor::Component" />
-  <class type="rmcs_core::controller::gimbal::DeformableInfantryGimbalController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::gimbal::EccentricDualYaw" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::gimbal::PlayerViewer" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::shooting::FrictionWheelController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::shooting::HeatController" base_class_type="rmcs_executor::Component" />
@@ -35,9 +20,6 @@
   <class type="rmcs_core::controller::shooting::ShootingRecorder" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::pid::PidController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::pid::ErrorPidController" base_class_type="rmcs_executor::Component" />
-  <class type="rmcs_core::controller::smc::SlidingModeController" base_class_type="rmcs_executor::Component" />
-  <class type="rmcs_core::controller::smc::Smc_Observer" base_class_type="rmcs_executor::Component" />
-  <class type="rmcs_core::controller::adrc::AdrcController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::broadcaster::TfBroadcaster" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::broadcaster::ValueBroadcaster" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::referee::Status" base_class_type="rmcs_executor::Component" />
@@ -46,6 +28,4 @@
   <class type="rmcs_core::referee::command::interaction::Ui" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::referee::app::ui::Infantry" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::referee::app::ui::Hero" base_class_type="rmcs_executor::Component" />
-
-  <class type="rmcs_core::test::output::AngleOutput" base_class_type="rmcs_executor::Component" />
 </library>

@@ -15,16 +15,6 @@
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/switch.hpp>
 
-#ifndef PACKED_STRUCT
-#if defined(_MSC_VER)
-# define PACKED_STRUCT(...) __pragma(pack(push, 1)) struct __VA_ARGS__ __pragma(pack(pop))
-#elif defined(__GNUC__)
-# define PACKED_STRUCT(...) struct __attribute__((packed)) __VA_ARGS__
-#else
-# define PACKED_STRUCT(...) struct __VA_ARGS__
-#endif
-#endif
-
 namespace rmcs_core::hardware::device {
 
 class Dr16 {

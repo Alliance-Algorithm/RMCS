@@ -7,17 +7,15 @@ set -euo pipefail
 usage() {
     cat <<'EOF'
 Usage:
-  build-rmcs-cross --target-arch <arm64|amd64> [--link-default] [colcon build args...]
+  build-rmcs-cross --target-arch <arm64|amd64> [colcon build args...]
 
 Examples:
   build-rmcs-cross --target-arch arm64
-  build-rmcs-cross --target-arch arm64 --link-default
   build-rmcs-cross --target-arch amd64 --packages-up-to rmcs_executor
 EOF
 }
 
 target_arch=""
-link_default=0
 colcon_args=()
 
 while (($# > 0)); do
@@ -33,10 +31,6 @@ while (($# > 0)); do
         ;;
     --target-arch=*)
         target_arch="${1#*=}"
-        shift
-        ;;
-    --link-default)
-        link_default=1
         shift
         ;;
     -h | --help)
@@ -156,30 +150,6 @@ build_base="build-cross-${RMCS_TARGET_ARCH}"
 install_base="install-cross-${RMCS_TARGET_ARCH}"
 log_base="log-cross-${RMCS_TARGET_ARCH}"
 
-check_default_linkable() {
-    local target="$1"
-    local link_name="$2"
-
-    if [[ ! -d "${target}" ]]; then
-        echo "> ERROR: Cross build output not found: ${workspace}/${target}"
-        exit 1
-    fi
-
-    if [[ -e "${link_name}" && ! -L "${link_name}" ]]; then
-        echo "> ERROR: Cannot link ${workspace}/${link_name} -> ${target}."
-        echo "> ${workspace}/${link_name} exists and is not a symlink. Move or remove it first."
-        exit 1
-    fi
-}
-
-link_default_base() {
-    local target="$1"
-    local link_name="$2"
-
-    ln -sfnT "${target}" "${link_name}"
-    echo "> Linked ${workspace}/${link_name} -> ${target}"
-}
-
 CLICOLOR_FORCE=1 NINJA_STATUS="" \
     colcon \
     --log-base "${log_base}" \
@@ -193,13 +163,3 @@ CLICOLOR_FORCE=1 NINJA_STATUS="" \
     -DRMCS_TARGET_ARCH="${RMCS_TARGET_ARCH}" \
     -DRMCS_SYSROOT="${RMCS_SYSROOT}" \
     -DRMCS_TARGET_TRIPLET="${RMCS_TARGET_TRIPLET}"
-
-if ((link_default)); then
-    check_default_linkable "${build_base}" build
-    check_default_linkable "${install_base}" install
-    check_default_linkable "${log_base}" log
-
-    link_default_base "${build_base}" build
-    link_default_base "${install_base}" install
-    link_default_base "${log_base}" log
-fi

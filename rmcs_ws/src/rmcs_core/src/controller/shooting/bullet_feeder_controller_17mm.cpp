@@ -52,9 +52,8 @@ public:
         register_input("/remote/switch/left", switch_left_);
         register_input("/remote/mouse", mouse_);
         register_input("/remote/keyboard", keyboard_);
-        register_input("/remote/rotary_knob", rotary_knob_);
 
-        register_input("/auto_aim/should_shoot", fire_control_, false);
+        register_input("/gimbal/auto_aim/fire_control", fire_control_, false);
 
         register_input("/gimbal/bullet_feeder/velocity", bullet_feeder_velocity_);
         register_output(
@@ -103,9 +102,8 @@ public:
 
                 if (*friction_ready_) {
                     if (shoot_mode == ShootMode::AUTOMATIC) {
-                        const bool auto_aim_enabled = mouse.right || switch_right == Switch::UP;
                         bool triggered = mouse.left || switch_left == Switch::DOWN
-                                      || (auto_aim_enabled && *fire_control_);
+                                      || (switch_right == Switch::UP && *fire_control_);
                         bullet_allowance =
                             triggered ? *control_bullet_allowance_limited_by_heat_ : 0;
                     } else {
@@ -210,7 +208,6 @@ private:
     InputInterface<rmcs_msgs::Switch> switch_left_;
     InputInterface<rmcs_msgs::Mouse> mouse_;
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
-    InputInterface<double> rotary_knob_;
 
     InputInterface<bool> fire_control_;
 

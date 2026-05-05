@@ -131,10 +131,8 @@ private:
         const auto& [x, y, z] = chassis_velocity;
         constexpr double a_plus_b = chassis_radius_x_ + chassis_radius_y_;
         Eigen::Vector4d wheel_control_velocity = {
-            -x + y + a_plus_b * z,
-            -x - y + a_plus_b * z,                                   //
-            +x - y + a_plus_b * z,
-            +x + y + a_plus_b * z,                                   //
+            -x + y + a_plus_b * z, -x - y + a_plus_b * z,            //
+            +x - y + a_plus_b * z, +x + y + a_plus_b * z,            //
         };
         wheel_control_velocity *= -1 / (std::numbers::sqrt2 * wheel_radius_);
         return wheel_velocity_pid_.update(wheel_control_velocity - wheel_velocities);
@@ -196,7 +194,7 @@ private:
     static constexpr double moment_of_inertia_ = 4.08;
     static constexpr double chassis_radius_x_ = 0.5, chassis_radius_y_ = 0.5;
     static constexpr double wheel_radius_ = 0.07;
-    static constexpr double friction_coefficient_ = 666.6;
+    static constexpr double friction_coefficient_ = 0.6;
 
     InputInterface<double> wheel_motor_max_control_torque_;
 

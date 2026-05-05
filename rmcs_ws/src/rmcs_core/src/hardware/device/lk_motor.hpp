@@ -23,7 +23,7 @@ namespace rmcs_core::hardware::device {
 
 class LkMotor {
 public:
-    enum class Type : uint8_t { kMG5010Ei10, kMG4010Ei10, kMG6012Ei8, kMG4005Ei10, kMG5010Ei36 };
+    enum class Type : uint8_t { kMG5010Ei10, kMG4010Ei10, kMG6012Ei8, kMG4005Ei10 };
 
     struct Config {
         explicit Config(Type type)
@@ -69,13 +69,15 @@ public:
         multi_turn_encoder_count_ = 0;
         last_raw_angle_ = 0;
 
+        double current_max;
         double torque_constant;
         double reduction_ratio;
 
         switch (config.motor_type) {
         case Type::kMG5010Ei10:
             raw_angle_modulus_ = 1 << 16;
-            torque_constant = 0.1;
+            current_max = 33.0;
+            torque_constant = 0.90909;
             reduction_ratio = 10.0;
 
             // Note: max_torque_ should represent the ACTUAL maximum torque of the motor.
@@ -87,27 +89,24 @@ public:
             break;
         case Type::kMG4010Ei10:
             raw_angle_modulus_ = 1 << 16;
+            current_max = 33.0;
             torque_constant = 0.07;
             reduction_ratio = 10.0;
             max_torque_ = 4.5;
             break;
         case Type::kMG6012Ei8:
             raw_angle_modulus_ = 1 << 16;
-            torque_constant = 1.09 / 8.0;
+            current_max = 33.0;
+            torque_constant = 1.09;
             reduction_ratio = 8.0;
             max_torque_ = 16.0;
             break;
         case Type::kMG4005Ei10:
             raw_angle_modulus_ = 1 << 16;
+            current_max = 33.0;
             torque_constant = 0.06;
             reduction_ratio = 10.0;
             max_torque_ = 2.5;
-            break;
-        case Type::kMG5010Ei36:
-            raw_angle_modulus_ = 1 << 16;
-            torque_constant = 0.3;
-            reduction_ratio = 36.0;
-            max_torque_ = 25.0;
             break;
         default: std::unreachable();
         }
@@ -126,7 +125,7 @@ public:
         velocity_to_command_velocity_coefficient_ = sign * reduction_ratio * kRadToDeg * 100.0;
 
         status_current_to_torque_coefficient_ =
-            sign * (kProtocolCurrentMax / kRawCurrentMax) * torque_constant * reduction_ratio;
+            sign * (current_max / kRawCurrentMax) * torque_constant * reduction_ratio;
         torque_to_command_current_coefficient_ = 1 / status_current_to_torque_coefficient_;
 
         *max_torque_output_ = max_torque();
@@ -486,9 +485,7 @@ private:
     // Limits
     static constexpr double kNan = std::numeric_limits<double>::quiet_NaN();
 
-    // LK protocol maps the raw current field range [-2048, 2048] to [-33A, 33A].
     static constexpr int kRawCurrentMax = 2048;
-    static constexpr double kProtocolCurrentMax = 33.0;
     int raw_angle_modulus_;
 
     // Constants

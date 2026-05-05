@@ -6,8 +6,7 @@ from launch import (
     LaunchDescription,
     LaunchDescriptionEntity,
 )
-from launch.actions import IncludeLaunchDescription,LogInfo
-from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.actions import LogInfo
 from launch.substitutions import LaunchConfiguration
 
 from launch_ros.actions import Node
@@ -53,15 +52,6 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
 
         if is_automatic:
             pass
-    
-        entities.append(
-            IncludeLaunchDescription(
-                PythonLaunchDescriptionSource([
-                    FindPackageShare('rmcs_auto_aim_v2'), '/launch.py'
-                ])
-            )
-        )
-
 
         return entities
 
