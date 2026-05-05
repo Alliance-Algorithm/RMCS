@@ -30,7 +30,7 @@ rmcs_executor:
       - rmcs_core::controller::chassis::DeformableJointController -> rf_joint_controller
 
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
-      - rmcs::AutoAimComponent -> auto_aim_component
+      # - rmcs::AutoAimComponent -> auto_aim_component
 
 value_broadcaster:
   ros__parameters:
@@ -58,7 +58,7 @@ deformable_infantry:
 chassis_controller:
   ros__parameters:
     # Deploy geometry / chassis-owned joint intent
-    min_angle: 8.0
+    min_angle: 7.0
     max_angle: 58.0
     active_suspension_enable: true
 
@@ -85,18 +85,18 @@ chassis_controller:
 
 gimbal_controller:
   ros__parameters:
-    inertia: 2.75  # kg·m²
+    inertia: 1.0  # kg·m²
     friction: 1.65   # Nm/(rad/s)
 
     upper_limit: -0.61 # -35 deg
     lower_limit: 0.05 # 6 deg
     use_encoder_pitch: false
 
-    yaw_angle_kp: 10.0
+    yaw_angle_kp: 15.0
     yaw_angle_ki: 0.0
     yaw_angle_kd: 0.0
 
-    yaw_velocity_kp: 3.0
+    yaw_velocity_kp: 20.0
     yaw_velocity_ki: 0.0
     yaw_velocity_kd: 0.0
 
