@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <limits>
 
-#include <eigen3/Eigen/Dense>
+#include <Eigen/Dense>
 
 namespace rmcs_core::controller::pid {
 

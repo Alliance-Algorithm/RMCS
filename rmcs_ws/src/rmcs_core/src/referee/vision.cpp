@@ -1,4 +1,4 @@
-#include <eigen3/Eigen/Eigen>
+#include <Eigen/Eigen>
 #include "rmcs_msgs/keyboard.hpp"
 #include "rmcs_msgs/mouse.hpp"
 #include <rclcpp/logging.hpp>

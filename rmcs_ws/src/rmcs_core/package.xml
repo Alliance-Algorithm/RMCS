@@ -16,6 +16,7 @@
   <depend>pluginlib</depend>
   <depend>tf2</depend>
   <depend>tf2_ros</depend>
+  <depend>tf2_eigen</depend>
   <depend>serial</depend>
   <depend>serial_util</depend>
   <depend>rmcs_msgs</depend>
@@ -24,6 +25,7 @@
   <depend>atomic</depend>
   <depend>graph_msgs</depend>
   <depend>urdf</depend>
+  <depend>Eigen3</depend>
   <depend>eigen3-cmake-modules</depend>
 
 

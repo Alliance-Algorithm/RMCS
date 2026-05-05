@@ -1,6 +1,6 @@
 #include <cmath>
 
-#include <eigen3/Eigen/Dense>
+#include <Eigen/Dense>
 #include <rclcpp/node.hpp>
 #include <rclcpp/subscription.hpp>
 #include <std_msgs/msg/int8.hpp>

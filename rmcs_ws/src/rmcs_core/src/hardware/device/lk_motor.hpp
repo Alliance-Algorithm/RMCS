@@ -1,20 +1,21 @@
 #pragma once
 
-#include <array>
 #include <algorithm>
 #include <atomic>
 #include <bit>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <limits>
 #include <numbers>
+#include <span>
 #include <stdexcept>
 
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <rmcs_executor/component.hpp>
 
+#include "hardware/device/can_package.hpp"
 #include "hardware/endian_promise.hpp"
 
 #include <rclcpp/logging.hpp>
@@ -35,9 +36,10 @@ enum class LKMotorType : uint8_t {
     MG5010E_i10V3 = 8,
     MG5010E_i36V3 = 9,
     MHF6015       = 10,
-    MS5015        = 11,
-    MS5005        =12,
-    MF4015        =13
+    MS5005        = 11,
+    MS5015        = 12,
+    MHF5015       = 13,
+    MS7015        = 14
 };
 
 struct LKMotorConfig {
@@ -67,10 +69,11 @@ struct LKMotorConfig {
         case LKMotorType::MG8010E_i36: iq = 66.0 / 4096; break;
         case LKMotorType::MHF7015:
         case LKMotorType::MHF6015:
-        case LKMotorType::MF4015:
-        case LKMotorType::MF7015V210T:
-        case LKMotorType::MS5015: 
-        case LKMotorType::MS5005: iq = 33.0 / 4096; break;
+        case LKMotorType::MHF5015:
+        case LKMotorType::MS5005:
+        case LKMotorType::MS5015:
+        case LKMotorType::MS7015:
+        case LKMotorType::MF7015V210T: iq = 33.0 / 4096; break;
         }
     }
     LKMotorConfig& set_encoder_zero_point(int value) { return encoder_zero_point = value, *this; }
@@ -183,12 +186,12 @@ public:
             max_torque      = 3.0;
             LSB             = 648000;
             break;
-        case LKMotorType::MS5015:
-            torque_constant = 0.46;
-            rated_current   = 0.69;
+        case LKMotorType::MHF5015:
+            torque_constant = 0.26;
+            rated_current   = 1.22;
             rated_torque    = 0.32;
-            max_torque      = 0.41;
-            LSB             = 18000;
+            max_torque      = 0.82;
+            LSB             = 648000;
             break;
         case LKMotorType::MS5005:
             torque_constant = 0.2;
@@ -197,20 +200,22 @@ public:
             max_torque      = 0.28;
             LSB             = 18000;
             break;
-        case LKMotorType::MF4015:
-            torque_constant = 0.11;
-            rated_current   = 2.2;
-            rated_torque    = 0.25;
-            max_torque      = 0.65;
+        case LKMotorType::MS5015:
+            torque_constant = 0.46;
+            rated_current   = 0.69;
+            rated_torque    = 0.32;
+            max_torque      = 0.41;
+            LSB             = 18000;
+            break;
+        case LKMotorType::MS7015:
+            torque_constant = 0.67;
+            rated_current   = 1.2;
+            rated_torque    = 0.8;
+            max_torque      = 1.6;
             LSB             = 18000;
             break;
         default: throw std::runtime_error{"Unknown motor type"}; break;
         }
-
-        if (config.motor_type == LKMotorType::MS5005 || config.motor_type == LKMotorType::MS5015)
-            raw_angle_max_ = kRawAngleMaxMs50xx;
-        else
-            raw_angle_max_ = kRawAngleMaxDefault;
 
         encoder_zero_point_ = config.encoder_zero_point % (raw_angle_max_);
         if (encoder_zero_point_ < 0)
@@ -239,13 +244,17 @@ public:
         angle_multi_turn_          = 0;
     }
 
-    void store_status(uint64_t can_result) {
-        uint8_t command_byte = static_cast<uint8_t>(can_result);
-        if (command_byte == 0x9C || command_byte == 0xA4 || command_byte == 0xA1||command_byte == 0xA2
+    void store_status(std::span<const std::byte> can_result) {
+        if (can_result.size() != sizeof(CanPacket8)) [[unlikely]]
+            return;
+
+        uint8_t command_byte = std::to_integer<uint8_t>(can_result.front());
+        if (command_byte == 0x9C || command_byte == 0xA4 || command_byte == 0xA1
             || command_byte == 0xAD) {
-            can_result_.store(can_result, std::memory_order::relaxed);
+            can_result_.store(CanPacket8{can_result}, std::memory_order::relaxed);
         }
     }
+
     void update() {
         auto feedback =
             std::bit_cast<LKMotorFeedback>(can_result_.load(std::memory_order::relaxed));
@@ -286,7 +295,7 @@ public:
         last_raw_angle_ = raw_angle;
     }
 
-    uint64_t generate_torque_command() {
+    CanPacket8 generate_torque_command() {
         std::array<uint8_t, 8> result = {0};
         result[0]                     = 0xA1;
         double torque                 = reverse * (*control_torque_);
@@ -299,7 +308,7 @@ public:
             result[6] = 0X00;
             result[7] = 0X00;
 
-            return std::bit_cast<uint64_t>(result);
+            return CanPacket8{std::bit_cast<uint64_t>(result)};
         }
         double max_torque = (*motor_)->get_max_torque();
         torque            = std::clamp(torque, -max_torque, max_torque);
@@ -307,22 +316,22 @@ public:
         int16_t control_current   = static_cast<int16_t>(current);
         auto control_current_bits = std::bit_cast<std::array<uint8_t, 2>>(control_current);
         std::copy(control_current_bits.begin(), control_current_bits.end(), result.begin() + 4);
-        return std::bit_cast<uint64_t>(result);
+        return CanPacket8{std::bit_cast<uint64_t>(result)};
     }
 
-    uint64_t generate_velocity_command(double control_velocity, int16_t iqcontrol) {
+    CanPacket8 generate_velocity_command(double control_velocity, int16_t iqcontrol) {
         std::array<uint8_t, 8> result = {0};
         result[0]                     = 0xA2;
 
         if (std::isnan(control_velocity)) {
-            return std::bit_cast<uint64_t>(result);
+            return CanPacket8{std::bit_cast<uint64_t>(result)};
         }
 
         const int16_t iq_control =
             std::clamp<int16_t>(iqcontrol, static_cast<int16_t>(-2048), static_cast<int16_t>(2048));
 
-        double speed = std::round(
-            reverse * control_velocity * velocity_to_raw_velocity_coefficient_ * 100.0);
+        double speed =
+            std::round(reverse * control_velocity * velocity_to_raw_velocity_coefficient_ * 100.0);
         speed = std::clamp(
             speed, static_cast<double>(std::numeric_limits<int32_t>::min()),
             static_cast<double>(std::numeric_limits<int32_t>::max()));
@@ -332,20 +341,20 @@ public:
         const auto speed_bits = std::bit_cast<std::array<uint8_t, 4>>(speed_control);
         std::copy(iq_bits.begin(), iq_bits.end(), result.begin() + 2);
         std::copy(speed_bits.begin(), speed_bits.end(), result.begin() + 4);
-        return std::bit_cast<uint64_t>(result);
+        return CanPacket8{std::bit_cast<uint64_t>(result)};
     }
 
-    static uint64_t lk_stop_command() { return std::bit_cast<uint64_t>(uint64_t{0x81}); }
-    static uint64_t lk_quest_command() { return std::bit_cast<uint64_t>(uint64_t{0x9C}); }
-    static uint64_t lk_enable_command() { return std::bit_cast<uint64_t>(uint64_t{0x88}); }
-    static uint64_t lk_close_command() { return std::bit_cast<uint64_t>(uint64_t{0x80}); }
+    static CanPacket8 lk_stop_command() { return CanPacket8{uint64_t{0x81}}; }
+    static CanPacket8 lk_quest_command() { return CanPacket8{uint64_t{0x9C}}; }
+    static CanPacket8 lk_enable_command() { return CanPacket8{uint64_t{0x88}}; }
+    static CanPacket8 lk_close_command() { return CanPacket8{uint64_t{0x80}}; }
+    static CanPacket8 lk_close() { return CanPacket8{uint64_t(LK_CLOSE)}; }
 
     double get_angle() { return *angle_; }
     double get_velocity() { return *velocity_; }
     double get_torque() { return *torque_; }
     double get_max_torque() { return *max_torque_; }
     int get_raw_angle() { return *raw_angle_; }
-    double get_control_torque() const { return *control_torque_; }
 
 private:
     struct alignas(uint64_t) LKMotorFeedback {
@@ -356,11 +365,9 @@ private:
         uint16_t encoder;
     };
 
-    std::atomic<uint64_t> can_result_ = 0;
+    std::atomic<CanPacket8> can_result_{CanPacket8{uint64_t{0}}};
 
-    static constexpr uint16_t kRawAngleMaxDefault = 65535;
-    static constexpr uint16_t kRawAngleMaxMs50xx  = 32768;
-    uint16_t raw_angle_max_                       = kRawAngleMaxDefault;
+    static constexpr uint16_t raw_angle_max_ = 65535;
     int last_raw_angle_;
     uint32_t LSB;
     double reverse;
@@ -371,6 +378,8 @@ private:
     double raw_angle_to_angle_coefficient_, angle_to_raw_angle_coefficient_;
     double raw_velocity_to_velocity_coefficient_, velocity_to_raw_velocity_coefficient_;
     double raw_current_to_torque_coefficient_, torque_to_raw_current_coefficient_;
+
+    static constexpr uint8_t LK_CLOSE[8] = {0xA1, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
     Component::OutputInterface<double> gear_ratio_;
     Component::OutputInterface<double> max_torque_;

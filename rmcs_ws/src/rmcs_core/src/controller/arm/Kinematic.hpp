@@ -1,7 +1,7 @@
 #pragma once
 
 #include <array>
-#include <eigen3/Eigen/Dense>
+#include <Eigen/Dense>
 #include <rclcpp/node.hpp>
 
 #include <algorithm>

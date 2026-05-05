@@ -5,14 +5,17 @@
 #include <bit>
 #include <bitset>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <numbers>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <rmcs_executor/component.hpp>
+#include <span>
 #include <stdexcept>
 
+#include "hardware/device/can_package.hpp"
 #include "hardware/endian_promise.hpp"
 
 #include <rclcpp/logging.hpp>
@@ -21,11 +24,7 @@
 namespace rmcs_core::hardware::device {
 using rmcs_executor::Component;
 
-enum class DMMotorType : uint8_t { 
-    UNKNOWN = 0,
-    DM8009  = 1,
-    DM6006  = 2,
-    DM4310  = 3 };
+enum class DMMotorType : uint8_t { UNKNOWN = 0, DM8009 };
 
 struct DMMotorConfig {
     DMMotorType motor_type;
@@ -79,14 +78,6 @@ public:
             VMAX = 25.0;
             TMAX = 40.0;
             break;
-        case DMMotorType::DM6006:
-            VMAX = 25.0;
-            TMAX = 11.0;
-            break;
-        case DMMotorType::DM4310:
-            VMAX = 15.0;
-            TMAX = 12.0;
-            break;
 
         default: throw std::runtime_error{"Unknown motor type"};
         }
@@ -98,11 +89,11 @@ public:
             encoder_zero_point_ += (raw_angle_max_);
 
         raw_angle_to_angle_coefficient_ =
-            1.0  * 2 * std::numbers::pi / (raw_angle_max_ * gear_ratio_);
+            1.0 * reverse * 2 * std::numbers::pi / (raw_angle_max_ * gear_ratio_);
         angle_to_raw_angle_coefficient_ = 1.0 / raw_angle_to_angle_coefficient_;
 
         raw_velocity_to_velocity_coefficient_ =
-             60.0 / (2 * std::numbers::pi * gear_ratio_);
+            1.0 * (reverse * 60.0) / (2 * std::numbers::pi * gear_ratio_);
         velocity_to_raw_velocity_coefficient_ = 1.0 / raw_velocity_to_velocity_coefficient_;
 
         raw_current_to_torque_coefficient_ = 1.0 * config.gear_ratio;
@@ -112,66 +103,67 @@ public:
         angle_multi_turn_         = 0;
     }
 
-    void store_status(uint64_t can_result) {
-
-        can_result_.store(can_result, std::memory_order::relaxed);
+    void store_status(std::span<const std::byte> can_result) {
+        if (can_result.size() != sizeof(CanPacket8)) [[unlikely]]
+            return;
+        can_result_.store(CanPacket8{can_result}, std::memory_order::relaxed);
     }
-    void update() {
-        uint64_t value = can_result_.load(std::memory_order_relaxed);
 
+    void update() {
         uint8_t rx_buff[8];
-        std::memcpy(rx_buff, &value, sizeof(value));
+        auto packet = can_result_.load(std::memory_order_relaxed);
+        std::memcpy(rx_buff, packet.as_bytes().data(), sizeof(rx_buff));
         *id            = (rx_buff[0]) & 0xff;
         *state         = (rx_buff[0]) >> 4;
         uint16_t p_int = (rx_buff[1] << 8) | rx_buff[2];
         uint16_t v_int = (rx_buff[3] << 4) | (rx_buff[4] >> 4);
         uint16_t t_int = ((rx_buff[4] & 0xF) << 8) | rx_buff[5];
+
+        raw_angle_ = p_int;
+
         uint16_t angle = p_int - encoder_zero_point_;
         if (angle < 0)
             angle += raw_angle_max_;
-        *angle_    =( angle < raw_angle_max_ / 2
+        *angle_    = angle < raw_angle_max_ / 2
                        ? raw_angle_to_angle_coefficient_ * angle
-                       : -2 * std::numbers::pi + raw_angle_to_angle_coefficient_ * angle)* reverse;
-                    
-        *velocity_ = uint_to_double(v_int, -VMAX, VMAX, 12)* reverse;
-        *torque_   = uint_to_double(t_int, -TMAX, TMAX, 12)* reverse;
+                       : -2 * std::numbers::pi + raw_angle_to_angle_coefficient_ * angle;
+        *velocity_ = uint_to_double(v_int, -VMAX, VMAX, 12);
+        *torque_   = uint_to_double(t_int, -TMAX, TMAX, 12);
 
         *T_mos  = (double)(rx_buff[6]);
         *T_coil = (double)(rx_buff[7]);
-        *raw_angle_   =  p_int;
     }
 
-    uint64_t generate_torque_command() {
-        uint64_t result;
-        double torque = reverse*(*control_torque_) ;
+    CanPacket8 generate_torque_command() {
+        uint64_t result = 0;
+        double torque   = *control_torque_;
         if (std::isnan(torque)) {
             torque = 0.0;
         }
-        torque           = std::clamp(torque, -TMAX, TMAX);
-        torque_debug = torque;
-        uint16_t tor_tmp = double_to_uint(torque, -TMAX, TMAX, 12);
+        torque             = std::clamp(torque, -TMAX, TMAX);
+        uint16_t tor_tmp   = double_to_uint(torque, -TMAX, TMAX, 12);
         uint8_t tx_buff[8] = {0, 0, 0, 0, 0, 0, 0, 0};
         tx_buff[6]         = ((0 & 0xf) << 4) | (tor_tmp >> 8);
         tx_buff[7]         = tor_tmp;
         std::copy(tx_buff, tx_buff + 8, reinterpret_cast<uint8_t*>(&result));
-        return result;
+        return CanPacket8{result};
     }
 
-    static uint64_t dm_enable_command() { return std::bit_cast<uint64_t>(DM_ENABLE); }
-    static uint64_t dm_close_command() { return std::bit_cast<uint64_t>(DM_CLOSE); }
-    static uint64_t dm_clear_error_command() { return std::bit_cast<uint64_t>(DM_CLEAR_ERROR); }
-
+    static CanPacket8 dm_enable_command() { return CanPacket8{std::bit_cast<uint64_t>(DM_ENABLE)}; }
+    static CanPacket8 dm_close_command() { return CanPacket8{std::bit_cast<uint64_t>(DM_CLOSE)}; }
+    static CanPacket8 dm_clear_error_command() {
+        return CanPacket8{std::bit_cast<uint64_t>(DM_CLEAR_ERROR)};
+    }
+    int get_raw_angle() { return  raw_angle_;}
     double get_angle() { return *angle_; }
     double get_velocity() { return *velocity_; }
     double get_torque() { return *torque_; }
     double get_state() { return *state; }
     double get_T_coil() { return *T_coil; }
-    int get_raw_angle() { return *raw_angle_; }
-    double get_control_torque() const { return torque_debug; }
 
 private:
-    std::atomic<uint64_t> can_result_ = 0;
-double torque_debug;
+    std::atomic<CanPacket8> can_result_{CanPacket8{uint64_t{0}}};
+
     static double uint_to_double(int x_int, double x_min, double x_max, int bits) {
         double span   = x_max - x_min;
         double offset = x_min;
@@ -184,7 +176,7 @@ double torque_debug;
     }
 
     int last_raw_angle_;
-double torque;
+    int raw_angle_;
     double reverse     = 1.0;
     double gear_ratio_ = 1.0;
 
@@ -209,7 +201,6 @@ double torque;
     Component::OutputInterface<double> torque_;
     Component::OutputInterface<double> T_mos;
     Component::OutputInterface<double> T_coil;
-    Component::OutputInterface<int> raw_angle_;
 
     Component::OutputInterface<DMMotor*> motor_;
 
