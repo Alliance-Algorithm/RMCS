@@ -39,7 +39,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-$ROS_DISTRO-rviz2 \
     ros-$ROS_DISTRO-navigation2 \
     ros-$ROS_DISTRO-foxglove-bridge \
-    ros-$ROS_DISTRO-pcl-ros ros-$ROS_DISTRO-pcl-conversions ros-$ROS_DISTRO-pcl-msgs && \
+    ros-$ROS_DISTRO-pcl-ros ros-$ROS_DISTRO-pcl-conversions ros-$ROS_DISTRO-pcl-msgs \
+    ros-$ROS_DISTRO-navigation2 ros-$ROS_DISTRO-nav2-msgs \
+    lua5.4 liblua5.4-0 liblua5.4-dev && \
     apt-get autoremove -y && apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/*
 
@@ -112,16 +114,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     apt-get autoremove -y && apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/*
 
-# Install OpenAI Codex CLI
-RUN mkdir -p /etc/apt/keyrings && \
-    curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
-    | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg && \
-    chmod 644 /etc/apt/keyrings/nodesource.gpg && \
-    echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_22.x nodistro main" \
-    > /etc/apt/sources.list.d/nodesource.list && \
-    apt-get update && \
+# Install Node.js 24 LTS (required by agent CLIs)
+RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - && \
     apt-get install -y --no-install-recommends nodejs && \
-    npm install -g @openai/codex && \
     apt-get autoremove -y && apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/*
 
@@ -184,6 +179,15 @@ RUN case "${TARGETARCH}" in \
 # Change user
 RUN chsh -s /bin/zsh ubuntu && \
     echo "ubuntu ALL=(ALL:ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Precreate generic XDG-style parent directories for direct bind mounts under ubuntu's home.
+RUN mkdir -p \
+        /home/ubuntu/.agents \
+        /home/ubuntu/.cache \
+        /home/ubuntu/.config \
+        /home/ubuntu/.local/share \
+        /home/ubuntu/.local/state && \
+    chown -R ubuntu:ubuntu /home/ubuntu/.agents /home/ubuntu/.cache /home/ubuntu/.config /home/ubuntu/.local
 WORKDIR /home/ubuntu
 ENV USER=ubuntu
 ENV WORKDIR=/home/ubuntu
