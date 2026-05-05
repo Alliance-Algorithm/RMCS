@@ -13,27 +13,25 @@ MaxEmptyLinesToKeep: 1
 
 AlignAfterOpenBracket: AlwaysBreak
 
-AlignArrayOfStructures: Right
-
 AlignConsecutiveAssignments:
-    Enabled: false
+  Enabled: false
 AlignConsecutiveBitFields:
-    Enabled: true
-    AcrossEmptyLines: false
-    AcrossComments: false
+  Enabled: true
+  AcrossEmptyLines: false
+  AcrossComments: false
 AlignConsecutiveDeclarations:
-    Enabled: false
+  Enabled: false
 AlignConsecutiveMacros:
-    Enabled: true
-    AcrossEmptyLines: false
-    AcrossComments: false
+  Enabled: true
+  AcrossEmptyLines: false
+  AcrossComments: false
 # AlignConsecutiveShortCaseStatements:
 #     Enabled: false
 AlignEscapedNewlines: Left
 AlignOperands: AlignAfterOperator
 AlignTrailingComments:
-    Kind: Always
-    OverEmptyLines: 64
+  Kind: Always
+  OverEmptyLines: 64
 PointerAlignment: Left
 
 AllowAllArgumentsOnNextLine: true
