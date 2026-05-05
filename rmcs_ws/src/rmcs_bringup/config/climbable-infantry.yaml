@@ -30,7 +30,7 @@ rmcs_executor:
       - rmcs_core::controller::chassis::ClimbableSteeringWheelController -> steering_wheel_controller
       - rmcs_core::controller::chassis::ClimbableInfantryChassisClimberController -> climber_controller
 
-      #- rmcs::AutoAimComponent -> auto_aim_component
+      - rmcs::AutoAimComponent -> auto_aim_component
 
       # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 
@@ -44,10 +44,10 @@ Infantry_hardware:
     # viewer_motor_zero_point: 3030
     # external_imu_port: /dev/ttyUSB0
     # bullet_feeder_motor_zero_point: 15111
-    left_front_zero_point: 5806
-    right_front_zero_point: 5092
-    left_back_zero_point: 3759
-    right_back_zero_point: 3103
+    left_front_zero_point: 5751
+    right_front_zero_point: 5308
+    left_back_zero_point: 3802
+    right_back_zero_point: 3032
     
 
 value_broadcaster:

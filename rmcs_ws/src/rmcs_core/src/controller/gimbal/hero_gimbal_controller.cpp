@@ -67,6 +67,7 @@ public:
             }
             *gimbal_mode_ =
                 *switch_right_ == Switch::UP ? GimbalMode::ENCODER : gimbal_mode_keyboard_;
+            // *gimbal_mode_ = gimbal_mode_keyboard_;
 
             if (*gimbal_mode_ == GimbalMode::IMU) {
                 auto angle_error = update_imu_control();
@@ -121,7 +122,7 @@ public:
         double yaw_shift =
             joystick_sensitivity * joystick_left_->y() + mouse_sensitivity * mouse_velocity_->y();
         double pitch_shift =
-            -joystick_sensitivity * joystick_left_->x() - mouse_sensitivity * mouse_velocity_->x();
+            -joystick_sensitivity * joystick_left_->x() + mouse_sensitivity * mouse_velocity_->x();
 
         return imu_gimbal_solver.update(
             TwoAxisGimbalSolver::SetControlShift{yaw_shift, pitch_shift});
@@ -138,7 +139,7 @@ public:
         double yaw_shift = joystick_sensitivity * joystick_left_->y()
                          + mouse_yaw_sensitivity * mouse_velocity_->y();
         double pitch_shift = -joystick_sensitivity * joystick_left_->x()
-                           - mouse_pitch_sensitivity * mouse_velocity_->x();
+                           + mouse_pitch_sensitivity * mouse_velocity_->x();
 
         return encoder_gimbal_solver.update(
             PreciseTwoAxisGimbalSolver::SetControlShift{yaw_shift, pitch_shift});
