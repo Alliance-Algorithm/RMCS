@@ -3,6 +3,7 @@
 
 #include <cmath>
 #include <limits>
+#include <numbers>
 #include <string>
 
 #include <eigen3/Eigen/Geometry>
@@ -61,9 +62,15 @@ public:
 
         if (!std::isfinite(angle_error.yaw_angle_error)
             || !std::isfinite(angle_error.pitch_angle_error)) {
+            *output_.yaw_target_angle = kNaN;
+            *output_.pitch_target_angle = kNaN;
             reset_control_outputs();
             return;
         }
+
+        *output_.yaw_target_angle = wrap_to_2pi(*input_.yaw_angle + angle_error.yaw_angle_error);
+        *output_.pitch_target_angle =
+            wrap_to_2pi(*input_.pitch_angle + angle_error.pitch_angle_error);
 
         const auto yaw_velocity_ref = yaw_angle_pid_.update(angle_error.yaw_angle_error);
         const auto pitch_velocity_ref = pitch_angle_pid_.update(angle_error.pitch_angle_error);
@@ -121,6 +128,8 @@ private:
             component.register_input("/remote/mouse", mouse);
 
             component.register_input("/tf", tf);
+            component.register_input("/gimbal/yaw/angle", yaw_angle);
+            component.register_input("/gimbal/pitch/angle", pitch_angle);
             component.register_input("/gimbal/yaw/velocity", yaw_velocity);
             component.register_input("/gimbal/pitch/velocity", pitch_velocity);
             component.register_input("/gimbal/yaw/velocity_imu", yaw_velocity_imu);
@@ -138,6 +147,8 @@ private:
         InputInterface<rmcs_msgs::Mouse> mouse;
 
         InputInterface<Tf> tf;
+        InputInterface<double> yaw_angle;
+        InputInterface<double> pitch_angle;
         InputInterface<double> yaw_velocity;
         InputInterface<double> pitch_velocity;
         InputInterface<double> yaw_velocity_imu;
@@ -155,6 +166,8 @@ private:
             component.register_output("/gimbal/pitch/control_torque", pitch_control_torque, kNaN);
             component.register_output("/gimbal/yaw/control_angle_error", yaw_angle_error, kNaN);
             component.register_output("/gimbal/pitch/control_angle_error", pitch_angle_error, kNaN);
+            component.register_output("/gimbal/yaw/target_angle", yaw_target_angle, kNaN);
+            component.register_output("/gimbal/pitch/target_angle", pitch_target_angle, kNaN);
         }
 
         OutputInterface<double> yaw_control_torque;
@@ -162,6 +175,8 @@ private:
         OutputInterface<double> pitch_control_torque;
         OutputInterface<double> yaw_angle_error;
         OutputInterface<double> pitch_angle_error;
+        OutputInterface<double> yaw_target_angle;
+        OutputInterface<double> pitch_target_angle;
     } output_{*this};
 
     auto auto_aim_requested() const -> bool {
@@ -201,7 +216,16 @@ private:
         gimbal_solver_.update(TwoAxisGimbalSolver::SetDisabled{});
         *output_.yaw_angle_error = kNaN;
         *output_.pitch_angle_error = kNaN;
+        *output_.yaw_target_angle = kNaN;
+        *output_.pitch_target_angle = kNaN;
         reset_control_outputs();
+    }
+
+    static auto wrap_to_2pi(double angle) -> double {
+        angle = std::fmod(angle, 2 * std::numbers::pi);
+        if (angle < 0.0)
+            angle += 2 * std::numbers::pi;
+        return angle;
     }
 
     TwoAxisGimbalSolver gimbal_solver_{

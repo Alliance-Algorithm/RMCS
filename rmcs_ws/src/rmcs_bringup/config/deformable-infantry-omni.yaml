@@ -29,28 +29,16 @@ rmcs_executor:
       - rmcs_core::controller::chassis::DeformableJointController -> rb_joint_controller
       - rmcs_core::controller::chassis::DeformableJointController -> rf_joint_controller
 
-      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       - rmcs::AutoAimComponent -> auto_aim_component
 
 value_broadcaster:
   ros__parameters:
     forward_list:
-      - /chassis/left_front_joint/torque
-      - /chassis/left_back_joint/torque
-      - /chassis/right_front_joint/torque
-      - /chassis/right_back_joint/torque
-      - /chassis/left_front_joint/suspension_mode
-      - /chassis/left_back_joint/suspension_mode
-      - /chassis/right_front_joint/suspension_mode
-      - /chassis/right_back_joint/suspension_mode
-      - /chassis/left_front_joint/suspension_torque
-      - /chassis/left_back_joint/suspension_torque
-      - /chassis/right_front_joint/suspension_torque
-      - /chassis/right_back_joint/suspension_torque
-      - /chassis/left_front_joint/control_torque
-      - /chassis/left_back_joint/control_torque
-      - /chassis/right_front_joint/control_torque
-      - /chassis/right_back_joint/control_torque
+      - /gimbal/yaw/angle
+      - /gimbal/yaw/target_angle
+      - /gimbal/pitch/angle
+      - /gimbal/pitch/target_angle
 
 deformable_infantry:
   ros__parameters:
@@ -73,23 +61,8 @@ chassis_controller:
     min_angle: 8.0
     max_angle: 58.0
     active_suspension_enable: true
-    spin_ratio: 1.0
 
-    # Suspension geometry / support model.
-    active_suspension_mass: 22.5
-    active_suspension_rod_length: 0.150
-    active_suspension_Kz: 150.0
-    active_suspension_D_leg: 10.0
-    active_suspension_torque_limit: 80.0
-    active_suspension_gravity_comp_gain: 1.0
-    active_suspension_control_acceleration_limit: 6.0
-    active_suspension_preload_angle_deg: 8.0
-    active_suspension_entry_offset_deg: 1.5
-    active_suspension_ride_height_offset_deg: 3.0
-    active_suspension_hold_travel_deg: 5.0
-    active_suspension_activation_velocity_threshold_deg: 15.0
-
-    # IMU attitude correction as suspension force bias.
+    # IMU attitude correction at min-angle stance.
     # pitch < 0: front high. roll > 0: right high.
     active_suspension_Kp: 8.0
     active_suspension_pitch_ki: 0.35
@@ -112,30 +85,30 @@ chassis_controller:
 
 gimbal_controller:
   ros__parameters:
-    inertia: 2.0  # kg·m²
+    inertia: 2.75  # kg·m²
     friction: 1.65   # Nm/(rad/s)
 
     upper_limit: -0.61 # -35 deg
     lower_limit: 0.05 # 6 deg
     use_encoder_pitch: false
 
-    yaw_angle_kp: 12.0
+    yaw_angle_kp: 10.0
     yaw_angle_ki: 0.0
     yaw_angle_kd: 0.0
 
-    yaw_velocity_kp: 8.0
+    yaw_velocity_kp: 3.0
     yaw_velocity_ki: 0.0
     yaw_velocity_kd: 0.0
 
-    pitch_angle_kp: 40.0
+    pitch_angle_kp: 20.0
     pitch_angle_ki: 0.0
     pitch_angle_kd: 0.0
 
-    pitch_velocity_kp: 3.0
+    pitch_velocity_kp: 2.0
     pitch_velocity_ki: 0.0
     pitch_velocity_kd: 0.0
 
-    pitch_torque_control: true
+    pitch_torque_control: false
 
 friction_wheel_controller:
   ros__parameters:

@@ -501,6 +501,19 @@ private:
         *right_front_joint_suspension_torque_ = nan_;
     }
 
+    void publish_suspension_output_interfaces_() {
+        *left_front_joint_suspension_mode_ = joint_suspension_active_[kLeftFront];
+        *left_back_joint_suspension_mode_ = joint_suspension_active_[kLeftBack];
+        *right_back_joint_suspension_mode_ = joint_suspension_active_[kRightBack];
+        *right_front_joint_suspension_mode_ = joint_suspension_active_[kRightFront];
+
+        *left_front_joint_suspension_torque_ = joint_suspension_active_[kLeftFront] ? 0.0 : nan_;
+        *left_back_joint_suspension_torque_ = joint_suspension_active_[kLeftBack] ? 0.0 : nan_;
+        *right_back_joint_suspension_torque_ = joint_suspension_active_[kRightBack] ? 0.0 : nan_;
+        *right_front_joint_suspension_torque_ =
+            joint_suspension_active_[kRightFront] ? 0.0 : nan_;
+    }
+
     void reset_suspension_internal_state_() {
         joint_suspension_active_.fill(false);
         for (size_t index = 0; index < kJointCount; ++index) {
