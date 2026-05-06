@@ -1,0 +1,22 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::hardware::DifferentialVoltageSampler -> differential_sampler
+      - rmcs_core::broadcaster::ValueBroadcaster -> broadcaster
+
+
+broadcaster:
+  ros__parameters:
+    forward_list:
+      - /differential_sampler/channel_1/voltage
+      - /differential_sampler/channel_2/voltage
+      - /differential_sampler/channel_3/voltage
+      - /differential_sampler/channel_4/voltage
+
+      
+differential_sampler:
+  ros__parameters:
+    serial_filter: ""
+    modbus_addr: 1
+    poll_interval_cycles: 50

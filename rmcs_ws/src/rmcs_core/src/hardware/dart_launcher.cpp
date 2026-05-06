@@ -63,7 +63,7 @@ public:
         , drive_belt_motor_right_{*this, *dart_command_, "/dart/drive_belt/right"}
         , force_sensor_{*this}
         , trigger_servo_{"/dart/trigger_servo", *dart_command_, 20.0, 0.5, 2.5}
-        , limiting_servo_{*dart_command_, "/dart/limiting_servo", 0x03}
+        , limiting_servo_{*dart_command_, "/dart/limiting_servo", 0x02}
         , lifting_left_motor_{*this, *dart_command_, "/dart/lifting_left"}
         , lifting_right_motor_{*this, *dart_command_, "/dart/lifting_right"}
         , dr16_{*this}
@@ -76,7 +76,9 @@ public:
         yaw_motor_.configure(
             device::DjiMotor::Config{device::DjiMotor::Type::kM3508}.set_reduction_ratio(19.));
         force_screw_motor_.configure(
-            device::DjiMotor::Config{device::DjiMotor::Type::kM3508}.set_reduction_ratio(19.));
+            device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
+                .set_reduction_ratio(19.)
+                .enable_multi_turn_angle());
         drive_belt_motor_left_.configure(
             device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
                 .set_reduction_ratio(19.)

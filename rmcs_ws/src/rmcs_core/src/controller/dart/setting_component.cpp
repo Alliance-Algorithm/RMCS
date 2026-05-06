@@ -1,18 +1,20 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <optional>
 
 #include <eigen3/Eigen/Dense>
 #include <numbers>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/dart_mechanism_command.hpp>
 
 #include "controller/pid/pid_calculator.hpp"
 
 namespace rmcs_core::controller::dart {
 
-// Consumes manager-published angle/force errors.
+// Consumes manager-published angle/force errors and carriage velocity commands.
 // angle_error_vector uses [0]=yaw, [1]=pitch.
 class DartSettingController
     : public rmcs_executor::Component
@@ -34,11 +36,15 @@ public:
 
         register_input("/dart_manager/angle/error_vector", angle_error_vector_);
         register_input("/dart_manager/force/error", force_error_);
+        register_input("/dart_manager/carriage/command", carriage_command_, false);
+        register_input("/dart_manager/carriage/target_velocity", carriage_target_velocity_, false);
 
         register_input("/force_sensor/channel_1/weight", force_sensor_ch1_);
         register_input("/force_sensor/channel_2/weight", force_sensor_ch2_);
 
         register_input("/imu/catapult_pitch_angle", pitch_angle_);
+        register_input(
+            "/dart_manager/force/max_velocity_override", force_max_velocity_override_, false);
 
         register_output("/dart/yaw_motor/control_velocity", yaw_control_velocity_, 0.0);
         register_output("/dart/pitch_motor/control_velocity", pitch_control_velocity_, 0.0);
@@ -65,7 +71,12 @@ public:
             limit_velocity(angle_error[0], yaw_error_to_velocity_gain_, yaw_max_velocity_);
         *pitch_control_velocity_ =
             limit_velocity(angle_error[1], pitch_error_to_velocity_gain_, pitch_max_velocity_);
-        *force_control_velocity_ = update_force_control_velocity(*force_error_);
+        if (const auto carriage_control_velocity = resolve_carriage_control_velocity()) {
+            *force_control_velocity_ = *carriage_control_velocity;
+            force_error_velocity_pid_.reset();
+        } else {
+            *force_control_velocity_ = update_force_control_velocity(*force_error_);
+        }
 
         if (count++ == 1000) {
             auto pitch = *pitch_angle_ / std::numbers::pi * 180 + 90;
@@ -110,8 +121,52 @@ private:
         return limit_velocity(static_cast<double>(error), gain, max_velocity);
     }
 
+    static double sanitize_velocity_magnitude(const double velocity) {
+        if (!std::isfinite(velocity)) {
+            return 0.0;
+        }
+        return std::abs(velocity);
+    }
+
+    rmcs_msgs::DartMechanismCommand active_carriage_command() const {
+        if (carriage_command_.ready()) {
+            return *carriage_command_;
+        }
+        return rmcs_msgs::DartMechanismCommand::WAIT;
+    }
+
+    double requested_carriage_velocity() const {
+        if (carriage_target_velocity_.ready()) {
+            return sanitize_velocity_magnitude(*carriage_target_velocity_);
+        }
+        return 0.0;
+    }
+
+    std::optional<double> resolve_carriage_control_velocity() const {
+        const double requested_velocity = requested_carriage_velocity();
+        switch (active_carriage_command()) {
+        case rmcs_msgs::DartMechanismCommand::DOWN: return requested_velocity;
+        case rmcs_msgs::DartMechanismCommand::UP: return -requested_velocity;
+        default: return std::nullopt;
+        }
+    }
+
+    double force_max_velocity_limit() const {
+        if (!force_max_velocity_override_.ready()) {
+            return sanitize_max_velocity(force_max_velocity_);
+        }
+
+        const double override_velocity = *force_max_velocity_override_;
+        if (!std::isfinite(override_velocity)) {
+            return sanitize_max_velocity(force_max_velocity_);
+        }
+
+        return sanitize_max_velocity(override_velocity);
+    }
+
     double update_force_control_velocity(const int32_t force_error) {
-        if (force_error == 0 || sanitize_max_velocity(force_max_velocity_) == 0.0) {
+        const double velocity_limit = force_max_velocity_limit();
+        if (force_error == 0 || velocity_limit == 0.0) {
             force_error_velocity_pid_.reset();
             return 0.0;
         }
@@ -123,7 +178,7 @@ private:
             return 0.0;
         }
 
-        return clamp_velocity(control_velocity, force_max_velocity_);
+        return clamp_velocity(control_velocity, velocity_limit);
     }
 
     double yaw_error_to_velocity_gain_;
@@ -136,11 +191,14 @@ private:
 
     InputInterface<Eigen::Vector2d> angle_error_vector_;
     InputInterface<int32_t> force_error_;
+    InputInterface<rmcs_msgs::DartMechanismCommand> carriage_command_;
+    InputInterface<double> carriage_target_velocity_;
 
     InputInterface<int32_t> force_sensor_ch1_;
     InputInterface<int32_t> force_sensor_ch2_;
 
     InputInterface<double> pitch_angle_;
+    InputInterface<double> force_max_velocity_override_;
 
     OutputInterface<double> yaw_control_velocity_;
     OutputInterface<double> pitch_control_velocity_;

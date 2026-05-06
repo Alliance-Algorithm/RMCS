@@ -4,7 +4,9 @@ rmcs_executor:
     components:
       - rmcs_core::hardware::CatapultDart        -> dart_hardware
       - rmcs_dart_guidance::manager::DartManager   -> dart_manager
-      # - rmcs_dart_guidance::DartVisionCore         -> dart_vision_core
+      - rmcs_dart_guidance::DartVisionCore         -> dart_vision_core
+      - rmcs_dart_guidance::ImagePublisher -> dart_display_image_publisher
+      - rmcs_dart_guidance::ImagePublisher -> dart_camera_image_publisher
       - rmcs_dart_guidance::manager::RemoteCommandBridge -> remote_cmd_bridge
 
       - rmcs_core::controller::dart::DartTriggerController -> trigger_setting
@@ -31,9 +33,15 @@ dart_hardware:
 
 dart_manager:
   ros__parameters:
+    fire_target: "basement"              # frontier or basement
+    basement_travel_distance: 0.20           #m
+    frontier_travel_distance: 0.10           #m
     belt_down_velocity: 10.0
-    belt_up_velocity: 10.0
+    belt_down_travel_angle: 10.0
+    belt_up_velocity: 20.0
     belt_up_travel_angle: 10.0
+    carriage_down_velocity: 10.0
+    carriage_up_velocity: 10.0
     manual_max_velocity: 10.0
     lift_velocity: 3.0
     force_setpoint: 0
@@ -45,16 +53,21 @@ dart_manager:
     belt_stall_torque_threshold: 0.1
     belt_stall_confirm_ticks: 100
     belt_stall_min_run_ticks: 500
-    lifting_stall_threshold: 0.1    # rad/s，低于此值视为堵转
+    lifting_velocity_stall_threshold: 0.1    # rad/s，低于此值视为堵转
     lifting_stall_torque_threshold: 0.1
     lifting_stall_confirm_ticks: 150    # 连续帧数 = 0.1s @ 1kHz
     lifting_stall_min_run_ticks: 300    # 启动后最少运行帧数，避免启动瞬间误触发
     lifting_stall_timeout_ticks: 2000   # 超时帧数 = 5s
+    carriage_stall_velocity_threshold: 0.2
+    carriage_stall_torque_threshold: 0.2
+    carriage_stall_confirm_ticks: 100
+    carriage_min_run_ticks: 100
+    carriage_timeout_ticks: 5000
     vision_aim.allowable_error.x: 5
     vision_aim.allowable_error.y: 5
-    vision_aim.timeout_ticks: 3000
-    vision_aim.shot_profiles.0.reference_point.x: 710
-    vision_aim.shot_profiles.0.reference_point.y: 135
+    vision_aim.timeout_ticks: 20000
+    vision_aim.shot_profiles.0.reference_point.x: 640
+    vision_aim.shot_profiles.0.reference_point.y: 400           #135
     vision_aim.shot_profiles.0.offset.x: 0
     vision_aim.shot_profiles.0.offset.y: 0
     vision_aim.shot_profiles.1.reference_point.x: 700
@@ -82,6 +95,20 @@ dart_vision_core:
     U_S: 255.0
     U_V: 255.0
 
+dart_camera_image_publisher:
+  ros__parameters:
+    Interface_name: /dart_guidance/camera/camera_image
+    topic_name: /dart_guidance/camera/camera_image
+    publish_freq: 60.0
+    image_type: bgr8
+
+dart_display_image_publisher:
+  ros__parameters:
+    Interface_name: /dart_guidance/camera/display_image
+    topic_name: /dart_guidance/camera/display_image
+    publish_freq: 60.0
+    image_type: mono8
+
 host_bridge:
   ros__parameters:
     tcp_listen_host: "127.0.0.1"
@@ -92,7 +119,7 @@ host_bridge:
 
 trigger_setting:
   ros__parameters:
-    trigger_free_value: 0.60
+    trigger_free_value: 0.625
     trigger_lock_value: 0.45
 
 dart_belt_controller:
@@ -109,7 +136,7 @@ dart_belt_controller:
 dart_filling:
   ros__parameters:
     lifting_velocity: 3.0
-    limiting_free_angle: 0x0BFF
+    limiting_free_angle: 0x0CFF
     limiting_lock_angle: 0x0B53
 
 dart_setting:
