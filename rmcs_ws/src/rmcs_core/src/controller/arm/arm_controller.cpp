@@ -205,7 +205,10 @@ public:
             }
             if (keyboard.w && !last_keyboard_.w) {
                 if (!keyboard.ctrl && !keyboard.shift) {
-                    set_arm_mode(rmcs_msgs::ArmMode::Auto_Linear);
+                    set_arm_mode(rmcs_msgs::ArmMode::Auto_Linear_Forward);
+                }
+                if(keyboard.shift&&!keyboard.ctrl){
+                    set_arm_mode(rmcs_msgs::ArmMode::Auto_Linear_Backward);
                 }
             }
             if (keyboard.a && !last_keyboard_.a) {
@@ -237,7 +240,8 @@ public:
             break;
         }
         case ArmMode::Auto_Walk:
-        case ArmMode::Auto_Linear:
+        case ArmMode::Auto_Linear_Forward:
+        case ArmMode::Auto_Linear_Backward:
         case ArmMode::Auto_Extract_LB:
         case ArmMode::Auto_Extract_RB:
         case ArmMode::Auto_Storage_RB:
@@ -467,10 +471,23 @@ private:
             }
             break;
         }
-        case rmcs_msgs::ArmMode::Auto_Linear: {
+        case rmcs_msgs::ArmMode::Auto_Linear_Forward: {
             const static double distance        = 0.1;
             geometry_msgs::msg::Pose start_pose = move_group_->getCurrentPose().pose;
-            const auto target_pose = linear_point_transformer(start_pose, {0, 0, -1}, distance);
+            const auto target_pose = linear_point_transformer(start_pose, {1, 0, 0}, distance);
+            move_group_->setGoalOrientationTolerance(0.2);
+            move_group_->setGoalPositionTolerance(0.01);
+            move_group_->setMaxVelocityScalingFactor(0.05);
+            move_group_->setMaxAccelerationScalingFactor(0.05);
+            move_group_->setPlanningPipelineId("pilz_industrial_motion_planner");
+            move_group_->setPlannerId("LIN");
+            move_group_->setPoseTarget(target_pose, "link_6");
+            break;
+        }
+        case rmcs_msgs::ArmMode::Auto_Linear_Backward: {
+            const static double distance        = 0.1;
+            geometry_msgs::msg::Pose start_pose = move_group_->getCurrentPose().pose;
+            const auto target_pose = linear_point_transformer(start_pose, {-1, 0, 0}, distance);
             move_group_->setGoalOrientationTolerance(0.2);
             move_group_->setGoalPositionTolerance(0.01);
             move_group_->setMaxVelocityScalingFactor(0.05);
@@ -636,7 +653,7 @@ private:
                             set_gripper_mode(rmcs_msgs::GripperMode::Close);
                             trajectory_steps--;
                         }
-                        if(trajectory_steps == 0&&!is_gripper_complete){
+                        if (trajectory_steps == 0 && !is_gripper_complete) {
                             set_gripper_mode(rmcs_msgs::GripperMode::Open);
                             trajectory_steps--;
                         }
@@ -680,7 +697,7 @@ private:
         Eigen::Vector<double, 6> angles;
         for (Eigen::Index i = 0; i < angles.size(); ++i) {
             const auto joint_index = static_cast<std::size_t>(i);
-            double divisor         = (joint_index == 3 || joint_index == 5) ? 32768.0 : 65536.0;
+            double divisor         = (joint_index == 0 || joint_index == 5) ? 32768.0 : 65536.0;
             angles[i]              = raw_to_angle(frame.joint[joint_index], divisor);
             if (i == 2 || i == 5) {
                 angles[i] = -angles[i];

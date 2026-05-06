@@ -17,7 +17,8 @@ enum class ArmMode : uint8_t {
     Custome,
     DT7_Control_Position,
     DT7_Control_Orientation,
-    Auto_Linear,
+    Auto_Linear_Forward,
+    Auto_Linear_Backward,
     Test,
     None
 };

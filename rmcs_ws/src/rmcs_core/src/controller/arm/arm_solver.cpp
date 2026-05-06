@@ -30,7 +30,7 @@ public:
               pid::PidCalculator(800.0, 0.0, 10.0), // joint_3
               pid::PidCalculator(250.0, 0.0, 1.0), // joint_4
               pid::PidCalculator(600.0, 0.0, 10.0), // joint_5
-              pid::PidCalculator(190.0, 0.0, 1.0), // joint_6
+              pid::PidCalculator(80.0, 0.0, 0.0), // joint_6
           }
         , joint_vel_pid_controller{
               pid::PidCalculator(0.3, 0.0, 0.0), // joint_1
@@ -38,7 +38,7 @@ public:
               pid::PidCalculator(0.6, 0.0, 0.004), // joint_3
               pid::PidCalculator(0.65, 0.0, 0.002), // joint_4
               pid::PidCalculator(0.121, 0.0, 0.004), // joint_5
-              pid::PidCalculator(0.1080000, 0.0, 0.0), // joint_6
+              pid::PidCalculator(0.200000, 0.0, 0.0), // joint_6
           } {
         for (std::size_t i = 0; i < num_axis; ++i) {
             const std::string joint_prefix = "/arm/joint_" + std::to_string(i + 1);

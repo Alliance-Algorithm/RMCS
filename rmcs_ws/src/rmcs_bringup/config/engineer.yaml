@@ -43,7 +43,7 @@ engineer_hardware:
     board_serial_left_board: "D4-18B8-2958-0D33-4168-27CE-86B2"
     board_serial_right_board: "D4-D354-B7C8-A457-ECB1-11A9-998E"
     gripper_zero_point: 26298
-    image_pitch_zero_point: 47534
+    image_pitch_zero_point: 43131
     joint6_zero_point: 61801
     joint5_zero_point: 37436
     joint4_zero_point: 31596
