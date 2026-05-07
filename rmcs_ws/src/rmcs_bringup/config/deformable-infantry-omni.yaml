@@ -76,13 +76,14 @@ chassis_controller:
     active_suspension_activation_velocity_threshold_deg: 15.0
 
     # IMU attitude correction as suspension force bias.
-    # pitch < 0: front high. roll > 0: right high.
-    active_suspension_Kp: 8.0
+    active_suspension_pitch_kp: 8.0
     active_suspension_pitch_ki: 0.35
-    active_suspension_Dp: 0.28
-    active_suspension_Kr: 8.0
+    active_suspension_pitch_kd: 0.28
+
+    active_suspension_roll_kp: 8.0
     active_suspension_roll_ki: 0.35
-    active_suspension_Dr: 0.28
+    active_suspension_roll_kd: 0.28
+
     active_suspension_pitch_angle_diff_limit_deg: 45.0
     active_suspension_roll_angle_diff_limit_deg: 45.0
     active_suspension_pid_integral_limit_deg: 20.0

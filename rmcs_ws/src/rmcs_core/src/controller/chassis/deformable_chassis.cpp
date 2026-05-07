@@ -71,7 +71,7 @@ struct AttitudePidAxis {
 };
 
 struct SuspensionParams {
-    double mass, rod_length, Kz, Kp, pitch_ki, Dp, Kr, roll_ki, Dr, D_leg;
+    double mass, rod_length, Kz, pitch_kp, pitch_ki, pitch_kd, roll_kp, roll_ki, roll_kd, D_leg;
     double com_height, wheel_base_half_x, wheel_base_half_y;
     double gravity_comp_gain, control_acceleration_limit;
     double preload_angle, entry_offset, ride_height_offset, hold_travel;
@@ -219,12 +219,15 @@ struct ActiveSuspension {
             .mass = node.get_parameter_or("active_suspension_mass", 22.5),
             .rod_length = node.get_parameter_or("active_suspension_rod_length", 0.150),
             .Kz = node.get_parameter_or("active_suspension_Kz", 150.0),
-            .Kp = node.get_parameter_or("active_suspension_Kp", 200.0),
+
+            .pitch_kp = node.get_parameter_or("active_suspension_pitch_kp", 200.0),
             .pitch_ki = node.get_parameter_or("active_suspension_pitch_ki", 0.0),
-            .Dp = node.get_parameter_or("active_suspension_Dp", 20.0),
-            .Kr = node.get_parameter_or("active_suspension_Kr", 200.0),
+            .pitch_kd = node.get_parameter_or("active_suspension_pitch_kd", 20.0),
+
+            .roll_kp = node.get_parameter_or("active_suspension_roll_kp", 200.0),
             .roll_ki = node.get_parameter_or("active_suspension_roll_ki", 0.0),
-            .Dr = node.get_parameter_or("active_suspension_Dr", 20.0),
+            .roll_kd = node.get_parameter_or("active_suspension_roll_kd", 20.0),
+
             .D_leg = node.get_parameter_or("active_suspension_D_leg", 10.0),
             .com_height = node.get_parameter_or("active_suspension_com_height", 0.15),
             .wheel_base_half_x = node.get_parameter_or(
@@ -281,16 +284,20 @@ struct ActiveSuspension {
                     "active_suspension_pid_integral_limit_deg", max_angle - min_angle))
                 * std::numbers::pi / 180.0,
         };
-        pitch_pid_.kp = params_.Kp;
+
+        pitch_pid_.kp = params_.pitch_kp;
         pitch_pid_.ki = params_.pitch_ki;
-        pitch_pid_.kd = params_.Dp;
+        pitch_pid_.kd = params_.pitch_kd;
+
+        roll_pid_.kp = params_.roll_kp;
+        roll_pid_.ki = params_.roll_ki;
+        roll_pid_.kd = params_.roll_kd;
+
         pitch_pid_.integral_limit = params_.pid_integral_limit;
         pitch_pid_.output_limit = params_.pitch_angle_diff_limit;
-        roll_pid_.kp = params_.Kr;
-        roll_pid_.ki = params_.roll_ki;
-        roll_pid_.kd = params_.Dr;
         roll_pid_.integral_limit = params_.pid_integral_limit;
         roll_pid_.output_limit = params_.roll_angle_diff_limit;
+
         enabled_ = node.get_parameter_or("active_suspension_enable", false);
         calib_wait_ = std::max(node.get_parameter_or("chassis_imu_calibration_wait_s", 2.0), 0.0);
         calib_sample_ =
@@ -835,9 +842,8 @@ private:
         constexpr double kRotaryKnobEdgeThreshold = 0.7;
 
         const bool keyboard_toggle = !last_keyboard_.q && keyboard.q;
-        const bool rotary_knob_toggle =
-            last_rotary_knob_ < kRotaryKnobEdgeThreshold
-            && *rotary_knob_ >= kRotaryKnobEdgeThreshold;
+        const bool rotary_knob_toggle = last_rotary_knob_ < kRotaryKnobEdgeThreshold
+                                     && *rotary_knob_ >= kRotaryKnobEdgeThreshold;
 
         if (apply_symmetric_target_)
             trajectory_.fill_symmetric_targets();
