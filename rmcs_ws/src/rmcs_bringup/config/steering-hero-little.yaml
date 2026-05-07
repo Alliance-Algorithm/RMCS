@@ -64,29 +64,19 @@ hero_hardware:
 value_broadcaster:
   ros__parameters:
     forward_list:
-        - /chassis/left_front_steering/angle
-        - /chassis/left_front_steering/velocity
-        - /chassis/left_front_steering/control_torque
-        - /chassis/left_front_steering/torque        
-        - /chassis/right_front_steering/angle
-        - /chassis/right_front_steering/velocity
-        - /chassis/right_front_steering/control_torque
-        - /chassis/right_front_steering/torque        
-        - /chassis/left_back_steering/angle
-        - /chassis/left_back_steering/velocity
-        - /chassis/left_back_steering/control_torque
-        - /chassis/left_back_steering/torque        
-        - /chassis/right_back_steering/angle
-        - /chassis/right_back_steering/velocity
-        - /chassis/right_back_steering/control_torque
-        - /chassis/right_back_steering/torque        
+        - /chassis/power
+        - /chassis/control_power_limit
+        - /chassis/climber/front/control_power_limit
+        - /chassis/climber/front/power_demand_estimate
+        - /chassis/climber/front/actual_power_estimate
+        - /chassis/steering_wheel/actual_power_estimate   
 
 climber_controller:
   ros__parameters:
     front_climber_velocity: 15.0
     back_climber_velocity: 10.0
-    auto_climb_support_retract_velocity: 0.0
-    auto_climb_approach_chassis_velocity: 5.0
+    auto_climb_support_retract_velocity: 5.0
+    auto_climb_approach_chassis_velocity: 2.5
     auto_climb_support_deploy_chassis_velocity: 0.5
     auto_climb_dash_chassis_velocity: 5.0
     auto_climb_leveled_pitch_threshold: 0.05
@@ -96,9 +86,17 @@ climber_controller:
     front_kp: 1.0
     front_ki: 0.0
     front_kd: 0.5
+    front_power_estimate_bias: 0.0
+    front_power_estimate_k_tau2: 1.0
+    front_power_estimate_k_mech: 1.0
     back_kp: 1.0
     back_ki: 0.0
     back_kd: 0.0
+
+chassis_power_controller:
+  ros__parameters:
+    front_climber_power_limit_max: 40.0
+    drive_power_limit_floor: 20.0
 
 gimbal_controller:
   ros__parameters:
