@@ -6,9 +6,9 @@ rmcs_executor:
       - rmcs_dart_guidance::manager::DartManager   -> dart_manager
       - rmcs_dart_guidance::manager::RemoteCommandBridge -> remote_cmd_bridge
 
-      - rmcs_dart_guidance::DartVisionCore         -> dart_vision_core
-      - rmcs_dart_guidance::ImagePublisher -> dart_display_image_publisher
-      - rmcs_dart_guidance::ImagePublisher -> dart_camera_image_publisher
+      # - rmcs_dart_guidance::DartVisionCore         -> dart_vision_core
+      # - rmcs_dart_guidance::ImagePublisher -> dart_display_image_publisher
+      # - rmcs_dart_guidance::ImagePublisher -> dart_camera_image_publisher
 
       - rmcs_core::controller::dart::DartTriggerController -> trigger_setting
       - rmcs_core::controller::dart::DartBeltController -> dart_belt_controller
@@ -23,29 +23,12 @@ rmcs_executor:
 broadcaster:
   ros__parameters:
     forward_list:
-      - /imu/catapult_pitch_angle
-      - /imu/catapult_yaw_angle
-      - /imu/catapult_roll_angle
-      - /force_sensor/channel_1/weight
-      - /force_sensor/channel_2/weight
-
-dart_camera_image_publisher:
-  ros__parameters:
-    Interface_name: /dart_guidance/camera/camera_image
-    topic_name: /dart_guidance/camera/camera_image
-    publish_freq: 60.0
-    image_type: bgr8
-
-dart_display_image_publisher:
-  ros__parameters:
-    Interface_name: /dart_guidance/camera/display_image
-    topic_name: /dart_guidance/camera/display_image
-    publish_freq: 60.0
-    image_type: mono8
+      - /dart/drive_belt/left/control_torque
+      - /dart/drive_belt/right/control_torque
 
 remote_cmd_bridge:
   ros__parameters:
-    vision_enable: true
+    vision_enable: false
 
 dart_hardware:
   ros__parameters:
@@ -56,7 +39,8 @@ dart_hardware:
 dart_manager:
   ros__parameters:
     belt_down_velocity: 10.0
-    belt_up_velocity: 10.0
+    belt_down_travel_angle: 10.0
+    belt_up_velocity: 20.0
     belt_up_travel_angle: 10.0
     manual_max_velocity: 10.0
     lift_velocity: 3.0
@@ -74,22 +58,30 @@ dart_manager:
     lifting_stall_confirm_ticks: 150    # 连续帧数 = 0.1s @ 1kHz
     lifting_stall_min_run_ticks: 300    # 启动后最少运行帧数，避免启动瞬间误触发
     lifting_stall_timeout_ticks: 2000   # 超时帧数 = 5s
+    force_slider_init_direction_up: true
+    force_slider_init_force_error: 150.0
+    force_slider_init_velocity_limit: 30.0
+    force_slider_init_stall_velocity_threshold: 0.2
+    force_slider_init_stall_torque_threshold: 0.2
+    force_slider_init_stall_confirm_ticks: 100
+    force_slider_init_min_run_ticks: 300
+    force_slider_init_timeout_ticks: 5000
     vision_aim.allowable_error.x: 5
     vision_aim.allowable_error.y: 5
     vision_aim.timeout_ticks: 20000
-    vision_aim.shot_profiles.0.reference_point.x: 865
-    vision_aim.shot_profiles.0.reference_point.y: 820
+    vision_aim.shot_profiles.0.reference_point.x: 710
+    vision_aim.shot_profiles.0.reference_point.y: 135
     vision_aim.shot_profiles.0.offset.x: 0
     vision_aim.shot_profiles.0.offset.y: 0
-    vision_aim.shot_profiles.1.reference_point.x: 770
-    vision_aim.shot_profiles.1.reference_point.y: 700
+    vision_aim.shot_profiles.1.reference_point.x: 700
+    vision_aim.shot_profiles.1.reference_point.y: 105
     vision_aim.shot_profiles.1.offset.x: 0
     vision_aim.shot_profiles.1.offset.y: 0
-    vision_aim.shot_profiles.2.reference_point.x: 770
+    vision_aim.shot_profiles.2.reference_point.x: 704
     vision_aim.shot_profiles.2.reference_point.y: 190
     vision_aim.shot_profiles.2.offset.x: 0
     vision_aim.shot_profiles.2.offset.y: 0
-    vision_aim.shot_profiles.3.reference_point.x: 770
+    vision_aim.shot_profiles.3.reference_point.x: 704
     vision_aim.shot_profiles.3.reference_point.y: 190
     vision_aim.shot_profiles.3.offset.x: 0
     vision_aim.shot_profiles.3.offset.y: 0
@@ -97,7 +89,7 @@ dart_manager:
 dart_vision_core:
   ros__parameters:
     invert_image: true
-    exposure_time: 3000
+    exposure_time: 2000
     gain: 0.0
     L_H: 45.0
     L_S: 0.0
@@ -106,13 +98,19 @@ dart_vision_core:
     U_S: 255.0
     U_V: 255.0
 
-host_bridge:
+dart_camera_image_publisher:
   ros__parameters:
-    tcp_listen_host: "127.0.0.1"
-    tcp_listen_port: 37601
-    tcp_hello_timeout_ms: 3000
-    tcp_heartbeat_interval_ms: 1000
-    tcp_max_message_bytes: 65536
+    Interface_name: /dart_guidance/camera/camera_image
+    topic_name: /dart_guidance/camera/camera_image
+    publish_freq: 60.0
+    image_type: bgr8
+
+dart_display_image_publisher:
+  ros__parameters:
+    Interface_name: /dart_guidance/camera/display_image
+    topic_name: /dart_guidance/camera/display_image
+    publish_freq: 60.0
+    image_type: mono8
 
 trigger_setting:
   ros__parameters:
@@ -133,13 +131,13 @@ dart_belt_controller:
 dart_filling:
   ros__parameters:
     lifting_velocity: 3.0
-    limiting_free_angle: 0x0BFF
+    limiting_free_angle: 0x0CFF
     limiting_lock_angle: 0x0B53
 
 dart_setting:
   ros__parameters:
     yaw_error_to_velocity_gain: -1.0
-    pitch_error_to_velocity_gain: -1.0
+    pitch_error_to_velocity_gain: 1.0
     force_error_kp: 0.2
     force_error_ki: 0.0
     force_error_kd: 0.0
@@ -156,7 +154,7 @@ yaw_velocity_pid_controller:
     measurement: /dart/yaw_motor/velocity
     setpoint:    /dart/yaw_motor/control_velocity
     control:     /dart/yaw_motor/control_torque
-    kp: 0.5
+    kp: 0.6
     ki: 0.0
     kd: 0.0
 
@@ -165,7 +163,7 @@ pitch_velocity_pid_controller:
     measurement: /dart/pitch_motor/velocity
     setpoint:    /dart/pitch_motor/control_velocity
     control:     /dart/pitch_motor/control_torque
-    kp: 0.5
+    kp: 0.6
     ki: 0.0
     kd: 0.0
 
