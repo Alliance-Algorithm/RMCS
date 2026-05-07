@@ -1,0 +1,15 @@
+rmcs_executor:
+  ros__parameters:
+    components:
+      - rmcs_core::controller::pid::FrictionWheelPidRecorder -> friction_wheel_pid_recorder
+
+friction_wheel_pid_recorder:
+  ros__parameters:
+    wheels:
+      - /gimbal/first_left_friction
+      - /gimbal/first_right_friction
+      - /gimbal/second_left_friction
+      - /gimbal/second_right_friction
+    output_dir: /tmp/friction_pid_logs
+    min_setpoint_abs: 10.0
+    flush_every_n_samples: 100

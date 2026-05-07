@@ -1,0 +1,121 @@
+# enemy_color: "red"
+enemy_color: "blue"
+
+#####-----神经网络参数-----#####
+yolo_name: yolov5
+classify_model: assets/tiny_resnet.onnx
+yolo11_model_path: assets/yolo11.xml
+yolov8_model_path: assets/yolov8.xml
+yolov5_model_path: assets/yolov5.xml
+device: CPU
+min_confidence: 0.8
+use_traditional: true
+
+#####-----ROI-----#####
+roi: 
+  x: 420
+  y: 50
+  width: 600
+  height: 600
+
+use_roi: false
+
+#####-----传统方法参数-----#####
+threshold: 150
+max_angle_error: 45 # degree
+min_lightbar_ratio: 1.5
+max_lightbar_ratio: 20
+min_lightbar_length: 8
+min_armor_ratio: 1
+max_armor_ratio: 5
+max_side_ratio: 1.5
+max_rectangular_error: 25 # degree
+min_confidence: 0.8
+
+#####-----tracker参数-----#####
+min_detect_count: 5
+max_temp_lost_count: 15
+outpost_max_temp_lost_count: 75
+
+#####-----aimer参数-----#####
+yaw_offset: -1 # degree -2.5
+pitch_offset: -1.4 # degree 2
+comming_angle: 60 # degree
+leaving_angle: 20 # degree
+decision_speed: 8 # rad/s
+high_speed_delay_time: 0.030 # s
+low_speed_delay_time: 0.015 # s
+
+#####-----shooter参数-----#####
+first_tolerance: 3 # 近距离射击容差，degree
+second_tolerance: 2 # 远距离射击容差，degree
+judge_distance: 2 #距离判断阈值
+auto_fire: true # 是否由自瞄控制射击
+
+camera_name: "hikrobot"
+exposure_ms: 2
+gain: 16
+vid_pid: "2bdf:0001"
+
+# -1  0  0
+#  0 -1  0
+#  0  0  1
+R_gimbal2imubody: [-1, 0, 0, 0, -1, 0, 0, 0, 1]
+
+# 重投影误差: 0.2697px
+camera_matrix: [1818.3669452465165, 0, 751.06226574703498, 0, 1822.494494078506, 530.43671556112133, 0, 0, 1]
+distort_coeffs: [-0.077944626599568856, 0.15447826031486889, -0.0025714394278524674, 0.00083016311301273629, 0]
+
+# 相机同理想情况的偏角: yaw0.46 pitch0.61 roll-1.53 degree
+R_camera2gimbal: [-0.0083195760046954614, 0.010498791137270739, 0.99991027599468041, -0.99960756138647755, -0.026835747568381807, -0.0080352891314148939, 0.026748978935305992, -0.99958472279097077, 0.010717933047771133]
+t_camera2gimbal: [0.094969301833534511, 0.095006290298006682, 0.050987066291756609]
+
+#####-----cboard参数-----#####
+quaternion_canid: 0x100
+bullet_speed_canid: 0x101
+send_canid: 0xff
+can_interface: "can0"
+
+#####-----gimbal参数-----#####
+com_port: "/dev/gimbal"
+
+#####-----planner-----#####
+fire_thresh: 0.003
+
+max_yaw_acc: 50
+Q_yaw: [9e6, 0]
+R_yaw: [1]
+
+max_pitch_acc: 100
+Q_pitch: [9e6,0]
+R_pitch: [1]
+
+#####-----buff_detector参数-----#####
+detect:
+  contrast: 1
+  brightness: 
+    blue: -120
+    red: -100
+  brightness_threshold:
+    blue: 120
+    red: 40
+  morphology_size:
+    blue: 3
+    red: 3
+  dilate_size: 2
+  # canny_low_threshold: 100
+  # canny_high_threshold: 180
+  # approx_epsilon: 1.0
+  R_contours_min_area: 200
+  R_contours_max_area: 600
+  fanblades_head_contours_min_area: 3000
+  fanblades_head_contours_max_area: 8000
+  fanblades_body_contours_min_area: 1000
+  fanblades_body_contours_max_area: 4000
+  standard_fanblade_path: ./assets/standard_fanblade.jpg
+
+#####-----buff_aimer参数-----#####
+aim_time: 0.150         # s
+wait_time: 0.300        # s
+command_fire_gap: 0.080 # s
+predict_time: 0.150     # s
