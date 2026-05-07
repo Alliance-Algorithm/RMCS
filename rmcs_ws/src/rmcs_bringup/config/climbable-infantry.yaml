@@ -155,8 +155,8 @@ friction_wheel_controller:
       - /gimbal/left_friction
       - /gimbal/right_friction
     friction_velocities:
-      - 600.0
-      - 600.0
+      - 590.0
+      - 590.0
     friction_soft_start_stop_time: 0.3
 
 heat_controller:
