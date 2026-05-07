@@ -56,10 +56,15 @@ public:
         register_output("/referee/ally/infantry_2_hp", ally_infantry_2_hp_, 0);
         register_output("/referee/ally/outpost/hp", ally_outpost_hp_, 0);
         register_output("/referee/ally/base/hp", ally_base_hp_, 0);
+        register_output("/referee/ally/hero_position_x", ally_hero_position_x_, 0.0);
+        register_output("/referee/ally/hero_position_y", ally_hero_position_y_, 0.0);
+        register_output("/referee/ally/engineer_position_x", ally_engineer_position_x_, 0.0);
+        register_output("/referee/ally/engineer_position_y", ally_engineer_position_y_, 0.0);
+        register_output("/referee/ally/infantry_1_position_x", ally_infantry_1_position_x_, 0.0);
+        register_output("/referee/ally/infantry_1_position_y", ally_infantry_1_position_y_, 0.0);
+        register_output("/referee/ally/infantry_2_position_x", ally_infantry_2_position_x_, 0.0);
+        register_output("/referee/ally/infantry_2_position_y", ally_infantry_2_position_y_, 0.0);
         register_output("/referee/current_hp", robot_current_hp_);
-        register_output("/referee/position/x", robot_position_x_, 0.0);
-        register_output("/referee/position/y", robot_position_y_, 0.0);
-        register_output("/referee/position/angle", robot_position_angle_, 0.0);
         register_output("/referee/shooter/bullet_allowance", robot_bullet_allowance_, false);
         register_output(
             "/referee/shooter/42mm_bullet_allowance", robot_42mm_bullet_allowance_, false);
@@ -81,17 +86,35 @@ public:
         register_output(
             "/referee/map_command/received_timestamp", map_command_received_timestamp_, 0.0);
         register_output(
-            "/referee/map_command/event/target_position_x", map_command_event_target_position_x_,
-            0.0);
+            "/referee/map_command/event/target_position_x",
+            map_command_event_target_position_x_, 0.0);
         register_output(
-            "/referee/map_command/event/target_position_y", map_command_event_target_position_y_,
-            0.0);
+            "/referee/map_command/event/target_position_y",
+            map_command_event_target_position_y_, 0.0);
         register_output("/referee/map_command/event/keyboard", map_command_event_keyboard_, 0);
         register_output(
             "/referee/map_command/event/target_robot_id", map_command_event_target_robot_id_, 0);
         register_output("/referee/map_command/event/source", map_command_event_source_, 0);
-        register_output("/referee/map_command/event/timestamp", map_command_event_timestamp_, 0.0);
+        register_output(
+            "/referee/map_command/event/timestamp", map_command_event_timestamp_, 0.0);
         register_output("/referee/map_command/event/sequence", map_command_event_sequence_, 0);
+
+        register_output(
+            "/referee/sentry/can_confirm_free_revive", sentry_can_confirm_free_revive_, false);
+        register_output(
+            "/referee/sentry/can_exchange_instant_revive", sentry_can_exchange_instant_revive_,
+            false);
+        register_output("/referee/sentry/instant_revive_cost", sentry_instant_revive_cost_, 0);
+        register_output("/referee/sentry/exchanged_bullet_allowance", sentry_exchanged_bullet_, 0);
+        register_output(
+            "/referee/sentry/remote_bullet_exchange_count", sentry_remote_bullet_exchange_count_,
+            0);
+        register_output(
+            "/referee/sentry/exchangeable_bullet_allowance", sentry_exchangeable_bullet_, 0);
+        register_output("/referee/sentry/mode", sentry_mode_, 3);
+        register_output(
+            "/referee/sentry/energy_mechanism_activatable", sentry_energy_mechanism_activatable_,
+            false);
 
         robot_status_watchdog_.reset(5'000);
     }
@@ -167,6 +190,10 @@ private:
             update_shoot_data();
         else if (command_id == 0x0208)
             update_bullet_allowance();
+        else if (command_id == 0x020B)
+            update_game_robot_position();
+        else if (command_id == 0x020D)
+            update_sentry_info();
         else if (command_id == 0x0303)
             update_map_command();
     }
@@ -238,12 +265,7 @@ private:
         *robot_buffer_energy_ = static_cast<double>(data.buffer_energy);
     }
 
-    void update_robot_position() {
-        auto& data = reinterpret_cast<RobotPosition&>(frame_.body.data);
-        *robot_position_x_ = data.x;
-        *robot_position_y_ = data.y;
-        *robot_position_angle_ = data.angle;
-    }
+    void update_robot_position() {}
 
     void update_hurt_data() {}
 
@@ -261,6 +283,19 @@ private:
         *robot_42mm_bullet_allowance_ = data.projectile_allowance_42mm;
         *remaining_gold_coin_ = data.remaining_gold_coin;
         *robot_fortress_17mm_bullet_allowance_ = data.projectile_allowance_fortress;
+    }
+
+    void update_game_robot_position() {
+        auto& data = reinterpret_cast<GameRobotPosition&>(frame_.body.data);
+
+        *ally_hero_position_x_ = data.hero_x;
+        *ally_hero_position_y_ = data.hero_y;
+        *ally_engineer_position_x_ = data.engineer_x;
+        *ally_engineer_position_y_ = data.engineer_y;
+        *ally_infantry_1_position_x_ = data.standard_3_x;
+        *ally_infantry_1_position_y_ = data.standard_3_y;
+        *ally_infantry_2_position_x_ = data.standard_4_x;
+        *ally_infantry_2_position_y_ = data.standard_4_y;
     }
 
     void update_map_command() {
@@ -284,11 +319,12 @@ private:
         *map_command_received_timestamp_ =
             std::chrono::duration<double>(now.time_since_epoch()).count();
 
-        if (has_last_map_command_ && std::memcmp(&last_map_command_, &data, sizeof(data)) == 0) {
+        if (has_last_map_command_
+            && std::memcmp(&last_map_command_, &data, sizeof(data)) == 0) {
             return;
         }
 
-        last_map_command_ = data;
+        last_map_command_     = data;
         has_last_map_command_ = true;
 
         *map_command_event_target_position_x_ = data.target_position_x;
@@ -299,6 +335,23 @@ private:
         *map_command_event_timestamp_ = *map_command_received_timestamp_;
         *map_command_event_sequence_ += 1;
     }
+
+    void update_sentry_info() {
+        auto& data = reinterpret_cast<SentryInfo&>(frame_.body.data);
+
+        const uint32_t sentry_info = data.sentry_info;
+        *sentry_exchanged_bullet_ = sentry_info & 0x07ff;
+        *sentry_remote_bullet_exchange_count_ = (sentry_info >> 11) & 0x0f;
+        *sentry_can_confirm_free_revive_ = (sentry_info >> 19) & 0x01;
+        *sentry_can_exchange_instant_revive_ = (sentry_info >> 20) & 0x01;
+        *sentry_instant_revive_cost_ = (sentry_info >> 21) & 0x03ff;
+
+        const uint16_t sentry_info_2 = data.sentry_info_2;
+        *sentry_exchangeable_bullet_ = (sentry_info_2 >> 1) & 0x07ff;
+        *sentry_mode_ = (sentry_info_2 >> 12) & 0x03;
+        *sentry_energy_mechanism_activatable_ = (sentry_info_2 >> 14) & 0x01;
+    }
+
     // When referee system loses connection unexpectedly,
     // use these indicators make sure the robot safe.
     // Muzzle: Cooling priority with level 1
@@ -339,10 +392,15 @@ private:
     OutputInterface<uint16_t> ally_infantry_2_hp_;
     OutputInterface<uint16_t> ally_outpost_hp_;
     OutputInterface<uint16_t> ally_base_hp_;
+    OutputInterface<double> ally_hero_position_x_;
+    OutputInterface<double> ally_hero_position_y_;
+    OutputInterface<double> ally_engineer_position_x_;
+    OutputInterface<double> ally_engineer_position_y_;
+    OutputInterface<double> ally_infantry_1_position_x_;
+    OutputInterface<double> ally_infantry_1_position_y_;
+    OutputInterface<double> ally_infantry_2_position_x_;
+    OutputInterface<double> ally_infantry_2_position_y_;
     OutputInterface<uint16_t> robot_current_hp_;
-    OutputInterface<double> robot_position_x_;
-    OutputInterface<double> robot_position_y_;
-    OutputInterface<double> robot_position_angle_;
     OutputInterface<uint16_t> robot_bullet_allowance_;
     OutputInterface<uint16_t> robot_42mm_bullet_allowance_;
     OutputInterface<uint16_t> robot_fortress_17mm_bullet_allowance_;
@@ -366,6 +424,15 @@ private:
     OutputInterface<uint64_t> map_command_event_sequence_;
     MapCommand last_map_command_{};
     bool has_last_map_command_ = false;
+
+    OutputInterface<bool> sentry_can_confirm_free_revive_;
+    OutputInterface<bool> sentry_can_exchange_instant_revive_;
+    OutputInterface<uint16_t> sentry_instant_revive_cost_;
+    OutputInterface<uint16_t> sentry_exchanged_bullet_;
+    OutputInterface<uint8_t> sentry_remote_bullet_exchange_count_;
+    OutputInterface<uint16_t> sentry_exchangeable_bullet_;
+    OutputInterface<uint8_t> sentry_mode_;
+    OutputInterface<bool> sentry_energy_mechanism_activatable_;
 };
 
 } // namespace rmcs_core::referee

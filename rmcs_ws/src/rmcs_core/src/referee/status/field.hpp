@@ -76,6 +76,19 @@ struct __attribute__((packed)) BulletAllowance {
     uint16_t projectile_allowance_fortress;
 };
 
+struct __attribute__((packed)) GameRobotPosition {
+    float hero_x;
+    float hero_y;
+    float engineer_x;
+    float engineer_y;
+    float standard_3_x;
+    float standard_3_y;
+    float standard_4_x;
+    float standard_4_y;
+    float reserved_1;
+    float reserved_2;
+};
+
 struct __attribute__((packed)) MapCommand {
     float target_position_x;
     float target_position_y;
@@ -84,5 +97,10 @@ struct __attribute__((packed)) MapCommand {
     uint16_t cmd_source;
 };
 static_assert(sizeof(MapCommand) == 12);
+
+struct __attribute__((packed)) SentryInfo {
+    uint32_t sentry_info;
+    uint16_t sentry_info_2;
+};
 
 } // namespace rmcs_core::referee::status
