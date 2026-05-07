@@ -189,12 +189,13 @@ public:
                 }
             }
             if (keyboard.z && !last_keyboard_.z) {
-                if (!keyboard.shift) {
-                    set_gripper_mode(rmcs_msgs::GripperMode::Open);
-                } else if (keyboard.shift) {
-                    set_gripper_mode(rmcs_msgs::GripperMode::Close);
-                }
+
+                set_gripper_mode(rmcs_msgs::GripperMode::Open);
             }
+            if (keyboard.x && !last_keyboard_.x) {
+                set_gripper_mode(rmcs_msgs::GripperMode::Close);
+            }
+
             if (keyboard.s && !last_keyboard_.s) {
                 set_arm_mode(rmcs_msgs::ArmMode::Auto_Spin);
             }
@@ -207,7 +208,7 @@ public:
                 if (!keyboard.ctrl && !keyboard.shift) {
                     set_arm_mode(rmcs_msgs::ArmMode::Auto_Linear_Forward);
                 }
-                if(keyboard.shift&&!keyboard.ctrl){
+                if (keyboard.shift && !keyboard.ctrl) {
                     set_arm_mode(rmcs_msgs::ArmMode::Auto_Linear_Backward);
                 }
             }

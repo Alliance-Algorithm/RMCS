@@ -109,6 +109,10 @@ private:
 
             engineer.register_output("yaw_imu_velocity", yaw_imu_velocity, NAN);
             engineer.register_output("yaw_imu_angle", yaw_imu_angle, NAN);
+            engineer.register_output("pitch_imu_velocity", pitch_imu_velocity, NAN);
+            engineer.register_output("pitch_imu_angle", pitch_imu_angle, NAN);
+            engineer.register_output("roll_imu_velocity", roll_imu_velocity, NAN);
+            engineer.register_output("roll_imu_angle", roll_imu_angle, NAN);
             using namespace device;
             image_pitch.configure(
                 LKMotorConfig{LKMotorType::MG4010E_i10V3}.reverse().set_encoder_zero_point(
@@ -161,7 +165,7 @@ private:
             //     this->get_logger(), "j1-j6 %f %f %f %f %f %f", joint[0].get_angle(),
             //     joint2_encoder.get_angle(), joint[2].get_angle(), joint[3].get_angle(),
             //     joint[4].get_angle(), joint[5].get_angle());
-            //RCLCPP_INFO(this->get_logger(),"%d",image_pitch.get_raw_angle());
+            // RCLCPP_INFO(this->get_logger(),"%d",image_pitch.get_raw_angle());
 
             using namespace device;
             update_arm_motors();
@@ -237,10 +241,21 @@ private:
         void update_imu() {
             bmi088_.update_status();
 
-            *yaw_imu_velocity = bmi088_.gz();
-            *yaw_imu_angle    = std::atan2(
-                2.0 * (bmi088_.q0() * bmi088_.q3() + bmi088_.q1() * bmi088_.q2()),
-                1.0 - 2.0 * (bmi088_.q2() * bmi088_.q2() + bmi088_.q3() * bmi088_.q3()));
+            const double q0 = bmi088_.q0();
+            const double q1 = bmi088_.q1();
+            const double q2 = bmi088_.q2();
+            const double q3 = bmi088_.q3();
+
+            *roll_imu_velocity  = bmi088_.gx();
+            *pitch_imu_velocity = bmi088_.gy();
+            *yaw_imu_velocity   = bmi088_.gz();
+            
+            *roll_imu_angle = std::atan2(
+                2.0 * (q0 * q1 + q2 * q3), 1.0 - 2.0 * (q1 * q1 + q2 * q2));
+            *pitch_imu_angle =
+                std::asin(std::clamp(2.0 * (q0 * q2 - q3 * q1), -1.0, 1.0));
+            *yaw_imu_angle = std::atan2(
+                2.0 * (q0 * q3 + q1 * q2), 1.0 - 2.0 * (q2 * q2 + q3 * q3));
         }
 
     protected:
@@ -299,6 +314,10 @@ private:
 
         OutputInterface<double> yaw_imu_velocity;
         OutputInterface<double> yaw_imu_angle;
+        OutputInterface<double> pitch_imu_velocity;
+        OutputInterface<double> pitch_imu_angle;
+        OutputInterface<double> roll_imu_velocity;
+        OutputInterface<double> roll_imu_angle;
         device::Bmi088 bmi088_;
 
     } armboard_;

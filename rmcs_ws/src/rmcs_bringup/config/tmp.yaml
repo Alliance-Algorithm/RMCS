@@ -25,9 +25,7 @@ rmcs_executor:
       - rmcs_core::controller::pid::ErrorPidController -> big_yaw_angle_error_pid_controller
       - rmcs_core::controller::pid::PidController -> big_yaw_velocity_pid_controller
 
-      - rmcs_core::controller::pid::ErrorPidController -> leg_lf_angle_error_pid_controller
       - rmcs_core::controller::pid::ErrorPidController -> leg_lf_velocity_error_pid_controller
-      - rmcs_core::controller::pid::ErrorPidController -> leg_rf_angle_error_pid_controller
       - rmcs_core::controller::pid::ErrorPidController -> leg_rf_velocity_error_pid_controller
 
       - rmcs_core::controller::pid::ErrorPidController -> leg_lb_angle_error_pid_controller
@@ -188,6 +186,18 @@ leg_controller:
     forward_x_position_in_FourWheel: 238.0
     forward_x_position_in_SixWheel: 250.0
     backward_x_position_in_SixWheel: 221.0
+    lf_angle_pid_normal_kp: 400.0
+    lf_angle_pid_normal_ki: 0.0
+    lf_angle_pid_normal_kd: 6.0
+    lf_angle_pid_down_stairs_kp: 260.0
+    lf_angle_pid_down_stairs_ki: 0.0
+    lf_angle_pid_down_stairs_kd: 8.0
+    rf_angle_pid_normal_kp: 400.0
+    rf_angle_pid_normal_ki: 0.0
+    rf_angle_pid_normal_kd: 6.5
+    rf_angle_pid_down_stairs_kp: 260.0
+    rf_angle_pid_down_stairs_ki: 0.0
+    rf_angle_pid_down_stairs_kd: 8.5
     tof_k: 0.08
     tof_b: 0.53
     v_ref: 2.0
@@ -197,7 +207,7 @@ leg_controller:
         initial: [1.600270, 1.550, 0.0, 2000.0]
         press: [0.972736, 0.493103, -600.0, 600.0]
         wait : [0.972736, 0.493103,0.0,200.0]
-        lift: [0.806670, 1.150821, -600.0, 400.0]
+        lift: [0.85, 1.150821, -600.0, 400.0]
     up_two_stairs:
       params:
         initial: [1.600270, 1.550, 0.0, 2000.0]
@@ -279,13 +289,6 @@ big_yaw_velocity_pid_controller:
     ki: 0.0
     kd: 0.039
 
-leg_lf_angle_error_pid_controller:
-  ros__parameters:
-    measurement: /leg/joint/lf/control_theta_error
-    control: /leg/joint/lf/control_vel
-    kp: 400.0
-    ki: 0.0
-    kd: 6.0
 leg_lf_velocity_error_pid_controller:
   ros__parameters:
     measurement: /leg/joint/lf/control_velocity_error
@@ -294,14 +297,6 @@ leg_lf_velocity_error_pid_controller:
     ki: 0.0
     kd: 0.001
     output_max: 27.0
-
-leg_rf_angle_error_pid_controller:
-  ros__parameters:
-    measurement: /leg/joint/rf/control_theta_error
-    control: /leg/joint/rf/control_vel
-    kp: 400.0
-    ki: 0.0
-    kd: 6.5
 
 leg_rf_velocity_error_pid_controller:
   ros__parameters:
@@ -378,6 +373,10 @@ value_broadcaster:
       - "/arm/gripper/target_theta"
       - "/arm/gripper/target_theta_error"
       - "/arm/gripper/motor/control_torque"
+
+
+    
+
 
 
     
