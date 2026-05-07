@@ -63,13 +63,13 @@ public:
 
     void update() override {
         if (!refresh_limit_()) {
-            disable_output_();
+            disable_output();
             return;
         }
 
         const double measurement_or_error = *measurement_;
         if (!std::isfinite(measurement_or_error)) {
-            disable_output_();
+            disable_output();
             return;
         }
 
@@ -82,7 +82,7 @@ public:
         } else {
             reference = *setpoint_;
             if (!std::isfinite(reference)) {
-                disable_output_();
+                disable_output();
                 return;
             }
             measurement = measurement_or_error;
@@ -130,9 +130,11 @@ private:
         return true;
     }
 
-    void disable_output_() {
+    void disable_output() {
         *control_ = std::numeric_limits<double>::quiet_NaN();
         last_u_ = 0.0;
+        td_.reset();
+        eso_.reset();
     }
 
     TD::Config load_td_config() {

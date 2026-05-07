@@ -1008,7 +1008,7 @@ private:
         chassis_imu_roll_rate_;
     OutputInterface<double> scope_motor_control_torque_, processed_encoder_angle_;
 
-    std::array<double, kJointCount> joint_offsets_{};
+    std::array<double, kJointCount> joint_offsets_{}; // FIXME: Unused Var
     JointFeedbackSource joint_feedback_source_ = JointFeedbackSource::kLegacyEncoderAngle;
 };
 
