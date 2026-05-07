@@ -2,7 +2,6 @@
 #include "rmcs_msgs/keyboard.hpp"
 #include "rmcs_msgs/switch.hpp"
 #include <cmath>
-#include <cstdlib>
 #include <eigen3/Eigen/Core>
 #include <limits>
 #include <numbers>
@@ -33,9 +32,16 @@ public:
 
         track_velocity_max_ = get_parameter("front_climber_velocity").as_double();
         climber_back_control_velocity_abs_ = get_parameter("back_climber_velocity").as_double();
-        auto_climb_dash_velocity_ = get_parameter("auto_climb_dash_velocity").as_double();
         auto_climb_support_retract_velocity_abs_ =
             get_parameter("auto_climb_support_retract_velocity").as_double();
+        auto_climb_approach_chassis_velocity_ =
+            get_parameter("auto_climb_approach_chassis_velocity").as_double();
+        auto_climb_support_deploy_chassis_velocity_ =
+            get_parameter("auto_climb_support_deploy_chassis_velocity").as_double();
+        auto_climb_dash_chassis_velocity_ =
+            get_parameter("auto_climb_dash_chassis_velocity").as_double();
+        auto_climb_leveled_pitch_threshold_ =
+            get_parameter("auto_climb_leveled_pitch_threshold").as_double();
         sync_coefficient_ = get_parameter("sync_coefficient").as_double();
         first_stair_approach_pitch_ = get_parameter("first_stair_approach_pitch").as_double();
         second_stair_approach_pitch_ = get_parameter("second_stair_approach_pitch").as_double();
@@ -99,15 +105,13 @@ public:
 
             if (auto_climb_state_ != AutoClimbState::IDLE) {
                 stop_manual_support();
-                apply_auto_climb_control(update_auto_climb_control());
+                apply_climb_control(update_auto_climb_control());
             } else {
-                apply_auto_climb_control(update_manual_support_control(keyboard));
+                apply_climb_control(update_manual_support_control(keyboard));
                 apply_manual_support_zero_output();
             }
         }
 
-        last_switch_left_ = switch_left;
-        last_switch_right_ = switch_right;
         last_keyboard_ = keyboard;
         last_rotary_knob_switch_ = rotary_knob_switch;
     }
@@ -136,7 +140,6 @@ private:
 
     void start_auto_climb(const char* source) {
         stop_manual_support();
-        auto_climb_continue_ = true;
         auto_climb_stair_index_ = 0;
         auto_climb_align_stable_count_ = 0;
         auto_climb_support_block_count_ = 0;
@@ -173,7 +176,7 @@ private:
     AutoClimbControl update_manual_support_control(const rmcs_msgs::Keyboard& keyboard) {
         AutoClimbControl control;
 
-        if (keyboard.b) {
+        if (keyboard.b || *rotary_knob_switch_ == rmcs_msgs::Switch::UP) {
             stop_manual_support();
             control.back_climber_velocity = climber_back_control_velocity_abs_;
             return control;
@@ -255,7 +258,7 @@ private:
         AutoClimbControl control{
             .front_track_velocity = track_velocity_max_,
             .back_climber_velocity = 0.0,
-            .override_chassis_vx = kAutoClimbApproachVelocity,
+            .override_chassis_vx = auto_climb_approach_chassis_velocity_,
         };
 
         double pitch = *chassis_pitch_imu_;
@@ -280,7 +283,7 @@ private:
         AutoClimbControl control{
             .front_track_velocity = 0.0,
             .back_climber_velocity = climber_back_control_velocity_abs_,
-            .override_chassis_vx = 0.5,
+            .override_chassis_vx = auto_climb_support_deploy_chassis_velocity_,
         };
 
         if (is_back_climber_blocked()) {
@@ -306,11 +309,11 @@ private:
         AutoClimbControl control{
             .front_track_velocity = 0,
             .back_climber_velocity = climber_back_control_velocity_abs_,
-            .override_chassis_vx = auto_climb_dash_velocity_,
+            .override_chassis_vx = auto_climb_dash_chassis_velocity_,
         };
 
         double pitch = *chassis_pitch_imu_;
-        bool is_leveled = std::abs(pitch) < kAutoClimbLeveledPitchThreshold
+        bool is_leveled = std::abs(pitch) < auto_climb_leveled_pitch_threshold_
                        && auto_climb_timer_ > kAutoClimbDashMinTicks;
         bool timeout = auto_climb_timer_ > kAutoClimbDashTimeoutTicks;
 
@@ -339,7 +342,7 @@ private:
         AutoClimbControl control{
             .front_track_velocity = track_velocity_max_,
             .back_climber_velocity = -auto_climb_support_retract_velocity_abs_,
-            .override_chassis_vx = auto_climb_dash_velocity_,
+            .override_chassis_vx = auto_climb_approach_chassis_velocity_,
         };
 
         RCLCPP_INFO_THROTTLE(
@@ -347,8 +350,7 @@ private:
             auto_climb_stair_index_ + 1, auto_climb_timer_);
 
         if (auto_climb_timer_ > kAutoClimbSupportRetractTicks) {
-            bool has_next_stair =
-                auto_climb_continue_ && (auto_climb_stair_index_ + 1 < kAutoClimbMaxStairs);
+            bool has_next_stair = auto_climb_stair_index_ + 1 < kAutoClimbMaxStairs;
 
             if (has_next_stair) {
                 auto_climb_stair_index_++;
@@ -365,7 +367,7 @@ private:
         return control;
     }
 
-    void apply_auto_climb_control(const AutoClimbControl& control) {
+    void apply_climb_control(const AutoClimbControl& control) {
         *climbing_forward_velocity_ = control.override_chassis_vx;
 
         dual_motor_sync_control(
@@ -408,7 +410,6 @@ private:
         auto_climb_state_ = AutoClimbState::IDLE;
         auto_climb_timer_ = 0;
         auto_climb_stair_index_ = 0;
-        auto_climb_continue_ = false;
         auto_climb_align_stable_count_ = 0;
         auto_climb_support_block_count_ = 0;
     }
@@ -454,10 +455,8 @@ private:
 
     rclcpp::Logger logger_;
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
-    static constexpr double kAutoClimbApproachVelocity = 5.0;
     static constexpr double kAutoClimbAlignThreshold = 0.10;
     static constexpr double kAutoClimbAlignVelocityThreshold = 0.2;
-    static constexpr double kAutoClimbLeveledPitchThreshold = 0.1;
     static constexpr double kBackClimberBlockedTorqueThreshold = 0.1;
     static constexpr double kBackClimberBlockedVelocityThreshold = 0.1;
     static constexpr int kAutoClimbAlignConfirmTicks = 50;
@@ -474,15 +473,17 @@ private:
 
     double track_velocity_max_;
     double climber_back_control_velocity_abs_;
-    double auto_climb_dash_velocity_;
     double auto_climb_support_retract_velocity_abs_;
+    double auto_climb_approach_chassis_velocity_;
+    double auto_climb_support_deploy_chassis_velocity_;
+    double auto_climb_dash_chassis_velocity_;
+    double auto_climb_leveled_pitch_threshold_;
 
     AutoClimbState auto_climb_state_ = AutoClimbState::IDLE;
     int auto_climb_timer_ = 0;
     int auto_climb_stair_index_ = 0;
     int auto_climb_align_stable_count_ = 0;
     int auto_climb_support_block_count_ = 0;
-    bool auto_climb_continue_ = false;
     bool manual_support_retracting_ = false;
     int manual_support_retract_block_count_ = 0;
     bool manual_support_zero_output_ = false;
@@ -509,8 +510,6 @@ private:
     InputInterface<double> chassis_pitch_imu_;
     InputInterface<double> gimbal_yaw_angle_, gimbal_yaw_angle_error_, gimbal_yaw_velocity_imu_;
 
-    rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
-    rmcs_msgs::Switch last_switch_left_ = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Switch last_rotary_knob_switch_ = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Keyboard last_keyboard_ = rmcs_msgs::Keyboard::zero();
 

@@ -271,7 +271,7 @@ private:
                 //     std::numbers::pi / 2, Eigen::Vector3d::UnitZ()};
                 // Eigen::Vector3d mapping = pitch_link_to_bmi088_link * Eigen::Vector3d{1, 2,
                 // 3}; std::cout << mapping << std::endl;
-                return std::make_tuple(x, y, z);
+                return std::make_tuple(-y, x, z);
             });
         }
 
@@ -312,17 +312,15 @@ private:
         void command_update() {
             auto builder = start_transmit();
 
-            for (unsigned int i = 0; i < 8; i++) {
-                builder.can0_transmit({
-                    .can_id = 0x141 + i,
-                    .can_data = gimbal_top_yaw_motor_.generate_command().as_bytes(),
-                });
-            }
+            builder.can0_transmit({
+                .can_id = 0x142,
+                .can_data = gimbal_pitch_motor_.generate_torque_command().as_bytes(),
+            });
 
-            // builder.can0_transmit({
-            //     .can_id = 0x141,
-            //     .can_data = gimbal_pitch_motor_.generate_torque_command().as_bytes(),
-            // });
+            builder.can0_transmit({
+                .can_id = 0x141,
+                .can_data = gimbal_top_yaw_motor_.generate_torque_command().as_bytes(),
+            });
 
             builder.can1_transmit({
                 .can_id = 0x200,
@@ -348,7 +346,7 @@ private:
                         .as_bytes(),
             });
 
-            builder.can3_transmit({
+            builder.can2_transmit({
                 .can_id = 0x142,
                 .can_data = gimbal_bullet_feeder_.generate_torque_command().as_bytes(),
             });
@@ -371,20 +369,19 @@ private:
             if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
                 return;
             auto can_id = data.can_id;
-            // RCLCPP_INFO(logger_, "can_id: %x", can_id);
-            // if (can_id == 0x142) {
-            //     gimbal_top_yaw_motor_.store_status(data.can_data);
-            //     RCLCPP_INFO(logger_, "1");
-            // } else if (can_id == 0x141) {
-            //     gimbal_pitch_motor_.store_status(data.can_data);
-            // }
+            // RCLCPP_INFO(logger_, "can0_id: %x", can_id);
+            if (can_id == 0x141) {
+                gimbal_top_yaw_motor_.store_status(data.can_data);
+            } else if (can_id == 0x142) {
+                gimbal_pitch_motor_.store_status(data.can_data);
+            }
         }
 
         void can1_receive_callback(const librmcs::data::CanDataView& data) override {
             if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
                 return;
             auto can_id = data.can_id;
-            // RCLCPP_INFO(logger_, "can_id:%x", can_id);
+            // RCLCPP_INFO(logger_, "can1_id:%x", can_id);
             if (can_id == 0x201) {
                 gimbal_friction_wheels_[0].store_status(data.can_data);
             } else if (can_id == 0x202) {
@@ -398,23 +395,24 @@ private:
             }
         }
 
-        void can3_receive_callback(const librmcs::data::CanDataView& data) override {
+        void can2_receive_callback(const librmcs::data::CanDataView& data) override {
             if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
                 return;
             auto can_id = data.can_id;
+            // RCLCPP_INFO(logger_, "can2_id:%x", can_id);
             if (can_id == 0x142) {
                 gimbal_bullet_feeder_.store_status(data.can_data);
             }
         }
 
-        void gpio_digital_read_result_callback(
-            const librmcs::data::GpioDigitalDataView& data) override {
-            if (data.channel == 7) {
-                photoelectric_sensor_status_atomic.store(!data.high);
-            } else if (data.channel == 5) {
-                grayscale_sensor_status_atomic.store(!data.high);
-            }
-        }
+        // void gpio_digital_read_result_callback(
+        //     const librmcs::data::GpioDigitalDataView& data) override {
+        //     if (data.channel == 7) {
+        //         photoelectric_sensor_status_atomic.store(!data.high);
+        //     } else if (data.channel == 5) {
+        //         grayscale_sensor_status_atomic.store(!data.high);
+        //     }
+        // }
 
         void accelerometer_receive_callback(
             const librmcs::data::AccelerometerDataView& data) override {
@@ -586,6 +584,7 @@ private:
 
             *chassis_yaw_velocity_imu_ = imu_.gz();
             *chassis_pitch_imu_ = -std::asin(2.0 * (imu_.q0() * imu_.q2() - imu_.q3() * imu_.q1()));
+            // RCLCPP_INFO(logger_, "pitch:%f", *chassis_pitch_imu_);
 
             chassis_front_climber_motor_[0].update_status();
             chassis_front_climber_motor_[1].update_status();
@@ -720,7 +719,7 @@ private:
             if (data.is_extended_can_id || data.is_remote_transmission)
                 return;
             auto can_id = data.can_id;
-            // can2_receive_rate_counter_.record(can_id);
+            // can3_receive_rate_counter_.record(can_id);
             if (can_id == 0x201) {
                 chassis_front_climber_motor_[0].store_status(data.can_data);
             } else if (can_id == 0x203) {
@@ -732,11 +731,11 @@ private:
             if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
                 return;
             auto can_id = data.can_id;
-            // can3_receive_rate_counter_.record(can_id);
+            // can2_receive_rate_counter_.record(can_id);
             if (can_id == 0x202) {
-                chassis_back_climber_motor_[0].store_status(data.can_data);
-            } else if (can_id == 0x204) {
                 chassis_back_climber_motor_[1].store_status(data.can_data);
+            } else if (can_id == 0x204) {
+                chassis_back_climber_motor_[0].store_status(data.can_data);
             } else if (can_id == 0x141) {
                 gimbal_bottom_yaw_motor_.store_status(data.can_data);
             }

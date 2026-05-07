@@ -50,16 +50,16 @@ hero_hardware:
   ros__parameters:
     board_serial_top_board: "AF-BFF7-0B6F-46A5-2B4B-AA20-89C2-E180-64B9"
     serial_bottom_rmcs_board: "AF-60BB-7484-FA24-F3FC-399B-454D-22FA-1B1D"
-    bottom_yaw_motor_zero_point: 36135
-    pitch_motor_zero_point: 0 
-    top_yaw_motor_zero_point: 0
+    bottom_yaw_motor_zero_point: 35014
+    pitch_motor_zero_point: 47885
+    top_yaw_motor_zero_point: 48738
     viewer_motor_zero_point: 3030
     external_imu_port: /dev/ttyUSB0
-    bullet_feeder_motor_zero_point: 11865
-    left_front_zero_point: 5823
-    right_front_zero_point: 3812
-    left_back_zero_point:  7830
-    right_back_zero_point: 1758
+    bullet_feeder_motor_zero_point: 41415
+    left_front_zero_point: 5782
+    right_front_zero_point: 3819
+    left_back_zero_point:  7841
+    right_back_zero_point: 1781
 
 value_broadcaster:
   ros__parameters:
@@ -83,13 +83,16 @@ value_broadcaster:
 
 climber_controller:
   ros__parameters:
-    front_climber_velocity: 20.0
-    back_climber_velocity: 20.0
-    auto_climb_dash_velocity: 10.0
-    auto_climb_support_retract_velocity: 20.0
-    sync_coefficient: 0.1
-    first_stair_approach_pitch: 0.458
-    second_stair_approach_pitch: 0.35    
+    front_climber_velocity: 15.0
+    back_climber_velocity: 10.0
+    auto_climb_support_retract_velocity: 0.0
+    auto_climb_approach_chassis_velocity: 5.0
+    auto_climb_support_deploy_chassis_velocity: 0.5
+    auto_climb_dash_chassis_velocity: 5.0
+    auto_climb_leveled_pitch_threshold: 0.05
+    sync_coefficient: 0.2
+    first_stair_approach_pitch: 0.468
+    second_stair_approach_pitch: 1.0    
     front_kp: 1.0
     front_ki: 0.0
     front_kd: 0.5

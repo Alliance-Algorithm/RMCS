@@ -90,8 +90,11 @@ climber_controller:
   ros__parameters:
     front_climber_velocity: 60.0
     back_climber_velocity: 20.0
-    auto_climb_dash_velocity: 3.0
     auto_climb_support_retract_velocity: 30.0
+    auto_climb_approach_chassis_velocity: 5.0
+    auto_climb_support_deploy_chassis_velocity: 0.5
+    auto_climb_dash_chassis_velocity: 3.0
+    auto_climb_leveled_pitch_threshold: 0.1
     sync_coefficient: 0.3
     first_stair_approach_pitch: 0.485
     second_stair_approach_pitch: 0.35    

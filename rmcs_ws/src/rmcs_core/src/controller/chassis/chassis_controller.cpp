@@ -178,6 +178,8 @@ public:
                                                  : translational_velocity.norm();
             angular_velocity *=
                 std::clamp(measured_translational_speed / translational_velocity_max, 0.0, 0.3);
+
+            angular_velocity = 0;
         } break;
         case rmcs_msgs::ChassisMode::SPIN: {
             angular_velocity =

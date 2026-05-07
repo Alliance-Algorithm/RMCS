@@ -281,17 +281,17 @@ private:
                 .can_data = gimbal_pitch_motor_.generate_command().as_bytes(),
             });
 
-            builder.gpio_digital_read({
-                .channel = 7,
-                .period_ms = 20,
-                .pull = librmcs::data::GpioPull::kUp,
-            });
+            // builder.gpio_digital_read({
+            //     .channel = 7,
+            //     .period_ms = 20,
+            //     .pull = librmcs::data::GpioPull::kUp,
+            // });
 
-            builder.gpio_digital_read({
-                .channel = 5,
-                .period_ms = 20,
-                .pull = librmcs::data::GpioPull::kUp,
-            });
+            // builder.gpio_digital_read({
+            //     .channel = 5,
+            //     .period_ms = 20,
+            //     .pull = librmcs::data::GpioPull::kUp,
+            // });
         }
 
     private:
@@ -326,14 +326,14 @@ private:
             }
         }
 
-        void gpio_digital_read_result_callback(
-            const librmcs::data::GpioDigitalDataView& data) override {
-            if (data.channel == 7) {
-                photoelectric_sensor_status_atomic.store(!data.high);
-            } else if (data.channel == 5) {
-                grayscale_sensor_status_atomic.store(!data.high);
-            }
-        }
+        // void gpio_digital_read_result_callback(
+        //     const librmcs::data::GpioDigitalDataView& data) override {
+        //     if (data.channel == 7) {
+        //         photoelectric_sensor_status_atomic.store(!data.high);
+        //     } else if (data.channel == 5) {
+        //         grayscale_sensor_status_atomic.store(!data.high);
+        //     }
+        // }
 
         void accelerometer_receive_callback(
             const librmcs::data::AccelerometerDataView& data) override {
