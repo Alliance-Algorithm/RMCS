@@ -3,49 +3,344 @@ name: Build and Push RMCS Images
 on:
   workflow_dispatch:
   push:
-    paths:
-    - 'Dockerfile'
     branches:
-    - main
+      - main
+    paths:
+      - Dockerfile
+      - .github/workflows/update-image.yml
+      - .script/build-rmcs-cross
+      - rmcs_ws/toolchain.cmake
+
+env:
+  REGISTRY_IMAGE_BASE: qzhhhi/rmcs-base
+  REGISTRY_IMAGE_DEVELOP: qzhhhi/rmcs-develop
+  REGISTRY_IMAGE_RUNTIME: qzhhhi/rmcs-runtime
 
 jobs:
-  build-and-push:
-    runs-on: ubuntu-latest
-
+  build_base:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v6
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-    - name: Log in to Docker Hub
-      uses: docker/login-action@v3
-      with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
 
-    - name: Set up SSH keys
-      run: |
-        mkdir -p .ssh
-        chmod 700 .ssh
-        echo "${{ secrets.CONTAINER_ID_RSA }}" > .ssh/id_rsa
-        echo "${{ secrets.CONTAINER_ID_RSA_PUB }}" > .ssh/id_rsa.pub
-        chmod 600 .ssh/id_rsa
-        chmod 644 .ssh/id_rsa.pub
+      - name: Build and push by digest (Base)
+        id: build_base
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: rmcs-base
+          platforms: linux/${{ matrix.arch }}
+          outputs: type=image,name=${{ env.REGISTRY_IMAGE_BASE }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=docker-build-base-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=docker-build-base-${{ matrix.arch }}
 
-    - name: Build and push rmcs-develop:latest
-      uses: docker/build-push-action@v6
-      with:
-        context: .
-        push: true
-        target: rmcs-develop
-        tags: qzhhhi/rmcs-develop:latest
+      - name: Export digest (Base)
+        run: |
+          mkdir -p "${{ runner.temp }}/digests-base"
+          printf '%s\n' "${{ steps.build_base.outputs.digest }}" > "${{ runner.temp }}/digests-base/${{ matrix.arch }}.digest"
 
-    - name: Build and push rmcs-runtime:latest
-      uses: docker/build-push-action@v6
-      with:
-        context: .
-        push: true
-        target: rmcs-runtime
-        tags: qzhhhi/rmcs-runtime:latest
+      - name: Upload digest (Base)
+        uses: actions/upload-artifact@v6
+        with:
+          name: digests-base-${{ matrix.arch }}
+          path: ${{ runner.temp }}/digests-base/*.digest
+          if-no-files-found: error
+          retention-days: 1
+
+  build_images:
+    needs: build_base
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Set up SSH keys
+        run: |
+          mkdir -p .ssh
+          chmod 700 .ssh
+          echo "${{ secrets.CONTAINER_ID_RSA }}" > .ssh/id_rsa
+          echo "${{ secrets.CONTAINER_ID_RSA_PUB }}" > .ssh/id_rsa.pub
+          chmod 600 .ssh/id_rsa
+          chmod 644 .ssh/id_rsa.pub
+
+      - name: Download digests (Base)
+        uses: actions/download-artifact@v7
+        with:
+          path: ${{ runner.temp }}/digests/base
+          pattern: digests-base-*
+          merge-multiple: true
+
+      - name: Resolve base digests
+        id: resolve
+        run: |
+          set -euo pipefail
+          base_dir="${{ runner.temp }}/digests/base"
+          base_digest_amd64="$(cat "${base_dir}/amd64.digest")"
+          base_digest_arm64="$(cat "${base_dir}/arm64.digest")"
+          echo "base_digest_amd64=${base_digest_amd64}" >> "$GITHUB_OUTPUT"
+          echo "base_digest_arm64=${base_digest_arm64}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push by digest (Develop)
+        id: build_develop
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: rmcs-develop
+          platforms: linux/${{ matrix.arch }}
+          outputs: type=image,name=${{ env.REGISTRY_IMAGE_DEVELOP }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=docker-build-develop-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=docker-build-develop-${{ matrix.arch }}
+
+      - name: Export digest (Develop)
+        run: |
+          mkdir -p "${{ runner.temp }}/digests-develop-standard"
+          printf '%s\n' "${{ steps.build_develop.outputs.digest }}" > "${{ runner.temp }}/digests-develop-standard/${{ matrix.arch }}.digest"
+
+      - name: Upload digest (Develop)
+        uses: actions/upload-artifact@v6
+        with:
+          name: digests-develop-standard-${{ matrix.arch }}
+          path: ${{ runner.temp }}/digests-develop-standard/*.digest
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Build and push by digest (Develop Full)
+        id: build_develop_full
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: rmcs-develop-full
+          platforms: linux/${{ matrix.arch }}
+          build-args: |
+            SYSROOT_IMAGE_AMD64=${{ env.REGISTRY_IMAGE_BASE }}@${{ steps.resolve.outputs.base_digest_amd64 }}
+            SYSROOT_IMAGE_ARM64=${{ env.REGISTRY_IMAGE_BASE }}@${{ steps.resolve.outputs.base_digest_arm64 }}
+          outputs: type=image,name=${{ env.REGISTRY_IMAGE_DEVELOP }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=docker-build-develop-full-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=docker-build-develop-full-${{ matrix.arch }}
+
+      - name: Export digest (Develop Full)
+        run: |
+          mkdir -p "${{ runner.temp }}/digests-develop-full"
+          printf '%s\n' "${{ steps.build_develop_full.outputs.digest }}" > "${{ runner.temp }}/digests-develop-full/${{ matrix.arch }}.digest"
+
+      - name: Upload digest (Develop Full)
+        uses: actions/upload-artifact@v6
+        with:
+          name: digests-develop-full-${{ matrix.arch }}
+          path: ${{ runner.temp }}/digests-develop-full/*.digest
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Build and push by digest (Runtime)
+        id: build_runtime
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: rmcs-runtime
+          platforms: linux/${{ matrix.arch }}
+          outputs: type=image,name=${{ env.REGISTRY_IMAGE_RUNTIME }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=docker-build-runtime-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=docker-build-runtime-${{ matrix.arch }}
+
+      - name: Export digest (Runtime)
+        run: |
+          mkdir -p "${{ runner.temp }}/digests-runtime"
+          printf '%s\n' "${{ steps.build_runtime.outputs.digest }}" > "${{ runner.temp }}/digests-runtime/${{ matrix.arch }}.digest"
+
+      - name: Upload digest (Runtime)
+        uses: actions/upload-artifact@v6
+        with:
+          name: digests-runtime-${{ matrix.arch }}
+          path: ${{ runner.temp }}/digests-runtime/*.digest
+          if-no-files-found: error
+          retention-days: 1
+
+  verify_images:
+    needs: build_images
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+            cross_target: arm64
+            cross_triplet: aarch64-linux-gnu
+            expected_machine: AArch64
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+            cross_target: amd64
+            cross_triplet: x86_64-linux-gnu
+            expected_machine: X86-64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Download digests (Develop Full)
+        uses: actions/download-artifact@v7
+        with:
+          path: ${{ runner.temp }}/digests/develop-full
+          pattern: digests-develop-full-*
+          merge-multiple: true
+
+      - name: Resolve develop-full digest
+        id: resolve
+        run: |
+          set -euo pipefail
+          digest_file="${{ runner.temp }}/digests/develop-full/${{ matrix.arch }}.digest"
+          image_digest="$(cat "${digest_file}")"
+          echo "image_digest=${image_digest}" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke test (cross build + readelf)
+        env:
+          IMAGE_DIGEST: ${{ steps.resolve.outputs.image_digest }}
+          CROSS_TARGET: ${{ matrix.cross_target }}
+          CROSS_TRIPLET: ${{ matrix.cross_triplet }}
+          EXPECTED_MACHINE: ${{ matrix.expected_machine }}
+        run: |
+          set -euo pipefail
+          uid="$(id -u)"
+          gid="$(id -g)"
+          docker run --rm \
+            --platform "linux/${{ matrix.arch }}" \
+            --user "${uid}:${gid}" \
+            -e HOME=/tmp/rmcs-home \
+            -e RMCS_PATH=/workspaces/RMCS \
+            -e CROSS_TARGET="${CROSS_TARGET}" \
+            -e CROSS_TRIPLET="${CROSS_TRIPLET}" \
+            -e EXPECTED_MACHINE="${EXPECTED_MACHINE}" \
+            -v "$PWD:/workspaces/RMCS" \
+            -w /workspaces/RMCS \
+            "${{ env.REGISTRY_IMAGE_DEVELOP }}@${IMAGE_DIGEST}" \
+            bash -lc '
+              set -euo pipefail
+              mkdir -p "${HOME}"
+              test -d "/opt/sysroots/${CROSS_TARGET}"
+              command -v "${CROSS_TRIPLET}-gcc"
+              command -v "${CROSS_TRIPLET}-g++"
+              ./.script/build-rmcs-cross --target-arch "${CROSS_TARGET}" --packages-up-to rmcs_executor
+              lib_path="/workspaces/RMCS/rmcs_ws/install-cross-${CROSS_TARGET}/lib/librmcs_executor.so"
+              if [[ ! -f "${lib_path}" ]]; then
+                echo "Missing library: ${lib_path}" >&2
+                exit 1
+              fi
+              readelf -h "${lib_path}" | grep -q "Machine:.*${EXPECTED_MACHINE}"
+            '
+
+  promote:
+    runs-on: ubuntu-latest
+    needs:
+      - build_base
+      - build_images
+      - verify_images
+    steps:
+      - name: Download digests (Base)
+        uses: actions/download-artifact@v7
+        with:
+          path: ${{ runner.temp }}/digests/base
+          pattern: digests-base-*
+          merge-multiple: true
+
+      - name: Download digests (Develop)
+        uses: actions/download-artifact@v7
+        with:
+          path: ${{ runner.temp }}/digests/develop-standard
+          pattern: digests-develop-standard-*
+          merge-multiple: true
+
+      - name: Download digests (Develop Full)
+        uses: actions/download-artifact@v7
+        with:
+          path: ${{ runner.temp }}/digests/develop-full
+          pattern: digests-develop-full-*
+          merge-multiple: true
+
+      - name: Download digests (Runtime)
+        uses: actions/download-artifact@v7
+        with:
+          path: ${{ runner.temp }}/digests/runtime
+          pattern: digests-runtime-*
+          merge-multiple: true
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Create manifest lists and push
+        run: |
+          set -euo pipefail
+
+          create_manifest() {
+            local image="$1"
+            local tag="$2"
+            local digest_dir="$3"
+            local refs=()
+
+            while IFS= read -r digest_file; do
+              refs+=("${image}@$(cat "${digest_file}")")
+            done < <(find "${digest_dir}" -maxdepth 1 -type f -name '*.digest' | sort)
+
+            if [[ ${#refs[@]} -eq 0 ]]; then
+              echo "No digest files found in ${digest_dir}" >&2
+              exit 1
+            fi
+
+            docker buildx imagetools create -t "${image}:${tag}" "${refs[@]}"
+          }
+
+          create_manifest "${{ env.REGISTRY_IMAGE_BASE }}" "latest" "${{ runner.temp }}/digests/base"
+          create_manifest "${{ env.REGISTRY_IMAGE_DEVELOP }}" "latest" "${{ runner.temp }}/digests/develop-standard"
+          create_manifest "${{ env.REGISTRY_IMAGE_DEVELOP }}" "latest-full" "${{ runner.temp }}/digests/develop-full"
+          create_manifest "${{ env.REGISTRY_IMAGE_RUNTIME }}" "latest" "${{ runner.temp }}/digests/runtime"
+
+      - name: Inspect images
+        run: |
+          docker buildx imagetools inspect "${{ env.REGISTRY_IMAGE_BASE }}:latest"
+          docker buildx imagetools inspect "${{ env.REGISTRY_IMAGE_DEVELOP }}:latest"
+          docker buildx imagetools inspect "${{ env.REGISTRY_IMAGE_DEVELOP }}:latest-full"
+          docker buildx imagetools inspect "${{ env.REGISTRY_IMAGE_RUNTIME }}:latest"

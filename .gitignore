@@ -2,6 +2,9 @@ devel/
 log/
 build/
 install/
+log-cross-*/
+build-cross-*/
+install-cross-*/
 bin/
 lib/
 msg_gen/
