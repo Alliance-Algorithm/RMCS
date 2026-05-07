@@ -1,11 +1,5 @@
 # ADRC V2 说明（公式 + 变量含义）
 
-对应代码文件：
-- `TD.hpp`
-- `ESO.hpp`
-- `NLESF.hpp`
-- `adrc_controller_v2.cpp`
-
 ## 1. 总体结构
 
 单通道 ADRC 每周期执行顺序：
