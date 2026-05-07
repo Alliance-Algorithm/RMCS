@@ -75,7 +75,7 @@ public:
         switch (config.motor_type) {
         case Type::kMG5010Ei10:
             raw_angle_modulus_ = 1 << 16;
-            torque_constant = 0.1;
+            torque_constant = 0.90909;
             reduction_ratio = 10.0;
 
             // Note: max_torque_ should represent the ACTUAL maximum torque of the motor.
@@ -93,7 +93,7 @@ public:
             break;
         case Type::kMG6012Ei8:
             raw_angle_modulus_ = 1 << 16;
-            torque_constant = 1.09 / 8.0;
+            torque_constant = 1.09;
             reduction_ratio = 8.0;
             max_torque_ = 16.0;
             break;
