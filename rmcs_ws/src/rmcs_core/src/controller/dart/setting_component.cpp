@@ -46,6 +46,11 @@ public:
         register_input(
             "/dart_manager/force/max_velocity_override", force_max_velocity_override_, false);
 
+        register_input("/dart/pitch_motor/velocity", pitch_velocity_);
+        register_input("/dart/yaw_motor/velocity", yaw_velocity_);
+        register_input("/dart/pitch_motor/torque", pitch_torque_);
+        register_input("/dart/yaw_motor/torque", yaw_torque_);
+
         register_output("/dart/yaw_motor/control_velocity", yaw_control_velocity_, 0.0);
         register_output("/dart/pitch_motor/control_velocity", pitch_control_velocity_, 0.0);
         register_output("/dart/force_screw_motor/control_velocity", force_control_velocity_, 0.0);
@@ -67,10 +72,22 @@ public:
     void update() override {
         const Eigen::Vector2d& angle_error = *angle_error_vector_;
 
-        *yaw_control_velocity_ =
-            limit_velocity(angle_error[0], yaw_error_to_velocity_gain_, yaw_max_velocity_);
-        *pitch_control_velocity_ =
-            limit_velocity(angle_error[1], pitch_error_to_velocity_gain_, pitch_max_velocity_);
+        if (*yaw_torque_ > 0.5 && *yaw_velocity_ < 1.0) {
+            *yaw_control_velocity_ =
+                limit_velocity(angle_error[0], yaw_error_to_velocity_gain_, yaw_max_velocity_);
+        } else {
+            *yaw_control_velocity_ = 0.0;
+            RCLCPP_WARN(get_logger(), "yaw motor stalled!");
+        }
+
+        if (*pitch_torque_ > 0.5 && *pitch_velocity_ < 1.0) {
+            *pitch_control_velocity_ =
+                limit_velocity(angle_error[1], pitch_error_to_velocity_gain_, pitch_max_velocity_);
+        } else {
+            *pitch_control_velocity_ = 0.0;
+            RCLCPP_WARN(get_logger(), "pitch motor stalled!");
+        }
+
         if (const auto carriage_control_velocity = resolve_carriage_control_velocity()) {
             *force_control_velocity_ = *carriage_control_velocity;
             force_error_velocity_pid_.reset();
@@ -199,6 +216,11 @@ private:
 
     InputInterface<double> pitch_angle_;
     InputInterface<double> force_max_velocity_override_;
+
+    InputInterface<double> pitch_velocity_;
+    InputInterface<double> yaw_velocity_;
+    InputInterface<double> pitch_torque_;
+    InputInterface<double> yaw_torque_;
 
     OutputInterface<double> yaw_control_velocity_;
     OutputInterface<double> pitch_control_velocity_;
