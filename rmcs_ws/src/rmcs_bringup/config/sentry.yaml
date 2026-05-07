@@ -27,15 +27,27 @@ rmcs_executor:
 
       # - rmcs::navigation::Navigation -> rmcs_navigation
 
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+
+value_broadcaster:
+  ros__parameters:
+    forward_list:
+      - /gimbal/bottom_yaw/angle
+      - /gimbal/bottom_yaw/velocity
+      - /gimbal/pitch/angle
+      - /gimbal/pitch/control_torque
+      - /gimbal/top_yaw/angle
+      - /gimbal/top_yaw/velocity
+
 # The positive direction is the one that battery exists
 sentry_hardware:
   ros__parameters:
     board_serial_top_board: "af-da30"
     board_serial_bottom_board: "d4-2184"
     board_serial_gimbal_board: "d4-1d2b"
-    bottom_yaw_motor_zero_point: 26163
-    top_yaw_motor_zero_point: 4540
-    pitch_motor_zero_point: 1446
+    bottom_yaw_motor_zero_point: 23932
+    top_yaw_motor_zero_point: 32916
+    pitch_motor_zero_point: 1275
     left_front_zero_point: 7131
     left_back_zero_point: 3740
     right_back_zero_point: 1327
@@ -57,23 +69,23 @@ gimbal_controller:
     upper_limit: -0.39518
     lower_limit: 0.36
 
-    top_yaw_angle_kp: 30.0
+    top_yaw_angle_kp: 45.0
     top_yaw_angle_ki: 0.0
     top_yaw_angle_kd: 0.0
     top_yaw_velocity_kp: 2.160
     top_yaw_velocity_ki: 0.0
     top_yaw_velocity_kd: 0.0
 
-    bottom_yaw_angle_kp: 8.8
+    bottom_yaw_angle_kp: 15.0
     bottom_yaw_angle_ki: 0.0
     bottom_yaw_angle_kd: 0.0
-    bottom_yaw_velocity_kp: 22.49
+    bottom_yaw_velocity_kp: 22.5
     bottom_yaw_velocity_ki: 0.0
     bottom_yaw_velocity_kd: 0.0
 
-    pitch_angle_kp: 40.0
+    pitch_angle_kp: 32.0
     pitch_angle_ki: 0.0
-    pitch_angle_kd: 0.01
+    pitch_angle_kd: 0.0
     pitch_velocity_kp: 2.5
     pitch_velocity_ki: 0.0
     pitch_velocity_kd: 0.0
