@@ -15,7 +15,6 @@
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
-#include <rmcs_msgs/hard_sync_snapshot.hpp>
 #include <rmcs_msgs/serial_interface.hpp>
 #include <rmcs_utility/ring_buffer.hpp>
 #include <std_msgs/msg/int32.hpp>
@@ -26,7 +25,6 @@
 #include "hardware/device/bmi088.hpp"
 #include "hardware/device/can_packet.hpp"
 #include "hardware/device/dji_motor.hpp"
-#include "hardware/device/dji_motor_with_encoder.hpp"
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/lk_motor.hpp"
 #include "hardware/device/supercap.hpp"
@@ -50,7 +48,6 @@ public:
 
         register_input("/predefined/timestamp", timestamp_);
         register_output("/tf", tf_);
-        register_output("/gimbal/hard_sync_snapshot", hard_sync_snapshot_);
 
         tf_->set_transform<PitchLink, CameraLink>(Eigen::Translation3d{0.16, 0.0, 0.15});
 
@@ -84,7 +81,6 @@ public:
         rmcs_board_lite->update();
         top_board_->update();
         imu_->update();
-        update_hard_sync_snapshot();
     }
 
     void command_update() {
@@ -98,27 +94,6 @@ private:
     class BottomBoard;
     class ImuBoard;
     class TopBoard;
-
-    void update_hard_sync_snapshot() {
-        if (!hard_sync_pending_.exchange(false, std::memory_order_relaxed))
-            return;
-
-        hard_sync_snapshot_->valid = true;
-        hard_sync_snapshot_->exposure_timestamp = *timestamp_;
-        hard_sync_snapshot_->qw = imu_->bmi088_.q0();
-        hard_sync_snapshot_->qx = imu_->bmi088_.q1();
-        hard_sync_snapshot_->qy = imu_->bmi088_.q2();
-        hard_sync_snapshot_->qz = imu_->bmi088_.q3();
-        ++hard_sync_snapshot_count_;
-
-        if (*timestamp_ >= next_hard_sync_log_time_) {
-            RCLCPP_INFO(
-                get_logger(), "[hard sync] published %zu snapshots in the last second",
-                hard_sync_snapshot_count_);
-            hard_sync_snapshot_count_ = 0;
-            next_hard_sync_log_time_ = *timestamp_ + std::chrono::seconds(1);
-        }
-    }
 
     void joints_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
         if (!rmcs_board_lite)
@@ -178,7 +153,7 @@ private:
             , imu_(1000, 0.2, 0.0)
             , gimbal_yaw_motor_(deformableInfantry, deformableInfantry_command, "/gimbal/yaw")
             , dr16_(deformableInfantry)
-            , chassis_wheel_motors_{device::DjiMotorWithEncoder{deformableInfantry, deformableInfantry_command, "/chassis/left_front_wheel"}, device::DjiMotorWithEncoder{deformableInfantry, deformableInfantry_command, "/chassis/left_back_wheel"}, device::DjiMotorWithEncoder{deformableInfantry, deformableInfantry_command, "/chassis/right_back_wheel"}, device::DjiMotorWithEncoder{deformableInfantry, deformableInfantry_command, "/chassis/right_front_wheel"}}
+            , chassis_wheel_motors_{device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/left_front_wheel"}, device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/left_back_wheel"}, device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/right_back_wheel"}, device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/right_front_wheel"}}
             , chassis_joint_motors_{device::LkMotor{deformableInfantry, deformableInfantry_command, "/chassis/left_front_joint"}, device::LkMotor{deformableInfantry, deformableInfantry_command, "/chassis/left_back_joint"}, device::LkMotor{deformableInfantry, deformableInfantry_command, "/chassis/right_back_joint"}, device::LkMotor{deformableInfantry, deformableInfantry_command, "/chassis/right_front_joint"}}
             , next_chassis_feedback_log_time_(Clock::now() + std::chrono::seconds(1))
             , next_supercap_feedback_log_time_(Clock::now() + std::chrono::seconds(1))
@@ -204,7 +179,7 @@ private:
 
             for (auto& motor : chassis_wheel_motors_)
                 motor.configure(
-                    device::DjiMotorWithEncoder::Config{device::DjiMotorWithEncoder::Type::kM3508}
+                    device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
                         .set_reduction_ratio(11.0)
                         .enable_multi_turn_angle()
                         .set_reversed());
@@ -469,11 +444,9 @@ private:
                     "rx=[%c %c %c %c]",
                     chassis_wheel_motors_[0].angle(), chassis_wheel_motors_[1].angle(),
                     chassis_wheel_motors_[2].angle(), chassis_wheel_motors_[3].angle(),
-                    chassis_wheel_motors_[0].encoder_angle(),
-                    chassis_wheel_motors_[1].encoder_angle(),
-                    chassis_wheel_motors_[2].encoder_angle(),
-                    chassis_wheel_motors_[3].encoder_angle(), wheel_rx(0), wheel_rx(1), wheel_rx(2),
-                    wheel_rx(3));
+                    chassis_wheel_motors_[0].angle(), chassis_wheel_motors_[1].angle(),
+                    chassis_wheel_motors_[2].angle(), chassis_wheel_motors_[3].angle(), wheel_rx(0),
+                    wheel_rx(1), wheel_rx(2), wheel_rx(3));
             }
 
             if (debug_log_deformable_joint_motor_) {
@@ -603,7 +576,7 @@ private:
         device::Bmi088 imu_;
         device::LkMotor gimbal_yaw_motor_;
         device::Dr16 dr16_;
-        device::DjiMotorWithEncoder chassis_wheel_motors_[4];
+        device::DjiMotor chassis_wheel_motors_[4];
         device::LkMotor chassis_joint_motors_[4];
         std::atomic<bool> wheel_status_received_[4] = {false, false, false, false};
         std::atomic<bool> joint_status_received_[4] = {false, false, false, false};
@@ -815,7 +788,6 @@ private:
 
     OutputInterface<rmcs_description::Tf> tf_;
     InputInterface<Clock::time_point> timestamp_;
-    OutputInterface<rmcs_msgs::HardSyncSnapshot> hard_sync_snapshot_;
     std::atomic<bool> hard_sync_pending_{false};
     size_t hard_sync_snapshot_count_ = 0;
     Clock::time_point next_hard_sync_log_time_{};

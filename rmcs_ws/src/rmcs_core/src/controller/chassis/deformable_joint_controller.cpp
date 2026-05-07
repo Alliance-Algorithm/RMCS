@@ -7,9 +7,9 @@
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
 
-#include "controller/adrc/ESO.hpp"
-#include "controller/adrc/NLESF.hpp"
-#include "controller/adrc/TD.hpp"
+#include "controller/adrc/eso.hpp"
+#include "controller/adrc/nlesf.hpp"
+#include "controller/adrc/td.hpp"
 
 namespace rmcs_core::controller::chassis {
 
