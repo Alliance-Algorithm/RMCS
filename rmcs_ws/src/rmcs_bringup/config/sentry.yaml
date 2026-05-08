@@ -25,10 +25,10 @@ rmcs_executor:
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::SteeringWheelController -> steering_wheel_controller
 
-      - rmcs::navigation::Navigation -> rmcs_navigation
-      - rmcs::AutoAimComponent -> auto_aim_component
+      # - rmcs::navigation::Navigation -> rmcs_navigation
+      # - rmcs::AutoAimComponent -> auto_aim_component
 
-      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 
 value_broadcaster:
   ros__parameters:
@@ -107,7 +107,9 @@ gimbal_controller:
 
 chassis_controller:
   ros__parameters:
-    navigation_velocity_scale: 1.0
+    following_velocity_kp: 5.0
+    following_velocity_ki: 0.001
+    following_velocity_kd: 0.0
 
 friction_wheel_controller:
   ros__parameters:
@@ -172,6 +174,23 @@ steering_wheel_controller:
     k1: 2.958580e+00
     k2: 3.082190e-03
     no_load_power: 11.37
+
     chassis_translation_kp: 20.0
-    chassis_translation_ki: 0.05
+    chassis_translation_ki: 0.001
     chassis_translation_kd: 0.00
+
+    chassis_angular_velocity_kp: 5.0
+    chassis_angular_velocity_ki: 0.0
+    chassis_angular_velocity_kd: 1.0
+
+    steering_velocity_kp: 0.15
+    steering_velocity_ki: 0.0
+    steering_velocity_kd: 0.0
+
+    steering_angle_kp: 30.0
+    steering_angle_ki: 0.0
+    steering_angle_kd: 0.0
+
+    wheel_velocity_kp: 0.50
+    wheel_velocity_ki: 0.0
+    wheel_velocity_kd: 0.0

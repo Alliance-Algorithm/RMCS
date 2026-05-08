@@ -45,14 +45,16 @@ public:
         if (input_.enable_autoaim()) {
             const auto& dir = *input_.auto_aim_control_direction;
             const auto xy_norm = std::hypot(dir.x(), dir.y());
-            const auto auto_aim_target = ControlTarget{
-                .bottom_yaw = {.target = std::atan2(dir.y(), dir.x())},
-                .top_yaw = {.target = 0.0},
-                .pitch =
-                    {.target =
-                         std::clamp(std::atan2(-dir.z(), xy_norm), upper_limit_, lower_limit_)},
-            };
-            apply_control(auto_aim_target);
+            const auto pitch =
+                std::clamp(std::atan2(-dir.z(), xy_norm), upper_limit_, lower_limit_);
+            const auto yaw = std::atan2(dir.y(), dir.x());
+
+            apply_control(
+                ControlTarget{
+                    .bottom_yaw = {.target = yaw},
+                    .top_yaw = {.target = 0.0},
+                    .pitch = {.target = pitch},
+                });
             return;
         }
 

@@ -1,16 +1,13 @@
-#include <cmath>
-
-#include <eigen3/Eigen/Dense>
-#include <rclcpp/logging.hpp>
-#include <rclcpp/node.hpp>
-#include <rmcs_description/tf_description.hpp>
-#include <rmcs_executor/component.hpp>
-#include <rmcs_utility/eigen_structured_bindings.hpp>
-
 #include "controller/chassis/qcp_solver.hpp"
 #include "controller/pid/matrix_pid_calculator.hpp"
 #include "controller/pid/pid_calculator.hpp"
 #include "filter/low_pass_filter.hpp"
+
+#include <eigen3/Eigen/Geometry>
+#include <rclcpp/node.hpp>
+#include <rmcs_description/tf_description.hpp>
+#include <rmcs_executor/component.hpp>
+#include <rmcs_utility/eigen_structured_bindings.hpp>
 
 namespace rmcs_core::controller::chassis {
 
@@ -22,30 +19,9 @@ class SteeringWheelController
 
 public:
     explicit SteeringWheelController()
-        : Node(
+        : Node{
               get_component_name(),
-              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , mess_(get_parameter("mess").as_double())
-        , moment_of_inertia_(get_parameter("moment_of_inertia").as_double())
-        , vehicle_radius_(get_parameter("vehicle_radius").as_double())
-        , wheel_radius_(get_parameter("wheel_radius").as_double())
-        , friction_coefficient_(get_parameter("friction_coefficient").as_double())
-        , k1_(get_parameter("k1").as_double())
-        , k2_(get_parameter("k2").as_double())
-        , no_load_power_(get_parameter("no_load_power").as_double())
-        , control_acceleration_filter_(5.0, 1000.0)
-        , chassis_velocity_expected_(Eigen::Vector3d::Zero())
-        , chassis_translational_velocity_pid_{
-            get_parameter_or<double>("chassis_translation_kp", 0.0),
-            get_parameter_or<double>("chassis_translation_ki", 0.0),
-            get_parameter_or<double>("chassis_translation_kd", 0.0),
-        }
-        , chassis_angular_velocity_pid_(5.0, 0.0, 1.0)
-        , cos_varphi_(1, 0, -1, 0) // 0, pi/2, pi, 3pi/2
-        , sin_varphi_(0, 1, 0, -1)
-        , steering_velocity_pid_(0.15, 0.0, 0.0)
-        , steering_angle_pid_(30.0, 0.0, 0.0)
-        , wheel_velocity_pid_(0.6, 0.0, 0.0) {
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)} {
 
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
@@ -138,6 +114,89 @@ private:
         Eigen::Vector4d wheel_velocity_x, wheel_velocity_y;
     };
 
+    static constexpr double kNaN{std::numeric_limits<double>::quiet_NaN()};
+    static constexpr double kInf{std::numeric_limits<double>::infinity()};
+
+    static constexpr double kDt{1e-3};
+    static constexpr double kG{9.81};
+
+    static inline const Eigen::Vector4d kCosVarphi{1, 0, -1, 0}, kSinVarphi{0, 1, 0, -1};
+
+    const double mess_{get_parameter("mess").as_double()};
+    const double moment_of_inertia_{get_parameter("moment_of_inertia").as_double()};
+    const double vehicle_radius_{get_parameter("vehicle_radius").as_double()};
+    const double wheel_radius_{get_parameter("wheel_radius").as_double()};
+    const double friction_coefficient_{get_parameter("friction_coefficient").as_double()};
+
+    const double k1_{get_parameter("k1").as_double()};
+    const double k2_{get_parameter("k2").as_double()};
+    const double no_load_power_{get_parameter("no_load_power").as_double()};
+
+    QcpSolver qcp_solver_;
+    filter::LowPassFilter<3> control_acceleration_filter_{5.0, 1000.0};
+
+    double chassis_yaw_angle_imu_{0.0};
+    Eigen::Vector3d chassis_velocity_expected_{Eigen::Vector3d::Zero()};
+
+    InputInterface<Eigen::Vector2d> joystick_right_;
+    InputInterface<Eigen::Vector2d> joystick_left_;
+
+    InputInterface<double> left_front_steering_angle_;
+    InputInterface<double> left_back_steering_angle_;
+    InputInterface<double> right_back_steering_angle_;
+    InputInterface<double> right_front_steering_angle_;
+
+    InputInterface<double> left_front_steering_velocity_;
+    InputInterface<double> left_back_steering_velocity_;
+    InputInterface<double> right_back_steering_velocity_;
+    InputInterface<double> right_front_steering_velocity_;
+
+    InputInterface<double> left_front_wheel_velocity_;
+    InputInterface<double> left_back_wheel_velocity_;
+    InputInterface<double> right_back_wheel_velocity_;
+    InputInterface<double> right_front_wheel_velocity_;
+
+    InputInterface<double> chassis_yaw_velocity_imu_;
+    InputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;
+    InputInterface<double> power_limit_;
+
+    OutputInterface<double> left_front_steering_control_torque_;
+    OutputInterface<double> left_back_steering_control_torque_;
+    OutputInterface<double> right_back_steering_control_torque_;
+    OutputInterface<double> right_front_steering_control_torque_;
+
+    OutputInterface<double> left_front_wheel_control_torque_;
+    OutputInterface<double> left_back_wheel_control_torque_;
+    OutputInterface<double> right_back_wheel_control_torque_;
+    OutputInterface<double> right_front_wheel_control_torque_;
+
+    pid::MatrixPidCalculator<2> chassis_translational_velocity_pid_{
+        get_parameter_or<double>("chassis_translation_kp", 0.0),
+        get_parameter_or<double>("chassis_translation_ki", 0.0),
+        get_parameter_or<double>("chassis_translation_kd", 0.0),
+    };
+    pid::PidCalculator chassis_angular_velocity_pid_{
+        get_parameter_or<double>("chassis_angular_velocity_kp", 5.0),
+        get_parameter_or<double>("chassis_angular_velocity_ki", 0.0),
+        get_parameter_or<double>("chassis_angular_velocity_kd", 1.0),
+    };
+
+    pid::MatrixPidCalculator<4> steering_velocity_pid_{
+        get_parameter_or<double>("steering_velocity_kp", 0.15),
+        get_parameter_or<double>("steering_velocity_ki", 0.0),
+        get_parameter_or<double>("steering_velocity_kd", 0.0),
+    };
+    pid::MatrixPidCalculator<4> steering_angle_pid_{
+        get_parameter_or<double>("steering_angle_kp", 30.0),
+        get_parameter_or<double>("steering_angle_ki", 0.0),
+        get_parameter_or<double>("steering_angle_kd", 0.0),
+    };
+    pid::MatrixPidCalculator<4> wheel_velocity_pid_{
+        get_parameter_or<double>("wheel_velocity_kp", 0.50),
+        get_parameter_or<double>("wheel_velocity_ki", 0.0),
+        get_parameter_or<double>("wheel_velocity_kd", 0.0),
+    };
+
     void reset_all_controls() {
         control_acceleration_filter_.reset();
 
@@ -156,7 +215,7 @@ private:
     }
 
     void integral_yaw_angle_imu() {
-        chassis_yaw_angle_imu_ += *chassis_yaw_velocity_imu_ * dt_;
+        chassis_yaw_angle_imu_ += *chassis_yaw_velocity_imu_ * kDt;
         chassis_yaw_angle_imu_ = std::fmod(chassis_yaw_angle_imu_, 2 * std::numbers::pi);
     }
 
@@ -164,20 +223,20 @@ private:
         SteeringStatus steering_status;
 
         steering_status.angle = {
-            *left_front_steering_angle_,    //
-            *left_back_steering_angle_,     //
-            *right_back_steering_angle_,    //
-            *right_front_steering_angle_    //
+            *left_front_steering_angle_,
+            *left_back_steering_angle_,
+            *right_back_steering_angle_,
+            *right_front_steering_angle_,
         };
         steering_status.angle.array() -= std::numbers::pi / 4;
         steering_status.cos_angle = steering_status.angle.array().cos();
         steering_status.sin_angle = steering_status.angle.array().sin();
 
         steering_status.velocity = {
-            *left_front_steering_velocity_, //
-            *left_back_steering_velocity_,  //
-            *right_back_steering_velocity_, //
-            *right_front_steering_velocity_ //
+            *left_front_steering_velocity_,
+            *left_back_steering_velocity_,
+            *right_back_steering_velocity_,
+            *right_front_steering_velocity_,
         };
 
         return steering_status;
@@ -185,10 +244,10 @@ private:
 
     Eigen::Vector4d calculate_wheel_velocities() {
         return {
-            *left_front_wheel_velocity_,    //
-            *left_back_wheel_velocity_,     //
-            *right_back_wheel_velocity_,    //
-            *right_front_wheel_velocity_    //
+            *left_front_wheel_velocity_,
+            *left_back_wheel_velocity_,
+            *right_back_wheel_velocity_,
+            *right_front_wheel_velocity_,
         };
     }
 
@@ -222,8 +281,8 @@ private:
         chassis_status_expected.velocity = odom_to_base_link_vector(chassis_velocity_expected_);
 
         const auto& [vx, vy, vz] = chassis_status_expected.velocity;
-        chassis_status_expected.wheel_velocity_x = vx - vehicle_radius_ * vz * sin_varphi_.array();
-        chassis_status_expected.wheel_velocity_y = vy + vehicle_radius_ * vz * cos_varphi_.array();
+        chassis_status_expected.wheel_velocity_x = vx - vehicle_radius_ * vz * kSinVarphi.array();
+        chassis_status_expected.wheel_velocity_y = vy + vehicle_radius_ * vz * kCosVarphi.array();
 
         return chassis_status_expected;
     }
@@ -285,7 +344,7 @@ private:
         double angular_acceleration_direction = angular_acceleration_max > 0 ? 1.0 : -1.0;
         angular_acceleration_max *= angular_acceleration_direction;
 
-        const double rhombus_right = friction_coefficient_ * g_;
+        const double rhombus_right = friction_coefficient_ * kG;
         const double rhombus_top = rhombus_right * mess_ * vehicle_radius_ / moment_of_inertia_;
 
         auto [a, b, c, d, e, f] = calculate_ellipse_parameters(
@@ -310,8 +369,8 @@ private:
             steering_status.cos_angle.array() * translational_acceleration_direction.x()
             + steering_status.sin_angle.array() * translational_acceleration_direction.y();
         Eigen::Vector4d sin_alpha_minus_varphi =
-            cos_varphi_.array() * steering_status.sin_angle.array()
-            - sin_varphi_.array() * steering_status.cos_angle.array();
+            kCosVarphi.array() * steering_status.sin_angle.array()
+            - kSinVarphi.array() * steering_status.cos_angle.array();
         Eigen::Vector4d double_k1_torque_base_plus_wheel_velocities =
             2 * k1_ * wheel_torque_base.array() + wheel_velocities.array();
 
@@ -353,8 +412,8 @@ private:
 
         Eigen::Vector4d steering_control_velocities =
             vx * ay - vy * ax - vz * (vx * vx + vy * vy)
-            + vehicle_radius_ * (az * vx - vz * (ax + vz * vy)) * cos_varphi_.array()
-            + vehicle_radius_ * (az * vy - vz * (ay - vz * vx)) * sin_varphi_.array();
+            + vehicle_radius_ * (az * vx - vz * (ax + vz * vy)) * kCosVarphi.array()
+            + vehicle_radius_ * (az * vy - vz * (ay - vz * vx)) * kSinVarphi.array();
         Eigen::Vector4d steering_control_angles;
 
         for (int i = 0; i < steering_control_velocities.size(); ++i) {
@@ -364,14 +423,14 @@ private:
                     chassis_status_expected.wheel_velocity_y[i],
                     chassis_status_expected.wheel_velocity_x[i]);
             } else {
-                auto x = ax - vehicle_radius_ * (az * sin_varphi_[i] + 0 * cos_varphi_[i]);
-                auto y = ay + vehicle_radius_ * (az * cos_varphi_[i] - 0 * sin_varphi_[i]);
+                auto x = ax - vehicle_radius_ * (az * kSinVarphi[i] + 0 * kCosVarphi[i]);
+                auto y = ay + vehicle_radius_ * (az * kCosVarphi[i] - 0 * kSinVarphi[i]);
                 if (x * x + y * y > 1e-6) {
                     steering_control_velocities[i] = 0.0;
                     steering_control_angles[i] = std::atan2(y, x);
                 } else {
-                    steering_control_velocities[i] = nan_;
-                    steering_control_angles[i] = nan_;
+                    steering_control_velocities[i] = kNaN;
+                    steering_control_angles[i] = kNaN;
                 }
             }
         }
@@ -402,8 +461,8 @@ private:
             * (ax * mess_ * steering_status.cos_angle.array()
                + ay * mess_ * steering_status.sin_angle.array()
                + az * moment_of_inertia_
-                     * (cos_varphi_.array() * steering_status.sin_angle.array()
-                        - sin_varphi_.array() * steering_status.cos_angle.array())
+                     * (kCosVarphi.array() * steering_status.sin_angle.array()
+                        - kSinVarphi.array() * steering_status.cos_angle.array())
                      / vehicle_radius_)
             / 4.0;
 
@@ -427,7 +486,7 @@ private:
 
     void update_chassis_velocity_expected(const Eigen::Vector3d& chassis_acceleration) {
         auto acceleration_odom = base_link_to_odom_vector(chassis_acceleration);
-        chassis_velocity_expected_ += dt_ * acceleration_odom;
+        chassis_velocity_expected_ += kDt * acceleration_odom;
     }
 
     Eigen::Vector3d base_link_to_odom_vector(Eigen::Vector3d vector) const {
@@ -439,65 +498,6 @@ private:
         vector.head<2>() = Eigen::Rotation2Dd(-chassis_yaw_angle_imu_) * vector.head<2>();
         return vector;
     }
-
-    static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
-    static constexpr double inf_ = std::numeric_limits<double>::infinity();
-
-    static constexpr double dt_ = 1e-3;
-    static constexpr double g_ = 9.81;
-
-    const double mess_;
-    const double moment_of_inertia_;
-    const double vehicle_radius_;
-    const double wheel_radius_;
-    const double friction_coefficient_;
-
-    const double k1_, k2_, no_load_power_;
-
-    InputInterface<Eigen::Vector2d> joystick_right_;
-    InputInterface<Eigen::Vector2d> joystick_left_;
-
-    InputInterface<double> left_front_steering_angle_;
-    InputInterface<double> left_back_steering_angle_;
-    InputInterface<double> right_back_steering_angle_;
-    InputInterface<double> right_front_steering_angle_;
-
-    InputInterface<double> left_front_steering_velocity_;
-    InputInterface<double> left_back_steering_velocity_;
-    InputInterface<double> right_back_steering_velocity_;
-    InputInterface<double> right_front_steering_velocity_;
-
-    InputInterface<double> left_front_wheel_velocity_;
-    InputInterface<double> left_back_wheel_velocity_;
-    InputInterface<double> right_back_wheel_velocity_;
-    InputInterface<double> right_front_wheel_velocity_;
-
-    InputInterface<double> chassis_yaw_velocity_imu_;
-    InputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;
-    InputInterface<double> power_limit_;
-
-    OutputInterface<double> left_front_steering_control_torque_;
-    OutputInterface<double> left_back_steering_control_torque_;
-    OutputInterface<double> right_back_steering_control_torque_;
-    OutputInterface<double> right_front_steering_control_torque_;
-
-    OutputInterface<double> left_front_wheel_control_torque_;
-    OutputInterface<double> left_back_wheel_control_torque_;
-    OutputInterface<double> right_back_wheel_control_torque_;
-    OutputInterface<double> right_front_wheel_control_torque_;
-
-    QcpSolver qcp_solver_;
-    filter::LowPassFilter<3> control_acceleration_filter_;
-
-    double chassis_yaw_angle_imu_ = 0.0;
-    Eigen::Vector3d chassis_velocity_expected_ = Eigen::Vector3d::Zero();
-
-    pid::MatrixPidCalculator<2> chassis_translational_velocity_pid_;
-    pid::PidCalculator chassis_angular_velocity_pid_;
-
-    const Eigen::Vector4d cos_varphi_, sin_varphi_;
-
-    pid::MatrixPidCalculator<4> steering_velocity_pid_, steering_angle_pid_, wheel_velocity_pid_;
 };
 
 } // namespace rmcs_core::controller::chassis

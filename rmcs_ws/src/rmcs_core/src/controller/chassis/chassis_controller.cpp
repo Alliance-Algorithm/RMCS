@@ -16,10 +16,9 @@ class ChassisController
     , public rclcpp::Node {
 public:
     ChassisController()
-        : Node(
+        : Node{
               get_component_name(),
-              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , following_velocity_controller_(7.0, 0.0, 0.0) {
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)} {
 
         following_velocity_controller_.output_max = +angular_velocity_max;
         following_velocity_controller_.output_min = -angular_velocity_max;
@@ -263,8 +262,12 @@ private:
 
     OutputInterface<rmcs_msgs::ChassisMode> mode_;
     bool spinning_forward_ = true;
-    pid::PidCalculator following_velocity_controller_;
 
+    pid::PidCalculator following_velocity_controller_{
+        get_parameter_or<double>("following_velocity_kp", 7.0),
+        get_parameter_or<double>("following_velocity_ki", 0.0),
+        get_parameter_or<double>("following_velocity_kd", 0.0),
+    };
     OutputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;
 
     // For Navigation
