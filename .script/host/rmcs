@@ -10,15 +10,19 @@ readonly NVIM_HOST="localhost"
 function show_help() {
     local project_dir="$1"
     local service="$2"
-    echo "Usage: $(basename "$0") [path] [zsh|n|nvim|neovide|vim|ide]"
+    echo "Usage: $(basename "$0") [path] [zsh|recreate|n|nvim|neovide|vim|ide]"
     echo "  Project dir: $project_dir"
     echo "  Service: $service"
+}
+
+function setup_container() {
+    docker compose up -d --no-recreate
 }
 
 function rmcs_zsh() {
     local service="$1"
     echo "Starting and entering container..."
-    docker compose up -d
+    setup_container
     docker compose exec "$service" zsh
 }
 
@@ -29,7 +33,7 @@ function rmcs_nvim() {
     local port=$NVIM_PORT
 
     echo "Starting container..."
-    docker compose up -d
+    setup_container
 
     echo "Checking available port and starting nvim headless server..."
     while nc -z "$NVIM_HOST" "$port" 2>/dev/null; do
@@ -60,6 +64,11 @@ function rmcs_nvim() {
     fi
 }
 
+function rmcs_recreate() {
+    echo "Recreating container..."
+    docker compose up -d --force-recreate
+}
+
 function main() {
     local project_dir command
 
@@ -83,6 +92,9 @@ function main() {
     case "$command" in
     zsh)
         rmcs_zsh "$service"
+        ;;
+    recreate)
+        rmcs_recreate
         ;;
     n | nvim | neovide | vim | ide)
         rmcs_nvim "$service"
