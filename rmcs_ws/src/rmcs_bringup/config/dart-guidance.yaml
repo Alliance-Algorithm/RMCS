@@ -4,10 +4,12 @@ rmcs_executor:
     components:
       - rmcs_core::hardware::CatapultDart        -> dart_hardware
       - rmcs_dart_guidance::manager::DartManager   -> dart_manager
-      - rmcs_dart_guidance::DartVisionCore         -> dart_vision_core
-      - rmcs_dart_guidance::ImagePublisher -> dart_display_image_publisher
-      - rmcs_dart_guidance::ImagePublisher -> dart_camera_image_publisher
       - rmcs_dart_guidance::manager::RemoteCommandBridge -> remote_cmd_bridge
+
+      # - rmcs_dart_guidance::DartVisionCore         -> dart_vision_core
+      # - rmcs_dart_guidance::ImagePublisher -> dart_display_image_publisher
+      # - rmcs_dart_guidance::ImagePublisher -> host_bridge
+
       - rmcs_core::controller::dart::DartTriggerController -> trigger_setting
       - rmcs_core::controller::dart::DartBeltController -> dart_belt_controller
       - rmcs_core::controller::dart::DartFilling -> dart_filling
@@ -15,7 +17,7 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController    -> yaw_velocity_pid_controller
       - rmcs_core::controller::pid::PidController    -> pitch_velocity_pid_controller
       - rmcs_core::controller::pid::PidController    -> force_screw_velocity_pid_controller
-      # - rmcs_core::broadcaster::ValueBroadcaster -> broadcaster
+      - rmcs_core::broadcaster::ValueBroadcaster -> broadcaster
 
 
 broadcaster:
@@ -23,6 +25,10 @@ broadcaster:
     forward_list:
       - /dart/drive_belt/left/control_torque
       - /dart/drive_belt/right/control_torque
+
+remote_cmd_bridge:
+  ros__parameters:
+    vision_enable: false
 
 dart_hardware:
   ros__parameters:
@@ -77,8 +83,8 @@ dart_manager:
     vision_aim.allowable_error.x: 5
     vision_aim.allowable_error.y: 5
     vision_aim.timeout_ticks: 20000
-    vision_aim.shot_profiles.0.reference_point.x: 640
-    vision_aim.shot_profiles.0.reference_point.y: 400           #135
+    vision_aim.shot_profiles.0.reference_point.x: 710
+    vision_aim.shot_profiles.0.reference_point.y: 135           
     vision_aim.shot_profiles.0.offset.x: 0
     vision_aim.shot_profiles.0.offset.y: 0
     vision_aim.shot_profiles.1.reference_point.x: 700
@@ -96,8 +102,8 @@ dart_manager:
 
 dart_vision_core:
   ros__parameters:
-    invert_image: false
-    exposure_time: 1000
+    invert_image: true
+    exposure_time: 2000
     gain: 0.0
     L_H: 45.0
     L_S: 0.0
@@ -106,7 +112,7 @@ dart_vision_core:
     U_S: 255.0
     U_V: 255.0
 
-dart_camera_image_publisher:
+host_bridge:
   ros__parameters:
     Interface_name: /dart_guidance/camera/camera_image
     topic_name: /dart_guidance/camera/camera_image
@@ -119,14 +125,6 @@ dart_display_image_publisher:
     topic_name: /dart_guidance/camera/display_image
     publish_freq: 60.0
     image_type: mono8
-
-host_bridge:
-  ros__parameters:
-    tcp_listen_host: "127.0.0.1"
-    tcp_listen_port: 37601
-    tcp_hello_timeout_ms: 3000
-    tcp_heartbeat_interval_ms: 1000
-    tcp_max_message_bytes: 65536
 
 trigger_setting:
   ros__parameters:

@@ -4,7 +4,6 @@
 #include <optional>
 
 #include <eigen3/Eigen/Dense>
-#include <numbers>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
@@ -59,6 +58,8 @@ public:
         register_input("/dart/yaw_motor/velocity", yaw_velocity_);
         register_input("/dart/pitch_motor/torque", pitch_torque_);
         register_input("/dart/yaw_motor/torque", yaw_torque_);
+        register_input("/imu/catapult_yaw_angle", yaw_angle_);
+        register_input("/imu/catapult_roll_angle", roll_angle_);
 
         register_output("/dart/yaw_motor/control_velocity", yaw_control_velocity_, 0.0);
         register_output("/dart/pitch_motor/control_velocity", pitch_control_velocity_, 0.0);
@@ -101,11 +102,9 @@ public:
         }
 
         if (count++ == 1000) {
-            auto pitch = *pitch_angle_ / std::numbers::pi * 180 + 90;
-
             RCLCPP_INFO(
-                get_logger(), "[ForSensor]: (%5d,%5d),[Pitch]: %5f,x: %5f| y:%5f",
-                *force_sensor_ch1_, *force_sensor_ch2_, -pitch, angle_error.x(), angle_error.y());
+                get_logger(), "[ForSensor]: (%5d,%5d),[PYR]]: (%5f,%5f,%5f)", *force_sensor_ch1_,
+                *force_sensor_ch2_, *pitch_angle_, *yaw_angle_, *roll_angle_);
 
             count = 0;
         }
@@ -161,8 +160,7 @@ private:
         }
 
         if (stall_latched) {
-            RCLCPP_WARN_THROTTLE(
-                get_logger(), *get_clock(), 1000, "%s motor stalled!", motor_name);
+            RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 1000, "%s motor stalled!", motor_name);
             return 0.0;
         }
 
@@ -259,6 +257,8 @@ private:
     InputInterface<double> yaw_velocity_;
     InputInterface<double> pitch_torque_;
     InputInterface<double> yaw_torque_;
+    InputInterface<double> yaw_angle_;
+    InputInterface<double> roll_angle_;
 
     OutputInterface<double> yaw_control_velocity_;
     OutputInterface<double> pitch_control_velocity_;
