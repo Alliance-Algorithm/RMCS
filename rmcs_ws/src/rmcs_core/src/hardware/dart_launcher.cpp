@@ -34,6 +34,7 @@
 #include "hardware/device/pwm_servo.hpp"
 #include "hardware/device/trigger_servo.hpp"
 #include "librmcs/agent/rmcs_board_pro.hpp"
+#include "std_msgs/msg/int32.hpp"
 
 namespace rmcs_core::hardware {
 
@@ -111,7 +112,7 @@ public:
                 trigger_servo_calibrate_subscription_callback(limiting_servo_, std::move(msg));
             });
 
-        force_sensor_calibrate_ = create_subscription<std_msgs::msg::Int32>(
+        force_sensor_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
             "/force_sensor/calibrate", rclcpp::QoS{10},
             [this](std_msgs::msg::Int32::UniquePtr&& msg) {
                 force_sensor_calibrate_subscription_callback(std::move(msg));
@@ -530,7 +531,7 @@ private:
     OutputInterface<double> catapult_yaw_angle_;
 
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr limiting_calibrate_subscription_;
-    rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr force_sensor_calibrate_;
+    rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr force_sensor_calibrate_subscription_;
 
     std::mutex referee_mutex_;
     std::deque<std::byte> referee_ring_buffer_receive_;

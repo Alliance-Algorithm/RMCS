@@ -63,6 +63,7 @@ public:
         register_input("/dart_manager/belt/command", belt_command_, false);
         register_input("/dart_manager/belt/target_velocity", belt_target_velocity_, false);
         register_input("/dart_manager/belt/exit_mode", belt_exit_mode_, false);
+        register_input("/dart_manager/belt/max_torque_override", belt_max_torque_override_, false);
         register_input("/dart/drive_belt/left/velocity", left_belt_velocity_);
         register_input("/dart/drive_belt/right/velocity", right_belt_velocity_);
         register_input("/predefined/update_rate", update_rate_, false);
@@ -94,7 +95,7 @@ public:
 
         update_trapezoidal_target(velocity_target);
         update_planned_velocity();
-        drive_belt_sync_control(planned_velocity_, max_control_torque_);
+        drive_belt_sync_control(planned_velocity_, active_max_control_torque());
     }
 
 private:
@@ -124,6 +125,17 @@ private:
             return sanitize_velocity_magnitude(*belt_target_velocity_);
         }
         return sanitize_velocity_magnitude(belt_velocity_);
+    }
+
+    bool has_belt_max_torque_override() const {
+        return belt_max_torque_override_.ready() && std::isfinite(*belt_max_torque_override_);
+    }
+
+    double active_max_control_torque() const {
+        if (has_belt_max_torque_override()) {
+            return std::clamp(*belt_max_torque_override_, 0.0, max_control_torque_);
+        }
+        return max_control_torque_;
     }
 
     std::pair<BeltControlMode, double> resolve_control_mode(double requested_velocity) {
@@ -219,15 +231,14 @@ private:
 
         Eigen::Vector2d control_torques =
             belt_pid_.update(setpoint_error) - sync_coefficient_ * relative_velocity;
-        if (control_mode_ == BeltControlMode::MOVE_UP) {
-            *left_belt_torque_ =
-                std::clamp(control_torques[0], 0.5 * -torque_limit, 0.5 * torque_limit);
-            *right_belt_torque_ =
-                std::clamp(control_torques[1], 0.5 * -torque_limit, 0.5 * torque_limit);
-        } else {
-            *left_belt_torque_ = std::clamp(control_torques[0], -torque_limit, torque_limit);
-            *right_belt_torque_ = std::clamp(control_torques[1], -torque_limit, torque_limit);
+        double applied_torque_limit = torque_limit;
+        if (control_mode_ == BeltControlMode::MOVE_UP && !has_belt_max_torque_override()) {
+            applied_torque_limit *= 0.5;
         }
+        *left_belt_torque_ =
+            std::clamp(control_torques[0], -applied_torque_limit, applied_torque_limit);
+        *right_belt_torque_ =
+            std::clamp(control_torques[1], -applied_torque_limit, applied_torque_limit);
     }
 
     pid::MatrixPidCalculator<2> belt_pid_;
@@ -246,6 +257,7 @@ private:
     InputInterface<rmcs_msgs::DartMechanismCommand> belt_command_;
     InputInterface<double> belt_target_velocity_;
     InputInterface<rmcs_msgs::ExitMode> belt_exit_mode_;
+    InputInterface<double> belt_max_torque_override_;
     InputInterface<double> left_belt_velocity_;
     InputInterface<double> right_belt_velocity_;
     InputInterface<double> update_rate_;

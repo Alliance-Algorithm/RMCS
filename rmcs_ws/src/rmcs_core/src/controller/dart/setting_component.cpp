@@ -14,6 +14,15 @@
 
 namespace rmcs_core::controller::dart {
 
+namespace {
+
+constexpr double kYawPitchStallCommandVelocityThreshold = 0.5;
+constexpr double kYawPitchStallVelocityThreshold = 1.0;
+constexpr double kYawPitchStallTorqueThreshold = 0.5;
+constexpr uint64_t kYawPitchStallConfirmTicks = 100;
+
+} // namespace
+
 // Consumes manager-published angle/force errors and carriage velocity commands.
 // angle_error_vector uses [0]=yaw, [1]=pitch.
 class DartSettingController
@@ -72,21 +81,17 @@ public:
     void update() override {
         const Eigen::Vector2d& angle_error = *angle_error_vector_;
 
-        if (*yaw_torque_ > 0.5 && *yaw_velocity_ < 1.0) {
-            *yaw_control_velocity_ =
-                limit_velocity(angle_error[0], yaw_error_to_velocity_gain_, yaw_max_velocity_);
-        } else {
-            *yaw_control_velocity_ = 0.0;
-            RCLCPP_WARN(get_logger(), "yaw motor stalled!");
-        }
+        const double requested_yaw_velocity =
+            limit_velocity(angle_error[0], yaw_error_to_velocity_gain_, yaw_max_velocity_);
+        *yaw_control_velocity_ = apply_yaw_pitch_stall_protection(
+            "yaw", requested_yaw_velocity, *yaw_velocity_, *yaw_torque_, yaw_stall_counter_,
+            yaw_stall_latched_);
 
-        if (*pitch_torque_ > 0.5 && *pitch_velocity_ < 1.0) {
-            *pitch_control_velocity_ =
-                limit_velocity(angle_error[1], pitch_error_to_velocity_gain_, pitch_max_velocity_);
-        } else {
-            *pitch_control_velocity_ = 0.0;
-            RCLCPP_WARN(get_logger(), "pitch motor stalled!");
-        }
+        const double requested_pitch_velocity =
+            limit_velocity(angle_error[1], pitch_error_to_velocity_gain_, pitch_max_velocity_);
+        *pitch_control_velocity_ = apply_yaw_pitch_stall_protection(
+            "pitch", requested_pitch_velocity, *pitch_velocity_, *pitch_torque_,
+            pitch_stall_counter_, pitch_stall_latched_);
 
         if (const auto carriage_control_velocity = resolve_carriage_control_velocity()) {
             *force_control_velocity_ = *carriage_control_velocity;
@@ -143,6 +148,39 @@ private:
             return 0.0;
         }
         return std::abs(velocity);
+    }
+
+    double apply_yaw_pitch_stall_protection(
+        const char* motor_name, const double requested_velocity, const double measured_velocity,
+        const double measured_torque, uint64_t& stall_counter, bool& stall_latched) {
+        if (sanitize_velocity_magnitude(requested_velocity)
+            < kYawPitchStallCommandVelocityThreshold) {
+            stall_counter = 0;
+            stall_latched = false;
+            return 0.0;
+        }
+
+        if (stall_latched) {
+            RCLCPP_WARN_THROTTLE(
+                get_logger(), *get_clock(), 1000, "%s motor stalled!", motor_name);
+            return 0.0;
+        }
+
+        const bool stall_detected =
+            sanitize_velocity_magnitude(measured_velocity) < kYawPitchStallVelocityThreshold
+            && std::abs(measured_torque) > kYawPitchStallTorqueThreshold;
+        if (stall_detected) {
+            ++stall_counter;
+            if (stall_counter >= kYawPitchStallConfirmTicks) {
+                stall_latched = true;
+                RCLCPP_WARN(get_logger(), "%s motor stalled!", motor_name);
+                return 0.0;
+            }
+        } else {
+            stall_counter = 0;
+        }
+
+        return requested_velocity;
     }
 
     rmcs_msgs::DartMechanismCommand active_carriage_command() const {
@@ -225,6 +263,11 @@ private:
     OutputInterface<double> yaw_control_velocity_;
     OutputInterface<double> pitch_control_velocity_;
     OutputInterface<double> force_control_velocity_;
+
+    uint64_t yaw_stall_counter_{0};
+    uint64_t pitch_stall_counter_{0};
+    bool yaw_stall_latched_{false};
+    bool pitch_stall_latched_{false};
 };
 
 } // namespace rmcs_core::controller::dart
