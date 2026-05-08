@@ -307,9 +307,6 @@ private:
 
             *photoelectric_sensor_status_ = photoelectric_sensor_status_atomic.load();
             *grayscale_sensor_status_ = grayscale_sensor_status_atomic.load();
-            if (*grayscale_sensor_status_ == true){
-                RCLCPP_INFO(logger_,"1");
-            }
         }
 
         void command_update() {
