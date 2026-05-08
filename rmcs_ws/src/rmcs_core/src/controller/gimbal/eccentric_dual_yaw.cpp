@@ -49,12 +49,15 @@ public:
                 std::clamp(std::atan2(-dir.z(), xy_norm), upper_limit_, lower_limit_);
             const auto yaw = std::atan2(dir.y(), dir.x());
 
-            apply_control(
-                ControlTarget{
-                    .bottom_yaw = {.target = yaw},
-                    .top_yaw = {.target = 0.0},
-                    .pitch = {.target = pitch},
-                });
+            const auto command = ControlTarget{
+                .bottom_yaw = {.target = yaw},
+                .top_yaw = {.target = 0.0},
+                .pitch = {.target = pitch},
+            };
+            apply_control(command);
+
+            manual_bottom_yaw_target_ = command.bottom_yaw.target;
+            manual_pitch_target_ = command.pitch.target;
             return;
         }
 
