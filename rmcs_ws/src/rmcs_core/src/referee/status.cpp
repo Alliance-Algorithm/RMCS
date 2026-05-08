@@ -286,6 +286,13 @@ private:
     }
 
     void update_game_robot_position() {
+        if (frame_.header.data_length < sizeof(GameRobotPosition)) {
+            RCLCPP_WARN(
+                logger_, "Game robot position length invalid: %u",
+                static_cast<unsigned>(frame_.header.data_length));
+            return;
+        }
+
         auto& data = reinterpret_cast<GameRobotPosition&>(frame_.body.data);
 
         *ally_hero_position_x_ = data.hero_x;
@@ -337,6 +344,13 @@ private:
     }
 
     void update_sentry_info() {
+        if (frame_.header.data_length < sizeof(SentryInfo)) {
+            RCLCPP_WARN(
+                logger_, "Sentry info length invalid: %u",
+                static_cast<unsigned>(frame_.header.data_length));
+            return;
+        }
+
         auto& data = reinterpret_cast<SentryInfo&>(frame_.body.data);
 
         const uint32_t sentry_info = data.sentry_info;

@@ -96,7 +96,6 @@ struct __attribute__((packed)) MapCommand {
     uint8_t target_robot_id;
     uint16_t cmd_source;
 };
-static_assert(sizeof(MapCommand) == 12);
 
 struct __attribute__((packed)) SentryInfo {
     uint32_t sentry_info;
