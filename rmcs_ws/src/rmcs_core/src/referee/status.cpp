@@ -64,6 +64,26 @@ public:
         register_output("/referee/ally/infantry_1_position_y", ally_infantry_1_position_y_, 0.0);
         register_output("/referee/ally/infantry_2_position_x", ally_infantry_2_position_x_, 0.0);
         register_output("/referee/ally/infantry_2_position_y", ally_infantry_2_position_y_, 0.0);
+        register_output("/referee/opponent/hero_position_x", opponent_hero_position_x_, 0.0);
+        register_output("/referee/opponent/hero_position_y", opponent_hero_position_y_, 0.0);
+        register_output(
+            "/referee/opponent/engineer_position_x", opponent_engineer_position_x_, 0.0);
+        register_output(
+            "/referee/opponent/engineer_position_y", opponent_engineer_position_y_, 0.0);
+        register_output(
+            "/referee/opponent/infantry_3_position_x", opponent_infantry_3_position_x_, 0.0);
+        register_output(
+            "/referee/opponent/infantry_3_position_y", opponent_infantry_3_position_y_, 0.0);
+        register_output(
+            "/referee/opponent/infantry_4_position_x", opponent_infantry_4_position_x_, 0.0);
+        register_output(
+            "/referee/opponent/infantry_4_position_y", opponent_infantry_4_position_y_, 0.0);
+        register_output(
+            "/referee/opponent/uav_position_x", opponent_uav_position_x_, 0.0);
+        register_output(
+            "/referee/opponent/uav_position_y", opponent_uav_position_y_, 0.0);
+        register_output("/referee/opponent/sentry_position_x", opponent_sentry_position_x_, 0.0);
+        register_output("/referee/opponent/sentry_position_y", opponent_sentry_position_y_, 0.0);
         register_output("/referee/current_hp", robot_current_hp_);
         register_output("/referee/shooter/bullet_allowance", robot_bullet_allowance_, false);
         register_output(
@@ -196,6 +216,8 @@ private:
             update_sentry_info();
         else if (command_id == 0x0303)
             update_map_command();
+        else if (command_id == 0x0305)
+            update_map_robot_data();
     }
 
     void update_game_status() {
@@ -366,6 +388,38 @@ private:
         *sentry_energy_mechanism_activatable_ = (sentry_info_2 >> 14) & 0x01;
     }
 
+    void update_map_robot_data() {
+        if (frame_.header.data_length < sizeof(OpponentMapRobotData)) {
+            RCLCPP_WARN(
+                logger_, "Map robot data length invalid: %u",
+                static_cast<unsigned>(frame_.header.data_length));
+            return;
+        }
+
+        auto& data = reinterpret_cast<OpponentMapRobotData&>(frame_.body.data);
+
+        constexpr double centimeter_to_meter = 0.01;
+
+        *opponent_hero_position_x_ = data.opponent_hero_position_x * centimeter_to_meter;
+        *opponent_hero_position_y_ = data.opponent_hero_position_y * centimeter_to_meter;
+        *opponent_engineer_position_x_ =
+            data.opponent_engineer_position_x * centimeter_to_meter;
+        *opponent_engineer_position_y_ =
+            data.opponent_engineer_position_y * centimeter_to_meter;
+        *opponent_infantry_3_position_x_ =
+            data.opponent_infantry_3_position_x * centimeter_to_meter;
+        *opponent_infantry_3_position_y_ =
+            data.opponent_infantry_3_position_y * centimeter_to_meter;
+        *opponent_infantry_4_position_x_ =
+            data.opponent_infantry_4_position_x * centimeter_to_meter;
+        *opponent_infantry_4_position_y_ =
+            data.opponent_infantry_4_position_y * centimeter_to_meter;
+        *opponent_uav_position_x_ = data.opponent_uav_position_x * centimeter_to_meter;
+        *opponent_uav_position_y_ = data.opponent_uav_position_y * centimeter_to_meter;
+        *opponent_sentry_position_x_ = data.opponent_sentry_position_x * centimeter_to_meter;
+        *opponent_sentry_position_y_ = data.opponent_sentry_position_y * centimeter_to_meter;
+    }
+
     // When referee system loses connection unexpectedly,
     // use these indicators make sure the robot safe.
     // Muzzle: Cooling priority with level 1
@@ -414,6 +468,18 @@ private:
     OutputInterface<double> ally_infantry_1_position_y_;
     OutputInterface<double> ally_infantry_2_position_x_;
     OutputInterface<double> ally_infantry_2_position_y_;
+    OutputInterface<double> opponent_hero_position_x_;
+    OutputInterface<double> opponent_hero_position_y_;
+    OutputInterface<double> opponent_engineer_position_x_;
+    OutputInterface<double> opponent_engineer_position_y_;
+    OutputInterface<double> opponent_infantry_3_position_x_;
+    OutputInterface<double> opponent_infantry_3_position_y_;
+    OutputInterface<double> opponent_infantry_4_position_x_;
+    OutputInterface<double> opponent_infantry_4_position_y_;
+    OutputInterface<double> opponent_uav_position_x_;
+    OutputInterface<double> opponent_uav_position_y_;
+    OutputInterface<double> opponent_sentry_position_x_;
+    OutputInterface<double> opponent_sentry_position_y_;
     OutputInterface<uint16_t> robot_current_hp_;
     OutputInterface<uint16_t> robot_bullet_allowance_;
     OutputInterface<uint16_t> robot_42mm_bullet_allowance_;

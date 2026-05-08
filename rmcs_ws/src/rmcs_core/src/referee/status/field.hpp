@@ -97,6 +97,21 @@ struct __attribute__((packed)) MapCommand {
     uint16_t cmd_source;
 };
 
+struct __attribute__((packed)) OpponentMapRobotData {
+    uint16_t opponent_hero_position_x;
+    uint16_t opponent_hero_position_y;
+    uint16_t opponent_engineer_position_x;
+    uint16_t opponent_engineer_position_y;
+    uint16_t opponent_infantry_3_position_x;
+    uint16_t opponent_infantry_3_position_y;
+    uint16_t opponent_infantry_4_position_x;
+    uint16_t opponent_infantry_4_position_y;
+    uint16_t opponent_uav_position_x;
+    uint16_t opponent_uav_position_y;
+    uint16_t opponent_sentry_position_x;
+    uint16_t opponent_sentry_position_y;
+};
+
 struct __attribute__((packed)) SentryInfo {
     uint32_t sentry_info;
     uint16_t sentry_info_2;
