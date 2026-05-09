@@ -38,7 +38,7 @@ namespace rmcs_core::hardware {
 class CanReceiveRateCounter {
 public:
     explicit CanReceiveRateCounter(rclcpp::Logger logger, std::string_view channel_name)
-        : logger_(logger)
+        : logger_(std::move(logger))
         , channel_name_(channel_name) {}
 
     void record(std::uint32_t can_id) {
@@ -351,17 +351,19 @@ private:
                 .can_data = gimbal_bullet_feeder_.generate_torque_command().as_bytes(),
             });
 
-            // builder.gpio_digital_read({
-            //     .channel = 7,
-            //     .period_ms = 20,
-            //     .pull = librmcs::data::GpioPull::kUp,
-            // });
+            builder.gpio_digital_read(
+                librmcs::spec::rmcs_board_lite::kGpioDescriptors[2],
+                {
+                    .period_ms = 20,
+                    .pull = librmcs::data::GpioPull::kUp,
+                });
 
-            // builder.gpio_digital_read({
-            //     .channel = 5,
-            //     .period_ms = 20,
-            //     .pull = librmcs::data::GpioPull::kUp,
-            // });
+            builder.gpio_digital_read(
+                librmcs::spec::rmcs_board_lite::kGpioDescriptors[3],
+                {
+                    .period_ms = 20,
+                    .pull = librmcs::data::GpioPull::kUp,
+                });
         }
 
     private:
@@ -405,14 +407,15 @@ private:
             }
         }
 
-        // void gpio_digital_read_result_callback(
-        //     const librmcs::data::GpioDigitalDataView& data) override {
-        //     if (data.channel == 7) {
-        //         photoelectric_sensor_status_atomic.store(!data.high);
-        //     } else if (data.channel == 5) {
-        //         grayscale_sensor_status_atomic.store(!data.high);
-        //     }
-        // }
+        void gpio_digital_read_result_callback(
+            const librmcs::spec::rmcs_board_lite::GpioDescriptor& gpio,
+            const librmcs::data::GpioDigitalDataView& data) override {
+            if (gpio.channel_index == 2) {
+                photoelectric_sensor_status_atomic.store(data.high);
+            } else if (gpio.channel_index == 3) {
+                grayscale_sensor_status_atomic.store(!data.high);
+            }
+        }
 
         void accelerometer_receive_callback(
             const librmcs::data::AccelerometerDataView& data) override {
@@ -550,7 +553,7 @@ private:
                     [&buffer](std::byte byte) noexcept { *buffer++ = byte; }, size);
             };
             referee_serial_->write = [this](const std::byte* buffer, size_t size) {
-                start_transmit().uart1_transmit({
+                start_transmit().uart0_transmit({
                     .uart_data = std::span<const std::byte>{buffer, size}
                 });
                 return size;

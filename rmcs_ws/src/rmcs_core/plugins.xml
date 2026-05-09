@@ -137,4 +137,10 @@
   <class type="rmcs_core::hardware::SteeringHeroLittle" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class> 
+  <class type="rmcs_core::controller::identification::SweptFrequencyController" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class> 
+  <class type="rmcs_core::controller::identification::StaticTorqueTestController" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class> 
 </library>

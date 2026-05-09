@@ -55,7 +55,7 @@ hero_hardware:
     top_yaw_motor_zero_point: 48738
     viewer_motor_zero_point: 3030
     external_imu_port: /dev/ttyUSB0
-    bullet_feeder_motor_zero_point: 41415
+    bullet_feeder_motor_zero_point: 12707
     left_front_zero_point: 5782
     right_front_zero_point: 3819
     left_back_zero_point:  7841
@@ -64,12 +64,35 @@ hero_hardware:
 value_broadcaster:
   ros__parameters:
     forward_list:
-        - /chassis/power
-        - /chassis/control_power_limit
-        - /chassis/climber/front/control_power_limit
-        - /chassis/climber/front/power_demand_estimate
-        - /chassis/climber/front/actual_power_estimate
-        - /chassis/steering_wheel/actual_power_estimate   
+      # - /shoot/heat12707
+      - /chassis/power
+      # - /referee/chassis/power
+      # - /referee/chassis/power_limit
+      - /chassis/control_power_limit
+      - /chassis/climber/front/control_power_limit
+      - /chassis/climber/front/power_demand_estimate
+      - /chassis/climber/front/actual_power_estimate
+      - /chassis/steering_wheel/actual_power_estimate
+      # - /chassis/supercap/voltage
+      # - /gimbal/putter/velocity
+      - /gimbal/first_left_friction/velocity
+      - /gimbal/first_right_friction/velocity
+      - /gimbal/second_left_friction/velocity
+      - /gimbal/second_right_friction/velocity
+      # - /gimbal/first_left_friction/control_torque
+      # - /gimbal/first_second_friction/control_torque
+      # - /gimbal/second_left_friction/control_torque
+      # - /gimbal/second_right_friction/control_torque
+      # - /gimbal/bottom_yaw/torque
+      # - /gimbal/bottom_yaw/angle
+      # - /gimbal/top_yaw/angle
+      # - /gimbal/pitch/angle
+      - /chassis/power
+      - /chassis/control_power_limit
+      - /chassis/climber/front/control_power_limit
+      - /chassis/climber/front/power_demand_estimate
+      - /chassis/climber/front/actual_power_estimate
+      - /chassis/steering_wheel/actual_power_estimate   
 
 climber_controller:
   ros__parameters:
@@ -105,43 +128,28 @@ gimbal_controller:
 
 dual_yaw_controller:
   ros__parameters:
-    top_yaw_angle_kp: 22.2
+    top_yaw_angle_kp: 30.2
     top_yaw_angle_ki: 0.0
     top_yaw_angle_kd: 0.0
-    top_yaw_velocity_kp: 8.92
-    top_yaw_velocity_ki: 0.0026
+    top_yaw_velocity_kp: 9.0
+    top_yaw_velocity_ki: 0.00029
     top_yaw_velocity_kd: 0.0
     top_yaw_velocity_integral_min: -2500.0
     top_yaw_velocity_integral_max: 2500.0
-    bottom_yaw_angle_kp: 13.9
+    bottom_yaw_angle_kp: 18.4
     bottom_yaw_angle_ki: 0.0
     bottom_yaw_angle_kd: 0.0
-    bottom_yaw_velocity_kp: 3.0
-    bottom_yaw_velocity_ki: 0.0006
+    bottom_yaw_velocity_kp: 2.8
+    bottom_yaw_velocity_ki: 0.00028
     bottom_yaw_velocity_kd: 0.0
     bottom_yaw_velocity_integral_min: -2500.0
     bottom_yaw_velocity_integral_max: 2500.0
-
-# dual_yaw_controller:
-#   ros__parameters:
-#     top_yaw_angle_kp: 24.5
-#     top_yaw_angle_ki: 0.0
-#     top_yaw_angle_kd: 0.0
-#     top_yaw_velocity_kp: 77.4
-#     top_yaw_velocity_ki: 0.004
-#     top_yaw_velocity_kd: 1.0
-#     bottom_yaw_angle_kp: 8.6
-#     bottom_yaw_angle_ki: 0.0
-#     bottom_yaw_angle_kd: 0.0
-#     bottom_yaw_velocity_kp: 25.85
-#     bottom_yaw_velocity_ki: 0.0
-#     bottom_yaw_velocity_kd: 50.0
     
 pitch_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/pitch/control_angle_error
     control: /gimbal/pitch/control_velocity
-    kp: 25.6
+    kp: 20.6
     ki: 0.0
     kd: 0.0
 
@@ -150,13 +158,13 @@ pitch_velocity_pid_controller:
     measurement: /gimbal/pitch/velocity_imu
     setpoint: /gimbal/pitch/control_velocity
     control: /gimbal/pitch/control_torque
-    kp: 14.11
-    ki: 0.0040
+    kp: 16.05
+    ki: 0.00014
     kd: 0.0
     integral_min: -2500.0
     integral_max: 2500.0
 
-gimbal_player_viewer_controller0:
+gimbal_player_viewer_controller:
   ros__parameters:
     upper_limit: 0.0101
     lower_limit: 0.6191
@@ -169,18 +177,34 @@ viewer_angle_pid_controller:
     ki: 0.00
     kd: 2.00
 
+bullet_feeder_controller:
+  ros__parameters:
+    bullet_feeder_velocity_kp: 5.5
+    bullet_feeder_velocity_ki: 1.1
+    bullet_feeder_velocity_kd: 0.0
+    bullet_feeder_velocity_integral_min: 0.0
+    bullet_feeder_velocity_integral_max: 60.0
+    bullet_feeder_angle_kp: 3.2
+    bullet_feeder_angle_ki: 0.0
+    bullet_feeder_angle_kd: 1.0
+    putter_return_velocity_kp: 0.0015
+    putter_return_velocity_ki: 0.00005
+    putter_return_velocity_kd: 0.0
+    putter_return_velocity_integral_min: -0.03
+    putter_return_velocity_integral_max: 0.0
+
 friction_wheel_controller:
   ros__parameters:
     friction_wheels:
-      - /gimbal/first_left_friction
-      - /gimbal/first_right_friction
       - /gimbal/second_left_friction
       - /gimbal/second_right_friction
+      - /gimbal/first_left_friction
+      - /gimbal/first_right_friction
     friction_velocities:
-      - 368.00
-      - 368.00
-      - 532.00
-      - 532.00
+      - 372.00
+      - 372.00
+      - 530.00
+      - 530.00
     friction_soft_start_stop_time: 1.0
 
 heat_controller:
@@ -199,36 +223,36 @@ first_left_friction_velocity_pid_controller:
     measurement: /gimbal/first_left_friction/velocity
     setpoint: /gimbal/first_left_friction/control_velocity
     control: /gimbal/first_left_friction/control_torque
-    kp: 0.0008
+    kp: 0.008
     ki: 0.00
-    kd: 0.000055
+    kd: 0.00028
 
 first_right_friction_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/first_right_friction/velocity
     setpoint: /gimbal/first_right_friction/control_velocity
     control: /gimbal/first_right_friction/control_torque
-    kp: 0.0008
+    kp: 0.008
     ki: 0.00
-    kd: 0.000055
+    kd: 0.00028
 
 second_left_friction_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/second_left_friction/velocity
     setpoint: /gimbal/second_left_friction/control_velocity
     control: /gimbal/second_left_friction/control_torque
-    kp: 0.0005
+    kp: 0.008
     ki: 0.00
-    kd: 0.00004
+    kd: 0.00018
 
 second_right_friction_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/second_right_friction/velocity
     setpoint: /gimbal/second_right_friction/control_velocity
     control: /gimbal/second_right_friction/control_torque
-    kp: 0.0005
+    kp: 0.008
     ki: 0.00
-    kd: 0.00004
+    kd: 0.00018
   
 steering_wheel_status:
   ros__parameters:
@@ -291,6 +315,7 @@ hero_auto_aim_bridge:
       result_timeout: 0.1   # 0.08                                                                                     
       debug: false
 
+
 pitch_swept_frequency_controller:
   ros__parameters:
     target: /gimbal/pitch
@@ -300,7 +325,7 @@ pitch_swept_frequency_controller:
     start_freq: 0.1
     end_freq: 10.0
     duration: 60.0
-    amplitude: 10.0
+    amplitude: 30.0
 
     pid: true
     setpoint: 0.0
@@ -312,6 +337,25 @@ pitch_swept_frequency_controller:
     velocity_kd: 0.0
     dc_offset: 0.0
 
+pitch_static_torque_test_controller:
+  ros__parameters:
+    target: /gimbal/pitch
+
+    interval_angle: 0.05
+    wait_time: 1.5
+    border_clip: 0.05
+
+    position_kp: 20.0
+    position_ki: 0.0
+    position_kd: 0.0
+
+    velocity_kp: 16.5
+    velocity_ki: 0.005
+    velocity_kd: 0.0
+
+    velocity_integral_min: -2500.0
+    velocity_integral_max: 2500.0
+
 top_yaw_swept_frequency_controller:
   ros__parameters:
     target: /gimbal/top_yaw
@@ -321,7 +365,7 @@ top_yaw_swept_frequency_controller:
     start_freq: 0.1
     end_freq: 10.0
     duration: 60.0
-    amplitude: 20.0
+    amplitude: 30.0
 
     pid: true
     setpoint: 0.0
@@ -342,4 +386,4 @@ bottom_yaw_swept_frequency_controller:
     start_freq: 0.1
     end_freq: 4.0
     duration: 80.0
-    amplitude: 2.0
+    amplitude: 8.0

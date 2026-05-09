@@ -30,6 +30,15 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
+        auto set_pid_parameter = [this](pid::PidCalculator& pid, const std::string& name) {
+            pid.kp = get_parameter(name + "_kp").as_double();
+            pid.ki = get_parameter(name + "_ki").as_double();
+            pid.kd = get_parameter(name + "_kd").as_double();
+            get_parameter(name + "_integral_min", pid.integral_min);
+            get_parameter(name + "_integral_max", pid.integral_max);
+            get_parameter(name + "_output_min", pid.output_min);
+            get_parameter(name + "_output_max", pid.output_max);
+        };
 
         register_input("/remote/switch/right", switch_right_);
         register_input("/remote/switch/left", switch_left_);
@@ -52,21 +61,9 @@ public:
         register_input("/gimbal/putter/angle", putter_angle_);
         register_input("/gimbal/putter/velocity", putter_velocity_);
 
-        bullet_feeder_velocity_pid_.kp = 50.0;
-        bullet_feeder_velocity_pid_.ki = 10.0;
-        bullet_feeder_velocity_pid_.kd = 0.0;
-        bullet_feeder_velocity_pid_.integral_max = 60.0;
-        bullet_feeder_velocity_pid_.integral_min = 0.0;
-
-        bullet_feeder_angle_pid_.kp = 4.2;
-        bullet_feeder_angle_pid_.ki = 0.0;
-        bullet_feeder_angle_pid_.kd = 1.0;
-
-        putter_return_velocity_pid_.kp = 0.0015;
-        putter_return_velocity_pid_.ki = 0.00005;
-        putter_return_velocity_pid_.kd = 0.;
-        putter_return_velocity_pid_.integral_max = 0.;
-        putter_return_velocity_pid_.integral_min = -0.03;
+        set_pid_parameter(bullet_feeder_velocity_pid_, "bullet_feeder_velocity");
+        set_pid_parameter(bullet_feeder_angle_pid_, "bullet_feeder_angle");
+        set_pid_parameter(putter_return_velocity_pid_, "putter_return_velocity");
 
         putter_velocity_pid_.kp = 0.004;
         putter_velocity_pid_.ki = 0.0001;
@@ -330,7 +327,7 @@ private:
 
     void update_jam_detection() {
         // RCLCPP_INFO(get_logger(), "%.2f --", *bullet_feeder_control_torque_);
-        if (*bullet_feeder_control_torque_ < 300.0 || std::isnan(*bullet_feeder_control_torque_)) {
+        if (*bullet_feeder_control_torque_ < 33.0 || std::isnan(*bullet_feeder_control_torque_)) {
             bullet_feeder_faulty_count_ = 0;
             return;
         }

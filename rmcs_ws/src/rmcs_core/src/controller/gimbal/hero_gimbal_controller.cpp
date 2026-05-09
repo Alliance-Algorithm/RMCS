@@ -75,6 +75,7 @@ public:
 
                 *yaw_control_angle_shift_ = nan_;
                 *pitch_control_angle_shift_ = nan_;
+
             } else {
                 imu_gimbal_solver.update(TwoAxisGimbalSolver::SetDisabled{});
                 *yaw_angle_error_ = nan_;
@@ -82,7 +83,8 @@ public:
 
                 auto control_shift = update_encoder_control();
                 *yaw_control_angle_shift_ = control_shift.yaw_shift;
-                *pitch_control_angle_shift_ = control_shift.pitch_shift;
+
+                *pitch_control_angle_shift_ = nan_;
             }
         } while (false);
 
@@ -133,10 +135,14 @@ public:
         constexpr double mouse_yaw_sensitivity = 0.5 * 0.114;
         constexpr double mouse_pitch_sensitivity = 0.5 * 0.095;
 
-        EncoderControlShift control_shift;
-        control_shift.yaw_shift = mouse_yaw_sensitivity * mouse_velocity_->y();
+        constexpr double joystick_sensitivity = 0.006;
 
-        double desired_pitch_shift = mouse_pitch_sensitivity * mouse_velocity_->x();
+        EncoderControlShift control_shift;
+        control_shift.yaw_shift = joystick_sensitivity * joystick_left_->y()
+                                + mouse_yaw_sensitivity * mouse_velocity_->y();
+
+        double desired_pitch_shift = -joystick_sensitivity * joystick_left_->x()
+                                   + mouse_pitch_sensitivity * mouse_velocity_->x();
         control_shift.pitch_shift = clamp_encoder_pitch_shift(desired_pitch_shift);
         return control_shift;
     }

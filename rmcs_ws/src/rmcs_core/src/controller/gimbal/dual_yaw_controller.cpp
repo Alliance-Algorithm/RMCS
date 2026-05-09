@@ -92,6 +92,7 @@ public:
             }
 
             *bottom_yaw_control_angle_shift_ = *control_angle_shift_;
+
             if (top_yaw_encoder_locked_)
                 *top_yaw_control_angle_ = top_yaw_encoder_angle_;
             else
