@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <cstring>
 #include <exception>
+#include <experimental/scope>
 #include <memory>
 #include <string>
 #include <thread>
@@ -28,7 +29,7 @@ public:
             camera_config,
             [this](const Hikcamera::Frame& frame) noexcept { frame_callback(frame); }, camera_name);
 
-        thread_ = std::thread(&AutoAimTestApp::thread_main, this);
+        worker_ = std::thread(&AutoAimTestApp::worker_main, this);
 
         RCLCPP_INFO(get_logger(), "auto_aim_test started");
     }
@@ -36,7 +37,7 @@ public:
     ~AutoAimTestApp() {
         stopped_.test_and_set(std::memory_order::relaxed);
         notify_event();
-        thread_.join();
+        worker_.join();
 
         camera_.reset();
 
@@ -50,7 +51,15 @@ public:
     }
 
 private:
-    void thread_main() {
+    void worker_main() {
+        RCLCPP_INFO(get_logger(), "worker started");
+
+        using namespace std::chrono_literals;
+        std::this_thread::sleep_for(1s);
+
+        camera_->set_soft_trigger(false);
+        RCLCPP_INFO(get_logger(), "capture started");
+
         while (!stopped_.test(std::memory_order::relaxed)) {
             auto old = event_count_.load(std::memory_order::relaxed);
             if (!unmatched_image_buffer_.pop_front_n([this](UnmatchedImage&& image) noexcept {
@@ -138,7 +147,7 @@ private:
 
     std::atomic_flag stopped_;
     std::atomic<std::size_t> event_count_ = 0;
-    std::thread thread_;
+    std::thread worker_;
 };
 
 } // namespace

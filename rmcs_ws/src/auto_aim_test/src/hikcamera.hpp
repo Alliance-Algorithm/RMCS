@@ -97,6 +97,12 @@ public:
         }
     }
 
+    bool set_soft_trigger(bool enabled) noexcept {
+        return MV_CC_SetEnumValue(
+                   handle_, "TriggerMode", enabled ? MV_TRIGGER_MODE_ON : MV_TRIGGER_MODE_OFF)
+            == MV_OK;
+    }
+
     ~Hikcamera() noexcept { cleanup(); }
 
     Hikcamera(const Hikcamera&) = delete;
@@ -183,7 +189,7 @@ private:
         check_hik("set reverse y", MV_CC_SetBoolValue(handle_, "ReverseY", config.invert_image));
 
         check_hik(
-            "set trigger mode", MV_CC_SetEnumValue(handle_, "TriggerMode", MV_TRIGGER_MODE_OFF));
+            "set trigger mode", MV_CC_SetEnumValue(handle_, "TriggerMode", MV_TRIGGER_MODE_ON));
         check_hik(
             "set trigger source",
             MV_CC_SetEnumValue(handle_, "TriggerSource", MV_TRIGGER_SOURCE_SOFTWARE));
