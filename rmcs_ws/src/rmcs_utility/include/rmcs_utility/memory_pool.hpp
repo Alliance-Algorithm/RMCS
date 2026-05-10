@@ -1,41 +1,22 @@
 #pragma once
 
-#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
-#include <exception>
 #include <memory>
-#include <new>
-#include <type_traits>
-#include <utility>
 
 namespace rmcs_utility {
 
-template <typename T>
-requires(
-    !std::is_reference_v<T> && !std::is_const_v<T> && !std::is_volatile_v<T>
-    && !std::is_unbounded_array_v<T> && std::is_nothrow_destructible_v<T>) class MemoryPool {
+template <size_t Size, size_t Align>
+class MemoryPool {
+    static_assert(Size > 0, "MemoryPool slot size must be greater than zero");
+    static_assert(Align > 0, "MemoryPool slot alignment must be greater than zero");
+    static_assert((Align & (Align - 1)) == 0, "MemoryPool slot alignment must be a power of two");
+
 public:
     /*!
-     * @brief Unique ownership wrapper for pool-allocated objects
-     * @note All returned smart pointers must be destroyed before the owning
-     *       MemoryPool is destroyed.
-     */
-    struct ReturnToPool {
-        MemoryPool* pool{nullptr};
-
-        void operator()(T* pointer) const noexcept {
-            if (pool != nullptr && pointer != nullptr)
-                pool->free(pointer);
-        }
-    };
-
-    using UniquePtr = std::unique_ptr<T, ReturnToPool>;
-
-    /*!
-     * @brief Construct a fixed-capacity memory pool
-     * @param capacity Number of object slots to allocate
+     * @brief Construct a fixed-capacity raw storage pool
+     * @param capacity Number of storage slots to allocate
      * @note This container is not thread-safe.
      */
     explicit MemoryPool(size_t capacity)
@@ -53,14 +34,14 @@ public:
 
     /*!
      * @brief Destructor
-     * @note All objects must be returned to the pool before destruction.
+     * @note All allocated slots must be returned to the pool before destruction.
      *       Violating this lifetime contract terminates the program.
      */
     ~MemoryPool() noexcept {
         if (!empty()) {
             std::fprintf(
                 stderr,
-                "rmcs_utility::MemoryPool %p destroyed with outstanding objects: size=%zu, "
+                "rmcs_utility::MemoryPool %p destroyed with outstanding slots: size=%zu, "
                 "capacity=%zu\n",
                 static_cast<const void*>(this), size_, capacity_);
             std::fflush(stderr);
@@ -69,23 +50,33 @@ public:
     }
 
     /*!
+     * @brief Payload size of each storage slot in bytes
+     */
+    [[nodiscard]] static constexpr size_t slot_size() noexcept { return Size; }
+
+    /*!
+     * @brief Alignment guarantee of each storage slot in bytes
+     */
+    [[nodiscard]] static constexpr size_t slot_align() noexcept { return Align; }
+
+    /*!
      * @brief Capacity of the memory pool
-     * @return Total number of object slots
+     * @return Total number of storage slots
      */
     [[nodiscard]] size_t max_size() const noexcept { return capacity_; }
 
     /*!
-     * @brief Number of currently allocated objects
+     * @brief Number of currently allocated storage slots
      */
     [[nodiscard]] size_t size() const noexcept { return size_; }
 
     /*!
-     * @brief Number of free slots remaining
+     * @brief Number of free storage slots remaining
      */
     [[nodiscard]] size_t available() const noexcept { return capacity_ - size_; }
 
     /*!
-     * @brief Check whether the pool contains no live object
+     * @brief Check whether the pool contains no allocated slot
      */
     [[nodiscard]] bool empty() const noexcept { return size_ == 0; }
 
@@ -95,65 +86,33 @@ public:
     [[nodiscard]] bool full() const noexcept { return size_ == capacity_; }
 
     /*!
-     * @brief Construct one object in-place inside the pool
-     * @return Pointer to the constructed object, or nullptr if the pool is full
+     * @brief Allocate one raw storage slot from the pool
+     * @return Pointer to the slot's raw storage, or nullptr if the pool is full
      */
-    template <typename... Args>
-    [[nodiscard]] T* emplace(Args&&... args) noexcept(noexcept(T{std::forward<Args>(args)...})) {
+    [[nodiscard]] void* allocate() noexcept {
         if (full())
             return nullptr;
 
         const auto index = free_stack_[top_ - 1];
-        auto* pointer = new (storage_[index].data) T{std::forward<Args>(args)...};
-
         occupied_[index] = true;
         --top_;
         ++size_;
 
-        return pointer;
+        return static_cast<void*>(slot_pointer(index));
     }
 
     /*!
-     * @brief Default-construct one object in-place inside the pool
-     * @return Pointer to the constructed object, or nullptr if the pool is full
-     */
-    [[nodiscard]] T* allocate() noexcept(noexcept(T{})) requires std::default_initializable<T> {
-        return emplace();
-    }
-
-    /*!
-     * @brief Construct one object and return unique ownership bound to the pool
-     * @return Smart pointer owning the object, or a null smart pointer if the pool is full
-     */
-    template <typename... Args>
-    [[nodiscard]] UniquePtr
-        make_unique(Args&&... args) noexcept(noexcept(T{std::forward<Args>(args)...})) {
-        if (auto* pointer = emplace(std::forward<Args>(args)...); pointer != nullptr)
-            return UniquePtr(pointer, ReturnToPool{this});
-        return UniquePtr(nullptr, ReturnToPool{this});
-    }
-
-    /*!
-     * @brief Default-construct one object and return unique ownership bound to the pool
-     * @return Smart pointer owning the object, or a null smart pointer if the pool is full
-     */
-    [[nodiscard]] UniquePtr allocate_unique() noexcept(noexcept(T{}))
-        requires std::default_initializable<T> {
-        return make_unique();
-    }
-
-    /*!
-     * @brief Release an object back to the pool
+     * @brief Release a raw storage slot back to the pool
      * @param pointer Pointer previously returned by this pool
-     * @return true if the object was released, false if the pointer was invalid
+     * @return true if the slot was released, false if the pointer was invalid
+     * @note The pointer must refer to the start address of a live slot.
      */
-    bool free(T* pointer) noexcept {
+    bool free(void* pointer) noexcept {
         const auto index = pointer_to_index(pointer);
 
         if (index == capacity_ || !occupied_[index])
             return false;
 
-        std::destroy_at(std::launder(pointer));
         occupied_[index] = false;
         free_stack_[top_] = index;
         ++top_;
@@ -163,23 +122,22 @@ public:
     }
 
     /*!
-     * @brief Check whether a pointer refers to a live object owned by this pool
+     * @brief Check whether a pointer refers to a live slot owned by this pool
      */
-    [[nodiscard]] bool contains(const T* pointer) const noexcept {
+    [[nodiscard]] bool contains(const void* pointer) const noexcept {
         const auto index = pointer_to_index(pointer);
         return index != capacity_ && occupied_[index];
     }
 
     /*!
-     * @brief Destroy every live object and reset the pool
-     * @return Number of objects that were destroyed
+     * @brief Release every live slot and reset the pool
+     * @return Number of slots that were released
      */
     size_t clear() noexcept {
         size_t count = 0;
 
         for (size_t i = 0; i < capacity_; i++) {
             if (occupied_[i]) {
-                std::destroy_at(slot_pointer(i));
                 occupied_[i] = false;
                 ++count;
             }
@@ -193,18 +151,16 @@ public:
 
 private:
     struct Storage {
-        alignas(T) std::byte data[sizeof(T)];
+        alignas(Align) std::byte data[Size];
     };
 
-    [[nodiscard]] T* slot_pointer(size_t index) noexcept {
-        return std::launder(reinterpret_cast<T*>(storage_[index].data));
+    [[nodiscard]] std::byte* slot_pointer(size_t index) noexcept { return storage_[index].data; }
+
+    [[nodiscard]] const std::byte* slot_pointer(size_t index) const noexcept {
+        return storage_[index].data;
     }
 
-    [[nodiscard]] const T* slot_pointer(size_t index) const noexcept {
-        return std::launder(reinterpret_cast<const T*>(storage_[index].data));
-    }
-
-    [[nodiscard]] size_t pointer_to_index(const T* pointer) const noexcept {
+    [[nodiscard]] size_t pointer_to_index(const void* pointer) const noexcept {
         if (pointer == nullptr)
             return capacity_;
 

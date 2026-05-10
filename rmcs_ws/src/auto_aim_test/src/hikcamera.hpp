@@ -1,6 +1,7 @@
 #pragma once
 
 #include <any>
+#include <bit>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -8,10 +9,10 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <utility>
 
 #include <MvCameraControl.h>
-#include <rmcs_utility/memory_pool.hpp>
 
 class Hikcamera final {
 public:
@@ -21,8 +22,6 @@ public:
     static constexpr std::uint32_t Cs016FrameHeight = 1080;
 
     struct CameraConfig final {
-        unsigned int timeout_ms = 2000;
-
         float exposure_us = 2000.F;
         float gain = 0.0F;
         float framerate = 10.0F;
@@ -37,74 +36,61 @@ public:
         }
     };
 
-    template <std::size_t frame_size>
-    struct Frame final {
-        static constexpr std::size_t kFrameSize = frame_size;
+    struct HikDeviceClock {
+        // 10ns / tick
+        using duration = std::chrono::duration<std::int64_t, std::ratio<1, 100'000'000>>;
+        using rep = duration::rep;
+        using period = duration::period;
+        using time_point = std::chrono::time_point<HikDeviceClock>;
 
-        alignas(std::uintptr_t) std::byte data[frame_size];
+        [[maybe_unused]] static constexpr bool is_steady = true;
+    };
+
+    struct Frame {
+        std::span<const std::byte> data;
         std::uint32_t width;
         std::uint32_t height;
         MvGvspPixelType pixel_type;
         std::uint32_t frame_id;
-        std::uint64_t device_timestamp;
-        std::int64_t host_timestamp;
-        std::chrono::steady_clock::time_point timestamp;
+        HikDeviceClock::time_point timestamp;
     };
 
-    template <std::size_t frame_size>
-    using MemoryPool = rmcs_utility::MemoryPool<Frame<frame_size>>;
-
-    template <std::size_t frame_size>
-    using FrameUniquePtr = MemoryPool<frame_size>::UniquePtr;
-
-    template <std::size_t frame_size, typename CallbackT>
-    requires requires(CallbackT&& f, FrameUniquePtr<frame_size>&& frame) {
-        { f(std::move(frame)) } noexcept;
-    }
+    template <typename CallbackT>
     Hikcamera(
-        const CameraConfig& config, MemoryPool<frame_size>& frame_memory_pool, CallbackT&& callback,
-        const std::string_view device_name = {}) {
+        const CameraConfig& config, CallbackT callback, const std::string_view device_name = {})
+        requires(
+            std::is_nothrow_invocable_v<CallbackT, const Frame&>
+            && std::is_trivially_copyable_v<CallbackT>
+            && std::is_trivially_destructible_v<CallbackT>
+            && sizeof(CallbackT) <= sizeof(std::uintptr_t)) {
 
         auto* device = select_device(device_name);
         check_hik("create camera handle", MV_CC_CreateHandleWithoutLog(&handle_, device));
 
-        struct UserContext {
-            MemoryPool<frame_size>& frame_memory_pool;
-            CallbackT callback;
-        };
-        user_context_ = UserContext{
-            .frame_memory_pool = frame_memory_pool, .callback = std::forward<CallbackT>(callback)};
-
-        auto image_callback = [](unsigned char* data, MV_FRAME_OUT_INFO_EX* frame_info,
-                                 void* user) noexcept {
-            auto* self = static_cast<Hikcamera*>(user);
-            if (self == nullptr || data == nullptr || frame_info == nullptr)
+        auto sdk_callback = [](unsigned char* data, MV_FRAME_OUT_INFO_EX* frame_info,
+                               void* user_data) noexcept {
+            if (data == nullptr || frame_info == nullptr)
                 return;
-            if (frame_info->nFrameLen != frame_size)
-                return;
-
-            UserContext& context = std::any_cast<UserContext&>(self->user_context_);
-            auto frame = context.frame_memory_pool.allocate_unique();
-            if (!frame)
-                return;
-            std::memcpy(frame->data, data, frame_size);
 
             const auto device_timestamp =
                 (static_cast<std::uint64_t>(frame_info->nDevTimeStampHigh) << 32U)
                 | static_cast<std::uint64_t>(frame_info->nDevTimeStampLow);
 
-            frame->width = frame_info->nWidth;
-            frame->height = frame_info->nHeight, frame->pixel_type = frame_info->enPixelType;
-            frame->frame_id = frame_info->nFrameNum;
-            frame->device_timestamp = device_timestamp;
-            frame->host_timestamp = frame_info->nHostTimeStamp;
-            frame->timestamp = std::chrono::steady_clock::now();
-
-            context.callback(std::move(frame));
+            auto frame = Frame{
+                .data = {reinterpret_cast<const std::byte*>(data), frame_info->nFrameLen},
+                .width = frame_info->nWidth,
+                .height = frame_info->nHeight,
+                .pixel_type = frame_info->enPixelType,
+                .frame_id = frame_info->nFrameNum,
+                .timestamp = HikDeviceClock::time_point{HikDeviceClock::duration{
+                    static_cast<int64_t>(device_timestamp)}},
+            };
+            auto callback = std::bit_cast<CallbackT>(user_data);
+            callback(static_cast<const Frame&>(frame));
         };
 
         try {
-            open_and_configure(*device, config, image_callback);
+            open_and_configure(*device, config, sdk_callback, std::bit_cast<void*>(callback));
         } catch (...) {
             cleanup();
             throw;
@@ -162,7 +148,8 @@ private:
     }
 
     void open_and_configure(
-        const MV_CC_DEVICE_INFO& device, const CameraConfig& config, MvImageCallbackEx callback) {
+        const MV_CC_DEVICE_INFO& device, const CameraConfig& config, MvImageCallbackEx callback,
+        void* user_data) {
         check_hik("open camera device", MV_CC_OpenDevice(handle_));
 
         if (device.nTLayerType == MV_GIGE_DEVICE) {
@@ -183,7 +170,6 @@ private:
         check_hik(
             "set exposure time", MV_CC_SetFloatValue(handle_, "ExposureTime", config.exposure_us));
         check_hik("set gain", MV_CC_SetFloatValue(handle_, "Gain", config.gain));
-        check_hik("set gain", MV_CC_SetFloatValue(handle_, "Gain", config.gain));
         check_hik("set adc bit depth", MV_CC_SetEnumValue(handle_, "ADCBitDepth", 0)); // 8-Bit
 
         check_hik(
@@ -197,7 +183,7 @@ private:
         check_hik("set reverse y", MV_CC_SetBoolValue(handle_, "ReverseY", config.invert_image));
 
         check_hik(
-            "set trigger mode", MV_CC_SetEnumValue(handle_, "TriggerMode", MV_TRIGGER_MODE_ON));
+            "set trigger mode", MV_CC_SetEnumValue(handle_, "TriggerMode", MV_TRIGGER_MODE_OFF));
         check_hik(
             "set trigger source",
             MV_CC_SetEnumValue(handle_, "TriggerSource", MV_TRIGGER_SOURCE_SOFTWARE));
@@ -211,7 +197,7 @@ private:
         check_hik("set frame height", MV_CC_SetIntValueEx(handle_, "Height", value.nCurValue));
 
         check_hik(
-            "register image callback", MV_CC_RegisterImageCallBackEx(handle_, callback, this));
+            "register image callback", MV_CC_RegisterImageCallBackEx(handle_, callback, user_data));
         check_hik("start grabbing", MV_CC_StartGrabbing(handle_));
     }
 

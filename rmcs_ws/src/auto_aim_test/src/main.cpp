@@ -4,77 +4,124 @@
 #include <exception>
 #include <memory>
 #include <string>
+#include <thread>
 
-#include "hikcamera.hpp"
+#include <eigen3/Eigen/Dense>
 #include <rclcpp/rclcpp.hpp>
 #include <rmcs_utility/memory_pool.hpp>
+#include <rmcs_utility/ring_buffer.hpp>
+
+#include "hikcamera.hpp"
 
 namespace {
 
-class AutoAimTestApp;
-
-class AutoAimTestApp final {
-
+class AutoAimTestApp final : public rclcpp::Node {
 public:
     AutoAimTestApp()
-        : node_(std::make_shared<rclcpp::Node>("auto_aim_test"))
-        , frame_pool_(100) {
-
+        : Node("auto_aim_test") {
         auto camera_config = Hikcamera::CameraConfig::cs016_default();
         camera_config.exposure_us =
-            static_cast<float>(node_->declare_parameter<double>("exposure_us", 2000.0));
-        auto camera_name = node_->declare_parameter<std::string>("camera_name", "");
-        camera_ = std::make_unique<Hikcamera>(
-            camera_config, frame_pool_,
-            [this](Hikcamera::FrameUniquePtr<kFrameSize>&& frame) noexcept {
-                on_frame(std::move(frame));
-            },
-            camera_name);
+            static_cast<float>(declare_parameter<double>("exposure_us", 2000.0));
+        auto camera_name = declare_parameter<std::string>("camera_name", "");
 
-        RCLCPP_INFO(node_->get_logger(), "auto_aim_test started");
+        camera_ = std::make_unique<Hikcamera>(
+            camera_config,
+            [this](const Hikcamera::Frame& frame) noexcept { frame_callback(frame); }, camera_name);
+
+        thread_ = std::thread(&AutoAimTestApp::thread_main, this);
+
+        RCLCPP_INFO(get_logger(), "auto_aim_test started");
     }
 
-    auto spin() -> void { rclcpp::spin(node_); }
-
-    auto on_trigger_edge(const std::uint32_t raw_timestamp_quarter_us) -> void {
-        const auto trigger_count = trigger_count_.fetch_add(1, std::memory_order_relaxed) + 1;
-        const auto last_frame_id = last_frame_id_.load(std::memory_order_relaxed);
-
-        RCLCPP_INFO(
-            node_->get_logger(), "trigger #%llu: board_ts_quarter_us=%u latest_frame_id=%u",
-            static_cast<unsigned long long>(trigger_count), raw_timestamp_quarter_us,
-            last_frame_id);
+    ~AutoAimTestApp() {
+        stopped_.test_and_set(std::memory_order::relaxed);
+        notify_event();
+        thread_.join();
     }
 
 private:
-    static constexpr std::size_t kFrameSize =
-        Hikcamera::Cs016FrameWidth * Hikcamera::Cs016FrameHeight;
+    void thread_main() {
+        while (!stopped_.test(std::memory_order::relaxed)) {
+            auto old = event_count_.load(std::memory_order::relaxed);
+            if (!unmatched_image_buffer_.pop_front([this](UnmatchedImage&& image) noexcept {
+                    if (image.frame_id % 100 == 0) {
+                    RCLCPP_INFO(
+                        get_logger(), "frame #%u: device_ts=%llu", image.frame_id,
+                        static_cast<unsigned long long>(
+                            image.timestamp.time_since_epoch().count()));
+                    }
 
-    auto on_frame(Hikcamera::FrameUniquePtr<kFrameSize>&& frame) -> void {
-        const auto frame_count = frame_count_.fetch_add(1, std::memory_order_relaxed) + 1;
-        last_frame_id_.store(frame->frame_id, std::memory_order_relaxed);
+                    // Process Image ...
 
-        if (frame_count == 1 || frame_count % 60 == 0) {
-            RCLCPP_INFO(
-                node_->get_logger(),
-                "frame #%llu: id=%u %ux%u bytes=%zu pixel_type=0x%x device_ts=%llu host_ts=%lld",
-                static_cast<unsigned long long>(frame_count), frame->frame_id, frame->width,
-                frame->height, kFrameSize, static_cast<unsigned int>(frame->pixel_type),
-                static_cast<unsigned long long>(frame->device_timestamp),
-                static_cast<long long>(frame->host_timestamp));
+                    std::destroy_at(std::launder(image.frame));
+                    {
+                        auto guard = std::scoped_lock{frame_pool_mutex_};
+                        frame_pool_.free(image.frame);
+                    }
+                })) {
+                event_count_.wait(old, std::memory_order::acquire);
+            }
         }
     }
 
-    std::shared_ptr<rclcpp::Node> node_;
+    void frame_callback(const Hikcamera::Frame& frame) {
+        void* pub_frame_ptr;
+        {
+            auto guard = std::scoped_lock{frame_pool_mutex_};
+            pub_frame_ptr = frame_pool_.allocate();
+        }
+        if (!pub_frame_ptr)
+            return;
 
-    Hikcamera::MemoryPool<kFrameSize> frame_pool_;
+        auto pub_frame = new (pub_frame_ptr) PublishFrame{};
+        std::memcpy(pub_frame->data, frame.data.data(), frame.data.size());
+
+        unmatched_image_buffer_.emplace_back(pub_frame, frame.frame_id, frame.timestamp);
+
+        notify_event();
+    }
+
+    void notify_event() {
+        event_count_.fetch_add(1, std::memory_order::release);
+        event_count_.notify_one();
+    }
+
+    struct BoardClock {
+        // 250ns / tick
+        using duration = std::chrono::duration<std::int64_t, std::ratio<1, 4'000'000>>;
+        using rep = duration::rep;
+        using period = duration::period;
+        using time_point = std::chrono::time_point<BoardClock>;
+
+        [[maybe_unused]] static constexpr bool is_steady = true;
+    };
+
+    struct PublishFrame {
+        static constexpr std::uint32_t kWidth = Hikcamera::Cs016FrameWidth;
+        static constexpr std::uint32_t kHeight = Hikcamera::Cs016FrameHeight;
+        static constexpr std::size_t kFrameSize = 1 * kWidth * kHeight;
+
+        alignas(std::uintptr_t) std::byte data[kFrameSize];
+        MvGvspPixelType pixel_type;
+
+        Eigen::Quaterniond imu_snapshot;
+        BoardClock::time_point timestamp;
+    };
+    rmcs_utility::MemoryPool<sizeof(PublishFrame), alignof(PublishFrame)> frame_pool_{100};
+    std::mutex frame_pool_mutex_;
+
+    struct UnmatchedImage {
+        PublishFrame* frame;
+        std::uint32_t frame_id;
+        Hikcamera::HikDeviceClock::time_point timestamp;
+    };
+    rmcs_utility::RingBuffer<UnmatchedImage> unmatched_image_buffer_{16};
+
     std::unique_ptr<Hikcamera> camera_;
 
-    std::atomic<std::uint64_t> frame_count_ = 0;
-    std::atomic<std::uint64_t> trigger_count_ = 0;
-    std::atomic<std::uint32_t> last_frame_id_ = 0;
-
-    friend class TriggerBoard;
+    std::atomic_flag stopped_;
+    std::atomic<std::size_t> event_count_ = 0;
+    std::thread thread_;
 };
 
 } // namespace
@@ -83,8 +130,8 @@ auto main(int argc, char** argv) -> int {
     rclcpp::init(argc, argv);
 
     try {
-        AutoAimTestApp app;
-        app.spin();
+        auto app = std::make_shared<AutoAimTestApp>();
+        rclcpp::spin(app);
         rclcpp::shutdown();
         return 0;
     } catch (const std::exception& exception) {
