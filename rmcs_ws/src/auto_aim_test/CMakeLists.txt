@@ -14,6 +14,16 @@ ament_auto_find_build_dependencies(REQUIRED)
 
 find_package(OpenCV 4.5 REQUIRED)
 
+if(CMAKE_SYSROOT)
+  set(HIK_MVS_SDK_ROOT "${CMAKE_SYSROOT}/opt/mvs-usb3-core")
+else()
+  set(HIK_MVS_SDK_ROOT "/opt/mvs-usb3-core")
+endif()
+
+find_package(MVSUSB3Core REQUIRED CONFIG
+  PATHS "${HIK_MVS_SDK_ROOT}" NO_DEFAULT_PATH
+)
+
 set(
   LIBRMCS_DEV10_ROOT
   "/workspaces/RMCS/librmcs_tmp/librmcs-sdk-src-3.2.0-beta.0.dev.10.g72381f1"
@@ -50,6 +60,7 @@ target_link_libraries(
   ${PROJECT_NAME}_exe
   ${OpenCV_LIBS}
   librmcs-sdk
+  MVSUSB3Core::MVSUSB3Core
 )
 
 target_include_directories(
