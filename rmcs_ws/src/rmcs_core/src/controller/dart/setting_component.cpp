@@ -38,6 +38,10 @@ public:
               get_parameter("force_error_kp").as_double(),
               get_parameter("force_error_ki").as_double(),
               get_parameter("force_error_kd").as_double())
+        , carriage_angle_velocity_pid_(
+              get_parameter("carriage_angle_kp").as_double(),
+              get_parameter("carriage_angle_ki").as_double(),
+              get_parameter("carriage_angle_kd").as_double())
         , yaw_max_velocity_(get_parameter("yaw_max_velocity").as_double())
         , pitch_max_velocity_(get_parameter("pitch_max_velocity").as_double())
         , force_max_velocity_(get_parameter("force_max_velocity").as_double()) {
@@ -46,9 +50,11 @@ public:
         register_input("/dart_manager/force/error", force_error_);
         register_input("/dart_manager/carriage/command", carriage_command_, false);
         register_input("/dart_manager/carriage/target_velocity", carriage_target_velocity_, false);
+        register_input("/dart_manager/carriage/target_angle", carriage_target_angle_, false);
 
         register_input("/force_sensor/channel_1/weight", force_sensor_ch1_);
         register_input("/force_sensor/channel_2/weight", force_sensor_ch2_);
+        register_input("/dart/force_screw_motor/encoder_angle", force_screw_angle_);
 
         register_input("/imu/catapult_pitch_angle", pitch_angle_);
         register_input(
@@ -77,6 +83,15 @@ public:
             "force_error_integral_split_max", force_error_velocity_pid_.integral_split_max);
         get_parameter("force_error_output_min", force_error_velocity_pid_.output_min);
         get_parameter("force_error_output_max", force_error_velocity_pid_.output_max);
+
+        get_parameter("carriage_angle_integral_min", carriage_angle_velocity_pid_.integral_min);
+        get_parameter("carriage_angle_integral_max", carriage_angle_velocity_pid_.integral_max);
+        get_parameter(
+            "carriage_angle_integral_split_min", carriage_angle_velocity_pid_.integral_split_min);
+        get_parameter(
+            "carriage_angle_integral_split_max", carriage_angle_velocity_pid_.integral_split_max);
+        get_parameter("carriage_angle_output_min", carriage_angle_velocity_pid_.output_min);
+        get_parameter("carriage_angle_output_max", carriage_angle_velocity_pid_.output_max);
     }
 
     void update() override {
@@ -94,17 +109,22 @@ public:
             "pitch", requested_pitch_velocity, *pitch_velocity_, *pitch_torque_,
             pitch_stall_counter_, pitch_stall_latched_);
 
-        if (const auto carriage_control_velocity = resolve_carriage_control_velocity()) {
+        if (const auto carriage_control_velocity = resolve_carriage_angle_control_velocity()) {
             *force_control_velocity_ = *carriage_control_velocity;
             force_error_velocity_pid_.reset();
+        } else if (const auto carriage_control_velocity = resolve_carriage_control_velocity()) {
+            *force_control_velocity_ = *carriage_control_velocity;
+            carriage_angle_velocity_pid_.reset();
+            force_error_velocity_pid_.reset();
         } else {
+            carriage_angle_velocity_pid_.reset();
             *force_control_velocity_ = update_force_control_velocity(*force_error_);
         }
 
         if (count++ == 1000) {
-            RCLCPP_INFO(
-                get_logger(), "[ForSensor]: (%5d,%5d),[PYR]]: (%5f,%5f,%5f)", *force_sensor_ch1_,
-                *force_sensor_ch2_, *pitch_angle_, *yaw_angle_, *roll_angle_);
+            // RCLCPP_INFO(
+            //     get_logger(), "[ForSensor]: (%5d,%5d),[PYR]]: (%5f,%5f,%5f)", *force_sensor_ch1_,
+            //     *force_sensor_ch2_, *pitch_angle_, *yaw_angle_, *roll_angle_);
 
             count = 0;
         }
@@ -195,6 +215,37 @@ private:
         return 0.0;
     }
 
+    std::optional<double> requested_carriage_target_angle() const {
+        if (!carriage_target_angle_.ready()) {
+            return std::nullopt;
+        }
+
+        const double target_angle = *carriage_target_angle_;
+        if (!std::isfinite(target_angle)) {
+            return std::nullopt;
+        }
+
+        return target_angle;
+    }
+
+    std::optional<double> resolve_carriage_angle_control_velocity() {
+        const auto target_angle = requested_carriage_target_angle();
+        const double velocity_limit = requested_carriage_velocity();
+        if (!target_angle || velocity_limit == 0.0) {
+            carriage_angle_velocity_pid_.reset();
+            return std::nullopt;
+        }
+
+        const double control_velocity =
+            carriage_angle_velocity_pid_.update(*target_angle - *force_screw_angle_);
+        if (!std::isfinite(control_velocity)) {
+            carriage_angle_velocity_pid_.reset();
+            return 0.0;
+        }
+
+        return clamp_velocity(control_velocity, velocity_limit);
+    }
+
     std::optional<double> resolve_carriage_control_velocity() const {
         const double requested_velocity = requested_carriage_velocity();
         switch (active_carriage_command()) {
@@ -237,6 +288,7 @@ private:
     double yaw_error_to_velocity_gain_;
     double pitch_error_to_velocity_gain_;
     pid::PidCalculator force_error_velocity_pid_;
+    pid::PidCalculator carriage_angle_velocity_pid_;
 
     double yaw_max_velocity_;
     double pitch_max_velocity_;
@@ -246,9 +298,11 @@ private:
     InputInterface<int32_t> force_error_;
     InputInterface<rmcs_msgs::DartMechanismCommand> carriage_command_;
     InputInterface<double> carriage_target_velocity_;
+    InputInterface<double> carriage_target_angle_;
 
     InputInterface<int32_t> force_sensor_ch1_;
     InputInterface<int32_t> force_sensor_ch2_;
+    InputInterface<double> force_screw_angle_;
 
     InputInterface<double> pitch_angle_;
     InputInterface<double> force_max_velocity_override_;

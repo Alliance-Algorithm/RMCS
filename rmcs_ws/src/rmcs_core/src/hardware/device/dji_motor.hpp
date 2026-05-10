@@ -55,6 +55,8 @@ public:
         , velocity_(0.0)
         , torque_(0.0) {
         status_component.register_output(name_prefix + "/angle", angle_output_, 0.0);
+        status_component.register_output(
+            name_prefix + "/encoder_angle", encoder_angle_output_, 0.0);
         status_component.register_output(name_prefix + "/velocity", velocity_output_, 0.0);
         status_component.register_output(name_prefix + "/torque", torque_output_, 0.0);
         status_component.register_output(name_prefix + "/max_torque", max_torque_output_, 0.0);
@@ -159,6 +161,9 @@ public:
             angle_ = raw_angle_to_angle_coefficient_ * static_cast<double>(angle_multi_turn_);
         }
         last_raw_angle_ = raw_angle;
+        *encoder_angle_output_ = multi_turn_angle_enabled_
+                                     ? static_cast<double>(angle_multi_turn_)
+                                     : static_cast<double>(calibrated_raw_angle);
 
         // Velocity unit: rad/s
         velocity_ = raw_velocity_to_velocity_coefficient_ * static_cast<double>(feedback.velocity);
@@ -232,6 +237,7 @@ private:
     double temperature_;
 
     rmcs_executor::Component::OutputInterface<double> angle_output_;
+    rmcs_executor::Component::OutputInterface<double> encoder_angle_output_;
     rmcs_executor::Component::OutputInterface<double> velocity_output_;
     rmcs_executor::Component::OutputInterface<double> torque_output_;
     rmcs_executor::Component::OutputInterface<double> max_torque_output_;

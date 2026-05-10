@@ -39,8 +39,8 @@ dart_hardware:
 dart_manager:
   ros__parameters:
     fire_target: "basement"  # frontier or basement
-    basement_travel_distance: 0.03  # m
-    frontier_travel_distance: 0.03  # m
+    basement_travel_angle: 7431644.0
+    frontier_travel_angle: 2334720.0
     belt_down_velocity: 10.0
     belt_down_travel_angle: 10.0
     belt_up_velocity: 20.0
@@ -48,8 +48,8 @@ dart_manager:
     belt_init_velocity: 3.0
     carriage_down_velocity: 10.0
     carriage_up_velocity: 10.0
-    carriage_adjust_down_distance: 0.01
-    carriage_adjust_up_distance: 0.01
+    carriage_adjust_down_angle: 778240.0
+    carriage_adjust_up_angle: 778240.0
     manual_max_velocity: 10.0
     lift_velocity: 3.0
     force_setpoint: 0
@@ -74,10 +74,11 @@ dart_manager:
     carriage_stall_torque_threshold: 0.2
     carriage_stall_confirm_ticks: 100
     carriage_calibration_velocity: 3.0
-    carriage_calibration_stall_velocity_threshold: 2.99
-    carriage_calibration_stall_torque_threshold: 0.1
+    carriage_calibration_stall_velocity_threshold: 1.0
+    carriage_calibration_stall_torque_threshold: 0.15
     carriage_calibration_stall_confirm_ticks: 100
-    carriage_calibration_max_torque: 0.21
+    carriage_calibration_max_torque: 0.25
+    carriage_angle_allowable_error: 512.0
     carriage_min_run_ticks: 500
     carriage_timeout_ticks: 600000
     vision_aim.allowable_error.x: 5
@@ -159,6 +160,15 @@ dart_setting:
     force_error_integral_max: 10.0
     force_error_integral_split_min: -20.0
     force_error_integral_split_max: 20.0
+    carriage_angle_kp: 1.0
+    carriage_angle_ki: 0.0
+    carriage_angle_kd: 0.0
+    carriage_angle_integral_min: -10.0
+    carriage_angle_integral_max: 10.0
+    carriage_angle_integral_split_min: -20.0
+    carriage_angle_integral_split_max: 20.0
+    carriage_angle_output_min: -10.0
+    carriage_angle_output_max: 10.0
     yaw_max_velocity: 10.0
     pitch_max_velocity: 10.0
     force_max_velocity: 1000.0
