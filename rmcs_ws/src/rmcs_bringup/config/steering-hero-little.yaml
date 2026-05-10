@@ -50,9 +50,9 @@ hero_hardware:
   ros__parameters:
     board_serial_top_board: "AF-BFF7-0B6F-46A5-2B4B-AA20-89C2-E180-64B9"
     serial_bottom_rmcs_board: "AF-60BB-7484-FA24-F3FC-399B-454D-22FA-1B1D"
-    bottom_yaw_motor_zero_point: 35014
-    pitch_motor_zero_point: 47885
-    top_yaw_motor_zero_point: 48738
+    bottom_yaw_motor_zero_point: 34180
+    pitch_motor_zero_point: 24154
+    top_yaw_motor_zero_point: 48542
     viewer_motor_zero_point: 3030
     external_imu_port: /dev/ttyUSB0
     bullet_feeder_motor_zero_point: 12707
