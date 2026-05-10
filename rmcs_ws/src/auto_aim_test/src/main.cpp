@@ -37,23 +37,33 @@ public:
         stopped_.test_and_set(std::memory_order::relaxed);
         notify_event();
         thread_.join();
+
+        camera_.reset();
+
+        {
+            auto guard = std::scoped_lock{frame_pool_mutex_};
+            unmatched_image_buffer_.pop_front_n([this](UnmatchedImage&& image) noexcept {
+                std::destroy_at(std::launder(image.frame));
+                frame_pool_.free(image.frame);
+            });
+        }
     }
 
 private:
     void thread_main() {
         while (!stopped_.test(std::memory_order::relaxed)) {
             auto old = event_count_.load(std::memory_order::relaxed);
-            if (!unmatched_image_buffer_.pop_front([this](UnmatchedImage&& image) noexcept {
+            if (!unmatched_image_buffer_.pop_front_n([this](UnmatchedImage&& image) noexcept {
                     if (image.frame_id % 100 == 0) {
-                    RCLCPP_INFO(
-                        get_logger(), "frame #%u: device_ts=%llu", image.frame_id,
-                        static_cast<unsigned long long>(
-                            image.timestamp.time_since_epoch().count()));
+                        RCLCPP_INFO(
+                            get_logger(), "frame #%u: device_ts=%llu", image.frame_id,
+                            static_cast<unsigned long long>(
+                                image.timestamp.time_since_epoch().count()));
                     }
 
                     // Process Image ...
 
-                    std::destroy_at(std::launder(image.frame));
+                    std::destroy_at(image.frame);
                     {
                         auto guard = std::scoped_lock{frame_pool_mutex_};
                         frame_pool_.free(image.frame);
@@ -73,10 +83,17 @@ private:
         if (!pub_frame_ptr)
             return;
 
-        auto pub_frame = new (pub_frame_ptr) PublishFrame{};
-        std::memcpy(pub_frame->data, frame.data.data(), frame.data.size());
-
-        unmatched_image_buffer_.emplace_back(pub_frame, frame.frame_id, frame.timestamp);
+        if (!unmatched_image_buffer_.emplace_back_n(
+                [&](std::byte* storage) noexcept {
+                    auto pub_frame = new (pub_frame_ptr) PublishFrame{};
+                    std::memcpy(pub_frame->data, frame.data.data(), frame.data.size());
+                    new (storage) UnmatchedImage{pub_frame, frame.frame_id, frame.timestamp};
+                },
+                1)) {
+            auto guard = std::scoped_lock{frame_pool_mutex_};
+            frame_pool_.free(pub_frame_ptr);
+            return;
+        }
 
         notify_event();
     }
