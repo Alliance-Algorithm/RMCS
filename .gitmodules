@@ -4,3 +4,6 @@
 [submodule "rmcs_ws/src/odin_ros_driver"]
 	path = rmcs_ws/src/odin_ros_driver
 	url = git@github.com:Alliance-Algorithm/odin_ros_driver.git
+[submodule "rmcs_ws/src/hikcamera"]
+	path = rmcs_ws/src/hikcamera
+	url = git@github.com:Alliance-Algorithm/ros2-hikcamera.git
