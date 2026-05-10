@@ -2,7 +2,7 @@ rmcs_executor:
   ros__parameters:
     update_rate: 1000.0
     components:
-      - rmcs_core::hardware::DeformableInfantryV2 -> deformable_infantry
+      - rmcs_core::hardware::DeformableInfantryOmniB -> deformable_infantry
 
       - rmcs_core::referee::Status -> referee_status
       - rmcs_core::referee::Command -> referee_command
@@ -22,7 +22,7 @@ rmcs_executor:
 
       - rmcs_core::controller::chassis::DeformableChassis -> chassis_controller
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
-      - rmcs_core::controller::chassis::DeformableChassisController -> deformable_chassis_controller
+      - rmcs_core::controller::chassis::DeformableOmniWheelController -> deformable_chassis_controller
 
       - rmcs_core::controller::chassis::DeformableJointController -> lf_joint_controller
       - rmcs_core::controller::chassis::DeformableJointController -> lb_joint_controller

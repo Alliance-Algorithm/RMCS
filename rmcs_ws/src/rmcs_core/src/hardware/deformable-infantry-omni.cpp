@@ -468,7 +468,8 @@ private:
                 status_.get_logger(),
                 "[supercap] can1 rx=%c id=0x300 enabled=%d supercap_v=% .3f chassis_v=% .3f "
                 "power=% .3f raw=[%02X %02X %02X %02X %02X %02X %02X %02X]",
-                supercap_rx ? 'Y' : 'N', supercap_rx ? (supercap_.supercap_enabled() ? 1 : 0) : -1,
+                supercap_rx ? 'Y' : 'N',
+                supercap_rx ? (supercap_.supercap_enabled() ? 1 : 0) : -1,
                 supercap_rx ? supercap_.supercap_voltage() : kNaN,
                 supercap_rx ? supercap_.chassis_voltage() : kNaN,
                 supercap_rx ? supercap_.chassis_power() : kNaN,
