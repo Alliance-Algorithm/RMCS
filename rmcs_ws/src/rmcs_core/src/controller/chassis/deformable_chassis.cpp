@@ -349,6 +349,7 @@ public:
             update_mode_from_inputs_(switch_left, switch_right, keyboard);
             update_velocity_control();
             update_lift_target_toggle(keyboard);
+            update_suspension_toggle_from_inputs_(switch_left, switch_right);
             run_joint_intent_pipeline_();
         } while (false);
 
@@ -459,14 +460,21 @@ private:
 
     bool prone_override_requested_() const { return keyboard_.ready() && keyboard_->ctrl; }
 
-    bool suspension_requested_by_switch_() const {
-        return switch_left_.ready() && switch_right_.ready()
-            && *switch_left_ == rmcs_msgs::Switch::DOWN && *switch_right_ == rmcs_msgs::Switch::UP;
+    bool suspension_toggle_requested_by_switch_(
+        rmcs_msgs::Switch switch_left, rmcs_msgs::Switch switch_right) const {
+        return switch_left == rmcs_msgs::Switch::DOWN && switch_right == rmcs_msgs::Switch::UP
+            && last_switch_right_ == rmcs_msgs::Switch::MIDDLE;
+    }
+
+    void update_suspension_toggle_from_inputs_(
+        rmcs_msgs::Switch switch_left, rmcs_msgs::Switch switch_right) {
+        if (suspension_toggle_requested_by_switch_(switch_left, switch_right)) {
+            suspension_on = !suspension_on;
+        }
     }
 
     bool suspension_requested_by_input_() const {
-        return active_suspension_enable_
-            && (prone_override_requested_() || suspension_requested_by_switch_());
+        return active_suspension_enable_ && (prone_override_requested_() || suspension_on);
     }
 
     bool symmetric_joint_target_requested_() const {
@@ -1175,6 +1183,7 @@ private:
     double target_physical_velocity_limit_;
     double target_physical_acceleration_limit_;
     bool active_suspension_enable_;
+    bool suspension_on = false;
     double pitch_kp_;
     double pitch_ki_;
     double pitch_kd_;

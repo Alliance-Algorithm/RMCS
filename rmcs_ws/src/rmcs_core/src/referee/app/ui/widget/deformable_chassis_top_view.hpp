@@ -50,9 +50,9 @@ private:
     static constexpr uint16_t center_y_ = 1080 / 2;
 
     static constexpr uint16_t front_leg_radius_near_ = 102;
-    static constexpr uint16_t rear_leg_radius_near_ = 112;
+    static constexpr uint16_t rear_leg_radius_near_ = 102;
     static constexpr uint16_t front_leg_radius_far_ = 132;
-    static constexpr uint16_t rear_leg_radius_far_ = 142;
+    static constexpr uint16_t rear_leg_radius_far_ = 132;
 
     static constexpr uint16_t prone_leg_width_ = 6;
     static constexpr uint16_t upright_leg_width_ = 16;
