@@ -1,22 +1,17 @@
 #pragma once
 
+#include <any>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <exception>
-#include <functional>
-#include <memory>
-#include <mutex>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 #include <utility>
 
 #include <MvCameraControl.h>
-#include <librmcs/agent/rmcs_board_lite.hpp>
-#include <librmcs/data/datas.hpp>
-#include <librmcs/spec/rmcs_board_lite/gpio.hpp>
+#include <rmcs_utility/memory_pool.hpp>
 
 class Hikcamera final {
 public:
@@ -42,32 +37,74 @@ public:
         }
     };
 
+    template <std::size_t frame_size>
     struct Frame final {
-        std::unique_ptr<std::uint8_t[]> data;
-        std::size_t size = 0;
-        std::uint32_t width = 0;
-        std::uint32_t height = 0;
-        MvGvspPixelType pixel_type{};
-        std::uint32_t frame_id = 0;
-        std::uint64_t device_timestamp = 0;
-        std::int64_t host_timestamp = 0;
-        std::chrono::steady_clock::time_point timestamp{};
+        static constexpr std::size_t kFrameSize = frame_size;
+
+        alignas(std::uintptr_t) std::byte data[frame_size];
+        std::uint32_t width;
+        std::uint32_t height;
+        MvGvspPixelType pixel_type;
+        std::uint32_t frame_id;
+        std::uint64_t device_timestamp;
+        std::int64_t host_timestamp;
+        std::chrono::steady_clock::time_point timestamp;
     };
 
-    using FrameCallback = std::function<void(Frame&&)>;
+    template <std::size_t frame_size>
+    using MemoryPool = rmcs_utility::MemoryPool<Frame<frame_size>>;
 
+    template <std::size_t frame_size>
+    using FrameUniquePtr = MemoryPool<frame_size>::UniquePtr;
+
+    template <std::size_t frame_size, typename CallbackT>
+    requires requires(CallbackT&& f, FrameUniquePtr<frame_size>&& frame) {
+        { f(std::move(frame)) } noexcept;
+    }
     Hikcamera(
-        const CameraConfig& config, FrameCallback&& callback,
-        const std::string_view device_name = {})
-        : callback_(std::move(callback)) {
-        if (!callback_)
-            throw std::invalid_argument{"Frame callback must not be empty"};
+        const CameraConfig& config, MemoryPool<frame_size>& frame_memory_pool, CallbackT&& callback,
+        const std::string_view device_name = {}) {
 
         auto* device = select_device(device_name);
         check_hik("create camera handle", MV_CC_CreateHandleWithoutLog(&handle_, device));
 
+        struct UserContext {
+            MemoryPool<frame_size>& frame_memory_pool;
+            CallbackT callback;
+        };
+        user_context_ = UserContext{
+            .frame_memory_pool = frame_memory_pool, .callback = std::forward<CallbackT>(callback)};
+
+        auto image_callback = [](unsigned char* data, MV_FRAME_OUT_INFO_EX* frame_info,
+                                 void* user) noexcept {
+            auto* self = static_cast<Hikcamera*>(user);
+            if (self == nullptr || data == nullptr || frame_info == nullptr)
+                return;
+            if (frame_info->nFrameLen != frame_size)
+                return;
+
+            UserContext& context = std::any_cast<UserContext&>(self->user_context_);
+            auto frame = context.frame_memory_pool.allocate_unique();
+            if (!frame)
+                return;
+            std::memcpy(frame->data, data, frame_size);
+
+            const auto device_timestamp =
+                (static_cast<std::uint64_t>(frame_info->nDevTimeStampHigh) << 32U)
+                | static_cast<std::uint64_t>(frame_info->nDevTimeStampLow);
+
+            frame->width = frame_info->nWidth;
+            frame->height = frame_info->nHeight, frame->pixel_type = frame_info->enPixelType;
+            frame->frame_id = frame_info->nFrameNum;
+            frame->device_timestamp = device_timestamp;
+            frame->host_timestamp = frame_info->nHostTimeStamp;
+            frame->timestamp = std::chrono::steady_clock::now();
+
+            context.callback(std::move(frame));
+        };
+
         try {
-            open_and_configure(*device, config);
+            open_and_configure(*device, config, image_callback);
         } catch (...) {
             cleanup();
             throw;
@@ -78,17 +115,6 @@ public:
 
     Hikcamera(const Hikcamera&) = delete;
     Hikcamera& operator=(const Hikcamera&) = delete;
-
-    auto rethrow_pending_exception() -> void {
-        auto pending = std::exception_ptr{};
-        {
-            std::lock_guard lock{exception_mutex_};
-            pending = std::exchange(pending_exception_, nullptr);
-        }
-
-        if (pending)
-            std::rethrow_exception(pending);
-    }
 
 private:
     [[nodiscard]] static MV_CC_DEVICE_INFO* select_device(const std::string_view name) {
@@ -135,7 +161,8 @@ private:
         return device_name != nullptr && name == device_name;
     }
 
-    void open_and_configure(const MV_CC_DEVICE_INFO& device, const CameraConfig& config) {
+    void open_and_configure(
+        const MV_CC_DEVICE_INFO& device, const CameraConfig& config, MvImageCallbackEx callback) {
         check_hik("open camera device", MV_CC_OpenDevice(handle_));
 
         if (device.nTLayerType == MV_GIGE_DEVICE) {
@@ -184,8 +211,7 @@ private:
         check_hik("set frame height", MV_CC_SetIntValueEx(handle_, "Height", value.nCurValue));
 
         check_hik(
-            "register image callback",
-            MV_CC_RegisterImageCallBackEx(handle_, &Hikcamera::image_callback, this));
+            "register image callback", MV_CC_RegisterImageCallBackEx(handle_, callback, this));
         check_hik("start grabbing", MV_CC_StartGrabbing(handle_));
     }
 
@@ -193,51 +219,6 @@ private:
         if (code != MV_OK)
             throw std::runtime_error{
                 std::format("{} failed with Hik SDK error code {}", action, code)};
-    }
-
-    static void __stdcall
-        image_callback(unsigned char* data, MV_FRAME_OUT_INFO_EX* frame_info, void* user) {
-        auto* self = static_cast<Hikcamera*>(user);
-        if (self == nullptr || data == nullptr || frame_info == nullptr)
-            return;
-
-        try {
-            self->on_frame(data, *frame_info);
-        } catch (...) {
-            self->store_exception(std::current_exception());
-        }
-    }
-
-    auto on_frame(const unsigned char* data, const MV_FRAME_OUT_INFO_EX& frame_info) -> void {
-        const auto size = static_cast<std::size_t>(frame_info.nFrameLen);
-        auto buffer = std::make_unique<std::uint8_t[]>(size);
-        std::memcpy(buffer.get(), data, size);
-
-        const auto device_timestamp =
-            (static_cast<std::uint64_t>(frame_info.nDevTimeStampHigh) << 32U)
-            | static_cast<std::uint64_t>(frame_info.nDevTimeStampLow);
-
-        callback_(
-            Frame{
-                .data = std::move(buffer),
-                .size = size,
-                .width = frame_info.nWidth,
-                .height = frame_info.nHeight,
-                .pixel_type = frame_info.enPixelType,
-                .frame_id = frame_info.nFrameNum,
-                .device_timestamp = device_timestamp,
-                .host_timestamp = frame_info.nHostTimeStamp,
-                .timestamp = std::chrono::steady_clock::now(),
-            });
-    }
-
-    auto store_exception(std::exception_ptr pending) -> void {
-        if (!pending)
-            return;
-
-        std::lock_guard lock{exception_mutex_};
-        if (!pending_exception_)
-            pending_exception_ = std::move(pending);
     }
 
     auto cleanup() noexcept -> void {
@@ -251,7 +232,6 @@ private:
     }
 
     void* handle_ = nullptr;
-    FrameCallback callback_;
-    std::mutex exception_mutex_;
-    std::exception_ptr pending_exception_;
+
+    std::any user_context_;
 };
