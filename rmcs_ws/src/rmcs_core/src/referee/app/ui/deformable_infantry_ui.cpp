@@ -2,6 +2,7 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <limits>
 
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
@@ -12,6 +13,7 @@
 #include "referee/app/ui/shape/shape.hpp"
 #include "referee/app/ui/widget/crosshair_circle.hpp"
 #include "referee/app/ui/widget/deformable_chassis_top_view.hpp"
+#include "referee/app/ui/widget/pitch_hud.hpp"
 #include "referee/app/ui/widget/status_ring.hpp"
 
 namespace rmcs_core::referee::app::ui {
@@ -32,6 +34,7 @@ public:
               {Shape::Color::WHITE, 2, x_center, 800, x_center, y_center + 110},
               {Shape::Color::WHITE, 2, x_center, y_center - 110, x_center, 200})
         , chassis_direction_indicator_(Shape::Color::PINK, 8, x_center, y_center, 0, 0, 84, 84)
+        , pitch_hud_(PitchHud::Config{1540, y_center, 180, 30.0, 5.0})
         , time_reminder_(Shape::Color::PINK, 50, 5, x_center + 150, y_center + 65, 0, false) {
 
         double deformable_leg_min_angle_deg = 8.0;
@@ -48,6 +51,7 @@ public:
         register_input("/chassis/control_mode", chassis_mode_);
 
         register_input("/chassis/angle", chassis_angle_);
+        register_input("/chassis/imu/pitch", chassis_pitch_, false);
 
         register_input("/chassis/supercap/voltage", supercap_voltage_);
         register_input("/chassis/supercap/enabled", supercap_enabled_);
@@ -76,6 +80,8 @@ public:
 
         register_input("/remote/mouse", mouse_);
 
+        register_input("/gimbal/pitch/angle", gimbal_pitch_angle_, false);
+
         register_input("/referee/game/stage", game_stage_);
     }
 
@@ -91,6 +97,13 @@ public:
         status_ring_.update_battery_power(*chassis_voltage_);
 
         status_ring_.update_auto_aim_enable(mouse_->right == 1);
+        pitch_hud_.update(
+            (gimbal_pitch_angle_.ready() && std::isfinite(*gimbal_pitch_angle_))
+                ? *gimbal_pitch_angle_
+                : std::numeric_limits<double>::quiet_NaN(),
+            (chassis_pitch_.ready() && std::isfinite(*chassis_pitch_))
+                ? *chassis_pitch_
+                : std::numeric_limits<double>::quiet_NaN());
     }
 
 private:
@@ -160,6 +173,9 @@ private:
 
     InputInterface<rmcs_msgs::Mouse> mouse_;
 
+    InputInterface<double> gimbal_pitch_angle_;
+    InputInterface<double> chassis_pitch_;
+
     InputInterface<rmcs_msgs::GameStage> game_stage_;
 
     CrossHairCircle crosshair_circle_;
@@ -170,6 +186,8 @@ private:
 
     Arc chassis_direction_indicator_;
     DeformableChassisLegArcs deformable_chassis_leg_arcs_;
+
+    PitchHud pitch_hud_;
 
     Integer time_reminder_;
 };
