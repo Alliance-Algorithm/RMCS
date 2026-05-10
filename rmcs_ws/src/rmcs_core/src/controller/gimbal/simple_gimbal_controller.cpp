@@ -30,7 +30,8 @@ public:
         register_input("/remote/mouse/velocity", mouse_velocity_);
         register_input("/remote/mouse", mouse_);
 
-        register_input("/gimbal/auto_aim/control_direction", auto_aim_control_direction_, false);
+        register_input("/auto_aim/should_control", auto_aim_should_control_, false);
+        register_input("/auto_aim/control_direction", auto_aim_control_direction_, false);
 
         register_output("/gimbal/yaw/control_angle_error", yaw_angle_error_, nan_);
         register_output("/gimbal/pitch/control_angle_error", pitch_angle_error_, nan_);
@@ -45,18 +46,20 @@ public:
     TwoAxisGimbalSolver::AngleError calculate_angle_error() {
         auto switch_right = *switch_right_;
         auto switch_left = *switch_left_;
-        auto mouse = *mouse_;
-
         using namespace rmcs_msgs;
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN))
             return two_axis_gimbal_solver.update(TwoAxisGimbalSolver::SetDisabled());
 
-        if (auto_aim_control_direction_.ready() && (mouse.right || switch_right == Switch::UP)
-            && !auto_aim_control_direction_->isZero())
+        const auto auto_aim_active =
+            switch_right == Switch::UP && auto_aim_should_control_.ready()
+            && *auto_aim_should_control_ && auto_aim_control_direction_.ready()
+            && auto_aim_control_direction_->allFinite() && !auto_aim_control_direction_->isZero();
+        if (auto_aim_active) {
             return two_axis_gimbal_solver.update(
                 TwoAxisGimbalSolver::SetControlDirection(
                     OdomImu::DirectionVector(*auto_aim_control_direction_)));
+        }
 
         if (!two_axis_gimbal_solver.enabled())
             return two_axis_gimbal_solver.update(TwoAxisGimbalSolver::SetToLevel());
@@ -82,6 +85,7 @@ private:
     InputInterface<Eigen::Vector2d> mouse_velocity_;
     InputInterface<rmcs_msgs::Mouse> mouse_;
 
+    InputInterface<bool> auto_aim_should_control_;
     InputInterface<Eigen::Vector3d> auto_aim_control_direction_;
 
     TwoAxisGimbalSolver two_axis_gimbal_solver;
