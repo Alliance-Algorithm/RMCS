@@ -28,6 +28,8 @@ public:
         status_component.register_output("/chassis/supercap/voltage", supercap_voltage_, 0.0);
         status_component.register_output("/chassis/supercap/enabled", supercap_enabled_, false);
 
+        command_component.register_input(
+            "/chassis/supercap/control_enable", supercap_control_enabled_);
         command_component.register_input("/referee/chassis/output_status", chassis_output_status_);
         command_component.register_input(
             "/chassis/supercap/charge_power_limit", supercap_charge_power_limit_);
@@ -52,7 +54,7 @@ public:
     CanPacket8::Quarter generate_command() const {
         SupercapCommand command;
 
-        command.enabled = *chassis_output_status_;
+        command.enabled = *chassis_output_status_ && *supercap_control_enabled_;
 
         const double power_limit = *supercap_charge_power_limit_;
         if (std::isnan(power_limit))
@@ -111,6 +113,7 @@ private:
     Component::OutputInterface<double> supercap_voltage_;
     Component::OutputInterface<bool> supercap_enabled_;
 
+    Component::InputInterface<bool> supercap_control_enabled_;
     Component::InputInterface<bool> chassis_output_status_;
     Component::InputInterface<double> supercap_charge_power_limit_;
 };
