@@ -33,8 +33,6 @@ remote_cmd_bridge:
 dart_hardware:
   ros__parameters:
     serial_filter: ""
-    first_sample_spot: 1.0
-    final_sample_spot: 4.0
 
 dart_manager:
   ros__parameters:
@@ -53,8 +51,6 @@ dart_manager:
     carriage_adjust_up_angle: 778240.0
     manual_max_velocity: 10.0
     lift_velocity: 3.0
-    force_setpoint: 0
-    force_allowable_error: 5
     force_manual_scale: 1000.0
     angle_manual_scale: 50.0
     limiting_fill_ticks: 200
@@ -65,12 +61,10 @@ dart_manager:
     belt_init_stall_torque_threshold: 0.5
     belt_init_stall_confirm_ticks: 100
     belt_init_max_torque: 1.5
-    belt_stall_min_run_ticks: 1000
     lifting_velocity_stall_threshold: 0.1  # rad/s，低于此值视为堵转
     lifting_stall_torque_threshold: 0.1
     lifting_stall_confirm_ticks: 150  # 连续帧数 = 0.1s @ 1kHz
     lifting_stall_min_run_ticks: 300  # 启动后最少运行帧数，避免启动瞬间误触发
-    lifting_stall_timeout_ticks: 2000  # 超时帧数 = 5s
     carriage_stall_velocity_threshold: 0.2
     carriage_stall_torque_threshold: 0.2
     carriage_stall_confirm_ticks: 100
@@ -79,7 +73,8 @@ dart_manager:
     carriage_calibration_stall_torque_threshold: 0.15
     carriage_calibration_stall_confirm_ticks: 100
     carriage_calibration_max_torque: 0.25
-    carriage_angle_allowable_error: 256.0
+    carriage_calibration_parking_angle: 2000000.0
+    carriage_angle_allowable_error: 512.0
     carriage_min_run_ticks: 500
     carriage_timeout_ticks: 600000
     vision_aim.allowable_error.x: 3
@@ -88,27 +83,23 @@ dart_manager:
     vision_aim.shot_profiles.0.reference_point.x: 810
     vision_aim.shot_profiles.0.reference_point.y: 650
     vision_aim.shot_profiles.0.offset.x: 0
-    vision_aim.shot_profiles.0.offset.y: 25
-    vision_aim.shot_profiles.0.pitch_angle: 0.0
-    vision_aim.shot_profiles.0.trigger_carriage_position: -3050000
-    vision_aim.shot_profiles.1.reference_point.x: 810
-    vision_aim.shot_profiles.1.reference_point.y: 650
-    vision_aim.shot_profiles.1.offset.x: 40
-    vision_aim.shot_profiles.1.offset.y: 150
-    vision_aim.shot_profiles.1.pitch_angle: 0.0
-    vision_aim.shot_profiles.1.trigger_carriage_position: -3000000
-    vision_aim.shot_profiles.2.reference_point.x: 810
-    vision_aim.shot_profiles.2.reference_point.y: 650
+    vision_aim.shot_profiles.0.offset.y: 0
+    vision_aim.shot_profiles.0.pitch_angle: 32.0
+    vision_aim.shot_profiles.1.reference_point.x: 700
+    vision_aim.shot_profiles.1.reference_point.y: 105
+    vision_aim.shot_profiles.1.offset.x: 0
+    vision_aim.shot_profiles.1.offset.y: 0
+    vision_aim.shot_profiles.1.pitch_angle: 32.0
+    vision_aim.shot_profiles.2.reference_point.x: 704
+    vision_aim.shot_profiles.2.reference_point.y: 190
     vision_aim.shot_profiles.2.offset.x: 0
-    vision_aim.shot_profiles.2.offset.y: 25
-    vision_aim.shot_profiles.2.pitch_angle: 0.0
-    vision_aim.shot_profiles.2.trigger_carriage_position: -3000000
-    vision_aim.shot_profiles.3.reference_point.x: 810
-    vision_aim.shot_profiles.3.reference_point.y: 650
-    vision_aim.shot_profiles.3.offset.x: 40
-    vision_aim.shot_profiles.3.offset.y: 150
-    vision_aim.shot_profiles.3.pitch_angle: 0.0
-    vision_aim.shot_profiles.3.trigger_carriage_position: -3000000
+    vision_aim.shot_profiles.2.offset.y: 0
+    vision_aim.shot_profiles.2.pitch_angle: 32.0
+    vision_aim.shot_profiles.3.reference_point.x: 704
+    vision_aim.shot_profiles.3.reference_point.y: 190
+    vision_aim.shot_profiles.3.offset.x: 0
+    vision_aim.shot_profiles.3.offset.y: 0
+    vision_aim.shot_profiles.3.pitch_angle: 32.0
 
 dart_vision_core:
   ros__parameters:
