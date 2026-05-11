@@ -1,11 +1,15 @@
 #include <atomic>
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <exception>
 #include <experimental/scope>
+#include <format>
 #include <memory>
+#include <optional>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include <eigen3/Eigen/Dense>
 #include <rclcpp/rclcpp.hpp>
@@ -14,6 +18,7 @@
 #include <rmcs_utility/ring_buffer.hpp>
 
 #include "hikcamera.hpp"
+#include "linear_sync_model.hpp"
 #include "trigger_board.hpp"
 
 namespace {
@@ -58,11 +63,10 @@ public:
 
 private:
     enum class WorkerState { kReseting, kMatching, kConfirming, kLocked };
+    using TimestampPair = LinearSyncModel::TimestampPair;
 
-    struct TimestampPair {
-        double camera_timestamp_sec;
-        double board_timestamp_sec;
-    };
+    static constexpr double kResidualThresholdSec = LinearSyncModel::kDefaultResidualThresholdSec;
+    static constexpr double kRlsLambda = 0.9995;
 
     void frame_callback(const Hikcamera::Frame& frame) {
         void* pub_frame_ptr;
@@ -116,10 +120,12 @@ private:
             state = new_state;
             switch (new_state) {
             case WorkerState::kReseting: {
+                sync_model_.reset();
                 camera_->set_soft_trigger(true);
                 RCLCPP_INFO(get_logger(), "[RESETING] %s", message);
             } break;
             case WorkerState::kMatching: {
+                sync_model_.reset();
                 camera_->set_soft_trigger(false);
                 matching_start = std::chrono::steady_clock::now();
                 matching_array.clear();
@@ -143,8 +149,38 @@ private:
                 else if (state == WorkerState::kConfirming) {
                     if (!unmatched_signal_buffer_.readable()
                         && !unmatched_image_buffer_.readable()) {
-                        // TODO: Do LS -> y = a*x + b; a & b & covariance -> RLS initial.
-                        update_state(WorkerState::kLocked, "Hard-sync locked successfully");
+                        auto ls_result = sync_model_.initialize_from_least_squares(matching_array);
+                        if (!ls_result) {
+                            update_state(
+                                WorkerState::kReseting,
+                                "Least-squares fit failed to initialize lock model");
+                        } else if (!(0.8 < ls_result->a && ls_result->a < 1.2)) {
+                            update_state(
+                                WorkerState::kReseting,
+                                std::format(
+                                    "LS slope out of range: a={:.9f} is outside (0.8, 1.2)",
+                                    ls_result->a)
+                                    .c_str());
+                        } else if (!(ls_result->max_abs_residual_sec < kResidualThresholdSec)) {
+                            update_state(
+                                WorkerState::kReseting,
+                                std::format(
+                                    "LS residual too large: max_abs_residual(ms)={:.3f} >= "
+                                    "threshold(ms)={:.3f}",
+                                    ls_result->max_abs_residual_sec * 1000.0,
+                                    kResidualThresholdSec * 1000.0)
+                                    .c_str());
+                        } else {
+                            update_state(
+                                WorkerState::kLocked,
+                                std::format(
+                                    "Hard-sync locked successfully: a={:.9f}, b={:.9f}, "
+                                    "var_a={:.3e}, var_b={:.3e}, max_residual(ms)={:.3f}",
+                                    ls_result->a, ls_result->b, ls_result->covariance(0, 0),
+                                    ls_result->covariance(1, 1),
+                                    ls_result->max_abs_residual_sec * 1000.0)
+                                    .c_str());
+                        }
                     } else {
                         update_state(
                             WorkerState::kReseting,
@@ -202,8 +238,30 @@ private:
             }
 
             if (state == WorkerState::kLocked) {
-                consume_frame();
-                // TODO: RLS update
+                if (!sync_model_.initialized()) {
+                    update_state(
+                        WorkerState::kReseting, "RLS model was unexpectedly uninitialized");
+                    continue;
+                }
+
+                const auto timestamp_pair = consume_frame();
+                const auto residual = sync_model_.residual_for(
+                    timestamp_pair.camera_timestamp_sec, timestamp_pair.board_timestamp_sec);
+                if (!(std::abs(residual) < kResidualThresholdSec)) {
+                    update_state(
+                        WorkerState::kReseting,
+                        std::format(
+                            "RLS residual too large: residual(ms)={:.3f}, threshold(ms)={:.3f}",
+                            residual * 1000.0, kResidualThresholdSec * 1000.0)
+                            .c_str());
+                    continue;
+                }
+
+                const auto updated_residual = sync_model_.update(
+                    timestamp_pair.camera_timestamp_sec, timestamp_pair.board_timestamp_sec);
+                if (!std::isfinite(updated_residual) || !sync_model_.initialized()) {
+                    update_state(WorkerState::kReseting, "RLS update failed");
+                }
             }
         }
     }
@@ -228,12 +286,12 @@ private:
                         image.timestamp.time_since_epoch())
                         .count();
 
-                // if (image.frame_id % 100 == 0) {
-                RCLCPP_INFO(
-                    get_logger(), "frame #%u: camera_ts(ms)=%.3f, signal_ts(ms)=%.3f",
-                    image.frame_id, timestamp_pair.camera_timestamp_sec * 1000.0,
-                    timestamp_pair.board_timestamp_sec * 1000.0);
-                // }
+                if (image.frame_id % 100 == 0) {
+                    RCLCPP_INFO(
+                        get_logger(), "frame #%u: camera_ts(ms)=%.3f, signal_ts(ms)=%.3f",
+                        image.frame_id, timestamp_pair.camera_timestamp_sec * 1000.0,
+                        timestamp_pair.board_timestamp_sec * 1000.0);
+                }
 
                 // Process Image ...
 
@@ -277,6 +335,7 @@ private:
     };
     rmcs_utility::RingBuffer<UnmatchedImage> unmatched_image_buffer_{16};
     std::unique_ptr<Hikcamera> camera_;
+    LinearSyncModel sync_model_{kRlsLambda, kResidualThresholdSec};
 
     std::atomic_flag stopped_;
     std::atomic<std::uint32_t> event_count_ = 0;
