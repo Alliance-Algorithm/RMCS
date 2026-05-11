@@ -89,8 +89,12 @@ private:
             auto guard = std::scoped_lock{frame_pool_mutex_};
             pub_frame_ptr = frame_pool_.allocate();
         }
-        if (!pub_frame_ptr)
+        if (!pub_frame_ptr) {
+            RCLCPP_WARN(
+                get_logger(), "Dropping frame #%u: frame pool exhausted (capacity=%zu)",
+                frame.frame_id, frame_pool_.max_size());
             return;
+        }
 
         if (!unmatched_image_buffer_.emplace_back_n(
                 [&](std::byte* storage) noexcept {
@@ -101,6 +105,10 @@ private:
                 1)) {
             auto guard = std::scoped_lock{frame_pool_mutex_};
             frame_pool_.free(pub_frame_ptr);
+            RCLCPP_WARN(
+                get_logger(),
+                "Dropping frame #%u: unmatched image buffer full (capacity=%zu)",
+                frame.frame_id, unmatched_image_buffer_.max_size());
             return;
         }
 
@@ -108,8 +116,12 @@ private:
     }
 
     void signal_callback(TriggerBoard::Clock::time_point timestamp) {
-        if (!unmatched_signal_buffer_.emplace_back(timestamp))
+        if (!unmatched_signal_buffer_.emplace_back(timestamp)) {
+            RCLCPP_WARN(
+                get_logger(), "Dropping trigger signal: unmatched signal buffer full (capacity=%zu)",
+                unmatched_signal_buffer_.max_size());
             return;
+        }
 
         notify_event();
     }
@@ -257,10 +269,10 @@ private:
                 auto* next_image = unmatched_image_buffer_.peek_front();
                 if (next_image == nullptr)
                     continue;
+                const auto next_frame_id = next_image->frame_id;
 
                 if (last_locked_frame_id_) {
                     const auto expected_frame_id = *last_locked_frame_id_ + 1U;
-                    const auto next_frame_id = next_image->frame_id;
 
                     if (next_frame_id < expected_frame_id) {
                         update_state(
@@ -299,7 +311,7 @@ private:
                 }
 
                 const auto timestamp_pair = consume_frame();
-                last_locked_frame_id_ = next_image->frame_id;
+                last_locked_frame_id_ = next_frame_id;
                 const auto residual = sync_model_.residual_for(
                     timestamp_pair.camera_timestamp_sec, timestamp_pair.board_timestamp_sec);
                 if (!(std::abs(residual) < kResidualThresholdSec)) {
