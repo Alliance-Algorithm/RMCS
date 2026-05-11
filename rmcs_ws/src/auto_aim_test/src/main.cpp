@@ -67,6 +67,7 @@ private:
 
     static constexpr double kResidualThresholdSec = LinearSyncModel::kDefaultResidualThresholdSec;
     static constexpr double kRlsLambda = 0.9995;
+    static constexpr std::uint32_t kAllowedFrameIdGap = 2;
 
     void frame_callback(const Hikcamera::Frame& frame) {
         void* pub_frame_ptr;
@@ -102,14 +103,6 @@ private:
     void worker_main() {
         using namespace std::chrono_literals;
 
-        // camera_->set_soft_trigger(true);
-        // RCLCPP_INFO(get_logger(), "[RESETING] Clearing buffer and waiting idle");
-        // if (!reset_buffer(100ms))
-        //     return;
-
-        // RCLCPP_INFO(get_logger(), "[LOCKING] Start capture");
-        // camera_->set_soft_trigger(false);
-
         auto state = WorkerState::kReseting;
         auto idle_duration = std::chrono::steady_clock::duration::zero();
 
@@ -121,11 +114,13 @@ private:
             switch (new_state) {
             case WorkerState::kReseting: {
                 sync_model_.reset();
+                last_locked_frame_id_.reset();
                 camera_->set_soft_trigger(true);
                 RCLCPP_INFO(get_logger(), "[RESETING] %s", message);
             } break;
             case WorkerState::kMatching: {
                 sync_model_.reset();
+                last_locked_frame_id_.reset();
                 camera_->set_soft_trigger(false);
                 matching_start = std::chrono::steady_clock::now();
                 matching_array.clear();
@@ -136,6 +131,7 @@ private:
                 RCLCPP_INFO(get_logger(), "[CONFIRMING] %s", message);
             } break;
             case WorkerState::kLocked: {
+                last_locked_frame_id_.reset();
                 camera_->set_soft_trigger(false);
                 RCLCPP_INFO(get_logger(), "[LOCKED] %s", message);
             } break;
@@ -244,7 +240,52 @@ private:
                     continue;
                 }
 
+                auto* next_image = unmatched_image_buffer_.peek_front();
+                if (next_image == nullptr)
+                    continue;
+
+                if (last_locked_frame_id_) {
+                    const auto expected_frame_id = *last_locked_frame_id_ + 1U;
+                    const auto next_frame_id = next_image->frame_id;
+
+                    if (next_frame_id < expected_frame_id) {
+                        update_state(
+                            WorkerState::kReseting,
+                            std::format(
+                                "Frame ID moved backward: expected >= {}, got {}",
+                                expected_frame_id, next_frame_id)
+                                .c_str());
+                        continue;
+                    }
+
+                    const auto frame_gap = next_frame_id - expected_frame_id;
+                    if (frame_gap > 0U) {
+                        if (frame_gap > kAllowedFrameIdGap) {
+                            update_state(
+                                WorkerState::kReseting,
+                                std::format(
+                                    "Frame ID gap too large: expected {}, got {}, gap {} > {}",
+                                    expected_frame_id, next_frame_id, frame_gap, kAllowedFrameIdGap)
+                                    .c_str());
+                            continue;
+                        }
+
+                        if (unmatched_signal_buffer_.readable()
+                            < static_cast<std::size_t>(frame_gap) + 1U) {
+                            continue;
+                        }
+
+                        drop_signals(frame_gap);
+                        RCLCPP_WARN(
+                            get_logger(),
+                            "Tolerating camera frame gap: expected %u, got %u, dropped %u queued "
+                            "signals",
+                            expected_frame_id, next_frame_id, frame_gap);
+                    }
+                }
+
                 const auto timestamp_pair = consume_frame();
+                last_locked_frame_id_ = next_image->frame_id;
                 const auto residual = sync_model_.residual_for(
                     timestamp_pair.camera_timestamp_sec, timestamp_pair.board_timestamp_sec);
                 if (!(std::abs(residual) < kResidualThresholdSec)) {
@@ -263,6 +304,15 @@ private:
                     update_state(WorkerState::kReseting, "RLS update failed");
                 }
             }
+        }
+    }
+
+    void drop_signals(const std::uint32_t count) {
+        const auto dropped = unmatched_signal_buffer_.pop_front_n(
+            [](TriggerBoard::Clock::time_point&&) noexcept {}, count);
+        if (dropped != count) {
+            std::fprintf(stderr, "drop_signals expected %u but dropped %zu\n", count, dropped);
+            std::terminate();
         }
     }
 
@@ -336,6 +386,7 @@ private:
     rmcs_utility::RingBuffer<UnmatchedImage> unmatched_image_buffer_{16};
     std::unique_ptr<Hikcamera> camera_;
     LinearSyncModel sync_model_{kRlsLambda, kResidualThresholdSec};
+    std::optional<std::uint32_t> last_locked_frame_id_;
 
     std::atomic_flag stopped_;
     std::atomic<std::uint32_t> event_count_ = 0;
