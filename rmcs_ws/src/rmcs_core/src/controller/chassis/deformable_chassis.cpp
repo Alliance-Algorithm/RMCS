@@ -458,7 +458,7 @@ private:
         return joint_feedback;
     }
 
-    bool prone_override_requested_() const { return keyboard_.ready() && keyboard_->ctrl; }
+    bool prone_override_requested_by_keyboard() const { return keyboard_.ready() && keyboard_->ctrl; }
 
     bool suspension_toggle_requested_by_switch_(
         rmcs_msgs::Switch switch_left, rmcs_msgs::Switch switch_right) const {
@@ -469,12 +469,12 @@ private:
     void update_suspension_toggle_from_inputs_(
         rmcs_msgs::Switch switch_left, rmcs_msgs::Switch switch_right) {
         if (suspension_toggle_requested_by_switch_(switch_left, switch_right)) {
-            suspension_on = !suspension_on;
+            suspension_on_by_switch = !suspension_on_by_switch;
         }
     }
 
     bool suspension_requested_by_input_() const {
-        return active_suspension_enable_ && (prone_override_requested_() || suspension_on);
+        return active_suspension_enable_ && (prone_override_requested_by_keyboard() || suspension_on_by_switch);
     }
 
     bool symmetric_joint_target_requested_() const {
@@ -490,7 +490,7 @@ private:
         requested_target_physical_angles_rad_[kRightBack] = deg_to_rad(rb_current_target_angle_);
         requested_target_physical_angles_rad_[kRightFront] = deg_to_rad(rf_current_target_angle_);
 
-        const bool prone_override = prone_override_requested_();
+        const bool prone_override = prone_override_requested_by_keyboard();
         if (suspension_requested_by_input_()) {
             requested_target_physical_angles_rad_.fill(deg_to_rad(min_angle_));
         }
@@ -687,6 +687,7 @@ private:
         rb_current_target_angle_ = current_target_angle_;
         rf_current_target_angle_ = current_target_angle_;
         joint_target_active_ = false;
+        suspension_on_by_switch = false;
 
         *scope_motor_control_torque = nan_;
 
@@ -1183,7 +1184,7 @@ private:
     double target_physical_velocity_limit_;
     double target_physical_acceleration_limit_;
     bool active_suspension_enable_;
-    bool suspension_on = false;
+    bool suspension_on_by_switch = false;
     double pitch_kp_;
     double pitch_ki_;
     double pitch_kd_;
