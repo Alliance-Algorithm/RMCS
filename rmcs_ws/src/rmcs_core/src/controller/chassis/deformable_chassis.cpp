@@ -255,27 +255,6 @@ public:
             right_front_joint_target_physical_acceleration_, nan_);
         register_output("/chassis/processed_encoder/angle", processed_encoder_angle_, nan_);
 
-        register_output(
-            "/chassis/left_front_joint/suspension_mode", left_front_joint_suspension_mode_, false);
-        register_output(
-            "/chassis/left_back_joint/suspension_mode", left_back_joint_suspension_mode_, false);
-        register_output(
-            "/chassis/right_front_joint/suspension_mode", right_front_joint_suspension_mode_, false);
-        register_output(
-            "/chassis/right_back_joint/suspension_mode", right_back_joint_suspension_mode_, false);
-
-        register_output(
-            "/chassis/left_front_joint/suspension_torque", left_front_joint_suspension_torque_,
-            nan_);
-        register_output(
-            "/chassis/left_back_joint/suspension_torque", left_back_joint_suspension_torque_, nan_);
-        register_output(
-            "/chassis/right_back_joint/suspension_torque", right_back_joint_suspension_torque_,
-            nan_);
-        register_output(
-            "/chassis/right_front_joint/suspension_torque", right_front_joint_suspension_torque_,
-            nan_);
-
         *mode_ = rmcs_msgs::ChassisMode::AUTO;
         chassis_control_velocity_->vector << nan_, nan_, nan_;
 
@@ -401,18 +380,6 @@ private:
             return wrap_deg(*joint_angle * rad_to_deg_);
 
         return wrap_deg(joint_offset) - wrap_deg(*joint_encoder_angle) + legacy_fixed_compensation;
-    }
-
-    void clear_suspension_output_interfaces_() {
-        *left_front_joint_suspension_mode_ = false;
-        *left_back_joint_suspension_mode_ = false;
-        *right_back_joint_suspension_mode_ = false;
-        *right_front_joint_suspension_mode_ = false;
-
-        *left_front_joint_suspension_torque_ = 0.0;
-        *left_back_joint_suspension_torque_ = 0.0;
-        *right_back_joint_suspension_torque_ = 0.0;
-        *right_front_joint_suspension_torque_ = 0.0;
     }
 
     void update_mode_from_inputs_(
@@ -621,7 +588,6 @@ private:
     }
 
     void update_active_suspension_(const JointFeedbackFrame&) {
-        clear_suspension_output_interfaces_();
         if (!suspension_requested_by_input_()) {
             reset_attitude_correction_state_();
             return;
@@ -716,7 +682,6 @@ private:
 
         *processed_encoder_angle_ = nan_;
 
-        clear_suspension_output_interfaces_();
     }
 
     void update_velocity_control() {
@@ -859,11 +824,6 @@ private:
         const bool prone_override = refresh_requested_joint_targets_from_deploy_state_();
         scope_motor_control(prone_override);
         update_active_suspension_(joint_feedback);
-
-        *left_front_joint_suspension_mode_ = joint_suspension_active_[kLeftFront];
-        *left_back_joint_suspension_mode_  = joint_suspension_active_[kLeftBack];
-        *right_front_joint_suspension_mode_ = joint_suspension_active_[kRightFront];
-        *right_back_joint_suspension_mode_  = joint_suspension_active_[kRightBack];
 
         update_joint_target_trajectory();
         publish_joint_target_angles(joint_feedback.physical_angles);
@@ -1065,7 +1025,6 @@ private:
         *rb_angle_error_ = nan_;
         *rf_angle_error_ = nan_;
 
-        clear_suspension_output_interfaces_();
     }
 
 private:
@@ -1148,15 +1107,6 @@ private:
     OutputInterface<double> right_front_joint_target_physical_acceleration_;
 
     OutputInterface<double> processed_encoder_angle_;
-
-    OutputInterface<bool> left_front_joint_suspension_mode_;
-    OutputInterface<bool> left_back_joint_suspension_mode_;
-    OutputInterface<bool> right_front_joint_suspension_mode_;
-    OutputInterface<bool> right_back_joint_suspension_mode_;
-    OutputInterface<double> left_front_joint_suspension_torque_;
-    OutputInterface<double> left_back_joint_suspension_torque_;
-    OutputInterface<double> right_front_joint_suspension_torque_;
-    OutputInterface<double> right_back_joint_suspension_torque_;
 
     double min_angle_;
     double max_angle_;

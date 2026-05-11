@@ -30,7 +30,7 @@ rmcs_executor:
       - rmcs_core::controller::chassis::DeformableJointController -> rf_joint_controller
 
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
-      # - rmcs::AutoAimComponent -> auto_aim_component
+      - rmcs::AutoAimComponent -> auto_aim_component
 
 value_broadcaster:
   ros__parameters:
@@ -200,8 +200,6 @@ lf_joint_controller:
     measurement_velocity: /chassis/left_front_joint/physical_velocity
     setpoint_angle: /chassis/left_front_joint/target_physical_angle
     setpoint_velocity: /chassis/left_front_joint/target_physical_velocity
-    mode_input: /chassis/left_front_joint/suspension_mode
-    suspension_torque: /chassis/left_front_joint/suspension_torque
     control: /chassis/left_front_joint/control_torque
 
     # Normal ADRC servo mode
@@ -238,8 +236,6 @@ lf_joint_controller:
 
     # Joint-local feedforward / limit shaping
     torque_feedforward_gain: 0.0
-    suspension_torque_feedforward_gain: -1.0
-
 lb_joint_controller:
   ros__parameters:
     # Same joint-servo layout as lf_joint_controller
@@ -247,8 +243,6 @@ lb_joint_controller:
     measurement_velocity: /chassis/left_back_joint/physical_velocity
     setpoint_angle: /chassis/left_back_joint/target_physical_angle
     setpoint_velocity: /chassis/left_back_joint/target_physical_velocity
-    mode_input: /chassis/left_back_joint/suspension_mode
-    suspension_torque: /chassis/left_back_joint/suspension_torque
     control: /chassis/left_back_joint/control_torque
     dt: 0.001
     b0: -0.60
@@ -279,8 +273,6 @@ lb_joint_controller:
     suspension_output_min: -35.0
     suspension_output_max: 35.0
     torque_feedforward_gain: 0.0
-    suspension_torque_feedforward_gain: -1.0
-
 rb_joint_controller:
   ros__parameters:
     # Same joint-servo layout as lf_joint_controller
@@ -288,8 +280,6 @@ rb_joint_controller:
     measurement_velocity: /chassis/right_back_joint/physical_velocity
     setpoint_angle: /chassis/right_back_joint/target_physical_angle
     setpoint_velocity: /chassis/right_back_joint/target_physical_velocity
-    mode_input: /chassis/right_back_joint/suspension_mode
-    suspension_torque: /chassis/right_back_joint/suspension_torque
     control: /chassis/right_back_joint/control_torque
     dt: 0.001
     b0: -0.60
@@ -320,8 +310,6 @@ rb_joint_controller:
     suspension_output_min: -35.0
     suspension_output_max: 35.0
     torque_feedforward_gain: 0.0
-    suspension_torque_feedforward_gain: -1.0
-
 rf_joint_controller:
   ros__parameters:
     # Same joint-servo layout as lf_joint_controller
@@ -329,8 +317,6 @@ rf_joint_controller:
     measurement_velocity: /chassis/right_front_joint/physical_velocity
     setpoint_angle: /chassis/right_front_joint/target_physical_angle
     setpoint_velocity: /chassis/right_front_joint/target_physical_velocity
-    mode_input: /chassis/right_front_joint/suspension_mode
-    suspension_torque: /chassis/right_front_joint/suspension_torque
     control: /chassis/right_front_joint/control_torque
     dt: 0.001
     b0: -0.60
@@ -361,4 +347,3 @@ rf_joint_controller:
     suspension_output_min: -35.0
     suspension_output_max: 35.0
     torque_feedforward_gain: 0.0
-    suspension_torque_feedforward_gain: -1.0
