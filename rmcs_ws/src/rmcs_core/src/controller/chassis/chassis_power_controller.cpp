@@ -109,8 +109,9 @@ private:
 
     void update_control_power_limit() {
         double power_limit;
+        const bool supercap_active = *supercap_control_enabled_ && *supercap_enabled_;
 
-        if (*supercap_control_enabled_ && *supercap_enabled_)
+        if (supercap_active)
             power_limit = *mode_ == rmcs_msgs::ChassisMode::LAUNCH_RAMP
                             ? inf_
                             : *chassis_power_limit_referee_ + 80.0;
@@ -129,7 +130,7 @@ private:
                               0.0, 1.0);
 
         // Maximum excess power when virtual buffer energy is full.
-        constexpr double excess_power_limit = 15;
+        const double excess_power_limit = supercap_active ? 15.0 : 0.0;
 
         power_limit += excess_power_limit;
         power_limit *= virtual_buffer_energy_ / virtual_buffer_energy_limit_;
