@@ -9,10 +9,12 @@
 
 #include <eigen3/Eigen/Dense>
 #include <rclcpp/rclcpp.hpp>
+#include <rmcs_utility/atomic_wait_timeout.hpp>
 #include <rmcs_utility/memory_pool.hpp>
 #include <rmcs_utility/ring_buffer.hpp>
 
 #include "hikcamera.hpp"
+#include "trigger_board.hpp"
 
 namespace {
 
@@ -24,6 +26,9 @@ public:
         camera_config.exposure_us =
             static_cast<float>(declare_parameter<double>("exposure_us", 2000.0));
         auto camera_name = declare_parameter<std::string>("camera_name", "");
+
+        board_ = std::make_unique<TriggerBoard>(
+            [this](TriggerBoard::Clock::time_point timestamp) { signal_callback(timestamp); });
 
         camera_ = std::make_unique<Hikcamera>(
             camera_config,
@@ -40,7 +45,6 @@ public:
         worker_.join();
 
         camera_.reset();
-
         {
             auto guard = std::scoped_lock{frame_pool_mutex_};
             unmatched_image_buffer_.pop_front_n([this](UnmatchedImage&& image) noexcept {
@@ -48,40 +52,17 @@ public:
                 frame_pool_.free(image.frame);
             });
         }
+
+        board_.reset();
     }
 
 private:
-    void worker_main() {
-        RCLCPP_INFO(get_logger(), "worker started");
+    enum class WorkerState { kReseting, kMatching, kConfirming, kLocked };
 
-        using namespace std::chrono_literals;
-        std::this_thread::sleep_for(1s);
-
-        camera_->set_soft_trigger(false);
-        RCLCPP_INFO(get_logger(), "capture started");
-
-        while (!stopped_.test(std::memory_order::relaxed)) {
-            auto old = event_count_.load(std::memory_order::relaxed);
-            if (!unmatched_image_buffer_.pop_front_n([this](UnmatchedImage&& image) noexcept {
-                    if (image.frame_id % 100 == 0) {
-                        RCLCPP_INFO(
-                            get_logger(), "frame #%u: device_ts=%llu", image.frame_id,
-                            static_cast<unsigned long long>(
-                                image.timestamp.time_since_epoch().count()));
-                    }
-
-                    // Process Image ...
-
-                    std::destroy_at(image.frame);
-                    {
-                        auto guard = std::scoped_lock{frame_pool_mutex_};
-                        frame_pool_.free(image.frame);
-                    }
-                })) {
-                event_count_.wait(old, std::memory_order::acquire);
-            }
-        }
-    }
+    struct TimestampPair {
+        double camera_timestamp_sec;
+        double board_timestamp_sec;
+    };
 
     void frame_callback(const Hikcamera::Frame& frame) {
         void* pub_frame_ptr;
@@ -107,20 +88,170 @@ private:
         notify_event();
     }
 
+    void signal_callback(TriggerBoard::Clock::time_point timestamp) {
+        if (!unmatched_signal_buffer_.emplace_back(timestamp))
+            return;
+
+        notify_event();
+    }
+
+    void worker_main() {
+        using namespace std::chrono_literals;
+
+        // camera_->set_soft_trigger(true);
+        // RCLCPP_INFO(get_logger(), "[RESETING] Clearing buffer and waiting idle");
+        // if (!reset_buffer(100ms))
+        //     return;
+
+        // RCLCPP_INFO(get_logger(), "[LOCKING] Start capture");
+        // camera_->set_soft_trigger(false);
+
+        auto state = WorkerState::kReseting;
+        auto idle_duration = std::chrono::steady_clock::duration::zero();
+
+        auto matching_start = std::chrono::steady_clock::time_point::max();
+        std::vector<TimestampPair> matching_array{1000};
+
+        const auto update_state = [&](WorkerState new_state, const char* message) {
+            state = new_state;
+            switch (new_state) {
+            case WorkerState::kReseting: {
+                camera_->set_soft_trigger(true);
+                RCLCPP_INFO(get_logger(), "[RESETING] %s", message);
+            } break;
+            case WorkerState::kMatching: {
+                camera_->set_soft_trigger(false);
+                matching_start = std::chrono::steady_clock::now();
+                matching_array.clear();
+                RCLCPP_INFO(get_logger(), "[MATCHING] %s", message);
+            } break;
+            case WorkerState::kConfirming: {
+                camera_->set_soft_trigger(true);
+                RCLCPP_INFO(get_logger(), "[CONFIRMING] %s", message);
+            } break;
+            case WorkerState::kLocked: {
+                camera_->set_soft_trigger(false);
+                RCLCPP_INFO(get_logger(), "[LOCKED] %s", message);
+            } break;
+            }
+        };
+
+        while (!stopped_.test(std::memory_order::relaxed)) {
+            if (idle_duration >= 100ms) {
+                if (state == WorkerState::kReseting)
+                    update_state(WorkerState::kMatching, "Trying to match signal and image...");
+                else if (state == WorkerState::kConfirming) {
+                    if (!unmatched_signal_buffer_.readable()
+                        && !unmatched_image_buffer_.readable()) {
+                        // TODO: Do LS -> y = a*x + b; a & b & covariance -> RLS initial.
+                        update_state(WorkerState::kLocked, "Hard-sync locked successfully");
+                    } else {
+                        update_state(
+                            WorkerState::kReseting,
+                            "Failed to match: Mismatched signals and images count");
+                    }
+                }
+            }
+
+            if (state == WorkerState::kMatching
+                && std::chrono::steady_clock::now() - matching_start >= 2s) {
+                if (matching_array.size() < 50) {
+                    update_state(
+                        WorkerState::kReseting,
+                        std::format(
+                            "Too few frames matched: collected ({}) < minimum (50)",
+                            matching_array.size())
+                            .c_str());
+                } else {
+                    update_state(
+                        WorkerState::kConfirming,
+                        "Frames collected. Waiting bus idle to ensure no data loss...");
+                }
+            }
+
+            if (state == WorkerState::kReseting) {
+                unmatched_signal_buffer_.clear();
+                {
+                    auto guard = std::scoped_lock{frame_pool_mutex_};
+                    unmatched_image_buffer_.pop_front_n([this](UnmatchedImage&& image) noexcept {
+                        std::destroy_at(image.frame);
+                        frame_pool_.free(image.frame);
+                    });
+                }
+            }
+
+            const auto old = event_count_.load(std::memory_order::relaxed);
+            if (!unmatched_signal_buffer_.readable() || !unmatched_image_buffer_.readable()) {
+                if (!rmcs_utility::atomic_wait_timeout(
+                        event_count_, old, 50ms, std::memory_order::acquire)) {
+                    idle_duration += 50ms;
+                    continue;
+                } else {
+                    idle_duration = decltype(idle_duration)::zero();
+                    if (!unmatched_signal_buffer_.readable() || !unmatched_image_buffer_.readable())
+                        continue;
+                }
+            }
+
+            if (state == WorkerState::kReseting)
+                continue;
+
+            if (state == WorkerState::kMatching || state == WorkerState::kConfirming) {
+                matching_array.push_back(consume_frame());
+                continue;
+            }
+
+            if (state == WorkerState::kLocked) {
+                consume_frame();
+                // TODO: RLS update
+            }
+        }
+    }
+
+    TimestampPair consume_frame() {
+        TimestampPair timestamp_pair;
+
+        if (!unmatched_signal_buffer_.pop_front(
+                [&](TriggerBoard::Clock::time_point&& timestamp) noexcept {
+                    timestamp_pair.board_timestamp_sec =
+                        std::chrono::duration_cast<std::chrono::duration<double>>(
+                            timestamp.time_since_epoch())
+                            .count();
+                })) {
+            std::fprintf(stderr, "holy\n");
+            std::terminate();
+        }
+
+        if (!unmatched_image_buffer_.pop_front([&](UnmatchedImage&& image) noexcept {
+                timestamp_pair.camera_timestamp_sec =
+                    std::chrono::duration_cast<std::chrono::duration<double>>(
+                        image.timestamp.time_since_epoch())
+                        .count();
+
+                // if (image.frame_id % 100 == 0) {
+                RCLCPP_INFO(
+                    get_logger(), "frame #%u: camera_ts(ms)=%.3f, signal_ts(ms)=%.3f",
+                    image.frame_id, timestamp_pair.camera_timestamp_sec * 1000.0,
+                    timestamp_pair.board_timestamp_sec * 1000.0);
+                // }
+
+                // Process Image ...
+
+                std::destroy_at(image.frame);
+                {
+                    auto guard = std::scoped_lock{frame_pool_mutex_};
+                    frame_pool_.free(image.frame);
+                }
+            }))
+            std::terminate();
+
+        return timestamp_pair;
+    }
+
     void notify_event() {
         event_count_.fetch_add(1, std::memory_order::release);
         event_count_.notify_one();
     }
-
-    struct BoardClock {
-        // 250ns / tick
-        using duration = std::chrono::duration<std::int64_t, std::ratio<1, 4'000'000>>;
-        using rep = duration::rep;
-        using period = duration::period;
-        using time_point = std::chrono::time_point<BoardClock>;
-
-        [[maybe_unused]] static constexpr bool is_steady = true;
-    };
 
     struct PublishFrame {
         static constexpr std::uint32_t kWidth = Hikcamera::Cs016FrameWidth;
@@ -131,10 +262,13 @@ private:
         MvGvspPixelType pixel_type;
 
         Eigen::Quaterniond imu_snapshot;
-        BoardClock::time_point timestamp;
+        TriggerBoard::Clock::time_point timestamp;
     };
     rmcs_utility::MemoryPool<sizeof(PublishFrame), alignof(PublishFrame)> frame_pool_{100};
     std::mutex frame_pool_mutex_;
+
+    rmcs_utility::RingBuffer<TriggerBoard::Clock::time_point> unmatched_signal_buffer_{32};
+    std::unique_ptr<TriggerBoard> board_;
 
     struct UnmatchedImage {
         PublishFrame* frame;
@@ -142,11 +276,10 @@ private:
         Hikcamera::HikDeviceClock::time_point timestamp;
     };
     rmcs_utility::RingBuffer<UnmatchedImage> unmatched_image_buffer_{16};
-
     std::unique_ptr<Hikcamera> camera_;
 
     std::atomic_flag stopped_;
-    std::atomic<std::size_t> event_count_ = 0;
+    std::atomic<std::uint32_t> event_count_ = 0;
     std::thread worker_;
 };
 

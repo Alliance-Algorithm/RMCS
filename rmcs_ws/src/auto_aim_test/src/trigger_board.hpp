@@ -1,0 +1,84 @@
+#pragma once
+
+#include <chrono>
+#include <cstdint>
+#include <functional>
+#include <utility>
+
+#include <librmcs/agent/rmcs_board_lite.hpp>
+#include <librmcs/data/datas.hpp>
+#include <librmcs/spec/rmcs_board_lite/gpio.hpp>
+
+class TriggerBoard : public librmcs::agent::RmcsBoardLite {
+public:
+    struct Clock {
+        // 250ns / tick
+        using duration = std::chrono::duration<std::int64_t, std::ratio<1, 4'000'000>>;
+        using rep = duration::rep;
+        using period = duration::period;
+        using time_point = std::chrono::time_point<Clock>;
+
+        [[maybe_unused]] static constexpr bool is_steady = true;
+    };
+
+    using SignalCallback = std::function<void(Clock::time_point)>;
+
+    explicit TriggerBoard(SignalCallback&& callback)
+        : callback_(std::move(callback)) {
+        start_transmit().gpio_digital_read(
+            librmcs::spec::rmcs_board_lite::kGpioDescriptors.kUart1Tx,
+            {
+                .period_ms = 0,
+                .asap = false,
+                .rising_edge = false,
+                .falling_edge = true,
+                .capture_timestamp = true,
+                .pull = librmcs::data::GpioPull::kUp,
+            });
+    }
+
+private:
+    void accelerometer_receive_callback(const librmcs::data::AccelerometerDataView& data) override {
+        if (!has_latest_accelerometer_timestamp_) {
+            has_latest_accelerometer_timestamp_ = true;
+            last_accelerometer_timestamp_raw_ = data.timestamp_quarter_us;
+            latest_accelerometer_timestamp_ = data.timestamp_quarter_us;
+            return;
+        }
+
+        latest_accelerometer_timestamp_ += static_cast<std::uint32_t>(
+            data.timestamp_quarter_us - last_accelerometer_timestamp_raw_);
+        last_accelerometer_timestamp_raw_ = data.timestamp_quarter_us;
+    }
+
+    void gpio_digital_read_result_callback(
+        const librmcs::spec::rmcs_board_lite::GpioDescriptor& gpio,
+        const librmcs::data::GpioDigitalDataView& data) override {
+        if (gpio != librmcs::spec::rmcs_board_lite::kGpioDescriptors.kUart1Tx)
+            return;
+        if (!data.timestamp_quarter_us)
+            return;
+        if (!callback_)
+            return;
+
+        if (!has_latest_accelerometer_timestamp_)
+            return;
+        Clock::time_point timestamp;
+
+        const auto latest_timestamp_low32 =
+            static_cast<std::uint32_t>(latest_accelerometer_timestamp_);
+        const auto signed_offset =
+            static_cast<std::int32_t>(*data.timestamp_quarter_us - latest_timestamp_low32);
+        const auto lifted_timestamp =
+            latest_accelerometer_timestamp_ + static_cast<std::int64_t>(signed_offset);
+        timestamp = Clock::time_point{Clock::duration{lifted_timestamp}};
+
+        callback_(timestamp);
+    }
+
+    bool has_latest_accelerometer_timestamp_ = false;
+    std::uint32_t last_accelerometer_timestamp_raw_ = 0;
+    std::int64_t latest_accelerometer_timestamp_ = 0;
+
+    SignalCallback callback_;
+};

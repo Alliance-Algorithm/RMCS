@@ -103,6 +103,10 @@ public:
             == MV_OK;
     }
 
+    bool trigger_soft() noexcept {
+        return MV_CC_SetCommandValue(handle_, "TriggerSoftware") == MV_OK;
+    }
+
     ~Hikcamera() noexcept { cleanup(); }
 
     Hikcamera(const Hikcamera&) = delete;
@@ -203,6 +207,14 @@ private:
         check_hik("set frame height", MV_CC_SetIntValueEx(handle_, "Height", value.nCurValue));
 
         check_hik(
+            "set strobe line",
+            MV_CC_SetEnumValue(handle_, "LineSelector", MV_TRIGGER_SOURCE_LINE1));
+        check_hik(
+            "set strobe source",
+            MV_CC_SetEnumValueByString(handle_, "LineSource", "ExposureStartActive"));
+        check_hik("set strobe enable", MV_CC_SetBoolValue(handle_, "StrobeEnable", true));
+
+        check_hik(
             "register image callback", MV_CC_RegisterImageCallBackEx(handle_, callback, user_data));
         check_hik("start grabbing", MV_CC_StartGrabbing(handle_));
     }
@@ -224,6 +236,4 @@ private:
     }
 
     void* handle_ = nullptr;
-
-    std::any user_context_;
 };
