@@ -208,7 +208,7 @@ private:
 
         check_hik(
             "set strobe line",
-            MV_CC_SetEnumValue(handle_, "LineSelector", MV_TRIGGER_SOURCE_LINE1));
+            MV_CC_SetEnumValueByString(handle_, "LineSelector", "Line1"));
         check_hik(
             "set strobe source",
             MV_CC_SetEnumValueByString(handle_, "LineSource", "ExposureStartActive"));

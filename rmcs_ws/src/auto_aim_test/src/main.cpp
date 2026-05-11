@@ -68,8 +68,22 @@ private:
     static constexpr double kResidualThresholdSec = LinearSyncModel::kDefaultResidualThresholdSec;
     static constexpr double kRlsLambda = 0.9995;
     static constexpr std::uint32_t kAllowedFrameIdGap = 2;
+    static constexpr std::size_t kExpectedFrameSize =
+        static_cast<std::size_t>(Hikcamera::Cs016FrameWidth)
+        * static_cast<std::size_t>(Hikcamera::Cs016FrameHeight);
 
     void frame_callback(const Hikcamera::Frame& frame) {
+        if (frame.width != Hikcamera::Cs016FrameWidth || frame.height != Hikcamera::Cs016FrameHeight
+            || frame.data.size() != kExpectedFrameSize) {
+            RCLCPP_WARN(
+                get_logger(),
+                "Skipping malformed frame #%u: width=%u (expected %u), height=%u (expected %u), "
+                "size=%zu (expected %zu)",
+                frame.frame_id, frame.width, Hikcamera::Cs016FrameWidth, frame.height,
+                Hikcamera::Cs016FrameHeight, frame.data.size(), kExpectedFrameSize);
+            return;
+        }
+
         void* pub_frame_ptr;
         {
             auto guard = std::scoped_lock{frame_pool_mutex_};
@@ -81,7 +95,7 @@ private:
         if (!unmatched_image_buffer_.emplace_back_n(
                 [&](std::byte* storage) noexcept {
                     auto pub_frame = new (pub_frame_ptr) PublishFrame{};
-                    std::memcpy(pub_frame->data, frame.data.data(), frame.data.size());
+                    std::memcpy(pub_frame->data, frame.data.data(), kExpectedFrameSize);
                     new (storage) UnmatchedImage{pub_frame, frame.frame_id, frame.timestamp};
                 },
                 1)) {
@@ -362,11 +376,11 @@ private:
     }
 
     struct PublishFrame {
-        static constexpr std::uint32_t kWidth = Hikcamera::Cs016FrameWidth;
-        static constexpr std::uint32_t kHeight = Hikcamera::Cs016FrameHeight;
-        static constexpr std::size_t kFrameSize = 1 * kWidth * kHeight;
+        [[maybe_unused]] static constexpr std::uint32_t kWidth = Hikcamera::Cs016FrameWidth;
+        [[maybe_unused]] static constexpr std::uint32_t kHeight = Hikcamera::Cs016FrameHeight;
+        [[maybe_unused]] static constexpr std::size_t kFrameSize = kExpectedFrameSize;
 
-        alignas(std::uintptr_t) std::byte data[kFrameSize];
+        alignas(std::uintptr_t) std::byte data[kExpectedFrameSize];
         MvGvspPixelType pixel_type;
 
         Eigen::Quaterniond imu_snapshot;
