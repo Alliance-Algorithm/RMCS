@@ -1,21 +1,7 @@
 auto_aim_test:
   ros__parameters:
-    timeout_ms: 2000
     exposure_us: 2000.0
+    gain: 16.9807
     framerate: 249.1
-    gain: 16.98
     invert_image: false
-    software_sync: false
-    trigger_mode: false
-    fixed_framerate: true
-    board_serial: ""
-    board_gpio: "uart1_tx"
-    sync_pause_ms: 100
-    sync_timeout_ms: 1000
     rls_lambda: 0.9995
-    warmup_samples: 16
-    bad_residual_limit: 3
-    residual_soft_ratio: 0.45
-    residual_hard_ratio: 0.90
-    wait_key_ms: 1
-    window_name: "auto_aim_test"

@@ -119,6 +119,8 @@ public:
 
     Hikcamera(const Hikcamera&) = delete;
     Hikcamera& operator=(const Hikcamera&) = delete;
+    Hikcamera(Hikcamera&&) = delete;
+    Hikcamera& operator=(Hikcamera&&) = delete;
 
 private:
     static void __stdcall transport_exception_callback(
