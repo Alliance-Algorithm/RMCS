@@ -11,8 +11,15 @@
 namespace rmcs_core::controller::gimbal {
 using namespace rmcs_description;
 
+
+class SimpleGimbalController;
+
+
 class TwoAxisGimbalSolver {
+    friend class SimpleGimbalController;
+
     class Operation {
+        friend class SimpleGimbalController;
         friend class TwoAxisGimbalSolver;
 
         virtual PitchLink::DirectionVector update(TwoAxisGimbalSolver& super) const = 0;
@@ -21,12 +28,14 @@ class TwoAxisGimbalSolver {
     };
 
 public:
+
     TwoAxisGimbalSolver(
         rmcs_executor::Component& component, double upper_limit, double lower_limit,
         bool use_encoder_pitch = false)
         : upper_limit_(std::cos(upper_limit), -std::sin(upper_limit))
         , lower_limit_(std::cos(lower_limit), -std::sin(lower_limit))
-        , use_encoder_pitch_(use_encoder_pitch) {
+        , use_encoder_pitch_(use_encoder_pitch) 
+        {
 
         component.register_input("/gimbal/pitch/angle", gimbal_pitch_angle_);
         component.register_input("/tf", tf_);
@@ -104,6 +113,7 @@ public:
         PitchLink::DirectionVector control_direction = operation.update(*this);
         if (!control_enabled_)
             return {nan_, nan_};
+        
 
         auto [control_direction_yaw_link, pitch] =
             use_encoder_pitch_ ? pitch_link_to_yaw_link_from_encoder(control_direction)
@@ -169,6 +179,7 @@ private:
         const auto& [x, y, z] = *dir;
         return {x * pitch.x() + z * pitch.y(), y, -x * pitch.y() + z * pitch.x()};
     }
+
 
     void clamp_control_direction(YawLink::DirectionVector& control_direction) {
         const auto& [x, y, z] = *control_direction;
