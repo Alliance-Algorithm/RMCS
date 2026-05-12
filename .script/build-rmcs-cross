@@ -13,12 +13,16 @@ Examples:
   build-rmcs-cross --target-arch arm64
   build-rmcs-cross --target-arch arm64 --link-default
   build-rmcs-cross --target-arch amd64 --packages-up-to rmcs_executor
+
+Notes:
+  arm64 cross builds automatically skip 'hikcamera' and 'rmcs_auto_aim_v2'.
 EOF
 }
 
 target_arch=""
 link_default=0
 colcon_args=()
+auto_skip_packages=()
 
 while (($# > 0)); do
     case "$1" in
@@ -59,6 +63,7 @@ fi
 case "${target_arch}" in
 arm64)
     target_triplet="aarch64-linux-gnu"
+    auto_skip_packages=(hikcamera rmcs_auto_aim_v2)
     ;;
 amd64)
     target_triplet="x86_64-linux-gnu"
@@ -151,6 +156,10 @@ export PKG_CONFIG_SYSROOT_DIR="${RMCS_SYSROOT}"
 export PKG_CONFIG_LIBDIR="${RMCS_SYSROOT}/usr/local/lib/${RMCS_TARGET_TRIPLET}/pkgconfig:${RMCS_SYSROOT}/usr/local/lib/pkgconfig:${RMCS_SYSROOT}/usr/local/share/pkgconfig:${RMCS_SYSROOT}/usr/lib/${RMCS_TARGET_TRIPLET}/pkgconfig:${RMCS_SYSROOT}/usr/lib/pkgconfig:${RMCS_SYSROOT}/usr/share/pkgconfig:${RMCS_SYSROOT}/lib/${RMCS_TARGET_TRIPLET}/pkgconfig:${RMCS_SYSROOT}/lib/pkgconfig:${RMCS_SYSROOT}/opt/ros/jazzy/lib/${RMCS_TARGET_TRIPLET}/pkgconfig:${RMCS_SYSROOT}/opt/ros/jazzy/lib/pkgconfig:${RMCS_SYSROOT}/opt/ros/jazzy/share/pkgconfig"
 
 cd "${workspace}"
+
+if ((${#auto_skip_packages[@]} > 0)); then
+    colcon_args+=(--packages-skip "${auto_skip_packages[@]}")
+fi
 
 build_base="build-cross-${RMCS_TARGET_ARCH}"
 install_base="install-cross-${RMCS_TARGET_ARCH}"
