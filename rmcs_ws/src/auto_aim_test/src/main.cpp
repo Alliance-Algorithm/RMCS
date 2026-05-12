@@ -38,6 +38,7 @@ public:
         camera_config_.invert_image = declare_parameter<bool>("invert_image", false);
         rls_lambda_ = declare_parameter<double>("rls_lambda", 0.9995);
         residual_threshold_sec_ = 1.0 / static_cast<double>(camera_config_.framerate) / 2.0;
+        sync_model_ = LinearSyncModel{rls_lambda_, residual_threshold_sec_};
 
         board_ = std::make_unique<TriggerBoard>(
             [this](TriggerBoard::Clock::time_point timestamp) { signal_callback(timestamp); });
@@ -55,12 +56,9 @@ public:
         worker_.join();
 
         camera_.reset();
-        {
-            auto guard = std::scoped_lock{frame_pool_mutex_};
-            unmatched_image_buffer_.pop_front_n([this](UnmatchedImage&& image) noexcept {
-                release_frame(std::launder(image.frame));
-            });
-        }
+        unmatched_image_buffer_.pop_front_n([this](UnmatchedImage&& image) noexcept {
+            release_frame(std::launder(image.frame));
+        });
 
         board_.reset();
     }
@@ -118,12 +116,9 @@ private:
 
     void clear_pending_data() {
         unmatched_signal_buffer_.clear();
-        {
-            auto guard = std::scoped_lock{frame_pool_mutex_};
-            unmatched_image_buffer_.pop_front_n([this](UnmatchedImage&& image) noexcept {
-                release_frame(image.frame);
-            });
-        }
+        unmatched_image_buffer_.pop_front_n([this](UnmatchedImage&& image) noexcept {
+            release_frame(image.frame);
+        });
     }
 
     void set_transport_state(const CameraTransportState new_state, const char* reason) {
@@ -344,10 +339,8 @@ private:
     }
 
     bool ensure_transport_up() {
-        if (transport_state_ == CameraTransportState::kUp)
-            return true;
-
-        try_connect_camera();
+        if (transport_state_ != CameraTransportState::kUp)
+            try_connect_camera();
 
         if (camera_ != nullptr) {
             if (const auto fault_message = camera_->take_transport_fault_message()) {
@@ -420,16 +413,15 @@ private:
 
     bool wait_for_data() {
         using namespace std::chrono_literals;
-        if (!unmatched_signal_buffer_.readable() || !unmatched_image_buffer_.readable()) {
-            if (!wait_event(50ms)) {
-                idle_duration_ += 50ms;
-                return false;
-            }
-            idle_duration_ = std::chrono::steady_clock::duration::zero();
-            if (!unmatched_signal_buffer_.readable() || !unmatched_image_buffer_.readable())
-                return false;
+        const auto old = event_count_.load(std::memory_order::relaxed);
+        if (unmatched_signal_buffer_.readable() && unmatched_image_buffer_.readable())
+            return true;
+        if (!rmcs_utility::atomic_wait_timeout(event_count_, old, 50ms, std::memory_order::acquire)) {
+            idle_duration_ += 50ms;
+            return false;
         }
-        return true;
+        idle_duration_ = std::chrono::steady_clock::duration::zero();
+        return unmatched_signal_buffer_.readable() && unmatched_image_buffer_.readable();
     }
 
     void process_locked_frame() {
