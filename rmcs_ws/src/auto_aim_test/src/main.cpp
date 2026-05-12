@@ -64,7 +64,7 @@ public:
     }
 
 private:
-    enum class WorkerState { kReseting, kMatching, kConfirming, kLocked };
+    enum class WorkerState { kResetting, kMatching, kConfirming, kLocked };
     enum class CameraTransportState { kDown, kUp, kReconnecting };
     using TimestampPair = LinearSyncModel::TimestampPair;
 
@@ -105,13 +105,12 @@ private:
         }
     }
 
-    void reset_sync_state(const char* reason) {
+    void reset_sync_state() {
         sync_model_.reset();
         last_locked_frame_id_.reset();
         matching_array_.clear();
         clear_pending_data();
-        worker_state_ = WorkerState::kReseting;
-        RCLCPP_INFO(get_logger(), "[RESETING] %s", reason);
+        worker_state_ = WorkerState::kResetting;
     }
 
     void clear_pending_data() {
@@ -135,10 +134,12 @@ private:
         if (transport_state_ == CameraTransportState::kReconnecting)
             return;
 
-        RCLCPP_ERROR(get_logger(), "[TRANSPORT] Fault detected: %s", reason.c_str());
+        RCLCPP_ERROR(
+            get_logger(), "[TRANSPORT] %s -> RECONNECTING: %s",
+            transport_state_name(transport_state_), reason.c_str());
         camera_.reset();
-        set_transport_state(CameraTransportState::kReconnecting, reason.c_str());
-        reset_sync_state("Camera transport fault - waiting to reconnect");
+        transport_state_ = CameraTransportState::kReconnecting;
+        reset_sync_state();
         reconnect_attempts_ = 0;
         next_reconnect_time_ = std::chrono::steady_clock::now();
     }
@@ -151,9 +152,6 @@ private:
         const bool is_reconnect =
             reconnect_attempts_ > 0 || transport_state_ == CameraTransportState::kReconnecting;
         ++reconnect_attempts_;
-        RCLCPP_INFO(
-            get_logger(), "[TRANSPORT] %s attempt #%zu", is_reconnect ? "Reconnect" : "Connect",
-            reconnect_attempts_);
 
         try {
             camera_ = std::make_unique<Hikcamera>(
@@ -161,10 +159,12 @@ private:
                 [this](const Hikcamera::Frame& frame) noexcept { frame_callback(frame); },
                 camera_name_);
             last_frame_time_.store(std::chrono::steady_clock::now(), std::memory_order::release);
-            set_transport_state(CameraTransportState::kUp, "Camera connected");
-            reset_sync_state(
-                is_reconnect ? "Camera reconnected - restarting sync"
-                             : "Camera connected - starting sync");
+            RCLCPP_INFO(
+                get_logger(), "[TRANSPORT] %s -> UP: Camera %s (attempt #%zu)",
+                transport_state_name(transport_state_),
+                is_reconnect ? "reconnected" : "connected", reconnect_attempts_);
+            transport_state_ = CameraTransportState::kUp;
+            reset_sync_state();
             reconnect_attempts_ = 0;
             return true;
         } catch (const std::exception& exception) {
@@ -175,10 +175,10 @@ private:
                 CameraTransportState::kReconnecting,
                 is_reconnect ? "Reconnect attempt failed" : "Connect attempt failed");
             RCLCPP_ERROR(
-                get_logger(), "[TRANSPORT] %s attempt #%zu failed: %s. Retry in %lld ms",
+                get_logger(), "[TRANSPORT] %s #%zu failed: %s (retry in %lld ms)",
                 is_reconnect ? "Reconnect" : "Connect", reconnect_attempts_, exception.what(),
                 static_cast<long long>(backoff.count()));
-            reset_sync_state(is_reconnect ? "Reconnect attempt failed" : "Connect attempt failed");
+            reset_sync_state();
             return false;
         }
     }
@@ -203,7 +203,7 @@ private:
 
     static auto state_name(const WorkerState state) noexcept -> const char* {
         switch (state) {
-        case WorkerState::kReseting: return "RESETING";
+        case WorkerState::kResetting: return "RESETTING";
         case WorkerState::kMatching: return "MATCHING";
         case WorkerState::kConfirming: return "CONFIRMING";
         case WorkerState::kLocked: return "LOCKED";
@@ -216,12 +216,13 @@ private:
             return false;
 
         bool trigger_on =
-            (new_state == WorkerState::kReseting || new_state == WorkerState::kConfirming);
-        if (!set_trigger_mode_checked(trigger_on, "Trigger mode change"))
+            (new_state == WorkerState::kResetting || new_state == WorkerState::kConfirming);
+        if (!set_trigger_mode_checked(
+                trigger_on, trigger_on ? "Enable trigger mode" : "Disable trigger mode"))
             return false;
 
         switch (new_state) {
-        case WorkerState::kReseting:
+        case WorkerState::kResetting:
             sync_model_.reset();
             last_locked_frame_id_.reset();
             matching_array_.clear();
@@ -312,7 +313,7 @@ private:
                 && std::chrono::steady_clock::now() - matching_start_ >= 2s) {
                 if (matching_array_.size() < 50) {
                     std::ignore = transition_to(
-                        WorkerState::kReseting,
+                        WorkerState::kResetting,
                         std::format(
                             "Too few frames matched: collected ({}) < minimum (50)",
                             matching_array_.size())
@@ -320,14 +321,14 @@ private:
                 } else {
                     std::ignore = transition_to(
                         WorkerState::kConfirming,
-                        "Frames collected. Waiting bus idle to ensure no data loss...");
+                        "Draining buffers before fitting...");
                 }
             }
-            if (worker_state_ == WorkerState::kReseting)
+            if (worker_state_ == WorkerState::kResetting)
                 clear_pending_data();
             if (!wait_for_data())
                 continue;
-            if (worker_state_ == WorkerState::kReseting)
+            if (worker_state_ == WorkerState::kResetting)
                 continue;
             consume_and_process();
         }
@@ -373,25 +374,25 @@ private:
         if (idle_duration_ < 100ms)
             return;
 
-        if (worker_state_ == WorkerState::kReseting) {
-            std::ignore = transition_to(WorkerState::kMatching, "Trying to match signal and image...");
+        if (worker_state_ == WorkerState::kResetting) {
+            std::ignore = transition_to(WorkerState::kMatching, "Matching signals and images...");
         } else if (worker_state_ == WorkerState::kConfirming) {
             if (!unmatched_signal_buffer_.readable() && !unmatched_image_buffer_.readable()) {
                 auto ls_result = sync_model_.initialize_from_least_squares(matching_array_);
                 if (!ls_result) {
                     std::ignore = transition_to(
-                        WorkerState::kReseting,
+                        WorkerState::kResetting,
                         "Least-squares fit failed to initialize lock model");
                 } else if (!(0.8 < ls_result->a && ls_result->a < 1.2)) {
                     std::ignore = transition_to(
-                        WorkerState::kReseting,
-                        std::format("LS slope out of range: a={:.9f} is outside (0.8, 1.2)", ls_result->a)
+                        WorkerState::kResetting,
+                        std::format("LS slope out of range: a={:.3f} (expected 0.8..1.2)", ls_result->a)
                             .c_str());
                 } else if (!(ls_result->max_abs_residual_sec < residual_threshold_sec_)) {
                     std::ignore = transition_to(
-                        WorkerState::kReseting,
+                        WorkerState::kResetting,
                         std::format(
-                            "LS residual too large: max_abs_residual(ms)={:.3f} >= threshold(ms)={:.3f}",
+                            "LS max residual={:.3f} ms >= threshold={:.3f} ms",
                             ls_result->max_abs_residual_sec * 1000.0,
                             residual_threshold_sec_ * 1000.0)
                             .c_str());
@@ -399,14 +400,14 @@ private:
                     std::ignore = transition_to(
                         WorkerState::kLocked,
                         std::format(
-                            "Hard-sync locked successfully: a={:.9f}, b={:.9f}, var_a={:.3e}, var_b={:.3e}, max_residual(ms)={:.3f}",
+                            "Locked: a={:.3f}, b={:.3f}, var_a={:.3e}, var_b={:.3e}, max_residual={:.3f} ms",
                             ls_result->a, ls_result->b, ls_result->covariance(0, 0),
                             ls_result->covariance(1, 1), ls_result->max_abs_residual_sec * 1000.0)
                             .c_str());
                 }
             } else {
                 std::ignore = transition_to(
-                    WorkerState::kReseting, "Failed to match: Mismatched signals and images count");
+                    WorkerState::kResetting, "Buffer count mismatch after drain");
             }
         }
     }
@@ -427,7 +428,7 @@ private:
     void process_locked_frame() {
         if (!sync_model_.initialized()) {
             std::ignore = transition_to(
-                WorkerState::kReseting, "RLS model was unexpectedly uninitialized");
+                WorkerState::kResetting, "RLS model was unexpectedly uninitialized");
             return;
         }
 
@@ -441,7 +442,7 @@ private:
 
             if (next_frame_id < expected_frame_id) {
                 std::ignore = transition_to(
-                    WorkerState::kReseting,
+                    WorkerState::kResetting,
                     std::format("Frame ID moved backward: expected >= {}, got {}", expected_frame_id, next_frame_id)
                         .c_str());
                 return;
@@ -451,7 +452,7 @@ private:
             if (frame_gap > 0U) {
                 if (frame_gap > kAllowedFrameIdGap) {
                     std::ignore = transition_to(
-                        WorkerState::kReseting,
+                        WorkerState::kResetting,
                         std::format(
                             "Frame ID gap too large: expected {}, got {}, gap {} > {}", expected_frame_id,
                             next_frame_id, frame_gap, kAllowedFrameIdGap)
@@ -476,8 +477,8 @@ private:
             sync_model_.residual_for(timestamp_pair.camera_timestamp_sec, timestamp_pair.board_timestamp_sec);
         if (!(std::abs(residual) < residual_threshold_sec_)) {
             std::ignore = transition_to(
-                WorkerState::kReseting,
-                std::format("RLS residual too large: residual(ms)={:.3f}, threshold(ms)={:.3f}",
+                WorkerState::kResetting,
+                std::format("RLS residual too large: residual={:.3f} ms, threshold={:.3f} ms",
                             residual * 1000.0, residual_threshold_sec_ * 1000.0)
                     .c_str());
             return;
@@ -486,7 +487,7 @@ private:
         const auto updated_residual =
             sync_model_.update(timestamp_pair.camera_timestamp_sec, timestamp_pair.board_timestamp_sec);
         if (!std::isfinite(updated_residual) || !sync_model_.initialized()) {
-            std::ignore = transition_to(WorkerState::kReseting, "RLS update failed");
+            std::ignore = transition_to(WorkerState::kResetting, "RLS update failed");
         }
     }
 
@@ -529,7 +530,7 @@ private:
 
                 if (image.frame_id % 100 == 0) {
                     RCLCPP_INFO(
-                        get_logger(), "frame #%u: camera_ts(ms)=%.3f, signal_ts(ms)=%.3f",
+                        get_logger(), "frame #%u: camera_ts=%.3f ms, signal_ts=%.3f ms",
                         image.frame_id, timestamp_pair.camera_timestamp_sec * 1000.0,
                         timestamp_pair.board_timestamp_sec * 1000.0);
                 }
@@ -582,7 +583,7 @@ private:
     std::unique_ptr<Hikcamera> camera_;
     Hikcamera::CameraConfig camera_config_{};
     std::string camera_name_;
-    WorkerState worker_state_ = WorkerState::kReseting;
+    WorkerState worker_state_ = WorkerState::kResetting;
     CameraTransportState transport_state_ = CameraTransportState::kDown;
     std::chrono::steady_clock::duration idle_duration_{};
     std::chrono::steady_clock::time_point matching_start_{};
