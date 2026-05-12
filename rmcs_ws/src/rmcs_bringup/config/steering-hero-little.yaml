@@ -15,8 +15,8 @@ rmcs_executor:
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> pitch_velocity_pid_controller
 
-      # - rmcs_core::controller::gimbal::PlayerViewer -> gimbal_player_viewer_controller
-      # - rmcs_core::controller::pid::ErrorPidController -> viewer_angle_pid_controller
+      - rmcs_core::controller::gimbal::PlayerViewer -> gimbal_player_viewer_controller
+      - rmcs_core::controller::pid::ErrorPidController -> viewer_angle_pid_controller
 
       - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
       - rmcs_core::controller::shooting::HeatController -> heat_controller
@@ -51,11 +51,11 @@ hero_hardware:
     board_serial_top_board: "AF-BFF7-0B6F-46A5-2B4B-AA20-89C2-E180-64B9"
     serial_bottom_rmcs_board: "AF-60BB-7484-FA24-F3FC-399B-454D-22FA-1B1D"
     bottom_yaw_motor_zero_point: 34180
-    pitch_motor_zero_point: 24154
+    pitch_motor_zero_point: 57723
     top_yaw_motor_zero_point: 48542
-    viewer_motor_zero_point: 3030
+    viewer_motor_zero_point: 6600
     external_imu_port: /dev/ttyUSB0
-    bullet_feeder_motor_zero_point: 12707
+    bullet_feeder_motor_zero_point: 39045
     left_front_zero_point: 5782
     right_front_zero_point: 3819
     left_back_zero_point:  7841
@@ -73,7 +73,7 @@ value_broadcaster:
       - /chassis/climber/front/power_demand_estimate
       - /chassis/climber/front/actual_power_estimate
       - /chassis/steering_wheel/actual_power_estimate
-      # - /chassis/supercap/voltage
+      - /chassis/supercap/voltage
       # - /gimbal/putter/velocity
       - /gimbal/first_left_friction/velocity
       - /gimbal/first_right_friction/velocity
@@ -104,7 +104,7 @@ climber_controller:
     auto_climb_dash_chassis_velocity: 5.0
     auto_climb_leveled_pitch_threshold: 0.05
     sync_coefficient: 0.2
-    first_stair_approach_pitch: 0.468
+    first_stair_approach_pitch: 0.519
     second_stair_approach_pitch: 1.0    
     front_kp: 1.0
     front_ki: 0.0
@@ -131,7 +131,7 @@ dual_yaw_controller:
     top_yaw_angle_kp: 30.2
     top_yaw_angle_ki: 0.0
     top_yaw_angle_kd: 0.0
-    top_yaw_velocity_kp: 9.0
+    top_yaw_velocity_kp: 11.0
     top_yaw_velocity_ki: 0.00029
     top_yaw_velocity_kd: 0.0
     top_yaw_velocity_integral_min: -2500.0
@@ -149,7 +149,7 @@ pitch_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/pitch/control_angle_error
     control: /gimbal/pitch/control_velocity
-    kp: 20.6
+    kp: 18.6
     ki: 0.0
     kd: 0.0
 
@@ -173,9 +173,9 @@ viewer_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/player_viewer/control_angle_error
     control: /gimbal/player_viewer/control_velocity
-    kp: 17.00
+    kp: 7.00
     ki: 0.00
-    kd: 2.00
+    kd: 1.00
 
 bullet_feeder_controller:
   ros__parameters:
@@ -184,7 +184,7 @@ bullet_feeder_controller:
     bullet_feeder_velocity_kd: 0.0
     bullet_feeder_velocity_integral_min: 0.0
     bullet_feeder_velocity_integral_max: 60.0
-    bullet_feeder_angle_kp: 3.2
+    bullet_feeder_angle_kp: 5.0
     bullet_feeder_angle_ki: 0.0
     bullet_feeder_angle_kd: 1.0
     putter_return_velocity_kp: 0.0015
@@ -325,7 +325,7 @@ pitch_swept_frequency_controller:
     start_freq: 0.1
     end_freq: 10.0
     duration: 60.0
-    amplitude: 30.0
+    amplitude: 10.0
 
     pid: true
     setpoint: 0.0
@@ -345,12 +345,12 @@ pitch_static_torque_test_controller:
     wait_time: 1.5
     border_clip: 0.05
 
-    position_kp: 20.0
+    position_kp: 12.0
     position_ki: 0.0
     position_kd: 0.0
 
-    velocity_kp: 16.5
-    velocity_ki: 0.005
+    velocity_kp: 3.2
+    velocity_ki: 0.0005
     velocity_kd: 0.0
 
     velocity_integral_min: -2500.0

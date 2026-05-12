@@ -51,6 +51,8 @@ public:
         const auto& switch_left = *switch_left_;
         const auto& switch_right = *switch_right_;
 
+        // RCLCPP_INFO(get_logger(), "pitch: %f", *gimbal_pitch_angle_);
+
         do {
             using namespace rmcs_msgs;
             if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
@@ -67,6 +69,7 @@ public:
             }
 
             *gimbal_mode_ = gimbal_mode_keyboard_;
+            // *gimbal_mode_ = switch_right == Switch::UP ? GimbalMode::ENCODER : GimbalMode::IMU;
 
             if (*gimbal_mode_ == GimbalMode::IMU) {
                 auto angle_error = update_imu_control();

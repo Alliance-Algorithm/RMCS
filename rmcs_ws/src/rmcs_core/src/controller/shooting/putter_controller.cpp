@@ -148,7 +148,7 @@ public:
 
                     if (shoot_stage_ == ShootStage::COMPRESSED) {
                         // 暂存模式：等待灰度传感器状态更新以判断是否完成推弹
-                        if (*grayscale_sensor_status_) {
+                        if (*grayscale_sensor_status_ && *photoelectric_sensor_status_) {
                             set_preloaded();
                         } else {
                             set_preloading();
@@ -190,7 +190,7 @@ public:
                         const auto angle_err = bullet_feeder_control_angle_ - *bullet_feeder_angle_;
                         if (angle_err < 0.1) {
                             RCLCPP_INFO(get_logger(), "RESETED");
-                            set_preloaded();
+                            set_compressed();
                         }
                         double velocity_err =
                             bullet_feeder_angle_pid_.update(angle_err) - *bullet_feeder_velocity_;
