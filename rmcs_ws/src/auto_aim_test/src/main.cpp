@@ -71,7 +71,7 @@ private:
         static_cast<std::size_t>(Hikcamera::Cs016FrameWidth)
         * static_cast<std::size_t>(Hikcamera::Cs016FrameHeight);
     static constexpr auto kFrameWatchdogTimeout = std::chrono::milliseconds{250};
-    static constexpr auto kMaxReconnectBackoff = std::chrono::milliseconds{5000};
+    static constexpr auto kReconnectRetryInterval = std::chrono::milliseconds{2500};
 
     static auto transport_state_name(const CameraTransportState state) noexcept -> const char* {
         switch (state) {
@@ -177,9 +177,7 @@ private:
             reconnect_attempts_ = 0;
             return true;
         } catch (const std::exception& exception) {
-            const auto exponential =
-                std::chrono::milliseconds{200 * (1ULL << std::min<std::size_t>(reconnect_attempts_ - 1, 4))};
-            const auto backoff = std::min(exponential, kMaxReconnectBackoff);
+            const auto backoff = kReconnectRetryInterval;
             next_reconnect_time_ = now + backoff;
             camera_.reset();
             set_transport_state(
