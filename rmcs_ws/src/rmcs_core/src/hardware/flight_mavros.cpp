@@ -37,7 +37,7 @@ public:
             mavros_pose_topic, rclcpp::QoS{10}.reliable());
         odometry_subscription_ = create_subscription<nav_msgs::msg::Odometry>(
             odometry_topic_, rclcpp::QoS{10}.reliable(),
-            [this](nav_msgs::msg::Odometry::ConstSharedPtr msg) { odometry_callback(msg); });
+            [this](const nav_msgs::msg::Odometry::ConstSharedPtr& msg) { odometry_callback(msg); });
         last_odometry_received_time_ns_.store(
             get_clock()->now().nanoseconds(), std::memory_order_relaxed);
 
@@ -64,7 +64,7 @@ public:
     }
 
 private:
-    static constexpr std::int64_t kOdometryTimeoutNs{1'000'000'000}; // 1s
+    static constexpr std::int64_t kOdometryTimeoutNs{1'000'000'000};
 
     static double radians_to_degrees(double radians) { return radians * 180.0 / std::numbers::pi; }
 
@@ -104,7 +104,6 @@ private:
         geometry_msgs::msg::PoseStamped pose_msg{};
         pose_msg.header.stamp = msg->header.stamp;
         pose_msg.header.frame_id = msg->header.frame_id;
-
         pose_msg.pose.position = msg->pose.pose.position;
 
         const Eigen::Quaterniond rotated_orientation =
