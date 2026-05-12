@@ -168,8 +168,11 @@ private:
         if (now < next_reconnect_time_)
             return false;
 
+        const bool is_reconnect = reconnect_attempts_ > 0 || transport_state == CameraTransportState::kReconnecting;
         ++reconnect_attempts_;
-        RCLCPP_INFO(get_logger(), "[TRANSPORT] Reconnect attempt #%zu", reconnect_attempts_);
+        RCLCPP_INFO(
+            get_logger(), "[TRANSPORT] %s attempt #%zu", is_reconnect ? "Reconnect" : "Connect",
+            reconnect_attempts_);
 
         try {
             camera_ = std::make_unique<Hikcamera>(
@@ -178,7 +181,10 @@ private:
                 camera_name_);
             last_frame_time_.store(std::chrono::steady_clock::now(), std::memory_order::release);
             set_transport_state(transport_state, CameraTransportState::kUp, "Camera connected");
-            clear_sync_state(state, matching_array, "Camera connected - restarting sync");
+            clear_sync_state(
+                state, matching_array,
+                is_reconnect ? "Camera reconnected - restarting sync"
+                             : "Camera connected - starting sync");
             reconnect_attempts_ = 0;
             return true;
         } catch (const std::exception& exception) {
@@ -190,12 +196,14 @@ private:
             camera_.reset();
             set_transport_state(
                 transport_state, CameraTransportState::kReconnecting,
-                "Reconnect attempt failed");
+                is_reconnect ? "Reconnect attempt failed" : "Connect attempt failed");
             RCLCPP_ERROR(
-                get_logger(),
-                "[TRANSPORT] Reconnect attempt #%zu failed: %s. Retry in %lld ms",
-                reconnect_attempts_, exception.what(), static_cast<long long>(backoff.count()));
-            clear_sync_state(state, matching_array, "Reconnect attempt failed");
+                get_logger(), "[TRANSPORT] %s attempt #%zu failed: %s. Retry in %lld ms",
+                is_reconnect ? "Reconnect" : "Connect", reconnect_attempts_, exception.what(),
+                static_cast<long long>(backoff.count()));
+            clear_sync_state(
+                state, matching_array,
+                is_reconnect ? "Reconnect attempt failed" : "Connect attempt failed");
             return false;
         }
     }
