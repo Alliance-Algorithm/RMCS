@@ -238,6 +238,10 @@ private:
             break;
         case WorkerState::kLocked:
             last_locked_frame_id_.reset();
+            locked_frame_count_ = 0;
+            last_locked_summary_count_ = 0;
+            max_residual_sec_ = 0.0;
+            last_locked_summary_time_ = std::chrono::steady_clock::now();
             break;
         }
         worker_state_ = new_state;
@@ -400,7 +404,8 @@ private:
                     std::ignore = transition_to(
                         WorkerState::kLocked,
                         std::format(
-                            "Locked: a={:.3f}, b={:.3f}, var_a={:.3e}, var_b={:.3e}, max_residual={:.3f} ms",
+                            "Locked from {} frames: a={:.3f}, b={:.3f}, var_a={:.3e}, var_b={:.3e}, max_residual={:.3f} ms",
+                            matching_array_.size(),
                             ls_result->a, ls_result->b, ls_result->covariance(0, 0),
                             ls_result->covariance(1, 1), ls_result->max_abs_residual_sec * 1000.0)
                             .c_str());
@@ -473,13 +478,30 @@ private:
 
         const auto timestamp_pair = consume_frame();
         last_locked_frame_id_ = next_frame_id;
+        locked_frame_count_++;
+        if (const auto now = std::chrono::steady_clock::now();
+            now - last_locked_summary_time_ >= std::chrono::milliseconds{5000}) {
+            const auto window_frames = locked_frame_count_ - last_locked_summary_count_;
+            const auto fps = static_cast<double>(window_frames)
+                           / std::chrono::duration<double>(now - last_locked_summary_time_).count();
+            RCLCPP_INFO(
+                get_logger(), "[LOCKED] %zu frames total, avg %.1f FPS, a=%.3f, b=%.3f, max_residual=%.3f ms",
+                locked_frame_count_, fps, sync_model_.a(), sync_model_.b(),
+                max_residual_sec_ * 1000.0);
+            last_locked_summary_count_ = locked_frame_count_;
+            max_residual_sec_ = 0.0;
+            last_locked_summary_time_ = now;
+        }
         const auto residual =
             sync_model_.residual_for(timestamp_pair.camera_timestamp_sec, timestamp_pair.board_timestamp_sec);
+        max_residual_sec_ = std::max(max_residual_sec_, std::abs(residual));
         if (!(std::abs(residual) < residual_threshold_sec_)) {
             std::ignore = transition_to(
                 WorkerState::kResetting,
-                std::format("RLS residual too large: residual={:.3f} ms, threshold={:.3f} ms",
-                            residual * 1000.0, residual_threshold_sec_ * 1000.0)
+                std::format("RLS residual too large: residual={:.3f} ms, threshold={:.3f} ms, camera_ts={:.3f} ms, signal_ts={:.3f} ms",
+                            residual * 1000.0, residual_threshold_sec_ * 1000.0,
+                            timestamp_pair.camera_timestamp_sec * 1000.0,
+                            timestamp_pair.board_timestamp_sec * 1000.0)
                     .c_str());
             return;
         }
@@ -527,13 +549,6 @@ private:
                     std::chrono::duration_cast<std::chrono::duration<double>>(
                         image.timestamp.time_since_epoch())
                         .count();
-
-                if (image.frame_id % 100 == 0) {
-                    RCLCPP_INFO(
-                        get_logger(), "frame #%u: camera_ts=%.3f ms, signal_ts=%.3f ms",
-                        image.frame_id, timestamp_pair.camera_timestamp_sec * 1000.0,
-                        timestamp_pair.board_timestamp_sec * 1000.0);
-                }
 
                 // Process Image ...
 
@@ -592,6 +607,10 @@ private:
     double residual_threshold_sec_ = 1.0 / 249.1 / 2.0;
     LinearSyncModel sync_model_{rls_lambda_, residual_threshold_sec_};
     std::optional<std::uint32_t> last_locked_frame_id_;
+    std::size_t locked_frame_count_ = 0;
+    std::size_t last_locked_summary_count_ = 0;
+    double max_residual_sec_ = 0.0;
+    std::chrono::steady_clock::time_point last_locked_summary_time_{};
     std::atomic<std::chrono::steady_clock::time_point> last_frame_time_;
     std::chrono::steady_clock::time_point next_reconnect_time_ = std::chrono::steady_clock::time_point::min();
     std::size_t reconnect_attempts_ = 0;
