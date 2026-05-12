@@ -7,7 +7,6 @@
 #include <format>
 #include <memory>
 #include <optional>
-#include <random>
 #include <string>
 #include <thread>
 #include <vector>
@@ -104,16 +103,6 @@ private:
         }
     }
 
-    static auto jittered_backoff(
-        std::mt19937_64& random_engine, const std::chrono::milliseconds base_backoff)
-        -> std::chrono::milliseconds {
-        auto distribution = std::uniform_real_distribution<double>{0.9, 1.1};
-        const auto jittered =
-            static_cast<std::int64_t>(static_cast<double>(base_backoff.count())
-                                      * distribution(random_engine));
-        return std::chrono::milliseconds{std::max<std::int64_t>(1, jittered)};
-    }
-
     void clear_sync_state(
         WorkerState& state, std::vector<TimestampPair>& matching_array, const char* reason) {
         sync_model_.reset();
@@ -163,7 +152,7 @@ private:
 
     auto try_connect_camera(
         CameraTransportState& transport_state, WorkerState& state,
-        std::vector<TimestampPair>& matching_array, std::mt19937_64& random_engine) -> bool {
+        std::vector<TimestampPair>& matching_array) -> bool {
         const auto now = std::chrono::steady_clock::now();
         if (now < next_reconnect_time_)
             return false;
@@ -190,8 +179,7 @@ private:
         } catch (const std::exception& exception) {
             const auto exponential =
                 std::chrono::milliseconds{200 * (1ULL << std::min<std::size_t>(reconnect_attempts_ - 1, 4))};
-            const auto capped_backoff = std::min(exponential, kMaxReconnectBackoff);
-            const auto backoff = jittered_backoff(random_engine, capped_backoff);
+            const auto backoff = std::min(exponential, kMaxReconnectBackoff);
             next_reconnect_time_ = now + backoff;
             camera_.reset();
             set_transport_state(
@@ -344,11 +332,10 @@ private:
 
         auto matching_start = std::chrono::steady_clock::time_point::max();
         std::vector<TimestampPair> matching_array{1000};
-        std::mt19937_64 random_engine{std::random_device{}()};
 
         while (!stopped_.test(std::memory_order::relaxed)) {
             if (transport_state != CameraTransportState::kUp) {
-                try_connect_camera(transport_state, state, matching_array, random_engine);
+                try_connect_camera(transport_state, state, matching_array);
             }
 
             if (camera_ != nullptr) {
