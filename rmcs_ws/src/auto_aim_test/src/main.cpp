@@ -254,8 +254,8 @@ private:
 
         if (frame.width != Hikcamera::Cs016FrameWidth || frame.height != Hikcamera::Cs016FrameHeight
             || frame.data.size() != kExpectedFrameSize) {
-            RCLCPP_WARN(
-                get_logger(),
+            RCLCPP_WARN_THROTTLE(
+                get_logger(), *get_clock(), 1000,
                 "Skipping malformed frame #%u: width=%u (expected %u), height=%u (expected %u), "
                 "size=%zu (expected %zu)",
                 frame.frame_id, frame.width, Hikcamera::Cs016FrameWidth, frame.height,
@@ -269,8 +269,9 @@ private:
             pub_frame_ptr = frame_pool_.allocate();
         }
         if (!pub_frame_ptr) {
-            RCLCPP_WARN(
-                get_logger(), "Dropping frame #%u: frame pool exhausted (capacity=%zu)",
+            RCLCPP_WARN_THROTTLE(
+                get_logger(), *get_clock(), 1000,
+                "Dropping frame #%u: frame pool exhausted (capacity=%zu)",
                 frame.frame_id, frame_pool_.max_size());
             return;
         }
@@ -284,8 +285,8 @@ private:
                 1)) {
             auto guard = std::scoped_lock{frame_pool_mutex_};
             frame_pool_.free(pub_frame_ptr);
-            RCLCPP_WARN(
-                get_logger(),
+            RCLCPP_WARN_THROTTLE(
+                get_logger(), *get_clock(), 1000,
                 "Dropping frame #%u: unmatched image buffer full (capacity=%zu)",
                 frame.frame_id, unmatched_image_buffer_.max_size());
             return;
@@ -296,8 +297,9 @@ private:
 
     void signal_callback(TriggerBoard::Clock::time_point timestamp) {
         if (!unmatched_signal_buffer_.emplace_back(timestamp)) {
-            RCLCPP_WARN(
-                get_logger(), "Dropping trigger signal: unmatched signal buffer full (capacity=%zu)",
+            RCLCPP_WARN_THROTTLE(
+                get_logger(), *get_clock(), 1000,
+                "Dropping trigger signal: unmatched signal buffer full (capacity=%zu)",
                 unmatched_signal_buffer_.max_size());
             return;
         }
