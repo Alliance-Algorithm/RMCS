@@ -64,6 +64,9 @@ public:
         register_input("/remote/mouse", mouse_);
 
         register_input("/referee/game/stage", game_stage_);
+
+        register_input("/gimbal/auto_aim/fire_control", auto_aim_fire_control_, false);
+        register_input("/gimbal/auto_aim/target_confidence", auto_aim_target_confidence_, false);
     }
 
     void update() override {
@@ -97,6 +100,11 @@ private:
             *left_friction_control_velocity_ > 0);
         status_ring_.update_supercap(*supercap_voltage_, true);
         status_ring_.update_battery_power(*chassis_voltage_);
+        const bool auto_aim_locked = auto_aim_fire_control_.ready() && *auto_aim_fire_control_;
+        const double target_confidence_value =
+            auto_aim_target_confidence_.ready() ? *auto_aim_target_confidence_ : 0.0;
+
+        status_ring_.update_auto_aim_feedback(auto_aim_locked, target_confidence_value);
         // update_static_status_ring();
     }
 
@@ -226,6 +234,9 @@ private:
 
     Text state_word_;
     Integer time_reminder_;
+
+    InputInterface<bool> auto_aim_fire_control_;
+    InputInterface<double> auto_aim_target_confidence_;
 };
 
 } // namespace rmcs_core::referee::app::ui

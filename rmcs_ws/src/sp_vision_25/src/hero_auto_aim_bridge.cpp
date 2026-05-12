@@ -211,6 +211,7 @@ public:
         register_output("/gimbal/auto_aim/laser_distance", laser_distance_, 0.0);
         register_output("/gimbal/auto_aim/plan_yaw", plan_yaw_, 0.0);
         register_output("/gimbal/auto_aim/plan_pitch", plan_pitch_, 0.0);
+        register_output("/gimbal/auto_aim/target_confidence", target_confidence_, 0.0);
         register_input("/gimbal/pitch/angle", gimbal_pitch_angle_);
         register_input("/gimbal/yaw/angle", gimbal_yaw_angle_);
         register_input("/referee/id", robot_id_, false);
@@ -267,6 +268,7 @@ private:
         double laser_distance = 0.0;
         bool fire_control = false;
         bool valid = false;
+        double target_confidence = 0.0;
         double plan_yaw = 0.0;
         double plan_pitch = 0.0;
         double plan_yaw_velocity = 0.0;
@@ -322,20 +324,27 @@ private:
             result = latest_result_;
         }
 
-        const bool fresh = result.valid
-                        && std::chrono::duration<double>(now - result.timestamp) <= result_timeout_;
-        if (fresh) {
+        const bool fresh = std::chrono::duration<double>(now - result.timestamp) <= result_timeout_;
+        const bool controllable = fresh && result.valid;
+
+        if (controllable) {
             *control_direction_ = result.direction;
-            *fire_control_ = result.fire_control;
             *laser_distance_ = result.laser_distance;
             *plan_yaw_ = result.plan_yaw;
             *plan_pitch_ = result.plan_pitch;
         } else {
             *control_direction_ = Eigen::Vector3d::Zero();
-            *fire_control_ = false;
             *laser_distance_ = 0.0;
             *plan_yaw_ = 0.0;
             *plan_pitch_ = 0.0;
+        }
+
+        if (fresh) {
+            *fire_control_ = result.fire_control;
+            *target_confidence_ = result.target_confidence;
+        } else {
+            *fire_control_ = false;
+            *target_confidence_ = 0.0;
         }
     }
 
@@ -446,6 +455,9 @@ private:
                 if (target_state.target.has_value()) {
                     result.debug_armor_type = target_state.target->armor_type;
                     result.debug_armor_name = target_state.target->name;
+                    result.target_confidence = target_state.target->last_confidence;
+                } else {
+                    result.target_confidence = 0.0;
                 }
                 result.debug_control_xyza = planner.debug_targets.control_xyza;
                 store_result(result);
@@ -466,6 +478,7 @@ private:
     OutputInterface<double> laser_distance_;
     OutputInterface<double> plan_yaw_;
     OutputInterface<double> plan_pitch_;
+    OutputInterface<double> target_confidence_;
     InputInterface<double> gimbal_pitch_angle_;
     InputInterface<double> gimbal_yaw_angle_;
 
