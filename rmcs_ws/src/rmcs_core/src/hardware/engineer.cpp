@@ -9,6 +9,7 @@
 #include "hardware/device/tof.hpp"
 #include "hardware/forwarder/cboard.hpp"
 #include "hardware/ring_buffer.hpp"
+#include "rmcs_msgs/relay_mode.hpp"
 #include <algorithm>
 #include <bit>
 #include <bitset>
@@ -44,6 +45,8 @@ public:
         , logger_(get_logger())
         , engineer_command_(create_partner_component<EngineerCommand>("engineer_command", *this))
         , armboard_(*this, *engineer_command_, get_parameter("board_serial_arm_board").as_string())
+        , otherboard_(
+              *this, *engineer_command_, get_parameter("board_serial_other_board").as_string())
         , leftboard_(
               *this, *engineer_command_, get_parameter("board_serial_left_board").as_string())
         , rightboard_(
@@ -51,11 +54,13 @@ public:
     ~Engineer() override = default;
     void update() override {
         armboard_.update();
+        otherboard_.update();
         leftboard_.update();
         rightboard_.update();
     }
     void command() {
         armboard_.command();
+        otherboard_.command();
         leftboard_.command();
         rightboard_.command();
     }
@@ -249,13 +254,11 @@ private:
             *roll_imu_velocity  = bmi088_.gx();
             *pitch_imu_velocity = bmi088_.gy();
             *yaw_imu_velocity   = bmi088_.gz();
-            
-            *roll_imu_angle = std::atan2(
-                2.0 * (q0 * q1 + q2 * q3), 1.0 - 2.0 * (q1 * q1 + q2 * q2));
-            *pitch_imu_angle =
-                std::asin(std::clamp(2.0 * (q0 * q2 - q3 * q1), -1.0, 1.0));
-            *yaw_imu_angle = std::atan2(
-                2.0 * (q0 * q3 + q1 * q2), 1.0 - 2.0 * (q2 * q2 + q3 * q3));
+
+            *roll_imu_angle =
+                std::atan2(2.0 * (q0 * q1 + q2 * q3), 1.0 - 2.0 * (q1 * q1 + q2 * q2));
+            *pitch_imu_angle = std::asin(std::clamp(2.0 * (q0 * q2 - q3 * q1), -1.0, 1.0));
+            *yaw_imu_angle = std::atan2(2.0 * (q0 * q3 + q1 * q2), 1.0 - 2.0 * (q2 * q2 + q3 * q3));
         }
 
     protected:
@@ -321,6 +324,90 @@ private:
         device::Bmi088 bmi088_;
 
     } armboard_;
+
+    class OtherBoard final
+        : private librmcs::agent::CBoard
+        , rclcpp::Node {
+    public:
+        friend class Engineer;
+        explicit OtherBoard(
+            Engineer& engineer, EngineerCommand& engineer_command, const std::string& serial_filter)
+            : librmcs::agent::CBoard(serial_filter)
+            , rclcpp::Node{"other_board"}
+            , guard_motor(engineer, engineer_command, "/guard/motor") {
+            guard_motor.configure(
+                device::DjiMotorConfig{device::DjiMotorType::M2006}.enable_multi_turn_angle());
+            engineer.register_input("/left/relay", left_relay_mode);
+            engineer.register_input("/right/relay", right_relay_mode);
+        }
+        ~OtherBoard() final {
+            auto tx = start_transmit();
+            tx.can1_transmit({
+                .can_id = 0x200,
+                .can_data =
+                    device::CanPacket8{
+                                       device::CanPacket8::PaddingQuarter{},
+                                       device::CanPacket8::PaddingQuarter{},
+                                       device::CanPacket8::PaddingQuarter{},
+                                       device::CanPacket8::PaddingQuarter{},
+                                       }
+                        .as_bytes(),
+            });
+        }
+        void update() { guard_motor.update(); }
+        void command() {
+            auto tx = start_transmit();
+            tx.can1_transmit({
+                .can_id = 0x200,
+                .can_data =
+                    device::CanPacket8{
+                                       device::CanPacket8::PaddingQuarter{},
+                                       guard_motor.generate_command(),
+                                       device::CanPacket8::PaddingQuarter{},
+                                       device::CanPacket8::PaddingQuarter{},
+                                       }
+                        .as_bytes(),
+            });
+            if (*left_relay_mode == rmcs_msgs::RelayMode::Open) {
+                tx.gpio_digital_write({
+                    .channel = 1,
+                    .high    = true,
+                });
+            } else {
+                tx.gpio_digital_write({
+                    .channel = 1,
+                    .high    = false,
+                });
+            }
+            if (*right_relay_mode == rmcs_msgs::RelayMode::Open) {
+                tx.gpio_digital_write({
+                    .channel = 2,
+                    .high    = true,
+                });
+            } else {
+                tx.gpio_digital_write({
+                    .channel = 2,
+                    .high    = false,
+                });
+            }
+        }
+
+    protected:
+        void can1_receive_callback(const librmcs::data::CanDataView& data) override {
+            if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
+                [[unlikely]]
+                return;
+            if (data.can_id == 0x202) {
+                guard_motor.store_status(data.can_data);
+            }
+        }
+
+    private:
+        device::DjiMotor guard_motor;
+        InputInterface<rmcs_msgs::RelayMode> left_relay_mode;
+        InputInterface<rmcs_msgs::RelayMode> right_relay_mode;
+    } otherboard_;
+
     class LeftBoard final
         : private librmcs::agent::CBoard
         , rclcpp::Node {
@@ -376,10 +463,7 @@ private:
                     18.2));
             engineer.register_output(
                 "/leg/joint/lb/control_theta_error", leg_joint_lb_control_theta_error, NAN);
-            engineer.register_output(
-                "/leg/joint/lf/control_theta_error", leg_joint_lf_control_theta_error, NAN);
             engineer_command.register_input("/leg/joint/lb/target_theta", leg_lb_target_theta_);
-            engineer_command.register_input("/leg/joint/lf/target_theta", leg_lf_target_theta_);
         }
         ~LeftBoard() final {
             auto tx = start_transmit();
@@ -443,8 +527,6 @@ private:
                 ecd.update();
             }
             power_meter.update();
-            *leg_joint_lf_control_theta_error =
-                normalize_angle(*leg_lf_target_theta_ - Leg_ecd[0].get_angle());
             *leg_joint_lb_control_theta_error =
                 normalize_angle(*leg_lb_target_theta_ - Leg_ecd[1].get_angle());
         }
@@ -545,10 +627,9 @@ private:
         device::DjiMotor Leg_Motors[2];
         device::Encoder Leg_ecd[2];
 
-        InputInterface<double> leg_lf_target_theta_;
         InputInterface<double> leg_lb_target_theta_;
         OutputInterface<double> leg_joint_lb_control_theta_error;
-        OutputInterface<double> leg_joint_lf_control_theta_error;
+
     } leftboard_;
 
     class RightBoard final
@@ -607,11 +688,8 @@ private:
                     static_cast<int>(engineer.get_parameter("big_yaw_zero_point").as_int())));
             engineer.register_output(
                 "/leg/joint/rb/control_theta_error", leg_joint_rb_control_theta_error, NAN);
-            engineer.register_output(
-                "/leg/joint/rf/control_theta_error", leg_joint_rf_control_theta_error, NAN);
             engineer_command.register_input("/arm/enable_flag", is_arm_enable);
             engineer_command.register_input("/leg/joint/rb/target_theta", leg_rb_target_theta_);
-            engineer_command.register_input("/leg/joint/rf/target_theta", leg_rf_target_theta_);
         }
 
         ~RightBoard() final {
@@ -681,8 +759,6 @@ private:
             }
             big_yaw.update();
             tof.update();
-            *leg_joint_rf_control_theta_error =
-                normalize_angle(*leg_rf_target_theta_ - Leg_ecd[1].get_angle());
             *leg_joint_rb_control_theta_error =
                 normalize_angle(*leg_rb_target_theta_ - Leg_ecd[0].get_angle());
         }
@@ -825,12 +901,10 @@ private:
         device::Encoder Leg_ecd[2];
         device::DMMotor big_yaw;
 
-        InputInterface<double> leg_rf_target_theta_;
         InputInterface<double> leg_rb_target_theta_;
         InputInterface<bool> is_arm_enable;
 
         OutputInterface<double> leg_joint_rb_control_theta_error;
-        OutputInterface<double> leg_joint_rf_control_theta_error;
 
     } rightboard_;
 };

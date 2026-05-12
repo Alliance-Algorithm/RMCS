@@ -179,9 +179,6 @@ private:
                     chassis_mode_ = rmcs_msgs::ChassisMode::Yaw_Free;
                 }
             }
-            if (keyboard.f) {
-                set_speed_gear(SpeedGear::Low);
-            }
             if (last_arm_mode_ != *arm_mode_) {
                 switch (*arm_mode_) {
                 case rmcs_msgs::ArmMode::Auto_Linear_Forward:
@@ -205,7 +202,7 @@ private:
                 case rmcs_msgs::ArmMode::Auto_Up_One_Stairs:
                 case rmcs_msgs::ArmMode::Auto_Up_Two_Stairs:
                 case rmcs_msgs::ArmMode::Auto_Down_Stairs:
-                    set_speed_gear(SpeedGear::Medium);
+                    set_speed_gear(SpeedGear::High);
                     chassis_mode_ = rmcs_msgs::ChassisMode::Yaw_Free;
                     yaw_trajectory_controller_
                         .set_start_point(std::vector<double>{*chassis_big_yaw_angle_})

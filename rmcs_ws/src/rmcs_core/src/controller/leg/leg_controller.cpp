@@ -50,6 +50,14 @@ public:
               get_parameter("rf_angle_pid_normal_kp").as_double(),
               get_parameter("rf_angle_pid_normal_ki").as_double(),
               get_parameter("rf_angle_pid_normal_kd").as_double())
+        , lf_velocity_pid_controller_(
+              get_parameter("lf_velocity_pid_normal_kp").as_double(),
+              get_parameter("lf_velocity_pid_normal_ki").as_double(),
+              get_parameter("lf_velocity_pid_normal_kd").as_double())
+        , rf_velocity_pid_controller_(
+              get_parameter("rf_velocity_pid_normal_kp").as_double(),
+              get_parameter("rf_velocity_pid_normal_ki").as_double(),
+              get_parameter("rf_velocity_pid_normal_kd").as_double())
         , up_stairs{
               {*this, "up_one_stairs", {"initial", "press", "wait", "lift"}},
               {*this,
@@ -74,16 +82,10 @@ public:
         register_input("/leg/encoder/rb/angle", theta_rb);
         register_input("/leg/encoder/rf/angle", theta_rf);
         register_input("/leg/joint/lf/velocity", leg_lf_joint_velocity_, NAN);
-        register_output("/leg/joint/lf/control_vel", leg_lf_joint_control_velocity_, NAN);
-        register_output(
-            "/leg/joint/lf/control_velocity_error", leg_lf_joint_control_velocity_error_);
+        register_output("/leg/joint/lf/control_torque", leg_lf_joint_control_torque_);
         register_input("/leg/joint/rf/velocity", leg_rf_joint_velocity_, NAN);
-        register_output("/leg/joint/rf/control_vel", leg_rf_joint_control_velocity_, NAN);
-        register_output(
-            "/leg/joint/rf/control_velocity_error", leg_rf_joint_control_velocity_error_);
 
-        register_output("/leg/joint/lf/target_theta", leg_lf_target_theta, NAN);
-        register_output("/leg/joint/rf/target_theta", leg_rf_target_theta, NAN);
+        register_output("/leg/joint/rf/control_torque", leg_rf_joint_control_torque_);
         register_output("/leg/joint/lb/target_theta", leg_lb_target_theta, NAN);
         register_output("/leg/joint/rb/target_theta", leg_rb_target_theta, NAN);
 
@@ -101,7 +103,6 @@ public:
         register_input("pitch_imu_angle", pitch_imu_angle_, NAN);
         register_input("roll_imu_velocity", roll_imu_velocity_, NAN);
         register_input("roll_imu_angle", roll_imu_angle_, NAN);
-        register_output("/leg/pitch_imu_angle_offset", pitch_imu_angle_offset_, NAN);
         register_output("/leg/pitch_imu_angle_offsetted", pitch_imu_angle_offsetted_, NAN);
 
         std::array<double, 2> four_wheel_angle = leg_inverse_kinematic(
@@ -218,11 +219,11 @@ public:
                 leg_mode = rmcs_msgs::LegMode::None;
             } else {
                 mode_selection();
-                update_pitch_imu_angle_offset();
                 omniwheel_control();
                 leg_control();
-                front_angle_pid_control();
-                velocity_error_control();
+                update_pitch_imu_angle_offset();
+                front_angle_and_velocity_pid_control();
+
                 last_arm_mode = *arm_mode;
                 last_leg_mode = leg_mode;
             }
@@ -240,7 +241,6 @@ private:
         if (switch_left == Switch::MIDDLE && switch_right == Switch::MIDDLE) {
             leg_mode = rmcs_msgs::LegMode::Four_Wheel;
         } else if (switch_left == Switch::MIDDLE && switch_right == Switch::DOWN) {
-
             leg_mode = rmcs_msgs::LegMode::Six_Wheel;
 
         } else if (switch_left == Switch::MIDDLE && switch_right == Switch::UP) {
@@ -261,10 +261,7 @@ private:
             }
             if (last_arm_mode != *arm_mode) {
                 switch (*arm_mode) {
-                case rmcs_msgs::ArmMode::Custome: {
-                    leg_mode = rmcs_msgs::LegMode::Four_Wheel;
-                    break;
-                }
+                case rmcs_msgs::ArmMode::Custome:
                 case rmcs_msgs::ArmMode::Auto_Spin: {
                     leg_mode = rmcs_msgs::LegMode::Four_Wheel;
                     break;
@@ -320,6 +317,13 @@ private:
                     std::vector<double>{*theta_lf, *theta_lb, *theta_rb, *theta_rf});
             }
         }
+
+        if (*pitch_imu_angle_offsetted_ < 0.4 && is_nan_forward_open) {
+            down_stairs_trajectory.reset();
+            down_stairs_trajectory.set_total_step(800);
+            down_stairs_trajectory.set_start_point(
+                std::vector<double>{*theta_lf, *theta_lb, *theta_rb, *theta_rf});
+        }
         switch (leg_mode) {
         case rmcs_msgs::LegMode::Four_Wheel: execute_joint_trajectory(four_wheel_trajectory); break;
         case rmcs_msgs::LegMode::Six_Wheel: {
@@ -331,23 +335,12 @@ private:
             leg_joint_controller(joints[0], joints[1], joints[2], joints[3]);
             break;
         }
-        case rmcs_msgs::LegMode::Down_Stairs:
-            execute_joint_trajectory(down_stairs_trajectory);
-            break;
+        case rmcs_msgs::LegMode::Down_Stairs: execute_down_stairs(); break;
         case rmcs_msgs::LegMode::Up_One_Stairs:
         case rmcs_msgs::LegMode::Up_Two_Stairs: execute_up_stairs(); break;
         case rmcs_msgs::LegMode::None:
             leg_joint_controller(*theta_lf, *theta_lb, *theta_rb, *theta_rf);
             break;
-        }
-    }
-
-    void execute_down_stairs() {
-        execute_joint_trajectory(down_stairs_trajectory);
-        if (*omni_l_torque < 2.0 && *omni_l_velocity > 20.0) {
-
-            *leg_lf_target_theta = NAN;
-            *leg_rf_target_theta = NAN;
         }
     }
 
@@ -357,6 +350,17 @@ private:
         const auto joints = trajectory.trajectory();
         leg_joint_controller(joints[0], joints[1], joints[2], joints[3]);
     }
+    void execute_down_stairs() {
+        execute_joint_trajectory(down_stairs_trajectory);
+        is_nan_forward_open = false;
+        if (*pitch_imu_angle_offsetted_ >= 0.4) {
+
+            leg_lf_target_theta = NAN;
+            leg_rf_target_theta = NAN;
+            is_nan_forward_open = true;
+        }
+    }
+
     void execute_up_stairs() {
         auto& up_stairs_runner =
             leg_mode == rmcs_msgs::LegMode::Up_One_Stairs ? up_stairs[0] : up_stairs[1];
@@ -393,58 +397,29 @@ private:
         }
     }
     void leg_joint_controller(double lf, double lb, double rb, double rf) {
-
-        *leg_lf_target_theta = lf;
-        *leg_rf_target_theta = rf;
+        leg_lf_target_theta  = lf;
+        leg_rf_target_theta  = rf;
         *leg_lb_target_theta = lb;
         *leg_rb_target_theta = rb;
     }
     void reset_motor() {
-        *omni_l_target_vel                    = NAN;
-        *omni_r_target_vel                    = NAN;
-        *leg_lf_target_theta                  = NAN;
-        *leg_lb_target_theta                  = NAN;
-        *leg_rb_target_theta                  = NAN;
-        *leg_rf_target_theta                  = NAN;
-        *leg_lf_joint_control_velocity_       = NAN;
-        *leg_rf_joint_control_velocity_       = NAN;
-        *leg_lf_joint_control_velocity_error_ = NAN;
-        *leg_rf_joint_control_velocity_error_ = NAN;
+        *omni_l_target_vel            = NAN;
+        *omni_r_target_vel            = NAN;
+        *leg_lb_target_theta          = NAN;
+        *leg_rb_target_theta          = NAN;
+        *leg_lf_joint_control_torque_ = NAN;
+        *leg_rf_joint_control_torque_ = NAN;
         lf_angle_pid_controller_.reset();
         rf_angle_pid_controller_.reset();
-        front_angle_pid_profile_initialized_ = false;
-    }
-
-    void front_angle_pid_control() {
-        const bool use_downstairs_profile = (leg_mode == rmcs_msgs::LegMode::Down_Stairs);
-        apply_front_angle_pid_profile(use_downstairs_profile);
-
-        const double lf_error = normalize_angle(*leg_lf_target_theta - *theta_lf);
-        const double rf_error = normalize_angle(*leg_rf_target_theta - *theta_rf);
-
-        *leg_lf_joint_control_velocity_ = lf_angle_pid_controller_.update(lf_error);
-        *leg_rf_joint_control_velocity_ = rf_angle_pid_controller_.update(rf_error);
-    }
-
-    void velocity_error_control() {
-        // RCLCPP_INFO(this->get_logger(), "lf%f ", *leg_lf_joint_control_velocity_);
-
-        auto k = this->get_parameter("error_param").as_double();
-        *leg_lf_joint_control_velocity_error_ =
-            (*leg_lf_joint_control_velocity_ - *leg_lf_joint_velocity_);
-        // + k * (*theta_rf - *theta_lf);
-        *leg_rf_joint_control_velocity_error_ =
-            (*leg_rf_joint_control_velocity_ - *leg_rf_joint_velocity_);
-        // + k * (*theta_lf - *theta_rf);
     }
     void update_pitch_imu_angle_offset() {
         const double raw_pitch = *pitch_imu_angle_;
         if (leg_mode != rmcs_msgs::LegMode::Four_Wheel) {
             if (std::isfinite(pitch_imu_angle_offset_value_) && std::isfinite(raw_pitch)) {
-                *pitch_imu_angle_offset_    = pitch_imu_angle_offset_value_;
+
                 *pitch_imu_angle_offsetted_ = raw_pitch - pitch_imu_angle_offset_value_;
             } else {
-                *pitch_imu_angle_offset_    = NAN;
+
                 *pitch_imu_angle_offsetted_ = raw_pitch;
             }
             return;
@@ -452,49 +427,58 @@ private:
 
         if (std::isfinite(raw_pitch) && std::abs(raw_pitch) > 1e-6) {
             pitch_imu_angle_offset_value_ = raw_pitch;
-        }
-
-        if (std::isfinite(pitch_imu_angle_offset_value_) && std::isfinite(raw_pitch)) {
-            *pitch_imu_angle_offset_    = pitch_imu_angle_offset_value_;
-            *pitch_imu_angle_offsetted_ = raw_pitch - pitch_imu_angle_offset_value_;
-        } else {
-            *pitch_imu_angle_offset_    = NAN;
-            *pitch_imu_angle_offsetted_ = raw_pitch;
+            *pitch_imu_angle_offsetted_   = raw_pitch - pitch_imu_angle_offset_value_;
         }
     }
-    void apply_front_angle_pid_profile(bool use_downstairs_profile) {
-        if (!front_angle_pid_profile_initialized_
-            || last_front_angle_pid_use_downstairs_ != use_downstairs_profile) {
-            lf_angle_pid_controller_.reset();
-            rf_angle_pid_controller_.reset();
-            last_front_angle_pid_use_downstairs_ = use_downstairs_profile;
-            front_angle_pid_profile_initialized_ = true;
-        }
-
-        if (use_downstairs_profile) {
+    void front_angle_and_velocity_pid_control() {
+        if (leg_mode == rmcs_msgs::LegMode::Down_Stairs) {
             lf_angle_pid_controller_.kp = get_parameter("lf_angle_pid_down_stairs_kp").as_double();
             lf_angle_pid_controller_.ki = get_parameter("lf_angle_pid_down_stairs_ki").as_double();
             lf_angle_pid_controller_.kd = get_parameter("lf_angle_pid_down_stairs_kd").as_double();
             rf_angle_pid_controller_.kp = get_parameter("rf_angle_pid_down_stairs_kp").as_double();
             rf_angle_pid_controller_.ki = get_parameter("rf_angle_pid_down_stairs_ki").as_double();
             rf_angle_pid_controller_.kd = get_parameter("rf_angle_pid_down_stairs_kd").as_double();
-            return;
+            lf_velocity_pid_controller_.kp =
+                get_parameter("lf_velocity_pid_down_stairs_kp").as_double();
+            lf_velocity_pid_controller_.ki =
+                get_parameter("lf_velocity_pid_down_stairs_ki").as_double();
+            lf_velocity_pid_controller_.kd =
+                get_parameter("lf_velocity_pid_down_stairs_kd").as_double();
+            rf_velocity_pid_controller_.kp =
+                get_parameter("rf_velocity_pid_down_stairs_kp").as_double();
+            rf_velocity_pid_controller_.ki =
+                get_parameter("rf_velocity_pid_down_stairs_ki").as_double();
+            rf_velocity_pid_controller_.kd =
+                get_parameter("rf_velocity_pid_down_stairs_kd").as_double();
+        } else {
+            lf_angle_pid_controller_.kp    = get_parameter("lf_angle_pid_normal_kp").as_double();
+            lf_angle_pid_controller_.ki    = get_parameter("lf_angle_pid_normal_ki").as_double();
+            lf_angle_pid_controller_.kd    = get_parameter("lf_angle_pid_normal_kd").as_double();
+            rf_angle_pid_controller_.kp    = get_parameter("rf_angle_pid_normal_kp").as_double();
+            rf_angle_pid_controller_.ki    = get_parameter("rf_angle_pid_normal_ki").as_double();
+            rf_angle_pid_controller_.kd    = get_parameter("rf_angle_pid_normal_kd").as_double();
+            lf_velocity_pid_controller_.kp = get_parameter("lf_velocity_pid_normal_kp").as_double();
+            lf_velocity_pid_controller_.ki = get_parameter("lf_velocity_pid_normal_ki").as_double();
+            lf_velocity_pid_controller_.kd = get_parameter("lf_velocity_pid_normal_kd").as_double();
+            rf_velocity_pid_controller_.kp = get_parameter("rf_velocity_pid_normal_kp").as_double();
+            rf_velocity_pid_controller_.ki = get_parameter("rf_velocity_pid_normal_ki").as_double();
+            rf_velocity_pid_controller_.kd = get_parameter("rf_velocity_pid_normal_kd").as_double();
         }
+        lf_velocity_pid_controller_.output_max = 27.0;
+        rf_velocity_pid_controller_.output_max = 27.0;
 
-        lf_angle_pid_controller_.kp = get_parameter("lf_angle_pid_normal_kp").as_double();
-        lf_angle_pid_controller_.ki = get_parameter("lf_angle_pid_normal_ki").as_double();
-        lf_angle_pid_controller_.kd = get_parameter("lf_angle_pid_normal_kd").as_double();
-        rf_angle_pid_controller_.kp = get_parameter("rf_angle_pid_normal_kp").as_double();
-        rf_angle_pid_controller_.ki = get_parameter("rf_angle_pid_normal_ki").as_double();
-        rf_angle_pid_controller_.kd = get_parameter("rf_angle_pid_normal_kd").as_double();
+        const double lf_error = normalize_angle(leg_lf_target_theta - *theta_lf);
+        const double rf_error = normalize_angle(leg_rf_target_theta - *theta_rf);
+
+        leg_lf_joint_control_velocity_ = lf_angle_pid_controller_.update(lf_error);
+        leg_rf_joint_control_velocity_ = rf_angle_pid_controller_.update(rf_error);
+
+        *leg_lf_joint_control_torque_ = lf_velocity_pid_controller_.update(
+            leg_lf_joint_control_velocity_ - *leg_lf_joint_velocity_);
+        *leg_rf_joint_control_torque_ = rf_velocity_pid_controller_.update(
+            leg_rf_joint_control_velocity_ - *leg_rf_joint_velocity_);
     }
-    static double normalize_angle(double angle) {
-        if (!std::isfinite(angle)) {
-            return NAN;
-        }
-        angle = std::fmod(angle + M_PI, 2 * M_PI);
-        return angle < 0 ? angle + M_PI : angle - M_PI;
-    }
+
     static std::array<double, 2> leg_inverse_kinematic(
         double f_x, double b_x, bool is_front_ecd_obtuse, bool is_back_ecd_obtuse) {
         constexpr double link1 = 240.0f, link2 = 120.0f, link3 = 160.0f;
@@ -507,6 +491,14 @@ private:
 
         return {theta_f, theta_b};
     }
+    static double normalize_angle(double angle) {
+        if (!std::isfinite(angle)) {
+            return NAN;
+        }
+        angle = std::fmod(angle + M_PI, 2 * M_PI);
+        return angle < 0 ? angle + M_PI : angle - M_PI;
+    }
+
     const double forward_x_position_in_FourWheel_;
     const double forward_x_position_in_SixWheel_;
     const double backward_x_position_in_SixWheel_;
@@ -538,17 +530,18 @@ private:
 
     OutputInterface<double> omni_l_target_vel;
     OutputInterface<double> omni_r_target_vel;
-    OutputInterface<double> leg_lf_target_theta;
-    OutputInterface<double> leg_rf_target_theta;
+    double leg_lf_target_theta;
+    double leg_rf_target_theta;
     OutputInterface<double> leg_lb_target_theta;
     OutputInterface<double> leg_rb_target_theta;
     InputInterface<double> leg_lf_joint_velocity_;
-    OutputInterface<double> leg_lf_joint_control_velocity_;
-    OutputInterface<double> leg_lf_joint_control_velocity_error_;
+    double leg_lf_joint_control_velocity_;
+    double leg_rf_joint_control_velocity_;
 
     InputInterface<double> leg_rf_joint_velocity_;
-    OutputInterface<double> leg_rf_joint_control_velocity_;
-    OutputInterface<double> leg_rf_joint_control_velocity_error_;
+    OutputInterface<double> leg_lf_joint_control_torque_;
+
+    OutputInterface<double> leg_rf_joint_control_torque_;
     InputInterface<double> chassis_big_yaw_angle;
     InputInterface<double> joint1_theta;
 
@@ -559,13 +552,15 @@ private:
     InputInterface<double> pitch_imu_angle_;
     InputInterface<double> roll_imu_velocity_;
     InputInterface<double> roll_imu_angle_;
-    OutputInterface<double> pitch_imu_angle_offset_;
-    OutputInterface<double> pitch_imu_angle_offsetted_;
-    double pitch_imu_angle_offset_value_{NAN};
     pid::PidCalculator lf_angle_pid_controller_;
     pid::PidCalculator rf_angle_pid_controller_;
-    bool front_angle_pid_profile_initialized_{false};
-    bool last_front_angle_pid_use_downstairs_{false};
+    pid::PidCalculator lf_velocity_pid_controller_;
+    pid::PidCalculator rf_velocity_pid_controller_;
+    // OutputInterface<double> pitch_imu_angle_offset_;
+    OutputInterface<double> pitch_imu_angle_offsetted_;
+    double pitch_imu_angle_offset_value_{NAN};
+
+    bool is_nan_forward_open{false};
 
     rmcs_core::controller::arm::Trajectory<rmcs_core::controller::arm::TrajectoryType::JOINT>
         four_wheel_trajectory{4};

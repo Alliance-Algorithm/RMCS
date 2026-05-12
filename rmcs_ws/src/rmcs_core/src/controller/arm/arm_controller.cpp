@@ -17,6 +17,7 @@
 #include <limits>
 #include <map>
 #include <memory>
+
 #include <numbers>
 #include <string>
 #include <tf2_eigen/tf2_eigen.hpp>
@@ -42,8 +43,10 @@
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/arm_mode.hpp>
 #include <rmcs_msgs/gripper_mode.hpp>
+#include <rmcs_msgs/guard_mode.hpp>
 #include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/mouse.hpp>
+#include <rmcs_msgs/relay_mode.hpp>
 #include <rmcs_msgs/switch.hpp>
 #include <rmcs_utility/crc/dji_crc.hpp>
 #include <rmcs_utility/package_receive.hpp>
@@ -86,11 +89,18 @@ public:
             register_input(joint_prefix + "/upper_limit", joint_upper_limit_[i]);
             register_output(joint_prefix + "/target_theta", target_theta[i], NAN);
         }
-        register_output("/arm/gripper/target_theta", target_theta[6], NAN);
-        register_input("/arm/gripper/motor/angle", theta[6], NAN);
+        register_input("/arm/gripper/motor/angle", gripper_angle_, NAN);
         register_input("/arm/gripper/motor/velocity", gripper_velocity_, NAN);
         register_input("/arm/gripper/motor/torque", gripper_torque_, NAN);
-        register_output("/arm/gripper/target_theta_error", gripper_target_theta_error, NAN);
+        register_output("/arm/gripper/target_theta", gripper_target_theta, NAN);
+        register_input("/guard/motor/angle", guard_angle_, NAN);
+        register_input("/guard/motor/velocity", guard_velocity_, NAN);
+        register_input("/guard/motor/torque", guard_torque_, NAN);
+        register_output("/guard/target_theta", guard_target_theta, NAN);
+
+        register_output("/left/relay", left_relay_mode_, rmcs_msgs::RelayMode::Close);
+        register_output("/right/relay", right_relay_mode_, rmcs_msgs::RelayMode::Close);
+
         register_input("/arm/image_pitch/motor/angle", image_pitch_theta_, NAN);
         register_output("/arm/image_pitch/target_theta", image_pitch_target_theta_, NAN);
         register_output("/arm/custom_big_yaw", custom_big_yaw_output_, 0.0);
@@ -152,7 +162,23 @@ public:
             if (last_switch_left_ != Switch::UP || last_switch_right_ != Switch::MIDDLE) {
                 set_arm_mode(rmcs_msgs::ArmMode::DT7_Control_Orientation);
             }
-        } else if (switch_left == Switch::DOWN && switch_right == Switch::UP) {
+
+        } else if (switch_left == Switch::DOWN && switch_right == Switch::MIDDLE) {
+            if (joystick_left_->x() > 0.8) {
+                set_guard_mode(rmcs_msgs::GuardMode::Open);
+            }
+            if (joystick_left_->x() < -0.8) {
+                set_guard_mode(rmcs_msgs::GuardMode::Close);
+            }
+            if (joystick_right_->y() > 0.8) {
+                set_gripper_mode(rmcs_msgs::GripperMode::Open);
+            }
+            if (joystick_right_->y() < -0.8) {
+                set_gripper_mode(rmcs_msgs::GripperMode::Close);
+            }
+        }
+
+        else if (switch_left == Switch::DOWN && switch_right == Switch::UP) {
             if (knob != last_rotary_knob_switch_) {
                 if (knob == Switch::UP) {
                     set_arm_mode(rmcs_msgs::ArmMode::Auto_Up_One_Stairs);
@@ -189,22 +215,25 @@ public:
                 }
             }
             if (keyboard.z && !last_keyboard_.z) {
-
                 set_gripper_mode(rmcs_msgs::GripperMode::Open);
             }
             if (keyboard.x && !last_keyboard_.x) {
                 set_gripper_mode(rmcs_msgs::GripperMode::Close);
             }
-
+            if (keyboard.w && !last_keyboard_.w) {
+                set_guard_mode(rmcs_msgs::GuardMode::Open);
+            }
             if (keyboard.s && !last_keyboard_.s) {
+                set_guard_mode(rmcs_msgs::GuardMode::Close);
+            }
+
+            if (keyboard.a && !last_keyboard_.a) {
                 set_arm_mode(rmcs_msgs::ArmMode::Auto_Spin);
             }
             if (keyboard.r && !last_keyboard_.r) {
-                if (!keyboard.ctrl && !keyboard.shift) {
-                    set_arm_mode(rmcs_msgs::ArmMode::Custome);
-                }
+                set_arm_mode(rmcs_msgs::ArmMode::Custome);
             }
-            if (keyboard.w && !last_keyboard_.w) {
+            if (keyboard.e && !last_keyboard_.e) {
                 if (!keyboard.ctrl && !keyboard.shift) {
                     set_arm_mode(rmcs_msgs::ArmMode::Auto_Linear_Forward);
                 }
@@ -212,6 +241,7 @@ public:
                     set_arm_mode(rmcs_msgs::ArmMode::Auto_Linear_Backward);
                 }
             }
+
             if (keyboard.a && !last_keyboard_.a) {
                 reset();
                 set_arm_mode(rmcs_msgs::ArmMode::Test);
@@ -250,20 +280,21 @@ public:
             execute_plan_request_and_trajectory_step();
             break;
         }
-        case ArmMode::None: {
-            break;
-        }
         default: {
             break;
         }
         }
+        gripper_control();
+        guard_control();
+        image_pitch_control();
+
         last_switch_left_        = switch_left;
         last_switch_right_       = switch_right;
         last_rotary_knob_switch_ = knob;
         last_keyboard_           = keyboard;
         last_mouse_              = mouse;
-        gripper_control();
-        image_pitch_control();
+        last_gripper_mode_       = get_gripper_mode();
+        last_guard_mode_         = get_guard_mode();
     }
 
 private:
@@ -300,6 +331,8 @@ private:
 
     void set_gripper_mode(rmcs_msgs::GripperMode mode) { gripper_mode_ = mode; }
     rmcs_msgs::GripperMode get_gripper_mode() const { return gripper_mode_; }
+    void set_guard_mode(rmcs_msgs::GuardMode mode) { guard_mode_ = mode; }
+    rmcs_msgs::GuardMode get_guard_mode() const { return guard_mode_; }
 
     rmcs_msgs::ArmMode get_arm_mode() const {
         const auto current = plan_request.load(std::memory_order_acquire);
@@ -647,7 +680,21 @@ private:
                         *target_theta[i] = q[i];
                     }
                     switch (get_arm_mode()) {
-                    case rmcs_msgs::ArmMode::Auto_Extract_LB:
+                    case rmcs_msgs::ArmMode::Auto_Extract_LB: {
+                        if (trajectory_steps == static_cast<std::size_t>(moveit_result->steps[3])
+                            && !is_gripper_complete) {
+                            set_gripper_mode(rmcs_msgs::GripperMode::Close);
+                            trajectory_steps--;
+                        }
+                        if (trajectory_steps == 0 && !is_gripper_complete) {
+                            set_gripper_mode(rmcs_msgs::GripperMode::Open);
+                            trajectory_steps--;
+                        }
+                        if (trajectory_steps == static_cast<std::size_t>(moveit_result->steps[3])) {
+                            *left_relay_mode_ = rmcs_msgs::RelayMode::Close;
+                        }
+                        break;
+                    }
                     case rmcs_msgs::ArmMode::Auto_Extract_RB: {
                         if (trajectory_steps == static_cast<std::size_t>(moveit_result->steps[3])
                             && !is_gripper_complete) {
@@ -658,14 +705,30 @@ private:
                             set_gripper_mode(rmcs_msgs::GripperMode::Open);
                             trajectory_steps--;
                         }
+                        if (trajectory_steps == static_cast<std::size_t>(moveit_result->steps[3])) {
+                            *right_relay_mode_ = rmcs_msgs::RelayMode::Close;
+                        }
                         break;
                     }
-                    case rmcs_msgs::ArmMode::Auto_Storage_RB:
+                    case rmcs_msgs::ArmMode::Auto_Storage_RB: {
+                        if (trajectory_steps == static_cast<std::size_t>(moveit_result->steps[3])
+                            && !is_gripper_complete) {
+                            set_gripper_mode(rmcs_msgs::GripperMode::Open);
+                            trajectory_steps--;
+                        }
+                        if (trajectory_steps == static_cast<std::size_t>(moveit_result->steps[2])) {
+                            *right_relay_mode_ = rmcs_msgs::RelayMode::Open;
+                        }
+                        break;
+                    }
                     case rmcs_msgs::ArmMode::Auto_Storage_LB: {
                         if (trajectory_steps == static_cast<std::size_t>(moveit_result->steps[3])
                             && !is_gripper_complete) {
                             set_gripper_mode(rmcs_msgs::GripperMode::Open);
                             trajectory_steps--;
+                        }
+                        if (trajectory_steps == static_cast<std::size_t>(moveit_result->steps[2])) {
+                            *left_relay_mode_ = rmcs_msgs::RelayMode::Open;
                         }
                         break;
                     }
@@ -746,48 +809,51 @@ private:
         }
     }
     void gripper_control() {
-        auto unwrap = [](double angle) -> double { return angle < 0 ? angle + 2.0 * M_PI : angle; };
-
-        switch (get_gripper_mode()) {
-        case rmcs_msgs::GripperMode::Open: {
-            if (*gripper_velocity_ < 0.00001 && *gripper_velocity_ > -0.00001
-                && *gripper_torque_ > 2.0) {
-                //*target_theta[6] = *theta[6];
-                set_gripper_mode(rmcs_msgs::GripperMode::None);
-                is_gripper_complete         = true;
-                *gripper_target_theta_error = 0;
-            } else {
-                is_gripper_complete         = false;
-                *gripper_target_theta_error = 0.5;
-            }
-            break;
+        static bool stock = false;
+        static double stock_theta;
+        is_gripper_complete = false;
+        if (last_gripper_mode_ != get_gripper_mode()) {
+            stock = false;
         }
-        case rmcs_msgs::GripperMode::Close: {
-            if (*gripper_velocity_ < 0.00001 && *gripper_velocity_ > -0.000001
-                && *gripper_torque_ < -2.0) {
-                *target_theta[6] = *theta[6];
-                set_gripper_mode(rmcs_msgs::GripperMode::None);
+        if (get_gripper_mode() != rmcs_msgs::GripperMode::None) {
+            if (*gripper_velocity_ < 0.01 && *gripper_velocity_ > -0.01
+                && fabs(*gripper_torque_) > 2.0) {
+                stock               = true;
+                stock_theta         = *gripper_angle_;
                 is_gripper_complete = true;
-            } else {
-                is_gripper_complete         = false;
-                *gripper_target_theta_error = -0.5;
             }
-
-            break;
-        }
-
-        default: {
-            *gripper_target_theta_error = 0;
-            is_gripper_complete         = false;
-        } break;
+            *gripper_target_theta =
+                stock ? stock_theta
+                      : *gripper_angle_
+                            + (get_gripper_mode() == rmcs_msgs::GripperMode::Close ? -1.0 : 1.0)
+                                  * 0.5;
+        } else {
+            *gripper_target_theta = *gripper_angle_;
         }
     }
-    // bool gripper_judgement() {
-    //     if (*gripper_velocity_ < 0.05 && *gripper_torque_ > 30)
-    //         return true;
-    //     else
-    //         return false;
-    // }
+    void guard_control() {
+        static bool stock = false;
+        static double stock_theta;
+
+        if (last_guard_mode_ != get_guard_mode()) {
+            stock = false;
+        }
+        if (get_guard_mode() != rmcs_msgs::GuardMode::None) {
+            if (*guard_velocity_ < 0.01 && *guard_velocity_ > -0.01 && fabs(*guard_torque_) > 0.8) {
+                stock       = true;
+                stock_theta = *guard_angle_;
+            }
+            *guard_target_theta =
+                stock ? stock_theta
+                      : *guard_angle_
+                            + (get_guard_mode() == rmcs_msgs::GuardMode::Close ? 1.0 : -1.0) * 0.35;
+        } else {
+            *guard_target_theta = *guard_angle_;
+        }
+        RCLCPP_INFO(
+            node_->get_logger(), "%d %f %f", stock ? 1 : 2, *guard_target_theta, *guard_angle_);
+    }
+    void relay_control() {}
     void image_pitch_control() {
 
         double qmin = -3;
@@ -804,17 +870,21 @@ private:
         for (std::size_t i = 0; i < std::size(theta); ++i) {
             *target_theta[i] = *theta[i];
         }
-        *gripper_target_theta_error = NAN;
-        *image_pitch_target_theta_  = NAN;
-        image_pitch_theta1_offset_  = 0.0;
-        last_switch_left_           = *switch_left_;
-        last_switch_right_          = *switch_right_;
-        last_rotary_knob_switch_    = *rotary_knob_switch;
-        last_keyboard_              = *keyboard_;
-        last_mouse_                 = *mouse_;
+        *gripper_target_theta      = NAN;
+        *guard_target_theta        = NAN;
+        *image_pitch_target_theta_ = NAN;
+        image_pitch_theta1_offset_ = 0.0;
+        last_switch_left_          = *switch_left_;
+        last_switch_right_         = *switch_right_;
+        last_rotary_knob_switch_   = *rotary_knob_switch;
+        last_keyboard_             = *keyboard_;
+        last_mouse_                = *mouse_;
         custom_joint_filter_.reset();
         set_gripper_mode(rmcs_msgs::GripperMode::None);
+        set_guard_mode(rmcs_msgs::GuardMode::None);
         set_arm_mode(rmcs_msgs::ArmMode::None);
+        *left_relay_mode_  = rmcs_msgs::RelayMode::Close;
+        *right_relay_mode_ = rmcs_msgs::RelayMode::Close;
     }
 
     rmcs_msgs::Switch last_switch_left_{rmcs_msgs::Switch::UNKNOWN};
@@ -832,17 +902,29 @@ private:
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
 
     OutputInterface<bool> is_arm_enable;
-    InputInterface<double> theta[7];
+    InputInterface<double> theta[6];
+    InputInterface<double> gripper_angle_;
     InputInterface<double> gripper_velocity_;
     InputInterface<double> gripper_torque_;
+    InputInterface<double> guard_angle_;
+    InputInterface<double> guard_velocity_;
+    InputInterface<double> guard_torque_;
     bool is_gripper_complete{false};
     std::array<InputInterface<double>, 6> joint_lower_limit_;
     std::array<InputInterface<double>, 6> joint_upper_limit_;
-    OutputInterface<double> target_theta[7];
+    OutputInterface<double> target_theta[6];
     OutputInterface<rmcs_msgs::ArmMode> arm_mode_;
 
     rmcs_msgs::GripperMode gripper_mode_{rmcs_msgs::GripperMode::None};
-    OutputInterface<double> gripper_target_theta_error;
+    rmcs_msgs::GripperMode last_gripper_mode_{rmcs_msgs::GripperMode::None};
+    rmcs_msgs::GuardMode guard_mode_{rmcs_msgs::GuardMode::None};
+    rmcs_msgs::GuardMode last_guard_mode_{rmcs_msgs::GuardMode::None};
+
+    OutputInterface<double> gripper_target_theta;
+    OutputInterface<double> guard_target_theta;
+
+    OutputInterface<rmcs_msgs::RelayMode> left_relay_mode_;
+    OutputInterface<rmcs_msgs::RelayMode> right_relay_mode_;
 
     InputInterface<double> image_pitch_theta_;
     double image_pitch_theta1_offset_{0.0};

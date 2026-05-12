@@ -9,8 +9,10 @@ rmcs_executor:
 
       - rmcs_core::referee::ImageTransmissionLink -> image_transmission
 
-      - rmcs_core::controller::pid::ErrorPidController -> gripper_error_angle_pid_controller
+      - rmcs_core::controller::pid::PidController -> gripper_angle_pid_controller
+      - rmcs_core::controller::pid::PidController -> guard_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> gripper_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> guard_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> image_pitch_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> image_pitch_velocity_pid_controller
 
@@ -24,11 +26,6 @@ rmcs_executor:
 
       - rmcs_core::controller::pid::ErrorPidController -> big_yaw_angle_error_pid_controller
       - rmcs_core::controller::pid::PidController -> big_yaw_velocity_pid_controller
-
-      - rmcs_core::controller::pid::ErrorPidController -> leg_lf_angle_error_pid_controller
-      - rmcs_core::controller::pid::ErrorPidController -> leg_lf_velocity_error_pid_controller
-      - rmcs_core::controller::pid::ErrorPidController -> leg_rf_angle_error_pid_controller
-      - rmcs_core::controller::pid::ErrorPidController -> leg_rf_velocity_error_pid_controller
 
       - rmcs_core::controller::pid::ErrorPidController -> leg_lb_angle_error_pid_controller
       - rmcs_core::controller::pid::PidController -> leg_lb_velocity_pid_controller
@@ -188,6 +185,30 @@ leg_controller:
     forward_x_position_in_FourWheel: 238.0
     forward_x_position_in_SixWheel: 250.0
     backward_x_position_in_SixWheel: 221.0
+    lf_angle_pid_normal_kp: 400.0
+    lf_angle_pid_normal_ki: 0.0
+    lf_angle_pid_normal_kd: 6.0
+    lf_angle_pid_down_stairs_kp: 260.0
+    lf_angle_pid_down_stairs_ki: 0.0
+    lf_angle_pid_down_stairs_kd: 3.0
+    rf_angle_pid_normal_kp: 400.0
+    rf_angle_pid_normal_ki: 0.0
+    rf_angle_pid_normal_kd: 6.5
+    rf_angle_pid_down_stairs_kp: 260.0
+    rf_angle_pid_down_stairs_ki: 0.0
+    rf_angle_pid_down_stairs_kd: 3.0
+    lf_velocity_pid_normal_kp: 1.2
+    lf_velocity_pid_normal_ki: 0.0
+    lf_velocity_pid_normal_kd: 0.001
+    lf_velocity_pid_down_stairs_kp: 0.6
+    lf_velocity_pid_down_stairs_ki: 0.0
+    lf_velocity_pid_down_stairs_kd: 0.0
+    rf_velocity_pid_normal_kp: 1.2
+    rf_velocity_pid_normal_ki: 0.0
+    rf_velocity_pid_normal_kd: 0.001
+    rf_velocity_pid_down_stairs_kp: 0.6
+    rf_velocity_pid_down_stairs_ki: 0.0
+    rf_velocity_pid_down_stairs_kd: 0.0
     tof_k: 0.08
     tof_b: 0.53
     v_ref: 2.0
@@ -195,26 +216,28 @@ leg_controller:
     up_one_stairs:
       params:
         initial: [1.600270, 1.550, 0.0, 2000.0]
-        press: [0.972736, 0.493103, -600.0, 600.0]
+        press: [0.972736, 0.493103, -600.0, 550.0]
         wait : [0.972736, 0.493103,0.0,200.0]
-        lift: [0.806670, 1.150821, -600.0, 400.0]
+        lift: [1.016670, 1.150821, -600.0, 300.0]
     up_two_stairs:
       params:
         initial: [1.600270, 1.550, 0.0, 2000.0]
-        press: [0.972736, 0.493103, -200.0, 600.0]
+        press: [0.972736, 0.493103, -200.0, 550.0]
         wait : [0.972736, 0.493103,-100.0,200.0]
-        lift: [1.016670, 1.150821, -200.0, 400.0]
+        lift: [1.016670, 1.150821, -200.0, 300.0]
         lift_and_initial: [1.400270, 1.410, -100.0, 1000.0]
-        initial_again: [1.600270, 1.550, -300.0, 700.0]
-        press_again: [0.802736, 0.693103, -200.0, 400.0]
-        lift_again: [0.956670, 1.350821, -200.0, 400.0]
+        initial_again: [1.600270, 1.550, -300.0, 500.0]
+        press_again: [0.802736, 0.693103, -200.0, 300.0]
+        lift_again: [0.956670, 1.350821, -200.0, 200.0]
 
 
-gripper_error_angle_pid_controller:
+
+gripper_angle_pid_controller:
   ros__parameters:
-    measurement: /arm/gripper/target_theta_error
+    measurement: /arm/gripper/motor/angle
+    setpoint: /arm/gripper/target_theta
     control: /arm/gripper/control_vel
-    kp: 220.0
+    kp: 230.0
     ki: 0.0
     kd: 0.0
 
@@ -226,6 +249,28 @@ gripper_velocity_pid_controller:
     kp: 0.8
     ki: 0.0
     kd: 0.02
+
+
+
+guard_angle_pid_controller:
+  ros__parameters:
+    measurement: /guard/motor/angle
+    setpoint: /guard/target_theta
+    control: /guard/control_vel
+    kp: 40.0
+    ki: 0.0
+    kd: 0.0
+
+guard_velocity_pid_controller:
+  ros__parameters:
+    measurement: /guard/motor/velocity
+    setpoint: /guard/control_vel
+    control: /guard/motor/control_torque
+    kp: 0.4
+    ki: 0.0
+    kd: 0.02
+    output_max: 0.8
+
 
 image_pitch_angle_pid_controller:
   ros__parameters:
@@ -279,39 +324,6 @@ big_yaw_velocity_pid_controller:
     ki: 0.0
     kd: 0.039
 
-leg_lf_angle_error_pid_controller:
-  ros__parameters:
-    measurement: /leg/joint/lf/control_theta_error
-    control: /leg/joint/lf/control_vel
-    kp: 400.0
-    ki: 0.0
-    kd: 6.0
-leg_lf_velocity_error_pid_controller:
-  ros__parameters:
-    measurement: /leg/joint/lf/control_velocity_error
-    control: /leg/joint/lf/control_torque
-    kp: 1.2
-    ki: 0.0
-    kd: 0.001
-    output_max: 27.0
-
-leg_rf_angle_error_pid_controller:
-  ros__parameters:
-    measurement: /leg/joint/rf/control_theta_error
-    control: /leg/joint/rf/control_vel
-    kp: 400.0
-    ki: 0.0
-    kd: 6.5
-
-leg_rf_velocity_error_pid_controller:
-  ros__parameters:
-    measurement: /leg/joint/rf/control_velocity_error
-    control: /leg/joint/rf/control_torque
-    kp: 0.8
-    ki: 0.0
-    kd: 0.001
-    output_max: 27.0
-
 leg_lb_angle_error_pid_controller:
   ros__parameters:
     measurement: /leg/joint/lb/control_theta_error
@@ -327,7 +339,7 @@ leg_lb_velocity_pid_controller:
     kp: 0.05
     ki: 0.0
     kd: 0.0
-    output_max: 45.0
+    output_max: 40.0
 
 leg_rb_angle_error_pid_controller:
   ros__parameters:
@@ -342,10 +354,10 @@ leg_rb_velocity_pid_controller:
     measurement: /leg/joint/rb/velocity
     setpoint: /leg/joint/rb/control_vel
     control: /leg/joint/rb/control_torque
-    kp: 0.08
+    kp: 0.05
     ki: 0.0
     kd: 0.0
-    output_max: 45.0
+    output_max: 40.0
 
 steering_wheel_controller:
   ros__parameters:
@@ -362,22 +374,23 @@ steering_wheel_controller:
 value_broadcaster:
   ros__parameters:
     forward_list:
-      - "/leg/joint/rf/control_velocity"
       - "/leg/joint/rf/velocity"
-      - "/leg/joint/lf/control_velocity"
       - "/leg/joint/lf/velocity"
       - "/leg/joint/lf/torque"
       - "/leg/joint/lf/control_torque"
       - "/leg/joint/rf/torque"
       - "/leg/joint/rf/control_torque"
       - "/leg/encoder/rf/angle"
-      - "/leg/joint/rf/target_theta"
       - "/leg/encoder/lb/angle"
       - "/arm/gripper/motor/velocity"
       - "/arm/gripper/motor/torque"
       - "/arm/gripper/target_theta"
-      - "/arm/gripper/target_theta_error"
       - "/arm/gripper/motor/control_torque"
-
+      - "/guard/motor/velocity"
+      - "/guard/motor/torque"
+      - "/guard/target_theta"
+      - "/guard/motor/control_torque"
+      - "pitch_imu_angle"
+      - "/leg/pitch_imu_angle_offsetted"
 
     
