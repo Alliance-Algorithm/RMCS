@@ -7,6 +7,7 @@
 #include <format>
 #include <memory>
 #include <optional>
+#include <random>
 #include <string>
 #include <thread>
 #include <vector>
@@ -27,17 +28,15 @@ class AutoAimTestApp final : public rclcpp::Node {
 public:
     AutoAimTestApp()
         : Node("auto_aim_test") {
-        auto camera_config = Hikcamera::CameraConfig::cs016_default();
-        camera_config.exposure_us =
+        camera_config_ = Hikcamera::CameraConfig::cs016_default();
+        camera_config_.exposure_us =
             static_cast<float>(declare_parameter<double>("exposure_us", 2000.0));
-        auto camera_name = declare_parameter<std::string>("camera_name", "");
+        camera_name_ = declare_parameter<std::string>("camera_name", "");
 
         board_ = std::make_unique<TriggerBoard>(
             [this](TriggerBoard::Clock::time_point timestamp) { signal_callback(timestamp); });
-
-        camera_ = std::make_unique<Hikcamera>(
-            camera_config,
-            [this](const Hikcamera::Frame& frame) noexcept { frame_callback(frame); }, camera_name);
+        last_frame_time_.store(
+            std::chrono::steady_clock::time_point::min(), std::memory_order::relaxed);
 
         worker_ = std::thread(&AutoAimTestApp::worker_main, this);
 
@@ -63,6 +62,7 @@ public:
 
 private:
     enum class WorkerState { kReseting, kMatching, kConfirming, kLocked };
+    enum class CameraTransportState { kDown, kUp, kReconnecting };
     using TimestampPair = LinearSyncModel::TimestampPair;
 
     static constexpr double kResidualThresholdSec = LinearSyncModel::kDefaultResidualThresholdSec;
@@ -71,8 +71,209 @@ private:
     static constexpr std::size_t kExpectedFrameSize =
         static_cast<std::size_t>(Hikcamera::Cs016FrameWidth)
         * static_cast<std::size_t>(Hikcamera::Cs016FrameHeight);
+    static constexpr auto kFrameWatchdogTimeout = std::chrono::milliseconds{250};
+    static constexpr auto kMaxReconnectBackoff = std::chrono::milliseconds{5000};
+
+    static auto transport_state_name(const CameraTransportState state) noexcept -> const char* {
+        switch (state) {
+        case CameraTransportState::kDown: return "DOWN";
+        case CameraTransportState::kUp: return "UP";
+        case CameraTransportState::kReconnecting: return "RECONNECTING";
+        }
+
+        return "UNKNOWN";
+    }
+
+    static auto transport_fault_message_to_string(const unsigned int message_type) noexcept
+        -> const char* {
+        switch (message_type) {
+        case MV_EXCEPTION_DEV_DISCONNECT: return "device disconnected";
+        default: return "unknown transport exception";
+        }
+    }
+
+    static auto sdk_error_to_string(const int code) noexcept -> const char* {
+        switch (static_cast<std::uint32_t>(code)) {
+        case MV_OK: return "success";
+        case MV_E_HANDLE: return "invalid handle";
+        case MV_E_BUSY: return "device busy or network disconnected";
+        case MV_E_PRECONDITION: return "precondition/environment changed";
+        case MV_E_USB_DEVICE: return "USB device exception";
+        case MV_E_NODATA: return "no data";
+        default: return "unknown Hik SDK error";
+        }
+    }
+
+    static auto jittered_backoff(
+        std::mt19937_64& random_engine, const std::chrono::milliseconds base_backoff)
+        -> std::chrono::milliseconds {
+        auto distribution = std::uniform_real_distribution<double>{0.9, 1.1};
+        const auto jittered =
+            static_cast<std::int64_t>(static_cast<double>(base_backoff.count())
+                                      * distribution(random_engine));
+        return std::chrono::milliseconds{std::max<std::int64_t>(1, jittered)};
+    }
+
+    void clear_sync_state(
+        WorkerState& state, std::vector<TimestampPair>& matching_array, const char* reason) {
+        sync_model_.reset();
+        last_locked_frame_id_.reset();
+        matching_array.clear();
+        clear_pending_data();
+        state = WorkerState::kReseting;
+        RCLCPP_INFO(get_logger(), "[RESETING] %s", reason);
+    }
+
+    void clear_pending_data() {
+        unmatched_signal_buffer_.clear();
+        {
+            auto guard = std::scoped_lock{frame_pool_mutex_};
+            unmatched_image_buffer_.pop_front_n([this](UnmatchedImage&& image) noexcept {
+                std::destroy_at(image.frame);
+                frame_pool_.free(image.frame);
+            });
+        }
+    }
+
+    void set_transport_state(
+        CameraTransportState& transport_state, const CameraTransportState new_state,
+        const char* reason) {
+        if (transport_state == new_state)
+            return;
+
+        RCLCPP_INFO(
+            get_logger(), "[TRANSPORT] %s -> %s: %s", transport_state_name(transport_state),
+            transport_state_name(new_state), reason);
+        transport_state = new_state;
+    }
+
+    void handle_transport_fault(
+        CameraTransportState& transport_state, WorkerState& state,
+        std::vector<TimestampPair>& matching_array, const std::string& reason) {
+        if (transport_state == CameraTransportState::kReconnecting)
+            return;
+
+        RCLCPP_ERROR(get_logger(), "[TRANSPORT] Fault detected: %s", reason.c_str());
+        camera_.reset();
+        set_transport_state(transport_state, CameraTransportState::kReconnecting, reason.c_str());
+        clear_sync_state(state, matching_array, "Camera transport fault - waiting to reconnect");
+        reconnect_attempts_ = 0;
+        next_reconnect_time_ = std::chrono::steady_clock::now();
+    }
+
+    auto try_connect_camera(
+        CameraTransportState& transport_state, WorkerState& state,
+        std::vector<TimestampPair>& matching_array, std::mt19937_64& random_engine) -> bool {
+        const auto now = std::chrono::steady_clock::now();
+        if (now < next_reconnect_time_)
+            return false;
+
+        ++reconnect_attempts_;
+        RCLCPP_INFO(get_logger(), "[TRANSPORT] Reconnect attempt #%zu", reconnect_attempts_);
+
+        try {
+            camera_ = std::make_unique<Hikcamera>(
+                camera_config_,
+                [this](const Hikcamera::Frame& frame) noexcept { frame_callback(frame); },
+                camera_name_);
+            last_frame_time_.store(std::chrono::steady_clock::now(), std::memory_order::release);
+            set_transport_state(transport_state, CameraTransportState::kUp, "Camera connected");
+            clear_sync_state(state, matching_array, "Camera connected - restarting sync");
+            reconnect_attempts_ = 0;
+            return true;
+        } catch (const std::exception& exception) {
+            const auto exponential =
+                std::chrono::milliseconds{200 * (1ULL << std::min<std::size_t>(reconnect_attempts_ - 1, 4))};
+            const auto capped_backoff = std::min(exponential, kMaxReconnectBackoff);
+            const auto backoff = jittered_backoff(random_engine, capped_backoff);
+            next_reconnect_time_ = now + backoff;
+            camera_.reset();
+            set_transport_state(
+                transport_state, CameraTransportState::kReconnecting,
+                "Reconnect attempt failed");
+            RCLCPP_ERROR(
+                get_logger(),
+                "[TRANSPORT] Reconnect attempt #%zu failed: %s. Retry in %lld ms",
+                reconnect_attempts_, exception.what(), static_cast<long long>(backoff.count()));
+            clear_sync_state(state, matching_array, "Reconnect attempt failed");
+            return false;
+        }
+    }
+
+    auto set_trigger_mode_checked(
+        CameraTransportState& transport_state, WorkerState& state,
+        std::vector<TimestampPair>& matching_array, const bool enabled, const char* action)
+        -> bool {
+        if (camera_ == nullptr) {
+            handle_transport_fault(
+                transport_state, state, matching_array,
+                std::format("{} failed because camera is not connected", action));
+            return false;
+        }
+
+        const auto code = camera_->set_soft_trigger(enabled);
+        if (code != MV_OK) {
+            handle_transport_fault(
+                transport_state, state, matching_array,
+                std::format(
+                    "{} failed with Hik SDK error {} ({})", action, code, sdk_error_to_string(code)));
+            return false;
+        }
+
+        return true;
+    }
+
+    auto update_state(
+        WorkerState& state, const WorkerState new_state, const char* message,
+        CameraTransportState& transport_state, std::vector<TimestampPair>& matching_array,
+        std::chrono::steady_clock::time_point& matching_start) -> bool {
+        if (transport_state != CameraTransportState::kUp)
+            return false;
+
+        switch (new_state) {
+        case WorkerState::kReseting:
+            sync_model_.reset();
+            last_locked_frame_id_.reset();
+            if (!set_trigger_mode_checked(
+                    transport_state, state, matching_array, true, "Enable trigger mode"))
+                return false;
+            state = new_state;
+            RCLCPP_INFO(get_logger(), "[RESETING] %s", message);
+            return true;
+        case WorkerState::kMatching:
+            sync_model_.reset();
+            last_locked_frame_id_.reset();
+            if (!set_trigger_mode_checked(
+                    transport_state, state, matching_array, false, "Disable trigger mode"))
+                return false;
+            matching_start = std::chrono::steady_clock::now();
+            matching_array.clear();
+            state = new_state;
+            RCLCPP_INFO(get_logger(), "[MATCHING] %s", message);
+            return true;
+        case WorkerState::kConfirming:
+            if (!set_trigger_mode_checked(
+                    transport_state, state, matching_array, true, "Enable trigger mode"))
+                return false;
+            state = new_state;
+            RCLCPP_INFO(get_logger(), "[CONFIRMING] %s", message);
+            return true;
+        case WorkerState::kLocked:
+            last_locked_frame_id_.reset();
+            if (!set_trigger_mode_checked(
+                    transport_state, state, matching_array, false, "Disable trigger mode"))
+                return false;
+            state = new_state;
+            RCLCPP_INFO(get_logger(), "[LOCKED] %s", message);
+            return true;
+        }
+
+        return false;
+    }
 
     void frame_callback(const Hikcamera::Frame& frame) {
+        last_frame_time_.store(std::chrono::steady_clock::now(), std::memory_order::release);
+
         if (frame.width != Hikcamera::Cs016FrameWidth || frame.height != Hikcamera::Cs016FrameHeight
             || frame.data.size() != kExpectedFrameSize) {
             RCLCPP_WARN(
@@ -130,83 +331,97 @@ private:
         using namespace std::chrono_literals;
 
         auto state = WorkerState::kReseting;
+        auto transport_state = CameraTransportState::kDown;
         auto idle_duration = std::chrono::steady_clock::duration::zero();
 
         auto matching_start = std::chrono::steady_clock::time_point::max();
         std::vector<TimestampPair> matching_array{1000};
-
-        const auto update_state = [&](WorkerState new_state, const char* message) {
-            state = new_state;
-            switch (new_state) {
-            case WorkerState::kReseting: {
-                sync_model_.reset();
-                last_locked_frame_id_.reset();
-                camera_->set_soft_trigger(true);
-                RCLCPP_INFO(get_logger(), "[RESETING] %s", message);
-            } break;
-            case WorkerState::kMatching: {
-                sync_model_.reset();
-                last_locked_frame_id_.reset();
-                camera_->set_soft_trigger(false);
-                matching_start = std::chrono::steady_clock::now();
-                matching_array.clear();
-                RCLCPP_INFO(get_logger(), "[MATCHING] %s", message);
-            } break;
-            case WorkerState::kConfirming: {
-                camera_->set_soft_trigger(true);
-                RCLCPP_INFO(get_logger(), "[CONFIRMING] %s", message);
-            } break;
-            case WorkerState::kLocked: {
-                last_locked_frame_id_.reset();
-                camera_->set_soft_trigger(false);
-                RCLCPP_INFO(get_logger(), "[LOCKED] %s", message);
-            } break;
-            }
-        };
+        std::mt19937_64 random_engine{std::random_device{}()};
 
         while (!stopped_.test(std::memory_order::relaxed)) {
+            if (transport_state != CameraTransportState::kUp) {
+                try_connect_camera(transport_state, state, matching_array, random_engine);
+            }
+
+            if (camera_ != nullptr) {
+                if (const auto fault_message = camera_->take_transport_fault_message()) {
+                    handle_transport_fault(
+                        transport_state, state, matching_array,
+                        std::format(
+                            "MVS exception 0x{:08x} ({})", *fault_message,
+                            transport_fault_message_to_string(*fault_message)));
+                } else {
+                    const auto last_frame_time = last_frame_time_.load(std::memory_order::acquire);
+                    if (last_frame_time != std::chrono::steady_clock::time_point::min()) {
+                        const auto frame_age = std::chrono::steady_clock::now() - last_frame_time;
+                        if (frame_age > kFrameWatchdogTimeout) {
+                            handle_transport_fault(
+                                transport_state, state, matching_array,
+                                std::format(
+                                    "Frame watchdog timeout: no frame for {} ms",
+                                    std::chrono::duration_cast<std::chrono::milliseconds>(frame_age)
+                                        .count()));
+                        }
+                    }
+                }
+            }
+
+            if (transport_state != CameraTransportState::kUp) {
+                const auto old = event_count_.load(std::memory_order::relaxed);
+                std::ignore = rmcs_utility::atomic_wait_timeout(
+                    event_count_, old, 50ms, std::memory_order::acquire);
+                continue;
+            }
+
             if (idle_duration >= 100ms) {
                 if (state == WorkerState::kReseting)
-                    update_state(WorkerState::kMatching, "Trying to match signal and image...");
+                    std::ignore = update_state(
+                        state, WorkerState::kMatching, "Trying to match signal and image...",
+                        transport_state, matching_array, matching_start);
                 else if (state == WorkerState::kConfirming) {
                     if (!unmatched_signal_buffer_.readable()
                         && !unmatched_image_buffer_.readable()) {
                         auto ls_result = sync_model_.initialize_from_least_squares(matching_array);
                         if (!ls_result) {
-                            update_state(
-                                WorkerState::kReseting,
-                                "Least-squares fit failed to initialize lock model");
+                            std::ignore = update_state(
+                                state, WorkerState::kReseting,
+                                "Least-squares fit failed to initialize lock model",
+                                transport_state, matching_array, matching_start);
                         } else if (!(0.8 < ls_result->a && ls_result->a < 1.2)) {
-                            update_state(
-                                WorkerState::kReseting,
+                            std::ignore = update_state(
+                                state, WorkerState::kReseting,
                                 std::format(
                                     "LS slope out of range: a={:.9f} is outside (0.8, 1.2)",
                                     ls_result->a)
-                                    .c_str());
+                                    .c_str(),
+                                transport_state, matching_array, matching_start);
                         } else if (!(ls_result->max_abs_residual_sec < kResidualThresholdSec)) {
-                            update_state(
-                                WorkerState::kReseting,
+                            std::ignore = update_state(
+                                state, WorkerState::kReseting,
                                 std::format(
                                     "LS residual too large: max_abs_residual(ms)={:.3f} >= "
                                     "threshold(ms)={:.3f}",
                                     ls_result->max_abs_residual_sec * 1000.0,
                                     kResidualThresholdSec * 1000.0)
-                                    .c_str());
+                                    .c_str(),
+                                transport_state, matching_array, matching_start);
                         } else {
-                            update_state(
-                                WorkerState::kLocked,
+                            std::ignore = update_state(
+                                state, WorkerState::kLocked,
                                 std::format(
                                     "Hard-sync locked successfully: a={:.9f}, b={:.9f}, "
                                     "var_a={:.3e}, var_b={:.3e}, max_residual(ms)={:.3f}",
                                     ls_result->a, ls_result->b, ls_result->covariance(0, 0),
                                     ls_result->covariance(1, 1),
                                     ls_result->max_abs_residual_sec * 1000.0)
-                                    .c_str());
+                                    .c_str(),
+                                transport_state, matching_array, matching_start);
                         }
                     } else {
-                        update_state(
-                            WorkerState::kReseting,
-                            "Failed to match: Mismatched signals and images count");
+                        std::ignore = update_state(
+                            state, WorkerState::kReseting,
+                            "Failed to match: Mismatched signals and images count",
+                            transport_state, matching_array, matching_start);
                     }
                 }
             }
@@ -214,28 +429,23 @@ private:
             if (state == WorkerState::kMatching
                 && std::chrono::steady_clock::now() - matching_start >= 2s) {
                 if (matching_array.size() < 50) {
-                    update_state(
-                        WorkerState::kReseting,
+                    std::ignore = update_state(
+                        state, WorkerState::kReseting,
                         std::format(
                             "Too few frames matched: collected ({}) < minimum (50)",
                             matching_array.size())
-                            .c_str());
+                            .c_str(),
+                        transport_state, matching_array, matching_start);
                 } else {
-                    update_state(
-                        WorkerState::kConfirming,
-                        "Frames collected. Waiting bus idle to ensure no data loss...");
+                    std::ignore = update_state(
+                        state, WorkerState::kConfirming,
+                        "Frames collected. Waiting bus idle to ensure no data loss...",
+                        transport_state, matching_array, matching_start);
                 }
             }
 
             if (state == WorkerState::kReseting) {
-                unmatched_signal_buffer_.clear();
-                {
-                    auto guard = std::scoped_lock{frame_pool_mutex_};
-                    unmatched_image_buffer_.pop_front_n([this](UnmatchedImage&& image) noexcept {
-                        std::destroy_at(image.frame);
-                        frame_pool_.free(image.frame);
-                    });
-                }
+                clear_pending_data();
             }
 
             const auto old = event_count_.load(std::memory_order::relaxed);
@@ -261,8 +471,10 @@ private:
 
             if (state == WorkerState::kLocked) {
                 if (!sync_model_.initialized()) {
-                    update_state(
-                        WorkerState::kReseting, "RLS model was unexpectedly uninitialized");
+                    std::ignore = update_state(
+                        state, WorkerState::kReseting,
+                        "RLS model was unexpectedly uninitialized", transport_state,
+                        matching_array, matching_start);
                     continue;
                 }
 
@@ -275,24 +487,26 @@ private:
                     const auto expected_frame_id = *last_locked_frame_id_ + 1U;
 
                     if (next_frame_id < expected_frame_id) {
-                        update_state(
-                            WorkerState::kReseting,
+                        std::ignore = update_state(
+                            state, WorkerState::kReseting,
                             std::format(
                                 "Frame ID moved backward: expected >= {}, got {}",
                                 expected_frame_id, next_frame_id)
-                                .c_str());
+                                .c_str(),
+                            transport_state, matching_array, matching_start);
                         continue;
                     }
 
                     const auto frame_gap = next_frame_id - expected_frame_id;
                     if (frame_gap > 0U) {
                         if (frame_gap > kAllowedFrameIdGap) {
-                            update_state(
-                                WorkerState::kReseting,
+                            std::ignore = update_state(
+                                state, WorkerState::kReseting,
                                 std::format(
                                     "Frame ID gap too large: expected {}, got {}, gap {} > {}",
                                     expected_frame_id, next_frame_id, frame_gap, kAllowedFrameIdGap)
-                                    .c_str());
+                                    .c_str(),
+                                transport_state, matching_array, matching_start);
                             continue;
                         }
 
@@ -315,19 +529,22 @@ private:
                 const auto residual = sync_model_.residual_for(
                     timestamp_pair.camera_timestamp_sec, timestamp_pair.board_timestamp_sec);
                 if (!(std::abs(residual) < kResidualThresholdSec)) {
-                    update_state(
-                        WorkerState::kReseting,
+                    std::ignore = update_state(
+                        state, WorkerState::kReseting,
                         std::format(
                             "RLS residual too large: residual(ms)={:.3f}, threshold(ms)={:.3f}",
                             residual * 1000.0, kResidualThresholdSec * 1000.0)
-                            .c_str());
+                            .c_str(),
+                        transport_state, matching_array, matching_start);
                     continue;
                 }
 
                 const auto updated_residual = sync_model_.update(
                     timestamp_pair.camera_timestamp_sec, timestamp_pair.board_timestamp_sec);
                 if (!std::isfinite(updated_residual) || !sync_model_.initialized()) {
-                    update_state(WorkerState::kReseting, "RLS update failed");
+                    std::ignore = update_state(
+                        state, WorkerState::kReseting, "RLS update failed", transport_state,
+                        matching_array, matching_start);
                 }
             }
         }
@@ -411,8 +628,13 @@ private:
     };
     rmcs_utility::RingBuffer<UnmatchedImage> unmatched_image_buffer_{16};
     std::unique_ptr<Hikcamera> camera_;
+    Hikcamera::CameraConfig camera_config_{};
+    std::string camera_name_;
     LinearSyncModel sync_model_{kRlsLambda, kResidualThresholdSec};
     std::optional<std::uint32_t> last_locked_frame_id_;
+    std::atomic<std::chrono::steady_clock::time_point> last_frame_time_;
+    std::chrono::steady_clock::time_point next_reconnect_time_ = std::chrono::steady_clock::time_point::min();
+    std::size_t reconnect_attempts_ = 0;
 
     std::atomic_flag stopped_;
     std::atomic<std::uint32_t> event_count_ = 0;

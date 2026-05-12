@@ -1,14 +1,16 @@
 #pragma once
 
-#include <any>
+#include <atomic>
 #include <bit>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <tuple>
 #include <utility>
 
@@ -97,14 +99,20 @@ public:
         }
     }
 
-    bool set_soft_trigger(bool enabled) noexcept {
+    [[nodiscard]] auto set_soft_trigger(bool enabled) noexcept -> int {
         return MV_CC_SetEnumValue(
-                   handle_, "TriggerMode", enabled ? MV_TRIGGER_MODE_ON : MV_TRIGGER_MODE_OFF)
-            == MV_OK;
+            handle_, "TriggerMode", enabled ? MV_TRIGGER_MODE_ON : MV_TRIGGER_MODE_OFF);
     }
 
-    bool trigger_soft() noexcept {
-        return MV_CC_SetCommandValue(handle_, "TriggerSoftware") == MV_OK;
+    [[nodiscard]] auto trigger_soft() noexcept -> int {
+        return MV_CC_SetCommandValue(handle_, "TriggerSoftware");
+    }
+
+    [[nodiscard]] auto take_transport_fault_message() noexcept -> std::optional<unsigned int> {
+        if (!transport_fault_.exchange(false, std::memory_order::acq_rel))
+            return std::nullopt;
+
+        return last_transport_fault_message_.load(std::memory_order::acquire);
     }
 
     ~Hikcamera() noexcept { cleanup(); }
@@ -113,6 +121,16 @@ public:
     Hikcamera& operator=(const Hikcamera&) = delete;
 
 private:
+    static void __stdcall transport_exception_callback(
+        const unsigned int message_type, void* user_data) noexcept {
+        if (user_data == nullptr)
+            return;
+
+        auto* self = static_cast<Hikcamera*>(user_data);
+        self->last_transport_fault_message_.store(message_type, std::memory_order::release);
+        self->transport_fault_.store(true, std::memory_order::release);
+    }
+
     [[nodiscard]] static MV_CC_DEVICE_INFO* select_device(const std::string_view name) {
         MV_CC_DEVICE_INFO_LIST devices{};
         std::memset(&devices, 0, sizeof(devices));
@@ -215,6 +233,9 @@ private:
         check_hik("set strobe enable", MV_CC_SetBoolValue(handle_, "StrobeEnable", true));
 
         check_hik(
+            "register exception callback",
+            MV_CC_RegisterExceptionCallBack(handle_, transport_exception_callback, this));
+        check_hik(
             "register image callback", MV_CC_RegisterImageCallBackEx(handle_, callback, user_data));
         check_hik("start grabbing", MV_CC_StartGrabbing(handle_));
     }
@@ -236,4 +257,6 @@ private:
     }
 
     void* handle_ = nullptr;
+    std::atomic<bool> transport_fault_ = false;
+    std::atomic<unsigned int> last_transport_fault_message_ = 0;
 };
