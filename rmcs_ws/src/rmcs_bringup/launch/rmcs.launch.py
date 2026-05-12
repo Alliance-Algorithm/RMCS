@@ -178,14 +178,6 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
         entities.append(
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource([
-                    FindPackageShare("odin_ros_driver"), "/launch/odin1_ros2.launch.py"
-                ])
-            )
-        )
-
-        entities.append(
-            IncludeLaunchDescription(
-                PythonLaunchDescriptionSource([
                     FindPackageShare('rmcs_auto_aim_v2'), '/launch.py'
                 ])
             )

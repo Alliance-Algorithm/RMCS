@@ -2,6 +2,9 @@
 
 set -e
 
+RMCS_STOP_TIMEOUT_SECONDS=${RMCS_STOP_TIMEOUT_SECONDS:-10}
+RMCS_PROCESS_PATTERN='host_sdk_sample|rmcs_executor|mavros_node|ros2 launch rmcs_bringup rmcs\.launch\.py'
+
 start() {
     if [[ -z "$HOME" ]]; then
         export HOME=/root
@@ -36,10 +39,34 @@ attach() {
 }
 
 stop() {
+    local stopped_screen=0
+
     if is_running; then
         screen -S rmcs -X quit
+        stopped_screen=1
+    fi
+
+    wait_for_process_exit
+
+    if (( stopped_screen )); then
         echo "Successfully stopped RMCS daemon."
     fi
+}
+
+wait_for_process_exit() {
+    local waited=0
+
+    while pgrep -f "$RMCS_PROCESS_PATTERN" >/dev/null; do
+        if (( waited >= RMCS_STOP_TIMEOUT_SECONDS )); then
+            echo "Error: Timed out waiting for RMCS processes to exit."
+            echo "Still running:"
+            pgrep -af "$RMCS_PROCESS_PATTERN" || true
+            exit 1
+        fi
+
+        sleep 1
+        waited=$((waited + 1))
+    done
 }
 
 is_running() {
