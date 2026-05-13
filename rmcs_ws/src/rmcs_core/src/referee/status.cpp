@@ -1,6 +1,8 @@
+#include <cstdint>
 #include <eigen3/Eigen/Eigen>
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/dart_station_status.hpp>
 #include <rmcs_msgs/game_stage.hpp>
 #include <rmcs_msgs/robot_id.hpp>
 #include <rmcs_msgs/serial_interface.hpp>
@@ -19,11 +21,14 @@ class Status
     , public rclcpp::Node {
 public:
     Status()
-        : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
+        : Node{
+              get_component_name(),
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , logger_(get_logger()) {
         register_input("/referee/serial", serial_);
 
         register_output("/referee/game/stage", game_stage_, rmcs_msgs::GameStage::UNKNOWN);
+        register_output("/referee/geme/stage_remain_time", gamestage_remain_time_, 0);
 
         register_output("/referee/id", robot_id_, rmcs_msgs::RobotId::UNKNOWN);
         register_output("/referee/shooter/cooling", robot_shooter_cooling_, 0);
@@ -40,6 +45,11 @@ public:
 
         register_output("/referee/shooter/initial_speed", robot_initial_speed_, false);
         register_output("/referee/shooter/shoot_timestamp", robot_shoot_timestamp_, false);
+
+        register_output("/referee/dart/launch_remain_time", dart_remaining_time_, 0);
+        register_output(
+            "/referee/dart/opening_status", dart_launch_opening_status_,
+            rmcs_msgs::DartStationOpeningStatus::UNKNOWN);
 
         robot_status_watchdog_.reset(5'000);
     }
@@ -173,7 +183,22 @@ private:
         *robot_42mm_bullet_allowance_ = data.bullet_allowance_42mm;
     }
 
-    void update_game_robot_position() {}
+    void update_game_robot_position() {
+        auto& data = reinterpret_cast<DartLaunchStatus&>(frame_.body.data);
+        *dart_remaining_time_ = data.dart_remaining_time;
+    }
+
+    void update_dart_launch_status() {
+        auto& data = reinterpret_cast<DartStationStatus&>(frame_.body.data);
+        switch (data.dart_launch_opening_status) {
+        case 0: *dart_launch_opening_status_ = rmcs_msgs::DartStationOpeningStatus::OPENED; return;
+        case 1: *dart_launch_opening_status_ = rmcs_msgs::DartStationOpeningStatus::CLOSED; return;
+        case 2: *dart_launch_opening_status_ = rmcs_msgs::DartStationOpeningStatus::RUNNING; return;
+        case 3: *dart_launch_opening_status_ = rmcs_msgs::DartStationOpeningStatus::UNKNOWN; return;
+        }
+    }
+
+    void update_dart_station_status() {}
 
     // When referee system loses connection unexpectedly,
     // use these indicators make sure the robot safe.
@@ -191,6 +216,7 @@ private:
 
     rmcs_utility::TickTimer game_status_watchdog_;
     OutputInterface<rmcs_msgs::GameStage> game_stage_;
+    OutputInterface<uint16_t> gamestage_remain_time_;
 
     rmcs_utility::TickTimer robot_status_watchdog_;
     OutputInterface<rmcs_msgs::RobotId> robot_id_;
@@ -208,6 +234,9 @@ private:
 
     OutputInterface<float> robot_initial_speed_;
     OutputInterface<double> robot_shoot_timestamp_;
+
+    OutputInterface<uint8_t> dart_remaining_time_;
+    OutputInterface<rmcs_msgs::DartStationOpeningStatus> dart_launch_opening_status_;
 };
 
 } // namespace rmcs_core::referee
