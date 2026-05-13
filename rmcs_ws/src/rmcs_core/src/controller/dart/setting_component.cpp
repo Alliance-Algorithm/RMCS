@@ -122,9 +122,8 @@ public:
         }
 
         if (count++ == 1000) {
-            // RCLCPP_INFO(
-            //     get_logger(), "[ForSensor]: (%5d,%5d),[PYR]]: (%5f,%5f,%5f)", *force_sensor_ch1_,
-            //     *force_sensor_ch2_, *pitch_angle_, *yaw_angle_, *roll_angle_);
+            RCLCPP_INFO(
+                get_logger(), "[PYR]]: (%5f,%5f,%5f)", *pitch_angle_, *yaw_angle_, *roll_angle_);
 
             count = 0;
         }

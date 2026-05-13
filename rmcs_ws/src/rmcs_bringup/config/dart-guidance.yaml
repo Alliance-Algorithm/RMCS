@@ -6,7 +6,7 @@ rmcs_executor:
       - rmcs_dart_guidance::manager::DartManager   -> dart_manager
       - rmcs_dart_guidance::manager::RemoteCommandBridge -> remote_cmd_bridge
 
-      # - rmcs_dart_guidance::DartVisionCore -> dart_vision_core
+      - rmcs_dart_guidance::DartVisionCore -> dart_vision_core
       # - rmcs_dart_guidance::ImagePublisher -> dart_display_image_publisher
       # - rmcs_dart_guidance::ImagePublisher -> host_bridge
 
@@ -54,10 +54,12 @@ dart_manager:
     belt_down_travel_angle: 10.0
     belt_up_velocity: 20.0
     belt_up_travel_angle: 10.0
+    belt_interference_relief_travel_angle: 18.0
     belt_init_velocity: 3.0
-    carriage_down_velocity: 10.0
-    carriage_up_velocity: 10.0
-    carriage_startup_origin_angle: 7437557.0
+    carriage_down_velocity: 20.0
+    carriage_up_velocity: 20.0
+    carriage_lift_down_limit: -7500000.0
+    carriage_startup_position_angle: -13713744.0
     carriage_adjust_down_angle: 778240.0
     carriage_adjust_up_angle: 778240.0
     manual_max_velocity: 10.0
@@ -79,38 +81,42 @@ dart_manager:
     carriage_stall_velocity_threshold: 0.2
     carriage_stall_torque_threshold: 0.2
     carriage_stall_confirm_ticks: 100
-    carriage_calibration_velocity: 3.0
-    carriage_calibration_stall_velocity_threshold: 1.0
+    carriage_calibration_velocity: 2.0
+    carriage_calibration_stall_velocity_threshold: 1.5
     carriage_calibration_stall_torque_threshold: 0.15
     carriage_calibration_stall_confirm_ticks: 100
     carriage_calibration_max_torque: 0.25
-    carriage_calibration_parking_angle: 2000000.0
+    carriage_calibration_parking_angle: 4000000.0
     carriage_angle_allowable_error: 512.0
     carriage_min_run_ticks: 500
     carriage_timeout_ticks: 600000
     vision_aim.allowable_error.x: 3
-    vision_aim.allowable_error.y: 3
+    vision_aim.allowable_error.y: 0.1
     vision_aim.timeout_ticks: 20000
-    vision_aim.shot_profiles.0.reference_point.x: 810
-    vision_aim.shot_profiles.0.reference_point.y: 650
+    vision_aim.shot_profiles.0.reference_point.x: 690
+    vision_aim.shot_profiles.0.reference_point.y: 720
     vision_aim.shot_profiles.0.offset.x: 0
     vision_aim.shot_profiles.0.offset.y: 0
-    vision_aim.shot_profiles.0.pitch_angle: 32.0
+    vision_aim.shot_profiles.0.pitch_angle: -37.0
+    vision_aim.shot_profiles.0.trigger_carriage_position: -14504866
     vision_aim.shot_profiles.1.reference_point.x: 700
-    vision_aim.shot_profiles.1.reference_point.y: 105
+    vision_aim.shot_profiles.1.reference_point.y: 720
     vision_aim.shot_profiles.1.offset.x: 0
     vision_aim.shot_profiles.1.offset.y: 0
-    vision_aim.shot_profiles.1.pitch_angle: 32.0
-    vision_aim.shot_profiles.2.reference_point.x: 704
-    vision_aim.shot_profiles.2.reference_point.y: 190
+    vision_aim.shot_profiles.1.pitch_angle: -37.0
+    vision_aim.shot_profiles.1.trigger_carriage_position: -13714866
+    vision_aim.shot_profiles.2.reference_point.x: 705
+    vision_aim.shot_profiles.2.reference_point.y: 720
     vision_aim.shot_profiles.2.offset.x: 0
     vision_aim.shot_profiles.2.offset.y: 0
-    vision_aim.shot_profiles.2.pitch_angle: 32.0
+    vision_aim.shot_profiles.2.pitch_angle: -37.0
+    vision_aim.shot_profiles.2.trigger_carriage_position: -14404866
     vision_aim.shot_profiles.3.reference_point.x: 704
     vision_aim.shot_profiles.3.reference_point.y: 190
     vision_aim.shot_profiles.3.offset.x: 0
     vision_aim.shot_profiles.3.offset.y: 0
-    vision_aim.shot_profiles.3.pitch_angle: 32.0
+    vision_aim.shot_profiles.3.pitch_angle: 37.0
+    vision_aim.shot_profiles.3.trigger_carriage_position: -7300000
 
 dart_vision_core:
   ros__parameters:
@@ -163,7 +169,7 @@ dart_filling:
 dart_setting:
   ros__parameters:
     yaw_error_to_velocity_gain: -1.0
-    pitch_error_to_velocity_gain: -1.0
+    pitch_error_to_velocity_gain: 10.0
     force_error_kp: 0.2
     force_error_ki: 0.0
     force_error_kd: 0.0
@@ -171,7 +177,7 @@ dart_setting:
     force_error_integral_max: 10.0
     force_error_integral_split_min: -20.0
     force_error_integral_split_max: 20.0
-    carriage_angle_kp: 1.0
+    carriage_angle_kp: 2.01
     carriage_angle_ki: 0.0
     carriage_angle_kd: 0.0
     carriage_angle_integral_min: -10.0
