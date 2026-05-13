@@ -337,8 +337,8 @@ private:
             , guard_motor(engineer, engineer_command, "/guard/motor") {
             guard_motor.configure(
                 device::DjiMotorConfig{device::DjiMotorType::M2006}.enable_multi_turn_angle());
-            engineer.register_input("/left/relay", left_relay_mode);
-            engineer.register_input("/right/relay", right_relay_mode);
+            engineer_command.register_input("/left/relay", left_relay_mode);
+            engineer_command.register_input("/right/relay", right_relay_mode);
         }
         ~OtherBoard() final {
             auto tx = start_transmit();

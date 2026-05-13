@@ -686,9 +686,16 @@ private:
                             set_gripper_mode(rmcs_msgs::GripperMode::Close);
                             trajectory_steps--;
                         }
-                        if (trajectory_steps == 0 && !is_gripper_complete) {
-                            set_gripper_mode(rmcs_msgs::GripperMode::Open);
-                            trajectory_steps--;
+                        if (trajectory_steps == 0) {
+                            if (get_gripper_mode() == rmcs_msgs::GripperMode::Open) {
+                                if (!is_gripper_stock) {
+                                    trajectory_steps--;
+                                }
+                            }
+                            if (get_gripper_mode() == rmcs_msgs::GripperMode::Close) {
+                                set_gripper_mode(rmcs_msgs::GripperMode::Open);
+                                trajectory_steps--;
+                            }
                         }
                         if (trajectory_steps == static_cast<std::size_t>(moveit_result->steps[3])) {
                             *left_relay_mode_ = rmcs_msgs::RelayMode::Close;
@@ -701,9 +708,16 @@ private:
                             set_gripper_mode(rmcs_msgs::GripperMode::Close);
                             trajectory_steps--;
                         }
-                        if (trajectory_steps == 0 && !is_gripper_complete) {
-                            set_gripper_mode(rmcs_msgs::GripperMode::Open);
-                            trajectory_steps--;
+                        if (trajectory_steps == 0) {
+                            if (get_gripper_mode() == rmcs_msgs::GripperMode::Open) {
+                                if (!is_gripper_stock) {
+                                    trajectory_steps--;
+                                }
+                            }
+                            if (get_gripper_mode() == rmcs_msgs::GripperMode::Close) {
+                                set_gripper_mode(rmcs_msgs::GripperMode::Open);
+                                trajectory_steps--;
+                            }
                         }
                         if (trajectory_steps == static_cast<std::size_t>(moveit_result->steps[3])) {
                             *right_relay_mode_ = rmcs_msgs::RelayMode::Close;
@@ -809,24 +823,24 @@ private:
         }
     }
     void gripper_control() {
-        static bool stock = false;
         static double stock_theta;
         is_gripper_complete = false;
         if (last_gripper_mode_ != get_gripper_mode()) {
-            stock = false;
+            is_gripper_stock = false;
         }
         if (get_gripper_mode() != rmcs_msgs::GripperMode::None) {
             if (*gripper_velocity_ < 0.01 && *gripper_velocity_ > -0.01
                 && fabs(*gripper_torque_) > 2.0) {
-                stock               = true;
+                is_gripper_stock    = true;
                 stock_theta         = *gripper_angle_;
                 is_gripper_complete = true;
             }
             *gripper_target_theta =
-                stock ? stock_theta
-                      : *gripper_angle_
-                            + (get_gripper_mode() == rmcs_msgs::GripperMode::Close ? -1.0 : 1.0)
-                                  * 0.5;
+                is_gripper_stock
+                    ? stock_theta
+                    : *gripper_angle_
+                          + (get_gripper_mode() == rmcs_msgs::GripperMode::Close ? -1.0 : 1.0)
+                                * 0.5;
         } else {
             *gripper_target_theta = *gripper_angle_;
         }
@@ -850,8 +864,8 @@ private:
         } else {
             *guard_target_theta = *guard_angle_;
         }
-        RCLCPP_INFO(
-            node_->get_logger(), "%d %f %f", stock ? 1 : 2, *guard_target_theta, *guard_angle_);
+        // RCLCPP_INFO(
+        //     node_->get_logger(), "%d %f %f", stock ? 1 : 2, *guard_target_theta, *guard_angle_);
     }
     void relay_control() {}
     void image_pitch_control() {
@@ -910,6 +924,7 @@ private:
     InputInterface<double> guard_velocity_;
     InputInterface<double> guard_torque_;
     bool is_gripper_complete{false};
+    bool is_gripper_stock{false};
     std::array<InputInterface<double>, 6> joint_lower_limit_;
     std::array<InputInterface<double>, 6> joint_upper_limit_;
     OutputInterface<double> target_theta[6];
