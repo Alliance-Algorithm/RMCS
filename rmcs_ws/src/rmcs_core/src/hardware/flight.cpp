@@ -73,8 +73,8 @@ public:
             [](double x, double y, double z) { return std::make_tuple(-x, z, y); });
 
         using namespace rmcs_description; // NOLINT(google-build-using-namespace)
-        constexpr double rotor_distance_x = 0.83637;
-        constexpr double rotor_distance_y = 0.83637;
+        constexpr double rotor_distance_x = 1.128;
+        constexpr double rotor_distance_y = 1.128;
 
         tf_->set_transform<BaseLink, LeftFrontWheelLink>(
             Eigen::Translation3d{rotor_distance_x / 2, rotor_distance_y / 2, 0});
@@ -85,12 +85,15 @@ public:
         tf_->set_transform<BaseLink, RightFrontWheelLink>(
             Eigen::Translation3d{-rotor_distance_x / 2, -rotor_distance_y / 2, 0});
 
-        constexpr double gimbal_center_x = 0.0;
-        constexpr double gimbal_center_y = 0.0;
-        constexpr double gimbal_center_z = -0.20552;
+        // GimbalCenterLink 原点等效于 YawLink 和 PitchLink 的交点
+        constexpr double gimbal_center_z = -0.27812;
         tf_->set_transform<BaseLink, GimbalCenterLink>(
-            Eigen::Translation3d{gimbal_center_x, gimbal_center_y, gimbal_center_z});
-        tf_->set_transform<PitchLink, CameraLink>(Eigen::Translation3d{0.1572, 0.00675, 0.0528});
+            Eigen::Translation3d{0.0, 0.0, gimbal_center_z});
+        constexpr auto camera_postion_x = 0.10238;
+        constexpr auto camera_postion_z = 0.05286;
+
+        tf_->set_transform<PitchLink, CameraLink>(
+            Eigen::Translation3d{camera_postion_x, 0.0, camera_postion_z});
 
         gimbal_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
             "/gimbal/calibrate", rclcpp::QoS{0}, [this](std_msgs::msg::Int32::UniquePtr&& msg) {
