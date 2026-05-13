@@ -46,16 +46,18 @@ public:
     TwoAxisGimbalSolver::AngleError calculate_angle_error() {
         auto switch_right = *switch_right_;
         auto switch_left = *switch_left_;
+
         using namespace rmcs_msgs;
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN))
             return two_axis_gimbal_solver.update(TwoAxisGimbalSolver::SetDisabled());
 
-        const auto auto_aim_active =
-            switch_right == Switch::UP && auto_aim_should_control_.ready()
-            && *auto_aim_should_control_ && auto_aim_control_direction_.ready()
-            && auto_aim_control_direction_->allFinite() && !auto_aim_control_direction_->isZero();
-        if (auto_aim_active) {
+        const auto manual_active = switch_right == Switch::UP;
+        const auto should_control = auto_aim_should_control_.ready() && *auto_aim_should_control_;
+        const auto valid_control =
+            auto_aim_control_direction_.ready() && auto_aim_control_direction_->allFinite();
+
+        if (manual_active && should_control && valid_control) {
             return two_axis_gimbal_solver.update(
                 TwoAxisGimbalSolver::SetControlDirection(
                     OdomImu::DirectionVector(*auto_aim_control_direction_)));

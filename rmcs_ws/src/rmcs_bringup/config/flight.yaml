@@ -62,7 +62,6 @@ value_broadcaster:
       - /gimbal/yaw/control_angle_error
       - /gimbal/yaw/velocity_imu
 
-
 tf_broadcaster:
   ros__parameters:
     tf: /tf
