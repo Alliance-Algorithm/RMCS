@@ -1,5 +1,6 @@
 #include <atomic>
 #include <chrono>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -261,7 +262,8 @@ private:
                     .set_encoder_zero_point(
                         static_cast<int>(
                             steering_hero.get_parameter("viewer_motor_zero_point").as_int()))
-                    .set_reversed());
+                    .set_reversed()
+                    .enable_multi_turn_angle());
 
             steering_hero.register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
             steering_hero.register_output("/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
@@ -333,14 +335,22 @@ private:
         void command_update() {
             auto builder = start_transmit();
 
-            builder.can0_transmit({
-                .can_id = 0x142,
-                .can_data = gimbal_pitch_motor_.generate_torque_command().as_bytes(),
-            });
+            if (std::isfinite(gimbal_pitch_motor_.control_angle()))
+                builder.can0_transmit({
+                    .can_id = 0x142,
+                    .can_data = gimbal_pitch_motor_
+                                    .generate_angle_command(gimbal_pitch_motor_.control_angle())
+                                    .as_bytes(),
+                });
+            else
+                builder.can0_transmit({
+                    .can_id = 0x142,
+                    .can_data = gimbal_pitch_motor_.generate_torque_command().as_bytes(),
+                }); // 用于区分pitch中
 
             builder.can0_transmit({
                 .can_id = 0x141,
-                .can_data = gimbal_top_yaw_motor_.generate_torque_command().as_bytes(),
+                .can_data = gimbal_top_yaw_motor_.generate_command().as_bytes(),
             });
 
             builder.can1_transmit({
@@ -559,18 +569,18 @@ private:
                     .set_reversed()
                     .set_reduction_ratio(2232. / 169.));
             chassis_front_climber_motor_[0].configure(
-                device::DjiMotor::Config{device::DjiMotor::Type::kM3508}.set_reduction_ratio(19.));
-            chassis_front_climber_motor_[1].configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
                     .set_reversed()
                     .set_reduction_ratio(19.));
+            chassis_front_climber_motor_[1].configure(
+                device::DjiMotor::Config{device::DjiMotor::Type::kM3508}.set_reduction_ratio(19.));
             chassis_back_climber_motor_[0].configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
+                    .set_reversed()
                     .enable_multi_turn_angle()
                     .set_reduction_ratio(19.));
             chassis_back_climber_motor_[1].configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
-                    .set_reversed()
                     .enable_multi_turn_angle()
                     .set_reduction_ratio(19.));
 

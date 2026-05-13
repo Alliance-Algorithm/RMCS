@@ -168,7 +168,7 @@ public:
                         }
 
                         const auto angle_err = bullet_feeder_control_angle_ - *bullet_feeder_angle_;
-                        if (angle_err < 0.1) {
+                        if (abs(angle_err) < 0.1) {
                             set_compressed();
                         }
                         double velocity_err =
@@ -188,7 +188,7 @@ public:
                     } else if (shoot_stage_ == ShootStage::RESETTING) {
 
                         const auto angle_err = bullet_feeder_control_angle_ - *bullet_feeder_angle_;
-                        if (angle_err < 0.1) {
+                        if (abs(angle_err) < 0.15) {
                             RCLCPP_INFO(get_logger(), "RESETED");
                             set_compressed();
                         }
@@ -283,6 +283,7 @@ private:
         bullet_feeder_cool_down_ = 0;
 
         *shoot_delay_ms_ = nan_;
+        shoot_first = true;
     }
 
     void set_resetting() {
@@ -327,7 +328,7 @@ private:
 
     void update_jam_detection() {
         // RCLCPP_INFO(get_logger(), "%.2f --", *bullet_feeder_control_torque_);
-        if (*bullet_feeder_control_torque_ < 33.0 || std::isnan(*bullet_feeder_control_torque_)) {
+        if (*bullet_feeder_control_torque_ < 60.0 || std::isnan(*bullet_feeder_control_torque_)) {
             bullet_feeder_faulty_count_ = 0;
             return;
         }

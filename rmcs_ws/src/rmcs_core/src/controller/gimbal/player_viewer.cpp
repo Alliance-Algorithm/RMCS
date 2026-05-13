@@ -44,6 +44,7 @@ public:
 
     void update() override {
         using namespace rmcs_msgs;
+        // RCLCPP_INFO(get_logger(), "pitch: %f", *gimbal_player_viewer_angle_);
 
         const auto switch_right = *switch_right_;
         const auto switch_left = *switch_left_;
