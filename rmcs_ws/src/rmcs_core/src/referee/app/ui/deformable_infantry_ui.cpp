@@ -97,13 +97,13 @@ public:
         status_ring_.update_battery_power(*chassis_voltage_);
 
         status_ring_.update_auto_aim_enable(mouse_->right == 1);
-        pitch_hud_.update(
-            (gimbal_pitch_angle_.ready() && std::isfinite(*gimbal_pitch_angle_))
-                ? *gimbal_pitch_angle_
-                : std::numeric_limits<double>::quiet_NaN(),
-            (chassis_pitch_.ready() && std::isfinite(*chassis_pitch_))
-                ? *chassis_pitch_
-                : std::numeric_limits<double>::quiet_NaN());
+    //     pitch_hud_.update(
+    //         (gimbal_pitch_angle_.ready() && std::isfinite(*gimbal_pitch_angle_))
+    //             ? *gimbal_pitch_angle_
+    //             : std::numeric_limits<double>::quiet_NaN(),
+    //         (chassis_pitch_.ready() && std::isfinite(*chassis_pitch_))
+    //             ? *chassis_pitch_
+    //             : std::numeric_limits<double>::quiet_NaN());
     }
 
 private:

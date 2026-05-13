@@ -64,7 +64,7 @@ public:
 
         update_virtual_buffer_energy();
 
-        boost_mode_ = keyboard.shift || rotary_knob < -0.9;
+        boost_mode_ = keyboard.shift || keyboard.ctrl || rotary_knob < -0.9;
         *supercap_control_enabled_ = boost_mode_;
         update_control_power_limit();
     }
