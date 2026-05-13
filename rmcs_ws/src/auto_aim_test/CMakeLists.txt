@@ -24,26 +24,15 @@ find_package(MVSUSB3Core REQUIRED CONFIG
   PATHS "${HIK_MVS_SDK_ROOT}" NO_DEFAULT_PATH
 )
 
-set(
-  LIBRMCS_DEV10_ROOT
-  "/workspaces/RMCS/librmcs_tmp/librmcs-sdk-src-3.2.0-beta.0.dev.10.g72381f1"
-  CACHE PATH "Path to librmcs 3.2.0-beta.0.dev.10.g72381f1 source snapshot"
-)
-set(LIBRMCS_DEV10_BUILD_DIR "${LIBRMCS_DEV10_ROOT}/build-auto-aim-test")
+include(FetchContent)
 set(BUILD_STATIC_LIBRMCS ON CACHE BOOL "Build static librmcs SDK" FORCE)
-
-if(NOT EXISTS "${LIBRMCS_DEV10_ROOT}/CMakeLists.txt")
-  message(FATAL_ERROR "LIBRMCS_DEV10_ROOT does not point to a librmcs source snapshot: ${LIBRMCS_DEV10_ROOT}")
-endif()
-
-file(READ "${LIBRMCS_DEV10_ROOT}/CMakeLists.txt" LIBRMCS_DEV10_ROOT_CMAKE)
-if(NOT LIBRMCS_DEV10_ROOT_CMAKE MATCHES "LIBRMCS_PROJECT_VERSION \"3\\.2\\.0-beta\\.0\\.dev\\.10\\.g72381f1\"")
-  message(FATAL_ERROR "LIBRMCS_DEV10_ROOT must point to librmcs 3.2.0-beta.0.dev.10.g72381f1")
-endif()
-
-if(NOT TARGET librmcs-sdk)
-  add_subdirectory("${LIBRMCS_DEV10_ROOT}" "${LIBRMCS_DEV10_BUILD_DIR}")
-endif()
+FetchContent_Declare(
+  librmcs
+  URL https://github.com/Alliance-Algorithm/librmcs/releases/download/v3.2.0rc0/librmcs-sdk-src-3.2.0-rc.0.zip
+  URL_HASH SHA256=accefeb3a46d7da32a215765d0907de36c25353dd7951e342aaddfe98d2971e5
+  DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+)
+FetchContent_MakeAvailable(librmcs)
 
 ament_auto_add_executable(
   ${PROJECT_NAME}_exe
