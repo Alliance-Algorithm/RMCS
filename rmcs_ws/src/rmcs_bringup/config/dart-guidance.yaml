@@ -39,8 +39,18 @@ dart_hardware:
 dart_manager:
   ros__parameters:
     fire_target: "basement"  # frontier or basement
-    basement_travel_angle: 7431644.0
     frontier_travel_angle: 2334720.0
+    basement_travel_angle: 7431644.0
+    force_calibrate.shot_profile.0.frontier_travel_angle: 2334720.0
+    force_calibrate.shot_profile.0.basement_travel_angle: 7431644.0
+    force_calibrate.shot_profile.1.frontier_travel_angle: 2334720.0
+    force_calibrate.shot_profile.1.basement_travel_angle: 7431644.0
+    force_calibrate.shot_profile.2.frontier_travel_angle: 2334720.0
+    force_calibrate.shot_profile.2.basement_travel_angle: 7431644.0
+    force_calibrate.shot_profile.3.frontier_travel_angle: 2334720.0
+    force_calibrate.shot_profile.3.basement_travel_angle: 7431644.0 
+    force_calibrate.shot_profile.4.frontier_travel_angle: 2334720.0
+    force_calibrate.shot_profile.4.basement_travel_angle: 7431644.0 
     belt_down_velocity: 10.0
     belt_down_travel_angle: 10.0
     belt_up_velocity: 20.0
@@ -57,11 +67,11 @@ dart_manager:
     force_manual_scale: 1000.0
     angle_manual_scale: 50.0
     limiting_fill_ticks: 200
-    belt_stall_velocity_threshold: 0.5
-    belt_stall_torque_threshold: 0.1
+    belt_stall_velocity_threshold: 1.0
+    belt_stall_torque_threshold: 0.5
     belt_stall_confirm_ticks: 100
     belt_init_stall_velocity_threshold: 1.0
-    belt_init_stall_torque_threshold: 0.49
+    belt_init_stall_torque_threshold: 0.5
     belt_init_stall_confirm_ticks: 100
     belt_init_max_torque: 1.5
     belt_stall_min_run_ticks: 1000
