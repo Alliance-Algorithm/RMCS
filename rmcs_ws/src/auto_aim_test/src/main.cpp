@@ -36,9 +36,9 @@ public:
         camera_config_.framerate = static_cast<float>(
             declare_parameter<double>("framerate", Hikcamera::Cs016MaxFramerate));
         camera_config_.invert_image = declare_parameter<bool>("invert_image", false);
-        rls_lambda_ = declare_parameter<double>("rls_lambda", 0.9995);
+        rls_tau_sec_ = declare_parameter<double>("rls_tau_sec", 10.0);
         residual_threshold_sec_ = 1.0 / static_cast<double>(camera_config_.framerate) / 2.0;
-        sync_model_ = LinearSyncModel{rls_lambda_, residual_threshold_sec_};
+        sync_model_ = LinearSyncModel{rls_tau_sec_, residual_threshold_sec_};
 
         board_ = std::make_unique<TriggerBoard>(
             [this](TriggerBoard::Clock::time_point timestamp) { signal_callback(timestamp); });
@@ -56,9 +56,8 @@ public:
         worker_.join();
 
         camera_.reset();
-        unmatched_image_buffer_.pop_front_n([this](UnmatchedImage&& image) noexcept {
-            release_frame(std::launder(image.frame));
-        });
+        unmatched_image_buffer_.pop_front_n(
+            [this](UnmatchedImage&& image) noexcept { release_frame(std::launder(image.frame)); });
 
         board_.reset();
     }
@@ -85,8 +84,8 @@ private:
         return "UNKNOWN";
     }
 
-    static auto transport_fault_message_to_string(const unsigned int message_type) noexcept
-        -> const char* {
+    static auto transport_fault_message_to_string(const unsigned int message_type) noexcept -> const
+        char* {
         switch (message_type) {
         case MV_EXCEPTION_DEV_DISCONNECT: return "device disconnected";
         default: return "unknown transport exception";
@@ -115,9 +114,8 @@ private:
 
     void clear_pending_data() {
         unmatched_signal_buffer_.clear();
-        unmatched_image_buffer_.pop_front_n([this](UnmatchedImage&& image) noexcept {
-            release_frame(image.frame);
-        });
+        unmatched_image_buffer_.pop_front_n(
+            [this](UnmatchedImage&& image) noexcept { release_frame(image.frame); });
     }
 
     void set_transport_state(const CameraTransportState new_state, const char* reason) {
@@ -161,8 +159,8 @@ private:
             last_frame_time_.store(std::chrono::steady_clock::now(), std::memory_order::release);
             RCLCPP_INFO(
                 get_logger(), "[TRANSPORT] %s -> UP: Camera %s (attempt #%zu)",
-                transport_state_name(transport_state_),
-                is_reconnect ? "reconnected" : "connected", reconnect_attempts_);
+                transport_state_name(transport_state_), is_reconnect ? "reconnected" : "connected",
+                reconnect_attempts_);
             transport_state_ = CameraTransportState::kUp;
             reset_sync_state();
             reconnect_attempts_ = 0;
@@ -194,7 +192,8 @@ private:
         if (code != MV_OK) {
             handle_transport_fault(
                 std::format(
-                    "{} failed with Hik SDK error {} ({})", action, code, sdk_error_to_string(code)));
+                    "{} failed with Hik SDK error {} ({})", action, code,
+                    sdk_error_to_string(code)));
             return false;
         }
 
@@ -234,8 +233,7 @@ private:
             matching_start_ = std::chrono::steady_clock::now();
             matching_array_.clear();
             break;
-        case WorkerState::kConfirming:
-            break;
+        case WorkerState::kConfirming: break;
         case WorkerState::kLocked:
             last_locked_frame_id_.reset();
             locked_frame_count_ = 0;
@@ -271,8 +269,8 @@ private:
         if (!pub_frame_ptr) {
             RCLCPP_WARN_THROTTLE(
                 get_logger(), *get_clock(), 1000,
-                "Dropping frame #%u: frame pool exhausted (capacity=%zu)",
-                frame.frame_id, frame_pool_.max_size());
+                "Dropping frame #%u: frame pool exhausted (capacity=%zu)", frame.frame_id,
+                frame_pool_.max_size());
             return;
         }
 
@@ -287,8 +285,8 @@ private:
             frame_pool_.free(pub_frame_ptr);
             RCLCPP_WARN_THROTTLE(
                 get_logger(), *get_clock(), 1000,
-                "Dropping frame #%u: unmatched image buffer full (capacity=%zu)",
-                frame.frame_id, unmatched_image_buffer_.max_size());
+                "Dropping frame #%u: unmatched image buffer full (capacity=%zu)", frame.frame_id,
+                unmatched_image_buffer_.max_size());
             return;
         }
 
@@ -326,8 +324,7 @@ private:
                             .c_str());
                 } else {
                     std::ignore = transition_to(
-                        WorkerState::kConfirming,
-                        "Draining buffers before fitting...");
+                        WorkerState::kConfirming, "Draining buffers before fitting...");
                 }
             }
             if (worker_state_ == WorkerState::kResetting)
@@ -342,7 +339,8 @@ private:
 
     bool wait_event(std::chrono::milliseconds timeout) {
         const auto old = event_count_.load(std::memory_order::relaxed);
-        return rmcs_utility::atomic_wait_timeout(event_count_, old, timeout, std::memory_order::acquire);
+        return rmcs_utility::atomic_wait_timeout(
+            event_count_, old, timeout, std::memory_order::acquire);
     }
 
     bool ensure_transport_up() {
@@ -352,17 +350,19 @@ private:
         if (camera_ != nullptr) {
             if (const auto fault_message = camera_->take_transport_fault_message()) {
                 handle_transport_fault(
-                    std::format("MVS exception 0x{:08x} ({})", *fault_message,
-                                transport_fault_message_to_string(*fault_message)));
+                    std::format(
+                        "MVS exception 0x{:08x} ({})", *fault_message,
+                        transport_fault_message_to_string(*fault_message)));
             } else {
                 const auto last_frame_time = last_frame_time_.load(std::memory_order::acquire);
                 if (last_frame_time != std::chrono::steady_clock::time_point::min()) {
                     const auto frame_age = std::chrono::steady_clock::now() - last_frame_time;
                     if (frame_age > kFrameWatchdogTimeout) {
                         handle_transport_fault(
-                            std::format("Frame watchdog timeout: no frame for {} ms",
-                                        std::chrono::duration_cast<std::chrono::milliseconds>(frame_age)
-                                            .count()));
+                            std::format(
+                                "Frame watchdog timeout: no frame for {} ms",
+                                std::chrono::duration_cast<std::chrono::milliseconds>(frame_age)
+                                    .count()));
                     }
                 }
             }
@@ -392,7 +392,8 @@ private:
                 } else if (!(0.8 < ls_result->a && ls_result->a < 1.2)) {
                     std::ignore = transition_to(
                         WorkerState::kResetting,
-                        std::format("LS slope out of range: a={:.3f} (expected 0.8..1.2)", ls_result->a)
+                        std::format(
+                            "LS slope out of range: a={:.3f} (expected 0.8..1.2)", ls_result->a)
                             .c_str());
                 } else if (!(ls_result->max_abs_residual_sec < residual_threshold_sec_)) {
                     std::ignore = transition_to(
@@ -406,15 +407,16 @@ private:
                     std::ignore = transition_to(
                         WorkerState::kLocked,
                         std::format(
-                            "Locked from {} frames: a={:.3f}, b={:.3f}, var_a={:.3e}, var_b={:.3e}, max_residual={:.3f} ms",
-                            matching_array_.size(),
-                            ls_result->a, ls_result->b, ls_result->covariance(0, 0),
-                            ls_result->covariance(1, 1), ls_result->max_abs_residual_sec * 1000.0)
+                            "Locked from {} frames: a={:.3f}, b={:.3f}, var_a={:.3e}, "
+                            "var_b={:.3e}, max_residual={:.3f} ms",
+                            matching_array_.size(), ls_result->a, ls_result->b,
+                            ls_result->covariance(0, 0), ls_result->covariance(1, 1),
+                            ls_result->max_abs_residual_sec * 1000.0)
                             .c_str());
                 }
             } else {
-                std::ignore = transition_to(
-                    WorkerState::kResetting, "Buffer count mismatch after drain");
+                std::ignore =
+                    transition_to(WorkerState::kResetting, "Buffer count mismatch after drain");
             }
         }
     }
@@ -424,7 +426,8 @@ private:
         const auto old = event_count_.load(std::memory_order::relaxed);
         if (unmatched_signal_buffer_.readable() && unmatched_image_buffer_.readable())
             return true;
-        if (!rmcs_utility::atomic_wait_timeout(event_count_, old, 50ms, std::memory_order::acquire)) {
+        if (!rmcs_utility::atomic_wait_timeout(
+                event_count_, old, 50ms, std::memory_order::acquire)) {
             idle_duration_ += 50ms;
             return false;
         }
@@ -434,8 +437,8 @@ private:
 
     void process_locked_frame() {
         if (!sync_model_.initialized()) {
-            std::ignore = transition_to(
-                WorkerState::kResetting, "RLS model was unexpectedly uninitialized");
+            std::ignore =
+                transition_to(WorkerState::kResetting, "RLS model was unexpectedly uninitialized");
             return;
         }
 
@@ -449,9 +452,10 @@ private:
 
             if (next_frame_id < expected_frame_id) {
                 std::ignore = transition_to(
-                    WorkerState::kResetting,
-                    std::format("Frame ID moved backward: expected >= {}, got {}", expected_frame_id, next_frame_id)
-                        .c_str());
+                    WorkerState::kResetting, std::format(
+                                                 "Frame ID moved backward: expected >= {}, got {}",
+                                                 expected_frame_id, next_frame_id)
+                                                 .c_str());
                 return;
             }
 
@@ -461,8 +465,8 @@ private:
                     std::ignore = transition_to(
                         WorkerState::kResetting,
                         std::format(
-                            "Frame ID gap too large: expected {}, got {}, gap {} > {}", expected_frame_id,
-                            next_frame_id, frame_gap, kAllowedFrameIdGap)
+                            "Frame ID gap too large: expected {}, got {}, gap {} > {}",
+                            expected_frame_id, next_frame_id, frame_gap, kAllowedFrameIdGap)
                             .c_str());
                     return;
                 }
@@ -487,29 +491,32 @@ private:
             const auto fps = static_cast<double>(window_frames)
                            / std::chrono::duration<double>(now - last_locked_summary_time_).count();
             RCLCPP_INFO(
-                get_logger(), "[LOCKED] %zu frames total, avg %.1f FPS, a=%.3f, b=%.3f, max_residual=%.3f ms",
+                get_logger(),
+                "[LOCKED] %zu frames total, avg %.1f FPS, a=%.3f, b=%.3f, max_residual=%.3f ms",
                 locked_frame_count_, fps, sync_model_.a(), sync_model_.b(),
                 max_residual_sec_ * 1000.0);
             last_locked_summary_count_ = locked_frame_count_;
             max_residual_sec_ = 0.0;
             last_locked_summary_time_ = now;
         }
-        const auto residual =
-            sync_model_.residual_for(timestamp_pair.camera_timestamp_sec, timestamp_pair.board_timestamp_sec);
+        const auto residual = sync_model_.residual_for(
+            timestamp_pair.camera_timestamp_sec, timestamp_pair.board_timestamp_sec);
         max_residual_sec_ = std::max(max_residual_sec_, std::abs(residual));
         if (!(std::abs(residual) < residual_threshold_sec_)) {
             std::ignore = transition_to(
                 WorkerState::kResetting,
-                std::format("RLS residual too large: residual={:.3f} ms, threshold={:.3f} ms, camera_ts={:.3f} ms, signal_ts={:.3f} ms",
-                            residual * 1000.0, residual_threshold_sec_ * 1000.0,
-                            timestamp_pair.camera_timestamp_sec * 1000.0,
-                            timestamp_pair.board_timestamp_sec * 1000.0)
+                std::format(
+                    "RLS residual too large: residual={:.3f} ms, threshold={:.3f} ms, "
+                    "camera_ts={:.3f} ms, signal_ts={:.3f} ms",
+                    residual * 1000.0, residual_threshold_sec_ * 1000.0,
+                    timestamp_pair.camera_timestamp_sec * 1000.0,
+                    timestamp_pair.board_timestamp_sec * 1000.0)
                     .c_str());
             return;
         }
 
-        const auto updated_residual =
-            sync_model_.update(timestamp_pair.camera_timestamp_sec, timestamp_pair.board_timestamp_sec);
+        const auto updated_residual = sync_model_.update(
+            timestamp_pair.camera_timestamp_sec, timestamp_pair.board_timestamp_sec);
         if (!std::isfinite(updated_residual) || !sync_model_.initialized()) {
             std::ignore = transition_to(WorkerState::kResetting, "RLS update failed");
         }
@@ -605,16 +612,17 @@ private:
     std::chrono::steady_clock::duration idle_duration_{};
     std::chrono::steady_clock::time_point matching_start_{};
     std::vector<TimestampPair> matching_array_{};
-    double rls_lambda_ = 0.9995;
+    double rls_tau_sec_ = 8.0;
     double residual_threshold_sec_ = 1.0 / 249.1 / 2.0;
-    LinearSyncModel sync_model_{rls_lambda_, residual_threshold_sec_};
+    LinearSyncModel sync_model_{rls_tau_sec_, residual_threshold_sec_};
     std::optional<std::uint32_t> last_locked_frame_id_;
     std::size_t locked_frame_count_ = 0;
     std::size_t last_locked_summary_count_ = 0;
     double max_residual_sec_ = 0.0;
     std::chrono::steady_clock::time_point last_locked_summary_time_{};
     std::atomic<std::chrono::steady_clock::time_point> last_frame_time_;
-    std::chrono::steady_clock::time_point next_reconnect_time_ = std::chrono::steady_clock::time_point::min();
+    std::chrono::steady_clock::time_point next_reconnect_time_ =
+        std::chrono::steady_clock::time_point::min();
     std::size_t reconnect_attempts_ = 0;
 
     std::atomic_flag stopped_;

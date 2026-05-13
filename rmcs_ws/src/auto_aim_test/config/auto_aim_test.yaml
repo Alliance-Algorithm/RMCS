@@ -4,4 +4,4 @@ auto_aim_test:
     gain: 16.9807
     framerate: 249.1
     invert_image: false
-    rls_lambda: 0.9995
+    rls_tau_sec: 10.0
