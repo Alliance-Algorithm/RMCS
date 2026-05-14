@@ -43,12 +43,11 @@ dart_manager:
     belt_down_travel_angle: 10.0
     belt_up_velocity: 20.0
     belt_up_travel_angle: 10.0
-    belt_interference_relief_travel_angle: 18.0
+    belt_interference_relief_travel_angle: 16.0
     belt_init_velocity: 3.0
     carriage_down_velocity: 20.0
     carriage_up_velocity: 20.0
     carriage_lift_down_limit: -7500000.0
-    carriage_startup_position_angle: -13713744.0
     carriage_adjust_down_angle: 778240.0
     carriage_adjust_up_angle: 778240.0
     manual_max_velocity: 10.0
@@ -80,32 +79,37 @@ dart_manager:
     carriage_min_run_ticks: 500
     carriage_timeout_ticks: 600000
     vision_aim.allowable_error.x: 3
-    vision_aim.allowable_error.y: 0.1
+    vision_aim.allowable_error.y: 20.0
     vision_aim.timeout_ticks: 20000
+    carriage_startup_position_angle: -4400915.0
+    
     vision_aim.shot_profiles.0.reference_point.x: 690
     vision_aim.shot_profiles.0.reference_point.y: 720
     vision_aim.shot_profiles.0.offset.x: 0
     vision_aim.shot_profiles.0.offset.y: 0
     vision_aim.shot_profiles.0.pitch_angle: -37.0
-    vision_aim.shot_profiles.0.trigger_carriage_position: -14504866
-    vision_aim.shot_profiles.1.reference_point.x: 700
+    vision_aim.shot_profiles.0.trigger_carriage_position: -4400000
+
+    vision_aim.shot_profiles.1.reference_point.x: 685
     vision_aim.shot_profiles.1.reference_point.y: 720
     vision_aim.shot_profiles.1.offset.x: 0
     vision_aim.shot_profiles.1.offset.y: 0
     vision_aim.shot_profiles.1.pitch_angle: -37.0
-    vision_aim.shot_profiles.1.trigger_carriage_position: -13714866
+    vision_aim.shot_profiles.1.trigger_carriage_position: -4300000
+
     vision_aim.shot_profiles.2.reference_point.x: 705
     vision_aim.shot_profiles.2.reference_point.y: 720
     vision_aim.shot_profiles.2.offset.x: 0
     vision_aim.shot_profiles.2.offset.y: 0
     vision_aim.shot_profiles.2.pitch_angle: -37.0
-    vision_aim.shot_profiles.2.trigger_carriage_position: -14404866
-    vision_aim.shot_profiles.3.reference_point.x: 704
+    vision_aim.shot_profiles.2.trigger_carriage_position: -14555000
+
+    vision_aim.shot_profiles.3.reference_point.x: 690
     vision_aim.shot_profiles.3.reference_point.y: 190
     vision_aim.shot_profiles.3.offset.x: 0
     vision_aim.shot_profiles.3.offset.y: 0
-    vision_aim.shot_profiles.3.pitch_angle: 37.0
-    vision_aim.shot_profiles.3.trigger_carriage_position: -7300000
+    vision_aim.shot_profiles.3.pitch_angle: -37.0
+    vision_aim.shot_profiles.3.trigger_carriage_position: -14155000
 
 dart_vision_core:
   ros__parameters:
