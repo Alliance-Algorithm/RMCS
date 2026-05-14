@@ -130,7 +130,7 @@ private:
                               0.0, 1.0);
 
         // Maximum excess power when virtual buffer energy is full.
-        const double excess_power_limit = supercap_active ? 15.0 : 0.0;
+        const double excess_power_limit = supercap_active ? 15.0 : 15.0;
 
         power_limit += excess_power_limit;
         power_limit *= virtual_buffer_energy_ / virtual_buffer_energy_limit_;
@@ -155,7 +155,7 @@ private:
     InputInterface<double> rotary_knob_;
 
     InputInterface<double> chassis_power_;
-    static constexpr double virtual_buffer_energy_limit_ = 30.0;
+    static constexpr double virtual_buffer_energy_limit_ = 40.0;
     double virtual_buffer_energy_;
 
     InputInterface<double> supercap_voltage_;

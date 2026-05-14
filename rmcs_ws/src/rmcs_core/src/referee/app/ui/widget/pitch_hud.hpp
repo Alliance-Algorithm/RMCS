@@ -1,10 +1,8 @@
 #pragma once
 
 #include <algorithm>
-#include <array>
 #include <cmath>
 #include <cstdint>
-#include <numbers>
 
 #include "referee/app/ui/shape/shape.hpp"
 
@@ -13,11 +11,12 @@ namespace rmcs_core::referee::app::ui {
 class PitchHud {
 public:
     struct Config {
-        uint16_t center_x = 1540;
+        uint16_t center_x = x_center;
         uint16_t center_y = y_center;
-        uint16_t half_height_px = 180;
-        double half_span_deg = 30.0;
-        double tick_step_deg = 5.0;
+        uint16_t radius_px = 150;
+        uint16_t width_px = 12;
+        double half_span_deg = 22.0;
+        double warning_pitch_deg = 5.0;
     };
 
     PitchHud() { set_config(Config{}); }
@@ -25,183 +24,109 @@ public:
     explicit PitchHud(Config config) { set_config(config); }
 
     void set_config(Config config) {
-        config.tick_step_deg = std::max(config.tick_step_deg, 1.0);
-        config.half_span_deg = std::max(config.half_span_deg, config.tick_step_deg);
-        config.half_height_px = std::max<uint16_t>(config.half_height_px, 40);
+        config.radius_px = std::max<uint16_t>(config.radius_px, 1);
+        config.width_px = std::max<uint16_t>(config.width_px, 1);
+        config.half_span_deg = std::max(config.half_span_deg, 1.0);
+        config.warning_pitch_deg = std::max(config.warning_pitch_deg, 0.0);
         config_ = config;
         initialize_();
     }
 
-    void update(double gimbal_pitch, double chassis_pitch) {
-        if (std::isfinite(gimbal_pitch))
-            update_gimbal_pitch_indicator_(pitch_to_hud_y_(gimbal_pitch));
-        else
-            set_indicator_visible_(gimbal_pitch_indicator_, false);
+    void set_visible(bool visible) {
+        background_arc_.set_visible(visible);
+        positive_fill_arc_.set_visible(visible && positive_fill_visible_);
+        negative_fill_arc_.set_visible(visible && negative_fill_visible_);
+    }
 
-        if (std::isfinite(chassis_pitch))
-            update_chassis_pitch_indicator_(pitch_to_hud_y_(chassis_pitch));
-        else
-            set_indicator_visible_(chassis_pitch_indicator_, false);
+    void update(double pitch_rad, double reveal = 1.0) {
+        reveal = std::clamp(reveal, 0.0, 1.0);
+        if (!std::isfinite(pitch_rad) || reveal <= 1.0e-4) {
+            positive_fill_visible_ = false;
+            negative_fill_visible_ = false;
+            set_visible(false);
+            return;
+        }
+
+        apply_geometry_(reveal);
+
+        const double visible_half_span_deg = config_.half_span_deg * reveal;
+        const double pitch_deg =
+            std::clamp(rad_to_deg_(pitch_rad), -visible_half_span_deg, visible_half_span_deg);
+        const double fill_deg = std::abs(pitch_deg);
+
+        const bool warning = pitch_deg > config_.warning_pitch_deg;
+        const auto fill_color = warning ? Shape::Color::PINK : Shape::Color::YELLOW;
+        positive_fill_arc_.set_color(fill_color);
+        negative_fill_arc_.set_color(fill_color);
+
+        positive_fill_visible_ = pitch_deg >= 0.0 && fill_deg > 1.0e-4;
+        negative_fill_visible_ = pitch_deg < 0.0 && fill_deg > 1.0e-4;
+
+        positive_fill_arc_.set_angle_start(to_referee_angle_(pitch_deg));
+        positive_fill_arc_.set_angle_end(mid_angle_());
+
+        negative_fill_arc_.set_angle_start(mid_angle_());
+        negative_fill_arc_.set_angle_end(to_referee_angle_(pitch_deg));
+
+        set_visible(true);
     }
 
 private:
-    static constexpr std::size_t tick_capacity_ = 25;
-
     void initialize_() {
-        tick_count_ = std::clamp(
-            static_cast<std::size_t>(
-                std::floor(2.0 * config_.half_span_deg / config_.tick_step_deg + 1.0e-6))
-                + 1,
-            std::size_t{1}, tick_capacity_);
-
-        axis_.set_color(Shape::Color::YELLOW);
-        axis_.set_width(2);
-        axis_.set_x(config_.center_x);
-        axis_.set_y(axis_top_y_());
-        axis_.set_x2(config_.center_x);
-        axis_.set_y2(axis_bottom_y_());
-        axis_.set_visible(true);
-
-        for (std::size_t i = 0; i < ticks_.size(); ++i) {
-            auto& tick = ticks_[i];
-            if (i >= tick_count_) {
-                tick.set_visible(false);
-                continue;
-            }
-
-            const double tick_deg = -config_.half_span_deg + static_cast<double>(i) * config_.tick_step_deg;
-            const int rounded_tick_deg = static_cast<int>(std::lround(tick_deg));
-            if (rounded_tick_deg == 0) {
-                tick.set_visible(false);
-                continue;
-            }
-
-            const bool is_major = (std::abs(rounded_tick_deg) % 10 == 0);
-            const uint16_t tick_length = is_major ? 18 : 10;
-            const uint16_t tick_y = pitch_to_hud_y_(deg_to_rad_(tick_deg));
-
-            tick.set_color(Shape::Color::YELLOW);
-            tick.set_width(2);
-            tick.set_x(config_.center_x);
-            tick.set_y(tick_y);
-            tick.set_x2(config_.center_x + tick_length);
-            tick.set_y2(tick_y);
-            tick.set_visible(true);
-        }
-
-        for (auto& line : gimbal_pitch_indicator_) {
-            line.set_color(Shape::Color::YELLOW);
-            line.set_width(2);
-            line.set_visible(false);
-        }
-        for (auto& line : chassis_pitch_indicator_) {
-            line.set_color(Shape::Color::YELLOW);
-            line.set_width(2);
-            line.set_visible(false);
-        }
+        background_arc_.set_color(Shape::Color::ORANGE);
+        positive_fill_arc_.set_color(Shape::Color::YELLOW);
+        negative_fill_arc_.set_color(Shape::Color::YELLOW);
+        positive_fill_visible_ = false;
+        negative_fill_visible_ = false;
+        set_visible(false);
     }
 
-    uint16_t axis_top_y_() const {
-        return clamp_to_screen_y_(
-            static_cast<double>(config_.center_y) - static_cast<double>(config_.half_height_px));
+    void apply_geometry_(double reveal) {
+        const uint16_t width = std::max<uint16_t>(1, static_cast<uint16_t>(std::lround(
+            static_cast<double>(config_.width_px) * reveal)));
+        const double half_span_deg = config_.half_span_deg * reveal;
+
+        background_arc_.set_x(config_.center_x);
+        background_arc_.set_y(config_.center_y);
+        background_arc_.set_r(config_.radius_px);
+        background_arc_.set_width(width);
+        background_arc_.set_angle_start(to_referee_angle_(-half_span_deg));
+        background_arc_.set_angle_end(to_referee_angle_(half_span_deg));
+
+        positive_fill_arc_.set_x(config_.center_x);
+        positive_fill_arc_.set_y(config_.center_y);
+        positive_fill_arc_.set_r(config_.radius_px);
+        positive_fill_arc_.set_width(width);
+
+        negative_fill_arc_.set_x(config_.center_x);
+        negative_fill_arc_.set_y(config_.center_y);
+        negative_fill_arc_.set_r(config_.radius_px);
+        negative_fill_arc_.set_width(width);
     }
 
-    uint16_t axis_bottom_y_() const {
-        return clamp_to_screen_y_(
-            static_cast<double>(config_.center_y) + static_cast<double>(config_.half_height_px));
+    static constexpr double rad_to_deg_(double radians) {
+        return radians * 180.0 / 3.14159265358979323846;
     }
 
-    static constexpr double deg_to_rad_(double degrees) {
-        return degrees * std::numbers::pi / 180.0;
+    static uint16_t wrap_angle_(long angle) {
+        angle %= 360;
+        if (angle < 0)
+            angle += 360;
+        return static_cast<uint16_t>(angle);
     }
 
-    static uint16_t clamp_to_screen_y_(double y) {
-        return static_cast<uint16_t>(std::clamp(
-            std::lround(y), 0l, static_cast<long>(screen_height - 1)));
-    }
+    static constexpr uint16_t mid_angle_() { return 180; }
 
-    uint16_t pitch_to_hud_y_(double pitch_rad) const {
-        const double clamped_pitch =
-            std::clamp(pitch_rad, -deg_to_rad_(config_.half_span_deg),
-                deg_to_rad_(config_.half_span_deg));
-        const double normalized = clamped_pitch / deg_to_rad_(config_.half_span_deg);
-        return clamp_to_screen_y_(
-            static_cast<double>(config_.center_y)
-            + normalized * static_cast<double>(config_.half_height_px));
-    }
-
-    void update_gimbal_pitch_indicator_(uint16_t y) {
-        const uint16_t tip_x = config_.center_x - 8;
-        const uint16_t back_x = config_.center_x - 20;
-        constexpr uint16_t half_height = 8;
-        const uint16_t top_y = clamp_to_screen_y_(static_cast<double>(y) - half_height);
-        const uint16_t bottom_y = clamp_to_screen_y_(static_cast<double>(y) + half_height);
-
-        gimbal_pitch_indicator_[0].set_x(back_x);
-        gimbal_pitch_indicator_[0].set_y(top_y);
-        gimbal_pitch_indicator_[0].set_x2(tip_x);
-        gimbal_pitch_indicator_[0].set_y2(y);
-
-        gimbal_pitch_indicator_[1].set_x(back_x);
-        gimbal_pitch_indicator_[1].set_y(bottom_y);
-        gimbal_pitch_indicator_[1].set_x2(tip_x);
-        gimbal_pitch_indicator_[1].set_y2(y);
-
-        gimbal_pitch_indicator_[2].set_x(back_x);
-        gimbal_pitch_indicator_[2].set_y(top_y);
-        gimbal_pitch_indicator_[2].set_x2(back_x);
-        gimbal_pitch_indicator_[2].set_y2(bottom_y);
-
-        set_indicator_visible_(gimbal_pitch_indicator_, true);
-    }
-
-    void update_chassis_pitch_indicator_(uint16_t y) {
-        const uint16_t front_x = config_.center_x - 20;
-        const uint16_t rear_x = config_.center_x - 34;
-        constexpr uint16_t front_half_height = 12;
-        constexpr uint16_t rear_half_height = 8;
-        const uint16_t front_top_y = clamp_to_screen_y_(static_cast<double>(y) - front_half_height);
-        const uint16_t front_bottom_y =
-            clamp_to_screen_y_(static_cast<double>(y) + front_half_height);
-        const uint16_t rear_top_y = clamp_to_screen_y_(static_cast<double>(y) - rear_half_height);
-        const uint16_t rear_bottom_y =
-            clamp_to_screen_y_(static_cast<double>(y) + rear_half_height);
-
-        chassis_pitch_indicator_[0].set_x(rear_x);
-        chassis_pitch_indicator_[0].set_y(rear_top_y);
-        chassis_pitch_indicator_[0].set_x2(front_x);
-        chassis_pitch_indicator_[0].set_y2(front_top_y);
-
-        chassis_pitch_indicator_[1].set_x(front_x);
-        chassis_pitch_indicator_[1].set_y(front_top_y);
-        chassis_pitch_indicator_[1].set_x2(front_x);
-        chassis_pitch_indicator_[1].set_y2(front_bottom_y);
-
-        chassis_pitch_indicator_[2].set_x(front_x);
-        chassis_pitch_indicator_[2].set_y(front_bottom_y);
-        chassis_pitch_indicator_[2].set_x2(rear_x);
-        chassis_pitch_indicator_[2].set_y2(rear_bottom_y);
-
-        chassis_pitch_indicator_[3].set_x(rear_x);
-        chassis_pitch_indicator_[3].set_y(rear_bottom_y);
-        chassis_pitch_indicator_[3].set_x2(rear_x);
-        chassis_pitch_indicator_[3].set_y2(rear_top_y);
-
-        set_indicator_visible_(chassis_pitch_indicator_, true);
-    }
-
-    template <std::size_t N>
-    static void set_indicator_visible_(std::array<Line, N>& indicator, bool visible) {
-        for (auto& line : indicator)
-            line.set_visible(visible);
+    static uint16_t to_referee_angle_(double display_pitch_deg) {
+        return wrap_angle_(std::lround(static_cast<double>(mid_angle_()) + display_pitch_deg));
     }
 
     Config config_{};
-    std::size_t tick_count_ = 0;
-    Line axis_;
-    std::array<Line, tick_capacity_> ticks_;
-    std::array<Line, 3> gimbal_pitch_indicator_;
-    std::array<Line, 4> chassis_pitch_indicator_;
+    Arc background_arc_{Shape::Color::WHITE, 1, 0, 0, 0, 0, 1, 1, false};
+    Arc positive_fill_arc_{Shape::Color::YELLOW, 1, 0, 0, 0, 0, 1, 1, false};
+    Arc negative_fill_arc_{Shape::Color::YELLOW, 1, 0, 0, 0, 0, 1, 1, false};
+    bool positive_fill_visible_ = false;
+    bool negative_fill_visible_ = false;
 };
 
 } // namespace rmcs_core::referee::app::ui

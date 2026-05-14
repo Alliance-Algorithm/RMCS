@@ -15,7 +15,6 @@
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/chassis_mode.hpp>
 #include <rmcs_msgs/keyboard.hpp>
-#include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/switch.hpp>
 
 #include "controller/pid/pid_calculator.hpp"
@@ -126,11 +125,8 @@ public:
         roll_pid_.output_limit = roll_diff_limit_;
 
         register_input("/remote/joystick/right", joystick_right_);
-        register_input("/remote/joystick/left", joystick_left_);
         register_input("/remote/switch/right", switch_right_);
         register_input("/remote/switch/left", switch_left_);
-        register_input("/remote/mouse/velocity", mouse_velocity_);
-        register_input("/remote/mouse", mouse_);
         register_input("/remote/keyboard", keyboard_);
         register_input("/remote/rotary_knob", rotary_knob_);
         register_input("/predefined/update_rate", update_rate_);
@@ -277,11 +273,22 @@ private:
         rmcs_msgs::Switch switch_left, rmcs_msgs::Switch switch_right,
         const rmcs_msgs::Keyboard& keyboard) {
         auto mode = *mode_;
-        if (switch_left == rmcs_msgs::Switch::DOWN)
+        if (switch_left == rmcs_msgs::Switch::DOWN) {
+            deactivate_complex_spin_();
             return;
+        }
 
-        if (last_switch_right_ == rmcs_msgs::Switch::MIDDLE
+        if (!last_keyboard_.e && keyboard.e) {
+            if (complex_spin_active_) {
+                deactivate_complex_spin_();
+                if (mode == rmcs_msgs::ChassisMode::SPIN)
+                    mode = rmcs_msgs::ChassisMode::AUTO;
+            } else {
+                activate_complex_spin_(mode);
+            }
+        } else if (last_switch_right_ == rmcs_msgs::Switch::MIDDLE
             && switch_right == rmcs_msgs::Switch::DOWN) {
+            deactivate_complex_spin_();
             if (mode == rmcs_msgs::ChassisMode::SPIN) {
                 mode = rmcs_msgs::ChassisMode::STEP_DOWN;
             } else {
@@ -289,6 +296,7 @@ private:
                 spinning_forward_ = !spinning_forward_;
             }
         } else if (!last_keyboard_.c && keyboard.c) {
+            deactivate_complex_spin_();
             if (mode == rmcs_msgs::ChassisMode::SPIN) {
                 mode = rmcs_msgs::ChassisMode::AUTO;
             } else {
@@ -296,15 +304,35 @@ private:
                 spinning_forward_ = !spinning_forward_;
             }
         } else if (!last_keyboard_.x && keyboard.x) {
+            deactivate_complex_spin_();
             mode = mode == rmcs_msgs::ChassisMode::LAUNCH_RAMP
                      ? rmcs_msgs::ChassisMode::AUTO
                      : rmcs_msgs::ChassisMode::LAUNCH_RAMP;
         } else if (!last_keyboard_.z && keyboard.z) {
+            deactivate_complex_spin_();
             mode = mode == rmcs_msgs::ChassisMode::STEP_DOWN ? rmcs_msgs::ChassisMode::AUTO
                                                              : rmcs_msgs::ChassisMode::STEP_DOWN;
         }
 
+        if (complex_spin_active_)
+            mode = rmcs_msgs::ChassisMode::SPIN;
+
         *mode_ = mode;
+    }
+
+    void activate_complex_spin_(rmcs_msgs::ChassisMode& mode) {
+        complex_spin_active_ = true;
+        complex_spin_elapsed_ = 0.0;
+        apply_symmetric_target = true;
+        if (mode != rmcs_msgs::ChassisMode::SPIN) {
+            mode = rmcs_msgs::ChassisMode::SPIN;
+            spinning_forward_ = !spinning_forward_;
+        }
+    }
+
+    void deactivate_complex_spin_() {
+        complex_spin_active_ = false;
+        complex_spin_elapsed_ = 0.0;
     }
 
     std::array<double, kJointCount> read_current_joint_physical_angles_() const {
@@ -347,21 +375,6 @@ private:
         return std::abs(lf_current_target_angle_ - lb_current_target_angle_) <= epsilon
             && std::abs(lf_current_target_angle_ - rb_current_target_angle_) <= epsilon
             && std::abs(lf_current_target_angle_ - rf_current_target_angle_) <= epsilon;
-    }
-
-    bool refresh_requested_joint_targets_from_deploy_state_() {
-        requested_target_physical_angles_rad_[kLeftFront] = deg_to_rad(lf_current_target_angle_);
-        requested_target_physical_angles_rad_[kLeftBack] = deg_to_rad(lb_current_target_angle_);
-        requested_target_physical_angles_rad_[kRightBack] = deg_to_rad(rb_current_target_angle_);
-        requested_target_physical_angles_rad_[kRightFront] = deg_to_rad(rf_current_target_angle_);
-
-        const bool prone_override = prone_override_requested_by_keyboard();
-        if (suspension_requested_by_input_()) {
-            requested_target_physical_angles_rad_.fill(deg_to_rad(min_angle_));
-        }
-
-        current_target_physical_angles_rad_ = requested_target_physical_angles_rad_;
-        return prone_override;
     }
 
     void reset_attitude_correction_state_() {
@@ -435,7 +448,6 @@ private:
         joint_target_physical_angle_state_rad_ = current_physical_angles;
         joint_target_physical_velocity_state_rad_ = {0.0, 0.0, 0.0, 0.0};
         joint_target_physical_acceleration_state_rad_ = {0.0, 0.0, 0.0, 0.0};
-        requested_target_physical_angles_rad_ = current_physical_angles;
         current_target_physical_angles_rad_ = current_physical_angles;
         joint_target_active_ = true;
         return true;
@@ -508,6 +520,7 @@ private:
         rf_current_target_angle_ = current_target_angle_;
         joint_target_active_ = false;
         suspension_on_by_switch = false;
+        deactivate_complex_spin_();
 
         *scope_motor_control_torque = nan_;
 
@@ -619,6 +632,7 @@ private:
 
     void update_lift_target_toggle(rmcs_msgs::Keyboard keyboard) {
         constexpr double rotary_knob_edge_threshold = 0.7;
+        constexpr double complex_spin_toggle_period = 0.5;
 
         const bool keyboard_toggle_condition = !last_keyboard_.q && keyboard.q;
         const bool rotary_knob_toggle_condition =
@@ -626,6 +640,17 @@ private:
             && *rotary_knob_ >= rotary_knob_edge_threshold;
         const bool front_high_rear_low = !last_keyboard_.b && keyboard.b;
         const bool front_low_rear_high = !last_keyboard_.g && keyboard.g;
+        bool complex_spin_toggle_condition = false;
+
+        if (complex_spin_active_) {
+            complex_spin_elapsed_ += update_dt();
+            size_t complex_spin_toggle_count = 0;
+            while (complex_spin_elapsed_ >= complex_spin_toggle_period) {
+                complex_spin_elapsed_ -= complex_spin_toggle_period;
+                ++complex_spin_toggle_count;
+            }
+            complex_spin_toggle_condition = (complex_spin_toggle_count % 2) == 1;
+        }
 
         if (apply_symmetric_target) {
             lf_current_target_angle_ = current_target_angle_;
@@ -634,7 +659,7 @@ private:
             rf_current_target_angle_ = current_target_angle_;
         }
 
-        if (rotary_knob_toggle_condition || keyboard_toggle_condition) {
+        if (rotary_knob_toggle_condition || keyboard_toggle_condition || complex_spin_toggle_condition) {
             current_target_angle_ =
                 (std::abs(current_target_angle_ - max_angle_) < 1e-6) ? min_angle_ : max_angle_;
             apply_symmetric_target = true;
@@ -659,6 +684,7 @@ private:
     // coordinate suspension overrides, then publish the resulting joint intent for the servo layer.
     void run_joint_intent_pipeline_() {
         const auto current_physical_angles = read_current_joint_physical_angles_();
+        const bool suspension_requested = suspension_requested_by_input_();
 
         if (!joint_target_active_
             && !initialize_joint_target_states_from_feedback(current_physical_angles)) {
@@ -666,9 +692,16 @@ private:
             return;
         }
 
+        current_target_physical_angles_rad_[kLeftFront] = deg_to_rad(lf_current_target_angle_);
+        current_target_physical_angles_rad_[kLeftBack] = deg_to_rad(lb_current_target_angle_);
+        current_target_physical_angles_rad_[kRightBack] = deg_to_rad(rb_current_target_angle_);
+        current_target_physical_angles_rad_[kRightFront] = deg_to_rad(rf_current_target_angle_);
+        if (suspension_requested) {
+            current_target_physical_angles_rad_.fill(deg_to_rad(min_angle_));
+        }
+
         update_chassis_imu_calibration_();
-        const bool prone_override = refresh_requested_joint_targets_from_deploy_state_();
-        scope_motor_control(prone_override);
+        scope_motor_control(suspension_requested);
         update_active_suspension_();
 
         update_joint_target_trajectory();
@@ -677,18 +710,12 @@ private:
 
     static double deg_to_rad(double deg) { return deg * std::numbers::pi / 180.0; }
 
-    void scope_motor_control(bool prone_override = false) {
-        const bool prone_target_active = prone_override;
+    void scope_motor_control(bool suspension_requested = false) {
+        const bool prone_target_active = suspension_requested;
         if (prone_target_active && *mode_ != rmcs_msgs::ChassisMode::SPIN) {
             *scope_motor_control_torque = -0.3;
-            // if (*scope_motor_velocity <= std::abs(0.1)){
-            //     *scope_motor_control_torque = 0.18 * 1.0 / 36.0;
-            // }
         } else {
             *scope_motor_control_torque = 0.3;
-            // if (*scope_motor_velocity <= std::abs(0.1)){
-            //     *scope_motor_control_torque = -0.18 * 1.0 / 36.0;
-            // }
         }
     }
 
@@ -816,11 +843,8 @@ private:
 
 private:
     InputInterface<Eigen::Vector2d> joystick_right_;
-    InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;
     InputInterface<rmcs_msgs::Switch> switch_left_;
-    InputInterface<Eigen::Vector2d> mouse_velocity_;
-    InputInterface<rmcs_msgs::Mouse> mouse_;
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
     InputInterface<double> rotary_knob_;
     InputInterface<double> update_rate_;
@@ -838,6 +862,8 @@ private:
 
     bool spinning_forward_ = true;
     bool apply_symmetric_target = true;
+    bool complex_spin_active_ = false;
+    double complex_spin_elapsed_ = 0.0;
     pid::PidCalculator following_velocity_controller_;
     const double spin_ratio_;
 
@@ -877,7 +903,6 @@ private:
     double lf_current_target_angle_, lb_current_target_angle_, rb_current_target_angle_,
         rf_current_target_angle_;
 
-    std::array<double, kJointCount> requested_target_physical_angles_rad_ = {0.0, 0.0, 0.0, 0.0};
     std::array<double, kJointCount> current_target_physical_angles_rad_   = {0.0, 0.0, 0.0, 0.0};
 
     bool joint_target_active_ = false;
