@@ -1,5 +1,6 @@
 #include <atomic>
 #include <chrono>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -166,6 +167,9 @@ private:
             get_logger(), "[gimbal calibration] New pitch offset: %ld",
             top_board_->gimbal_pitch_motor_.calibrate_zero_point());
         RCLCPP_INFO(
+            get_logger(), "[gimbal calibration] New player viewer offset: %ld",
+            top_board_->gimbal_player_viewer_motor_.calibrate_zero_point());
+        RCLCPP_INFO(
             get_logger(), "[gimbal calibration] New top yaw offset: %ld",
             top_board_->gimbal_top_yaw_motor_.calibrate_zero_point());
         RCLCPP_INFO(
@@ -214,7 +218,10 @@ private:
                   {steering_hero, steering_hero_command, "/gimbal/second_right_friction"},
                   {steering_hero, steering_hero_command, "/gimbal/second_left_friction"})
             , gimbal_bullet_feeder_(steering_hero, steering_hero_command, "/gimbal/bullet_feeder")
-            , putter_motor_(steering_hero, steering_hero_command, "/gimbal/putter") {
+            , putter_motor_(steering_hero, steering_hero_command, "/gimbal/putter")
+            , gimbal_scope_motor_(steering_hero, steering_hero_command, "/gimbal/scope")
+            , gimbal_player_viewer_motor_(
+                  steering_hero, steering_hero_command, "/gimbal/player_viewer") {
 
             gimbal_top_yaw_motor_.configure(
                 device::LkMotor::Config{device::LkMotor::Type::kMG5010Ei10}.set_encoder_zero_point(
@@ -248,6 +255,14 @@ private:
             putter_motor_.configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
                     .set_reduction_ratio(1.)
+                    .enable_multi_turn_angle());
+            gimbal_scope_motor_.configure(device::DjiMotor::Config{device::DjiMotor::Type::kM2006});
+            gimbal_player_viewer_motor_.configure(
+                device::LkMotor::Config{device::LkMotor::Type::kMG4005Ei10}
+                    .set_encoder_zero_point(
+                        static_cast<int>(
+                            steering_hero.get_parameter("viewer_motor_zero_point").as_int()))
+                    .set_reversed()
                     .enable_multi_turn_angle());
 
             steering_hero.register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
@@ -294,12 +309,20 @@ private:
 
             gimbal_top_yaw_motor_.update_status();
             gimbal_pitch_motor_.update_status();
+            tf_->set_state<rmcs_description::YawLink, rmcs_description::PitchLink>(
+                gimbal_pitch_motor_.angle());
 
             for (auto& motor : gimbal_friction_wheels_)
                 motor.update_status();
 
             gimbal_bullet_feeder_.update_status();
             putter_motor_.update_status();
+
+            gimbal_player_viewer_motor_.update_status();
+            tf_->set_state<rmcs_description::PitchLink, rmcs_description::ViewerLink>(
+                gimbal_player_viewer_motor_.angle());
+
+            gimbal_scope_motor_.update_status();
 
             if (last_camera_capturer_trigger_timestamp_ != *camera_capturer_trigger_timestamp_)
                 *camera_capturer_trigger_ = true;
@@ -312,14 +335,22 @@ private:
         void command_update() {
             auto builder = start_transmit();
 
-            builder.can0_transmit({
-                .can_id = 0x142,
-                .can_data = gimbal_pitch_motor_.generate_torque_command().as_bytes(),
-            });
+            if (std::isfinite(gimbal_pitch_motor_.control_angle()))
+                builder.can0_transmit({
+                    .can_id = 0x142,
+                    .can_data = gimbal_pitch_motor_
+                                    .generate_angle_command(gimbal_pitch_motor_.control_angle())
+                                    .as_bytes(),
+                });
+            else
+                builder.can0_transmit({
+                    .can_id = 0x142,
+                    .can_data = gimbal_pitch_motor_.generate_torque_command().as_bytes(),
+                }); // 用于区分pitch中
 
             builder.can0_transmit({
                 .can_id = 0x141,
-                .can_data = gimbal_top_yaw_motor_.generate_torque_command().as_bytes(),
+                .can_data = gimbal_top_yaw_motor_.generate_command().as_bytes(),
             });
 
             builder.can1_transmit({
@@ -339,7 +370,7 @@ private:
                 .can_data =
                     device::CanPacket8{
                         putter_motor_.generate_command(),
-                        device::CanPacket8::PaddingQuarter{},
+                        gimbal_scope_motor_.generate_command(),
                         device::CanPacket8::PaddingQuarter{},
                         device::CanPacket8::PaddingQuarter{},
                     }
@@ -349,6 +380,14 @@ private:
             builder.can2_transmit({
                 .can_id = 0x142,
                 .can_data = gimbal_bullet_feeder_.generate_torque_command().as_bytes(),
+            });
+
+            builder.can2_transmit({
+                .can_id = 0x143,
+                .can_data =
+                    gimbal_player_viewer_motor_
+                        .generate_velocity_command(gimbal_player_viewer_motor_.control_velocity())
+                        .as_bytes(),
             });
 
             builder.gpio_digital_read(
@@ -394,6 +433,8 @@ private:
                 gimbal_friction_wheels_[3].store_status(data.can_data);
             } else if (can_id == 0x205) {
                 putter_motor_.store_status(data.can_data);
+            } else if (can_id == 0x206) {
+                gimbal_scope_motor_.store_status(data.can_data);
             }
         }
 
@@ -404,6 +445,8 @@ private:
             // RCLCPP_INFO(logger_, "can2_id:%x", can_id);
             if (can_id == 0x142) {
                 gimbal_bullet_feeder_.store_status(data.can_data);
+            } else if (can_id == 0x143) {
+                gimbal_player_viewer_motor_.store_status(data.can_data);
             }
         }
 
@@ -437,6 +480,8 @@ private:
         device::DjiMotor gimbal_friction_wheels_[4];
         device::LkMotor gimbal_bullet_feeder_;
         device::DjiMotor putter_motor_;
+        device::DjiMotor gimbal_scope_motor_;
+        device::LkMotor gimbal_player_viewer_motor_;
 
         OutputInterface<double> gimbal_yaw_velocity_imu_;
         OutputInterface<double> gimbal_pitch_velocity_imu_;
@@ -523,13 +568,12 @@ private:
                 device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
                     .set_reversed()
                     .set_reduction_ratio(2232. / 169.));
-
             chassis_front_climber_motor_[0].configure(
-                device::DjiMotor::Config{device::DjiMotor::Type::kM3508}.set_reduction_ratio(19.));
-            chassis_front_climber_motor_[1].configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
                     .set_reversed()
                     .set_reduction_ratio(19.));
+            chassis_front_climber_motor_[1].configure(
+                device::DjiMotor::Config{device::DjiMotor::Type::kM3508}.set_reduction_ratio(19.));
             chassis_back_climber_motor_[0].configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
                     .enable_multi_turn_angle()
@@ -586,6 +630,7 @@ private:
 
             *chassis_yaw_velocity_imu_ = imu_.gz();
             *chassis_pitch_imu_ = -std::asin(2.0 * (imu_.q0() * imu_.q2() - imu_.q3() * imu_.q1()));
+            // RCLCPP_INFO(logger_, "pitch:%f", *chassis_pitch_imu_);
 
             chassis_front_climber_motor_[0].update_status();
             chassis_front_climber_motor_[1].update_status();
@@ -695,6 +740,9 @@ private:
                 chassis_steering_motors_[1].store_status(data.can_data);
             } else if (can_id == 0x208) {
                 chassis_steering_motors_[0].store_status(data.can_data);
+            } else if (can_id == 0x300) {
+                // RCLCPP_INFO(logger_, "supercap ok");
+                supercap_.store_status(data.can_data);
             }
         }
 
@@ -711,22 +759,6 @@ private:
                 chassis_steering_motors_[2].store_status(data.can_data);
             } else if (can_id == 0x206) {
                 chassis_steering_motors_[3].store_status(data.can_data);
-            } else if (can_id == 0x300) {
-                supercap_.store_status(data.can_data);
-            }
-        }
-
-        void can3_receive_callback(const librmcs::data::CanDataView& data) override {
-            if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
-                return;
-            auto can_id = data.can_id;
-            // can2_receive_rate_counter_.record(can_id);
-            if (can_id == 0x202) {
-                chassis_back_climber_motor_[0].store_status(data.can_data);
-            } else if (can_id == 0x204) {
-                chassis_back_climber_motor_[1].store_status(data.can_data);
-            } else if (can_id == 0x141) {
-                gimbal_bottom_yaw_motor_.store_status(data.can_data);
             }
         }
 
@@ -739,6 +771,20 @@ private:
                 chassis_front_climber_motor_[0].store_status(data.can_data);
             } else if (can_id == 0x203) {
                 chassis_front_climber_motor_[1].store_status(data.can_data);
+            }
+        }
+
+        void can3_receive_callback(const librmcs::data::CanDataView& data) override {
+            if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
+                return;
+            auto can_id = data.can_id;
+            // can2_receive_rate_counter_.record(can_id);
+            if (can_id == 0x202) {
+                chassis_back_climber_motor_[1].store_status(data.can_data);
+            } else if (can_id == 0x204) {
+                chassis_back_climber_motor_[0].store_status(data.can_data);
+            } else if (can_id == 0x141) {
+                gimbal_bottom_yaw_motor_.store_status(data.can_data);
             }
         }
 

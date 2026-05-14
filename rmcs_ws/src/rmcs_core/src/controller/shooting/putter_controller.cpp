@@ -31,6 +31,15 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
+        auto set_pid_parameter = [this](pid::PidCalculator& pid, const std::string& name) {
+            pid.kp = get_parameter(name + "_kp").as_double();
+            pid.ki = get_parameter(name + "_ki").as_double();
+            pid.kd = get_parameter(name + "_kd").as_double();
+            get_parameter(name + "_integral_min", pid.integral_min);
+            get_parameter(name + "_integral_max", pid.integral_max);
+            get_parameter(name + "_output_min", pid.output_min);
+            get_parameter(name + "_output_max", pid.output_max);
+        };
 
         register_input("/remote/switch/right", switch_right_);
         register_input("/remote/switch/left", switch_left_);
@@ -53,21 +62,9 @@ public:
         register_input("/gimbal/putter/angle", putter_angle_);
         register_input("/gimbal/putter/velocity", putter_velocity_);
 
-        bullet_feeder_velocity_pid_.kp = 5.5;
-        bullet_feeder_velocity_pid_.ki = 1.1;
-        bullet_feeder_velocity_pid_.kd = 0.0;
-        bullet_feeder_velocity_pid_.integral_max = 60.0;
-        bullet_feeder_velocity_pid_.integral_min = 0.0;
-
-        bullet_feeder_angle_pid_.kp = 4.2;
-        bullet_feeder_angle_pid_.ki = 0.0;
-        bullet_feeder_angle_pid_.kd = 1.0;
-
-        putter_return_velocity_pid_.kp = 0.0015;
-        putter_return_velocity_pid_.ki = 0.00005;
-        putter_return_velocity_pid_.kd = 0.;
-        putter_return_velocity_pid_.integral_max = 0.;
-        putter_return_velocity_pid_.integral_min = -0.03;
+        set_pid_parameter(bullet_feeder_velocity_pid_, "bullet_feeder_velocity");
+        set_pid_parameter(bullet_feeder_angle_pid_, "bullet_feeder_angle");
+        set_pid_parameter(putter_return_velocity_pid_, "putter_return_velocity");
 
         putter_velocity_pid_.kp = 0.004;
         putter_velocity_pid_.ki = 0.0001;
@@ -189,7 +186,7 @@ public:
 
                     if (shoot_stage_ == ShootStage::COMPRESSED) {
                         // 暂存模式：等待灰度传感器状态更新以判断是否完成推弹
-                        if (*grayscale_sensor_status_) {
+                        if (*grayscale_sensor_status_ && *photoelectric_sensor_status_) {
                             set_preloaded();
                         } else {
                             set_preloading();
@@ -209,7 +206,7 @@ public:
                         }
 
                         const auto angle_err = bullet_feeder_control_angle_ - *bullet_feeder_angle_;
-                        if (angle_err < 0.1) {
+                        if (abs(angle_err) < 0.1) {
                             set_compressed();
                         }
                         double velocity_err =
@@ -229,7 +226,7 @@ public:
                     } else if (shoot_stage_ == ShootStage::RESETTING) {
 
                         const auto angle_err = bullet_feeder_control_angle_ - *bullet_feeder_angle_;
-                        if (angle_err < 0.1) {
+                        if (abs(angle_err) < 0.15) {
                             RCLCPP_INFO(get_logger(), "RESETED");
                             set_compressed();
                         }
@@ -324,6 +321,7 @@ private:
         bullet_feeder_cool_down_ = 0;
 
         *shoot_delay_ms_ = nan_;
+        shoot_first = true;
     }
 
     void set_resetting() {
@@ -367,7 +365,8 @@ private:
     }
 
     void update_jam_detection() {
-        if (*bullet_feeder_control_torque_ < 33.0 || std::isnan(*bullet_feeder_control_torque_)) {
+        // RCLCPP_INFO(get_logger(), "%.2f --", *bullet_feeder_control_torque_);
+        if (*bullet_feeder_control_torque_ < 60.0 || std::isnan(*bullet_feeder_control_torque_)) {
             bullet_feeder_faulty_count_ = 0;
             return;
         }
