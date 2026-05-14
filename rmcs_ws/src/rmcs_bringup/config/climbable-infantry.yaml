@@ -53,10 +53,11 @@ Infantry_hardware:
 value_broadcaster:
   ros__parameters:
     forward_list:
-    - /gimbal/yaw/velocity
-    - /gimbal/yaw/control_velocity
-    - /chassis/control_angle
-    - /chassis/control_velocity
+    # - /gimbal/yaw/velocity
+    # - /gimbal/yaw/control_velocity
+    # - /chassis/control_angle
+    # - /chassis/control_velocity
+    - /gimbal/left_friction/velocity
     # - /gimbal/yaw/control_torque
       # - /gimbal/left_friction/velocity
       # - /gimbal/right_friction/velocity
@@ -175,17 +176,17 @@ friction_wheel_controller:
 heat_controller:
   ros__parameters:
     heat_per_shot: 10000
-    reserved_heat: 5000
+    reserved_heat: 0
 
 bullet_feeder_controller:
   ros__parameters:
     bullets_per_feeder_turn: 9.0
-    shot_frequency: 60.0
+    shot_frequency: 28.0
     safe_shot_frequency: 10.0
-    eject_frequency: 10.0
-    eject_time: 0.05
-    deep_eject_frequency: 5.0
-    deep_eject_time: 0.2
+    eject_frequency: 15.0
+    eject_time: 0.15
+    deep_eject_frequency: 15.0
+    deep_eject_time: 0.20
     single_shot_max_stop_delay: 2.0
 
 shooting_recorder:

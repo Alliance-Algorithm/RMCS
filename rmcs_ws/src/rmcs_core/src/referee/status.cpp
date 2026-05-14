@@ -165,6 +165,10 @@ private:
 
         const auto now = std::chrono::high_resolution_clock::now();
         *robot_shoot_timestamp_ = std::chrono::duration<double>(now.time_since_epoch()).count();
+
+        referee_shot_count_++;
+        RCLCPP_INFO(
+            logger_, "[ref-shot] count=%zu speed=%.2f", referee_shot_count_, data.initial_speed);
     }
 
     void update_bullet_allowance() {
@@ -208,6 +212,7 @@ private:
 
     OutputInterface<float> robot_initial_speed_;
     OutputInterface<double> robot_shoot_timestamp_;
+    size_t referee_shot_count_ = 0;
 };
 
 } // namespace rmcs_core::referee

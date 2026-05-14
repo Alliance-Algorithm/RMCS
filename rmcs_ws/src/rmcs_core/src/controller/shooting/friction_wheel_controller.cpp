@@ -169,12 +169,18 @@ private:
         // monitor the speed drop of this wheel to detect whether a bullet has been fired.
         if (!std::isnan(last_primary_friction_velocity_)) {
             double differential = *friction_velocities_[0] - last_primary_friction_velocity_;
-            if (differential < 0.1)
+            if (differential < 0.025)
                 primary_friction_velocity_decrease_integral_ += differential;
             else {
-                if (primary_friction_velocity_decrease_integral_ < -14.0
-                    && last_primary_friction_velocity_ < friction_working_velocities_[0] - 20.0)
+                if (primary_friction_velocity_decrease_integral_ < -14.0 //14
+                    && last_primary_friction_velocity_ < friction_working_velocities_[0] - 18.0) { //20
                     fired = true;
+                    detected_shot_count_++;
+                    RCLCPP_INFO(
+                        logger_, "[shot-detect] count=%zu v=%.2f integral=%.2f bigger=%.2f",
+                        detected_shot_count_, last_primary_friction_velocity_,
+                        primary_friction_velocity_decrease_integral_,friction_working_velocities_[0]-last_primary_friction_velocity_);
+                }
 
                 primary_friction_velocity_decrease_integral_ = 0;
             }
@@ -215,6 +221,7 @@ private:
 
     double last_primary_friction_velocity_ = nan_;
     double primary_friction_velocity_decrease_integral_ = 0;
+    size_t detected_shot_count_ = 0;
     OutputInterface<bool> bullet_fired_;
 };
 
