@@ -50,9 +50,9 @@ hero_hardware:
   ros__parameters:
     board_serial_top_board: "AF-BFF7-0B6F-46A5-2B4B-AA20-89C2-E180-64B9"
     serial_bottom_rmcs_board: "AF-60BB-7484-FA24-F3FC-399B-454D-22FA-1B1D"
-    bottom_yaw_motor_zero_point: 34180
+    bottom_yaw_motor_zero_point: 35111
     pitch_motor_zero_point: 57723
-    top_yaw_motor_zero_point: 48542
+    top_yaw_motor_zero_point: 48734
     viewer_motor_zero_point: 9363
     external_imu_port: /dev/ttyUSB0
     bullet_feeder_motor_zero_point: 39045
@@ -96,16 +96,16 @@ value_broadcaster:
 
 climber_controller:
   ros__parameters:
-    front_climber_velocity: 15.0
-    back_climber_velocity: 10.0
-    auto_climb_support_retract_velocity: 5.0
+    front_climber_velocity: 12.0
+    back_climber_velocity: 25.0
+    auto_climb_support_retract_velocity: 30.0
     auto_climb_approach_chassis_velocity: 2.5
-    auto_climb_support_deploy_chassis_velocity: 0.5
-    auto_climb_dash_chassis_velocity: 5.0
+    auto_climb_support_deploy_chassis_velocity: 0.3
+    auto_climb_dash_chassis_velocity: 10.0
     auto_climb_leveled_pitch_threshold: 0.05
     sync_coefficient: 0.2
-    first_stair_approach_pitch: 0.519
-    second_stair_approach_pitch: 1.0    
+    first_stair_approach_pitch: 0.517
+    second_stair_approach_pitch: 0.363    
     front_kp: 1.0
     front_ki: 0.0
     front_kd: 0.5
@@ -118,8 +118,8 @@ climber_controller:
 
 chassis_power_controller:
   ros__parameters:
-    front_climber_power_limit_max: 40.0
-    drive_power_limit_floor: 20.0
+    front_climber_power_limit_max: 30.0
+    drive_power_limit_floor: 40.0
 
 gimbal_controller:
   ros__parameters:

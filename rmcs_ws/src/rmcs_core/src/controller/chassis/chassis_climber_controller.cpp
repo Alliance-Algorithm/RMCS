@@ -112,6 +112,7 @@ public:
         auto switch_left = *switch_left_;
         auto keyboard = *keyboard_;
         auto rotary_knob_switch = *rotary_knob_switch_;
+        // RCLCPP_INFO(logger_, "pitch:%lf", *chassis_pitch_imu_);
 
         bool rotary_knob_to_down =
             (last_rotary_knob_switch_ != Switch::DOWN && rotary_knob_switch == Switch::DOWN);
@@ -131,7 +132,6 @@ public:
                 apply_climb_control(update_auto_climb_control());
             } else {
                 apply_climb_control(update_manual_support_control(keyboard));
-                apply_manual_support_zero_output();
             }
         }
 
@@ -256,6 +256,7 @@ private:
 
     void start_auto_climb(const char* source) {
         stop_manual_support();
+        back_climber_zero_velocity_hold_ = false;
         auto_climb_stair_index_ = 0;
         auto_climb_align_stable_count_ = 0;
         auto_climb_support_block_count_ = 0;
@@ -265,7 +266,8 @@ private:
     }
 
     void abort_auto_climb(const char* reason) {
-        reset_all_controls();
+        stop_auto_climb();
+        start_back_climber_retract("Auto climb exit");
         RCLCPP_INFO(logger_, "Auto climb aborted (%s).", reason);
     }
 
@@ -292,19 +294,20 @@ private:
 
         if (keyboard.b || *rotary_knob_switch_ == rmcs_msgs::Switch::UP) {
             stop_manual_support();
+            back_climber_zero_velocity_hold_ = false;
             control.back_climber_velocity = climber_back_control_velocity_abs_;
             return control;
         }
 
         if (last_keyboard_.b) {
-            manual_support_retracting_ = true;
-            manual_support_retract_block_count_ = 0;
-            manual_support_zero_output_ = false;
-            RCLCPP_INFO(logger_, "Manual support retract started.");
+            start_back_climber_retract("Manual support");
         }
 
-        if (!manual_support_retracting_)
+        if (!manual_support_retracting_) {
+            if (back_climber_zero_velocity_hold_)
+                control.back_climber_velocity = 0.0;
             return control;
+        }
 
         control.back_climber_velocity = -auto_climb_support_retract_velocity_abs_;
 
@@ -319,9 +322,9 @@ private:
 
         if (manual_support_retract_block_count_ >= kManualSupportRetractConfirmTicks) {
             stop_manual_support();
-            manual_support_zero_output_ = true;
+            back_climber_zero_velocity_hold_ = true;
+            control.back_climber_velocity = 0.0;
             RCLCPP_INFO(logger_, "Manual support retract completed.");
-            return {};
         }
 
         return control;
@@ -330,7 +333,7 @@ private:
     AutoClimbControl update_auto_climb_align() {
         AutoClimbControl control{
             .front_track_velocity = 0.0,
-            .back_climber_velocity = 0.0,
+            .back_climber_velocity = -10.0,
             .override_chassis_vx = 0.0,
         };
 
@@ -368,7 +371,7 @@ private:
     AutoClimbControl update_auto_climb_approach() {
         AutoClimbControl control{
             .front_track_velocity = track_velocity_max_,
-            .back_climber_velocity = 0.0,
+            .back_climber_velocity = -10.0,
             .override_chassis_vx = auto_climb_approach_chassis_velocity_,
         };
 
@@ -470,6 +473,10 @@ private:
             } else {
                 int finished_steps = auto_climb_stair_index_ + 1;
                 stop_auto_climb();
+                start_back_climber_retract("Auto climb complete");
+                control.front_track_velocity = nan_;
+                control.back_climber_velocity = -auto_climb_support_retract_velocity_abs_;
+                control.override_chassis_vx = nan_;
                 RCLCPP_INFO(logger_, "Auto climb completed (finished %d steps).", finished_steps);
             }
         }
@@ -495,8 +502,8 @@ private:
         *front_power_demand_estimate_ = estimate_front_power(
             *climber_front_left_requested_control_torque_,
             *climber_front_right_requested_control_torque_, *climber_front_left_velocity_,
-            *climber_front_right_velocity_, front_power_estimate_bias_, front_power_estimate_k_tau2_,
-            front_power_estimate_k_mech_);
+            *climber_front_right_velocity_, front_power_estimate_bias_,
+            front_power_estimate_k_tau2_, front_power_estimate_k_mech_);
     }
 
     void reset_all_controls() {
@@ -509,20 +516,19 @@ private:
         *front_power_demand_estimate_ = 0.0;
         stop_manual_support();
         stop_auto_climb();
-    }
-
-    void apply_manual_support_zero_output() {
-        if (!manual_support_zero_output_)
-            return;
-
-        *climber_back_left_control_torque_ = 0.0;
-        *climber_back_right_control_torque_ = 0.0;
+        back_climber_zero_velocity_hold_ = false;
     }
 
     void stop_manual_support() {
         manual_support_retracting_ = false;
         manual_support_retract_block_count_ = 0;
-        manual_support_zero_output_ = false;
+    }
+
+    void start_back_climber_retract(const char* source) {
+        manual_support_retracting_ = true;
+        manual_support_retract_block_count_ = 0;
+        back_climber_zero_velocity_hold_ = false;
+        RCLCPP_INFO(logger_, "%s back climber retract started.", source);
     }
 
     void stop_auto_climb() {
@@ -612,7 +618,7 @@ private:
     int auto_climb_support_block_count_ = 0;
     bool manual_support_retracting_ = false;
     int manual_support_retract_block_count_ = 0;
-    bool manual_support_zero_output_ = false;
+    bool back_climber_zero_velocity_hold_ = false;
 
     OutputInterface<double> climber_front_left_requested_control_torque_;
     OutputInterface<double> climber_front_right_requested_control_torque_;
