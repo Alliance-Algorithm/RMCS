@@ -314,6 +314,17 @@ private:
                     .can_id = 0x142,
                     .can_data = gimbal_yaw_motor_.generate_torque_command().as_bytes(),
                 });
+                builder.can1_transmit({
+                    .can_id = 0x1FE,
+                    .can_data =
+                        device::CanPacket8{
+                            device::CanPacket8::PaddingQuarter{},
+                            device::CanPacket8::PaddingQuarter{},
+                            device::CanPacket8::PaddingQuarter{},
+                            supercap_.generate_command(),
+                        }
+                            .as_bytes(),
+                });
             } else {
                 builder.can0_transmit({
                     .can_id = 0x141,

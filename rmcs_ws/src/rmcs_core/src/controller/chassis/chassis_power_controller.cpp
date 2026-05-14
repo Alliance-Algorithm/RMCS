@@ -155,7 +155,7 @@ private:
     InputInterface<double> rotary_knob_;
 
     InputInterface<double> chassis_power_;
-    static constexpr double virtual_buffer_energy_limit_ = 40.0;
+    static constexpr double virtual_buffer_energy_limit_ = 30.0;
     double virtual_buffer_energy_;
 
     InputInterface<double> supercap_voltage_;
