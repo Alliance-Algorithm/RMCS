@@ -32,7 +32,7 @@ rmcs_executor:
 
       - rmcs::AutoAimComponent -> auto_aim_component
 
-      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 
 Infantry_hardware:
   ros__parameters:
@@ -55,6 +55,8 @@ value_broadcaster:
     forward_list:
     - /gimbal/yaw/velocity
     - /gimbal/yaw/control_velocity
+    - /chassis/control_angle
+    - /chassis/control_velocity
     # - /gimbal/yaw/control_torque
       # - /gimbal/left_friction/velocity
       # - /gimbal/right_friction/velocity
@@ -64,7 +66,6 @@ value_broadcaster:
         # - /gimbal/yaw/angle
         # - /chassis/climber/right_back_motor/control_torque
         # - /chassis/climber/left_back_motor/control_torque
-        # - /gimbal/putter/velocity
         # - /gimbal/first_left_friction/velocity
         # - /gimbal/first_second_friction/velocity
         # - /gimbal/second_left_friction/velocity
