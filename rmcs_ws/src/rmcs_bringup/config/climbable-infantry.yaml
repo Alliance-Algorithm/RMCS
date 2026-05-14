@@ -58,6 +58,7 @@ value_broadcaster:
     # - /chassis/control_angle
     # - /chassis/control_velocity
     - /gimbal/left_friction/velocity
+    - /gimbal/right_friction/velocity
     # - /gimbal/yaw/control_torque
       # - /gimbal/left_friction/velocity
       # - /gimbal/right_friction/velocity

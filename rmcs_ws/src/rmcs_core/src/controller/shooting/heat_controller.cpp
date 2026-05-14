@@ -32,7 +32,7 @@ public:
         shooter_heat_ = std::max<int64_t>(0, shooter_heat_ - *shooter_cooling_);
 
         if (*bullet_fired_) {
-            shooter_heat_ += heat_per_shot;
+            shooter_heat_ += heat_per_shot + *shooter_cooling_;
         }
 
         *control_bullet_allowance_ = std::max<int64_t>(
