@@ -73,7 +73,6 @@ public:
     void command_update() {
         top_board_->command_update();
         bottom_board_->command_update();
-
     }
 
 private:
@@ -183,11 +182,11 @@ private:
                 .can_id = 0x200,
                 .can_data =
                     device::CanPacket8{
-                                       gimbal_right_friction_.generate_command(),
-                                       gimbal_left_friction_.generate_command(),
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       }
+                        gimbal_right_friction_.generate_command(),
+                        gimbal_left_friction_.generate_command(),
+                        device::CanPacket8::PaddingQuarter{},
+                        device::CanPacket8::PaddingQuarter{},
+                    }
                         .as_bytes(),
             });
 
@@ -206,14 +205,14 @@ private:
                 gimbal_right_friction_.store_status(data.can_data);
             } else if (can_id == 0x202) {
                 gimbal_left_friction_.store_status(data.can_data);
-            } 
+            }
         }
 
         void can2_receive_callback(const librmcs::data::CanDataView& data) override {
             if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
                 return;
-                auto can_id = data.can_id;
-             if (can_id == 0x143) {
+            auto can_id = data.can_id;
+            if (can_id == 0x143) {
                 gimbal_pitch_motor_.store_status(data.can_data);
             }
         }
@@ -331,11 +330,11 @@ private:
                     .set_reduction_ratio(2232. / 169.));
 
             chassis_front_climber_motor_[0].configure(
+                device::DjiMotor::Config{device::DjiMotor::Type::kM3508}.set_reduction_ratio(19.));
+            chassis_front_climber_motor_[1].configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
                     .set_reversed()
                     .set_reduction_ratio(19.));
-            chassis_front_climber_motor_[1].configure(
-                device::DjiMotor::Config{device::DjiMotor::Type::kM3508}.set_reduction_ratio(19.));
             chassis_back_climber_motor_[0].configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
                     .enable_multi_turn_angle()
@@ -352,9 +351,8 @@ private:
                     [&buffer](std::byte byte) noexcept { *buffer++ = byte; }, size);
             };
             referee_serial_->write = [this](const std::byte* buffer, size_t size) {
-                start_transmit().uart0_transmit({
-                    .uart_data = std::span<const std::byte>{buffer, size}
-                });
+                start_transmit().uart0_transmit(
+                    {.uart_data = std::span<const std::byte>{buffer, size}});
                 return size;
             };
 
@@ -406,11 +404,11 @@ private:
                 .can_id = 0x200,
                 .can_data =
                     device::CanPacket8{
-                                       chassis_back_wheel_motors_[0].generate_command(),
-                                       chassis_back_wheel_motors_[1].generate_command(),
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       }
+                        chassis_back_wheel_motors_[0].generate_command(),
+                        chassis_back_wheel_motors_[1].generate_command(),
+                        device::CanPacket8::PaddingQuarter{},
+                        device::CanPacket8::PaddingQuarter{},
+                    }
                         .as_bytes(),
             });
 
@@ -418,11 +416,11 @@ private:
                 .can_id = 0x1FE,
                 .can_data =
                     device::CanPacket8{
-                                       chassis_back_steering_motors_[0].generate_command(),
-                                       chassis_back_steering_motors_[1].generate_command(),
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       }
+                        chassis_back_steering_motors_[0].generate_command(),
+                        chassis_back_steering_motors_[1].generate_command(),
+                        device::CanPacket8::PaddingQuarter{},
+                        device::CanPacket8::PaddingQuarter{},
+                    }
                         .as_bytes(),
             });
 
@@ -430,11 +428,11 @@ private:
                 .can_id = 0x200,
                 .can_data =
                     device::CanPacket8{
-                                       chassis_front_wheel_motors_[0].generate_command(),
-                                       chassis_front_wheel_motors_[1].generate_command(),
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       }
+                        chassis_front_wheel_motors_[0].generate_command(),
+                        chassis_front_wheel_motors_[1].generate_command(),
+                        device::CanPacket8::PaddingQuarter{},
+                        device::CanPacket8::PaddingQuarter{},
+                    }
                         .as_bytes(),
             });
 
@@ -442,11 +440,11 @@ private:
                 .can_id = 0x1FE,
                 .can_data =
                     device::CanPacket8{
-                                       chassis_front_steering_motors_[0].generate_command(),
-                                       chassis_front_steering_motors_[1].generate_command(),
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       }
+                        chassis_front_steering_motors_[0].generate_command(),
+                        chassis_front_steering_motors_[1].generate_command(),
+                        device::CanPacket8::PaddingQuarter{},
+                        device::CanPacket8::PaddingQuarter{},
+                    }
                         .as_bytes(),
             });
 
@@ -454,11 +452,11 @@ private:
                 .can_id = 0x200,
                 .can_data =
                     device::CanPacket8{
-                                       gimbal_bullet_feeder_.generate_command(),
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       }
+                        gimbal_bullet_feeder_.generate_command(),
+                        device::CanPacket8::PaddingQuarter{},
+                        device::CanPacket8::PaddingQuarter{},
+                        device::CanPacket8::PaddingQuarter{},
+                    }
                         .as_bytes(),
             });
 
@@ -471,11 +469,11 @@ private:
                 .can_id = 0x1FE,
                 .can_data =
                     device::CanPacket8{
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       supercap_.generate_command(),
-                                       }
+                        device::CanPacket8::PaddingQuarter{},
+                        device::CanPacket8::PaddingQuarter{},
+                        device::CanPacket8::PaddingQuarter{},
+                        supercap_.generate_command(),
+                    }
                         .as_bytes(),
             });
 
@@ -483,15 +481,13 @@ private:
                 .can_id = 0x200,
                 .can_data =
                     device::CanPacket8{
-                                       chassis_back_climber_motor_[0].generate_command(),
-                                       chassis_back_climber_motor_[1].generate_command(),
-                                       chassis_front_climber_motor_[0].generate_command(),
-                                       chassis_front_climber_motor_[1].generate_command(),
-                                       }
+                        chassis_back_climber_motor_[0].generate_command(),
+                        chassis_back_climber_motor_[1].generate_command(),
+                        chassis_front_climber_motor_[0].generate_command(),
+                        chassis_front_climber_motor_[1].generate_command(),
+                    }
                         .as_bytes(),
             });
-
-            
         }
 
     private:
@@ -562,13 +558,12 @@ private:
             referee_ring_buffer_receive_.emplace_back_n(
                 [&uart_data](std::byte* storage) noexcept { *storage = *uart_data++; },
                 data.uart_data.size());
-    //         if (!data.uart_data.empty()) {
-    //       RCLCPP_INFO(
-    //           logger_, "ref uart0 recv: size=%zu first=0x%02X",
-    //           data.uart_data.size(),
-    //           std::to_integer<unsigned int>(data.uart_data[0]));
-    //   }
-
+            //         if (!data.uart_data.empty()) {
+            //       RCLCPP_INFO(
+            //           logger_, "ref uart0 recv: size=%zu first=0x%02X",
+            //           data.uart_data.size(),
+            //           std::to_integer<unsigned int>(data.uart_data[0]));
+            //   }
         }
 
         void dbus_receive_callback(const librmcs::data::UartDataView& data) override {

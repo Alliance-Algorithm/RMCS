@@ -78,6 +78,7 @@ public:
                 if (last_switch_right_ == Switch::MIDDLE && switch_right == Switch::DOWN) {
                     if (mode == rmcs_msgs::ChassisMode::SPIN) {
                         mode = rmcs_msgs::ChassisMode::STEP_DOWN;
+                        step_down_facing_ = StepDownFacing::FRONT;
                     } else {
                         mode = rmcs_msgs::ChassisMode::SPIN;
                         spinning_forward_ = !spinning_forward_;

@@ -81,6 +81,9 @@ public:
             "/chassis/right_back_wheel/control_torque", right_back_wheel_control_torque_);
         register_output(
             "/chassis/right_front_wheel/control_torque", right_front_wheel_control_torque_);
+        register_output(
+            "/chassis/steering_wheel/actual_power_estimate",
+            steering_wheel_actual_power_estimate_, 0.0);
     }
 
     void update() override {
@@ -120,6 +123,8 @@ public:
             steering_status, filtered_chassis_acceleration, wheel_pid_torques);
 
         update_control_torques(steering_torques, wheel_torques);
+        *steering_wheel_actual_power_estimate_ =
+            calculate_actual_power_estimate(wheel_velocities, wheel_torques);
         update_chassis_velocity_expected(filtered_chassis_acceleration);
     }
 
@@ -149,6 +154,7 @@ private:
         *left_back_wheel_control_torque_ = 0.0;
         *right_back_wheel_control_torque_ = 0.0;
         *right_front_wheel_control_torque_ = 0.0;
+        *steering_wheel_actual_power_estimate_ = 0.0;
     }
 
     void integral_yaw_angle_imu() {
@@ -408,6 +414,13 @@ private:
         return wheel_torques;
     }
 
+    double calculate_actual_power_estimate(
+        const Eigen::Vector4d& wheel_velocities, const Eigen::Vector4d& wheel_torques) const {
+        return no_load_power_ + k2_ * wheel_velocities.array().pow(2).sum()
+             + (wheel_torques.array() * (k1_ * wheel_torques.array() + wheel_velocities.array()))
+                   .sum();
+    }
+
     void update_control_torques(
         const Eigen::Vector4d& steering_torques, const Eigen::Vector4d& wheel_torques) {
         *left_front_steering_control_torque_ = steering_torques[0];
@@ -481,6 +494,7 @@ private:
     OutputInterface<double> left_back_wheel_control_torque_;
     OutputInterface<double> right_back_wheel_control_torque_;
     OutputInterface<double> right_front_wheel_control_torque_;
+    OutputInterface<double> steering_wheel_actual_power_estimate_;
 
     QcpSolver qcp_solver_;
     filter::LowPassFilter<3> control_acceleration_filter_;
