@@ -52,10 +52,11 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
             pass
 
         entities.append(
-            IncludeLaunchDescription(
-                PythonLaunchDescriptionSource([
-                    FindPackageShare("odin_ros_driver"), "/launch/odin1_ros2.launch.py"
-                ])
+            Node(
+                package="odin_ros_driver",
+                executable="tmux-launch.sh",
+                output="screen",
+                emulate_tty=True,
             )
         )
 
