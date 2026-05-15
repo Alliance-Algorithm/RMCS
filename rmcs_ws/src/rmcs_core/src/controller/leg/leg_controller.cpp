@@ -59,10 +59,10 @@ public:
               get_parameter("rf_velocity_pid_normal_ki").as_double(),
               get_parameter("rf_velocity_pid_normal_kd").as_double())
         , up_stairs{
-              {*this, "up_one_stairs", {"initial", "press", "wait", "lift"}},
+              {*this, "up_one_stairs", {"initial", "press", "lift"}},
               {*this,
                "up_two_stairs",
-               {"initial", "press", "wait", "lift", "initial_again", "press_again", "wait",
+               {"initial", "press", "lift", "initial_again", "press_again",
                 "lift_again"}}} {
 
         register_input("/remote/joystick/right", joystick_right_);

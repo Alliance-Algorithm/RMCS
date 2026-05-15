@@ -761,6 +761,7 @@ private:
             tof.update();
             *leg_joint_rb_control_theta_error =
                 normalize_angle(*leg_rb_target_theta_ - Leg_ecd[0].get_angle());
+
         }
 
         void command() {

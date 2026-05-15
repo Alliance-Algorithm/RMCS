@@ -247,10 +247,10 @@ public:
                 set_arm_mode(rmcs_msgs::ArmMode::Test);
             }
             if (mouse.left && !last_mouse_.left) {
-                image_pitch_theta1_offset_ += 0.05;
+                image_pitch_theta1_offset_ += 0.08;
             }
             if (mouse.right && !last_mouse_.right) {
-                image_pitch_theta1_offset_ -= 0.05;
+                image_pitch_theta1_offset_ -= 0.08;
             }
         } else {
             set_arm_mode(rmcs_msgs::ArmMode::None);
@@ -942,7 +942,7 @@ private:
     OutputInterface<rmcs_msgs::RelayMode> right_relay_mode_;
 
     InputInterface<double> image_pitch_theta_;
-    double image_pitch_theta1_offset_{0.0};
+    double image_pitch_theta1_offset_{-0.5};
     OutputInterface<double> image_pitch_target_theta_;
 
     InputInterface<std::array<uint8_t, 30>> custom_data_;

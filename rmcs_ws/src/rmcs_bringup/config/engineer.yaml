@@ -56,7 +56,7 @@ engineer_hardware:
     leg_lb_ecd_zero_point: 153149
     leg_rb_ecd_zero_point: 220758
     leg_rf_ecd_zero_point: 119271
-    big_yaw_zero_point: 54236
+    big_yaw_zero_point: 8438
 
 image_transmission:
   ros__parameters:
@@ -187,23 +187,23 @@ leg_controller:
     backward_x_position_in_SixWheel: 221.0
     lf_angle_pid_normal_kp: 400.0
     lf_angle_pid_normal_ki: 0.0
-    lf_angle_pid_normal_kd: 6.0
+    lf_angle_pid_normal_kd: 6.5
     lf_angle_pid_down_stairs_kp: 260.0
     lf_angle_pid_down_stairs_ki: 0.0
     lf_angle_pid_down_stairs_kd: 3.0
-    rf_angle_pid_normal_kp: 400.0
+    rf_angle_pid_normal_kp: 500.0
     rf_angle_pid_normal_ki: 0.0
     rf_angle_pid_normal_kd: 6.5
     rf_angle_pid_down_stairs_kp: 260.0
     rf_angle_pid_down_stairs_ki: 0.0
     rf_angle_pid_down_stairs_kd: 3.0
-    lf_velocity_pid_normal_kp: 1.2
+    lf_velocity_pid_normal_kp: 0.8
     lf_velocity_pid_normal_ki: 0.0
     lf_velocity_pid_normal_kd: 0.001
     lf_velocity_pid_down_stairs_kp: 0.6
     lf_velocity_pid_down_stairs_ki: 0.0
     lf_velocity_pid_down_stairs_kd: 0.0
-    rf_velocity_pid_normal_kp: 1.2
+    rf_velocity_pid_normal_kp: 1.0
     rf_velocity_pid_normal_ki: 0.0
     rf_velocity_pid_normal_kd: 0.001
     rf_velocity_pid_down_stairs_kp: 0.6
@@ -216,15 +216,14 @@ leg_controller:
     up_one_stairs:
       params:
         initial: [1.600270, 1.550, 0.0, 2000.0]
-        press: [0.972736, 0.493103, -600.0, 550.0]
-        wait : [0.972736, 0.493103,0.0,200.0]
-        lift: [1.016670, 1.150821, -600.0, 300.0]
+        press: [0.872736, 0.343103, -600.0, 550.0]
+        lift: [1.016670, 1.150821, -600.0, 50.0]
     up_two_stairs:
       params:
         initial: [1.600270, 1.550, 0.0, 2000.0]
-        press: [0.972736, 0.493103, -200.0, 550.0]
-        wait : [0.972736, 0.493103,-100.0,200.0]
-        lift: [1.016670, 1.150821, -200.0, 300.0]
+        press: [0.872736, 0.343103, -600.0, 550.0]
+        # wait : [0.972736, 0.493103,-100.0,200.0]
+        lift: [1.016670, 1.150821, -600.0, 50.0]
         lift_and_initial: [1.400270, 1.410, -100.0, 1000.0]
         initial_again: [1.600270, 1.550, -300.0, 500.0]
         press_again: [0.802736, 0.693103, -200.0, 300.0]
@@ -336,7 +335,7 @@ leg_lb_velocity_pid_controller:
     measurement: /leg/joint/lb/velocity
     setpoint: /leg/joint/lb/control_vel
     control: /leg/joint/lb/control_torque
-    kp: 0.05
+    kp: 0.08
     ki: 0.0
     kd: 0.0
     output_max: 40.0
@@ -354,7 +353,7 @@ leg_rb_velocity_pid_controller:
     measurement: /leg/joint/rb/velocity
     setpoint: /leg/joint/rb/control_vel
     control: /leg/joint/rb/control_torque
-    kp: 0.05
+    kp: 0.08
     ki: 0.0
     kd: 0.0
     output_max: 40.0

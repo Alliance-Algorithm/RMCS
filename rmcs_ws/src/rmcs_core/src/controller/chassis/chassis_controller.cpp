@@ -26,6 +26,7 @@ class ChassisController
         High,
         Medium,
         Low,
+        UpStairs
     };
 
 public:
@@ -129,6 +130,7 @@ public:
         } else {
             chassis_control_velocity_->vector << NAN, NAN, NAN;
         }
+        RCLCPP_INFO(get_logger(),"%f",chassis_control_velocity_->vector.x());
 
         *chassis_big_yaw_target_angle_error_ =
             normalize_angle(yaw_target_angle_ - get_yaw_feedback());
@@ -142,6 +144,7 @@ private:
         switch (gear) {
         case SpeedGear::Medium: return 2.0;
         case SpeedGear::Low: return 0.8;
+        case SpeedGear::UpStairs: return 1.5;
         case SpeedGear::High:
         default: return 3.0;
         }
@@ -202,7 +205,7 @@ private:
                 case rmcs_msgs::ArmMode::Auto_Up_One_Stairs:
                 case rmcs_msgs::ArmMode::Auto_Up_Two_Stairs:
                 case rmcs_msgs::ArmMode::Auto_Down_Stairs:
-                    set_speed_gear(SpeedGear::High);
+                    set_speed_gear(SpeedGear::UpStairs);
                     chassis_mode_ = rmcs_msgs::ChassisMode::Yaw_Free;
                     yaw_trajectory_controller_
                         .set_start_point(std::vector<double>{*chassis_big_yaw_angle_})
