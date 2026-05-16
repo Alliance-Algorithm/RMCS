@@ -283,7 +283,7 @@ private:
                         device::CanPacket8{
                             chassis_wheel_motors_[1].generate_command(),
                             device::CanPacket8::PaddingQuarter{},
-                            supercap_.generate_command(),
+                            device::CanPacket8::PaddingQuarter{},
                             device::CanPacket8::PaddingQuarter{},
                         }
                             .as_bytes(),
