@@ -41,14 +41,14 @@ value_broadcaster:
 
 deformable_infantry:
   ros__parameters:
-    serial_filter_rmcs_board: "AF-23FB-EE32-B892-1302-AE70-D640-7B4E-0CBF"
+    serial_filter_rmcs_board: "AF-73B2-E8A1-A544-79ED-5BDA-D088-7F21-A6A6"
     serial_filter_top_board: "AF-ABAC-786D-1B53-99F6-00A2-42A6-AA95-9D69"
     serial_filter_imu: "AF-C26A-0C9C-CF41-3E3C-1596-524B-7527-5744"
     left_front_zero_point: 7173
     left_back_zero_point: 5167
     right_back_zero_point: 3098
     right_front_zero_point: 6485
-    yaw_motor_zero_point: 25406
+    yaw_motor_zero_point: 18211
     pitch_motor_zero_point: 56354
     debug_log_supercap: false
     debug_log_wheel_motor: false
@@ -57,7 +57,7 @@ deformable_infantry:
 chassis_controller:
   ros__parameters:
     # Deploy geometry / chassis-owned joint intent
-    min_angle: 7.0
+    min_angle: 8.0
     max_angle: 58.0
     active_suspension_enable: true
     spin_ratio: 1.0

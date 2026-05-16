@@ -20,6 +20,8 @@ public:
     void set_width(uint16_t width) { circle_.set_width(width); }
     void set_x(uint16_t x) { circle_.set_x(x); }
     void set_y(uint16_t y) { circle_.set_y(y); }
+    uint16_t x() const { return circle_.x(); }
+    uint16_t y() const { return circle_.y(); }
 
 private:
     Circle circle_;

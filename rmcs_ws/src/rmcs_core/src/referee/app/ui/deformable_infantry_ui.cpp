@@ -3,7 +3,6 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
-#include <limits>
 
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
@@ -16,7 +15,6 @@
 #include "referee/app/ui/widget/animated_toggle.hpp"
 #include "referee/app/ui/widget/crosshair_circle.hpp"
 #include "referee/app/ui/widget/deformable_chassis_top_view.hpp"
-#include "referee/app/ui/widget/pitch_hud.hpp"
 #include "referee/app/ui/widget/status_ring.hpp"
 
 namespace rmcs_core::referee::app::ui {
@@ -28,7 +26,7 @@ class DeformableInfantry
 public:
     DeformableInfantry()
         : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
-        , crosshair_circle_(Shape::Color::WHITE, x_center - 14, y_center - 42, 8, 2)
+        , crosshair_circle_(Shape::Color::WHITE, x_center - 22, y_center - 42, 8, 2)
         , status_ring_(26.5, 26.5, 600, 300)
         , horizontal_center_guidelines_(
               {Shape::Color::WHITE, 2, x_center - 360, y_center, x_center - 110, y_center},
@@ -37,14 +35,6 @@ public:
               {Shape::Color::WHITE, 2, x_center, 800, x_center, y_center + 110},
               {Shape::Color::WHITE, 2, x_center, y_center - 110, x_center, 200})
         , chassis_direction_indicator_(Shape::Color::PINK, 8, x_center, y_center, 0, 0, 84, 84)
-        , pitch_hud_(PitchHud::Config{
-              .center_x = x_center,
-              .center_y = y_center,
-              .radius_px = 95,
-              .width_px = 12,
-              .half_span_deg = 30.0,
-              .warning_pitch_deg = 5.0,
-          })
         , time_reminder_(Shape::Color::PINK, 50, 5, x_center + 150, y_center + 65, 0, false) {
 
         double deformable_leg_min_angle_deg = 8.0;
@@ -62,8 +52,6 @@ public:
         register_input("/chassis/control_mode", chassis_mode_);
 
         register_input("/chassis/angle", chassis_angle_);
-        register_input("/chassis/imu/pitch", chassis_pitch_, false);
-
         register_input("/chassis/supercap/voltage", supercap_voltage_);
         register_input("/chassis/supercap/enabled", supercap_enabled_);
 
@@ -92,12 +80,11 @@ public:
         register_input("/remote/mouse", mouse_);
         register_input("/remote/keyboard", keyboard_);
 
-        register_input("/gimbal/pitch/angle", gimbal_pitch_angle_, false);
-
         register_input("/referee/game/stage", game_stage_);
 
+        crosshair_base_x_ = crosshair_circle_.x();
+        crosshair_base_y_ = crosshair_circle_.y();
         ctrl_transition_.reset(false);
-        pitch_hud_.set_visible(false);
     }
 
     void update() override {
@@ -122,12 +109,8 @@ private:
 
         crosshair_circle_.set_x(static_cast<uint16_t>(std::lround(
             static_cast<double>(crosshair_base_x_) + 20.0 * reveal)));
-
-        // const double display_pitch =
-        //     (chassis_pitch_.ready() && std::isfinite(*chassis_pitch_))
-        //         ? -*chassis_pitch_
-        //         : std::numeric_limits<double>::quiet_NaN();
-        // pitch_hud_.update(display_pitch, reveal);
+        crosshair_circle_.set_y(static_cast<uint16_t>(std::lround(
+            static_cast<double>(crosshair_base_y_) - 20.0 * reveal)));
     }
 
     void update_time_reminder() {
@@ -174,7 +157,6 @@ private:
 
     static constexpr uint16_t screen_width = 1920, screen_height = 1080;
     static constexpr uint16_t x_center = screen_width / 2, y_center = screen_height / 2;
-    static constexpr uint16_t crosshair_base_x_ = x_center - 2;
 
     InputInterface<std::chrono::steady_clock::time_point> timestamp_;
     InputInterface<rmcs_msgs::ChassisMode> chassis_mode_;
@@ -199,9 +181,6 @@ private:
     InputInterface<rmcs_msgs::Mouse> mouse_;
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
 
-    InputInterface<double> gimbal_pitch_angle_;
-    InputInterface<double> chassis_pitch_;
-
     InputInterface<rmcs_msgs::GameStage> game_stage_;
 
     CrossHairCircle crosshair_circle_;
@@ -213,8 +192,9 @@ private:
     Arc chassis_direction_indicator_;
     DeformableChassisLegArcs deformable_chassis_leg_arcs_;
 
-    PitchHud pitch_hud_;
     AnimatedToggle ctrl_transition_{};
+    uint16_t crosshair_base_x_ = 0;
+    uint16_t crosshair_base_y_ = 0;
 
     Integer time_reminder_;
 };

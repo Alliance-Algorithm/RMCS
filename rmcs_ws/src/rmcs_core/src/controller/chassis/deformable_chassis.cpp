@@ -5,12 +5,14 @@
 #include <cstdlib>
 #include <limits>
 #include <numbers>
+#include <optional>
 #include <stdexcept>
 
 #include <eigen3/Eigen/Dense>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 
+#include <fast_tf/fast_tf.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/chassis_mode.hpp>
@@ -62,8 +64,8 @@ public:
         , following_velocity_controller_(10.0, 0.0, 0.0)
         , spin_ratio_(std::clamp(get_parameter_or("spin_ratio", 0.6), 0.0, 1.0))
 
-        , min_angle_(get_parameter_or("min_angle", 15.0))
-        , max_angle_(get_parameter_or("max_angle", 55.0))
+        , min_angle_(get_parameter_or("min_angle", 7.0))
+        , max_angle_(get_parameter_or("max_angle", 58.0))
         , target_physical_velocity_limit_(
               std::max(
                   deg_to_rad(std::abs(get_parameter_or("target_physical_velocity_limit", 180.0))),
@@ -130,6 +132,7 @@ public:
         register_input("/remote/keyboard", keyboard_);
         register_input("/remote/rotary_knob", rotary_knob_);
         register_input("/predefined/update_rate", update_rate_);
+        register_input("/tf", tf_, false);
 
         register_input("/gimbal/yaw/angle", gimbal_yaw_angle_, false);
         register_input("/gimbal/yaw/control_angle_error", gimbal_yaw_angle_error_, false);
@@ -259,6 +262,8 @@ private:
     static constexpr double translational_velocity_max_ = 10.0;
     static constexpr double angular_velocity_max_ = 30.0;
     static constexpr double rad_to_deg_ = 180.0 / std::numbers::pi;
+    static constexpr double imu_calibration_offset_limit_rad_ =
+        1.0 * std::numbers::pi / 180.0;
 
     void validate_joint_feedback_inputs() const {
         if (left_front_joint_physical_angle_.ready() && left_back_joint_physical_angle_.ready()
@@ -273,12 +278,36 @@ private:
         rmcs_msgs::Switch switch_left, rmcs_msgs::Switch switch_right,
         const rmcs_msgs::Keyboard& keyboard) {
         auto mode = *mode_;
+        const bool q_pressed = keyboard.q;
+        const bool e_pressed = keyboard.e;
+        const bool last_q_pressed = last_keyboard_.q;
+        const bool last_e_pressed = last_keyboard_.e;
+        const bool last_c_pressed = last_keyboard_.c;
+        const bool qe_combo_pressed = q_pressed && e_pressed;
+        const bool last_qe_combo_pressed = last_q_pressed && last_e_pressed;
+        const bool e_rising = !last_e_pressed && e_pressed;
+        const bool c_rising = !last_c_pressed && keyboard.c;
+        const bool qe_combo_rising = !last_qe_combo_pressed && qe_combo_pressed;
         if (switch_left == rmcs_msgs::Switch::DOWN) {
             deactivate_complex_spin_();
+            deactivate_qe_complex_spin_();
             return;
         }
 
-        if (!last_keyboard_.e && keyboard.e) {
+        if (qe_complex_spin_active_) {
+            if (c_rising) {
+                deactivate_qe_complex_spin_();
+                apply_symmetric_target = true;
+                lf_current_target_angle_ = current_target_angle_;
+                lb_current_target_angle_ = current_target_angle_;
+                rb_current_target_angle_ = current_target_angle_;
+                rf_current_target_angle_ = current_target_angle_;
+                mode = rmcs_msgs::ChassisMode::SPIN;
+            }
+        } else if (qe_combo_rising) {
+            deactivate_complex_spin_();
+            activate_qe_complex_spin_(mode);
+        } else if (e_rising && !q_pressed) {
             if (complex_spin_active_) {
                 deactivate_complex_spin_();
                 if (mode == rmcs_msgs::ChassisMode::SPIN)
@@ -289,6 +318,7 @@ private:
         } else if (last_switch_right_ == rmcs_msgs::Switch::MIDDLE
             && switch_right == rmcs_msgs::Switch::DOWN) {
             deactivate_complex_spin_();
+            deactivate_qe_complex_spin_();
             if (mode == rmcs_msgs::ChassisMode::SPIN) {
                 mode = rmcs_msgs::ChassisMode::STEP_DOWN;
             } else {
@@ -297,6 +327,7 @@ private:
             }
         } else if (!last_keyboard_.c && keyboard.c) {
             deactivate_complex_spin_();
+            deactivate_qe_complex_spin_();
             if (mode == rmcs_msgs::ChassisMode::SPIN) {
                 mode = rmcs_msgs::ChassisMode::AUTO;
             } else {
@@ -305,16 +336,18 @@ private:
             }
         } else if (!last_keyboard_.x && keyboard.x) {
             deactivate_complex_spin_();
+            deactivate_qe_complex_spin_();
             mode = mode == rmcs_msgs::ChassisMode::LAUNCH_RAMP
                      ? rmcs_msgs::ChassisMode::AUTO
                      : rmcs_msgs::ChassisMode::LAUNCH_RAMP;
         } else if (!last_keyboard_.z && keyboard.z) {
             deactivate_complex_spin_();
+            deactivate_qe_complex_spin_();
             mode = mode == rmcs_msgs::ChassisMode::STEP_DOWN ? rmcs_msgs::ChassisMode::AUTO
                                                              : rmcs_msgs::ChassisMode::STEP_DOWN;
         }
 
-        if (complex_spin_active_)
+        if (complex_spin_active_ || qe_complex_spin_active_)
             mode = rmcs_msgs::ChassisMode::SPIN;
 
         *mode_ = mode;
@@ -333,6 +366,109 @@ private:
     void deactivate_complex_spin_() {
         complex_spin_active_ = false;
         complex_spin_elapsed_ = 0.0;
+    }
+
+    void activate_qe_complex_spin_(rmcs_msgs::ChassisMode& mode) {
+        qe_complex_spin_active_ = true;
+        qe_last_toggle_elapsed_ = 0.0;
+        qe_front_window_armed_ = true;
+        qe_rear_window_armed_ = true;
+        qe_front_high_rear_low_ = true;
+        apply_front_high_rear_low_target_();
+        if (mode != rmcs_msgs::ChassisMode::SPIN) {
+            mode = rmcs_msgs::ChassisMode::SPIN;
+            spinning_forward_ = !spinning_forward_;
+        }
+    }
+
+    void deactivate_qe_complex_spin_() {
+        qe_complex_spin_active_ = false;
+        qe_last_toggle_elapsed_ = 0.0;
+        qe_front_window_armed_ = true;
+        qe_rear_window_armed_ = true;
+    }
+
+    void apply_front_high_rear_low_target_() {
+        lf_current_target_angle_ = max_angle_;
+        rf_current_target_angle_ = max_angle_;
+        lb_current_target_angle_ = min_angle_;
+        rb_current_target_angle_ = min_angle_;
+        apply_symmetric_target = false;
+    }
+
+    void apply_front_low_rear_high_target_() {
+        lf_current_target_angle_ = min_angle_;
+        rf_current_target_angle_ = min_angle_;
+        lb_current_target_angle_ = max_angle_;
+        rb_current_target_angle_ = max_angle_;
+        apply_symmetric_target = false;
+    }
+
+    void toggle_qe_complex_spin_target_() {
+        qe_front_high_rear_low_ = !qe_front_high_rear_low_;
+        if (qe_front_high_rear_low_) {
+            apply_front_high_rear_low_target_();
+        } else {
+            apply_front_low_rear_high_target_();
+        }
+        qe_last_toggle_elapsed_ = 0.0;
+    }
+
+    static double wrap_to_pi_(double angle) {
+        while (angle > std::numbers::pi)
+            angle -= 2.0 * std::numbers::pi;
+        while (angle < -std::numbers::pi)
+            angle += 2.0 * std::numbers::pi;
+        return angle;
+    }
+
+    static double heading_from_direction_(const Eigen::Vector3d& direction) {
+        return std::atan2(direction.y(), direction.x());
+    }
+
+    std::optional<std::pair<double, double>> read_qe_spin_headings_() const {
+        if (!tf_.ready())
+            return std::nullopt;
+
+        const auto chassis_direction = fast_tf::cast<rmcs_description::OdomImu>(
+            rmcs_description::PitchLink::DirectionVector{Eigen::Vector3d::UnitX()}, *tf_);
+        const auto gimbal_direction = fast_tf::cast<rmcs_description::OdomImu>(
+            rmcs_description::YawLink::DirectionVector{Eigen::Vector3d::UnitX()}, *tf_);
+
+        return std::pair{
+            heading_from_direction_(*chassis_direction), heading_from_direction_(*gimbal_direction)};
+    }
+
+    void update_qe_complex_spin_toggle_() {
+        constexpr double heading_trigger_threshold = 20.0 * std::numbers::pi / 180.0;
+        constexpr double heading_rearm_threshold = 40.0 * std::numbers::pi / 180.0;
+        constexpr double force_toggle_timeout = 0.25;
+
+        qe_last_toggle_elapsed_ += update_dt();
+
+        bool should_toggle = false;
+        if (const auto headings = read_qe_spin_headings_()) {
+            const auto& [chassis_heading, gimbal_heading] = *headings;
+            const double relative_heading = wrap_to_pi_(chassis_heading - gimbal_heading);
+            const double front_error = std::abs(relative_heading);
+            const double rear_error = std::abs(std::abs(relative_heading) - std::numbers::pi);
+
+            if (front_error >= heading_rearm_threshold)
+                qe_front_window_armed_ = true;
+            if (rear_error >= heading_rearm_threshold)
+                qe_rear_window_armed_ = true;
+
+            if (front_error <= heading_trigger_threshold && qe_front_window_armed_) {
+                should_toggle = true;
+                qe_front_window_armed_ = false;
+            } else if (rear_error <= heading_trigger_threshold && qe_rear_window_armed_) {
+                should_toggle = true;
+                qe_rear_window_armed_ = false;
+            }
+        }
+
+        if (should_toggle || qe_last_toggle_elapsed_ >= force_toggle_timeout)
+            toggle_qe_complex_spin_target_();
     }
 
     std::array<double, kJointCount> read_current_joint_physical_angles_() const {
@@ -392,6 +528,9 @@ private:
     }
 
     void update_chassis_imu_calibration_() {
+        if (chassis_imu_calibrated_once_)
+            return;
+
         if (!symmetric_joint_target_requested_()) {
             reset_chassis_imu_calibration_window_();
             return;
@@ -426,10 +565,13 @@ private:
             return;
         }
 
-        chassis_imu_pitch_offset_ =
-            chassis_imu_pitch_sum_ / static_cast<double>(chassis_imu_calibration_sample_count_);
-        chassis_imu_roll_offset_ =
-            chassis_imu_roll_sum_ / static_cast<double>(chassis_imu_calibration_sample_count_);
+        chassis_imu_pitch_offset_ = std::clamp(
+            chassis_imu_pitch_sum_ / static_cast<double>(chassis_imu_calibration_sample_count_),
+            -imu_calibration_offset_limit_rad_, imu_calibration_offset_limit_rad_);
+        chassis_imu_roll_offset_ = std::clamp(
+            chassis_imu_roll_sum_ / static_cast<double>(chassis_imu_calibration_sample_count_),
+            -imu_calibration_offset_limit_rad_, imu_calibration_offset_limit_rad_);
+        chassis_imu_calibrated_once_ = true;
         RCLCPP_INFO(
             get_logger(),
             "[chassis imu calibration] pitch_offset=% .3f deg roll_offset=% .3f deg "
@@ -453,6 +595,10 @@ private:
         return true;
     }
 
+    double active_suspension_min_angle_rad_() const {
+        return deg_to_rad(min_angle_ - 5.0);
+    }
+
     void update_active_suspension_() {
         if (!suspension_requested_by_input_()) {
             reset_attitude_correction_state_();
@@ -460,7 +606,7 @@ private:
         }
 
         constexpr double max_attitude = 30.0 * std::numbers::pi / 180.0;
-        const double base_target_angle = deg_to_rad(min_angle_);
+        const double base_target_angle = active_suspension_min_angle_rad_();
         const double max_target_angle = deg_to_rad(max_angle_);
         const double corrected_pitch =
             std::clamp(*chassis_imu_pitch_ - chassis_imu_pitch_offset_, -max_attitude, max_attitude);
@@ -481,24 +627,28 @@ private:
         }
 
         // Positive pitch_angle_diff raises the rear pair. Positive roll_angle_diff raises the left
-        // pair. Every leg starts from min_angle and only receives additive corrections so at least
-        // one leg always stays at min_angle.
+        // pair. Every leg starts from the active-suspension minimum and only receives additive
+        // corrections so at least one leg always stays at that minimum.
         const double front_pitch_add = std::max(-pitch_angle_diff, 0.0);
         const double back_pitch_add = std::max(pitch_angle_diff, 0.0);
         const double left_roll_add = std::max(roll_angle_diff, 0.0);
         const double right_roll_add = std::max(-roll_angle_diff, 0.0);
 
         current_target_physical_angles_rad_[kLeftFront] =
-            std::clamp(base_target_angle + front_pitch_add + left_roll_add, base_target_angle,
+            std::clamp(
+                base_target_angle + front_pitch_add + left_roll_add, base_target_angle,
                 max_target_angle);
         current_target_physical_angles_rad_[kLeftBack] =
-            std::clamp(base_target_angle + back_pitch_add + left_roll_add, base_target_angle,
+            std::clamp(
+                base_target_angle + back_pitch_add + left_roll_add, base_target_angle,
                 max_target_angle);
         current_target_physical_angles_rad_[kRightBack] =
-            std::clamp(base_target_angle + back_pitch_add + right_roll_add, base_target_angle,
+            std::clamp(
+                base_target_angle + back_pitch_add + right_roll_add, base_target_angle,
                 max_target_angle);
         current_target_physical_angles_rad_[kRightFront] =
-            std::clamp(base_target_angle + front_pitch_add + right_roll_add, base_target_angle,
+            std::clamp(
+                base_target_angle + front_pitch_add + right_roll_add, base_target_angle,
                 max_target_angle);
 
         joint_suspension_active_.fill(true);
@@ -521,6 +671,7 @@ private:
         joint_target_active_ = false;
         suspension_on_by_switch = false;
         deactivate_complex_spin_();
+        deactivate_qe_complex_spin_();
 
         *scope_motor_control_torque = nan_;
 
@@ -632,14 +783,15 @@ private:
 
     void update_lift_target_toggle(rmcs_msgs::Keyboard keyboard) {
         constexpr double rotary_knob_edge_threshold = 0.7;
-        constexpr double complex_spin_toggle_period = 0.5;
+        constexpr double complex_spin_toggle_period = 0.2;
 
-        const bool keyboard_toggle_condition = !last_keyboard_.q && keyboard.q;
+        const bool keyboard_toggle_condition =
+            !qe_complex_spin_active_ && !last_keyboard_.q && keyboard.q && !keyboard.e;
         const bool rotary_knob_toggle_condition =
             last_rotary_knob_ < rotary_knob_edge_threshold
             && *rotary_knob_ >= rotary_knob_edge_threshold;
-        const bool front_high_rear_low = !last_keyboard_.b && keyboard.b;
-        const bool front_low_rear_high = !last_keyboard_.g && keyboard.g;
+        const bool front_high_rear_low = !qe_complex_spin_active_ && !last_keyboard_.b && keyboard.b;
+        const bool front_low_rear_high = !qe_complex_spin_active_ && !last_keyboard_.g && keyboard.g;
         bool complex_spin_toggle_condition = false;
 
         if (complex_spin_active_) {
@@ -651,6 +803,9 @@ private:
             }
             complex_spin_toggle_condition = (complex_spin_toggle_count % 2) == 1;
         }
+
+        if (qe_complex_spin_active_)
+            update_qe_complex_spin_toggle_();
 
         if (apply_symmetric_target) {
             lf_current_target_angle_ = current_target_angle_;
@@ -664,17 +819,9 @@ private:
                 (std::abs(current_target_angle_ - max_angle_) < 1e-6) ? min_angle_ : max_angle_;
             apply_symmetric_target = true;
         } else if (front_high_rear_low) {
-            lf_current_target_angle_ = max_angle_;
-            rf_current_target_angle_ = max_angle_;
-            lb_current_target_angle_ = min_angle_;
-            rb_current_target_angle_ = min_angle_;
-            apply_symmetric_target = false;
+            apply_front_high_rear_low_target_();
         } else if (front_low_rear_high) {
-            lf_current_target_angle_ = min_angle_;
-            rf_current_target_angle_ = min_angle_;
-            lb_current_target_angle_ = max_angle_;
-            rb_current_target_angle_ = max_angle_;
-            apply_symmetric_target = false;
+            apply_front_low_rear_high_target_();
         }
 
         last_rotary_knob_ = *rotary_knob_;
@@ -697,7 +844,7 @@ private:
         current_target_physical_angles_rad_[kRightBack] = deg_to_rad(rb_current_target_angle_);
         current_target_physical_angles_rad_[kRightFront] = deg_to_rad(rf_current_target_angle_);
         if (suspension_requested) {
-            current_target_physical_angles_rad_.fill(deg_to_rad(min_angle_));
+            current_target_physical_angles_rad_.fill(active_suspension_min_angle_rad_());
         }
 
         update_chassis_imu_calibration_();
@@ -842,6 +989,7 @@ private:
     }
 
 private:
+    InputInterface<rmcs_description::Tf> tf_;
     InputInterface<Eigen::Vector2d> joystick_right_;
     InputInterface<rmcs_msgs::Switch> switch_right_;
     InputInterface<rmcs_msgs::Switch> switch_left_;
@@ -864,6 +1012,11 @@ private:
     bool apply_symmetric_target = true;
     bool complex_spin_active_ = false;
     double complex_spin_elapsed_ = 0.0;
+    bool qe_complex_spin_active_ = false;
+    bool qe_front_window_armed_ = true;
+    bool qe_rear_window_armed_ = true;
+    bool qe_front_high_rear_low_ = true;
+    double qe_last_toggle_elapsed_ = 0.0;
     pid::PidCalculator following_velocity_controller_;
     const double spin_ratio_;
 
@@ -939,6 +1092,7 @@ private:
     double chassis_imu_pitch_sum_ = 0.0;
     double chassis_imu_roll_sum_ = 0.0;
     bool chassis_imu_calibration_completed_for_window_ = false;
+    bool chassis_imu_calibrated_once_ = false;
     static constexpr double default_dt_ = 1e-3;
 };
 
