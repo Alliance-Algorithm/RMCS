@@ -21,7 +21,9 @@ class Hero
     , public rclcpp::Node {
 public:
     Hero()
-        : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
+        : Node{
+              get_component_name(),
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , status_ring_(26.5, 26.5, 600, 40)
         , rangefinder_()
         , chassis_direction_indicator_(Shape::Color::PINK, 8, x_center, y_center, 0, 0, 84, 84)
@@ -129,8 +131,8 @@ private:
                 std::round((2 * std::numbers::pi - angle) / std::numbers::pi * 180));
         };
         chassis_direction_indicator_.set_color(
-            chassis_mode == rmcs_msgs::ChassisMode::SPIN ? Shape::Color::GREEN
-                                                         : Shape::Color::PINK);
+            chassis_mode == rmcs_msgs::ChassisMode::SPIN_FAST ? Shape::Color::GREEN
+                                                              : Shape::Color::PINK);
         chassis_direction_indicator_.set_angle(to_referee_angle(*chassis_angle_), 30);
 
         bool chassis_control_direction_indicator_visible = false;

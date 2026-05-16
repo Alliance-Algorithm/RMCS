@@ -13,13 +13,9 @@
 #include "full_robot_id.hpp"
 #include "game_stage.hpp"
 #include "gimbal_mode.hpp"
-#include "keyboard.hpp"
-#include "mouse.hpp"
 #include "robot_color.hpp"
 #include "robot_id.hpp"
-#include "serial_interface.hpp"
 #include "shoot_mode.hpp"
-#include "shoot_status.hpp"
 #include "switch.hpp"
 
 namespace rmcs_msgs {
@@ -40,9 +36,11 @@ constexpr auto to_string(GameStage stage) noexcept -> const char* {
 constexpr auto to_string(ChassisMode mode) noexcept -> const char* {
     switch (mode) {
     case ChassisMode::AUTO: return "AUTO";
-    case ChassisMode::SPIN: return "SPIN";
+    case ChassisMode::SPIN_FAST: return "SPIN_FAST";
+    case ChassisMode::SPIN_SLOW: return "SPIN_SLOW";
     case ChassisMode::STEP_DOWN: return "STEP_DOWN";
     case ChassisMode::LAUNCH_RAMP: return "LAUNCH_RAMP";
+    case ChassisMode::ALIGNMENT: return "ALIGNMENT";
     }
     return "INVALID";
 }

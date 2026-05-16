@@ -6,21 +6,16 @@ rmcs_executor:
 
       - rmcs_core::referee::Status -> referee_status
       - rmcs_core::referee::Command -> referee_command
-
       - rmcs_core::referee::command::Interaction -> referee_interaction
       - rmcs_core::referee::command::interaction::Ui -> referee_ui
 
       - rmcs_core::controller::gimbal::EccentricDualYaw -> gimbal_controller
-
-      # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
-
       - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
       - rmcs_core::controller::shooting::HeatController -> heat_controller
       - rmcs_core::controller::shooting::BulletFeederController17mm -> bullet_feeder_controller
       - rmcs_core::controller::pid::PidController -> left_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> right_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller
-
       - rmcs_core::controller::chassis::ChassisController -> chassis_controller
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::SteeringWheelController -> steering_wheel_controller
@@ -29,6 +24,7 @@ rmcs_executor:
       # - rmcs::AutoAimComponent -> auto_aim_component
 
       # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
 
 value_broadcaster:
   ros__parameters:
@@ -37,6 +33,7 @@ value_broadcaster:
       - /gimbal/bottom_yaw/velocity
       - /gimbal/pitch/angle
       - /gimbal/pitch/control_torque
+      - /gimbal/pitch/torque
       - /gimbal/top_yaw/angle
       - /gimbal/top_yaw/velocity
 
@@ -46,13 +43,13 @@ sentry_hardware:
     board_serial_top_board: "af-da30"
     board_serial_bottom_board: "d4-2184"
     board_serial_gimbal_board: "d4-1d2b"
-    bottom_yaw_motor_zero_point: 23932
+    bottom_yaw_motor_zero_point: 23292
     top_yaw_motor_zero_point: 32916
     pitch_motor_zero_point: 1275
-    left_front_zero_point: 7131
-    left_back_zero_point: 3740
-    right_back_zero_point: 1327
-    right_front_zero_point: 5147
+    left_front_zero_point: 7147
+    left_back_zero_point: 3741
+    right_back_zero_point: 1295
+    right_front_zero_point: 5166
 
 rmcs_navigation:
   ros__parameters:
@@ -107,7 +104,7 @@ gimbal_controller:
 
 chassis_controller:
   ros__parameters:
-    following_velocity_kp: 5.0
+    following_velocity_kp: 8.0
     following_velocity_ki: 0.001
     following_velocity_kd: 0.0
 
@@ -191,6 +188,6 @@ steering_wheel_controller:
     steering_angle_ki: 0.0
     steering_angle_kd: 0.0
 
-    wheel_velocity_kp: 0.50
+    wheel_velocity_kp: 0.5
     wheel_velocity_ki: 0.0
     wheel_velocity_kd: 0.0

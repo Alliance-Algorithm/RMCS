@@ -117,7 +117,7 @@ struct ChassisVelocityControl {
         AngularResult result;
         switch (mode) {
         case rmcs_msgs::ChassisMode::AUTO: break;
-        case rmcs_msgs::ChassisMode::SPIN:
+        case rmcs_msgs::ChassisMode::SPIN_FAST:
             if (apply_toggle_forward)
                 spinning_forward_ = !spinning_forward_;
             result.angular_velocity = std::clamp(
@@ -803,11 +803,11 @@ private:
         if (sl == rmcs_msgs::Switch::DOWN)
             return;
         if (last_switch_right_ == rmcs_msgs::Switch::MIDDLE && sr == rmcs_msgs::Switch::DOWN) {
-            m = (m == rmcs_msgs::ChassisMode::SPIN) ? rmcs_msgs::ChassisMode::STEP_DOWN
-                                                    : rmcs_msgs::ChassisMode::SPIN;
+            m = (m == rmcs_msgs::ChassisMode::SPIN_FAST) ? rmcs_msgs::ChassisMode::STEP_DOWN
+                                                         : rmcs_msgs::ChassisMode::SPIN_FAST;
         } else if (!last_keyboard_.c && kb.c) {
-            m = (m == rmcs_msgs::ChassisMode::SPIN) ? rmcs_msgs::ChassisMode::AUTO
-                                                    : rmcs_msgs::ChassisMode::SPIN;
+            m = (m == rmcs_msgs::ChassisMode::SPIN_FAST) ? rmcs_msgs::ChassisMode::AUTO
+                                                         : rmcs_msgs::ChassisMode::SPIN_FAST;
         } else if (!last_keyboard_.x && kb.x) {
             m = (m == rmcs_msgs::ChassisMode::LAUNCH_RAMP) ? rmcs_msgs::ChassisMode::AUTO
                                                            : rmcs_msgs::ChassisMode::LAUNCH_RAMP;
@@ -821,7 +821,7 @@ private:
     // --- velocity ---
     void update_velocity_control_(const rmcs_msgs::Keyboard& kb) {
         auto tv = velocity_control_.compute_translational(*joystick_right_, kb, *gimbal_yaw_angle_);
-        bool toggle = (last_keyboard_.c != kb.c && *mode_ != rmcs_msgs::ChassisMode::SPIN);
+        bool toggle = (last_keyboard_.c != kb.c && *mode_ != rmcs_msgs::ChassisMode::SPIN_FAST);
         auto ar = velocity_control_.compute_angular(
             *mode_, *gimbal_yaw_angle_, *gimbal_yaw_angle_error_, toggle);
         double dt = update_dt_();
@@ -973,7 +973,7 @@ private:
     }
 
     void scope_motor_control_(bool prone_override) {
-        if (prone_override && *mode_ != rmcs_msgs::ChassisMode::SPIN)
+        if (prone_override && *mode_ != rmcs_msgs::ChassisMode::SPIN_FAST)
             *scope_motor_control_torque_ = -0.3;
         else
             *scope_motor_control_torque_ = 0.3;

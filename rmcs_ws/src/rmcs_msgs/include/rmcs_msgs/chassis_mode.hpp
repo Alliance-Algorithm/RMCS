@@ -1,14 +1,15 @@
 #pragma once
-
 #include <cstdint>
 
 namespace rmcs_msgs {
 
-enum class ChassisMode : uint8_t {
-    AUTO        = 0,
-    SPIN        = 1,
-    STEP_DOWN   = 2,
-    LAUNCH_RAMP = 3,
+enum class ChassisMode : std::uint8_t {
+    AUTO = 0,
+    SPIN_FAST,
+    SPIN_SLOW,
+    STEP_DOWN,
+    LAUNCH_RAMP,
+    ALIGNMENT,
 };
 
 } // namespace rmcs_msgs

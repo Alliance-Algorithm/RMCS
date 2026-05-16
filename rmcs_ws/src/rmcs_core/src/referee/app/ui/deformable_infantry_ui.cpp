@@ -22,7 +22,9 @@ class DeformableInfantry
     , public rclcpp::Node {
 public:
     DeformableInfantry()
-        : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
+        : Node{
+              get_component_name(),
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , crosshair_circle_(Shape::Color::WHITE, x_center - 2, y_center - 30, 8, 2)
         , status_ring_(26.5, 26.5, 600, 300)
         , horizontal_center_guidelines_(
@@ -112,7 +114,7 @@ private:
 
     static Shape::Color chassis_direction_indicator_color(rmcs_msgs::ChassisMode mode) {
         switch (mode) {
-        case rmcs_msgs::ChassisMode::SPIN: return Shape::Color::GREEN;
+        case rmcs_msgs::ChassisMode::SPIN_FAST: return Shape::Color::GREEN;
         case rmcs_msgs::ChassisMode::AUTO: return Shape::Color::CYAN;
         case rmcs_msgs::ChassisMode::STEP_DOWN: return Shape::Color::WHITE;
         default: return Shape::Color::PINK;
