@@ -42,22 +42,10 @@ public:
               get_parameter("forward_x_position_in_SixWheel").as_double())
         , backward_x_position_in_SixWheel_(
               get_parameter("backward_x_position_in_SixWheel").as_double())
-        , lf_angle_pid_controller_(
-              get_parameter("lf_angle_pid_normal_kp").as_double(),
-              get_parameter("lf_angle_pid_normal_ki").as_double(),
-              get_parameter("lf_angle_pid_normal_kd").as_double())
-        , rf_angle_pid_controller_(
-              get_parameter("rf_angle_pid_normal_kp").as_double(),
-              get_parameter("rf_angle_pid_normal_ki").as_double(),
-              get_parameter("rf_angle_pid_normal_kd").as_double())
-        , lf_velocity_pid_controller_(
-              get_parameter("lf_velocity_pid_normal_kp").as_double(),
-              get_parameter("lf_velocity_pid_normal_ki").as_double(),
-              get_parameter("lf_velocity_pid_normal_kd").as_double())
-        , rf_velocity_pid_controller_(
-              get_parameter("rf_velocity_pid_normal_kp").as_double(),
-              get_parameter("rf_velocity_pid_normal_ki").as_double(),
-              get_parameter("rf_velocity_pid_normal_kd").as_double())
+        , lf_angle_pid_controller_(400.0, 0.0, 6.5)
+        , rf_angle_pid_controller_(500.0, 0.0, 6.5)
+        , lf_velocity_pid_controller_(0.8, 0.0, 0.001)
+        , rf_velocity_pid_controller_(1.0, 0.0, 0.001)
         , up_stairs{
               {*this, "up_one_stairs", {"initial", "press", "lift"}},
               {*this,
@@ -123,11 +111,8 @@ public:
             .set_total_step(500);
         down_stairs_trajectory
             .set_end_point(std::vector<double>{1.109164, 1.55792, 1.55792, 1.109164})
-            .set_total_step(800);
+            .set_total_step(down_stairs_trajectory_total_step);
 
-        // const auto tof_k = this->get_parameter("tof_k").as_double();
-        // const auto tof_b = this->get_parameter("tof_b").as_double();
-        // const auto v_ref = this->get_parameter("v_ref").as_double();
         up_stairs[0].set_layer_connections("initial", [this]() {
             if (keyboard_->ctrl) {
                 return true;
@@ -135,27 +120,9 @@ public:
             if ((*tof_distance_) <= this->get_parameter("tof_b").as_double()) {
                 return true;
             }
-            // if ((*tof_distance_)
-            //         <= (this->get_parameter("tof_k").as_double()
-            //                 * ((*chassis_velocity_)->x() -
-            //                 this->get_parameter("v_ref").as_double())
-            //             + this->get_parameter("tof_b").as_double())
-            //     && (*chassis_velocity_)->x() > 0.0) {
-            //     return true;
-            // }
             return false;
         });
-        up_stairs[0].set_layer_connections("press", [this]() {
-            // constexpr int kDelayTicks = 300; // 1000Hz 下就是 300ms
-            // static int press_delay_count_{0};
-            // if (press_delay_count_ < kDelayTicks) {
-            //     ++press_delay_count_;
-            //     return false;
-            // }
-
-            // press_delay_count_ = 0;
-            return true;
-        });
+        
         up_stairs[1].set_layer_connections("initial", [this]() {
             if (keyboard_->ctrl) {
                 return true;
@@ -163,45 +130,16 @@ public:
             if ((*tof_distance_) <= this->get_parameter("tof_b").as_double()) {
                 return true;
             };
-            // if ((*tof_distance_)
-            //         <= (this->get_parameter("tof_k").as_double()
-            //                 * ((*chassis_velocity_)->x() -
-            //                 this->get_parameter("v_ref").as_double())
-            //             + this->get_parameter("tof_b").as_double())
-            //     && (*chassis_velocity_)->x() > 0.0) {
-            //     return true;
-            // }
-
+          
             return false;
         });
-        up_stairs[1].set_layer_connections("press", [this]() {
-            // constexpr int kDelayTicks = 300; // 1000Hz 下就是 300ms
-            // static int press_delay_count_{0};
-            // if (press_delay_count_ < kDelayTicks) {
-            //     ++press_delay_count_;
-            //     return false;
-            // }
-
-            // press_delay_count_ = 0;
-            return true;
-        });
-        up_stairs[1].set_layer_connections("press_again", [this]() {
-            // constexpr int kDelayTicks = 300; // 1000Hz 下就是 300ms
-            // static int press_delay_count_{0};
-            // if (press_delay_count_ < kDelayTicks) {
-            //     ++press_delay_count_;
-            //     return false;
-            // }
-            // press_delay_count_ = 0;
-            return true;
-        });
+        
     }
 
     void update() override {
         auto switch_right               = *switch_right_;
         auto switch_left                = *switch_left_;
-        auto mouse                      = *mouse_;
-        auto keyboard                   = *keyboard_;
+       
         static bool initial_check_done_ = false;
         using namespace rmcs_msgs;
         if (!initial_check_done_) {
@@ -222,7 +160,7 @@ public:
                 omniwheel_control();
                 leg_control();
                 update_pitch_imu_angle_offset();
-                front_angle_and_velocity_pid_control();
+                forward_joint_pid_control();
 
                 last_arm_mode = *arm_mode;
                 last_leg_mode = leg_mode;
@@ -234,7 +172,6 @@ private:
     void mode_selection() {
         auto switch_right = *switch_right_;
         auto switch_left  = *switch_left_;
-        auto mouse        = *mouse_;
         auto keyboard     = *keyboard_;
         using namespace rmcs_msgs;
 
@@ -256,9 +193,7 @@ private:
                     leg_mode = rmcs_msgs::LegMode::Four_Wheel;
                 }
             }
-            if (keyboard.f) {
-                leg_mode = rmcs_msgs::LegMode::Six_Wheel;
-            }
+            
             if (last_arm_mode != *arm_mode) {
                 switch (*arm_mode) {
                 case rmcs_msgs::ArmMode::Custome:
@@ -289,6 +224,13 @@ private:
         }
     }
 
+    void reset_down_stairs_trajectory_from_current_pose() {
+        down_stairs_trajectory.reset();
+        down_stairs_trajectory.set_total_step(down_stairs_trajectory_total_step);
+        down_stairs_trajectory.set_start_point(
+            std::vector<double>{*theta_lf, *theta_lb, *theta_rb, *theta_rf});
+    }
+
     void leg_control() {
         if (last_leg_mode != leg_mode) {
 
@@ -312,91 +254,78 @@ private:
                 }
 
             } else if (leg_mode == rmcs_msgs::LegMode::Down_Stairs) {
-                down_stairs_trajectory.reset();
-                down_stairs_trajectory.set_start_point(
-                    std::vector<double>{*theta_lf, *theta_lb, *theta_rb, *theta_rf});
+                down_stairs_front_legs_released_ = false;
+                reset_down_stairs_trajectory_from_current_pose();
             }
         }
 
-        if (*pitch_imu_angle_offsetted_ < 0.4 && is_nan_forward_open) {
-            down_stairs_trajectory.reset();
-            down_stairs_trajectory.set_total_step(800);
-            down_stairs_trajectory.set_start_point(
-                std::vector<double>{*theta_lf, *theta_lb, *theta_rb, *theta_rf});
-        }
         switch (leg_mode) {
-        case rmcs_msgs::LegMode::Four_Wheel: execute_joint_trajectory(four_wheel_trajectory); break;
+        case rmcs_msgs::LegMode::Four_Wheel: {
+            const auto joints = four_wheel_trajectory.trajectory();
+            set_leg_joint_theta(joints[0], joints[1], joints[2], joints[3]);
+            break;
+        }
         case rmcs_msgs::LegMode::Six_Wheel: {
             auto joints = six_wheel_trajectory.trajectory();
             if (six_wheel_trajectory.get_complete()) {
                 joints[0] = NAN;
                 joints[3] = NAN;
             }
-            leg_joint_controller(joints[0], joints[1], joints[2], joints[3]);
+            set_leg_joint_theta(joints[0], joints[1], joints[2], joints[3]);
             break;
         }
         case rmcs_msgs::LegMode::Down_Stairs: execute_down_stairs(); break;
-        case rmcs_msgs::LegMode::Up_One_Stairs:
-        case rmcs_msgs::LegMode::Up_Two_Stairs: execute_up_stairs(); break;
+        case rmcs_msgs::LegMode::Up_One_Stairs: {
+            up_stairs[0].tick();
+            const auto& joints = up_stairs[0].get_result();
+            set_leg_joint_theta(joints[0], joints[1], joints[2], joints[3]);
+            break;
+        }
+        case rmcs_msgs::LegMode::Up_Two_Stairs: {
+            up_stairs[1].tick();
+            const auto& joints = up_stairs[1].get_result();
+            set_leg_joint_theta(joints[0], joints[1], joints[2], joints[3]);
+            break;
+        }
         case rmcs_msgs::LegMode::None:
-            leg_joint_controller(*theta_lf, *theta_lb, *theta_rb, *theta_rf);
+            set_leg_joint_theta(*theta_lf, *theta_lb, *theta_rb, *theta_rf);
             break;
         }
     }
 
-    void execute_joint_trajectory(
-        rmcs_core::controller::arm::Trajectory<rmcs_core::controller::arm::TrajectoryType::JOINT>&
-            trajectory) {
-        const auto joints = trajectory.trajectory();
-        leg_joint_controller(joints[0], joints[1], joints[2], joints[3]);
-    }
     void execute_down_stairs() {
-        execute_joint_trajectory(down_stairs_trajectory);
-        is_nan_forward_open = false;
-        if (*pitch_imu_angle_offsetted_ >= 0.4) {
-
-            leg_lf_target_theta = NAN;
-            leg_rf_target_theta = NAN;
-            is_nan_forward_open = true;
+        const double pitch_offset = *pitch_imu_angle_offsetted_;
+        if (down_stairs_front_legs_released_ && std::isfinite(pitch_offset)
+            && pitch_offset < 0.4) {
+            reset_down_stairs_trajectory_from_current_pose();
         }
-    }
 
-    void execute_up_stairs() {
-        auto& up_stairs_runner =
-            leg_mode == rmcs_msgs::LegMode::Up_One_Stairs ? up_stairs[0] : up_stairs[1];
-        up_stairs_runner.tick();
-        const auto& joints = up_stairs_runner.get_result();
-        leg_joint_controller(joints[0], joints[1], joints[2], joints[3]);
+        const auto joints = down_stairs_trajectory.trajectory();
+        set_leg_joint_theta(joints[0], joints[1], joints[2], joints[3]);
+
+        down_stairs_front_legs_released_ = false;
+        if (std::isfinite(pitch_offset) && pitch_offset >= 0.4) {
+            leg_lf_target_theta              = NAN;
+            leg_rf_target_theta              = NAN;
+            down_stairs_front_legs_released_ = true;
+        }
     }
 
     void omniwheel_control() {
         Eigen::Rotation2D<double> rotation(*chassis_big_yaw_angle + *joint1_theta);
         if (leg_mode != rmcs_msgs::LegMode::Four_Wheel) {
             Eigen::Vector2d velocity_xy((*chassis_velocity_)->x(), (*chassis_velocity_)->y());
-            //  Eigen::Vector2d rotated_velocity = rotation * velocity_xy;
             Eigen::Vector2d rotated_velocity = velocity_xy;
 
             *omni_l_target_vel = rotated_velocity.x() / wheel_r;
             *omni_r_target_vel = rotated_velocity.x() / wheel_r;
-            // if (leg_mode == rmcs_msgs::LegMode::Up_One_Stairs
-            //     || leg_mode == rmcs_msgs::LegMode::Up_Two_Stairs) {
-
-            //     auto id_one = up_stairs[0].get_current_layer_id();
-            //     auto id_two = up_stairs[1].get_current_layer_id();
-            //     if ((id_one && *id_one == "initial")
-            //         || (id_two && (*id_two == "initial" || *id_two == "initial_again"))) {
-            //         *omni_l_target_vel = rotated_velocity.x() / wheel_r;
-            //         auto k             = this->get_parameter("error_param").as_double();
-            //         *omni_r_target_vel =
-            //             rotated_velocity.x() / wheel_r + k * (*theta_lf - *theta_rf);
-            //     }
-            // }
+            
         } else {
             *omni_l_target_vel = NAN;
             *omni_r_target_vel = NAN;
         }
     }
-    void leg_joint_controller(double lf, double lb, double rb, double rf) {
+    void set_leg_joint_theta(double lf, double lb, double rb, double rf) {
         leg_lf_target_theta  = lf;
         leg_rf_target_theta  = rf;
         *leg_lb_target_theta = lb;
@@ -416,10 +345,8 @@ private:
         const double raw_pitch = *pitch_imu_angle_;
         if (leg_mode != rmcs_msgs::LegMode::Four_Wheel) {
             if (std::isfinite(pitch_imu_angle_offset_value_) && std::isfinite(raw_pitch)) {
-
                 *pitch_imu_angle_offsetted_ = raw_pitch - pitch_imu_angle_offset_value_;
             } else {
-
                 *pitch_imu_angle_offsetted_ = raw_pitch;
             }
             return;
@@ -430,39 +357,33 @@ private:
             *pitch_imu_angle_offsetted_   = raw_pitch - pitch_imu_angle_offset_value_;
         }
     }
-    void front_angle_and_velocity_pid_control() {
+    void forward_joint_pid_control() {
         if (leg_mode == rmcs_msgs::LegMode::Down_Stairs) {
-            lf_angle_pid_controller_.kp = get_parameter("lf_angle_pid_down_stairs_kp").as_double();
-            lf_angle_pid_controller_.ki = get_parameter("lf_angle_pid_down_stairs_ki").as_double();
-            lf_angle_pid_controller_.kd = get_parameter("lf_angle_pid_down_stairs_kd").as_double();
-            rf_angle_pid_controller_.kp = get_parameter("rf_angle_pid_down_stairs_kp").as_double();
-            rf_angle_pid_controller_.ki = get_parameter("rf_angle_pid_down_stairs_ki").as_double();
-            rf_angle_pid_controller_.kd = get_parameter("rf_angle_pid_down_stairs_kd").as_double();
-            lf_velocity_pid_controller_.kp =
-                get_parameter("lf_velocity_pid_down_stairs_kp").as_double();
-            lf_velocity_pid_controller_.ki =
-                get_parameter("lf_velocity_pid_down_stairs_ki").as_double();
-            lf_velocity_pid_controller_.kd =
-                get_parameter("lf_velocity_pid_down_stairs_kd").as_double();
-            rf_velocity_pid_controller_.kp =
-                get_parameter("rf_velocity_pid_down_stairs_kp").as_double();
-            rf_velocity_pid_controller_.ki =
-                get_parameter("rf_velocity_pid_down_stairs_ki").as_double();
-            rf_velocity_pid_controller_.kd =
-                get_parameter("rf_velocity_pid_down_stairs_kd").as_double();
+            lf_angle_pid_controller_.kp    = 260.0;
+            lf_angle_pid_controller_.ki    = 0.0;
+            lf_angle_pid_controller_.kd    = 3.0;
+            rf_angle_pid_controller_.kp    = 260.0;
+            rf_angle_pid_controller_.ki    = 0.0;
+            rf_angle_pid_controller_.kd    = 3.0;
+            lf_velocity_pid_controller_.kp = 0.6;
+            lf_velocity_pid_controller_.ki = 0.0;
+            lf_velocity_pid_controller_.kd = 0.0;
+            rf_velocity_pid_controller_.kp = 0.6;
+            rf_velocity_pid_controller_.ki = 0.0;
+            rf_velocity_pid_controller_.kd = 0.0;
         } else {
-            lf_angle_pid_controller_.kp    = get_parameter("lf_angle_pid_normal_kp").as_double();
-            lf_angle_pid_controller_.ki    = get_parameter("lf_angle_pid_normal_ki").as_double();
-            lf_angle_pid_controller_.kd    = get_parameter("lf_angle_pid_normal_kd").as_double();
-            rf_angle_pid_controller_.kp    = get_parameter("rf_angle_pid_normal_kp").as_double();
-            rf_angle_pid_controller_.ki    = get_parameter("rf_angle_pid_normal_ki").as_double();
-            rf_angle_pid_controller_.kd    = get_parameter("rf_angle_pid_normal_kd").as_double();
-            lf_velocity_pid_controller_.kp = get_parameter("lf_velocity_pid_normal_kp").as_double();
-            lf_velocity_pid_controller_.ki = get_parameter("lf_velocity_pid_normal_ki").as_double();
-            lf_velocity_pid_controller_.kd = get_parameter("lf_velocity_pid_normal_kd").as_double();
-            rf_velocity_pid_controller_.kp = get_parameter("rf_velocity_pid_normal_kp").as_double();
-            rf_velocity_pid_controller_.ki = get_parameter("rf_velocity_pid_normal_ki").as_double();
-            rf_velocity_pid_controller_.kd = get_parameter("rf_velocity_pid_normal_kd").as_double();
+            lf_angle_pid_controller_.kp    = 400.0;
+            lf_angle_pid_controller_.ki    = 0.0;
+            lf_angle_pid_controller_.kd    = 6.5;
+            rf_angle_pid_controller_.kp    = 500.0;
+            rf_angle_pid_controller_.ki    = 0.0;
+            rf_angle_pid_controller_.kd    = 6.5;
+            lf_velocity_pid_controller_.kp = 0.8;
+            lf_velocity_pid_controller_.ki = 0.0;
+            lf_velocity_pid_controller_.kd = 0.001;
+            rf_velocity_pid_controller_.kp = 1.0;
+            rf_velocity_pid_controller_.ki = 0.0;
+            rf_velocity_pid_controller_.kd = 0.001;
         }
         lf_velocity_pid_controller_.output_max = 27.0;
         rf_velocity_pid_controller_.output_max = 27.0;
@@ -511,6 +432,7 @@ private:
 
     static constexpr double wheel_distance = 458.0f;
     static constexpr double wheel_r        = 0.11;
+    static constexpr int down_stairs_trajectory_total_step = 800;
 
     InputInterface<rmcs_description::BaseLink::DirectionVector> chassis_velocity_;
     InputInterface<double> tof_distance_;
@@ -556,11 +478,10 @@ private:
     pid::PidCalculator rf_angle_pid_controller_;
     pid::PidCalculator lf_velocity_pid_controller_;
     pid::PidCalculator rf_velocity_pid_controller_;
-    // OutputInterface<double> pitch_imu_angle_offset_;
     OutputInterface<double> pitch_imu_angle_offsetted_;
     double pitch_imu_angle_offset_value_{NAN};
 
-    bool is_nan_forward_open{false};
+    bool down_stairs_front_legs_released_{false};
 
     rmcs_core::controller::arm::Trajectory<rmcs_core::controller::arm::TrajectoryType::JOINT>
         four_wheel_trajectory{4};

@@ -324,7 +324,7 @@
       xyz="0 0 -1" />
     <limit
       lower="-1.967"
-      upper="1.917"
+      upper="1.937"
       effort="6"
       velocity="24.61" />
     <dynamics

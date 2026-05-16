@@ -108,9 +108,7 @@ public:
         moveit_running_.store(true, std::memory_order_release);
         moveit_thread_ = std::thread([this] {
             while (moveit_running_.load(std::memory_order_acquire)) {
-
                 moveit_loop();
-
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
             }
         });
@@ -126,7 +124,7 @@ public:
             spin_thread_.join();
     }
 
-    void update() {
+    void update() override {
         *arm_mode_ = get_arm_mode();
 
         auto knob         = *rotary_knob_switch;
@@ -233,19 +231,6 @@ public:
             if (keyboard.r && !last_keyboard_.r) {
                 set_arm_mode(rmcs_msgs::ArmMode::Custome);
             }
-            if (keyboard.e && !last_keyboard_.e) {
-                if (!keyboard.ctrl && !keyboard.shift) {
-                    set_arm_mode(rmcs_msgs::ArmMode::Auto_Linear_Forward);
-                }
-                if (keyboard.shift && !keyboard.ctrl) {
-                    set_arm_mode(rmcs_msgs::ArmMode::Auto_Linear_Backward);
-                }
-            }
-
-            if (keyboard.a && !last_keyboard_.a) {
-                reset();
-                set_arm_mode(rmcs_msgs::ArmMode::Test);
-            }
             if (mouse.left && !last_mouse_.left) {
                 image_pitch_theta1_offset_ += 0.08;
             }
@@ -271,6 +256,8 @@ public:
             break;
         }
         case ArmMode::Auto_Walk:
+        case ArmMode::Auto_Up_One_Stairs:
+        case ArmMode::Auto_Up_Two_Stairs:
         case ArmMode::Auto_Linear_Forward:
         case ArmMode::Auto_Linear_Backward:
         case ArmMode::Auto_Extract_LB:
@@ -328,12 +315,6 @@ private:
         next->arm_mode = mode;
         plan_request.store(next, std::memory_order_release);
     }
-
-    void set_gripper_mode(rmcs_msgs::GripperMode mode) { gripper_mode_ = mode; }
-    rmcs_msgs::GripperMode get_gripper_mode() const { return gripper_mode_; }
-    void set_guard_mode(rmcs_msgs::GuardMode mode) { guard_mode_ = mode; }
-    rmcs_msgs::GuardMode get_guard_mode() const { return guard_mode_; }
-
     rmcs_msgs::ArmMode get_arm_mode() const {
         const auto current = plan_request.load(std::memory_order_acquire);
         if (!current) {
@@ -342,9 +323,16 @@ private:
         return current->arm_mode;
     }
 
+    void set_gripper_mode(rmcs_msgs::GripperMode mode) { gripper_mode_ = mode; }
+    rmcs_msgs::GripperMode get_gripper_mode() const { return gripper_mode_; }
+
+    void set_guard_mode(rmcs_msgs::GuardMode mode) { guard_mode_ = mode; }
+    rmcs_msgs::GuardMode get_guard_mode() const { return guard_mode_; }
+
     void moveit_loop() {
 
         static std::vector<double> auto_walk_joint_target;
+        static std::vector<double> auto_upstairs_joint_target;
         static constexpr std::size_t AutoStepCount                   = 6;
         const std::array<std::string, AutoStepCount> auto_step_names = {
             "step1_pose", "step2_pose", "step3_pose", "step4_lin", "step5_lin", "step6_pose"};
@@ -406,6 +394,7 @@ private:
 
         if (!parameter_initialized) {
             node_->get_parameter("auto_walk_joint_target", auto_walk_joint_target);
+            node_->get_parameter("auto_upstairs_joint_target", auto_upstairs_joint_target);
             const auto load_auto_mine_config = [this, &auto_step_names, &linear_point_transformer,
                                                 &xyzrpy_to_pose, &pose_to_xyzrpy](
                                                    const std::string& mine_name,
@@ -420,7 +409,7 @@ private:
                 for (std::size_t i = 0; i < auto_step_names.size(); ++i) {
                     const auto& step_name = auto_step_names[i];
                     config.lin_mask[i]    = step_name.size() >= 4
-                                      && step_name.compare(step_name.size() - 4, 4, "_lin") == 0;
+                                         && step_name.compare(step_name.size() - 4, 4, "_lin") == 0;
 
                     const std::string prefix = mine_name + ".params." + step_name + ".";
                     node_->get_parameter(prefix + "velocity_scaling", config.velocity_scaling[i]);
@@ -505,6 +494,31 @@ private:
             }
             break;
         }
+        case rmcs_msgs::ArmMode::Auto_Up_One_Stairs:
+        case rmcs_msgs::ArmMode::Auto_Up_Two_Stairs: {
+            move_group_->setMaxVelocityScalingFactor(0.03);
+            move_group_->setMaxAccelerationScalingFactor(0.03);
+            move_group_->setPlanningPipelineId("ompl");
+            move_group_->setPlannerId("");
+            move_group_->setJointValueTarget(
+                std::map<std::string, double>{
+                    {"joint_1", auto_upstairs_joint_target[0]},
+                    {"joint_2", auto_upstairs_joint_target[1]},
+                    {"joint_3", auto_upstairs_joint_target[2]},
+                    {"joint_4", auto_upstairs_joint_target[3]},
+                    {"joint_5", auto_upstairs_joint_target[4]},
+                    {"joint_6", auto_upstairs_joint_target[5]},
+            });
+            const auto current_pose = move_group_->getCurrentPose("link_6").pose;
+            const auto current_rpy  = move_group_->getCurrentRPY("link_6");
+            if (current_rpy.size() == 3) {
+                RCLCPP_INFO(
+                    node_->get_logger(), "autoupstairsxyzrpy %.6f %.6f %.6f %.6f %.6f %.6f",
+                    current_pose.position.x, current_pose.position.y, current_pose.position.z,
+                    current_rpy[0], current_rpy[1], current_rpy[2]);
+            }
+            break;
+        }
         case rmcs_msgs::ArmMode::Auto_Linear_Forward: {
             const static double distance        = 0.1;
             geometry_msgs::msg::Pose start_pose = move_group_->getCurrentPose().pose;
@@ -541,11 +555,7 @@ private:
                 planned_trajectory_.store(result, std::memory_order::release);
                 return;
             }
-            // config->step_rpy[0] = auto_between_pose_builder();
-            //  RCLCPP_INFO(
-            //      node_->get_logger(), "xyzrpy %f %f %f %f %f %f", config->step_rpy[0][0],
-            //      config->step_rpy[0][1], config->step_rpy[0][2], config->step_rpy[0][3],
-            //      config->step_rpy[0][4], config->step_rpy[0][5]);
+           
             auto current_state = move_group_->getCurrentState();
 
             result->positions.clear();
@@ -569,12 +579,6 @@ private:
                     move_group_->setPlannerId("");
                 }
 
-                // move_group_->setPositionTarget(
-                //     config->step_rpy[i][0], config->step_rpy[i][1], config->step_rpy[i][2],
-                //     "link_6");
-                // move_group_->setRPYTarget(
-                //     config->step_rpy[i][3], config->step_rpy[i][4], config->step_rpy[i][5],
-                //     "link_6");
                 geometry_msgs::msg::Pose target_pose;
                 target_pose.position.x = config->step_rpy[i][0];
                 target_pose.position.y = config->step_rpy[i][1];
@@ -864,8 +868,6 @@ private:
         } else {
             *guard_target_theta = *guard_angle_;
         }
-        // RCLCPP_INFO(
-        //     node_->get_logger(), "%d %f %f", stock ? 1 : 2, *guard_target_theta, *guard_angle_);
     }
     void relay_control() {}
     void image_pitch_control() {
