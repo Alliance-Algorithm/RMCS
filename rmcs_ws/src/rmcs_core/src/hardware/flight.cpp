@@ -106,7 +106,7 @@ public:
                 [&buffer](std::byte byte) noexcept { *buffer++ = byte; }, size);
         };
         referee_serial_->write = [this](const std::byte* buffer, size_t size) {
-            start_transmit().uart1_transmit(
+            start_transmit().uart2_transmit(
                 {.uart_data = std::span<const std::byte>{buffer, size}});
             return size;
         };
@@ -215,7 +215,7 @@ protected:
         }
     }
 
-    void uart1_receive_callback(const librmcs::data::UartDataView& data) override {
+    void uart2_receive_callback(const librmcs::data::UartDataView& data) override {
         const std::byte* ptr = data.uart_data.data();
         referee_ring_buffer_receive_.emplace_back_n(
             [&ptr](std::byte* storage) noexcept { new (storage) std::byte{*ptr++}; },
