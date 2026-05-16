@@ -39,18 +39,10 @@ private:
     class armCommand : public rmcs_executor::Component {
     public:
         explicit armCommand(Arm& arm)
-            : arm_(arm) {
-            register_input("/arm/joint_123/dm_enable_command", startup_dm_enable_joint123_, false);
-        }
+            : arm_(arm) {}
         void update() override { arm_.command(); }
-        bool should_enable_dm_joint123() const {
-            return startup_dm_enable_joint123_.ready() && *startup_dm_enable_joint123_;
-        }
 
         Arm& arm_;
-
-    private:
-        InputInterface<bool> startup_dm_enable_joint123_;
     };
     std::shared_ptr<armCommand> arm_command_;
 
@@ -118,7 +110,6 @@ private:
         void arm_command_update() {
             static bool even_phase{true};
             auto tx                              = start_transmit();
-            const bool should_enable_dm_joint123 = arm_command_.should_enable_dm_joint123();
 
             if (even_phase) {
 
@@ -146,7 +137,7 @@ private:
 
                 tx.can1_transmit({
                     .can_id   = 0x143,
-                    .can_data = joint_1.lk_quest_command().as_bytes(),
+                    .can_data = joint_1.generate_Voltage_command().as_bytes(),
                 });
 
                 tx.can1_transmit({
@@ -173,6 +164,21 @@ private:
             joint_2.update();
             joint_1.update();
             big_yaw.update();
+
+            RCLCPP_INFO_THROTTLE(
+                get_logger(), *get_clock(), 1000,
+                "big_yaw angle=%.6f raw=%d | "
+                "joint_1 angle=%.6f raw=%d | "
+                "joint_2 angle=%.6f raw=%d | "
+                "joint_3 angle=%.6f raw=%d | "
+                "joint_4 angle=%.6f raw=%d | "
+                "joint_5 angle=%.6f raw=%d | "
+                "joint_6 angle=%.6f raw=%d",
+                big_yaw.get_angle(), big_yaw.get_raw_angle(), joint_1.get_angle(),
+                joint_1.get_raw_angle(), joint_2.get_angle(), joint_2.get_raw_angle(),
+                joint_3.get_angle(), joint_3.get_raw_angle(), joint_4.get_angle(),
+                joint_4.get_raw_angle(), joint_5.get_angle(), joint_5.get_raw_angle(),
+                joint_6.get_angle(), joint_6.get_raw_angle());
         }
         void usart_send() {
             if (++custom_tick_ < custom_send_divider_) {
@@ -203,10 +209,10 @@ private:
             };
             const uint16_t payload_u16[8] = {
                 offset_angle(big_yaw.get_raw_angle(), big_yaw_zero_point_, 65535),
-                offset_angle(joint_1.get_raw_angle(), joint1_zero_point_, 65535),
+                offset_angle(joint_1.get_raw_angle(), joint1_zero_point_, 32768),
                 offset_angle(joint_2.get_raw_angle(), joint2_zero_point_, 65535),
                 offset_angle(joint_3.get_raw_angle(), joint3_zero_point_, 65535),
-                offset_angle(joint_4.get_raw_angle(), joint4_zero_point_, 32768),
+                offset_angle(joint_4.get_raw_angle(), joint4_zero_point_, 65535),
                 offset_angle(joint_5.get_raw_angle(), joint5_zero_point_, 65535),
                 offset_angle(joint_6.get_raw_angle(), joint6_zero_point_, 32768),
                 0,
@@ -251,7 +257,7 @@ private:
                 joint_2.store_status(data.can_data);
             } else if (data.can_id == 0x143) {
                 joint_1.store_status(data.can_data);
-            } else if (data.can_id == 0x141) { 
+            } else if (data.can_id == 0x141) {
                 big_yaw.store_status(data.can_data);
             }
         }

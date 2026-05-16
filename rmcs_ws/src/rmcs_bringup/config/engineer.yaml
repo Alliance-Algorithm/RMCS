@@ -18,11 +18,13 @@ arm_hardware:
     joint3_zero_point: 60345
     joint2_zero_point: 26380
     joint1_zero_point: 1881
-    big_yaw_zero_point: 40607
+    big_yaw_zero_point: 57726
 
 arm_solver:
   ros__parameters:
-    controller_list: [gravity,friction,zero_torque]
+    controller_list: [gravity]
+    joint1_velocity_target: 0.0
+    joint4_velocity_target: 0.0
 
 big_yaw_velocity_pid_controller:
   ros__parameters:

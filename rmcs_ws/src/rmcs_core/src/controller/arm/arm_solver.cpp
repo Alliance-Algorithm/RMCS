@@ -17,6 +17,8 @@ class ArmSolver final
     , public rclcpp::Node {
 
     static constexpr std::size_t num_axis = 6;
+    static constexpr int joint1_index      = 0;
+    static constexpr int joint4_index      = 3;
     using TorqueVec                       = Eigen::Array<double, num_axis, 1>;
 
 public:
@@ -33,10 +35,10 @@ public:
               pid::PidCalculator(100.0, 0.0, 4.0), // joint_6
           }
         , joint_vel_pid_controller{
-              pid::PidCalculator(0.4, 0.0, 0.0), // joint_1
+              pid::PidCalculator(0.1, 0.0, 0.0), // joint_1
               pid::PidCalculator(15.1, 0.0, 0.00), // joint_2
               pid::PidCalculator(1.1, 0.0, 0.0), // joint_3
-              pid::PidCalculator(0.135, 0.0, 0.002), // joint_4
+              pid::PidCalculator(0.125, 0.0, 0.00), // joint_4
               pid::PidCalculator(0.11, 0.0, 0.004), // joint_5
               pid::PidCalculator(0.0900, 0.0, 0.004), // joint_6
           } {
@@ -50,10 +52,6 @@ public:
 
             register_output(joint_prefix + "/motor/control_torque", joint_control_torque[i], NAN);
         }
-
-        register_output("/arm/gripper/motor/control_torque", gripper_control_torque, NAN);
-        register_output("/arm/joint_123/dm_enable_command", startup_dm_enable_joint123_, false);
-
         for (std::size_t i = 0; i < num_axis; ++i) {
             const std::string link_prefix = "/arm/link_" + std::to_string(i + 1);
             register_input(link_prefix + "/mass", link_mass[i]);
@@ -63,44 +61,39 @@ public:
 
         register_input("urdf_loaded", is_loaded);
         register_input("/arm/joint_4/position", joint4_position);
+        joint1_velocity_target_ = this->get_parameter("joint1_velocity_target").as_double();
+        joint4_velocity_target_ = this->get_parameter("joint4_velocity_target").as_double();
 
         const auto list = this->get_parameter("controller_list").as_string_array();
         load_controller_list(list);
     }
 
     void update() override {
-        static constexpr int kStartupHoldCycles   = 1000;
-        static constexpr int kStartupEnableCycles = 50;
+        static constexpr int kStartupHoldCycles = 1000;
         TorqueVec tau_cmd;
         tau_cmd.setZero();
         static int startup_cycle_count_ = 0;
         if (startup_cycle_count_ < kStartupHoldCycles) {
             ++startup_cycle_count_;
-            *startup_dm_enable_joint123_ = startup_cycle_count_ <= kStartupEnableCycles;
             tau_cmd                      = calculate_zero_torque();
             return;
         }
-        *startup_dm_enable_joint123_ = false;
         if (!*is_loaded)
             return;
 
         for (auto fn : controller_list) {
             tau_cmd += (this->*fn)();
         }
-        for (std::size_t i = 0; i < num_axis; ++i) {
-            //  tau_cmd = calculate_zero_torque();
-            tau_cmd[0] = 0;
-            // tau_cmd[1] = 0;
-            // tau_cmd[2] = 0;
-            tau_cmd[3] = 0;
-            // tau_cmd[4] = 0;
-            tau_cmd[5] = 0;
+        tau_cmd[joint1_index] += calculate_joint1_velocity_pid();
+        tau_cmd[joint4_index] += calculate_joint4_velocity_pid();
 
+        tau_cmd[5] = 0;
+
+        for (std::size_t i = 0; i < num_axis; ++i) {
             *joint_control_torque[i] = tau_cmd[i];
         }
     }
 
-private:
 private:
     Eigen::Array<double, 6, 1> calculate_pid() {
         const auto normalize_angle = [](double angle) {
@@ -125,6 +118,9 @@ private:
 
         for (std::size_t i = 0; i < 6; ++i) {
             const int idx = static_cast<int>(i);
+            if (idx == joint1_index || idx == joint4_index) {
+                continue;
+            }
 
             const double current_theta = *joint_theta(idx);
             const double target_theta  = clamp_target_theta(idx, *joint_target_theta(idx));
@@ -138,6 +134,16 @@ private:
         }
 
         return tau_pid;
+    }
+    double calculate_joint1_velocity_pid() {
+        const double current_vel = *joint_velocity(joint1_index);
+        const double vel_error   = joint1_velocity_target_ - current_vel;
+        return joint_vel_pid_controller(joint1_index).update(vel_error);
+    }
+    double calculate_joint4_velocity_pid() {
+        const double current_vel = *joint_velocity(joint4_index);
+        const double vel_error   = joint4_velocity_target_ - current_vel;
+        return joint_vel_pid_controller(joint4_index).update(vel_error);
     }
     Eigen::Array<double, 6, 1> calculate_friction_compensation() {
         // tau_f = b * dq + tau_c * tanh(dq / v0);
@@ -219,11 +225,10 @@ private:
         Eigen::Array<double, 6, 1> tau_g;
         tau_g.setZero();
 
-        tau_g(1) = reverse * joint2_tau_g / 3.0;
+        tau_g(1) = reverse * joint2_tau_g;
         tau_g(2) =  reverse * joint_3_tau_g;
         tau_g(3) = joint_4_tau_g;
         tau_g(4) = reverse * joint_5_tau_g;
-        // RCLCPP_INFO(get_logger(),"%f",tau_g(1) );
         return tau_g;
     };
     Eigen::Array<double, 6, 1> calculate_zero_torque() {
@@ -288,7 +293,8 @@ private:
     InputInterface<Eigen::Vector3d> joint4_position;
     InputInterface<bool> is_arm_enable;
     OutputInterface<double> gripper_control_torque;
-    OutputInterface<bool> startup_dm_enable_joint123_;
+    double joint1_velocity_target_{0.0};
+    double joint4_velocity_target_{0.0};
 
     InputInterface<bool> is_loaded;
 };

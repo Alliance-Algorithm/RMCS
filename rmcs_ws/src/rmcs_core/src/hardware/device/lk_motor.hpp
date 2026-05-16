@@ -249,8 +249,8 @@ public:
             return;
 
         uint8_t command_byte = std::to_integer<uint8_t>(can_result.front());
-        if (command_byte == 0x9C || command_byte == 0xA4 || command_byte == 0xA1
-            || command_byte == 0xAD) {
+        if (command_byte == 0x9C || command_byte == 0xA4 || command_byte == 0xA1 ||command_byte == 0xA2
+            || command_byte == 0xAD ||  command_byte == 0xA0) {
             can_result_.store(CanPacket8{can_result}, std::memory_order::relaxed);
         }
     }
@@ -318,7 +318,29 @@ public:
         std::copy(control_current_bits.begin(), control_current_bits.end(), result.begin() + 4);
         return CanPacket8{std::bit_cast<uint64_t>(result)};
     }
+    CanPacket8 generate_Voltage_command() {
+        std::array<uint8_t, 8> result = {0};
+        result[0]                     = 0xA0;
+        double torque                 = reverse * (*control_torque_);
+        if (std::isnan(torque)) {
+            result[1] = 0X00;
+            result[2] = 0X00;
+            result[3] = 0X00;
+            result[4] = 0X00;
+            result[5] = 0X00;
+            result[6] = 0X00;
+            result[7] = 0X00;
 
+            return CanPacket8{std::bit_cast<uint64_t>(result)};
+        }
+        double max_torque = (*motor_)->get_max_torque();
+        torque            = std::clamp(torque, -max_torque, max_torque);
+        double current    = std::round((*motor_)->torque_to_raw_current_coefficient_ * torque);
+        int16_t control_current   = static_cast<int16_t>(current);
+        auto control_current_bits = std::bit_cast<std::array<uint8_t, 2>>(control_current);
+        std::copy(control_current_bits.begin(), control_current_bits.end(), result.begin() + 4);
+        return CanPacket8{std::bit_cast<uint64_t>(result)};
+    }
     CanPacket8 generate_velocity_command(double control_velocity, int16_t iqcontrol) {
         std::array<uint8_t, 8> result = {0};
         result[0]                     = 0xA2;
