@@ -21,9 +21,7 @@ class Status
     , public rclcpp::Node {
 public:
     Status()
-        : Node{
-              get_component_name(),
-              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
+        : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , logger_(get_logger()) {
         register_input("/referee/serial", serial_);
 

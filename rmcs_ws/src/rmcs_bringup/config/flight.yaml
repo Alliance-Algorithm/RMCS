@@ -104,7 +104,7 @@ pitch_angle_pid_controller:
     control: /gimbal/pitch/control_velocity
     kp: 10.0
     ki: 0.0
-    kd: 0.0    
+    kd: 0.0
 
 friction_wheel_controller:
   ros__parameters:
@@ -112,19 +112,19 @@ friction_wheel_controller:
       - /gimbal/left_friction
       - /gimbal/right_friction
     friction_velocities:
-      - 610.0
-      - 610.0
+      - 770.0
+      - 770.0
     friction_soft_start_stop_time: 1.0
 
 heat_controller:
   ros__parameters:
-    heat_per_shot: 1
-    reserved_heat: 0
+    heat_per_shot: 10000
+    reserved_heat: 10000
 
 bullet_feeder_controller:
   ros__parameters:
     bullets_per_feeder_turn: 8.0
-    shot_frequency: 20.0
+    shot_frequency: 30.0
     safe_shot_frequency: 10.0
     eject_frequency: 10.0
     eject_time: 0.05
@@ -155,6 +155,6 @@ bullet_feeder_velocity_pid_controller:
     measurement: /gimbal/bullet_feeder/velocity
     setpoint: /gimbal/bullet_feeder/control_velocity
     control: /gimbal/bullet_feeder/control_torque
-    kp: 0.583
+    kp: 1.5
     ki: 0.0
     kd: 0.0
