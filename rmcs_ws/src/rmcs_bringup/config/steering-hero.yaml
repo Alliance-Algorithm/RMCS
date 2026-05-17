@@ -15,8 +15,8 @@ rmcs_executor:
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> pitch_velocity_pid_controller
 
-      # - rmcs_core::controller::gimbal::PlayerViewer -> gimbal_player_viewer_controller
-      # - rmcs_core::controller::pid::ErrorPidController -> viewer_angle_pid_controller
+      - rmcs_core::controller::gimbal::PlayerViewer -> gimbal_player_viewer_controller
+      - rmcs_core::controller::pid::ErrorPidController -> viewer_angle_pid_controller
 
       - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
       - rmcs_core::controller::shooting::HeatController -> heat_controller
@@ -44,9 +44,9 @@ hero_hardware:
     board_serial_top_board: "D4-2BCA-2E47-76CD-23BC-0B78-684B"
     board_serial_bottom_board_one: "D4-7973-19A9-EA40-4A3E-306F-10F9"
     board_serial_bottom_board_two: "D4-3674-7174-8768-879E-E44A-3931"
-    bottom_yaw_motor_zero_point: 51524
-    pitch_motor_zero_point: 37034 
-    top_yaw_motor_zero_point: 11035
+    bottom_yaw_motor_zero_point: 37583
+    pitch_motor_zero_point: 14139 
+    top_yaw_motor_zero_point: 33517
     viewer_motor_zero_point: 3030
     external_imu_port: /dev/ttyUSB0
     bullet_feeder_motor_zero_point: 21854
@@ -119,23 +119,23 @@ chassis_power_controller:
 
 gimbal_controller:
   ros__parameters:
-    upper_limit: -0.69
-    lower_limit: 0.3009
+    upper_limit: -0.688
+    lower_limit: 0.357
 
 dual_yaw_controller:
   ros__parameters:
-    top_yaw_angle_kp: 10.0
+    top_yaw_angle_kp: 5.0
     top_yaw_angle_ki: 0.0
     top_yaw_angle_kd: 0.0
-    top_yaw_velocity_kp: 40.0
-    top_yaw_velocity_ki: 0.004
+    top_yaw_velocity_kp: 10.0
+    top_yaw_velocity_ki: 0.0
     top_yaw_velocity_kd: 0.0
     bottom_yaw_angle_kp: 5.0
     bottom_yaw_angle_ki: 0.0
     bottom_yaw_angle_kd: 0.0
-    bottom_yaw_velocity_kp: 10.0
+    bottom_yaw_velocity_kp: 2.0
     bottom_yaw_velocity_ki: 0.0
-    bottom_yaw_velocity_kd: 50.0
+    bottom_yaw_velocity_kd: 0.0
 
 # dual_yaw_controller:
 #   ros__parameters:
@@ -156,23 +156,23 @@ pitch_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/pitch/control_angle_error
     control: /gimbal/pitch/control_velocity
-    kp: 15.0 
+    kp: 10.0 
     ki: 0.0
-    kd: 3.2 
+    kd: 0.0
 
 pitch_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/pitch/velocity_imu
     setpoint: /gimbal/pitch/control_velocity
     control: /gimbal/pitch/control_torque
-    kp: 40.0 #45.00
+    kp: 12.00 #45.00
     ki: 0.00
-    kd: 2.0 #1.00
+    kd: 0.0 #1.00
 
 gimbal_player_viewer_controller:
   ros__parameters:
-    upper_limit: 0.0101
-    lower_limit: 0.6191
+    upper_limit: 0.68
+    lower_limit: 1.17
 
 viewer_angle_pid_controller:
   ros__parameters:
@@ -206,6 +206,22 @@ shooting_recorder:
     friction_wheel_count: 4
     aim_velocity: 11.8
     log_mode: 1 # 1: trigger, 2: timing
+
+bullet_feeder_controller:
+  ros__parameters:
+    bullet_feeder_velocity_kp: 5.5
+    bullet_feeder_velocity_ki: 1.1
+    bullet_feeder_velocity_kd: 0.0
+    bullet_feeder_velocity_integral_min: 0.0
+    bullet_feeder_velocity_integral_max: 60.0
+    bullet_feeder_angle_kp: 5.0
+    bullet_feeder_angle_ki: 0.0
+    bullet_feeder_angle_kd: 1.0
+    putter_return_velocity_kp: 0.0015
+    putter_return_velocity_ki: 0.00005
+    putter_return_velocity_kd: 0.0
+    putter_return_velocity_integral_min: -0.03
+    putter_return_velocity_integral_max: 0.0
 
 first_left_friction_velocity_pid_controller:
   ros__parameters:

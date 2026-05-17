@@ -30,6 +30,76 @@
 
 namespace rmcs_core::hardware {
 
+class CanReceiveRateCounter {
+public:
+    explicit CanReceiveRateCounter(rclcpp::Logger logger, std::string_view channel_name)
+        : logger_(std::move(logger))
+        , channel_name_(channel_name) {}
+
+    void record(std::uint32_t can_id) {
+        const auto now = Clock::now();
+
+        std::lock_guard lock{mutex_};
+        auto& status = statuses_[can_id];
+        ++status.receive_count;
+        status.last_receive_time = now;
+
+        report_if_due(now);
+    }
+
+    void report_if_due() {
+        const auto now = Clock::now();
+
+        std::lock_guard lock{mutex_};
+        report_if_due(now);
+    }
+
+private:
+    using Clock = std::chrono::steady_clock;
+
+    struct Status {
+        std::size_t receive_count{0};
+        Clock::time_point last_receive_time{};
+    };
+
+    void report_if_due(Clock::time_point now) {
+        if (statuses_.empty())
+            return;
+
+        if (last_report_time_ == Clock::time_point{}) {
+            last_report_time_ = now;
+            return;
+        }
+
+        const auto elapsed = now - last_report_time_;
+        if (elapsed < kReportInterval)
+            return;
+
+        const auto elapsed_seconds = std::chrono::duration<double>(elapsed).count();
+        for (auto& [can_id, status] : statuses_) {
+            const bool attached = now - status.last_receive_time <= kMissTimeout;
+            RCLCPP_INFO(
+                logger_, "[can rx] %.*s id=0x%03X rate=%.1fHz status=%s",
+                static_cast<int>(channel_name_.size()), channel_name_.data(),
+                static_cast<unsigned int>(can_id),
+                static_cast<double>(status.receive_count) / elapsed_seconds,
+                attached ? "attach" : "miss");
+            status.receive_count = 0;
+        }
+
+        last_report_time_ = now;
+    }
+
+    static constexpr std::chrono::milliseconds kReportInterval{1000};
+    static constexpr std::chrono::milliseconds kMissTimeout{1000};
+
+    rclcpp::Logger logger_;
+    std::string_view channel_name_;
+    std::mutex mutex_;
+    Clock::time_point last_report_time_{};
+    std::map<std::uint32_t, Status> statuses_;
+};
+
 class SteeringHero
     : public rmcs_executor::Component
     , public rclcpp::Node {
@@ -135,6 +205,8 @@ private:
             : librmcs::agent::CBoard(board_serial)
             , logger_(steering_hero.get_logger())
             , tf_(steering_hero.tf_)
+            , can1_receive_rate_counter_(logger_, "bottom/can1")
+            , can2_receive_rate_counter_(logger_, "bottom/can2")
             , imu_(1000, 0.2, 0.0)
             , gimbal_top_yaw_motor_(steering_hero, steering_hero_command, "/gimbal/top_yaw")
             , gimbal_pitch_motor_(steering_hero, steering_hero_command, "/gimbal/pitch")
@@ -144,7 +216,10 @@ private:
                   {steering_hero, steering_hero_command, "/gimbal/second_left_friction"},
                   {steering_hero, steering_hero_command, "/gimbal/second_right_friction"})
             , gimbal_bullet_feeder_(steering_hero, steering_hero_command, "/gimbal/bullet_feeder")
-            , putter_motor_(steering_hero, steering_hero_command, "/gimbal/putter") {
+            , putter_motor_(steering_hero, steering_hero_command, "/gimbal/putter")
+            , gimbal_scope_motor_(steering_hero, steering_hero_command, "/gimbal/scope")
+            , gimbal_player_viewer_motor_(
+                  steering_hero, steering_hero_command, "/gimbal/player_viewer") {
 
             gimbal_top_yaw_motor_.configure(
                 device::LkMotor::Config{device::LkMotor::Type::kMG5010Ei10}.set_encoder_zero_point(
@@ -178,6 +253,14 @@ private:
             putter_motor_.configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
                     .set_reduction_ratio(1.)
+                    .enable_multi_turn_angle());
+            gimbal_scope_motor_.configure(device::DjiMotor::Config{device::DjiMotor::Type::kM2006});
+            gimbal_player_viewer_motor_.configure(
+                device::LkMotor::Config{device::LkMotor::Type::kMG4005Ei10}
+                    .set_encoder_zero_point(
+                        static_cast<int>(
+                            steering_hero.get_parameter("viewer_motor_zero_point").as_int()))
+                    .set_reversed()
                     .enable_multi_turn_angle());
 
             steering_hero.register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
@@ -213,6 +296,9 @@ private:
         ~TopBoard() final = default;
 
         void update() {
+            // can1_receive_rate_counter_.report_if_due();
+            // can2_receive_rate_counter_.report_if_due();
+
             imu_.update_status();
             Eigen::Quaterniond gimbal_imu_pose{imu_.q0(), imu_.q1(), imu_.q2(), imu_.q3()};
 
@@ -224,12 +310,20 @@ private:
 
             gimbal_top_yaw_motor_.update_status();
             gimbal_pitch_motor_.update_status();
+            tf_->set_state<rmcs_description::YawLink, rmcs_description::PitchLink>(
+                gimbal_pitch_motor_.angle());
 
             for (auto& motor : gimbal_friction_wheels_)
                 motor.update_status();
 
             gimbal_bullet_feeder_.update_status();
             putter_motor_.update_status();
+
+            gimbal_player_viewer_motor_.update_status();
+            tf_->set_state<rmcs_description::PitchLink, rmcs_description::ViewerLink>(
+                gimbal_player_viewer_motor_.angle());
+
+            gimbal_scope_motor_.update_status();
 
             if (last_camera_capturer_trigger_timestamp_ != *camera_capturer_trigger_timestamp_)
                 *camera_capturer_trigger_ = true;
@@ -242,56 +336,83 @@ private:
         void command_update() {
             auto builder = start_transmit();
 
-            builder.can1_transmit({
-                .can_id = 0x200,
-                .can_data =
-                    device::CanPacket8{
-                                       gimbal_friction_wheels_[3].generate_command(),
-                                       gimbal_friction_wheels_[1].generate_command(),
-                                       gimbal_friction_wheels_[2].generate_command(),
-                                       gimbal_friction_wheels_[0].generate_command(),
-                                       }
-                        .as_bytes(),
-            });
+            if (control_flag == 0) {
+                builder.can1_transmit({
+                    .can_id = 0x200,
+                    .can_data =
+                        device::CanPacket8{
+                                           gimbal_friction_wheels_[3].generate_command(),
+                                           gimbal_friction_wheels_[1].generate_command(),
+                                           gimbal_friction_wheels_[2].generate_command(),
+                                           gimbal_friction_wheels_[0].generate_command(),
+                                           }
+                            .as_bytes(),
+                });
 
-            builder.can1_transmit({
-                .can_id = 0x1FF,
-                .can_data =
-                    device::CanPacket8{
-                                       putter_motor_.generate_command(),
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       }
-                        .as_bytes(),
-            });
+                builder.can2_transmit({
+                    .can_id = 0x143,
+                    .can_data = gimbal_player_viewer_motor_
+                                    .generate_velocity_command(
+                                        gimbal_player_viewer_motor_.control_velocity())
+                                    .as_bytes(),
+                });
 
-            builder.can1_transmit({
-                .can_id = 0x141,
-                .can_data = gimbal_bullet_feeder_.generate_torque_command().as_bytes(),
-            });
+                if (std::isfinite(gimbal_pitch_motor_.control_angle()))
+                    builder.can2_transmit({
+                        .can_id = 0x142,
+                        .can_data = gimbal_pitch_motor_
+                                        .generate_angle_command(gimbal_pitch_motor_.control_angle())
+                                        .as_bytes(),
+                    });
+                else
+                    builder.can2_transmit({
+                        .can_id = 0x142,
+                        .can_data = gimbal_pitch_motor_.generate_torque_command().as_bytes(),
+                    }); // 用于区分pitch中 encoder 和 imu
 
-            builder.can2_transmit({
-                .can_id = 0x141,
-                .can_data = gimbal_top_yaw_motor_.generate_command().as_bytes(),
-            });
+            } else {
+                builder.can1_transmit({
+                    .can_id = 0x1FF,
+                    .can_data =
+                        device::CanPacket8{
+                                           putter_motor_.generate_command(),
+                                           gimbal_scope_motor_.generate_command(),
+                                           device::CanPacket8::PaddingQuarter{},
+                                           device::CanPacket8::PaddingQuarter{},
+                                           }
+                            .as_bytes(),
+                });
 
-            builder.can2_transmit({
-                .can_id = 0x142,
-                .can_data = gimbal_pitch_motor_.generate_command().as_bytes(),
-            });
+                builder.can1_transmit({
+                    .can_id = 0x141,
+                    .can_data = gimbal_bullet_feeder_.generate_torque_command().as_bytes(),
+                });
 
-            // builder.gpio_digital_read({
-            //     .channel = 7,
-            //     .period_ms = 20,
-            //     .pull = librmcs::data::GpioPull::kUp,
-            // });
+                builder.can2_transmit({
+                    .can_id = 0x141,
+                    .can_data = gimbal_top_yaw_motor_.generate_command().as_bytes(),
+                });
+            }
 
-            // builder.gpio_digital_read({
-            //     .channel = 5,
-            //     .period_ms = 20,
-            //     .pull = librmcs::data::GpioPull::kUp,
-            // });
+            builder.gpio_digital_read(
+                librmcs::spec::c_board::kGpioDescriptors[6],
+                {
+                    .period_ms = 20,
+                    .pull = librmcs::data::GpioPull::kUp,
+                });
+
+            builder.gpio_digital_read(
+                librmcs::spec::c_board::kGpioDescriptors[4],
+                {
+                    .period_ms = 20,
+                    .pull = librmcs::data::GpioPull::kUp,
+                });
+
+            if (control_flag == 0) {
+                control_flag = 1;
+            } else {
+                control_flag = 0;
+            }
         }
 
     private:
@@ -299,6 +420,7 @@ private:
             if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
                 return;
             auto can_id = data.can_id;
+            // can1_receive_rate_counter_.record(can_id);
             if (can_id == 0x204) {
                 gimbal_friction_wheels_[0].store_status(data.can_data);
             } else if (can_id == 0x202) {
@@ -311,6 +433,8 @@ private:
                 putter_motor_.store_status(data.can_data);
             } else if (can_id == 0x141) {
                 gimbal_bullet_feeder_.store_status(data.can_data);
+            } else if (can_id == 0x206) {
+                gimbal_scope_motor_.store_status(data.can_data);
             }
         }
 
@@ -318,23 +442,25 @@ private:
             if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
                 return;
             auto can_id = data.can_id;
-
+            // can2_receive_rate_counter_.record(can_id);
             if (can_id == 0x141) {
                 gimbal_top_yaw_motor_.store_status(data.can_data);
             } else if (can_id == 0x142) {
                 gimbal_pitch_motor_.store_status(data.can_data);
+            } else if (can_id == 0x143) {
+                gimbal_player_viewer_motor_.store_status(data.can_data);
             }
         }
 
-        // void gpio_digital_read_result_callback(
-        //     const librmcs::data::GpioDigitalDataView& data) override {
-        //     if (data.channel == 7) {
-        //         photoelectric_sensor_status_atomic.store(!data.high);
-        //     } else if (data.channel == 5) {
-        //         grayscale_sensor_status_atomic.store(!data.high);
-        //     }
-        // }
-
+        void gpio_digital_read_result_callback(
+            const librmcs::spec::c_board::GpioDescriptor& gpio,
+            const librmcs::data::GpioDigitalDataView& data) override {
+            if (gpio.channel_index == 6) {
+                photoelectric_sensor_status_atomic.store(!data.high);
+            } else if (gpio.channel_index == 4) {
+                grayscale_sensor_status_atomic.store(!data.high);
+            }
+        }
         void accelerometer_receive_callback(
             const librmcs::data::AccelerometerDataView& data) override {
             imu_.store_accelerometer_status(data.x, data.y, data.z);
@@ -344,8 +470,11 @@ private:
             imu_.store_gyroscope_status(data.x, data.y, data.z);
         }
 
+        int control_flag = 0;
         rclcpp::Logger logger_;
         OutputInterface<rmcs_description::Tf>& tf_;
+        CanReceiveRateCounter can1_receive_rate_counter_;
+        CanReceiveRateCounter can2_receive_rate_counter_;
 
         std::time_t last_camera_capturer_trigger_timestamp_{0};
 
@@ -355,6 +484,8 @@ private:
         device::DjiMotor gimbal_friction_wheels_[4];
         device::LkMotor gimbal_bullet_feeder_;
         device::DjiMotor putter_motor_;
+        device::DjiMotor gimbal_scope_motor_;
+        device::LkMotor gimbal_player_viewer_motor_;
 
         OutputInterface<double> gimbal_yaw_velocity_imu_;
         OutputInterface<double> gimbal_pitch_velocity_imu_;
@@ -374,6 +505,8 @@ private:
             std::string_view board_serial = {})
             : librmcs::agent::CBoard(board_serial)
             , logger_(steering_hero.get_logger())
+            , can1_receive_rate_counter_(logger_, "bottom/can1")
+            , can2_receive_rate_counter_(logger_, "bottom/can2")
             , imu_(1000, 0.2, 0.0)
             , chassis_front_climber_motor_(
                   {steering_hero, steering_hero_command, "/chassis/climber/left_front_motor"},
@@ -439,6 +572,8 @@ private:
 
         void update() {
             imu_.update_status();
+            // can1_receive_rate_counter_.report_if_due();
+            // can2_receive_rate_counter_.report_if_due();
 
             *chassis_yaw_velocity_imu_ = imu_.gz();
             *chassis_pitch_imu_ = -std::asin(2.0 * (imu_.q0() * imu_.q2() - imu_.q3() * imu_.q1()));
@@ -499,6 +634,7 @@ private:
             if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
                 return;
             auto can_id = data.can_id;
+            // can1_receive_rate_counter_.record(can_id);
             if (can_id == 0x201) {
                 chassis_wheel_motors_[1].store_status(data.can_data);
             } else if (can_id == 0x202) {
@@ -514,7 +650,7 @@ private:
             if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
                 return;
             auto can_id = data.can_id;
-
+            // can2_receive_rate_counter_.record(can_id);
             if (can_id == 0x203) {
                 chassis_front_climber_motor_[0].store_status(data.can_data);
             } else if (can_id == 0x204) {
@@ -536,6 +672,8 @@ private:
         }
 
         rclcpp::Logger logger_;
+        CanReceiveRateCounter can1_receive_rate_counter_;
+        CanReceiveRateCounter can2_receive_rate_counter_;
 
         device::Bmi088 imu_;
         device::DjiMotor chassis_front_climber_motor_[2];
@@ -557,6 +695,8 @@ private:
             std::string_view board_serial = {})
             : librmcs::agent::CBoard(board_serial)
             , logger_(steering_hero.get_logger())
+            , can1_receive_rate_counter_(logger_, "bottom/can1")
+            , can2_receive_rate_counter_(logger_, "bottom/can2")
             , imu_(1000, 0.2, 0.0)
             , dr16_(steering_hero)
             , supercap_(steering_hero, steering_hero_command)
@@ -621,6 +761,8 @@ private:
             imu_.update_status();
             dr16_.update_status();
             supercap_.update_status();
+            // can1_receive_rate_counter_.report_if_due();
+            // can2_receive_rate_counter_.report_if_due();
 
             for (auto& motor : chassis_wheel_motors2_)
                 motor.update_status();
@@ -631,7 +773,6 @@ private:
         }
 
         void command_update() {
-
             auto builder = start_transmit();
 
             builder.can1_transmit({
@@ -669,7 +810,7 @@ private:
             if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
                 return;
             auto can_id = data.can_id;
-
+            // can1_receive_rate_counter_.record(can_id);
             if (can_id == 0x203) {
                 chassis_wheel_motors2_[1].store_status(data.can_data);
             } else if (can_id == 0x204) {
@@ -687,7 +828,7 @@ private:
             if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
                 return;
             auto can_id = data.can_id;
-
+            // can2_receive_rate_counter_.record(can_id);
             if (can_id == 0x141) {
                 gimbal_bottom_yaw_motor_.store_status(data.can_data);
             }
@@ -715,6 +856,8 @@ private:
             imu_.store_gyroscope_status(data.x, data.y, data.z);
         }
 
+        CanReceiveRateCounter can1_receive_rate_counter_;
+        CanReceiveRateCounter can2_receive_rate_counter_;
         device::Bmi088 imu_;
 
         OutputInterface<bool> powermeter_control_enabled_;
