@@ -51,9 +51,9 @@ public:
         using namespace rmcs_msgs;
 
         auto switch_right = *switch_right_;
-        auto switch_left  = *switch_left_;
-        auto keyboard     = *keyboard_;
-        auto rotary_knob  = *rotary_knob_;
+        auto switch_left = *switch_left_;
+        auto keyboard = *keyboard_;
+        auto rotary_knob = *rotary_knob_;
 
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
@@ -74,8 +74,8 @@ private:
 
         //                     charging_power_limit =
         constexpr double buffer_energy_control_line = 120; // = referee + excess
-        constexpr double buffer_energy_base_line    = 30;  // = referee
-        constexpr double buffer_energy_dead_line    = 0;   // = 0
+        constexpr double buffer_energy_base_line = 30;     // = referee
+        constexpr double buffer_energy_dead_line = 0;      // = 0
 
         *supercap_charge_power_limit_ =
             *chassis_power_limit_referee_
@@ -91,8 +91,8 @@ private:
     }
 
     void reset_power_control() {
-        virtual_buffer_energy_        = virtual_buffer_energy_limit_;
-        boost_mode_                   = false;
+        virtual_buffer_energy_ = virtual_buffer_energy_limit_;
+        boost_mode_ = false;
         *chassis_control_power_limit_ = 0.0;
     }
 
@@ -108,17 +108,16 @@ private:
         double power_limit;
 
         if (boost_mode_ && *supercap_enabled_)
-            power_limit = *mode_ == rmcs_msgs::ChassisMode::LAUNCH_RAMP
-                            ? inf_
-                            : *chassis_power_limit_referee_ + 80.0;
+            power_limit =
+                rmcs_msgs::need_power(*mode_) ? inf_ : *chassis_power_limit_referee_ + 80.0;
         else
             power_limit = *chassis_power_limit_referee_;
         chassis_power_limit_expected_ = power_limit;
 
         //                 chassis_control_power_limit =
         constexpr double supercap_voltage_control_line = 12.5; // = supercap
-        constexpr double supercap_voltage_base_line    = 12.0; // = referee
-        power_limit                                    = *chassis_power_limit_referee_
+        constexpr double supercap_voltage_base_line = 12.0;    // = referee
+        power_limit = *chassis_power_limit_referee_
                     + (power_limit - *chassis_power_limit_referee_)
                           * std::clamp(
                               (*supercap_voltage_ - supercap_voltage_base_line)

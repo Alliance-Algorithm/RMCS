@@ -257,7 +257,7 @@ private:
         explicit BottomBoard(
             Sentry& sentry, rmcs_executor::Component& sentry_command,
             std::string_view board_serial = {})
-            : librmcs::agent::CBoard(board_serial)
+            : CBoard{board_serial, librmcs::agent::AdvancedOptions{true}}
             , imu_(1000, 0.2, 0.0)
             , tf_(sentry.tf_)
             , dr16_(sentry)
@@ -435,7 +435,7 @@ private:
         rmcs_utility::RingBuffer<std::byte> referee_ring_buffer_receive_{256};
         OutputInterface<rmcs_msgs::SerialInterface> referee_serial_;
         OutputInterface<double> chassis_yaw_velocity_imu_;
-    };
+    }; // namespace rmcs_core::hardware
 
     struct CommandTransmitter : public rmcs_executor::Component {
         std::function<void()> fn;

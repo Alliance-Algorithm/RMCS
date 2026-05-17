@@ -59,7 +59,7 @@ public:
         if (!navigation_enable_control_.ready()) {
             navigation_enable_control_.make_and_bind_directly(false);
             navigation_command_velocity_.make_and_bind_directly(Eigen::Vector2d::Zero());
-            navigation_chassis_behavior_.make_and_bind_directly(ChassisMode::AUTO);
+            navigation_chassis_behavior_.make_and_bind_directly(ChassisMode::NONE);
 
             RCLCPP_INFO(get_logger(), "Manual mode without navigation");
         }
@@ -81,6 +81,13 @@ public:
 
             auto mode = *mode_;
             if (switch_left != Switch::DOWN) {
+
+                // Navigation Control Here
+                const auto behavior = *navigation_chassis_behavior_;
+                const auto control = *navigation_enable_control_;
+                if (control && behavior != ChassisMode::NONE)
+                    mode = behavior;
+
                 // Right Switch: MIDDLE -> DOWN
                 // Switch ChassisMode Between SPIN And STEP_DOWN
                 if (last_switch_right_ == Switch::MIDDLE && switch_right == Switch::DOWN) {
@@ -114,11 +121,6 @@ public:
                                                               : ChassisMode::LAUNCH_RAMP;
                 }
 
-                // Navigation Control Here
-                if (*navigation_enable_control_) {
-                    mode = *navigation_chassis_behavior_;
-                }
-
                 *mode_ = mode;
             }
 
@@ -146,37 +148,41 @@ public:
     }
 
     Eigen::Vector2d update_translational_velocity_control() {
-        auto keyboard = *keyboard_;
-        Eigen::Vector2d keyboard_move{keyboard.w - keyboard.s, keyboard.a - keyboard.d};
-
-        auto translational_velocity = Eigen::Rotation2Dd{*gimbal_yaw_angle_}
-                                    * Eigen::Vector2d{*joystick_right_ + keyboard_move};
-
-        if (translational_velocity.norm() > 1.0)
-            translational_velocity.normalize();
-
-        translational_velocity *= kTranslationalVelocityMax;
-
         // Handle Navigation Control
         //
         // YawLink(LidarLink) -> ChassisLink
         //
-        auto nav_speed = Eigen::Vector2d{Eigen::Vector2d::Zero()};
         if (*navigation_enable_control_) {
+            auto nav_speed = Eigen::Vector2d{Eigen::Vector2d::Zero()};
             auto raw_command = *navigation_command_velocity_;
             if (std::isfinite(raw_command.x()) && std::isfinite(raw_command.y())) {
                 auto yaw_rotation = Eigen::Rotation2Dd{*gimbal_yaw_angle_};
                 nav_speed = yaw_rotation * raw_command;
             }
+            return nav_speed;
         }
-        return translational_velocity + nav_speed;
+
+        const auto keyboard = *keyboard_;
+        const auto keyboard_move =
+            Eigen::Vector2d{keyboard.w - keyboard.s, keyboard.a - keyboard.d};
+
+        auto manual_speed = Eigen::Rotation2Dd{*gimbal_yaw_angle_}
+                          * Eigen::Vector2d{*joystick_right_ + keyboard_move};
+
+        if (manual_speed.norm() > 1.0)
+            manual_speed.normalize();
+
+        manual_speed *= kTranslationalVelocityMax;
+
+        return manual_speed;
     }
 
     double update_angular_velocity_control() {
-        double angular_velocity = 0.0;
-        double chassis_control_angle = kNaN;
+        auto angular_velocity = 0.0;
+        auto chassis_control_angle = kNaN;
 
         switch (*mode_) {
+        case ChassisMode::NONE:
         case ChassisMode::AUTO: break;
 
         case ChassisMode::SPIN_FAST: {
