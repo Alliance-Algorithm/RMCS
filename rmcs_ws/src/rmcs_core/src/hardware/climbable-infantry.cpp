@@ -374,7 +374,7 @@ private:
 
             *chassis_yaw_velocity_imu_ = imu_.gz();
             *chassis_pitch_imu_ = -std::asin(2.0 * (imu_.q0() * imu_.q2() - imu_.q3() * imu_.q1()));
-
+            // RCLCPP_INFO(logger_,"pitch:%lf",*chassis_pitch_imu_);
             chassis_front_climber_motor_[0].update_status();
             chassis_front_climber_motor_[1].update_status();
             chassis_back_climber_motor_[0].update_status();
@@ -449,13 +449,13 @@ private:
             });
 
             builder.can2_transmit({
-                .can_id = 0x200,
+                .can_id = 0x1FE,
                 .can_data =
                     device::CanPacket8{
-                        gimbal_bullet_feeder_.generate_command(),
                         device::CanPacket8::PaddingQuarter{},
                         device::CanPacket8::PaddingQuarter{},
                         device::CanPacket8::PaddingQuarter{},
+                        supercap_.generate_command(),
                     }
                         .as_bytes(),
             });
@@ -466,13 +466,13 @@ private:
             });
 
             builder.can3_transmit({
-                .can_id = 0x1FE,
+                .can_id = 0x1FF,
                 .can_data =
                     device::CanPacket8{
+                        gimbal_bullet_feeder_.generate_command(),
                         device::CanPacket8::PaddingQuarter{},
                         device::CanPacket8::PaddingQuarter{},
                         device::CanPacket8::PaddingQuarter{},
-                        supercap_.generate_command(),
                     }
                         .as_bytes(),
             });
@@ -528,10 +528,10 @@ private:
                 return;
             auto can_id = data.can_id;
 
-            if (can_id == 0x201) {
-                gimbal_bullet_feeder_.store_status(data.can_data);
-            } else if (can_id == 0x141) {
+            if (can_id == 0x141) {
                 gimbal_yaw_motor_.store_status(data.can_data);
+            } else if (can_id == 0x300) {
+                supercap_.store_status(data.can_data);
             }
         }
 
@@ -548,8 +548,8 @@ private:
                 chassis_front_climber_motor_[0].store_status(data.can_data);
             } else if (can_id == 0x204) {
                 chassis_front_climber_motor_[1].store_status(data.can_data);
-            } else if (can_id == 0x300) {
-                supercap_.store_status(data.can_data);
+            } else if (can_id == 0x205) {
+                gimbal_bullet_feeder_.store_status(data.can_data);
             }
         }
 

@@ -1,0 +1,4 @@
+#compdef sync-remote-cross
+
+_arguments \
+  '--target-arch=[Cross sync target architecture]:target:(arm64 amd64)'

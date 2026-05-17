@@ -48,16 +48,16 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
             )
         )
 
-        if is_automatic:
-            pass
+        # if is_automatic:
+        #     pass
 
-        entities.append(
-            IncludeLaunchDescription(
-                PythonLaunchDescriptionSource([
-                    FindPackageShare('rmcs_auto_aim_v2'), '/launch.py'
-                ])
-            )
-        )
+        # entities.append(
+        #     IncludeLaunchDescription(
+        #         PythonLaunchDescriptionSource([
+        #             FindPackageShare('rmcs_auto_aim_v2'), '/launch.py'
+        #         ])
+        #     )
+        # )
 
         return entities
 

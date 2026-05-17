@@ -1,0 +1,90 @@
+#!/bin/bash
+
+set -euo pipefail
+
+: "${RMCS_PATH:=/workspaces/RMCS}"
+
+usage() {
+    cat <<'EOF'
+Usage:
+  sync-remote-cross --target-arch <arm64|amd64>
+
+Examples:
+  sync-remote-cross --target-arch arm64
+  sync-remote-cross --target-arch=amd64
+EOF
+}
+
+target_arch=""
+
+while (($# > 0)); do
+    case "$1" in
+    --target-arch)
+        if (($# < 2)); then
+            echo "> ERROR: --target-arch requires a value."
+            usage
+            exit 1
+        fi
+        target_arch="$2"
+        shift 2
+        ;;
+    --target-arch=*)
+        target_arch="${1#*=}"
+        shift
+        ;;
+    -h | --help)
+        usage
+        exit 0
+        ;;
+    *)
+        echo "> ERROR: Unknown argument '$1'."
+        usage
+        exit 1
+        ;;
+    esac
+done
+
+if [[ -z "${target_arch}" ]]; then
+    echo "> ERROR: --target-arch is required."
+    usage
+    exit 1
+fi
+
+case "${target_arch}" in
+arm64 | amd64)
+    ;;
+*)
+    echo "> ERROR: Unsupported target arch '${target_arch}'. Use arm64 or amd64."
+    exit 1
+    ;;
+esac
+
+workspace="${RMCS_PATH}/rmcs_ws"
+sync_remote="${RMCS_PATH}/.script/sync-remote"
+
+if [[ ! -d "${workspace}" ]]; then
+    echo "> ERROR: Workspace not found: ${workspace}"
+    exit 1
+fi
+
+for name in build install log; do
+    cross_dir="${workspace}/${name}-cross-${target_arch}"
+    link_path="${workspace}/${name}"
+
+    if [[ ! -d "${cross_dir}" ]]; then
+        echo "> ERROR: Cross ${name} directory not found: ${cross_dir}"
+        echo "> Build it first with: build-rmcs-cross --target-arch ${target_arch}"
+        exit 1
+    fi
+
+    if [[ -e "${link_path}" && ! -L "${link_path}" ]]; then
+        echo "> ERROR: ${link_path} exists and is not a symlink."
+        echo "> Move it away first if you want to switch ${name} to cross output."
+        exit 1
+    fi
+
+    ln -sfn "${name}-cross-${target_arch}" "${link_path}"
+    echo "> ${name} -> ${name}-cross-${target_arch}"
+done
+
+exec "${sync_remote}"

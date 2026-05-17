@@ -30,7 +30,7 @@ rmcs_executor:
       - rmcs_core::controller::chassis::ClimbableSteeringWheelController -> steering_wheel_controller
       - rmcs_core::controller::chassis::ClimbableInfantryChassisClimberController -> climber_controller
 
-      - rmcs::AutoAimComponent -> auto_aim_component
+      # - rmcs::AutoAimComponent -> auto_aim_component
 
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 
@@ -57,8 +57,10 @@ value_broadcaster:
     # - /gimbal/yaw/control_velocity
     # - /chassis/control_angle
     # - /chassis/control_velocity
-    - /gimbal/left_friction/velocity
-    - /gimbal/right_friction/velocity
+    # - /gimbal/left_friction/velocity
+    # - /gimbal/right_friction/velocity
+      - /chassis/climber/left_front_motor/control_torque
+      - /chassis/climber/right_front_motor/control_torque
     # - /gimbal/yaw/control_torque
       # - /gimbal/left_friction/velocity
       # - /gimbal/right_friction/velocity
@@ -99,15 +101,15 @@ value_broadcaster:
 
 climber_controller:
   ros__parameters:
-    front_climber_velocity: 30.0
-    back_climber_velocity: 20.0 #13.0
-    auto_climb_dash_chassis_velocity: 3.0 #3.0
+    front_climber_velocity: 30.0 #30.0
+    back_climber_velocity: 25.0 #13.0
+    auto_climb_dash_chassis_velocity: 4.5 #3.0
     auto_climb_support_retract_velocity: 40.0 #47.0
-    auto_climb_approach_chassis_velocity: 2.5
+    auto_climb_approach_chassis_velocity: 2.5 #2.5
     auto_climb_support_deploy_chassis_velocity: 0.5
     auto_climb_leveled_pitch_threshold: 0.05
     sync_coefficient: 6.25
-    first_stair_approach_pitch: 0.590
+    first_stair_approach_pitch: 0.590 #590
     second_stair_approach_pitch: 0.360
     front_kp: 1.0
     front_ki: 0.0
