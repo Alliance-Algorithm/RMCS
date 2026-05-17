@@ -168,8 +168,6 @@ private:
             }
             if (last_arm_mode_ != *arm_mode_) {
                 switch (*arm_mode_) {
-                case rmcs_msgs::ArmMode::Auto_Linear_Forward:
-                case rmcs_msgs::ArmMode::Auto_Linear_Backward:
                 case rmcs_msgs::ArmMode::Auto_Extract_LB:
                 case rmcs_msgs::ArmMode::Auto_Extract_RB:
                 case rmcs_msgs::ArmMode::Auto_Storage_LB:

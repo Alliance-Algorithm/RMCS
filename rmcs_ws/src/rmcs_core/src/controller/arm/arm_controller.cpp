@@ -179,12 +179,15 @@ public:
         else if (switch_left == Switch::DOWN && switch_right == Switch::UP) {
             if (knob != last_rotary_knob_switch_) {
                 if (knob == Switch::UP) {
+                    image_pitch_theta1_offset_ = 0.16;
                     set_arm_mode(rmcs_msgs::ArmMode::Auto_Up_One_Stairs);
                 } else if (knob == Switch::DOWN) {
+                    image_pitch_theta1_offset_ = 0.16;
                     set_arm_mode(rmcs_msgs::ArmMode::Auto_Down_Stairs);
                 }
             }
             if (keyboard.g && !last_keyboard_.g) {
+                image_pitch_theta1_offset_ = 0.16;
                 if (!keyboard.shift && !keyboard.ctrl) {
                     set_arm_mode(rmcs_msgs::ArmMode::Auto_Walk);
                 } else if (keyboard.shift && !keyboard.ctrl) {
@@ -192,6 +195,7 @@ public:
                 }
             }
             if (keyboard.b && !last_keyboard_.b) {
+                image_pitch_theta1_offset_ = 0.16;
                 if (!keyboard.shift && !keyboard.ctrl) {
                     set_arm_mode(rmcs_msgs::ArmMode::Auto_Up_Two_Stairs);
                 } else if (keyboard.shift && !keyboard.ctrl) {
@@ -199,6 +203,7 @@ public:
                 }
             }
             if (keyboard.f && !last_keyboard_.f) {
+                image_pitch_theta1_offset_ = 0.24;
                 if (keyboard.shift && !keyboard.ctrl) {
                     set_arm_mode(rmcs_msgs::ArmMode::Auto_Storage_LB);
                 } else if (keyboard.ctrl && !keyboard.shift) {
@@ -206,6 +211,7 @@ public:
                 }
             }
             if (keyboard.d && !last_keyboard_.d) {
+                image_pitch_theta1_offset_ = 0.24;
                 if (keyboard.shift && !keyboard.ctrl) {
                     set_arm_mode(rmcs_msgs::ArmMode::Auto_Extract_LB);
                 } else if (keyboard.ctrl && !keyboard.shift) {
@@ -226,9 +232,11 @@ public:
             }
 
             if (keyboard.a && !last_keyboard_.a) {
+                image_pitch_theta1_offset_ = 0.16;
                 set_arm_mode(rmcs_msgs::ArmMode::Auto_Spin);
             }
             if (keyboard.r && !last_keyboard_.r) {
+                image_pitch_theta1_offset_ = 0;
                 set_arm_mode(rmcs_msgs::ArmMode::Custome);
             }
             if (mouse.left && !last_mouse_.left) {
@@ -258,8 +266,6 @@ public:
         case ArmMode::Auto_Walk:
         case ArmMode::Auto_Up_One_Stairs:
         case ArmMode::Auto_Up_Two_Stairs:
-        case ArmMode::Auto_Linear_Forward:
-        case ArmMode::Auto_Linear_Backward:
         case ArmMode::Auto_Extract_LB:
         case ArmMode::Auto_Extract_RB:
         case ArmMode::Auto_Storage_RB:
@@ -409,7 +415,7 @@ private:
                 for (std::size_t i = 0; i < auto_step_names.size(); ++i) {
                     const auto& step_name = auto_step_names[i];
                     config.lin_mask[i]    = step_name.size() >= 4
-                                         && step_name.compare(step_name.size() - 4, 4, "_lin") == 0;
+                                      && step_name.compare(step_name.size() - 4, 4, "_lin") == 0;
 
                     const std::string prefix = mine_name + ".params." + step_name + ".";
                     node_->get_parameter(prefix + "velocity_scaling", config.velocity_scaling[i]);
@@ -519,32 +525,6 @@ private:
             }
             break;
         }
-        case rmcs_msgs::ArmMode::Auto_Linear_Forward: {
-            const static double distance        = 0.1;
-            geometry_msgs::msg::Pose start_pose = move_group_->getCurrentPose().pose;
-            const auto target_pose = linear_point_transformer(start_pose, {1, 0, 0}, distance);
-            move_group_->setGoalOrientationTolerance(0.2);
-            move_group_->setGoalPositionTolerance(0.01);
-            move_group_->setMaxVelocityScalingFactor(0.05);
-            move_group_->setMaxAccelerationScalingFactor(0.05);
-            move_group_->setPlanningPipelineId("pilz_industrial_motion_planner");
-            move_group_->setPlannerId("LIN");
-            move_group_->setPoseTarget(target_pose, "link_6");
-            break;
-        }
-        case rmcs_msgs::ArmMode::Auto_Linear_Backward: {
-            const static double distance        = 0.1;
-            geometry_msgs::msg::Pose start_pose = move_group_->getCurrentPose().pose;
-            const auto target_pose = linear_point_transformer(start_pose, {-1, 0, 0}, distance);
-            move_group_->setGoalOrientationTolerance(0.2);
-            move_group_->setGoalPositionTolerance(0.01);
-            move_group_->setMaxVelocityScalingFactor(0.05);
-            move_group_->setMaxAccelerationScalingFactor(0.05);
-            move_group_->setPlanningPipelineId("pilz_industrial_motion_planner");
-            move_group_->setPlannerId("LIN");
-            move_group_->setPoseTarget(target_pose, "link_6");
-            break;
-        }
         case rmcs_msgs::ArmMode::Auto_Storage_LB:
         case rmcs_msgs::ArmMode::Auto_Storage_RB:
         case rmcs_msgs::ArmMode::Auto_Extract_LB:
@@ -555,7 +535,7 @@ private:
                 planned_trajectory_.store(result, std::memory_order::release);
                 return;
             }
-           
+
             auto current_state = move_group_->getCurrentState();
 
             result->positions.clear();
@@ -876,9 +856,30 @@ private:
         double qmax = 3;
         node_->get_parameter("image_pitch_qmin", qmin);
         node_->get_parameter("image_pitch_qmax", qmax);
-        double target_theta        = *theta[1] + image_pitch_theta1_offset_;
-        target_theta               = std::clamp(target_theta, qmin, qmax);
-        *image_pitch_target_theta_ = target_theta;
+        if (!std::isfinite(*theta[1]) || !std::isfinite(*image_pitch_theta_)) {
+            *image_pitch_target_theta_ = NAN;
+            return;
+        }
+        const auto normalize_to_0_2pi = [](double angle) {
+            angle = std::fmod(angle, 2 * std::numbers::pi);
+            if (angle < 0.0) {
+                angle += 2 * std::numbers::pi;
+            }
+            return angle;
+        };
+        const auto wrap_to_minus_pi_pi = [](double angle) {
+            angle = std::fmod(angle + std::numbers::pi, 2 * std::numbers::pi);
+            if (angle < 0.0) {
+                angle += 2 * std::numbers::pi;
+            }
+            return angle - std::numbers::pi;
+        };
+
+        const double clamped_theta = std::clamp(*theta[1] + image_pitch_theta1_offset_, qmin, qmax);
+
+        const double shortest_error = wrap_to_minus_pi_pi(
+            normalize_to_0_2pi(clamped_theta) - normalize_to_0_2pi(*image_pitch_theta_));
+        *image_pitch_target_theta_ = *image_pitch_theta_ + shortest_error;
     }
     void reset() {
 
