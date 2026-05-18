@@ -50,16 +50,16 @@ hero_hardware:
   ros__parameters:
     board_serial_top_board: "AF-BFF7-0B6F-46A5-2B4B-AA20-89C2-E180-64B9"
     serial_bottom_rmcs_board: "AF-60BB-7484-FA24-F3FC-399B-454D-22FA-1B1D"
-    bottom_yaw_motor_zero_point: 35111
+    bottom_yaw_motor_zero_point: 35157
     pitch_motor_zero_point: 57723
-    top_yaw_motor_zero_point: 48734
+    top_yaw_motor_zero_point: 48241
     viewer_motor_zero_point: 9363
     external_imu_port: /dev/ttyUSB0
     bullet_feeder_motor_zero_point: 39045
-    left_front_zero_point: 5782
-    right_front_zero_point: 3819
-    left_back_zero_point:  7841
-    right_back_zero_point: 1781
+    left_front_zero_point: 5828
+    right_front_zero_point: 3835
+    left_back_zero_point:  7788
+    right_back_zero_point: 1728
 
 value_broadcaster:
   ros__parameters:
@@ -204,10 +204,10 @@ friction_wheel_controller:
       - /gimbal/first_left_friction
       - /gimbal/first_right_friction
     friction_velocities:
-      - 372.00
-      - 372.00
-      - 530.00
-      - 530.00
+      - 372.00 #520.00
+      - 372.00 #520.00
+      - 530.00 #580.00
+      - 530.00 #580.00
     friction_soft_start_stop_time: 1.0
 
 heat_controller:

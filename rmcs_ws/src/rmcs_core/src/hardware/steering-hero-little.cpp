@@ -208,10 +208,10 @@ private:
             std::string_view board_serial = {})
             : librmcs::agent::RmcsBoardLite(board_serial)
             , logger_(steering_hero.get_logger())
-            // , can0_receive_rate_counter_(logger_, "bottom/can0")
-            // , can1_receive_rate_counter_(logger_, "bottom/can1")
-            // , can2_receive_rate_counter_(logger_, "bottom/can2")
-            // , can3_receive_rate_counter_(logger_, "bottom/can3")
+            , can0_receive_rate_counter_(logger_, "bottom/can0")
+            , can1_receive_rate_counter_(logger_, "bottom/can1")
+            , can2_receive_rate_counter_(logger_, "bottom/can2")
+            , can3_receive_rate_counter_(logger_, "bottom/can3")
             , tf_(steering_hero.tf_)
             , imu_(1000, 0.2, 0.0)
             , gimbal_top_yaw_motor_(steering_hero, steering_hero_command, "/gimbal/top_yaw")
@@ -304,10 +304,10 @@ private:
         ~TopBoard() final = default;
 
         void update() {
-            // can0_receive_rate_counter_.report_if_due();
-            // can1_receive_rate_counter_.report_if_due();
-            // can2_receive_rate_counter_.report_if_due();
-            // can3_receive_rate_counter_.report_if_due();
+            can0_receive_rate_counter_.report_if_due();
+            can1_receive_rate_counter_.report_if_due();
+            can2_receive_rate_counter_.report_if_due();
+            can3_receive_rate_counter_.report_if_due();
 
             imu_.update_status();
             Eigen::Quaterniond gimbal_imu_pose{imu_.q0(), imu_.q1(), imu_.q2(), imu_.q3()};
@@ -389,16 +389,16 @@ private:
             });
 
             builder.can2_transmit({
-                .can_id = 0x142,
-                .can_data = gimbal_bullet_feeder_.generate_torque_command().as_bytes(),
-            });
-
-            builder.can2_transmit({
                 .can_id = 0x143,
                 .can_data =
                     gimbal_player_viewer_motor_
                         .generate_velocity_command(gimbal_player_viewer_motor_.control_velocity())
                         .as_bytes(),
+            });
+
+            builder.can3_transmit({
+                .can_id = 0x142,
+                .can_data = gimbal_bullet_feeder_.generate_torque_command().as_bytes(),
             });
 
             builder.gpio_digital_read(
@@ -454,10 +454,18 @@ private:
                 return;
             auto can_id = data.can_id;
             // can2_receive_rate_counter_.record(can_id);
+            if (can_id == 0x143) {
+                gimbal_player_viewer_motor_.store_status(data.can_data);
+            }
+        }
+
+        void can3_receive_callback(const librmcs::data::CanDataView& data) override {
+            if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
+                return;
+            auto can_id = data.can_id;
+            // can3_receive_rate_counter_.record(can_id);
             if (can_id == 0x142) {
                 gimbal_bullet_feeder_.store_status(data.can_data);
-            } else if (can_id == 0x143) {
-                gimbal_player_viewer_motor_.store_status(data.can_data);
             }
         }
 
@@ -481,10 +489,10 @@ private:
         }
 
         rclcpp::Logger logger_;
-        // CanReceiveRateCounter can0_receive_rate_counter_;
-        // CanReceiveRateCounter can1_receive_rate_counter_;
-        // CanReceiveRateCounter can2_receive_rate_counter_;
-        // CanReceiveRateCounter can3_receive_rate_counter_;
+        CanReceiveRateCounter can0_receive_rate_counter_;
+        CanReceiveRateCounter can1_receive_rate_counter_;
+        CanReceiveRateCounter can2_receive_rate_counter_;
+        CanReceiveRateCounter can3_receive_rate_counter_;
         OutputInterface<rmcs_description::Tf>& tf_;
 
         std::time_t last_camera_capturer_trigger_timestamp_{0};

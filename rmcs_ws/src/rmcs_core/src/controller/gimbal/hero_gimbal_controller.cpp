@@ -141,7 +141,7 @@ public:
         constexpr double mouse_yaw_sensitivity = 0.5 * 0.114;
         constexpr double mouse_pitch_sensitivity = 0.5 * 0.095;
 
-        constexpr double joystick_sensitivity = 0.006 * 0.5;
+        constexpr double joystick_sensitivity = 0.006 * 0.1;
 
         double yaw_shift = joystick_sensitivity * joystick_left_->y()
                          + mouse_yaw_sensitivity * mouse_velocity_->y();
