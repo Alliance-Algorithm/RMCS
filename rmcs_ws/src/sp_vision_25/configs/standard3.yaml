@@ -37,12 +37,12 @@ max_temp_lost_count: 5
 outpost_max_temp_lost_count: 75
 
 #aimer参数
-yaw_offset: 1.6 # degree 
-pitch_offset: -2.0 # degree 
+yaw_offset: 1.5 # degree 
+pitch_offset: 1.5 # degree 
 comming_angle: 55 # degree
 leaving_angle: 20 # degree
 decision_speed: 5 # rad/s
-shoot_time_delay: 0.01    # 固定发射链路延迟 
+shoot_time_delay: 0.015    # 固定发射链路延迟 
 high_speed_delay_time: 0.00 # s
 low_speed_delay_time: 0.00 # s 
 phase_fire_thresh: 6.0       # degree  
@@ -52,8 +52,8 @@ impact_select_iters: 5
 spin_fire_family_mode: even
 spin_phase_fire_window_steps: 2
 spin_family_height_margin: 0.01
-centerline_enter_speed: 2.0  # 2.0
-centerline_exit_speed: 1.5 # 1.5
+centerline_enter_speed: 0.0  # 2.0
+centerline_exit_speed: 0.0 # 1.5
 
 #shooter参数  没有用
 first_tolerance: 30 # 近距离射击容差，degree
@@ -96,16 +96,16 @@ distort_coeffs:
 
 # 理想机械外参（gimbal -> camera）
 R_camera2gimbal: [0, 0, 1, -1, 0, 0, 0, -1, 0]
-t_camera2gimbal: [0.1420, 0.0, 0.1091] 
+t_camera2gimbal: [0.16115, 0.0, 0.0991] 
 
 #planner参数
 fire_thresh: 0.0025
 
 max_yaw_acc: 500
-Q_yaw: [9e6, 0] 
-R_yaw: [1] 
+Q_yaw: [1e5, 0] #[9e6, 0] 
+R_yaw: [50] #[1] 
 
 max_pitch_acc: 100
-Q_pitch: [9e6, 0] 
-R_pitch: [1] 
+Q_pitch: [1e5, 0] #[9e6, 0] 
+R_pitch:  [50] #[1] 
 

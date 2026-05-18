@@ -39,7 +39,7 @@ rmcs_executor:
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
 
-      # - sp_vision_25::bridge::HeroAutoAimBridge -> hero_auto_aim_bridge 
+      - sp_vision_25::bridge::HeroAutoAimBridge -> hero_auto_aim_bridge 
 
       # - rmcs_core::controller::identification::SweptFrequencyController -> pitch_swept_frequency_controller
       # - rmcs_core::controller::identification::StaticTorqueTestController -> pitch_static_torque_test_controller
@@ -128,7 +128,7 @@ gimbal_controller:
 
 dual_yaw_controller:
   ros__parameters:
-    top_yaw_angle_kp: 30.2
+    top_yaw_angle_kp: 28.2
     top_yaw_angle_ki: 0.0
     top_yaw_angle_kd: 0.0
     top_yaw_velocity_kp: 11.0
@@ -311,7 +311,7 @@ auto_aim_controller:
 hero_auto_aim_bridge:                                                                                                 
     ros__parameters:                                                                                                    
       config_file: "configs/standard3.yaml"                                                                             
-      bullet_speed_fallback: 11.4                                                                                      
+      bullet_speed_fallback: 11.5                                                                                      
       result_timeout: 0.1   # 0.08                                                                                     
       debug: false
 

@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <numbers>
 
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
@@ -26,8 +27,37 @@ public:
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , status_ring_(26.5, 26.5, 600, 40)
-        , chassis_direction_indicator_(Shape::Color::PINK, 8, x_center, y_center, 0, 0, 84, 84)
-        , time_reminder_(Shape::Color::PINK, 50, 5, x_center + 150, y_center + 65, 0, false) {
+        // , chassis_direction_indicator_(Shape::Color::PINK, 8, x_center, y_center, 0, 0, 84, 84)
+        , chassis_left_wheel_indicator_(
+              Shape::Color::WHITE, wheel_indicator_width, x_center, y_center, 0, 0,
+              wheel_indicator_radius, wheel_indicator_radius)
+        , chassis_right_wheel_indicator_(
+              Shape::Color::WHITE, wheel_indicator_width, x_center, y_center, 0, 0,
+              wheel_indicator_radius, wheel_indicator_radius)
+        , pitch_angle_number_(
+              Shape::Color::YELLOW, 20, 5, x_center + 420, y_center + 12, 0.0, false)
+        , time_reminder_(Shape::Color::PINK, 50, 5, x_center + 150, y_center + 65, 0, false)
+        // , bullet_allowance_label_(
+        //       Shape::Color::YELLOW, 18, 3, x_center - 300, y_center + 270, "bullet", false)
+        // , bullet_allowance_number_(
+        //       Shape::Color::YELLOW, 20, 5, x_center - 170, y_center + 270, 0, false)
+        , bullet_icon_body_top_(
+              Shape::Color::YELLOW, 3, x_center - 280, y_center + 261, x_center - 236,
+              y_center + 261, false)
+        , bullet_icon_body_bottom_(
+              Shape::Color::YELLOW, 3, x_center - 280, y_center + 279, x_center - 236,
+              y_center + 279, false)
+        , bullet_icon_body_left_(
+              Shape::Color::YELLOW, 3, x_center - 280, y_center + 261, x_center - 280,
+              y_center + 279, false)
+        , bullet_icon_head_top_(
+              Shape::Color::YELLOW, 3, x_center - 236, y_center + 261, x_center - 212,
+              y_center + 270, false)
+        , bullet_icon_head_bottom_(
+              Shape::Color::YELLOW, 3, x_center - 236, y_center + 279, x_center - 212,
+              y_center + 270, false)
+        , bullet_allowance_number_(
+              Shape::Color::YELLOW, 20, 5, x_center - 170, y_center + 270, 0, false) {
 
         chassis_control_direction_indicator_.set_x(x_center);
         chassis_control_direction_indicator_.set_y(y_center);
@@ -37,6 +67,9 @@ public:
         register_input("/chassis/angle", chassis_angle_);
         register_input("/chassis/control_angle", chassis_control_angle_);
 
+        register_input("/chassis/climber/left_front_motor/velocity", left_track_velocity_);
+        register_input("/chassis/climber/right_front_motor/velocity", right_track_velocity_);
+
         register_input("/chassis/supercap/voltage", supercap_voltage_);
         // register_input("/chassis/supercap/control_enable", supercap_control_enabled_);
 
@@ -45,7 +78,7 @@ public:
         register_input("/chassis/control_power_limit", chassis_control_power_limit_);
         register_input("/chassis/supercap/charge_power_limit", supercap_charge_power_limit_);
 
-        register_input("/referee/shooter/42mm_bullet_allowance", robot_bullet_allowance_);
+        register_input("/gimbal/control_bullet_allowance/limited_by_heat", robot_bullet_allowance_);
 
         register_input(
             "/gimbal/first_left_friction/control_velocity", left_friction_control_velocity_);
@@ -87,14 +120,29 @@ private:
     void set_normal_ui_visible(bool value) {
         status_ring_.set_visible(value);
 
-        chassis_direction_indicator_.set_visible(value);
-        chassis_control_direction_indicator_.set_visible(value);
+        // chassis_direction_indicator_.set_visible(value);
+        chassis_left_wheel_indicator_.set_visible(value);
+        chassis_right_wheel_indicator_.set_visible(value);
+        // chassis_control_direction_indicator_.set_visible(value);
+        pitch_angle_number_.set_visible(value);
+        // bullet_allowance_label_.set_visible(value);
+        bullet_icon_body_top_.set_visible(value);
+        bullet_icon_body_bottom_.set_visible(value);
+        bullet_icon_body_left_.set_visible(value);
+        bullet_icon_head_top_.set_visible(value);
+        bullet_icon_head_bottom_.set_visible(value);
+        bullet_allowance_number_.set_visible(value);
+        if (!value)
+            chassis_control_direction_indicator_.set_visible(false);
     }
 
     void update_normal_ui() {
         update_chassis_direction_indicator();
-
-        status_ring_.update_bullet_allowance(*robot_bullet_allowance_);
+        double display_angle = *gimbal_pitch_angle_;
+        if (display_angle > std::numbers::pi / 2)
+            display_angle -= 2.0 * std::numbers::pi;
+        bullet_allowance_number_.set_value(
+            static_cast<int32_t>(std::max<int64_t>(0, *robot_bullet_allowance_)));
         status_ring_.update_friction_wheel_speed(
             std::min(*left_friction_velocity_, *right_friction_velocity_),
             *left_friction_control_velocity_ > 0);
@@ -121,6 +169,9 @@ private:
 
         lift_height = std::clamp(lift_height, height_min, height_max);
         rangefinder_.update_vertical_rangefinder(lift_height);
+        const double pitch_deg =
+            std::round((-display_angle) * 180.0 / std::numbers::pi * 10.0) / 10.0;
+        pitch_angle_number_.set_value(pitch_deg);
     }
 
     void update_time_reminder() {
@@ -163,13 +214,37 @@ private:
         auto chassis_mode = *chassis_mode_;
 
         auto to_referee_angle = [](double angle) {
-            return static_cast<int>(
-                std::round((2 * std::numbers::pi - angle) / std::numbers::pi * 180));
+            // return static_cast<int>(
+            //     std::round((2 * std::numbers::pi - angle) / std::numbers::pi * 180));
+            int degrees = static_cast<int>(
+                std::lround((2.0 * std::numbers::pi - angle) / std::numbers::pi * 180.0));
+            degrees %= 360;
+            if (degrees < 0)
+                degrees += 360;
+            return static_cast<uint16_t>(degrees);
         };
-        chassis_direction_indicator_.set_color(
-            chassis_mode == rmcs_msgs::ChassisMode::SPIN ? Shape::Color::GREEN
-                                                         : Shape::Color::PINK);
-        chassis_direction_indicator_.set_angle(to_referee_angle(*chassis_angle_), 30);
+        // chassis_direction_indicator_.set_color(
+        //     chassis_mode == rmcs_msgs::ChassisMode::SPIN ? Shape::Color::GREEN
+        //                                                  : Shape::Color::PINK);
+        // chassis_direction_indicator_.set_angle(to_referee_angle(*chassis_angle_), 30);
+        const bool left_track_active =
+            std::abs(*left_track_velocity_) > track_velocity_active_threshold;
+        const bool right_track_active =
+            std::abs(*right_track_velocity_) > track_velocity_active_threshold;
+
+        chassis_left_wheel_indicator_.set_color(
+            left_track_active ? Shape::Color::GREEN : Shape::Color::WHITE);
+        chassis_right_wheel_indicator_.set_color(
+            right_track_active ? Shape::Color::GREEN : Shape::Color::WHITE);
+
+        const double wheel_offset = wheel_indicator_offset_deg * std::numbers::pi / 180.0;
+        const double left_wheel_angle = *chassis_angle_ + wheel_offset;
+        const double right_wheel_angle = *chassis_angle_ - wheel_offset;
+
+        chassis_left_wheel_indicator_.set_angle(
+            to_referee_angle(left_wheel_angle), wheel_indicator_half_angle);
+        chassis_right_wheel_indicator_.set_angle(
+            to_referee_angle(right_wheel_angle), wheel_indicator_half_angle);
 
         bool chassis_control_direction_indicator_visible = false;
         if (!std::isnan(*chassis_control_angle_)) {
@@ -198,8 +273,15 @@ private:
 
     static constexpr uint16_t height_min = 0, height_max = 500;
 
+    static constexpr uint16_t wheel_indicator_radius = 110;
+    static constexpr uint16_t wheel_indicator_width = 12;
+    static constexpr uint16_t wheel_indicator_half_angle = 10;
+    static constexpr double wheel_indicator_offset_deg = 28.0;
+    static constexpr double track_velocity_active_threshold = 1.0;
+
     InputInterface<rmcs_msgs::ChassisMode> chassis_mode_;
     InputInterface<double> chassis_angle_, chassis_control_angle_;
+    InputInterface<double> left_track_velocity_, right_track_velocity_;
 
     InputInterface<double> supercap_voltage_;
     InputInterface<bool> supercap_control_enabled_;
@@ -209,7 +291,7 @@ private:
     InputInterface<double> chassis_control_power_limit_;
     InputInterface<double> supercap_charge_power_limit_;
 
-    InputInterface<uint16_t> robot_bullet_allowance_;
+    InputInterface<int64_t> robot_bullet_allowance_;
 
     InputInterface<double> left_friction_control_velocity_;
     InputInterface<double> left_friction_velocity_;
@@ -230,10 +312,22 @@ private:
     StatusRing status_ring_;
     Rangefinder rangefinder_;
 
-    Arc chassis_direction_indicator_, chassis_control_direction_indicator_;
+    Arc chassis_left_wheel_indicator_;
+    Arc chassis_right_wheel_indicator_;
+    Arc chassis_control_direction_indicator_;
+
+    Float pitch_angle_number_;
 
     Text state_word_;
     Integer time_reminder_;
+
+    // Text bullet_allowance_label_;
+    Line bullet_icon_body_top_;
+    Line bullet_icon_body_bottom_;
+    Line bullet_icon_body_left_;
+    Line bullet_icon_head_top_;
+    Line bullet_icon_head_bottom_;
+    Integer bullet_allowance_number_;
 
     InputInterface<bool> auto_aim_fire_control_;
     InputInterface<double> auto_aim_target_confidence_;

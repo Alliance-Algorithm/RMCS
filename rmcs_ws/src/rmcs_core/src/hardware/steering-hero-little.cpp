@@ -740,9 +740,6 @@ private:
                 chassis_steering_motors_[1].store_status(data.can_data);
             } else if (can_id == 0x208) {
                 chassis_steering_motors_[0].store_status(data.can_data);
-            } else if (can_id == 0x300) {
-                // RCLCPP_INFO(logger_, "supercap ok");
-                supercap_.store_status(data.can_data);
             }
         }
 
@@ -759,6 +756,8 @@ private:
                 chassis_steering_motors_[2].store_status(data.can_data);
             } else if (can_id == 0x206) {
                 chassis_steering_motors_[3].store_status(data.can_data);
+            } else if (can_id == 0x300) {
+                supercap_.store_status(data.can_data);
             }
         }
 

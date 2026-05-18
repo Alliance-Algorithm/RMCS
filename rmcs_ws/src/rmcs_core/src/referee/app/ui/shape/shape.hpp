@@ -292,7 +292,7 @@ private:
 
     uint8_t priority_ = 15;
     uint8_t sync_confidence_ : 5 = max_update_times;
-    bool is_text_shape_      : 1 = false;
+    bool is_text_shape_      : 1 = true;
     bool last_time_modified_ : 1 = false;
     bool visible_            : 1 = false;
 };
@@ -648,6 +648,12 @@ public:
         if (font_size_ == font_size)
             return;
         font_size_ = font_size;
+        set_modified();
+    }
+
+    void set_xy(uint16_t x, uint16_t y) {
+        part2_.x = x;
+        part2_.y = y;
         set_modified();
     }
 

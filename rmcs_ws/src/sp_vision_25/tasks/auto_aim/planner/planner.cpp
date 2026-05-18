@@ -435,7 +435,7 @@ Plan Planner::plan_from_shot_state(Target target_at_shot, double bullet_speed) {
     clear_debug_targets();
 
     if (bullet_speed < 10 || bullet_speed > 12)
-        bullet_speed = 11.7;
+        bullet_speed = 11.5;
 
     const TrackingMode mode = select_tracking_mode(target_at_shot);
 
@@ -525,14 +525,9 @@ void Planner::setup_yaw_solver(const std::string& config_path) {
     auto Q_yaw = tools::read<std::vector<double>>(yaml, "Q_yaw");
     auto R_yaw = tools::read<std::vector<double>>(yaml, "R_yaw");
 
-    Eigen::MatrixXd A{
-        {1, DT},
-        {0,  1}
-    };
+    Eigen::MatrixXd A{{1, DT}, {0, 1}};
     Eigen::MatrixXd B{{0}, {DT}};
-    Eigen::VectorXd f{
-        {0, 0}
-    };
+    Eigen::VectorXd f{{0, 0}};
     Eigen::Matrix<double, 2, 1> Q(Q_yaw.data());
     Eigen::Matrix<double, 1, 1> R(R_yaw.data());
     tiny_setup(&yaw_solver_, A, B, f, Q.asDiagonal(), R.asDiagonal(), 1.0, 2, 1, HORIZON, 0);
@@ -552,14 +547,9 @@ void Planner::setup_pitch_solver(const std::string& config_path) {
     auto Q_pitch = tools::read<std::vector<double>>(yaml, "Q_pitch");
     auto R_pitch = tools::read<std::vector<double>>(yaml, "R_pitch");
 
-    Eigen::MatrixXd A{
-        {1, DT},
-        {0,  1}
-    };
+    Eigen::MatrixXd A{{1, DT}, {0, 1}};
     Eigen::MatrixXd B{{0}, {DT}};
-    Eigen::VectorXd f{
-        {0, 0}
-    };
+    Eigen::VectorXd f{{0, 0}};
     Eigen::Matrix<double, 2, 1> Q(Q_pitch.data());
     Eigen::Matrix<double, 1, 1> R(R_pitch.data());
     tiny_setup(&pitch_solver_, A, B, f, Q.asDiagonal(), R.asDiagonal(), 1.0, 2, 1, HORIZON, 0);
