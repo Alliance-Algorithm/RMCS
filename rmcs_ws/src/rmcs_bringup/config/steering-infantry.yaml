@@ -3,6 +3,7 @@ rmcs_executor:
     update_rate: 1000.0
     components:
       - rmcs_core::hardware::SteeringInfantry -> steeringInfantry_hardware
+      - rmcs::AutoAimComponent -> auto_aim_component
 
       - rmcs_core::referee::Status -> referee_status
       - rmcs_core::referee::Command -> referee_command

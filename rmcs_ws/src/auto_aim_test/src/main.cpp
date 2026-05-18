@@ -587,7 +587,7 @@ private:
         [[maybe_unused]] static constexpr std::size_t kFrameSize = kExpectedFrameSize;
 
         alignas(std::uintptr_t) std::byte data[kExpectedFrameSize];
-        MvGvspPixelType pixel_type;
+        int opencv_cvt_color_code;
 
         Eigen::Quaterniond imu_snapshot;
         TriggerBoard::Clock::time_point timestamp;

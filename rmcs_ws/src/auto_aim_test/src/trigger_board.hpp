@@ -2,8 +2,11 @@
 
 #include <chrono>
 #include <cstdint>
+#include <cstdio>
 #include <functional>
 #include <utility>
+
+#include "bmi088.hpp"
 
 #include <librmcs/agent/rmcs_board_lite.hpp>
 #include <librmcs/data/datas.hpp>
@@ -24,7 +27,12 @@ public:
     using SignalCallback = std::function<void(Clock::time_point)>;
 
     explicit TriggerBoard(SignalCallback&& callback)
-        : callback_(std::move(callback)) {
+        : TriggerBoard(std::move(callback), Bmi088Ekf::Config{}) {}
+
+    explicit TriggerBoard(
+        SignalCallback&& callback, Bmi088Ekf::Config imu_config)
+        : bmi088_(std::move(imu_config))
+        , callback_(std::move(callback)) {
         start_transmit().gpio_digital_read(
             librmcs::spec::rmcs_board_lite::kGpioDescriptors.kUart1Tx,
             {
@@ -37,18 +45,57 @@ public:
             });
     }
 
+    [[nodiscard]] auto imu() const noexcept -> const Bmi088Ekf& {
+        return bmi088_;
+    }
+
 private:
     void accelerometer_receive_callback(const librmcs::data::AccelerometerDataView& data) override {
         if (!has_latest_accelerometer_timestamp_) {
+            bmi088_.on_accelerometer(data);
             has_latest_accelerometer_timestamp_ = true;
             last_accelerometer_timestamp_raw_ = data.timestamp_quarter_us;
             latest_accelerometer_timestamp_ = data.timestamp_quarter_us;
             return;
         }
 
-        latest_accelerometer_timestamp_ += static_cast<std::uint32_t>(
+        const auto delta = static_cast<std::int32_t>(
             data.timestamp_quarter_us - last_accelerometer_timestamp_raw_);
+        if (delta <= 0) {
+            std::fprintf(
+                stderr,
+                "TriggerBoard: dropping non-monotonic accelerometer sample: raw=%u last=%u\n",
+                data.timestamp_quarter_us,
+                last_accelerometer_timestamp_raw_);
+            return;
+        }
+
+        bmi088_.on_accelerometer(data);
+        latest_accelerometer_timestamp_ += static_cast<std::int64_t>(delta);
         last_accelerometer_timestamp_raw_ = data.timestamp_quarter_us;
+    }
+
+    void gyroscope_receive_callback(const librmcs::data::GyroscopeDataView& data) override {
+        if (!has_latest_gyroscope_timestamp_) {
+            has_latest_gyroscope_timestamp_ = true;
+            last_gyroscope_timestamp_raw_ = data.timestamp_quarter_us;
+            bmi088_.on_gyroscope(data);
+            return;
+        }
+
+        const auto delta = static_cast<std::int32_t>(
+            data.timestamp_quarter_us - last_gyroscope_timestamp_raw_);
+        if (delta <= 0) {
+            std::fprintf(
+                stderr,
+                "TriggerBoard: dropping non-monotonic gyroscope sample: raw=%u last=%u\n",
+                data.timestamp_quarter_us,
+                last_gyroscope_timestamp_raw_);
+            return;
+        }
+
+        last_gyroscope_timestamp_raw_ = data.timestamp_quarter_us;
+        bmi088_.on_gyroscope(data);
     }
 
     void gpio_digital_read_result_callback(
@@ -77,8 +124,11 @@ private:
     }
 
     bool has_latest_accelerometer_timestamp_ = false;
+    bool has_latest_gyroscope_timestamp_ = false;
     std::uint32_t last_accelerometer_timestamp_raw_ = 0;
+    std::uint32_t last_gyroscope_timestamp_raw_ = 0;
     std::int64_t latest_accelerometer_timestamp_ = 0;
 
+    Bmi088Ekf bmi088_;
     SignalCallback callback_;
 };
