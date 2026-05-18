@@ -10,3 +10,6 @@
 [submodule "rmcs_ws/src/jlu_vision_26"]
 	path = rmcs_ws/src/jlu_vision_26
 	url = https://github.com/Fskaaaaaaaa/jlu_vision_26.git
+[submodule "rmcs_ws/src/awakening"]
+	path = rmcs_ws/src/awakening
+	url = https://github.com/WUST-RM/awakening.git

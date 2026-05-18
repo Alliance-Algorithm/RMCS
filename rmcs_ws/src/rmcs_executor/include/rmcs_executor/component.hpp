@@ -1,6 +1,9 @@
 #pragma once
 
 #include <concepts>
+#include <atomic>
+#include <cstdint>
+#include <functional>
 #include <map>
 #include <memory>
 #include <new>
@@ -9,13 +12,40 @@
 #include <type_traits>
 #include <typeinfo>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 namespace rmcs_executor {
 
+enum class InterfaceKind {
+    Normal,
+    Event,
+};
+
+inline const char* interface_kind_name(InterfaceKind kind) {
+    switch (kind) {
+    case InterfaceKind::Normal:
+        return "Normal";
+    case InterfaceKind::Event:
+        return "Event";
+    }
+
+    return "Unknown";
+}
+
+using EventState = std::uint32_t;
+constexpr EventState EVENT_DISABLED_BIT = EventState{1} << 31;
+constexpr EventState EVENT_ACTIVE_MASK  = ~EVENT_DISABLED_BIT;
+
 class Component {
 public:
     friend class Executor;
+
+    struct OutputInfo {
+        std::reference_wrapper<const std::type_info> type;
+        InterfaceKind kind;
+    };
+    using OutputInfoMap = std::map<std::string, OutputInfo>;
 
     Component(const Component&) = delete;
     Component& operator=(const Component&) = delete;
@@ -23,6 +53,16 @@ public:
     Component& operator=(Component&&) = delete;
 
     virtual ~Component() = default;
+
+    virtual void before_pairing(const OutputInfoMap& output_map) {
+        auto legacy_output_map = std::map<std::string, const std::type_info&>{};
+        for (const auto& [name, output] : output_map) {
+            if (output.kind != InterfaceKind::Normal)
+                continue;
+            legacy_output_map.emplace(name, output.type.get());
+        }
+        before_pairing(legacy_output_map);
+    }
 
     virtual void before_pairing(const std::map<std::string, const std::type_info&>& output_map) {
         (void)output_map;
@@ -79,15 +119,59 @@ public:
         const T& operator*() const { return *data_pointer_; }
 
     private:
-        void** activate() {
+        void* activate() {
             activated = true;
-            return reinterpret_cast<void**>(&data_pointer_);
+            return reinterpret_cast<void*>(&data_pointer_);
         }
 
         T* data_pointer_ = nullptr;
         bool activated = false;
 
         bool delete_data_when_deconstruct = false;
+    };
+
+    template <typename T>
+    requires(!std::is_reference_v<T> && !std::is_unbounded_array_v<T>) class EventInputInterface {
+    public:
+        friend class Component;
+
+        EventInputInterface() = default;
+
+        template <typename Callback>
+        requires std::invocable<Callback&, const T&>
+        explicit EventInputInterface(Callback&& callback) {
+            set_callback(std::forward<Callback>(callback));
+        }
+
+        EventInputInterface(const EventInputInterface&) = delete;
+        EventInputInterface& operator=(const EventInputInterface&) = delete;
+        EventInputInterface(EventInputInterface&&) = delete;
+        EventInputInterface& operator=(EventInputInterface&&) = delete;
+
+        template <typename Callback>
+        requires std::invocable<Callback&, const T&>
+        void set_callback(Callback&& callback) {
+            if (active())
+                throw std::runtime_error("The interface has been activated");
+
+            callback_ = std::forward<Callback>(callback);
+        }
+
+        [[nodiscard]] bool active() const { return activated; }
+        [[nodiscard]] bool ready() const { return static_cast<bool>(callback_); }
+
+    private:
+        void* activate() {
+            if (!ready())
+                throw std::runtime_error(
+                    "The event input interface requires a callback before registration");
+
+            activated = true;
+            return reinterpret_cast<void*>(&callback_);
+        }
+
+        std::function<void(const T&)> callback_;
+        bool activated = false;
     };
 
     template <typename T>
@@ -126,6 +210,90 @@ public:
         bool activated = false;
     };
 
+    template <typename T>
+    requires(!std::is_reference_v<T> && !std::is_unbounded_array_v<T>) class EventOutputInterface {
+    public:
+        friend class Component;
+
+        EventOutputInterface() = default;
+
+        EventOutputInterface(const EventOutputInterface&) = delete;
+        EventOutputInterface& operator=(const EventOutputInterface&) = delete;
+        EventOutputInterface(EventOutputInterface&&) = delete;
+        EventOutputInterface& operator=(EventOutputInterface&&) = delete;
+
+        [[nodiscard]] bool active() const { return activated; }
+
+        void emit(const T& event) {
+            if (!active())
+                throw std::runtime_error("The event output interface has not been activated");
+            if (!try_enter_emit())
+                return;
+
+            struct LeaveEmitGuard {
+                EventOutputInterface& interface;
+
+                ~LeaveEmitGuard() { interface.leave_emit(); }
+            } leave_emit_guard{*this};
+
+            for (const auto* callback : callback_list_)
+                (*callback)(event);
+        }
+
+    private:
+        using EventCallback = std::function<void(const T&)>;
+
+        void* activate() {
+            activated = true;
+            return this;
+        }
+
+        void add_listener(EventCallback* callback) {
+            callback_list_.emplace_back(callback);
+        }
+
+        bool try_enter_emit() {
+            auto state = state_.load(std::memory_order_relaxed);
+            while (true) {
+                if (state & EVENT_DISABLED_BIT)
+                    return false;
+                if ((state & EVENT_ACTIVE_MASK) == EVENT_ACTIVE_MASK)
+                    throw std::runtime_error("Too many active event emissions");
+
+                if (
+                    state_.compare_exchange_weak(
+                        state, state + 1, std::memory_order_relaxed,
+                        std::memory_order_relaxed))
+                    return true;
+            }
+        }
+
+        void leave_emit() {
+            const auto previous_state = state_.fetch_sub(1, std::memory_order_release);
+            const auto new_state      = previous_state - 1;
+            if (
+                (new_state & EVENT_DISABLED_BIT) != 0
+                && (new_state & EVENT_ACTIVE_MASK) == 0)
+                state_.notify_one();
+        }
+
+        void disable() { state_.fetch_or(EVENT_DISABLED_BIT, std::memory_order_relaxed); }
+
+        void enable() { state_.fetch_and(EVENT_ACTIVE_MASK, std::memory_order_relaxed); }
+
+        void wait_idle() {
+            auto state = state_.load(std::memory_order_acquire);
+            while ((state & EVENT_ACTIVE_MASK) != 0) {
+                state_.wait(state, std::memory_order_acquire);
+                state = state_.load(std::memory_order_acquire);
+            }
+        }
+
+        std::vector<EventCallback*> callback_list_;
+        std::atomic<EventState> state_{EVENT_DISABLED_BIT};
+        bool activated = false;
+    };
+
     const std::string& get_component_name() { return component_name_; }
 
     template <typename T>
@@ -133,7 +301,23 @@ public:
         const std::string& name, InputInterface<T>& interface, bool required = true) {
         if (interface.active())
             throw std::runtime_error("The interface has been activated");
-        input_list_.emplace_back(typeid(T), name, required, interface.activate());
+
+        ensure_registration_name_is_available(name, InterfaceKind::Normal, RegistrationDirection::Input);
+        input_list_.emplace_back(
+            typeid(T), name, InterfaceKind::Normal, required, interface.activate(),
+            &bind_input_interface<T>);
+    }
+
+    template <typename T>
+    void register_input(
+        const std::string& name, EventInputInterface<T>& interface, bool required = true) {
+        if (interface.active())
+            throw std::runtime_error("The interface has been activated");
+
+        ensure_registration_name_is_available(name, InterfaceKind::Event, RegistrationDirection::Input);
+        input_list_.emplace_back(
+            typeid(T), name, InterfaceKind::Event, required, interface.activate(),
+            &bind_event_input_interface<T>);
     }
 
     template <typename T, typename... Args>
@@ -141,14 +325,30 @@ public:
     void register_output(const std::string& name, OutputInterface<T>& interface, Args&&... args) {
         if (interface.active())
             throw std::runtime_error("The interface has been activated");
+
+        ensure_registration_name_is_available(
+            name, InterfaceKind::Normal, RegistrationDirection::Output);
         output_list_.emplace_back(
-            typeid(T), name, interface.activate(std::forward<Args>(args)...), this);
+            typeid(T), name, InterfaceKind::Normal,
+            interface.activate(std::forward<Args>(args)...), nullptr, nullptr, nullptr, this);
+    }
+
+    template <typename T>
+    void register_output(const std::string& name, EventOutputInterface<T>& interface) {
+        if (interface.active())
+            throw std::runtime_error("The interface has been activated");
+
+        ensure_registration_name_is_available(name, InterfaceKind::Event, RegistrationDirection::Output);
+        output_list_.emplace_back(
+            typeid(T), name, InterfaceKind::Event, interface.activate(),
+            &enable_event_output_interface<T>, &disable_event_output_interface<T>,
+            &wait_event_output_interface_idle<T>, this);
     }
 
     template <typename T, typename... Args>
     requires std::constructible_from<T, Args...>
     std::shared_ptr<T> create_partner_component(const std::string& name, Args&&... args) {
-        initializing_component_name = name.c_str();
+        initializing_component_name = name;
 
         auto component = std::make_shared<T>(std::forward<Args>(args)...);
         partner_component_list_.emplace_back(component);
@@ -156,26 +356,107 @@ public:
         return component;
     }
 
-    static const char* initializing_component_name;
+    static std::string initializing_component_name;
 
 protected:
     Component()
         : component_name_(initializing_component_name) {}
 
 private:
+    enum class RegistrationDirection {
+        Input,
+        Output,
+    };
+
+    using BindFunction = void (*)(void* input_binding, void* output_binding);
+    using OutputLifecycleHook = void (*)(void* output_binding);
+
+    static const char* registration_direction_name(RegistrationDirection direction) {
+        switch (direction) {
+        case RegistrationDirection::Input:
+            return "input";
+        case RegistrationDirection::Output:
+            return "output";
+        }
+
+        return "interface";
+    }
+
+    void ensure_registration_name_is_available(
+        const std::string& name, InterfaceKind kind, RegistrationDirection direction) const {
+        auto check_declarations =
+            [&](const auto& declarations, RegistrationDirection existing_direction) {
+                for (const auto& declaration : declarations) {
+                    if (declaration.name != name)
+                        continue;
+
+                    if (declaration.kind != kind) {
+                        throw std::runtime_error(
+                            "Component [" + component_name_ + "] cannot register "
+                            + interface_kind_name(kind) + " "
+                            + registration_direction_name(direction) + " \"" + name
+                            + "\" because the same name has already been registered as "
+                            + interface_kind_name(declaration.kind) + " "
+                            + registration_direction_name(existing_direction)
+                            + " in this component");
+                    }
+
+                    throw std::runtime_error(
+                        "Component [" + component_name_ + "] cannot register duplicate "
+                        + interface_kind_name(kind) + " "
+                        + registration_direction_name(direction) + " \"" + name + "\"");
+                }
+            };
+
+        check_declarations(input_list_, RegistrationDirection::Input);
+        check_declarations(output_list_, RegistrationDirection::Output);
+    }
+
+    template <typename T>
+    static void bind_input_interface(void* input_binding, void* output_binding) {
+        *reinterpret_cast<T**>(input_binding) = reinterpret_cast<T*>(output_binding);
+    }
+
+    template <typename T>
+    static void bind_event_input_interface(void* input_binding, void* output_binding) {
+        auto& callback = *reinterpret_cast<std::function<void(const T&)>*>(input_binding);
+        reinterpret_cast<EventOutputInterface<T>*>(output_binding)->add_listener(&callback);
+    }
+
+    template <typename T>
+    static void enable_event_output_interface(void* output_binding) {
+        reinterpret_cast<EventOutputInterface<T>*>(output_binding)->enable();
+    }
+
+    template <typename T>
+    static void disable_event_output_interface(void* output_binding) {
+        reinterpret_cast<EventOutputInterface<T>*>(output_binding)->disable();
+    }
+
+    template <typename T>
+    static void wait_event_output_interface_idle(void* output_binding) {
+        reinterpret_cast<EventOutputInterface<T>*>(output_binding)->wait_idle();
+    }
+
     std::string component_name_;
 
     struct InputDeclaration {
         const std::type_info& type;
         std::string name;
+        InterfaceKind kind;
         bool required;
-        void** pointer_to_data_pointer;
+        void* binding;
+        BindFunction bind;
     };
 
     struct OutputDeclaration {
         const std::type_info& type;
         std::string name;
-        void* data_pointer;
+        InterfaceKind kind;
+        void* binding;
+        OutputLifecycleHook enable;
+        OutputLifecycleHook disable;
+        OutputLifecycleHook wait_idle;
 
         Component* component;
     };

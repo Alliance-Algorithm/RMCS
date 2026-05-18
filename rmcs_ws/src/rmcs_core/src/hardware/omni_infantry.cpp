@@ -6,7 +6,7 @@
 #include <utility>
 
 #include <eigen3/Eigen/Dense>
-#include <librmcs/agent/c_board.hpp>
+#include <librmcs/agent/rmcs_board_lite.hpp>
 #include <librmcs/data/datas.hpp>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
@@ -32,13 +32,13 @@ namespace rmcs_core::hardware {
 class OmniInfantry
     : public rmcs_executor::Component
     , public rclcpp::Node
-    , private librmcs::agent::CBoard {
+    , private librmcs::agent::RmcsBoardLite {
 public:
     OmniInfantry()
         : Node{
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
-        , librmcs::agent::CBoard{get_parameter("board_serial").as_string()}
+        , librmcs::agent::RmcsBoardLite{get_parameter("board_serial").as_string()}
         , logger_(get_logger())
         , infantry_command_(
               create_partner_component<InfantryCommand>(get_component_name() + "_command", *this))
@@ -126,9 +126,8 @@ public:
                 [&buffer](std::byte byte) noexcept { *buffer++ = byte; }, size);
         };
         referee_serial_->write = [this](const std::byte* buffer, size_t size) {
-            start_transmit().uart1_transmit({
-                .uart_data = std::span<const std::byte>{buffer, size}
-            });
+            start_transmit().uart1_transmit(
+                {.uart_data = std::span<const std::byte>{buffer, size}});
             return size;
         };
     }
@@ -154,11 +153,11 @@ public:
             .can_id = 0x1FE,
             .can_data =
                 device::CanPacket8{
-                                   device::CanPacket8::PaddingQuarter{},
-                                   device::CanPacket8::PaddingQuarter{},
-                                   device::CanPacket8::PaddingQuarter{},
-                                   supercap_.generate_command(),
-                                   }
+                    device::CanPacket8::PaddingQuarter{},
+                    device::CanPacket8::PaddingQuarter{},
+                    device::CanPacket8::PaddingQuarter{},
+                    supercap_.generate_command(),
+                }
                     .as_bytes(),
         });
 
@@ -171,11 +170,11 @@ public:
             .can_id = 0x200,
             .can_data =
                 device::CanPacket8{
-                                   chassis_wheel_motors_[0].generate_command(),
-                                   chassis_wheel_motors_[1].generate_command(),
-                                   chassis_wheel_motors_[2].generate_command(),
-                                   chassis_wheel_motors_[3].generate_command(),
-                                   }
+                    chassis_wheel_motors_[0].generate_command(),
+                    chassis_wheel_motors_[1].generate_command(),
+                    chassis_wheel_motors_[2].generate_command(),
+                    chassis_wheel_motors_[3].generate_command(),
+                }
                     .as_bytes(),
         });
 
@@ -188,11 +187,11 @@ public:
             .can_id = 0x200,
             .can_data =
                 device::CanPacket8{
-                                   device::CanPacket8::PaddingQuarter{},
-                                   gimbal_bullet_feeder_.generate_command(),
-                                   gimbal_left_friction_.generate_command(),
-                                   gimbal_right_friction_.generate_command(),
-                                   }
+                    device::CanPacket8::PaddingQuarter{},
+                    gimbal_bullet_feeder_.generate_command(),
+                    gimbal_left_friction_.generate_command(),
+                    gimbal_right_friction_.generate_command(),
+                }
                     .as_bytes(),
         });
     }
