@@ -11,9 +11,10 @@ enum class ChassisMode : std::uint8_t {
     STEP_DOWN,
     LAUNCH_RAMP,
     ALIGNMENT,
+    ALIGNMENT_POWERED,
 };
 constexpr auto need_power(ChassisMode mode) noexcept {
-    return mode == ChassisMode::ALIGNMENT || mode == ChassisMode::LAUNCH_RAMP;
+    return mode == ChassisMode::ALIGNMENT_POWERED || mode == ChassisMode::LAUNCH_RAMP;
 }
 
 } // namespace rmcs_msgs

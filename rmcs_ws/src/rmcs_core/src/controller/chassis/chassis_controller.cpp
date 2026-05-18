@@ -152,14 +152,13 @@ public:
         //
         // YawLink(LidarLink) -> ChassisLink
         //
+        auto nav_speed = Eigen::Vector2d{Eigen::Vector2d::Zero()};
         if (*navigation_enable_control_) {
-            auto nav_speed = Eigen::Vector2d{Eigen::Vector2d::Zero()};
             auto raw_command = *navigation_command_velocity_;
             if (std::isfinite(raw_command.x()) && std::isfinite(raw_command.y())) {
                 auto yaw_rotation = Eigen::Rotation2Dd{*gimbal_yaw_angle_};
                 nav_speed = yaw_rotation * raw_command;
             }
-            return nav_speed;
         }
 
         const auto keyboard = *keyboard_;
@@ -174,7 +173,7 @@ public:
 
         manual_speed *= kTranslationalVelocityMax;
 
-        return manual_speed;
+        return manual_speed + nav_speed;
     }
 
     double update_angular_velocity_control() {
@@ -223,6 +222,7 @@ public:
             angular_velocity = following_velocity_controller_.update(err);
         } break;
 
+        case ChassisMode::ALIGNMENT_POWERED:
         case ChassisMode::ALIGNMENT: {
             const auto speed = Eigen::Vector2d{chassis_control_velocity_->vector.head<2>()};
             const auto line1 = Eigen::Vector2d{speed.x(), 0};

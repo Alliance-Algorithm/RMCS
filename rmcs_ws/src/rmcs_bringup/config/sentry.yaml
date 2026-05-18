@@ -20,7 +20,7 @@ rmcs_executor:
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::SteeringWheelController -> steering_wheel_controller
 
-      # - rmcs::navigation::Navigation -> rmcs_navigation
+      - rmcs::navigation::Navigation -> rmcs_navigation
       # - rmcs::AutoAimComponent -> auto_aim_component
 
       # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
@@ -46,7 +46,7 @@ sentry_hardware:
     bottom_yaw_motor_zero_point: 23292
     top_yaw_motor_zero_point: 32916
     pitch_motor_zero_point: 1275
-    left_front_zero_point: 7147
+    left_front_zero_point: 557
     left_back_zero_point: 3741
     right_back_zero_point: 1295
     right_front_zero_point: 5166
@@ -74,7 +74,7 @@ gimbal_controller:
     top_yaw_velocity_ki: 0.0
     top_yaw_velocity_kd: 0.0
 
-    bottom_yaw_angle_kp: 15.0
+    bottom_yaw_angle_kp: 12.0
     bottom_yaw_angle_ki: 0.0
     bottom_yaw_angle_kd: 0.0
     bottom_yaw_velocity_kp: 22.5

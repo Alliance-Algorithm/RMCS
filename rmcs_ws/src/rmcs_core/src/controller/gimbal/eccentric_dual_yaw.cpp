@@ -27,6 +27,12 @@ public:
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)} {}
 
     auto before_updating() -> void override {
+        if (!input_.navigation_enable_control.ready()) {
+            input_.navigation_enable_control.make_and_bind_directly(false);
+            input_.navigation_toward.make_and_bind_directly(Eigen::Vector2d::Zero());
+            RCLCPP_INFO(get_logger(), "Manual mode without navigation gimbal control");
+        }
+
         enter_disabled_state();
         previous_actual_yaw_ = current_barrel_yaw_pitch().first;
         previous_yaw_timestamp_ = *input_.timestamp;
@@ -39,6 +45,20 @@ public:
 
         if (!input_.enable_control()) {
             enter_disabled_state();
+            return;
+        }
+
+        if (input_.enable_navigation()) {
+            const auto& toward = *input_.navigation_toward;
+            const auto command = ControlTarget{
+                .bottom_yaw = {.target = toward.x()},
+                .top_yaw = {.target = 0.0},
+                .pitch = {.target = std::clamp(toward.y(), upper_limit_, lower_limit_)},
+            };
+            apply_control(command);
+
+            manual_bottom_yaw_target_ = command.bottom_yaw.target;
+            manual_pitch_target_ = command.pitch.target;
             return;
         }
 
@@ -139,6 +159,9 @@ private:
             component.register_input("/auto_aim/pitch_acc", auto_aim_pitch_acc, false);
             component.register_input(
                 "/auto_aim/feedforward_valid", auto_aim_feedforward_valid, false);
+            component.register_input(
+                "/rmcs_navigation/enable_control", navigation_enable_control, false);
+            component.register_input("/rmcs_navigation/gimbal_toward", navigation_toward, false);
         }
 
         auto enable_control() const noexcept -> bool {
@@ -159,6 +182,14 @@ private:
             const auto& dir = *auto_aim_control_direction;
             return !dir.isZero() && std::isfinite(dir.x()) && std::isfinite(dir.y())
                 && std::isfinite(dir.z());
+        }
+
+        auto enable_navigation() const noexcept -> bool {
+            if (!*navigation_enable_control || !navigation_toward.ready())
+                return false;
+
+            const auto& toward = *navigation_toward;
+            return std::isfinite(toward.x()) && std::isfinite(toward.y());
         }
 
         InputInterface<Eigen::Vector2d> joystick_left;
@@ -184,6 +215,9 @@ private:
         InputInterface<double> auto_aim_yaw_acc;
         InputInterface<double> auto_aim_pitch_acc;
         InputInterface<bool> auto_aim_feedforward_valid;
+
+        InputInterface<bool> navigation_enable_control;
+        InputInterface<Eigen::Vector2d> navigation_toward;
     } input_{*this};
 
     struct Output {
