@@ -10,8 +10,8 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
-#include <type_traits>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 
 #include <MvCameraControl.h>
@@ -123,8 +123,8 @@ public:
     Hikcamera& operator=(Hikcamera&&) = delete;
 
 private:
-    static void __stdcall transport_exception_callback(
-        const unsigned int message_type, void* user_data) noexcept {
+    static void __stdcall
+        transport_exception_callback(const unsigned int message_type, void* user_data) noexcept {
         if (user_data == nullptr)
             return;
 
@@ -226,9 +226,7 @@ private:
         check_hik("get frame height max", MV_CC_GetIntValueEx(handle_, "HeightMax", &value));
         check_hik("set frame height", MV_CC_SetIntValueEx(handle_, "Height", value.nCurValue));
 
-        check_hik(
-            "set strobe line",
-            MV_CC_SetEnumValueByString(handle_, "LineSelector", "Line1"));
+        check_hik("set strobe line", MV_CC_SetEnumValueByString(handle_, "LineSelector", "Line1"));
         check_hik(
             "set strobe source",
             MV_CC_SetEnumValueByString(handle_, "LineSource", "ExposureStartActive"));

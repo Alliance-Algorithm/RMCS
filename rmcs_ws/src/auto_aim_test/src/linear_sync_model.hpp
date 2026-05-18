@@ -32,7 +32,7 @@ public:
         : tau_sec_{tau_sec > 0.0 ? tau_sec : 8.0}
         , residual_threshold_sec_{
               residual_threshold_sec > 0.0 ? residual_threshold_sec
-                                            : kDefaultResidualThresholdSec} {}
+                                           : kDefaultResidualThresholdSec} {}
 
     auto reset() noexcept -> void {
         initialized_ = false;

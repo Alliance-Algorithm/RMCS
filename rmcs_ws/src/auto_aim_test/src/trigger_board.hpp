@@ -31,8 +31,7 @@ public:
     explicit TriggerBoard(SignalCallback&& callback)
         : TriggerBoard(std::move(callback), ImuConfig{}) {}
 
-    explicit TriggerBoard(
-        SignalCallback&& callback, ImuConfig imu_config)
+    explicit TriggerBoard(SignalCallback&& callback, ImuConfig imu_config)
         : imu_ekf_(std::move(imu_config))
         , callback_(std::move(callback)) {
         start_transmit().gpio_digital_read(
@@ -47,13 +46,9 @@ public:
             });
     }
 
-    [[nodiscard]] auto imu_initialized() const noexcept -> bool {
-        return imu_ekf_.initialized();
-    }
+    [[nodiscard]] auto imu_initialized() const noexcept -> bool { return imu_ekf_.initialized(); }
 
-    [[nodiscard]] auto imu_snapshot() const noexcept -> ImuSnapshot {
-        return imu_ekf_.snapshot();
-    }
+    [[nodiscard]] auto imu_snapshot() const noexcept -> ImuSnapshot { return imu_ekf_.snapshot(); }
 
 private:
     void accelerometer_receive_callback(const librmcs::data::AccelerometerDataView& data) override {
@@ -71,8 +66,7 @@ private:
             std::fprintf(
                 stderr,
                 "TriggerBoard: dropping non-monotonic accelerometer sample: raw=%u last=%u\n",
-                data.timestamp_quarter_us,
-                last_accelerometer_timestamp_raw_);
+                data.timestamp_quarter_us, last_accelerometer_timestamp_raw_);
             return;
         }
 
@@ -89,14 +83,12 @@ private:
             return;
         }
 
-        const auto delta = static_cast<std::int32_t>(
-            data.timestamp_quarter_us - last_gyroscope_timestamp_raw_);
+        const auto delta =
+            static_cast<std::int32_t>(data.timestamp_quarter_us - last_gyroscope_timestamp_raw_);
         if (delta <= 0) {
             std::fprintf(
-                stderr,
-                "TriggerBoard: dropping non-monotonic gyroscope sample: raw=%u last=%u\n",
-                data.timestamp_quarter_us,
-                last_gyroscope_timestamp_raw_);
+                stderr, "TriggerBoard: dropping non-monotonic gyroscope sample: raw=%u last=%u\n",
+                data.timestamp_quarter_us, last_gyroscope_timestamp_raw_);
             return;
         }
 
@@ -129,8 +121,9 @@ private:
         callback_(timestamp);
     }
 
-    [[nodiscard]] static auto to_accelerometer_sample(
-        const librmcs::data::AccelerometerDataView& data) noexcept -> Bmi088Ekf::AccelerometerSample {
+    [[nodiscard]] static auto
+        to_accelerometer_sample(const librmcs::data::AccelerometerDataView& data) noexcept
+        -> Bmi088Ekf::AccelerometerSample {
         return Bmi088Ekf::AccelerometerSample{
             .x = data.x,
             .y = data.y,
@@ -139,8 +132,9 @@ private:
         };
     }
 
-    [[nodiscard]] static auto to_gyroscope_sample(
-        const librmcs::data::GyroscopeDataView& data) noexcept -> Bmi088Ekf::GyroscopeSample {
+    [[nodiscard]] static auto
+        to_gyroscope_sample(const librmcs::data::GyroscopeDataView& data) noexcept
+        -> Bmi088Ekf::GyroscopeSample {
         return Bmi088Ekf::GyroscopeSample{
             .x = data.x,
             .y = data.y,

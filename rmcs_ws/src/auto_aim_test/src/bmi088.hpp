@@ -24,9 +24,7 @@ public:
     using Vec4 = Filter::Vec4;
 
     struct Config {
-        Config() {
-            ekf.apply_sensor_calibration = false;
-        }
+        Config() { ekf.apply_sensor_calibration = false; }
 
         Filter::Config ekf;
         Mat3 sensor_to_filter = Mat3::Identity();
@@ -81,7 +79,8 @@ public:
         if (!timestamp_quarter_us.has_value())
             return;
 
-        if (filter_time_quarter_us_.has_value() && *timestamp_quarter_us < *filter_time_quarter_us_) {
+        if (filter_time_quarter_us_.has_value()
+            && *timestamp_quarter_us < *filter_time_quarter_us_) {
             std::fprintf(
                 stderr,
                 "Bmi088Ekf: dropping late accelerometer sample at %lld qus (filter=%lld qus)\n",
@@ -96,8 +95,7 @@ public:
                 return;
 
             std::fprintf(
-                stderr,
-                "Bmi088Ekf: accelerometer initialization failed at %lld qus\n",
+                stderr, "Bmi088Ekf: accelerometer initialization failed at %lld qus\n",
                 static_cast<long long>(*timestamp_quarter_us));
             return;
         }
@@ -113,10 +111,10 @@ public:
         if (!timestamp_quarter_us.has_value())
             return;
 
-        if (filter_time_quarter_us_.has_value() && *timestamp_quarter_us < *filter_time_quarter_us_) {
+        if (filter_time_quarter_us_.has_value()
+            && *timestamp_quarter_us < *filter_time_quarter_us_) {
             std::fprintf(
-                stderr,
-                "Bmi088Ekf: dropping late gyroscope sample at %lld qus (filter=%lld qus)\n",
+                stderr, "Bmi088Ekf: dropping late gyroscope sample at %lld qus (filter=%lld qus)\n",
                 static_cast<long long>(*timestamp_quarter_us),
                 static_cast<long long>(*filter_time_quarter_us_));
             return;
@@ -146,7 +144,8 @@ public:
         if (!filter_.process(gyro_sample, latest_accel_sample, to_seconds(*timestamp_quarter_us))) {
             std::fprintf(
                 stderr,
-                "Bmi088Ekf: gyroscope processing failed at %lld qus, clearing pending accel queue\n",
+                "Bmi088Ekf: gyroscope processing failed at %lld qus, clearing pending accel "
+                "queue\n",
                 static_cast<long long>(*timestamp_quarter_us));
             filter_.reset();
             filter_time_quarter_us_ = *timestamp_quarter_us;
@@ -191,13 +190,13 @@ private:
 
     static constexpr double kQuarterUsToSeconds = 1.0 / 4'000'000.0;
 
-    [[nodiscard]] static auto to_seconds(const std::int64_t timestamp_quarter_us) noexcept -> double {
+    [[nodiscard]] static auto to_seconds(const std::int64_t timestamp_quarter_us) noexcept
+        -> double {
         return static_cast<double>(timestamp_quarter_us) * kQuarterUsToSeconds;
     }
 
     [[nodiscard]] auto lift_timestamp(
-        StreamClock& stream_clock,
-        const std::uint32_t raw_timestamp_quarter_us,
+        StreamClock& stream_clock, const std::uint32_t raw_timestamp_quarter_us,
         const char* stream_name) -> std::optional<std::int64_t> {
         if (!stream_clock.initialized) {
             stream_clock.initialized = true;
@@ -209,7 +208,8 @@ private:
                 const auto signed_offset =
                     static_cast<std::int32_t>(raw_timestamp_quarter_us - anchor_low32);
                 stream_clock.last_lifted_timestamp_quarter_us =
-                    *latest_unwrapped_timestamp_quarter_us_ + static_cast<std::int64_t>(signed_offset);
+                    *latest_unwrapped_timestamp_quarter_us_
+                    + static_cast<std::int64_t>(signed_offset);
             } else {
                 stream_clock.last_lifted_timestamp_quarter_us = raw_timestamp_quarter_us;
             }
@@ -223,11 +223,8 @@ private:
         assert(delta > 0 && "Bmi088Ekf expects strictly increasing per-stream timestamps");
         if (delta <= 0) {
             std::fprintf(
-                stderr,
-                "Bmi088Ekf: dropping non-monotonic %s sample: raw=%u last=%u\n",
-                stream_name,
-                raw_timestamp_quarter_us,
-                stream_clock.last_raw_timestamp_quarter_us);
+                stderr, "Bmi088Ekf: dropping non-monotonic %s sample: raw=%u last=%u\n",
+                stream_name, raw_timestamp_quarter_us, stream_clock.last_raw_timestamp_quarter_us);
             return std::nullopt;
         }
 
@@ -245,9 +242,7 @@ private:
     }
 
     [[nodiscard]] auto convert_accelerometer(
-        const std::int16_t x,
-        const std::int16_t y,
-        const std::int16_t z) const noexcept -> Vec3 {
+        const std::int16_t x, const std::int16_t y, const std::int16_t z) const noexcept -> Vec3 {
         Vec3 raw_accel;
         raw_accel << static_cast<double>(x), static_cast<double>(y), static_cast<double>(z);
 
@@ -257,19 +252,17 @@ private:
     }
 
     [[nodiscard]] auto convert_gyroscope(
-        const std::int16_t x,
-        const std::int16_t y,
-        const std::int16_t z) const noexcept -> Vec3 {
+        const std::int16_t x, const std::int16_t y, const std::int16_t z) const noexcept -> Vec3 {
         Vec3 raw_gyro;
         raw_gyro << static_cast<double>(x), static_cast<double>(y), static_cast<double>(z);
 
-        const double scale = config_.gyro_full_scale_deg_per_sec / 32767.0
-                           * std::numbers::pi_v<double> / 180.0;
+        const double scale =
+            config_.gyro_full_scale_deg_per_sec / 32767.0 * std::numbers::pi_v<double> / 180.0;
         return config_.sensor_to_filter * (raw_gyro * scale);
     }
 
-    [[nodiscard]] static auto to_timed_sample(
-        const BufferedAccelerometerSample& sample) -> Filter::TimedSample {
+    [[nodiscard]] static auto to_timed_sample(const BufferedAccelerometerSample& sample)
+        -> Filter::TimedSample {
         return Filter::TimedSample{
             .value = sample.vector(),
             .ready_timestamp = to_seconds(sample.timestamp_quarter_us),
@@ -277,9 +270,8 @@ private:
         };
     }
 
-    [[nodiscard]] auto try_initialize(
-        const Vec3& accel_mps2,
-        const std::int64_t timestamp_quarter_us) -> bool {
+    [[nodiscard]] auto
+        try_initialize(const Vec3& accel_mps2, const std::int64_t timestamp_quarter_us) -> bool {
         const auto accel_sample = Filter::TimedSample{
             .value = accel_mps2,
             .ready_timestamp = to_seconds(timestamp_quarter_us),
@@ -306,8 +298,7 @@ private:
             return;
 
         std::fprintf(
-            stderr,
-            "Bmi088Ekf: accelerometer queue full at %lld qus, dropping oldest sample\n",
+            stderr, "Bmi088Ekf: accelerometer queue full at %lld qus, dropping oldest sample\n",
             static_cast<long long>(timestamp_quarter_us));
         if (!accel_queue_.pop_front([](BufferedAccelerometerSample&&) noexcept {})) {
             std::fprintf(stderr, "Bmi088Ekf: failed to drop oldest accelerometer sample\n");
