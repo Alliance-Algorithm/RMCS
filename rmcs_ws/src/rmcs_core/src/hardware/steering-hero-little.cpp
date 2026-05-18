@@ -228,9 +228,11 @@ private:
                   steering_hero, steering_hero_command, "/gimbal/player_viewer") {
 
             gimbal_top_yaw_motor_.configure(
-                device::LkMotor::Config{device::LkMotor::Type::kMG5010Ei10}.set_encoder_zero_point(
-                    static_cast<int>(
-                        steering_hero.get_parameter("top_yaw_motor_zero_point").as_int())));
+                device::LkMotor::Config{device::LkMotor::Type::kMG5010Ei10}
+                    .enable_multi_turn_angle()
+                    .set_encoder_zero_point(
+                        static_cast<int>(
+                            steering_hero.get_parameter("top_yaw_motor_zero_point").as_int())));
             gimbal_pitch_motor_.configure(
                 device::LkMotor::Config{device::LkMotor::Type::kMG5010Ei10}
                     .set_encoder_zero_point(
@@ -607,6 +609,7 @@ private:
             steering_hero.register_output("/referee/serial", referee_serial_);
             referee_serial_->read = [this](std::byte* buffer, size_t size) {
                 return referee_ring_buffer_receive_.pop_front_n(
+
                     [&buffer](std::byte byte) noexcept { *buffer++ = byte; }, size);
             };
             referee_serial_->write = [this](const std::byte* buffer, size_t size) {

@@ -1,7 +1,6 @@
 #include <algorithm>
 #include <eigen3/Eigen/Dense>
 #include <limits>
-#include <utility>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
@@ -9,6 +8,7 @@
 #include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/switch.hpp>
+#include <utility>
 
 #include "referee/app/ui/shape/shape.hpp"
 
@@ -138,15 +138,16 @@ private:
         //                 chassis_control_power_limit =
         constexpr double supercap_voltage_control_line = 12.5; // = supercap
         constexpr double supercap_voltage_base_line = 12.0;    // = referee
-        total_power_limit = *chassis_power_limit_referee_
-                    + (total_power_limit - *chassis_power_limit_referee_)
-                          * std::clamp(
-                              (*supercap_voltage_ - supercap_voltage_base_line)
-                                  / (supercap_voltage_control_line - supercap_voltage_base_line),
-                              0.0, 1.0);
+        total_power_limit =
+            *chassis_power_limit_referee_
+            + (total_power_limit - *chassis_power_limit_referee_)
+                  * std::clamp(
+                      (*supercap_voltage_ - supercap_voltage_base_line)
+                          / (supercap_voltage_control_line - supercap_voltage_base_line),
+                      0.0, 1.0);
 
         // Maximum excess power when virtual buffer energy is full.
-        constexpr double excess_power_limit = 15;
+        constexpr double excess_power_limit = 0;
 
         total_power_limit += excess_power_limit;
         total_power_limit *= virtual_buffer_energy_ / virtual_buffer_energy_limit_;

@@ -39,6 +39,8 @@ rmcs_executor:
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
 
+      # - sp_vision_25::bridge::HeroAutoAimBridge -> hero_auto_aim_bridge 
+
 hero_hardware:
   ros__parameters:
     board_serial_top_board: "D4-2BCA-2E47-76CD-23BC-0B78-684B"
@@ -312,3 +314,10 @@ auto_aim_controller:
     record: false
     raw_img_pub: false # Set false in actual use
     image_viewer_type: 2
+
+# hero_auto_aim_bridge:                                                                                                 
+#     ros__parameters:                                                                                                    
+#       config_file: "configs/standard3.yaml"                                                                             
+#       bullet_speed_fallback: 11.5                                                                                      
+#       result_timeout: 0.1   # 0.08                                                                                     
+#       debug: false

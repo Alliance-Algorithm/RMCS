@@ -651,6 +651,12 @@ public:
         set_modified();
     }
 
+    void set_xy(uint16_t x, uint16_t y) {
+        part2_.x = x;
+        part2_.y = y;
+        set_modified();
+    }
+
 protected:
     size_t write_description_field(std::byte* buffer) override {
         auto& description = *new (buffer) DescriptionField{};
