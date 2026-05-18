@@ -5,14 +5,12 @@
 #include <cstdlib>
 #include <limits>
 #include <numbers>
-#include <optional>
 #include <stdexcept>
 
 #include <eigen3/Eigen/Dense>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 
-#include <fast_tf/fast_tf.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/chassis_mode.hpp>
@@ -132,7 +130,6 @@ public:
         register_input("/remote/keyboard", keyboard_);
         register_input("/remote/rotary_knob", rotary_knob_);
         register_input("/predefined/update_rate", update_rate_);
-        register_input("/tf", tf_, false);
 
         register_input("/gimbal/yaw/angle", gimbal_yaw_angle_, false);
         register_input("/gimbal/yaw/control_angle_error", gimbal_yaw_angle_error_, false);
@@ -371,8 +368,6 @@ private:
     void activate_qe_complex_spin_(rmcs_msgs::ChassisMode& mode) {
         qe_complex_spin_active_ = true;
         qe_last_toggle_elapsed_ = 0.0;
-        qe_front_window_armed_ = true;
-        qe_rear_window_armed_ = true;
         qe_front_high_rear_low_ = true;
         apply_front_high_rear_low_target_();
         if (mode != rmcs_msgs::ChassisMode::SPIN) {
@@ -384,8 +379,6 @@ private:
     void deactivate_qe_complex_spin_() {
         qe_complex_spin_active_ = false;
         qe_last_toggle_elapsed_ = 0.0;
-        qe_front_window_armed_ = true;
-        qe_rear_window_armed_ = true;
     }
 
     void apply_front_high_rear_low_target_() {
@@ -394,6 +387,7 @@ private:
         lb_current_target_angle_ = min_angle_;
         rb_current_target_angle_ = min_angle_;
         apply_symmetric_target = false;
+        qe_front_high_rear_low_ = true;
     }
 
     void apply_front_low_rear_high_target_() {
@@ -402,72 +396,32 @@ private:
         lb_current_target_angle_ = max_angle_;
         rb_current_target_angle_ = max_angle_;
         apply_symmetric_target = false;
+        qe_front_high_rear_low_ = false;
+    }
+
+    void toggle_bg_target_() {
+        if (qe_front_high_rear_low_) {
+            apply_front_low_rear_high_target_();
+        } else {
+            apply_front_high_rear_low_target_();
+        }
     }
 
     void toggle_qe_complex_spin_target_() {
-        qe_front_high_rear_low_ = !qe_front_high_rear_low_;
-        if (qe_front_high_rear_low_) {
-            apply_front_high_rear_low_target_();
-        } else {
-            apply_front_low_rear_high_target_();
-        }
-        qe_last_toggle_elapsed_ = 0.0;
-    }
-
-    static double wrap_to_pi_(double angle) {
-        while (angle > std::numbers::pi)
-            angle -= 2.0 * std::numbers::pi;
-        while (angle < -std::numbers::pi)
-            angle += 2.0 * std::numbers::pi;
-        return angle;
-    }
-
-    static double heading_from_direction_(const Eigen::Vector3d& direction) {
-        return std::atan2(direction.y(), direction.x());
-    }
-
-    std::optional<std::pair<double, double>> read_qe_spin_headings_() const {
-        if (!tf_.ready())
-            return std::nullopt;
-
-        const auto chassis_direction = fast_tf::cast<rmcs_description::OdomImu>(
-            rmcs_description::PitchLink::DirectionVector{Eigen::Vector3d::UnitX()}, *tf_);
-        const auto gimbal_direction = fast_tf::cast<rmcs_description::OdomImu>(
-            rmcs_description::YawLink::DirectionVector{Eigen::Vector3d::UnitX()}, *tf_);
-
-        return std::pair{
-            heading_from_direction_(*chassis_direction), heading_from_direction_(*gimbal_direction)};
+        toggle_bg_target_();
     }
 
     void update_qe_complex_spin_toggle_() {
-        constexpr double heading_trigger_threshold = 20.0 * std::numbers::pi / 180.0;
-        constexpr double heading_rearm_threshold = 40.0 * std::numbers::pi / 180.0;
-        constexpr double force_toggle_timeout = 0.25;
+        constexpr double qe_complex_spin_toggle_period = 1.0;
 
         qe_last_toggle_elapsed_ += update_dt();
-
-        bool should_toggle = false;
-        if (const auto headings = read_qe_spin_headings_()) {
-            const auto& [chassis_heading, gimbal_heading] = *headings;
-            const double relative_heading = wrap_to_pi_(chassis_heading - gimbal_heading);
-            const double front_error = std::abs(relative_heading);
-            const double rear_error = std::abs(std::abs(relative_heading) - std::numbers::pi);
-
-            if (front_error >= heading_rearm_threshold)
-                qe_front_window_armed_ = true;
-            if (rear_error >= heading_rearm_threshold)
-                qe_rear_window_armed_ = true;
-
-            if (front_error <= heading_trigger_threshold && qe_front_window_armed_) {
-                should_toggle = true;
-                qe_front_window_armed_ = false;
-            } else if (rear_error <= heading_trigger_threshold && qe_rear_window_armed_) {
-                should_toggle = true;
-                qe_rear_window_armed_ = false;
-            }
+        size_t qe_complex_spin_toggle_count = 0;
+        while (qe_last_toggle_elapsed_ >= qe_complex_spin_toggle_period) {
+            qe_last_toggle_elapsed_ -= qe_complex_spin_toggle_period;
+            ++qe_complex_spin_toggle_count;
         }
 
-        if (should_toggle || qe_last_toggle_elapsed_ >= force_toggle_timeout)
+        if ((qe_complex_spin_toggle_count % 2) == 1)
             toggle_qe_complex_spin_target_();
     }
 
@@ -782,14 +736,18 @@ private:
     }
 
     void update_lift_target_toggle(rmcs_msgs::Keyboard keyboard) {
-        constexpr double rotary_knob_edge_threshold = 0.7;
-        constexpr double complex_spin_toggle_period = 0.2;
+        constexpr double rotary_knob_symmetric_edge_threshold = 0.7;
+        constexpr double rotary_knob_bg_edge_threshold = -0.9;
+        constexpr double complex_spin_toggle_period = 0.5;
 
         const bool keyboard_toggle_condition =
             !qe_complex_spin_active_ && !last_keyboard_.q && keyboard.q && !keyboard.e;
         const bool rotary_knob_toggle_condition =
-            last_rotary_knob_ < rotary_knob_edge_threshold
-            && *rotary_knob_ >= rotary_knob_edge_threshold;
+            last_rotary_knob_ < rotary_knob_symmetric_edge_threshold
+            && *rotary_knob_ >= rotary_knob_symmetric_edge_threshold;
+        const bool rotary_knob_bg_toggle_condition =
+            !qe_complex_spin_active_ && last_rotary_knob_ > rotary_knob_bg_edge_threshold
+            && *rotary_knob_ <= rotary_knob_bg_edge_threshold;
         const bool front_high_rear_low = !qe_complex_spin_active_ && !last_keyboard_.b && keyboard.b;
         const bool front_low_rear_high = !qe_complex_spin_active_ && !last_keyboard_.g && keyboard.g;
         bool complex_spin_toggle_condition = false;
@@ -818,6 +776,8 @@ private:
             current_target_angle_ =
                 (std::abs(current_target_angle_ - max_angle_) < 1e-6) ? min_angle_ : max_angle_;
             apply_symmetric_target = true;
+        } else if (rotary_knob_bg_toggle_condition) {
+            toggle_bg_target_();
         } else if (front_high_rear_low) {
             apply_front_high_rear_low_target_();
         } else if (front_low_rear_high) {
@@ -989,7 +949,6 @@ private:
     }
 
 private:
-    InputInterface<rmcs_description::Tf> tf_;
     InputInterface<Eigen::Vector2d> joystick_right_;
     InputInterface<rmcs_msgs::Switch> switch_right_;
     InputInterface<rmcs_msgs::Switch> switch_left_;
@@ -1013,8 +972,6 @@ private:
     bool complex_spin_active_ = false;
     double complex_spin_elapsed_ = 0.0;
     bool qe_complex_spin_active_ = false;
-    bool qe_front_window_armed_ = true;
-    bool qe_rear_window_armed_ = true;
     bool qe_front_high_rear_low_ = true;
     double qe_last_toggle_elapsed_ = 0.0;
     pid::PidCalculator following_velocity_controller_;
