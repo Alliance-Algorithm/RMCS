@@ -25,13 +25,15 @@ public:
     };
 
     using SignalCallback = std::function<void(Clock::time_point)>;
+    using ImuConfig = Bmi088Ekf::Config;
+    using ImuSnapshot = Bmi088Ekf::Snapshot;
 
     explicit TriggerBoard(SignalCallback&& callback)
-        : TriggerBoard(std::move(callback), Bmi088Ekf::Config{}) {}
+        : TriggerBoard(std::move(callback), ImuConfig{}) {}
 
     explicit TriggerBoard(
-        SignalCallback&& callback, Bmi088Ekf::Config imu_config)
-        : bmi088_(std::move(imu_config))
+        SignalCallback&& callback, ImuConfig imu_config)
+        : imu_ekf_(std::move(imu_config))
         , callback_(std::move(callback)) {
         start_transmit().gpio_digital_read(
             librmcs::spec::rmcs_board_lite::kGpioDescriptors.kUart1Tx,
@@ -45,14 +47,18 @@ public:
             });
     }
 
-    [[nodiscard]] auto imu() const noexcept -> const Bmi088Ekf& {
-        return bmi088_;
+    [[nodiscard]] auto imu_initialized() const noexcept -> bool {
+        return imu_ekf_.initialized();
+    }
+
+    [[nodiscard]] auto imu_snapshot() const noexcept -> ImuSnapshot {
+        return imu_ekf_.snapshot();
     }
 
 private:
     void accelerometer_receive_callback(const librmcs::data::AccelerometerDataView& data) override {
         if (!has_latest_accelerometer_timestamp_) {
-            bmi088_.on_accelerometer(data);
+            imu_ekf_.process_accelerometer(to_accelerometer_sample(data));
             has_latest_accelerometer_timestamp_ = true;
             last_accelerometer_timestamp_raw_ = data.timestamp_quarter_us;
             latest_accelerometer_timestamp_ = data.timestamp_quarter_us;
@@ -70,7 +76,7 @@ private:
             return;
         }
 
-        bmi088_.on_accelerometer(data);
+        imu_ekf_.process_accelerometer(to_accelerometer_sample(data));
         latest_accelerometer_timestamp_ += static_cast<std::int64_t>(delta);
         last_accelerometer_timestamp_raw_ = data.timestamp_quarter_us;
     }
@@ -79,7 +85,7 @@ private:
         if (!has_latest_gyroscope_timestamp_) {
             has_latest_gyroscope_timestamp_ = true;
             last_gyroscope_timestamp_raw_ = data.timestamp_quarter_us;
-            bmi088_.on_gyroscope(data);
+            imu_ekf_.process_gyroscope(to_gyroscope_sample(data));
             return;
         }
 
@@ -95,7 +101,7 @@ private:
         }
 
         last_gyroscope_timestamp_raw_ = data.timestamp_quarter_us;
-        bmi088_.on_gyroscope(data);
+        imu_ekf_.process_gyroscope(to_gyroscope_sample(data));
     }
 
     void gpio_digital_read_result_callback(
@@ -123,12 +129,32 @@ private:
         callback_(timestamp);
     }
 
+    [[nodiscard]] static auto to_accelerometer_sample(
+        const librmcs::data::AccelerometerDataView& data) noexcept -> Bmi088Ekf::AccelerometerSample {
+        return Bmi088Ekf::AccelerometerSample{
+            .x = data.x,
+            .y = data.y,
+            .z = data.z,
+            .timestamp_quarter_us = data.timestamp_quarter_us,
+        };
+    }
+
+    [[nodiscard]] static auto to_gyroscope_sample(
+        const librmcs::data::GyroscopeDataView& data) noexcept -> Bmi088Ekf::GyroscopeSample {
+        return Bmi088Ekf::GyroscopeSample{
+            .x = data.x,
+            .y = data.y,
+            .z = data.z,
+            .timestamp_quarter_us = data.timestamp_quarter_us,
+        };
+    }
+
     bool has_latest_accelerometer_timestamp_ = false;
     bool has_latest_gyroscope_timestamp_ = false;
     std::uint32_t last_accelerometer_timestamp_raw_ = 0;
     std::uint32_t last_gyroscope_timestamp_raw_ = 0;
     std::int64_t latest_accelerometer_timestamp_ = 0;
 
-    Bmi088Ekf bmi088_;
+    Bmi088Ekf imu_ekf_;
     SignalCallback callback_;
 };

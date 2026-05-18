@@ -2,6 +2,7 @@
 
 #include <eigen3/Eigen/Dense>
 
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -11,10 +12,9 @@
 #include <optional>
 #include <utility>
 
-#include <librmcs/data/datas.hpp>
 #include <rmcs_utility/ring_buffer.hpp>
 
-#include "imu_ekf/imu_ekf.hpp"
+#include "imu_ekf.hpp"
 
 class Bmi088Ekf {
 public:
@@ -49,6 +49,20 @@ public:
         double chi_square_loss = std::numeric_limits<double>::quiet_NaN();
     };
 
+    struct AccelerometerSample {
+        std::int16_t x = 0;
+        std::int16_t y = 0;
+        std::int16_t z = 0;
+        std::uint32_t timestamp_quarter_us = 0;
+    };
+
+    struct GyroscopeSample {
+        std::int16_t x = 0;
+        std::int16_t y = 0;
+        std::int16_t z = 0;
+        std::uint32_t timestamp_quarter_us = 0;
+    };
+
     Bmi088Ekf()
         : Bmi088Ekf(Config{}) {}
 
@@ -59,11 +73,11 @@ public:
         refresh_snapshot(0);
     }
 
-    void on_accelerometer(const librmcs::data::AccelerometerDataView& data) {
+    void process_accelerometer(const AccelerometerSample& sample) {
         auto guard = std::scoped_lock{mutex_};
 
         const auto timestamp_quarter_us =
-            lift_timestamp(accel_clock_, data.timestamp_quarter_us, "accelerometer");
+            lift_timestamp(accel_clock_, sample.timestamp_quarter_us, "accelerometer");
         if (!timestamp_quarter_us.has_value())
             return;
 
@@ -76,7 +90,7 @@ public:
             return;
         }
 
-        const Vec3 accel_mps2 = convert_accelerometer(data.x, data.y, data.z);
+        const Vec3 accel_mps2 = convert_accelerometer(sample.x, sample.y, sample.z);
         if (!filter_.initialized()) {
             if (try_initialize(accel_mps2, *timestamp_quarter_us))
                 return;
@@ -91,11 +105,11 @@ public:
         push_accel_sample(accel_mps2, *timestamp_quarter_us);
     }
 
-    void on_gyroscope(const librmcs::data::GyroscopeDataView& data) {
+    void process_gyroscope(const GyroscopeSample& sample) {
         auto guard = std::scoped_lock{mutex_};
 
         const auto timestamp_quarter_us =
-            lift_timestamp(gyro_clock_, data.timestamp_quarter_us, "gyroscope");
+            lift_timestamp(gyro_clock_, sample.timestamp_quarter_us, "gyroscope");
         if (!timestamp_quarter_us.has_value())
             return;
 
@@ -117,14 +131,14 @@ public:
                 break;
 
             latest_accel_sample = to_timed_sample(*queued_sample);
-            if (!accel_queue_.pop_front([](AccelSample&&) noexcept {})) {
+            if (!accel_queue_.pop_front([](BufferedAccelerometerSample&&) noexcept {})) {
                 std::fprintf(stderr, "Bmi088Ekf: failed to pop accelerometer queue front\n");
                 return;
             }
         }
 
         const auto gyro_sample = Filter::TimedSample{
-            .value = convert_gyroscope(data.x, data.y, data.z),
+            .value = convert_gyroscope(sample.x, sample.y, sample.z),
             .ready_timestamp = to_seconds(*timestamp_quarter_us),
             .valid = true,
         };
@@ -162,7 +176,7 @@ private:
         std::int64_t last_lifted_timestamp_quarter_us = 0;
     };
 
-    struct AccelSample {
+    struct BufferedAccelerometerSample {
         double x_mps2 = 0.0;
         double y_mps2 = 0.0;
         double z_mps2 = 0.0;
@@ -206,6 +220,7 @@ private:
 
         const auto delta = static_cast<std::int32_t>(
             raw_timestamp_quarter_us - stream_clock.last_raw_timestamp_quarter_us);
+        assert(delta > 0 && "Bmi088Ekf expects strictly increasing per-stream timestamps");
         if (delta <= 0) {
             std::fprintf(
                 stderr,
@@ -253,7 +268,8 @@ private:
         return config_.sensor_to_filter * (raw_gyro * scale);
     }
 
-    [[nodiscard]] static auto to_timed_sample(const AccelSample& sample) -> Filter::TimedSample {
+    [[nodiscard]] static auto to_timed_sample(
+        const BufferedAccelerometerSample& sample) -> Filter::TimedSample {
         return Filter::TimedSample{
             .value = sample.vector(),
             .ready_timestamp = to_seconds(sample.timestamp_quarter_us),
@@ -280,7 +296,7 @@ private:
     }
 
     void push_accel_sample(const Vec3& accel_mps2, const std::int64_t timestamp_quarter_us) {
-        AccelSample sample;
+        BufferedAccelerometerSample sample;
         sample.x_mps2 = accel_mps2.x();
         sample.y_mps2 = accel_mps2.y();
         sample.z_mps2 = accel_mps2.z();
@@ -293,7 +309,7 @@ private:
             stderr,
             "Bmi088Ekf: accelerometer queue full at %lld qus, dropping oldest sample\n",
             static_cast<long long>(timestamp_quarter_us));
-        if (!accel_queue_.pop_front([](AccelSample&&) noexcept {})) {
+        if (!accel_queue_.pop_front([](BufferedAccelerometerSample&&) noexcept {})) {
             std::fprintf(stderr, "Bmi088Ekf: failed to drop oldest accelerometer sample\n");
             return;
         }
@@ -320,7 +336,7 @@ private:
     Config config_;
     mutable std::mutex mutex_;
     Filter filter_;
-    rmcs_utility::RingBuffer<AccelSample> accel_queue_;
+    rmcs_utility::RingBuffer<BufferedAccelerometerSample> accel_queue_;
     std::optional<std::int64_t> filter_time_quarter_us_;
     std::optional<std::int64_t> latest_unwrapped_timestamp_quarter_us_;
     StreamClock accel_clock_;
