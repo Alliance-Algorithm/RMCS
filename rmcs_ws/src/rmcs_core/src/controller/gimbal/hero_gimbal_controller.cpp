@@ -52,7 +52,9 @@ public:
         const auto& switch_left = *switch_left_;
         const auto& switch_right = *switch_right_;
 
-        // RCLCPP_INFO(get_logger(), "pitch: %f", *gimbal_pitch_angle_);
+        // if (*gimbal_pitch_angle_ != 0.0) {
+        //     RCLCPP_INFO(get_logger(), "pitch: %f", *gimbal_pitch_angle_);
+        // }
 
         do {
             using namespace rmcs_msgs;

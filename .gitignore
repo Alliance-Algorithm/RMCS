@@ -75,3 +75,9 @@ record/
 develop_ws
 .devcontainer/.zsh_history
 .script/identification/AGENTS.md
+<<<<<<< HEAD
+=======
+librmcs-firmware-c_board-3.2.0-beta.0.dfu
+.gitignore
+librmcs-firmware-rmcs_board-lite-3.2.0-beta.0.dfu
+>>>>>>> refactor/merge-steering-hero

@@ -104,6 +104,7 @@ public:
 
     void update() override {
         update_normal_ui();
+        // update_bullet_allowance();
         // update_sniper_ui();
         // update_state_word();
 
@@ -185,6 +186,19 @@ private:
 
         status_ring_.update_static_parts({auto_aim_enable, precise_enable});
     }
+
+    // void update_bullet_allowance() {
+
+    //     std::string text = "BULLET : " + std::to_string(max(0,*robot_bullet_allowance_));
+    //     char* allow = text.data();
+    //     auto color = Shape::Color::YELLOW;
+
+    //     bullet_allowance_number_.set_value(allow);
+    //     bullet_allowance_number_.set_font_size(14);
+    //     bullet_allowance_number_.set_color(color);
+    //     bullet_allowance_number_.set_visible(true);
+    //     bullet_allowance_number_.set_xy(x_center - 240, y_center + 288);
+    // }
 
     void update_state_word() {
 

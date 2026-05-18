@@ -147,7 +147,7 @@ private:
                       0.0, 1.0);
 
         // Maximum excess power when virtual buffer energy is full.
-        constexpr double excess_power_limit = 15;
+        constexpr double excess_power_limit = 0;
 
         total_power_limit += excess_power_limit;
         total_power_limit *= virtual_buffer_energy_ / virtual_buffer_energy_limit_;

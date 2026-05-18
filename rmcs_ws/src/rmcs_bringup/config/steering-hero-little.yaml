@@ -64,16 +64,16 @@ hero_hardware:
 value_broadcaster:
   ros__parameters:
     forward_list:
+      - /gimbal/top_yaw/control_angle
       # - /shoot/heat12707
-      - /chassis/power
+      # - /chassis/power
       # - /referee/chassis/power
       # - /referee/chassis/power_limit
-      - /chassis/control_power_limit
-      - /chassis/climber/front/control_power_limit
-      - /chassis/climber/front/power_demand_estimate
-      - /chassis/climber/front/actual_power_estimate
-      - /chassis/steering_wheel/actual_power_estimate
-      - /chassis/supercap/voltage
+      # - /chassis/control_power_limit
+      # - /chassis/climber/front/control_power_limit
+      # - /chassis/climber/front/power_demand_estimate
+      # - /chassis/climber/front/actual_power_estimate
+      # - /chassis/steering_wheel/actual_power_estimate
       # - /gimbal/putter/velocity
       - /gimbal/first_left_friction/velocity
       - /gimbal/first_right_friction/velocity
@@ -128,19 +128,19 @@ gimbal_controller:
 
 dual_yaw_controller:
   ros__parameters:
-    top_yaw_angle_kp: 28.2
+    top_yaw_angle_kp: 14.0 #30.2
     top_yaw_angle_ki: 0.0
     top_yaw_angle_kd: 0.0
-    top_yaw_velocity_kp: 11.0
-    top_yaw_velocity_ki: 0.00029
+    top_yaw_velocity_kp: 9.37 #11.0
+    top_yaw_velocity_ki: 0.00033 #0.00029
     top_yaw_velocity_kd: 0.0
     top_yaw_velocity_integral_min: -2500.0
     top_yaw_velocity_integral_max: 2500.0
-    bottom_yaw_angle_kp: 18.4
+    bottom_yaw_angle_kp: 10.0 #18.4
     bottom_yaw_angle_ki: 0.0
     bottom_yaw_angle_kd: 0.0
-    bottom_yaw_velocity_kp: 2.8
-    bottom_yaw_velocity_ki: 0.00028
+    bottom_yaw_velocity_kp: 3.00 #2.81 
+    bottom_yaw_velocity_ki: 0.000071 #0.00028
     bottom_yaw_velocity_kd: 0.0
     bottom_yaw_velocity_integral_min: -2500.0
     bottom_yaw_velocity_integral_max: 2500.0
@@ -311,9 +311,10 @@ auto_aim_controller:
 hero_auto_aim_bridge:                                                                                                 
     ros__parameters:                                                                                                    
       config_file: "configs/standard3.yaml"                                                                             
-      bullet_speed_fallback: 11.5                                                                                      
+      bullet_speed_fallback: 11.4                                                                                      
       result_timeout: 0.1   # 0.08                                                                                     
       debug: false
+
 
 pitch_swept_frequency_controller:
   ros__parameters:
@@ -364,7 +365,7 @@ top_yaw_swept_frequency_controller:
     start_freq: 0.1
     end_freq: 10.0
     duration: 60.0
-    amplitude: 30.0
+    amplitude: 15.0
 
     pid: true
     setpoint: 0.0
@@ -385,4 +386,4 @@ bottom_yaw_swept_frequency_controller:
     start_freq: 0.1
     end_freq: 4.0
     duration: 80.0
-    amplitude: 8.0
+    amplitude: 1.0

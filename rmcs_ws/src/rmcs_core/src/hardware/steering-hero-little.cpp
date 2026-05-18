@@ -208,6 +208,10 @@ private:
             std::string_view board_serial = {})
             : librmcs::agent::RmcsBoardLite(board_serial)
             , logger_(steering_hero.get_logger())
+            // , can0_receive_rate_counter_(logger_, "bottom/can0")
+            // , can1_receive_rate_counter_(logger_, "bottom/can1")
+            // , can2_receive_rate_counter_(logger_, "bottom/can2")
+            // , can3_receive_rate_counter_(logger_, "bottom/can3")
             , tf_(steering_hero.tf_)
             , imu_(1000, 0.2, 0.0)
             , gimbal_top_yaw_motor_(steering_hero, steering_hero_command, "/gimbal/top_yaw")
@@ -224,9 +228,11 @@ private:
                   steering_hero, steering_hero_command, "/gimbal/player_viewer") {
 
             gimbal_top_yaw_motor_.configure(
-                device::LkMotor::Config{device::LkMotor::Type::kMG5010Ei10}.set_encoder_zero_point(
-                    static_cast<int>(
-                        steering_hero.get_parameter("top_yaw_motor_zero_point").as_int())));
+                device::LkMotor::Config{device::LkMotor::Type::kMG5010Ei10}
+                    .enable_multi_turn_angle()
+                    .set_encoder_zero_point(
+                        static_cast<int>(
+                            steering_hero.get_parameter("top_yaw_motor_zero_point").as_int())));
             gimbal_pitch_motor_.configure(
                 device::LkMotor::Config{device::LkMotor::Type::kMG5010Ei10}
                     .set_encoder_zero_point(
@@ -298,6 +304,11 @@ private:
         ~TopBoard() final = default;
 
         void update() {
+            // can0_receive_rate_counter_.report_if_due();
+            // can1_receive_rate_counter_.report_if_due();
+            // can2_receive_rate_counter_.report_if_due();
+            // can3_receive_rate_counter_.report_if_due();
+
             imu_.update_status();
             Eigen::Quaterniond gimbal_imu_pose{imu_.q0(), imu_.q1(), imu_.q2(), imu_.q3()};
 
@@ -346,7 +357,7 @@ private:
                 builder.can0_transmit({
                     .can_id = 0x142,
                     .can_data = gimbal_pitch_motor_.generate_torque_command().as_bytes(),
-                }); // 用于区分pitch中
+                }); // 用于区分pitch中 encoder 和 imu
 
             builder.can0_transmit({
                 .can_id = 0x141,
@@ -410,7 +421,7 @@ private:
             if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
                 return;
             auto can_id = data.can_id;
-            // RCLCPP_INFO(logger_, "can0_id: %x", can_id);
+            // can0_receive_rate_counter_.record(can_id);
             if (can_id == 0x141) {
                 gimbal_top_yaw_motor_.store_status(data.can_data);
             } else if (can_id == 0x142) {
@@ -422,7 +433,7 @@ private:
             if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
                 return;
             auto can_id = data.can_id;
-            // RCLCPP_INFO(logger_, "can1_id:%x", can_id);
+            // can1_receive_rate_counter_.record(can_id);
             if (can_id == 0x201) {
                 gimbal_friction_wheels_[0].store_status(data.can_data);
             } else if (can_id == 0x202) {
@@ -442,7 +453,7 @@ private:
             if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
                 return;
             auto can_id = data.can_id;
-            // RCLCPP_INFO(logger_, "can2_id:%x", can_id);
+            // can2_receive_rate_counter_.record(can_id);
             if (can_id == 0x142) {
                 gimbal_bullet_feeder_.store_status(data.can_data);
             } else if (can_id == 0x143) {
@@ -470,6 +481,10 @@ private:
         }
 
         rclcpp::Logger logger_;
+        // CanReceiveRateCounter can0_receive_rate_counter_;
+        // CanReceiveRateCounter can1_receive_rate_counter_;
+        // CanReceiveRateCounter can2_receive_rate_counter_;
+        // CanReceiveRateCounter can3_receive_rate_counter_;
         OutputInterface<rmcs_description::Tf>& tf_;
 
         std::time_t last_camera_capturer_trigger_timestamp_{0};
@@ -594,6 +609,7 @@ private:
             steering_hero.register_output("/referee/serial", referee_serial_);
             referee_serial_->read = [this](std::byte* buffer, size_t size) {
                 return referee_ring_buffer_receive_.pop_front_n(
+
                     [&buffer](std::byte byte) noexcept { *buffer++ = byte; }, size);
             };
             referee_serial_->write = [this](const std::byte* buffer, size_t size) {
@@ -757,6 +773,7 @@ private:
             } else if (can_id == 0x206) {
                 chassis_steering_motors_[3].store_status(data.can_data);
             } else if (can_id == 0x300) {
+                // RCLCPP_INFO(logger_, "supercap ok");
                 supercap_.store_status(data.can_data);
             }
         }
@@ -765,7 +782,7 @@ private:
             if (data.is_extended_can_id || data.is_remote_transmission)
                 return;
             auto can_id = data.can_id;
-            // can3_receive_rate_counter_.record(can_id);
+            // can2_receive_rate_counter_.record(can_id);
             if (can_id == 0x201) {
                 chassis_front_climber_motor_[0].store_status(data.can_data);
             } else if (can_id == 0x203) {
@@ -777,7 +794,7 @@ private:
             if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
                 return;
             auto can_id = data.can_id;
-            // can2_receive_rate_counter_.record(can_id);
+            // can3_receive_rate_counter_.record(can_id);
             if (can_id == 0x202) {
                 chassis_back_climber_motor_[1].store_status(data.can_data);
             } else if (can_id == 0x204) {
