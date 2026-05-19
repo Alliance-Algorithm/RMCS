@@ -94,14 +94,16 @@ value_broadcaster:
 
 climber_controller:
   ros__parameters:
-    front_climber_velocity: 60.0
-    back_climber_velocity: 20.0
+    front_climber_velocity: 25.0
+    back_climber_velocity: 25.0
     auto_climb_support_retract_velocity: 30.0
-    auto_climb_approach_chassis_velocity: 5.0
-    auto_climb_support_deploy_chassis_velocity: 0.5
-    auto_climb_dash_chassis_velocity: 3.0
-    auto_climb_leveled_pitch_threshold: 0.1
-    sync_coefficient: 0.3
+    auto_climb_approach_chassis_velocity: 2.5
+    auto_climb_support_deploy_chassis_velocity: 0.3
+    auto_climb_support_retract_chassis_velocity: 0.5
+    auto_climb_dash_chassis_velocity: 5.0
+    first_stair_dash_leveled_pitch_threshold: 0.05
+    second_stair_dash_leveled_pitch_threshold: 0.05
+    sync_coefficient: 0.2
     first_stair_approach_pitch: 0.485
     second_stair_approach_pitch: 0.35    
     front_kp: 1.0
@@ -116,8 +118,9 @@ climber_controller:
 
 chassis_power_controller:
   ros__parameters:
-    front_climber_power_limit_max: 80.0
-    drive_power_limit_floor: 20.0
+    front_climber_power_limit_max: 60.0
+    drive_power_limit_floor: 50.0
+    auto_climb_min_control_power_limit: 150.0
 
 gimbal_controller:
   ros__parameters:

@@ -52,10 +52,14 @@ public:
             get_parameter("auto_climb_approach_chassis_velocity").as_double();
         auto_climb_support_deploy_chassis_velocity_ =
             get_parameter("auto_climb_support_deploy_chassis_velocity").as_double();
+        auto_climb_support_retract_chassis_velocity_ =
+            get_parameter("auto_climb_support_retract_chassis_velocity").as_double();
         auto_climb_dash_chassis_velocity_ =
             get_parameter("auto_climb_dash_chassis_velocity").as_double();
-        auto_climb_leveled_pitch_threshold_ =
-            get_parameter("auto_climb_leveled_pitch_threshold").as_double();
+        first_stair_dash_leveled_pitch_threshold_ =
+            get_parameter("first_stair_dash_leveled_pitch_threshold").as_double();
+        second_stair_dash_leveled_pitch_threshold_ =
+            get_parameter("second_stair_dash_leveled_pitch_threshold").as_double();
         sync_coefficient_ = get_parameter("sync_coefficient").as_double();
         first_stair_approach_pitch_ = get_parameter("first_stair_approach_pitch").as_double();
         second_stair_approach_pitch_ = get_parameter("second_stair_approach_pitch").as_double();
@@ -76,6 +80,7 @@ public:
             "/chassis/climber/right_back_motor/control_torque", climber_back_right_control_torque_,
             nan_);
         register_output("/chassis/climbing_forward_velocity", climbing_forward_velocity_, nan_);
+        register_output("/chassis/climber/auto_climb_active", auto_climb_active_, false);
         register_output(
             "/chassis/climber/front/power_budget_active", front_power_budget_active_, false);
         register_output(
@@ -292,7 +297,7 @@ private:
     AutoClimbControl update_manual_support_control(const rmcs_msgs::Keyboard& keyboard) {
         AutoClimbControl control;
 
-        if (keyboard.b || *rotary_knob_switch_ == rmcs_msgs::Switch::UP) {
+        if (keyboard.b) {
             stop_manual_support();
             back_climber_zero_velocity_hold_ = false;
             control.back_climber_velocity = climber_back_control_velocity_abs_;
@@ -333,7 +338,7 @@ private:
     AutoClimbControl update_auto_climb_align() {
         AutoClimbControl control{
             .front_track_velocity = 0.0,
-            .back_climber_velocity = -10.0,
+            .back_climber_velocity = -5.0,
             .override_chassis_vx = 0.0,
         };
 
@@ -371,7 +376,7 @@ private:
     AutoClimbControl update_auto_climb_approach() {
         AutoClimbControl control{
             .front_track_velocity = track_velocity_max_,
-            .back_climber_velocity = -10.0,
+            .back_climber_velocity = -5.0,
             .override_chassis_vx = auto_climb_approach_chassis_velocity_,
         };
 
@@ -426,13 +431,16 @@ private:
         };
 
         double pitch = *chassis_pitch_imu_;
-        bool is_leveled = std::abs(pitch) < auto_climb_leveled_pitch_threshold_
-                       && auto_climb_timer_ > kAutoClimbDashMinTicks;
+        double leveled_pitch_threshold = auto_climb_stair_index_ == 0
+                                           ? first_stair_dash_leveled_pitch_threshold_
+                                           : second_stair_dash_leveled_pitch_threshold_;
+        bool is_leveled =
+            pitch < leveled_pitch_threshold && auto_climb_timer_ > kAutoClimbDashMinTicks;
         bool timeout = auto_climb_timer_ > kAutoClimbDashTimeoutTicks;
 
         RCLCPP_INFO_THROTTLE(
-            logger_, *get_clock(), 500, "DASH (step %d): pitch=%.3f, timer=%d",
-            auto_climb_stair_index_ + 1, pitch, auto_climb_timer_);
+            logger_, *get_clock(), 500, "DASH (step %d): pitch=%.3f, threshold=%.3f, timer=%d",
+            auto_climb_stair_index_ + 1, pitch, leveled_pitch_threshold, auto_climb_timer_);
 
         if (is_leveled || timeout) {
             enter_auto_climb_state(AutoClimbState::SUPPORT_RETRACT);
@@ -455,14 +463,19 @@ private:
         AutoClimbControl control{
             .front_track_velocity = track_velocity_max_,
             .back_climber_velocity = -auto_climb_support_retract_velocity_abs_,
-            .override_chassis_vx = auto_climb_approach_chassis_velocity_,
+            .override_chassis_vx = auto_climb_support_retract_chassis_velocity_,
         };
 
-        RCLCPP_INFO_THROTTLE(
-            logger_, *get_clock(), 500, "SUPPORT_RETRACT (step %d): timer=%d",
-            auto_climb_stair_index_ + 1, auto_climb_timer_);
+        if (is_back_climber_blocked())
+            auto_climb_support_block_count_++;
+        else
+            auto_climb_support_block_count_ = 0;
 
-        if (auto_climb_timer_ > kAutoClimbSupportRetractTicks) {
+        RCLCPP_INFO_THROTTLE(
+            logger_, *get_clock(), 500, "SUPPORT_RETRACT (step %d): blocked_ticks=%d",
+            auto_climb_stair_index_ + 1, auto_climb_support_block_count_);
+
+        if (auto_climb_support_block_count_ >= kAutoClimbSupportRetractConfirmTicks) {
             bool has_next_stair = auto_climb_stair_index_ + 1 < kAutoClimbMaxStairs;
 
             if (has_next_stair) {
@@ -473,9 +486,9 @@ private:
             } else {
                 int finished_steps = auto_climb_stair_index_ + 1;
                 stop_auto_climb();
-                start_back_climber_retract("Auto climb complete");
+                back_climber_zero_velocity_hold_ = true;
                 control.front_track_velocity = nan_;
-                control.back_climber_velocity = -auto_climb_support_retract_velocity_abs_;
+                control.back_climber_velocity = 0.0;
                 control.override_chassis_vx = nan_;
                 RCLCPP_INFO(logger_, "Auto climb completed (finished %d steps).", finished_steps);
             }
@@ -486,6 +499,7 @@ private:
 
     void apply_climb_control(const AutoClimbControl& control) {
         *climbing_forward_velocity_ = control.override_chassis_vx;
+        *auto_climb_active_ = auto_climb_state_ != AutoClimbState::IDLE;
 
         dual_motor_sync_control(
             control.front_track_velocity, *climber_front_left_velocity_,
@@ -512,6 +526,7 @@ private:
         *climber_back_left_control_torque_ = nan_;
         *climber_back_right_control_torque_ = nan_;
         *climbing_forward_velocity_ = nan_;
+        *auto_climb_active_ = false;
         *front_power_budget_active_ = false;
         *front_power_demand_estimate_ = 0.0;
         stop_manual_support();
@@ -590,9 +605,9 @@ private:
     static constexpr double kBackClimberBlockedVelocityThreshold = 0.1;
     static constexpr int kAutoClimbAlignConfirmTicks = 50;
     static constexpr int kAutoClimbSupportConfirmTicks = 50;
-    static constexpr int kAutoClimbDashMinTicks = 500;
+    static constexpr int kAutoClimbDashMinTicks = 100;
     static constexpr int kAutoClimbDashTimeoutTicks = 3000;
-    static constexpr int kAutoClimbSupportRetractTicks = 1000;
+    static constexpr int kAutoClimbSupportRetractConfirmTicks = 50;
     static constexpr int kAutoClimbMaxStairs = 2;
     static constexpr int kManualSupportRetractConfirmTicks = 50;
 
@@ -605,8 +620,10 @@ private:
     double auto_climb_support_retract_velocity_abs_;
     double auto_climb_approach_chassis_velocity_;
     double auto_climb_support_deploy_chassis_velocity_;
+    double auto_climb_support_retract_chassis_velocity_;
     double auto_climb_dash_chassis_velocity_;
-    double auto_climb_leveled_pitch_threshold_;
+    double first_stair_dash_leveled_pitch_threshold_;
+    double second_stair_dash_leveled_pitch_threshold_;
     double front_power_estimate_bias_;
     double front_power_estimate_k_tau2_;
     double front_power_estimate_k_mech_;
@@ -625,6 +642,7 @@ private:
     OutputInterface<double> climber_back_left_control_torque_;
     OutputInterface<double> climber_back_right_control_torque_;
     OutputInterface<double> climbing_forward_velocity_;
+    OutputInterface<bool> auto_climb_active_;
     OutputInterface<bool> front_power_budget_active_;
     OutputInterface<double> front_power_demand_estimate_;
 

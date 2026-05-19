@@ -26,6 +26,7 @@ public:
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
         get_parameter("front_climber_power_limit_max", front_climber_power_limit_max_);
         get_parameter("drive_power_limit_floor", drive_power_limit_floor_);
+        get_parameter("auto_climb_min_control_power_limit", auto_climb_min_control_power_limit_);
         register_input("/chassis/control_mode", mode_);
 
         register_input("/remote/switch/right", switch_right_);
@@ -43,6 +44,7 @@ public:
             "/chassis/climber/front/power_budget_active", front_power_budget_active_, false);
         register_input(
             "/chassis/climber/front/power_demand_estimate", front_power_demand_estimate_, false);
+        register_input("/chassis/climber/auto_climb_active", auto_climb_active_, false);
 
         register_output("/chassis/supercap/charge_power_limit", supercap_charge_power_limit_, 0.0);
         register_output("/chassis/control_power_limit", chassis_control_power_limit_, 0.0);
@@ -60,6 +62,8 @@ public:
             front_power_budget_active_.make_and_bind_directly(false);
         if (!front_power_demand_estimate_.ready())
             front_power_demand_estimate_.make_and_bind_directly(0.0);
+        if (!auto_climb_active_.ready())
+            auto_climb_active_.make_and_bind_directly(false);
     }
 
     void update() override {
@@ -82,7 +86,7 @@ public:
 
         update_virtual_buffer_energy();
 
-        boost_mode_ = keyboard.shift || rotary_knob < -0.9;
+        boost_mode_ = keyboard.shift || rotary_knob < -0.9 || *auto_climb_active_;
         update_control_power_limit();
     }
 
@@ -152,6 +156,9 @@ private:
         total_power_limit += excess_power_limit;
         total_power_limit *= virtual_buffer_energy_ / virtual_buffer_energy_limit_;
 
+        if (*auto_climb_active_)
+            total_power_limit = std::max(total_power_limit, auto_climb_min_control_power_limit_);
+
         const auto [drive_limit, front_limit] = split_control_power_limit(total_power_limit);
         *chassis_control_power_limit_ = drive_limit;
         *front_climber_control_power_limit_ = front_limit;
@@ -197,6 +204,7 @@ private:
     InputInterface<double> chassis_buffer_energy_referee_;
     InputInterface<bool> front_power_budget_active_;
     InputInterface<double> front_power_demand_estimate_;
+    InputInterface<bool> auto_climb_active_;
 
     bool boost_mode_ = false;
     OutputInterface<double> supercap_charge_power_limit_;
@@ -205,6 +213,7 @@ private:
     OutputInterface<double> front_climber_control_power_limit_;
     double front_climber_power_limit_max_;
     double drive_power_limit_floor_;
+    double auto_climb_min_control_power_limit_ = 0.0;
 
     OutputInterface<double> supercap_voltage_control_line_;
     OutputInterface<double> supercap_voltage_base_line_;

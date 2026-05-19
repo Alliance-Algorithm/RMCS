@@ -65,6 +65,12 @@ value_broadcaster:
   ros__parameters:
     forward_list:
       - /gimbal/top_yaw/control_angle
+      - /chassis/climber/left_front_motor/torque
+      - /chassis/climber/right_front_motor/torque
+      - /chassis/left_front_steering/torque
+      - /chassis/left_back_steering/torque
+      - /chassis/right_front_steering/torque
+      - /chassis/right_back_steering/torque
       # - /shoot/heat12707
       # - /chassis/power
       # - /referee/chassis/power
@@ -99,16 +105,18 @@ value_broadcaster:
 
 climber_controller:
   ros__parameters:
-    front_climber_velocity: 12.0
-    back_climber_velocity: 25.0
-    auto_climb_support_retract_velocity: 30.0
-    auto_climb_approach_chassis_velocity: 2.5
+    front_climber_velocity: 20.0
+    back_climber_velocity: 30.0
+    auto_climb_support_retract_velocity: 50.0
+    auto_climb_approach_chassis_velocity: 2.0
     auto_climb_support_deploy_chassis_velocity: 0.3
-    auto_climb_dash_chassis_velocity: 10.0
-    auto_climb_leveled_pitch_threshold: 0.05
+    auto_climb_support_retract_chassis_velocity: 0.3
+    auto_climb_dash_chassis_velocity: 3.0
+    first_stair_dash_leveled_pitch_threshold: 0.05
+    second_stair_dash_leveled_pitch_threshold: -0.10
     sync_coefficient: 0.2
     first_stair_approach_pitch: 0.517
-    second_stair_approach_pitch: 0.363    
+    second_stair_approach_pitch: 0.355    
     front_kp: 1.0
     front_ki: 0.0
     front_kd: 0.5
@@ -121,8 +129,9 @@ climber_controller:
 
 chassis_power_controller:
   ros__parameters:
-    front_climber_power_limit_max: 30.0
-    drive_power_limit_floor: 40.0
+    front_climber_power_limit_max: 50.0
+    drive_power_limit_floor: 50.0
+    auto_climb_min_control_power_limit: 130.0
 
 gimbal_controller:
   ros__parameters:
