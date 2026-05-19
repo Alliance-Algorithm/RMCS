@@ -1,5 +1,12 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - auto_aim_test::AutoAimTestComponent -> auto_aim_test
+
 auto_aim_test:
   ros__parameters:
+    camera_name: ""
     exposure_us: 2000.0
     gain: 16.9807
     framerate: 249.1

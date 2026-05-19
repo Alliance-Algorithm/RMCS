@@ -9,7 +9,10 @@
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
+  <depend>pluginlib</depend>
   <depend>rclcpp</depend>
+  <depend>rmcs_executor</depend>
+  <depend>rmcs_msgs</depend>
   <depend>rmcs_utility</depend>
 
   <test_depend>ament_lint_auto</test_depend>

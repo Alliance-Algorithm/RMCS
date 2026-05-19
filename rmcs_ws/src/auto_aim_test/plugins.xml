@@ -1,0 +1,5 @@
+<library path="auto_aim_test_component">
+  <class type="auto_aim_test::AutoAimTestComponent" base_class_type="rmcs_executor::Component">
+    <description>Auto aim test component consuming board camera-signal events.</description>
+  </class>
+</library>

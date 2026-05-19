@@ -13,6 +13,7 @@ find_package(ament_cmake_auto REQUIRED)
 ament_auto_find_build_dependencies(REQUIRED)
 
 find_package(OpenCV 4.5 REQUIRED)
+find_package(pluginlib REQUIRED)
 
 if(CMAKE_SYSROOT)
   set(HIK_MVS_SDK_ROOT "${CMAKE_SYSROOT}/opt/mvs-usb3-core")
@@ -34,32 +35,37 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(librmcs)
 
-ament_auto_add_executable(
-  ${PROJECT_NAME}_exe
-  src/main.cpp
+ament_auto_add_library(
+  ${PROJECT_NAME}_component SHARED
+  src/component.cpp
 )
 
 target_include_directories(
-  ${PROJECT_NAME}_exe
+  ${PROJECT_NAME}_component
   SYSTEM PRIVATE
   ${OpenCV_INCLUDE_DIRS}
 )
 
-target_link_libraries(
-  ${PROJECT_NAME}_exe
-  ${OpenCV_LIBS}
-  librmcs-sdk
-  MVSUSB3Core::MVSUSB3Core
-)
-
 target_include_directories(
-  ${PROJECT_NAME}_exe
+  ${PROJECT_NAME}_component
   PRIVATE
   ${LIBRMCS_DEV10_ROOT}/core/include
   ${LIBRMCS_DEV10_ROOT}/host/include
 )
 
-set_property(TARGET ${PROJECT_NAME}_exe PROPERTY OUTPUT_NAME ${PROJECT_NAME})
+target_link_libraries(
+  ${PROJECT_NAME}_component
+  ${OpenCV_LIBS}
+  librmcs-sdk
+  MVSUSB3Core::MVSUSB3Core
+)
+
+pluginlib_export_plugin_description_file(rmcs_executor plugins.xml)
+
+install(
+  TARGETS ${PROJECT_NAME}_component
+  DESTINATION lib
+)
 
 install(
   DIRECTORY config launch

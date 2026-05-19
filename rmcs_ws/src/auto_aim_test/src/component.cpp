@@ -13,20 +13,29 @@
 
 #include <eigen3/Eigen/Dense>
 #include <rclcpp/rclcpp.hpp>
+#include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/board_clock.hpp>
 #include <rmcs_utility/atomic_wait_timeout.hpp>
 #include <rmcs_utility/memory_pool.hpp>
 #include <rmcs_utility/ring_buffer.hpp>
 
 #include "hikcamera.hpp"
 #include "linear_sync_model.hpp"
-#include "trigger_board.hpp"
 
-namespace {
+namespace auto_aim_test {
 
-class AutoAimTestApp final : public rclcpp::Node {
+class AutoAimTestComponent final
+    : public rmcs_executor::Component
+    , public rclcpp::Node {
 public:
-    AutoAimTestApp()
-        : Node("auto_aim_test") {
+    AutoAimTestComponent()
+        : Node(
+          get_component_name(),
+          rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
+        , camera_signal_([
+          this](const rmcs_msgs::BoardClock::time_point& timestamp) {
+              signal_callback(timestamp);
+          }) {
         camera_config_ = Hikcamera::CameraConfig::cs016_default();
         camera_config_.exposure_us =
             static_cast<float>(declare_parameter<double>("exposure_us", 2000.0));
@@ -40,27 +49,30 @@ public:
         residual_threshold_sec_ = 1.0 / static_cast<double>(camera_config_.framerate) / 2.0;
         sync_model_ = LinearSyncModel{rls_tau_sec_, residual_threshold_sec_};
 
-        board_ = std::make_unique<TriggerBoard>(
-            [this](TriggerBoard::Clock::time_point timestamp) { signal_callback(timestamp); });
+        register_input("/gimbal/auto_aim/camera_signal", camera_signal_);
         last_frame_time_.store(
             std::chrono::steady_clock::time_point::min(), std::memory_order::relaxed);
 
-        worker_ = std::thread(&AutoAimTestApp::worker_main, this);
-
-        RCLCPP_INFO(get_logger(), "auto_aim_test started");
+        RCLCPP_INFO(get_logger(), "auto_aim_test component constructed");
     }
 
-    ~AutoAimTestApp() {
+    ~AutoAimTestComponent() override {
         stopped_.test_and_set(std::memory_order::relaxed);
         notify_event();
-        worker_.join();
+        if (worker_.joinable())
+            worker_.join();
 
         camera_.reset();
         unmatched_image_buffer_.pop_front_n(
             [this](UnmatchedImage&& image) noexcept { release_frame(std::launder(image.frame)); });
-
-        board_.reset();
     }
+
+    void before_updating() override {
+        if (!worker_.joinable())
+            worker_ = std::thread(&AutoAimTestComponent::worker_main, this);
+    }
+
+    void update() override {}
 
 private:
     enum class WorkerState { kResetting, kMatching, kConfirming, kLocked };
@@ -293,7 +305,7 @@ private:
         notify_event();
     }
 
-    void signal_callback(TriggerBoard::Clock::time_point timestamp) {
+    void signal_callback(rmcs_msgs::BoardClock::time_point timestamp) {
         if (!unmatched_signal_buffer_.emplace_back(timestamp)) {
             RCLCPP_WARN_THROTTLE(
                 get_logger(), *get_clock(), 1000,
@@ -532,7 +544,7 @@ private:
 
     void drop_signals(const std::uint32_t count) {
         const auto dropped = unmatched_signal_buffer_.pop_front_n(
-            [](TriggerBoard::Clock::time_point&&) noexcept {}, count);
+            [](rmcs_msgs::BoardClock::time_point&&) noexcept {}, count);
         if (dropped != count) {
             std::fprintf(stderr, "drop_signals expected %u but dropped %zu\n", count, dropped);
             std::terminate();
@@ -543,7 +555,7 @@ private:
         TimestampPair timestamp_pair;
 
         if (!unmatched_signal_buffer_.pop_front(
-                [&](TriggerBoard::Clock::time_point&& timestamp) noexcept {
+                [&](rmcs_msgs::BoardClock::time_point&& timestamp) noexcept {
                     timestamp_pair.board_timestamp_sec =
                         std::chrono::duration_cast<std::chrono::duration<double>>(
                             timestamp.time_since_epoch())
@@ -590,13 +602,13 @@ private:
         int opencv_cvt_color_code;
 
         Eigen::Quaterniond imu_snapshot;
-        TriggerBoard::Clock::time_point timestamp;
+        rmcs_msgs::BoardClock::time_point timestamp;
     };
     rmcs_utility::MemoryPool<sizeof(PublishFrame), alignof(PublishFrame)> frame_pool_{100};
     std::mutex frame_pool_mutex_;
 
-    rmcs_utility::RingBuffer<TriggerBoard::Clock::time_point> unmatched_signal_buffer_{32};
-    std::unique_ptr<TriggerBoard> board_;
+    rmcs_utility::RingBuffer<rmcs_msgs::BoardClock::time_point> unmatched_signal_buffer_{32};
+    EventInputInterface<rmcs_msgs::BoardClock::time_point> camera_signal_;
 
     struct UnmatchedImage {
         PublishFrame* frame;
@@ -625,25 +637,13 @@ private:
         std::chrono::steady_clock::time_point::min();
     std::size_t reconnect_attempts_ = 0;
 
-    std::atomic_flag stopped_;
+    std::atomic_flag stopped_ = ATOMIC_FLAG_INIT;
     std::atomic<std::uint32_t> event_count_ = 0;
     std::thread worker_;
 };
 
-} // namespace
+} // namespace auto_aim_test
 
-auto main(int argc, char** argv) -> int {
-    rclcpp::init(argc, argv);
+#include <pluginlib/class_list_macros.hpp>
 
-    try {
-        auto app = std::make_shared<AutoAimTestApp>();
-        rclcpp::spin(app);
-        rclcpp::shutdown();
-        return 0;
-    } catch (const std::exception& exception) {
-        RCLCPP_ERROR(
-            rclcpp::get_logger("auto_aim_test"), "auto_aim_test failed: %s", exception.what());
-        rclcpp::shutdown();
-        return 1;
-    }
-}
+PLUGINLIB_EXPORT_CLASS(auto_aim_test::AutoAimTestComponent, rmcs_executor::Component)

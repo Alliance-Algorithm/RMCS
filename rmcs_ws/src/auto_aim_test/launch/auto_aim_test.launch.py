@@ -8,8 +8,8 @@ def generate_launch_description():
     return LaunchDescription(
         [
             Node(
-                package="auto_aim_test",
-                executable="auto_aim_test",
+                package="rmcs_executor",
+                executable="rmcs_executor",
                 parameters=[
                     PathJoinSubstitution(
                         [FindPackageShare("auto_aim_test"), "config", "auto_aim_test.yaml"]

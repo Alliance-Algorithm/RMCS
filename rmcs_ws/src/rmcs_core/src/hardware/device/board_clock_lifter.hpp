@@ -1,19 +1,17 @@
 #pragma once
 
-#include <chrono>
 #include <cstdint>
 #include <optional>
 
+#include <rmcs_msgs/board_clock.hpp>
+
 namespace rmcs_core::hardware::device {
 
-class BoardClock {
+class BoardClockLifter {
 public:
-    using duration = std::chrono::duration<std::int64_t, std::ratio<1, 4'000'000>>;
-    using rep = duration::rep;
-    using period = duration::period;
-    using time_point = std::chrono::time_point<BoardClock>;
+    using time_point = rmcs_msgs::BoardClock::time_point;
 
-    time_point advance_timebase(uint32_t raw_timestamp_quarter_us) {
+    time_point advance_timebase(std::uint32_t raw_timestamp_quarter_us) {
         if (!has_latest_timebase_) {
             has_latest_timebase_ = true;
             last_timebase_raw_ = raw_timestamp_quarter_us;
@@ -24,16 +22,17 @@ public:
             static_cast<std::uint32_t>(raw_timestamp_quarter_us - last_timebase_raw_);
         last_timebase_raw_ = raw_timestamp_quarter_us;
 
-        return time_point{duration{latest_timebase_timestamp_}};
+        return time_point{rmcs_msgs::BoardClock::duration{latest_timebase_timestamp_}};
     }
 
-    std::optional<time_point> timebase() const {
+    [[nodiscard]] auto timebase() const -> std::optional<time_point> {
         if (!has_latest_timebase_)
             return std::nullopt;
-        return time_point{duration{latest_timebase_timestamp_}};
+        return time_point{rmcs_msgs::BoardClock::duration{latest_timebase_timestamp_}};
     }
 
-    std::optional<time_point> lift_timestamp(uint32_t timestamp_quarter_us) const {
+    [[nodiscard]] auto lift_timestamp(std::uint32_t timestamp_quarter_us) const
+        -> std::optional<time_point> {
         if (!has_latest_timebase_)
             return std::nullopt;
 
@@ -42,7 +41,7 @@ public:
             static_cast<std::int32_t>(timestamp_quarter_us - latest_timestamp_low32);
         const auto lifted_timestamp =
             latest_timebase_timestamp_ + static_cast<std::int64_t>(signed_offset);
-        return time_point{duration{lifted_timestamp}};
+        return time_point{rmcs_msgs::BoardClock::duration{lifted_timestamp}};
     }
 
 private:

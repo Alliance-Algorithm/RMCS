@@ -7,6 +7,7 @@
 #include <eigen3/Eigen/Dense>
 #include <librmcs/agent/rmcs_board_lite.hpp>
 #include <librmcs/data/datas.hpp>
+#include <librmcs/spec/rmcs_board_lite/gpio.hpp>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
@@ -15,12 +16,13 @@
 #include <rclcpp/subscription.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/board_clock.hpp>
 #include <rmcs_msgs/serial_interface.hpp>
 #include <rmcs_utility/ring_buffer.hpp>
 #include <std_msgs/msg/int32.hpp>
 
 #include "hardware/device/bmi088_ekf.hpp"
-#include "hardware/device/board_clock.hpp"
+#include "hardware/device/board_clock_lifter.hpp"
 #include "hardware/device/can_packet.hpp"
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
@@ -56,7 +58,6 @@ public:
         , dr16_{*this}
         , bmi088_([] {
             device::Bmi088Ekf::Config config;
-            config.ekf.apply_sensor_calibration = false;
             config.sensor_to_filter << 0.0, 1.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 1.0;
             return config;
         }()) {
@@ -90,7 +91,19 @@ public:
 
         register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
         register_output("/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
+        register_output("/gimbal/auto_aim/camera_signal", camera_signal_);
         register_output("/tf", tf_);
+
+        start_transmit().gpio_digital_read(
+            librmcs::spec::rmcs_board_lite::kGpioDescriptors.kUart1Tx,
+            {
+                .period_ms = 0,
+                .asap = false,
+                .rising_edge = false,
+                .falling_edge = true,
+                .capture_timestamp = true,
+                .pull = librmcs::data::GpioPull::kUp,
+            });
 
         using namespace rmcs_description; // NOLINT(google-build-using-namespace)
         tf_->set_transform<PitchLink, CameraLink>(Eigen::Translation3d{0.06603, 0.0, 0.082});
@@ -273,6 +286,21 @@ private:
         }
     }
 
+    void gpio_digital_read_result_callback(
+        const librmcs::spec::rmcs_board_lite::GpioDescriptor& gpio,
+        const librmcs::data::GpioDigitalDataView& data) override {
+        if (gpio != librmcs::spec::rmcs_board_lite::kGpioDescriptors.kUart1Tx)
+            return;
+        if (!data.timestamp_quarter_us)
+            return;
+
+        const auto timestamp = board_clock_lifter_.lift_timestamp(*data.timestamp_quarter_us);
+        if (!timestamp.has_value())
+            return;
+
+        camera_signal_.emit(*timestamp);
+    }
+
     void uart1_receive_callback(const librmcs::data::UartDataView& data) override {
         const auto* uart_data = data.uart_data.data();
         referee_ring_buffer_receive_.emplace_back_n(
@@ -285,12 +313,12 @@ private:
     }
 
     void accelerometer_receive_callback(const librmcs::data::AccelerometerDataView& data) override {
-        const auto timestamp = board_clock_.advance_timebase(data.timestamp_quarter_us);
+        const auto timestamp = board_clock_lifter_.advance_timebase(data.timestamp_quarter_us);
         bmi088_.store_accelerometer_status(data.x, data.y, data.z, timestamp);
     }
 
     void gyroscope_receive_callback(const librmcs::data::GyroscopeDataView& data) override {
-        const auto timestamp = board_clock_.lift_timestamp(data.timestamp_quarter_us);
+        const auto timestamp = board_clock_lifter_.lift_timestamp(data.timestamp_quarter_us);
         if (!timestamp.has_value())
             return;
 
@@ -326,10 +354,11 @@ private:
 
     device::Dr16 dr16_;
     device::Bmi088Ekf bmi088_;
-    device::BoardClock board_clock_;
+    device::BoardClockLifter board_clock_lifter_;
 
     OutputInterface<double> gimbal_yaw_velocity_imu_;
     OutputInterface<double> gimbal_pitch_velocity_imu_;
+    EventOutputInterface<rmcs_msgs::BoardClock::time_point> camera_signal_;
 
     OutputInterface<rmcs_description::Tf> tf_;
 
