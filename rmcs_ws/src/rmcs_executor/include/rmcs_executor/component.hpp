@@ -1,7 +1,7 @@
 #pragma once
 
-#include <concepts>
 #include <atomic>
+#include <concepts>
 #include <cstdint>
 #include <functional>
 #include <map>
@@ -24,10 +24,8 @@ enum class InterfaceKind {
 
 inline const char* interface_kind_name(InterfaceKind kind) {
     switch (kind) {
-    case InterfaceKind::Normal:
-        return "Normal";
-    case InterfaceKind::Event:
-        return "Event";
+    case InterfaceKind::Normal: return "Normal";
+    case InterfaceKind::Event: return "Event";
     }
 
     return "Unknown";
@@ -35,7 +33,7 @@ inline const char* interface_kind_name(InterfaceKind kind) {
 
 using EventState = std::uint32_t;
 constexpr EventState EVENT_DISABLED_BIT = EventState{1} << 31;
-constexpr EventState EVENT_ACTIVE_MASK  = ~EVENT_DISABLED_BIT;
+constexpr EventState EVENT_ACTIVE_MASK = ~EVENT_DISABLED_BIT;
 
 class Component {
 public:
@@ -54,19 +52,7 @@ public:
 
     virtual ~Component() = default;
 
-    virtual void before_pairing(const OutputInfoMap& output_map) {
-        auto legacy_output_map = std::map<std::string, const std::type_info&>{};
-        for (const auto& [name, output] : output_map) {
-            if (output.kind != InterfaceKind::Normal)
-                continue;
-            legacy_output_map.emplace(name, output.type.get());
-        }
-        before_pairing(legacy_output_map);
-    }
-
-    virtual void before_pairing(const std::map<std::string, const std::type_info&>& output_map) {
-        (void)output_map;
-    }
+    virtual void before_pairing(const OutputInfoMap& output_map) { (void)output_map; }
     virtual void before_updating() {}
 
     virtual void update() = 0;
@@ -149,8 +135,7 @@ public:
         EventInputInterface& operator=(EventInputInterface&&) = delete;
 
         template <typename Callback>
-        requires std::invocable<Callback&, const T&>
-        void set_callback(Callback&& callback) {
+        requires std::invocable<Callback&, const T&> void set_callback(Callback&& callback) {
             if (active())
                 throw std::runtime_error("The interface has been activated");
 
@@ -248,9 +233,7 @@ public:
             return this;
         }
 
-        void add_listener(EventCallback* callback) {
-            callback_list_.emplace_back(callback);
-        }
+        void add_listener(EventCallback* callback) { callback_list_.emplace_back(callback); }
 
         bool try_enter_emit() {
             auto state = state_.load(std::memory_order_relaxed);
@@ -260,20 +243,16 @@ public:
                 if ((state & EVENT_ACTIVE_MASK) == EVENT_ACTIVE_MASK)
                     throw std::runtime_error("Too many active event emissions");
 
-                if (
-                    state_.compare_exchange_weak(
-                        state, state + 1, std::memory_order_relaxed,
-                        std::memory_order_relaxed))
+                if (state_.compare_exchange_weak(
+                        state, state + 1, std::memory_order_relaxed, std::memory_order_relaxed))
                     return true;
             }
         }
 
         void leave_emit() {
             const auto previous_state = state_.fetch_sub(1, std::memory_order_release);
-            const auto new_state      = previous_state - 1;
-            if (
-                (new_state & EVENT_DISABLED_BIT) != 0
-                && (new_state & EVENT_ACTIVE_MASK) == 0)
+            const auto new_state = previous_state - 1;
+            if ((new_state & EVENT_DISABLED_BIT) != 0 && (new_state & EVENT_ACTIVE_MASK) == 0)
                 state_.notify_one();
         }
 
@@ -302,7 +281,8 @@ public:
         if (interface.active())
             throw std::runtime_error("The interface has been activated");
 
-        ensure_registration_name_is_available(name, InterfaceKind::Normal, RegistrationDirection::Input);
+        ensure_registration_name_is_available(
+            name, InterfaceKind::Normal, RegistrationDirection::Input);
         input_list_.emplace_back(
             typeid(T), name, InterfaceKind::Normal, required, interface.activate(),
             &bind_input_interface<T>);
@@ -314,7 +294,8 @@ public:
         if (interface.active())
             throw std::runtime_error("The interface has been activated");
 
-        ensure_registration_name_is_available(name, InterfaceKind::Event, RegistrationDirection::Input);
+        ensure_registration_name_is_available(
+            name, InterfaceKind::Event, RegistrationDirection::Input);
         input_list_.emplace_back(
             typeid(T), name, InterfaceKind::Event, required, interface.activate(),
             &bind_event_input_interface<T>);
@@ -329,8 +310,8 @@ public:
         ensure_registration_name_is_available(
             name, InterfaceKind::Normal, RegistrationDirection::Output);
         output_list_.emplace_back(
-            typeid(T), name, InterfaceKind::Normal,
-            interface.activate(std::forward<Args>(args)...), nullptr, nullptr, nullptr, this);
+            typeid(T), name, InterfaceKind::Normal, interface.activate(std::forward<Args>(args)...),
+            nullptr, nullptr, nullptr, this);
     }
 
     template <typename T>
@@ -338,7 +319,8 @@ public:
         if (interface.active())
             throw std::runtime_error("The interface has been activated");
 
-        ensure_registration_name_is_available(name, InterfaceKind::Event, RegistrationDirection::Output);
+        ensure_registration_name_is_available(
+            name, InterfaceKind::Event, RegistrationDirection::Output);
         output_list_.emplace_back(
             typeid(T), name, InterfaceKind::Event, interface.activate(),
             &enable_event_output_interface<T>, &disable_event_output_interface<T>,
@@ -373,10 +355,8 @@ private:
 
     static const char* registration_direction_name(RegistrationDirection direction) {
         switch (direction) {
-        case RegistrationDirection::Input:
-            return "input";
-        case RegistrationDirection::Output:
-            return "output";
+        case RegistrationDirection::Input: return "input";
+        case RegistrationDirection::Output: return "output";
         }
 
         return "interface";
@@ -384,29 +364,28 @@ private:
 
     void ensure_registration_name_is_available(
         const std::string& name, InterfaceKind kind, RegistrationDirection direction) const {
-        auto check_declarations =
-            [&](const auto& declarations, RegistrationDirection existing_direction) {
-                for (const auto& declaration : declarations) {
-                    if (declaration.name != name)
-                        continue;
+        auto check_declarations = [&](const auto& declarations,
+                                      RegistrationDirection existing_direction) {
+            for (const auto& declaration : declarations) {
+                if (declaration.name != name)
+                    continue;
 
-                    if (declaration.kind != kind) {
-                        throw std::runtime_error(
-                            "Component [" + component_name_ + "] cannot register "
-                            + interface_kind_name(kind) + " "
-                            + registration_direction_name(direction) + " \"" + name
-                            + "\" because the same name has already been registered as "
-                            + interface_kind_name(declaration.kind) + " "
-                            + registration_direction_name(existing_direction)
-                            + " in this component");
-                    }
-
+                if (declaration.kind != kind) {
                     throw std::runtime_error(
-                        "Component [" + component_name_ + "] cannot register duplicate "
-                        + interface_kind_name(kind) + " "
-                        + registration_direction_name(direction) + " \"" + name + "\"");
+                        "Component [" + component_name_ + "] cannot register "
+                        + interface_kind_name(kind) + " " + registration_direction_name(direction)
+                        + " \"" + name + "\" because \"" + name
+                        + "\" has already been registered as "
+                        + interface_kind_name(declaration.kind) + " "
+                        + registration_direction_name(existing_direction) + " in this component.");
                 }
-            };
+
+                throw std::runtime_error(
+                    "Component [" + component_name_ + "] registered " + interface_kind_name(kind)
+                    + " " + registration_direction_name(direction) + " \"" + name
+                    + "\" more than once.");
+            }
+        };
 
         check_declarations(input_list_, RegistrationDirection::Input);
         check_declarations(output_list_, RegistrationDirection::Output);

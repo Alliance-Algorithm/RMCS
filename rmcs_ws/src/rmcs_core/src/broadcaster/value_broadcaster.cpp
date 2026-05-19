@@ -19,10 +19,11 @@ public:
             [this](const rclcpp::Parameter& para) { update_forward_list(para.as_string_array()); });
     }
 
-    void before_pairing(
-        const std::map<std::string, const std::type_info&>& output_map) override {
-        for (const auto& [name, type] : output_map) {
-            if (type == typeid(double)) {
+    void before_pairing(const OutputInfoMap& output_map) override {
+        for (const auto& [name, output] : output_map) {
+            if (output.kind != rmcs_executor::InterfaceKind::Normal)
+                continue;
+            if (output.type.get() == typeid(double)) {
                 forward_units_.emplace(
                     name,
                     std::make_unique<ForwardUnit<double, std_msgs::msg::Float64>>(this, name));
