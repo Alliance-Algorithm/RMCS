@@ -187,7 +187,7 @@ public:
                 }
             }
             if (keyboard.g && !last_keyboard_.g) {
-                image_pitch_theta1_offset_ = 0.16;
+                image_pitch_theta1_offset_ = 0.56;
                 if (!keyboard.shift && !keyboard.ctrl) {
                     set_arm_mode(rmcs_msgs::ArmMode::Auto_Walk);
                 } else if (keyboard.shift && !keyboard.ctrl) {
@@ -203,7 +203,7 @@ public:
                 }
             }
             if (keyboard.f && !last_keyboard_.f) {
-                image_pitch_theta1_offset_ = 0.24;
+                image_pitch_theta1_offset_ = 0.72;
                 if (keyboard.shift && !keyboard.ctrl) {
                     set_arm_mode(rmcs_msgs::ArmMode::Auto_Storage_LB);
                 } else if (keyboard.ctrl && !keyboard.shift) {
@@ -211,7 +211,7 @@ public:
                 }
             }
             if (keyboard.d && !last_keyboard_.d) {
-                image_pitch_theta1_offset_ = 0.24;
+                image_pitch_theta1_offset_ = 0.72;
                 if (keyboard.shift && !keyboard.ctrl) {
                     set_arm_mode(rmcs_msgs::ArmMode::Auto_Extract_LB);
                 } else if (keyboard.ctrl && !keyboard.shift) {
@@ -548,7 +548,7 @@ private:
                 move_group_->setStartState(*current_state);
                 move_group_->setPlanningTime(5.0);
                 move_group_->setGoalOrientationTolerance(0.2);
-                move_group_->setGoalPositionTolerance(0.01);
+                move_group_->setGoalPositionTolerance(0.003);
                 move_group_->setMaxVelocityScalingFactor(config->velocity_scaling[i]);
                 move_group_->setMaxAccelerationScalingFactor(config->acceleration_scaling[i]);
                 if (config->lin_mask[i]) {

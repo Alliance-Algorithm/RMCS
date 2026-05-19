@@ -167,10 +167,7 @@ private:
 
         void update() {
             // RCLCPP_INFO(
-            //     this->get_logger(), "j1-j6 %f %f %f %f %f %f", joint[0].get_angle(),
-            //     joint2_encoder.get_angle(), joint[2].get_angle(), joint[3].get_angle(),
-            //     joint[4].get_angle(), joint[5].get_angle());
-            // RCLCPP_INFO(this->get_logger(),"%d",image_pitch.get_raw_angle());
+            //     this->get_logger(), "j2 %d", joint2_encoder.get_raw_angle());
 
             using namespace device;
             update_arm_motors();

@@ -44,9 +44,9 @@ engineer_hardware:
     image_pitch_zero_point: 43131
     joint6_zero_point: 61801
     joint5_zero_point: 37436
-    joint4_zero_point: 31596
+    joint4_zero_point: 33865
     joint3_zero_point: 28459
-    joint2_zero_point: 41331 
+    joint2_zero_point: 31222 
     joint1_zero_point: 14865
     steering_lf_zero_point: 1343
     steering_lb_zero_point: 4096
@@ -78,7 +78,7 @@ arm_controller:
           velocity_scaling: 0.02
           acceleration_scaling: 0.02
         step3_pose:
-          target_pose: [-0.318852, 0.175367, 0.345939, -0.00001, -1.5708, 3.049787]
+          target_pose: [-0.326852, 0.177367, 0.345939, -0.00001, -1.5708, 3.049787]
           velocity_scaling: 0.02
           acceleration_scaling: 0.02
         step4_lin:
@@ -105,7 +105,7 @@ arm_controller:
           velocity_scaling: 0.02
           acceleration_scaling: 0.03
         step3_pose:
-          target_pose: [-0.321210,-0.158399, 0.321385, 1.573944, -1.570285, 1.673210]
+          target_pose: [-0.325210,-0.160399, 0.321385, 1.573944, -1.570285, 1.673210]
           velocity_scaling: 0.02
           acceleration_scaling: 0.03
         step4_lin:
@@ -132,7 +132,7 @@ arm_controller:
           velocity_scaling: 0.04
           acceleration_scaling: 0.03
         step3_pose:
-          target_pose: [-0.246779, 0.123352, 0.188452, 0.00, -1.571699, 2.627386]
+          target_pose: [-0.252779, 0.127352, 0.180452, 0.00, -1.571699, 2.627386]
           velocity_scaling: 0.02
           acceleration_scaling: 0.02
         step4_lin:
@@ -159,7 +159,7 @@ arm_controller:
           velocity_scaling: 0.02
           acceleration_scaling: 0.03
         step3_pose:
-          target_pose: [-0.243603,-0.123261,0.193260,-2.70866,-1.568567,0.028266]
+          target_pose: [-0.255603,-0.131261,0.183260,-2.70866,-1.568567,0.028266]
           velocity_scaling: 0.02
           acceleration_scaling: 0.02            
         step4_lin:
