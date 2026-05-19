@@ -3,7 +3,6 @@ rmcs_executor:
     update_rate: 1000.0
     components:
       - rmcs_core::hardware::OmniInfantry -> infantry_hardware
-      - rmcs::AutoAimComponent -> auto_aim_component
 
       - rmcs_core::referee::Status -> referee_status
       - rmcs_core::referee::Command -> referee_command
@@ -27,6 +26,8 @@ rmcs_executor:
       - rmcs_core::controller::chassis::ChassisController -> chassis_controller
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::OmniWheelController -> omni_wheel_controller
+
+      - auto_aim_test::AutoAimTestComponent -> auto_aim_test
 
 infantry_hardware:
   ros__parameters:

@@ -49,7 +49,7 @@ public:
 
     void reset() {
         initialized_ = false;
-        state_ = identityQuaternion();
+        state_ = identity_quaternion();
         state_prior_ = state_;
         covariance_ = config_.initial_covariance;
         covariance_prior_ = covariance_;
@@ -60,19 +60,19 @@ public:
 
     [[nodiscard]] const Config& config() const noexcept { return config_; }
 
-    void setConfig(const Config& config) {
+    void set_config(const Config& config) {
         config_ = config;
         reset();
     }
 
     [[nodiscard]] bool initialized() const noexcept { return initialized_; }
 
-    bool initializeFromAccel(const Vec3& accel_mps2, const double initial_yaw = 0.0) {
+    bool initialize_from_accel(const Vec3& accel_mps2, const double initial_yaw = 0.0) {
         if (!accel_mps2.allFinite()) {
             return false;
         }
 
-        const std::optional<Vec3> normalized_accel = normalizeVector(accel_mps2);
+        const std::optional<Vec3> normalized_accel = normalize_vector(accel_mps2);
         if (!normalized_accel.has_value()) {
             return false;
         }
@@ -81,7 +81,7 @@ public:
         init_euler << initial_yaw, std::asin(-(*normalized_accel)(0)),
             std::atan2((*normalized_accel)(1), (*normalized_accel)(2));
 
-        state_ = normalizeQuaternion(quaternionFromEuler(init_euler));
+        state_ = normalize_quaternion(quaternion_from_euler(init_euler));
         state_prior_ = state_;
         covariance_ = config_.initial_covariance;
         covariance_prior_ = covariance_;
@@ -96,7 +96,7 @@ public:
             return false;
         }
 
-        const double dt_seconds = durationToSeconds(dt);
+        const double dt_seconds = duration_to_seconds(dt);
         if (!std::isfinite(dt_seconds) || dt_seconds < 0.0) {
             return false;
         }
@@ -108,15 +108,15 @@ public:
             return true;
         }
 
-        return doPredict(gyro_rad_per_sec, dt_seconds);
+        return do_predict(gyro_rad_per_sec, dt_seconds);
     }
 
-    bool updateFromAccel(const Vec3& accel_mps2) {
+    bool update_from_accel(const Vec3& accel_mps2) {
         if (!initialized_ || !accel_mps2.allFinite()) {
             return false;
         }
 
-        const std::optional<Vec3> normalized_accel = normalizeVector(accel_mps2);
+        const std::optional<Vec3> normalized_accel = normalize_vector(accel_mps2);
         if (!normalized_accel.has_value()) {
             return false;
         }
@@ -124,33 +124,25 @@ public:
         last_accel_update_accepted_ = false;
         state_prior_ = state_;
         covariance_prior_ = covariance_;
-        (void)doUpdateFromNormalizedAccel(*normalized_accel);
+        (void)do_update_from_normalized_accel(*normalized_accel);
         return true;
     }
 
     [[nodiscard]] auto quaternion() const noexcept -> const Vec4& { return state_; }
 
-    [[nodiscard]] auto covariance() const noexcept -> const Mat4& { return covariance_; }
-
-    [[nodiscard]] auto priorCovariance() const noexcept -> const Mat4& { return covariance_prior_; }
-
-    [[nodiscard]] double lastChiSquareLoss() const noexcept { return last_chi_square_loss_; }
-
-    [[nodiscard]] bool accelUpdateAccepted() const noexcept { return last_accel_update_accepted_; }
-
 private:
     struct PropagationResult {
-        Vec4 quaternion = identityQuaternion();
+        Vec4 quaternion = identity_quaternion();
         Mat4 orthogonalization = Mat4::Identity();
     };
 
-    [[nodiscard]] static Vec4 identityQuaternion() {
+    [[nodiscard]] static Vec4 identity_quaternion() {
         Vec4 q;
         q << 1.0, 0.0, 0.0, 0.0;
         return q;
     }
 
-    [[nodiscard]] std::optional<Vec3> normalizeVector(const Vec3& vector) const {
+    [[nodiscard]] std::optional<Vec3> normalize_vector(const Vec3& vector) const {
         const double squared_norm = vector.squaredNorm();
         if (!std::isfinite(squared_norm) || squared_norm <= config_.epsilon) {
             return std::nullopt;
@@ -159,20 +151,20 @@ private:
         return vector / std::sqrt(squared_norm);
     }
 
-    [[nodiscard]] Vec4 normalizeQuaternion(const Vec4& quaternion) const {
+    [[nodiscard]] Vec4 normalize_quaternion(const Vec4& quaternion) const {
         const double squared_norm = quaternion.squaredNorm();
         if (!std::isfinite(squared_norm) || squared_norm <= config_.epsilon) {
-            return identityQuaternion();
+            return identity_quaternion();
         }
 
         return quaternion / std::sqrt(squared_norm);
     }
 
-    [[nodiscard]] static auto durationToSeconds(const Duration dt) noexcept -> double {
+    [[nodiscard]] static auto duration_to_seconds(const Duration dt) noexcept -> double {
         return std::chrono::duration<double>(dt).count();
     }
 
-    [[nodiscard]] static Vec4 quaternionFromEuler(const Vec3& euler_yaw_pitch_roll) {
+    [[nodiscard]] static Vec4 quaternion_from_euler(const Vec3& euler_yaw_pitch_roll) {
         const double half_yaw = euler_yaw_pitch_roll(0) * 0.5;
         const double half_pitch = euler_yaw_pitch_roll(1) * 0.5;
         const double half_roll = euler_yaw_pitch_roll(2) * 0.5;
@@ -192,7 +184,7 @@ private:
         return result;
     }
 
-    [[nodiscard]] static Mat4 omegaMatrix(const Vec3& gyro_rad_per_sec) {
+    [[nodiscard]] static Mat4 omega_matrix(const Vec3& gyro_rad_per_sec) {
         Mat4 matrix = Mat4::Zero();
         matrix(0, 1) = -gyro_rad_per_sec(0);
         matrix(0, 2) = -gyro_rad_per_sec(1);
@@ -209,10 +201,10 @@ private:
         return matrix;
     }
 
-    [[nodiscard]] auto propagateQuaternion(
+    [[nodiscard]] auto propagate_quaternion(
         const Vec4& state, const Vec3& gyro_rad_per_sec, const double dt) const
         -> PropagationResult {
-        const Mat4 omega = omegaMatrix(gyro_rad_per_sec);
+        const Mat4 omega = omega_matrix(gyro_rad_per_sec);
         const Vec4 quaternion_tmp = state + 0.5 * dt * omega * state;
         const double norm = quaternion_tmp.norm();
         const double inverse_norm =
@@ -223,16 +215,16 @@ private:
             inverse_norm
             * (Mat4::Identity()
                - inverse_norm * inverse_norm * quaternion_tmp * quaternion_tmp.transpose());
-        result.quaternion = normalizeQuaternion(quaternion_tmp);
+        result.quaternion = normalize_quaternion(quaternion_tmp);
         return result;
     }
 
-    [[nodiscard]] auto stateJacobian(const Vec3& gyro_rad_per_sec, const double dt) const -> Mat4 {
+    [[nodiscard]] auto state_jacobian(const Vec3& gyro_rad_per_sec, const double dt) const -> Mat4 {
         return orthogonalization_tmp_
-             * (Mat4::Identity() + 0.5 * dt * omegaMatrix(gyro_rad_per_sec));
+             * (Mat4::Identity() + 0.5 * dt * omega_matrix(gyro_rad_per_sec));
     }
 
-    [[nodiscard]] auto processNoiseJacobian(const Vec4& state, const double dt) const -> Mat43 {
+    [[nodiscard]] auto process_noise_jacobian(const Vec4& state, const double dt) const -> Mat43 {
         Mat43 matrix_q;
         matrix_q(0, 0) = -state(1);
         matrix_q(0, 1) = -state(2);
@@ -249,7 +241,7 @@ private:
         return orthogonalization_tmp_ * (0.5 * dt * matrix_q);
     }
 
-    [[nodiscard]] static auto measurementModel(const Vec4& state) -> Vec3 {
+    [[nodiscard]] static auto measurement_model(const Vec4& state) -> Vec3 {
         Vec3 result;
         result(0) = 2.0 * (state(1) * state(3) - state(0) * state(2));
         result(1) = 2.0 * (state(2) * state(3) + state(0) * state(1));
@@ -258,7 +250,7 @@ private:
         return result;
     }
 
-    [[nodiscard]] static auto measurementJacobian(const Vec4& state) -> Mat34 {
+    [[nodiscard]] static auto measurement_jacobian(const Vec4& state) -> Mat34 {
         Mat34 result;
         result(0, 0) = -2.0 * state(2);
         result(0, 1) = 2.0 * state(3);
@@ -277,7 +269,7 @@ private:
         return result;
     }
 
-    bool doPredict(const Vec3& gyro_rad_per_sec, const double dt) {
+    bool do_predict(const Vec3& gyro_rad_per_sec, const double dt) {
         if (!initialized_ || !gyro_rad_per_sec.allFinite() || !std::isfinite(dt) || dt <= 0.0) {
             return false;
         }
@@ -287,14 +279,14 @@ private:
             return false;
         }
 
-        const Vec4 current_state = normalizeQuaternion(state_);
+        const Vec4 current_state = normalize_quaternion(state_);
         const PropagationResult propagation =
-            propagateQuaternion(current_state, gyro_rad_per_sec, dt);
+            propagate_quaternion(current_state, gyro_rad_per_sec, dt);
         state_prior_ = propagation.quaternion;
         orthogonalization_tmp_ = propagation.orthogonalization;
 
-        const Mat4 jacobian_f_x = stateJacobian(gyro_rad_per_sec, dt);
-        const Mat43 jacobian_f_w = processNoiseJacobian(state_prior_, dt);
+        const Mat4 jacobian_f_x = state_jacobian(gyro_rad_per_sec, dt);
+        const Mat43 jacobian_f_w = process_noise_jacobian(state_prior_, dt);
         covariance_prior_ = jacobian_f_x * covariance_ * jacobian_f_x.transpose()
                           + jacobian_f_w * config_.process_noise * jacobian_f_w.transpose();
 
@@ -303,13 +295,13 @@ private:
         return true;
     }
 
-    bool doUpdateFromNormalizedAccel(const Vec3& normalized_accel) {
+    bool do_update_from_normalized_accel(const Vec3& normalized_accel) {
         if (!initialized_ || !normalized_accel.allFinite()) {
             return false;
         }
 
-        const Vec3 innovation = normalized_accel - measurementModel(state_prior_);
-        const Mat34 jacobian_h_x = measurementJacobian(state_prior_);
+        const Vec3 innovation = normalized_accel - measurement_model(state_prior_);
+        const Mat34 jacobian_h_x = measurement_jacobian(state_prior_);
         const Mat3 innovation_covariance =
             jacobian_h_x * covariance_prior_ * jacobian_h_x.transpose() + config_.measurement_noise;
         const Mat3 innovation_covariance_inverse = innovation_covariance.inverse();
@@ -324,7 +316,7 @@ private:
 
         const Eigen::Matrix<double, 4, 3> kalman_gain =
             covariance_prior_ * jacobian_h_x.transpose() * innovation_covariance_inverse;
-        state_ = normalizeQuaternion(state_prior_ + kalman_gain * innovation);
+        state_ = normalize_quaternion(state_prior_ + kalman_gain * innovation);
 
         const Mat4 matrix_tmp = Mat4::Identity() - kalman_gain * jacobian_h_x;
         covariance_ = matrix_tmp * covariance_prior_ * matrix_tmp.transpose()
@@ -334,8 +326,8 @@ private:
     }
 
     Config config_;
-    Vec4 state_ = identityQuaternion();
-    Vec4 state_prior_ = identityQuaternion();
+    Vec4 state_ = identity_quaternion();
+    Vec4 state_prior_ = identity_quaternion();
     Mat4 covariance_ = Mat4::Identity();
     Mat4 covariance_prior_ = Mat4::Identity();
     Mat4 orthogonalization_tmp_ = Mat4::Identity();
