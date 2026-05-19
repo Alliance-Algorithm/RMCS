@@ -14,14 +14,14 @@
 #include <rmcs_utility/ring_buffer.hpp>
 
 #include "board_clock.hpp"
-#include "imu_ekf.hpp"
+#include "filter/imu_ekf.hpp"
 
 namespace rmcs_core::hardware::device {
 
 class Bmi088Ekf {
 public:
     using time_point = BoardClock::time_point;
-    using Filter = imu_ekf::QuaternionEkf;
+    using Filter = rmcs_core::filter::QuaternionEkf;
     using Mat3 = Filter::Mat3;
     using Vec3 = Filter::Vec3;
     using Vec4 = Filter::Vec4;
@@ -55,6 +55,11 @@ public:
 
     explicit Bmi088Ekf(Config config)
         : config_(std::move(config))
+        , accel_scale_mps2_(
+              config_.accel_full_scale_g * config_.ekf.gravity_acceleration / kRawSensorMaxValue)
+        , gyro_scale_rad_per_sec_(
+              config_.gyro_full_scale_deg_per_sec * std::numbers::pi_v<double> / 180.0
+              / kRawSensorMaxValue)
         , filter_(config_.ekf)
         , accel_queue_(config_.accel_queue_size) {
         refresh_snapshot(std::nullopt);
@@ -200,9 +205,7 @@ private:
         Vec3 raw_accel;
         raw_accel << static_cast<double>(x), static_cast<double>(y), static_cast<double>(z);
 
-        const double scale =
-            config_.accel_full_scale_g * filter_.config().gravity_acceleration / 32767.0;
-        return config_.sensor_to_filter * (raw_accel * scale);
+        return config_.sensor_to_filter * (raw_accel * accel_scale_mps2_);
     }
 
     [[nodiscard]] auto convert_gyroscope(
@@ -210,9 +213,7 @@ private:
         Vec3 raw_gyro;
         raw_gyro << static_cast<double>(x), static_cast<double>(y), static_cast<double>(z);
 
-        const double scale =
-            config_.gyro_full_scale_deg_per_sec / 32767.0 * std::numbers::pi_v<double> / 180.0;
-        return config_.sensor_to_filter * (raw_gyro * scale);
+        return config_.sensor_to_filter * (raw_gyro * gyro_scale_rad_per_sec_);
     }
 
     [[nodiscard]] static auto to_timed_sample(const BufferedAccelerometerSample& sample)
@@ -276,7 +277,11 @@ private:
         snapshot_.chi_square_loss = filter_.lastChiSquareLoss();
     }
 
+    static constexpr double kRawSensorMaxValue = 32767.0;
+
     Config config_;
+    double accel_scale_mps2_ = 0.0;
+    double gyro_scale_rad_per_sec_ = 0.0;
     mutable std::mutex mutex_;
     Filter filter_;
     rmcs_utility::RingBuffer<BufferedAccelerometerSample> accel_queue_;

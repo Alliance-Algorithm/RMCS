@@ -8,7 +8,7 @@
 #include <numbers>
 #include <optional>
 
-namespace imu_ekf {
+namespace rmcs_core::filter {
 
 class QuaternionEkf {
 public:
@@ -662,4 +662,4 @@ private:
     bool last_accel_update_accepted_ = false;
 };
 
-} // namespace imu_ekf
+} // namespace rmcs_core::filter
