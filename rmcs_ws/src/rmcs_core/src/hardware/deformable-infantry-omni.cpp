@@ -19,6 +19,7 @@
 #include <tuple>
 
 #include <eigen3/Eigen/Geometry>
+#include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <std_srvs/srv/trigger.hpp>
 
@@ -170,7 +171,7 @@ private:
                 right_front_joint_physical_velocity_, kNaN);
             status.register_output("/chassis/encoder/alpha", encoder_alpha_, kNaN);
             status.register_output("/chassis/encoder/alpha_dot", encoder_alpha_dot_, kNaN);
-            status.register_output("/chassis/radius", radius_, kNaN);
+            status.register_output("/chassis/radius", radius_, default_radius_);
 
             status.get_parameter_or("debug_log_supercap", debug_log_supercap_, false);
             status.get_parameter_or("debug_log_wheel_motor", debug_log_wheel_motor_, false);
@@ -320,6 +321,7 @@ private:
         static constexpr double joint_zero_physical_angle_rad_ = 62.5 * std::numbers::pi / 180.0;
         static constexpr double chassis_radius_base_ = 0.2341741;
         static constexpr double rod_length_ = 0.150;
+        static constexpr double default_radius_ = chassis_radius_base_ + rod_length_;
 
         DeformableInfantryOmni& status_;
         Component& command_;
@@ -405,7 +407,11 @@ private:
             if (!alpha_rad.array().isFinite().all() || !alpha_dot_rad.array().isFinite().all()) {
                 *encoder_alpha_ = kNaN;
                 *encoder_alpha_dot_ = kNaN;
-                *radius_ = kNaN;
+                *radius_ = default_radius_;
+                RCLCPP_WARN_THROTTLE(
+                    status_.get_logger(), *status_.get_clock(), 1000,
+                    "deformable joint feedback invalid, fallback chassis radius to default %.3f m",
+                    default_radius_);
                 return;
             }
 

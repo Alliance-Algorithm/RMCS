@@ -534,19 +534,29 @@ private:
             chassis_imu_calibration_sample_count_);
     }
 
-    bool initialize_joint_target_states_from_feedback(
+    bool ensure_joint_target_states_from_feedback(
         const std::array<double, kJointCount>& current_physical_angles) {
+        bool any_active = false;
         for (size_t i = 0; i < kJointCount; ++i) {
-            if (!std::isfinite(current_physical_angles[i]))
-                return false;
+            if (std::isfinite(current_physical_angles[i]) && !joint_target_active_[i]) {
+                joint_target_physical_angle_state_rad_[i] = current_physical_angles[i];
+                joint_target_physical_velocity_state_rad_[i] = 0.0;
+                joint_target_physical_acceleration_state_rad_[i] = 0.0;
+                current_target_physical_angles_rad_[i] = current_physical_angles[i];
+                joint_target_active_[i] = true;
+            }
+
+            any_active = any_active || joint_target_active_[i];
         }
 
-        joint_target_physical_angle_state_rad_ = current_physical_angles;
-        joint_target_physical_velocity_state_rad_ = {0.0, 0.0, 0.0, 0.0};
-        joint_target_physical_acceleration_state_rad_ = {0.0, 0.0, 0.0, 0.0};
-        current_target_physical_angles_rad_ = current_physical_angles;
-        joint_target_active_ = true;
-        return true;
+        return any_active;
+    }
+
+    bool any_joint_target_active_() const {
+        return std::any_of(
+            joint_target_active_.begin(), joint_target_active_.end(), [](bool active) {
+                return active;
+            });
     }
 
     double active_suspension_min_angle_rad_() const {
@@ -622,7 +632,11 @@ private:
         lb_current_target_angle_ = current_target_angle_;
         rb_current_target_angle_ = current_target_angle_;
         rf_current_target_angle_ = current_target_angle_;
-        joint_target_active_ = false;
+        joint_target_active_.fill(false);
+        current_target_physical_angles_rad_.fill(nan_);
+        joint_target_physical_angle_state_rad_.fill(nan_);
+        joint_target_physical_velocity_state_rad_.fill(0.0);
+        joint_target_physical_acceleration_state_rad_.fill(0.0);
         suspension_on_by_switch = false;
         deactivate_complex_spin_();
         deactivate_qe_complex_spin_();
@@ -793,8 +807,7 @@ private:
         const auto current_physical_angles = read_current_joint_physical_angles_();
         const bool suspension_requested = suspension_requested_by_input_();
 
-        if (!joint_target_active_
-            && !initialize_joint_target_states_from_feedback(current_physical_angles)) {
+        if (!ensure_joint_target_states_from_feedback(current_physical_angles)) {
             publish_nan_joint_targets();
             return;
         }
@@ -829,6 +842,9 @@ private:
     void update_joint_target_trajectory() {
         const double dt = update_dt();
         for (size_t i = 0; i < kJointCount; ++i) {
+            if (!joint_target_active_[i])
+                continue;
+
             double& angle_state = joint_target_physical_angle_state_rad_[i];
             double& velocity_state = joint_target_physical_velocity_state_rad_[i];
             double& acceleration_state = joint_target_physical_acceleration_state_rad_[i];
@@ -874,57 +890,54 @@ private:
 
     void publish_joint_target_angles(
         const std::array<double, kJointCount>& current_physical_angles) {
-        if (!joint_target_active_) {
+        if (!any_joint_target_active_()) {
             publish_nan_joint_targets();
             return;
         }
 
-        *left_front_joint_target_physical_angle_ =
-            joint_target_physical_angle_state_rad_[kLeftFront];
-        *left_back_joint_target_physical_angle_ = joint_target_physical_angle_state_rad_[kLeftBack];
-        *right_back_joint_target_physical_angle_ =
-            joint_target_physical_angle_state_rad_[kRightBack];
-        *right_front_joint_target_physical_angle_ =
-            joint_target_physical_angle_state_rad_[kRightFront];
+        const auto publish_joint = [this, &current_physical_angles](
+                                       size_t index, OutputInterface<double>& angle_output,
+                                       OutputInterface<double>& velocity_output,
+                                       OutputInterface<double>& acceleration_output,
+                                       OutputInterface<double>& angle_error_output) {
+            if (!joint_target_active_[index]) {
+                *angle_output = nan_;
+                *velocity_output = nan_;
+                *acceleration_output = nan_;
+                *angle_error_output = nan_;
+                return;
+            }
 
-        *left_front_joint_target_physical_velocity_ =
-            joint_target_physical_velocity_state_rad_[kLeftFront];
-        *left_back_joint_target_physical_velocity_ =
-            joint_target_physical_velocity_state_rad_[kLeftBack];
-        *right_back_joint_target_physical_velocity_ =
-            joint_target_physical_velocity_state_rad_[kRightBack];
-        *right_front_joint_target_physical_velocity_ =
-            joint_target_physical_velocity_state_rad_[kRightFront];
+            *angle_output = joint_target_physical_angle_state_rad_[index];
+            *velocity_output = joint_target_physical_velocity_state_rad_[index];
+            *acceleration_output = joint_target_physical_acceleration_state_rad_[index];
+            *angle_error_output = std::isfinite(current_physical_angles[index])
+                                    ? current_physical_angles[index]
+                                          - joint_target_physical_angle_state_rad_[index]
+                                    : nan_;
+        };
 
-        *left_front_joint_target_physical_acceleration_ =
-            joint_target_physical_acceleration_state_rad_[kLeftFront];
-        *left_back_joint_target_physical_acceleration_ =
-            joint_target_physical_acceleration_state_rad_[kLeftBack];
-        *right_back_joint_target_physical_acceleration_ =
-            joint_target_physical_acceleration_state_rad_[kRightBack];
-        *right_front_joint_target_physical_acceleration_ =
-            joint_target_physical_acceleration_state_rad_[kRightFront];
-
-        *lf_angle_error_ = std::isfinite(current_physical_angles[kLeftFront])
-                             ? current_physical_angles[kLeftFront]
-                                   - joint_target_physical_angle_state_rad_[kLeftFront]
-                             : nan_;
-        *lb_angle_error_ = std::isfinite(current_physical_angles[kLeftBack])
-                             ? current_physical_angles[kLeftBack]
-                                   - joint_target_physical_angle_state_rad_[kLeftBack]
-                             : nan_;
-        *rb_angle_error_ = std::isfinite(current_physical_angles[kRightBack])
-                             ? current_physical_angles[kRightBack]
-                                   - joint_target_physical_angle_state_rad_[kRightBack]
-                             : nan_;
-        *rf_angle_error_ = std::isfinite(current_physical_angles[kRightFront])
-                             ? current_physical_angles[kRightFront]
-                                   - joint_target_physical_angle_state_rad_[kRightFront]
-                             : nan_;
+        publish_joint(
+            kLeftFront, left_front_joint_target_physical_angle_,
+            left_front_joint_target_physical_velocity_,
+            left_front_joint_target_physical_acceleration_, lf_angle_error_);
+        publish_joint(
+            kLeftBack, left_back_joint_target_physical_angle_,
+            left_back_joint_target_physical_velocity_,
+            left_back_joint_target_physical_acceleration_, lb_angle_error_);
+        publish_joint(
+            kRightBack, right_back_joint_target_physical_angle_,
+            right_back_joint_target_physical_velocity_,
+            right_back_joint_target_physical_acceleration_, rb_angle_error_);
+        publish_joint(
+            kRightFront, right_front_joint_target_physical_angle_,
+            right_front_joint_target_physical_velocity_,
+            right_front_joint_target_physical_acceleration_, rf_angle_error_);
     }
 
     void publish_nan_joint_targets() {
         reset_attitude_correction_state_();
+        joint_target_active_.fill(false);
 
         *left_front_joint_target_physical_angle_ = nan_;
         *left_back_joint_target_physical_angle_ = nan_;
@@ -1015,7 +1028,7 @@ private:
 
     std::array<double, kJointCount> current_target_physical_angles_rad_   = {0.0, 0.0, 0.0, 0.0};
 
-    bool joint_target_active_ = false;
+    std::array<bool, kJointCount> joint_target_active_ = {false, false, false, false};
     std::array<double, kJointCount> joint_target_physical_angle_state_rad_ = {0.0, 0.0, 0.0, 0.0};
     std::array<double, kJointCount> joint_target_physical_velocity_state_rad_ = {
         0.0, 0.0, 0.0, 0.0};

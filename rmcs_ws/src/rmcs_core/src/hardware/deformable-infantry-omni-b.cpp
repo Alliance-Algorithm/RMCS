@@ -198,7 +198,7 @@ private:
             deformableInfantry.register_output("/chassis/encoder/alpha", encoder_alpha_, nan_);
             deformableInfantry.register_output(
                 "/chassis/encoder/alpha_dot", encoder_alpha_dot_, nan_);
-            deformableInfantry.register_output("/chassis/radius", radius_, nan_);
+            deformableInfantry.register_output("/chassis/radius", radius_, default_radius_);
 
             deformableInfantry.get_parameter_or("debug_log_supercap", debug_log_supercap_, false);
             deformableInfantry.get_parameter_or(
@@ -352,6 +352,7 @@ private:
         static constexpr double joint_zero_physical_angle_rad_ = 62.5 * std::numbers::pi / 180.0;
         static constexpr double chassis_radius_base_ = 0.2341741;
         static constexpr double rod_length_ = 0.150;
+        static constexpr double default_radius_ = 0.5 * rod_length_ + chassis_radius_base_;
 
         static double to_physical_angle_(double motor_angle) {
             return joint_zero_physical_angle_rad_ - motor_angle;
@@ -383,7 +384,11 @@ private:
             if (!alpha_rad.array().isFinite().all() || !alpha_dot_rad.array().isFinite().all()) {
                 *encoder_alpha_ = nan_;
                 *encoder_alpha_dot_ = nan_;
-                *radius_ = nan_;
+                *radius_ = default_radius_;
+                RCLCPP_WARN_THROTTLE(
+                    deformable_infantry_.get_logger(), *deformable_infantry_.get_clock(), 1000,
+                    "deformable joint feedback invalid, fallback chassis radius to default %.3f m",
+                    default_radius_);
                 return;
             }
 
