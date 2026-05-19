@@ -25,17 +25,6 @@ rmcs_executor:
 
       - rmcs::AutoAimComponent -> auto_aim_component
 
-mavros:
-  ros__parameters:
-    enabled: true
-    fcu_url: serial:///dev/ttyACM0:921600
-    gcs_url: ""
-    target_system_id: 1
-    target_component_id: 1
-    fcu_protocol: v2.0
-    respawn: true
-    respawn_delay: 1.0
-
 odin_ros_driver:
   ros__parameters:
     enabled: true
@@ -112,8 +101,8 @@ friction_wheel_controller:
       - /gimbal/left_friction
       - /gimbal/right_friction
     friction_velocities:
-      - 610.0
-      - 610.0
+      - 605.0
+      - 605.0
     friction_soft_start_stop_time: 1.0
 
 heat_controller:
