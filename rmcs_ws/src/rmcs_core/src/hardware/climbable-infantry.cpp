@@ -1,5 +1,6 @@
 #include <atomic>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <memory>
 #include <span>
@@ -276,8 +277,10 @@ private:
                   {climbable_infantry, climbable_infantry_command, "/chassis/right_back_steering"})
             , chassis_back_wheel_motors_(
                   {climbable_infantry, climbable_infantry_command, "/chassis/left_back_wheel"},
-                  {climbable_infantry, climbable_infantry_command, "/chassis/right_back_wheel"}) {
-
+                  {climbable_infantry, climbable_infantry_command, "/chassis/right_back_wheel"})
+            , yaw_watchdog_counter_deadline(
+                  climbable_infantry.get_parameter("yaw_watchdog_counter_deadline").as_int())
+            , reboot_interval(climbable_infantry.get_parameter("reboot_interval").as_int()) {
             gimbal_yaw_motor_.configure(
                 device::LkMotor::Config{device::LkMotor::Type::kMG4010Ei10}.set_encoder_zero_point(
                     static_cast<int>(
@@ -338,12 +341,12 @@ private:
             chassis_back_climber_motor_[0].configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
                     .enable_multi_turn_angle()
-                    .set_reduction_ratio(19.)
-                    .set_reversed());
+                    .set_reduction_ratio(19.));
             chassis_back_climber_motor_[1].configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
                     .enable_multi_turn_angle()
-                    .set_reduction_ratio(19.));
+                    .set_reduction_ratio(19.)
+                    .set_reversed());
 
             climbable_infantry.register_output("/referee/serial", referee_serial_);
             referee_serial_->read = [this](std::byte* buffer, size_t size) {
@@ -400,6 +403,23 @@ private:
         void command_update() {
             auto builder = start_transmit();
 
+            builder.gpio_digital_write(
+                librmcs::spec::rmcs_board_lite::kGpioDescriptors[3], {.high = true});
+
+            if (yaw_watchdog_counter >= yaw_watchdog_counter_deadline
+                && yaw_watchdog_counter < yaw_watchdog_counter_deadline + 20) {
+                static int times = 0;
+                times++;
+
+                if (yaw_watchdog_counter == yaw_watchdog_counter_deadline) {
+                    RCLCPP_INFO(logger_, "yaw Time out! Times:%d", times / 21 + 1);
+                }
+                builder.gpio_digital_write(
+                    librmcs::spec::rmcs_board_lite::kGpioDescriptors[3], {.high = false});
+            }
+            if (yaw_watchdog_counter >= (yaw_watchdog_counter_deadline + reboot_interval)) {
+                yaw_watchdog_counter = 0;
+            }
             builder.can0_transmit({
                 .can_id = 0x200,
                 .can_data =
@@ -461,7 +481,7 @@ private:
             });
 
             builder.can2_transmit({
-                .can_id = 0x141,
+                .can_id = 0x142,
                 .can_data = gimbal_yaw_motor_.generate_torque_command().as_bytes(),
             });
 
@@ -528,7 +548,12 @@ private:
                 return;
             auto can_id = data.can_id;
 
-            if (can_id == 0x141) {
+            if (can_id != 0x142) {
+                yaw_watchdog_counter++;
+            } else {
+                yaw_watchdog_counter = 0;
+            }
+            if (can_id == 0x142) {
                 gimbal_yaw_motor_.store_status(data.can_data);
             } else if (can_id == 0x300) {
                 supercap_.store_status(data.can_data);
@@ -558,12 +583,11 @@ private:
             referee_ring_buffer_receive_.emplace_back_n(
                 [&uart_data](std::byte* storage) noexcept { *storage = *uart_data++; },
                 data.uart_data.size());
-            //         if (!data.uart_data.empty()) {
-            //       RCLCPP_INFO(
-            //           logger_, "ref uart0 recv: size=%zu first=0x%02X",
-            //           data.uart_data.size(),
-            //           std::to_integer<unsigned int>(data.uart_data[0]));
-            //   }
+            // if (!data.uart_data.empty()) {
+            //     RCLCPP_INFO(
+            //         logger_, "ref uart0 recv: size=%zu first=0x%02X", data.uart_data.size(),
+            //         std::to_integer<unsigned int>(data.uart_data[0]));
+            // }
         }
 
         void dbus_receive_callback(const librmcs::data::UartDataView& data) override {
@@ -603,6 +627,10 @@ private:
 
         OutputInterface<double> chassis_yaw_velocity_imu_;
         OutputInterface<double> chassis_pitch_imu_;
+
+        uint16_t yaw_watchdog_counter = 0;
+        uint16_t yaw_watchdog_counter_deadline;
+        uint16_t reboot_interval;
     };
 
     OutputInterface<rmcs_description::Tf> tf_;

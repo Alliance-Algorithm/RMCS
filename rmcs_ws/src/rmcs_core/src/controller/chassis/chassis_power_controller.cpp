@@ -132,7 +132,7 @@ private:
         double chassis_climber_left_front_motor = *chassis_climber_left_front_motor_velocity_;
         if (boost_mode_ && *supercap_enabled_)
             total_power_limit = (*mode_ == rmcs_msgs::ChassisMode::LAUNCH_RAMP)
-//                                       || ((chassis_climber_left_front_motor > 2) || *rotary_knob_ > 0.9)
+                                       || ((chassis_climber_left_front_motor > 2) || *rotary_knob_ > 0.9)
                                   ? inf_
                                   : *chassis_power_limit_referee_ + 80.0;
         else

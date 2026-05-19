@@ -290,7 +290,7 @@ private:
     AutoClimbControl update_manual_support_control(const rmcs_msgs::Keyboard& keyboard) {
         AutoClimbControl control;
 
-        if (keyboard.b) {
+        if (keyboard.b || *rotary_knob_switch_ == rmcs_msgs::Switch::UP) {
             stop_manual_support();
             control.back_climber_velocity = climber_back_control_velocity_abs_;
             return control;
@@ -495,8 +495,8 @@ private:
         *front_power_demand_estimate_ = estimate_front_power(
             *climber_front_left_requested_control_torque_,
             *climber_front_right_requested_control_torque_, *climber_front_left_velocity_,
-            *climber_front_right_velocity_, front_power_estimate_bias_, front_power_estimate_k_tau2_,
-            front_power_estimate_k_mech_);
+            *climber_front_right_velocity_, front_power_estimate_bias_,
+            front_power_estimate_k_tau2_, front_power_estimate_k_mech_);
     }
 
     void reset_all_controls() {
