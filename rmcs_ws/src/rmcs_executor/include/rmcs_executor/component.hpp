@@ -6,14 +6,19 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <new>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <type_traits>
 #include <typeinfo>
 #include <unordered_set>
 #include <utility>
 #include <vector>
+
+#include <rclcpp/logging.hpp>
+#include <rmcs_utility/ring_buffer.hpp>
 
 namespace rmcs_executor {
 
@@ -121,26 +126,15 @@ public:
     public:
         friend class Component;
 
-        EventInputInterface() = default;
-
         template <typename Callback>
         requires std::invocable<Callback&, const T&>
-        explicit EventInputInterface(Callback&& callback) {
-            set_callback(std::forward<Callback>(callback));
-        }
+        explicit EventInputInterface(Callback&& callback)
+            : callback_(std::forward<Callback>(callback)) {}
 
         EventInputInterface(const EventInputInterface&) = delete;
         EventInputInterface& operator=(const EventInputInterface&) = delete;
         EventInputInterface(EventInputInterface&&) = delete;
         EventInputInterface& operator=(EventInputInterface&&) = delete;
-
-        template <typename Callback>
-        requires std::invocable<Callback&, const T&> void set_callback(Callback&& callback) {
-            if (active())
-                throw std::runtime_error("The interface has been activated");
-
-            callback_ = std::forward<Callback>(callback);
-        }
 
         [[nodiscard]] bool active() const { return activated; }
         [[nodiscard]] bool ready() const { return static_cast<bool>(callback_); }
@@ -157,6 +151,106 @@ public:
 
         std::function<void(const T&)> callback_;
         bool activated = false;
+    };
+
+    template <typename T>
+    requires(
+        !std::is_reference_v<T> && !std::is_unbounded_array_v<T>
+        && std::is_nothrow_copy_constructible_v<T> && std::is_nothrow_destructible_v<T>)
+    class QueuedEventInputInterface final : public EventInputInterface<T> {
+    public:
+        template <typename Callback>
+        requires std::invocable<Callback&, T&&>
+        QueuedEventInputInterface(size_t queue_depth, Callback&& callback)
+            : EventInputInterface<T>([this](const T& event) { enqueue(event); })
+            , user_callback_(std::forward<Callback>(callback))
+            , queue_(queue_depth)
+            , worker_(&QueuedEventInputInterface::worker_main, this) {}
+
+        ~QueuedEventInputInterface() {
+            stop_requested_.store(true, std::memory_order::relaxed);
+            notify_event();
+            if (worker_.joinable())
+                worker_.join();
+        }
+
+        QueuedEventInputInterface(const QueuedEventInputInterface&) = delete;
+        QueuedEventInputInterface& operator=(const QueuedEventInputInterface&) = delete;
+        QueuedEventInputInterface(QueuedEventInputInterface&&) = delete;
+        QueuedEventInputInterface& operator=(QueuedEventInputInterface&&) = delete;
+
+    private:
+        void enqueue(const T& event) {
+            if (stop_requested_.load(std::memory_order::relaxed))
+                return;
+
+            auto guard = std::scoped_lock{enqueue_mutex_};
+            if (stop_requested_.load(std::memory_order::relaxed))
+                return;
+
+            if (!queue_.push_back(event)) {
+                const auto dropped_count = dropped_event_count_++;
+                if (dropped_count == 0) {
+                    RCLCPP_WARN(
+                        rclcpp::get_logger("rmcs_executor"),
+                        "QueuedEventInputInterface started dropping events because the queue is full");
+                }
+                return;
+            }
+
+            const auto dropped_count = dropped_event_count_;
+            dropped_event_count_ = 0;
+            if (dropped_count != 0) {
+                RCLCPP_WARN(
+                    rclcpp::get_logger("rmcs_executor"),
+                    "QueuedEventInputInterface resumed enqueueing after dropping %u events",
+                    dropped_count);
+            }
+
+            notify_event();
+        }
+
+        void notify_event() {
+            event_count_.fetch_add(1, std::memory_order::release);
+            event_count_.notify_one();
+        }
+
+        void worker_main() {
+            while (!stop_requested_.load(std::memory_order::relaxed)) {
+                if (const auto* event = queue_.peek_front()) {
+                    try {
+                        user_callback_(std::move(*event));
+                    } catch (const std::exception& exception) {
+                        RCLCPP_ERROR(
+                            rclcpp::get_logger("rmcs_executor"),
+                            "QueuedEventInputInterface worker terminated by exception: %s",
+                            exception.what());
+                        return;
+                    } catch (...) {
+                        RCLCPP_ERROR(
+                            rclcpp::get_logger("rmcs_executor"),
+                            "QueuedEventInputInterface worker terminated by unknown exception");
+                        return;
+                    }
+
+                    if (!queue_.pop_front([](T&&) noexcept {}))
+                        std::terminate();
+                    continue;
+                }
+
+                const auto old = event_count_.load(std::memory_order::relaxed);
+                if (!queue_.readable() && !stop_requested_.load(std::memory_order::relaxed))
+                    event_count_.wait(old, std::memory_order::acquire);
+            }
+        }
+
+        std::function<void(T&&)> user_callback_;
+        rmcs_utility::RingBuffer<T> queue_;
+        std::atomic<bool> stop_requested_{false};
+        std::uint32_t dropped_event_count_ = 0;
+        std::atomic<std::uint32_t> event_count_{0};
+        std::mutex enqueue_mutex_;
+        std::thread worker_;
     };
 
     template <typename T>

@@ -69,17 +69,8 @@ public:
         std::int16_t x, std::int16_t y, std::int16_t z, time_point sample_time) {
         auto guard = std::scoped_lock{mutex_};
 
-        if (!check_monotonic_timestamp(last_accelerometer_time_, sample_time, "accelerometer"))
+        if (!accept_sample_time(last_accelerometer_time_, sample_time, "accelerometer"))
             return;
-
-        if (filter_time_.has_value() && sample_time < *filter_time_) {
-            RCLCPP_WARN(
-                logger(),
-                "Dropping late accelerometer sample at %.9f s (filter=%.9f s)",
-                to_seconds(sample_time).count(),
-                to_seconds(*filter_time_).count());
-            return;
-        }
 
         const Vec3 accel_mps2 = convert_accelerometer(x, y, z);
         if (!filter_.initialized()) {
@@ -92,54 +83,31 @@ public:
             return;
         }
 
-        push_accel_sample(accel_mps2, sample_time);
+        enqueue_accel_sample(accel_mps2, sample_time);
     }
 
     void store_gyroscope_status(
         std::int16_t x, std::int16_t y, std::int16_t z, time_point sample_time) {
         auto guard = std::scoped_lock{mutex_};
 
-        if (!check_monotonic_timestamp(last_gyroscope_time_, sample_time, "gyroscope"))
+        if (!accept_sample_time(last_gyroscope_time_, sample_time, "gyroscope"))
             return;
-
-        if (filter_time_.has_value() && sample_time < *filter_time_) {
-            RCLCPP_WARN(
-                logger(), "Dropping late gyroscope sample at %.9f s (filter=%.9f s)",
-                to_seconds(sample_time).count(),
-                to_seconds(*filter_time_).count());
-            return;
-        }
 
         if (!filter_.initialized())
             return;
 
-        std::optional<Filter::TimedSample> latest_accel_sample;
-        while (auto* queued_sample = accel_queue_.peek_front()) {
-            if (queued_sample->timestamp > sample_time)
-                break;
+        const auto drained_accel_samples = drain_accel_samples_until(sample_time);
+        if (!drained_accel_samples.has_value())
+            return;
 
-            latest_accel_sample = to_timed_sample(*queued_sample);
-            if (!accel_queue_.pop_front([](BufferedAccelerometerSample&&) noexcept {})) {
-                RCLCPP_ERROR(logger(), "Failed to pop accelerometer queue front");
-                return;
-            }
-        }
-
-        const auto gyro_sample = Filter::TimedSample{
-            .value = convert_gyroscope(x, y, z),
-            .ready_timestamp = to_seconds(sample_time).count(),
-            .valid = true,
-        };
-
+        const auto gyro_sample = make_timed_sample(convert_gyroscope(x, y, z), sample_time);
         if (!filter_.process(
-                gyro_sample, latest_accel_sample, to_seconds(sample_time).count())) {
+                gyro_sample, *drained_accel_samples,
+                to_seconds(sample_time).count())) {
             RCLCPP_WARN(
                 logger(), "Gyroscope processing failed at %.9f s, clearing pending accel queue",
                 to_seconds(sample_time).count());
-            filter_.reset();
-            filter_time_ = sample_time;
-            accel_queue_.clear();
-            refresh_snapshot(std::nullopt);
+            reset_after_failed_process(sample_time);
             return;
         }
 
@@ -158,11 +126,6 @@ public:
     }
 
 private:
-    struct TimeTracker {
-        bool initialized = false;
-        time_point last_time{};
-    };
-
     struct BufferedAccelerometerSample {
         double x_mps2 = 0.0;
         double y_mps2 = 0.0;
@@ -183,6 +146,21 @@ private:
 
     [[nodiscard]] static auto to_seconds(time_point sample_time) noexcept -> seconds_duration {
         return std::chrono::duration_cast<seconds_duration>(sample_time.time_since_epoch());
+    }
+
+    [[nodiscard]] auto accept_sample_time(
+        std::optional<time_point>& last_time, time_point sample_time, const char* stream_name) const
+        -> bool {
+        if (!check_monotonic_timestamp(last_time, sample_time, stream_name))
+            return false;
+
+        if (!filter_time_.has_value() || sample_time >= *filter_time_)
+            return true;
+
+        RCLCPP_WARN(
+            logger(), "Dropping late %s sample at %.9f s (filter=%.9f s)", stream_name,
+            to_seconds(sample_time).count(), to_seconds(*filter_time_).count());
+        return false;
     }
 
     [[nodiscard]] static auto check_monotonic_timestamp(
@@ -216,22 +194,17 @@ private:
         return config_.sensor_to_filter * (raw_gyro * gyro_scale_rad_per_sec_);
     }
 
-    [[nodiscard]] static auto to_timed_sample(const BufferedAccelerometerSample& sample)
+    [[nodiscard]] static auto make_timed_sample(const Vec3& value, time_point sample_time)
         -> Filter::TimedSample {
         return Filter::TimedSample{
-            .value = sample.vector(),
-            .ready_timestamp = to_seconds(sample.timestamp).count(),
+            .value = value,
+            .ready_timestamp = to_seconds(sample_time).count(),
             .valid = true,
         };
     }
 
     [[nodiscard]] auto try_initialize(const Vec3& accel_mps2, time_point sample_time) -> bool {
-        const auto accel_sample = Filter::TimedSample{
-            .value = accel_mps2,
-            .ready_timestamp = to_seconds(sample_time).count(),
-            .valid = true,
-        };
-
+        const auto accel_sample = make_timed_sample(accel_mps2, sample_time);
         if (!filter_.process(std::nullopt, accel_sample, to_seconds(sample_time).count()))
             return false;
 
@@ -241,7 +214,25 @@ private:
         return true;
     }
 
-    void push_accel_sample(const Vec3& accel_mps2, time_point sample_time) {
+    [[nodiscard]] auto drain_accel_samples_until(time_point sample_time)
+        -> std::optional<std::optional<Filter::TimedSample>> {
+        std::optional<Filter::TimedSample> latest_sample;
+
+        while (auto* queued_sample = accel_queue_.peek_front()) {
+            if (queued_sample->timestamp > sample_time)
+                break;
+
+            latest_sample = make_timed_sample(queued_sample->vector(), queued_sample->timestamp);
+            if (!accel_queue_.pop_front([](BufferedAccelerometerSample&&) noexcept {})) {
+                RCLCPP_ERROR(logger(), "Failed to pop accelerometer queue front");
+                return std::nullopt;
+            }
+        }
+
+        return latest_sample;
+    }
+
+    void enqueue_accel_sample(const Vec3& accel_mps2, time_point sample_time) {
         BufferedAccelerometerSample sample;
         sample.x_mps2 = accel_mps2.x();
         sample.y_mps2 = accel_mps2.y();
@@ -261,6 +252,13 @@ private:
 
         if (!accel_queue_.emplace_back(sample))
             RCLCPP_ERROR(logger(), "Failed to enqueue accelerometer sample after drop");
+    }
+
+    void reset_after_failed_process(time_point sample_time) {
+        filter_.reset();
+        filter_time_ = sample_time;
+        accel_queue_.clear();
+        refresh_snapshot(std::nullopt);
     }
 
     void refresh_snapshot(std::optional<time_point> sample_time) {
