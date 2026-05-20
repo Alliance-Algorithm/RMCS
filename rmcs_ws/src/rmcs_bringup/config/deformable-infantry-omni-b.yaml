@@ -48,7 +48,7 @@ deformable_infantry:
     left_back_zero_point: 5167
     right_back_zero_point: 3098
     right_front_zero_point: 6485
-    yaw_motor_zero_point: 18211
+    yaw_motor_zero_point: 57900
     pitch_motor_zero_point: 56354
     debug_log_supercap: false
     debug_log_wheel_motor: false
