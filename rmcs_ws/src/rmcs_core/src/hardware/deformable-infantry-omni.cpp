@@ -3,7 +3,9 @@
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/lk_motor.hpp"
+#include "hardware/device/remote_control.hpp"
 #include "hardware/device/supercap.hpp"
+#include "hardware/device/vt13.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -53,8 +55,9 @@ public:
             *this, *command_, get_parameter("serial_filter_rmcs_board").as_string());
         top_board_ = std::make_unique<TopBoard>(
             *this, *command_, get_parameter("serial_filter_top_board").as_string(), true);
-        imu_board_ =
-            std::make_unique<ImuBoard>(*this, get_parameter("serial_filter_imu").as_string());
+        imu_board_ = std::make_unique<ImuBoard>(
+            *this, vt13_, get_parameter("serial_filter_imu").as_string());
+        remote_control_ = std::make_unique<device::RemoteControl>(*this, bottom_board_->dr16_, vt13_);
 
         // For command: remote-status
         using Srv = std_srvs::srv::Trigger;
@@ -73,6 +76,8 @@ public:
         bottom_board_->update();
         top_board_->update();
         imu_board_->update();
+        vt13_.update_status();
+        remote_control_->update();
     }
 
     void command_update() {
@@ -329,7 +334,7 @@ private:
 
         device::Bmi088 imu_{1000, 0.2, 0.0};
         device::LkMotor gimbal_yaw_motor_{status_, command_, "/gimbal/yaw"};
-        device::Dr16 dr16_{status_};
+        device::Dr16 dr16_;
 
         device::DjiMotor chassis_wheel_motors_[4]{
             device::DjiMotor{status_, command_, "/chassis/left_front_wheel"},
@@ -493,7 +498,7 @@ private:
         }
 
         void dbus_receive_callback(const librmcs::data::UartDataView& data) override {
-            dr16_.store_status(data.uart_data.data(), data.uart_data.size());
+            dr16_.store_status(data.uart_data);
         }
 
         void can0_receive_callback(const librmcs::data::CanDataView& data) override {
@@ -574,11 +579,14 @@ private:
         friend class DeformableInfantryOmni;
 
     public:
-        explicit ImuBoard(DeformableInfantryOmni& status, const std::string& serial_filter = {})
+        explicit ImuBoard(
+            DeformableInfantryOmni& status, device::Vt13& vt13,
+            const std::string& serial_filter = {})
             : RmcsBoardLite{
                   serial_filter,
                   librmcs::agent::AdvancedOptions{.dangerously_skip_version_checks = true}}
             , tf_{status.tf_}
+            , vt13_{vt13}
             , bmi088_{1000, 0.2, 0.0} {
 
             status.register_output("/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
@@ -601,6 +609,10 @@ private:
         }
 
     private:
+        void uart0_receive_callback(const librmcs::data::UartDataView& data) override {
+            vt13_.store_status(data.uart_data);
+        }
+
         void accelerometer_receive_callback(
             const librmcs::data::AccelerometerDataView& data) override {
             bmi088_.store_accelerometer_status(data.x, data.y, data.z);
@@ -612,6 +624,7 @@ private:
 
         OutputInterface<rmcs_description::Tf>& tf_;
         OutputInterface<double> gimbal_pitch_velocity_imu_;
+        device::Vt13& vt13_;
 
         device::Bmi088 bmi088_;
     };
@@ -825,10 +838,12 @@ private:
 
     OutputInterface<rmcs_description::Tf> tf_;
     InputInterface<Clock::time_point> timestamp_;
+    device::Vt13 vt13_;
 
     std::unique_ptr<ImuBoard> imu_board_;
     std::unique_ptr<TopBoard> top_board_;
     std::unique_ptr<BottomBoard> bottom_board_;
+    std::unique_ptr<device::RemoteControl> remote_control_;
 
     std::shared_ptr<Command> command_;
     uint32_t cmd_tick_ = 0;

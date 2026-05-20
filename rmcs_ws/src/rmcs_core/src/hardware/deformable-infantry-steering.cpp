@@ -523,7 +523,7 @@ private:
         }
 
         void dbus_receive_callback(const librmcs::data::UartDataView& data) override {
-            dr16_.store_status(data.uart_data.data(), data.uart_data.size());
+            dr16_.store_status(data.uart_data);
         }
 
         void can0_receive_callback(const librmcs::data::CanDataView& data) override {
@@ -610,7 +610,7 @@ private:
 
         device::Bmi088 imu_{1000, 0.2, 0.0};
         device::LkMotor gimbal_yaw_motor_{deformable_infantry_, command_, "/gimbal/yaw"};
-        device::Dr16 dr16_{deformable_infantry_};
+        device::Dr16 dr16_;
 
         device::DjiMotor chassis_wheel_motors_[4]{
             device::DjiMotor{deformable_infantry_, command_, "/chassis/left_front_wheel"},
