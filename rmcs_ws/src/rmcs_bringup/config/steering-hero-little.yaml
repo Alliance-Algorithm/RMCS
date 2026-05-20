@@ -94,7 +94,7 @@ value_broadcaster:
       # - /gimbal/top_yaw/angle
       # - /gimbal/pitch/angle
       # - /chassis/power
-      # - /chassis/supercap/voltage
+      - /chassis/supercap/voltage
       # - /chassis/control_power_limit
       # - /referee/chassis/power_limit
       # - /referee/chassis/buffer_energy
@@ -204,6 +204,7 @@ bullet_feeder_controller:
     putter_return_velocity_kd: 0.0
     putter_return_velocity_integral_min: -0.03
     putter_return_velocity_integral_max: 0.0
+    photoelectric_allow: true
 
 friction_wheel_controller:
   ros__parameters:
@@ -212,11 +213,16 @@ friction_wheel_controller:
       - /gimbal/second_right_friction
       - /gimbal/first_left_friction
       - /gimbal/first_right_friction
-    friction_velocities:
-      - 372.00 #520.00
-      - 372.00 #520.00
-      - 530.00 #580.00
-      - 530.00 #580.00
+    friction_velocities_profile_0:
+      - 372.0
+      - 372.0
+      - 530.0
+      - 530.0
+    friction_velocities_profile_1:
+      - 535.0
+      - 535.0
+      - 595.0
+      - 595.0
     friction_soft_start_stop_time: 1.0
 
 heat_controller:

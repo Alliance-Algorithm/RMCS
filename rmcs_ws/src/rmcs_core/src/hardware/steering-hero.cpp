@@ -205,8 +205,8 @@ private:
             : librmcs::agent::CBoard(board_serial)
             , logger_(steering_hero.get_logger())
             , tf_(steering_hero.tf_)
-            , can1_receive_rate_counter_(logger_, "bottom/can1")
-            , can2_receive_rate_counter_(logger_, "bottom/can2")
+            // , can1_receive_rate_counter_(logger_, "bottom/can1")
+            // , can2_receive_rate_counter_(logger_, "bottom/can2")
             , imu_(1000, 0.2, 0.0)
             , gimbal_top_yaw_motor_(steering_hero, steering_hero_command, "/gimbal/top_yaw")
             , gimbal_pitch_motor_(steering_hero, steering_hero_command, "/gimbal/pitch")
@@ -473,8 +473,8 @@ private:
         int control_flag = 0;
         rclcpp::Logger logger_;
         OutputInterface<rmcs_description::Tf>& tf_;
-        CanReceiveRateCounter can1_receive_rate_counter_;
-        CanReceiveRateCounter can2_receive_rate_counter_;
+        // CanReceiveRateCounter can1_receive_rate_counter_;
+        // CanReceiveRateCounter can2_receive_rate_counter_;
 
         std::time_t last_camera_capturer_trigger_timestamp_{0};
 
@@ -505,8 +505,8 @@ private:
             std::string_view board_serial = {})
             : librmcs::agent::CBoard(board_serial)
             , logger_(steering_hero.get_logger())
-            , can1_receive_rate_counter_(logger_, "bottom/can1")
-            , can2_receive_rate_counter_(logger_, "bottom/can2")
+            // , can1_receive_rate_counter_(logger_, "bottom/can1")
+            // , can2_receive_rate_counter_(logger_, "bottom/can2")
             , imu_(1000, 0.2, 0.0)
             , chassis_front_climber_motor_(
                   {steering_hero, steering_hero_command, "/chassis/climber/left_front_motor"},
@@ -672,8 +672,8 @@ private:
         }
 
         rclcpp::Logger logger_;
-        CanReceiveRateCounter can1_receive_rate_counter_;
-        CanReceiveRateCounter can2_receive_rate_counter_;
+        // CanReceiveRateCounter can1_receive_rate_counter_;
+        // CanReceiveRateCounter can2_receive_rate_counter_;
 
         device::Bmi088 imu_;
         device::DjiMotor chassis_front_climber_motor_[2];
@@ -695,8 +695,8 @@ private:
             std::string_view board_serial = {})
             : librmcs::agent::CBoard(board_serial)
             , logger_(steering_hero.get_logger())
-            , can1_receive_rate_counter_(logger_, "bottom/can1")
-            , can2_receive_rate_counter_(logger_, "bottom/can2")
+            // , can1_receive_rate_counter_(logger_, "bottom/can1")
+            // , can2_receive_rate_counter_(logger_, "bottom/can2")
             , imu_(1000, 0.2, 0.0)
             , dr16_(steering_hero)
             , supercap_(steering_hero, steering_hero_command)
@@ -856,8 +856,8 @@ private:
             imu_.store_gyroscope_status(data.x, data.y, data.z);
         }
 
-        CanReceiveRateCounter can1_receive_rate_counter_;
-        CanReceiveRateCounter can2_receive_rate_counter_;
+        // CanReceiveRateCounter can1_receive_rate_counter_;
+        // CanReceiveRateCounter can2_receive_rate_counter_;
         device::Bmi088 imu_;
 
         OutputInterface<bool> powermeter_control_enabled_;

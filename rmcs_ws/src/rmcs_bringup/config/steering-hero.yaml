@@ -194,11 +194,16 @@ friction_wheel_controller:
       - /gimbal/first_right_friction
       - /gimbal/second_left_friction
       - /gimbal/second_right_friction
-    friction_velocities:
+    friction_velocities_profile_0:
       - 368.00
       - 368.00
       - 532.00
       - 532.00
+    friction_velocities_profile_1:
+      - 525.0
+      - 525.0
+      - 585.0
+      - 585.0
     friction_soft_start_stop_time: 1.0
 
 heat_controller:
@@ -227,6 +232,7 @@ bullet_feeder_controller:
     putter_return_velocity_kd: 0.0
     putter_return_velocity_integral_min: -0.03
     putter_return_velocity_integral_max: 0.0
+    photoelectric_allow: false 
 
 first_left_friction_velocity_pid_controller:
   ros__parameters:
