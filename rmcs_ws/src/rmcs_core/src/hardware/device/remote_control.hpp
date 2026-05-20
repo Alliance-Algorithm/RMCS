@@ -42,9 +42,6 @@ public:
     }
 
     void update() {
-        *joystick_right_output_ = dr16_.joystick_right();
-        *joystick_left_output_ = dr16_.joystick_left();
-
         if (vt13_.mode_switch() == Vt13::ModeSwitch::kCine) {
             *switch_right_output_ = rmcs_msgs::Switch::DOWN;
             *switch_left_output_ = rmcs_msgs::Switch::DOWN;
@@ -53,22 +50,28 @@ public:
             *switch_left_output_ = dr16_.switch_left();
         }
 
-        *rotary_knob_output_ = dr16_.rotary_knob();
-        *rotary_knob_switch_output_ = dr16_.rotary_knob_switch();
-
         if (vt13_.mode_switch() == Vt13::ModeSwitch::kSport) {
+            *joystick_right_output_ = vt13_.joystick_right();
+            *joystick_left_output_ = vt13_.joystick_left();
+
             *mouse_velocity_output_ = vt13_.mouse_velocity();
             *mouse_wheel_output_ = vt13_.mouse_wheel();
 
             *mouse_output_ = vt13_.mouse();
             *keyboard_output_ = vt13_.keyboard();
         } else {
+            *joystick_right_output_ = dr16_.joystick_right();
+            *joystick_left_output_ = dr16_.joystick_left();
+
             *mouse_velocity_output_ = dr16_.mouse_velocity();
             *mouse_wheel_output_ = dr16_.mouse_wheel();
 
             *mouse_output_ = dr16_.mouse();
             *keyboard_output_ = dr16_.keyboard();
         }
+
+        *rotary_knob_output_ = dr16_.rotary_knob();
+        *rotary_knob_switch_output_ = dr16_.rotary_knob_switch();
     }
 
 private:

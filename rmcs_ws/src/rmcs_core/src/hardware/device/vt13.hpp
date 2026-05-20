@@ -72,6 +72,9 @@ public:
 
     [[nodiscard]] ModeSwitch mode_switch() const noexcept { return mode_switch_; }
 
+    [[nodiscard]] const Eigen::Vector2d& joystick_left() const noexcept { return joystick_left_; }
+    [[nodiscard]] const Eigen::Vector2d& joystick_right() const noexcept { return joystick_right_; }
+
     [[nodiscard]] const Eigen::Vector2d& mouse_velocity() const noexcept { return mouse_velocity_; }
     [[nodiscard]] double mouse_wheel() const noexcept { return mouse_wheel_; }
 
@@ -148,6 +151,15 @@ private:
     void update_remote_control_data(const RemoteControlData& data) {
         mode_switch_ = static_cast<ModeSwitch>(data.mode_switch + 1);
 
+        joystick_right_ = {
+            channel_to_double(static_cast<uint16_t>(data.joystick_channel1)),
+            -channel_to_double(static_cast<uint16_t>(data.joystick_channel0)),
+        };
+        joystick_left_ = {
+            channel_to_double(static_cast<uint16_t>(data.joystick_channel3)),
+            -channel_to_double(static_cast<uint16_t>(data.joystick_channel2)),
+        };
+
         mouse_velocity_ = {
             -data.mouse_velocity_y / 32768.0,
             -data.mouse_velocity_x / 32768.0,
@@ -184,9 +196,19 @@ private:
         return Success{total_frame_size};
     }
 
+    static double channel_to_double(int32_t value) {
+        value -= 1024;
+        if (-660 <= value && value <= 660)
+            return value / 660.0;
+        return 0.0;
+    }
+
     rmcs_utility::RingBuffer<std::byte> data_buffer_{1024};
 
     ModeSwitch mode_switch_ = ModeSwitch::kUnknown;
+
+    Eigen::Vector2d joystick_left_ = Eigen::Vector2d::Zero();
+    Eigen::Vector2d joystick_right_ = Eigen::Vector2d::Zero();
 
     Eigen::Vector2d mouse_velocity_ = Eigen::Vector2d::Zero();
     double mouse_wheel_ = 0;
