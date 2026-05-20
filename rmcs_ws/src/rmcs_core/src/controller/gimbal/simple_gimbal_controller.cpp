@@ -52,12 +52,12 @@ public:
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN))
             return two_axis_gimbal_solver.update(TwoAxisGimbalSolver::SetDisabled());
 
-        const auto manual_active = switch_right == Switch::UP;
+        const auto auto_aim_requested = mouse_->right || switch_right == Switch::UP;
         const auto should_control = auto_aim_should_control_.ready() && *auto_aim_should_control_;
         const auto valid_control =
             auto_aim_control_direction_.ready() && auto_aim_control_direction_->allFinite();
 
-        if (manual_active && should_control && valid_control) {
+        if (auto_aim_requested && should_control && valid_control) {
             return two_axis_gimbal_solver.update(
                 TwoAxisGimbalSolver::SetControlDirection(
                     OdomImu::DirectionVector(*auto_aim_control_direction_)));
