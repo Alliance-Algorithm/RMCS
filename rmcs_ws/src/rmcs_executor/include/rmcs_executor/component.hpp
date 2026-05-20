@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <concepts>
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <map>
@@ -267,25 +268,37 @@ public:
 
         ~OutputInterface() {
             if (active())
-                std::destroy_at(std::launder(reinterpret_cast<T*>(&data_)));
+                std::destroy_at(storage_pointer());
         };
 
         [[nodiscard]] bool active() const { return activated; }
 
-        T* operator->() { return reinterpret_cast<T*>(&data_); }
-        const T* operator->() const { return reinterpret_cast<const T*>(&data_); }
-        T& operator*() { return *reinterpret_cast<T*>(&data_); }
-        const T& operator*() const { return *reinterpret_cast<const T*>(&data_); }
+        T* operator->() { return storage_pointer(); }
+        const T* operator->() const { return storage_pointer(); }
+        T& operator*() { return *storage_pointer(); }
+        const T& operator*() const { return *storage_pointer(); }
 
     private:
         template <typename... Args>
         void* activate(Args&&... args) {
-            ::new (&data_) T(std::forward<Args>(args)...);
+            std::construct_at(raw_storage_pointer(), std::forward<Args>(args)...);
             activated = true;
-            return reinterpret_cast<void*>(&data_);
+            return data_;
         }
 
-        std::aligned_storage_t<sizeof(T), alignof(T)> data_;
+        [[nodiscard]] T* raw_storage_pointer() {
+            return reinterpret_cast<T*>(data_);
+        }
+
+        [[nodiscard]] T* storage_pointer() {
+            return std::launder(raw_storage_pointer());
+        }
+
+        [[nodiscard]] const T* storage_pointer() const {
+            return std::launder(reinterpret_cast<const T*>(data_));
+        }
+
+        alignas(T) std::byte data_[sizeof(T)];
         bool activated = false;
     };
 
