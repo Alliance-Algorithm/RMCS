@@ -105,12 +105,6 @@ public:
             return;
         }
 
-        if (last_keyboard_.ctrl && keyboard_->v && forced_fired_ == false) {
-            forced_fired_ = true;
-        } else if (last_keyboard_.ctrl && keyboard_->v && forced_fired_ == true) {
-            forced_fired_ = false;
-        }
-
         if (*friction_ready_) {
             if (shoot_stage_ == ShootStage::RESETTING || bullet_feeder_cool_down_ > 0) {
                 *shoot_condiction_ = rmcs_msgs::ShootCondiction::JAM;
@@ -191,10 +185,7 @@ public:
                     }
 
                     if (shoot_stage_ == ShootStage::COMPRESSED) {
-                        // 强制模式：直接开启转一下推一下的模式；防止传感器损坏
-                        if (forced_fired_) {
-                            set_preloaded();
-                        }
+
                         // 暂存模式：等待灰度传感器状态更新以判断是否完成推弹
                         if (*grayscale_sensor_status_ && *photoelectric_sensor_status_) {
                             set_preloaded();
