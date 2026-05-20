@@ -43,7 +43,12 @@ public:
         // , bullet_allowance_number_(
         //       Shape::Color::YELLOW, 20, 5, x_center - 170, y_center + 270, 0, false)
         , bullet_allowance_number_(
-              Shape::Color::YELLOW, 20, 5, x_center - 220, y_center + 270, 0, false) {
+              Shape::Color::YELLOW, 20, 5, x_center - 220, y_center + 270, 0, false)
+        , friction_profile_indicator_{
+              Line(Shape::Color::WHITE, friction_profile_box_line_width, 0, 0, 0, 0, false),
+              Line(Shape::Color::WHITE, friction_profile_box_line_width, 0, 0, 0, 0, false),
+              Line(Shape::Color::WHITE, friction_profile_box_line_width, 0, 0, 0, 0, false),
+              Line(Shape::Color::WHITE, friction_profile_box_line_width, 0, 0, 0, 0, false)} {
 
         chassis_control_direction_indicator_.set_x(x_center);
         chassis_control_direction_indicator_.set_y(y_center);
@@ -70,6 +75,7 @@ public:
             "/gimbal/first_left_friction/control_velocity", left_friction_control_velocity_);
         register_input("/gimbal/first_left_friction/velocity", left_friction_velocity_);
         register_input("/gimbal/first_right_friction/velocity", right_friction_velocity_);
+        register_input("/gimbal/friction_profile_1_active", friction_profile_1_active_, false);
 
         // register_input("/gimbal/yaw/angle", gimbal_yaw_angle_);
         register_input("/gimbal/player_viewer/raw_angle", gimbal_player_viewer_raw_angle_);
@@ -107,6 +113,14 @@ public:
     }
 
 private:
+    static uint16_t count_digits(int32_t value) {
+        uint16_t digits = value <= 0 ? 1 : 0;
+        while (value != 0) {
+            value /= 10;
+            ++digits;
+        }
+        return digits;
+    }
     void set_normal_ui_visible(bool value) {
         status_ring_.set_visible(value);
 
@@ -118,6 +132,8 @@ private:
         pitch_angle_number_.set_visible(value);
         // bullet_allowance_label_.set_visible(value);
         bullet_allowance_number_.set_visible(value);
+        for (auto& line : friction_profile_indicator_)
+            line.set_visible(value);
         if (!value)
             chassis_control_direction_indicator_.set_visible(false);
     }
@@ -126,8 +142,49 @@ private:
         update_chassis_direction_indicator();
         yaw_angle_number_.set_value(static_cast<double>(*gimbal_player_viewer_raw_angle_));
         pitch_angle_number_.set_value(static_cast<double>(*gimbal_pitch_raw_angle_));
-        bullet_allowance_number_.set_value(
-            static_cast<int32_t>(std::max<int64_t>(0, *robot_bullet_allowance_)));
+        const int32_t bullet_allowance =
+            static_cast<int32_t>(std::max<int64_t>(0, *robot_bullet_allowance_));
+        bullet_allowance_number_.set_value(bullet_allowance);
+
+        const uint16_t yaw_right =
+            yaw_raw_angle_x
+            + count_digits(static_cast<int32_t>(*gimbal_player_viewer_raw_angle_))
+                  * raw_angle_font_size;
+        const uint16_t pitch_right =
+            pitch_raw_angle_x
+            + count_digits(static_cast<int32_t>(*gimbal_pitch_raw_angle_)) * raw_angle_font_size;
+        const uint16_t box_left = std::max(yaw_right, pitch_right) + friction_profile_box_gap;
+        const uint16_t box_right = box_left + friction_profile_box_visual_width;
+
+        const uint16_t box_top = yaw_raw_angle_y + raw_angle_font_size;
+        const uint16_t box_bottom = pitch_raw_angle_y;
+
+        const auto color = (friction_profile_1_active_.ready() && *friction_profile_1_active_)
+                             ? Shape::Color::GREEN
+                             : Shape::Color::WHITE;
+
+        for (auto& line : friction_profile_indicator_)
+            line.set_color(color);
+
+        friction_profile_indicator_[0].set_x(box_left);
+        friction_profile_indicator_[0].set_y(box_top);
+        friction_profile_indicator_[0].set_x2(box_right);
+        friction_profile_indicator_[0].set_y2(box_top);
+
+        friction_profile_indicator_[1].set_x(box_right);
+        friction_profile_indicator_[1].set_y(box_top);
+        friction_profile_indicator_[1].set_x2(box_right);
+        friction_profile_indicator_[1].set_y2(box_bottom);
+
+        friction_profile_indicator_[2].set_x(box_left);
+        friction_profile_indicator_[2].set_y(box_bottom);
+        friction_profile_indicator_[2].set_x2(box_right);
+        friction_profile_indicator_[2].set_y2(box_bottom);
+
+        friction_profile_indicator_[3].set_x(box_left);
+        friction_profile_indicator_[3].set_y(box_top);
+        friction_profile_indicator_[3].set_x2(box_left);
+        friction_profile_indicator_[3].set_y2(box_bottom);
         status_ring_.update_friction_wheel_speed(
             std::min(*left_friction_velocity_, *right_friction_velocity_),
             *left_friction_control_velocity_ > 0);
@@ -267,6 +324,18 @@ private:
     static constexpr uint16_t screen_width = 1920, screen_height = 1080;
     static constexpr uint16_t x_center = screen_width / 2, y_center = screen_height / 2;
 
+    static constexpr uint16_t raw_angle_font_size = 20;
+
+    static constexpr uint16_t yaw_raw_angle_x = x_center + 270;
+    static constexpr uint16_t yaw_raw_angle_y = y_center + 65;
+
+    static constexpr uint16_t pitch_raw_angle_x = x_center + 270;
+    static constexpr uint16_t pitch_raw_angle_y = y_center - 65;
+
+    static constexpr uint16_t friction_profile_box_gap = 18;
+    static constexpr uint16_t friction_profile_box_visual_width = 105;
+    static constexpr uint16_t friction_profile_box_line_width = 6;
+
     static constexpr uint16_t height_min = 0, height_max = 500;
 
     static constexpr uint16_t wheel_indicator_radius = 110;
@@ -292,6 +361,7 @@ private:
     InputInterface<double> left_friction_control_velocity_;
     InputInterface<double> left_friction_velocity_;
     InputInterface<double> right_friction_velocity_;
+    InputInterface<bool> friction_profile_1_active_;
 
     InputInterface<rmcs_msgs::Mouse> mouse_;
 
@@ -323,6 +393,7 @@ private:
 
     // Text bullet_allowance_label_;
     Integer bullet_allowance_number_;
+    Line friction_profile_indicator_[4];
 
     InputInterface<bool> auto_aim_fire_control_;
     InputInterface<double> auto_aim_target_confidence_;

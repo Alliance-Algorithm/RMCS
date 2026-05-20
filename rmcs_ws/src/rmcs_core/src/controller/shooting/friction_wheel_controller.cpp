@@ -61,6 +61,7 @@ public:
         register_output("/gimbal/friction_ready", friction_ready_, false);
         register_output("/gimbal/friction_jammed", friction_jammed_, false);
         register_output("/gimbal/bullet_fired", bullet_fired_, false);
+        register_output("/gimbal/friction_profile_1_active", friction_profile_1_active_, false);
     }
 
     void update() override {
@@ -78,7 +79,22 @@ public:
                     std::clamp(sum / static_cast<double>(friction_count_), 0.0, 1.0);
             }
         }
+        const bool profile_switch_now = keyboard.ctrl && keyboard.f;
+        const bool profile_switch_last = last_keyboard_.ctrl && last_keyboard_.f;
 
+        if (!profile_switch_last && profile_switch_now) {
+            active_profile_ ^= 1;
+
+            if (!std::isnan(friction_soft_start_stop_percentage_)) {
+                double sum = 0.0;
+                for (size_t i = 0; i < friction_count_; i++)
+                    sum += *friction_velocities_[i] / target_friction_velocity(i);
+                friction_soft_start_stop_percentage_ =
+                    std::clamp(sum / static_cast<double>(friction_count_), 0.0, 1.0);
+            }
+        }
+
+        *friction_profile_1_active_ = active_profile_ == 1;
         using namespace rmcs_msgs;
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
@@ -234,6 +250,7 @@ private:
     double last_primary_friction_velocity_ = nan_;
     double primary_friction_velocity_decrease_integral_ = 0;
     OutputInterface<bool> bullet_fired_;
+    OutputInterface<bool> friction_profile_1_active_;
 };
 
 } // namespace rmcs_core::controller::shooting

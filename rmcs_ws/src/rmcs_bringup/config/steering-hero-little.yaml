@@ -55,7 +55,7 @@ hero_hardware:
     top_yaw_motor_zero_point: 48734
     viewer_motor_zero_point: 9363
     external_imu_port: /dev/ttyUSB0
-    bullet_feeder_motor_zero_point: 39045
+    bullet_feeder_motor_zero_point: 4280 #39045
     left_front_zero_point: 5782
     right_front_zero_point: 3819
     left_back_zero_point:  7841
@@ -93,6 +93,7 @@ value_broadcaster:
       - /chassis/climber/front/power_demand_estimate
       - /chassis/climber/front/actual_power_estimate
       - /chassis/steering_wheel/actual_power_estimate   
+      - /chassis/supercap/voltage
 
 climber_controller:
   ros__parameters:

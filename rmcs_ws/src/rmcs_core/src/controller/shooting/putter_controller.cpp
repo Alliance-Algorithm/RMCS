@@ -322,6 +322,7 @@ private:
 
         *shoot_delay_ms_ = nan_;
         shoot_first = true;
+        set_resetting();
     }
 
     void set_resetting() {
@@ -366,7 +367,7 @@ private:
 
     void update_jam_detection() {
         // RCLCPP_INFO(get_logger(), "%.2f --", *bullet_feeder_control_torque_);
-        if (*bullet_feeder_control_torque_ < 30.0 || std::isnan(*bullet_feeder_control_torque_)) {
+        if (*bullet_feeder_control_torque_ < 45.0 || std::isnan(*bullet_feeder_control_torque_)) {
             bullet_feeder_faulty_count_ = 0;
             return;
         }
