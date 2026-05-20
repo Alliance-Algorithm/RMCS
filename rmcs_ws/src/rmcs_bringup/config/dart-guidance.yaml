@@ -6,6 +6,9 @@ rmcs_executor:
       - rmcs_dart_guidance::manager::DartManager   -> dart_manager
       - rmcs_dart_guidance::manager::RemoteCommandBridge -> remote_cmd_bridge
 
+      - rmcs_core::referee::Status -> referee_status
+      - rmcs_core::referee::Command -> referee_command
+
       - rmcs_dart_guidance::DartVisionCore -> dart_vision_core
       # - rmcs_dart_guidance::ImagePublisher -> dart_display_image_publisher
       # - rmcs_dart_guidance::ImagePublisher -> host_bridge
@@ -25,6 +28,8 @@ broadcaster:
     forward_list:
       - /dart/drive_belt/left/control_torque
       - /dart/drive_belt/right/control_torque
+      - /dart/force_screw_motor/velocity
+      - /dart/force_screw_motor/torque
 
 remote_cmd_bridge:
   ros__parameters:
@@ -43,7 +48,7 @@ dart_manager:
     belt_down_travel_angle: 10.0
     belt_up_velocity: 20.0
     belt_up_travel_angle: 10.0
-    belt_interference_relief_travel_angle: 16.0
+    belt_interference_relief_travel_angle: 17.0
     belt_init_velocity: 3.0
     carriage_down_velocity: 20.0
     carriage_up_velocity: 20.0
@@ -54,7 +59,7 @@ dart_manager:
     lift_velocity: 3.0
     force_manual_scale: 1000.0
     angle_manual_scale: 50.0
-    limiting_fill_ticks: 200
+    limiting_fill_ticks: 150
     belt_stall_velocity_threshold: 1.0
     belt_stall_torque_threshold: 0.5
     belt_stall_confirm_ticks: 100
@@ -70,46 +75,46 @@ dart_manager:
     carriage_stall_torque_threshold: 0.2
     carriage_stall_confirm_ticks: 100
     carriage_calibration_velocity: 2.0
-    carriage_calibration_stall_velocity_threshold: 1.5
+    carriage_calibration_stall_velocity_threshold: 1.0
     carriage_calibration_stall_torque_threshold: 0.15
-    carriage_calibration_stall_confirm_ticks: 100
-    carriage_calibration_max_torque: 0.25
-    carriage_calibration_parking_angle: 4000000.0
-    carriage_angle_allowable_error: 512.0
+    carriage_calibration_stall_confirm_ticks: 200
+    carriage_calibration_max_torque: 0.20
+    carriage_calibration_parking_angle: 5000000.0 #6000000.0
+    carriage_angle_allowable_error: 50.0
     carriage_min_run_ticks: 500
     carriage_timeout_ticks: 600000
     vision_aim.allowable_error.x: 3
-    vision_aim.allowable_error.y: 20.0
+    vision_aim.allowable_error.y: 20
     vision_aim.timeout_ticks: 20000
-    carriage_startup_position_angle: -4400915.0
-    
-    vision_aim.shot_profiles.0.reference_point.x: 690
+    carriage_startup_position_angle: -6099997.0
+
+    vision_aim.shot_profiles.0.reference_point.x: 530
     vision_aim.shot_profiles.0.reference_point.y: 720
     vision_aim.shot_profiles.0.offset.x: 0
     vision_aim.shot_profiles.0.offset.y: 0
-    vision_aim.shot_profiles.0.pitch_angle: -37.0
-    vision_aim.shot_profiles.0.trigger_carriage_position: -4400000
+    vision_aim.shot_profiles.0.pitch_angle: 32.0
+    vision_aim.shot_profiles.0.trigger_carriage_position: -6000000 # -5950000
 
-    vision_aim.shot_profiles.1.reference_point.x: 685
+    vision_aim.shot_profiles.1.reference_point.x: 530
     vision_aim.shot_profiles.1.reference_point.y: 720
     vision_aim.shot_profiles.1.offset.x: 0
     vision_aim.shot_profiles.1.offset.y: 0
-    vision_aim.shot_profiles.1.pitch_angle: -37.0
-    vision_aim.shot_profiles.1.trigger_carriage_position: -4300000
+    vision_aim.shot_profiles.1.pitch_angle: 32.0
+    vision_aim.shot_profiles.1.trigger_carriage_position: -5900000
 
-    vision_aim.shot_profiles.2.reference_point.x: 705
+    vision_aim.shot_profiles.2.reference_point.x: 520
     vision_aim.shot_profiles.2.reference_point.y: 720
     vision_aim.shot_profiles.2.offset.x: 0
     vision_aim.shot_profiles.2.offset.y: 0
-    vision_aim.shot_profiles.2.pitch_angle: -37.0
-    vision_aim.shot_profiles.2.trigger_carriage_position: -14555000
+    vision_aim.shot_profiles.2.pitch_angle: 32.0
+    vision_aim.shot_profiles.2.trigger_carriage_position: -6100000
 
-    vision_aim.shot_profiles.3.reference_point.x: 690
+    vision_aim.shot_profiles.3.reference_point.x: 520
     vision_aim.shot_profiles.3.reference_point.y: 190
     vision_aim.shot_profiles.3.offset.x: 0
     vision_aim.shot_profiles.3.offset.y: 0
-    vision_aim.shot_profiles.3.pitch_angle: -37.0
-    vision_aim.shot_profiles.3.trigger_carriage_position: -14155000
+    vision_aim.shot_profiles.3.pitch_angle: 32.0
+    vision_aim.shot_profiles.3.trigger_carriage_position: -6100000
 
 dart_vision_core:
   ros__parameters:
@@ -170,15 +175,15 @@ dart_setting:
     force_error_integral_max: 10.0
     force_error_integral_split_min: -20.0
     force_error_integral_split_max: 20.0
-    carriage_angle_kp: 2.01
-    carriage_angle_ki: 0.0
+    carriage_angle_kp: 0.005
+    carriage_angle_ki: 0.000025
     carriage_angle_kd: 0.0
-    carriage_angle_integral_min: -10.0
-    carriage_angle_integral_max: 10.0
+    carriage_angle_integral_min: -2.0
+    carriage_angle_integral_max: 2.0
     carriage_angle_integral_split_min: -20.0
     carriage_angle_integral_split_max: 20.0
-    carriage_angle_output_min: -10.0
-    carriage_angle_output_max: 10.0
+    carriage_angle_output_min: -500.0
+    carriage_angle_output_max: 500.0
     yaw_max_velocity: 10.0
     pitch_max_velocity: 10.0
     force_max_velocity: 1000.0
@@ -208,6 +213,6 @@ force_screw_velocity_pid_controller:
     control:     /dart/force_screw_motor/control_torque
     output_min_override: -/dart_manager/force/max_torque_override
     output_max_override: /dart_manager/force/max_torque_override
-    kp: 1.0
+    kp: 0.3
     ki: 0.0
     kd: 0.0
