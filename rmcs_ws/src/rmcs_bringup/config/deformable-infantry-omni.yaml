@@ -41,7 +41,7 @@ value_broadcaster:
 deformable_infantry:
   ros__parameters:
     serial_filter_rmcs_board: "AF-23FB-EE32-B892-1302-AE70-D640-7B4E-0CBF"
-    serial_filter_top_board: "D4-0262-9E84-E715-CADB-9894-7241"
+    serial_filter_top_board: "AF-8AE3-4EC1-03C3-C494-88FE-2DC4-3018-0298"
     serial_filter_imu: "AF-8217-B05F-811B-6F3E-04EA-448E-9D03-CA2C"
     left_front_zero_point: 374
     left_back_zero_point: 5801
