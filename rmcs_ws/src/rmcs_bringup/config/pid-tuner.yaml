@@ -1,0 +1,54 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs::auto_tuner::MockGimbalPlant -> gimbal_plant
+      - rmcs::auto_tuner::PidAutoTunerComponent -> pid_auto_tuner
+
+gimbal_plant:
+  ros__parameters:
+    speed_source_topic: /plant/speed_source
+    speed_target_topic: /plant/speed_target
+    angle_source_topic: /plant/angle_source
+    angle_target_topic: /plant/angle_target
+    vel_control_topic: /plant/vel_control
+    angle_control_topic: /plant/angle_control
+    angle_kp: 0.01
+    angle_ki: 0.0
+    angle_kd: 0.0
+    angle_output_min: -50.0
+    angle_output_max: 50.0
+    velocity_kp: 0.01
+    velocity_ki: 0.0
+    velocity_kd: 0.0
+    velocity_output_min: -10.0
+    velocity_output_max: 10.0
+    inertia: 0.001
+    friction: 0.05
+    phase_duration: 1.0
+    step_amp: 1.0
+    update_rate: 1000.0
+
+pid_auto_tuner:
+  ros__parameters:
+    velocity_measurement: /plant/speed_source
+    velocity_control_in: /plant/vel_control
+    velocity_target: /plant/speed_target
+    velocity_kp_topic: /auto_tuner/velocity/kp
+    velocity_ki_topic: /auto_tuner/velocity/ki
+    velocity_kd_topic: /auto_tuner/velocity/kd
+    velocity_initial_kp: 0.01
+    velocity_initial_ki: 0.0
+    velocity_initial_kd: 0.0
+    angle_measurement: /plant/angle_source
+    angle_control_in: /plant/angle_control
+    angle_target: /plant/angle_target
+    angle_kp_topic: /auto_tuner/angle/kp
+    angle_ki_topic: /auto_tuner/angle/ki
+    angle_kd_topic: /auto_tuner/angle/kd
+    angle_initial_kp: 0.01
+    angle_initial_ki: 0.0
+    angle_initial_kd: 0.0
+    tuning_interval_sec: 2.0
+    update_rate: 1000.0
+    script: ""

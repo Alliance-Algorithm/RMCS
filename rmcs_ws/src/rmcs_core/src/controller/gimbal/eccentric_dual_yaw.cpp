@@ -48,22 +48,9 @@ public:
             return;
         }
 
-        if (input_.enable_navigation()) {
-            const auto& toward = *input_.navigation_toward;
-            const auto command = ControlTarget{
-                .bottom_yaw = {.target = toward.x()},
-                .top_yaw = {.target = 0.0},
-                .pitch = {.target = std::clamp(toward.y(), upper_limit_, lower_limit_)},
-            };
-            apply_control(command);
-
-            manual_bottom_yaw_target_ = command.bottom_yaw.target;
-            manual_pitch_target_ = command.pitch.target;
-            return;
-        }
-
+        // Autoaim Control
         if (input_.enable_autoaim()) {
-            const auto& dir = *input_.auto_aim_control_direction;
+            const auto dir = *input_.auto_aim_control_direction;
             const auto xy_norm = std::hypot(dir.x(), dir.y());
             const auto pitch =
                 std::clamp(std::atan2(-dir.z(), xy_norm), upper_limit_, lower_limit_);
@@ -76,26 +63,51 @@ public:
             };
             apply_control(command);
 
-            manual_bottom_yaw_target_ = command.bottom_yaw.target;
-            manual_pitch_target_ = command.pitch.target;
+            stored_bottom_yaw_target_ = command.bottom_yaw.target;
+            stored_pitch_target_ = command.pitch.target;
             return;
         }
 
-        const double yaw_shift = kJoystickSensitivity * input_.joystick_left->y()
-                               + kMouseSensitivity * input_.mouse_velocity->y();
-        const double pitch_shift = -kJoystickSensitivity * input_.joystick_left->x()
-                                 - kMouseSensitivity * input_.mouse_velocity->x();
+        // Navigation Control
+        if (input_.enable_navigation()) {
+            auto toward = *input_.navigation_toward;
+            if (!std::isfinite(toward.x())) {
+                toward.x() = stored_bottom_yaw_target_;
+            }
+            if (!std::isfinite(toward.y())) {
+                toward.y() = stored_pitch_target_;
+            }
 
-        manual_bottom_yaw_target_ = limit_rad(manual_bottom_yaw_target_ + yaw_shift);
-        manual_pitch_target_ =
-            std::clamp(manual_pitch_target_ + pitch_shift, upper_limit_, lower_limit_);
+            const auto command = ControlTarget{
+                .bottom_yaw = {.target = toward.x()},
+                .top_yaw = {.target = 0.0},
+                .pitch = {.target = std::clamp(toward.y(), upper_limit_, lower_limit_)},
+            };
+            apply_control(command);
 
-        const auto manual_target = ControlTarget{
-            .bottom_yaw = {.target = manual_bottom_yaw_target_},
-            .top_yaw = {.target = 0.0},
-            .pitch = {.target = manual_pitch_target_},
-        };
-        apply_control(manual_target);
+            stored_bottom_yaw_target_ = command.bottom_yaw.target;
+            stored_pitch_target_ = command.pitch.target;
+            return;
+        }
+
+        // Manual Control
+        {
+            const auto yaw_shift = kJoystickSensitivity * input_.joystick_left->y()
+                                 + kMouseSensitivity * input_.mouse_velocity->y();
+            const auto pitch_shift = -kJoystickSensitivity * input_.joystick_left->x()
+                                   - kMouseSensitivity * input_.mouse_velocity->x();
+
+            stored_bottom_yaw_target_ = limit_rad(stored_bottom_yaw_target_ + yaw_shift);
+            stored_pitch_target_ =
+                std::clamp(stored_pitch_target_ + pitch_shift, upper_limit_, lower_limit_);
+
+            const auto command = ControlTarget{
+                .bottom_yaw = {.target = stored_bottom_yaw_target_},
+                .top_yaw = {.target = 0.0},
+                .pitch = {.target = stored_pitch_target_},
+            };
+            apply_control(command);
+        }
     }
 
 private:
@@ -188,8 +200,7 @@ private:
             if (!*navigation_enable_control || !navigation_toward.ready())
                 return false;
 
-            const auto& toward = *navigation_toward;
-            return std::isfinite(toward.x()) && std::isfinite(toward.y());
+            return true;
         }
 
         InputInterface<Eigen::Vector2d> joystick_left;
@@ -251,8 +262,8 @@ private:
     pid::PidCalculator pitch_angle_pid_{pid::make_pid_calculator(*this, "pitch_angle_")};
     pid::PidCalculator pitch_velocity_pid_{pid::make_pid_calculator(*this, "pitch_velocity_")};
 
-    double manual_bottom_yaw_target_ = 0.0;
-    double manual_pitch_target_ = 0.0;
+    double stored_bottom_yaw_target_ = 0.0;
+    double stored_pitch_target_ = 0.0;
     double previous_actual_yaw_ = 0.0;
     std::chrono::steady_clock::time_point previous_yaw_timestamp_{};
 
@@ -281,8 +292,8 @@ private:
     auto enter_disabled_state() -> void {
         reset_all_controls();
 
-        manual_bottom_yaw_target_ = current_bottom_world_yaw();
-        manual_pitch_target_ =
+        stored_bottom_yaw_target_ = current_bottom_world_yaw();
+        stored_pitch_target_ =
             std::clamp(limit_rad(*input_.pitch_angle), upper_limit_, lower_limit_);
 
         *output_.yaw_control_angle_error = kNaN;
