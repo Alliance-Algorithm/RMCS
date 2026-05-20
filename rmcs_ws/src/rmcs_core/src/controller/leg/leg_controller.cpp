@@ -50,8 +50,7 @@ public:
               {*this, "up_one_stairs", {"initial", "press", "lift"}},
               {*this,
                "up_two_stairs",
-               {"initial", "press", "lift", "initial_again", "press_again",
-                "lift_again"}}} {
+               {"initial", "press", "lift", "initial_again", "press_again", "lift_again"}}} {
 
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
@@ -122,7 +121,7 @@ public:
             }
             return false;
         });
-        
+
         up_stairs[1].set_layer_connections("initial", [this]() {
             if (keyboard_->ctrl) {
                 return true;
@@ -130,16 +129,14 @@ public:
             if ((*tof_distance_) <= this->get_parameter("tof_b").as_double()) {
                 return true;
             };
-          
+
             return false;
         });
-        
     }
 
     void update() override {
         auto switch_right               = *switch_right_;
         auto switch_left                = *switch_left_;
-       
         static bool initial_check_done_ = false;
         using namespace rmcs_msgs;
         if (!initial_check_done_) {
@@ -193,7 +190,7 @@ private:
                     leg_mode = rmcs_msgs::LegMode::Four_Wheel;
                 }
             }
-            
+
             if (last_arm_mode != *arm_mode) {
                 switch (*arm_mode) {
                 case rmcs_msgs::ArmMode::Custome:
@@ -255,6 +252,8 @@ private:
 
             } else if (leg_mode == rmcs_msgs::LegMode::Down_Stairs) {
                 down_stairs_front_legs_released_ = false;
+                first_into_downstairs                             = true;
+
                 reset_down_stairs_trajectory_from_current_pose();
             }
         }
@@ -293,21 +292,29 @@ private:
         }
     }
 
+
     void execute_down_stairs() {
-        const double pitch_offset = *pitch_imu_angle_offsetted_;
-        if (down_stairs_front_legs_released_ && std::isfinite(pitch_offset)
-            && pitch_offset < 0.4) {
-            reset_down_stairs_trajectory_from_current_pose();
-        }
+        if (first_into_downstairs && !down_stairs_trajectory.get_complete()) {
+            const auto joints = down_stairs_trajectory.trajectory();
+            set_leg_joint_theta(joints[0], joints[1], joints[2], joints[3]);
+            if (down_stairs_trajectory.get_complete())
+                first_into_downstairs = false;
+        } else {
+            const double pitch_offset = *pitch_imu_angle_offsetted_;
+            if (down_stairs_front_legs_released_ && std::isfinite(pitch_offset)
+                && pitch_offset < -0.1) {
+                reset_down_stairs_trajectory_from_current_pose();
+            }
 
-        const auto joints = down_stairs_trajectory.trajectory();
-        set_leg_joint_theta(joints[0], joints[1], joints[2], joints[3]);
+            const auto joints = down_stairs_trajectory.trajectory();
+            set_leg_joint_theta(joints[0], joints[1], joints[2], joints[3]);
 
-        down_stairs_front_legs_released_ = false;
-        if (std::isfinite(pitch_offset) && pitch_offset >= 0.4) {
-            leg_lf_target_theta              = NAN;
-            leg_rf_target_theta              = NAN;
-            down_stairs_front_legs_released_ = true;
+            down_stairs_front_legs_released_ = false;
+            if (std::isfinite(pitch_offset) && pitch_offset < 0.35 && pitch_offset > -0.3) {
+                leg_lf_target_theta              = NAN;
+                leg_rf_target_theta              = NAN;
+                down_stairs_front_legs_released_ = true;
+            }
         }
     }
 
@@ -319,7 +326,7 @@ private:
 
             *omni_l_target_vel = rotated_velocity.x() / wheel_r;
             *omni_r_target_vel = rotated_velocity.x() / wheel_r;
-            
+
         } else {
             *omni_l_target_vel = NAN;
             *omni_r_target_vel = NAN;
@@ -351,7 +358,6 @@ private:
             }
             return;
         }
-
         if (std::isfinite(raw_pitch) && std::abs(raw_pitch) > 1e-6) {
             pitch_imu_angle_offset_value_ = raw_pitch;
             *pitch_imu_angle_offsetted_   = raw_pitch - pitch_imu_angle_offset_value_;
@@ -430,8 +436,8 @@ private:
     rmcs_msgs::LegMode leg_mode{rmcs_msgs::LegMode::None};
     rmcs_msgs::LegMode last_leg_mode{rmcs_msgs::LegMode::None};
 
-    static constexpr double wheel_distance = 458.0f;
-    static constexpr double wheel_r        = 0.11;
+    static constexpr double wheel_distance                 = 458.0f;
+    static constexpr double wheel_r                        = 0.11;
     static constexpr int down_stairs_trajectory_total_step = 800;
 
     InputInterface<rmcs_description::BaseLink::DirectionVector> chassis_velocity_;
@@ -460,6 +466,7 @@ private:
     double leg_lf_joint_control_velocity_;
     double leg_rf_joint_control_velocity_;
 
+    bool first_into_downstairs{false};
     InputInterface<double> leg_rf_joint_velocity_;
     OutputInterface<double> leg_lf_joint_control_torque_;
 

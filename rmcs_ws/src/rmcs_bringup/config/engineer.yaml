@@ -65,7 +65,7 @@ image_transmission:
 arm_controller:
   ros__parameters:
     auto_walk_joint_target: [0.0, 1.23, -1.36, 0.0, 0.63, 0.0]
-    auto_upstairs_joint_target: [0.0, 0.59, -0.74, 0.0, 0.27, 0.0]
+    auto_upstairs_joint_target: [0.0, 0.72, -0.74, 0.0, 0.27, 0.0]
     auto_storage_lb:
       threshold: [0.15,0.08,0.32,0.5]
       params:
@@ -198,7 +198,7 @@ leg_controller:
         press: [0.872736, 0.343103, -600.0, 550.0]
         lift: [1.016670, 1.150821, -600.0, 50.0]
         # lift_and_initial: [1.400270, 1.410, -100.0, 1000.0]
-        initial_again: [1.600270, 1.550, -300.0, 300.0]
+        initial_again: [1.600270, 1.550, -300.0, 200.0]
         press_again: [0.802736, 0.693103, -200.0, 300.0]
         lift_again: [0.956670, 1.350821, -200.0, 50.0]
 

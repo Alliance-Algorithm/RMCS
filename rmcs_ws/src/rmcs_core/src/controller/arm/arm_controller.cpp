@@ -636,6 +636,7 @@ private:
         planned_trajectory_.store(result, std::memory_order::release);
     }
     void execute_plan_request_and_trajectory_step() {
+        static int count{0};
         static std::size_t trajectory_steps{0};
         static uint64_t last_executed_request_id{0};
         const auto current_request = plan_request.load(std::memory_order_acquire);
@@ -644,6 +645,7 @@ private:
         }
         if (current_request->request_id != last_executed_request_id) {
             trajectory_steps         = 0;
+            count                    = 0;
             last_executed_request_id = current_request->request_id;
         }
 
@@ -727,6 +729,18 @@ private:
                         }
                         if (trajectory_steps == static_cast<std::size_t>(moveit_result->steps[2])) {
                             *left_relay_mode_ = rmcs_msgs::RelayMode::Open;
+                        }
+                        break;
+                    }
+                    case rmcs_msgs::ArmMode::Auto_Up_One_Stairs:
+                    case rmcs_msgs::ArmMode::Auto_Up_Two_Stairs: {
+                        if (trajectory_steps == static_cast<std::size_t>(0)) {
+                            if (count >= 2000) {
+                                count = 0;
+                                break;
+                            }
+                            count++;
+                            trajectory_steps--;
                         }
                         break;
                     }

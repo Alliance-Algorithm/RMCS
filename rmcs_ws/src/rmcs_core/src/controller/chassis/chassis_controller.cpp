@@ -117,7 +117,7 @@ public:
         } else {
             chassis_control_velocity_->vector << NAN, NAN, NAN;
         }
-        RCLCPP_INFO(get_logger(), "%f", chassis_control_velocity_->vector.x());
+       
 
         *chassis_big_yaw_target_angle_error_ =
             normalize_angle(yaw_target_angle_ - get_yaw_feedback());
