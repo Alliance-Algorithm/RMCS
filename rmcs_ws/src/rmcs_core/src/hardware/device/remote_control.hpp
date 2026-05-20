@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <cstring>
 
 #include <eigen3/Eigen/Dense>
@@ -42,7 +43,9 @@ public:
     }
 
     void update() {
-        if (vt13_.mode_switch() == Vt13::ModeSwitch::kCine) {
+        const bool vt13_fresh = vt13_.remote_control_fresh(vt13_timeout_);
+
+        if (vt13_fresh && vt13_.mode_switch() == Vt13::ModeSwitch::kCine) {
             *switch_right_output_ = rmcs_msgs::Switch::DOWN;
             *switch_left_output_ = rmcs_msgs::Switch::DOWN;
         } else {
@@ -50,7 +53,7 @@ public:
             *switch_left_output_ = dr16_.switch_left();
         }
 
-        if (vt13_.mode_switch() == Vt13::ModeSwitch::kSport) {
+        if (vt13_fresh && vt13_.mode_switch() == Vt13::ModeSwitch::kSport) {
             *joystick_right_output_ = vt13_.joystick_right();
             *joystick_left_output_ = vt13_.joystick_left();
 
@@ -75,6 +78,8 @@ public:
     }
 
 private:
+    static constexpr auto vt13_timeout_ = std::chrono::milliseconds{250};
+
     Dr16& dr16_;
     Vt13& vt13_;
 

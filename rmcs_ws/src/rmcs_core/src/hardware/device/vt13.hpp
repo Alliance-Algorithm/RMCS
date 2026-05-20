@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <cstddef>
 #include <cstring>
 #include <span>
@@ -19,6 +20,8 @@ namespace rmcs_core::hardware::device {
 
 class Vt13 {
 public:
+    using Clock = std::chrono::steady_clock;
+
     enum class ModeSwitch : uint8_t {
         kUnknown = 0,
         kCine = 1,
@@ -80,6 +83,10 @@ public:
 
     [[nodiscard]] rmcs_msgs::Mouse mouse() const noexcept { return mouse_; }
     [[nodiscard]] rmcs_msgs::Keyboard keyboard() const noexcept { return keyboard_; }
+    [[nodiscard]] bool remote_control_fresh(Clock::duration timeout) const noexcept {
+        return last_remote_control_frame_time_ != Clock::time_point::min()
+            && Clock::now() - last_remote_control_frame_time_ <= timeout;
+    }
 
 private:
     struct Incomplete {};
@@ -149,6 +156,7 @@ private:
     }
 
     void update_remote_control_data(const RemoteControlData& data) {
+        last_remote_control_frame_time_ = Clock::now();
         mode_switch_ = static_cast<ModeSwitch>(data.mode_switch + 1);
 
         joystick_right_ = {
@@ -204,6 +212,7 @@ private:
     }
 
     rmcs_utility::RingBuffer<std::byte> data_buffer_{1024};
+    Clock::time_point last_remote_control_frame_time_ = Clock::time_point::min();
 
     ModeSwitch mode_switch_ = ModeSwitch::kUnknown;
 
