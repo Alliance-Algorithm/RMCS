@@ -600,10 +600,10 @@ private:
             chassis_back_climber_motor_[0].configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
                     .enable_multi_turn_angle()
-                    .set_reduction_ratio(19.)
-                    .set_reversed());
+                    .set_reduction_ratio(19.));
             chassis_back_climber_motor_[1].configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
+                    .set_reversed()
                     .enable_multi_turn_angle()
                     .set_reduction_ratio(19.));
 
