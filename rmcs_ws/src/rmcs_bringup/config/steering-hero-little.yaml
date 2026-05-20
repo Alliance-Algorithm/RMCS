@@ -98,7 +98,7 @@ value_broadcaster:
 climber_controller:
   ros__parameters:
     front_climber_velocity: 12.0
-    back_climber_velocity: 25.0
+    back_climber_velocity: 0.0
     auto_climb_support_retract_velocity: 30.0
     auto_climb_approach_chassis_velocity: 2.5
     auto_climb_support_deploy_chassis_velocity: 0.3
@@ -119,8 +119,8 @@ climber_controller:
 
 chassis_power_controller:
   ros__parameters:
-    front_climber_power_limit_max: 30.0
-    drive_power_limit_floor: 40.0
+    front_climber_power_limit_max: 80.0
+    drive_power_limit_floor: 20.0
 
 gimbal_controller:
   ros__parameters:
@@ -140,7 +140,7 @@ dual_yaw_controller:
     bottom_yaw_angle_kp: 10.0 #18.4
     bottom_yaw_angle_ki: 0.0
     bottom_yaw_angle_kd: 0.0
-    bottom_yaw_velocity_kp: 3.00 #2.81 
+    bottom_yaw_velocity_kp: 2.00 #2.81 
     bottom_yaw_velocity_ki: 0.000071 #0.00028
     bottom_yaw_velocity_kd: 0.0
     bottom_yaw_velocity_integral_min: -2500.0

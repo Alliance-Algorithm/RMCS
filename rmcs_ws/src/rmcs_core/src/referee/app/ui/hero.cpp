@@ -44,6 +44,8 @@ public:
         //       Shape::Color::YELLOW, 20, 5, x_center - 170, y_center + 270, 0, false)
         , bullet_allowance_number_(
               Shape::Color::YELLOW, 20, 5, x_center - 220, y_center + 270, 0, false)
+        , friction_profile_number_(
+              Shape::Color::GREEN, friction_profile_number_font_size, 5, 0, 0, 12, false)
         , friction_profile_indicator_{
               Line(Shape::Color::WHITE, friction_profile_box_line_width, 0, 0, 0, 0, false),
               Line(Shape::Color::WHITE, friction_profile_box_line_width, 0, 0, 0, 0, false),
@@ -132,8 +134,12 @@ private:
         pitch_angle_number_.set_visible(value);
         // bullet_allowance_label_.set_visible(value);
         bullet_allowance_number_.set_visible(value);
+        friction_profile_number_.set_visible(value);
+
+        const bool show_friction_profile_box =
+            value && friction_profile_1_active_.ready() && *friction_profile_1_active_;
         for (auto& line : friction_profile_indicator_)
-            line.set_visible(value);
+            line.set_visible(show_friction_profile_box);
         if (!value)
             chassis_control_direction_indicator_.set_visible(false);
     }
@@ -159,12 +165,20 @@ private:
         const uint16_t box_top = yaw_raw_angle_y + raw_angle_font_size;
         const uint16_t box_bottom = pitch_raw_angle_y;
 
-        const auto color = (friction_profile_1_active_.ready() && *friction_profile_1_active_)
-                             ? Shape::Color::GREEN
-                             : Shape::Color::WHITE;
+        const bool friction_profile_1_active =
+            friction_profile_1_active_.ready() && *friction_profile_1_active_;
+        const uint16_t box_center_x = (box_left + box_right) / 2;
+        const uint16_t profile_number_y = box_top + friction_profile_number_gap;
 
         for (auto& line : friction_profile_indicator_)
-            line.set_color(color);
+            line.set_color(Shape::Color::GREEN);
+
+        friction_profile_number_.set_value(friction_profile_1_active ? 16 : 12);
+        friction_profile_number_.set_color(
+            friction_profile_1_active ? Shape::Color::PINK : Shape::Color::GREEN);
+        friction_profile_number_.set_font_size(friction_profile_number_font_size);
+        friction_profile_number_.set_xy(box_left, profile_number_y);
+        friction_profile_number_.set_center_x(box_center_x);
 
         friction_profile_indicator_[0].set_x(box_left);
         friction_profile_indicator_[0].set_y(box_top);
@@ -335,6 +349,8 @@ private:
     static constexpr uint16_t friction_profile_box_gap = 18;
     static constexpr uint16_t friction_profile_box_visual_width = 105;
     static constexpr uint16_t friction_profile_box_line_width = 6;
+    static constexpr uint16_t friction_profile_number_font_size = 24;
+    static constexpr uint16_t friction_profile_number_gap = 12;
 
     static constexpr uint16_t height_min = 0, height_max = 500;
 
@@ -393,6 +409,7 @@ private:
 
     // Text bullet_allowance_label_;
     Integer bullet_allowance_number_;
+    Integer friction_profile_number_;
     Line friction_profile_indicator_[4];
 
     InputInterface<bool> auto_aim_fire_control_;

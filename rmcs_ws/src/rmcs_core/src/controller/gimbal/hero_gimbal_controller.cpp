@@ -65,10 +65,12 @@ public:
             }
 
             if (!last_keyboard_.e && keyboard_->e) {
-                if (gimbal_mode_keyboard_ == GimbalMode::IMU)
+                if (gimbal_mode_keyboard_ == GimbalMode::IMU) {
+                    encoder_init_pitch_ = keyboard_->ctrl ? kCtrlEInitPitch : kEInitPitch;
                     gimbal_mode_keyboard_ = GimbalMode::ENCODER;
-                else
+                } else {
                     gimbal_mode_keyboard_ = GimbalMode::IMU;
+                }
             }
 
             *gimbal_mode_ = gimbal_mode_keyboard_;
@@ -135,12 +137,13 @@ public:
     }
 
     PreciseTwoAxisGimbalSolver::ControlAngle update_encoder_control() {
-        if (!encoder_gimbal_solver.enabled())
-            return encoder_gimbal_solver.update(PreciseTwoAxisGimbalSolver::SetControlPitch{-0.31});
+        if (!encoder_gimbal_solver.enabled()) {
+            return encoder_gimbal_solver.update(
+                PreciseTwoAxisGimbalSolver::SetControlPitch{encoder_init_pitch_});
+        }
 
         constexpr double mouse_yaw_sensitivity = 0.5 * 0.114;
         constexpr double mouse_pitch_sensitivity = 0.5 * 0.095;
-
         constexpr double joystick_sensitivity = 0.006 * 0.05;
 
         double yaw_shift = joystick_sensitivity * joystick_left_->y()
@@ -155,6 +158,9 @@ public:
 private:
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
 
+    static constexpr double kEInitPitch = -0.39855;  // 单独 E 的初始角度
+    static constexpr double kCtrlEInitPitch = -0.35; // Ctrl+E 的初始角度，自己改
+    double encoder_init_pitch_ = kEInitPitch;
     InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;
     InputInterface<rmcs_msgs::Switch> switch_left_;
