@@ -669,7 +669,7 @@ private:
 
             bmi088_.set_coordinate_mapping([](double x, double y, double z) {
                 // Top board BMI088 maps to gimbal frame as (-x, -y, z).
-                return std::make_tuple(y, -x, z);
+                return std::make_tuple(-x, -y, z);
             });
         }
 
