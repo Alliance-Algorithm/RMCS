@@ -2,6 +2,7 @@
 
 #include <limits>
 #include <string>
+#include <vector>
 
 #include <eigen3/Eigen/Dense>
 #include <fmt/chrono.h>
@@ -33,21 +34,22 @@ public:
         register_input("/remote/keyboard", keyboard_);
 
         auto friction_wheels = get_parameter("friction_wheels").as_string_array();
-        auto friction_working_velocities = get_parameter("friction_velocities").as_double_array();
-        if (friction_wheels.size() != friction_working_velocities.size())
+        auto friction_profile_0 = get_parameter("friction_velocities_profile_0").as_double_array();
+        auto friction_profile_1 = get_parameter("friction_velocities_profile_1").as_double_array();
+        if (friction_wheels.size() != friction_profile_0.size()
+            || friction_wheels.size() != friction_profile_1.size()) {
             throw std::runtime_error(
-                "Mismatch in array sizes: "
-                "'friction_wheels' and 'friction_velocities' must have the same length!");
-        else if (friction_wheels.size() == 0)
+                "'friction_wheels' and both friction velocity profiles must have the same length!");
+        } else if (friction_wheels.size() == 0)
             throw std::runtime_error(
                 "Empty array error: 'friction_wheels' and 'friction_velocities' cannot be empty!");
 
+        friction_profile_0_.assign(friction_profile_0.begin(), friction_profile_0.end());
+        friction_profile_1_.assign(friction_profile_1.begin(), friction_profile_1.end());
         friction_count_ = friction_wheels.size();
-        friction_working_velocities_ = std::make_unique<double[]>(friction_count_);
         friction_velocities_ = std::make_unique<InputInterface<double>[]>(friction_count_);
         friction_control_velocities_ = std::make_unique<OutputInterface<double>[]>(friction_count_);
         for (size_t i = 0; i < friction_count_; i++) {
-            friction_working_velocities_[i] = friction_working_velocities[i];
             register_input(friction_wheels[i] + "/velocity", friction_velocities_[i]);
             register_output(
                 friction_wheels[i] + "/control_velocity", friction_control_velocities_[i], nan_);
@@ -65,6 +67,17 @@ public:
         const auto switch_right = *switch_right_;
         const auto switch_left = *switch_left_;
         const auto keyboard = *keyboard_;
+        if (!last_keyboard_.f && keyboard.f) {
+            active_profile_ ^= 1;
+
+            if (!std::isnan(friction_soft_start_stop_percentage_)) {
+                double sum = 0.0;
+                for (size_t i = 0; i < friction_count_; i++)
+                    sum += *friction_velocities_[i] / target_friction_velocity(i);
+                friction_soft_start_stop_percentage_ =
+                    std::clamp(sum / static_cast<double>(friction_count_), 0.0, 1.0);
+            }
+        }
 
         using namespace rmcs_msgs;
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
@@ -115,7 +128,7 @@ private:
             friction_soft_start_stop_percentage_ = 0.0;
             for (size_t i = 0; i < friction_count_; i++)
                 friction_soft_start_stop_percentage_ +=
-                    *friction_velocities_[i] / friction_working_velocities_[i];
+                    *friction_velocities_[i] / target_friction_velocity(i);
             friction_soft_start_stop_percentage_ /= static_cast<double>(friction_count_);
         }
         friction_soft_start_stop_percentage_ +=
@@ -125,7 +138,7 @@ private:
 
         for (size_t i = 0; i < friction_count_; i++)
             *friction_control_velocities_[i] =
-                friction_soft_start_stop_percentage_ * friction_working_velocities_[i];
+                friction_soft_start_stop_percentage_ * target_friction_velocity(i);
     }
 
     void update_friction_status() {
@@ -172,7 +185,7 @@ private:
                 primary_friction_velocity_decrease_integral_ += differential;
             else {
                 if (primary_friction_velocity_decrease_integral_ < -14.0
-                    && last_primary_friction_velocity_ < friction_working_velocities_[2] - 25.0)
+                    && last_primary_friction_velocity_ < target_friction_velocity(2) - 25.0)
                     fired = true;
 
                 primary_friction_velocity_decrease_integral_ = 0;
@@ -181,6 +194,10 @@ private:
         last_primary_friction_velocity_ = *friction_velocities_[2];
 
         return fired;
+    }
+
+    double target_friction_velocity(size_t i) const {
+        return active_profile_ == 0 ? friction_profile_0_[i] : friction_profile_1_[i];
     }
 
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
@@ -197,7 +214,9 @@ private:
 
     size_t friction_count_;
 
-    std::unique_ptr<double[]> friction_working_velocities_;
+    std::vector<double> friction_profile_0_;
+    std::vector<double> friction_profile_1_;
+    size_t active_profile_ = 0;
 
     std::unique_ptr<InputInterface<double>[]> friction_velocities_;
 

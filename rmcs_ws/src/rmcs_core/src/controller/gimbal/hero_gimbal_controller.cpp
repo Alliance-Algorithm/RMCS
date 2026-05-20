@@ -72,7 +72,7 @@ public:
             }
 
             *gimbal_mode_ = gimbal_mode_keyboard_;
-            *gimbal_mode_ = switch_right == Switch::UP ? GimbalMode::ENCODER : GimbalMode::IMU;
+            //*gimbal_mode_ = switch_right == Switch::UP ? GimbalMode::ENCODER : GimbalMode::IMU;
 
             if (*gimbal_mode_ == GimbalMode::IMU) {
                 auto angle_error = update_imu_control();
@@ -141,7 +141,7 @@ public:
         constexpr double mouse_yaw_sensitivity = 0.5 * 0.114;
         constexpr double mouse_pitch_sensitivity = 0.5 * 0.095;
 
-        constexpr double joystick_sensitivity = 0.006 * 0.5;
+        constexpr double joystick_sensitivity = 0.006 * 0.05;
 
         double yaw_shift = joystick_sensitivity * joystick_left_->y()
                          + mouse_yaw_sensitivity * mouse_velocity_->y();

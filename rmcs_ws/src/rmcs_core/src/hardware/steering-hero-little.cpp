@@ -389,16 +389,16 @@ private:
             });
 
             builder.can2_transmit({
-                .can_id = 0x142,
-                .can_data = gimbal_bullet_feeder_.generate_torque_command().as_bytes(),
-            });
-
-            builder.can2_transmit({
                 .can_id = 0x143,
                 .can_data =
                     gimbal_player_viewer_motor_
                         .generate_velocity_command(gimbal_player_viewer_motor_.control_velocity())
                         .as_bytes(),
+            });
+
+            builder.can3_transmit({
+                .can_id = 0x142,
+                .can_data = gimbal_bullet_feeder_.generate_torque_command().as_bytes(),
             });
 
             builder.gpio_digital_read(
@@ -454,10 +454,18 @@ private:
                 return;
             auto can_id = data.can_id;
             // can2_receive_rate_counter_.record(can_id);
+            if (can_id == 0x143) {
+                gimbal_player_viewer_motor_.store_status(data.can_data);
+            }
+        }
+
+        void can3_receive_callback(const librmcs::data::CanDataView& data) override {
+            if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
+                return;
+            auto can_id = data.can_id;
+            // can3_receive_rate_counter_.record(can_id);
             if (can_id == 0x142) {
                 gimbal_bullet_feeder_.store_status(data.can_data);
-            } else if (can_id == 0x143) {
-                gimbal_player_viewer_motor_.store_status(data.can_data);
             }
         }
 

@@ -101,11 +101,11 @@ t_camera2gimbal: [0.16115, 0.0, 0.0991]
 #planner参数
 fire_thresh: 0.0025
 
-max_yaw_acc: 500
-Q_yaw: [1e5, 0] #[9e6, 0] 
-R_yaw: [50] #[1] 
+max_yaw_acc: 60
+Q_yaw: [1e5, 0]
+R_yaw: [50] 
 
-max_pitch_acc: 100
-Q_pitch: [1e5, 0] #[9e6, 0] 
-R_pitch:  [50] #[1] 
+max_pitch_acc: 40
+Q_pitch:  [1e5, 0]
+R_pitch:  [50] 
 

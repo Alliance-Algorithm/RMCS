@@ -34,30 +34,16 @@ public:
         , chassis_right_wheel_indicator_(
               Shape::Color::WHITE, wheel_indicator_width, x_center, y_center, 0, 0,
               wheel_indicator_radius, wheel_indicator_radius)
+        , yaw_angle_number_(Shape::Color::YELLOW, 20, 5, x_center + 270, y_center + 95, 0.0, false)
         , pitch_angle_number_(
-              Shape::Color::YELLOW, 20, 5, x_center + 420, y_center + 12, 0.0, false)
+              Shape::Color::YELLOW, 20, 5, x_center + 270, y_center - 35, 0.0, false)
         , time_reminder_(Shape::Color::PINK, 50, 5, x_center + 150, y_center + 65, 0, false)
         // , bullet_allowance_label_(
         //       Shape::Color::YELLOW, 18, 3, x_center - 300, y_center + 270, "bullet", false)
         // , bullet_allowance_number_(
         //       Shape::Color::YELLOW, 20, 5, x_center - 170, y_center + 270, 0, false)
-        , bullet_icon_body_top_(
-              Shape::Color::YELLOW, 3, x_center - 280, y_center + 261, x_center - 236,
-              y_center + 261, false)
-        , bullet_icon_body_bottom_(
-              Shape::Color::YELLOW, 3, x_center - 280, y_center + 279, x_center - 236,
-              y_center + 279, false)
-        , bullet_icon_body_left_(
-              Shape::Color::YELLOW, 3, x_center - 280, y_center + 261, x_center - 280,
-              y_center + 279, false)
-        , bullet_icon_head_top_(
-              Shape::Color::YELLOW, 3, x_center - 236, y_center + 261, x_center - 212,
-              y_center + 270, false)
-        , bullet_icon_head_bottom_(
-              Shape::Color::YELLOW, 3, x_center - 236, y_center + 279, x_center - 212,
-              y_center + 270, false)
         , bullet_allowance_number_(
-              Shape::Color::YELLOW, 20, 5, x_center - 170, y_center + 270, 0, false) {
+              Shape::Color::YELLOW, 20, 5, x_center - 220, y_center + 270, 0, false) {
 
         chassis_control_direction_indicator_.set_x(x_center);
         chassis_control_direction_indicator_.set_y(y_center);
@@ -85,7 +71,10 @@ public:
         register_input("/gimbal/first_left_friction/velocity", left_friction_velocity_);
         register_input("/gimbal/first_right_friction/velocity", right_friction_velocity_);
 
+        // register_input("/gimbal/yaw/angle", gimbal_yaw_angle_);
+        register_input("/gimbal/player_viewer/raw_angle", gimbal_player_viewer_raw_angle_);
         register_input("/gimbal/pitch/angle", gimbal_pitch_angle_);
+        register_input("/gimbal/pitch/raw_angle", gimbal_pitch_raw_angle_);
         // register_input("/gimbal/auto_aim/laser_distance", laser_distance_);
 
         register_input("/gimbal/shooter/condiction", shoot_condiction_);
@@ -125,13 +114,9 @@ private:
         chassis_left_wheel_indicator_.set_visible(value);
         chassis_right_wheel_indicator_.set_visible(value);
         // chassis_control_direction_indicator_.set_visible(value);
+        yaw_angle_number_.set_visible(value);
         pitch_angle_number_.set_visible(value);
         // bullet_allowance_label_.set_visible(value);
-        bullet_icon_body_top_.set_visible(value);
-        bullet_icon_body_bottom_.set_visible(value);
-        bullet_icon_body_left_.set_visible(value);
-        bullet_icon_head_top_.set_visible(value);
-        bullet_icon_head_bottom_.set_visible(value);
         bullet_allowance_number_.set_visible(value);
         if (!value)
             chassis_control_direction_indicator_.set_visible(false);
@@ -139,9 +124,8 @@ private:
 
     void update_normal_ui() {
         update_chassis_direction_indicator();
-        double display_angle = *gimbal_pitch_angle_;
-        if (display_angle > std::numbers::pi / 2)
-            display_angle -= 2.0 * std::numbers::pi;
+        yaw_angle_number_.set_value(static_cast<double>(*gimbal_player_viewer_raw_angle_));
+        pitch_angle_number_.set_value(static_cast<double>(*gimbal_pitch_raw_angle_));
         bullet_allowance_number_.set_value(
             static_cast<int32_t>(std::max<int64_t>(0, *robot_bullet_allowance_)));
         status_ring_.update_friction_wheel_speed(
@@ -162,7 +146,7 @@ private:
                                ? *gimbal_pitch_angle_ - 2 * std::numbers::pi
                                : *gimbal_pitch_angle_;
 
-        rangefinder_.update_pitch_angle(-display_angle);
+        rangefinder_.update_pitch_angle(static_cast<double>(*gimbal_pitch_raw_angle_));
 
         double raw_height = -display_angle / 0.7 * static_cast<double>(height_max);
         raw_height = std::clamp(raw_height, 0.0, static_cast<double>(height_max));
@@ -170,9 +154,7 @@ private:
 
         lift_height = std::clamp(lift_height, height_min, height_max);
         rangefinder_.update_vertical_rangefinder(lift_height);
-        const double pitch_deg =
-            std::round((-display_angle) * 180.0 / std::numbers::pi * 10.0) / 10.0;
-        pitch_angle_number_.set_value(pitch_deg);
+        pitch_angle_number_.set_value(static_cast<double>(*gimbal_pitch_raw_angle_));
     }
 
     void update_time_reminder() {
@@ -315,8 +297,11 @@ private:
 
     InputInterface<rmcs_msgs::GameStage> game_stage_;
 
+    InputInterface<double> gimbal_yaw_angle_;
     InputInterface<double> gimbal_pitch_angle_;
     InputInterface<double> gimbal_player_viewer_angle_;
+    InputInterface<int64_t> gimbal_player_viewer_raw_angle_;
+    InputInterface<int64_t> gimbal_pitch_raw_angle_;
     // InputInterface<double> laser_distance_;
 
     InputInterface<rmcs_msgs::ShootMode> shoot_mode_;
@@ -330,17 +315,13 @@ private:
     Arc chassis_right_wheel_indicator_;
     Arc chassis_control_direction_indicator_;
 
+    Float yaw_angle_number_;
     Float pitch_angle_number_;
 
     Text state_word_;
     Integer time_reminder_;
 
     // Text bullet_allowance_label_;
-    Line bullet_icon_body_top_;
-    Line bullet_icon_body_bottom_;
-    Line bullet_icon_body_left_;
-    Line bullet_icon_head_top_;
-    Line bullet_icon_head_bottom_;
     Integer bullet_allowance_number_;
 
     InputInterface<bool> auto_aim_fire_control_;

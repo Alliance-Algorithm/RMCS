@@ -43,6 +43,7 @@ public:
         rmcs_executor::Component& status_component, rmcs_executor::Component& command_component,
         const std::string& name_prefix) {
         status_component.register_output(name_prefix + "/angle", angle_output_, 0.0);
+        status_component.register_output(name_prefix + "/raw_angle", raw_angle_output_, 0);
         status_component.register_output(name_prefix + "/velocity", velocity_output_, 0.0);
         status_component.register_output(name_prefix + "/torque", torque_output_, 0.0);
         status_component.register_output(name_prefix + "/temperature", temperature_output_, 0.0);
@@ -187,6 +188,7 @@ public:
         torque_ = status_current_to_torque_coefficient_ * static_cast<double>(feedback.current);
 
         *angle_output_ = angle();
+        *raw_angle_output_ = last_raw_angle();
         *velocity_output_ = velocity();
         *torque_output_ = torque();
         *temperature_output_ = temperature();
@@ -515,6 +517,7 @@ private:
     double temperature_;
 
     rmcs_executor::Component::OutputInterface<double> angle_output_;
+    rmcs_executor::Component::OutputInterface<int64_t> raw_angle_output_;
     rmcs_executor::Component::OutputInterface<double> velocity_output_;
     rmcs_executor::Component::OutputInterface<double> torque_output_;
     rmcs_executor::Component::OutputInterface<double> temperature_output_;
