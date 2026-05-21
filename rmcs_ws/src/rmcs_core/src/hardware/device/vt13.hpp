@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <chrono>
 #include <cstddef>
 #include <cstring>
@@ -41,10 +42,16 @@ public:
             RCLCPP_WARN(
                 rclcpp::get_logger("vt13"), "VT13 input buffer overflow: dropped %zu of %zu bytes",
                 uart_data.size() - written, uart_data.size());
+            faulted_.store(true, std::memory_order_relaxed);
         }
     }
 
     void update_status() {
+        if (faulted_.exchange(false, std::memory_order_relaxed)) {
+            invalidate_remote_control();
+            return;
+        }
+
         auto readable = data_buffer_.readable();
         if (!readable)
             return;
@@ -62,9 +69,8 @@ public:
                 break;
             }
             if (std::holds_alternative<VerificationFailed>(result)) {
-                data_buffer_.pop_front([](std::byte&&) noexcept {});
-                readable--;
-                continue;
+                invalidate_remote_control();
+                break;
             }
             if (std::holds_alternative<Success>(result)) {
                 readable -= std::get<Success>(result).read;
@@ -84,6 +90,8 @@ public:
     [[nodiscard]] rmcs_msgs::Mouse mouse() const noexcept { return mouse_; }
     [[nodiscard]] rmcs_msgs::Keyboard keyboard() const noexcept { return keyboard_; }
     [[nodiscard]] bool remote_control_fresh(Clock::duration timeout) const noexcept {
+        if (faulted_.load(std::memory_order_relaxed))
+            return false;
         return last_remote_control_frame_time_ != Clock::time_point::min()
             && Clock::now() - last_remote_control_frame_time_ <= timeout;
     }
@@ -146,7 +154,8 @@ private:
             sizeof(RemoteControlData));
 
         if (data.header != RemoteControlData::kHeaderMagic
-            || !rmcs_utility::dji_crc::verify_crc16(data))
+            || !rmcs_utility::dji_crc::verify_crc16(data)
+            || data.mode_switch > 2)
             return VerificationFailed{};
 
         data_buffer_.pop_front_n([](std::byte&&) noexcept {}, sizeof(RemoteControlData));
@@ -197,11 +206,26 @@ private:
 
         const std::size_t total_frame_size =
             sizeof(RefereeFrameHeader) + 2 + header.data_length + 2;
+        if (total_frame_size > data_buffer_.max_size())
+            return VerificationFailed{};
         if (readable < total_frame_size)
             return Incomplete{};
 
         data_buffer_.pop_front_n([](std::byte&&) noexcept {}, total_frame_size);
         return Success{total_frame_size};
+    }
+
+    void invalidate_remote_control() {
+        faulted_.store(false, std::memory_order_relaxed);
+        data_buffer_.clear();
+        last_remote_control_frame_time_ = Clock::time_point::min();
+        mode_switch_ = ModeSwitch::kUnknown;
+        joystick_left_.setZero();
+        joystick_right_.setZero();
+        mouse_velocity_.setZero();
+        mouse_wheel_ = 0.0;
+        mouse_ = rmcs_msgs::Mouse::zero();
+        keyboard_ = rmcs_msgs::Keyboard::zero();
     }
 
     static double channel_to_double(int32_t value) {
@@ -212,6 +236,7 @@ private:
     }
 
     rmcs_utility::RingBuffer<std::byte> data_buffer_{1024};
+    std::atomic<bool> faulted_{false};
     Clock::time_point last_remote_control_frame_time_ = Clock::time_point::min();
 
     ModeSwitch mode_switch_ = ModeSwitch::kUnknown;
