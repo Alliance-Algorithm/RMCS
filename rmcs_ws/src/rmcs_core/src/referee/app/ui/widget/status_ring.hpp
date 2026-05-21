@@ -108,42 +108,42 @@ public:
         arc_right_down_.set_color(Shape::Color::WHITE);
         arc_right_down_.set_visible(true);
 
-        auto endpoint_from_angle = [](double angle_degree) {
-            constexpr double ring_radius = static_cast<double>(visible_radius - width_ring);
-            const double angle = angle_degree * std::numbers::pi / 180.0;
-            return std::tuple<uint16_t, uint16_t>{
-                static_cast<uint16_t>(std::lround(x_center + ring_radius * std::sin(angle))),
-                static_cast<uint16_t>(std::lround(y_center - ring_radius * std::cos(angle)))};
-        };
+        // auto endpoint_from_angle = [](double angle_degree) {
+        //     constexpr double ring_radius = static_cast<double>(visible_radius - width_ring);
+        //     const double angle = angle_degree * std::numbers::pi / 180.0;
+        //     return std::tuple<uint16_t, uint16_t>{
+        //         static_cast<uint16_t>(std::lround(x_center + ring_radius * std::sin(angle))),
+        //         static_cast<uint16_t>(std::lround(y_center - ring_radius * std::cos(angle)))};
+        // };
 
-        const auto [top_left_x, top_left_y] = endpoint_from_angle(318.0);
-        const auto [top_right_x, top_right_y] = endpoint_from_angle(42.0);
-        const auto [bottom_left_x, bottom_left_y] = endpoint_from_angle(222.0);
-        const auto [bottom_right_x, bottom_right_y] = endpoint_from_angle(138.0);
+        // const auto [top_left_x, top_left_y] = endpoint_from_angle(318.0);
+        // const auto [top_right_x, top_right_y] = endpoint_from_angle(42.0);
+        // const auto [bottom_left_x, bottom_left_y] = endpoint_from_angle(222.0);
+        // const auto [bottom_right_x, bottom_right_y] = endpoint_from_angle(138.0);
 
-        auto_aim_top_line_.set_x(top_left_x);
-        auto_aim_top_line_.set_y(top_left_y);
-        auto_aim_top_line_.set_x2(top_right_x);
-        auto_aim_top_line_.set_y2(top_right_y);
-        auto_aim_top_line_.set_width(2);
-        auto_aim_top_line_.set_color(Shape::Color::WHITE);
-        auto_aim_top_line_.set_visible(true);
+        // auto_aim_top_line_.set_x(top_left_x);
+        // auto_aim_top_line_.set_y(top_left_y);
+        // auto_aim_top_line_.set_x2(top_right_x);
+        // auto_aim_top_line_.set_y2(top_right_y);
+        // auto_aim_top_line_.set_width(2);
+        // auto_aim_top_line_.set_color(Shape::Color::WHITE);
+        // auto_aim_top_line_.set_visible(true);
 
-        auto_aim_bottom_line_.set_x(bottom_left_x);
-        auto_aim_bottom_line_.set_y(bottom_left_y);
-        auto_aim_bottom_line_.set_x2(bottom_right_x);
-        auto_aim_bottom_line_.set_y2(bottom_right_y);
-        auto_aim_bottom_line_.set_width(2);
-        auto_aim_bottom_line_.set_color(Shape::Color::WHITE);
-        auto_aim_bottom_line_.set_visible(true);
+        // auto_aim_bottom_line_.set_x(bottom_left_x);
+        // auto_aim_bottom_line_.set_y(bottom_left_y);
+        // auto_aim_bottom_line_.set_x2(bottom_right_x);
+        // auto_aim_bottom_line_.set_y2(bottom_right_y);
+        // auto_aim_bottom_line_.set_width(2);
+        // auto_aim_bottom_line_.set_color(Shape::Color::WHITE);
+        // auto_aim_bottom_line_.set_visible(true);
 
-        auto_aim_confidence_.set_font_size(18);
-        auto_aim_confidence_.set_width(2);
-        auto_aim_confidence_.set_value(0.0);
-        auto_aim_confidence_.set_center_x((top_left_x + top_right_x) / 2);
-        auto_aim_confidence_.set_y(top_left_y - auto_aim_confidence_.font_size() / 2);
-        auto_aim_confidence_.set_color(Shape::Color::WHITE);
-        auto_aim_confidence_.set_visible(true);
+        // auto_aim_confidence_.set_font_size(18);
+        // auto_aim_confidence_.set_width(2);
+        // auto_aim_confidence_.set_value(0.0);
+        // auto_aim_confidence_.set_center_x((top_left_x + top_right_x) / 2);
+        // auto_aim_confidence_.set_y(top_left_y - auto_aim_confidence_.font_size() / 2);
+        // auto_aim_confidence_.set_color(Shape::Color::WHITE);
+        // auto_aim_confidence_.set_visible(true);
 
         set_limits(supercap_limit, battery_limit, friction_limit, bullet_limit);
     }
@@ -162,9 +162,9 @@ public:
         arc_left_down_.set_visible(value);
         arc_right_up_.set_visible(value);
         arc_right_down_.set_visible(value);
-        auto_aim_top_line_.set_visible(value);
-        auto_aim_bottom_line_.set_visible(value);
-        auto_aim_confidence_.set_visible(value);
+        // auto_aim_top_line_.set_visible(value);
+        // auto_aim_bottom_line_.set_visible(value);
+        // auto_aim_confidence_.set_visible(value);
 
         for (auto& scale : bullet_scales_)
             scale.set_visible(value);
@@ -172,16 +172,16 @@ public:
             number.set_visible(value);
     }
 
-    void update_auto_aim_feedback(bool fire_control, double target_confidence) {
-        const auto color = fire_control ? Shape::Color::GREEN : Shape::Color::WHITE;
+    // void update_auto_aim_feedback(bool fire_control, double target_confidence) {
+    //     const auto color = fire_control ? Shape::Color::GREEN : Shape::Color::WHITE;
 
-        auto_aim_top_line_.set_color(color);
-        auto_aim_bottom_line_.set_color(color);
-        auto_aim_confidence_.set_color(color);
+    //     auto_aim_top_line_.set_color(color);
+    //     auto_aim_bottom_line_.set_color(color);
+    //     auto_aim_confidence_.set_color(color);
 
-        auto_aim_confidence_.set_value(std::clamp(target_confidence, 0.0, 1.0));
-        auto_aim_confidence_.set_center_x(x_center);
-    }
+    //     auto_aim_confidence_.set_value(std::clamp(target_confidence, 0.0, 1.0));
+    //     auto_aim_confidence_.set_center_x(x_center);
+    // }
 
     void update_static_parts(std::tuple<bool, bool> enable) {
         auto& [auto_aim_enable, precise_enable] = enable;
@@ -429,9 +429,9 @@ private:
     Integer bullet_scales_number_[4];
     Arc bullet_scales_[4];
 
-    Line auto_aim_top_line_;
-    Line auto_aim_bottom_line_;
-    Float auto_aim_confidence_;
+    // Line auto_aim_top_line_;
+    // Line auto_aim_bottom_line_;
+    // Float auto_aim_confidence_;
 };
 
 } // namespace rmcs_core::referee::app::ui

@@ -55,7 +55,7 @@ hero_hardware:
     top_yaw_motor_zero_point: 48734
     viewer_motor_zero_point: 9363
     external_imu_port: /dev/ttyUSB0
-    bullet_feeder_motor_zero_point: 4280 #39045
+    bullet_feeder_motor_zero_point: 60480 #39045
     left_front_zero_point: 5782
     right_front_zero_point: 3819
     left_back_zero_point:  7841
@@ -102,6 +102,15 @@ value_broadcaster:
       # - /chassis/climber/front/power_demand_estimate
       # - /chassis/climber/front/actual_power_estimate
       # - /chassis/steering_wheel/actual_power_estimate   
+      - /gimbal/bullet_feeder/torque
+      - /gimbal/bullet_feeder/control_torque
+      - /gimbal/putter/angle
+      - /gimbal/putter/velocity
+      - /gimbal/putter/torque
+      - /gimbal/putter/control_torque
+      - /gimbal/bullet_feeder/velocity
+      - /gimbal/bullet_feeder/angle
+
 
 climber_controller:
   ros__parameters:
@@ -191,15 +200,15 @@ viewer_angle_pid_controller:
 
 bullet_feeder_controller:
   ros__parameters:
-    bullet_feeder_velocity_kp: 5.5
-    bullet_feeder_velocity_ki: 1.1
+    bullet_feeder_velocity_kp: 5.0
+    bullet_feeder_velocity_ki: 0.1 #1.1
     bullet_feeder_velocity_kd: 0.0
     bullet_feeder_velocity_integral_min: 0.0
     bullet_feeder_velocity_integral_max: 60.0
-    bullet_feeder_angle_kp: 5.0
+    bullet_feeder_angle_kp: 6.0
     bullet_feeder_angle_ki: 0.0
-    bullet_feeder_angle_kd: 1.0
-    putter_return_velocity_kp: 0.0015
+    bullet_feeder_angle_kd: 1.6
+    putter_return_velocity_kp: 0.0025
     putter_return_velocity_ki: 0.00005
     putter_return_velocity_kd: 0.0
     putter_return_velocity_integral_min: -0.03

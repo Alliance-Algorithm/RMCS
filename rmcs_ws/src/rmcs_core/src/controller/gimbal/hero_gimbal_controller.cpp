@@ -39,6 +39,7 @@ public:
 
         register_input("/gimbal/auto_aim/control_direction", auto_aim_control_direction_, false);
         register_input("/gimbal/pitch/angle", gimbal_pitch_angle_);
+        register_input("/gimbal/pitch/raw_angle", gimbal_pitch_raw_angle_);
 
         register_output("/gimbal/mode", gimbal_mode_, rmcs_msgs::GimbalMode::IMU);
 
@@ -52,9 +53,10 @@ public:
         const auto& switch_left = *switch_left_;
         const auto& switch_right = *switch_right_;
 
-        // if (*gimbal_pitch_angle_ != 0.0) {
-        //     RCLCPP_INFO(get_logger(), "pitch: %f", *gimbal_pitch_angle_);
-        // }
+        if (*gimbal_pitch_angle_ != 0.0) {
+            // RCLCPP_INFO(get_logger(), "pitch: %f", *gimbal_pitch_angle_);
+            // RCLCPP_INFO(get_logger(), "rawangle %lu", *gimbal_pitch_raw_angle_);
+        }
 
         do {
             using namespace rmcs_msgs;
@@ -172,6 +174,7 @@ private:
 
     InputInterface<Eigen::Vector3d> auto_aim_control_direction_;
     InputInterface<double> gimbal_pitch_angle_;
+    InputInterface<int64_t> gimbal_pitch_raw_angle_;
 
     rmcs_msgs::GimbalMode gimbal_mode_keyboard_ = rmcs_msgs::GimbalMode::IMU;
     OutputInterface<rmcs_msgs::GimbalMode> gimbal_mode_;
