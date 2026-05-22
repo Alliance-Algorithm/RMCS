@@ -1,12 +1,8 @@
 #pragma once
 
-<<<<<<< HEAD
-#include <atomic>
-=======
 #include <algorithm>
 #include <atomic>
 #include <bit>
->>>>>>> 7a9bbcf6 (vt13 fixfixfixfix)
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -28,8 +24,6 @@ namespace rmcs_core::hardware::device {
 
 class Vt13 {
 public:
-    using Clock = std::chrono::steady_clock;
-
     enum class ModeSwitch : uint8_t {
         kUnknown = 0,
         kCine = 1,
@@ -49,12 +43,6 @@ public:
             },
             uart_data.size());
         if (written != uart_data.size()) {
-<<<<<<< HEAD
-            RCLCPP_WARN(
-                rclcpp::get_logger("vt13"), "VT13 input buffer overflow: dropped %zu of %zu bytes",
-                uart_data.size() - written, uart_data.size());
-            faulted_.store(true, std::memory_order_relaxed);
-=======
             const auto dropped = uart_data.size() - written;
             overflow_count_.fetch_add(1, std::memory_order_relaxed);
             overflow_dropped_bytes_.fetch_add(dropped, std::memory_order_relaxed);
@@ -63,20 +51,11 @@ public:
                     logger_, "VT13 input buffer overflow: dropped %zu of %zu bytes", dropped,
                     uart_data.size());
             }
->>>>>>> 7a9bbcf6 (vt13 fixfixfixfix)
         }
     }
 
     void update_status() {
-<<<<<<< HEAD
-        if (faulted_.exchange(false, std::memory_order_relaxed)) {
-            invalidate_remote_control();
-            return;
-        }
-
-=======
         const auto now = Clock::now();
->>>>>>> 7a9bbcf6 (vt13 fixfixfixfix)
         auto readable = data_buffer_.readable();
         peak_readable_ = std::max(peak_readable_, readable);
 
@@ -101,15 +80,10 @@ public:
                 break;
             }
             if (std::holds_alternative<VerificationFailed>(result)) {
-<<<<<<< HEAD
-                invalidate_remote_control();
-                break;
-=======
                 verification_failures_++;
                 data_buffer_.pop_front([](std::byte&&) noexcept {});
                 readable--;
                 continue;
->>>>>>> 7a9bbcf6 (vt13 fixfixfixfix)
             }
             if (std::holds_alternative<Success>(result)) {
                 readable -= std::get<Success>(result).read;
@@ -132,12 +106,6 @@ public:
 
     [[nodiscard]] rmcs_msgs::Mouse mouse() const noexcept { return mouse_; }
     [[nodiscard]] rmcs_msgs::Keyboard keyboard() const noexcept { return keyboard_; }
-    [[nodiscard]] bool remote_control_fresh(Clock::duration timeout) const noexcept {
-        if (faulted_.load(std::memory_order_relaxed))
-            return false;
-        return last_remote_control_frame_time_ != Clock::time_point::min()
-            && Clock::now() - last_remote_control_frame_time_ <= timeout;
-    }
 
 private:
     using Clock = std::chrono::steady_clock;
@@ -205,11 +173,6 @@ private:
             },
             sizeof(RemoteControlData));
 
-<<<<<<< HEAD
-        if (data.header != RemoteControlData::kHeaderMagic
-            || !rmcs_utility::dji_crc::verify_crc16(data)
-            || data.mode_switch > 2)
-=======
         if (data.header != RemoteControlData::kHeaderMagic) {
             remote_bad_header_count_++;
             if (should_log_verification_failure(now)) {
@@ -217,7 +180,6 @@ private:
                     logger_, "VT13 remote control header invalid: header=0x%04x readable=%zu",
                     data.header, readable);
             }
->>>>>>> 7a9bbcf6 (vt13 fixfixfixfix)
             return VerificationFailed{};
         }
         if (!rmcs_utility::dji_crc::verify_crc16(data)) {
@@ -237,7 +199,6 @@ private:
     }
 
     void update_remote_control_data(const RemoteControlData& data) {
-        last_remote_control_frame_time_ = Clock::now();
         mode_switch_ = static_cast<ModeSwitch>(data.mode_switch + 1);
 
         joystick_right_ = {
@@ -282,10 +243,6 @@ private:
 
         const std::size_t total_frame_size =
             sizeof(RefereeFrameHeader) + 2 + header.data_length + 2;
-<<<<<<< HEAD
-        if (total_frame_size > data_buffer_.max_size())
-            return VerificationFailed{};
-=======
         if (total_frame_size > kRefereeFrameMaxSize) {
             referee_oversize_count_++;
             if (should_log_verification_failure(now)) {
@@ -295,7 +252,6 @@ private:
             }
             return VerificationFailed{};
         }
->>>>>>> 7a9bbcf6 (vt13 fixfixfixfix)
         if (readable < total_frame_size)
             return Incomplete{};
 
@@ -304,17 +260,6 @@ private:
         return Success{total_frame_size};
     }
 
-<<<<<<< HEAD
-    void invalidate_remote_control() {
-        faulted_.store(false, std::memory_order_relaxed);
-        data_buffer_.clear();
-        last_remote_control_frame_time_ = Clock::time_point::min();
-        mode_switch_ = ModeSwitch::kUnknown;
-        joystick_left_.setZero();
-        joystick_right_.setZero();
-        mouse_velocity_.setZero();
-        mouse_wheel_ = 0.0;
-=======
     bool should_log_verification_failure(const TimePoint now) {
         if (last_verification_log_time_ != TimePoint::min()
             && now - last_verification_log_time_ < kVerificationLogInterval)
@@ -390,7 +335,6 @@ private:
         joystick_right_ = Eigen::Vector2d::Zero();
         mouse_velocity_ = Eigen::Vector2d::Zero();
         mouse_wheel_ = 0;
->>>>>>> 7a9bbcf6 (vt13 fixfixfixfix)
         mouse_ = rmcs_msgs::Mouse::zero();
         keyboard_ = rmcs_msgs::Keyboard::zero();
     }
@@ -404,8 +348,6 @@ private:
 
     rclcpp::Logger logger_ = rclcpp::get_logger("vt13");
     rmcs_utility::RingBuffer<std::byte> data_buffer_{1024};
-    std::atomic<bool> faulted_{false};
-    Clock::time_point last_remote_control_frame_time_ = Clock::time_point::min();
 
     std::atomic<uint64_t> store_calls_{0};
     std::atomic<uint64_t> received_bytes_{0};

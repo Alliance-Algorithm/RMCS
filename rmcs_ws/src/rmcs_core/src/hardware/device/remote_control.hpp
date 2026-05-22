@@ -1,6 +1,5 @@
 #pragma once
 
-#include <chrono>
 #include <cstring>
 
 #include <eigen3/Eigen/Dense>
@@ -43,34 +42,10 @@ public:
     }
 
     void update() {
-<<<<<<< HEAD
-        const bool vt13_fresh = vt13_.remote_control_fresh(vt13_timeout_);
-
-        if (vt13_fresh && vt13_.mode_switch() == Vt13::ModeSwitch::kCine) {
-            *switch_right_output_ = rmcs_msgs::Switch::DOWN;
-            *switch_left_output_ = rmcs_msgs::Switch::DOWN;
-        } else {
-=======
         if (dr16_.valid() || !vt13_.valid() || vt13_.mode_switch() == Vt13::ModeSwitch::kNormal) {
->>>>>>> 7a9bbcf6 (vt13 fixfixfixfix)
             *switch_right_output_ = dr16_.switch_right();
             *switch_left_output_ = dr16_.switch_left();
 
-<<<<<<< HEAD
-        if (vt13_fresh && vt13_.mode_switch() == Vt13::ModeSwitch::kSport) {
-            *switch_right_output_ = rmcs_msgs::Switch::MIDDLE;
-            *switch_left_output_ = rmcs_msgs::Switch::MIDDLE;
-            *joystick_right_output_ = vt13_.joystick_right();
-            *joystick_left_output_ = vt13_.joystick_left();
-
-            *mouse_velocity_output_ = vt13_.mouse_velocity();
-            *mouse_wheel_output_ = vt13_.mouse_wheel();
-
-            *mouse_output_ = vt13_.mouse();
-            *keyboard_output_ = vt13_.keyboard();
-        } else {
-=======
->>>>>>> 7a9bbcf6 (vt13 fixfixfixfix)
             *joystick_right_output_ = dr16_.joystick_right();
             *joystick_left_output_ = dr16_.joystick_left();
 
@@ -110,8 +85,6 @@ public:
     }
 
 private:
-    static constexpr auto vt13_timeout_ = std::chrono::milliseconds{250};
-
     Dr16& dr16_;
     Vt13& vt13_;
 
