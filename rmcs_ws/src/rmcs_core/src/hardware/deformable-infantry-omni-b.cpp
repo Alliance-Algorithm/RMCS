@@ -53,7 +53,7 @@ public:
         register_input("/predefined/timestamp", timestamp_);
         register_output("/tf", tf_);
 
-        tf_->set_transform<PitchLink, CameraLink>(Eigen::Translation3d{0.16, 0.0, 0.15});
+        tf_->set_transform<PitchLink, CameraLink>(Eigen::Translation3d{0.058, -0.08, 0.0});
 
         // For command: remote-status
         using Srv = std_srvs::srv::Trigger;

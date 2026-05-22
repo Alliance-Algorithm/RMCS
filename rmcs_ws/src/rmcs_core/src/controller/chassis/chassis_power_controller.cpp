@@ -63,7 +63,7 @@ public:
 
         update_virtual_buffer_energy();
 
-        boost_mode_ = keyboard.shift || keyboard.ctrl;
+        boost_mode_ = keyboard.shift;
         *supercap_control_enabled_ = boost_mode_;
         update_control_power_limit();
     }
@@ -110,9 +110,7 @@ private:
         double power_limit;
 
         if (*supercap_control_enabled_ && *supercap_enabled_)
-            power_limit = *mode_ == rmcs_msgs::ChassisMode::LAUNCH_RAMP
-                            ? inf_
-                            : *chassis_power_limit_referee_ + 80.0;
+            power_limit = *chassis_power_limit_referee_ + 80.0;
         else
             power_limit = *chassis_power_limit_referee_;
         chassis_power_limit_expected_ = power_limit;
@@ -142,7 +140,6 @@ private:
             static_cast<int32_t>(std::round(*chassis_control_power_limit_)));
     }
 
-    static constexpr double inf_ = std::numeric_limits<double>::infinity();
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
 
     InputInterface<rmcs_msgs::ChassisMode> mode_;
