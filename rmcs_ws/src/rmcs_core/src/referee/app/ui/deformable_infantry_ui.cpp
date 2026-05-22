@@ -122,7 +122,7 @@ private:
         auto chassis_mode = *chassis_mode_;
 
         chassis_direction_indicator_.set_color(chassis_direction_indicator_color(chassis_mode));
-        chassis_direction_indicator_.set_angle(270, 30);
+        chassis_direction_indicator_.set_angle(0, 30);
     }
 
     static Shape::Color chassis_direction_indicator_color(rmcs_msgs::ChassisMode mode) {

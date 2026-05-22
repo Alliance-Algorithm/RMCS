@@ -206,8 +206,8 @@ private:
             -channel_to_double(static_cast<uint16_t>(data.joystick_channel0)),
         };
         joystick_left_ = {
-            channel_to_double(static_cast<uint16_t>(data.joystick_channel3)),
-            -channel_to_double(static_cast<uint16_t>(data.joystick_channel2)),
+            channel_to_double(static_cast<uint16_t>(data.joystick_channel2)),
+            -channel_to_double(static_cast<uint16_t>(data.joystick_channel3)),
         };
 
         mouse_velocity_ = {
