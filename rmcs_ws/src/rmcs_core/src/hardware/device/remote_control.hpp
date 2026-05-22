@@ -54,6 +54,8 @@ public:
         }
 
         if (vt13_fresh && vt13_.mode_switch() == Vt13::ModeSwitch::kSport) {
+            *switch_right_output_ = rmcs_msgs::Switch::MIDDLE;
+            *switch_left_output_ = rmcs_msgs::Switch::MIDDLE;
             *joystick_right_output_ = vt13_.joystick_right();
             *joystick_left_output_ = vt13_.joystick_left();
 
