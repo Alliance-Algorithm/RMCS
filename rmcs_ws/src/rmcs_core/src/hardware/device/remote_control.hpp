@@ -43,16 +43,20 @@ public:
     }
 
     void update() {
+<<<<<<< HEAD
         const bool vt13_fresh = vt13_.remote_control_fresh(vt13_timeout_);
 
         if (vt13_fresh && vt13_.mode_switch() == Vt13::ModeSwitch::kCine) {
             *switch_right_output_ = rmcs_msgs::Switch::DOWN;
             *switch_left_output_ = rmcs_msgs::Switch::DOWN;
         } else {
+=======
+        if (dr16_.valid() || !vt13_.valid() || vt13_.mode_switch() == Vt13::ModeSwitch::kNormal) {
+>>>>>>> 7a9bbcf6 (vt13 fixfixfixfix)
             *switch_right_output_ = dr16_.switch_right();
             *switch_left_output_ = dr16_.switch_left();
-        }
 
+<<<<<<< HEAD
         if (vt13_fresh && vt13_.mode_switch() == Vt13::ModeSwitch::kSport) {
             *switch_right_output_ = rmcs_msgs::Switch::MIDDLE;
             *switch_left_output_ = rmcs_msgs::Switch::MIDDLE;
@@ -65,6 +69,8 @@ public:
             *mouse_output_ = vt13_.mouse();
             *keyboard_output_ = vt13_.keyboard();
         } else {
+=======
+>>>>>>> 7a9bbcf6 (vt13 fixfixfixfix)
             *joystick_right_output_ = dr16_.joystick_right();
             *joystick_left_output_ = dr16_.joystick_left();
 
@@ -73,6 +79,30 @@ public:
 
             *mouse_output_ = dr16_.mouse();
             *keyboard_output_ = dr16_.keyboard();
+        } else if (vt13_.mode_switch() == Vt13::ModeSwitch::kCine) {
+            *switch_right_output_ = rmcs_msgs::Switch::DOWN;
+            *switch_left_output_ = rmcs_msgs::Switch::DOWN;
+
+            *joystick_right_output_ = Eigen::Vector2d::Zero();
+            *joystick_left_output_ = Eigen::Vector2d::Zero();
+
+            *mouse_velocity_output_ = Eigen::Vector2d::Zero();
+            *mouse_wheel_output_ = 0;
+
+            *mouse_output_ = rmcs_msgs::Mouse::zero();
+            *keyboard_output_ = rmcs_msgs::Keyboard::zero();
+        } else if (vt13_.mode_switch() == Vt13::ModeSwitch::kSport) {
+            *switch_right_output_ = rmcs_msgs::Switch::MIDDLE;
+            *switch_left_output_ = rmcs_msgs::Switch::MIDDLE;
+
+            *joystick_right_output_ = vt13_.joystick_right();
+            *joystick_left_output_ = vt13_.joystick_left();
+
+            *mouse_velocity_output_ = vt13_.mouse_velocity();
+            *mouse_wheel_output_ = vt13_.mouse_wheel();
+
+            *mouse_output_ = vt13_.mouse();
+            *keyboard_output_ = vt13_.keyboard();
         }
 
         *rotary_knob_output_ = dr16_.rotary_knob();

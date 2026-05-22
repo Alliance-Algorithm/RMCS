@@ -54,7 +54,7 @@ public:
     CanPacket8::Quarter generate_command() const {
         SupercapCommand command;
 
-        command.enabled = *chassis_output_status_ && *supercap_control_enabled_;
+        command.enabled = *chassis_output_status_;
 
         const double power_limit = *supercap_charge_power_limit_;
         if (std::isnan(power_limit))

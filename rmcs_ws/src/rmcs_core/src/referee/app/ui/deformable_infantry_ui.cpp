@@ -126,7 +126,7 @@ private:
                 std::round((2 * std::numbers::pi - angle) / std::numbers::pi * 180));
         };
         chassis_direction_indicator_.set_color(chassis_direction_indicator_color(chassis_mode));
-        chassis_direction_indicator_.set_angle(to_referee_angle(*chassis_angle_), 30);
+        chassis_direction_indicator_.set_angle(to_referee_angle(0.0), 30);
     }
 
     static Shape::Color chassis_direction_indicator_color(rmcs_msgs::ChassisMode mode) {
