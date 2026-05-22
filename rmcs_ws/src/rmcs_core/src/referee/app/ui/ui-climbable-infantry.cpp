@@ -20,19 +20,17 @@ class UIClimbableInfantry
     , public rclcpp::Node {
 public:
     UIClimbableInfantry()
-        : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
-        , aiming_mark_(Shape::Color::WHITE, 2, x_center - 12, y_center - 37, 10, 10)
+        : Node{
+              get_component_name(),
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
+        , aiming_mark_(Shape::Color::WHITE, 2, x_center, y_center - 40, 8, 8)
         , status_ring_(26.5, 26.5, 600, 300)
         , chassis_power_number_(Shape::Color::WHITE, 20, 2, x_center - 40, 860, 0)
         , yaw_indicator_guidelines_(
               {Shape::Color::WHITE, 2, x_center - 32, 830, x_center + 32, 830},
               {Shape::Color::WHITE, 2, x_center, 830, x_center, 820})
         , chassis_direction_indicator_(Shape::Color::PINK, 8, x_center, y_center, 0, 0, 84, 84)
-        ,front_climber_motor_direction_indicator_{{
-            Shape::Color::CYAN, 60, x_center, y_center, 0, 0, 64, 64
-        }, {
-            Shape::Color::CYAN, 60, x_center, y_center, 0, 0, 64, 64
-        }}
+        , front_climber_motor_direction_indicator_{{Shape::Color::CYAN, 60, x_center, y_center, 0, 0, 64, 64}, {Shape::Color::CYAN, 60, x_center, y_center, 0, 0, 64, 64}}
         , chassis_control_power_limit_indicator_(Shape::Color::WHITE, 20, 2, x_center + 10, 820, 0)
         , supercap_control_power_limit_indicator_(Shape::Color::WHITE, 20, 2, x_center + 10, 790, 0)
         , time_reminder_(Shape::Color::PINK, 50, 5, x_center + 150, y_center + 65, 0, false) {

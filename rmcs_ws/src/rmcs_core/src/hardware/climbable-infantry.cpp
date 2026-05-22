@@ -439,7 +439,7 @@ private:
                         chassis_back_steering_motors_[0].generate_command(),
                         chassis_back_steering_motors_[1].generate_command(),
                         device::CanPacket8::PaddingQuarter{},
-                        device::CanPacket8::PaddingQuarter{},
+                        supercap_.generate_command(),
                     }
                         .as_bytes(),
             });
@@ -464,18 +464,7 @@ private:
                         chassis_front_steering_motors_[1].generate_command(),
                         device::CanPacket8::PaddingQuarter{},
                         device::CanPacket8::PaddingQuarter{},
-                    }
-                        .as_bytes(),
-            });
 
-            builder.can2_transmit({
-                .can_id = 0x1FE,
-                .can_data =
-                    device::CanPacket8{
-                        device::CanPacket8::PaddingQuarter{},
-                        device::CanPacket8::PaddingQuarter{},
-                        device::CanPacket8::PaddingQuarter{},
-                        supercap_.generate_command(),
                     }
                         .as_bytes(),
             });
@@ -524,6 +513,8 @@ private:
                 chassis_back_steering_motors_[0].store_status(data.can_data);
             } else if (can_id == 0x206) {
                 chassis_back_steering_motors_[1].store_status(data.can_data);
+            } else if (can_id == 0x300) {
+                supercap_.store_status(data.can_data);
             }
         }
 
@@ -555,8 +546,6 @@ private:
             }
             if (can_id == 0x142) {
                 gimbal_yaw_motor_.store_status(data.can_data);
-            } else if (can_id == 0x300) {
-                supercap_.store_status(data.can_data);
             }
         }
 

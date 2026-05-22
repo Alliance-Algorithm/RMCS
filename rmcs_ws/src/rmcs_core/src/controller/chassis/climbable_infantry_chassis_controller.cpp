@@ -19,7 +19,7 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , following_velocity_controller_(4.25, 0.0, 1000) {//10 0 1.2
+        , following_velocity_controller_(4.4, 0.0, 500) { // 10 0 1.2
         following_velocity_controller_.output_max = angular_velocity_max;
         following_velocity_controller_.output_min = -angular_velocity_max;
 
@@ -78,7 +78,7 @@ public:
                 if (last_switch_right_ == Switch::MIDDLE && switch_right == Switch::DOWN) {
                     if (mode == rmcs_msgs::ChassisMode::SPIN) {
                         mode = rmcs_msgs::ChassisMode::STEP_DOWN;
-                        step_down_facing_ = StepDownFacing::FRONT;
+                        // step_down_facing_ = StepDownFacing::FRONT;
                     } else {
                         mode = rmcs_msgs::ChassisMode::SPIN;
                         spinning_forward_ = !spinning_forward_;
@@ -86,13 +86,15 @@ public:
                 } else if (!last_keyboard_.c && keyboard.c) {
                     if (mode == rmcs_msgs::ChassisMode::SPIN) {
                         mode = rmcs_msgs::ChassisMode::STEP_DOWN;
+                        step_down_facing_ = StepDownFacing::BACK;
                     } else {
                         mode = rmcs_msgs::ChassisMode::SPIN;
                         spinning_forward_ = !spinning_forward_;
                     }
                 } else if (!last_keyboard_.x && keyboard.x) {
                     mode = rmcs_msgs::ChassisMode::STEP_DOWN;
-                    step_down_facing_ = StepDownFacing::FRONT;
+                    step_down_facing_ = StepDownFacing::BACK;
+                    // step_down_facing_ = StepDownFacing::FRONT;
 
                 } else if (!last_keyboard_.z && keyboard.z) {
                     if (mode == rmcs_msgs::ChassisMode::STEP_DOWN) {

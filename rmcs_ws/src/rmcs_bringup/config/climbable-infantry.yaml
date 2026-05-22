@@ -38,7 +38,7 @@ Infantry_hardware:
   ros__parameters:
     board_serial_top_board: "D4-632C-37BC-6A17-ACA2-E3FE-91E9"
     board_serial_bottom_board: "AF-EEF5-24BA-6675-F1B1-C797-50AF-869C-870E"
-    yaw_motor_zero_point: 18398
+    yaw_motor_zero_point: 18291
     pitch_motor_zero_point: 18874
     left_front_zero_point: 1695
     right_front_zero_point: 5068
@@ -184,7 +184,7 @@ heat_controller:
 bullet_feeder_controller:
   ros__parameters:
     bullets_per_feeder_turn: 9.0
-    shot_frequency: 28.0
+    shot_frequency: 27.0
     safe_shot_frequency: 10.0
     eject_frequency: 15.0
     eject_time: 0.15
