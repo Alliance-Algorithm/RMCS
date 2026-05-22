@@ -28,7 +28,9 @@
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/lk_motor.hpp"
+#include "hardware/device/remote_control.hpp"
 #include "hardware/device/supercap.hpp"
+#include "hardware/device/vt13.hpp"
 
 namespace rmcs_core::hardware {
 
@@ -43,7 +45,6 @@ public:
         , command_component_(
               create_partner_component<ClimbableInfantryCommand>(
                   get_component_name() + "_command", *this)) {
-
         register_output("/tf", tf_);
         gimbal_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
             "/gimbal/calibrate", rclcpp::QoS{0}, [this](std_msgs::msg::Int32::UniquePtr&& msg) {
@@ -54,6 +55,8 @@ public:
             *this, *command_component_, get_parameter("board_serial_top_board").as_string());
         bottom_board_ = std::make_unique<BottomBoard>(
             *this, *command_component_, get_parameter("board_serial_bottom_board").as_string());
+        remote_control_ =
+            std::make_unique<device::RemoteControl>(*this, bottom_board_->dr16_, top_board_->vt13_);
 
         tf_->set_transform<rmcs_description::PitchLink, rmcs_description::CameraLink>(
             Eigen::Translation3d{0.06603, 0.0, 0.082});
@@ -69,6 +72,7 @@ public:
     void update() override {
         top_board_->update();
         bottom_board_->update();
+        remote_control_->update();
     }
 
     void command_update() {
@@ -119,7 +123,7 @@ private:
             ClimbableInfantry& climbable_infantry,
             ClimbableInfantryCommand& climbable_infantry_command,
             std::string_view board_serial = {})
-            : librmcs::agent::CBoard(board_serial)
+            : librmcs::agent::CBoard(board_serial, {true})
             , logger_(climbable_infantry.get_logger())
             , tf_(climbable_infantry.tf_)
             , imu_(1000, 0.2, 0.0)
@@ -160,6 +164,7 @@ private:
 
         void update() {
             imu_.update_status();
+            vt13_.update_status();
             const Eigen::Quaterniond gimbal_imu_pose{imu_.q0(), imu_.q1(), imu_.q2(), imu_.q3()};
 
             tf_->set_transform<rmcs_description::PitchLink, rmcs_description::OdomImu>(
@@ -218,6 +223,11 @@ private:
             }
         }
 
+        void uart1_receive_callback(const librmcs::data::UartDataView& data) override {
+            vt13_.store_status(data.uart_data);
+            // RCLCPP_INFO(logger_, "uart1 ok");
+        }
+
         void accelerometer_receive_callback(
             const librmcs::data::AccelerometerDataView& data) override {
             imu_.store_accelerometer_status(data.x, data.y, data.z);
@@ -232,6 +242,8 @@ private:
         OutputInterface<rmcs_description::Tf>& tf_;
 
         device::Bmi088 imu_;
+        device::Vt13 vt13_;
+
         device::LkMotor gimbal_pitch_motor_;
         device::DjiMotor gimbal_left_friction_;
         device::DjiMotor gimbal_right_friction_;
@@ -251,7 +263,6 @@ private:
             , logger_(climbable_infantry.get_logger())
             , tf_(climbable_infantry.tf_)
             , imu_(1000, 0.2, 0.0)
-            , dr16_(climbable_infantry)
             , gimbal_yaw_motor_(climbable_infantry, climbable_infantry_command, "/gimbal/yaw")
             , supercap_(climbable_infantry, climbable_infantry_command)
             , gimbal_bullet_feeder_(
@@ -580,7 +591,7 @@ private:
         }
 
         void dbus_receive_callback(const librmcs::data::UartDataView& data) override {
-            dr16_.store_status(data.uart_data.data(), data.uart_data.size());
+            dr16_.store_status(data.uart_data);
         }
 
         void accelerometer_receive_callback(
@@ -629,6 +640,7 @@ private:
 
     std::shared_ptr<TopBoard> top_board_;
     std::shared_ptr<BottomBoard> bottom_board_;
+    std::unique_ptr<device::RemoteControl> remote_control_;
 };
 
 } // namespace rmcs_core::hardware
