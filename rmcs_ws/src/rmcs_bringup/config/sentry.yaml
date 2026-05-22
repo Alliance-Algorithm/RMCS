@@ -7,6 +7,7 @@ rmcs_executor:
       - rmcs_core::referee::Status -> referee_status
       - rmcs_core::referee::Command -> referee_command
       - rmcs_core::referee::command::Interaction -> referee_interaction
+      - rmcs_core::referee::command::interaction::SentryDecision -> referee_sentry_decision
       - rmcs_core::referee::command::interaction::Ui -> referee_ui
 
       - rmcs_core::controller::gimbal::EccentricDualYaw -> gimbal_controller
@@ -43,23 +44,21 @@ sentry_hardware:
     board_serial_top_board: "af-da30"
     board_serial_bottom_board: "d4-2184"
     board_serial_gimbal_board: "d4-1d2b"
-    bottom_yaw_motor_zero_point: 24220
+
+    bottom_yaw_motor_zero_point: 24121
     top_yaw_motor_zero_point: 32916
     pitch_motor_zero_point: 1275
-    left_front_zero_point: 383
-    left_back_zero_point: 3755
-    right_back_zero_point: 1311
-    right_front_zero_point: 5174
+
+    right_back_zero_point: 6770
+    right_front_zero_point: 5185
+    left_front_zero_point: 359
+    left_back_zero_point: 3629
 
 rmcs_navigation:
   ros__parameters:
-    # 策略名称：
-    # - fast-push-output "速推前哨站"
-    # - kill-robots "杀伤优先"
-    decision: "fast-push-output"
     command_vel_name: "/cmd_vel"
     mock_context: false
-    endpoint: "test"
+    endpoint: "main" # otaku | main
     enable_goal_topic_forward: true
 
 gimbal_controller:

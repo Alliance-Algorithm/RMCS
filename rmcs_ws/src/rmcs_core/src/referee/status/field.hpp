@@ -5,7 +5,7 @@
 namespace rmcs_core::referee::status {
 
 struct __attribute__((packed)) GameStatus {
-    uint8_t game_type  : 4;
+    uint8_t game_type     : 4;
     uint8_t game_progress : 4;
     uint16_t stage_remain_time;
     uint64_t sync_timestamp;
@@ -84,5 +84,23 @@ struct __attribute__((packed)) MapCommand {
     uint16_t cmd_source;
 };
 static_assert(sizeof(MapCommand) == 12);
+
+struct __attribute__((packed)) SentryCommand {
+    enum class Posture : std::uint8_t {
+        ATTACK = 1,
+        DEFENSE = 2,
+        MOVE = 3,
+    };
+
+    std::uint32_t rebirth_confirmed              : 1 = 0;
+    std::uint32_t instant_rebirth_requested      : 1 = 0;
+    std::uint32_t ammo_exchange_total            : 11 = 0;
+    std::uint32_t remote_ammo_request_seq        : 4 = 0;
+    std::uint32_t remote_hp_request_seq          : 4 = 0;
+    Posture posture                              : 2 = Posture::MOVE;
+    std::uint32_t energy_core_activation_confirm : 1 = 0;
+    std::uint32_t reserved                       : 8 = 0;
+};
+static_assert(sizeof(SentryCommand) == 4);
 
 } // namespace rmcs_core::referee::status

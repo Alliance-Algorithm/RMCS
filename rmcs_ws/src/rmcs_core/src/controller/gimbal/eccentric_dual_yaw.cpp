@@ -29,7 +29,7 @@ public:
     auto before_updating() -> void override {
         if (!input_.navigation_enable_control.ready()) {
             input_.navigation_enable_control.make_and_bind_directly(false);
-            input_.navigation_toward.make_and_bind_directly(Eigen::Vector2d::Zero());
+            input_.navigation_toward.make_and_bind_directly(kVecNaN);
             RCLCPP_INFO(get_logger(), "Manual mode without navigation gimbal control");
         }
 
@@ -112,6 +112,7 @@ public:
 
 private:
     static constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
+    static inline auto kVecNaN = Eigen::Vector2d{kNaN, kNaN};
     static constexpr double kJoystickSensitivity = 0.006;
     static constexpr double kMouseSensitivity = 0.5;
 

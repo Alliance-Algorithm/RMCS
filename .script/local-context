@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+TOPIC="/rmcs_navigation/context/mock"
+
+usage() {
+    cat <<'EOF'
+Usage: local-context <key> <value>
+
+key:
+  game_stage | robot_health | robot_bullet
+
+value:
+  - game_stage: not_start | preparation | referee_check | countdown | started | settling | unknown
+                (also accepts 0..5 and 255)
+  - others: integer
+
+Examples:
+  local-context game_stage started
+  local-context game_stage 4
+  local-context robot_health 350
+EOF
+}
+
+if [[ $# -ne 2 ]]; then
+    usage
+    exit 1
+fi
+
+key="$1"
+raw_value="$2"
+
+case "$key" in
+game_stage | robot_health | robot_bullet) ;;
+*)
+    echo "Invalid key: ${key}" >&2
+    usage
+    exit 1
+    ;;
+esac
+
+value="$raw_value"
+if [[ "$key" == "game_stage" ]]; then
+    normalized="${raw_value,,}"
+    case "$normalized" in
+    not_start) value=0 ;;
+    preparation) value=1 ;;
+    referee_check) value=2 ;;
+    countdown) value=3 ;;
+    started) value=4 ;;
+    settling) value=5 ;;
+    unknown) value=255 ;;
+    *)
+        if [[ "$normalized" =~ ^[0-9]+$ ]]; then
+            value="$normalized"
+        else
+            echo "Invalid game_stage value: ${raw_value}" >&2
+            usage
+            exit 1
+        fi
+        ;;
+    esac
+
+    if ((value < 0 || (value > 5 && value != 255))); then
+        echo "game_stage out of range: ${value} (expected 0..5 or 255)" >&2
+        exit 1
+    fi
+else
+    if ! [[ "$raw_value" =~ ^[0-9]+$ ]]; then
+        echo "${key} must be an integer: ${raw_value}" >&2
+        exit 1
+    fi
+fi
+
+payload="${key}: ${value}"
+echo "[local-context] key: ${key}"
+echo "[local-context] value: ${value}"
+echo "[local-context] topic: ${TOPIC}"
+echo "[local-context] payload(to publish): ${payload}"
+
+ros2 topic pub -1 "$TOPIC" std_msgs/msg/String "{data: '${payload}'}"
+
+echo "Published ${key}=${value} to local topic ${TOPIC}"

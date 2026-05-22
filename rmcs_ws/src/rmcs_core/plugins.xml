@@ -35,6 +35,7 @@
   <class type="rmcs_core::referee::Status" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::referee::Command" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::referee::command::Interaction" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::referee::command::interaction::SentryDecision" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::referee::command::interaction::Ui" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::referee::app::ui::Infantry" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::referee::app::ui::DeformableInfantry" base_class_type="rmcs_executor::Component" />
