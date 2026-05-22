@@ -6,6 +6,10 @@
 	path = rmcs_ws/src/hikcamera
 	url = https://github.com/Alliance-Algorithm/ros2-hikcamera.git
 
-[submodule "rmcs_ws/src/auto_aim_v2"]
-	path = rmcs_ws/src/auto_aim_v2
-    url = https://github.com/Alliance-Algorithm/rmcs_auto_aim_v2.git
+[submodule "rmcs_ws/src/rmcs_auto_aim_v2"]
+	path = rmcs_ws/src/rmcs_auto_aim_v2
+	url = https://github.com/Alliance-Algorithm/rmcs_auto_aim_v2.git
+
+[submodule "rmcs_ws/src/serial"]
+	path = rmcs_ws/src/serial
+	url = git@github.com:Alliance-Algorithm/ros2-serial.git
