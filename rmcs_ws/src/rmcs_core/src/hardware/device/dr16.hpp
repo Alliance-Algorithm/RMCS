@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <bit>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -21,6 +22,8 @@ public:
     void store_status(std::span<const std::byte> uart_data) {
         if (uart_data.size() != kStatusSize)
             return;
+
+        last_receive_time_.store(Clock::now(), std::memory_order_relaxed);
 
         auto* cursor = uart_data.data();
 
@@ -78,6 +81,12 @@ public:
 
     [[nodiscard]] const Eigen::Vector2d& joystick_right() const noexcept { return joystick_right_; }
 
+    [[nodiscard]] bool valid() const noexcept {
+        const auto last_receive_time = last_receive_time_.load(std::memory_order_relaxed);
+        return last_receive_time != TimePoint::min()
+            && Clock::now() - last_receive_time <= kFreshTimeout;
+    }
+
     [[nodiscard]] const Eigen::Vector2d& joystick_left() const noexcept { return joystick_left_; }
 
     [[nodiscard]] rmcs_msgs::Switch switch_right() const noexcept { return switch_right_; }
@@ -99,6 +108,11 @@ public:
     }
 
 private:
+    using Clock = std::chrono::steady_clock;
+    using TimePoint = Clock::time_point;
+
+    static constexpr auto kFreshTimeout = std::chrono::milliseconds(500);
+
     static constexpr std::size_t kPart1Size = 6;
     static constexpr std::size_t kPart2Size = 8;
     static constexpr std::size_t kPart3Size = 4;
@@ -189,6 +203,8 @@ private:
         .rotary_knob = 0,
     })};
     static_assert(decltype(data_part3_)::is_always_lock_free);
+
+    std::atomic<TimePoint> last_receive_time_{TimePoint::min()};
 
     Eigen::Vector2d joystick_right_ = Eigen::Vector2d::Zero();
     Eigen::Vector2d joystick_left_ = Eigen::Vector2d::Zero();
