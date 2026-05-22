@@ -124,6 +124,10 @@ public:
             last_switch_left_ = switch_left;
             last_keyboard_ = keyboard;
         }
+
+        RCLCPP_INFO(
+            get_logger(), "current speed: %.2f, %.2f",
+             *friction_velocities_[0], *friction_velocities_[1]);
     }
 
 private:
