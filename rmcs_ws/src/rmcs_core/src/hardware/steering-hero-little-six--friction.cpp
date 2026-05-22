@@ -32,7 +32,9 @@
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/lk_motor.hpp"
+#include "hardware/device/remote_control.hpp"
 #include "hardware/device/supercap.hpp"
+#include "hardware/device/vt13.hpp"
 
 namespace rmcs_core::hardware {
 
@@ -131,6 +133,9 @@ public:
         bottom_board_ = std::make_unique<BottomBoard>(
             *this, *command_component_, get_parameter("serial_bottom_rmcs_board").as_string());
 
+        remote_control_ =
+            std::make_unique<device::RemoteControl>(*this, bottom_board_->dr16_, top_board_->vt13_);
+
         tf_->set_transform<rmcs_description::PitchLink, rmcs_description::CameraLink>(
             Eigen::Translation3d{0.06603, 0.0, 0.082});
     }
@@ -145,6 +150,7 @@ public:
     void update() override {
         top_board_->update();
         bottom_board_->update();
+        remote_control_->update();
 
         tf_->set_state<rmcs_description::GimbalCenterLink, rmcs_description::YawLink>(
             bottom_board_->gimbal_bottom_yaw_motor_.angle()
@@ -316,6 +322,7 @@ private:
             // can3_receive_rate_counter_.report_if_due();
 
             imu_.update_status();
+            vt13_.update_status();
             Eigen::Quaterniond gimbal_imu_pose{imu_.q0(), imu_.q1(), imu_.q2(), imu_.q3()};
 
             tf_->set_transform<rmcs_description::PitchLink, rmcs_description::OdomImu>(
@@ -482,6 +489,10 @@ private:
             imu_.store_gyroscope_status(data.x, data.y, data.z);
         }
 
+        void uart0_receive_callback(const librmcs::data::UartDataView& data) override {
+            vt13_.store_status(data.uart_data);
+        }
+
         rclcpp::Logger logger_;
         // CanReceiveRateCounter can0_receive_rate_counter_;
         // CanReceiveRateCounter can1_receive_rate_counter_;
@@ -494,6 +505,7 @@ private:
         int friciton_detect[6];
 
         device::Bmi088 imu_;
+        device::Vt13 vt13_;
         device::LkMotor gimbal_top_yaw_motor_;
         device::LkMotor gimbal_pitch_motor_;
         device::DjiMotor gimbal_friction_wheels_[6];
@@ -526,7 +538,6 @@ private:
             // , can2_receive_rate_counter_(logger_, "bottom/can2")
             // , can3_receive_rate_counter_(logger_, "bottom/can3")
             , imu_(1000, 0.2, 0.0)
-            , dr16_(steering_hero)
             , supercap_(steering_hero, steering_hero_command)
             , chassis_steering_motors_(
                   {steering_hero, steering_hero_command, "/chassis/left_front_steering"},
@@ -833,7 +844,7 @@ private:
         }
 
         void dbus_receive_callback(const librmcs::data::UartDataView& data) override {
-            dr16_.store_status(data.uart_data.data(), data.uart_data.size());
+            dr16_.store_status(data.uart_data);
         }
 
         void accelerometer_receive_callback(
@@ -880,6 +891,7 @@ private:
 
     std::shared_ptr<TopBoard> top_board_;
     std::shared_ptr<BottomBoard> bottom_board_;
+    std::unique_ptr<device::RemoteControl> remote_control_;
 };
 
 } // namespace rmcs_core::hardware
