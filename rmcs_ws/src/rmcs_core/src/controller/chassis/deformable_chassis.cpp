@@ -61,6 +61,7 @@ public:
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , following_velocity_controller_(10.0, 0.0, 0.0)
         , spin_ratio_(std::clamp(get_parameter_or("spin_ratio", 0.6), 0.0, 1.0))
+        , launch_ramp_shortcut_enabled_(get_parameter_or("launch_ramp_shortcut_enabled", true))
 
         , min_angle_(get_parameter_or("min_angle", 7.0))
         , max_angle_(get_parameter_or("max_angle", 58.0))
@@ -331,7 +332,7 @@ private:
                 mode = rmcs_msgs::ChassisMode::SPIN;
                 spinning_forward_ = !spinning_forward_;
             }
-        } else if (!last_keyboard_.x && keyboard.x) {
+        } else if (launch_ramp_shortcut_enabled_ && !last_keyboard_.x && keyboard.x) {
             deactivate_complex_spin_();
             deactivate_qe_complex_spin_();
             mode = mode == rmcs_msgs::ChassisMode::LAUNCH_RAMP
@@ -989,6 +990,7 @@ private:
     double qe_last_toggle_elapsed_ = 0.0;
     pid::PidCalculator following_velocity_controller_;
     const double spin_ratio_;
+    const bool launch_ramp_shortcut_enabled_;
 
     InputInterface<double> left_front_joint_physical_angle_;
     InputInterface<double> left_back_joint_physical_angle_;
