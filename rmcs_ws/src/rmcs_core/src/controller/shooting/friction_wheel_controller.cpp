@@ -131,9 +131,6 @@ public:
             last_keyboard_ = keyboard;
         }
 
-        RCLCPP_INFO(
-            get_logger(), "current speed: %.2f, %.2f",
-             *friction_velocities_[0], *friction_velocities_[1]);
     }
 
 private:
@@ -155,7 +152,7 @@ private:
         if (!friction_velocity_adjustment_enabled_ || !keyboard.x)
             return;
 
-        friction_adjustable_velocity_ += mouse_wheel * 5.0 * 0.001;
+        friction_adjustable_velocity_ += mouse_wheel * 5.0 * 10;
         friction_adjustable_velocity_ =
             std::clamp(friction_adjustable_velocity_, friction_velocity_min_, friction_velocity_max_);
 
