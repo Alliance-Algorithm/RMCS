@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <numbers>
 
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
@@ -34,6 +35,15 @@ public:
         , vertical_center_guidelines_(
               {Shape::Color::WHITE, 2, x_center, 800, x_center, y_center + 110},
               {Shape::Color::WHITE, 2, x_center, y_center - 110, x_center, 200})
+        , friction_wheel_speed_indicator_(
+              Shape::Color::PINK, 20, 2,
+              static_cast<uint16_t>(std::lround(
+                  static_cast<double>(x_center)
+                  + friction_wheel_speed_indicator_radius_ / std::numbers::sqrt2)),
+              static_cast<uint16_t>(std::lround(
+                  static_cast<double>(y_center)
+                  - friction_wheel_speed_indicator_radius_ / std::numbers::sqrt2)),
+              0)
         , chassis_direction_indicator_(Shape::Color::PINK, 8, x_center, y_center, 0, 0, 84, 84)
         , time_reminder_(Shape::Color::PINK, 50, 5, x_center + 150, y_center + 65, 0, false) {
 
@@ -73,6 +83,7 @@ public:
 
         register_input("/referee/shooter/bullet_allowance", robot_bullet_allowance_);
 
+        register_input("/gimbal/left_friction/working_velocity", left_friction_working_velocity_);
         register_input("/gimbal/left_friction/control_velocity", left_friction_control_velocity_);
         register_input("/gimbal/left_friction/velocity", left_friction_velocity_);
         register_input("/gimbal/right_friction/velocity", right_friction_velocity_);
@@ -93,9 +104,21 @@ public:
         update_ctrl_ui();
 
         status_ring_.update_bullet_allowance(*robot_bullet_allowance_);
-        status_ring_.update_friction_wheel_speed(
-            std::min(*left_friction_velocity_, *right_friction_velocity_),
-            *left_friction_control_velocity_ > 0);
+        const double friction_wheel_speed =
+            std::min(*left_friction_velocity_, *right_friction_velocity_);
+        const bool friction_wheel_enabled = *left_friction_control_velocity_ > 0;
+        const auto friction_wheel_speed_value =
+            static_cast<int32_t>(std::lround(*left_friction_working_velocity_));
+        status_ring_.update_friction_wheel_speed(friction_wheel_speed, friction_wheel_enabled);
+        if (friction_wheel_speed_indicator_.value() != friction_wheel_speed_value) {
+            friction_wheel_speed_indicator_.set_value(friction_wheel_speed_value);
+            friction_wheel_speed_indicator_.set_center_x(
+                static_cast<uint16_t>(std::lround(
+                    static_cast<double>(x_center)
+                    + friction_wheel_speed_indicator_radius_ / std::numbers::sqrt2)));
+        }
+        friction_wheel_speed_indicator_.set_color(
+            friction_wheel_enabled ? Shape::Color::GREEN : Shape::Color::PINK);
         status_ring_.update_supercap(*supercap_voltage_, *supercap_enabled_);
         status_ring_.update_battery_power(*chassis_voltage_);
 
@@ -153,6 +176,7 @@ private:
 
     static constexpr uint16_t screen_width = 1920, screen_height = 1080;
     static constexpr uint16_t x_center = screen_width / 2, y_center = screen_height / 2;
+    static constexpr double friction_wheel_speed_indicator_radius_ = 430.0;
 
     InputInterface<std::chrono::steady_clock::time_point> timestamp_;
     InputInterface<rmcs_msgs::ChassisMode> chassis_mode_;
@@ -170,6 +194,7 @@ private:
 
     InputInterface<uint16_t> robot_bullet_allowance_;
 
+    InputInterface<double> left_friction_working_velocity_;
     InputInterface<double> left_friction_control_velocity_;
     InputInterface<double> left_friction_velocity_;
     InputInterface<double> right_friction_velocity_;
@@ -184,6 +209,7 @@ private:
 
     Line horizontal_center_guidelines_[2];
     Line vertical_center_guidelines_[2];
+    Integer friction_wheel_speed_indicator_;
 
     Arc chassis_direction_indicator_;
     DeformableChassisLegArcs deformable_chassis_leg_arcs_;

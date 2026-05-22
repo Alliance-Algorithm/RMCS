@@ -46,10 +46,15 @@ public:
         friction_count_ = friction_wheels.size();
         friction_working_velocities_ = std::make_unique<double[]>(friction_count_);
         friction_velocities_ = std::make_unique<InputInterface<double>[]>(friction_count_);
+        friction_working_velocity_outputs_ =
+            std::make_unique<OutputInterface<double>[]>(friction_count_);
         friction_control_velocities_ = std::make_unique<OutputInterface<double>[]>(friction_count_);
         for (size_t i = 0; i < friction_count_; i++) {
             friction_working_velocities_[i] = friction_working_velocities[i];
             register_input(friction_wheels[i] + "/velocity", friction_velocities_[i]);
+            register_output(
+                friction_wheels[i] + "/working_velocity", friction_working_velocity_outputs_[i],
+                friction_working_velocities_[i]);
             register_output(
                 friction_wheels[i] + "/control_velocity", friction_control_velocities_[i], nan_);
         }
@@ -107,6 +112,7 @@ public:
 
         if (switch_right != Switch::DOWN) {
             update_adjustable_friction_velocity(keyboard, mouse_wheel);
+            update_friction_working_velocity_outputs();
 
             if ((!last_keyboard_.v && keyboard.v)
                 || (last_switch_left_ == Switch::MIDDLE && switch_left == Switch::UP)) {
@@ -155,6 +161,11 @@ private:
 
         for (size_t i = 0; i < friction_count_; i++)
             friction_working_velocities_[i] = friction_adjustable_velocity_;
+    }
+
+    void update_friction_working_velocity_outputs() {
+        for (size_t i = 0; i < friction_count_; i++)
+            *friction_working_velocity_outputs_[i] = friction_working_velocities_[i];
     }
 
     void update_friction_velocities() {
@@ -248,6 +259,7 @@ private:
     std::unique_ptr<double[]> friction_working_velocities_;
 
     std::unique_ptr<InputInterface<double>[]> friction_velocities_;
+    std::unique_ptr<OutputInterface<double>[]> friction_working_velocity_outputs_;
 
     bool friction_enabled_ = false;
     bool friction_velocity_adjustment_enabled_ = false;
