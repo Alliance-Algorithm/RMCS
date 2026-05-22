@@ -160,7 +160,7 @@ public:
 private:
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
 
-    static constexpr double kEInitPitch = -0.39855;  // 单独 E 的初始角度
+    static constexpr double kEInitPitch = -0.498544; // -0.39855 单独 E 的初始角度
     static constexpr double kCtrlEInitPitch = -0.35; // Ctrl+E 的初始角度，自己改
     double encoder_init_pitch_ = kEInitPitch;
     InputInterface<Eigen::Vector2d> joystick_left_;

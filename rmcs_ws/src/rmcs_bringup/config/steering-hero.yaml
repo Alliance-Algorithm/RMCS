@@ -39,7 +39,7 @@ rmcs_executor:
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
 
-      - sp_vision_25::bridge::HeroAutoAimBridge -> hero_auto_aim_bridge 
+      # - sp_vision_25::bridge::HeroAutoAimBridge -> hero_auto_aim_bridge 
 
       # - rmcs_core::controller::identification::SweptFrequencyController -> pitch_swept_frequency_controller
       # - rmcs_core::controller::identification::StaticTorqueTestController -> pitch_static_torque_test_controller
@@ -103,28 +103,28 @@ value_broadcaster:
         - /gimbal/auto_aim/plan_yaw
         - /gimbal/auto_aim/plan_pitch
     
-
 climber_controller:
   ros__parameters:
-    front_climber_velocity: 25.0
-    back_climber_velocity: 25.0
-    auto_climb_support_retract_velocity: 15.00
-    auto_climb_approach_chassis_velocity: 2.5
+    front_climber_velocity: 20.0
+    back_climber_velocity: 30.0
+    auto_climb_support_retract_velocity_fast: 60.0
+    auto_climb_support_retract_velocity_slow: 20.0
+    auto_climb_approach_chassis_velocity: 2.0
     auto_climb_support_deploy_chassis_velocity: 0.3
-    auto_climb_support_retract_chassis_velocity: 0.5
-    auto_climb_dash_chassis_velocity: 5.0
+    auto_climb_support_retract_chassis_velocity: 0.3
+    auto_climb_dash_chassis_velocity: 3.0
     first_stair_dash_leveled_pitch_threshold: 0.05
-    second_stair_dash_leveled_pitch_threshold: 0.05
+    second_stair_dash_leveled_pitch_threshold: -0.09
     sync_coefficient: 0.2
-    first_stair_approach_pitch: 0.485
-    second_stair_approach_pitch: 0.35    
+    first_stair_approach_pitch: 0.517
+    second_stair_approach_pitch: 0.365    
     front_kp: 1.0
     front_ki: 0.0
     front_kd: 0.5
     front_power_estimate_bias: 0.0
     front_power_estimate_k_tau2: 1.0
     front_power_estimate_k_mech: 1.0
-    back_kp: 1.0
+    back_kp: 0.5
     back_ki: 0.0
     back_kd: 0.0
 
@@ -188,7 +188,7 @@ pitch_velocity_pid_controller:
     ki: 0.00
     kd: 0.0 #1.00
 
-gimbal_player_viewer_controller0:
+gimbal_player_viewer_controller:
   ros__parameters:
     upper_limit: 0.68
     lower_limit: 1.17
@@ -338,12 +338,12 @@ auto_aim_controller:
     raw_img_pub: false # Set false in actual use
     image_viewer_type: 2
 
-hero_auto_aim_bridge:                                                                                                 
-    ros__parameters:                                                                                                    
-      config_file: "configs/standard3.yaml"                                                                             
-      bullet_speed_fallback: 11.7                                                                                  
-      result_timeout: 0.1   # 0.08                                                                                     
-      debug: false
+# hero_auto_aim_bridge:                                                                                                 
+#     ros__parameters:                                                                                                    
+#       config_file: "configs/standard3.yaml"                                                                             
+#       bullet_speed_fallback: 11.7                                                                                  
+#       result_timeout: 0.1   # 0.08                                                                                     
+#       debug: false
 
 pitch_swept_frequency_controller:
   ros__parameters:

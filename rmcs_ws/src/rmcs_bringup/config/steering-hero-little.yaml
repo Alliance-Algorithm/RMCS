@@ -36,7 +36,7 @@ rmcs_executor:
       # - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
       # - rmcs_auto_aim::AutoAimController -> auto_aim_controller
 
-      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
 
       - sp_vision_25::bridge::HeroAutoAimBridge -> hero_auto_aim_bridge 
@@ -50,16 +50,16 @@ hero_hardware:
   ros__parameters:
     board_serial_top_board: "AF-BFF7-0B6F-46A5-2B4B-AA20-89C2-E180-64B9"
     serial_bottom_rmcs_board: "AF-60BB-7484-FA24-F3FC-399B-454D-22FA-1B1D"
-    bottom_yaw_motor_zero_point: 35111
+    bottom_yaw_motor_zero_point: 35307 #35111
     pitch_motor_zero_point: 57723
-    top_yaw_motor_zero_point: 48734
+    top_yaw_motor_zero_point: 48812 #48734
     viewer_motor_zero_point: 9363
     external_imu_port: /dev/ttyUSB0
     bullet_feeder_motor_zero_point: 60480 #39045
-    left_front_zero_point: 5782
-    right_front_zero_point: 3819
-    left_back_zero_point:  7841
-    right_back_zero_point: 1781
+    left_front_zero_point: 5813 #5782
+    right_front_zero_point: 3608 #3819
+    left_back_zero_point:  7703 #7841
+    right_back_zero_point: 1768 #1781
 
 value_broadcaster:
   ros__parameters:
@@ -116,23 +116,24 @@ climber_controller:
   ros__parameters:
     front_climber_velocity: 20.0
     back_climber_velocity: 30.0
-    auto_climb_support_retract_velocity: 50.0
+    auto_climb_support_retract_velocity_fast: 60.0
+    auto_climb_support_retract_velocity_slow: 20.0
     auto_climb_approach_chassis_velocity: 2.0
     auto_climb_support_deploy_chassis_velocity: 0.3
     auto_climb_support_retract_chassis_velocity: 0.3
     auto_climb_dash_chassis_velocity: 3.0
     first_stair_dash_leveled_pitch_threshold: 0.05
-    second_stair_dash_leveled_pitch_threshold: -0.10
+    second_stair_dash_leveled_pitch_threshold: -0.09
     sync_coefficient: 0.2
     first_stair_approach_pitch: 0.517
-    second_stair_approach_pitch: 0.355    
+    second_stair_approach_pitch: 0.365    
     front_kp: 1.0
     front_ki: 0.0
     front_kd: 0.5
     front_power_estimate_bias: 0.0
     front_power_estimate_k_tau2: 1.0
     front_power_estimate_k_mech: 1.0
-    back_kp: 1.0
+    back_kp: 0.5
     back_ki: 0.0
     back_kd: 0.0
 

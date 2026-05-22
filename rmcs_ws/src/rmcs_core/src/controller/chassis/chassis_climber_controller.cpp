@@ -46,8 +46,10 @@ public:
 
         track_velocity_max_ = get_parameter("front_climber_velocity").as_double();
         climber_back_control_velocity_abs_ = get_parameter("back_climber_velocity").as_double();
-        auto_climb_support_retract_velocity_abs_ =
-            get_parameter("auto_climb_support_retract_velocity").as_double();
+        auto_climb_support_retract_velocity_fast_abs_ =
+            get_parameter("auto_climb_support_retract_velocity_fast").as_double();
+        auto_climb_support_retract_velocity_slow_abs_ =
+            get_parameter("auto_climb_support_retract_velocity_slow").as_double();
         auto_climb_approach_chassis_velocity_ =
             get_parameter("auto_climb_approach_chassis_velocity").as_double();
         auto_climb_support_deploy_chassis_velocity_ =
@@ -112,6 +114,9 @@ public:
 
     void update() override {
         using namespace rmcs_msgs;
+        // RCLCPP_INFO(
+        //     logger_, "back_climber_torque : %d",
+        //     static_cast<int>(*climber_back_left_control_torque_));
 
         auto switch_right = *switch_right_;
         auto switch_left = *switch_left_;
@@ -297,8 +302,7 @@ private:
     AutoClimbControl update_manual_support_control(const rmcs_msgs::Keyboard& keyboard) {
         AutoClimbControl control;
 
-        if (keyboard.b || *rotary_knob_switch_ == rmcs_msgs::Switch::UP) {
-            stop_manual_support();
+        if (keyboard.b) {
             back_climber_zero_velocity_hold_ = false;
             control.back_climber_velocity = climber_back_control_velocity_abs_;
             return control;
@@ -314,7 +318,11 @@ private:
             return control;
         }
 
-        control.back_climber_velocity = -auto_climb_support_retract_velocity_abs_;
+        if (back_climber_recover_count > 1200) {
+            control.back_climber_velocity = -auto_climb_support_retract_velocity_slow_abs_;
+        } else {
+            control.back_climber_velocity = -auto_climb_support_retract_velocity_fast_abs_;
+        }
 
         if (is_back_climber_blocked())
             manual_support_retract_block_count_++;
@@ -462,7 +470,9 @@ private:
     AutoClimbControl update_auto_climb_support_retract() {
         AutoClimbControl control{
             .front_track_velocity = track_velocity_max_,
-            .back_climber_velocity = -auto_climb_support_retract_velocity_abs_,
+            .back_climber_velocity = back_climber_recover_count <= 1200
+                                       ? -auto_climb_support_retract_velocity_fast_abs_
+                                       : -auto_climb_support_retract_velocity_slow_abs_,
             .override_chassis_vx = auto_climb_support_retract_chassis_velocity_,
         };
 
@@ -500,6 +510,9 @@ private:
     void apply_climb_control(const AutoClimbControl& control) {
         *climbing_forward_velocity_ = control.override_chassis_vx;
         *auto_climb_active_ = auto_climb_state_ != AutoClimbState::IDLE;
+        if (back_climber_recover_count != 0) {
+            back_climber_recover_count--;
+        }
 
         dual_motor_sync_control(
             control.front_track_velocity, *climber_front_left_velocity_,
@@ -511,6 +524,16 @@ private:
             control.back_climber_velocity, *climber_back_left_velocity_,
             *climber_back_right_velocity_, back_velocity_pid_calculator_,
             *climber_back_left_control_torque_, *climber_back_right_control_torque_);
+
+        if (back_climber_recover_count > 1200) {
+            limit_back_climber_retract_torque(
+                control.back_climber_velocity, *climber_back_left_control_torque_,
+                *climber_back_right_control_torque_, back_climber_retract_first_torque_);
+        } else {
+            limit_back_climber_retract_torque(
+                control.back_climber_velocity, *climber_back_left_control_torque_,
+                *climber_back_right_control_torque_, back_climber_retract_second_torque_);
+        }
 
         *front_power_budget_active_ = is_front_power_budget_active();
         *front_power_demand_estimate_ = estimate_front_power(
@@ -535,11 +558,15 @@ private:
     }
 
     void stop_manual_support() {
+        back_climber_recover_count = 1500;
         manual_support_retracting_ = false;
         manual_support_retract_block_count_ = 0;
     }
 
     void start_back_climber_retract(const char* source) {
+        if (!back_climber_recover_count) {
+            back_climber_recover_count = 1500;
+        }
         manual_support_retracting_ = true;
         manual_support_retract_block_count_ = 0;
         back_climber_zero_velocity_hold_ = false;
@@ -597,6 +624,24 @@ private:
         right_torque_out = control_torques[1];
     }
 
+    void limit_back_climber_retract_torque(
+        double back_climber_velocity_setpoint, double& left_torque, double& right_torque,
+        double max_torque) const {
+
+        if (!std::isfinite(back_climber_velocity_setpoint) || back_climber_velocity_setpoint >= 0.0)
+            return;
+        if (!(max_torque > 0.0))
+            return;
+
+        const double peak = std::max(std::abs(left_torque), std::abs(right_torque));
+        if (peak <= max_torque)
+            return;
+
+        const double scale = max_torque / peak;
+        left_torque *= scale;
+        right_torque *= scale;
+    }
+
     rclcpp::Logger logger_;
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
     static constexpr double kAutoClimbAlignThreshold = 0.10;
@@ -617,7 +662,8 @@ private:
 
     double track_velocity_max_;
     double climber_back_control_velocity_abs_;
-    double auto_climb_support_retract_velocity_abs_;
+    double auto_climb_support_retract_velocity_fast_abs_;
+    double auto_climb_support_retract_velocity_slow_abs_;
     double auto_climb_approach_chassis_velocity_;
     double auto_climb_support_deploy_chassis_velocity_;
     double auto_climb_support_retract_chassis_velocity_;
@@ -668,6 +714,10 @@ private:
     pid::MatrixPidCalculator<2> front_velocity_pid_calculator_, back_velocity_pid_calculator_;
 
     std::shared_ptr<ChassisClimberFrontPowerLimiter> front_power_limiter_;
+
+    double back_climber_retract_first_torque_ = 8.0;
+    double back_climber_retract_second_torque_ = 0.5;
+    int back_climber_recover_count = 0;
 };
 } // namespace rmcs_core::controller::chassis
 
