@@ -152,7 +152,7 @@ private:
         if (!friction_velocity_adjustment_enabled_ || !keyboard.x)
             return;
 
-        friction_adjustable_velocity_ += mouse_wheel * 5.0 * 10;
+        friction_adjustable_velocity_ -= mouse_wheel * 5.0 * 10;
         friction_adjustable_velocity_ =
             std::clamp(friction_adjustable_velocity_, friction_velocity_min_, friction_velocity_max_);
 
