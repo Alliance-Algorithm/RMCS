@@ -14,7 +14,7 @@
 #include <rclcpp/rclcpp.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/board_clock.hpp>
-#include <rmcs_msgs/camera_frame.hpp>
+#include <rmcs_msgs/camera_frame_raw.hpp>
 #include <rmcs_utility/atomic_wait_timeout.hpp>
 #include <rmcs_utility/pooled_shared_factory.hpp>
 #include <rmcs_utility/ring_buffer.hpp>
@@ -49,7 +49,7 @@ public:
         sync_model_ = LinearSyncModel{rls_tau_sec_, residual_threshold_sec_};
 
         register_input("/gimbal/auto_aim/camera_signal", camera_signal_);
-        register_output("/gimbal/auto_aim/camera_frame", camera_frame_);
+        register_output("/gimbal/auto_aim/camera_frame_raw", camera_frame_);
         last_frame_time_.store(
             std::chrono::steady_clock::time_point::min(), std::memory_order::relaxed);
 
@@ -282,7 +282,7 @@ private:
 
         frame_owner->timestamp = rmcs_msgs::BoardClock::time_point{};
         std::memcpy(frame_owner->data.data(), frame.data.data(), kExpectedFrameSize);
-        const std::shared_ptr<const rmcs_msgs::CameraFrame> shared_frame = frame_owner;
+        const std::shared_ptr<const rmcs_msgs::CameraFrameRaw> shared_frame = frame_owner;
 
         if (!unmatched_image_buffer_.emplace_back_n(
                 [&](std::byte* storage) noexcept {
@@ -578,7 +578,7 @@ private:
         event_count_.notify_one();
     }
 
-    using CameraFrame = rmcs_msgs::CameraFrame;
+    using CameraFrame = rmcs_msgs::CameraFrameRaw;
     using SharedCameraFrame = std::shared_ptr<const CameraFrame>;
 
     rmcs_utility::PooledSharedFactory<CameraFrame> frame_factory_{100};

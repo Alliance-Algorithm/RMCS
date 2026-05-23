@@ -10,7 +10,7 @@
 
 namespace rmcs_msgs {
 
-struct CameraFrame {
+struct CameraFrameRaw {
     static constexpr std::uint32_t kWidth = 1440;
     static constexpr std::uint32_t kHeight = 1080;
     static constexpr std::size_t kFrameSize =
