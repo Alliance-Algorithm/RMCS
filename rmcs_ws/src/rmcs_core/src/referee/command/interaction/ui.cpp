@@ -87,6 +87,10 @@ private:
     }
 
     size_t write_updating_field(std::byte* buffer) const {
+        if (auto written = write_updating_text_field(buffer); written != 0) {
+            return written;
+        }
+
         size_t written = 0;
 
         auto& header = *new (buffer + written) Header{};
@@ -98,15 +102,9 @@ private:
         int slot = 0;
         intptr_t updated[7];
         for (auto it = CfsScheduler<Shape>::get_update_iterator(); it && slot < 7;) {
-            // Ignore text shape unless it is the first.
             if (it->is_text_shape()) {
-                if (slot == 0) {
-                    header.command_id = 0x0110; // Draw text shape
-                    return written + it.update().write(buffer + written);
-                } else {
-                    it.ignore();
-                    continue;
-                }
+                it.ignore();
+                continue;
             }
 
             auto operation = it->predict_update();
@@ -146,6 +144,28 @@ private:
         }
 
         return written;
+    }
+
+    size_t write_updating_text_field(std::byte* buffer) const {
+        size_t written = 0;
+
+        auto& header       = *new (buffer + written) Header{};
+        auto full_robot_id = rmcs_msgs::FullRobotId { *robot_id_ };
+        header.command_id  = 0x0110; // Draw text shape
+        header.sender_id   = full_robot_id;
+        header.receiver_id = full_robot_id.client();
+        written += sizeof(Header);
+
+        for (auto it = CfsScheduler<Shape>::get_update_iterator(); it;) {
+            if (!it->is_text_shape()) {
+                it.ignore();
+                continue;
+            }
+
+            return written + it.update().write(buffer + written);
+        }
+
+        return 0;
     }
 
     InputInterface<rmcs_msgs::RobotId> robot_id_;
