@@ -246,10 +246,10 @@ public:
     }
 
     void update_supercap(double value, bool enable) {
-        auto angle = 275 + calculate_angle(value, 10.5, supercap_limit_) + 1;
+        auto angle = 275 + calculate_angle(value, 8.5, supercap_limit_) + 1;
         supercap_status_.set_angle_end(static_cast<uint16_t>(angle));
 
-        if (value > 22.6) {
+        if (value > 20.0) {
             supercap_status_.set_color(enable ? Shape::Color::CYAN : Shape::Color::GREEN);
         } else if (value > 13.5) {
             supercap_status_.set_color(enable ? Shape::Color::YELLOW : Shape::Color::ORANGE);
