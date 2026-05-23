@@ -24,11 +24,11 @@
 
 namespace auto_aim_test {
 
-class AutoAimTestComponent final
+class Capturer final
     : public rmcs_executor::Component
     , public rclcpp::Node {
 public:
-    AutoAimTestComponent()
+    Capturer()
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
@@ -56,7 +56,7 @@ public:
         RCLCPP_INFO(get_logger(), "auto_aim_test component constructed");
     }
 
-    ~AutoAimTestComponent() override {
+    ~Capturer() override {
         stopped_.test_and_set(std::memory_order::relaxed);
         notify_event();
         if (worker_.joinable())
@@ -68,7 +68,7 @@ public:
 
     void before_updating() override {
         if (!worker_.joinable())
-            worker_ = std::thread(&AutoAimTestComponent::worker_main, this);
+            worker_ = std::thread(&Capturer::worker_main, this);
     }
 
     void update() override {}
@@ -623,4 +623,4 @@ private:
 
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(auto_aim_test::AutoAimTestComponent, rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(auto_aim_test::Capturer, rmcs_executor::Component)

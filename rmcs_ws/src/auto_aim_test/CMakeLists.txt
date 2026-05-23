@@ -35,22 +35,20 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(librmcs)
 
+file(GLOB_RECURSE PROJECT_SOURCE CONFIGURE_DEPENDS
+  ${PROJECT_SOURCE_DIR}/src/*.cpp
+  ${PROJECT_SOURCE_DIR}/src/*.c
+)
+
 ament_auto_add_library(
   ${PROJECT_NAME}_component SHARED
-  src/component.cpp
+  ${PROJECT_SOURCE}
 )
 
 target_include_directories(
   ${PROJECT_NAME}_component
   SYSTEM PRIVATE
   ${OpenCV_INCLUDE_DIRS}
-)
-
-target_include_directories(
-  ${PROJECT_NAME}_component
-  PRIVATE
-  ${LIBRMCS_DEV10_ROOT}/core/include
-  ${LIBRMCS_DEV10_ROOT}/host/include
 )
 
 target_link_libraries(
