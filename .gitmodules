@@ -13,3 +13,6 @@
 [submodule "rmcs_ws/src/awakening"]
 	path = rmcs_ws/src/awakening
 	url = https://github.com/WUST-RM/awakening.git
+[submodule "rmcs_ws/src/rm_vision_core"]
+	path = rmcs_ws/src/rm_vision_core
+	url = https://github.com/scutrobotlab/rm_vision_core.git

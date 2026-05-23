@@ -11,12 +11,12 @@
 #include <thread>
 #include <vector>
 
-#include <eigen3/Eigen/Dense>
 #include <rclcpp/rclcpp.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/board_clock.hpp>
+#include <rmcs_msgs/camera_frame.hpp>
 #include <rmcs_utility/atomic_wait_timeout.hpp>
-#include <rmcs_utility/memory_pool.hpp>
+#include <rmcs_utility/pooled_shared_factory.hpp>
 #include <rmcs_utility/ring_buffer.hpp>
 
 #include "hikcamera.hpp"
@@ -30,12 +30,11 @@ class AutoAimTestComponent final
 public:
     AutoAimTestComponent()
         : Node(
-          get_component_name(),
-          rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , camera_signal_([
-          this](const rmcs_msgs::BoardClock::time_point& timestamp) {
-              signal_callback(timestamp);
-          }) {
+              get_component_name(),
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
+        , camera_signal_([this](const rmcs_msgs::BoardClock::time_point& timestamp) {
+            signal_callback(timestamp);
+        }) {
         camera_config_ = Hikcamera::CameraConfig::cs016_default();
         camera_config_.exposure_us =
             static_cast<float>(declare_parameter<double>("exposure_us", 2000.0));
@@ -50,6 +49,7 @@ public:
         sync_model_ = LinearSyncModel{rls_tau_sec_, residual_threshold_sec_};
 
         register_input("/gimbal/auto_aim/camera_signal", camera_signal_);
+        register_output("/gimbal/auto_aim/camera_frame", camera_frame_);
         last_frame_time_.store(
             std::chrono::steady_clock::time_point::min(), std::memory_order::relaxed);
 
@@ -63,8 +63,7 @@ public:
             worker_.join();
 
         camera_.reset();
-        unmatched_image_buffer_.pop_front_n(
-            [this](UnmatchedImage&& image) noexcept { release_frame(std::launder(image.frame)); });
+        unmatched_image_buffer_.clear();
     }
 
     void before_updating() override {
@@ -126,8 +125,7 @@ private:
 
     void clear_pending_data() {
         unmatched_signal_buffer_.clear();
-        unmatched_image_buffer_.pop_front_n(
-            [this](UnmatchedImage&& image) noexcept { release_frame(image.frame); });
+        unmatched_image_buffer_.clear();
     }
 
     void set_transport_state(const CameraTransportState new_state, const char* reason) {
@@ -273,28 +271,24 @@ private:
             return;
         }
 
-        void* pub_frame_ptr;
-        {
-            auto guard = std::scoped_lock{frame_pool_mutex_};
-            pub_frame_ptr = frame_pool_.allocate();
-        }
-        if (!pub_frame_ptr) {
+        auto frame_owner = frame_factory_.try_make();
+        if (!frame_owner) {
             RCLCPP_WARN_THROTTLE(
                 get_logger(), *get_clock(), 1000,
                 "Dropping frame #%u: frame pool exhausted (capacity=%zu)", frame.frame_id,
-                frame_pool_.max_size());
+                frame_factory_.max_size());
             return;
         }
 
+        frame_owner->timestamp = rmcs_msgs::BoardClock::time_point{};
+        std::memcpy(frame_owner->data.data(), frame.data.data(), kExpectedFrameSize);
+        const std::shared_ptr<const rmcs_msgs::CameraFrame> shared_frame = frame_owner;
+
         if (!unmatched_image_buffer_.emplace_back_n(
                 [&](std::byte* storage) noexcept {
-                    auto pub_frame = new (pub_frame_ptr) PublishFrame{};
-                    std::memcpy(pub_frame->data, frame.data.data(), kExpectedFrameSize);
-                    new (storage) UnmatchedImage{pub_frame, frame.frame_id, frame.timestamp};
+                    new (storage) UnmatchedImage{shared_frame, frame.frame_id, frame.timestamp};
                 },
                 1)) {
-            auto guard = std::scoped_lock{frame_pool_mutex_};
-            frame_pool_.free(pub_frame_ptr);
             RCLCPP_WARN_THROTTLE(
                 get_logger(), *get_clock(), 1000,
                 "Dropping frame #%u: unmatched image buffer full (capacity=%zu)", frame.frame_id,
@@ -302,6 +296,7 @@ private:
             return;
         }
 
+        camera_frame_.emit(shared_frame);
         notify_event();
     }
 
@@ -572,8 +567,6 @@ private:
                         .count();
 
                 // Process Image ...
-
-                release_frame(image.frame);
             }))
             std::terminate();
 
@@ -585,33 +578,17 @@ private:
         event_count_.notify_one();
     }
 
-    struct PublishFrame;
+    using CameraFrame = rmcs_msgs::CameraFrame;
+    using SharedCameraFrame = std::shared_ptr<const CameraFrame>;
 
-    void release_frame(PublishFrame* frame) {
-        std::destroy_at(frame);
-        auto guard = std::scoped_lock{frame_pool_mutex_};
-        frame_pool_.free(frame);
-    }
-
-    struct PublishFrame {
-        [[maybe_unused]] static constexpr std::uint32_t kWidth = Hikcamera::Cs016FrameWidth;
-        [[maybe_unused]] static constexpr std::uint32_t kHeight = Hikcamera::Cs016FrameHeight;
-        [[maybe_unused]] static constexpr std::size_t kFrameSize = kExpectedFrameSize;
-
-        alignas(std::uintptr_t) std::byte data[kExpectedFrameSize];
-        int opencv_cvt_color_code;
-
-        Eigen::Quaterniond imu_snapshot;
-        rmcs_msgs::BoardClock::time_point timestamp;
-    };
-    rmcs_utility::MemoryPool<sizeof(PublishFrame), alignof(PublishFrame)> frame_pool_{100};
-    std::mutex frame_pool_mutex_;
+    rmcs_utility::PooledSharedFactory<CameraFrame> frame_factory_{100};
 
     rmcs_utility::RingBuffer<rmcs_msgs::BoardClock::time_point> unmatched_signal_buffer_{32};
     EventInputInterface<rmcs_msgs::BoardClock::time_point> camera_signal_;
+    EventOutputInterface<SharedCameraFrame> camera_frame_;
 
     struct UnmatchedImage {
-        PublishFrame* frame;
+        SharedCameraFrame frame;
         std::uint32_t frame_id;
         Hikcamera::HikDeviceClock::time_point timestamp;
     };

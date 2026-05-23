@@ -10,6 +10,7 @@
 #endif
 
 #include "board_clock.hpp"
+#include "camera_frame.hpp"
 #include "chassis_mode.hpp"
 #include "full_robot_id.hpp"
 #include "game_stage.hpp"
