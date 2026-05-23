@@ -181,6 +181,8 @@ protected:
         enter_run_queue();
     }
 
+    void set_text_shape() { is_text_shape_ = true; }
+
     virtual size_t write_description_field(std::byte* buffer) = 0;
 
     DescriptionField::Part2 part2_ alignas(4);
@@ -714,7 +716,10 @@ protected:
 
 class Text : public Shape {
 public:
-    Text() { value_ = nullptr; };
+    Text() {
+        value_ = nullptr;
+        set_text_shape();
+    };
     Text(
         Color color, uint16_t font_size, uint16_t width, uint16_t x, uint16_t y, const char* value,
         bool visible = true)
