@@ -246,7 +246,7 @@ public:
     }
 
     void update_supercap(double value, bool enable) {
-        auto angle = 275 + calculate_angle(value, 8.5, supercap_limit_) + 1;
+        auto angle = 275 + calculate_angle(value, 8.0, supercap_limit_) + 1;
         supercap_status_.set_angle_end(static_cast<uint16_t>(angle));
 
         if (value > 20.0) {
