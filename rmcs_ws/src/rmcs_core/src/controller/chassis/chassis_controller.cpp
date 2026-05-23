@@ -42,11 +42,14 @@ public:
         register_input("/chassis/big_yaw/angle", chassis_big_yaw_angle_);
         register_output("/chassis/control_power_limit", chassis_control_power_limit_, 120.0);
         register_output("/chassis/control_velocity", chassis_control_velocity_);
+        register_output("/chassis/expected_control_velocity", expected_chassis_control_velocity_);
 
+        register_input("/leg_back/up_stairs_step", up_stairs_step_);
         register_output("/move_speed_limit", speed_limit_, 3.0);
     }
     void update() override {
         using namespace rmcs_msgs;
+        //  RCLCPP_INFO(this->get_logger(), "%s", up_stairs_step_->c_str());
 
         static bool initial_check_done_ = false;
 
@@ -104,7 +107,6 @@ public:
         }
         default: break;
         }
-
         if (chassis_mode_ != rmcs_msgs::ChassisMode::None) {
             auto move = *joystick_left_;
 
@@ -112,12 +114,17 @@ public:
             move = rotation * (*joystick_left_);
             if (is_stair_mode()) {
                 move.y() = 0.0;
+                if ((*up_stairs_step_) == "press") {
+                    move.x() = 0.8;
+                }
             }
             chassis_control_velocity_->vector << (move * *speed_limit_), angular_velocity;
+            expected_chassis_control_velocity_->vector << ( rotation * (*joystick_left_) * *speed_limit_), angular_velocity;
         } else {
             chassis_control_velocity_->vector << NAN, NAN, NAN;
+            expected_chassis_control_velocity_->vector << NAN, NAN, NAN;
+
         }
-       
 
         *chassis_big_yaw_target_angle_error_ =
             normalize_angle(yaw_target_angle_ - get_yaw_feedback());
@@ -207,7 +214,7 @@ private:
         switch (gear) {
         case SpeedGear::Medium: *speed_limit_ = 2.0; break;
         case SpeedGear::Low: *speed_limit_ = 0.8; break;
-        case SpeedGear::Stairs: *speed_limit_ = 1.5; break;
+        case SpeedGear::Stairs: *speed_limit_ = 1.8; break;
         case SpeedGear::High:
         default: *speed_limit_ = 3.0; break;
         }
@@ -258,6 +265,8 @@ private:
     rmcs_msgs::ChassisMode chassis_mode_ = rmcs_msgs::ChassisMode::None;
 
     OutputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;
+
+    OutputInterface<rmcs_description::BaseLink::DirectionVector> expected_chassis_control_velocity_;
     InputInterface<double> chassis_power_;
     OutputInterface<double> chassis_control_power_limit_;
     OutputInterface<double> speed_limit_;
@@ -274,6 +283,8 @@ private:
     InputInterface<double> yaw_imu_angle_;
     InputInterface<double> chassis_big_yaw_angle_;
     OutputInterface<double> chassis_big_yaw_target_angle_error_;
+    InputInterface<std::string> up_stairs_step_;
+
     double yaw_target_angle_ = NAN;
 };
 } // namespace rmcs_core::controller::chassis

@@ -56,7 +56,7 @@ engineer_hardware:
     leg_lb_ecd_zero_point: 153149
     leg_rb_ecd_zero_point: 220758
     leg_rf_ecd_zero_point: 119271
-    big_yaw_zero_point: 8438
+    big_yaw_zero_point: 8666
 
 image_transmission:
   ros__parameters:
@@ -65,7 +65,28 @@ image_transmission:
 arm_controller:
   ros__parameters:
     auto_walk_joint_target: [0.0, 1.23, -1.36, 0.0, 0.63, 0.0]
-    auto_upstairs_joint_target: [0.0, 0.72, -0.74, 0.0, 0.27, 0.0]
+    up_one_stairs:
+      order: [initial]
+      params:
+        initial:
+          target_joint: [0.0, 0.25, -0.55, 0.0, 0.27, 0.0]
+          velocity_scaling: 0.03
+          acceleration_scaling: 0.03
+    up_two_stairs:
+      order: [initial, initial_again,lift_again]
+      params:
+        initial:
+          target_joint: [0.0, 0.25, -0.55, 0.0, 0.27, 0.0]
+          velocity_scaling: 0.05
+          acceleration_scaling: 0.03
+        initial_again:
+          target_joint: [0.0, 1.23, -1.36, 0.0, 0.63, 0.0]
+          velocity_scaling: 0.06
+          acceleration_scaling: 0.04
+        lift_again:
+          target_joint: [0.0, 1.0, -1.0, 0.0, 0.27, 0.0]
+          velocity_scaling: 0.03
+          acceleration_scaling: 0.03
     auto_storage_lb:
       threshold: [0.15,0.08,0.32,0.5]
       params:
@@ -176,6 +197,7 @@ arm_controller:
           acceleration_scaling: 0.03
     image_pitch_qmin: -0.7
     image_pitch_qmax: 2.2
+    initial_delay_time: 1000
 
 arm_solver:
   ros__parameters:
@@ -186,20 +208,22 @@ leg_controller:
     forward_x_position_in_FourWheel: 238.0
     forward_x_position_in_SixWheel: 250.0
     backward_x_position_in_SixWheel: 221.0
-    tof_b: 0.53
+    tof_b: 0.51
     up_one_stairs:
       params:
         initial: [1.600270, 1.550, 0.0, 2000.0]
-        press: [0.872736, 0.343103, -600.0, 550.0]
+        press: [0.972736, 0.493103, -600.0, 250.0]
+        wait : [0.972736,0.493103, 0.0, 300.0]
         lift: [1.016670, 1.150821, -600.0, 50.0]
     up_two_stairs:
       params:
         initial: [1.600270, 1.550, 0.0, 2000.0]
-        press: [0.872736, 0.343103, -600.0, 550.0]
-        lift: [1.016670, 1.150821, -600.0, 50.0]
+        press: [0.972736, 0.493103, -600.0, 250.0]
+        wait : [0.972736,0.493103, 0.0, 300.0]
+        lift: [1.016670, 1.150821, -400.0, 30.0]
         # lift_and_initial: [1.400270, 1.410, -100.0, 1000.0]
-        initial_again: [1.600270, 1.550, -300.0, 200.0]
-        press_again: [0.802736, 0.693103, -200.0, 300.0]
+        initial_again: [1.600270, 1.550, -300.0, 300.0]
+        press_again: [0.802736, 0.693103, -500.0, 300.0]
         lift_again: [0.956670, 1.350821, -200.0, 50.0]
 
 

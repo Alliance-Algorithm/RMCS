@@ -185,7 +185,7 @@ public:
         component.register_input("/leg/encoder/lb/angle", theta_lb_);
         component.register_input("/leg/encoder/rb/angle", theta_rb_);
         component.register_input("/leg/encoder/rf/angle", theta_rf_);
-        component.register_input("/chassis/control_velocity", speed_);
+        component.register_input("/chassis/expected_control_velocity", speed_);
         plan_.clear();
         layers_.clear();
         plan_.assign(layer_ids.begin(), layer_ids.end());

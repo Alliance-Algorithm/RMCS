@@ -82,10 +82,7 @@ public:
 
     std::optional<LayerId> current_layer_id() const {
         if (status_ == RunnerStatus::Completed) {
-            if (plan_.empty()) {
-                return std::nullopt;
-            }
-            return plan_.back();
+            return std::nullopt;
         }
         if (status_ == RunnerStatus::Paused) {
             if (pending_boundary_index_ && *pending_boundary_index_ > 0

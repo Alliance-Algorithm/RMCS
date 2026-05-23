@@ -36,6 +36,7 @@ public:
               rclcpp::NodeOptions{
     }
                   .automatically_declare_parameters_from_overrides(true))
+        , leg_back_command_(create_partner_component<LegBackCommand>("leg_back_command", *this))
         , forward_x_position_in_FourWheel_(
               get_parameter("forward_x_position_in_FourWheel").as_double())
         , forward_x_position_in_SixWheel_(
@@ -47,7 +48,7 @@ public:
         , lf_velocity_pid_controller_(0.8, 0.0, 0.001)
         , rf_velocity_pid_controller_(1.0, 0.0, 0.001)
         , up_stairs{
-              {*this, "up_one_stairs", {"initial", "press", "lift"}},
+              {*this, "up_one_stairs", {"initial", "press", "wait", "lift"}},
               {*this,
                "up_two_stairs",
                {"initial", "press", "lift", "initial_again", "press_again", "lift_again"}}} {
@@ -56,8 +57,8 @@ public:
         register_input("/remote/joystick/left", joystick_left_);
         register_input("/remote/switch/right", switch_right_);
         register_input("/remote/switch/left", switch_left_);
-        register_input("/remote/mouse/velocity", mouse_velocity_); //
-        register_input("/remote/mouse", mouse_);                   //
+        register_input("/remote/mouse/velocity", mouse_velocity_);
+        register_input("/remote/mouse", mouse_);
         register_input("/remote/keyboard", keyboard_);
 
         register_input("/chassis/control_velocity", chassis_velocity_);
@@ -252,7 +253,7 @@ private:
 
             } else if (leg_mode == rmcs_msgs::LegMode::Down_Stairs) {
                 down_stairs_front_legs_released_ = false;
-                first_into_downstairs                             = true;
+                first_into_downstairs            = true;
 
                 reset_down_stairs_trajectory_from_current_pose();
             }
@@ -292,7 +293,6 @@ private:
         }
     }
 
-
     void execute_down_stairs() {
         if (first_into_downstairs && !down_stairs_trajectory.get_complete()) {
             const auto joints = down_stairs_trajectory.trajectory();
@@ -320,16 +320,20 @@ private:
 
     void omniwheel_control() {
         Eigen::Rotation2D<double> rotation(*chassis_big_yaw_angle + *joint1_theta);
-        if (leg_mode != rmcs_msgs::LegMode::Four_Wheel) {
+
+        if (leg_mode == rmcs_msgs::LegMode::Four_Wheel
+            || up_stairs[0].get_current_layer_id() == "press"
+            || up_stairs[1].get_current_layer_id() == "press"
+            || up_stairs[1].get_current_layer_id() == "press_again") {
+
+            *omni_l_target_vel = NAN;
+            *omni_r_target_vel = NAN;
+        } else {
             Eigen::Vector2d velocity_xy((*chassis_velocity_)->x(), (*chassis_velocity_)->y());
             Eigen::Vector2d rotated_velocity = velocity_xy;
 
             *omni_l_target_vel = rotated_velocity.x() / wheel_r;
             *omni_r_target_vel = rotated_velocity.x() / wheel_r;
-
-        } else {
-            *omni_l_target_vel = NAN;
-            *omni_r_target_vel = NAN;
         }
     }
     void set_leg_joint_theta(double lf, double lb, double rb, double rf) {
@@ -426,6 +430,28 @@ private:
         return angle < 0 ? angle + M_PI : angle - M_PI;
     }
 
+    class LegBackCommand : public rmcs_executor::Component {
+    public:
+        explicit LegBackCommand(LegController& leg_controller)
+            : leg_controller_(leg_controller) {
+            register_output("/leg_back/up_stairs_step", up_stairs_layer, std::string{"none"});
+        }
+        void update() override {
+            if (leg_controller_.leg_mode == rmcs_msgs::LegMode::Up_One_Stairs) {
+                const auto current = leg_controller_.up_stairs[0].get_current_layer_id();
+                *up_stairs_layer   = current.value_or("none");
+            }
+            if (leg_controller_.leg_mode == rmcs_msgs::LegMode::Up_Two_Stairs) {
+                const auto current = leg_controller_.up_stairs[1].get_current_layer_id();
+                *up_stairs_layer   = current.value_or("none");
+            }
+        }
+
+    private:
+        LegController& leg_controller_;
+        OutputInterface<std::string> up_stairs_layer;
+    };
+    std::shared_ptr<LegBackCommand> leg_back_command_;
     const double forward_x_position_in_FourWheel_;
     const double forward_x_position_in_SixWheel_;
     const double backward_x_position_in_SixWheel_;
@@ -481,11 +507,13 @@ private:
     InputInterface<double> pitch_imu_angle_;
     InputInterface<double> roll_imu_velocity_;
     InputInterface<double> roll_imu_angle_;
+
     pid::PidCalculator lf_angle_pid_controller_;
     pid::PidCalculator rf_angle_pid_controller_;
     pid::PidCalculator lf_velocity_pid_controller_;
     pid::PidCalculator rf_velocity_pid_controller_;
     OutputInterface<double> pitch_imu_angle_offsetted_;
+
     double pitch_imu_angle_offset_value_{NAN};
 
     bool down_stairs_front_legs_released_{false};

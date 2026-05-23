@@ -1,0 +1,18 @@
+1779439837.5112028 [INFO] [launch]: All log files can be found below /root/.ros/log/2026-05-22-08-50-37-510036-alliance-29
+1779439837.5113170 [INFO] [launch]: Default logging verbosity is set to INFO
+1779439837.5377488 [INFO] [launch.user]: Starting RMCS on robot 'engineer' -> engineer.yaml
+1779439837.6638398 [INFO] [rmcs_executor-1]: process started with pid [49]
+1779439837.6639330 [INFO] [static_transform_publisher-2]: process started with pid [50]
+1779439837.6639729 [INFO] [robot_state_publisher-3]: process started with pid [51]
+1779439837.6640010 [INFO] [move_group-4]: process started with pid [52]
+1779439837.7011302 [static_transform_publisher-2] [33m[WARN] [1779439837.700885260] []: Old-style arguments are deprecated; see --help for new-style arguments[0m
+1779439837.7442362 [static_transform_publisher-2] [0m[INFO] [1779439837.743971770] [static_transform_publisher]: Spinning until stopped - publishing transform
+1779439837.7443511 [static_transform_publisher-2] translation: ('0.000000', '0.000000', '0.000000')
+1779439837.7443869 [static_transform_publisher-2] rotation: ('0.000000', '0.000000', '0.000000', '1.000000')
+1779439837.7444119 [static_transform_publisher-2] from 'world' to 'base_link'[0m
+1779439837.7530382 [robot_state_publisher-3] [0m[INFO] [1779439837.752819361] [robot_state_publisher]: Robot initialized[0m
+1779440270.0625050 [ERROR] [rmcs_executor-1]: process has died [pid 49, exit code -6, cmd '/rmcs_install/lib/rmcs_executor/rmcs_executor --ros-args --params-file /rmcs_install/share/rmcs_bringup/config/engineer.yaml'].
+1779440271.0669138 [INFO] [rmcs_executor-1]: process started with pid [207]
+1779440823.9632001 [ERROR] [rmcs_executor-1]: process has died [pid 207, exit code -6, cmd '/rmcs_install/lib/rmcs_executor/rmcs_executor --ros-args --params-file /rmcs_install/share/rmcs_bringup/config/engineer.yaml'].
+1779440824.9667642 [INFO] [rmcs_executor-1]: process started with pid [279]
+

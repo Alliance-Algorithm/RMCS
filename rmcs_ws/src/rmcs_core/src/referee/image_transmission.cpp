@@ -1,16 +1,11 @@
 #include <eigen3/Eigen/Eigen>
-#include "rmcs_msgs/keyboard.hpp"
-#include "rmcs_msgs/mouse.hpp"
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 
 #include <rmcs_executor/component.hpp>
-#include <rmcs_msgs/game_stage.hpp>
-#include <rmcs_msgs/robot_id.hpp>
 #include <rmcs_utility/crc/dji_crc.hpp>
 #include <rmcs_utility/package_receive.hpp>
 #include <rmcs_utility/tick_timer.hpp>
-#include <rmcs_msgs/serial_interface.hpp>
 
 #include "referee/frame.hpp"
 
@@ -39,13 +34,10 @@ public:
         register_output("/referee/image_transmission/serial", serial_, path, 921600, serial::Timeout::simpleTimeout(0));
 
         register_output("/referee/image_transmission/custom", custom_data_ );
-        register_output("/referee/image_transmission/controller_keyboard", controller_keyboard_, rmcs_msgs::Keyboard::zero());
-        register_output("/referee/image_transmission/controller_mouse", controller_mouse_, rmcs_msgs::Mouse::zero());
 
         std::fill((*custom_data_).begin(), (*custom_data_).end(), 0);
         
         custom_watchdog_.reset(5'000);
-        controller_watchdog_.reset(5'000);
     }
 
     void update() override {
@@ -89,11 +81,6 @@ public:
             RCLCPP_WARN(logger_, "Vision custom data receiving timeout. Set data to zero.");
             std::fill((*custom_data_).begin(), (*custom_data_).end(), 0);
         }
-        if (controller_watchdog_.tick()) {
-            RCLCPP_WARN(logger_, "Vision controller data receiving timeout. Set data to zero.");
-            *controller_keyboard_ = rmcs_msgs::Keyboard::zero();
-            *controller_mouse_ = rmcs_msgs::Mouse::zero();
-        }
     }
 
 private:
@@ -103,8 +90,6 @@ private:
         if (command_id == 0x0302)
         // RCLCPP_INFO(logger_, "Receiving cmannd_id %04x.", command_id);
             update_custom_data();
-        if (command_id == 0x0304)
-            update_controller_data();
     }
 
     void update_custom_data() {
@@ -113,28 +98,10 @@ private:
             reinterpret_cast<const uint8_t*>(frame_.body.data) + frame_.header.data_length,
             (*custom_data_).begin()
         );
-        // RCLCPP_INFO(this->get_logger(),"%d",frame_.header.data_length);
-        // auto custom_data = *custom_data_;
-        // std::ostringstream oss;
-        // oss << std::hex << std::setfill('0'); // 设置十六进制和补零格式
-        // for (size_t i = 0; i < custom_data.size(); ++i) {
-        //     // 将每个字节转为两位十六进制，并添加空格（最后一个不加）
-        //     oss << std::setw(2) << static_cast<int>(custom_data[i]);
-        //     if (i != custom_data.size() - 1) {
-        //         oss << " ";
-        //     }
-        // }
-        // std::string hex_str = oss.str();
-        // RCLCPP_INFO(get_logger(), "%s", hex_str.c_str());
+       
         custom_watchdog_.reset(500);
     }
 
-    void update_controller_data() {
-        controller_watchdog_.reset(500);
-
-        // TODO
-        // auto data = frame_.body.data;
-    }
     rclcpp::Logger logger_;
 
     OutputInterface<serial::Serial> serial_;
@@ -145,9 +112,6 @@ private:
     rmcs_utility::TickTimer custom_watchdog_;
     OutputInterface<std::array<uint8_t, 30>> custom_data_;
 
-    rmcs_utility::TickTimer controller_watchdog_;
-    OutputInterface<rmcs_msgs::Keyboard> controller_keyboard_;
-    OutputInterface<rmcs_msgs::Mouse> controller_mouse_;
 };
 
 } // namespace rmcs_core::referee

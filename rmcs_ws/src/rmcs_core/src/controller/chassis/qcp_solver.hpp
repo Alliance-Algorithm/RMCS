@@ -224,7 +224,7 @@ private:
 
         bool is_in_quadratic_constraint[20];
         if (sizeof(is_in_quadratic_constraint) < linear_constraint.size()) [[unlikely]]
-            std::terminate();    // TODO: Remove this
+            // std::terminate();    // TODO: Remove this
         for (size_t i = 0; i < linear_constraint.size(); i++)
             is_in_quadratic_constraint[i] =
                 is_point_inside_quadratic_constraint(linear_constraint[i], quadratic_constraint);

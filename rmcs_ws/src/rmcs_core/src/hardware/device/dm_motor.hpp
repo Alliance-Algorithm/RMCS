@@ -113,8 +113,8 @@ public:
         uint8_t rx_buff[8];
         auto packet = can_result_.load(std::memory_order_relaxed);
         std::memcpy(rx_buff, packet.as_bytes().data(), sizeof(rx_buff));
-        *id            = (rx_buff[0]) & 0xff;
-        *state         = (rx_buff[0]) >> 4;
+        id             = (rx_buff[0]) & 0xff;
+        state          = (rx_buff[0]) >> 4;
         uint16_t p_int = (rx_buff[1] << 8) | rx_buff[2];
         uint16_t v_int = (rx_buff[3] << 4) | (rx_buff[4] >> 4);
         uint16_t t_int = ((rx_buff[4] & 0xF) << 8) | rx_buff[5];
@@ -130,8 +130,8 @@ public:
         *velocity_ = uint_to_double(v_int, -VMAX, VMAX, 12);
         *torque_   = uint_to_double(t_int, -TMAX, TMAX, 12);
 
-        *T_mos  = (double)(rx_buff[6]);
-        *T_coil = (double)(rx_buff[7]);
+        T_mos  = (double)(rx_buff[6]);
+        T_coil = (double)(rx_buff[7]);
     }
 
     CanPacket8 generate_torque_command() {
@@ -154,12 +154,12 @@ public:
     static CanPacket8 dm_clear_error_command() {
         return CanPacket8{std::bit_cast<uint64_t>(DM_CLEAR_ERROR)};
     }
-    int get_raw_angle() { return  raw_angle_;}
+    int get_raw_angle() const { return raw_angle_; }
     double get_angle() { return *angle_; }
     double get_velocity() { return *velocity_; }
     double get_torque() { return *torque_; }
-    double get_state() { return *state; }
-    double get_T_coil() { return *T_coil; }
+    double get_state() const { return state; }
+    double get_T_coil() const { return T_coil; }
 
 private:
     std::atomic<CanPacket8> can_result_{CanPacket8{uint64_t{0}}};
@@ -194,13 +194,13 @@ private:
     static constexpr uint8_t DM_CLEAR_ERROR[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFB};
 
     static constexpr uint16_t raw_angle_max_ = 65535;
-    Component::OutputInterface<uint8_t> id;
-    Component::OutputInterface<uint8_t> state;
+    uint8_t id;
+    uint8_t state;
     Component::OutputInterface<double> angle_;
     Component::OutputInterface<double> velocity_;
     Component::OutputInterface<double> torque_;
-    Component::OutputInterface<double> T_mos;
-    Component::OutputInterface<double> T_coil;
+    double T_mos;
+    double T_coil;
 
     Component::OutputInterface<DMMotor*> motor_;
 

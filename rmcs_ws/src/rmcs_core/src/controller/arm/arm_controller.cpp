@@ -96,14 +96,13 @@ public:
         register_input("/guard/motor/angle", guard_angle_, NAN);
         register_input("/guard/motor/velocity", guard_velocity_, NAN);
         register_input("/guard/motor/torque", guard_torque_, NAN);
-        register_output("/guard/target_theta", guard_target_theta, NAN);
 
-        register_output("/left/relay", left_relay_mode_, rmcs_msgs::RelayMode::Close);
-        register_output("/right/relay", right_relay_mode_, rmcs_msgs::RelayMode::Close);
+        register_output("/guard/target_theta", guard_target_theta, NAN);
 
         register_input("/arm/image_pitch/motor/angle", image_pitch_theta_, NAN);
         register_output("/arm/image_pitch/target_theta", image_pitch_target_theta_, NAN);
         register_output("/arm/custom_big_yaw", custom_big_yaw_output_, 0.0);
+        register_input("/leg_back/up_stairs_step", up_stairs_layer);
 
         moveit_running_.store(true, std::memory_order_release);
         moveit_thread_ = std::thread([this] {
@@ -179,10 +178,10 @@ public:
         else if (switch_left == Switch::DOWN && switch_right == Switch::UP) {
             if (knob != last_rotary_knob_switch_) {
                 if (knob == Switch::UP) {
-                    image_pitch_theta1_offset_ = 0.16;
+                    image_pitch_theta1_offset_ = 1.2;
                     set_arm_mode(rmcs_msgs::ArmMode::Auto_Up_One_Stairs);
                 } else if (knob == Switch::DOWN) {
-                    image_pitch_theta1_offset_ = 0.16;
+                    image_pitch_theta1_offset_ = 0.70;
                     set_arm_mode(rmcs_msgs::ArmMode::Auto_Down_Stairs);
                 }
             }
@@ -191,14 +190,17 @@ public:
                 if (!keyboard.shift && !keyboard.ctrl) {
                     set_arm_mode(rmcs_msgs::ArmMode::Auto_Walk);
                 } else if (keyboard.shift && !keyboard.ctrl) {
+                    image_pitch_theta1_offset_ = 0.70;
                     set_arm_mode(rmcs_msgs::ArmMode::Auto_Down_Stairs);
                 }
             }
             if (keyboard.b && !last_keyboard_.b) {
                 image_pitch_theta1_offset_ = 0.16;
                 if (!keyboard.shift && !keyboard.ctrl) {
+                    image_pitch_theta1_offset_ = 1.2;
                     set_arm_mode(rmcs_msgs::ArmMode::Auto_Up_Two_Stairs);
                 } else if (keyboard.shift && !keyboard.ctrl) {
+                    image_pitch_theta1_offset_ = 1.2;
                     set_arm_mode(rmcs_msgs::ArmMode::Auto_Up_One_Stairs);
                 }
             }
@@ -236,7 +238,7 @@ public:
                 set_arm_mode(rmcs_msgs::ArmMode::Auto_Spin);
             }
             if (keyboard.r && !last_keyboard_.r) {
-                image_pitch_theta1_offset_ = 0;
+                image_pitch_theta1_offset_ = 0.32;
                 set_arm_mode(rmcs_msgs::ArmMode::Custome);
             }
             if (mouse.left && !last_mouse_.left) {
@@ -338,9 +340,10 @@ private:
     void moveit_loop() {
 
         static std::vector<double> auto_walk_joint_target;
-        static std::vector<double> auto_upstairs_joint_target;
-        static constexpr std::size_t AutoStepCount                   = 6;
-        const std::array<std::string, AutoStepCount> auto_step_names = {
+        // static std::vector<double> auto_upstairs_joint_target;
+        // static std::vector<double> auto_initial_again_joint_target;
+        static constexpr std::size_t AutoStepCount                  = 6;
+        const std::array<std::string, AutoStepCount> mine_step_name = {
             "step1_pose", "step2_pose", "step3_pose", "step4_lin", "step5_lin", "step6_pose"};
         struct AutoMineConfig {
             std::array<std::array<double, 6>, AutoStepCount> step_rpy{};
@@ -354,6 +357,16 @@ private:
         static AutoMineConfig auto_storage_rb_config;
         static AutoMineConfig auto_extract_lb_config;
         static AutoMineConfig auto_extract_rb_config;
+
+        struct AutoUpstairsConfig {
+            std::vector<std::string> step_names;
+            std::vector<std::array<double, 6>> step_joint_target;
+            std::vector<double> velocity_scaling;
+            std::vector<double> acceleration_scaling;
+            std::map<std::string, std::size_t> step_name_to_index;
+        };
+        static AutoUpstairsConfig auto_up_one_stairs_config;
+        static AutoUpstairsConfig auto_up_two_stairs_config;
         static bool parameter_initialized{false};
         const auto linear_point_transformer = [](const geometry_msgs::msg::Pose& start_pose,
                                                  const Eigen::Vector3d& local_dir,
@@ -398,10 +411,19 @@ private:
             }
         };
 
+        const auto get_auto_upstairs_config = [&](rmcs_msgs::ArmMode mode) -> AutoUpstairsConfig* {
+            switch (mode) {
+            case rmcs_msgs::ArmMode::Auto_Up_One_Stairs: return &auto_up_one_stairs_config;
+            case rmcs_msgs::ArmMode::Auto_Up_Two_Stairs: return &auto_up_two_stairs_config;
+            default: return nullptr;
+            }
+        };
         if (!parameter_initialized) {
             node_->get_parameter("auto_walk_joint_target", auto_walk_joint_target);
-            node_->get_parameter("auto_upstairs_joint_target", auto_upstairs_joint_target);
-            const auto load_auto_mine_config = [this, &auto_step_names, &linear_point_transformer,
+            // node_->get_parameter("auto_upstairs_joint_target", auto_upstairs_joint_target);
+            // node_->get_parameter(
+            //     "auto_initial_again_joint_target", auto_initial_again_joint_target);
+            const auto load_auto_mine_config = [this, &mine_step_name, &linear_point_transformer,
                                                 &xyzrpy_to_pose, &pose_to_xyzrpy](
                                                    const std::string& mine_name,
                                                    AutoMineConfig& config) {
@@ -412,8 +434,8 @@ private:
                     threshold_values[0], threshold_values[1], threshold_values[2]};
                 config.threshold_gain = threshold_values[3];
 
-                for (std::size_t i = 0; i < auto_step_names.size(); ++i) {
-                    const auto& step_name = auto_step_names[i];
+                for (std::size_t i = 0; i < mine_step_name.size(); ++i) {
+                    const auto& step_name = mine_step_name[i];
                     config.lin_mask[i]    = step_name.size() >= 4
                                       && step_name.compare(step_name.size() - 4, 4, "_lin") == 0;
 
@@ -439,10 +461,68 @@ private:
                     std::copy_n(target_pose_values.begin(), 6, config.step_rpy[i].begin());
                 }
             };
+
+            const auto load_auto_upstairs_config = [this](
+                                                       const std::string& config_name,
+                                                       AutoUpstairsConfig& config) {
+                config.step_names.clear();
+                config.step_joint_target.clear();
+                config.velocity_scaling.clear();
+                config.acceleration_scaling.clear();
+                config.step_name_to_index.clear();
+
+                // 用 order 明确指定顺序，避免 get_parameters_by_prefix / map 带来的字典序问题
+                if (!node_->get_parameter(config_name + ".order", config.step_names)
+                    || config.step_names.empty()) {
+                    throw std::runtime_error(
+                        "Failed to load " + config_name + ".order: parameter missing or empty");
+                }
+
+                const std::size_t step_count = config.step_names.size();
+                config.step_joint_target.resize(step_count);
+                config.velocity_scaling.resize(step_count, 0.03);
+                config.acceleration_scaling.resize(step_count, 0.03);
+
+                for (std::size_t i = 0; i < step_count; ++i) {
+                    const auto& step_name = config.step_names[i];
+
+                    if (!config.step_name_to_index.emplace(step_name, i).second) {
+                        throw std::runtime_error(
+                            "Duplicate upstairs step name in " + config_name
+                            + ".order: " + step_name);
+                    }
+
+                    const std::string prefix = config_name + ".params." + step_name + ".";
+
+                    std::vector<double> joint_target;
+                    if (!node_->get_parameter(prefix + "target_joint", joint_target)
+                        || joint_target.size() != 6) {
+                        throw std::runtime_error(
+                            "Invalid or missing " + prefix + "target_joint, expected 6 doubles");
+                    }
+
+                    std::copy_n(joint_target.begin(), 6, config.step_joint_target[i].begin());
+
+                    if (!node_->get_parameter(
+                            prefix + "velocity_scaling", config.velocity_scaling[i])) {
+                        throw std::runtime_error(
+                            "Missing parameter: " + prefix + "velocity_scaling");
+                    }
+
+                    if (!node_->get_parameter(
+                            prefix + "acceleration_scaling", config.acceleration_scaling[i])) {
+                        throw std::runtime_error(
+                            "Missing parameter: " + prefix + "acceleration_scaling");
+                    }
+                }
+            };
+
             load_auto_mine_config("auto_storage_lb", auto_storage_lb_config);
             load_auto_mine_config("auto_storage_rb", auto_storage_rb_config);
             load_auto_mine_config("auto_extract_lb", auto_extract_lb_config);
             load_auto_mine_config("auto_extract_rb", auto_extract_rb_config);
+            load_auto_upstairs_config("up_one_stairs", auto_up_one_stairs_config);
+            load_auto_upstairs_config("up_two_stairs", auto_up_two_stairs_config);
             parameter_initialized = true;
         }
 
@@ -465,17 +545,6 @@ private:
         move_group_->setPlanningTime(5.0);
         switch (request->arm_mode) {
 
-        case rmcs_msgs::ArmMode::Test: {
-            auto current_pose = move_group_->getCurrentPose();
-            auto current_rpy  = move_group_->getCurrentRPY();
-            RCLCPP_INFO(
-                node_->get_logger(), "xyzrpy%f %f %f %f %f %f", current_pose.pose.position.x,
-                current_pose.pose.position.y, current_pose.pose.position.z, current_rpy[0],
-                current_rpy[1], current_rpy[2]);
-            last_planned_request_id_ = request->request_id;
-            planned_trajectory_.store(result, std::memory_order::release);
-            return;
-        }
         case rmcs_msgs::ArmMode::Auto_Walk: {
             move_group_->setMaxVelocityScalingFactor(0.03);
             move_group_->setMaxAccelerationScalingFactor(0.03);
@@ -501,29 +570,123 @@ private:
             break;
         }
         case rmcs_msgs::ArmMode::Auto_Up_One_Stairs:
+            // move_group_->setMaxVelocityScalingFactor(0.03);
+            // move_group_->setMaxAccelerationScalingFactor(0.03);
+            // move_group_->setPlanningPipelineId("ompl");
+            // move_group_->setPlannerId("");
+            // move_group_->setJointValueTarget(
+            //     std::map<std::string, double>{
+            //         {"joint_1", auto_upstairs_joint_target[0]},
+            //         {"joint_2", auto_upstairs_joint_target[1]},
+            //         {"joint_3", auto_upstairs_joint_target[2]},
+            //         {"joint_4", auto_upstairs_joint_target[3]},
+            //         {"joint_5", auto_upstairs_joint_target[4]},
+            //         {"joint_6", auto_upstairs_joint_target[5]},
+            // });
+            // const auto current_pose = move_group_->getCurrentPose("link_6").pose;
+            // const auto current_rpy  = move_group_->getCurrentRPY("link_6");
+            // if (current_rpy.size() == 3) {
+            //     RCLCPP_INFO(
+            //         node_->get_logger(), "autoupstairsxyzrpy %.6f %.6f %.6f %.6f %.6f %.6f",
+            //         current_pose.position.x, current_pose.position.y, current_pose.position.z,
+            //         current_rpy[0], current_rpy[1], current_rpy[2]);
+            // }
+
+            // break;
+
         case rmcs_msgs::ArmMode::Auto_Up_Two_Stairs: {
-            move_group_->setMaxVelocityScalingFactor(0.03);
-            move_group_->setMaxAccelerationScalingFactor(0.03);
-            move_group_->setPlanningPipelineId("ompl");
-            move_group_->setPlannerId("");
-            move_group_->setJointValueTarget(
-                std::map<std::string, double>{
-                    {"joint_1", auto_upstairs_joint_target[0]},
-                    {"joint_2", auto_upstairs_joint_target[1]},
-                    {"joint_3", auto_upstairs_joint_target[2]},
-                    {"joint_4", auto_upstairs_joint_target[3]},
-                    {"joint_5", auto_upstairs_joint_target[4]},
-                    {"joint_6", auto_upstairs_joint_target[5]},
-            });
-            const auto current_pose = move_group_->getCurrentPose("link_6").pose;
-            const auto current_rpy  = move_group_->getCurrentRPY("link_6");
-            if (current_rpy.size() == 3) {
-                RCLCPP_INFO(
-                    node_->get_logger(), "autoupstairsxyzrpy %.6f %.6f %.6f %.6f %.6f %.6f",
-                    current_pose.position.x, current_pose.position.y, current_pose.position.z,
-                    current_rpy[0], current_rpy[1], current_rpy[2]);
+
+            auto* config = get_auto_upstairs_config(request->arm_mode);
+            if (!config || config->step_names.empty()) {
+                RCLCPP_WARN(node_->get_logger(), "Auto upstairs config is empty");
+                last_planned_request_id_ = request->request_id;
+                planned_trajectory_.store(result, std::memory_order::release);
+                return;
             }
-            break;
+
+            auto current_state = move_group_->getCurrentState();
+
+            result->positions.clear();
+            result->steps.clear();
+            result->plan_success = true;
+
+            for (std::size_t i = 0; i < config->step_names.size(); ++i) {
+                move_group_->clearPoseTargets();
+                move_group_->clearPathConstraints();
+                move_group_->setStartState(*current_state);
+                move_group_->setPlanningTime(5.0);
+                move_group_->setMaxVelocityScalingFactor(config->velocity_scaling[i]);
+                move_group_->setMaxAccelerationScalingFactor(config->acceleration_scaling[i]);
+                move_group_->setPlanningPipelineId("ompl");
+                move_group_->setPlannerId("");
+
+                const auto& target_joint = config->step_joint_target[i];
+
+                // 上台阶这里直接按 joint target 规划，不走末端位姿解算
+                move_group_->setJointValueTarget(
+                    std::map<std::string, double>{
+                        {"joint_1", target_joint[0]},
+                        {"joint_2", target_joint[1]},
+                        {"joint_3", target_joint[2]},
+                        {"joint_4", target_joint[3]},
+                        {"joint_5", target_joint[4]},
+                        {"joint_6", target_joint[5]},
+                });
+
+                RCLCPP_INFO(
+                    node_->get_logger(),
+                    "[auto_upstairs][%s] joint target: %.6f %.6f %.6f %.6f %.6f %.6f",
+                    config->step_names[i].c_str(), target_joint[0], target_joint[1],
+                    target_joint[2], target_joint[3], target_joint[4], target_joint[5]);
+
+                moveit::planning_interface::MoveGroupInterface::Plan segment_plan;
+                if (move_group_->plan(segment_plan) != moveit::core::MoveItErrorCode::SUCCESS) {
+                    RCLCPP_WARN(
+                        node_->get_logger(), "Auto upstairs segment %s plan failed",
+                        config->step_names[i].c_str());
+                    result->plan_success = false;
+                    break;
+                }
+
+                const auto& trajectory_points = segment_plan.trajectory.joint_trajectory.points;
+                if (trajectory_points.empty()) {
+                    RCLCPP_WARN(
+                        node_->get_logger(), "Auto upstairs segment %s produced empty trajectory",
+                        config->step_names[i].c_str());
+                    result->plan_success = false;
+                    break;
+                }
+
+                // 拼接多段轨迹:
+                // 第一段从 0 开始收，后续段跳过首点，避免重复拼接连接点
+                const std::size_t start_index = (i == 0) ? 0 : 1;
+                for (std::size_t j = start_index; j < trajectory_points.size(); ++j) {
+                    result->positions.push_back(trajectory_points[j].positions);
+                }
+
+                // 记录当前段对应的最后一个轨迹点索引，执行阶段用它来“卡住”阶段切换
+                result->steps.push_back(static_cast<int>(result->positions.size()) - 1);
+
+                const auto& joint_names = segment_plan.trajectory.joint_trajectory.joint_names;
+                const auto& last_point  = trajectory_points.back();
+
+                auto next_state = std::make_shared<moveit::core::RobotState>(*current_state);
+                next_state->setVariablePositions(joint_names, last_point.positions);
+                next_state->update();
+                current_state = next_state;
+            }
+
+            if (!result->plan_success) {
+                RCLCPP_WARN(node_->get_logger(), "Auto upstairs composite plan failed");
+            } else {
+                RCLCPP_INFO(
+                    node_->get_logger(), "Auto upstairs stored size:%d",
+                    static_cast<int>(result->positions.size()));
+            }
+
+            last_planned_request_id_ = request->request_id;
+            planned_trajectory_.store(result, std::memory_order::release);
+            return;
         }
         case rmcs_msgs::ArmMode::Auto_Storage_LB:
         case rmcs_msgs::ArmMode::Auto_Storage_RB:
@@ -542,7 +705,7 @@ private:
             result->steps.clear();
             result->plan_success = true;
 
-            for (std::size_t i = 0; i < auto_step_names.size(); ++i) {
+            for (std::size_t i = 0; i < mine_step_name.size(); ++i) {
                 move_group_->clearPoseTargets();
                 move_group_->clearPathConstraints();
                 move_group_->setStartState(*current_state);
@@ -580,7 +743,7 @@ private:
                 if (move_group_->plan(segment_plan) != moveit::core::MoveItErrorCode::SUCCESS) {
                     RCLCPP_WARN(
                         node_->get_logger(), "Auto sequence segment %s plan failed",
-                        auto_step_names[i].c_str());
+                        mine_step_name[i].c_str());
                     result->plan_success = false;
                     break;
                 }
@@ -636,7 +799,7 @@ private:
         planned_trajectory_.store(result, std::memory_order::release);
     }
     void execute_plan_request_and_trajectory_step() {
-        static int count{0};
+        static int initial_delay{0};
         static std::size_t trajectory_steps{0};
         static uint64_t last_executed_request_id{0};
         const auto current_request = plan_request.load(std::memory_order_acquire);
@@ -645,7 +808,7 @@ private:
         }
         if (current_request->request_id != last_executed_request_id) {
             trajectory_steps         = 0;
-            count                    = 0;
+            initial_delay            = 0;
             last_executed_request_id = current_request->request_id;
         }
 
@@ -683,9 +846,7 @@ private:
                                 trajectory_steps--;
                             }
                         }
-                        if (trajectory_steps == static_cast<std::size_t>(moveit_result->steps[3])) {
-                            *left_relay_mode_ = rmcs_msgs::RelayMode::Close;
-                        }
+
                         break;
                     }
                     case rmcs_msgs::ArmMode::Auto_Extract_RB: {
@@ -705,9 +866,7 @@ private:
                                 trajectory_steps--;
                             }
                         }
-                        if (trajectory_steps == static_cast<std::size_t>(moveit_result->steps[3])) {
-                            *right_relay_mode_ = rmcs_msgs::RelayMode::Close;
-                        }
+
                         break;
                     }
                     case rmcs_msgs::ArmMode::Auto_Storage_RB: {
@@ -716,9 +875,7 @@ private:
                             set_gripper_mode(rmcs_msgs::GripperMode::Open);
                             trajectory_steps--;
                         }
-                        if (trajectory_steps == static_cast<std::size_t>(moveit_result->steps[2])) {
-                            *right_relay_mode_ = rmcs_msgs::RelayMode::Open;
-                        }
+
                         break;
                     }
                     case rmcs_msgs::ArmMode::Auto_Storage_LB: {
@@ -727,21 +884,42 @@ private:
                             set_gripper_mode(rmcs_msgs::GripperMode::Open);
                             trajectory_steps--;
                         }
-                        if (trajectory_steps == static_cast<std::size_t>(moveit_result->steps[2])) {
-                            *left_relay_mode_ = rmcs_msgs::RelayMode::Open;
+
+                        break;
+                    }
+                    case rmcs_msgs::ArmMode::Auto_Up_One_Stairs: {
+                        if (trajectory_steps == static_cast<std::size_t>(0)) {
+                            if (initial_delay
+                                >= node_->get_parameter("initial_delay_time").as_int()) {
+                                initial_delay = 0;
+                                break;
+                            }
+                            initial_delay++;
+                            trajectory_steps--;
                         }
                         break;
                     }
-                    case rmcs_msgs::ArmMode::Auto_Up_One_Stairs:
                     case rmcs_msgs::ArmMode::Auto_Up_Two_Stairs: {
                         if (trajectory_steps == static_cast<std::size_t>(0)) {
-                            if (count >= 2000) {
-                                count = 0;
+                            if (initial_delay
+                                >= node_->get_parameter("initial_delay_time").as_int()) {
+                                initial_delay = 0;
                                 break;
                             }
-                            count++;
+                            initial_delay++;
                             trajectory_steps--;
                         }
+                        if (trajectory_steps == static_cast<std::size_t>(moveit_result->steps[0])) {
+                            if (*up_stairs_layer != "initial_again") {
+                                trajectory_steps--;
+                            }
+                        }
+                        if (trajectory_steps == static_cast<std::size_t>(moveit_result->steps[1])) {
+                            if (*up_stairs_layer != "lift_again") {
+                                trajectory_steps--;
+                            }
+                        }
+
                         break;
                     }
                     default: break;
@@ -914,8 +1092,6 @@ private:
         set_gripper_mode(rmcs_msgs::GripperMode::None);
         set_guard_mode(rmcs_msgs::GuardMode::None);
         set_arm_mode(rmcs_msgs::ArmMode::None);
-        *left_relay_mode_  = rmcs_msgs::RelayMode::Close;
-        *right_relay_mode_ = rmcs_msgs::RelayMode::Close;
     }
 
     rmcs_msgs::Switch last_switch_left_{rmcs_msgs::Switch::UNKNOWN};
@@ -955,9 +1131,6 @@ private:
     OutputInterface<double> gripper_target_theta;
     OutputInterface<double> guard_target_theta;
 
-    OutputInterface<rmcs_msgs::RelayMode> left_relay_mode_;
-    OutputInterface<rmcs_msgs::RelayMode> right_relay_mode_;
-
     InputInterface<double> image_pitch_theta_;
     double image_pitch_theta1_offset_{-0.5};
     OutputInterface<double> image_pitch_target_theta_;
@@ -965,7 +1138,7 @@ private:
     InputInterface<std::array<uint8_t, 30>> custom_data_;
     OutputInterface<double> custom_big_yaw_output_;
     filter::LowPassFilter<6> custom_joint_filter_;
-
+    InputInterface<std::string> up_stairs_layer;
     rclcpp::Node::SharedPtr node_;
     rclcpp::executors::MultiThreadedExecutor exec_;
     std::thread spin_thread_;

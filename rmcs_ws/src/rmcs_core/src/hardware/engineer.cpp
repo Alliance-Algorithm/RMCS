@@ -7,7 +7,6 @@
 #include "hardware/device/lk_motor.hpp"
 #include "hardware/device/power_meter.hpp"
 #include "hardware/device/tof.hpp"
-#include "hardware/forwarder/cboard.hpp"
 #include "hardware/ring_buffer.hpp"
 #include "rmcs_msgs/relay_mode.hpp"
 #include <algorithm>
@@ -167,11 +166,6 @@ private:
 
         void update() {
 
-            RCLCPP_INFO(
-                this->get_logger(), "j1-j6 %f %f %f %f %f %f", joint[0].get_angle(),
-                joint2_encoder.get_angle(), joint[2].get_angle(), joint[3].get_angle(),
-                joint[4].get_angle(), joint[5].get_angle());
-            // RCLCPP_INFO(this->get_logger(),"%d",image_pitch.get_raw_angle());
             using namespace device;
             update_arm_motors();
             dr16_.update_status();
@@ -337,8 +331,7 @@ private:
             , guard_motor(engineer, engineer_command, "/guard/motor") {
             guard_motor.configure(
                 device::DjiMotorConfig{device::DjiMotorType::M2006}.enable_multi_turn_angle());
-            engineer_command.register_input("/left/relay", left_relay_mode);
-            engineer_command.register_input("/right/relay", right_relay_mode);
+
         }
         ~OtherBoard() final {
             auto tx = start_transmit();
@@ -368,28 +361,7 @@ private:
                                        }
                         .as_bytes(),
             });
-            if (*left_relay_mode == rmcs_msgs::RelayMode::Open) {
-                tx.gpio_digital_write({
-                    .channel = 1,
-                    .high    = true,
-                });
-            } else {
-                tx.gpio_digital_write({
-                    .channel = 1,
-                    .high    = false,
-                });
-            }
-            if (*right_relay_mode == rmcs_msgs::RelayMode::Open) {
-                tx.gpio_digital_write({
-                    .channel = 2,
-                    .high    = true,
-                });
-            } else {
-                tx.gpio_digital_write({
-                    .channel = 2,
-                    .high    = false,
-                });
-            }
+
         }
 
     protected:
