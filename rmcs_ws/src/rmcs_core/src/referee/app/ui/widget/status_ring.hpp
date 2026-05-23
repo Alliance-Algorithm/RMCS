@@ -258,6 +258,19 @@ public:
         }
     }
 
+    void update_supercap_energy(double value, bool enable, double cutoff_voltage) {
+        auto angle = 275 + calculate_energy_angle(value, cutoff_voltage, supercap_limit_) + 1;
+        supercap_status_.set_angle_end(static_cast<uint16_t>(angle));
+
+        if (value > 20.0) {
+            supercap_status_.set_color(enable ? Shape::Color::CYAN : Shape::Color::GREEN);
+        } else if (value > 13.5) {
+            supercap_status_.set_color(enable ? Shape::Color::YELLOW : Shape::Color::ORANGE);
+        } else {
+            supercap_status_.set_color(enable ? Shape::Color::PURPLE : Shape::Color::PINK);
+        }
+    }
+
     void update_battery_power(double value) {
         auto angle = 265 - calculate_angle(value, 20, 25.7) - 1;
         battery_status_.set_angle_start(static_cast<uint16_t>(angle));
@@ -303,6 +316,16 @@ public:
 private:
     static constexpr double calculate_angle(double value, double min, double max) {
         return visible_angle * std::clamp(value - min, 0.0, max - min) / (max - min);
+    }
+
+    static constexpr double calculate_energy_angle(
+        double value, double cutoff_voltage, double full_voltage) {
+        const double clamped_value = std::clamp(value, cutoff_voltage, full_voltage);
+        const double numerator =
+            clamped_value * clamped_value - cutoff_voltage * cutoff_voltage;
+        const double denominator =
+            full_voltage * full_voltage - cutoff_voltage * cutoff_voltage;
+        return visible_angle * numerator / denominator;
     }
 
     void set_limits(

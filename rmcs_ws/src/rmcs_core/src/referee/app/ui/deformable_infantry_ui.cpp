@@ -21,6 +21,10 @@
 namespace rmcs_core::referee::app::ui {
 using namespace std::chrono_literals;
 
+namespace {
+constexpr double supercap_cutoff_voltage = 8.0;
+}
+
 class DeformableInfantry
     : public rmcs_executor::Component
     , public rclcpp::Node {
@@ -112,7 +116,8 @@ public:
         }
         friction_wheel_speed_indicator_.set_color(
             friction_wheel_enabled ? Shape::Color::GREEN : Shape::Color::PINK);
-        status_ring_.update_supercap(*supercap_voltage_, *supercap_enabled_);
+        status_ring_.update_supercap_energy(
+            *supercap_voltage_, *supercap_enabled_, supercap_cutoff_voltage);
         status_ring_.update_battery_power(*chassis_voltage_);
 
         status_ring_.update_auto_aim_enable(mouse_->right == 1);
