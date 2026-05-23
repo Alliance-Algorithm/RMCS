@@ -52,6 +52,8 @@ public:
         register_output("/gimbal/top_yaw/control_angle", top_yaw_control_angle_, nan_);
         register_output(
             "/gimbal/bottom_yaw/control_angle_shift", bottom_yaw_control_angle_shift_, nan_);
+        register_output("/gimbal/top_yaw/control_angle_shift", top_yaw_control_angle_shift_, nan_);
+        register_output("/gimbal/bottom_yaw/control_angle", bottom_yaw_control_angle_, nan_);
 
         status_component_ =
             create_partner_component<DualYawStatus>(get_component_name() + "_status");
@@ -147,6 +149,9 @@ private:
 
     OutputInterface<double> top_yaw_control_angle_;
     OutputInterface<double> bottom_yaw_control_angle_shift_;
+
+    OutputInterface<double> bottom_yaw_control_angle_;
+    OutputInterface<double> top_yaw_control_angle_shift_;
 
     rmcs_msgs::GimbalMode last_gimbal_mode_ = rmcs_msgs::GimbalMode::IMU;
     bool top_yaw_encoder_locked_ = false;

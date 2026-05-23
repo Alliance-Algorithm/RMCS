@@ -70,7 +70,6 @@ public:
         register_input("/chassis/power", chassis_power_);
         register_input("/chassis/control_power_limit", chassis_control_power_limit_);
         register_input("/chassis/supercap/charge_power_limit", supercap_charge_power_limit_);
-
         register_input("/gimbal/control_bullet_allowance/limited_by_heat", robot_bullet_allowance_);
 
         register_input(

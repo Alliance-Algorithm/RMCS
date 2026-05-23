@@ -54,8 +54,8 @@ public:
         const auto& switch_right = *switch_right_;
 
         if (*gimbal_pitch_angle_ != 0.0) {
-            // RCLCPP_INFO(get_logger(), "pitch: %f", *gimbal_pitch_angle_);
-            // RCLCPP_INFO(get_logger(), "rawangle %lu", *gimbal_pitch_raw_angle_);
+            RCLCPP_INFO(get_logger(), "pitch: %f", *gimbal_pitch_angle_);
+            RCLCPP_INFO(get_logger(), "rawangle %lu", *gimbal_pitch_raw_angle_);
         }
 
         do {
@@ -160,8 +160,8 @@ public:
 private:
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
 
-    static constexpr double kEInitPitch = -0.498544; // -0.39855 单独 E 的初始角度
-    static constexpr double kCtrlEInitPitch = -0.35; // Ctrl+E 的初始角度，自己改
+    static constexpr double kEInitPitch = -0.476972;     // -0.39855 单独 E 的初始角度
+    static constexpr double kCtrlEInitPitch = -0.557986; // Ctrl+E 的初始角度，自己改
     double encoder_init_pitch_ = kEInitPitch;
     InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;

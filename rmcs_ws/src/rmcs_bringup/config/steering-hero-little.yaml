@@ -36,8 +36,8 @@ rmcs_executor:
       # - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
       # - rmcs_auto_aim::AutoAimController -> auto_aim_controller
 
-      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
-      - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
 
       - sp_vision_25::bridge::HeroAutoAimBridge -> hero_auto_aim_bridge 
 
@@ -223,17 +223,11 @@ friction_wheel_controller:
       - /gimbal/second_right_friction
       - /gimbal/first_left_friction
       - /gimbal/first_right_friction
-    # friction_velocities:
-    #   - 520.00 #372.00
-    #   - 520.00 #372.00
-    #   - 580.00 #530.00
-    #   - 580.00 #530.00
     friction_velocities_profile_0:
-    - 372.0
-    - 372.0
-    - 530.0
-    - 530.0
-
+      - 380.0
+      - 380.0
+      - 545.0
+      - 545.0
     friction_velocities_profile_1:
       - 535.0
       - 535.0
@@ -257,36 +251,36 @@ first_left_friction_velocity_pid_controller:
     measurement: /gimbal/first_left_friction/velocity
     setpoint: /gimbal/first_left_friction/control_velocity
     control: /gimbal/first_left_friction/control_torque
-    kp: 0.008
+    kp: 0.006
     ki: 0.00
-    kd: 0.00028
+    kd: 0.00016
 
 first_right_friction_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/first_right_friction/velocity
     setpoint: /gimbal/first_right_friction/control_velocity
     control: /gimbal/first_right_friction/control_torque
-    kp: 0.008
+    kp: 0.006
     ki: 0.00
-    kd: 0.00028
+    kd: 0.00016
 
 second_left_friction_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/second_left_friction/velocity
     setpoint: /gimbal/second_left_friction/control_velocity
     control: /gimbal/second_left_friction/control_torque
-    kp: 0.008
+    kp: 0.006
     ki: 0.00
-    kd: 0.00018
+    kd: 0.00008
 
 second_right_friction_velocity_pid_controller:
   ros__parameters:
     measurement: /gimbal/second_right_friction/velocity
     setpoint: /gimbal/second_right_friction/control_velocity
     control: /gimbal/second_right_friction/control_torque
-    kp: 0.008
+    kp: 0.006
     ki: 0.00
-    kd: 0.00018
+    kd: 0.00008
   
 steering_wheel_status:
   ros__parameters:
