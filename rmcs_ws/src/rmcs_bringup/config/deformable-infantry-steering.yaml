@@ -87,7 +87,7 @@ gimbal_controller:
     inertia: 1.0  # kg·m²
     friction: 1.65   # Nm/(rad/s)
 
-    upper_limit: -0.61 # -35 deg
+    upper_limit: -0.65 # -35 deg
     lower_limit: 0.05 # 6 deg
     use_encoder_pitch: true
 
@@ -115,8 +115,8 @@ friction_wheel_controller:
       - /gimbal/left_friction
       - /gimbal/right_friction
     friction_velocities:
-      - 600.0
-      - 600.0
+      - 580.0
+      - 580.0
     friction_soft_start_stop_time: 1.0
 
 heat_controller:

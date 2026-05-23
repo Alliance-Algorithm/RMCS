@@ -86,7 +86,7 @@ chassis_controller:
 
 gimbal_controller:
   ros__parameters:
-    upper_limit: -0.80 # -35 deg
+    upper_limit: -0.65 # -35 deg
     lower_limit: 0.05 # 6 deg
 
     yaw_angle_kp: 30.0
@@ -121,8 +121,8 @@ friction_wheel_controller:
       - /gimbal/left_friction
       - /gimbal/right_friction
     friction_velocities:
-      - 600.0
-      - 600.0
+      - 580.0
+      - 580.0
     friction_soft_start_stop_time: 1.0
 
 heat_controller:
