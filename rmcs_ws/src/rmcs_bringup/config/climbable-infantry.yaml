@@ -8,6 +8,7 @@ rmcs_executor:
       - rmcs_core::referee::command::Interaction -> referee_interaction
       - rmcs_core::referee::command::interaction::Ui -> referee_ui
       - rmcs_core::referee::app::ui::UIClimbableInfantry -> referee_ui_infantry
+      # - rmcs_core::referee::app::ui::Infantry -> referee_ui_infantry
       - rmcs_core::referee::Command -> referee_command
 
       - rmcs_core::controller::gimbal::ClimbableInfantryGimbalController -> gimbal_controller
@@ -36,7 +37,7 @@ rmcs_executor:
 
 Infantry_hardware:
   ros__parameters:
-    board_serial_top_board: "D4-632C-37BC-6A17-ACA2-E3FE-91E9"
+    board_serial_top_board: "AF-B4E5-CE0E-4342-FF2C-F9E2-DE47-2D85-9B75"
     board_serial_bottom_board: "AF-EEF5-24BA-6675-F1B1-C797-50AF-869C-870E"
     yaw_motor_zero_point: 20993
     pitch_motor_zero_point: 18874

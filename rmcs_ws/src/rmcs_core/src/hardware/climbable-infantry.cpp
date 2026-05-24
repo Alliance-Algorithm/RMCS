@@ -116,14 +116,14 @@ private:
     };
     std::shared_ptr<ClimbableInfantryCommand> command_component_;
 
-    class TopBoard final : private librmcs::agent::CBoard {
+    class TopBoard final : private librmcs::agent::RmcsBoardLite {
     public:
         friend class ClimbableInfantry;
         explicit TopBoard(
             ClimbableInfantry& climbable_infantry,
             ClimbableInfantryCommand& climbable_infantry_command,
             std::string_view board_serial = {})
-            : librmcs::agent::CBoard(board_serial, {true})
+            : librmcs::agent::RmcsBoardLite(board_serial, {true})
             , logger_(climbable_infantry.get_logger())
             , tf_(climbable_infantry.tf_)
             , imu_(1000, 0.2, 0.0)
@@ -223,7 +223,7 @@ private:
             }
         }
 
-        void uart1_receive_callback(const librmcs::data::UartDataView& data) override {
+        void uart0_receive_callback(const librmcs::data::UartDataView& data) override {
             vt13_.store_status(data.uart_data);
             // RCLCPP_INFO(logger_, "uart1 ok");
         }

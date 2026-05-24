@@ -93,8 +93,8 @@ public:
                     }
                 } else if (!last_keyboard_.x && keyboard.x) {
                     mode = rmcs_msgs::ChassisMode::STEP_DOWN;
-                    step_down_facing_ = StepDownFacing::BACK;
-                    // step_down_facing_ = StepDownFacing::FRONT;
+                    // step_down_facing_ = StepDownFacing::BACK;
+                    step_down_facing_ = StepDownFacing::FRONT;
 
                 } else if (!last_keyboard_.z && keyboard.z) {
                     if (mode == rmcs_msgs::ChassisMode::STEP_DOWN) {
