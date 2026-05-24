@@ -25,7 +25,7 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController -> first_right_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> second_left_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> second_right_friction_velocity_pid_controller
-      - rmcs_core::controller::shooting::ShootingRecorder -> shooting_recorder
+      # - rmcs_core::controller::shooting::ShootingRecorder -> shooting_recorder
 
       - rmcs_core::controller::chassis::SteeringWheelStatus -> steering_wheel_status
       - rmcs_core::controller::chassis::ChassisController -> chassis_controller
@@ -36,7 +36,7 @@ rmcs_executor:
       # - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
       # - rmcs_auto_aim::AutoAimController -> auto_aim_controller
 
-      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
 
       - sp_vision_25::bridge::HeroAutoAimBridge -> hero_auto_aim_bridge 
@@ -50,16 +50,16 @@ hero_hardware:
   ros__parameters:
     board_serial_top_board: "AF-BFF7-0B6F-46A5-2B4B-AA20-89C2-E180-64B9"
     serial_bottom_rmcs_board: "AF-60BB-7484-FA24-F3FC-399B-454D-22FA-1B1D"
-    bottom_yaw_motor_zero_point: 35307 #35111
-    pitch_motor_zero_point: 57723
-    top_yaw_motor_zero_point: 48812 #48734
-    viewer_motor_zero_point: 9363
+    bottom_yaw_motor_zero_point: 35078
+    pitch_motor_zero_point: 57241
+    top_yaw_motor_zero_point: 48537
+    viewer_motor_zero_point:  31940
     external_imu_port: /dev/ttyUSB0
     bullet_feeder_motor_zero_point: 60480 #39045
-    left_front_zero_point: 5813 #5782
-    right_front_zero_point: 3608 #3819
-    left_back_zero_point:  7703 #7841
-    right_back_zero_point: 1768 #1781
+    left_front_zero_point: 5799 
+    right_front_zero_point: 3700
+    left_back_zero_point:  7862
+    right_back_zero_point: 1608
 
 value_broadcaster:
   ros__parameters:
@@ -188,16 +188,16 @@ pitch_velocity_pid_controller:
 
 gimbal_player_viewer_controller:
   ros__parameters:
-    upper_limit: 0.0101
-    lower_limit: 0.6191
+    upper_limit: 0.415996 
+    lower_limit: -0.066441 
 
 viewer_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/player_viewer/control_angle_error
     control: /gimbal/player_viewer/control_velocity
-    kp: 7.00
+    kp: 4.00
     ki: 0.00
-    kd: 1.00
+    kd: 0.50
 
 bullet_feeder_controller:
   ros__parameters:

@@ -120,8 +120,8 @@ public:
                     *bullet_feeder_control_torque_ = 0.0;
                 }
 
-                if (!bullet_feeder_reverse_end_)
-                    RCLCPP_INFO(get_logger(), "Reverse finished");
+                // if (!bullet_feeder_reverse_end_)
+                // RCLCPP_INFO(get_logger(), "Reverse finished");
 
             } else {
                 // 正常运行模式：摩擦轮就绪时才允许发射
@@ -254,17 +254,17 @@ private:
     }
 
     void set_preloading() {
-        RCLCPP_INFO(get_logger(), "PRELOADING");
+        // RCLCPP_INFO(get_logger(), "PRELOADING");
         shoot_stage_ = ShootStage::PRELOADING;
     }
 
     void set_preloaded() {
-        RCLCPP_INFO(get_logger(), "PRELOADED");
+        // RCLCPP_INFO(get_logger(), "PRELOADED");
         shoot_stage_ = ShootStage::PRELOADED;
     }
 
     void set_shooting() {
-        RCLCPP_INFO(get_logger(), "SHOOTING");
+        // RCLCPP_INFO(get_logger(), "SHOOTING");
         shoot_stage_ = ShootStage::SHOOTING;
     }
 
@@ -333,7 +333,7 @@ private:
         bullet_feeder_faulty_count_ = 0;
         bullet_feeder_reverse_end_ = 800;
         bullet_feeder_velocity_pid_.reset();
-        RCLCPP_INFO(get_logger(), "Jammed!");
+        // RCLCPP_INFO(get_logger(), "Jammed!");
     }
 
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN(); ///< 非数值常量

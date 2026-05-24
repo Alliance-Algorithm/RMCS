@@ -52,8 +52,8 @@ public:
         const auto keyboard = *keyboard_;
 
         if (*gimbal_pitch_angle_ != 0.0) {
-            RCLCPP_INFO(get_logger(), "pitch 111: %f", *gimbal_pitch_angle_);
-            RCLCPP_INFO(get_logger(), "rawangle 111 %lu", *gimbal_pitch_raw_angle_);
+            // RCLCPP_INFO(get_logger(), "pitch 111: %f", *gimbal_pitch_angle_);
+            // RCLCPP_INFO(get_logger(), "rawangle 111 %lu", *gimbal_pitch_raw_angle_);
         }
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
@@ -141,8 +141,8 @@ private:
     static constexpr double pi_ = std::numbers::pi;
 
     // steering-hero 的 viewer 角度限位是 [0.68, 1.17]
-    static constexpr double kEInitViewerAngle = 0.61905;    // 按 E 定到这里
-    static constexpr double kCtrlInitViewerAngle = 0.61905; // 按 Ctrl 定到这里，自己改
+    static constexpr double kEInitViewerAngle = 0.38905;    // 按 E 定到这里
+    static constexpr double kCtrlInitViewerAngle = 0.38905; // 按 Ctrl 定到这里，自己改
 
     bool scope_viewer_reset_{false};
 

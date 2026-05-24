@@ -25,7 +25,7 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController -> first_right_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> second_left_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> second_right_friction_velocity_pid_controller
-      - rmcs_core::controller::shooting::ShootingRecorder -> shooting_recorder
+      # - rmcs_core::controller::shooting::ShootingRecorder -> shooting_recorder
 
       - rmcs_core::controller::chassis::SteeringWheelStatus -> steering_wheel_status
       - rmcs_core::controller::chassis::ChassisController -> chassis_controller
@@ -36,7 +36,7 @@ rmcs_executor:
       # - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
       # - rmcs_auto_aim::AutoAimController -> auto_aim_controller
 
-      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
 
       # - sp_vision_25::bridge::HeroAutoAimBridge -> hero_auto_aim_bridge 
@@ -54,16 +54,16 @@ hero_hardware:
     board_serial_top_board: "D4-2BCA-2E47-76CD-23BC-0B78-684B"
     board_serial_bottom_board_one: "D4-7973-19A9-EA40-4A3E-306F-10F9"
     board_serial_bottom_board_two: "D4-3674-7174-8768-879E-E44A-3931"
-    bottom_yaw_motor_zero_point: 37583
-    pitch_motor_zero_point: 14139 
-    top_yaw_motor_zero_point: 33517
+    bottom_yaw_motor_zero_point: 37424
+    pitch_motor_zero_point: 14916 
+    top_yaw_motor_zero_point: 33076
     viewer_motor_zero_point: 3030
     external_imu_port: /dev/ttyUSB0
     bullet_feeder_motor_zero_point: 11865
-    left_front_zero_point: 4394
-    right_front_zero_point: 1020
-    left_back_zero_point:  3776
-    right_back_zero_point: 5791
+    left_front_zero_point: 4398
+    right_front_zero_point: 1081
+    left_back_zero_point:  3794
+    right_back_zero_point: 5839
 
 
 
@@ -223,7 +223,7 @@ friction_wheel_controller:
 heat_controller:
   ros__parameters:
     heat_per_shot: 100000
-    reserved_heat: 20000
+    reserved_heat: 0
 
 shooting_recorder:
   ros__parameters:

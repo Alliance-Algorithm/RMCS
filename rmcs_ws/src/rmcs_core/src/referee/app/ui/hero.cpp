@@ -7,6 +7,8 @@
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/chassis_mode.hpp>
 #include <rmcs_msgs/game_stage.hpp>
+#include <rmcs_msgs/gimbal_mode.hpp>
+#include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/shoot_condiction.hpp>
 #include <rmcs_msgs/shoot_mode.hpp>
@@ -37,6 +39,8 @@ public:
         , yaw_angle_number_(Shape::Color::YELLOW, 20, 5, x_center + 270, y_center + 95, 0.0, false)
         , pitch_angle_number_(
               Shape::Color::YELLOW, 20, 5, x_center + 270, y_center - 35, 0.0, false)
+        , bottom_yaw_angle_number_(
+              Shape::Color::YELLOW, 20, 5, x_center + 270, y_center - 65, 0.0, false)
         , time_reminder_(Shape::Color::PINK, 50, 5, x_center + 150, y_center + 65, 0, false)
         // , bullet_allowance_label_(
         //       Shape::Color::YELLOW, 18, 3, x_center - 300, y_center + 270, "bullet", false)
@@ -46,15 +50,21 @@ public:
               Shape::Color::YELLOW, 20, 5, x_center - 220, y_center + 270, 0, false)
         , friction_profile_number_(
               Shape::Color::GREEN, friction_profile_number_font_size, 5, 0, 0, 12, false)
-        , friction_profile_indicator_{
-              Line(Shape::Color::WHITE, friction_profile_box_line_width, 0, 0, 0, 0, false),
-              Line(Shape::Color::WHITE, friction_profile_box_line_width, 0, 0, 0, 0, false),
-              Line(Shape::Color::WHITE, friction_profile_box_line_width, 0, 0, 0, 0, false),
-              Line(Shape::Color::WHITE, friction_profile_box_line_width, 0, 0, 0, 0, false)} {
+        , friction_profile_indicator_{Line(Shape::Color::WHITE, friction_profile_box_line_width, 0, 0, 0, 0, false), Line(Shape::Color::WHITE, friction_profile_box_line_width, 0, 0, 0, 0, false), Line(Shape::Color::WHITE, friction_profile_box_line_width, 0, 0, 0, 0, false), Line(Shape::Color::WHITE, friction_profile_box_line_width, 0, 0, 0, 0, true)}
+        , center_green_line_(
+              Shape::Color::GREEN, green_line_width, x_center - green_line_half_length,
+              y_center - green_line_offset_y, x_center + green_line_half_length,
+              y_center - green_line_offset_y, true)
+        , tracking_pink_line_(
+              Shape::Color::PINK, pink_line_width, x_center - pink_line_half_length,
+              y_center + pink_line_offset_y, x_center + pink_line_half_length,
+              y_center + pink_line_offset_y, false) {
 
         chassis_control_direction_indicator_.set_x(x_center);
         chassis_control_direction_indicator_.set_y(y_center);
 
+        register_input("/gimbal/mode", gimbal_mode_);
+        register_input("/remote/keyboard", keyboard_);
         register_input("/chassis/control_mode", chassis_mode_);
 
         register_input("/chassis/angle", chassis_angle_);
@@ -82,6 +92,8 @@ public:
         register_input("/gimbal/player_viewer/raw_angle", gimbal_player_viewer_raw_angle_);
         register_input("/gimbal/pitch/angle", gimbal_pitch_angle_);
         register_input("/gimbal/pitch/raw_angle", gimbal_pitch_raw_angle_);
+        register_input("/gimbal/bottom_yaw/angle", bottom_yaw_angle_);
+        register_input("/gimbal/bottom_yaw/raw_angle", bottom_yaw_raw_angle_);
         // register_input("/gimbal/auto_aim/laser_distance", laser_distance_);
 
         register_input("/gimbal/shooter/condiction", shoot_condiction_);
@@ -131,9 +143,12 @@ private:
         // chassis_control_direction_indicator_.set_visible(value);
         yaw_angle_number_.set_visible(value);
         pitch_angle_number_.set_visible(value);
+        bottom_yaw_angle_number_.set_visible(value);
         // bullet_allowance_label_.set_visible(value);
         bullet_allowance_number_.set_visible(value);
         friction_profile_number_.set_visible(value);
+        center_green_line_.set_visible(value);
+        tracking_pink_line_.set_visible(value);
 
         const bool show_friction_profile_box =
             value && friction_profile_1_active_.ready() && *friction_profile_1_active_;
@@ -147,6 +162,9 @@ private:
         update_chassis_direction_indicator();
         yaw_angle_number_.set_value(static_cast<double>(*gimbal_player_viewer_raw_angle_));
         pitch_angle_number_.set_value(static_cast<double>(*gimbal_pitch_raw_angle_));
+        update_pitch_raw_angle_color();
+        bottom_yaw_angle_number_.set_value(static_cast<double>(*bottom_yaw_raw_angle_));
+        update_bottom_yaw_tracking_lines();
         const int32_t bullet_allowance =
             static_cast<int32_t>(std::max<int64_t>(0, *robot_bullet_allowance_));
         bullet_allowance_number_.set_value(bullet_allowance);
@@ -209,6 +227,45 @@ private:
 
         // status_ring_.update_auto_aim_feedback(auto_aim_locked, target_confidence_value);
         // update_static_status_ring();
+        last_keyboard_ = *keyboard_;
+    }
+
+    void update_pitch_raw_angle_color() {
+        if (keyboard_.ready()) {
+            if (!last_keyboard_.e && keyboard_->e) {
+                last_e_triggered_with_ctrl_ = keyboard_->ctrl;
+            }
+            last_keyboard_ = *keyboard_;
+        }
+
+        if (!gimbal_mode_.ready()) {
+            pitch_angle_number_.set_color(Shape::Color::YELLOW);
+            return;
+        }
+
+        const bool is_encoder = *gimbal_mode_ == rmcs_msgs::GimbalMode::ENCODER;
+        const bool entering_encoder =
+            last_gimbal_mode_ != rmcs_msgs::GimbalMode::ENCODER && is_encoder;
+        const bool leaving_encoder =
+            last_gimbal_mode_ == rmcs_msgs::GimbalMode::ENCODER && !is_encoder;
+
+        if (entering_encoder) {
+            pitch_encoder_by_ctrl_e_ = last_e_triggered_with_ctrl_;
+        }
+
+        if (leaving_encoder) {
+            pitch_encoder_by_ctrl_e_ = false;
+        }
+
+        if (!is_encoder) {
+            pitch_angle_number_.set_color(Shape::Color::YELLOW);
+        } else if (pitch_encoder_by_ctrl_e_) {
+            pitch_angle_number_.set_color(Shape::Color::PINK);
+        } else {
+            pitch_angle_number_.set_color(Shape::Color::GREEN);
+        }
+
+        last_gimbal_mode_ = *gimbal_mode_;
     }
 
     void update_sniper_ui() {
@@ -225,6 +282,34 @@ private:
         lift_height = std::clamp(lift_height, height_min, height_max);
         rangefinder_.update_vertical_rangefinder(lift_height);
         pitch_angle_number_.set_value(static_cast<double>(*gimbal_pitch_raw_angle_));
+    }
+
+    void update_bottom_yaw_tracking_lines() {
+        const bool ctrl_e_pressed = keyboard_->ctrl && keyboard_->e;
+        if (ctrl_e_pressed) {
+            bottom_yaw_tracking_enabled_ = !bottom_yaw_tracking_enabled_;
+            bottom_yaw_anchor_angle_rad_ = *bottom_yaw_angle_;
+        }
+
+        const double delta_bottom_yaw_rad = *bottom_yaw_angle_ - bottom_yaw_anchor_angle_rad_;
+
+        const int min_center_x = static_cast<int>(pink_line_half_length);
+        const int max_center_x =
+            static_cast<int>(screen_width) - static_cast<int>(pink_line_half_length);
+
+        const int pink_center_x = std::clamp(
+            static_cast<int>(std::lround(
+                static_cast<double>(x_center)
+                + delta_bottom_yaw_rad * pink_line_pixels_per_radian)),
+            min_center_x, max_center_x);
+
+        tracking_pink_line_.set_x(
+            static_cast<uint16_t>(pink_center_x - static_cast<int>(pink_line_half_length)));
+        tracking_pink_line_.set_y(y_center + pink_line_offset_y);
+        tracking_pink_line_.set_x2(
+            static_cast<uint16_t>(pink_center_x + static_cast<int>(pink_line_half_length)));
+        tracking_pink_line_.set_y2(y_center + pink_line_offset_y);
+        tracking_pink_line_.set_visible(true);
     }
 
     void update_time_reminder() {
@@ -358,7 +443,24 @@ private:
     static constexpr uint16_t wheel_indicator_half_angle = 10;
     static constexpr double wheel_indicator_offset_deg = 28.0;
     static constexpr double track_velocity_active_threshold = 1.0;
+    static constexpr uint16_t green_line_half_length = 8;
+    static constexpr uint16_t green_line_width = 40;
+    static constexpr uint16_t green_line_offset_y = 0;
 
+    static constexpr uint16_t pink_line_half_length = 40;
+    static constexpr uint16_t pink_line_width = 8;
+    static constexpr uint16_t pink_line_offset_y = 0;
+
+    static constexpr double pink_line_pixels_per_radian = 400.0;
+
+    InputInterface<rmcs_msgs::GimbalMode> gimbal_mode_;
+    InputInterface<rmcs_msgs::Keyboard> keyboard_;
+
+    rmcs_msgs::Keyboard last_keyboard_ = rmcs_msgs::Keyboard::zero();
+    rmcs_msgs::GimbalMode last_gimbal_mode_ = rmcs_msgs::GimbalMode::IMU;
+
+    bool last_e_triggered_with_ctrl_ = false;
+    bool pitch_encoder_by_ctrl_e_ = false;
     InputInterface<rmcs_msgs::ChassisMode> chassis_mode_;
     InputInterface<double> chassis_angle_, chassis_control_angle_;
     InputInterface<double> left_track_velocity_, right_track_velocity_;
@@ -387,6 +489,8 @@ private:
     InputInterface<double> gimbal_player_viewer_angle_;
     InputInterface<int64_t> gimbal_player_viewer_raw_angle_;
     InputInterface<int64_t> gimbal_pitch_raw_angle_;
+    InputInterface<int64_t> bottom_yaw_raw_angle_;
+    InputInterface<double> bottom_yaw_angle_;
     // InputInterface<double> laser_distance_;
 
     InputInterface<rmcs_msgs::ShootMode> shoot_mode_;
@@ -402,6 +506,7 @@ private:
 
     Float yaw_angle_number_;
     Float pitch_angle_number_;
+    Float bottom_yaw_angle_number_;
 
     Text state_word_;
     Integer time_reminder_;
@@ -410,6 +515,11 @@ private:
     Integer bullet_allowance_number_;
     Integer friction_profile_number_;
     Line friction_profile_indicator_[4];
+    Line center_green_line_;
+    Line tracking_pink_line_;
+
+    bool bottom_yaw_tracking_enabled_ = false;
+    double bottom_yaw_anchor_angle_rad_ = 0.0;
 
     // InputInterface<bool> auto_aim_fire_control_;
     // InputInterface<double> auto_aim_target_confidence_;
