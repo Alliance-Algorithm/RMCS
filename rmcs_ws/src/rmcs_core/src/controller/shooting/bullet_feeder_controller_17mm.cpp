@@ -1,7 +1,3 @@
-#include <cmath>
-
-#include <limits>
-
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/keyboard.hpp>
@@ -53,7 +49,7 @@ public:
         register_input("/remote/mouse", mouse_);
         register_input("/remote/keyboard", keyboard_);
 
-        register_input("/auto_aim/should_shoot", fire_control_, false);
+        register_input("/auto_aim/should_shoot", should_shoot_, false);
 
         register_input("/gimbal/bullet_feeder/velocity", bullet_feeder_velocity_);
         register_output(
@@ -63,8 +59,8 @@ public:
     }
 
     void before_updating() override {
-        if (!fire_control_.ready())
-            fire_control_.bind_directly(false);
+        if (!should_shoot_.ready())
+            should_shoot_.bind_directly(false);
     }
 
     void update() override {
@@ -80,19 +76,17 @@ public:
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
             reset_all_controls();
         } else {
-            int64_t bullet_allowance = 0;
+            std::int64_t bullet_allowance = 0;
 
             if (switch_right != Switch::DOWN) {
                 shoot_mode = keyboard.f ? ShootMode::SINGLE : ShootMode::AUTOMATIC;
-                const bool auto_aim_requested = mouse.right || switch_right == Switch::UP;
 
                 single_shot_stop_counter_ = std::max(0, single_shot_stop_counter_ - 1);
                 temporary_single_shot_counter_ = std::max(0, temporary_single_shot_counter_ - 1);
 
                 if (!last_mouse_.left && mouse.left)
                     single_shot_stop_counter_ = single_shot_max_stop_delay_;
-                else if (!auto_aim_requested && last_switch_left_ != Switch::DOWN
-                    && switch_left == Switch::DOWN) {
+                else if (last_switch_left_ != Switch::DOWN && switch_left == Switch::DOWN) {
                     single_shot_stop_counter_ = single_shot_max_stop_delay_;
                     temporary_single_shot_counter_ = 500;
                 }
@@ -104,16 +98,14 @@ public:
 
                 if (*friction_ready_) {
                     if (shoot_mode == ShootMode::AUTOMATIC) {
-                        const bool auto_aim_enabled = auto_aim_requested;
-                        bool triggered = 
-                            (mouse.left && !mouse.right) || 
-                            (switch_left == Switch::DOWN && auto_aim_enabled && *fire_control_) ||
-                            (switch_left == Switch::DOWN && !auto_aim_enabled) || 
-                            (mouse.left && auto_aim_enabled && *fire_control_);
+                        auto aiming_enable = mouse_->right || (switch_right == Switch::UP);
+                        auto attack_intent = mouse_->left || (switch_left == Switch::DOWN);
+                        auto triggered =
+                            aiming_enable ? (*should_shoot_ && attack_intent) : attack_intent;
                         bullet_allowance =
                             triggered ? *control_bullet_allowance_limited_by_heat_ : 0;
                     } else {
-                        bool triggered = single_shot_stop_counter_ > 0;
+                        auto triggered = single_shot_stop_counter_ > 0;
                         bullet_allowance =
                             triggered && (*control_bullet_allowance_limited_by_heat_ > 0);
                     }
@@ -215,7 +207,7 @@ private:
     InputInterface<rmcs_msgs::Mouse> mouse_;
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
 
-    InputInterface<bool> fire_control_;
+    InputInterface<bool> should_shoot_;
 
     rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Switch last_switch_left_ = rmcs_msgs::Switch::UNKNOWN;
