@@ -31,7 +31,7 @@ class DeformableInfantry
 public:
     DeformableInfantry()
         : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
-        , crosshair_circle_(Shape::Color::WHITE, x_center - 22, y_center - 42, 8, 2)
+        , crosshair_circle_(Shape::Color::WHITE, x_center - 26, y_center - 34, 8, 2)
         , status_ring_(24.0, 26.5, 600, 300)
         , horizontal_center_guidelines_(
               {Shape::Color::WHITE, 2, x_center - 360, y_center, x_center - 110, y_center},
@@ -129,9 +129,9 @@ private:
         const double reveal = ctrl_transition_.update(*timestamp_, ctrl_active);
 
         crosshair_circle_.set_x(static_cast<uint16_t>(std::lround(
-            static_cast<double>(crosshair_base_x_) + 20.0 * reveal)));
+            static_cast<double>(crosshair_base_x_) + 45.0 * reveal)));
         crosshair_circle_.set_y(static_cast<uint16_t>(std::lround(
-            static_cast<double>(crosshair_base_y_) - 20.0 * reveal)));
+            static_cast<double>(crosshair_base_y_) + 20.0 * reveal)));
     }
 
     void update_time_reminder() {
