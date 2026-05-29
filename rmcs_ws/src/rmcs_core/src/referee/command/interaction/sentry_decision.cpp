@@ -1,11 +1,12 @@
+#include "referee/command/field.hpp"
+#include "referee/command/interaction/header.hpp"
+#include "referee/status/field.hpp"
+
+#include <eigen3/Eigen/Dense>
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/full_robot_id.hpp>
 #include <rmcs_msgs/robot_id.hpp>
-
-#include "referee/command/field.hpp"
-#include "referee/command/interaction/header.hpp"
-#include "referee/status/field.hpp"
 
 namespace rmcs_core::referee::command::interaction {
 
@@ -18,6 +19,7 @@ public:
 
     InputInterface<rmcs_msgs::RobotId> robot_id_;
     InputInterface<bool> auto_aim_should_control_;
+    InputInterface<Eigen::Vector2d> navigation_speed_;
 
     OutputInterface<Field> sentry_decision_field_;
 
@@ -26,9 +28,10 @@ public:
 
     Clock::time_point last_sent_{Clock::now()};
 
-    Command::Posture last_posture_ = Command::Posture::MOVE;
+    Command::Posture last_posture_ = Command::Posture::DEFENSE;
     Clock::time_point last_change_{Clock::now()};
     Clock::time_point last_attack_{Clock::now()};
+    Clock::time_point last_move_{Clock::now()};
 
     SentryDecision()
         : Node{
@@ -37,6 +40,7 @@ public:
 
         register_input("/auto_aim/should_control", auto_aim_should_control_, false);
         register_input("/referee/id", robot_id_);
+        register_input("/rmcs_navigation/chassis_velocity", navigation_speed_, false);
 
         register_output("/referee/command/interaction/sentry_decision", sentry_decision_field_);
     }
@@ -44,6 +48,9 @@ public:
     auto before_updating() -> void override {
         if (auto_aim_should_control_.ready() == false) {
             auto_aim_should_control_.make_and_bind_directly(false);
+        }
+        if (navigation_speed_.ready() == false) {
+            navigation_speed_.make_and_bind_directly(Eigen::Vector2d::Zero());
         }
     }
 
@@ -56,15 +63,25 @@ public:
             return;
         }
 
-        auto posture = Command::Posture::MOVE;
-
         const auto now = Clock::now();
         if (*auto_aim_should_control_) {
             last_attack_ = now;
         }
-        if (now - last_attack_ < 2s) {
-            posture = Command::Posture::ATTACK;
+        if (navigation_speed_->norm() > 0.5) {
+            last_move_ = now;
         }
+
+        auto posture = Command::Posture::MOVE;
+        do {
+            if (now - last_attack_ < 2s) {
+                posture = Command::Posture::ATTACK;
+                break;
+            }
+            if (now - last_move_ < 2s) {
+                posture = Command::Posture::MOVE;
+                break;
+            }
+        } while (false);
 
         const auto id = rmcs_msgs::FullRobotId{*robot_id_};
         header_.command_id = 0x0120;
@@ -72,11 +89,11 @@ public:
         header_.receiver_id = rmcs_msgs::FullRobotId::REFEREE_SERVER;
 
         command_ = Command{};
-        command_.rebirth_confirmed = 1;
+        command_.rebirth_confirmed = 0;
         command_.posture = posture;
 
-        const auto need_change = (posture != last_posture_) && (now - last_change_ > 5s);
-        const auto reach_delay = (now - last_sent_ > 5s);
+        const auto need_change = (posture != last_posture_) && (now - last_change_ > 6s);
+        const auto reach_delay = (now - last_sent_ > 10s);
         if (reach_delay || need_change) {
             *sentry_decision_field_ = MAKE_FIELD(header_, command_);
             if (need_change) {

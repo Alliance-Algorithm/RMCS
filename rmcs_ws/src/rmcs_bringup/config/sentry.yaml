@@ -21,8 +21,8 @@ rmcs_executor:
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::SteeringWheelController -> steering_wheel_controller
 
-      - rmcs::navigation::Navigation -> rmcs_navigation
-      - rmcs::AutoAimComponent -> auto_aim_component
+      # - rmcs::navigation::Navigation -> rmcs_navigation
+      # - rmcs::AutoAimComponent -> auto_aim_component
 
       # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
@@ -45,20 +45,21 @@ sentry_hardware:
     board_serial_bottom_board: "d4-2184"
     board_serial_gimbal_board: "d4-1d2b"
 
-    bottom_yaw_motor_zero_point: 24121
-    top_yaw_motor_zero_point: 32916
     pitch_motor_zero_point: 1275
 
-    right_back_zero_point: 6770
-    right_front_zero_point: 5185
-    left_front_zero_point: 359
-    left_back_zero_point: 3629
+    bottom_yaw_motor_zero_point: 54597
+    top_yaw_motor_zero_point: 33409
+
+    left_front_zero_point: 6775
+    left_back_zero_point: 5187
+    right_back_zero_point: 239
+    right_front_zero_point: 3750
 
 rmcs_navigation:
   ros__parameters:
     command_vel_name: "/cmd_vel"
     mock_context: false
-    endpoint: "main" # otaku | main
+    endpoint: "main" # otaku | main | test
     enable_goal_topic_forward: true
 
 gimbal_controller:
@@ -120,7 +121,7 @@ friction_wheel_controller:
 heat_controller:
   ros__parameters:
     heat_per_shot: 10000
-    reserved_heat: 10000
+    reserved_heat: 30000
 
 bullet_feeder_controller:
   ros__parameters:
