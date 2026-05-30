@@ -34,22 +34,9 @@ rmcs_executor:
 value_broadcaster:
   ros__parameters:
     forward_list:
-      - /chassis/left_front_joint/torque
-      - /chassis/left_back_joint/torque
-      - /chassis/right_front_joint/torque
-      - /chassis/right_back_joint/torque
-      - /chassis/left_front_joint/suspension_mode
-      - /chassis/left_back_joint/suspension_mode
-      - /chassis/right_front_joint/suspension_mode
-      - /chassis/right_back_joint/suspension_mode
-      - /chassis/left_front_joint/suspension_torque
-      - /chassis/left_back_joint/suspension_torque
-      - /chassis/right_front_joint/suspension_torque
-      - /chassis/right_back_joint/suspension_torque
-      - /chassis/left_front_joint/control_torque
-      - /chassis/left_back_joint/control_torque
-      - /chassis/right_front_joint/control_torque
-      - /chassis/right_back_joint/control_torque
+      - /gimbal/yaw/angle
+      - /gimbal/yaw/velocity
+
 
 deformable_infantry:
   ros__parameters:
@@ -100,7 +87,7 @@ gimbal_controller:
     inertia: 1.0  # kg·m²
     friction: 1.65   # Nm/(rad/s)
 
-    upper_limit: -0.61 # -35 deg
+    upper_limit: -0.65 # -35 deg
     lower_limit: 0.05 # 6 deg
     use_encoder_pitch: true
 
@@ -128,14 +115,14 @@ friction_wheel_controller:
       - /gimbal/left_friction
       - /gimbal/right_friction
     friction_velocities:
-      - 600.0
-      - 600.0
+      - 580.0
+      - 580.0
     friction_soft_start_stop_time: 1.0
 
 heat_controller:
   ros__parameters:
     heat_per_shot: 10000
-    reserved_heat: 0
+    reserved_heat: 5000
 
 bullet_feeder_controller:
   ros__parameters:
@@ -191,14 +178,9 @@ lf_joint_controller:
   ros__parameters:
     # Joint-local servo inputs produced by chassis intent generation
     measurement_angle: /chassis/left_front_joint/physical_angle
-    measurement_velocity: /chassis/left_front_joint/physical_velocity
     setpoint_angle: /chassis/left_front_joint/target_physical_angle
-    setpoint_velocity: /chassis/left_front_joint/target_physical_velocity
-    mode_input: /chassis/left_front_joint/suspension_mode
-    suspension_torque: /chassis/left_front_joint/suspension_torque
     control: /chassis/left_front_joint/control_torque
 
-    # Normal ADRC servo mode
     dt: 0.001
     b0: -1.0
     kt: 1.0
@@ -215,34 +197,11 @@ lf_joint_controller:
     u_max: 200.0
     output_min: -200.0
     output_max: 200.0
-
-    # Suspension ADRC servo mode
-    suspension_td_h: 0.001
-    suspension_td_r: 12.0
-    suspension_eso_w0: 80.0
-    suspension_k1: 6.0
-    suspension_k2: 3.0
-    suspension_alpha1: 0.75
-    suspension_alpha2: 0.7
-    suspension_delta: 0.02
-    suspension_u_min: -35.0
-    suspension_u_max: 35.0
-    suspension_output_min: -35.0
-    suspension_output_max: 35.0
-
-    # Joint-local feedforward / limit shaping
-    torque_feedforward_gain: 0.0
-    suspension_torque_feedforward_gain: -1.0
-
 lb_joint_controller:
   ros__parameters:
     # Same joint-servo layout as lf_joint_controller
     measurement_angle: /chassis/left_back_joint/physical_angle
-    measurement_velocity: /chassis/left_back_joint/physical_velocity
     setpoint_angle: /chassis/left_back_joint/target_physical_angle
-    setpoint_velocity: /chassis/left_back_joint/target_physical_velocity
-    mode_input: /chassis/left_back_joint/suspension_mode
-    suspension_torque: /chassis/left_back_joint/suspension_torque
     control: /chassis/left_back_joint/control_torque
     dt: 0.001
     b0: -1.0
@@ -260,30 +219,11 @@ lb_joint_controller:
     u_max: 200.0
     output_min: -200.0
     output_max: 200.0
-    suspension_td_h: 0.001
-    suspension_td_r: 12.0
-    suspension_eso_w0: 80.0
-    suspension_k1: 6.0
-    suspension_k2: 3.0
-    suspension_alpha1: 0.75
-    suspension_alpha2: 0.7
-    suspension_delta: 0.02
-    suspension_u_min: -35.0
-    suspension_u_max: 35.0
-    suspension_output_min: -35.0
-    suspension_output_max: 35.0
-    torque_feedforward_gain: 0.0
-    suspension_torque_feedforward_gain: -1.0
-
 rb_joint_controller:
   ros__parameters:
     # Same joint-servo layout as lf_joint_controller
     measurement_angle: /chassis/right_back_joint/physical_angle
-    measurement_velocity: /chassis/right_back_joint/physical_velocity
     setpoint_angle: /chassis/right_back_joint/target_physical_angle
-    setpoint_velocity: /chassis/right_back_joint/target_physical_velocity
-    mode_input: /chassis/right_back_joint/suspension_mode
-    suspension_torque: /chassis/right_back_joint/suspension_torque
     control: /chassis/right_back_joint/control_torque
     dt: 0.001
     b0: -1.0
@@ -301,30 +241,11 @@ rb_joint_controller:
     u_max: 200.0
     output_min: -200.0
     output_max: 200.0
-    suspension_td_h: 0.001
-    suspension_td_r: 12.0
-    suspension_eso_w0: 80.0
-    suspension_k1: 6.0
-    suspension_k2: 3.0
-    suspension_alpha1: 0.75
-    suspension_alpha2: 0.7
-    suspension_delta: 0.02
-    suspension_u_min: -35.0
-    suspension_u_max: 35.0
-    suspension_output_min: -35.0
-    suspension_output_max: 35.0
-    torque_feedforward_gain: 0.0
-    suspension_torque_feedforward_gain: -1.0
-
 rf_joint_controller:
   ros__parameters:
     # Same joint-servo layout as lf_joint_controller
     measurement_angle: /chassis/right_front_joint/physical_angle
-    measurement_velocity: /chassis/right_front_joint/physical_velocity
     setpoint_angle: /chassis/right_front_joint/target_physical_angle
-    setpoint_velocity: /chassis/right_front_joint/target_physical_velocity
-    mode_input: /chassis/right_front_joint/suspension_mode
-    suspension_torque: /chassis/right_front_joint/suspension_torque
     control: /chassis/right_front_joint/control_torque
     dt: 0.001
     b0: -1.0
@@ -342,17 +263,3 @@ rf_joint_controller:
     u_max: 200.0
     output_min: -200.0
     output_max: 200.0
-    suspension_td_h: 0.001
-    suspension_td_r: 12.0
-    suspension_eso_w0: 80.0
-    suspension_k1: 6.0
-    suspension_k2: 3.0
-    suspension_alpha1: 0.75
-    suspension_alpha2: 0.7
-    suspension_delta: 0.02
-    suspension_u_min: -35.0
-    suspension_u_max: 35.0
-    suspension_output_min: -35.0
-    suspension_output_max: 35.0
-    torque_feedforward_gain: 0.0
-    suspension_torque_feedforward_gain: -1.0

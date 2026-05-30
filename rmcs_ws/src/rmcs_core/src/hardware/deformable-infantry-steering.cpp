@@ -20,6 +20,7 @@
 #include <rmcs_msgs/serial_interface.hpp>
 #include <rmcs_utility/ring_buffer.hpp>
 #include <std_msgs/msg/int32.hpp>
+#include <std_srvs/srv/trigger.hpp>
 
 #include <librmcs/agent/rmcs_board_lite.hpp>
 
@@ -50,21 +51,14 @@ public:
         register_input("/predefined/timestamp", timestamp_);
         register_output("/tf", tf_);
 
-        tf_->set_transform<PitchLink, CameraLink>(Eigen::Translation3d{0.16, 0.0, 0.15});
+        tf_->set_transform<PitchLink, CameraLink>(Eigen::Translation3d{0.058, -0.08, 0.0});
 
-        steers_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
-            "/steers/calibrate", rclcpp::QoS(1), [this](std_msgs::msg::Int32::UniquePtr msg) {
-                steers_calibrate_subscription_callback(std::move(msg));
-            });
-
-        joints_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
-            "/joints/calibrate", rclcpp::QoS(1), [this](std_msgs::msg::Int32::UniquePtr msg) {
-                joints_calibrate_subscription_callback(std::move(msg));
-            });
-
-        gimbal_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
-            "/gimbal/calibrate", rclcpp::QoS{0}, [this](std_msgs::msg::Int32::UniquePtr&& msg) {
-                gimbal_calibrate_subscription_callback(std::move(msg));
+        // For command: remote-status
+        using Srv = std_srvs::srv::Trigger;
+        status_service_ = create_service<Srv>(
+            "/rmcs/service/robot_status",
+            [this](const Srv::Request::SharedPtr&, const Srv::Response::SharedPtr& response) {
+                status_service_callback(response);
             });
 
         rmcs_board_lite = std::make_unique<BottomBoard>(
@@ -98,54 +92,6 @@ private:
     class BottomBoard;
     class TopBoard;
 
-    void steers_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
-        if (!rmcs_board_lite)
-            return;
-
-        RCLCPP_INFO(
-            get_logger(), "New left front offset: %d",
-            rmcs_board_lite->chassis_steer_motors_[0].calibrate_zero_point());
-        RCLCPP_INFO(
-            get_logger(), "New left back offset: %d",
-            rmcs_board_lite->chassis_steer_motors_[1].calibrate_zero_point());
-        RCLCPP_INFO(
-            get_logger(), "New right back offset: %d",
-            rmcs_board_lite->chassis_steer_motors_[2].calibrate_zero_point());
-        RCLCPP_INFO(
-            get_logger(), "New right front offset: %d",
-            rmcs_board_lite->chassis_steer_motors_[3].calibrate_zero_point());
-    }
-
-    void joints_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
-        if (!rmcs_board_lite)
-            return;
-
-        RCLCPP_INFO(
-            get_logger(), "New left front offset: %ld",
-            rmcs_board_lite->chassis_joint_motors_[0].calibrate_zero_point());
-        RCLCPP_INFO(
-            get_logger(), "New left back offset: %ld",
-            rmcs_board_lite->chassis_joint_motors_[1].calibrate_zero_point());
-        RCLCPP_INFO(
-            get_logger(), "New right back offset: %ld",
-            rmcs_board_lite->chassis_joint_motors_[2].calibrate_zero_point());
-        RCLCPP_INFO(
-            get_logger(), "New right front offset: %ld",
-            rmcs_board_lite->chassis_joint_motors_[3].calibrate_zero_point());
-    }
-
-    void gimbal_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
-        if (!rmcs_board_lite || !top_board_)
-            return;
-
-        RCLCPP_INFO(
-            get_logger(), "[gimbal calibration] New yaw offset: %ld",
-            rmcs_board_lite->gimbal_yaw_motor_.calibrate_zero_point());
-        RCLCPP_INFO(
-            get_logger(), "[gimbal calibration] New pitch offset: %ld",
-            top_board_->gimbal_pitch_motor_.calibrate_zero_point());
-    }
-
     class DeformableInfantryV2Command : public rmcs_executor::Component {
     public:
         explicit DeformableInfantryV2Command(DeformableInfantryV2& deformableInfantry)
@@ -164,23 +110,14 @@ private:
 
         explicit BottomBoard(
             DeformableInfantryV2& deformableInfantry,
-            DeformableInfantryV2Command& deformableInfantry_command, std::string serial_filter = {})
-            : librmcs::agent::RmcsBoardLite(
+            DeformableInfantryV2Command& deformableInfantry_command,
+            const std::string& serial_filter = {})
+            : RmcsBoardLite{
                   serial_filter,
-                  librmcs::agent::AdvancedOptions{.dangerously_skip_version_checks = true})
-            , deformable_infantry_(deformableInfantry)
-            , tf_(deformableInfantry.tf_)
-            , imu_(1000, 0.2, 0.0)
-            , gimbal_yaw_motor_(deformableInfantry, deformableInfantry_command, "/gimbal/yaw")
-            , dr16_(deformableInfantry)
-            , chassis_wheel_motors_{device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/left_front_wheel"}, device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/left_back_wheel"}, device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/right_back_wheel"}, device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/right_front_wheel"},}
-            , chassis_steer_motors_{device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/left_front_steering"}, device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/left_back_steering"}, device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/right_back_steering"}, device::DjiMotor{deformableInfantry, deformableInfantry_command, "/chassis/right_front_steering"}}
-            , chassis_joint_motors_{device::LkMotor{deformableInfantry, deformableInfantry_command, "/chassis/left_front_joint"}, device::LkMotor{deformableInfantry, deformableInfantry_command, "/chassis/left_back_joint"}, device::LkMotor{deformableInfantry, deformableInfantry_command, "/chassis/right_back_joint"}, device::LkMotor{deformableInfantry, deformableInfantry_command, "/chassis/right_front_joint"}}
-            , next_chassis_feedback_log_time_(Clock::now() + std::chrono::seconds(1))
-            , next_supercap_feedback_log_time_(Clock::now() + std::chrono::seconds(1))
-            , supercap_(deformableInfantry, deformableInfantry_command)
-            , gimbal_bullet_feeder_(
-                  deformableInfantry, deformableInfantry_command, "/gimbal/bullet_feeder") {
+                  librmcs::agent::AdvancedOptions{.dangerously_skip_version_checks = true}}
+            , deformable_infantry_{deformableInfantry}
+            , command_{deformableInfantry_command}
+            , tf_{deformableInfantry.tf_} {
 
             deformableInfantry.register_output("/referee/serial", referee_serial_);
             referee_serial_->read = [this](std::byte* buffer, size_t size) {
@@ -568,7 +505,8 @@ private:
                 deformable_infantry_.get_logger(),
                 "[supercap] can1 rx=%c id=0x300 enabled=%d supercap_v=% .3f chassis_v=% .3f "
                 "power=% .3f raw=[%02X %02X %02X %02X %02X %02X %02X %02X]",
-                supercap_rx ? 'Y' : 'N', supercap_rx ? (supercap_.supercap_enabled() ? 1 : 0) : -1,
+                supercap_rx ? 'Y' : 'N',
+                supercap_rx ? (supercap_.supercap_enabled() ? 1 : 0) : -1,
                 supercap_rx ? supercap_.supercap_voltage() : nan_,
                 supercap_rx ? supercap_.chassis_voltage() : nan_,
                 supercap_rx ? supercap_.chassis_power() : nan_,
@@ -585,7 +523,7 @@ private:
         }
 
         void dbus_receive_callback(const librmcs::data::UartDataView& data) override {
-            dr16_.store_status(data.uart_data.data(), data.uart_data.size());
+            dr16_.store_status(data.uart_data);
         }
 
         void can0_receive_callback(const librmcs::data::CanDataView& data) override {
@@ -666,25 +604,48 @@ private:
             imu_.store_gyroscope_status(data.x, data.y, data.z);
         }
 
+        rmcs_executor::Component& command_;
+
         OutputInterface<rmcs_description::Tf>& tf_;
 
-        device::Bmi088 imu_;
-        device::LkMotor gimbal_yaw_motor_;
+        device::Bmi088 imu_{1000, 0.2, 0.0};
+        device::LkMotor gimbal_yaw_motor_{deformable_infantry_, command_, "/gimbal/yaw"};
         device::Dr16 dr16_;
-        device::DjiMotor chassis_wheel_motors_[4];
-        device::DjiMotor chassis_steer_motors_[4];
-        device::LkMotor chassis_joint_motors_[4];
+
+        device::DjiMotor chassis_wheel_motors_[4]{
+            device::DjiMotor{deformable_infantry_, command_, "/chassis/left_front_wheel"},
+            device::DjiMotor{deformable_infantry_, command_, "/chassis/left_back_wheel"},
+            device::DjiMotor{deformable_infantry_, command_, "/chassis/right_back_wheel"},
+            device::DjiMotor{deformable_infantry_, command_, "/chassis/right_front_wheel"},
+        };
+        device::DjiMotor chassis_steer_motors_[4]{
+            device::DjiMotor{deformable_infantry_, command_, "/chassis/left_front_steering"},
+            device::DjiMotor{deformable_infantry_, command_, "/chassis/left_back_steering"},
+            device::DjiMotor{deformable_infantry_, command_, "/chassis/right_back_steering"},
+            device::DjiMotor{deformable_infantry_, command_, "/chassis/right_front_steering"},
+        };
+        device::LkMotor chassis_joint_motors_[4]{
+            device::LkMotor{deformable_infantry_, command_, "/chassis/left_front_joint"},
+            device::LkMotor{deformable_infantry_, command_, "/chassis/left_back_joint"},
+            device::LkMotor{deformable_infantry_, command_, "/chassis/right_back_joint"},
+            device::LkMotor{deformable_infantry_, command_, "/chassis/right_front_joint"},
+        };
+
         std::atomic<bool> wheel_status_received_[4] = {false, false, false, false};
         std::atomic<bool> joint_status_received_[4] = {false, false, false, false};
         bool debug_log_supercap_ = false;
         bool debug_log_wheel_motor_ = false;
         bool debug_log_deformable_joint_motor_ = false;
-        Clock::time_point next_chassis_feedback_log_time_;
-        Clock::time_point next_supercap_feedback_log_time_;
-        device::Supercap supercap_;
-        std::atomic<device::CanPacket8> latest_supercap_status_{device::CanPacket8{uint64_t{0}}};
+        Clock::time_point next_chassis_feedback_log_time_{
+            Clock::now() + std::chrono::seconds(1)};
+        Clock::time_point next_supercap_feedback_log_time_{
+            Clock::now() + std::chrono::seconds(1)};
+        device::Supercap supercap_{deformable_infantry_, command_};
+        std::atomic<device::CanPacket8> latest_supercap_status_{
+            device::CanPacket8{uint64_t{0}}};
         std::atomic<bool> supercap_status_received_{false};
-        device::DjiMotor gimbal_bullet_feeder_;
+        device::DjiMotor gimbal_bullet_feeder_{
+            deformable_infantry_, command_, "/gimbal/bullet_feeder"};
 
         rmcs_utility::RingBuffer<std::byte> referee_ring_buffer_receive_{256};
         OutputInterface<rmcs_msgs::SerialInterface> referee_serial_;
@@ -853,6 +814,36 @@ private:
         device::DjiMotor scope_motor_;
     };
 
+    auto status_service_callback(const std::shared_ptr<std_srvs::srv::Trigger::Response>& response)
+        -> void {
+        response->success = true;
+
+        auto feedback_message = std::ostringstream{};
+        auto text = [&]<typename... Args>(std::format_string<Args...> format, Args&&... args) {
+            std::println(feedback_message, format, std::forward<Args>(args)...);
+        };
+
+        text("Gimbal Status");
+        text("-   Yaw: {}", rmcs_board_lite->gimbal_yaw_motor_.last_raw_angle());
+        text("- Pitch: {}", top_board_->gimbal_pitch_motor_.last_raw_angle());
+
+        text("Chassis Status");
+        text("- left front wheel: {}", rmcs_board_lite->chassis_wheel_motors_[0].last_raw_angle());
+        text("- left back wheel: {}", rmcs_board_lite->chassis_wheel_motors_[1].last_raw_angle());
+        text("- right back wheel: {}", rmcs_board_lite->chassis_wheel_motors_[2].last_raw_angle());
+        text("- right front wheel: {}", rmcs_board_lite->chassis_wheel_motors_[3].last_raw_angle());
+        text("- left front steer: {}", rmcs_board_lite->chassis_steer_motors_[0].last_raw_angle());
+        text("- left back steer: {}", rmcs_board_lite->chassis_steer_motors_[1].last_raw_angle());
+        text("- right back steer: {}", rmcs_board_lite->chassis_steer_motors_[2].last_raw_angle());
+        text("- right front steer: {}", rmcs_board_lite->chassis_steer_motors_[3].last_raw_angle());
+        text("- left front joint: {}", rmcs_board_lite->chassis_joint_motors_[0].last_raw_angle());
+        text("- left back joint: {}", rmcs_board_lite->chassis_joint_motors_[1].last_raw_angle());
+        text("- right back joint: {}", rmcs_board_lite->chassis_joint_motors_[2].last_raw_angle());
+        text("- right front joint: {}", rmcs_board_lite->chassis_joint_motors_[3].last_raw_angle());
+
+        response->message = feedback_message.str();
+    }
+
     OutputInterface<rmcs_description::Tf> tf_;
     InputInterface<Clock::time_point> timestamp_;
     std::atomic<bool> hard_sync_pending_{false};
@@ -863,10 +854,7 @@ private:
     std::unique_ptr<BottomBoard> rmcs_board_lite;
     std::unique_ptr<TopBoard> top_board_;
 
-    rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr steers_calibrate_subscription_;
-    rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr joints_calibrate_subscription_;
-    rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr gimbal_calibrate_subscription_;
-
+    std::shared_ptr<rclcpp::Service<std_srvs::srv::Trigger>> status_service_;
     uint32_t cmd_tick_ = 0;
 };
 
