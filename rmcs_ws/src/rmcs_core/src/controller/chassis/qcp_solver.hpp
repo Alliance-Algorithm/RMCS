@@ -61,9 +61,9 @@ public:
         const std::vector<HalfPlaneConstraint>& half_planes,
         const QuadraticConstraint& quadratic_constraint) {
         std::vector<Eigen::Vector2d> polygon = {
-            {boundary_constraint.x_max,  boundary_constraint.y_max},
-            {                      0.0,  boundary_constraint.y_max},
-            {                      0.0, -boundary_constraint.y_max},
+            {boundary_constraint.x_max, boundary_constraint.y_max},
+            {0.0, boundary_constraint.y_max},
+            {0.0, -boundary_constraint.y_max},
             {boundary_constraint.x_max, -boundary_constraint.y_max},
         };
 
@@ -129,10 +129,7 @@ private:
             [&line](const Eigen::Vector2d& p1, const Eigen::Vector2d& p2) -> Eigen::Vector2d {
                 Eigen::Vector3d line2 =
                     Eigen::Vector3d(p1.x(), p1.y(), 1).cross(Eigen::Vector3d(p2.x(), p2.y(), 1));
-                Eigen::Matrix2d matrix{
-                    { line.x(),  line.y()},
-                    {line2.x(), line2.y()}
-                };
+                Eigen::Matrix2d matrix{{line.x(), line.y()}, {line2.x(), line2.y()}};
                 return matrix.inverse() * Eigen::Vector2d(-line.z(), -line2.z());
             });
     }

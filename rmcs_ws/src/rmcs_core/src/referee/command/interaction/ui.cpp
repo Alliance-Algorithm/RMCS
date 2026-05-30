@@ -45,7 +45,7 @@ public:
             resetting_ = 4;
         }
         last_game_stage_ = *game_stage_;
-        last_keyboard_   = *keyboard_;
+        last_keyboard_ = *keyboard_;
 
         if (resetting_) {
             *ui_field_ = Field{[this](std::byte* buffer) {
@@ -67,10 +67,10 @@ private:
     size_t write_resetting_field(std::byte* buffer) const {
         size_t written = 0;
 
-        auto& header       = *new (buffer + written) Header{};
-        header.command_id  = 0x0100; // Clear shapes
+        auto& header = *new (buffer + written) Header{};
+        header.command_id = 0x0100; // Clear shapes
         auto full_robot_id = rmcs_msgs::FullRobotId{*robot_id_};
-        header.sender_id   = full_robot_id;
+        header.sender_id = full_robot_id;
         header.receiver_id = full_robot_id.client();
         written += sizeof(Header);
 
@@ -79,7 +79,7 @@ private:
             uint8_t layer;
         };
         auto& command = *new (buffer + written) Command{};
-        command.type  = 2;           // Clear all layers
+        command.type = 2;           // Clear all layers
         command.layer = 0;
         written += sizeof(Command);
 
@@ -89,9 +89,9 @@ private:
     size_t write_updating_field(std::byte* buffer) const {
         size_t written = 0;
 
-        auto& header       = *new (buffer + written) Header{};
+        auto& header = *new (buffer + written) Header{};
         auto full_robot_id = rmcs_msgs::FullRobotId{*robot_id_};
-        header.sender_id   = full_robot_id;
+        header.sender_id = full_robot_id;
         header.receiver_id = full_robot_id.client();
         written += sizeof(Header);
 

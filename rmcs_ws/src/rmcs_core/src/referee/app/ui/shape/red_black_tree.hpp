@@ -181,7 +181,7 @@ public:
                      */
                     tmp->set_parent_and_color(gparent, Color::BLACK);
                     parent->set_parent_and_color(gparent, Color::BLACK);
-                    node   = gparent;
+                    node = gparent;
                     parent = node->parent();
                     node->set_parent_and_color(parent, Color::RED);
                     continue;
@@ -209,7 +209,7 @@ public:
                         tmp->set_parent_and_color(parent, Color::BLACK);
                     parent->set_parent_and_color(node, Color::RED);
                     parent = node;
-                    tmp    = node->right;
+                    tmp = node->right;
                 }
 
                 /*
@@ -234,7 +234,7 @@ public:
                     /* Case 1 - color flips */
                     tmp->set_parent_and_color(gparent, Color::BLACK);
                     parent->set_parent_and_color(gparent, Color::BLACK);
-                    node   = gparent;
+                    node = gparent;
                     parent = node->parent();
                     node->set_parent_and_color(parent, Color::RED);
                     continue;
@@ -250,7 +250,7 @@ public:
                         tmp->set_parent_and_color(parent, Color::BLACK);
                     parent->set_parent_and_color(node, Color::RED);
                     parent = node;
-                    tmp    = node->left;
+                    tmp = node->left;
                 }
 
                 /* Case 3 - left rotate at gparent */
@@ -315,7 +315,7 @@ private:
      * - old gets assigned new as a parent and 'color' as a color.
      */
     void rotate_set_parents(Node* old_node, Node* new_node, Color color) {
-        Node* parent               = old_node->parent();
+        Node* parent = old_node->parent();
         new_node->parent_and_color = old_node->parent_and_color;
         old_node->set_parent_and_color(new_node, color);
         change_child(old_node, new_node, parent);
@@ -323,7 +323,7 @@ private:
 
     Node* __erase(Node* node) {
         Node* child = node->right;
-        Node* tmp   = node->left;
+        Node* tmp = node->left;
         Node *parent, *rebalance;
         uintptr_t pc;
 
@@ -335,22 +335,22 @@ private:
              * and node must be black due to 4). We adjust colors locally
              * so as to bypass __rb_erase_color() later on.
              */
-            pc     = node->parent_and_color;
+            pc = node->parent_and_color;
             parent = ((Node*)(pc & ~3));
             change_child(node, child, parent);
             if (child) {
                 child->parent_and_color = pc;
-                rebalance               = nullptr;
+                rebalance = nullptr;
             } else
                 rebalance = ((pc) & 1) ? parent : nullptr;
             tmp = parent;
         } else if (!child) {
             /* Still case 1, but this time the child is node->rb_left */
             tmp->parent_and_color = pc = node->parent_and_color;
-            parent                     = ((Node*)(pc & ~3));
+            parent = ((Node*)(pc & ~3));
             change_child(node, tmp, parent);
             rebalance = nullptr;
-            tmp       = parent;
+            tmp = parent;
         } else {
             Node *successor = child, *child2;
 
@@ -384,9 +384,9 @@ private:
                  *    (c)
                  */
                 do {
-                    parent    = successor;
+                    parent = successor;
                     successor = tmp;
-                    tmp       = tmp->left;
+                    tmp = tmp->left;
                 } while (tmp);
                 child2 = successor->right;
                 WRITE_ONCE(parent->left, child2);
@@ -398,7 +398,7 @@ private:
             WRITE_ONCE(successor->left, tmp);
             tmp->set_parent(successor);
 
-            pc  = node->parent_and_color;
+            pc = node->parent_and_color;
             tmp = ((Node*)(pc & ~3));
             change_child(node, successor, tmp);
 
@@ -409,7 +409,7 @@ private:
                 rebalance = successor->is_black() ? parent : nullptr;
             }
             successor->parent_and_color = pc;
-            tmp                         = successor;
+            tmp = successor;
         }
 
         return rebalance;
@@ -468,7 +468,7 @@ private:
                         if (parent->is_red())
                             parent->set_black();
                         else {
-                            node   = parent;
+                            node = parent;
                             parent = node->parent();
                             if (parent)
                                 continue;
@@ -508,7 +508,7 @@ private:
                     WRITE_ONCE(parent->right, tmp2);
                     if (tmp1)
                         tmp1->set_parent_and_color(sibling, Color::BLACK);
-                    tmp1    = sibling;
+                    tmp1 = sibling;
                     sibling = tmp2;
                 }
                 /*
@@ -551,7 +551,7 @@ private:
                         if (parent->is_red())
                             parent->set_black();
                         else {
-                            node   = parent;
+                            node = parent;
                             parent = node->parent();
                             if (parent)
                                 continue;
@@ -565,7 +565,7 @@ private:
                     WRITE_ONCE(parent->left, tmp2);
                     if (tmp1)
                         tmp1->set_parent_and_color(sibling, Color::BLACK);
-                    tmp1    = sibling;
+                    tmp1 = sibling;
                     sibling = tmp2;
                 }
                 /* Case 4 - right rotate at parent + color flips */

@@ -20,7 +20,9 @@ class Infantry
     , public rclcpp::Node {
 public:
     Infantry()
-        : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
+        : Node{
+              get_component_name(),
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , crosshair_(Shape::Color::WHITE, x_center - 12, y_center - 37)
         , status_ring_(26.5, 26.5, 600, 300)
         , horizontal_center_guidelines_(

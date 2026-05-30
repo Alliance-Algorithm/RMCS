@@ -55,7 +55,7 @@ public:
     void set_cutoff(double cutoff_freq, double sampling_freq) {
         double dt = 1.0 / sampling_freq;
         double rc = 1.0 / (2 * std::numbers::pi * cutoff_freq);
-        alpha_    = dt / (dt + rc);
+        alpha_ = dt / (dt + rc);
     }
 
 private:

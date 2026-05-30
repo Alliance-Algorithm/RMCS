@@ -133,7 +133,7 @@ public:
 
     void update_static_parts(std::tuple<bool, bool> enable) {
         auto& [auto_aim_enable, precise_enable] = enable;
-        auto static_enable                      = auto_aim_enable || precise_enable;
+        auto static_enable = auto_aim_enable || precise_enable;
 
         static auto color{Shape::Color::WHITE};
 
@@ -308,9 +308,9 @@ private:
     void set_limits(
         double supercap_limit, double battery_limit, double friction_limit, int16_t bullet_limit) {
         supercap_limit_ = supercap_limit;
-        battery_limit_  = battery_limit;
+        battery_limit_ = battery_limit;
         friction_limit_ = friction_limit;
-        bullet_limit_   = bullet_limit;
+        bullet_limit_ = bullet_limit;
 
         int scale_angle = 5;
         for (auto& bullet_scale : bullet_scales_) {
@@ -328,13 +328,13 @@ private:
         }
 
         double value = 0;
-        scale_angle  = 5;
+        scale_angle = 5;
         for (auto& number : bullet_scales_number_) {
 
             scale_angle += (visible_angle) / 4;
             value += static_cast<double>(bullet_limit_) / 4;
 
-            const auto r     = visible_radius - width_ring + 30;
+            const auto r = visible_radius - width_ring + 30;
             const auto angle = static_cast<double>(-scale_angle) * std::numbers::pi / 180;
 
             number.set_x(x_center + static_cast<uint16_t>(r * std::cos(angle)));
@@ -347,11 +347,11 @@ private:
         }
     }
 
-    constexpr static uint16_t x_center       = 960;
-    constexpr static uint16_t y_center       = 540;
-    constexpr static uint16_t width_ring     = 15;
+    constexpr static uint16_t x_center = 960;
+    constexpr static uint16_t y_center = 540;
+    constexpr static uint16_t width_ring = 15;
     constexpr static uint16_t visible_radius = 400;
-    constexpr static uint16_t visible_angle  = 40;
+    constexpr static uint16_t visible_angle = 40;
 
     double supercap_limit_;
     double battery_limit_;

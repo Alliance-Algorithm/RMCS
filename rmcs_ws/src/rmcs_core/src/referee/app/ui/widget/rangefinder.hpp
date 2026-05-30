@@ -151,16 +151,16 @@ private:
     }
 
 private:
-    constexpr static uint16_t x_center_      = 960;
-    constexpr static uint16_t y_center_      = 540;
+    constexpr static uint16_t x_center_ = 960;
+    constexpr static uint16_t y_center_ = 540;
     constexpr static uint16_t x_side_center_ = x_center_ - 110;
 
-    constexpr static uint16_t horizontal_unit_scale      = 15;
+    constexpr static uint16_t horizontal_unit_scale = 15;
     constexpr static uint16_t horizontal_scale_accuracy_ = 40;
 
-    constexpr static uint16_t vertical_unit_scale_      = 5;
+    constexpr static uint16_t vertical_unit_scale_ = 5;
     constexpr static uint16_t vertical_side_unit_scale_ = 15;
-    constexpr static uint16_t vertical_scale_accuracy_  = 26;
+    constexpr static uint16_t vertical_scale_accuracy_ = 26;
 
     Float pitch_angle_{Shape::Color::BLACK, 17, 2, x_center_ - 100, y_center_ + 170, 0, false};
 

@@ -47,22 +47,22 @@ public:
         constexpr double kEps = 1e-9;
         const double safe_b0 = (std::fabs(b0) < kEps) ? ((b0 >= 0.0) ? kEps : -kEps) : b0;
 
-        const double u0 = cfg_.k1 * fal(e1, cfg_.alpha1, cfg_.delta)
-            + cfg_.k2 * fal(e2, cfg_.alpha2, cfg_.delta);
+        const double u0 =
+            cfg_.k1 * fal(e1, cfg_.alpha1, cfg_.delta) + cfg_.k2 * fal(e2, cfg_.alpha2, cfg_.delta);
         const double u = clamp((u0 - z3) / safe_b0, cfg_.u_min, cfg_.u_max);
         return Output{u0, u};
     }
 
 private:
     static double sign(double x) {
-        if (x > 0.0) return 1.0;
-        if (x < 0.0) return -1.0;
+        if (x > 0.0)
+            return 1.0;
+        if (x < 0.0)
+            return -1.0;
         return 0.0;
     }
 
-    static double clamp(double x, double lo, double hi) {
-        return std::max(lo, std::min(x, hi));
-    }
+    static double clamp(double x, double lo, double hi) { return std::max(lo, std::min(x, hi)); }
 
     void sanitize_config() {
         constexpr double kEps = 1e-9;

@@ -131,8 +131,10 @@ private:
         const auto& [x, y, z] = chassis_velocity;
         constexpr double a_plus_b = chassis_radius_x_ + chassis_radius_y_;
         Eigen::Vector4d wheel_control_velocity = {
-            -x + y + a_plus_b * z, -x - y + a_plus_b * z,            //
-            +x - y + a_plus_b * z, +x + y + a_plus_b * z,            //
+            -x + y + a_plus_b * z,
+            -x - y + a_plus_b * z,                                   //
+            +x - y + a_plus_b * z,
+            +x + y + a_plus_b * z,                                   //
         };
         wheel_control_velocity *= -1 / (std::numbers::sqrt2 * wheel_radius_);
         return wheel_velocity_pid_.update(wheel_control_velocity - wheel_velocities);

@@ -52,7 +52,8 @@ struct JointIO {
 struct JointTrajectoryPlanner {
     static constexpr double kJointZeroPhysicalAngleRad = 1.090830782496456;
 
-    void init(double min_angle, double max_angle, double velocity_limit, double acceleration_limit) {
+    void
+        init(double min_angle, double max_angle, double velocity_limit, double acceleration_limit) {
         min_angle_ = min_angle;
         max_angle_ = max_angle;
         velocity_limit_ = velocity_limit;
@@ -97,7 +98,8 @@ struct JointTrajectoryPlanner {
         return true;
     }
 
-    void refresh_deploy_targets(bool deploy_requested, bool /*prone_override*/, double deploy_angle) {
+    void refresh_deploy_targets(
+        bool deploy_requested, bool /*prone_override*/, double deploy_angle) {
         for (size_t i = 0; i < kJointCount; ++i)
             requested_physical_[i] = per_joint_targets_[i] * std::numbers::pi / 180.0;
         if (deploy_requested)
@@ -106,8 +108,8 @@ struct JointTrajectoryPlanner {
     }
 
     void update_trajectory(
-        double delta_time, bool use_suspension_limits,
-        double suspension_velocity_limit, double suspension_acceleration_limit) {
+        double delta_time, bool use_suspension_limits, double suspension_velocity_limit,
+        double suspension_acceleration_limit) {
         double velocity_limit = use_suspension_limits ? suspension_velocity_limit : velocity_limit_;
         double acceleration_limit =
             use_suspension_limits ? suspension_acceleration_limit : acceleration_limit_;
@@ -119,10 +121,12 @@ struct JointTrajectoryPlanner {
             double max_velocity = std::sqrt(2.0 * acceleration_limit * std::abs(error));
             double command_velocity = std::copysign(std::min(max_velocity, velocity_limit), error);
             double delta_velocity = command_velocity - current_velocity;
-            double command_acceleration = std::clamp(delta_velocity / delta_time, -acceleration_limit, acceleration_limit);
+            double command_acceleration =
+                std::clamp(delta_velocity / delta_time, -acceleration_limit, acceleration_limit);
             target_acceleration_state_[i] = command_acceleration;
-            target_velocity_state_[i] =
-                std::clamp(current_velocity + command_acceleration * delta_time, -velocity_limit, velocity_limit);
+            target_velocity_state_[i] = std::clamp(
+                current_velocity + command_acceleration * delta_time, -velocity_limit,
+                velocity_limit);
             target_physical_state_[i] += target_velocity_state_[i] * delta_time;
             target_motor_state_[i] = kJointZeroPhysicalAngleRad - target_physical_state_[i];
         }

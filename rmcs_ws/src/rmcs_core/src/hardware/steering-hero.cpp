@@ -240,11 +240,11 @@ private:
                 .can_id = 0x200,
                 .can_data =
                     device::CanPacket8{
-                                       gimbal_friction_wheels_[0].generate_command(),
-                                       gimbal_friction_wheels_[1].generate_command(),
-                                       gimbal_friction_wheels_[2].generate_command(),
-                                       gimbal_friction_wheels_[3].generate_command(),
-                                       }
+                        gimbal_friction_wheels_[0].generate_command(),
+                        gimbal_friction_wheels_[1].generate_command(),
+                        gimbal_friction_wheels_[2].generate_command(),
+                        gimbal_friction_wheels_[3].generate_command(),
+                    }
                         .as_bytes(),
             });
 
@@ -259,11 +259,11 @@ private:
                 .can_id = 0x200,
                 .can_data =
                     device::CanPacket8{
-                                       gimbal_scope_motor_.generate_command(),
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       }
+                        gimbal_scope_motor_.generate_command(),
+                        device::CanPacket8::PaddingQuarter{},
+                        device::CanPacket8::PaddingQuarter{},
+                        device::CanPacket8::PaddingQuarter{},
+                    }
                         .as_bytes(),
             });
 
@@ -415,9 +415,8 @@ private:
                     [&buffer](std::byte byte) noexcept { *buffer++ = byte; }, size);
             };
             referee_serial_->write = [this](const std::byte* buffer, size_t size) {
-                start_transmit().uart1_transmit({
-                    .uart_data = std::span<const std::byte>{buffer, size}
-                });
+                start_transmit().uart1_transmit(
+                    {.uart_data = std::span<const std::byte>{buffer, size}});
                 return size;
             };
 
@@ -459,11 +458,11 @@ private:
                 .can_id = 0x200,
                 .can_data =
                     device::CanPacket8{
-                                       chassis_wheel_motors_[0].generate_command(),
-                                       chassis_wheel_motors_[1].generate_command(),
-                                       chassis_wheel_motors_[2].generate_command(),
-                                       chassis_wheel_motors_[3].generate_command(),
-                                       }
+                        chassis_wheel_motors_[0].generate_command(),
+                        chassis_wheel_motors_[1].generate_command(),
+                        chassis_wheel_motors_[2].generate_command(),
+                        chassis_wheel_motors_[3].generate_command(),
+                    }
                         .as_bytes(),
             });
 
@@ -471,11 +470,11 @@ private:
                 .can_id = 0x1FE,
                 .can_data =
                     device::CanPacket8{
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       supercap_.generate_command(),
-                                       }
+                        device::CanPacket8::PaddingQuarter{},
+                        device::CanPacket8::PaddingQuarter{},
+                        device::CanPacket8::PaddingQuarter{},
+                        supercap_.generate_command(),
+                    }
                         .as_bytes(),
             });
 
@@ -483,11 +482,11 @@ private:
                 .can_id = 0x1FE,
                 .can_data =
                     device::CanPacket8{
-                                       chassis_steering_motors_[0].generate_command(),
-                                       chassis_steering_motors_[1].generate_command(),
-                                       chassis_steering_motors_[2].generate_command(),
-                                       chassis_steering_motors_[3].generate_command(),
-                                       }
+                        chassis_steering_motors_[0].generate_command(),
+                        chassis_steering_motors_[1].generate_command(),
+                        chassis_steering_motors_[2].generate_command(),
+                        chassis_steering_motors_[3].generate_command(),
+                    }
                         .as_bytes(),
             });
 

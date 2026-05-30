@@ -14,13 +14,12 @@ public:
         : Node{get_component_name()} {
         declare_parameter<std::vector<std::string>>("forward_list", std::vector<std::string>{});
         parameter_subscriber_ = std::make_unique<rclcpp::ParameterEventHandler>(this);
-        parameter_callback_   = parameter_subscriber_->add_parameter_callback(
+        parameter_callback_ = parameter_subscriber_->add_parameter_callback(
             "forward_list",
             [this](const rclcpp::Parameter& para) { update_forward_list(para.as_string_array()); });
     }
 
-    void before_pairing(
-        const std::map<std::string, const std::type_info&>& output_map) override {
+    void before_pairing(const std::map<std::string, const std::type_info&>& output_map) override {
         for (const auto& [name, type] : output_map) {
             if (type == typeid(double)) {
                 forward_units_.emplace(
@@ -52,7 +51,7 @@ private:
                     "unsupported or the output does not exist.",
                     name.c_str());
             } else {
-                auto& unit   = iter->second;
+                auto& unit = iter->second;
                 unit->active = true;
             }
         }
@@ -70,8 +69,8 @@ private:
         virtual ~BasicForwarderUnit() {}
 
         virtual void activate(rclcpp::Node* node) = 0;
-        virtual void update()                     = 0;
-        virtual void deactivate()                 = 0;
+        virtual void update() = 0;
+        virtual void deactivate() = 0;
 
         bool active;
     };

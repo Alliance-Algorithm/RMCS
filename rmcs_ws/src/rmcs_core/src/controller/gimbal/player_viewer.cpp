@@ -46,8 +46,8 @@ public:
         using namespace rmcs_msgs;
 
         const auto switch_right = *switch_right_;
-        const auto switch_left  = *switch_left_;
-        const auto keyboard     = *keyboard_;
+        const auto switch_left = *switch_left_;
+        const auto keyboard = *keyboard_;
 
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
@@ -56,8 +56,8 @@ public:
             if (!last_keyboard_.e && keyboard.e)
                 viewer_reset_ = true;
             if (!last_keyboard_.q && keyboard.q) {
-                scope_active_       = !scope_active_;
-                *is_scope_active_   = scope_active_;
+                scope_active_ = !scope_active_;
+                *is_scope_active_ = scope_active_;
                 scope_viewer_reset_ = scope_active_;
             }
 
@@ -72,17 +72,17 @@ private:
         *scope_control_torque_ = nan_;
 
         *viewer_control_angle_error_ = nan_;
-        *viewer_control_angle_       = nan_;
+        *viewer_control_angle_ = nan_;
 
-        *is_scope_active_   = false;
-        scope_active_       = false;
+        *is_scope_active_ = false;
+        scope_active_ = false;
         scope_viewer_reset_ = false;
-        viewer_reset_       = true;
+        viewer_reset_ = true;
     }
 
     void update_viewer_control() {
         constexpr double scope_offset_angle = 0.31;
-        *scope_offset_angle_                = scope_offset_angle;
+        *scope_offset_angle_ = scope_offset_angle;
 
         auto unit_sensitivity = [&](double sensitivity) {
             return (*is_scope_active_) ? sensitivity : 1.0;
@@ -93,11 +93,11 @@ private:
 
         if (viewer_reset_) {
             *viewer_control_angle_ = upper_limit_;
-            viewer_reset_          = false;
+            viewer_reset_ = false;
         } else {
             if (scope_viewer_reset_) {
                 *viewer_control_angle_ = *scope_offset_angle_;
-                scope_viewer_reset_    = false;
+                scope_viewer_reset_ = false;
             } else {
                 *viewer_control_angle_ += *viewer_delta_angle_by_mouse_wheel_;
             }
@@ -123,7 +123,7 @@ private:
 
 private:
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
-    static constexpr double pi_  = std::numbers::pi;
+    static constexpr double pi_ = std::numbers::pi;
 
     bool scope_viewer_reset_{false};
 
