@@ -42,7 +42,7 @@ public:
 
         using namespace std::chrono;
         auto now = high_resolution_clock::now();
-        auto ms  = duration_cast<milliseconds>(now.time_since_epoch()).count();
+        auto ms = duration_cast<milliseconds>(now.time_since_epoch()).count();
 
         auto file = fmt::format("/robot_shoot/{}.log", ms);
         log_stream_.open(file);
@@ -65,7 +65,7 @@ public:
             break;
         }
 
-        auto log_text  = std::string{};
+        auto log_text = std::string{};
         auto timestamp = timestamp_to_string(*shoot_timestamp_);
 
         if (friction_wheel_count_ == 2) {
@@ -108,14 +108,14 @@ private:
 
 private:
     static std::string timestamp_to_string(double timestamp) {
-        auto time       = static_cast<std::time_t>(timestamp);
+        auto time = static_cast<std::time_t>(timestamp);
         auto local_time = std::localtime(&time);
 
         char buffer[100];
         std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", local_time);
 
         double fractional_seconds = timestamp - std::floor(timestamp);
-        int milliseconds          = static_cast<int>(fractional_seconds * 1000);
+        int milliseconds = static_cast<int>(fractional_seconds * 1000);
 
         char result[150];
         std::snprintf(result, sizeof(result), "%s.%03d", buffer, milliseconds);

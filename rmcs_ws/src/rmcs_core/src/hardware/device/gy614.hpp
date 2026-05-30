@@ -34,9 +34,9 @@ public:
     void update_status() {
         const auto package = package_.load(std::memory_order::relaxed);
 
-        emissivity_                    = package.calculate_emissivity();
-        *target_temperature_           = package.calculate_target_temperature();
-        environment_temperature_       = package.calculate_environment_temperature();
+        emissivity_ = package.calculate_emissivity();
+        *target_temperature_ = package.calculate_target_temperature();
+        environment_temperature_ = package.calculate_environment_temperature();
         body_temperature_from_forhead_ = package.calculate_body_temperature_from_forhead();
     }
 
@@ -74,7 +74,7 @@ private:
 
     double emissivity_ = 0;
     Component::OutputInterface<double> target_temperature_;
-    double environment_temperature_       = 0;
+    double environment_temperature_ = 0;
     double body_temperature_from_forhead_ = 0;
 };
 
