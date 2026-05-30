@@ -34,6 +34,7 @@ public:
         register_input("/referee/chassis/power_limit", chassis_power_limit_referee_);
         register_input("/referee/chassis/buffer_energy", chassis_buffer_energy_referee_);
 
+        register_output("/chassis/supercap/control_enable", supercap_control_enabled_, false);
         register_output("/chassis/supercap/charge_power_limit", supercap_charge_power_limit_, 0.0);
         register_output("/chassis/control_power_limit", chassis_control_power_limit_, 0.0);
 
@@ -53,7 +54,6 @@ public:
         auto switch_right = *switch_right_;
         auto switch_left  = *switch_left_;
         auto keyboard     = *keyboard_;
-        auto rotary_knob  = *rotary_knob_;
 
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
@@ -63,7 +63,8 @@ public:
 
         update_virtual_buffer_energy();
 
-        boost_mode_ = keyboard.shift || rotary_knob < -0.9;
+        boost_mode_ = keyboard.shift;
+        *supercap_control_enabled_ = boost_mode_;
         update_control_power_limit();
     }
 
@@ -93,6 +94,7 @@ private:
     void reset_power_control() {
         virtual_buffer_energy_        = virtual_buffer_energy_limit_;
         boost_mode_                   = false;
+        *supercap_control_enabled_    = false;
         *chassis_control_power_limit_ = 0.0;
     }
 
@@ -107,10 +109,8 @@ private:
     void update_control_power_limit() {
         double power_limit;
 
-        if (boost_mode_ && *supercap_enabled_)
-            power_limit = *mode_ == rmcs_msgs::ChassisMode::LAUNCH_RAMP
-                            ? inf_
-                            : *chassis_power_limit_referee_ + 80.0;
+        if (*supercap_control_enabled_ && *supercap_enabled_)
+            power_limit = *chassis_power_limit_referee_ + 80.0;
         else
             power_limit = *chassis_power_limit_referee_;
         chassis_power_limit_expected_ = power_limit;
@@ -126,7 +126,7 @@ private:
                               0.0, 1.0);
 
         // Maximum excess power when virtual buffer energy is full.
-        constexpr double excess_power_limit = 15;
+        constexpr double excess_power_limit = 15.0;
 
         power_limit += excess_power_limit;
         power_limit *= virtual_buffer_energy_ / virtual_buffer_energy_limit_;
@@ -140,7 +140,6 @@ private:
             static_cast<int32_t>(std::round(*chassis_control_power_limit_)));
     }
 
-    static constexpr double inf_ = std::numeric_limits<double>::infinity();
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
 
     InputInterface<rmcs_msgs::ChassisMode> mode_;
@@ -151,7 +150,7 @@ private:
     InputInterface<double> rotary_knob_;
 
     InputInterface<double> chassis_power_;
-    static constexpr double virtual_buffer_energy_limit_ = 30.0;
+    static constexpr double virtual_buffer_energy_limit_ = 15.0;
     double virtual_buffer_energy_;
 
     InputInterface<double> supercap_voltage_;
@@ -161,6 +160,7 @@ private:
     InputInterface<double> chassis_buffer_energy_referee_;
 
     bool boost_mode_ = false;
+    OutputInterface<bool> supercap_control_enabled_;
     OutputInterface<double> supercap_charge_power_limit_;
     double chassis_power_limit_expected_;
     OutputInterface<double> chassis_control_power_limit_;
