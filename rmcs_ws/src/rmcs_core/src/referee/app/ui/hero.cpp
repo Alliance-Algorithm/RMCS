@@ -21,7 +21,9 @@ class Hero
     , public rclcpp::Node {
 public:
     Hero()
-        : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
+        : Node{
+              get_component_name(),
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , status_ring_(26.5, 26.5, 600, 40)
         , rangefinder_()
         , chassis_direction_indicator_(Shape::Color::PINK, 8, x_center, y_center, 0, 0, 84, 84)

@@ -91,14 +91,14 @@ public:
 
     enum class Operation : uint8_t {
         NO_OPERATION = 0,
-        ADD          = 1,
-        MODIFY       = 2,
-        DELETE       = 3,
+        ADD = 1,
+        MODIFY = 2,
+        DELETE = 3,
     };
 
     Operation predict_update() const {
         uint8_t predict_existence = existence_confidence();
-        uint8_t predict_sync      = sync_confidence_;
+        uint8_t predict_sync = sync_confidence_;
 
         if (!has_id() && !predict_try_assign_id(predict_existence)) {
             return Operation::NO_OPERATION;
@@ -120,34 +120,34 @@ public:
 
     constexpr static inline command::Field no_operation_description() {
         return command::Field{[](std::byte* buffer) {
-            auto& description                = *new (buffer) DescriptionField{};
+            auto& description = *new (buffer) DescriptionField{};
             description.part1.operation_type = Operation::NO_OPERATION;
             return sizeof(DescriptionField);
         }};
     }
 
     enum class Color : uint8_t {
-        SELF   = 0,
+        SELF = 0,
         YELLOW = 1,
-        GREEN  = 2,
+        GREEN = 2,
         ORANGE = 3,
         PURPLE = 4,
-        PINK   = 5,
-        CYAN   = 6,
-        BLACK  = 7,
-        WHITE  = 8,
+        PINK = 5,
+        CYAN = 6,
+        BLACK = 7,
+        WHITE = 8,
     };
 
 protected:
     enum class ShapeType : uint8_t {
-        LINE      = 0,
+        LINE = 0,
         RECTANGLE = 1,
-        CIRCLE    = 2,
-        ELLIPSE   = 3,
-        ARC       = 4,
-        FLOAT     = 5,
-        INTEGER   = 6,
-        TEXT      = 7,
+        CIRCLE = 2,
+        ELLIPSE = 3,
+        ARC = 4,
+        FLOAT = 5,
+        INTEGER = 6,
+        TEXT = 7,
     };
 
     struct DescriptionField {
@@ -189,7 +189,7 @@ protected:
 
 private:
     void enter_run_queue() {
-        uint8_t min_confidence     = std::min(existence_confidence(), sync_confidence_);
+        uint8_t min_confidence = std::min(existence_confidence(), sync_confidence_);
         uint16_t weighted_priority = (priority_ - 256) << (4 * min_confidence);
         CfsScheduler<Shape>::Entity::enter_run_queue(weighted_priority);
     }
@@ -214,7 +214,7 @@ private:
         if (!has_id() && !try_assign_id()) {
             // TODO: Print error message.
             sync_confidence_ = max_update_times;
-            visible_         = false;
+            visible_ = false;
             // Do nothing when failed
             return no_operation_description();
         }
@@ -233,7 +233,7 @@ private:
                 || (last_time_modified_ && existence_confidence() < max_update_times))) {
             // Send add packet
             last_time_modified_ = false;
-            field               = command::Field{[this](std::byte* buffer) {
+            field = command::Field{[this](std::byte* buffer) {
                 return write_full_description_field(buffer, Operation::ADD);
             }};
             if (increase_existence_confidence() < max_update_times
@@ -242,7 +242,7 @@ private:
         } else {
             // Send modify packet
             last_time_modified_ = true;
-            field               = command::Field{[this](std::byte* buffer) {
+            field = command::Field{[this](std::byte* buffer) {
                 return write_full_description_field(buffer, Operation::MODIFY);
             }};
             // No need to compare existence_confidence here.
@@ -277,11 +277,11 @@ private:
         auto& description = *new (buffer) DescriptionField{};
 
         description.part1.shape_type = ShapeType::LINE;
-        description.part1.color      = Color::WHITE;
+        description.part1.color = Color::WHITE;
 
         description.part2.width = 0;
-        description.part2.x     = 0;
-        description.part2.y     = 0;
+        description.part2.x = 0;
+        description.part2.y = 0;
 
         description.part3.details_c = 0;
         description.part3.details_d = 0;
@@ -292,7 +292,7 @@ private:
 
     static constexpr uint8_t max_update_times = 4;
 
-    uint8_t priority_            = 15;
+    uint8_t priority_ = 15;
     uint8_t sync_confidence_ : 5 = max_update_times;
     bool is_text_shape_      : 1 = false;
     bool last_time_modified_ : 1 = false;
@@ -307,10 +307,10 @@ public:
         bool visible = true) {
         part3_.color = color;
         part2_.width = width;
-        part2_.x     = x;
-        part2_.y     = y;
-        part3_.x2    = x2;
-        part3_.y2    = y2;
+        part2_.x = x;
+        part2_.y = y;
+        part3_.x2 = x2;
+        part3_.y2 = y2;
 
         set_visible(visible);
     }
@@ -344,7 +344,7 @@ protected:
         auto& description = *new (buffer) DescriptionField{};
 
         description.part1.shape_type = ShapeType::LINE;
-        description.part1.color      = part3_.color;
+        description.part1.color = part3_.color;
 
         description.part2 = part2_;
 
@@ -372,10 +372,10 @@ public:
         bool visible = true) {
         part3_.color = color;
         part2_.width = width;
-        part2_.x     = x;
-        part2_.y     = y;
-        part3_.rx    = rx;
-        part3_.ry    = ry;
+        part2_.x = x;
+        part2_.y = y;
+        part3_.rx = rx;
+        part3_.ry = ry;
 
         set_visible(visible);
     }
@@ -414,7 +414,7 @@ protected:
         auto& description = *new (buffer) DescriptionField{};
 
         description.part1.shape_type = ShapeType::ELLIPSE;
-        description.part1.color      = part3_.color;
+        description.part1.color = part3_.color;
 
         description.part2 = part2_;
 
@@ -440,10 +440,10 @@ public:
         bool visible = true) {
         part3_.color = color;
         part2_.width = width;
-        part2_.x     = x;
-        part2_.y     = y;
-        part3_.x2    = x2;
-        part3_.y2    = y2;
+        part2_.x = x;
+        part2_.y = y;
+        part3_.x2 = x2;
+        part3_.y2 = y2;
 
         set_visible(visible);
     }
@@ -477,7 +477,7 @@ protected:
         auto& description = *new (buffer) DescriptionField{};
 
         description.part1.shape_type = ShapeType::RECTANGLE;
-        description.part1.color      = part3_.color;
+        description.part1.color = part3_.color;
 
         description.part2 = part2_;
 
@@ -502,15 +502,15 @@ public:
         uint16_t angle_end, uint16_t rx, uint16_t ry, bool visible = true)
         : Arc() {
         angle_start_ = angle_start;
-        angle_end_   = angle_end;
+        angle_end_ = angle_end;
 
         part2_.width = width;
-        part2_.x     = x;
-        part2_.y     = y;
+        part2_.x = x;
+        part2_.y = y;
 
         part3_.color = color;
-        part3_.rx    = rx;
-        part3_.ry    = ry;
+        part3_.rx = rx;
+        part3_.ry = ry;
 
         set_visible(visible);
     }
@@ -579,9 +579,9 @@ protected:
         auto& description = *new (buffer) DescriptionField{};
 
         description.part1.shape_type = ShapeType::ARC;
-        description.part1.color      = part3_.color;
-        description.part1.details_a  = angle_start_;
-        description.part1.details_b  = angle_end_;
+        description.part1.color = part3_.color;
+        description.part1.details_a = angle_start_;
+        description.part1.details_b = angle_end_;
 
         description.part2 = part2_;
 
@@ -608,12 +608,12 @@ public:
         Color color, uint16_t font_size, uint16_t width, uint16_t x, uint16_t y, int32_t value,
         bool visible = true)
         : Integer() {
-        color_     = color;
+        color_ = color;
         font_size_ = font_size;
 
         part2_.width = width;
-        part2_.x     = x;
-        part2_.y     = y;
+        part2_.x = x;
+        part2_.y = y;
 
         value_ = value;
 
@@ -629,7 +629,7 @@ public:
     }
 
     void set_center_x(uint16_t x) {
-        int value            = value_;
+        int value = value_;
         int number_of_digits = value <= 0 ? 1 : 0;
         for (; value != 0; number_of_digits++)
             value /= 10;
@@ -658,8 +658,8 @@ protected:
         auto& description = *new (buffer) DescriptionField{};
 
         description.part1.shape_type = ShapeType::INTEGER;
-        description.part1.color      = color_;
-        description.part1.details_a  = font_size_;
+        description.part1.color = color_;
+        description.part1.details_a = font_size_;
 
         description.part2 = part2_;
 
@@ -678,7 +678,7 @@ public:
     using Integer::Integer;
 
     void set_center_x(uint16_t x) {
-        int value            = value_;
+        int value = value_;
         int number_of_digits = value < 0 ? 1 : 0;
 
         int integer_part = value / 1000;
@@ -703,8 +703,8 @@ protected:
         auto& description = *new (buffer) DescriptionField{};
 
         description.part1.shape_type = ShapeType::FLOAT;
-        description.part1.color      = color_;
-        description.part1.details_a  = font_size_;
+        description.part1.color = color_;
+        description.part1.details_a = font_size_;
 
         description.part2 = part2_;
 
@@ -724,12 +724,12 @@ public:
         Color color, uint16_t font_size, uint16_t width, uint16_t x, uint16_t y, const char* value,
         bool visible = true)
         : Text() {
-        color_     = color;
+        color_ = color;
         font_size_ = font_size;
 
         part2_.width = width;
-        part2_.x     = x;
-        part2_.y     = y;
+        part2_.x = x;
+        part2_.y = y;
 
         value_ = value;
 
@@ -765,14 +765,14 @@ protected:
         auto& description = *new (buffer) DescriptionField{};
 
         description.part1.shape_type = ShapeType::TEXT;
-        description.part1.color      = color_;
-        description.part1.details_a  = font_size_;
+        description.part1.color = color_;
+        description.part1.details_a = font_size_;
 
         description.part2 = part2_;
 
         constexpr size_t data_part_size = 30;
-        auto str_length                 = std::min(strlen(value_), data_part_size);
-        description.part1.details_b     = str_length;
+        auto str_length = std::min(strlen(value_), data_part_size);
+        description.part1.details_b = str_length;
         std::memcpy(buffer + sizeof(DescriptionField), value_, str_length);
 
         return sizeof(DescriptionField) + data_part_size;

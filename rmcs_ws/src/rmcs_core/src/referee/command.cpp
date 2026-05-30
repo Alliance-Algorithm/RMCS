@@ -16,7 +16,9 @@ class Command
     , public rclcpp::Node {
 public:
     Command()
-        : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
+        : Node{
+              get_component_name(),
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , next_sent_(std::chrono::steady_clock::time_point::min())
         , interaction_next_sent_(std::chrono::steady_clock::time_point::min())
         , map_marker_next_sent_(std::chrono::steady_clock::time_point::min())

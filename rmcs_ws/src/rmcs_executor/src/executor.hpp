@@ -21,10 +21,12 @@ class Executor final : public rclcpp::Node {
 public:
     explicit Executor(
         const std::string& node_name, rclcpp::executors::SingleThreadedExecutor& rcl_executor)
-        : Node{node_name, rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true)}
+        : Node{
+              node_name,
+              rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true)}
         , rcl_executor_(rcl_executor) {
         Component::initializing_component_name = "predefined_msg_provider";
-        predefined_msg_provider_               = std::make_shared<PredefinedMsgProvider>();
+        predefined_msg_provider_ = std::make_shared<PredefinedMsgProvider>();
         add_component(predefined_msg_provider_);
     }
     ~Executor() {
@@ -70,7 +72,7 @@ private:
     void init() {
         updating_order_.clear();
 
-        auto output_map      = std::unordered_map<std::string, Component::OutputDeclaration*>{};
+        auto output_map = std::unordered_map<std::string, Component::OutputDeclaration*>{};
         auto user_output_map = std::map<std::string, const std::type_info&>{};
         for (const auto& component : component_list_) {
             component->dependency_count_ = 0;
