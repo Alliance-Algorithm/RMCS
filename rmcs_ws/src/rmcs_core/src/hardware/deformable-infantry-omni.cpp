@@ -3,7 +3,9 @@
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/lk_motor.hpp"
+#include "hardware/device/remote_control.hpp"
 #include "hardware/device/supercap.hpp"
+#include "hardware/device/vt13.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -19,10 +21,10 @@
 #include <tuple>
 
 #include <eigen3/Eigen/Geometry>
+#include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <std_srvs/srv/trigger.hpp>
 
-#include <librmcs/agent/c_board.hpp>
 #include <librmcs/agent/rmcs_board_lite.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
@@ -47,14 +49,15 @@ public:
         register_input("/predefined/timestamp", timestamp_);
         register_output("/tf", tf_);
 
-        tf_->set_transform<PitchLink, CameraLink>(Eigen::Translation3d{0.16, 0.0, 0.15});
+        tf_->set_transform<PitchLink, CameraLink>(Eigen::Translation3d{0.058, -0.08, 0.0});
 
         bottom_board_ = std::make_unique<BottomBoard>(
             *this, *command_, get_parameter("serial_filter_rmcs_board").as_string());
         top_board_ = std::make_unique<TopBoard>(
-            *this, *command_, get_parameter("serial_filter_top_board").as_string());
-        imu_board_ =
-            std::make_unique<ImuBoard>(*this, get_parameter("serial_filter_imu").as_string());
+            *this, *command_, get_parameter("serial_filter_top_board").as_string(), true);
+        imu_board_ = std::make_unique<ImuBoard>(
+            *this, vt13_, get_parameter("serial_filter_imu").as_string());
+        remote_control_ = std::make_unique<device::RemoteControl>(*this, bottom_board_->dr16_, vt13_);
 
         // For command: remote-status
         using Srv = std_srvs::srv::Trigger;
@@ -67,10 +70,14 @@ public:
 
     ~DeformableInfantryOmni() override = default;
 
+    void before_updating() override { top_board_->request_hard_sync_read(); }
+
     void update() override {
         bottom_board_->update();
         top_board_->update();
         imu_board_->update();
+        vt13_.update_status();
+        remote_control_->update();
     }
 
     void command_update() {
@@ -123,7 +130,7 @@ private:
             for (auto& motor : chassis_wheel_motors_)
                 motor.configure(
                     device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
-                        .set_reduction_ratio(11.0)
+                        .set_reduction_ratio(13.0)
                         .enable_multi_turn_angle()
                         .set_reversed());
 
@@ -170,7 +177,7 @@ private:
                 right_front_joint_physical_velocity_, kNaN);
             status.register_output("/chassis/encoder/alpha", encoder_alpha_, kNaN);
             status.register_output("/chassis/encoder/alpha_dot", encoder_alpha_dot_, kNaN);
-            status.register_output("/chassis/radius", radius_, kNaN);
+            status.register_output("/chassis/radius", radius_, default_radius_);
 
             status.get_parameter_or("debug_log_supercap", debug_log_supercap_, false);
             status.get_parameter_or("debug_log_wheel_motor", debug_log_wheel_motor_, false);
@@ -320,13 +327,14 @@ private:
         static constexpr double joint_zero_physical_angle_rad_ = 62.5 * std::numbers::pi / 180.0;
         static constexpr double chassis_radius_base_ = 0.2341741;
         static constexpr double rod_length_ = 0.150;
+        static constexpr double default_radius_ = chassis_radius_base_ + rod_length_;
 
         DeformableInfantryOmni& status_;
         Component& command_;
 
         device::Bmi088 imu_{1000, 0.2, 0.0};
         device::LkMotor gimbal_yaw_motor_{status_, command_, "/gimbal/yaw"};
-        device::Dr16 dr16_{status_};
+        device::Dr16 dr16_;
 
         device::DjiMotor chassis_wheel_motors_[4]{
             device::DjiMotor{status_, command_, "/chassis/left_front_wheel"},
@@ -405,7 +413,11 @@ private:
             if (!alpha_rad.array().isFinite().all() || !alpha_dot_rad.array().isFinite().all()) {
                 *encoder_alpha_ = kNaN;
                 *encoder_alpha_dot_ = kNaN;
-                *radius_ = kNaN;
+                *radius_ = default_radius_;
+                RCLCPP_WARN_THROTTLE(
+                    status_.get_logger(), *status_.get_clock(), 1000,
+                    "deformable joint feedback invalid, fallback chassis radius to default %.3f m",
+                    default_radius_);
                 return;
             }
 
@@ -468,7 +480,8 @@ private:
                 status_.get_logger(),
                 "[supercap] can1 rx=%c id=0x300 enabled=%d supercap_v=% .3f chassis_v=% .3f "
                 "power=% .3f raw=[%02X %02X %02X %02X %02X %02X %02X %02X]",
-                supercap_rx ? 'Y' : 'N', supercap_rx ? (supercap_.supercap_enabled() ? 1 : 0) : -1,
+                supercap_rx ? 'Y' : 'N',
+                supercap_rx ? (supercap_.supercap_enabled() ? 1 : 0) : -1,
                 supercap_rx ? supercap_.supercap_voltage() : kNaN,
                 supercap_rx ? supercap_.chassis_voltage() : kNaN,
                 supercap_rx ? supercap_.chassis_power() : kNaN,
@@ -485,7 +498,7 @@ private:
         }
 
         void dbus_receive_callback(const librmcs::data::UartDataView& data) override {
-            dr16_.store_status(data.uart_data.data(), data.uart_data.size());
+            dr16_.store_status(data.uart_data);
         }
 
         void can0_receive_callback(const librmcs::data::CanDataView& data) override {
@@ -566,11 +579,14 @@ private:
         friend class DeformableInfantryOmni;
 
     public:
-        explicit ImuBoard(DeformableInfantryOmni& status, const std::string& serial_filter = {})
+        explicit ImuBoard(
+            DeformableInfantryOmni& status, device::Vt13& vt13,
+            const std::string& serial_filter = {})
             : RmcsBoardLite{
                   serial_filter,
                   librmcs::agent::AdvancedOptions{.dangerously_skip_version_checks = true}}
             , tf_{status.tf_}
+            , vt13_{vt13}
             , bmi088_{1000, 0.2, 0.0} {
 
             status.register_output("/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
@@ -593,6 +609,10 @@ private:
         }
 
     private:
+        void uart0_receive_callback(const librmcs::data::UartDataView& data) override {
+            vt13_.store_status(data.uart_data);
+        }
+
         void accelerometer_receive_callback(
             const librmcs::data::AccelerometerDataView& data) override {
             bmi088_.store_accelerometer_status(data.x, data.y, data.z);
@@ -604,19 +624,22 @@ private:
 
         OutputInterface<rmcs_description::Tf>& tf_;
         OutputInterface<double> gimbal_pitch_velocity_imu_;
+        device::Vt13& vt13_;
 
         device::Bmi088 bmi088_;
     };
 
-    class TopBoard final : private librmcs::agent::CBoard {
+    class TopBoard final : private librmcs::agent::RmcsBoardLite {
         friend class DeformableInfantryOmni;
 
     public:
         explicit TopBoard(
-            DeformableInfantryOmni& status, Command& command, const std::string& serial_filter = {})
-            : librmcs::agent::CBoard(
+            DeformableInfantryOmni& status, Command& command, std::string serial_filter = {},
+            bool has_external_imu_board = false)
+            : librmcs::agent::RmcsBoardLite(
                   serial_filter,
                   librmcs::agent::AdvancedOptions{.dangerously_skip_version_checks = true})
+            , has_external_imu_board_(has_external_imu_board)
             , tf_(status.tf_)
             , bmi088_(1000, 0.2, 0.0)
             , gimbal_pitch_motor_(status, command, "/gimbal/pitch")
@@ -640,16 +663,26 @@ private:
             scope_motor_.configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kM2006}.enable_multi_turn_angle());
 
-            status.register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
+            status.register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_bmi088_);
+            if (!has_external_imu_board_)
+                status.register_output("/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_encoder_);
 
-            bmi088_.set_coordinate_mapping(
-                [](double x, double y, double z) { return std::make_tuple(y, -x, z); });
+            bmi088_.set_coordinate_mapping([](double x, double y, double z) {
+                // Top board BMI088 maps to gimbal frame as (-x, -y, z).
+                return std::make_tuple(-x, -y, z);
+            });
         }
 
         ~TopBoard() override = default;
 
+        void request_hard_sync_read() {
+            // RMCS-lite top board variant currently has no GPIO hard-sync request
+            // path.
+        }
+
         void update() {
             bmi088_.update_status();
+
             gimbal_pitch_motor_.update_status();
             gimbal_left_friction_.update_status();
             gimbal_right_friction_.update_status();
@@ -657,7 +690,24 @@ private:
 
             const double pitch_encoder_angle = gimbal_pitch_motor_.angle();
 
-            *gimbal_yaw_velocity_imu_ = bmi088_.gz();
+            *gimbal_yaw_velocity_bmi088_ = bmi088_.gz();
+            if (!has_external_imu_board_) {
+                Eigen::Quaterniond const odom_imu_to_yaw_link{
+                    bmi088_.q0(), bmi088_.q1(), bmi088_.q2(), bmi088_.q3()};
+                Eigen::Quaterniond const yaw_link_to_odom_imu = odom_imu_to_yaw_link.conjugate();
+                Eigen::Quaterniond pitch_link_to_odom_imu =
+                    Eigen::Quaterniond{
+                        Eigen::AngleAxisd{-pitch_encoder_angle, Eigen::Vector3d::UnitY()}}
+                    * yaw_link_to_odom_imu;
+                pitch_link_to_odom_imu.normalize();
+
+                *gimbal_pitch_velocity_encoder_ = gimbal_pitch_motor_.velocity();
+                // The BMI088 is mounted on the yaw link. fast_tf stores PitchLink ->
+                // OdomImu, so use the encoder pitch from the TF tree to move the
+                // yaw-link pose back into PitchLink.
+                tf_->set_transform<rmcs_description::PitchLink, rmcs_description::OdomImu>(
+                    pitch_link_to_odom_imu);
+            }
 
             tf_->set_state<rmcs_description::YawLink, rmcs_description::PitchLink>(
                 pitch_encoder_angle);
@@ -665,17 +715,41 @@ private:
 
         void command_update() {
             auto builder = start_transmit();
-            builder.can1_transmit({
+            builder.can0_transmit({
                 .can_id = 0x141,
                 .can_data = gimbal_pitch_motor_.generate_command().as_bytes(),
+            });
+
+            builder.can1_transmit({
+                .can_id = 0x200,
+                .can_data =
+                    device::CanPacket8{
+                        gimbal_left_friction_.generate_command(),
+                        device::CanPacket8::PaddingQuarter{},
+                        device::CanPacket8::PaddingQuarter{},
+                        device::CanPacket8::PaddingQuarter{},
+                    }
+                        .as_bytes(),
             });
 
             builder.can2_transmit({
                 .can_id = 0x200,
                 .can_data =
                     device::CanPacket8{
-                        gimbal_left_friction_.generate_command(),
+                        device::CanPacket8::PaddingQuarter{},
                         gimbal_right_friction_.generate_command(),
+                        device::CanPacket8::PaddingQuarter{},
+                        device::CanPacket8::PaddingQuarter{},
+                    }
+                        .as_bytes(),
+            });
+
+            builder.can3_transmit({
+                .can_id = 0x200,
+                .can_data =
+                    device::CanPacket8{
+                        device::CanPacket8::PaddingQuarter{},
+                        device::CanPacket8::PaddingQuarter{},
                         scope_motor_.generate_command(),
                         device::CanPacket8::PaddingQuarter{},
                     }
@@ -686,21 +760,31 @@ private:
     private:
         void uart1_receive_callback(const librmcs::data::UartDataView&) override {}
 
-        void can1_receive_callback(const librmcs::data::CanDataView& data) override {
+        void can0_receive_callback(const librmcs::data::CanDataView& data) override {
             if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
                 return;
             if (data.can_id == 0x141)
                 gimbal_pitch_motor_.store_status(data.can_data);
         }
 
-        void can2_receive_callback(const librmcs::data::CanDataView& data) override {
+        void can1_receive_callback(const librmcs::data::CanDataView& data) override {
             if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
                 return;
             if (data.can_id == 0x201)
                 gimbal_left_friction_.store_status(data.can_data);
-            else if (data.can_id == 0x202)
+        }
+
+        void can2_receive_callback(const librmcs::data::CanDataView& data) override {
+            if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
+                return;
+            if (data.can_id == 0x202)
                 gimbal_right_friction_.store_status(data.can_data);
-            else if (data.can_id == 0x203)
+        }
+
+        void can3_receive_callback(const librmcs::data::CanDataView& data) override {
+            if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
+                return;
+            if (data.can_id == 0x203)
                 scope_motor_.store_status(data.can_data);
         }
 
@@ -713,8 +797,10 @@ private:
             bmi088_.store_gyroscope_status(data.x, data.y, data.z);
         }
 
+        bool has_external_imu_board_ = false;
         OutputInterface<rmcs_description::Tf>& tf_;
-        OutputInterface<double> gimbal_yaw_velocity_imu_;
+        OutputInterface<double> gimbal_yaw_velocity_bmi088_;
+        OutputInterface<double> gimbal_pitch_velocity_encoder_;
 
         device::Bmi088 bmi088_;
         device::LkMotor gimbal_pitch_motor_;
@@ -752,10 +838,12 @@ private:
 
     OutputInterface<rmcs_description::Tf> tf_;
     InputInterface<Clock::time_point> timestamp_;
+    device::Vt13 vt13_;
 
     std::unique_ptr<ImuBoard> imu_board_;
     std::unique_ptr<TopBoard> top_board_;
     std::unique_ptr<BottomBoard> bottom_board_;
+    std::unique_ptr<device::RemoteControl> remote_control_;
 
     std::shared_ptr<Command> command_;
     uint32_t cmd_tick_ = 0;
