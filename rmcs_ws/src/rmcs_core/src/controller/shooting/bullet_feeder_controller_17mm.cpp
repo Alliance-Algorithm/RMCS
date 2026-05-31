@@ -53,7 +53,7 @@ public:
         register_input("/remote/mouse", mouse_);
         register_input("/remote/keyboard", keyboard_);
 
-        register_input("/gimbal/auto_aim/fire_control", fire_control_, false);
+        register_input("/auto_aim/should_shoot", fire_control_, false);
 
         register_input("/gimbal/bullet_feeder/velocity", bullet_feeder_velocity_);
         register_output(
@@ -84,13 +84,15 @@ public:
 
             if (switch_right != Switch::DOWN) {
                 shoot_mode = keyboard.f ? ShootMode::SINGLE : ShootMode::AUTOMATIC;
+                const bool auto_aim_requested = mouse.right || switch_right == Switch::UP;
 
                 single_shot_stop_counter_ = std::max(0, single_shot_stop_counter_ - 1);
                 temporary_single_shot_counter_ = std::max(0, temporary_single_shot_counter_ - 1);
 
                 if (!last_mouse_.left && mouse.left)
                     single_shot_stop_counter_ = single_shot_max_stop_delay_;
-                else if (last_switch_left_ != Switch::DOWN && switch_left == Switch::DOWN) {
+                else if (!auto_aim_requested && last_switch_left_ != Switch::DOWN
+                    && switch_left == Switch::DOWN) {
                     single_shot_stop_counter_ = single_shot_max_stop_delay_;
                     temporary_single_shot_counter_ = 500;
                 }
@@ -102,8 +104,12 @@ public:
 
                 if (*friction_ready_) {
                     if (shoot_mode == ShootMode::AUTOMATIC) {
-                        bool triggered = mouse.left || switch_left == Switch::DOWN
-                                      || (switch_right == Switch::UP && *fire_control_);
+                        const bool auto_aim_enabled = auto_aim_requested;
+                        bool triggered = 
+                            (mouse.left && !mouse.right) || 
+                            (switch_left == Switch::DOWN && auto_aim_enabled && *fire_control_) ||
+                            (switch_left == Switch::DOWN && !auto_aim_enabled) || 
+                            (mouse.left && auto_aim_enabled && *fire_control_);
                         bullet_allowance =
                             triggered ? *control_bullet_allowance_limited_by_heat_ : 0;
                     } else {
