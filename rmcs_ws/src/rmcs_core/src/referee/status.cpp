@@ -1,3 +1,4 @@
+#include <chrono>
 #include <cstdint>
 #include <cstring>
 #include <eigen3/Eigen/Eigen>
@@ -15,6 +16,8 @@
 
 namespace rmcs_core::referee {
 using namespace status;
+
+using Clock = std::chrono::steady_clock;
 
 class Status
     : public rmcs_executor::Component
@@ -97,8 +100,10 @@ public:
     }
 
     void update() override {
-        if (!serial_.active())
+        if (!serial_.active()) {
+            update_chassis_output_status_timeout();
             return;
+        }
 
         if (cache_size_ >= sizeof(frame_.header)) {
             auto frame_size = sizeof(frame_.header) + sizeof(frame_.body.command_id)
@@ -142,9 +147,17 @@ public:
             *robot_chassis_power_ = 0.0;
             *robot_buffer_energy_ = 60.0;
         }
+
+        update_chassis_output_status_timeout();
     }
 
 private:
+    void update_chassis_output_status_timeout() {
+        if (Clock::now() - last_robot_status_update_time_ > chassis_output_status_timeout_) {
+            *chassis_output_status_ = true;
+        }
+    }
+
     void process_frame() {
         auto command_id = frame_.body.command_id;
         if (command_id == 0x0001)
@@ -211,6 +224,8 @@ private:
     }
 
     void update_robot_status() {
+        last_robot_status_update_time_ = Clock::now();
+
         if (*game_stage_ == rmcs_msgs::GameStage::STARTED)
             robot_status_watchdog_.reset(60'000);
         else
@@ -306,6 +321,7 @@ private:
     static constexpr int64_t safe_shooter_heat_limit = 50'000;
     // Chassis: Health priority with level 1
     static constexpr double safe_chassis_power_limit = 45;
+    static constexpr auto chassis_output_status_timeout_ = std::chrono::milliseconds{500};
 
     rclcpp::Logger logger_;
 
@@ -327,6 +343,7 @@ private:
     OutputInterface<int64_t> robot_shooter_cooling_, robot_shooter_heat_limit_;
     OutputInterface<double> robot_chassis_power_limit_;
     OutputInterface<bool> chassis_output_status_;
+    Clock::time_point last_robot_status_update_time_ = Clock::now();
 
     rmcs_utility::TickTimer power_heat_data_watchdog_;
     OutputInterface<double> robot_chassis_power_;

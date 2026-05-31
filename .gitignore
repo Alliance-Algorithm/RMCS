@@ -1,7 +1,10 @@
-devel/
-log/
-build/
-install/
+/devel
+/log
+/build
+/install
+/rmcs_ws/log
+/rmcs_ws/build
+/rmcs_ws/install
 log-cross-*/
 build-cross-*/
 install-cross-*/

@@ -6,7 +6,7 @@
 #include <utility>
 
 #include <eigen3/Eigen/Dense>
-#include <librmcs/agent/c_board.hpp>
+#include <librmcs/agent/rmcs_board_lite.hpp>
 #include <librmcs/data/datas.hpp>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
@@ -25,20 +25,22 @@
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/lk_motor.hpp"
+#include "hardware/device/remote_control.hpp"
 #include "hardware/device/supercap.hpp"
+#include "hardware/device/vt13.hpp"
 
 namespace rmcs_core::hardware {
 
 class OmniInfantry
     : public rmcs_executor::Component
     , public rclcpp::Node
-    , private librmcs::agent::CBoard {
+    , private librmcs::agent::RmcsBoardLite {
 public:
     OmniInfantry()
         : Node{
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
-        , librmcs::agent::CBoard{get_parameter("board_serial").as_string()}
+        , librmcs::agent::RmcsBoardLite(get_parameter("board_serial").as_string(), {true})
         , logger_(get_logger())
         , infantry_command_(
               create_partner_component<InfantryCommand>(get_component_name() + "_command", *this))
@@ -53,7 +55,7 @@ public:
         , gimbal_left_friction_(*this, *infantry_command_, "/gimbal/left_friction")
         , gimbal_right_friction_(*this, *infantry_command_, "/gimbal/right_friction")
         , gimbal_bullet_feeder_(*this, *infantry_command_, "/gimbal/bullet_feeder")
-        , dr16_{*this}
+        , remote_control_(*this, dr16_, vt13_)
         , bmi088_(1000, 0.2, 0.0) {
 
         for (auto& motor : chassis_wheel_motors_)
@@ -126,9 +128,8 @@ public:
                 [&buffer](std::byte byte) noexcept { *buffer++ = byte; }, size);
         };
         referee_serial_->write = [this](const std::byte* buffer, size_t size) {
-            start_transmit().uart1_transmit({
-                .uart_data = std::span<const std::byte>{buffer, size}
-            });
+            start_transmit().uart1_transmit(
+                {.uart_data = std::span<const std::byte>{buffer, size}});
             return size;
         };
     }
@@ -144,6 +145,8 @@ public:
         update_motors();
         update_imu();
         dr16_.update_status();
+        vt13_.update_status();
+        remote_control_.update();
         supercap_.update_status();
     }
 
@@ -154,11 +157,11 @@ public:
             .can_id = 0x1FE,
             .can_data =
                 device::CanPacket8{
-                                   device::CanPacket8::PaddingQuarter{},
-                                   device::CanPacket8::PaddingQuarter{},
-                                   device::CanPacket8::PaddingQuarter{},
-                                   supercap_.generate_command(),
-                                   }
+                    device::CanPacket8::PaddingQuarter{},
+                    device::CanPacket8::PaddingQuarter{},
+                    device::CanPacket8::PaddingQuarter{},
+                    supercap_.generate_command(),
+                }
                     .as_bytes(),
         });
 
@@ -171,11 +174,11 @@ public:
             .can_id = 0x200,
             .can_data =
                 device::CanPacket8{
-                                   chassis_wheel_motors_[0].generate_command(),
-                                   chassis_wheel_motors_[1].generate_command(),
-                                   chassis_wheel_motors_[2].generate_command(),
-                                   chassis_wheel_motors_[3].generate_command(),
-                                   }
+                    chassis_wheel_motors_[0].generate_command(),
+                    chassis_wheel_motors_[1].generate_command(),
+                    chassis_wheel_motors_[2].generate_command(),
+                    chassis_wheel_motors_[3].generate_command(),
+                }
                     .as_bytes(),
         });
 
@@ -188,11 +191,11 @@ public:
             .can_id = 0x200,
             .can_data =
                 device::CanPacket8{
-                                   device::CanPacket8::PaddingQuarter{},
-                                   gimbal_bullet_feeder_.generate_command(),
-                                   gimbal_left_friction_.generate_command(),
-                                   gimbal_right_friction_.generate_command(),
-                                   }
+                    device::CanPacket8::PaddingQuarter{},
+                    gimbal_bullet_feeder_.generate_command(),
+                    gimbal_left_friction_.generate_command(),
+                    gimbal_right_friction_.generate_command(),
+                }
                     .as_bytes(),
         });
     }
@@ -277,6 +280,10 @@ private:
         }
     }
 
+    void uart0_receive_callback(const librmcs::data::UartDataView& data) override {
+        vt13_.store_status(data.uart_data);
+    }
+
     void uart1_receive_callback(const librmcs::data::UartDataView& data) override {
         const auto* uart_data = data.uart_data.data();
         referee_ring_buffer_receive_.emplace_back_n(
@@ -285,7 +292,7 @@ private:
     }
 
     void dbus_receive_callback(const librmcs::data::UartDataView& data) override {
-        dr16_.store_status(data.uart_data.data(), data.uart_data.size());
+        dr16_.store_status(data.uart_data);
     }
 
     void accelerometer_receive_callback(const librmcs::data::AccelerometerDataView& data) override {
@@ -324,6 +331,8 @@ private:
     device::DjiMotor gimbal_bullet_feeder_;
 
     device::Dr16 dr16_;
+    device::Vt13 vt13_;
+    device::RemoteControl remote_control_;
     device::Bmi088 bmi088_;
 
     OutputInterface<double> gimbal_yaw_velocity_imu_;

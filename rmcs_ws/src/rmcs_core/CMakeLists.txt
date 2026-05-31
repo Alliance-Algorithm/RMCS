@@ -17,11 +17,32 @@ include(FetchContent)
 set(BUILD_STATIC_LIBRMCS ON CACHE BOOL "Build static librmcs SDK" FORCE)
 FetchContent_Declare(
   librmcs
-  URL https://github.com/Alliance-Algorithm/librmcs/releases/download/v3.1.0/librmcs-sdk-src-3.1.0.zip
-  URL_HASH SHA256=07107e251745ddb23f7b3e39edec5d6910be1a197025d167ec9849c5c80dd954
+  URL https://github.com/Alliance-Algorithm/librmcs/releases/download/v3.2.0rc0/librmcs-sdk-src-3.2.0-rc.0.zip
+  URL_HASH SHA256=accefeb3a46d7da32a215765d0907de36c25353dd7951e342aaddfe98d2971e5
   DOWNLOAD_EXTRACT_TIMESTAMP TRUE
 )
 FetchContent_MakeAvailable(librmcs)
+
+configure_file(
+  ${PROJECT_SOURCE_DIR}/third_party_overrides/librmcs/host/include/librmcs/protocol/handler.hpp
+  ${librmcs_SOURCE_DIR}/host/include/librmcs/protocol/handler.hpp
+  COPYONLY
+)
+configure_file(
+  ${PROJECT_SOURCE_DIR}/third_party_overrides/librmcs/host/src/protocol/handler.cpp
+  ${librmcs_SOURCE_DIR}/host/src/protocol/handler.cpp
+  COPYONLY
+)
+configure_file(
+  ${PROJECT_SOURCE_DIR}/third_party_overrides/librmcs/host/src/transport/transport.hpp
+  ${librmcs_SOURCE_DIR}/host/src/transport/transport.hpp
+  COPYONLY
+)
+configure_file(
+  ${PROJECT_SOURCE_DIR}/third_party_overrides/librmcs/host/src/transport/usb/usb.cpp
+  ${librmcs_SOURCE_DIR}/host/src/transport/usb/usb.cpp
+  COPYONLY
+)
 
 file(GLOB_RECURSE PROJECT_SOURCE CONFIGURE_DEPENDS
   ${PROJECT_SOURCE_DIR}/src/*.cpp

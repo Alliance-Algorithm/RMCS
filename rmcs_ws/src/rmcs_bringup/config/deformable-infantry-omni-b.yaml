@@ -2,7 +2,7 @@ rmcs_executor:
   ros__parameters:
     update_rate: 1000.0
     components:
-      - rmcs_core::hardware::DeformableInfantryOmni -> deformable_infantry
+      - rmcs_core::hardware::DeformableInfantryOmniB -> deformable_infantry
 
       - rmcs_core::referee::Status -> referee_status
       - rmcs_core::referee::Command -> referee_command
@@ -38,17 +38,18 @@ value_broadcaster:
       - /gimbal/yaw/angle
       - /gimbal/yaw/velocity
 
+
 deformable_infantry:
   ros__parameters:
-    serial_filter_rmcs_board: "AF-23FB-EE32-B892-1302-AE70-D640-7B4E-0CBF"
-    serial_filter_top_board: "AF-8AE3-4EC1-03C3-C494-88FE-2DC4-3018-0298"
-    serial_filter_imu: "AF-7A42-07AA-D181-0356-7715-6D7C-4C65-5762"
-    left_front_zero_point: 374
-    left_back_zero_point: 5801
-    right_back_zero_point: 7817
-    right_front_zero_point: 7136
-    yaw_motor_zero_point: 43365
-    pitch_motor_zero_point: 6853
+    serial_filter_rmcs_board: "AF-73B2-E8A1-A544-79ED-5BDA-D088-7F21-A6A6"
+    serial_filter_top_board: "AF-ABAC-786D-1B53-99F6-00A2-42A6-AA95-9D69"
+    serial_filter_imu: "AF-C26A-0C9C-CF41-3E3C-1596-524B-7527-5744"
+    left_front_zero_point: 7173
+    left_back_zero_point: 5167
+    right_back_zero_point: 3098
+    right_front_zero_point: 6485
+    yaw_motor_zero_point: 57900
+    pitch_motor_zero_point: 56354
     debug_log_supercap: false
     debug_log_wheel_motor: false
     debug_log_deformable_joint_motor: false
@@ -172,7 +173,7 @@ bullet_feeder_velocity_pid_controller:
 
 deformable_chassis_controller:
   ros__parameters:
-    mass: 22.5
+    mass: 23.0
     moment_of_inertia: 1.0
     chassis_radius: 0.2341741
     rod_length: 0.150
@@ -190,7 +191,7 @@ lf_joint_controller:
     control: /chassis/left_front_joint/control_torque
 
     dt: 0.001
-    b0: -0.60
+    b0: -1.0
     kt: 1.0
     td_h: 0.001
     td_r: 50.0
@@ -212,7 +213,7 @@ lb_joint_controller:
     setpoint_angle: /chassis/left_back_joint/target_physical_angle
     control: /chassis/left_back_joint/control_torque
     dt: 0.001
-    b0: -0.60
+    b0: -1.0
     kt: 1.0
     td_h: 0.001
     td_r: 50.0
@@ -234,7 +235,7 @@ rb_joint_controller:
     setpoint_angle: /chassis/right_back_joint/target_physical_angle
     control: /chassis/right_back_joint/control_torque
     dt: 0.001
-    b0: -0.60
+    b0: -1.0
     kt: 1.0
     td_h: 0.001
     td_r: 50.0
@@ -256,7 +257,7 @@ rf_joint_controller:
     setpoint_angle: /chassis/right_front_joint/target_physical_angle
     control: /chassis/right_front_joint/control_torque
     dt: 0.001
-    b0: -0.60
+    b0: -1.0
     kt: 1.0
     td_h: 0.001
     td_r: 50.0
