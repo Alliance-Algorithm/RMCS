@@ -21,10 +21,6 @@
 namespace rmcs_core::referee::app::ui {
 using namespace std::chrono_literals;
 
-namespace {
-constexpr double supercap_cutoff_voltage = 8.0;
-}
-
 class DeformableInfantry
     : public rmcs_executor::Component
     , public rclcpp::Node {
@@ -176,6 +172,7 @@ private:
     static constexpr uint16_t x_center = screen_width / 2, y_center = screen_height / 2;
     static constexpr double friction_wheel_speed_indicator_radius_ = 430.0;
     static constexpr uint16_t friction_wheel_speed_indicator_font_size_ = 20;
+    static constexpr double supercap_cutoff_voltage = 8.0;
 
     static uint16_t friction_wheel_speed_indicator_center_x() {
         return static_cast<uint16_t>(std::lround(
