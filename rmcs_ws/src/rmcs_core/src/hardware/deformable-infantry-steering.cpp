@@ -35,16 +35,16 @@ namespace rmcs_core::hardware {
 
 using Clock = std::chrono::steady_clock;
 
-class DeformableInfantryV2
+class DeformableInfantrySteering
     : public rmcs_executor::Component
     , public rclcpp::Node {
 public:
-    DeformableInfantryV2()
+    DeformableInfantrySteering()
         : Node(
               get_component_name(),
               rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true))
         , deformable_infantry_command_(
-              create_partner_component<DeformableInfantryV2Command>(
+              create_partner_component<DeformableInfantrySteeringCommand>(
                   get_component_name() + "_command", *this)) {
         using namespace rmcs_description;
 
@@ -69,7 +69,7 @@ public:
             get_parameter("serial_filter_top_board").as_string());
     }
 
-    ~DeformableInfantryV2() override = default;
+    ~DeformableInfantrySteering() override = default;
 
     void before_updating() override {
         top_board_->request_hard_sync_read();
@@ -88,29 +88,29 @@ public:
     }
 
 private:
-    class DeformableInfantryV2Command;
+    class DeformableInfantrySteeringCommand;
     class BottomBoard;
     class TopBoard;
 
-    class DeformableInfantryV2Command : public rmcs_executor::Component {
+    class DeformableInfantrySteeringCommand : public rmcs_executor::Component {
     public:
-        explicit DeformableInfantryV2Command(DeformableInfantryV2& deformableInfantry)
+        explicit DeformableInfantrySteeringCommand(DeformableInfantrySteering& deformableInfantry)
             : deformableInfantry(deformableInfantry) {}
 
         void update() override { deformableInfantry.command_update(); }
 
-        DeformableInfantryV2& deformableInfantry;
+        DeformableInfantrySteering& deformableInfantry;
     };
 
     class BottomBoard final : private librmcs::agent::RmcsBoardLite {
     public:
-        friend class DeformableInfantryV2;
+        friend class DeformableInfantrySteering;
 
         static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
 
         explicit BottomBoard(
-            DeformableInfantryV2& deformableInfantry,
-            DeformableInfantryV2Command& deformableInfantry_command,
+            DeformableInfantrySteering& deformableInfantry,
+            DeformableInfantrySteeringCommand& deformableInfantry_command,
             const std::string& serial_filter = {})
             : RmcsBoardLite{
                   serial_filter,
@@ -406,7 +406,7 @@ private:
         }
 
     private:
-        DeformableInfantryV2& deformable_infantry_;
+        DeformableInfantrySteering& deformable_infantry_;
 
         static constexpr double joint_zero_physical_angle_rad_ = 62.5 * std::numbers::pi / 180.0;
         static constexpr double chassis_radius_base_ = 0.2341741;
@@ -670,11 +670,11 @@ private:
 
     class TopBoard final : private librmcs::agent::RmcsBoardLite {
     public:
-        friend class DeformableInfantryV2;
+        friend class DeformableInfantrySteering;
 
         explicit TopBoard(
-            DeformableInfantryV2& deformableInfantry,
-            DeformableInfantryV2Command& deformableInfantry_command, std::string serial_filter = {})
+            DeformableInfantrySteering& deformableInfantry,
+            DeformableInfantrySteeringCommand& deformableInfantry_command, std::string serial_filter = {})
             : librmcs::agent::RmcsBoardLite(
                   serial_filter,
                   librmcs::agent::AdvancedOptions{.dangerously_skip_version_checks = true})
@@ -850,7 +850,7 @@ private:
     size_t hard_sync_snapshot_count_ = 0;
     Clock::time_point next_hard_sync_log_time_{};
 
-    std::shared_ptr<DeformableInfantryV2Command> deformable_infantry_command_;
+    std::shared_ptr<DeformableInfantrySteeringCommand> deformable_infantry_command_;
     std::unique_ptr<BottomBoard> rmcs_board_lite;
     std::unique_ptr<TopBoard> top_board_;
 
@@ -861,4 +861,4 @@ private:
 } // namespace rmcs_core::hardware
 
 #include <pluginlib/class_list_macros.hpp>
-PLUGINLIB_EXPORT_CLASS(rmcs_core::hardware::DeformableInfantryV2, rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(rmcs_core::hardware::DeformableInfantrySteering, rmcs_executor::Component)
