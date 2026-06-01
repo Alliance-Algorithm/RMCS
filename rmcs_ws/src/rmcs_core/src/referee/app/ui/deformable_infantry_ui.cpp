@@ -21,17 +21,13 @@
 namespace rmcs_core::referee::app::ui {
 using namespace std::chrono_literals;
 
-namespace {
-constexpr double supercap_cutoff_voltage = 8.0;
-}
-
 class DeformableInfantry
     : public rmcs_executor::Component
     , public rclcpp::Node {
 public:
     DeformableInfantry()
         : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
-        , crosshair_circle_(Shape::Color::WHITE, x_center - 22, y_center - 42, 8, 2)
+        , crosshair_circle_(Shape::Color::WHITE, x_center - 26, y_center - 34, 8, 2)
         , status_ring_(24.0, 26.5, 600, 300)
         , horizontal_center_guidelines_(
               {Shape::Color::WHITE, 2, x_center - 360, y_center, x_center - 110, y_center},
@@ -129,9 +125,9 @@ private:
         const double reveal = ctrl_transition_.update(*timestamp_, ctrl_active);
 
         crosshair_circle_.set_x(static_cast<uint16_t>(std::lround(
-            static_cast<double>(crosshair_base_x_) + 20.0 * reveal)));
+            static_cast<double>(crosshair_base_x_) + 45.0 * reveal)));
         crosshair_circle_.set_y(static_cast<uint16_t>(std::lround(
-            static_cast<double>(crosshair_base_y_) - 20.0 * reveal)));
+            static_cast<double>(crosshair_base_y_) + 20.0 * reveal)));
     }
 
     void update_time_reminder() {
@@ -176,6 +172,7 @@ private:
     static constexpr uint16_t x_center = screen_width / 2, y_center = screen_height / 2;
     static constexpr double friction_wheel_speed_indicator_radius_ = 430.0;
     static constexpr uint16_t friction_wheel_speed_indicator_font_size_ = 20;
+    static constexpr double supercap_cutoff_voltage = 8.0;
 
     static uint16_t friction_wheel_speed_indicator_center_x() {
         return static_cast<uint16_t>(std::lround(
