@@ -54,6 +54,37 @@ public:
         }
     };
 
+    class SetToLevelYawShift : public Operation {
+    public:
+        explicit SetToLevelYawShift(double yaw_shift)
+            : yaw_shift_(yaw_shift) {}
+
+    private:
+        PitchLink::DirectionVector update(TwoAxisGimbalSolver& super) const override {
+            OdomImu::DirectionVector odom_dir;
+            if (!super.control_enabled_) {
+                odom_dir = fast_tf::cast<OdomImu>(
+                    PitchLink::DirectionVector{Eigen::Vector3d::UnitX()}, *super.tf_);
+            } else {
+                odom_dir = super.control_direction_;
+            }
+
+            if (std::abs(odom_dir->x()) < 1e-6 && std::abs(odom_dir->y()) < 1e-6)
+                return {};
+
+            super.control_enabled_ = true;
+            odom_dir->z() = 0;
+            odom_dir->normalize();
+            auto dir = fast_tf::cast<PitchLink>(odom_dir, *super.tf_);
+            dir->normalize();
+
+            const auto yaw_transform = Eigen::AngleAxisd{yaw_shift_, Eigen::Vector3d::UnitZ()};
+            return PitchLink::DirectionVector{yaw_transform * (*dir)};
+        }
+
+        double yaw_shift_;
+    };
+
     class SetControlDirection : public Operation {
     public:
         explicit SetControlDirection(OdomImu::DirectionVector target)

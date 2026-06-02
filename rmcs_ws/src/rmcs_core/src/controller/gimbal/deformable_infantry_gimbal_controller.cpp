@@ -9,6 +9,7 @@
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/switch.hpp>
 
@@ -92,6 +93,7 @@ private:
     struct Input {
         explicit Input(rmcs_executor::Component& component) {
             component.register_input("/remote/joystick/left", joystick_left);
+            component.register_input("/remote/keyboard", keyboard);
             component.register_input("/remote/switch/right", switch_right);
             component.register_input("/remote/switch/left", switch_left);
             component.register_input("/remote/mouse/velocity", mouse_velocity);
@@ -109,6 +111,7 @@ private:
         }
 
         InputInterface<Eigen::Vector2d> joystick_left;
+        InputInterface<rmcs_msgs::Keyboard> keyboard;
         InputInterface<rmcs_msgs::Switch> switch_right;
         InputInterface<rmcs_msgs::Switch> switch_left;
         InputInterface<Eigen::Vector2d> mouse_velocity;
@@ -157,6 +160,9 @@ private:
 
         const auto yaw_shift = joystick_sensitivity_ * input_.joystick_left->y()
                              + mouse_sensitivity_ * input_.mouse_velocity->y();
+        if (input_.keyboard->ctrl)
+            return gimbal_solver_.update(TwoAxisGimbalSolver::SetToLevelYawShift{yaw_shift});
+
         const auto pitch_shift = -joystick_sensitivity_ * input_.joystick_left->x()
                                + mouse_sensitivity_ * input_.mouse_velocity->x();
         return gimbal_solver_.update(TwoAxisGimbalSolver::SetControlShift{yaw_shift, pitch_shift});
