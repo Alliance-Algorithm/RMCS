@@ -16,6 +16,7 @@ class Flight
 public:
     static constexpr uint8_t kUiModeCombat = 0;
     static constexpr uint8_t kUiModeOutpostOnly = 1;
+    static constexpr uint8_t kUiModeEngineer = 2;
 
     Flight()
         : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
@@ -58,8 +59,19 @@ private:
 
     auto update_mode_indicator() -> void {
         auto mode_value = auto_aim_mode_.ready() ? *auto_aim_mode_ : kUiModeCombat;
-        mode_indicator_.set_color(
-            mode_value == kUiModeOutpostOnly ? Shape::Color::GREEN : Shape::Color::YELLOW);
+
+        switch (mode_value) {
+        case kUiModeOutpostOnly:
+            mode_indicator_.set_color(Shape::Color::GREEN);
+            break;
+        case kUiModeEngineer:
+            mode_indicator_.set_color(Shape::Color::PINK);
+            break;
+        case kUiModeCombat:
+        default:
+            mode_indicator_.set_color(Shape::Color::YELLOW);
+            break;
+        }
     }
 
     InputInterface<uint16_t> robot_bullet_allowance_;
