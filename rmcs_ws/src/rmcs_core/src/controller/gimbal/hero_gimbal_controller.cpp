@@ -40,6 +40,7 @@ public:
         register_input("/gimbal/auto_aim/control_direction", auto_aim_control_direction_, false);
         register_input("/gimbal/pitch/angle", gimbal_pitch_angle_);
         register_input("/gimbal/pitch/raw_angle", gimbal_pitch_raw_angle_);
+        register_input("/tf", tf_);
 
         register_output("/gimbal/mode", gimbal_mode_, rmcs_msgs::GimbalMode::IMU);
 
@@ -53,10 +54,10 @@ public:
         const auto& switch_left = *switch_left_;
         const auto& switch_right = *switch_right_;
 
-        if (*gimbal_pitch_angle_ != 0.0) {
-            // RCLCPP_INFO(get_logger(), "pitch: %f", *gimbal_pitch_angle_);
-            // RCLCPP_INFO(get_logger(), "rawangle %lu", *gimbal_pitch_raw_angle_);
-        }
+        // if (*gimbal_pitch_angle_ != 0.0) {
+        //     RCLCPP_INFO(get_logger(), "pitch: %f", *gimbal_pitch_angle_);
+        //     RCLCPP_INFO(get_logger(), "rawangle %lu", *gimbal_pitch_raw_angle_);
+        // }
 
         do {
             using namespace rmcs_msgs;
@@ -75,11 +76,19 @@ public:
                 }
             }
 
+            bool switch_encoder_to_imu_by_c = false;
+
+            if (!last_keyboard_.c && keyboard_->c && gimbal_mode_keyboard_ == GimbalMode::ENCODER) {
+                gimbal_mode_keyboard_ = GimbalMode::IMU;
+                switch_encoder_to_imu_by_c = true;
+            }
+
             *gimbal_mode_ = gimbal_mode_keyboard_;
             //*gimbal_mode_ = switch_right == Switch::UP ? GimbalMode::ENCODER : GimbalMode::IMU;
 
             if (*gimbal_mode_ == GimbalMode::IMU) {
-                auto angle_error = update_imu_control();
+                auto angle_error = switch_encoder_to_imu_by_c ? enter_imu_hold_current_pose()
+                                                              : update_imu_control();
                 *yaw_angle_error_ = angle_error.yaw_angle_error;
                 *pitch_angle_error_ = angle_error.pitch_angle_error;
 
@@ -138,6 +147,17 @@ public:
             TwoAxisGimbalSolver::SetControlShift{yaw_shift, pitch_shift});
     }
 
+    TwoAxisGimbalSolver::AngleError enter_imu_hold_current_pose() {
+        if (!tf_.ready())
+            return update_imu_control();
+
+        auto current_direction =
+            fast_tf::cast<OdomImu>(PitchLink::DirectionVector{Eigen::Vector3d::UnitX()}, *tf_);
+
+        return imu_gimbal_solver.update(
+            TwoAxisGimbalSolver::SetControlDirection{OdomImu::DirectionVector{*current_direction}});
+    }
+
     PreciseTwoAxisGimbalSolver::ControlAngle update_encoder_control() {
         if (!encoder_gimbal_solver.enabled()) {
             return encoder_gimbal_solver.update(
@@ -160,8 +180,8 @@ public:
 private:
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
 
-    static constexpr double kEInitPitch = -0.476972;     // -0.39855 单独 E 的初始角度
-    static constexpr double kCtrlEInitPitch = -0.541591; // Ctrl+E 的初始角度，自己改
+    static constexpr double kEInitPitch = -0.346584;     // -0.39855 单独 E 的初始角度
+    static constexpr double kCtrlEInitPitch = -0.471795; // Ctrl+E 的初始角度，自己改
     double encoder_init_pitch_ = kEInitPitch;
     InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;
@@ -175,6 +195,7 @@ private:
     InputInterface<Eigen::Vector3d> auto_aim_control_direction_;
     InputInterface<double> gimbal_pitch_angle_;
     InputInterface<int64_t> gimbal_pitch_raw_angle_;
+    InputInterface<Tf> tf_;
 
     rmcs_msgs::GimbalMode gimbal_mode_keyboard_ = rmcs_msgs::GimbalMode::IMU;
     OutputInterface<rmcs_msgs::GimbalMode> gimbal_mode_;

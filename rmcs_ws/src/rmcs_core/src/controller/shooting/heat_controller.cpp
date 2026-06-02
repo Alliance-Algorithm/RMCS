@@ -29,21 +29,23 @@ public:
     }
 
     void update() override {
-        shooter_heat_ = std::max<int64_t>(0, shooter_heat_ - *shooter_cooling_);
 
-        if (*bullet_fired_)
+        if (*bullet_fired_ && !bullet_fired_false_) {
             shooter_heat_ += heat_per_shot;
+        }
+        bullet_fired_false_ = *bullet_fired_; // 上升沿检测，防止持续增加热量
 
-        // if (count++ == 500) {
-        //     RCLCPP_INFO(get_logger(), "limit:%ld,heat:%ld", *shooter_heat_limit_, shooter_heat_);
-        //     count = 0;
-        // }
+        if (++cooling_settlement_tick_ >= kCoolingSettlementTicks) {
+            cooling_settlement_tick_ = 0;
+            shooter_heat_ = std::max<int64_t>(
+                0, shooter_heat_ - *shooter_cooling_ * kCoolingPerSettlementScale);
+        }
+
         *control_bullet_allowance_ = std::max<int64_t>(
             0, (*shooter_heat_limit_ - shooter_heat_ - reserved_heat) / heat_per_shot);
 
         *shooting_heat_ = static_cast<double>(shooter_heat_);
     }
-    // int count = 0;
 
 private:
     InputInterface<int64_t> shooter_cooling_;
@@ -53,6 +55,13 @@ private:
 
     const int64_t heat_per_shot;
     const int64_t reserved_heat;
+
+    int cooling_settlement_tick_ = 0;
+    static constexpr int kCoolingSettlementTicks = 100;
+    // 1000Hz主循环下，每100个tick结算一次冷却，对应10Hz热量结算
+    static constexpr int kCoolingPerSettlementScale = 100;
+    // 内部热量单位按1000倍缩放，10Hz结算时每次冷却量 = 每秒冷却值/10，即内部实现为 cooling* 100
+    bool bullet_fired_false_ = false;
 
     int64_t shooter_heat_ = 0;
     OutputInterface<double> shooting_heat_;

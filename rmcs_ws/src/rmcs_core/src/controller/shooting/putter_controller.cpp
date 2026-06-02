@@ -65,16 +65,6 @@ public:
         set_pid_parameter(bullet_feeder_velocity_pid_, "bullet_feeder_velocity");
         set_pid_parameter(putter_return_velocity_pid_, "putter_return_velocity");
 
-        putter_velocity_pid_.kp = 0.004;
-        putter_velocity_pid_.ki = 0.0001;
-        putter_velocity_pid_.kd = 0.001;
-        putter_velocity_pid_.integral_max = 0.03;
-        putter_velocity_pid_.integral_min = 0.;
-
-        putter_return_angle_pid.kp = 0.0001;
-        // putter_return_angle_pid.ki = 0.000001;
-        putter_return_angle_pid.kd = 0.;
-
         register_output(
             "/gimbal/bullet_feeder/control_torque", bullet_feeder_control_torque_, nan_);
         register_output("/gimbal/putter/control_torque", putter_control_torque_, nan_);
@@ -86,6 +76,7 @@ public:
 
         register_output("/gimbal/shooter/mode", shoot_mode_, rmcs_msgs::ShootMode::SINGLE);
         register_output("/gimbal/shooter/condiction", shoot_condiction_);
+        register_output("/gimbal/shooter/preloaded_ready", preloaded_ready_, false);
     }
 
     ~PutterController() {}
@@ -111,7 +102,7 @@ public:
                 bullet_feeder_reverse_end_--;
 
                 // 冷却期前期：反转供弹轮以解除卡弹
-                if (bullet_feeder_reverse_end_ > 500)
+                if (bullet_feeder_reverse_end_ > 300)
                     *bullet_feeder_control_torque_ = bullet_feeder_velocity_pid_.update(
                         -low_latency_velocity_ / 2 - *bullet_feeder_velocity_);
                 else {
@@ -120,8 +111,13 @@ public:
                     *bullet_feeder_control_torque_ = 0.0;
                 }
 
-                // if (!bullet_feeder_reverse_end_)
+                if (!bullet_feeder_reverse_end_ && shoot_stage_ == ShootStage::PRELOADED)
                 // RCLCPP_INFO(get_logger(), "Reverse finished");
+                {
+                    *preloaded_ready_ = true;
+                } else {
+                    *preloaded_ready_ = false;
+                }
 
             } else {
                 // 正常运行模式：摩擦轮就绪时才允许发射
@@ -182,8 +178,13 @@ public:
 
                     if (shoot_stage_ == ShootStage::SHOOTING) {
                         // 发射状态：检测子弹是否发出
-                        if (*bullet_fired_
-                            || *putter_angle_ - putter_startpoint >= putter_stroke_) {
+                        if (*bullet_fired_) {
+                            RCLCPP_INFO(get_logger(), "DETECT: Bullet fired!");
+                            shooted = true;
+                        }
+
+                        if (*putter_angle_ - putter_startpoint >= putter_stroke_) {
+                            RCLCPP_INFO(get_logger(), "DETECT: Putter stroke completed!");
                             shooted = true;
                         }
 
@@ -244,8 +245,6 @@ private:
         putter_initialized = false;
         putter_startpoint = nan_;
         putter_return_velocity_pid_.reset();
-        putter_velocity_pid_.reset();
-        putter_return_angle_pid.reset();
         *putter_control_torque_ = nan_;
 
         bullet_feeder_faulty_count_ = 0;
@@ -254,17 +253,17 @@ private:
     }
 
     void set_preloading() {
-        // RCLCPP_INFO(get_logger(), "PRELOADING");
+        RCLCPP_INFO(get_logger(), "PRELOADING");
         shoot_stage_ = ShootStage::PRELOADING;
     }
 
     void set_preloaded() {
-        // RCLCPP_INFO(get_logger(), "PRELOADED");
+        RCLCPP_INFO(get_logger(), "PRELOADED");
         shoot_stage_ = ShootStage::PRELOADED;
     }
 
     void set_shooting() {
-        // RCLCPP_INFO(get_logger(), "SHOOTING");
+        RCLCPP_INFO(get_logger(), "SHOOTING");
         shoot_stage_ = ShootStage::SHOOTING;
     }
 
@@ -277,7 +276,7 @@ private:
             locked_detect_count_ = 0;
         }
 
-        if (locked_detect_count_ > 300) {
+        if (locked_detect_count_ > 150) {
             if (*photoelectric_sensor_status_) {
                 set_preloaded();
             }
@@ -306,6 +305,7 @@ private:
                 putter_startpoint = *putter_angle_;
             } else {
                 // 发射状态下检测到堵转：认为子弹已发出
+                RCLCPP_INFO(get_logger(), "DETECT: Putter jammed");
                 shooted = true;
             }
         }
@@ -319,7 +319,7 @@ private:
                     ++putter_timeout_count_;
                 else {
                     putter_timeout_count_ = 0;
-                    // RCLCPP_INFO(get_logger(), "PUTTER TIMEOUT");
+                    RCLCPP_INFO(get_logger(), "PUTTER TIMEOUT");
                     set_preloading();
                     shooted = false;
                 }
@@ -331,7 +331,7 @@ private:
         // 设置目标角度为当前角度后退 60 度
         locked_detect_count_ = 0;
         bullet_feeder_faulty_count_ = 0;
-        bullet_feeder_reverse_end_ = 800;
+        bullet_feeder_reverse_end_ = 400;
         bullet_feeder_velocity_pid_.reset();
         // RCLCPP_INFO(get_logger(), "Jammed!");
     }
@@ -375,8 +375,6 @@ private:
     pid::PidCalculator putter_return_velocity_pid_;
     InputInterface<double> putter_velocity_;
 
-    pid::PidCalculator putter_velocity_pid_;
-
     enum class ShootStage { PRELOADING, PRELOADED, SHOOTING };
     ShootStage shoot_stage_ = ShootStage::PRELOADING;
 
@@ -385,7 +383,6 @@ private:
     OutputInterface<double> bullet_feeder_control_torque_;
 
     InputInterface<double> putter_angle_;
-    pid::PidCalculator putter_return_angle_pid;
     OutputInterface<double> putter_control_torque_;
 
     int bullet_feeder_faulty_count_ = 0;
@@ -405,6 +402,7 @@ private:
 
     OutputInterface<rmcs_msgs::ShootMode> shoot_mode_;
     OutputInterface<rmcs_msgs::ShootCondiction> shoot_condiction_;
+    OutputInterface<bool> preloaded_ready_;
 };
 
 } // namespace rmcs_core::controller::shooting

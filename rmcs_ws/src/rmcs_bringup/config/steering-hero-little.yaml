@@ -36,7 +36,7 @@ rmcs_executor:
       # - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
       # - rmcs_auto_aim::AutoAimController -> auto_aim_controller
 
-      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
 
       - sp_vision_25::bridge::HeroAutoAimBridge -> hero_auto_aim_bridge 
@@ -56,21 +56,21 @@ hero_hardware:
     viewer_motor_zero_point:  31940
     external_imu_port: /dev/ttyUSB0
     bullet_feeder_motor_zero_point: 60480 #39045
-    left_front_zero_point: 5799 
-    right_front_zero_point: 3700
-    left_back_zero_point:  7862
-    right_back_zero_point: 1608
+    left_front_zero_point: 5818 
+    right_front_zero_point: 3792
+    left_back_zero_point:  7830
+    right_back_zero_point: 1790
 
 value_broadcaster:
   ros__parameters:
     forward_list:
-      - /gimbal/top_yaw/control_angle
-      - /chassis/climber/left_front_motor/torque
-      - /chassis/climber/right_front_motor/torque
-      - /chassis/left_front_steering/torque
-      - /chassis/left_back_steering/torque
-      - /chassis/right_front_steering/torque
-      - /chassis/right_back_steering/torque
+      # - /gimbal/top_yaw/control_angle
+      # - /chassis/climber/left_front_motor/torque
+      # - /chassis/climber/right_front_motor/torque
+      # - /chassis/left_front_steering/torque
+      # - /chassis/left_back_steering/torque
+      # - /chassis/right_front_steering/torque
+      # - /chassis/right_back_steering/torque
       # - /shoot/heat12707
       # - /chassis/power
       # - /referee/chassis/power
@@ -81,10 +81,10 @@ value_broadcaster:
       # - /chassis/climber/front/actual_power_estimate
       # - /chassis/steering_wheel/actual_power_estimate
       # - /gimbal/putter/velocity
-      - /gimbal/first_left_friction/velocity
-      - /gimbal/first_right_friction/velocity
-      - /gimbal/second_left_friction/velocity
-      - /gimbal/second_right_friction/velocity
+      # - /gimbal/first_left_friction/velocity
+      # - /gimbal/first_right_friction/velocity
+      # - /gimbal/second_left_friction/velocity
+      # - /gimbal/second_right_friction/velocity
       # - /gimbal/first_left_friction/control_torque
       # - /gimbal/first_second_friction/control_torque
       # - /gimbal/second_left_friction/control_torque
@@ -102,14 +102,14 @@ value_broadcaster:
       # - /chassis/climber/front/power_demand_estimate
       # - /chassis/climber/front/actual_power_estimate
       # - /chassis/steering_wheel/actual_power_estimate   
-      - /gimbal/bullet_feeder/torque
-      - /gimbal/bullet_feeder/control_torque
+      # - /gimbal/bullet_feeder/torque
+      # - /gimbal/bullet_feeder/control_torque
       - /gimbal/putter/angle
       - /gimbal/putter/velocity
       - /gimbal/putter/torque
       - /gimbal/putter/control_torque
-      - /gimbal/bullet_feeder/velocity
-      - /gimbal/bullet_feeder/angle
+      # - /gimbal/bullet_feeder/velocity
+      # - /gimbal/bullet_feeder/angle
 
 
 climber_controller:
@@ -120,7 +120,7 @@ climber_controller:
     auto_climb_support_retract_velocity_slow: 20.0
     auto_climb_approach_chassis_velocity: 2.0
     auto_climb_support_deploy_chassis_velocity: 0.3
-    auto_climb_support_retract_chassis_velocity: 0.3
+    auto_climb_support_retract_chassis_velocity: 0.15
     auto_climb_dash_chassis_velocity: 3.0
     first_stair_dash_leveled_pitch_threshold: 0.05
     second_stair_dash_leveled_pitch_threshold: -0.09
@@ -209,7 +209,7 @@ bullet_feeder_controller:
     bullet_feeder_angle_kp: 6.0
     bullet_feeder_angle_ki: 0.0
     bullet_feeder_angle_kd: 1.6
-    putter_return_velocity_kp: 0.0025
+    putter_return_velocity_kp: 0.006
     putter_return_velocity_ki: 0.00005
     putter_return_velocity_kd: 0.0
     putter_return_velocity_integral_min: -0.03

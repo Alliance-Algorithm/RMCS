@@ -51,25 +51,25 @@ public:
         const auto switch_left = *switch_left_;
         const auto keyboard = *keyboard_;
 
-        if (*gimbal_pitch_angle_ != 0.0) {
-            // RCLCPP_INFO(get_logger(), "pitch 111: %f", *gimbal_pitch_angle_);
-            // RCLCPP_INFO(get_logger(), "rawangle 111 %lu", *gimbal_pitch_raw_angle_);
-        }
+        // if (*gimbal_pitch_angle_ != 0.0) {
+        //     RCLCPP_INFO(get_logger(), "pitch 111: %f", *gimbal_pitch_angle_);
+        //     RCLCPP_INFO(get_logger(), "rawangle 111 %lu", *gimbal_pitch_raw_angle_);
+        // }
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
             reset_all_controls();
         } else {
             // if (!last_keyboard_.e && keyboard.e)
             //     viewer_reset_ = true;
-            if (!last_keyboard_.q && keyboard.q) {
-                scope_active_ = !scope_active_;
-                *is_scope_active_ = scope_active_;
-                scope_viewer_reset_ = scope_active_;
-            }
             if (!last_keyboard_.e && keyboard.e) {
                 viewer_init_angle_ = keyboard.ctrl ? kCtrlInitViewerAngle : kEInitViewerAngle;
                 viewer_reset_ = true;
                 scope_viewer_reset_ = false;
+            }
+            if (!last_keyboard_.q && keyboard.q) {
+                scope_active_ = !scope_active_;
+                *is_scope_active_ = scope_active_;
+                scope_viewer_reset_ = scope_active_;
             }
 
             update_viewer_control();
@@ -117,7 +117,7 @@ private:
                 *viewer_control_angle_ += *viewer_delta_angle_by_mouse_wheel_;
             }
         }
-        *viewer_control_angle_ = std::clamp(*viewer_control_angle_, upper_limit_, lower_limit_);
+        *viewer_control_angle_ = std::clamp(*viewer_control_angle_, lower_limit_, upper_limit_);
 
         auto norm_angle = [](double angle) { return (angle > pi_) ? angle - 2 * pi_ : angle; };
 
@@ -141,7 +141,7 @@ private:
     static constexpr double pi_ = std::numbers::pi;
 
     // steering-hero 的 viewer 角度限位是 [0.68, 1.17]
-    static constexpr double kEInitViewerAngle = 0.38905;    // 按 E 定到这里
+    static constexpr double kEInitViewerAngle = -0.065769;  // 按 E 定到这里
     static constexpr double kCtrlInitViewerAngle = 0.38905; // 按 Ctrl 定到这里，自己改
 
     bool scope_viewer_reset_{false};

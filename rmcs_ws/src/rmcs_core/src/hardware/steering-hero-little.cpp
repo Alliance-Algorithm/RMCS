@@ -667,6 +667,15 @@ private:
                 motor.update_status();
 
             gimbal_bottom_yaw_motor_.update_status();
+            if (++count_ == 500) {
+                for (int i = 0; i < 8; ++i) {
+                    if (check[i] == 0) {
+                        RCLCPP_WARN(logger_, "can id 0x%03X missing", i + 0x201);
+                    }
+                }
+                std::fill_n(check, 8, 0);
+                count_ = 0;
+            }
         }
 
         void command_update() {
@@ -756,6 +765,7 @@ private:
                 return;
             auto can_id = data.can_id;
             // can0_receive_rate_counter_.record(can_id);
+            check[can_id - 0x201] = 1;
             if (can_id == 0x201) {
                 chassis_wheel_motors_[0].store_status(data.can_data);
             } else if (can_id == 0x202) {
@@ -772,6 +782,9 @@ private:
                 return;
             auto can_id = data.can_id;
             // can1_receive_rate_counter_.record(can_id);
+            if (can_id != 0x300) {
+                check[can_id - 0x201] = 1;
+            }
             if (can_id == 0x203) {
                 chassis_wheel_motors_[2].store_status(data.can_data);
             } else if (can_id == 0x204) {
@@ -836,6 +849,8 @@ private:
         // CanReceiveRateCounter can1_receive_rate_counter_;
         // CanReceiveRateCounter can2_receive_rate_counter_;
         // CanReceiveRateCounter can3_receive_rate_counter_;
+        int count_ = 0;
+        int check[10] = {0};
 
         device::Bmi088 imu_;
         device::Dr16 dr16_;
