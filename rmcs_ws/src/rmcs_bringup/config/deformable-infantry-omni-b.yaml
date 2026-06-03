@@ -177,7 +177,7 @@ deformable_chassis_controller:
     moment_of_inertia: 1.0
     chassis_radius: 0.2341741
     rod_length: 0.150
-    wheel_radius: 0.055
+    wheel_radius: 0.07
     friction_coefficient: 6.6
     k1: 2.958580e+00
     k2: 3.082190e-03
