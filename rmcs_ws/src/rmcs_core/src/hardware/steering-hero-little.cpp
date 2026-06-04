@@ -544,6 +544,7 @@ private:
             , chassis_back_climber_motor_(
                   {steering_hero, steering_hero_command, "/chassis/climber/left_back_motor"},
                   {steering_hero, steering_hero_command, "/chassis/climber/right_back_motor"})
+            , yaw_brake_motor_(steering_hero, steering_hero_command, "/gimbal/yaw_brake")
             , gimbal_bottom_yaw_motor_(steering_hero, steering_hero_command, "/gimbal/bottom_yaw") {
             //
             chassis_steering_motors_[0].configure(
@@ -603,6 +604,8 @@ private:
                     .enable_multi_turn_angle()
                     .set_reduction_ratio(19.));
 
+            yaw_brake_motor_.configure(
+                device::DjiMotor::Config{device::DjiMotor::Type::kM2006}.set_reduction_ratio(1.));
             gimbal_bottom_yaw_motor_.configure(
                 device::LkMotor::Config{device::LkMotor::Type::kMG6012Ei8}
                     .set_reversed()
@@ -661,7 +664,18 @@ private:
             for (auto& motor : chassis_steering_motors_)
                 motor.update_status();
 
+            yaw_brake_motor_.update_status();
             gimbal_bottom_yaw_motor_.update_status();
+
+            if (++count_ == 500) {
+                for (int i = 0; i < 8; ++i) {
+                    if (check[i] == 0) {
+                        // RCLCPP_WARN(logger_, "can id 0x%03X missing", i + 0x201);
+                    }
+                }
+                std::fill_n(check, 8, 0);
+                count_ = 0;
+            }
         }
 
         void command_update() {
@@ -721,7 +735,7 @@ private:
                     device::CanPacket8{
                         device::CanPacket8::PaddingQuarter{},
                         chassis_back_climber_motor_[1].generate_command(),
-                        device::CanPacket8::PaddingQuarter{},
+                        yaw_brake_motor_.generate_command(),
                         chassis_back_climber_motor_[0].generate_command(),
                     }
                         .as_bytes(),
@@ -751,6 +765,7 @@ private:
                 return;
             auto can_id = data.can_id;
             // can0_receive_rate_counter_.record(can_id);
+            check[can_id - 0x201] = 1;
             if (can_id == 0x201) {
                 chassis_wheel_motors_[0].store_status(data.can_data);
             } else if (can_id == 0x202) {
@@ -767,6 +782,9 @@ private:
                 return;
             auto can_id = data.can_id;
             // can1_receive_rate_counter_.record(can_id);
+            if (can_id != 0x300) {
+                check[can_id - 0x201] = 1;
+            }
             if (can_id == 0x203) {
                 chassis_wheel_motors_[2].store_status(data.can_data);
             } else if (can_id == 0x204) {
@@ -801,6 +819,8 @@ private:
                 chassis_back_climber_motor_[1].store_status(data.can_data);
             } else if (can_id == 0x204) {
                 chassis_back_climber_motor_[0].store_status(data.can_data);
+            } else if (can_id == 0x203) {
+                yaw_brake_motor_.store_status(data.can_data);
             } else if (can_id == 0x141) {
                 gimbal_bottom_yaw_motor_.store_status(data.can_data);
             }
@@ -831,6 +851,9 @@ private:
         // CanReceiveRateCounter can2_receive_rate_counter_;
         // CanReceiveRateCounter can3_receive_rate_counter_;
 
+        int count_ = 0;
+        int check[10] = {0};
+
         device::Bmi088 imu_;
         device::Dr16 dr16_;
         device::Supercap supercap_;
@@ -839,6 +862,7 @@ private:
         device::DjiMotor chassis_wheel_motors_[4];
         device::DjiMotor chassis_front_climber_motor_[2];
         device::DjiMotor chassis_back_climber_motor_[2];
+        device::DjiMotor yaw_brake_motor_;
         device::LkMotor gimbal_bottom_yaw_motor_;
 
         rmcs_utility::RingBuffer<std::byte> referee_ring_buffer_receive_{256};

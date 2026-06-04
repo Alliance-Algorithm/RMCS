@@ -40,6 +40,11 @@ public:
         register_input("/gimbal/auto_aim/control_direction", auto_aim_control_direction_, false);
         register_input("/gimbal/pitch/angle", gimbal_pitch_angle_);
         register_input("/gimbal/pitch/raw_angle", gimbal_pitch_raw_angle_);
+        register_input("/gimbal/yaw_brake/angle", gimbal_yaw_brake_angle_);
+        register_input("/gimbal/yaw_brake/torque", gimbal_yaw_brake_torque_);
+        register_input("/gimbal/yaw_brake/velocity", gimbal_yaw_brake_velocity_);
+        // 锁住时复方向
+        register_input("/tf", tf_);
 
         register_output("/gimbal/mode", gimbal_mode_, rmcs_msgs::GimbalMode::IMU);
 
@@ -47,6 +52,7 @@ public:
         register_output("/gimbal/pitch/control_angle_error", pitch_angle_error_, nan_);
         register_output("/gimbal/yaw/control_angle_shift", yaw_control_angle_shift_, nan_);
         register_output("/gimbal/pitch/control_angle", pitch_control_angle_, nan_);
+        register_output("/gimbal/yaw_brake/control_torque", yaw_brake_control_torque_, nan_);
     }
 
     void update() override {
@@ -61,6 +67,7 @@ public:
                 break;
             }
 
+            // RCLCPP_INFO(get_logger(), "yaw_brake_torque: %f", *gimbal_yaw_brake_torque_);
             if (!last_keyboard_.e && keyboard_->e) {
                 if (gimbal_mode_keyboard_ == GimbalMode::IMU) {
                     encoder_init_pitch_ = keyboard_->ctrl ? kCtrlEInitPitch : kEInitPitch;
@@ -70,11 +77,19 @@ public:
                 }
             }
 
+            bool switch_encoder_to_imu_by_c = false;
+
+            if (!last_keyboard_.c && keyboard_->c && gimbal_mode_keyboard_ == GimbalMode::ENCODER) {
+                gimbal_mode_keyboard_ = GimbalMode::IMU;
+                switch_encoder_to_imu_by_c = true;
+            }
+
             *gimbal_mode_ = gimbal_mode_keyboard_;
-            //*gimbal_mode_ = switch_right == Switch::UP ? GimbalMode::ENCODER : GimbalMode::IMU;
+            *gimbal_mode_ = switch_right == Switch::UP ? GimbalMode::ENCODER : GimbalMode::IMU;
 
             if (*gimbal_mode_ == GimbalMode::IMU) {
-                auto angle_error = update_imu_control();
+                auto angle_error = switch_encoder_to_imu_by_c ? enter_imu_hold_current_pose()
+                                                              : update_imu_control();
                 *yaw_angle_error_ = angle_error.yaw_angle_error;
                 *pitch_angle_error_ = angle_error.pitch_angle_error;
 
@@ -107,6 +122,25 @@ public:
         *pitch_angle_error_ = nan_;
         *yaw_control_angle_shift_ = nan_;
         *pitch_control_angle_ = nan_;
+        *yaw_brake_control_torque_ = nan_;
+
+        yaw_brake_count_ = 0;
+        yaw_brake_locked_ = false;
+    }
+
+    void yaw_brake_update() {
+        if (std::abs(*yaw_brake_control_torque_) > 0.01
+            && std::abs(*gimbal_yaw_brake_velocity_) < 0.1) {
+            yaw_brake_count_++;
+        } else {
+            yaw_brake_count_ = 0;
+        }
+
+        if (yaw_brake_count_ > 50) {
+            yaw_brake_count_ = 0;
+            yaw_brake_locked_ = true;
+            *yaw_brake_control_torque_ = nan_;
+        }
     }
 
     TwoAxisGimbalSolver::AngleError update_imu_control() {
@@ -133,6 +167,17 @@ public:
             TwoAxisGimbalSolver::SetControlShift{yaw_shift, pitch_shift});
     }
 
+    TwoAxisGimbalSolver::AngleError enter_imu_hold_current_pose() {
+        if (!tf_.ready())
+            return update_imu_control();
+
+        auto current_direction =
+            fast_tf::cast<OdomImu>(PitchLink::DirectionVector{Eigen::Vector3d::UnitX()}, *tf_);
+
+        return imu_gimbal_solver.update(
+            TwoAxisGimbalSolver::SetControlDirection{OdomImu::DirectionVector{*current_direction}});
+    }
+
     PreciseTwoAxisGimbalSolver::ControlAngle update_encoder_control() {
         if (!encoder_gimbal_solver.enabled()) {
             return encoder_gimbal_solver.update(
@@ -148,6 +193,12 @@ public:
         double pitch_shift = -joystick_sensitivity * joystick_left_->x()
                            + mouse_pitch_sensitivity * mouse_velocity_->x();
 
+        if (!yaw_brake_locked_) {
+            *yaw_brake_control_torque_ = -0.3;
+        }
+
+        yaw_brake_update();
+
         return encoder_gimbal_solver.update(
             PreciseTwoAxisGimbalSolver::SetControlShift{yaw_shift, pitch_shift});
     }
@@ -155,8 +206,8 @@ public:
 private:
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
 
-    static constexpr double kEInitPitch = -0.476972;     // Initial angle for standalone E.
-    static constexpr double kCtrlEInitPitch = -0.541591; // Initial angle for Ctrl+E.
+    static constexpr double kEInitPitch = -0.346584;     // Initial angle for standalone E.
+    static constexpr double kCtrlEInitPitch = -0.471795; // Initial angle for Ctrl+E.
     double encoder_init_pitch_ = kEInitPitch;
     InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;
@@ -170,6 +221,10 @@ private:
     InputInterface<Eigen::Vector3d> auto_aim_control_direction_;
     InputInterface<double> gimbal_pitch_angle_;
     InputInterface<int64_t> gimbal_pitch_raw_angle_;
+    InputInterface<double> gimbal_yaw_brake_angle_;
+    InputInterface<double> gimbal_yaw_brake_torque_;
+    InputInterface<double> gimbal_yaw_brake_velocity_;
+    InputInterface<Tf> tf_;
 
     rmcs_msgs::GimbalMode gimbal_mode_keyboard_ = rmcs_msgs::GimbalMode::IMU;
     OutputInterface<rmcs_msgs::GimbalMode> gimbal_mode_;
@@ -180,6 +235,10 @@ private:
 
     OutputInterface<double> yaw_angle_error_, pitch_angle_error_;
     OutputInterface<double> yaw_control_angle_shift_, pitch_control_angle_;
+    OutputInterface<double> yaw_brake_control_torque_;
+
+    int yaw_brake_count_ = 0;
+    bool yaw_brake_locked_ = false;
 };
 
 } // namespace rmcs_core::controller::gimbal
