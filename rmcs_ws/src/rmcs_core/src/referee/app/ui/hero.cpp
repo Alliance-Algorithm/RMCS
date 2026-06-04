@@ -51,14 +51,15 @@ public:
         , friction_profile_number_(
               Shape::Color::GREEN, friction_profile_number_font_size, 5, 0, 0, 12, false)
         , friction_profile_indicator_{Line(Shape::Color::WHITE, friction_profile_box_line_width, 0, 0, 0, 0, false), Line(Shape::Color::WHITE, friction_profile_box_line_width, 0, 0, 0, 0, false), Line(Shape::Color::WHITE, friction_profile_box_line_width, 0, 0, 0, 0, false), Line(Shape::Color::WHITE, friction_profile_box_line_width, 0, 0, 0, 0, true)}
-        , center_green_line_(
-              Shape::Color::GREEN, green_line_width, x_center - green_line_half_length,
-              y_center - green_line_offset_y, x_center + green_line_half_length,
-              y_center - green_line_offset_y, true)
-        , tracking_pink_line_(
-              Shape::Color::PINK, pink_line_width, x_center - pink_line_half_length,
-              y_center + pink_line_offset_y, x_center + pink_line_half_length,
-              y_center + pink_line_offset_y, false) {
+    // , center_green_line_(
+    //       Shape::Color::GREEN, green_line_width, x_center - green_line_half_length,
+    //       y_center - green_line_offset_y, x_center + green_line_half_length,
+    //       y_center - green_line_offset_y, true)
+    // , tracking_pink_line_(
+    //       Shape::Color::PINK, pink_line_width, x_center - pink_line_half_length,
+    //       y_center + pink_line_offset_y, x_center + pink_line_half_length,
+    //       y_center + pink_line_offset_y, false)
+    {
 
         chassis_control_direction_indicator_.set_x(x_center);
         chassis_control_direction_indicator_.set_y(y_center);
@@ -99,6 +100,7 @@ public:
         register_input("/gimbal/shooter/condiction", shoot_condiction_);
 
         register_input("/gimbal/shooter/mode", shoot_mode_);
+        register_input("/gimbal/shooter/preloaded_ready", shooter_preloaded_ready_, false);
 
         // register_input("/gimbal/scope/active", is_scope_active_);
 
@@ -147,8 +149,8 @@ private:
         // bullet_allowance_label_.set_visible(value);
         bullet_allowance_number_.set_visible(value);
         friction_profile_number_.set_visible(value);
-        center_green_line_.set_visible(value);
-        tracking_pink_line_.set_visible(value);
+        // center_green_line_.set_visible(value);
+        // tracking_pink_line_.set_visible(value);
 
         const bool show_friction_profile_box =
             value && friction_profile_1_active_.ready() && *friction_profile_1_active_;
@@ -164,10 +166,14 @@ private:
         pitch_angle_number_.set_value(static_cast<double>(*gimbal_pitch_raw_angle_));
         update_pitch_raw_angle_color();
         bottom_yaw_angle_number_.set_value(static_cast<double>(*bottom_yaw_raw_angle_));
-        update_bottom_yaw_tracking_lines();
+        // update_bottom_yaw_tracking_lines();
         const int32_t bullet_allowance =
             static_cast<int32_t>(std::max<int64_t>(0, *robot_bullet_allowance_));
         bullet_allowance_number_.set_value(bullet_allowance);
+        const bool shooter_preloaded_ready =
+            shooter_preloaded_ready_.ready() && *shooter_preloaded_ready_;
+        bullet_allowance_number_.set_color(
+            shooter_preloaded_ready ? Shape::Color::GREEN : Shape::Color::PINK);
 
         const uint16_t yaw_right =
             yaw_raw_angle_x
@@ -495,6 +501,7 @@ private:
 
     InputInterface<rmcs_msgs::ShootMode> shoot_mode_;
     InputInterface<rmcs_msgs::ShootCondiction> shoot_condiction_;
+    InputInterface<bool> shooter_preloaded_ready_;
     // InputInterface<bool> is_scope_active_;
 
     StatusRing status_ring_;
