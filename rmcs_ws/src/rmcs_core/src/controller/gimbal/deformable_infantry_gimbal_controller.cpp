@@ -32,6 +32,9 @@ public:
         get_parameter("pitch_torque_control", pitch_torque_control_enabled_);
         get_parameter("manual_joystick_sensitivity", joystick_sensitivity_);
         get_parameter("manual_mouse_sensitivity", mouse_sensitivity_);
+        get_parameter("yaw_vel_ff_gain", yaw_vel_ff_gain_);
+        get_parameter("yaw_acc_ff_gain", yaw_acc_ff_gain_);
+        get_parameter("pitch_acc_ff_gain", pitch_acc_ff_gain_);
     }
 
     auto update() -> void override {
@@ -62,15 +65,32 @@ public:
             return;
         }
 
-        const auto yaw_velocity_ref = yaw_angle_pid_.update(angle_error.yaw_angle_error);
+        const auto feedforward_enabled = auto_aim_active && input_.auto_aim_feedforward_valid.ready()
+                                      && *input_.auto_aim_feedforward_valid;
+        const auto yaw_velocity_ff = feedforward_enabled && input_.auto_aim_yaw_rate.ready()
+                                          && std::isfinite(*input_.auto_aim_yaw_rate)
+                                      ? yaw_vel_ff_gain_ * *input_.auto_aim_yaw_rate
+                                      : 0.0;
+        const auto yaw_acc_ff = feedforward_enabled && input_.auto_aim_yaw_acc.ready()
+                                     && std::isfinite(*input_.auto_aim_yaw_acc)
+                                 ? yaw_acc_ff_gain_ * *input_.auto_aim_yaw_acc
+                                 : 0.0;
+        const auto pitch_acc_ff = feedforward_enabled && input_.auto_aim_pitch_acc.ready()
+                                       && std::isfinite(*input_.auto_aim_pitch_acc)
+                                   ? pitch_acc_ff_gain_ * *input_.auto_aim_pitch_acc
+                                   : 0.0;
+
+        const auto yaw_velocity_ref =
+            yaw_angle_pid_.update(angle_error.yaw_angle_error) + yaw_velocity_ff;
         const auto pitch_velocity_ref = pitch_angle_pid_.update(angle_error.pitch_angle_error);
 
         *output_.yaw_control_torque =
-            yaw_velocity_pid_.update(yaw_velocity_ref - *input_.yaw_velocity_imu);
+            yaw_velocity_pid_.update(yaw_velocity_ref - *input_.yaw_velocity_imu) + yaw_acc_ff;
         if (pitch_torque_control_enabled_) {
             *output_.pitch_control_velocity = kNaN;
             *output_.pitch_control_torque =
-                pitch_velocity_pid_.update(pitch_velocity_ref - *input_.pitch_velocity_imu);
+                pitch_velocity_pid_.update(pitch_velocity_ref - *input_.pitch_velocity_imu)
+              + pitch_acc_ff;
         } else {
             pitch_velocity_pid_.reset();
             *output_.pitch_control_velocity = pitch_velocity_ref;
@@ -108,6 +128,11 @@ private:
             component.register_input("/auto_aim/should_control", auto_aim_should_control, false);
             component.register_input(
                 "/auto_aim/control_direction", auto_aim_control_direction, false);
+            component.register_input(
+                "/auto_aim/feedforward_valid", auto_aim_feedforward_valid, false);
+            component.register_input("/auto_aim/yaw_rate", auto_aim_yaw_rate, false);
+            component.register_input("/auto_aim/yaw_acc", auto_aim_yaw_acc, false);
+            component.register_input("/auto_aim/pitch_acc", auto_aim_pitch_acc, false);
         }
 
         InputInterface<Eigen::Vector2d> joystick_left;
@@ -125,6 +150,10 @@ private:
 
         InputInterface<bool> auto_aim_should_control;
         InputInterface<Eigen::Vector3d> auto_aim_control_direction;
+        InputInterface<bool> auto_aim_feedforward_valid;
+        InputInterface<double> auto_aim_yaw_rate;
+        InputInterface<double> auto_aim_yaw_acc;
+        InputInterface<double> auto_aim_pitch_acc;
     } input_{*this};
 
     struct Output {
@@ -213,6 +242,9 @@ private:
     double joystick_sensitivity_ = 0.003;
     double mouse_sensitivity_ = 0.5;
     bool pitch_torque_control_enabled_ = false;
+    double yaw_vel_ff_gain_ = 0.0;
+    double yaw_acc_ff_gain_ = 0.0;
+    double pitch_acc_ff_gain_ = 0.0;
 };
 
 } // namespace rmcs_core::controller::gimbal
