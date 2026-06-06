@@ -26,7 +26,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     vim wget curl unzip \
     zsh screen tmux \
     usbutils net-tools iputils-ping \
-    gstreamer1.0-tools gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
+    gstreamer1.0-tools gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-ugly \
     ripgrep htop fzf \
     libusb-1.0-0-dev \
     libeigen3-dev \

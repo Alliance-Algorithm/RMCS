@@ -8,7 +8,6 @@
 #include <ranges>
 
 #include <eigen3/Eigen/Geometry>
-#include <librmcs/agent/c_board.hpp>
 #include <librmcs/agent/rmcs_board_lite.hpp>
 #include <rclcpp/node.hpp>
 #include <rclcpp/subscription.hpp>
@@ -44,14 +43,11 @@ public:
                 status_service_callback(response);
             });
 
-        bottom_yaw_board_ = std::make_unique<BottomYawBoard>(
-            *this, *command_component_, get_parameter("board_serial_top_board").as_string());
+        gimbal_board_ = std::make_unique<GimbalBoard>(
+            *this, *command_component_, get_parameter("board_serial_gimbal_board").as_string());
 
         chassis_board_ = std::make_unique<ChassisBoard>(
             *this, *command_component_, get_parameter("board_serial_bottom_board").as_string());
-
-        gimbal_board_ =
-            std::make_unique<GimbalBoard>(get_parameter("board_serial_gimbal_board").as_string());
 
         tf_->set_transform<rmcs_description::BottomYawLink, rmcs_description::TopYawLink>(
             Eigen::Translation3d{0.08, 0.0, 0.0});
@@ -61,46 +57,13 @@ public:
 
     auto update() -> void override {
         gimbal_board_->update();
-        bottom_yaw_board_->update();
         chassis_board_->update();
-
-        tf_->set_transform<rmcs_description::PitchLink, rmcs_description::OdomGimbalImu>(
-            gimbal_board_->imu_pose().conjugate());
     }
 
 private:
-    class GimbalBoard final : private librmcs::agent::CBoard {
+    class GimbalBoard final : private librmcs::agent::RmcsBoardLite {
     public:
-        explicit GimbalBoard(std::string_view board_serial = {})
-            : librmcs::agent::CBoard(board_serial) {
-            bmi088_.set_coordinate_mapping(
-                [](double x, double y, double z) { return std::make_tuple(y, -x, z); });
-        }
-
-        auto update() -> void {
-            bmi088_.update_status();
-            imu_pose_ = Eigen::Quaterniond{bmi088_.q0(), bmi088_.q1(), bmi088_.q2(), bmi088_.q3()};
-        }
-
-        auto imu_pose() const -> Eigen::Quaterniond { return imu_pose_; }
-
-        auto accelerometer_receive_callback(const librmcs::data::AccelerometerDataView& data)
-            -> void override {
-            bmi088_.store_accelerometer_status(data.x, data.y, data.z);
-        }
-
-        auto gyroscope_receive_callback(const librmcs::data::GyroscopeDataView& data)
-            -> void override {
-            bmi088_.store_gyroscope_status(data.x, data.y, data.z);
-        }
-
-        device::Bmi088 bmi088_{1000, 0.2, 0.0};
-        Eigen::Quaterniond imu_pose_ = Eigen::Quaterniond::Identity();
-    };
-
-    class BottomYawBoard final : private librmcs::agent::RmcsBoardLite {
-    public:
-        explicit BottomYawBoard(
+        explicit GimbalBoard(
             Sentry& sentry, rmcs_executor::Component& sentry_command,
             std::string_view board_serial = {})
             : librmcs::agent::RmcsBoardLite(board_serial, {})
@@ -141,29 +104,27 @@ private:
         }
 
         auto update() -> void {
-            gimbal_top_yaw_motor_.update_status();
-            gimbal_pitch_motor_.update_status();
-
-            const auto pitch_angle =
-                std::remainder(gimbal_pitch_motor_.angle(), 2.0 * std::numbers::pi_v<double>);
-
-            bmi088_.update_status();
-            const Eigen::Quaterniond gimbal_bmi088_pose{
-                bmi088_.q0(), bmi088_.q1(), bmi088_.q2(), bmi088_.q3()};
-
-            tf_->set_transform<rmcs_description::BottomYawLink, rmcs_description::OdomImu>(
-                gimbal_bmi088_pose.conjugate());
-
-            *gimbal_yaw_velocity_bmi088_ = bmi088_.gz();
-            *gimbal_pitch_velocity_bmi088_ = bmi088_.gy();
-
             gimbal_bullet_feeder_.update_status();
             gimbal_left_friction_.update_status();
             gimbal_right_friction_.update_status();
 
+            gimbal_top_yaw_motor_.update_status();
             tf_->set_state<rmcs_description::BottomYawLink, rmcs_description::TopYawLink>(
                 gimbal_top_yaw_motor_.angle());
+
+            gimbal_pitch_motor_.update_status();
+            const auto pitch_angle =
+                std::remainder(gimbal_pitch_motor_.angle(), 2.0 * std::numbers::pi_v<double>);
             tf_->set_state<rmcs_description::TopYawLink, rmcs_description::PitchLink>(pitch_angle);
+
+            bmi088_.update_status();
+            const auto rotation =
+                Eigen::Quaterniond{bmi088_.q0(), bmi088_.q1(), bmi088_.q2(), bmi088_.q3()};
+            tf_->set_transform<rmcs_description::PitchLink, rmcs_description::OdomGimbalImu>(
+                rotation.conjugate());
+
+            *gimbal_yaw_velocity_bmi088_ = bmi088_.gz();
+            *gimbal_pitch_velocity_bmi088_ = bmi088_.gy();
         }
 
         auto command_update() -> void {
@@ -181,15 +142,15 @@ private:
                         .as_bytes(),
             });
 
-            builder.can3_transmit({
-                .can_id = 0x141,
-                .can_data = gimbal_top_yaw_motor_.generate_torque_command().as_bytes(),
-            });
-
-            builder.can2_transmit({
-                .can_id = 0x141,
-                .can_data = gimbal_pitch_motor_.generate_torque_command().as_bytes(),
-            });
+            builder
+                .can3_transmit({
+                    .can_id = 0x141,
+                    .can_data = gimbal_top_yaw_motor_.generate_torque_command().as_bytes(),
+                })
+                .can3_transmit({
+                    .can_id = 0x142,
+                    .can_data = gimbal_pitch_motor_.generate_torque_command().as_bytes(),
+                });
         }
 
         auto can0_receive_callback(const librmcs::data::CanDataView& data) -> void override {
@@ -202,20 +163,16 @@ private:
                 || gimbal_bullet_feeder_.match_then_store_status(can_id, data.can_data);
         }
 
-        auto can2_receive_callback(const librmcs::data::CanDataView& data) -> void override {
-            if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
-                return;
-            auto can_id = data.can_id;
-            if (can_id == 0x141)
-                gimbal_pitch_motor_.store_status(data.can_data);
-        }
-
         auto can3_receive_callback(const librmcs::data::CanDataView& data) -> void override {
             if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
                 return;
             auto can_id = data.can_id;
-            if (can_id == 0x141)
+
+            /*^^*/ if (can_id == 0x141) {
                 gimbal_top_yaw_motor_.store_status(data.can_data);
+            } else if (can_id == 0x142) {
+                gimbal_pitch_motor_.store_status(data.can_data);
+            }
         }
 
         auto accelerometer_receive_callback(const librmcs::data::AccelerometerDataView& data)
@@ -242,12 +199,12 @@ private:
         device::DjiMotor gimbal_right_friction_;
     };
 
-    class ChassisBoard final : private librmcs::agent::CBoard {
+    class ChassisBoard final : private librmcs::agent::RmcsBoardLite {
     public:
         explicit ChassisBoard(
             Sentry& sentry, rmcs_executor::Component& sentry_command,
             std::string_view board_serial = {})
-            : CBoard{board_serial}
+            : RmcsBoardLite{board_serial}
             , tf_(sentry.tf_)
             , dr16_(sentry)
             , gimbal_bottom_yaw_motor_(sentry, sentry_command, "/gimbal/bottom_yaw")
@@ -273,7 +230,7 @@ private:
                     [&buffer](std::byte byte) noexcept { *buffer++ = byte; }, size);
             };
             referee_serial_->write = [this](const std::byte* buffer, size_t size) {
-                start_transmit().uart1_transmit(
+                start_transmit().uart0_transmit(
                     {.uart_data = std::span<const std::byte>{buffer, size}});
                 return size;
             };
@@ -325,16 +282,9 @@ private:
         auto command_update() -> void {
             using namespace device;
 
-            auto builder = start_transmit();
-            builder.can1_transmit({
-                .can_id = 0x141,
-                .can_data = gimbal_bottom_yaw_motor_.generate_command().as_bytes(),
-            });
-
             auto cache = CanPacket8{};
-            auto generate = [&]<std::ranges::range R>(
-                                const R& motors, CanPacket8::Quarter extra_command = {},
-                                std::size_t extra_slot = 4) {
+            auto generate = [&](const auto& motors, //
+                                CanPacket8::Quarter extra = {}, std::size_t slot = 4) {
                 auto slots = std::array<CanPacket8::Quarter, 4>{};
                 slots.fill(CanPacket8::PaddingQuarter{});
                 std::uint32_t can_id = 0;
@@ -343,30 +293,38 @@ private:
                     if (can_id == 0)
                         can_id = motor.send_id();
                 }
-                if (extra_slot < 4)
-                    slots[extra_slot] = extra_command;
+                if (slot < 4)
+                    slots[slot] = extra;
                 cache = CanPacket8{slots[0], slots[1], slots[2], slots[3]};
                 return librmcs::data::CanDataView{.can_id = can_id, .can_data = cache.as_bytes()};
             };
 
-            if (can_transmission_mode_) {
-                builder //
-                    .can1_transmit(generate(std::views::counted(chassis_wheel_motors_, 2)))
-                    .can2_transmit(generate(std::views::counted(chassis_wheel_motors_ + 2, 2)));
-            } else {
-                builder //
-                    .can1_transmit(generate(std::views::counted(chassis_steer_motors_, 2)))
-                    .can2_transmit(generate(
-                        std::views::counted(chassis_steer_motors_ + 2, 2),
-                        supercap_.generate_command(), 3));
-            }
-            can_transmission_mode_ = !can_transmission_mode_;
+            auto supercap_package = CanPacket8{
+                CanPacket8::PaddingQuarter{},
+                CanPacket8::PaddingQuarter{},
+                CanPacket8::PaddingQuarter{},
+                supercap_.generate_command(),
+            };
+            auto bottom_yaw_package = gimbal_bottom_yaw_motor_.generate_command();
+
+            start_transmit()
+                .can0_transmit({.can_id = 0x141, .can_data = bottom_yaw_package.as_bytes()})
+
+                .can1_transmit(generate(std::views::counted(chassis_wheel_motors_, 2)))
+                .can2_transmit(generate(std::views::counted(chassis_wheel_motors_ + 2, 2)))
+
+                .can1_transmit(generate(std::views::counted(chassis_steer_motors_, 2)))
+                .can2_transmit(generate(std::views::counted(chassis_steer_motors_ + 2, 2)))
+
+                .can3_transmit({.can_id = 0x1fe, .can_data = supercap_package.as_bytes()});
         }
 
-        auto dbus_receive_callback(const librmcs::data::UartDataView& data) -> void override {
-            dr16_.store_status(data.uart_data.data(), data.uart_data.size());
+        auto can0_receive_callback(const librmcs::data::CanDataView& data) -> void override {
+            if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
+                return;
+            if (data.can_id == 0x141)
+                gimbal_bottom_yaw_motor_.store_status(data.can_data);
         }
-
         auto can1_receive_callback(const librmcs::data::CanDataView& data) -> void override {
             if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
                 return;
@@ -378,11 +336,7 @@ private:
 
                 || chassis_steer_motors_[0].match_then_store_status(can_id, can_data)
                 || chassis_steer_motors_[1].match_then_store_status(can_id, can_data);
-
-            if (can_id == 0x141)
-                gimbal_bottom_yaw_motor_.store_status(can_data);
         }
-
         auto can2_receive_callback(const librmcs::data::CanDataView& data) -> void override {
             if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
                 return;
@@ -394,12 +348,18 @@ private:
 
                 || chassis_steer_motors_[2].match_then_store_status(can_id, can_data)
                 || chassis_steer_motors_[3].match_then_store_status(can_id, can_data);
-
-            if (can_id == 0x300)
-                supercap_.store_status(can_data);
+        }
+        auto can3_receive_callback(const librmcs::data::CanDataView& data) -> void override {
+            if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
+                return;
+            if (data.can_id == 0x300)
+                supercap_.store_status(data.can_data);
         }
 
-        auto uart1_receive_callback(const librmcs::data::UartDataView& data) -> void override {
+        auto dbus_receive_callback(const librmcs::data::UartDataView& data) -> void override {
+            dr16_.store_status(data.uart_data.data(), data.uart_data.size());
+        }
+        auto uart0_receive_callback(const librmcs::data::UartDataView& data) -> void override {
             const auto* uart_data = data.uart_data.data();
             referee_ring_buffer_receive_.emplace_back_n(
                 [&uart_data](std::byte* storage) noexcept { *storage = *uart_data++; },
@@ -416,7 +376,6 @@ private:
             imu_.store_gyroscope_status(data.x, data.y, data.z);
         }
 
-        bool can_transmission_mode_ = true;
         device::Bmi088 imu_{1000, 0.2, 0.0};
         OutputInterface<rmcs_description::Tf>& tf_;
 
@@ -455,7 +414,7 @@ private:
             chassis_board_->gimbal_bottom_yaw_motor_.calibrate_zero_point());
         text(
             "top_yaw_motor_zero_point: {}",
-            bottom_yaw_board_->gimbal_top_yaw_motor_.calibrate_zero_point());
+            gimbal_board_->gimbal_top_yaw_motor_.calibrate_zero_point());
 
         text("");
         for (auto&& [index, motor] :
@@ -466,7 +425,7 @@ private:
     }
 
     auto command_update() -> void {
-        bottom_yaw_board_->command_update();
+        gimbal_board_->command_update();
         chassis_board_->command_update();
     }
     std::shared_ptr<rmcs_executor::Component> command_component_{
@@ -477,7 +436,6 @@ private:
     OutputInterface<rmcs_description::Tf> tf_;
 
     std::unique_ptr<GimbalBoard> gimbal_board_;
-    std::unique_ptr<BottomYawBoard> bottom_yaw_board_;
     std::unique_ptr<ChassisBoard> chassis_board_;
 
     std::shared_ptr<rclcpp::Service<std_srvs::srv::Trigger>> status_service_;

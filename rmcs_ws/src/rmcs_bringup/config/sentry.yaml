@@ -21,8 +21,8 @@ rmcs_executor:
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::SteeringWheelController -> steering_wheel_controller
 
+      - rmcs::AutoAimComponent -> auto_aim_component
       # - rmcs::navigation::Navigation -> rmcs_navigation
-      # - rmcs::AutoAimComponent -> auto_aim_component
 
       # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
@@ -41,13 +41,12 @@ value_broadcaster:
 # The positive direction is the one that battery exists
 sentry_hardware:
   ros__parameters:
-    board_serial_top_board: "af-da30"
-    board_serial_bottom_board: "d4-2184"
-    board_serial_gimbal_board: "d4-1d2b"
+    board_serial_bottom_board: "af-79cf"
+    board_serial_gimbal_board: "af-8b8b"
 
     pitch_motor_zero_point: 1275
 
-    bottom_yaw_motor_zero_point: 54597
+    bottom_yaw_motor_zero_point: 54551
     top_yaw_motor_zero_point: 33409
 
     left_front_zero_point: 6775
