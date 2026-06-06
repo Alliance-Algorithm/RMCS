@@ -43,7 +43,6 @@
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/arm_mode.hpp>
 #include <rmcs_msgs/gripper_mode.hpp>
-#include <rmcs_msgs/guard_mode.hpp>
 #include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/relay_mode.hpp>
@@ -93,11 +92,6 @@ public:
         register_input("/arm/gripper/motor/velocity", gripper_velocity_, NAN);
         register_input("/arm/gripper/motor/torque", gripper_torque_, NAN);
         register_output("/arm/gripper/target_theta", gripper_target_theta, NAN);
-        register_input("/guard/motor/angle", guard_angle_, NAN);
-        register_input("/guard/motor/velocity", guard_velocity_, NAN);
-        register_input("/guard/motor/torque", guard_torque_, NAN);
-
-        register_output("/guard/target_theta", guard_target_theta, NAN);
 
         register_input("/arm/image_pitch/motor/angle", image_pitch_theta_, NAN);
         register_output("/arm/image_pitch/target_theta", image_pitch_target_theta_, NAN);
@@ -161,12 +155,6 @@ public:
             }
 
         } else if (switch_left == Switch::DOWN && switch_right == Switch::MIDDLE) {
-            if (joystick_left_->x() > 0.8) {
-                set_guard_mode(rmcs_msgs::GuardMode::Open);
-            }
-            if (joystick_left_->x() < -0.8) {
-                set_guard_mode(rmcs_msgs::GuardMode::Close);
-            }
             if (joystick_right_->y() > 0.8) {
                 set_gripper_mode(rmcs_msgs::GripperMode::Open);
             }
@@ -226,12 +214,7 @@ public:
             if (keyboard.x && !last_keyboard_.x) {
                 set_gripper_mode(rmcs_msgs::GripperMode::Close);
             }
-            if (keyboard.w && !last_keyboard_.w) {
-                set_guard_mode(rmcs_msgs::GuardMode::Open);
-            }
-            if (keyboard.s && !last_keyboard_.s) {
-                set_guard_mode(rmcs_msgs::GuardMode::Close);
-            }
+
 
             if (keyboard.a && !last_keyboard_.a) {
                 image_pitch_theta1_offset_ = 0.16;
@@ -280,7 +263,6 @@ public:
         }
         }
         gripper_control();
-        guard_control();
         image_pitch_control();
 
         last_switch_left_        = switch_left;
@@ -289,7 +271,6 @@ public:
         last_keyboard_           = keyboard;
         last_mouse_              = mouse;
         last_gripper_mode_       = get_gripper_mode();
-        last_guard_mode_         = get_guard_mode();
     }
 
 private:
@@ -334,14 +315,10 @@ private:
     void set_gripper_mode(rmcs_msgs::GripperMode mode) { gripper_mode_ = mode; }
     rmcs_msgs::GripperMode get_gripper_mode() const { return gripper_mode_; }
 
-    void set_guard_mode(rmcs_msgs::GuardMode mode) { guard_mode_ = mode; }
-    rmcs_msgs::GuardMode get_guard_mode() const { return guard_mode_; }
 
     void moveit_loop() {
 
         static std::vector<double> auto_walk_joint_target;
-        // static std::vector<double> auto_upstairs_joint_target;
-        // static std::vector<double> auto_initial_again_joint_target;
         static constexpr std::size_t AutoStepCount                  = 6;
         const std::array<std::string, AutoStepCount> mine_step_name = {
             "step1_pose", "step2_pose", "step3_pose", "step4_lin", "step5_lin", "step6_pose"};
@@ -420,9 +397,6 @@ private:
         };
         if (!parameter_initialized) {
             node_->get_parameter("auto_walk_joint_target", auto_walk_joint_target);
-            // node_->get_parameter("auto_upstairs_joint_target", auto_upstairs_joint_target);
-            // node_->get_parameter(
-            //     "auto_initial_again_joint_target", auto_initial_again_joint_target);
             const auto load_auto_mine_config = [this, &mine_step_name, &linear_point_transformer,
                                                 &xyzrpy_to_pose, &pose_to_xyzrpy](
                                                    const std::string& mine_name,
@@ -570,29 +544,6 @@ private:
             break;
         }
         case rmcs_msgs::ArmMode::Auto_Up_One_Stairs:
-            // move_group_->setMaxVelocityScalingFactor(0.03);
-            // move_group_->setMaxAccelerationScalingFactor(0.03);
-            // move_group_->setPlanningPipelineId("ompl");
-            // move_group_->setPlannerId("");
-            // move_group_->setJointValueTarget(
-            //     std::map<std::string, double>{
-            //         {"joint_1", auto_upstairs_joint_target[0]},
-            //         {"joint_2", auto_upstairs_joint_target[1]},
-            //         {"joint_3", auto_upstairs_joint_target[2]},
-            //         {"joint_4", auto_upstairs_joint_target[3]},
-            //         {"joint_5", auto_upstairs_joint_target[4]},
-            //         {"joint_6", auto_upstairs_joint_target[5]},
-            // });
-            // const auto current_pose = move_group_->getCurrentPose("link_6").pose;
-            // const auto current_rpy  = move_group_->getCurrentRPY("link_6");
-            // if (current_rpy.size() == 3) {
-            //     RCLCPP_INFO(
-            //         node_->get_logger(), "autoupstairsxyzrpy %.6f %.6f %.6f %.6f %.6f %.6f",
-            //         current_pose.position.x, current_pose.position.y, current_pose.position.z,
-            //         current_rpy[0], current_rpy[1], current_rpy[2]);
-            // }
-
-            // break;
 
         case rmcs_msgs::ArmMode::Auto_Up_Two_Stairs: {
 
@@ -1021,26 +972,7 @@ private:
             *gripper_target_theta = *gripper_angle_;
         }
     }
-    void guard_control() {
-        static bool stock = false;
-        static double stock_theta;
 
-        if (last_guard_mode_ != get_guard_mode()) {
-            stock = false;
-        }
-        if (get_guard_mode() != rmcs_msgs::GuardMode::None) {
-            if (*guard_velocity_ < 0.01 && *guard_velocity_ > -0.01 && fabs(*guard_torque_) > 0.8) {
-                stock       = true;
-                stock_theta = *guard_angle_;
-            }
-            *guard_target_theta =
-                stock ? stock_theta
-                      : *guard_angle_
-                            + (get_guard_mode() == rmcs_msgs::GuardMode::Close ? 1.0 : -1.0) * 0.35;
-        } else {
-            *guard_target_theta = *guard_angle_;
-        }
-    }
     void relay_control() {}
     void image_pitch_control() {
 
@@ -1080,7 +1012,6 @@ private:
             *target_theta[i] = *theta[i];
         }
         *gripper_target_theta      = NAN;
-        *guard_target_theta        = NAN;
         *image_pitch_target_theta_ = NAN;
         image_pitch_theta1_offset_ = 0.0;
         last_switch_left_          = *switch_left_;
@@ -1089,8 +1020,6 @@ private:
         last_keyboard_             = *keyboard_;
         last_mouse_                = *mouse_;
         custom_joint_filter_.reset();
-        set_gripper_mode(rmcs_msgs::GripperMode::None);
-        set_guard_mode(rmcs_msgs::GuardMode::None);
         set_arm_mode(rmcs_msgs::ArmMode::None);
     }
 
@@ -1113,9 +1042,6 @@ private:
     InputInterface<double> gripper_angle_;
     InputInterface<double> gripper_velocity_;
     InputInterface<double> gripper_torque_;
-    InputInterface<double> guard_angle_;
-    InputInterface<double> guard_velocity_;
-    InputInterface<double> guard_torque_;
     bool is_gripper_complete{false};
     bool is_gripper_stock{false};
     std::array<InputInterface<double>, 6> joint_lower_limit_;
@@ -1125,11 +1051,8 @@ private:
 
     rmcs_msgs::GripperMode gripper_mode_{rmcs_msgs::GripperMode::None};
     rmcs_msgs::GripperMode last_gripper_mode_{rmcs_msgs::GripperMode::None};
-    rmcs_msgs::GuardMode guard_mode_{rmcs_msgs::GuardMode::None};
-    rmcs_msgs::GuardMode last_guard_mode_{rmcs_msgs::GuardMode::None};
 
     OutputInterface<double> gripper_target_theta;
-    OutputInterface<double> guard_target_theta;
 
     InputInterface<double> image_pitch_theta_;
     double image_pitch_theta1_offset_{-0.5};

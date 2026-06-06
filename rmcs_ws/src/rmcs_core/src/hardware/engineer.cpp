@@ -44,8 +44,6 @@ public:
         , logger_(get_logger())
         , engineer_command_(create_partner_component<EngineerCommand>("engineer_command", *this))
         , armboard_(*this, *engineer_command_, get_parameter("board_serial_arm_board").as_string())
-        , otherboard_(
-              *this, *engineer_command_, get_parameter("board_serial_other_board").as_string())
         , leftboard_(
               *this, *engineer_command_, get_parameter("board_serial_left_board").as_string())
         , rightboard_(
@@ -53,13 +51,11 @@ public:
     ~Engineer() override = default;
     void update() override {
         armboard_.update();
-        otherboard_.update();
         leftboard_.update();
         rightboard_.update();
     }
     void command() {
         armboard_.command();
-        otherboard_.command();
         leftboard_.command();
         rightboard_.command();
     }
@@ -318,67 +314,6 @@ private:
         device::Bmi088 bmi088_;
 
     } armboard_;
-
-    class OtherBoard final
-        : private librmcs::agent::CBoard
-        , rclcpp::Node {
-    public:
-        friend class Engineer;
-        explicit OtherBoard(
-            Engineer& engineer, EngineerCommand& engineer_command, const std::string& serial_filter)
-            : librmcs::agent::CBoard(serial_filter)
-            , rclcpp::Node{"other_board"}
-            , guard_motor(engineer, engineer_command, "/guard/motor") {
-            guard_motor.configure(
-                device::DjiMotorConfig{device::DjiMotorType::M2006}.enable_multi_turn_angle());
-
-        }
-        ~OtherBoard() final {
-            auto tx = start_transmit();
-            tx.can1_transmit({
-                .can_id = 0x200,
-                .can_data =
-                    device::CanPacket8{
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       }
-                        .as_bytes(),
-            });
-        }
-        void update() { guard_motor.update(); }
-        void command() {
-            auto tx = start_transmit();
-            tx.can1_transmit({
-                .can_id = 0x200,
-                .can_data =
-                    device::CanPacket8{
-                                       device::CanPacket8::PaddingQuarter{},
-                                       guard_motor.generate_command(),
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       }
-                        .as_bytes(),
-            });
-
-        }
-
-    protected:
-        void can1_receive_callback(const librmcs::data::CanDataView& data) override {
-            if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
-                [[unlikely]]
-                return;
-            if (data.can_id == 0x202) {
-                guard_motor.store_status(data.can_data);
-            }
-        }
-
-    private:
-        device::DjiMotor guard_motor;
-        InputInterface<rmcs_msgs::RelayMode> left_relay_mode;
-        InputInterface<rmcs_msgs::RelayMode> right_relay_mode;
-    } otherboard_;
 
     class LeftBoard final
         : private librmcs::agent::CBoard

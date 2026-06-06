@@ -10,9 +10,7 @@ rmcs_executor:
       - rmcs_core::referee::ImageTransmissionLink -> image_transmission
 
       - rmcs_core::controller::pid::PidController -> gripper_angle_pid_controller
-      - rmcs_core::controller::pid::PidController -> guard_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> gripper_velocity_pid_controller
-      - rmcs_core::controller::pid::PidController -> guard_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> image_pitch_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> image_pitch_velocity_pid_controller
 
@@ -36,8 +34,7 @@ rmcs_executor:
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 engineer_hardware:
   ros__parameters:
-    board_serial_arm_board: "D4-E779-0928-50D3-76D1-6F6B-5EEF"
-    board_serial_other_board: "D4-6A83-030D-F3D0-9103-F8A5-1246"
+    board_serial_arm_board: "D4-6A83-030D-F3D0-9103-F8A5-1246"
     board_serial_left_board: "D4-18B8-2958-0D33-4168-27CE-86B2"
     board_serial_right_board: "D4-D354-B7C8-A457-ECB1-11A9-998E"
     gripper_zero_point: 26298
@@ -247,27 +244,6 @@ gripper_velocity_pid_controller:
     kd: 0.02
 
 
-
-guard_angle_pid_controller:
-  ros__parameters:
-    measurement: /guard/motor/angle
-    setpoint: /guard/target_theta
-    control: /guard/control_vel
-    kp: 40.0
-    ki: 0.0
-    kd: 0.0
-
-guard_velocity_pid_controller:
-  ros__parameters:
-    measurement: /guard/motor/velocity
-    setpoint: /guard/control_vel
-    control: /guard/motor/control_torque
-    kp: 0.4
-    ki: 0.0
-    kd: 0.02
-    output_max: 0.8
-
-
 image_pitch_angle_pid_controller:
   ros__parameters:
     measurement: /arm/image_pitch/motor/angle
@@ -382,10 +358,6 @@ value_broadcaster:
       - "/arm/gripper/motor/torque"
       - "/arm/gripper/target_theta"
       - "/arm/gripper/motor/control_torque"
-      - "/guard/motor/velocity"
-      - "/guard/motor/torque"
-      - "/guard/target_theta"
-      - "/guard/motor/control_torque"
       - "pitch_imu_angle"
       - "/leg/pitch_imu_angle_offsetted"
 
