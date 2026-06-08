@@ -1,30 +1,17 @@
+#include "controller/arm/arm_action_machine.hpp"
 #include "filter/low_pass_filter.hpp"
-#include "hardware/endian_promise.hpp"
-#include "sensor_msgs/msg/joint_state.hpp"
-#include "std_msgs/msg/float32_multi_array.hpp"
 #include <Eigen/src/Core/Matrix.h>
 #include <algorithm>
 #include <array>
 #include <bit>
 #include <cmath>
-#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <eigen3/Eigen/Dense>
 #include <eigen3/Eigen/src/Core/util/Meta.h>
-#include <fstream>
-#include <limits>
 #include <map>
-#include <memory>
 
-#include <numbers>
-#include <string>
-#include <tf2_eigen/tf2_eigen.hpp>
-#include <vector>
-
-#include <atomic>
-#include <chrono>
 #include <geometry_msgs/msg/point_stamped.hpp>
 #include <geometry_msgs/msg/pose.hpp>
 #include <moveit/kinematic_constraints/utils.hpp>
@@ -33,12 +20,14 @@
 #include <moveit/planning_scene_interface/planning_scene_interface.hpp>
 #include <moveit/robot_state/robot_state.hpp>
 #include <moveit_msgs/msg/move_it_error_codes.hpp>
-#include <mutex>
+#include <numbers>
 #include <rclcpp/executors/multi_threaded_executor.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
+#include <string>
 #include <sys/cdefs.h>
-#include <thread>
+#include <tf2_eigen/tf2_eigen.hpp>
+#include <vector>
 
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/arm_mode.hpp>
@@ -53,20 +42,15 @@
 
 namespace rmcs_core::controller::arm {
 
-class ArmController final : public rmcs_executor::Component {
+class ArmController final
+    : public rmcs_executor::Component
+    , public rclcpp::Node {
 public:
     ArmController()
-        : custom_joint_filter_(0.2)
-        , node_(
-              std::make_shared<rclcpp::Node>(
-                  get_component_name(),
-                  rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))) {
-
-        exec_.add_node(node_);
-        spin_thread_ = std::thread([this] { spin_loop(); });
-        move_group_ =
-            std::make_unique<moveit::planning_interface::MoveGroupInterface>(node_, "alliance_arm");
-        move_group_->startStateMonitor();
+        : Node(
+              get_component_name(),
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
+        , custom_joint_filter_(0.2) {
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
         register_input("/remote/switch/right", switch_right_);
@@ -97,32 +81,15 @@ public:
         register_output("/arm/image_pitch/target_theta", image_pitch_target_theta_, NAN);
         register_output("/arm/custom_big_yaw", custom_big_yaw_output_, 0.0);
         register_input("/leg_back/up_stairs_step", up_stairs_layer);
-
-        moveit_running_.store(true, std::memory_order_release);
-        moveit_thread_ = std::thread([this] {
-            while (moveit_running_.load(std::memory_order_acquire)) {
-                moveit_loop();
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));
-            }
-        });
+        arm_action_machine_.load("up_two_stairs", {"initial", "initial_again", "lift_again"});
     }
 
-    ~ArmController() {
-        moveit_running_.store(false, std::memory_order_release);
-        exec_.cancel();
-
-        if (moveit_thread_.joinable())
-            moveit_thread_.join();
-        if (spin_thread_.joinable())
-            spin_thread_.join();
-    }
+    ~ArmController() {}
 
     void update() override {
-        *arm_mode_ = get_arm_mode();
-
-        auto knob         = *rotary_knob_switch;
         auto switch_right = *switch_right_;
         auto switch_left  = *switch_left_;
+        auto knob         = *rotary_knob_switch;
         auto keyboard     = *keyboard_;
         auto mouse        = *mouse_;
         using namespace rmcs_msgs;
@@ -144,14 +111,67 @@ public:
         } else {
             *is_arm_enable = true;
         }
+        mode_selection();
+        if (last_arm_mode_ != *arm_mode_) {
+            switch (*arm_mode_) {
+            case ArmMode::Auto_Extract_LB: {
+                arm_action_machine_.process("extract_lb");
+                break;
+            }
+            case ArmMode::Auto_Extract_RB: {
+                arm_action_machine_.process("extract_rb");
+                break;
+            }
+            case ArmMode::Auto_Storage_LB: {
+                arm_action_machine_.process("storage_lb");
+                break;
+            }
+            case ArmMode::Auto_Storage_RB: {
+                arm_action_machine_.process("storage_rb");
+                break;
+            }
+            case ArmMode::Auto_Walk: {
+                arm_action_machine_.process("auto_walk");
+                break;
+            }
+            case ArmMode::Auto_Up_One_Stairs: {
+                arm_action_machine_.process("up_one_stairs");
+                break;
+            }
+            case ArmMode::Auto_Up_Two_Stairs: {
+                arm_action_machine_.process("up_two_stairs");
+            }
+            }
+        }
+        arm_control();
+        gripper_control();
+        image_pitch_control();
 
+        last_switch_left_        = switch_left;
+        last_switch_right_       = switch_right;
+        last_rotary_knob_switch_ = knob;
+        last_keyboard_           = keyboard;
+        last_mouse_              = mouse;
+        last_gripper_mode_       = get_gripper_mode();
+        last_arm_mode_           = *arm_mode_;
+    }
+
+private:
+    void mode_selection() {
+        auto switch_right = *switch_right_;
+        auto switch_left  = *switch_left_;
+        auto keyboard     = *keyboard_;
+        auto mouse        = *mouse_;
+        auto knob         = *rotary_knob_switch;
+
+        using namespace rmcs_msgs;
         if (switch_left == Switch::UP && switch_right == Switch::UP) {
             if (last_switch_left_ != Switch::UP || last_switch_right_ != Switch::UP) {
-                set_arm_mode(rmcs_msgs::ArmMode::DT7_Control_Position);
+                *arm_mode_ = rmcs_msgs::ArmMode::DT7_Control_Position;
             }
         } else if (switch_left == Switch::UP && switch_right == Switch::MIDDLE) {
             if (last_switch_left_ != Switch::UP || last_switch_right_ != Switch::MIDDLE) {
-                set_arm_mode(rmcs_msgs::ArmMode::DT7_Control_Orientation);
+                *arm_mode_ = rmcs_msgs::ArmMode::DT7_Control_Orientation;
             }
 
         } else if (switch_left == Switch::DOWN && switch_right == Switch::MIDDLE) {
@@ -167,45 +187,45 @@ public:
             if (knob != last_rotary_knob_switch_) {
                 if (knob == Switch::UP) {
                     image_pitch_theta1_offset_ = 1.2;
-                    set_arm_mode(rmcs_msgs::ArmMode::Auto_Up_One_Stairs);
+                    *arm_mode_                 = rmcs_msgs::ArmMode::Auto_Up_One_Stairs;
                 } else if (knob == Switch::DOWN) {
                     image_pitch_theta1_offset_ = 0.70;
-                    set_arm_mode(rmcs_msgs::ArmMode::Auto_Down_Stairs);
+                    *arm_mode_                 = rmcs_msgs::ArmMode::Auto_Down_Stairs;
                 }
             }
             if (keyboard.g && !last_keyboard_.g) {
                 image_pitch_theta1_offset_ = 0.56;
                 if (!keyboard.shift && !keyboard.ctrl) {
-                    set_arm_mode(rmcs_msgs::ArmMode::Auto_Walk);
+                    *arm_mode_ = rmcs_msgs::ArmMode::Auto_Walk;
                 } else if (keyboard.shift && !keyboard.ctrl) {
                     image_pitch_theta1_offset_ = 0.70;
-                    set_arm_mode(rmcs_msgs::ArmMode::Auto_Down_Stairs);
+                    *arm_mode_                 = rmcs_msgs::ArmMode::Auto_Down_Stairs;
                 }
             }
             if (keyboard.b && !last_keyboard_.b) {
                 image_pitch_theta1_offset_ = 0.16;
                 if (!keyboard.shift && !keyboard.ctrl) {
                     image_pitch_theta1_offset_ = 1.2;
-                    set_arm_mode(rmcs_msgs::ArmMode::Auto_Up_Two_Stairs);
+                    *arm_mode_                 = rmcs_msgs::ArmMode::Auto_Up_Two_Stairs;
                 } else if (keyboard.shift && !keyboard.ctrl) {
                     image_pitch_theta1_offset_ = 1.2;
-                    set_arm_mode(rmcs_msgs::ArmMode::Auto_Up_One_Stairs);
+                    *arm_mode_                 = rmcs_msgs::ArmMode::Auto_Up_One_Stairs;
                 }
             }
             if (keyboard.f && !last_keyboard_.f) {
                 image_pitch_theta1_offset_ = 0.72;
                 if (keyboard.shift && !keyboard.ctrl) {
-                    set_arm_mode(rmcs_msgs::ArmMode::Auto_Storage_LB);
+                    *arm_mode_ = rmcs_msgs::ArmMode::Auto_Storage_LB;
                 } else if (keyboard.ctrl && !keyboard.shift) {
-                    set_arm_mode(rmcs_msgs::ArmMode::Auto_Storage_RB);
+                    *arm_mode_ = rmcs_msgs::ArmMode::Auto_Storage_RB;
                 }
             }
             if (keyboard.d && !last_keyboard_.d) {
                 image_pitch_theta1_offset_ = 0.72;
                 if (keyboard.shift && !keyboard.ctrl) {
-                    set_arm_mode(rmcs_msgs::ArmMode::Auto_Extract_LB);
+                    *arm_mode_ = rmcs_msgs::ArmMode::Auto_Extract_LB;
                 } else if (keyboard.ctrl && !keyboard.shift) {
-                    set_arm_mode(rmcs_msgs::ArmMode::Auto_Extract_RB);
+                    *arm_mode_ = rmcs_msgs::ArmMode::Auto_Extract_RB;
                 }
             }
             if (keyboard.z && !last_keyboard_.z) {
@@ -215,14 +235,13 @@ public:
                 set_gripper_mode(rmcs_msgs::GripperMode::Close);
             }
 
-
             if (keyboard.a && !last_keyboard_.a) {
                 image_pitch_theta1_offset_ = 0.16;
-                set_arm_mode(rmcs_msgs::ArmMode::Auto_Spin);
+                *arm_mode_                 = rmcs_msgs::ArmMode::Auto_Spin;
             }
             if (keyboard.r && !last_keyboard_.r) {
                 image_pitch_theta1_offset_ = 0.32;
-                set_arm_mode(rmcs_msgs::ArmMode::Custome);
+                *arm_mode_                 = rmcs_msgs::ArmMode::Custome;
             }
             if (mouse.left && !last_mouse_.left) {
                 image_pitch_theta1_offset_ += 0.08;
@@ -231,10 +250,11 @@ public:
                 image_pitch_theta1_offset_ -= 0.08;
             }
         } else {
-            set_arm_mode(rmcs_msgs::ArmMode::None);
+            *arm_mode_ = rmcs_msgs::ArmMode::None;
         }
-
-        switch (get_arm_mode()) {
+    }
+    void arm_control() {
+        switch (*arm_mode_) {
             using namespace rmcs_msgs;
         case ArmMode::DT7_Control_Position: {
             execute_dt7_position();
@@ -249,8 +269,6 @@ public:
             break;
         }
         case ArmMode::Auto_Walk:
-        case ArmMode::Auto_Up_One_Stairs:
-        case ArmMode::Auto_Up_Two_Stairs:
         case ArmMode::Auto_Extract_LB:
         case ArmMode::Auto_Extract_RB:
         case ArmMode::Auto_Storage_RB:
@@ -258,626 +276,101 @@ public:
             execute_plan_request_and_trajectory_step();
             break;
         }
+        case ArmMode::Auto_Up_One_Stairs:
+        case ArmMode::Auto_Up_Two_Stairs: {
+            arm_leg_coordination();
+            break;
+        }
         default: {
             break;
         }
         }
-        gripper_control();
-        image_pitch_control();
-
-        last_switch_left_        = switch_left;
-        last_switch_right_       = switch_right;
-        last_rotary_knob_switch_ = knob;
-        last_keyboard_           = keyboard;
-        last_mouse_              = mouse;
-        last_gripper_mode_       = get_gripper_mode();
-    }
-
-private:
-    std::unique_ptr<moveit::planning_interface::MoveGroupInterface> move_group_;
-
-    std::atomic_bool moveit_running_{false};
-    std::thread moveit_thread_;
-
-    struct PlanRequest {
-        uint64_t request_id{0};
-        rmcs_msgs::ArmMode arm_mode{rmcs_msgs::ArmMode::None};
-    };
-    struct PlannedTrajectory {
-        uint64_t request_id{0};
-        bool plan_success{false};
-        std::vector<std::vector<double>> positions;
-        std::vector<int> steps;
-    };
-    std::atomic<std::shared_ptr<const PlanRequest>> plan_request{nullptr};
-    std::atomic<std::shared_ptr<const PlannedTrajectory>> planned_trajectory_{nullptr};
-
-    void set_arm_mode(rmcs_msgs::ArmMode mode) {
-        const auto current = plan_request.load(std::memory_order_acquire);
-        auto next          = std::make_shared<PlanRequest>();
-        if (current) {
-            next->request_id = current->request_id;
-        }
-        if (mode != rmcs_msgs::ArmMode::None) {
-            ++next->request_id;
-        }
-        next->arm_mode = mode;
-        plan_request.store(next, std::memory_order_release);
-    }
-    rmcs_msgs::ArmMode get_arm_mode() const {
-        const auto current = plan_request.load(std::memory_order_acquire);
-        if (!current) {
-            return rmcs_msgs::ArmMode::None;
-        }
-        return current->arm_mode;
     }
 
     void set_gripper_mode(rmcs_msgs::GripperMode mode) { gripper_mode_ = mode; }
     rmcs_msgs::GripperMode get_gripper_mode() const { return gripper_mode_; }
 
-
-    void moveit_loop() {
-
-        static std::vector<double> auto_walk_joint_target;
-        static constexpr std::size_t AutoStepCount                  = 6;
-        const std::array<std::string, AutoStepCount> mine_step_name = {
-            "step1_pose", "step2_pose", "step3_pose", "step4_lin", "step5_lin", "step6_pose"};
-        struct AutoMineConfig {
-            std::array<std::array<double, 6>, AutoStepCount> step_rpy{};
-            std::array<bool, AutoStepCount> lin_mask{};
-            std::array<double, AutoStepCount> velocity_scaling{};
-            std::array<double, AutoStepCount> acceleration_scaling{};
-            Eigen::Vector3d threshold_point{Eigen::Vector3d::Zero()};
-            double threshold_gain{0.0};
-        };
-        static AutoMineConfig auto_storage_lb_config;
-        static AutoMineConfig auto_storage_rb_config;
-        static AutoMineConfig auto_extract_lb_config;
-        static AutoMineConfig auto_extract_rb_config;
-
-        struct AutoUpstairsConfig {
-            std::vector<std::string> step_names;
-            std::vector<std::array<double, 6>> step_joint_target;
-            std::vector<double> velocity_scaling;
-            std::vector<double> acceleration_scaling;
-            std::map<std::string, std::size_t> step_name_to_index;
-        };
-        static AutoUpstairsConfig auto_up_one_stairs_config;
-        static AutoUpstairsConfig auto_up_two_stairs_config;
-        static bool parameter_initialized{false};
-        const auto linear_point_transformer = [](const geometry_msgs::msg::Pose& start_pose,
-                                                 const Eigen::Vector3d& local_dir,
-                                                 double distance) {
-            Eigen::Isometry3d T;
-            tf2::fromMsg(start_pose, T);
-            Eigen::Vector3d p_local = local_dir.normalized() * distance;
-            T.translation() += T.linear() * p_local;
-            return tf2::toMsg(T);
-        };
-        const auto xyzrpy_to_pose = [](const std::array<double, 6>& xyzrpy) {
-            geometry_msgs::msg::Pose pose;
-            pose.position.x = xyzrpy[0];
-            pose.position.y = xyzrpy[1];
-            pose.position.z = xyzrpy[2];
-
-            tf2::Quaternion q;
-            q.setRPY(xyzrpy[3], xyzrpy[4], xyzrpy[5]);
-            pose.orientation.x = q.x();
-            pose.orientation.y = q.y();
-            pose.orientation.z = q.z();
-            pose.orientation.w = q.w();
-            return pose;
-        };
-        const auto pose_to_xyzrpy = [](const geometry_msgs::msg::Pose& pose) {
-            tf2::Quaternion q(
-                pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w);
-            double roll, pitch, yaw;
-            tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
-            return std::array<double, 6>{
-                pose.position.x, pose.position.y, pose.position.z, roll, pitch, yaw,
-            };
-        };
-
-        const auto get_auto_mine_config = [&](rmcs_msgs::ArmMode mode) -> AutoMineConfig* {
-            switch (mode) {
-            case rmcs_msgs::ArmMode::Auto_Storage_LB: return &auto_storage_lb_config;
-            case rmcs_msgs::ArmMode::Auto_Storage_RB: return &auto_storage_rb_config;
-            case rmcs_msgs::ArmMode::Auto_Extract_LB: return &auto_extract_lb_config;
-            case rmcs_msgs::ArmMode::Auto_Extract_RB: return &auto_extract_rb_config;
-            default: return nullptr;
-            }
-        };
-
-        const auto get_auto_upstairs_config = [&](rmcs_msgs::ArmMode mode) -> AutoUpstairsConfig* {
-            switch (mode) {
-            case rmcs_msgs::ArmMode::Auto_Up_One_Stairs: return &auto_up_one_stairs_config;
-            case rmcs_msgs::ArmMode::Auto_Up_Two_Stairs: return &auto_up_two_stairs_config;
-            default: return nullptr;
-            }
-        };
-        if (!parameter_initialized) {
-            node_->get_parameter("auto_walk_joint_target", auto_walk_joint_target);
-            const auto load_auto_mine_config = [this, &mine_step_name, &linear_point_transformer,
-                                                &xyzrpy_to_pose, &pose_to_xyzrpy](
-                                                   const std::string& mine_name,
-                                                   AutoMineConfig& config) {
-                std::vector<double> threshold_values;
-                node_->get_parameter(mine_name + ".threshold", threshold_values);
-
-                config.threshold_point = {
-                    threshold_values[0], threshold_values[1], threshold_values[2]};
-                config.threshold_gain = threshold_values[3];
-
-                for (std::size_t i = 0; i < mine_step_name.size(); ++i) {
-                    const auto& step_name = mine_step_name[i];
-                    config.lin_mask[i]    = step_name.size() >= 4
-                                      && step_name.compare(step_name.size() - 4, 4, "_lin") == 0;
-
-                    const std::string prefix = mine_name + ".params." + step_name + ".";
-                    node_->get_parameter(prefix + "velocity_scaling", config.velocity_scaling[i]);
-                    node_->get_parameter(
-                        prefix + "acceleration_scaling", config.acceleration_scaling[i]);
-
-                    if (config.lin_mask[i]) {
-                        std::vector<double> lin_values;
-                        node_->get_parameter(prefix + "lin", lin_values);
-
-                        const auto start_pose       = xyzrpy_to_pose(config.step_rpy[i - 1]);
-                        const auto transformed_pose = linear_point_transformer(
-                            start_pose, {lin_values[0], lin_values[1], lin_values[2]},
-                            lin_values[3]);
-                        config.step_rpy[i] = pose_to_xyzrpy(transformed_pose);
-                        continue;
-                    }
-
-                    std::vector<double> target_pose_values;
-                    node_->get_parameter(prefix + "target_pose", target_pose_values);
-                    std::copy_n(target_pose_values.begin(), 6, config.step_rpy[i].begin());
-                }
-            };
-
-            const auto load_auto_upstairs_config = [this](
-                                                       const std::string& config_name,
-                                                       AutoUpstairsConfig& config) {
-                config.step_names.clear();
-                config.step_joint_target.clear();
-                config.velocity_scaling.clear();
-                config.acceleration_scaling.clear();
-                config.step_name_to_index.clear();
-
-                // 用 order 明确指定顺序，避免 get_parameters_by_prefix / map 带来的字典序问题
-                if (!node_->get_parameter(config_name + ".order", config.step_names)
-                    || config.step_names.empty()) {
-                    throw std::runtime_error(
-                        "Failed to load " + config_name + ".order: parameter missing or empty");
-                }
-
-                const std::size_t step_count = config.step_names.size();
-                config.step_joint_target.resize(step_count);
-                config.velocity_scaling.resize(step_count, 0.03);
-                config.acceleration_scaling.resize(step_count, 0.03);
-
-                for (std::size_t i = 0; i < step_count; ++i) {
-                    const auto& step_name = config.step_names[i];
-
-                    if (!config.step_name_to_index.emplace(step_name, i).second) {
-                        throw std::runtime_error(
-                            "Duplicate upstairs step name in " + config_name
-                            + ".order: " + step_name);
-                    }
-
-                    const std::string prefix = config_name + ".params." + step_name + ".";
-
-                    std::vector<double> joint_target;
-                    if (!node_->get_parameter(prefix + "target_joint", joint_target)
-                        || joint_target.size() != 6) {
-                        throw std::runtime_error(
-                            "Invalid or missing " + prefix + "target_joint, expected 6 doubles");
-                    }
-
-                    std::copy_n(joint_target.begin(), 6, config.step_joint_target[i].begin());
-
-                    if (!node_->get_parameter(
-                            prefix + "velocity_scaling", config.velocity_scaling[i])) {
-                        throw std::runtime_error(
-                            "Missing parameter: " + prefix + "velocity_scaling");
-                    }
-
-                    if (!node_->get_parameter(
-                            prefix + "acceleration_scaling", config.acceleration_scaling[i])) {
-                        throw std::runtime_error(
-                            "Missing parameter: " + prefix + "acceleration_scaling");
-                    }
-                }
-            };
-
-            load_auto_mine_config("auto_storage_lb", auto_storage_lb_config);
-            load_auto_mine_config("auto_storage_rb", auto_storage_rb_config);
-            load_auto_mine_config("auto_extract_lb", auto_extract_lb_config);
-            load_auto_mine_config("auto_extract_rb", auto_extract_rb_config);
-            load_auto_upstairs_config("up_one_stairs", auto_up_one_stairs_config);
-            load_auto_upstairs_config("up_two_stairs", auto_up_two_stairs_config);
-            parameter_initialized = true;
-        }
-
-        const auto request = plan_request.load(std::memory_order_acquire);
-        static uint64_t last_planned_request_id_{0};
-        if (!request || request->request_id == last_planned_request_id_) {
-            return;
-        }
-
-        auto result          = std::make_shared<PlannedTrajectory>();
-        result->request_id   = request->request_id;
-        result->plan_success = false;
-
-        moveit::planning_interface::MoveGroupInterface::Plan my_plan;
-        move_group_->setStartStateToCurrentState();
-        move_group_->clearPoseTargets();
-        move_group_->clearPathConstraints();
-        move_group_->setMaxAccelerationScalingFactor(0.05);
-        move_group_->setMaxVelocityScalingFactor(0.03);
-        move_group_->setPlanningTime(5.0);
-        switch (request->arm_mode) {
-
-        case rmcs_msgs::ArmMode::Auto_Walk: {
-            move_group_->setMaxVelocityScalingFactor(0.03);
-            move_group_->setMaxAccelerationScalingFactor(0.03);
-            move_group_->setPlanningPipelineId("ompl");
-            move_group_->setPlannerId("");
-            move_group_->setJointValueTarget(
-                std::map<std::string, double>{
-                    {"joint_1", auto_walk_joint_target[0]},
-                    {"joint_2", auto_walk_joint_target[1]},
-                    {"joint_3", auto_walk_joint_target[2]},
-                    {"joint_4", auto_walk_joint_target[3]},
-                    {"joint_5", auto_walk_joint_target[4]},
-                    {"joint_6", auto_walk_joint_target[5]},
-            });
-            const auto current_pose = move_group_->getCurrentPose("link_6").pose;
-            const auto current_rpy  = move_group_->getCurrentRPY("link_6");
-            if (current_rpy.size() == 3) {
-                RCLCPP_INFO(
-                    node_->get_logger(), "autowalkxyzrpy %.6f %.6f %.6f %.6f %.6f %.6f",
-                    current_pose.position.x, current_pose.position.y, current_pose.position.z,
-                    current_rpy[0], current_rpy[1], current_rpy[2]);
-            }
-            break;
-        }
-        case rmcs_msgs::ArmMode::Auto_Up_One_Stairs:
-
-        case rmcs_msgs::ArmMode::Auto_Up_Two_Stairs: {
-
-            auto* config = get_auto_upstairs_config(request->arm_mode);
-            if (!config || config->step_names.empty()) {
-                RCLCPP_WARN(node_->get_logger(), "Auto upstairs config is empty");
-                last_planned_request_id_ = request->request_id;
-                planned_trajectory_.store(result, std::memory_order::release);
-                return;
-            }
-
-            auto current_state = move_group_->getCurrentState();
-
-            result->positions.clear();
-            result->steps.clear();
-            result->plan_success = true;
-
-            for (std::size_t i = 0; i < config->step_names.size(); ++i) {
-                move_group_->clearPoseTargets();
-                move_group_->clearPathConstraints();
-                move_group_->setStartState(*current_state);
-                move_group_->setPlanningTime(5.0);
-                move_group_->setMaxVelocityScalingFactor(config->velocity_scaling[i]);
-                move_group_->setMaxAccelerationScalingFactor(config->acceleration_scaling[i]);
-                move_group_->setPlanningPipelineId("ompl");
-                move_group_->setPlannerId("");
-
-                const auto& target_joint = config->step_joint_target[i];
-
-                // 上台阶这里直接按 joint target 规划，不走末端位姿解算
-                move_group_->setJointValueTarget(
-                    std::map<std::string, double>{
-                        {"joint_1", target_joint[0]},
-                        {"joint_2", target_joint[1]},
-                        {"joint_3", target_joint[2]},
-                        {"joint_4", target_joint[3]},
-                        {"joint_5", target_joint[4]},
-                        {"joint_6", target_joint[5]},
-                });
-
-                RCLCPP_INFO(
-                    node_->get_logger(),
-                    "[auto_upstairs][%s] joint target: %.6f %.6f %.6f %.6f %.6f %.6f",
-                    config->step_names[i].c_str(), target_joint[0], target_joint[1],
-                    target_joint[2], target_joint[3], target_joint[4], target_joint[5]);
-
-                moveit::planning_interface::MoveGroupInterface::Plan segment_plan;
-                if (move_group_->plan(segment_plan) != moveit::core::MoveItErrorCode::SUCCESS) {
-                    RCLCPP_WARN(
-                        node_->get_logger(), "Auto upstairs segment %s plan failed",
-                        config->step_names[i].c_str());
-                    result->plan_success = false;
-                    break;
-                }
-
-                const auto& trajectory_points = segment_plan.trajectory.joint_trajectory.points;
-                if (trajectory_points.empty()) {
-                    RCLCPP_WARN(
-                        node_->get_logger(), "Auto upstairs segment %s produced empty trajectory",
-                        config->step_names[i].c_str());
-                    result->plan_success = false;
-                    break;
-                }
-
-                // 拼接多段轨迹:
-                // 第一段从 0 开始收，后续段跳过首点，避免重复拼接连接点
-                const std::size_t start_index = (i == 0) ? 0 : 1;
-                for (std::size_t j = start_index; j < trajectory_points.size(); ++j) {
-                    result->positions.push_back(trajectory_points[j].positions);
-                }
-
-                // 记录当前段对应的最后一个轨迹点索引，执行阶段用它来“卡住”阶段切换
-                result->steps.push_back(static_cast<int>(result->positions.size()) - 1);
-
-                const auto& joint_names = segment_plan.trajectory.joint_trajectory.joint_names;
-                const auto& last_point  = trajectory_points.back();
-
-                auto next_state = std::make_shared<moveit::core::RobotState>(*current_state);
-                next_state->setVariablePositions(joint_names, last_point.positions);
-                next_state->update();
-                current_state = next_state;
-            }
-
-            if (!result->plan_success) {
-                RCLCPP_WARN(node_->get_logger(), "Auto upstairs composite plan failed");
-            } else {
-                RCLCPP_INFO(
-                    node_->get_logger(), "Auto upstairs stored size:%d",
-                    static_cast<int>(result->positions.size()));
-            }
-
-            last_planned_request_id_ = request->request_id;
-            planned_trajectory_.store(result, std::memory_order::release);
-            return;
-        }
-        case rmcs_msgs::ArmMode::Auto_Storage_LB:
-        case rmcs_msgs::ArmMode::Auto_Storage_RB:
-        case rmcs_msgs::ArmMode::Auto_Extract_LB:
-        case rmcs_msgs::ArmMode::Auto_Extract_RB: {
-            auto* config = get_auto_mine_config(request->arm_mode);
-            if (!config) {
-                last_planned_request_id_ = request->request_id;
-                planned_trajectory_.store(result, std::memory_order::release);
-                return;
-            }
-
-            auto current_state = move_group_->getCurrentState();
-
-            result->positions.clear();
-            result->steps.clear();
-            result->plan_success = true;
-
-            for (std::size_t i = 0; i < mine_step_name.size(); ++i) {
-                move_group_->clearPoseTargets();
-                move_group_->clearPathConstraints();
-                move_group_->setStartState(*current_state);
-                move_group_->setPlanningTime(5.0);
-                move_group_->setGoalOrientationTolerance(0.2);
-                move_group_->setGoalPositionTolerance(0.003);
-                move_group_->setMaxVelocityScalingFactor(config->velocity_scaling[i]);
-                move_group_->setMaxAccelerationScalingFactor(config->acceleration_scaling[i]);
-                if (config->lin_mask[i]) {
-                    move_group_->setPlanningPipelineId("pilz_industrial_motion_planner");
-                    move_group_->setPlannerId("LIN");
-                } else {
-                    move_group_->setPlanningPipelineId("ompl");
-                    move_group_->setPlannerId("");
-                }
-
-                geometry_msgs::msg::Pose target_pose;
-                target_pose.position.x = config->step_rpy[i][0];
-                target_pose.position.y = config->step_rpy[i][1];
-                target_pose.position.z = config->step_rpy[i][2];
-
-                tf2::Quaternion q;
-                q.setRPY(config->step_rpy[i][3], config->step_rpy[i][4], config->step_rpy[i][5]);
-                target_pose.orientation.x = q.x();
-                target_pose.orientation.y = q.y();
-                target_pose.orientation.z = q.z();
-                target_pose.orientation.w = q.w();
-                RCLCPP_INFO(
-                    node_->get_logger(), "xyzrpy %f %f %f %f %f %f", config->step_rpy[i][0],
-                    config->step_rpy[i][1], config->step_rpy[i][2], config->step_rpy[i][3],
-                    config->step_rpy[i][4], config->step_rpy[i][5]);
-                move_group_->setPoseTarget(target_pose, "link_6");
-
-                moveit::planning_interface::MoveGroupInterface::Plan segment_plan;
-                if (move_group_->plan(segment_plan) != moveit::core::MoveItErrorCode::SUCCESS) {
-                    RCLCPP_WARN(
-                        node_->get_logger(), "Auto sequence segment %s plan failed",
-                        mine_step_name[i].c_str());
-                    result->plan_success = false;
-                    break;
-                }
-
-                const auto& trajectory_points = segment_plan.trajectory.joint_trajectory.points;
-                const std::size_t start_index = (i == 0) ? 0 : 1;
-                for (std::size_t j = start_index; j < trajectory_points.size(); ++j) {
-                    result->positions.push_back(trajectory_points[j].positions);
-                }
-                result->steps.push_back(static_cast<int>(result->positions.size()) - 1);
-                const auto& joint_names = segment_plan.trajectory.joint_trajectory.joint_names;
-                const auto& last_point  = trajectory_points.back();
-                auto next_state = std::make_shared<moveit::core::RobotState>(*current_state);
-                next_state->setVariablePositions(joint_names, last_point.positions);
-                next_state->update();
-                current_state = next_state;
-            }
-
-            if (!result->plan_success) {
-                RCLCPP_WARN(node_->get_logger(), "Auto_Mine composite plan failed");
-            } else {
-                RCLCPP_INFO(
-                    node_->get_logger(), "Auto_Mine stored size:%d",
-                    static_cast<int>(result->positions.size()));
-            }
-            last_planned_request_id_ = request->request_id;
-            planned_trajectory_.store(result, std::memory_order::release);
-            return;
-        }
-        default: {
-            last_planned_request_id_ = request->request_id;
-            planned_trajectory_.store(result, std::memory_order::release);
-            return;
-        }
-        }
-        result->plan_success =
-            (move_group_->plan(my_plan) == moveit::core::MoveItErrorCode::SUCCESS);
-
-        if (!(result->plan_success)) {
-            RCLCPP_WARN(node_->get_logger(), "plan failed");
-        } else {
-            const auto& trajectory_points = my_plan.trajectory.joint_trajectory.points;
-            result->positions.reserve(trajectory_points.size());
-            for (const auto& pt : trajectory_points) {
-                result->positions.push_back(pt.positions);
-            }
-            RCLCPP_INFO(
-                node_->get_logger(), "plan stored size:%d",
-                static_cast<int>(trajectory_points.size()));
-        }
-
-        last_planned_request_id_ = request->request_id;
-        planned_trajectory_.store(result, std::memory_order::release);
-    }
     void execute_plan_request_and_trajectory_step() {
-        static int initial_delay{0};
-        static std::size_t trajectory_steps{0};
-        static uint64_t last_executed_request_id{0};
-        const auto current_request = plan_request.load(std::memory_order_acquire);
-        if (!current_request) {
+        static int current_step_index_{0};
+        static size_t step_position_index_{0};
+        static uint64_t last_executed_request_id_{0};
+        static std::vector<std::vector<double>> positions;
+        const auto result = arm_action_machine_.get_trajectory();
+        if (!result || !result->plan_success || result->step_position_map.empty())
             return;
-        }
-        if (current_request->request_id != last_executed_request_id) {
-            trajectory_steps         = 0;
-            initial_delay            = 0;
-            last_executed_request_id = current_request->request_id;
-        }
 
-        const auto moveit_result = planned_trajectory_.load(std::memory_order_acquire);
-        if (!moveit_result) {
+        if (result->request_id != last_executed_request_id_) {
+            current_step_index_       = 0;
+            step_position_index_      = 0;
+            last_executed_request_id_ = result->request_id;
+        }
+        if (current_step_index_ >= static_cast<int>(result->step_position_map.size()))
             return;
-        }
-        const auto latest_plan_request = plan_request.load(std::memory_order_acquire);
-        if (!latest_plan_request) {
-            return;
-        }
-
-        if (moveit_result->request_id == latest_plan_request->request_id) {
-            if (moveit_result->plan_success && !moveit_result->positions.empty()) {
-                if (trajectory_steps < moveit_result->positions.size()) {
-                    const auto& q = moveit_result->positions[trajectory_steps];
-                    for (std::size_t i = 0; i < q.size(); ++i) {
-                        *target_theta[i] = q[i];
-                    }
-                    switch (get_arm_mode()) {
-                    case rmcs_msgs::ArmMode::Auto_Extract_LB: {
-                        if (trajectory_steps == static_cast<std::size_t>(moveit_result->steps[3])
-                            && !is_gripper_complete) {
-                            set_gripper_mode(rmcs_msgs::GripperMode::Close);
-                            trajectory_steps--;
-                        }
-                        if (trajectory_steps == 0) {
-                            if (get_gripper_mode() == rmcs_msgs::GripperMode::Open) {
-                                if (!is_gripper_stock) {
-                                    trajectory_steps--;
-                                }
-                            }
-                            if (get_gripper_mode() == rmcs_msgs::GripperMode::Close) {
-                                set_gripper_mode(rmcs_msgs::GripperMode::Open);
-                                trajectory_steps--;
-                            }
-                        }
-
-                        break;
-                    }
-                    case rmcs_msgs::ArmMode::Auto_Extract_RB: {
-                        if (trajectory_steps == static_cast<std::size_t>(moveit_result->steps[3])
-                            && !is_gripper_complete) {
-                            set_gripper_mode(rmcs_msgs::GripperMode::Close);
-                            trajectory_steps--;
-                        }
-                        if (trajectory_steps == 0) {
-                            if (get_gripper_mode() == rmcs_msgs::GripperMode::Open) {
-                                if (!is_gripper_stock) {
-                                    trajectory_steps--;
-                                }
-                            }
-                            if (get_gripper_mode() == rmcs_msgs::GripperMode::Close) {
-                                set_gripper_mode(rmcs_msgs::GripperMode::Open);
-                                trajectory_steps--;
-                            }
-                        }
-
-                        break;
-                    }
-                    case rmcs_msgs::ArmMode::Auto_Storage_RB: {
-                        if (trajectory_steps == static_cast<std::size_t>(moveit_result->steps[3])
-                            && !is_gripper_complete) {
-                            set_gripper_mode(rmcs_msgs::GripperMode::Open);
-                            trajectory_steps--;
-                        }
-
-                        break;
-                    }
-                    case rmcs_msgs::ArmMode::Auto_Storage_LB: {
-                        if (trajectory_steps == static_cast<std::size_t>(moveit_result->steps[3])
-                            && !is_gripper_complete) {
-                            set_gripper_mode(rmcs_msgs::GripperMode::Open);
-                            trajectory_steps--;
-                        }
-
-                        break;
-                    }
-                    case rmcs_msgs::ArmMode::Auto_Up_One_Stairs: {
-                        if (trajectory_steps == static_cast<std::size_t>(0)) {
-                            if (initial_delay
-                                >= node_->get_parameter("initial_delay_time").as_int()) {
-                                initial_delay = 0;
-                                break;
-                            }
-                            initial_delay++;
-                            trajectory_steps--;
-                        }
-                        break;
-                    }
-                    case rmcs_msgs::ArmMode::Auto_Up_Two_Stairs: {
-                        if (trajectory_steps == static_cast<std::size_t>(0)) {
-                            if (initial_delay
-                                >= node_->get_parameter("initial_delay_time").as_int()) {
-                                initial_delay = 0;
-                                break;
-                            }
-                            initial_delay++;
-                            trajectory_steps--;
-                        }
-                        if (trajectory_steps == static_cast<std::size_t>(moveit_result->steps[0])) {
-                            if (*up_stairs_layer != "initial_again") {
-                                trajectory_steps--;
-                            }
-                        }
-                        if (trajectory_steps == static_cast<std::size_t>(moveit_result->steps[1])) {
-                            if (*up_stairs_layer != "lift_again") {
-                                trajectory_steps--;
-                            }
-                        }
-
-                        break;
-                    }
-                    default: break;
-                    }
-                    trajectory_steps++;
-                }
+        if (step_position_index_ == 0) {
+            auto step = result->step_map.find(current_step_index_);
+            if (step == result->step_map.end())
+                return;
+            if (step->second.motion_type == MotionType::CloseGripper) {
+                set_gripper_mode(rmcs_msgs::GripperMode::Close);
             }
+            if (step->second.motion_type == MotionType::OpenGripper) {
+                set_gripper_mode(rmcs_msgs::GripperMode::Open);
+            }
+            auto pos_it = result->step_position_map.find(current_step_index_);
+            if (pos_it == result->step_position_map.end())
+                return;
+            positions = pos_it->second;
+        } // boundary
+        for (size_t i = 0; i < 6; ++i)
+            *target_theta[i] = positions[step_position_index_][i];
+        step_position_index_++;
+        if (step_position_index_ >= positions.size()) {
+            step_position_index_ = 0;
+            current_step_index_++;
+        }
+    }
+
+    void arm_leg_coordination() {
+        static int current_step_index_{0};
+        static size_t step_position_index_{0};
+        static std::string last_up_stairs_layer{"none"};
+        static uint64_t last_executed_request_id_{0};
+
+        const auto result = arm_action_machine_.get_trajectory();
+        if (!result || !result->plan_success || result->step_position_map.empty())
+            return;
+
+        // New trajectory submitted → force full reset
+        if (result->request_id != last_executed_request_id_) {
+            current_step_index_       = 0;
+            step_position_index_      = 0;
+            last_executed_request_id_ = result->request_id;
+            last_up_stairs_layer      = "none";
+        }
+
+        if (*up_stairs_layer != last_up_stairs_layer) {
+            if (*up_stairs_layer == "initial") {
+                current_step_index_  = 0;
+                step_position_index_ = 0;
+            }
+            if (*up_stairs_layer == "initial_again") {
+                current_step_index_  = 1;
+                step_position_index_ = 0;
+            }
+            if (*up_stairs_layer == "lift_again") {
+                current_step_index_  = 2;
+                step_position_index_ = 0;
+            }
+        }
+        const auto pos_it = result->step_position_map.find(current_step_index_);
+        if (pos_it == result->step_position_map.end())
+            return;
+        const auto& positions = pos_it->second;
+        if (step_position_index_ < static_cast<size_t>(positions.size())) {
+            for (size_t i = 0; i < 6; ++i)
+                *target_theta[i] = positions[step_position_index_][i];
+            step_position_index_++;
+            last_up_stairs_layer = *up_stairs_layer;
         }
     }
     void execute_custom() {
@@ -978,8 +471,8 @@ private:
 
         double qmin = -3;
         double qmax = 3;
-        node_->get_parameter("image_pitch_qmin", qmin);
-        node_->get_parameter("image_pitch_qmax", qmax);
+        this->get_parameter("image_pitch_qmin", qmin);
+        this->get_parameter("image_pitch_qmax", qmax);
         if (!std::isfinite(*theta[1]) || !std::isfinite(*image_pitch_theta_)) {
             *image_pitch_target_theta_ = NAN;
             return;
@@ -1020,9 +513,9 @@ private:
         last_keyboard_             = *keyboard_;
         last_mouse_                = *mouse_;
         custom_joint_filter_.reset();
-        set_arm_mode(rmcs_msgs::ArmMode::None);
+        *arm_mode_ = rmcs_msgs::ArmMode::None;
     }
-
+    ActionMachine arm_action_machine_;
     rmcs_msgs::Switch last_switch_left_{rmcs_msgs::Switch::UNKNOWN};
     rmcs_msgs::Switch last_switch_right_{rmcs_msgs::Switch::UNKNOWN};
     rmcs_msgs::Switch last_rotary_knob_switch_{rmcs_msgs::Switch::UNKNOWN};
@@ -1048,6 +541,7 @@ private:
     std::array<InputInterface<double>, 6> joint_upper_limit_;
     OutputInterface<double> target_theta[6];
     OutputInterface<rmcs_msgs::ArmMode> arm_mode_;
+    rmcs_msgs::ArmMode last_arm_mode_{rmcs_msgs::ArmMode::None};
 
     rmcs_msgs::GripperMode gripper_mode_{rmcs_msgs::GripperMode::None};
     rmcs_msgs::GripperMode last_gripper_mode_{rmcs_msgs::GripperMode::None};
@@ -1062,10 +556,6 @@ private:
     OutputInterface<double> custom_big_yaw_output_;
     filter::LowPassFilter<6> custom_joint_filter_;
     InputInterface<std::string> up_stairs_layer;
-    rclcpp::Node::SharedPtr node_;
-    rclcpp::executors::MultiThreadedExecutor exec_;
-    std::thread spin_thread_;
-    void spin_loop() { exec_.spin(); }
 };
 
 } // namespace rmcs_core::controller::arm
