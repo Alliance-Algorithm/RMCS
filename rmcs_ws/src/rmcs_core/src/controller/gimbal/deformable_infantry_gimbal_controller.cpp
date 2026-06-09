@@ -248,6 +248,9 @@ private:
 
         ctrl_hold_active_ = false;
         locked_yaw_angle_ = kNaN;
+        *output_.yaw_control_angle = kNaN;
+        *output_.pitch_control_angle = kNaN;
+        *output_.chassis_manual_yaw_velocity_override = kNaN;
         gimbal_solver_.update(TwoAxisGimbalSolver::SetDisabled{});
     }
 
