@@ -31,6 +31,7 @@ public:
         register_input(
             "/gimbal/control_bullet_allowance/limited_by_heat",
             control_bullet_allowance_limited_by_heat_);
+        register_input("/gimbal/bullet_fired", bullet_fired_);
 
         bullet_feeder_velocity_pid_.kp = 50.0;
         bullet_feeder_velocity_pid_.ki = 10.0;
@@ -38,7 +39,7 @@ public:
         bullet_feeder_velocity_pid_.integral_max = 60.0;
         bullet_feeder_velocity_pid_.integral_min = 0.0;
 
-        bullet_feeder_angle_pid_.kp = 50.0;
+        bullet_feeder_angle_pid_.kp = 60.0;
         bullet_feeder_angle_pid_.ki = 0.0;
         bullet_feeder_angle_pid_.kd = 2.0;
 
@@ -61,7 +62,6 @@ public:
             reset_all_controls();
             return;
         }
-
         overdrive_mode_ = keyboard.f;
         if (keyboard.ctrl && !last_keyboard_.r && keyboard.r)
             low_latency_mode_ = !low_latency_mode_;
@@ -100,12 +100,10 @@ public:
                     }
                 }
 
-                double err_abs = std::abs(bullet_feeder_control_angle_ - *bullet_feeder_angle_);
-                // RCLCPP_INFO(
-                //     get_logger(), "%.2f %.2f %.2f", bullet_feeder_control_angle_,
-                //     *bullet_feeder_angle_, err_abs);
+                double angle_error_abs =
+                    std::abs(bullet_feeder_control_angle_ - *bullet_feeder_angle_);
                 if (shoot_stage_ == ShootStage::PRELOADING) {
-                    if (err_abs < 0.1)
+                    if (angle_error_abs < 0.1)
                         set_preloaded();
                 }
                 if (shoot_stage_ == ShootStage::PRELOADED) {
@@ -113,23 +111,19 @@ public:
                         set_compressing();
                 }
                 if (shoot_stage_ == ShootStage::COMPRESSING) {
-                    if (err_abs < 0.1)
+                    if (angle_error_abs < 0.1)
                         set_compressed();
                 }
                 if (shoot_stage_ == ShootStage::SHOOTING) {
-                    if (err_abs < 0.1)
+                    if (angle_error_abs < 0.1)
                         set_preloading();
                 }
             }
 
-            double velocity_err = bullet_feeder_angle_pid_.update(
-                                      bullet_feeder_control_angle_ - *bullet_feeder_angle_)
-                                - *bullet_feeder_velocity_;
-            // bullet_feeder_velocity_pid_.integral_max = std::clamp(1000.0 * velocity_err,
-            // 0.0, 60.0);
-            *bullet_feeder_control_torque_ = bullet_feeder_velocity_pid_.update(velocity_err);
-            // RCLCPP_INFO(
-            //     get_logger(), "%.2f %.2f", velocity_err, *bullet_feeder_control_torque_);
+            double velocity_error = bullet_feeder_angle_pid_.update(
+                                        bullet_feeder_control_angle_ - *bullet_feeder_angle_)
+                                  - *bullet_feeder_velocity_;
+            *bullet_feeder_control_torque_ = bullet_feeder_velocity_pid_.update(velocity_error);
 
             update_jam_detection();
         }
@@ -199,7 +193,6 @@ private:
     }
 
     void update_jam_detection() {
-        // RCLCPP_INFO(get_logger(), "%.2f --", *bullet_feeder_control_torque_);
         if (*bullet_feeder_control_torque_ < 300.0) {
             bullet_feeder_faulty_count_ = 0;
             return;
@@ -228,6 +221,7 @@ private:
     static constexpr double bullet_feeder_angle_per_bullet_ = 2 * std::numbers::pi / 6;
 
     InputInterface<bool> friction_ready_;
+    InputInterface<bool> bullet_fired_;
 
     InputInterface<rmcs_msgs::Switch> switch_right_;
     InputInterface<rmcs_msgs::Switch> switch_left_;

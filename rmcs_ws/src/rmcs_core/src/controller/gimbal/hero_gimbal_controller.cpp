@@ -1,5 +1,7 @@
+#include <cmath>
 #include <limits>
 
+#include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
@@ -23,12 +25,10 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , imu_gimbal_solver(
-              *this, get_parameter("upper_limit").as_double(),
-              get_parameter("lower_limit").as_double())
-        , encoder_gimbal_solver(
-              *this, get_parameter("upper_limit").as_double(),
-              get_parameter("lower_limit").as_double()) {
+        , upper_limit_(get_parameter("upper_limit").as_double())
+        , lower_limit_(get_parameter("lower_limit").as_double())
+        , imu_gimbal_solver(*this, upper_limit_, lower_limit_)
+        , encoder_gimbal_solver(*this, upper_limit_, lower_limit_) {
 
         register_input("/remote/joystick/left", joystick_left_);
         register_input("/remote/switch/left", switch_left_);
@@ -38,6 +38,8 @@ public:
         register_input("/remote/keyboard", keyboard_);
 
         register_input("/gimbal/auto_aim/control_direction", auto_aim_control_direction_, false);
+        register_input("/gimbal/pitch/angle", gimbal_pitch_angle_);
+        register_input("/gimbal/pitch/raw_angle", gimbal_pitch_raw_angle_);
 
         register_output("/gimbal/mode", gimbal_mode_, rmcs_msgs::GimbalMode::IMU);
 
@@ -59,14 +61,17 @@ public:
                 break;
             }
 
-            if (!last_keyboard_.q && keyboard_->q) {
-                if (gimbal_mode_keyboard_ == GimbalMode::IMU)
+            if (!last_keyboard_.e && keyboard_->e) {
+                if (gimbal_mode_keyboard_ == GimbalMode::IMU) {
+                    encoder_init_pitch_ = keyboard_->ctrl ? kCtrlEInitPitch : kEInitPitch;
                     gimbal_mode_keyboard_ = GimbalMode::ENCODER;
-                else
+                } else {
                     gimbal_mode_keyboard_ = GimbalMode::IMU;
+                }
             }
-            *gimbal_mode_ =
-                *switch_right_ == Switch::UP ? GimbalMode::ENCODER : gimbal_mode_keyboard_;
+
+            *gimbal_mode_ = gimbal_mode_keyboard_;
+            //*gimbal_mode_ = switch_right == Switch::UP ? GimbalMode::ENCODER : GimbalMode::IMU;
 
             if (*gimbal_mode_ == GimbalMode::IMU) {
                 auto angle_error = update_imu_control();
@@ -76,6 +81,7 @@ public:
                 encoder_gimbal_solver.update(PreciseTwoAxisGimbalSolver::SetDisabled{});
                 *yaw_control_angle_shift_ = nan_;
                 *pitch_control_angle_ = nan_;
+
             } else {
                 imu_gimbal_solver.update(TwoAxisGimbalSolver::SetDisabled{});
                 *yaw_angle_error_ = nan_;
@@ -121,24 +127,26 @@ public:
         double yaw_shift =
             joystick_sensitivity * joystick_left_->y() + mouse_sensitivity * mouse_velocity_->y();
         double pitch_shift =
-            -joystick_sensitivity * joystick_left_->x() - mouse_sensitivity * mouse_velocity_->x();
+            -joystick_sensitivity * joystick_left_->x() + mouse_sensitivity * mouse_velocity_->x();
 
         return imu_gimbal_solver.update(
             TwoAxisGimbalSolver::SetControlShift{yaw_shift, pitch_shift});
     }
 
     PreciseTwoAxisGimbalSolver::ControlAngle update_encoder_control() {
-        if (!encoder_gimbal_solver.enabled())
-            return encoder_gimbal_solver.update(PreciseTwoAxisGimbalSolver::SetControlPitch{-0.31});
+        if (!encoder_gimbal_solver.enabled()) {
+            return encoder_gimbal_solver.update(
+                PreciseTwoAxisGimbalSolver::SetControlPitch{encoder_init_pitch_});
+        }
 
-        constexpr double joystick_sensitivity = 0.006 * 0.1;
         constexpr double mouse_yaw_sensitivity = 0.5 * 0.114;
         constexpr double mouse_pitch_sensitivity = 0.5 * 0.095;
+        constexpr double joystick_sensitivity = 0.006 * 0.05;
 
         double yaw_shift = joystick_sensitivity * joystick_left_->y()
                          + mouse_yaw_sensitivity * mouse_velocity_->y();
         double pitch_shift = -joystick_sensitivity * joystick_left_->x()
-                           - mouse_pitch_sensitivity * mouse_velocity_->x();
+                           + mouse_pitch_sensitivity * mouse_velocity_->x();
 
         return encoder_gimbal_solver.update(
             PreciseTwoAxisGimbalSolver::SetControlShift{yaw_shift, pitch_shift});
@@ -147,6 +155,9 @@ public:
 private:
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
 
+    static constexpr double kEInitPitch = -0.476972;     // Initial angle for standalone E.
+    static constexpr double kCtrlEInitPitch = -0.541591; // Initial angle for Ctrl+E.
+    double encoder_init_pitch_ = kEInitPitch;
     InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;
     InputInterface<rmcs_msgs::Switch> switch_left_;
@@ -157,10 +168,13 @@ private:
     rmcs_msgs::Keyboard last_keyboard_ = rmcs_msgs::Keyboard::zero();
 
     InputInterface<Eigen::Vector3d> auto_aim_control_direction_;
+    InputInterface<double> gimbal_pitch_angle_;
+    InputInterface<int64_t> gimbal_pitch_raw_angle_;
 
     rmcs_msgs::GimbalMode gimbal_mode_keyboard_ = rmcs_msgs::GimbalMode::IMU;
     OutputInterface<rmcs_msgs::GimbalMode> gimbal_mode_;
 
+    const double upper_limit_, lower_limit_;
     TwoAxisGimbalSolver imu_gimbal_solver;
     PreciseTwoAxisGimbalSolver encoder_gimbal_solver;
 

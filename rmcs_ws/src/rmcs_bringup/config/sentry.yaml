@@ -79,7 +79,7 @@ gimbal_controller:
     bottom_yaw_angle_kp: 15.0
     bottom_yaw_angle_ki: 0.0
     bottom_yaw_angle_kd: 0.0
-    bottom_yaw_velocity_kp: 22.5
+    bottom_yaw_velocity_kp: 2.8125
     bottom_yaw_velocity_ki: 0.0
     bottom_yaw_velocity_kd: 0.0
 
@@ -92,7 +92,7 @@ gimbal_controller:
 
     k_top_to_bottom: -1.0
 
-    bottom_yaw_viscous_ff_gain: 0.002495
+    bottom_yaw_viscous_ff_gain: 0.000311875
     # bottom_yaw_coulomb_ff_gain: 0.457343
     # bottom_yaw_coulomb_ff_tanh_gain: 100.0
     top_yaw_viscous_ff_gain: 0.231

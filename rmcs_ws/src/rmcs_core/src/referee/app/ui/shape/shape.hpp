@@ -87,6 +87,14 @@ public:
         set_modified();
     }
 
+    void set_xy(uint16_t x, uint16_t y) {
+        if (part2_.x == x && part2_.y == y)
+            return;
+        part2_.x = x;
+        part2_.y = y;
+        set_modified();
+    }
+
     bool is_text_shape() const { return is_text_shape_; }
 
     enum class Operation : uint8_t {
@@ -139,6 +147,9 @@ public:
     };
 
 protected:
+    explicit Shape(bool is_text_shape = false)
+        : is_text_shape_(is_text_shape) {}
+
     enum class ShapeType : uint8_t {
         LINE = 0,
         RECTANGLE = 1,
@@ -173,7 +184,7 @@ protected:
     };
 
     void set_modified() {
-        // Optimization: Assume the modification not exist when invisible.
+        // Optimization: Assume the modification does not exist when invisible.
         if (!visible_)
             return;
 
@@ -200,7 +211,7 @@ private:
             // Re-enter the update queue to try to get a new id.
             set_modified();
         } else {
-            // Leave run_queue when shape was hidden.
+            // Leave run_queue when the shape is hidden.
             leave_run_queue();
         }
     }
@@ -210,10 +221,9 @@ private:
         // Called by CfsScheduler<Shape>.
 
         if (!has_id() && !try_assign_id()) {
-            // TODO: Print error message.
             sync_confidence_ = max_update_times;
             visible_ = false;
-            // Do nothing when failed
+            // Do nothing when the update fails.
             return no_operation_description();
         }
 
@@ -224,8 +234,8 @@ private:
 
         command::Field field;
 
-        // Optimization1: Stop adding when shape is invisible.
-        // Optimization2: Prevent continuous modification.
+        // Optimization 1: Stop adding when the shape is invisible.
+        // Optimization 2: Prevent continuous modification.
         if (visible_
             && (existence_confidence() <= sync_confidence_
                 || (last_time_modified_ && existence_confidence() < max_update_times))) {
@@ -497,8 +507,7 @@ class Arc : public Shape {
 public:
     Arc() = default;
     Arc(Color color, uint16_t width, uint16_t x, uint16_t y, uint16_t angle_start,
-        uint16_t angle_end, uint16_t rx, uint16_t ry, bool visible = true)
-        : Arc() {
+        uint16_t angle_end, uint16_t rx, uint16_t ry, bool visible = true) {
         angle_start_ = angle_start;
         angle_end_ = angle_end;
 
@@ -604,8 +613,7 @@ public:
     Integer() = default;
     Integer(
         Color color, uint16_t font_size, uint16_t width, uint16_t x, uint16_t y, int32_t value,
-        bool visible = true)
-        : Integer() {
+        bool visible = true) {
         color_ = color;
         font_size_ = font_size;
 
@@ -714,7 +722,8 @@ protected:
 
 class Text : public Shape {
 public:
-    Text() { value_ = nullptr; };
+    Text()
+        : Shape(true) {}
     Text(
         Color color, uint16_t font_size, uint16_t width, uint16_t x, uint16_t y, const char* value,
         bool visible = true)
@@ -775,7 +784,7 @@ protected:
 
     uint16_t font_size_;
     Color color_;
-    const char* value_;
+    const char* value_ = nullptr;
 };
 
 } // namespace app::ui

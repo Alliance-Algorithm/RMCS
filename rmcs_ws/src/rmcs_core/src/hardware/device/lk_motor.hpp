@@ -43,6 +43,7 @@ public:
         rmcs_executor::Component& status_component, rmcs_executor::Component& command_component,
         const std::string& name_prefix) {
         status_component.register_output(name_prefix + "/angle", angle_output_, 0.0);
+        status_component.register_output(name_prefix + "/raw_angle", raw_angle_output_, 0);
         status_component.register_output(name_prefix + "/velocity", velocity_output_, 0.0);
         status_component.register_output(name_prefix + "/torque", torque_output_, 0.0);
         status_component.register_output(name_prefix + "/temperature", temperature_output_, 0.0);
@@ -75,7 +76,7 @@ public:
         switch (config.motor_type) {
         case Type::kMG5010Ei10:
             raw_angle_modulus_ = 1 << 16;
-            torque_constant = 0.90909;
+            torque_constant = 0.1;
             reduction_ratio = 10.0;
 
             // Note: max_torque_ should represent the ACTUAL maximum torque of the motor.
@@ -93,7 +94,7 @@ public:
             break;
         case Type::kMG6012Ei8:
             raw_angle_modulus_ = 1 << 16;
-            torque_constant = 1.09;
+            torque_constant = 1.09 / 8.0;
             reduction_ratio = 8.0;
             max_torque_ = 16.0;
             break;
@@ -193,6 +194,7 @@ public:
         torque_ = status_current_to_torque_coefficient_ * static_cast<double>(feedback.current);
 
         *angle_output_ = angle();
+        *raw_angle_output_ = last_raw_angle();
         *velocity_output_ = velocity();
         *torque_output_ = torque();
         *temperature_output_ = temperature();
@@ -521,6 +523,7 @@ private:
     double temperature_;
 
     rmcs_executor::Component::OutputInterface<double> angle_output_;
+    rmcs_executor::Component::OutputInterface<int64_t> raw_angle_output_;
     rmcs_executor::Component::OutputInterface<double> velocity_output_;
     rmcs_executor::Component::OutputInterface<double> torque_output_;
     rmcs_executor::Component::OutputInterface<double> temperature_output_;
