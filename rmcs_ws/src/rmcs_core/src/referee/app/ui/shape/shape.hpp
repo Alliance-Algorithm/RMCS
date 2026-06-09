@@ -724,10 +724,8 @@ protected:
 
 class Text : public Shape {
 public:
-    Text() {
-        value_ = nullptr;
-        set_text_shape();
-    };
+    Text()
+        : Shape(true) {}
     Text(
         Color color, uint16_t font_size, uint16_t width, uint16_t x, uint16_t y, const char* value,
         bool visible = true)
