@@ -42,6 +42,7 @@ deformable_infantry:
   ros__parameters:
     serial_filter_rmcs_board: "AF-23FB-EE32-B892-1302-AE70-D640-7B4E-0CBF"
     serial_filter_top_board: "AF-ABAC-786D-1B53-99F6-00A2-42A6-AA95-9D69"
+    serial_filter_imu: "AF-C26A-0C9C-CF41-3E3C-1596-524B-7527-5744"
     left_front_zero_point: 7173
     left_back_zero_point: 5167
     right_back_zero_point: 3098
@@ -89,7 +90,6 @@ gimbal_controller:
 
     upper_limit: -0.65 # -35 deg
     lower_limit: 0.05 # 6 deg
-    use_encoder_pitch: true
 
     yaw_angle_kp: 10.0
     yaw_angle_ki: 0.0
