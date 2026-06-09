@@ -134,6 +134,7 @@ public:
 
         register_input("/gimbal/yaw/angle", gimbal_yaw_angle_, false);
         register_input("/gimbal/yaw/control_angle_error", gimbal_yaw_angle_error_, false);
+        register_input("/chassis/manual_yaw_velocity_override", manual_yaw_velocity_override_, false);
 
         register_input(
             "/chassis/left_front_joint/physical_angle", left_front_joint_physical_angle_, false);
@@ -155,6 +156,7 @@ public:
 
         register_output("/chassis/control_mode", mode_);
         register_output("/chassis/control_velocity", chassis_control_velocity_);
+        register_output("/chassis/ctrl_hold_active", ctrl_hold_active_, false);
 
         register_output("/chassis/left_front_joint/control_angle_error", lf_angle_error_, nan_);
         register_output("/chassis/left_back_joint/control_angle_error", lb_angle_error_, nan_);
@@ -199,6 +201,7 @@ public:
             right_front_joint_target_physical_acceleration_, nan_);
 
         *mode_ = rmcs_msgs::ChassisMode::AUTO;
+        *ctrl_hold_active_ = false;
         chassis_control_velocity_->vector << nan_, nan_, nan_;
 
         current_target_angle_ = max_angle_;
@@ -218,6 +221,8 @@ public:
             RCLCPP_WARN(
                 get_logger(), "Failed to fetch \"/gimbal/yaw/control_angle_error\". Set to 0.0.");
         }
+        if (!manual_yaw_velocity_override_.ready())
+            manual_yaw_velocity_override_.make_and_bind_directly(nan_);
         if (!chassis_imu_pitch_.ready())
             chassis_imu_pitch_.make_and_bind_directly(0.0);
         if (!chassis_imu_roll_.ready())
@@ -244,9 +249,10 @@ public:
             }
 
             update_mode_from_inputs_(switch_left, switch_right, keyboard);
+            update_suspension_toggle_from_inputs_(switch_left, switch_right);
+            *ctrl_hold_active_ = ctrl_hold_requested_by_input_();
             update_velocity_control();
             update_lift_target_toggle(keyboard);
-            update_suspension_toggle_from_inputs_(switch_left, switch_right);
             run_joint_intent_pipeline_();
         } while (false);
 
@@ -457,8 +463,12 @@ private:
         }
     }
 
+    bool ctrl_hold_requested_by_input_() const {
+        return prone_override_requested_by_keyboard() || suspension_on_by_switch;
+    }
+
     bool suspension_requested_by_input_() const {
-        return active_suspension_enable_ && (prone_override_requested_by_keyboard() || suspension_on_by_switch);
+        return active_suspension_enable_ && ctrl_hold_requested_by_input_();
     }
 
     bool symmetric_joint_target_requested_() const {
@@ -621,6 +631,7 @@ private:
 
     void reset_all_controls() {
         *mode_ = rmcs_msgs::ChassisMode::AUTO;
+        *ctrl_hold_active_ = false;
         reset_attitude_correction_state_();
         reset_chassis_imu_calibration_window_();
 
@@ -691,6 +702,13 @@ private:
     }
 
     double update_angular_velocity_control() {
+        if (*ctrl_hold_active_ && std::isfinite(*manual_yaw_velocity_override_)) {
+            *chassis_angle_ = 2 * std::numbers::pi - *gimbal_yaw_angle_;
+            *chassis_control_angle_ = nan_;
+            return std::clamp(
+                *manual_yaw_velocity_override_, -angular_velocity_max_, angular_velocity_max_);
+        }
+
         double angular_velocity = 0.0;
         double chassis_control_angle = nan_;
 
@@ -976,10 +994,12 @@ private:
     double last_rotary_knob_ = 0.0;
 
     InputInterface<double> gimbal_yaw_angle_, gimbal_yaw_angle_error_;
+    InputInterface<double> manual_yaw_velocity_override_;
     OutputInterface<double> chassis_angle_, chassis_control_angle_;
 
     OutputInterface<rmcs_msgs::ChassisMode> mode_;
     OutputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;
+    OutputInterface<bool> ctrl_hold_active_;
 
     bool spinning_forward_ = true;
     bool apply_symmetric_target = true;

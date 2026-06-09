@@ -290,7 +290,7 @@ private:
                 });
                 builder.can2_transmit({
                     .can_id = 0x142,
-                    .can_data = gimbal_yaw_motor_.generate_torque_command().as_bytes(),
+                    .can_data = gimbal_yaw_motor_.generate_command().as_bytes(),
                 });
                 builder.can1_transmit({
                     .can_id = 0x1FE,
