@@ -1,6 +1,7 @@
 <library path="rmcs_core">
   <class type="rmcs_core::hardware::MecanumHero" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::hardware::SteeringHero" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::hardware::SteeringHeroLittle" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::hardware::OmniInfantry" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::hardware::Sentry" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::hardware::SteeringInfantry" base_class_type="rmcs_executor::Component" />
@@ -8,9 +9,14 @@
   <class type="rmcs_core::hardware::DeformableInfantryOmni" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::ChassisController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::ChassisPowerController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::chassis::HeroChassisController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::chassis::HeroChassisPowerController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::OmniWheelController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::DeformableOmniWheelController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::SteeringWheelController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::chassis::HeroSteeringWheelController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::chassis::SteeringWheelStatus" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::chassis::ChassisClimberController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::DeformableChassis" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::DeformableJointController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::DeformableChassisController" base_class_type="rmcs_executor::Component" />
@@ -23,9 +29,12 @@
   <class type="rmcs_core::controller::gimbal::EccentricDualYaw" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::gimbal::PlayerViewer" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::shooting::FrictionWheelController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::shooting::HeroFrictionWheelController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::shooting::HeatController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::shooting::HeroHeatController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::shooting::BulletFeederController17mm" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::shooting::BulletFeederController42mm" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::shooting::PutterController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::shooting::ShootingRecorder" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::pid::PidController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::pid::ErrorPidController" base_class_type="rmcs_executor::Component" />

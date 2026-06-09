@@ -27,7 +27,8 @@ public:
         register_input("/remote/mouse/mouse_wheel", mouse_wheel_);
         register_input("/remote/keyboard", keyboard_);
 
-        register_input("/gimbal/pitch/angle", gimbal_pitch_angle_);
+        register_input("/gimbal/player_viewer/angle", gimbal_pitch_angle_);
+        register_input("/gimbal/player_viewer/raw_angle", gimbal_pitch_raw_angle_);
         register_input("/gimbal/player_viewer/angle", gimbal_player_viewer_angle_);
 
         register_output(
@@ -53,12 +54,15 @@ public:
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
             reset_all_controls();
         } else {
-            if (!last_keyboard_.e && keyboard.e)
-                viewer_reset_ = true;
             if (!last_keyboard_.q && keyboard.q) {
                 scope_active_ = !scope_active_;
                 *is_scope_active_ = scope_active_;
                 scope_viewer_reset_ = scope_active_;
+            }
+            if (!last_keyboard_.e && keyboard.e) {
+                viewer_init_angle_ = keyboard.ctrl ? kCtrlInitViewerAngle : kEInitViewerAngle;
+                viewer_reset_ = true;
+                scope_viewer_reset_ = false;
             }
 
             update_viewer_control();
@@ -92,7 +96,7 @@ private:
         *viewer_delta_angle_by_mouse_wheel_ = 0.5 * *mouse_wheel_ * unit_sensitivity(0.09);
 
         if (viewer_reset_) {
-            *viewer_control_angle_ = upper_limit_;
+            *viewer_control_angle_ = viewer_init_angle_;
             viewer_reset_ = false;
         } else {
             if (scope_viewer_reset_) {
@@ -115,9 +119,9 @@ private:
             *viewer_control_angle_ - norm_angle(*gimbal_player_viewer_angle_);
 
         if (scope_active_) {
-            *scope_control_torque_ = 0.2;
+            *scope_control_torque_ = 0.13;
         } else {
-            *scope_control_torque_ = -0.2;
+            *scope_control_torque_ = -0.13;
         }
     }
 
@@ -125,9 +129,14 @@ private:
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
     static constexpr double pi_ = std::numbers::pi;
 
+    // The steering-hero viewer angle limit range is [0.68, 1.17].
+    static constexpr double kEInitViewerAngle = 0.38905;    // Move here when E is pressed.
+    static constexpr double kCtrlInitViewerAngle = 0.38905; // Move here when Ctrl is pressed.
+
     bool scope_viewer_reset_{false};
 
     const double upper_limit_, lower_limit_;
+    double viewer_init_angle_ = kEInitViewerAngle;
 
     InputInterface<rmcs_msgs::Switch> switch_right_;
     InputInterface<rmcs_msgs::Switch> switch_left_;
@@ -135,6 +144,7 @@ private:
     InputInterface<double> mouse_wheel_;
 
     InputInterface<double> gimbal_pitch_angle_;
+    InputInterface<int64_t> gimbal_pitch_raw_angle_;
     InputInterface<double> gimbal_player_viewer_angle_;
 
     OutputInterface<double> scope_control_torque_;
