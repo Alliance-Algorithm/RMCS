@@ -2,18 +2,18 @@ rmcs_executor:
   ros__parameters:
     update_rate: 1000.0
     components:
-      - rmcs_core::hardware::SteeringInfantry -> steeringInfantry_hardware
+      - rmcs_core::hardware::SteeringInfantry -> Infantry_hardware
 
       - rmcs_core::referee::Status -> referee_status
-      - rmcs_core::referee::Command -> referee_command
-
       - rmcs_core::referee::command::Interaction -> referee_interaction
       - rmcs_core::referee::command::interaction::Ui -> referee_ui
-      # - rmcs_core::referee::app::ui::Infantry -> referee_ui_infantry
+      - rmcs_core::referee::app::ui::Infantry -> referee_ui_infantry
+      - rmcs_core::referee::Command -> referee_command
 
       - rmcs_core::controller::gimbal::SimpleGimbalController -> gimbal_controller
-      - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
+      - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
+      - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
 
       - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
       - rmcs_core::controller::shooting::HeatController -> heat_controller
@@ -26,37 +26,47 @@ rmcs_executor:
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::SteeringWheelController -> steering_wheel_controller
 
-steeringInfantry_hardware:
+Infantry_hardware:
   ros__parameters:
-    board_serial_top_board: "(TODO)"
-    board_serial_bottom_board: "(TODO)"
-    yaw_motor_zero_point: 32285
-    pitch_motor_zero_point: 6321
-    left_front_zero_point: 7848
-    left_back_zero_point: 5770
-    right_back_zero_point: 2380
-    right_front_zero_point: 1705
+    board_serial_top_board: "AF-B4E5-CE0E-4342-FF2C-F9E2-DE47-2D85-9B75"
+    board_serial_bottom_board: "AF-EEF5-24BA-6675-F1B1-C797-50AF-869C-870E"
+    yaw_motor_zero_point: 20993
+    pitch_motor_zero_point: 18874
+    left_front_zero_point: 1695
+    right_front_zero_point: 5068
+    left_back_zero_point: 7870
+    right_back_zero_point: 3141
+
 
 gimbal_controller:
   ros__parameters:
-    upper_limit: -0.39518
-    lower_limit: 0.36
-
-yaw_angle_pid_controller:
-  ros__parameters:
-    measurement: /gimbal/yaw/control_angle_error
-    control: /gimbal/yaw/control_velocity
-    kp: 16.0
-    ki: 0.0
-    kd: 0.0
+    upper_limit: -0.54
+    lower_limit: 0.274
 
 pitch_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/pitch/control_angle_error
     control: /gimbal/pitch/control_velocity
-    kp: 10.00
+    kp: 15.0
     ki: 0.0
-    kd: 0.0
+    kd: 1.5
+
+yaw_angle_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/yaw/control_angle_error
+    control: /gimbal/yaw/control_velocity
+    kp: 20.0
+    ki: 0.0
+    kd: 0.9
+
+yaw_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/yaw/velocity_imu
+    setpoint: /gimbal/yaw/control_velocity
+    control: /gimbal/yaw/control_torque
+    kp: 2.5
+    ki: 0.00
+    kd: 0.6
 
 friction_wheel_controller:
   ros__parameters:
@@ -64,9 +74,9 @@ friction_wheel_controller:
       - /gimbal/left_friction
       - /gimbal/right_friction
     friction_velocities:
-      - 600.0
-      - 600.0
-    friction_soft_start_stop_time: 1.0
+      - 590.0
+      - 590.0
+    friction_soft_start_stop_time: 0.3
 
 heat_controller:
   ros__parameters:
@@ -75,8 +85,8 @@ heat_controller:
 
 bullet_feeder_controller:
   ros__parameters:
-    bullets_per_feeder_turn: 10.0
-    shot_frequency: 24.0
+    bullets_per_feeder_turn: 9.0
+    shot_frequency: 27.0
     safe_shot_frequency: 10.0
     eject_frequency: 15.0
     eject_time: 0.15
@@ -86,8 +96,8 @@ bullet_feeder_controller:
 
 shooting_recorder:
   ros__parameters:
-    friction_wheel_count: 4
-    log_mode: 2 # 1: trigger, 2: timing
+    friction_wheel_count: 2
+    log_mode: 1
 
 left_friction_velocity_pid_controller:
   ros__parameters:
@@ -112,15 +122,15 @@ bullet_feeder_velocity_pid_controller:
     measurement: /gimbal/bullet_feeder/velocity
     setpoint: /gimbal/bullet_feeder/control_velocity
     control: /gimbal/bullet_feeder/control_torque
-    kp: 0.283
+    kp: 0.7
     ki: 0.0
     kd: 0.0
 
 steering_wheel_controller:
   ros__parameters:
-    mess: 19.0
-    moment_of_inertia: 1.0
-    vehicle_radius: 0.24678
+    mess: 22.0
+    moment_of_inertia: 1.08
+    vehicle_radius: 0.28284271247462
     wheel_radius: 0.055
     friction_coefficient: 0.6
     k1: 2.958580e+00
