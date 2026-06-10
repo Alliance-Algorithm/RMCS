@@ -33,7 +33,10 @@ public:
               rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true)) {
 
         register_input("/predefined/timestamp", timestamp_);
+
         register_output("/tf", tf_);
+        register_output("/auto_aim/camera_transform", camera_transform_);
+        register_output("/auto_aim/barrel_direction", barrel_direction_);
 
         // For command: remote-status
         using Srv = std_srvs::srv::Trigger;
@@ -58,6 +61,11 @@ public:
     auto update() -> void override {
         gimbal_board_->update();
         chassis_board_->update();
+
+        using namespace rmcs_description;
+        *camera_transform_ = fast_tf::lookup_transform<OdomGimbalImu, CameraLink>(*tf_);
+        *barrel_direction_ = *fast_tf::cast<OdomGimbalImu>(
+            PitchLink::DirectionVector{Eigen::Vector3d::UnitX()}, *tf_);
     }
 
 private:
@@ -434,6 +442,9 @@ private:
 
     InputInterface<std::chrono::steady_clock::time_point> timestamp_;
     OutputInterface<rmcs_description::Tf> tf_;
+
+    OutputInterface<Eigen::Isometry3d> camera_transform_;
+    OutputInterface<Eigen::Vector3d> barrel_direction_;
 
     std::unique_ptr<GimbalBoard> gimbal_board_;
     std::unique_ptr<ChassisBoard> chassis_board_;

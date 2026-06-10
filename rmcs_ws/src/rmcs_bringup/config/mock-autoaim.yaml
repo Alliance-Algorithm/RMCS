@@ -1,0 +1,5 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs::AutoAimComponent -> auto_aim_component
