@@ -17,8 +17,8 @@ include(FetchContent)
 set(BUILD_STATIC_LIBRMCS ON CACHE BOOL "Build static librmcs SDK" FORCE)
 FetchContent_Declare(
   librmcs
-  URL https://github.com/Alliance-Algorithm/librmcs/releases/download/v3.2.0b0/librmcs-sdk-src-3.2.0-beta.0.zip
-  URL_HASH SHA256=391b642a31473fdb639573912e0fc6266c3819d787b91440310cd1025af1dc3c
+  URL https://github.com/Alliance-Algorithm/librmcs/releases/download/v3.2.0/librmcs-sdk-src-3.2.0.zip
+  URL_HASH SHA256=f81c3af7fbcf35727a8a7586200db8e9bf668ee0f448529de4bfd3eb7c36ed6f
   DOWNLOAD_EXTRACT_TIMESTAMP TRUE
 )
 FetchContent_MakeAvailable(librmcs)
