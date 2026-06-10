@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdio>
 #include <memory>
 #include <mutex>
 #include <new>
@@ -42,7 +43,15 @@ public:
                 [pool = pool_](T* ptr) {
                     std::destroy_at(ptr);
                     auto guard = std::scoped_lock{pool->mutex};
-                    pool->free(ptr);
+                    if (!pool->free(ptr)) {
+                        std::fprintf(
+                            stderr,
+                            "rmcs_utility::PooledSharedFactory failed to return slot %p to pool "
+                            "%p\n",
+                            static_cast<void*>(ptr), static_cast<void*>(pool.get()));
+                        std::fflush(stderr);
+                        std::terminate();
+                    }
                 });
         } catch (...) {
             auto guard = std::scoped_lock{pool_->mutex};
