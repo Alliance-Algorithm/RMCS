@@ -2,8 +2,10 @@
 
 #include <map>
 #include <memory>
+#include <sstream>
 #include <stdexcept>
 #include <string>
+#include <tuple>
 #include <unordered_map>
 #include <vector>
 
@@ -29,12 +31,14 @@ public:
         predefined_msg_provider_ = std::make_shared<PredefinedMsgProvider>();
         add_component(predefined_msg_provider_);
     }
-    ~Executor() {
+    ~Executor() override {
+        disable_event_outputs();
+        wait_event_outputs_idle();
         if (thread_.joinable())
             thread_.join();
     };
 
-    void add_component(std::shared_ptr<Component> component) {
+    void add_component(const std::shared_ptr<Component>& component) {
         component_list_.emplace_back(component);
         if (auto node = std::dynamic_pointer_cast<rclcpp::Node>(component))
             rcl_executor_.add_node(node);
@@ -52,35 +56,195 @@ public:
         if (!get_parameter("update_rate", update_rate))
             throw std::runtime_error{"Unable to get parameter update_rate<double>"};
         predefined_msg_provider_->set_update_rate(update_rate);
+        enable_event_outputs();
 
         thread_ = std::thread{[update_rate, this]() {
             const auto period = std::chrono::nanoseconds(
                 static_cast<long>(std::round(1'000'000'000.0 / update_rate)));
             auto next_iteration_time = std::chrono::steady_clock::now();
-            while (rclcpp::ok()) {
-                predefined_msg_provider_->set_timestamp(next_iteration_time);
-                next_iteration_time += period;
-                for (const auto& component : updating_order_) {
-                    component->update();
+            try {
+                while (rclcpp::ok()) {
+                    predefined_msg_provider_->set_timestamp(next_iteration_time);
+                    next_iteration_time += period;
+                    for (const auto& component : updating_order_) {
+                        component->update();
+                    }
+                    std::this_thread::sleep_until(next_iteration_time);
                 }
-                std::this_thread::sleep_until(next_iteration_time);
+            } catch (const std::exception& exception) {
+                RCLCPP_FATAL(
+                    get_logger(), "Executor update thread terminated by exception: %s",
+                    exception.what());
+                rclcpp::shutdown();
+            } catch (...) {
+                RCLCPP_FATAL(
+                    get_logger(), "Executor update thread terminated by unknown exception");
+                rclcpp::shutdown();
             }
         }};
     }
 
 private:
+    void enable_event_outputs() {
+        for (const auto& component : component_list_) {
+            for (const auto& output : component->output_list_) {
+                if (output.enable == nullptr)
+                    continue;
+                output.enable(output.binding);
+            }
+        }
+    }
+
+    void disable_event_outputs() {
+        for (const auto& component : component_list_) {
+            for (const auto& output : component->output_list_) {
+                if (output.disable == nullptr)
+                    continue;
+                output.disable(output.binding);
+            }
+        }
+    }
+
+    void wait_event_outputs_idle() {
+        for (const auto& component : component_list_) {
+            for (const auto& output : component->output_list_) {
+                if (output.wait_idle == nullptr)
+                    continue;
+                output.wait_idle(output.binding);
+            }
+        }
+    }
+
+    struct InterfaceKey {
+        std::string name;
+        InterfaceKind kind;
+
+        bool operator==(const InterfaceKey& other) const {
+            return name == other.name && kind == other.kind;
+        }
+    };
+
+    struct InterfaceKeyHash {
+        std::size_t operator()(const InterfaceKey& key) const {
+            return std::hash<std::string>{}(key.name)
+                 ^ (std::hash<int>{}(static_cast<int>(key.kind)) << 1U);
+        }
+    };
+
+    using OutputRecord = Component::OutputDeclaration*;
+
+    struct NameKindRecord {
+        InterfaceKind kind;
+        std::string component_name;
+        const char* direction;
+    };
+
+    static std::string describe_output(
+        const std::string& name, InterfaceKind kind, const std::type_info& type,
+        const std::string& component_name) {
+        std::ostringstream stream;
+        stream << "Component [" << component_name << "] registered " << interface_kind_name(kind)
+               << " output \"" << name << "\" with type \"" << type.name() << "\"";
+        return stream.str();
+    }
+
+    static std::string describe_output(const Component::OutputDeclaration& output) {
+        return describe_output(
+            output.name, output.kind, output.type, output.component->get_component_name());
+    }
+
+    static std::string describe_declaration(
+        const std::string& name, InterfaceKind kind, const std::string& component_name,
+        const char* direction) {
+        std::ostringstream stream;
+        stream << "Component [" << component_name << "] registered " << interface_kind_name(kind)
+               << ' ' << direction << " \"" << name << "\"";
+        return stream.str();
+    }
+
     void init() {
         updating_order_.clear();
 
-        auto output_map = std::unordered_map<std::string, Component::OutputDeclaration*>{};
-        auto user_output_map = std::map<std::string, const std::type_info&>{};
+        auto output_map = std::unordered_map<InterfaceKey, OutputRecord, InterfaceKeyHash>{};
+        auto output_by_name = std::unordered_map<std::string, OutputRecord>{};
+        auto declaration_kind_map = std::unordered_map<std::string, NameKindRecord>{};
+        auto user_output_map = Component::OutputInfoMap{};
         for (const auto& component : component_list_) {
             component->dependency_count_ = 0;
             component->wanted_by_.clear();
             for (auto& output : component->output_list_) {
-                if (!output_map.emplace(output.name, &output).second)
-                    throw std::runtime_error{"Duplicate names of output"};
-                user_output_map.emplace(output.name, output.type);
+                auto declaration_iter = declaration_kind_map.find(output.name);
+                if (declaration_iter != declaration_kind_map.end()
+                    && declaration_iter->second.kind != output.kind) {
+                    const auto message =
+                        std::string{"Conflicting interface kinds for name \""} + output.name
+                        + "\": "
+                        + describe_declaration(
+                            output.name, declaration_iter->second.kind,
+                            declaration_iter->second.component_name,
+                            declaration_iter->second.direction)
+                        + "; "
+                        + describe_declaration(
+                            output.name, output.kind, component->get_component_name(), "output")
+                        + ". A name can only belong to one interface kind.";
+                    RCLCPP_FATAL(get_logger(), "%s", message.c_str());
+                    throw std::runtime_error{message};
+                }
+                declaration_kind_map.emplace(
+                    output.name,
+                    NameKindRecord{output.kind, component->get_component_name(), "output"});
+
+                auto existing_output_iter = output_by_name.find(output.name);
+                if (existing_output_iter != output_by_name.end()
+                    && existing_output_iter->second->kind != output.kind) {
+                    const auto& existing_output = *existing_output_iter->second;
+                    const auto message = std::string{"Conflicting output kinds for name \""}
+                                       + output.name + "\": " + describe_output(existing_output)
+                                       + "; " + describe_output(output)
+                                       + ". A name can only belong to one interface kind.";
+                    RCLCPP_FATAL(get_logger(), "%s", message.c_str());
+                    throw std::runtime_error{message};
+                }
+
+                output_by_name.emplace(output.name, &output);
+
+                const auto [output_iter, inserted] =
+                    output_map.emplace(InterfaceKey{output.name, output.kind}, &output);
+                if (!inserted) {
+                    const auto& existing_output = *output_iter->second;
+                    const auto message =
+                        std::string{"Duplicate "} + interface_kind_name(output.kind)
+                        + " output name \"" + output.name
+                        + "\": " + describe_output(existing_output) + "; " + describe_output(output)
+                        + ". Only one output may be registered for each (name, kind).";
+                    RCLCPP_FATAL(get_logger(), "%s", message.c_str());
+                    throw std::runtime_error{message};
+                }
+
+                user_output_map.emplace(
+                    output.name, Component::OutputInfo{std::cref(output.type), output.kind});
+            }
+
+            for (const auto& input : component->input_list_) {
+                auto declaration_iter = declaration_kind_map.find(input.name);
+                if (declaration_iter != declaration_kind_map.end()
+                    && declaration_iter->second.kind != input.kind) {
+                    const auto message =
+                        std::string{"Conflicting interface kinds for name \""} + input.name + "\": "
+                        + describe_declaration(
+                            input.name, declaration_iter->second.kind,
+                            declaration_iter->second.component_name,
+                            declaration_iter->second.direction)
+                        + "; "
+                        + describe_declaration(
+                            input.name, input.kind, component->get_component_name(), "input")
+                        + ". A name can only belong to one interface kind.";
+                    RCLCPP_FATAL(get_logger(), "%s", message.c_str());
+                    throw std::runtime_error{message};
+                }
+                declaration_kind_map.emplace(
+                    input.name,
+                    NameKindRecord{input.kind, component->get_component_name(), "input"});
             }
         }
 
@@ -90,36 +254,54 @@ private:
 
         for (const auto& component : component_list_) {
             for (const auto& input : component->input_list_) {
-                auto output_iter = output_map.find(input.name);
+                auto output_iter = output_map.find(InterfaceKey{input.name, input.kind});
                 if (output_iter == output_map.end()) {
+                    auto output_by_name_iter = output_by_name.find(input.name);
+                    if (output_by_name_iter != output_by_name.end()) {
+                        const auto& available_output = *output_by_name_iter->second;
+                        const auto message =
+                            std::string{"Component ["} + component->get_component_name()
+                            + "] requested " + interface_kind_name(input.kind) + " input \""
+                            + input.name + "\", but " + describe_output(available_output) + ".";
+
+                        RCLCPP_FATAL(get_logger(), "%s", message.c_str());
+                        throw std::runtime_error{message};
+                    }
+
                     if (!input.required)
                         continue;
 
-                    RCLCPP_FATAL(
-                        get_logger(),
-                        "Cannot find the corresponding output of input \"%s\" declared by "
-                        "component [%s]",
-                        input.name.c_str(), component->get_component_name().c_str());
-                    throw std::runtime_error{"Cannot find the corresponding output"};
+                    const auto message = std::string{"Cannot find "}
+                                       + interface_kind_name(input.kind) + " output \"" + input.name
+                                       + "\" required by component ["
+                                       + component->get_component_name() + "].";
+                    RCLCPP_FATAL(get_logger(), "%s", message.c_str());
+                    throw std::runtime_error{message};
                 }
 
                 const auto& output = *output_iter->second;
                 if (input.type != output.type) {
-                    RCLCPP_FATAL(get_logger(), "With message \"%s\":", input.name.c_str());
+                    const auto message = std::string{"Type mismatch for "}
+                                       + interface_kind_name(input.kind) + " interface \""
+                                       + input.name + "\": component ["
+                                       + output.component->get_component_name()
+                                       + "] declared output type \"" + output.type.name()
+                                       + "\", but component [" + component->get_component_name()
+                                       + "] requested input type \"" + input.type.name() + "\".";
+                    RCLCPP_FATAL(get_logger(), "%s", message.c_str());
                     RCLCPP_FATAL(
                         get_logger(), "    Component [%s] declared the output with type \"%s\"",
                         output.component->get_component_name().c_str(), output.type.name());
                     RCLCPP_FATAL(
                         get_logger(), "    Component [%s] requested the input with type \"%s\"",
                         component->get_component_name().c_str(), input.type.name());
-                    RCLCPP_FATAL(get_logger(), "Type not match.");
-                    throw std::runtime_error{"Type not match"};
+                    throw std::runtime_error{message};
                 }
 
                 if (output.component->wanted_by_.emplace(component.get()).second)
                     component->dependency_count_++;
 
-                *input.pointer_to_data_pointer = output.data_pointer;
+                input.bind(input.binding, output.binding);
             }
         }
 
@@ -142,12 +324,17 @@ private:
                 RCLCPP_FATAL(
                     get_logger(), "Component [%s]:", component->get_component_name().c_str());
                 for (const auto& input : component->input_list_) {
-                    const auto& output = output_map[input.name];
+                    const auto output_iter = output_map.find(InterfaceKey{input.name, input.kind});
+                    if (output_iter == output_map.end())
+                        continue;
+
+                    const auto* output = output_iter->second;
                     if (output->component->dependency_count_ == 0)
                         continue;
                     RCLCPP_FATAL(
-                        get_logger(), "    Depends on [%s] because requesting \"%s\"",
-                        output->component->component_name_.c_str(), output->name.c_str());
+                        get_logger(), "    Depends on [%s] because requesting %s interface \"%s\"",
+                        output->component->component_name_.c_str(), interface_kind_name(input.kind),
+                        output->name.c_str());
                 }
             }
             throw std::runtime_error{"Circular dependency found"};

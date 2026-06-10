@@ -26,6 +26,8 @@ public:
     }
     ~TfBroadcaster() = default;
 
+    void before_updating() override { fast_tf::rcl::broadcast_all(*tf_); }
+
     void update() override {
         using namespace std::chrono_literals;
         if (*update_count_ == 0)
