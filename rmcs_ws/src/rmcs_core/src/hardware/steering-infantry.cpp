@@ -119,22 +119,22 @@ private:
     public:
         friend class SteeringInfantry;
         explicit TopBoard(
-            SteeringInfantry& climbable_infantry,
-            SteeringInfantryCommand& climbable_infantry_command, std::string_view board_serial = {})
+            SteeringInfantry& steering_infantry, SteeringInfantryCommand& steering_infantry_command,
+            std::string_view board_serial = {})
             : librmcs::agent::RmcsBoardLite(board_serial, {true})
-            , tf_(climbable_infantry.tf_)
+            , tf_(steering_infantry.tf_)
             , imu_(1000, 0.2, 0.0)
-            , gimbal_pitch_motor_(climbable_infantry, climbable_infantry_command, "/gimbal/pitch")
+            , gimbal_pitch_motor_(steering_infantry, steering_infantry_command, "/gimbal/pitch")
             , gimbal_left_friction_(
-                  climbable_infantry, climbable_infantry_command, "/gimbal/left_friction")
+                  steering_infantry, steering_infantry_command, "/gimbal/left_friction")
             , gimbal_right_friction_(
-                  climbable_infantry, climbable_infantry_command, "/gimbal/right_friction") {
+                  steering_infantry, steering_infantry_command, "/gimbal/right_friction") {
 
             gimbal_pitch_motor_.configure(
                 device::LkMotor::Config{device::LkMotor::Type::kMG4010Ei10}
                     .set_encoder_zero_point(
                         static_cast<int>(
-                            climbable_infantry.get_parameter("pitch_motor_zero_point").as_int()))
+                            steering_infantry.get_parameter("pitch_motor_zero_point").as_int()))
                     .enable_multi_turn_angle());
             gimbal_left_friction_.configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kM3508}.set_reduction_ratio(1.));
@@ -142,9 +142,8 @@ private:
                 device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
                     .set_reduction_ratio(1.)
                     .set_reversed());
-            climbable_infantry.register_output(
-                "/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
-            climbable_infantry.register_output(
+            steering_infantry.register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
+            steering_infantry.register_output(
                 "/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
             imu_.set_coordinate_mapping(
                 [](double x, double y, double z) { return std::make_tuple(x, y, z); });
@@ -242,32 +241,32 @@ private:
     public:
         friend class SteeringInfantry;
         explicit BottomBoard(
-            SteeringInfantry& climbable_infantry,
-            SteeringInfantryCommand& climbable_infantry_command, std::string_view board_serial = {})
+            SteeringInfantry& steering_infantry, SteeringInfantryCommand& steering_infantry_command,
+            std::string_view board_serial = {})
             : librmcs::agent::RmcsBoardLite(board_serial)
-            , tf_(climbable_infantry.tf_)
+            , tf_(steering_infantry.tf_)
             , imu_(1000, 0.2, 0.0)
-            , dr16_(climbable_infantry)
-            , gimbal_yaw_motor_(climbable_infantry, climbable_infantry_command, "/gimbal/yaw")
-            , supercap_(climbable_infantry, climbable_infantry_command)
+            , dr16_(steering_infantry)
+            , gimbal_yaw_motor_(steering_infantry, steering_infantry_command, "/gimbal/yaw")
+            , supercap_(steering_infantry, steering_infantry_command)
             , gimbal_bullet_feeder_(
-                  climbable_infantry, climbable_infantry_command, "/gimbal/bullet_feeder")
+                  steering_infantry, steering_infantry_command, "/gimbal/bullet_feeder")
             , chassis_front_steering_motors_(
-                  {climbable_infantry, climbable_infantry_command, "/chassis/left_front_steering"},
-                  {climbable_infantry, climbable_infantry_command, "/chassis/right_front_steering"})
+                  {steering_infantry, steering_infantry_command, "/chassis/left_front_steering"},
+                  {steering_infantry, steering_infantry_command, "/chassis/right_front_steering"})
             , chassis_front_wheel_motors_(
-                  {climbable_infantry, climbable_infantry_command, "/chassis/left_front_wheel"},
-                  {climbable_infantry, climbable_infantry_command, "/chassis/right_front_wheel"})
+                  {steering_infantry, steering_infantry_command, "/chassis/left_front_wheel"},
+                  {steering_infantry, steering_infantry_command, "/chassis/right_front_wheel"})
             , chassis_back_steering_motors_(
-                  {climbable_infantry, climbable_infantry_command, "/chassis/left_back_steering"},
-                  {climbable_infantry, climbable_infantry_command, "/chassis/right_back_steering"})
+                  {steering_infantry, steering_infantry_command, "/chassis/left_back_steering"},
+                  {steering_infantry, steering_infantry_command, "/chassis/right_back_steering"})
             , chassis_back_wheel_motors_(
-                  {climbable_infantry, climbable_infantry_command, "/chassis/left_back_wheel"},
-                  {climbable_infantry, climbable_infantry_command, "/chassis/right_back_wheel"}) {
+                  {steering_infantry, steering_infantry_command, "/chassis/left_back_wheel"},
+                  {steering_infantry, steering_infantry_command, "/chassis/right_back_wheel"}) {
             gimbal_yaw_motor_.configure(
                 device::LkMotor::Config{device::LkMotor::Type::kMG4010Ei10}.set_encoder_zero_point(
                     static_cast<int>(
-                        climbable_infantry.get_parameter("yaw_motor_zero_point").as_int())));
+                        steering_infantry.get_parameter("yaw_motor_zero_point").as_int())));
             gimbal_bullet_feeder_.configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
                     .set_reversed()
@@ -277,25 +276,25 @@ private:
                 device::DjiMotor::Config{device::DjiMotor::Type::kGM6020}
                     .set_encoder_zero_point(
                         static_cast<int>(
-                            climbable_infantry.get_parameter("left_front_zero_point").as_int()))
+                            steering_infantry.get_parameter("left_front_zero_point").as_int()))
                     .set_reversed());
             chassis_front_steering_motors_[1].configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kGM6020}
                     .set_encoder_zero_point(
                         static_cast<int>(
-                            climbable_infantry.get_parameter("right_front_zero_point").as_int()))
+                            steering_infantry.get_parameter("right_front_zero_point").as_int()))
                     .set_reversed());
             chassis_back_steering_motors_[0].configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kGM6020}
                     .set_encoder_zero_point(
                         static_cast<int>(
-                            climbable_infantry.get_parameter("left_back_zero_point").as_int()))
+                            steering_infantry.get_parameter("left_back_zero_point").as_int()))
                     .set_reversed());
             chassis_back_steering_motors_[1].configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kGM6020}
                     .set_encoder_zero_point(
                         static_cast<int>(
-                            climbable_infantry.get_parameter("right_back_zero_point").as_int()))
+                            steering_infantry.get_parameter("right_back_zero_point").as_int()))
                     .set_reversed());
 
             chassis_front_wheel_motors_[0].configure(
@@ -315,7 +314,7 @@ private:
                     .set_reversed()
                     .set_reduction_ratio(2232. / 169.));
 
-            climbable_infantry.register_output("/referee/serial", referee_serial_);
+            steering_infantry.register_output("/referee/serial", referee_serial_);
             referee_serial_->read = [this](std::byte* buffer, size_t size) {
                 return referee_ring_buffer_receive_.pop_front_n(
                     [&buffer](std::byte byte) noexcept { *buffer++ = byte; }, size);
@@ -326,7 +325,7 @@ private:
                 return size;
             };
 
-            climbable_infantry.register_output(
+            steering_infantry.register_output(
                 "/chassis/yaw/velocity_imu", chassis_yaw_velocity_imu_, 0);
         }
 
