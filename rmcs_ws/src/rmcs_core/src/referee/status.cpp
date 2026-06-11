@@ -1,7 +1,9 @@
 #include <cstdint>
 #include <eigen3/Eigen/Eigen>
+#include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/dart_selected_target.hpp>
 #include <rmcs_msgs/dart_station_status.hpp>
 #include <rmcs_msgs/game_stage.hpp>
 #include <rmcs_msgs/robot_id.hpp>
@@ -28,7 +30,7 @@ public:
         register_input("/referee/serial", serial_);
 
         register_output("/referee/game/stage", game_stage_, rmcs_msgs::GameStage::UNKNOWN);
-        register_output("/referee/geme/stage_remain_time", gamestage_remain_time_, 0);
+        register_output("/referee/game/stage_remain_time", gamestage_remain_time_, 0);
 
         register_output("/referee/id", robot_id_, rmcs_msgs::RobotId::UNKNOWN);
         register_output("/referee/shooter/cooling", robot_shooter_cooling_, 0);
@@ -38,7 +40,6 @@ public:
         register_output("/referee/chassis/buffer_energy", robot_buffer_energy_, 60.0);
         register_output("/referee/chassis/output_status", chassis_output_status_, false);
 
-        register_output("/referee/robots/hp", robots_hp_);
         register_output("/referee/shooter/bullet_allowance", robot_bullet_allowance_, false);
         register_output(
             "/referee/shooter/42mm_bullet_allowance", robot_42mm_bullet_allowance_, false);
@@ -47,6 +48,9 @@ public:
         register_output("/referee/shooter/shoot_timestamp", robot_shoot_timestamp_, false);
 
         register_output("/referee/dart/launch_remain_time", dart_remaining_time_, 0);
+        register_output(
+            "/referee/dart/selected_target", dart_selected_target_,
+            rmcs_msgs::DartSelectedTarget::UNKNOWN);
         register_output(
             "/referee/dart/opening_status", dart_launch_opening_status_,
             rmcs_msgs::DartStationOpeningStatus::UNKNOWN);
@@ -107,8 +111,6 @@ private:
         auto command_id = frame_.body.command_id;
         if (command_id == 0x0001)
             update_game_status();
-        if (command_id == 0x0003)
-            update_game_robot_hp();
         else if (command_id == 0x0201)
             update_robot_status();
         else if (command_id == 0x0202)
@@ -121,21 +123,38 @@ private:
             update_shoot_data();
         else if (command_id == 0x0208)
             update_bullet_allowance();
+        else if (command_id == 0x0105)
+            update_dart_launch_status();
+        else if (command_id == 0x020A)
+            update_dart_station_status();
         else if (command_id == 0x020B)
             update_game_robot_position();
     }
 
+    template <typename T>
+    bool has_payload_size(const char* name) const {
+        if (frame_.header.data_length < sizeof(T)) {
+            RCLCPP_WARN(
+                logger_, "Referee frame '%s' payload too short: %u < %zu", name,
+                frame_.header.data_length, sizeof(T));
+            return false;
+        }
+        return true;
+    }
+
     void update_game_status() {
+        if (!has_payload_size<GameStatus>("game_status"))
+            return;
+
         auto& data = reinterpret_cast<GameStatus&>(frame_.body.data);
 
         *game_stage_ = static_cast<rmcs_msgs::GameStage>(data.game_stage);
+        *gamestage_remain_time_ = data.stage_remain_time;
         if (*game_stage_ == rmcs_msgs::GameStage::STARTED)
             game_status_watchdog_.reset(30'000);
         else
             game_status_watchdog_.reset(5'000);
     }
-
-    void update_game_robot_hp() {}
 
     void update_robot_status() {
         if (*game_stage_ == rmcs_msgs::GameStage::STARTED)
@@ -183,12 +202,37 @@ private:
         *robot_42mm_bullet_allowance_ = data.bullet_allowance_42mm;
     }
 
-    void update_game_robot_position() {
-        auto& data = reinterpret_cast<DartLaunchStatus&>(frame_.body.data);
-        *dart_remaining_time_ = data.dart_remaining_time;
-    }
+    void update_game_robot_position() {}
 
     void update_dart_launch_status() {
+        if (!has_payload_size<DartLaunchStatus>("dart_launch_status"))
+            return;
+
+        auto& data = reinterpret_cast<DartLaunchStatus&>(frame_.body.data);
+        *dart_remaining_time_ = data.dart_remaining_time;
+        *dart_selected_target_ = parse_dart_selected_target(data.dart_info);
+    }
+
+    rmcs_msgs::DartSelectedTarget parse_dart_selected_target(uint8_t dart_info) {
+        const uint8_t target_mode = (dart_info >> 6) & 0x03U;
+        const auto target = target_mode == 0 ? rmcs_msgs::DartSelectedTarget::OUTPOST
+                                             : rmcs_msgs::DartSelectedTarget::BASE;
+
+        char dart_info_bits[] = "0b00000000";
+        for (int bit = 7; bit >= 0; --bit) {
+            dart_info_bits[9 - bit] = ((dart_info >> bit) & 0x01U) != 0U ? '1' : '0';
+        }
+
+        const char* target_name =
+            target == rmcs_msgs::DartSelectedTarget::OUTPOST ? "outpost" : "base";
+        RCLCPP_INFO(get_logger(), "dart_info=%s selected_target=%s", dart_info_bits, target_name);
+        return target;
+    }
+
+    void update_dart_station_status() {
+        if (!has_payload_size<DartStationStatus>("dart_station_status"))
+            return;
+
         auto& data = reinterpret_cast<DartStationStatus&>(frame_.body.data);
         switch (data.dart_launch_opening_status) {
         case 0: *dart_launch_opening_status_ = rmcs_msgs::DartStationOpeningStatus::OPENED; return;
@@ -196,9 +240,9 @@ private:
         case 2: *dart_launch_opening_status_ = rmcs_msgs::DartStationOpeningStatus::RUNNING; return;
         case 3: *dart_launch_opening_status_ = rmcs_msgs::DartStationOpeningStatus::UNKNOWN; return;
         }
-    }
 
-    void update_dart_station_status() {}
+        *dart_launch_opening_status_ = rmcs_msgs::DartStationOpeningStatus::UNKNOWN;
+    }
 
     // When referee system loses connection unexpectedly,
     // use these indicators make sure the robot safe.
@@ -228,7 +272,6 @@ private:
     OutputInterface<double> robot_chassis_power_;
     OutputInterface<double> robot_buffer_energy_;
 
-    OutputInterface<GameRobotHp> robots_hp_;
     OutputInterface<uint16_t> robot_bullet_allowance_;
     OutputInterface<uint16_t> robot_42mm_bullet_allowance_;
 
@@ -236,6 +279,7 @@ private:
     OutputInterface<double> robot_shoot_timestamp_;
 
     OutputInterface<uint8_t> dart_remaining_time_;
+    OutputInterface<rmcs_msgs::DartSelectedTarget> dart_selected_target_;
     OutputInterface<rmcs_msgs::DartStationOpeningStatus> dart_launch_opening_status_;
 };
 

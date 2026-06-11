@@ -11,25 +11,6 @@ struct __attribute__((packed)) GameStatus {
     uint64_t sync_timestamp;
 };
 
-struct __attribute__((packed)) GameRobotHp {
-    uint16_t red_1;
-    uint16_t red_2;
-    uint16_t red_3;
-    uint16_t red_4;
-    uint16_t red_5;
-    uint16_t red_7;
-    uint16_t red_outpost;
-    uint16_t red_base;
-    uint16_t blue_1;
-    uint16_t blue_2;
-    uint16_t blue_3;
-    uint16_t blue_4;
-    uint16_t blue_5;
-    uint16_t blue_7;
-    uint16_t blue_outpost;
-    uint16_t blue_base;
-};
-
 struct __attribute__((packed)) RobotStatus {
     uint8_t robot_id;
     uint8_t robot_level;

@@ -18,6 +18,7 @@
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/serial_interface.hpp>
+#include <rmcs_utility/ring_buffer.hpp>
 #include <std_msgs/msg/int32.hpp>
 
 #include "filter/low_pass_filter.hpp"
@@ -109,19 +110,13 @@ public:
             });
 
         register_output("/referee/serial", referee_serial_);
-        referee_serial_->read = [this](std::byte* buffer, size_t size) -> size_t {
-            std::lock_guard lock(referee_mutex_);
-            size_t count = 0;
-            while (count < size && !referee_ring_buffer_receive_.empty()) {
-                buffer[count++] = referee_ring_buffer_receive_.front();
-                referee_ring_buffer_receive_.pop_front();
-            }
-            return count;
+        referee_serial_->read = [this](std::byte* buffer, size_t size) {
+            return referee_ring_buffer_receive_.pop_front_n(
+                [&buffer](std::byte byte) noexcept { *buffer++ = byte; }, size);
         };
-        referee_serial_->write = [this](const std::byte* buffer, size_t size) -> size_t {
-            auto board = start_transmit();
-            board.uart1_transmit({
-                .uart_data = std::span{buffer, size}
+        referee_serial_->write = [this](const std::byte* buffer, size_t size) {
+            start_transmit().uart0_transmit({
+                .uart_data = std::span<const std::byte>{buffer, size}
             });
             return size;
         };
@@ -265,11 +260,13 @@ protected:
         }
     }
 
-    void uart1_receive_callback(const librmcs::data::UartDataView& data) override {
-        std::lock_guard lock(referee_mutex_);
-        for (auto byte : data.uart_data) {
-            referee_ring_buffer_receive_.push_back(byte);
-        }
+    void uart0_receive_callback(const librmcs::data::UartDataView& data) override {
+        const auto* uart_data = data.uart_data.data();
+        referee_ring_buffer_receive_.emplace_back_n(
+            [&uart_data](std::byte* storage) noexcept { *storage = *uart_data++; },
+            data.uart_data.size());
+
+        // RCLCPP_INFO(logger_, "..");
     }
 
     void uart2_receive_callback(const librmcs::data::UartDataView& data) override {
@@ -444,8 +441,7 @@ private:
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr limiting_calibrate_subscription_;
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr force_sensor_calibrate_subscription_;
 
-    std::mutex referee_mutex_;
-    std::deque<std::byte> referee_ring_buffer_receive_;
+    rmcs_utility::RingBuffer<std::byte> referee_ring_buffer_receive_{256};
     OutputInterface<rmcs_msgs::SerialInterface> referee_serial_;
 
     int pub_time_count_ = 0;
