@@ -47,9 +47,13 @@ public:
         using namespace rmcs_msgs;
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
+            suspension_on_by_switch_ = false;
+            last_switch_right_ = switch_right;
             reset_all_controls();
             return;
         }
+
+        update_ctrl_hold_request_state(switch_left, switch_right);
 
         if (ctrl_hold_requested()) {
             update_ctrl_hold_control();
@@ -130,7 +134,6 @@ private:
             component.register_input("/remote/mouse/velocity", mouse_velocity);
             component.register_input("/remote/mouse", mouse);
             component.register_input("/predefined/update_rate", update_rate, false);
-            component.register_input("/chassis/ctrl_hold_active", ctrl_hold_active, false);
 
             component.register_input("/tf", tf);
             component.register_input("/gimbal/yaw/angle", yaw_angle);
@@ -156,7 +159,6 @@ private:
         InputInterface<Eigen::Vector2d> mouse_velocity;
         InputInterface<rmcs_msgs::Mouse> mouse;
         InputInterface<double> update_rate;
-        InputInterface<bool> ctrl_hold_active;
 
         InputInterface<Tf> tf;
         InputInterface<double> yaw_angle;
@@ -199,7 +201,16 @@ private:
     } output_{*this};
 
     auto ctrl_hold_requested() const -> bool {
-        return input_.ctrl_hold_active.ready() && *input_.ctrl_hold_active;
+        return (input_.keyboard.ready() && input_.keyboard->ctrl) || suspension_on_by_switch_;
+    }
+
+    auto update_ctrl_hold_request_state(
+        rmcs_msgs::Switch switch_left, rmcs_msgs::Switch switch_right) -> void {
+        if (switch_left == rmcs_msgs::Switch::DOWN && switch_right == rmcs_msgs::Switch::UP
+            && last_switch_right_ == rmcs_msgs::Switch::MIDDLE) {
+            suspension_on_by_switch_ = !suspension_on_by_switch_;
+        }
+        last_switch_right_ = switch_right;
     }
 
     auto update_dt() const -> double {
@@ -323,7 +334,9 @@ private:
     double pitch_acc_ff_gain_ = 0.0;
     double ctrl_hold_pitch_target_angle_ = 0.0;
     double ctrl_hold_chassis_yaw_velocity_max_ = 30.0;
+    bool suspension_on_by_switch_ = false;
     bool ctrl_hold_active_ = false;
+    rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
     double locked_yaw_angle_ = kNaN;
 };
 

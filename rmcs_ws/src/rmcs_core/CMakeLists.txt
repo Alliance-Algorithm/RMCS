@@ -23,27 +23,6 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(librmcs)
 
-configure_file(
-  ${PROJECT_SOURCE_DIR}/third_party_overrides/librmcs/host/include/librmcs/protocol/handler.hpp
-  ${librmcs_SOURCE_DIR}/host/include/librmcs/protocol/handler.hpp
-  COPYONLY
-)
-configure_file(
-  ${PROJECT_SOURCE_DIR}/third_party_overrides/librmcs/host/src/protocol/handler.cpp
-  ${librmcs_SOURCE_DIR}/host/src/protocol/handler.cpp
-  COPYONLY
-)
-configure_file(
-  ${PROJECT_SOURCE_DIR}/third_party_overrides/librmcs/host/src/transport/transport.hpp
-  ${librmcs_SOURCE_DIR}/host/src/transport/transport.hpp
-  COPYONLY
-)
-configure_file(
-  ${PROJECT_SOURCE_DIR}/third_party_overrides/librmcs/host/src/transport/usb/usb.cpp
-  ${librmcs_SOURCE_DIR}/host/src/transport/usb/usb.cpp
-  COPYONLY
-)
-
 file(GLOB_RECURSE PROJECT_SOURCE CONFIGURE_DEPENDS
   ${PROJECT_SOURCE_DIR}/src/*.cpp
   ${PROJECT_SOURCE_DIR}/src/*.c
