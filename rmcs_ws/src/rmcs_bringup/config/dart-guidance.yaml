@@ -69,7 +69,6 @@ dart_manager:
     carriage_down_velocity: 20.0
     carriage_up_velocity: 20.0
     carriage_lift_down_limit: -7500000.0
-    carriage_startup_position_angle: -13713744.0
     carriage_adjust_down_angle: 778240.0
     carriage_adjust_up_angle: 778240.0
     manual_max_velocity: 10.0
