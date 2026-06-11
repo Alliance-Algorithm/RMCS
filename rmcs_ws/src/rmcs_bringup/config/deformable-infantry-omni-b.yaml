@@ -35,8 +35,9 @@ rmcs_executor:
 value_broadcaster:
   ros__parameters:
     forward_list:
-      - /gimbal/pitch/angle
-      - /gimbal/pitch/control_torque
+      - /shoot/heat
+      - /shoot/referee_heat
+      - /shoot/heat_limit
 
 
 deformable_infantry:
@@ -132,8 +133,8 @@ friction_wheel_controller:
 
 heat_controller:
   ros__parameters:
-    heat_per_shot: 10000
-    reserved_heat: 15000
+    heat_per_shot: 10
+    reserved_heat: 15
 
 bullet_feeder_controller:
   ros__parameters:

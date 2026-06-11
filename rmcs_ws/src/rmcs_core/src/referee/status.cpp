@@ -47,6 +47,7 @@ public:
         register_output("/referee/id", robot_id_, rmcs_msgs::RobotId::UNKNOWN);
         register_output("/referee/shooter/cooling", robot_shooter_cooling_, 0);
         register_output("/referee/shooter/heat_limit", robot_shooter_heat_limit_, 0);
+        register_output("/referee/shooter/heat", robot_shooter_heat_, 0);
         register_output("/referee/chassis/power_limit", robot_chassis_power_limit_, 0.0);
         register_output("/referee/chassis/power", robot_chassis_power_, 0.0);
         register_output("/referee/chassis/buffer_energy", robot_buffer_energy_, 60.0);
@@ -251,6 +252,7 @@ private:
 
         auto& data = reinterpret_cast<PowerHeatData&>(frame_.body.data);
         *robot_buffer_energy_ = static_cast<double>(data.buffer_energy);
+        *robot_shooter_heat_ = static_cast<int64_t>(data.shooter_17mm_barrel_heat);
     }
 
     void update_robot_position() {
@@ -372,6 +374,7 @@ private:
     OutputInterface<double> map_command_target_position_y_;
     OutputInterface<uint8_t> map_command_keyboard_;
     OutputInterface<uint8_t> map_command_target_robot_id_;
+    OutputInterface<int64_t> robot_shooter_heat_;
     OutputInterface<uint16_t> map_command_source_;
     OutputInterface<double> map_command_received_timestamp_;
     OutputInterface<double> map_command_event_target_position_x_;
