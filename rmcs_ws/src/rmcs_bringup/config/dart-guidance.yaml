@@ -17,6 +17,11 @@ rmcs_executor:
       - rmcs_core::controller::dart::DartBeltController -> dart_belt_controller
       - rmcs_core::controller::dart::DartFilling -> dart_filling
       - rmcs_core::controller::dart::DartSettingController -> dart_setting
+      - rmcs_core::controller::dart::DartChassisLeveling -> dart_chassis_leveling
+      - rmcs_core::controller::pid::PidController    -> leveling_front_left_angle_pid_controller
+      - rmcs_core::controller::pid::PidController    -> leveling_front_right_angle_pid_controller
+      - rmcs_core::controller::pid::PidController    -> leveling_rear_left_angle_pid_controller
+      - rmcs_core::controller::pid::PidController    -> leveling_rear_right_angle_pid_controller
       - rmcs_core::controller::pid::PidController    -> yaw_velocity_pid_controller
       - rmcs_core::controller::pid::PidController    -> pitch_velocity_pid_controller
       - rmcs_core::controller::pid::PidController    -> force_screw_velocity_pid_controller
@@ -57,7 +62,7 @@ dart_manager:
     force_calibrate.shot_profile.4.basement_travel_angle: 7431644.0 
     belt_down_velocity: 10.0
     belt_down_travel_angle: 10.0
-    belt_up_velocity: 20.0
+    belt_up_velocity: 24.0
     belt_up_travel_angle: 10.0
     belt_interference_relief_travel_angle: 17.0
     belt_init_velocity: 3.0
@@ -165,14 +170,14 @@ dart_belt_controller:
     b_ki: 0.0
     b_kd: 0.0
     belt_velocity: 10.0
-    belt_acceleration: 20.0  # 上游目标速度变化时的对称梯形加/减速度限制
+    belt_acceleration: 50.0  # 上游目标速度变化时的对称梯形加/减速度限制
     sync_coefficient: 0.1
     max_control_torque: 20.0
     belt_hold_torque: 3.0
 
 dart_filling:
   ros__parameters:
-    lifting_velocity: 3.0
+    lifting_velocity: 4.0
     limiting_free_angle: 0x0CFF
     limiting_lock_angle: 0x0B53
 
@@ -199,6 +204,73 @@ dart_setting:
     yaw_max_velocity: 10.0
     pitch_max_velocity: 10.0
     force_max_velocity: 1000.0
+
+# Outer loop: IMU pitch/roll angle -> per-cycle leveling-feet angle increment.
+dart_chassis_leveling:
+  ros__parameters:
+    pitch_angle_kp: 10.0
+    pitch_angle_ki: 0.0
+    pitch_angle_kd: 0.0
+    pitch_angle_integral_min: -500.0
+    pitch_angle_integral_max: 500.0
+    pitch_angle_integral_split_min: -10.0
+    pitch_angle_integral_split_max: 10.0
+    pitch_angle_output_min: -100.0
+    pitch_angle_output_max: 100.0
+    roll_angle_kp: 10.0
+    roll_angle_ki: 0.0
+    roll_angle_kd: 0.0
+    roll_angle_integral_min: -500.0
+    roll_angle_integral_max: 500.0
+    roll_angle_integral_split_min: -10.0
+    roll_angle_integral_split_max: 10.0
+    roll_angle_output_min: -100.0
+    roll_angle_output_max: 100.0
+
+# Inner loop: leveling-feet encoder_angle -> control_torque.
+leveling_front_left_angle_pid_controller:
+  ros__parameters:
+    measurement: /dart/leveling_feet/front_left/encoder_angle
+    setpoint:    /dart/leveling_feet/front_left/control_angle
+    control:     /dart/leveling_feet/front_left/control_torque
+    kp: 0.005
+    ki: 0.0
+    kd: 0.0
+    output_min: -1.0
+    output_max: 1.0
+
+leveling_front_right_angle_pid_controller:
+  ros__parameters:
+    measurement: /dart/leveling_feet/front_right/encoder_angle
+    setpoint:    /dart/leveling_feet/front_right/control_angle
+    control:     /dart/leveling_feet/front_right/control_torque
+    kp: 0.005
+    ki: 0.0
+    kd: 0.0
+    output_min: -1.0
+    output_max: 1.0
+
+leveling_rear_left_angle_pid_controller:
+  ros__parameters:
+    measurement: /dart/leveling_feet/rear_left/encoder_angle
+    setpoint:    /dart/leveling_feet/rear_left/control_angle
+    control:     /dart/leveling_feet/rear_left/control_torque
+    kp: 0.005
+    ki: 0.0
+    kd: 0.0
+    output_min: -1.0
+    output_max: 1.0
+
+leveling_rear_right_angle_pid_controller:
+  ros__parameters:
+    measurement: /dart/leveling_feet/rear_right/encoder_angle
+    setpoint:    /dart/leveling_feet/rear_right/control_angle
+    control:     /dart/leveling_feet/rear_right/control_torque
+    kp: 0.005
+    ki: 0.0
+    kd: 0.0
+    output_min: -1.0
+    output_max: 1.0
 
 yaw_velocity_pid_controller:
   ros__parameters:

@@ -162,8 +162,8 @@ public:
         }
         last_raw_angle_ = raw_angle;
         *encoder_angle_output_ = multi_turn_angle_enabled_
-                                     ? static_cast<double>(angle_multi_turn_)
-                                     : static_cast<double>(calibrated_raw_angle);
+                                   ? static_cast<double>(angle_multi_turn_)
+                                   : static_cast<double>(calibrated_raw_angle);
 
         // Velocity unit: rad/s
         velocity_ = raw_velocity_to_velocity_coefficient_ * static_cast<double>(feedback.velocity);

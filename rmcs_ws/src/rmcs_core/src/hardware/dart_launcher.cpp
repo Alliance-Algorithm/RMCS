@@ -59,6 +59,10 @@ public:
         , force_screw_motor_{*this, *dart_command_, "/dart/force_screw_motor"}
         , drive_belt_motor_left_{*this, *dart_command_, "/dart/drive_belt/left"}
         , drive_belt_motor_right_{*this, *dart_command_, "/dart/drive_belt/right"}
+        , leveling_feet_motor_front_left_{*this, *dart_command_, "/dart/leveling_feet/front_left"}
+        , leveling_feet_motor_front_right_{*this, *dart_command_, "/dart/leveling_feet/front_right"}
+        , leveling_feet_motor_rear_left_{*this, *dart_command_, "/dart/leveling_feet/rear_left"}
+        , leveling_feet_motor_rear_right_{*this, *dart_command_, "/dart/leveling_feet/rear_right"}
         , force_sensor_{*this}
         , trigger_servo_{"/dart/trigger_servo", *dart_command_, 20.0, 0.5, 2.5}
         , limiting_servo_{*dart_command_, "/dart/limiting_servo", 0x02}
@@ -85,6 +89,22 @@ public:
             device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
                 .set_reversed()
                 .set_reduction_ratio(19.)
+                .enable_multi_turn_angle());
+        leveling_feet_motor_front_left_.configure(
+            device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
+                .set_reduction_ratio(1.)
+                .enable_multi_turn_angle());
+        leveling_feet_motor_front_right_.configure(
+            device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
+                .set_reduction_ratio(1.)
+                .enable_multi_turn_angle());
+        leveling_feet_motor_rear_left_.configure(
+            device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
+                .set_reduction_ratio(1.)
+                .enable_multi_turn_angle());
+        leveling_feet_motor_rear_right_.configure(
+            device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
+                .set_reduction_ratio(1.)
                 .enable_multi_turn_angle());
 
         lifting_left_motor_.configure(
@@ -138,6 +158,10 @@ public:
         force_sensor_.update_status();
         lifting_left_motor_.update_status();
         lifting_right_motor_.update_status();
+        leveling_feet_motor_front_left_.update_status();
+        leveling_feet_motor_front_right_.update_status();
+        leveling_feet_motor_rear_left_.update_status();
+        leveling_feet_motor_rear_right_.update_status();
         imu_.update_status();
         processImuData();
 
@@ -161,6 +185,17 @@ public:
             librmcs::spec::rmcs_board_pro::kGpioDescriptors[1],
             librmcs::data::GpioAnalogDataView{.value = trigger_servo_.generate_duty_cycle()});
 
+        board.can0_transmit({
+            .can_id = 0x200,
+            .can_data =
+                device::CanPacket8{
+                                   leveling_feet_motor_front_left_.generate_command(),
+                                   leveling_feet_motor_front_right_.generate_command(),
+                                   leveling_feet_motor_rear_left_.generate_command(),
+                                   leveling_feet_motor_rear_right_.generate_command(),
+                                   }
+                    .as_bytes(),
+        });
         // Force sensor: polling command on CAN1 (every 100 cycles)
         if (pub_time_count_++ > 100) {
             board.can1_transmit({
@@ -220,6 +255,21 @@ public:
     }
 
 protected:
+    void can0_receive_callback(const librmcs::data::CanDataView& data) override {
+        if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
+            return;
+
+        const auto can_id = data.can_id;
+        if (can_id == 0x207) {
+            leveling_feet_motor_front_left_.store_status(data.can_data);
+        } else if (can_id == 0x208) {
+            leveling_feet_motor_front_right_.store_status(data.can_data);
+        } else if (can_id == 0x209) {
+            leveling_feet_motor_rear_left_.store_status(data.can_data);
+        } else if (can_id == 0x210) {
+            leveling_feet_motor_rear_right_.store_status(data.can_data);
+        }
+    }
     void can1_receive_callback(const librmcs::data::CanDataView& data) override {
         if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
             return;
@@ -421,6 +471,10 @@ private:
     device::DjiMotor force_screw_motor_;
     device::DjiMotor drive_belt_motor_left_;
     device::DjiMotor drive_belt_motor_right_;
+    device::DjiMotor leveling_feet_motor_front_left_;
+    device::DjiMotor leveling_feet_motor_front_right_;
+    device::DjiMotor leveling_feet_motor_rear_left_;
+    device::DjiMotor leveling_feet_motor_rear_right_;
 
     device::ForceSensor force_sensor_;
 
