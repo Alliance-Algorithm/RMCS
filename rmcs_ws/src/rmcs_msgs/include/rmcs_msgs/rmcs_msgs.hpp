@@ -9,14 +9,21 @@
 # endif
 #endif
 
-#include "chassis_mode.hpp"
-#include "full_robot_id.hpp"
-#include "game_stage.hpp"
-#include "gimbal_mode.hpp"
-#include "robot_color.hpp"
-#include "robot_id.hpp"
-#include "shoot_mode.hpp"
-#include "switch.hpp"
+#include "board_clock.hpp"      // IWYU pragma: export
+#include "camera_frame_raw.hpp" // IWYU pragma: export
+#include "chassis_mode.hpp"     // IWYU pragma: export
+#include "full_robot_id.hpp"    // IWYU pragma: export
+#include "game_stage.hpp"       // IWYU pragma: export
+#include "gimbal_mode.hpp"      // IWYU pragma: export
+#include "imu_snapshot.hpp"     // IWYU pragma: export
+#include "keyboard.hpp"         // IWYU pragma: export
+#include "mouse.hpp"            // IWYU pragma: export
+#include "robot_color.hpp"      // IWYU pragma: export
+#include "robot_id.hpp"         // IWYU pragma: export
+#include "serial_interface.hpp" // IWYU pragma: export
+#include "shoot_mode.hpp"       // IWYU pragma: export
+#include "shoot_status.hpp"     // IWYU pragma: export
+#include "switch.hpp"           // IWYU pragma: export
 
 namespace rmcs_msgs {
 

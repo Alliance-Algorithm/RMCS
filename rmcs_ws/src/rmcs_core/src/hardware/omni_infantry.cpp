@@ -2,12 +2,12 @@
 #include <cstring>
 #include <memory>
 #include <span>
-#include <tuple>
 #include <utility>
 
 #include <eigen3/Eigen/Dense>
-#include <librmcs/agent/c_board.hpp>
+#include <librmcs/agent/rmcs_board_lite.hpp>
 #include <librmcs/data/datas.hpp>
+#include <librmcs/spec/rmcs_board_lite/gpio.hpp>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
@@ -16,11 +16,13 @@
 #include <rclcpp/subscription.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/board_clock.hpp>
 #include <rmcs_msgs/serial_interface.hpp>
 #include <rmcs_utility/ring_buffer.hpp>
 #include <std_msgs/msg/int32.hpp>
 
-#include "hardware/device/bmi088.hpp"
+#include "hardware/device/bmi088_ekf.hpp"
+#include "hardware/device/board_clock_lifter.hpp"
 #include "hardware/device/can_packet.hpp"
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
@@ -32,13 +34,13 @@ namespace rmcs_core::hardware {
 class OmniInfantry
     : public rmcs_executor::Component
     , public rclcpp::Node
-    , private librmcs::agent::CBoard {
+    , private librmcs::agent::RmcsBoardLite {
 public:
     OmniInfantry()
         : Node{
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
-        , librmcs::agent::CBoard{get_parameter("board_serial").as_string()}
+        , librmcs::agent::RmcsBoardLite{get_parameter("board_serial").as_string()}
         , logger_(get_logger())
         , infantry_command_(
               create_partner_component<InfantryCommand>(get_component_name() + "_command", *this))
@@ -53,8 +55,7 @@ public:
         , gimbal_left_friction_(*this, *infantry_command_, "/gimbal/left_friction")
         , gimbal_right_friction_(*this, *infantry_command_, "/gimbal/right_friction")
         , gimbal_bullet_feeder_(*this, *infantry_command_, "/gimbal/bullet_feeder")
-        , dr16_{*this}
-        , bmi088_(1000, 0.2, 0.0) {
+        , dr16_{*this} {
 
         for (auto& motor : chassis_wheel_motors_)
             motor.configure(
@@ -85,19 +86,20 @@ public:
 
         register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
         register_output("/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
+        register_output("/gimbal/auto_aim/exposure_signal", camera_signal_output_);
+        register_output("/gimbal/auto_aim/imu_snapshot", imu_snapshot_output_);
         register_output("/tf", tf_);
 
-        bmi088_.set_coordinate_mapping([](double x, double y, double z) {
-            // Get the mapping with the following code.
-            // The rotation angle must be an exact multiple of 90 degrees, otherwise use a matrix.
-
-            // Eigen::AngleAxisd pitch_link_to_imu_link{
-            //     std::numbers::pi / 2, Eigen::Vector3d::UnitZ()};
-            // Eigen::Vector3d mapping = pitch_link_to_imu_link * Eigen::Vector3d{1, 2, 3};
-            // std::cout << mapping << std::endl;
-
-            return std::make_tuple(y, -x, z);
-        });
+        start_transmit().gpio_digital_read(
+            librmcs::spec::rmcs_board_lite::kGpioDescriptors.kUart0Tx,
+            {
+                .period_ms = 0,
+                .asap = false,
+                .rising_edge = false,
+                .falling_edge = true,
+                .capture_timestamp = true,
+                .pull = librmcs::data::GpioPull::kUp,
+            });
 
         using namespace rmcs_description; // NOLINT(google-build-using-namespace)
         tf_->set_transform<PitchLink, CameraLink>(Eigen::Translation3d{0.06603, 0.0, 0.082});
@@ -217,14 +219,15 @@ private:
     }
 
     void update_imu() {
-        bmi088_.update_status();
-        Eigen::Quaterniond const gimbal_imu_pose{
-            bmi088_.q0(), bmi088_.q1(), bmi088_.q2(), bmi088_.q3()};
-        tf_->set_transform<rmcs_description::PitchLink, rmcs_description::OdomImu>(
-            gimbal_imu_pose.conjugate());
+        const auto snapshot = bmi088_.snapshot();
+        if (!snapshot)
+            return;
 
-        *gimbal_yaw_velocity_imu_ = bmi088_.gz();
-        *gimbal_pitch_velocity_imu_ = bmi088_.gy();
+        tf_->set_transform<rmcs_description::PitchLink, rmcs_description::OdomImu>(
+            snapshot->orientation.conjugate());
+
+        *gimbal_yaw_velocity_imu_ = snapshot->gyro_body.z();
+        *gimbal_pitch_velocity_imu_ = snapshot->gyro_body.y();
     }
 
     void gimbal_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
@@ -276,6 +279,21 @@ private:
         }
     }
 
+    void gpio_digital_read_result_callback(
+        const librmcs::spec::rmcs_board_lite::GpioDescriptor& gpio,
+        const librmcs::data::GpioDigitalDataView& data) override {
+        if (gpio != librmcs::spec::rmcs_board_lite::kGpioDescriptors.kUart0Tx)
+            return;
+        if (!data.timestamp_quarter_us)
+            return;
+
+        const auto timestamp = board_clock_lifter_.lift_timestamp(*data.timestamp_quarter_us);
+        if (!timestamp.has_value())
+            return;
+
+        camera_signal_output_.emit(*timestamp);
+    }
+
     void uart1_receive_callback(const librmcs::data::UartDataView& data) override {
         const auto* uart_data = data.uart_data.data();
         referee_ring_buffer_receive_.emplace_back_n(
@@ -288,11 +306,21 @@ private:
     }
 
     void accelerometer_receive_callback(const librmcs::data::AccelerometerDataView& data) override {
-        bmi088_.store_accelerometer_status(data.x, data.y, data.z);
+        const auto timestamp = board_clock_lifter_.advance_timebase(data.timestamp_quarter_us);
+        bmi088_.push_accelerometer_sample(data.x, data.y, data.z, timestamp);
     }
 
     void gyroscope_receive_callback(const librmcs::data::GyroscopeDataView& data) override {
-        bmi088_.store_gyroscope_status(data.x, data.y, data.z);
+        const auto timestamp = board_clock_lifter_.lift_timestamp(data.timestamp_quarter_us);
+        if (!timestamp.has_value())
+            return;
+
+        auto snapshot =
+            bmi088_.try_update_with_gyroscope_sample(data.x, data.y, data.z, *timestamp);
+        if (!snapshot)
+            return;
+
+        imu_snapshot_output_.emit(*snapshot);
     }
 
 private:
@@ -323,10 +351,13 @@ private:
     device::DjiMotor gimbal_bullet_feeder_;
 
     device::Dr16 dr16_;
-    device::Bmi088 bmi088_;
+    device::Bmi088Ekf bmi088_;
+    device::BoardClockLifter board_clock_lifter_;
 
     OutputInterface<double> gimbal_yaw_velocity_imu_;
     OutputInterface<double> gimbal_pitch_velocity_imu_;
+    EventOutputInterface<rmcs_msgs::BoardClock::time_point> camera_signal_output_;
+    EventOutputInterface<rmcs_msgs::ImuSnapshot> imu_snapshot_output_;
 
     OutputInterface<rmcs_description::Tf> tf_;
 
