@@ -61,7 +61,7 @@ int main(int argc, char** argv) {
             plugin_name = component_name = component_description;
         }
 
-        rmcs_executor::Component::initializing_component_name = component_name.c_str();
+        rmcs_executor::Component::initializing_component_name = component_name;
         auto component = component_loader.createSharedInstance(plugin_name);
         executor->add_component(component);
     }
