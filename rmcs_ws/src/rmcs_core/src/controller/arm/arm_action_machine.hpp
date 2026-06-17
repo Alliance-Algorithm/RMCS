@@ -1,6 +1,5 @@
 #pragma once
 
-#include <array>
 #include <atomic>
 #include <chrono>
 #include <cstdint>
@@ -19,7 +18,10 @@
 #include <rclcpp/executors/multi_threaded_executor.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
+#include <tf2/LinearMath/Quaternion.hpp>
 #include <tf2_eigen/tf2_eigen.hpp>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+#include <variant>
 
 #include <rmcs_msgs/gripper_mode.hpp>
 
@@ -27,14 +29,34 @@ namespace rmcs_core::controller::arm {
 
 enum class MotionType { Pose, Linear, Joint, OpenGripper, CloseGripper };
 enum class GripperState { None, Open, Close };
-
-struct Step {
-    MotionType motion_type;
-    std::array<double, 6> target{}; // Pose/Joint: absolute xyzrpy or joint angles
-                                    // Linear: target[0..2]=local dir, target[3]=distance
-    std::array<double, 4> params{}; // vel, acc, tole_p, tole_rpy
+struct PoseTarget {
+    double x, y, z, roll, pitch, yaw;
 };
+struct JointTarget {
+    double joint_1, joint_2, joint_3, joint_4, joint_5, joint_6;
+};
+struct LinearTarget {
+    double dir_x, dir_y, dir_z, distance;
+};
+// 需要时还可以扩展，如 GripperTarget 为空
+struct NoTarget {};
+using Target = std::variant<NoTarget,PoseTarget, JointTarget, LinearTarget>;
 
+// ---------- 参数 ----------
+struct MotionParams {
+    double vel, acc, tolerance_pos, tolerance_ori;
+};
+struct Step {
+    // 规划器配置
+    MotionType motion_type;
+    std::string pipeline_id = "ompl";
+    std::string planner_id;
+    // 目标数据
+    Target target;
+
+    // 动态参数
+    MotionParams params;
+};
 using action_chunk  = std::vector<Step>;
 using ParameterDict = std::unordered_map<std::string, action_chunk>;
 
@@ -59,31 +81,37 @@ inline ParameterDict parameter_dict{
     // Single-step actions / primitives
     // ========================================================================
 
-    { "gripper_open",
-     {Step{
-     MotionType::OpenGripper,
-     {},
-     {},
-     }}},
+    {"gripper_open",
+     {{Step{
+         .motion_type = MotionType::OpenGripper,
+         .pipeline_id = "",
+         .planner_id  = "",
+         .target      = NoTarget{},
+         .params      = {},
+     }}}},
     {"gripper_close",
-     {Step{
-     MotionType::CloseGripper,
-     {},
-     {},
-     }}},
+     {{Step{
+         .motion_type = MotionType::CloseGripper,
+         .pipeline_id = "",
+         .planner_id  = "",
+         .target      = NoTarget{},
+         .params      = {},
+     }}}},
 
-    {    "auto_walk",
-     {Step{
-     MotionType::Joint,
-     {0.0, 1.23, -1.36, 0.0, 0.63, 0.0},
-     {0.03, 0.03, 0.0, 0.0},
-     }}},
+    {"auto_walk",
+     {{Step{
+         .motion_type = MotionType::Joint,
+         .pipeline_id = "ompl",
+         .planner_id  = "",
+         .target      = JointTarget{0.0, 1.23, -1.36, 0.0, 0.63, 0.0},
+         .params      = MotionParams{.vel = 0.03, .acc = 0.03, .tolerance_pos = 0.001, .tolerance_ori = 0.001},
+     }}}},
     {"up_one_stairs",
-     {Step{
-     MotionType::Joint,
-     {0.0, 0.25, -0.55, 0.0, 0.27, 0.0},
-     {0.03, 0.03, 0.0, 0.0},
-     }}},
+     {{Step{
+         .motion_type = MotionType::Joint,
+         .target      = JointTarget{0.0, 0.25, -0.55, 0.0, 0.27, 0.0},
+         .params      = MotionParams{.vel = 0.03, .acc = 0.03, .tolerance_pos = 0.0, .tolerance_ori = 0.0},
+     }}}},
 
     // ========================================================================
     // Multi-step tasks
@@ -91,183 +119,199 @@ inline ParameterDict parameter_dict{
 
     // ---- Up_Two_Stairs (3 steps) ----
     {"initial",
-     {Step{
-     MotionType::Joint,
-     {0.0, 0.25, -0.55, 0.0, 0.27, 0.0},
-     {0.03, 0.03, 0.0, 0.0},
-     }}},
+     {{Step{
+         .motion_type = MotionType::Joint,
+         .target      = JointTarget{0.0, 0.25, -0.55, 0.0, 0.27, 0.0},
+         .params      = MotionParams{.vel = 0.03, .acc = 0.03, .tolerance_pos = 0.0, .tolerance_ori = 0.0},
+     }}}},
     {"initial_again",
-     {Step{
-     MotionType::Joint,
-     {0.0, 1.23, -1.36, 0.0, 0.63, 0.0},
-     {0.06, 0.04, 0.0, 0.0},
-     }}},
-    {   "lift_again",
-     {Step{
-     MotionType::Joint,
-     {0.0, 1.0, -1.0, 0.0, 0.27, 0.0},
-     {0.03, 0.03, 0.0, 0.0},
-     }}},
+     {{Step{
+         .motion_type = MotionType::Joint,
+         .target      = JointTarget{0.0, 1.23, -1.36, 0.0, 0.63, 0.0},
+         .params      = MotionParams{.vel = 0.06, .acc = 0.04, .tolerance_pos = 0.0, .tolerance_ori = 0.0},
+     }}}},
+    {"lift_again",
+     {{Step{
+         .motion_type = MotionType::Joint,
+         .target      = JointTarget{0.0, 1.0, -1.0, 0.0, 0.27, 0.0},
+         .params      = MotionParams{.vel = 0.03, .acc = 0.03, .tolerance_pos = 0.0, .tolerance_ori = 0.0},
+     }}}},
 
     // ---- Storage_LB (7 steps: 3 pose + lin_forward + gripper_open + lin_up + pose) ----
-    {   "storage_lb",
-     {
-     Step{
-     MotionType::Pose,
-     {0.281561, -0.033675, 0.388642, 0.725640, -1.475059, -0.839970},
-     {0.03, 0.03, 0.2, 0.003},
-     },
-     Step{
-     MotionType::Pose,
-     {-0.138798, 0.338888, 0.355177, -0.714410, -1.365410, 2.684959},
-     {0.02, 0.02, 0.2, 0.003},
-     },
-     Step{
-     MotionType::Pose,
-     {-0.326852, 0.177367, 0.345939, -0.00001, -1.5708, 3.049787},
-     {0.02, 0.02, 0.2, 0.003},
-     },
-     Step{
-     MotionType::Linear,
-     {-1.0, 0.0, 0.0, 0.16, 0.0, 0.0}, // dir(-x) + distance
-     {0.03, 0.2, 0.2, 0.0},
-     },
-     Step{
-     MotionType::OpenGripper,
-     {},
-     {},
-     },
-     Step{
-     MotionType::Linear,
-     {0.0, 0.0, 1.0, 0.09, 0.0, 0.0},  // dir(+z) + distance
-     {0.05, 0.03, 0.2, 0.0},
-     },
-     Step{
-     MotionType::Pose,
-     {0.221731, 0.002842, 0.308955, -3.084697, -1.097439, 3.096949},
-     {0.06, 0.03, 0.2, 0.003},
-     },
-     } },
+    {"storage_lb",
+     {{
+         Step{
+             .motion_type = MotionType::Pose,
+             .target      = PoseTarget{0.281561, -0.033675, 0.388642, 0.725640, -1.475059, -0.839970},
+             .params      = MotionParams{.vel = 0.03, .acc = 0.03, .tolerance_pos = 0.2, .tolerance_ori = 0.003},
+         },
+         Step{
+             .motion_type = MotionType::Pose,
+             .target      = PoseTarget{-0.138798, 0.338888, 0.355177, -0.714410, -1.365410, 2.684959},
+             .params      = MotionParams{.vel = 0.02, .acc = 0.02, .tolerance_pos = 0.2, .tolerance_ori = 0.003},
+         },
+         Step{
+             .motion_type = MotionType::Pose,
+             .target      = PoseTarget{-0.326852, 0.177367, 0.345939, -0.00001, -1.5708, 3.049787},
+             .params      = MotionParams{.vel = 0.02, .acc = 0.02, .tolerance_pos = 0.2, .tolerance_ori = 0.003},
+         },
+         Step{
+             .motion_type = MotionType::Linear,
+             .pipeline_id = "pilz_industrial_motion_planner",
+             .planner_id  = "LIN",
+             .target      = LinearTarget{.dir_x = -1.0, .dir_y = 0.0, .dir_z = 0.0, .distance = 0.16},
+             .params      = MotionParams{.vel = 0.03, .acc = 0.2, .tolerance_pos = 0.2, .tolerance_ori = 0.0},
+         },
+         Step{
+             .motion_type = MotionType::OpenGripper,
+             .target      = NoTarget{},
+             .params      = {},
+         },
+         Step{
+             .motion_type = MotionType::Linear,
+             .pipeline_id = "pilz_industrial_motion_planner",
+             .planner_id  = "LIN",
+             .target      = LinearTarget{.dir_x = 0.0, .dir_y = 0.0, .dir_z = 1.0, .distance = 0.09},
+             .params      = MotionParams{.vel = 0.05, .acc = 0.03, .tolerance_pos = 0.2, .tolerance_ori = 0.0},
+         },
+         Step{
+             .motion_type = MotionType::Pose,
+             .target      = PoseTarget{0.221731, 0.002842, 0.308955, -3.084697, -1.097439, 3.096949},
+             .params      = MotionParams{.vel = 0.06, .acc = 0.03, .tolerance_pos = 0.2, .tolerance_ori = 0.003},
+         },
+     }}},
 
     // ---- Storage_RB (7 steps: 3 pose + lin_forward + gripper_open + lin_up + pose) ----
-    {   "storage_rb",
-     {
-     Step{
-     MotionType::Pose,
-     {0.281561, -0.033675, 0.388642, 0.725640, -1.475059, -0.839970},
-     {0.02, 0.03, 0.2, 0.003},
-     },
-     Step{
-     MotionType::Pose,
-     {-0.138156, -0.340795, 0.360307, 0.593263, -1.490951, -2.549442},
-     {0.02, 0.03, 0.2, 0.003},
-     },
-     Step{
-     MotionType::Pose,
-     {-0.325210, -0.160399, 0.321385, 1.573944, -1.570285, 1.673210},
-     {0.02, 0.03, 0.2, 0.003},
-     },
-     Step{
-     MotionType::Linear,
-     {-1.0, 0.0, 0.0, 0.15, 0.0, 0.0}, // dir(-x) + distance
-     {0.03, 0.03, 0.2, 0.0},
-     },
-     Step{
-     MotionType::OpenGripper,
-     {},
-     {},
-     },
-     Step{
-     MotionType::Linear,
-     {0.0, 0.0, 1.0, 0.11, 0.0, 0.0},  // dir(+z) + distance
-     {0.05, 0.03, 0.2, 0.0},
-     },
-     Step{
-     MotionType::Pose,
-     {0.221731, 0.002842, 0.308955, -3.084697, -1.097439, 3.096949},
-     {0.06, 0.03, 0.2, 0.003},
-     },
-     } },
+    {"storage_rb",
+     {{
+         Step{
+             .motion_type = MotionType::Pose,
+             .target      = PoseTarget{0.281561, -0.033675, 0.388642, 0.725640, -1.475059, -0.839970},
+             .params      = MotionParams{.vel = 0.02, .acc = 0.03, .tolerance_pos = 0.2, .tolerance_ori = 0.003},
+         },
+         Step{
+             .motion_type = MotionType::Pose,
+             .target      = PoseTarget{-0.138156, -0.340795, 0.360307, 0.593263, -1.490951, -2.549442},
+             .params      = MotionParams{.vel = 0.02, .acc = 0.03, .tolerance_pos = 0.2, .tolerance_ori = 0.003},
+         },
+         Step{
+             .motion_type = MotionType::Pose,
+             .target      = PoseTarget{-0.325210, -0.160399, 0.321385, 1.573944, -1.570285, 1.673210},
+             .params      = MotionParams{.vel = 0.02, .acc = 0.03, .tolerance_pos = 0.2, .tolerance_ori = 0.003},
+         },
+         Step{
+             .motion_type = MotionType::Linear,
+             .pipeline_id = "pilz_industrial_motion_planner",
+             .planner_id  = "LIN",
+             .target      = LinearTarget{.dir_x = -1.0, .dir_y = 0.0, .dir_z = 0.0, .distance = 0.15},
+             .params      = MotionParams{.vel = 0.03, .acc = 0.03, .tolerance_pos = 0.2, .tolerance_ori = 0.0},
+         },
+         Step{
+             .motion_type = MotionType::OpenGripper,
+             .target      = NoTarget{},
+             .params      = {},
+         },
+         Step{
+             .motion_type = MotionType::Linear,
+             .pipeline_id = "pilz_industrial_motion_planner",
+             .planner_id  = "LIN",
+             .target      = LinearTarget{.dir_x = 0.0, .dir_y = 0.0, .dir_z = 1.0, .distance = 0.11},
+             .params      = MotionParams{.vel = 0.05, .acc = 0.03, .tolerance_pos = 0.2, .tolerance_ori = 0.0},
+         },
+         Step{
+             .motion_type = MotionType::Pose,
+             .target      = PoseTarget{0.221731, 0.002842, 0.308955, -3.084697, -1.097439, 3.096949},
+             .params      = MotionParams{.vel = 0.06, .acc = 0.03, .tolerance_pos = 0.2, .tolerance_ori = 0.003},
+         },
+     }}},
 
     // ---- Extract_LB (7 steps: 3 pose + lin_down + gripper_close + lin_out + pose) ----
-    {   "extract_lb",
-     {
-     Step{
-     MotionType::Pose,
-     {0.281561, -0.033675, 0.388642, 0.725640, -1.475059, -0.839970},
-     {0.05, 0.03, 0.2, 0.003},
-     },
-     Step{
-     MotionType::Pose,
-     {0.002843, 0.285341, 0.269419, -1.974588, -1.453901, -2.682938},
-     {0.04, 0.03, 0.2, 0.003},
-     },
-     Step{
-     MotionType::Pose,
-     {-0.252779, 0.127352, 0.180452, 0.0, -1.571699, 2.627386},
-     {0.02, 0.02, 0.2, 0.003},
-     },
-     Step{
-     MotionType::Linear,
-     {0.0, 0.0, -1.0, 0.09, 0.0, 0.0}, // dir(-z) + distance
-     {0.03, 0.03, 0.2, 0.0},
-     },
-     Step{
-     MotionType::CloseGripper,
-     {},
-     {},
-     },
-     Step{
-     MotionType::Linear,
-     {1.0, 0.0, 0.0, 0.15, 0.0, 0.0},  // dir(+x) + distance
-     {0.05, 0.03, 0.2, 0.0},
-     },
-     Step{
-     MotionType::Pose,
-     {0.221731, 0.002842, 0.308955, -3.084697, -1.097439, 3.096949},
-     {0.03, 0.03, 0.2, 0.003},
-     },
-     } },
+    {"extract_lb",
+     {{
+         Step{
+             .motion_type = MotionType::Pose,
+             .target      = PoseTarget{0.281561, -0.033675, 0.388642, 0.725640, -1.475059, -0.839970},
+             .params      = MotionParams{.vel = 0.05, .acc = 0.03, .tolerance_pos = 0.2, .tolerance_ori = 0.003},
+         },
+         Step{
+             .motion_type = MotionType::Pose,
+             .target      = PoseTarget{0.002843, 0.285341, 0.269419, -1.974588, -1.453901, -2.682938},
+             .params      = MotionParams{.vel = 0.04, .acc = 0.03, .tolerance_pos = 0.2, .tolerance_ori = 0.003},
+         },
+         Step{
+             .motion_type = MotionType::Pose,
+             .target      = PoseTarget{-0.252779, 0.127352, 0.180452, 0.0, -1.571699, 2.627386},
+             .params      = MotionParams{.vel = 0.02, .acc = 0.02, .tolerance_pos = 0.2, .tolerance_ori = 0.003},
+         },
+         Step{
+             .motion_type = MotionType::Linear,
+             .pipeline_id = "pilz_industrial_motion_planner",
+             .planner_id  = "LIN",
+             .target      = LinearTarget{.dir_x = 0.0, .dir_y = 0.0, .dir_z = -1.0, .distance = 0.09},
+             .params      = MotionParams{.vel = 0.03, .acc = 0.03, .tolerance_pos = 0.2, .tolerance_ori = 0.0},
+         },
+         Step{
+             .motion_type = MotionType::CloseGripper,
+             .target      = NoTarget{},
+             .params      = {},
+         },
+         Step{
+             .motion_type = MotionType::Linear,
+             .pipeline_id = "pilz_industrial_motion_planner",
+             .planner_id  = "LIN",
+             .target      = LinearTarget{.dir_x = 1.0, .dir_y = 0.0, .dir_z = 0.0, .distance = 0.15},
+             .params      = MotionParams{.vel = 0.05, .acc = 0.03, .tolerance_pos = 0.2, .tolerance_ori = 0.0},
+         },
+         Step{
+             .motion_type = MotionType::Pose,
+             .target      = PoseTarget{0.221731, 0.002842, 0.308955, -3.084697, -1.097439, 3.096949},
+             .params      = MotionParams{.vel = 0.03, .acc = 0.03, .tolerance_pos = 0.2, .tolerance_ori = 0.003},
+         },
+     }}},
 
     // ---- Extract_RB (7 steps: 3 pose + lin_down + gripper_close + lin_out + pose) ----
-    {   "extract_rb",
-     {
-     Step{
-     MotionType::Pose,
-     {0.281561, -0.033675, 0.388642, 0.725640, -1.475059, -0.839970},
-     {0.05, 0.03, 0.2, 0.003},
-     },
-     Step{
-     MotionType::Pose,
-     {0.004106, -0.284904, 0.266808, 1.225331, -1.497006, -2.802148},
-     {0.02, 0.03, 0.2, 0.003},
-     },
-     Step{
-     MotionType::Pose,
-     {-0.255603, -0.131261, 0.183260, -2.70866, -1.568567, 0.028266},
-     {0.02, 0.02, 0.2, 0.003},
-     },
-     Step{
-     MotionType::Linear,
-     {0.0, 0.0, -1.0, 0.08, 0.0, 0.0}, // dir(-z) + distance
-     {0.05, 0.03, 0.2, 0.0},
-     },
-     Step{
-     MotionType::CloseGripper,
-     {},
-     {},
-     },
-     Step{
-     MotionType::Linear,
-     {1.0, 0.0, 0.0, 0.15, 0.0, 0.0},  // dir(+x) + distance
-     {0.06, 0.03, 0.2, 0.0},
-     },
-     Step{
-     MotionType::Pose,
-     {0.221731, 0.002842, 0.308955, -3.084697, -1.097439, 3.096949},
-     {0.03, 0.03, 0.2, 0.003},
-     },
-     } },
+    {"extract_rb",
+     {{
+         Step{
+             .motion_type = MotionType::Pose,
+             .target      = PoseTarget{0.281561, -0.033675, 0.388642, 0.725640, -1.475059, -0.839970},
+             .params      = MotionParams{.vel = 0.05, .acc = 0.03, .tolerance_pos = 0.2, .tolerance_ori = 0.003},
+         },
+         Step{
+             .motion_type = MotionType::Pose,
+             .target      = PoseTarget{0.004106, -0.284904, 0.266808, 1.225331, -1.497006, -2.802148},
+             .params      = MotionParams{.vel = 0.02, .acc = 0.03, .tolerance_pos = 0.2, .tolerance_ori = 0.003},
+         },
+         Step{
+             .motion_type = MotionType::Pose,
+             .target      = PoseTarget{-0.255603, -0.131261, 0.183260, -2.70866, -1.568567, 0.028266},
+             .params      = MotionParams{.vel = 0.02, .acc = 0.02, .tolerance_pos = 0.2, .tolerance_ori = 0.003},
+         },
+         Step{
+             .motion_type = MotionType::Linear,
+             .pipeline_id = "pilz_industrial_motion_planner",
+             .planner_id  = "LIN",
+             .target      = LinearTarget{.dir_x = 0.0, .dir_y = 0.0, .dir_z = -1.0, .distance = 0.08},
+             .params      = MotionParams{.vel = 0.05, .acc = 0.03, .tolerance_pos = 0.2, .tolerance_ori = 0.0},
+         },
+         Step{
+             .motion_type = MotionType::CloseGripper,
+             .target      = NoTarget{},
+             .params      = {},
+         },
+         Step{
+             .motion_type = MotionType::Linear,
+             .pipeline_id = "pilz_industrial_motion_planner",
+             .planner_id  = "LIN",
+             .target      = LinearTarget{.dir_x = 1.0, .dir_y = 0.0, .dir_z = 0.0, .distance = 0.15},
+             .params      = MotionParams{.vel = 0.06, .acc = 0.03, .tolerance_pos = 0.2, .tolerance_ori = 0.0},
+         },
+         Step{
+             .motion_type = MotionType::Pose,
+             .target      = PoseTarget{0.221731, 0.002842, 0.308955, -3.084697, -1.097439, 3.096949},
+             .params      = MotionParams{.vel = 0.03, .acc = 0.03, .tolerance_pos = 0.2, .tolerance_ori = 0.003},
+         },
+     }}},
 };
 
 [[nodiscard]] inline const action_chunk* find_chunk(const std::string& name) noexcept {
@@ -321,6 +365,7 @@ public:
         }
         if (!composed.empty())
             task_cache_.emplace(task_name, std::move(composed));
+        return *this;
     }
 
     void process(const std::string& name) {
@@ -346,34 +391,88 @@ public:
 
 private:
 
+    static bool planSingleStep(const Step& step,
+                        moveit::planning_interface::MoveGroupInterface* mg,
+                        const moveit::core::RobotStatePtr& current_state,
+                        std::vector<trajectory_msgs::msg::JointTrajectoryPoint>& out_points,
+                        std::vector<std::string>& out_joint_names) {
+        // 通用设置
+        mg->clearPoseTargets();
+        mg->clearPathConstraints();
+        mg->setStartState(*current_state);
+        mg->setPlanningTime(5.0);
+        mg->setMaxVelocityScalingFactor(step.params.vel);
+        mg->setMaxAccelerationScalingFactor(step.params.acc);
+        mg->setGoalOrientationTolerance(step.params.tolerance_ori);
+        mg->setGoalPositionTolerance(step.params.tolerance_pos);
+
+        mg->setPlanningPipelineId(step.pipeline_id);
+        mg->setPlannerId(step.planner_id);
+
+        bool needs_plan = true;
+
+        std::visit(
+            [&](const auto& target) {
+                using T = std::decay_t<decltype(target)>;
+                if constexpr (std::is_same_v<T, JointTarget>) {
+                    mg->setJointValueTarget(
+                        std::map<std::string, double>{
+                            {"joint_1", target.joint_1},
+                            {"joint_2", target.joint_2},
+                            {"joint_3", target.joint_3},
+                            {"joint_4", target.joint_4},
+                            {"joint_5", target.joint_5},
+                            {"joint_6", target.joint_6},
+                        });
+                } else if constexpr (std::is_same_v<T, PoseTarget>) {
+                    geometry_msgs::msg::Pose pose;
+                    pose.position.x = target.x;
+                    pose.position.y = target.y;
+                    pose.position.z = target.z;
+                    tf2::Quaternion q;
+                    q.setRPY(target.roll, target.pitch, target.yaw);
+                    pose.orientation = tf2::toMsg(q);
+                    mg->setPoseTarget(pose, "link_6");
+                } else if constexpr (std::is_same_v<T, LinearTarget>) {
+                    const Eigen::Isometry3d& start =
+                        current_state->getGlobalLinkTransform("link_6");
+                    Eigen::Vector3d dir(target.dir_x, target.dir_y, target.dir_z);
+                    dir.normalize();
+                    Eigen::Isometry3d T = start;
+                    T.translation() += T.linear() * (dir * target.distance);
+                    mg->setPoseTarget(tf2::toMsg(T), "link_6");
+                } else if constexpr (std::is_same_v<T, NoTarget>) {
+                    // 抓取器：生成 500 个保持位置的点，不需要调用 plan()
+                    out_joint_names = mg->getJointNames();
+                    std::vector<double> q(out_joint_names.size());
+                    for (size_t k = 0; k < out_joint_names.size(); ++k)
+                        q[k] = current_state->getVariablePosition(out_joint_names[k]);
+                    out_points.resize(500);
+                    for (auto& pt : out_points)
+                        pt.positions = q;
+                    needs_plan = false;
+                }
+            },
+            step.target);
+
+        if (!needs_plan)
+            return true;
+
+        // 规划
+        moveit::planning_interface::MoveGroupInterface::Plan plan;
+        if (mg->plan(plan) != moveit::core::MoveItErrorCode::SUCCESS)
+            return false;
+
+        out_points      = plan.trajectory.joint_trajectory.points;
+        out_joint_names = plan.trajectory.joint_trajectory.joint_names;
+        return true;
+    }
+
     void moveit_loop() {
-        const auto linear_point_transformer = [](const geometry_msgs::msg::Pose& start_pose,
-                                                 const Eigen::Vector3d& local_dir,
-                                                 double distance) {
-            Eigen::Isometry3d T;
-            tf2::fromMsg(start_pose, T);
-            Eigen::Vector3d p_local = local_dir.normalized() * distance;
-            T.translation() += T.linear() * p_local;
-            return tf2::toMsg(T);
-        };
-
-        const auto xyzrpy_to_pose = [](const std::array<double, 6>& xyzrpy) {
-            geometry_msgs::msg::Pose pose;
-            pose.position.x = xyzrpy[0];
-            pose.position.y = xyzrpy[1];
-            pose.position.z = xyzrpy[2];
-
-            tf2::Quaternion q;
-            q.setRPY(xyzrpy[3], xyzrpy[4], xyzrpy[5]);
-            pose.orientation.x = q.x();
-            pose.orientation.y = q.y();
-            pose.orientation.z = q.z();
-            pose.orientation.w = q.w();
-            return pose;
-        };
         const auto request = plan_request_.load(std::memory_order_acquire);
         if (!request || request->request_id == last_planned_id_)
             return;
+
         auto result          = std::make_shared<PlannedTrajectory>();
         result->request_id   = request->request_id;
         result->plan_success = true;
@@ -383,99 +482,16 @@ private:
         for (size_t i = 0; i < request->steps.size(); ++i) {
             const auto& step = request->steps[i];
 
-            move_group_->clearPoseTargets();
-            move_group_->clearPathConstraints();
-            move_group_->setStartState(*current_state);
-            move_group_->setPlanningTime(5.0);
-            move_group_->setMaxVelocityScalingFactor(step.params[0]);
-            move_group_->setMaxAccelerationScalingFactor(step.params[1]);
-
             std::vector<trajectory_msgs::msg::JointTrajectoryPoint> segment_pts;
             std::vector<std::string> segment_joint_names;
-            bool segment_failed = false;
 
-            switch (step.motion_type) {
-
-            case MotionType::Joint: {
-                move_group_->setPlanningPipelineId("ompl");
-                move_group_->setPlannerId("");
-                move_group_->setJointValueTarget(
-                    std::map<std::string, double>{
-                        {"joint_1", step.target[0]},
-                        {"joint_2", step.target[1]},
-                        {"joint_3", step.target[2]},
-                        {"joint_4", step.target[3]},
-                        {"joint_5", step.target[4]},
-                        {"joint_6", step.target[5]},
-                });
-                moveit::planning_interface::MoveGroupInterface::Plan plan;
-                if (move_group_->plan(plan) != moveit::core::MoveItErrorCode::SUCCESS) {
-                    RCLCPP_WARN(node_->get_logger(), "segment %zu plan failed", i);
-                    segment_failed = true;
-                    break;
-                }
-                segment_pts         = plan.trajectory.joint_trajectory.points;
-                segment_joint_names = plan.trajectory.joint_trajectory.joint_names;
-                break;
-            }
-
-            case MotionType::Pose: {
-                move_group_->setPlanningPipelineId("ompl");
-                move_group_->setPlannerId("");
-                move_group_->setGoalOrientationTolerance(step.params[2]);
-                move_group_->setGoalPositionTolerance(step.params[3]);
-                move_group_->setPoseTarget(xyzrpy_to_pose(step.target), "link_6");
-                moveit::planning_interface::MoveGroupInterface::Plan plan;
-                if (move_group_->plan(plan) != moveit::core::MoveItErrorCode::SUCCESS) {
-                    RCLCPP_WARN(node_->get_logger(), "segment %zu plan failed", i);
-                    segment_failed = true;
-                    break;
-                }
-                segment_pts         = plan.trajectory.joint_trajectory.points;
-                segment_joint_names = plan.trajectory.joint_trajectory.joint_names;
-                break;
-            }
-
-            case MotionType::Linear: {
-                // target[0..2] = local direction, target[3] = distance
-                const Eigen::Isometry3d& start_state =
-                    current_state->getGlobalLinkTransform("link_6");
-                auto target_pose = linear_point_transformer(
-                    tf2::toMsg(start_state), {step.target[0], step.target[1], step.target[2]},
-                    step.target[3]);
-                move_group_->setPlanningPipelineId("pilz_industrial_motion_planner");
-                move_group_->setPlannerId("LIN");
-                move_group_->setGoalOrientationTolerance(step.params[2]);
-                move_group_->setGoalPositionTolerance(step.params[3]);
-                move_group_->setPoseTarget(target_pose, "link_6");
-
-                moveit::planning_interface::MoveGroupInterface::Plan plan;
-                if (move_group_->plan(plan) != moveit::core::MoveItErrorCode::SUCCESS) {
-                    RCLCPP_WARN(node_->get_logger(), "segment %zu plan failed", i);
-                    segment_failed = true;
-                    break;
-                }
-                segment_pts         = plan.trajectory.joint_trajectory.points;
-                segment_joint_names = plan.trajectory.joint_trajectory.joint_names;
-                break;
-            }
-
-            default: {
-                segment_joint_names = move_group_->getJointNames();
-                std::vector<double> q(segment_joint_names.size());
-                for (size_t k = 0; k < segment_joint_names.size(); ++k)
-                    q[k] = current_state->getVariablePosition(segment_joint_names[k]);
-
-                segment_pts.resize(500);
-                for (auto& pt : segment_pts)
-                    pt.positions = q;
-                break;
-            }
-            }
-            if (segment_failed) {
+            if (!planSingleStep(step, move_group_.get(), current_state,
+                                segment_pts, segment_joint_names)) {
+                RCLCPP_WARN(node_->get_logger(), "segment %zu plan failed", i);
                 result->plan_success = false;
-                break; // exit for loop
+                break;
             }
+
             if (segment_pts.empty()) {
                 RCLCPP_WARN(node_->get_logger(), "segment %zu empty", i);
                 result->plan_success = false;
