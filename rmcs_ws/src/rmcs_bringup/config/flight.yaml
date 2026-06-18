@@ -71,7 +71,8 @@ gimbal_controller:
   ros__parameters:
     upper_limit: -0.39518   # -0.39518 rad ≈ -22.6°
     lower_limit: 0.7        # 0.7 rad ≈ 40.1°
-    # TODO: yaw limite
+    yaw_lower_limit: 0.1745   
+    yaw_upper_limit: 2.5708   
 
 yaw_angle_pid_controller:
   ros__parameters:
@@ -115,6 +116,7 @@ heat_controller:
 
 bullet_feeder_controller:
   ros__parameters:
+    debug_ignore_friction_ready: true  # 调试用：不开摩擦轮也允许拨弹，复原时改为 false 
     bullets_per_feeder_turn: 8.0
     shot_frequency: 25.0
     safe_shot_frequency: 10.0
