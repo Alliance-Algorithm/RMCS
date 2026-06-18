@@ -24,19 +24,14 @@ rmcs_executor:
       - rmcs::AutoAimComponent -> auto_aim_component
       # - rmcs::navigation::Navigation -> rmcs_navigation
 
-      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
 
 value_broadcaster:
   ros__parameters:
     forward_list:
-      - /gimbal/bottom_yaw/angle
-      - /gimbal/bottom_yaw/velocity
-      - /gimbal/pitch/angle
-      - /gimbal/pitch/control_torque
-      - /gimbal/pitch/torque
-      - /gimbal/top_yaw/angle
-      - /gimbal/top_yaw/velocity
+      - /gimbal/yaw/velocity_imu
+      - /gimbal/pitch/velocity_imu
 
 # The positive direction is the one that battery exists
 sentry_hardware:
@@ -44,7 +39,7 @@ sentry_hardware:
     board_serial_bottom_board: "af-79cf"
     board_serial_gimbal_board: "af-8b8b"
 
-    pitch_motor_zero_point: 1275
+    pitch_motor_zero_point: 12347
 
     bottom_yaw_motor_zero_point: 54551
     top_yaw_motor_zero_point: 33409
@@ -63,7 +58,7 @@ rmcs_navigation:
 
 gimbal_controller:
   ros__parameters:
-    upper_limit: -0.39518
+    upper_limit: -0.65
     lower_limit: 0.36
 
     top_yaw_angle_kp: 45.0

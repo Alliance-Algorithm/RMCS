@@ -171,8 +171,6 @@ private:
             component.register_input("/auto_aim/yaw_acc", auto_aim_yaw_acc, false);
             component.register_input("/auto_aim/pitch_acc", auto_aim_pitch_acc, false);
             component.register_input(
-                "/auto_aim/feedforward_valid", auto_aim_feedforward_valid, false);
-            component.register_input(
                 "/rmcs_navigation/enable_control", navigation_enable_control, false);
             component.register_input("/rmcs_navigation/gimbal_toward", navigation_toward, false);
         }
@@ -226,7 +224,6 @@ private:
         InputInterface<double> auto_aim_pitch_rate;
         InputInterface<double> auto_aim_yaw_acc;
         InputInterface<double> auto_aim_pitch_acc;
-        InputInterface<bool> auto_aim_feedforward_valid;
 
         InputInterface<bool> navigation_enable_control;
         InputInterface<Eigen::Vector2d> navigation_toward;
@@ -302,7 +299,7 @@ private:
 
     auto compute_actual_yaw_velocity(double actual_yaw) -> double {
         const auto now = *input_.timestamp;
-        const double dt = std::chrono::duration<double>(now - previous_yaw_timestamp_).count();
+        const auto dt = std::chrono::duration<double>(now - previous_yaw_timestamp_).count();
         double velocity = 0.0;
         if (dt > 1e-6)
             velocity = limit_rad(actual_yaw - previous_actual_yaw_) / dt;
@@ -319,7 +316,7 @@ private:
             vector.normalize();
         else
             vector = Eigen::Vector3d::UnitX();
-        const double xy_norm = std::hypot(vector.x(), vector.y());
+        const auto xy_norm = std::hypot(vector.x(), vector.y());
         return {std::atan2(vector.y(), vector.x()), std::atan2(-vector.z(), xy_norm)};
     }
 
@@ -342,39 +339,40 @@ private:
             return (viscous_gain * velocity) + (coulomb_gain * std::tanh(tanh_gain * velocity));
         };
 
-        const double current_bottom_angle = current_bottom_world_yaw();
-        const double current_bottom_velocity =
+        const auto [_, gimbal_pitch_odom] = current_barrel_yaw_pitch();
+        const auto current_bottom_angle = current_bottom_world_yaw();
+        const auto current_bottom_velocity =
             *input_.bottom_yaw_velocity + *input_.chassis_yaw_velocity_imu;
-        const double current_top_angle = limit_rad(*input_.top_yaw_angle);
-        const double current_pitch_angle = limit_rad(*input_.pitch_angle);
+        const auto current_top_angle = limit_rad(*input_.top_yaw_angle);
+        const auto current_pitch_angle = limit_rad(*input_.pitch_angle);
 
-        const double bottom_yaw_error = limit_rad(target.bottom_yaw.target - current_bottom_angle);
-        const double top_yaw_error = limit_rad(target.top_yaw.target - current_top_angle);
-        const double pitch_error = limit_rad(target.pitch.target - current_pitch_angle);
+        const auto bottom_yaw_error = limit_rad(target.bottom_yaw.target - current_bottom_angle);
+        const auto top_yaw_error = limit_rad(target.top_yaw.target - current_top_angle);
+        const auto pitch_error = limit_rad(target.pitch.target - gimbal_pitch_odom);
 
-        const double bottom_velocity_ref =
+        const auto bottom_velocity_ref =
             bottom_yaw_angle_pid_.update(bottom_yaw_error) + target.bottom_yaw.velocity_ff;
-        const double top_velocity_ref =
+        const auto top_velocity_ref =
             top_yaw_angle_pid_.update(top_yaw_error) + target.top_yaw.velocity_ff;
-        const double pitch_velocity_ref =
+        const auto pitch_velocity_ref =
             pitch_angle_pid_.update(pitch_error) + target.pitch.velocity_ff;
 
-        const double bottom_world_velocity_ff =
+        const auto bottom_world_velocity_ff =
             target.bottom_yaw.velocity_ff + *input_.chassis_yaw_velocity_imu;
-        const double top_yaw_continuous_torque_ff =
+        const auto top_yaw_continuous_torque_ff =
             target.top_yaw.acceleration_ff + top_yaw_viscous_ff_gain_ * target.top_yaw.velocity_ff;
-        const double bottom_yaw_torque_ff =
+        const auto bottom_yaw_torque_ff =
             target.bottom_yaw.acceleration_ff
             + friction_feedforward(
                 bottom_yaw_viscous_ff_gain_, bottom_yaw_coulomb_ff_gain_,
                 bottom_yaw_coulomb_ff_tanh_gain_, bottom_world_velocity_ff)
             - k_top_to_bottom_ * top_yaw_continuous_torque_ff;
 
-        const double top_yaw_torque_ff = target.top_yaw.acceleration_ff
-                                       + friction_feedforward(
-                                             top_yaw_viscous_ff_gain_, top_yaw_coulomb_ff_gain_,
-                                             top_yaw_coulomb_ff_tanh_gain_, top_velocity_ref);
-        const double pitch_torque_ff =
+        const auto top_yaw_torque_ff = target.top_yaw.acceleration_ff
+                                     + friction_feedforward(
+                                           top_yaw_viscous_ff_gain_, top_yaw_coulomb_ff_gain_,
+                                           top_yaw_coulomb_ff_tanh_gain_, top_velocity_ref);
+        const auto pitch_torque_ff =
             target.pitch.acceleration_ff
             + friction_feedforward(
                 pitch_viscous_ff_gain_, pitch_coulomb_ff_gain_, pitch_coulomb_ff_tanh_gain_,
