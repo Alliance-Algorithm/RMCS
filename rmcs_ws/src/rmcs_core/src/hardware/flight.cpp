@@ -62,7 +62,6 @@ public:
             device::DjiMotor::Config{device::DjiMotor::Type::kM3508}.set_reduction_ratio(1.0));
         gimbal_bullet_feeder_.configure(
             device::DjiMotor::Config{device::DjiMotor::Type::kM2006}
-                .set_reversed()
                 .enable_multi_turn_angle());
 
         register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);

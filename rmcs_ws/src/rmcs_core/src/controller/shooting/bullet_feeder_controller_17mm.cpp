@@ -45,6 +45,12 @@ public:
         single_shot_max_stop_delay_ = static_cast<int>(
             std::round(1000.0 * get_parameter("single_shot_max_stop_delay").as_double()));
 
+        // Debug option: allow bullet feeding without friction wheels spinning.
+        debug_ignore_friction_ready_ = get_parameter_or("debug_ignore_friction_ready", false);
+        if (debug_ignore_friction_ready_)
+            RCLCPP_WARN(
+                logger_, "Friction-ready check bypassed: feeder will spin without friction wheels!");
+
         register_input("/gimbal/friction_ready", friction_ready_);
         register_input("/gimbal/bullet_fired", bullet_fired_);
         register_input(
@@ -105,7 +111,8 @@ public:
                 if (*bullet_fired_)
                     single_shot_stop_counter_ = 0;
 
-                if (*friction_ready_) {
+                const bool friction_ready = *friction_ready_ || debug_ignore_friction_ready_;
+                if (friction_ready) {
                     if (shoot_mode == ShootMode::AUTOMATIC) {
                         bool manual_triggered = mouse.left || switch_left == Switch::DOWN;
                         bool auto_aim_triggered = mouse.right && *auto_aim_should_shoot_;
@@ -128,7 +135,8 @@ public:
                 }
             }
 
-            if (!*friction_ready_ || switch_right == Switch::DOWN)
+            if ((!*friction_ready_ && !debug_ignore_friction_ready_)
+                || switch_right == Switch::DOWN)
                 update_bullet_feeder_velocity(0, false);
         }
 
@@ -215,6 +223,8 @@ private:
     int bullet_feeder_eject_time_, bullet_feeder_deep_eject_time_;
 
     int single_shot_max_stop_delay_, single_shot_stop_counter_ = 0;
+
+    bool debug_ignore_friction_ready_ = false;
 
     InputInterface<bool> friction_ready_;
     InputInterface<bool> bullet_fired_;
