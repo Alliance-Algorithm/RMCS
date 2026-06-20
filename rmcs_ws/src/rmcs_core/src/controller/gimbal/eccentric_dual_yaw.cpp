@@ -54,11 +54,27 @@ public:
             const auto xy_norm = std::hypot(dir.x(), dir.y());
             const auto pitch =
                 std::clamp(std::atan2(-dir.z(), xy_norm), upper_limit_, lower_limit_);
-            const auto yaw = std::atan2(dir.y(), dir.x());
+            const auto control_yaw = std::atan2(dir.y(), dir.x());
+
+            const auto camera_pose = fast_tf::lookup_transform<OdomImu, CameraLink>(*input_.tf);
+            const auto camera_pos = camera_pose.translation();
+            const auto robot_center = *input_.auto_aim_robot_center;
+            Eigen::Vector3d diff{
+                robot_center.x() - camera_pos.x(),
+                robot_center.y() - camera_pos.y(),
+                robot_center.z() - camera_pos.z(),
+            };
+            double center_yaw;
+            if (diff.norm() > 1e-9) {
+                diff.normalize();
+                center_yaw = std::atan2(diff.y(), diff.x());
+            } else {
+                center_yaw = 0.0;
+            }
 
             const auto command = ControlTarget{
-                .bottom_yaw = {.target = yaw},
-                .top_yaw = {.target = 0.0},
+                .bottom_yaw = {.target = center_yaw},
+                .top_yaw = {.target = limit_rad(control_yaw - center_yaw)},
                 .pitch = {.target = pitch},
             };
             apply_control(command);
@@ -170,6 +186,7 @@ private:
             component.register_input("/auto_aim/pitch_rate", auto_aim_pitch_rate, false);
             component.register_input("/auto_aim/yaw_acc", auto_aim_yaw_acc, false);
             component.register_input("/auto_aim/pitch_acc", auto_aim_pitch_acc, false);
+            component.register_input("/auto_aim/robot_center", auto_aim_robot_center, false);
             component.register_input(
                 "/rmcs_navigation/enable_control", navigation_enable_control, false);
             component.register_input("/rmcs_navigation/gimbal_toward", navigation_toward, false);
@@ -191,8 +208,12 @@ private:
             if (!auto_aim_control_direction.ready())
                 return false;
             const auto& dir = *auto_aim_control_direction;
+            if (!auto_aim_robot_center.ready())
+                return false;
+            const auto& center = *auto_aim_robot_center;
             return !dir.isZero() && std::isfinite(dir.x()) && std::isfinite(dir.y())
-                && std::isfinite(dir.z());
+                && std::isfinite(dir.z()) && !center.isZero() && std::isfinite(center.x())
+                && std::isfinite(center.y()) && std::isfinite(center.z());
         }
 
         auto enable_navigation() const noexcept -> bool {
@@ -220,6 +241,7 @@ private:
         InputInterface<double> chassis_yaw_velocity_imu;
 
         InputInterface<Eigen::Vector3d> auto_aim_control_direction;
+        InputInterface<Eigen::Vector3d> auto_aim_robot_center;
         InputInterface<double> auto_aim_yaw_rate;
         InputInterface<double> auto_aim_pitch_rate;
         InputInterface<double> auto_aim_yaw_acc;
@@ -379,12 +401,12 @@ private:
                 pitch_velocity_ref)
             + pitch_gravity_ff_gain_ * std::sin(current_pitch_angle - pitch_gravity_ff_phase_);
 
-        *output_.bottom_yaw_control_torque =
-            bottom_yaw_velocity_pid_.update(bottom_velocity_ref - current_bottom_velocity)
-            + bottom_yaw_torque_ff;
         *output_.top_yaw_control_torque =
             top_yaw_velocity_pid_.update(top_velocity_ref - *input_.top_yaw_velocity)
             + top_yaw_torque_ff;
+        *output_.bottom_yaw_control_torque =
+            bottom_yaw_velocity_pid_.update(bottom_velocity_ref - current_bottom_velocity)
+            + bottom_yaw_torque_ff;
         *output_.pitch_control_torque =
             pitch_velocity_pid_.update(pitch_velocity_ref - *input_.pitch_velocity)
             + pitch_torque_ff;
