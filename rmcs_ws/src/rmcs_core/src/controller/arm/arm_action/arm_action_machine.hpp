@@ -1,6 +1,5 @@
 #pragma once
-
-#include "controller/arm/action_dictionary.hpp"
+#include "controller/arm/arm_action/action_step.hpp"
 #include <atomic>
 #include <chrono>
 #include <cstdint>
@@ -20,11 +19,9 @@
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <thread>
 #include <trajectory_msgs/msg/joint_trajectory_point.hpp>
-#include <unordered_map>
+#include <tuple>
 #include <variant>
 #include <vector>
-
-#include <rmcs_msgs/gripper_mode.hpp>
 
 namespace rmcs_core::controller::arm {
 
@@ -34,11 +31,12 @@ public:
         uint64_t request_id{0};
         bool plan_success{false};
         std::map<int, std::vector<std::vector<double>>> step_position_map;
-        std::map<int, dictionary::Step> step_map;
+        std::map<int, Action::Step> step_map;
     };
+
     struct PlanRequest {
         uint64_t request_id{0};
-        std::vector<dictionary::Step> steps;
+        std::vector<Action::Step> steps;
     };
 
     ActionMachine()
@@ -77,31 +75,12 @@ public:
     ActionMachine(ActionMachine&&)                 = delete;
     ActionMachine& operator=(ActionMachine&&)      = delete;
 
-    ActionMachine& register_task(const std::string& task_name, const std::vector<std::string>& chunk_names) {
-        dictionary::action_chunk composed;
-        for (auto& name : chunk_names) {
-            if (auto* c = dictionary::find_chunk(name))
-                composed.insert(composed.end(), c->begin(), c->end());
-        }
-        if (!composed.empty())
-            task_cache_.emplace(task_name, std::move(composed));
-        return *this;
-    }
-
-    void process(const std::string& name) {
-        const dictionary::action_chunk* chunk = dictionary::find_chunk(name); // 1) built-in?
-        if (!chunk) {
-            auto it = task_cache_.find(name);                                 // 2) composed?
-            if (it != task_cache_.end())
-                chunk = &it->second;
-        }
-        if (!chunk || chunk->empty())
-            return;
+    void process(const std::vector<Action::Step>& steps_) {
 
         auto next          = std::make_shared<PlanRequest>();
         const auto current = plan_request_.load(std::memory_order_acquire);
         next->request_id   = current ? current->request_id + 1 : 1;
-        next->steps        = *chunk;
+        next->steps        = steps_;
         plan_request_.store(next, std::memory_order_release);
     }
 
@@ -111,30 +90,16 @@ public:
 
 private:
     static bool planSingleStep(
-        const dictionary::Step& step, moveit::planning_interface::MoveGroupInterface* mg,
+        const Action::Step& step, moveit::planning_interface::MoveGroupInterface* move_group,
         const moveit::core::RobotStatePtr& current_state,
         std::vector<trajectory_msgs::msg::JointTrajectoryPoint>& out_points,
         std::vector<std::string>& out_joint_names) {
-        // 通用设置
-        mg->clearPoseTargets();
-        mg->clearPathConstraints();
-        mg->setStartState(*current_state);
-        mg->setPlanningTime(5.0);
-        mg->setMaxVelocityScalingFactor(step.params.vel);
-        mg->setMaxAccelerationScalingFactor(step.params.acc);
-        mg->setGoalOrientationTolerance(step.params.tolerance_ori);
-        mg->setGoalPositionTolerance(step.params.tolerance_pos);
-
-        mg->setPlanningPipelineId(step.pipeline_id);
-        mg->setPlannerId(step.planner_id);
-
         bool needs_plan = true;
-
         std::visit(
             [&](const auto& target) {
                 using T = std::decay_t<decltype(target)>;
-                if constexpr (std::is_same_v<T, dictionary::JointTarget>) {
-                    mg->setJointValueTarget(
+                if constexpr (std::is_same_v<T, Action::JointTarget>) {
+                    move_group->setJointValueTarget(
                         std::map<std::string, double>{
                             {"joint_1", target.joint_1},
                             {"joint_2", target.joint_2},
@@ -143,43 +108,47 @@ private:
                             {"joint_5", target.joint_5},
                             {"joint_6", target.joint_6},
                     });
-                } else if constexpr (std::is_same_v<T, dictionary::PoseTarget>) {
-                    geometry_msgs::msg::Pose pose;
-                    pose.position.x = target.x;
-                    pose.position.y = target.y;
-                    pose.position.z = target.z;
-                    tf2::Quaternion q;
-                    q.setRPY(target.roll, target.pitch, target.yaw);
-                    pose.orientation = tf2::toMsg(q);
-                    mg->setPoseTarget(pose, "link_6");
-                } else if constexpr (std::is_same_v<T, dictionary::LinearTarget>) {
+                } else if constexpr (std::is_same_v<T, Action::PoseTarget>) {
+                    move_group->setPoseTarget(
+                        geometry_msgs::msg::Pose()
+                            .set__position(
+                                geometry_msgs::msg::Point()
+                                    .set__x(target.x)
+                                    .set__y(target.y)
+                                    .set__z(target.z))
+                            .set__orientation([&] {
+                                tf2::Quaternion q;
+                                q.setRPY(target.roll, target.pitch, target.yaw);
+                                return geometry_msgs::msg::Quaternion()
+                                    .set__x(q.x())
+                                    .set__y(q.y())
+                                    .set__z(q.z())
+                                    .set__w(q.w());
+                            }()),
+                        "link_6");
+                } else if constexpr (std::is_same_v<T, Action::LinearTarget>) {
                     const Eigen::Isometry3d& start =
                         current_state->getGlobalLinkTransform("link_6");
                     Eigen::Vector3d dir(target.dir_x, target.dir_y, target.dir_z);
                     dir.normalize();
                     Eigen::Isometry3d T = start;
                     T.translation() += T.linear() * (dir * target.distance);
-                    mg->setPoseTarget(tf2::toMsg(T), "link_6");
-                } else if constexpr (std::is_same_v<T, dictionary::NoTarget>) {
-                    // 抓取器：生成 500 个保持位置的点，不需要调用 plan()
-                    out_joint_names = mg->getJointNames();
-                    std::vector<double> q(out_joint_names.size());
-                    for (size_t k = 0; k < out_joint_names.size(); ++k)
-                        q[k] = current_state->getVariablePosition(out_joint_names[k]);
-                    out_points.resize(500);
-                    for (auto& pt : out_points)
-                        pt.positions = q;
+                    move_group->setPoseTarget(tf2::toMsg(T), "link_6");
+                } else if constexpr (std::is_same_v<T, Action::NoTarget>) {
+                    out_joint_names = move_group->getJointNames();
+                    trajectory_msgs::msg::JointTrajectoryPoint point;
+                    current_state->copyJointGroupPositions(move_group->getName(), point.positions);
+                    out_points.assign(500, point);
                     needs_plan = false;
                 }
             },
-            step.target);
+            step.target());
 
         if (!needs_plan)
             return true;
 
-        // 规划
         moveit::planning_interface::MoveGroupInterface::Plan plan;
-        if (mg->plan(plan) != moveit::core::MoveItErrorCode::SUCCESS)
+        if (move_group->plan(plan) != moveit::core::MoveItErrorCode::SUCCESS)
             return false;
 
         out_points      = plan.trajectory.joint_trajectory.points;
@@ -204,6 +173,17 @@ private:
             std::vector<trajectory_msgs::msg::JointTrajectoryPoint> segment_pts;
             std::vector<std::string> segment_joint_names;
 
+            move_group_->clearPoseTargets();
+            move_group_->clearPathConstraints();
+
+            move_group_->setStartState(*current_state);
+            move_group_->setPlanningTime(5.0);
+            move_group_->setMaxVelocityScalingFactor(step.params().vel);
+            move_group_->setMaxAccelerationScalingFactor(step.params().acc);
+            move_group_->setGoalOrientationTolerance(step.params().tolerance_ori);
+            move_group_->setGoalPositionTolerance(step.params().tolerance_pos);
+            move_group_->setPlanningPipelineId(step.pipelineId());
+            move_group_->setPlannerId(step.plannerId());
             if (!planSingleStep(
                     step, move_group_.get(), current_state, segment_pts, segment_joint_names)) {
                 RCLCPP_WARN(node_->get_logger(), "segment %zu plan failed", i);
@@ -238,14 +218,11 @@ private:
     rclcpp::executors::MultiThreadedExecutor exec_;
     std::thread spin_thread_;
     std::unique_ptr<moveit::planning_interface::MoveGroupInterface> move_group_;
-
     std::atomic_bool running_{false};
     std::thread moveit_thread_;
-
     std::atomic<std::shared_ptr<const PlanRequest>> plan_request_{nullptr};
     std::atomic<std::shared_ptr<const PlannedTrajectory>> planned_trajectory_{nullptr};
     uint64_t last_planned_id_{0};
-    std::unordered_map<std::string, dictionary::action_chunk> task_cache_;
 };
 
 } // namespace rmcs_core::controller::arm

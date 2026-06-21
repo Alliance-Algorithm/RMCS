@@ -1,4 +1,6 @@
-#include "controller/arm/arm_action_machine.hpp"
+#include "controller/arm/arm_action/action_step.hpp"
+#include "controller/arm/arm_action/arm_action_machine.hpp"
+#include"controller/arm/arm_action/action_dictionary.hpp"
 #include "filter/low_pass_filter.hpp"
 #include <Eigen/src/Core/Matrix.h>
 #include <algorithm>
@@ -50,6 +52,8 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
+        , action_dictionary_()
+        , arm_action_machine_()
         , custom_joint_filter_(0.2) {
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
@@ -81,7 +85,6 @@ public:
         register_output("/arm/image_pitch/target_theta", image_pitch_target_theta_, NAN);
         register_output("/arm/custom_big_yaw", custom_big_yaw_output_, 0.0);
         register_input("/leg_back/up_stairs_step", up_stairs_layer);
-        arm_action_machine_.register_task("up_two_stairs", {"initial", "initial_again", "lift_again"});
     }
 
     ~ArmController() {}
@@ -115,31 +118,32 @@ public:
         if (last_arm_mode_ != *arm_mode_) {
             switch (*arm_mode_) {
             case ArmMode::Auto_Extract_LB: {
-                arm_action_machine_.process("extract_lb");
+                arm_action_machine_.process(action_dictionary_.helper_find_chunk("extract_lb"));
                 break;
             }
             case ArmMode::Auto_Extract_RB: {
-                arm_action_machine_.process("extract_rb");
+                arm_action_machine_.process(action_dictionary_.helper_find_chunk("extract_rb"));
                 break;
             }
             case ArmMode::Auto_Storage_LB: {
-                arm_action_machine_.process("storage_lb");
+                arm_action_machine_.process(action_dictionary_.helper_find_chunk("storage_lb"));
                 break;
             }
             case ArmMode::Auto_Storage_RB: {
-                arm_action_machine_.process("storage_rb");
+                arm_action_machine_.process(action_dictionary_.helper_find_chunk("storage_rb"));
                 break;
             }
             case ArmMode::Auto_Walk: {
-                arm_action_machine_.process("auto_walk");
+                arm_action_machine_.process(action_dictionary_.helper_find_chunk("auto_walk"));
                 break;
             }
             case ArmMode::Auto_Up_One_Stairs: {
-                arm_action_machine_.process("up_one_stairs");
+                arm_action_machine_.process(action_dictionary_.helper_find_chunk("up_one_stairs"));
                 break;
             }
             case ArmMode::Auto_Up_Two_Stairs: {
-                arm_action_machine_.process("up_two_stairs");
+                arm_action_machine_.process(
+                    action_dictionary_.helper_build_chunk({"initial", "initial_again", "lift_again"}));
             }
             }
         }
@@ -310,10 +314,9 @@ private:
             auto step = result->step_map.find(current_step_index_);
             if (step == result->step_map.end())
                 return;
-            if (step->second.motion_type == dictionary::MotionType::CloseGripper) {
+            if (step->second.type() == Action::MotionType::CloseGripper) {
                 set_gripper_mode(rmcs_msgs::GripperMode::Close);
-            }
-            if (step->second.motion_type == dictionary::MotionType::OpenGripper) {
+            } else if (step->second.type() == Action::MotionType::OpenGripper) {
                 set_gripper_mode(rmcs_msgs::GripperMode::Open);
             }
             auto pos_it = result->step_position_map.find(current_step_index_);
@@ -515,6 +518,7 @@ private:
         custom_joint_filter_.reset();
         *arm_mode_ = rmcs_msgs::ArmMode::None;
     }
+   ActionDictionary action_dictionary_;
     ActionMachine arm_action_machine_;
     rmcs_msgs::Switch last_switch_left_{rmcs_msgs::Switch::UNKNOWN};
     rmcs_msgs::Switch last_switch_right_{rmcs_msgs::Switch::UNKNOWN};
