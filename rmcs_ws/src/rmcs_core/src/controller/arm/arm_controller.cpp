@@ -81,7 +81,7 @@ public:
         register_output("/arm/image_pitch/target_theta", image_pitch_target_theta_, NAN);
         register_output("/arm/custom_big_yaw", custom_big_yaw_output_, 0.0);
         register_input("/leg_back/up_stairs_step", up_stairs_layer);
-        arm_action_machine_.load("up_two_stairs", {"initial", "initial_again", "lift_again"});
+        arm_action_machine_.register_task("up_two_stairs", {"initial", "initial_again", "lift_again"});
     }
 
     ~ArmController() {}
@@ -310,10 +310,10 @@ private:
             auto step = result->step_map.find(current_step_index_);
             if (step == result->step_map.end())
                 return;
-            if (step->second.motion_type == MotionType::CloseGripper) {
+            if (step->second.motion_type == dictionary::MotionType::CloseGripper) {
                 set_gripper_mode(rmcs_msgs::GripperMode::Close);
             }
-            if (step->second.motion_type == MotionType::OpenGripper) {
+            if (step->second.motion_type == dictionary::MotionType::OpenGripper) {
                 set_gripper_mode(rmcs_msgs::GripperMode::Open);
             }
             auto pos_it = result->step_position_map.find(current_step_index_);
