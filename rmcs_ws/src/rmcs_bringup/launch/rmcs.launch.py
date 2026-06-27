@@ -50,9 +50,6 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
             )
         )
 
-        if is_automatic:
-            pass
-
         return entities
 
 

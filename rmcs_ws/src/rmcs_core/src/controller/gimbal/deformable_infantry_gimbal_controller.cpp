@@ -31,6 +31,13 @@ public:
         get_parameter("pitch_torque_control", pitch_torque_control_enabled_);
         get_parameter("manual_joystick_sensitivity", joystick_sensitivity_);
         get_parameter("manual_mouse_sensitivity", mouse_sensitivity_);
+        get_parameter("yaw_vel_ff_gain", yaw_vel_ff_gain_);
+        get_parameter("yaw_acc_ff_gain", yaw_acc_ff_gain_);
+        get_parameter("pitch_acc_ff_gain", pitch_acc_ff_gain_);
+        get_parameter_or("pitch_gravity_ff", pitch_gravity_ff_, 0.0);
+        get_parameter_or("ctrl_hold_pitch_target_angle", ctrl_hold_pitch_target_angle_, 0.0);
+        get_parameter_or(
+            "ctrl_hold_chassis_yaw_velocity_max", ctrl_hold_chassis_yaw_velocity_max_, 30.0);
     }
 
     auto update() -> void override {
@@ -69,7 +76,8 @@ public:
         if (pitch_torque_control_enabled_) {
             *output_.pitch_control_velocity = kNaN;
             *output_.pitch_control_torque =
-                pitch_velocity_pid_.update(pitch_velocity_ref - *input_.pitch_velocity_imu);
+                pitch_velocity_pid_.update(pitch_velocity_ref - *input_.pitch_velocity_imu)
+              + pitch_acc_ff + pitch_gravity_ff_;
         } else {
             pitch_velocity_pid_.reset();
             *output_.pitch_control_velocity = pitch_velocity_ref;
@@ -162,6 +170,75 @@ private:
         return gimbal_solver_.update(TwoAxisGimbalSolver::SetControlShift{yaw_shift, pitch_shift});
     }
 
+<<<<<<< HEAD
+=======
+    auto activate_ctrl_hold() -> void {
+        ctrl_hold_active_ = true;
+        locked_yaw_angle_ = (input_.yaw_angle.ready() && std::isfinite(*input_.yaw_angle))
+                              ? *input_.yaw_angle
+                              : 0.0;
+        pitch_angle_pid_.reset();
+        pitch_velocity_pid_.reset();
+        gimbal_solver_.update(TwoAxisGimbalSolver::SetDisabled{});
+    }
+
+    auto deactivate_ctrl_hold() -> void {
+        if (!ctrl_hold_active_)
+            return;
+
+        ctrl_hold_active_ = false;
+        locked_yaw_angle_ = kNaN;
+        *output_.yaw_control_angle = kNaN;
+        *output_.pitch_control_angle = kNaN;
+        *output_.chassis_manual_yaw_velocity_override = kNaN;
+        gimbal_solver_.update(TwoAxisGimbalSolver::SetDisabled{});
+    }
+
+    auto update_ctrl_hold_control() -> void {
+        if (!ctrl_hold_active_)
+            activate_ctrl_hold();
+
+        yaw_angle_pid_.reset();
+        yaw_velocity_pid_.reset();
+        *output_.yaw_control_torque = kNaN;
+        *output_.yaw_control_angle = kNaN;
+        *output_.pitch_control_velocity = kNaN;
+        *output_.pitch_control_torque = kNaN;
+        *output_.pitch_control_angle = kNaN;
+        *output_.chassis_manual_yaw_velocity_override = kNaN;
+        *output_.yaw_angle_error = kNaN;
+        *output_.pitch_angle_error = kNaN;
+        *output_.yaw_control_angle = locked_yaw_angle_;
+        *output_.pitch_control_angle = kNaN;
+
+        if (input_.pitch_angle.ready() && std::isfinite(*input_.pitch_angle)) {
+            auto pitch_target_error = ctrl_hold_pitch_target_angle_ - *input_.pitch_angle;
+            if (pitch_target_error > std::numbers::pi)
+                pitch_target_error -= 2 * std::numbers::pi;
+            else if (pitch_target_error < -std::numbers::pi)
+                pitch_target_error += 2 * std::numbers::pi;
+
+            *output_.pitch_angle_error = pitch_target_error;
+            const auto pitch_velocity_ref = pitch_angle_pid_.update(pitch_target_error);
+            if (pitch_torque_control_enabled_) {
+                *output_.pitch_control_velocity = kNaN;
+                *output_.pitch_control_torque =
+                    pitch_velocity_pid_.update(pitch_velocity_ref - *input_.pitch_velocity_imu)
+                  + pitch_gravity_ff_;
+            } else {
+                pitch_velocity_pid_.reset();
+                *output_.pitch_control_velocity = pitch_velocity_ref;
+                *output_.pitch_control_torque = kNaN;
+            }
+        }
+
+        const auto yaw_velocity_override = std::clamp(
+            manual_yaw_shift() / update_dt(), -ctrl_hold_chassis_yaw_velocity_max_,
+            ctrl_hold_chassis_yaw_velocity_max_);
+        *output_.chassis_manual_yaw_velocity_override = yaw_velocity_override;
+    }
+
+>>>>>>> 22e4b815 (feat(gimbal): add constant pitch gravity feedforward torque)
     auto reset_control_outputs() -> void {
         yaw_angle_pid_.reset();
         yaw_velocity_pid_.reset();
@@ -207,6 +284,19 @@ private:
     double joystick_sensitivity_ = 0.003;
     double mouse_sensitivity_ = 0.5;
     bool pitch_torque_control_enabled_ = false;
+<<<<<<< HEAD
+=======
+    double yaw_vel_ff_gain_ = 0.0;
+    double yaw_acc_ff_gain_ = 0.0;
+    double pitch_acc_ff_gain_ = 0.0;
+    double pitch_gravity_ff_ = 0.0;
+    double ctrl_hold_pitch_target_angle_ = 0.0;
+    double ctrl_hold_chassis_yaw_velocity_max_ = 30.0;
+    bool suspension_on_by_switch_ = false;
+    bool ctrl_hold_active_ = false;
+    rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
+    double locked_yaw_angle_ = kNaN;
+>>>>>>> 22e4b815 (feat(gimbal): add constant pitch gravity feedforward torque)
 };
 
 } // namespace rmcs_core::controller::gimbal
