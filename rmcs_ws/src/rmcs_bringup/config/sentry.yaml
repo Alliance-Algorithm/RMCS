@@ -39,7 +39,7 @@ sentry_hardware:
     board_serial_bottom_board: "af-79cf"
     board_serial_gimbal_board: "af-8b8b"
 
-    pitch_motor_zero_point: 12347
+    pitch_motor_zero_point: 12158
 
     bottom_yaw_motor_zero_point: 54551
     top_yaw_motor_zero_point: 33409
@@ -61,22 +61,22 @@ gimbal_controller:
     upper_limit: -0.65
     lower_limit: 0.36
 
-    top_yaw_angle_kp: 45.0
-    top_yaw_angle_ki: 0.0
-    top_yaw_angle_kd: 0.0
+    top_yaw_angle_kp: 35.0
+    top_yaw_angle_ki: 0.008
+    top_yaw_angle_kd: 0.005
     top_yaw_velocity_kp: 2.160
-    top_yaw_velocity_ki: 0.0
+    top_yaw_velocity_ki: 0.00
     top_yaw_velocity_kd: 0.0
 
-    bottom_yaw_angle_kp: 12.0
-    bottom_yaw_angle_ki: 0.0
-    bottom_yaw_angle_kd: 0.0
-    bottom_yaw_velocity_kp: 22.5
-    bottom_yaw_velocity_ki: 0.0
-    bottom_yaw_velocity_kd: 0.0
+    bottom_yaw_angle_kp: 9.5
+    bottom_yaw_angle_ki: 0.001
+    bottom_yaw_angle_kd: 0.0003
+    bottom_yaw_velocity_kp: 18.0
+    bottom_yaw_velocity_ki: 0.00
+    bottom_yaw_velocity_kd: 0.00
 
     pitch_angle_kp: 32.0
-    pitch_angle_ki: 0.0
+    pitch_angle_ki: 0.01
     pitch_angle_kd: 0.0
     pitch_velocity_kp: 2.5
     pitch_velocity_ki: 0.0
