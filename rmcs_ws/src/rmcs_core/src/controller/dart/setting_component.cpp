@@ -33,7 +33,6 @@ public:
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , yaw_error_to_velocity_gain_(get_parameter("yaw_error_to_velocity_gain").as_double())
-        , pitch_error_to_velocity_gain_(get_parameter("pitch_error_to_velocity_gain").as_double())
         , force_error_velocity_pid_(
               get_parameter("force_error_kp").as_double(),
               get_parameter("force_error_ki").as_double(),
@@ -43,7 +42,6 @@ public:
               get_parameter("carriage_angle_ki").as_double(),
               get_parameter("carriage_angle_kd").as_double())
         , yaw_max_velocity_(get_parameter("yaw_max_velocity").as_double())
-        , pitch_max_velocity_(get_parameter("pitch_max_velocity").as_double())
         , force_max_velocity_(get_parameter("force_max_velocity").as_double()) {
 
         register_input("/dart_manager/angle/error_vector", angle_error_vector_);
@@ -52,23 +50,18 @@ public:
         register_input("/dart_manager/carriage/target_velocity", carriage_target_velocity_, false);
         register_input("/dart_manager/carriage/target_angle", carriage_target_angle_, false);
 
-        register_input("/force_sensor/channel_1/weight", force_sensor_ch1_);
-        register_input("/force_sensor/channel_2/weight", force_sensor_ch2_);
         register_input("/dart/force_screw_motor/encoder_angle", force_screw_angle_);
 
         register_input("/imu/catapult_pitch_angle", pitch_angle_);
         register_input(
             "/dart_manager/force/max_velocity_override", force_max_velocity_override_, false);
 
-        register_input("/dart/pitch_motor/velocity", pitch_velocity_);
         register_input("/dart/yaw_motor/velocity", yaw_velocity_);
-        register_input("/dart/pitch_motor/torque", pitch_torque_);
         register_input("/dart/yaw_motor/torque", yaw_torque_);
         register_input("/imu/catapult_yaw_angle", yaw_angle_);
         register_input("/imu/catapult_roll_angle", roll_angle_);
 
         register_output("/dart/yaw_motor/control_velocity", yaw_control_velocity_, 0.0);
-        register_output("/dart/pitch_motor/control_velocity", pitch_control_velocity_, 0.0);
         register_output("/dart/force_screw_motor/control_velocity", force_control_velocity_, 0.0);
 
         const double default_force_output_max = sanitize_max_velocity(force_max_velocity_);
@@ -102,12 +95,6 @@ public:
         *yaw_control_velocity_ = apply_yaw_pitch_stall_protection(
             "yaw", requested_yaw_velocity, *yaw_velocity_, *yaw_torque_, yaw_stall_counter_,
             yaw_stall_latched_);
-
-        const double requested_pitch_velocity =
-            limit_velocity(angle_error[1], pitch_error_to_velocity_gain_, pitch_max_velocity_);
-        *pitch_control_velocity_ = apply_yaw_pitch_stall_protection(
-            "pitch", requested_pitch_velocity, *pitch_velocity_, *pitch_torque_,
-            pitch_stall_counter_, pitch_stall_latched_);
 
         if (const auto carriage_control_velocity = resolve_carriage_angle_control_velocity()) {
             *force_control_velocity_ = *carriage_control_velocity;
@@ -285,12 +272,10 @@ private:
     }
 
     double yaw_error_to_velocity_gain_;
-    double pitch_error_to_velocity_gain_;
     pid::PidCalculator force_error_velocity_pid_;
     pid::PidCalculator carriage_angle_velocity_pid_;
 
     double yaw_max_velocity_;
-    double pitch_max_velocity_;
     double force_max_velocity_;
 
     InputInterface<Eigen::Vector2d> angle_error_vector_;
@@ -299,14 +284,11 @@ private:
     InputInterface<double> carriage_target_velocity_;
     InputInterface<double> carriage_target_angle_;
 
-    InputInterface<int32_t> force_sensor_ch1_;
-    InputInterface<int32_t> force_sensor_ch2_;
     InputInterface<double> force_screw_angle_;
 
     InputInterface<double> pitch_angle_;
     InputInterface<double> force_max_velocity_override_;
 
-    InputInterface<double> pitch_velocity_;
     InputInterface<double> yaw_velocity_;
     InputInterface<double> pitch_torque_;
     InputInterface<double> yaw_torque_;
@@ -314,13 +296,10 @@ private:
     InputInterface<double> roll_angle_;
 
     OutputInterface<double> yaw_control_velocity_;
-    OutputInterface<double> pitch_control_velocity_;
     OutputInterface<double> force_control_velocity_;
 
     uint64_t yaw_stall_counter_{0};
-    uint64_t pitch_stall_counter_{0};
     bool yaw_stall_latched_{false};
-    bool pitch_stall_latched_{false};
 };
 
 } // namespace rmcs_core::controller::dart

@@ -18,12 +18,11 @@ rmcs_executor:
       - rmcs_core::controller::dart::DartFilling -> dart_filling
       - rmcs_core::controller::dart::DartSettingController -> dart_setting
       - rmcs_core::controller::dart::DartChassisLeveling -> dart_chassis_leveling
-      - rmcs_core::controller::pid::PidController    -> leveling_front_left_angle_pid_controller
-      - rmcs_core::controller::pid::PidController    -> leveling_front_right_angle_pid_controller
-      - rmcs_core::controller::pid::PidController    -> leveling_rear_left_angle_pid_controller
-      - rmcs_core::controller::pid::PidController    -> leveling_rear_right_angle_pid_controller
+      - rmcs_core::controller::pid::PidController    -> leveling_front_left_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController    -> leveling_front_right_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController    -> leveling_rear_left_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController    -> leveling_rear_right_velocity_pid_controller
       - rmcs_core::controller::pid::PidController    -> yaw_velocity_pid_controller
-      - rmcs_core::controller::pid::PidController    -> pitch_velocity_pid_controller
       - rmcs_core::controller::pid::PidController    -> force_screw_velocity_pid_controller
       - rmcs_core::broadcaster::ValueBroadcaster -> broadcaster
 
@@ -87,6 +86,14 @@ dart_manager:
     lifting_stall_torque_threshold: 0.1
     lifting_stall_confirm_ticks: 150  # 连续帧数 = 0.1s @ 1kHz
     lifting_stall_min_run_ticks: 300  # 启动后最少运行帧数，避免启动瞬间误触发
+    chassis_leveling_stall_velocity_threshold: 1.0
+    chassis_leveling_stall_torque_threshold: 0.5
+    chassis_leveling_stall_confirm_ticks: 500
+    chassis_leveling_min_run_ticks: 100
+    chassis_leveling_angle_allowable_error: 0.01
+    chassis_leveling_angle_confirm_ticks: 500
+    chassis_leveling_contact_timeout_ticks: 20000
+    chassis_leveling_axis_timeout_ticks: 20000
     carriage_stall_velocity_threshold: 0.2
     carriage_stall_torque_threshold: 0.2
     carriage_stall_confirm_ticks: 100
@@ -204,7 +211,7 @@ dart_setting:
     pitch_max_velocity: 10.0
     force_max_velocity: 1000.0
 
-# Outer loop: IMU pitch/roll angle -> per-cycle leveling-feet angle increment.
+# Outer loop: legacy IMU PID leveling plus staged three-step leveling increments.
 dart_chassis_leveling:
   ros__parameters:
     pitch_angle_kp: 10.0
@@ -225,47 +232,50 @@ dart_chassis_leveling:
     roll_angle_integral_split_max: 10.0
     roll_angle_output_min: -100.0
     roll_angle_output_max: 100.0
+    contact_stage_angle_increment: 100.0
+    roll_pair_stage_angle_increment: -100.0
+    pitch_pair_stage_angle_increment: -100.0
 
-# Inner loop: leveling-feet encoder_angle -> control_torque.
-leveling_front_left_angle_pid_controller:
+# Inner loop: leveling-feet velocity -> control_torque.
+leveling_front_left_velocity_pid_controller:
   ros__parameters:
-    measurement: /dart/leveling_feet/front_left/encoder_angle
-    setpoint:    /dart/leveling_feet/front_left/control_angle
+    measurement: /dart/leveling_feet/front_left/velocity
+    setpoint:    /dart/leveling_feet/front_left/control_velocity
     control:     /dart/leveling_feet/front_left/control_torque
-    kp: 0.005
+    kp: 0.03
     ki: 0.0
     kd: 0.0
     output_min: -1.0
     output_max: 1.0
 
-leveling_front_right_angle_pid_controller:
+leveling_front_right_velocity_pid_controller:
   ros__parameters:
-    measurement: /dart/leveling_feet/front_right/encoder_angle
-    setpoint:    /dart/leveling_feet/front_right/control_angle
+    measurement: /dart/leveling_feet/front_right/velocity
+    setpoint:    /dart/leveling_feet/front_right/control_velocity
     control:     /dart/leveling_feet/front_right/control_torque
-    kp: 0.005
+    kp: 0.03
     ki: 0.0
     kd: 0.0
     output_min: -1.0
     output_max: 1.0
 
-leveling_rear_left_angle_pid_controller:
+leveling_rear_left_velocity_pid_controller:
   ros__parameters:
-    measurement: /dart/leveling_feet/rear_left/encoder_angle
-    setpoint:    /dart/leveling_feet/rear_left/control_angle
+    measurement: /dart/leveling_feet/rear_left/velocity
+    setpoint:    /dart/leveling_feet/rear_left/control_velocity
     control:     /dart/leveling_feet/rear_left/control_torque
-    kp: 0.005
+    kp: 0.03
     ki: 0.0
     kd: 0.0
     output_min: -1.0
     output_max: 1.0
 
-leveling_rear_right_angle_pid_controller:
+leveling_rear_right_velocity_pid_controller:
   ros__parameters:
-    measurement: /dart/leveling_feet/rear_right/encoder_angle
-    setpoint:    /dart/leveling_feet/rear_right/control_angle
+    measurement: /dart/leveling_feet/rear_right/velocity
+    setpoint:    /dart/leveling_feet/rear_right/control_velocity
     control:     /dart/leveling_feet/rear_right/control_torque
-    kp: 0.005
+    kp: 0.03
     ki: 0.0
     kd: 0.0
     output_min: -1.0
@@ -277,15 +287,6 @@ yaw_velocity_pid_controller:
     setpoint:    /dart/yaw_motor/control_velocity
     control:     /dart/yaw_motor/control_torque
     kp: 0.3
-    ki: 0.0
-    kd: 0.0
-
-pitch_velocity_pid_controller:
-  ros__parameters:
-    measurement: /dart/pitch_motor/velocity
-    setpoint:    /dart/pitch_motor/control_velocity
-    control:     /dart/pitch_motor/control_torque
-    kp: 0.6
     ki: 0.0
     kd: 0.0
 

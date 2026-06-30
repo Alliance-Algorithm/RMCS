@@ -3,10 +3,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <deque>
 #include <iomanip>
 #include <memory>
-#include <mutex>
 #include <rclcpp/subscription.hpp>
 #include <span>
 #include <sstream>
@@ -26,7 +24,6 @@
 #include "hardware/device/can_packet.hpp"
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
-#include "hardware/device/force_sensor.hpp"
 #include "hardware/device/lk_motor.hpp"
 #include "hardware/device/pwm_servo.hpp"
 #include "hardware/device/trigger_servo.hpp"
@@ -54,7 +51,6 @@ public:
         , yaw_filter_(5.0, 1000.0)
         , pitch_filter_(10.0, 1000.0)
         , roll_filter_(10.0, 1000.0)
-        , pitch_motor_{*this, *dart_command_, "/dart/pitch_motor"}
         , yaw_motor_{*this, *dart_command_, "/dart/yaw_motor"}
         , force_screw_motor_{*this, *dart_command_, "/dart/force_screw_motor"}
         , drive_belt_motor_left_{*this, *dart_command_, "/dart/drive_belt/left"}
@@ -63,7 +59,6 @@ public:
         , leveling_feet_motor_front_right_{*this, *dart_command_, "/dart/leveling_feet/front_right"}
         , leveling_feet_motor_rear_left_{*this, *dart_command_, "/dart/leveling_feet/rear_left"}
         , leveling_feet_motor_rear_right_{*this, *dart_command_, "/dart/leveling_feet/rear_right"}
-        , force_sensor_{*this}
         , trigger_servo_{"/dart/trigger_servo", *dart_command_, 20.0, 0.5, 2.5}
         , limiting_servo_{*dart_command_, "/dart/limiting_servo", 0x02}
         , lifting_left_motor_{*this, *dart_command_, "/dart/lifting_left"}
@@ -71,10 +66,6 @@ public:
         , dr16_{*this}
         , imu_{1000, 0.2, 0.0} {
 
-        pitch_motor_.configure(
-            device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
-                .set_reduction_ratio(19.)
-                .set_reversed());
         yaw_motor_.configure(
             device::DjiMotor::Config{device::DjiMotor::Type::kM3508}.set_reduction_ratio(19.));
         force_screw_motor_.configure(
@@ -92,19 +83,19 @@ public:
                 .enable_multi_turn_angle());
         leveling_feet_motor_front_left_.configure(
             device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
-                .set_reduction_ratio(1.)
+                .set_reduction_ratio(2.0)
                 .enable_multi_turn_angle());
         leveling_feet_motor_front_right_.configure(
             device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
-                .set_reduction_ratio(1.)
+                .set_reduction_ratio(2.0)
                 .enable_multi_turn_angle());
         leveling_feet_motor_rear_left_.configure(
             device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
-                .set_reduction_ratio(1.)
+                .set_reduction_ratio(2.0)
                 .enable_multi_turn_angle());
         leveling_feet_motor_rear_right_.configure(
             device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
-                .set_reduction_ratio(1.)
+                .set_reduction_ratio(2.0)
                 .enable_multi_turn_angle());
 
         lifting_left_motor_.configure(
@@ -121,12 +112,6 @@ public:
         limiting_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
             "/limiting/calibrate", rclcpp::QoS{0}, [this](std_msgs::msg::Int32::UniquePtr&& msg) {
                 trigger_servo_calibrate_subscription_callback(limiting_servo_, std::move(msg));
-            });
-
-        force_sensor_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
-            "/force_sensor/calibrate", rclcpp::QoS{10},
-            [this](std_msgs::msg::Int32::UniquePtr&& msg) {
-                force_sensor_calibrate_subscription_callback(std::move(msg));
             });
 
         register_output("/referee/serial", referee_serial_);
@@ -150,12 +135,10 @@ public:
 
     void update() override {
         dr16_.update_status();
-        pitch_motor_.update_status();
         yaw_motor_.update_status();
         drive_belt_motor_left_.update_status();
         drive_belt_motor_right_.update_status();
         force_screw_motor_.update_status();
-        force_sensor_.update_status();
         lifting_left_motor_.update_status();
         lifting_right_motor_.update_status();
         leveling_feet_motor_front_left_.update_status();
@@ -185,7 +168,7 @@ public:
             librmcs::spec::rmcs_board_pro::kGpioDescriptors[1],
             librmcs::data::GpioAnalogDataView{.value = trigger_servo_.generate_duty_cycle()});
 
-        board.can0_transmit({
+        board.can1_transmit({
             .can_id = 0x200,
             .can_data =
                 device::CanPacket8{
@@ -196,36 +179,16 @@ public:
                                    }
                     .as_bytes(),
         });
-        // Force sensor: polling command on CAN1 (every 100 cycles)
-        if (pub_time_count_++ > 100) {
-            board.can1_transmit({
-                .can_id = 0x301,
-                .can_data = device::CanPacket8{0}.as_bytes(),
-            });
-            pub_time_count_ = 0;
-        }
 
-        // DJI motors on CAN2 (pitch/yaw/force_screw: 0x200, belts: 0x1FF)
+        // DJI motors on CAN2 (yaw/force_screw: 0x200, belts: 0x1FF)
         board.can2_transmit({
             .can_id = 0x200,
             .can_data =
                 device::CanPacket8{
-                                   pitch_motor_.generate_command(),
                                    yaw_motor_.generate_command(),
                                    force_screw_motor_.generate_command(),
-                                   device::CanPacket8::PaddingQuarter{},
-                                   }
-                    .as_bytes(),
-        });
-
-        board.can2_transmit({
-            .can_id = 0x1FF,
-            .can_data =
-                device::CanPacket8{
                                    drive_belt_motor_left_.generate_command(),
                                    drive_belt_motor_right_.generate_command(),
-                                   device::CanPacket8::PaddingQuarter{},
-                                   device::CanPacket8::PaddingQuarter{},
                                    }
                     .as_bytes(),
         });
@@ -255,28 +218,19 @@ public:
     }
 
 protected:
-    void can0_receive_callback(const librmcs::data::CanDataView& data) override {
-        if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
-            return;
-
-        const auto can_id = data.can_id;
-        if (can_id == 0x207) {
-            leveling_feet_motor_front_left_.store_status(data.can_data);
-        } else if (can_id == 0x208) {
-            leveling_feet_motor_front_right_.store_status(data.can_data);
-        } else if (can_id == 0x209) {
-            leveling_feet_motor_rear_left_.store_status(data.can_data);
-        } else if (can_id == 0x210) {
-            leveling_feet_motor_rear_right_.store_status(data.can_data);
-        }
-    }
     void can1_receive_callback(const librmcs::data::CanDataView& data) override {
         if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
             return;
 
         const auto can_id = data.can_id;
-        if (can_id == 0x302) {
-            force_sensor_.store_status(data.can_data);
+        if (can_id == 0x201) {
+            leveling_feet_motor_front_left_.store_status(data.can_data);
+        } else if (can_id == 0x202) {
+            leveling_feet_motor_front_right_.store_status(data.can_data);
+        } else if (can_id == 0x203) {
+            leveling_feet_motor_rear_left_.store_status(data.can_data);
+        } else if (can_id == 0x204) {
+            leveling_feet_motor_rear_right_.store_status(data.can_data);
         }
     }
 
@@ -286,14 +240,12 @@ protected:
 
         const auto can_id = data.can_id;
         if (can_id == 0x201) {
-            pitch_motor_.store_status(data.can_data);
-        } else if (can_id == 0x202) {
             yaw_motor_.store_status(data.can_data);
-        } else if (can_id == 0x203) {
+        } else if (can_id == 0x202) {
             force_screw_motor_.store_status(data.can_data);
-        } else if (can_id == 0x205) {
+        } else if (can_id == 0x203) {
             drive_belt_motor_left_.store_status(data.can_data);
-        } else if (can_id == 0x206) {
+        } else if (can_id == 0x204) {
             drive_belt_motor_right_.store_status(data.can_data);
         }
     }
@@ -357,15 +309,6 @@ protected:
     }
 
 private:
-    void force_sensor_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
-        auto board = start_transmit();
-        board.can1_transmit({
-            .can_id = 0x201,
-            .can_data = device::CanPacket8{0x0F}.as_bytes(),
-        });
-        RCLCPP_INFO(logger_, "calibrate");
-    }
-
     void trigger_servo_calibrate_subscription_callback(
         device::TriggerServo& servo, std_msgs::msg::Int32::UniquePtr msg) {
         servo.set_calibrate_mode(msg->data);
@@ -466,7 +409,6 @@ private:
     filter::LowPassFilter<1> pitch_filter_;
     filter::LowPassFilter<1> roll_filter_;
 
-    device::DjiMotor pitch_motor_;
     device::DjiMotor yaw_motor_;
     device::DjiMotor force_screw_motor_;
     device::DjiMotor drive_belt_motor_left_;
@@ -475,8 +417,6 @@ private:
     device::DjiMotor leveling_feet_motor_front_right_;
     device::DjiMotor leveling_feet_motor_rear_left_;
     device::DjiMotor leveling_feet_motor_rear_right_;
-
-    device::ForceSensor force_sensor_;
 
     device::PWMServo trigger_servo_;
     device::TriggerServo limiting_servo_;
@@ -493,12 +433,9 @@ private:
     OutputInterface<double> catapult_yaw_angle_;
 
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr limiting_calibrate_subscription_;
-    rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr force_sensor_calibrate_subscription_;
 
     rmcs_utility::RingBuffer<std::byte> referee_ring_buffer_receive_{256};
     OutputInterface<rmcs_msgs::SerialInterface> referee_serial_;
-
-    int pub_time_count_ = 0;
 
     uint16_t last_limiting_angle_ = 0xFFFF;
 };
