@@ -42,10 +42,6 @@ public:
         , bottom_yaw_angle_number_(
               Shape::Color::YELLOW, 20, 5, x_center + 270, y_center - 65, 0.0, false)
         , time_reminder_(Shape::Color::PINK, 50, 5, x_center + 150, y_center + 65, 0, false)
-        // , bullet_allowance_label_(
-        //       Shape::Color::YELLOW, 18, 3, x_center - 300, y_center + 270, "bullet", false)
-        // , bullet_allowance_number_(
-        //       Shape::Color::YELLOW, 20, 5, x_center - 170, y_center + 270, 0, false)
         , bullet_allowance_number_(
               Shape::Color::YELLOW, 20, 5, x_center - 220, y_center + 270, 0, false)
         , friction_profile_number_(
@@ -97,9 +93,6 @@ public:
         register_input("/gimbal/bottom_yaw/raw_angle", bottom_yaw_raw_angle_);
         // register_input("/gimbal/auto_aim/laser_distance", laser_distance_);
 
-        register_input("/gimbal/shooter/condiction", shoot_condiction_);
-
-        register_input("/gimbal/shooter/mode", shoot_mode_);
         register_input("/gimbal/shooter/preloaded_ready", shooter_preloaded_ready_, false);
 
         // register_input("/gimbal/scope/active", is_scope_active_);
@@ -107,16 +100,11 @@ public:
         register_input("/remote/mouse", mouse_);
 
         register_input("/referee/game/stage", game_stage_);
-
-        // register_input("/gimbal/auto_aim/fire_control", auto_aim_fire_control_, false);
-        // register_input("/gimbal/auto_aim/target_confidence", auto_aim_target_confidence_, false);
     }
 
     void update() override {
         update_normal_ui();
-        // update_bullet_allowance();
         // update_sniper_ui();
-        // update_state_word();
 
         // if (*is_scope_active_) {
         //     set_normal_ui_visible(false);
@@ -146,7 +134,6 @@ private:
         yaw_angle_number_.set_visible(value);
         pitch_angle_number_.set_visible(value);
         bottom_yaw_angle_number_.set_visible(value);
-        // bullet_allowance_label_.set_visible(value);
         bullet_allowance_number_.set_visible(value);
         friction_profile_number_.set_visible(value);
         // center_green_line_.set_visible(value);
@@ -227,12 +214,6 @@ private:
             *left_friction_control_velocity_ > 0);
         status_ring_.update_supercap(*supercap_voltage_, true);
         status_ring_.update_battery_power(*chassis_voltage_);
-        // const bool auto_aim_locked = auto_aim_fire_control_.ready() && *auto_aim_fire_control_;
-        // const double target_confidence_value =
-        //     auto_aim_target_confidence_.ready() ? *auto_aim_target_confidence_ : 0.0;
-
-        // status_ring_.update_auto_aim_feedback(auto_aim_locked, target_confidence_value);
-        // update_static_status_ring();
         last_keyboard_ = *keyboard_;
     }
 
@@ -321,50 +302,6 @@ private:
     void update_time_reminder() {
         if (!game_stage_.ready())
             return;
-    }
-
-    void update_static_status_ring() {
-        auto auto_aim_enable = mouse_->right == 1;
-        auto precise_enable = *shoot_mode_ == rmcs_msgs::ShootMode::PRECISE;
-
-        status_ring_.update_static_parts({auto_aim_enable, precise_enable});
-    }
-
-    // void update_bullet_allowance() {
-
-    //     std::string text = "BULLET : " + std::to_string(max(0,*robot_bullet_allowance_));
-    //     char* allow = text.data();
-    //     auto color = Shape::Color::YELLOW;
-
-    //     bullet_allowance_number_.set_value(allow);
-    //     bullet_allowance_number_.set_font_size(14);
-    //     bullet_allowance_number_.set_color(color);
-    //     bullet_allowance_number_.set_visible(true);
-    //     bullet_allowance_number_.set_xy(x_center - 240, y_center + 288);
-    // }
-
-    void update_state_word() {
-
-        const char* text = "OK";
-        auto color = Shape::Color::GREEN;
-
-        if (*shoot_condiction_ == rmcs_msgs::ShootCondiction::FRICTION_WAITING) {
-            text = "  WAITING ";
-        } else if (*shoot_condiction_ == rmcs_msgs::ShootCondiction::SHOOT) {
-            text = "  SHOOT   ";
-        } else if (*shoot_condiction_ == rmcs_msgs::ShootCondiction::FIRED) {
-            text = "  FIRED   ";
-        } else if (*shoot_condiction_ == rmcs_msgs::ShootCondiction::JAM) {
-            text = "   JAM    ";
-        } else if (*shoot_condiction_ == rmcs_msgs::ShootCondiction::PRELOADING) {
-            text = "PRELOADING";
-        }
-
-        state_word_.set_value(text);
-        state_word_.set_font_size(30);
-        state_word_.set_color(color);
-        state_word_.set_visible(true);
-        state_word_.set_xy(x_center - 800, y_center + 200);
     }
 
     void update_chassis_direction_indicator() {
@@ -499,8 +436,6 @@ private:
     InputInterface<double> bottom_yaw_angle_;
     // InputInterface<double> laser_distance_;
 
-    InputInterface<rmcs_msgs::ShootMode> shoot_mode_;
-    InputInterface<rmcs_msgs::ShootCondiction> shoot_condiction_;
     InputInterface<bool> shooter_preloaded_ready_;
     // InputInterface<bool> is_scope_active_;
 
@@ -518,7 +453,6 @@ private:
     Text state_word_;
     Integer time_reminder_;
 
-    // Text bullet_allowance_label_;
     Integer bullet_allowance_number_;
     Integer friction_profile_number_;
     Line friction_profile_indicator_[4];
@@ -527,9 +461,6 @@ private:
 
     bool bottom_yaw_tracking_enabled_ = false;
     double bottom_yaw_anchor_angle_rad_ = 0.0;
-
-    // InputInterface<bool> auto_aim_fire_control_;
-    // InputInterface<double> auto_aim_target_confidence_;
 };
 
 } // namespace rmcs_core::referee::app::ui

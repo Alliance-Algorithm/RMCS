@@ -25,6 +25,8 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController -> first_right_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> second_left_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> second_right_friction_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> third_right_friction_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> third_left_friction_velocity_pid_controller
       # - rmcs_core::controller::shooting::ShootingRecorder -> shooting_recorder
 
       - rmcs_core::controller::chassis::SteeringWheelStatus -> steering_wheel_status
@@ -50,9 +52,9 @@ hero_hardware:
   ros__parameters:
     board_serial_top_board: "AF-8AE3-4EC1-03C3-C494-88FE-2DC4-3018-0298"
     serial_bottom_rmcs_board: "AF-60BB-7484-FA24-F3FC-399B-454D-22FA-1B1D"
-    bottom_yaw_motor_zero_point: 35078
-    pitch_motor_zero_point: 57241
-    top_yaw_motor_zero_point: 48537
+    bottom_yaw_motor_zero_point: 34622
+    pitch_motor_zero_point: 23251
+    top_yaw_motor_zero_point: 48181
     viewer_motor_zero_point:  31940
     external_imu_port: /dev/ttyUSB0
     bullet_feeder_motor_zero_point: 60480 #39045
@@ -145,8 +147,8 @@ chassis_power_controller:
 
 gimbal_controller:
   ros__parameters:
-    upper_limit: -0.668
-    lower_limit: 0.320
+    upper_limit: -0.718
+    lower_limit: 0.255
 
 dual_yaw_controller:
   ros__parameters:
@@ -219,20 +221,26 @@ bullet_feeder_controller:
 friction_wheel_controller:
   ros__parameters:
     friction_wheels:
-      - /gimbal/second_left_friction
-      - /gimbal/second_right_friction
       - /gimbal/first_left_friction
+      - /gimbal/second_left_friction
+      - /gimbal/third_left_friction
       - /gimbal/first_right_friction
+      - /gimbal/second_right_friction
+      - /gimbal/third_right_friction
     friction_velocities_profile_0:
-      - 380.0
-      - 380.0
-      - 545.0
-      - 545.0
+      - 360.0
+      - 360.0
+      - 360.0
+      - 523.0
+      - 523.0
+      - 523.0
     friction_velocities_profile_1:
-      - 535.0
-      - 535.0
-      - 595.0
-      - 595.0
+      - 360.0
+      - 360.0
+      - 360.0
+      - 523.0
+      - 523.0
+      - 523.0
     friction_soft_start_stop_time: 1.0
 
 heat_controller:
@@ -242,7 +250,7 @@ heat_controller:
 
 shooting_recorder:
   ros__parameters:
-    friction_wheel_count: 4
+    friction_wheel_count: 6
     aim_velocity: 11.8
     log_mode: 1 # 1: trigger, 2: timing
 
@@ -253,7 +261,7 @@ first_left_friction_velocity_pid_controller:
     control: /gimbal/first_left_friction/control_torque
     kp: 0.006
     ki: 0.00
-    kd: 0.00016
+    kd: 0.00008
 
 first_right_friction_velocity_pid_controller:
   ros__parameters:
@@ -262,7 +270,7 @@ first_right_friction_velocity_pid_controller:
     control: /gimbal/first_right_friction/control_torque
     kp: 0.006
     ki: 0.00
-    kd: 0.00016
+    kd: 0.00008
 
 second_left_friction_velocity_pid_controller:
   ros__parameters:
@@ -281,6 +289,24 @@ second_right_friction_velocity_pid_controller:
     kp: 0.006
     ki: 0.00
     kd: 0.00008
+
+third_left_friction_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/third_left_friction/velocity
+    setpoint: /gimbal/third_left_friction/control_velocity
+    control: /gimbal/third_left_friction/control_torque
+    kp: 0.006
+    ki: 0.00
+    kd: 0.00008
+
+third_right_friction_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/third_right_friction/velocity
+    setpoint: /gimbal/third_right_friction/control_velocity
+    control: /gimbal/third_right_friction/control_torque
+    kp: 0.006
+    ki: 0.00
+    kd: 0.00016
   
 steering_wheel_status:
   ros__parameters:

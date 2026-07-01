@@ -186,12 +186,10 @@ public:
                             shooted = true;
                         }
 
-                        if (*putter_angle_ - putter_startpoint >= putter_stroke_ && !shooted) {
-                            RCLCPP_INFO(get_logger(), "DETECT: Putter stroke completed!");
-                            shooted = true;
-                        }
-
-                        update_putter_jam_detection();
+                        // if (*putter_angle_ - putter_startpoint >= putter_stroke_ && !shooted) {
+                        //     RCLCPP_INFO(get_logger(), "DETECT: Putter stroke completed!");
+                        //     shooted = true;
+                        // }
 
                         if (shooted) {
                             // Bullet fired: return the putter.
@@ -208,7 +206,9 @@ public:
                         } else {
                             // Bullet not fired yet: continue advancing.
                             *putter_control_torque_ =
-                                putter_return_velocity_pid_.update(60. - *putter_velocity_);
+                                putter_return_velocity_pid_.update(80. - *putter_velocity_);
+
+                            update_putter_jam_detection();
                         }
                     }
                 } else {
@@ -286,22 +286,19 @@ private:
             // If the photoelectric sensor was not triggered, treat it as a simple jam,
             // reverse briefly, then continue until stall.
             locked_detect_count_ = 0;
-            enter_jam_protection();
+            enter_reverse_protection();
         }
     }
 
     void update_putter_jam_detection() {
-        if ((*putter_control_torque_ > -0.03 && shoot_stage_ == ShootStage::PRELOADING)
-            || (*putter_control_torque_ < 0.05 && shoot_stage_ == ShootStage::SHOOTING)
-            || std::isnan(*putter_control_torque_)) {
+        if (std::abs(*putter_velocity_) > 0.1 || std::isnan(*putter_control_torque_)) {
             putter_faulty_count_ = 0;
-            return;
+        } else {
+            putter_faulty_count_++;
         }
 
         // Accumulate a fault count when the torque is abnormal.
-        if (putter_faulty_count_ < 500)
-            ++putter_faulty_count_;
-        else {
+        if (putter_faulty_count_ >= 50) {
             putter_faulty_count_ = 0;
             if (shoot_stage_ != ShootStage::SHOOTING) {
                 // Stall detected outside the firing state: the putter is in position,
@@ -310,7 +307,7 @@ private:
                 putter_startpoint = *putter_angle_;
             } else {
                 // Stall detected during firing: treat the bullet as fired.
-                RCLCPP_INFO(get_logger(), "DETECT: Putter jammed");
+                RCLCPP_INFO(get_logger(), "DETECT: Putter freezed");
                 shooted = true;
             }
         }
@@ -333,12 +330,11 @@ private:
         }
     }
 
-    void enter_jam_protection() {
+    void enter_reverse_protection() {
         locked_detect_count_ = 0;
         bullet_feeder_faulty_count_ = 0;
         bullet_feeder_reverse_end_ = 400;
         bullet_feeder_velocity_pid_.reset();
-        // RCLCPP_INFO(get_logger(), "Jammed!");
     }
 
     static constexpr double nan_ =
