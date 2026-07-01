@@ -54,6 +54,7 @@ public:
         const auto& switch_left = *switch_left_;
         const auto& switch_right = *switch_right_;
 
+        // RCLCPP_INFO(get_logger(), "pitch %f", *gimbal_pitch_angle_);
         do {
             using namespace rmcs_msgs;
             if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
@@ -175,8 +176,8 @@ public:
 private:
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
 
-    static constexpr double kEInitPitch = -0.346584;     // Initial angle for standalone E.
-    static constexpr double kCtrlEInitPitch = -0.471795; // Initial angle for Ctrl+E.
+    static constexpr double kEInitPitch = -0.20;     // Initial angle for standalone E.
+    static constexpr double kCtrlEInitPitch = -0.20; // Initial angle for Ctrl+E.
 
     double encoder_init_pitch_ = kEInitPitch;
     InputInterface<Eigen::Vector2d> joystick_left_;

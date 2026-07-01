@@ -28,21 +28,11 @@ public:
     void update() override {
         shooter_heat_ = std::max<int64_t>(0, shooter_heat_ - *shooter_cooling_);
 
-        if (*bullet_fired_ && !bullet_fired_false_) {
-            shooter_heat_ += heat_per_shot;
-        }
-        bullet_fired_false_ = *bullet_fired_;
-
-        if (++cooling_settlement_tick_ >= kCoolingSettlementTicks) {
-            cooling_settlement_tick_ = 0;
-            shooter_heat_ = std::max<int64_t>(
-                0, shooter_heat_ - *shooter_cooling_ * kCoolingPerSettlementScale);
-        }
+        if (*bullet_fired_)
+            shooter_heat_ += heat_per_shot + 10;
 
         *control_bullet_allowance_ = std::max<int64_t>(
             0, (*shooter_heat_limit_ - shooter_heat_ - reserved_heat) / heat_per_shot);
-
-        *shooting_heat_ = static_cast<double>(shooter_heat_);
     }
 
 private:
@@ -54,12 +44,7 @@ private:
     const int64_t heat_per_shot;
     const int64_t reserved_heat;
 
-    int cooling_settlement_tick_ = 0;
-    static constexpr int kCoolingSettlementTicks = 100;
-    static constexpr int kCoolingPerSettlementScale = 100;
-    bool bullet_fired_false_ = false;
     int64_t shooter_heat_ = 0;
-    OutputInterface<double> shooting_heat_;
 
     OutputInterface<int64_t> control_bullet_allowance_;
 };
