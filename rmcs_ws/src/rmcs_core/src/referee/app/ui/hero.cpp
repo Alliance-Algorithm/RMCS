@@ -80,9 +80,9 @@ public:
         register_input("/gimbal/control_bullet_allowance/limited_by_heat", robot_bullet_allowance_);
 
         register_input(
-            "/gimbal/first_left_friction/control_velocity", left_friction_control_velocity_);
-        register_input("/gimbal/first_left_friction/velocity", left_friction_velocity_);
-        register_input("/gimbal/first_right_friction/velocity", right_friction_velocity_);
+            "/gimbal/first_back_friction/control_velocity", back_friction_control_velocity_);
+        register_input("/gimbal/first_back_friction/velocity", back_friction_velocity_);
+        register_input("/gimbal/first_front_friction/velocity", front_friction_velocity_);
         register_input("/gimbal/friction_profile_1_active", friction_profile_1_active_, false);
 
         // register_input("/gimbal/yaw/angle", gimbal_yaw_angle_);
@@ -210,8 +210,8 @@ private:
         friction_profile_indicator_[3].set_x2(box_left);
         friction_profile_indicator_[3].set_y2(box_bottom);
         status_ring_.update_friction_wheel_speed(
-            std::min(*left_friction_velocity_, *right_friction_velocity_),
-            *left_friction_control_velocity_ > 0);
+            std::min(*back_friction_velocity_, *front_friction_velocity_),
+            *back_friction_control_velocity_ > 0);
         status_ring_.update_supercap(*supercap_voltage_, true);
         status_ring_.update_battery_power(*chassis_voltage_);
         last_keyboard_ = *keyboard_;
@@ -418,9 +418,9 @@ private:
 
     InputInterface<int64_t> robot_bullet_allowance_;
 
-    InputInterface<double> left_friction_control_velocity_;
-    InputInterface<double> left_friction_velocity_;
-    InputInterface<double> right_friction_velocity_;
+    InputInterface<double> back_friction_control_velocity_;
+    InputInterface<double> back_friction_velocity_;
+    InputInterface<double> front_friction_velocity_;
     InputInterface<bool> friction_profile_1_active_;
 
     InputInterface<rmcs_msgs::Mouse> mouse_;

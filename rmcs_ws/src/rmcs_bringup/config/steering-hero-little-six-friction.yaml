@@ -21,13 +21,13 @@ rmcs_executor:
       - rmcs_core::controller::shooting::HeroFrictionWheelController -> friction_wheel_controller
       - rmcs_core::controller::shooting::HeroHeatController -> heat_controller
       - rmcs_core::controller::shooting::PutterController -> bullet_feeder_controller
-      - rmcs_core::controller::pid::PidController -> first_left_friction_velocity_pid_controller
-      - rmcs_core::controller::pid::PidController -> first_right_friction_velocity_pid_controller
-      - rmcs_core::controller::pid::PidController -> second_left_friction_velocity_pid_controller
-      - rmcs_core::controller::pid::PidController -> second_right_friction_velocity_pid_controller
-      - rmcs_core::controller::pid::PidController -> third_right_friction_velocity_pid_controller
-      - rmcs_core::controller::pid::PidController -> third_left_friction_velocity_pid_controller
-      # - rmcs_core::controller::shooting::ShootingRecorder -> shooting_recorder
+      - rmcs_core::controller::pid::PidController -> first_back_friction_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> first_front_friction_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> second_back_friction_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> second_front_friction_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> third_back_friction_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> third_front_friction_velocity_pid_controller
+      - rmcs_core::controller::shooting::ShootingRecorder -> shooting_recorder
 
       - rmcs_core::controller::chassis::SteeringWheelStatus -> steering_wheel_status
       - rmcs_core::controller::chassis::HeroChassisController -> chassis_controller
@@ -39,7 +39,7 @@ rmcs_executor:
       # - rmcs_auto_aim::AutoAimController -> auto_aim_controller
 
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
-      # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
+      #- rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
 
       # - sp_vision_25::bridge::HeroAutoAimBridge -> hero_auto_aim_bridge 
 
@@ -66,13 +66,13 @@ hero_hardware:
 value_broadcaster:
   ros__parameters:
     forward_list:
-      - /gimbal/top_yaw/control_angle
-      - /chassis/climber/left_front_motor/torque
-      - /chassis/climber/right_front_motor/torque
-      - /chassis/left_front_steering/torque
-      - /chassis/left_back_steering/torque
-      - /chassis/right_front_steering/torque
-      - /chassis/right_back_steering/torque
+      # - /gimbal/top_yaw/control_angle
+      # - /chassis/climber/left_front_motor/torque
+      # - /chassis/climber/right_front_motor/torque
+      # - /chassis/left_front_steering/torque
+      # - /chassis/left_back_steering/torque
+      # - /chassis/right_front_steering/torque
+      # - /chassis/right_back_steering/torque
       # - /shoot/heat12707
       # - /chassis/power
       # - /referee/chassis/power
@@ -83,20 +83,18 @@ value_broadcaster:
       # - /chassis/climber/front/actual_power_estimate
       # - /chassis/steering_wheel/actual_power_estimate
       # - /gimbal/putter/velocity
-      - /gimbal/first_left_friction/velocity
-      - /gimbal/first_right_friction/velocity
-      - /gimbal/second_left_friction/velocity
-      - /gimbal/second_right_friction/velocity
-      # - /gimbal/first_left_friction/control_torque
-      # - /gimbal/first_second_friction/control_torque
-      # - /gimbal/second_left_friction/control_torque
-      # - /gimbal/second_right_friction/control_torque
+      - /gimbal/first_front_friction/velocity
+      - /gimbal/first_back_friction/velocity
+      - /gimbal/second_front_friction/velocity
+      - /gimbal/second_back_friction/velocity
+      - /gimbal/third_front_friction/velocity
+      - /gimbal/third_back_friction/velocity
       # - /gimbal/bottom_yaw/torque
       # - /gimbal/bottom_yaw/angle
       # - /gimbal/top_yaw/angle
       # - /gimbal/pitch/angle
       # - /chassis/power
-      - /chassis/supercap/voltage
+      # - /chassis/supercap/voltage
       # - /chassis/control_power_limit
       # - /referee/chassis/power_limit
       # - /referee/chassis/buffer_energy
@@ -106,10 +104,10 @@ value_broadcaster:
       # - /chassis/steering_wheel/actual_power_estimate   
       # - /gimbal/bullet_feeder/torque
       # - /gimbal/bullet_feeder/control_torque
-      - /gimbal/putter/angle
-      - /gimbal/putter/velocity
-      - /gimbal/putter/torque
-      - /gimbal/putter/control_torque
+      # - /gimbal/putter/angle
+      # - /gimbal/putter/velocity
+      # - /gimbal/putter/torque
+      # - /gimbal/putter/control_torque
       # - /gimbal/bullet_feeder/velocity
       # - /gimbal/bullet_feeder/angle
 
@@ -204,7 +202,7 @@ viewer_angle_pid_controller:
 bullet_feeder_controller:
   ros__parameters:
     bullet_feeder_velocity_kp: 5.0
-    bullet_feeder_velocity_ki: 0.1 #1.1
+    bullet_feeder_velocity_ki: 0.1 
     bullet_feeder_velocity_kd: 0.0
     bullet_feeder_velocity_integral_min: 0.0
     bullet_feeder_velocity_integral_max: 60.0
@@ -221,26 +219,26 @@ bullet_feeder_controller:
 friction_wheel_controller:
   ros__parameters:
     friction_wheels:
-      - /gimbal/first_left_friction
-      - /gimbal/second_left_friction
-      - /gimbal/third_left_friction
-      - /gimbal/first_right_friction
-      - /gimbal/second_right_friction
-      - /gimbal/third_right_friction
+      - /gimbal/first_front_friction
+      - /gimbal/second_front_friction
+      - /gimbal/third_front_friction
+      - /gimbal/first_back_friction
+      - /gimbal/second_back_friction
+      - /gimbal/third_back_friction
     friction_velocities_profile_0:
-      - 360.0
-      - 360.0
-      - 360.0
-      - 523.0
-      - 523.0
-      - 523.0
+      - 532.0
+      - 532.0
+      - 532.0
+      - 543.0
+      - 543.0
+      - 543.0
     friction_velocities_profile_1:
-      - 360.0
-      - 360.0
-      - 360.0
-      - 523.0
-      - 523.0
-      - 523.0
+      - 408.0
+      - 408.0
+      - 408.0
+      - 550.0
+      - 550.0
+      - 550.0
     friction_soft_start_stop_time: 1.0
 
 heat_controller:
@@ -254,59 +252,59 @@ shooting_recorder:
     aim_velocity: 11.8
     log_mode: 1 # 1: trigger, 2: timing
 
-first_left_friction_velocity_pid_controller:
+first_front_friction_velocity_pid_controller:
   ros__parameters:
-    measurement: /gimbal/first_left_friction/velocity
-    setpoint: /gimbal/first_left_friction/control_velocity
-    control: /gimbal/first_left_friction/control_torque
+    measurement: /gimbal/first_front_friction/velocity
+    setpoint: /gimbal/first_front_friction/control_velocity
+    control: /gimbal/first_front_friction/control_torque
     kp: 0.006
     ki: 0.00
     kd: 0.00008
 
-first_right_friction_velocity_pid_controller:
+second_front_friction_velocity_pid_controller:
   ros__parameters:
-    measurement: /gimbal/first_right_friction/velocity
-    setpoint: /gimbal/first_right_friction/control_velocity
-    control: /gimbal/first_right_friction/control_torque
+    measurement: /gimbal/second_front_friction/velocity
+    setpoint: /gimbal/second_front_friction/control_velocity
+    control: /gimbal/second_front_friction/control_torque
     kp: 0.006
     ki: 0.00
     kd: 0.00008
 
-second_left_friction_velocity_pid_controller:
+third_front_friction_velocity_pid_controller:
   ros__parameters:
-    measurement: /gimbal/second_left_friction/velocity
-    setpoint: /gimbal/second_left_friction/control_velocity
-    control: /gimbal/second_left_friction/control_torque
+    measurement: /gimbal/third_front_friction/velocity
+    setpoint: /gimbal/third_front_friction/control_velocity
+    control: /gimbal/third_front_friction/control_torque
     kp: 0.006
     ki: 0.00
-    kd: 0.00008
+    kd: 0.0008
 
-second_right_friction_velocity_pid_controller:
+first_back_friction_velocity_pid_controller:
   ros__parameters:
-    measurement: /gimbal/second_right_friction/velocity
-    setpoint: /gimbal/second_right_friction/control_velocity
-    control: /gimbal/second_right_friction/control_torque
-    kp: 0.006
+    measurement: /gimbal/first_back_friction/velocity
+    setpoint: /gimbal/first_back_friction/control_velocity
+    control: /gimbal/first_back_friction/control_torque
+    kp: 0.004
     ki: 0.00
-    kd: 0.00008
+    kd: 0.00006
 
-third_left_friction_velocity_pid_controller:
+second_back_friction_velocity_pid_controller:
   ros__parameters:
-    measurement: /gimbal/third_left_friction/velocity
-    setpoint: /gimbal/third_left_friction/control_velocity
-    control: /gimbal/third_left_friction/control_torque
-    kp: 0.006
+    measurement: /gimbal/second_back_friction/velocity
+    setpoint: /gimbal/second_back_friction/control_velocity
+    control: /gimbal/second_back_friction/control_torque
+    kp: 0.004
     ki: 0.00
-    kd: 0.00008
+    kd: 0.00006
 
-third_right_friction_velocity_pid_controller:
+third_back_friction_velocity_pid_controller:
   ros__parameters:
-    measurement: /gimbal/third_right_friction/velocity
-    setpoint: /gimbal/third_right_friction/control_velocity
-    control: /gimbal/third_right_friction/control_torque
-    kp: 0.006
+    measurement: /gimbal/third_back_friction/velocity
+    setpoint: /gimbal/third_back_friction/control_velocity
+    control: /gimbal/third_back_friction/control_torque
+    kp: 0.004
     ki: 0.00
-    kd: 0.00016
+    kd: 0.00006
   
 steering_wheel_status:
   ros__parameters:

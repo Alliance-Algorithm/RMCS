@@ -75,7 +75,7 @@ public:
         register_output("/gimbal/shoot/delay_ms", shoot_delay_ms_, nan_);
 
         // auto_aim
-        register_input("/gimbal/auto_aim/fire_control", fire_control_, false);
+        // register_input("/gimbal/auto_aim/fire_control", fire_control_, false);
 
         register_output("/gimbal/shooter/mode", shoot_mode_, rmcs_msgs::ShootMode::SINGLE);
         register_output("/gimbal/shooter/condiction", shoot_condiction_);
@@ -146,9 +146,9 @@ public:
 
                         // const bool auto_fire_now = (switch_right == Switch::UP) &&
                         // (*fire_control_);
-                        const bool auto_fire_now =
-                            (switch_right == Switch::UP || (mouse.right && mouse.left))
-                            && (*fire_control_);
+                        const bool auto_fire_now = false;
+                        // (switch_right == Switch::UP || (mouse.right && mouse.left))
+                        // && (*fire_control_);
 
                         const bool auto_trigger_emergence = mouse.right && (click_count_ >= 2);
 
@@ -193,21 +193,13 @@ public:
 
                         if (shooted) {
                             // Bullet fired: return the putter.
-                            const auto angle_err = putter_startpoint - *putter_angle_;
-                            if (angle_err > -0.1) {
-                                *putter_control_torque_ = 0.;
-                                set_preloading();
-                                shooted = false;
-                            } else {
-                                *putter_control_torque_ =
-                                    putter_return_velocity_pid_.update(-80. - *putter_velocity_);
-                                putter_timeout_detection();
-                            }
+                            *putter_control_torque_ =
+                                putter_return_velocity_pid_.update(-50. - *putter_velocity_);
+                            putter_timeout_detection();
                         } else {
                             // Bullet not fired yet: continue advancing.
                             *putter_control_torque_ =
-                                putter_return_velocity_pid_.update(80. - *putter_velocity_);
-
+                                putter_return_velocity_pid_.update(120. - *putter_velocity_);
                             update_putter_jam_detection();
                         }
                     }
@@ -318,7 +310,7 @@ private:
         // treat it as finished and move to the next state.
         if (shoot_stage_ == ShootStage::SHOOTING) {
             if (shooted) {
-                if (putter_timeout_count_ < 1600)
+                if (putter_timeout_count_ < 400)
                     ++putter_timeout_count_;
                 else {
                     putter_timeout_count_ = 0;
