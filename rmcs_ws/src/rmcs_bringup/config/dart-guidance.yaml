@@ -18,10 +18,6 @@ rmcs_executor:
       - rmcs_core::controller::dart::DartFilling -> dart_filling
       - rmcs_core::controller::dart::DartSettingController -> dart_setting
       - rmcs_core::controller::dart::DartChassisLeveling -> dart_chassis_leveling
-      - rmcs_core::controller::pid::PidController    -> leveling_front_left_velocity_pid_controller
-      - rmcs_core::controller::pid::PidController    -> leveling_front_right_velocity_pid_controller
-      - rmcs_core::controller::pid::PidController    -> leveling_rear_left_velocity_pid_controller
-      - rmcs_core::controller::pid::PidController    -> leveling_rear_right_velocity_pid_controller
       - rmcs_core::controller::pid::PidController    -> yaw_velocity_pid_controller
       - rmcs_core::controller::pid::PidController    -> force_screw_velocity_pid_controller
       - rmcs_core::broadcaster::ValueBroadcaster -> broadcaster
@@ -34,6 +30,9 @@ broadcaster:
       - /dart/drive_belt/right/control_torque
       - /dart/force_screw_motor/velocity
       - /dart/force_screw_motor/torque
+      - /imu/catapult_pitch_angle
+      - /imu/catapult_leveling_pitch_angle
+      - /imu/catapult_roll_angle
 
 remote_cmd_bridge:
   ros__parameters:
@@ -211,75 +210,20 @@ dart_setting:
     pitch_max_velocity: 10.0
     force_max_velocity: 1000.0
 
-# Outer loop: legacy IMU PID leveling plus staged three-step leveling increments.
+# Leveling feet velocity PID: MANUAL/ROLL/PITCH all resolve to target velocities here.
 dart_chassis_leveling:
   ros__parameters:
-    pitch_angle_kp: 10.0
-    pitch_angle_ki: 0.0
-    pitch_angle_kd: 0.0
-    pitch_angle_integral_min: -500.0
-    pitch_angle_integral_max: 500.0
-    pitch_angle_integral_split_min: -10.0
-    pitch_angle_integral_split_max: 10.0
-    pitch_angle_output_min: -100.0
-    pitch_angle_output_max: 100.0
-    roll_angle_kp: 10.0
-    roll_angle_ki: 0.0
-    roll_angle_kd: 0.0
-    roll_angle_integral_min: -500.0
-    roll_angle_integral_max: 500.0
-    roll_angle_integral_split_min: -10.0
-    roll_angle_integral_split_max: 10.0
-    roll_angle_output_min: -100.0
-    roll_angle_output_max: 100.0
-    contact_stage_angle_increment: 100.0
-    roll_pair_stage_angle_increment: -100.0
-    pitch_pair_stage_angle_increment: -100.0
-
-# Inner loop: leveling-feet velocity -> control_torque.
-leveling_front_left_velocity_pid_controller:
-  ros__parameters:
-    measurement: /dart/leveling_feet/front_left/velocity
-    setpoint:    /dart/leveling_feet/front_left/control_velocity
-    control:     /dart/leveling_feet/front_left/control_torque
-    kp: 0.03
-    ki: 0.0
-    kd: 0.0
-    output_min: -1.0
-    output_max: 1.0
-
-leveling_front_right_velocity_pid_controller:
-  ros__parameters:
-    measurement: /dart/leveling_feet/front_right/velocity
-    setpoint:    /dart/leveling_feet/front_right/control_velocity
-    control:     /dart/leveling_feet/front_right/control_torque
-    kp: 0.03
-    ki: 0.0
-    kd: 0.0
-    output_min: -1.0
-    output_max: 1.0
-
-leveling_rear_left_velocity_pid_controller:
-  ros__parameters:
-    measurement: /dart/leveling_feet/rear_left/velocity
-    setpoint:    /dart/leveling_feet/rear_left/control_velocity
-    control:     /dart/leveling_feet/rear_left/control_torque
-    kp: 0.03
-    ki: 0.0
-    kd: 0.0
-    output_min: -1.0
-    output_max: 1.0
-
-leveling_rear_right_velocity_pid_controller:
-  ros__parameters:
-    measurement: /dart/leveling_feet/rear_right/velocity
-    setpoint:    /dart/leveling_feet/rear_right/control_velocity
-    control:     /dart/leveling_feet/rear_right/control_torque
-    kp: 0.03
-    ki: 0.0
-    kd: 0.0
-    output_min: -1.0
-    output_max: 1.0
+    r_kp: 0.03
+    r_ki: 0.001
+    r_kd: 0.0
+    p_kp: 0.03
+    p_ki: 0.001
+    p_kd: 0.0
+    p_sync_coefficient: 0.1
+    r_sync_coefficient: 0.1
+    m_kp: 0.03
+    m_ki: 0.001
+    m_kd: 0.0
 
 yaw_velocity_pid_controller:
   ros__parameters:

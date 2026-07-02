@@ -106,6 +106,7 @@ public:
         setup_imu_coordinate_mapping();
 
         register_output("/imu/catapult_pitch_angle", catapult_pitch_angle_);
+        register_output("/imu/catapult_leveling_pitch_angle", catapult_leveling_pitch_angle_);
         register_output("/imu/catapult_roll_angle", catapult_roll_angle_);
         register_output("/imu/catapult_yaw_angle", catapult_yaw_angle_);
 
@@ -380,13 +381,75 @@ private:
         double sensor_pitch = std::asin(std::clamp(-rot(2, 0), -1.0, 1.0));
         double yaw = std::atan2(rot(1, 0), rot(0, 0));
 
-        double mechanical_pitch = -roll_filter_.update(sensor_roll);
+        const double continuous_sensor_roll = unwrap_angle_radians(
+            sensor_roll, sensor_roll_unwrap_initialized_, previous_sensor_roll_,
+            unwrapped_sensor_roll_);
+
+        double mechanical_pitch = -roll_filter_.update(continuous_sensor_roll);
         double mechanical_roll = pitch_filter_.update(sensor_pitch);
         double t_yaw = -yaw_filter_.update(yaw);
 
-        *catapult_pitch_angle_ = (mechanical_pitch / M_PI) * 180.0;
+        const double mechanical_pitch_angle = (mechanical_pitch / M_PI) * 180.0;
+        const double catapult_pitch_angle = wrap_to_360_degrees(mechanical_pitch_angle + 180.0);
+
+        *catapult_pitch_angle_ = catapult_pitch_angle;
+        *catapult_leveling_pitch_angle_ = wrap_to_180_degrees(catapult_pitch_angle);
         *catapult_roll_angle_ = (mechanical_roll / M_PI) * 180.0;
         *catapult_yaw_angle_ = (t_yaw / M_PI) * 180.0;
+    }
+
+    static double wrap_to_pi_radians(double angle) {
+        if (!std::isfinite(angle)) {
+            return angle;
+        }
+
+        angle = std::fmod(angle + M_PI, 2.0 * M_PI);
+        if (angle < 0.0) {
+            angle += 2.0 * M_PI;
+        }
+        return angle - M_PI;
+    }
+
+    static double unwrap_angle_radians(
+        double angle, bool& initialized, double& previous_angle, double& unwrapped_angle) {
+        if (!std::isfinite(angle)) {
+            return angle;
+        }
+
+        if (!initialized) {
+            initialized = true;
+            previous_angle = angle;
+            unwrapped_angle = angle;
+            return unwrapped_angle;
+        }
+
+        unwrapped_angle += wrap_to_pi_radians(angle - previous_angle);
+        previous_angle = angle;
+        return unwrapped_angle;
+    }
+
+    static double wrap_to_360_degrees(double angle) {
+        if (!std::isfinite(angle)) {
+            return angle;
+        }
+
+        angle = std::fmod(angle, 360.0);
+        if (angle < 0.0) {
+            angle += 360.0;
+        }
+        return angle;
+    }
+
+    static double wrap_to_180_degrees(double angle) {
+        if (!std::isfinite(angle)) {
+            return angle;
+        }
+
+        angle = std::fmod(angle + 180.0, 360.0);
+        if (angle < 0.0) {
+            angle += 360.0;
+        }
+        return angle - 180.0;
     }
 
     class DartCommand : public rmcs_executor::Component {
@@ -428,7 +491,12 @@ private:
     device::Dr16 dr16_;
     device::Bmi088 imu_;
 
+    bool sensor_roll_unwrap_initialized_ = false;
+    double previous_sensor_roll_ = 0.0;
+    double unwrapped_sensor_roll_ = 0.0;
+
     OutputInterface<double> catapult_pitch_angle_;
+    OutputInterface<double> catapult_leveling_pitch_angle_;
     OutputInterface<double> catapult_roll_angle_;
     OutputInterface<double> catapult_yaw_angle_;
 

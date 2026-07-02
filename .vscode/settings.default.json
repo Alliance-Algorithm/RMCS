@@ -47,6 +47,7 @@
         "UGAS",
         "urdf",
         "vruntime",
-        "xacro"
+        "xacro",
+        "Eigen"
     ]
 }
