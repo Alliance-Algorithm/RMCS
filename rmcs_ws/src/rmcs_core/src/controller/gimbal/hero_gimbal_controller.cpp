@@ -162,7 +162,7 @@ public:
 
         constexpr double mouse_yaw_sensitivity = 0.5 * 0.114;
         constexpr double mouse_pitch_sensitivity = 0.5 * 0.095;
-        constexpr double joystick_sensitivity = 0.006 * 0.05;
+        constexpr double joystick_sensitivity = 0.006 * 0.02;
 
         double yaw_shift = joystick_sensitivity * joystick_left_->y()
                          + mouse_yaw_sensitivity * mouse_velocity_->y();
@@ -176,8 +176,8 @@ public:
 private:
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
 
-    static constexpr double kEInitPitch = -0.20;     // Initial angle for standalone E.
-    static constexpr double kCtrlEInitPitch = -0.20; // Initial angle for Ctrl+E.
+    static constexpr double kEInitPitch = -0.346584;     // Initial angle for standalone E.
+    static constexpr double kCtrlEInitPitch = -0.471795; // Initial angle for Ctrl+E.
 
     double encoder_init_pitch_ = kEInitPitch;
     InputInterface<Eigen::Vector2d> joystick_left_;

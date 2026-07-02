@@ -217,12 +217,12 @@ private:
             , gimbal_top_yaw_motor_(steering_hero, steering_hero_command, "/gimbal/top_yaw")
             , gimbal_pitch_motor_(steering_hero, steering_hero_command, "/gimbal/pitch")
             , gimbal_friction_wheels_(
-                  {steering_hero, steering_hero_command, "/gimbal/first_right_friction"},
-                  {steering_hero, steering_hero_command, "/gimbal/first_left_friction"},
-                  {steering_hero, steering_hero_command, "/gimbal/second_right_friction"},
-                  {steering_hero, steering_hero_command, "/gimbal/second_left_friction"},
-                  {steering_hero, steering_hero_command, "/gimbal/third_right_friction"},
-                  {steering_hero, steering_hero_command, "/gimbal/third_left_friction"})
+                  {steering_hero, steering_hero_command, "/gimbal/first_front_friction"},
+                  {steering_hero, steering_hero_command, "/gimbal/first_back_friction"},
+                  {steering_hero, steering_hero_command, "/gimbal/second_front_friction"},
+                  {steering_hero, steering_hero_command, "/gimbal/second_back_friction"},
+                  {steering_hero, steering_hero_command, "/gimbal/third_front_friction"},
+                  {steering_hero, steering_hero_command, "/gimbal/third_back_friction"})
             , gimbal_bullet_feeder_(steering_hero, steering_hero_command, "/gimbal/bullet_feeder")
             , putter_motor_(steering_hero, steering_hero_command, "/gimbal/putter")
             , gimbal_scope_motor_(steering_hero, steering_hero_command, "/gimbal/scope")
@@ -347,6 +347,16 @@ private:
 
             *photoelectric_sensor_status_ = photoelectric_sensor_status_atomic.load();
             *grayscale_sensor_status_ = grayscale_sensor_status_atomic.load();
+
+            if (++count_ == 500) {
+                for (int i = 0; i < 6; ++i) {
+                    if (friciton_detect[i] == 0) {
+                        RCLCPP_WARN(logger_, "can id 0x%03X missing", i + 0x201);
+                    }
+                }
+                std::fill_n(friciton_detect, 6, 0);
+                count_ = 0;
+            }
         }
 
         void command_update() {
@@ -427,6 +437,7 @@ private:
                 return;
             auto can_id = data.can_id;
             // can1_receive_rate_counter_.record(can_id);
+            friciton_detect[can_id - 0x201] = 1;
             if (can_id == 0x201) {
                 gimbal_friction_wheels_[0].store_status(data.can_data);
             } else if (can_id == 0x202) {
@@ -447,8 +458,10 @@ private:
                 putter_motor_.store_status(data.can_data);
             } else if (can_id == 0x201) {
                 gimbal_friction_wheels_[4].store_status(data.can_data);
+                friciton_detect[4] = 1;
             } else if (can_id == 0x202) {
                 gimbal_friction_wheels_[5].store_status(data.can_data);
+                friciton_detect[5] = 1;
             }
         }
 
@@ -477,6 +490,8 @@ private:
         OutputInterface<rmcs_description::Tf>& tf_;
 
         std::time_t last_camera_capturer_trigger_timestamp_{0};
+        int count_ = 0;
+        int friciton_detect[6];
 
         device::Bmi088 imu_;
         device::LkMotor gimbal_top_yaw_motor_;

@@ -67,7 +67,7 @@ public:
         auto log_text = std::string{};
         auto timestamp = timestamp_to_string(*shoot_timestamp_);
 
-        if (friction_wheel_count_ == 4) {
+        if (friction_wheel_count_ == 6) {
             log_text = fmt::format(
                 "{},{},{:.3f},{:.3f},{:.3f},{:.3f},{:.3f},{:.3f},{:.3f}", *initial_speed_,
                 (int)velocities.size(), //
@@ -97,7 +97,7 @@ private:
     InputInterface<float> initial_speed_;
     InputInterface<double> shoot_timestamp_;
 
-    std::size_t friction_wheel_count_ = 2;
+    std::size_t friction_wheel_count_ = 6;
     std::array<InputInterface<double>, 2> friction_wheels_velocity_;
 
     /// @brief For log
