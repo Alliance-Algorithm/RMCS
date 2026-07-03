@@ -501,7 +501,7 @@ private:
                 }
 
                 tx.can2_transmit({
-                    .can_id   = 0x3,
+                    .can_id   = 0x33,
                     .can_data = yaw_command.as_bytes(),
                 });
                 tx.can2_transmit({
