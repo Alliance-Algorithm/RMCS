@@ -18,6 +18,7 @@
 #include <cstdio>
 #include <cstring>
 #include <librmcs/agent/c_board.hpp>
+#include <librmcs/agent/rmcs_board_lite.hpp>
 #include <librmcs/data/datas.hpp>
 #include <memory>
 #include <numbers>
@@ -44,20 +45,21 @@ public:
         , logger_(get_logger())
         , engineer_command_(create_partner_component<EngineerCommand>("engineer_command", *this))
         , armboard_(*this, *engineer_command_, get_parameter("board_serial_arm_board").as_string())
-        , leftboard_(
-              *this, *engineer_command_, get_parameter("board_serial_left_board").as_string())
-        , rightboard_(
-              *this, *engineer_command_, get_parameter("board_serial_right_board").as_string()) {}
+        , littleboard_(
+              *this, *engineer_command_, get_parameter("board_serial_little_board").as_string())
+    // , rightboard_(
+    //       *this, *engineer_command_, get_parameter("board_serial_right_board").as_string())
+    {}
     ~Engineer() override = default;
     void update() override {
         armboard_.update();
-        leftboard_.update();
-        rightboard_.update();
+        littleboard_.update();
+        // rightboard_.update();
     }
     void command() {
         armboard_.command();
-        leftboard_.command();
-        rightboard_.command();
+        littleboard_.command();
+        // rightboard_.command();
     }
 
 private:
@@ -84,13 +86,13 @@ private:
     std::shared_ptr<EngineerCommand> engineer_command_;
 
     class ArmBoard final
-        : private librmcs::agent::CBoard
+        : private librmcs::agent::RmcsBoardLite
         , rclcpp::Node {
     public:
         friend class Engineer;
         explicit ArmBoard(
             Engineer& engineer, EngineerCommand& engineer_command, const std::string& serial_filter)
-            : librmcs::agent::CBoard(serial_filter)
+            : librmcs::agent::RmcsBoardLite(serial_filter)
             , rclcpp::Node{"arm_board"}
             , joint(
                   {engineer, engineer_command, "/arm/joint_1/motor"},
@@ -106,7 +108,6 @@ private:
             , bmi088_(1000, 0.2, 0)
 
         {
-
             engineer.register_output("yaw_imu_velocity", yaw_imu_velocity, NAN);
             engineer.register_output("yaw_imu_angle", yaw_imu_angle, NAN);
             engineer.register_output("pitch_imu_velocity", pitch_imu_velocity, NAN);
@@ -314,27 +315,33 @@ private:
 
     } armboard_;
 
-    class LeftBoard final
-        : private librmcs::agent::CBoard
+    class LittleBoard final
+        : private librmcs::agent::RmcsBoardLite
         , rclcpp::Node {
     public:
         friend class Engineer;
-        explicit LeftBoard(
+        explicit LittleBoard(
             Engineer& engineer, EngineerCommand& engineer_command, const std::string& serial_filter)
-            : librmcs::agent::CBoard(serial_filter)
-            , rclcpp::Node{"left_board"}
+            : librmcs::agent::RmcsBoardLite(serial_filter)
+            , rclcpp::Node{"little_board"}
             , Steering_motors(
                   {engineer, engineer_command, "/steering/steering/lf"},
-                  {engineer, engineer_command, "/steering/steering/lb"})
+                  {engineer, engineer_command, "/steering/steering/lb"},
+                  {engineer, engineer_command, "/steering/steering/rb"},
+                  {engineer, engineer_command, "/steering/steering/rf"})
             , Wheel_motors(
                   {engineer, engineer_command, "/steering/wheel/lf"},
-                  {engineer, engineer_command, "/steering/wheel/lb"})
+                  {engineer, engineer_command, "/steering/wheel/lb"},
+                  {engineer, engineer_command, "/steering/wheel/rb"},
+                  {engineer, engineer_command, "/steering/wheel/rf"})
+            , Track_motors(
+                  {engineer, engineer_command, "/climber/track/l"},
+                  {engineer, engineer_command, "/climber/track/r"})
+            , Lift_motors(
+                  {engineer, engineer_command, "/climber/lift/l"},
+                  {engineer, engineer_command, "/climber/lift/r"})
             , power_meter(engineer, "/steering/power_meter")
-            , Omni_Motors(engineer, engineer_command, "/leg/omni/l")
-            , Leg_Motors(
-                  {engineer, engineer_command, "/leg/joint/lf"},
-                  {engineer, engineer_command, "/leg/joint/lb"})
-            , Leg_ecd({engineer, "/leg/encoder/lf"}, {engineer, "/leg/encoder/lb"}) {
+            , big_yaw(engineer, engineer_command, "/chassis/big_yaw") {
             Steering_motors[0].configure(
                 device::DjiMotorConfig{device::DjiMotorType::GM6020}
                     .reverse()
@@ -347,226 +354,13 @@ private:
                     .set_encoder_zero_point(
                         static_cast<int>(
                             engineer.get_parameter("steering_lb_zero_point").as_int())));
-
-            Wheel_motors[0].configure(
-                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(18.2));
-            Wheel_motors[1].configure(
-                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(18.2));
-            Leg_Motors[0].configure(
-                device::DjiMotorConfig{device::DjiMotorType::M3508}
-                    .set_reduction_ratio(92.0)
-                    .reverse());
-            Leg_Motors[1].configure(
-                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(277.6));
-            Leg_ecd[0].configure(
-                device::EncoderConfig{device::EncoderType::Old_}.set_encoder_zero_point(
-                    static_cast<int>(engineer.get_parameter("leg_lf_ecd_zero_point").as_int())));
-            Leg_ecd[1].configure(
-                device::EncoderConfig{device::EncoderType::Old_}.reverse().set_encoder_zero_point(
-                    static_cast<int>(engineer.get_parameter("leg_lb_ecd_zero_point").as_int())));
-            Omni_Motors.configure(
-                device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(
-                    18.2));
-            engineer.register_output(
-                "/leg/joint/lb/control_theta_error", leg_joint_lb_control_theta_error, NAN);
-            engineer_command.register_input("/leg/joint/lb/target_theta", leg_lb_target_theta_);
-        }
-        ~LeftBoard() final {
-            auto tx = start_transmit();
-            tx.can1_transmit({
-                .can_id = 0x1FE,
-                .can_data =
-                    device::CanPacket8{
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       }
-                        .as_bytes(),
-            });
-            tx.can2_transmit({
-                .can_id = 0x1FE,
-                .can_data =
-                    device::CanPacket8{
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       }
-                        .as_bytes(),
-            });
-            tx.can2_transmit({
-                .can_id = 0x200,
-                .can_data =
-                    device::CanPacket8{
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       }
-                        .as_bytes(),
-            });
-            tx.can1_transmit({
-                .can_id = 0x200,
-                .can_data =
-                    device::CanPacket8{
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       }
-                        .as_bytes(),
-            });
-        }
-        void update() {
-            Omni_Motors.update();
-            for (auto& motor : Steering_motors) {
-                motor.update();
-            }
-            for (auto& motor : Wheel_motors) {
-                motor.update();
-            }
-            for (auto& motor : Leg_Motors) {
-                motor.update();
-            }
-            for (auto& ecd : Leg_ecd) {
-                ecd.update();
-            }
-            power_meter.update();
-            *leg_joint_lb_control_theta_error =
-                normalize_angle(*leg_lb_target_theta_ - Leg_ecd[1].get_angle());
-        }
-        void command() {
-
-            static bool turn{false};
-            auto tx = start_transmit();
-            if (turn) {
-                tx.can2_transmit({
-                    .can_id = 0x1FE,
-                    .can_data =
-                        device::CanPacket8{
-                                           device::CanPacket8::PaddingQuarter{},
-                                           device::CanPacket8::PaddingQuarter{},
-                                           device::CanPacket8::PaddingQuarter{},
-                                           Steering_motors[1].generate_command(),
-                                           }
-                            .as_bytes(),
-                });
-                tx.can1_transmit({
-                    .can_id = 0x1FE,
-                    .can_data =
-                        device::CanPacket8{
-                                           device::CanPacket8::PaddingQuarter{},
-                                           device::CanPacket8::PaddingQuarter{},
-                                           Steering_motors[0].generate_command(),
-                                           device::CanPacket8::PaddingQuarter{},
-                                           }
-                            .as_bytes(),
-                });
-            } else {
-                tx.can2_transmit({
-                    .can_id = 0x200,
-                    .can_data =
-                        device::CanPacket8{
-                                           Wheel_motors[1].generate_command(),
-                                           Leg_Motors[1].generate_command(),
-                                           device::CanPacket8::PaddingQuarter{},
-                                           device::CanPacket8::PaddingQuarter{},
-                                           }
-                            .as_bytes(),
-                });
-
-                tx.can1_transmit({
-                    .can_id = 0x200,
-                    .can_data =
-                        device::CanPacket8{
-                                           Wheel_motors[0].generate_command(),
-                                           Leg_Motors[0].generate_command(),
-                                           Omni_Motors.generate_command(),
-                                           device::CanPacket8::PaddingQuarter{},
-                                           }
-                            .as_bytes(),
-                });
-            }
-            turn = !turn;
-        }
-
-    protected:
-        void can1_receive_callback(const librmcs::data::CanDataView& data) override {
-            if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
-                [[unlikely]]
-                return;
-            if (data.can_id == 0x207) {
-                Steering_motors[0].store_status(data.can_data);
-            } else if (data.can_id == 0x202) {
-                Leg_Motors[0].store_status(data.can_data);
-            } else if (data.can_id == 0x201) {
-                Wheel_motors[0].store_status(data.can_data);
-            } else if (data.can_id == 0x203) {
-                Omni_Motors.store_status(data.can_data);
-            } else if (data.can_id == 0x321) {
-                Leg_ecd[0].store_status(data.can_data);
-            }
-        }
-        void can2_receive_callback(const librmcs::data::CanDataView& data) override {
-            if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
-                [[unlikely]]
-                return;
-            if (data.can_id == 0x208) {
-                Steering_motors[1].store_status(data.can_data);
-            } else if (data.can_id == 0x201) {
-                Wheel_motors[1].store_status(data.can_data);
-            } else if (data.can_id == 0x202) {
-                Leg_Motors[1].store_status(data.can_data);
-            } else if (data.can_id == 0x100) {
-                power_meter.store_status(data.can_data);
-            } else if (data.can_id == 0x319) {
-                Leg_ecd[1].store_status(data.can_data);
-            }
-        }
-
-    private:
-        device::DjiMotor Steering_motors[2];
-        device::DjiMotor Wheel_motors[2];
-        device::PowerMeter power_meter;
-        device::DjiMotor Omni_Motors;
-        device::DjiMotor Leg_Motors[2];
-        device::Encoder Leg_ecd[2];
-
-        InputInterface<double> leg_lb_target_theta_;
-        OutputInterface<double> leg_joint_lb_control_theta_error;
-
-    } leftboard_;
-
-    class RightBoard final
-        : private librmcs::agent::CBoard
-        , rclcpp::Node {
-    public:
-        friend class Engineer;
-        explicit RightBoard(
-            Engineer& engineer, EngineerCommand& engineer_command, const std::string& serial_filter)
-            : librmcs::agent::CBoard(serial_filter)
-            , rclcpp::Node{"right_board"}
-            , tof(engineer, "/leg/tof")
-            , Steering_motors(
-                  {engineer, engineer_command, "/steering/steering/rb"},
-                  {engineer, engineer_command, "/steering/steering/rf"})
-            , Wheel_motors(
-                  {engineer, engineer_command, "/steering/wheel/rb"},
-                  {engineer, engineer_command, "/steering/wheel/rf"})
-            , Omni_Motors(engineer, engineer_command, "/leg/omni/r")
-            , Leg_Motors(
-                  {engineer, engineer_command, "/leg/joint/rb"},
-                  {engineer, engineer_command, "/leg/joint/rf"})
-            , Leg_ecd({engineer, "/leg/encoder/rb"}, {engineer, "/leg/encoder/rf"})
-            , big_yaw(engineer, engineer_command, "/chassis/big_yaw") {
-            Steering_motors[0].configure(
+            Steering_motors[2].configure(
                 device::DjiMotorConfig{device::DjiMotorType::GM6020}
                     .reverse()
                     .set_encoder_zero_point(
                         static_cast<int>(
                             engineer.get_parameter("steering_rb_zero_point").as_int())));
-            Steering_motors[1].configure(
+            Steering_motors[3].configure(
                 device::DjiMotorConfig{device::DjiMotorType::GM6020}
                     .reverse()
                     .set_encoder_zero_point(
@@ -576,30 +370,43 @@ private:
                 device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(18.2));
             Wheel_motors[1].configure(
                 device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(18.2));
-            Omni_Motors.configure(
+            Wheel_motors[2].configure(
                 device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(18.2));
-            Leg_Motors[0].configure(
+            Wheel_motors[3].configure(
+                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(18.2));
+            Track_motors[0].configure(
                 device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(
-                    277.6));
-            Leg_Motors[1].configure(
-                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(92.0));
-            Leg_ecd[0].configure(
-                device::EncoderConfig{device::EncoderType::Old_}.set_encoder_zero_point(
-                    static_cast<int>(engineer.get_parameter("leg_rb_ecd_zero_point").as_int())));
-            Leg_ecd[1].configure(
-                device::EncoderConfig{device::EncoderType::Old_}.reverse().set_encoder_zero_point(
-                    static_cast<int>(engineer.get_parameter("leg_rf_ecd_zero_point").as_int())));
+                    19.));
+            Track_motors[1].configure(
+                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(19.));
+            Lift_motors[0].configure(
+                device::DjiMotorConfig{device::DjiMotorType::M3508}
+                    .enable_multi_turn_angle()
+                    .set_reduction_ratio(19.));
+            Lift_motors[1].configure(
+                device::DjiMotorConfig{device::DjiMotorType::M3508}
+                    .reverse()
+                    .enable_multi_turn_angle()
+                    .set_reduction_ratio(19.));
             big_yaw.configure(
                 device::DMMotorConfig{device::DMMotorType::DM8009}.set_encoder_zero_point(
                     static_cast<int>(engineer.get_parameter("big_yaw_zero_point").as_int())));
-            engineer.register_output(
-                "/leg/joint/rb/control_theta_error", leg_joint_rb_control_theta_error, NAN);
-            engineer_command.register_input("/arm/enable_flag", is_arm_enable);
-            engineer_command.register_input("/leg/joint/rb/target_theta", leg_rb_target_theta_);
-        }
 
-        ~RightBoard() final {
+            engineer_command.register_input("/arm/enable_flag", is_arm_enable);
+        }
+        ~LittleBoard() final {
             auto tx = start_transmit();
+            tx.can0_transmit({
+                .can_id = 0x1FE,
+                .can_data =
+                    device::CanPacket8{
+                                       device::CanPacket8::PaddingQuarter{},
+                                       device::CanPacket8::PaddingQuarter{},
+                                       device::CanPacket8::PaddingQuarter{},
+                                       device::CanPacket8::PaddingQuarter{},
+                                       }
+                        .as_bytes(),
+            });
             tx.can1_transmit({
                 .can_id = 0x1FE,
                 .can_data =
@@ -644,60 +451,43 @@ private:
                                        }
                         .as_bytes(),
             });
-            tx.can2_transmit({
-                .can_id   = 0x3,
+            tx.can0_transmit({
+                .can_id = 0x200,
+                .can_data =
+                    device::CanPacket8{
+                                       device::CanPacket8::PaddingQuarter{},
+                                       device::CanPacket8::PaddingQuarter{},
+                                       device::CanPacket8::PaddingQuarter{},
+                                       device::CanPacket8::PaddingQuarter{},
+                                       }
+                        .as_bytes(),
+            });
+            tx.can3_transmit({
+                .can_id   = 0x33,
                 .can_data = big_yaw.dm_close_command().as_bytes(),
             });
         }
         void update() {
-            Omni_Motors.update();
             for (auto& motor : Steering_motors) {
                 motor.update();
             }
             for (auto& motor : Wheel_motors) {
                 motor.update();
             }
-            for (auto& motor : Leg_Motors) {
+            for (auto& motor : Track_motors) {
                 motor.update();
             }
-            for (auto& ecd : Leg_ecd) {
-                ecd.update();
+            for (auto& motor : Lift_motors) {
+                motor.update();
             }
             big_yaw.update();
-            tof.update();
-            *leg_joint_rb_control_theta_error =
-                normalize_angle(*leg_rb_target_theta_ - Leg_ecd[0].get_angle());
+            power_meter.update();
         }
-
         void command() {
 
             static bool turn{false};
             auto tx = start_transmit();
             if (turn) {
-
-                tx.can2_transmit({
-                    .can_id = 0x1FE,
-                    .can_data =
-                        device::CanPacket8{
-                                           Steering_motors[0].generate_command(),
-                                           device::CanPacket8::PaddingQuarter{},
-                                           device::CanPacket8::PaddingQuarter{},
-                                           device::CanPacket8::PaddingQuarter{},
-                                           }
-                            .as_bytes(),
-                });
-                tx.can1_transmit({
-                    .can_id = 0x1FE,
-                    .can_data =
-                        device::CanPacket8{
-                                           device::CanPacket8::PaddingQuarter{},
-                                           Steering_motors[1].generate_command(),
-                                           device::CanPacket8::PaddingQuarter{},
-                                           device::CanPacket8::PaddingQuarter{},
-                                           }
-                            .as_bytes(),
-                });
-
                 device::CanPacket8 yaw_command;
                 if (*is_arm_enable && big_yaw.get_state() != 0 && big_yaw.get_state() != 1) {
                     yaw_command = big_yaw.dm_clear_error_command();
@@ -714,27 +504,70 @@ private:
                     .can_id   = 0x3,
                     .can_data = yaw_command.as_bytes(),
                 });
-            } else {
-
                 tx.can2_transmit({
                     .can_id = 0x200,
                     .can_data =
                         device::CanPacket8{
-                                           Wheel_motors[0].generate_command(),
-                                           Leg_Motors[0].generate_command(),
+                                           Track_motors[0].generate_command(),
+                                           Track_motors[1].generate_command(),
                                            device::CanPacket8::PaddingQuarter{},
                                            device::CanPacket8::PaddingQuarter{},
                                            }
                             .as_bytes(),
                 });
-
                 tx.can1_transmit({
                     .can_id = 0x200,
                     .can_data =
                         device::CanPacket8{
+                                           device::CanPacket8::PaddingQuarter{},
+                                           device::CanPacket8::PaddingQuarter{},
+                                           Wheel_motors[2].generate_command(),
+                                           Wheel_motors[3].generate_command(),
+                                           }
+                            .as_bytes(),
+                });
+                tx.can0_transmit({
+                    .can_id = 0x200,
+                    .can_data =
+                        device::CanPacket8{
+                                           Wheel_motors[0].generate_command(),
                                            Wheel_motors[1].generate_command(),
-                                           Leg_Motors[1].generate_command(),
-                                           Omni_Motors.generate_command(),
+                                           device::CanPacket8::PaddingQuarter{},
+                                           device::CanPacket8::PaddingQuarter{},
+                                           }
+                            .as_bytes(),
+                });
+            } else {
+                tx.can2_transmit({
+                    .can_id = 0x200,
+                    .can_data =
+                        device::CanPacket8{
+                                           device::CanPacket8::PaddingQuarter{},
+                                           device::CanPacket8::PaddingQuarter{},
+                                           Lift_motors[0].generate_command(),
+                                           Lift_motors[1].generate_command(),
+                                           }
+                            .as_bytes(),
+                });
+
+                tx.can1_transmit({
+                    .can_id = 0x1FE,
+                    .can_data =
+                        device::CanPacket8{
+                                           device::CanPacket8::PaddingQuarter{},
+                                           device::CanPacket8::PaddingQuarter{},
+                                           Steering_motors[0].generate_command(),
+                                           Steering_motors[1].generate_command(),
+                                           }
+                            .as_bytes(),
+                });
+                tx.can0_transmit({
+                    .can_id = 0x1FE,
+                    .can_data =
+                        device::CanPacket8{
+                                           Steering_motors[0].generate_command(),
+                                           Steering_motors[1].generate_command(),
+                                           device::CanPacket8::PaddingQuarter{},
                                            device::CanPacket8::PaddingQuarter{},
                                            }
                             .as_bytes(),
@@ -744,22 +577,32 @@ private:
         }
 
     protected:
+        void can0_receive_callback(const librmcs::data::CanDataView& data) override {
+            if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
+                [[unlikely]]
+                return;
+            if (data.can_id == 0x205) {
+                Steering_motors[0].store_status(data.can_data);
+            } else if (data.can_id == 0x206) {
+                Steering_motors[1].store_status(data.can_data);
+            } else if (data.can_id == 0x201) {
+                Wheel_motors[0].store_status(data.can_data);
+            } else if (data.can_id == 0x202) {
+                Wheel_motors[1].store_status(data.can_data);
+            }
+        }
         void can1_receive_callback(const librmcs::data::CanDataView& data) override {
             if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
                 [[unlikely]]
                 return;
-
-            if (data.can_id == 0x201) {
-                Wheel_motors[1].store_status(data.can_data);
-            } else if (data.can_id == 0x202) {
-                Leg_Motors[1].store_status(data.can_data);
+            if (data.can_id == 0x207) {
+                Steering_motors[2].store_status(data.can_data);
+            } else if (data.can_id == 0x208) {
+                Steering_motors[3].store_status(data.can_data);
             } else if (data.can_id == 0x203) {
-                Omni_Motors.store_status(data.can_data);
-            } else if (data.can_id == 0x206) {
-                Steering_motors[1].store_status(data.can_data);
-            } else if (data.can_id == 0x320) {
-
-                Leg_ecd[1].store_status(data.can_data);
+                Wheel_motors[2].store_status(data.can_data);
+            } else if (data.can_id == 0x204) {
+                Wheel_motors[3].store_status(data.can_data);
             }
         }
         void can2_receive_callback(const librmcs::data::CanDataView& data) override {
@@ -767,52 +610,311 @@ private:
                 [[unlikely]]
                 return;
             if (data.can_id == 0x201) {
-                Wheel_motors[0].store_status(data.can_data);
+                Track_motors[0].store_status(data.can_data);
             } else if (data.can_id == 0x202) {
-                Leg_Motors[0].store_status(data.can_data);
-            } else if (data.can_id == 0x205) {
-                Steering_motors[0].store_status(data.can_data);
+                Track_motors[1].store_status(data.can_data);
+            } else if (data.can_id == 0x203) {
+                Lift_motors[0].store_status(data.can_data);
+            } else if (data.can_id == 0x204) {
+                Lift_motors[1].store_status(data.can_data);
+            }
+        }
+        void can3_receive_callback(const librmcs::data::CanDataView& data) override {
+            if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
+                [[unlikely]]
+                return;
+            if (data.can_id == 0x100) {
+                power_meter.store_status(data.can_data);
             } else if (data.can_id == 0x33) {
                 big_yaw.store_status(data.can_data);
-            } else if (data.can_id == 0x322) {
-                Leg_ecd[0].store_status(data.can_data);
             }
         }
 
     private:
-        void uart2_receive_callback(const librmcs::data::UartDataView& data) override {
-            auto* uart_data = data.uart_data.data();
-            ring_buff.emplace_back_multi(
-                [uart_data](std::byte* storage) mutable { *storage = *uart_data++; },
-                data.uart_data.size());
-            while (ring_buff.front() && ring_buff.readable() >= 16) {
-                std::byte rx_data[16];
-                std::byte* rx_ptr = rx_data;
-                ring_buff.pop_front_multi([&rx_ptr](std::byte storage) { *rx_ptr++ = storage; }, 1);
-                if (rx_data[0] != std::byte{0x57}) {
-                    continue;
-                }
-                ring_buff.pop_front_multi(
-                    [&rx_ptr](std::byte storage) { *rx_ptr++ = storage; }, 15);
-                tof.store_status(rx_data, 16);
-            }
-        }
-
-        RingBuffer<std::byte> ring_buff{16};
-        device::Tof tof;
-        device::DjiMotor Steering_motors[2];
-        device::DjiMotor Wheel_motors[2];
-        device::DjiMotor Omni_Motors;
-        device::DjiMotor Leg_Motors[2];
-        device::Encoder Leg_ecd[2];
+        device::DjiMotor Steering_motors[4];
+        device::DjiMotor Wheel_motors[4];
+        device::DjiMotor Track_motors[2];
+        device::DjiMotor Lift_motors[2];
+        device::PowerMeter power_meter;
         device::DMMotor big_yaw;
-
-        InputInterface<double> leg_rb_target_theta_;
         InputInterface<bool> is_arm_enable;
 
-        OutputInterface<double> leg_joint_rb_control_theta_error;
+    } littleboard_;
 
-    } rightboard_;
+    // class RightBoard final
+    //     : private librmcs::agent::CBoard
+    //     , rclcpp::Node {
+    // public:
+    //     friend class Engineer;
+    //     explicit RightBoard(
+    //         Engineer& engineer, EngineerCommand& engineer_command, const std::string&
+    //         serial_filter) : librmcs::agent::CBoard(serial_filter) , rclcpp::Node{"right_board"}
+    //         , tof(engineer, "/leg/tof")
+    //         , Steering_motors(
+    //               {engineer, engineer_command, "/steering/steering/rb"},
+    //               {engineer, engineer_command, "/steering/steering/rf"})
+    //         , Wheel_motors(
+    //               {engineer, engineer_command, "/steering/wheel/rb"},
+    //               {engineer, engineer_command, "/steering/wheel/rf"})
+    //         , Omni_Motors(engineer, engineer_command, "/leg/omni/r")
+    //         , Leg_Motors(
+    //               {engineer, engineer_command, "/leg/joint/rb"},
+    //               {engineer, engineer_command, "/leg/joint/rf"})
+    //         , Leg_ecd({engineer, "/leg/encoder/rb"}, {engineer, "/leg/encoder/rf"})
+    //         , big_yaw(engineer, engineer_command, "/chassis/big_yaw") {
+    //         Steering_motors[0].configure(
+    //             device::DjiMotorConfig{device::DjiMotorType::GM6020}
+    //                 .reverse()
+    //                 .set_encoder_zero_point(
+    //                     static_cast<int>(
+    //                         engineer.get_parameter("steering_rb_zero_point").as_int())));
+    //         Steering_motors[1].configure(
+    //             device::DjiMotorConfig{device::DjiMotorType::GM6020}
+    //                 .reverse()
+    //                 .set_encoder_zero_point(
+    //                     static_cast<int>(
+    //                         engineer.get_parameter("steering_rf_zero_point").as_int())));
+    //         Wheel_motors[0].configure(
+    //             device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(18.2));
+    //         Wheel_motors[1].configure(
+    //             device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(18.2));
+    //         Omni_Motors.configure(
+    //             device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(18.2));
+    //         Leg_Motors[0].configure(
+    //             device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(
+    //                 277.6));
+    //         Leg_Motors[1].configure(
+    //             device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(92.0));
+    //         Leg_ecd[0].configure(
+    //             device::EncoderConfig{device::EncoderType::Old_}.set_encoder_zero_point(
+    //                 static_cast<int>(engineer.get_parameter("leg_rb_ecd_zero_point").as_int())));
+    //         Leg_ecd[1].configure(
+    //             device::EncoderConfig{device::EncoderType::Old_}.reverse().set_encoder_zero_point(
+    //                 static_cast<int>(engineer.get_parameter("leg_rf_ecd_zero_point").as_int())));
+    //         big_yaw.configure(
+    //             device::DMMotorConfig{device::DMMotorType::DM8009}.set_encoder_zero_point(
+    //                 static_cast<int>(engineer.get_parameter("big_yaw_zero_point").as_int())));
+    //         engineer.register_output(
+    //             "/leg/joint/rb/control_theta_error", leg_joint_rb_control_theta_error, NAN);
+    //         engineer_command.register_input("/arm/enable_flag", is_arm_enable);
+    //         engineer_command.register_input("/leg/joint/rb/target_theta", leg_rb_target_theta_);
+    //     }
+
+    //     ~RightBoard() final {
+    //         auto tx = start_transmit();
+    //         tx.can1_transmit({
+    //             .can_id = 0x1FE,
+    //             .can_data =
+    //                 device::CanPacket8{
+    //                                    device::CanPacket8::PaddingQuarter{},
+    //                                    device::CanPacket8::PaddingQuarter{},
+    //                                    device::CanPacket8::PaddingQuarter{},
+    //                                    device::CanPacket8::PaddingQuarter{},
+    //                                    }
+    //                     .as_bytes(),
+    //         });
+    //         tx.can2_transmit({
+    //             .can_id = 0x1FE,
+    //             .can_data =
+    //                 device::CanPacket8{
+    //                                    device::CanPacket8::PaddingQuarter{},
+    //                                    device::CanPacket8::PaddingQuarter{},
+    //                                    device::CanPacket8::PaddingQuarter{},
+    //                                    device::CanPacket8::PaddingQuarter{},
+    //                                    }
+    //                     .as_bytes(),
+    //         });
+    //         tx.can2_transmit({
+    //             .can_id = 0x200,
+    //             .can_data =
+    //                 device::CanPacket8{
+    //                                    device::CanPacket8::PaddingQuarter{},
+    //                                    device::CanPacket8::PaddingQuarter{},
+    //                                    device::CanPacket8::PaddingQuarter{},
+    //                                    device::CanPacket8::PaddingQuarter{},
+    //                                    }
+    //                     .as_bytes(),
+    //         });
+    //         tx.can1_transmit({
+    //             .can_id = 0x200,
+    //             .can_data =
+    //                 device::CanPacket8{
+    //                                    device::CanPacket8::PaddingQuarter{},
+    //                                    device::CanPacket8::PaddingQuarter{},
+    //                                    device::CanPacket8::PaddingQuarter{},
+    //                                    device::CanPacket8::PaddingQuarter{},
+    //                                    }
+    //                     .as_bytes(),
+    //         });
+    //         tx.can2_transmit({
+    //             .can_id   = 0x3,
+    //             .can_data = big_yaw.dm_close_command().as_bytes(),
+    //         });
+    //     }
+    //     void update() {
+    //         Omni_Motors.update();
+    //         for (auto& motor : Steering_motors) {
+    //             motor.update();
+    //         }
+    //         for (auto& motor : Wheel_motors) {
+    //             motor.update();
+    //         }
+    //         for (auto& motor : Leg_Motors) {
+    //             motor.update();
+    //         }
+    //         for (auto& ecd : Leg_ecd) {
+    //             ecd.update();
+    //         }
+    //         big_yaw.update();
+    //         tof.update();
+    //         *leg_joint_rb_control_theta_error =
+    //             normalize_angle(*leg_rb_target_theta_ - Leg_ecd[0].get_angle());
+    //     }
+
+    //     void command() {
+
+    //         static bool turn{false};
+    //         auto tx = start_transmit();
+    //         if (turn) {
+
+    //             tx.can2_transmit({
+    //                 .can_id = 0x1FE,
+    //                 .can_data =
+    //                     device::CanPacket8{
+    //                                        Steering_motors[0].generate_command(),
+    //                                        device::CanPacket8::PaddingQuarter{},
+    //                                        device::CanPacket8::PaddingQuarter{},
+    //                                        device::CanPacket8::PaddingQuarter{},
+    //                                        }
+    //                         .as_bytes(),
+    //             });
+    //             tx.can1_transmit({
+    //                 .can_id = 0x1FE,
+    //                 .can_data =
+    //                     device::CanPacket8{
+    //                                        device::CanPacket8::PaddingQuarter{},
+    //                                        Steering_motors[1].generate_command(),
+    //                                        device::CanPacket8::PaddingQuarter{},
+    //                                        device::CanPacket8::PaddingQuarter{},
+    //                                        }
+    //                         .as_bytes(),
+    //             });
+
+    //             device::CanPacket8 yaw_command;
+    //             if (*is_arm_enable && big_yaw.get_state() != 0 && big_yaw.get_state() != 1) {
+    //                 yaw_command = big_yaw.dm_clear_error_command();
+    //             } else if (!*is_arm_enable) {
+    //                 yaw_command = big_yaw.dm_close_command();
+    //             } else if (*is_arm_enable && big_yaw.get_state() == 0) {
+    //                 yaw_command = big_yaw.dm_enable_command();
+
+    //             } else {
+    //                 yaw_command = big_yaw.generate_torque_command();
+    //             }
+
+    //             tx.can2_transmit({
+    //                 .can_id   = 0x3,
+    //                 .can_data = yaw_command.as_bytes(),
+    //             });
+    //         } else {
+
+    //             tx.can2_transmit({
+    //                 .can_id = 0x200,
+    //                 .can_data =
+    //                     device::CanPacket8{
+    //                                        Wheel_motors[0].generate_command(),
+    //                                        Leg_Motors[0].generate_command(),
+    //                                        device::CanPacket8::PaddingQuarter{},
+    //                                        device::CanPacket8::PaddingQuarter{},
+    //                                        }
+    //                         .as_bytes(),
+    //             });
+
+    //             tx.can1_transmit({
+    //                 .can_id = 0x200,
+    //                 .can_data =
+    //                     device::CanPacket8{
+    //                                        Wheel_motors[1].generate_command(),
+    //                                        Leg_Motors[1].generate_command(),
+    //                                        Omni_Motors.generate_command(),
+    //                                        device::CanPacket8::PaddingQuarter{},
+    //                                        }
+    //                         .as_bytes(),
+    //             });
+    //         }
+    //         turn = !turn;
+    //     }
+
+    // protected:
+    //     void can1_receive_callback(const librmcs::data::CanDataView& data) override {
+    //         if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
+    //             [[unlikely]]
+    //             return;
+
+    //         if (data.can_id == 0x201) {
+    //             Wheel_motors[1].store_status(data.can_data);
+    //         } else if (data.can_id == 0x202) {
+    //             Leg_Motors[1].store_status(data.can_data);
+    //         } else if (data.can_id == 0x203) {
+    //             Omni_Motors.store_status(data.can_data);
+    //         } else if (data.can_id == 0x206) {
+    //             Steering_motors[1].store_status(data.can_data);
+    //         } else if (data.can_id == 0x320) {
+
+    //             Leg_ecd[1].store_status(data.can_data);
+    //         }
+    //     }
+    //     void can2_receive_callback(const librmcs::data::CanDataView& data) override {
+    //         if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
+    //             [[unlikely]]
+    //             return;
+    //         if (data.can_id == 0x201) {
+    //             Wheel_motors[0].store_status(data.can_data);
+    //         } else if (data.can_id == 0x202) {
+    //             Leg_Motors[0].store_status(data.can_data);
+    //         } else if (data.can_id == 0x205) {
+    //             Steering_motors[0].store_status(data.can_data);
+    //         } else if (data.can_id == 0x33) {
+    //             big_yaw.store_status(data.can_data);
+    //         } else if (data.can_id == 0x322) {
+    //             Leg_ecd[0].store_status(data.can_data);
+    //         }
+    //     }
+
+    // private:
+    //     void uart2_receive_callback(const librmcs::data::UartDataView& data) override {
+    //         auto* uart_data = data.uart_data.data();
+    //         ring_buff.emplace_back_multi(
+    //             [uart_data](std::byte* storage) mutable { *storage = *uart_data++; },
+    //             data.uart_data.size());
+    //         while (ring_buff.front() && ring_buff.readable() >= 16) {
+    //             std::byte rx_data[16];
+    //             std::byte* rx_ptr = rx_data;
+    //             ring_buff.pop_front_multi([&rx_ptr](std::byte storage) { *rx_ptr++ = storage; },
+    //             1); if (rx_data[0] != std::byte{0x57}) {
+    //                 continue;
+    //             }
+    //             ring_buff.pop_front_multi(
+    //                 [&rx_ptr](std::byte storage) { *rx_ptr++ = storage; }, 15);
+    //             tof.store_status(rx_data, 16);
+    //         }
+    //     }
+
+    //     RingBuffer<std::byte> ring_buff{16};
+    //     device::Tof tof;
+    //     device::DjiMotor Steering_motors[2];
+    //     device::DjiMotor Wheel_motors[2];
+    //     device::DjiMotor Omni_Motors;
+    //     device::DjiMotor Leg_Motors[2];
+    //     device::Encoder Leg_ecd[2];
+    //     device::DMMotor big_yaw;
+
+    //     InputInterface<double> leg_rb_target_theta_;
+    //     InputInterface<bool> is_arm_enable;
+
+    //     OutputInterface<double> leg_joint_rb_control_theta_error;
+
+    // } rightboard_;
 };
 
 } // namespace rmcs_core::hardware
