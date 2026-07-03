@@ -28,10 +28,7 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
             robot_name = robot_config
 
         entities.append(
-            LogInfo(
-                msg=f"Starting RMCS on robot '{robot_config}'{'(automatic)' if is_automatic else ''} -> {robot_name}.yaml"
-            )
-        )
+            LogInfo(msg=f"Starting RMCS on robot -> {robot_name}.yaml"))
 
         entities.append(
             Node(
@@ -46,9 +43,19 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
                 ],
                 respawn=True,
                 respawn_delay=1.0,
-                output="log",  # stdout and stderr are logged to launch log file and stderr to the screen.
+                output="log",
             )
         )
+
+        if robot_name == "flight":
+            entities.append(
+                Node(
+                    package="odin_ros_driver",
+                    executable="tmux-launch.sh",
+                    output="screen",
+                    emulate_tty=True,
+                )
+            )
 
         if is_automatic:
             pass

@@ -1,5 +1,7 @@
 #!/usr/bin/bash
 
+echo "${USBFS_MEMORY_MB:-2000}" >/sys/module/usbcore/parameters/usbfs_memory_mb 2>/dev/null || true
+
 # Remove all files in /tmp
 rm -rf /tmp/*
 

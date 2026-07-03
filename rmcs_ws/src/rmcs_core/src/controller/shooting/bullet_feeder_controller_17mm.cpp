@@ -28,7 +28,6 @@ public:
         bullet_feeder_working_velocity = bullet_feeder_angle_per_bullet * shot_frequency;
         double safe_shot_frequency = get_parameter("safe_shot_frequency").as_double();
         bullet_feeder_safe_shot_velocity = bullet_feeder_angle_per_bullet * safe_shot_frequency;
-
         double eject_frequency = get_parameter("eject_frequency").as_double();
         bullet_feeder_eject_velocity_ = -bullet_feeder_angle_per_bullet * eject_frequency;
         bullet_feeder_eject_time_ =
@@ -53,7 +52,7 @@ public:
         register_input("/remote/mouse", mouse_);
         register_input("/remote/keyboard", keyboard_);
 
-        register_input("/gimbal/auto_aim/fire_control", fire_control_, false);
+        register_input("/auto_aim/should_shoot", auto_aim_should_shoot_, false);
 
         register_input("/gimbal/bullet_feeder/velocity", bullet_feeder_velocity_);
         register_output(
@@ -63,8 +62,8 @@ public:
     }
 
     void before_updating() override {
-        if (!fire_control_.ready())
-            fire_control_.bind_directly(false);
+        if (!auto_aim_should_shoot_.ready())
+            auto_aim_should_shoot_.bind_directly(false);
     }
 
     void update() override {
@@ -102,19 +101,25 @@ public:
 
                 if (*friction_ready_) {
                     if (shoot_mode == ShootMode::AUTOMATIC) {
-                        bool triggered = mouse.left || switch_left == Switch::DOWN
-                                      || (switch_right == Switch::UP && *fire_control_);
+                        bool manual_triggered = mouse.left || switch_left == Switch::DOWN;
+                        bool auto_aim_triggered = mouse.right && *auto_aim_should_shoot_;
+                        bool triggered = manual_triggered || auto_aim_triggered;
                         bullet_allowance =
                             triggered ? *control_bullet_allowance_limited_by_heat_ : 0;
+                        update_bullet_feeder_velocity(bullet_allowance);
                     } else {
                         bool triggered = single_shot_stop_counter_ > 0;
                         bullet_allowance =
                             triggered && (*control_bullet_allowance_limited_by_heat_ > 0);
+                        update_bullet_feeder_velocity(bullet_allowance);
                     }
+                } else {
+                    update_bullet_feeder_velocity(0);
                 }
             }
 
-            update_bullet_feeder_velocity(bullet_allowance);
+            if (!*friction_ready_ || switch_right == Switch::DOWN)
+                update_bullet_feeder_velocity(0);
         }
 
         last_switch_right_ = switch_right;
@@ -209,7 +214,7 @@ private:
     InputInterface<rmcs_msgs::Mouse> mouse_;
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
 
-    InputInterface<bool> fire_control_;
+    InputInterface<bool> auto_aim_should_shoot_;
 
     rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Switch last_switch_left_ = rmcs_msgs::Switch::UNKNOWN;

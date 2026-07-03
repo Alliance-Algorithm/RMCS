@@ -1,5 +1,6 @@
 <library path="rmcs_core">
-  <class type="rmcs_core::hardware::MecanumHero" base_class_type="rmcs_executor::Component" />
+    <class type="rmcs_core::hardware::MecanumHero" base_class_type="rmcs_executor::Component" />
+    <class type="rmcs_core::hardware::Flight" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::hardware::SteeringHero" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::hardware::SteeringHeroLittle" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::hardware::OmniInfantry" base_class_type="rmcs_executor::Component" />
@@ -22,6 +23,7 @@
   <class type="rmcs_core::controller::chassis::DeformableChassisController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::ChassisControllerV2" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::gimbal::SimpleGimbalController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::gimbal::FlightGimbalController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::gimbal::OmniInfantryPlannerGimbalController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::gimbal::HeroGimbalController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::gimbal::DualYawController" base_class_type="rmcs_executor::Component" />
@@ -48,6 +50,7 @@
   <class type="rmcs_core::referee::app::ui::Infantry" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::referee::app::ui::DeformableInfantry" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::referee::app::ui::Hero" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::referee::app::ui::Flight" base_class_type="rmcs_executor::Component" />
 
   <class type="rmcs_core::test::output::AngleOutput" base_class_type="rmcs_executor::Component" />
 </library>
