@@ -37,6 +37,8 @@ public:
         register_output("/tf", tf_);
         register_output("/auto_aim/camera_transform", camera_transform_);
         register_output("/auto_aim/barrel_direction", barrel_direction_);
+        register_output(
+            "/auto_aim/yaw_velocity", yaw_velocity_, std::numeric_limits<double>::quiet_NaN());
 
         // For command: remote-status
         using Srv = std_srvs::srv::Trigger;
@@ -66,6 +68,7 @@ public:
         *camera_transform_ = fast_tf::lookup_transform<OdomGimbalImu, CameraLink>(*tf_);
         *barrel_direction_ = *fast_tf::cast<OdomGimbalImu>(
             PitchLink::DirectionVector{Eigen::Vector3d::UnitX()}, *tf_);
+        *yaw_velocity_ = gimbal_board_->yaw_velocity();
     }
 
 private:
@@ -110,6 +113,8 @@ private:
             bmi088_.set_coordinate_mapping(
                 [](double x, double y, double z) { return std::make_tuple(-x, -y, z); });
         }
+
+        auto yaw_velocity() const -> double { return *gimbal_yaw_velocity_bmi088_; }
 
         auto update() -> void {
             gimbal_bullet_feeder_.update_status();
@@ -444,6 +449,7 @@ private:
 
     OutputInterface<Eigen::Isometry3d> camera_transform_;
     OutputInterface<Eigen::Vector3d> barrel_direction_;
+    OutputInterface<double> yaw_velocity_;
 
     std::unique_ptr<GimbalBoard> gimbal_board_;
     std::unique_ptr<ChassisBoard> chassis_board_;
