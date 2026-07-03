@@ -6,6 +6,7 @@ readonly DEVELOPER_NAME="ubuntu"
 readonly NVIM_PATH="/opt/nvim/bin/nvim"
 readonly NVIM_PORT=6666
 readonly NVIM_HOST="localhost"
+readonly RMCS_PATH="/workspaces/RMCS/"
 
 function show_help() {
     local project_dir="$1"
@@ -42,7 +43,7 @@ function rmcs_nvim() {
     done
 
     echo "Starting nvim server on port $port..."
-    docker compose exec -u "$DEVELOPER_NAME" -d "$service" \
+    docker compose exec -u "$DEVELOPER_NAME" -w "$RMCS_PATH" -d "$service" \
         "$NVIM_PATH" --headless --listen "$NVIM_HOST:$port"
 
     for i in $(seq 1 $timeout); do
