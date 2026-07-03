@@ -21,6 +21,7 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller
 
       - rmcs_core::controller::chassis::DeformableChassis -> chassis_controller
+      - rmcs_core::controller::chassis::ActiveSuspensionController -> active_suspension_controller
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::DeformableChassisController -> deformable_chassis_controller
 
@@ -61,27 +62,45 @@ chassis_controller:
     active_suspension_enable: true
     spin_ratio: 1.0
 
-    # IMU attitude correction at min-angle stance.
-    active_suspension_pitch_kp: 8.0
-    active_suspension_pitch_ki: 0.35
-    active_suspension_pitch_kd: 0.28
+active_suspension_controller:
+  ros__parameters:
+    min_angle: 20.0
+    max_angle: 50.0
+    active_suspension_enable: true
+    pitch_angle_diff_limit_deg: 45.0
+    roll_angle_diff_limit_deg: 45.0
 
-    active_suspension_roll_kp: 8.0
-    active_suspension_roll_ki: 0.35
-    active_suspension_roll_kd: 0.28
+    pitch_outer_kp: 8.0
+    pitch_outer_ki: 0.35
+    pitch_outer_kd: 0.28
+    pitch_outer_integral_min: -20.0
+    pitch_outer_integral_max: 20.0
+    pitch_outer_integral_split_min: -30.0
+    pitch_outer_integral_split_max: 30.0
+    pitch_outer_output_min: -45.0
+    pitch_outer_output_max: 45.0
 
-    active_suspension_pitch_angle_diff_limit_deg: 45.0
-    active_suspension_roll_angle_diff_limit_deg: 45.0
-    active_suspension_pid_integral_limit_deg: 20.0
+    pitch_inner_kp: 2.0
+    pitch_inner_ki: 0.0
+    pitch_inner_kd: 0.0
+    pitch_inner_output_min: -45.0
+    pitch_inner_output_max: 45.0
 
-    # Chassis-owned joint intent trajectory limits while attitude correction is active.
-    active_suspension_target_velocity_limit_deg: 80.0
-    active_suspension_target_acceleration_limit_deg: 360.0
+    roll_outer_kp: 8.0
+    roll_outer_ki: 0.35
+    roll_outer_kd: 0.28
+    roll_outer_integral_min: -20.0
+    roll_outer_integral_max: 20.0
+    roll_outer_integral_split_min: -30.0
+    roll_outer_integral_split_max: 30.0
+    roll_outer_output_min: -45.0
+    roll_outer_output_max: 45.0
 
-    # Automatic IMU mounting-error calibration.
-    # When all four requested joint targets stay equal for 2s, average pitch/roll from 2s to 5s.
-    chassis_imu_calibration_wait_s: 2.0
-    chassis_imu_calibration_sample_s: 3.0
+    roll_inner_kp: 2.0
+    roll_inner_ki: 0.0
+    roll_inner_kd: 0.0
+    roll_inner_output_min: -45.0
+    roll_inner_output_max: 45.0
 
 gimbal_controller:
   ros__parameters:

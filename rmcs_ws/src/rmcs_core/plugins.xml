@@ -13,6 +13,7 @@
   <class type="rmcs_core::controller::chassis::DeformableOmniWheelController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::SteeringWheelController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::DeformableChassis" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::chassis::ActiveSuspensionController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::DeformableJointController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::DeformableChassisController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::ChassisControllerV2" base_class_type="rmcs_executor::Component" />

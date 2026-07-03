@@ -6,6 +6,7 @@
 #include <numbers>
 
 #include <eigen3/Eigen/Dense>
+#include <fmt/format.h>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 
@@ -71,88 +72,45 @@ public:
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
 
-        register_input("/chassis/left_front_steering/angle", left_front_steering_angle_);
-        register_input("/chassis/left_back_steering/angle", left_back_steering_angle_);
-        register_input("/chassis/right_back_steering/angle", right_back_steering_angle_);
-        register_input("/chassis/right_front_steering/angle", right_front_steering_angle_);
-
-        register_input("/chassis/left_front_steering/velocity", left_front_steering_velocity_);
-        register_input("/chassis/left_back_steering/velocity", left_back_steering_velocity_);
-        register_input("/chassis/right_back_steering/velocity", right_back_steering_velocity_);
-        register_input("/chassis/right_front_steering/velocity", right_front_steering_velocity_);
-
-        register_input("/chassis/left_front_wheel/velocity", left_front_wheel_velocity_);
-        register_input("/chassis/left_back_wheel/velocity", left_back_wheel_velocity_);
-        register_input("/chassis/right_back_wheel/velocity", right_back_wheel_velocity_);
-        register_input("/chassis/right_front_wheel/velocity", right_front_wheel_velocity_);
-
-        register_input("/chassis/left_front_joint/physical_angle", left_front_joint_angle_);
-        register_input("/chassis/left_back_joint/physical_angle", left_back_joint_angle_);
-        register_input("/chassis/right_back_joint/physical_angle", right_back_joint_angle_);
-        register_input("/chassis/right_front_joint/physical_angle", right_front_joint_angle_);
-
-        register_input("/chassis/left_front_joint/physical_velocity", left_front_joint_velocity_);
-        register_input("/chassis/left_back_joint/physical_velocity", left_back_joint_velocity_);
-        register_input("/chassis/right_back_joint/physical_velocity", right_back_joint_velocity_);
-        register_input("/chassis/right_front_joint/physical_velocity", right_front_joint_velocity_);
-
-        register_input(
-            "/chassis/left_front_joint/target_physical_angle",
-            left_front_joint_target_physical_angle_, false);
-        register_input(
-            "/chassis/left_back_joint/target_physical_angle",
-            left_back_joint_target_physical_angle_, false);
-        register_input(
-            "/chassis/right_back_joint/target_physical_angle",
-            right_back_joint_target_physical_angle_, false);
-        register_input(
-            "/chassis/right_front_joint/target_physical_angle",
-            right_front_joint_target_physical_angle_, false);
-        register_input(
-            "/chassis/left_front_joint/target_physical_velocity",
-            left_front_joint_target_physical_velocity_, false);
-        register_input(
-            "/chassis/left_back_joint/target_physical_velocity",
-            left_back_joint_target_physical_velocity_, false);
-        register_input(
-            "/chassis/right_back_joint/target_physical_velocity",
-            right_back_joint_target_physical_velocity_, false);
-        register_input(
-            "/chassis/right_front_joint/target_physical_velocity",
-            right_front_joint_target_physical_velocity_, false);
-        register_input(
-            "/chassis/left_front_joint/target_physical_acceleration",
-            left_front_joint_target_physical_acceleration_, false);
-        register_input(
-            "/chassis/left_back_joint/target_physical_acceleration",
-            left_back_joint_target_physical_acceleration_, false);
-        register_input(
-            "/chassis/right_back_joint/target_physical_acceleration",
-            right_back_joint_target_physical_acceleration_, false);
-        register_input(
-            "/chassis/right_front_joint/target_physical_acceleration",
-            right_front_joint_target_physical_acceleration_, false);
+        for (size_t i = 0; i < kWheelCount; ++i) {
+            register_input(
+                fmt::format("/chassis/{}_steering/angle", kJointNames[i]),
+                steering_angle_[i]);
+            register_input(
+                fmt::format("/chassis/{}_steering/velocity", kJointNames[i]),
+                steering_velocity_[i]);
+            register_input(
+                fmt::format("/chassis/{}_wheel/velocity", kJointNames[i]),
+                wheel_velocity_[i]);
+            register_input(
+                fmt::format("/chassis/{}_joint/physical_angle", kJointNames[i]),
+                joint_angle_[i]);
+            register_input(
+                fmt::format("/chassis/{}_joint/physical_velocity", kJointNames[i]),
+                joint_velocity_[i]);
+            register_input(
+                fmt::format("/chassis/{}_joint/target_physical_angle", kJointNames[i]),
+                joint_target_physical_angle_[i], false);
+            register_input(
+                fmt::format("/chassis/{}_joint/target_physical_velocity", kJointNames[i]),
+                joint_target_physical_velocity_[i], false);
+            register_input(
+                fmt::format("/chassis/{}_joint/target_physical_acceleration", kJointNames[i]),
+                joint_target_physical_acceleration_[i], false);
+        }
 
         register_input("/chassis/yaw/velocity_imu", chassis_yaw_velocity_imu_);
         register_input("/chassis/control_velocity", chassis_control_velocity_);
         register_input("/chassis/control_power_limit", power_limit_);
 
-        register_output(
-            "/chassis/left_front_steering/control_torque", left_front_steering_control_torque_);
-        register_output(
-            "/chassis/left_back_steering/control_torque", left_back_steering_control_torque_);
-        register_output(
-            "/chassis/right_back_steering/control_torque", right_back_steering_control_torque_);
-        register_output(
-            "/chassis/right_front_steering/control_torque", right_front_steering_control_torque_);
-
-        register_output(
-            "/chassis/left_front_wheel/control_torque", left_front_wheel_control_torque_);
-        register_output("/chassis/left_back_wheel/control_torque", left_back_wheel_control_torque_);
-        register_output(
-            "/chassis/right_back_wheel/control_torque", right_back_wheel_control_torque_);
-        register_output(
-            "/chassis/right_front_wheel/control_torque", right_front_wheel_control_torque_);
+        for (size_t i = 0; i < kWheelCount; ++i) {
+            register_output(
+                fmt::format("/chassis/{}_steering/control_torque", kJointNames[i]),
+                steering_control_torque_[i]);
+            register_output(
+                fmt::format("/chassis/{}_wheel/control_torque", kJointNames[i]),
+                wheel_control_torque_[i]);
+        }
 
     }
 
@@ -270,19 +228,17 @@ private:
     }
 
     [[nodiscard]] static Eigen::Vector4d read_required_inputs_(
-        const InputInterface<double>& left_front, const InputInterface<double>& left_back,
-        const InputInterface<double>& right_back, const InputInterface<double>& right_front) {
-        return {*left_front, *left_back, *right_back, *right_front};
+        const std::array<InputInterface<double>, kWheelCount>& inputs) {
+        return {*inputs[0], *inputs[1], *inputs[2], *inputs[3]};
     }
 
     [[nodiscard]] static Eigen::Vector4d read_optional_inputs_(
-        const InputInterface<double>& left_front, const InputInterface<double>& left_back,
-        const InputInterface<double>& right_back, const InputInterface<double>& right_front) {
+        const std::array<InputInterface<double>, kWheelCount>& inputs) {
         return {
-            left_front.ready() ? *left_front : nan_,
-            left_back.ready() ? *left_back : nan_,
-            right_back.ready() ? *right_back : nan_,
-            right_front.ready() ? *right_front : nan_,
+            inputs[0].ready() ? *inputs[0] : nan_,
+            inputs[1].ready() ? *inputs[1] : nan_,
+            inputs[2].ready() ? *inputs[2] : nan_,
+            inputs[3].ready() ? *inputs[3] : nan_,
         };
     }
 
@@ -298,12 +254,8 @@ private:
 
     [[nodiscard]] JointFeedbackStates update_joint_feedback_states_() {
         JointFeedbackStates joint;
-        joint.alpha_rad = read_required_inputs_(
-            left_front_joint_angle_, left_back_joint_angle_, right_back_joint_angle_,
-            right_front_joint_angle_);
-        joint.alpha_dot_rad = read_required_inputs_(
-            left_front_joint_velocity_, left_back_joint_velocity_, right_back_joint_velocity_,
-            right_front_joint_velocity_);
+        joint.alpha_rad = read_required_inputs_(joint_angle_);
+        joint.alpha_dot_rad = read_required_inputs_(joint_velocity_);
 
         if (!joint.alpha_rad.array().isFinite().all()
             || !joint.alpha_dot_rad.array().isFinite().all())
@@ -329,17 +281,12 @@ private:
 
     [[nodiscard]] JointTargetStates update_joint_target_states_() {
         JointTargetStates joint;
-        joint.alpha_rad = read_optional_inputs_(
-            left_front_joint_target_physical_angle_, left_back_joint_target_physical_angle_,
-            right_back_joint_target_physical_angle_, right_front_joint_target_physical_angle_);
+        joint.alpha_rad = read_optional_inputs_(joint_target_physical_angle_);
 
         if (!joint.alpha_rad.array().isFinite().all())
             return joint;
 
-        const Eigen::Vector4d target_velocity = read_optional_inputs_(
-            left_front_joint_target_physical_velocity_, left_back_joint_target_physical_velocity_,
-            right_back_joint_target_physical_velocity_,
-            right_front_joint_target_physical_velocity_);
+        const Eigen::Vector4d target_velocity = read_optional_inputs_(joint_target_physical_velocity_);
         if (target_velocity.array().isFinite().all()) {
             joint.alpha_dot_rad = target_velocity;
             joint.has_velocity = true;
@@ -349,10 +296,7 @@ private:
         }
 
         const Eigen::Vector4d target_acceleration = read_optional_inputs_(
-            left_front_joint_target_physical_acceleration_,
-            left_back_joint_target_physical_acceleration_,
-            right_back_joint_target_physical_acceleration_,
-            right_front_joint_target_physical_acceleration_);
+            joint_target_physical_acceleration_);
         if (target_acceleration.array().isFinite().all()) {
             joint.alpha_ddot_rad = target_acceleration;
             joint.has_acceleration = true;
@@ -382,15 +326,10 @@ private:
         last_joint_target_angle_ = Eigen::Vector4d::Zero();
         last_joint_target_angle_valid_ = false;
 
-        *left_front_steering_control_torque_ = 0.0;
-        *left_back_steering_control_torque_ = 0.0;
-        *right_back_steering_control_torque_ = 0.0;
-        *right_front_steering_control_torque_ = 0.0;
-
-        *left_front_wheel_control_torque_ = 0.0;
-        *left_back_wheel_control_torque_ = 0.0;
-        *right_back_wheel_control_torque_ = 0.0;
-        *right_front_wheel_control_torque_ = 0.0;
+        for (size_t i = 0; i < kWheelCount; ++i) {
+            *steering_control_torque_[i] = 0.0;
+            *wheel_control_torque_[i] = 0.0;
+        }
     }
 
     void integral_yaw_angle_imu() {
@@ -400,9 +339,7 @@ private:
 
     [[nodiscard]] SteeringStatus calculate_steering_status() const {
         SteeringStatus steering_status;
-        steering_status.angle = read_required_inputs_(
-            left_front_steering_angle_, left_back_steering_angle_, right_back_steering_angle_,
-            right_front_steering_angle_);
+        steering_status.angle = read_required_inputs_(steering_angle_);
         steering_status.angle.array() -= std::numbers::pi / 4;
         steering_status.cos_angle = steering_status.angle.array().cos();
         steering_status.sin_angle = steering_status.angle.array().sin();
@@ -413,16 +350,12 @@ private:
             steering_status.cos_angle_minus_phi[i] = std::cos(angle_minus_phi);
         }
 
-        steering_status.velocity = read_required_inputs_(
-            left_front_steering_velocity_, left_back_steering_velocity_,
-            right_back_steering_velocity_, right_front_steering_velocity_);
+        steering_status.velocity = read_required_inputs_(steering_velocity_);
         return steering_status;
     }
 
     [[nodiscard]] Eigen::Vector4d calculate_wheel_velocities() const {
-        return read_required_inputs_(
-            left_front_wheel_velocity_, left_back_wheel_velocity_, right_back_wheel_velocity_,
-            right_front_wheel_velocity_);
+        return read_required_inputs_(wheel_velocity_);
     }
 
     /**
@@ -696,15 +629,10 @@ private:
 
     void update_control_torques(
         const Eigen::Vector4d& steering_torque, const Eigen::Vector4d& wheel_torque) {
-        *left_front_steering_control_torque_ = steering_torque[0];
-        *left_back_steering_control_torque_ = steering_torque[1];
-        *right_back_steering_control_torque_ = steering_torque[2];
-        *right_front_steering_control_torque_ = steering_torque[3];
-
-        *left_front_wheel_control_torque_ = wheel_torque[0];
-        *left_back_wheel_control_torque_ = wheel_torque[1];
-        *right_back_wheel_control_torque_ = wheel_torque[2];
-        *right_front_wheel_control_torque_ = wheel_torque[3];
+        for (size_t i = 0; i < kWheelCount; ++i) {
+            *steering_control_torque_[i] = steering_torque[i];
+            *wheel_control_torque_[i] = wheel_torque[i];
+        }
     }
 
     void update_chassis_velocity_expected(const Eigen::Vector3d& chassis_acceleration) {
@@ -768,6 +696,9 @@ private:
         -1.0,
     };
 
+    static constexpr std::array<const char*, kWheelCount> kJointNames = {
+        "left_front", "left_back", "right_back", "right_front"};
+
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
     static constexpr double dt_ = 1e-3;
     static constexpr double g_ = 9.81;
@@ -800,57 +731,23 @@ private:
     InputInterface<Eigen::Vector2d> joystick_right_;
     InputInterface<Eigen::Vector2d> joystick_left_;
 
-    InputInterface<double> left_front_steering_angle_;
-    InputInterface<double> left_back_steering_angle_;
-    InputInterface<double> right_back_steering_angle_;
-    InputInterface<double> right_front_steering_angle_;
+    std::array<InputInterface<double>, kWheelCount> steering_angle_;
+    std::array<InputInterface<double>, kWheelCount> steering_velocity_;
+    std::array<InputInterface<double>, kWheelCount> wheel_velocity_;
 
-    InputInterface<double> left_front_steering_velocity_;
-    InputInterface<double> left_back_steering_velocity_;
-    InputInterface<double> right_back_steering_velocity_;
-    InputInterface<double> right_front_steering_velocity_;
+    std::array<InputInterface<double>, kWheelCount> joint_angle_;
+    std::array<InputInterface<double>, kWheelCount> joint_velocity_;
 
-    InputInterface<double> left_front_wheel_velocity_;
-    InputInterface<double> left_back_wheel_velocity_;
-    InputInterface<double> right_back_wheel_velocity_;
-    InputInterface<double> right_front_wheel_velocity_;
-
-    InputInterface<double> left_front_joint_angle_;
-    InputInterface<double> left_back_joint_angle_;
-    InputInterface<double> right_back_joint_angle_;
-    InputInterface<double> right_front_joint_angle_;
-
-    InputInterface<double> left_front_joint_velocity_;
-    InputInterface<double> left_back_joint_velocity_;
-    InputInterface<double> right_back_joint_velocity_;
-    InputInterface<double> right_front_joint_velocity_;
-
-    InputInterface<double> left_front_joint_target_physical_angle_;
-    InputInterface<double> left_back_joint_target_physical_angle_;
-    InputInterface<double> right_back_joint_target_physical_angle_;
-    InputInterface<double> right_front_joint_target_physical_angle_;
-    InputInterface<double> left_front_joint_target_physical_velocity_;
-    InputInterface<double> left_back_joint_target_physical_velocity_;
-    InputInterface<double> right_back_joint_target_physical_velocity_;
-    InputInterface<double> right_front_joint_target_physical_velocity_;
-    InputInterface<double> left_front_joint_target_physical_acceleration_;
-    InputInterface<double> left_back_joint_target_physical_acceleration_;
-    InputInterface<double> right_back_joint_target_physical_acceleration_;
-    InputInterface<double> right_front_joint_target_physical_acceleration_;
+    std::array<InputInterface<double>, kWheelCount> joint_target_physical_angle_;
+    std::array<InputInterface<double>, kWheelCount> joint_target_physical_velocity_;
+    std::array<InputInterface<double>, kWheelCount> joint_target_physical_acceleration_;
 
     InputInterface<double> chassis_yaw_velocity_imu_;
     InputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;
     InputInterface<double> power_limit_;
 
-    OutputInterface<double> left_front_steering_control_torque_;
-    OutputInterface<double> left_back_steering_control_torque_;
-    OutputInterface<double> right_back_steering_control_torque_;
-    OutputInterface<double> right_front_steering_control_torque_;
-
-    OutputInterface<double> left_front_wheel_control_torque_;
-    OutputInterface<double> left_back_wheel_control_torque_;
-    OutputInterface<double> right_back_wheel_control_torque_;
-    OutputInterface<double> right_front_wheel_control_torque_;
+    std::array<OutputInterface<double>, kWheelCount> steering_control_torque_;
+    std::array<OutputInterface<double>, kWheelCount> wheel_control_torque_;
 
     QcpSolver qcp_solver_;
     filter::LowPassFilter<3> control_acceleration_filter_;
