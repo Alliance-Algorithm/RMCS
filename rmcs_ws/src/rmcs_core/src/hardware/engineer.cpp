@@ -161,7 +161,6 @@ private:
         }
 
         void update() {
-
             using namespace device;
             update_arm_motors();
             dr16_.update_status();

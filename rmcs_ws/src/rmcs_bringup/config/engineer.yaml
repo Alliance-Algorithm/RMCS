@@ -39,7 +39,7 @@ engineer_hardware:
     board_serial_right_board: "D4-D354-B7C8-A457-ECB1-11A9-998E"
     gripper_zero_point: 26298
     image_pitch_zero_point: 43131
-    joint6_zero_point: 61801
+    joint6_zero_point: 12566
     joint5_zero_point: 37436
     joint4_zero_point: 33865
     joint3_zero_point: 28459
@@ -53,7 +53,7 @@ engineer_hardware:
     leg_lb_ecd_zero_point: 153149
     leg_rb_ecd_zero_point: 220758
     leg_rf_ecd_zero_point: 119271
-    big_yaw_zero_point: 8666
+    big_yaw_zero_point: 32705
 
 image_transmission:
   ros__parameters:
@@ -61,144 +61,13 @@ image_transmission:
 
 arm_controller:
   ros__parameters:
-    auto_walk_joint_target: [0.0, 1.23, -1.36, 0.0, 0.63, 0.0]
-    up_one_stairs:
-      order: [initial]
-      params:
-        initial:
-          target_joint: [0.0, 0.25, -0.55, 0.0, 0.27, 0.0]
-          velocity_scaling: 0.03
-          acceleration_scaling: 0.03
-    up_two_stairs:
-      order: [initial, initial_again,lift_again]
-      params:
-        initial:
-          target_joint: [0.0, 0.25, -0.55, 0.0, 0.27, 0.0]
-          velocity_scaling: 0.05
-          acceleration_scaling: 0.03
-        initial_again:
-          target_joint: [0.0, 1.23, -1.36, 0.0, 0.63, 0.0]
-          velocity_scaling: 0.06
-          acceleration_scaling: 0.04
-        lift_again:
-          target_joint: [0.0, 1.0, -1.0, 0.0, 0.27, 0.0]
-          velocity_scaling: 0.03
-          acceleration_scaling: 0.03
-    auto_storage_lb:
-      threshold: [0.15,0.08,0.32,0.5]
-      params:
-        step1_pose:
-          target_pose: [0.281561,-0.033675, 0.388642, 0.725640, -1.475059, -0.839970]          
-          velocity_scaling: 0.03
-          acceleration_scaling: 0.03
-        step2_pose:
-          target_pose: [-0.138798,0.338888,0.355177, -0.714410 ,-1.365410 ,2.684959]
-          velocity_scaling: 0.02
-          acceleration_scaling: 0.02
-        step3_pose:
-          target_pose: [-0.326852, 0.177367, 0.345939, -0.00001, -1.5708, 3.049787]
-          velocity_scaling: 0.02
-          acceleration_scaling: 0.02
-        step4_lin:
-          lin: [-1.0,0.0,0.0,0.16]
-          velocity_scaling: 0.03
-          acceleration_scaling: 0.2
-        step5_lin:
-          lin: [0.0,0.0,1.0,0.09]
-          velocity_scaling: 0.05
-          acceleration_scaling: 0.03
-        step6_pose:
-          target_pose: [0.221731,0.002842,0.308955,-3.084697,-1.097439,3.096949]
-          velocity_scaling: 0.06
-          acceleration_scaling: 0.03
-    auto_storage_rb:
-      threshold: [0.15,-0.08,0.32,0.5]
-      params:
-        step1_pose:
-          target_pose: [0.281561,-0.033675, 0.388642, 0.725640, -1.475059, -0.839970]
-          velocity_scaling: 0.02
-          acceleration_scaling: 0.03
-        step2_pose:
-          target_pose: [-0.138156,-0.340795,0.360307,0.593263,-1.490951,-2.549442]
-          velocity_scaling: 0.02
-          acceleration_scaling: 0.03
-        step3_pose:
-          target_pose: [-0.325210,-0.160399, 0.321385, 1.573944, -1.570285, 1.673210]
-          velocity_scaling: 0.02
-          acceleration_scaling: 0.03
-        step4_lin:
-          lin: [-1.0,0.0,0.0,0.15]
-          velocity_scaling: 0.03
-          acceleration_scaling: 0.03
-        step5_lin:
-          lin: [0.0,0.0,1.0,0.11]
-          velocity_scaling: 0.05
-          acceleration_scaling: 0.03
-        step6_pose:
-          target_pose: [0.221731,0.002842,0.308955,-3.084697,-1.097439,3.096949]
-          velocity_scaling: 0.06
-          acceleration_scaling: 0.03
-    auto_extract_lb:
-      threshold: [0.10,0.08,0.32,0.5]
-      params:
-        step1_pose:
-          target_pose: [0.281561,-0.033675, 0.388642, 0.725640, -1.475059, -0.839970]
-          velocity_scaling: 0.05
-          acceleration_scaling: 0.03
-        step2_pose:
-          target_pose: [0.002843,0.285341,0.269419 ,-1.974588, -1.453901 ,-2.682938]
-          velocity_scaling: 0.04
-          acceleration_scaling: 0.03
-        step3_pose:
-          target_pose: [-0.252779, 0.127352, 0.180452, 0.00, -1.571699, 2.627386]
-          velocity_scaling: 0.02
-          acceleration_scaling: 0.02
-        step4_lin:
-          lin: [0.0,0.0,-1.0,0.09]
-          velocity_scaling: 0.03
-          acceleration_scaling: 0.03
-        step5_lin:
-          lin: [1.0,0.0,0.0,0.15]
-          velocity_scaling: 0.05
-          acceleration_scaling: 0.03
-        step6_pose:
-          target_pose: [0.221731,0.002842,0.308955,-3.084697,-1.097439,3.096949]
-          velocity_scaling: 0.03
-          acceleration_scaling: 0.03
-    auto_extract_rb:
-      threshold: [-0.10,-0.10,0.32,0.7]
-      params:
-        step1_pose:
-          target_pose: [0.281561,-0.033675, 0.388642, 0.725640, -1.475059, -0.839970]
-          velocity_scaling: 0.05
-          acceleration_scaling: 0.03
-        step2_pose:
-          target_pose: [0.004106, -0.284904, 0.266808, 1.225331, -1.497006, -2.802148]
-          velocity_scaling: 0.02
-          acceleration_scaling: 0.03
-        step3_pose:
-          target_pose: [-0.255603,-0.131261,0.183260,-2.70866,-1.568567,0.028266]
-          velocity_scaling: 0.02
-          acceleration_scaling: 0.02            
-        step4_lin:
-          lin: [0.0,0.0,-1.0,0.08]
-          velocity_scaling: 0.05
-          acceleration_scaling: 0.03
-        step5_lin:
-          lin: [1.0,0.0,0.0,0.15]
-          velocity_scaling: 0.06
-          acceleration_scaling: 0.03
-        step6_pose:
-          target_pose: [0.221731,0.002842,0.308955,-3.084697,-1.097439,3.096949]
-          velocity_scaling: 0.03
-          acceleration_scaling: 0.03
     image_pitch_qmin: -0.7
     image_pitch_qmax: 2.2
     initial_delay_time: 1000
 
 arm_solver:
   ros__parameters:
-    controller_list: [pid, gravity,friction]
+    controller_list: [pid, gravity, friction]
 
 leg_controller:
   ros__parameters:
@@ -358,6 +227,7 @@ value_broadcaster:
       - "/arm/gripper/motor/torque"
       - "/arm/gripper/target_theta"
       - "/arm/gripper/motor/control_torque"
+      - "/arm/gripper/motor/angle"
       - "pitch_imu_angle"
       - "/leg/pitch_imu_angle_offsetted"
 

@@ -1,6 +1,6 @@
+#include "controller/arm/arm_action/action_dictionary.hpp"
 #include "controller/arm/arm_action/action_step.hpp"
 #include "controller/arm/arm_action/arm_action_machine.hpp"
-#include"controller/arm/arm_action/action_dictionary.hpp"
 #include "filter/low_pass_filter.hpp"
 #include <Eigen/src/Core/Matrix.h>
 #include <algorithm>
@@ -142,9 +142,10 @@ public:
                 break;
             }
             case ArmMode::Auto_Up_Two_Stairs: {
-                arm_action_machine_.process(
-                    action_dictionary_.helper_build_chunk({"initial", "initial_again", "lift_again"}));
+                arm_action_machine_.process(action_dictionary_.helper_build_chunk(
+                    {"initial", "initial_again", "lift_again"}));
             }
+            default: break;
             }
         }
         arm_control();
@@ -308,7 +309,7 @@ private:
             step_position_index_      = 0;
             last_executed_request_id_ = result->request_id;
         }
-        if (current_step_index_ >= static_cast<int>(result->step_position_map.size()))
+        if (static_cast<size_t>(current_step_index_) >= result->step_position_map.size())
             return;
         if (step_position_index_ == 0) {
             auto step = result->step_map.find(current_step_index_);
@@ -323,6 +324,8 @@ private:
             if (pos_it == result->step_position_map.end())
                 return;
             positions = pos_it->second;
+            if (positions.empty())
+                return;
         } // boundary
         for (size_t i = 0; i < 6; ++i)
             *target_theta[i] = positions[step_position_index_][i];
@@ -334,6 +337,7 @@ private:
     }
 
     void arm_leg_coordination() {
+        static int time_count_{0};
         static int current_step_index_{0};
         static size_t step_position_index_{0};
         static std::string last_up_stairs_layer{"none"};
@@ -352,15 +356,15 @@ private:
         }
 
         if (*up_stairs_layer != last_up_stairs_layer) {
+            last_up_stairs_layer = *up_stairs_layer;
             if (*up_stairs_layer == "initial") {
+                time_count_          = 0;
                 current_step_index_  = 0;
                 step_position_index_ = 0;
-            }
-            if (*up_stairs_layer == "initial_again") {
+            } else if (*up_stairs_layer == "initial_again") {
                 current_step_index_  = 1;
                 step_position_index_ = 0;
-            }
-            if (*up_stairs_layer == "lift_again") {
+            } else if (*up_stairs_layer == "lift_again") {
                 current_step_index_  = 2;
                 step_position_index_ = 0;
             }
@@ -373,8 +377,11 @@ private:
             for (size_t i = 0; i < 6; ++i)
                 *target_theta[i] = positions[step_position_index_][i];
             step_position_index_++;
-            last_up_stairs_layer = *up_stairs_layer;
+            if (time_count_ <= this->get_parameter("initial_delay_time").as_int()) {
+                step_position_index_--;
+            }
         }
+        time_count_++;
     }
     void execute_custom() {
         struct __attribute__((packed)) CustomFrame {
@@ -446,17 +453,20 @@ private:
         }
     }
     void gripper_control() {
-        static double stock_theta;
+       // RCLCPP_INFO(this->get_logger(),"close mean 1,open mean 0: %f",static_cast<double>(get_gripper_mode()==rmcs_msgs::GripperMode::Close));
+       //RCLCPP_INFO(this->get_logger(),"velocity %f",*gripper_velocity_); 
+       static double stock_theta;
         is_gripper_complete = false;
         if (last_gripper_mode_ != get_gripper_mode()) {
             is_gripper_stock = false;
         }
         if (get_gripper_mode() != rmcs_msgs::GripperMode::None) {
             if (*gripper_velocity_ < 0.01 && *gripper_velocity_ > -0.01
-                && fabs(*gripper_torque_) > 2.0) {
+                && fabs(*gripper_torque_) > 1.0) {
                 is_gripper_stock    = true;
                 stock_theta         = *gripper_angle_;
                 is_gripper_complete = true;
+                //RCLCPP_INFO(this->get_logger(),"gripper stocked,target equal current");
             }
             *gripper_target_theta =
                 is_gripper_stock
@@ -466,6 +476,7 @@ private:
                                 * 0.5;
         } else {
             *gripper_target_theta = *gripper_angle_;
+            //RCLCPP_INFO(this->get_logger(),"gripper:none,target equal current");
         }
     }
 
@@ -518,7 +529,7 @@ private:
         custom_joint_filter_.reset();
         *arm_mode_ = rmcs_msgs::ArmMode::None;
     }
-   ActionDictionary action_dictionary_;
+    ActionDictionary action_dictionary_;
     ActionMachine arm_action_machine_;
     rmcs_msgs::Switch last_switch_left_{rmcs_msgs::Switch::UNKNOWN};
     rmcs_msgs::Switch last_switch_right_{rmcs_msgs::Switch::UNKNOWN};

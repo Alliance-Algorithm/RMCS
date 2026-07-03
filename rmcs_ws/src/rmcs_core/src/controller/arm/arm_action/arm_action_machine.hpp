@@ -202,7 +202,7 @@ private:
             for (size_t j = start_idx; j < segment_pts.size(); ++j)
                 step_pos.push_back(segment_pts[j].positions);
 
-            result->step_map[static_cast<int>(i)] = step;
+            result->step_map.emplace(static_cast<int>(i), step);
 
             auto next_state = std::make_shared<moveit::core::RobotState>(*current_state);
             next_state->setVariablePositions(segment_joint_names, segment_pts.back().positions);

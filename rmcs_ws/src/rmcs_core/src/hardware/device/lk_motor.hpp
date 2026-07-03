@@ -36,6 +36,7 @@ enum class LKMotorType : uint8_t {
     MG5010E_i10V3 = 8,
     MG5010E_i36V3 = 9,
     MHF6015       = 10,
+    MG4005_i10V2  = 11,
 };
 
 struct LKMotorConfig {
@@ -62,6 +63,7 @@ struct LKMotorConfig {
         case LKMotorType::MG5010E_i36V3:
         case LKMotorType::MG6012_i36:
         case LKMotorType::MG4005E_i10V3:
+        case LKMotorType::MG4005_i10V2:
         case LKMotorType::MG8010E_i36: iq = 66.0 / 4096; break;
         case LKMotorType::MHF7015:
         case LKMotorType::MHF6015:
@@ -155,6 +157,13 @@ public:
             rated_current   = 1.8;
             rated_torque    = 25.0;
             max_torque      = 2.0;
+            LSB             = 648000;
+            break;
+        case LKMotorType::MG4005_i10V2:
+            torque_constant = 0.06 * 10.0;
+            rated_current   = 1.6;
+            rated_torque    = 1.0;
+            max_torque      = 2.5;
             LSB             = 648000;
             break;
         case LKMotorType::MG5010E_i10V3:

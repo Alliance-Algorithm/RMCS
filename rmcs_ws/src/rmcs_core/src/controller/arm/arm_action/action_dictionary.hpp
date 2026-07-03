@@ -76,7 +76,7 @@ private:
              .joint_5 = 0.63,
              .joint_6 = 0.0},
              Action::MotionParams{
-             .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.001, .tolerance_ori = 0.001})}        },
+             .vel = 0.03, .acc = 0.03})}        },
 
             {"up_one_stairs",
              {Action::Step::makeJoint(
@@ -87,7 +87,7 @@ private:
              .joint_4 = 0.0,
              .joint_5 = 0.27,
              .joint_6 = 0.0},
-             Action::MotionParams{.vel = 0.03, .acc = 0.03})}                                   },
+             Action::MotionParams{.vel = 0.05, .acc = 0.03})}                                   },
 
             {      "initial",
              {Action::Step::makeJoint(
@@ -98,7 +98,7 @@ private:
              .joint_4 = 0.0,
              .joint_5 = 0.27,
              .joint_6 = 0.0},
-             Action::MotionParams{.vel = 0.03, .acc = 0.03})}                                   },
+             Action::MotionParams{.vel = 0.05, .acc = 0.03})}                                   },
 
             {"initial_again",
              {Action::Step::makeJoint(
@@ -134,7 +134,7 @@ private:
              .pitch = -1.475059,
              .yaw   = -0.839970},
              Action::MotionParams{
-             .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.2, .tolerance_ori = 0.003}),
+             .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.2}),
              Action::Step::makePose(
              Action::PoseTarget{
              .x     = -0.138798,
@@ -144,7 +144,7 @@ private:
              .pitch = -1.365410,
              .yaw   = 2.684959},
              Action::MotionParams{
-             .vel = 0.02, .acc = 0.02, .tolerance_pos = 0.2, .tolerance_ori = 0.003}),
+             .vel = 0.02, .acc = 0.02, .tolerance_pos = 0.003, .tolerance_ori = 0.2}),
              Action::Step::makePose(
              Action::PoseTarget{
              .x     = -0.326852,
@@ -154,18 +154,18 @@ private:
              .pitch = -1.5708,
              .yaw   = 3.049787},
              Action::MotionParams{
-             .vel = 0.02, .acc = 0.02, .tolerance_pos = 0.2, .tolerance_ori = 0.003}),
+             .vel = 0.02, .acc = 0.02, .tolerance_pos = 0.003, .tolerance_ori = 0.2}),
              Action::Step::makeLinear(
              Action::LinearTarget{
              .dir_x = -1.0, .dir_y = 0.0, .dir_z = 0.0, .distance = 0.16},
              Action::MotionParams{
-             .vel = 0.03, .acc = 0.2, .tolerance_pos = 0.2, .tolerance_ori = 0.0}),
+             .vel = 0.03, .acc = 0.2, .tolerance_pos = 0.003, .tolerance_ori = 0.2}),
              Action::Step::makeOpenGripper(),
              Action::Step::makeLinear(
              Action::LinearTarget{
              .dir_x = 0.0, .dir_y = 0.0, .dir_z = 1.0, .distance = 0.09},
              Action::MotionParams{
-             .vel = 0.05, .acc = 0.03, .tolerance_pos = 0.2, .tolerance_ori = 0.0}),
+             .vel = 0.05, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.2}),
              Action::Step::makePose(
              Action::PoseTarget{
              .x     = 0.221731,
@@ -175,7 +175,7 @@ private:
              .pitch = -1.097439,
              .yaw   = 3.096949},
              Action::MotionParams{
-             .vel = 0.06, .acc = 0.03, .tolerance_pos = 0.2, .tolerance_ori = 0.003}),
+             .vel = 0.06, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.2}),
              }                                                                                  },
 
             {   "storage_rb",
@@ -189,7 +189,7 @@ private:
              .pitch = -1.475059,
              .yaw   = -0.839970},
              Action::MotionParams{
-             .vel = 0.02, .acc = 0.03, .tolerance_pos = 0.2, .tolerance_ori = 0.003}),
+             .vel = 0.02, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.2}),
              Action::Step::makePose(
              Action::PoseTarget{
              .x     = -0.138156,
@@ -199,7 +199,7 @@ private:
              .pitch = -1.490951,
              .yaw   = -2.549442},
              Action::MotionParams{
-             .vel = 0.02, .acc = 0.03, .tolerance_pos = 0.2, .tolerance_ori = 0.003}),
+             .vel = 0.02, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.2}),
              Action::Step::makePose(
              Action::PoseTarget{
              .x     = -0.325210,
@@ -209,18 +209,18 @@ private:
              .pitch = -1.570285,
              .yaw   = 1.673210},
              Action::MotionParams{
-             .vel = 0.02, .acc = 0.03, .tolerance_pos = 0.2, .tolerance_ori = 0.003}),
+             .vel = 0.02, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.2}),
              Action::Step::makeLinear(
              Action::LinearTarget{
              .dir_x = -1.0, .dir_y = 0.0, .dir_z = 0.0, .distance = 0.15},
              Action::MotionParams{
-             .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.2, .tolerance_ori = 0.0}),
+             .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.2}),
              Action::Step::makeOpenGripper(),
              Action::Step::makeLinear(
              Action::LinearTarget{
              .dir_x = 0.0, .dir_y = 0.0, .dir_z = 1.0, .distance = 0.11},
              Action::MotionParams{
-             .vel = 0.05, .acc = 0.03, .tolerance_pos = 0.2, .tolerance_ori = 0.0}),
+             .vel = 0.05, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.2}),
              Action::Step::makePose(
              Action::PoseTarget{
              .x     = 0.221731,
@@ -230,7 +230,7 @@ private:
              .pitch = -1.097439,
              .yaw   = 3.096949},
              Action::MotionParams{
-             .vel = 0.06, .acc = 0.03, .tolerance_pos = 0.2, .tolerance_ori = 0.003}),
+             .vel = 0.06, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.2}),
              }                                                                                  },
 
             {   "extract_lb",
@@ -244,7 +244,7 @@ private:
              .pitch = -1.475059,
              .yaw   = -0.839970},
              Action::MotionParams{
-             .vel = 0.05, .acc = 0.03, .tolerance_pos = 0.2, .tolerance_ori = 0.003}),
+             .vel = 0.05, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.2}),
              Action::Step::makePose(
              Action::PoseTarget{
              .x     = 0.002843,
@@ -254,7 +254,7 @@ private:
              .pitch = -1.453901,
              .yaw   = -2.682938},
              Action::MotionParams{
-             .vel = 0.04, .acc = 0.03, .tolerance_pos = 0.2, .tolerance_ori = 0.003}),
+             .vel = 0.04, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.2}),
              Action::Step::makePose(
              Action::PoseTarget{
              .x     = -0.252779,
@@ -264,18 +264,18 @@ private:
              .pitch = -1.571699,
              .yaw   = 2.627386},
              Action::MotionParams{
-             .vel = 0.02, .acc = 0.02, .tolerance_pos = 0.2, .tolerance_ori = 0.003}),
+             .vel = 0.02, .acc = 0.02, .tolerance_pos = 0.003, .tolerance_ori = 0.2}),
              Action::Step::makeLinear(
              Action::LinearTarget{
              .dir_x = 0.0, .dir_y = 0.0, .dir_z = -1.0, .distance = 0.09},
              Action::MotionParams{
-             .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.2, .tolerance_ori = 0.0}),
+             .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.2}),
              Action::Step::makeCloseGripper(),
              Action::Step::makeLinear(
              Action::LinearTarget{
              .dir_x = 1.0, .dir_y = 0.0, .dir_z = 0.0, .distance = 0.15},
              Action::MotionParams{
-             .vel = 0.05, .acc = 0.03, .tolerance_pos = 0.2, .tolerance_ori = 0.0}),
+             .vel = 0.05, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.2}),
              Action::Step::makePose(
              Action::PoseTarget{
              .x     = 0.221731,
@@ -285,7 +285,7 @@ private:
              .pitch = -1.097439,
              .yaw   = 3.096949},
              Action::MotionParams{
-             .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.2, .tolerance_ori = 0.003}),
+             .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.2}),
              }                                                                                  },
 
             {   "extract_rb",
@@ -299,7 +299,7 @@ private:
              .pitch = -1.475059,
              .yaw   = -0.839970},
              Action::MotionParams{
-             .vel = 0.05, .acc = 0.03, .tolerance_pos = 0.2, .tolerance_ori = 0.003}),
+             .vel = 0.05, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.2}),
              Action::Step::makePose(
              Action::PoseTarget{
              .x     = 0.004106,
@@ -309,7 +309,7 @@ private:
              .pitch = -1.497006,
              .yaw   = -2.802148},
              Action::MotionParams{
-             .vel = 0.02, .acc = 0.03, .tolerance_pos = 0.2, .tolerance_ori = 0.003}),
+             .vel = 0.02, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.2}),
              Action::Step::makePose(
              Action::PoseTarget{
              .x     = -0.255603,
@@ -319,18 +319,18 @@ private:
              .pitch = -1.568567,
              .yaw   = 0.028266},
              Action::MotionParams{
-             .vel = 0.02, .acc = 0.02, .tolerance_pos = 0.2, .tolerance_ori = 0.003}),
+             .vel = 0.02, .acc = 0.02, .tolerance_pos = 0.003, .tolerance_ori = 0.2}),
              Action::Step::makeLinear(
              Action::LinearTarget{
              .dir_x = 0.0, .dir_y = 0.0, .dir_z = -1.0, .distance = 0.08},
              Action::MotionParams{
-             .vel = 0.05, .acc = 0.03, .tolerance_pos = 0.2, .tolerance_ori = 0.0}),
+             .vel = 0.05, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.2}),
              Action::Step::makeCloseGripper(),
              Action::Step::makeLinear(
              Action::LinearTarget{
              .dir_x = 1.0, .dir_y = 0.0, .dir_z = 0.0, .distance = 0.15},
              Action::MotionParams{
-             .vel = 0.06, .acc = 0.03, .tolerance_pos = 0.2, .tolerance_ori = 0.0}),
+             .vel = 0.06, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.2}),
              Action::Step::makePose(
              Action::PoseTarget{
              .x     = 0.221731,
@@ -340,7 +340,7 @@ private:
              .pitch = -1.097439,
              .yaw   = 3.096949},
              Action::MotionParams{
-             .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.2, .tolerance_ori = 0.003}),
+             .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.2}),
              }                                                                                  },
         };
     }

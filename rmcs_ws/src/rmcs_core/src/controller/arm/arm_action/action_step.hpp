@@ -28,10 +28,10 @@ struct NoTarget {};
 using Target = std::variant<NoTarget, PoseTarget, JointTarget, LinearTarget>;
 
 struct MotionParams {
-    double vel            = 0.0;
-    double acc            = 0.0;
-    double tolerance_pos  = 0.0;
-    double tolerance_ori  = 0.0;
+    double vel            = 0.05;
+    double acc            = 0.03;
+    double tolerance_pos  = 0.003;
+    double tolerance_ori  = 0.2;
 };
 
 class Step {
