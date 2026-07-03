@@ -21,7 +21,7 @@ public:
     Flight()
         : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , crosshair_circle_(Shape::Color::WHITE, x_center - 2, y_center - 30, 8, 2)
-        , status_ring_(26.5, 26.5, 600, 300, StatusRing::DynamicArcsVisibility{false, false})
+        , status_ring_(26.5, 26.5, 600, 300)
         , horizontal_center_guidelines_(
               {Shape::Color::WHITE, 2, x_center - 360, y_center, x_center - 110, y_center},
               {Shape::Color::WHITE, 2, x_center + 110, y_center, x_center + 360, y_center})

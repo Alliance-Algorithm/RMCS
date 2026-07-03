@@ -16,20 +16,8 @@ namespace rmcs_core::referee::app::ui {
 
 class StatusRing {
 public:
-    struct DynamicArcsVisibility {
-        bool supercap;
-        bool battery;
-    };
-
-    StatusRing(double supercap_limit, double battery_limit, double friction_limit, int16_t bullet_limit)
-        : StatusRing(
-              supercap_limit, battery_limit, friction_limit, bullet_limit,
-              DynamicArcsVisibility{true, true}) {}
-
     StatusRing(
-        double supercap_limit, double battery_limit, double friction_limit, int16_t bullet_limit,
-        DynamicArcsVisibility dynamic_arcs_visibility)
-        : dynamic_arcs_visibility_(dynamic_arcs_visibility) {
+        double supercap_limit, double battery_limit, double friction_limit, int16_t bullet_limit) {
         supercap_status_.set_x(x_center);
         supercap_status_.set_y(y_center);
         supercap_status_.set_r(visible_radius - width_ring);
@@ -120,14 +108,12 @@ public:
         arc_right_down_.set_visible(true);
 
         set_limits(supercap_limit, battery_limit, friction_limit, bullet_limit);
-        supercap_status_.set_visible(dynamic_arcs_visibility_.supercap);
-        battery_status_.set_visible(dynamic_arcs_visibility_.battery);
     }
 
     void set_visible(bool value) {
         // Dynamic
-        supercap_status_.set_visible(value && dynamic_arcs_visibility_.supercap);
-        battery_status_.set_visible(value && dynamic_arcs_visibility_.battery);
+        supercap_status_.set_visible(value);
+        battery_status_.set_visible(value);
         friction_wheel_speed_.set_visible(value);
         bullet_status_.set_visible(value);
 
@@ -260,9 +246,6 @@ public:
     }
 
     void update_supercap(double value, bool enable) {
-        if (!dynamic_arcs_visibility_.supercap)
-            return;
-
         auto angle = 275 + calculate_angle(value, 10.5, supercap_limit_) + 1;
         supercap_status_.set_angle_end(static_cast<uint16_t>(angle));
 
@@ -276,9 +259,6 @@ public:
     }
 
     void update_battery_power(double value) {
-        if (!dynamic_arcs_visibility_.battery)
-            return;
-
         auto angle = 265 - calculate_angle(value, 20, 25.7) - 1;
         battery_status_.set_angle_start(static_cast<uint16_t>(angle));
 
@@ -372,8 +352,6 @@ private:
     constexpr static uint16_t width_ring     = 15;
     constexpr static uint16_t visible_radius = 400;
     constexpr static uint16_t visible_angle  = 40;
-
-    DynamicArcsVisibility dynamic_arcs_visibility_;
 
     double supercap_limit_;
     double battery_limit_;
