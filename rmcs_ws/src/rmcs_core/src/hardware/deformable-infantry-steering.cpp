@@ -63,18 +63,14 @@ public:
                 status_service_callback(response);
             });
 
-        rmcs_board_lite = std::make_unique<BottomBoard>(
+        bottom_board_ = std::make_unique<BottomBoard>(
             *this, *deformable_infantry_command_,
             get_parameter("serial_filter_rmcs_board").as_string());
-        std::string serial_filter_imu;
-        get_parameter_or("serial_filter_imu", serial_filter_imu, std::string{});
         top_board_ = std::make_unique<TopBoard>(
-            *this, *deformable_infantry_command_,
-            get_parameter("serial_filter_top_board").as_string(), !serial_filter_imu.empty());
-        if (!serial_filter_imu.empty())
-            imu_board_ = std::make_unique<ImuBoard>(*this, vt13_, serial_filter_imu);
+            *this, *deformable_infantry_command_, vt13_,
+            get_parameter("serial_filter_top_board").as_string());
         remote_control_ =
-            std::make_unique<device::RemoteControl>(*this, rmcs_board_lite->dr16_, vt13_);
+            std::make_unique<device::RemoteControl>(*this, bottom_board_->dr16_, vt13_);
     }
 
     ~DeformableInfantryV2() override = default;
@@ -85,24 +81,21 @@ public:
     }
 
     void update() override {
-        rmcs_board_lite->update();
+        bottom_board_->update();
         top_board_->update();
-        if (imu_board_)
-            imu_board_->update();
         vt13_.update_status();
         remote_control_->update();
     }
 
     void command_update() {
         const bool even = ((cmd_tick_++ & 1u) == 0u);
-        rmcs_board_lite->command_update(even);
+        bottom_board_->command_update(even);
         top_board_->command_update();
     }
 
 private:
     class DeformableInfantryV2Command;
     class BottomBoard;
-    class ImuBoard;
     class TopBoard;
 
     class DeformableInfantryV2Command : public rmcs_executor::Component {
@@ -688,20 +681,20 @@ private:
         explicit TopBoard(
             DeformableInfantryV2& deformableInfantry,
             DeformableInfantryV2Command& deformableInfantry_command,
-            std::string serial_filter = {}, bool has_external_imu_board = false)
+            device::Vt13& vt13, const std::string& serial_filter = {})
             : librmcs::agent::RmcsBoardLite(
                   serial_filter,
                   librmcs::agent::AdvancedOptions{.dangerously_skip_version_checks = true})
             , hard_sync_pending_(deformableInfantry.hard_sync_pending_)
-            , has_external_imu_board_(has_external_imu_board)
             , tf_(deformableInfantry.tf_)
-            , bmi088_(1000, 0.2, 0.0)
+            , vt13_{vt13}
+            , bmi088_pitch_{1000, 0.2, 0.0}
+            , bmi088_yaw_{1000, 0.2, 0.0}
             , gimbal_pitch_motor_(deformableInfantry, deformableInfantry_command, "/gimbal/pitch")
             , gimbal_left_friction_(
                   deformableInfantry, deformableInfantry_command, "/gimbal/left_friction")
             , gimbal_right_friction_(
-                  deformableInfantry, deformableInfantry_command, "/gimbal/right_friction")
-            , scope_motor_(deformableInfantry, deformableInfantry_command, "/gimbal/scope") {
+                  deformableInfantry, deformableInfantry_command, "/gimbal/right_friction") {
 
             gimbal_pitch_motor_.configure(
                 device::LkMotor::Config{device::LkMotor::Type::kMG4010Ei10}
@@ -717,19 +710,15 @@ private:
             gimbal_right_friction_.configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kM3508}.set_reduction_ratio(1.));
 
-            scope_motor_.configure(
-                device::DjiMotor::Config{device::DjiMotor::Type::kM2006}.enable_multi_turn_angle());
-
+            deformableInfantry.register_output(
+                "/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
             deformableInfantry.register_output(
                 "/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_bmi088_);
-            if (!has_external_imu_board_)
-                deformableInfantry.register_output(
-                    "/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_encoder_);
 
-            bmi088_.set_coordinate_mapping([](double x, double y, double z) {
-                // Top board BMI088 maps to gimbal frame as (-x, -y, z).
-                return std::make_tuple(y, -x, z);
-            });
+            bmi088_pitch_.set_coordinate_mapping(
+                [](double x, double y, double z) { return std::make_tuple(x, z, -y); });
+            bmi088_yaw_.set_coordinate_mapping(
+                [](double x, double y, double z) { return std::make_tuple(-x, -y, z); });
         }
 
         ~TopBoard() override = default;
@@ -739,33 +728,22 @@ private:
         }
 
         void update() {
-            bmi088_.update_status();
+            bmi088_pitch_.update_status();
+            bmi088_yaw_.update_status();
 
             gimbal_pitch_motor_.update_status();
             gimbal_left_friction_.update_status();
             gimbal_right_friction_.update_status();
-            scope_motor_.update_status();
+
+            Eigen::Quaterniond const gimbal_imu_pose{
+                bmi088_pitch_.q0(), bmi088_pitch_.q1(), bmi088_pitch_.q2(), bmi088_pitch_.q3()};
+            tf_->set_transform<rmcs_description::PitchLink, rmcs_description::OdomImu>(
+                gimbal_imu_pose.conjugate());
+
+            *gimbal_pitch_velocity_imu_ = bmi088_pitch_.gy();
+            *gimbal_yaw_velocity_bmi088_ = bmi088_yaw_.gz();
 
             const double pitch_encoder_angle = gimbal_pitch_motor_.angle();
-
-            *gimbal_yaw_velocity_bmi088_ = bmi088_.gz();
-            if (!has_external_imu_board_) {
-                Eigen::Quaterniond const odom_imu_to_yaw_link{
-                    bmi088_.q0(), bmi088_.q1(), bmi088_.q2(), bmi088_.q3()};
-                Eigen::Quaterniond const yaw_link_to_odom_imu = odom_imu_to_yaw_link.conjugate();
-                Eigen::Quaterniond pitch_link_to_odom_imu =
-                    Eigen::Quaterniond{
-                        Eigen::AngleAxisd{-pitch_encoder_angle, Eigen::Vector3d::UnitY()}}
-                    * yaw_link_to_odom_imu;
-                pitch_link_to_odom_imu.normalize();
-
-                *gimbal_pitch_velocity_encoder_ = gimbal_pitch_motor_.velocity();
-                // The BMI088 is mounted on the yaw link. fast_tf stores PitchLink -> OdomImu, so use
-                // the encoder pitch from the TF tree to move the yaw-link pose back into PitchLink.
-                tf_->set_transform<rmcs_description::PitchLink, rmcs_description::OdomImu>(
-                    pitch_link_to_odom_imu);
-            }
-
             tf_->set_state<rmcs_description::YawLink, rmcs_description::PitchLink>(
                 pitch_encoder_angle);
         }
@@ -776,14 +754,24 @@ private:
                 .can_id = 0x141,
                 .can_data = gimbal_pitch_motor_.generate_command().as_bytes(),
             });
-
             builder.can1_transmit({
                 .can_id = 0x200,
                 .can_data =
                     device::CanPacket8{
                         gimbal_left_friction_.generate_command(),
+                        device::CanPacket8::PaddingQuarter{},
+                        device::CanPacket8::PaddingQuarter{},
+                        device::CanPacket8::PaddingQuarter{},
+                    }
+                        .as_bytes(),
+            });
+            builder.can2_transmit({
+                .can_id = 0x200,
+                .can_data =
+                    device::CanPacket8{
+                        device::CanPacket8::PaddingQuarter{},
                         gimbal_right_friction_.generate_command(),
-                        scope_motor_.generate_command(),
+                        device::CanPacket8::PaddingQuarter{},
                         device::CanPacket8::PaddingQuarter{},
                     }
                         .as_bytes(),
@@ -791,6 +779,10 @@ private:
         }
 
     private:
+        void uart0_receive_callback(const librmcs::data::UartDataView& data) override {
+            vt13_.store_status(data.uart_data);
+        }
+
         void uart1_receive_callback(const librmcs::data::UartDataView&) override {}
 
         void can0_receive_callback(const librmcs::data::CanDataView& data) override {
@@ -805,88 +797,38 @@ private:
                 return;
             if (data.can_id == 0x201)
                 gimbal_left_friction_.store_status(data.can_data);
-            else if (data.can_id == 0x202)
+        }
+
+        void can2_receive_callback(const librmcs::data::CanDataView& data) override {
+            if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
+                return;
+            if (data.can_id == 0x202)
                 gimbal_right_friction_.store_status(data.can_data);
-            else if (data.can_id == 0x203)
-                scope_motor_.store_status(data.can_data);
         }
 
         void accelerometer_receive_callback(
             const librmcs::data::AccelerometerDataView& data) override {
-            bmi088_.store_accelerometer_status(data.x, data.y, data.z);
+            bmi088_pitch_.store_accelerometer_status(data.x, data.y, data.z);
+            bmi088_yaw_.store_accelerometer_status(data.x, data.y, data.z);
         }
 
         void gyroscope_receive_callback(const librmcs::data::GyroscopeDataView& data) override {
-            bmi088_.store_gyroscope_status(data.x, data.y, data.z);
+            bmi088_pitch_.store_gyroscope_status(data.x, data.y, data.z);
+            bmi088_yaw_.store_gyroscope_status(data.x, data.y, data.z);
         }
 
         std::atomic<bool>& hard_sync_pending_;
-        bool has_external_imu_board_ = false;
         OutputInterface<rmcs_description::Tf>& tf_;
 
+        OutputInterface<double> gimbal_pitch_velocity_imu_;
         OutputInterface<double> gimbal_yaw_velocity_bmi088_;
-        OutputInterface<double> gimbal_pitch_velocity_encoder_;
+        device::Vt13& vt13_;
 
-        device::Bmi088 bmi088_;
+        device::Bmi088 bmi088_pitch_;
+        device::Bmi088 bmi088_yaw_;
         device::LkMotor gimbal_pitch_motor_;
         device::DjiMotor gimbal_left_friction_;
         device::DjiMotor gimbal_right_friction_;
-        device::DjiMotor scope_motor_;
-    };
-
-    class ImuBoard final : private librmcs::agent::RmcsBoardLite {
-        friend class DeformableInfantryV2;
-
-    public:
-        explicit ImuBoard(
-            DeformableInfantryV2& deformableInfantry, device::Vt13& vt13,
-            const std::string& serial_filter = {})
-            : RmcsBoardLite{
-                  serial_filter,
-                  librmcs::agent::AdvancedOptions{.dangerously_skip_version_checks = true}}
-            , tf_{deformableInfantry.tf_}
-            , vt13_{vt13}
-            , bmi088_{1000, 0.2, 0.0} {
-
-            deformableInfantry.register_output(
-                "/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
-
-            bmi088_.set_coordinate_mapping(
-                [](double x, double y, double z) { return std::make_tuple(x, z, -y); });
-        }
-
-        ~ImuBoard() override = default;
-
-        void update() {
-            bmi088_.update_status();
-            Eigen::Quaterniond const gimbal_imu_pose{
-                bmi088_.q0(), bmi088_.q1(), bmi088_.q2(), bmi088_.q3()};
-
-            tf_->set_transform<rmcs_description::PitchLink, rmcs_description::OdomImu>(
-                gimbal_imu_pose.conjugate());
-
-            *gimbal_pitch_velocity_imu_ = bmi088_.gy();
-        }
-
-    private:
-        void uart0_receive_callback(const librmcs::data::UartDataView& data) override {
-            vt13_.store_status(data.uart_data);
-        }
-
-        void accelerometer_receive_callback(
-            const librmcs::data::AccelerometerDataView& data) override {
-            bmi088_.store_accelerometer_status(data.x, data.y, data.z);
-        }
-
-        void gyroscope_receive_callback(const librmcs::data::GyroscopeDataView& data) override {
-            bmi088_.store_gyroscope_status(data.x, data.y, data.z);
-        }
-
-        OutputInterface<rmcs_description::Tf>& tf_;
-        OutputInterface<double> gimbal_pitch_velocity_imu_;
-        device::Vt13& vt13_;
-
-        device::Bmi088 bmi088_;
     };
 
     auto status_service_callback(const std::shared_ptr<std_srvs::srv::Trigger::Response>& response)
@@ -899,22 +841,22 @@ private:
         };
 
         text("Gimbal Status");
-        text("-   Yaw: {}", rmcs_board_lite->gimbal_yaw_motor_.last_raw_angle());
+        text("-   Yaw: {}", bottom_board_->gimbal_yaw_motor_.last_raw_angle());
         text("- Pitch: {}", top_board_->gimbal_pitch_motor_.last_raw_angle());
 
         text("Chassis Status");
-        text("- left front wheel: {}", rmcs_board_lite->chassis_wheel_motors_[0].last_raw_angle());
-        text("- left back wheel: {}", rmcs_board_lite->chassis_wheel_motors_[1].last_raw_angle());
-        text("- right back wheel: {}", rmcs_board_lite->chassis_wheel_motors_[2].last_raw_angle());
-        text("- right front wheel: {}", rmcs_board_lite->chassis_wheel_motors_[3].last_raw_angle());
-        text("- left front steer: {}", rmcs_board_lite->chassis_steer_motors_[0].last_raw_angle());
-        text("- left back steer: {}", rmcs_board_lite->chassis_steer_motors_[1].last_raw_angle());
-        text("- right back steer: {}", rmcs_board_lite->chassis_steer_motors_[2].last_raw_angle());
-        text("- right front steer: {}", rmcs_board_lite->chassis_steer_motors_[3].last_raw_angle());
-        text("- left front joint: {}", rmcs_board_lite->chassis_joint_motors_[0].last_raw_angle());
-        text("- left back joint: {}", rmcs_board_lite->chassis_joint_motors_[1].last_raw_angle());
-        text("- right back joint: {}", rmcs_board_lite->chassis_joint_motors_[2].last_raw_angle());
-        text("- right front joint: {}", rmcs_board_lite->chassis_joint_motors_[3].last_raw_angle());
+        text("- left front wheel: {}", bottom_board_->chassis_wheel_motors_[0].last_raw_angle());
+        text("- left back wheel: {}", bottom_board_->chassis_wheel_motors_[1].last_raw_angle());
+        text("- right back wheel: {}", bottom_board_->chassis_wheel_motors_[2].last_raw_angle());
+        text("- right front wheel: {}", bottom_board_->chassis_wheel_motors_[3].last_raw_angle());
+        text("- left front steer: {}", bottom_board_->chassis_steer_motors_[0].last_raw_angle());
+        text("- left back steer: {}", bottom_board_->chassis_steer_motors_[1].last_raw_angle());
+        text("- right back steer: {}", bottom_board_->chassis_steer_motors_[2].last_raw_angle());
+        text("- right front steer: {}", bottom_board_->chassis_steer_motors_[3].last_raw_angle());
+        text("- left front joint: {}", bottom_board_->chassis_joint_motors_[0].last_raw_angle());
+        text("- left back joint: {}", bottom_board_->chassis_joint_motors_[1].last_raw_angle());
+        text("- right back joint: {}", bottom_board_->chassis_joint_motors_[2].last_raw_angle());
+        text("- right front joint: {}", bottom_board_->chassis_joint_motors_[3].last_raw_angle());
 
         response->message = feedback_message.str();
     }
@@ -927,8 +869,7 @@ private:
     Clock::time_point next_hard_sync_log_time_{};
 
     std::shared_ptr<DeformableInfantryV2Command> deformable_infantry_command_;
-    std::unique_ptr<BottomBoard> rmcs_board_lite;
-    std::unique_ptr<ImuBoard> imu_board_;
+    std::unique_ptr<BottomBoard> bottom_board_;
     std::unique_ptr<TopBoard> top_board_;
     std::unique_ptr<device::RemoteControl> remote_control_;
 

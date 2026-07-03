@@ -73,8 +73,6 @@ public:
             register_input(
                 fmt::format("/chassis/{}_joint/physical_angle", kJointNames[i]),
                 joint_physical_angle_[i], false);
-        register_output("/gimbal/scope/control_torque", scope_motor_control_torque, nan_);
-
         register_output("/chassis/angle", chassis_angle_, nan_);
         register_output("/chassis/control_angle", chassis_control_angle_, nan_);
 
@@ -396,8 +394,6 @@ private:
         deactivate_complex_spin_();
         deactivate_qe_complex_spin_();
 
-        *scope_motor_control_torque = nan_;
-
         for (size_t i = 0; i < kJointCount; ++i) {
             *joint_target_physical_angle_[i] = nan_;
             *joint_target_physical_velocity_[i] = nan_;
@@ -556,7 +552,6 @@ private:
     // coordinate suspension overrides, then publish the resulting joint intent for the servo layer.
     void run_joint_intent_pipeline_() {
         const auto current_physical_angles = read_current_joint_physical_angles_();
-        const bool suspension_requested = suspension_requested_by_input_();
 
         if (!ensure_joint_target_states_from_feedback(current_physical_angles)) {
             publish_nan_joint_targets();
@@ -568,22 +563,11 @@ private:
         current_target_physical_angles_rad_[kRightBack] = deg_to_rad(rb_current_target_angle_);
         current_target_physical_angles_rad_[kRightFront] = deg_to_rad(rf_current_target_angle_);
 
-        scope_motor_control(suspension_requested);
-
         update_joint_target_trajectory();
         publish_joint_target_angles(current_physical_angles);
     }
 
     static double deg_to_rad(double deg) { return deg * std::numbers::pi / 180.0; }
-
-    void scope_motor_control(bool suspension_requested = false) {
-        const bool prone_target_active = suspension_requested;
-        if (prone_target_active && *mode_ != rmcs_msgs::ChassisMode::SPIN) {
-            *scope_motor_control_torque = -0.3;
-        } else {
-            *scope_motor_control_torque = 0.3;
-        }
-    }
 
     void update_joint_target_trajectory() {
         const double dt = update_dt();
@@ -706,8 +690,6 @@ private:
     static constexpr std::array<const char*, kJointCount> kJointNames = {
         "left_front", "left_back", "right_back", "right_front"};
     std::array<InputInterface<double>, kJointCount> joint_physical_angle_;
-
-    OutputInterface<double> scope_motor_control_torque;
 
     std::array<OutputInterface<double>, kJointCount> joint_angle_error_;
 
