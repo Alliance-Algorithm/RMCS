@@ -31,7 +31,7 @@ call_status_service() {
         return
     fi
 
-    printf "=== %s ===\n" "$service"
+    printf "Robot Status [%s]:\n\n" "$service"
     local raw
     raw="$(ros2 service call "$service" std_srvs/srv/Trigger "{}" 2>&1 || true)"
 
