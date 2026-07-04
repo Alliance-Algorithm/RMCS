@@ -252,6 +252,8 @@ private:
         locked_yaw_angle_ = (input_.yaw_angle.ready() && std::isfinite(*input_.yaw_angle))
                               ? *input_.yaw_angle
                               : 0.0;
+        yaw_angle_pid_.reset();
+        yaw_velocity_pid_.reset();
         pitch_angle_pid_.reset();
         pitch_velocity_pid_.reset();
         gimbal_solver_.update(TwoAxisGimbalSolver::SetDisabled{});
@@ -263,6 +265,8 @@ private:
 
         ctrl_hold_active_ = false;
         locked_yaw_angle_ = kNaN;
+        yaw_angle_pid_.reset();
+        yaw_velocity_pid_.reset();
         *output_.yaw_control_angle = kNaN;
         *output_.pitch_control_angle = kNaN;
         *output_.chassis_manual_yaw_velocity_override = kNaN;
@@ -273,8 +277,6 @@ private:
         if (!ctrl_hold_active_)
             activate_ctrl_hold();
 
-        yaw_angle_pid_.reset();
-        yaw_velocity_pid_.reset();
         *output_.yaw_control_torque = kNaN;
         *output_.yaw_control_angle = kNaN;
         *output_.pitch_control_velocity = kNaN;
@@ -283,8 +285,21 @@ private:
         *output_.chassis_manual_yaw_velocity_override = kNaN;
         *output_.yaw_angle_error = kNaN;
         *output_.pitch_angle_error = kNaN;
-        *output_.yaw_control_angle = locked_yaw_angle_;
         *output_.pitch_control_angle = kNaN;
+
+        if (input_.yaw_angle.ready() && std::isfinite(*input_.yaw_angle) && input_.yaw_velocity.ready()
+            && std::isfinite(*input_.yaw_velocity)) {
+            auto yaw_target_error = locked_yaw_angle_ - *input_.yaw_angle;
+            if (yaw_target_error > std::numbers::pi)
+                yaw_target_error -= 2 * std::numbers::pi;
+            else if (yaw_target_error < -std::numbers::pi)
+                yaw_target_error += 2 * std::numbers::pi;
+
+            *output_.yaw_angle_error = yaw_target_error;
+            const auto yaw_velocity_ref = yaw_angle_pid_.update(yaw_target_error);
+            *output_.yaw_control_torque =
+                yaw_velocity_pid_.update(yaw_velocity_ref - *input_.yaw_velocity);
+        }
 
         if (input_.pitch_angle.ready() && std::isfinite(*input_.pitch_angle)) {
             auto pitch_target_error = ctrl_hold_pitch_target_angle_ - *input_.pitch_angle;

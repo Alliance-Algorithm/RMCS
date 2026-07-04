@@ -50,7 +50,6 @@ public:
                   get_component_name() + "_command", *this)) {
         using namespace rmcs_description;
 
-        register_input("/predefined/timestamp", timestamp_);
         register_output("/tf", tf_);
 
         tf_->set_transform<PitchLink, CameraLink>(Eigen::Translation3d{0.058, -0.08, 0.0});
@@ -73,11 +72,6 @@ public:
     }
 
     ~DeformableInfantryOmniB() override = default;
-
-    void before_updating() override {
-        top_board_->request_hard_sync_read();
-        next_hard_sync_log_time_ = Clock::now() + std::chrono::seconds(1);
-    }
 
     void update() override {
         bottom_board_->update();
@@ -618,11 +612,9 @@ private:
             : librmcs::agent::RmcsBoardLite(
                   serial_filter,
                   librmcs::agent::AdvancedOptions{.dangerously_skip_version_checks = true})
-            , hard_sync_pending_(deformableInfantry.hard_sync_pending_)
             , tf_(deformableInfantry.tf_)
             , vt13_{vt13}
-            , bmi088_pitch_{1000, 0.2, 0.0}
-            , bmi088_yaw_{1000, 0.2, 0.0}
+            , gimbal_imu_{1000, 0.2, 0.0}
             , gimbal_pitch_motor_(deformableInfantry, deformableInfantry_command, "/gimbal/pitch")
             , gimbal_left_friction_(
                   deformableInfantry, deformableInfantry_command, "/gimbal/left_friction")
@@ -646,36 +638,28 @@ private:
             deformableInfantry.register_output(
                 "/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
             deformableInfantry.register_output(
-                "/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_bmi088_);
+                "/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
 
-            bmi088_pitch_.set_coordinate_mapping(
+            gimbal_imu_.set_coordinate_mapping(
                 [](double x, double y, double z) { return std::make_tuple(x, z, -y); });
-            bmi088_yaw_.set_coordinate_mapping(
-                [](double x, double y, double z) { return std::make_tuple(-x, -y, z); });
         }
 
         ~TopBoard() override = default;
 
-        void request_hard_sync_read() {
-            // RMCS-lite top board variant currently has no GPIO hard-sync request
-            // path.
-        }
-
         void update() {
-            bmi088_pitch_.update_status();
-            bmi088_yaw_.update_status();
+            gimbal_imu_.update_status();
 
             gimbal_pitch_motor_.update_status();
             gimbal_left_friction_.update_status();
             gimbal_right_friction_.update_status();
 
             Eigen::Quaterniond const gimbal_imu_pose{
-                bmi088_pitch_.q0(), bmi088_pitch_.q1(), bmi088_pitch_.q2(), bmi088_pitch_.q3()};
+                gimbal_imu_.q0(), gimbal_imu_.q1(), gimbal_imu_.q2(), gimbal_imu_.q3()};
             tf_->set_transform<rmcs_description::PitchLink, rmcs_description::OdomImu>(
                 gimbal_imu_pose.conjugate());
 
-            *gimbal_pitch_velocity_imu_ = bmi088_pitch_.gy();
-            *gimbal_yaw_velocity_bmi088_ = bmi088_yaw_.gz();
+            *gimbal_pitch_velocity_imu_ = gimbal_imu_.gy();
+            *gimbal_yaw_velocity_imu_ = gimbal_imu_.gz();
 
             const double pitch_encoder_angle = gimbal_pitch_motor_.angle();
             tf_->set_state<rmcs_description::YawLink, rmcs_description::PitchLink>(
@@ -742,24 +726,20 @@ private:
 
         void accelerometer_receive_callback(
             const librmcs::data::AccelerometerDataView& data) override {
-            bmi088_pitch_.store_accelerometer_status(data.x, data.y, data.z);
-            bmi088_yaw_.store_accelerometer_status(data.x, data.y, data.z);
+            gimbal_imu_.store_accelerometer_status(data.x, data.y, data.z);
         }
 
         void gyroscope_receive_callback(const librmcs::data::GyroscopeDataView& data) override {
-            bmi088_pitch_.store_gyroscope_status(data.x, data.y, data.z);
-            bmi088_yaw_.store_gyroscope_status(data.x, data.y, data.z);
+            gimbal_imu_.store_gyroscope_status(data.x, data.y, data.z);
         }
 
-        std::atomic<bool>& hard_sync_pending_;
         OutputInterface<rmcs_description::Tf>& tf_;
 
         OutputInterface<double> gimbal_pitch_velocity_imu_;
-        OutputInterface<double> gimbal_yaw_velocity_bmi088_;
+        OutputInterface<double> gimbal_yaw_velocity_imu_;
         device::Vt13& vt13_;
 
-        device::Bmi088 bmi088_pitch_;
-        device::Bmi088 bmi088_yaw_;
+        device::Bmi088 gimbal_imu_;
         device::LkMotor gimbal_pitch_motor_;
         device::DjiMotor gimbal_left_friction_;
         device::DjiMotor gimbal_right_friction_;
@@ -788,11 +768,7 @@ private:
     }
 
     OutputInterface<rmcs_description::Tf> tf_;
-    InputInterface<Clock::time_point> timestamp_;
     device::Vt13 vt13_;
-    std::atomic<bool> hard_sync_pending_{false};
-    size_t hard_sync_snapshot_count_ = 0;
-    Clock::time_point next_hard_sync_log_time_{};
 
     std::shared_ptr<DeformableInfantryOmniBCommand> deformable_infantry_command_;
     std::unique_ptr<BottomBoard> bottom_board_;

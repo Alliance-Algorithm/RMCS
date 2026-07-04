@@ -134,9 +134,6 @@ gimbal_controller:
 
     pitch_torque_control: true
 
-    pitch_fusion_enabled: true
-    pitch_fusion_alpha: 0.98
-
 friction_wheel_controller:
   ros__parameters:
     friction_wheels:
