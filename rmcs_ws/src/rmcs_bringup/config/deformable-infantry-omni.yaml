@@ -62,21 +62,43 @@ chassis_controller:
     spin_ratio: 1.0
 
     # IMU attitude correction at min-angle stance.
-    active_suspension_pitch_kp: 8.0
-    active_suspension_pitch_ki: 0.35
-    active_suspension_pitch_kd: 0.28
+    active_suspension_pitch_outer_kp: 12.0
+    active_suspension_pitch_outer_ki: 0.02
+    active_suspension_pitch_outer_kd: 0.0
+    active_suspension_pitch_outer_integral_min: -2.0
+    active_suspension_pitch_outer_integral_max: 2.0
+    active_suspension_pitch_outer_output_min: -3.0
+    active_suspension_pitch_outer_output_max: 3.0
 
-    active_suspension_roll_kp: 8.0
-    active_suspension_roll_ki: 0.35
-    active_suspension_roll_kd: 0.28
+    active_suspension_pitch_inner_kp: 0.45
+    active_suspension_pitch_inner_ki: 0.0
+    active_suspension_pitch_inner_kd: 0.0
+    active_suspension_pitch_inner_integral_min: -1.0
+    active_suspension_pitch_inner_integral_max: 1.0
+    active_suspension_pitch_inner_output_min: -0.785
+    active_suspension_pitch_inner_output_max: 0.785
 
-    active_suspension_pitch_angle_diff_limit_deg: 45.0
-    active_suspension_roll_angle_diff_limit_deg: 45.0
-    active_suspension_pid_integral_limit_deg: 20.0
+    active_suspension_roll_outer_kp: 12.0
+    active_suspension_roll_outer_ki: 0.02
+    active_suspension_roll_outer_kd: 0.0
+    active_suspension_roll_outer_integral_min: -2.0
+    active_suspension_roll_outer_integral_max: 2.0
+    active_suspension_roll_outer_output_min: -3.0
+    active_suspension_roll_outer_output_max: 3.0
+
+    active_suspension_roll_inner_kp: 0.45
+    active_suspension_roll_inner_ki: 0.0
+    active_suspension_roll_inner_kd: 0.0
+    active_suspension_roll_inner_integral_min: -1.0
+    active_suspension_roll_inner_integral_max: 1.0
+    active_suspension_roll_inner_output_min: -0.785
+    active_suspension_roll_inner_output_max: 0.785
 
     # Chassis-owned joint intent trajectory limits while attitude correction is active.
     active_suspension_target_velocity_limit_deg: 80.0
     active_suspension_target_acceleration_limit_deg: 360.0
+    active_suspension_correction_velocity_limit_deg: 720.0
+    active_suspension_correction_acceleration_limit_deg: 3600.0
 
     # Automatic IMU mounting-error calibration.
     # When all four requested joint targets stay equal for 2s, average pitch/roll from 2s to 5s.
@@ -170,11 +192,11 @@ bullet_feeder_velocity_pid_controller:
 
 deformable_chassis_controller:
   ros__parameters:
-    mass: 22.5
+    mass: 25.5
     moment_of_inertia: 1.0
     chassis_radius: 0.2341741
-    rod_length: 0.150
-    wheel_radius: 0.055
+    rod_length: 0.140
+    wheel_radius: 0.075
     friction_coefficient: 6.6
     k1: 2.958580e+00
     k2: 3.082190e-03
@@ -185,6 +207,7 @@ lf_joint_controller:
     # Joint-local servo inputs produced by chassis intent generation
     measurement_angle: /chassis/left_front_joint/physical_angle
     setpoint_angle: /chassis/left_front_joint/target_physical_angle
+    setpoint_velocity: /chassis/left_front_joint/target_physical_velocity
     control: /chassis/left_front_joint/control_torque
 
     dt: 0.001
@@ -208,6 +231,7 @@ lb_joint_controller:
     # Same joint-servo layout as lf_joint_controller
     measurement_angle: /chassis/left_back_joint/physical_angle
     setpoint_angle: /chassis/left_back_joint/target_physical_angle
+    setpoint_velocity: /chassis/left_back_joint/target_physical_velocity
     control: /chassis/left_back_joint/control_torque
     dt: 0.001
     b0: -1.0
@@ -230,6 +254,7 @@ rb_joint_controller:
     # Same joint-servo layout as lf_joint_controller
     measurement_angle: /chassis/right_back_joint/physical_angle
     setpoint_angle: /chassis/right_back_joint/target_physical_angle
+    setpoint_velocity: /chassis/right_back_joint/target_physical_velocity
     control: /chassis/right_back_joint/control_torque
     dt: 0.001
     b0: -1.0
@@ -252,6 +277,7 @@ rf_joint_controller:
     # Same joint-servo layout as lf_joint_controller
     measurement_angle: /chassis/right_front_joint/physical_angle
     setpoint_angle: /chassis/right_front_joint/target_physical_angle
+    setpoint_velocity: /chassis/right_front_joint/target_physical_velocity
     control: /chassis/right_front_joint/control_torque
     dt: 0.001
     b0: -1.0
