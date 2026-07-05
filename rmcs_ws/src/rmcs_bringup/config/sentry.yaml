@@ -41,7 +41,7 @@ sentry_hardware:
 
     pitch_motor_zero_point: 12158
 
-    bottom_yaw_motor_zero_point: 54551
+    bottom_yaw_motor_zero_point: 9445
     top_yaw_motor_zero_point: 33409
 
     left_front_zero_point: 6775
@@ -68,11 +68,11 @@ gimbal_controller:
     top_yaw_velocity_ki: 0.00
     top_yaw_velocity_kd: 0.0
 
-    bottom_yaw_angle_kp: 9.5
-    bottom_yaw_angle_ki: 0.001
-    bottom_yaw_angle_kd: 0.0003
-    bottom_yaw_velocity_kp: 18.0
-    bottom_yaw_velocity_ki: 0.00
+    bottom_yaw_angle_kp: 16.0
+    bottom_yaw_angle_ki: 0.02
+    bottom_yaw_angle_kd: 0.000
+    bottom_yaw_velocity_kp: 22.0
+    bottom_yaw_velocity_ki: 0.01
     bottom_yaw_velocity_kd: 0.00
 
     pitch_angle_kp: 32.0
@@ -84,9 +84,14 @@ gimbal_controller:
 
     k_top_to_bottom: -1.0
 
+    top_yaw_inertia: 0.01
+    top_yaw_jerk_gain: -0.0
+
+
     bottom_yaw_viscous_ff_gain: 0.002495
-    # bottom_yaw_coulomb_ff_gain: 0.457343
-    # bottom_yaw_coulomb_ff_tanh_gain: 100.0
+    bottom_yaw_coulomb_ff_gain: 0.457343
+    bottom_yaw_coulomb_ff_tanh_gain: 100.0
+    bottom_yaw_ext_friction_gain: 2.5
     top_yaw_viscous_ff_gain: 0.231
     # top_yaw_coulomb_ff_gain: 1.12
     # top_yaw_coulomb_ff_tanh_gain: 100.0
