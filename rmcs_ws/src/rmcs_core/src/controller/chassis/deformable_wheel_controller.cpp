@@ -153,7 +153,6 @@ public:
             "/chassis/right_back_wheel/control_torque", right_back_wheel_control_torque_);
         register_output(
             "/chassis/right_front_wheel/control_torque", right_front_wheel_control_torque_);
-
     }
 
     void update() override {
@@ -567,7 +566,8 @@ private:
             {rhombus_right, rhombus_top}, quadratic_constraint);
 
         const double min_translational = 0.3 * rhombus_right;
-        if (best_point.x() < min_translational && translational_acceleration_max > min_translational)
+        if (best_point.x() < min_translational
+            && translational_acceleration_max > min_translational)
             best_point.x() = min_translational;
 
         Eigen::Vector3d best_acceleration;

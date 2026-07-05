@@ -10,8 +10,8 @@
 namespace rmcs_utility {
 
 enum class ReceiveResult : uint8_t {
-    SUCCESS        = 0,
-    TIMEOUT        = 1,
+    SUCCESS = 0,
+    TIMEOUT = 1,
     HEADER_INVALID = 2,
     VERIFY_INVALID = 3
 };
