@@ -54,24 +54,6 @@ public:
         bmi088_.set_coordinate_mapping(
             [](double x, double y, double z) { return std::tuple{y, z, x}; });
 
-        status_service_ = create_service<std_srvs::srv::Trigger>(
-            "/rmcs/service/robot_status",
-            [this](
-                const std_srvs::srv::Trigger::Request::SharedPtr&,
-                const std_srvs::srv::Trigger::Response::SharedPtr& response) {
-                status_service_callback(response);
-            });
-
-        referee_serial_->read = [this](std::byte* buffer, size_t size) {
-            return referee_ring_buffer_receive_.pop_front_n(
-                [&buffer](std::byte byte) noexcept { *buffer++ = byte; }, size);
-        };
-        referee_serial_->write = [this](const std::byte* buffer, size_t size) {
-            start_transmit().uart1_transmit(
-                {.uart_data = std::span<const std::byte>{buffer, size}});
-            return size;
-        };
-
         using namespace rmcs_description;
 
         constexpr auto kCameraPostionX = 0.10238;
@@ -87,6 +69,23 @@ public:
         register_output("/auto_aim/barrel_direction", barrel_direction_);
 
         register_output("/referee/serial", referee_serial_);
+        referee_serial_->read = [this](std::byte* buffer, size_t size) {
+            return referee_ring_buffer_receive_.pop_front_n(
+                [&buffer](std::byte byte) noexcept { *buffer++ = byte; }, size);
+        };
+        referee_serial_->write = [this](const std::byte* buffer, size_t size) {
+            start_transmit().uart1_transmit(
+                {.uart_data = std::span<const std::byte>{buffer, size}});
+            return size;
+        };
+
+        status_service_ = create_service<std_srvs::srv::Trigger>(
+            "/rmcs/service/robot_status",
+            [this](
+                const std_srvs::srv::Trigger::Request::SharedPtr&,
+                const std_srvs::srv::Trigger::Response::SharedPtr& response) {
+                status_service_callback(response);
+            });
     }
 
     void update() override {
