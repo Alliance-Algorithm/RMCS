@@ -155,8 +155,8 @@ public:
         case LKMotorType::MG4005E_i10V3:
             torque_constant = 0.06 * 10.0;
             rated_current   = 1.8;
-            rated_torque    = 25.0;
-            max_torque      = 2.0;
+            rated_torque    = 1.0;
+            max_torque      = 2.5;
             LSB             = 648000;
             break;
         case LKMotorType::MG4005_i10V2:

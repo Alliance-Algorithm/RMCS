@@ -117,16 +117,33 @@ public:
         mode_selection();
         if (last_arm_mode_ != *arm_mode_) {
             switch (*arm_mode_) {
+
+            case ArmMode::Auto_Extract_LF: {
+                arm_action_machine_.process(action_dictionary_.helper_find_chunk("extract_lf"));
+                break;
+            }
             case ArmMode::Auto_Extract_LB: {
                 arm_action_machine_.process(action_dictionary_.helper_find_chunk("extract_lb"));
+                break;
+            }
+            case ArmMode::Auto_Extract_RF: {
+                arm_action_machine_.process(action_dictionary_.helper_find_chunk("extract_rf"));
                 break;
             }
             case ArmMode::Auto_Extract_RB: {
                 arm_action_machine_.process(action_dictionary_.helper_find_chunk("extract_rb"));
                 break;
             }
+            case ArmMode::Auto_Storage_LF: {
+                arm_action_machine_.process(action_dictionary_.helper_find_chunk("storage_lf"));
+                break;
+            }
             case ArmMode::Auto_Storage_LB: {
                 arm_action_machine_.process(action_dictionary_.helper_find_chunk("storage_lb"));
+                break;
+            }
+            case ArmMode::Auto_Storage_RF: {
+                arm_action_machine_.process(action_dictionary_.helper_find_chunk("storage_rf"));
                 break;
             }
             case ArmMode::Auto_Storage_RB: {
@@ -144,6 +161,15 @@ public:
             case ArmMode::Auto_Up_Two_Stairs: {
                 arm_action_machine_.process(action_dictionary_.helper_build_chunk(
                     {"initial", "initial_again", "lift_again"}));
+                break;
+            }
+            case ArmMode::Test: {
+                arm_action_machine_.process(action_dictionary_.helper_find_chunk({"test"}));
+                break;
+            }
+            case ArmMode::Calibration: {
+                arm_action_machine_.process(action_dictionary_.helper_find_chunk({"gripper_open"}));
+                break;
             }
             default: break;
             }
@@ -217,20 +243,42 @@ private:
                     *arm_mode_                 = rmcs_msgs::ArmMode::Auto_Up_One_Stairs;
                 }
             }
+            if (keyboard.w && !last_keyboard_.w) {
+                *arm_mode_ = rmcs_msgs::ArmMode::Test;
+            }
+            if(keyboard.e && !last_keyboard_.e){
+                *arm_mode_ = rmcs_msgs::ArmMode::Calibration;
+            }
             if (keyboard.f && !last_keyboard_.f) {
                 image_pitch_theta1_offset_ = 0.72;
                 if (keyboard.shift && !keyboard.ctrl) {
-                    *arm_mode_ = rmcs_msgs::ArmMode::Auto_Storage_LB;
+                    if (keyboard.s) {
+                        *arm_mode_ = rmcs_msgs::ArmMode::Auto_Storage_LB;
+                    } else {
+                        *arm_mode_ = rmcs_msgs::ArmMode::Auto_Storage_LF;
+                    }
                 } else if (keyboard.ctrl && !keyboard.shift) {
-                    *arm_mode_ = rmcs_msgs::ArmMode::Auto_Storage_RB;
+                    if (keyboard.s) {
+                        *arm_mode_ = rmcs_msgs::ArmMode::Auto_Storage_RB;
+                    } else {
+                        *arm_mode_ = rmcs_msgs::ArmMode::Auto_Storage_RF;
+                    }
                 }
             }
             if (keyboard.d && !last_keyboard_.d) {
                 image_pitch_theta1_offset_ = 0.72;
                 if (keyboard.shift && !keyboard.ctrl) {
-                    *arm_mode_ = rmcs_msgs::ArmMode::Auto_Extract_LB;
+                    if (keyboard.s) {
+                        *arm_mode_ = rmcs_msgs::ArmMode::Auto_Extract_LB;
+                    } else {
+                        *arm_mode_ = rmcs_msgs::ArmMode::Auto_Extract_LF;
+                    }
                 } else if (keyboard.ctrl && !keyboard.shift) {
-                    *arm_mode_ = rmcs_msgs::ArmMode::Auto_Extract_RB;
+                    if (keyboard.s) {
+                        *arm_mode_ = rmcs_msgs::ArmMode::Auto_Extract_RB;
+                    } else {
+                        *arm_mode_ = rmcs_msgs::ArmMode::Auto_Extract_RF;
+                    }
                 }
             }
             if (keyboard.z && !last_keyboard_.z) {
@@ -274,10 +322,16 @@ private:
             break;
         }
         case ArmMode::Auto_Walk:
+        case ArmMode::Auto_Extract_LF:
         case ArmMode::Auto_Extract_LB:
+        case ArmMode::Auto_Extract_RF:
         case ArmMode::Auto_Extract_RB:
+        case ArmMode::Auto_Storage_LF:
+        case ArmMode::Auto_Storage_LB:
+        case ArmMode::Auto_Storage_RF:
         case ArmMode::Auto_Storage_RB:
-        case ArmMode::Auto_Storage_LB: {
+        case ArmMode::Calibration:
+        case ArmMode::Test: {
             execute_plan_request_and_trajectory_step();
             break;
         }
@@ -453,9 +507,10 @@ private:
         }
     }
     void gripper_control() {
-       // RCLCPP_INFO(this->get_logger(),"close mean 1,open mean 0: %f",static_cast<double>(get_gripper_mode()==rmcs_msgs::GripperMode::Close));
-       //RCLCPP_INFO(this->get_logger(),"velocity %f",*gripper_velocity_); 
-       static double stock_theta;
+        // RCLCPP_INFO(this->get_logger(),"close mean 1,open mean 0:
+        // %f",static_cast<double>(get_gripper_mode()==rmcs_msgs::GripperMode::Close));
+        // RCLCPP_INFO(this->get_logger(),"velocity %f",*gripper_velocity_);
+        static double stock_theta;
         is_gripper_complete = false;
         if (last_gripper_mode_ != get_gripper_mode()) {
             is_gripper_stock = false;
@@ -466,7 +521,7 @@ private:
                 is_gripper_stock    = true;
                 stock_theta         = *gripper_angle_;
                 is_gripper_complete = true;
-                //RCLCPP_INFO(this->get_logger(),"gripper stocked,target equal current");
+                // RCLCPP_INFO(this->get_logger(),"gripper stocked,target equal current");
             }
             *gripper_target_theta =
                 is_gripper_stock
@@ -476,7 +531,7 @@ private:
                                 * 0.5;
         } else {
             *gripper_target_theta = *gripper_angle_;
-            //RCLCPP_INFO(this->get_logger(),"gripper:none,target equal current");
+            // RCLCPP_INFO(this->get_logger(),"gripper:none,target equal current");
         }
     }
 

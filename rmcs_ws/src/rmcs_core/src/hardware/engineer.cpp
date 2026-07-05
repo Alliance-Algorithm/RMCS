@@ -705,11 +705,9 @@ private:
                     yaw_command = big_yaw.dm_close_command();
                 } else if (*is_arm_enable && big_yaw.get_state() == 0) {
                     yaw_command = big_yaw.dm_enable_command();
-
                 } else {
                     yaw_command = big_yaw.generate_torque_command();
                 }
-
                 tx.can2_transmit({
                     .can_id   = 0x3,
                     .can_data = yaw_command.as_bytes(),

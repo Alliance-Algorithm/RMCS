@@ -89,7 +89,7 @@ public:
     }
 
 private:
-    static bool planSingleStep(
+    bool planSingleStep(
         const Action::Step& step, moveit::planning_interface::MoveGroupInterface* move_group,
         const moveit::core::RobotStatePtr& current_state,
         std::vector<trajectory_msgs::msg::JointTrajectoryPoint>& out_points,
@@ -140,6 +140,19 @@ private:
                     current_state->copyJointGroupPositions(move_group->getName(), point.positions);
                     out_points.assign(500, point);
                     needs_plan = false;
+                    double roll, pitch, yaw;
+                    auto pose = move_group->getCurrentPose("link_6");
+                    tf2::Matrix3x3(
+                        tf2::Quaternion(
+                            pose.pose.orientation.x, pose.pose.orientation.y,
+                            pose.pose.orientation.z, pose.pose.orientation.w))
+                        .getRPY(roll, pitch, yaw); // 直接赋值给变量
+
+                    RCLCPP_INFO(
+                        node_->get_logger(),
+                        "Current pose: x=%.3f y=%.3f z=%.3f  roll=%.3f pitch=%.3f yaw=%.3f",
+                        pose.pose.position.x, pose.pose.position.y, pose.pose.position.z, roll,
+                        pitch, yaw);
                 }
             },
             step.target());
@@ -190,17 +203,18 @@ private:
                 result->plan_success = false;
                 break;
             }
-
             if (segment_pts.empty()) {
                 RCLCPP_WARN(node_->get_logger(), "segment %zu empty", i);
                 result->plan_success = false;
                 break;
             }
+            RCLCPP_INFO(node_->get_logger(), "segment %zu plan success", i);
 
             const size_t start_idx = (i == 0) ? 0 : 1;
             auto& step_pos         = result->step_position_map[static_cast<int>(i)];
-            for (size_t j = start_idx; j < segment_pts.size(); ++j)
+            for (size_t j = start_idx; j < segment_pts.size(); ++j) {
                 step_pos.push_back(segment_pts[j].positions);
+            }
 
             result->step_map.emplace(static_cast<int>(i), step);
 
