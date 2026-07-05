@@ -108,7 +108,7 @@ gimbal_controller:
     yaw_angle_kp: 10.0
     yaw_angle_ki: 0.0
     yaw_angle_kd: 0.0
-
+,
     yaw_velocity_kp: 8.0
     yaw_velocity_ki: 0.0
     yaw_velocity_kd: 0.0
