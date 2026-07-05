@@ -450,15 +450,17 @@ private:
         };
 
         text(
-            "bottom_yaw_motor_zero_point: {}",
+            "    bottom_yaw_motor_zero_point: {}",
             chassis_board_->gimbal_bottom_yaw_motor_.last_raw_angle());
-        text("pitch_motor_zero_point: {}", gimbal_board_->gimbal_pitch_motor_.last_raw_angle());
-        text("top_yaw_motor_zero_point: {}", gimbal_board_->gimbal_top_yaw_motor_.last_raw_angle());
+        text("    pitch_motor_zero_point: {}", gimbal_board_->gimbal_pitch_motor_.last_raw_angle());
+        text(
+            "    top_yaw_motor_zero_point: {}",
+            gimbal_board_->gimbal_top_yaw_motor_.last_raw_angle());
 
         text("");
         for (auto&& [index, motor] :
              std::views::zip(kPosition, chassis_board_->chassis_steer_motors_)) {
-            text("{}_zero_point: {}", index, motor.last_raw_angle());
+            text("    {}_zero_point: {}", index, motor.last_raw_angle());
         }
 
         text("\nGimbalBoard Status:");

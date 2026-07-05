@@ -11,13 +11,16 @@ namespace rmcs_core::hardware {
 class StatusMonitor {
 private:
     std::unordered_map<std::string, std::unordered_set<std::string>> status;
+    bool enable = true;
 
 public:
     auto tick(const std::string& channel_name, const std::string& item) {
-        status[channel_name].insert(item);
+        if (enable)
+            status[channel_name].insert(item);
     }
     auto tick(const std::string& channel_name, std::uint32_t id) {
-        status[channel_name].insert(std::format("{:#x}", id));
+        if (enable)
+            status[channel_name].insert(std::format("{:#x}", id));
     }
 
     auto text() const {
@@ -34,6 +37,8 @@ public:
 
         return strings;
     }
+
+    auto set_enable(bool on) noexcept { enable = on; }
 };
 
 } // namespace rmcs_core::hardware
