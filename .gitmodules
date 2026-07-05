@@ -3,10 +3,10 @@
 	url = https://github.com/qzhhhi/FastTF.git
 [submodule "rmcs_ws/src/odin_ros_driver"]
 	path = rmcs_ws/src/odin_ros_driver
-	url = git@github.com:Alliance-Algorithm/odin_ros_driver.git
+	url = https://github.com/Alliance-Algorithm/odin_ros_driver.git
 [submodule "rmcs_ws/src/hikcamera"]
 	path = rmcs_ws/src/hikcamera
-	url = git@github.com:Alliance-Algorithm/ros2-hikcamera.git
+	url = https://github.com/Alliance-Algorithm/ros2-hikcamera.git
 [submodule "rmcs_ws/src/rmcs_auto_aim_v2"]
 	path = rmcs_ws/src/rmcs_auto_aim_v2
-	url = git@github.com:Alliance-Algorithm/rmcs_auto_aim_v2.git
+	url = https://github.com/Alliance-Algorithm/rmcs_auto_aim_v2.git

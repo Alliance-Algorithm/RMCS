@@ -34,7 +34,9 @@ class Flight
     , private librmcs::agent::RmcsBoardLite {
 public:
     Flight()
-        : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
+        : Node{
+              get_component_name(),
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , librmcs::agent::RmcsBoardLite{get_parameter("board_serial").as_string()}
         , logger_(get_logger())
         , command_component_(
@@ -62,12 +64,14 @@ public:
         gimbal_right_friction_.configure(
             device::DjiMotor::Config{device::DjiMotor::Type::kM3508}.set_reduction_ratio(1.0));
         gimbal_bullet_feeder_.configure(
-            device::DjiMotor::Config{device::DjiMotor::Type::kM2006}
-                .enable_multi_turn_angle());
+            device::DjiMotor::Config{device::DjiMotor::Type::kM2006}.enable_multi_turn_angle());
 
         register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
         register_output("/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
         register_output("/tf", tf_);
+
+        register_output("/auto_aim/camera_transform", camera_transform_);
+        register_output("/auto_aim/barrel_direction", barrel_direction_);
 
         bmi088_.set_coordinate_mapping(
             [](double x, double y, double z) { return std::make_tuple(y, z, x); });
@@ -123,6 +127,15 @@ public:
         update_motors();
         update_imu();
         dr16_.update_status();
+
+        // 从 TF 树中查询相机位姿
+        *camera_transform_ =
+            fast_tf::lookup_transform<rmcs_description::OdomImu, rmcs_description::CameraLink>(
+                *tf_);
+
+        // 从 TF 树中查询枪口方向
+        *barrel_direction_ = *fast_tf::cast<rmcs_description::OdomImu>(
+            rmcs_description::PitchLink::DirectionVector{Eigen::Vector3d::UnitX()}, *tf_);
     }
 
     void command_update() {
@@ -136,7 +149,7 @@ public:
                          device::CanPacket8::PaddingQuarter{},
                          gimbal_left_friction_.generate_command(),
                          gimbal_right_friction_.generate_command(),
-                         }
+                     }
                          .as_bytes()})
             .can1_transmit(
                 {.can_id = 0x200,
@@ -146,14 +159,13 @@ public:
                          device::CanPacket8::PaddingQuarter{},
                          device::CanPacket8::PaddingQuarter{},
                          device::CanPacket8::PaddingQuarter{},
-                         }
+                     }
                          .as_bytes()})
             .can2_transmit(
                 {.can_id = 0x141,
                  .can_data = gimbal_yaw_motor_.generate_torque_command().as_bytes()})
             .can3_transmit(
                 {.can_id = 0x142, .can_data = gimbal_pitch_motor_.generate_command().as_bytes()});
-
     }
 
 private:
@@ -208,7 +220,7 @@ protected:
 
         if (data.can_id == 0x203) {
             gimbal_left_friction_.store_status(data.can_data);
-        }else if(data.can_id == 0x204) {
+        } else if (data.can_id == 0x204) {
             gimbal_right_friction_.store_status(data.can_data);
         }
     }
@@ -219,7 +231,7 @@ protected:
 
         if (data.can_id == 0x201) {
             gimbal_bullet_feeder_.store_status(data.can_data);
-        } 
+        }
     }
 
     void can2_receive_callback(const librmcs::data::CanDataView& data) override {
@@ -227,7 +239,7 @@ protected:
             [[unlikely]]
             return;
 
-        if (data.can_id == 0x141){
+        if (data.can_id == 0x141) {
             gimbal_yaw_motor_.store_status(data.can_data);
         }
     }
@@ -236,7 +248,7 @@ protected:
             [[unlikely]]
             return;
 
-        if (data.can_id == 0x142){
+        if (data.can_id == 0x142) {
             gimbal_pitch_motor_.store_status(data.can_data);
         }
     }
@@ -278,6 +290,9 @@ private:
     OutputInterface<double> gimbal_pitch_velocity_imu_;
     OutputInterface<rmcs_description::Tf> tf_;
     OutputInterface<rmcs_msgs::SerialInterface> referee_serial_;
+
+    OutputInterface<Eigen::Isometry3d> camera_transform_;
+    OutputInterface<Eigen::Vector3d> barrel_direction_;
 
     rmcs_utility::RingBuffer<std::byte> referee_ring_buffer_receive_{256};
 };
