@@ -6,11 +6,7 @@
 
 #include <eigen3/Eigen/Geometry>
 #include <librmcs/data/datas.hpp>
-#include <rclcpp/logger.hpp>
-#include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
-#include <rclcpp/node_options.hpp>
-#include <rclcpp/qos.hpp>
 #include <rclcpp/subscription.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
@@ -19,7 +15,6 @@
 #include <std_msgs/msg/int32.hpp>
 
 #include "hardware/device/bmi088.hpp"
-
 #include "hardware/device/can_packet.hpp"
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
@@ -74,30 +69,7 @@ public:
         register_output("/auto_aim/barrel_direction", barrel_direction_);
 
         bmi088_.set_coordinate_mapping(
-            [](double x, double y, double z) { return std::make_tuple(y, z, x); });
-
-        using namespace rmcs_description; // NOLINT(google-build-using-namespace)
-        constexpr double rotor_distance_x = 1.128;
-        constexpr double rotor_distance_y = 1.128;
-
-        tf_->set_transform<BaseLink, LeftFrontWheelLink>(
-            Eigen::Translation3d{rotor_distance_x / 2, rotor_distance_y / 2, 0});
-        tf_->set_transform<BaseLink, LeftBackWheelLink>(
-            Eigen::Translation3d{rotor_distance_x / 2, -rotor_distance_y / 2, 0});
-        tf_->set_transform<BaseLink, RightBackWheelLink>(
-            Eigen::Translation3d{-rotor_distance_x / 2, rotor_distance_y / 2, 0});
-        tf_->set_transform<BaseLink, RightFrontWheelLink>(
-            Eigen::Translation3d{-rotor_distance_x / 2, -rotor_distance_y / 2, 0});
-
-        // GimbalCenterLink 原点等效于 YawLink 和 PitchLink 的交点
-        constexpr double gimbal_center_z = -0.27812;
-        tf_->set_transform<BaseLink, GimbalCenterLink>(
-            Eigen::Translation3d{0.0, 0.0, gimbal_center_z});
-        constexpr auto camera_postion_x = 0.10238;
-        constexpr auto camera_postion_z = 0.05286;
-
-        tf_->set_transform<PitchLink, CameraLink>(
-            Eigen::Translation3d{camera_postion_x, 0.0, camera_postion_z});
+            [](double x, double y, double z) { return std::tuple{y, z, x}; });
 
         gimbal_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
             "/gimbal/calibrate", rclcpp::QoS{0}, [this](std_msgs::msg::Int32::UniquePtr&& msg) {
@@ -114,6 +86,13 @@ public:
                 {.uart_data = std::span<const std::byte>{buffer, size}});
             return size;
         };
+
+        using namespace rmcs_description;
+
+        constexpr auto kCameraPostionX = 0.10238;
+        constexpr auto kCameraPostionZ = 0.05286;
+        tf_->set_transform<PitchLink, CameraLink>(
+            Eigen::Translation3d{kCameraPostionX, 0.0, kCameraPostionZ});
     }
 
     Flight(const Flight&) = delete;
@@ -128,14 +107,10 @@ public:
         update_imu();
         dr16_.update_status();
 
-        // 从 TF 树中查询相机位姿
-        *camera_transform_ =
-            fast_tf::lookup_transform<rmcs_description::OdomImu, rmcs_description::CameraLink>(
-                *tf_);
-
-        // 从 TF 树中查询枪口方向
-        *barrel_direction_ = *fast_tf::cast<rmcs_description::OdomImu>(
-            rmcs_description::PitchLink::DirectionVector{Eigen::Vector3d::UnitX()}, *tf_);
+        using namespace rmcs_description;
+        *camera_transform_ = fast_tf::lookup_transform<OdomImu, CameraLink>(*tf_);
+        *barrel_direction_ =
+            *fast_tf::cast<OdomImu>(PitchLink::DirectionVector{Eigen::Vector3d::UnitX()}, *tf_);
     }
 
     void command_update() {
@@ -170,23 +145,26 @@ public:
 
 private:
     void update_motors() {
-        using namespace rmcs_description; // NOLINT(google-build-using-namespace)
+        gimbal_bullet_feeder_.update_status();
+        gimbal_left_friction_.update_status();
+        gimbal_right_friction_.update_status();
+
+        using namespace rmcs_description;
+
         gimbal_yaw_motor_.update_status();
         tf_->set_state<GimbalCenterLink, YawLink>(gimbal_yaw_motor_.angle());
 
         gimbal_pitch_motor_.update_status();
         tf_->set_state<YawLink, PitchLink>(gimbal_pitch_motor_.angle());
-
-        gimbal_bullet_feeder_.update_status();
-        gimbal_left_friction_.update_status();
-        gimbal_right_friction_.update_status();
     }
 
     void update_imu() {
+        using namespace rmcs_description;
+
         bmi088_.update_status();
-        Eigen::Quaterniond gimbal_imu_pose{bmi088_.q0(), bmi088_.q1(), bmi088_.q2(), bmi088_.q3()};
-        tf_->set_transform<rmcs_description::PitchLink, rmcs_description::OdomImu>(
-            gimbal_imu_pose.conjugate());
+        const auto gimbal_imu_pose =
+            Eigen::Quaterniond{bmi088_.q0(), bmi088_.q1(), bmi088_.q2(), bmi088_.q3()};
+        tf_->set_transform<PitchLink, OdomImu>(gimbal_imu_pose.conjugate());
 
         *gimbal_yaw_velocity_imu_ = bmi088_.gz();
         *gimbal_pitch_velocity_imu_ = bmi088_.gy();
