@@ -5,7 +5,6 @@
 #include <tuple>
 
 #include <eigen3/Eigen/Geometry>
-#include <librmcs/agent/c_board.hpp>
 #include <librmcs/data/datas.hpp>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
@@ -20,21 +19,23 @@
 #include <std_msgs/msg/int32.hpp>
 
 #include "hardware/device/bmi088.hpp"
+
 #include "hardware/device/can_packet.hpp"
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/lk_motor.hpp"
+#include "librmcs/agent/rmcs_board_lite.hpp"
 
 namespace rmcs_core::hardware {
 
 class Flight
     : public rmcs_executor::Component
     , public rclcpp::Node
-    , private librmcs::agent::CBoard {
+    , private librmcs::agent::RmcsBoardLite {
 public:
     Flight()
         : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
-        , librmcs::agent::CBoard{get_parameter("board_serial").as_string()}
+        , librmcs::agent::RmcsBoardLite{get_parameter("board_serial").as_string()}
         , logger_(get_logger())
         , command_component_(
               create_partner_component<FlightCommand>(get_component_name() + "_command", *this))
@@ -69,7 +70,7 @@ public:
         register_output("/tf", tf_);
 
         bmi088_.set_coordinate_mapping(
-            [](double x, double y, double z) { return std::make_tuple(-x, z, y); });
+            [](double x, double y, double z) { return std::make_tuple(y, z, x); });
 
         using namespace rmcs_description; // NOLINT(google-build-using-namespace)
         constexpr double rotor_distance_x = 1.128;
@@ -105,7 +106,7 @@ public:
                 [&buffer](std::byte byte) noexcept { *buffer++ = byte; }, size);
         };
         referee_serial_->write = [this](const std::byte* buffer, size_t size) {
-            start_transmit().uart2_transmit(
+            start_transmit().uart1_transmit(
                 {.uart_data = std::span<const std::byte>{buffer, size}});
             return size;
         };
@@ -127,20 +128,32 @@ public:
     void command_update() {
         auto builder = start_transmit();
         builder
-            .can2_transmit(
-                {.can_id = 0x141,
-                 .can_data = gimbal_yaw_motor_.generate_torque_command().as_bytes()})
-            .can2_transmit(
-                {.can_id = 0x142, .can_data = gimbal_pitch_motor_.generate_command().as_bytes()})
+            .can0_transmit(
+                {.can_id = 0x200,
+                 .can_data =
+                     device::CanPacket8{
+                         device::CanPacket8::PaddingQuarter{},
+                         device::CanPacket8::PaddingQuarter{},
+                         gimbal_left_friction_.generate_command(),
+                         gimbal_right_friction_.generate_command(),
+                         }
+                         .as_bytes()})
             .can1_transmit(
                 {.can_id = 0x200,
                  .can_data =
                      device::CanPacket8{
                          gimbal_bullet_feeder_.generate_command(),
                          device::CanPacket8::PaddingQuarter{},
-                         gimbal_left_friction_.generate_command(),
-                         gimbal_right_friction_.generate_command()}
-                         .as_bytes()});
+                         device::CanPacket8::PaddingQuarter{},
+                         device::CanPacket8::PaddingQuarter{},
+                         }
+                         .as_bytes()})
+            .can2_transmit(
+                {.can_id = 0x141,
+                 .can_data = gimbal_yaw_motor_.generate_torque_command().as_bytes()})
+            .can3_transmit(
+                {.can_id = 0x142, .can_data = gimbal_pitch_motor_.generate_command().as_bytes()});
+
     }
 
 private:
@@ -188,6 +201,17 @@ private:
     };
 
 protected:
+    void can0_receive_callback(const librmcs::data::CanDataView& data) override {
+        if (data.is_extended_can_id || data.is_remote_transmission || data.can_data.size() < 8)
+            [[unlikely]]
+            return;
+
+        if (data.can_id == 0x203) {
+            gimbal_left_friction_.store_status(data.can_data);
+        }else if(data.can_id == 0x204) {
+            gimbal_right_friction_.store_status(data.can_data);
+        }
+    }
     void can1_receive_callback(const librmcs::data::CanDataView& data) override {
         if (data.is_extended_can_id || data.is_remote_transmission || data.can_data.size() < 8)
             [[unlikely]]
@@ -195,11 +219,7 @@ protected:
 
         if (data.can_id == 0x201) {
             gimbal_bullet_feeder_.store_status(data.can_data);
-        } else if (data.can_id == 0x203) {
-            gimbal_left_friction_.store_status(data.can_data);
-        } else if (data.can_id == 0x204) {
-            gimbal_right_friction_.store_status(data.can_data);
-        }
+        } 
     }
 
     void can2_receive_callback(const librmcs::data::CanDataView& data) override {
@@ -207,14 +227,21 @@ protected:
             [[unlikely]]
             return;
 
-        if (data.can_id == 0x142)
-            gimbal_pitch_motor_.store_status(data.can_data);
-        else if (data.can_id == 0x141) {
+        if (data.can_id == 0x141){
             gimbal_yaw_motor_.store_status(data.can_data);
         }
     }
+    void can3_receive_callback(const librmcs::data::CanDataView& data) override {
+        if (data.is_extended_can_id || data.is_remote_transmission || data.can_data.size() < 8)
+            [[unlikely]]
+            return;
 
-    void uart2_receive_callback(const librmcs::data::UartDataView& data) override {
+        if (data.can_id == 0x142){
+            gimbal_pitch_motor_.store_status(data.can_data);
+        }
+    }
+
+    void uart1_receive_callback(const librmcs::data::UartDataView& data) override {
         const std::byte* ptr = data.uart_data.data();
         referee_ring_buffer_receive_.emplace_back_n(
             [&ptr](std::byte* storage) noexcept { new (storage) std::byte{*ptr++}; },

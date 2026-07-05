@@ -59,7 +59,7 @@ tf_broadcaster:
 
 flight_hardware:
   ros__parameters:
-    board_serial: "d4-9d44"
+    board_serial: "AF-7C58-5458-E731-9F74-1F9C-CAFD-30AF-9C09"
     yaw_motor_zero_point: 11720
     pitch_motor_zero_point: 18578
 

@@ -59,13 +59,6 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
                 emulate_tty=True,
             )
         )
-        entities.append(
-            IncludeLaunchDescription(
-                PythonLaunchDescriptionSource([
-                    FindPackageShare('rmcs_auto_aim_v2'), '/launch.py'
-                ])
-            )
-        )
 
         return entities
 
