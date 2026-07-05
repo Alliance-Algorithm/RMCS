@@ -12,7 +12,7 @@
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/serial_interface.hpp>
 #include <rmcs_utility/ring_buffer.hpp>
-#include <std_msgs/msg/int32.hpp>
+#include <std_srvs/srv/trigger.hpp>
 
 #include "hardware/device/bmi088.hpp"
 #include "hardware/device/can_packet.hpp"
@@ -32,17 +32,7 @@ public:
         : Node{
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
-        , librmcs::agent::RmcsBoardLite{get_parameter("board_serial").as_string()}
-        , logger_(get_logger())
-        , command_component_(
-              create_partner_component<FlightCommand>(get_component_name() + "_command", *this))
-        , gimbal_yaw_motor_(*this, *command_component_, "/gimbal/yaw")
-        , gimbal_pitch_motor_(*this, *command_component_, "/gimbal/pitch")
-        , gimbal_left_friction_(*this, *command_component_, "/gimbal/left_friction")
-        , gimbal_right_friction_(*this, *command_component_, "/gimbal/right_friction")
-        , gimbal_bullet_feeder_(*this, *command_component_, "/gimbal/bullet_feeder")
-        , dr16_(*this)
-        , bmi088_(1000.0, 0.2, 0.00) {
+        , RmcsBoardLite{get_parameter("board_serial").as_string()} {
 
         gimbal_yaw_motor_.configure(
             device::LkMotor::Config{device::LkMotor::Type::kMHF7015}
@@ -61,22 +51,17 @@ public:
         gimbal_bullet_feeder_.configure(
             device::DjiMotor::Config{device::DjiMotor::Type::kM2006}.enable_multi_turn_angle());
 
-        register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
-        register_output("/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
-        register_output("/tf", tf_);
-
-        register_output("/auto_aim/camera_transform", camera_transform_);
-        register_output("/auto_aim/barrel_direction", barrel_direction_);
-
         bmi088_.set_coordinate_mapping(
             [](double x, double y, double z) { return std::tuple{y, z, x}; });
 
-        gimbal_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
-            "/gimbal/calibrate", rclcpp::QoS{0}, [this](std_msgs::msg::Int32::UniquePtr&& msg) {
-                gimbal_calibrate_subscription_callback(std::move(msg));
+        status_service_ = create_service<std_srvs::srv::Trigger>(
+            "/rmcs/service/robot_status",
+            [this](
+                const std_srvs::srv::Trigger::Request::SharedPtr&,
+                const std_srvs::srv::Trigger::Response::SharedPtr& response) {
+                status_service_callback(response);
             });
 
-        register_output("/referee/serial", referee_serial_);
         referee_serial_->read = [this](std::byte* buffer, size_t size) {
             return referee_ring_buffer_receive_.pop_front_n(
                 [&buffer](std::byte byte) noexcept { *buffer++ = byte; }, size);
@@ -93,14 +78,16 @@ public:
         constexpr auto kCameraPostionZ = 0.05286;
         tf_->set_transform<PitchLink, CameraLink>(
             Eigen::Translation3d{kCameraPostionX, 0.0, kCameraPostionZ});
+
+        register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
+        register_output("/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
+        register_output("/tf", tf_);
+
+        register_output("/auto_aim/camera_transform", camera_transform_);
+        register_output("/auto_aim/barrel_direction", barrel_direction_);
+
+        register_output("/referee/serial", referee_serial_);
     }
-
-    Flight(const Flight&) = delete;
-    Flight& operator=(const Flight&) = delete;
-    Flight(Flight&&) = delete;
-    Flight& operator=(Flight&&) = delete;
-
-    ~Flight() override = default;
 
     void update() override {
         update_motors();
@@ -170,25 +157,20 @@ private:
         *gimbal_pitch_velocity_imu_ = bmi088_.gy();
     }
 
-    void gimbal_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
-        RCLCPP_INFO(
-            logger_, "[gimbal calibration] New yaw offset: %ld",
-            gimbal_yaw_motor_.calibrate_zero_point());
-        RCLCPP_INFO(
-            logger_, "[gimbal calibration] New pitch offset: %ld",
-            gimbal_pitch_motor_.calibrate_zero_point());
+    void
+        status_service_callback(const std::shared_ptr<std_srvs::srv::Trigger::Response>& response) {
+        response->success = true;
+
+        auto feedback_message = std::ostringstream{};
+        auto text = [&]<typename... Args>(std::format_string<Args...> format, Args&&... args) {
+            std::println(feedback_message, format, std::forward<Args>(args)...);
+        };
+
+        text("    yaw_motor_zero_point: {}", gimbal_yaw_motor_.last_raw_angle());
+        text("    pitch_motor_zero_point: {}", gimbal_pitch_motor_.last_raw_angle());
+
+        response->message = feedback_message.str();
     }
-
-    class FlightCommand : public rmcs_executor::Component {
-    public:
-        explicit FlightCommand(Flight& flight)
-            : flight_(flight) {}
-
-        void update() override { flight_.command_update(); }
-
-    private:
-        Flight& flight_;
-    };
 
 protected:
     void can0_receive_callback(const librmcs::data::CanDataView& data) override {
@@ -251,18 +233,29 @@ protected:
     }
 
 private:
-    rclcpp::Logger logger_;
-    std::shared_ptr<FlightCommand> command_component_;
-    rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr gimbal_calibrate_subscription_;
+    class FlightCommand : public rmcs_executor::Component {
+    public:
+        explicit FlightCommand(Flight& flight)
+            : flight_(flight) {}
 
-    device::LkMotor gimbal_yaw_motor_;
-    device::LkMotor gimbal_pitch_motor_;
-    device::DjiMotor gimbal_left_friction_;
-    device::DjiMotor gimbal_right_friction_;
-    device::DjiMotor gimbal_bullet_feeder_;
+        void update() override { flight_.command_update(); }
 
-    device::Dr16 dr16_;
-    device::Bmi088 bmi088_;
+    private:
+        Flight& flight_;
+    };
+    std::shared_ptr<FlightCommand> command_component_{
+        create_partner_component<FlightCommand>(get_component_name() + "_command", *this),
+    };
+    std::shared_ptr<rclcpp::Service<std_srvs::srv::Trigger>> status_service_;
+
+    device::LkMotor gimbal_yaw_motor_{*this, *command_component_, "/gimbal/yaw"};
+    device::LkMotor gimbal_pitch_motor_{*this, *command_component_, "/gimbal/pitch"};
+    device::DjiMotor gimbal_left_friction_{*this, *command_component_, "/gimbal/left_friction"};
+    device::DjiMotor gimbal_right_friction_{*this, *command_component_, "/gimbal/right_friction"};
+    device::DjiMotor gimbal_bullet_feeder_{*this, *command_component_, "/gimbal/bullet_feeder"};
+
+    device::Dr16 dr16_{*this};
+    device::Bmi088 bmi088_{1000.0, 0.2, 0.00};
 
     OutputInterface<double> gimbal_yaw_velocity_imu_;
     OutputInterface<double> gimbal_pitch_velocity_imu_;
