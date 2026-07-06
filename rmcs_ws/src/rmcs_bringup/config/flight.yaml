@@ -116,9 +116,8 @@ heat_controller:
 
 bullet_feeder_controller:
   ros__parameters:
-    debug_ignore_friction_ready: true # 调试用：不开摩擦轮也允许拨弹，复原时改为 false
     bullets_per_feeder_turn: 8.0
-    shot_frequency: 25.0
+    shot_frequency: 20.0
     safe_shot_frequency: 10.0
     eject_frequency: 10.0
     eject_time: 0.05

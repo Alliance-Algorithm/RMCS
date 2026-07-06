@@ -1,7 +1,3 @@
-#include <cmath>
-
-#include <limits>
-
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/keyboard.hpp>
@@ -28,9 +24,6 @@ public:
         bullet_feeder_working_velocity = bullet_feeder_angle_per_bullet * shot_frequency;
         double safe_shot_frequency = get_parameter("safe_shot_frequency").as_double();
         bullet_feeder_safe_shot_velocity = bullet_feeder_angle_per_bullet * safe_shot_frequency;
-        constexpr double rotary_knob_shot_frequency = 8.0;
-        bullet_feeder_rotary_knob_velocity_ =
-            bullet_feeder_angle_per_bullet * rotary_knob_shot_frequency;
 
         double eject_frequency = get_parameter("eject_frequency").as_double();
         bullet_feeder_eject_velocity_ = -bullet_feeder_angle_per_bullet * eject_frequency;
@@ -45,12 +38,6 @@ public:
         single_shot_max_stop_delay_ = static_cast<int>(
             std::round(1000.0 * get_parameter("single_shot_max_stop_delay").as_double()));
 
-        // Debug option: allow bullet feeding without friction wheels spinning.
-        debug_ignore_friction_ready_ = get_parameter_or("debug_ignore_friction_ready", false);
-        if (debug_ignore_friction_ready_)
-            RCLCPP_WARN(
-                logger_, "Friction-ready check bypassed: feeder will spin without friction wheels!");
-
         register_input("/gimbal/friction_ready", friction_ready_);
         register_input("/gimbal/bullet_fired", bullet_fired_);
         register_input(
@@ -61,9 +48,8 @@ public:
         register_input("/remote/switch/left", switch_left_);
         register_input("/remote/mouse", mouse_);
         register_input("/remote/keyboard", keyboard_);
-        register_input("/remote/rotary_knob_switch", rotary_knob_switch_);
 
-        register_input("/auto_aim/should_shoot", auto_aim_should_shoot_, false);
+        register_input("/auto_aim/should_shoot", should_shoot_, false);
 
         register_input("/gimbal/bullet_feeder/velocity", bullet_feeder_velocity_);
         register_output(
@@ -73,8 +59,8 @@ public:
     }
 
     void before_updating() override {
-        if (!auto_aim_should_shoot_.ready())
-            auto_aim_should_shoot_.bind_directly(false);
+        if (!should_shoot_.ready())
+            should_shoot_.bind_directly(false);
     }
 
     void update() override {
@@ -84,14 +70,13 @@ public:
         const auto switch_left = *switch_left_;
         const auto mouse = *mouse_;
         const auto keyboard = *keyboard_;
-        const auto rotary_knob_switch = *rotary_knob_switch_;
 
         using namespace rmcs_msgs;
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
             reset_all_controls();
         } else {
-            int64_t bullet_allowance = 0;
+            std::int64_t bullet_allowance = 0;
 
             if (switch_right != Switch::DOWN) {
                 shoot_mode = keyboard.f ? ShootMode::SINGLE : ShootMode::AUTOMATIC;
@@ -111,33 +96,22 @@ public:
                 if (*bullet_fired_)
                     single_shot_stop_counter_ = 0;
 
-                const bool friction_ready = *friction_ready_ || debug_ignore_friction_ready_;
-                if (friction_ready) {
+                if (*friction_ready_) {
                     if (shoot_mode == ShootMode::AUTOMATIC) {
-                        bool manual_triggered = mouse.left || switch_left == Switch::DOWN;
-                        bool auto_aim_triggered = mouse.right && *auto_aim_should_shoot_;
-                        bool rotary_knob_triggered = rotary_knob_switch == Switch::DOWN;
-                        bool triggered =
-                            manual_triggered || auto_aim_triggered || rotary_knob_triggered;
-                        bool rotary_knob_low_speed =
-                            rotary_knob_triggered && !manual_triggered && !auto_aim_triggered;
+                        auto aiming_enable = mouse_->right || (switch_right == Switch::UP);
+                        auto attack_intent = mouse_->left || (switch_left == Switch::DOWN);
+                        auto triggered = aiming_enable ? *should_shoot_ : attack_intent;
                         bullet_allowance =
                             triggered ? *control_bullet_allowance_limited_by_heat_ : 0;
-                        update_bullet_feeder_velocity(bullet_allowance, rotary_knob_low_speed);
                     } else {
-                        bool triggered = single_shot_stop_counter_ > 0;
+                        auto triggered = single_shot_stop_counter_ > 0;
                         bullet_allowance =
                             triggered && (*control_bullet_allowance_limited_by_heat_ > 0);
-                        update_bullet_feeder_velocity(bullet_allowance, false);
                     }
-                } else {
-                    update_bullet_feeder_velocity(0, false);
                 }
             }
 
-            if ((!*friction_ready_ && !debug_ignore_friction_ready_)
-                || switch_right == Switch::DOWN)
-                update_bullet_feeder_velocity(0, false);
+            update_bullet_feeder_velocity(bullet_allowance);
         }
 
         last_switch_right_ = switch_right;
@@ -153,7 +127,7 @@ private:
         *bullet_feeder_control_velocity_ = nan_;
     }
 
-    void update_bullet_feeder_velocity(int64_t bullet_allowance, bool rotary_knob_low_speed) {
+    void update_bullet_feeder_velocity(int64_t bullet_allowance) {
         if (bullet_allowance <= 0) {
             bullet_feeder_working_status_ = 0;
             *bullet_feeder_control_velocity_ = 0.0;
@@ -167,9 +141,8 @@ private:
             return;
         }
 
-        double new_control_velocity = rotary_knob_low_speed ? bullet_feeder_rotary_knob_velocity_
-                                    : bullet_allowance > 1  ? bullet_feeder_working_velocity
-                                                            : bullet_feeder_safe_shot_velocity;
+        double new_control_velocity = bullet_allowance > 1 ? bullet_feeder_working_velocity
+                                                           : bullet_feeder_safe_shot_velocity;
         if (new_control_velocity > *bullet_feeder_control_velocity_)
             bullet_feeder_working_status_ = std::min(0, bullet_feeder_working_status_);
         *bullet_feeder_control_velocity_ = new_control_velocity;
@@ -224,8 +197,6 @@ private:
 
     int single_shot_max_stop_delay_, single_shot_stop_counter_ = 0;
 
-    bool debug_ignore_friction_ready_ = false;
-
     InputInterface<bool> friction_ready_;
     InputInterface<bool> bullet_fired_;
     InputInterface<int64_t> control_bullet_allowance_limited_by_heat_;
@@ -234,9 +205,8 @@ private:
     InputInterface<rmcs_msgs::Switch> switch_left_;
     InputInterface<rmcs_msgs::Mouse> mouse_;
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
-    InputInterface<rmcs_msgs::Switch> rotary_knob_switch_;
 
-    InputInterface<bool> auto_aim_should_shoot_;
+    InputInterface<bool> should_shoot_;
 
     rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Switch last_switch_left_ = rmcs_msgs::Switch::UNKNOWN;
@@ -247,8 +217,6 @@ private:
     int bullet_feeder_working_status_ = 0;
     int bullet_feeder_jammed_count_ = 0;
     int bullet_feeder_cool_down_ = 0;
-
-    double bullet_feeder_rotary_knob_velocity_ = 0.0;
 
     int temporary_single_shot_counter_ = 0;
     OutputInterface<rmcs_msgs::ShootMode> shoot_mode_;

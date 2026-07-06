@@ -4,7 +4,6 @@
 #include <cmath>
 #include <limits>
 #include <numbers>
-#include <optional>
 
 #include <eigen3/Eigen/Geometry>
 #include <rmcs_description/tf_description.hpp>
@@ -201,7 +200,7 @@ private:
     }
 
     void clamp_yaw_limit(YawLink::DirectionVector& control_direction) {
-        if (!yaw_cw_min_.has_value()) 
+        if (!gimbal_yaw_angle_.ready())
             return;
 
         constexpr double two_pi = 2 * std::numbers::pi;
@@ -210,12 +209,12 @@ private:
             cw += two_pi;
 
         const auto& [x, y, z] = *control_direction;
-        const double err = std::atan2(y, x); 
+        const double err = std::atan2(y, x);
 
-        const double target_cw  = cw - err;
-        const double clamped_cw = std::clamp(target_cw, *yaw_cw_min_, *yaw_cw_max_);
+        const double target_cw = cw - err;
+        const double clamped_cw = std::clamp(target_cw, yaw_cw_min_, yaw_cw_max_);
         if (clamped_cw == target_cw)
-            return; 
+            return;
 
         // delta = err_new - err = (cw - clamped_cw) - err
         const double delta = (cw - clamped_cw) - err;
@@ -244,7 +243,8 @@ private:
     rmcs_executor::Component::InputInterface<double> gimbal_pitch_angle_;
     rmcs_executor::Component::InputInterface<Tf> tf_;
 
-    std::optional<double> yaw_cw_min_, yaw_cw_max_;
+    double yaw_cw_min_ = 0.;
+    double yaw_cw_max_ = 0.;
     rmcs_executor::Component::InputInterface<double> gimbal_yaw_angle_;
 
     OdomImu::DirectionVector yaw_axis_filtered_{Eigen::Vector3d::UnitZ()};

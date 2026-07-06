@@ -20,9 +20,11 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , two_axis_gimbal_solver(
-              *this, get_parameter("upper_limit").as_double(),
-              get_parameter("lower_limit").as_double()) {
+        , two_axis_gimbal_solver{
+              *this,
+              get_parameter("upper_limit").as_double(),
+              get_parameter("lower_limit").as_double(),
+          } {
 
         register_input("/remote/joystick/left", joystick_left_);
         register_input("/remote/switch/right", switch_right_);
@@ -36,18 +38,14 @@ public:
         register_output("/gimbal/yaw/control_angle_error", yaw_angle_error_, nan_);
         register_output("/gimbal/pitch/control_angle_error", pitch_angle_error_, nan_);
 
-        rclcpp::Parameter yaw_upper, yaw_lower;
-        if (get_parameter("yaw_upper_limit", yaw_upper)
-            && get_parameter("yaw_lower_limit", yaw_lower)) {
-            two_axis_gimbal_solver.enable_yaw_limit(
-                *this, yaw_upper.as_double(), yaw_lower.as_double());
-        }
+        two_axis_gimbal_solver.enable_yaw_limit(
+            *this, get_parameter("yaw_upper_limit").as_double(),
+            get_parameter("yaw_lower_limit").as_double());
     }
 
     void update() override {
         auto angle_error = calculate_angle_error();
         *yaw_angle_error_ = angle_error.yaw_angle_error;
-        
         *pitch_angle_error_ = angle_error.pitch_angle_error;
     }
 

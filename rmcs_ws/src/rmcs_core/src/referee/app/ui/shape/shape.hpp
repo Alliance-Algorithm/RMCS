@@ -192,8 +192,6 @@ protected:
         enter_run_queue();
     }
 
-    void set_text_shape() { is_text_shape_ = true; }
-
     virtual size_t write_description_field(std::byte* buffer) = 0;
 
     DescriptionField::Part2 part2_ alignas(4);

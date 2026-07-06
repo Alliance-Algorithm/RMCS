@@ -19,9 +19,11 @@ public:
     static constexpr uint8_t kUiModeEngineer = 2;
 
     Flight()
-        : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
+        : Node{
+              get_component_name(),
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , crosshair_circle_(Shape::Color::WHITE, x_center - 2, y_center - 30, 8, 2)
-        , status_ring_(26.5, 26.5, 600, 300, StatusRing::DynamicArcsVisibility{false, false})
+        , status_ring_(26.5, 26.5, 600, 300, false, false)
         , horizontal_center_guidelines_(
               {Shape::Color::WHITE, 2, x_center - 360, y_center, x_center - 110, y_center},
               {Shape::Color::WHITE, 2, x_center + 110, y_center, x_center + 360, y_center})
@@ -61,16 +63,10 @@ private:
         auto mode_value = auto_aim_mode_.ready() ? *auto_aim_mode_ : kUiModeCombat;
 
         switch (mode_value) {
-        case kUiModeOutpostOnly:
-            mode_indicator_.set_color(Shape::Color::GREEN);
-            break;
-        case kUiModeEngineer:
-            mode_indicator_.set_color(Shape::Color::PINK);
-            break;
+        case kUiModeOutpostOnly: mode_indicator_.set_color(Shape::Color::GREEN); break;
+        case kUiModeEngineer: mode_indicator_.set_color(Shape::Color::PINK); break;
         case kUiModeCombat:
-        default:
-            mode_indicator_.set_color(Shape::Color::YELLOW);
-            break;
+        default: mode_indicator_.set_color(Shape::Color::YELLOW); break;
         }
     }
 

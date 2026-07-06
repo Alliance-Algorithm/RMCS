@@ -249,7 +249,7 @@ private:
             motor.store_status(data.can_data);
         } else if (can_id == 0x202) {
             auto& motor = chassis_wheel_motors_[1];
-            motor.store_status(data.can_data); 
+            motor.store_status(data.can_data);
         } else if (can_id == 0x203) {
             auto& motor = chassis_wheel_motors_[2];
             motor.store_status(data.can_data);

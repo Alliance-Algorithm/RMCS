@@ -21,7 +21,9 @@ class Status
     , public rclcpp::Node {
 public:
     Status()
-        : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
+        : Node{
+              get_component_name(),
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , logger_(get_logger()) {
         register_input("/referee/serial", serial_);
 
@@ -282,7 +284,8 @@ private:
         *map_command_received_timestamp_ =
             std::chrono::duration<double>(now.time_since_epoch()).count();
 
-        if (has_last_map_command_ && std::memcmp(&last_map_command_, &data, sizeof(data)) == 0) {
+        if (has_last_map_command_
+            && std::memcmp(&last_map_command_, &data, sizeof(data)) == 0) { // NOLINT
             return;
         }
 
