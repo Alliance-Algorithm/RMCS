@@ -23,7 +23,9 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , following_velocity_controller_(7.0, 0.0, 0.0) {
+        , following_velocity_controller_(7.0, 0.0, 0.0)
+        , yaw_left_limit_(get_parameter("yaw_left_limit").as_double())
+        , yaw_right_limit_(get_parameter("yaw_right_limit").as_double()) {
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
         register_input("/remote/switch/right", switch_right_);
@@ -101,7 +103,8 @@ public:
             } else {
                 yaw_target_angle_ += joystick_right_->y() * 0.002;
             }
-            angular_velocity = 0.0;
+            yaw_target_angle_ = std::clamp(yaw_target_angle_, yaw_left_limit_, yaw_right_limit_);
+            angular_velocity  = 0.0;
 
             break;
         }
@@ -119,11 +122,12 @@ public:
                 }
             }
             chassis_control_velocity_->vector << (move * *speed_limit_), angular_velocity;
-            expected_chassis_control_velocity_->vector << ( rotation * (*joystick_left_) * *speed_limit_), angular_velocity;
+            expected_chassis_control_velocity_->vector
+                << (rotation * (*joystick_left_) * *speed_limit_),
+                angular_velocity;
         } else {
             chassis_control_velocity_->vector << NAN, NAN, NAN;
             expected_chassis_control_velocity_->vector << NAN, NAN, NAN;
-
         }
 
         *chassis_big_yaw_target_angle_error_ =
@@ -286,6 +290,8 @@ private:
     InputInterface<std::string> up_stairs_step_;
 
     double yaw_target_angle_ = NAN;
+    double yaw_left_limit_   = NAN;
+    double yaw_right_limit_  = NAN;
 };
 } // namespace rmcs_core::controller::chassis
 #include <pluginlib/class_list_macros.hpp>

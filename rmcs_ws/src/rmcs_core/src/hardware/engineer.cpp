@@ -39,9 +39,7 @@ class Engineer
     , public rclcpp::Node {
 public:
     Engineer()
-        : Node{
-              get_component_name(),
-              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
+        : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , logger_(get_logger())
         , engineer_command_(create_partner_component<EngineerCommand>("engineer_command", *this))
         , armboard_(*this, *engineer_command_, get_parameter("board_serial_arm_board").as_string())
@@ -85,9 +83,7 @@ private:
     };
     std::shared_ptr<EngineerCommand> engineer_command_;
 
-    class ArmBoard final
-        : private librmcs::agent::RmcsBoardLite
-        , rclcpp::Node {
+    class ArmBoard final : private librmcs::agent::RmcsBoardLite, rclcpp::Node {
     public:
         friend class Engineer;
         explicit ArmBoard(
@@ -315,9 +311,7 @@ private:
 
     } armboard_;
 
-    class LittleBoard final
-        : private librmcs::agent::RmcsBoardLite
-        , rclcpp::Node {
+    class LittleBoard final : private librmcs::agent::RmcsBoardLite, rclcpp::Node {
     public:
         friend class Engineer;
         explicit LittleBoard(
@@ -389,8 +383,10 @@ private:
                     .enable_multi_turn_angle()
                     .set_reduction_ratio(19.));
             big_yaw.configure(
-                device::DMMotorConfig{device::DMMotorType::DM8009}.set_encoder_zero_point(
-                    static_cast<int>(engineer.get_parameter("big_yaw_zero_point").as_int())));
+                device::DMMotorConfig{device::DMMotorType::DM8009}
+                    .set_encoder_zero_point(
+                        static_cast<int>(engineer.get_parameter("big_yaw_zero_point").as_int()))
+                    .enable_multi_turn_angle());
 
             engineer_command.register_input("/arm/enable_flag", is_arm_enable);
         }
