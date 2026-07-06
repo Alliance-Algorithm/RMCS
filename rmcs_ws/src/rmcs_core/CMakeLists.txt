@@ -8,7 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-packed-bitfield-compat")
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    add_compile_options(-O2 -Wall -Wextra -Wpedantic)
+  add_compile_options(-O2 -Wall -Wextra -Wpedantic)
 endif()
 
 find_package(ament_cmake_auto REQUIRED)
@@ -17,8 +17,8 @@ include(FetchContent)
 set(BUILD_STATIC_LIBRMCS ON CACHE BOOL "Build static librmcs SDK" FORCE)
 FetchContent_Declare(
   librmcs
-  URL https://github.com/Alliance-Algorithm/librmcs/releases/download/v3.2.0/librmcs-sdk-src-3.2.0.zip
-  URL_HASH SHA256=f81c3af7fbcf35727a8a7586200db8e9bf668ee0f448529de4bfd3eb7c36ed6f
+  URL https://github.com/Alliance-Algorithm/librmcs/releases/download/v3.3.0b1/librmcs-sdk-src-3.3.0-beta.1-debug.zip
+  URL_HASH SHA256=446d632b23b652dd309f35075ef90928dee89f42e8ec71417fa2439445e0b4ff
   DOWNLOAD_EXTRACT_TIMESTAMP TRUE
 )
 FetchContent_MakeAvailable(librmcs)
