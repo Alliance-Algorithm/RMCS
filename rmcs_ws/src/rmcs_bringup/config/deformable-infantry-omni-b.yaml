@@ -203,12 +203,10 @@ deformable_chassis_controller:
 
 lf_joint_controller:
   ros__parameters:
-    # Joint-local servo inputs produced by chassis intent generation
     measurement_angle: /chassis/left_front_joint/physical_angle
     setpoint_angle: /chassis/left_front_joint/target_physical_angle
     setpoint_velocity: /chassis/left_front_joint/target_physical_velocity
     control: /chassis/left_front_joint/control_torque
-
     dt: 0.001
     b0: -1.0
     kt: 1.0
@@ -225,9 +223,9 @@ lf_joint_controller:
     u_max: 200.0
     output_min: -200.0
     output_max: 200.0
+
 lb_joint_controller:
   ros__parameters:
-    # Same joint-servo layout as lf_joint_controller
     measurement_angle: /chassis/left_back_joint/physical_angle
     setpoint_angle: /chassis/left_back_joint/target_physical_angle
     setpoint_velocity: /chassis/left_back_joint/target_physical_velocity
@@ -248,9 +246,9 @@ lb_joint_controller:
     u_max: 200.0
     output_min: -200.0
     output_max: 200.0
+
 rb_joint_controller:
   ros__parameters:
-    # Same joint-servo layout as lf_joint_controller
     measurement_angle: /chassis/right_back_joint/physical_angle
     setpoint_angle: /chassis/right_back_joint/target_physical_angle
     setpoint_velocity: /chassis/right_back_joint/target_physical_velocity
@@ -271,9 +269,9 @@ rb_joint_controller:
     u_max: 200.0
     output_min: -200.0
     output_max: 200.0
+
 rf_joint_controller:
   ros__parameters:
-    # Same joint-servo layout as lf_joint_controller
     measurement_angle: /chassis/right_front_joint/physical_angle
     setpoint_angle: /chassis/right_front_joint/target_physical_angle
     setpoint_velocity: /chassis/right_front_joint/target_physical_velocity

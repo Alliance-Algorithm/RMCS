@@ -1,7 +1,9 @@
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 
+#include <fmt/format.h>
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/chassis_mode.hpp>
@@ -54,10 +56,11 @@ public:
         register_input("/chassis/control_power_limit", chassis_control_power_limit_);
         register_input("/chassis/supercap/charge_power_limit", supercap_charge_power_limit_);
 
-        register_input("/chassis/left_front_wheel/velocity", left_front_velocity_);
-        register_input("/chassis/left_back_wheel/velocity", left_back_velocity_);
-        register_input("/chassis/right_back_wheel/velocity", right_back_velocity_);
-        register_input("/chassis/right_front_wheel/velocity", right_front_velocity_);
+        for (size_t i = 0; i < 4; ++i) {
+            register_input(
+                fmt::format("/chassis/{}_wheel/velocity", kWheelName[i]),
+                wheel_velocity_[i]);
+        }
 
         register_input("/referee/shooter/bullet_allowance", robot_bullet_allowance_);
 
@@ -144,8 +147,11 @@ private:
     InputInterface<double> chassis_control_power_limit_;
     InputInterface<double> supercap_charge_power_limit_;
 
-    InputInterface<double> left_front_velocity_, left_back_velocity_, right_back_velocity_,
-        right_front_velocity_;
+    static constexpr const char* kWheelName[] = {
+        "left_front", "left_back", "right_back", "right_front",
+    };
+
+    std::array<InputInterface<double>, 4> wheel_velocity_;
 
     InputInterface<uint16_t> robot_bullet_allowance_;
 

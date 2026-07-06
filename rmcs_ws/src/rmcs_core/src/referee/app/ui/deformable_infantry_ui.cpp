@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <numbers>
 
+#include <fmt/format.h>
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/chassis_mode.hpp>
@@ -62,19 +63,17 @@ public:
 
         register_input("/chassis/voltage", chassis_voltage_);
 
-        register_input("/chassis/left_front_wheel/velocity", left_front_velocity_);
-        register_input("/chassis/left_back_wheel/velocity", left_back_velocity_);
-        register_input("/chassis/right_back_wheel/velocity", right_back_velocity_);
-        register_input("/chassis/right_front_wheel/velocity", right_front_velocity_);
+        for (size_t i = 0; i < 4; ++i) {
+            register_input(
+                fmt::format("/chassis/{}_wheel/velocity", kWheelName[i]),
+                wheel_velocity_[i]);
+        }
 
-        register_input(
-            "/chassis/left_front_joint/physical_angle", left_front_joint_physical_angle_, false);
-        register_input(
-            "/chassis/left_back_joint/physical_angle", left_back_joint_physical_angle_, false);
-        register_input(
-            "/chassis/right_back_joint/physical_angle", right_back_joint_physical_angle_, false);
-        register_input(
-            "/chassis/right_front_joint/physical_angle", right_front_joint_physical_angle_, false);
+        for (size_t i = 0; i < 4; ++i) {
+            register_input(
+                fmt::format("/chassis/{}_joint/physical_angle", kWheelName[i]),
+                joint_physical_angle_[i], false);
+        }
 
         register_input("/referee/shooter/bullet_allowance", robot_bullet_allowance_);
 
@@ -153,19 +152,16 @@ private:
     }
 
     void update_deformable_chassis_leg_arcs() {
-        if (!left_front_joint_physical_angle_.ready() || !left_back_joint_physical_angle_.ready()
-            || !right_back_joint_physical_angle_.ready()
-            || !right_front_joint_physical_angle_.ready()) {
+        if (!std::all_of(
+                joint_physical_angle_.begin(), joint_physical_angle_.end(),
+                [](const auto& j) { return j.ready(); })) {
             deformable_chassis_leg_arcs_.set_visible(false);
             return;
         }
 
-        const std::array<double, 4> leg_angles = {
-            *left_front_joint_physical_angle_,
-            *left_back_joint_physical_angle_,
-            *right_back_joint_physical_angle_,
-            *right_front_joint_physical_angle_,
-        };
+        std::array<double, 4> leg_angles;
+        for (size_t i = 0; i < 4; ++i)
+            leg_angles[i] = *joint_physical_angle_[i];
         deformable_chassis_leg_arcs_.update(
             *chassis_angle_, leg_angles, active_suspension_active_.ready() && *active_suspension_active_);
     }
@@ -199,10 +195,12 @@ private:
 
     InputInterface<double> chassis_voltage_;
 
-    InputInterface<double> left_front_velocity_, left_back_velocity_, right_back_velocity_,
-        right_front_velocity_;
-    InputInterface<double> left_front_joint_physical_angle_, left_back_joint_physical_angle_,
-        right_back_joint_physical_angle_, right_front_joint_physical_angle_;
+    static constexpr const char* kWheelName[] = {
+        "left_front", "left_back", "right_back", "right_front",
+    };
+
+    std::array<InputInterface<double>, 4> wheel_velocity_;
+    std::array<InputInterface<double>, 4> joint_physical_angle_;
 
     InputInterface<uint16_t> robot_bullet_allowance_;
 

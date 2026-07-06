@@ -8,6 +8,7 @@
 #include "hardware/device/vt13.hpp"
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <cstddef>
@@ -21,6 +22,7 @@
 #include <tuple>
 
 #include <eigen3/Eigen/Geometry>
+#include <fmt/format.h>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <std_srvs/srv/trigger.hpp>
@@ -82,6 +84,9 @@ public:
 
 private:
     static constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
+    static constexpr const char* kJointName[] = {
+        "left_front", "left_back", "right_back", "right_front",
+    };
 
     class Command : public rmcs_executor::Component {
     public:
@@ -147,27 +152,14 @@ private:
             status.register_output("/chassis/imu/roll", chassis_imu_roll_, 0.0);
             status.register_output("/chassis/imu/pitch_rate", chassis_imu_pitch_rate_, 0.0);
             status.register_output("/chassis/imu/roll_rate", chassis_imu_roll_rate_, 0.0);
-            status.register_output(
-                "/chassis/left_front_joint/physical_angle", left_front_joint_physical_angle_, kNaN);
-            status.register_output(
-                "/chassis/left_back_joint/physical_angle", left_back_joint_physical_angle_, kNaN);
-            status.register_output(
-                "/chassis/right_back_joint/physical_angle", right_back_joint_physical_angle_, kNaN);
-            status.register_output(
-                "/chassis/right_front_joint/physical_angle", right_front_joint_physical_angle_,
-                kNaN);
-            status.register_output(
-                "/chassis/left_front_joint/physical_velocity", left_front_joint_physical_velocity_,
-                kNaN);
-            status.register_output(
-                "/chassis/left_back_joint/physical_velocity", left_back_joint_physical_velocity_,
-                kNaN);
-            status.register_output(
-                "/chassis/right_back_joint/physical_velocity", right_back_joint_physical_velocity_,
-                kNaN);
-            status.register_output(
-                "/chassis/right_front_joint/physical_velocity",
-                right_front_joint_physical_velocity_, kNaN);
+            for (size_t i = 0; i < 4; ++i) {
+                status.register_output(
+                    fmt::format("/chassis/{}_joint/physical_angle", DeformableInfantryOmni::kJointName[i]),
+                    joint_physical_angle_[i], kNaN);
+                status.register_output(
+                    fmt::format("/chassis/{}_joint/physical_velocity", DeformableInfantryOmni::kJointName[i]),
+                    joint_physical_velocity_[i], kNaN);
+            }
             status.register_output("/chassis/encoder/alpha", encoder_alpha_, kNaN);
             status.register_output("/chassis/encoder/alpha_dot", encoder_alpha_dot_, kNaN);
             status.register_output("/chassis/radius", radius_, default_radius_);
@@ -209,14 +201,10 @@ private:
             for (auto& motor : chassis_joint_motors_)
                 motor.update_status();
 
-            update_joint_physical_feedback_(
-                0, left_front_joint_physical_angle_, left_front_joint_physical_velocity_);
-            update_joint_physical_feedback_(
-                1, left_back_joint_physical_angle_, left_back_joint_physical_velocity_);
-            update_joint_physical_feedback_(
-                2, right_back_joint_physical_angle_, right_back_joint_physical_velocity_);
-            update_joint_physical_feedback_(
-                3, right_front_joint_physical_angle_, right_front_joint_physical_velocity_);
+            for (size_t i = 0; i < 4; ++i)
+                update_joint_physical_feedback_(
+                    i, joint_physical_angle_[i],
+                    joint_physical_velocity_[i]);
 
             update_geometry_feedback_();
             if (debug_log_wheel_motor_ || debug_log_deformable_joint_motor_)
@@ -297,22 +285,42 @@ private:
                             .as_bytes(),
                 });
             } else {
-                builder.can0_transmit({
-                    .can_id = 0x141,
-                    .can_data = chassis_joint_motors_[0].generate_command().as_bytes(),
-                });
-                builder.can1_transmit({
-                    .can_id = 0x141,
-                    .can_data = chassis_joint_motors_[1].generate_command().as_bytes(),
-                });
-                builder.can2_transmit({
-                    .can_id = 0x141,
-                    .can_data = chassis_joint_motors_[2].generate_command().as_bytes(),
-                });
-                builder.can3_transmit({
-                    .can_id = 0x141,
-                    .can_data = chassis_joint_motors_[3].generate_command().as_bytes(),
-                });
+                for (size_t i = 0; i < 4; ++i) {
+                    switch (i) {
+                    case 0:
+                        builder.can0_transmit({
+                            .can_id = 0x141,
+                            .can_data =
+                                chassis_joint_motors_[i].generate_command()
+                                    .as_bytes(),
+                        });
+                        break;
+                    case 1:
+                        builder.can1_transmit({
+                            .can_id = 0x141,
+                            .can_data =
+                                chassis_joint_motors_[i].generate_command()
+                                    .as_bytes(),
+                        });
+                        break;
+                    case 2:
+                        builder.can2_transmit({
+                            .can_id = 0x141,
+                            .can_data =
+                                chassis_joint_motors_[i].generate_command()
+                                    .as_bytes(),
+                        });
+                        break;
+                    case 3:
+                        builder.can3_transmit({
+                            .can_id = 0x141,
+                            .can_data =
+                                chassis_joint_motors_[i].generate_command()
+                                    .as_bytes(),
+                        });
+                        break;
+                    }
+                }
             }
         }
 
@@ -361,14 +369,8 @@ private:
         OutputInterface<double> chassis_imu_roll_;
         OutputInterface<double> chassis_imu_pitch_rate_;
         OutputInterface<double> chassis_imu_roll_rate_;
-        OutputInterface<double> left_front_joint_physical_angle_;
-        OutputInterface<double> left_back_joint_physical_angle_;
-        OutputInterface<double> right_back_joint_physical_angle_;
-        OutputInterface<double> right_front_joint_physical_angle_;
-        OutputInterface<double> left_front_joint_physical_velocity_;
-        OutputInterface<double> left_back_joint_physical_velocity_;
-        OutputInterface<double> right_back_joint_physical_velocity_;
-        OutputInterface<double> right_front_joint_physical_velocity_;
+        std::array<OutputInterface<double>, 4> joint_physical_angle_;
+        std::array<OutputInterface<double>, 4> joint_physical_velocity_;
         OutputInterface<double> encoder_alpha_;
         OutputInterface<double> encoder_alpha_dot_;
         OutputInterface<double> radius_;
@@ -397,11 +399,11 @@ private:
 
         void update_geometry_feedback_() {
             const Eigen::Vector4d alpha_rad{
-                *left_front_joint_physical_angle_, *left_back_joint_physical_angle_,
-                *right_back_joint_physical_angle_, *right_front_joint_physical_angle_};
+                *joint_physical_angle_[0], *joint_physical_angle_[1],
+                *joint_physical_angle_[2], *joint_physical_angle_[3]};
             const Eigen::Vector4d alpha_dot_rad{
-                *left_front_joint_physical_velocity_, *left_back_joint_physical_velocity_,
-                *right_back_joint_physical_velocity_, *right_front_joint_physical_velocity_};
+                *joint_physical_velocity_[0], *joint_physical_velocity_[1],
+                *joint_physical_velocity_[2], *joint_physical_velocity_[3]};
 
             if (!alpha_rad.array().isFinite().all() || !alpha_dot_rad.array().isFinite().all()) {
                 *encoder_alpha_ = kNaN;
@@ -432,29 +434,39 @@ private:
             };
 
             if (debug_log_wheel_motor_) {
+                std::string wheel_rx_str;
+                for (size_t i = 0; i < 4; ++i)
+                    fmt::format_to(
+                        std::back_inserter(wheel_rx_str), "{}%c",
+                        i > 0 ? " " : "", wheel_rx(i));
                 RCLCPP_INFO(
                     status_.get_logger(),
                     "[wheel motor] angle(rad) lf=% .3f lb=% .3f rb=% .3f rf=% .3f | "
                     "encoder(deg) lf=% .1f lb=% .1f rb=% .1f rf=% .1f | "
-                    "rx=[%c %c %c %c]",
+                    "rx=[%s]",
                     chassis_wheel_motors_[0].angle(), chassis_wheel_motors_[1].angle(),
                     chassis_wheel_motors_[2].angle(), chassis_wheel_motors_[3].angle(),
                     chassis_wheel_motors_[0].angle(), chassis_wheel_motors_[1].angle(),
-                    chassis_wheel_motors_[2].angle(), chassis_wheel_motors_[3].angle(), wheel_rx(0),
-                    wheel_rx(1), wheel_rx(2), wheel_rx(3));
+                    chassis_wheel_motors_[2].angle(), chassis_wheel_motors_[3].angle(),
+                    wheel_rx_str.c_str());
             }
 
             if (debug_log_deformable_joint_motor_) {
+                std::string joint_rx_str;
+                for (size_t i = 0; i < 4; ++i)
+                    fmt::format_to(
+                        std::back_inserter(joint_rx_str), "{}%c",
+                        i > 0 ? " " : "", joint_rx(i));
                 RCLCPP_INFO(
                     status_.get_logger(),
                     "[deformable joint motor] angle(rad) lf=% .3f lb=% .3f rb=% .3f rf=% .3f | "
                     "velocity(rad/s) lf=% .3f lb=% .3f rb=% .3f rf=% .3f | "
-                    "rx=[%c %c %c %c]",
-                    *left_front_joint_physical_angle_, *left_back_joint_physical_angle_,
-                    *right_back_joint_physical_angle_, *right_front_joint_physical_angle_,
-                    *left_front_joint_physical_velocity_, *left_back_joint_physical_velocity_,
-                    *right_back_joint_physical_velocity_, *right_front_joint_physical_velocity_,
-                    joint_rx(0), joint_rx(1), joint_rx(2), joint_rx(3));
+                    "rx=[%s]",
+                    *joint_physical_angle_[0], *joint_physical_angle_[1],
+                    *joint_physical_angle_[2], *joint_physical_angle_[3],
+                    *joint_physical_velocity_[0], *joint_physical_velocity_[1],
+                    *joint_physical_velocity_[2], *joint_physical_velocity_[3],
+                    joint_rx_str.c_str());
             }
 
             next_chassis_feedback_log_time_ = now + std::chrono::seconds(1);
@@ -494,28 +506,27 @@ private:
             dr16_.store_status(data.uart_data);
         }
 
-        void can0_receive_callback(const librmcs::data::CanDataView& data) override {
+        void process_chassis_can_receive_(
+            size_t index, const librmcs::data::CanDataView& data) {
             if (data.is_extended_can_id || data.is_remote_transmission)
                 return;
             if (data.can_id == 0x201) {
-                chassis_wheel_motors_[0].store_status(data.can_data);
-                wheel_status_received_[0].store(true, std::memory_order_relaxed);
+                chassis_wheel_motors_[index].store_status(data.can_data);
+                wheel_status_received_[index].store(true, std::memory_order_relaxed);
             } else if (data.can_id == 0x141) {
-                chassis_joint_motors_[0].store_status(data.can_data);
-                joint_status_received_[0].store(true, std::memory_order_relaxed);
+                chassis_joint_motors_[index].store_status(data.can_data);
+                joint_status_received_[index].store(true, std::memory_order_relaxed);
             }
         }
 
+        void can0_receive_callback(const librmcs::data::CanDataView& data) override {
+            process_chassis_can_receive_(0, data);
+        }
+
         void can1_receive_callback(const librmcs::data::CanDataView& data) override {
-            if (data.is_extended_can_id || data.is_remote_transmission)
-                return;
-            if (data.can_id == 0x201) {
-                chassis_wheel_motors_[1].store_status(data.can_data);
-                wheel_status_received_[1].store(true, std::memory_order_relaxed);
-            } else if (data.can_id == 0x141) {
-                chassis_joint_motors_[1].store_status(data.can_data);
-                joint_status_received_[1].store(true, std::memory_order_relaxed);
-            } else if (data.can_id == 0x300) {
+            process_chassis_can_receive_(1, data);
+            if (!data.is_extended_can_id && !data.is_remote_transmission
+                && data.can_id == 0x300) {
                 if (data.can_data.size() == 8)
                     latest_supercap_status_.store(
                         device::CanPacket8{data.can_data}, std::memory_order_relaxed);
@@ -525,31 +536,17 @@ private:
         }
 
         void can2_receive_callback(const librmcs::data::CanDataView& data) override {
+            process_chassis_can_receive_(2, data);
             if (data.is_extended_can_id || data.is_remote_transmission)
                 return;
-            if (data.can_id == 0x201) {
-                chassis_wheel_motors_[2].store_status(data.can_data);
-                wheel_status_received_[2].store(true, std::memory_order_relaxed);
-            } else if (data.can_id == 0x141) {
-                chassis_joint_motors_[2].store_status(data.can_data);
-                joint_status_received_[2].store(true, std::memory_order_relaxed);
-            } else if (data.can_id == 0x142) {
+            if (data.can_id == 0x142)
                 gimbal_yaw_motor_.store_status(data.can_data);
-            } else if (data.can_id == 0x203) {
+            else if (data.can_id == 0x203)
                 gimbal_bullet_feeder_.store_status(data.can_data);
-            }
         }
 
         void can3_receive_callback(const librmcs::data::CanDataView& data) override {
-            if (data.is_extended_can_id || data.is_remote_transmission)
-                return;
-            if (data.can_id == 0x201) {
-                chassis_wheel_motors_[3].store_status(data.can_data);
-                wheel_status_received_[3].store(true, std::memory_order_relaxed);
-            } else if (data.can_id == 0x141) {
-                chassis_joint_motors_[3].store_status(data.can_data);
-                joint_status_received_[3].store(true, std::memory_order_relaxed);
-            }
+            process_chassis_can_receive_(3, data);
         }
 
         void uart0_receive_callback(const librmcs::data::UartDataView& data) override {
