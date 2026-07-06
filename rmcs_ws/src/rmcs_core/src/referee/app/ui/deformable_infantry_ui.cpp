@@ -54,6 +54,7 @@ public:
 
         register_input("/predefined/timestamp", timestamp_);
         register_input("/chassis/control_mode", chassis_mode_);
+        register_input("/chassis/active_suspension/active", active_suspension_active_);
 
         register_input("/chassis/angle", chassis_angle_);
         register_input("/chassis/supercap/voltage", supercap_voltage_);
@@ -165,7 +166,8 @@ private:
             *right_back_joint_physical_angle_,
             *right_front_joint_physical_angle_,
         };
-        deformable_chassis_leg_arcs_.update(*chassis_angle_, leg_angles);
+        deformable_chassis_leg_arcs_.update(
+            *chassis_angle_, leg_angles, active_suspension_active_.ready() && *active_suspension_active_);
     }
 
     static constexpr uint16_t screen_width = 1920, screen_height = 1080;
@@ -189,6 +191,7 @@ private:
 
     InputInterface<std::chrono::steady_clock::time_point> timestamp_;
     InputInterface<rmcs_msgs::ChassisMode> chassis_mode_;
+    InputInterface<bool> active_suspension_active_;
     InputInterface<double> chassis_angle_;
 
     InputInterface<double> supercap_voltage_;

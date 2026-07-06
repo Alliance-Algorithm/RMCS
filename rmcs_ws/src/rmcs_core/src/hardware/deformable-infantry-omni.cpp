@@ -124,9 +124,8 @@ private:
             for (auto& motor : chassis_wheel_motors_)
                 motor.configure(
                     device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
-                        .set_reduction_ratio(13.0)
-                        .enable_multi_turn_angle()
-                        .set_reversed());
+                        .set_reduction_ratio(19.0)
+                        .enable_multi_turn_angle());
 
             for (auto& motor : chassis_joint_motors_)
                 motor.configure(

@@ -57,7 +57,6 @@ chassis_controller:
     # Deploy geometry / chassis-owned joint intent
     min_angle: 12.0
     max_angle: 50.0
-    launch_ramp_shortcut_enabled: false
     active_suspension_enable: true
     spin_ratio: 1.0
 
@@ -143,8 +142,6 @@ friction_wheel_controller:
     friction_velocities:
       - 580.0
       - 580.0
-    friction_velocity_min: 550.0
-    friction_velocity_max: 600.0
     friction_soft_start_stop_time: 1.0
 
 heat_controller:

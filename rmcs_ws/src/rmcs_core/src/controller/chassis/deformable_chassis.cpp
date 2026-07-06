@@ -40,10 +40,15 @@ public:
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , following_velocity_controller_(10.0, 0.0, 0.0)
         , spin_ratio_(std::clamp(get_parameter_or("spin_ratio", 0.6), 0.0, 1.0))
-        , launch_ramp_shortcut_enabled_(get_parameter_or("launch_ramp_shortcut_enabled", true))
 
         , min_angle_(get_parameter_or("min_angle", 7.0))
         , max_angle_(get_parameter_or("max_angle", 58.0))
+        , active_suspension_base_angle_deg_(std::clamp(
+              get_parameter_or("active_suspension_base_angle", max_angle_), min_angle_ - 5.0,
+              max_angle_))
+        , active_suspension_base_angle_scroll_step_deg_(std::max(
+              std::abs(get_parameter_or("active_suspension_base_angle_scroll_step_deg", 5.0)),
+              0.0))
         , target_physical_velocity_limit_(
               std::max(
                   deg_to_rad(std::abs(get_parameter_or("target_physical_velocity_limit", 180.0))),
@@ -102,6 +107,7 @@ public:
         register_input("/remote/switch/right", switch_right_);
         register_input("/remote/switch/left", switch_left_);
         register_input("/remote/keyboard", keyboard_);
+        register_input("/remote/mouse/mouse_wheel", mouse_wheel_);
         register_input("/remote/rotary_knob", rotary_knob_);
         register_input("/predefined/update_rate", update_rate_);
 
@@ -130,6 +136,7 @@ public:
         register_output("/chassis/control_mode", mode_);
         register_output("/chassis/control_velocity", chassis_control_velocity_);
         register_output("/chassis/ctrl_hold_active", ctrl_hold_active_, false);
+        register_output("/chassis/active_suspension/active", active_suspension_active_, false);
 
         register_output("/chassis/left_front_joint/control_angle_error", lf_angle_error_, nan_);
         register_output("/chassis/left_back_joint/control_angle_error", lb_angle_error_, nan_);
@@ -222,10 +229,12 @@ public:
             }
 
             update_mode_from_inputs_(switch_left, switch_right, keyboard);
-            update_suspension_toggle_from_inputs_(switch_left, switch_right);
+            update_suspension_toggle_from_inputs_(switch_left, switch_right, keyboard);
             *ctrl_hold_active_ = ctrl_hold_requested_by_input_();
+            *active_suspension_active_ = suspension_requested_by_input_();
             update_velocity_control();
             update_lift_target_toggle(keyboard);
+            update_active_suspension_base_angle_from_mouse_wheel_();
             run_joint_intent_pipeline_();
         } while (false);
 
@@ -275,7 +284,6 @@ private:
         const bool last_c_pressed = last_keyboard_.c;
         const bool qe_combo_pressed = q_pressed && e_pressed;
         const bool last_qe_combo_pressed = last_q_pressed && last_e_pressed;
-        const bool e_rising = !last_e_pressed && e_pressed;
         const bool c_rising = !last_c_pressed && keyboard.c;
         const bool qe_combo_rising = !last_qe_combo_pressed && qe_combo_pressed;
         if (switch_left == rmcs_msgs::Switch::DOWN) {
@@ -297,14 +305,6 @@ private:
         } else if (qe_combo_rising) {
             deactivate_complex_spin_();
             activate_qe_complex_spin_(mode);
-        } else if (e_rising && !q_pressed) {
-            if (complex_spin_active_) {
-                deactivate_complex_spin_();
-                if (mode == rmcs_msgs::ChassisMode::SPIN)
-                    mode = rmcs_msgs::ChassisMode::AUTO;
-            } else {
-                activate_complex_spin_(mode);
-            }
         } else if (last_switch_right_ == rmcs_msgs::Switch::MIDDLE
             && switch_right == rmcs_msgs::Switch::DOWN) {
             deactivate_complex_spin_();
@@ -324,12 +324,6 @@ private:
                 mode = rmcs_msgs::ChassisMode::SPIN;
                 spinning_forward_ = !spinning_forward_;
             }
-        } else if (launch_ramp_shortcut_enabled_ && !last_keyboard_.x && keyboard.x) {
-            deactivate_complex_spin_();
-            deactivate_qe_complex_spin_();
-            mode = mode == rmcs_msgs::ChassisMode::LAUNCH_RAMP
-                     ? rmcs_msgs::ChassisMode::AUTO
-                     : rmcs_msgs::ChassisMode::LAUNCH_RAMP;
         } else if (!last_keyboard_.z && keyboard.z) {
             deactivate_complex_spin_();
             deactivate_qe_complex_spin_();
@@ -434,7 +428,9 @@ private:
         return current_physical_angles;
     }
 
-    bool prone_override_requested_by_keyboard() const { return keyboard_.ready() && keyboard_->ctrl; }
+    bool suspension_toggle_requested_by_keyboard_(const rmcs_msgs::Keyboard& keyboard) const {
+        return !last_keyboard_.e && keyboard.e && !keyboard.q;
+    }
 
     bool suspension_toggle_requested_by_switch_(
         rmcs_msgs::Switch switch_left, rmcs_msgs::Switch switch_right) const {
@@ -443,14 +439,27 @@ private:
     }
 
     void update_suspension_toggle_from_inputs_(
-        rmcs_msgs::Switch switch_left, rmcs_msgs::Switch switch_right) {
+        rmcs_msgs::Switch switch_left, rmcs_msgs::Switch switch_right,
+        const rmcs_msgs::Keyboard& keyboard) {
         if (suspension_toggle_requested_by_switch_(switch_left, switch_right)) {
-            suspension_on_by_switch = !suspension_on_by_switch;
+            active_suspension_on_by_remote_ = !active_suspension_on_by_remote_;
+        }
+        if (suspension_toggle_requested_by_keyboard_(keyboard)) {
+            active_suspension_on_by_keyboard_ = !active_suspension_on_by_keyboard_;
         }
     }
 
+    bool prone_override_requested_by_keyboard() const {
+        return keyboard_.ready() && keyboard_->ctrl;
+    }
+
     bool ctrl_hold_requested_by_input_() const {
-        return prone_override_requested_by_keyboard() || suspension_on_by_switch;
+        return prone_override_requested_by_keyboard() || active_suspension_on_by_remote_
+            || active_suspension_on_by_keyboard_;
+    }
+
+    bool low_prone_override_active_() const {
+        return prone_override_requested_by_keyboard();
     }
 
     bool suspension_requested_by_input_() const {
@@ -566,8 +575,33 @@ private:
             });
     }
 
+    double active_suspension_min_angle_deg_() const { return min_angle_ - 5.0; }
+
     double active_suspension_min_angle_rad_() const {
-        return deg_to_rad(min_angle_ - 5.0);
+        return deg_to_rad(active_suspension_min_angle_deg_());
+    }
+
+    double active_suspension_base_angle_rad_() const {
+        return deg_to_rad(active_suspension_base_angle_deg_);
+    }
+
+    bool active_suspension_correction_inverted_() const {
+        const double midpoint = (active_suspension_min_angle_deg_() + max_angle_) / 2.0;
+        return active_suspension_base_angle_deg_ > midpoint;
+    }
+
+    void update_active_suspension_base_angle_from_mouse_wheel_() {
+        if (!suspension_requested_by_input_() || low_prone_override_active_() || !mouse_wheel_.ready())
+            return;
+
+        const double mouse_wheel = *mouse_wheel_;
+        if (!std::isfinite(mouse_wheel) || std::abs(mouse_wheel) <= 1e-9)
+            return;
+
+        active_suspension_base_angle_deg_ = std::clamp(
+            active_suspension_base_angle_deg_
+                - mouse_wheel * active_suspension_base_angle_scroll_step_deg_,
+            active_suspension_min_angle_deg_(), max_angle_);
     }
 
     void update_active_suspension_() {
@@ -593,18 +627,29 @@ private:
             return;
         }
 
-        // Positive pitch_angle_diff raises the rear pair. Positive roll_angle_diff raises the left
-        // pair. Every leg starts from the active-suspension minimum and only receives additive
-        // corrections so at least one leg always stays at that minimum.
-        const double front_pitch_add = std::max(-pitch_angle_diff, 0.0);
-        const double back_pitch_add = std::max(pitch_angle_diff, 0.0);
-        const double left_roll_add = std::max(roll_angle_diff, 0.0);
-        const double right_roll_add = std::max(-roll_angle_diff, 0.0);
+        if (active_suspension_correction_inverted_()) {
+            const double front_pitch_drop = std::max(pitch_angle_diff, 0.0);
+            const double back_pitch_drop = std::max(-pitch_angle_diff, 0.0);
+            const double left_roll_drop = std::max(-roll_angle_diff, 0.0);
+            const double right_roll_drop = std::max(roll_angle_diff, 0.0);
 
-        suspension_correction_target_rad_[kLeftFront] = front_pitch_add + left_roll_add;
-        suspension_correction_target_rad_[kLeftBack] = back_pitch_add + left_roll_add;
-        suspension_correction_target_rad_[kRightBack] = back_pitch_add + right_roll_add;
-        suspension_correction_target_rad_[kRightFront] = front_pitch_add + right_roll_add;
+            suspension_correction_target_rad_[kLeftFront] =
+                -(front_pitch_drop + left_roll_drop);
+            suspension_correction_target_rad_[kLeftBack] = -(back_pitch_drop + left_roll_drop);
+            suspension_correction_target_rad_[kRightBack] = -(back_pitch_drop + right_roll_drop);
+            suspension_correction_target_rad_[kRightFront] =
+                -(front_pitch_drop + right_roll_drop);
+        } else {
+            const double front_pitch_add = std::max(-pitch_angle_diff, 0.0);
+            const double back_pitch_add = std::max(pitch_angle_diff, 0.0);
+            const double left_roll_add = std::max(roll_angle_diff, 0.0);
+            const double right_roll_add = std::max(-roll_angle_diff, 0.0);
+
+            suspension_correction_target_rad_[kLeftFront] = front_pitch_add + left_roll_add;
+            suspension_correction_target_rad_[kLeftBack] = back_pitch_add + left_roll_add;
+            suspension_correction_target_rad_[kRightBack] = back_pitch_add + right_roll_add;
+            suspension_correction_target_rad_[kRightFront] = front_pitch_add + right_roll_add;
+        }
 
         joint_suspension_active_.fill(true);
     }
@@ -617,12 +662,14 @@ private:
                 suspension_correction_target_rad_[i] = 0.0;
             }
 
-            const double base_angle = std::isfinite(joint_target_physical_angle_state_rad_[i])
+        const double base_angle = std::isfinite(joint_target_physical_angle_state_rad_[i])
                                       ? joint_target_physical_angle_state_rad_[i]
-                                      : active_suspension_min_angle_rad_();
-            const double correction_max = std::max(max_target_angle - base_angle, 0.0);
+                                      : (low_prone_override_active_() ? active_suspension_min_angle_rad_()
+                                                                      : active_suspension_base_angle_rad_());
+            const double correction_min = active_suspension_min_angle_rad_() - base_angle;
+            const double correction_max = max_target_angle - base_angle;
             const double target = std::clamp(
-                suspension_correction_target_rad_[i], 0.0, correction_max);
+                suspension_correction_target_rad_[i], correction_min, correction_max);
 
             double& angle_state = suspension_correction_state_rad_[i];
             double& velocity_state = suspension_correction_velocity_state_rad_[i];
@@ -669,6 +716,7 @@ private:
         *chassis_control_angle_ = nan_;
 
         current_target_angle_ = max_angle_;
+        active_suspension_base_angle_deg_ = max_angle_;
         lf_current_target_angle_ = current_target_angle_;
         lb_current_target_angle_ = current_target_angle_;
         rb_current_target_angle_ = current_target_angle_;
@@ -679,7 +727,8 @@ private:
         joint_target_physical_velocity_state_rad_.fill(0.0);
         joint_target_physical_acceleration_state_rad_.fill(0.0);
         reset_active_suspension_correction_state_();
-        suspension_on_by_switch = false;
+        active_suspension_on_by_keyboard_ = false;
+        active_suspension_on_by_remote_ = false;
         deactivate_complex_spin_();
         deactivate_qe_complex_spin_();
 
@@ -756,16 +805,6 @@ private:
                     chassis_control_angle += 2 * std::numbers::pi;
                 err -= alignment;
             }
-
-            angular_velocity = following_velocity_controller_.update(err);
-        } break;
-
-        case rmcs_msgs::ChassisMode::LAUNCH_RAMP: {
-            double err = calculate_unsigned_chassis_angle_error(chassis_control_angle);
-
-            constexpr double alignment = 2 * std::numbers::pi;
-            if (err > alignment / 2)
-                err -= alignment;
 
             angular_velocity = following_velocity_controller_.update(err);
         } break;
@@ -859,7 +898,9 @@ private:
         current_target_physical_angles_rad_[kRightBack] = deg_to_rad(rb_current_target_angle_);
         current_target_physical_angles_rad_[kRightFront] = deg_to_rad(rf_current_target_angle_);
         if (suspension_requested) {
-            current_target_physical_angles_rad_.fill(active_suspension_min_angle_rad_());
+            current_target_physical_angles_rad_.fill(
+                low_prone_override_active_() ? active_suspension_min_angle_rad_()
+                                             : active_suspension_base_angle_rad_());
         }
 
         update_chassis_imu_calibration_();
@@ -1015,6 +1056,7 @@ private:
     InputInterface<rmcs_msgs::Switch> switch_right_;
     InputInterface<rmcs_msgs::Switch> switch_left_;
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
+    InputInterface<double> mouse_wheel_;
     InputInterface<double> rotary_knob_;
     InputInterface<double> update_rate_;
 
@@ -1030,6 +1072,7 @@ private:
     OutputInterface<rmcs_msgs::ChassisMode> mode_;
     OutputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;
     OutputInterface<bool> ctrl_hold_active_;
+    OutputInterface<bool> active_suspension_active_;
 
     bool spinning_forward_ = true;
     bool apply_symmetric_target = true;
@@ -1040,7 +1083,6 @@ private:
     double qe_last_toggle_elapsed_ = 0.0;
     pid::PidCalculator following_velocity_controller_;
     const double spin_ratio_;
-    const bool launch_ramp_shortcut_enabled_;
 
     InputInterface<double> left_front_joint_physical_angle_;
     InputInterface<double> left_back_joint_physical_angle_;
@@ -1073,6 +1115,8 @@ private:
 
     double min_angle_;
     double max_angle_;
+    double active_suspension_base_angle_deg_;
+    double active_suspension_base_angle_scroll_step_deg_;
 
     double current_target_angle_;
     double lf_current_target_angle_, lb_current_target_angle_, rb_current_target_angle_,
@@ -1090,7 +1134,8 @@ private:
     double target_physical_velocity_limit_;
     double target_physical_acceleration_limit_;
     bool active_suspension_enable_;
-    bool suspension_on_by_switch = false;
+    bool active_suspension_on_by_keyboard_ = false;
+    bool active_suspension_on_by_remote_ = false;
     double suspension_velocity_limit_;
     double suspension_acceleration_limit_;
     double suspension_correction_velocity_limit_;
