@@ -1,0 +1,125 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::hardware::CatapultDart -> dart_hardware
+      - rmcs_core::controller::dart::FourDOFController -> four_freedom_degree_controller
+      - rmcs_core::controller::dart::FourZAxisChassisController -> four_z_axis_chassis_controller
+      - rmcs_core::controller::dart::FourZAxisChassisStatus -> four_z_axis_chassis_status
+      
+      - rmcs_core::controller::pid::PidController -> yaw_velocity_pid
+      - rmcs_core::controller::pid::PidController -> chassis_left_front_velocity_pid
+      - rmcs_core::controller::pid::PidController -> chassis_right_front_velocity_pid
+      - rmcs_core::controller::pid::PidController -> chassis_left_back_velocity_pid
+      - rmcs_core::controller::pid::PidController -> chassis_right_back_velocity_pid
+
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+
+
+dart_hardware:
+  ros__parameters:
+    serial_filter: ""
+
+four_freedom_degree_controller:
+  ros__parameters:
+    height_sensitivity: 75.0
+    yaw_sensitivity: 100.0
+    pose_sensitivity: 0.000017
+
+four_z_axis_chassis_controller:
+  ros__parameters:
+    chassis_length: 1.0
+    chassis_width: 0.6
+    chassis_motor_max_velocity: 100.0
+    angle_kp: 12000.0
+    angle_ki: 2.5
+    angle_kd: 0.0
+    angle_pid_integral_limit: 75.0
+
+four_z_axis_chassis_status:
+  ros__parameters:
+    stall_velocity_threshold: 0.5
+    stall_torque_ratio_threshold: 0.6
+    stall_confirm_ticks: 300
+    stall_release_ticks: 50
+
+yaw_velocity_pid:
+  ros__parameters:
+    measurement: /dart/yaw_motor/velocity
+    setpoint: /dart/yaw_motor/control_velocity
+    control: /dart/yaw_motor/control_torque
+    kp: 0.006
+    ki: 0.00
+    kd: 0.00016
+
+chassis_left_front_velocity_pid:
+  ros__parameters:
+    measurement: /dart/chassis/front_left/velocity
+    setpoint: /dart/chassis/front_left/control_velocity
+    control: /dart/chassis/front_left/control_torque
+    kp: 0.0036
+    ki: 0.01
+    kd: 0.000
+    integral_min: -0.75
+    integral_max: 0.75
+    output_min: -1.0
+    output_max: 1.0
+
+chassis_right_front_velocity_pid:
+  ros__parameters:
+    measurement: /dart/chassis/front_right/velocity
+    setpoint: /dart/chassis/front_right/control_velocity
+    control: /dart/chassis/front_right/control_torque
+    kp: 0.0036
+    ki: 0.01
+    kd: 0.000
+    integral_min: -0.75
+    integral_max: 0.75
+    output_min: -1.0
+    output_max: 1.0
+
+chassis_left_back_velocity_pid:
+  ros__parameters:
+    measurement: /dart/chassis/back_left/velocity
+    setpoint: /dart/chassis/back_left/control_velocity
+    control: /dart/chassis/back_left/control_torque
+    kp: 0.0036
+    ki: 0.01
+    kd: 0.000
+    integral_min: -0.75
+    integral_max: 0.75
+    output_min: -1.0
+    output_max: 1.0
+
+chassis_right_back_velocity_pid:
+  ros__parameters:
+    measurement: /dart/chassis/back_right/velocity
+    setpoint: /dart/chassis/back_right/control_velocity
+    control: /dart/chassis/back_right/control_torque
+    kp: 0.0036
+    ki: 0.01
+    kd: 0.000
+    integral_min: -0.75
+    integral_max: 0.75
+    output_min: -1.0
+    output_max: 1.0
+
+value_broadcaster:
+  ros__parameters:
+    forward_list:
+      - /dart/chassis/front_left/control_torque
+      - /dart/chassis/front_right/control_torque
+      - /dart/chassis/back_left/control_torque
+      - /dart/chassis/back_right/control_torque
+      - /dart/chassis/front_left/velocity
+      - /dart/chassis/front_right/velocity
+      - /dart/chassis/back_left/velocity
+      - /dart/chassis/back_right/velocity
+      - /dart/chassis/front_left/control_velocity
+      - /dart/chassis/front_right/control_velocity
+      - /dart/chassis/back_left/control_velocity
+      - /dart/chassis/back_right/control_velocity
+      - /dart/chassis/height_control_velocity
+      - /dart/yaw/control_velocity
+      - /dart/chassis/imu/pitch_angle
+      - /dart/chassis/imu/roll_angle
