@@ -65,6 +65,13 @@ public:
         double update_rate;
         if (!get_parameter("update_rate", update_rate))
             throw std::runtime_error{"Unable to get parameter update_rate<double>"};
+        if (!std::isfinite(update_rate) || update_rate <= 0.0)
+            throw std::runtime_error{"Parameter update_rate must be finite and positive"};
+        const auto period =
+            std::chrono::nanoseconds(static_cast<long>(std::round(1'000'000'000.0 / update_rate)));
+        if (period.count() <= 0)
+            throw std::runtime_error{
+                "Parameter update_rate is too large to produce a valid period"};
         predefined_msg_provider_->set_update_rate(update_rate);
 
         std::string thread_config_spec;
@@ -73,8 +80,8 @@ public:
 
         enable_event_outputs();
 
-        thread_ = std::thread{[this, update_rate, thread_config = std::move(thread_config)]() {
-            thread_main(update_rate, thread_config);
+        thread_ = std::thread{[this, period, thread_config = std::move(thread_config)]() {
+            thread_main(period, thread_config);
         }};
     }
 
@@ -118,12 +125,11 @@ private:
         SteadyClock::duration duration_sum;
     };
 
-    void thread_main(double update_rate, const rmcs_utility::ThreadConfig& thread_config) {
+    void thread_main(
+        std::chrono::nanoseconds period, const rmcs_utility::ThreadConfig& thread_config) {
         if (const auto result = thread_config.apply_to_current_thread(); !result)
             RCLCPP_WARN(get_logger(), "%s", result.error().c_str());
 
-        const auto period =
-            std::chrono::nanoseconds(static_cast<long>(std::round(1'000'000'000.0 / update_rate)));
         auto next_iteration_time = SteadyClock::now();
         auto stats = ThreadStats{updating_order_.size(), next_iteration_time};
 

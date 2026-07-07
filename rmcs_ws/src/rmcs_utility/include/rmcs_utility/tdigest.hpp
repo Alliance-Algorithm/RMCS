@@ -44,6 +44,7 @@
 #include <limits>
 #include <stdexcept>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 namespace rmcs_utility {
@@ -169,8 +170,10 @@ public:
     }
 
     /**
-     * Insert and merge an existing t-digest. Assumes source t-digest
-     * is not receiving new data.
+     * Insert and merge an existing t-digest.
+     *
+     * Assumes `src` has already been flushed/merged and contains no pending
+     * buffered samples. This function only imports merged centroids from `src`.
      *
      * @param src
      *  source t-digest to copy values from
@@ -261,7 +264,10 @@ TDigest<Values, Weight>::TDigest(size_t size)
     , active(&one)
     , min_val(std::numeric_limits<Values>::max())
     , max_val(std::numeric_limits<Values>::lowest())
-    , run_forward(true) {}
+    , run_forward(true) {
+    if (size == 0)
+        throw std::invalid_argument("TDigest size must be positive.");
+}
 
 template <typename Values, typename Weight>
 TDigest<Values, Weight>::TDigest(const TDigest<Values, Weight>& other)
@@ -521,8 +527,7 @@ double TDigest<Values, Weight>::quantile(double p) const {
     if (last.weight > 1 && last_half_weight > 1.0 && total_weight - index <= last_half_weight) {
         return (
             max_val
-            - (total_weight - index - 1.0) / (last_half_weight - 1.0)
-                  * (max_val - last.mean));
+            - (total_weight - index - 1.0) / (last_half_weight - 1.0) * (max_val - last.mean));
     }
 
     double weight_so_far = first_half_weight;
@@ -618,8 +623,8 @@ double TDigest<Values, Weight>::cumulative_distribution(Values x) const {
 
     double weight_so_far = 0.0;
     double cdf = 0.0;
-    auto cdf_fn = [x, &weight_so_far, &cdf, total_weight](
-                      const centroid_t& left, const centroid_t& right) {
+    auto cdf_fn = [x, &weight_so_far, &cdf,
+                   total_weight](const centroid_t& left, const centroid_t& right) {
         assert(total_weight);
         if (left.mean <= x && x < right.mean) {
             // x is bracketed between left and right.
