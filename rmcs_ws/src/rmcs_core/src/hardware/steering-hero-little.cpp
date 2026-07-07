@@ -526,7 +526,6 @@ private:
             // , can2_receive_rate_counter_(logger_, "bottom/can2")
             // , can3_receive_rate_counter_(logger_, "bottom/can3")
             , imu_(1000, 0.2, 0.0)
-            , dr16_(steering_hero)
             , supercap_(steering_hero, steering_hero_command)
             , chassis_steering_motors_(
                   {steering_hero, steering_hero_command, "/chassis/left_front_steering"},
@@ -813,7 +812,7 @@ private:
         }
 
         void dbus_receive_callback(const librmcs::data::UartDataView& data) override {
-            dr16_.store_status(data.uart_data.data(), data.uart_data.size());
+            dr16_.store_status(data.uart_data);
         }
 
         void accelerometer_receive_callback(

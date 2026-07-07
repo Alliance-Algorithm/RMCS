@@ -220,7 +220,7 @@ protected:
     }
 
     void dbus_receive_callback(const librmcs::data::UartDataView& data) override {
-        dr16_.store_status(data.uart_data.data(), data.uart_data.size());
+        dr16_.store_status(data.uart_data);
     }
 
     void accelerometer_receive_callback(const librmcs::data::AccelerometerDataView& data) override {
@@ -253,7 +253,7 @@ private:
     device::DjiMotor gimbal_right_friction_{*this, *command_component_, "/gimbal/right_friction"};
     device::DjiMotor gimbal_bullet_feeder_{*this, *command_component_, "/gimbal/bullet_feeder"};
 
-    device::Dr16 dr16_{*this};
+    device::Dr16 dr16_;
     device::Bmi088 bmi088_{1000.0, 0.2, 0.00};
 
     OutputInterface<double> gimbal_yaw_velocity_imu_;
