@@ -110,7 +110,6 @@ public:
 private:
     static constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
     static inline auto kVecNaN = Eigen::Vector2d{kNaN, kNaN};
-    static constexpr double kUpdateRate = 1000.0;
     static constexpr double kEpsilon = 1e-9;
     static constexpr double kMinDt = 1e-6;
     static constexpr double kJoystickSensitivity = 0.006;
@@ -160,10 +159,6 @@ private:
 
             component.register_input(
                 "/auto_aim/control_direction", auto_aim_control_direction, false);
-            component.register_input("/auto_aim/yaw_rate", auto_aim_yaw_rate, false);
-            component.register_input("/auto_aim/pitch_rate", auto_aim_pitch_rate, false);
-            component.register_input("/auto_aim/yaw_acc", auto_aim_yaw_acc, false);
-            component.register_input("/auto_aim/pitch_acc", auto_aim_pitch_acc, false);
             component.register_input("/auto_aim/robot_center", auto_aim_robot_center, false);
             component.register_input(
                 "/rmcs_navigation/enable_control", navigation_enable_control, false);
@@ -220,11 +215,6 @@ private:
 
         InputInterface<Eigen::Vector3d> auto_aim_control_direction;
         InputInterface<Eigen::Vector3d> auto_aim_robot_center;
-        InputInterface<double> auto_aim_yaw_rate;
-        InputInterface<double> auto_aim_pitch_rate;
-        InputInterface<double> auto_aim_yaw_acc;
-        InputInterface<double> auto_aim_pitch_acc;
-
         InputInterface<bool> navigation_enable_control;
         InputInterface<Eigen::Vector2d> navigation_toward;
     } input_{*this};
