@@ -157,4 +157,4 @@ referee_ui_robot_center:
   ros__parameters:
     offset_x: 0.000
     offset_y: 0.000
-    offset_z: 0.202
+    offset_z: 0.000

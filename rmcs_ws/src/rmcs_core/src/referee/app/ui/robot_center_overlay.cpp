@@ -16,15 +16,10 @@ public:
     UiRobotCenterOverlay()
         : Node{
               get_component_name(),
-              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
-        , center_ring_{Shape::Color::GREEN, 2, 0, 0, 5, 5, false}
-        , cross_top_{Shape::Color::GREEN, 2, 0, 0, 0, 0, false}
-        , cross_bottom_{Shape::Color::GREEN, 2, 0, 0, 0, 0, false}
-        , cross_left_{Shape::Color::GREEN, 2, 0, 0, 0, 0, false}
-        , cross_right_{Shape::Color::GREEN, 2, 0, 0, 0, 0, false} {
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)} {
         offset_x_ = get_parameter_or("offset_x", 0.000);
         offset_y_ = get_parameter_or("offset_y", 0.000);
-        offset_z_ = get_parameter_or("offset_z", 0.202);
+        offset_z_ = get_parameter_or("offset_z", 0.000);
 
         register_input("/tf", tf_);
         register_input("/auto_aim/robot_center", robot_center_, false);
@@ -32,8 +27,6 @@ public:
     }
 
     void update() override {
-        using namespace Eigen;
-
         if (!robot_center_.ready()) {
             hide_all();
             return;
@@ -44,40 +37,8 @@ public:
             return;
         }
 
-        const auto camera_pose = fast_tf::lookup_transform<OdomImu, CameraLink>(*tf_);
-        const Quaterniond q_aa{camera_pose.rotation()};
-        const Vector3d t_aa = camera_pose.translation();
-
-        const Vector3d t_ui = t_aa - q_aa * Vector3d{offset_x_, offset_y_, offset_z_};
-
-        const Vector3d P_ros = q_aa.inverse() * (center - t_ui);
-
-        const double x_cv = -P_ros.y();
-        const double y_cv = P_ros.z();
-        const double z_cv = P_ros.x();
-
-        if (z_cv <= 1e-6) {
-            hide_all();
-            return;
-        }
-
-        const double x_norm = x_cv / z_cv;
-        const double y_norm = y_cv / z_cv;
-
-        const double r2 = x_norm * x_norm + y_norm * y_norm;
-        const double r4 = r2 * r2;
-        const double r6 = r4 * r2;
-
-        const double radial = 1.0 + k1_ * r2 + k2_ * r4 + k3_ * r6;
-        const double x_dist =
-            x_norm * radial + 2.0 * p1_ * x_norm * y_norm + p2_ * (r2 + 2.0 * x_norm * x_norm);
-        const double y_dist =
-            y_norm * radial + p1_ * (r2 + 2.0 * y_norm * y_norm) + 2.0 * p2_ * x_norm * y_norm;
-
-        const double u = fx_ * x_dist + cx_;
-        const double v = fy_ * y_dist + cy_;
-
-        if (u < 0.0 || u >= static_cast<double>(screen_width) || v < 0.0
+        const auto [u, v] = reproject(center);
+        if (std::isnan(u) || u >= static_cast<double>(screen_width) || v < 0.0
             || v >= static_cast<double>(screen_height)) {
             hide_all();
             return;
@@ -147,6 +108,39 @@ public:
     }
 
 private:
+    std::pair<double, double> reproject(const Eigen::Vector3d& center) const {
+        const auto camera_pose = fast_tf::lookup_transform<OdomImu, CameraLink>(*tf_);
+        const Eigen::Quaterniond q_aa{camera_pose.rotation()};
+        const Eigen::Vector3d t_aa = camera_pose.translation();
+
+        const Eigen::Vector3d t_ui =
+            t_aa - q_aa * Eigen::Vector3d{offset_x_, offset_y_, offset_z_};
+
+        const Eigen::Vector3d P_ros = q_aa.inverse() * (center - t_ui);
+
+        const double x_cv = -P_ros.y();
+        const double y_cv = P_ros.z();
+        const double z_cv = P_ros.x();
+
+        if (z_cv <= 1e-6)
+            return {NAN, NAN};
+
+        const double x_norm = x_cv / z_cv;
+        const double y_norm = y_cv / z_cv;
+
+        const double r2 = x_norm * x_norm + y_norm * y_norm;
+        const double r4 = r2 * r2;
+        const double r6 = r4 * r2;
+
+        const double radial = 1.0 + kK1_ * r2 + kK2_ * r4 + kK3_ * r6;
+        const double x_dist =
+            x_norm * radial + 2.0 * kP1_ * x_norm * y_norm + kP2_ * (r2 + 2.0 * x_norm * x_norm);
+        const double y_dist =
+            y_norm * radial + kP1_ * (r2 + 2.0 * y_norm * y_norm) + 2.0 * kP2_ * x_norm * y_norm;
+
+        return {kFx_ * x_dist + kCx_, kFy_ * y_dist + kCy_};
+    }
+
     void hide_all() {
         center_ring_.set_visible(false);
         cross_top_.set_visible(false);
@@ -157,16 +151,16 @@ private:
 
     static constexpr uint16_t screen_width = 1920, screen_height = 1080;
 
-    static constexpr double fx_ = 730.7267062695;
-    static constexpr double fy_ = 730.5886055073;
-    static constexpr double cx_ = 961.8345772991;
-    static constexpr double cy_ = 549.3357457590;
+    static constexpr double kFx_ = 730.7267062695;
+    static constexpr double kFy_ = 730.5886055073;
+    static constexpr double kCx_ = 961.8345772991;
+    static constexpr double kCy_ = 549.3357457590;
 
-    static constexpr double k1_ = -0.1764932263;
-    static constexpr double k2_ = 0.1582678597;
-    static constexpr double k3_ = -0.1557993057;
-    static constexpr double p1_ = -0.0000433367;
-    static constexpr double p2_ = 0.0003937540;
+    static constexpr double kK1_ = -0.1764932263;
+    static constexpr double kK2_ = 0.1582678597;
+    static constexpr double kK3_ = -0.1557993057;
+    static constexpr double kP1_ = -0.0000433367;
+    static constexpr double kP2_ = 0.0003937540;
 
     double offset_x_;
     double offset_y_;
@@ -176,11 +170,11 @@ private:
     InputInterface<Eigen::Vector3d> robot_center_;
     InputInterface<bool> should_shoot_;
 
-    Circle center_ring_;
-    Line cross_top_;
-    Line cross_bottom_;
-    Line cross_left_;
-    Line cross_right_;
+    Circle center_ring_{Shape::Color::GREEN, 2, 0, 0, 5, 5, false};
+    Line cross_top_{Shape::Color::GREEN, 2, 0, 0, 0, 0, false};
+    Line cross_bottom_{Shape::Color::GREEN, 2, 0, 0, 0, 0, false};
+    Line cross_left_{Shape::Color::GREEN, 2, 0, 0, 0, 0, false};
+    Line cross_right_{Shape::Color::GREEN, 2, 0, 0, 0, 0, false};
 };
 
 } // namespace rmcs_core::referee::app::ui
