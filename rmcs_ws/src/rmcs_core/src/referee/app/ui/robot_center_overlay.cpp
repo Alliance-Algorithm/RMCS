@@ -83,8 +83,12 @@ public:
             return;
         }
 
-        const auto ui = static_cast<uint16_t>(std::lround(u));
-        const auto vi = static_cast<uint16_t>(std::lround(v));
+        const auto clamp_coord = [](long value, uint16_t upper) {
+            return static_cast<uint16_t>(
+                value < 0 ? 0 : (value >= upper ? upper - 1 : value));
+        };
+        const auto ui = clamp_coord(std::lround(u), screen_width);
+        const auto vi = clamp_coord(std::lround(v), screen_height);
 
         const bool should_shoot = should_shoot_.ready() && *should_shoot_;
         const auto color = should_shoot ? Shape::Color::ORANGE : Shape::Color::GREEN;
