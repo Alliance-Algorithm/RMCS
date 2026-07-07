@@ -53,6 +53,8 @@ public:
         if (input_.enable_autoaim()) {
             const auto error = solver_.update(
                 EccentricDualYawSolver::AutoAim{
+                    *input_.tf,
+                    *input_.top_yaw_angle,
                     *input_.auto_aim_control_direction,
                     *input_.auto_aim_robot_center,
                     upper_limit_,
@@ -71,6 +73,7 @@ public:
         if (input_.enable_navigation()) {
             const auto error = solver_.update(
                 EccentricDualYawSolver::Navigation{
+                    *input_.top_yaw_angle,
                     *input_.navigation_toward,
                     current_bottom_world_yaw(),
                     actual_yaw_pitch.second,
@@ -118,7 +121,7 @@ private:
     const double upper_limit_{get_parameter("upper_limit").as_double()};
     const double lower_limit_{get_parameter("lower_limit").as_double()};
 
-    EccentricDualYawSolver solver_{*this};
+    EccentricDualYawSolver solver_;
 
     const double bottom_yaw_viscous_ff_gain_{get_parameter_or("bottom_yaw_viscous_ff_gain", 0.0)};
     const double bottom_yaw_coulomb_ff_gain_{get_parameter_or("bottom_yaw_coulomb_ff_gain", 0.0)};

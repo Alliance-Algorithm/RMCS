@@ -19,11 +19,6 @@ public:
         bool valid = false;
     };
 
-    explicit EccentricDualYawSolver(rmcs_executor::Component& component) {
-        component.register_input("/tf", tf_);
-        component.register_input("/gimbal/top_yaw/angle", top_yaw_angle_);
-    }
-
     class Operation {
         friend class EccentricDualYawSolver;
         virtual auto update(EccentricDualYawSolver& solver) const -> Error = 0;
@@ -43,9 +38,12 @@ public:
     class AutoAim : public Operation {
     public:
         AutoAim(
+            const rmcs_description::Tf& tf, double top_yaw_angle,
             const Eigen::Vector3d& control_direction, Eigen::Vector3d robot_center,
             double upper_pitch, double lower_pitch)
-            : dir_(control_direction.normalized())
+            : tf_(tf)
+            , top_yaw_angle_(top_yaw_angle)
+            , dir_(control_direction.normalized())
             , center_(std::move(robot_center))
             , upper_(upper_pitch)
             , lower_(lower_pitch) {}
@@ -53,17 +51,16 @@ public:
     private:
         auto update(EccentricDualYawSolver& s) const -> Error override {
             using namespace rmcs_description;
-            const auto& tf = *s.tf_;
 
             const auto dir_gcl =
-                fast_tf::cast<GimbalCenterLink>(OdomGimbalImu::DirectionVector{dir_}, tf);
+                fast_tf::cast<GimbalCenterLink>(OdomGimbalImu::DirectionVector{dir_}, tf_);
             const auto ctr_gcl =
-                fast_tf::cast<GimbalCenterLink>(OdomGimbalImu::Position{center_}, tf);
-            const auto cam_gcl = fast_tf::lookup_transform<GimbalCenterLink, CameraLink>(tf);
+                fast_tf::cast<GimbalCenterLink>(OdomGimbalImu::Position{center_}, tf_);
+            const auto cam_gcl = fast_tf::lookup_transform<GimbalCenterLink, CameraLink>(tf_);
             const auto brl_gcl = fast_tf::cast<GimbalCenterLink>(
-                PitchLink::DirectionVector{Eigen::Vector3d::UnitX()}, tf);
+                PitchLink::DirectionVector{Eigen::Vector3d::UnitX()}, tf_);
             const auto btm_gcl = fast_tf::cast<GimbalCenterLink>(
-                BottomYawLink::DirectionVector{Eigen::Vector3d::UnitX()}, tf);
+                BottomYawLink::DirectionVector{Eigen::Vector3d::UnitX()}, tf_);
 
             const Eigen::Vector3d dir = normalize(*dir_gcl);
             const Eigen::Vector3d brl = normalize(*brl_gcl);
@@ -76,7 +73,7 @@ public:
             const double barrel_pitch = std::atan2(-dir.z(), std::hypot(dir.x(), dir.y()));
             const double current_btm = std::atan2(btm.y(), btm.x());
             const double current_brl = std::atan2(-brl.z(), std::hypot(brl.x(), brl.y()));
-            const double current_top = limit_rad(*s.top_yaw_angle_);
+            const double current_top = limit_rad(top_yaw_angle_);
 
             const double bottom_error = limit_rad(center_azimuth - current_btm);
             const double desired_top = limit_rad(barrel_azimuth - center_azimuth);
@@ -88,6 +85,8 @@ public:
             return {bottom_error, top_error, pitch_error, true};
         }
 
+        const rmcs_description::Tf& tf_;
+        double top_yaw_angle_;
         Eigen::Vector3d dir_, center_;
         double upper_, lower_;
     };
@@ -95,9 +94,11 @@ public:
     class Navigation : public Operation {
     public:
         Navigation(
-            Eigen::Vector2d toward, double current_bottom_yaw, double current_pitch_yaw,
-            double fallback_bottom, double fallback_pitch, double upper, double lower)
-            : toward_(std::move(toward))
+            double top_yaw_angle, Eigen::Vector2d toward, double current_bottom_yaw,
+            double current_pitch_yaw, double fallback_bottom, double fallback_pitch, double upper,
+            double lower)
+            : top_yaw_angle_(top_yaw_angle)
+            , toward_(std::move(toward))
             , current_bottom_(current_bottom_yaw)
             , current_pitch_(current_pitch_yaw)
             , fallback_bottom_(fallback_bottom)
@@ -111,7 +112,7 @@ public:
             double by = std::isfinite(toward_.y()) ? toward_.y() : fallback_pitch_;
             by = std::clamp(by, upper_, lower_);
 
-            const double current_top = limit_rad(*s.top_yaw_angle_);
+            const double current_top = limit_rad(top_yaw_angle_);
 
             s.enabled_ = true;
             return {
@@ -121,6 +122,7 @@ public:
                 true,
             };
         }
+        double top_yaw_angle_;
         Eigen::Vector2d toward_;
         double current_bottom_, current_pitch_, fallback_bottom_, fallback_pitch_, upper_, lower_;
     };
@@ -144,9 +146,6 @@ private:
             return v / n;
         return Eigen::Vector3d::UnitX();
     }
-
-    rmcs_executor::Component::InputInterface<rmcs_description::Tf> tf_;
-    rmcs_executor::Component::InputInterface<double> top_yaw_angle_;
 
     bool enabled_ = false;
 };
