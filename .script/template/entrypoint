@@ -1,5 +1,18 @@
 #!/usr/bin/bash
 
+USBFS_MEMORY_MB="${USBFS_MEMORY_MB:-2000}"
+USBFS_MEMORY_MB_PATH="/sys/module/usbcore/parameters/usbfs_memory_mb"
+
+if [ -w "$USBFS_MEMORY_MB_PATH" ]; then
+    if ! printf '%s\n' "$USBFS_MEMORY_MB" > "$USBFS_MEMORY_MB_PATH"; then
+        echo "Warning: failed to set $USBFS_MEMORY_MB_PATH to $USBFS_MEMORY_MB" >&2
+    fi
+elif [ -e "$USBFS_MEMORY_MB_PATH" ]; then
+    echo "Warning: $USBFS_MEMORY_MB_PATH is not writable, skipping usbfs_memory_mb setup" >&2
+else
+    echo "Warning: $USBFS_MEMORY_MB_PATH not found, skipping usbfs_memory_mb setup" >&2
+fi
+
 # Remove all files in /tmp
 rm -rf /tmp/*
 

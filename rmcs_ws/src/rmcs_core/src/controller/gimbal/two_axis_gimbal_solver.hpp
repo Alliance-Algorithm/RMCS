@@ -1,7 +1,9 @@
 #pragma once
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
+#include <numbers>
 
 #include <eigen3/Eigen/Geometry>
 #include <rmcs_description/tf_description.hpp>
@@ -26,6 +28,13 @@ public:
         , lower_limit_(std::cos(lower_limit), -std::sin(lower_limit)) {
 
         component.register_input("/tf", tf_);
+    }
+
+    void enable_yaw_limit(
+        rmcs_executor::Component& component, double yaw_upper_limit, double yaw_lower_limit) {
+        yaw_cw_max_ = yaw_upper_limit;
+        yaw_cw_min_ = yaw_lower_limit;
+        component.register_input("/gimbal/yaw/angle", gimbal_yaw_angle_);
     }
 
     class SetDisabled : public Operation {
@@ -138,6 +147,8 @@ public:
         if (!control_enabled_)
             return {nan_, nan_};
 
+        clamp_yaw_limit(control_direction_yaw_link);
+
         control_direction_ =
             fast_tf::cast<OdomImu>(yaw_link_to_pitch_link(control_direction_yaw_link, pitch), *tf_);
         return calculate_control_errors(control_direction_yaw_link, pitch);
@@ -194,6 +205,29 @@ private:
             *control_direction << lower_limit_.x() * projection, lower_limit_.y();
     }
 
+    void clamp_yaw_limit(YawLink::DirectionVector& control_direction) {
+        if (!gimbal_yaw_angle_.ready())
+            return;
+
+        constexpr double two_pi = 2 * std::numbers::pi;
+        double cw = std::fmod(two_pi - *gimbal_yaw_angle_, two_pi);
+        if (cw < 0)
+            cw += two_pi;
+
+        const auto& [x, y, z] = *control_direction;
+        const double err = std::atan2(y, x);
+
+        const double target_cw = cw - err;
+        const double clamped_cw = std::clamp(target_cw, yaw_cw_min_, yaw_cw_max_);
+        if (clamped_cw == target_cw)
+            return;
+
+        // delta = err_new - err = (cw - clamped_cw) - err
+        const double delta = (cw - clamped_cw) - err;
+        const double c = std::cos(delta), s = std::sin(delta);
+        *control_direction << c * x - s * y, s * x + c * y, z;
+    }
+
     static AngleError calculate_control_errors(
         const YawLink::DirectionVector& control_direction, const Eigen::Vector2d& pitch) {
         const auto& [x, y, z] = *control_direction;
@@ -212,6 +246,10 @@ private:
     const Eigen::Vector2d upper_limit_, lower_limit_;
 
     rmcs_executor::Component::InputInterface<Tf> tf_;
+
+    double yaw_cw_min_ = 0.;
+    double yaw_cw_max_ = 0.;
+    rmcs_executor::Component::InputInterface<double> gimbal_yaw_angle_;
 
     OdomImu::DirectionVector yaw_axis_filtered_{Eigen::Vector3d::UnitZ()};
 
