@@ -35,6 +35,8 @@ public:
         get_parameter("yaw_vel_ff_gain", yaw_vel_ff_gain_);
         get_parameter("yaw_acc_ff_gain", yaw_acc_ff_gain_);
         get_parameter("pitch_acc_ff_gain", pitch_acc_ff_gain_);
+        get_parameter_or("pitch_gravity_ff_gain", pitch_gravity_ff_gain_, 0.0);
+        get_parameter_or("pitch_gravity_ff_phase", pitch_gravity_ff_phase_, 0.0);
         get_parameter_or("ctrl_hold_pitch_target_angle", ctrl_hold_pitch_target_angle_, 0.0);
     }
 
@@ -108,6 +110,7 @@ public:
                                                && std::isfinite(*input_.auto_aim_pitch_acc)
                                             ? pitch_acc_ff_gain_ * *input_.auto_aim_pitch_acc
                                             : 0.0;
+                const auto pitch_gravity_ff = pitch_gravity_feedforward();
                 const auto pitch_velocity_ref =
                     pitch_angle_pid_.update(angle_error.pitch_angle_error);
 
@@ -115,7 +118,8 @@ public:
                     *output_.pitch_control_velocity = kNaN;
                     *output_.pitch_control_torque =
                         pitch_velocity_pid_.update(pitch_velocity_ref - *input_.pitch_velocity_imu)
-                        + pitch_acc_ff;
+                        + pitch_acc_ff
+                        + pitch_gravity_ff;
                 } else {
                     pitch_velocity_pid_.reset();
                     *output_.pitch_control_velocity = pitch_velocity_ref;
@@ -255,6 +259,13 @@ private:
         return gimbal_solver_.update(TwoAxisGimbalSolver::SetControlShift{yaw_shift, pitch_shift});
     }
 
+    auto pitch_gravity_feedforward() const -> double {
+        if (!input_.pitch_angle.ready() || !std::isfinite(*input_.pitch_angle))
+            return 0.0;
+        else
+        return pitch_gravity_ff_gain_ * std::sin(*input_.pitch_angle - pitch_gravity_ff_phase_);
+    }
+
     auto activate_ctrl_hold() -> void {
         ctrl_hold_active_ = true;
         pitch_angle_pid_.reset();
@@ -292,7 +303,8 @@ private:
             if (pitch_torque_control_enabled_) {
                 *output_.pitch_control_velocity = kNaN;
                 *output_.pitch_control_torque =
-                    pitch_velocity_pid_.update(pitch_velocity_ref - *input_.pitch_velocity_imu);
+                    pitch_velocity_pid_.update(pitch_velocity_ref - *input_.pitch_velocity_imu)
+                  + pitch_gravity_feedforward();
             } else {
                 pitch_velocity_pid_.reset();
                 *output_.pitch_control_velocity = pitch_velocity_ref;
@@ -352,8 +364,10 @@ private:
     double yaw_acc_ff_gain_              = 0.0;
     double pitch_acc_ff_gain_            = 0.0;
     double ctrl_hold_pitch_target_angle_ = 0.0;
-    bool suspension_on_by_switch_        = false;
-    bool ctrl_hold_active_               = false;
+    double pitch_gravity_ff_gain_ = 0.0;
+    double pitch_gravity_ff_phase_ = 0.0;
+    bool suspension_on_by_switch_ = false;
+    bool ctrl_hold_active_ = false;
     rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
 };
 
