@@ -21,7 +21,7 @@ public:
     /// @param data The data to be written to the buffer.
     void write(const T& data) noexcept {
         const uint64_t current = current_.load(std::memory_order_relaxed);
-        const uint64_t next    = current + 1;
+        const uint64_t next = current + 1;
         std::memcpy(&buffers_[next & 1], &data, sizeof(T));
         current_.store(next, std::memory_order_release);
     }

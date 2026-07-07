@@ -14,11 +14,11 @@ public:
     bool count() {
         ++count_;
 
-        auto now          = std::chrono::steady_clock::now();
+        auto now = std::chrono::steady_clock::now();
         auto elapsed_time = now - start_;
         if (elapsed_time >= measurement_window_) {
             start_ = now;
-            fps_   = double(count_) / std::chrono::duration<double>(elapsed_time).count();
+            fps_ = double(count_) / std::chrono::duration<double>(elapsed_time).count();
             count_ = 0;
             return true;
         }
@@ -33,7 +33,7 @@ private:
     std::chrono::steady_clock::time_point start_;
 
     int64_t count_ = 0;
-    double fps_    = 0;
+    double fps_ = 0;
 };
 
 } // namespace rmcs_utility
