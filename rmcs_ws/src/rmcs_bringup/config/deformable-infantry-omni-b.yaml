@@ -113,6 +113,8 @@ gimbal_controller:
     pitch_velocity_kd: 0.0
 
     pitch_acc_ff_gain: 0.10
+    pitch_gravity_ff_gain: 5.95
+    pitch_gravity_ff_phase: 0.66
 
     pitch_torque_control: true
 
