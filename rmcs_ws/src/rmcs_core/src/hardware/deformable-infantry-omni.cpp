@@ -56,10 +56,11 @@ public:
             *this, *command_, get_parameter("serial_filter_rmcs_board").as_string());
         top_board_ = std::make_unique<TopBoard>(
             *this, *command_, vt13_, get_parameter("serial_filter_top_board").as_string());
-        remote_control_ = std::make_unique<device::RemoteControl>(*this, bottom_board_->dr16_, vt13_);
+        remote_control_ =
+            std::make_unique<device::RemoteControl>(*this, bottom_board_->dr16_, vt13_);
 
         // For command: remote-status
-        using Srv = std_srvs::srv::Trigger;
+        using Srv       = std_srvs::srv::Trigger;
         status_service_ = create_service<Srv>(
             "/rmcs/service/robot_status",
             [this](const Srv::Request::SharedPtr&, const Srv::Response::SharedPtr& response) {
@@ -83,9 +84,16 @@ public:
     }
 
 private:
-    static constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
+    static constexpr double kNaN              = std::numeric_limits<double>::quiet_NaN();
+    static constexpr size_t kLeftFront        = 0;
+    static constexpr size_t kLeftBack         = 1;
+    static constexpr size_t kRightBack        = 2;
+    static constexpr size_t kRightFront       = 3;
     static constexpr const char* kJointName[] = {
-        "left_front", "left_back", "right_back", "right_front",
+        "left_front",
+        "left_back",
+        "right_back",
+        "right_front",
     };
 
     class Command : public rmcs_executor::Component {
@@ -154,10 +162,13 @@ private:
             status.register_output("/chassis/imu/roll_rate", chassis_imu_roll_rate_, 0.0);
             for (size_t i = 0; i < 4; ++i) {
                 status.register_output(
-                    fmt::format("/chassis/{}_joint/physical_angle", DeformableInfantryOmni::kJointName[i]),
+                    fmt::format(
+                        "/chassis/{}_joint/physical_angle", DeformableInfantryOmni::kJointName[i]),
                     joint_physical_angle_[i], kNaN);
                 status.register_output(
-                    fmt::format("/chassis/{}_joint/physical_velocity", DeformableInfantryOmni::kJointName[i]),
+                    fmt::format(
+                        "/chassis/{}_joint/physical_velocity",
+                        DeformableInfantryOmni::kJointName[i]),
                     joint_physical_velocity_[i], kNaN);
             }
             status.register_output("/chassis/encoder/alpha", encoder_alpha_, kNaN);
@@ -182,7 +193,7 @@ private:
                 const double q3 = imu_.q3();
 
                 double sin_pitch = 2.0 * (q0 * q2 - q3 * q1);
-                sin_pitch = std::clamp(sin_pitch, -1.0, 1.0);
+                sin_pitch        = std::clamp(sin_pitch, -1.0, 1.0);
 
                 const double standard_pitch = std::asin(sin_pitch);
                 const double standard_roll =
@@ -190,10 +201,10 @@ private:
 
                 // Export chassis attitude using the requested convention:
                 // pitch < 0 when the front is higher, roll > 0 when the left side is higher.
-                *chassis_imu_pitch_ = -standard_pitch;
-                *chassis_imu_roll_ = standard_roll;
+                *chassis_imu_pitch_      = -standard_pitch;
+                *chassis_imu_roll_       = standard_roll;
                 *chassis_imu_pitch_rate_ = -imu_.gy();
-                *chassis_imu_roll_rate_ = imu_.gx();
+                *chassis_imu_roll_rate_  = imu_.gx();
             }
 
             for (auto& motor : chassis_wheel_motors_)
@@ -203,8 +214,7 @@ private:
 
             for (size_t i = 0; i < 4; ++i)
                 update_joint_physical_feedback_(
-                    i, joint_physical_angle_[i],
-                    joint_physical_velocity_[i]);
+                    i, joint_physical_angle_[i], joint_physical_velocity_[i]);
 
             update_geometry_feedback_();
             if (debug_log_wheel_motor_ || debug_log_deformable_joint_motor_)
@@ -229,7 +239,7 @@ private:
                     .can_id = 0x200,
                     .can_data =
                         device::CanPacket8{
-                            chassis_wheel_motors_[0].generate_command(),
+                            chassis_wheel_motors_[kLeftFront].generate_command(),
                             device::CanPacket8::PaddingQuarter{},
                             device::CanPacket8::PaddingQuarter{},
                             device::CanPacket8::PaddingQuarter{},
@@ -240,7 +250,7 @@ private:
                     .can_id = 0x200,
                     .can_data =
                         device::CanPacket8{
-                            chassis_wheel_motors_[1].generate_command(),
+                            chassis_wheel_motors_[kLeftBack].generate_command(),
                             device::CanPacket8::PaddingQuarter{},
                             device::CanPacket8::PaddingQuarter{},
                             device::CanPacket8::PaddingQuarter{},
@@ -251,7 +261,7 @@ private:
                     .can_id = 0x200,
                     .can_data =
                         device::CanPacket8{
-                            chassis_wheel_motors_[2].generate_command(),
+                            chassis_wheel_motors_[kRightBack].generate_command(),
                             device::CanPacket8::PaddingQuarter{},
                             gimbal_bullet_feeder_.generate_command(),
                             device::CanPacket8::PaddingQuarter{},
@@ -262,7 +272,7 @@ private:
                     .can_id = 0x200,
                     .can_data =
                         device::CanPacket8{
-                            chassis_wheel_motors_[3].generate_command(),
+                            chassis_wheel_motors_[kRightFront].generate_command(),
                             device::CanPacket8::PaddingQuarter{},
                             device::CanPacket8::PaddingQuarter{},
                             device::CanPacket8::PaddingQuarter{},
@@ -270,7 +280,7 @@ private:
                             .as_bytes(),
                 });
                 builder.can2_transmit({
-                    .can_id = 0x142,
+                    .can_id   = 0x142,
                     .can_data = gimbal_yaw_motor_.generate_command().as_bytes(),
                 });
                 builder.can1_transmit({
@@ -287,36 +297,28 @@ private:
             } else {
                 for (size_t i = 0; i < 4; ++i) {
                     switch (i) {
-                    case 0:
+                    case kLeftFront:
                         builder.can0_transmit({
-                            .can_id = 0x141,
-                            .can_data =
-                                chassis_joint_motors_[i].generate_command()
-                                    .as_bytes(),
+                            .can_id   = 0x141,
+                            .can_data = chassis_joint_motors_[i].generate_command().as_bytes(),
                         });
                         break;
-                    case 1:
+                    case kLeftBack:
                         builder.can1_transmit({
-                            .can_id = 0x141,
-                            .can_data =
-                                chassis_joint_motors_[i].generate_command()
-                                    .as_bytes(),
+                            .can_id   = 0x141,
+                            .can_data = chassis_joint_motors_[i].generate_command().as_bytes(),
                         });
                         break;
-                    case 2:
+                    case kRightBack:
                         builder.can2_transmit({
-                            .can_id = 0x141,
-                            .can_data =
-                                chassis_joint_motors_[i].generate_command()
-                                    .as_bytes(),
+                            .can_id   = 0x141,
+                            .can_data = chassis_joint_motors_[i].generate_command().as_bytes(),
                         });
                         break;
-                    case 3:
+                    case kRightFront:
                         builder.can3_transmit({
-                            .can_id = 0x141,
-                            .can_data =
-                                chassis_joint_motors_[i].generate_command()
-                                    .as_bytes(),
+                            .can_id   = 0x141,
+                            .can_data = chassis_joint_motors_[i].generate_command().as_bytes(),
                         });
                         break;
                     }
@@ -326,9 +328,9 @@ private:
 
     private:
         static constexpr double joint_zero_physical_angle_rad_ = 62.5 * std::numbers::pi / 180.0;
-        static constexpr double chassis_radius_base_ = 0.2341741;
-        static constexpr double rod_length_ = 0.150;
-        static constexpr double default_radius_ = chassis_radius_base_ + rod_length_;
+        static constexpr double chassis_radius_base_           = 0.2341741;
+        static constexpr double rod_length_                    = 0.150;
+        static constexpr double default_radius_                = chassis_radius_base_ + rod_length_;
 
         DeformableInfantryOmni& status_;
         Component& command_;
@@ -352,9 +354,9 @@ private:
 
         std::atomic<bool> wheel_status_received_[4] = {false, false, false, false};
         std::atomic<bool> joint_status_received_[4] = {false, false, false, false};
-        bool debug_log_supercap_ = false;
-        bool debug_log_wheel_motor_ = false;
-        bool debug_log_deformable_joint_motor_ = false;
+        bool debug_log_supercap_                    = false;
+        bool debug_log_wheel_motor_                 = false;
+        bool debug_log_deformable_joint_motor_      = false;
         Clock::time_point next_chassis_feedback_log_time_{Clock::now() + std::chrono::seconds(1)};
         Clock::time_point next_supercap_feedback_log_time_{Clock::now() + std::chrono::seconds(1)};
         device::Supercap supercap_{status_, command_};
@@ -383,7 +385,7 @@ private:
             OutputInterface<double>& velocity_output) {
 
             if (!joint_status_received_[index].load(std::memory_order_relaxed)) {
-                *angle_output = kNaN;
+                *angle_output    = kNaN;
                 *velocity_output = kNaN;
                 return;
             }
@@ -393,22 +395,22 @@ private:
             };
             const auto to_physical_velocity = [](double motor_velocity) { return -motor_velocity; };
 
-            *angle_output = to_physical_angle(chassis_joint_motors_[index].angle());
+            *angle_output    = to_physical_angle(chassis_joint_motors_[index].angle());
             *velocity_output = to_physical_velocity(chassis_joint_motors_[index].velocity());
         }
 
         void update_geometry_feedback_() {
             const Eigen::Vector4d alpha_rad{
-                *joint_physical_angle_[0], *joint_physical_angle_[1],
-                *joint_physical_angle_[2], *joint_physical_angle_[3]};
+                *joint_physical_angle_[kLeftFront], *joint_physical_angle_[kLeftBack],
+                *joint_physical_angle_[kRightBack], *joint_physical_angle_[kRightFront]};
             const Eigen::Vector4d alpha_dot_rad{
-                *joint_physical_velocity_[0], *joint_physical_velocity_[1],
-                *joint_physical_velocity_[2], *joint_physical_velocity_[3]};
+                *joint_physical_velocity_[kLeftFront], *joint_physical_velocity_[kLeftBack],
+                *joint_physical_velocity_[kRightBack], *joint_physical_velocity_[kRightFront]};
 
             if (!alpha_rad.array().isFinite().all() || !alpha_dot_rad.array().isFinite().all()) {
-                *encoder_alpha_ = kNaN;
+                *encoder_alpha_     = kNaN;
                 *encoder_alpha_dot_ = kNaN;
-                *radius_ = default_radius_;
+                *radius_            = default_radius_;
                 RCLCPP_WARN_THROTTLE(
                     status_.get_logger(), *status_.get_clock(), 1000,
                     "deformable joint feedback invalid, fallback chassis radius to default %.3f m",
@@ -416,7 +418,7 @@ private:
                 return;
             }
 
-            *encoder_alpha_ = alpha_rad.mean();
+            *encoder_alpha_     = alpha_rad.mean();
             *encoder_alpha_dot_ = alpha_dot_rad.mean();
             *radius_ = (chassis_radius_base_ + rod_length_ * alpha_rad.array().cos()).mean();
         }
@@ -435,37 +437,42 @@ private:
 
             if (debug_log_wheel_motor_) {
                 std::string wheel_rx_str;
-                for (size_t i = 0; i < 4; ++i)
-                    fmt::format_to(
-                        std::back_inserter(wheel_rx_str), "{}%c",
-                        i > 0 ? " " : "", wheel_rx(i));
+                for (size_t i = 0; i < 4; ++i) {
+                    if (i > 0)
+                        wheel_rx_str.push_back(' ');
+                    wheel_rx_str.push_back(wheel_rx(i));
+                }
                 RCLCPP_INFO(
                     status_.get_logger(),
                     "[wheel motor] angle(rad) lf=% .3f lb=% .3f rb=% .3f rf=% .3f | "
                     "encoder(deg) lf=% .1f lb=% .1f rb=% .1f rf=% .1f | "
                     "rx=[%s]",
-                    chassis_wheel_motors_[0].angle(), chassis_wheel_motors_[1].angle(),
-                    chassis_wheel_motors_[2].angle(), chassis_wheel_motors_[3].angle(),
-                    chassis_wheel_motors_[0].angle(), chassis_wheel_motors_[1].angle(),
-                    chassis_wheel_motors_[2].angle(), chassis_wheel_motors_[3].angle(),
-                    wheel_rx_str.c_str());
+                    chassis_wheel_motors_[kLeftFront].angle(),
+                    chassis_wheel_motors_[kLeftBack].angle(),
+                    chassis_wheel_motors_[kRightBack].angle(),
+                    chassis_wheel_motors_[kRightFront].angle(),
+                    chassis_wheel_motors_[kLeftFront].angle(),
+                    chassis_wheel_motors_[kLeftBack].angle(),
+                    chassis_wheel_motors_[kRightBack].angle(),
+                    chassis_wheel_motors_[kRightFront].angle(), wheel_rx_str.c_str());
             }
 
             if (debug_log_deformable_joint_motor_) {
                 std::string joint_rx_str;
-                for (size_t i = 0; i < 4; ++i)
-                    fmt::format_to(
-                        std::back_inserter(joint_rx_str), "{}%c",
-                        i > 0 ? " " : "", joint_rx(i));
+                for (size_t i = 0; i < 4; ++i) {
+                    if (i > 0)
+                        joint_rx_str.push_back(' ');
+                    joint_rx_str.push_back(joint_rx(i));
+                }
                 RCLCPP_INFO(
                     status_.get_logger(),
                     "[deformable joint motor] angle(rad) lf=% .3f lb=% .3f rb=% .3f rf=% .3f | "
                     "velocity(rad/s) lf=% .3f lb=% .3f rb=% .3f rf=% .3f | "
                     "rx=[%s]",
-                    *joint_physical_angle_[0], *joint_physical_angle_[1],
-                    *joint_physical_angle_[2], *joint_physical_angle_[3],
-                    *joint_physical_velocity_[0], *joint_physical_velocity_[1],
-                    *joint_physical_velocity_[2], *joint_physical_velocity_[3],
+                    *joint_physical_angle_[kLeftFront], *joint_physical_angle_[kLeftBack],
+                    *joint_physical_angle_[kRightBack], *joint_physical_angle_[kRightFront],
+                    *joint_physical_velocity_[kLeftFront], *joint_physical_velocity_[kLeftBack],
+                    *joint_physical_velocity_[kRightBack], *joint_physical_velocity_[kRightFront],
                     joint_rx_str.c_str());
             }
 
@@ -477,7 +484,7 @@ private:
             if (now < next_supercap_feedback_log_time_)
                 return;
 
-            const bool supercap_rx = supercap_status_received_.load(std::memory_order_relaxed);
+            const bool supercap_rx   = supercap_status_received_.load(std::memory_order_relaxed);
             auto supercap_raw_packet = latest_supercap_status_.load(std::memory_order_relaxed);
             const auto supercap_raw_bytes = supercap_raw_packet.as_bytes();
 
@@ -485,8 +492,7 @@ private:
                 status_.get_logger(),
                 "[supercap] can1 rx=%c id=0x300 enabled=%d supercap_v=% .3f chassis_v=% .3f "
                 "power=% .3f raw=[%02X %02X %02X %02X %02X %02X %02X %02X]",
-                supercap_rx ? 'Y' : 'N',
-                supercap_rx ? (supercap_.supercap_enabled() ? 1 : 0) : -1,
+                supercap_rx ? 'Y' : 'N', supercap_rx ? (supercap_.supercap_enabled() ? 1 : 0) : -1,
                 supercap_rx ? supercap_.supercap_voltage() : kNaN,
                 supercap_rx ? supercap_.chassis_voltage() : kNaN,
                 supercap_rx ? supercap_.chassis_power() : kNaN,
@@ -506,8 +512,7 @@ private:
             dr16_.store_status(data.uart_data);
         }
 
-        void process_chassis_can_receive_(
-            size_t index, const librmcs::data::CanDataView& data) {
+        void process_chassis_can_receive_(size_t index, const librmcs::data::CanDataView& data) {
             if (data.is_extended_can_id || data.is_remote_transmission)
                 return;
             if (data.can_id == 0x201) {
@@ -525,8 +530,7 @@ private:
 
         void can1_receive_callback(const librmcs::data::CanDataView& data) override {
             process_chassis_can_receive_(1, data);
-            if (!data.is_extended_can_id && !data.is_remote_transmission
-                && data.can_id == 0x300) {
+            if (!data.is_extended_can_id && !data.is_remote_transmission && data.can_id == 0x300) {
                 if (data.can_data.size() == 8)
                     latest_supercap_status_.store(
                         device::CanPacket8{data.can_data}, std::memory_order_relaxed);
@@ -617,7 +621,7 @@ private:
                 gimbal_imu_pose.conjugate());
 
             *gimbal_pitch_velocity_imu_ = gimbal_imu_.gy();
-            *gimbal_yaw_velocity_imu_ = gimbal_imu_.gz();
+            *gimbal_yaw_velocity_imu_   = gimbal_imu_.gz();
 
             const double pitch_encoder_angle = gimbal_pitch_motor_.angle();
             tf_->set_state<rmcs_description::YawLink, rmcs_description::PitchLink>(
@@ -627,7 +631,7 @@ private:
         void command_update() {
             auto builder = start_transmit();
             builder.can0_transmit({
-                .can_id = 0x141,
+                .can_id   = 0x141,
                 .can_data = gimbal_pitch_motor_.generate_command().as_bytes(),
             });
             builder.can1_transmit({

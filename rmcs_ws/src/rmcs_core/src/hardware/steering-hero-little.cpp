@@ -135,10 +135,10 @@ public:
             Eigen::Translation3d{0.06603, 0.0, 0.082});
     }
 
-    SteeringHeroLittle(const SteeringHeroLittle&) = delete;
+    SteeringHeroLittle(const SteeringHeroLittle&)            = delete;
     SteeringHeroLittle& operator=(const SteeringHeroLittle&) = delete;
-    SteeringHeroLittle(SteeringHeroLittle&&) = delete;
-    SteeringHeroLittle& operator=(SteeringHeroLittle&&) = delete;
+    SteeringHeroLittle(SteeringHeroLittle&&)                 = delete;
+    SteeringHeroLittle& operator=(SteeringHeroLittle&&)      = delete;
 
     ~SteeringHeroLittle() override = default;
 
@@ -292,10 +292,10 @@ private:
             });
         }
 
-        TopBoard(const TopBoard&) = delete;
+        TopBoard(const TopBoard&)            = delete;
         TopBoard& operator=(const TopBoard&) = delete;
-        TopBoard(TopBoard&&) = delete;
-        TopBoard& operator=(TopBoard&&) = delete;
+        TopBoard(TopBoard&&)                 = delete;
+        TopBoard& operator=(TopBoard&&)      = delete;
 
         ~TopBoard() final = default;
 
@@ -311,7 +311,7 @@ private:
             tf_->set_transform<rmcs_description::PitchLink, rmcs_description::OdomImu>(
                 gimbal_imu_pose.conjugate());
 
-            *gimbal_yaw_velocity_imu_ = imu_.gz();
+            *gimbal_yaw_velocity_imu_   = imu_.gz();
             *gimbal_pitch_velocity_imu_ = imu_.gy();
 
             gimbal_top_yaw_motor_.update_status();
@@ -336,7 +336,7 @@ private:
             last_camera_capturer_trigger_timestamp_ = *camera_capturer_trigger_timestamp_;
 
             *photoelectric_sensor_status_ = photoelectric_sensor_status_atomic.load();
-            *grayscale_sensor_status_ = grayscale_sensor_status_atomic.load();
+            *grayscale_sensor_status_     = grayscale_sensor_status_atomic.load();
         }
 
         void command_update() {
@@ -344,19 +344,19 @@ private:
 
             if (std::isfinite(gimbal_pitch_motor_.control_angle()))
                 builder.can0_transmit({
-                    .can_id = 0x142,
+                    .can_id   = 0x142,
                     .can_data = gimbal_pitch_motor_
                                     .generate_angle_command(gimbal_pitch_motor_.control_angle())
                                     .as_bytes(),
                 });
             else
                 builder.can0_transmit({
-                    .can_id = 0x142,
+                    .can_id   = 0x142,
                     .can_data = gimbal_pitch_motor_.generate_torque_command().as_bytes(),
                 }); // Used to distinguish pitch encoder control from IMU control.
 
             builder.can0_transmit({
-                .can_id = 0x141,
+                .can_id   = 0x141,
                 .can_data = gimbal_top_yaw_motor_.generate_command().as_bytes(),
             });
 
@@ -393,7 +393,7 @@ private:
             });
 
             builder.can3_transmit({
-                .can_id = 0x142,
+                .can_id   = 0x142,
                 .can_data = gimbal_bullet_feeder_.generate_torque_command().as_bytes(),
             });
 
@@ -401,14 +401,14 @@ private:
                 librmcs::spec::rmcs_board_lite::kGpioDescriptors[2],
                 {
                     .period_ms = 20,
-                    .pull = librmcs::data::GpioPull::kUp,
+                    .pull      = librmcs::data::GpioPull::kUp,
                 });
 
             builder.gpio_digital_read(
                 librmcs::spec::rmcs_board_lite::kGpioDescriptors[3],
                 {
                     .period_ms = 20,
-                    .pull = librmcs::data::GpioPull::kUp,
+                    .pull      = librmcs::data::GpioPull::kUp,
                 });
         }
 
@@ -526,7 +526,6 @@ private:
             // , can2_receive_rate_counter_(logger_, "bottom/can2")
             // , can3_receive_rate_counter_(logger_, "bottom/can3")
             , imu_(1000, 0.2, 0.0)
-            , dr16_(steering_hero)
             , supercap_(steering_hero, steering_hero_command)
             , chassis_steering_motors_(
                   {steering_hero, steering_hero_command, "/chassis/left_front_steering"},
@@ -631,10 +630,10 @@ private:
             steering_hero.register_output("/chassis/pitch_imu", chassis_pitch_imu_, 0.0);
         }
 
-        BottomBoard(const BottomBoard&) = delete;
+        BottomBoard(const BottomBoard&)            = delete;
         BottomBoard& operator=(const BottomBoard&) = delete;
-        BottomBoard(BottomBoard&&) = delete;
-        BottomBoard& operator=(BottomBoard&&) = delete;
+        BottomBoard(BottomBoard&&)                 = delete;
+        BottomBoard& operator=(BottomBoard&&)      = delete;
 
         ~BottomBoard() final = default;
 
@@ -728,7 +727,7 @@ private:
             });
 
             builder.can3_transmit({
-                .can_id = 0x141,
+                .can_id   = 0x141,
                 .can_data = gimbal_bottom_yaw_motor_.generate_command().as_bytes(),
             });
 
@@ -813,7 +812,7 @@ private:
         }
 
         void dbus_receive_callback(const librmcs::data::UartDataView& data) override {
-            dr16_.store_status(data.uart_data.data(), data.uart_data.size());
+            dr16_.store_status(data.uart_data);
         }
 
         void accelerometer_receive_callback(

@@ -65,15 +65,9 @@ public:
 
         register_input("/chassis/voltage", chassis_voltage_);
 
-        for (size_t i = 0; i < 4; ++i) {
+        for (size_t i = 0; i < kJointCount; ++i) {
             register_input(
-                fmt::format("/chassis/{}_wheel/velocity", kWheelName[i]),
-                wheel_velocity_[i]);
-        }
-
-        for (size_t i = 0; i < 4; ++i) {
-            register_input(
-                fmt::format("/chassis/{}_joint/physical_angle", kWheelName[i]),
+                fmt::format("/chassis/{}_joint/physical_angle", kJointName[i]),
                 joint_physical_angle_[i], false);
         }
 
@@ -124,12 +118,14 @@ public:
 private:
     void update_ctrl_ui() {
         const bool ctrl_active = keyboard_.ready() && keyboard_->ctrl;
-        const double reveal = ctrl_transition_.update(*timestamp_, ctrl_active);
+        const double reveal    = ctrl_transition_.update(*timestamp_, ctrl_active);
 
-        crosshair_circle_.set_x(static_cast<uint16_t>(std::lround(
-            static_cast<double>(crosshair_base_x_) + 45.0 * reveal)));
-        crosshair_circle_.set_y(static_cast<uint16_t>(std::lround(
-            static_cast<double>(crosshair_base_y_) + 20.0 * reveal)));
+        crosshair_circle_.set_x(
+            static_cast<uint16_t>(
+                std::lround(static_cast<double>(crosshair_base_x_) + 45.0 * reveal)));
+        crosshair_circle_.set_y(
+            static_cast<uint16_t>(
+                std::lround(static_cast<double>(crosshair_base_y_) + 20.0 * reveal)));
     }
 
     void update_time_reminder() {
@@ -161,18 +157,19 @@ private:
             return;
         }
 
-        std::array<double, 4> leg_angles;
-        for (size_t i = 0; i < 4; ++i)
+        std::array<double, kJointCount> leg_angles;
+        for (size_t i = 0; i < kJointCount; ++i)
             leg_angles[i] = *joint_physical_angle_[i];
         deformable_chassis_leg_arcs_.update(
-            *chassis_angle_, leg_angles, active_suspension_active_.ready() && *active_suspension_active_);
+            *chassis_angle_, leg_angles,
+            active_suspension_active_.ready() && *active_suspension_active_);
     }
 
     static constexpr uint16_t screen_width = 1920, screen_height = 1080;
     static constexpr uint16_t x_center = screen_width / 2, y_center = screen_height / 2;
-    static constexpr double friction_wheel_speed_indicator_radius_ = 430.0;
+    static constexpr double friction_wheel_speed_indicator_radius_      = 430.0;
     static constexpr uint16_t friction_wheel_speed_indicator_font_size_ = 20;
-    static constexpr double supercap_cutoff_voltage = 8.0;
+    static constexpr double supercap_cutoff_voltage                     = 8.0;
 
     static uint16_t friction_wheel_speed_indicator_center_x() {
         return static_cast<uint16_t>(std::lround(
@@ -197,12 +194,15 @@ private:
 
     InputInterface<double> chassis_voltage_;
 
-    static constexpr const char* kWheelName[] = {
-        "left_front", "left_back", "right_back", "right_front",
+    static constexpr size_t kJointCount       = 4;
+    static constexpr const char* kJointName[] = {
+        "left_front",
+        "left_back",
+        "right_back",
+        "right_front",
     };
 
-    std::array<InputInterface<double>, 4> wheel_velocity_;
-    std::array<InputInterface<double>, 4> joint_physical_angle_;
+    std::array<InputInterface<double>, kJointCount> joint_physical_angle_;
 
     InputInterface<uint16_t> robot_bullet_allowance_;
 
