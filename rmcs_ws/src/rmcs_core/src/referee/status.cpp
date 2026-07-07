@@ -301,7 +301,8 @@ private:
         *map_command_received_timestamp_ =
             std::chrono::duration<double>(now.time_since_epoch()).count();
 
-        if (has_last_map_command_ && std::memcmp(&last_map_command_, &data, sizeof(data)) == 0) {
+        if (has_last_map_command_
+            && std::memcmp(&last_map_command_, &data, sizeof(data)) == 0) { // NOLINT
             return;
         }
 

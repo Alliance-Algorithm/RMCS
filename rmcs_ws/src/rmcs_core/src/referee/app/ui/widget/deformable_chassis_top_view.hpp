@@ -73,7 +73,7 @@ private:
         front_pair_offset_deg_ * degrees_to_radians_,
         std::numbers::pi_v<double> - rear_pair_offset_deg_ * degrees_to_radians_,
         std::numbers::pi_v<double> + rear_pair_offset_deg_ * degrees_to_radians_,
-        -front_pair_offset_deg_* degrees_to_radians_,
+        -front_pair_offset_deg_ * degrees_to_radians_,
     };
 
     static constexpr std::array<uint16_t, 4> leg_radii_near_ = {

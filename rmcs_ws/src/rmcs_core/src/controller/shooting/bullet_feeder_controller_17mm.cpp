@@ -100,8 +100,7 @@ public:
                     if (shoot_mode == ShootMode::AUTOMATIC) {
                         auto aiming_enable = mouse_->right || (switch_right == Switch::UP);
                         auto attack_intent = mouse_->left || (switch_left == Switch::DOWN);
-                        auto triggered =
-                            aiming_enable ? (*should_shoot_ && attack_intent) : attack_intent;
+                        auto triggered = aiming_enable ? (*should_shoot_ && attack_intent) : attack_intent;
                         bullet_allowance =
                             triggered ? *control_bullet_allowance_limited_by_heat_ : 0;
                     } else {
