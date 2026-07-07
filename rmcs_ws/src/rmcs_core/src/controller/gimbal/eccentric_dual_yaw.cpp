@@ -72,6 +72,8 @@ public:
             const auto error = solver_.update(
                 EccentricDualYawSolver::Navigation{
                     *input_.navigation_toward,
+                    current_bottom_world_yaw(),
+                    actual_yaw_pitch.second,
                     stored_bottom_yaw_target_,
                     stored_pitch_target_,
                     upper_limit_,
@@ -79,9 +81,9 @@ public:
                 });
             apply_control(error.bottom_yaw, error.top_yaw, error.pitch);
 
-            stored_bottom_yaw_target_ = limit_rad(stored_bottom_yaw_target_ + error.bottom_yaw);
-            stored_pitch_target_ = std::clamp(
-                limit_rad(stored_pitch_target_ + error.pitch), upper_limit_, lower_limit_);
+            stored_bottom_yaw_target_ = limit_rad(current_bottom_world_yaw() + error.bottom_yaw);
+            stored_pitch_target_ =
+                std::clamp(limit_rad(actual_yaw_pitch.second + error.pitch), upper_limit_, lower_limit_);
             return;
         }
 
@@ -100,7 +102,8 @@ public:
                 limit_rad(stored_bottom_yaw_target_ - current_bottom_world_yaw());
             const double pitch_error = limit_rad(stored_pitch_target_ - actual_yaw_pitch.second);
 
-            apply_control(bottom_yaw_error, 0.0, pitch_error);
+            apply_control(
+                bottom_yaw_error, limit_rad(-*input_.top_yaw_angle), pitch_error);
         }
     }
 
@@ -108,6 +111,8 @@ private:
     static constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
     static inline auto kVecNaN = Eigen::Vector2d{kNaN, kNaN};
     static constexpr double kUpdateRate = 1000.0;
+    static constexpr double kEpsilon = 1e-9;
+    static constexpr double kMinDt = 1e-6;
     static constexpr double kJoystickSensitivity = 0.006;
     static constexpr double kMouseSensitivity = 0.5;
 
@@ -123,7 +128,7 @@ private:
     const double bottom_yaw_ext_friction_gain_{
         get_parameter_or("bottom_yaw_ext_friction_gain", 0.0)};
     const double k_top_to_bottom_{get_parameter_or("k_top_to_bottom", 0.0)};
-    const double center_yaw_velocity_ff_gain_{get_parameter_or("center_yaw_velocity_ff_gain", 0.0)};
+
     const double top_yaw_viscous_ff_gain_{get_parameter_or("top_yaw_viscous_ff_gain", 0.0)};
     const double top_yaw_coulomb_ff_gain_{get_parameter_or("top_yaw_coulomb_ff_gain", 0.0)};
     const double top_yaw_coulomb_ff_tanh_gain_{
@@ -133,8 +138,6 @@ private:
     const double pitch_coulomb_ff_tanh_gain_{get_parameter_or("pitch_coulomb_ff_tanh_gain", 100.0)};
     const double pitch_gravity_ff_gain_{get_parameter_or("pitch_gravity_ff_gain", 0.0)};
     const double pitch_gravity_ff_phase_{get_parameter_or("pitch_gravity_ff_phase", 0.0)};
-    const double top_yaw_inertia_{get_parameter_or("top_yaw_inertia", 0.0)};
-    const double top_yaw_jerk_gain_{get_parameter_or("top_yaw_jerk_gain", 0.0)};
 
     struct Input {
         explicit Input(rmcs_executor::Component& component) {
@@ -261,8 +264,6 @@ private:
     double stored_pitch_target_ = 0.0;
     double previous_actual_yaw_ = 0.0;
     std::chrono::steady_clock::time_point previous_yaw_timestamp_{};
-    double previous_top_velocity_ref_ = 0.0;
-    double previous_top_yaw_alpha_ref_ = 0.0;
 
     static constexpr auto limit_rad(double angle) -> double {
         constexpr double kPi = std::numbers::pi_v<double>;
@@ -280,9 +281,6 @@ private:
         bottom_yaw_velocity_pid_.reset();
         pitch_angle_pid_.reset();
         pitch_velocity_pid_.reset();
-
-        previous_top_velocity_ref_ = 0.0;
-        previous_top_yaw_alpha_ref_ = 0.0;
 
         *output_.top_yaw_control_torque = kNaN;
         *output_.bottom_yaw_control_torque = kNaN;
@@ -304,7 +302,7 @@ private:
         const auto now = *input_.timestamp;
         const auto dt = std::chrono::duration<double>(now - previous_yaw_timestamp_).count();
         double velocity = 0.0;
-        if (dt > 1e-6)
+        if (dt > kMinDt)
             velocity = limit_rad(actual_yaw - previous_actual_yaw_) / dt;
         previous_actual_yaw_ = actual_yaw;
         previous_yaw_timestamp_ = now;
@@ -315,7 +313,7 @@ private:
         auto direction = fast_tf::cast<OdomGimbalImu>(
             PitchLink::DirectionVector{Eigen::Vector3d::UnitX()}, *input_.tf);
         Eigen::Vector3d vector = *direction;
-        if (vector.norm() > 1e-9)
+        if (vector.norm() > kEpsilon)
             vector.normalize();
         else
             vector = Eigen::Vector3d::UnitX();
@@ -328,7 +326,7 @@ private:
             BottomYawLink::DirectionVector{Eigen::Vector3d::UnitX()}, *input_.tf);
         Eigen::Vector3d vector = *direction;
         vector.z() = 0.0;
-        if (vector.norm() > 1e-9)
+        if (vector.norm() > kEpsilon)
             vector.normalize();
         else
             vector = Eigen::Vector3d::UnitX();
@@ -350,21 +348,9 @@ private:
         const auto top_velocity_ref = top_yaw_angle_pid_.update(top_yaw_error);
         const auto pitch_velocity_ref = pitch_angle_pid_.update(pitch_error);
 
-        const auto top_yaw_alpha_ref =
-            (top_velocity_ref - previous_top_velocity_ref_) * kUpdateRate;
-        previous_top_velocity_ref_ = top_velocity_ref;
-
-        const auto top_yaw_jerk_ref =
-            (top_yaw_alpha_ref - previous_top_yaw_alpha_ref_) * kUpdateRate;
-        previous_top_yaw_alpha_ref_ = top_yaw_alpha_ref;
-
-        const auto top_yaw_friction_ff = friction_feedforward(
+        const auto top_yaw_continuous_torque_ff = friction_feedforward(
             top_yaw_viscous_ff_gain_, top_yaw_coulomb_ff_gain_, top_yaw_coulomb_ff_tanh_gain_,
             top_velocity_ref);
-
-        const auto top_yaw_continuous_torque_ff =
-            top_yaw_inertia_ * top_yaw_alpha_ref + top_yaw_friction_ff
-            + top_yaw_inertia_ * top_yaw_jerk_gain_ * top_yaw_jerk_ref;
 
         const auto bottom_world_velocity_ff = *input_.chassis_yaw_velocity_imu;
         const auto bottom_yaw_torque_ff =
@@ -373,7 +359,7 @@ private:
                 bottom_yaw_coulomb_ff_tanh_gain_, bottom_world_velocity_ff)
             - k_top_to_bottom_ * top_yaw_continuous_torque_ff;
 
-        const auto top_yaw_torque_ff = top_yaw_friction_ff;
+        const auto top_yaw_torque_ff = top_yaw_continuous_torque_ff;
         const auto pitch_torque_ff =
             friction_feedforward(
                 pitch_viscous_ff_gain_, pitch_coulomb_ff_gain_, pitch_coulomb_ff_tanh_gain_,

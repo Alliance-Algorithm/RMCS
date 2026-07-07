@@ -71,7 +71,7 @@ public:
             const Eigen::Vector3d diff = *ctr_gcl - cam_gcl.translation();
 
             const double center_azimuth =
-                (diff.head<2>().norm() > 1e-9) ? std::atan2(diff.y(), diff.x()) : 0.0;
+                (diff.head<2>().norm() > kEpsilon) ? std::atan2(diff.y(), diff.x()) : 0.0;
             const double barrel_azimuth = std::atan2(dir.y(), dir.x());
             const double barrel_pitch = std::atan2(-dir.z(), std::hypot(dir.x(), dir.y()));
             const double current_btm = std::atan2(btm.y(), btm.x());
@@ -95,28 +95,39 @@ public:
     class Navigation : public Operation {
     public:
         Navigation(
-            Eigen::Vector2d toward, double stored_bottom, double stored_pitch, double upper,
-            double lower)
+            Eigen::Vector2d toward, double current_bottom_yaw, double current_pitch_yaw,
+            double fallback_bottom, double fallback_pitch, double upper, double lower)
             : toward_(std::move(toward))
-            , sb_(stored_bottom)
-            , sp_(stored_pitch)
+            , current_bottom_(current_bottom_yaw)
+            , current_pitch_(current_pitch_yaw)
+            , fallback_bottom_(fallback_bottom)
+            , fallback_pitch_(fallback_pitch)
             , upper_(upper)
             , lower_(lower) {}
 
     private:
         auto update(EccentricDualYawSolver& s) const -> Error override {
-            double bx = std::isfinite(toward_.x()) ? toward_.x() : sb_;
-            double by = std::isfinite(toward_.y()) ? toward_.y() : sp_;
+            double bx = std::isfinite(toward_.x()) ? toward_.x() : fallback_bottom_;
+            double by = std::isfinite(toward_.y()) ? toward_.y() : fallback_pitch_;
             by = std::clamp(by, upper_, lower_);
+
+            const double current_top = limit_rad(*s.top_yaw_angle_);
+
             s.enabled_ = true;
-            return {limit_rad(bx - sb_), 0.0, limit_rad(by - sp_), true};
+            return {
+                limit_rad(bx - current_bottom_),
+                limit_rad(0.0 - current_top),
+                limit_rad(by - current_pitch_),
+                true,
+            };
         }
         Eigen::Vector2d toward_;
-        double sb_, sp_, upper_, lower_;
+        double current_bottom_, current_pitch_, fallback_bottom_, fallback_pitch_, upper_, lower_;
     };
 
 private:
     static constexpr double kNaN_ = std::numeric_limits<double>::quiet_NaN();
+    static constexpr double kEpsilon = 1e-9;
 
     static auto limit_rad(double a) -> double {
         constexpr double p = std::numbers::pi_v<double>;
@@ -129,7 +140,7 @@ private:
 
     static auto normalize(const Eigen::Vector3d& v) -> Eigen::Vector3d {
         double n = v.norm();
-        if (n > 1e-9)
+        if (n > kEpsilon)
             return v / n;
         return Eigen::Vector3d::UnitX();
     }

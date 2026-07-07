@@ -84,10 +84,6 @@ gimbal_controller:
 
     k_top_to_bottom: -1.0
 
-    top_yaw_inertia: 0.01
-    top_yaw_jerk_gain: -0.0
-
-
     bottom_yaw_viscous_ff_gain: 0.002495
     bottom_yaw_coulomb_ff_gain: 0.457343
     bottom_yaw_coulomb_ff_tanh_gain: 100.0
