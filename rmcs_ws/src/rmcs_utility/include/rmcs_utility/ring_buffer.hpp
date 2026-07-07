@@ -2,10 +2,13 @@
 
 #include <algorithm>
 #include <atomic>
+#include <compare>
 #include <cstddef>
+#include <iterator>
 #include <limits>
 #include <memory>
 #include <new>
+#include <type_traits>
 #include <utility>
 
 namespace rmcs_utility {
@@ -15,6 +18,179 @@ namespace rmcs_utility {
 template <typename T>
 class RingBuffer {
 public:
+    template <bool is_const>
+    class ReadableView;
+
+    template <bool is_const>
+    class BasicIterator {
+        using Buffer = std::conditional_t<is_const, const RingBuffer, RingBuffer>;
+
+    public:
+        using iterator_category = std::random_access_iterator_tag;
+        using iterator_concept = std::random_access_iterator_tag;
+        using value_type = T;
+        using difference_type = std::ptrdiff_t;
+        using reference = std::conditional_t<is_const, const T&, T&>;
+        using pointer = std::conditional_t<is_const, const T*, T*>;
+
+        BasicIterator() = default;
+        BasicIterator(const BasicIterator&) = default;
+        BasicIterator(BasicIterator&&) = default;
+        BasicIterator& operator=(const BasicIterator&) = default;
+        BasicIterator& operator=(BasicIterator&&) = default;
+
+        // NOLINTNEXTLINE(google-explicit-constructor)
+        BasicIterator(const BasicIterator<false>& other) requires is_const
+            : buffer_(other.buffer_)
+            , origin_(other.origin_)
+            , offset_(other.offset_) {}
+
+        reference operator*() const { return *ptr(); }
+        pointer operator->() const { return ptr(); }
+        reference operator[](difference_type n) const { return *(*this + n); }
+
+        BasicIterator& operator++() {
+            offset_++;
+            return *this;
+        }
+
+        BasicIterator operator++(int) {
+            auto old = *this;
+            ++*this;
+            return old;
+        }
+
+        BasicIterator& operator--() {
+            offset_--;
+            return *this;
+        }
+
+        BasicIterator operator--(int) {
+            auto old = *this;
+            --*this;
+            return old;
+        }
+
+        BasicIterator& operator+=(difference_type n) {
+            if (n >= 0)
+                offset_ += static_cast<size_t>(n);
+            else
+                offset_ -= static_cast<size_t>(-(n + 1)) + 1;
+            return *this;
+        }
+
+        BasicIterator& operator-=(difference_type n) {
+            if (n >= 0)
+                offset_ -= static_cast<size_t>(n);
+            else
+                offset_ += static_cast<size_t>(-(n + 1)) + 1;
+            return *this;
+        }
+
+        friend BasicIterator operator+(BasicIterator it, difference_type n) {
+            it += n;
+            return it;
+        }
+
+        friend BasicIterator operator+(difference_type n, BasicIterator it) {
+            it += n;
+            return it;
+        }
+
+        friend BasicIterator operator-(BasicIterator it, difference_type n) {
+            it -= n;
+            return it;
+        }
+
+        friend difference_type operator-(BasicIterator lhs, BasicIterator rhs) {
+            if (lhs.offset_ >= rhs.offset_)
+                return static_cast<difference_type>(lhs.offset_ - rhs.offset_);
+            return -static_cast<difference_type>(rhs.offset_ - lhs.offset_);
+        }
+
+        friend bool operator==(BasicIterator lhs, BasicIterator rhs) {
+            return lhs.buffer_ == rhs.buffer_ && lhs.origin_ == rhs.origin_
+                && lhs.offset_ == rhs.offset_;
+        }
+
+        friend std::strong_ordering operator<=>(BasicIterator lhs, BasicIterator rhs) {
+            return lhs.offset_ <=> rhs.offset_;
+        }
+
+    private:
+        friend class RingBuffer;
+        template <bool>
+        friend class BasicIterator;
+        template <bool>
+        friend class ReadableView;
+
+        BasicIterator(Buffer* buffer, size_t origin, size_t offset)
+            : buffer_(buffer)
+            , origin_(origin)
+            , offset_(offset) {}
+
+        pointer ptr() const {
+            return std::launder(
+                reinterpret_cast<pointer>(
+                    buffer_->storage_[(origin_ + offset_) & buffer_->mask_].data));
+        }
+
+        Buffer* buffer_ = nullptr;
+        size_t origin_ = 0;
+        size_t offset_ = 0;
+    };
+
+    using iterator = BasicIterator<false>;
+    using const_iterator = BasicIterator<true>;
+
+    template <bool is_const>
+    class ReadableView {
+        using Buffer = std::conditional_t<is_const, const RingBuffer, RingBuffer>;
+
+    public:
+        using iterator = BasicIterator<is_const>;
+        using value_type = T;
+        using difference_type = std::ptrdiff_t;
+        using size_type = size_t;
+        using reference = std::conditional_t<is_const, const T&, T&>;
+
+        ReadableView() = default;
+        ReadableView(const ReadableView&) = default;
+        ReadableView(ReadableView&&) = default;
+        ReadableView& operator=(const ReadableView&) = default;
+        ReadableView& operator=(ReadableView&&) = default;
+
+        // NOLINTNEXTLINE(google-explicit-constructor)
+        ReadableView(const ReadableView<false>& other) requires is_const
+            : buffer_(other.buffer_)
+            , origin_(other.origin_)
+            , size_(other.size_) {}
+
+        iterator begin() const { return iterator{buffer_, origin_, 0}; }
+        iterator end() const { return iterator{buffer_, origin_, size_}; }
+
+        [[nodiscard]] bool empty() const { return size_ == 0; }
+        [[nodiscard]] size_type size() const { return size_; }
+
+        reference front() const { return *begin(); }
+        reference back() const { return *(end() - 1); }
+        reference operator[](size_type index) const { return begin()[index]; }
+
+    private:
+        friend class RingBuffer;
+        template <bool>
+        friend class ReadableView;
+
+        ReadableView(Buffer* buffer, size_t origin, size_t size)
+            : buffer_(buffer)
+            , origin_(origin)
+            , size_(size) {}
+
+        Buffer* buffer_ = nullptr;
+        size_t origin_ = 0;
+        size_t size_ = 0;
+    };
+
     /*!
      * @brief Construct an SPSC ring buffer
      * @param size Minimum capacity requested. Actual capacity is rounded up
@@ -74,6 +250,31 @@ public:
         const auto out = out_.load(std::memory_order::acquire);
         return max_size() - (in - out);
     }
+
+    /*!
+     * @brief Snapshot view of elements currently readable by the consumer
+     * @note Captures [out, in) once. Producer pushes do not extend the returned view.
+     *       Consumer pops invalidate iterators to erased elements.
+     */
+    ReadableView<false> readable_view() noexcept {
+        const auto in = in_.load(std::memory_order::acquire);
+        const auto out = out_.load(std::memory_order::relaxed);
+        return {this, out, in - out};
+    }
+
+    /*!
+     * @brief Const snapshot view of elements currently readable by the consumer
+     */
+    ReadableView<true> readable_view() const noexcept {
+        const auto in = in_.load(std::memory_order::acquire);
+        const auto out = out_.load(std::memory_order::relaxed);
+        return {this, out, in - out};
+    }
+
+    /*!
+     * @brief Explicit const snapshot view for non-const buffers
+     */
+    ReadableView<true> const_readable_view() const noexcept { return readable_view(); }
 
     /*!
      * @brief Peek the first element (consumer side)
@@ -275,6 +476,24 @@ public:
         { f(std::move(t)) } noexcept;
     } bool pop_front(F&& callback_functor) {
         return pop_front_n(std::forward<F>(callback_functor), 1);
+    }
+
+    /*!
+     * @brief Pop readable elements before a snapshot iterator
+     * @return Number of elements erased from the front
+     * @note Consumer-only. `pos` must come from this buffer's current readable range.
+     */
+    size_t pop_front_until(const_iterator pos) {
+        if (pos.buffer_ != this)
+            return 0;
+
+        const auto in = in_.load(std::memory_order::acquire);
+        const auto out = out_.load(std::memory_order::relaxed);
+        const auto count = pos.origin_ + pos.offset_ - out;
+        if (count > in - out)
+            return 0;
+
+        return pop_front_n([](const T&) noexcept {}, count);
     }
 
     /*!

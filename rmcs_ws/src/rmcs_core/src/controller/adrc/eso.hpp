@@ -66,9 +66,7 @@ public:
     }
 
 private:
-    static double clamp(double x, double lo, double hi) {
-        return std::max(lo, std::min(x, hi));
-    }
+    static double clamp(double x, double lo, double hi) { return std::max(lo, std::min(x, hi)); }
 
     void sanitize_config() {
         constexpr double kEps = 1e-9;

@@ -10,8 +10,7 @@ public:
         : CrossHairCircle(color, x, y, 12, 2, visible) {}
 
     CrossHairCircle(
-        Shape::Color color, uint16_t x, uint16_t y, uint16_t r, uint16_t width,
-        bool visible = true)
+        Shape::Color color, uint16_t x, uint16_t y, uint16_t r, uint16_t width, bool visible = true)
         : circle_(color, width, x, y, r, r, visible) {}
 
     void set_visible(bool value) { circle_.set_visible(value); }

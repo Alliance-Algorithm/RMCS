@@ -236,29 +236,18 @@ private:
                 * (-dir_x / chassis_radius_x_
                    + dir_y / chassis_radius_y_);
 
-            const double force_to_torque =
-                friction_coefficient_ * wheel_radius_;
-            const double rhs =
-                force_to_torque * mass_ * g_ / 4.0;
-            const std::vector<QcpSolver::HalfPlaneConstraint>
-                half_planes = {
-                    {lambda_1 - force_to_torque * gamma_1, y_sign,
-                     rhs},
-                    {-lambda_1 - force_to_torque * gamma_1,
-                     -y_sign, rhs},
-                    {lambda_2 - force_to_torque * gamma_2, y_sign,
-                     rhs},
-                    {-lambda_2 - force_to_torque * gamma_2,
-                     -y_sign, rhs},
-                    {-lambda_1 + force_to_torque * gamma_1, y_sign,
-                     rhs},
-                    {lambda_1 + force_to_torque * gamma_1,
-                     -y_sign, rhs},
-                    {-lambda_2 + force_to_torque * gamma_2, y_sign,
-                     rhs},
-                    {lambda_2 + force_to_torque * gamma_2,
-                     -y_sign, rhs},
-                };
+            const double force_to_torque = friction_coefficient_ * wheel_radius_;
+            const double rhs = force_to_torque * mass_ * g_ / 4.0;
+            const std::vector<QcpSolver::HalfPlaneConstraint> half_planes = {
+                {lambda_1 - force_to_torque * gamma_1, y_sign, rhs},
+                {-lambda_1 - force_to_torque * gamma_1, -y_sign, rhs},
+                {lambda_2 - force_to_torque * gamma_2, y_sign, rhs},
+                {-lambda_2 - force_to_torque * gamma_2, -y_sign, rhs},
+                {-lambda_1 + force_to_torque * gamma_1, y_sign, rhs},
+                {lambda_1 + force_to_torque * gamma_1, -y_sign, rhs},
+                {-lambda_2 + force_to_torque * gamma_2, y_sign, rhs},
+                {lambda_2 + force_to_torque * gamma_2, -y_sign, rhs},
+            };
             result = qcp_solver_.solve(
                 {1.0, 1.0}, {x_max, std::abs(y_max)},
                 half_planes, {a, b, c, d, e, f});

@@ -67,15 +67,13 @@ private:
     static constexpr double default_min_angle_deg_ = 8.0;
     static constexpr double default_max_angle_deg_ = 58.0;
 
-    static constexpr double deg_to_rad_(double degrees) {
-        return degrees * degrees_to_radians_;
-    }
+    static constexpr double deg_to_rad_(double degrees) { return degrees * degrees_to_radians_; }
 
     static constexpr std::array<double, 4> leg_base_mid_angles_ = {
         front_pair_offset_deg_ * degrees_to_radians_,
-        std::numbers::pi_v<double> - rear_pair_offset_deg_ * degrees_to_radians_,
-        std::numbers::pi_v<double> + rear_pair_offset_deg_ * degrees_to_radians_,
-        -front_pair_offset_deg_ * degrees_to_radians_,
+        std::numbers::pi_v<double> - rear_pair_offset_deg_* degrees_to_radians_,
+        std::numbers::pi_v<double> + rear_pair_offset_deg_* degrees_to_radians_,
+        -front_pair_offset_deg_* degrees_to_radians_,
     };
 
     static constexpr std::array<uint16_t, 4> leg_radii_near_ = {
@@ -93,9 +91,8 @@ private:
     };
 
     static uint16_t to_referee_angle_(double angle) {
-        const auto degrees =
-            static_cast<int>(std::lround((2.0 * std::numbers::pi_v<double> - angle)
-                                         / std::numbers::pi_v<double> * 180.0));
+        const auto degrees = static_cast<int>(std::lround(
+            (2.0 * std::numbers::pi_v<double> - angle) / std::numbers::pi_v<double> * 180.0));
         int wrapped = degrees % 360;
         if (wrapped < 0)
             wrapped += 360;
@@ -118,14 +115,13 @@ private:
         double leg_angle, bool active_suspension) const {
         const double normalized_extension = normalized_leg_extension_(leg_angle);
         // Min angle looks like a thin leg stretching radially outward from the center ring.
-        const uint16_t radius = static_cast<uint16_t>(std::lround(
-            far_radius - normalized_extension * (far_radius - near_radius)));
+        const uint16_t radius = static_cast<uint16_t>(
+            std::lround(far_radius - normalized_extension * (far_radius - near_radius)));
         const uint16_t half_angle = static_cast<uint16_t>(std::lround(
             prone_leg_half_angle_
             - normalized_extension * (prone_leg_half_angle_ - upright_leg_half_angle_)));
         const uint16_t width = static_cast<uint16_t>(std::lround(
-            prone_leg_width_
-            + normalized_extension * (upright_leg_width_ - prone_leg_width_)));
+            prone_leg_width_ + normalized_extension * (upright_leg_width_ - prone_leg_width_)));
 
         leg.set_x(center_x_);
         leg.set_y(center_y_);
