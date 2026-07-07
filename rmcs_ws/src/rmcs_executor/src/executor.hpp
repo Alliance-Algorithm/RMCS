@@ -1,10 +1,18 @@
 #pragma once
 
+#include <algorithm>
+#include <chrono>
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <format>
 #include <map>
 #include <memory>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <tuple>
 #include <unordered_map>
 #include <vector>
@@ -16,6 +24,8 @@
 
 #include "predefined_msg_provider.hpp"
 #include "rmcs_executor/component.hpp"
+#include "rmcs_utility/tdigest.hpp"
+#include "rmcs_utility/thread_config.hpp"
 
 namespace rmcs_executor {
 
@@ -56,35 +66,291 @@ public:
         if (!get_parameter("update_rate", update_rate))
             throw std::runtime_error{"Unable to get parameter update_rate<double>"};
         predefined_msg_provider_->set_update_rate(update_rate);
+
+        std::string thread_config_spec;
+        get_parameter_or<std::string>("thread_config", thread_config_spec, "");
+        auto thread_config = rmcs_utility::ThreadConfig{thread_config_spec, "update"};
+
         enable_event_outputs();
 
-        thread_ = std::thread{[update_rate, this]() {
-            const auto period = std::chrono::nanoseconds(
-                static_cast<long>(std::round(1'000'000'000.0 / update_rate)));
-            auto next_iteration_time = std::chrono::steady_clock::now();
-            try {
-                while (rclcpp::ok()) {
-                    predefined_msg_provider_->set_timestamp(next_iteration_time);
-                    next_iteration_time += period;
-                    for (const auto& component : updating_order_) {
-                        component->update();
-                    }
-                    std::this_thread::sleep_until(next_iteration_time);
-                }
-            } catch (const std::exception& exception) {
-                RCLCPP_FATAL(
-                    get_logger(), "Executor update thread terminated by exception: %s",
-                    exception.what());
-                rclcpp::shutdown();
-            } catch (...) {
-                RCLCPP_FATAL(
-                    get_logger(), "Executor update thread terminated by unknown exception");
-                rclcpp::shutdown();
-            }
+        thread_ = std::thread{[this, update_rate, thread_config = std::move(thread_config)]() {
+            thread_main(update_rate, thread_config);
         }};
     }
 
 private:
+    using SteadyClock = std::chrono::steady_clock;
+
+    static constexpr size_t digest_size_ = 256;
+
+    struct CumulativeStats {
+        rmcs_utility::TDigest<double> start_lateness_ms{digest_size_};
+        rmcs_utility::TDigest<double> update_duration_ms{digest_size_};
+        uint64_t update_count = 0;
+        uint64_t skipped_count = 0;
+        uint64_t start_lateness_sample_count = 0;
+        uint64_t update_duration_sample_count = 0;
+        double start_lateness_max_ms = 0.0;
+        double update_duration_max_ms = 0.0;
+    };
+
+    struct WindowStats {
+        explicit WindowStats(size_t component_count)
+            : component_update_duration_sums(component_count) {}
+
+        uint64_t executed_count = 0;
+        SteadyClock::duration total_update_duration{};
+        std::vector<SteadyClock::duration> component_update_duration_sums;
+    };
+
+    struct ThreadStats {
+        explicit ThreadStats(size_t component_count, SteadyClock::time_point start_time)
+            : window(component_count)
+            , next_report_time(start_time + std::chrono::seconds(5)) {}
+
+        CumulativeStats cumulative;
+        WindowStats window;
+        SteadyClock::time_point next_report_time;
+    };
+
+    struct ComponentWindowStat {
+        size_t index;
+        SteadyClock::duration duration_sum;
+    };
+
+    void thread_main(double update_rate, const rmcs_utility::ThreadConfig& thread_config) {
+        if (const auto result = thread_config.apply_to_current_thread(); !result)
+            RCLCPP_WARN(get_logger(), "%s", result.error().c_str());
+
+        const auto period =
+            std::chrono::nanoseconds(static_cast<long>(std::round(1'000'000'000.0 / update_rate)));
+        auto next_iteration_time = SteadyClock::now();
+        auto stats = ThreadStats{updating_order_.size(), next_iteration_time};
+
+        try {
+            while (rclcpp::ok()) {
+                const auto scheduled_start = next_iteration_time;
+                const auto actual_end = execute_update_iteration(scheduled_start, stats);
+                next_iteration_time = calculate_next_iteration_time(
+                    scheduled_start, actual_end, period, stats.cumulative);
+                log_due_reports(actual_end, stats);
+                std::this_thread::sleep_until(next_iteration_time);
+            }
+        } catch (const std::exception& exception) {
+            RCLCPP_FATAL(
+                get_logger(), "Executor update thread terminated by exception: %s",
+                exception.what());
+            rclcpp::shutdown();
+        } catch (...) {
+            RCLCPP_FATAL(get_logger(), "Executor update thread terminated by unknown exception");
+            rclcpp::shutdown();
+        }
+    }
+
+    SteadyClock::time_point
+        execute_update_iteration(SteadyClock::time_point scheduled_start, ThreadStats& stats) {
+        auto current_time = SteadyClock::now();
+        const auto actual_start = current_time;
+
+        record_start_lateness(scheduled_start, actual_start, stats.cumulative);
+
+        stats.cumulative.update_count++;
+        stats.window.executed_count++;
+
+        predefined_msg_provider_->set_timestamp(scheduled_start);
+
+        for (size_t component_index = 0; component_index < updating_order_.size();
+             ++component_index) {
+            const auto component_start_time = current_time;
+            updating_order_[component_index]->update();
+            current_time = SteadyClock::now();
+            stats.window.component_update_duration_sums[component_index] +=
+                current_time - component_start_time;
+        }
+
+        const auto update_duration = current_time - actual_start;
+        record_update_duration(update_duration, stats);
+        return current_time;
+    }
+
+    void record_start_lateness(
+        SteadyClock::time_point scheduled_start, SteadyClock::time_point actual_start,
+        CumulativeStats& stats) {
+        if (actual_start < scheduled_start) {
+            RCLCPP_WARN_THROTTLE(
+                get_logger(), *get_clock(), 1000, "Executor update thread woke early by %.3f ms",
+                duration_to_ms(scheduled_start - actual_start));
+            return;
+        }
+
+        const auto start_lateness_ms = duration_to_ms(actual_start - scheduled_start);
+        stats.start_lateness_ms.insert(start_lateness_ms);
+        stats.start_lateness_max_ms = std::max(stats.start_lateness_max_ms, start_lateness_ms);
+        stats.start_lateness_sample_count++;
+    }
+
+    static void record_update_duration(SteadyClock::duration update_duration, ThreadStats& stats) {
+        const auto update_duration_ms = duration_to_ms(update_duration);
+        stats.cumulative.update_duration_ms.insert(update_duration_ms);
+        stats.cumulative.update_duration_max_ms =
+            std::max(stats.cumulative.update_duration_max_ms, update_duration_ms);
+        stats.cumulative.update_duration_sample_count++;
+        stats.window.total_update_duration += update_duration;
+    }
+
+    static SteadyClock::time_point calculate_next_iteration_time(
+        SteadyClock::time_point scheduled_start, SteadyClock::time_point actual_end,
+        std::chrono::nanoseconds period, CumulativeStats& stats) {
+        auto next_iteration_time = scheduled_start + period;
+        if (actual_end <= next_iteration_time)
+            return next_iteration_time;
+
+        const auto overdue_duration = actual_end - next_iteration_time;
+        const auto skipped_cycles =
+            static_cast<uint64_t>(
+                (overdue_duration - std::chrono::nanoseconds{1}).count() / period.count())
+            + 1;
+        stats.skipped_count += skipped_cycles;
+        stats.update_count += skipped_cycles;
+        return next_iteration_time + period * skipped_cycles;
+    }
+
+    void log_due_reports(SteadyClock::time_point current_time, ThreadStats& stats) {
+        while (current_time >= stats.next_report_time) {
+            log_cumulative_stats(stats.cumulative);
+            log_window_stats(stats.window);
+            reset_window_stats(stats.window);
+            stats.next_report_time += std::chrono::seconds(5);
+        }
+    }
+
+    void log_cumulative_stats(CumulativeStats& stats) {
+        stats.start_lateness_ms.merge();
+        stats.update_duration_ms.merge();
+
+        const double skipped_ratio = stats.update_count == 0
+                                       ? 0.0
+                                       : static_cast<double>(stats.skipped_count)
+                                             / static_cast<double>(stats.update_count) * 100.0;
+
+        RCLCPP_INFO(
+            get_logger(),
+            "Update/Skipped: %llu/%llu (%s%%), "
+            "Stat ms p50/p99/max: start_late %s/%s/%s, update %s/%s/%s",
+            static_cast<unsigned long long>(stats.update_count),
+            static_cast<unsigned long long>(stats.skipped_count),
+            format_percent(skipped_ratio).c_str(),
+            format_stat(
+                maybe_quantile(stats.start_lateness_ms, stats.start_lateness_sample_count, 50.0))
+                .c_str(),
+            format_stat(
+                maybe_quantile(stats.start_lateness_ms, stats.start_lateness_sample_count, 99.0))
+                .c_str(),
+            format_stat(
+                stats.start_lateness_sample_count == 0
+                    ? std::nullopt
+                    : std::optional<double>{stats.start_lateness_max_ms})
+                .c_str(),
+            format_stat(
+                maybe_quantile(stats.update_duration_ms, stats.update_duration_sample_count, 50.0))
+                .c_str(),
+            format_stat(
+                maybe_quantile(stats.update_duration_ms, stats.update_duration_sample_count, 99.0))
+                .c_str(),
+            format_stat(
+                stats.update_duration_sample_count == 0
+                    ? std::nullopt
+                    : std::optional<double>{stats.update_duration_max_ms})
+                .c_str());
+    }
+
+    void log_window_stats(const WindowStats& stats) {
+        if (stats.executed_count == 0
+            || stats.total_update_duration == SteadyClock::duration::zero())
+            return;
+
+        auto top_component_stats = collect_top_component_stats(stats);
+        if (top_component_stats.empty())
+            return;
+
+        RCLCPP_INFO(
+            get_logger(), "Component 5s: %s",
+            format_top_component_stats(top_component_stats, stats).c_str());
+    }
+
+    static std::vector<ComponentWindowStat> collect_top_component_stats(const WindowStats& stats) {
+        auto top_component_stats = std::vector<ComponentWindowStat>{};
+        top_component_stats.reserve(stats.component_update_duration_sums.size());
+        for (size_t component_index = 0;
+             component_index < stats.component_update_duration_sums.size(); ++component_index) {
+            const auto duration_sum = stats.component_update_duration_sums[component_index];
+            if (duration_sum == SteadyClock::duration::zero())
+                continue;
+            top_component_stats.emplace_back(component_index, duration_sum);
+        }
+
+        const size_t top_count = std::min<size_t>(3, top_component_stats.size());
+        std::partial_sort(
+            top_component_stats.begin(),
+            top_component_stats.begin() + static_cast<std::ptrdiff_t>(top_count),
+            top_component_stats.end(), [](const auto& lhs, const auto& rhs) {
+                if (lhs.duration_sum != rhs.duration_sum)
+                    return lhs.duration_sum > rhs.duration_sum;
+                return lhs.index < rhs.index;
+            });
+        top_component_stats.resize(top_count);
+        return top_component_stats;
+    }
+
+    std::string format_top_component_stats(
+        const std::vector<ComponentWindowStat>& top_component_stats,
+        const WindowStats& stats) const {
+        auto top_components = std::string{};
+        for (size_t rank = 0; rank < top_component_stats.size(); ++rank) {
+            if (rank != 0)
+                top_components += ", ";
+
+            const auto& stat = top_component_stats[rank];
+            top_components += std::format(
+                "{} {}ms/{}%", updating_order_[stat.index]->get_component_name(),
+                format_stat(
+                    std::optional<double>{
+                        duration_to_ms(stat.duration_sum)
+                        / static_cast<double>(stats.executed_count)}),
+                format_percent(
+                    duration_to_ms(stat.duration_sum) / duration_to_ms(stats.total_update_duration)
+                    * 100.0));
+        }
+        return top_components;
+    }
+
+    static void reset_window_stats(WindowStats& stats) {
+        stats.executed_count = 0;
+        stats.total_update_duration = SteadyClock::duration::zero();
+        std::fill(
+            stats.component_update_duration_sums.begin(),
+            stats.component_update_duration_sums.end(), SteadyClock::duration::zero());
+    }
+
+    static double duration_to_ms(SteadyClock::duration duration) {
+        return std::chrono::duration<double, std::milli>(duration).count();
+    }
+
+    static std::string format_stat(const std::optional<double>& value) {
+        if (!value.has_value())
+            return "n/a";
+        return std::format("{:.3f}", *value);
+    }
+
+    static std::string format_percent(double value) { return std::format("{:.1f}", value); }
+
+    static std::optional<double> maybe_quantile(
+        const rmcs_utility::TDigest<double>& digest, uint64_t sample_count, double quantile) {
+        if (sample_count == 0)
+            return std::nullopt;
+        return digest.quantile(quantile);
+    }
+
     void enable_event_outputs() {
         for (const auto& component : component_list_) {
             for (const auto& output : component->output_list_) {
