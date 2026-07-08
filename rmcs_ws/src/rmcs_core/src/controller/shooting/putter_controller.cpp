@@ -181,10 +181,10 @@ public:
 
                     if (shoot_stage_ == ShootStage::SHOOTING) {
                         // Firing state: detect whether the bullet has been fired.
-                        if (*bullet_fired_ && !shooted) {
-                            RCLCPP_INFO(get_logger(), "DETECT: Bullet fired!");
-                            shooted = true;
-                        }
+                        // if (*bullet_fired_ && !shooted) {
+                        //     RCLCPP_INFO(get_logger(), "DETECT: Bullet fired!");
+                        //     shooted = true;
+                        // }
 
                         // if (*putter_angle_ - putter_startpoint >= putter_stroke_ && !shooted) {
                         //     RCLCPP_INFO(get_logger(), "DETECT: Putter stroke completed!");

@@ -355,13 +355,19 @@ private:
             *photoelectric_sensor_status_ = photoelectric_sensor_status_atomic.load();
             *grayscale_sensor_status_ = grayscale_sensor_status_atomic.load();
 
-            if (++count_ == 500) {
+            if (++count_ == 250) {
                 for (int i = 0; i < 6; ++i) {
                     if (friciton_detect[i] == 0) {
                         RCLCPP_WARN(logger_, "can id 0x%03X missing", i + 0x201);
                     }
                 }
                 std::fill_n(friciton_detect, 6, 0);
+                for (int i = 0; i < 3; ++i) {
+                    if (can0_detect[i] == 0) {
+                        RCLCPP_WARN(logger_, "can id 0x%03X missing", i + 0x141);
+                    }
+                }
+                std::fill_n(can0_detect, 3, 0);
                 count_ = 0;
             }
         }
@@ -430,6 +436,7 @@ private:
                 return;
             auto can_id = data.can_id;
             // can0_receive_rate_counter_.record(can_id);
+            can0_detect[can_id - 0x141] = 1;
             if (can_id == 0x141) {
                 gimbal_top_yaw_motor_.store_status(data.can_data);
             } else if (can_id == 0x143) {
@@ -503,6 +510,7 @@ private:
         std::time_t last_camera_capturer_trigger_timestamp_{0};
         int count_ = 0;
         int friciton_detect[6];
+        int can0_detect[3];
 
         device::Bmi088 imu_;
         device::Vt13 vt13_;
@@ -678,7 +686,7 @@ private:
             yaw_brake_motor_.update_status();
             gimbal_bottom_yaw_motor_.update_status();
 
-            if (++count_ == 500) {
+            if (++count_ == 250) {
                 for (int i = 0; i < 8; ++i) {
                     if (check[i] == 0) {
                         RCLCPP_WARN(logger_, "can id 0x%03X missing", i + 0x201);
