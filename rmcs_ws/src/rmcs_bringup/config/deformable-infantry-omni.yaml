@@ -21,6 +21,7 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller
 
       - rmcs_core::controller::chassis::DeformableChassis -> chassis_controller
+      - rmcs_core::controller::chassis::DeformableSuspension -> deformable_suspension
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::DeformableOmniWheelController -> deformable_chassis_controller
 
@@ -58,7 +59,28 @@ chassis_controller:
     min_angle: 12.0
     max_angle: 50.0
     active_suspension_enable: true
+    passive_suspension_enable: true
     spin_ratio: 1.0
+
+deformable_suspension:
+  ros__parameters:
+    passive_suspension_enable: true
+    passive_suspension_kp: 0.035
+    passive_suspension_ki: 0.005
+    passive_suspension_deadband: 0.08
+    passive_suspension_load_lpf_alpha: 0.08
+    passive_suspension_integral_limit: 3.0
+    passive_suspension_max_angle_correction_deg: 8.0
+    passive_suspension_correction_velocity_limit_deg: 180.0
+    passive_suspension_correction_acceleration_limit_deg: 720.0
+    passive_suspension_load_sign_left_front: -1.0
+    passive_suspension_load_sign_left_back: -1.0
+    passive_suspension_load_sign_right_back: -1.0
+    passive_suspension_load_sign_right_front: -1.0
+    passive_suspension_load_bias_left_front: 0.0
+    passive_suspension_load_bias_left_back: 0.0
+    passive_suspension_load_bias_right_back: 0.0
+    passive_suspension_load_bias_right_front: 0.0
 
     # IMU attitude correction at min-angle stance.
     active_suspension_pitch_outer_kp: 12.0

@@ -1,10 +1,8 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
-#include <cstdlib>
 #include <limits>
 #include <numbers>
-#include <stdexcept>
 #include <string>
 
 #include <eigen3/Eigen/Dense>
@@ -18,11 +16,8 @@
 #include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/switch.hpp>
 
+#include "controller/chassis/deformable_mode.hpp"
 #include "controller/pid/pid_calculator.hpp"
-
-#include "deformable_chassis_joint_manager.hpp"
-#include "deformable_chassis_mode_manager.hpp"
-#include "deformable_chassis_suspension.hpp"
 
 namespace rmcs_core::controller::chassis {
 
@@ -30,7 +25,7 @@ class DeformableChassis
     : public rmcs_executor::Component
     , public rclcpp::Node {
 public:
-    DeformableChassis()
+    explicit DeformableChassis()
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
@@ -40,9 +35,6 @@ public:
 
         following_velocity_controller_.output_max = angular_velocity_max_;
         following_velocity_controller_.output_min = -angular_velocity_max_;
-
-        suspension_.configure(*this);
-        joint_mgr_.configure(*this);
 
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/switch/right", switch_right_);
@@ -54,40 +46,35 @@ public:
         register_input("/gimbal/yaw/angle", gimbal_yaw_angle_, false);
         register_input("/gimbal/yaw/control_angle_error", gimbal_yaw_angle_error_, false);
 
-        register_input("/chassis/imu/pitch", chassis_imu_pitch_, false);
-        register_input("/chassis/imu/roll", chassis_imu_roll_, false);
-        register_input("/chassis/imu/pitch_rate", chassis_imu_pitch_rate_, false);
-        register_input("/chassis/imu/roll_rate", chassis_imu_roll_rate_, false);
-
-        for (size_t i = 0; i < kJointCount; ++i) {
-            register_input(
-                fmt::format("/chassis/{}_joint/physical_angle", kJointName[i]),
-                joint_physical_angle_[i], false);
-            register_output(
-                fmt::format("/chassis/{}_joint/target_physical_angle", kJointName[i]),
-                joint_target_angle_[i], nan_);
-            register_output(
-                fmt::format("/chassis/{}_joint/target_physical_velocity", kJointName[i]),
-                joint_target_velocity_[i], nan_);
-            register_output(
-                fmt::format("/chassis/{}_joint/target_physical_acceleration", kJointName[i]),
-                joint_target_acceleration_[i], nan_);
-            register_output(
-                fmt::format("/chassis/{}_joint/control_angle_error", kJointName[i]),
-                joint_angle_error_[i], nan_);
-        }
-
-        register_output("/gimbal/scope/control_torque", scope_motor_control_torque, nan_);
-
         register_output("/chassis/angle", chassis_angle_, nan_);
         register_output("/chassis/control_angle", chassis_control_angle_, nan_);
         register_output("/chassis/control_mode", mode_);
         register_output("/chassis/control_velocity", chassis_control_velocity_);
         register_output("/chassis/pitch_lock_active", pitch_lock_active_, false);
         register_output("/chassis/active_suspension/active", active_suspension_active_, false);
+        register_output("/chassis/deformable/passive_suspension_active", passive_suspension_active_, false);
+        register_output("/chassis/deformable/low_prone_active", low_prone_active_, false);
+        register_output("/chassis/deformable/symmetric_posture_target", symmetric_posture_target_, true);
+        register_output("/chassis/deformable/correction_inverted", correction_inverted_, false);
+        register_output("/chassis/deformable/min_angle_deg", min_angle_deg_, joint_mode_mgr_.min_angle());
+        register_output("/chassis/deformable/max_angle_deg", max_angle_deg_, joint_mode_mgr_.max_angle());
+        register_output(
+            "/chassis/deformable/suspension_reference_angle_deg",
+            suspension_reference_angle_deg_, joint_mode_mgr_.suspension_reference_angle_deg());
+        register_output("/chassis/deformable/reset_count", deformable_reset_count_, static_cast<size_t>(0));
+        for (size_t i = 0; i < kJointCount; ++i) {
+            register_output(
+                fmt::format("/chassis/deformable/{}_joint/posture_target_angle", kJointName[i]),
+                joint_posture_target_angle_rad_[i], deg_to_rad(joint_mode_mgr_.max_angle()));
+        }
 
-        *mode_             = rmcs_msgs::ChassisMode::AUTO;
+        *mode_ = rmcs_msgs::ChassisMode::AUTO;
         *pitch_lock_active_ = false;
+        *active_suspension_active_ = false;
+        *passive_suspension_active_ = false;
+        *low_prone_active_ = false;
+        *symmetric_posture_target_ = true;
+        *correction_inverted_ = false;
         chassis_control_velocity_->vector << nan_, nan_, nan_;
     }
 
@@ -102,23 +89,14 @@ public:
                 get_logger(), "Failed to fetch \"/gimbal/yaw/control_angle_error\". "
                               "Set to 0.0.");
         }
-        if (!chassis_imu_pitch_.ready())
-            chassis_imu_pitch_.make_and_bind_directly(0.0);
-        if (!chassis_imu_roll_.ready())
-            chassis_imu_roll_.make_and_bind_directly(0.0);
-        if (!chassis_imu_pitch_rate_.ready())
-            chassis_imu_pitch_rate_.make_and_bind_directly(0.0);
-        if (!chassis_imu_roll_rate_.ready())
-            chassis_imu_roll_rate_.make_and_bind_directly(0.0);
-        validate_joint_feedback_inputs();
     }
 
     void update() override {
         using rmcs_msgs::Switch;
 
         const auto switch_right = *switch_right_;
-        const auto switch_left  = *switch_left_;
-        const auto keyboard     = *keyboard_;
+        const auto switch_left = *switch_left_;
+        const auto keyboard = *keyboard_;
 
         do {
             if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
@@ -131,47 +109,48 @@ public:
 
             joint_mode_mgr_.update(switch_left, switch_right, keyboard, rotary_knob, update_dt());
 
-            const auto& joint_posture_state = joint_mode_mgr_.joint_posture_state();
-            *mode_                     = joint_posture_state.mode;
-            *pitch_lock_active_        = joint_posture_state.pitch_lock_active;
-            *active_suspension_active_ = joint_posture_state.suspension_active;
+            *mode_ = joint_mode_mgr_.mode();
+            *pitch_lock_active_ = joint_mode_mgr_.pitch_lock_active();
+            *active_suspension_active_ = joint_mode_mgr_.suspension_active();
+            *passive_suspension_active_ = joint_mode_mgr_.passive_suspension_active();
+            *low_prone_active_ = joint_mode_mgr_.low_prone_active();
+            *symmetric_posture_target_ = joint_mode_mgr_.symmetric_posture_target();
+            *correction_inverted_ = joint_mode_mgr_.correction_inverted();
+            *min_angle_deg_ = joint_mode_mgr_.min_angle();
+            *max_angle_deg_ = joint_mode_mgr_.max_angle();
+            *suspension_reference_angle_deg_ = joint_mode_mgr_.suspension_reference_angle_deg();
+            publish_joint_posture_targets_();
 
             update_velocity_control();
-            run_joint_intent_pipeline_();
         } while (false);
     }
 
 private:
-    static constexpr size_t kJointCount                 = 4;
-    static constexpr double nan_                        = std::numeric_limits<double>::quiet_NaN();
+    static constexpr size_t kJointCount = 4;
+    static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
     static constexpr double translational_velocity_max_ = 10.0;
-    static constexpr double angular_velocity_max_       = 30.0;
-    static constexpr double default_dt_                 = 1e-3;
-
-    void validate_joint_feedback_inputs() const {
-        for (size_t i = 0; i < kJointCount; ++i)
-            if (!joint_physical_angle_[i].ready())
-                throw std::runtime_error(
-                    "missing deformable chassis feedback "
-                    "interfaces: expected "
-                    "/chassis/*_joint/physical_angle");
-    }
+    static constexpr double angular_velocity_max_ = 30.0;
+    static constexpr double default_dt_ = 1e-3;
 
     void reset_all_controls() {
-        *mode_             = rmcs_msgs::ChassisMode::AUTO;
-        *pitch_lock_active_ = false;
-
         joint_mode_mgr_.reset();
-        suspension_.reset();
-        joint_mgr_.reset();
+        *deformable_reset_count_ += 1;
+
+        *mode_ = rmcs_msgs::ChassisMode::AUTO;
+        *pitch_lock_active_ = false;
+        *active_suspension_active_ = false;
+        *passive_suspension_active_ = false;
+        *low_prone_active_ = false;
+        *symmetric_posture_target_ = true;
+        *correction_inverted_ = false;
+        *min_angle_deg_ = joint_mode_mgr_.min_angle();
+        *max_angle_deg_ = joint_mode_mgr_.max_angle();
+        *suspension_reference_angle_deg_ = joint_mode_mgr_.suspension_reference_angle_deg();
+        publish_joint_posture_targets_();
 
         chassis_control_velocity_->vector << nan_, nan_, nan_;
-        *chassis_angle_         = nan_;
+        *chassis_angle_ = nan_;
         *chassis_control_angle_ = nan_;
-
-        *scope_motor_control_torque = nan_;
-
-        publish_nan_joint_targets();
     }
 
     double update_dt() const {
@@ -182,7 +161,7 @@ private:
 
     void update_velocity_control() {
         Eigen::Vector2d translational_velocity = update_translational_velocity_control();
-        double angular_velocity                = update_angular_velocity_control();
+        double angular_velocity = update_angular_velocity_control();
         chassis_control_velocity_->vector << translational_velocity, angular_velocity;
     }
 
@@ -201,15 +180,14 @@ private:
     }
 
     double update_angular_velocity_control() {
-        double angular_velocity      = 0.0;
+        double angular_velocity = 0.0;
         double chassis_control_angle = nan_;
 
         switch (*mode_) {
         case rmcs_msgs::ChassisMode::AUTO: break;
 
         case rmcs_msgs::ChassisMode::SPIN: {
-            const auto& joint_posture_state = joint_mode_mgr_.joint_posture_state();
-            bool forward = joint_posture_state.spinning_forward;
+            bool forward = joint_mode_mgr_.spinning_forward();
             angular_velocity =
                 spin_ratio_ * (forward ? angular_velocity_max_ : -angular_velocity_max_);
             angular_velocity =
@@ -234,7 +212,7 @@ private:
         default: break;
         }
 
-        *chassis_angle_         = 2 * std::numbers::pi - *gimbal_yaw_angle_;
+        *chassis_angle_ = 2 * std::numbers::pi - *gimbal_yaw_angle_;
         *chassis_control_angle_ = chassis_control_angle;
 
         return angular_velocity;
@@ -254,104 +232,12 @@ private:
 
     static double deg_to_rad(double deg) { return deg * std::numbers::pi / 180.0; }
 
-    std::array<double, kJointCount> read_feedback_() const {
-        std::array<double, kJointCount> angles;
-        angles.fill(nan_);
+    void publish_joint_posture_targets_() {
+        std::array<double, kJointCount> targets_deg{};
+        joint_mode_mgr_.copy_joint_posture_target_deg(targets_deg);
 
         for (size_t i = 0; i < kJointCount; ++i)
-            if (joint_physical_angle_[i].ready() && std::isfinite(*joint_physical_angle_[i]))
-                angles[i] = *joint_physical_angle_[i];
-
-        return angles;
-    }
-
-    std::array<double, kJointCount> compute_target_angles_rad_() const {
-        const auto& joint_posture_state = joint_mode_mgr_.joint_posture_state();
-        std::array<double, kJointCount> targets_deg = joint_posture_state.joint_posture_target_deg;
-
-        std::array<double, kJointCount> targets_rad;
-        for (size_t i = 0; i < kJointCount; ++i)
-            targets_rad[i] = deg_to_rad(targets_deg[i]);
-
-        return targets_rad;
-    }
-
-    void run_joint_intent_pipeline_() {
-        const auto current_physical_angles = read_feedback_();
-        const auto& joint_posture_state = joint_mode_mgr_.joint_posture_state();
-
-        if (!joint_mgr_.init_from_feedback(current_physical_angles)) {
-            publish_nan_joint_targets();
-            return;
-        }
-
-        std::array<double, kJointCount> target_angles_rad = compute_target_angles_rad_();
-
-        suspension_.calibrate(
-            *chassis_imu_pitch_, *chassis_imu_roll_, joint_posture_state.symmetric_posture_target,
-            update_dt());
-
-        *scope_motor_control_torque = suspension_.scope_torque(
-            joint_posture_state.suspension_active,
-            joint_posture_state.mode == rmcs_msgs::ChassisMode::SPIN);
-
-        auto corrections = suspension_.update(
-            *chassis_imu_pitch_ - suspension_.pitch_offset(),
-            *chassis_imu_roll_ - suspension_.roll_offset(), *chassis_imu_pitch_rate_,
-            *chassis_imu_roll_rate_, joint_posture_state.suspension_active,
-            joint_posture_state.ctrl_low_prone_active, joint_mode_mgr_.min_angle(),
-            joint_mode_mgr_.max_angle(), joint_posture_state.suspension_reference_angle_deg,
-            joint_mode_mgr_.correction_inverted(), joint_mgr_.angle_states(), update_dt());
-
-        joint_mgr_.run_trajectory(
-            target_angles_rad, joint_posture_state.suspension_active, update_dt());
-
-        publish_joint_targets_(current_physical_angles, corrections);
-    }
-
-    void publish_joint_targets_(
-        const std::array<double, kJointCount>& feedback_angles,
-        const DeformableChassisActiveSuspension::Corrections& corrections) {
-
-        double min_angle_rad = joint_mode_mgr_.active_suspension_min_angle_rad();
-        double max_angle_rad = joint_mode_mgr_.max_angle_rad();
-
-        if (!joint_mgr_.any_active()) {
-            publish_nan_joint_targets();
-            return;
-        }
-
-        for (size_t i = 0; i < kJointCount; ++i) {
-            if (!joint_mgr_.joint_active(i)) {
-                *joint_target_angle_[i] = nan_;
-                *joint_target_velocity_[i] = nan_;
-                *joint_target_acceleration_[i] = nan_;
-                *joint_angle_error_[i] = nan_;
-                continue;
-            }
-
-            double target = joint_mgr_.angle_state(i) + corrections.joint_angle_correction[i];
-            *joint_target_angle_[i] = std::clamp(target, min_angle_rad, max_angle_rad);
-            *joint_target_velocity_[i] =
-                joint_mgr_.velocity_state(i) + corrections.joint_velocity_correction[i];
-            *joint_target_acceleration_[i] =
-                joint_mgr_.acceleration_state(i) + corrections.joint_acceleration_correction[i];
-            *joint_angle_error_[i] = std::isfinite(feedback_angles[i])
-                                       ? feedback_angles[i] - *joint_target_angle_[i]
-                                       : nan_;
-        }
-    }
-
-    void publish_nan_joint_targets() {
-        suspension_.reset();
-        joint_mgr_.reset();
-
-        for (size_t i = 0; i < kJointCount; ++i) {
-            *joint_target_angle_[i]        = nan_;
-            *joint_target_velocity_[i]     = nan_;
-            *joint_target_acceleration_[i] = nan_;
-            *joint_angle_error_[i]         = nan_;
-        }
+            *joint_posture_target_angle_rad_[i] = deg_to_rad(targets_deg[i]);
     }
 
     static constexpr const char* kJointName[] = {
@@ -375,26 +261,20 @@ private:
     OutputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;
     OutputInterface<bool> pitch_lock_active_;
     OutputInterface<bool> active_suspension_active_;
-
-    InputInterface<double> chassis_imu_pitch_;
-    InputInterface<double> chassis_imu_roll_;
-    InputInterface<double> chassis_imu_pitch_rate_;
-    InputInterface<double> chassis_imu_roll_rate_;
-
-    OutputInterface<double> scope_motor_control_torque;
-
-    std::array<InputInterface<double>, kJointCount> joint_physical_angle_;
-    std::array<OutputInterface<double>, kJointCount> joint_target_angle_;
-    std::array<OutputInterface<double>, kJointCount> joint_target_velocity_;
-    std::array<OutputInterface<double>, kJointCount> joint_target_acceleration_;
-    std::array<OutputInterface<double>, kJointCount> joint_angle_error_;
+    OutputInterface<bool> passive_suspension_active_;
+    OutputInterface<bool> low_prone_active_;
+    OutputInterface<bool> symmetric_posture_target_;
+    OutputInterface<bool> correction_inverted_;
+    OutputInterface<double> min_angle_deg_;
+    OutputInterface<double> max_angle_deg_;
+    OutputInterface<double> suspension_reference_angle_deg_;
+    OutputInterface<size_t> deformable_reset_count_;
+    std::array<OutputInterface<double>, kJointCount> joint_posture_target_angle_rad_;
 
     pid::PidCalculator following_velocity_controller_;
     const double spin_ratio_;
 
     DeformableChassisModeManager joint_mode_mgr_;
-    DeformableChassisActiveSuspension suspension_;
-    DeformableChassisJointManager joint_mgr_;
 };
 
 } // namespace rmcs_core::controller::chassis

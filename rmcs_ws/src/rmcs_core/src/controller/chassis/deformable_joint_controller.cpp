@@ -32,27 +32,19 @@ class DeformableJointController
     : public rmcs_executor::Component
     , public rclcpp::Node {
 public:
-    // Joint controller owns only the local angle-servo execution. Chassis publishes the
-    // higher-level target angle trajectory; this controller turns that target into motor torque.
-    struct ControllerConfig {
-        rmcs_core::controller::adrc::TD::Config td;
-        rmcs_core::controller::adrc::ESO::Config eso;
-        rmcs_core::controller::adrc::NLESF::Config nlesf;
-        double output_min = -std::numeric_limits<double>::infinity();
-        double output_max = std::numeric_limits<double>::infinity();
-    };
-
-    struct InputSnapshot {
-        double measurement_angle = std::numeric_limits<double>::quiet_NaN();
-        double setpoint_angle = std::numeric_limits<double>::quiet_NaN();
-        double setpoint_velocity = std::numeric_limits<double>::quiet_NaN();
-    };
-
-    DeformableJointController()
+    explicit DeformableJointController()
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
-        register_interfaces_();
+        register_input(get_parameter("measurement_angle").as_string(), measurement_angle_);
+        register_input(get_parameter("setpoint_angle").as_string(), setpoint_angle_);
+        if (has_parameter("setpoint_velocity")) {
+            register_input(
+                get_parameter("setpoint_velocity").as_string(), setpoint_velocity_, false);
+            use_setpoint_velocity_ = true;
+        }
+        register_output(get_parameter("control").as_string(), control_torque_, nan_);
+
         load_config_();
         apply_config_();
     }
@@ -75,15 +67,21 @@ public:
     }
 
 private:
-    void register_interfaces_() {
-        register_input(get_parameter("measurement_angle").as_string(), measurement_angle_);
-        register_input(get_parameter("setpoint_angle").as_string(), setpoint_angle_);
-        if (has_parameter("setpoint_velocity")) {
-            register_input(get_parameter("setpoint_velocity").as_string(), setpoint_velocity_, false);
-            use_setpoint_velocity_ = true;
-        }
-        register_output(get_parameter("control").as_string(), control_torque_, nan_);
-    }
+    // Joint controller owns only the local angle-servo execution. Chassis publishes the
+    // higher-level target angle trajectory; this controller turns that target into motor torque.
+    struct ControllerConfig {
+        rmcs_core::controller::adrc::TD::Config td;
+        rmcs_core::controller::adrc::ESO::Config eso;
+        rmcs_core::controller::adrc::NLESF::Config nlesf;
+        double output_min = -std::numeric_limits<double>::infinity();
+        double output_max = std::numeric_limits<double>::infinity();
+    };
+
+    struct InputSnapshot {
+        double measurement_angle = std::numeric_limits<double>::quiet_NaN();
+        double setpoint_angle = std::numeric_limits<double>::quiet_NaN();
+        double setpoint_velocity = std::numeric_limits<double>::quiet_NaN();
+    };
 
     void load_config_() {
         dt_ = load_parameter_or(*this, "dt", 0.001);
