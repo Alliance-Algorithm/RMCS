@@ -48,6 +48,10 @@ public:
 
         register_input("/predefined/timestamp", timestamp_);
         register_output("/tf", tf_);
+        register_output(
+            "/auto_aim/camera_transform", camera_transform_, Eigen::Isometry3d::Identity());
+        register_output("/auto_aim/barrel_direction", barrel_direction_, Eigen::Vector3d::UnitX());
+        register_output("/auto_aim/yaw_velocity", auto_aim_yaw_velocity_, 0.0);
 
         tf_->set_transform<PitchLink, CameraLink>(Eigen::Translation3d{0.058, -0.08, 0.0});
 
@@ -78,6 +82,12 @@ public:
         imu_board_->update();
         vt13_.update_status();
         remote_control_->update();
+
+        using namespace rmcs_description;
+        *camera_transform_ = fast_tf::lookup_transform<OdomImu, CameraLink>(*tf_);
+        *barrel_direction_ =
+            *fast_tf::cast<OdomImu>(PitchLink::DirectionVector{Eigen::Vector3d::UnitX()}, *tf_);
+        *auto_aim_yaw_velocity_ = top_board_->gimbal_yaw_velocity();
     }
 
     void command_update() {
@@ -675,6 +685,10 @@ private:
 
         ~TopBoard() override = default;
 
+        [[nodiscard]] auto gimbal_yaw_velocity() const -> double {
+            return *gimbal_yaw_velocity_bmi088_;
+        }
+
         void request_hard_sync_read() {
             // RMCS-lite top board variant currently has no GPIO hard-sync request
             // path.
@@ -837,6 +851,9 @@ private:
     }
 
     OutputInterface<rmcs_description::Tf> tf_;
+    OutputInterface<Eigen::Isometry3d> camera_transform_;
+    OutputInterface<Eigen::Vector3d> barrel_direction_;
+    OutputInterface<double> auto_aim_yaw_velocity_;
     InputInterface<Clock::time_point> timestamp_;
     device::Vt13 vt13_;
 
