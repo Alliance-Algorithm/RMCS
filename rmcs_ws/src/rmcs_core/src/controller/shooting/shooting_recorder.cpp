@@ -62,7 +62,7 @@ public:
             velocities.erase(velocities.begin());
         }
 
-        analysis3();
+        analysis1();
 
         auto log_text = std::string{};
         auto timestamp = timestamp_to_string(*shoot_timestamp_);
@@ -165,10 +165,10 @@ private:
         int excellence_count = 0;
         int pass_count = 0;
         for (int i = 0; i < int(velocities.size()); i++) {
-            if (velocities[i] >= velocity_ - 0.1 && velocities[i] <= velocity_ + 0.1) {
+            if (velocities[i] >= velocity_ - 0.05 && velocities[i] <= velocity_ + 0.05) {
                 pass_count += 1;
             }
-            if (velocities[i] >= velocity_ - 0.05 && velocities[i] <= velocity_ + 0.05) {
+            if (velocities[i] >= velocity_ - 0.025 && velocities[i] <= velocity_ + 0.025) {
                 excellence_count += 1;
             }
         }
@@ -224,10 +224,10 @@ private:
         int pass_count = 0;
 
         for (const auto& v : velocities) {
-            if (v >= aim_velocity - 0.05 && v <= aim_velocity + 0.05) {
+            if (v >= aim_velocity - 0.025 && v <= aim_velocity + 0.025) {
                 excellence_count += 1;
             }
-            if (v >= aim_velocity - 0.1 && v <= aim_velocity + 0.1) {
+            if (v >= aim_velocity - 0.05 && v <= aim_velocity + 0.05) {
                 pass_count += 1;
             }
         }
