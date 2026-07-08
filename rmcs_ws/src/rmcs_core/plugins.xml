@@ -56,5 +56,5 @@
   <class type="rmcs_core::referee::app::ui::DeformableInfantry" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::referee::app::ui::Hero" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::referee::app::ui::Flight" base_class_type="rmcs_executor::Component" />
-  <class type="rmcs_core::referee::app::ui::UiRobotCenterOverlay" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::referee::app::ui::AutoAimUi" base_class_type="rmcs_executor::Component" />
 </library>
