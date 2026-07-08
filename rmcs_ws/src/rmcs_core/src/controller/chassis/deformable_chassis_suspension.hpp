@@ -102,7 +102,8 @@ public:
 
     Corrections update(
         double pitch, double roll, double pitch_rate, double roll_rate, bool suspension_active,
-        bool low_prone, double min_angle_deg, double max_angle_deg, double base_angle_deg,
+        bool low_prone_override_active, double min_angle_deg, double max_angle_deg,
+        double base_angle_deg,
         bool correction_inverted, const std::array<double, 4>& base_joint_angles, double dt) {
 
         Corrections corrections;
@@ -110,8 +111,8 @@ public:
         if (!suspension_active) {
             reset_attitude_();
             run_correction_trajectory_(
-                low_prone, min_angle_deg, max_angle_deg, base_angle_deg, base_joint_angles, dt,
-                corrections);
+                low_prone_override_active, min_angle_deg, max_angle_deg, base_angle_deg,
+                base_joint_angles, dt, corrections);
             return corrections;
         }
 
@@ -131,8 +132,8 @@ public:
 
         compute_correction_targets_(pitch_diff, roll_diff, correction_inverted);
         run_correction_trajectory_(
-            low_prone, min_angle_deg, max_angle_deg, base_angle_deg, base_joint_angles, dt,
-            corrections);
+            low_prone_override_active, min_angle_deg, max_angle_deg, base_angle_deg,
+            base_joint_angles, dt, corrections);
         return corrections;
     }
 
@@ -211,8 +212,9 @@ private:
     }
 
     void run_correction_trajectory_(
-        bool low_prone, double min_angle_deg, double max_angle_deg, double base_angle_deg,
-        const std::array<double, 4>& base_joint_angles, double dt, Corrections& corrections) {
+        bool low_prone_override_active, double min_angle_deg, double max_angle_deg,
+        double base_angle_deg, const std::array<double, 4>& base_joint_angles, double dt,
+        Corrections& corrections) {
 
         double max_target_rad = deg_to_rad_(max_angle_deg);
         double min_susp_rad   = deg_to_rad_(min_angle_deg - 5.0);
@@ -220,7 +222,8 @@ private:
         for (size_t i = 0; i < kJointCount; ++i) {
             double base_angle = std::isfinite(base_joint_angles[i])
                                   ? base_joint_angles[i]
-                                  : (low_prone ? min_susp_rad : deg_to_rad_(base_angle_deg));
+                                  : (low_prone_override_active ? min_susp_rad
+                                                               : deg_to_rad_(base_angle_deg));
 
             double correction_min = min_susp_rad - base_angle;
             double correction_max = max_target_rad - base_angle;
