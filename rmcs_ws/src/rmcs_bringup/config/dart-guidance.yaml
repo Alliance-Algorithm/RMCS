@@ -9,7 +9,7 @@ rmcs_executor:
       - rmcs_core::referee::Status -> referee_status
       - rmcs_core::referee::Command -> referee_command
 
-      - rmcs_dart_guidance::DartVisionCore -> dart_vision_core
+      # - rmcs_dart_guidance::DartVisionCore -> dart_vision_core
       # - rmcs_dart_guidance::ImagePublisher -> dart_display_image_publisher
       # - rmcs_dart_guidance::ImagePublisher -> host_bridge
 

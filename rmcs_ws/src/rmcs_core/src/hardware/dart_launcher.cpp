@@ -166,7 +166,7 @@ public:
 
         // Trigger servo: PWM via GPIO
         board.gpio_analog_write(
-            librmcs::spec::rmcs_board_pro::kGpioDescriptors[1],
+            librmcs::spec::rmcs_board_pro::kGpioDescriptors[2],
             librmcs::data::GpioAnalogDataView{.value = trigger_servo_.generate_duty_cycle()});
 
         board.can1_transmit({
