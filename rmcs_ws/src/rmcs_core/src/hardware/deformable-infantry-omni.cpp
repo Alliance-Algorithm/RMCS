@@ -619,7 +619,7 @@ private:
         ~TopBoard() override = default;
 
         [[nodiscard]] auto gimbal_yaw_velocity() const -> double {
-            return *gimbal_yaw_velocity_bmi088_;
+            return *gimbal_yaw_velocity_imu_;
         }
 
         void request_hard_sync_read() {
