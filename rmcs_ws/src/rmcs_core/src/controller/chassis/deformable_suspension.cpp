@@ -103,7 +103,6 @@ public:
 
         const auto posture_target_angles_rad = read_posture_target_angles_rad_();
         const auto dt = update_dt_();
-        configure_active_rate_filters_(1.0 / dt);
 
         double filtered_pitch_rate = *chassis_imu_pitch_rate_;
         double filtered_roll_rate = *chassis_imu_roll_rate_;

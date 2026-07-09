@@ -32,6 +32,8 @@ public:
 
     void enable_yaw_limit(
         rmcs_executor::Component& component, double yaw_upper_limit, double yaw_lower_limit) {
+        if (yaw_upper_limit < yaw_lower_limit)
+            std::swap(yaw_upper_limit, yaw_lower_limit);
         yaw_cw_max_ = yaw_upper_limit;
         yaw_cw_min_ = yaw_lower_limit;
         component.register_input("/gimbal/yaw/angle", gimbal_yaw_angle_);
@@ -218,8 +220,12 @@ private:
         const double err = std::atan2(y, x);
 
         const double target_cw = cw - err;
-        const double clamped_cw = std::clamp(target_cw, yaw_cw_min_, yaw_cw_max_);
-        if (clamped_cw == target_cw)
+        double normalized_cw = std::fmod(target_cw, two_pi);
+        if (normalized_cw < 0)
+            normalized_cw += two_pi;
+
+        const double clamped_cw = std::clamp(normalized_cw, yaw_cw_min_, yaw_cw_max_);
+        if (clamped_cw == normalized_cw)
             return;
 
         // delta = err_new - err = (cw - clamped_cw) - err
