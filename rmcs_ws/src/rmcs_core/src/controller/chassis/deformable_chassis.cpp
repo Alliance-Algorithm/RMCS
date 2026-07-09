@@ -52,7 +52,6 @@ public:
         register_output("/chassis/control_velocity", chassis_control_velocity_);
         register_output("/chassis/pitch_lock_active", pitch_lock_active_, false);
         register_output("/chassis/active_suspension/active", active_suspension_active_, false);
-        register_output("/chassis/deformable/passive_suspension_active", passive_suspension_active_, false);
         register_output("/chassis/deformable/low_prone_active", low_prone_active_, false);
         register_output("/chassis/deformable/symmetric_posture_target", symmetric_posture_target_, true);
         register_output("/chassis/deformable/correction_inverted", correction_inverted_, false);
@@ -71,7 +70,6 @@ public:
         *mode_ = rmcs_msgs::ChassisMode::AUTO;
         *pitch_lock_active_ = false;
         *active_suspension_active_ = false;
-        *passive_suspension_active_ = false;
         *low_prone_active_ = false;
         *symmetric_posture_target_ = true;
         *correction_inverted_ = false;
@@ -112,7 +110,6 @@ public:
             *mode_ = joint_mode_mgr_.mode();
             *pitch_lock_active_ = joint_mode_mgr_.pitch_lock_active();
             *active_suspension_active_ = joint_mode_mgr_.suspension_active();
-            *passive_suspension_active_ = joint_mode_mgr_.passive_suspension_active();
             *low_prone_active_ = joint_mode_mgr_.low_prone_active();
             *symmetric_posture_target_ = joint_mode_mgr_.symmetric_posture_target();
             *correction_inverted_ = joint_mode_mgr_.correction_inverted();
@@ -139,7 +136,6 @@ private:
         *mode_ = rmcs_msgs::ChassisMode::AUTO;
         *pitch_lock_active_ = false;
         *active_suspension_active_ = false;
-        *passive_suspension_active_ = false;
         *low_prone_active_ = false;
         *symmetric_posture_target_ = true;
         *correction_inverted_ = false;
@@ -261,7 +257,6 @@ private:
     OutputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;
     OutputInterface<bool> pitch_lock_active_;
     OutputInterface<bool> active_suspension_active_;
-    OutputInterface<bool> passive_suspension_active_;
     OutputInterface<bool> low_prone_active_;
     OutputInterface<bool> symmetric_posture_target_;
     OutputInterface<bool> correction_inverted_;
