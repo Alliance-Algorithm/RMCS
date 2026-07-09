@@ -70,6 +70,7 @@ public:
         complex_spin_elapsed_ = 0.0;
         suspension_enabled_by_toggle_ = false;
         passive_suspension_enabled_by_toggle_ = false;
+        low_prone_enabled_by_toggle_ = false;
 
         last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
         last_keyboard_ = rmcs_msgs::Keyboard::zero();
@@ -83,12 +84,13 @@ public:
         const rmcs_msgs::Keyboard& keyboard, double rotary_knob, double dt) {
 
         update_mode_from_inputs_(switch_left, switch_right, keyboard);
-        update_suspension_toggle_from_inputs_(switch_left, switch_right);
+        update_low_prone_toggle_from_inputs_(switch_left, switch_right);
 
         joint_posture_state_.ctrl_low_prone_active = keyboard.ctrl;
-        joint_posture_state_.low_prone_active = joint_posture_state_.ctrl_low_prone_active;
+        joint_posture_state_.low_prone_active =
+            joint_posture_state_.ctrl_low_prone_active || low_prone_enabled_by_toggle_;
         joint_posture_state_.pitch_lock_active =
-            joint_posture_state_.ctrl_low_prone_active || suspension_enabled_by_toggle_;
+            joint_posture_state_.ctrl_low_prone_active;
 
         update_suspension_mode_from_inputs_(switch_left, switch_right, keyboard, rotary_knob);
         update_posture_target_from_inputs_(switch_left, switch_right, keyboard, rotary_knob, dt);
@@ -216,7 +218,7 @@ private:
     void update_suspension_mode_from_inputs_(
         rmcs_msgs::Switch switch_left, rmcs_msgs::Switch switch_right,
         const rmcs_msgs::Keyboard& keyboard, double rotary_knob) {
-        const bool passive_toggle_requested = !last_keyboard_.x && keyboard.x;
+        const bool keyboard_passive_toggle_requested = !last_keyboard_.x && keyboard.x;
         const bool remote_suspension_rotary_mode =
             switch_left == rmcs_msgs::Switch::DOWN && switch_right == rmcs_msgs::Switch::MIDDLE;
         const bool remote_active_toggle_requested =
@@ -224,15 +226,15 @@ private:
         const bool remote_passive_toggle_requested =
             remote_suspension_rotary_mode && rotary_knob_up_edge_(rotary_knob);
 
-        if ((passive_toggle_requested || remote_passive_toggle_requested)
+        if ((keyboard_passive_toggle_requested || remote_passive_toggle_requested)
             && passive_suspension_enable_) {
             passive_suspension_enabled_by_toggle_ = !passive_suspension_enabled_by_toggle_;
             if (passive_suspension_enabled_by_toggle_)
                 suspension_enabled_by_toggle_ = false;
         }
 
-        const bool keyboard_toggle_requested = !last_keyboard_.e && keyboard.e;
-        if (keyboard_toggle_requested || remote_active_toggle_requested)
+        const bool keyboard_active_suspension_toggle_requested = !last_keyboard_.e && keyboard.e;
+        if (keyboard_active_suspension_toggle_requested || remote_active_toggle_requested)
             suspension_enabled_by_toggle_ = !suspension_enabled_by_toggle_;
 
         const bool active_requested =
@@ -257,11 +259,11 @@ private:
             joint_posture_state_.suspension_mode == SuspensionMode::PASSIVE;
     }
 
-    void update_suspension_toggle_from_inputs_(
+    void update_low_prone_toggle_from_inputs_(
         rmcs_msgs::Switch switch_left, rmcs_msgs::Switch switch_right) {
         if (switch_left == rmcs_msgs::Switch::DOWN && switch_right == rmcs_msgs::Switch::UP
             && last_switch_right_ == rmcs_msgs::Switch::MIDDLE) {
-            suspension_enabled_by_toggle_ = !suspension_enabled_by_toggle_;
+            low_prone_enabled_by_toggle_ = !low_prone_enabled_by_toggle_;
         }
     }
 
@@ -273,10 +275,10 @@ private:
         const bool remote_joint_posture_rotary_mode =
             switch_left == rmcs_msgs::Switch::MIDDLE && switch_right == rmcs_msgs::Switch::MIDDLE;
 
-        const bool keyboard_toggle_condition = !last_keyboard_.q && keyboard.q;
-        const bool rotary_knob_toggle_condition =
+        const bool keyboard_posture_toggle_condition = !last_keyboard_.q && keyboard.q;
+        const bool remote_posture_toggle_condition =
             remote_joint_posture_rotary_mode && rotary_knob_down_edge_(rotary_knob);
-        const bool rotary_knob_bg_toggle_condition =
+        const bool remote_front_back_posture_toggle_condition =
             remote_joint_posture_rotary_mode && rotary_knob_up_edge_(rotary_knob);
         const bool front_high_rear_low = !last_keyboard_.b && keyboard.b;
         const bool front_low_rear_high = !last_keyboard_.g && keyboard.g;
@@ -295,20 +297,26 @@ private:
         if (apply_symmetric_target_)
             joint_current_target_angle_.fill(current_target_angle_);
 
-        if (rotary_knob_toggle_condition || keyboard_toggle_condition
-            || complex_spin_toggle_condition) {
-            if (joint_posture_state_.suspension_active && keyboard_toggle_condition) {
+        const bool posture_toggle_requested =
+            remote_posture_toggle_condition || keyboard_posture_toggle_condition
+            || complex_spin_toggle_condition;
+
+        if (posture_toggle_requested) {
+            if (joint_posture_state_.suspension_active) {
                 active_suspension_base_angle_ =
                     (std::abs(active_suspension_base_angle_ - max_angle_) < 1e-6)
                       ? min_angle_
                       : max_angle_;
+                current_target_angle_ = active_suspension_base_angle_;
+                apply_symmetric_target_ = true;
+                joint_current_target_angle_.fill(current_target_angle_);
             } else {
                 current_target_angle_ =
                     (std::abs(current_target_angle_ - max_angle_) < 1e-6) ? min_angle_ : max_angle_;
                 apply_symmetric_target_ = true;
                 joint_current_target_angle_.fill(current_target_angle_);
             }
-        } else if (rotary_knob_bg_toggle_condition) {
+        } else if (remote_front_back_posture_toggle_condition) {
             toggle_front_back_posture_target_();
         } else if (front_high_rear_low) {
             apply_front_high_rear_low_target_();
@@ -342,7 +350,8 @@ private:
             symmetric_joint_target_requested_(effective_joint_posture_target_deg);
 
         if (joint_posture_state_.suspension_active) {
-            joint_posture_state_.suspension_reference_angle_deg = active_suspension_base_angle_;
+            joint_posture_state_.suspension_reference_angle_deg =
+                low_prone_active ? min_angle_ : active_suspension_base_angle_;
             return;
         }
 
@@ -374,6 +383,7 @@ private:
     double complex_spin_elapsed_ = 0.0;
     bool suspension_enabled_by_toggle_ = false;
     bool passive_suspension_enabled_by_toggle_ = false;
+    bool low_prone_enabled_by_toggle_ = false;
 
     rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Keyboard last_keyboard_ = rmcs_msgs::Keyboard::zero();
