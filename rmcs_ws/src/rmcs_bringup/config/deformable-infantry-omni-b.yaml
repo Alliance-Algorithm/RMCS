@@ -58,7 +58,7 @@ deformable_infantry:
 chassis_controller:
   ros__parameters:
     # Deploy geometry / chassis-owned joint intent
-    min_angle: 8.0
+    min_angle: 7.5
     max_angle: 58.0
     active_suspension_enable: true
     passive_suspension_enable: true
@@ -122,6 +122,7 @@ deformable_suspension:
     active_suspension_target_acceleration_limit_deg: 360.0
     active_suspension_correction_velocity_limit_deg: 720.0
     active_suspension_correction_acceleration_limit_deg: 3600.0
+    active_suspension_rate_lpf_cutoff_hz: 10.0
 
     # Automatic IMU mounting-error calibration.
     # When all four requested joint targets stay equal for 2s, average pitch/roll from 2s to 5s.

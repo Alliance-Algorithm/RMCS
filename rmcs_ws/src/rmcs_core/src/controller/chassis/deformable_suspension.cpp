@@ -10,6 +10,7 @@
 #include <rmcs_executor/component.hpp>
 
 #include "controller/pid/pid_calculator.hpp"
+#include "filter/low_pass_filter.hpp"
 
 namespace rmcs_core::controller::chassis {
 
@@ -85,6 +86,7 @@ public:
         if (!chassis_imu_roll_rate_.ready())
             chassis_imu_roll_rate_.make_and_bind_directly(0.0);
 
+        configure_active_rate_filters_(1.0 / update_dt_());
         validate_joint_feedback_inputs_();
         reset_all_controls_();
         last_reset_count_ = *reset_count_;
@@ -107,6 +109,11 @@ public:
 
         const auto posture_target_angles_rad = read_posture_target_angles_rad_();
         const auto dt = update_dt_();
+        configure_active_rate_filters_(1.0 / dt);
+
+        double filtered_pitch_rate = *chassis_imu_pitch_rate_;
+        double filtered_roll_rate = *chassis_imu_roll_rate_;
+        filter_attitude_rates_(filtered_pitch_rate, filtered_roll_rate);
 
         if (*active_suspension_active_)
             calibrate_(*chassis_imu_pitch_, *chassis_imu_roll_, *symmetric_posture_target_, dt);
@@ -115,7 +122,7 @@ public:
         copy_joint_angle_states_(joint_angle_states);
         update_suspension_state_(
             *chassis_imu_pitch_ - pitch_offset_value_, *chassis_imu_roll_ - roll_offset_value_,
-            *chassis_imu_pitch_rate_, *chassis_imu_roll_rate_, *active_suspension_active_,
+            filtered_pitch_rate, filtered_roll_rate, *active_suspension_active_,
             *passive_suspension_active_, *low_prone_active_, *min_angle_deg_, *max_angle_deg_,
             *suspension_reference_angle_deg_, *correction_inverted_, joint_angle_states,
             current_joint_torques, dt);
@@ -211,6 +218,8 @@ private:
             deg_to_rad_(std::abs(
                 get_parameter_or("active_suspension_correction_acceleration_limit_deg", 3600.0))),
             1e-6);
+        active_rate_lpf_cutoff_hz_ = std::max(
+            get_parameter_or("active_suspension_rate_lpf_cutoff_hz", 10.0), 1e-6);
 
         passive_enabled_ = get_parameter_or("passive_suspension_enable", true);
         passive_kp_ = get_parameter_or("passive_suspension_kp", 0.035);
@@ -322,6 +331,8 @@ private:
 
     void reset_all_controls_() {
         reset_attitude_();
+        pitch_rate_filter_.reset();
+        roll_rate_filter_.reset();
         correction_state_rad_.fill(0.0);
         correction_velocity_state_rad_.fill(0.0);
         correction_acceleration_state_rad_.fill(0.0);
@@ -393,6 +404,23 @@ private:
             any_active_value = any_active_value || joint_target_active_[i];
         }
         return any_active_value;
+    }
+
+    void configure_active_rate_filters_(double sampling_frequency) {
+        const double clamped_sampling_frequency = std::max(sampling_frequency, 1e-6);
+        if (std::abs(active_rate_filter_sampling_hz_ - clamped_sampling_frequency) < 1e-6)
+            return;
+
+        pitch_rate_filter_.set_cutoff(active_rate_lpf_cutoff_hz_, clamped_sampling_frequency);
+        roll_rate_filter_.set_cutoff(active_rate_lpf_cutoff_hz_, clamped_sampling_frequency);
+        active_rate_filter_sampling_hz_ = clamped_sampling_frequency;
+    }
+
+    void filter_attitude_rates_(double& pitch_rate, double& roll_rate) {
+        if (std::isfinite(pitch_rate))
+            pitch_rate = pitch_rate_filter_.update(pitch_rate);
+        if (std::isfinite(roll_rate))
+            roll_rate = roll_rate_filter_.update(roll_rate);
     }
 
     void compute_correction_targets_(double pitch_diff, double roll_diff, bool inverted) {
@@ -690,9 +718,13 @@ private:
     pid::PidCalculator pitch_inner_pid_{};
     pid::PidCalculator roll_outer_pid_{};
     pid::PidCalculator roll_inner_pid_{};
+    filter::LowPassFilter<1> pitch_rate_filter_{1.0};
+    filter::LowPassFilter<1> roll_rate_filter_{1.0};
 
     double active_correction_vel_limit_ = 40.0;
     double active_correction_acc_limit_ = 200.0;
+    double active_rate_lpf_cutoff_hz_ = 10.0;
+    double active_rate_filter_sampling_hz_ = 0.0;
 
     bool passive_enabled_ = true;
     double passive_kp_ = 0.035;
