@@ -157,6 +157,11 @@ private:
             return;
         }
 
+        if (!chassis_angle_.ready()) {
+            deformable_chassis_leg_arcs_.set_visible(false);
+            return;
+        }
+
         std::array<double, kJointCount> leg_angles;
         for (size_t i = 0; i < kJointCount; ++i)
             leg_angles[i] = *joint_physical_angle_[i];

@@ -95,6 +95,7 @@ private:
     void reset_power_control() {
         virtual_buffer_energy_ = virtual_buffer_energy_limit_;
         boost_mode_ = false;
+        *supercap_control_enabled_ = false;
         *chassis_control_power_limit_ = 0.0;
     }
 

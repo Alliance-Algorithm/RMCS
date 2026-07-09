@@ -62,8 +62,6 @@ public:
         active_suspension_base_angle_ = max_angle_;
         joint_current_target_angle_.fill(max_angle_);
         apply_symmetric_target_ = true;
-        complex_spin_active_ = false;
-        complex_spin_elapsed_ = 0.0;
         suspension_enabled_by_toggle_ = false;
         low_prone_enabled_by_toggle_ = false;
 
@@ -144,14 +142,12 @@ private:
 
         auto next_mode = joint_posture_state_.mode;
         if (switch_left == rmcs_msgs::Switch::DOWN) {
-            deactivate_complex_spin_();
             joint_posture_state_.mode = next_mode;
             return;
         }
 
         if (last_switch_right_ == rmcs_msgs::Switch::MIDDLE
             && switch_right == rmcs_msgs::Switch::DOWN) {
-            deactivate_complex_spin_();
             if (next_mode == rmcs_msgs::ChassisMode::SPIN) {
                 next_mode = rmcs_msgs::ChassisMode::STEP_DOWN;
             } else {
@@ -159,7 +155,6 @@ private:
                 joint_posture_state_.spinning_forward = !joint_posture_state_.spinning_forward;
             }
         } else if (!last_keyboard_.c && keyboard.c) {
-            deactivate_complex_spin_();
             if (next_mode == rmcs_msgs::ChassisMode::SPIN) {
                 next_mode = rmcs_msgs::ChassisMode::AUTO;
             } else {
@@ -167,21 +162,12 @@ private:
                 joint_posture_state_.spinning_forward = !joint_posture_state_.spinning_forward;
             }
         } else if (!last_keyboard_.z && keyboard.z) {
-            deactivate_complex_spin_();
             next_mode = next_mode == rmcs_msgs::ChassisMode::STEP_DOWN
                           ? rmcs_msgs::ChassisMode::AUTO
                           : rmcs_msgs::ChassisMode::STEP_DOWN;
         }
 
-        if (complex_spin_active_)
-            next_mode = rmcs_msgs::ChassisMode::SPIN;
-
         joint_posture_state_.mode = next_mode;
-    }
-
-    void deactivate_complex_spin_() {
-        complex_spin_active_ = false;
-        complex_spin_elapsed_ = 0.0;
     }
 
     void apply_front_high_rear_low_target_() {
@@ -241,9 +227,7 @@ private:
 
     void update_posture_target_from_inputs_(
         rmcs_msgs::Switch switch_left, rmcs_msgs::Switch switch_right,
-        const rmcs_msgs::Keyboard& keyboard, double rotary_knob, double dt) {
-
-        constexpr double complex_spin_toggle_period = 0.5;
+        const rmcs_msgs::Keyboard& keyboard, double rotary_knob, double /*dt*/) {
         const bool remote_joint_posture_rotary_mode =
             switch_left == rmcs_msgs::Switch::MIDDLE && switch_right == rmcs_msgs::Switch::MIDDLE;
 
@@ -255,23 +239,11 @@ private:
         const bool front_high_rear_low = !last_keyboard_.b && keyboard.b;
         const bool front_low_rear_high = !last_keyboard_.g && keyboard.g;
 
-        bool complex_spin_toggle_condition = false;
-        if (complex_spin_active_) {
-            complex_spin_elapsed_ += dt;
-            size_t complex_spin_toggle_count = 0;
-            while (complex_spin_elapsed_ >= complex_spin_toggle_period) {
-                complex_spin_elapsed_ -= complex_spin_toggle_period;
-                ++complex_spin_toggle_count;
-            }
-            complex_spin_toggle_condition = (complex_spin_toggle_count % 2) == 1;
-        }
-
         if (apply_symmetric_target_)
             joint_current_target_angle_.fill(current_target_angle_);
 
         const bool posture_toggle_requested =
-            remote_posture_toggle_condition || keyboard_posture_toggle_condition
-            || complex_spin_toggle_condition;
+            remote_posture_toggle_condition || keyboard_posture_toggle_condition;
 
         if (posture_toggle_requested) {
             if (joint_posture_state_.suspension_active) {
@@ -350,8 +322,6 @@ private:
     double current_target_angle_;
     std::array<double, kJointCount> joint_current_target_angle_;
     bool apply_symmetric_target_ = true;
-    bool complex_spin_active_ = false;
-    double complex_spin_elapsed_ = 0.0;
     bool suspension_enabled_by_toggle_ = false;
     bool low_prone_enabled_by_toggle_ = false;
 
