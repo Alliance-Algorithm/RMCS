@@ -21,6 +21,7 @@ rmcs_executor:
       - rmcs_core::referee::Status -> referee_status
       - rmcs_core::referee::command::interaction::Ui -> referee_ui
       - rmcs_core::referee::app::ui::Flight -> referee_ui_flight
+      - rmcs_core::referee::app::ui::AutoAimUi -> auto_aim_ui
 
       # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
@@ -151,3 +152,9 @@ bullet_feeder_velocity_pid_controller:
     kp: 0.583
     ki: 0.0
     kd: 0.0
+
+auto_aim_ui:
+  ros__parameters:
+    offset_x: 0.000
+    offset_y: 0.000
+    offset_z: 0.000
