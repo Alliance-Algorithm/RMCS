@@ -39,6 +39,14 @@ value_broadcaster:
       - /shoot/heat
       - /shoot/referee_heat
       - /shoot/heat_limit
+      - /chassis/left_front_joint/physical_angle
+      - /chassis/left_front_joint/physical_velocity
+      - /chassis/left_back_joint/physical_angle
+      - /chassis/left_back_joint/physical_velocity
+      - /chassis/right_back_joint/physical_angle
+      - /chassis/right_back_joint/physical_velocity
+      - /chassis/right_front_joint/physical_angle
+      - /chassis/right_front_joint/physical_velocity
 
 
 deformable_infantry:
