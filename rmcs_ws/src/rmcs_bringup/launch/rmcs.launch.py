@@ -33,17 +33,23 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
             )
         )
 
+        config_path = os.path.join(
+            FindPackageShare("rmcs_bringup").perform(context),
+            "config",
+            robot_name + ".yaml",
+        )
+
+        config_path = os.path.join(
+            FindPackageShare("rmcs_bringup").perform(context),
+            "config",
+            robot_name + ".yaml",
+        )
+
         entities.append(
             Node(
                 package="rmcs_executor",
                 executable="rmcs_executor",
-                parameters=[
-                    os.path.join(
-                        FindPackageShare("rmcs_bringup").perform(context),
-                        "config",
-                        robot_name + ".yaml",
-                    ),
-                ],
+                parameters=[config_path],
                 respawn=True,
                 respawn_delay=1.0,
                 output="log",  # stdout and stderr are logged to launch log file and stderr to the screen.
@@ -52,6 +58,11 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
 
         if is_automatic:
             pass
+
+        # Note: the odin sensor process (host_sdk_sample) is NOT launched here.
+        # It is managed by an independent tmux session via the `odin-up` /
+        # `odin-down` commands (.script/odin-service), so that Ctrl+C / service
+        # restart can shut it down cleanly and release the Odin1 USB device.
 
         return entities
 

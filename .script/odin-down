@@ -1,0 +1,8 @@
+#!/bin/bash
+
+# odin-down —— 干净关闭 odin 传感器进程（host_sdk_sample）。
+# 先 Ctrl+C 触发其自带的 USB 释放逻辑，轮询等待退出，
+# 5s 超时后逐级升级 SIGTERM → SIGKILL 兜底强杀。
+# 实际逻辑见 odin-service。
+
+exec "$(dirname "$(readlink -f "$0")")/odin-service" down "$@"

@@ -31,8 +31,9 @@ public:
     Flight()
         : Node{
               get_component_name(),
-              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
-        , RmcsBoardLite{get_parameter("board_serial").as_string()} {
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)},
+              RmcsBoardLite{get_parameter("board_serial").as_string()},
+              logger_(get_logger()) {
 
         gimbal_yaw_motor_.configure(
             device::LkMotor::Config{device::LkMotor::Type::kMHF7015}
@@ -79,6 +80,17 @@ public:
             return size;
         };
 
+        register_output("/px4/serial",px4_serial_);
+        px4_serial_->read = [this](std::byte* buffer, size_t size){
+            return px4_ring_buffer_receive_.pop_front_n(
+                [&buffer](std::byte byte) noexcept { *buffer++ = byte; }, size);
+        };
+        px4_serial_->write = [this](const std::byte* buffer, size_t size){
+            start_transmit().uart0_transmit(
+                {.uart_data = std::span<const std::byte>{buffer, size}});
+            return size;
+        };
+
         status_service_ = create_service<std_srvs::srv::Trigger>(
             "/rmcs/service/robot_status",
             [this](
@@ -86,6 +98,7 @@ public:
                 const std_srvs::srv::Trigger::Response::SharedPtr& response) {
                 status_service_callback(response);
             });
+
     }
 
     void update() override {
@@ -212,6 +225,18 @@ protected:
         }
     }
 
+    void uart0_receive_callback(const librmcs::data::UartDataView& data) override {
+        RCLCPP_INFO_THROTTLE(
+            logger_, *get_clock(), 500, // 最多 500ms 一条
+            "[uart0 rx] %zu bytes, first=0x%02X", data.uart_data.size(),
+            data.uart_data.empty() ? 0u : static_cast<unsigned>(data.uart_data.front()));
+
+        const std::byte* ptr =data.uart_data.data();
+        px4_ring_buffer_receive_.emplace_back_n(
+            [&ptr](std::byte* storage) noexcept { new (storage) std::byte{*ptr++}; },
+             data.uart_data.size());
+    }
+
     void uart1_receive_callback(const librmcs::data::UartDataView& data) override {
         const std::byte* ptr = data.uart_data.data();
         referee_ring_buffer_receive_.emplace_back_n(
@@ -247,6 +272,7 @@ private:
     };
     std::shared_ptr<rclcpp::Service<std_srvs::srv::Trigger>> status_service_;
 
+    rclcpp::Logger logger_;
     device::LkMotor gimbal_yaw_motor_{*this, *command_component_, "/gimbal/yaw"};
     device::LkMotor gimbal_pitch_motor_{*this, *command_component_, "/gimbal/pitch"};
     device::DjiMotor gimbal_left_friction_{*this, *command_component_, "/gimbal/left_friction"};
@@ -260,11 +286,13 @@ private:
     OutputInterface<double> gimbal_pitch_velocity_imu_;
     OutputInterface<rmcs_description::Tf> tf_;
     OutputInterface<rmcs_msgs::SerialInterface> referee_serial_;
+    OutputInterface<rmcs_msgs::SerialInterface> px4_serial_;
 
     OutputInterface<Eigen::Isometry3d> camera_transform_;
     OutputInterface<Eigen::Vector3d> barrel_direction_;
 
     rmcs_utility::RingBuffer<std::byte> referee_ring_buffer_receive_{256};
+    rmcs_utility::RingBuffer<std::byte> px4_ring_buffer_receive_{512};
 };
 
 } // namespace rmcs_core::hardware

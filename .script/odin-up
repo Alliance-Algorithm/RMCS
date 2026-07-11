@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# odin-up —— 启动 odin 传感器进程（host_sdk_sample）。
+# 若已在运行则先干净关闭旧进程再重新拉起（幂等重启）。
+# 实际逻辑见 odin-service。
+
+exec "$(dirname "$(readlink -f "$0")")/odin-service" up "$@"

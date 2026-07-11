@@ -67,7 +67,6 @@ public:
     requires(!std::is_reference_v<T> && !std::is_unbounded_array_v<T>) class InputInterface {
     public:
         friend class Component;
-
         InputInterface() = default;
 
         InputInterface(const InputInterface&) = delete;
