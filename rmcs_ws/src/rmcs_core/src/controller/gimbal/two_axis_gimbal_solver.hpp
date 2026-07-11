@@ -32,8 +32,6 @@ public:
 
     void enable_yaw_limit(
         rmcs_executor::Component& component, double yaw_upper_limit, double yaw_lower_limit) {
-        if (yaw_upper_limit < yaw_lower_limit)
-            std::swap(yaw_upper_limit, yaw_lower_limit);
         yaw_cw_max_ = yaw_upper_limit;
         yaw_cw_min_ = yaw_lower_limit;
         component.register_input("/gimbal/yaw/angle", gimbal_yaw_angle_);
@@ -59,37 +57,6 @@ public:
             dir->normalize();
             return dir;
         }
-    };
-
-    class SetToLevelYawShift : public Operation {
-    public:
-        explicit SetToLevelYawShift(double yaw_shift)
-            : yaw_shift_(yaw_shift) {}
-
-    private:
-        PitchLink::DirectionVector update(TwoAxisGimbalSolver& super) const override {
-            OdomImu::DirectionVector odom_dir;
-            if (!super.control_enabled_) {
-                odom_dir = fast_tf::cast<OdomImu>(
-                    PitchLink::DirectionVector{Eigen::Vector3d::UnitX()}, *super.tf_);
-            } else {
-                odom_dir = super.control_direction_;
-            }
-
-            if (std::abs(odom_dir->x()) < 1e-6 && std::abs(odom_dir->y()) < 1e-6)
-                return {};
-
-            super.control_enabled_ = true;
-            odom_dir->z() = 0;
-            odom_dir->normalize();
-            auto dir = fast_tf::cast<PitchLink>(odom_dir, *super.tf_);
-            dir->normalize();
-
-            const auto yaw_transform = Eigen::AngleAxisd{yaw_shift_, Eigen::Vector3d::UnitZ()};
-            return PitchLink::DirectionVector{yaw_transform * (*dir)};
-        }
-
-        double yaw_shift_;
     };
 
     class SetControlDirection : public Operation {
@@ -220,12 +187,8 @@ private:
         const double err = std::atan2(y, x);
 
         const double target_cw = cw - err;
-        double normalized_cw = std::fmod(target_cw, two_pi);
-        if (normalized_cw < 0)
-            normalized_cw += two_pi;
-
-        const double clamped_cw = std::clamp(normalized_cw, yaw_cw_min_, yaw_cw_max_);
-        if (clamped_cw == normalized_cw)
+        const double clamped_cw = std::clamp(target_cw, yaw_cw_min_, yaw_cw_max_);
+        if (clamped_cw == target_cw)
             return;
 
         // delta = err_new - err = (cw - clamped_cw) - err
@@ -250,7 +213,6 @@ private:
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
 
     const Eigen::Vector2d upper_limit_, lower_limit_;
-
     rmcs_executor::Component::InputInterface<Tf> tf_;
 
     double yaw_cw_min_ = 0.;

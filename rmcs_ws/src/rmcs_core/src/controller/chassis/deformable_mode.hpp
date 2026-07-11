@@ -34,8 +34,8 @@ public:
     };
 
     explicit DeformableChassisModeManager(rclcpp::Node& node)
-        : min_angle_(node.get_parameter_or("min_angle", 7.0))
-        , max_angle_(node.get_parameter_or("max_angle", 58.0))
+        : min_angle_(node.get_parameter_or("min_angle", 5.0))
+        , max_angle_(node.get_parameter_or("max_angle", 59.0))
         , active_suspension_base_angle_(
               std::clamp(
                   node.get_parameter_or("active_suspension_base_angle", max_angle_),
