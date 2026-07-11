@@ -1,0 +1,27 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs::AutoAimPlayerComponent -> auto_aim_player
+      # - rmcs::AutoAimVideoPlayerComponent -> auto_aim_video_player
+      - rmcs::AutoAimRecorderComponent -> auto_aim_recorder
+      - rmcs::AutoAimComponent -> auto_aim_component
+
+auto_aim_player:
+  ros__parameters:
+    input_path: "/workspaces/RMCS/develop_ws/record/sentry_test1/2026-07-11_22-43-35"
+    loop_play: true
+
+auto_aim_video_player:
+  ros__parameters:
+    input_path: "/workspaces/RMCS/develop_ws/record/场地道具小符.avi"
+    framerate: 80.0
+    loop_play: true
+
+auto_aim_recorder:
+  ros__parameters:
+    output_path: "/tmp/autoaim/records"
+    queue_depth: 16
+    flush_every_n_frames: 64
+    max_duration_seconds: 0
+    max_videos_size_gb: 0.0
