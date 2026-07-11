@@ -21,11 +21,30 @@ rmcs_executor:
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::SteeringWheelController -> steering_wheel_controller
 
-      - rmcs::AutoAimComponent -> auto_aim_component
       # - rmcs::navigation::Navigation -> rmcs_navigation
 
-      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
+
+      - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
+      # - rmcs::AutoAimPlayerComponent -> auto_aim_player
+      - rmcs::AutoAimRecorderComponent -> auto_aim_recorder
+      - rmcs::AutoAimComponent -> auto_aim_component
+
+auto_aim_capturer:
+  ros__parameters:
+    exposure_us: 5000.0
+    gain: 6.0
+    framerate: 120.0
+    invert_image: true
+
+auto_aim_recorder:
+  ros__parameters:
+    output_path: "/tmp/autoaim/records"
+    queue_depth: 16
+    flush_every_n_frames: 64
+    max_duration_seconds: 0
+    max_videos_size_gb: 0.0
 
 value_broadcaster:
   ros__parameters:
