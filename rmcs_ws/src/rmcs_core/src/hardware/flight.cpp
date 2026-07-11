@@ -123,7 +123,7 @@ public:
                      }
                          .as_bytes()})
             .can2_transmit(
-                {.can_id = 0x141,
+                {.can_id   = 0x141,
                  .can_data = gimbal_yaw_motor_.generate_torque_command().as_bytes()})
             .can3_transmit(
                 {.can_id = 0x142, .can_data = gimbal_pitch_motor_.generate_command().as_bytes()});
@@ -152,7 +152,7 @@ private:
             Eigen::Quaterniond{bmi088_.q0(), bmi088_.q1(), bmi088_.q2(), bmi088_.q3()};
         tf_->set_transform<PitchLink, OdomImu>(gimbal_imu_pose.conjugate());
 
-        *gimbal_yaw_velocity_imu_ = bmi088_.gz();
+        *gimbal_yaw_velocity_imu_   = bmi088_.gz();
         *gimbal_pitch_velocity_imu_ = bmi088_.gy();
     }
 

@@ -21,7 +21,7 @@ public:
             std::swap(min_angle_rad_, max_angle_rad_);
     }
 
-    void update(double chassis_angle, const std::array<double, 4>& leg_angles) {
+    void update(double chassis_angle, const std::array<double, 4>& leg_angles, bool active_suspension) {
         if (!valid_angle_range_()) {
             set_visible(false);
             return;
@@ -36,7 +36,7 @@ public:
                 last_leg_angles_[i] = leg_angles[i];
             update_leg_(
                 legs_[i], last_chassis_angle_ + leg_base_mid_angles_[i], leg_radii_near_[i],
-                leg_radii_far_[i], last_leg_angles_[i]);
+                leg_radii_far_[i], last_leg_angles_[i], active_suspension);
         }
     }
 
@@ -71,9 +71,9 @@ private:
 
     static constexpr std::array<double, 4> leg_base_mid_angles_ = {
         front_pair_offset_deg_ * degrees_to_radians_,
-        std::numbers::pi_v<double> - rear_pair_offset_deg_ * degrees_to_radians_,
-        std::numbers::pi_v<double> + rear_pair_offset_deg_ * degrees_to_radians_,
-        -front_pair_offset_deg_ * degrees_to_radians_,
+        std::numbers::pi_v<double> - rear_pair_offset_deg_* degrees_to_radians_,
+        std::numbers::pi_v<double> + rear_pair_offset_deg_* degrees_to_radians_,
+        -front_pair_offset_deg_* degrees_to_radians_,
     };
 
     static constexpr std::array<uint16_t, 4> leg_radii_near_ = {
@@ -106,17 +106,13 @@ private:
             (leg_angle - min_angle_rad_) / (max_angle_rad_ - min_angle_rad_), 0.0, 1.0);
     }
 
-    static Shape::Color leg_color_(double normalized_extension) {
-        if (normalized_extension < 1.0 / 3.0)
-            return Shape::Color::ORANGE;
-        if (normalized_extension < 2.0 / 3.0)
-            return Shape::Color::YELLOW;
-        return Shape::Color::WHITE;
+    static Shape::Color leg_color_(bool active_suspension) {
+        return active_suspension ? Shape::Color::YELLOW : Shape::Color::WHITE;
     }
 
     void update_leg_(
         Arc& leg, double body_angle, uint16_t near_radius, uint16_t far_radius,
-        double leg_angle) const {
+        double leg_angle, bool active_suspension) const {
         const double normalized_extension = normalized_leg_extension_(leg_angle);
         // Min angle looks like a thin leg stretching radially outward from the center ring.
         const uint16_t radius = static_cast<uint16_t>(
@@ -131,7 +127,7 @@ private:
         leg.set_y(center_y_);
         leg.set_r(radius);
         leg.set_width(width);
-        leg.set_color(leg_color_(normalized_extension));
+        leg.set_color(leg_color_(active_suspension));
         leg.set_angle(to_referee_angle_(body_angle), half_angle);
     }
 

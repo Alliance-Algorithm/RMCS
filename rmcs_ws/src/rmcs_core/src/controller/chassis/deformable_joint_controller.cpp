@@ -32,26 +32,19 @@ class DeformableJointController
     : public rmcs_executor::Component
     , public rclcpp::Node {
 public:
-    // Joint controller owns only the local angle-servo execution. Chassis publishes the
-    // higher-level target angle trajectory; this controller turns that target into motor torque.
-    struct ControllerConfig {
-        rmcs_core::controller::adrc::TD::Config td;
-        rmcs_core::controller::adrc::ESO::Config eso;
-        rmcs_core::controller::adrc::NLESF::Config nlesf;
-        double output_min = -std::numeric_limits<double>::infinity();
-        double output_max = std::numeric_limits<double>::infinity();
-    };
-
-    struct InputSnapshot {
-        double measurement_angle = std::numeric_limits<double>::quiet_NaN();
-        double setpoint_angle = std::numeric_limits<double>::quiet_NaN();
-    };
-
-    DeformableJointController()
+    explicit DeformableJointController()
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
-        register_interfaces_();
+        register_input(get_parameter("measurement_angle").as_string(), measurement_angle_);
+        register_input(get_parameter("setpoint_angle").as_string(), setpoint_angle_);
+        if (has_parameter("setpoint_velocity")) {
+            register_input(
+                get_parameter("setpoint_velocity").as_string(), setpoint_velocity_, false);
+            use_setpoint_velocity_ = true;
+        }
+        register_output(get_parameter("control").as_string(), control_torque_, nan_);
+
         load_config_();
         apply_config_();
     }
@@ -74,11 +67,21 @@ public:
     }
 
 private:
-    void register_interfaces_() {
-        register_input(get_parameter("measurement_angle").as_string(), measurement_angle_);
-        register_input(get_parameter("setpoint_angle").as_string(), setpoint_angle_);
-        register_output(get_parameter("control").as_string(), control_torque_, nan_);
-    }
+    // Joint controller owns only the local angle-servo execution. Chassis publishes the
+    // higher-level target angle trajectory; this controller turns that target into motor torque.
+    struct ControllerConfig {
+        rmcs_core::controller::adrc::TD::Config td;
+        rmcs_core::controller::adrc::ESO::Config eso;
+        rmcs_core::controller::adrc::NLESF::Config nlesf;
+        double output_min = -std::numeric_limits<double>::infinity();
+        double output_max = std::numeric_limits<double>::infinity();
+    };
+
+    struct InputSnapshot {
+        double measurement_angle = std::numeric_limits<double>::quiet_NaN();
+        double setpoint_angle = std::numeric_limits<double>::quiet_NaN();
+        double setpoint_velocity = std::numeric_limits<double>::quiet_NaN();
+    };
 
     void load_config_() {
         dt_ = load_parameter_or(*this, "dt", 0.001);
@@ -124,6 +127,10 @@ private:
     bool read_inputs_(InputSnapshot& inputs) const {
         inputs.measurement_angle = *measurement_angle_;
         inputs.setpoint_angle = *setpoint_angle_;
+        if (use_setpoint_velocity_ && setpoint_velocity_.ready()
+            && std::isfinite(*setpoint_velocity_)) {
+            inputs.setpoint_velocity = *setpoint_velocity_;
+        }
         return std::isfinite(inputs.measurement_angle) && std::isfinite(inputs.setpoint_angle);
     }
 
@@ -142,11 +149,18 @@ private:
     }
 
     bool run_joint_servo_(const InputSnapshot& inputs, double& control_torque) {
-        const auto td_out = td_.update(inputs.setpoint_angle);
         const auto eso_out = eso_.update(inputs.measurement_angle, last_u_);
 
-        const double e1 = td_out.x1 - eso_out.z1;
-        const double e2 = td_out.x2 - eso_out.z2;
+        double reference_angle = inputs.setpoint_angle;
+        double reference_velocity = inputs.setpoint_velocity;
+        if (!std::isfinite(reference_velocity)) {
+            const auto td_out = td_.update(inputs.setpoint_angle);
+            reference_angle = td_out.x1;
+            reference_velocity = td_out.x2;
+        }
+
+        const double e1 = reference_angle - eso_out.z1;
+        const double e2 = reference_velocity - eso_out.z2;
 
         control_torque = kt_ * nlesf_.compute(e1, e2, eso_out.z3, b0_).u;
         control_torque = std::clamp(control_torque, config_.output_min, config_.output_max);
@@ -174,6 +188,7 @@ private:
 
     InputInterface<double> measurement_angle_;
     InputInterface<double> setpoint_angle_;
+    InputInterface<double> setpoint_velocity_;
 
     OutputInterface<double> control_torque_;
 
@@ -187,6 +202,7 @@ private:
     double b0_ = 1.0;
     double kt_ = 1.0;
     double last_u_ = 0.0;
+    bool use_setpoint_velocity_ = false;
     bool initialized_ = false;
 };
 

@@ -21,6 +21,7 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller
 
       - rmcs_core::controller::chassis::DeformableChassis -> chassis_controller
+      - rmcs_core::controller::chassis::DeformableSuspension -> deformable_suspension
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::DeformableOmniWheelController -> deformable_chassis_controller
 
@@ -38,13 +39,19 @@ value_broadcaster:
       - /shoot/heat
       - /shoot/referee_heat
       - /shoot/heat_limit
-
+      - /chassis/left_front_joint/physical_angle
+      - /chassis/left_front_joint/physical_velocity
+      - /chassis/left_back_joint/physical_angle
+      - /chassis/left_back_joint/physical_velocity
+      - /chassis/right_back_joint/physical_angle
+      - /chassis/right_back_joint/physical_velocity
+      - /chassis/right_front_joint/physical_angle
+      - /chassis/right_front_joint/physical_velocity
 
 deformable_infantry:
   ros__parameters:
     serial_filter_rmcs_board: "AF-73B2-E8A1-A544-79ED-5BDA-D088-7F21-A6A6"
-    serial_filter_top_board: "AF-ABAC-786D-1B53-99F6-00A2-42A6-AA95-9D69"
-    serial_filter_imu: "AF-C26A-0C9C-CF41-3E3C-1596-524B-7527-5744"
+    serial_filter_top_board: "AF-C26A-0C9C-CF41-3E3C-1596-524B-7527-5744"
     left_front_zero_point: 7173
     left_back_zero_point: 5167
     right_back_zero_point: 3098
@@ -58,28 +65,52 @@ deformable_infantry:
 chassis_controller:
   ros__parameters:
     # Deploy geometry / chassis-owned joint intent
-    min_angle: 8.0
-    max_angle: 58.0
-    launch_ramp_shortcut_enabled: false
+    min_angle: 5.0
+    max_angle: 59.0
     active_suspension_enable: true
     spin_ratio: 1.0
 
+deformable_suspension:
+  ros__parameters:
     # IMU attitude correction at min-angle stance.
-    active_suspension_pitch_kp: 8.0
-    active_suspension_pitch_ki: 0.35
-    active_suspension_pitch_kd: 0.28
+    active_suspension_pitch_outer_kp: 12.0
+    active_suspension_pitch_outer_ki: 0.02
+    active_suspension_pitch_outer_kd: 0.0
+    active_suspension_pitch_outer_integral_min: -2.0
+    active_suspension_pitch_outer_integral_max: 2.0
+    active_suspension_pitch_outer_output_min: -3.0
+    active_suspension_pitch_outer_output_max: 3.0
 
-    active_suspension_roll_kp: 8.0
-    active_suspension_roll_ki: 0.35
-    active_suspension_roll_kd: 0.28
+    active_suspension_pitch_inner_kp: 0.45
+    active_suspension_pitch_inner_ki: 0.0
+    active_suspension_pitch_inner_kd: 0.0
+    active_suspension_pitch_inner_integral_min: -1.0
+    active_suspension_pitch_inner_integral_max: 1.0
+    active_suspension_pitch_inner_output_min: -0.785
+    active_suspension_pitch_inner_output_max: 0.785
 
-    active_suspension_pitch_angle_diff_limit_deg: 45.0
-    active_suspension_roll_angle_diff_limit_deg: 45.0
-    active_suspension_pid_integral_limit_deg: 20.0
+    active_suspension_roll_outer_kp: 12.0
+    active_suspension_roll_outer_ki: 0.02
+    active_suspension_roll_outer_kd: 0.0
+    active_suspension_roll_outer_integral_min: -2.0
+    active_suspension_roll_outer_integral_max: 2.0
+    active_suspension_roll_outer_output_min: -3.0
+    active_suspension_roll_outer_output_max: 3.0
+
+    active_suspension_roll_inner_kp: 0.45
+    active_suspension_roll_inner_ki: 0.0
+    active_suspension_roll_inner_kd: 0.0
+    active_suspension_roll_inner_integral_min: -1.0
+    active_suspension_roll_inner_integral_max: 1.0
+    active_suspension_roll_inner_output_min: -0.785
+    active_suspension_roll_inner_output_max: 0.785
 
     # Chassis-owned joint intent trajectory limits while attitude correction is active.
     active_suspension_target_velocity_limit_deg: 80.0
     active_suspension_target_acceleration_limit_deg: 360.0
+    active_suspension_correction_velocity_limit_deg: 720.0
+    active_suspension_correction_acceleration_limit_deg: 3600.0
+    active_suspension_rate_lpf_cutoff_hz: 10.0
 
     # Automatic IMU mounting-error calibration.
     # When all four requested joint targets stay equal for 2s, average pitch/roll from 2s to 5s.
@@ -88,10 +119,9 @@ chassis_controller:
 
 gimbal_controller:
   ros__parameters:
-    upper_limit: -0.65 # -35 deg
-    lower_limit: 0.05 # 6 deg
+    upper_limit: -0.47123 # -27 deg
+    lower_limit: 0.15707 # 9 deg
     ctrl_hold_pitch_target_angle: 0.0
-    ctrl_hold_chassis_yaw_velocity_max: 3.0
 
     yaw_angle_kp: 30.0
     yaw_angle_ki: 0.0
@@ -104,11 +134,11 @@ gimbal_controller:
     yaw_vel_ff_gain: 0.47
     yaw_acc_ff_gain: 0.00
 
-    pitch_angle_kp: 25.0
+    pitch_angle_kp: 7.2
     pitch_angle_ki: 0.0
     pitch_angle_kd: 0.0
 
-    pitch_velocity_kp: 2.2
+    pitch_velocity_kp: 3.0
     pitch_velocity_ki: 0.0
     pitch_velocity_kd: 0.0
 
@@ -118,9 +148,6 @@ gimbal_controller:
 
     pitch_torque_control: true
 
-    pitch_fusion_enabled: true
-    pitch_fusion_alpha: 0.98
-
 friction_wheel_controller:
   ros__parameters:
     friction_wheels:
@@ -129,8 +156,6 @@ friction_wheel_controller:
     friction_velocities:
       - 580.0
       - 580.0
-    friction_velocity_min: 550.0
-    friction_velocity_max: 600.0
     friction_soft_start_stop_time: 1.0
 
 heat_controller:
@@ -178,11 +203,11 @@ bullet_feeder_velocity_pid_controller:
 
 deformable_chassis_controller:
   ros__parameters:
-    mass: 23.0
+    mass: 25.5
     moment_of_inertia: 1.0
     chassis_radius: 0.2341741
-    rod_length: 0.150
-    wheel_radius: 0.07
+    rod_length: 0.140
+    wheel_radius: 0.075
     friction_coefficient: 6.6
     k1: 2.958580e+00
     k2: 3.082190e-03
@@ -190,11 +215,10 @@ deformable_chassis_controller:
 
 lf_joint_controller:
   ros__parameters:
-    # Joint-local servo inputs produced by chassis intent generation
     measurement_angle: /chassis/left_front_joint/physical_angle
     setpoint_angle: /chassis/left_front_joint/target_physical_angle
+    setpoint_velocity: /chassis/left_front_joint/target_physical_velocity
     control: /chassis/left_front_joint/control_torque
-
     dt: 0.001
     b0: -1.0
     kt: 1.0
@@ -211,11 +235,12 @@ lf_joint_controller:
     u_max: 200.0
     output_min: -200.0
     output_max: 200.0
+
 lb_joint_controller:
   ros__parameters:
-    # Same joint-servo layout as lf_joint_controller
     measurement_angle: /chassis/left_back_joint/physical_angle
     setpoint_angle: /chassis/left_back_joint/target_physical_angle
+    setpoint_velocity: /chassis/left_back_joint/target_physical_velocity
     control: /chassis/left_back_joint/control_torque
     dt: 0.001
     b0: -1.0
@@ -233,11 +258,12 @@ lb_joint_controller:
     u_max: 200.0
     output_min: -200.0
     output_max: 200.0
+
 rb_joint_controller:
   ros__parameters:
-    # Same joint-servo layout as lf_joint_controller
     measurement_angle: /chassis/right_back_joint/physical_angle
     setpoint_angle: /chassis/right_back_joint/target_physical_angle
+    setpoint_velocity: /chassis/right_back_joint/target_physical_velocity
     control: /chassis/right_back_joint/control_torque
     dt: 0.001
     b0: -1.0
@@ -255,11 +281,12 @@ rb_joint_controller:
     u_max: 200.0
     output_min: -200.0
     output_max: 200.0
+
 rf_joint_controller:
   ros__parameters:
-    # Same joint-servo layout as lf_joint_controller
     measurement_angle: /chassis/right_front_joint/physical_angle
     setpoint_angle: /chassis/right_front_joint/target_physical_angle
+    setpoint_velocity: /chassis/right_front_joint/target_physical_velocity
     control: /chassis/right_front_joint/control_torque
     dt: 0.001
     b0: -1.0

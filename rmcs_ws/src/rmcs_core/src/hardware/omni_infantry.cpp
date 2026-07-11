@@ -92,12 +92,12 @@ public:
         start_transmit().gpio_digital_read(
             librmcs::spec::rmcs_board_lite::kGpioDescriptors.kUart0Tx,
             {
-                .period_ms = 0,
-                .asap = false,
-                .rising_edge = false,
-                .falling_edge = true,
+                .period_ms         = 0,
+                .asap              = false,
+                .rising_edge       = false,
+                .falling_edge      = true,
                 .capture_timestamp = true,
-                .pull = librmcs::data::GpioPull::kUp,
+                .pull              = librmcs::data::GpioPull::kUp,
             });
 
         using namespace rmcs_description; // NOLINT(google-build-using-namespace)
@@ -133,10 +133,10 @@ public:
         };
     }
 
-    OmniInfantry(const OmniInfantry&) = delete;
+    OmniInfantry(const OmniInfantry&)            = delete;
     OmniInfantry& operator=(const OmniInfantry&) = delete;
-    OmniInfantry(OmniInfantry&&) = delete;
-    OmniInfantry& operator=(OmniInfantry&&) = delete;
+    OmniInfantry(OmniInfantry&&)                 = delete;
+    OmniInfantry& operator=(OmniInfantry&&)      = delete;
 
     ~OmniInfantry() override = default;
 
@@ -163,7 +163,7 @@ public:
         });
 
         builder.can1_transmit({
-            .can_id = 0x145,
+            .can_id   = 0x145,
             .can_data = gimbal_yaw_motor_.generate_torque_command().as_bytes(),
         });
 
@@ -180,7 +180,7 @@ public:
         });
 
         builder.can2_transmit({
-            .can_id = 0x142,
+            .can_id   = 0x142,
             .can_data = gimbal_pitch_motor_.generate_velocity_command().as_bytes(),
         });
 
@@ -225,7 +225,7 @@ private:
         tf_->set_transform<rmcs_description::PitchLink, rmcs_description::OdomImu>(
             snapshot->orientation.conjugate());
 
-        *gimbal_yaw_velocity_imu_ = snapshot->gyro_body.z();
+        *gimbal_yaw_velocity_imu_   = snapshot->gyro_body.z();
         *gimbal_pitch_velocity_imu_ = snapshot->gyro_body.y();
     }
 

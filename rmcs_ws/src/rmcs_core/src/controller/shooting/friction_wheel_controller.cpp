@@ -31,7 +31,6 @@ public:
         register_input("/remote/switch/right", switch_right_);
         register_input("/remote/switch/left", switch_left_);
         register_input("/remote/keyboard", keyboard_);
-        register_input("/remote/mouse/mouse_wheel", mouse_wheel_);
 
         auto friction_wheels = get_parameter("friction_wheels").as_string_array();
         auto friction_working_velocities = get_parameter("friction_velocities").as_double_array();
@@ -59,36 +58,6 @@ public:
                 friction_wheels[i] + "/control_velocity", friction_control_velocities_[i], nan_);
         }
 
-        const bool has_adjustable_min = has_parameter("friction_velocity_min");
-        const bool has_adjustable_max = has_parameter("friction_velocity_max");
-        if (has_adjustable_min != has_adjustable_max)
-            throw std::runtime_error(
-                "Parameter mismatch: 'friction_velocity_min' and 'friction_velocity_max' must be "
-                "provided together.");
-
-        friction_velocity_adjustment_enabled_ = has_adjustable_min;
-        if (friction_velocity_adjustment_enabled_) {
-            friction_velocity_min_ = get_parameter("friction_velocity_min").as_double();
-            friction_velocity_max_ = get_parameter("friction_velocity_max").as_double();
-            if (friction_velocity_min_ > friction_velocity_max_)
-                throw std::runtime_error(
-                    "Invalid friction velocity range: 'friction_velocity_min' must be less than "
-                    "or equal to 'friction_velocity_max'.");
-
-            friction_adjustable_velocity_ = friction_working_velocities_[0];
-            for (size_t i = 1; i < friction_count_; i++) {
-                if (std::abs(friction_working_velocities_[i] - friction_adjustable_velocity_) > 1e-6)
-                    throw std::runtime_error(
-                        "Adjustable friction velocity requires all 'friction_velocities' to be "
-                        "identical.");
-            }
-
-            if (friction_adjustable_velocity_ < friction_velocity_min_
-                || friction_adjustable_velocity_ > friction_velocity_max_)
-                throw std::runtime_error(
-                    "Initial friction velocity is outside the configured adjustable range.");
-        }
-
         friction_soft_start_stop_step_ =
             (1 / 1000.0) / get_parameter("friction_soft_start_stop_time").as_double();
 
@@ -101,7 +70,6 @@ public:
         const auto switch_right = *switch_right_;
         const auto switch_left = *switch_left_;
         const auto keyboard = *keyboard_;
-        const auto mouse_wheel = *mouse_wheel_;
 
         using namespace rmcs_msgs;
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
@@ -111,7 +79,6 @@ public:
         }
 
         if (switch_right != Switch::DOWN) {
-            update_adjustable_friction_velocity(keyboard, mouse_wheel);
             update_friction_working_velocity_outputs();
 
             if ((!last_keyboard_.v && keyboard.v)
@@ -146,18 +113,6 @@ private:
             *friction_control_velocities_[i] = nan_;
 
         *friction_ready_ = *friction_jammed_ = *bullet_fired_ = false;
-    }
-
-    void update_adjustable_friction_velocity(const rmcs_msgs::Keyboard& keyboard, double mouse_wheel) {
-        if (!friction_velocity_adjustment_enabled_ || !keyboard.x)
-            return;
-
-        friction_adjustable_velocity_ -= mouse_wheel * 5.0 * 10;
-        friction_adjustable_velocity_ =
-            std::clamp(friction_adjustable_velocity_, friction_velocity_min_, friction_velocity_max_);
-
-        for (size_t i = 0; i < friction_count_; i++)
-            friction_working_velocities_[i] = friction_adjustable_velocity_;
     }
 
     void update_friction_working_velocity_outputs() {
@@ -245,7 +200,6 @@ private:
     InputInterface<rmcs_msgs::Switch> switch_right_;
     InputInterface<rmcs_msgs::Switch> switch_left_;
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
-    InputInterface<double> mouse_wheel_;
 
     rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Switch last_switch_left_ = rmcs_msgs::Switch::UNKNOWN;
@@ -259,10 +213,6 @@ private:
     std::unique_ptr<OutputInterface<double>[]> friction_working_velocity_outputs_;
 
     bool friction_enabled_ = false;
-    bool friction_velocity_adjustment_enabled_ = false;
-    double friction_adjustable_velocity_ = 0.0;
-    double friction_velocity_min_ = 0.0;
-    double friction_velocity_max_ = 0.0;
 
     double friction_soft_start_stop_step_;
     double friction_soft_start_stop_percentage_ = nan_;
