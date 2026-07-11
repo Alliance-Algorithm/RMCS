@@ -13,7 +13,7 @@ endif()
 
 find_package(ament_cmake_auto REQUIRED)
 ament_auto_find_build_dependencies()
-
+find_package(mavlink REQUIRED)
 include(FetchContent)
 set(BUILD_STATIC_LIBRMCS ON CACHE BOOL "Build static librmcs SDK" FORCE)
 FetchContent_Declare(
@@ -33,6 +33,10 @@ ament_auto_add_library(
     ${PROJECT_NAME} SHARED
     ${PROJECT_SOURCE}
 )
+
+target_include_directories(${PROJECT_NAME} PRIVATE ${mavlink_INCLUDE_DIRS})
+
+
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_SOURCE_DIR}/src)

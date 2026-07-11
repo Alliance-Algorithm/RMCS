@@ -1,0 +1,162 @@
+#!/bin/bash
+
+# odin-service —— 用独立 tmux session 管理 odin 传感器进程 (host_sdk_sample)。
+#
+# 背景：odin 进程曾随 rmcs.launch.py 一起被 screen 会话拉起，停止时走
+# `screen -X quit` 暴力销毁会话，host_sdk_sample 收不到 SIGINT，其自带的
+# 干净关闭逻辑（停 IMU 线程 → lidar_stop_stream → lidar_system_deinit 释放
+# USB）根本没机会执行，导致残留进程占着 Odin1 USB 设备继续发数据，重启后
+# 两个进程抢同一设备 → odin 数据异常。
+#
+# 本脚本把 odin 剥离到独立 tmux session，down 时先 send-keys C-c 让
+# host_sdk_sample 收到 SIGINT 干净退出，轮询等待其真正消失，超时再逐级
+# 升级 TERM → KILL 兜底，保证无论 SDK 卡在哪都必然退出、释放 USB。
+#
+# 用法：odin-service {up|down|attach|status}
+#   up      先关再开（幂等重启）
+#   down    优雅关闭 + 5s 超时兜底强杀
+#   attach  连接 tmux session 查看实时输出
+#   status  查看运行状态
+
+set -u
+
+readonly SESSION="odin"
+readonly EXECUTABLE="host_sdk_sample"
+readonly GRACE=5          # 优雅退出等待秒数
+readonly POLL_INTERVAL=0.2
+
+env_setup_file="${HOME}/env_setup.bash"
+
+has_session() {
+    tmux has-session -t "${SESSION}" 2>/dev/null
+}
+
+proc_running() {
+    pgrep -x "${EXECUTABLE}" >/dev/null 2>&1
+}
+
+# 优雅关闭 odin：C-c → 轮询等待 → TERM → KILL 兜底，最后回收 tmux 会话。
+down() {
+    if ! has_session && ! proc_running; then
+        echo "odin is not running."
+        return 0
+    fi
+
+    echo "Stopping odin..."
+
+    # 1. 发 Ctrl+C，触发 host_sdk_sample 自带的干净关闭（释放 USB）
+    if has_session; then
+        tmux send-keys -t "${SESSION}" C-c 2>/dev/null || true
+    fi
+
+    # 2. 轮询等待进程真正消失（最多 GRACE 秒）
+    local waited=0
+    local max_iter
+    max_iter=$(awk "BEGIN{print int(${GRACE} / ${POLL_INTERVAL})}")
+    local i=0
+    while [ "${i}" -lt "${max_iter}" ]; do
+        if ! proc_running; then
+            break
+        fi
+        sleep "${POLL_INTERVAL}"
+        i=$((i + 1))
+    done
+
+    # 3. 超时仍在 → 升级 SIGTERM
+    if proc_running; then
+        echo "odin did not exit within ${GRACE}s, sending SIGTERM..."
+        pkill -TERM -x "${EXECUTABLE}" 2>/dev/null || true
+        sleep 1
+    fi
+
+    # 4. 仍在 → SIGKILL 兜底强杀（必然释放 USB）
+    if proc_running; then
+        echo "odin still alive, sending SIGKILL..."
+        pkill -KILL -x "${EXECUTABLE}" 2>/dev/null || true
+        sleep 0.5
+    fi
+
+    # 5. 回收 tmux 会话（此时进程已确认退出）
+    if has_session; then
+        tmux kill-session -t "${SESSION}" 2>/dev/null || true
+    fi
+
+    if proc_running; then
+        echo "Error: failed to stop odin (${EXECUTABLE} still present)."
+        return 1
+    fi
+
+    echo "Successfully stopped odin."
+    return 0
+}
+
+# 先关再开（幂等重启）。
+up() {
+    # 先无条件关掉任何旧进程 / 残留会话
+    down || return 1
+
+    # 给 USB 句柄一点释放时间，避免 LIBUSB_ERROR_BUSY
+    sleep 1
+
+    if [ ! -f "${env_setup_file}" ]; then
+        echo "Error: '${env_setup_file}' not found. Cannot source ROS environment."
+        return 1
+    fi
+
+    echo "Starting odin..."
+    # exec 让 host_sdk_sample 成为 window 的直接前台进程，
+    # 这样 down() 的 send-keys C-c 才能精确送达它本身。
+    tmux new-session -d -s "${SESSION}" \
+        "source '${env_setup_file}' && exec ros2 run odin_ros_driver ${EXECUTABLE}"
+
+    sleep 0.2
+    if has_session && proc_running; then
+        echo "Successfully started odin. (attach with: odin-service attach)"
+        return 0
+    else
+        echo "Error: failed to start odin."
+        # 清理可能残留的空壳会话
+        tmux kill-session -t "${SESSION}" 2>/dev/null || true
+        return 1
+    fi
+}
+
+attach() {
+    if ! has_session; then
+        echo "odin is not running. Start it with: odin-up"
+        return 1
+    fi
+    tmux attach -t "${SESSION}"
+}
+
+status() {
+    if has_session && proc_running; then
+        echo "odin: running (tmux session '${SESSION}', pid: $(pgrep -x "${EXECUTABLE}" | tr '\n' ' '))"
+    elif has_session; then
+        echo "odin: tmux session '${SESSION}' exists but ${EXECUTABLE} process not found (unhealthy)."
+    elif proc_running; then
+        echo "odin: ${EXECUTABLE} running but no tmux session (orphan?), pid: $(pgrep -x "${EXECUTABLE}" | tr '\n' ' ')"
+    else
+        echo "odin: not running."
+    fi
+}
+
+case "${1:-}" in
+    up)
+        up
+        ;;
+    down)
+        down
+        ;;
+    attach)
+        attach
+        ;;
+    status)
+        status
+        ;;
+    *)
+        echo "Usage: odin-service {up|down|attach|status}"
+        echo "  (prefer the shortcuts: odin-up / odin-down)"
+        exit 1
+        ;;
+esac
