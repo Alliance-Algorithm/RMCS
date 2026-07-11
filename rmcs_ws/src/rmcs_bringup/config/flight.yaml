@@ -88,7 +88,7 @@ yaw_velocity_pid_controller:
     measurement: /gimbal/yaw/velocity_imu
     setpoint: /gimbal/yaw/control_velocity
     control: /gimbal/yaw/control_torque
-    kp: 8.0
+    kp: 6.0
     ki: 0.0
     kd: 0.0
 

@@ -50,6 +50,15 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
             )
         )
 
+        entities.append(
+            Node(
+                package="odin_ros_driver",
+                executable="tmux-launch.sh",
+                output="screen",
+                emulate_tty=True,
+            )
+        )
+
         if is_automatic:
             pass
 
