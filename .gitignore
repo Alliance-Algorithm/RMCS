@@ -42,10 +42,6 @@ srv/_*.py
 qtcreator-*
 *.user
 
-/planning/cfg
-/planning/docs
-/planning/src
-
 *~
 
 # Emacs
@@ -71,5 +67,15 @@ id_rsa.pub
 # Recording files
 record/
 
+# Docker Compose override (personal config)
+docker-compose.override.yml
+
 # For temperary development
 develop_ws
+
+# For Agent Development
+.opencode/
+.claude/
+.codex/
+.mimo/
+CLAUDE.md
