@@ -84,7 +84,7 @@ public:
         register_input("/arm/image_pitch/motor/angle", image_pitch_theta_, NAN);
         register_output("/arm/image_pitch/target_theta", image_pitch_target_theta_, NAN);
         register_output("/arm/custom_big_yaw", custom_big_yaw_output_, 0.0);
-        register_input("/leg_back/up_stairs_step", up_stairs_layer);
+        // register_input("/leg_back/up_stairs_step", up_stairs_layer);
     }
 
     ~ArmController() {}
@@ -136,14 +136,6 @@ public:
             case ArmMode::Auto_Walk: {
                 arm_action_machine_.process(action_dictionary_.helper_find_chunk("auto_walk"));
                 break;
-            }
-            case ArmMode::Auto_Up_One_Stairs: {
-                arm_action_machine_.process(action_dictionary_.helper_find_chunk("up_one_stairs"));
-                break;
-            }
-            case ArmMode::Auto_Up_Two_Stairs: {
-                arm_action_machine_.process(action_dictionary_.helper_build_chunk(
-                    {"initial", "initial_again", "lift_again"}));
             }
             default: break;
             }
@@ -273,17 +265,14 @@ private:
             execute_custom();
             break;
         }
+        case ArmMode::Auto_Up_One_Stairs:
+        case ArmMode::Auto_Up_Two_Stairs:
         case ArmMode::Auto_Walk:
         case ArmMode::Auto_Extract_LB:
         case ArmMode::Auto_Extract_RB:
         case ArmMode::Auto_Storage_RB:
         case ArmMode::Auto_Storage_LB: {
             execute_plan_request_and_trajectory_step();
-            break;
-        }
-        case ArmMode::Auto_Up_One_Stairs:
-        case ArmMode::Auto_Up_Two_Stairs: {
-            arm_leg_coordination();
             break;
         }
         default: {
@@ -336,53 +325,53 @@ private:
         }
     }
 
-    void arm_leg_coordination() {
-        static int time_count_{0};
-        static int current_step_index_{0};
-        static size_t step_position_index_{0};
-        static std::string last_up_stairs_layer{"none"};
-        static uint64_t last_executed_request_id_{0};
+    // void arm_leg_coordination() {
+    //     static int time_count_{0};
+    //     static int current_step_index_{0};
+    //     static size_t step_position_index_{0};
+    //     static std::string last_up_stairs_layer{"none"};
+    //     static uint64_t last_executed_request_id_{0};
 
-        const auto result = arm_action_machine_.get_trajectory();
-        if (!result || !result->plan_success || result->step_position_map.empty())
-            return;
+    //     const auto result = arm_action_machine_.get_trajectory();
+    //     if (!result || !result->plan_success || result->step_position_map.empty())
+    //         return;
 
-        // New trajectory submitted → force full reset
-        if (result->request_id != last_executed_request_id_) {
-            current_step_index_       = 0;
-            step_position_index_      = 0;
-            last_executed_request_id_ = result->request_id;
-            last_up_stairs_layer      = "none";
-        }
+    //     // New trajectory submitted → force full reset
+    //     if (result->request_id != last_executed_request_id_) {
+    //         current_step_index_       = 0;
+    //         step_position_index_      = 0;
+    //         last_executed_request_id_ = result->request_id;
+    //         last_up_stairs_layer      = "none";
+    //     }
 
-        if (*up_stairs_layer != last_up_stairs_layer) {
-            last_up_stairs_layer = *up_stairs_layer;
-            if (*up_stairs_layer == "initial") {
-                time_count_          = 0;
-                current_step_index_  = 0;
-                step_position_index_ = 0;
-            } else if (*up_stairs_layer == "initial_again") {
-                current_step_index_  = 1;
-                step_position_index_ = 0;
-            } else if (*up_stairs_layer == "lift_again") {
-                current_step_index_  = 2;
-                step_position_index_ = 0;
-            }
-        }
-        const auto pos_it = result->step_position_map.find(current_step_index_);
-        if (pos_it == result->step_position_map.end())
-            return;
-        const auto& positions = pos_it->second;
-        if (step_position_index_ < static_cast<size_t>(positions.size())) {
-            for (size_t i = 0; i < 6; ++i)
-                *target_theta[i] = positions[step_position_index_][i];
-            step_position_index_++;
-            if (time_count_ <= this->get_parameter("initial_delay_time").as_int()) {
-                step_position_index_--;
-            }
-        }
-        time_count_++;
-    }
+    //     if (*up_stairs_layer != last_up_stairs_layer) {
+    //         last_up_stairs_layer = *up_stairs_layer;
+    //         if (*up_stairs_layer == "initial") {
+    //             time_count_          = 0;
+    //             current_step_index_  = 0;
+    //             step_position_index_ = 0;
+    //         } else if (*up_stairs_layer == "initial_again") {
+    //             current_step_index_  = 1;
+    //             step_position_index_ = 0;
+    //         } else if (*up_stairs_layer == "lift_again") {
+    //             current_step_index_  = 2;
+    //             step_position_index_ = 0;
+    //         }
+    //     }
+    //     const auto pos_it = result->step_position_map.find(current_step_index_);
+    //     if (pos_it == result->step_position_map.end())
+    //         return;
+    //     const auto& positions = pos_it->second;
+    //     if (step_position_index_ < static_cast<size_t>(positions.size())) {
+    //         for (size_t i = 0; i < 6; ++i)
+    //             *target_theta[i] = positions[step_position_index_][i];
+    //         step_position_index_++;
+    //         if (time_count_ <= this->get_parameter("initial_delay_time").as_int()) {
+    //             step_position_index_--;
+    //         }
+    //     }
+    //     time_count_++;
+    // }
     void execute_custom() {
         struct __attribute__((packed)) CustomFrame {
             uint16_t big_yaw;
@@ -453,9 +442,10 @@ private:
         }
     }
     void gripper_control() {
-       // RCLCPP_INFO(this->get_logger(),"close mean 1,open mean 0: %f",static_cast<double>(get_gripper_mode()==rmcs_msgs::GripperMode::Close));
-       //RCLCPP_INFO(this->get_logger(),"velocity %f",*gripper_velocity_); 
-       static double stock_theta;
+        // RCLCPP_INFO(this->get_logger(),"close mean 1,open mean 0:
+        // %f",static_cast<double>(get_gripper_mode()==rmcs_msgs::GripperMode::Close));
+        // RCLCPP_INFO(this->get_logger(),"velocity %f",*gripper_velocity_);
+        static double stock_theta;
         is_gripper_complete = false;
         if (last_gripper_mode_ != get_gripper_mode()) {
             is_gripper_stock = false;
@@ -466,7 +456,7 @@ private:
                 is_gripper_stock    = true;
                 stock_theta         = *gripper_angle_;
                 is_gripper_complete = true;
-                //RCLCPP_INFO(this->get_logger(),"gripper stocked,target equal current");
+                // RCLCPP_INFO(this->get_logger(),"gripper stocked,target equal current");
             }
             *gripper_target_theta =
                 is_gripper_stock
@@ -476,7 +466,7 @@ private:
                                 * 0.5;
         } else {
             *gripper_target_theta = *gripper_angle_;
-            //RCLCPP_INFO(this->get_logger(),"gripper:none,target equal current");
+            // RCLCPP_INFO(this->get_logger(),"gripper:none,target equal current");
         }
     }
 
@@ -570,7 +560,7 @@ private:
     InputInterface<std::array<uint8_t, 30>> custom_data_;
     OutputInterface<double> custom_big_yaw_output_;
     filter::LowPassFilter<6> custom_joint_filter_;
-    InputInterface<std::string> up_stairs_layer;
+    // InputInterface<std::string> up_stairs_layer;
 };
 
 } // namespace rmcs_core::controller::arm

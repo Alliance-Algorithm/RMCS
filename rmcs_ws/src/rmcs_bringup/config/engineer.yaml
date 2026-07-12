@@ -3,40 +3,28 @@ rmcs_executor:
     update_rate: 1000.0
     components:
       - rmcs_core::hardware::Engineer -> engineer_hardware
-      # - rmcs_core::controller::arm::ArmConfig -> arm_config
-      # - rmcs_core::controller::arm::ArmController -> arm_controller
-      # - rmcs_core::controller::arm::ArmSolver -> arm_solver
+      - rmcs_core::controller::arm::ArmConfig -> arm_config
+      - rmcs_core::controller::arm::ArmController -> arm_controller
+      - rmcs_core::controller::arm::ArmSolver -> arm_solver
 
-      # - rmcs_core::referee::ImageTransmissionLink -> image_transmission
+      - rmcs_core::referee::ImageTransmissionLink -> image_transmission
 
-      # - rmcs_core::controller::pid::PidController -> gripper_angle_pid_controller
-      # - rmcs_core::controller::pid::PidController -> gripper_velocity_pid_controller
-      # - rmcs_core::controller::pid::PidController -> image_pitch_angle_pid_controller
-      # - rmcs_core::controller::pid::PidController -> image_pitch_velocity_pid_controller
-
-      # - rmcs_core::controller::leg::LegController -> leg_controller
-
+      - rmcs_core::controller::pid::PidController -> gripper_angle_pid_controller
+      - rmcs_core::controller::pid::PidController -> gripper_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> image_pitch_angle_pid_controller
+      - rmcs_core::controller::pid::PidController -> image_pitch_velocity_pid_controller
       - rmcs_core::controller::chassis::ChassisController -> chassis_controller
       - rmcs_core::controller::chassis::SteeringWheelController -> steering_wheel_controller
-      # - rmcs_core::controller::chassis::EngineerChassisClimberController -> engineer_chassis_climber_controller
-            
-      # - rmcs_core::controller::pid::PidController -> leg_omni_l_velocity_controller
-      # - rmcs_core::controller::pid::PidController -> leg_omni_r_velocity_controller
+      - rmcs_core::controller::chassis::EngineerChassisClimberController -> engineer_chassis_climber_controller
 
-      # - rmcs_core::controller::pid::ErrorPidController -> big_yaw_angle_error_pid_controller
-      # - rmcs_core::controller::pid::PidController -> big_yaw_velocity_pid_controller
-
-      # - rmcs_core::controller::pid::ErrorPidController -> leg_lb_angle_error_pid_controller
-      # - rmcs_core::controller::pid::PidController -> leg_lb_velocity_pid_controller
-      # - rmcs_core::controller::pid::ErrorPidController -> leg_rb_angle_error_pid_controller
-      # - rmcs_core::controller::pid::PidController -> leg_rb_velocity_pid_controller
-
+      - rmcs_core::controller::pid::ErrorPidController -> big_yaw_angle_error_pid_controller
+      - rmcs_core::controller::pid::PidController -> big_yaw_velocity_pid_controller
     
-      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 engineer_hardware:
   ros__parameters:
-    board_serial_arm_board: "AF-4728-8B65-756E-F0CF-DBDD-D3C8-C843-2DF6"
-    board_serial_little_board: "D4-632C-37BC-6A17-ACA2-E3FE-91E9"
+    board_serial_arm_board: "D4-632C-37BC-6A17-ACA2-E3FE-91E9"
+    board_serial_little_board: "AF-4728-8B65-756E-F0CF-DBDD-D3C8-C843-2DF6"
     gripper_zero_point: 26298
     image_pitch_zero_point: 43131
     joint6_zero_point: 12566
@@ -53,7 +41,7 @@ engineer_hardware:
     leg_lb_ecd_zero_point: 153149
     leg_rb_ecd_zero_point: 220758
     leg_rf_ecd_zero_point: 119271
-    big_yaw_zero_point: 32705
+    big_yaw_zero_point: 9724
 
 image_transmission:
   ros__parameters:
@@ -68,30 +56,6 @@ arm_controller:
 arm_solver:
   ros__parameters:
     controller_list: [pid, gravity, friction]
-
-leg_controller:
-  ros__parameters:
-    forward_x_position_in_FourWheel: 238.0
-    forward_x_position_in_SixWheel: 250.0
-    backward_x_position_in_SixWheel: 221.0
-    tof_b: 0.51
-    up_one_stairs:
-      params:
-        initial: [1.600270, 1.550, 0.0, 2000.0]
-        press: [0.972736, 0.493103, -600.0, 250.0]
-        wait : [0.972736,0.493103, 0.0, 300.0]
-        lift: [1.016670, 1.150821, -600.0, 50.0]
-    up_two_stairs:
-      params:
-        initial: [1.600270, 1.550, 0.0, 2000.0]
-        press: [0.972736, 0.493103, -600.0, 250.0]
-        wait : [0.972736,0.493103, 0.0, 300.0]
-        lift: [1.016670, 1.150821, -400.0, 30.0]
-        # lift_and_initial: [1.400270, 1.410, -100.0, 1000.0]
-        initial_again: [1.600270, 1.550, -300.0, 300.0]
-        press_again: [0.802736, 0.693103, -500.0, 300.0]
-        lift_again: [0.956670, 1.350821, -200.0, 50.0]
-
 
 
 gripper_angle_pid_controller:
@@ -131,24 +95,6 @@ image_pitch_velocity_pid_controller:
     ki: 0.0
     kd: 0.0
 
-leg_omni_l_velocity_controller:
-  ros__parameters:
-    measurement: /leg/omni/l/velocity
-    setpoint: /leg/omni/l/target_vel
-    control: /leg/omni/l/control_torque
-    kp: 0.7
-    ki: 0.0
-    kd: 0.0
-
-leg_omni_r_velocity_controller:
-  ros__parameters:
-    measurement: /leg/omni/r/velocity
-    setpoint: /leg/omni/r/target_vel
-    control: /leg/omni/r/control_torque
-    kp: 0.7
-    ki: 0.0
-    kd: 0.0
-
 big_yaw_angle_error_pid_controller:
   ros__parameters:
     measurement: /chassis/big_yaw/target_angle_error
@@ -165,40 +111,10 @@ big_yaw_velocity_pid_controller:
     ki: 0.0
     kd: 0.039
 
-leg_lb_angle_error_pid_controller:
+chassis_controller:
   ros__parameters:
-    measurement: /leg/joint/lb/control_theta_error
-    control: /leg/joint/lb/control_vel
-    kp: 6000.0
-    ki: 0.0
-    kd: 0.0
-leg_lb_velocity_pid_controller:
-  ros__parameters:
-    measurement: /leg/joint/lb/velocity
-    setpoint: /leg/joint/lb/control_vel
-    control: /leg/joint/lb/control_torque
-    kp: 0.08
-    ki: 0.0
-    kd: 0.0
-    output_max: 40.0
-
-leg_rb_angle_error_pid_controller:
-  ros__parameters:
-    measurement: /leg/joint/rb/control_theta_error
-    control: /leg/joint/rb/control_vel
-    kp: 6000.0
-    ki: 0.0
-    kd: 0.0
-
-leg_rb_velocity_pid_controller:
-  ros__parameters:
-    measurement: /leg/joint/rb/velocity
-    setpoint: /leg/joint/rb/control_vel
-    control: /leg/joint/rb/control_torque
-    kp: 0.08
-    ki: 0.0
-    kd: 0.0
-    output_max: 40.0
+    yaw_left_limit: -1.57
+    yaw_right_limit: 1.57
 
 steering_wheel_controller:
   ros__parameters:
@@ -233,20 +149,10 @@ engineer_chassis_climber_controller:
 value_broadcaster:
   ros__parameters:
     forward_list:
-      - "/leg/joint/rf/velocity"
-      - "/leg/joint/lf/velocity"
-      - "/leg/joint/lf/torque"
-      - "/leg/joint/lf/control_torque"
-      - "/leg/joint/rf/torque"
-      - "/leg/joint/rf/control_torque"
-      - "/leg/encoder/rf/angle"
-      - "/leg/encoder/lb/angle"
       - "/arm/gripper/motor/velocity"
       - "/arm/gripper/motor/torque"
       - "/arm/gripper/target_theta"
       - "/arm/gripper/motor/control_torque"
       - "/arm/gripper/motor/angle"
-      - "pitch_imu_angle"
-      - "/leg/pitch_imu_angle_offsetted"
 
     
