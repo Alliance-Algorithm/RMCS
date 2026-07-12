@@ -55,8 +55,8 @@ public:
         // rightboard_.update();
     }
     void command() {
-        armboard_.command();
-        littleboard_.command();
+        // armboard_.command();
+        // littleboard_.command();
         // rightboard_.command();
     }
 
@@ -100,7 +100,6 @@ private:
             , gripper{engineer, engineer_command, "/arm/gripper/motor"}
             , image_pitch{engineer, engineer_command, "/arm/image_pitch/motor"}
             , joint2_encoder(engineer, "/arm/joint_2/encoder")
-            , dr16_(engineer)
             , bmi088_(1000, 0.2, 0)
 
         {
@@ -160,7 +159,6 @@ private:
         void update() {
             using namespace device;
             update_arm_motors();
-            dr16_.update_status();
             update_imu();
         }
         void command() { update_arm_command(); }
@@ -281,10 +279,6 @@ private:
             };
         }
 
-        void dbus_receive_callback(const librmcs::data::UartDataView& data) override {
-            dr16_.store_status(data.uart_data.data(), static_cast<uint8_t>(data.uart_data.size()));
-        }
-
         void accelerometer_receive_callback(
             const librmcs::data::AccelerometerDataView& data) override {
             bmi088_.store_accelerometer_status(data.x, data.y, data.z);
@@ -299,7 +293,6 @@ private:
         device::LKMotor gripper;
         device::LKMotor image_pitch;
         device::Encoder joint2_encoder;
-        device::Dr16 dr16_;
 
         OutputInterface<double> yaw_imu_velocity;
         OutputInterface<double> yaw_imu_angle;
@@ -335,7 +328,8 @@ private:
                   {engineer, engineer_command, "/climber/lift/l"},
                   {engineer, engineer_command, "/climber/lift/r"})
             , power_meter(engineer, "/steering/power_meter")
-            , big_yaw(engineer, engineer_command, "/chassis/big_yaw") {
+            , big_yaw(engineer, engineer_command, "/chassis/big_yaw")
+            , dr16_(engineer) {
             Steering_motors[0].configure(
                 device::DjiMotorConfig{device::DjiMotorType::GM6020}
                     .reverse()
@@ -383,10 +377,8 @@ private:
                     .enable_multi_turn_angle()
                     .set_reduction_ratio(19.));
             big_yaw.configure(
-                device::DMMotorConfig{device::DMMotorType::DM8009}
-                    .set_encoder_zero_point(
-                        static_cast<int>(engineer.get_parameter("big_yaw_zero_point").as_int()))
-                    .enable_multi_turn_angle());
+                device::LKMotorConfig{device::LKMotorType::MG8016E_i6V2}.set_encoder_zero_point(
+                    static_cast<int>(engineer.get_parameter("big_yaw_zero_point").as_int())));
 
             engineer_command.register_input("/arm/enable_flag", is_arm_enable);
         }
@@ -460,7 +452,7 @@ private:
             });
             tx.can3_transmit({
                 .can_id   = 0x33,
-                .can_data = big_yaw.dm_close_command().as_bytes(),
+                .can_data = big_yaw.lk_close().as_bytes(),
             });
         }
         void update() {
@@ -478,6 +470,7 @@ private:
             }
             big_yaw.update();
             power_meter.update();
+            dr16_.update_status();
         }
         void command() {
 
@@ -485,19 +478,21 @@ private:
             auto tx = start_transmit();
             if (turn) {
                 device::CanPacket8 yaw_command;
-                if (*is_arm_enable && big_yaw.get_state() != 0 && big_yaw.get_state() != 1) {
-                    yaw_command = big_yaw.dm_clear_error_command();
-                } else if (!*is_arm_enable) {
-                    yaw_command = big_yaw.dm_close_command();
-                } else if (*is_arm_enable && big_yaw.get_state() == 0) {
-                    yaw_command = big_yaw.dm_enable_command();
+                // if (*is_arm_enable && big_yaw.get_state() != 0 && big_yaw.get_state() != 1) {
+                // //     yaw_command = big_yaw.dm_clear_error_command();
+                // // } else if (!*is_arm_enable) {
+                // //     yaw_command = big_yaw.dm_close_command();
+                // // } else if (*is_arm_enable && big_yaw.get_state() == 0) {
+                // //     yaw_command = big_yaw.lk_enable_command();
 
+                if (!*is_arm_enable) {
+                    yaw_command = big_yaw.lk_close();
                 } else {
                     yaw_command = big_yaw.generate_torque_command();
                 }
 
                 tx.can2_transmit({
-                    .can_id   = 0x33,
+                    .can_id   = 0x142,
                     .can_data = yaw_command.as_bytes(),
                 });
                 tx.can2_transmit({
@@ -626,13 +621,20 @@ private:
             }
         }
 
+        void dbus_receive_callback(const librmcs::data::UartDataView& data) override {
+            dr16_.store_status(data.uart_data.data(), static_cast<uint8_t>(data.uart_data.size()));
+        }
+
     private:
         device::DjiMotor Steering_motors[4];
         device::DjiMotor Wheel_motors[4];
         device::DjiMotor Track_motors[2];
         device::DjiMotor Lift_motors[2];
         device::PowerMeter power_meter;
-        device::DMMotor big_yaw;
+        device::LKMotor big_yaw;
+
+        device::Dr16 dr16_;
+
         InputInterface<bool> is_arm_enable;
 
     } littleboard_;

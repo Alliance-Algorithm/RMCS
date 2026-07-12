@@ -3,40 +3,40 @@ rmcs_executor:
     update_rate: 1000.0
     components:
       - rmcs_core::hardware::Engineer -> engineer_hardware
-      - rmcs_core::controller::arm::ArmConfig -> arm_config
-      - rmcs_core::controller::arm::ArmController -> arm_controller
-      - rmcs_core::controller::arm::ArmSolver -> arm_solver
+      # - rmcs_core::controller::arm::ArmConfig -> arm_config
+      # - rmcs_core::controller::arm::ArmController -> arm_controller
+      # - rmcs_core::controller::arm::ArmSolver -> arm_solver
 
-      - rmcs_core::referee::ImageTransmissionLink -> image_transmission
+      # - rmcs_core::referee::ImageTransmissionLink -> image_transmission
 
-      - rmcs_core::controller::pid::PidController -> gripper_angle_pid_controller
-      - rmcs_core::controller::pid::PidController -> gripper_velocity_pid_controller
-      - rmcs_core::controller::pid::PidController -> image_pitch_angle_pid_controller
-      - rmcs_core::controller::pid::PidController -> image_pitch_velocity_pid_controller
+      # - rmcs_core::controller::pid::PidController -> gripper_angle_pid_controller
+      # - rmcs_core::controller::pid::PidController -> gripper_velocity_pid_controller
+      # - rmcs_core::controller::pid::PidController -> image_pitch_angle_pid_controller
+      # - rmcs_core::controller::pid::PidController -> image_pitch_velocity_pid_controller
 
-      - rmcs_core::controller::leg::LegController -> leg_controller
+      # - rmcs_core::controller::leg::LegController -> leg_controller
 
       - rmcs_core::controller::chassis::ChassisController -> chassis_controller
       - rmcs_core::controller::chassis::SteeringWheelController -> steering_wheel_controller
+      # - rmcs_core::controller::chassis::EngineerChassisClimberController -> engineer_chassis_climber_controller
             
-      - rmcs_core::controller::pid::PidController -> leg_omni_l_velocity_controller
-      - rmcs_core::controller::pid::PidController -> leg_omni_r_velocity_controller
+      # - rmcs_core::controller::pid::PidController -> leg_omni_l_velocity_controller
+      # - rmcs_core::controller::pid::PidController -> leg_omni_r_velocity_controller
 
-      - rmcs_core::controller::pid::ErrorPidController -> big_yaw_angle_error_pid_controller
-      - rmcs_core::controller::pid::PidController -> big_yaw_velocity_pid_controller
+      # - rmcs_core::controller::pid::ErrorPidController -> big_yaw_angle_error_pid_controller
+      # - rmcs_core::controller::pid::PidController -> big_yaw_velocity_pid_controller
 
-      - rmcs_core::controller::pid::ErrorPidController -> leg_lb_angle_error_pid_controller
-      - rmcs_core::controller::pid::PidController -> leg_lb_velocity_pid_controller
-      - rmcs_core::controller::pid::ErrorPidController -> leg_rb_angle_error_pid_controller
-      - rmcs_core::controller::pid::PidController -> leg_rb_velocity_pid_controller
+      # - rmcs_core::controller::pid::ErrorPidController -> leg_lb_angle_error_pid_controller
+      # - rmcs_core::controller::pid::PidController -> leg_lb_velocity_pid_controller
+      # - rmcs_core::controller::pid::ErrorPidController -> leg_rb_angle_error_pid_controller
+      # - rmcs_core::controller::pid::PidController -> leg_rb_velocity_pid_controller
 
     
-      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 engineer_hardware:
   ros__parameters:
-    board_serial_arm_board: "D4-6A83-030D-F3D0-9103-F8A5-1246"
-    board_serial_left_board: "D4-18B8-2958-0D33-4168-27CE-86B2"
-    board_serial_right_board: "D4-D354-B7C8-A457-ECB1-11A9-998E"
+    board_serial_arm_board: "AF-4728-8B65-756E-F0CF-DBDD-D3C8-C843-2DF6"
+    board_serial_little_board: "D4-632C-37BC-6A17-ACA2-E3FE-91E9"
     gripper_zero_point: 26298
     image_pitch_zero_point: 43131
     joint6_zero_point: 12566
@@ -211,6 +211,24 @@ steering_wheel_controller:
     k2: 3.082190e-03
     no_load_power: 15.37
 
+engineer_chassis_climber_controller:
+  ros__parameters:
+    front_climber_velocity: 20.0
+    back_climber_velocity: 30.0
+    auto_climb_support_retract_velocity: 220.0
+    auto_climb_approach_chassis_velocity: 2.0
+    auto_climb_support_deploy_chassis_velocity: 0.3
+    auto_climb_dash_chassis_velocity: 3.0
+    auto_climb_leveled_pitch_threshold: 0.09
+    sync_coefficient: 0.2
+    first_stair_approach_pitch: 0.517
+    second_stair_approach_pitch: 0.365    
+    front_kp: 1.0
+    front_ki: 0.0
+    front_kd: 0.5
+    back_kp: 0.5
+    back_ki: 0.0
+    back_kd: 0.0
 
 value_broadcaster:
   ros__parameters:
