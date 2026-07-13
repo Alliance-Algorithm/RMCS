@@ -1,17 +1,4 @@
-#!/bin/bash
 
-# odin-service —— 用独立 tmux session 管理 odin 传感器进程 (host_sdk_sample)。
-#
-# 背景：odin 进程曾随 rmcs.launch.py 一起被 screen 会话拉起，停止时走
-# `screen -X quit` 暴力销毁会话，host_sdk_sample 收不到 SIGINT，其自带的
-# 干净关闭逻辑（停 IMU 线程 → lidar_stop_stream → lidar_system_deinit 释放
-# USB）根本没机会执行，导致残留进程占着 Odin1 USB 设备继续发数据，重启后
-# 两个进程抢同一设备 → odin 数据异常。
-#
-# 本脚本把 odin 剥离到独立 tmux session，down 时先 send-keys C-c 让
-# host_sdk_sample 收到 SIGINT 干净退出，轮询等待其真正消失，超时再逐级
-# 升级 TERM → KILL 兜底，保证无论 SDK 卡在哪都必然退出、释放 USB。
-#
 # 用法：odin-service {up|down|attach|status}
 #   up      先关再开（幂等重启）
 #   down    优雅关闭 + 5s 超时兜底强杀
@@ -104,12 +91,28 @@ up() {
     fi
 
     echo "Starting odin..."
-    # exec 让 host_sdk_sample 成为 window 的直接前台进程，
+    # tmux 用 default-shell（可能是 zsh）执行命令字符串，而 env_setup.bash
+    # 及其内部的 ROS setup 脚本依赖 BASH_SOURCE，必须由 bash source；
+    # exec 链让 host_sdk_sample 最终成为 window 的直接前台进程，
     # 这样 down() 的 send-keys C-c 才能精确送达它本身。
     tmux new-session -d -s "${SESSION}" \
-        "source '${env_setup_file}' && exec ros2 run odin_ros_driver ${EXECUTABLE}"
+        "exec bash -c \"source '${env_setup_file}' && exec ros2 run odin_ros_driver ${EXECUTABLE}\""
 
-    sleep 0.2
+    # ros2 run 先起 python 包装进程，${EXECUTABLE} 稍后才出现，轮询等待
+    local max_iter
+    max_iter=$(awk "BEGIN{print int(${GRACE} / ${POLL_INTERVAL})}")
+    local i=0
+    while [ "${i}" -lt "${max_iter}" ]; do
+        if proc_running; then
+            break
+        fi
+        if ! has_session; then
+            break  # 会话已退出，进程不可能再出现
+        fi
+        sleep "${POLL_INTERVAL}"
+        i=$((i + 1))
+    done
+
     if has_session && proc_running; then
         echo "Successfully started odin. (attach with: odin-service attach)"
         return 0
@@ -123,7 +126,7 @@ up() {
 
 attach() {
     if ! has_session; then
-        echo "odin is not running. Start it with: odin-up"
+        echo "odin is not running. Start it with: odin-service up"
         return 1
     fi
     tmux attach -t "${SESSION}"
@@ -156,7 +159,6 @@ case "${1:-}" in
         ;;
     *)
         echo "Usage: odin-service {up|down|attach|status}"
-        echo "  (prefer the shortcuts: odin-up / odin-down)"
         exit 1
         ;;
 esac

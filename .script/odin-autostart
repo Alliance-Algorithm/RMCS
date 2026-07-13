@@ -1,0 +1,60 @@
+#!/bin/bash
+
+# Odin1 开机自启服务，部署到 NUC 容器内的 /etc/init.d/odin：
+#   scp .script/odin-autostart remote:/etc/init.d/odin && ssh remote 'chmod +x /etc/init.d/odin'
+# 由 /entrypoint 中的 `service odin start` 在容器启动时调用。
+# 用法：service odin {start|stop|restart|status|attach}
+
+# entrypoint 以 PID 1 运行时 HOME 未设置，而 odin-service 依赖 ${HOME}/env_setup.bash
+if [ -z "${HOME:-}" ]; then
+    export HOME=/root
+fi
+
+readonly ODIN_USB_ID="2207:0019"   # Odin1，lsusb 中显示为 "manifold hawk"
+readonly DETECT_TIMEOUT=30         # Odin1 自身也要开机，等待其 USB 枚举出现的上限秒数
+readonly START_RETRIES=3
+
+usb_present() {
+    lsusb -d "${ODIN_USB_ID}" >/dev/null 2>&1
+}
+
+start() {
+    # 整机上电时 Odin1 可能比容器晚就绪，轮询等待；超时视为未接入，直接放弃
+    local waited=0
+    until usb_present; do
+        if [ "${waited}" -ge "${DETECT_TIMEOUT}" ]; then
+            echo "odin: Odin1 (${ODIN_USB_ID}) not detected within ${DETECT_TIMEOUT}s, skip starting."
+            return 0
+        fi
+        sleep 2
+        waited=$((waited + 2))
+    done
+
+    local i
+    for i in $(seq 1 "${START_RETRIES}"); do
+        odin-service up && return 0
+        echo "odin: start attempt ${i}/${START_RETRIES} failed, retrying in 5s..." >&2
+        sleep 5
+    done
+    echo "Error: odin failed to start after ${START_RETRIES} attempts." >&2
+    return 1
+}
+
+case "${1:-}" in
+    start|restart)
+        start
+        ;;
+    stop)
+        odin-service down
+        ;;
+    status)
+        odin-service status
+        ;;
+    attach)
+        odin-service attach
+        ;;
+    *)
+        echo 'Usage: service odin {start|stop|restart|status|attach}'
+        exit 1
+        ;;
+esac

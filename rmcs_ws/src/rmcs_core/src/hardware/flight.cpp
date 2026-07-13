@@ -226,10 +226,10 @@ protected:
     }
 
     void uart0_receive_callback(const librmcs::data::UartDataView& data) override {
-        RCLCPP_INFO_THROTTLE(
-            logger_, *get_clock(), 500, // 最多 500ms 一条
-            "[uart0 rx] %zu bytes, first=0x%02X", data.uart_data.size(),
-            data.uart_data.empty() ? 0u : static_cast<unsigned>(data.uart_data.front()));
+        // RCLCPP_INFO_THROTTLE(
+        //     logger_, *get_clock(), 500, // 最多 500ms 一条
+        //     "[uart0 rx] %zu bytes, first=0x%02X", data.uart_data.size(),
+        //     data.uart_data.empty() ? 0u : static_cast<unsigned>(data.uart_data.front()));
 
         const std::byte* ptr =data.uart_data.data();
         px4_ring_buffer_receive_.emplace_back_n(

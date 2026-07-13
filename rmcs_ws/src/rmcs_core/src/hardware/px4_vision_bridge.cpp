@@ -139,9 +139,9 @@ private:
             mavlink_message_t msg_mavlink;
             mavlink_status_t  status;
             if(mavlink_parse_char(MAVLINK_COMM_0, static_cast<uint8_t>(buffer[i]), &msg_mavlink, &status)){
-                RCLCPP_INFO_THROTTLE(
-                    logger_, *get_clock(), 1000, // 最多 1s 一条
-                    "[px4 rx] parsed msgid=%u", static_cast<unsigned>(msg_mavlink.msgid));
+                // RCLCPP_INFO_THROTTLE(
+                //     logger_, *get_clock(), 1000, // 最多 1s 一条
+                //     "[px4 rx] parsed msgid=%u", static_cast<unsigned>(msg_mavlink.msgid));
                 switch (msg_mavlink.msgid){
                     case MAVLINK_MSG_ID_HEARTBEAT: last_heartbeat_recv_ =now();
                         break;
@@ -153,6 +153,7 @@ private:
                     }
                     default:
                         break;
+
                 }
             }
         }
@@ -198,11 +199,25 @@ private:
 
     static void quaternion_to_rpy_zyx(const Eigen::Quaterniond& q, double& roll,double& pitch, double& yaw){
         const double w =q.w(),x =q.x(),y =q.y(),z =q.z();
-        double sin_pitch =2.0*(w*y - z*x);
-        sin_pitch = std::clamp(sin_pitch, -1.0, 1.0);
-        pitch = std::asin(sin_pitch);
-        roll  = std::atan2(2.0*(w*x + y*z), 1.0 - 2.0*(x*x + y*y));
-        yaw   = std::atan2(2.0*(w*z + x*y), 1.0 - 2.0*(y*y + z*z));
+        const double m20 =2.0*(x*z - w*y);          // -sin(pitch)
+        const double m21 =2.0*(y*z + w*x);
+        const double m22 =1.0 - 2.0*(x*x + y*y);
+        const double sin_pitch =std::clamp(-m20, -1.0, 1.0);
+        const double cos_pitch =std::sqrt(m21*m21 + m22*m22);
+
+        if(cos_pitch > 1e-9){
+            pitch = std::atan2(sin_pitch, cos_pitch);
+            roll  = std::atan2(m21, m22);
+            yaw   = std::atan2(2.0*(x*y + w*z), 1.0 - 2.0*(y*y + z*z));
+            return;
+        }
+        // 万向节锁 (pitch=±π/2)：roll/yaw 只剩组合自由度可观测，
+        // 约定 roll=0、组合角全部归 yaw，保证三元组重建仍是原旋转
+        const double m11 =1.0 - 2.0*(x*x + z*z);
+        const double m12 =2.0*(y*z - w*x);
+        roll  = 0.0;
+        pitch = (sin_pitch > 0.0) ? M_PI_2 : -M_PI_2;
+        yaw   = (sin_pitch > 0.0) ? std::atan2(m12, m11) : std::atan2(-m12, m11);
     }
     //ENU->NED
     static inline const Eigen::Quaterniond& kNedEnuQ{
