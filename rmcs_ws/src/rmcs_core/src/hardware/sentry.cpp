@@ -292,12 +292,19 @@ private:
                   {sentry, sentry_command, "/chassis/left_back_steering"},
                   {sentry, sentry_command, "/chassis/right_back_steering"},
                   {sentry, sentry_command, "/chassis/right_front_steering"})
+            , chassis_front_climber_motor_(
+                  {sentry, sentry_command, "/chassis/climber/left_front_motor"},
+                  {sentry, sentry_command, "/chassis/climber/right_front_motor"})
+            , chassis_back_climber_motor_(
+                  {sentry, sentry_command, "/chassis/climber/left_back_motor"},
+                  {sentry, sentry_command, "/chassis/climber/right_back_motor"})
             , supercap_(sentry, sentry_command) {
 
             using namespace device;
 
             sentry.register_output("/referee/serial", referee_serial_);
             sentry.register_output("/chassis/yaw/velocity_imu", chassis_yaw_velocity_imu_, 0.0);
+            sentry.register_output("/chassis/pitch_imu", chassis_pitch_imu_, 0.0);
 
             referee_serial_->read = [this](std::byte* buffer, size_t size) {
                 return referee_ring_buffer_receive_.pop_front_n(
@@ -335,6 +342,21 @@ private:
                         .enable_multi_turn_angle());
             }
 
+            chassis_front_climber_motor_[0].configure(
+                device::DjiMotor::Config{device::DjiMotor::Type::kM3508, 1}
+                    .set_reduction_ratio(19.));
+            chassis_front_climber_motor_[1].configure(
+                device::DjiMotor::Config{device::DjiMotor::Type::kM3508, 2}
+                    .set_reversed()
+                    .set_reduction_ratio(19.));
+            chassis_back_climber_motor_[0].configure(
+                device::LkMotor::Config{device::LkMotor::Type::kMG4010Ei10}
+                    .set_reversed()
+                    .enable_multi_turn_angle());
+            chassis_back_climber_motor_[1].configure(
+                device::LkMotor::Config{device::LkMotor::Type::kMG4010Ei10}
+                    .enable_multi_turn_angle());
+
             board_ = std::make_unique<librmcs::board::RmcsBoardLite>(*this, board_serial);
         }
 
@@ -350,10 +372,17 @@ private:
             for (auto& motor : chassis_steer_motors_)
                 motor.update_status();
 
+            chassis_front_climber_motor_[0].update_status();
+            chassis_front_climber_motor_[1].update_status();
+            chassis_back_climber_motor_[0].update_status();
+            chassis_back_climber_motor_[1].update_status();
+
             tf_->set_state<rmcs_description::GimbalCenterLink, rmcs_description::YawLink>(
                 gimbal_bottom_yaw_motor_.angle());
 
             if (const auto snapshot = bmi088_.snapshot()) {
+                const auto& q = snapshot->orientation;
+                *chassis_pitch_imu_ = -std::asin(2.0 * (q.w() * q.y() - q.z() * q.x()));
                 *chassis_yaw_velocity_imu_ = snapshot->gyro_body.z();
             }
         }
@@ -388,7 +417,17 @@ private:
 
             board_->start_transmit()
                 .can_transmit(
-                    Spec::kCans.kCan0, {.can_id = 0x141, .can_data = bottom_yaw_package.as_bytes()})
+                Spec::kCans.kCan0,
+                {
+                        .can_id = 0x142,
+                        .can_data = chassis_back_climber_motor_[0].generate_command().as_bytes(),
+                    })
+                .can_transmit(
+                    Spec::kCans.kCan0,
+                    {
+                    .can_id = 0x143,
+                    .can_data = chassis_back_climber_motor_[1].generate_command().as_bytes(),
+                })
 
                 .can_transmit(
                     Spec::kCans.kCan1, generate(std::views::counted(chassis_wheel_motors_, 2)))
@@ -401,7 +440,21 @@ private:
                     Spec::kCans.kCan2, generate(std::views::counted(chassis_steer_motors_ + 2, 2)))
 
                 .can_transmit(
-                    Spec::kCans.kCan3, {.can_id = 0x1fe, .can_data = supercap_package.as_bytes()});
+                    Spec::kCans.kCan3, {.can_id = 0x1fe, .can_data = supercap_package.as_bytes()})
+                .can_transmit(
+                    Spec::kCans.kCan3,
+                    {
+                            .can_id = 0x200,
+                            .can_data =
+                            device::CanPacket8{
+                                chassis_front_climber_motor_[0].generate_command(),
+                                chassis_front_climber_motor_[1].generate_command(),
+                                device::CanPacket8::PaddingQuarter{},
+                                device::CanPacket8::PaddingQuarter{},
+                            }.as_bytes(),
+                })
+                .can_transmit(
+                    Spec::kCans.kCan3, {.can_id = 0x141, .can_data = bottom_yaw_package.as_bytes()});
         }
 
         void can_receive_callback(const Spec::Can& can, const View::Can& data) override {
@@ -412,8 +465,11 @@ private:
             const auto& can_data = data.can_data;
 
             if (can == Spec::kCans.kCan0) {
-                if (can_id == 0x141)
-                    gimbal_bottom_yaw_motor_.store_status(data.can_data);
+                if(can_id == 0x142) {
+                    chassis_back_climber_motor_[0].store_status(data.can_data);
+                } else if(can_id == 0x143) {
+                    chassis_back_climber_motor_[1].store_status(data.can_data);
+                }
 
                 monitor_.tick("Chassis::Can0", can_id);
 
@@ -436,8 +492,14 @@ private:
                 monitor_.tick("Chassis::Can2", can_id);
 
             } else if (can == Spec::kCans.kCan3) {
-                if (can_id == 0x300)
-                    supercap_.store_status(data.can_data);
+                if (can_id == 0x300) {
+                    supercap_.store_status(can_data);
+                } else if(can_id == 0x141) {          
+                    gimbal_bottom_yaw_motor_.store_status(data.can_data);
+                } else {
+                    /*^^*/ chassis_front_climber_motor_[0].match_then_store_status(can_id, can_data)
+                        || chassis_front_climber_motor_[1].match_then_store_status(can_id, can_data);
+                }
 
                 monitor_.tick("Chassis::Can3", can_id);
             }
@@ -482,11 +544,16 @@ private:
         device::LkMotor gimbal_bottom_yaw_motor_;
         device::DjiMotor chassis_wheel_motors_[4];
         device::DjiMotor chassis_steer_motors_[4];
+
+        device::DjiMotor chassis_front_climber_motor_[2];
+        device::LkMotor chassis_back_climber_motor_[2];
+
         device::Supercap supercap_;
 
         rmcs_utility::RingBuffer<std::byte> referee_ring_buffer_receive_{256};
         OutputInterface<rmcs_msgs::SerialInterface> referee_serial_;
         OutputInterface<double> chassis_yaw_velocity_imu_;
+        OutputInterface<double> chassis_pitch_imu_;
 
         StatusMonitor monitor_{};
         std::unique_ptr<librmcs::board::RmcsBoardLite> board_;

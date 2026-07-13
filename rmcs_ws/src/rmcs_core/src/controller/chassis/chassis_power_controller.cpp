@@ -41,6 +41,8 @@ public:
             "/chassis/supercap/voltage/control_line", supercap_voltage_control_line_, 12.5);
         register_output("/chassis/supercap/voltage/base_line", supercap_voltage_base_line_, 12.0);
         register_output("/chassis/supercap/voltage/dead_line", supercap_voltage_dead_line_, 11.0);
+
+        register_output("/chassis/climber/front/control_power_limit", control_power_limit_, 0.0);
     }
 
     void update() override {
@@ -94,6 +96,7 @@ private:
         virtual_buffer_energy_ = virtual_buffer_energy_limit_;
         boost_mode_ = false;
         *chassis_control_power_limit_ = 0.0;
+        *control_power_limit_ = 0.0;
     }
 
     void update_virtual_buffer_energy() {
@@ -131,6 +134,7 @@ private:
         power_limit *= virtual_buffer_energy_ / virtual_buffer_energy_limit_;
 
         *chassis_control_power_limit_ = power_limit;
+        *control_power_limit_ = power_limit;
     }
 
     void update_ui() {
@@ -167,6 +171,7 @@ private:
     OutputInterface<double> supercap_voltage_control_line_;
     OutputInterface<double> supercap_voltage_base_line_;
     OutputInterface<double> supercap_voltage_dead_line_;
+    OutputInterface<double> control_power_limit_;
 
     ui::Integer chassis_power_ui_{ui::Shape::Color::WHITE, 15, 2, ui::x_center, 100, 0};
     ui::Integer chassis_control_power_limit_ui_{

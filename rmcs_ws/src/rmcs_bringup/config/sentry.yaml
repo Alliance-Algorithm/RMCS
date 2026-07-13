@@ -17,19 +17,20 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController -> left_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> right_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller
+      - rmcs_core::controller::chassis::ChassisClimberController -> climber_controller
       - rmcs_core::controller::chassis::ChassisController -> chassis_controller
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::SteeringWheelController -> steering_wheel_controller
 
       # - rmcs::navigation::Navigation -> rmcs_navigation
 
-      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
 
-      - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
+      # - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
       # - rmcs::AutoAimPlayerComponent -> auto_aim_player
-      - rmcs::AutoAimRecorderComponent -> auto_aim_recorder
-      - rmcs::AutoAimComponent -> auto_aim_component
+      # - rmcs::AutoAimRecorderComponent -> auto_aim_recorder
+      # - rmcs::AutoAimComponent -> auto_aim_component
 
 auto_aim_capturer:
   ros__parameters:
@@ -55,18 +56,18 @@ value_broadcaster:
 # The positive direction is the one that battery exists
 sentry_hardware:
   ros__parameters:
-    board_serial_bottom_board: "af-79cf"
+    board_serial_bottom_board: "af-b4e5"
     board_serial_gimbal_board: "af-8b8b"
 
-    pitch_motor_zero_point: 12158
+    pitch_motor_zero_point: 17241
 
-    bottom_yaw_motor_zero_point: 9445
-    top_yaw_motor_zero_point: 33409
+    bottom_yaw_motor_zero_point: 65414
+    top_yaw_motor_zero_point: 32736
 
-    left_front_zero_point: 6775
-    left_back_zero_point: 5187
-    right_back_zero_point: 239
-    right_front_zero_point: 3750
+    left_front_zero_point: 5776
+    left_back_zero_point: 3784
+    right_back_zero_point: 3048
+    right_front_zero_point: 5135
 
 rmcs_navigation:
   ros__parameters:
@@ -121,6 +122,31 @@ chassis_controller:
     following_velocity_kp: 8.0
     following_velocity_ki: 0.001
     following_velocity_kd: 0.0
+
+climber_controller:
+  ros__parameters:
+    front_climber_velocity: 20.0
+    back_climber_velocity: 30.0
+    auto_climb_support_retract_velocity_fast: 60.0
+    auto_climb_support_retract_velocity_slow: 20.0
+    auto_climb_approach_chassis_velocity: 1.0
+    auto_climb_support_deploy_chassis_velocity: 0.3
+    auto_climb_support_retract_chassis_velocity: 0.3
+    auto_climb_dash_chassis_velocity: 3.0
+    first_stair_dash_leveled_pitch_threshold: 0.05
+    second_stair_dash_leveled_pitch_threshold: -0.09
+    sync_coefficient: 0.2
+    first_stair_approach_pitch: 0.585
+    second_stair_approach_pitch: 0.365    
+    front_kp: 1.0
+    front_ki: 0.0
+    front_kd: 0.5
+    front_power_estimate_bias: 0.0
+    front_power_estimate_k_tau2: 1.0
+    front_power_estimate_k_mech: 1.0
+    back_kp: 0.5
+    back_ki: 0.0
+    back_kd: 0.0
 
 friction_wheel_controller:
   ros__parameters:
