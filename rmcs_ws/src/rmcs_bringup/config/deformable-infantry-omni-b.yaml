@@ -30,8 +30,19 @@ rmcs_executor:
       - rmcs_core::controller::chassis::DeformableJointController -> rb_joint_controller
       - rmcs_core::controller::chassis::DeformableJointController -> rf_joint_controller
 
-      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       # - rmcs::AutoAimComponent
+      # - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
+
+      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+
+auto_aim_capturer:
+  ros__parameters:
+    camera_name: ""
+    exposure_us: 2000.0
+    gain: 16.9807
+    framerate: 249.1
+    invert_image: false
+    rls_tau_sec: 10.0
 
 value_broadcaster:
   ros__parameters:
@@ -122,9 +133,6 @@ gimbal_controller:
     yaw_velocity_ki: 0.0
     yaw_velocity_kd: 0.0
 
-    yaw_vel_ff_gain: 0.47
-    yaw_acc_ff_gain: 0.00
-
     pitch_angle_kp: 25.0
     pitch_angle_ki: 0.0
     pitch_angle_kd: 0.0
@@ -132,8 +140,6 @@ gimbal_controller:
     pitch_velocity_kp: 2.2
     pitch_velocity_ki: 0.0
     pitch_velocity_kd: 0.0
-
-    pitch_acc_ff_gain: 0.10
 
     pitch_torque_control: true
 

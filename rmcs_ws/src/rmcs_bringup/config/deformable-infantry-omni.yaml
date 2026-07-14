@@ -30,8 +30,19 @@ rmcs_executor:
       - rmcs_core::controller::chassis::DeformableJointController -> rb_joint_controller
       - rmcs_core::controller::chassis::DeformableJointController -> rf_joint_controller
 
+      - rmcs::AutoAimComponent
+      - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
+
       # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
-      # - rmcs::AutoAimComponent
+
+auto_aim_capturer:
+  ros__parameters:
+    camera_name: ""
+    exposure_us: 2000.0
+    gain: 8.0
+    framerate: 120.0
+    invert_image: false
+    rls_tau_sec: 10.0
 
 value_broadcaster:
   ros__parameters:

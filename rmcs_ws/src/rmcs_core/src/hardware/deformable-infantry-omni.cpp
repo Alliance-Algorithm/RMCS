@@ -20,10 +20,14 @@
 #include <librmcs/agent/rmcs_board_lite.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/board_clock.hpp>
+#include <rmcs_msgs/imu_snapshot.hpp>
 #include <rmcs_msgs/serial_interface.hpp>
 #include <rmcs_utility/ring_buffer.hpp>
 
 #include "hardware/device/bmi088.hpp"
+#include "hardware/device/bmi088_ekf.hpp"
+#include "hardware/device/board_clock_lifter.hpp"
 #include "hardware/device/can_packet.hpp"
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
@@ -179,7 +183,7 @@ private:
             }
             status.register_output("/chassis/encoder/alpha", encoder_alpha_, kNaN);
             status.register_output("/chassis/encoder/alpha_dot", encoder_alpha_dot_, kNaN);
-            status.register_output("/chassis/radius", radius_, default_radius_);
+            status.register_output("/chassis/radius", radius_, kDefaultRadius);
 
             status.get_parameter_or("debug_log_supercap", debug_log_supercap_, false);
             status.get_parameter_or("debug_log_wheel_motor", debug_log_wheel_motor_, false);
@@ -334,10 +338,10 @@ private:
         }
 
     private:
-        static constexpr double joint_zero_physical_angle_rad_ = 62.5 * std::numbers::pi / 180.0;
-        static constexpr double chassis_radius_base_ = 0.2341741;
-        static constexpr double rod_length_ = 0.150;
-        static constexpr double default_radius_ = chassis_radius_base_ + rod_length_;
+        static constexpr double kJointZeroPhysicalAngleRad = 62.5 * std::numbers::pi / 180.0;
+        static constexpr double kChassisRadiusBase = 0.2341741;
+        static constexpr double kRodLength = 0.150;
+        static constexpr double kDefaultRadius = kChassisRadiusBase + kRodLength;
 
         DeformableInfantryOmni& status_;
         Component& command_;
@@ -398,7 +402,7 @@ private:
             }
 
             const auto to_physical_angle = [](double motor_angle) {
-                return joint_zero_physical_angle_rad_ - motor_angle;
+                return kJointZeroPhysicalAngleRad - motor_angle;
             };
             const auto to_physical_velocity = [](double motor_velocity) { return -motor_velocity; };
 
@@ -417,17 +421,17 @@ private:
             if (!alpha_rad.array().isFinite().all() || !alpha_dot_rad.array().isFinite().all()) {
                 *encoder_alpha_ = kNaN;
                 *encoder_alpha_dot_ = kNaN;
-                *radius_ = default_radius_;
+                *radius_ = kDefaultRadius;
                 RCLCPP_WARN_THROTTLE(
                     status_.get_logger(), *status_.get_clock(), 1000,
                     "deformable joint feedback invalid, fallback chassis radius to default %.3f m",
-                    default_radius_);
+                    kDefaultRadius);
                 return;
             }
 
             *encoder_alpha_ = alpha_rad.mean();
             *encoder_alpha_dot_ = alpha_dot_rad.mean();
-            *radius_ = (chassis_radius_base_ + rod_length_ * alpha_rad.array().cos()).mean();
+            *radius_ = (kChassisRadiusBase + kRodLength * alpha_rad.array().cos()).mean();
         }
 
         void log_chassis_feedback_once_per_second_() {
@@ -587,7 +591,8 @@ private:
                   serial_filter,
                   librmcs::agent::AdvancedOptions{.dangerously_skip_version_checks = true}}
             , tf_{status.tf_}
-            , bmi088_{1000, 0.2, 0.0}
+            , bmi088_{device::Bmi088Ekf::Config{
+                  .body_to_sensor = (Eigen::Matrix3d() << 1, 0, 0, 0, 0, -1, 0, 1, 0).finished()}}
             , gimbal_pitch_motor_(status, command, "/gimbal/pitch")
             , gimbal_left_friction_(status, command, "/gimbal/left_friction")
             , gimbal_right_friction_(status, command, "/gimbal/right_friction") {
@@ -607,11 +612,19 @@ private:
 
             status.register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_bmi088_);
             status.register_output("/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_bmi088_);
+            status.register_output("/gimbal/auto_aim/imu_snapshot", imu_snapshot_output_);
+            status.register_output("/gimbal/auto_aim/exposure_signal", camera_signal_output_);
 
-            bmi088_.set_coordinate_mapping([](double x, double y, double z) {
-                // Top board BMI088 maps to gimbal frame as (-x, -y, z).
-                return std::make_tuple(x, z, -y);
-            });
+            start_transmit().gpio_digital_read(
+                librmcs::spec::rmcs_board_lite::kGpioDescriptors.kUart1Rx,
+                {
+                    .period_ms = 0,
+                    .asap = false,
+                    .rising_edge = false,
+                    .falling_edge = true,
+                    .capture_timestamp = true,
+                    .pull = librmcs::data::GpioPull::kUp,
+                });
         }
 
         ~TopBoard() override = default;
@@ -626,24 +639,21 @@ private:
         }
 
         void update() {
-            bmi088_.update_status();
-
             gimbal_pitch_motor_.update_status();
             gimbal_left_friction_.update_status();
             gimbal_right_friction_.update_status();
 
             const double pitch_encoder_angle = gimbal_pitch_motor_.angle();
 
-            Eigen::Quaterniond const gimbal_imu_pose{
-                bmi088_.q0(), bmi088_.q1(), bmi088_.q2(), bmi088_.q3()};
-
-            *gimbal_pitch_velocity_bmi088_ = bmi088_.gy();
-            *gimbal_yaw_velocity_bmi088_ = bmi088_.gz();
+            if (auto snapshot = bmi088_.snapshot()) {
+                *gimbal_pitch_velocity_bmi088_ = snapshot->gyro_body.y();
+                *gimbal_yaw_velocity_bmi088_ = snapshot->gyro_body.z();
+                tf_->set_transform<rmcs_description::PitchLink, rmcs_description::OdomImu>(
+                    snapshot->orientation.conjugate());
+            }
 
             tf_->set_state<rmcs_description::YawLink, rmcs_description::PitchLink>(
                 pitch_encoder_angle);
-            tf_->set_transform<rmcs_description::PitchLink, rmcs_description::OdomImu>(
-                gimbal_imu_pose.conjugate());
         }
 
         void command_update() {
@@ -702,19 +712,45 @@ private:
 
         void accelerometer_receive_callback(
             const librmcs::data::AccelerometerDataView& data) override {
-            bmi088_.store_accelerometer_status(data.x, data.y, data.z);
+            const auto timestamp = board_clock_lifter_.advance_timebase(data.timestamp_quarter_us);
+            bmi088_.push_accelerometer_sample(data.x, data.y, data.z, timestamp);
         }
 
         void gyroscope_receive_callback(const librmcs::data::GyroscopeDataView& data) override {
-            bmi088_.store_gyroscope_status(data.x, data.y, data.z);
+            const auto timestamp = board_clock_lifter_.lift_timestamp(data.timestamp_quarter_us);
+            if (!timestamp.has_value())
+                return;
+            auto snapshot =
+                bmi088_.try_update_with_gyroscope_sample(data.x, data.y, data.z, *timestamp);
+            if (snapshot)
+                imu_snapshot_output_.emit(*snapshot);
+        }
+
+        auto gpio_digital_read_result_callback(
+            const librmcs::spec::rmcs_board_lite::GpioDescriptor& gpio,
+            const librmcs::data::GpioDigitalDataView& data) -> void override {
+
+            if (gpio != librmcs::spec::rmcs_board_lite::kGpioDescriptors.kUart1Rx)
+                return;
+            if (!data.timestamp_quarter_us)
+                return;
+
+            const auto timestamp = board_clock_lifter_.lift_timestamp(*data.timestamp_quarter_us);
+            if (!timestamp.has_value())
+                return;
+
+            camera_signal_output_.emit(*timestamp);
         }
 
         OutputInterface<rmcs_description::Tf>& tf_;
-
         OutputInterface<double> gimbal_yaw_velocity_bmi088_;
         OutputInterface<double> gimbal_pitch_velocity_bmi088_;
 
-        device::Bmi088 bmi088_;
+        EventOutputInterface<rmcs_msgs::ImuSnapshot> imu_snapshot_output_;
+        EventOutputInterface<rmcs_msgs::BoardClock::time_point> camera_signal_output_;
+
+        device::Bmi088Ekf bmi088_;
+        device::BoardClockLifter board_clock_lifter_;
         device::LkMotor gimbal_pitch_motor_;
         device::DjiMotor gimbal_left_friction_;
         device::DjiMotor gimbal_right_friction_;

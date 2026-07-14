@@ -5,7 +5,7 @@
 #include <limits>
 #include <string>
 
-#include <eigen3/Eigen/Geometry>
+#include <eigen3/Eigen/Dense>
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
@@ -15,8 +15,6 @@
 
 namespace rmcs_core::controller::gimbal {
 
-using namespace rmcs_description;
-
 class DeformableInfantryGimbalController
     : public rmcs_executor::Component
     , public rclcpp::Node {
@@ -25,16 +23,16 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
+
         configure_pid("yaw_angle", yaw_angle_pid_);
         configure_pid("yaw_velocity", yaw_velocity_pid_);
         configure_pid("pitch_angle", pitch_angle_pid_);
         configure_pid("pitch_velocity", pitch_velocity_pid_);
+
         get_parameter("pitch_torque_control", pitch_torque_control_enabled_);
         get_parameter("manual_joystick_sensitivity", joystick_sensitivity_);
         get_parameter("manual_mouse_sensitivity", mouse_sensitivity_);
-        get_parameter("yaw_vel_ff_gain", yaw_vel_ff_gain_);
-        get_parameter("yaw_acc_ff_gain", yaw_acc_ff_gain_);
-        get_parameter("pitch_acc_ff_gain", pitch_acc_ff_gain_);
+
         get_parameter_or("pitch_gravity_ff_gain", pitch_gravity_ff_gain_, 0.0);
         get_parameter_or("pitch_gravity_ff_phase", pitch_gravity_ff_phase_, 0.0);
         get_parameter_or("ctrl_hold_pitch_target_angle", ctrl_hold_pitch_target_angle_, 0.0);
@@ -42,8 +40,8 @@ public:
 
     auto update() -> void override {
         const auto switch_right = *input_.switch_right;
-        const auto switch_left  = *input_.switch_left;
-        const auto keyboard     = *input_.keyboard;
+        const auto switch_left = *input_.switch_left;
+        const auto keyboard = *input_.keyboard;
 
         using namespace rmcs_msgs;
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
@@ -78,24 +76,10 @@ public:
             *output_.yaw_control_torque = kNaN;
         }
 
-        const auto feedforward_enabled = auto_aim_active
-                                      && input_.auto_aim_feedforward_valid.ready()
-                                      && *input_.auto_aim_feedforward_valid;
-
         if (std::isfinite(angle_error.yaw_angle_error)) {
-            const auto yaw_velocity_ff = feedforward_enabled && input_.auto_aim_yaw_rate.ready()
-                                              && std::isfinite(*input_.auto_aim_yaw_rate)
-                                           ? yaw_vel_ff_gain_ * *input_.auto_aim_yaw_rate
-                                           : 0.0;
-            const auto yaw_acc_ff      = feedforward_enabled && input_.auto_aim_yaw_acc.ready()
-                                              && std::isfinite(*input_.auto_aim_yaw_acc)
-                                           ? yaw_acc_ff_gain_ * *input_.auto_aim_yaw_acc
-                                           : 0.0;
-
-            const auto yaw_velocity_ref =
-                yaw_angle_pid_.update(angle_error.yaw_angle_error) + yaw_velocity_ff;
+            const auto yaw_velocity_ref = yaw_angle_pid_.update(angle_error.yaw_angle_error);
             *output_.yaw_control_torque =
-                yaw_velocity_pid_.update(yaw_velocity_ref - *input_.yaw_velocity_imu) + yaw_acc_ff;
+                yaw_velocity_pid_.update(yaw_velocity_ref - *input_.yaw_velocity_imu);
         }
 
         if (!ctrl_hold_active_) {
@@ -103,12 +87,8 @@ public:
                 pitch_angle_pid_.reset();
                 pitch_velocity_pid_.reset();
                 *output_.pitch_control_velocity = kNaN;
-                *output_.pitch_control_torque   = kNaN;
+                *output_.pitch_control_torque = kNaN;
             } else {
-                const auto pitch_acc_ff = feedforward_enabled && input_.auto_aim_pitch_acc.ready()
-                                               && std::isfinite(*input_.auto_aim_pitch_acc)
-                                            ? pitch_acc_ff_gain_ * *input_.auto_aim_pitch_acc
-                                            : 0.0;
                 const auto pitch_gravity_ff = pitch_gravity_feedforward();
                 const auto pitch_velocity_ref =
                     pitch_angle_pid_.update(angle_error.pitch_angle_error);
@@ -117,19 +97,18 @@ public:
                     *output_.pitch_control_velocity = kNaN;
                     *output_.pitch_control_torque =
                         pitch_velocity_pid_.update(pitch_velocity_ref - *input_.pitch_velocity_imu)
-                        + pitch_acc_ff
                         + pitch_gravity_ff;
                 } else {
                     pitch_velocity_pid_.reset();
                     *output_.pitch_control_velocity = pitch_velocity_ref;
-                    *output_.pitch_control_torque   = kNaN;
+                    *output_.pitch_control_torque = kNaN;
                 }
             }
         }
     }
 
 private:
-    static constexpr auto kNaN       = std::numeric_limits<double>::quiet_NaN();
+    static constexpr auto kNaN = std::numeric_limits<double>::quiet_NaN();
     static constexpr auto kDefaultDt = 1e-3;
 
     auto configure_pid(const std::string& prefix, pid::PidCalculator& calculator) -> void {
@@ -161,11 +140,6 @@ private:
             component.register_input("/auto_aim/should_control", auto_aim_should_control, false);
             component.register_input(
                 "/auto_aim/control_direction", auto_aim_control_direction, false);
-            component.register_input(
-                "/auto_aim/feedforward_valid", auto_aim_feedforward_valid, false);
-            component.register_input("/auto_aim/yaw_rate", auto_aim_yaw_rate, false);
-            component.register_input("/auto_aim/yaw_acc", auto_aim_yaw_acc, false);
-            component.register_input("/auto_aim/pitch_acc", auto_aim_pitch_acc, false);
         }
 
         InputInterface<Eigen::Vector2d> joystick_left;
@@ -185,10 +159,6 @@ private:
 
         InputInterface<bool> auto_aim_should_control;
         InputInterface<Eigen::Vector3d> auto_aim_control_direction;
-        InputInterface<bool> auto_aim_feedforward_valid;
-        InputInterface<double> auto_aim_yaw_rate;
-        InputInterface<double> auto_aim_yaw_acc;
-        InputInterface<double> auto_aim_pitch_acc;
     } input_{*this};
 
     struct Output {
@@ -212,9 +182,7 @@ private:
         OutputInterface<double> pitch_angle_error;
     } output_{*this};
 
-    auto ctrl_hold_requested() const -> bool {
-        return pitch_lock_active_;
-    }
+    auto ctrl_hold_requested() const -> bool { return pitch_lock_active_; }
 
     auto update_dt() const -> double {
         if (input_.update_rate.ready() && std::isfinite(*input_.update_rate)
@@ -289,10 +257,10 @@ private:
         if (!ctrl_hold_active_)
             activate_ctrl_hold();
 
-        *output_.yaw_control_angle      = kNaN;
+        *output_.yaw_control_angle = kNaN;
         *output_.pitch_control_velocity = kNaN;
-        *output_.pitch_control_torque   = kNaN;
-        *output_.pitch_control_angle    = kNaN;
+        *output_.pitch_control_torque = kNaN;
+        *output_.pitch_control_angle = kNaN;
 
         if (input_.pitch_angle.ready() && std::isfinite(*input_.pitch_angle)) {
             auto pitch_target_error = ctrl_hold_pitch_target_angle_ - *input_.pitch_angle;
@@ -301,17 +269,17 @@ private:
             else if (pitch_target_error < -std::numbers::pi)
                 pitch_target_error += 2 * std::numbers::pi;
 
-            *output_.pitch_angle_error    = pitch_target_error;
+            *output_.pitch_angle_error = pitch_target_error;
             const auto pitch_velocity_ref = pitch_angle_pid_.update(pitch_target_error);
             if (pitch_torque_control_enabled_) {
                 *output_.pitch_control_velocity = kNaN;
                 *output_.pitch_control_torque =
                     pitch_velocity_pid_.update(pitch_velocity_ref - *input_.pitch_velocity_imu)
-                  + pitch_gravity_feedforward();
+                    + pitch_gravity_feedforward();
             } else {
                 pitch_velocity_pid_.reset();
                 *output_.pitch_control_velocity = pitch_velocity_ref;
-                *output_.pitch_control_torque   = kNaN;
+                *output_.pitch_control_torque = kNaN;
             }
         }
     }
@@ -321,11 +289,11 @@ private:
         yaw_velocity_pid_.reset();
         pitch_angle_pid_.reset();
         pitch_velocity_pid_.reset();
-        *output_.yaw_control_torque     = kNaN;
-        *output_.yaw_control_angle      = kNaN;
+        *output_.yaw_control_torque = kNaN;
+        *output_.yaw_control_angle = kNaN;
         *output_.pitch_control_velocity = kNaN;
-        *output_.pitch_control_torque   = kNaN;
-        *output_.pitch_control_angle    = kNaN;
+        *output_.pitch_control_torque = kNaN;
+        *output_.pitch_control_angle = kNaN;
     }
 
     auto reset_all_controls() -> void {
@@ -334,7 +302,7 @@ private:
         suspension_on_by_switch_ = false;
         last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
         gimbal_solver_.update(TwoAxisGimbalSolver::SetDisabled{});
-        *output_.yaw_angle_error   = kNaN;
+        *output_.yaw_angle_error = kNaN;
         *output_.pitch_angle_error = kNaN;
         reset_control_outputs();
     }
@@ -363,12 +331,9 @@ private:
         get_parameter("pitch_velocity_kd").as_double(),
     };
 
-    double joystick_sensitivity_         = 0.003;
-    double mouse_sensitivity_            = 0.5;
-    bool pitch_torque_control_enabled_   = false;
-    double yaw_vel_ff_gain_              = 0.0;
-    double yaw_acc_ff_gain_              = 0.0;
-    double pitch_acc_ff_gain_            = 0.0;
+    double joystick_sensitivity_ = 0.003;
+    double mouse_sensitivity_ = 0.5;
+    bool pitch_torque_control_enabled_ = false;
     double ctrl_hold_pitch_target_angle_ = 0.0;
     double pitch_gravity_ff_gain_ = 0.0;
     double pitch_gravity_ff_phase_ = 0.0;
@@ -381,6 +346,5 @@ private:
 } // namespace rmcs_core::controller::gimbal
 
 #include <pluginlib/class_list_macros.hpp>
-
 PLUGINLIB_EXPORT_CLASS(
     rmcs_core::controller::gimbal::DeformableInfantryGimbalController, rmcs_executor::Component)
