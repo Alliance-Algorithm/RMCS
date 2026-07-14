@@ -19,20 +19,19 @@
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/lk_motor.hpp"
-#include "librmcs/agent/rmcs_board_lite.hpp"
+#include "librmcs/board/rmcs_board_lite.hpp"
 
 namespace rmcs_core::hardware {
 
 class Flight
     : public rmcs_executor::Component
     , public rclcpp::Node
-    , private librmcs::agent::RmcsBoardLite {
+    , public librmcs::board::RmcsBoardLite::Callback {
 public:
     Flight()
         : Node{
               get_component_name(),
-              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
-        , RmcsBoardLite{get_parameter("board_serial").as_string()} {
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)} {
 
         gimbal_yaw_motor_.configure(
             device::LkMotor::Config{device::LkMotor::Type::kMHF7015}
@@ -74,7 +73,8 @@ public:
                 [&buffer](std::byte byte) noexcept { *buffer++ = byte; }, size);
         };
         referee_serial_->write = [this](const std::byte* buffer, size_t size) {
-            start_transmit().uart1_transmit(
+            board_->start_transmit().uart_transmit(
+                Spec::kUarts.kUart1,
                 {.uart_data = std::span<const std::byte>{buffer, size}});
             return size;
         };
@@ -86,6 +86,9 @@ public:
                 const std_srvs::srv::Trigger::Response::SharedPtr& response) {
                 status_service_callback(response);
             });
+
+        board_ = std::make_unique<librmcs::board::RmcsBoardLite>(
+            *this, get_parameter("board_serial").as_string());
     }
 
     void update() override {
@@ -100,9 +103,10 @@ public:
     }
 
     void command_update() {
-        auto builder = start_transmit();
+        auto builder = board_->start_transmit();
         builder
-            .can0_transmit(
+            .can_transmit(
+                Spec::kCans.kCan0,
                 {.can_id = 0x200,
                  .can_data =
                      device::CanPacket8{
@@ -112,7 +116,8 @@ public:
                          gimbal_right_friction_.generate_command(),
                      }
                          .as_bytes()})
-            .can1_transmit(
+            .can_transmit(
+                Spec::kCans.kCan1,
                 {.can_id = 0x200,
                  .can_data =
                      device::CanPacket8{
@@ -122,10 +127,12 @@ public:
                          device::CanPacket8::PaddingQuarter{},
                      }
                          .as_bytes()})
-            .can2_transmit(
+            .can_transmit(
+                Spec::kCans.kCan2,
                 {.can_id = 0x141,
                  .can_data = gimbal_yaw_motor_.generate_torque_command().as_bytes()})
-            .can3_transmit(
+            .can_transmit(
+                Spec::kCans.kCan3,
                 {.can_id = 0x142, .can_data = gimbal_pitch_motor_.generate_command().as_bytes()});
     }
 
@@ -172,62 +179,48 @@ private:
     }
 
 protected:
-    void can0_receive_callback(const librmcs::data::CanDataView& data) override {
+    void can_receive_callback(const Spec::Can& can, const View::Can& data) override {
         if (data.is_extended_can_id || data.is_remote_transmission || data.can_data.size() < 8)
             [[unlikely]]
             return;
 
-        if (data.can_id == 0x203) {
-            gimbal_left_friction_.store_status(data.can_data);
-        } else if (data.can_id == 0x204) {
-            gimbal_right_friction_.store_status(data.can_data);
-        }
-    }
-    void can1_receive_callback(const librmcs::data::CanDataView& data) override {
-        if (data.is_extended_can_id || data.is_remote_transmission || data.can_data.size() < 8)
-            [[unlikely]]
-            return;
-
-        if (data.can_id == 0x201) {
-            gimbal_bullet_feeder_.store_status(data.can_data);
-        }
-    }
-
-    void can2_receive_callback(const librmcs::data::CanDataView& data) override {
-        if (data.is_extended_can_id || data.is_remote_transmission || data.can_data.size() < 8)
-            [[unlikely]]
-            return;
-
-        if (data.can_id == 0x141) {
-            gimbal_yaw_motor_.store_status(data.can_data);
-        }
-    }
-    void can3_receive_callback(const librmcs::data::CanDataView& data) override {
-        if (data.is_extended_can_id || data.is_remote_transmission || data.can_data.size() < 8)
-            [[unlikely]]
-            return;
-
-        if (data.can_id == 0x142) {
-            gimbal_pitch_motor_.store_status(data.can_data);
+        if (can == Spec::kCans.kCan0) {
+            if (data.can_id == 0x203) {
+                gimbal_left_friction_.store_status(data.can_data);
+            } else if (data.can_id == 0x204) {
+                gimbal_right_friction_.store_status(data.can_data);
+            }
+        } else if (can == Spec::kCans.kCan1) {
+            if (data.can_id == 0x201) {
+                gimbal_bullet_feeder_.store_status(data.can_data);
+            }
+        } else if (can == Spec::kCans.kCan2) {
+            if (data.can_id == 0x141) {
+                gimbal_yaw_motor_.store_status(data.can_data);
+            }
+        } else if (can == Spec::kCans.kCan3) {
+            if (data.can_id == 0x142) {
+                gimbal_pitch_motor_.store_status(data.can_data);
+            }
         }
     }
 
-    void uart1_receive_callback(const librmcs::data::UartDataView& data) override {
-        const std::byte* ptr = data.uart_data.data();
-        referee_ring_buffer_receive_.emplace_back_n(
-            [&ptr](std::byte* storage) noexcept { new (storage) std::byte{*ptr++}; },
-            data.uart_data.size());
+    void uart_receive_callback(const Spec::Uart& uart, const View::Uart& data) override {
+        if (uart == Spec::kUarts.kUart1) {
+            const std::byte* ptr = data.uart_data.data();
+            referee_ring_buffer_receive_.emplace_back_n(
+                [&ptr](std::byte* storage) noexcept { new (storage) std::byte{*ptr++}; },
+                data.uart_data.size());
+        } else if (uart == Spec::kUarts.kDbus) {
+            dr16_.store_status(data.uart_data.data(), data.uart_data.size());
+        }
     }
 
-    void dbus_receive_callback(const librmcs::data::UartDataView& data) override {
-        dr16_.store_status(data.uart_data.data(), data.uart_data.size());
-    }
-
-    void accelerometer_receive_callback(const librmcs::data::AccelerometerDataView& data) override {
+    void accelerometer_receive_callback(const View::ImuAccelerometer& data) override {
         bmi088_.store_accelerometer_status(data.x, data.y, data.z);
     }
 
-    void gyroscope_receive_callback(const librmcs::data::GyroscopeDataView& data) override {
+    void gyroscope_receive_callback(const View::ImuGyroscope& data) override {
         bmi088_.store_gyroscope_status(data.x, data.y, data.z);
     }
 
@@ -246,6 +239,8 @@ private:
         create_partner_component<FlightCommand>(get_component_name() + "_command", *this),
     };
     std::shared_ptr<rclcpp::Service<std_srvs::srv::Trigger>> status_service_;
+
+    std::unique_ptr<librmcs::board::RmcsBoardLite> board_;
 
     device::LkMotor gimbal_yaw_motor_{*this, *command_component_, "/gimbal/yaw"};
     device::LkMotor gimbal_pitch_motor_{*this, *command_component_, "/gimbal/pitch"};

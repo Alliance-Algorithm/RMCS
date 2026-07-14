@@ -7,7 +7,7 @@
 #include <tuple>
 
 #include <eigen3/Eigen/Dense>
-#include <librmcs/agent/c_board.hpp>
+#include <librmcs/board/c_board.hpp>
 #include <librmcs/data/datas.hpp>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
@@ -220,14 +220,13 @@ private:
     };
     std::shared_ptr<SteeringHeroCommand> command_component_;
 
-    class TopBoard final : private librmcs::agent::CBoard {
+    class TopBoard final : public librmcs::board::CBoard::Callback {
     public:
         friend class SteeringHero;
         explicit TopBoard(
             SteeringHero& steering_hero, SteeringHeroCommand& steering_hero_command,
             std::string_view board_serial = {})
-            : librmcs::agent::CBoard(board_serial)
-            , logger_(steering_hero.get_logger())
+            : logger_(steering_hero.get_logger())
             , tf_(steering_hero.tf_)
             // , can1_receive_rate_counter_(logger_, "bottom/can1")
             // , can2_receive_rate_counter_(logger_, "bottom/can2")
@@ -306,6 +305,8 @@ private:
 
                 return std::make_tuple(x, y, z);
             });
+
+            board_ = std::make_unique<librmcs::board::CBoard>(*this, board_serial);
         }
 
         TopBoard(const TopBoard&) = delete;
@@ -351,10 +352,10 @@ private:
         }
 
         void command_update() {
-            auto builder = start_transmit();
+            auto builder = board_->start_transmit();
 
             if (control_flag == 0) {
-                builder.can1_transmit({
+                builder.can_transmit(Spec::kCans.kCan1, {
                     .can_id = 0x200,
                     .can_data =
                         device::CanPacket8{
@@ -366,7 +367,7 @@ private:
                             .as_bytes(),
                 });
 
-                builder.can2_transmit({
+                builder.can_transmit(Spec::kCans.kCan2, {
                     .can_id = 0x143,
                     .can_data = gimbal_player_viewer_motor_
                                     .generate_velocity_command(
@@ -375,20 +376,20 @@ private:
                 });
 
                 if (std::isfinite(gimbal_pitch_motor_.control_angle()))
-                    builder.can2_transmit({
+                    builder.can_transmit(Spec::kCans.kCan2, {
                         .can_id = 0x142,
                         .can_data = gimbal_pitch_motor_
                                         .generate_angle_command(gimbal_pitch_motor_.control_angle())
                                         .as_bytes(),
                     });
                 else
-                    builder.can2_transmit({
+                    builder.can_transmit(Spec::kCans.kCan2, {
                         .can_id = 0x142,
                         .can_data = gimbal_pitch_motor_.generate_torque_command().as_bytes(),
                     }); // Used to distinguish pitch encoder control from IMU control.
 
             } else {
-                builder.can1_transmit({
+                builder.can_transmit(Spec::kCans.kCan1, {
                     .can_id = 0x1FF,
                     .can_data =
                         device::CanPacket8{
@@ -400,26 +401,26 @@ private:
                             .as_bytes(),
                 });
 
-                builder.can1_transmit({
+                builder.can_transmit(Spec::kCans.kCan1, {
                     .can_id = 0x141,
                     .can_data = gimbal_bullet_feeder_.generate_torque_command().as_bytes(),
                 });
 
-                builder.can2_transmit({
+                builder.can_transmit(Spec::kCans.kCan2, {
                     .can_id = 0x141,
                     .can_data = gimbal_top_yaw_motor_.generate_command().as_bytes(),
                 });
             }
 
             builder.gpio_digital_read(
-                librmcs::spec::c_board::kGpioDescriptors[6],
+                Spec::kGpios[6],
                 {
                     .period_ms = 20,
                     .pull = librmcs::data::GpioPull::kUp,
                 });
 
             builder.gpio_digital_read(
-                librmcs::spec::c_board::kGpioDescriptors[4],
+                Spec::kGpios[4],
                 {
                     .period_ms = 20,
                     .pull = librmcs::data::GpioPull::kUp,
@@ -433,58 +434,52 @@ private:
         }
 
     private:
-        void can1_receive_callback(const librmcs::data::CanDataView& data) override {
+        void can_receive_callback(const Spec::Can& can, const View::Can& data) override {
             if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
                 return;
             auto can_id = data.can_id;
             // can1_receive_rate_counter_.record(can_id);
-            if (can_id == 0x204) {
-
-                gimbal_friction_wheels_[0].store_status(data.can_data);
-            } else if (can_id == 0x202) {
-                gimbal_friction_wheels_[1].store_status(data.can_data);
-            } else if (can_id == 0x203) {
-                gimbal_friction_wheels_[2].store_status(data.can_data);
-            } else if (can_id == 0x201) {
-                gimbal_friction_wheels_[3].store_status(data.can_data);
-            } else if (can_id == 0x205) {
-                putter_motor_.store_status(data.can_data);
-            } else if (can_id == 0x141) {
-                gimbal_bullet_feeder_.store_status(data.can_data);
-            } else if (can_id == 0x206) {
-                gimbal_scope_motor_.store_status(data.can_data);
-            }
-        }
-
-        void can2_receive_callback(const librmcs::data::CanDataView& data) override {
-            if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
-                return;
-            auto can_id = data.can_id;
-            // can2_receive_rate_counter_.record(can_id);
-            if (can_id == 0x141) {
-                gimbal_top_yaw_motor_.store_status(data.can_data);
-            } else if (can_id == 0x142) {
-                gimbal_pitch_motor_.store_status(data.can_data);
-            } else if (can_id == 0x143) {
-                gimbal_player_viewer_motor_.store_status(data.can_data);
+            if (can == Spec::kCans.kCan1) {
+                if (can_id == 0x204) {
+                    gimbal_friction_wheels_[0].store_status(data.can_data);
+                } else if (can_id == 0x202) {
+                    gimbal_friction_wheels_[1].store_status(data.can_data);
+                } else if (can_id == 0x203) {
+                    gimbal_friction_wheels_[2].store_status(data.can_data);
+                } else if (can_id == 0x201) {
+                    gimbal_friction_wheels_[3].store_status(data.can_data);
+                } else if (can_id == 0x205) {
+                    putter_motor_.store_status(data.can_data);
+                } else if (can_id == 0x141) {
+                    gimbal_bullet_feeder_.store_status(data.can_data);
+                } else if (can_id == 0x206) {
+                    gimbal_scope_motor_.store_status(data.can_data);
+                }
+            } else if (can == Spec::kCans.kCan2) {
+                // can2_receive_rate_counter_.record(can_id);
+                if (can_id == 0x141) {
+                    gimbal_top_yaw_motor_.store_status(data.can_data);
+                } else if (can_id == 0x142) {
+                    gimbal_pitch_motor_.store_status(data.can_data);
+                } else if (can_id == 0x143) {
+                    gimbal_player_viewer_motor_.store_status(data.can_data);
+                }
             }
         }
 
         void gpio_digital_read_result_callback(
-            const librmcs::spec::c_board::GpioDescriptor& gpio,
-            const librmcs::data::GpioDigitalDataView& data) override {
+            const Spec::Gpio& gpio, const View::GpioDigital& data) override {
             if (gpio.channel_index == 6) {
                 photoelectric_sensor_status_atomic.store(!data.high);
             } else if (gpio.channel_index == 4) {
                 grayscale_sensor_status_atomic.store(!data.high);
             }
         }
-        void accelerometer_receive_callback(
-            const librmcs::data::AccelerometerDataView& data) override {
+        void accelerometer_receive_callback(const View::ImuAccelerometer& data) override {
             imu_.store_accelerometer_status(data.x, data.y, data.z);
         }
 
-        void gyroscope_receive_callback(const librmcs::data::GyroscopeDataView& data) override {
+        void gyroscope_receive_callback(const View::ImuGyroscope& data) override {
             imu_.store_gyroscope_status(data.x, data.y, data.z);
         }
 
@@ -513,16 +508,16 @@ private:
         OutputInterface<std::time_t> camera_capturer_trigger_timestamp_;
         std::atomic<bool> photoelectric_sensor_status_atomic{false};
         std::atomic<bool> grayscale_sensor_status_atomic{false};
+        std::unique_ptr<librmcs::board::CBoard> board_;
     };
 
-    class BottomBoard_one final : private librmcs::agent::CBoard {
+    class BottomBoard_one final : public librmcs::board::CBoard::Callback {
     public:
         friend class SteeringHero;
         explicit BottomBoard_one(
             SteeringHero& steering_hero, SteeringHeroCommand& steering_hero_command,
             std::string_view board_serial = {})
-            : librmcs::agent::CBoard(board_serial)
-            , logger_(steering_hero.get_logger())
+            : logger_(steering_hero.get_logger())
             // , can1_receive_rate_counter_(logger_, "bottom/can1")
             // , can2_receive_rate_counter_(logger_, "bottom/can2")
             , imu_(1000, 0.2, 0.0)
@@ -580,6 +575,8 @@ private:
             steering_hero.register_output(
                 "/chassis/yaw/velocity_imu", chassis_yaw_velocity_imu_, 0);
             steering_hero.register_output("/chassis/pitch_imu", chassis_pitch_imu_, 0.0);
+
+            board_ = std::make_unique<librmcs::board::CBoard>(*this, board_serial);
         }
         BottomBoard_one(const BottomBoard_one&) = delete;
         BottomBoard_one& operator=(const BottomBoard_one&) = delete;
@@ -608,9 +605,9 @@ private:
         }
 
         void command_update() {
-            auto builder = start_transmit();
+            auto builder = board_->start_transmit();
 
-            builder.can1_transmit({
+            builder.can_transmit(Spec::kCans.kCan1, {
                 .can_id = 0x200,
                 .can_data =
                     device::CanPacket8{
@@ -622,7 +619,7 @@ private:
                         .as_bytes(),
             });
 
-            builder.can1_transmit({
+            builder.can_transmit(Spec::kCans.kCan1, {
                 .can_id = 0x1FE,
                 .can_data =
                     device::CanPacket8{
@@ -634,7 +631,7 @@ private:
                         .as_bytes(),
             });
 
-            builder.can2_transmit({
+            builder.can_transmit(Spec::kCans.kCan2, {
                 .can_id = 0x200,
                 .can_data =
                     device::CanPacket8{
@@ -648,44 +645,40 @@ private:
         }
 
     private:
-        void can1_receive_callback(const librmcs::data::CanDataView& data) override {
+        void can_receive_callback(const Spec::Can& can, const View::Can& data) override {
             if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
                 return;
             auto can_id = data.can_id;
-            // can1_receive_rate_counter_.record(can_id);
-            if (can_id == 0x201) {
-                chassis_wheel_motors_[1].store_status(data.can_data);
-            } else if (can_id == 0x202) {
-                chassis_wheel_motors_[0].store_status(data.can_data);
-            } else if (can_id == 0x206) {
-                chassis_steering_motors_[0].store_status(data.can_data);
-            } else if (can_id == 0x208) {
-                chassis_steering_motors_[1].store_status(data.can_data);
+            if (can == Spec::kCans.kCan1) {
+                // can1_receive_rate_counter_.record(can_id);
+                if (can_id == 0x201) {
+                    chassis_wheel_motors_[1].store_status(data.can_data);
+                } else if (can_id == 0x202) {
+                    chassis_wheel_motors_[0].store_status(data.can_data);
+                } else if (can_id == 0x206) {
+                    chassis_steering_motors_[0].store_status(data.can_data);
+                } else if (can_id == 0x208) {
+                    chassis_steering_motors_[1].store_status(data.can_data);
+                }
+            } else if (can == Spec::kCans.kCan2) {
+                // can2_receive_rate_counter_.record(can_id);
+                if (can_id == 0x203) {
+                    chassis_front_climber_motor_[0].store_status(data.can_data);
+                } else if (can_id == 0x204) {
+                    chassis_front_climber_motor_[1].store_status(data.can_data);
+                } else if (can_id == 0x201) {
+                    chassis_back_climber_motor_[0].store_status(data.can_data);
+                } else if (can_id == 0x202) {
+                    chassis_back_climber_motor_[1].store_status(data.can_data);
+                }
             }
         }
 
-        void can2_receive_callback(const librmcs::data::CanDataView& data) override {
-            if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
-                return;
-            auto can_id = data.can_id;
-            // can2_receive_rate_counter_.record(can_id);
-            if (can_id == 0x203) {
-                chassis_front_climber_motor_[0].store_status(data.can_data);
-            } else if (can_id == 0x204) {
-                chassis_front_climber_motor_[1].store_status(data.can_data);
-            } else if (can_id == 0x201) {
-                chassis_back_climber_motor_[0].store_status(data.can_data);
-            } else if (can_id == 0x202) {
-                chassis_back_climber_motor_[1].store_status(data.can_data);
-            }
-        }
-
-        void accelerometer_receive_callback(
-            const librmcs::data::AccelerometerDataView& data) override {
+        void accelerometer_receive_callback(const View::ImuAccelerometer& data) override {
             imu_.store_accelerometer_status(data.x, data.y, data.z);
         }
 
-        void gyroscope_receive_callback(const librmcs::data::GyroscopeDataView& data) override {
+        void gyroscope_receive_callback(const View::ImuGyroscope& data) override {
             imu_.store_gyroscope_status(data.x, data.y, data.z);
         }
 
@@ -703,16 +696,16 @@ private:
         OutputInterface<double> chassis_pitch_imu_;
         OutputInterface<double> gimbal_yaw_velocity_imu_;
         OutputInterface<double> gimbal_pitch_velocity_imu_;
+        std::unique_ptr<librmcs::board::CBoard> board_;
     };
 
-    class BottomBoard_two final : private librmcs::agent::CBoard {
+    class BottomBoard_two final : public librmcs::board::CBoard::Callback {
     public:
         friend class SteeringHero;
         explicit BottomBoard_two(
             SteeringHero& steering_hero, SteeringHeroCommand& steering_hero_command,
             std::string_view board_serial = {})
-            : librmcs::agent::CBoard(board_serial)
-            , logger_(steering_hero.get_logger())
+            : logger_(steering_hero.get_logger())
             // , can1_receive_rate_counter_(logger_, "bottom/can1")
             // , can2_receive_rate_counter_(logger_, "bottom/can2")
             , imu_(1000, 0.2, 0.0)
@@ -757,7 +750,8 @@ private:
                     [&buffer](std::byte byte) noexcept { *buffer++ = byte; }, size);
             };
             referee_serial_->write = [this](const std::byte* buffer, size_t size) {
-                start_transmit().uart1_transmit(
+                board_->start_transmit().uart_transmit(
+                    Spec::kUarts.kUart1,
                     {.uart_data = std::span<const std::byte>{buffer, size}});
                 return size;
             };
@@ -765,6 +759,8 @@ private:
                 "/chassis/powermeter/control_enable", powermeter_control_enabled_, false);
             steering_hero.register_output(
                 "/chassis/powermeter/charge_power_limit", powermeter_charge_power_limit_, 0.);
+
+            board_ = std::make_unique<librmcs::board::CBoard>(*this, board_serial);
         }
 
         BottomBoard_two(const BottomBoard_two&) = delete;
@@ -790,9 +786,9 @@ private:
         }
 
         void command_update() {
-            auto builder = start_transmit();
+            auto builder = board_->start_transmit();
 
-            builder.can1_transmit({
+            builder.can_transmit(Spec::kCans.kCan1, {
                 .can_id = 0x200,
                 .can_data =
                     device::CanPacket8{
@@ -804,7 +800,7 @@ private:
                         .as_bytes(),
             });
 
-            builder.can1_transmit({
+            builder.can_transmit(Spec::kCans.kCan1, {
                 .can_id = 0x1FE,
                 .can_data =
                     device::CanPacket8{
@@ -816,61 +812,57 @@ private:
                         .as_bytes(),
             });
 
-            builder.can2_transmit({
+            builder.can_transmit(Spec::kCans.kCan2, {
                 .can_id = 0x141,
                 .can_data = gimbal_bottom_yaw_motor_.generate_command().as_bytes(),
             });
         }
 
     private:
-        void can1_receive_callback(const librmcs::data::CanDataView& data) override {
+        void can_receive_callback(const Spec::Can& can, const View::Can& data) override {
             if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
                 return;
             auto can_id = data.can_id;
-            // can1_receive_rate_counter_.record(can_id);
-            if (can_id == 0x203) {
-                chassis_wheel_motors2_[1].store_status(data.can_data);
+            if (can == Spec::kCans.kCan1) {
+                // can1_receive_rate_counter_.record(can_id);
+                if (can_id == 0x203) {
+                    chassis_wheel_motors2_[1].store_status(data.can_data);
 
-            } else if (can_id == 0x204) {
-                chassis_wheel_motors2_[0].store_status(data.can_data);
-            } else if (can_id == 0x205) {
-                chassis_steering_motors2_[0].store_status(data.can_data);
-            } else if (can_id == 0x207) {
-                chassis_steering_motors2_[1].store_status(data.can_data);
-            } else if (can_id == 0x300) {
-                supercap_.store_status(data.can_data);
-            }
-        }
-
-        void can2_receive_callback(const librmcs::data::CanDataView& data) override {
-            if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
-                return;
-            auto can_id = data.can_id;
-            // can2_receive_rate_counter_.record(can_id);
-            if (can_id == 0x141) {
-                gimbal_bottom_yaw_motor_.store_status(data.can_data);
+                } else if (can_id == 0x204) {
+                    chassis_wheel_motors2_[0].store_status(data.can_data);
+                } else if (can_id == 0x205) {
+                    chassis_steering_motors2_[0].store_status(data.can_data);
+                } else if (can_id == 0x207) {
+                    chassis_steering_motors2_[1].store_status(data.can_data);
+                } else if (can_id == 0x300) {
+                    supercap_.store_status(data.can_data);
+                }
+            } else if (can == Spec::kCans.kCan2) {
+                // can2_receive_rate_counter_.record(can_id);
+                if (can_id == 0x141) {
+                    gimbal_bottom_yaw_motor_.store_status(data.can_data);
+                }
             }
         }
 
         rclcpp::Logger logger_;
 
-        void uart1_receive_callback(const librmcs::data::UartDataView& data) override {
-            const auto* uart_data = data.uart_data.data();
-            referee_ring_buffer_receive_.emplace_back_n(
-                [&uart_data](std::byte* storage) noexcept { *storage = *uart_data++; },
-                data.uart_data.size());
+        void uart_receive_callback(const Spec::Uart& uart, const View::Uart& data) override {
+            if (uart == Spec::kUarts.kUart1) {
+                const auto* uart_data = data.uart_data.data();
+                referee_ring_buffer_receive_.emplace_back_n(
+                    [&uart_data](std::byte* storage) noexcept { *storage = *uart_data++; },
+                    data.uart_data.size());
+            } else if (uart == Spec::kUarts.kDbus) {
+                dr16_.store_status(data.uart_data.data(), data.uart_data.size());
+            }
         }
 
-        void dbus_receive_callback(const librmcs::data::UartDataView& data) override {
-            dr16_.store_status(data.uart_data.data(), data.uart_data.size());
-        }
-
-        void accelerometer_receive_callback(
-            const librmcs::data::AccelerometerDataView& data) override {
+        void accelerometer_receive_callback(const View::ImuAccelerometer& data) override {
             imu_.store_accelerometer_status(data.x, data.y, data.z);
         }
 
-        void gyroscope_receive_callback(const librmcs::data::GyroscopeDataView& data) override {
+        void gyroscope_receive_callback(const View::ImuGyroscope& data) override {
             imu_.store_gyroscope_status(data.x, data.y, data.z);
         }
 
@@ -890,6 +882,7 @@ private:
 
         rmcs_utility::RingBuffer<std::byte> referee_ring_buffer_receive_{256};
         OutputInterface<rmcs_msgs::SerialInterface> referee_serial_;
+        std::unique_ptr<librmcs::board::CBoard> board_;
     };
 
     OutputInterface<rmcs_description::Tf> tf_;

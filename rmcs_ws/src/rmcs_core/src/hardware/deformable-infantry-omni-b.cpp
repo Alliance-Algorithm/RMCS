@@ -22,7 +22,7 @@
 #include <std_msgs/msg/int32.hpp>
 #include <std_srvs/srv/trigger.hpp>
 
-#include <librmcs/agent/rmcs_board_lite.hpp>
+#include <librmcs/board/rmcs_board_lite.hpp>
 
 #include "hardware/device/bmi088.hpp"
 #include "hardware/device/can_packet.hpp"
@@ -120,20 +120,15 @@ private:
         DeformableInfantryOmniB& deformableInfantry;
     };
 
-    class BottomBoard final : private librmcs::agent::RmcsBoardLite {
+    struct BottomBoard final : public librmcs::board::RmcsBoardLite::Callback {
     public:
-        friend class DeformableInfantryOmniB;
-
         static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
 
         explicit BottomBoard(
             DeformableInfantryOmniB& deformableInfantry,
             DeformableInfantryOmniBCommand& deformableInfantry_command,
             const std::string& serial_filter = {})
-            : RmcsBoardLite{
-                  serial_filter,
-                  librmcs::agent::AdvancedOptions{.dangerously_skip_version_checks = true}}
-            , deformable_infantry_{deformableInfantry}
+            : deformable_infantry_{deformableInfantry}
             , command_{deformableInfantry_command}
             , tf_{deformableInfantry.tf_} {
 
@@ -143,7 +138,8 @@ private:
                     [&buffer](std::byte byte) noexcept { *buffer++ = byte; }, size);
             };
             referee_serial_->write = [this](const std::byte* buffer, size_t size) {
-                start_transmit().uart0_transmit(
+                board_->start_transmit().uart_transmit(
+                    Spec::kUarts.kUart0,
                     {.uart_data = std::span<const std::byte>{buffer, size}});
                 return size;
             };
@@ -215,9 +211,13 @@ private:
                 "debug_log_wheel_motor", debug_log_wheel_motor_, false);
             deformableInfantry.get_parameter_or(
                 "debug_log_deformable_joint_motor", debug_log_deformable_joint_motor_, false);
-        }
 
-        ~BottomBoard() override = default;
+            auto options = librmcs::board::AdvancedOptions{};
+            options.dangerously_skip_version_checks = true;
+            board_ = std::make_unique<librmcs::board::RmcsBoardLite>(
+                *this, serial_filter,
+                options);
+        }
 
         void update() {
             imu_.update_status();
@@ -274,9 +274,9 @@ private:
         }
 
         void command_update(bool even) {
-            auto builder = start_transmit();
+            auto builder = board_->start_transmit();
             if (even) {
-                builder.can0_transmit({
+                builder.can_transmit(Spec::kCans.kCan0, {
                     .can_id = 0x200,
                     .can_data =
                         device::CanPacket8{
@@ -287,7 +287,7 @@ private:
                         }
                             .as_bytes(),
                 });
-                builder.can1_transmit({
+                builder.can_transmit(Spec::kCans.kCan1, {
                     .can_id = 0x200,
                     .can_data =
                         device::CanPacket8{
@@ -298,7 +298,7 @@ private:
                         }
                             .as_bytes(),
                 });
-                builder.can2_transmit({
+                builder.can_transmit(Spec::kCans.kCan2, {
                     .can_id = 0x200,
                     .can_data =
                         device::CanPacket8{
@@ -309,7 +309,7 @@ private:
                         }
                             .as_bytes(),
                 });
-                builder.can3_transmit({
+                builder.can_transmit(Spec::kCans.kCan3, {
                     .can_id = 0x200,
                     .can_data =
                         device::CanPacket8{
@@ -320,11 +320,11 @@ private:
                         }
                             .as_bytes(),
                 });
-                builder.can2_transmit({
+                builder.can_transmit(Spec::kCans.kCan2, {
                     .can_id = 0x142,
                     .can_data = gimbal_yaw_motor_.generate_torque_command().as_bytes(),
                 });
-                builder.can1_transmit({
+                builder.can_transmit(Spec::kCans.kCan1, {
                     .can_id = 0x1FE,
                     .can_data =
                         device::CanPacket8{
@@ -336,26 +336,25 @@ private:
                             .as_bytes(),
                 });
             } else {
-                builder.can0_transmit({
+                builder.can_transmit(Spec::kCans.kCan0, {
                     .can_id = 0x141,
                     .can_data = chassis_joint_motors_[0].generate_command().as_bytes(),
                 });
-                builder.can1_transmit({
+                builder.can_transmit(Spec::kCans.kCan1, {
                     .can_id = 0x141,
                     .can_data = chassis_joint_motors_[1].generate_command().as_bytes(),
                 });
-                builder.can2_transmit({
+                builder.can_transmit(Spec::kCans.kCan2, {
                     .can_id = 0x141,
                     .can_data = chassis_joint_motors_[2].generate_command().as_bytes(),
                 });
-                builder.can3_transmit({
+                builder.can_transmit(Spec::kCans.kCan3, {
                     .can_id = 0x141,
                     .can_data = chassis_joint_motors_[3].generate_command().as_bytes(),
                 });
             }
         }
 
-    private:
         DeformableInfantryOmniB& deformable_infantry_;
         rmcs_executor::Component& command_;
 
@@ -477,80 +476,70 @@ private:
             next_supercap_feedback_log_time_ = now + std::chrono::seconds(1);
         }
 
-        void dbus_receive_callback(const librmcs::data::UartDataView& data) override {
-            dr16_.store_status(data.uart_data.data(), data.uart_data.size());
-        }
-
-        void can0_receive_callback(const librmcs::data::CanDataView& data) override {
+        void can_receive_callback(const Spec::Can& can, const View::Can& data) override {
             if (data.is_extended_can_id || data.is_remote_transmission)
                 return;
-            if (data.can_id == 0x201) {
-                chassis_wheel_motors_[0].store_status(data.can_data);
-                wheel_status_received_[0].store(true, std::memory_order_relaxed);
-            } else if (data.can_id == 0x141) {
-                chassis_joint_motors_[0].store_status(data.can_data);
-                joint_status_received_[0].store(true, std::memory_order_relaxed);
+            if (can == Spec::kCans.kCan0) {
+                if (data.can_id == 0x201) {
+                    chassis_wheel_motors_[0].store_status(data.can_data);
+                    wheel_status_received_[0].store(true, std::memory_order_relaxed);
+                } else if (data.can_id == 0x141) {
+                    chassis_joint_motors_[0].store_status(data.can_data);
+                    joint_status_received_[0].store(true, std::memory_order_relaxed);
+                }
+            } else if (can == Spec::kCans.kCan1) {
+                if (data.can_id == 0x201) {
+                    chassis_wheel_motors_[1].store_status(data.can_data);
+                    wheel_status_received_[1].store(true, std::memory_order_relaxed);
+                } else if (data.can_id == 0x141) {
+                    chassis_joint_motors_[1].store_status(data.can_data);
+                    joint_status_received_[1].store(true, std::memory_order_relaxed);
+                } else if (data.can_id == 0x300) {
+                    if (data.can_data.size() == 8)
+                        latest_supercap_status_.store(
+                            device::CanPacket8{data.can_data}, std::memory_order_relaxed);
+                    supercap_.store_status(data.can_data);
+                    supercap_status_received_.store(true, std::memory_order_relaxed);
+                }
+            } else if (can == Spec::kCans.kCan2) {
+                if (data.can_id == 0x201) {
+                    chassis_wheel_motors_[2].store_status(data.can_data);
+                    wheel_status_received_[2].store(true, std::memory_order_relaxed);
+                } else if (data.can_id == 0x141) {
+                    chassis_joint_motors_[2].store_status(data.can_data);
+                    joint_status_received_[2].store(true, std::memory_order_relaxed);
+                } else if (data.can_id == 0x142) {
+                    gimbal_yaw_motor_.store_status(data.can_data);
+                } else if (data.can_id == 0x203) {
+                    gimbal_bullet_feeder_.store_status(data.can_data);
+                }
+            } else if (can == Spec::kCans.kCan3) {
+                if (data.can_id == 0x201) {
+                    chassis_wheel_motors_[3].store_status(data.can_data);
+                    wheel_status_received_[3].store(true, std::memory_order_relaxed);
+                } else if (data.can_id == 0x141) {
+                    chassis_joint_motors_[3].store_status(data.can_data);
+                    joint_status_received_[3].store(true, std::memory_order_relaxed);
+                }
             }
         }
 
-        void can1_receive_callback(const librmcs::data::CanDataView& data) override {
-            if (data.is_extended_can_id || data.is_remote_transmission)
-                return;
-            if (data.can_id == 0x201) {
-                chassis_wheel_motors_[1].store_status(data.can_data);
-                wheel_status_received_[1].store(true, std::memory_order_relaxed);
-            } else if (data.can_id == 0x141) {
-                chassis_joint_motors_[1].store_status(data.can_data);
-                joint_status_received_[1].store(true, std::memory_order_relaxed);
-            } else if (data.can_id == 0x300) {
-                if (data.can_data.size() == 8)
-                    latest_supercap_status_.store(
-                        device::CanPacket8{data.can_data}, std::memory_order_relaxed);
-                supercap_.store_status(data.can_data);
-                supercap_status_received_.store(true, std::memory_order_relaxed);
+        void uart_receive_callback(const Spec::Uart& uart, const View::Uart& data) override {
+            if (uart == Spec::kUarts.kDbus) {
+                dr16_.store_status(data.uart_data.data(), data.uart_data.size());
+            } else if (uart == Spec::kUarts.kUart0) {
+                const std::byte* ptr = data.uart_data.data();
+                referee_ring_buffer_receive_.emplace_back_n(
+                    [&ptr](std::byte* storage) noexcept { *storage = *ptr++; },
+                    data.uart_data.size());
             }
         }
 
-        void can2_receive_callback(const librmcs::data::CanDataView& data) override {
-            if (data.is_extended_can_id || data.is_remote_transmission)
-                return;
-            if (data.can_id == 0x201) {
-                chassis_wheel_motors_[2].store_status(data.can_data);
-                wheel_status_received_[2].store(true, std::memory_order_relaxed);
-            } else if (data.can_id == 0x141) {
-                chassis_joint_motors_[2].store_status(data.can_data);
-                joint_status_received_[2].store(true, std::memory_order_relaxed);
-            } else if (data.can_id == 0x142) {
-                gimbal_yaw_motor_.store_status(data.can_data);
-            } else if (data.can_id == 0x203) {
-                gimbal_bullet_feeder_.store_status(data.can_data);
-            }
-        }
-
-        void can3_receive_callback(const librmcs::data::CanDataView& data) override {
-            if (data.is_extended_can_id || data.is_remote_transmission)
-                return;
-            if (data.can_id == 0x201) {
-                chassis_wheel_motors_[3].store_status(data.can_data);
-                wheel_status_received_[3].store(true, std::memory_order_relaxed);
-            } else if (data.can_id == 0x141) {
-                chassis_joint_motors_[3].store_status(data.can_data);
-                joint_status_received_[3].store(true, std::memory_order_relaxed);
-            }
-        }
-
-        void uart0_receive_callback(const librmcs::data::UartDataView& data) override {
-            const std::byte* ptr = data.uart_data.data();
-            referee_ring_buffer_receive_.emplace_back_n(
-                [&ptr](std::byte* storage) noexcept { *storage = *ptr++; }, data.uart_data.size());
-        }
-
-        void accelerometer_receive_callback(
-            const librmcs::data::AccelerometerDataView& data) override {
+        void accelerometer_receive_callback(const View::ImuAccelerometer& data) override {
             imu_.store_accelerometer_status(data.x, data.y, data.z);
         }
 
-        void gyroscope_receive_callback(const librmcs::data::GyroscopeDataView& data) override {
+        void gyroscope_receive_callback(const View::ImuGyroscope& data) override {
             imu_.store_gyroscope_status(data.x, data.y, data.z);
         }
 
@@ -605,18 +594,15 @@ private:
         OutputInterface<double> encoder_alpha_;
         OutputInterface<double> encoder_alpha_dot_;
         OutputInterface<double> radius_;
+
+        std::unique_ptr<librmcs::board::RmcsBoardLite> board_;
     };
 
-    class ImuBoard final : private librmcs::agent::RmcsBoardLite {
-        friend class DeformableInfantryOmniB;
-
+    struct ImuBoard final : public librmcs::board::RmcsBoardLite::Callback {
     public:
         explicit ImuBoard(
             DeformableInfantryOmniB& deformableInfantry, const std::string& serial_filter = {})
-            : RmcsBoardLite{
-                  serial_filter,
-                  librmcs::agent::AdvancedOptions{.dangerously_skip_version_checks = true}}
-            , tf_{deformableInfantry.tf_}
+            : tf_{deformableInfantry.tf_}
             , bmi088_{1000, 0.2, 0.0} {
 
             deformableInfantry.register_output(
@@ -624,9 +610,13 @@ private:
 
             bmi088_.set_coordinate_mapping(
                 [](double x, double y, double z) { return std::make_tuple(x, z, -y); });
-        }
 
-        ~ImuBoard() override = default;
+            auto options = librmcs::board::AdvancedOptions{};
+            options.dangerously_skip_version_checks = true;
+            board_ = std::make_unique<librmcs::board::RmcsBoardLite>(
+                *this, serial_filter,
+                options);
+        }
 
         void update() {
             bmi088_.update_status();
@@ -639,18 +629,16 @@ private:
             *gimbal_pitch_velocity_imu_ = bmi088_.gy();
         }
 
-    private:
-        void uart0_receive_callback(const librmcs::data::UartDataView& data) override {
+        void uart_receive_callback(const Spec::Uart& uart, const View::Uart& data) override {
+            (void)uart;
             (void)data;
-            // VT13 is not used in this configuration; Dr16 publishes /remote/... directly.
         }
 
-        void accelerometer_receive_callback(
-            const librmcs::data::AccelerometerDataView& data) override {
+        void accelerometer_receive_callback(const View::ImuAccelerometer& data) override {
             bmi088_.store_accelerometer_status(data.x, data.y, data.z);
         }
 
-        void gyroscope_receive_callback(const librmcs::data::GyroscopeDataView& data) override {
+        void gyroscope_receive_callback(const View::ImuGyroscope& data) override {
             bmi088_.store_gyroscope_status(data.x, data.y, data.z);
         }
 
@@ -658,20 +646,17 @@ private:
         OutputInterface<double> gimbal_pitch_velocity_imu_;
 
         device::Bmi088 bmi088_;
+
+        std::unique_ptr<librmcs::board::RmcsBoardLite> board_;
     };
 
-    class TopBoard final : private librmcs::agent::RmcsBoardLite {
+    struct TopBoard final : public librmcs::board::RmcsBoardLite::Callback {
     public:
-        friend class DeformableInfantryOmniB;
-
         explicit TopBoard(
             DeformableInfantryOmniB& deformableInfantry,
             DeformableInfantryOmniBCommand& deformableInfantry_command,
             const std::string& serial_filter = {}, bool has_external_imu_board = false)
-            : librmcs::agent::RmcsBoardLite(
-                  serial_filter,
-                  librmcs::agent::AdvancedOptions{.dangerously_skip_version_checks = true})
-            , has_external_imu_board_(has_external_imu_board)
+            : has_external_imu_board_(has_external_imu_board)
             , tf_(deformableInfantry.tf_)
             , bmi088_(1000, 0.2, 0.0)
             , gimbal_pitch_motor_(deformableInfantry, deformableInfantry_command, "/gimbal/pitch")
@@ -708,9 +693,13 @@ private:
                 // Top board BMI088 maps to gimbal frame as (-x, -y, z).
                 return std::make_tuple(-x, -y, z);
             });
-        }
 
-        ~TopBoard() override = default;
+            auto options = librmcs::board::AdvancedOptions{};
+            options.dangerously_skip_version_checks = true;
+            board_ = std::make_unique<librmcs::board::RmcsBoardLite>(
+                *this, serial_filter,
+                options);
+        }
 
         [[nodiscard]] auto gimbal_yaw_velocity() const -> double {
             return *gimbal_yaw_velocity_bmi088_;
@@ -755,13 +744,13 @@ private:
         }
 
         void command_update() {
-            auto builder = start_transmit();
-            builder.can0_transmit({
+            auto builder = board_->start_transmit();
+            builder.can_transmit(Spec::kCans.kCan0, {
                 .can_id = 0x141,
                 .can_data = gimbal_pitch_motor_.generate_command().as_bytes(),
             });
 
-            builder.can1_transmit({
+            builder.can_transmit(Spec::kCans.kCan1, {
                 .can_id = 0x200,
                 .can_data =
                     device::CanPacket8{
@@ -774,33 +763,32 @@ private:
             });
         }
 
-    private:
-        void uart1_receive_callback(const librmcs::data::UartDataView&) override {}
-
-        void can0_receive_callback(const librmcs::data::CanDataView& data) override {
-            if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
-                return;
-            if (data.can_id == 0x141)
-                gimbal_pitch_motor_.store_status(data.can_data);
+        void uart_receive_callback(const Spec::Uart& uart, const View::Uart& data) override {
+            (void)uart;
+            (void)data;
         }
 
-        void can1_receive_callback(const librmcs::data::CanDataView& data) override {
+        void can_receive_callback(const Spec::Can& can, const View::Can& data) override {
             if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
                 return;
-            if (data.can_id == 0x201)
-                gimbal_left_friction_.store_status(data.can_data);
-            else if (data.can_id == 0x202)
-                gimbal_right_friction_.store_status(data.can_data);
-            else if (data.can_id == 0x203)
-                scope_motor_.store_status(data.can_data);
+            if (can == Spec::kCans.kCan0) {
+                if (data.can_id == 0x141)
+                    gimbal_pitch_motor_.store_status(data.can_data);
+            } else if (can == Spec::kCans.kCan1) {
+                if (data.can_id == 0x201)
+                    gimbal_left_friction_.store_status(data.can_data);
+                else if (data.can_id == 0x202)
+                    gimbal_right_friction_.store_status(data.can_data);
+                else if (data.can_id == 0x203)
+                    scope_motor_.store_status(data.can_data);
+            }
         }
 
-        void accelerometer_receive_callback(
-            const librmcs::data::AccelerometerDataView& data) override {
+        void accelerometer_receive_callback(const View::ImuAccelerometer& data) override {
             bmi088_.store_accelerometer_status(data.x, data.y, data.z);
         }
 
-        void gyroscope_receive_callback(const librmcs::data::GyroscopeDataView& data) override {
+        void gyroscope_receive_callback(const View::ImuGyroscope& data) override {
             bmi088_.store_gyroscope_status(data.x, data.y, data.z);
         }
 
@@ -815,6 +803,8 @@ private:
         device::DjiMotor gimbal_left_friction_;
         device::DjiMotor gimbal_right_friction_;
         device::DjiMotor scope_motor_;
+
+        std::unique_ptr<librmcs::board::RmcsBoardLite> board_;
     };
 
     auto status_service_callback(const std::shared_ptr<std_srvs::srv::Trigger::Response>& response)

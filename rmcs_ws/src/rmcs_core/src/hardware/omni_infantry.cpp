@@ -5,9 +5,8 @@
 #include <utility>
 
 #include <eigen3/Eigen/Dense>
-#include <librmcs/agent/rmcs_board_lite.hpp>
+#include <librmcs/board/rmcs_board_lite.hpp>
 #include <librmcs/data/datas.hpp>
-#include <librmcs/spec/rmcs_board_lite/gpio.hpp>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
@@ -34,13 +33,12 @@ namespace rmcs_core::hardware {
 class OmniInfantry
     : public rmcs_executor::Component
     , public rclcpp::Node
-    , private librmcs::agent::RmcsBoardLite {
+    , public librmcs::board::RmcsBoardLite::Callback {
 public:
     OmniInfantry()
         : Node{
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
-        , librmcs::agent::RmcsBoardLite{get_parameter("board_serial").as_string()}
         , logger_(get_logger())
         , infantry_command_(
               create_partner_component<InfantryCommand>(get_component_name() + "_command", *this))
@@ -90,15 +88,18 @@ public:
         register_output("/gimbal/auto_aim/imu_snapshot", imu_snapshot_output_);
         register_output("/tf", tf_);
 
-        start_transmit().gpio_digital_read(
-            librmcs::spec::rmcs_board_lite::kGpioDescriptors.kUart0Tx,
+        board_ = std::make_unique<librmcs::board::RmcsBoardLite>(
+            *this, get_parameter("board_serial").as_string());
+
+        board_->start_transmit().gpio_digital_read(
+            Spec::kGpios.kUart0Tx,
             {
-                .period_ms = 0,
-                .asap = false,
-                .rising_edge = false,
-                .falling_edge = true,
-                .capture_timestamp = true,
-                .pull = librmcs::data::GpioPull::kUp,
+                .period_ms          = 0,
+                .asap               = false,
+                .rising_edge        = false,
+                .falling_edge       = true,
+                .capture_timestamp  = true,
+                .pull               = librmcs::data::GpioPull::kUp,
             });
 
         using namespace rmcs_description; // NOLINT(google-build-using-namespace)
@@ -128,7 +129,8 @@ public:
                 [&buffer](std::byte byte) noexcept { *buffer++ = byte; }, size);
         };
         referee_serial_->write = [this](const std::byte* buffer, size_t size) {
-            start_transmit().uart1_transmit(
+            board_->start_transmit().uart_transmit(
+                Spec::kUarts.kUart1,
                 {.uart_data = std::span<const std::byte>{buffer, size}});
             return size;
         };
@@ -149,53 +151,53 @@ public:
     }
 
     void command_update() {
-        auto builder = start_transmit();
+        auto builder = board_->start_transmit();
 
-        builder.can1_transmit({
-            .can_id = 0x1FE,
-            .can_data =
-                device::CanPacket8{
-                    device::CanPacket8::PaddingQuarter{},
-                    device::CanPacket8::PaddingQuarter{},
-                    device::CanPacket8::PaddingQuarter{},
-                    supercap_.generate_command(),
-                }
-                    .as_bytes(),
-        });
+        builder.can_transmit(
+            Spec::kCans.kCan1,
+            {.can_id = 0x1FE,
+             .can_data =
+                 device::CanPacket8{
+                     device::CanPacket8::PaddingQuarter{},
+                     device::CanPacket8::PaddingQuarter{},
+                     device::CanPacket8::PaddingQuarter{},
+                     supercap_.generate_command(),
+                 }
+                     .as_bytes()});
 
-        builder.can1_transmit({
-            .can_id = 0x145,
-            .can_data = gimbal_yaw_motor_.generate_torque_command().as_bytes(),
-        });
+        builder.can_transmit(
+            Spec::kCans.kCan1,
+            {.can_id   = 0x145,
+             .can_data = gimbal_yaw_motor_.generate_torque_command().as_bytes()});
 
-        builder.can1_transmit({
-            .can_id = 0x200,
-            .can_data =
-                device::CanPacket8{
-                    chassis_wheel_motors_[0].generate_command(),
-                    chassis_wheel_motors_[1].generate_command(),
-                    chassis_wheel_motors_[2].generate_command(),
-                    chassis_wheel_motors_[3].generate_command(),
-                }
-                    .as_bytes(),
-        });
+        builder.can_transmit(
+            Spec::kCans.kCan1,
+            {.can_id = 0x200,
+             .can_data =
+                 device::CanPacket8{
+                     chassis_wheel_motors_[0].generate_command(),
+                     chassis_wheel_motors_[1].generate_command(),
+                     chassis_wheel_motors_[2].generate_command(),
+                     chassis_wheel_motors_[3].generate_command(),
+                 }
+                     .as_bytes()});
 
-        builder.can2_transmit({
-            .can_id = 0x142,
-            .can_data = gimbal_pitch_motor_.generate_velocity_command().as_bytes(),
-        });
+        builder.can_transmit(
+            Spec::kCans.kCan2,
+            {.can_id   = 0x142,
+             .can_data = gimbal_pitch_motor_.generate_velocity_command().as_bytes()});
 
-        builder.can2_transmit({
-            .can_id = 0x200,
-            .can_data =
-                device::CanPacket8{
-                    device::CanPacket8::PaddingQuarter{},
-                    gimbal_bullet_feeder_.generate_command(),
-                    gimbal_left_friction_.generate_command(),
-                    gimbal_right_friction_.generate_command(),
-                }
-                    .as_bytes(),
-        });
+        builder.can_transmit(
+            Spec::kCans.kCan2,
+            {.can_id = 0x200,
+             .can_data =
+                 device::CanPacket8{
+                     device::CanPacket8::PaddingQuarter{},
+                     gimbal_bullet_feeder_.generate_command(),
+                     gimbal_left_friction_.generate_command(),
+                     gimbal_right_friction_.generate_command(),
+                 }
+                     .as_bytes()});
     }
 
 private:
@@ -239,50 +241,42 @@ private:
             gimbal_pitch_motor_.calibrate_zero_point());
     }
 
-    void can1_receive_callback(const librmcs::data::CanDataView& data) override {
+    void can_receive_callback(const Spec::Can& can, const View::Can& data) override {
         if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
             return;
 
-        auto can_id = data.can_id;
-        if (can_id == 0x201) {
-            auto& motor = chassis_wheel_motors_[0];
-            motor.store_status(data.can_data);
-        } else if (can_id == 0x202) {
-            auto& motor = chassis_wheel_motors_[1];
-            motor.store_status(data.can_data);
-        } else if (can_id == 0x203) {
-            auto& motor = chassis_wheel_motors_[2];
-            motor.store_status(data.can_data);
-        } else if (can_id == 0x204) {
-            auto& motor = chassis_wheel_motors_[3];
-            motor.store_status(data.can_data);
-        } else if (can_id == 0x145) {
-            gimbal_yaw_motor_.store_status(data.can_data);
-        } else if (can_id == 0x300) {
-            supercap_.store_status(data.can_data);
-        }
-    }
-
-    void can2_receive_callback(const librmcs::data::CanDataView& data) override {
-        if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
-            return;
-
-        auto can_id = data.can_id;
-        if (can_id == 0x142) {
-            gimbal_pitch_motor_.store_status(data.can_data);
-        } else if (can_id == 0x202) {
-            gimbal_bullet_feeder_.store_status(data.can_data);
-        } else if (can_id == 0x203) {
-            gimbal_left_friction_.store_status(data.can_data);
-        } else if (can_id == 0x204) {
-            gimbal_right_friction_.store_status(data.can_data);
+        if (can == Spec::kCans.kCan1) {
+            auto can_id = data.can_id;
+            if (can_id == 0x201) {
+                chassis_wheel_motors_[0].store_status(data.can_data);
+            } else if (can_id == 0x202) {
+                chassis_wheel_motors_[1].store_status(data.can_data);
+            } else if (can_id == 0x203) {
+                chassis_wheel_motors_[2].store_status(data.can_data);
+            } else if (can_id == 0x204) {
+                chassis_wheel_motors_[3].store_status(data.can_data);
+            } else if (can_id == 0x145) {
+                gimbal_yaw_motor_.store_status(data.can_data);
+            } else if (can_id == 0x300) {
+                supercap_.store_status(data.can_data);
+            }
+        } else if (can == Spec::kCans.kCan2) {
+            auto can_id = data.can_id;
+            if (can_id == 0x142) {
+                gimbal_pitch_motor_.store_status(data.can_data);
+            } else if (can_id == 0x202) {
+                gimbal_bullet_feeder_.store_status(data.can_data);
+            } else if (can_id == 0x203) {
+                gimbal_left_friction_.store_status(data.can_data);
+            } else if (can_id == 0x204) {
+                gimbal_right_friction_.store_status(data.can_data);
+            }
         }
     }
 
     void gpio_digital_read_result_callback(
-        const librmcs::spec::rmcs_board_lite::GpioDescriptor& gpio,
-        const librmcs::data::GpioDigitalDataView& data) override {
-        if (gpio != librmcs::spec::rmcs_board_lite::kGpioDescriptors.kUart0Tx)
+        const Spec::Gpio& gpio, const View::GpioDigital& data) override {
+        if (gpio != Spec::kGpios.kUart0Tx)
             return;
         if (!data.timestamp_quarter_us)
             return;
@@ -294,23 +288,23 @@ private:
         camera_signal_output_.emit(*timestamp);
     }
 
-    void uart1_receive_callback(const librmcs::data::UartDataView& data) override {
-        const auto* uart_data = data.uart_data.data();
-        referee_ring_buffer_receive_.emplace_back_n(
-            [&uart_data](std::byte* storage) noexcept { *storage = *uart_data++; },
-            data.uart_data.size());
+    void uart_receive_callback(const Spec::Uart& uart, const View::Uart& data) override {
+        if (uart == Spec::kUarts.kUart1) {
+            const auto* uart_data = data.uart_data.data();
+            referee_ring_buffer_receive_.emplace_back_n(
+                [&uart_data](std::byte* storage) noexcept { *storage = *uart_data++; },
+                data.uart_data.size());
+        } else if (uart == Spec::kUarts.kDbus) {
+            dr16_.store_status(data.uart_data.data(), data.uart_data.size());
+        }
     }
 
-    void dbus_receive_callback(const librmcs::data::UartDataView& data) override {
-        dr16_.store_status(data.uart_data.data(), data.uart_data.size());
-    }
-
-    void accelerometer_receive_callback(const librmcs::data::AccelerometerDataView& data) override {
+    void accelerometer_receive_callback(const View::ImuAccelerometer& data) override {
         const auto timestamp = board_clock_lifter_.advance_timebase(data.timestamp_quarter_us);
         bmi088_.push_accelerometer_sample(data.x, data.y, data.z, timestamp);
     }
 
-    void gyroscope_receive_callback(const librmcs::data::GyroscopeDataView& data) override {
+    void gyroscope_receive_callback(const View::ImuGyroscope& data) override {
         const auto timestamp = board_clock_lifter_.lift_timestamp(data.timestamp_quarter_us);
         if (!timestamp.has_value())
             return;
@@ -325,6 +319,8 @@ private:
 
 private:
     rclcpp::Logger logger_;
+
+    std::unique_ptr<librmcs::board::RmcsBoardLite> board_;
 
     class InfantryCommand : public rmcs_executor::Component {
     public:

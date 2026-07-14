@@ -33,7 +33,7 @@ rmcs_executor:
       - rmcs::AutoAimComponent
       - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
 
-      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 
 auto_aim_capturer:
   ros__parameters:
@@ -47,16 +47,16 @@ auto_aim_capturer:
 value_broadcaster:
   ros__parameters:
     forward_list:
-      - /gimbal/yaw/angle
-      - /gimbal/yaw/velocity
-      - /chassis/left_front_joint/physical_angle
-      - /chassis/left_front_joint/physical_velocity
-      - /chassis/left_back_joint/physical_angle
-      - /chassis/left_back_joint/physical_velocity
-      - /chassis/right_back_joint/physical_angle
-      - /chassis/right_back_joint/physical_velocity
-      - /chassis/right_front_joint/physical_angle
-      - /chassis/right_front_joint/physical_velocity
+      - /gimbal/pitch/angle
+      - /gimbal/pitch/velocity
+      # - /chassis/left_front_joint/physical_angle
+      # - /chassis/left_front_joint/physical_velocity
+      # - /chassis/left_back_joint/physical_angle
+      # - /chassis/left_back_joint/physical_velocity
+      # - /chassis/right_back_joint/physical_angle
+      # - /chassis/right_back_joint/physical_velocity
+      # - /chassis/right_front_joint/physical_angle
+      # - /chassis/right_front_joint/physical_velocity
 
 deformable_infantry:
   ros__parameters:
@@ -141,19 +141,16 @@ gimbal_controller:
     yaw_velocity_ki: 0.0
     yaw_velocity_kd: 0.0
 
-    yaw_vel_ff_gain: 0.47
-    yaw_acc_ff_gain: 0.00
+    pitch_angle_kp: 35.0
+    pitch_angle_ki: 0.02
+    pitch_angle_kd: 0.3
 
-    pitch_angle_kp: 7.2
-    pitch_angle_ki: 0.0
-    pitch_angle_kd: 0.0
-
-    pitch_velocity_kp: 3.0
+    pitch_velocity_kp: 2.0
     pitch_velocity_ki: 0.0
     pitch_velocity_kd: 0.0
 
-    pitch_acc_ff_gain: 0.10
-    pitch_gravity_ff_gain: 5.95
+    # pitch_gravity_ff_gain: 5.95
+    pitch_gravity_ff_gain: 0.0
     pitch_gravity_ff_phase: 0.66
 
     pitch_torque_control: true
