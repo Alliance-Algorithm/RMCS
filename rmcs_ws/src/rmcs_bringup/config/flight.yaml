@@ -63,7 +63,6 @@ px4_vision_bridge:
     system_id: 1                  # 与 PX4 MAV_SYS_ID 一致
     component_id: 197             # MAV_COMP_ID_VISUAL_INERTIAL_ODOMETRY
     max_send_rate_hz: 50.0
-    link_timeout_sec: 2.0
     # 挂载角(ZYX, rad): 传感器系->机体系, 初值 roll=π pitch=π/2 yaw=0, 上车标定后修正
     mount_rpy: [3.14159265358979, 1.5707963267949, 0.0]
 
@@ -83,7 +82,7 @@ yaw_angle_pid_controller:
     measurement: /gimbal/yaw/control_angle_error
     control: /gimbal/yaw/control_velocity
     kp: 15.0
-    ki: 0.0
+    ki: 0.007
     kd: 0.0
 
 yaw_velocity_pid_controller:
@@ -100,7 +99,7 @@ pitch_angle_pid_controller:
     measurement: /gimbal/pitch/control_angle_error
     control: /gimbal/pitch/control_velocity
     kp: 10.0
-    ki: 0.0
+    ki: 0.002
     kd: 0.0
 
 friction_wheel_controller:

@@ -33,8 +33,7 @@ public:
         system_id_     = get_parameter("system_id").as_int();
         component_id_  = get_parameter("component_id").as_int();
         max_send_rate_hz_ = get_parameter("max_send_rate_hz").as_double();
-        link_timeout_sec_ = get_parameter("link_timeout_sec").as_double();
-    
+
         const auto m =get_parameter("mount_rpy").as_double_array();
 
         q_mount_ =quaternion_from_rpy_zyx(m.at(0),m.at(1),m.at(2));
@@ -42,7 +41,6 @@ public:
         min_send_interval_ =rclcpp::Duration::from_seconds(1.0/max_send_rate_hz_);
         last_send_time_ =now();
         last_heartbeat_send_ =now();
-        last_heartbeat_recv_ =now();
 
         odom_subscription_ =create_subscription<nav_msgs::msg::Odometry>(
             source_topic_,
@@ -59,7 +57,6 @@ public:
     void update() override {
         send_heartbeat_if_due();   //1hz  HEARTBEAT
         send_vision_if_pending();  //消费回调缓存的最新位姿,变换并发送
-        drain_downlink();          //消费HEARTBEAT/STATUSTEXT,维护链路超时
     }
 
 private:
@@ -127,38 +124,6 @@ private:
         );
 
         send_message(msg_mavlink);
-    }
-
-    void drain_downlink(){
-        if(!px4_serial_.active())[[unlikely]]
-            return;
-        std::byte buffer[256];
-        const size_t n =px4_serial_->read(buffer,sizeof(buffer));
-
-        for(size_t i=0;i<n;i++){
-            mavlink_message_t msg_mavlink;
-            mavlink_status_t  status;
-            if(mavlink_parse_char(MAVLINK_COMM_0, static_cast<uint8_t>(buffer[i]), &msg_mavlink, &status)){
-                // RCLCPP_INFO_THROTTLE(
-                //     logger_, *get_clock(), 1000, // 最多 1s 一条
-                //     "[px4 rx] parsed msgid=%u", static_cast<unsigned>(msg_mavlink.msgid));
-                switch (msg_mavlink.msgid){
-                    case MAVLINK_MSG_ID_HEARTBEAT: last_heartbeat_recv_ =now();
-                        break;
-                    case MAVLINK_MSG_ID_STATUSTEXT:{
-                        mavlink_statustext_t st;
-                        mavlink_msg_statustext_decode(&msg_mavlink, &st);
-                        RCLCPP_WARN(logger_, "[px4]%.*s",static_cast<int>(sizeof(st.text)),st.text);
-                        break;
-                    }
-                    default:
-                        break;
-
-                }
-            }
-        }
-
-        
     }
 
     void send_heartbeat_if_due(){
@@ -240,14 +205,12 @@ private:
     std::string source_topic_;
     uint8_t system_id_;          
     uint8_t component_id_;       
-    double  max_send_rate_hz_;   
-    double  link_timeout_sec_;   
+    double  max_send_rate_hz_;
     Eigen::Quaterniond  q_mount_;
 
     rclcpp::Duration min_send_interval_ =rclcpp::Duration::from_seconds(0.02);
     rclcpp::Time last_send_time_        =rclcpp::Time(0, 0, RCL_ROS_TIME);
     rclcpp::Time last_heartbeat_send_{0,0,RCL_ROS_TIME};
-    rclcpp::Time last_heartbeat_recv_{0,0,RCL_ROS_TIME};
 };
 
 }// namespace rmcs_core::hardware
