@@ -10,6 +10,7 @@ rmcs_executor:
       - rmcs_core::referee::command::Interaction -> referee_interaction
       - rmcs_core::referee::command::interaction::Ui -> referee_ui
       - rmcs_core::referee::app::ui::DeformableInfantry -> referee_ui_infantry
+      - rmcs_core::referee::app::ui::AutoAimUi -> auto_aim_ui
 
       - rmcs_core::controller::gimbal::DeformableInfantryGimbalController -> gimbal_controller
 
@@ -33,7 +34,27 @@ rmcs_executor:
       - rmcs::AutoAimComponent
       - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
 
-      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      # - rmcs_core::debug::ValueCollector -> value_collector
+
+value_collector:
+  ros__parameters:
+    csv_path: "/tmp/pitch_<timestamp>.csv"
+    signals:
+      - /gimbal/pitch/angle
+      - /gimbal/pitch/velocity
+      - /gimbal/pitch/velocity_imu
+      - /gimbal/pitch/angle_error
+      - /gimbal/pitch/control_torque
+      - /gimbal/pitch/control_velocity
+    write_interval: 5
+    flush_interval: 1000
+
+value_broadcaster:
+  ros__parameters:
+    forward_list:
+      - /gimbal/pitch/angle
+      - /gimbal/pitch/velocity
 
 auto_aim_capturer:
   ros__parameters:
@@ -44,19 +65,11 @@ auto_aim_capturer:
     invert_image: false
     rls_tau_sec: 10.0
 
-value_broadcaster:
+auto_aim_ui:
   ros__parameters:
-    forward_list:
-      - /gimbal/pitch/angle
-      - /gimbal/pitch/velocity
-      # - /chassis/left_front_joint/physical_angle
-      # - /chassis/left_front_joint/physical_velocity
-      # - /chassis/left_back_joint/physical_angle
-      # - /chassis/left_back_joint/physical_velocity
-      # - /chassis/right_back_joint/physical_angle
-      # - /chassis/right_back_joint/physical_velocity
-      # - /chassis/right_front_joint/physical_angle
-      # - /chassis/right_front_joint/physical_velocity
+    offset_x: 0.0
+    offset_y: -0.08
+    offset_z: 0.0
 
 deformable_infantry:
   ros__parameters:
@@ -149,9 +162,8 @@ gimbal_controller:
     pitch_velocity_ki: 0.0
     pitch_velocity_kd: 0.0
 
-    # pitch_gravity_ff_gain: 5.95
-    pitch_gravity_ff_gain: 0.0
-    pitch_gravity_ff_phase: 0.66
+    pitch_gravity_ff_gain: 4.302
+    pitch_gravity_ff_phase: 0.589
 
     pitch_torque_control: true
 
@@ -167,8 +179,8 @@ friction_wheel_controller:
 
 heat_controller:
   ros__parameters:
-    heat_per_shot: 10
-    reserved_heat: 15
+    heat_per_shot: 10000
+    reserved_heat: 15000
 
 bullet_feeder_controller:
   ros__parameters:

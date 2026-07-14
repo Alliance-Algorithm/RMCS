@@ -1,6 +1,10 @@
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <format>
+#include <iterator>
 #include <limits>
+#include <string>
 
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
@@ -52,6 +56,24 @@ public:
 
         const auto color = *should_shoot_ ? Shape::Color::ORANGE : Shape::Color::GREEN;
         const auto radius = *should_shoot_ ? 10 : 15;
+
+        {
+            const auto distance = robot_center_->norm();
+            if (!std::isfinite(distance)) {
+                target_distance_indicator_.set_visible(false);
+                return;
+            }
+
+            target_distance_text_index_ ^= 1u;
+            auto& text = target_distance_text_[target_distance_text_index_];
+            text.clear();
+            std::format_to(std::back_inserter(text), "{:.1f}m", distance);
+            if (text.size() > kMaxTextLength)
+                text.resize(kMaxTextLength);
+
+            target_distance_indicator_.set_value(text.c_str());
+            target_distance_indicator_.set_visible(true);
+        }
 
         center_ring_.set_color(color);
         center_ring_.set_x(x);
@@ -108,6 +130,7 @@ public:
 private:
     static constexpr std::uint16_t kScreenW = 1920;
     static constexpr std::uint16_t kScreenH = 1080;
+    static constexpr size_t kMaxTextLength = 30;
 
     static constexpr double kFx = 730.7267062695;
     static constexpr double kFy = 730.5886055073;
@@ -131,6 +154,11 @@ private:
     Line cross_bottom_{Shape::Color::GREEN, 2, 0, 0, 0, 0, false};
     Line cross_left_{Shape::Color::GREEN, 2, 0, 0, 0, 0, false};
     Line cross_right_{Shape::Color::GREEN, 2, 0, 0, 0, 0, false};
+    Text target_distance_indicator_{
+        Shape::Color::GREEN, 20, 2, kScreenW / 2 + 34, kScreenH / 2 + 24, "", false,
+    };
+    std::array<std::string, 2> target_distance_text_{};
+    std::size_t target_distance_text_index_ = 0;
 
     void hide_all() {
         center_ring_.set_visible(false);
@@ -138,6 +166,7 @@ private:
         cross_bottom_.set_visible(false);
         cross_left_.set_visible(false);
         cross_right_.set_visible(false);
+        target_distance_indicator_.set_visible(false);
     }
 
     Eigen::Vector2d reproject(const Eigen::Vector3d& center) const {
