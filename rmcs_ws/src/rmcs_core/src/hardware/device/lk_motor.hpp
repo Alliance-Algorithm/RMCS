@@ -63,13 +63,13 @@ struct LKMotorConfig {
         case LKMotorType::MG4010E_i36V3:
         case LKMotorType::MG5010E_i36V3:
         case LKMotorType::MG6012_i36:
+        case LKMotorType::MG8016E_i6V2:
         case LKMotorType::MG4005E_i10V3:
         case LKMotorType::MG4005_i10V2:
         case LKMotorType::MG8010E_i36: iq = 66.0 / 4096; break;
         case LKMotorType::MHF7015:
         case LKMotorType::MHF6015:
         case LKMotorType::MF7015V210T: iq = 33.0 / 4096; break;
-        case LKMotorType::MG8016E_i6V2:;
         }
     }
     LKMotorConfig& set_encoder_zero_point(int value) { return encoder_zero_point = value, *this; }

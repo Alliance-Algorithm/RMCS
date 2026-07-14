@@ -103,8 +103,8 @@ public:
             } else {
                 yaw_target_angle_ += joystick_right_->y() * 0.002;
             }
-            yaw_target_angle_ = std::clamp(yaw_target_angle_, yaw_left_limit_, yaw_right_limit_);
-            angular_velocity  = 0.0;
+            // yaw_target_angle_ = std::clamp(yaw_target_angle_, yaw_left_limit_, yaw_right_limit_);
+            angular_velocity = 0.0;
 
             break;
         }

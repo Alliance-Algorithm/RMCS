@@ -39,9 +39,7 @@ class Engineer
     , public rclcpp::Node {
 public:
     Engineer()
-        : Node{
-              get_component_name(),
-              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
+        : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , logger_(get_logger())
         , engineer_command_(create_partner_component<EngineerCommand>("engineer_command", *this))
         , armboard_(*this, *engineer_command_, get_parameter("board_serial_arm_board").as_string())
@@ -53,8 +51,8 @@ public:
         littleboard_.update();
     }
     void command() {
-        // armboard_.command();
-         littleboard_.command();
+        armboard_.command();
+        littleboard_.command();
     }
 
 private:
@@ -80,9 +78,7 @@ private:
     };
     std::shared_ptr<EngineerCommand> engineer_command_;
 
-    class ArmBoard final
-        : private librmcs::agent::CBoard
-        , rclcpp::Node {
+    class ArmBoard final : private librmcs::agent::CBoard, rclcpp::Node {
     public:
         friend class Engineer;
         explicit ArmBoard(
@@ -98,16 +94,7 @@ private:
                   {engineer, engineer_command, "/arm/joint_6/motor"})
             , gripper{engineer, engineer_command, "/arm/gripper/motor"}
             , image_pitch{engineer, engineer_command, "/arm/image_pitch/motor"}
-            , joint2_encoder(engineer, "/arm/joint_2/encoder")
-            , bmi088_(1000, 0.2, 0)
-
-        {
-            engineer.register_output("yaw_imu_velocity", yaw_imu_velocity, NAN);
-            engineer.register_output("yaw_imu_angle", yaw_imu_angle, NAN);
-            engineer.register_output("pitch_imu_velocity", pitch_imu_velocity, NAN);
-            engineer.register_output("pitch_imu_angle", pitch_imu_angle, NAN);
-            engineer.register_output("roll_imu_velocity", roll_imu_velocity, NAN);
-            engineer.register_output("roll_imu_angle", roll_imu_angle, NAN);
+            , joint2_encoder(engineer, "/arm/joint_2/encoder") {
             using namespace device;
             image_pitch.configure(
                 LKMotorConfig{LKMotorType::MG4010E_i10V3}.reverse().set_encoder_zero_point(
@@ -138,8 +125,6 @@ private:
             joint2_encoder.configure(
                 EncoderConfig{EncoderType::KTH7823}.set_encoder_zero_point(
                     static_cast<int>(engineer.get_parameter("joint2_zero_point").as_int())));
-            bmi088_.set_coordinate_mapping(
-                [](double x, double y, double z) { return std::make_tuple(-x, -y, +z); });
         }
         ~ArmBoard() final {
             auto tx = start_transmit();
@@ -158,7 +143,14 @@ private:
         void update() {
             using namespace device;
             update_arm_motors();
-            update_imu();
+            // RCLCPP_INFO(this->get_logger(), "J1:%d", joint[0].get_raw_angle());
+            // RCLCPP_INFO(this->get_logger(), "J2:%d", joint2_encoder.get_raw_angle());
+            // RCLCPP_INFO(this->get_logger(), "J3:%d", joint[2].get_raw_angle());
+            // RCLCPP_INFO(this->get_logger(), "J4:%d", joint[3].get_raw_angle());
+            // RCLCPP_INFO(this->get_logger(), "J5:%d", joint[4].get_raw_angle());
+            // RCLCPP_INFO(this->get_logger(), "J6:%d", joint[5].get_raw_angle());
+            // RCLCPP_INFO(this->get_logger(), "Gripper:%d", gripper.get_raw_angle());
+            // RCLCPP_INFO(this->get_logger(), "image pitch:%d", image_pitch.get_raw_angle());
         }
         void command() { update_arm_command(); }
 
@@ -168,25 +160,25 @@ private:
             auto tx = start_transmit();
 
             if (even_phase) {
-                tx.can1_transmit({
-                    .can_id   = 0x148,
-                    .can_data = image_pitch.generate_torque_command().as_bytes(),
-                });
+                // tx.can1_transmit({
+                //     .can_id   = 0x148,
+                //     .can_data = image_pitch.generate_torque_command().as_bytes(),
+                // });
 
-                tx.can1_transmit({
-                    .can_id   = 0x143,
-                    .can_data = joint[2].generate_torque_command().as_bytes(),
-                });
+                // tx.can1_transmit({
+                //     .can_id   = 0x143,
+                //     .can_data = joint[2].generate_torque_command().as_bytes(),
+                // });
 
-                tx.can2_transmit({
-                    .can_id   = 0x147,
-                    .can_data = gripper.generate_torque_command().as_bytes(),
-                });
+                // tx.can2_transmit({
+                //     .can_id   = 0x147,
+                //     .can_data = gripper.generate_torque_command().as_bytes(),
+                // });
 
-                tx.can2_transmit({
-                    .can_id   = 0x141,
-                    .can_data = joint[5].generate_torque_command().as_bytes(),
-                });
+                // tx.can2_transmit({
+                //     .can_id   = 0x141,
+                //     .can_data = joint[5].generate_torque_command().as_bytes(),
+                // });
 
             } else {
 
@@ -195,20 +187,20 @@ private:
                     .can_data = joint[0].generate_torque_command().as_bytes(),
                 });
 
-                tx.can1_transmit({
-                    .can_id   = 0x142,
-                    .can_data = joint[1].generate_torque_command().as_bytes(),
-                });
+                // tx.can1_transmit({
+                //     .can_id   = 0x142,
+                //     .can_data = joint[1].generate_torque_command().as_bytes(),
+                // });
 
-                tx.can2_transmit({
-                    .can_id   = 0x145,
-                    .can_data = joint[4].generate_torque_command().as_bytes(),
-                });
+                // tx.can2_transmit({
+                //     .can_id   = 0x145,
+                //     .can_data = joint[4].generate_torque_command().as_bytes(),
+                // });
 
-                tx.can2_transmit({
-                    .can_id   = 0x144,
-                    .can_data = joint[3].generate_torque_command().as_bytes(),
-                });
+                // tx.can2_transmit({
+                //     .can_id   = 0x144,
+                //     .can_data = joint[3].generate_torque_command().as_bytes(),
+                // });
             }
 
             even_phase = !even_phase;
@@ -224,24 +216,6 @@ private:
             joint[0].update();
             gripper.update();
             image_pitch.update();
-        }
-
-        void update_imu() {
-            bmi088_.update_status();
-
-            const double q0 = bmi088_.q0();
-            const double q1 = bmi088_.q1();
-            const double q2 = bmi088_.q2();
-            const double q3 = bmi088_.q3();
-
-            *roll_imu_velocity  = bmi088_.gx();
-            *pitch_imu_velocity = bmi088_.gy();
-            *yaw_imu_velocity   = bmi088_.gz();
-
-            *roll_imu_angle =
-                std::atan2(2.0 * (q0 * q1 + q2 * q3), 1.0 - 2.0 * (q1 * q1 + q2 * q2));
-            *pitch_imu_angle = std::asin(std::clamp(2.0 * (q0 * q2 - q3 * q1), -1.0, 1.0));
-            *yaw_imu_angle = std::atan2(2.0 * (q0 * q3 + q1 * q2), 1.0 - 2.0 * (q2 * q2 + q3 * q3));
         }
 
     protected:
@@ -264,27 +238,22 @@ private:
             if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
                 [[unlikely]]
                 return;
-
+            // RCLCPP_INFO(this->get_logger(), "can1 receive %x", data.can_id);
             if (data.can_id == 0x143) {
+                // RCLCPP_INFO(this->get_logger(), "Joint3");
                 joint[2].store_status(data.can_data);
             } else if (data.can_id == 0x142) {
+                // RCLCPP_INFO(this->get_logger(), "Joint2");
                 joint[1].store_status(data.can_data);
             } else if (data.can_id == 0x141) {
+                // RCLCPP_INFO(this->get_logger(), "Joint1");
                 joint[0].store_status(data.can_data);
             } else if (data.can_id == 0x200) {
+                // RCLCPP_INFO(this->get_logger(), "Joint2 encoder");
                 joint2_encoder.store_status(data.can_data);
             } else if (data.can_id == 0x148) {
                 image_pitch.store_status(data.can_data);
             };
-        }
-
-        void accelerometer_receive_callback(
-            const librmcs::data::AccelerometerDataView& data) override {
-            bmi088_.store_accelerometer_status(data.x, data.y, data.z);
-        }
-
-        void gyroscope_receive_callback(const librmcs::data::GyroscopeDataView& data) override {
-            bmi088_.store_gyroscope_status(data.x, data.y, data.z);
         }
 
     private:
@@ -293,19 +262,9 @@ private:
         device::LKMotor image_pitch;
         device::Encoder joint2_encoder;
 
-        OutputInterface<double> yaw_imu_velocity;
-        OutputInterface<double> yaw_imu_angle;
-        OutputInterface<double> pitch_imu_velocity;
-        OutputInterface<double> pitch_imu_angle;
-        OutputInterface<double> roll_imu_velocity;
-        OutputInterface<double> roll_imu_angle;
-        device::Bmi088 bmi088_;
-
     } armboard_;
 
-    class LittleBoard final
-        : private librmcs::agent::RmcsBoardLite
-        , rclcpp::Node {
+    class LittleBoard final : private librmcs::agent::RmcsBoardLite, rclcpp::Node {
     public:
         friend class Engineer;
         explicit LittleBoard(
@@ -330,7 +289,8 @@ private:
                   {engineer, engineer_command, "/climber/lift/r"})
             , power_meter(engineer, "/steering/power_meter")
             , big_yaw(engineer, engineer_command, "/chassis/big_yaw")
-            , dr16_(engineer) {
+            , dr16_(engineer)
+            , bmi088_(1000, 0.2, 0) {
             Steering_motors[0].configure(
                 device::DjiMotorConfig{device::DjiMotorType::GM6020}
                     .reverse()
@@ -356,13 +316,17 @@ private:
                         static_cast<int>(
                             engineer.get_parameter("steering_rf_zero_point").as_int())));
             Wheel_motors[0].configure(
-                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(18.2));
+                device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(
+                    18.2));
             Wheel_motors[1].configure(
-                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(18.2));
+                device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(
+                    18.2));
             Wheel_motors[2].configure(
-                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(18.2));
+                device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(
+                    18.2));
             Wheel_motors[3].configure(
-                device::DjiMotorConfig{device::DjiMotorType::M3508}.set_reduction_ratio(18.2));
+                device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(
+                    18.2));
             Track_motors[0].configure(
                 device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(
                     19.));
@@ -378,10 +342,21 @@ private:
                     .enable_multi_turn_angle()
                     .set_reduction_ratio(19.));
             big_yaw.configure(
-                device::LKMotorConfig{device::LKMotorType::MG8016E_i6V2}.set_encoder_zero_point(
-                    static_cast<int>(engineer.get_parameter("big_yaw_zero_point").as_int())));
+                device::LKMotorConfig{device::LKMotorType::MG8016E_i6V2}
+                    .reverse()
+                    .set_encoder_zero_point(
+                        static_cast<int>(engineer.get_parameter("big_yaw_zero_point").as_int())));
 
             engineer_command.register_input("/arm/enable_flag", is_arm_enable);
+            bmi088_.set_coordinate_mapping(
+                [](double x, double y, double z) { return std::make_tuple(-y, +x, +z); });
+
+            engineer.register_output("yaw_imu_velocity", yaw_imu_velocity, NAN);
+            engineer.register_output("yaw_imu_angle", yaw_imu_angle, NAN);
+            engineer.register_output("pitch_imu_velocity", pitch_imu_velocity, NAN);
+            engineer.register_output("pitch_imu_angle", pitch_imu_angle, NAN);
+            engineer.register_output("roll_imu_velocity", roll_imu_velocity, NAN);
+            engineer.register_output("roll_imu_angle", roll_imu_angle, NAN);
         }
         ~LittleBoard() final {
             auto tx = start_transmit();
@@ -472,18 +447,13 @@ private:
             big_yaw.update();
             power_meter.update();
             dr16_.update_status();
+            update_imu();
         }
         void command() {
 
             static bool turn{false};
             auto tx = start_transmit();
             if (turn) {
-                // device::CanPacket8 yaw_command;
-                // if (!*is_arm_enable) {
-                //     yaw_command = big_yaw.lk_close();
-                // } else {
-                //     yaw_command = big_yaw.generate_torque_command();
-                // }
                 tx.can3_transmit({
                     .can_id   = 0x142,
                     .can_data = big_yaw.generate_torque_command().as_bytes(),
@@ -493,9 +463,9 @@ private:
                     .can_data =
                         device::CanPacket8{
                                            Track_motors[0].generate_command(),
+                                           device::CanPacket8::PaddingQuarter{},
+                                           device::CanPacket8::PaddingQuarter{},
                                            Track_motors[1].generate_command(),
-                                           device::CanPacket8::PaddingQuarter{},
-                                           device::CanPacket8::PaddingQuarter{},
                                            }
                             .as_bytes(),
                 });
@@ -527,9 +497,9 @@ private:
                     .can_data =
                         device::CanPacket8{
                                            device::CanPacket8::PaddingQuarter{},
-                                           device::CanPacket8::PaddingQuarter{},
                                            Lift_motors[0].generate_command(),
                                            Lift_motors[1].generate_command(),
+                                           device::CanPacket8::PaddingQuarter{},
                                            }
                             .as_bytes(),
                 });
@@ -540,8 +510,8 @@ private:
                         device::CanPacket8{
                                            device::CanPacket8::PaddingQuarter{},
                                            device::CanPacket8::PaddingQuarter{},
-                                           Steering_motors[0].generate_command(),
-                                           Steering_motors[1].generate_command(),
+                                           Steering_motors[2].generate_command(),
+                                           Steering_motors[3].generate_command(),
                                            }
                             .as_bytes(),
                 });
@@ -560,18 +530,37 @@ private:
             turn = !turn;
         }
 
+    private:
+        void update_imu() {
+            bmi088_.update_status();
+
+            const double q0 = bmi088_.q0();
+            const double q1 = bmi088_.q1();
+            const double q2 = bmi088_.q2();
+            const double q3 = bmi088_.q3();
+
+            *roll_imu_velocity  = bmi088_.gx();
+            *pitch_imu_velocity = bmi088_.gy();
+            *yaw_imu_velocity   = bmi088_.gz();
+
+            *roll_imu_angle =
+                std::atan2(2.0 * (q0 * q1 + q2 * q3), 1.0 - 2.0 * (q1 * q1 + q2 * q2));
+            *pitch_imu_angle = std::asin(std::clamp(2.0 * (q0 * q2 - q3 * q1), -1.0, 1.0));
+            *yaw_imu_angle = std::atan2(2.0 * (q0 * q3 + q1 * q2), 1.0 - 2.0 * (q2 * q2 + q3 * q3));
+        }
+
     protected:
         void can0_receive_callback(const librmcs::data::CanDataView& data) override {
             if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
                 [[unlikely]]
                 return;
             if (data.can_id == 0x205) {
-                Steering_motors[0].store_status(data.can_data);
                 // RCLCPP_INFO(
-                //     this->get_logger(), "Steering  lf %d", Steering_motors[0].get_raw_angle());
+                //     this->get_logger(), "Steering 0:%d", Steering_motors[0].get_raw_angle());
+                Steering_motors[0].store_status(data.can_data);
             } else if (data.can_id == 0x206) {
                 // RCLCPP_INFO(
-                //     this->get_logger(), "Steering lb %d", Steering_motors[1].get_raw_angle());
+                //     this->get_logger(), "Steering 1:%d", Steering_motors[1].get_raw_angle());
                 Steering_motors[1].store_status(data.can_data);
             } else if (data.can_id == 0x201) {
                 Wheel_motors[0].store_status(data.can_data);
@@ -585,12 +574,11 @@ private:
                 return;
             if (data.can_id == 0x207) {
                 // RCLCPP_INFO(
-                //     this->get_logger(), "Steering rb %d", Steering_motors[2].get_raw_angle());
+                //     this->get_logger(), "Steering 2:%d", Steering_motors[2].get_raw_angle());
                 Steering_motors[2].store_status(data.can_data);
             } else if (data.can_id == 0x208) {
                 // RCLCPP_INFO(
-                //     this->get_logger(), "Steering rf %d", Steering_motors[3].get_raw_angle());
-
+                //     this->get_logger(), "Steering 3:%d", Steering_motors[3].get_raw_angle());
                 Steering_motors[3].store_status(data.can_data);
             } else if (data.can_id == 0x203) {
                 Wheel_motors[2].store_status(data.can_data);
@@ -604,15 +592,11 @@ private:
                 return;
             if (data.can_id == 0x201) {
                 Track_motors[0].store_status(data.can_data);
-                // RCLCPP_INFO(this->get_logger(), "lf track");
             } else if (data.can_id == 0x204) {
                 Track_motors[1].store_status(data.can_data);
-                // RCLCPP_INFO(this->get_logger(), "rf track");
             } else if (data.can_id == 0x202) {
                 Lift_motors[0].store_status(data.can_data);
-                // RCLCPP_INFO(this->get_logger(), "lb lift");
             } else if (data.can_id == 0x203) {
-                // RCLCPP_INFO(this->get_logger(), "rb lift");
                 Lift_motors[1].store_status(data.can_data);
             }
         }
@@ -628,6 +612,16 @@ private:
                 big_yaw.store_status(data.can_data);
             }
         }
+
+        void accelerometer_receive_callback(
+            const librmcs::data::AccelerometerDataView& data) override {
+            bmi088_.store_accelerometer_status(data.x, data.y, data.z);
+        }
+
+        void gyroscope_receive_callback(const librmcs::data::GyroscopeDataView& data) override {
+            bmi088_.store_gyroscope_status(data.x, data.y, data.z);
+        }
+
         void dbus_receive_callback(const librmcs::data::UartDataView& data) override {
             dr16_.store_status(data.uart_data.data(), static_cast<uint8_t>(data.uart_data.size()));
         }
@@ -641,6 +635,14 @@ private:
         device::LKMotor big_yaw;
 
         device::Dr16 dr16_;
+        device::Bmi088 bmi088_;
+
+        OutputInterface<double> yaw_imu_velocity;
+        OutputInterface<double> yaw_imu_angle;
+        OutputInterface<double> pitch_imu_velocity;
+        OutputInterface<double> pitch_imu_angle;
+        OutputInterface<double> roll_imu_velocity;
+        OutputInterface<double> roll_imu_angle;
 
         InputInterface<bool> is_arm_enable;
 

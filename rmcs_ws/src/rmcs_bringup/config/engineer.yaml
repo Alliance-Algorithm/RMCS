@@ -23,25 +23,26 @@ rmcs_executor:
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 engineer_hardware:
   ros__parameters:
-    board_serial_arm_board: "D4-632C-37BC-6A17-ACA2-E3FE-91E9"
+    # board_serial_arm_board: "D4-632C-37BC-6A17-ACA2-E3FE-91E9"
+    board_serial_arm_board: "D4-6654-1C0F-7353-AA15-A77B-313D"
     board_serial_little_board: "AF-4728-8B65-756E-F0CF-DBDD-D3C8-C843-2DF6"
     gripper_zero_point: 26298
     image_pitch_zero_point: 43131
-    joint6_zero_point: 12566
-    joint5_zero_point: 37436
-    joint4_zero_point: 33865
-    joint3_zero_point: 28459
-    joint2_zero_point: 31222 
-    joint1_zero_point: 14865
-    steering_lf_zero_point: 1343
-    steering_lb_zero_point: 4096
-    steering_rb_zero_point: 0
-    steering_rf_zero_point: 4096
-    leg_lf_ecd_zero_point: 220679
-    leg_lb_ecd_zero_point: 153149
-    leg_rb_ecd_zero_point: 220758
-    leg_rf_ecd_zero_point: 119271
-    big_yaw_zero_point: 9724
+    joint6_zero_point: 43588
+    joint5_zero_point: 12873
+    joint4_zero_point: 40551
+    joint3_zero_point: 15145
+    joint2_zero_point: 42587
+    joint1_zero_point: 55821
+    steering_lf_zero_point: 3051 #7168  
+    steering_lb_zero_point: 6480 #2362  
+    steering_rb_zero_point: 266  #4391  
+    steering_rf_zero_point: 7859 #3782  
+    # leg_lf_ecd_zero_point: 220679
+    # leg_lb_ecd_zero_point: 153149
+    # leg_rb_ecd_zero_point: 220758
+    # leg_rf_ecd_zero_point: 119271
+    big_yaw_zero_point: 9443
 
 image_transmission:
   ros__parameters:
@@ -99,17 +100,17 @@ big_yaw_angle_error_pid_controller:
   ros__parameters:
     measurement: /chassis/big_yaw/target_angle_error
     control: /chassis/big_yaw/control_vel
-    kp: 61.3
+    kp: 40.0
     ki: 0.0
-    kd: 2.6
+    kd: 10.0
 big_yaw_velocity_pid_controller:
   ros__parameters:
     measurement: /chassis/big_yaw/velocity
     setpoint: /chassis/big_yaw/control_vel
     control: /chassis/big_yaw/control_torque
-    kp: 3.99
+    kp: 1.5
     ki: 0.0
-    kd: 0.039
+    kd: 0.0
 
 chassis_controller:
   ros__parameters:
