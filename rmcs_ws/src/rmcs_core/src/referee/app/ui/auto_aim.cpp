@@ -1,5 +1,4 @@
 #include <algorithm>
-#include <array>
 #include <cmath>
 #include <format>
 #include <iterator>
@@ -64,14 +63,13 @@ public:
                 return;
             }
 
-            target_distance_text_index_ ^= 1u;
-            auto& text = target_distance_text_[target_distance_text_index_];
-            text.clear();
-            std::format_to(std::back_inserter(text), "{:.1f}m", distance);
-            if (text.size() > kMaxTextLength)
-                text.resize(kMaxTextLength);
+            auto& text = target_distance_text_;
+            text.resize(kMaxTextLength);
+            std::ranges::fill(text, ' ');
 
-            target_distance_indicator_.set_value(text.c_str());
+            std::format_to(std::ranges::begin(text), "{:.1f}m\0", distance);
+
+            target_distance_indicator_.set_value(text.data());
             target_distance_indicator_.set_visible(true);
         }
 
@@ -154,11 +152,11 @@ private:
     Line cross_bottom_{Shape::Color::GREEN, 2, 0, 0, 0, 0, false};
     Line cross_left_{Shape::Color::GREEN, 2, 0, 0, 0, 0, false};
     Line cross_right_{Shape::Color::GREEN, 2, 0, 0, 0, 0, false};
+
+    std::string target_distance_text_{"unknown"};
     Text target_distance_indicator_{
-        Shape::Color::GREEN, 20, 2, kScreenW / 2 + 34, kScreenH / 2 + 24, "", false,
+        Shape::Color::GREEN, 15, 2, kScreenW / 2 + 34, kScreenH / 2 + 24, "unknown", false,
     };
-    std::array<std::string, 2> target_distance_text_{};
-    std::size_t target_distance_text_index_ = 0;
 
     void hide_all() {
         center_ring_.set_visible(false);
