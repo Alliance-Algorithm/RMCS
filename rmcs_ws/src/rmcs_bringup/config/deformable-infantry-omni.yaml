@@ -31,7 +31,7 @@ rmcs_executor:
       - rmcs_core::controller::chassis::DeformableJointController -> rb_joint_controller
       - rmcs_core::controller::chassis::DeformableJointController -> rf_joint_controller
 
-      - rmcs::AutoAimComponent
+      - rmcs::AutoAimComponent -> auto_aim_component
       - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
 
       # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
@@ -55,6 +55,12 @@ value_broadcaster:
     forward_list:
       - /gimbal/pitch/angle
       - /gimbal/pitch/velocity
+
+auto_aim_component:
+  ros__parameters:
+    # 手动开火开关，若开启，右键自瞄并锁定后，还需要按下鼠标左键
+    # 或者左拨杆向下确认才能发射
+    manual_shoot: true
 
 auto_aim_capturer:
   ros__parameters:
