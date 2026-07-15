@@ -482,7 +482,8 @@ private:
         void gpio_digital_read_result_callback(
             const librmcs::spec::rmcs_board_lite::GpioDescriptor& gpio,
             const librmcs::data::GpioDigitalDataView& data) override {
-            if (gpio == librmcs::spec::rmcs_board_lite::kGpioDescriptors.kUart1Rx) {
+
+            /*  */ if (gpio == librmcs::spec::rmcs_board_lite::kGpioDescriptors.kUart1Rx) {
                 photoelectric_sensor_status_atomic.store(data.high);
             } else if (gpio == librmcs::spec::rmcs_board_lite::kGpioDescriptors.kUart1Tx) {
                 if (!data.timestamp_quarter_us)

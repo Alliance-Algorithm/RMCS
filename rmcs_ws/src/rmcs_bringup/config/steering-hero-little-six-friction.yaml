@@ -8,6 +8,7 @@ rmcs_executor:
       - rmcs_core::referee::command::Interaction -> referee_interaction
       - rmcs_core::referee::command::interaction::Ui -> referee_ui
       - rmcs_core::referee::app::ui::Hero -> referee_ui_hero
+      - rmcs_core::referee::app::ui::AutoAimUi -> auto_aim_ui
       - rmcs_core::referee::Command -> referee_command
 
       - rmcs_core::controller::gimbal::HeroGimbalController -> gimbal_controller
@@ -71,14 +72,21 @@ auto_aim_capturer:
   ros__parameters:
     camera_name: ""
     exposure_us: 2000.0
-    gain: 16.9807
-    framerate: 249.1
+    gain: 8.0
+    framerate: 80.0
     invert_image: false
     rls_tau_sec: 10.0
+    use_hardware_sync: false
 
 auto_aim_component:
   ros__parameters:
     manual_shoot: false
+
+auto_aim_ui:
+  ros__parameters:
+    offset_x: 0.000
+    offset_y: 0.000
+    offset_z: 0.000
 
 value_broadcaster:
   ros__parameters:
@@ -176,19 +184,19 @@ gimbal_controller:
 
 dual_yaw_controller:
   ros__parameters:
-    top_yaw_angle_kp: 14.0 #30.2
+    top_yaw_angle_kp: 14.0 # 30.2
     top_yaw_angle_ki: 0.0
     top_yaw_angle_kd: 0.0
-    top_yaw_velocity_kp: 9.37 #11.0
-    top_yaw_velocity_ki: 0.00033 #0.00029
+    top_yaw_velocity_kp: 9.37 # 11.0
+    top_yaw_velocity_ki: 0.00033 # 0.00029
     top_yaw_velocity_kd: 0.0
     top_yaw_velocity_integral_min: -2500.0
     top_yaw_velocity_integral_max: 2500.0
-    bottom_yaw_angle_kp: 10.0 #18.4
+    bottom_yaw_angle_kp: 10.0 # 18.4
     bottom_yaw_angle_ki: 0.0
     bottom_yaw_angle_kd: 0.0
-    bottom_yaw_velocity_kp: 2.00 #2.81
-    bottom_yaw_velocity_ki: 0.000071 #0.00028
+    bottom_yaw_velocity_kp: 2.00 # 2.81
+    bottom_yaw_velocity_ki: 0.000071 # 0.00028
     bottom_yaw_velocity_kd: 0.0
     bottom_yaw_velocity_integral_min: -2500.0
     bottom_yaw_velocity_integral_max: 2500.0
@@ -258,19 +266,19 @@ friction_wheel_controller:
       - 480.0
       - 480.0
       - 480.0
-      # - 527.0  
-      # - 527.0 
-      # - 527.0 
-      # - 435.0 
-      # - 435.0 
-      # - 435.0 
+      # - 527.0
+      # - 527.0
+      # - 527.0
+      # - 435.0
+      # - 435.0
+      # - 435.0
     friction_velocities_profile_1:
-      - 527.0  
-      - 527.0 
-      - 527.0 
-      - 435.0 
-      - 435.0 
-      - 435.0 
+      - 527.0
+      - 527.0
+      - 527.0
+      - 435.0
+      - 435.0
+      - 435.0
     friction_soft_start_stop_time: 1.0
 
 heat_controller:
