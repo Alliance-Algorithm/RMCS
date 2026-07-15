@@ -358,13 +358,13 @@ private:
             if (++count_ == 250) {
                 for (int i = 0; i < 6; ++i) {
                     if (friciton_detect[i] == 0) {
-                        RCLCPP_WARN(logger_, "can id 0x%03X missing", i + 0x201);
+                        RCLCPP_WARN(logger_, "friction can id 0x%03X missing", i + 0x201);
                     }
                 }
                 std::fill_n(friciton_detect, 6, 0);
                 for (int i = 0; i < 3; ++i) {
                     if (can0_detect[i] == 0) {
-                        RCLCPP_WARN(logger_, "can id 0x%03X missing", i + 0x141);
+                        RCLCPP_WARN(logger_, "top board can id 0x%03X missing", i + 0x141);
                     }
                 }
                 std::fill_n(can0_detect, 3, 0);
@@ -689,7 +689,7 @@ private:
             if (++count_ == 250) {
                 for (int i = 0; i < 8; ++i) {
                     if (check[i] == 0) {
-                        RCLCPP_WARN(logger_, "can id 0x%03X missing", i + 0x201);
+                        RCLCPP_WARN(logger_, "bottom board can id 0x%03X missing", i + 0x201);
                     }
                 }
                 std::fill_n(check, 8, 0);

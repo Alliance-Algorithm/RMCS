@@ -58,16 +58,16 @@ hero_hardware:
   ros__parameters:
     board_serial_top_board: "AF-8AE3-4EC1-03C3-C494-88FE-2DC4-3018-0298"
     serial_bottom_rmcs_board: "AF-60BB-7484-FA24-F3FC-399B-454D-22FA-1B1D"
-    bottom_yaw_motor_zero_point: 34622
+    bottom_yaw_motor_zero_point: 35110
     pitch_motor_zero_point: 23653
-    top_yaw_motor_zero_point: 48150
+    top_yaw_motor_zero_point: 48525
     viewer_motor_zero_point:  31940
     external_imu_port: /dev/ttyUSB0
     bullet_feeder_motor_zero_point: 60480 #39045
-    left_front_zero_point: 5826
-    right_front_zero_point: 5095
-    left_back_zero_point:  7804
-    right_back_zero_point: 1750
+    left_front_zero_point: 5790
+    right_front_zero_point: 5114
+    left_back_zero_point:  7868
+    right_back_zero_point: 1640
 
 value_broadcaster:
   ros__parameters:
@@ -79,6 +79,10 @@ value_broadcaster:
       # - /chassis/left_back_steering/torque
       # - /chassis/right_front_steering/torque
       # - /chassis/right_back_steering/torque
+      - /chassis/left_front_steering/velocity
+      - /chassis/left_back_steering/velocity
+      - /chassis/right_front_steering/velocity
+      - /chassis/right_back_steering/velocity
       # - /shoot/heat12707
       # - /chassis/power
       # - /referee/chassis/power
@@ -117,7 +121,7 @@ value_broadcaster:
       # - /gimbal/bullet_feeder/torque
       # - /gimbal/bullet_feeder/control_torque
       # - /gimbal/putter/angle
-      - /gimbal/putter/velocity
+      # - /gimbal/putter/velocity
       # - /gimbal/putter/torque
       # - /gimbal/putter/control_torque
       # - /gimbal/bullet_feeder/velocity
@@ -126,19 +130,19 @@ value_broadcaster:
 
 climber_controller:
   ros__parameters:
-    front_climber_velocity: 20.0
+    front_climber_velocity: 22.0
     back_climber_velocity: 30.0
     auto_climb_support_retract_velocity_fast: 70.0
     auto_climb_support_retract_velocity_slow: 20.0
-    auto_climb_approach_chassis_velocity: 1.8
-    auto_climb_support_deploy_chassis_velocity: 0.3
+    auto_climb_approach_chassis_velocity: 2.0
+    auto_climb_support_deploy_chassis_velocity: 0.4
     auto_climb_support_retract_chassis_velocity: 0.15
     auto_climb_dash_chassis_velocity: 3.0
     first_stair_dash_leveled_pitch_threshold: 0.05
     second_stair_dash_leveled_pitch_threshold: -0.09
     sync_coefficient: 0.2
     first_stair_approach_pitch: 0.517
-    second_stair_approach_pitch: 0.365    
+    second_stair_approach_pitch: 0.37 #0.365    
     front_kp: 1.0
     front_ki: 0.0
     front_kd: 0.5
@@ -238,12 +242,12 @@ friction_wheel_controller:
       - /gimbal/second_back_friction
       - /gimbal/third_back_friction
     friction_velocities_profile_0:
-      - 530.0 
-      - 530.0 
-      - 530.0 
-      - 454.0 
-      - 454.0
-      - 454.0
+      - 527.0 #530.0 
+      - 527.0 #530.0 
+      - 527.0 #530.0 
+      - 435.0 #454.0 
+      - 435.0 #454.0
+      - 435.0 #454.0
     friction_velocities_profile_1:
       - 408.0
       - 408.0
@@ -279,7 +283,7 @@ second_front_friction_velocity_pid_controller:
     setpoint: /gimbal/second_front_friction/control_velocity
     control: /gimbal/second_front_friction/control_torque
     kp: 0.006035661 
-    ki: 0.00008
+    ki: 0.00003
     kd: 0.000001
 
 third_front_friction_velocity_pid_controller:
@@ -305,7 +309,7 @@ second_back_friction_velocity_pid_controller:
     measurement: /gimbal/second_back_friction/velocity
     setpoint: /gimbal/second_back_friction/control_velocity
     control: /gimbal/second_back_friction/control_torque
-    kp: 0.0085 #0.007795934 
+    kp: 0.007795934 
     ki: 0.00
     kd: 0.00003
 
@@ -389,7 +393,7 @@ pitch_swept_frequency_controller:
     start_freq: 0.1
     end_freq: 10.0
     duration: 60.0
-    amplitude: 10.0
+    amplitude: 6.8
 
     pid: true
     setpoint: 0.0
@@ -405,9 +409,9 @@ pitch_static_torque_test_controller:
   ros__parameters:
     target: /gimbal/pitch
 
-    interval_angle: 0.05
+    interval_angle: 0.02
     wait_time: 1.5
-    border_clip: 0.05
+    border_clip: 0.02
 
     position_kp: 12.0
     position_ki: 0.0
