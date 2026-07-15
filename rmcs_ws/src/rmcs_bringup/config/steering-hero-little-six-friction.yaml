@@ -35,13 +35,8 @@ rmcs_executor:
       - rmcs_core::controller::chassis::HeroSteeringWheelController -> steering_wheel_controller
       - rmcs_core::controller::chassis::ChassisClimberController -> climber_controller
 
-      # - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
-      # - rmcs_auto_aim::AutoAimController -> auto_aim_controller
-
       # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
-
-      # - sp_vision_25::bridge::HeroAutoAimBridge -> hero_auto_aim_bridge
 
       # - rmcs_core::controller::identification::SweptFrequencyController -> pitch_swept_frequency_controller
       # - rmcs_core::controller::identification::StaticTorqueTestController -> pitch_static_torque_test_controller
