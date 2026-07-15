@@ -119,6 +119,8 @@ public:
         auto keyboard = *keyboard_;
         auto rotary_knob_switch = *rotary_knob_switch_;
 
+        // RCLCPP_INFO(get_logger(), "%f", *chassis_pitch_imu_);
+
         bool rotary_knob_to_down =
             (last_rotary_knob_switch_ != Switch::DOWN && rotary_knob_switch == Switch::DOWN);
         bool rotary_knob_from_down =

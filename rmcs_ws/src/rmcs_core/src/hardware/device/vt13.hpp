@@ -70,9 +70,9 @@ public:
             else {
                 unknown_prefix_count_++;
                 if (should_log_verification_failure(now)) {
-                    RCLCPP_WARN(
-                        logger_, "VT13 unknown prefix: front=0x%02x readable=%zu",
-                        std::to_integer<unsigned int>(front), readable);
+                    // RCLCPP_WARN(
+                    //     logger_, "VT13 unknown prefix: front=0x%02x readable=%zu",
+                    //     std::to_integer<unsigned int>(front), readable);
                 }
             }
 
