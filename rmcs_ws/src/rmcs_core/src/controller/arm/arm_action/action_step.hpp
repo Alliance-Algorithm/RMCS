@@ -9,7 +9,7 @@
 
 namespace rmcs_core::controller::arm::Action {
 
-enum class MotionType { Pose, Linear, Joint, OpenGripper, CloseGripper };
+enum class MotionType { Pose, Linear, Joint, OpenGripper, CloseGripper,Delay };
 
 struct PoseTarget {
     double x, y, z, roll, pitch, yaw;
@@ -68,6 +68,10 @@ public:
     static Step makeCloseGripper() {
         return Step(MotionType::CloseGripper, "", "", NoTarget{}, MotionParams{});
     }
+    static Step makeDelay() {
+        return Step(MotionType::Delay, "", "", NoTarget{}, MotionParams{});
+    }
+
 
     // ---------- 访问器 ----------
     MotionType type() const { return motion_type_; }

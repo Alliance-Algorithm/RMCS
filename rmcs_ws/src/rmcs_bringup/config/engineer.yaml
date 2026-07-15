@@ -39,11 +39,11 @@ engineer_hardware:
     board_serial_right_board: "D4-D354-B7C8-A457-ECB1-11A9-998E"
     gripper_zero_point: 26298
     image_pitch_zero_point: 43131
-    joint6_zero_point: 12450
+    joint6_zero_point: 7804
     joint5_zero_point: 37436
     joint4_zero_point: 32721
     joint3_zero_point: 28459
-    joint2_zero_point: 31222 
+    joint2_zero_point: 31605
     joint1_zero_point: 14865
     steering_lf_zero_point: 1343
     steering_lb_zero_point: 4096
@@ -68,6 +68,12 @@ arm_controller:
 arm_solver:
   ros__parameters:
     controller_list: [pid, gravity, friction]
+    joint_6_angle_kp: 65.00
+    joint_6_angle_ki: 0.0
+    joint_6_angle_kd: 0.04
+    joint_6_vel_kp: 0.08
+    joint_6_vel_ki: 0.0002
+    joint_6_vel_kd: 0.000
 
 leg_controller:
   ros__parameters:
@@ -99,7 +105,7 @@ gripper_angle_pid_controller:
     measurement: /arm/gripper/motor/angle
     setpoint: /arm/gripper/target_theta
     control: /arm/gripper/control_vel
-    kp: 230.0
+    kp: 4.8
     ki: 0.0
     kd: 0.0
 
@@ -108,9 +114,9 @@ gripper_velocity_pid_controller:
     measurement: /arm/gripper/motor/velocity
     setpoint: /arm/gripper/control_vel
     control: /arm/gripper/motor/control_torque
-    kp: 0.8
+    kp: 0.08
     ki: 0.0
-    kd: 0.02
+    kd: 0.0
 
 
 image_pitch_angle_pid_controller:
@@ -230,5 +236,13 @@ value_broadcaster:
       - "/arm/gripper/motor/angle"
       - "pitch_imu_angle"
       - "/leg/pitch_imu_angle_offsetted"
-
+      - "/arm/joint_6/motor/velocity"
+      - "/arm/joint_6/motor/angle"
+      - "/arm/joint_6/motor/torque"
+      - "/arm/joint_1/motor/velocity"
+      - "/arm/joint_1/motor/angle"
+      - "/arm/joint_1/motor/torque"
+      - "/arm/joint_2/motor/velocity"
+      - "/arm/joint_2/motor/angle"
+      - "/arm/joint_2/motor/torque"
     

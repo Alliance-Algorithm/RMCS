@@ -55,9 +55,13 @@ public:
         rightboard_.update();
     }
     void command() {
-        armboard_.command();
-        leftboard_.command();
-        rightboard_.command();
+        static int skip_counter{0};
+        if (skip_counter % 2 == 0) {
+            armboard_.command();
+            leftboard_.command();
+            rightboard_.command();
+        }
+        skip_counter++;
     }
 
 private:
@@ -106,20 +110,25 @@ private:
             , bmi088_(1000, 0.2, 0)
 
         {
-
             engineer.register_output("yaw_imu_velocity", yaw_imu_velocity, NAN);
             engineer.register_output("yaw_imu_angle", yaw_imu_angle, NAN);
             engineer.register_output("pitch_imu_velocity", pitch_imu_velocity, NAN);
             engineer.register_output("pitch_imu_angle", pitch_imu_angle, NAN);
             engineer.register_output("roll_imu_velocity", roll_imu_velocity, NAN);
             engineer.register_output("roll_imu_angle", roll_imu_angle, NAN);
+            engineer_command.register_input(
+                "/arm/gripper_initial", initial_gripper_done_flag, false);
             using namespace device;
             image_pitch.configure(
                 LKMotorConfig{LKMotorType::MG4010E_i10V3}.reverse().set_encoder_zero_point(
                     static_cast<int>(engineer.get_parameter("image_pitch_zero_point").as_int())));
             gripper.configure(
-                LKMotorConfig{LKMotorType::MG4005E_i10V3}.set_encoder_zero_point(
-                    static_cast<uint16_t>(engineer.get_parameter("gripper_zero_point").as_int())));
+                LKMotorConfig{LKMotorType::MG4005E_i10V3}
+                    .set_encoder_zero_point(
+                        static_cast<uint16_t>(
+                            engineer.get_parameter("gripper_zero_point").as_int()))
+                    .enable_multi_turn_angle()
+                    .reverse());
             joint[5].configure(
                 LKMotorConfig{LKMotorType::MHF6015}.reverse().set_encoder_zero_point(
                     static_cast<uint16_t>(engineer.get_parameter("joint6_zero_point").as_int())));
@@ -149,14 +158,32 @@ private:
         ~ArmBoard() final {
             auto tx = start_transmit();
             for (int i = 0; i < 10; i++) {
-                tx.can2_transmit({.can_id = 0x145, .can_data = joint[4].lk_close().as_bytes()});
-                tx.can2_transmit({.can_id = 0x144, .can_data = joint[3].lk_close().as_bytes()});
-                tx.can2_transmit({.can_id = 0x141, .can_data = joint[5].lk_close().as_bytes()});
-                tx.can2_transmit({.can_id = 0x147, .can_data = gripper.lk_close().as_bytes()});
-                tx.can1_transmit({.can_id = 0x148, .can_data = image_pitch.lk_close().as_bytes()});
-                tx.can1_transmit({.can_id = 0x142, .can_data = joint[1].lk_close().as_bytes()});
-                tx.can1_transmit({.can_id = 0x143, .can_data = joint[2].lk_close().as_bytes()});
-                tx.can1_transmit({.can_id = 0x141, .can_data = joint[0].lk_close().as_bytes()});
+                if (i % 2 == 0) {
+                    tx.can2_transmit(
+                        {.can_id   = 0x145,
+                         .can_data = joint[4].lk_zero_torque_command().as_bytes()});
+                    tx.can2_transmit(
+                        {.can_id   = 0x144,
+                         .can_data = joint[3].lk_zero_torque_command().as_bytes()});
+                    tx.can1_transmit(
+                        {.can_id   = 0x148,
+                         .can_data = image_pitch.lk_zero_torque_command().as_bytes()});
+                    tx.can1_transmit(
+                        {.can_id   = 0x143,
+                         .can_data = joint[2].lk_zero_torque_command().as_bytes()});
+                } else {
+                    tx.can2_transmit(
+                        {.can_id   = 0x141,
+                         .can_data = joint[5].lk_zero_torque_command().as_bytes()});
+                    tx.can2_transmit(
+                        {.can_id = 0x147, .can_data = gripper.lk_zero_torque_command().as_bytes()});
+                    tx.can1_transmit(
+                        {.can_id   = 0x142,
+                         .can_data = joint[1].lk_zero_torque_command().as_bytes()});
+                    tx.can1_transmit(
+                        {.can_id   = 0x141,
+                         .can_data = joint[0].lk_zero_torque_command().as_bytes()});
+                }
             }
         }
 
@@ -165,6 +192,7 @@ private:
             update_arm_motors();
             dr16_.update_status();
             update_imu();
+            gripper_set_zero();
         }
         void command() { update_arm_command(); }
 
@@ -249,13 +277,25 @@ private:
             *pitch_imu_angle = std::asin(std::clamp(2.0 * (q0 * q2 - q3 * q1), -1.0, 1.0));
             *yaw_imu_angle = std::atan2(2.0 * (q0 * q3 + q1 * q2), 1.0 - 2.0 * (q2 * q2 + q3 * q3));
         }
+        void gripper_set_zero() {
+            if (last_initial_gripper_done_flag != *initial_gripper_done_flag
+                && *initial_gripper_done_flag == true) {
+                gripper.configure(
+                    rmcs_core::hardware::device::LKMotorConfig{
+                        rmcs_core::hardware::device::LKMotorType::MG4005E_i10V3}
+                        .set_encoder_zero_point(static_cast<uint16_t>(gripper.get_raw_angle()))
+                        .enable_multi_turn_angle()
+                        .reverse());
+            }
+            last_initial_gripper_done_flag = *initial_gripper_done_flag;
+        }
 
     protected:
         void can2_receive_callback(const librmcs::data::CanDataView& data) override {
             if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
                 [[unlikely]]
                 return;
-
+            // RCLCPP_INFO(this->get_logger(),"can2 id %x",data.can_id);;
             if (data.can_id == 0x141) {
                 joint[5].store_status(data.can_data);
             } else if (data.can_id == 0x145) {
@@ -272,15 +312,20 @@ private:
                 return;
 
             if (data.can_id == 0x143) {
+                                RCLCPP_INFO(this->get_logger(), "joint3");
                 joint[2].store_status(data.can_data);
             } else if (data.can_id == 0x142) {
+                                RCLCPP_INFO(this->get_logger(), "joint2");
                 joint[1].store_status(data.can_data);
             } else if (data.can_id == 0x141) {
+                                RCLCPP_INFO(this->get_logger(), "joint1");
                 joint[0].store_status(data.can_data);
             } else if (data.can_id == 0x200) {
+                RCLCPP_INFO(this->get_logger(), "encoder");
                 joint2_encoder.store_status(data.can_data);
             } else if (data.can_id == 0x148) {
                 image_pitch.store_status(data.can_data);
+                RCLCPP_INFO(this->get_logger(), "image");
             };
         }
 
@@ -310,6 +355,8 @@ private:
         OutputInterface<double> pitch_imu_angle;
         OutputInterface<double> roll_imu_velocity;
         OutputInterface<double> roll_imu_angle;
+        InputInterface<bool> initial_gripper_done_flag;
+        bool last_initial_gripper_done_flag{false};
         device::Bmi088 bmi088_;
 
     } armboard_;

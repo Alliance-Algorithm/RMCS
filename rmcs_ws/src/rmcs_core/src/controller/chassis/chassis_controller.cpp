@@ -17,7 +17,6 @@ namespace rmcs_core::controller::chassis {
 class ChassisController
     : public rmcs_executor::Component
     , public rclcpp::Node {
-
 public:
     ChassisController()
         : Node(
@@ -49,7 +48,6 @@ public:
     }
     void update() override {
         using namespace rmcs_msgs;
-        //  RCLCPP_INFO(this->get_logger(), "%s", up_stairs_step_->c_str());
 
         static bool initial_check_done_ = false;
 
@@ -175,9 +173,13 @@ private:
             }
             if (last_arm_mode_ != *arm_mode_) {
                 switch (*arm_mode_) {
+                case rmcs_msgs::ArmMode::Auto_Extract_LF:
                 case rmcs_msgs::ArmMode::Auto_Extract_LB:
+                case rmcs_msgs::ArmMode::Auto_Extract_RF:
                 case rmcs_msgs::ArmMode::Auto_Extract_RB:
+                case rmcs_msgs::ArmMode::Auto_Storage_LF:
                 case rmcs_msgs::ArmMode::Auto_Storage_LB:
+                case rmcs_msgs::ArmMode::Auto_Storage_RF:
                 case rmcs_msgs::ArmMode::Auto_Storage_RB:
                 case rmcs_msgs::ArmMode::Custome:
                     set_speed_gear(SpeedGear::Low);

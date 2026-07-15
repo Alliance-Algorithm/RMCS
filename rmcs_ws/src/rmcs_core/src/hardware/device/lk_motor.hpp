@@ -296,7 +296,7 @@ public:
     static CanPacket8 lk_quest_command() { return CanPacket8{uint64_t{0x9C}}; }
     static CanPacket8 lk_enable_command() { return CanPacket8{uint64_t{0x88}}; }
     static CanPacket8 lk_close_command() { return CanPacket8{uint64_t{0x80}}; }
-    static CanPacket8 lk_close() { return CanPacket8{uint64_t(LK_CLOSE)}; }
+    static CanPacket8 lk_zero_torque_command() { return CanPacket8{uint64_t{0xA1}}; }
 
     double get_angle() { return *angle_; }
     double get_velocity() { return *velocity_; }
@@ -326,9 +326,7 @@ private:
     double raw_angle_to_angle_coefficient_, angle_to_raw_angle_coefficient_;
     double raw_velocity_to_velocity_coefficient_, velocity_to_raw_velocity_coefficient_;
     double raw_current_to_torque_coefficient_, torque_to_raw_current_coefficient_;
-
-    static constexpr uint8_t LK_CLOSE[8] = {0xA1, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-
+    
     Component::OutputInterface<double> gear_ratio_;
     Component::OutputInterface<double> max_torque_;
     Component::OutputInterface<double> rated_torque_;
