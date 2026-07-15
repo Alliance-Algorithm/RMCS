@@ -75,14 +75,17 @@ public:
         register_output("/gimbal/shoot/delay_ms", shoot_delay_ms_, nan_);
 
         // auto_aim
-        // register_input("/gimbal/auto_aim/fire_control", fire_control_, false);
+        register_input("/auto_aim/should_shoot", should_shoot_, false);
 
         register_output("/gimbal/shooter/mode", shoot_mode_, rmcs_msgs::ShootMode::SINGLE);
         register_output("/gimbal/shooter/condiction", shoot_condiction_);
         register_output("/gimbal/shooter/preloaded_ready", preloaded_ready_, false);
     }
 
-    ~PutterController() {}
+    void before_updating() override {
+        if (!should_shoot_.ready())
+            should_shoot_.bind_directly(false);
+    }
 
     void update() override {
         const auto switch_right = *switch_right_;
@@ -144,11 +147,8 @@ public:
                             || (last_switch_left_ == rmcs_msgs::Switch::MIDDLE
                                 && switch_left == rmcs_msgs::Switch::DOWN);
 
-                        // const bool auto_fire_now = (switch_right == Switch::UP) &&
-                        // (*fire_control_);
-                        const bool auto_fire_now = false;
-                        // (switch_right == Switch::UP || (mouse.right && mouse.left))
-                        // && (*fire_control_);
+                        const bool auto_fire_now =
+                            (switch_right == Switch::UP || mouse.right) && *should_shoot_;
 
                         const bool auto_trigger_emergence = mouse.right && (click_count_ >= 2);
 
@@ -383,7 +383,7 @@ private:
 
     OutputInterface<double> shoot_delay_ms_;
 
-    InputInterface<bool> fire_control_;
+    InputInterface<bool> should_shoot_;
     std::chrono::steady_clock::time_point last_fire_time_{};
     std::chrono::steady_clock::time_point last_click_time_{};
     int click_count_ = 0;

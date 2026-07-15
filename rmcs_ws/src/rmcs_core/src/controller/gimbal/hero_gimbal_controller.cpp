@@ -33,7 +33,7 @@ public:
         register_input("/remote/mouse", mouse_);
         register_input("/remote/keyboard", keyboard_);
 
-        register_input("/gimbal/auto_aim/control_direction", auto_aim_control_direction_, false);
+        register_input("/auto_aim/control_direction", auto_aim_control_direction_, false);
         register_input("/tf", tf_);
 
         register_output("/gimbal/mode", gimbal_mode_, rmcs_msgs::GimbalMode::IMU);
@@ -114,9 +114,8 @@ public:
     }
 
     TwoAxisGimbalSolver::AngleError update_imu_control() {
-        if (auto_aim_control_direction_.ready()
-            && (mouse_->right || *switch_right_ == rmcs_msgs::Switch::UP)
-            && !auto_aim_control_direction_->isZero()) {
+        if (auto_aim_control_direction_.ready() && !auto_aim_control_direction_->isZero()
+            && (mouse_->right || *switch_right_ == rmcs_msgs::Switch::UP)) {
             return imu_gimbal_solver_.update(
                 TwoAxisGimbalSolver::SetControlDirection{
                     OdomImu::DirectionVector{*auto_aim_control_direction_}});

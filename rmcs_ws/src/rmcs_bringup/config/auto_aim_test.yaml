@@ -1,0 +1,31 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      # - rmcs::AutoAimPlayerComponent -> auto_aim_player
+      - rmcs::AutoAimVideoPlayerComponent -> auto_aim_video_player
+      - rmcs::AutoAimRecorderComponent -> auto_aim_recorder
+      - rmcs::AutoAimComponent -> auto_aim_component
+
+auto_aim_player:
+  ros__parameters:
+    input_path: "/workspaces/data/autoaim/2026-07-11_22-39-06/"
+    loop_play: true
+
+auto_aim_video_player:
+  ros__parameters:
+    input_path: "/workspaces/data/autoaim/robot/rotate.avi"
+    framerate: 40.0
+    loop_play: true
+
+auto_aim_recorder:
+  ros__parameters:
+    output_path: "/tmp/autoaim/records"
+    queue_depth: 16
+    flush_every_n_frames: 64
+    max_duration_seconds: 0
+    max_videos_size_gb: 0.0
+
+auto_aim_component:
+  ros__parameters:
+    manual_shoot: false
