@@ -24,11 +24,7 @@ public:
     HeroGimbalController()
         : Node(
               get_component_name(),
-              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , upper_limit_(get_parameter("upper_limit").as_double())
-        , lower_limit_(get_parameter("lower_limit").as_double())
-        , imu_gimbal_solver(*this, upper_limit_, lower_limit_)
-        , encoder_gimbal_solver(*this, upper_limit_, lower_limit_) {
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
 
         register_input("/remote/joystick/left", joystick_left_);
         register_input("/remote/switch/left", switch_left_);
@@ -38,8 +34,6 @@ public:
         register_input("/remote/keyboard", keyboard_);
 
         register_input("/gimbal/auto_aim/control_direction", auto_aim_control_direction_, false);
-        register_input("/gimbal/pitch/angle", gimbal_pitch_angle_);
-        register_input("/gimbal/pitch/raw_angle", gimbal_pitch_raw_angle_);
         register_input("/tf", tf_);
 
         register_output("/gimbal/mode", gimbal_mode_, rmcs_msgs::GimbalMode::IMU);
@@ -88,12 +82,12 @@ public:
                 *yaw_angle_error_ = angle_error.yaw_angle_error;
                 *pitch_angle_error_ = angle_error.pitch_angle_error;
 
-                encoder_gimbal_solver.update(PreciseTwoAxisGimbalSolver::SetDisabled{});
+                encoder_gimbal_solver_.update(PreciseTwoAxisGimbalSolver::SetDisabled{});
                 *yaw_control_angle_shift_ = nan_;
                 *pitch_control_angle_ = nan_;
 
             } else {
-                imu_gimbal_solver.update(TwoAxisGimbalSolver::SetDisabled{});
+                imu_gimbal_solver_.update(TwoAxisGimbalSolver::SetDisabled{});
                 *yaw_angle_error_ = nan_;
                 *pitch_angle_error_ = nan_;
 
@@ -107,8 +101,8 @@ public:
     }
 
     void reset_all_control() {
-        imu_gimbal_solver.update(TwoAxisGimbalSolver::SetDisabled{});
-        encoder_gimbal_solver.update(PreciseTwoAxisGimbalSolver::SetDisabled{});
+        imu_gimbal_solver_.update(TwoAxisGimbalSolver::SetDisabled{});
+        encoder_gimbal_solver_.update(PreciseTwoAxisGimbalSolver::SetDisabled{});
 
         gimbal_mode_keyboard_ = rmcs_msgs::GimbalMode::IMU;
         *gimbal_mode_ = rmcs_msgs::GimbalMode::IMU;
@@ -123,13 +117,13 @@ public:
         if (auto_aim_control_direction_.ready()
             && (mouse_->right || *switch_right_ == rmcs_msgs::Switch::UP)
             && !auto_aim_control_direction_->isZero()) {
-            return imu_gimbal_solver.update(
+            return imu_gimbal_solver_.update(
                 TwoAxisGimbalSolver::SetControlDirection{
                     OdomImu::DirectionVector{*auto_aim_control_direction_}});
         }
 
-        if (!imu_gimbal_solver.enabled())
-            return imu_gimbal_solver.update(TwoAxisGimbalSolver::SetToLevel{});
+        if (!imu_gimbal_solver_.enabled())
+            return imu_gimbal_solver_.update(TwoAxisGimbalSolver::SetToLevel{});
 
         constexpr double joystick_sensitivity = 0.006;
         constexpr double mouse_sensitivity = 0.5;
@@ -139,7 +133,7 @@ public:
         double pitch_shift =
             -joystick_sensitivity * joystick_left_->x() + mouse_sensitivity * mouse_velocity_->x();
 
-        return imu_gimbal_solver.update(
+        return imu_gimbal_solver_.update(
             TwoAxisGimbalSolver::SetControlShift{yaw_shift, pitch_shift});
     }
 
@@ -150,13 +144,13 @@ public:
         auto current_direction =
             fast_tf::cast<OdomImu>(PitchLink::DirectionVector{Eigen::Vector3d::UnitX()}, *tf_);
 
-        return imu_gimbal_solver.update(
+        return imu_gimbal_solver_.update(
             TwoAxisGimbalSolver::SetControlDirection{OdomImu::DirectionVector{*current_direction}});
     }
 
     PreciseTwoAxisGimbalSolver::ControlAngle update_encoder_control() {
-        if (!encoder_gimbal_solver.enabled()) {
-            return encoder_gimbal_solver.update(
+        if (!encoder_gimbal_solver_.enabled()) {
+            return encoder_gimbal_solver_.update(
                 PreciseTwoAxisGimbalSolver::SetControlPitch{encoder_init_pitch_});
         }
 
@@ -169,7 +163,7 @@ public:
         double pitch_shift = -joystick_sensitivity * joystick_left_->x()
                            + mouse_pitch_sensitivity * mouse_velocity_->x();
 
-        return encoder_gimbal_solver.update(
+        return encoder_gimbal_solver_.update(
             PreciseTwoAxisGimbalSolver::SetControlShift{yaw_shift, pitch_shift});
     }
 
@@ -190,24 +184,33 @@ private:
     rmcs_msgs::Keyboard last_keyboard_ = rmcs_msgs::Keyboard::zero();
 
     InputInterface<Eigen::Vector3d> auto_aim_control_direction_;
-    InputInterface<double> gimbal_pitch_angle_;
-    InputInterface<int64_t> gimbal_pitch_raw_angle_;
     InputInterface<Tf> tf_;
 
     rmcs_msgs::GimbalMode gimbal_mode_keyboard_ = rmcs_msgs::GimbalMode::IMU;
     OutputInterface<rmcs_msgs::GimbalMode> gimbal_mode_;
 
-    const double upper_limit_, lower_limit_;
-    TwoAxisGimbalSolver imu_gimbal_solver;
-    PreciseTwoAxisGimbalSolver encoder_gimbal_solver;
-
     OutputInterface<double> yaw_angle_error_, pitch_angle_error_;
     OutputInterface<double> yaw_control_angle_shift_, pitch_control_angle_;
+
+    struct SimpleComponent : Component {
+        auto update() -> void override {}
+    };
+    std::shared_ptr<Component> imu_gimbal_solver_component_ =
+        create_partner_component<SimpleComponent>("imu_gimbal_solver");
+    std::shared_ptr<Component> encoder_gimbal_solver_component_ =
+        create_partner_component<SimpleComponent>("encoder_gimbal_solver");
+
+    const double upper_limit_{get_parameter("upper_limit").as_double()};
+    const double lower_limit_{get_parameter("lower_limit").as_double()};
+
+    TwoAxisGimbalSolver imu_gimbal_solver_ = {
+        *imu_gimbal_solver_component_, upper_limit_, lower_limit_};
+    PreciseTwoAxisGimbalSolver encoder_gimbal_solver_ = {
+        *encoder_gimbal_solver_component_, upper_limit_, lower_limit_};
 };
 
 } // namespace rmcs_core::controller::gimbal
 
 #include <pluginlib/class_list_macros.hpp>
-
 PLUGINLIB_EXPORT_CLASS(
     rmcs_core::controller::gimbal::HeroGimbalController, rmcs_executor::Component)

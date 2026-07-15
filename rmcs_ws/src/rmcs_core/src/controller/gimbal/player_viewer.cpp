@@ -27,7 +27,6 @@ public:
         register_input("/remote/mouse/mouse_wheel", mouse_wheel_);
         register_input("/remote/keyboard", keyboard_);
 
-        register_input("/gimbal/player_viewer/angle", gimbal_pitch_angle_);
         register_input("/gimbal/player_viewer/raw_angle", gimbal_pitch_raw_angle_);
         register_input("/gimbal/player_viewer/angle", gimbal_player_viewer_angle_);
 
@@ -143,7 +142,6 @@ private:
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
     InputInterface<double> mouse_wheel_;
 
-    InputInterface<double> gimbal_pitch_angle_;
     InputInterface<int64_t> gimbal_pitch_raw_angle_;
     InputInterface<double> gimbal_player_viewer_angle_;
 

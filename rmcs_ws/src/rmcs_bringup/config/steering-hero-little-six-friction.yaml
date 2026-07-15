@@ -38,10 +38,10 @@ rmcs_executor:
       # - rmcs_auto_aim::AutoAimInitializer -> auto_aim_initializer
       # - rmcs_auto_aim::AutoAimController -> auto_aim_controller
 
-      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
-      #- rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
+      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
 
-      # - sp_vision_25::bridge::HeroAutoAimBridge -> hero_auto_aim_bridge 
+      # - sp_vision_25::bridge::HeroAutoAimBridge -> hero_auto_aim_bridge
 
       # - rmcs_core::controller::identification::SweptFrequencyController -> pitch_swept_frequency_controller
       # - rmcs_core::controller::identification::StaticTorqueTestController -> pitch_static_torque_test_controller
@@ -61,12 +61,12 @@ hero_hardware:
     bottom_yaw_motor_zero_point: 35110
     pitch_motor_zero_point: 23653
     top_yaw_motor_zero_point: 48525
-    viewer_motor_zero_point:  31940
+    viewer_motor_zero_point: 31940
     external_imu_port: /dev/ttyUSB0
     bullet_feeder_motor_zero_point: 60480 #39045
     left_front_zero_point: 5790
     right_front_zero_point: 5114
-    left_back_zero_point:  7868
+    left_back_zero_point: 7868
     right_back_zero_point: 1640
 
 value_broadcaster:
@@ -117,7 +117,7 @@ value_broadcaster:
       # - /chassis/climber/front/control_power_limit
       # - /chassis/climber/front/power_demand_estimate
       # - /chassis/climber/front/actual_power_estimate
-      # - /chassis/steering_wheel/actual_power_estimate   
+      # - /chassis/steering_wheel/actual_power_estimate
       # - /gimbal/bullet_feeder/torque
       # - /gimbal/bullet_feeder/control_torque
       # - /gimbal/putter/angle
@@ -126,7 +126,6 @@ value_broadcaster:
       # - /gimbal/putter/control_torque
       # - /gimbal/bullet_feeder/velocity
       # - /gimbal/bullet_feeder/angle
-
 
 climber_controller:
   ros__parameters:
@@ -142,7 +141,7 @@ climber_controller:
     second_stair_dash_leveled_pitch_threshold: -0.09
     sync_coefficient: 0.2
     first_stair_approach_pitch: 0.517
-    second_stair_approach_pitch: 0.37 #0.365    
+    second_stair_approach_pitch: 0.37 #0.365
     front_kp: 1.0
     front_ki: 0.0
     front_kd: 0.5
@@ -177,12 +176,12 @@ dual_yaw_controller:
     bottom_yaw_angle_kp: 10.0 #18.4
     bottom_yaw_angle_ki: 0.0
     bottom_yaw_angle_kd: 0.0
-    bottom_yaw_velocity_kp: 2.00 #2.81 
+    bottom_yaw_velocity_kp: 2.00 #2.81
     bottom_yaw_velocity_ki: 0.000071 #0.00028
     bottom_yaw_velocity_kd: 0.0
     bottom_yaw_velocity_integral_min: -2500.0
     bottom_yaw_velocity_integral_max: 2500.0
-    
+
 pitch_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/pitch/control_angle_error
@@ -204,8 +203,8 @@ pitch_velocity_pid_controller:
 
 gimbal_player_viewer_controller:
   ros__parameters:
-    upper_limit: 0.415996 
-    lower_limit: -0.066441 
+    upper_limit: 0.415996
+    lower_limit: -0.066441
 
 viewer_angle_pid_controller:
   ros__parameters:
@@ -218,7 +217,7 @@ viewer_angle_pid_controller:
 bullet_feeder_controller:
   ros__parameters:
     bullet_feeder_velocity_kp: 5.0
-    bullet_feeder_velocity_ki: 0.1 
+    bullet_feeder_velocity_ki: 0.1
     bullet_feeder_velocity_kd: 0.0
     bullet_feeder_velocity_integral_min: 0.0
     bullet_feeder_velocity_integral_max: 60.0
@@ -242,10 +241,10 @@ friction_wheel_controller:
       - /gimbal/second_back_friction
       - /gimbal/third_back_friction
     friction_velocities_profile_0:
-      - 527.0 #530.0 
-      - 527.0 #530.0 
-      - 527.0 #530.0 
-      - 435.0 #454.0 
+      - 527.0 #530.0
+      - 527.0 #530.0
+      - 527.0 #530.0
+      - 435.0 #454.0
       - 435.0 #454.0
       - 435.0 #454.0
     friction_velocities_profile_1:
@@ -273,7 +272,7 @@ first_front_friction_velocity_pid_controller:
     measurement: /gimbal/first_front_friction/velocity
     setpoint: /gimbal/first_front_friction/control_velocity
     control: /gimbal/first_front_friction/control_torque
-    kp: 0.006233371 
+    kp: 0.006233371
     ki: 0.00003
     kd: 0.000001
 
@@ -282,7 +281,7 @@ second_front_friction_velocity_pid_controller:
     measurement: /gimbal/second_front_friction/velocity
     setpoint: /gimbal/second_front_friction/control_velocity
     control: /gimbal/second_front_friction/control_torque
-    kp: 0.006035661 
+    kp: 0.006035661
     ki: 0.00003
     kd: 0.000001
 
@@ -291,7 +290,7 @@ third_front_friction_velocity_pid_controller:
     measurement: /gimbal/third_front_friction/velocity
     setpoint: /gimbal/third_front_friction/control_velocity
     control: /gimbal/third_front_friction/control_torque
-    kp: 0.006192421 
+    kp: 0.006192421
     ki: 0.00003
     kd: 0.000001
 
@@ -300,7 +299,7 @@ first_back_friction_velocity_pid_controller:
     measurement: /gimbal/first_back_friction/velocity
     setpoint: /gimbal/first_back_friction/control_velocity
     control: /gimbal/first_back_friction/control_torque
-    kp: 0.007749503 
+    kp: 0.007749503
     ki: 0.00
     kd: 0.00003
 
@@ -309,7 +308,7 @@ second_back_friction_velocity_pid_controller:
     measurement: /gimbal/second_back_friction/velocity
     setpoint: /gimbal/second_back_friction/control_velocity
     control: /gimbal/second_back_friction/control_torque
-    kp: 0.007795934 
+    kp: 0.007795934
     ki: 0.00
     kd: 0.00003
 
@@ -318,10 +317,10 @@ third_back_friction_velocity_pid_controller:
     measurement: /gimbal/third_back_friction/velocity
     setpoint: /gimbal/third_back_friction/control_velocity
     control: /gimbal/third_back_friction/control_torque
-    kp: 0.007760993 
+    kp: 0.007760993
     ki: 0.00
     kd: 0.00003
-  
+
 steering_wheel_status:
   ros__parameters:
     vehicle_radius: 0.286378
@@ -376,13 +375,12 @@ auto_aim_controller:
     raw_img_pub: false # Set false in actual use
     image_viewer_type: 2
 
-hero_auto_aim_bridge:                                                                                                 
-    ros__parameters:                                                                                                    
-      config_file: "configs/standard3.yaml"                                                                             
-      bullet_speed_fallback: 11.4                                                                                      
-      result_timeout: 0.1   # 0.08                                                                                     
-      debug: false
-
+hero_auto_aim_bridge:
+  ros__parameters:
+    config_file: "configs/standard3.yaml"
+    bullet_speed_fallback: 11.4
+    result_timeout: 0.1 # 0.08
+    debug: false
 
 pitch_swept_frequency_controller:
   ros__parameters:
@@ -457,73 +455,73 @@ bottom_yaw_swept_frequency_controller:
     amplitude: 1.0
 
 first_front_friction_swept_frequency_controller:
-    ros__parameters:
-      target: /gimbal/first_front_friction
-      sweep: true
-      pid: false
-      logarithmic: true
-      start_freq: 1.0
-      end_freq: 45.0
-      duration: 60.0
-      amplitude: 0.08
-      dc_offset: 0.01
+  ros__parameters:
+    target: /gimbal/first_front_friction
+    sweep: true
+    pid: false
+    logarithmic: true
+    start_freq: 1.0
+    end_freq: 45.0
+    duration: 60.0
+    amplitude: 0.08
+    dc_offset: 0.01
 
 second_front_friction_swept_frequency_controller:
-    ros__parameters:
-      target: /gimbal/second_front_friction
-      sweep: true
-      pid: false
-      logarithmic: true
-      start_freq: 1.0
-      end_freq: 45.0
-      duration: 60.0
-      amplitude: 0.08
-      dc_offset: 0.04
+  ros__parameters:
+    target: /gimbal/second_front_friction
+    sweep: true
+    pid: false
+    logarithmic: true
+    start_freq: 1.0
+    end_freq: 45.0
+    duration: 60.0
+    amplitude: 0.08
+    dc_offset: 0.04
 
 third_front_friction_swept_frequency_controller:
-    ros__parameters:
-      target: /gimbal/third_front_friction
-      sweep: true
-      pid: false
-      logarithmic: true
-      start_freq: 1.0
-      end_freq: 45.0
-      duration: 60.0
-      amplitude: 0.08
-      dc_offset: 0.02
+  ros__parameters:
+    target: /gimbal/third_front_friction
+    sweep: true
+    pid: false
+    logarithmic: true
+    start_freq: 1.0
+    end_freq: 45.0
+    duration: 60.0
+    amplitude: 0.08
+    dc_offset: 0.02
 
 first_back_friction_swept_frequency_controller:
-    ros__parameters:
-      target: /gimbal/first_back_friction
-      sweep: true
-      pid: false
-      logarithmic: true
-      start_freq: 1.0
-      end_freq: 45.0
-      duration: 60.0
-      amplitude: 0.08
-      dc_offset: 0.021
+  ros__parameters:
+    target: /gimbal/first_back_friction
+    sweep: true
+    pid: false
+    logarithmic: true
+    start_freq: 1.0
+    end_freq: 45.0
+    duration: 60.0
+    amplitude: 0.08
+    dc_offset: 0.021
 
 second_back_friction_swept_frequency_controller:
-    ros__parameters:
-      target: /gimbal/second_back_friction
-      sweep: true
-      pid: false
-      logarithmic: true
-      start_freq: 1.0
-      end_freq: 45.0
-      duration: 60.0
-      amplitude: 0.08
-      dc_offset: 0.029
+  ros__parameters:
+    target: /gimbal/second_back_friction
+    sweep: true
+    pid: false
+    logarithmic: true
+    start_freq: 1.0
+    end_freq: 45.0
+    duration: 60.0
+    amplitude: 0.08
+    dc_offset: 0.029
 
 third_back_friction_swept_frequency_controller:
-    ros__parameters:
-      target: /gimbal/third_back_friction
-      sweep: true
-      pid: false
-      logarithmic: true
-      start_freq: 1.0
-      end_freq: 45.0
-      duration: 40.0
-      amplitude: 0.08
-      dc_offset: 0.00
+  ros__parameters:
+    target: /gimbal/third_back_friction
+    sweep: true
+    pid: false
+    logarithmic: true
+    start_freq: 1.0
+    end_freq: 45.0
+    duration: 40.0
+    amplitude: 0.08
+    dc_offset: 0.00
