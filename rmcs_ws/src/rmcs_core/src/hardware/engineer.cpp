@@ -6,7 +6,9 @@
 #include "hardware/device/encorder.hpp"
 #include "hardware/device/lk_motor.hpp"
 #include "hardware/device/power_meter.hpp"
+#include "hardware/device/remote_control.hpp"
 #include "hardware/device/tof.hpp"
+#include "hardware/device/vt13.hpp"
 #include "hardware/ring_buffer.hpp"
 #include "rmcs_msgs/relay_mode.hpp"
 #include <algorithm>
@@ -47,12 +49,16 @@ public:
         , leftboard_(
               *this, *engineer_command_, get_parameter("board_serial_left_board").as_string())
         , rightboard_(
-              *this, *engineer_command_, get_parameter("board_serial_right_board").as_string()) {}
+              *this, *engineer_command_, get_parameter("board_serial_right_board").as_string()) {
+        remote_control_ =
+            std::make_unique<device::RemoteControl>(*this, armboard_.dr16_);
+    }
     ~Engineer() override = default;
     void update() override {
         armboard_.update();
         leftboard_.update();
         rightboard_.update();
+        remote_control_->update();
     }
     void command() {
         static int skip_counter{0};
@@ -106,7 +112,7 @@ private:
             , gripper{engineer, engineer_command, "/arm/gripper/motor"}
             , image_pitch{engineer, engineer_command, "/arm/image_pitch/motor"}
             , joint2_encoder(engineer, "/arm/joint_2/encoder")
-            , dr16_(engineer)
+            , dr16_()
             , bmi088_(1000, 0.2, 0)
 
         {
@@ -330,7 +336,7 @@ private:
         }
 
         void dbus_receive_callback(const librmcs::data::UartDataView& data) override {
-            dr16_.store_status(data.uart_data.data(), static_cast<uint8_t>(data.uart_data.size()));
+            dr16_.store_status(data.uart_data);
         }
 
         void accelerometer_receive_callback(
@@ -858,6 +864,7 @@ private:
         OutputInterface<double> leg_joint_rb_control_theta_error;
 
     } rightboard_;
+    std::unique_ptr<device::RemoteControl> remote_control_;
 };
 
 } // namespace rmcs_core::hardware

@@ -57,7 +57,7 @@ engineer_hardware:
 
 image_transmission:
   ros__parameters:
-    path: /dev/ttyUSB0    
+    path: /dev/ttyUSB0
 
 arm_controller:
   ros__parameters:
