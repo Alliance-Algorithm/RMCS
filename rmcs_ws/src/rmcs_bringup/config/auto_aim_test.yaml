@@ -1,0 +1,48 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      # - rmcs::AutoAimPlayerComponent -> auto_aim_player
+      - rmcs::AutoAimVideoPlayerComponent -> auto_aim_video_player
+      - rmcs::AutoAimRecorderComponent -> auto_aim_recorder
+      - rmcs::AutoAimComponent -> auto_aim_component
+
+auto_aim_player:
+  ros__parameters:
+    input_path: "/workspaces/data/autoaim/2026-07-11_22-39-35/"
+    loop_play: true
+
+auto_aim_video_player:
+  ros__parameters:
+    input_path: "/workspaces/data/autoaim/robot/rotate.avi"
+    framerate: 80.0
+    loop_play: true
+
+auto_aim_recorder:
+  ros__parameters:
+    output_path: "/tmp/autoaim/records"
+    queue_depth: 16
+    flush_every_n_frames: 64
+    max_duration_seconds: 0
+    max_videos_size_gb: 0.0
+
+auto_aim_component:
+  ros__parameters:
+    # 手动开火开关，若开启，右键自瞄并锁定后，还需要按下鼠标左键
+    # 或者左拨杆向下确认才能发射
+    manual_shoot: false
+    camera_translation: [0., 0., 0.]
+
+    fire_control:
+      bullet_speed: 23.5 # m/s
+      shoot_delay: 0.04 # s
+
+      offset_yaw: -0.0 # degree
+      offset_pitch: +0.0 # degree
+
+      attack_window: 120.0 # degree (total window)
+
+      is_lazy_gimbal: false
+      require_stable_command: true
+      yaw_tolerance: 0.07 # m，横向单边容差
+      pitch_tolerance: 0.04 # m，纵向单边容差

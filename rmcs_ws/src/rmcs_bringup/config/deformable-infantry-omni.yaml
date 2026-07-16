@@ -56,12 +56,6 @@ value_broadcaster:
       - /gimbal/pitch/angle
       - /gimbal/pitch/velocity
 
-auto_aim_component:
-  ros__parameters:
-    # 手动开火开关，若开启，右键自瞄并锁定后，还需要按下鼠标左键
-    # 或者左拨杆向下确认才能发射
-    manual_shoot: true
-
 auto_aim_capturer:
   ros__parameters:
     camera_name: ""
@@ -70,6 +64,23 @@ auto_aim_capturer:
     framerate: 120.0
     invert_image: false
     rls_tau_sec: 10.0
+    use_hardware_sync: true
+    delay_ms: 6.5
+
+auto_aim_component:
+  ros__parameters:
+    manual_shoot: true
+    camera_translation: [0.058, -0.08, 0.0]
+    fire_control:
+      bullet_speed: 22.5
+      shoot_delay: 0.04
+      offset_yaw: -0.0
+      offset_pitch: +0.0
+      attack_window: 120.0
+      is_lazy_gimbal: false
+      require_stable_command: true
+      yaw_tolerance: 0.07
+      pitch_tolerance: 0.04
 
 auto_aim_ui:
   ros__parameters:
@@ -152,7 +163,7 @@ gimbal_controller:
     lower_limit: 0.15707 # 9 deg
     ctrl_hold_pitch_target_angle: 0.0
 
-    yaw_angle_kp: 30.0
+    yaw_angle_kp: 25.0
     yaw_angle_ki: 0.0
     yaw_angle_kd: 0.0
 

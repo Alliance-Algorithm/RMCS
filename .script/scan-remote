@@ -18,7 +18,7 @@ from colorama import Fore, Style
 
 SSH_PORT = 2022
 SSH_USER = "root"
-CONNECT_TIMEOUT = 0.25
+CONNECT_TIMEOUT = 1.0
 BANNER_TIMEOUT = 0.35
 SSH_PROBE_TIMEOUT = 2.0
 DEFAULT_192_168_SEGMENTS = range(1, 11)
@@ -171,7 +171,8 @@ def default_networks():
             if ip.is_loopback:
                 continue
 
-            interface = ipaddress.ip_interface(f"{addr.address}/{addr.netmask}")
+            interface = ipaddress.ip_interface(
+                f"{addr.address}/{addr.netmask}")
             if not interface.ip.is_private:
                 continue
 
@@ -251,7 +252,8 @@ def probe_host(host):
 
 
 def ssh_lookup(host):
-    avahi_name = ssh_run(host, "grep -E '^host-name=' /etc/avahi/avahi-daemon.conf | cut -d= -f2-")
+    avahi_name = ssh_run(
+        host, "grep -E '^host-name=' /etc/avahi/avahi-daemon.conf | cut -d= -f2-")
     if avahi_name:
         return avahi_name, "avahi"
 
@@ -505,7 +507,8 @@ def sort_results(results):
 class ProgressView:
     def __init__(self, networks):
         self.networks = [str(network) for network in networks]
-        self.network_width = max((len(network) for network in self.networks), default=0)
+        self.network_width = max((len(network)
+                                 for network in self.networks), default=0)
         self.state = {
             network: {
                 "scanned": 0,
@@ -595,15 +598,20 @@ class ProgressView:
                         line = (
                             f"{TOKYO_BG}  {TOKYO_ACCENT}{marker} "
                             f"{TOKYO_IP}{result['ip']:<{result_ip_width}}  "
-                            f"{TOKYO_HOST}{result['hostname_label']:<{result_hostname_width}}  "
-                            f"{TOKYO_BANNER}{result['banner']}{Style.RESET_ALL}"
+                            f"{TOKYO_HOST}{result['hostname_label']:<{
+                                result_hostname_width}}  "
+                            f"{TOKYO_BANNER}{result['banner']}{
+                                Style.RESET_ALL}"
                         )
                     else:
                         line = (
                             f"  {Fore.CYAN}{marker}{Style.RESET_ALL} "
-                            f"{Fore.GREEN}{result['ip']:<{result_ip_width}}{Style.RESET_ALL}  "
-                            f"{Fore.MAGENTA}{result['hostname_label']:<{result_hostname_width}}{Style.RESET_ALL}  "
-                            f"{Fore.LIGHTBLACK_EX}{result['banner']}{Style.RESET_ALL}"
+                            f"{Fore.GREEN}{result['ip']:<{result_ip_width}}{
+                                Style.RESET_ALL}  "
+                            f"{Fore.MAGENTA}{result['hostname_label']:<{
+                                result_hostname_width}}{Style.RESET_ALL}  "
+                            f"{Fore.LIGHTBLACK_EX}{
+                                result['banner']}{Style.RESET_ALL}"
                         )
                     lines.append(line)
 
@@ -639,7 +647,8 @@ class ProgressView:
             for network in self.networks:
                 ordered = sorted(
                     self.state[network]["results"],
-                    key=lambda item: tuple(int(part) for part in item["ip"].split(".")),
+                    key=lambda item: tuple(int(part)
+                                           for part in item["ip"].split(".")),
                 )
                 for result in ordered:
                     flattened.append((network, result))
@@ -832,7 +841,8 @@ def interactive_scan_and_select(networks):
         sync_selection(candidates)
         network, result = candidates[selected["index"]]
         selected["key"] = (network, result["ip"])
-        scan_done = all(view.state[network_name]["done"] for network_name in view.networks)
+        scan_done = all(view.state[network_name]["done"]
+                        for network_name in view.networks)
         prompt = (
             "Scan complete. Select with Tab/Shift+Tab/↑/↓/W/S/Ctrl+N/Ctrl+P, "
             "press Enter to set selected remote, q/Esc/Ctrl+C to exit."
@@ -888,7 +898,8 @@ def interactive_scan_and_select(networks):
                 networks,
                 on_key=on_key,
                 on_progress=view.update_progress,
-                on_found=lambda network, result: (view.add_result(network, result), render_prompt()),
+                on_found=lambda network, result: (
+                    view.add_result(network, result), render_prompt()),
             )
         if chosen is None and results:
             render_prompt()
