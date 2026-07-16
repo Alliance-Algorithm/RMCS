@@ -44,9 +44,8 @@ public:
         register_input("/chassis/big_yaw/angle", chassis_big_yaw_angle_);
         register_output("/chassis/control_power_limit", chassis_control_power_limit_, 120.0);
         register_output("/chassis/control_velocity", chassis_control_velocity_);
-        register_output("/chassis/expected_control_velocity", expected_chassis_control_velocity_);
+        register_input("/chassis/climbing_forward_velocity", climbing_forward_velocity_, NAN);
 
-        // register_input("/leg_back/up_stairs_step", up_stairs_step_);
         register_output("/move_speed_limit", speed_limit_, 3.0);
     }
     void update() override {
@@ -77,35 +76,23 @@ public:
         }
 
         mode_selection();
+        chassis_mode_ = ChassisMode::Yaw_Free; // test
 
         static double angular_velocity{0.0};
         switch (chassis_mode_) {
-        case rmcs_msgs::ChassisMode::Flow: {
-            set_yaw_mode(YawControlMode::IMU);
-            yaw_target_angle_ += joystick_right_->y() * 0.002;
-            angular_velocity = std::clamp(
-                following_velocity_controller_.update(*chassis_big_yaw_angle_),
-                -angular_velocity_limit_, angular_velocity_limit_);
-            break;
-        }
-        case rmcs_msgs::ChassisMode::SPIN: {
-            set_yaw_mode(YawControlMode::IMU);
-            yaw_target_angle_ += joystick_right_->y() * 0.002;
-            angular_velocity = 5.0;
-            break;
-        }
         case rmcs_msgs::ChassisMode::Yaw_Free: {
             set_yaw_mode(YawControlMode::Encoder);
+            angular_velocity = 0.0;
             if (is_stair_mode()) {
                 yaw_target_angle_ = 0.0;
             } else if (*arm_mode_ == rmcs_msgs::ArmMode::Custome) {
                 yaw_target_angle_ = *custom_big_yaw_;
             } else {
-                yaw_target_angle_ += joystick_right_->y() * 0.002;
+                yaw_target_angle_ = 0.0;
+                angular_velocity  = std::clamp(
+                    following_velocity_controller_.update(joystick_right_->y()),
+                    -angular_velocity_limit_, angular_velocity_limit_);
             }
-            // yaw_target_angle_ = std::clamp(yaw_target_angle_, yaw_left_limit_, yaw_right_limit_);
-            angular_velocity = 0.0;
-
             break;
         }
         default: break;
@@ -117,17 +104,14 @@ public:
             move = rotation * (*joystick_left_);
             if (is_stair_mode()) {
                 move.y() = 0.0;
-                // if ((*up_stairs_step_) == "press") {
-                //     move.x() = 0.8;
-                // }
+            }
+            if (!std::isnan(*climbing_forward_velocity_)) {
+                move.x() = *climbing_forward_velocity_;
+                move.y() = 0.0;
             }
             chassis_control_velocity_->vector << (move * *speed_limit_), angular_velocity;
-            expected_chassis_control_velocity_->vector
-                << (rotation * (*joystick_left_) * *speed_limit_),
-                angular_velocity;
         } else {
             chassis_control_velocity_->vector << NAN, NAN, NAN;
-            expected_chassis_control_velocity_->vector << NAN, NAN, NAN;
         }
 
         *chassis_big_yaw_target_angle_error_ =
@@ -152,10 +136,7 @@ private:
         using namespace rmcs_msgs;
         if (switch_left == Switch::MIDDLE
             && (switch_right == Switch::MIDDLE || switch_right == Switch::DOWN)) {
-            chassis_mode_ = ChassisMode::Flow;
-            set_speed_gear(SpeedGear::High);
-        } else if (switch_left == Switch::MIDDLE && switch_right == Switch::UP) {
-            chassis_mode_ = ChassisMode::SPIN;
+            chassis_mode_ = ChassisMode::Yaw_Free;
             set_speed_gear(SpeedGear::High);
         } else if (switch_left == Switch::DOWN && switch_right == Switch::UP) {
             if (keyboard.c) {
@@ -269,8 +250,7 @@ private:
     rmcs_msgs::ChassisMode chassis_mode_ = rmcs_msgs::ChassisMode::None;
 
     OutputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;
-
-    OutputInterface<rmcs_description::BaseLink::DirectionVector> expected_chassis_control_velocity_;
+    InputInterface<double> climbing_forward_velocity_;
     InputInterface<double> chassis_power_;
     OutputInterface<double> chassis_control_power_limit_;
     OutputInterface<double> speed_limit_;

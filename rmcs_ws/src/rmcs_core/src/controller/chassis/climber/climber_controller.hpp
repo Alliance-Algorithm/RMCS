@@ -1,8 +1,9 @@
 #pragma once
 
 #include <cmath>
+#include <cstdlib>
 #include <limits>
-#include <numbers>
+#include <rclcpp/logging.hpp>
 
 namespace rmcs_core::controller::chassis::climber {
 
@@ -12,37 +13,31 @@ public:
 
     enum class Mode { OneStair, TwoStairs };
 
-    enum class State { IDLE, ALIGN, APPROACH, SUPPORT_DEPLOY, DASH, SUPPORT_RETRACT };
+    enum class State { IDLE, APPROACH, SUPPORT_DEPLOY, DASH, SUPPORT_RETRACT };
 
     struct Config {
-        double track_velocity_max                     = 0.0;
-        double climber_back_control_velocity_abs     = 0.0;
-        double support_retract_velocity_abs          = 0.0;
-        double approach_chassis_velocity             = 0.0;
-        double support_deploy_chassis_velocity       = 0.0;
-        double dash_chassis_velocity                 = 0.0;
-        double leveled_pitch_threshold               = 0.0;
-        double first_stair_approach_pitch            = 0.0;
-        double second_stair_approach_pitch           = 0.0;
-        double align_threshold                       = 0.10;
-        double align_velocity_threshold              = 0.2;
-        double back_blocked_torque_threshold         = 0.1;
-        double back_blocked_velocity_threshold       = 0.1;
-        int align_confirm_ticks                      = 50;
-        int support_confirm_ticks                    = 100;
-        int dash_min_ticks                           = 500;
-        int dash_timeout_ticks                       = 3000;
-        int support_retract_ticks                    = 1500;
+        double track_velocity_max                = 0.0;
+        double climber_back_control_velocity_abs = 0.0;
+        double support_retract_velocity_abs      = 0.0;
+        double approach_chassis_velocity         = 0.0;
+        double support_deploy_chassis_velocity   = 0.0;
+        double dash_chassis_velocity             = 0.0;
+        double leveled_pitch_threshold           = 0.0;
+        double first_stair_approach_pitch        = 0.0;
+        double second_stair_approach_pitch       = 0.0;
+        double back_blocked_torque_threshold     = 0.1;
+        double back_blocked_velocity_threshold   = 0.1;
+        int support_confirm_ticks                = 100;
+        int dash_min_ticks                       = 500;
+        int dash_timeout_ticks                   = 3000;
+        int support_retract_ticks                = 1500;
     };
 
     struct Input {
-        double chassis_pitch_imu         = nan_;
-        double gimbal_yaw_angle          = nan_;
-        double gimbal_yaw_angle_error    = nan_;
-        double gimbal_yaw_velocity_imu   = nan_;
-        double climber_back_left_torque  = nan_;
-        double climber_back_right_torque = nan_;
-        double climber_back_left_velocity = nan_;
+        double chassis_pitch_imu           = nan_;
+        double climber_back_left_torque    = nan_;
+        double climber_back_right_torque   = nan_;
+        double climber_back_left_velocity  = nan_;
         double climber_back_right_velocity = nan_;
     };
 
@@ -59,7 +54,6 @@ public:
         state_               = State::IDLE;
         timer_               = 0;
         stair_index_         = 0;
-        align_stable_count_  = 0;
         support_block_count_ = 0;
     }
 
@@ -68,7 +62,7 @@ public:
     void start(Mode mode) {
         reset();
         stair_index_ = mode == Mode::TwoStairs ? 1 : 0;
-        enter_state(State::ALIGN);
+        enter_state(State::APPROACH);
     }
 
     Output update(const Input& input) {
@@ -79,7 +73,6 @@ public:
 
         switch (state_) {
         case State::IDLE: return {};
-        case State::ALIGN: return update_align(input);
         case State::APPROACH: return update_approach(input);
         case State::SUPPORT_DEPLOY: return update_support_deploy(input);
         case State::DASH: return update_dash(input);
@@ -102,49 +95,16 @@ private:
 
         state_               = state;
         timer_               = 0;
-        align_stable_count_  = 0;
         support_block_count_ = 0;
     }
 
     bool is_back_climber_blocked(const Input& input) const {
-        return (
-                   std::abs(input.climber_back_left_torque)
-                       > config_.back_blocked_torque_threshold
-                   && std::abs(input.climber_back_left_velocity)
-                          < config_.back_blocked_velocity_threshold)
-            || (
-                std::abs(input.climber_back_right_torque)
-                    > config_.back_blocked_torque_threshold
+        return (std::abs(input.climber_back_left_torque) > config_.back_blocked_torque_threshold
+                && std::abs(input.climber_back_left_velocity)
+                       < config_.back_blocked_velocity_threshold)
+            || (std::abs(input.climber_back_right_torque) > config_.back_blocked_torque_threshold
                 && std::abs(input.climber_back_right_velocity)
                        < config_.back_blocked_velocity_threshold);
-    }
-
-    Output update_align(const Input& input) {
-        Output output{.front_track_velocity = 0.0, .back_climber_velocity = 0.0, .override_chassis_vx = 0.0};
-
-        double gimbal_yaw_angle_error = input.gimbal_yaw_angle_error;
-        if (gimbal_yaw_angle_error < 0)
-            gimbal_yaw_angle_error += 2 * std::numbers::pi;
-
-        double err = gimbal_yaw_angle_error + input.gimbal_yaw_angle;
-        while (err >= std::numbers::pi)
-            err -= 2 * std::numbers::pi;
-        while (err < -std::numbers::pi)
-            err += 2 * std::numbers::pi;
-
-        const bool is_aligned = std::abs(err) < config_.align_threshold;
-        const bool is_stable =
-            std::abs(input.gimbal_yaw_velocity_imu) < config_.align_velocity_threshold;
-
-        if (is_aligned && is_stable)
-            ++align_stable_count_;
-        else
-            align_stable_count_ = 0;
-
-        if (align_stable_count_ >= config_.align_confirm_ticks)
-            enter_state(State::APPROACH);
-
-        return output;
     }
 
     Output update_approach(const Input& input) {
@@ -154,11 +114,11 @@ private:
             .override_chassis_vx   = config_.approach_chassis_velocity,
         };
 
-        const double target_pitch =
+        const double target_pitch = std::abs(
             stair_index_ == 0 ? config_.first_stair_approach_pitch
-                              : config_.second_stair_approach_pitch;
+                              : config_.second_stair_approach_pitch);
 
-        if (input.chassis_pitch_imu > target_pitch)
+        if (std::abs(input.chassis_pitch_imu) > target_pitch)
             enter_state(State::SUPPORT_DEPLOY);
 
         return output;
@@ -171,12 +131,12 @@ private:
             .override_chassis_vx   = config_.support_deploy_chassis_velocity,
         };
 
-        if (is_back_climber_blocked(input))
-            ++support_block_count_;
-        else
-            support_block_count_ = 0;
+        // if (is_back_climber_blocked(input)) // TODO: judge by pitch_imu_angle_imu_
+        //     ++support_block_count_;
+        // else
+        //     support_block_count_ = 0;
 
-        if (support_block_count_ >= config_.support_confirm_ticks)
+        if (std::abs(input.chassis_pitch_imu) < 0.015)
             enter_state(State::DASH);
 
         return output;
@@ -189,9 +149,8 @@ private:
             .override_chassis_vx   = config_.dash_chassis_velocity,
         };
 
-        const bool is_leveled =
-            std::abs(input.chassis_pitch_imu) < config_.leveled_pitch_threshold
-            && timer_ > config_.dash_min_ticks;
+        const bool is_leveled = std::abs(input.chassis_pitch_imu) < config_.leveled_pitch_threshold
+                             && timer_ > config_.dash_min_ticks;
         const bool timeout = timer_ > config_.dash_timeout_ticks;
 
         if (is_leveled || timeout)
@@ -204,7 +163,7 @@ private:
         Output output{
             .front_track_velocity  = 0.0,
             .back_climber_velocity = -config_.support_retract_velocity_abs,
-            .override_chassis_vx   = config_.approach_chassis_velocity,
+            .override_chassis_vx   = 0.0,
         };
 
         if (timer_ > config_.support_retract_ticks)
@@ -214,11 +173,10 @@ private:
     }
 
     Config config_;
-    State state_               = State::IDLE;
-    int timer_                 = 0;
-    int stair_index_           = 0;
-    int align_stable_count_    = 0;
-    int support_block_count_   = 0;
+    State state_             = State::IDLE;
+    int timer_               = 0;
+    int stair_index_         = 0;
+    int support_block_count_ = 0;
 };
 
 } // namespace rmcs_core::controller::chassis::climber

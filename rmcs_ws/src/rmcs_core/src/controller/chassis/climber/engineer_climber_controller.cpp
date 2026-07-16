@@ -69,9 +69,7 @@ public:
         register_input("/remote/rotary_knob_switch", rotary_knob_switch_);
         register_input("pitch_imu_angle", chassis_pitch_imu_);
 
-        register_input("/chassis/big_yaw/angle", gimbal_yaw_angle_);
-        register_input("/chassis/big_yaw/target_angle_error", gimbal_yaw_angle_error_);
-        register_input("yaw_imu_velocity", gimbal_yaw_velocity_imu_);
+        register_input("/remote/joystick/right", joystick_right_);
     }
 
     void update() override {
@@ -94,21 +92,27 @@ public:
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
             reset_all_controls();
         } else if (switch_left == Switch::DOWN && switch_right == Switch::UP) {
-            if (rotary_knob_to_up) {
-                // image_pitch_theta1_offset_ = 1.2;
-                arm_mode_ = rmcs_msgs::ArmMode::Auto_Up_One_Stairs;
-            } else if (rotary_knob_to_down) {
-                // image_pitch_theta1_offset_ = 0.70;
-                arm_mode_ = rmcs_msgs::ArmMode::Auto_Up_Two_Stairs;
+            double joystick_right_x     = joystick_right_->x();
+            bool joystick_to_one_stair  = last_joystick_right_x_ <= 0.8 && joystick_right_x > 0.8;
+            bool joystick_to_two_stairs = last_joystick_right_x_ >= -0.8 && joystick_right_x < -0.8;
+            bool joystick_trigger_clear =
+                (last_joystick_right_x_ > 0.8 && joystick_right_x <= 0.8)
+                || (last_joystick_right_x_ < -0.8 && joystick_right_x >= -0.8);
+
+            if (joystick_to_one_stair) {
+                RCLCPP_INFO(this->get_logger(), "ONE");
+                // arm_mode_ = rmcs_msgs::ArmMode::Auto_Up_One_Stairs;
+            } else if (joystick_to_two_stairs) {
+                RCLCPP_INFO(this->get_logger(), "TWO");
+                // arm_mode_ = rmcs_msgs::ArmMode::Auto_Up_Two_Stairs;
             }
             if (keyboard_b_pressed) {
-                arm_mode_ = keyboard.shift ? rmcs_msgs::ArmMode::Auto_Up_Two_Stairs
-                                           : rmcs_msgs::ArmMode::Auto_Up_One_Stairs;
+                // arm_mode_ = keyboard.shift ? rmcs_msgs::ArmMode::Auto_Up_Two_Stairs
+                //                            : rmcs_msgs::ArmMode::Auto_Up_One_Stairs;
             }
             handle_auto_climb_requests(
-                keyboard_b_pressed || rotary_knob_to_down || rotary_knob_to_up,
-                rotary_knob_from_down || rotary_knob_from_up,
-                rotary_knob_to_down || rotary_knob_to_up);
+                keyboard_b_pressed || joystick_to_one_stair || joystick_to_two_stairs,
+                joystick_trigger_clear, joystick_to_one_stair || joystick_to_two_stairs);
             if (climber_controller_.active()) {
                 stop_manual_support();
                 apply_climb_control(update_auto_climb_control());
@@ -116,6 +120,7 @@ public:
                 apply_climb_control(update_manual_support_control(keyboard));
                 apply_manual_support_zero_output();
             }
+            last_joystick_right_x_ = joystick_right_x;
         }
 
         last_keyboard_           = keyboard;
@@ -141,10 +146,21 @@ private:
 
     void start_auto_climb(const char* source) {
         stop_manual_support();
-        climber_controller_.start(
-            arm_mode_ == rmcs_msgs::ArmMode::Auto_Up_Two_Stairs
-                ? climber::ClimberController::Mode::TwoStairs
-                : climber::ClimberController::Mode::OneStair);
+        switch (*arm_mode_) {
+        case rmcs_msgs::ArmMode::Auto_Up_One_Stairs:
+            climber_controller_.start(climber::ClimberController::Mode::OneStair);
+            break;
+        case rmcs_msgs::ArmMode::Auto_Up_Two_Stairs:
+            climber_controller_.start(climber::ClimberController::Mode::TwoStairs);
+            break;
+        default:
+            climber_controller_.start(climber::ClimberController::Mode::OneStair);
+            // climber_controller_.start(climber::ClimberController::Mode::TwoStairs);
+            RCLCPP_WARN(
+                logger_, "Auto climb start requested, but arm mode is not set to a valid climb "
+                         "mode. Aborting.");
+            return;
+        }
 
         RCLCPP_INFO(logger_, "Auto climb started by %s. Entering ALIGN.", source);
     }
@@ -159,9 +175,6 @@ private:
         const int stair_index      = climber_controller_.stair_index();
         const AutoClimbControl out = climber_controller_.update({
             .chassis_pitch_imu           = *chassis_pitch_imu_,
-            .gimbal_yaw_angle            = *gimbal_yaw_angle_,
-            .gimbal_yaw_angle_error      = *gimbal_yaw_angle_error_,
-            .gimbal_yaw_velocity_imu     = *gimbal_yaw_velocity_imu_,
             .climber_back_left_torque    = *climber_back_left_torque_,
             .climber_back_right_torque   = *climber_back_right_torque_,
             .climber_back_left_velocity  = *climber_back_left_velocity_,
@@ -217,6 +230,10 @@ private:
 
     void apply_climb_control(const AutoClimbControl& control) {
         *climbing_forward_velocity_ = control.override_chassis_vx;
+        if (control.back_climber_velocity != 0.0 && !std::isnan(control.back_climber_velocity)) {
+            RCLCPP_INFO(
+                this->get_logger(), "back_climber_velocity: %lf", control.back_climber_velocity);
+        }
 
         dual_motor_sync_control(
             control.front_track_velocity, *climber_front_left_velocity_,
@@ -306,15 +323,16 @@ private:
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
     InputInterface<rmcs_msgs::Switch> rotary_knob_switch_;
 
-    rmcs_msgs::ArmMode arm_mode_ = rmcs_msgs::ArmMode::None;
+    OutputInterface<rmcs_msgs::ArmMode> arm_mode_;
 
     InputInterface<double> chassis_pitch_imu_;
-    InputInterface<double> gimbal_yaw_angle_, gimbal_yaw_angle_error_, gimbal_yaw_velocity_imu_;
 
     rmcs_msgs::Switch last_rotary_knob_switch_ = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Keyboard last_keyboard_         = rmcs_msgs::Keyboard::zero();
+    double last_joystick_right_x_              = 0.0;
 
     pid::MatrixPidCalculator<2> front_velocity_pid_calculator_, back_velocity_pid_calculator_;
+    InputInterface<Eigen::Vector2d> joystick_right_;
 };
 } // namespace rmcs_core::controller::chassis
 

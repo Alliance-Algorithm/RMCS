@@ -100,7 +100,7 @@ big_yaw_angle_error_pid_controller:
   ros__parameters:
     measurement: /chassis/big_yaw/target_angle_error
     control: /chassis/big_yaw/control_vel
-    kp: 40.0
+    kp: 130.0
     ki: 0.0
     kd: 10.0
 big_yaw_velocity_pid_controller:
@@ -108,9 +108,9 @@ big_yaw_velocity_pid_controller:
     measurement: /chassis/big_yaw/velocity
     setpoint: /chassis/big_yaw/control_vel
     control: /chassis/big_yaw/control_torque
-    kp: 1.5
+    kp: 1.8
     ki: 0.0
-    kd: 0.0
+    kd: 0.5
 
 chassis_controller:
   ros__parameters:
@@ -133,13 +133,13 @@ engineer_chassis_climber_controller:
     front_climber_velocity: 20.0
     back_climber_velocity: 30.0
     auto_climb_support_retract_velocity: 220.0
-    auto_climb_approach_chassis_velocity: 2.0
+    auto_climb_approach_chassis_velocity: 0.3
     auto_climb_support_deploy_chassis_velocity: 0.3
-    auto_climb_dash_chassis_velocity: 3.0
+    auto_climb_dash_chassis_velocity: 0.3
     auto_climb_leveled_pitch_threshold: 0.09
-    sync_coefficient: 0.2
-    first_stair_approach_pitch: 0.517
-    second_stair_approach_pitch: 0.365    
+    sync_coefficient: 10.0
+    first_stair_approach_pitch: 0.568
+    second_stair_approach_pitch: 0.4174   
     front_kp: 1.0
     front_ki: 0.0
     front_kd: 0.5
@@ -155,5 +155,6 @@ value_broadcaster:
       - "/arm/gripper/target_theta"
       - "/arm/gripper/motor/control_torque"
       - "/arm/gripper/motor/angle"
+      - "/pitch_imu_angle"
 
     
