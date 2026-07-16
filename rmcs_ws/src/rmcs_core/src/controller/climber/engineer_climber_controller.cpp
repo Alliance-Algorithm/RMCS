@@ -105,6 +105,8 @@ public:
         }
 
         if (climber_controller_.active()) {
+            RCLCPP_INFO(
+                this->get_logger(), "Auto climb state: %s", climber_controller_.state_str());
             apply_climb_control(update_auto_climb_control());
             if (!climber_controller_.active())
                 reset_pid_controllers();
@@ -138,10 +140,6 @@ private:
 
     void apply_climb_control(const AutoClimbControl& control) {
         *climbing_forward_velocity_ = control.override_chassis_vx;
-        if (control.back_climber_velocity != 0.0 && !std::isnan(control.back_climber_velocity)) {
-            RCLCPP_INFO(
-                this->get_logger(), "back_climber_velocity: %lf", control.back_climber_velocity);
-        }
 
         dual_motor_sync_control(
             control.front_track_velocity, *climber_front_left_velocity_,

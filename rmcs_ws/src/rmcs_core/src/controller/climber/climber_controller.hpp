@@ -13,7 +13,7 @@ public:
 
     enum class Mode { OneStair, TwoStairs };
 
-    enum class State { IDLE, APPROACH, SUPPORT_DEPLOY, DASH, SUPPORT_RETRACT };
+    enum class State { IDLE, APPROACH, SUPPORT_DEPLOY, DASH, SUPPORT_RETRACT, SLIDE, EMPTY };
 
     struct Config {
         double track_velocity_max                = 0.0;
@@ -28,9 +28,10 @@ public:
         double back_blocked_torque_threshold     = 0.1;
         double back_blocked_velocity_threshold   = 0.1;
         int support_confirm_ticks                = 100;
-        int dash_min_ticks                       = 500;
-        int dash_timeout_ticks                   = 3000;
+        int dash_min_ticks                       = 350;
+        int dash_timeout_ticks                   = 450;
         int support_retract_ticks                = 1500;
+        int slide_ticks                          = 200;
     };
 
     struct Input {
@@ -77,6 +78,9 @@ public:
         case State::SUPPORT_DEPLOY: return update_support_deploy(input);
         case State::DASH: return update_dash(input);
         case State::SUPPORT_RETRACT: return update_support_retract();
+        case State::SLIDE: return {};
+        case State::EMPTY: return {};
+        default: return {};
         }
 
         return {};
@@ -86,9 +90,22 @@ public:
 
     State state() const { return state_; }
 
+    const char* state_str() const { return state_to_string(state_); }
+
     int stair_index() const { return stair_index_; }
 
 private:
+    static const char* state_to_string(State state) {
+        switch (state) {
+        case State::IDLE: return "IDLE";
+        case State::APPROACH: return "APPROACH";
+        case State::SUPPORT_DEPLOY: return "SUPPORT_DEPLOY";
+        case State::DASH: return "DASH";
+        case State::SUPPORT_RETRACT: return "SUPPORT_RETRACT";
+        default: return "UNKNOWN";
+        }
+    }
+
     void enter_state(State state) {
         if (state == state_)
             return;
@@ -96,15 +113,6 @@ private:
         state_               = state;
         timer_               = 0;
         support_block_count_ = 0;
-    }
-
-    bool is_back_climber_blocked(const Input& input) const {
-        return (std::abs(input.climber_back_left_torque) > config_.back_blocked_torque_threshold
-                && std::abs(input.climber_back_left_velocity)
-                       < config_.back_blocked_velocity_threshold)
-            || (std::abs(input.climber_back_right_torque) > config_.back_blocked_torque_threshold
-                && std::abs(input.climber_back_right_velocity)
-                       < config_.back_blocked_velocity_threshold);
     }
 
     Output update_approach(const Input& input) {
@@ -130,15 +138,17 @@ private:
             .back_climber_velocity = config_.climber_back_control_velocity_abs,
             .override_chassis_vx   = config_.support_deploy_chassis_velocity,
         };
-
-        // if (is_back_climber_blocked(input)) // TODO: judge by pitch_imu_angle_imu_
-        //     ++support_block_count_;
-        // else
-        //     support_block_count_ = 0;
-
-        if (std::abs(input.chassis_pitch_imu) < 0.015)
-            enter_state(State::DASH);
-
+        switch (stair_index_) {
+        case 0:
+            if (std::abs(input.chassis_pitch_imu) < 0.015)
+                enter_state(State::DASH);
+            break;
+        case 1:
+            output.override_chassis_vx = 0.0;
+            if (std::abs(input.chassis_pitch_imu) < 0.010)
+                enter_state(State::DASH);
+            break;
+        }
         return output;
     }
 
@@ -149,6 +159,10 @@ private:
             .override_chassis_vx   = config_.dash_chassis_velocity,
         };
 
+        switch (stair_index_) {
+        case 0: config_.dash_min_ticks = 50; break;
+        case 1: config_.dash_min_ticks = 350; break;
+        }
         const bool is_leveled = std::abs(input.chassis_pitch_imu) < config_.leveled_pitch_threshold
                              && timer_ > config_.dash_min_ticks;
         const bool timeout = timer_ > config_.dash_timeout_ticks;
@@ -167,7 +181,30 @@ private:
         };
 
         if (timer_ > config_.support_retract_ticks)
-            reset();
+            enter_state(State::SLIDE);
+
+        return output;
+    }
+    Output update_slide() {
+        Output output{
+            .front_track_velocity  = 0.0,
+            .back_climber_velocity = 0.0,
+            .override_chassis_vx   = config_.approach_chassis_velocity,
+        };
+
+        if (timer_ > config_.slide_ticks)
+            enter_state(State::EMPTY);
+
+        return output;
+    }
+    Output update_empty() {
+        Output output{
+            .front_track_velocity  = 0.0,
+            .back_climber_velocity = 0.0,
+            .override_chassis_vx   = 0.0,
+        };
+
+        reset();
 
         return output;
     }
