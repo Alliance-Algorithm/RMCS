@@ -1,19 +1,13 @@
 #include "hardware/device/bmi088.hpp"
 #include "hardware/device/can_package.hpp"
 #include "hardware/device/dji_motor.hpp"
-#include "hardware/device/dm_motor.hpp"
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/encorder.hpp"
 #include "hardware/device/lk_motor.hpp"
 #include "hardware/device/power_meter.hpp"
-#include "hardware/device/tof.hpp"
-#include "hardware/ring_buffer.hpp"
-#include "rmcs_msgs/relay_mode.hpp"
+#include "rmcs_utility/normalize_angle.hpp"
 #include <algorithm>
-#include <bit>
-#include <bitset>
 #include <cmath>
-#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -21,7 +15,6 @@
 #include <librmcs/agent/rmcs_board_lite.hpp>
 #include <librmcs/data/datas.hpp>
 #include <memory>
-#include <numbers>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rclcpp/node_options.hpp>
@@ -39,7 +32,9 @@ class Engineer
     , public rclcpp::Node {
 public:
     Engineer()
-        : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
+        : Node{
+              get_component_name(),
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , logger_(get_logger())
         , engineer_command_(create_partner_component<EngineerCommand>("engineer_command", *this))
         , armboard_(*this, *engineer_command_, get_parameter("board_serial_arm_board").as_string())
@@ -56,17 +51,6 @@ public:
     }
 
 private:
-    static double normalize_angle(double angle) {
-        if (std::isnan(angle) || std::isinf(angle)) {
-            return NAN;
-        }
-        angle = fmod(angle, 2 * M_PI);
-        if (angle > M_PI)
-            angle -= 2 * M_PI;
-        if (angle < -M_PI)
-            angle += 2 * M_PI;
-        return angle;
-    };
     rclcpp::Logger logger_;
     class EngineerCommand : public rmcs_executor::Component {
     public:
@@ -78,7 +62,9 @@ private:
     };
     std::shared_ptr<EngineerCommand> engineer_command_;
 
-    class ArmBoard final : private librmcs::agent::CBoard, rclcpp::Node {
+    class ArmBoard final
+        : private librmcs::agent::CBoard
+        , rclcpp::Node {
     public:
         friend class Engineer;
         explicit ArmBoard(
@@ -139,14 +125,32 @@ private:
         ~ArmBoard() final {
             auto tx = start_transmit();
             for (int i = 0; i < 10; i++) {
-                tx.can2_transmit({.can_id = 0x145, .can_data = joint[4].lk_close().as_bytes()});
-                tx.can2_transmit({.can_id = 0x144, .can_data = joint[3].lk_close().as_bytes()});
-                tx.can2_transmit({.can_id = 0x141, .can_data = joint[5].lk_close().as_bytes()});
-                tx.can2_transmit({.can_id = 0x147, .can_data = gripper.lk_close().as_bytes()});
-                tx.can1_transmit({.can_id = 0x148, .can_data = image_pitch.lk_close().as_bytes()});
-                tx.can1_transmit({.can_id = 0x142, .can_data = joint[1].lk_close().as_bytes()});
-                tx.can1_transmit({.can_id = 0x143, .can_data = joint[2].lk_close().as_bytes()});
-                tx.can1_transmit({.can_id = 0x141, .can_data = joint[0].lk_close().as_bytes()});
+                if (i % 2 == 0) {
+                    tx.can2_transmit(
+                        {.can_id   = 0x145,
+                         .can_data = joint[4].lk_zero_torque_command().as_bytes()});
+                    tx.can2_transmit(
+                        {.can_id   = 0x144,
+                         .can_data = joint[3].lk_zero_torque_command().as_bytes()});
+                    tx.can1_transmit(
+                        {.can_id   = 0x148,
+                         .can_data = image_pitch.lk_zero_torque_command().as_bytes()});
+                    tx.can1_transmit(
+                        {.can_id   = 0x143,
+                         .can_data = joint[2].lk_zero_torque_command().as_bytes()});
+                } else {
+                    tx.can2_transmit(
+                        {.can_id   = 0x141,
+                         .can_data = joint[5].lk_zero_torque_command().as_bytes()});
+                    tx.can2_transmit(
+                        {.can_id = 0x147, .can_data = gripper.lk_zero_torque_command().as_bytes()});
+                    tx.can1_transmit(
+                        {.can_id   = 0x142,
+                         .can_data = joint[1].lk_zero_torque_command().as_bytes()});
+                    tx.can1_transmit(
+                        {.can_id   = 0x141,
+                         .can_data = joint[0].lk_zero_torque_command().as_bytes()});
+                }
             }
         }
 
@@ -154,7 +158,6 @@ private:
             using namespace device;
             update_arm_motors();
             update_imu();
-            // RCLCPP_INFO(this->get_logger(), "pitch:%lf", *pitch_imu_angle);
         }
         void command() { update_arm_command(); }
 
@@ -297,7 +300,9 @@ private:
 
     } armboard_;
 
-    class LittleBoard final : private librmcs::agent::RmcsBoardLite, rclcpp::Node {
+    class LittleBoard final
+        : private librmcs::agent::RmcsBoardLite
+        , rclcpp::Node {
     public:
         friend class Engineer;
         explicit LittleBoard(
@@ -451,7 +456,7 @@ private:
             });
             tx.can3_transmit({
                 .can_id   = 0x142,
-                .can_data = big_yaw.lk_close().as_bytes(),
+                .can_data = big_yaw.lk_zero_torque_command().as_bytes(),
             });
         }
         void update() {

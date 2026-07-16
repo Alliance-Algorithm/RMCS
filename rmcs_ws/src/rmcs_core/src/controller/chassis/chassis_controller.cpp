@@ -1,6 +1,7 @@
 #include "controller/arm/trajectory.hpp"
 #include "controller/pid/pid_calculator.hpp"
 #include "rmcs_msgs/arm_mode.hpp"
+#include "rmcs_utility/normalize_angle.hpp"
 #include <algorithm>
 #include <cmath>
 #include <eigen3/Eigen/Dense>
@@ -23,7 +24,6 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , following_velocity_controller_(7.0, 0.0, 0.0)
         , yaw_left_limit_(get_parameter("yaw_left_limit").as_double())
         , yaw_right_limit_(get_parameter("yaw_right_limit").as_double()) {
         register_input("/remote/joystick/right", joystick_right_);
@@ -32,13 +32,11 @@ public:
         register_input("/remote/switch/left", switch_left_);
         register_input("/remote/keyboard", keyboard_);
 
-        register_input("yaw_imu_angle", yaw_imu_angle_);
         register_input("/arm/joint_1/theta", joint1_theta_);
         register_input("/arm/mode", arm_mode_);
         register_input("/arm/custom_big_yaw", custom_big_yaw_);
 
         register_input("/steering/power_meter/power", chassis_power_);
-
         register_output(
             "/chassis/big_yaw/target_angle_error", chassis_big_yaw_target_angle_error_, NAN);
         register_input("/chassis/big_yaw/angle", chassis_big_yaw_angle_);
@@ -50,8 +48,6 @@ public:
     }
     void update() override {
         using namespace rmcs_msgs;
-        //  RCLCPP_INFO(this->get_logger(), "%s", up_stairs_step_->c_str());
-
         static bool initial_check_done_ = false;
 
         auto switch_right = *switch_right_;
@@ -59,8 +55,6 @@ public:
 
         if (!initial_check_done_) {
             reset_motor();
-            yaw_target_angle_ = *yaw_imu_angle_;
-            yaw_control_mode_ = YawControlMode::IMU;
             if (switch_left == Switch::DOWN && switch_right == Switch::DOWN) {
                 initial_check_done_ = true;
             }
@@ -76,57 +70,33 @@ public:
         }
 
         mode_selection();
-        chassis_mode_ = ChassisMode::Yaw_Free; // test
 
-        static double angular_velocity{0.0};
-        switch (chassis_mode_) {
-        case rmcs_msgs::ChassisMode::Yaw_Free: {
-            set_yaw_mode(YawControlMode::Encoder);
-            angular_velocity = 0.0;
-            if (is_stair_mode()) {
-                yaw_target_angle_ = 0.0;
-            } else if (*arm_mode_ == rmcs_msgs::ArmMode::Custome) {
-                yaw_target_angle_ = *custom_big_yaw_;
-            } else {
-                yaw_target_angle_ = 0.0;
-                angular_velocity  = std::clamp(
-                    following_velocity_controller_.update(joystick_right_->y()),
-                    -angular_velocity_limit_, angular_velocity_limit_);
-            }
-            break;
-        }
-        default: break;
-        }
         if (chassis_mode_ != rmcs_msgs::ChassisMode::None) {
-            auto move = *joystick_left_;
-
             Eigen::Rotation2D<double> rotation(*chassis_big_yaw_angle_ + *joint1_theta_);
-            move = rotation * (*joystick_left_);
-            if (is_stair_mode()) {
-                move.y() = 0.0;
+
+            auto move               = rotation * (*joystick_left_);
+            double angular_velocity = angular_velocity_limit_ * joystick_right_->y();
+
+            if (*arm_mode_ == rmcs_msgs::ArmMode::Auto_Up_One_Stairs
+                || *arm_mode_ == rmcs_msgs::ArmMode::Auto_Up_Two_Stairs
+                || *arm_mode_ == rmcs_msgs::ArmMode::Auto_Down_Stairs) {
+                move.y()         = 0.0;
+                angular_velocity = 0.0;
+                if (!std::isnan(*climbing_forward_velocity_)) {
+                    move.x() = NAN;
+                }
             }
-            if (!std::isnan(*climbing_forward_velocity_)) {
-                move.x() = *climbing_forward_velocity_;
-                move.y() = 0.0;
-            }
+
             chassis_control_velocity_->vector << (move * *speed_limit_), angular_velocity;
         } else {
             chassis_control_velocity_->vector << NAN, NAN, NAN;
         }
-
-        *chassis_big_yaw_target_angle_error_ =
-            normalize_angle(yaw_target_angle_ - get_yaw_feedback());
-
+        yaw_controller();
         calculate_virtual_energy();
         last_arm_mode_ = *arm_mode_;
     }
 
 private:
-    enum class YawControlMode : uint8_t {
-        IMU,
-        Encoder,
-    };
-
     enum class SpeedGear : uint8_t { High, Medium, Low, Stairs };
 
     void mode_selection() {
@@ -150,38 +120,18 @@ private:
                     set_speed_gear(SpeedGear::Low);
                 }
             }
-            if (keyboard.q) {
-                if (!keyboard.shift && !keyboard.ctrl) {
-                    chassis_mode_ = rmcs_msgs::ChassisMode::Flow;
-                }
-                if (keyboard.shift && !keyboard.ctrl) {
-                    chassis_mode_ = rmcs_msgs::ChassisMode::Yaw_Free;
-                }
-            }
             if (last_arm_mode_ != *arm_mode_) {
                 switch (*arm_mode_) {
                 case rmcs_msgs::ArmMode::Auto_Extract_LB:
                 case rmcs_msgs::ArmMode::Auto_Extract_RB:
                 case rmcs_msgs::ArmMode::Auto_Storage_LB:
                 case rmcs_msgs::ArmMode::Auto_Storage_RB:
-                case rmcs_msgs::ArmMode::Custome:
-                    set_speed_gear(SpeedGear::Low);
-                    chassis_mode_ = rmcs_msgs::ChassisMode::Yaw_Free;
-                    break;
+                case rmcs_msgs::ArmMode::Custome: set_speed_gear(SpeedGear::Low); break;
                 case rmcs_msgs::ArmMode::Auto_Spin:
-                    set_speed_gear(SpeedGear::High);
-                    chassis_mode_ = rmcs_msgs::ChassisMode::SPIN;
-                    break;
-                case rmcs_msgs::ArmMode::Auto_Walk:
-                    set_speed_gear(SpeedGear::High);
-                    chassis_mode_ = rmcs_msgs::ChassisMode::Flow;
-                    break;
+                case rmcs_msgs::ArmMode::Auto_Walk: set_speed_gear(SpeedGear::High); break;
                 case rmcs_msgs::ArmMode::Auto_Up_One_Stairs:
                 case rmcs_msgs::ArmMode::Auto_Up_Two_Stairs:
-                case rmcs_msgs::ArmMode::Auto_Down_Stairs:
-                    set_speed_gear(SpeedGear::Stairs);
-                    chassis_mode_ = rmcs_msgs::ChassisMode::Yaw_Free;
-                    break;
+                case rmcs_msgs::ArmMode::Auto_Down_Stairs: set_speed_gear(SpeedGear::Stairs); break;
                 default: set_speed_gear(SpeedGear::Medium); break;
                 }
             }
@@ -190,10 +140,15 @@ private:
             chassis_mode_ = rmcs_msgs::ChassisMode::None;
         }
     }
-
-    double get_yaw_feedback() {
-        return (yaw_control_mode_ == YawControlMode::IMU) ? *yaw_imu_angle_
-                                                          : *chassis_big_yaw_angle_;
+    void yaw_controller() {
+        if (*arm_mode_ == rmcs_msgs::ArmMode::Custome) {
+            yaw_target_angle_ = *custom_big_yaw_;
+        } else {
+            yaw_target_angle_ = 0.0;
+        }
+        yaw_target_angle_ = std::clamp(yaw_target_angle_, yaw_left_limit_, yaw_right_limit_);
+        *chassis_big_yaw_target_angle_error_ =
+            rmcs_utility::normalize_angle(yaw_target_angle_ - *chassis_big_yaw_angle_);
     }
     void set_speed_gear(SpeedGear gear) {
         switch (gear) {
@@ -205,29 +160,15 @@ private:
         }
     }
 
-    void set_yaw_mode(YawControlMode new_mode) {
-        if (new_mode == yaw_control_mode_)
-            return;
-        double old_feedback = get_yaw_feedback();
-        yaw_control_mode_   = new_mode;
-        double new_feedback = get_yaw_feedback();
-        yaw_target_angle_ += (new_feedback - old_feedback);
-    }
     void reset_motor() {
         *chassis_big_yaw_target_angle_error_ = NAN;
-        *chassis_control_velocity_           = {NAN, NAN, NAN};
-        *chassis_control_power_limit_        = 0.0;
-        virtual_buffer_energy_               = virtual_buffer_energy_limit_;
+        yaw_target_angle_                    = 0.0;
+
+        *chassis_control_velocity_    = {NAN, NAN, NAN};
+        *chassis_control_power_limit_ = 0.0;
+        virtual_buffer_energy_        = virtual_buffer_energy_limit_;
     }
-    static double normalize_angle(double angle) {
-        angle = std::fmod(angle + M_PI, 2 * M_PI);
-        return angle < 0 ? angle + M_PI : angle - M_PI;
-    }
-    bool is_stair_mode() {
-        return *arm_mode_ == rmcs_msgs::ArmMode::Auto_Up_One_Stairs
-            || *arm_mode_ == rmcs_msgs::ArmMode::Auto_Up_Two_Stairs
-            || *arm_mode_ == rmcs_msgs::ArmMode::Auto_Down_Stairs;
-    }
+
     void calculate_virtual_energy() {
         // Virtual buffer energy power control
         constexpr double dt  = 0.001; // 1ms update cycle
@@ -259,15 +200,12 @@ private:
     static constexpr double virtual_buffer_energy_limit_ = 10.0;
     double virtual_buffer_energy_                        = virtual_buffer_energy_limit_;
     double angular_velocity_limit_                       = 10.0;
-    pid::PidCalculator following_velocity_controller_;
+
     InputInterface<double> joint1_theta_;
     InputInterface<double> custom_big_yaw_;
 
-    YawControlMode yaw_control_mode_ = YawControlMode::IMU;
-    InputInterface<double> yaw_imu_angle_;
     InputInterface<double> chassis_big_yaw_angle_;
     OutputInterface<double> chassis_big_yaw_target_angle_error_;
-    // InputInterface<std::string> up_stairs_step_;
 
     double yaw_target_angle_ = NAN;
     double yaw_left_limit_   = NAN;
