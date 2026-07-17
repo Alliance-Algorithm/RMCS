@@ -22,6 +22,7 @@
   <depend>rmcs_msgs</depend>
   <depend>rmcs_executor</depend>
   <depend>rmcs_description</depend>
+  <depend>rmcs_utility</depend>
   <depend>atomic</depend>
   <depend>moveit_core</depend>
   <depend>moveit_ros_planning_interface</depend>

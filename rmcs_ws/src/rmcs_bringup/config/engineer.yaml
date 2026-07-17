@@ -61,9 +61,12 @@ image_transmission:
 
 arm_controller:
   ros__parameters:
+    action_profile: lunar_rover
+    gripper_step: 65.0
+    gripper_open_angle: 270.0
+    gripper_closed_angle: 0.0
     image_pitch_qmin: -0.7
     image_pitch_qmax: 2.2
-    initial_delay_time: 1000
 
 arm_solver:
   ros__parameters:

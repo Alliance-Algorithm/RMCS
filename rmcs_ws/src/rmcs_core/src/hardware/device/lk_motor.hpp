@@ -41,7 +41,7 @@ enum class LKMotorType : uint8_t {
 
 struct LKMotorConfig {
     LKMotorType motor_type;
-    int encoder_zero_point; // 0~65536
+    int encoder_zero_point; // 0~65535
     double gear_ratio;
     double reversed;
     bool multi_turn_angle_enabled;
@@ -98,8 +98,6 @@ public:
         status_component.register_output(name_prefix + "/velocity", velocity_, 0.0);
         status_component.register_output(name_prefix + "/torque", torque_, 0.0);
         status_component.register_output(name_prefix + "/raw_angle", raw_angle_, 0);
-
-        status_component.register_output(name_prefix + "/motor", motor_, this);
 
         command_component.register_input(name_prefix + "/control_torque", control_torque_);
     }
@@ -190,14 +188,14 @@ public:
         default: throw std::runtime_error{"Unknown motor type"}; break;
         }
 
-        encoder_zero_point_ = config.encoder_zero_point % (raw_angle_max_);
+        encoder_zero_point_ = config.encoder_zero_point % encoder_resolution_;
         if (encoder_zero_point_ < 0)
-            encoder_zero_point_ += (raw_angle_max_);
+            encoder_zero_point_ += encoder_resolution_;
 
         reverse = config.reversed;
 
         raw_angle_to_angle_coefficient_ =
-            ((1.0 / (raw_angle_max_)) / config.gear_ratio) * 2.0 * std::numbers::pi;
+            ((1.0 / encoder_resolution_) / config.gear_ratio) * 2.0 * std::numbers::pi;
         angle_to_raw_angle_coefficient_ = 1.0 / raw_angle_to_angle_coefficient_;
 
         raw_velocity_to_velocity_coefficient_ = 1.0 / config.gear_ratio * (std::numbers::pi / 180);
@@ -215,6 +213,7 @@ public:
         multi_turn_angle_enabled_  = config.multi_turn_angle_enabled;
         angle_zero_to_2pi_enabled_ = config.is_angle_zero_to_2pi;
         angle_multi_turn_          = 0;
+        multi_turn_initialized_    = false;
     }
 
     void store_status(std::span<const std::byte> can_result) {
@@ -235,24 +234,31 @@ public:
         *raw_angle_   = feedback.encoder;
         int angle     = raw_angle - encoder_zero_point_;
         if (angle < 0)
-            angle += raw_angle_max_;
+            angle += encoder_resolution_;
         if (!multi_turn_angle_enabled_) {
             if (!angle_zero_to_2pi_enabled_) {
                 *angle_ =
                     reverse
-                    * (((double)angle <= (raw_angle_max_) / 2.0)
+                    * ((static_cast<double>(angle) <= encoder_resolution_ / 2.0)
                            ? (raw_angle_to_angle_coefficient_ * angle)
                            : (-2 * std::numbers::pi) + (raw_angle_to_angle_coefficient_ * angle));
             } else {
                 *angle_ = reverse * raw_angle_to_angle_coefficient_ * static_cast<double>(angle);
             }
         } else {
-            auto diff = (angle - angle_multi_turn_) % (raw_angle_max_);
-            if (diff <= -(raw_angle_max_) / 2)
-                diff += (raw_angle_max_);
-            else if (diff > (raw_angle_max_) / 2)
-                diff -= (raw_angle_max_);
-            angle_multi_turn_ += diff;
+            if (!multi_turn_initialized_) {
+                angle_multi_turn_ = angle;
+                if (angle_multi_turn_ > encoder_resolution_ / 2)
+                    angle_multi_turn_ -= encoder_resolution_;
+                multi_turn_initialized_ = true;
+            } else {
+                int diff = raw_angle - last_raw_angle_;
+                if (diff <= -encoder_resolution_ / 2)
+                    diff += encoder_resolution_;
+                else if (diff > encoder_resolution_ / 2)
+                    diff -= encoder_resolution_;
+                angle_multi_turn_ += diff;
+            }
             *angle_ =
                 reverse * raw_angle_to_angle_coefficient_ * static_cast<double>(angle_multi_turn_);
         }
@@ -283,9 +289,9 @@ public:
 
             return CanPacket8{std::bit_cast<uint64_t>(result)};
         }
-        double max_torque = (*motor_)->get_max_torque();
+        double max_torque = *max_torque_;
         torque            = std::clamp(torque, -max_torque, max_torque);
-        double current    = std::round((*motor_)->torque_to_raw_current_coefficient_ * torque);
+        double current    = std::round(torque_to_raw_current_coefficient_ * torque);
         int16_t control_current   = static_cast<int16_t>(current);
         auto control_current_bits = std::bit_cast<std::array<uint8_t, 2>>(control_current);
         std::copy(control_current_bits.begin(), control_current_bits.end(), result.begin() + 4);
@@ -297,6 +303,14 @@ public:
     static CanPacket8 lk_enable_command() { return CanPacket8{uint64_t{0x88}}; }
     static CanPacket8 lk_close_command() { return CanPacket8{uint64_t{0x80}}; }
     static CanPacket8 lk_zero_torque_command() { return CanPacket8{uint64_t{0xA1}}; }
+
+    int calibrate_zero_point() {
+        encoder_zero_point_     = last_raw_angle_;
+        angle_multi_turn_       = 0;
+        multi_turn_initialized_ = true;
+        *angle_                 = 0.0;
+        return encoder_zero_point_;
+    }
 
     double get_angle() { return *angle_; }
     double get_velocity() { return *velocity_; }
@@ -315,12 +329,13 @@ private:
 
     std::atomic<CanPacket8> can_result_{CanPacket8{uint64_t{0}}};
 
-    static constexpr uint16_t raw_angle_max_ = 65535;
+    static constexpr int encoder_resolution_ = 1 << 16;
     int last_raw_angle_;
     uint32_t LSB;
     double reverse;
     int encoder_zero_point_;
     bool multi_turn_angle_enabled_, angle_zero_to_2pi_enabled_;
+    bool multi_turn_initialized_;
     int64_t angle_multi_turn_;
 
     double raw_angle_to_angle_coefficient_, angle_to_raw_angle_coefficient_;
@@ -335,8 +350,6 @@ private:
     Component::OutputInterface<double> angle_;
     Component::OutputInterface<double> velocity_;
     Component::OutputInterface<double> torque_;
-
-    Component::OutputInterface<LKMotor*> motor_;
 
     Component::InputInterface<double> control_torque_;
     Component::InputInterface<double> control_velocity;

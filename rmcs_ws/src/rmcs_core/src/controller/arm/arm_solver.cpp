@@ -7,6 +7,7 @@
 #include <rclcpp/logging.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <rmcs_executor/component.hpp>
+#include <rmcs_utility/normalize_angle.hpp>
 #include <string>
 #include <tuple>
 #include <unordered_set>
@@ -95,11 +96,6 @@ public:
 private:
     using controller_type = TorqueVec (ArmSolver::*)();
 
-    static double normalize_angle(double angle) {
-        angle = std::fmod(angle + M_PI, 2 * M_PI);
-        return angle < 0 ? angle + M_PI : angle - M_PI;
-    }
-
     TorqueVec calculate_pid() {
         auto clamp_target_theta = [this](std::size_t idx, double target_theta) {
             const double lower_limit    = *joint_lower_limit[idx];
@@ -117,7 +113,8 @@ private:
             const double target_theta  = clamp_target_theta(i, *joint_target_theta[i]);
             const double current_vel   = *joint_velocity[i];
 
-            const double angle_error = normalize_angle(target_theta - current_theta);
+            const double angle_error =
+                rmcs_utility::normalize_angle(target_theta - current_theta);
             const double target_vel  = joint_angle_pid_controller[i].update(angle_error);
             const double vel_error   = target_vel - current_vel;
 

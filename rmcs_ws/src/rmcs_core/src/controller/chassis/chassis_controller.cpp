@@ -11,6 +11,7 @@
 #include <rmcs_msgs/chassis_mode.hpp>
 #include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/switch.hpp>
+#include <rmcs_utility/normalize_angle.hpp>
 #include <vector>
 namespace rmcs_core::controller::chassis {
 
@@ -117,7 +118,8 @@ public:
                 }
             }
             chassis_control_velocity_->vector << (move * *speed_limit_), angular_velocity;
-            expected_chassis_control_velocity_->vector << ( rotation * (*joystick_left_) * *speed_limit_), angular_velocity;
+            expected_chassis_control_velocity_->vector
+                << (rotation * (*joystick_left_) * *speed_limit_), angular_velocity;
         } else {
             chassis_control_velocity_->vector << NAN, NAN, NAN;
             expected_chassis_control_velocity_->vector << NAN, NAN, NAN;
@@ -125,7 +127,7 @@ public:
         }
 
         *chassis_big_yaw_target_angle_error_ =
-            normalize_angle(yaw_target_angle_ - get_yaw_feedback());
+            rmcs_utility::normalize_angle(yaw_target_angle_ - get_yaw_feedback());
 
         calculate_virtual_energy();
         last_arm_mode_ = *arm_mode_;
@@ -236,10 +238,6 @@ private:
         *chassis_control_power_limit_        = 0.0;
         virtual_buffer_energy_               = virtual_buffer_energy_limit_;
     }
-    static double normalize_angle(double angle) {
-        angle = std::fmod(angle + M_PI, 2 * M_PI);
-        return angle < 0 ? angle + M_PI : angle - M_PI;
-    }
     bool is_stair_mode() {
         return *arm_mode_ == rmcs_msgs::ArmMode::Auto_Up_One_Stairs
             || *arm_mode_ == rmcs_msgs::ArmMode::Auto_Up_Two_Stairs
@@ -256,6 +254,7 @@ private:
         *chassis_control_power_limit_ =
             power_limit_ * (virtual_buffer_energy_ / virtual_buffer_energy_limit_);
     }
+    
     InputInterface<Eigen::Vector2d> joystick_right_;
     InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;
@@ -267,8 +266,8 @@ private:
     rmcs_msgs::ChassisMode chassis_mode_ = rmcs_msgs::ChassisMode::None;
 
     OutputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;
-
-    OutputInterface<rmcs_description::BaseLink::DirectionVector> expected_chassis_control_velocity_;
+    OutputInterface<rmcs_description::BaseLink::DirectionVector>
+        expected_chassis_control_velocity_;
     InputInterface<double> chassis_power_;
     OutputInterface<double> chassis_control_power_limit_;
     OutputInterface<double> speed_limit_;

@@ -65,6 +65,9 @@ image_transmission:
 
 arm_controller:
   ros__parameters:
+    gripper_step: 65.0
+    gripper_open_angle: 270.0
+    gripper_closed_angle: 0.0
     auto_walk_joint_target: [0.0, 1.23, -1.36, 0.0, 0.63, 0.0]
     auto_storage_lb:
       threshold: [0.15,0.08,0.32,0.5]

@@ -29,6 +29,7 @@
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/serial_interface.hpp>
+#include <rmcs_utility/normalize_angle.hpp>
 #include <span>
 #include <std_msgs/msg/int32.hpp>
 #include <string>
@@ -50,8 +51,7 @@ public:
               *this, *engineer_command_, get_parameter("board_serial_left_board").as_string())
         , rightboard_(
               *this, *engineer_command_, get_parameter("board_serial_right_board").as_string()) {
-        remote_control_ =
-            std::make_unique<device::RemoteControl>(*this, armboard_.dr16_);
+        remote_control_ = std::make_unique<device::RemoteControl>(*this, armboard_.dr16_);
     }
     ~Engineer() override = default;
     void update() override {
@@ -61,27 +61,12 @@ public:
         remote_control_->update();
     }
     void command() {
-        static int skip_counter{0};
-        if (skip_counter % 2 == 0) {
-            armboard_.command();
-            leftboard_.command();
-            rightboard_.command();
-        }
-        skip_counter++;
+        armboard_.command();
+        leftboard_.command();
+        rightboard_.command();
     }
 
 private:
-    static double normalize_angle(double angle) {
-        if (std::isnan(angle) || std::isinf(angle)) {
-            return NAN;
-        }
-        angle = fmod(angle, 2 * M_PI);
-        if (angle > M_PI)
-            angle -= 2 * M_PI;
-        if (angle < -M_PI)
-            angle += 2 * M_PI;
-        return angle;
-    };
     rclcpp::Logger logger_;
     class EngineerCommand : public rmcs_executor::Component {
     public:
@@ -123,7 +108,7 @@ private:
             engineer.register_output("roll_imu_velocity", roll_imu_velocity, NAN);
             engineer.register_output("roll_imu_angle", roll_imu_angle, NAN);
             engineer_command.register_input(
-                "/arm/gripper_initial", initial_gripper_done_flag, false);
+                "/arm/gripper/calibration_done", gripper_calibration_done_signal_, false);
             using namespace device;
             image_pitch.configure(
                 LKMotorConfig{LKMotorType::MG4010E_i10V3}.reverse().set_encoder_zero_point(
@@ -198,9 +183,14 @@ private:
             update_arm_motors();
             dr16_.update_status();
             update_imu();
-            gripper_set_zero();
         }
-        void command() { update_arm_command(); }
+        void command() {
+            if (*gripper_calibration_done_signal_)
+                gripper_set_zero();
+            update_arm_command();
+        }
+
+        void gripper_set_zero() { gripper.calibrate_zero_point(); }
 
     private:
         void update_arm_command() {
@@ -283,25 +273,11 @@ private:
             *pitch_imu_angle = std::asin(std::clamp(2.0 * (q0 * q2 - q3 * q1), -1.0, 1.0));
             *yaw_imu_angle = std::atan2(2.0 * (q0 * q3 + q1 * q2), 1.0 - 2.0 * (q2 * q2 + q3 * q3));
         }
-        void gripper_set_zero() {
-            if (last_initial_gripper_done_flag != *initial_gripper_done_flag
-                && *initial_gripper_done_flag == true) {
-                gripper.configure(
-                    rmcs_core::hardware::device::LKMotorConfig{
-                        rmcs_core::hardware::device::LKMotorType::MG4005E_i10V3}
-                        .set_encoder_zero_point(static_cast<uint16_t>(gripper.get_raw_angle()))
-                        .enable_multi_turn_angle()
-                        .reverse());
-            }
-            last_initial_gripper_done_flag = *initial_gripper_done_flag;
-        }
-
     protected:
         void can2_receive_callback(const librmcs::data::CanDataView& data) override {
             if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
                 [[unlikely]]
                 return;
-            // RCLCPP_INFO(this->get_logger(),"can2 id %x",data.can_id);;
             if (data.can_id == 0x141) {
                 joint[5].store_status(data.can_data);
             } else if (data.can_id == 0x145) {
@@ -318,20 +294,15 @@ private:
                 return;
 
             if (data.can_id == 0x143) {
-                                RCLCPP_INFO(this->get_logger(), "joint3");
                 joint[2].store_status(data.can_data);
             } else if (data.can_id == 0x142) {
-                                RCLCPP_INFO(this->get_logger(), "joint2");
                 joint[1].store_status(data.can_data);
             } else if (data.can_id == 0x141) {
-                                RCLCPP_INFO(this->get_logger(), "joint1");
                 joint[0].store_status(data.can_data);
             } else if (data.can_id == 0x200) {
-                RCLCPP_INFO(this->get_logger(), "encoder");
                 joint2_encoder.store_status(data.can_data);
             } else if (data.can_id == 0x148) {
                 image_pitch.store_status(data.can_data);
-                RCLCPP_INFO(this->get_logger(), "image");
             };
         }
 
@@ -361,8 +332,7 @@ private:
         OutputInterface<double> pitch_imu_angle;
         OutputInterface<double> roll_imu_velocity;
         OutputInterface<double> roll_imu_angle;
-        InputInterface<bool> initial_gripper_done_flag;
-        bool last_initial_gripper_done_flag{false};
+        InputInterface<bool> gripper_calibration_done_signal_;
         device::Bmi088 bmi088_;
 
     } armboard_;
@@ -487,7 +457,7 @@ private:
             }
             power_meter.update();
             *leg_joint_lb_control_theta_error =
-                normalize_angle(*leg_lb_target_theta_ - Leg_ecd[1].get_angle());
+                rmcs_utility::normalize_angle(*leg_lb_target_theta_ - Leg_ecd[1].get_angle());
         }
         void command() {
 
@@ -719,7 +689,7 @@ private:
             big_yaw.update();
             tof.update();
             *leg_joint_rb_control_theta_error =
-                normalize_angle(*leg_rb_target_theta_ - Leg_ecd[0].get_angle());
+                rmcs_utility::normalize_angle(*leg_rb_target_theta_ - Leg_ecd[0].get_angle());
         }
 
         void command() {
@@ -809,7 +779,6 @@ private:
             } else if (data.can_id == 0x206) {
                 Steering_motors[1].store_status(data.can_data);
             } else if (data.can_id == 0x320) {
-
                 Leg_ecd[1].store_status(data.can_data);
             }
         }
@@ -860,7 +829,6 @@ private:
 
         InputInterface<double> leg_rb_target_theta_;
         InputInterface<bool> is_arm_enable;
-
         OutputInterface<double> leg_joint_rb_control_theta_error;
 
     } rightboard_;

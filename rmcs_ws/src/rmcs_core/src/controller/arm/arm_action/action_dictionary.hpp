@@ -1,16 +1,35 @@
 #pragma once
-#include "controller/arm/arm_action/parameter_map.hpp"
+#include "controller/arm/arm_action/action_step.hpp"
+#include "controller/arm/arm_action/climber_parameter_map.hpp"
+#include "controller/arm/arm_action/lunar_rover_parameter_map.hpp"
 #include <iterator>
 #include <stdexcept>
 #include <string>
+#include <string_view>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
 namespace rmcs_core::controller::arm {
 
+using ActionParameterMap = std::unordered_map<std::string, std::vector<Action::Step>>;
+
+inline ActionParameterMap make_action_parameter_map(std::string_view profile) {
+    if (profile == "lunar_rover") {
+        return make_lunar_rover_action_parameter_map();
+    }
+    if (profile == "climber") {
+        return make_climber_action_parameter_map();
+    }
+    throw std::invalid_argument("Unknown arm action profile: " + std::string(profile));
+}
+
 class ActionDictionary {
 public:
-    ActionDictionary() { validate_check(); }
+    explicit ActionDictionary(ActionParameterMap parameter_dict)
+        : parameter_dict_(std::move(parameter_dict)) {
+        validate_check();
+    }
 
     std::vector<Action::Step> helper_find_chunk(const std::string& name) const {
         if (auto it = parameter_dict_.find(name); it != parameter_dict_.end())
@@ -57,8 +76,7 @@ private:
         }
     }
 
-    const std::unordered_map<std::string, std::vector<Action::Step>>& parameter_dict_ =
-        kActionParameterMap;
+    ActionParameterMap parameter_dict_;
     std::unordered_map<std::string, std::vector<Action::Step>> helper_composed_cache_;
 };
 
