@@ -27,8 +27,7 @@ rmcs_executor:
       # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
 
-      - rmcs::AutoAimComponent
-
+      - rmcs::AutoAimComponent 
 value_broadcaster:
   ros__parameters:
     forward_list:
@@ -59,12 +58,13 @@ flight_hardware:
 
 px4_vision_bridge:
   ros__parameters:
-    source_topic: /odin1/odometry
+    source_topic: /odin1/odometry_highfreq
     system_id: 1                  # 与 PX4 MAV_SYS_ID 一致
     component_id: 197             # MAV_COMP_ID_VISUAL_INERTIAL_ODOMETRY
     max_send_rate_hz: 50.0
-    # 挂载角(ZYX, rad): 传感器系->机体系, 初值 roll=π pitch=π/2 yaw=0, 上车标定后修正
-    mount_rpy: [3.14159265358979, 1.5707963267949, 0.0]
+    # 挂载角(ZYX, rad): 传感器系->机体系, 初值 roll=π pitch=π/2 yaw=0
+    mount_rpy: [3.14159265358979, 1.5707963267949, 0.0] 
+
 
 referee_status:
   ros__parameters:
@@ -108,8 +108,8 @@ friction_wheel_controller:
       - /gimbal/left_friction
       - /gimbal/right_friction
     friction_velocities:
-      - 620.0
-      - 620.0
+      - 680.0
+      - 680.0
     friction_soft_start_stop_time: 1.0
 
 heat_controller:

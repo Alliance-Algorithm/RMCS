@@ -81,6 +81,10 @@ public:
         };
 
         register_output("/px4/serial",px4_serial_);
+        px4_serial_->read = [this](std::byte* buffer, size_t size) {
+            return px4_ring_buffer_receive_.pop_front_n(
+                [&buffer](std::byte byte) noexcept { *buffer++ = byte; }, size);
+        };
         px4_serial_->write = [this](const std::byte* buffer, size_t size){
             start_transmit().uart0_transmit(
                 {.uart_data = std::span<const std::byte>{buffer, size}});
@@ -221,6 +225,13 @@ protected:
         }
     }
 
+    void uart0_receive_callback(const librmcs::data::UartDataView& data) override {
+        const std::byte* ptr = data.uart_data.data();
+        px4_ring_buffer_receive_.emplace_back_n(
+            [&ptr](std::byte* storage) noexcept { new (storage) std::byte{*ptr++}; },
+            data.uart_data.size());
+    }
+
     void uart1_receive_callback(const librmcs::data::UartDataView& data) override {
         const std::byte* ptr = data.uart_data.data();
         referee_ring_buffer_receive_.emplace_back_n(
@@ -276,6 +287,7 @@ private:
     OutputInterface<Eigen::Vector3d> barrel_direction_;
 
     rmcs_utility::RingBuffer<std::byte> referee_ring_buffer_receive_{256};
+    rmcs_utility::RingBuffer<std::byte> px4_ring_buffer_receive_{1024};
 };
 
 } // namespace rmcs_core::hardware
