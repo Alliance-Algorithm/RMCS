@@ -83,7 +83,7 @@ public:
                 move.y()         = 0.0;
                 angular_velocity = 0.0;
                 if (!std::isnan(*climbing_forward_velocity_)) {
-                    move.x() = NAN;
+                    move.x() = *climbing_forward_velocity_;
                 }
             }
 
@@ -109,6 +109,7 @@ private:
             chassis_mode_ = ChassisMode::Yaw_Free;
             set_speed_gear(SpeedGear::High);
         } else if (switch_left == Switch::DOWN && switch_right == Switch::UP) {
+            chassis_mode_ = ChassisMode::Yaw_Free;
             if (keyboard.c) {
                 if (!keyboard.shift && !keyboard.ctrl) {
                     set_speed_gear(SpeedGear::High);

@@ -131,11 +131,11 @@ steering_wheel_controller:
 engineer_chassis_climber_controller:
   ros__parameters:
     front_climber_velocity: 30.0
-    back_climber_velocity: 60.0
+    back_climber_velocity: 100.0
     auto_climb_support_retract_velocity: 220.0
-    auto_climb_approach_chassis_velocity: 0.3
-    auto_climb_support_deploy_chassis_velocity: 0.3
-    auto_climb_dash_chassis_velocity: 0.3
+    auto_climb_approach_chassis_velocity: 0.5
+    auto_climb_support_deploy_chassis_velocity: 0.5
+    auto_climb_dash_chassis_velocity: 0.5
     auto_climb_leveled_pitch_threshold: 0.09
     sync_coefficient: 10.0
     first_stair_approach_pitch: 0.568

@@ -189,7 +189,7 @@ private:
         Output output{
             .front_track_velocity  = 0.0,
             .back_climber_velocity = 0.0,
-            .override_chassis_vx   = config_.approach_chassis_velocity,
+            .override_chassis_vx   = config_.dash_chassis_velocity,
         };
 
         if (timer_ > config_.slide_ticks)
