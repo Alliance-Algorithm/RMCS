@@ -119,6 +119,8 @@ public:
         auto keyboard = *keyboard_;
         auto rotary_knob_switch = *rotary_knob_switch_;
 
+        // RCLCPP_INFO(get_logger(), "%f", *chassis_pitch_imu_);
+
         bool rotary_knob_to_down =
             (last_rotary_knob_switch_ != Switch::DOWN && rotary_knob_switch == Switch::DOWN);
         bool rotary_knob_from_down =
@@ -297,7 +299,9 @@ private:
     AutoClimbControl update_manual_support_control(const rmcs_msgs::Keyboard& keyboard) {
         AutoClimbControl control;
 
-        if (keyboard.b) {
+        if (keyboard.b || *rotary_knob_switch_ == rmcs_msgs::Switch::UP) {
+            manual_support_retracting_ = false;
+            manual_support_retract_block_count_ = 0;
             back_climber_zero_velocity_hold_ = false;
             control.back_climber_velocity = climber_back_control_velocity_abs_;
             return control;
@@ -710,8 +714,8 @@ private:
 
     std::shared_ptr<ChassisClimberFrontPowerLimiter> front_power_limiter_;
 
-    double back_climber_retract_first_torque_ = 8.0;
-    double back_climber_retract_second_torque_ = 0.5;
+    double back_climber_retract_first_torque_ = 10.0;
+    double back_climber_retract_second_torque_ = 1.0;
     int back_climber_recover_count = 0;
 };
 } // namespace rmcs_core::controller::chassis

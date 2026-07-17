@@ -59,4 +59,8 @@
   <class type="rmcs_core::referee::app::ui::Hero" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::referee::app::ui::Flight" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::referee::app::ui::AutoAimUi" base_class_type="rmcs_executor::Component" />
+
+  <class type="rmcs_core::controller::identification::StaticTorqueTestController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::identification::SweptFrequencyController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::test::output::AngleOutput" base_class_type="rmcs_executor::Component" />
 </library>

@@ -62,12 +62,12 @@ public:
             velocities.erase(velocities.begin());
         }
 
-        analysis3();
+        analysis1();
 
         auto log_text = std::string{};
         auto timestamp = timestamp_to_string(*shoot_timestamp_);
 
-        if (friction_wheel_count_ == 4) {
+        if (friction_wheel_count_ == 6) {
             log_text = fmt::format(
                 "{},{},{:.3f},{:.3f},{:.3f},{:.3f},{:.3f},{:.3f},{:.3f}", *initial_speed_,
                 (int)velocities.size(), //
@@ -97,7 +97,7 @@ private:
     InputInterface<float> initial_speed_;
     InputInterface<double> shoot_timestamp_;
 
-    std::size_t friction_wheel_count_ = 2;
+    std::size_t friction_wheel_count_ = 6;
     std::array<InputInterface<double>, 2> friction_wheels_velocity_;
 
     /// @brief For log
@@ -165,10 +165,10 @@ private:
         int excellence_count = 0;
         int pass_count = 0;
         for (int i = 0; i < int(velocities.size()); i++) {
-            if (velocities[i] >= velocity_ - 0.1 && velocities[i] <= velocity_ + 0.1) {
+            if (velocities[i] >= velocity_ - 0.05 && velocities[i] <= velocity_ + 0.05) {
                 pass_count += 1;
             }
-            if (velocities[i] >= velocity_ - 0.05 && velocities[i] <= velocity_ + 0.05) {
+            if (velocities[i] >= velocity_ - 0.025 && velocities[i] <= velocity_ + 0.025) {
                 excellence_count += 1;
             }
         }
@@ -224,10 +224,10 @@ private:
         int pass_count = 0;
 
         for (const auto& v : velocities) {
-            if (v >= aim_velocity - 0.05 && v <= aim_velocity + 0.05) {
+            if (v >= aim_velocity - 0.025 && v <= aim_velocity + 0.025) {
                 excellence_count += 1;
             }
-            if (v >= aim_velocity - 0.1 && v <= aim_velocity + 0.1) {
+            if (v >= aim_velocity - 0.05 && v <= aim_velocity + 0.05) {
                 pass_count += 1;
             }
         }
