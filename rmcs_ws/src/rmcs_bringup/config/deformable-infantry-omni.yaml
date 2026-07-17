@@ -69,16 +69,22 @@ auto_aim_capturer:
 
 auto_aim_component:
   ros__parameters:
+    # WARN: 危险！可选 red | blue，生效后裁判系统 ID 缺席时
+    # 将强行绑定为对应阵营哨兵，仅供调试，严禁比赛启用。
+    # 留空或填 unknow 表示禁用。
+    dangerous_fallback: ""
     manual_shoot: true
     camera_translation: [0.058, -0.08, 0.0]
     fire_control:
       bullet_speed: 22.5
-      shoot_delay: 0.04
+      shoot_delay: 0.1
       offset_yaw: -0.0
       offset_pitch: +0.0
       attack_window: 120.0
+      window_hysteresis: 0.2
       is_lazy_gimbal: false
-      require_stable_command: true
+      attack_preaim: false
+      require_stable_command: false
       yaw_tolerance: 0.07
       pitch_tolerance: 0.04
 
@@ -163,7 +169,7 @@ gimbal_controller:
     lower_limit: 0.15707 # 9 deg
     ctrl_hold_pitch_target_angle: 0.0
 
-    yaw_angle_kp: 25.0
+    yaw_angle_kp: 15.0
     yaw_angle_ki: 0.0
     yaw_angle_kd: 0.0
 
