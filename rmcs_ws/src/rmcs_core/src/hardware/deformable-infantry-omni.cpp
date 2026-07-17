@@ -122,7 +122,10 @@ private:
             DeformableInfantryOmni& status, rmcs_executor::Component& command,
             const std::string& serial_filter = {})
             : status_{status}
-            , command_{command} {
+            , command_{command}
+            , kChassisRadiusBase(status.get_parameter("chassis_radius").as_double())
+            , kRodLength(status.get_parameter("rod_length").as_double())
+            , kDefaultRadius(kChassisRadiusBase + kRodLength) {
 
             status.register_output("/referee/serial", referee_serial_);
             referee_serial_->read = [this](std::byte* buffer, size_t size) {
@@ -355,9 +358,6 @@ private:
         }
 
         static constexpr double kJointZeroPhysicalAngleRad = 62.5 * std::numbers::pi / 180.0;
-        static constexpr double kChassisRadiusBase = 0.2341741;
-        static constexpr double kRodLength = 0.150;
-        static constexpr double kDefaultRadius = kChassisRadiusBase + kRodLength;
 
         DeformableInfantryOmni& status_;
         Component& command_;
@@ -392,6 +392,10 @@ private:
         bool debug_log_supercap_ = false;
         bool debug_log_wheel_motor_ = false;
         bool debug_log_deformable_joint_motor_ = false;
+
+        const double kChassisRadiusBase;
+        const double kRodLength;
+        const double kDefaultRadius;
 
         Clock::time_point next_chassis_feedback_log_time_{Clock::now() + std::chrono::seconds(1)};
         Clock::time_point next_supercap_feedback_log_time_{Clock::now() + std::chrono::seconds(1)};
