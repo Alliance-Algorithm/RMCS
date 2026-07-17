@@ -2,7 +2,7 @@ rmcs_executor:
   ros__parameters:
     update_rate: 1000.0
     components:
-      - rmcs_core::hardware::Engineer -> engineer_hardware
+      - rmcs_core::hardware::LunarRoverEngineer -> engineer_hardware
       - rmcs_core::controller::arm::ArmConfig -> arm_config
       - rmcs_core::controller::arm::ArmController -> arm_controller
       - rmcs_core::controller::arm::ArmSolver -> arm_solver
@@ -16,7 +16,7 @@ rmcs_executor:
 
       - rmcs_core::controller::leg::LegController -> leg_controller
 
-      - rmcs_core::controller::chassis::ChassisController -> chassis_controller
+      - rmcs_core::controller::chassis::LunarRoverChassisController -> chassis_controller
       - rmcs_core::controller::chassis::SteeringWheelController -> steering_wheel_controller
             
       - rmcs_core::controller::pid::PidController -> leg_omni_l_velocity_controller

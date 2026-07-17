@@ -55,7 +55,7 @@ inline auto make_lunar_rover_action_parameter_map() {
      .joint_6 = 0.0},
      Action::MotionParams{.vel = 0.03, .acc = 0.03})}    },
 
-    {"up_one_stairs",
+    {"up_one_stairs_initial",
      {Action::Step::makeJoint(
      Action::JointTarget{
      .joint_1 = 0.0,
@@ -66,7 +66,7 @@ inline auto make_lunar_rover_action_parameter_map() {
      .joint_6 = 0.0},
      Action::MotionParams{.vel = 0.05, .acc = 0.03})}    },
 
-    {      "initial",
+    {      "up_two_stairs_initial",
      {Action::Step::makeJoint(
      Action::JointTarget{
      .joint_1 = 0.0,
@@ -77,7 +77,7 @@ inline auto make_lunar_rover_action_parameter_map() {
      .joint_6 = 0.0},
      Action::MotionParams{.vel = 0.05, .acc = 0.03})}    },
 
-    {"initial_again",
+    {"up_two_stairs_initial_again",
      {Action::Step::makeJoint(
      Action::JointTarget{
      .joint_1 = 0.0,
@@ -88,7 +88,7 @@ inline auto make_lunar_rover_action_parameter_map() {
      .joint_6 = 0.0},
      Action::MotionParams{.vel = 0.06, .acc = 0.04})}    },
 
-    {   "lift_again",
+    {   "up_two_stairs_lift_again",
      {Action::Step::makeJoint(
      Action::JointTarget{
      .joint_1 = 0.0,

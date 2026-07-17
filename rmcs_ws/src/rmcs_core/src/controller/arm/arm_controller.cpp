@@ -88,7 +88,7 @@ public:
         register_output("/arm/image_pitch/target_theta", image_pitch_target_theta_, NAN);
         register_output("/arm/custom_big_yaw", custom_big_yaw_output_, 0.0);
 
-        register_input("/leg_back/up_stairs_step", up_stairs_layer);
+        register_input("/leg_back/up_stairs_step", up_stairs_layer, false);
     }
 
     ~ArmController() {}
@@ -299,11 +299,11 @@ private:
                 break;
             case ArmMode::Auto_Up_One_Stairs:
                 arm_action_machine_.process(
-                    action_dictionary_.helper_build_chunk({"delay", "up_one_stairs"}));
+                    action_dictionary_.helper_build_chunk({"delay", "up_one_stairs_initial"}));
                 break;
             case ArmMode::Auto_Up_Two_Stairs:
                 arm_action_machine_.process(
-                    action_dictionary_.helper_build_chunk({"delay", "initial"}));
+                    action_dictionary_.helper_build_chunk({"delay", "up_two_stairs_initial"}));
                 break;
             case ArmMode::Calibration:
                 arm_action_machine_.process(action_dictionary_.helper_find_chunk("gripper_open"));
@@ -324,13 +324,14 @@ private:
         case ArmMode::Custome: execute_custom(); break;
         case ArmMode::Auto_Up_One_Stairs:
         case ArmMode::Auto_Up_Two_Stairs: {
-            if (*up_stairs_layer != last_up_stairs_layer) {
+            // Lunar rover only: switch arm actions based on stair-stage feedback from the legs.
+            if (up_stairs_layer.ready() && *up_stairs_layer != last_up_stairs_layer) {
                 last_up_stairs_layer = *up_stairs_layer;
                 if (*up_stairs_layer == "initial_again") {
                     arm_action_machine_.process(
-                        action_dictionary_.helper_find_chunk("initial_again"));
+                        action_dictionary_.helper_find_chunk("up_two_stairs_initial_again"));
                 } else if (*up_stairs_layer == "lift_again") {
-                    arm_action_machine_.process(action_dictionary_.helper_find_chunk("lift_again"));
+                    arm_action_machine_.process(action_dictionary_.helper_find_chunk("up_two_stairs_lift_again"));
                 }
             }
         } // Note that there is no break here.

@@ -2,8 +2,11 @@
   <class type="rmcs_core::hardware::cboard::Status" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
-  <class type="rmcs_core::hardware::Engineer" base_class_type="rmcs_executor::Component">
+  <class type="rmcs_core::hardware::LunarRoverEngineer" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
+  </class>
+  <class type="rmcs_core::hardware::ClimberEngineer" base_class_type="rmcs_executor::Component">
+    <description>Climber engineer hardware.</description>
   </class>
   <class type="rmcs_core::controller::arm::ArmConfig" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
@@ -12,9 +15,6 @@
     <description>Test plugin.</description>
   </class>
   <class type="rmcs_core::controller::arm::ArmController" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
-  </class>
-   <class type="rmcs_core::controller::chassis::Chassis_and_LegController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
   <class type="rmcs_core::controller::pid::PidController" base_class_type="rmcs_executor::Component">
@@ -50,8 +50,14 @@
    <class type="rmcs_core::controller::arm::Arm" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
-  <class type="rmcs_core::controller::chassis::ChassisController" base_class_type="rmcs_executor::Component">
-    <description>Test plugin.</description>
+  <class type="rmcs_core::controller::chassis::ClimberChassisController" base_class_type="rmcs_executor::Component">
+    <description>Climber chassis controller.</description>
+  </class>
+  <class type="rmcs_core::controller::chassis::EngineerChassisClimberController" base_class_type="rmcs_executor::Component">
+    <description>Engineer climber controller.</description>
+  </class>
+  <class type="rmcs_core::controller::chassis::LunarRoverChassisController" base_class_type="rmcs_executor::Component">
+    <description>Lunar rover chassis controller.</description>
   </class>
   <class type="rmcs_core::controller::chassis::SteeringWheelController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>

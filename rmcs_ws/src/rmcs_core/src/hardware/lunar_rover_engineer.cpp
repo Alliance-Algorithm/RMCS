@@ -36,11 +36,11 @@
 
 namespace rmcs_core::hardware {
 
-class Engineer
+class LunarRoverEngineer
     : public rmcs_executor::Component
     , public rclcpp::Node {
 public:
-    Engineer()
+    LunarRoverEngineer()
         : Node{
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
@@ -53,7 +53,7 @@ public:
               *this, *engineer_command_, get_parameter("board_serial_right_board").as_string()) {
         remote_control_ = std::make_unique<device::RemoteControl>(*this, armboard_.dr16_);
     }
-    ~Engineer() override = default;
+    ~LunarRoverEngineer() override = default;
     void update() override {
         armboard_.update();
         leftboard_.update();
@@ -70,11 +70,11 @@ private:
     rclcpp::Logger logger_;
     class EngineerCommand : public rmcs_executor::Component {
     public:
-        explicit EngineerCommand(Engineer& engineer)
+        explicit EngineerCommand(LunarRoverEngineer& engineer)
             : engineer_(engineer) {}
         void update() override { engineer_.command(); }
 
-        Engineer& engineer_;
+        LunarRoverEngineer& engineer_;
     };
     std::shared_ptr<EngineerCommand> engineer_command_;
 
@@ -82,9 +82,9 @@ private:
         : private librmcs::agent::CBoard
         , rclcpp::Node {
     public:
-        friend class Engineer;
+        friend class LunarRoverEngineer;
         explicit ArmBoard(
-            Engineer& engineer, EngineerCommand& engineer_command, const std::string& serial_filter)
+            LunarRoverEngineer& engineer, EngineerCommand& engineer_command, const std::string& serial_filter)
             : librmcs::agent::CBoard(serial_filter)
             , rclcpp::Node{"arm_board"}
             , joint(
@@ -341,9 +341,9 @@ private:
         : private librmcs::agent::CBoard
         , rclcpp::Node {
     public:
-        friend class Engineer;
+        friend class LunarRoverEngineer;
         explicit LeftBoard(
-            Engineer& engineer, EngineerCommand& engineer_command, const std::string& serial_filter)
+            LunarRoverEngineer& engineer, EngineerCommand& engineer_command, const std::string& serial_filter)
             : librmcs::agent::CBoard(serial_filter)
             , rclcpp::Node{"left_board"}
             , Steering_motors(
@@ -565,9 +565,9 @@ private:
         : private librmcs::agent::CBoard
         , rclcpp::Node {
     public:
-        friend class Engineer;
+        friend class LunarRoverEngineer;
         explicit RightBoard(
-            Engineer& engineer, EngineerCommand& engineer_command, const std::string& serial_filter)
+            LunarRoverEngineer& engineer, EngineerCommand& engineer_command, const std::string& serial_filter)
             : librmcs::agent::CBoard(serial_filter)
             , rclcpp::Node{"right_board"}
             , tof(engineer, "/leg/tof")
@@ -838,4 +838,4 @@ private:
 } // namespace rmcs_core::hardware
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(rmcs_core::hardware::Engineer, rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(rmcs_core::hardware::LunarRoverEngineer, rmcs_executor::Component)
