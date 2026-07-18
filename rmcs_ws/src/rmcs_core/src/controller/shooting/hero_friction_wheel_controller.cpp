@@ -193,7 +193,7 @@ private:
     bool detect_bullet_fire() {
         bool fired = false;
         if (!std::isnan(last_primary_friction_velocity_)) {
-            double differential = *friction_velocities_[1] - last_primary_friction_velocity_;
+            double differential = *friction_velocities_[0] - last_primary_friction_velocity_;
             if (differential < 0.1)
                 primary_friction_velocity_decrease_integral_ += differential;
             else {
@@ -204,7 +204,7 @@ private:
                 primary_friction_velocity_decrease_integral_ = 0;
             }
         }
-        last_primary_friction_velocity_ = *friction_velocities_[1];
+        last_primary_friction_velocity_ = *friction_velocities_[0];
 
         return fired;
     }
