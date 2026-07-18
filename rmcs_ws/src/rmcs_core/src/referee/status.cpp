@@ -49,6 +49,13 @@ public:
         register_output("/referee/chassis/buffer_energy", robot_buffer_energy_, 60.0);
         register_output("/referee/chassis/output_status", chassis_output_status_, false);
 
+        register_output("/referee/sentry/posture", sentry_posture_, uint8_t{3});
+        register_output("/referee/sentry/is_powered", sentry_is_powered_, false);
+        register_output("/referee/sentry/is_disengaged", sentry_is_disengaged_, false);
+        register_output("/referee/sentry/can_rebirth_free", sentry_can_rebirth_free_, false);
+        register_output("/referee/sentry/can_rebirth_gold", sentry_can_rebirth_gold_, false);
+        register_output("/referee/sentry/rebirth_gold_cost", sentry_rebirth_gold_cost_, uint16_t{0});
+
         register_output("/referee/robots/hp", robots_hp_);
         register_output("/referee/ally/hero_hp", ally_hero_hp_, 0);
         register_output("/referee/ally/engineer_hp", ally_engineer_hp_, 0);
@@ -149,7 +156,7 @@ private:
         auto command_id = frame_.body.command_id;
         if (command_id == 0x0001)
             update_game_status();
-        if (command_id == 0x0003)
+        else if (command_id == 0x0003)
             update_game_robot_hp();
         else if (command_id == 0x0101)
             update_event_data();
@@ -167,6 +174,8 @@ private:
             update_shoot_data();
         else if (command_id == 0x0208)
             update_bullet_allowance();
+        else if (command_id == 0x020D)
+            update_sentry_info();
         else if (command_id == 0x0303)
             update_map_command();
     }
@@ -187,16 +196,15 @@ private:
     void update_event_data() {
         auto& data = reinterpret_cast<EventData&>(frame_.body.data);
 
-        const uint32_t event_data = data.event_data;
-        *ally_small_energy_activation_status_ = (event_data >> 3) & 0x03;
-        *ally_big_energy_activation_status_ = (event_data >> 5) & 0x03;
-        *ally_fortress_occupation_status_ = (event_data >> 25) & 0x03;
+        *ally_small_energy_activation_status_ = data.ally_small_energy_activation_status;
+        *ally_big_energy_activation_status_   = data.ally_big_energy_activation_status;
+        *ally_fortress_occupation_status_     = data.ally_fortress_occupation_status;
     }
 
     void update_dart_info() {
         auto& data = reinterpret_cast<DartInfo&>(frame_.body.data);
 
-        *dart_latest_hit_target_total_count_ = (data.dart_info >> 3) & 0x07;
+        *dart_latest_hit_target_total_count_ = data.latest_hit_target_total_count;
     }
 
     void update_game_robot_hp() {
@@ -228,7 +236,7 @@ private:
         else
             *robot_chassis_power_limit_ = static_cast<double>(data.chassis_power_limit);
 
-        *chassis_output_status_ = data.power_management_status & (1u << 1);
+        *chassis_output_status_ = data.power_management_chassis_output;
     }
 
     void update_power_heat_data() {
@@ -261,6 +269,17 @@ private:
         *robot_42mm_bullet_allowance_ = data.projectile_allowance_42mm;
         *remaining_gold_coin_ = data.remaining_gold_coin;
         *robot_fortress_17mm_bullet_allowance_ = data.projectile_allowance_fortress;
+    }
+
+    void update_sentry_info() {
+        auto& data = reinterpret_cast<SentryInfo&>(frame_.body.data);
+
+        *sentry_posture_ = static_cast<uint8_t>(data.posture + (data.is_powered ? 3 : 0));
+        *sentry_is_powered_        = data.is_powered;
+        *sentry_is_disengaged_     = data.is_disengaged;
+        *sentry_can_rebirth_free_  = data.can_rebirth_free;
+        *sentry_can_rebirth_gold_  = data.can_rebirth_gold;
+        *sentry_rebirth_gold_cost_ = data.rebirth_gold_cost;
     }
 
     void update_map_command() {
@@ -328,6 +347,13 @@ private:
     OutputInterface<int64_t> robot_shooter_cooling_, robot_shooter_heat_limit_;
     OutputInterface<double> robot_chassis_power_limit_;
     OutputInterface<bool> chassis_output_status_;
+
+    OutputInterface<uint8_t> sentry_posture_;
+    OutputInterface<bool> sentry_is_powered_;
+    OutputInterface<bool> sentry_is_disengaged_;
+    OutputInterface<bool> sentry_can_rebirth_free_;
+    OutputInterface<bool> sentry_can_rebirth_gold_;
+    OutputInterface<uint16_t> sentry_rebirth_gold_cost_;
 
     rmcs_utility::TickTimer power_heat_data_watchdog_;
     OutputInterface<double> robot_chassis_power_;
