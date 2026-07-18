@@ -39,12 +39,6 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
             robot_name + ".yaml",
         )
 
-        config_path = os.path.join(
-            FindPackageShare("rmcs_bringup").perform(context),
-            "config",
-            robot_name + ".yaml",
-        )
-
         entities.append(
             Node(
                 package="rmcs_executor",
