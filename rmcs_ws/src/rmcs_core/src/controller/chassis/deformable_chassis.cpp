@@ -182,7 +182,7 @@ private:
         switch (*mode_) {
         case rmcs_msgs::ChassisMode::AUTO: break;
 
-        case rmcs_msgs::ChassisMode::SPIN: {
+        case rmcs_msgs::ChassisMode::SPIN_FAST: {
             bool forward = joint_mode_mgr_.spinning_forward();
             angular_velocity =
                 spin_ratio_ * (forward ? angular_velocity_max_ : -angular_velocity_max_);

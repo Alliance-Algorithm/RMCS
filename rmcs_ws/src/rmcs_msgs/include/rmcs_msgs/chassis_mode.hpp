@@ -5,10 +5,17 @@
 namespace rmcs_msgs {
 
 enum class ChassisMode : uint8_t {
-    AUTO = 0,
-    SPIN = 1,
-    STEP_DOWN = 2,
-    LAUNCH_RAMP = 3,
+    AUTO,
+    SPIN_SLOW,
+    SPIN_FAST,
+    STEP_DOWN,
+    LAUNCH_RAMP,
+    ALIGNMENT,
+    ALIGNMENT_POWERED,
 };
+
+constexpr auto need_power(ChassisMode mode) noexcept {
+    return mode == ChassisMode::ALIGNMENT_POWERED || mode == ChassisMode::LAUNCH_RAMP;
+}
 
 } // namespace rmcs_msgs

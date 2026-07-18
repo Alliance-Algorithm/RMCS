@@ -148,17 +148,17 @@ private:
 
         if (last_switch_right_ == rmcs_msgs::Switch::MIDDLE
             && switch_right == rmcs_msgs::Switch::DOWN) {
-            if (next_mode == rmcs_msgs::ChassisMode::SPIN) {
+            if (next_mode == rmcs_msgs::ChassisMode::SPIN_FAST) {
                 next_mode = rmcs_msgs::ChassisMode::STEP_DOWN;
             } else {
-                next_mode = rmcs_msgs::ChassisMode::SPIN;
+                next_mode = rmcs_msgs::ChassisMode::SPIN_FAST;
                 joint_posture_state_.spinning_forward = !joint_posture_state_.spinning_forward;
             }
         } else if (!last_keyboard_.c && keyboard.c) {
-            if (next_mode == rmcs_msgs::ChassisMode::SPIN) {
+            if (next_mode == rmcs_msgs::ChassisMode::SPIN_FAST) {
                 next_mode = rmcs_msgs::ChassisMode::AUTO;
             } else {
-                next_mode = rmcs_msgs::ChassisMode::SPIN;
+                next_mode = rmcs_msgs::ChassisMode::SPIN_FAST;
                 joint_posture_state_.spinning_forward = !joint_posture_state_.spinning_forward;
             }
         } else if (!last_keyboard_.z && keyboard.z) {

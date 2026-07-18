@@ -106,7 +106,7 @@ private:
                 std::round((2 * std::numbers::pi - angle) / std::numbers::pi * 180));
         };
         chassis_direction_indicator_.set_color(
-            chassis_mode == rmcs_msgs::ChassisMode::SPIN ? Shape::Color::GREEN
+            chassis_mode == rmcs_msgs::ChassisMode::SPIN_FAST ? Shape::Color::GREEN
                                                          : Shape::Color::PINK);
         chassis_direction_indicator_.set_angle(to_referee_angle(*chassis_angle_), 30);
 

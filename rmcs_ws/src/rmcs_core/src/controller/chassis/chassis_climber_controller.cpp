@@ -119,8 +119,6 @@ public:
         auto keyboard = *keyboard_;
         auto rotary_knob_switch = *rotary_knob_switch_;
 
-        // RCLCPP_INFO(get_logger(), "%f", *chassis_pitch_imu_);
-
         bool rotary_knob_to_down =
             (last_rotary_knob_switch_ != Switch::DOWN && rotary_knob_switch == Switch::DOWN);
         bool rotary_knob_from_down =
@@ -299,9 +297,7 @@ private:
     AutoClimbControl update_manual_support_control(const rmcs_msgs::Keyboard& keyboard) {
         AutoClimbControl control;
 
-        if (keyboard.b || *rotary_knob_switch_ == rmcs_msgs::Switch::UP) {
-            manual_support_retracting_ = false;
-            manual_support_retract_block_count_ = 0;
+        if (keyboard.b) {
             back_climber_zero_velocity_hold_ = false;
             control.back_climber_velocity = climber_back_control_velocity_abs_;
             return control;
@@ -312,8 +308,11 @@ private:
         }
 
         if (!manual_support_retracting_) {
-            if (back_climber_zero_velocity_hold_)
+            if (back_climber_zero_velocity_hold_) {
                 control.back_climber_velocity = 0.0;
+            } else {
+                start_back_climber_retract("Auto retract");
+            }
             return control;
         }
 
@@ -604,7 +603,7 @@ private:
     void dual_motor_sync_control(
         double setpoint, double left_velocity, double right_velocity,
         pid::MatrixPidCalculator<2>& pid_calculator, double& left_torque_out,
-        double& right_torque_out) {
+        double& right_torque_out) const {
 
         if (std::isnan(setpoint)) {
             left_torque_out = nan_;
@@ -623,9 +622,9 @@ private:
         right_torque_out = control_torques[1];
     }
 
-    void limit_back_climber_retract_torque(
+    static void limit_back_climber_retract_torque(
         double back_climber_velocity_setpoint, double& left_torque, double& right_torque,
-        double max_torque) const {
+        double max_torque) {
 
         if (!std::isfinite(back_climber_velocity_setpoint) || back_climber_velocity_setpoint >= 0.0)
             return;
@@ -642,6 +641,7 @@ private:
     }
 
     rclcpp::Logger logger_;
+
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
     static constexpr double kAutoClimbAlignThreshold = 0.10;
     static constexpr double kAutoClimbAlignVelocityThreshold = 0.2;
@@ -714,13 +714,12 @@ private:
 
     std::shared_ptr<ChassisClimberFrontPowerLimiter> front_power_limiter_;
 
-    double back_climber_retract_first_torque_ = 10.0;
-    double back_climber_retract_second_torque_ = 1.0;
+    double back_climber_retract_first_torque_ = 8.0;
+    double back_climber_retract_second_torque_ = 0.5;
     int back_climber_recover_count = 0;
 };
 } // namespace rmcs_core::controller::chassis
 
 #include <pluginlib/class_list_macros.hpp>
-
 PLUGINLIB_EXPORT_CLASS(
     rmcs_core::controller::chassis::ChassisClimberController, rmcs_executor::Component)

@@ -43,9 +43,12 @@ constexpr auto to_string(GameStage stage) noexcept -> const char* {
 constexpr auto to_string(ChassisMode mode) noexcept -> const char* {
     switch (mode) {
     case ChassisMode::AUTO: return "AUTO";
-    case ChassisMode::SPIN: return "SPIN";
+    case ChassisMode::SPIN_FAST: return "SPIN_FAST";
     case ChassisMode::STEP_DOWN: return "STEP_DOWN";
     case ChassisMode::LAUNCH_RAMP: return "LAUNCH_RAMP";
+    case ChassisMode::SPIN_SLOW: return "SPIN_SLOW";
+    case ChassisMode::ALIGNMENT: return "ALIGNMENT";
+    case ChassisMode::ALIGNMENT_POWERED: return "ALIGNMENT_POWERED";
     }
     return "INVALID";
 }
