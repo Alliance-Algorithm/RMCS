@@ -19,7 +19,7 @@ from colorama import Fore, Style
 
 SSH_PORT = 2022
 SSH_USER = "root"
-CONNECT_TIMEOUT = 0.5
+CONNECT_TIMEOUT = 0.75
 BANNER_TIMEOUT = 0.35
 SSH_PROBE_TIMEOUT = 2.0
 DEFAULT_SCAN_SEGMENTS = range(1, 6)
@@ -768,10 +768,14 @@ def interactive_scan_and_select(networks):
 
         if key == "next":
             selected["index"] = (selected["index"] + 1) % len(candidates)
+            network, result = candidates[selected["index"]]
+            selected["key"] = (network, result["ip"])
             render_prompt()
             return None
         if key == "prev":
             selected["index"] = (selected["index"] - 1) % len(candidates)
+            network, result = candidates[selected["index"]]
+            selected["key"] = (network, result["ip"])
             render_prompt()
             return None
         if key == "enter":
