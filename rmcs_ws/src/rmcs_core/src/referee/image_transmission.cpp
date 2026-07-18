@@ -22,9 +22,7 @@ class ImageTransmissionLink
     , public rclcpp::Node {
 public:
     ImageTransmissionLink()
-        : Node{
-              get_component_name(),
-              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
+        : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , logger_(get_logger()) {
 
         std::string path;
@@ -186,7 +184,7 @@ private:
     OutputInterface<std::array<uint8_t, 30>> custom_data_;
     rmcs_utility::TickTimer custom_watchdog_;
 
-    OutputInterface<std::array<uint8_t, 18>> vt13_frame_data_;
+    OutputInterface<std::array<uint8_t, 21>> vt13_frame_data_;
     rmcs_utility::TickTimer vt13_watchdog_;
 
     Frame frame_;

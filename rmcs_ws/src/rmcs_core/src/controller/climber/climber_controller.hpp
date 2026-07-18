@@ -29,7 +29,7 @@ public:
         double back_blocked_velocity_threshold   = 0.1;
         int support_confirm_ticks                = 100;
         int dash_min_ticks                       = 350;
-        int dash_timeout_ticks                   = 450;
+        int dash_timeout_ticks                   = 1000;
         int support_retract_ticks                = 1500;
         int slide_ticks                          = 200;
     };
@@ -78,8 +78,8 @@ public:
         case State::SUPPORT_DEPLOY: return update_support_deploy(input);
         case State::DASH: return update_dash(input);
         case State::SUPPORT_RETRACT: return update_support_retract();
-        case State::SLIDE: return {};
-        case State::EMPTY: return {};
+        case State::SLIDE: return update_slide();
+        case State::EMPTY: return update_empty();
         default: return {};
         }
 
@@ -160,7 +160,7 @@ private:
         };
 
         switch (stair_index_) {
-        case 0: config_.dash_min_ticks = 50; break;
+        case 0: config_.dash_min_ticks = 100; break;
         case 1: config_.dash_min_ticks = 350; break;
         }
         const bool is_leveled = std::abs(input.chassis_pitch_imu) < config_.leveled_pitch_threshold

@@ -9,6 +9,7 @@
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/arm_mode.hpp>
+#include <string>
 
 namespace rmcs_core::controller::chassis {
 
@@ -105,8 +106,12 @@ public:
         }
 
         if (climber_controller_.active()) {
-            RCLCPP_INFO(
-                this->get_logger(), "Auto climb state: %s", climber_controller_.state_str());
+            if (climber_controller_.state_str() != last_climber_state_str_) {
+                RCLCPP_INFO(
+                    this->get_logger(), "Auto climb state changed to: %s",
+                    climber_controller_.state_str());
+            }
+
             apply_climb_control(update_auto_climb_control());
             if (!climber_controller_.active())
                 reset_pid_controllers();
@@ -114,7 +119,8 @@ public:
             set_control_outputs_nan();
         }
 
-        last_arm_mode_ = *arm_mode_;
+        last_arm_mode_          = *arm_mode_;
+        last_climber_state_str_ = climber_controller_.state_str();
     }
 
 private:
@@ -220,7 +226,8 @@ private:
 
     InputInterface<double> chassis_pitch_imu_;
 
-    rmcs_msgs::ArmMode last_arm_mode_ = rmcs_msgs::ArmMode::None;
+    rmcs_msgs::ArmMode last_arm_mode_   = rmcs_msgs::ArmMode::None;
+    std::string last_climber_state_str_ = "IDLE";
 
     pid::MatrixPidCalculator<2> front_velocity_pid_calculator_, back_velocity_pid_calculator_;
 };

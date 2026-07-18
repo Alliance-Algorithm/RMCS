@@ -20,7 +20,7 @@ rmcs_executor:
       - rmcs_core::controller::pid::ErrorPidController -> big_yaw_angle_error_pid_controller
       - rmcs_core::controller::pid::PidController -> big_yaw_velocity_pid_controller
     
-      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 engineer_hardware:
   ros__parameters:
     board_serial_arm_board: "D4-6654-1C0F-7353-AA15-A77B-313D"
@@ -55,6 +55,12 @@ arm_controller:
 arm_solver:
   ros__parameters:
     controller_list: [pid, gravity, friction]
+    joint_6_angle_kp: 65.00
+    joint_6_angle_ki: 0.0
+    joint_6_angle_kd: 0.04
+    joint_6_vel_kp: 0.08
+    joint_6_vel_ki: 0.0002
+    joint_6_vel_kd: 0.000
 
 
 gripper_angle_pid_controller:
@@ -62,7 +68,7 @@ gripper_angle_pid_controller:
     measurement: /arm/gripper/motor/angle
     setpoint: /arm/gripper/target_theta
     control: /arm/gripper/control_vel
-    kp: 230.0
+    kp: 4.8
     ki: 0.0
     kd: 0.0
 
@@ -71,9 +77,9 @@ gripper_velocity_pid_controller:
     measurement: /arm/gripper/motor/velocity
     setpoint: /arm/gripper/control_vel
     control: /arm/gripper/motor/control_torque
-    kp: 0.8
+    kp: 0.08
     ki: 0.0
-    kd: 0.02
+    kd: 0.00
 
 
 image_pitch_angle_pid_controller:
@@ -98,7 +104,7 @@ big_yaw_angle_error_pid_controller:
   ros__parameters:
     measurement: /chassis/big_yaw/target_angle_error
     control: /chassis/big_yaw/control_vel
-    kp: 130.0
+    kp: 140.0
     ki: 0.0
     kd: 10.0
 big_yaw_velocity_pid_controller:
@@ -129,7 +135,7 @@ steering_wheel_controller:
 engineer_chassis_climber_controller:
   ros__parameters:
     front_climber_velocity: 30.0
-    back_climber_velocity: 100.0
+    back_climber_velocity: 150.0
     auto_climb_support_retract_velocity: 220.0
     auto_climb_approach_chassis_velocity: 0.5
     auto_climb_support_deploy_chassis_velocity: 0.5
