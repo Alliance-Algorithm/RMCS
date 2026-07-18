@@ -33,6 +33,7 @@ public:
         register_input("/remote/mouse", mouse_);
         register_input("/remote/keyboard", keyboard_);
 
+        register_input("/auto_aim/should_control", auto_aim_should_control_, false);
         register_input("/auto_aim/control_direction", auto_aim_control_direction_, false);
         register_input("/tf", tf_);
 
@@ -114,8 +115,13 @@ public:
     }
 
     TwoAxisGimbalSolver::AngleError update_imu_control() {
-        if (auto_aim_control_direction_.ready() && !auto_aim_control_direction_->isZero()
-            && (mouse_->right || *switch_right_ == rmcs_msgs::Switch::UP)) {
+        const auto auto_aim_requested = mouse_->right || *switch_right_ == rmcs_msgs::Switch::UP;
+        const auto should_control = auto_aim_should_control_.ready() && *auto_aim_should_control_;
+        const auto valid_control = auto_aim_control_direction_.ready()
+                                && auto_aim_control_direction_->allFinite()
+                                && !auto_aim_control_direction_->isZero();
+
+        if (auto_aim_requested && should_control && valid_control) {
             return imu_gimbal_solver_.update(
                 TwoAxisGimbalSolver::SetControlDirection{
                     OdomImu::DirectionVector{*auto_aim_control_direction_}});
@@ -182,6 +188,7 @@ private:
 
     rmcs_msgs::Keyboard last_keyboard_ = rmcs_msgs::Keyboard::zero();
 
+    InputInterface<bool> auto_aim_should_control_;
     InputInterface<Eigen::Vector3d> auto_aim_control_direction_;
     InputInterface<Tf> tf_;
 
