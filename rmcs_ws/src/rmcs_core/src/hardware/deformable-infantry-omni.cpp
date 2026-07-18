@@ -33,6 +33,7 @@
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/lk_motor.hpp"
 #include "hardware/device/supercap.hpp"
+#include "hardware/util/status_monitor.hpp"
 
 namespace rmcs_core::hardware {
 
@@ -122,7 +123,10 @@ private:
             DeformableInfantryOmni& status, rmcs_executor::Component& command,
             const std::string& serial_filter = {})
             : status_{status}
-            , command_{command} {
+            , command_{command}
+            , kChassisRadiusBase(status.get_parameter("chassis_radius").as_double())
+            , kRodLength(status.get_parameter("rod_length").as_double())
+            , kDefaultRadius(kChassisRadiusBase + kRodLength) {
 
             status.register_output("/referee/serial", referee_serial_);
             referee_serial_->read = [this](std::byte* buffer, size_t size) {
@@ -141,7 +145,7 @@ private:
 
             for (auto& motor : chassis_wheel_motors_)
                 motor.configure(
-                    device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
+                    device::DjiMotor::Config{device::DjiMotor::Type::kM3508, 1}
                         .set_reduction_ratio(19.0)
                         .enable_multi_turn_angle());
 
@@ -158,7 +162,8 @@ private:
             });
 
             gimbal_bullet_feeder_.configure(
-                device::DjiMotor::Config{device::DjiMotor::Type::kM2006}.enable_multi_turn_angle());
+                device::DjiMotor::Config{device::DjiMotor::Type::kM2006, 3}
+                    .enable_multi_turn_angle());
 
             status.register_output("/chassis/yaw/velocity_imu", chassis_yaw_velocity_imu_, 0);
             status.register_output("/chassis/imu/pitch", chassis_imu_pitch_, 0.0);
@@ -243,7 +248,7 @@ private:
             auto builder = board_->start_transmit();
             if (even) {
                 builder.can_transmit(
-                    Spec::kCans.kCan0,
+                    Spec::kCans.kCan0,         //
                     {
                         .can_id = 0x200,
                         .can_data =
@@ -256,7 +261,7 @@ private:
                                 .as_bytes(),
                     });
                 builder.can_transmit(
-                    Spec::kCans.kCan1,
+                    Spec::kCans.kCan1,         //
                     {
                         .can_id = 0x200,
                         .can_data =
@@ -269,7 +274,7 @@ private:
                                 .as_bytes(),
                     });
                 builder.can_transmit(
-                    Spec::kCans.kCan2,
+                    Spec::kCans.kCan2,         //
                     {
                         .can_id = 0x200,
                         .can_data =
@@ -282,7 +287,7 @@ private:
                                 .as_bytes(),
                     });
                 builder.can_transmit(
-                    Spec::kCans.kCan3,
+                    Spec::kCans.kCan3,         //
                     {
                         .can_id = 0x200,
                         .can_data =
@@ -295,13 +300,13 @@ private:
                                 .as_bytes(),
                     });
                 builder.can_transmit(
-                    Spec::kCans.kCan2,
+                    Spec::kCans.kCan2,         //
                     {
                         .can_id = 0x142,
                         .can_data = gimbal_yaw_motor_.generate_command().as_bytes(),
                     });
                 builder.can_transmit(
-                    Spec::kCans.kCan1, //
+                    Spec::kCans.kCan1,         //
                     {
                         .can_id = 0x1FE,
                         .can_data =
@@ -318,7 +323,7 @@ private:
                     switch (i) {
                     case kLeftFront:
                         builder.can_transmit(
-                            Spec::kCans.kCan0,
+                            Spec::kCans.kCan0, //
                             {
                                 .can_id = 0x141,
                                 .can_data = chassis_joint_motors_[i].generate_command().as_bytes(),
@@ -326,7 +331,7 @@ private:
                         break;
                     case kLeftBack:
                         builder.can_transmit(
-                            Spec::kCans.kCan1,
+                            Spec::kCans.kCan1, //
                             {
                                 .can_id = 0x141,
                                 .can_data = chassis_joint_motors_[i].generate_command().as_bytes(),
@@ -334,7 +339,7 @@ private:
                         break;
                     case kRightBack:
                         builder.can_transmit(
-                            Spec::kCans.kCan2,
+                            Spec::kCans.kCan2, //
                             {
                                 .can_id = 0x141,
                                 .can_data = chassis_joint_motors_[i].generate_command().as_bytes(),
@@ -342,7 +347,7 @@ private:
                         break;
                     case kRightFront:
                         builder.can_transmit(
-                            Spec::kCans.kCan3,
+                            Spec::kCans.kCan3, //
                             {
                                 .can_id = 0x141,
                                 .can_data = chassis_joint_motors_[i].generate_command().as_bytes(),
@@ -355,9 +360,6 @@ private:
         }
 
         static constexpr double kJointZeroPhysicalAngleRad = 62.5 * std::numbers::pi / 180.0;
-        static constexpr double kChassisRadiusBase = 0.2341741;
-        static constexpr double kRodLength = 0.150;
-        static constexpr double kDefaultRadius = kChassisRadiusBase + kRodLength;
 
         DeformableInfantryOmni& status_;
         Component& command_;
@@ -392,6 +394,10 @@ private:
         bool debug_log_supercap_ = false;
         bool debug_log_wheel_motor_ = false;
         bool debug_log_deformable_joint_motor_ = false;
+
+        const double kChassisRadiusBase;
+        const double kRodLength;
+        const double kDefaultRadius;
 
         Clock::time_point next_chassis_feedback_log_time_{Clock::now() + std::chrono::seconds(1)};
         Clock::time_point next_supercap_feedback_log_time_{Clock::now() + std::chrono::seconds(1)};
@@ -562,8 +568,11 @@ private:
         }
 
         void can_receive_callback(const Spec::Can& can, const View::Can& data) override {
+            if (data.is_extended_can_id || data.is_remote_transmission)
+                return;
             if (can == Spec::kCans.kCan0) {
                 process_chassis_can_receive_(0, data);
+                monitor_.tick("Bottom::Can0", data.can_id);
             } else if (can == Spec::kCans.kCan1) {
                 process_chassis_can_receive_(1, data);
                 if (!data.is_extended_can_id && !data.is_remote_transmission
@@ -574,6 +583,7 @@ private:
                     supercap_.store_status(data.can_data);
                     supercap_status_received_.store(true, std::memory_order_relaxed);
                 }
+                monitor_.tick("Bottom::Can1", data.can_id);
             } else if (can == Spec::kCans.kCan2) {
                 process_chassis_can_receive_(2, data);
                 if (data.is_extended_can_id || data.is_remote_transmission)
@@ -582,29 +592,39 @@ private:
                     gimbal_yaw_motor_.store_status(data.can_data);
                 else if (data.can_id == 0x203)
                     gimbal_bullet_feeder_.store_status(data.can_data);
+                monitor_.tick("Bottom::Can2", data.can_id);
             } else if (can == Spec::kCans.kCan3) {
                 process_chassis_can_receive_(3, data);
+                monitor_.tick("Bottom::Can3", data.can_id);
             }
         }
 
         void uart_receive_callback(const Spec::Uart& uart, const View::Uart& data) override {
             if (uart == Spec::kUarts.kDbus) {
                 dr16_.store_status(data.uart_data.data(), data.uart_data.size());
+                monitor_.tick("Bottom::Dbus", "Active");
             } else if (uart == Spec::kUarts.kUart0) {
                 const std::byte* ptr = data.uart_data.data();
                 referee_ring_buffer_receive_.emplace_back_n(
                     [&ptr](std::byte* storage) noexcept { *storage = *ptr++; },
                     data.uart_data.size());
+                monitor_.tick("Bottom::Uart0", "Active");
             }
         }
 
         void accelerometer_receive_callback(const View::ImuAccelerometer& data) override {
             imu_.store_accelerometer_status(data.x, data.y, data.z);
+            monitor_.tick("Bottom::Imu", "Acc");
         }
 
         void gyroscope_receive_callback(const View::ImuGyroscope& data) override {
             imu_.store_gyroscope_status(data.x, data.y, data.z);
+            monitor_.tick("Bottom::Imu", "Gyr");
         }
+
+        auto status() const -> std::vector<std::string> { return monitor_.text(); }
+
+        StatusMonitor monitor_{};
     };
 
     struct TopBoard final : public librmcs::board::RmcsBoardLite::Callback {
@@ -614,7 +634,9 @@ private:
             const std::string& serial_filter = {})
             : tf_{status.tf_}
             , bmi088_{device::Bmi088Ekf::Config{
-                  .body_to_sensor = (Eigen::Matrix3d() << 1, 0, 0, 0, 0, -1, 0, 1, 0).finished()}}
+                  .body_to_sensor =
+                      Eigen::AngleAxisd{std::numbers::pi / 2.0, Eigen::Vector3d::UnitX()}
+                          .toRotationMatrix()}}
             , gimbal_pitch_motor_(status, command, "/gimbal/pitch")
             , gimbal_left_friction_(status, command, "/gimbal/left_friction")
             , gimbal_right_friction_(status, command, "/gimbal/right_friction") {
@@ -626,11 +648,12 @@ private:
                         static_cast<int>(status.get_parameter("pitch_motor_zero_point").as_int())));
 
             gimbal_left_friction_.configure(
-                device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
+                device::DjiMotor::Config{device::DjiMotor::Type::kM3508, 1}
                     .set_reduction_ratio(1.)
                     .set_reversed());
             gimbal_right_friction_.configure(
-                device::DjiMotor::Config{device::DjiMotor::Type::kM3508}.set_reduction_ratio(1.));
+                device::DjiMotor::Config{device::DjiMotor::Type::kM3508, 2}.set_reduction_ratio(
+                    1.));
 
             status.register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_bmi088_);
             status.register_output("/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_bmi088_);
@@ -684,7 +707,7 @@ private:
         void command_update() const {
             auto builder = board_->start_transmit();
             builder.can_transmit(
-                Spec::kCans.kCan0,
+                Spec::kCans.kCan0, //
                 {
                     .can_id = 0x141,
                     .can_data = gimbal_pitch_motor_.generate_torque_command().as_bytes(),
@@ -723,22 +746,27 @@ private:
             if (can == Spec::kCans.kCan0) {
                 if (data.can_id == 0x141)
                     gimbal_pitch_motor_.store_status(data.can_data);
+                monitor_.tick("Top::Can0", data.can_id);
             } else if (can == Spec::kCans.kCan1) {
                 if (data.can_id == 0x201)
                     gimbal_left_friction_.store_status(data.can_data);
+                monitor_.tick("Top::Can1", data.can_id);
             } else if (can == Spec::kCans.kCan2) {
                 if (data.can_id == 0x202)
                     gimbal_right_friction_.store_status(data.can_data);
+                monitor_.tick("Top::Can2", data.can_id);
             }
         }
 
         void accelerometer_receive_callback(const View::ImuAccelerometer& data) override {
             const auto timestamp = board_clock_lifter_.advance_timebase(data.timestamp_quarter_us);
             bmi088_.push_accelerometer_sample(data.x, data.y, data.z, timestamp);
+            monitor_.tick("Top::Imu", "Acc");
         }
 
         void gyroscope_receive_callback(const View::ImuGyroscope& data) override {
             const auto timestamp = board_clock_lifter_.lift_timestamp(data.timestamp_quarter_us);
+            monitor_.tick("Top::Imu", "Gyr");
             if (!timestamp.has_value())
                 return;
             auto snapshot =
@@ -759,7 +787,10 @@ private:
                 return;
 
             camera_signal_output_.emit(*timestamp);
+            monitor_.tick("Top::CameraSync", "Active");
         }
+
+        auto status() const -> std::vector<std::string> { return monitor_.text(); }
 
         OutputInterface<rmcs_description::Tf>& tf_;
         OutputInterface<double> gimbal_yaw_velocity_bmi088_;
@@ -774,6 +805,7 @@ private:
         device::DjiMotor gimbal_left_friction_;
         device::DjiMotor gimbal_right_friction_;
 
+        StatusMonitor monitor_{};
         std::unique_ptr<librmcs::board::RmcsBoardLite> board_;
     };
 
@@ -786,20 +818,24 @@ private:
             std::println(feedback_message, format, std::forward<Args>(args)...);
         };
 
-        text("Gimbal Status");
-        text("-   Yaw: {}", bottom_board_->gimbal_yaw_motor_.last_raw_angle());
-        text("- Pitch: {}", top_board_->gimbal_pitch_motor_.last_raw_angle());
-
-        text("Chassis Status");
+        text("    yaw_motor_zero_point: {}", bottom_board_->gimbal_yaw_motor_.last_raw_angle());
+        text("    pitch_motor_zero_point: {}", top_board_->gimbal_pitch_motor_.last_raw_angle());
         constexpr auto kPosition =
-            std::array<std::string_view, 4>{"left front", "left back", "right back", "right front"};
-        constexpr auto kMaxLength =
-            std::ranges::max_element(kPosition, {}, &std::string_view::size)->size();
+            std::array<std::string_view, 4>{"left_front", "left_back", "right_back", "right_front"};
 
+        text("");
         for (auto&& [index, motor] :
              std::views::zip(kPosition, bottom_board_->chassis_joint_motors_)) {
-            text("- {:{}}: {}", index, kMaxLength, motor.last_raw_angle());
+            text("    {}_zero_point: {}", index, motor.last_raw_angle());
         }
+
+        text("\nBottomBoard Status:");
+        for (const auto& line : bottom_board_->status())
+            text("> {}", line);
+
+        text("\nTopBoard Status:");
+        for (const auto& line : top_board_->status())
+            text("> {}", line);
 
         response->message = feedback_message.str();
     }

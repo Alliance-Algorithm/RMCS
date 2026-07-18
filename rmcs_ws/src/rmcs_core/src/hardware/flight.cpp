@@ -42,13 +42,13 @@ public:
             device::LkMotor::Config{device::LkMotor::Type::kMG4010Ei10}.set_encoder_zero_point(
                 static_cast<int>(get_parameter("pitch_motor_zero_point").as_int())));
         gimbal_left_friction_.configure(
-            device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
+            device::DjiMotor::Config{device::DjiMotor::Type::kM3508, 3}
                 .set_reversed()
                 .set_reduction_ratio(1.0));
         gimbal_right_friction_.configure(
-            device::DjiMotor::Config{device::DjiMotor::Type::kM3508}.set_reduction_ratio(1.0));
+            device::DjiMotor::Config{device::DjiMotor::Type::kM3508, 4}.set_reduction_ratio(1.0));
         gimbal_bullet_feeder_.configure(
-            device::DjiMotor::Config{device::DjiMotor::Type::kM2006}.enable_multi_turn_angle());
+            device::DjiMotor::Config{device::DjiMotor::Type::kM2006, 1}.enable_multi_turn_angle());
 
         bmi088_.set_coordinate_mapping(
             [](double x, double y, double z) { return std::tuple{y, z, x}; });
@@ -74,8 +74,7 @@ public:
         };
         referee_serial_->write = [this](const std::byte* buffer, size_t size) {
             board_->start_transmit().uart_transmit(
-                Spec::kUarts.kUart1,
-                {.uart_data = std::span<const std::byte>{buffer, size}});
+                Spec::kUarts.kUart1, {.uart_data = std::span<const std::byte>{buffer, size}});
             return size;
         };
 
@@ -106,33 +105,37 @@ public:
         auto builder = board_->start_transmit();
         builder
             .can_transmit(
-                Spec::kCans.kCan0,
-                {.can_id = 0x200,
-                 .can_data =
-                     device::CanPacket8{
-                         device::CanPacket8::PaddingQuarter{},
-                         device::CanPacket8::PaddingQuarter{},
-                         gimbal_left_friction_.generate_command(),
-                         gimbal_right_friction_.generate_command(),
-                     }
-                         .as_bytes()})
+                Spec::kCans.kCan0, //
+                {
+                    .can_id = 0x200,
+                    .can_data =
+                        device::CanPacket8{
+                            device::CanPacket8::PaddingQuarter{},
+                            device::CanPacket8::PaddingQuarter{},
+                            gimbal_left_friction_.generate_command(),
+                            gimbal_right_friction_.generate_command(),
+                        }
+                            .as_bytes(),
+                })
             .can_transmit(
-                Spec::kCans.kCan1,
-                {.can_id = 0x200,
-                 .can_data =
-                     device::CanPacket8{
-                         gimbal_bullet_feeder_.generate_command(),
-                         device::CanPacket8::PaddingQuarter{},
-                         device::CanPacket8::PaddingQuarter{},
-                         device::CanPacket8::PaddingQuarter{},
-                     }
-                         .as_bytes()})
+                Spec::kCans.kCan1, //
+                {
+                    .can_id = 0x200,
+                    .can_data =
+                        device::CanPacket8{
+                            gimbal_bullet_feeder_.generate_command(),
+                            device::CanPacket8::PaddingQuarter{},
+                            device::CanPacket8::PaddingQuarter{},
+                            device::CanPacket8::PaddingQuarter{},
+                        }
+                            .as_bytes(),
+                })
             .can_transmit(
-                Spec::kCans.kCan2,
+                Spec::kCans.kCan2, //
                 {.can_id = 0x141,
                  .can_data = gimbal_yaw_motor_.generate_torque_command().as_bytes()})
             .can_transmit(
-                Spec::kCans.kCan3,
+                Spec::kCans.kCan3, //
                 {.can_id = 0x142, .can_data = gimbal_pitch_motor_.generate_command().as_bytes()});
     }
 

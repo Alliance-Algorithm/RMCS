@@ -10,7 +10,6 @@ rmcs_executor:
       - rmcs_core::referee::command::Interaction -> referee_interaction
       - rmcs_core::referee::command::interaction::Ui -> referee_ui
       - rmcs_core::referee::app::ui::DeformableInfantry -> referee_ui_infantry
-      - rmcs_core::referee::app::ui::AutoAimUi -> auto_aim_ui
 
       - rmcs_core::controller::gimbal::DeformableInfantryGimbalController -> gimbal_controller
 
@@ -33,6 +32,7 @@ rmcs_executor:
 
       - rmcs::AutoAimComponent -> auto_aim_component
       - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
+      - rmcs_core::referee::app::ui::AutoAimUi -> auto_aim_ui
 
       # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       # - rmcs_core::debug::ValueCollector -> value_collector
@@ -78,8 +78,8 @@ auto_aim_component:
     fire_control:
       bullet_speed: 22.5
       shoot_delay: 0.1
-      offset_yaw: -0.0
-      offset_pitch: +0.0
+      offset_yaw: +0.1
+      offset_pitch: -0.6
       attack_window: 120.0
       window_hysteresis: 0.2
       is_lazy_gimbal: false
@@ -98,10 +98,8 @@ deformable_infantry:
   ros__parameters:
     serial_filter_bottom_board: "AF-23FB-EE32-B892-1302-AE70-D640-7B4E-0CBF"
     serial_filter_top_board: "AF-7A42-07AA-D181-0356-7715-6D7C-4C65-5762"
-    left_front_zero_point: 374
-    left_back_zero_point: 5801
-    right_back_zero_point: 7817
-    right_front_zero_point: 7136
+    chassis_radius: 0.2341741
+    rod_length: 0.140
     yaw_motor_zero_point: 43365
     pitch_motor_zero_point: 6432
     debug_log_supercap: false
@@ -166,7 +164,7 @@ deformable_suspension:
 gimbal_controller:
   ros__parameters:
     upper_limit: -0.47123 # -27 deg
-    lower_limit: 0.15707 # 9 deg
+    lower_limit: 0.10 # 8 deg
     ctrl_hold_pitch_target_angle: 0.0
 
     yaw_angle_kp: 15.0
@@ -247,8 +245,6 @@ deformable_chassis_controller:
   ros__parameters:
     mass: 25.5
     moment_of_inertia: 1.0
-    chassis_radius: 0.2341741
-    rod_length: 0.140
     wheel_radius: 0.075
     friction_coefficient: 6.6
     k1: 2.958580e+00

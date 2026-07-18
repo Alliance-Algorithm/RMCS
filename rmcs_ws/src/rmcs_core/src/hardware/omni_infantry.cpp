@@ -57,7 +57,7 @@ public:
 
         for (auto& motor : chassis_wheel_motors_)
             motor.configure(
-                device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
+                device::DjiMotor::Config{device::DjiMotor::Type::kM3508, 1}
                     .set_reversed()
                     .set_reduction_ratio(13.)
                     .enable_multi_turn_angle());
@@ -74,13 +74,13 @@ public:
                     static_cast<int>(get_parameter("pitch_motor_zero_point").as_int())));
 
         gimbal_left_friction_.configure(
-            device::DjiMotor::Config{device::DjiMotor::Type::kM3508}.set_reduction_ratio(1.));
+            device::DjiMotor::Config{device::DjiMotor::Type::kM3508, 1}.set_reduction_ratio(1.));
         gimbal_right_friction_.configure(
-            device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
+            device::DjiMotor::Config{device::DjiMotor::Type::kM3508, 2}
                 .set_reversed()
                 .set_reduction_ratio(1.));
         gimbal_bullet_feeder_.configure(
-            device::DjiMotor::Config{device::DjiMotor::Type::kM2006}.enable_multi_turn_angle());
+            device::DjiMotor::Config{device::DjiMotor::Type::kM2006, 2}.enable_multi_turn_angle());
 
         register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
         register_output("/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
@@ -92,15 +92,14 @@ public:
             *this, get_parameter("board_serial").as_string());
 
         board_->start_transmit().gpio_digital_read(
-            Spec::kGpios.kUart0Tx,
-            {
-                .period_ms          = 0,
-                .asap               = false,
-                .rising_edge        = false,
-                .falling_edge       = true,
-                .capture_timestamp  = true,
-                .pull               = librmcs::data::GpioPull::kUp,
-            });
+            Spec::kGpios.kUart0Tx, {
+                                       .period_ms = 0,
+                                       .asap = false,
+                                       .rising_edge = false,
+                                       .falling_edge = true,
+                                       .capture_timestamp = true,
+                                       .pull = librmcs::data::GpioPull::kUp,
+                                   });
 
         using namespace rmcs_description; // NOLINT(google-build-using-namespace)
         tf_->set_transform<PitchLink, CameraLink>(Eigen::Translation3d{0.06603, 0.0, 0.082});
@@ -130,8 +129,7 @@ public:
         };
         referee_serial_->write = [this](const std::byte* buffer, size_t size) {
             board_->start_transmit().uart_transmit(
-                Spec::kUarts.kUart1,
-                {.uart_data = std::span<const std::byte>{buffer, size}});
+                Spec::kUarts.kUart1, {.uart_data = std::span<const std::byte>{buffer, size}});
             return size;
         };
     }
@@ -154,50 +152,55 @@ public:
         auto builder = board_->start_transmit();
 
         builder.can_transmit(
-            Spec::kCans.kCan1,
-            {.can_id = 0x1FE,
-             .can_data =
-                 device::CanPacket8{
-                     device::CanPacket8::PaddingQuarter{},
-                     device::CanPacket8::PaddingQuarter{},
-                     device::CanPacket8::PaddingQuarter{},
-                     supercap_.generate_command(),
-                 }
-                     .as_bytes()});
+            Spec::kCans.kCan1,            //
+            {
+                .can_id = 0x1FE,
+                .can_data =
+                    device::CanPacket8{
+                        device::CanPacket8::PaddingQuarter{},
+                        device::CanPacket8::PaddingQuarter{},
+                        device::CanPacket8::PaddingQuarter{},
+                        supercap_.generate_command(),
+                    }
+                        .as_bytes(),
+            });
 
         builder.can_transmit(
-            Spec::kCans.kCan1,
-            {.can_id   = 0x145,
-             .can_data = gimbal_yaw_motor_.generate_torque_command().as_bytes()});
+            Spec::kCans.kCan1,            //
+            {.can_id = 0x145, .can_data = gimbal_yaw_motor_.generate_torque_command().as_bytes()});
 
         builder.can_transmit(
-            Spec::kCans.kCan1,
-            {.can_id = 0x200,
-             .can_data =
-                 device::CanPacket8{
-                     chassis_wheel_motors_[0].generate_command(),
-                     chassis_wheel_motors_[1].generate_command(),
-                     chassis_wheel_motors_[2].generate_command(),
-                     chassis_wheel_motors_[3].generate_command(),
-                 }
-                     .as_bytes()});
+            Spec::kCans.kCan1,            //
+            {
+                .can_id = 0x200,
+                .can_data =
+                    device::CanPacket8{
+                        chassis_wheel_motors_[0].generate_command(),
+                        chassis_wheel_motors_[1].generate_command(),
+                        chassis_wheel_motors_[2].generate_command(),
+                        chassis_wheel_motors_[3].generate_command(),
+                    }
+                        .as_bytes(),
+            });
 
         builder.can_transmit(
-            Spec::kCans.kCan2,
-            {.can_id   = 0x142,
+            Spec::kCans.kCan2,            //
+            {.can_id = 0x142,
              .can_data = gimbal_pitch_motor_.generate_velocity_command().as_bytes()});
 
         builder.can_transmit(
-            Spec::kCans.kCan2,
-            {.can_id = 0x200,
-             .can_data =
-                 device::CanPacket8{
-                     device::CanPacket8::PaddingQuarter{},
-                     gimbal_bullet_feeder_.generate_command(),
-                     gimbal_left_friction_.generate_command(),
-                     gimbal_right_friction_.generate_command(),
-                 }
-                     .as_bytes()});
+            Spec::kCans.kCan2,            //
+            {
+                .can_id = 0x200,
+                .can_data =
+                    device::CanPacket8{
+                        device::CanPacket8::PaddingQuarter{},
+                        gimbal_bullet_feeder_.generate_command(),
+                        gimbal_left_friction_.generate_command(),
+                        gimbal_right_friction_.generate_command(),
+                    }
+                        .as_bytes(),
+            });
     }
 
 private:
