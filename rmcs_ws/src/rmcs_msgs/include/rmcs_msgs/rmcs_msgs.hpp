@@ -20,6 +20,7 @@
 #include "mouse.hpp"            // IWYU pragma: export
 #include "robot_color.hpp"      // IWYU pragma: export
 #include "robot_id.hpp"         // IWYU pragma: export
+#include "sentry_event.hpp"    // IWYU pragma: export
 #include "serial_interface.hpp" // IWYU pragma: export
 #include "shoot_mode.hpp"       // IWYU pragma: export
 #include "shoot_status.hpp"     // IWYU pragma: export

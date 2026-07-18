@@ -1,0 +1,23 @@
+#pragma once
+
+#include <cstdint>
+
+namespace rmcs_msgs {
+
+enum class SentryEvent : std::uint8_t {
+    SWITCH_POSE_ATTACK,
+    SWITCH_POSE_DEFENSE,
+    SWITCH_POSE_MOVE,
+    SWITCH_POSE_POWERED_ATTACK,
+    SWITCH_POSE_POWERED_DEFENSE,
+    SWITCH_POSE_POWERED_MOVE,
+    CONFIRM_REBIRTH,
+    CONFIRM_INSTANT_REBIRTH,
+    EXCHANGE_AMMO_SUPPLY_POINT,
+    EXCHANGE_AMMO_REMOTE,
+    EXCHANGE_HP_REMOTE,
+    ACTIVATE_ENERGY_CORE,
+    COUNT,
+};
+
+} // namespace rmcs_msgs
