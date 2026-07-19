@@ -2,7 +2,6 @@
 #include <memory>
 #include <new>
 #include <span>
-#include <tuple>
 
 #include <eigen3/Eigen/Geometry>
 #include <librmcs/data/datas.hpp>
@@ -10,30 +9,31 @@
 #include <rclcpp/subscription.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/board_clock.hpp>
+#include <rmcs_msgs/imu_snapshot.hpp>
 #include <rmcs_msgs/serial_interface.hpp>
 #include <rmcs_utility/ring_buffer.hpp>
 #include <std_srvs/srv/trigger.hpp>
 
-#include "hardware/device/bmi088.hpp"
+#include "hardware/device/bmi088_ekf.hpp"
+#include "hardware/device/board_clock_lifter.hpp"
 #include "hardware/device/can_packet.hpp"
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/lk_motor.hpp"
-#include "librmcs/agent/rmcs_board_lite.hpp"
+#include "librmcs/board/rmcs_board_lite.hpp"
 
 namespace rmcs_core::hardware {
 
 class Flight
     : public rmcs_executor::Component
     , public rclcpp::Node
-    , private librmcs::agent::RmcsBoardLite {
+    , public librmcs::board::RmcsBoardLite::Callback {
 public:
     Flight()
         : Node{
               get_component_name(),
-              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)},
-              RmcsBoardLite{get_parameter("board_serial").as_string()},
-              logger_(get_logger()) {
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)} {
 
         gimbal_yaw_motor_.configure(
             device::LkMotor::Config{device::LkMotor::Type::kMHF7015}
@@ -44,16 +44,13 @@ public:
             device::LkMotor::Config{device::LkMotor::Type::kMG4010Ei10}.set_encoder_zero_point(
                 static_cast<int>(get_parameter("pitch_motor_zero_point").as_int())));
         gimbal_left_friction_.configure(
-            device::DjiMotor::Config{device::DjiMotor::Type::kM3508}
+            device::DjiMotor::Config{device::DjiMotor::Type::kM3508, 3}
                 .set_reversed()
                 .set_reduction_ratio(1.0));
         gimbal_right_friction_.configure(
-            device::DjiMotor::Config{device::DjiMotor::Type::kM3508}.set_reduction_ratio(1.0));
+            device::DjiMotor::Config{device::DjiMotor::Type::kM3508, 4}.set_reduction_ratio(1.0));
         gimbal_bullet_feeder_.configure(
-            device::DjiMotor::Config{device::DjiMotor::Type::kM2006}.enable_multi_turn_angle());
-
-        bmi088_.set_coordinate_mapping(
-            [](double x, double y, double z) { return std::tuple{y, z, x}; });
+            device::DjiMotor::Config{device::DjiMotor::Type::kM2006, 1}.enable_multi_turn_angle());
 
         using namespace rmcs_description;
 
@@ -62,12 +59,11 @@ public:
         tf_->set_transform<PitchLink, CameraLink>(
             Eigen::Translation3d{kCameraPostionX, 0.0, kCameraPostionZ});
 
-        register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
-        register_output("/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
+        register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_, 0.0);
+        register_output("/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_, 0.0);
         register_output("/tf", tf_);
 
-        register_output("/auto_aim/camera_transform", camera_transform_);
-        register_output("/auto_aim/barrel_direction", barrel_direction_);
+        register_output("/gimbal/auto_aim/imu_snapshot", imu_snapshot_output_);
 
         register_output("/referee/serial", referee_serial_);
         referee_serial_->read = [this](std::byte* buffer, size_t size) {
@@ -75,19 +71,8 @@ public:
                 [&buffer](std::byte byte) noexcept { *buffer++ = byte; }, size);
         };
         referee_serial_->write = [this](const std::byte* buffer, size_t size) {
-            start_transmit().uart1_transmit(
-                {.uart_data = std::span<const std::byte>{buffer, size}});
-            return size;
-        };
-
-        register_output("/px4/serial",px4_serial_);
-        px4_serial_->read = [this](std::byte* buffer, size_t size) {
-            return px4_ring_buffer_receive_.pop_front_n(
-                [&buffer](std::byte byte) noexcept { *buffer++ = byte; }, size);
-        };
-        px4_serial_->write = [this](const std::byte* buffer, size_t size){
-            start_transmit().uart0_transmit(
-                {.uart_data = std::span<const std::byte>{buffer, size}});
+            board_->start_transmit().uart_transmit(
+                Spec::kUarts.kUart1, {.uart_data = std::span<const std::byte>{buffer, size}});
             return size;
         };
 
@@ -99,46 +84,51 @@ public:
                 status_service_callback(response);
             });
 
+        board_ = std::make_unique<librmcs::board::RmcsBoardLite>(
+            *this, get_parameter("board_serial").as_string());
     }
 
     void update() override {
         update_motors();
         update_imu();
         dr16_.update_status();
-
-        using namespace rmcs_description;
-        *camera_transform_ = fast_tf::lookup_transform<OdomImu, CameraLink>(*tf_);
-        *barrel_direction_ =
-            *fast_tf::cast<OdomImu>(PitchLink::DirectionVector{Eigen::Vector3d::UnitX()}, *tf_);
     }
 
     void command_update() {
-        auto builder = start_transmit();
+        auto builder = board_->start_transmit();
         builder
-            .can0_transmit(
-                {.can_id = 0x200,
-                 .can_data =
-                     device::CanPacket8{
-                         device::CanPacket8::PaddingQuarter{},
-                         device::CanPacket8::PaddingQuarter{},
-                         gimbal_left_friction_.generate_command(),
-                         gimbal_right_friction_.generate_command(),
-                     }
-                         .as_bytes()})
-            .can1_transmit(
-                {.can_id = 0x200,
-                 .can_data =
-                     device::CanPacket8{
-                         gimbal_bullet_feeder_.generate_command(),
-                         device::CanPacket8::PaddingQuarter{},
-                         device::CanPacket8::PaddingQuarter{},
-                         device::CanPacket8::PaddingQuarter{},
-                     }
-                         .as_bytes()})
-            .can2_transmit(
+            .can_transmit(
+                Spec::kCans.kCan0, //
+                {
+                    .can_id = 0x200,
+                    .can_data =
+                        device::CanPacket8{
+                            device::CanPacket8::PaddingQuarter{},
+                            device::CanPacket8::PaddingQuarter{},
+                            gimbal_left_friction_.generate_command(),
+                            gimbal_right_friction_.generate_command(),
+                        }
+                            .as_bytes(),
+                })
+            .can_transmit(
+                Spec::kCans.kCan1, //
+                {
+                    .can_id = 0x200,
+                    .can_data =
+                        device::CanPacket8{
+                            gimbal_bullet_feeder_.generate_command(),
+                            device::CanPacket8::PaddingQuarter{},
+                            device::CanPacket8::PaddingQuarter{},
+                            device::CanPacket8::PaddingQuarter{},
+                        }
+                            .as_bytes(),
+                })
+            .can_transmit(
+                Spec::kCans.kCan2, //
                 {.can_id = 0x141,
                  .can_data = gimbal_yaw_motor_.generate_torque_command().as_bytes()})
-            .can3_transmit(
+            .can_transmit(
+                Spec::kCans.kCan3, //
                 {.can_id = 0x142, .can_data = gimbal_pitch_motor_.generate_command().as_bytes()});
     }
 
@@ -160,13 +150,12 @@ private:
     void update_imu() {
         using namespace rmcs_description;
 
-        bmi088_.update_status();
-        const auto gimbal_imu_pose =
-            Eigen::Quaterniond{bmi088_.q0(), bmi088_.q1(), bmi088_.q2(), bmi088_.q3()};
-        tf_->set_transform<PitchLink, OdomImu>(gimbal_imu_pose.conjugate());
+        if (const auto snapshot = bmi088_.snapshot()) {
+            tf_->set_transform<PitchLink, OdomImu>(snapshot->orientation.conjugate());
 
-        *gimbal_yaw_velocity_imu_ = bmi088_.gz();
-        *gimbal_pitch_velocity_imu_ = bmi088_.gy();
+            *gimbal_yaw_velocity_imu_ = snapshot->gyro_body.z();
+            *gimbal_pitch_velocity_imu_ = snapshot->gyro_body.y();
+        }
     }
 
     void
@@ -185,70 +174,59 @@ private:
     }
 
 protected:
-    void can0_receive_callback(const librmcs::data::CanDataView& data) override {
+    void can_receive_callback(const Spec::Can& can, const View::Can& data) override {
         if (data.is_extended_can_id || data.is_remote_transmission || data.can_data.size() < 8)
             [[unlikely]]
             return;
 
-        if (data.can_id == 0x203) {
-            gimbal_left_friction_.store_status(data.can_data);
-        } else if (data.can_id == 0x204) {
-            gimbal_right_friction_.store_status(data.can_data);
+        if (can == Spec::kCans.kCan0) {
+            if (data.can_id == 0x203) {
+                gimbal_left_friction_.store_status(data.can_data);
+            } else if (data.can_id == 0x204) {
+                gimbal_right_friction_.store_status(data.can_data);
+            }
+        } else if (can == Spec::kCans.kCan1) {
+            if (data.can_id == 0x201) {
+                gimbal_bullet_feeder_.store_status(data.can_data);
+            }
+        } else if (can == Spec::kCans.kCan2) {
+            if (data.can_id == 0x141) {
+                gimbal_yaw_motor_.store_status(data.can_data);
+            }
+        } else if (can == Spec::kCans.kCan3) {
+            if (data.can_id == 0x142) {
+                gimbal_pitch_motor_.store_status(data.can_data);
+            }
         }
     }
-    void can1_receive_callback(const librmcs::data::CanDataView& data) override {
-        if (data.is_extended_can_id || data.is_remote_transmission || data.can_data.size() < 8)
-            [[unlikely]]
+
+    void uart_receive_callback(const Spec::Uart& uart, const View::Uart& data) override {
+        if (uart == Spec::kUarts.kUart1) {
+            const std::byte* ptr = data.uart_data.data();
+            referee_ring_buffer_receive_.emplace_back_n(
+                [&ptr](std::byte* storage) noexcept { new (storage) std::byte{*ptr++}; },
+                data.uart_data.size());
+        } else if (uart == Spec::kUarts.kDbus) {
+            dr16_.store_status(data.uart_data.data(), data.uart_data.size());
+        }
+    }
+
+    void accelerometer_receive_callback(const View::ImuAccelerometer& data) override {
+        const auto timestamp = board_clock_lifter_.advance_timebase(data.timestamp_quarter_us);
+        bmi088_.push_accelerometer_sample(data.x, data.y, data.z, timestamp);
+    }
+
+    void gyroscope_receive_callback(const View::ImuGyroscope& data) override {
+        const auto timestamp = board_clock_lifter_.lift_timestamp(data.timestamp_quarter_us);
+        if (!timestamp.has_value())
             return;
 
-        if (data.can_id == 0x201) {
-            gimbal_bullet_feeder_.store_status(data.can_data);
-        }
-    }
-
-    void can2_receive_callback(const librmcs::data::CanDataView& data) override {
-        if (data.is_extended_can_id || data.is_remote_transmission || data.can_data.size() < 8)
-            [[unlikely]]
+        const auto snapshot =
+            bmi088_.try_update_with_gyroscope_sample(data.x, data.y, data.z, *timestamp);
+        if (!snapshot)
             return;
 
-        if (data.can_id == 0x141) {
-            gimbal_yaw_motor_.store_status(data.can_data);
-        }
-    }
-    void can3_receive_callback(const librmcs::data::CanDataView& data) override {
-        if (data.is_extended_can_id || data.is_remote_transmission || data.can_data.size() < 8)
-            [[unlikely]]
-            return;
-
-        if (data.can_id == 0x142) {
-            gimbal_pitch_motor_.store_status(data.can_data);
-        }
-    }
-
-    void uart0_receive_callback(const librmcs::data::UartDataView& data) override {
-        const std::byte* ptr = data.uart_data.data();
-        px4_ring_buffer_receive_.emplace_back_n(
-            [&ptr](std::byte* storage) noexcept { new (storage) std::byte{*ptr++}; },
-            data.uart_data.size());
-    }
-
-    void uart1_receive_callback(const librmcs::data::UartDataView& data) override {
-        const std::byte* ptr = data.uart_data.data();
-        referee_ring_buffer_receive_.emplace_back_n(
-            [&ptr](std::byte* storage) noexcept { new (storage) std::byte{*ptr++}; },
-            data.uart_data.size());
-    }
-
-    void dbus_receive_callback(const librmcs::data::UartDataView& data) override {
-        dr16_.store_status(data.uart_data.data(), data.uart_data.size());
-    }
-
-    void accelerometer_receive_callback(const librmcs::data::AccelerometerDataView& data) override {
-        bmi088_.store_accelerometer_status(data.x, data.y, data.z);
-    }
-
-    void gyroscope_receive_callback(const librmcs::data::GyroscopeDataView& data) override {
-        bmi088_.store_gyroscope_status(data.x, data.y, data.z);
+        imu_snapshot_output_.emit(*snapshot);
     }
 
 private:
@@ -267,7 +245,8 @@ private:
     };
     std::shared_ptr<rclcpp::Service<std_srvs::srv::Trigger>> status_service_;
 
-    rclcpp::Logger logger_;
+    std::unique_ptr<librmcs::board::RmcsBoardLite> board_;
+
     device::LkMotor gimbal_yaw_motor_{*this, *command_component_, "/gimbal/yaw"};
     device::LkMotor gimbal_pitch_motor_{*this, *command_component_, "/gimbal/pitch"};
     device::DjiMotor gimbal_left_friction_{*this, *command_component_, "/gimbal/left_friction"};
@@ -275,19 +254,21 @@ private:
     device::DjiMotor gimbal_bullet_feeder_{*this, *command_component_, "/gimbal/bullet_feeder"};
 
     device::Dr16 dr16_{*this};
-    device::Bmi088 bmi088_{1000.0, 0.2, 0.00};
+    // 等价于旧 Bmi088 的坐标映射 (x, y, z) -> (y, z, x)：body = body_to_sensor^T * sensor
+    device::Bmi088Ekf bmi088_{device::Bmi088Ekf::Config{
+        .body_to_sensor =
+            (Eigen::Matrix3d{} << 0, 0, 1, 1, 0, 0, 0, 1, 0).finished(),
+    }};
+    device::BoardClockLifter board_clock_lifter_;
 
     OutputInterface<double> gimbal_yaw_velocity_imu_;
     OutputInterface<double> gimbal_pitch_velocity_imu_;
     OutputInterface<rmcs_description::Tf> tf_;
     OutputInterface<rmcs_msgs::SerialInterface> referee_serial_;
-    OutputInterface<rmcs_msgs::SerialInterface> px4_serial_;
 
-    OutputInterface<Eigen::Isometry3d> camera_transform_;
-    OutputInterface<Eigen::Vector3d> barrel_direction_;
+    EventOutputInterface<rmcs_msgs::ImuSnapshot> imu_snapshot_output_;
 
     rmcs_utility::RingBuffer<std::byte> referee_ring_buffer_receive_{256};
-    rmcs_utility::RingBuffer<std::byte> px4_ring_buffer_receive_{1024};
 };
 
 } // namespace rmcs_core::hardware
