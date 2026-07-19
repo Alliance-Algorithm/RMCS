@@ -2,12 +2,18 @@
 #include <mavlink/v2.0/common/mavlink.h>
 
 #include <algorithm>
+#include <atomic>
+#include <chrono>
 #include <cmath>
+#include <condition_variable>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <mutex>
 #include <string>
+#include <thread>
 
+#include <ament_index_cpp/get_package_prefix.hpp>
 #include <eigen3/Eigen/Geometry>
 #include <nav_msgs/msg/odometry.hpp>
 #include <rclcpp/node.hpp>
@@ -49,6 +55,24 @@ public:
                 odometry_callback(std::move(msg));
             }
         );
+
+        odin_autostart_        =get_parameter("odin_autostart").as_bool();
+        odin_watchdog_timeout_ =get_parameter("odin_watchdog_timeout").as_double();
+        odin_restart_cooldown_ =get_parameter("odin_restart_cooldown").as_double();
+
+        last_odom_arrival_ns_.store(steady_now_ns(),std::memory_order_relaxed);
+        if(odin_autostart_)
+            odin_manager_thread_ =std::thread{[this]{odin_manager_loop();}};
+    }
+
+    ~Px4VisionBridge() override {
+        {
+            const std::scoped_lock lock{odin_stop_mutex_};
+            odin_stop_ =true;
+        }
+        odin_stop_cv_.notify_all();
+        if(odin_manager_thread_.joinable())
+            odin_manager_thread_.join();
     }
 
     Px4VisionBridge(const Px4VisionBridge&) = delete;
@@ -68,6 +92,8 @@ private:
     };
 
     void odometry_callback(const nav_msgs::msg::Odometry::UniquePtr msg){
+        last_odom_arrival_ns_.store(steady_now_ns(),std::memory_order_relaxed);
+
         const auto& p =msg->pose.pose.position;
         const auto& o =msg->pose.pose.orientation;
 
@@ -152,6 +178,66 @@ private:
         px4_serial_->write(reinterpret_cast<const std::byte*>(buffer), len);
     }
 
+    static int64_t steady_now_ns(){
+        return std::chrono::duration_cast<std::chrono::nanoseconds>(
+                   std::chrono::steady_clock::now().time_since_epoch())
+            .count();
+    }
+
+    // 独立线程看门狗：断流超时且过了冷却期就拉起 tmux-launch.sh；
+    void odin_manager_loop(){
+        const std::string script =
+            ament_index_cpp::get_package_prefix("odin_ros_driver")
+            +"/lib/odin_ros_driver/tmux-launch.sh";
+
+        const auto timeout_ns  =static_cast<int64_t>(odin_watchdog_timeout_*1e9);
+        const auto cooldown_ns =static_cast<int64_t>(odin_restart_cooldown_*1e9);
+        int64_t last_launch_ns =steady_now_ns()-cooldown_ns;  //首次断流即可拉起
+        
+        bool offline_reported =false;
+        bool launch_failure_reported =false;
+        bool online =false;
+
+        std::unique_lock lock{odin_stop_mutex_};
+        while(!odin_stop_cv_.wait_for(
+            lock,std::chrono::seconds{1},[this]{return odin_stop_;})){
+            lock.unlock();
+
+            const auto now_ns =steady_now_ns();
+            const bool data_fresh =
+                (now_ns-last_odom_arrival_ns_.load(std::memory_order_relaxed))<timeout_ns;
+
+            if(data_fresh){
+                if(!online){
+                    online =true;
+                    offline_reported =false;
+                    launch_failure_reported =false;
+                    RCLCPP_INFO(logger_,"Odin1 online, odometry flowing");
+                }
+            } else {
+                if(!offline_reported){
+                    online =false;
+                    offline_reported =true;
+                    RCLCPP_WARN(
+                        logger_,
+                        "Odin1 offline (no odometry for %.0fs), relaunching every %.0fs until online",
+                        odin_watchdog_timeout_,odin_restart_cooldown_);
+                }
+                if((now_ns-last_launch_ns)>cooldown_ns){
+                    last_launch_ns =now_ns;
+                    // system() 最坏阻塞十余秒（脚本内部的清杀/启动轮询），只能在本线程做
+                    if(std::system(("\""+script+"\"").c_str())!=0
+                       &&!launch_failure_reported){
+                        launch_failure_reported =true;
+                        RCLCPP_ERROR(logger_,"Odin1 launch script failed");
+                    }
+                }
+            }
+
+            lock.lock();
+        }
+    }
+
     static Eigen::Quaterniond quaternion_from_rpy_zyx(double roll, double pitch, double yaw){
 
         return Eigen::Quaterniond{
@@ -211,6 +297,16 @@ private:
     rclcpp::Duration min_send_interval_ =rclcpp::Duration::from_seconds(0.02);
     rclcpp::Time last_send_time_        =rclcpp::Time(0, 0, RCL_ROS_TIME);
     rclcpp::Time last_heartbeat_send_{0,0,RCL_ROS_TIME};
+
+    // Odin1 拉起与看门狗
+    bool   odin_autostart_;
+    double odin_watchdog_timeout_;
+    double odin_restart_cooldown_;
+    std::atomic<int64_t> last_odom_arrival_ns_{0};
+    std::thread odin_manager_thread_;
+    std::mutex odin_stop_mutex_;
+    std::condition_variable odin_stop_cv_;
+    bool odin_stop_ =false;
 };
 
 }// namespace rmcs_core::hardware
