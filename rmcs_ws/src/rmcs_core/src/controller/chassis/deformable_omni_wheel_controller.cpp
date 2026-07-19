@@ -91,7 +91,7 @@ public:
     }
 
 private:
-    static constexpr size_t kWheelCount       = 4;
+    static constexpr size_t kWheelCount = 4;
     static constexpr const char* kWheelName[] = {
         "left_front",
         "left_back",
@@ -99,7 +99,7 @@ private:
         "right_front",
     };
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
-    static constexpr double g_   = 9.81;
+    static constexpr double g_ = 9.81;
 
     struct ChassisControlTorque {
         Eigen::Vector2d torque;
@@ -113,7 +113,7 @@ private:
 
     Eigen::Vector3d calculate_chassis_velocity(const Eigen::Vector4d& wheel_velocities) const {
         const auto& [w1, w2, w3, w4] = wheel_velocities;
-        const double a_plus_b        = std::numbers::sqrt2 * std::max(*chassis_radius_, 1e-6);
+        const double a_plus_b = std::numbers::sqrt2 * std::max(*chassis_radius_, 1e-6);
         Eigen::Vector3d velocity;
         velocity.x() = -w1 - w2 + w3 + w4;
         velocity.y() = w1 - w2 - w3 + w4;
@@ -133,16 +133,16 @@ private:
         result.torque.x() = translational_torque.norm();
 
         const double a_plus_b = std::numbers::sqrt2 * std::max(*chassis_radius_, 1e-6);
-        result.torque.y()     = (-std::numbers::sqrt2 / 4 * wheel_radius_)
-                              * (moment_of_inertia_ / a_plus_b)
-                              * angular_velocity_pid_calculator_.update(chassis_velocity_error[2]);
+        result.torque.y() = (-std::numbers::sqrt2 / 4 * wheel_radius_)
+                          * (moment_of_inertia_ / a_plus_b)
+                          * angular_velocity_pid_calculator_.update(chassis_velocity_error[2]);
 
         Eigen::Vector2d translational_torque_direction;
         if (result.torque.x() > 0)
             translational_torque_direction = translational_torque / result.torque.x();
         else
             translational_torque_direction = Eigen::Vector2d::UnitX();
-        auto& [x, y]  = translational_torque_direction;
+        auto& [x, y] = translational_torque_direction;
         result.lambda = {-x + y, -x - y};
 
         return result;
@@ -167,13 +167,13 @@ private:
         const Eigen::Vector4d& wheel_pid_torques) const {
         const auto& [w1, w2, w3, w4] = wheel_velocities;
 
-        const auto& [x_max, y_max]       = chassis_control_torque.torque;
-        const double y_sign              = y_max > 0 ? 1.0 : -1.0;
+        const auto& [x_max, y_max] = chassis_control_torque.torque;
+        const double y_sign = y_max > 0 ? 1.0 : -1.0;
         const auto& [lambda_1, lambda_2] = chassis_control_torque.lambda;
 
         const auto& [t1, t2, t3, t4] = wheel_pid_torques;
 
-        const double rhombus_top   = (friction_coefficient_ * mass_ * g_ * wheel_radius_) / 4;
+        const double rhombus_top = (friction_coefficient_ * mass_ * g_ * wheel_radius_) / 4;
         const double rhombus_right = rhombus_top / std::max(std::abs(lambda_1), std::abs(lambda_2));
 
         const double a = 4 * k1_;
@@ -189,14 +189,14 @@ private:
 
         Eigen::Vector2d result = Eigen::Vector2d::Constant(nan_);
         if (com_height_ > 1e-6) {
-            const double dir_x   = -(lambda_1 + lambda_2) / 2.0;
-            const double dir_y   = (lambda_1 - lambda_2) / 2.0;
-            const double coeff   = -com_height_ / (std::numbers::sqrt2 * wheel_radius_);
+            const double dir_x = -(lambda_1 + lambda_2) / 2.0;
+            const double dir_y = (lambda_1 - lambda_2) / 2.0;
+            const double coeff = -com_height_ / (std::numbers::sqrt2 * wheel_radius_);
             const double gamma_1 = coeff * (+dir_x / chassis_radius_x_ + dir_y / chassis_radius_y_);
             const double gamma_2 = coeff * (-dir_x / chassis_radius_x_ + dir_y / chassis_radius_y_);
 
             const double force_to_torque = friction_coefficient_ * wheel_radius_;
-            const double rhs             = force_to_torque * mass_ * g_ / 4.0;
+            const double rhs = force_to_torque * mass_ * g_ / 4.0;
             const std::vector<QcpSolver::HalfPlaneConstraint> half_planes = {
                 {lambda_1 - force_to_torque * gamma_1, y_sign, rhs},
                 {-lambda_1 - force_to_torque * gamma_1, -y_sign, rhs},
@@ -223,7 +223,7 @@ private:
     static Eigen::Vector4d calculate_wheel_control_torques(
         ChassisControlTorque chassis_control_torque, Eigen::Vector4d wheel_pid_torques) {
         const auto& [lambda_1, lambda_2] = chassis_control_torque.lambda;
-        Eigen::Vector4d wheel_torques    = {
+        Eigen::Vector4d wheel_torques = {
             +lambda_1 * chassis_control_torque.torque.x(),
             +lambda_2 * chassis_control_torque.torque.x(),
             -lambda_1 * chassis_control_torque.torque.x(),

@@ -3,8 +3,8 @@
 #include <cmath>
 #include <limits>
 #include <numbers>
-#include <string>
 #include <stdexcept>
+#include <string>
 
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
@@ -29,14 +29,12 @@ public:
         register_input("/chassis/active_suspension/active", active_suspension_active_);
         register_input("/chassis/deformable/reset_count", reset_count_, false);
         register_input("/chassis/deformable/low_prone_active", low_prone_active_);
-        register_input(
-            "/chassis/deformable/symmetric_posture_target", symmetric_posture_target_);
+        register_input("/chassis/deformable/symmetric_posture_target", symmetric_posture_target_);
         register_input("/chassis/deformable/correction_inverted", correction_inverted_);
         register_input("/chassis/deformable/min_angle_deg", min_angle_deg_);
         register_input("/chassis/deformable/max_angle_deg", max_angle_deg_);
         register_input(
-            "/chassis/deformable/suspension_reference_angle_deg",
-            suspension_reference_angle_deg_);
+            "/chassis/deformable/suspension_reference_angle_deg", suspension_reference_angle_deg_);
 
         register_input("/chassis/imu/pitch", chassis_imu_pitch_, false);
         register_input("/chassis/imu/roll", chassis_imu_roll_, false);
@@ -54,12 +52,10 @@ public:
                 std::string{"/chassis/"} + kJointName[i] + "_joint/target_physical_angle",
                 joint_target_angle_[i], nan_);
             register_output(
-                std::string{"/chassis/"} + kJointName[i]
-                    + "_joint/target_physical_velocity",
+                std::string{"/chassis/"} + kJointName[i] + "_joint/target_physical_velocity",
                 joint_target_velocity_[i], nan_);
             register_output(
-                std::string{"/chassis/"} + kJointName[i]
-                    + "_joint/target_physical_acceleration",
+                std::string{"/chassis/"} + kJointName[i] + "_joint/target_physical_acceleration",
                 joint_target_acceleration_[i], nan_);
             register_output(
                 std::string{"/chassis/"} + kJointName[i] + "_joint/control_angle_error",
@@ -115,9 +111,9 @@ public:
         copy_joint_angle_states_(joint_angle_states);
         update_suspension_state_(
             *chassis_imu_pitch_ - pitch_offset_value_, *chassis_imu_roll_ - roll_offset_value_,
-            filtered_pitch_rate, filtered_roll_rate, *active_suspension_active_,
-            *low_prone_active_, *min_angle_deg_, *max_angle_deg_,
-            *suspension_reference_angle_deg_, *correction_inverted_, joint_angle_states, dt);
+            filtered_pitch_rate, filtered_roll_rate, *active_suspension_active_, *low_prone_active_,
+            *min_angle_deg_, *max_angle_deg_, *suspension_reference_angle_deg_,
+            *correction_inverted_, joint_angle_states, dt);
 
         const auto target_angles_rad = compute_joint_trajectory_targets_(
             posture_target_angles_rad, *active_suspension_active_, *low_prone_active_,
@@ -159,9 +155,9 @@ private:
     }
 
     void load_pid_(
-        const std::string& prefix, pid::PidCalculator& pid, double kp_default,
-        double ki_default, double kd_default, double integral_min_default,
-        double integral_max_default, double output_min_default, double output_max_default) {
+        const std::string& prefix, pid::PidCalculator& pid, double kp_default, double ki_default,
+        double kd_default, double integral_min_default, double integral_max_default,
+        double output_min_default, double output_max_default) {
         pid.kp = get_parameter_or(prefix + "kp", kp_default);
         pid.ki = get_parameter_or(prefix + "ki", ki_default);
         pid.kd = get_parameter_or(prefix + "kd", kd_default);
@@ -173,47 +169,51 @@ private:
 
     void load_config_() {
         joint_target_vel_limit_ = std::max(
-            deg_to_rad_(std::abs(get_parameter_or("target_physical_velocity_limit", 180.0))),
-            1e-6);
+            deg_to_rad_(std::abs(get_parameter_or("target_physical_velocity_limit", 180.0))), 1e-6);
         joint_target_acc_limit_ = std::max(
             deg_to_rad_(std::abs(get_parameter_or("target_physical_acceleration_limit", 720.0))),
             1e-6);
         suspension_target_vel_limit_ = std::max(
-            deg_to_rad_(std::abs(get_parameter_or(
-                "active_suspension_target_velocity_limit_deg",
-                get_parameter_or("target_physical_velocity_limit", 180.0)))),
+            deg_to_rad_(
+                std::abs(get_parameter_or(
+                    "active_suspension_target_velocity_limit_deg",
+                    get_parameter_or("target_physical_velocity_limit", 180.0)))),
             1e-6);
         suspension_target_acc_limit_ = std::max(
-            deg_to_rad_(std::abs(get_parameter_or(
-                "active_suspension_target_acceleration_limit_deg",
-                get_parameter_or("target_physical_acceleration_limit", 720.0)))),
+            deg_to_rad_(
+                std::abs(get_parameter_or(
+                    "active_suspension_target_acceleration_limit_deg",
+                    get_parameter_or("target_physical_acceleration_limit", 720.0)))),
             1e-6);
 
         load_pid_(
-            "active_suspension_pitch_outer_", pitch_outer_pid_, 8.0, 0.35, 0.28, -2.0, 2.0,
-            -3.0, 3.0);
+            "active_suspension_pitch_outer_", pitch_outer_pid_, 8.0, 0.35, 0.28, -2.0, 2.0, -3.0,
+            3.0);
         load_pid_(
-            "active_suspension_pitch_inner_", pitch_inner_pid_, 2.0, 0.0, 0.0, -1.0, 1.0,
-            -0.785, 0.785);
+            "active_suspension_pitch_inner_", pitch_inner_pid_, 2.0, 0.0, 0.0, -1.0, 1.0, -0.785,
+            0.785);
         load_pid_(
-            "active_suspension_roll_outer_", roll_outer_pid_, 8.0, 0.35, 0.28, -2.0, 2.0,
-            -3.0, 3.0);
+            "active_suspension_roll_outer_", roll_outer_pid_, 8.0, 0.35, 0.28, -2.0, 2.0, -3.0,
+            3.0);
         load_pid_(
-            "active_suspension_roll_inner_", roll_inner_pid_, 2.0, 0.0, 0.0, -1.0, 1.0,
-            -0.785, 0.785);
+            "active_suspension_roll_inner_", roll_inner_pid_, 2.0, 0.0, 0.0, -1.0, 1.0, -0.785,
+            0.785);
 
         active_correction_vel_limit_ = std::max(
-            deg_to_rad_(std::abs(
-                get_parameter_or("active_suspension_correction_velocity_limit_deg", 720.0))),
+            deg_to_rad_(
+                std::abs(
+                    get_parameter_or("active_suspension_correction_velocity_limit_deg", 720.0))),
             1e-6);
         active_correction_acc_limit_ = std::max(
-            deg_to_rad_(std::abs(
-                get_parameter_or("active_suspension_correction_acceleration_limit_deg", 3600.0))),
+            deg_to_rad_(
+                std::abs(get_parameter_or(
+                    "active_suspension_correction_acceleration_limit_deg", 3600.0))),
             1e-6);
-        active_rate_lpf_cutoff_hz_ = std::max(
-            get_parameter_or("active_suspension_rate_lpf_cutoff_hz", 10.0), 1e-6);
+        active_rate_lpf_cutoff_hz_ =
+            std::max(get_parameter_or("active_suspension_rate_lpf_cutoff_hz", 10.0), 1e-6);
 
-        calibration_wait_time_ = std::max(get_parameter_or("chassis_imu_calibration_wait_s", 2.0), 0.0);
+        calibration_wait_time_ =
+            std::max(get_parameter_or("chassis_imu_calibration_wait_s", 2.0), 0.0);
         calibration_sample_time_ =
             std::max(get_parameter_or("chassis_imu_calibration_sample_s", 3.0), 1e-6);
     }
@@ -366,8 +366,7 @@ private:
             const double right_roll_contribution = std::max(roll_diff, 0.0);
             correction_target_rad_[kLeftFront] =
                 -(front_pitch_contribution + left_roll_contribution);
-            correction_target_rad_[kLeftBack] =
-                -(back_pitch_contribution + left_roll_contribution);
+            correction_target_rad_[kLeftBack] = -(back_pitch_contribution + left_roll_contribution);
             correction_target_rad_[kRightBack] =
                 -(back_pitch_contribution + right_roll_contribution);
             correction_target_rad_[kRightFront] =
@@ -380,7 +379,8 @@ private:
             correction_target_rad_[kLeftFront] = front_pitch_contribution + left_roll_contribution;
             correction_target_rad_[kLeftBack] = back_pitch_contribution + left_roll_contribution;
             correction_target_rad_[kRightBack] = back_pitch_contribution + right_roll_contribution;
-            correction_target_rad_[kRightFront] = front_pitch_contribution + right_roll_contribution;
+            correction_target_rad_[kRightFront] =
+                front_pitch_contribution + right_roll_contribution;
         }
     }
 
@@ -392,10 +392,10 @@ private:
         const double min_susp_rad = deg_to_rad_(min_angle_deg - 5.0);
 
         for (size_t i = 0; i < kJointCount; ++i) {
-            const double base_angle = std::isfinite(base_joint_angles[i])
-                                          ? base_joint_angles[i]
-                                          : (low_prone_override_active ? min_susp_rad
-                                                                       : deg_to_rad_(base_angle_deg));
+            const double base_angle =
+                std::isfinite(base_joint_angles[i])
+                    ? base_joint_angles[i]
+                    : (low_prone_override_active ? min_susp_rad : deg_to_rad_(base_angle_deg));
 
             const double correction_min = min_susp_rad - base_angle;
             const double correction_max = max_target_rad - base_angle;
@@ -419,7 +419,8 @@ private:
                 std::clamp(velocity_error / dt, -correction_acc_limit, correction_acc_limit);
 
             velocity_state += acceleration_state * dt;
-            velocity_state = std::clamp(velocity_state, -correction_vel_limit, correction_vel_limit);
+            velocity_state =
+                std::clamp(velocity_state, -correction_vel_limit, correction_vel_limit);
             angle_state += velocity_state * dt;
 
             const double next_error = target - angle_state;
@@ -552,9 +553,7 @@ private:
         }
     }
 
-    void publish_nan_joint_targets_() {
-        reset_all_controls_();
-    }
+    void publish_nan_joint_targets_() { reset_all_controls_(); }
 
     InputInterface<double> update_rate_;
 

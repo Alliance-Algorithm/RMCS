@@ -53,14 +53,18 @@ public:
         register_output("/chassis/pitch_lock_active", pitch_lock_active_, false);
         register_output("/chassis/active_suspension/active", active_suspension_active_, false);
         register_output("/chassis/deformable/low_prone_active", low_prone_active_, false);
-        register_output("/chassis/deformable/symmetric_posture_target", symmetric_posture_target_, true);
-        register_output("/chassis/deformable/correction_inverted", correction_inverted_, false);
-        register_output("/chassis/deformable/min_angle_deg", min_angle_deg_, joint_mode_mgr_.min_angle());
-        register_output("/chassis/deformable/max_angle_deg", max_angle_deg_, joint_mode_mgr_.max_angle());
         register_output(
-            "/chassis/deformable/suspension_reference_angle_deg",
-            suspension_reference_angle_deg_, joint_mode_mgr_.suspension_reference_angle_deg());
-        register_output("/chassis/deformable/reset_count", deformable_reset_count_, static_cast<size_t>(0));
+            "/chassis/deformable/symmetric_posture_target", symmetric_posture_target_, true);
+        register_output("/chassis/deformable/correction_inverted", correction_inverted_, false);
+        register_output(
+            "/chassis/deformable/min_angle_deg", min_angle_deg_, joint_mode_mgr_.min_angle());
+        register_output(
+            "/chassis/deformable/max_angle_deg", max_angle_deg_, joint_mode_mgr_.max_angle());
+        register_output(
+            "/chassis/deformable/suspension_reference_angle_deg", suspension_reference_angle_deg_,
+            joint_mode_mgr_.suspension_reference_angle_deg());
+        register_output(
+            "/chassis/deformable/reset_count", deformable_reset_count_, static_cast<size_t>(0));
         for (size_t i = 0; i < kJointCount; ++i) {
             register_output(
                 fmt::format("/chassis/deformable/{}_joint/posture_target_angle", kJointName[i]),

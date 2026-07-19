@@ -92,7 +92,6 @@ public:
         }
 
         refresh_validity(now);
-        maybe_log_statistics(now);
     }
 
     ModeSwitch mode_switch() const noexcept { return mode_switch_; }
@@ -284,50 +283,6 @@ private:
 
         reset_remote_control_state();
         valid_ = false;
-    }
-
-    void maybe_log_statistics(const TimePoint now) {
-        if (last_statistics_log_time_ == TimePoint::min()) {
-            last_statistics_log_time_ = now;
-            return;
-        }
-
-        const auto elapsed = now - last_statistics_log_time_;
-        if (elapsed < kStatisticsLogInterval)
-            return;
-
-        const auto readable = data_buffer_.readable();
-        const auto store_calls = store_calls_.exchange(0, std::memory_order_relaxed);
-        const auto received_bytes = received_bytes_.exchange(0, std::memory_order_relaxed);
-        const auto overflow_count = overflow_count_.exchange(0, std::memory_order_relaxed);
-        const auto overflow_dropped_bytes =
-            overflow_dropped_bytes_.exchange(0, std::memory_order_relaxed);
-        const auto elapsed_seconds = std::chrono::duration<double>(elapsed).count();
-
-        /* RCLCPP_INFO(
-            logger_,
-            "VT13 stats: rx=%.1f Hz %.1f B/s remote_ok=%zu verify_fail=%zu remote_bad_header=%zu "
-            "remote_bad_crc=%zu referee_discarded=%zu referee_bad_crc8=%zu referee_oversize=%zu "
-            "unknown_prefix=%zu overflow=%llu dropped=%llu readable=%zu peak=%zu valid=%s",
-            static_cast<double>(store_calls) / elapsed_seconds,
-            static_cast<double>(received_bytes) / elapsed_seconds, remote_success_count_,
-            verification_failures_, remote_bad_header_count_, remote_bad_crc_count_,
-            referee_discarded_count_, referee_bad_crc8_count_, referee_oversize_count_,
-            unknown_prefix_count_, static_cast<unsigned long long>(overflow_count),
-            static_cast<unsigned long long>(overflow_dropped_bytes), readable, peak_readable_,
-            valid_ ? "true" : "false");
-        */
-
-        remote_success_count_ = 0;
-        verification_failures_ = 0;
-        remote_bad_header_count_ = 0;
-        remote_bad_crc_count_ = 0;
-        referee_discarded_count_ = 0;
-        referee_bad_crc8_count_ = 0;
-        referee_oversize_count_ = 0;
-        unknown_prefix_count_ = 0;
-        peak_readable_ = readable;
-        last_statistics_log_time_ = now;
     }
 
     void reset_remote_control_state() {

@@ -54,8 +54,7 @@ public:
         , gimbal_left_friction_(*this, *infantry_command_, "/gimbal/left_friction")
         , gimbal_right_friction_(*this, *infantry_command_, "/gimbal/right_friction")
         , gimbal_bullet_feeder_(*this, *infantry_command_, "/gimbal/bullet_feeder")
-        , dr16_{}
-    {
+        , dr16_{} {
 
         for (auto& motor : chassis_wheel_motors_)
             motor.configure(

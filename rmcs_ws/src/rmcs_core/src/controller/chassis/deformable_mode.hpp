@@ -82,8 +82,7 @@ public:
         joint_posture_state_.ctrl_low_prone_active = keyboard.ctrl;
         joint_posture_state_.low_prone_active =
             joint_posture_state_.ctrl_low_prone_active || low_prone_enabled_by_toggle_;
-        joint_posture_state_.pitch_lock_active =
-            joint_posture_state_.ctrl_low_prone_active;
+        joint_posture_state_.pitch_lock_active = joint_posture_state_.ctrl_low_prone_active;
 
         update_suspension_mode_from_inputs_(switch_left, switch_right, keyboard, rotary_knob);
         update_posture_target_from_inputs_(switch_left, switch_right, keyboard, rotary_knob, dt);
@@ -248,9 +247,8 @@ private:
         if (posture_toggle_requested) {
             if (joint_posture_state_.suspension_active) {
                 active_suspension_base_angle_ =
-                    (std::abs(active_suspension_base_angle_ - max_angle_) < 1e-6)
-                      ? min_angle_
-                      : max_angle_;
+                    (std::abs(active_suspension_base_angle_ - max_angle_) < 1e-6) ? min_angle_
+                                                                                  : max_angle_;
                 current_target_angle_ = active_suspension_base_angle_;
                 apply_symmetric_target_ = true;
                 joint_current_target_angle_.fill(current_target_angle_);
