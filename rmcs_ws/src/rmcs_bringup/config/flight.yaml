@@ -26,7 +26,50 @@ rmcs_executor:
       # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
 
-      - rmcs::AutoAimComponent
+      - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
+      # - rmcs::AutoAimPlayerComponent -> auto_aim_player
+      - rmcs::AutoAimRecorderComponent -> auto_aim_recorder
+      - rmcs::AutoAimComponent -> auto_aim_component
+
+auto_aim_capturer:
+  ros__parameters:
+    camera_name: ""
+    exposure_us: 3000.0
+    gain: 8.0
+    framerate: 120.0
+    invert_image: false
+    rls_tau_sec: 10.0
+    use_hardware_sync: false
+    delay_ms: 6.5
+
+auto_aim_recorder:
+  ros__parameters:
+    output_path: "/tmp/autoaim/records"
+    queue_depth: 16
+    flush_every_n_frames: 64
+    max_duration_seconds: 0
+    max_videos_size_gb: 0.0
+
+auto_aim_component:
+  ros__parameters:
+    # WARN: 危险！可选 red | blue，生效后裁判系统 ID 缺席时
+    # 将强行绑定为对应阵营哨兵，仅供调试，严禁比赛启用。
+    # 留空或填 unknow 表示禁用。
+    dangerous_fallback: ""
+    manual_shoot: true
+    camera_translation: [0.10238, 0.0, 0.05286]
+    fire_control:
+      bullet_speed: 22.5
+      shoot_delay: 0.1
+      offset_yaw: +2.0
+      offset_pitch: +3.5
+      attack_window: 120.0
+      window_hysteresis: 0.2
+      is_lazy_gimbal: false
+      attack_preaim: false
+      require_stable_command: false
+      yaw_tolerance: 0.07
+      pitch_tolerance: 0.04
 
 odin_ros_driver:
   ros__parameters:
@@ -88,7 +131,7 @@ yaw_velocity_pid_controller:
     measurement: /gimbal/yaw/velocity_imu
     setpoint: /gimbal/yaw/control_velocity
     control: /gimbal/yaw/control_torque
-    kp: 8.0
+    kp: 6.0
     ki: 0.0
     kd: 0.0
 
