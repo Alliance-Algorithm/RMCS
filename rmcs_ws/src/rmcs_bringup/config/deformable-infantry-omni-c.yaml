@@ -1,0 +1,344 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::hardware::DeformableInfantryOmniC -> deformable_infantry
+
+      - rmcs_core::referee::Status -> referee_status
+      - rmcs_core::referee::Command -> referee_command
+
+      - rmcs_core::referee::command::Interaction -> referee_interaction
+      - rmcs_core::referee::command::interaction::Ui -> referee_ui
+      - rmcs_core::referee::app::ui::DeformableInfantry -> referee_ui_infantry
+      - rmcs_core::referee::app::ui::AutoAimUi -> auto_aim_ui
+
+      - rmcs_core::controller::gimbal::DeformableInfantryGimbalController -> gimbal_controller
+
+      - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
+      - rmcs_core::controller::shooting::HeatController -> heat_controller
+      - rmcs_core::controller::shooting::BulletFeederController17mm -> bullet_feeder_controller
+      - rmcs_core::controller::pid::PidController -> left_friction_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> right_friction_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller
+
+      - rmcs_core::controller::chassis::DeformableChassis -> chassis_controller
+      - rmcs_core::controller::chassis::DeformableSuspension -> deformable_suspension
+      - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
+      - rmcs_core::controller::chassis::DeformableOmniWheelController -> deformable_chassis_controller
+
+      - rmcs_core::controller::chassis::DeformableJointController -> lf_joint_controller
+      - rmcs_core::controller::chassis::DeformableJointController -> lb_joint_controller
+      - rmcs_core::controller::chassis::DeformableJointController -> rb_joint_controller
+      - rmcs_core::controller::chassis::DeformableJointController -> rf_joint_controller
+
+      - rmcs::AutoAimComponent -> auto_aim_component
+      - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
+
+      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      # - rmcs_core::debug::ValueCollector -> value_collector
+
+value_collector:
+  ros__parameters:
+    csv_path: "/tmp/pitch_<timestamp>.csv"
+    signals:
+      - /gimbal/pitch/angle
+      - /gimbal/pitch/velocity
+      - /gimbal/pitch/velocity_imu
+      - /gimbal/pitch/angle_error
+      - /gimbal/pitch/control_torque
+      - /gimbal/pitch/control_velocity
+    write_interval: 5
+    flush_interval: 1000
+
+value_broadcaster:
+  ros__parameters:
+    forward_list:
+      - /gimbal/pitch/angle
+      - /gimbal/pitch/velocity
+
+auto_aim_capturer:
+  ros__parameters:
+    camera_name: ""
+    exposure_us: 2000.0
+    gain: 8.0
+    framerate: 120.0
+    invert_image: false
+    rls_tau_sec: 10.0
+    use_hardware_sync: true
+    delay_ms: 6.5
+
+auto_aim_component:
+  ros__parameters:
+    # WARN: 危险！可选 red | blue，生效后裁判系统 ID 缺席时
+    # 将强行绑定为对应阵营哨兵，仅供调试，严禁比赛启用。
+    # 留空或填 unknow 表示禁用。
+    dangerous_fallback: ""
+    manual_shoot: true
+    camera_translation: [0.058, -0.08, 0.0]
+    fire_control:
+      bullet_speed: 22.5
+      shoot_delay: 0.1
+      offset_yaw: -0.0
+      offset_pitch: +0.0
+      attack_window: 120.0
+      window_hysteresis: 0.2
+      is_lazy_gimbal: false
+      attack_preaim: false
+      require_stable_command: false
+      yaw_tolerance: 0.07
+      pitch_tolerance: 0.04
+
+auto_aim_ui:
+  ros__parameters:
+    offset_x: 0.0
+    offset_y: -0.08
+    offset_z: 0.0
+
+deformable_infantry:
+  ros__parameters:
+    serial_filter_bottom_board: "TODO-C-BOTTOM-SERIAL"
+    serial_filter_top_board: "TODO-C-TOP-SERIAL"
+    chassis_radius: 0.2341741
+    rod_length: 0.140
+    yaw_motor_zero_point: 0       # TODO: 填入 C 车 yaw 电机零点
+    pitch_motor_zero_point: 0     # TODO: 填入 C 车 pitch 电机零点
+    debug_log_supercap: false
+    debug_log_wheel_motor: false
+    debug_log_deformable_joint_motor: false
+
+chassis_controller:
+  ros__parameters:
+    # Deploy geometry / chassis-owned joint intent
+    min_angle: 5.0
+    max_angle: 59.0
+    active_suspension_enable: true
+    spin_ratio: 1.0
+
+deformable_suspension:
+  ros__parameters:
+    # IMU attitude correction at min-angle stance.
+    active_suspension_pitch_outer_kp: 12.0
+    active_suspension_pitch_outer_ki: 0.02
+    active_suspension_pitch_outer_kd: 0.0
+    active_suspension_pitch_outer_integral_min: -2.0
+    active_suspension_pitch_outer_integral_max: 2.0
+    active_suspension_pitch_outer_output_min: -3.0
+    active_suspension_pitch_outer_output_max: 3.0
+
+    active_suspension_pitch_inner_kp: 0.45
+    active_suspension_pitch_inner_ki: 0.0
+    active_suspension_pitch_inner_kd: 0.0
+    active_suspension_pitch_inner_integral_min: -1.0
+    active_suspension_pitch_inner_integral_max: 1.0
+    active_suspension_pitch_inner_output_min: -0.785
+    active_suspension_pitch_inner_output_max: 0.785
+
+    active_suspension_roll_outer_kp: 12.0
+    active_suspension_roll_outer_ki: 0.02
+    active_suspension_roll_outer_kd: 0.0
+    active_suspension_roll_outer_integral_min: -2.0
+    active_suspension_roll_outer_integral_max: 2.0
+    active_suspension_roll_outer_output_min: -3.0
+    active_suspension_roll_outer_output_max: 3.0
+
+    active_suspension_roll_inner_kp: 0.45
+    active_suspension_roll_inner_ki: 0.0
+    active_suspension_roll_inner_kd: 0.0
+    active_suspension_roll_inner_integral_min: -1.0
+    active_suspension_roll_inner_integral_max: 1.0
+    active_suspension_roll_inner_output_min: -0.785
+    active_suspension_roll_inner_output_max: 0.785
+
+    # Chassis-owned joint intent trajectory limits while attitude correction is active.
+    active_suspension_target_velocity_limit_deg: 80.0
+    active_suspension_target_acceleration_limit_deg: 360.0
+    active_suspension_correction_velocity_limit_deg: 720.0
+    active_suspension_correction_acceleration_limit_deg: 3600.0
+    active_suspension_rate_lpf_cutoff_hz: 10.0
+
+    # Automatic IMU mounting-error calibration.
+    # When all four requested joint targets stay equal for 2s, average pitch/roll from 2s to 5s.
+    chassis_imu_calibration_wait_s: 2.0
+    chassis_imu_calibration_sample_s: 3.0
+
+gimbal_controller:
+  ros__parameters:
+    upper_limit: -0.47123 # -27 deg
+    lower_limit: 0.10 # 8 deg
+    ctrl_hold_pitch_target_angle: 0.0
+
+    yaw_angle_kp: 15.0
+    yaw_angle_ki: 0.0
+    yaw_angle_kd: 0.0
+
+    yaw_velocity_kp: 15.0
+    yaw_velocity_ki: 0.0
+    yaw_velocity_kd: 0.0
+
+    pitch_angle_kp: 35.0
+    pitch_angle_ki: 0.02
+    pitch_angle_kd: 0.3
+
+    pitch_velocity_kp: 2.0
+    pitch_velocity_ki: 0.0
+    pitch_velocity_kd: 0.0
+
+    pitch_gravity_ff_gain: 4.302
+    pitch_gravity_ff_phase: 0.589
+
+    pitch_torque_control: true
+
+friction_wheel_controller:
+  ros__parameters:
+    friction_wheels:
+      - /gimbal/left_friction
+      - /gimbal/right_friction
+    friction_velocities:
+      - 580.0
+      - 580.0
+    friction_soft_start_stop_time: 1.0
+
+heat_controller:
+  ros__parameters:
+    heat_per_shot: 10000
+    reserved_heat: 15000
+
+bullet_feeder_controller:
+  ros__parameters:
+    bullets_per_feeder_turn: 8.0
+    shot_frequency: 30.0
+    safe_shot_frequency: 10.0
+    eject_frequency: 10.0
+    eject_time: 0.05
+    deep_eject_frequency: 5.0
+    deep_eject_time: 0.2
+    single_shot_max_stop_delay: 2.0
+
+left_friction_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/left_friction/velocity
+    setpoint: /gimbal/left_friction/control_velocity
+    control: /gimbal/left_friction/control_torque
+    kp: 0.003436926
+    ki: 0.00
+    kd: 0.009373434
+
+right_friction_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/right_friction/velocity
+    setpoint: /gimbal/right_friction/control_velocity
+    control: /gimbal/right_friction/control_torque
+    kp: 0.003436926
+    ki: 0.00
+    kd: 0.009373434
+
+bullet_feeder_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/bullet_feeder/velocity
+    setpoint: /gimbal/bullet_feeder/control_velocity
+    control: /gimbal/bullet_feeder/control_torque
+    kp: 1.5
+    ki: 0.0
+    kd: 0.0
+
+deformable_chassis_controller:
+  ros__parameters:
+    mass: 25.5
+    moment_of_inertia: 1.0
+    wheel_radius: 0.075
+    friction_coefficient: 6.6
+    k1: 2.958580e+00
+    k2: 3.082190e-03
+    no_load_power: 11.37
+
+lf_joint_controller:
+  ros__parameters:
+    measurement_angle: /chassis/left_front_joint/physical_angle
+    setpoint_angle: /chassis/left_front_joint/target_physical_angle
+    setpoint_velocity: /chassis/left_front_joint/target_physical_velocity
+    control: /chassis/left_front_joint/control_torque
+    dt: 0.001
+    b0: -1.0
+    kt: 1.0
+    td_h: 0.001
+    td_r: 50.0
+    eso_w0: 250.0
+    eso_auto_beta: true
+    k1: 30.0
+    k2: 17.0
+    alpha1: 0.75
+    alpha2: 0.7
+    delta: 0.02
+    u_min: -200.0
+    u_max: 200.0
+    output_min: -200.0
+    output_max: 200.0
+
+lb_joint_controller:
+  ros__parameters:
+    measurement_angle: /chassis/left_back_joint/physical_angle
+    setpoint_angle: /chassis/left_back_joint/target_physical_angle
+    setpoint_velocity: /chassis/left_back_joint/target_physical_velocity
+    control: /chassis/left_back_joint/control_torque
+    dt: 0.001
+    b0: -1.0
+    kt: 1.0
+    td_h: 0.001
+    td_r: 50.0
+    eso_w0: 250.0
+    eso_auto_beta: true
+    k1: 30.0
+    k2: 17.0
+    alpha1: 0.75
+    alpha2: 0.7
+    delta: 0.02
+    u_min: -200.0
+    u_max: 200.0
+    output_min: -200.0
+    output_max: 200.0
+
+rb_joint_controller:
+  ros__parameters:
+    measurement_angle: /chassis/right_back_joint/physical_angle
+    setpoint_angle: /chassis/right_back_joint/target_physical_angle
+    setpoint_velocity: /chassis/right_back_joint/target_physical_velocity
+    control: /chassis/right_back_joint/control_torque
+    dt: 0.001
+    b0: -1.0
+    kt: 1.0
+    td_h: 0.001
+    td_r: 50.0
+    eso_w0: 250.0
+    eso_auto_beta: true
+    k1: 30.0
+    k2: 17.0
+    alpha1: 0.75
+    alpha2: 0.7
+    delta: 0.02
+    u_min: -200.0
+    u_max: 200.0
+    output_min: -200.0
+    output_max: 200.0
+
+rf_joint_controller:
+  ros__parameters:
+    measurement_angle: /chassis/right_front_joint/physical_angle
+    setpoint_angle: /chassis/right_front_joint/target_physical_angle
+    setpoint_velocity: /chassis/right_front_joint/target_physical_velocity
+    control: /chassis/right_front_joint/control_torque
+    dt: 0.001
+    b0: -1.0
+    kt: 1.0
+    td_h: 0.001
+    td_r: 50.0
+    eso_w0: 250.0
+    eso_auto_beta: true
+    k1: 30.0
+    k2: 17.0
+    alpha1: 0.75
+    alpha2: 0.7
+    delta: 0.02
+    u_min: -200.0
+    u_max: 200.0
+    output_min: -200.0
+    output_max: 200.0
