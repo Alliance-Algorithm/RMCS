@@ -77,6 +77,14 @@ public:
             return size;
         };
 
+        register_output("/px4/serial", px4_serial_);
+        px4_serial_->read = [](std::byte*, size_t) { return size_t{0}; };
+        px4_serial_->write = [this](const std::byte* buffer, size_t size) {
+            board_->start_transmit().uart_transmit(
+                Spec::kUarts.kUart0, {.uart_data = std::span<const std::byte>{buffer, size}});
+            return size;
+        };
+
         remote_control_ = std::make_unique<device::RemoteControl>(*this);
         remote_control_->register_dr16(&dr16_);
 
@@ -271,6 +279,7 @@ private:
     OutputInterface<double> gimbal_pitch_velocity_imu_;
     OutputInterface<rmcs_description::Tf> tf_;
     OutputInterface<rmcs_msgs::SerialInterface> referee_serial_;
+    OutputInterface<rmcs_msgs::SerialInterface> px4_serial_;
 
     EventOutputInterface<rmcs_msgs::ImuSnapshot> imu_snapshot_output_;
 
