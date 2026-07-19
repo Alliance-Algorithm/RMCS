@@ -90,9 +90,9 @@ public:
                 single_shot_stop_counter_ = std::max(0, single_shot_stop_counter_ - 1);
                 temporary_single_shot_counter_ = std::max(0, temporary_single_shot_counter_ - 1);
 
-                const auto current_single_shoot = *single_shoot_;
+                const bool current_single_shoot = *single_shoot_;
 
-                /*  */ if (!last_mouse_.left && mouse.left) { // NOLINT
+                if (!last_mouse_.left && mouse.left) {
                     single_shot_stop_counter_ = single_shot_max_stop_delay_;
                 } else if (last_switch_left_ != Switch::DOWN && switch_left == Switch::DOWN) {
                     single_shot_stop_counter_ = single_shot_max_stop_delay_;
