@@ -8,7 +8,6 @@ rmcs_executor:
       - rmcs_core::referee::command::Interaction -> referee_interaction
       - rmcs_core::referee::command::interaction::Ui -> referee_ui
       - rmcs_core::referee::app::ui::Hero -> referee_ui_hero
-      - rmcs_core::referee::app::ui::AutoAimUi -> auto_aim_ui
       - rmcs_core::referee::Command -> referee_command
 
       - rmcs_core::controller::gimbal::HeroGimbalController -> gimbal_controller
@@ -38,6 +37,7 @@ rmcs_executor:
 
       - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
       - rmcs::AutoAimComponent -> auto_aim_component
+      - rmcs_core::referee::app::ui::AutoAimUi -> auto_aim_ui
 
       # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster

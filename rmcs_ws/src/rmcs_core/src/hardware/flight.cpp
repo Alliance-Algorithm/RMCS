@@ -19,6 +19,7 @@
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/lk_motor.hpp"
+#include "hardware/device/remote_control.hpp"
 #include "librmcs/board/rmcs_board_lite.hpp"
 
 namespace rmcs_core::hardware {
@@ -78,6 +79,9 @@ public:
             return size;
         };
 
+        remote_control_ = std::make_unique<device::RemoteControl>(*this);
+        remote_control_->register_dr16(&dr16_);
+
         status_service_ = create_service<std_srvs::srv::Trigger>(
             "/rmcs/service/robot_status",
             [this](
@@ -94,6 +98,7 @@ public:
         update_motors();
         update_imu();
         dr16_.update_status();
+        remote_control_->update();
 
         using namespace rmcs_description;
         *camera_transform_ = fast_tf::lookup_transform<OdomImu, CameraLink>(*tf_);
@@ -251,7 +256,8 @@ private:
     device::DjiMotor gimbal_right_friction_{*this, *command_component_, "/gimbal/right_friction"};
     device::DjiMotor gimbal_bullet_feeder_{*this, *command_component_, "/gimbal/bullet_feeder"};
 
-    device::Dr16 dr16_{*this};
+    device::Dr16 dr16_;
+    std::unique_ptr<device::RemoteControl> remote_control_;
     device::Bmi088 bmi088_{1000.0, 0.2, 0.00};
 
     OutputInterface<double> gimbal_yaw_velocity_imu_;
