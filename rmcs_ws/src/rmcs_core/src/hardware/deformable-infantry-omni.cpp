@@ -32,6 +32,7 @@
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/lk_motor.hpp"
+#include "hardware/device/remote_control.hpp"
 #include "hardware/device/supercap.hpp"
 #include "hardware/util/status_monitor.hpp"
 
@@ -59,6 +60,8 @@ public:
 
         tf_->set_transform<PitchLink, CameraLink>(Eigen::Translation3d{0.058, -0.08, 0.0});
 
+        remote_control_ = std::make_unique<device::RemoteControl>(*this);
+
         bottom_board_ = std::make_unique<BottomBoard>(
             *this, *command_, get_parameter("serial_filter_bottom_board").as_string());
         top_board_ = std::make_unique<TopBoard>(
@@ -80,6 +83,7 @@ public:
     void update() override {
         bottom_board_->update();
         top_board_->update();
+        remote_control_->update();
 
         using namespace rmcs_description;
         *camera_transform_ = fast_tf::lookup_transform<OdomImu, CameraLink>(*tf_);
@@ -193,6 +197,8 @@ private:
             auto options = librmcs::board::AdvancedOptions{};
             options.dangerously_skip_version_checks = true;
             board_ = std::make_unique<librmcs::board::RmcsBoardLite>(*this, serial_filter, options);
+
+            status_.remote_control_->register_dr16(&dr16_);
         }
 
         void update() {
@@ -406,7 +412,7 @@ private:
 
         device::Bmi088 imu_{1000, 0.2, 0.0};
         device::LkMotor gimbal_yaw_motor_{status_, command_, "/gimbal/yaw"};
-        device::Dr16 dr16_{status_};
+        device::Dr16 dr16_{};
 
         device::DjiMotor chassis_wheel_motors_[4]{
             device::DjiMotor{status_, command_, "/chassis/left_front_wheel"},
@@ -848,6 +854,7 @@ private:
 
     std::unique_ptr<BottomBoard> bottom_board_;
     std::unique_ptr<TopBoard> top_board_;
+    std::unique_ptr<device::RemoteControl> remote_control_;
 
     std::shared_ptr<Command> command_;
     uint32_t cmd_tick_ = 0;

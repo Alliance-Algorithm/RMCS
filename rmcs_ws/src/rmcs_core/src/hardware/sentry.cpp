@@ -19,6 +19,7 @@
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/lk_motor.hpp"
+#include "hardware/device/remote_control.hpp"
 #include "hardware/device/supercap.hpp"
 #include "hardware/util/status_monitor.hpp"
 
@@ -53,6 +54,8 @@ public:
                 status_service_callback(response);
             });
 
+        remote_control_ = std::make_unique<device::RemoteControl>(*this);
+
         gimbal_board_ = std::make_unique<GimbalBoard>(
             *this, *command_component_, get_parameter("board_serial_gimbal_board").as_string());
 
@@ -68,6 +71,7 @@ public:
     void update() override {
         gimbal_board_->update();
         chassis_board_->update();
+        remote_control_->update();
 
         using namespace rmcs_description;
         *camera_transform_ = fast_tf::lookup_transform<OdomGimbalImu, CameraLink>(*tf_);
@@ -280,7 +284,7 @@ private:
             Sentry& sentry, rmcs_executor::Component& sentry_command,
             std::string_view board_serial = {})
             : tf_(sentry.tf_)
-            , dr16_(sentry)
+            , dr16_{}
             , gimbal_bottom_yaw_motor_(sentry, sentry_command, "/gimbal/bottom_yaw")
             , chassis_wheel_motors_(
                   {sentry, sentry_command, "/chassis/left_front_wheel"},
@@ -358,6 +362,8 @@ private:
                     .enable_multi_turn_angle());
 
             board_ = std::make_unique<librmcs::board::RmcsBoardLite>(*this, board_serial);
+
+            sentry.remote_control_->register_dr16(&dr16_);
         }
 
         auto status() const -> std::vector<std::string> { return monitor_.text(); }
@@ -625,6 +631,7 @@ private:
 
     std::unique_ptr<GimbalBoard> gimbal_board_;
     std::unique_ptr<ChassisBoard> chassis_board_;
+    std::unique_ptr<device::RemoteControl> remote_control_;
 
     std::shared_ptr<rclcpp::Service<std_srvs::srv::Trigger>> status_service_;
 };

@@ -26,6 +26,7 @@
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/lk_motor.hpp"
+#include "hardware/device/remote_control.hpp"
 #include "hardware/device/supercap.hpp"
 
 namespace rmcs_core::hardware {
@@ -53,7 +54,8 @@ public:
         , gimbal_left_friction_(*this, *infantry_command_, "/gimbal/left_friction")
         , gimbal_right_friction_(*this, *infantry_command_, "/gimbal/right_friction")
         , gimbal_bullet_feeder_(*this, *infantry_command_, "/gimbal/bullet_feeder")
-        , dr16_{*this} {
+        , dr16_{}
+    {
 
         for (auto& motor : chassis_wheel_motors_)
             motor.configure(
@@ -132,6 +134,9 @@ public:
                 Spec::kUarts.kUart1, {.uart_data = std::span<const std::byte>{buffer, size}});
             return size;
         };
+
+        remote_control_ = std::make_unique<device::RemoteControl>(*this);
+        remote_control_->register_dr16(&dr16_);
     }
 
     OmniInfantry(const OmniInfantry&) = delete;
@@ -145,6 +150,7 @@ public:
         update_motors();
         update_imu();
         dr16_.update_status();
+        remote_control_->update();
         supercap_.update_status();
     }
 
@@ -350,6 +356,7 @@ private:
     device::DjiMotor gimbal_bullet_feeder_;
 
     device::Dr16 dr16_;
+    std::unique_ptr<device::RemoteControl> remote_control_;
     device::Bmi088Ekf bmi088_;
     device::BoardClockLifter board_clock_lifter_;
 

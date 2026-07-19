@@ -6,11 +6,9 @@
 
 #include <atomic>
 #include <bit>
+#include <chrono>
 
 #include <eigen3/Eigen/Dense>
-#include <rclcpp/logger.hpp>
-#include <rclcpp/logging.hpp>
-#include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/switch.hpp>
@@ -19,32 +17,7 @@ namespace rmcs_core::hardware::device {
 
 class Dr16 {
 public:
-    explicit Dr16(rmcs_executor::Component& component) {
-        component.register_output(
-            "/remote/joystick/right", joystick_right_output_, Eigen::Vector2d::Zero());
-        component.register_output(
-            "/remote/joystick/left", joystick_left_output_, Eigen::Vector2d::Zero());
-
-        component.register_output(
-            "/remote/switch/right", switch_right_output_, rmcs_msgs::Switch::UNKNOWN);
-        component.register_output(
-            "/remote/switch/left", switch_left_output_, rmcs_msgs::Switch::UNKNOWN);
-
-        component.register_output(
-            "/remote/mouse/velocity", mouse_velocity_output_, Eigen::Vector2d::Zero());
-        component.register_output("/remote/mouse/mouse_wheel", mouse_wheel_output_);
-
-        component.register_output("/remote/mouse", mouse_output_);
-        std::memset(&*mouse_output_, 0, sizeof(*mouse_output_));
-        component.register_output("/remote/keyboard", keyboard_output_);
-        std::memset(&*keyboard_output_, 0, sizeof(*keyboard_output_));
-
-        component.register_output("/remote/rotary_knob", rotary_knob_output_);
-
-        // Simulate the rotary knob as a switch, with anti-shake algorithm.
-        component.register_output(
-            "/remote/rotary_knob_switch", rotary_knob_switch_output_, rmcs_msgs::Switch::UNKNOWN);
-    }
+    Dr16() = default;
 
     void store_status(const std::byte* uart_data, size_t uart_data_length) {
         if (uart_data_length != 6 + 8 + 4)
@@ -73,9 +46,17 @@ public:
         std::memcpy(&part3, uart_data, 4);
         uart_data += 4;
         data_part3_.store(part3, std::memory_order::relaxed);
+
+        last_remote_control_received_at_ = Clock::now();
+        valid_ = true;
     }
 
     void update_status() {
+        const auto now = Clock::now();
+        refresh_validity(now);
+        if (!valid_)
+            return;
+
         auto part1 alignas(uint64_t) =
             std::bit_cast<Dr16DataPart1>(data_part1_.load(std::memory_order::relaxed));
 
@@ -110,19 +91,6 @@ public:
         keyboard_ = part3.keyboard;
         rotary_knob_ = channel_to_double(part3.rotary_knob);
 
-        *joystick_right_output_ = joystick_right();
-        *joystick_left_output_ = joystick_left();
-
-        *switch_right_output_ = switch_right();
-        *switch_left_output_ = switch_left();
-
-        *mouse_velocity_output_ = mouse_velocity();
-        *mouse_wheel_output_ = mouse_wheel();
-
-        *mouse_output_ = mouse();
-        *keyboard_output_ = keyboard();
-
-        *rotary_knob_output_ = rotary_knob();
         update_rotary_knob_switch();
     }
 
@@ -182,6 +150,10 @@ public:
     rmcs_msgs::Mouse mouse() const { return std::bit_cast<rmcs_msgs::Mouse>(mouse_); }
     rmcs_msgs::Keyboard keyboard() const { return std::bit_cast<rmcs_msgs::Keyboard>(keyboard_); }
 
+    rmcs_msgs::Switch rotary_knob_switch() const { return rotary_knob_switch_; }
+
+    bool valid() const noexcept { return valid_; }
+
     double rotary_knob() const { return rotary_knob_; }
 
     double mouse_wheel() const { return mouse_wheel_; }
@@ -193,7 +165,7 @@ private:
         constexpr double divider = 0.7, anti_shake_shift = 0.05;
         double upper_divider = divider, lower_divider = -divider;
 
-        auto& switch_value = *rotary_knob_switch_output_;
+        auto switch_value = rotary_knob_switch_;
         if (switch_value == rmcs_msgs::Switch::UP)
             upper_divider -= anti_shake_shift, lower_divider -= anti_shake_shift;
         else if (switch_value == rmcs_msgs::Switch::MIDDLE)
@@ -201,7 +173,7 @@ private:
         else if (switch_value == rmcs_msgs::Switch::DOWN)
             upper_divider += anti_shake_shift, lower_divider += anti_shake_shift;
 
-        const auto knob_value = -*rotary_knob_output_;
+        const auto knob_value = -rotary_knob_;
         if (knob_value > upper_divider) {
             switch_value = rmcs_msgs::Switch::UP;
         } else if (knob_value < lower_divider) {
@@ -209,6 +181,33 @@ private:
         } else {
             switch_value = rmcs_msgs::Switch::MIDDLE;
         }
+        rotary_knob_switch_ = switch_value;
+    }
+
+    using Clock = std::chrono::steady_clock;
+    using TimePoint = Clock::time_point;
+
+    static constexpr auto kFreshTimeout = std::chrono::milliseconds(500);
+
+    void refresh_validity(const TimePoint now) {
+        if (!valid_ || now - last_remote_control_received_at_ <= kFreshTimeout)
+            return;
+
+        reset_remote_control_state();
+        valid_ = false;
+    }
+
+    void reset_remote_control_state() {
+        joystick_right_ = Vector::zero();
+        joystick_left_ = Vector::zero();
+        switch_right_ = Switch::kUnknown;
+        switch_left_ = Switch::kUnknown;
+        mouse_velocity_ = Vector::zero();
+        mouse_wheel_ = 0.0;
+        mouse_ = Mouse::zero();
+        keyboard_ = Keyboard::zero();
+        rotary_knob_ = 0.0;
+        rotary_knob_switch_ = rmcs_msgs::Switch::UNKNOWN;
     }
 
     struct [[gnu::packed]] Dr16DataPart1 {
@@ -270,27 +269,15 @@ private:
     Switch switch_left_ = Switch::kUnknown;
 
     Vector mouse_velocity_ = Vector::zero();
+    double mouse_wheel_ = 0.0;
 
     Mouse mouse_ = Mouse::zero();
     Keyboard keyboard_ = Keyboard::zero();
 
     double rotary_knob_ = 0.0;
-    double mouse_wheel_ = 0.0;
-
-    rmcs_executor::Component::OutputInterface<Eigen::Vector2d> joystick_right_output_;
-    rmcs_executor::Component::OutputInterface<Eigen::Vector2d> joystick_left_output_;
-
-    rmcs_executor::Component::OutputInterface<rmcs_msgs::Switch> switch_right_output_;
-    rmcs_executor::Component::OutputInterface<rmcs_msgs::Switch> switch_left_output_;
-
-    rmcs_executor::Component::OutputInterface<Eigen::Vector2d> mouse_velocity_output_;
-    rmcs_executor::Component::OutputInterface<double> mouse_wheel_output_;
-
-    rmcs_executor::Component::OutputInterface<rmcs_msgs::Mouse> mouse_output_;
-    rmcs_executor::Component::OutputInterface<rmcs_msgs::Keyboard> keyboard_output_;
-
-    rmcs_executor::Component::OutputInterface<double> rotary_knob_output_;
-    rmcs_executor::Component::OutputInterface<rmcs_msgs::Switch> rotary_knob_switch_output_;
+    rmcs_msgs::Switch rotary_knob_switch_ = rmcs_msgs::Switch::UNKNOWN;
+    TimePoint last_remote_control_received_at_ = TimePoint::min();
+    bool valid_ = false;
 };
 
 } // namespace rmcs_core::hardware::device
