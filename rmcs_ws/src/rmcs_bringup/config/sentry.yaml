@@ -84,7 +84,7 @@ sentry_hardware:
     board_serial_bottom_board: "af-b4e5"
     board_serial_gimbal_board: "af-8b8b"
 
-    pitch_motor_zero_point: 17241
+    pitch_motor_zero_point: 12453
 
     bottom_yaw_motor_zero_point: 54253
     top_yaw_motor_zero_point: 32736
