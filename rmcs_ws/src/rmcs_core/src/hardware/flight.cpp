@@ -96,6 +96,7 @@ public:
         update_motors();
         update_imu();
         dr16_.update_status();
+        remote_control_->update();
     }
 
     void command_update() {
@@ -257,19 +258,14 @@ private:
     device::DjiMotor gimbal_right_friction_{*this, *command_component_, "/gimbal/right_friction"};
     device::DjiMotor gimbal_bullet_feeder_{*this, *command_component_, "/gimbal/bullet_feeder"};
 
-<<<<<<< HEAD
     device::Dr16 dr16_;
     std::unique_ptr<device::RemoteControl> remote_control_;
-    device::Bmi088 bmi088_{1000.0, 0.2, 0.00};
-=======
-    device::Dr16 dr16_{*this};
     // 等价于旧 Bmi088 的坐标映射 (x, y, z) -> (y, z, x)：body = body_to_sensor^T * sensor
     device::Bmi088Ekf bmi088_{device::Bmi088Ekf::Config{
         .body_to_sensor =
             (Eigen::Matrix3d{} << 0, 0, 1, 1, 0, 0, 0, 1, 0).finished(),
     }};
     device::BoardClockLifter board_clock_lifter_;
->>>>>>> 8d383fe4 (feat:adapt autoaim on flight)
 
     OutputInterface<double> gimbal_yaw_velocity_imu_;
     OutputInterface<double> gimbal_pitch_velocity_imu_;
