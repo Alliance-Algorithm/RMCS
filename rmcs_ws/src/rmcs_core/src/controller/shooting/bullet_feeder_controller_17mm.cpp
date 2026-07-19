@@ -50,6 +50,7 @@ public:
         register_input("/remote/keyboard", keyboard_);
 
         register_input("/auto_aim/should_shoot", should_shoot_, false);
+        register_input("/auto_aim/single_shoot", single_shoot_, false);
 
         register_input("/gimbal/bullet_feeder/velocity", bullet_feeder_velocity_);
         register_output(
@@ -61,6 +62,8 @@ public:
     void before_updating() override {
         if (!should_shoot_.ready())
             should_shoot_.bind_directly(false);
+        if (!single_shoot_.ready())
+            single_shoot_.bind_directly(false);
     }
 
     void update() override {
@@ -72,6 +75,8 @@ public:
         const auto keyboard = *keyboard_;
 
         using namespace rmcs_msgs;
+        const bool current_should_shoot = *should_shoot_;
+
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
             reset_all_controls();
@@ -84,14 +89,20 @@ public:
                 single_shot_stop_counter_ = std::max(0, single_shot_stop_counter_ - 1);
                 temporary_single_shot_counter_ = std::max(0, temporary_single_shot_counter_ - 1);
 
+                const bool current_single_shoot = *single_shoot_;
+
                 if (!last_mouse_.left && mouse.left)
                     single_shot_stop_counter_ = single_shot_max_stop_delay_;
                 else if (last_switch_left_ != Switch::DOWN && switch_left == Switch::DOWN) {
                     single_shot_stop_counter_ = single_shot_max_stop_delay_;
                     temporary_single_shot_counter_ = 500;
+                } else if (current_single_shoot && current_should_shoot && !last_should_shoot_) {
+                    single_shot_stop_counter_ = single_shot_max_stop_delay_;
                 }
 
                 shoot_mode = temporary_single_shot_counter_ > 0 ? ShootMode::SINGLE : shoot_mode;
+                if (current_single_shoot)
+                    shoot_mode = ShootMode::SINGLE;
 
                 if (*bullet_fired_)
                     single_shot_stop_counter_ = 0;
@@ -118,6 +129,7 @@ public:
         last_switch_left_ = switch_left;
         last_mouse_ = mouse;
         last_keyboard_ = keyboard;
+        last_should_shoot_ = current_should_shoot;
     }
 
 private:
@@ -207,6 +219,8 @@ private:
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
 
     InputInterface<bool> should_shoot_;
+    InputInterface<bool> single_shoot_;
+    bool last_should_shoot_ = false;
 
     rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Switch last_switch_left_ = rmcs_msgs::Switch::UNKNOWN;
