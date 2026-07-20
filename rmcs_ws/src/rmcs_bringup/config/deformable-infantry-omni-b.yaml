@@ -59,7 +59,7 @@ value_broadcaster:
 auto_aim_capturer:
   ros__parameters:
     camera_name: ""
-    exposure_us: 2000.0
+    exposure_us: 4000.0
     gain: 8.0
     framerate: 120.0
     invert_image: false
@@ -77,10 +77,11 @@ auto_aim_component:
     camera_translation: [0.058, -0.08, 0.0]
     fire_control:
       bullet_speed: 22.5
-      shoot_delay: 0.1
-      offset_yaw: -0.0
-      offset_pitch: +0.0
-      attack_window: 120.0
+      shoot_delay: 0.04
+      offset_yaw: +2.5
+      offset_pitch: +0.5
+      attack_window: 80.0
+      degraded_angle_speed: 12.0
       window_hysteresis: 0.2
       is_lazy_gimbal: false
       attack_preaim: false
@@ -91,7 +92,7 @@ auto_aim_component:
 auto_aim_ui:
   ros__parameters:
     offset_x: 0.0
-    offset_y: -0.08
+    offset_y: +0.08
     offset_z: 0.0
 
 deformable_infantry:

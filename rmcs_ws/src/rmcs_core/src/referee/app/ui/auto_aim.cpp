@@ -3,6 +3,7 @@
 #include <format>
 #include <iterator>
 #include <limits>
+#include <optional>
 #include <string>
 
 #include <rclcpp/node.hpp>
@@ -33,10 +34,14 @@ public:
         register_input("/tf", tf_, true);
         register_input("/auto_aim/robot_center", robot_center_, true);
         register_input("/auto_aim/should_shoot", should_shoot_, true);
+        register_input("/auto_aim/single_shoot", single_shoot_, true);
     }
 
     void update() override {
+        const auto type = *single_shoot_ ? "RUNE" : "ARMOR";
+
         if (!robot_center_->allFinite() || robot_center_->isZero()) {
+            set_distance_text(type, std::nullopt);
             hide_all();
             return;
         }
@@ -46,6 +51,7 @@ public:
             || point.x() >= kScreenW || point.x() < 0 //
             || point.y() >= kScreenH || point.y() < 0 //
         ) {
+            set_distance_text(type, std::nullopt);
             hide_all();
             return;
         }
@@ -59,18 +65,12 @@ public:
         {
             const auto distance = robot_center_->norm();
             if (!std::isfinite(distance)) {
-                target_distance_indicator_.set_visible(false);
+                set_distance_text(type, std::nullopt);
+                hide_all();
                 return;
             }
 
-            auto& text = target_distance_text_;
-            text.resize(kMaxTextLength);
-            std::ranges::fill(text, ' ');
-
-            std::format_to(std::ranges::begin(text), "{:.1f}m\0", distance);
-
-            target_distance_indicator_.set_value(text.data());
-            target_distance_indicator_.set_visible(true);
+            set_distance_text(type, distance);
         }
 
         center_ring_.set_color(color);
@@ -146,6 +146,7 @@ private:
     InputInterface<Tf> tf_;
     InputInterface<Eigen::Vector3d> robot_center_;
     InputInterface<bool> should_shoot_;
+    InputInterface<bool> single_shoot_;
 
     Circle center_ring_{Shape::Color::GREEN, 2, 0, 0, 5, 5, false};
     Line cross_top_{Shape::Color::GREEN, 2, 0, 0, 0, 0, false};
@@ -164,7 +165,20 @@ private:
         cross_bottom_.set_visible(false);
         cross_left_.set_visible(false);
         cross_right_.set_visible(false);
-        target_distance_indicator_.set_visible(false);
+    }
+
+    void set_distance_text(const char* type, std::optional<double> distance) {
+        auto& text = target_distance_text_;
+        text.resize(kMaxTextLength);
+        std::ranges::fill(text, ' ');
+
+        if (distance)
+            std::format_to(std::ranges::begin(text), "{} | {:.1f}m\0", type, *distance);
+        else
+            std::format_to(std::ranges::begin(text), "{} | NONE\0", type);
+
+        target_distance_indicator_.set_value(text.data());
+        target_distance_indicator_.set_visible(true);
     }
 
     Eigen::Vector2d reproject(const Eigen::Vector3d& center) const {

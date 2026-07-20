@@ -53,10 +53,6 @@ auto_aim_recorder:
 
 auto_aim_component:
   ros__parameters:
-    # WARN: 危险！可选 red | blue，生效后裁判系统 ID 缺席时
-    # 将强行绑定为对应阵营哨兵，仅供调试，严禁比赛启用。
-    # 留空或填 unknow 表示禁用。
-    dangerous_fallback: ""
     manual_shoot: true
     camera_translation: [0.07128, 0.0, 0.0481]
     fire_control:
@@ -65,6 +61,7 @@ auto_aim_component:
       offset_yaw: -1.0
       offset_pitch: +0.0
       attack_window: 120.0
+      degraded_angle_speed: 12.0
       window_hysteresis: 0.2
       is_lazy_gimbal: false
       attack_preaim: false
@@ -84,7 +81,7 @@ sentry_hardware:
     board_serial_bottom_board: "af-b4e5"
     board_serial_gimbal_board: "af-8b8b"
 
-    pitch_motor_zero_point: 17241
+    pitch_motor_zero_point: 12453
 
     bottom_yaw_motor_zero_point: 54253
     top_yaw_motor_zero_point: 32736

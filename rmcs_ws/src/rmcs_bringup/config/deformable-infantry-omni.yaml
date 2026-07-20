@@ -59,7 +59,7 @@ value_broadcaster:
 auto_aim_capturer:
   ros__parameters:
     camera_name: ""
-    exposure_us: 2000.0
+    exposure_us: 4000.0
     gain: 8.0
     framerate: 120.0
     invert_image: false
@@ -77,10 +77,11 @@ auto_aim_component:
     camera_translation: [0.058, -0.08, 0.0]
     fire_control:
       bullet_speed: 22.5
-      shoot_delay: 0.1
+      shoot_delay: 0.04
       offset_yaw: +0.1
-      offset_pitch: -0.6
-      attack_window: 120.0
+      offset_pitch: -0.4
+      attack_window: 80.0
+      degraded_angle_speed: 12.0
       window_hysteresis: 0.2
       is_lazy_gimbal: false
       attack_preaim: false
@@ -167,11 +168,11 @@ gimbal_controller:
     lower_limit: 0.10 # 8 deg
     ctrl_hold_pitch_target_angle: 0.0
 
-    yaw_angle_kp: 15.0
+    yaw_angle_kp: 10.0
     yaw_angle_ki: 0.0
     yaw_angle_kd: 0.0
 
-    yaw_velocity_kp: 15.0
+    yaw_velocity_kp: 10.0
     yaw_velocity_ki: 0.0
     yaw_velocity_kd: 0.0
 
