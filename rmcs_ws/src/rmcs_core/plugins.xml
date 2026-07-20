@@ -1,10 +1,7 @@
 <library path="rmcs_core">
   <class type="rmcs_core::hardware::Flight" base_class_type="rmcs_executor::Component" />
-  <class type="rmcs_core::hardware::SteeringHero" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::hardware::SteeringHeroLittle" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::hardware::OmniInfantry" base_class_type="rmcs_executor::Component" />
-  <class type="rmcs_core::hardware::Sentry" base_class_type="rmcs_executor::Component" />
-  <class type="rmcs_core::hardware::SteeringInfantry" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::hardware::DeformableInfantryOmni" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::hardware::DeformableInfantryOmniB" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::hardware::DeformableInfantryOmniC" base_class_type="rmcs_executor::Component" />
@@ -60,4 +57,8 @@
   <class type="rmcs_core::referee::app::ui::Hero" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::referee::app::ui::Flight" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::referee::app::ui::AutoAimUi" base_class_type="rmcs_executor::Component" />
+
+  <class type="rmcs_core::controller::identification::StaticTorqueTestController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::identification::SweptFrequencyController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::test::output::AngleOutput" base_class_type="rmcs_executor::Component" />
 </library>

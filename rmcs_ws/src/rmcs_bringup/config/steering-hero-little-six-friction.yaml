@@ -1,0 +1,507 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::hardware::SteeringHeroLittle -> hero_hardware
+
+      - rmcs_core::referee::Status -> referee_status
+      - rmcs_core::referee::command::Interaction -> referee_interaction
+      - rmcs_core::referee::command::interaction::Ui -> referee_ui
+      - rmcs_core::referee::app::ui::Hero -> referee_ui_hero
+      - rmcs_core::referee::app::ui::AutoAimUi -> auto_aim_ui
+      - rmcs_core::referee::Command -> referee_command
+
+      - rmcs_core::controller::gimbal::HeroGimbalController -> gimbal_controller
+      - rmcs_core::controller::gimbal::DualYawController -> dual_yaw_controller
+      - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
+      - rmcs_core::controller::pid::PidController -> pitch_velocity_pid_controller
+
+      - rmcs_core::controller::gimbal::PlayerViewer -> gimbal_player_viewer_controller
+      - rmcs_core::controller::pid::ErrorPidController -> viewer_angle_pid_controller
+
+      - rmcs_core::controller::shooting::HeroFrictionWheelController -> friction_wheel_controller
+      - rmcs_core::controller::shooting::HeroHeatController -> heat_controller
+      - rmcs_core::controller::shooting::PutterController -> bullet_feeder_controller
+      - rmcs_core::controller::pid::PidController -> first_back_friction_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> first_front_friction_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> second_back_friction_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> second_front_friction_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> third_back_friction_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> third_front_friction_velocity_pid_controller
+      - rmcs_core::controller::shooting::ShootingRecorder -> shooting_recorder
+
+      - rmcs_core::controller::chassis::SteeringWheelStatus -> steering_wheel_status
+      - rmcs_core::controller::chassis::HeroChassisController -> chassis_controller
+      - rmcs_core::controller::chassis::HeroChassisPowerController -> chassis_power_controller
+      - rmcs_core::controller::chassis::HeroSteeringWheelController -> steering_wheel_controller
+      - rmcs_core::controller::chassis::ChassisClimberController -> climber_controller
+
+      - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
+      - rmcs::AutoAimComponent -> auto_aim_component
+
+      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
+
+      # - rmcs_core::controller::identification::SweptFrequencyController -> pitch_swept_frequency_controller
+      # - rmcs_core::controller::identification::StaticTorqueTestController -> pitch_static_torque_test_controller
+      # - rmcs_core::controller::identification::SweptFrequencyController -> top_yaw_swept_frequency_controller
+      # - rmcs_core::controller::identification::SweptFrequencyController -> bottom_yaw_swept_frequency_controller
+      # - rmcs_core::controller::identification::SweptFrequencyController -> first_front_friction_swept_frequency_controller
+      # - rmcs_core::controller::identification::SweptFrequencyController -> second_front_friction_swept_frequency_controller
+      # - rmcs_core::controller::identification::SweptFrequencyController -> third_front_friction_swept_frequency_controller
+      # - rmcs_core::controller::identification::SweptFrequencyController -> first_back_friction_swept_frequency_controller
+      # - rmcs_core::controller::identification::SweptFrequencyController -> second_back_friction_swept_frequency_controller
+      # - rmcs_core::controller::identification::SweptFrequencyController -> third_back_friction_swept_frequency_controller
+
+hero_hardware:
+  ros__parameters:
+    board_serial_top_board: "AF-8AE3-4EC1-03C3-C494-88FE-2DC4-3018-0298"
+    serial_bottom_rmcs_board: "AF-60BB-7484-FA24-F3FC-399B-454D-22FA-1B1D"
+    bottom_yaw_motor_zero_point: 35110
+    pitch_motor_zero_point: 23653
+    top_yaw_motor_zero_point: 48525
+    viewer_motor_zero_point: 31940
+    external_imu_port: /dev/ttyUSB0
+    bullet_feeder_motor_zero_point: 60480 #39045
+    left_front_zero_point: 5790
+    right_front_zero_point: 5114
+    left_back_zero_point: 7868
+    right_back_zero_point: 1640
+
+auto_aim_capturer:
+  ros__parameters:
+    camera_name: ""
+    exposure_us: 2000.0
+    gain: 8.0
+    framerate: 80.0
+    invert_image: false
+    rls_tau_sec: 10.0
+    use_hardware_sync: false
+
+auto_aim_component:
+  ros__parameters:
+    manual_shoot: false
+
+auto_aim_ui:
+  ros__parameters:
+    offset_x: 0.000
+    offset_y: 0.000
+    offset_z: 0.000
+
+value_broadcaster:
+  ros__parameters:
+    forward_list:
+      # - /gimbal/top_yaw/control_angle
+      # - /chassis/climber/left_front_motor/torque
+      # - /chassis/climber/right_front_motor/torque
+      # - /chassis/left_front_steering/torque
+      # - /chassis/left_back_steering/torque
+      # - /chassis/right_front_steering/torque
+      # - /chassis/right_back_steering/torque
+      - /chassis/left_front_steering/velocity
+      - /chassis/left_back_steering/velocity
+      - /chassis/right_front_steering/velocity
+      - /chassis/right_back_steering/velocity
+      # - /shoot/heat12707
+      # - /chassis/power
+      # - /referee/chassis/power
+      # - /referee/chassis/power_limit
+      # - /chassis/control_power_limit
+      # - /chassis/climber/front/control_power_limit
+      # - /chassis/climber/front/power_demand_estimate
+      # - /chassis/climber/front/actual_power_estimate
+      # - /chassis/steering_wheel/actual_power_estimate
+      # - /gimbal/putter/velocity
+      - /gimbal/first_front_friction/velocity
+      - /gimbal/first_back_friction/velocity
+      - /gimbal/second_front_friction/velocity
+      - /gimbal/second_back_friction/velocity
+      - /gimbal/third_front_friction/velocity
+      - /gimbal/third_back_friction/velocity
+      - /gimbal/first_front_friction/control_torque
+      - /gimbal/first_back_friction/control_torque
+      - /gimbal/second_front_friction/control_torque
+      - /gimbal/second_back_friction/control_torque
+      - /gimbal/third_front_friction/control_torque
+      - /gimbal/third_back_friction/control_torque
+      # - /gimbal/bottom_yaw/torque
+      # - /gimbal/bottom_yaw/angle
+      # - /gimbal/top_yaw/angle
+      # - /gimbal/pitch/angle
+      # - /chassis/power
+      # - /chassis/supercap/voltage
+      # - /chassis/control_power_limit
+      # - /referee/chassis/power_limit
+      # - /referee/chassis/buffer_energy
+      # - /chassis/climber/front/control_power_limit
+      # - /chassis/climber/front/power_demand_estimate
+      # - /chassis/climber/front/actual_power_estimate
+      # - /chassis/steering_wheel/actual_power_estimate
+      # - /gimbal/bullet_feeder/torque
+      # - /gimbal/bullet_feeder/control_torque
+      # - /gimbal/putter/angle
+      # - /gimbal/putter/velocity
+      # - /gimbal/putter/torque
+      # - /gimbal/putter/control_torque
+      # - /gimbal/bullet_feeder/velocity
+      # - /gimbal/bullet_feeder/angle
+
+climber_controller:
+  ros__parameters:
+    front_climber_velocity: 22.0
+    back_climber_velocity: 30.0
+    auto_climb_support_retract_velocity_fast: 70.0
+    auto_climb_support_retract_velocity_slow: 20.0
+    auto_climb_approach_chassis_velocity: 2.0
+    auto_climb_support_deploy_chassis_velocity: 0.4
+    auto_climb_support_retract_chassis_velocity: 0.15
+    auto_climb_dash_chassis_velocity: 3.0
+    first_stair_dash_leveled_pitch_threshold: 0.05
+    second_stair_dash_leveled_pitch_threshold: -0.09
+    sync_coefficient: 0.2
+    first_stair_approach_pitch: 0.517
+    second_stair_approach_pitch: 0.37 #0.365
+    front_kp: 1.0
+    front_ki: 0.0
+    front_kd: 0.5
+    front_power_estimate_bias: 0.0
+    front_power_estimate_k_tau2: 1.0
+    front_power_estimate_k_mech: 1.0
+    back_kp: 0.5
+    back_ki: 0.0
+    back_kd: 0.0
+
+chassis_power_controller:
+  ros__parameters:
+    front_climber_power_limit_max: 50.0
+    drive_power_limit_floor: 50.0
+    auto_climb_min_control_power_limit: 130.0
+
+gimbal_controller:
+  ros__parameters:
+    upper_limit: -0.718
+    lower_limit: 0.255
+
+dual_yaw_controller:
+  ros__parameters:
+    top_yaw_angle_kp: 14.0 # 30.2
+    top_yaw_angle_ki: 0.0
+    top_yaw_angle_kd: 0.0
+    top_yaw_velocity_kp: 9.37 # 11.0
+    top_yaw_velocity_ki: 0.00033 # 0.00029
+    top_yaw_velocity_kd: 0.0
+    top_yaw_velocity_integral_min: -2500.0
+    top_yaw_velocity_integral_max: 2500.0
+    bottom_yaw_angle_kp: 10.0 # 18.4
+    bottom_yaw_angle_ki: 0.0
+    bottom_yaw_angle_kd: 0.0
+    bottom_yaw_velocity_kp: 2.00 # 2.81
+    bottom_yaw_velocity_ki: 0.000071 # 0.00028
+    bottom_yaw_velocity_kd: 0.0
+    bottom_yaw_velocity_integral_min: -2500.0
+    bottom_yaw_velocity_integral_max: 2500.0
+
+pitch_angle_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/pitch/control_angle_error
+    control: /gimbal/pitch/control_velocity
+    kp: 18.6
+    ki: 0.0
+    kd: 0.0
+
+pitch_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/pitch/velocity_imu
+    setpoint: /gimbal/pitch/control_velocity
+    control: /gimbal/pitch/control_torque
+    kp: 16.05
+    ki: 0.00014
+    kd: 0.0
+    integral_min: -2500.0
+    integral_max: 2500.0
+
+gimbal_player_viewer_controller:
+  ros__parameters:
+    upper_limit: 0.415996
+    lower_limit: -0.066441
+
+viewer_angle_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/player_viewer/control_angle_error
+    control: /gimbal/player_viewer/control_velocity
+    kp: 4.00
+    ki: 0.00
+    kd: 0.50
+
+bullet_feeder_controller:
+  ros__parameters:
+    bullet_feeder_velocity_kp: 5.0
+    bullet_feeder_velocity_ki: 0.1
+    bullet_feeder_velocity_kd: 0.0
+    bullet_feeder_velocity_integral_min: 0.0
+    bullet_feeder_velocity_integral_max: 60.0
+    bullet_feeder_angle_kp: 6.0
+    bullet_feeder_angle_ki: 0.0
+    bullet_feeder_angle_kd: 1.6
+    putter_return_velocity_kp: 0.003
+    putter_return_velocity_ki: 0.00005
+    putter_return_velocity_kd: 0.0
+    putter_return_velocity_integral_min: -0.03
+    putter_return_velocity_integral_max: 0.0
+    photoelectric_allow: true
+
+friction_wheel_controller:
+  ros__parameters:
+    friction_wheels:
+      - /gimbal/first_front_friction
+      - /gimbal/second_front_friction
+      - /gimbal/third_front_friction
+      - /gimbal/first_back_friction
+      - /gimbal/second_back_friction
+      - /gimbal/third_back_friction
+    friction_velocities_profile_0:
+      - 390.0
+      - 390.0
+      - 390.0
+      - 480.0
+      - 480.0
+      - 480.0
+      # - 527.0
+      # - 527.0
+      # - 527.0
+      # - 435.0
+      # - 435.0
+      # - 435.0
+    friction_velocities_profile_1:
+      - 527.0
+      - 527.0
+      - 527.0
+      - 435.0
+      - 435.0
+      - 435.0
+    friction_soft_start_stop_time: 1.0
+
+heat_controller:
+  ros__parameters:
+    heat_per_shot: 100000
+    reserved_heat: 0
+
+shooting_recorder:
+  ros__parameters:
+    friction_wheel_count: 6
+    aim_velocity: 16.15
+    log_mode: 1 # 1: trigger, 2: timing
+
+first_front_friction_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/first_front_friction/velocity
+    setpoint: /gimbal/first_front_friction/control_velocity
+    control: /gimbal/first_front_friction/control_torque
+    kp: 0.006233371
+    ki: 0.00 #0.00003
+    kd: 0.000001
+
+second_front_friction_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/second_front_friction/velocity
+    setpoint: /gimbal/second_front_friction/control_velocity
+    control: /gimbal/second_front_friction/control_torque
+    kp: 0.006035661
+    ki: 0.00 #0.00003
+    kd: 0.000001
+
+third_front_friction_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/third_front_friction/velocity
+    setpoint: /gimbal/third_front_friction/control_velocity
+    control: /gimbal/third_front_friction/control_torque
+    kp: 0.006192421
+    ki: 0.00 #0.00003
+    kd: 0.000001
+
+first_back_friction_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/first_back_friction/velocity
+    setpoint: /gimbal/first_back_friction/control_velocity
+    control: /gimbal/first_back_friction/control_torque
+    kp: 0.007749503
+    ki: 0.00
+    kd: 0.00003
+
+second_back_friction_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/second_back_friction/velocity
+    setpoint: /gimbal/second_back_friction/control_velocity
+    control: /gimbal/second_back_friction/control_torque
+    kp: 0.007795934
+    ki: 0.00
+    kd: 0.00003
+
+third_back_friction_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/third_back_friction/velocity
+    setpoint: /gimbal/third_back_friction/control_velocity
+    control: /gimbal/third_back_friction/control_torque
+    kp: 0.007760993
+    ki: 0.00
+    kd: 0.00003
+
+steering_wheel_status:
+  ros__parameters:
+    vehicle_radius: 0.286378
+    wheel_radius: 0.055
+
+steering_wheel_controller:
+  ros__parameters:
+    mess: 22.0
+    moment_of_inertia: 1.08
+    vehicle_radius: 0.286378
+    wheel_radius: 0.055
+    friction_coefficient: 0.6
+    k1: 2.958580e+00
+    k2: 3.082190e-03
+    no_load_power: 11.37
+
+pitch_swept_frequency_controller:
+  ros__parameters:
+    target: /gimbal/pitch
+
+    sweep: true
+    logarithmic: true
+    start_freq: 0.1
+    end_freq: 10.0
+    duration: 60.0
+    amplitude: 6.8
+
+    pid: true
+    setpoint: 0.0
+    position_kp: 20.0
+    position_ki: 0.0
+    position_kd: 0.0
+    velocity_kp: 1.65
+    velocity_ki: 0.0
+    velocity_kd: 0.0
+    dc_offset: 0.0
+
+pitch_static_torque_test_controller:
+  ros__parameters:
+    target: /gimbal/pitch
+
+    interval_angle: 0.02
+    wait_time: 1.5
+    border_clip: 0.02
+
+    position_kp: 12.0
+    position_ki: 0.0
+    position_kd: 0.0
+
+    velocity_kp: 3.2
+    velocity_ki: 0.0005
+    velocity_kd: 0.0
+
+    velocity_integral_min: -2500.0
+    velocity_integral_max: 2500.0
+
+top_yaw_swept_frequency_controller:
+  ros__parameters:
+    target: /gimbal/top_yaw
+
+    sweep: true
+    logarithmic: true
+    start_freq: 0.1
+    end_freq: 10.0
+    duration: 60.0
+    amplitude: 15.0
+
+    pid: true
+    setpoint: 0.0
+    position_kp: 10.0
+    position_ki: 0.0
+    position_kd: 0.0
+    velocity_kp: 3.0
+    velocity_ki: 0.0
+    velocity_kd: 0.0
+    dc_offset: 0.0
+
+bottom_yaw_swept_frequency_controller:
+  ros__parameters:
+    target: /gimbal/bottom_yaw
+
+    sweep: true
+    logarithmic: true
+    start_freq: 0.1
+    end_freq: 4.0
+    duration: 80.0
+    amplitude: 1.0
+
+first_front_friction_swept_frequency_controller:
+  ros__parameters:
+    target: /gimbal/first_front_friction
+    sweep: true
+    pid: false
+    logarithmic: true
+    start_freq: 1.0
+    end_freq: 45.0
+    duration: 60.0
+    amplitude: 0.08
+    dc_offset: 0.01
+
+second_front_friction_swept_frequency_controller:
+  ros__parameters:
+    target: /gimbal/second_front_friction
+    sweep: true
+    pid: false
+    logarithmic: true
+    start_freq: 1.0
+    end_freq: 45.0
+    duration: 60.0
+    amplitude: 0.08
+    dc_offset: 0.04
+
+third_front_friction_swept_frequency_controller:
+  ros__parameters:
+    target: /gimbal/third_front_friction
+    sweep: true
+    pid: false
+    logarithmic: true
+    start_freq: 1.0
+    end_freq: 45.0
+    duration: 60.0
+    amplitude: 0.08
+    dc_offset: 0.02
+
+first_back_friction_swept_frequency_controller:
+  ros__parameters:
+    target: /gimbal/first_back_friction
+    sweep: true
+    pid: false
+    logarithmic: true
+    start_freq: 1.0
+    end_freq: 45.0
+    duration: 60.0
+    amplitude: 0.08
+    dc_offset: 0.021
+
+second_back_friction_swept_frequency_controller:
+  ros__parameters:
+    target: /gimbal/second_back_friction
+    sweep: true
+    pid: false
+    logarithmic: true
+    start_freq: 1.0
+    end_freq: 45.0
+    duration: 60.0
+    amplitude: 0.08
+    dc_offset: 0.029
+
+third_back_friction_swept_frequency_controller:
+  ros__parameters:
+    target: /gimbal/third_back_friction
+    sweep: true
+    pid: false
+    logarithmic: true
+    start_freq: 1.0
+    end_freq: 45.0
+    duration: 40.0
+    amplitude: 0.08
+    dc_offset: 0.00

@@ -42,23 +42,20 @@ public:
         , bottom_yaw_angle_number_(
               Shape::Color::YELLOW, 20, 5, x_center + 270, y_center - 65, 0.0, false)
         , time_reminder_(Shape::Color::PINK, 50, 5, x_center + 150, y_center + 65, 0, false)
-        // , bullet_allowance_label_(
-        //       Shape::Color::YELLOW, 18, 3, x_center - 300, y_center + 270, "bullet", false)
-        // , bullet_allowance_number_(
-        //       Shape::Color::YELLOW, 20, 5, x_center - 170, y_center + 270, 0, false)
         , bullet_allowance_number_(
               Shape::Color::YELLOW, 20, 5, x_center - 220, y_center + 270, 0, false)
         , friction_profile_number_(
               Shape::Color::GREEN, friction_profile_number_font_size, 5, 0, 0, 12, false)
         , friction_profile_indicator_{Line(Shape::Color::WHITE, friction_profile_box_line_width, 0, 0, 0, 0, false), Line(Shape::Color::WHITE, friction_profile_box_line_width, 0, 0, 0, 0, false), Line(Shape::Color::WHITE, friction_profile_box_line_width, 0, 0, 0, 0, false), Line(Shape::Color::WHITE, friction_profile_box_line_width, 0, 0, 0, 0, true)}
-        , center_green_line_(
-              Shape::Color::GREEN, green_line_width, x_center - green_line_half_length,
-              y_center - green_line_offset_y, x_center + green_line_half_length,
-              y_center - green_line_offset_y, true)
-        , tracking_pink_line_(
-              Shape::Color::PINK, pink_line_width, x_center - pink_line_half_length,
-              y_center + pink_line_offset_y, x_center + pink_line_half_length,
-              y_center + pink_line_offset_y, false) {
+    // , center_green_line_(
+    //       Shape::Color::GREEN, green_line_width, x_center - green_line_half_length,
+    //       y_center - green_line_offset_y, x_center + green_line_half_length,
+    //       y_center - green_line_offset_y, true)
+    // , tracking_pink_line_(
+    //       Shape::Color::PINK, pink_line_width, x_center - pink_line_half_length,
+    //       y_center + pink_line_offset_y, x_center + pink_line_half_length,
+    //       y_center + pink_line_offset_y, false)
+    {
 
         chassis_control_direction_indicator_.set_x(x_center);
         chassis_control_direction_indicator_.set_y(y_center);
@@ -83,9 +80,9 @@ public:
         register_input("/gimbal/control_bullet_allowance/limited_by_heat", robot_bullet_allowance_);
 
         register_input(
-            "/gimbal/first_left_friction/control_velocity", left_friction_control_velocity_);
-        register_input("/gimbal/first_left_friction/velocity", left_friction_velocity_);
-        register_input("/gimbal/first_right_friction/velocity", right_friction_velocity_);
+            "/gimbal/first_back_friction/control_velocity", back_friction_control_velocity_);
+        register_input("/gimbal/first_back_friction/velocity", back_friction_velocity_);
+        register_input("/gimbal/first_front_friction/velocity", front_friction_velocity_);
         register_input("/gimbal/friction_profile_1_active", friction_profile_1_active_, false);
 
         // register_input("/gimbal/yaw/angle", gimbal_yaw_angle_);
@@ -96,25 +93,18 @@ public:
         register_input("/gimbal/bottom_yaw/raw_angle", bottom_yaw_raw_angle_);
         // register_input("/gimbal/auto_aim/laser_distance", laser_distance_);
 
-        register_input("/gimbal/shooter/condiction", shoot_condiction_);
-
-        register_input("/gimbal/shooter/mode", shoot_mode_);
+        register_input("/gimbal/shooter/preloaded_ready", shooter_preloaded_ready_, false);
 
         // register_input("/gimbal/scope/active", is_scope_active_);
 
         register_input("/remote/mouse", mouse_);
 
         register_input("/referee/game/stage", game_stage_);
-
-        // register_input("/gimbal/auto_aim/fire_control", auto_aim_fire_control_, false);
-        // register_input("/gimbal/auto_aim/target_confidence", auto_aim_target_confidence_, false);
     }
 
     void update() override {
         update_normal_ui();
-        // update_bullet_allowance();
         // update_sniper_ui();
-        // update_state_word();
 
         // if (*is_scope_active_) {
         //     set_normal_ui_visible(false);
@@ -144,11 +134,10 @@ private:
         yaw_angle_number_.set_visible(value);
         pitch_angle_number_.set_visible(value);
         bottom_yaw_angle_number_.set_visible(value);
-        // bullet_allowance_label_.set_visible(value);
         bullet_allowance_number_.set_visible(value);
         friction_profile_number_.set_visible(value);
-        center_green_line_.set_visible(value);
-        tracking_pink_line_.set_visible(value);
+        // center_green_line_.set_visible(value);
+        // tracking_pink_line_.set_visible(value);
 
         const bool show_friction_profile_box =
             value && friction_profile_1_active_.ready() && *friction_profile_1_active_;
@@ -164,10 +153,14 @@ private:
         pitch_angle_number_.set_value(static_cast<double>(*gimbal_pitch_raw_angle_));
         update_pitch_raw_angle_color();
         bottom_yaw_angle_number_.set_value(static_cast<double>(*bottom_yaw_raw_angle_));
-        update_bottom_yaw_tracking_lines();
+        // update_bottom_yaw_tracking_lines();
         const int32_t bullet_allowance =
             static_cast<int32_t>(std::max<int64_t>(0, *robot_bullet_allowance_));
         bullet_allowance_number_.set_value(bullet_allowance);
+        const bool shooter_preloaded_ready =
+            shooter_preloaded_ready_.ready() && *shooter_preloaded_ready_;
+        bullet_allowance_number_.set_color(
+            shooter_preloaded_ready ? Shape::Color::GREEN : Shape::Color::PINK);
 
         const uint16_t yaw_right =
             yaw_raw_angle_x
@@ -217,16 +210,10 @@ private:
         friction_profile_indicator_[3].set_x2(box_left);
         friction_profile_indicator_[3].set_y2(box_bottom);
         status_ring_.update_friction_wheel_speed(
-            std::min(*left_friction_velocity_, *right_friction_velocity_),
-            *left_friction_control_velocity_ > 0);
+            std::min(*back_friction_velocity_, *front_friction_velocity_),
+            *back_friction_control_velocity_ > 0);
         status_ring_.update_supercap(*supercap_voltage_, true);
         status_ring_.update_battery_power(*chassis_voltage_);
-        // const bool auto_aim_locked = auto_aim_fire_control_.ready() && *auto_aim_fire_control_;
-        // const double target_confidence_value =
-        //     auto_aim_target_confidence_.ready() ? *auto_aim_target_confidence_ : 0.0;
-
-        // status_ring_.update_auto_aim_feedback(auto_aim_locked, target_confidence_value);
-        // update_static_status_ring();
         last_keyboard_ = *keyboard_;
     }
 
@@ -315,50 +302,6 @@ private:
     void update_time_reminder() {
         if (!game_stage_.ready())
             return;
-    }
-
-    void update_static_status_ring() {
-        auto auto_aim_enable = mouse_->right == 1;
-        auto precise_enable = *shoot_mode_ == rmcs_msgs::ShootMode::PRECISE;
-
-        status_ring_.update_static_parts({auto_aim_enable, precise_enable});
-    }
-
-    // void update_bullet_allowance() {
-
-    //     std::string text = "BULLET : " + std::to_string(max(0,*robot_bullet_allowance_));
-    //     char* allow = text.data();
-    //     auto color = Shape::Color::YELLOW;
-
-    //     bullet_allowance_number_.set_value(allow);
-    //     bullet_allowance_number_.set_font_size(14);
-    //     bullet_allowance_number_.set_color(color);
-    //     bullet_allowance_number_.set_visible(true);
-    //     bullet_allowance_number_.set_xy(x_center - 240, y_center + 288);
-    // }
-
-    void update_state_word() {
-
-        const char* text = "OK";
-        auto color = Shape::Color::GREEN;
-
-        if (*shoot_condiction_ == rmcs_msgs::ShootCondiction::FRICTION_WAITING) {
-            text = "  WAITING ";
-        } else if (*shoot_condiction_ == rmcs_msgs::ShootCondiction::SHOOT) {
-            text = "  SHOOT   ";
-        } else if (*shoot_condiction_ == rmcs_msgs::ShootCondiction::FIRED) {
-            text = "  FIRED   ";
-        } else if (*shoot_condiction_ == rmcs_msgs::ShootCondiction::JAM) {
-            text = "   JAM    ";
-        } else if (*shoot_condiction_ == rmcs_msgs::ShootCondiction::PRELOADING) {
-            text = "PRELOADING";
-        }
-
-        state_word_.set_value(text);
-        state_word_.set_font_size(30);
-        state_word_.set_color(color);
-        state_word_.set_visible(true);
-        state_word_.set_xy(x_center - 800, y_center + 200);
     }
 
     void update_chassis_direction_indicator() {
@@ -475,9 +418,9 @@ private:
 
     InputInterface<int64_t> robot_bullet_allowance_;
 
-    InputInterface<double> left_friction_control_velocity_;
-    InputInterface<double> left_friction_velocity_;
-    InputInterface<double> right_friction_velocity_;
+    InputInterface<double> back_friction_control_velocity_;
+    InputInterface<double> back_friction_velocity_;
+    InputInterface<double> front_friction_velocity_;
     InputInterface<bool> friction_profile_1_active_;
 
     InputInterface<rmcs_msgs::Mouse> mouse_;
@@ -493,8 +436,7 @@ private:
     InputInterface<double> bottom_yaw_angle_;
     // InputInterface<double> laser_distance_;
 
-    InputInterface<rmcs_msgs::ShootMode> shoot_mode_;
-    InputInterface<rmcs_msgs::ShootCondiction> shoot_condiction_;
+    InputInterface<bool> shooter_preloaded_ready_;
     // InputInterface<bool> is_scope_active_;
 
     StatusRing status_ring_;
@@ -511,7 +453,6 @@ private:
     Text state_word_;
     Integer time_reminder_;
 
-    // Text bullet_allowance_label_;
     Integer bullet_allowance_number_;
     Integer friction_profile_number_;
     Line friction_profile_indicator_[4];
@@ -520,9 +461,6 @@ private:
 
     bool bottom_yaw_tracking_enabled_ = false;
     double bottom_yaw_anchor_angle_rad_ = 0.0;
-
-    // InputInterface<bool> auto_aim_fire_control_;
-    // InputInterface<double> auto_aim_target_confidence_;
 };
 
 } // namespace rmcs_core::referee::app::ui

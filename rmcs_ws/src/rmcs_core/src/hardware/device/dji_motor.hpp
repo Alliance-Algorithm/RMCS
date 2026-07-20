@@ -24,8 +24,9 @@ public:
     enum class Type : uint8_t { kGM6020, kGM6020Voltage, kM3508, kM2006 };
 
     struct Config {
-        explicit Config(Type motor_type)
-            : motor_type(motor_type) {
+        explicit Config(Type motor_type, std::uint8_t id = 0)
+            : motor_type(motor_type)
+            , id(id) {
             switch (motor_type) {
             case Type::kGM6020:
             case Type::kGM6020Voltage: reduction_ratio = 1.0; break;
@@ -42,6 +43,7 @@ public:
         Config& enable_multi_turn_angle() { return multi_turn_angle_enabled = true, *this; }
 
         Type motor_type;
+        std::uint8_t id;
         int encoder_zero_point = 0;
         double reduction_ratio;
         bool reversed;
@@ -77,6 +79,8 @@ public:
     ~DjiMotor() = default;
 
     void configure(const Config& config) {
+        type_ = config.motor_type;
+        id_ = config.id;
         encoder_zero_point_ = config.encoder_zero_point % kRawAngleMax;
         if (encoder_zero_point_ < 0)
             encoder_zero_point_ += kRawAngleMax;
@@ -135,6 +139,37 @@ public:
         can_data_.store(CanPacket8{can_data}, std::memory_order_relaxed);
     }
 
+    static constexpr auto recv_id(Type type, std::uint8_t index) -> std::uint32_t {
+        switch (type) {
+        case Type::kGM6020:
+        case Type::kGM6020Voltage: return 0x204 + index;
+        case Type::kM3508:
+        case Type::kM2006: return 0x200 + index;
+        }
+        return 0;
+    }
+
+    static constexpr auto send_id(Type type, std::uint8_t index) -> std::uint32_t {
+        switch (type) {
+        case Type::kGM6020: return index <= 4 ? 0x1FE : 0x2FE;
+        case Type::kGM6020Voltage: return index <= 4 ? 0x1FF : 0x2FF;
+        case Type::kM3508:
+        case Type::kM2006: return index <= 4 ? 0x200 : 0x1FF;
+        }
+        return 0;
+    }
+
+    auto id() const noexcept -> std::uint8_t { return id_; }
+    auto recv_id() const noexcept -> std::uint32_t { return recv_id(type_, id_); }
+    auto send_id() const noexcept -> std::uint32_t { return send_id(type_, id_); }
+
+    bool match_then_store_status(std::uint32_t can_id, std::span<const std::byte> can_data) {
+        if (can_id != recv_id())
+            return false;
+        store_status(can_data);
+        return true;
+    }
+
     void update_status() {
         const auto feedback =
             std::bit_cast<DjiMotorFeedback>(can_data_.load(std::memory_order::relaxed));
@@ -174,7 +209,7 @@ public:
     }
 
     double control_torque() const {
-        if (control_torque_.ready()) [[likely]]
+        if (control_torque_.ready() && id_ != 0) [[likely]]
             return *control_torque_;
         else
             return 0.0;
@@ -217,6 +252,8 @@ private:
         uint8_t unused;
     };
 
+    Type type_ = Type::kM3508;
+    std::uint8_t id_ = 0;
     std::atomic<CanPacket8> can_data_;
 
     static constexpr int kRawAngleMax = 8192;
@@ -242,5 +279,15 @@ private:
 
     rmcs_executor::Component::InputInterface<double> control_torque_;
 };
+
+} // namespace rmcs_core::hardware::device
+
+namespace rmcs_core::hardware::device {
+
+inline auto operator<<(CanPacket8& packet, const DjiMotor& motor) -> CanPacket8& {
+    if (motor.id() != 0)
+        packet.data[(motor.id() - 1) % 4] = motor.generate_command().data;
+    return packet;
+}
 
 } // namespace rmcs_core::hardware::device
