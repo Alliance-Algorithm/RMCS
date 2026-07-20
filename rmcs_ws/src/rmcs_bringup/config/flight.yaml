@@ -62,8 +62,8 @@ auto_aim_component:
     fire_control:
       bullet_speed: 22.5
       shoot_delay: 0.1
-      offset_yaw: +2.0
-      offset_pitch: +3.5
+      offset_yaw: +1.5     #越大越左
+      offset_pitch: +3.8   #越大越下
       attack_window: 120.0
       window_hysteresis: 0.2
       is_lazy_gimbal: false
