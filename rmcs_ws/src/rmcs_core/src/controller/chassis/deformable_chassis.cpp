@@ -31,6 +31,8 @@ public:
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , following_velocity_controller_(10.0, 0.0, 0.0)
         , spin_ratio_(std::clamp(get_parameter_or("spin_ratio", 0.6), 0.0, 1.0))
+        , wireless_charging_offset_rad_(
+              deg_to_rad(get_parameter_or("wireless_charging_offset_deg", 135.0)))
         , joint_mode_mgr_(*this) {
 
         following_velocity_controller_.output_max = angular_velocity_max_;
@@ -205,6 +207,19 @@ private:
             angular_velocity = following_velocity_controller_.update(chassis_angle_error);
         } break;
 
+        case rmcs_msgs::ChassisMode::WIRELESS_CHARGING: {
+            double chassis_angle_error =
+                calculate_unsigned_chassis_angle_error(chassis_control_angle);
+
+            chassis_control_angle = normalize_positive_angle(
+                chassis_control_angle + wireless_charging_offset_rad_);
+            chassis_angle_error = normalize_positive_angle(
+                chassis_angle_error + wireless_charging_offset_rad_);
+            chassis_angle_error = normalize_signed_angle(chassis_angle_error);
+
+            angular_velocity = following_velocity_controller_.update(chassis_angle_error);
+        } break;
+
         default: break;
         }
 
@@ -227,6 +242,22 @@ private:
     }
 
     static double deg_to_rad(double deg) { return deg * std::numbers::pi / 180.0; }
+
+    static double normalize_positive_angle(double angle) {
+        constexpr double full_turn = 2 * std::numbers::pi;
+        while (angle >= full_turn)
+            angle -= full_turn;
+        while (angle < 0.0)
+            angle += full_turn;
+        return angle;
+    }
+
+    static double normalize_signed_angle(double angle) {
+        angle = normalize_positive_angle(angle);
+        if (angle > std::numbers::pi)
+            angle -= 2 * std::numbers::pi;
+        return angle;
+    }
 
     void publish_joint_posture_targets_() {
         std::array<double, kJointCount> targets_deg{};
@@ -268,6 +299,7 @@ private:
 
     pid::PidCalculator following_velocity_controller_;
     const double spin_ratio_;
+    const double wireless_charging_offset_rad_;
 
     DeformableChassisModeManager joint_mode_mgr_;
 };

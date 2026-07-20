@@ -34,7 +34,7 @@ rmcs_executor:
       - rmcs::AutoAimComponent -> auto_aim_component
       - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
 
-      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       # - rmcs_core::debug::ValueCollector -> value_collector
 
 value_collector:
@@ -55,6 +55,14 @@ value_broadcaster:
     forward_list:
       - /gimbal/pitch/angle
       - /gimbal/pitch/velocity
+      - /chassis/left_front_joint/torque
+      - /chassis/left_front_joint/control_torque
+      - /chassis/left_back_joint/torque
+      - /chassis/left_back_joint/control_torque
+      - /chassis/right_back_joint/torque
+      - /chassis/right_back_joint/control_torque
+      - /chassis/right_front_joint/torque
+      - /chassis/right_front_joint/control_torque
 
 auto_aim_capturer:
   ros__parameters:
@@ -113,6 +121,7 @@ chassis_controller:
     max_angle: 59.0
     active_suspension_enable: true
     spin_ratio: 1.0
+    wireless_charging_offset_deg: 135.0
 
 deformable_suspension:
   ros__parameters:

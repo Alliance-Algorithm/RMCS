@@ -9,6 +9,7 @@ enum class ChassisMode : uint8_t {
     SPIN = 1,
     STEP_DOWN = 2,
     LAUNCH_RAMP = 3,
+    WIRELESS_CHARGING = 4,
 };
 
 } // namespace rmcs_msgs

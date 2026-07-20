@@ -145,6 +145,7 @@ private:
         case rmcs_msgs::ChassisMode::SPIN: return Shape::Color::GREEN;
         case rmcs_msgs::ChassisMode::AUTO: return Shape::Color::CYAN;
         case rmcs_msgs::ChassisMode::STEP_DOWN: return Shape::Color::PINK;
+        case rmcs_msgs::ChassisMode::WIRELESS_CHARGING: return Shape::Color::PURPLE;
         default: return Shape::Color::WHITE;
         }
     }

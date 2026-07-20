@@ -64,7 +64,7 @@ auto_aim_capturer:
     framerate: 120.0
     invert_image: false
     rls_tau_sec: 10.0
-    use_hardware_sync: true
+    use_hardware_sync: false
     delay_ms: 6.5
 
 auto_aim_component:
@@ -113,6 +113,7 @@ chassis_controller:
     max_angle: 59.0
     active_suspension_enable: true
     spin_ratio: 1.0
+    wireless_charging_offset_deg: 135.0
 
 deformable_suspension:
   ros__parameters:

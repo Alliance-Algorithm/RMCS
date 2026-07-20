@@ -165,6 +165,10 @@ private:
             next_mode = next_mode == rmcs_msgs::ChassisMode::STEP_DOWN
                           ? rmcs_msgs::ChassisMode::AUTO
                           : rmcs_msgs::ChassisMode::STEP_DOWN;
+        } else if (!last_keyboard_.x && keyboard.x) {
+            next_mode = next_mode == rmcs_msgs::ChassisMode::WIRELESS_CHARGING
+                          ? rmcs_msgs::ChassisMode::AUTO
+                          : rmcs_msgs::ChassisMode::WIRELESS_CHARGING;
         }
 
         joint_posture_state_.mode = next_mode;
