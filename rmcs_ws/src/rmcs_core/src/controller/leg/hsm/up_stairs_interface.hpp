@@ -181,10 +181,10 @@ public:
               [this]() { return readCurrentSpeedX(); }, &result_}
         , runner_([this](LayerId id) { return resolveLayer(id); }) {
         resetResult();
-        component.register_input("/leg/encoder/lf/angle", theta_lf_);
+        component.register_input("/leg/joint/lf/angle", theta_lf_);
         component.register_input("/leg/encoder/lb/angle", theta_lb_);
         component.register_input("/leg/encoder/rb/angle", theta_rb_);
-        component.register_input("/leg/encoder/rf/angle", theta_rf_);
+        component.register_input("/leg/joint/rf/angle", theta_rf_);
         component.register_input("/chassis/expected_control_velocity", speed_);
         plan_.clear();
         layers_.clear();

@@ -113,9 +113,6 @@ public:
             move = rotation * (*joystick_left_);
             if (is_stair_mode()) {
                 move.y() = 0.0;
-                if ((*up_stairs_step_) == "press") {
-                    move.x() = 0.8;
-                }
             }
             chassis_control_velocity_->vector << (move * *speed_limit_), angular_velocity;
             expected_chassis_control_velocity_->vector

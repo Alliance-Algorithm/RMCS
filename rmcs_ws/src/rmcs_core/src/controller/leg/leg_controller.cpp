@@ -44,6 +44,11 @@ public:
               get_parameter("forward_x_position_in_SixWheel").as_double())
         , backward_x_position_in_SixWheel_(
               get_parameter("backward_x_position_in_SixWheel").as_double())
+        , lf_angle_pid_(get_parameter("lf_angle_pid").as_double_array())
+        , lf_vel_pid_(get_parameter("lf_vel_pid").as_double_array())
+        , rf_angle_pid_(get_parameter("rf_angle_pid").as_double_array())
+        , rf_vel_pid_(get_parameter("rf_vel_pid").as_double_array())
+
         , lf_angle_pid_controller_(400.0, 0.0, 6.5)
         , rf_angle_pid_controller_(500.0, 0.0, 6.5)
         , lf_velocity_pid_controller_(0.8, 0.0, 0.001)
@@ -66,14 +71,13 @@ public:
         register_output("/leg/omni/l/target_vel", omni_l_target_vel, NAN);
         register_output("/leg/omni/r/target_vel", omni_r_target_vel, NAN);
 
-        register_input("/leg/encoder/lf/angle", theta_lf);
+        register_input("/leg/joint/lf/angle", theta_lf);
         register_input("/leg/encoder/lb/angle", theta_lb);
         register_input("/leg/encoder/rb/angle", theta_rb);
-        register_input("/leg/encoder/rf/angle", theta_rf);
+        register_input("/leg/joint/rf/angle", theta_rf);
         register_input("/leg/joint/lf/velocity", leg_lf_joint_velocity_, NAN);
         register_output("/leg/joint/lf/control_torque", leg_lf_joint_control_torque_);
         register_input("/leg/joint/rf/velocity", leg_rf_joint_velocity_, NAN);
-
         register_output("/leg/joint/rf/control_torque", leg_rf_joint_control_torque_);
         register_output("/leg/joint/lb/target_theta", leg_lb_target_theta, NAN);
         register_output("/leg/joint/rb/target_theta", leg_rb_target_theta, NAN);
@@ -94,7 +98,11 @@ public:
         register_input("roll_imu_angle", roll_imu_angle_, NAN);
         register_output("/leg/pitch_imu_angle_offsetted", pitch_imu_angle_offsetted_, NAN);
 
-        std::array<double, 2> four_wheel_angle = leg_inverse_kinematic(
+        register_output("four_wheel_f", four_wheel_f, NAN);
+        register_output("six_wheel_f", six_wheel_f, NAN);
+        register_output("up_stairs_f", up_stairs_f, NAN);
+
+        four_wheel_angle = leg_inverse_kinematic(
             forward_x_position_in_FourWheel_, wheel_distance - forward_x_position_in_FourWheel_,
             false, false);
         four_wheel_trajectory
@@ -103,7 +111,7 @@ public:
                     four_wheel_angle[0], four_wheel_angle[1], four_wheel_angle[1],
                     four_wheel_angle[0]})
             .set_total_step(1000);
-        std::array<double, 2> six_wheel_angle = leg_inverse_kinematic(
+        six_wheel_angle = leg_inverse_kinematic(
             forward_x_position_in_SixWheel_, backward_x_position_in_SixWheel_, false, false);
         six_wheel_trajectory
             .set_end_point(
@@ -134,6 +142,10 @@ public:
 
             return false;
         });
+
+        *four_wheel_f = 0.836404;
+        *six_wheel_f  = 0.958217;
+        *up_stairs_f  = 1.600270;
     }
 
     void update() override {
@@ -343,24 +355,33 @@ private:
             rf_velocity_pid_controller_.ki = 0.0;
             rf_velocity_pid_controller_.kd = 0.0;
         } else {
-            lf_angle_pid_controller_.kp    = 400.0;
-            lf_angle_pid_controller_.ki    = 0.0;
-            lf_angle_pid_controller_.kd    = 6.5;
-            rf_angle_pid_controller_.kp    = 500.0;
-            rf_angle_pid_controller_.ki    = 0.0;
-            rf_angle_pid_controller_.kd    = 6.5;
-            lf_velocity_pid_controller_.kp = 0.8;
-            lf_velocity_pid_controller_.ki = 0.0;
-            lf_velocity_pid_controller_.kd = 0.001;
-            rf_velocity_pid_controller_.kp = 1.0;
-            rf_velocity_pid_controller_.ki = 0.0;
-            rf_velocity_pid_controller_.kd = 0.001;
+            lf_angle_pid_controller_.kp    = lf_angle_pid_[0];
+            lf_angle_pid_controller_.ki    = lf_angle_pid_[1];
+            lf_angle_pid_controller_.kd    = lf_angle_pid_[2];
+            rf_angle_pid_controller_.kp    = rf_angle_pid_[0];
+            rf_angle_pid_controller_.ki    = rf_angle_pid_[1];
+            rf_angle_pid_controller_.kd    = rf_angle_pid_[2];
+            lf_velocity_pid_controller_.kp = lf_vel_pid_[0];
+            lf_velocity_pid_controller_.ki = lf_vel_pid_[1];
+            lf_velocity_pid_controller_.kd = lf_vel_pid_[2];
+            rf_velocity_pid_controller_.kp = rf_vel_pid_[0];
+            rf_velocity_pid_controller_.ki = rf_vel_pid_[1];
+            rf_velocity_pid_controller_.kd = rf_vel_pid_[2];
         }
-        lf_velocity_pid_controller_.output_max = 27.0;
-        rf_velocity_pid_controller_.output_max = 27.0;
+        // lf_angle_pid_controller_.output_max      = 50.0;
+        // lf_angle_pid_controller_.output_min      = -50.0;
+        // lf_velocity_pid_controller_.output_max   = 40.0;
+        // lf_velocity_pid_controller_.output_min   = -40.0;
+        //    rf_velocity_pid_controller_.output_max   = 40.0;
+        //       rf_velocity_pid_controller_.output_min =-40.0;
 
-        const double lf_error = rmcs_utility::normalize_angle(lf - *theta_lf);
-        const double rf_error = rmcs_utility::normalize_angle(rf - *theta_rf);
+        // lf_velocity_pid_controller_.integral_max = 30.0 / lf_vel_pid_[1]; // 30/0.006 = 5000
+        // lf_velocity_pid_controller_.integral_min = -30.0 / lf_vel_pid_[1];
+        // rf_velocity_pid_controller_.integral_max = 30.0 / rf_vel_pid_[1];
+        // rf_velocity_pid_controller_.integral_min = -30.0 / rf_vel_pid_[1];
+
+        const double lf_error            = rmcs_utility::normalize_angle(lf - *theta_lf);
+        const double rf_error            = rmcs_utility::normalize_angle(rf - *theta_rf);
         const double lf_control_velocity = lf_angle_pid_controller_.update(lf_error);
         const double rf_control_velocity = rf_angle_pid_controller_.update(rf_error);
 
@@ -470,10 +491,25 @@ private:
     InputInterface<double> roll_imu_velocity_;
     InputInterface<double> roll_imu_angle_;
 
+    std::array<double, 2> four_wheel_angle;
+    std::array<double, 2> six_wheel_angle;
+
+    std::vector<double> lf_angle_pid_;
+    std::vector<double> lf_vel_pid_;
+    std::vector<double> rf_angle_pid_;
+    std::vector<double> rf_vel_pid_;
+
     pid::PidCalculator lf_angle_pid_controller_;
     pid::PidCalculator rf_angle_pid_controller_;
     pid::PidCalculator lf_velocity_pid_controller_;
     pid::PidCalculator rf_velocity_pid_controller_;
+
+    OutputInterface<double> four_wheel_f;
+
+    OutputInterface<double> six_wheel_f;
+
+    OutputInterface<double> up_stairs_f;
+
     OutputInterface<double> pitch_imu_angle_offsetted_;
     double pitch_imu_angle_offset_value_{NAN};
 

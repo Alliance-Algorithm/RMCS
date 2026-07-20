@@ -61,9 +61,9 @@ struct LKMotorConfig {
         case LKMotorType::MG4010E_i10V3:
         case LKMotorType::MG5010E_i10V3:
         case LKMotorType::MG4010E_i36V3:
-        case LKMotorType::MG5010E_i36V3:
         case LKMotorType::MG6012_i36:
         case LKMotorType::MG4005E_i10V3:
+        case LKMotorType::MG5010E_i36V3:
         case LKMotorType::MG4005_i10V2:
         case LKMotorType::MG8016E_i6V2:
         case LKMotorType::MG8010E_i36: iq = 66.0 / 4096; break;
@@ -174,10 +174,10 @@ public:
             LSB             = 648000;
             break;
         case LKMotorType::MG5010E_i36V3:
-            torque_constant = 0.1 * 36.0;
+            torque_constant = 0.3 * 36.0;
             rated_current   = 4.4;
             rated_torque    = 13.0;
-            max_torque      = 25.0;
+            max_torque      = 40.0;
             LSB             = 648000;
             break;
         case LKMotorType::MHF6015:
@@ -298,9 +298,9 @@ public:
 
             return CanPacket8{std::bit_cast<uint64_t>(result)};
         }
-        double max_torque = *max_torque_;
-        torque            = std::clamp(torque, -max_torque, max_torque);
-        double current    = std::round(torque_to_raw_current_coefficient_ * torque);
+        double max_torque         = *max_torque_;
+        torque                    = std::clamp(torque, -max_torque, max_torque);
+        double current            = std::round(torque_to_raw_current_coefficient_ * torque);
         int16_t control_current   = static_cast<int16_t>(current);
         auto control_current_bits = std::bit_cast<std::array<uint8_t, 2>>(control_current);
         std::copy(control_current_bits.begin(), control_current_bits.end(), result.begin() + 4);
@@ -350,7 +350,7 @@ private:
     double raw_angle_to_angle_coefficient_, angle_to_raw_angle_coefficient_;
     double raw_velocity_to_velocity_coefficient_, velocity_to_raw_velocity_coefficient_;
     double raw_current_to_torque_coefficient_, torque_to_raw_current_coefficient_;
-    
+
     Component::OutputInterface<double> gear_ratio_;
     Component::OutputInterface<double> max_torque_;
     Component::OutputInterface<double> rated_torque_;

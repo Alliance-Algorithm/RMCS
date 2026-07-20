@@ -34,26 +34,26 @@ rmcs_executor:
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 engineer_hardware:
   ros__parameters:
-    board_serial_arm_board: "D4-6A83-030D-F3D0-9103-F8A5-1246"
-    board_serial_left_board: "D4-18B8-2958-0D33-4168-27CE-86B2"
-    board_serial_right_board: "D4-D354-B7C8-A457-ECB1-11A9-998E"
+    board_serial_arm_board: "D4-D354-B7C8-A457-ECB1-11A9-998E"
+    board_serial_left_board: "AF-BE99-F77D-BDAA-8AE1-AE22-EF6E-78F4-6EAC"
+    board_serial_right_board: "AF-EEF5-24BA-6675-F1B1-C797-50AF-869C-870E"
     gripper_zero_point: 26298
     image_pitch_zero_point: 43131
     joint6_zero_point: 7804
     joint5_zero_point: 37436
     joint4_zero_point: 32721
     joint3_zero_point: 28459
-    joint2_zero_point: 31605
+    joint2_zero_point: 39898
     joint1_zero_point: 14865
     steering_lf_zero_point: 1343
     steering_lb_zero_point: 4096
     steering_rb_zero_point: 0
     steering_rf_zero_point: 4096
-    leg_lf_ecd_zero_point: 220679
+    leg_lf_motor_zero_point: 7950
     leg_lb_ecd_zero_point: 153149
     leg_rb_ecd_zero_point: 220758
-    leg_rf_ecd_zero_point: 119271
-    big_yaw_zero_point: 32705
+    leg_rf_motor_zero_point: 46800
+    big_yaw_zero_point: 41263
 
 image_transmission:
   ros__parameters:
@@ -84,7 +84,11 @@ leg_controller:
     forward_x_position_in_SixWheel: 250.0
     backward_x_position_in_SixWheel: 221.0
     tof_b: 0.51
-    up_one_stairs:
+    lf_angle_pid: [3000.0, 0.0, 40.0]
+    lf_vel_pid: [20.0, 0.00, 5.0]
+    rf_angle_pid: [6000.0, 0.6, 40.0]
+    rf_vel_pid: [40.0, 0.00, 5.00]
+    up_one_stairs: 
       params:
         initial: [1.600270, 1.550, 0.0, 2000.0]
         press: [0.972736, 0.493103, -600.0, 250.0]
@@ -224,13 +228,17 @@ steering_wheel_controller:
 value_broadcaster:
   ros__parameters:
     forward_list:
+      - "four_wheel_f"
+      - "six_wheel_f"
+      - "up_stairs_f"
+      - "/leg/joint/rf/angle"
+      - "/leg/joint/lf/angle"
       - "/leg/joint/rf/velocity"
       - "/leg/joint/lf/velocity"
       - "/leg/joint/lf/torque"
       - "/leg/joint/lf/control_torque"
       - "/leg/joint/rf/torque"
       - "/leg/joint/rf/control_torque"
-      - "/leg/encoder/rf/angle"
       - "/leg/encoder/lb/angle"
       - "/arm/gripper/motor/velocity"
       - "/arm/gripper/motor/torque"
