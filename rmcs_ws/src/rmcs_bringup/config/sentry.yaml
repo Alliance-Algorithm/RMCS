@@ -34,7 +34,6 @@ rmcs_executor:
 rmcs_navigation:
   ros__parameters:
     command_vel_name: "/cmd_vel"
-    mock_context: false
     endpoint: "train"
     enable_goal_topic_forward: true
 
