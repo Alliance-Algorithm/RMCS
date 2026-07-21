@@ -8,7 +8,7 @@ namespace rmcs_utility {
 
 [[nodiscard]] inline double normalize_angle(double angle) noexcept {
     if (!std::isfinite(angle)) {
-        return std::numeric_limits<double>::quiet_NaN();
+        return NAN;
     }
 
     constexpr double pi = std::numbers::pi_v<double>;

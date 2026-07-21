@@ -2,6 +2,7 @@
 #include "controller/leg/hsm/up_stairs_interface.hpp"
 #include "controller/leg/leg_inverse_kinematic.hpp"
 #include "controller/pid/pid_calculator.hpp"
+#include "filter/low_pass_filter.hpp"
 #include "rmcs_msgs/arm_mode.hpp"
 #include <array>
 #include <cmath>
@@ -44,11 +45,12 @@ public:
               get_parameter("forward_x_position_in_SixWheel").as_double())
         , backward_x_position_in_SixWheel_(
               get_parameter("backward_x_position_in_SixWheel").as_double())
+        , leg_joint_angle_filter_(8, 1000)
+        , leg_joint_vel_filter_(8, 1000)
         , lf_angle_pid_(get_parameter("lf_angle_pid").as_double_array())
         , lf_vel_pid_(get_parameter("lf_vel_pid").as_double_array())
         , rf_angle_pid_(get_parameter("rf_angle_pid").as_double_array())
         , rf_vel_pid_(get_parameter("rf_vel_pid").as_double_array())
-
         , lf_angle_pid_controller_(400.0, 0.0, 6.5)
         , rf_angle_pid_controller_(500.0, 0.0, 6.5)
         , lf_velocity_pid_controller_(0.8, 0.0, 0.001)
@@ -379,16 +381,22 @@ private:
         // lf_velocity_pid_controller_.integral_min = -30.0 / lf_vel_pid_[1];
         // rf_velocity_pid_controller_.integral_max = 30.0 / rf_vel_pid_[1];
         // rf_velocity_pid_controller_.integral_min = -30.0 / rf_vel_pid_[1];
+        Eigen::Vector2d joint_angle;
+        Eigen::Vector2d joint_vel;
+        joint_angle << *theta_lf, *theta_rf;
+        joint_vel << *leg_lf_joint_velocity_, *leg_rf_joint_velocity_;
+        auto filtered_angle = leg_joint_angle_filter_.update(joint_angle);
+        auto filtered_vel   = leg_joint_vel_filter_.update(joint_vel);
 
-        const double lf_error            = rmcs_utility::normalize_angle(lf - *theta_lf);
-        const double rf_error            = rmcs_utility::normalize_angle(rf - *theta_rf);
+        const double lf_error            = rmcs_utility::normalize_angle(lf - filtered_angle[0]);
+        const double rf_error            = rmcs_utility::normalize_angle(rf - filtered_angle[1]);
         const double lf_control_velocity = lf_angle_pid_controller_.update(lf_error);
         const double rf_control_velocity = rf_angle_pid_controller_.update(rf_error);
 
         *leg_lf_joint_control_torque_ =
-            lf_velocity_pid_controller_.update(lf_control_velocity - *leg_lf_joint_velocity_);
+            lf_velocity_pid_controller_.update(lf_control_velocity - filtered_vel[0]);
         *leg_rf_joint_control_torque_ =
-            rf_velocity_pid_controller_.update(rf_control_velocity - *leg_rf_joint_velocity_);
+            rf_velocity_pid_controller_.update(rf_control_velocity - filtered_vel[1]);
     }
     void reset_motor() {
         *omni_l_target_vel            = NAN;
@@ -401,6 +409,8 @@ private:
         rf_angle_pid_controller_.reset();
         lf_velocity_pid_controller_.reset();
         rf_velocity_pid_controller_.reset();
+        leg_joint_angle_filter_.reset();
+        leg_joint_vel_filter_.reset();
     }
     void update_pitch_imu_angle_offset() {
         const double raw_pitch = *pitch_imu_angle_;
@@ -494,6 +504,8 @@ private:
     std::array<double, 2> four_wheel_angle;
     std::array<double, 2> six_wheel_angle;
 
+    filter::LowPassFilter<2> leg_joint_angle_filter_;
+    filter::LowPassFilter<2> leg_joint_vel_filter_;
     std::vector<double> lf_angle_pid_;
     std::vector<double> lf_vel_pid_;
     std::vector<double> rf_angle_pid_;

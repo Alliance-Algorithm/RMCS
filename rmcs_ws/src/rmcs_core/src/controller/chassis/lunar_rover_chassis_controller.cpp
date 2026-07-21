@@ -74,7 +74,6 @@ public:
         }
 
         mode_selection();
-
         static double angular_velocity{0.0};
         switch (chassis_mode_) {
         case rmcs_msgs::ChassisMode::Flow: {
@@ -83,6 +82,7 @@ public:
             angular_velocity = std::clamp(
                 following_velocity_controller_.update(*chassis_big_yaw_angle_),
                 -angular_velocity_limit_, angular_velocity_limit_);
+            angular_velocity = 0.0;
             break;
         }
         case rmcs_msgs::ChassisMode::SPIN: {
@@ -110,17 +110,18 @@ public:
             auto move = *joystick_left_;
 
             Eigen::Rotation2D<double> rotation(*chassis_big_yaw_angle_ + *joint1_theta_);
-            move = rotation * (*joystick_left_);
+            // move = rotation * (*joystick_left_);
+            move = *joystick_left_;
             if (is_stair_mode()) {
                 move.y() = 0.0;
             }
             chassis_control_velocity_->vector << (move * *speed_limit_), angular_velocity;
             expected_chassis_control_velocity_->vector
-                << (rotation * (*joystick_left_) * *speed_limit_), angular_velocity;
+                << (rotation * (*joystick_left_) * *speed_limit_),
+                angular_velocity;
         } else {
             chassis_control_velocity_->vector << NAN, NAN, NAN;
             expected_chassis_control_velocity_->vector << NAN, NAN, NAN;
-
         }
 
         *chassis_big_yaw_target_angle_error_ =
@@ -251,7 +252,7 @@ private:
         *chassis_control_power_limit_ =
             power_limit_ * (virtual_buffer_energy_ / virtual_buffer_energy_limit_);
     }
-    
+
     InputInterface<Eigen::Vector2d> joystick_right_;
     InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;
@@ -263,8 +264,7 @@ private:
     rmcs_msgs::ChassisMode chassis_mode_ = rmcs_msgs::ChassisMode::None;
 
     OutputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;
-    OutputInterface<rmcs_description::BaseLink::DirectionVector>
-        expected_chassis_control_velocity_;
+    OutputInterface<rmcs_description::BaseLink::DirectionVector> expected_chassis_control_velocity_;
     InputInterface<double> chassis_power_;
     OutputInterface<double> chassis_control_power_limit_;
     OutputInterface<double> speed_limit_;
@@ -288,4 +288,5 @@ private:
 } // namespace rmcs_core::controller::chassis
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::chassis::LunarRoverChassisController, rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(
+    rmcs_core::controller::chassis::LunarRoverChassisController, rmcs_executor::Component)

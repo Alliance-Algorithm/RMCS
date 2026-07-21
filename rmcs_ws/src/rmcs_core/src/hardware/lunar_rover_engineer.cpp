@@ -62,7 +62,7 @@ public:
         remote_control_->update();
     }
     void command() {
-       armboard_.command();
+        armboard_.command();
         leftboard_.command();
         rightboard_.command();
     }
@@ -471,9 +471,10 @@ private:
 
             static bool turn{false};
             auto tx = start_transmit();
-            tx.can0_transmit(
-                {.can_id = 0x141, .can_data = Leg_Motor_lf.generate_torque_command().as_bytes()});
             if (turn) {
+                tx.can0_transmit(
+                    {.can_id   = 0x141,
+                     .can_data = Leg_Motor_lf.generate_torque_command().as_bytes()});
                 tx.can2_transmit({
                     .can_id = 0x1FE,
                     .can_data =
@@ -530,7 +531,7 @@ private:
                 [[unlikely]]
                 return;
             if (data.can_id == 0x141) {
-                 RCLCPP_INFO(this->get_logger(), "lf_leg_motor : %f",Leg_Motor_lf.get_angle());
+                RCLCPP_INFO(this->get_logger(), "lf_leg_motor : %f", Leg_Motor_lf.get_angle());
                 Leg_Motor_lf.store_status(data.can_data);
             }
         }
@@ -711,9 +712,10 @@ private:
         void command() {
             auto tx = start_transmit();
             static bool turn{false};
-            tx.can0_transmit(
-                {.can_id = 0x141, .can_data = Leg_Motor_rf.generate_torque_command().as_bytes()});
             if (turn) {
+                tx.can0_transmit(
+                    {.can_id   = 0x141,
+                     .can_data = Leg_Motor_rf.generate_torque_command().as_bytes()});
                 tx.can2_transmit({
                     .can_id = 0x1FE,
                     .can_data =
@@ -747,10 +749,10 @@ private:
                 } else {
                     yaw_command = big_yaw.generate_torque_command();
                 }
-                tx.can2_transmit({
-                    .can_id   = 0x3,
-                    .can_data = yaw_command.as_bytes(),
-                });
+                // tx.can2_transmit({
+                //     .can_id   = 0x3,
+                //     .can_data = yaw_command.as_bytes(),
+                // });
             } else {
 
                 tx.can2_transmit({
@@ -787,7 +789,7 @@ private:
                 return;
             if (data.can_id == 0x141) {
                 Leg_Motor_rf.store_status(data.can_data);
-                 RCLCPP_INFO(this->get_logger(), "rf_leg_motor: %f",Leg_Motor_rf.get_angle());
+                RCLCPP_INFO(this->get_logger(), "rf_leg_motor: %f", Leg_Motor_rf.get_angle());
             }
         }
         void can1_receive_callback(const librmcs::data::CanDataView& data) override {
@@ -815,7 +817,7 @@ private:
             } else if (data.can_id == 0x205) {
                 Steering_motors[0].store_status(data.can_data);
             } else if (data.can_id == 0x33) {
-                // RCLCPP_INFO(this->get_logger(),"big yaw %d",big_yaw.get_raw_angle());
+                RCLCPP_INFO(this->get_logger(), "big yaw %f", big_yaw.get_angle());
                 big_yaw.store_status(data.can_data);
             } else if (data.can_id == 0x322) {
                 Leg_ecd_rb.store_status(data.can_data);

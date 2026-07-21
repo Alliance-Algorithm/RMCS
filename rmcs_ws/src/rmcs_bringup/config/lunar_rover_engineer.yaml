@@ -84,10 +84,10 @@ leg_controller:
     forward_x_position_in_SixWheel: 250.0
     backward_x_position_in_SixWheel: 221.0
     tof_b: 0.51
-    lf_angle_pid: [3000.0, 0.0, 40.0]
-    lf_vel_pid: [20.0, 0.00, 5.0]
-    rf_angle_pid: [6000.0, 0.6, 40.0]
-    rf_vel_pid: [40.0, 0.00, 5.00]
+    lf_angle_pid: [1000.0, 0.0,18.0]
+    lf_vel_pid: [2.5, 0.00, 0.8]
+    rf_angle_pid: [1000.0, 0.0, 18.0]
+    rf_vel_pid: [2.5, 0.00, 0.80]
     up_one_stairs: 
       params:
         initial: [1.600270, 1.550, 0.0, 2000.0]
