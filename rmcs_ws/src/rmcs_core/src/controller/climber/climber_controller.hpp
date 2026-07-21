@@ -28,9 +28,9 @@ public:
         double back_blocked_torque_threshold     = 0.1;
         double back_blocked_velocity_threshold   = 0.1;
         int support_confirm_ticks                = 100;
-        int dash_min_ticks                       = 350;
-        int dash_timeout_ticks                   = 1000;
-        int support_retract_ticks                = 1500;
+        int dash_min_ticks                       = 400;
+        int dash_timeout_ticks                   = 800;
+        int support_retract_ticks                = 500;
         int slide_ticks                          = 200;
     };
 
@@ -160,8 +160,14 @@ private:
         };
 
         switch (stair_index_) {
-        case 0: config_.dash_min_ticks = 100; break;
-        case 1: config_.dash_min_ticks = 350; break;
+        case 0:
+            config_.dash_min_ticks          = 50;
+            config_.leveled_pitch_threshold = 0.09;
+            break;
+        case 1:
+            config_.dash_min_ticks          = 500;
+            config_.leveled_pitch_threshold = 0.15;
+            break;
         }
         const bool is_leveled = std::abs(input.chassis_pitch_imu) < config_.leveled_pitch_threshold
                              && timer_ > config_.dash_min_ticks;

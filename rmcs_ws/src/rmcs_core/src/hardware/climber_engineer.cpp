@@ -5,8 +5,8 @@
 #include "hardware/device/encorder.hpp"
 #include "hardware/device/lk_motor.hpp"
 #include "hardware/device/power_meter.hpp"
-#include "rmcs_utility/normalize_angle.hpp"
 #include "hardware/device/remote_control.hpp"
+#include "rmcs_utility/normalize_angle.hpp"
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -33,9 +33,7 @@ class ClimberEngineer
     , public rclcpp::Node {
 public:
     ClimberEngineer()
-        : Node{
-              get_component_name(),
-              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
+        : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , logger_(get_logger())
         , engineer_command_(create_partner_component<EngineerCommand>("engineer_command", *this))
         , armboard_(*this, *engineer_command_, get_parameter("board_serial_arm_board").as_string())
@@ -68,9 +66,7 @@ private:
     std::shared_ptr<EngineerCommand> engineer_command_;
     std::unique_ptr<device::RemoteControl> remote_control_;
 
-    class ArmBoard final
-        : private librmcs::agent::CBoard
-        , rclcpp::Node {
+    class ArmBoard final : private librmcs::agent::CBoard, rclcpp::Node {
     public:
         friend class ClimberEngineer;
         explicit ArmBoard(
@@ -165,15 +161,28 @@ private:
             using namespace device;
             update_arm_motors();
             update_imu();
+            RCLCPP_INFO(this->get_logger(), "joint1:%d", joint[0].get_raw_angle());
+            RCLCPP_INFO(this->get_logger(), "joint2:%d", joint2_encoder.get_raw_angle());
+            RCLCPP_INFO(this->get_logger(), "joint3:%d", joint[2].get_raw_angle());
+            RCLCPP_INFO(this->get_logger(), "joint4:%d", joint[3].get_raw_angle());
+            RCLCPP_INFO(this->get_logger(), "joint5:%d", joint[4].get_raw_angle());
+            RCLCPP_INFO(this->get_logger(), "joint6:%d", joint[5].get_raw_angle());
+            RCLCPP_INFO(this->get_logger(), "gripper:%f", gripper.get_angle());
+            RCLCPP_INFO(this->get_logger(), "image:%d", image_pitch.get_raw_angle());
         }
         void command() { update_arm_command(); }
 
     private:
         void update_arm_command() {
             static bool even_phase{true};
-            auto tx = start_transmit();
+            static uint8_t i = 0;
 
-            if (even_phase) {
+            auto tx = start_transmit();
+            if (i == 4) {
+                i = 0;
+            }
+
+            if (i == 0) {
                 tx.can1_transmit({
                     .can_id   = 0x148,
                     .can_data = image_pitch.generate_torque_command().as_bytes(),
@@ -184,17 +193,18 @@ private:
                     .can_data = joint[2].generate_torque_command().as_bytes(),
                 });
 
+            } else if (i == 1) {
+
                 tx.can2_transmit({
-                    .can_id   = 0x147,
-                    .can_data = gripper.generate_torque_command().as_bytes(),
+                    .can_id   = 0x145,
+                    .can_data = joint[4].generate_torque_command().as_bytes(),
                 });
 
                 tx.can2_transmit({
-                    .can_id   = 0x141,
-                    .can_data = joint[5].generate_torque_command().as_bytes(),
+                    .can_id   = 0x144,
+                    .can_data = joint[3].generate_torque_command().as_bytes(),
                 });
-
-            } else {
+            } else if (i == 2) {
 
                 tx.can1_transmit({
                     .can_id   = 0x141,
@@ -206,18 +216,65 @@ private:
                     .can_data = joint[1].generate_torque_command().as_bytes(),
                 });
 
+            } else {
+
                 tx.can2_transmit({
-                    .can_id   = 0x145,
-                    .can_data = joint[4].generate_torque_command().as_bytes(),
+                    .can_id   = 0x147,
+                    .can_data = gripper.generate_torque_command().as_bytes(),
                 });
 
                 tx.can2_transmit({
-                    .can_id   = 0x144,
-                    .can_data = joint[3].generate_torque_command().as_bytes(),
+                    .can_id   = 0x141,
+                    .can_data = joint[5].generate_torque_command().as_bytes(),
                 });
             }
+            i++;
 
-            even_phase = !even_phase;
+            // if (even_phase) {
+            //     tx.can1_transmit({
+            //         .can_id   = 0x148,
+            //         .can_data = image_pitch.generate_torque_command().as_bytes(),
+            //     });
+
+            //     tx.can1_transmit({
+            //         .can_id   = 0x143,
+            //         .can_data = joint[2].generate_torque_command().as_bytes(),
+            //     });
+
+            //     tx.can2_transmit({
+            //         .can_id   = 0x147,
+            //         .can_data = gripper.generate_torque_command().as_bytes(),
+            //     });
+
+            //     tx.can2_transmit({
+            //         .can_id   = 0x141,
+            //         .can_data = joint[5].generate_torque_command().as_bytes(),
+            //     });
+
+            // } else {
+
+            //     tx.can1_transmit({
+            //         .can_id   = 0x141,
+            //         .can_data = joint[0].generate_torque_command().as_bytes(),
+            //     });
+
+            //     tx.can1_transmit({
+            //         .can_id   = 0x142,
+            //         .can_data = joint[1].generate_torque_command().as_bytes(),
+            //     });
+
+            //     tx.can2_transmit({
+            //         .can_id   = 0x145,
+            //         .can_data = joint[4].generate_torque_command().as_bytes(),
+            //     });
+
+            //     tx.can2_transmit({
+            //         .can_id   = 0x144,
+            //         .can_data = joint[3].generate_torque_command().as_bytes(),
+            //     });
+            // }
+
+            // even_phase = !even_phase;
         }
 
         void update_arm_motors() {
@@ -276,7 +333,7 @@ private:
                 joint[1].store_status(data.can_data);
             } else if (data.can_id == 0x141) {
                 joint[0].store_status(data.can_data);
-            } else if (data.can_id == 0x200) {
+            } else if (data.can_id == 0x205) {
                 joint2_encoder.store_status(data.can_data);
             } else if (data.can_id == 0x148) {
                 image_pitch.store_status(data.can_data);
@@ -307,9 +364,7 @@ private:
 
     } armboard_;
 
-    class LittleBoard final
-        : private librmcs::agent::RmcsBoardLite
-        , rclcpp::Node {
+    class LittleBoard final : private librmcs::agent::RmcsBoardLite, rclcpp::Node {
     public:
         friend class ClimberEngineer;
         explicit LittleBoard(

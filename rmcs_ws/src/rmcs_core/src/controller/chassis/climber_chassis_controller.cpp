@@ -215,4 +215,5 @@ private:
 } // namespace rmcs_core::controller::chassis
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::chassis::ClimberChassisController, rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(
+    rmcs_core::controller::chassis::ClimberChassisController, rmcs_executor::Component)
