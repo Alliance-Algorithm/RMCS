@@ -10,7 +10,7 @@ rmcs_executor:
       - rmcs_core::referee::command::Interaction -> referee_interaction
       - rmcs_core::referee::command::interaction::Ui -> referee_ui
       - rmcs_core::referee::app::ui::DeformableInfantry -> referee_ui_infantry
-      - rmcs_core::referee::app::ui::AutoAimUi -> auto_aim_ui
+      # - rmcs_core::referee::app::ui::AutoAimUi -> auto_aim_ui
 
       - rmcs_core::controller::gimbal::DeformableInfantryGimbalController -> gimbal_controller
 
@@ -31,9 +31,9 @@ rmcs_executor:
       - rmcs_core::controller::chassis::DeformableJointController -> rb_joint_controller
       - rmcs_core::controller::chassis::DeformableJointController -> rf_joint_controller
 
-      - rmcs::AutoAimComponent -> auto_aim_component
-      - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
-      - rmcs_core::referee::app::ui::AutoAimUi -> auto_aim_ui
+      # - rmcs::AutoAimComponent -> auto_aim_component
+      # - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
+      # - rmcs_core::referee::app::ui::AutoAimUi -> auto_aim_ui
 
       # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       # - rmcs_core::debug::ValueCollector -> value_collector
@@ -97,12 +97,12 @@ auto_aim_ui:
 
 deformable_infantry:
   ros__parameters:
-    serial_filter_bottom_board: "TODO-C-BOTTOM-SERIAL"
-    serial_filter_top_board: "TODO-C-TOP-SERIAL"
+    serial_filter_bottom_board: "AF-C1C3-DFE8-40A8-FC4B-B853-6ED7-AC9F-1DED"
+    serial_filter_top_board: "AF-ABAC-786D-1B53-99F6-00A2-42A6-AA95-9D69"
     chassis_radius: 0.2341741
     rod_length: 0.140
-    yaw_motor_zero_point: 0       # TODO: 填入 C 车 yaw 电机零点
-    pitch_motor_zero_point: 0     # TODO: 填入 C 车 pitch 电机零点
+    yaw_motor_zero_point: 5881
+    pitch_motor_zero_point: 32214
     debug_log_supercap: false
     debug_log_wheel_motor: false
     debug_log_deformable_joint_motor: false
@@ -110,7 +110,7 @@ deformable_infantry:
 chassis_controller:
   ros__parameters:
     # Deploy geometry / chassis-owned joint intent
-    min_angle: 5.0
+    min_angle: 4.0
     max_angle: 59.0
     active_suspension_enable: true
     spin_ratio: 1.0
@@ -173,7 +173,7 @@ gimbal_controller:
     yaw_angle_ki: 0.0
     yaw_angle_kd: 0.0
 
-    yaw_velocity_kp: 15.0
+    yaw_velocity_kp: 13.0
     yaw_velocity_ki: 0.0
     yaw_velocity_kd: 0.0
 

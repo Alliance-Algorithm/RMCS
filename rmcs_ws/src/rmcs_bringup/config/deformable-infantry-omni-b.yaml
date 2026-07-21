@@ -110,7 +110,7 @@ deformable_infantry:
 chassis_controller:
   ros__parameters:
     # Deploy geometry / chassis-owned joint intent
-    min_angle: 5.0
+    min_angle: 4.0
     max_angle: 59.0
     active_suspension_enable: true
     spin_ratio: 1.0
@@ -173,7 +173,7 @@ gimbal_controller:
     yaw_angle_ki: 0.0
     yaw_angle_kd: 0.0
 
-    yaw_velocity_kp: 15.0
+    yaw_velocity_kp: 13.0
     yaw_velocity_ki: 0.0
     yaw_velocity_kd: 0.0
 

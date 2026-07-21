@@ -207,21 +207,21 @@ private:
             }
             {
                 auto packet = device::CanPacket8{uint64_t{0}};
-                packet << gimbal_right_friction_;
+                packet << gimbal_left_friction_;
                 builder.can_transmit(
                     Spec::kCans.kCan1, //
                     {
-                        .can_id = gimbal_right_friction_.send_id(),
+                        .can_id = gimbal_left_friction_.send_id(),
                         .can_data = packet.as_bytes(),
                     });
             }
             {
                 auto packet = device::CanPacket8{uint64_t{0}};
-                packet << gimbal_left_friction_;
+                packet << gimbal_right_friction_;
                 builder.can_transmit(
                     Spec::kCans.kCan2, //
                     {
-                        .can_id = gimbal_left_friction_.send_id(),
+                        .can_id = gimbal_right_friction_.send_id(),
                         .can_data = packet.as_bytes(),
                     });
             }
@@ -235,10 +235,10 @@ private:
                     gimbal_pitch_motor_.store_status(data.can_data);
                 monitor_.tick("Top::Can0", data.can_id);
             } else if (can == Spec::kCans.kCan1) {
-                gimbal_right_friction_.match_then_store_status(data.can_id, data.can_data);
+                gimbal_left_friction_.match_then_store_status(data.can_id, data.can_data);
                 monitor_.tick("Top::Can1", data.can_id);
             } else if (can == Spec::kCans.kCan2) {
-                gimbal_left_friction_.match_then_store_status(data.can_id, data.can_data);
+                gimbal_right_friction_.match_then_store_status(data.can_id, data.can_data);
                 monitor_.tick("Top::Can2", data.can_id);
             }
         }
