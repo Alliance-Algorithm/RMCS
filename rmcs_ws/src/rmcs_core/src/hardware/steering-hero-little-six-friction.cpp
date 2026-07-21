@@ -182,9 +182,6 @@ private:
             get_logger(), "[gimbal calibration] New pitch offset: %ld",
             top_board_->gimbal_pitch_motor_.calibrate_zero_point());
         RCLCPP_INFO(
-            get_logger(), "[gimbal calibration] New player viewer offset: %ld",
-            top_board_->gimbal_player_viewer_motor_.calibrate_zero_point());
-        RCLCPP_INFO(
             get_logger(), "[gimbal calibration] New top yaw offset: %ld",
             top_board_->gimbal_top_yaw_motor_.calibrate_zero_point());
         RCLCPP_INFO(
@@ -235,10 +232,7 @@ private:
                   {steering_hero, steering_hero_command, "/gimbal/third_front_friction"},
                   {steering_hero, steering_hero_command, "/gimbal/third_back_friction"})
             , gimbal_bullet_feeder_(steering_hero, steering_hero_command, "/gimbal/bullet_feeder")
-            , putter_motor_(steering_hero, steering_hero_command, "/gimbal/putter")
-            , gimbal_scope_motor_(steering_hero, steering_hero_command, "/gimbal/scope")
-            , gimbal_player_viewer_motor_(
-                  steering_hero, steering_hero_command, "/gimbal/player_viewer") {
+            , putter_motor_(steering_hero, steering_hero_command, "/gimbal/putter") {
 
             gimbal_top_yaw_motor_.configure(
                 device::LkMotor::Config{device::LkMotor::Type::kMG5010Ei10}
@@ -285,15 +279,6 @@ private:
                 device::DjiMotor::Config{device::DjiMotor::Type::kM3508, 3}
                     .set_reduction_ratio(1.)
                     .enable_multi_turn_angle());
-            gimbal_scope_motor_.configure(
-                device::DjiMotor::Config{device::DjiMotor::Type::kM2006, 4});
-            gimbal_player_viewer_motor_.configure(
-                device::LkMotor::Config{device::LkMotor::Type::kMG4005Ei10}
-                    .set_encoder_zero_point(
-                        static_cast<int>(
-                            steering_hero.get_parameter("viewer_motor_zero_point").as_int()))
-                    .set_reversed()
-                    .enable_multi_turn_angle());
 
             steering_hero.register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
             steering_hero.register_output("/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
@@ -334,12 +319,6 @@ private:
 
             gimbal_bullet_feeder_.update_status();
             putter_motor_.update_status();
-
-            gimbal_player_viewer_motor_.update_status();
-            tf_->set_state<rmcs_description::PitchLink, rmcs_description::ViewerLink>(
-                gimbal_player_viewer_motor_.angle());
-
-            gimbal_scope_motor_.update_status();
 
             *photoelectric_sensor_status_ = photoelectric_sensor_status_atomic.load();
             *grayscale_sensor_status_ = grayscale_sensor_status_atomic.load();
@@ -534,8 +513,6 @@ private:
         device::DjiMotor gimbal_friction_wheels_[6];
         device::LkMotor gimbal_bullet_feeder_;
         device::DjiMotor putter_motor_;
-        device::DjiMotor gimbal_scope_motor_;
-        device::LkMotor gimbal_player_viewer_motor_;
 
         OutputInterface<double> gimbal_yaw_velocity_imu_;
         OutputInterface<double> gimbal_pitch_velocity_imu_;
