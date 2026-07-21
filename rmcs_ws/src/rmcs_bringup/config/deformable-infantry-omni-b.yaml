@@ -83,7 +83,6 @@ auto_aim_component:
       attack_window: 80.0
       degraded_angle_speed: 12.0
       window_hysteresis: 0.2
-      is_lazy_gimbal: false
       attack_preaim: false
       require_stable_command: false
       yaw_tolerance: 0.07

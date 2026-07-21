@@ -11,7 +11,7 @@ readonly RMCS_PATH="/workspaces/RMCS/"
 function show_help() {
     local project_dir="$1"
     local service="$2"
-    echo "Usage: $(basename "$0") [path] [zsh|recreate|n|nvim|neovide|vim|ide]"
+    echo "Usage: $(basename "$0") [path] [zsh|recreate|n|nvim|neovide|vim|ide|ai]"
     echo "  Project dir: $project_dir"
     echo "  Service: $service"
 }
@@ -70,6 +70,15 @@ function rmcs_recreate() {
     docker compose up -d --force-recreate
 }
 
+function rmcs_ai() {
+    local service="$1"
+    local agent="${RMCS_AGENT:-opencode}"
+    echo "Starting container and launching Agent ($agent)..."
+    setup_container
+    docker compose exec -u "$DEVELOPER_NAME" -w "$RMCS_PATH" "$service" \
+        zsh -ic "exec ${agent}"
+}
+
 function main() {
     local project_dir command
 
@@ -99,6 +108,9 @@ function main() {
         ;;
     n | nvim | neovide | vim | ide)
         rmcs_nvim "$service"
+        ;;
+    ai)
+        rmcs_ai "$service"
         ;;
     *)
         show_help "$project_dir" "$service"
