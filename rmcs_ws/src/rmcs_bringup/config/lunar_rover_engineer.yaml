@@ -44,15 +44,15 @@ engineer_hardware:
     joint4_zero_point: 32721
     joint3_zero_point: 28459
     joint2_zero_point: 39898
-    joint1_zero_point: 14865
+    joint1_zero_point: 15010
     steering_lf_zero_point: 1343
     steering_lb_zero_point: 4096
     steering_rb_zero_point: 0
     steering_rf_zero_point: 4096
     leg_lf_motor_zero_point: 7950
-    leg_lb_ecd_zero_point: 153149
+    leg_lb_ecd_zero_point: 154149
     leg_rb_ecd_zero_point: 220758
-    leg_rf_motor_zero_point: 46800
+    leg_rf_motor_zero_point: 45800
     big_yaw_zero_point: 41263
 
 image_transmission:
@@ -64,7 +64,6 @@ arm_controller:
     action_profile: lunar_rover
     gripper_step: 65.0
     gripper_open_angle: 270.0
-    gripper_closed_angle: 0.0
     image_pitch_qmin: -0.7
     image_pitch_qmax: 2.2
 
@@ -84,16 +83,16 @@ leg_controller:
     forward_x_position_in_SixWheel: 250.0
     backward_x_position_in_SixWheel: 221.0
     tof_b: 0.51
-    lf_angle_pid: [2800.0, 0.0,30.0]
-    lf_vel_pid: [2.08, 0.00, 0.8]
-    rf_angle_pid: [2800.0, 0.0, 30.0]
-    rf_vel_pid: [2.080, 0.00, 0.80]
+    lf_angle_pid: [1500.0, 0.0,10.0]
+    lf_vel_pid: [1.88, 0.00, 0.8]
+    rf_angle_pid: [2000.0, 0.0, 12.0]
+    rf_vel_pid: [2.08, 0.00, 1.00]
     up_one_stairs: 
       params:
-        initial: [1.600270, 1.550, 0.0, 2000.0]
-        press: [0.972736, 0.493103, -600.0, 250.0]
-        wait : [0.972736,0.493103, 0.0, 300.0]
-        lift: [1.016670, 1.150821, -600.0, 50.0]
+        initial: [1.90070, 1.65, 0.0, 2000.0]
+        press: [0.34, 0.51, -400.0, 300.0]
+        wait : [0.34,0.51, 0.0, 250.0]
+        lift: [1.016670, 1.150821, -400.0, 100.0]
     up_two_stairs:
       params:
         initial: [1.600270, 1.550, 0.0, 2000.0]
@@ -103,7 +102,7 @@ leg_controller:
         # lift_and_initial: [1.400270, 1.410, -100.0, 1000.0]
         initial_again: [1.600270, 1.550, -300.0, 300.0]
         press_again: [0.802736, 0.693103, -500.0, 300.0]
-        lift_again: [0.956670, 1.350821, -200.0, 50.0]
+        lift_again: [0.956670, 1.350821, -200.0, 50.0] 
 
 
 

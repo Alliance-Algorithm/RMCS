@@ -187,9 +187,10 @@ private:
             update_imu();
         }
         void command() {
-            if (*gripper_calibration_done_signal_)
+            if (*gripper_calibration_done_signal_ && !last_gripper_calibration_done_signal)
                 gripper_set_zero();
             update_arm_command();
+            last_gripper_calibration_done_signal = *gripper_calibration_done_signal_;
         }
 
         void gripper_set_zero() { gripper.calibrate_zero_point(); }
@@ -200,47 +201,47 @@ private:
             auto tx = start_transmit();
 
             if (even_phase) {
-                // tx.can1_transmit({
-                //     .can_id   = 0x148,
-                //     .can_data = image_pitch.generate_torque_command().as_bytes(),
-                // });
+                tx.can1_transmit({
+                    .can_id   = 0x148,
+                    .can_data = image_pitch.generate_torque_command().as_bytes(),
+                });
 
-                // tx.can1_transmit({
-                //     .can_id   = 0x143,
-                //     .can_data = joint[2].generate_torque_command().as_bytes(),
-                // });
+                tx.can1_transmit({
+                    .can_id   = 0x143,
+                    .can_data = joint[2].generate_torque_command().as_bytes(),
+                });
 
-                // tx.can2_transmit({
-                //     .can_id   = 0x147,
-                //     .can_data = gripper.generate_torque_command().as_bytes(),
-                // });
+                tx.can2_transmit({
+                    .can_id   = 0x147,
+                    .can_data = gripper.generate_torque_command().as_bytes(),
+                });
 
-                // tx.can2_transmit({
-                //     .can_id   = 0x141,
-                //     .can_data = joint[5].generate_torque_command().as_bytes(),
-                // });
+                tx.can2_transmit({
+                    .can_id   = 0x141,
+                    .can_data = joint[5].generate_torque_command().as_bytes(),
+                });
 
             } else {
 
-                // tx.can1_transmit({
-                //     .can_id   = 0x141,
-                //     .can_data = joint[0].generate_torque_command().as_bytes(),
-                // });
+                tx.can1_transmit({
+                    .can_id   = 0x141,
+                    .can_data = joint[0].generate_torque_command().as_bytes(),
+                });
 
-                // tx.can1_transmit({
-                //     .can_id   = 0x142,
-                //     .can_data = joint[1].generate_torque_command().as_bytes(),
-                // });
+                tx.can1_transmit({
+                    .can_id   = 0x142,
+                    .can_data = joint[1].generate_torque_command().as_bytes(),
+                });
 
-                // tx.can2_transmit({
-                //     .can_id   = 0x145,
-                //     .can_data = joint[4].generate_torque_command().as_bytes(),
-                // });
+                tx.can2_transmit({
+                    .can_id   = 0x145,
+                    .can_data = joint[4].generate_torque_command().as_bytes(),
+                });
 
-                // tx.can2_transmit({
-                //     .can_id   = 0x144,
-                //     .can_data = joint[3].generate_torque_command().as_bytes(),
-                // });
+                tx.can2_transmit({
+                    .can_id   = 0x144,
+                    .can_data = joint[3].generate_torque_command().as_bytes(),
+                });
             }
 
             even_phase = !even_phase;
@@ -282,17 +283,17 @@ private:
                 [[unlikely]]
                 return;
             if (data.can_id == 0x141) {
-                RCLCPP_INFO(this->get_logger(), "joint6");
+                // RCLCPP_INFO(this->get_logger(), "joint6 %d",joint[5].get_raw_angle());
                 joint[5].store_status(data.can_data);
             } else if (data.can_id == 0x145) {
                 joint[4].store_status(data.can_data);
-                RCLCPP_INFO(this->get_logger(), "joint5");
+                // RCLCPP_INFO(this->get_logger(), "joint5 %d",joint[4].get_raw_angle());
             } else if (data.can_id == 0x144) {
                 joint[3].store_status(data.can_data);
-                RCLCPP_INFO(this->get_logger(), "joint4");
+                // RCLCPP_INFO(this->get_logger(), "joint4 %d",joint[3].get_raw_angle());
             } else if (data.can_id == 0x147) {
                 gripper.store_status(data.can_data);
-                RCLCPP_INFO(this->get_logger(), "gripper");
+                // RCLCPP_INFO(this->get_logger(), "gripper %d",gripper.get_raw_angle());
             }
         }
         void can1_receive_callback(const librmcs::data::CanDataView& data) override {
@@ -301,19 +302,19 @@ private:
                 return;
 
             if (data.can_id == 0x143) {
-                RCLCPP_INFO(this->get_logger(), "joint3");
+                // RCLCPP_INFO(this->get_logger(), "joint3 %d",joint[2].get_raw_angle());
                 joint[2].store_status(data.can_data);
             } else if (data.can_id == 0x142) {
                 joint[1].store_status(data.can_data);
-                RCLCPP_INFO(this->get_logger(), "joint2");
+                //  RCLCPP_INFO(this->get_logger(), "joint2");
             } else if (data.can_id == 0x141) {
                 joint[0].store_status(data.can_data);
-                RCLCPP_INFO(this->get_logger(), "joint1");
+                //  RCLCPP_INFO(this->get_logger(), "joint1 %d",joint[0].get_raw_angle());
             } else if (data.can_id == 0x200) {
-                RCLCPP_INFO(this->get_logger(), "joint2 ecd");
+                //  RCLCPP_INFO(this->get_logger(), "joint2 ecd %d",joint2_encoder.get_raw_angle());
                 joint2_encoder.store_status(data.can_data);
             } else if (data.can_id == 0x148) {
-                RCLCPP_INFO(this->get_logger(), "image ");
+                //  RCLCPP_INFO(this->get_logger(), "image %d",image_pitch.get_raw_angle());
                 image_pitch.store_status(data.can_data);
             };
         }
@@ -345,6 +346,7 @@ private:
         OutputInterface<double> roll_imu_velocity;
         OutputInterface<double> roll_imu_angle;
         InputInterface<bool> gripper_calibration_done_signal_;
+        bool last_gripper_calibration_done_signal{false};
         device::Bmi088 bmi088_;
 
     } armboard_;
@@ -562,6 +564,7 @@ private:
                 Leg_Motor_lb.store_status(data.can_data);
             } else if (data.can_id == 0x319) {
                 Leg_ecd_lb.store_status(data.can_data);
+                RCLCPP_INFO(this->get_logger(), "lb angle:%f", Leg_ecd_lb.get_angle());
             }
         }
 
@@ -749,10 +752,10 @@ private:
                 } else {
                     yaw_command = big_yaw.generate_torque_command();
                 }
-                // tx.can2_transmit({
-                //     .can_id   = 0x3,
-                //     .can_data = yaw_command.as_bytes(),
-                // });
+                tx.can2_transmit({
+                    .can_id   = 0x3,
+                    .can_data = yaw_command.as_bytes(),
+                });
             } else {
 
                 tx.can2_transmit({
@@ -817,10 +820,11 @@ private:
             } else if (data.can_id == 0x205) {
                 Steering_motors[0].store_status(data.can_data);
             } else if (data.can_id == 0x33) {
-                RCLCPP_INFO(this->get_logger(), "big yaw %f", big_yaw.get_angle());
+                // RCLCPP_INFO(this->get_logger(), "big yaw %f", big_yaw.get_angle());
                 big_yaw.store_status(data.can_data);
             } else if (data.can_id == 0x322) {
                 Leg_ecd_rb.store_status(data.can_data);
+                RCLCPP_INFO(this->get_logger(), "rb angle:%f", Leg_ecd_rb.get_angle());
             }
         }
         void can3_receive_callback(const librmcs::data::CanDataView& data) override {

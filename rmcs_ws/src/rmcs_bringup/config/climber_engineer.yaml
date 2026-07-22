@@ -23,8 +23,12 @@ rmcs_executor:
       # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 engineer_hardware:
   ros__parameters:
+<<<<<<< HEAD
     # board_serial_arm_board_top: "AF-79CF-C275-34AA-F714-8CC6-E363-5B59-FB4E"
     board_serial_arm_board_bottom: "D4-0262-9E84-E715-CADB-9894-7241"
+=======
+    board_serial_arm_board: "D4-0262-9E84-E715-CADB-9894-7241"
+>>>>>>> 141b1af9 (refactor(lunar_rover_engineer):fix gripper error and refresh up_one_stairs_parameter)
     board_serial_little_board: "AF-4728-8B65-756E-F0CF-DBDD-D3C8-C843-2DF6"
     gripper_zero_point: 26298
     image_pitch_zero_point: 43131
@@ -57,7 +61,6 @@ arm_controller:
     action_profile: climber
     gripper_step: 65.0
     gripper_open_angle: 270.0
-    gripper_closed_angle: 130.0
     image_pitch_qmin: -0.7
     image_pitch_qmax: 2.2
 

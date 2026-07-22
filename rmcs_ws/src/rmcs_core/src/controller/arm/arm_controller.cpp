@@ -53,8 +53,7 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , action_dictionary_(
-              make_action_parameter_map(get_parameter("action_profile").as_string()))
+        , action_dictionary_(make_action_parameter_map(get_parameter("action_profile").as_string()))
         , arm_action_machine_()
         , custom_joint_filter_(0.2) {
         register_input("/remote/joystick/right", joystick_right_);
@@ -298,12 +297,12 @@ private:
                 arm_action_machine_.process(action_dictionary_.helper_find_chunk("auto_walk"));
                 break;
             case ArmMode::Auto_Up_One_Stairs:
-                // arm_action_machine_.process(
-                //     action_dictionary_.helper_build_chunk({"delay", "up_one_stairs_initial"}));
+                arm_action_machine_.process(action_dictionary_.helper_build_chunk(
+                    {"delay", "delay", "up_one_stairs_initial"}));
                 break;
             case ArmMode::Auto_Up_Two_Stairs:
-                // arm_action_machine_.process(
-                //     action_dictionary_.helper_build_chunk({"delay", "up_two_stairs_initial"}));
+                arm_action_machine_.process(action_dictionary_.helper_build_chunk(
+                    {"delay", "delay", "up_two_stairs_initial"}));
                 break;
             case ArmMode::Calibration:
                 arm_action_machine_.process(action_dictionary_.helper_find_chunk("gripper_open"));
@@ -325,15 +324,16 @@ private:
         case ArmMode::Auto_Up_One_Stairs:
         case ArmMode::Auto_Up_Two_Stairs: {
             // Lunar rover only: switch arm actions based on stair-stage feedback from the legs.
-            // if (up_stairs_layer.ready() && *up_stairs_layer != last_up_stairs_layer) {
-            //     last_up_stairs_layer = *up_stairs_layer;
-            //     if (*up_stairs_layer == "initial_again") {
-            //         arm_action_machine_.process(
-            //             action_dictionary_.helper_find_chunk("up_two_stairs_initial_again"));
-            //     } else if (*up_stairs_layer == "lift_again") {
-            //         arm_action_machine_.process(action_dictionary_.helper_find_chunk("up_two_stairs_lift_again"));
-            //     }
-            // }
+            if (up_stairs_layer.ready() && *up_stairs_layer != last_up_stairs_layer) {
+                last_up_stairs_layer = *up_stairs_layer;
+                if (*up_stairs_layer == "initial_again") {
+                    arm_action_machine_.process(
+                        action_dictionary_.helper_find_chunk("up_two_stairs_initial_again"));
+                } else if (*up_stairs_layer == "lift_again") {
+                    arm_action_machine_.process(
+                        action_dictionary_.helper_find_chunk("up_two_stairs_lift_again"));
+                }
+            }
         } // Note that there is no break here.
         default: execute_plan_request_and_trajectory_step(); break;
         }
@@ -449,35 +449,36 @@ private:
                 std::clamp(*target_theta[0], *joint_lower_limit_[0], *joint_upper_limit_[0]);
         }
     }
+    static double normalize_angle(double angle) {
+        angle = std::fmod(angle + M_PI, 2 * M_PI);
+        return angle < 0 ? angle + M_PI : angle - M_PI;
+    }
     void gripper_control() {
-        const double gripper_step = this->get_parameter("gripper_step").as_double();
-        const double gripper_open_angle =
-            this->get_parameter("gripper_open_angle").as_double();
-        const double gripper_closed_angle =
-            this->get_parameter("gripper_closed_angle").as_double();
-
-        static bool gripper_calibration_stalled_{false};
+        const double gripper_step         = this->get_parameter("gripper_step").as_double();
+        const double gripper_open_angle   = this->get_parameter("gripper_open_angle").as_double();
         static bool initial_calibration{false};
 
-        const auto gripper_mode = get_gripper_mode();
-        if (gripper_mode == rmcs_msgs::GripperMode::Calibrate
-            && last_gripper_mode_ != rmcs_msgs::GripperMode::Calibrate) {
-            gripper_calibration_stalled_ = false;
-        }
-
-        const auto calibrate_zero_point = [this, gripper_step]() {
-            *gripper_calibration_trigger_ = false;
+        const auto gripper_mode  = get_gripper_mode();
+        const auto stock_control = [this, gripper_step]() {
             if (std::abs(*gripper_velocity_) < 0.01 && std::abs(*gripper_torque_) > 1.0) {
-                gripper_calibration_stalled_ = true;
-                initial_calibration          = true;
-            }
-            if (!gripper_calibration_stalled_) {
+                *gripper_target_theta = *gripper_angle_;
+                return true;
+            } else {
                 *gripper_target_theta = *gripper_angle_ - gripper_step;
                 return false;
             }
-            *gripper_target_theta         = *gripper_angle_;
-            *gripper_calibration_trigger_ = true;
-            return true;
+        };
+        const auto calibrate_zero_point = [this, &stock_control]() {
+            *gripper_calibration_trigger_ = false;
+            if (stock_control()) {
+                *gripper_calibration_trigger_ = true;
+                initial_calibration           = true;
+                return true;
+            } else {
+                *gripper_calibration_trigger_ = false;
+                initial_calibration           = false;
+                return false;
+            }
         };
 
         switch (gripper_mode) {
@@ -493,8 +494,7 @@ private:
             if (!initial_calibration) {
                 calibrate_zero_point();
             } else {
-                *gripper_target_theta =
-                    std::max(*gripper_angle_ - gripper_step, gripper_closed_angle);
+                stock_control();
             }
             break;
         case rmcs_msgs::GripperMode::Calibrate:

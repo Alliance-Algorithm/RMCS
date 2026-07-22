@@ -82,7 +82,6 @@ public:
             angular_velocity = std::clamp(
                 following_velocity_controller_.update(*chassis_big_yaw_angle_),
                 -angular_velocity_limit_, angular_velocity_limit_);
-            angular_velocity = 0.0;
             break;
         }
         case rmcs_msgs::ChassisMode::SPIN: {
@@ -110,8 +109,7 @@ public:
             auto move = *joystick_left_;
 
             Eigen::Rotation2D<double> rotation(*chassis_big_yaw_angle_ + *joint1_theta_);
-            // move = rotation * (*joystick_left_);
-            move = *joystick_left_;
+            move = rotation * (*joystick_left_);
             if (is_stair_mode()) {
                 move.y() = 0.0;
             }
@@ -216,7 +214,7 @@ private:
         switch (gear) {
         case SpeedGear::Medium: *speed_limit_ = 2.0; break;
         case SpeedGear::Low: *speed_limit_ = 0.8; break;
-        case SpeedGear::Stairs: *speed_limit_ = 1.8; break;
+        case SpeedGear::Stairs: *speed_limit_ = 3.0; break;
         case SpeedGear::High:
         default: *speed_limit_ = 3.0; break;
         }

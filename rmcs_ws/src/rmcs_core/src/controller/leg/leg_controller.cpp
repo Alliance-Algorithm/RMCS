@@ -133,6 +133,12 @@ public:
             }
             return false;
         });
+        //  up_stairs[0].set_layer_connections("wait", [this]() {
+        //     // if (keyboard_->ctrl) {
+        //     //     return true;
+        //     // };
+        //     return false;
+        // });
 
         up_stairs[1].set_layer_connections("initial", [this]() {
             if (keyboard_->ctrl) {
