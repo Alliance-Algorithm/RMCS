@@ -23,29 +23,24 @@ rmcs_executor:
       # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 engineer_hardware:
   ros__parameters:
-<<<<<<< HEAD
-    # board_serial_arm_board_top: "AF-79CF-C275-34AA-F714-8CC6-E363-5B59-FB4E"
-    board_serial_arm_board_bottom: "D4-0262-9E84-E715-CADB-9894-7241"
-=======
     board_serial_arm_board: "D4-0262-9E84-E715-CADB-9894-7241"
->>>>>>> 141b1af9 (refactor(lunar_rover_engineer):fix gripper error and refresh up_one_stairs_parameter)
     board_serial_little_board: "AF-4728-8B65-756E-F0CF-DBDD-D3C8-C843-2DF6"
-    gripper_zero_point: 26298
-    image_pitch_zero_point: 43131
-    joint6_zero_point: 7804
-    joint5_zero_point: 37436
-    joint4_zero_point: 32721
-    joint3_zero_point: 28459
-    joint2_zero_point: 39898
-    joint1_zero_point: 55385
     # gripper_zero_point: 26298
     # image_pitch_zero_point: 43131
-    # joint6_zero_point: 43588
-    # joint5_zero_point: 12873
-    # joint4_zero_point: 40551
-    # joint3_zero_point: 15145
-    # joint2_zero_point: 42587
-    # joint1_zero_point: 55821
+    # joint6_zero_point: 7804
+    # joint5_zero_point: 37436
+    # joint4_zero_point: 32721
+    # joint3_zero_point: 28459
+    # joint2_zero_point: 39898
+    # joint1_zero_point: 55385
+    gripper_zero_point: 26298
+    image_pitch_zero_point: 63043
+    joint6_zero_point: 43588
+    joint5_zero_point: 12873
+    joint4_zero_point: 40551
+    joint3_zero_point: 15145
+    joint2_zero_point: 42587
+    joint1_zero_point: 55821
     steering_lf_zero_point: 3051 #7168  
     steering_lb_zero_point: 6480 #2362  
     steering_rb_zero_point: 266  #4391  

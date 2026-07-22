@@ -83,7 +83,6 @@ private:
                   {engineer, engineer_command, "/arm/joint_6/motor"})
             , gripper{engineer, engineer_command, "/arm/gripper/motor"}
             , image_pitch{engineer, engineer_command, "/arm/image_pitch/motor"}
-            , joint2_encoder(engineer, "/arm/joint_2/encoder")
             , bmi088_(1000, 0.2, 0) {
             using namespace device;
             image_pitch.configure(
@@ -112,9 +111,6 @@ private:
                     .set_encoder_zero_point(
                         static_cast<int16_t>(
                             engineer.get_parameter("joint1_zero_point").as_int())));
-            joint2_encoder.configure(
-                EncoderConfig{EncoderType::KTH7823}.set_encoder_zero_point(
-                    static_cast<int>(engineer.get_parameter("joint2_zero_point").as_int())));
             bmi088_.set_coordinate_mapping(
                 [](double x, double y, double z) { return std::make_tuple(-x, -y, +z); });
 
@@ -161,14 +157,15 @@ private:
             using namespace device;
             update_arm_motors();
             update_imu();
-            RCLCPP_INFO(this->get_logger(), "joint1:%d", joint[0].get_raw_angle());
-            RCLCPP_INFO(this->get_logger(), "joint2:%d", joint2_encoder.get_raw_angle());
-            RCLCPP_INFO(this->get_logger(), "joint3:%d", joint[2].get_raw_angle());
-            RCLCPP_INFO(this->get_logger(), "joint4:%d", joint[3].get_raw_angle());
-            RCLCPP_INFO(this->get_logger(), "joint5:%d", joint[4].get_raw_angle());
-            RCLCPP_INFO(this->get_logger(), "joint6:%d", joint[5].get_raw_angle());
-            RCLCPP_INFO(this->get_logger(), "gripper:%f", gripper.get_angle());
-            RCLCPP_INFO(this->get_logger(), "image:%d", image_pitch.get_raw_angle());
+            if (joint[0].get_raw_angle() != 0) {
+                RCLCPP_INFO(this->get_logger(), "joint1:%d", joint[0].get_raw_angle());
+                RCLCPP_INFO(this->get_logger(), "joint3:%d", joint[2].get_raw_angle());
+                RCLCPP_INFO(this->get_logger(), "joint4:%d", joint[3].get_raw_angle());
+                RCLCPP_INFO(this->get_logger(), "joint5:%d", joint[4].get_raw_angle());
+                RCLCPP_INFO(this->get_logger(), "joint6:%d", joint[5].get_raw_angle());
+                RCLCPP_INFO(this->get_logger(), "gripper:%f", gripper.get_angle());
+                RCLCPP_INFO(this->get_logger(), "image:%d", image_pitch.get_raw_angle());
+            }
         }
         void command() { update_arm_command(); }
 
@@ -278,7 +275,6 @@ private:
         }
 
         void update_arm_motors() {
-            joint2_encoder.update();
             joint[5].update();
             joint[4].update();
             joint[3].update();
@@ -333,8 +329,6 @@ private:
                 joint[1].store_status(data.can_data);
             } else if (data.can_id == 0x141) {
                 joint[0].store_status(data.can_data);
-            } else if (data.can_id == 0x205) {
-                joint2_encoder.store_status(data.can_data);
             } else if (data.can_id == 0x148) {
                 image_pitch.store_status(data.can_data);
             };
@@ -352,7 +346,6 @@ private:
         device::LKMotor joint[6];
         device::LKMotor gripper;
         device::LKMotor image_pitch;
-        device::Encoder joint2_encoder;
         device::Bmi088 bmi088_;
 
         OutputInterface<double> yaw_imu_velocity;
@@ -390,6 +383,7 @@ private:
                   {engineer, engineer_command, "/climber/lift/r"})
             , power_meter(engineer, "/steering/power_meter")
             , big_yaw(engineer, engineer_command, "/chassis/big_yaw")
+            , joint2_encoder_(engineer, "/arm/joint_2/encoder")
             , dr16_() {
             Steering_motors[0].configure(
                 device::DjiMotorConfig{device::DjiMotorType::GM6020}
@@ -446,6 +440,9 @@ private:
                     .reverse()
                     .set_encoder_zero_point(
                         static_cast<int>(engineer.get_parameter("big_yaw_zero_point").as_int())));
+            joint2_encoder_.configure(
+                device::EncoderConfig{device::EncoderType::KTH7823}.set_encoder_zero_point(
+                    static_cast<int>(engineer.get_parameter("joint2_zero_point").as_int())));
 
             engineer_command.register_input("/arm/enable_flag", is_arm_enable);
         }
@@ -536,8 +533,11 @@ private:
                 motor.update();
             }
             big_yaw.update();
+            joint2_encoder_.update();
             power_meter.update();
             dr16_.update_status();
+            // RCLCPP_INFO(this->get_logger(), "joint2_encoder:%d",
+            // joint2_encoder_.get_raw_angle());
         }
         void command() {
 
@@ -647,6 +647,8 @@ private:
                 Wheel_motors[2].store_status(data.can_data);
             } else if (data.can_id == 0x204) {
                 Wheel_motors[3].store_status(data.can_data);
+            } else if (data.can_id == 0x205) {
+                joint2_encoder_.store_status(data.can_data);
             }
         }
         void can2_receive_callback(const librmcs::data::CanDataView& data) override {
@@ -686,6 +688,8 @@ private:
         device::DjiMotor Lift_motors[2];
         device::PowerMeter power_meter;
         device::LKMotor big_yaw;
+
+        device::Encoder joint2_encoder_;
 
         device::Dr16 dr16_;
 
