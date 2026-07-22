@@ -138,6 +138,8 @@ private:
             component.register_input(
                 "/rmcs_navigation/enable_control", navigation_enable_control, false);
             component.register_input("/rmcs_navigation/gimbal_toward", navigation_toward, false);
+            component.register_input(
+                "/rmcs_navigation/enable_autoaim", navigation_enable_autoaim, true);
         }
 
         auto enable_control() const noexcept -> bool {
@@ -150,6 +152,8 @@ private:
         }
 
         auto enable_autoaim() const noexcept -> bool {
+            if (!*navigation_enable_autoaim)
+                return false;
             using namespace rmcs_msgs;
             if (*switch_right != Switch::UP && !mouse->right)
                 return false;
@@ -192,6 +196,7 @@ private:
         InputInterface<Eigen::Vector3d> auto_aim_robot_center;
         InputInterface<bool> navigation_enable_control;
         InputInterface<Eigen::Vector2d> navigation_toward;
+        InputInterface<bool> navigation_enable_autoaim;
     } input_{*this};
 
     struct Output {
