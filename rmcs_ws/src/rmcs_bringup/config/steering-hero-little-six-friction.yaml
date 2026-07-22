@@ -15,9 +15,6 @@ rmcs_executor:
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> pitch_velocity_pid_controller
 
-      - rmcs_core::controller::gimbal::PlayerViewer -> gimbal_player_viewer_controller
-      - rmcs_core::controller::pid::ErrorPidController -> viewer_angle_pid_controller
-
       - rmcs_core::controller::shooting::HeroFrictionWheelController -> friction_wheel_controller
       - rmcs_core::controller::shooting::HeroHeatController -> heat_controller
       - rmcs_core::controller::shooting::PutterController -> bullet_feeder_controller
@@ -39,7 +36,7 @@ rmcs_executor:
       - rmcs::AutoAimComponent -> auto_aim_component
       - rmcs_core::referee::app::ui::AutoAimUi -> auto_aim_ui
 
-      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
 
       # - rmcs_core::controller::identification::SweptFrequencyController -> pitch_swept_frequency_controller
@@ -279,18 +276,18 @@ friction_wheel_controller:
       - /gimbal/second_back_friction
       - /gimbal/third_back_friction
     friction_velocities_profile_0:
-      - 390.0
-      - 390.0
-      - 390.0
-      - 480.0
-      - 480.0
-      - 480.0
-      # - 527.0
-      # - 527.0
-      # - 527.0
-      # - 435.0
-      # - 435.0
-      # - 435.0
+      # - 370.0
+      # - 370.0
+      # - 370.0
+      # - 308.0
+      # - 308.0
+      # - 308.0
+      - 527.0
+      - 527.0
+      - 527.0
+      - 435.0
+      - 435.0
+      - 435.0
     friction_velocities_profile_1:
       - 527.0
       - 527.0
@@ -317,7 +314,7 @@ first_front_friction_velocity_pid_controller:
     setpoint: /gimbal/first_front_friction/control_velocity
     control: /gimbal/first_front_friction/control_torque
     kp: 0.006233371
-    ki: 0.00 #0.00003
+    ki: 0.00003
     kd: 0.000001
 
 second_front_friction_velocity_pid_controller:
@@ -326,7 +323,7 @@ second_front_friction_velocity_pid_controller:
     setpoint: /gimbal/second_front_friction/control_velocity
     control: /gimbal/second_front_friction/control_torque
     kp: 0.006035661
-    ki: 0.00 #0.00003
+    ki: 0.00003
     kd: 0.000001
 
 third_front_friction_velocity_pid_controller:
@@ -335,7 +332,7 @@ third_front_friction_velocity_pid_controller:
     setpoint: /gimbal/third_front_friction/control_velocity
     control: /gimbal/third_front_friction/control_torque
     kp: 0.006192421
-    ki: 0.00 #0.00003
+    ki: 0.00003
     kd: 0.000001
 
 first_back_friction_velocity_pid_controller:
@@ -344,7 +341,7 @@ first_back_friction_velocity_pid_controller:
     setpoint: /gimbal/first_back_friction/control_velocity
     control: /gimbal/first_back_friction/control_torque
     kp: 0.007749503
-    ki: 0.00
+    ki: 0.00001
     kd: 0.00003
 
 second_back_friction_velocity_pid_controller:
@@ -353,7 +350,7 @@ second_back_friction_velocity_pid_controller:
     setpoint: /gimbal/second_back_friction/control_velocity
     control: /gimbal/second_back_friction/control_torque
     kp: 0.007795934
-    ki: 0.00
+    ki: 0.00001
     kd: 0.00003
 
 third_back_friction_velocity_pid_controller:
@@ -362,7 +359,7 @@ third_back_friction_velocity_pid_controller:
     setpoint: /gimbal/third_back_friction/control_velocity
     control: /gimbal/third_back_friction/control_torque
     kp: 0.007760993
-    ki: 0.00
+    ki: 0.00001
     kd: 0.00003
 
 steering_wheel_status:

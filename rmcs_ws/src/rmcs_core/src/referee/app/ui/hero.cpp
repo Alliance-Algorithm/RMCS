@@ -36,7 +36,6 @@ public:
         , chassis_right_wheel_indicator_(
               Shape::Color::WHITE, wheel_indicator_width, x_center, y_center, 0, 0,
               wheel_indicator_radius, wheel_indicator_radius)
-        , yaw_angle_number_(Shape::Color::YELLOW, 20, 5, x_center + 270, y_center + 95, 0.0, false)
         , pitch_angle_number_(
               Shape::Color::YELLOW, 20, 5, x_center + 270, y_center - 35, 0.0, false)
         , bottom_yaw_angle_number_(
@@ -46,16 +45,11 @@ public:
               Shape::Color::YELLOW, 20, 5, x_center - 220, y_center + 270, 0, false)
         , friction_profile_number_(
               Shape::Color::GREEN, friction_profile_number_font_size, 5, 0, 0, 12, false)
-        , friction_profile_indicator_{Line(Shape::Color::WHITE, friction_profile_box_line_width, 0, 0, 0, 0, false), Line(Shape::Color::WHITE, friction_profile_box_line_width, 0, 0, 0, 0, false), Line(Shape::Color::WHITE, friction_profile_box_line_width, 0, 0, 0, 0, false), Line(Shape::Color::WHITE, friction_profile_box_line_width, 0, 0, 0, 0, true)}
-    // , center_green_line_(
-    //       Shape::Color::GREEN, green_line_width, x_center - green_line_half_length,
-    //       y_center - green_line_offset_y, x_center + green_line_half_length,
-    //       y_center - green_line_offset_y, true)
-    // , tracking_pink_line_(
-    //       Shape::Color::PINK, pink_line_width, x_center - pink_line_half_length,
-    //       y_center + pink_line_offset_y, x_center + pink_line_half_length,
-    //       y_center + pink_line_offset_y, false)
-    {
+        , friction_profile_indicator_{
+              Line(Shape::Color::WHITE, friction_profile_box_line_width, 0, 0, 0, 0, false),
+              Line(Shape::Color::WHITE, friction_profile_box_line_width, 0, 0, 0, 0, false),
+              Line(Shape::Color::WHITE, friction_profile_box_line_width, 0, 0, 0, 0, false),
+              Line(Shape::Color::WHITE, friction_profile_box_line_width, 0, 0, 0, 0, true)} {
 
         chassis_control_direction_indicator_.set_x(x_center);
         chassis_control_direction_indicator_.set_y(y_center);
@@ -71,7 +65,6 @@ public:
         register_input("/chassis/climber/right_front_motor/velocity", right_track_velocity_);
 
         register_input("/chassis/supercap/voltage", supercap_voltage_);
-        // register_input("/chassis/supercap/control_enable", supercap_control_enabled_);
 
         register_input("/chassis/voltage", chassis_voltage_);
         register_input("/chassis/power", chassis_power_);
@@ -85,17 +78,12 @@ public:
         register_input("/gimbal/first_front_friction/velocity", front_friction_velocity_);
         register_input("/gimbal/friction_profile_1_active", friction_profile_1_active_, false);
 
-        // register_input("/gimbal/yaw/angle", gimbal_yaw_angle_);
-        register_input("/gimbal/player_viewer/raw_angle", gimbal_player_viewer_raw_angle_);
         register_input("/gimbal/pitch/angle", gimbal_pitch_angle_);
         register_input("/gimbal/pitch/raw_angle", gimbal_pitch_raw_angle_);
         register_input("/gimbal/bottom_yaw/angle", bottom_yaw_angle_);
         register_input("/gimbal/bottom_yaw/raw_angle", bottom_yaw_raw_angle_);
-        // register_input("/gimbal/auto_aim/laser_distance", laser_distance_);
 
         register_input("/gimbal/shooter/preloaded_ready", shooter_preloaded_ready_, false);
-
-        // register_input("/gimbal/scope/active", is_scope_active_);
 
         register_input("/remote/mouse", mouse_);
 
@@ -106,13 +94,7 @@ public:
         update_normal_ui();
         // update_sniper_ui();
 
-        // if (*is_scope_active_) {
-        //     set_normal_ui_visible(false);
-        //     rangefinder_.set_visible(true);
-        // } else {
         set_normal_ui_visible(true);
-        // rangefinder_.set_visible(false);
-        // }
     }
 
 private:
@@ -127,18 +109,12 @@ private:
     void set_normal_ui_visible(bool value) {
         status_ring_.set_visible(value);
 
-        // chassis_direction_indicator_.set_visible(value);
         chassis_left_wheel_indicator_.set_visible(value);
         chassis_right_wheel_indicator_.set_visible(value);
-        // chassis_control_direction_indicator_.set_visible(value);
-        yaw_angle_number_.set_visible(value);
         pitch_angle_number_.set_visible(value);
         bottom_yaw_angle_number_.set_visible(value);
         bullet_allowance_number_.set_visible(value);
         friction_profile_number_.set_visible(value);
-        // center_green_line_.set_visible(value);
-        // tracking_pink_line_.set_visible(value);
-
         const bool show_friction_profile_box =
             value && friction_profile_1_active_.ready() && *friction_profile_1_active_;
         for (auto& line : friction_profile_indicator_)
@@ -149,7 +125,6 @@ private:
 
     void update_normal_ui() {
         update_chassis_direction_indicator();
-        yaw_angle_number_.set_value(static_cast<double>(*gimbal_player_viewer_raw_angle_));
         pitch_angle_number_.set_value(static_cast<double>(*gimbal_pitch_raw_angle_));
         update_pitch_raw_angle_color();
         bottom_yaw_angle_number_.set_value(static_cast<double>(*bottom_yaw_raw_angle_));
@@ -162,17 +137,13 @@ private:
         bullet_allowance_number_.set_color(
             shooter_preloaded_ready ? Shape::Color::GREEN : Shape::Color::PINK);
 
-        const uint16_t yaw_right =
-            yaw_raw_angle_x
-            + count_digits(static_cast<int32_t>(*gimbal_player_viewer_raw_angle_))
-                  * raw_angle_font_size;
         const uint16_t pitch_right =
             pitch_raw_angle_x
             + count_digits(static_cast<int32_t>(*gimbal_pitch_raw_angle_)) * raw_angle_font_size;
-        const uint16_t box_left = std::max(yaw_right, pitch_right) + friction_profile_box_gap;
+        const uint16_t box_left = pitch_right + friction_profile_box_gap;
         const uint16_t box_right = box_left + friction_profile_box_visual_width;
 
-        const uint16_t box_top = yaw_raw_angle_y + raw_angle_font_size;
+        const uint16_t box_top = friction_profile_box_top_y;
         const uint16_t box_bottom = pitch_raw_angle_y;
 
         const bool friction_profile_1_active =
@@ -308,8 +279,6 @@ private:
         auto chassis_mode = *chassis_mode_;
 
         auto to_referee_angle = [](double angle) {
-            // return static_cast<int>(
-            //     std::round((2 * std::numbers::pi - angle) / std::numbers::pi * 180));
             int degrees = static_cast<int>(
                 std::lround((2.0 * std::numbers::pi - angle) / std::numbers::pi * 180.0));
             degrees %= 360;
@@ -317,10 +286,6 @@ private:
                 degrees += 360;
             return static_cast<uint16_t>(degrees);
         };
-        // chassis_direction_indicator_.set_color(
-        //     chassis_mode == rmcs_msgs::ChassisMode::SPIN_FAST ? Shape::Color::GREEN
-        //                                                  : Shape::Color::PINK);
-        // chassis_direction_indicator_.set_angle(to_referee_angle(*chassis_angle_), 30);
         const bool left_track_active =
             std::abs(*left_track_velocity_) > track_velocity_active_threshold;
         const bool right_track_active =
@@ -367,12 +332,10 @@ private:
 
     static constexpr uint16_t raw_angle_font_size = 20;
 
-    static constexpr uint16_t yaw_raw_angle_x = x_center + 270;
-    static constexpr uint16_t yaw_raw_angle_y = y_center + 65;
-
     static constexpr uint16_t pitch_raw_angle_x = x_center + 270;
     static constexpr uint16_t pitch_raw_angle_y = y_center - 65;
 
+    static constexpr uint16_t friction_profile_box_top_y = y_center + 85;
     static constexpr uint16_t friction_profile_box_gap = 18;
     static constexpr uint16_t friction_profile_box_visual_width = 105;
     static constexpr uint16_t friction_profile_box_line_width = 6;
@@ -429,15 +392,11 @@ private:
 
     InputInterface<double> gimbal_yaw_angle_;
     InputInterface<double> gimbal_pitch_angle_;
-    InputInterface<double> gimbal_player_viewer_angle_;
-    InputInterface<int64_t> gimbal_player_viewer_raw_angle_;
     InputInterface<int64_t> gimbal_pitch_raw_angle_;
     InputInterface<int64_t> bottom_yaw_raw_angle_;
     InputInterface<double> bottom_yaw_angle_;
-    // InputInterface<double> laser_distance_;
 
     InputInterface<bool> shooter_preloaded_ready_;
-    // InputInterface<bool> is_scope_active_;
 
     StatusRing status_ring_;
     Rangefinder rangefinder_;
@@ -446,7 +405,6 @@ private:
     Arc chassis_right_wheel_indicator_;
     Arc chassis_control_direction_indicator_;
 
-    Float yaw_angle_number_;
     Float pitch_angle_number_;
     Float bottom_yaw_angle_number_;
 
