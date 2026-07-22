@@ -107,6 +107,15 @@ public:
         register_input("/gimbal/yaw/control_angle_error", gimbal_yaw_angle_error_);
         register_input("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
 
+        register_input(
+            "/chassis/support_arm/left_back_motor/control_torque", support_arm_left_torque_, false);
+        register_input(
+            "/chassis/support_arm/right_back_motor/control_torque", support_arm_right_torque_,
+            false);
+        register_input(
+            "/chassis/support_arm/override_chassis_vx", support_arm_override_chassis_vx_, false);
+        register_input("/chassis/support_arm/active", support_arm_active_, false);
+
         front_power_limiter_ = create_partner_component<ChassisClimberFrontPowerLimiter>(
             get_component_name() + "_front_power_limiter", front_power_estimate_bias_,
             front_power_estimate_k_tau2_, front_power_estimate_k_mech_);
@@ -506,6 +515,25 @@ private:
     }
 
     void apply_climb_control(const AutoClimbControl& control) {
+        const bool support_arm_active_now = support_arm_active_.ready() && *support_arm_active_;
+        if (support_arm_active_now) {
+            *climber_back_left_control_torque_ = *support_arm_left_torque_;
+            *climber_back_right_control_torque_ = *support_arm_right_torque_;
+            *climbing_forward_velocity_ = *support_arm_override_chassis_vx_;
+            *auto_climb_active_ = false;
+            *front_power_budget_active_ = false;
+            *front_power_demand_estimate_ = 0.0;
+            last_support_arm_active_ = true;
+            return;
+        }
+
+        if (last_support_arm_active_ && !support_arm_active_now) {
+            back_climber_zero_velocity_hold_ = true;
+            manual_support_retracting_ = false;
+            back_climber_recover_count = 0;
+        }
+        last_support_arm_active_ = false;
+
         *climbing_forward_velocity_ = control.override_chassis_vx;
         *auto_climb_active_ = auto_climb_state_ != AutoClimbState::IDLE;
         if (back_climber_recover_count != 0) {
@@ -706,6 +734,12 @@ private:
 
     InputInterface<double> chassis_pitch_imu_;
     InputInterface<double> gimbal_yaw_angle_, gimbal_yaw_angle_error_, gimbal_yaw_velocity_imu_;
+
+    InputInterface<double> support_arm_left_torque_;
+    InputInterface<double> support_arm_right_torque_;
+    InputInterface<double> support_arm_override_chassis_vx_;
+    InputInterface<bool> support_arm_active_;
+    bool last_support_arm_active_ = false;
 
     rmcs_msgs::Switch last_rotary_knob_switch_ = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Keyboard last_keyboard_ = rmcs_msgs::Keyboard::zero();

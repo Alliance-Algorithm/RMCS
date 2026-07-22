@@ -18,6 +18,7 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController -> right_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller
       - rmcs_core::controller::chassis::ChassisClimberController -> climber_controller
+      - rmcs_core::controller::chassis::ChassisSupportArmController -> support_arm_controller
       - rmcs_core::controller::chassis::ChassisController -> chassis_controller
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::SteeringWheelController -> steering_wheel_controller
@@ -152,6 +153,25 @@ climber_controller:
     front_power_estimate_k_tau2: 1.0
     front_power_estimate_k_mech: 1.0
     back_kp: 0.5
+    back_ki: 0.0
+    back_kd: 0.0
+
+
+support_arm_controller:
+  ros__parameters:
+    support_arm_deploy_velocity: 30.0
+    support_arm_retract_velocity: 60.0
+    support_arm_retract_velocity_slow: 20.0
+    support_arm_dash_chassis_velocity: 0.8
+    support_arm_dash_deploy_pitch_threshold: 0.15
+    support_arm_retract_fast_retract_velocity: 2.0
+    support_arm_retract_fast_chassis_velocity: 0.4
+    support_arm_retract_fast_duration_ticks: 2000
+    support_arm_retract_slow_retract_velocity: 2.0
+    support_arm_retract_slow_chassis_velocity: 0.4
+    support_arm_retract_slow_duration_ticks: 1500
+    sync_coefficient: 0.2
+    back_kp: 0.8
     back_ki: 0.0
     back_kd: 0.0
 
