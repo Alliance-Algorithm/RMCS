@@ -1,10 +1,15 @@
 #pragma once
 #include <format>
+#include <rclcpp/node_options.hpp>
 
 namespace rmcs_utility {
 
 struct NodeMixin {
     using node = NodeMixin;
+
+    static constexpr auto options() noexcept {
+        return rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true);
+    }
 
     template <typename Self, typename... Args>
     auto info(this const Self& self, std::format_string<Args...> fmt, Args&&... args) -> void {
@@ -38,6 +43,11 @@ struct NodeMixin {
     auto param_or(this const auto& self, const std::string& name, T1& dst, const T2& fallback)
         requires std::convertible_to<T2, T1> {
         dst = self.template get_parameter_or<T1>(name, fallback);
+    }
+
+    template <typename T>
+    auto param_or(this const auto& self, const std::string& name, const T& fallback) -> T {
+        return self.template get_parameter_or<T>(name, fallback);
     }
 };
 

@@ -8,17 +8,17 @@
 #include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/switch.hpp>
+#include <rmcs_utility/rclcpp/node_mixin.hpp>
 
 namespace rmcs_core::controller::chassis {
 
 class ChassisController
     : public rmcs_executor::Component
-    , public rclcpp::Node {
+    , public rclcpp::Node
+    , public rmcs_utility::NodeMixin {
 public:
     ChassisController()
-        : Node{
-              get_component_name(),
-              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)} {
+        : Node{get_component_name(), node::options()} {
 
         following_velocity_controller_.output_max = angular_velocity_max;
         following_velocity_controller_.output_min = -angular_velocity_max;
@@ -51,12 +51,11 @@ public:
     void before_updating() override {
         if (!gimbal_yaw_angle_.ready()) {
             gimbal_yaw_angle_.make_and_bind_directly(0.0);
-            RCLCPP_WARN(get_logger(), "Failed to fetch \"/gimbal/yaw/angle\". Set to 0.0.");
+            node::warn("Failed to fetch \"/gimbal/yaw/angle\". Set to 0.0.");
         }
         if (!gimbal_yaw_angle_error_.ready()) {
             gimbal_yaw_angle_error_.make_and_bind_directly(0.0);
-            RCLCPP_WARN(
-                get_logger(), "Failed to fetch \"/gimbal/yaw/control_angle_error\". Set to 0.0.");
+            node::warn("Failed to fetch \"/gimbal/yaw/control_angle_error\". Set to 0.0.");
         }
 
         if (!climbing_forward_velocity_.ready()) {
@@ -178,7 +177,7 @@ public:
         spin_recovery_count_ = kSpinRecoveryTicks;
         spin_stuck_count_ = 0;
 
-        RCLCPP_WARN(get_logger(), "Spin stuck detected, disable spinning for 2s.");
+        node::warn("Spin stuck detected, disable spinning for 2s.");
     }
 
     void update_velocity_control() {
@@ -306,8 +305,8 @@ private:
     static constexpr double kInf = std::numeric_limits<double>::infinity();
     static constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
 
-    const double translational_velocity_max{get_parameter_or("translational_velocity_max", 10.0)};
-    const double angular_velocity_max{get_parameter_or("angular_velocity_max", 16.0)};
+    const double translational_velocity_max{node::param_or("translational_velocity_max", 10.0)};
+    const double angular_velocity_max{node::param_or("angular_velocity_max", 16.0)};
 
     InputInterface<Eigen::Vector2d> joystick_right_;
     InputInterface<Eigen::Vector2d> joystick_left_;
@@ -340,9 +339,9 @@ private:
     rmcs_msgs::ChassisMode mode_before_watchdog_ = rmcs_msgs::ChassisMode::AUTO;
 
     pid::PidCalculator following_velocity_controller_{
-        get_parameter_or("following_velocity_kp", 8.0),
-        get_parameter_or("following_velocity_ki", 0.0),
-        get_parameter_or("following_velocity_kd", 0.0),
+        node::param_or("following_velocity_kp", 8.0),
+        node::param_or("following_velocity_ki", 0.0),
+        node::param_or("following_velocity_kd", 0.0),
     };
 
     OutputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;
