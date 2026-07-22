@@ -6,19 +6,24 @@ readonly DEVELOPER_NAME="ubuntu"
 readonly NVIM_PATH="/opt/nvim/bin/nvim"
 readonly NVIM_PORT=6666
 readonly NVIM_HOST="localhost"
+readonly RMCS_PATH="/workspaces/RMCS/"
 
 function show_help() {
     local project_dir="$1"
     local service="$2"
-    echo "Usage: $(basename "$0") [path] [zsh|n|nvim|neovide|vim|ide]"
+    echo "Usage: $(basename "$0") [path] [zsh|recreate|n|nvim|neovide|vim|ide]"
     echo "  Project dir: $project_dir"
     echo "  Service: $service"
+}
+
+function setup_container() {
+    docker compose up -d --no-recreate
 }
 
 function rmcs_zsh() {
     local service="$1"
     echo "Starting and entering container..."
-    docker compose up -d
+    setup_container
     docker compose exec "$service" zsh
 }
 
@@ -29,7 +34,7 @@ function rmcs_nvim() {
     local port=$NVIM_PORT
 
     echo "Starting container..."
-    docker compose up -d
+    setup_container
 
     echo "Checking available port and starting nvim headless server..."
     while nc -z "$NVIM_HOST" "$port" 2>/dev/null; do
@@ -38,7 +43,7 @@ function rmcs_nvim() {
     done
 
     echo "Starting nvim server on port $port..."
-    docker compose exec -u "$DEVELOPER_NAME" -d "$service" \
+    docker compose exec -u "$DEVELOPER_NAME" -w "$RMCS_PATH" -d "$service" \
         "$NVIM_PATH" --headless --listen "$NVIM_HOST:$port"
 
     for i in $(seq 1 $timeout); do
@@ -58,6 +63,11 @@ function rmcs_nvim() {
         echo "nvim server failed to start within $timeout seconds, neovide not launched"
         exit 1
     fi
+}
+
+function rmcs_recreate() {
+    echo "Recreating container..."
+    docker compose up -d --force-recreate
 }
 
 function main() {
@@ -83,6 +93,9 @@ function main() {
     case "$command" in
     zsh)
         rmcs_zsh "$service"
+        ;;
+    recreate)
+        rmcs_recreate
         ;;
     n | nvim | neovide | vim | ide)
         rmcs_nvim "$service"

@@ -310,8 +310,11 @@ private:
         }
 
         if (!manual_support_retracting_) {
-            if (back_climber_zero_velocity_hold_)
+            if (back_climber_zero_velocity_hold_) {
                 control.back_climber_velocity = 0.0;
+            } else {
+                start_back_climber_retract("Auto retract");
+            }
             return control;
         }
 
@@ -602,7 +605,7 @@ private:
     void dual_motor_sync_control(
         double setpoint, double left_velocity, double right_velocity,
         pid::MatrixPidCalculator<2>& pid_calculator, double& left_torque_out,
-        double& right_torque_out) {
+        double& right_torque_out) const {
 
         if (std::isnan(setpoint)) {
             left_torque_out = nan_;
@@ -621,9 +624,9 @@ private:
         right_torque_out = control_torques[1];
     }
 
-    void limit_back_climber_retract_torque(
+    static void limit_back_climber_retract_torque(
         double back_climber_velocity_setpoint, double& left_torque, double& right_torque,
-        double max_torque) const {
+        double max_torque) {
 
         if (!std::isfinite(back_climber_velocity_setpoint) || back_climber_velocity_setpoint >= 0.0)
             return;
@@ -640,6 +643,7 @@ private:
     }
 
     rclcpp::Logger logger_;
+
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
     static constexpr double kAutoClimbAlignThreshold = 0.10;
     static constexpr double kAutoClimbAlignVelocityThreshold = 0.2;
@@ -719,6 +723,5 @@ private:
 } // namespace rmcs_core::controller::chassis
 
 #include <pluginlib/class_list_macros.hpp>
-
 PLUGINLIB_EXPORT_CLASS(
     rmcs_core::controller::chassis::ChassisClimberController, rmcs_executor::Component)

@@ -2,14 +2,14 @@ rmcs_executor:
   ros__parameters:
     update_rate: 1000.0
     components:
-      # - rmcs::AutoAimPlayerComponent -> auto_aim_player
-      - rmcs::AutoAimVideoPlayerComponent -> auto_aim_video_player
-      - rmcs::AutoAimRecorderComponent -> auto_aim_recorder
+      - rmcs::AutoAimPlayerComponent -> auto_aim_player
+      # - rmcs::AutoAimVideoPlayerComponent -> auto_aim_video_player
+      # - rmcs::AutoAimRecorderComponent -> auto_aim_recorder
       - rmcs::AutoAimComponent -> auto_aim_component
 
 auto_aim_player:
   ros__parameters:
-    input_path: "/workspaces/data/autoaim/自家小符/"
+    input_path: "/workspaces/data/autoaim/自家大符/"
     loop_play: true
 
 auto_aim_video_player:
@@ -33,11 +33,12 @@ auto_aim_component:
     camera_translation: [0., 0., 0.]
 
     fire_control:
-      bullet_speed: 23.5
+      bullet_speed: 22.5
       shoot_delay: 0.0
       offset_yaw: 0.0
       offset_pitch: 0.0
       attack_window: 120.0
+      degraded_angle_speed: 12.0
       window_hysteresis: 0.2
       is_lazy_gimbal: false
       attack_preaim: false

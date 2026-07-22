@@ -102,8 +102,8 @@ private:
         config_.eso.beta1 = load_parameter_or(*this, "eso_beta1", 3.0 * config_.eso.w0);
         config_.eso.beta2 =
             load_parameter_or(*this, "eso_beta2", 3.0 * config_.eso.w0 * config_.eso.w0);
-        config_.eso.beta3 = load_parameter_or(
-            *this, "eso_beta3", config_.eso.w0 * config_.eso.w0 * config_.eso.w0);
+        config_.eso.beta3 =
+            load_parameter_or(*this, "eso_beta3", config_.eso.w0 * config_.eso.w0 * config_.eso.w0);
         config_.eso.z3_limit = load_parameter_or(*this, "eso_z3_limit", 1e9);
 
         config_.nlesf.k1 = load_parameter_or(*this, "k1", 50.0);

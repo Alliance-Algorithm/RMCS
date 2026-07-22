@@ -14,8 +14,7 @@ public:
     BulletFeederController17mm()
         : Node(
               get_component_name(),
-              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , logger_(get_logger()) {
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
 
         double bullets_per_feeder_turn = get_parameter("bullets_per_feeder_turn").as_double();
         double bullet_feeder_angle_per_bullet = 2 * std::numbers::pi / bullets_per_feeder_turn;
@@ -50,6 +49,7 @@ public:
         register_input("/remote/keyboard", keyboard_);
 
         register_input("/auto_aim/should_shoot", should_shoot_, false);
+        register_input("/auto_aim/single_shoot", single_shoot_, false);
 
         register_input("/gimbal/bullet_feeder/velocity", bullet_feeder_velocity_);
         register_output(
@@ -61,6 +61,8 @@ public:
     void before_updating() override {
         if (!should_shoot_.ready())
             should_shoot_.bind_directly(false);
+        if (!single_shoot_.ready())
+            single_shoot_.bind_directly(false);
     }
 
     void update() override {
@@ -72,6 +74,8 @@ public:
         const auto keyboard = *keyboard_;
 
         using namespace rmcs_msgs;
+        const bool current_should_shoot = *should_shoot_;
+
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
             reset_all_controls();
@@ -84,14 +88,20 @@ public:
                 single_shot_stop_counter_ = std::max(0, single_shot_stop_counter_ - 1);
                 temporary_single_shot_counter_ = std::max(0, temporary_single_shot_counter_ - 1);
 
-                if (!last_mouse_.left && mouse.left)
+                const auto current_single_shoot = *single_shoot_;
+
+                /*  */ if (!last_mouse_.left && mouse.left) { // NOLINT
                     single_shot_stop_counter_ = single_shot_max_stop_delay_;
-                else if (last_switch_left_ != Switch::DOWN && switch_left == Switch::DOWN) {
+                } else if (last_switch_left_ != Switch::DOWN && switch_left == Switch::DOWN) {
                     single_shot_stop_counter_ = single_shot_max_stop_delay_;
                     temporary_single_shot_counter_ = 500;
+                } else if (current_single_shoot && current_should_shoot && !last_should_shoot_) {
+                    single_shot_stop_counter_ = single_shot_max_stop_delay_;
                 }
 
                 shoot_mode = temporary_single_shot_counter_ > 0 ? ShootMode::SINGLE : shoot_mode;
+                if (current_single_shoot)
+                    shoot_mode = ShootMode::SINGLE;
 
                 if (*bullet_fired_)
                     single_shot_stop_counter_ = 0;
@@ -118,6 +128,7 @@ public:
         last_switch_left_ = switch_left;
         last_mouse_ = mouse;
         last_keyboard_ = keyboard;
+        last_should_shoot_ = current_should_shoot;
     }
 
 private:
@@ -163,14 +174,15 @@ private:
             } else {
                 if (bullet_feeder_working_status_ == 500) {
                     enter_jam_protection();
-                    RCLCPP_INFO(logger_, "Instant jammed! Count = %d", bullet_feeder_jammed_count_);
+                    RCLCPP_INFO(
+                        get_logger(), "Instant jammed! Count = %d", bullet_feeder_jammed_count_);
                 } else if (bullet_feeder_working_status_ > 0) {
                     bullet_feeder_working_status_ = 0;
                 } else if (bullet_feeder_working_status_ > -500) {
                     bullet_feeder_working_status_--;
                 } else {
                     enter_jam_protection();
-                    RCLCPP_INFO(logger_, "Jammed! Count = %d", bullet_feeder_jammed_count_);
+                    RCLCPP_INFO(get_logger(), "Jammed! Count = %d", bullet_feeder_jammed_count_);
                 }
             }
         }
@@ -189,8 +201,6 @@ private:
 
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
 
-    rclcpp::Logger logger_;
-
     double bullet_feeder_working_velocity, bullet_feeder_safe_shot_velocity;
     double bullet_feeder_eject_velocity_, bullet_feeder_deep_eject_velocity_;
     int bullet_feeder_eject_time_, bullet_feeder_deep_eject_time_;
@@ -207,6 +217,8 @@ private:
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
 
     InputInterface<bool> should_shoot_;
+    InputInterface<bool> single_shoot_;
+    bool last_should_shoot_ = false;
 
     rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Switch last_switch_left_ = rmcs_msgs::Switch::UNKNOWN;

@@ -81,18 +81,18 @@ public:
 
             if (switch_left != Switch::DOWN) {
                 if (last_switch_right_ == Switch::MIDDLE && switch_right == Switch::DOWN) {
-                    if (mode == rmcs_msgs::ChassisMode::SPIN) {
-                        mode = rmcs_msgs::ChassisMode::STEP_DOWN;
-                    } else {
-                        mode = rmcs_msgs::ChassisMode::SPIN;
+                    if (mode != rmcs_msgs::ChassisMode::SPIN_FAST) {
+                        mode = rmcs_msgs::ChassisMode::SPIN_FAST;
                         spinning_forward_ = !spinning_forward_;
+                    } else {
+                        mode = rmcs_msgs::ChassisMode::STEP_DOWN;
                     }
                 } else if (!last_keyboard_.c && keyboard.c) {
-                    if (mode == rmcs_msgs::ChassisMode::SPIN) {
-                        mode = rmcs_msgs::ChassisMode::AUTO;
-                    } else {
-                        mode = rmcs_msgs::ChassisMode::SPIN;
+                    if (mode != rmcs_msgs::ChassisMode::SPIN_FAST) {
+                        mode = rmcs_msgs::ChassisMode::SPIN_FAST;
                         spinning_forward_ = !spinning_forward_;
+                    } else {
+                        mode = rmcs_msgs::ChassisMode::AUTO;
                     }
                 } else if (!last_keyboard_.x && keyboard.x) {
                     if (mode != rmcs_msgs::ChassisMode::STEP_DOWN
@@ -192,7 +192,8 @@ public:
             angular_velocity = 0.0;
 
         } break;
-        case rmcs_msgs::ChassisMode::SPIN: {
+        case rmcs_msgs::ChassisMode::SPIN_SLOW: [[fallthrough]];
+        case rmcs_msgs::ChassisMode::SPIN_FAST: {
             angular_velocity =
                 0.6 * (spinning_forward_ ? angular_velocity_max : -angular_velocity_max);
         } break;
@@ -200,6 +201,8 @@ public:
             angular_velocity =
                 update_following_angular_velocity(step_down_facing_, chassis_control_angle);
         } break;
+        case rmcs_msgs::ChassisMode::ALIGNMENT: [[fallthrough]];
+        case rmcs_msgs::ChassisMode::ALIGNMENT_POWERED: [[fallthrough]];
         case rmcs_msgs::ChassisMode::LAUNCH_RAMP: {
             double err = calculate_unsigned_chassis_angle_error(chassis_control_angle);
 

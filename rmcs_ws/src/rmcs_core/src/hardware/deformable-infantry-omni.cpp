@@ -31,7 +31,9 @@
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/lk_motor.hpp"
+#include "hardware/device/remote_control.hpp"
 #include "hardware/device/supercap.hpp"
+#include "hardware/device/vt13.hpp"
 #include "hardware/util/status_monitor.hpp"
 
 namespace rmcs_core::hardware {
@@ -58,6 +60,8 @@ public:
 
         tf_->set_transform<PitchLink, CameraLink>(Eigen::Translation3d{0.058, -0.08, 0.0});
 
+        remote_control_ = std::make_unique<device::RemoteControl>(*this);
+
         bottom_board_ = std::make_unique<BottomBoard>(
             *this, *command_, get_parameter("serial_filter_bottom_board").as_string());
         top_board_ = std::make_unique<TopBoard>(
@@ -79,6 +83,7 @@ public:
     void update() override {
         bottom_board_->update();
         top_board_->update();
+        remote_control_->update();
 
         using namespace rmcs_description;
         *camera_transform_ = fast_tf::lookup_transform<OdomImu, CameraLink>(*tf_);
@@ -121,7 +126,8 @@ private:
         explicit TopBoard(
             DeformableInfantryOmni& status, Component& command,
             const std::string& serial_filter = {})
-            : tf_{status.tf_}
+            : status_{status}
+            , tf_{status.tf_}
             , bmi088_{device::Bmi088Ekf::Config{
                   .body_to_sensor =
                       Eigen::AngleAxisd{std::numbers::pi / 2.0, Eigen::Vector3d::UnitX()}
@@ -163,6 +169,10 @@ private:
                     .capture_timestamp = true,
                     .pull = librmcs::data::GpioPull::kUp,
                 });
+
+            board_->start_transmit().uart_config(Spec::kUarts.kUart0, {.baudrate = 921600});
+
+            status_.remote_control_->register_vt13(&vt13_);
         }
 
         ~TopBoard() override = default;
@@ -177,6 +187,7 @@ private:
         }
 
         void update() {
+            vt13_.update_status();
             gimbal_pitch_motor_.update_status();
             gimbal_left_friction_.update_status();
             gimbal_right_friction_.update_status();
@@ -243,6 +254,11 @@ private:
             }
         }
 
+        void uart_receive_callback(const Spec::Uart& uart, const View::Uart& data) override {
+            if (uart == Spec::kUarts.kUart0)
+                vt13_.store_status(data.uart_data);
+        }
+
         void accelerometer_receive_callback(const View::ImuAccelerometer& data) override {
             const auto timestamp = board_clock_lifter_.advance_timebase(data.timestamp_quarter_us);
             bmi088_.push_accelerometer_sample(data.x, data.y, data.z, timestamp);
@@ -277,6 +293,7 @@ private:
 
         auto status() const -> std::vector<std::string> { return monitor_.text(); }
 
+        DeformableInfantryOmni& status_;
         OutputInterface<rmcs_description::Tf>& tf_;
         OutputInterface<double> gimbal_yaw_velocity_bmi088_;
         OutputInterface<double> gimbal_pitch_velocity_bmi088_;
@@ -286,6 +303,7 @@ private:
 
         device::Bmi088Ekf bmi088_;
         device::BoardClockLifter board_clock_lifter_;
+        device::Vt13 vt13_;
         device::LkMotor gimbal_pitch_motor_;
         device::DjiMotor gimbal_left_friction_;
         device::DjiMotor gimbal_right_friction_;
@@ -370,6 +388,8 @@ private:
             auto options = librmcs::board::AdvancedOptions{};
             options.dangerously_skip_version_checks = true;
             board_ = std::make_unique<librmcs::board::RmcsBoardLite>(*this, serial_filter, options);
+
+            status_.remote_control_->register_dr16(&dr16_);
         }
 
         void update() {
@@ -583,7 +603,7 @@ private:
 
         device::Bmi088 imu_{1000, 0.2, 0.0};
         device::LkMotor gimbal_yaw_motor_{status_, command_, "/gimbal/yaw"};
-        device::Dr16 dr16_{status_};
+        device::Dr16 dr16_;
 
         device::DjiMotor chassis_wheel_motors_[4]{
             device::DjiMotor{status_, command_, "/chassis/left_front_wheel"},
@@ -745,6 +765,8 @@ private:
         }
 
         void can_receive_callback(const Spec::Can& can, const View::Can& data) override {
+            if (data.is_extended_can_id || data.is_remote_transmission)
+                return;
             if (can == Spec::kCans.kCan0) {
                 process_chassis_can_receive_(0, data);
                 monitor_.tick("Bottom::Can0", data.can_id);
@@ -841,6 +863,7 @@ private:
 
     std::unique_ptr<BottomBoard> bottom_board_;
     std::unique_ptr<TopBoard> top_board_;
+    std::unique_ptr<device::RemoteControl> remote_control_;
 
     std::shared_ptr<Command> command_;
     uint32_t cmd_tick_ = 0;
