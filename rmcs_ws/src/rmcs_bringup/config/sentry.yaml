@@ -7,7 +7,7 @@ rmcs_executor:
       - rmcs_core::referee::Status -> referee_status
       - rmcs_core::referee::Command -> referee_command
       - rmcs_core::referee::command::Interaction -> referee_interaction
-      # - rmcs_core::referee::command::interaction::SentryDecision -> referee_sentry_decision
+      - rmcs_core::referee::command::interaction::SentryDecision -> referee_sentry_decision
       - rmcs_core::referee::command::interaction::Ui -> referee_ui
 
       - rmcs_core::controller::gimbal::EccentricDualYaw -> gimbal_controller
@@ -25,7 +25,7 @@ rmcs_executor:
 
       - rmcs::navigation::Navigation -> rmcs_navigation
 
-      - rmcs::AutoAimRecorderComponent -> auto_aim_recorder
+      # - rmcs::AutoAimRecorderComponent -> auto_aim_recorder
       - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
       - rmcs::AutoAimComponent -> auto_aim_component
 
@@ -35,7 +35,7 @@ rmcs_executor:
 rmcs_navigation:
   ros__parameters:
     command_vel_name: "/cmd_vel"
-    endpoint: "otaku"
+    endpoint: "test"
     enable_goal_topic_forward: true
 
 auto_aim_capturer:
@@ -43,7 +43,7 @@ auto_aim_capturer:
     camera_name: ""
     exposure_us: 2000.0
     gain: 8.0
-    framerate: 120.0
+    framerate: 160.0
     invert_image: true
     rls_tau_sec: 10.0
     use_hardware_sync: true
@@ -59,15 +59,15 @@ auto_aim_recorder:
 
 auto_aim_component:
   ros__parameters:
-    manual_shoot: true
+    manual_shoot: false
     enable_rune: true
     camera_translation: [0.07128, 0.0, 0.0481]
     fire_control:
       bullet_speed: 22.5
       shoot_delay: 0.1
-      offset_yaw: -0.5
-      offset_pitch: +1.0
-      attack_window: 120.0
+      offset_yaw: -1.0
+      offset_pitch: +0.8
+      attack_window: 80.0
       degraded_angle_speed: 12.0
       window_hysteresis: 0.2
       attack_preaim: false
@@ -137,7 +137,7 @@ climber_controller:
     back_climber_velocity: 30.0
     auto_climb_support_retract_velocity_fast: 60.0
     auto_climb_support_retract_velocity_slow: 20.0
-    auto_climb_approach_chassis_velocity: 1.0
+    auto_climb_approach_chassis_velocity: 1.5
     auto_climb_support_deploy_chassis_velocity: 0.3
     auto_climb_support_retract_chassis_velocity: 0.3
     auto_climb_dash_chassis_velocity: 3.0
@@ -155,7 +155,6 @@ climber_controller:
     back_kp: 0.5
     back_ki: 0.0
     back_kd: 0.0
-
 
 support_arm_controller:
   ros__parameters:
