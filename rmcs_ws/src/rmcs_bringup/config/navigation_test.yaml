@@ -1,0 +1,11 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs::navigation::Navigation -> rmcs_navigation
+
+rmcs_navigation:
+  ros__parameters:
+    command_vel_name: "/cmd_vel"
+    endpoint: "train"
+    enable_goal_topic_forward: true

@@ -83,7 +83,9 @@ public:
             std::int64_t bullet_allowance = 0;
 
             if (switch_right != Switch::DOWN) {
-                shoot_mode = keyboard.f ? ShootMode::SINGLE : ShootMode::AUTOMATIC;
+                // @NOTE: Single shoot is only for rune mode, so remove manual switch
+                //  shoot_mode = keyboard.f ? ShootMode::SINGLE : ShootMode::AUTOMATIC;
+                shoot_mode = ShootMode::AUTOMATIC;
 
                 single_shot_stop_counter_ = std::max(0, single_shot_stop_counter_ - 1);
                 temporary_single_shot_counter_ = std::max(0, temporary_single_shot_counter_ - 1);

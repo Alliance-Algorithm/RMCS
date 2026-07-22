@@ -22,15 +22,20 @@ rmcs_executor:
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::SteeringWheelController -> steering_wheel_controller
 
-      # - rmcs::navigation::Navigation -> rmcs_navigation
+      - rmcs::navigation::Navigation -> rmcs_navigation
+
+      # - rmcs::AutoAimRecorderComponent -> auto_aim_recorder
+      # - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
+      - rmcs::AutoAimComponent -> auto_aim_component
 
       # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
 
-      - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
-      # - rmcs::AutoAimPlayerComponent -> auto_aim_player
-      # - rmcs::AutoAimRecorderComponent -> auto_aim_recorder
-      - rmcs::AutoAimComponent -> auto_aim_component
+rmcs_navigation:
+  ros__parameters:
+    command_vel_name: "/cmd_vel"
+    endpoint: "train"
+    enable_goal_topic_forward: true
 
 auto_aim_capturer:
   ros__parameters:
@@ -63,7 +68,6 @@ auto_aim_component:
       attack_window: 120.0
       degraded_angle_speed: 12.0
       window_hysteresis: 0.2
-      is_lazy_gimbal: false
       attack_preaim: false
       require_stable_command: false
       yaw_tolerance: 0.07
@@ -90,13 +94,6 @@ sentry_hardware:
     left_back_zero_point: 3784
     right_back_zero_point: 3048
     right_front_zero_point: 5135
-
-rmcs_navigation:
-  ros__parameters:
-    command_vel_name: "/cmd_vel"
-    mock_context: false
-    endpoint: "test" # otaku | main | test
-    enable_goal_topic_forward: true
 
 gimbal_controller:
   ros__parameters:

@@ -10,7 +10,6 @@ rmcs_executor:
       - rmcs_core::referee::command::Interaction -> referee_interaction
       - rmcs_core::referee::command::interaction::Ui -> referee_ui
       - rmcs_core::referee::app::ui::DeformableInfantry -> referee_ui_infantry
-      - rmcs_core::referee::app::ui::AutoAimUi -> auto_aim_ui
 
       - rmcs_core::controller::gimbal::DeformableInfantryGimbalController -> gimbal_controller
 
@@ -84,7 +83,6 @@ auto_aim_component:
       attack_window: 80.0
       degraded_angle_speed: 12.0
       window_hysteresis: 0.2
-      is_lazy_gimbal: false
       attack_preaim: false
       require_stable_command: false
       yaw_tolerance: 0.07
@@ -170,7 +168,7 @@ gimbal_controller:
     lower_limit: 0.10 # 8 deg
     ctrl_hold_pitch_target_angle: 0.0
 
-    yaw_angle_kp: 15.0
+    yaw_angle_kp: 10.0
     yaw_angle_ki: 0.0
     yaw_angle_kd: 0.0
 
