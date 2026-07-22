@@ -1,0 +1,7 @@
+#compdef play-autoaim
+
+_arguments \
+  '--user[Remote username]:username:' \
+  '--remote[Pull SDP from device into container]' \
+  '--no-copy[Skip copy from container to host]' \
+  '--ip[IP address of monitor host]:ip:'

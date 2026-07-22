@@ -2,6 +2,9 @@ devel/
 log/
 build/
 install/
+log-cross-*/
+build-cross-*/
+install-cross-*/
 bin/
 lib/
 msg_gen/
@@ -52,7 +55,10 @@ qtcreator-*
 CATKIN_IGNORE
 
 # Clangd cache files
-.cache
+.cache/
+
+# VSCode configure files
+.vscode/
 
 # Hik camera log files
 MvFGSdkLog
@@ -63,7 +69,7 @@ id_rsa
 id_rsa.pub
 
 # Recording files
-record
+record/
 
-# For Develop
+# For temperary development
 develop_ws
