@@ -43,6 +43,8 @@ public:
         , steering_angle_pid_(30.0, 0.0, 0.0)
         , wheel_velocity_pid_(0.6, 0.0, 0.0) {
 
+        load_pid_parameters();
+
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
 
@@ -134,8 +136,36 @@ private:
         Eigen::Vector4d wheel_velocity_x, wheel_velocity_y;
     };
 
+    void load_pid_parameters() {
+        const auto pid_or = [this](const char* name, double fallback) {
+            return has_parameter(name) ? get_parameter(name).as_double() : fallback;
+        };
+
+        chassis_translational_velocity_pid_.kp = pid_or("chassis_translation_kp", 5.0);
+        chassis_translational_velocity_pid_.ki = pid_or("chassis_translation_ki", 0.0);
+        chassis_translational_velocity_pid_.kd = pid_or("chassis_translation_kd", 1.0);
+
+        chassis_angular_velocity_pid_.kp = pid_or("chassis_angular_velocity_kp", 5.0);
+        chassis_angular_velocity_pid_.ki = pid_or("chassis_angular_velocity_ki", 0.0);
+        chassis_angular_velocity_pid_.kd = pid_or("chassis_angular_velocity_kd", 1.0);
+
+        steering_velocity_pid_.kp = pid_or("steering_velocity_kp", 0.15);
+        steering_velocity_pid_.ki = pid_or("steering_velocity_ki", 0.0);
+        steering_velocity_pid_.kd = pid_or("steering_velocity_kd", 0.0);
+
+        steering_angle_pid_.kp = pid_or("steering_angle_kp", 30.0);
+        steering_angle_pid_.ki = pid_or("steering_angle_ki", 0.0);
+        steering_angle_pid_.kd = pid_or("steering_angle_kd", 0.0);
+
+        wheel_velocity_pid_.kp = pid_or("wheel_velocity_kp", 0.6);
+        wheel_velocity_pid_.ki = pid_or("wheel_velocity_ki", 0.0);
+        wheel_velocity_pid_.kd = pid_or("wheel_velocity_kd", 0.0);
+    }
+
     void reset_all_controls() {
         control_acceleration_filter_.reset();
+
+        chassis_angular_velocity_pid_.reset();
 
         chassis_yaw_angle_imu_ = 0.0;
         chassis_velocity_expected_ = Eigen::Vector3d::Zero();

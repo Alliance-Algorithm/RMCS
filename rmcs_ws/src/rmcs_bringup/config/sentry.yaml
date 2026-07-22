@@ -240,12 +240,12 @@ steering_wheel_controller:
     no_load_power: 11.37
 
     chassis_translation_kp: 20.0
-    chassis_translation_ki: 0.001
+    chassis_translation_ki: 0.0001
     chassis_translation_kd: 0.00
 
     chassis_angular_velocity_kp: 8.0
-    chassis_angular_velocity_ki: 0.0
-    chassis_angular_velocity_kd: 1.0
+    chassis_angular_velocity_ki: 0.01
+    chassis_angular_velocity_kd: 0.00
 
     steering_velocity_kp: 0.15
     steering_velocity_ki: 0.0
