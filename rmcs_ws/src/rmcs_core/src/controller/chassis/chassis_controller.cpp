@@ -119,6 +119,7 @@ public:
                     mode = *navigation_chassis_behavior_;
                 }
 
+                update_spin_stuck_watchdog(mode);
                 *mode_ = mode;
             }
 
@@ -133,6 +134,51 @@ public:
     void reset_all_controls() {
         *mode_ = rmcs_msgs::ChassisMode::ALIGNMENT;
         *chassis_control_velocity_ = {kNaN, kNaN, kNaN};
+
+        spin_stuck_count_ = 0;
+        spin_recovery_count_ = 0;
+    }
+
+    auto update_spin_stuck_watchdog(rmcs_msgs::ChassisMode& mode) -> void {
+        constexpr auto kSpinStuckConfirmTicks = std::size_t{300};
+        constexpr auto kSpinRecoveryTicks = std::size_t{2000};
+        constexpr auto kSpinStuckAngularVelocityRatio = double{0.2};
+
+        using rmcs_msgs::ChassisMode;
+
+        if (spin_recovery_count_ > 0) {
+            if (mode == ChassisMode::ALIGNMENT_POWERED) {
+                if (--spin_recovery_count_ == 0)
+                    mode = mode_before_watchdog_;
+            } else {
+                spin_recovery_count_ = 0;
+            }
+
+            spin_stuck_count_ = 0;
+            return;
+        }
+
+        const auto spinning = mode == ChassisMode::SPIN_FAST || mode == ChassisMode::SPIN_SLOW;
+        if (!spinning || !chassis_velocity_.ready()) {
+            spin_stuck_count_ = 0;
+            return;
+        }
+
+        const auto expected = (mode == ChassisMode::SPIN_FAST ? 0.6 : 0.3) * angular_velocity_max;
+        if (std::abs(chassis_velocity_->vector[2]) >= kSpinStuckAngularVelocityRatio * expected) {
+            spin_stuck_count_ = 0;
+            return;
+        }
+
+        if (++spin_stuck_count_ < kSpinStuckConfirmTicks)
+            return;
+
+        mode_before_watchdog_ = mode;
+        mode = ChassisMode::ALIGNMENT_POWERED;
+        spin_recovery_count_ = kSpinRecoveryTicks;
+        spin_stuck_count_ = 0;
+
+        RCLCPP_WARN(get_logger(), "Spin stuck detected, disable spinning for 2s.");
     }
 
     void update_velocity_control() {
@@ -288,6 +334,11 @@ private:
 
     OutputInterface<rmcs_msgs::ChassisMode> mode_;
     bool spinning_forward_ = true;
+
+    std::size_t spin_stuck_count_ = 0;
+    std::size_t spin_recovery_count_ = 0;
+    rmcs_msgs::ChassisMode mode_before_watchdog_ = rmcs_msgs::ChassisMode::AUTO;
+
     pid::PidCalculator following_velocity_controller_{
         get_parameter_or("following_velocity_kp", 8.0),
         get_parameter_or("following_velocity_ki", 0.0),

@@ -71,6 +71,15 @@ public:
 
         // 导航控制。
         if (input_.enable_navigation()) {
+            constexpr auto kGimbalFree = std::numeric_limits<double>::min();
+            if (*input_.navigation_enable_control && input_.navigation_toward.ready()) {
+                const auto& toward = *input_.navigation_toward;
+                if (toward.x() == kGimbalFree && toward.y() == kGimbalFree) {
+                    enter_disabled_state();
+                    return;
+                }
+            }
+
             const auto error = solver_.update(
                 EccentricDualYawSolver::Navigation{
                     *input_.top_yaw_angle,
