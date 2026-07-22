@@ -14,8 +14,11 @@ enum class ChassisMode : uint8_t {
     ALIGNMENT_POWERED,
 };
 
-constexpr auto need_power(ChassisMode mode) noexcept {
+constexpr auto is_powered(ChassisMode mode) noexcept {
     return mode == ChassisMode::ALIGNMENT_POWERED || mode == ChassisMode::LAUNCH_RAMP;
+}
+constexpr auto is_spining(ChassisMode mode) noexcept {
+    return mode == ChassisMode::SPIN_SLOW || mode == ChassisMode::SPIN_FAST;
 }
 
 } // namespace rmcs_msgs

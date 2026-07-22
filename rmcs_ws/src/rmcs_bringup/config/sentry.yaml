@@ -123,6 +123,8 @@ gimbal_controller:
 
 chassis_controller:
   ros__parameters:
+    angular_velocity_max: 8.0
+    translational_velocity_max: 10.0
     following_velocity_kp: 7.0
     following_velocity_ki: 0.0
     following_velocity_kd: 0.0

@@ -6,7 +6,6 @@
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/chassis_mode.hpp>
 #include <rmcs_msgs/keyboard.hpp>
-#include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/switch.hpp>
 #include <rmcs_utility/rclcpp/node_mixin.hpp>
 
@@ -24,18 +23,14 @@ public:
         following_velocity_controller_.output_min = -angular_velocity_max;
 
         register_input("/remote/joystick/right", joystick_right_);
-        register_input("/remote/joystick/left", joystick_left_);
         register_input("/remote/switch/right", switch_right_);
         register_input("/remote/switch/left", switch_left_);
-        register_input("/remote/mouse/velocity", mouse_velocity_);
-        register_input("/remote/mouse", mouse_);
         register_input("/remote/keyboard", keyboard_);
-        register_input("/remote/rotary_knob", rotary_knob_);
 
         register_input("/gimbal/yaw/angle", gimbal_yaw_angle_, false);
         register_input("/gimbal/yaw/control_angle_error", gimbal_yaw_angle_error_, false);
 
-        register_input("/chassis/velocity", chassis_velocity_, false);
+        register_input("/chassis/yaw/velocity_imu", chassis_yaw_velocity_imu_, false);
         register_input("/chassis/climbing_forward_velocity", climbing_forward_velocity_, false);
 
         register_input("/rmcs_navigation/enable_control", navigation_enable_control_, false);
@@ -140,31 +135,28 @@ public:
 
     auto update_spin_stuck_watchdog(rmcs_msgs::ChassisMode& mode) -> void {
         constexpr auto kSpinStuckConfirmTicks = std::size_t{300};
-        constexpr auto kSpinRecoveryTicks = std::size_t{2000};
+        constexpr auto kSpinRecoveryTicks = std::size_t{1000};
         constexpr auto kSpinStuckAngularVelocityRatio = double{0.2};
 
         using rmcs_msgs::ChassisMode;
 
         if (spin_recovery_count_ > 0) {
-            if (mode == ChassisMode::ALIGNMENT_POWERED) {
-                if (--spin_recovery_count_ == 0)
-                    mode = mode_before_watchdog_;
-            } else {
-                spin_recovery_count_ = 0;
-            }
+            mode = ChassisMode::ALIGNMENT_POWERED;
+
+            if (--spin_recovery_count_ == 0)
+                mode = mode_before_watchdog_;
 
             spin_stuck_count_ = 0;
             return;
         }
 
-        const auto spinning = mode == ChassisMode::SPIN_FAST || mode == ChassisMode::SPIN_SLOW;
-        if (!spinning || !chassis_velocity_.ready()) {
+        if (!rmcs_msgs::is_spining(mode) || !chassis_yaw_velocity_imu_.ready()) {
             spin_stuck_count_ = 0;
             return;
         }
 
         const auto expected = (mode == ChassisMode::SPIN_FAST ? 0.6 : 0.3) * angular_velocity_max;
-        if (std::abs(chassis_velocity_->vector[2]) >= kSpinStuckAngularVelocityRatio * expected) {
+        if (std::abs(*chassis_yaw_velocity_imu_) >= kSpinStuckAngularVelocityRatio * expected) {
             spin_stuck_count_ = 0;
             return;
         }
@@ -177,7 +169,7 @@ public:
         spin_recovery_count_ = kSpinRecoveryTicks;
         spin_stuck_count_ = 0;
 
-        node::warn("Spin stuck detected, disable spinning for 2s.");
+        node::warn("Spin stuck detected, disable spinning for 1s.");
     }
 
     void update_velocity_control() {
@@ -309,13 +301,9 @@ private:
     const double angular_velocity_max{node::param_or("angular_velocity_max", 16.0)};
 
     InputInterface<Eigen::Vector2d> joystick_right_;
-    InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;
     InputInterface<rmcs_msgs::Switch> switch_left_;
-    InputInterface<Eigen::Vector2d> mouse_velocity_;
-    InputInterface<rmcs_msgs::Mouse> mouse_;
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
-    InputInterface<double> rotary_knob_;
 
     rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Switch last_switch_left_ = rmcs_msgs::Switch::UNKNOWN;
@@ -324,7 +312,7 @@ private:
     InputInterface<double> gimbal_yaw_angle_, gimbal_yaw_angle_error_;
     OutputInterface<double> chassis_angle_, chassis_control_angle_;
 
-    InputInterface<rmcs_description::BaseLink::DirectionVector> chassis_velocity_;
+    InputInterface<double> chassis_yaw_velocity_imu_;
     InputInterface<double> climbing_forward_velocity_;
 
     InputInterface<bool> navigation_enable_control_;
