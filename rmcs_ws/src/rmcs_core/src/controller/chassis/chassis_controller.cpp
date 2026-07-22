@@ -32,6 +32,7 @@ public:
 
         register_input("/chassis/yaw/velocity_imu", chassis_yaw_velocity_imu_, false);
         register_input("/chassis/climbing_forward_velocity", climbing_forward_velocity_, false);
+        register_input("/chassis/climbing_backward", climbing_backward_, false);
 
         register_input("/rmcs_navigation/enable_control", navigation_enable_control_, false);
         register_input("/rmcs_navigation/chassis_velocity", navigation_command_velocity_, false);
@@ -55,6 +56,9 @@ public:
 
         if (!climbing_forward_velocity_.ready()) {
             climbing_forward_velocity_.make_and_bind_directly(kNaN);
+        }
+        if (!climbing_backward_.ready()) {
+            climbing_backward_.make_and_bind_directly(false);
         }
 
         if (!navigation_enable_control_.ready()) {
@@ -131,6 +135,7 @@ public:
 
         spin_stuck_count_ = 0;
         spin_recovery_count_ = 0;
+        last_climbing_active_ = false;
     }
 
     auto update_spin_stuck_watchdog(rmcs_msgs::ChassisMode& mode) -> void {
@@ -213,14 +218,28 @@ public:
         double chassis_control_angle = kNaN;
 
         if (!std::isnan(*climbing_forward_velocity_)) {
+            last_climbing_active_ = true;
             double err = calculate_unsigned_chassis_angle_error(chassis_control_angle);
-            if (err > std::numbers::pi)
-                err -= 2 * std::numbers::pi;
+
+            const bool backward = *climbing_backward_;
+            if (backward) {
+                chassis_control_angle =
+                    normalize_positive_angle(chassis_control_angle + std::numbers::pi);
+                err = normalize_positive_angle(err + std::numbers::pi);
+            }
+
+            err = normalize_signed_angle(err);
             angular_velocity = following_velocity_controller_.update(err);
 
-            *chassis_angle_ = 2 * std::numbers::pi - *gimbal_yaw_angle_;
+            const double offset = backward ? std::numbers::pi : 0.0;
+            *chassis_angle_ = 2 * std::numbers::pi - *gimbal_yaw_angle_ + offset;
             *chassis_control_angle_ = chassis_control_angle;
             return angular_velocity;
+        }
+
+        if (last_climbing_active_) {
+            following_velocity_controller_.reset();
+            last_climbing_active_ = false;
         }
 
         using namespace rmcs_msgs;
@@ -278,6 +297,9 @@ public:
 
             angular_velocity = following_velocity_controller_.update(err);
         } break;
+
+        case ChassisMode::CLIMB:
+        case ChassisMode::SUPPORT_ARM: break;
         }
 
         *chassis_angle_ = 2 * std::numbers::pi - *gimbal_yaw_angle_;
@@ -299,6 +321,22 @@ public:
     }
 
 private:
+    static double normalize_positive_angle(double angle) {
+        constexpr double full_turn = 2 * std::numbers::pi;
+        while (angle >= full_turn)
+            angle -= full_turn;
+        while (angle < 0.0)
+            angle += full_turn;
+        return angle;
+    }
+
+    static double normalize_signed_angle(double angle) {
+        angle = normalize_positive_angle(angle);
+        if (angle > std::numbers::pi)
+            angle -= 2 * std::numbers::pi;
+        return angle;
+    }
+
     static constexpr double kInf = std::numeric_limits<double>::infinity();
     static constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
 
@@ -319,6 +357,8 @@ private:
 
     InputInterface<double> chassis_yaw_velocity_imu_;
     InputInterface<double> climbing_forward_velocity_;
+    InputInterface<bool> climbing_backward_;
+    bool last_climbing_active_ = false;
 
     InputInterface<bool> navigation_enable_control_;
     InputInterface<Eigen::Vector2d> navigation_command_velocity_;

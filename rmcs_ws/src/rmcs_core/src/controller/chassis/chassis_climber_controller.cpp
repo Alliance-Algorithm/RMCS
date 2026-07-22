@@ -1,4 +1,5 @@
 #include "controller/pid/matrix_pid_calculator.hpp"
+#include "rmcs_msgs/chassis_mode.hpp"
 #include "rmcs_msgs/keyboard.hpp"
 #include "rmcs_msgs/switch.hpp"
 #include <cmath>
@@ -9,6 +10,7 @@
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
+#include <std_msgs/msg/bool.hpp>
 
 namespace rmcs_core::controller::chassis {
 
@@ -25,6 +27,8 @@ double estimate_front_power(
                * (std::abs(left_torque * left_velocity) + std::abs(right_torque * right_velocity));
 }
 } // namespace
+
+using ChassisMode = rmcs_msgs::ChassisMode;
 
 enum class AutoClimbState { IDLE, ALIGN, APPROACH, SUPPORT_DEPLOY, DASH, SUPPORT_RETRACT };
 
@@ -119,6 +123,16 @@ public:
         front_power_limiter_ = create_partner_component<ChassisClimberFrontPowerLimiter>(
             get_component_name() + "_front_power_limiter", front_power_estimate_bias_,
             front_power_estimate_k_tau2_, front_power_estimate_k_mech_);
+
+        climb_trigger_sub_ = create_subscription<std_msgs::msg::Bool>(
+            "/rmcs_navigation/climb_trigger", 10,
+            [this](std_msgs::msg::Bool::ConstSharedPtr msg) {
+                if (msg->data && !last_climb_trigger_) nav_climb_trigger_pending_ = true;
+                if (!msg->data && last_climb_trigger_) nav_climb_abort_pending_ = true;
+                last_climb_trigger_ = msg->data;
+            });
+        auto_climb_success_pub_ = create_publisher<std_msgs::msg::Bool>(
+            "/chassis/climber/auto_climb_success", 10);
     }
 
     void update() override {
@@ -128,17 +142,28 @@ public:
         auto keyboard = *keyboard_;
         auto rotary_knob_switch = *rotary_knob_switch_;
 
-        bool rotary_knob_to_down =
-            (last_rotary_knob_switch_ != Switch::DOWN && rotary_knob_switch == Switch::DOWN);
-        bool rotary_knob_from_down =
-            (last_rotary_knob_switch_ == Switch::DOWN && rotary_knob_switch != Switch::DOWN);
+        bool rotary_knob_to_up =
+            (last_rotary_knob_switch_ != Switch::UP && rotary_knob_switch == Switch::UP);
+        bool rotary_knob_from_up =
+            (last_rotary_knob_switch_ == Switch::UP && rotary_knob_switch != Switch::UP);
 
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
             reset_all_controls();
         } else {
+            if (nav_climb_trigger_pending_ && auto_climb_state_ == AutoClimbState::IDLE) {
+                nav_climb_trigger_pending_ = false;
+                start_auto_climb("Navigation");
+            }
+            if (nav_climb_abort_pending_) {
+                nav_climb_abort_pending_ = false;
+                if (auto_climb_state_ != AutoClimbState::IDLE) {
+                    abort_auto_climb("navigation mode changed");
+                }
+            }
+
             handle_auto_climb_requests(
-                (!last_keyboard_.g && keyboard.g) || rotary_knob_to_down, rotary_knob_from_down,
+                (!last_keyboard_.g && keyboard.g) || rotary_knob_to_up, rotary_knob_from_up,
                 rotary_knob_switch);
 
             if (auto_climb_state_ != AutoClimbState::IDLE) {
@@ -259,12 +284,12 @@ private:
         if (start_requested) {
             if (auto_climb_state_ == AutoClimbState::IDLE) {
                 start_auto_climb(
-                    rotary_knob_switch == rmcs_msgs::Switch::UP ? "Rotary Knob" : "Keyboard G");
+                    rotary_knob_switch == rmcs_msgs::Switch::DOWN ? "Rotary Knob" : "Keyboard G");
             } else {
                 abort_auto_climb("toggled again");
             }
         } else if (abort_by_rotary && auto_climb_state_ != AutoClimbState::IDLE) {
-            abort_auto_climb("rotary knob left UP");
+            abort_auto_climb("rotary knob left DOWN");
         }
     }
 
@@ -274,6 +299,7 @@ private:
         auto_climb_stair_index_ = 0;
         auto_climb_align_stable_count_ = 0;
         auto_climb_support_block_count_ = 0;
+        publish_success(false);
         enter_auto_climb_state(AutoClimbState::ALIGN);
 
         RCLCPP_INFO(logger_, "Auto climb started by %s. Entering ALIGN.", source);
@@ -281,6 +307,7 @@ private:
 
     void abort_auto_climb(const char* reason) {
         stop_auto_climb();
+        publish_success(false);
         start_back_climber_retract("Auto climb exit");
         RCLCPP_INFO(logger_, "Auto climb aborted (%s).", reason);
     }
@@ -503,6 +530,7 @@ private:
             } else {
                 int finished_steps = auto_climb_stair_index_ + 1;
                 stop_auto_climb();
+                publish_success(true);
                 back_climber_zero_velocity_hold_ = true;
                 control.front_track_velocity = nan_;
                 control.back_climber_velocity = 0.0;
@@ -576,6 +604,7 @@ private:
         *climber_back_right_control_torque_ = nan_;
         *climbing_forward_velocity_ = nan_;
         *auto_climb_active_ = false;
+        publish_success(false);
         *front_power_budget_active_ = false;
         *front_power_demand_estimate_ = 0.0;
         stop_manual_support();
@@ -680,7 +709,7 @@ private:
     static constexpr int kAutoClimbDashMinTicks = 100;
     static constexpr int kAutoClimbDashTimeoutTicks = 3000;
     static constexpr int kAutoClimbSupportRetractConfirmTicks = 50;
-    static constexpr int kAutoClimbMaxStairs = 2;
+    static constexpr int kAutoClimbMaxStairs = 1;
     static constexpr int kManualSupportRetractConfirmTicks = 50;
 
     double sync_coefficient_;
@@ -740,6 +769,18 @@ private:
     InputInterface<double> support_arm_override_chassis_vx_;
     InputInterface<bool> support_arm_active_;
     bool last_support_arm_active_ = false;
+
+    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr climb_trigger_sub_;
+    rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr auto_climb_success_pub_;
+    bool nav_climb_trigger_pending_ = false;
+    bool nav_climb_abort_pending_ = false;
+    bool last_climb_trigger_ = false;
+
+    void publish_success(bool v) {
+        auto msg = std_msgs::msg::Bool();
+        msg.data = v;
+        auto_climb_success_pub_->publish(msg);
+    }
 
     rmcs_msgs::Switch last_rotary_knob_switch_ = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Keyboard last_keyboard_ = rmcs_msgs::Keyboard::zero();

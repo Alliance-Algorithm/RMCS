@@ -30,6 +30,7 @@ public:
         register_input("/chassis/power", chassis_power_);
         register_input("/chassis/supercap/voltage", supercap_voltage_);
         register_input("/chassis/supercap/enabled", supercap_enabled_);
+        register_input("/chassis/climbing_forward_velocity", climbing_forward_velocity_);
 
         register_input("/referee/chassis/power_limit", chassis_power_limit_referee_);
         register_input("/referee/chassis/buffer_energy", chassis_buffer_energy_referee_);
@@ -65,7 +66,8 @@ public:
 
         update_virtual_buffer_energy();
 
-        boost_mode_ = keyboard.shift || rotary_knob < -0.9;
+        boost_mode_ = keyboard.shift || rotary_knob < -0.9
+            || (rmcs_msgs::need_power(*mode_) && *climbing_forward_velocity_ > 0);
         update_control_power_limit();
     }
 
@@ -112,7 +114,7 @@ private:
 
         if (boost_mode_ && *supercap_enabled_)
             power_limit =
-                rmcs_msgs::is_powered(*mode_) ? inf_ : *chassis_power_limit_referee_ + 80.0;
+                rmcs_msgs::need_power(*mode_) ? inf_ : *chassis_power_limit_referee_ + 80.0;
         else
             power_limit = *chassis_power_limit_referee_;
         chassis_power_limit_expected_ = power_limit;
@@ -159,6 +161,8 @@ private:
 
     InputInterface<double> supercap_voltage_;
     InputInterface<bool> supercap_enabled_;
+
+    InputInterface<double> climbing_forward_velocity_;
 
     InputInterface<double> chassis_power_limit_referee_;
     InputInterface<double> chassis_buffer_energy_referee_;
