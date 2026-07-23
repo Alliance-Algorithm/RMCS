@@ -175,10 +175,10 @@ private:
             if (knob != last_rotary_knob_switch_) {
                 if (knob == Switch::UP) {
                     image_pitch_theta1_offset_ = 1.2;
-                    set_arm_mode(rmcs_msgs::ArmMode::Auto_Up_One_Stairs);
+                    set_arm_mode(rmcs_msgs::ArmMode::Auto_Up_Two_Stairs);
                 } else if (knob == Switch::DOWN) {
                     image_pitch_theta1_offset_ = 0.70;
-                    set_arm_mode(rmcs_msgs::ArmMode::Auto_Down_Stairs, false);
+                    set_arm_mode(rmcs_msgs::ArmMode::Auto_Down_Stairs,false);
                 }
             }
             if (keyboard.g && !last_keyboard_.g) {
@@ -250,6 +250,9 @@ private:
                     set_gripper_mode(rmcs_msgs::GripperMode::Close);
                 }
             }
+            if(keyboard.x&&!last_keyboard_.x){
+                set_gripper_mode(rmcs_msgs::GripperMode::Calibrate);
+            }
             if (keyboard.r && !last_keyboard_.r) {
                 image_pitch_theta1_offset_ = 0.32;
                 set_arm_mode(rmcs_msgs::ArmMode::Custome, false);
@@ -305,9 +308,6 @@ private:
                     {"delay", "delay", "up_two_stairs_initial"}));
                 break;
             case ArmMode::Calibration:
-                arm_action_machine_.process(action_dictionary_.helper_find_chunk("gripper_open"));
-                break;
-            case ArmMode::Test:
                 arm_action_machine_.process(action_dictionary_.helper_find_chunk("test"));
                 break;
             default: break;

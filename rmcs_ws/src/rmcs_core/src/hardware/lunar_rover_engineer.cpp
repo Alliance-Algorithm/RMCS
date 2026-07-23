@@ -12,6 +12,7 @@
 #include "hardware/ring_buffer.hpp"
 #include "librmcs/agent/rmcs_board_lite.hpp"
 #include "rmcs_msgs/relay_mode.hpp"
+#include <array>
 #include <algorithm>
 #include <bit>
 #include <bitset>
@@ -34,8 +35,105 @@
 #include <span>
 #include <std_msgs/msg/int32.hpp>
 #include <string>
+#include <string_view>
 
 namespace rmcs_core::hardware {
+
+class ReceiveMissingWatchdog {
+public:
+    enum class EndpointType {
+        kCan,
+        kUart,
+    };
+
+    struct Endpoint {
+        EndpointType type;
+        std::string_view channel_name;
+        std::string_view device_name;
+        std::uint32_t can_id{0};
+        bool received{false};
+    };
+
+    ReceiveMissingWatchdog(
+        rclcpp::Logger logger, std::string_view board_name, std::span<Endpoint> endpoints)
+        : logger_(logger)
+        , board_name_(board_name)
+        , endpoints_(endpoints) {}
+
+    void record_can(std::string_view channel_name, std::uint32_t can_id) {
+        if (auto* endpoint = find_can_endpoint(channel_name, can_id))
+            endpoint->received = true;
+    }
+
+    void record_uart(std::string_view channel_name) {
+        if (auto* endpoint = find_uart_endpoint(channel_name))
+            endpoint->received = true;
+    }
+
+    void tick() {
+        if (++update_count_ < kWarnIntervalUpdates)
+            return;
+
+        for (auto& endpoint : endpoints_) {
+            if (!endpoint.received) {
+                if (endpoint.type == EndpointType::kCan) {
+                    RCLCPP_WARN(
+                        logger_,
+                        "[rx watchdog] %.*s %.*s id %x (%.*s) missing",
+                        static_cast<int>(board_name_.size()),
+                        board_name_.data(),
+                        static_cast<int>(endpoint.channel_name.size()),
+                        endpoint.channel_name.data(),
+                        static_cast<unsigned int>(endpoint.can_id),
+                        static_cast<int>(endpoint.device_name.size()),
+                        endpoint.device_name.data());
+                } else {
+                    RCLCPP_WARN(
+                        logger_,
+                        "[rx watchdog] %.*s %.*s (%.*s) missing",
+                        static_cast<int>(board_name_.size()),
+                        board_name_.data(),
+                        static_cast<int>(endpoint.channel_name.size()),
+                        endpoint.channel_name.data(),
+                        static_cast<int>(endpoint.device_name.size()),
+                        endpoint.device_name.data());
+                }
+            }
+            endpoint.received = false;
+        }
+
+        update_count_ = 0;
+    }
+
+private:
+    [[nodiscard]] auto find_can_endpoint(std::string_view channel_name, std::uint32_t can_id)
+        -> Endpoint* {
+        const auto it = std::find_if(
+            endpoints_.begin(), endpoints_.end(),
+            [channel_name, can_id](const Endpoint& endpoint) {
+                return endpoint.type == EndpointType::kCan
+                    && endpoint.channel_name == channel_name
+                    && endpoint.can_id == can_id;
+            });
+        return it == endpoints_.end() ? nullptr : &*it;
+    }
+
+    [[nodiscard]] auto find_uart_endpoint(std::string_view channel_name) -> Endpoint* {
+        const auto it = std::find_if(
+            endpoints_.begin(), endpoints_.end(), [channel_name](const Endpoint& endpoint) {
+                return endpoint.type == EndpointType::kUart
+                    && endpoint.channel_name == channel_name;
+            });
+        return it == endpoints_.end() ? nullptr : &*it;
+    }
+
+    static constexpr std::size_t kWarnIntervalUpdates{250};
+
+    rclcpp::Logger logger_;
+    std::string_view board_name_;
+    std::span<Endpoint> endpoints_;
+    std::size_t update_count_{0};
+};
 
 class LunarRoverEngineer
     : public rmcs_executor::Component
@@ -101,6 +199,9 @@ private:
             , joint2_encoder(engineer, "/arm/joint_2/encoder")
             , dr16_()
             , bmi088_(1000, 0.2, 0)
+            , receive_watchdog_(
+                  engineer.get_logger(), "arm_board",
+                  std::span<ReceiveMissingWatchdog::Endpoint>{receive_watchdog_entries_})
 
         {
             engineer.register_output("yaw_imu_velocity", yaw_imu_velocity, NAN);
@@ -185,6 +286,7 @@ private:
             update_arm_motors();
             dr16_.update_status();
             update_imu();
+            receive_watchdog_.tick();
         }
         void command() {
             if (*gripper_calibration_done_signal_ && !last_gripper_calibration_done_signal)
@@ -245,6 +347,126 @@ private:
             }
 
             even_phase = !even_phase;
+
+            // static int i{0};
+            // auto tx = start_transmit();
+            // if (i == 8)
+            //     i = 0;
+            // if (i == 0) {
+            //     tx.can1_transmit({
+            //         .can_id   = 0x148,
+            //         .can_data = image_pitch.generate_torque_command().as_bytes(),
+            //     });
+            //     tx.can1_transmit({
+            //         .can_id   = 0x143,
+            //         .can_data = joint[2].generate_torque_command().as_bytes(),
+            //     });
+            //     tx.can1_transmit({
+            //         .can_id   = 0x141,
+            //         .can_data = joint[0].generate_torque_command().as_bytes(),
+            //     });
+            // } else if (i == 1) {
+
+            //     tx.can2_transmit({
+            //         .can_id   = 0x147,
+            //         .can_data = gripper.generate_torque_command().as_bytes(),
+            //     });
+            //     tx.can2_transmit({
+            //         .can_id   = 0x141,
+            //         .can_data = joint[5].generate_torque_command().as_bytes(),
+            //     });
+            //     tx.can2_transmit({
+            //         .can_id   = 0x145,
+            //         .can_data = joint[4].generate_torque_command().as_bytes(),
+            //     });
+            // } else if (i == 2) {
+
+            //     tx.can1_transmit({
+            //         .can_id   = 0x143,
+            //         .can_data = joint[2].generate_torque_command().as_bytes(),
+            //     });
+            //     tx.can1_transmit({
+            //         .can_id   = 0x141,
+            //         .can_data = joint[0].generate_torque_command().as_bytes(),
+            //     });
+
+            //     tx.can1_transmit({
+            //         .can_id   = 0x142,
+            //         .can_data = joint[1].generate_torque_command().as_bytes(),
+            //     });
+            // } else if (i == 3) {
+            //     tx.can2_transmit({
+            //         .can_id   = 0x141,
+            //         .can_data = joint[5].generate_torque_command().as_bytes(),
+            //     });
+
+            //     tx.can2_transmit({
+            //         .can_id   = 0x145,
+            //         .can_data = joint[4].generate_torque_command().as_bytes(),
+            //     });
+
+            //     tx.can2_transmit({
+            //         .can_id   = 0x144,
+            //         .can_data = joint[3].generate_torque_command().as_bytes(),
+            //     });
+            // } else if (i == 4) {
+            //     tx.can1_transmit({
+            //         .can_id   = 0x141,
+            //         .can_data = joint[0].generate_torque_command().as_bytes(),
+            //     });
+
+            //     tx.can1_transmit({
+            //         .can_id   = 0x142,
+            //         .can_data = joint[1].generate_torque_command().as_bytes(),
+            //     });
+            //     tx.can1_transmit({
+            //         .can_id   = 0x148,
+            //         .can_data = image_pitch.generate_torque_command().as_bytes(),
+            //     });
+            // } else if (i == 5) {
+            //     tx.can2_transmit({
+            //         .can_id   = 0x145,
+            //         .can_data = joint[4].generate_torque_command().as_bytes(),
+            //     });
+
+            //     tx.can2_transmit({
+            //         .can_id   = 0x144,
+            //         .can_data = joint[3].generate_torque_command().as_bytes(),
+            //     });
+            //     tx.can2_transmit({
+            //         .can_id   = 0x147,
+            //         .can_data = gripper.generate_torque_command().as_bytes(),
+            //     });
+            // } else if (i == 6) {
+            //     tx.can1_transmit({
+            //         .can_id   = 0x142,
+            //         .can_data = joint[1].generate_torque_command().as_bytes(),
+            //     });
+            //     tx.can1_transmit({
+            //         .can_id   = 0x148,
+            //         .can_data = image_pitch.generate_torque_command().as_bytes(),
+            //     });
+
+            //     tx.can1_transmit({
+            //         .can_id   = 0x143,
+            //         .can_data = joint[2].generate_torque_command().as_bytes(),
+            //     });
+            // } else if (i == 7) {
+            //     tx.can2_transmit({
+            //         .can_id   = 0x144,
+            //         .can_data = joint[3].generate_torque_command().as_bytes(),
+            //     });
+            //     tx.can2_transmit({
+            //         .can_id   = 0x147,
+            //         .can_data = gripper.generate_torque_command().as_bytes(),
+            //     });
+
+            //     tx.can2_transmit({
+            //         .can_id   = 0x141,
+            //         .can_data = joint[5].generate_torque_command().as_bytes(),
+            //     });
+            // }
+            // i++;
         }
 
         void update_arm_motors() {
@@ -282,6 +504,7 @@ private:
             if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
                 [[unlikely]]
                 return;
+            receive_watchdog_.record_can("can2", data.can_id);
             if (data.can_id == 0x141) {
                 // RCLCPP_INFO(this->get_logger(), "joint6 %d",joint[5].get_raw_angle());
                 joint[5].store_status(data.can_data);
@@ -301,6 +524,7 @@ private:
                 [[unlikely]]
                 return;
 
+            receive_watchdog_.record_can("can1", data.can_id);
             if (data.can_id == 0x143) {
                 // RCLCPP_INFO(this->get_logger(), "joint3 %d",joint[2].get_raw_angle());
                 joint[2].store_status(data.can_data);
@@ -314,12 +538,13 @@ private:
                 //  RCLCPP_INFO(this->get_logger(), "joint2 ecd %d",joint2_encoder.get_raw_angle());
                 joint2_encoder.store_status(data.can_data);
             } else if (data.can_id == 0x148) {
-                //  RCLCPP_INFO(this->get_logger(), "image %d",image_pitch.get_raw_angle());
+                //   RCLCPP_INFO(this->get_logger(), "image %d",image_pitch.get_raw_angle());
                 image_pitch.store_status(data.can_data);
             };
         }
 
         void dbus_receive_callback(const librmcs::data::UartDataView& data) override {
+            receive_watchdog_.record_uart("dbus");
             dr16_.store_status(data.uart_data);
         }
 
@@ -348,6 +573,19 @@ private:
         InputInterface<bool> gripper_calibration_done_signal_;
         bool last_gripper_calibration_done_signal{false};
         device::Bmi088 bmi088_;
+        std::array<ReceiveMissingWatchdog::Endpoint, 10> receive_watchdog_entries_{{
+            {ReceiveMissingWatchdog::EndpointType::kCan, "can2", "/arm/joint_6/motor", 0x141},
+            {ReceiveMissingWatchdog::EndpointType::kCan, "can2", "/arm/joint_5/motor", 0x145},
+            {ReceiveMissingWatchdog::EndpointType::kCan, "can2", "/arm/joint_4/motor", 0x144},
+            {ReceiveMissingWatchdog::EndpointType::kCan, "can2", "/arm/gripper/motor", 0x147},
+            {ReceiveMissingWatchdog::EndpointType::kCan, "can1", "/arm/joint_3/motor", 0x143},
+            {ReceiveMissingWatchdog::EndpointType::kCan, "can1", "/arm/joint_2/motor", 0x142},
+            {ReceiveMissingWatchdog::EndpointType::kCan, "can1", "/arm/joint_1/motor", 0x141},
+            {ReceiveMissingWatchdog::EndpointType::kCan, "can1", "/arm/joint_2/encoder", 0x200},
+            {ReceiveMissingWatchdog::EndpointType::kCan, "can1", "/arm/image_pitch/motor", 0x148},
+            {ReceiveMissingWatchdog::EndpointType::kUart, "dbus", "/remote_control/dr16"},
+        }};
+        ReceiveMissingWatchdog receive_watchdog_;
 
     } armboard_;
 
@@ -370,7 +608,11 @@ private:
             , Omni_Motors(engineer, engineer_command, "/leg/omni/l")
             , Leg_Motor_lf(engineer, engineer_command, "/leg/joint/lf")
             , Leg_Motor_lb(engineer, engineer_command, "/leg/joint/lb")
-            , Leg_ecd_lb(engineer, "/leg/encoder/lb") {
+            , Leg_ecd_lb(engineer, "/leg/encoder/lb")
+            , power_meter(engineer, "/steering/power_meter")
+            , receive_watchdog_(
+                  engineer.get_logger(), "left_board",
+                  std::span<ReceiveMissingWatchdog::Endpoint>{receive_watchdog_entries_}) {
             Steering_motors[0].configure(
                 device::DjiMotorConfig{device::DjiMotorType::GM6020}
                     .reverse()
@@ -466,8 +708,10 @@ private:
             Leg_Motor_lf.update();
             Leg_Motor_lb.update();
             Leg_ecd_lb.update();
+            power_meter.update();
             *leg_joint_lb_control_theta_error =
                 rmcs_utility::normalize_angle(*leg_lb_target_theta_ - Leg_ecd_lb.get_angle());
+            receive_watchdog_.tick();
         }
         void command() {
 
@@ -532,8 +776,9 @@ private:
             if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
                 [[unlikely]]
                 return;
+            receive_watchdog_.record_can("can0", data.can_id);
             if (data.can_id == 0x141) {
-                RCLCPP_INFO(this->get_logger(), "lf_leg_motor : %f", Leg_Motor_lf.get_angle());
+                // RCLCPP_INFO(this->get_logger(), "lf_leg_motor : %f", Leg_Motor_lf.get_angle());
                 Leg_Motor_lf.store_status(data.can_data);
             }
         }
@@ -542,19 +787,22 @@ private:
             if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
                 [[unlikely]]
                 return;
-            //   RCLCPP_INFO(this->get_logger(),"left can1 %x",data.can_id);
+            receive_watchdog_.record_can("can1", data.can_id);
             if (data.can_id == 0x207) {
                 Steering_motors[0].store_status(data.can_data);
             } else if (data.can_id == 0x201) {
                 Wheel_motors[0].store_status(data.can_data);
             } else if (data.can_id == 0x203) {
                 Omni_Motors.store_status(data.can_data);
+            } else if (data.can_id == 0x100) {
+                power_meter.store_status(data.can_data);
             }
         }
         void can2_receive_callback(const librmcs::data::CanDataView& data) override {
             if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
                 [[unlikely]]
                 return;
+            receive_watchdog_.record_can("can2", data.can_id);
             //  RCLCPP_INFO(this->get_logger(), "can2 %x", data.can_id);
             if (data.can_id == 0x208) {
                 Steering_motors[1].store_status(data.can_data);
@@ -564,7 +812,7 @@ private:
                 Leg_Motor_lb.store_status(data.can_data);
             } else if (data.can_id == 0x319) {
                 Leg_ecd_lb.store_status(data.can_data);
-                RCLCPP_INFO(this->get_logger(), "lb angle:%f", Leg_ecd_lb.get_angle());
+                // RCLCPP_INFO(this->get_logger(), "lb angle:%f", Leg_ecd_lb.get_angle());
             }
         }
 
@@ -575,6 +823,19 @@ private:
         device::LKMotor Leg_Motor_lf;
         device::DjiMotor Leg_Motor_lb;
         device::Encoder Leg_ecd_lb;
+        device::PowerMeter power_meter;
+        std::array<ReceiveMissingWatchdog::Endpoint, 9> receive_watchdog_entries_{{
+            {ReceiveMissingWatchdog::EndpointType::kCan, "can0", "/leg/joint/lf", 0x141},
+            {ReceiveMissingWatchdog::EndpointType::kCan, "can1", "/steering/steering/lf", 0x207},
+            {ReceiveMissingWatchdog::EndpointType::kCan, "can1", "/steering/wheel/lf", 0x201},
+            {ReceiveMissingWatchdog::EndpointType::kCan, "can1", "/leg/omni/l", 0x203},
+            {ReceiveMissingWatchdog::EndpointType::kCan, "can1", "/steering/power_meter", 0x100},
+            {ReceiveMissingWatchdog::EndpointType::kCan, "can2", "/steering/steering/lb", 0x208},
+            {ReceiveMissingWatchdog::EndpointType::kCan, "can2", "/steering/wheel/lb", 0x201},
+            {ReceiveMissingWatchdog::EndpointType::kCan, "can2", "/leg/joint/lb", 0x202},
+            {ReceiveMissingWatchdog::EndpointType::kCan, "can2", "/leg/encoder/lb", 0x319},
+        }};
+        ReceiveMissingWatchdog receive_watchdog_;
 
         InputInterface<double> leg_lb_target_theta_;
         OutputInterface<double> leg_joint_lb_control_theta_error;
@@ -603,7 +864,9 @@ private:
             , Leg_Motor_rf(engineer, engineer_command, "/leg/joint/rf")
             , Leg_ecd_rb(engineer, "/leg/encoder/rb")
             , big_yaw(engineer, engineer_command, "/chassis/big_yaw")
-            , power_meter(engineer, "/steering/power_meter") {
+            , receive_watchdog_(
+                  engineer.get_logger(), "right_board",
+                  std::span<ReceiveMissingWatchdog::Endpoint>{receive_watchdog_entries_}) {
             Steering_motors[0].configure(
                 device::DjiMotorConfig{device::DjiMotorType::GM6020}
                     .reverse()
@@ -706,10 +969,10 @@ private:
             Leg_Motor_rb.update();
             Leg_ecd_rb.update();
             big_yaw.update();
-            power_meter.update();
             tof.update();
             *leg_joint_rb_control_theta_error =
                 rmcs_utility::normalize_angle(*leg_rb_target_theta_ - Leg_ecd_rb.get_angle());
+            receive_watchdog_.tick();
         }
 
         void command() {
@@ -790,16 +1053,17 @@ private:
             if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
                 [[unlikely]]
                 return;
+            receive_watchdog_.record_can("can0", data.can_id);
             if (data.can_id == 0x141) {
                 Leg_Motor_rf.store_status(data.can_data);
-                RCLCPP_INFO(this->get_logger(), "rf_leg_motor: %f", Leg_Motor_rf.get_angle());
+                // RCLCPP_INFO(this->get_logger(), "rf_leg_motor: %f", Leg_Motor_rf.get_angle());
             }
         }
         void can1_receive_callback(const librmcs::data::CanDataView& data) override {
             if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
                 [[unlikely]]
                 return;
-            //  RCLCPP_INFO(this->get_logger(),"right can1 %x",data.can_id);
+            receive_watchdog_.record_can("can1", data.can_id);
             if (data.can_id == 0x201) {
                 Wheel_motors[1].store_status(data.can_data);
             } else if (data.can_id == 0x203) {
@@ -812,7 +1076,7 @@ private:
             if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
                 [[unlikely]]
                 return;
-            //  RCLCPP_INFO(this->get_logger(),"can2 %x",data.can_id);
+            receive_watchdog_.record_can("can2", data.can_id);
             if (data.can_id == 0x201) {
                 Wheel_motors[0].store_status(data.can_data);
             } else if (data.can_id == 0x202) {
@@ -824,20 +1088,13 @@ private:
                 big_yaw.store_status(data.can_data);
             } else if (data.can_id == 0x322) {
                 Leg_ecd_rb.store_status(data.can_data);
-                RCLCPP_INFO(this->get_logger(), "rb angle:%f", Leg_ecd_rb.get_angle());
-            }
-        }
-        void can3_receive_callback(const librmcs::data::CanDataView& data) override {
-            if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
-                [[unlikely]]
-                return;
-            if (data.can_id == 0x100) {
-                power_meter.store_status(data.can_data);
+                // RCLCPP_INFO(this->get_logger(), "rb angle:%f", Leg_ecd_rb.get_angle());
             }
         }
 
     private:
         void uart1_receive_callback(const librmcs::data::UartDataView& data) override {
+            receive_watchdog_.record_uart("uart1");
             auto* uart_data = data.uart_data.data();
             ring_buff.emplace_back_multi(
                 [uart_data](std::byte* storage) mutable { *storage = *uart_data++; },
@@ -864,7 +1121,19 @@ private:
         device::LKMotor Leg_Motor_rf;
         device::Encoder Leg_ecd_rb;
         device::DMMotor big_yaw;
-        device::PowerMeter power_meter;
+        std::array<ReceiveMissingWatchdog::Endpoint, 10> receive_watchdog_entries_{{
+            {ReceiveMissingWatchdog::EndpointType::kCan, "can0", "/leg/joint/rf", 0x141},
+            {ReceiveMissingWatchdog::EndpointType::kCan, "can1", "/steering/wheel/rf", 0x201},
+            {ReceiveMissingWatchdog::EndpointType::kCan, "can1", "/leg/omni/r", 0x203},
+            {ReceiveMissingWatchdog::EndpointType::kCan, "can1", "/steering/steering/rf", 0x206},
+            {ReceiveMissingWatchdog::EndpointType::kCan, "can2", "/steering/wheel/rb", 0x201},
+            {ReceiveMissingWatchdog::EndpointType::kCan, "can2", "/leg/joint/rb", 0x202},
+            {ReceiveMissingWatchdog::EndpointType::kCan, "can2", "/steering/steering/rb", 0x205},
+            {ReceiveMissingWatchdog::EndpointType::kCan, "can2", "/chassis/big_yaw", 0x033},
+            {ReceiveMissingWatchdog::EndpointType::kCan, "can2", "/leg/encoder/rb", 0x322},
+            {ReceiveMissingWatchdog::EndpointType::kUart, "uart1", "/leg/tof"},
+        }};
+        ReceiveMissingWatchdog receive_watchdog_;
         InputInterface<double> leg_rb_target_theta_;
         InputInterface<bool> is_arm_enable;
         OutputInterface<double> leg_joint_rb_control_theta_error;

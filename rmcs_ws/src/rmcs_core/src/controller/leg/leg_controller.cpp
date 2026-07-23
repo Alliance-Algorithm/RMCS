@@ -121,7 +121,7 @@ public:
                     six_wheel_angle[0], six_wheel_angle[1], six_wheel_angle[1], six_wheel_angle[0]})
             .set_total_step(500);
         down_stairs_trajectory
-            .set_end_point(std::vector<double>{1.109164, 1.55792, 1.55792, 1.109164})
+            .set_end_point(std::vector<double>{1.409164, 1.55792, 1.55792, 1.409164})
             .set_total_step(800);
 
         up_stairs[0].set_layer_connections("initial", [this]() {
@@ -350,18 +350,18 @@ private:
         *leg_rb_target_theta = rb;
 
         if (leg_mode == rmcs_msgs::LegMode::Down_Stairs) {
-            lf_angle_pid_controller_.kp    = 260.0;
+            lf_angle_pid_controller_.kp    = 1000.0;
             lf_angle_pid_controller_.ki    = 0.0;
-            lf_angle_pid_controller_.kd    = 3.0;
-            rf_angle_pid_controller_.kp    = 260.0;
+            lf_angle_pid_controller_.kd    = 8.0;
+            rf_angle_pid_controller_.kp    = 1200.0;
             rf_angle_pid_controller_.ki    = 0.0;
-            rf_angle_pid_controller_.kd    = 3.0;
-            lf_velocity_pid_controller_.kp = 0.6;
+            rf_angle_pid_controller_.kd    = 8.8;
+            lf_velocity_pid_controller_.kp = 1.48;
             lf_velocity_pid_controller_.ki = 0.0;
-            lf_velocity_pid_controller_.kd = 0.0;
-            rf_velocity_pid_controller_.kp = 0.6;
+            lf_velocity_pid_controller_.kd = 0.6;
+            rf_velocity_pid_controller_.kp = 1.88;
             rf_velocity_pid_controller_.ki = 0.0;
-            rf_velocity_pid_controller_.kd = 0.0;
+            rf_velocity_pid_controller_.kd = 0.8;
         } else {
             lf_angle_pid_controller_.kp    = lf_angle_pid_[0];
             lf_angle_pid_controller_.ki    = lf_angle_pid_[1];

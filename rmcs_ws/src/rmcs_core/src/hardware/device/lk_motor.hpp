@@ -177,7 +177,7 @@ public:
             torque_constant = 0.1 * 36.0;
             rated_current   = 4.4;
             rated_torque    = 13.0;
-            max_torque      = 62.0;
+            max_torque      = 67.0;
             LSB             = 648000;
             break;
         case LKMotorType::MHF6015:

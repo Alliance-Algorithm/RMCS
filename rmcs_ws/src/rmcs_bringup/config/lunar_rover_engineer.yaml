@@ -50,9 +50,9 @@ engineer_hardware:
     steering_rb_zero_point: 0
     steering_rf_zero_point: 4096
     leg_lf_motor_zero_point: 7950
-    leg_lb_ecd_zero_point: 154149
-    leg_rb_ecd_zero_point: 220758
-    leg_rf_motor_zero_point: 45800
+    leg_lb_ecd_zero_point: 153149
+    leg_rb_ecd_zero_point: 221758
+    leg_rf_motor_zero_point: 46800
     big_yaw_zero_point: 41263
 
 image_transmission:
@@ -95,13 +95,13 @@ leg_controller:
         lift: [1.016670, 1.150821, -400.0, 100.0]
     up_two_stairs:
       params:
-        initial: [1.600270, 1.550, 0.0, 2000.0]
-        press: [0.972736, 0.493103, -600.0, 250.0]
-        wait : [0.972736,0.493103, 0.0, 300.0]
-        lift: [1.016670, 1.150821, -400.0, 30.0]
+        initial: [1.90070, 1.65, 0.0, 2000.0]
+        press: [0.34, 0.51, -500.0, 300.0]
+        wait : [0.34,0.51, 0.0, 300.0]
+        lift: [1.016670, 1.150821, -400.0, 100.0]
         # lift_and_initial: [1.400270, 1.410, -100.0, 1000.0]
-        initial_again: [1.600270, 1.550, -300.0, 300.0]
-        press_again: [0.802736, 0.693103, -500.0, 300.0]
+        initial_again: [1.90070, 1.65, -300.0, 400.0]
+        press_again: [0.34, 0.51, -500.0, 300.0]
         lift_again: [0.956670, 1.350821, -200.0, 50.0] 
 
 

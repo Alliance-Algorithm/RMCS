@@ -192,6 +192,9 @@ private:
                     chassis_mode_ = rmcs_msgs::ChassisMode::Flow;
                     break;
                 case rmcs_msgs::ArmMode::Auto_Up_One_Stairs:
+                    set_speed_gear(SpeedGear::High);
+                    chassis_mode_ = rmcs_msgs::ChassisMode::Yaw_Free;
+                    break;
                 case rmcs_msgs::ArmMode::Auto_Up_Two_Stairs:
                 case rmcs_msgs::ArmMode::Auto_Down_Stairs:
                     set_speed_gear(SpeedGear::Stairs);
@@ -214,7 +217,7 @@ private:
         switch (gear) {
         case SpeedGear::Medium: *speed_limit_ = 2.0; break;
         case SpeedGear::Low: *speed_limit_ = 0.8; break;
-        case SpeedGear::Stairs: *speed_limit_ = 3.0; break;
+        case SpeedGear::Stairs: *speed_limit_ = 2.5; break;
         case SpeedGear::High:
         default: *speed_limit_ = 3.0; break;
         }
