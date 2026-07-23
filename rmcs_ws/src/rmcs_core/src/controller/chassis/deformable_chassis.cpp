@@ -30,7 +30,6 @@ public:
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , following_velocity_controller_(10.0, 0.0, 0.0)
-        , spin_ratio_(std::clamp(get_parameter_or("spin_ratio", 0.6), 0.0, 1.0))
         , wireless_charging_offset_rad_(
               deg_to_rad(get_parameter_or("wireless_charging_offset_deg", 135.0)))
         , joint_mode_mgr_(*this) {
@@ -191,7 +190,7 @@ private:
         case rmcs_msgs::ChassisMode::SPIN_FAST: {
             bool forward = joint_mode_mgr_.spinning_forward();
             angular_velocity =
-                spin_ratio_ * (forward ? angular_velocity_max_ : -angular_velocity_max_);
+                forward ? angular_velocity_max_ : -angular_velocity_max_;
             angular_velocity =
                 std::clamp(angular_velocity, -angular_velocity_max_, angular_velocity_max_);
         } break;
@@ -302,7 +301,6 @@ private:
     std::array<OutputInterface<double>, kJointCount> joint_posture_target_angle_rad_;
 
     pid::PidCalculator following_velocity_controller_;
-    const double spin_ratio_;
     const double wireless_charging_offset_rad_;
 
     DeformableChassisModeManager joint_mode_mgr_;

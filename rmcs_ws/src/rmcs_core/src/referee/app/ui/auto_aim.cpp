@@ -29,6 +29,7 @@ public:
             get_parameter_or("offset_y", 0.),
             get_parameter_or("offset_z", 0.),
         };
+        warn_distance_m_ = get_parameter_or("warn_distance_m", 0.);
 
         // What's the point of an auto-aim UI if it doesn't have auto-aim?
         register_input("/tf", tf_, true);
@@ -142,6 +143,7 @@ private:
     static constexpr double kP2 = +0.0003937540;
 
     Eigen::Vector3d offset_ = Eigen::Vector3d::Zero();
+    double warn_distance_m_ = 0.;
 
     InputInterface<Tf> tf_;
     InputInterface<Eigen::Vector3d> robot_center_;
@@ -177,6 +179,10 @@ private:
         else
             std::format_to(std::ranges::begin(text), "{} | NONE\0", type);
 
+        const bool warn =
+            distance.has_value() && !*single_shoot_ && *distance < warn_distance_m_;
+        target_distance_indicator_.set_color(
+            warn ? Shape::Color::BLACK : Shape::Color::GREEN);
         target_distance_indicator_.set_value(text.data());
         target_distance_indicator_.set_visible(true);
     }

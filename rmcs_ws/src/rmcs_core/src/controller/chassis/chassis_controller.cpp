@@ -236,6 +236,22 @@ public:
 
             angular_velocity = following_velocity_controller_.update(err);
         } break;
+        case ChassisMode::WIRELESS_CHARGING: {
+            constexpr double offset = std::numbers::pi / 4;
+            double err = calculate_unsigned_chassis_angle_error(chassis_control_angle);
+
+            chassis_control_angle += offset;
+            if (chassis_control_angle >= 2 * std::numbers::pi)
+                chassis_control_angle -= 2 * std::numbers::pi;
+
+            err += offset;
+            if (err >= 2 * std::numbers::pi)
+                err -= 2 * std::numbers::pi;
+            if (err > std::numbers::pi)
+                err -= 2 * std::numbers::pi;
+
+            angular_velocity = following_velocity_controller_.update(err);
+        } break;
         }
 
         *chassis_angle_ = 2 * std::numbers::pi - *gimbal_yaw_angle_;

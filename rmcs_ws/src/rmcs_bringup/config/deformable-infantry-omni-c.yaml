@@ -95,6 +95,12 @@ auto_aim_ui:
     offset_x: 0.0
     offset_y: +0.08
     offset_z: 0.0
+    warn_distance_m: 2.0
+
+referee_ui_infantry:
+  ros__parameters:
+    crosshair_offset_x: -2
+    crosshair_offset_y: -30
 
 deformable_infantry:
   ros__parameters:
@@ -114,7 +120,6 @@ chassis_controller:
     min_angle: 4.0
     max_angle: 59.0
     active_suspension_enable: true
-    spin_ratio: 1.0
     wireless_charging_offset_deg: 135.0
 
 deformable_suspension:
@@ -170,7 +175,7 @@ gimbal_controller:
     lower_limit: 0.10 # 8 deg
     ctrl_hold_pitch_target_angle: 0.0
 
-    yaw_angle_kp: 15.0
+    yaw_angle_kp: 10.0
     yaw_angle_ki: 0.0
     yaw_angle_kd: 0.0
 

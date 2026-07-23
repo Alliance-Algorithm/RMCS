@@ -1,6 +1,5 @@
 #include <algorithm>
 #include <array>
-#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <numbers>
@@ -10,17 +9,14 @@
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/chassis_mode.hpp>
 #include <rmcs_msgs/game_stage.hpp>
-#include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/mouse.hpp>
 
 #include "referee/app/ui/shape/shape.hpp"
-#include "referee/app/ui/widget/animated_toggle.hpp"
 #include "referee/app/ui/widget/crosshair_circle.hpp"
 #include "referee/app/ui/widget/deformable_chassis_top_view.hpp"
 #include "referee/app/ui/widget/status_ring.hpp"
 
 namespace rmcs_core::referee::app::ui {
-using namespace std::chrono_literals;
 
 class DeformableInfantry
     : public rmcs_executor::Component
@@ -30,7 +26,7 @@ public:
         : Node{
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
-        , crosshair_circle_(Shape::Color::WHITE, x_center - 2, y_center - 30, 8, 2)
+        , crosshair_circle_(Shape::Color::WHITE, x_center, y_center, 8, 2)
         , status_ring_(24.0, 26.5, 600, 300)
         , horizontal_center_guidelines_(
               {Shape::Color::WHITE, 2, x_center - 360, y_center, x_center - 110, y_center},
@@ -38,10 +34,14 @@ public:
         , vertical_center_guidelines_(
               {Shape::Color::WHITE, 2, x_center, 800, x_center, y_center + 110},
               {Shape::Color::WHITE, 2, x_center, y_center - 110, x_center, 200})
+        , body_reference_guidelines_(
+              {Shape::Color::WHITE, 2, 480, 0, x_center - 150, y_center - 150},
+              {Shape::Color::WHITE, 2, screen_width - 380, 0, x_center + 150, y_center - 150})
         , friction_wheel_speed_indicator_(
               Shape::Color::PINK, friction_wheel_speed_indicator_font_size_, 2, 0,
               friction_wheel_speed_indicator_y(), 0)
         , chassis_direction_indicator_(Shape::Color::PINK, 8, x_center, y_center, 0, 0, 84, 84)
+        
         , time_reminder_(Shape::Color::PINK, 50, 5, x_center + 150, y_center + 65, 0, false) {
 
         double deformable_leg_min_angle_deg = 8.0;
@@ -55,7 +55,15 @@ public:
         deformable_chassis_leg_arcs_.set_angle_range(
             deformable_leg_min_angle_deg, deformable_leg_max_angle_deg);
 
-        register_input("/predefined/timestamp", timestamp_);
+        int crosshair_offset_x = -2;
+        int crosshair_offset_y = -30;
+        get_parameter_or("crosshair_offset_x", crosshair_offset_x, crosshair_offset_x);
+        get_parameter_or("crosshair_offset_y", crosshair_offset_y, crosshair_offset_y);
+        crosshair_circle_.set_x(static_cast<uint16_t>(
+            static_cast<int>(x_center) + crosshair_offset_x));
+        crosshair_circle_.set_y(static_cast<uint16_t>(
+            static_cast<int>(y_center) + crosshair_offset_y));
+
         register_input("/chassis/control_mode", chassis_mode_);
         register_input("/chassis/active_suspension/active", active_suspension_active_);
 
@@ -79,21 +87,15 @@ public:
         register_input("/gimbal/right_friction/velocity", right_friction_velocity_);
 
         register_input("/remote/mouse", mouse_);
-        register_input("/remote/keyboard", keyboard_);
 
         register_input("/referee/game/stage", game_stage_);
 
         friction_wheel_speed_indicator_.set_center_x(friction_wheel_speed_indicator_center_x());
-
-        crosshair_base_x_ = crosshair_circle_.x();
-        crosshair_base_y_ = crosshair_circle_.y();
-        ctrl_transition_.reset(false);
     }
 
     void update() override {
         update_chassis_direction_indicator();
         update_deformable_chassis_leg_arcs();
-        update_ctrl_ui();
 
         status_ring_.update_bullet_allowance(*robot_bullet_allowance_);
         const double friction_wheel_speed =
@@ -116,18 +118,6 @@ public:
     }
 
 private:
-    void update_ctrl_ui() {
-        const bool ctrl_active = keyboard_.ready() && keyboard_->ctrl;
-        const double reveal = ctrl_transition_.update(*timestamp_, ctrl_active);
-
-        crosshair_circle_.set_x(
-            static_cast<uint16_t>(
-                std::lround(static_cast<double>(crosshair_base_x_) + 45.0 * reveal)));
-        crosshair_circle_.set_y(
-            static_cast<uint16_t>(
-                std::lround(static_cast<double>(crosshair_base_y_) + 20.0 * reveal)));
-    }
-
     void update_time_reminder() {
         if (!game_stage_.ready())
             return;
@@ -190,7 +180,6 @@ private:
             - static_cast<double>(friction_wheel_speed_indicator_font_size_) / 2.0));
     }
 
-    InputInterface<std::chrono::steady_clock::time_point> timestamp_;
     InputInterface<rmcs_msgs::ChassisMode> chassis_mode_;
     InputInterface<bool> active_suspension_active_;
     InputInterface<double> chassis_angle_;
@@ -218,7 +207,6 @@ private:
     InputInterface<double> right_friction_velocity_;
 
     InputInterface<rmcs_msgs::Mouse> mouse_;
-    InputInterface<rmcs_msgs::Keyboard> keyboard_;
 
     InputInterface<rmcs_msgs::GameStage> game_stage_;
 
@@ -227,14 +215,11 @@ private:
 
     Line horizontal_center_guidelines_[2];
     Line vertical_center_guidelines_[2];
+    Line body_reference_guidelines_[2];
     Integer friction_wheel_speed_indicator_;
 
     Arc chassis_direction_indicator_;
     DeformableChassisLegArcs deformable_chassis_leg_arcs_;
-
-    AnimatedToggle ctrl_transition_{};
-    uint16_t crosshair_base_x_ = 0;
-    uint16_t crosshair_base_y_ = 0;
 
     Integer time_reminder_;
 };

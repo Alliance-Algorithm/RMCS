@@ -215,6 +215,15 @@ public:
 
             angular_velocity = following_velocity_controller_.update(err);
         } break;
+        case rmcs_msgs::ChassisMode::WIRELESS_CHARGING: {
+            constexpr double offset = std::numbers::pi / 4;
+            double err = calculate_unsigned_chassis_angle_error(chassis_control_angle);
+
+            chassis_control_angle = normalize_positive_angle(chassis_control_angle + offset);
+            err = normalize_signed_angle(err + offset);
+
+            angular_velocity = following_velocity_controller_.update(err);
+        } break;
         }
         *chassis_angle_ = 2 * std::numbers::pi - *gimbal_yaw_angle_;
         *chassis_control_angle_ = chassis_control_angle;
