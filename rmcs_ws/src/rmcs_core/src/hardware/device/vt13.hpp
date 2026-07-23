@@ -97,6 +97,8 @@ public:
     ModeSwitch mode_switch() const noexcept { return mode_switch_; }
     bool valid() const noexcept { return valid_; }
 
+    void set_timeout_enabled(bool enabled) { timeout_enabled_ = enabled; }
+
     const Eigen::Vector2d& joystick_left() const noexcept { return joystick_left_; }
     const Eigen::Vector2d& joystick_right() const noexcept { return joystick_right_; }
 
@@ -278,7 +280,7 @@ private:
     }
 
     void refresh_validity(const TimePoint now) {
-        if (!valid_ || now - last_remote_control_received_at_ <= kFreshTimeout)
+        if (!timeout_enabled_ || !valid_ || now - last_remote_control_received_at_ <= kFreshTimeout)
             return;
 
         reset_remote_control_state();
@@ -316,6 +318,7 @@ private:
     TimePoint last_statistics_log_time_ = TimePoint::min();
 
     bool valid_ = false;
+    bool timeout_enabled_ = true;
     std::size_t peak_readable_ = 0;
     std::size_t remote_success_count_ = 0;
     std::size_t verification_failures_ = 0;

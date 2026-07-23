@@ -154,6 +154,8 @@ public:
 
     bool valid() const noexcept { return valid_; }
 
+    void set_timeout_enabled(bool enabled) { timeout_enabled_ = enabled; }
+
     double rotary_knob() const { return rotary_knob_; }
 
     double mouse_wheel() const { return mouse_wheel_; }
@@ -190,7 +192,7 @@ private:
     static constexpr auto kFreshTimeout = std::chrono::milliseconds(500);
 
     void refresh_validity(const TimePoint now) {
-        if (!valid_ || now - last_remote_control_received_at_ <= kFreshTimeout)
+        if (!timeout_enabled_ || !valid_ || now - last_remote_control_received_at_ <= kFreshTimeout)
             return;
 
         reset_remote_control_state();
@@ -278,6 +280,7 @@ private:
     rmcs_msgs::Switch rotary_knob_switch_ = rmcs_msgs::Switch::UNKNOWN;
     TimePoint last_remote_control_received_at_ = TimePoint::min();
     bool valid_ = false;
+    bool timeout_enabled_ = true;
 };
 
 } // namespace rmcs_core::hardware::device
