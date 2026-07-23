@@ -24,8 +24,8 @@ rmcs_executor:
 
       - rmcs::navigation::Navigation -> rmcs_navigation
 
-      # - rmcs::AutoAimRecorderComponent -> auto_aim_recorder
-      # - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
+      - rmcs::AutoAimRecorderComponent -> auto_aim_recorder
+      - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
       - rmcs::AutoAimComponent -> auto_aim_component
 
       # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
@@ -34,13 +34,13 @@ rmcs_executor:
 rmcs_navigation:
   ros__parameters:
     command_vel_name: "/cmd_vel"
-    endpoint: "train"
+    endpoint: "otaku"
     enable_goal_topic_forward: true
 
 auto_aim_capturer:
   ros__parameters:
     camera_name: ""
-    exposure_us: 3000.0
+    exposure_us: 2000.0
     gain: 8.0
     framerate: 120.0
     invert_image: true
@@ -59,12 +59,13 @@ auto_aim_recorder:
 auto_aim_component:
   ros__parameters:
     manual_shoot: true
+    enable_rune: true
     camera_translation: [0.07128, 0.0, 0.0481]
     fire_control:
       bullet_speed: 22.5
       shoot_delay: 0.1
-      offset_yaw: -1.0
-      offset_pitch: +0.0
+      offset_yaw: -0.5
+      offset_pitch: +1.0
       attack_window: 120.0
       degraded_angle_speed: 12.0
       window_hysteresis: 0.2
@@ -123,7 +124,7 @@ gimbal_controller:
 
 chassis_controller:
   ros__parameters:
-    angular_velocity_max: 8.0
+    angular_velocity_max: 10.0
     translational_velocity_max: 10.0
     following_velocity_kp: 7.0
     following_velocity_ki: 0.0
