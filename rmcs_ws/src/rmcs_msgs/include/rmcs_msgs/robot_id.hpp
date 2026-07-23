@@ -67,11 +67,17 @@ public:
     constexpr bool operator==(const Value value) const { return value_ == value; }
     constexpr bool operator!=(const Value value) const { return value_ != value; }
 
-    constexpr RobotColor color() const {
+    constexpr RobotColor color() const noexcept {
+        if (value_ == Value::UNKNOWN) {
+            return RobotColor::UNKNOWN;
+        }
         return value_ & 0x40 ? RobotColor::BLUE : RobotColor::RED;
     }
 
-    constexpr ArmorID id() const {
+    constexpr ArmorID id() const noexcept {
+        if (value_ == Value::UNKNOWN) {
+            return ArmorID::Unknown;
+        }
         return value_ > 100 ? static_cast<ArmorID>(value_ - 100) : static_cast<ArmorID>(value_);
     }
 

@@ -69,53 +69,35 @@ public:
             return;
         }
 
-        // 导航控制。
+        const auto yaw_shift = +kJoystickSensitivity * input_.joystick_left->y()
+                             + kMouseSensitivity * input_.mouse_velocity->y();
+        const auto pitch_shift = -kJoystickSensitivity * input_.joystick_left->x()
+                               - kMouseSensitivity * input_.mouse_velocity->x();
+
+        auto nav_yshift = double{0.};
+        auto nav_pshift = double{0.};
         if (input_.enable_navigation()) {
             constexpr auto kGimbalFree = std::numeric_limits<double>::min();
-            if (*input_.navigation_enable_control && input_.navigation_toward.ready()) {
-                const auto& toward = *input_.navigation_toward;
-                if (toward.x() == kGimbalFree && toward.y() == kGimbalFree) {
-                    enter_disabled_state();
-                    return;
-                }
+            const auto& toward = *input_.navigation_toward;
+            if (toward.x() == kGimbalFree && toward.y() == kGimbalFree) {
+                enter_disabled_state();
+                return;
             }
-
-            const auto error = solver_.update(
-                EccentricDualYawSolver::Navigation{
-                    *input_.top_yaw_angle,
-                    *input_.navigation_toward,
-                    current_bottom_world_yaw(),
-                    actual_yaw_pitch.second,
-                    stored_bottom_yaw_target_,
-                    stored_pitch_target_,
-                    upper_limit_,
-                    lower_limit_,
-                });
-            apply_control(error.bottom_yaw, error.top_yaw, error.pitch);
-
-            stored_bottom_yaw_target_ = limit_rad(current_bottom_world_yaw() + error.bottom_yaw);
-            stored_pitch_target_ = std::clamp(
-                limit_rad(actual_yaw_pitch.second + error.pitch), upper_limit_, lower_limit_);
-            return;
+            if (std::isfinite(toward.x()))
+                nav_yshift = limit_rad(toward.x() - stored_bottom_yaw_target_);
+            if (std::isfinite(toward.y()))
+                nav_pshift = limit_rad(
+                    std::clamp(toward.y(), upper_limit_, lower_limit_) - stored_pitch_target_);
         }
 
-        // 手动控制。
-        {
-            const double yaw_shift = kJoystickSensitivity * input_.joystick_left->y()
-                                   + kMouseSensitivity * input_.mouse_velocity->y();
-            const double pitch_shift = -kJoystickSensitivity * input_.joystick_left->x()
-                                     - kMouseSensitivity * input_.mouse_velocity->x();
+        stored_bottom_yaw_target_ = limit_rad(stored_bottom_yaw_target_ + nav_yshift + yaw_shift);
+        stored_pitch_target_ =
+            std::clamp(stored_pitch_target_ + nav_pshift + pitch_shift, upper_limit_, lower_limit_);
 
-            stored_bottom_yaw_target_ = limit_rad(stored_bottom_yaw_target_ + yaw_shift);
-            stored_pitch_target_ =
-                std::clamp(stored_pitch_target_ + pitch_shift, upper_limit_, lower_limit_);
-
-            const double bottom_yaw_error =
-                limit_rad(stored_bottom_yaw_target_ - current_bottom_world_yaw());
-            const double pitch_error = limit_rad(stored_pitch_target_ - actual_yaw_pitch.second);
-
-            apply_control(bottom_yaw_error, limit_rad(-*input_.top_yaw_angle), pitch_error);
-        }
+        apply_control(
+            limit_rad(+stored_bottom_yaw_target_ - current_bottom_world_yaw()),
+            limit_rad(-*input_.top_yaw_angle),
+            limit_rad(+stored_pitch_target_ - actual_yaw_pitch.second));
     }
 
 private:

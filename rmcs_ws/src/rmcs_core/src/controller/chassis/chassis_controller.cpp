@@ -185,8 +185,13 @@ public:
 
         if (*navigation_enable_control_) {
             const auto command = *navigation_command_velocity_;
-            if (command.array().isFinite().all())
-                return Eigen::Rotation2Dd{*gimbal_yaw_angle_} * command;
+            if (command.array().isFinite().all()) {
+                Eigen::Vector2d superimposed = command + *joystick_right_ * translational_velocity_max;
+                if (superimposed.norm() > translational_velocity_max)
+                    superimposed *= translational_velocity_max / superimposed.norm();
+
+                return Eigen::Rotation2Dd{*gimbal_yaw_angle_} * superimposed;
+            }
         }
 
         auto keyboard = *keyboard_;
