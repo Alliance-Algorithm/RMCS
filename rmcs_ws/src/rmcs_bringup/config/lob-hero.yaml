@@ -15,9 +15,6 @@ rmcs_executor:
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> pitch_velocity_pid_controller
 
-      # - rmcs_core::controller::gimbal::PlayerViewer -> gimbal_player_viewer_controller
-      # - rmcs_core::controller::pid::ErrorPidController -> viewer_angle_pid_controller
-
       - rmcs_core::controller::shooting::HeroFrictionWheelController -> friction_wheel_controller
       - rmcs_core::controller::shooting::HeroHeatController -> heat_controller
       - rmcs_core::controller::shooting::PutterController -> bullet_feeder_controller
@@ -59,26 +56,40 @@ rmcs_executor:
       - rmcs_hero_lob::CameraCapture -> camera_capture
       - rmcs_hero_lob::LobVisionCore -> lob_vision_core
 
+      # - rmcs_hero_lob::ImageTestSource -> lob_source
+
       - rmcs_hero_lob::ImagePacketizer -> image_packetizer
       - rmcs_hero_lob::ImagePacketizer -> trajectory_packetizer
 
-      - rmcs_hero_lob::ImageBroadcast -> camera_image_publisher
-      - rmcs_hero_lob::ImageBroadcast -> background_image_publisher
-      - rmcs_hero_lob::ImageBroadcast -> exposure_image_publisher
+      # - rmcs_hero_lob::ImageBroadcast -> camera_image_publisher
+      # - rmcs_hero_lob::ImageBroadcast -> background_image_publisher
+      # - rmcs_hero_lob::ImageBroadcast -> exposure_image_publisher
 
 
 camera_capture:
   ros__parameters:
+    camera_name: "hero-lob"
     exposure_us: 8000.0
     framerate: 80.0
     invert_image: false
 
 lob_vision_core:
   ros__parameters:
+    processing_width: 720
+    processing_height: 540
     process_start_frame: 40
     process_end_frame: 200
     history_queue_max_size: 15
     history_sample_interval: 4
+
+lob_source:
+  ros__parameters:
+    background_image_path: "/root/test-data/background.jpg"
+    trajectory_image_path: "/root/test-data/trajectory.jpg"
+    background_interface_name: /hero_lob/image/shooting_background
+    trajectory_interface_name: /hero_lob/image/shooting_track
+    trigger_topic: /hero_lob/test_trigger
+    trajectory_delay_ms: 1000
 
 image_packetizer:
   ros__parameters:
@@ -153,10 +164,10 @@ hero_hardware:
 
 auto_aim_capturer:
   ros__parameters:
-    camera_name: ""
+    camera_name: "auto-aim"
     exposure_us: 2000.0
     gain: 8.0
-    framerate: 80.0
+    framerate: 50.0
     invert_image: false
     rls_tau_sec: 10.0
     use_hardware_sync: false
@@ -182,6 +193,8 @@ auto_aim_component:
       require_stable_command: false
       yaw_tolerance: 0.07
       pitch_tolerance: 0.04
+      degraded_angle_speed: 12.0
+
 
 auto_aim_ui:
   ros__parameters:

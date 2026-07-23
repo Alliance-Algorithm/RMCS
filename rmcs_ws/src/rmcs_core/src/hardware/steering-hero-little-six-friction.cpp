@@ -240,7 +240,7 @@ private:
             , gimbal_bullet_feeder_(steering_hero, steering_hero_command, "/gimbal/bullet_feeder")
             , putter_motor_(steering_hero, steering_hero_command, "/gimbal/putter")
             , image_packet_transmit_(
-                  steering_hero_command, std::chrono::milliseconds(25),
+                  steering_hero_command, std::chrono::milliseconds(22),
                   [this](const std::byte* data, size_t size) {
                       board_->start_transmit().uart_transmit(
                           Spec::kUarts.kUart0,
