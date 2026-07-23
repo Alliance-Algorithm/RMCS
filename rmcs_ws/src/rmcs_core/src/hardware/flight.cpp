@@ -2,7 +2,6 @@
 #include <memory>
 #include <new>
 #include <span>
-#include <tuple>
 
 #include <eigen3/Eigen/Geometry>
 #include <librmcs/data/datas.hpp>
@@ -10,11 +9,14 @@
 #include <rclcpp/subscription.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/board_clock.hpp>
+#include <rmcs_msgs/imu_snapshot.hpp>
 #include <rmcs_msgs/serial_interface.hpp>
 #include <rmcs_utility/ring_buffer.hpp>
 #include <std_srvs/srv/trigger.hpp>
 
-#include "hardware/device/bmi088.hpp"
+#include "hardware/device/bmi088_ekf.hpp"
+#include "hardware/device/board_clock_lifter.hpp"
 #include "hardware/device/can_packet.hpp"
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
@@ -51,9 +53,6 @@ public:
         gimbal_bullet_feeder_.configure(
             device::DjiMotor::Config{device::DjiMotor::Type::kM2006, 1}.enable_multi_turn_angle());
 
-        bmi088_.set_coordinate_mapping(
-            [](double x, double y, double z) { return std::tuple{y, z, x}; });
-
         using namespace rmcs_description;
 
         constexpr auto kCameraPostionX = 0.10238;
@@ -61,12 +60,11 @@ public:
         tf_->set_transform<PitchLink, CameraLink>(
             Eigen::Translation3d{kCameraPostionX, 0.0, kCameraPostionZ});
 
-        register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
-        register_output("/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_);
+        register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_, 0.0);
+        register_output("/gimbal/pitch/velocity_imu", gimbal_pitch_velocity_imu_, 0.0);
         register_output("/tf", tf_);
 
-        register_output("/auto_aim/camera_transform", camera_transform_);
-        register_output("/auto_aim/barrel_direction", barrel_direction_);
+        register_output("/gimbal/auto_aim/imu_snapshot", imu_snapshot_output_);
 
         register_output("/referee/serial", referee_serial_);
         referee_serial_->read = [this](std::byte* buffer, size_t size) {
@@ -76,6 +74,14 @@ public:
         referee_serial_->write = [this](const std::byte* buffer, size_t size) {
             board_->start_transmit().uart_transmit(
                 Spec::kUarts.kUart1, {.uart_data = std::span<const std::byte>{buffer, size}});
+            return size;
+        };
+
+        register_output("/px4/serial", px4_serial_);
+        px4_serial_->read = [](std::byte*, size_t) { return size_t{0}; };
+        px4_serial_->write = [this](const std::byte* buffer, size_t size) {
+            board_->start_transmit().uart_transmit(
+                Spec::kUarts.kUart0, {.uart_data = std::span<const std::byte>{buffer, size}});
             return size;
         };
 
@@ -99,11 +105,6 @@ public:
         update_imu();
         dr16_.update_status();
         remote_control_->update();
-
-        using namespace rmcs_description;
-        *camera_transform_ = fast_tf::lookup_transform<OdomImu, CameraLink>(*tf_);
-        *barrel_direction_ =
-            *fast_tf::cast<OdomImu>(PitchLink::DirectionVector{Eigen::Vector3d::UnitX()}, *tf_);
     }
 
     void command_update() {
@@ -162,13 +163,12 @@ private:
     void update_imu() {
         using namespace rmcs_description;
 
-        bmi088_.update_status();
-        const auto gimbal_imu_pose =
-            Eigen::Quaterniond{bmi088_.q0(), bmi088_.q1(), bmi088_.q2(), bmi088_.q3()};
-        tf_->set_transform<PitchLink, OdomImu>(gimbal_imu_pose.conjugate());
+        if (const auto snapshot = bmi088_.snapshot()) {
+            tf_->set_transform<PitchLink, OdomImu>(snapshot->orientation.conjugate());
 
-        *gimbal_yaw_velocity_imu_ = bmi088_.gz();
-        *gimbal_pitch_velocity_imu_ = bmi088_.gy();
+            *gimbal_yaw_velocity_imu_ = snapshot->gyro_body.z();
+            *gimbal_pitch_velocity_imu_ = snapshot->gyro_body.y();
+        }
     }
 
     void
@@ -225,11 +225,21 @@ protected:
     }
 
     void accelerometer_receive_callback(const View::ImuAccelerometer& data) override {
-        bmi088_.store_accelerometer_status(data.x, data.y, data.z);
+        const auto timestamp = board_clock_lifter_.advance_timebase(data.timestamp_quarter_us);
+        bmi088_.push_accelerometer_sample(data.x, data.y, data.z, timestamp);
     }
 
     void gyroscope_receive_callback(const View::ImuGyroscope& data) override {
-        bmi088_.store_gyroscope_status(data.x, data.y, data.z);
+        const auto timestamp = board_clock_lifter_.lift_timestamp(data.timestamp_quarter_us);
+        if (!timestamp.has_value())
+            return;
+
+        const auto snapshot =
+            bmi088_.try_update_with_gyroscope_sample(data.x, data.y, data.z, *timestamp);
+        if (!snapshot)
+            return;
+
+        imu_snapshot_output_.emit(*snapshot);
     }
 
 private:
@@ -258,15 +268,20 @@ private:
 
     device::Dr16 dr16_;
     std::unique_ptr<device::RemoteControl> remote_control_;
-    device::Bmi088 bmi088_{1000.0, 0.2, 0.00};
+    // 等价于旧 Bmi088 的坐标映射 (x, y, z) -> (y, z, x)：body = body_to_sensor^T * sensor
+    device::Bmi088Ekf bmi088_{device::Bmi088Ekf::Config{
+        .body_to_sensor =
+            (Eigen::Matrix3d{} << 0, 0, 1, 1, 0, 0, 0, 1, 0).finished(),
+    }};
+    device::BoardClockLifter board_clock_lifter_;
 
     OutputInterface<double> gimbal_yaw_velocity_imu_;
     OutputInterface<double> gimbal_pitch_velocity_imu_;
     OutputInterface<rmcs_description::Tf> tf_;
     OutputInterface<rmcs_msgs::SerialInterface> referee_serial_;
+    OutputInterface<rmcs_msgs::SerialInterface> px4_serial_;
 
-    OutputInterface<Eigen::Isometry3d> camera_transform_;
-    OutputInterface<Eigen::Vector3d> barrel_direction_;
+    EventOutputInterface<rmcs_msgs::ImuSnapshot> imu_snapshot_output_;
 
     rmcs_utility::RingBuffer<std::byte> referee_ring_buffer_receive_{256};
 };

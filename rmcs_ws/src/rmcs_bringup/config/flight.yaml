@@ -3,6 +3,7 @@ rmcs_executor:
     update_rate: 1000.0
     components:
       - rmcs_core::hardware::Flight -> flight_hardware
+      - rmcs_core::hardware::Px4VisionBridge -> px4_vision_bridge
 
       - rmcs_core::controller::gimbal::SimpleGimbalController -> gimbal_controller
       - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
@@ -26,15 +27,65 @@ rmcs_executor:
       # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
 
-      - rmcs::AutoAimComponent
+      - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
+      # - rmcs::AutoAimPlayerComponent -> auto_aim_player
+      - rmcs::AutoAimRecorderComponent -> auto_aim_recorder
+      - rmcs::AutoAimComponent -> auto_aim_component
 
-odin_ros_driver:
+auto_aim_capturer:
   ros__parameters:
-    enabled: true
-    config_file: "/rmcs_install/share/odin_ros_driver/config/control_command.yaml"
-    node_name: host_sdk_sample
-    respawn: true
-    respawn_delay: 1.0
+    camera_name: ""
+    exposure_us: 3000.0
+    gain: 8.0
+    framerate: 120.0
+    invert_image: false
+    rls_tau_sec: 10.0
+    use_hardware_sync: false
+    delay_ms: 6.5
+
+auto_aim_recorder:
+  ros__parameters:
+    output_path: "/tmp/autoaim/records"
+    queue_depth: 16
+    flush_every_n_frames: 64
+    max_duration_seconds: 0
+    max_videos_size_gb: 0.0
+
+auto_aim_component:
+  ros__parameters:
+    # WARN: 危险！可选 red | blue，生效后裁判系统 ID 缺席时
+    # 将强行绑定为对应阵营哨兵，仅供调试，严禁比赛启用。
+    # 留空或填 unknow 表示禁用。
+    dangerous_fallback: ""
+    manual_shoot: true
+    camera_translation: [0.10238, 0.0, 0.05286]
+    fire_control:
+      bullet_speed: 22.5
+      shoot_delay: 0.1
+      offset_yaw: +1.5     #越大越左
+      offset_pitch: +3.8   #越大越下
+      attack_window: 120.0
+      degraded_angle_speed: 12.0
+      window_hysteresis: 0.2
+      is_lazy_gimbal: false
+      attack_preaim: false
+      require_stable_command: false
+      yaw_tolerance: 0.07
+      pitch_tolerance: 0.04
+
+px4_vision_bridge:
+  ros__parameters:
+    source_topic: /odin1/odometry_highfreq
+    system_id: 1                  # 与 PX4 MAV_SYS_ID 一致
+    component_id: 197             # MAV_COMP_ID_VISUAL_INERTIAL_ODOMETRY
+    max_send_rate_hz: 50.0
+    # 挂载角(ZYX, rad): 传感器系->机体系, 初值 roll=π pitch=π/2 yaw=0
+    mount_rpy: [3.14159265358979, 1.5707963267949, 0.0]
+    # Odin1 自启看门狗: 里程计断流超过 timeout 秒且距上次拉起超过 cooldown 秒
+    # 才执行 tmux-launch.sh; 数据正常时不会重启 Odin1 (保住 SLAM 预热)
+    odin_autostart: true
+    odin_watchdog_timeout: 10.0
+    odin_restart_cooldown: 60.0   # 需覆盖 SLAM 预热 30~60s
 
 value_broadcaster:
   ros__parameters:
@@ -88,7 +139,7 @@ yaw_velocity_pid_controller:
     measurement: /gimbal/yaw/velocity_imu
     setpoint: /gimbal/yaw/control_velocity
     control: /gimbal/yaw/control_torque
-    kp: 8.0
+    kp: 6.0
     ki: 0.0
     kd: 0.0
 
