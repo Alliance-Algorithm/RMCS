@@ -65,6 +65,7 @@ auto_aim_component:
       offset_yaw: +1.5     #越大越左
       offset_pitch: +3.8   #越大越下
       attack_window: 120.0
+      degraded_angle_speed: 12.0
       window_hysteresis: 0.2
       is_lazy_gimbal: false
       attack_preaim: false
