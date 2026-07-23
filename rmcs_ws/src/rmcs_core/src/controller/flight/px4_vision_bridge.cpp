@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <mutex>
+#include <stop_token>
 #include <string>
 #include <thread>
 
@@ -62,17 +63,7 @@ public:
 
         last_odom_arrival_ns_.store(steady_now_ns(),std::memory_order_relaxed);
         if(odin_autostart_)
-            odin_manager_thread_ =std::thread{[this]{odin_manager_loop();}};
-    }
-
-    ~Px4VisionBridge() override {
-        {
-            const std::scoped_lock lock{odin_stop_mutex_};
-            odin_stop_ =true;
-        }
-        odin_stop_cv_.notify_all();
-        if(odin_manager_thread_.joinable())
-            odin_manager_thread_.join();
+            odin_manager_thread_ =std::jthread{[this](std::stop_token st){odin_manager_loop(st);}};
     }
 
     Px4VisionBridge(const Px4VisionBridge&) = delete;
@@ -185,56 +176,44 @@ private:
     }
 
     // 独立线程看门狗：断流超时且过了冷却期就拉起 tmux-launch.sh；
-    void odin_manager_loop(){
-        const std::string script =
-            ament_index_cpp::get_package_prefix("odin_ros_driver")
-            +"/lib/odin_ros_driver/tmux-launch.sh";
+    void odin_manager_loop(std::stop_token st){
+        const std::string cmd =
+            "\""+ament_index_cpp::get_package_prefix("odin_ros_driver")
+            +"/lib/odin_ros_driver/tmux-launch.sh\"";
 
         const auto timeout_ns  =static_cast<int64_t>(odin_watchdog_timeout_*1e9);
         const auto cooldown_ns =static_cast<int64_t>(odin_restart_cooldown_*1e9);
         int64_t last_launch_ns =steady_now_ns()-cooldown_ns;  //首次断流即可拉起
-        
-        bool offline_reported =false;
-        bool launch_failure_reported =false;
-        bool online =false;
+        bool online =true;  //启动宽限：先假定在线，超时才告警
 
-        std::unique_lock lock{odin_stop_mutex_};
-        while(!odin_stop_cv_.wait_for(
-            lock,std::chrono::seconds{1},[this]{return odin_stop_;})){
-            lock.unlock();
+        // 锁仅为 wait_for 语义存在 request_stop 会直接唤醒等待
+        std::mutex sleep_mutex;
+        std::condition_variable_any sleep_cv;
+        std::unique_lock lock{sleep_mutex};
+        while(!sleep_cv.wait_for(
+            lock,st,std::chrono::seconds{1},[&]{return st.stop_requested();})){
 
             const auto now_ns =steady_now_ns();
-            const bool data_fresh =
+            const bool fresh =
                 (now_ns-last_odom_arrival_ns_.load(std::memory_order_relaxed))<timeout_ns;
 
-            if(data_fresh){
-                if(!online){
-                    online =true;
-                    offline_reported =false;
-                    launch_failure_reported =false;
+            if(fresh!=online){
+                online =fresh;
+                if(online)
                     RCLCPP_INFO(logger_,"Odin1 online, odometry flowing");
-                }
-            } else {
-                if(!offline_reported){
-                    online =false;
-                    offline_reported =true;
+                else
                     RCLCPP_WARN(
                         logger_,
                         "Odin1 offline (no odometry for %.0fs), relaunching every %.0fs until online",
                         odin_watchdog_timeout_,odin_restart_cooldown_);
-                }
-                if((now_ns-last_launch_ns)>cooldown_ns){
-                    last_launch_ns =now_ns;
-                    // system() 最坏阻塞十余秒（脚本内部的清杀/启动轮询），只能在本线程做
-                    if(std::system(("\""+script+"\"").c_str())!=0
-                       &&!launch_failure_reported){
-                        launch_failure_reported =true;
-                        RCLCPP_ERROR(logger_,"Odin1 launch script failed");
-                    }
-                }
             }
 
-            lock.lock();
+            if(!online &&(now_ns-last_launch_ns)>cooldown_ns){
+                last_launch_ns =now_ns;
+                // （脚本内部的清杀/启动轮询）存在阻塞，单独在本线程做
+                if(std::system(cmd.c_str())!=0)
+                    RCLCPP_ERROR(logger_,"Odin1 launch script failed");
+            }
         }
     }
 
@@ -303,10 +282,8 @@ private:
     double odin_watchdog_timeout_;
     double odin_restart_cooldown_;
     std::atomic<int64_t> last_odom_arrival_ns_{0};
-    std::thread odin_manager_thread_;
-    std::mutex odin_stop_mutex_;
-    std::condition_variable odin_stop_cv_;
-    bool odin_stop_ =false;
+    // 必须最后声明：其隐式析构 request_stop+join，须早于线程所用成员的销毁
+    std::jthread odin_manager_thread_;
 };
 
 }// namespace rmcs_core::hardware
