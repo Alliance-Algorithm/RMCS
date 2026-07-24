@@ -35,7 +35,7 @@ rmcs_executor:
 rmcs_navigation:
   ros__parameters:
     command_vel_name: "/cmd_vel"
-    endpoint: "test"
+    endpoint: "train_competition"
     enable_goal_topic_forward: true
 
 auto_aim_capturer:
@@ -137,7 +137,7 @@ climber_controller:
     back_climber_velocity: 30.0
     auto_climb_support_retract_velocity_fast: 60.0
     auto_climb_support_retract_velocity_slow: 20.0
-    auto_climb_approach_chassis_velocity: 1.5
+    auto_climb_approach_chassis_velocity: 1.2
     auto_climb_support_deploy_chassis_velocity: 0.3
     auto_climb_support_retract_chassis_velocity: 0.3
     auto_climb_dash_chassis_velocity: 3.0
@@ -168,7 +168,7 @@ support_arm_controller:
     support_arm_retract_fast_duration_ticks: 2000
     support_arm_retract_slow_retract_velocity: 2.0
     support_arm_retract_slow_chassis_velocity: 0.4
-    support_arm_retract_slow_duration_ticks: 1500
+    support_arm_retract_slow_duration_ticks: 200
     sync_coefficient: 0.2
     back_kp: 0.8
     back_ki: 0.0
@@ -243,7 +243,7 @@ steering_wheel_controller:
     chassis_translation_kd: 0.00
 
     chassis_angular_velocity_kp: 8.0
-    chassis_angular_velocity_ki: 0.01
+    chassis_angular_velocity_ki: 0.005
     chassis_angular_velocity_kd: 0.00
 
     steering_velocity_kp: 0.15

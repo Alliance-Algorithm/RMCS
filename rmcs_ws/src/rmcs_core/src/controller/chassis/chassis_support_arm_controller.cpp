@@ -76,6 +76,9 @@ public:
         register_input("/gimbal/yaw/angle", gimbal_yaw_angle_);
         register_input("/gimbal/yaw/control_angle_error", gimbal_yaw_angle_error_);
         register_input("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_imu_);
+        register_input(
+            "/rmcs_navigation/chassis_direction_error", navigation_chassis_direction_error_, false);
+        register_input("/chassis/yaw/velocity_imu", chassis_yaw_velocity_imu_, false);
 
         register_input("/chassis/pitch_imu", chassis_pitch_imu_);
 
@@ -228,17 +231,8 @@ private:
             .climbing_backward = true,
         };
 
-        double gimbal_yaw_angle_error = *gimbal_yaw_angle_error_;
-        if (gimbal_yaw_angle_error < 0)
-            gimbal_yaw_angle_error += 2 * std::numbers::pi;
-
-        double err = gimbal_yaw_angle_error + *gimbal_yaw_angle_ - std::numbers::pi;
-        while (err >= std::numbers::pi)
-            err -= 2 * std::numbers::pi;
-        while (err < -std::numbers::pi)
-            err += 2 * std::numbers::pi;
-
-        double yaw_velocity = *gimbal_yaw_velocity_imu_;
+        const double err = compute_align_error(true);
+        const double yaw_velocity = align_yaw_velocity();
         bool is_aligned = std::abs(err) < kSupportArmAlignThreshold;
         bool is_stable = std::abs(yaw_velocity) < kSupportArmAlignVelocityThreshold;
 
@@ -257,6 +251,43 @@ private:
         }
 
         return control;
+    }
+
+    static auto normalize_signed_angle(double angle) -> double {
+        while (angle >= std::numbers::pi)
+            angle -= 2 * std::numbers::pi;
+        while (angle < -std::numbers::pi)
+            angle += 2 * std::numbers::pi;
+        return angle;
+    }
+
+    auto navigation_direction_active() const -> bool {
+        return navigation_chassis_direction_error_.ready()
+            && std::isfinite(*navigation_chassis_direction_error_);
+    }
+
+    auto align_yaw_velocity() const -> double {
+        if (navigation_direction_active() && chassis_yaw_velocity_imu_.ready())
+            return *chassis_yaw_velocity_imu_;
+        return *gimbal_yaw_velocity_imu_;
+    }
+
+    auto compute_align_error(bool backward) const -> double {
+        if (navigation_direction_active()) {
+            double err = *navigation_chassis_direction_error_;
+            if (backward)
+                err = normalize_signed_angle(err + std::numbers::pi);
+            return err;
+        }
+
+        double gimbal_yaw_angle_error = *gimbal_yaw_angle_error_;
+        if (gimbal_yaw_angle_error < 0)
+            gimbal_yaw_angle_error += 2 * std::numbers::pi;
+
+        double err = gimbal_yaw_angle_error + *gimbal_yaw_angle_;
+        if (backward)
+            err -= std::numbers::pi;
+        return normalize_signed_angle(err);
     }
 
     SupportArmControl update_support_arm_dash_deploy() {
@@ -517,6 +548,8 @@ private:
     InputInterface<rmcs_msgs::Switch> rotary_knob_switch_;
 
     InputInterface<double> gimbal_yaw_angle_, gimbal_yaw_angle_error_, gimbal_yaw_velocity_imu_;
+    InputInterface<double> navigation_chassis_direction_error_;
+    InputInterface<double> chassis_yaw_velocity_imu_;
     InputInterface<double> chassis_pitch_imu_;
 
     rmcs_msgs::Switch last_rotary_knob_switch_ = rmcs_msgs::Switch::UNKNOWN;

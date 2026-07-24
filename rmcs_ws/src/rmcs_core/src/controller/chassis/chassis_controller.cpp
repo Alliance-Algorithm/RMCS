@@ -1,5 +1,8 @@
 #include "controller/pid/pid_calculator.hpp"
 
+#include <cmath>
+#include <limits>
+
 #include <eigen3/Eigen/Geometry>
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
@@ -37,6 +40,7 @@ public:
         register_input("/rmcs_navigation/enable_control", navigation_enable_control_, false);
         register_input("/rmcs_navigation/chassis_velocity", navigation_command_velocity_, false);
         register_input("/rmcs_navigation/chassis_behavior", navigation_chassis_behavior_, false);
+        register_input("/rmcs_navigation/chassis_direction_error", navigation_chassis_direction_error_, false);
 
         register_output("/chassis/angle", chassis_angle_, kNaN);
         register_output("/chassis/control_angle", chassis_control_angle_, kNaN);
@@ -69,6 +73,9 @@ public:
         }
         if (!navigation_chassis_behavior_.ready()) {
             navigation_chassis_behavior_.make_and_bind_directly(rmcs_msgs::ChassisMode::AUTO);
+        }
+        if (!navigation_chassis_direction_error_.ready()) {
+            navigation_chassis_direction_error_.make_and_bind_directly(kNaN);
         }
     }
 
@@ -219,17 +226,21 @@ public:
 
         if (!std::isnan(*climbing_forward_velocity_)) {
             last_climbing_active_ = true;
-            double err = calculate_unsigned_chassis_angle_error(chassis_control_angle);
-
             const bool backward = *climbing_backward_;
-            if (backward) {
-                chassis_control_angle =
-                    normalize_positive_angle(chassis_control_angle + std::numbers::pi);
-                err = normalize_positive_angle(err + std::numbers::pi);
-            }
+            double err = kNaN;
 
-            err = normalize_signed_angle(err);
-            angular_velocity = following_velocity_controller_.update(err);
+            if (try_navigation_chassis_direction_error(err, chassis_control_angle, backward)) {
+                angular_velocity = following_velocity_controller_.update(err);
+            } else {
+                err = calculate_unsigned_chassis_angle_error(chassis_control_angle);
+                if (backward) {
+                    chassis_control_angle =
+                        normalize_positive_angle(chassis_control_angle + std::numbers::pi);
+                    err = normalize_positive_angle(err + std::numbers::pi);
+                }
+                err = normalize_signed_angle(err);
+                angular_velocity = following_velocity_controller_.update(err);
+            }
 
             const double offset = backward ? std::numbers::pi : 0.0;
             *chassis_angle_ = 2 * std::numbers::pi - *gimbal_yaw_angle_ + offset;
@@ -320,6 +331,19 @@ public:
         return err;
     }
 
+    auto try_navigation_chassis_direction_error(
+        double& err, double& chassis_control_angle, bool backward) const -> bool {
+        const auto e = *navigation_chassis_direction_error_;
+        if (!std::isfinite(e))
+            return false;
+
+        chassis_control_angle = kNaN;
+        err = e;
+        if (backward)
+            err = normalize_signed_angle(err + std::numbers::pi);
+        return true;
+    }
+
 private:
     static double normalize_positive_angle(double angle) {
         constexpr double full_turn = 2 * std::numbers::pi;
@@ -363,6 +387,7 @@ private:
     InputInterface<bool> navigation_enable_control_;
     InputInterface<Eigen::Vector2d> navigation_command_velocity_;
     InputInterface<rmcs_msgs::ChassisMode> navigation_chassis_behavior_;
+    InputInterface<double> navigation_chassis_direction_error_;
 
     OutputInterface<rmcs_msgs::ChassisMode> mode_;
     bool spinning_forward_ = true;
