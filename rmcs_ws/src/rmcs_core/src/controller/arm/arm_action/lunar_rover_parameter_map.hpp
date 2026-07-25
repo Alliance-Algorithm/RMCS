@@ -11,56 +11,149 @@ inline auto make_lunar_rover_action_parameter_map() {
     using ParameterMap = std::unordered_map<std::string, std::vector<Action::Step>>;
     return ParameterMap{
         // ---------- 简单动作 ----------
-        {               "gripper_open",{Action::Step::makeOpenGripper()}                                       },
+        {                "gripper_open",{Action::Step::makeOpenGripper()}                                        },
 
-        {              "gripper_close", {Action::Step::makeCloseGripper()}},
-        {                      "delay",        {Action::Step::makeDelay()}},
-        {                       "test",
-         {
-         Action::Step::makeOpenGripper(),
-         Action::Step::makePose(
-         Action::PoseTarget{
-         .x     = 0.281561,
-         .y     = -0.033675,
-         .z     = 0.388642,
-         .roll  = 0.725640,
-         .pitch = -1.475059,
-         .yaw   = -0.839970},
+        {               "gripper_close",                     {Action::Step::makeCloseGripper()}},
+        {                       "delay",                            {Action::Step::makeDelay()}},
+        {                        "test",                      {Action::Step::makeOpenGripper()}},
+        {                   "auto_walk",
+         {Action::Step::makeJoint(
+         Action::JointTarget{
+         .joint_1 = 0.0,
+         .joint_2 = 1.23,
+         .joint_3 = -1.36,
+         .joint_4 = 0.0,
+         .joint_5 = 0.63,
+         .joint_6 = 0.0},
+         Action::MotionParams{.vel = 0.03, .acc = 0.03})}                                      },
+        {      "roll_out_in_five_mines",
+         {Action::Step::makeOpenGripper(), Action::Step::makeJoint(
+         Action::JointTarget{
+         .joint_1 = 0.181201,
+         .joint_2 = 0.328751,
+         .joint_3 = -0.044198,
+         .joint_4 = 0.036911,
+         .joint_5 = -0.226070,
+         .joint_6 = 0.0},
+         Action::MotionParams{.vel = 0.03, .acc = 0.03})}                                      },
+        {"transition_to_storage_mine_1",
+         {Action::Step::makeCloseGripper(),
+         Action::Step::makeLinear(
+         Action::LinearTarget{.dir_x = 1.0, .dir_y = 0.0, .dir_z = 0.0, .distance = 0.145},
          Action::MotionParams{
-         .vel = 0.05, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.02}),
+         .vel = 0.05, .acc = 0.03, .tolerance_pos = 0.008, .tolerance_ori = 0.05})}            },
+        {"transition_to_extract_mine_2",
+         {Action::Step::makePose(
+         Action::PoseTarget{
+         .x     = 0.150,
+         .y     = 0.148,
+         .z     = 0.499,
+         .roll  = -0.655,
+         .pitch = -1.041,
+         .yaw   = 1.483},
+         Action::MotionParams{
+         .vel = 0.02, .acc = 0.01, .tolerance_pos = 0.003, .tolerance_ori = 0.02}),
          Action::Step::makePose(
          Action::PoseTarget{
-         .x     = -0.062,
-         .y     = -0.239,
-         .z     = 0.225,
-         .roll  = 2.981,
-         .pitch = -1.519,
-         .yaw   = 1.483},
+         .x     = 0.176,
+         .y     = 0.257,
+         .z     = 0.486,
+         .roll  = -1.408,
+         .pitch = -0.351,
+         .yaw   = 1.729},
+         Action::MotionParams{
+         .vel = 0.02, .acc = 0.01, .tolerance_pos = 0.003, .tolerance_ori = 0.02}),
+         Action::Step::makePose(
+         Action::PoseTarget{
+         .x = 0.271, .y = 0.18, .z = 0.473, .roll = -1.50, .pitch = -0.612, .yaw = 1.464},
+         Action::MotionParams{
+         .vel = 0.01, .acc = 0.02, .tolerance_pos = 0.003, .tolerance_ori = 0.02}),
+         Action::Step::makeLinear(
+         Action::LinearTarget{.dir_x = 0.0, .dir_y = 0.0, .dir_z = -1.0, .distance = 0.150},
+         Action::MotionParams{
+         .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.05}),
+         Action::Step::makeCloseGripper(),
+         Action::Step::makeLinear(
+         Action::LinearTarget{.dir_x = 1.0, .dir_y = 0.0, .dir_z = 0.0, .distance = 0.17},
+         Action::MotionParams{
+         .vel = 0.05, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.05})}            },
+        {"transition_to_extract_mine_3",
+         {Action::Step::makePose(
+         Action::PoseTarget{
+         .x     = 0.159,
+         .y     = -0.005,
+         .z     = 0.548,
+         .roll  = 1.362,
+         .pitch = -0.730,
+         .yaw   = -1.427},
          Action::MotionParams{
          .vel = 0.02, .acc = 0.02, .tolerance_pos = 0.003, .tolerance_ori = 0.02}),
          Action::Step::makePose(
          Action::PoseTarget{
-         .x     = -0.199,
-         .y     = -0.152,
-         .z     = 0.168,
-         .roll  = -0.138,
-         .pitch = -1.568567,
-         .yaw   = -2.666},
+         .x     = 0.252,
+         .y     = -0.10,
+         .z     = 0.500,
+         .roll  = 1.558,
+         .pitch = -0.392,
+         .yaw   = -1.599},
          Action::MotionParams{
-         .vel = 0.02, .acc = 0.02, .tolerance_pos = 0.003, .tolerance_ori = 0.008}),
-         }                                                                },
-        {                  "auto_walk",
-         {Action::Step::makeJoint(
-         Action::JointTarget{
-         .joint_1 = 0.0,
-         .joint_2 = 1.23,
-         .joint_3 = -1.36,
-         .joint_4 = 0.0,
-         .joint_5 = 0.63,
-         .joint_6 = 0.0},
-         Action::MotionParams{.vel = 0.03, .acc = 0.03})}                 },
+         .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.02}),
+         Action::Step::makeLinear(
+         Action::LinearTarget{.dir_x = 0.0, .dir_y = 0.0, .dir_z = -1.0, .distance = 0.120},
+         Action::MotionParams{
+         .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.05}),
+         Action::Step::makeCloseGripper(),
+         Action::Step::makeLinear(
+         Action::LinearTarget{.dir_x = 1.0, .dir_y = 0.0, .dir_z = 0.0, .distance = 0.17},
+         Action::MotionParams{
+         .vel = 0.05, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.05})}            },
+        {"transition_to_extract_mine_4",
+         {Action::Step::makePose(
+         Action::PoseTarget{
+         .x     = 0.287,
+         .y     = -0.143,
+         .z     = 0.343,
+         .roll  = 1.777,
+         .pitch = 0.784,
+         .yaw   = -1.354},
+         Action::MotionParams{
+         .vel = 0.05, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.02}),
+         Action::Step::makeLinear(
+         Action::LinearTarget{.dir_x = 0.0, .dir_y = 0.0, .dir_z = -1.0, .distance = 0.190},
+         Action::MotionParams{
+         .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.05}),
+         Action::Step::makeCloseGripper(),
+         Action::Step::makeLinear(
+         Action::LinearTarget{.dir_x = 1.0, .dir_y = 0.0, .dir_z = 0.0, .distance = 0.17},
+         Action::MotionParams{
+         .vel = 0.05, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.05})}            },
+        {"transition_to_extract_mine_5",
+         {Action::Step::makePose(
+         Action::PoseTarget{
+         .x = 0.203, .y = 0.112, .z = 0.329, .roll = -1.618, .pitch = 0.469, .yaw = 1.765},
+         Action::MotionParams{
+         .vel = 0.05, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.02}),
+         Action::Step::makeLinear(
+         Action::LinearTarget{.dir_x = 0.0, .dir_y = 0.0, .dir_z = -1.0, .distance = 0.190},
+         Action::MotionParams{
+         .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.05}),
+         Action::Step::makeCloseGripper(),
+         Action::Step::makeLinear(
+         Action::LinearTarget{.dir_x = 1.0, .dir_y = 0.0, .dir_z = 0.0, .distance = 0.17},
+         Action::MotionParams{
+         .vel = 0.05, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.05}),
+         Action::Step::makePose(
+         Action::PoseTarget{
+         .x     = 0.046,
+         .y     = -0.036,
+         .z     = 0.582,
+         .roll  = 0.517,
+         .pitch = -0.946,
+         .yaw   = -1.023},
+         Action::MotionParams{
+         .vel = 0.05, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.02})}            },
 
-        {      "up_one_stairs_initial",
+        {       "up_one_stairs_initial",
          {Action::Step::makeJoint(
          Action::JointTarget{
          .joint_1 = 0.0,
@@ -69,9 +162,9 @@ inline auto make_lunar_rover_action_parameter_map() {
          .joint_4 = 0.0,
          .joint_5 = 0.27,
          .joint_6 = 0.0},
-         Action::MotionParams{.vel = 0.05, .acc = 0.03})}                 },
+         Action::MotionParams{.vel = 0.05, .acc = 0.03})}                                      },
 
-        {      "up_two_stairs_initial",
+        {       "up_two_stairs_initial",
          {Action::Step::makeJoint(
          Action::JointTarget{
          .joint_1 = 0.0,
@@ -80,9 +173,9 @@ inline auto make_lunar_rover_action_parameter_map() {
          .joint_4 = 0.0,
          .joint_5 = 0.27,
          .joint_6 = 0.0},
-         Action::MotionParams{.vel = 0.05, .acc = 0.03})}                 },
+         Action::MotionParams{.vel = 0.05, .acc = 0.03})}                                      },
 
-        {"up_two_stairs_initial_again",
+        { "up_two_stairs_initial_again",
          {Action::Step::makeJoint(
          Action::JointTarget{
          .joint_1 = 0.0,
@@ -91,9 +184,9 @@ inline auto make_lunar_rover_action_parameter_map() {
          .joint_4 = 0.0,
          .joint_5 = 0.63,
          .joint_6 = 0.0},
-         Action::MotionParams{.vel = 0.06, .acc = 0.04})}                 },
+         Action::MotionParams{.vel = 0.06, .acc = 0.04})}                                      },
 
-        {   "up_two_stairs_lift_again",
+        {    "up_two_stairs_lift_again",
          {Action::Step::makeJoint(
          Action::JointTarget{
          .joint_1 = 0.0,
@@ -102,10 +195,10 @@ inline auto make_lunar_rover_action_parameter_map() {
          .joint_4 = 0.0,
          .joint_5 = 0.27,
          .joint_6 = 0.0},
-         Action::MotionParams{.vel = 0.03, .acc = 0.03})}                 },
+         Action::MotionParams{.vel = 0.03, .acc = 0.03})}                                      },
 
         // ---------- 组合动作 ----------
-        {                 "extract_lf",
+        {                  "extract_lf",
          {
          Action::Step::makeOpenGripper(),
          Action::Step::makePose(
@@ -157,8 +250,8 @@ inline auto make_lunar_rover_action_parameter_map() {
          .yaw   = 3.096949},
          Action::MotionParams{
          .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.2}),
-         }                                                                },
-        {                 "extract_lb",
+         }                                                                                     },
+        {                  "extract_lb",
          {
          Action::Step::makeOpenGripper(),
          Action::Step::makePose(
@@ -210,8 +303,8 @@ inline auto make_lunar_rover_action_parameter_map() {
          .yaw   = 3.096949},
          Action::MotionParams{
          .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.2}),
-         }                                                                },
-        {                 "extract_rf",
+         }                                                                                     },
+        {                  "extract_rf",
          {
          Action::Step::makeOpenGripper(),
          Action::Step::makePose(
@@ -263,8 +356,8 @@ inline auto make_lunar_rover_action_parameter_map() {
          .yaw   = 3.096949},
          Action::MotionParams{
          .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.2}),
-         }                                                                },
-        {                 "extract_rb",
+         }                                                                                     },
+        {                  "extract_rb",
          {
          Action::Step::makeOpenGripper(),
          Action::Step::makePose(
@@ -316,17 +409,17 @@ inline auto make_lunar_rover_action_parameter_map() {
          .yaw   = 3.096949},
          Action::MotionParams{
          .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.2}),
-         }                                                                },
-        {                 "storage_lf",
+         }                                                                                     },
+        {                  "storage_lf",
          {
          Action::Step::makePose(
          Action::PoseTarget{
-         .x     = 0.281561,
-         .y     = -0.033675,
-         .z     = 0.388642,
-         .roll  = 0.725640,
-         .pitch = -1.475059,
-         .yaw   = -0.839970},
+         .x     = 0.046,
+         .y     = -0.036,
+         .z     = 0.582,
+         .roll  = 0.517,
+         .pitch = -0.946,
+         .yaw   = -1.023},
          Action::MotionParams{
          .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.2}),
          Action::Step::makePose(
@@ -360,25 +453,25 @@ inline auto make_lunar_rover_action_parameter_map() {
          .vel = 0.05, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.2}),
          Action::Step::makePose(
          Action::PoseTarget{
-         .x     = 0.221731,
-         .y     = 0.002842,
-         .z     = 0.308955,
-         .roll  = -3.084697,
-         .pitch = -1.097439,
-         .yaw   = 3.096949},
+         .x     = 0.046,
+         .y     = -0.036,
+         .z     = 0.582,
+         .roll  = 0.517,
+         .pitch = -0.946,
+         .yaw   = -1.023},
          Action::MotionParams{
          .vel = 0.06, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.2}),
-         }                                                                },
-        {                 "storage_lb",
+         }                                                                                     },
+        {                  "storage_lb",
          {
          Action::Step::makePose(
          Action::PoseTarget{
-         .x     = 0.281561,
-         .y     = -0.033675,
-         .z     = 0.388642,
-         .roll  = 0.725640,
-         .pitch = -1.475059,
-         .yaw   = -0.839970},
+         .x     = 0.046,
+         .y     = -0.036,
+         .z     = 0.582,
+         .roll  = 0.517,
+         .pitch = -0.946,
+         .yaw   = -1.023},
          Action::MotionParams{
          .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.2}),
          Action::Step::makePose(
@@ -412,25 +505,25 @@ inline auto make_lunar_rover_action_parameter_map() {
          .vel = 0.05, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.2}),
          Action::Step::makePose(
          Action::PoseTarget{
-         .x     = 0.221731,
-         .y     = 0.002842,
-         .z     = 0.308955,
-         .roll  = -3.084697,
-         .pitch = -1.097439,
-         .yaw   = 3.096949},
+         .x     = 0.046,
+         .y     = -0.036,
+         .z     = 0.582,
+         .roll  = 0.517,
+         .pitch = -0.946,
+         .yaw   = -1.023},
          Action::MotionParams{
          .vel = 0.06, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.2}),
-         }                                                                },
-        {                 "storage_rf",
+         }                                                                                     },
+        {                  "storage_rf",
          {
          Action::Step::makePose(
          Action::PoseTarget{
-         .x     = 0.281561,
-         .y     = -0.033675,
-         .z     = 0.388642,
-         .roll  = 0.725640,
-         .pitch = -1.475059,
-         .yaw   = -0.839970},
+         .x     = 0.046,
+         .y     = -0.036,
+         .z     = 0.582,
+         .roll  = 0.517,
+         .pitch = -0.946,
+         .yaw   = -1.023},
          Action::MotionParams{
          .vel = 0.02, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.2}),
          Action::Step::makePose(
@@ -464,25 +557,25 @@ inline auto make_lunar_rover_action_parameter_map() {
          .vel = 0.05, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.02}),
          Action::Step::makePose(
          Action::PoseTarget{
-         .x     = 0.221731,
-         .y     = 0.002842,
-         .z     = 0.308955,
-         .roll  = -3.084697,
-         .pitch = -1.097439,
-         .yaw   = 3.096949},
+         .x     = 0.046,
+         .y     = -0.036,
+         .z     = 0.582,
+         .roll  = 0.517,
+         .pitch = -0.946,
+         .yaw   = -1.023},
          Action::MotionParams{
          .vel = 0.06, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.2}),
-         }                                                                },
-        {                 "storage_rb",
+         }                                                                                     },
+        {                  "storage_rb",
          {
          Action::Step::makePose(
          Action::PoseTarget{
-         .x     = 0.281561,
-         .y     = -0.033675,
-         .z     = 0.388642,
-         .roll  = 0.725640,
-         .pitch = -1.475059,
-         .yaw   = -0.839970},
+         .x     = 0.046,
+         .y     = -0.036,
+         .z     = 0.582,
+         .roll  = 0.517,
+         .pitch = -0.946,
+         .yaw   = -1.023},
          Action::MotionParams{
          .vel = 0.02, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.2}),
          Action::Step::makePose(
@@ -516,15 +609,15 @@ inline auto make_lunar_rover_action_parameter_map() {
          .vel = 0.05, .acc = 0.03, .tolerance_pos = 0.02, .tolerance_ori = 0.2}),
          Action::Step::makePose(
          Action::PoseTarget{
-         .x     = 0.221731,
-         .y     = 0.002842,
-         .z     = 0.308955,
-         .roll  = -3.084697,
-         .pitch = -1.097439,
-         .yaw   = 3.096949},
+         .x     = 0.046,
+         .y     = -0.036,
+         .z     = 0.582,
+         .roll  = 0.517,
+         .pitch = -0.946,
+         .yaw   = -1.023},
          Action::MotionParams{
          .vel = 0.06, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.2}),
-         }                                                                },
+         }                                                                                     },
     };
 }
 

@@ -15,6 +15,7 @@ enum class ArmMode : uint8_t {
     Auto_Extract_LB,
     Auto_Extract_RF,
     Auto_Extract_RB,
+    Auto_Five_Mine,
     Test,
     Calibration,
     Auto_Up_One_Stairs,

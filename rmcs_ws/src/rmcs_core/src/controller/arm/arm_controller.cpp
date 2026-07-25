@@ -175,10 +175,10 @@ private:
             if (knob != last_rotary_knob_switch_) {
                 if (knob == Switch::UP) {
                     image_pitch_theta1_offset_ = 1.2;
-                    set_arm_mode(rmcs_msgs::ArmMode::Auto_Up_Two_Stairs);
+                    set_arm_mode(rmcs_msgs::ArmMode::Auto_Up_One_Stairs);
                 } else if (knob == Switch::DOWN) {
                     image_pitch_theta1_offset_ = 0.70;
-                    set_arm_mode(rmcs_msgs::ArmMode::Auto_Down_Stairs,false);
+                    set_arm_mode(rmcs_msgs::ArmMode::Auto_Up_Two_Stairs);
                 }
             }
             if (keyboard.g && !last_keyboard_.g) {
@@ -243,15 +243,19 @@ private:
                     set_arm_mode(rmcs_msgs::ArmMode::Auto_Storage_RF);
                 }
             }
+            if (keyboard.c && !last_keyboard_.c) {
+                image_pitch_theta1_offset_ = 0.72;
+                set_arm_mode(rmcs_msgs::ArmMode::Auto_Five_Mine);
+            }
             if (keyboard.z && !last_keyboard_.z) {
                 if (!keyboard.shift && !keyboard.ctrl) {
                     set_gripper_mode(rmcs_msgs::GripperMode::Open);
-                } else if (keyboard.shift && !keyboard.ctrl) {
-                    set_gripper_mode(rmcs_msgs::GripperMode::Close);
+                } else if (keyboard.shift && keyboard.ctrl) {
+                    set_gripper_mode(rmcs_msgs::GripperMode::Calibrate);
                 }
             }
-            if(keyboard.x&&!last_keyboard_.x){
-                set_gripper_mode(rmcs_msgs::GripperMode::Calibrate);
+            if (keyboard.x && !last_keyboard_.x) {
+                set_gripper_mode(rmcs_msgs::GripperMode::Close);
             }
             if (keyboard.r && !last_keyboard_.r) {
                 image_pitch_theta1_offset_ = 0.32;
@@ -296,6 +300,10 @@ private:
             case ArmMode::Auto_Storage_RB:
                 arm_action_machine_.process(action_dictionary_.helper_find_chunk("storage_rb"));
                 break;
+            case ArmMode::Auto_Five_Mine:
+                arm_action_machine_.process(
+                    action_dictionary_.helper_find_chunk("roll_out_in_five_mines"));
+                break;
             case ArmMode::Auto_Walk:
                 arm_action_machine_.process(action_dictionary_.helper_find_chunk("auto_walk"));
                 break;
@@ -321,6 +329,20 @@ private:
         case ArmMode::DT7_Control_Position: execute_dt7_position(); break;
         case ArmMode::DT7_Control_Orientation: execute_dt7_orientation(); break;
         case ArmMode::Custome: execute_custom(); break;
+        case ArmMode::Auto_Five_Mine: {
+            if ((*keyboard_).ctrl && !last_keyboard_.ctrl) {
+                arm_action_machine_.process(action_dictionary_.helper_build_chunk(
+                    {"transition_to_storage_mine_1", "storage_lb", "transition_to_extract_mine_2",
+                     "storage_lf", "transition_to_extract_mine_3", "storage_rb"}));
+            }
+            execute_plan_request_and_trajectory_step();
+            break;
+        }
+        case rmcs_msgs::ArmMode::Calibration: {
+            for (size_t i = 0; i < 6; ++i)
+                *target_theta[i] =NAN;
+            break;
+        }
         case ArmMode::Auto_Up_One_Stairs:
         case ArmMode::Auto_Up_Two_Stairs: {
             // Lunar rover only: switch arm actions based on stair-stage feedback from the legs.
@@ -454,8 +476,8 @@ private:
         return angle < 0 ? angle + M_PI : angle - M_PI;
     }
     void gripper_control() {
-        const double gripper_step         = this->get_parameter("gripper_step").as_double();
-        const double gripper_open_angle   = this->get_parameter("gripper_open_angle").as_double();
+        const double gripper_step       = this->get_parameter("gripper_step").as_double();
+        const double gripper_open_angle = this->get_parameter("gripper_open_angle").as_double();
         static bool initial_calibration{false};
 
         const auto gripper_mode  = get_gripper_mode();

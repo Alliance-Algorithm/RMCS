@@ -56,10 +56,11 @@ public:
         , lf_velocity_pid_controller_(0.8, 0.0, 0.001)
         , rf_velocity_pid_controller_(1.0, 0.0, 0.001)
         , up_stairs{
-              {*this, "up_one_stairs", {"initial", "press", "wait", "lift"}},
+              {*this, "up_one_stairs", {"initial", "press", "press_wait", "lift"}},
               {*this,
                "up_two_stairs",
-               {"initial", "press", "lift", "initial_again", "press_again", "lift_again"}}} {
+               {"initial", "press", "press_wait", "lift", "initial_again", "initial_wait",
+                "press_again", "lift_again"}}} {
 
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
@@ -210,7 +211,9 @@ private:
             if (last_arm_mode != *arm_mode) {
                 switch (*arm_mode) {
                 case rmcs_msgs::ArmMode::Custome:
-                case rmcs_msgs::ArmMode::Auto_Spin: {
+                case rmcs_msgs::ArmMode::Auto_Spin:
+                case rmcs_msgs::ArmMode::Auto_Five_Mine: 
+                case rmcs_msgs::ArmMode::Calibration:{
                     leg_mode = rmcs_msgs::LegMode::Four_Wheel;
                     break;
                 }
@@ -334,7 +337,7 @@ private:
             || up_stairs[0].get_current_layer_id() == "press"
             || up_stairs[1].get_current_layer_id() == "press"
             || up_stairs[1].get_current_layer_id() == "press_again") {
-
+            // RCLCPP_INFO(this->get_logger(),"omni nan");
             *omni_l_target_vel = NAN;
             *omni_r_target_vel = NAN;
         } else {

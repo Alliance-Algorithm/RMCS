@@ -39,7 +39,7 @@ engineer_hardware:
     board_serial_right_board: "AF-EEF5-24BA-6675-F1B1-C797-50AF-869C-870E"
     gripper_zero_point: 26298
     image_pitch_zero_point: 43131
-    joint6_zero_point: 7804
+    joint6_zero_point: 6816
     joint5_zero_point: 37436
     joint4_zero_point: 32721
     joint3_zero_point: 28459
@@ -83,26 +83,27 @@ leg_controller:
     forward_x_position_in_SixWheel: 250.0
     backward_x_position_in_SixWheel: 221.0
     tof_b: 0.51
-    lf_angle_pid: [1500.0, 0.0,10.0]
-    lf_vel_pid: [1.88, 0.00, 0.8]
+    lf_angle_pid: [1800.0, 0.0,10.0]
+    lf_vel_pid: [1.68, 0.00, 0.8]
     rf_angle_pid: [2000.0, 0.0, 12.0]
     rf_vel_pid: [2.08, 0.00, 1.00]
     up_one_stairs: 
       params:
         initial: [1.90070, 1.65, 0.0, 2000.0]
-        press: [0.34, 0.51, -400.0, 300.0]
-        wait : [0.34,0.51, 0.0, 250.0]
-        lift: [1.016670, 1.150821, -400.0, 100.0]
+        press: [0.34, 0.51, -500.0, 350.0]
+        press_wait : [0.34,0.51, -100.0, 120.0]
+        lift: [1.016670, 1.150821, -100.0, 100.0]
     up_two_stairs:
       params:
         initial: [1.90070, 1.65, 0.0, 2000.0]
-        press: [0.34, 0.51, -500.0, 300.0]
-        wait : [0.34,0.51, 0.0, 300.0]
-        lift: [1.016670, 1.150821, -400.0, 100.0]
+        press: [0.34, 0.51, -500.0, 350.0]
+        press_wait : [0.34,0.51, -100.0, 120.0]
+        lift: [1.016670, 1.150821, -100.0, 100.0]
         # lift_and_initial: [1.400270, 1.410, -100.0, 1000.0]
-        initial_again: [1.90070, 1.65, -300.0, 400.0]
-        press_again: [0.34, 0.51, -500.0, 300.0]
-        lift_again: [0.956670, 1.350821, -200.0, 50.0] 
+        initial_again: [1.90070, 1.65, -300.0, 350.0]
+        initial_wait : [1.90070, 1.65, -100.0, 100.0]
+        press_again: [0.34, 0.51, -500.0, 350.0]
+        lift_again: [0.956670, 1.350821, -200.0, 80.0] 
 
 
 
