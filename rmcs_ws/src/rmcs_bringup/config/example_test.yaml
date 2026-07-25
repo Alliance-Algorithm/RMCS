@@ -1,0 +1,15 @@
+# Example task 全链路联调（无硬件）
+# 启动: ros2 launch rmcs_bringup rmcs.launch.py robot:=example_test
+# 触发: ros2 topic pub --once /dart/example/trigger std_msgs/msg/Int32 "{data: 1}"
+
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_dart_guidance::manager::RemoteCommandBridge -> remote_command_bridge
+      - rmcs_dart_guidance::manager::DartManager -> dart_manager
+      - rmcs_core::controller::dart::ExampleController -> example_controller
+
+example_controller:
+  ros__parameters:
+    stub_complete_ticks: 2000
