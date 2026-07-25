@@ -102,22 +102,33 @@ struct CoSchduler {
         std::function<bool()> monitor;
         std::chrono::steady_clock::duration timeout = std::chrono::steady_clock::duration::max();
 
+        struct State {
+            std::function<bool()> monitor;
+            std::chrono::steady_clock::time_point deadline;
+            bool timed_out = false;
+        };
+
+        std::shared_ptr<State> state{};
+
         static constexpr auto await_ready() noexcept { return false; }
 
         template <typename Promise>
         auto await_suspend(std::coroutine_handle<Promise> handle) {
-            deadline = std::chrono::steady_clock::now() + timeout;
-            handle.promise().resume_request = [this] {
-                return monitor() || std::chrono::steady_clock::now() >= deadline;
+            state = std::make_shared<State>(State{
+                .monitor = std::move(monitor),
+                .deadline = std::chrono::steady_clock::now() + timeout,
+            });
+
+            handle.promise().resume_request = [state = state] {
+                if (state->monitor())
+                    return true;
+
+                state->timed_out = std::chrono::steady_clock::now() >= state->deadline;
+                return state->timed_out;
             };
         }
 
-        auto await_resume() const noexcept {
-            return std::chrono::steady_clock::now() >= deadline && !monitor();
-        }
-
-        // 实现细节：保持聚合属性以支持指派初始化，外部不应访问
-        std::chrono::steady_clock::time_point deadline{};
+        auto await_resume() const noexcept { return state->timed_out; }
     };
 
     struct Slot {
@@ -138,6 +149,8 @@ struct CoSchduler {
 
     // 取消句柄：弱持有任务，任务消亡后操作均为 no-op
     struct Handle {
+        Handle() = default;
+
         auto cancel() const {
             if (const auto locked = slot.lock())
                 locked->cancelled.store(true, std::memory_order::relaxed);

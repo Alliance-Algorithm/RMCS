@@ -1,5 +1,8 @@
 #include "controller/pid/pid_calculator.hpp"
 
+#include <cmath>
+#include <numbers>
+
 #include <eigen3/Eigen/Geometry>
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
@@ -19,7 +22,7 @@ public:
     ChassisController()
         : Node{get_component_name(), node::options()} {
 
-        following_velocity_controller_.output_max = angular_velocity_max;
+        following_velocity_controller_.output_max = +angular_velocity_max;
         following_velocity_controller_.output_min = -angular_velocity_max;
 
         register_input("/remote/joystick/right", joystick_right_);
@@ -31,7 +34,10 @@ public:
         register_input("/gimbal/yaw/control_angle_error", gimbal_yaw_angle_error_, false);
 
         register_input("/chassis/yaw/velocity_imu", chassis_yaw_velocity_imu_, false);
-        register_input("/chassis/climbing_forward_velocity", climbing_forward_velocity_, false);
+
+        register_input("/chassis/climber/direction", chassis_climb_direction_, false);
+        register_input("/chassis/climber/speed", chassis_climb_speed_, false);
+        register_input("/chassis/climber/measure_yaw", chassis_measure_yaw_, false);
 
         register_input("/rmcs_navigation/enable_control", navigation_enable_control_, false);
         register_input("/rmcs_navigation/chassis_velocity", navigation_command_velocity_, false);
@@ -53,8 +59,14 @@ public:
             node::warn("Failed to fetch \"/gimbal/yaw/control_angle_error\". Set to 0.0.");
         }
 
-        if (!climbing_forward_velocity_.ready()) {
-            climbing_forward_velocity_.make_and_bind_directly(kNaN);
+        if (!chassis_climb_direction_.ready()) {
+            chassis_climb_direction_.make_and_bind_directly(kNaN);
+        }
+        if (!chassis_climb_speed_.ready()) {
+            chassis_climb_speed_.make_and_bind_directly(kNaN);
+        }
+        if (!chassis_measure_yaw_.ready()) {
+            chassis_measure_yaw_.make_and_bind_directly(kNaN);
         }
 
         if (!navigation_enable_control_.ready()) {
@@ -71,9 +83,9 @@ public:
     void update() override {
         using namespace rmcs_msgs;
 
-        auto switch_right = *switch_right_;
-        auto switch_left = *switch_left_;
-        auto keyboard = *keyboard_;
+        const auto switch_right = *switch_right_;
+        const auto switch_left = *switch_left_;
+        const auto keyboard = *keyboard_;
 
         do {
             if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
@@ -113,6 +125,12 @@ public:
                     mode = *navigation_chassis_behavior_;
                 }
 
+                if (climb_active()) {
+                    mode = ChassisMode::CLIMB;
+                } else if (mode == ChassisMode::CLIMB) {
+                    mode = ChassisMode::AUTO;
+                }
+
                 update_spin_stuck_watchdog(mode);
                 *mode_ = mode;
             }
@@ -131,6 +149,7 @@ public:
 
         spin_stuck_count_ = 0;
         spin_recovery_count_ = 0;
+        following_velocity_controller_.reset();
     }
 
     auto update_spin_stuck_watchdog(rmcs_msgs::ChassisMode& mode) -> void {
@@ -171,7 +190,6 @@ public:
 
         node::warn("Spin stuck detected, disable spinning for 1s.");
     }
-
     void update_velocity_control() {
         auto translational_velocity = update_translational_velocity_control();
         auto angular_velocity = update_angular_velocity_control();
@@ -179,14 +197,33 @@ public:
         chassis_control_velocity_->vector << translational_velocity, angular_velocity;
     }
 
+    auto climb_active() const -> bool {
+        return std::isfinite(*chassis_climb_direction_) && std::isfinite(*chassis_climb_speed_)
+            && std::isfinite(*chassis_measure_yaw_);
+    }
+
+    static auto normalize_signed_angle(double angle) noexcept {
+        constexpr auto kTwoPi = 2.0 * std::numbers::pi;
+        while (angle >= std::numbers::pi)
+            angle -= kTwoPi;
+        while (angle < -std::numbers::pi)
+            angle += kTwoPi;
+        return angle;
+    }
+
     Eigen::Vector2d update_translational_velocity_control() {
-        if (!std::isnan(*climbing_forward_velocity_))
-            return {*climbing_forward_velocity_, 0.0};
+        using namespace rmcs_msgs;
+
+        if (*mode_ == ChassisMode::CLIMB) {
+            // speed 以底盘正向 direction 为正向：上坡为正前进，下坡为负倒车
+            return {*chassis_climb_speed_, 0.0};
+        }
 
         if (*navigation_enable_control_) {
             const auto command = *navigation_command_velocity_;
             if (command.array().isFinite().all()) {
-                Eigen::Vector2d superimposed = command + *joystick_right_ * translational_velocity_max;
+                Eigen::Vector2d superimposed =
+                    command + *joystick_right_ * translational_velocity_max;
                 if (superimposed.norm() > translational_velocity_max)
                     superimposed *= translational_velocity_max / superimposed.norm();
 
@@ -211,17 +248,6 @@ public:
     double update_angular_velocity_control() {
         double angular_velocity = 0.0;
         double chassis_control_angle = kNaN;
-
-        if (!std::isnan(*climbing_forward_velocity_)) {
-            double err = calculate_unsigned_chassis_angle_error(chassis_control_angle);
-            if (err > std::numbers::pi)
-                err -= 2 * std::numbers::pi;
-            angular_velocity = following_velocity_controller_.update(err);
-
-            *chassis_angle_ = 2 * std::numbers::pi - *gimbal_yaw_angle_;
-            *chassis_control_angle_ = chassis_control_angle;
-            return angular_velocity;
-        }
 
         using namespace rmcs_msgs;
         switch (*mode_) {
@@ -278,6 +304,17 @@ public:
 
             angular_velocity = following_velocity_controller_.update(err);
         } break;
+
+        case ChassisMode::CLIMB: {
+            chassis_control_angle = *chassis_climb_direction_;
+
+            const auto err = normalize_signed_angle(chassis_control_angle - *chassis_measure_yaw_);
+            angular_velocity = following_velocity_controller_.update(err);
+
+            *chassis_angle_ = *chassis_measure_yaw_;
+            *chassis_control_angle_ = chassis_control_angle;
+            return angular_velocity;
+        }
         }
 
         *chassis_angle_ = 2 * std::numbers::pi - *gimbal_yaw_angle_;
@@ -318,7 +355,9 @@ private:
     OutputInterface<double> chassis_angle_, chassis_control_angle_;
 
     InputInterface<double> chassis_yaw_velocity_imu_;
-    InputInterface<double> climbing_forward_velocity_;
+    InputInterface<double> chassis_climb_direction_;
+    InputInterface<double> chassis_climb_speed_;
+    InputInterface<double> chassis_measure_yaw_;
 
     InputInterface<bool> navigation_enable_control_;
     InputInterface<Eigen::Vector2d> navigation_command_velocity_;

@@ -36,9 +36,10 @@ struct StickGroup {
 
         double rise_torque_limit;
 
+        // kLand：begin→final 速度变化时间(s)；越小越快贴到 final；t≥T 后恒 final 缓收
         double land_speed_begin;
         double land_speed_final;
-        double land_tau;
+        double land_duration;
         double land_torque_limit;
 
         double blocked_torque_threshold;
@@ -56,9 +57,15 @@ struct StickGroup {
             case State::kDrop: return +speed_drop;
             case State::kRise: return -speed_rise;
             case State::kLand: {
-                const auto diff = land_speed_begin - land_speed_final;
-                const auto factor = std::exp(-land_elapsed / land_tau);
-                return -1 * (land_speed_final + diff * factor);
+                // 指数进度 α：t=0 → begin，t≥T → final，前快后慢减震
+                constexpr auto kShape = 3.0;
+                const auto T = std::max(land_duration, 1e-3);
+                if (land_elapsed >= T)
+                    return -land_speed_final;
+
+                const auto u = land_elapsed / T;
+                const auto alpha = (1.0 - std::exp(-kShape * u)) / (1.0 - std::exp(-kShape));
+                return -(land_speed_begin + (land_speed_final - land_speed_begin) * alpha);
             }
             }
             std::unreachable();

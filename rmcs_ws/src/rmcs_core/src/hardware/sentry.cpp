@@ -309,6 +309,7 @@ private:
             sentry.register_output("/referee/serial", referee_serial_);
             sentry.register_output("/chassis/yaw/velocity_imu", chassis_yaw_velocity_imu_, 0.0);
             sentry.register_output("/chassis/pitch_imu", chassis_pitch_imu_, 0.0);
+            sentry.register_output("/chassis/climber/measure_yaw", chassis_measure_yaw_, 0.0);
 
             referee_serial_->read = [this](std::byte* buffer, size_t size) {
                 return referee_ring_buffer_receive_.pop_front_n(
@@ -390,6 +391,9 @@ private:
                 const auto& q = snapshot->orientation;
                 *chassis_pitch_imu_ = -std::asin(2.0 * (q.w() * q.y() - q.z() * q.x()));
                 *chassis_yaw_velocity_imu_ = snapshot->gyro_body.z();
+                *chassis_measure_yaw_ = std::atan2(
+                    2.0 * (q.w() * q.z() + q.x() * q.y()),
+                    1.0 - 2.0 * (q.y() * q.y() + q.z() * q.z()));
             }
         }
 
@@ -563,6 +567,7 @@ private:
         OutputInterface<rmcs_msgs::SerialInterface> referee_serial_;
         OutputInterface<double> chassis_yaw_velocity_imu_;
         OutputInterface<double> chassis_pitch_imu_;
+        OutputInterface<double> chassis_measure_yaw_;
 
         StatusMonitor monitor_{};
         std::unique_ptr<librmcs::board::RmcsBoardLite> board_;

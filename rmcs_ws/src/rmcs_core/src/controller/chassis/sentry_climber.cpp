@@ -1,3 +1,8 @@
+#include <chrono>
+#include <cmath>
+#include <limits>
+#include <numbers>
+#include <optional>
 #include <string_view>
 
 #include <eigen3/Eigen/Dense>
@@ -20,31 +25,128 @@ class SentryClimber
 
     static constexpr auto kNaN = std::numeric_limits<double>::quiet_NaN();
 
-    struct SimpleComponent : public rmcs_executor::Component {
-        std::function<void()> fn;
+    struct Config {
+        climber::TrackGroup::Config track;
+        climber::StickGroup::Config stick;
 
-        template <std::invocable Fn>
-        explicit SimpleComponent(Fn&& fn)
-            : fn{std::forward<Fn>(fn)} {}
+        struct Align {
+            double err;
+            double w;
+            double hold;
+            double timeout;
+        } align;
 
-        auto update() -> void override { fn(); }
+        struct Climb {
+            double approach_pitch;
+            double leveled_pitch;
+            double approach_vx;
+            double deploy_vx;
+            double dash_vx;
+            double retract_vx;
+            double dash_min;
+            double dash_timeout;
+            double stick_timeout;
+            double approach_timeout;
+        } climb;
+
+        struct Land {
+            double dash_vx;
+            double soft_vx;
+            double land_pitch;
+            double stick_timeout;
+            double soft_timeout;
+            double settle_timeout;
+        } land;
+
+        double block_hold;
+
+        template <typename ParamOr>
+        static auto load(ParamOr&& param_or) -> Config {
+            return Config{
+                .track =
+                    {
+                        .speed_rush = param_or("track_group.speed_rush", 20.0),
+                        .kp = param_or("track_group.kp", 1.0),
+                        .ki = param_or("track_group.ki", 0.0),
+                        .kd = param_or("track_group.kd", 0.5),
+                        .sync_coefficient = param_or("track_group.sync_coefficient", 0.2),
+                        .power_estimate_bias = param_or("track_group.power_estimate_bias", 0.0),
+                        .power_estimate_k_tau2 = param_or("track_group.power_estimate_k_tau2", 1.0),
+                        .power_estimate_k_mech = param_or("track_group.power_estimate_k_mech", 1.0),
+                    },
+                .stick =
+                    {
+                        .speed_drop = param_or("stick_group.speed_drop", 30.0),
+                        .speed_rise = param_or("stick_group.speed_rise", 60.0),
+                        .rise_torque_limit = param_or("stick_group.rise_torque_limit", 0.5),
+                        .land_speed_begin = param_or("stick_group.land_speed_begin", 30.0),
+                        .land_speed_final = param_or("stick_group.land_speed_final", 2.0),
+                        .land_duration = param_or("stick_group.land_duration", 0.5),
+                        .land_torque_limit = param_or("stick_group.land_torque_limit", 8.0),
+                        .blocked_torque_threshold =
+                            param_or("stick_group.blocked_torque_threshold", 0.1),
+                        .blocked_speed_threshold =
+                            param_or("stick_group.blocked_speed_threshold", 0.1),
+                        .kp = param_or("stick_group.kp", 0.5),
+                        .ki = param_or("stick_group.ki", 0.0),
+                        .kd = param_or("stick_group.kd", 0.0),
+                        .sync_coefficient = param_or("stick_group.sync_coefficient", 0.2),
+                    },
+                .align =
+                    {
+                        .err = param_or("align.err", 0.10),
+                        .w = param_or("align.w", 0.2),
+                        .hold = param_or("align.hold", 0.05),
+                        .timeout = param_or("align.timeout", 15.0),
+                    },
+                .climb =
+                    {
+                        .approach_pitch = param_or("climb.approach_pitch", 0.585),
+                        .leveled_pitch = param_or("climb.leveled_pitch", 0.05),
+                        .approach_vx = param_or("climb.approach_vx", 1.2),
+                        .deploy_vx = param_or("climb.deploy_vx", 0.3),
+                        .dash_vx = param_or("climb.dash_vx", 3.0),
+                        .retract_vx = param_or("climb.retract_vx", 0.3),
+                        .dash_min = param_or("climb.dash_min", 0.1),
+                        .dash_timeout = param_or("climb.dash_timeout", 3.0),
+                        .stick_timeout = param_or("climb.stick_timeout", 8.0),
+                        .approach_timeout = param_or("climb.approach_timeout", 8.0),
+                    },
+                .land =
+                    {
+                        .dash_vx = param_or("land.dash_vx", 0.8),
+                        .soft_vx = param_or("land.soft_vx", 0.4),
+                        .land_pitch = param_or("land.land_pitch", 0.15),
+                        .stick_timeout = param_or("land.stick_timeout", 8.0),
+                        .soft_timeout = param_or("land.soft_timeout", 3.0),
+                        .settle_timeout = param_or("land.settle_timeout", 8.0),
+                    },
+                .block_hold = param_or("block_hold", 0.05),
+            };
+        }
     };
 
+    // 仅输入与派生；不负责 output
     struct Context {
-        // 遥控
         InputInterface<rmcs_msgs::Switch> l_switch;
         InputInterface<rmcs_msgs::Switch> r_switch;
         InputInterface<rmcs_msgs::Keyboard> keyboard;
         InputInterface<rmcs_msgs::Switch> rotary_knob;
 
-        // 姿态
         InputInterface<double> chassis_pitch;
-        InputInterface<double> gimbal_yaw_angle;
-        InputInterface<double> gimbal_yaw_error;
-        InputInterface<double> gimbal_yaw_speed;
+        InputInterface<double> chassis_yaw_rate;
+        // 台阶方向（Odom XY）；NaN 表示由触发时 measure 推导
+        InputInterface<double> target_yaw;
+        InputInterface<double> measure_yaw;
 
-        // 输出（下游契约，话题名不可改）
-        OutputInterface<double> climb_speed;
+        static auto normalize_angle(double angle) noexcept {
+            constexpr auto kTwoPi = 2.0 * std::numbers::pi;
+            while (angle >= std::numbers::pi)
+                angle -= kTwoPi;
+            while (angle < -std::numbers::pi)
+                angle += kTwoPi;
+            return angle;
+        }
 
         auto bind(Component& component) noexcept {
             component.register_input("/remote/switch/left", l_switch, false);
@@ -53,11 +155,9 @@ class SentryClimber
             component.register_input("/remote/rotary_knob_switch", rotary_knob, false);
 
             component.register_input("/chassis/pitch_imu", chassis_pitch, false);
-            component.register_input("/gimbal/yaw/angle", gimbal_yaw_angle, false);
-            component.register_input("/gimbal/yaw/control_angle_error", gimbal_yaw_error, false);
-            component.register_input("/gimbal/yaw/velocity_imu", gimbal_yaw_speed, false);
-
-            component.register_output("/chassis/climber/speed", climb_speed, kNaN);
+            component.register_input("/chassis/yaw/velocity_imu", chassis_yaw_rate, false);
+            component.register_input("/chassis/climber/target_yaw", target_yaw, false);
+            component.register_input("/chassis/climber/measure_yaw", measure_yaw, false);
         }
 
         auto load_fallback(std::invocable<std::string_view> auto&& handler) {
@@ -77,69 +177,381 @@ class SentryClimber
             ensure_bind(rotary_knob, Switch::UNKNOWN, "rotary_knob");
 
             ensure_bind(chassis_pitch, 0.0, "chassis_pitch");
-            ensure_bind(gimbal_yaw_angle, 0.0, "gimbal_yaw_angle");
-            ensure_bind(gimbal_yaw_error, 0.0, "gimbal_yaw_error");
-            ensure_bind(gimbal_yaw_speed, 0.0, "gimbal_yaw_speed");
+            ensure_bind(chassis_yaw_rate, 0.0, "chassis_yaw_rate");
+            ensure_bind(target_yaw, kNaN, "target_yaw");
+            ensure_bind(measure_yaw, kNaN, "measure_yaw");
         }
+
+        auto is_estop() const {
+            using namespace rmcs_msgs;
+            const auto l = *l_switch;
+            const auto r = *r_switch;
+            return l == Switch::UNKNOWN || r == Switch::UNKNOWN
+                || (l == Switch::DOWN && r == Switch::DOWN);
+        }
+
+        auto align_error(double goal) const noexcept {
+            return normalize_angle(*measure_yaw - goal);
+        }
+
+        auto wait_align(
+            double goal, double err_limit, double w_limit, std::chrono::steady_clock::duration hold,
+            std::chrono::steady_clock::duration timeout) const {
+            constexpr auto kSinceInit = std::optional<std::chrono::steady_clock::time_point>{};
+            return CoSchduler::WaitUntil{
+                .monitor =
+                    [this, goal, err_limit, w_limit, hold, hold_since = kSinceInit]() mutable {
+                        if (!std::isfinite(*measure_yaw))
+                            return false;
+
+                        const auto stable = std::abs(align_error(goal)) < err_limit
+                                         && std::abs(*chassis_yaw_rate) < w_limit;
+
+                        const auto now = std::chrono::steady_clock::now();
+                        if (stable) {
+                            if (!hold_since.has_value())
+                                hold_since = now;
+                            else if (now - *hold_since >= hold)
+                                return true;
+                        } else {
+                            hold_since.reset();
+                        }
+                        return false;
+                    },
+                .timeout = timeout,
+            };
+        }
+
     } context;
 
-    std::shared_ptr<Component> status_component{
-        create_partner_component<SimpleComponent>(
-            get_component_name() + "_status", [this] { update_status(); }),
+    // direction：底盘正向方向；speed：以其为正向的有符号速度（上正下负）
+    OutputInterface<double> chassis_climb_direction;
+    OutputInterface<double> chassis_climb_speed;
+    OutputInterface<double> climb_status;
+
+    struct SimpleComponent : public rmcs_executor::Component {
+        std::function<void()> fn;
+
+        template <std::invocable Fn>
+        explicit SimpleComponent(Fn&& fn)
+            : fn{std::forward<Fn>(fn)} {}
+
+        auto update() -> void override { fn(); }
     };
-    OutputInterface<double> climb_status; // T climbing, F done or idle
+
+    // 伙伴组件注册并发布底盘契约输出（依赖序在主组件之后）
+    std::shared_ptr<Component> output_component{
+        create_partner_component<SimpleComponent>(
+            get_component_name() + "_output",
+            [this] {
+                // 输出由业务协程写入，此处仅占位以形成 partner 更新节点
+                std::ignore = this;
+            }),
+    };
 
     std::unique_ptr<climber::TrackGroup> track_group;
     std::unique_ptr<climber::StickGroup> stick_group;
     CoSchduler schduler;
 
-    auto update_status() -> void {}
+    Config config;
+    CoSchduler::Handle task_handler;
+
+    static auto seconds_to_duration(double seconds) noexcept {
+        return std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+            std::chrono::duration<double>{seconds});
+    }
+
+    auto release_chassis() {
+        *chassis_climb_direction = kNaN;
+        *chassis_climb_speed = kNaN;
+        *climb_status = 0.0;
+    }
+
+    auto wait_block(std::chrono::steady_clock::duration timeout) {
+        constexpr auto kSinceInit = std::optional<std::chrono::steady_clock::time_point>{};
+        const auto hold = seconds_to_duration(config.block_hold);
+        return CoSchduler::WaitUntil{
+            .monitor =
+                [this, hold, hold_since = kSinceInit]() mutable {
+                    const auto now = std::chrono::steady_clock::now();
+                    if (stick_group->get_block()) {
+                        if (!hold_since.has_value())
+                            hold_since = now;
+                        else if (now - *hold_since >= hold)
+                            return true;
+                    } else {
+                        hold_since.reset();
+                    }
+                    return false;
+                },
+            .timeout = timeout,
+        };
+    }
+
+    auto spin_context() -> CoSchduler::Task {
+        using namespace rmcs_msgs;
+        using TrackState = climber::TrackGroup::State;
+        using StickState = climber::StickGroup::State;
+
+        auto last_keyboard = Keyboard::zero();
+        auto last_rotary = Switch::UNKNOWN;
+
+        const auto cancel_task = [this] {
+            if (!task_handler.done()) {
+                task_handler.cancel();
+                task_handler = {};
+            }
+            track_group->set_state(TrackState::kFree);
+            stick_group->set_state(StickState::kFree);
+            release_chassis();
+        };
+
+        while (true) {
+            const auto keyboard = *context.keyboard;
+            const auto rotary = *context.rotary_knob;
+
+            const auto land_intent = last_rotary != Switch::DOWN && rotary == Switch::DOWN;
+            const auto rise_intent = (last_keyboard.g == false && keyboard.g == true)
+                                  || (last_rotary != Switch::UP && rotary == Switch::UP);
+            const auto stop_intent = (last_rotary == Switch::UP && rotary != Switch::UP)
+                                  || (last_rotary == Switch::DOWN && rotary != Switch::DOWN);
+
+            if (context.is_estop() || stop_intent) {
+                cancel_task();
+            } else if (rise_intent) {
+                if (!task_handler.done()) {
+                    cancel_task();
+                } else if (!std::isfinite(*context.measure_yaw)) {
+                    node::error("climb start rejected: measure_yaw invalid");
+                } else {
+                    // 底盘正向：有外部台阶方向直接用，否则锁存当前航向（默认前脸对台阶）
+                    const auto direction = std::isfinite(*context.target_yaw)
+                                             ? *context.target_yaw
+                                             : *context.measure_yaw;
+                    task_handler = schduler.append(climb(direction));
+                }
+            } else if (land_intent) {
+                if (!task_handler.done()) {
+                    cancel_task();
+                } else if (!std::isfinite(*context.measure_yaw)) {
+                    node::error("land start rejected: measure_yaw invalid");
+                } else {
+                    // 底盘正向：外部给台阶方向时背对台阶（+π），否则保持当前航向（默认背对台阶）
+                    const auto direction =
+                        std::isfinite(*context.target_yaw)
+                            ? Context::normalize_angle(*context.target_yaw + std::numbers::pi)
+                            : *context.measure_yaw;
+                    task_handler = schduler.append(land(direction));
+                }
+            }
+
+            *climb_status = task_handler.done() ? 0.0 : 1.0;
+            last_keyboard = keyboard;
+            last_rotary = rotary;
+
+            co_await CoSchduler::Tick{};
+        }
+    }
+
+    auto spin_groups() -> CoSchduler::Task {
+        while (true) {
+            track_group->spin_once();
+            stick_group->spin_once();
+            co_await CoSchduler::Tick{};
+        }
+    }
+
+    // direction：底盘正向方向；speed 以其为正向
+    auto climb(double direction) -> CoSchduler::Task {
+        using TrackState = climber::TrackGroup::State;
+        using StickState = climber::StickGroup::State;
+
+        node::info("Climb start, direction={:.3f}", direction);
+        *chassis_climb_direction = direction;
+
+        // ALIGN：对齐底盘正向，speed=0 仍保持 CLIMB
+        track_group->set_state(TrackState::kHold);
+        stick_group->set_state(StickState::kHold);
+        *chassis_climb_speed = 0.0;
+        {
+            const auto timed_out = co_await context.wait_align(
+                direction, config.align.err, config.align.w, seconds_to_duration(config.align.hold),
+                seconds_to_duration(config.align.timeout));
+            if (timed_out || !std::isfinite(*context.measure_yaw)) {
+                node::warn("climb ALIGN failed");
+                track_group->set_state(TrackState::kFree);
+                stick_group->set_state(StickState::kFree);
+                release_chassis();
+                co_return;
+            }
+        }
+
+        // APPROACH
+        track_group->set_state(TrackState::kRush);
+        stick_group->set_state(StickState::kHold);
+        *chassis_climb_speed = config.climb.approach_vx;
+        {
+            const auto timed_out = co_await CoSchduler::WaitUntil{
+                .monitor = [this] { return *context.chassis_pitch > config.climb.approach_pitch; },
+                .timeout = seconds_to_duration(config.climb.approach_timeout),
+            };
+            if (timed_out)
+                node::warn("climb APPROACH timeout, continue");
+        }
+
+        // DEPLOY
+        track_group->set_state(TrackState::kHold);
+        stick_group->set_state(StickState::kDrop);
+        *chassis_climb_speed = config.climb.deploy_vx;
+        {
+            const auto timed_out =
+                co_await wait_block(seconds_to_duration(config.climb.stick_timeout));
+            if (timed_out)
+                node::warn("climb DEPLOY stick timeout, continue");
+        }
+
+        // DASH
+        track_group->set_state(TrackState::kHold);
+        stick_group->set_state(StickState::kHold);
+        *chassis_climb_speed = config.climb.dash_vx;
+        {
+            const auto dash_start = std::chrono::steady_clock::now();
+            const auto timed_out = co_await CoSchduler::WaitUntil{
+                .monitor =
+                    [this, dash_start] {
+                        return std::chrono::steady_clock::now() - dash_start
+                                >= seconds_to_duration(config.climb.dash_min)
+                            && *context.chassis_pitch < config.climb.leveled_pitch;
+                    },
+                .timeout = seconds_to_duration(config.climb.dash_timeout),
+            };
+            if (timed_out)
+                node::warn("climb DASH timeout, continue");
+        }
+
+        // RETRACT
+        track_group->set_state(TrackState::kRush);
+        stick_group->set_state(StickState::kRise);
+        *chassis_climb_speed = config.climb.retract_vx;
+        {
+            const auto timed_out =
+                co_await wait_block(seconds_to_duration(config.climb.stick_timeout));
+            if (timed_out)
+                node::warn("climb RETRACT stick timeout, continue");
+        }
+
+        track_group->set_state(TrackState::kFree);
+        stick_group->set_state(StickState::kHold);
+        release_chassis();
+    }
+
+    auto land(double direction) -> CoSchduler::Task {
+        using TrackState = climber::TrackGroup::State;
+        using StickState = climber::StickGroup::State;
+
+        node::info("Land start, direction={:.3f}", direction);
+        *chassis_climb_direction = direction;
+
+        // PREPARE：先收支臂，暂不接管底盘速度
+        track_group->set_state(TrackState::kHold);
+        stick_group->set_state(StickState::kRise);
+        *chassis_climb_speed = kNaN;
+        {
+            const auto timed_out =
+                co_await wait_block(seconds_to_duration(config.land.stick_timeout));
+            if (timed_out)
+                node::warn("land PREPARE stick timeout, continue");
+        }
+
+        // ALIGN：对齐底盘正向，speed=0
+        track_group->set_state(TrackState::kHold);
+        stick_group->set_state(StickState::kHold);
+        *chassis_climb_speed = 0.0;
+        {
+            const auto timed_out = co_await context.wait_align(
+                direction, config.align.err, config.align.w, seconds_to_duration(config.align.hold),
+                seconds_to_duration(config.align.timeout));
+            if (timed_out || !std::isfinite(*context.measure_yaw)) {
+                node::warn("land ALIGN failed");
+                track_group->set_state(TrackState::kFree);
+                stick_group->set_state(StickState::kFree);
+                release_chassis();
+                co_return;
+            }
+        }
+
+        // DEPLOY / SETTLE / SOFT：相对 direction 为负向
+        track_group->set_state(TrackState::kHold);
+        stick_group->set_state(StickState::kDrop);
+        *chassis_climb_speed = -config.land.dash_vx;
+        {
+            const auto timed_out =
+                co_await wait_block(seconds_to_duration(config.land.stick_timeout));
+            if (timed_out)
+                node::warn("land DEPLOY stick timeout, continue");
+        }
+
+        track_group->set_state(TrackState::kHold);
+        stick_group->set_state(StickState::kDrop);
+        *chassis_climb_speed = -config.land.dash_vx;
+        {
+            const auto timed_out = co_await CoSchduler::WaitUntil{
+                .monitor =
+                    [this] { return std::abs(*context.chassis_pitch) < config.land.land_pitch; },
+                .timeout = seconds_to_duration(config.land.settle_timeout),
+            };
+            if (timed_out)
+                node::warn("land SETTLE timeout, continue");
+        }
+
+        track_group->set_state(TrackState::kHold);
+        stick_group->set_state(StickState::kLand);
+        *chassis_climb_speed = -config.land.soft_vx;
+        co_await CoSchduler::Sleep{seconds_to_duration(config.stick.land_duration)};
+        {
+            const auto timed_out =
+                co_await wait_block(seconds_to_duration(config.land.soft_timeout));
+            if (timed_out)
+                node::warn("land SOFT stick timeout, continue");
+        }
+
+        // FINAL
+        track_group->set_state(TrackState::kFree);
+        stick_group->set_state(StickState::kRise);
+        *chassis_climb_speed = kNaN;
+        {
+            const auto timed_out =
+                co_await wait_block(seconds_to_duration(config.land.stick_timeout));
+            if (timed_out)
+                node::warn("land FINAL stick timeout, continue");
+        }
+
+        stick_group->set_state(StickState::kHold);
+        release_chassis();
+    }
 
 public:
     SentryClimber()
         : Node{get_component_name(), node::options()} {
-        using namespace climber;
-        {
-            const auto config = TrackGroup::Config{
-                .speed_rush = node::param_or("track_group.speed_rush", 20.0),
+        const auto read_parameter = [this](std::string_view name, double fallback) {
+            return node::param_or(std::string{name}, fallback);
+        };
 
-                .kp = node::param_or("track_group.kp", 1.0),
-                .ki = node::param_or("track_group.ki", 0.),
-                .kd = node::param_or("track_group.kd", 0.5),
-                .sync_coefficient = node::param_or("track_group.sync_coefficient", 0.2),
+        config = Config::load(read_parameter);
 
-                .power_estimate_bias = node::param_or("track_group.power_estimate_bias", 0.0),
-                .power_estimate_k_tau2 = node::param_or("track_group.power_estimate_k_tau2", 1.0),
-                .power_estimate_k_mech = node::param_or("track_group.power_estimate_k_mech", 1.0),
-            };
-            track_group = std::make_unique<TrackGroup>(*this, config);
-        }
-        {
-            const auto config = StickGroup::Config{
-                .speed_drop = node::param_or("stick_group.speed_drop", 30.0),
-                .speed_rise = node::param_or("stick_group.speed_rise", 60.0),
-
-                .rise_torque_limit = node::param_or("stick_group.rise_torque_limit", 0.5),
-
-                .land_speed_begin = node::param_or("stick_group.land_speed_begin", 30.0),
-                .land_speed_final = node::param_or("stick_group.land_speed_final", 2.0),
-                .land_tau = node::param_or("stick_group.land_tau", 0.4),
-                .land_torque_limit = node::param_or("stick_group.land_torque_limit", 8.0),
-
-                .blocked_torque_threshold =
-                    node::param_or("stick_group.blocked_torque_threshold", 0.1),
-                .blocked_speed_threshold =
-                    node::param_or("stick_group.blocked_speed_threshold", 0.1),
-
-                .kp = node::param_or("stick_group.kp", 0.5),
-                .ki = node::param_or("stick_group.ki", 0.),
-                .kd = node::param_or("stick_group.kd", 0.),
-                .sync_coefficient = node::param_or("stick_group.sync_coefficient", 0.2),
-            };
-            stick_group = std::make_unique<StickGroup>(*this, config);
-        }
+        track_group = std::make_unique<climber::TrackGroup>(*this, config.track);
+        stick_group = std::make_unique<climber::StickGroup>(*this, config.stick);
 
         context.bind(*this);
+
+        // 底盘契约输出挂在 partner 上，保证更新序在主逻辑之后对下游可见
+        output_component->register_output(
+            "/chassis/climber/direction", chassis_climb_direction, kNaN);
+        output_component->register_output("/chassis/climber/speed", chassis_climb_speed, kNaN);
+        output_component->register_output("/chassis/climber/status", climb_status, 0.0);
+
+        schduler.append(spin_context());
+        schduler.append(spin_groups());
     }
 
     auto before_updating() -> void override {
@@ -147,6 +559,22 @@ public:
             node::warn("Failed to fetch input '{}'. Bind to fallback.", name);
         });
     }
+
+    auto update() -> void override {
+        try {
+            schduler.spin_once();
+        } catch (const std::exception& e) {
+            node::error("climber routine exception: {}", e.what());
+            task_handler.cancel();
+            task_handler = {};
+            track_group->set_state(climber::TrackGroup::State::kFree);
+            stick_group->set_state(climber::StickGroup::State::kFree);
+            release_chassis();
+        }
+    }
 };
 
 } // namespace rmcs_core::controller::chassis
+
+#include <pluginlib/class_list_macros.hpp>
+PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::chassis::SentryClimber, rmcs_executor::Component)
