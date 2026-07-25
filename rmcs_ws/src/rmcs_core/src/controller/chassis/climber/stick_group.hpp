@@ -28,7 +28,7 @@ struct StickGroup {
         kDrop,
         kRise,
         kLand,
-        kRetacted,
+        kKeep,
     } state = State::kFree;
 
     struct Config {
@@ -57,8 +57,8 @@ struct StickGroup {
             case State::kFree: return kNaN;
             case State::kHold: return 0.0;
             case State::kDrop: return +speed_drop;
-            case State::kRise: return -speed_rise;
-            case State::kRetacted: return -speed_rise;
+            case State::kRise: [[fallthrough]];
+            case State::kKeep: return -speed_rise;
             case State::kLand: {
                 // 指数进度 α：t=0 → begin，t≥T → final，前快后慢减震
                 constexpr auto kShape = 3.0;
@@ -76,8 +76,8 @@ struct StickGroup {
 
         auto get_torque_limit(State state) const noexcept {
             switch (state) {
-            case State::kRise: return rise_torque_limit;
-            case State::kRetacted: return rise_torque_limit;
+            case State::kRise: [[fallthrough]];
+            case State::kKeep: return rise_torque_limit;
             case State::kLand: return land_torque_limit;
             default: return std::numeric_limits<double>::infinity();
             }
@@ -117,7 +117,7 @@ struct StickGroup {
     }
 
     auto spin_once() {
-        if (state == State::kRetacted && get_block()) {
+        if (state == State::kKeep && get_block()) {
             *l_control_torque = -config.hold_torque;
             *r_control_torque = -config.hold_torque;
             return;

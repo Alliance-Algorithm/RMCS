@@ -25,6 +25,9 @@ class SentryClimber
 
     static constexpr auto kNaN = std::numeric_limits<double>::quiet_NaN();
 
+    using TrackState = climber::TrackGroup::State;
+    using StickState = climber::StickGroup::State;
+
     struct Config {
         climber::TrackGroup::Config track;
         climber::StickGroup::Config stick;
@@ -142,7 +145,7 @@ class SentryClimber
         InputInterface<double> target_yaw;
         InputInterface<double> measure_yaw;
 
-        static auto normalize_angle(double angle) noexcept {
+        static constexpr auto normalize_angle(double angle) noexcept {
             constexpr auto kTwoPi = 2.0 * std::numbers::pi;
             while (angle >= std::numbers::pi)
                 angle -= kTwoPi;
@@ -227,10 +230,9 @@ class SentryClimber
 
     } context;
 
-    // direction：底盘正向方向；speed：以其为正向的有符号速度（上正下负）
-    OutputInterface<double> chassis_climb_direction;
-    OutputInterface<double> chassis_climb_speed;
-    OutputInterface<double> climb_status;
+    OutputInterface<double> chassis_track_direction; // 以履带方向为正向
+    OutputInterface<double> chassis_climb_speed;     // 正向为基准的速度值
+    OutputInterface<double> chassis_climb_status;
 
     struct SimpleComponent : public rmcs_executor::Component {
         std::function<void()> fn;
@@ -259,17 +261,17 @@ class SentryClimber
     Config config;
     CoSchduler::Handle task_handler;
 
-    static auto seconds_to_duration(double seconds) noexcept {
+    static constexpr auto seconds_to_duration(double seconds) noexcept {
         return std::chrono::duration_cast<std::chrono::steady_clock::duration>(
             std::chrono::duration<double>{seconds});
     }
 
-    auto release_chassis() {
-        *chassis_climb_direction = kNaN;
+    auto release_climber() noexcept {
+        *chassis_track_direction = kNaN;
         *chassis_climb_speed = kNaN;
-        *climb_status = 0.0;
-        track_group->set_state(climber::TrackGroup::State::kFree);
-        stick_group->set_state(climber::StickGroup::State::kRetacted);
+        track_group->set_state(TrackState::kFree);
+        stick_group->set_state(//
+            context.is_estop() ? StickState::kFree : StickState::kKeep);
     }
 
     auto wait_block(std::chrono::steady_clock::duration timeout) {
@@ -295,8 +297,6 @@ class SentryClimber
 
     auto spin_context() -> CoSchduler::Task {
         using namespace rmcs_msgs;
-        using TrackState = climber::TrackGroup::State;
-        using StickState = climber::StickGroup::State;
 
         auto last_keyboard = Keyboard::zero();
         auto last_rotary = Switch::UNKNOWN;
@@ -306,51 +306,52 @@ class SentryClimber
                 task_handler.cancel();
                 task_handler = {};
             }
-            track_group->set_state(TrackState::kFree);
-            stick_group->set_state(StickState::kFree);
-            release_chassis();
+            *chassis_climb_status = 0.0;
+            release_climber();
         };
 
         while (true) {
             const auto keyboard = *context.keyboard;
             const auto rotary = *context.rotary_knob;
 
-            const auto land_intent = last_rotary != Switch::DOWN && rotary == Switch::DOWN;
-            const auto rise_intent = (last_keyboard.g == false && keyboard.g == true)
-                                  || (last_rotary != Switch::UP && rotary == Switch::UP);
-            const auto stop_intent = (last_rotary == Switch::UP && rotary != Switch::UP)
-                                  || (last_rotary == Switch::DOWN && rotary != Switch::DOWN);
+            const auto stop_intent = (last_rotary != Switch::MIDDLE && rotary == Switch::MIDDLE);
+            const auto land_intent = (last_rotary != Switch::DOWN && rotary == Switch::DOWN);
+            const auto rise_intent = (last_rotary != Switch::UP && rotary == Switch::UP)
+                                  || (last_keyboard.g == false && keyboard.g == true);
 
-            if (context.is_estop() || stop_intent) {
-                cancel_task();
-            } else if (rise_intent) {
-                if (!task_handler.done()) {
-                    cancel_task();
-                } else if (!std::isfinite(*context.measure_yaw)) {
-                    node::error("climb start rejected: measure_yaw invalid");
-                } else {
-                    // 底盘正向：有外部台阶方向直接用，否则锁存当前航向（默认前脸对台阶）
-                    const auto direction = std::isfinite(*context.target_yaw)
-                                             ? *context.target_yaw
-                                             : *context.measure_yaw;
-                    task_handler = schduler.append(climb(direction));
-                }
-            } else if (land_intent) {
-                if (!task_handler.done()) {
-                    cancel_task();
-                } else if (!std::isfinite(*context.measure_yaw)) {
-                    node::error("land start rejected: measure_yaw invalid");
-                } else {
-                    // 底盘正向：外部给台阶方向时背对台阶（+π），否则保持当前航向（默认背对台阶）
-                    const auto direction =
-                        std::isfinite(*context.target_yaw)
-                            ? Context::normalize_angle(*context.target_yaw + std::numbers::pi)
-                            : *context.measure_yaw;
-                    task_handler = schduler.append(land(direction));
-                }
-            }
+            const auto step_direction =
+                std::isfinite(*context.target_yaw) ? *context.target_yaw : *context.measure_yaw;
 
-            *climb_status = task_handler.done() ? 0.0 : 1.0;
+            do {
+                if (context.is_estop() || stop_intent) {
+                    cancel_task();
+                    break;
+                }
+                if (rise_intent) {
+                    if (!task_handler.done()) {
+                        cancel_task();
+                    } else if (!std::isfinite(*context.measure_yaw)) {
+                        node::error("climb start rejected: measure_yaw invalid");
+                    } else {
+                        task_handler = schduler.append(climb(step_direction));
+                    }
+                    break;
+                }
+                if (land_intent) {
+                    if (!task_handler.done()) {
+                        cancel_task();
+                    } else if (!std::isfinite(*context.measure_yaw)) {
+                        node::error("land start rejected: measure_yaw invalid");
+                    } else {
+                        task_handler = schduler.append(land(step_direction));
+                    }
+                    break;
+                }
+            } while (false);
+
+            if (!context.is_estop() && task_handler.done())
+                release_climber();
+
             last_keyboard = keyboard;
             last_rotary = rotary;
 
@@ -366,17 +367,13 @@ class SentryClimber
         }
     }
 
-    // direction：底盘正向方向；speed 以其为正向
     auto climb(double direction) -> CoSchduler::Task {
-        using TrackState = climber::TrackGroup::State;
-        using StickState = climber::StickGroup::State;
-
-        using namespace std::chrono_literals;
+        *chassis_climb_status = 0.0;
 
         node::info("Climb start, direction={:.3f}", direction);
-        *chassis_climb_direction = direction;
+        *chassis_track_direction = direction;
 
-        // ALIGN：对齐底盘正向，speed=0 仍保持 CLIMB
+        // [] 将底盘与台阶方向对齐
         track_group->set_state(TrackState::kHold);
         stick_group->set_state(StickState::kHold);
         *chassis_climb_speed = 0.0;
@@ -386,14 +383,13 @@ class SentryClimber
                 seconds_to_duration(config.align.timeout));
             if (timed_out || !std::isfinite(*context.measure_yaw)) {
                 node::warn("climb ALIGN failed");
-                track_group->set_state(TrackState::kFree);
-                stick_group->set_state(StickState::kFree);
-                release_chassis();
+                release_climber();
+                *chassis_climb_status = -1;
                 co_return;
             }
         }
 
-        // APPROACH
+        // [] 冲向台阶，开启履带，让底盘沿着台阶边缘上升，直到倾斜到一定角度
         track_group->set_state(TrackState::kRush);
         stick_group->set_state(StickState::kHold);
         *chassis_climb_speed = config.climb.approach_vx;
@@ -406,7 +402,7 @@ class SentryClimber
                 node::warn("climb APPROACH timeout, continue");
         }
 
-        // DEPLOY
+        // [] 伸出撑杆，同时慢速向台阶方向前进
         track_group->set_state(TrackState::kHold);
         stick_group->set_state(StickState::kDrop);
         *chassis_climb_speed = config.climb.deploy_vx;
@@ -417,14 +413,14 @@ class SentryClimber
                 node::warn("climb DEPLOY stick timeout, continue");
         }
 
-        // DASH
+        // [] 撑杆已完全伸出，全力冲上台阶，保持一定时间间隔
         track_group->set_state(TrackState::kHold);
         stick_group->set_state(StickState::kHold);
         *chassis_climb_speed = config.climb.dash_vx;
         co_await CoSchduler::Sleep{seconds_to_duration(config.climb.dash_duration)};
 
-        // RETRACT
-        track_group->set_state(TrackState::kRush);
+        // [] 上台阶完毕，收回撑杆
+        track_group->set_state(TrackState::kHold);
         stick_group->set_state(StickState::kRise);
         *chassis_climb_speed = config.climb.retract_vx;
         {
@@ -434,31 +430,17 @@ class SentryClimber
                 node::warn("climb RETRACT stick timeout, continue");
         }
 
-        track_group->set_state(TrackState::kFree);
-        stick_group->set_state(StickState::kHold);
-
-        release_chassis();
+        *chassis_climb_status = 1.0;
+        release_climber();
     }
 
     auto land(double direction) -> CoSchduler::Task {
-        using TrackState = climber::TrackGroup::State;
-        using StickState = climber::StickGroup::State;
+        *chassis_climb_status = 0.0;
 
         node::info("Land start, direction={:.3f}", direction);
-        *chassis_climb_direction = direction;
+        *chassis_track_direction = direction + std::numbers::pi;
 
-        // PREPARE：先收支臂，暂不接管底盘速度
-        track_group->set_state(TrackState::kHold);
-        stick_group->set_state(StickState::kRise);
-        *chassis_climb_speed = kNaN;
-        {
-            const auto timed_out =
-                co_await wait_block(seconds_to_duration(config.land.stick_timeout));
-            if (timed_out)
-                node::warn("land PREPARE stick timeout, continue");
-        }
-
-        // ALIGN：对齐底盘正向，speed=0
+        // [] 底盘对齐方向，准备下台阶
         track_group->set_state(TrackState::kHold);
         stick_group->set_state(StickState::kHold);
         *chassis_climb_speed = 0.0;
@@ -466,16 +448,15 @@ class SentryClimber
             const auto timed_out = co_await context.wait_align(
                 direction, config.align.err, config.align.w, seconds_to_duration(config.align.hold),
                 seconds_to_duration(config.align.timeout));
-            if (timed_out || !std::isfinite(*context.measure_yaw)) {
+            if (timed_out) {
                 node::warn("land ALIGN failed");
-                track_group->set_state(TrackState::kFree);
-                stick_group->set_state(StickState::kFree);
-                release_chassis();
+                release_climber();
+                *chassis_climb_status = -1;
                 co_return;
             }
         }
 
-        // DEPLOY / SETTLE / SOFT：相对 direction 为负向
+        // [] 伸出撑杆，以较快速度冲下台阶
         track_group->set_state(TrackState::kHold);
         stick_group->set_state(StickState::kDrop);
         *chassis_climb_speed = -config.land.dash_vx;
@@ -486,6 +467,7 @@ class SentryClimber
                 node::warn("land DEPLOY stick timeout, continue");
         }
 
+        // [] 保持撑杆伸出，直到撑杆从台阶落下，底盘倾角低于某个阈值，趋近水平
         track_group->set_state(TrackState::kHold);
         stick_group->set_state(StickState::kDrop);
         *chassis_climb_speed = -config.land.dash_vx;
@@ -501,6 +483,7 @@ class SentryClimber
         using namespace std::chrono_literals;
         co_await CoSchduler::Sleep{seconds_to_duration(config.land.land_delay)};
 
+        // [] 撑杆按照速度曲线收回，减少落地震动，并缓慢前进，让履带顺着台阶落下
         track_group->set_state(TrackState::kHold);
         stick_group->set_state(StickState::kLand);
         *chassis_climb_speed = -config.land.soft_vx;
@@ -511,6 +494,8 @@ class SentryClimber
             if (timed_out)
                 node::warn("land SOFT stick timeout, continue");
         }
+
+        // [] 等待完全落地，底盘倾角趋近水平
         {
             const auto timed_out = co_await CoSchduler::WaitUntil{
                 .monitor =
@@ -521,7 +506,7 @@ class SentryClimber
                 node::warn("land SETTLE timeout, continue");
         }
 
-        // FINAL
+        // [] 完全收回撑杆，结束下台阶
         track_group->set_state(TrackState::kFree);
         stick_group->set_state(StickState::kRise);
         *chassis_climb_speed = kNaN;
@@ -532,8 +517,8 @@ class SentryClimber
                 node::warn("land FINAL stick timeout, continue");
         }
 
-        stick_group->set_state(StickState::kHold);
-        release_chassis();
+        *chassis_climb_status = 1.0;
+        release_climber();
     }
 
 public:
@@ -552,9 +537,9 @@ public:
 
         // 底盘契约输出挂在 partner 上，保证更新序在主逻辑之后对下游可见
         output_component->register_output(
-            "/chassis/climber/direction", chassis_climb_direction, kNaN);
+            "/chassis/climber/direction", chassis_track_direction, kNaN);
         output_component->register_output("/chassis/climber/speed", chassis_climb_speed, kNaN);
-        output_component->register_output("/chassis/climber/status", climb_status, 0.0);
+        output_component->register_output("/chassis/climber/status", chassis_climb_status, 0.0);
 
         schduler.append(spin_context());
         schduler.append(spin_groups());
@@ -575,7 +560,7 @@ public:
             task_handler = {};
             track_group->set_state(climber::TrackGroup::State::kFree);
             stick_group->set_state(climber::StickGroup::State::kFree);
-            release_chassis();
+            release_climber();
         }
     }
 };
