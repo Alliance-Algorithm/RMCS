@@ -44,7 +44,7 @@ class SentryClimber
             double dash_vx;
             double retract_vx;
             double dash_min;
-            double dash_timeout;
+            double dash_duration;
             double stick_timeout;
             double approach_timeout;
         } climb;
@@ -53,6 +53,7 @@ class SentryClimber
             double dash_vx;
             double soft_vx;
             double land_pitch;
+            double land_delay;
             double stick_timeout;
             double soft_timeout;
             double settle_timeout;
@@ -91,6 +92,7 @@ class SentryClimber
                         .ki = param_or("stick_group.ki", 0.0),
                         .kd = param_or("stick_group.kd", 0.0),
                         .sync_coefficient = param_or("stick_group.sync_coefficient", 0.2),
+                        .hold_torque = param_or("stick_group.hold_torque", 0.01),
                     },
                 .align =
                     {
@@ -108,7 +110,7 @@ class SentryClimber
                         .dash_vx = param_or("climb.dash_vx", 3.0),
                         .retract_vx = param_or("climb.retract_vx", 0.3),
                         .dash_min = param_or("climb.dash_min", 0.1),
-                        .dash_timeout = param_or("climb.dash_timeout", 3.0),
+                        .dash_duration = param_or("climb.dash_duration", 3.0),
                         .stick_timeout = param_or("climb.stick_timeout", 8.0),
                         .approach_timeout = param_or("climb.approach_timeout", 8.0),
                     },
@@ -117,6 +119,7 @@ class SentryClimber
                         .dash_vx = param_or("land.dash_vx", 0.8),
                         .soft_vx = param_or("land.soft_vx", 0.4),
                         .land_pitch = param_or("land.land_pitch", 0.15),
+                        .land_delay = param_or("land.land_delay", 0.2),
                         .stick_timeout = param_or("land.stick_timeout", 8.0),
                         .soft_timeout = param_or("land.soft_timeout", 3.0),
                         .settle_timeout = param_or("land.settle_timeout", 8.0),
@@ -265,6 +268,8 @@ class SentryClimber
         *chassis_climb_direction = kNaN;
         *chassis_climb_speed = kNaN;
         *climb_status = 0.0;
+        track_group->set_state(climber::TrackGroup::State::kFree);
+        stick_group->set_state(climber::StickGroup::State::kRetacted);
     }
 
     auto wait_block(std::chrono::steady_clock::duration timeout) {
@@ -366,6 +371,8 @@ class SentryClimber
         using TrackState = climber::TrackGroup::State;
         using StickState = climber::StickGroup::State;
 
+        using namespace std::chrono_literals;
+
         node::info("Climb start, direction={:.3f}", direction);
         *chassis_climb_direction = direction;
 
@@ -414,20 +421,7 @@ class SentryClimber
         track_group->set_state(TrackState::kHold);
         stick_group->set_state(StickState::kHold);
         *chassis_climb_speed = config.climb.dash_vx;
-        {
-            const auto dash_start = std::chrono::steady_clock::now();
-            const auto timed_out = co_await CoSchduler::WaitUntil{
-                .monitor =
-                    [this, dash_start] {
-                        return std::chrono::steady_clock::now() - dash_start
-                                >= seconds_to_duration(config.climb.dash_min)
-                            && *context.chassis_pitch < config.climb.leveled_pitch;
-                    },
-                .timeout = seconds_to_duration(config.climb.dash_timeout),
-            };
-            if (timed_out)
-                node::warn("climb DASH timeout, continue");
-        }
+        co_await CoSchduler::Sleep{seconds_to_duration(config.climb.dash_duration)};
 
         // RETRACT
         track_group->set_state(TrackState::kRush);
@@ -442,6 +436,7 @@ class SentryClimber
 
         track_group->set_state(TrackState::kFree);
         stick_group->set_state(StickState::kHold);
+
         release_chassis();
     }
 
@@ -503,6 +498,8 @@ class SentryClimber
             if (timed_out)
                 node::warn("land SETTLE timeout, continue");
         }
+        using namespace std::chrono_literals;
+        co_await CoSchduler::Sleep{seconds_to_duration(config.land.land_delay)};
 
         track_group->set_state(TrackState::kHold);
         stick_group->set_state(StickState::kLand);
@@ -513,6 +510,15 @@ class SentryClimber
                 co_await wait_block(seconds_to_duration(config.land.soft_timeout));
             if (timed_out)
                 node::warn("land SOFT stick timeout, continue");
+        }
+        {
+            const auto timed_out = co_await CoSchduler::WaitUntil{
+                .monitor =
+                    [this] { return std::abs(*context.chassis_pitch) < config.land.land_pitch; },
+                .timeout = seconds_to_duration(config.land.settle_timeout),
+            };
+            if (timed_out)
+                node::warn("land SETTLE timeout, continue");
         }
 
         // FINAL

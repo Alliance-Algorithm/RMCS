@@ -28,6 +28,7 @@ struct StickGroup {
         kDrop,
         kRise,
         kLand,
+        kRetacted,
     } state = State::kFree;
 
     struct Config {
@@ -49,6 +50,7 @@ struct StickGroup {
         double ki;
         double kd;
         double sync_coefficient;
+        double hold_torque;
 
         auto get_speed(State state, double land_elapsed = 0.0) const noexcept {
             switch (state) {
@@ -56,6 +58,7 @@ struct StickGroup {
             case State::kHold: return 0.0;
             case State::kDrop: return +speed_drop;
             case State::kRise: return -speed_rise;
+            case State::kRetacted: return -speed_rise;
             case State::kLand: {
                 // 指数进度 α：t=0 → begin，t≥T → final，前快后慢减震
                 constexpr auto kShape = 3.0;
@@ -74,6 +77,7 @@ struct StickGroup {
         auto get_torque_limit(State state) const noexcept {
             switch (state) {
             case State::kRise: return rise_torque_limit;
+            case State::kRetacted: return rise_torque_limit;
             case State::kLand: return land_torque_limit;
             default: return std::numeric_limits<double>::infinity();
             }
@@ -113,6 +117,12 @@ struct StickGroup {
     }
 
     auto spin_once() {
+        if (state == State::kRetacted && get_block()) {
+            *l_control_torque = -config.hold_torque;
+            *r_control_torque = -config.hold_torque;
+            return;
+        }
+
         const auto land_elapsed =
             std::chrono::duration<double>(std::chrono::steady_clock::now() - land_start_timestamp)
                 .count();
@@ -168,7 +178,7 @@ struct StickGroup {
 
     auto get_state() const noexcept { return state; }
 
-    auto get_block() const noexcept {
+    auto get_block() const noexcept -> bool {
         const auto is_blocked = [](double torque, double velocity, double torque_threshold,
                                    double velocity_threshold) {
             return std::abs(torque) > torque_threshold && std::abs(velocity) < velocity_threshold;

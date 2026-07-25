@@ -143,17 +143,18 @@ sentry_climber:
     stick_group:
       speed_drop: 30.0
       speed_rise: 60.0
-      rise_torque_limit: 0.5
-      land_speed_begin: 80.0
+      rise_torque_limit: 1.2
+      land_speed_begin: 100.0
       land_speed_final: 10.0
       land_duration: 0.5
       land_torque_limit: 8.0
       blocked_torque_threshold: 0.1
       blocked_speed_threshold: 0.1
-      kp: 0.5
+      kp: 1.0
       ki: 0.0
       kd: 0.0
       sync_coefficient: 0.2
+      hold_torque: 0.01
     block_hold: 0.05
     align:
       err: 0.20
@@ -168,13 +169,14 @@ sentry_climber:
       dash_vx: 3.0
       retract_vx: 0.3
       dash_min: 0.1
-      dash_timeout: 3.0
+      dash_duration: 0.8
       stick_timeout: 8.0
       approach_timeout: 8.0
     land:
-      dash_vx: 0.8
+      dash_vx: 1.0
       soft_vx: 0.4
       land_pitch: 0.15
+      land_delay: 0.2
       stick_timeout: 8.0
       soft_timeout: 3.0
       settle_timeout: 8.0
