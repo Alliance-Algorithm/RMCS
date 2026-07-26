@@ -38,13 +38,15 @@ public:
               get_component_name(),
               rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true)) {
 
+        constexpr auto kNaN = std::numeric_limits<double>::quiet_NaN();
+
         register_input("/predefined/timestamp", timestamp_);
 
         register_output("/tf", tf_);
+        register_output("/chassis/climber/measure_yaw", chassis_measure_yaw_, kNaN);
         register_output("/auto_aim/camera_transform", camera_transform_);
         register_output("/auto_aim/barrel_direction", barrel_direction_);
-        register_output(
-            "/auto_aim/yaw_velocity", yaw_velocity_, std::numeric_limits<double>::quiet_NaN());
+        register_output("/auto_aim/yaw_velocity", yaw_velocity_, kNaN);
 
         // 提供 remote-status 命令服务。
         using Srv = std_srvs::srv::Trigger;
@@ -78,6 +80,10 @@ public:
         *barrel_direction_ = *fast_tf::cast<OdomGimbalImu>(
             PitchLink::DirectionVector{Eigen::Vector3d::UnitX()}, *tf_);
         *yaw_velocity_ = gimbal_board_->yaw_velocity();
+
+        const auto chassis_direction =
+            fast_tf::cast<OdomGimbalImu>(BaseLink::DirectionVector{Eigen::Vector3d::UnitX()}, *tf_);
+        *chassis_measure_yaw_ = std::atan2(chassis_direction->y(), chassis_direction->x());
     }
 
 private:
@@ -309,7 +315,6 @@ private:
             sentry.register_output("/referee/serial", referee_serial_);
             sentry.register_output("/chassis/yaw/velocity_imu", chassis_yaw_velocity_imu_, 0.0);
             sentry.register_output("/chassis/pitch_imu", chassis_pitch_imu_, 0.0);
-            sentry.register_output("/chassis/climber/measure_yaw", chassis_measure_yaw_, 0.0);
 
             referee_serial_->read = [this](std::byte* buffer, size_t size) {
                 return referee_ring_buffer_receive_.pop_front_n(
@@ -391,9 +396,6 @@ private:
                 const auto& q = snapshot->orientation;
                 *chassis_pitch_imu_ = -std::asin(2.0 * (q.w() * q.y() - q.z() * q.x()));
                 *chassis_yaw_velocity_imu_ = snapshot->gyro_body.z();
-                *chassis_measure_yaw_ = std::atan2(
-                    2.0 * (q.w() * q.z() + q.x() * q.y()),
-                    1.0 - 2.0 * (q.y() * q.y() + q.z() * q.z()));
             }
         }
 
@@ -567,7 +569,6 @@ private:
         OutputInterface<rmcs_msgs::SerialInterface> referee_serial_;
         OutputInterface<double> chassis_yaw_velocity_imu_;
         OutputInterface<double> chassis_pitch_imu_;
-        OutputInterface<double> chassis_measure_yaw_;
 
         StatusMonitor monitor_{};
         std::unique_ptr<librmcs::board::RmcsBoardLite> board_;
@@ -633,6 +634,7 @@ private:
     OutputInterface<Eigen::Isometry3d> camera_transform_;
     OutputInterface<Eigen::Vector3d> barrel_direction_;
     OutputInterface<double> yaw_velocity_;
+    OutputInterface<double> chassis_measure_yaw_;
 
     std::unique_ptr<GimbalBoard> gimbal_board_;
     std::unique_ptr<ChassisBoard> chassis_board_;

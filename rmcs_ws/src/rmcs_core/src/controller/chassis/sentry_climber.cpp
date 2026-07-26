@@ -139,22 +139,28 @@ class SentryClimber
         InputInterface<rmcs_msgs::Keyboard> keyboard;
         InputInterface<rmcs_msgs::Switch> rotary_knob;
 
+        InputInterface<double> nav_cross_direction;
+        InputInterface<bool> nav_is_climb;
+
         InputInterface<double> chassis_pitch;
         InputInterface<double> chassis_yaw_rate;
-        // 台阶方向（Odom XY）；NaN 表示由触发时 measure 推导
-        InputInterface<double> target_yaw;
         InputInterface<double> measure_yaw;
 
         static constexpr auto normalize_angle(double angle) noexcept {
-            constexpr auto kTwoPi = 2.0 * std::numbers::pi;
             while (angle >= std::numbers::pi)
-                angle -= kTwoPi;
+                angle -= 2.0 * std::numbers::pi;
             while (angle < -std::numbers::pi)
-                angle += kTwoPi;
+                angle += 2.0 * std::numbers::pi;
             return angle;
         }
 
         auto bind(Component& component) noexcept {
+            // 当 nav_cross_direction 发生 isnan -> !isnan 的变化时，视作一次跨越地形事件请求
+            // 反之，会立刻取消请求，终止当前事件
+            component.register_input(
+                "/rmcs_navigation/request/cross_direction", nav_cross_direction, false);
+            component.register_input("/rmcs_navigation/request/is_climb", nav_is_climb, false);
+
             component.register_input("/remote/switch/left", l_switch, false);
             component.register_input("/remote/switch/right", r_switch, false);
             component.register_input("/remote/keyboard", keyboard, false);
@@ -162,7 +168,6 @@ class SentryClimber
 
             component.register_input("/chassis/pitch_imu", chassis_pitch, false);
             component.register_input("/chassis/yaw/velocity_imu", chassis_yaw_rate, false);
-            component.register_input("/chassis/climber/target_yaw", target_yaw, false);
             component.register_input("/chassis/climber/measure_yaw", measure_yaw, false);
         }
 
@@ -177,6 +182,9 @@ class SentryClimber
                     }
                 };
 
+            ensure_bind(nav_cross_direction, kNaN, "nav_cross_direction");
+            ensure_bind(nav_is_climb, false, "nav_is_climb");
+
             ensure_bind(l_switch, Switch::UNKNOWN, "l_switch");
             ensure_bind(r_switch, Switch::UNKNOWN, "r_switch");
             ensure_bind(keyboard, Keyboard::zero(), "keyboard");
@@ -184,7 +192,6 @@ class SentryClimber
 
             ensure_bind(chassis_pitch, 0.0, "chassis_pitch");
             ensure_bind(chassis_yaw_rate, 0.0, "chassis_yaw_rate");
-            ensure_bind(target_yaw, kNaN, "target_yaw");
             ensure_bind(measure_yaw, kNaN, "measure_yaw");
         }
 
@@ -206,7 +213,7 @@ class SentryClimber
             constexpr auto kSinceInit = std::optional<std::chrono::steady_clock::time_point>{};
             return CoSchduler::WaitUntil{
                 .monitor =
-                    [this, goal, err_limit, w_limit, hold, hold_since = kSinceInit]() mutable {
+                    [=, this, hold_since = kSinceInit]() mutable {
                         if (!std::isfinite(*measure_yaw))
                             return false;
 
@@ -232,7 +239,7 @@ class SentryClimber
 
     OutputInterface<double> chassis_track_direction; // 以履带方向为正向
     OutputInterface<double> chassis_climb_speed;     // 正向为基准的速度值
-    OutputInterface<double> chassis_climb_status;
+    OutputInterface<double> chassis_climb_status;    // 事件进度
 
     struct SimpleComponent : public rmcs_executor::Component {
         std::function<void()> fn;
@@ -244,14 +251,9 @@ class SentryClimber
         auto update() -> void override { fn(); }
     };
 
-    // 伙伴组件注册并发布底盘契约输出（依赖序在主组件之后）
     std::shared_ptr<Component> output_component{
         create_partner_component<SimpleComponent>(
-            get_component_name() + "_output",
-            [this] {
-                // 输出由业务协程写入，此处仅占位以形成 partner 更新节点
-                std::ignore = this;
-            }),
+            get_component_name() + "_output", [this] { std::ignore = this; }),
     };
 
     std::unique_ptr<climber::TrackGroup> track_group;
@@ -301,6 +303,8 @@ class SentryClimber
         auto last_keyboard = Keyboard::zero();
         auto last_rotary = Switch::UNKNOWN;
 
+        auto last_nav_cross_dir = kNaN;
+
         const auto cancel_task = [this] {
             if (!task_handler.done()) {
                 task_handler.cancel();
@@ -314,13 +318,25 @@ class SentryClimber
             const auto keyboard = *context.keyboard;
             const auto rotary = *context.rotary_knob;
 
-            const auto stop_intent = (last_rotary != Switch::MIDDLE && rotary == Switch::MIDDLE);
-            const auto land_intent = (last_rotary != Switch::DOWN && rotary == Switch::DOWN);
-            const auto rise_intent = (last_rotary != Switch::UP && rotary == Switch::UP)
-                                  || (last_keyboard.g == false && keyboard.g == true);
+            const auto nav_cross_dir = *context.nav_cross_direction;
+            const auto nav_is_climb = *context.nav_is_climb;
 
-            const auto step_direction =
-                std::isfinite(*context.target_yaw) ? *context.target_yaw : *context.measure_yaw;
+            const auto nav_request =
+                !std::isfinite(last_nav_cross_dir) && std::isfinite(nav_cross_dir);
+            const auto nav_canceled =
+                std::isfinite(last_nav_cross_dir) && !std::isfinite(nav_cross_dir);
+
+            const auto step_direction = std::isfinite(*context.nav_cross_direction)
+                                          ? *context.nav_cross_direction
+                                          : *context.measure_yaw;
+
+            const auto stop_intent =
+                (last_rotary != Switch::MIDDLE && rotary == Switch::MIDDLE) || nav_canceled;
+            const auto land_intent = (last_rotary != Switch::DOWN && rotary == Switch::DOWN)
+                                  || (nav_request && !nav_is_climb);
+            const auto rise_intent = (last_rotary != Switch::UP && rotary == Switch::UP)
+                                  || (last_keyboard.g == false && keyboard.g == true)
+                                  || (nav_request && nav_is_climb);
 
             do {
                 if (context.is_estop() || stop_intent) {
@@ -331,6 +347,7 @@ class SentryClimber
                     if (!task_handler.done()) {
                         cancel_task();
                     } else if (!std::isfinite(*context.measure_yaw)) {
+                        *chassis_climb_status = -1;
                         node::error("climb start rejected: measure_yaw invalid");
                     } else {
                         task_handler = schduler.append(climb(step_direction));
@@ -341,6 +358,7 @@ class SentryClimber
                     if (!task_handler.done()) {
                         cancel_task();
                     } else if (!std::isfinite(*context.measure_yaw)) {
+                        *chassis_climb_status = -1;
                         node::error("land start rejected: measure_yaw invalid");
                     } else {
                         task_handler = schduler.append(land(step_direction));
@@ -354,6 +372,8 @@ class SentryClimber
 
             last_keyboard = keyboard;
             last_rotary = rotary;
+
+            last_nav_cross_dir = nav_cross_dir;
 
             co_await CoSchduler::Tick{};
         }
