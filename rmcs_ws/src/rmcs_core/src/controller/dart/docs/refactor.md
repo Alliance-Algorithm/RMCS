@@ -31,6 +31,8 @@
 
 - DOWN_FAST：控制速度为 belt_fast_down_velocity，同时读取多圈角度。当运行的角度达到 slider_rail_length 或者堵转时，判定完成，完成后控制速度置0
 
+- INIT：控制速度为 belt_up_soft_stage1_velocity，上行，堵转后判断完成，完成后控制速度置nan
+
 - UP_SOFT：一阶段控制速度为 belt_up_soft_stage1_velocity，当一阶段运行的角度达到 slider_rail_length * soft_stage1_persent ,进入二阶段；二阶段控制速度为 belt_up_soft_stage2_velocity，当一阶段运行的角度达到 slider_rail_length * soft_stage2_persent ,进入三阶段；三阶段控制速度为 belt_up_soft_stage3_velocity，当电机运行堵转后，判断完成,完成后控制速度置nan
 
 - UP_SOFT_PART：控制速度为 belt_up_stage1_velocity ,当运行的角度达到 slider_rail_length * part_persent，判断完成，完成后控制速度置0
@@ -58,3 +60,23 @@
 - LIMIT_LOCK：filling limit servo的控制角度为 lock angle（uint16_t），收到命令100ms后完成,完成后保持原来的控制角度
 
 - LIMIT_PULSE_FILL：filling limit servo的控制角度为 free angle（uint16_t），pulse_time后，控制角度为lock angle（uint16_t），切换控制角度后100ms判断完成,完成后保持原来的控制角度
+
+### trigger-controller
+
+上层只保留如下几个指令：
+
+- IDLE：trigger motor的控制速度为nan
+
+- ABORT：trigger motor的控制速度为nan（是的，这不是写错，就是nan）
+
+- TRIGGER_FREE：扳机控制角度为 free_angle（double）
+
+- TRIGGER_LOCK：扳机控制角度为 lock_angle（double）
+
+- CARRIAGE_UP：滑台控制速度为 carriage_velocity，上层判断完成
+
+- CARRIAGE_DOWN：滑台控制速度为 carriage_velocity，上层判断完成
+
+- CARRIAGE_GOTO：运动到相对零点编码器值 set_point 的位置，内置一个pid用于将编码器误差转换成控制速度，运动到 250ms 内的误差都小于一个可接受的误差范围内，完成判断
+
+- CARRIAGE_CALIBRATE：滑台下行，控制速度为 carriage_calibrate_velocity，堵转后计数+1，做三次堵转时的原编码器数值取平均值，作为新的零点，零点标定完成判断完成

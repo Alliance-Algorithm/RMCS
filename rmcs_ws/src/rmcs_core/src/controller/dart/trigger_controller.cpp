@@ -60,7 +60,8 @@ public:
         get_parameter(
             "carriage_stall_torque_threshold", carriage_stall_torque_threshold_);
 
-        servo_value_ = trigger_lock_angle_;
+        servo_value_ = trigger_free_angle_;
+        *servo_value_output_ = servo_value_;
     }
 
     void before_updating() override {

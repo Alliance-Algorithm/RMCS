@@ -1,6 +1,7 @@
 #include "hardware/device/bmi088.hpp"
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
+#include "hardware/device/limit_switch.hpp"
 #include "hardware/device/lk_motor.hpp"
 #include "hardware/device/pwm_servo.hpp"
 #include "hardware/device/remote_control.hpp"
@@ -78,7 +79,8 @@ private:
                   {catapult_dart, catapult_dart_command, "/dart/filling_lift/left_motor"},
                   {catapult_dart, catapult_dart_command, "/dart/filling_lift/right_motor"})
             , filling_limit_servo_{catapult_dart_command, "/dart/limiting_servo", 0x02}
-            , trigger_servo_{catapult_dart_command, "/dart/trigger_servo", 20.0, 0.5, 2.5} {
+            , trigger_servo_{catapult_dart_command, "/dart/trigger_servo", 20.0, 0.5, 2.5}
+            , limit_switch_{catapult_dart, "/dart/limit_switch"} {
 
             chassis_motors_[0].configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kM3508, 1}
@@ -167,6 +169,8 @@ private:
             for (auto& i : filling_lift_motor_) {
                 i.update_status();
             }
+
+            limit_switch_.update_status();
         }
 
         void command_update() {
@@ -175,6 +179,10 @@ private:
             builder.gpio_analog_write(
                 librmcs::spec::c_board::kGpioDescriptors[2],
                 librmcs::data::GpioAnalogDataView{.value = trigger_servo_.generate_duty_cycle()});
+
+            builder.gpio_digital_read(
+                librmcs::spec::c_board::kGpioDescriptors[3],
+                librmcs::data::GpioReadConfigView{.period_ms = 20});
 
             builder.can_transmit(
                 Spec::kCans.kCan1, //
@@ -290,6 +298,12 @@ private:
             imu_.store_gyroscope_status(data.x, data.y, data.z);
         }
 
+        void gpio_digital_read_result_callback(
+            const Spec::Gpio& gpio, const View::GpioDigital& data) override {
+            if (gpio == librmcs::spec::c_board::kGpioDescriptors[3])
+                limit_switch_.store_status(data.high);
+        }
+
         [[nodiscard]] device::Dr16& dr16() noexcept { return dr16_; }
         [[nodiscard]] const device::Dr16& dr16() const noexcept { return dr16_; }
 
@@ -309,6 +323,7 @@ private:
 
         device::UartServo filling_limit_servo_;
         device::PWMServo trigger_servo_;
+        device::LimitSwitch limit_switch_;
 
         rmcs_utility::RingBuffer<std::byte> referee_ring_buffer_receive_{256};
         OutputInterface<rmcs_msgs::SerialInterface> referee_serial_;

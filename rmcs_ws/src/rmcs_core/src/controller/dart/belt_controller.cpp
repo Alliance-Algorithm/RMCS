@@ -102,6 +102,12 @@ public:
             status = MechStatus::BUSY;
             break;
 
+        case BeltCmd::INIT:
+            status = handle_init(
+                is_new_command, l_velocity, l_torque, r_velocity, r_torque, target_l_vel,
+                target_r_vel);
+            break;
+
         case BeltCmd::DOWN_SLOW:
         case BeltCmd::DOWN_FAST:
             status = handle_down_full(
@@ -182,6 +188,25 @@ private:
             counter = 0;
         }
         return counter >= stall_ticks_;
+    }
+
+    MechStatus handle_init(
+        bool is_new_command, double l_velocity, double l_torque, double r_velocity,
+        double r_torque, double& l_vel, double& r_vel) {
+
+        if (is_new_command) {
+            active_cmd_ = BeltCmd::INIT;
+            stall_count_left_ = 0;
+            stall_count_right_ = 0;
+            stage_ = 0;
+        }
+
+        l_vel = r_vel = -belt_up_soft_stage1_velocity_;
+
+        const bool l_stall = stall_detected(l_velocity, l_torque, stall_count_left_);
+        const bool r_stall = stall_detected(r_velocity, r_torque, stall_count_right_);
+
+        return (l_stall || r_stall) ? MechStatus::SUCCEEDED : MechStatus::BUSY;
     }
 
     MechStatus handle_down_full(
@@ -320,6 +345,7 @@ private:
         case BeltCmd::DOWN_FAST:
         case BeltCmd::DOWN_SLOW_PART:
         case BeltCmd::UP_SOFT_PART: return 0.0;
+        case BeltCmd::INIT:
         case BeltCmd::UP_SOFT:
         case BeltCmd::UP_HARD: return NAN;
         default: return NAN;

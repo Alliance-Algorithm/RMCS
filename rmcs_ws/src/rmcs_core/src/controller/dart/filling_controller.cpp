@@ -49,6 +49,7 @@ public:
         get_parameter("limit_lock_angle", limit_angle);
         limit_lock_angle_ = static_cast<uint16_t>(limit_angle);
         servo_angle_ = limit_lock_angle_;
+        *servo_control_angle_ = servo_angle_;
 
         int64_t complete_ticks = 100;
         get_parameter("limit_complete_ticks", complete_ticks);
@@ -62,8 +63,7 @@ public:
     void before_updating() override {
         if (!command_.ready()) {
             command_.make_and_bind_directly(FillingCmd::IDLE);
-            RCLCPP_WARN(
-                get_logger(), "Failed to fetch \"/dart/filling/command\". Set to IDLE.");
+            RCLCPP_WARN(get_logger(), "Failed to fetch \"/dart/filling/command\". Set to IDLE.");
         }
     }
 
@@ -80,8 +80,7 @@ public:
         double target_r_vel = NAN;
         uint16_t target_angle = servo_angle_;
 
-        const bool is_new_command =
-            rmcs_dart_guidance::msg::is_active(cmd) && cmd != active_cmd_;
+        const bool is_new_command = rmcs_dart_guidance::msg::is_active(cmd) && cmd != active_cmd_;
         update_active_ticks(cmd, is_new_command);
 
         switch (cmd) {
@@ -107,7 +106,8 @@ public:
 
         case FillingCmd::LIFT_DOWN:
             status = handle_lift(
-                is_new_command, false, l_vel, l_torque, r_vel, r_torque, target_l_vel, target_r_vel);
+                is_new_command, false, l_vel, l_torque, r_vel, r_torque, target_l_vel,
+                target_r_vel);
             break;
 
         case FillingCmd::LIMIT_FREE:

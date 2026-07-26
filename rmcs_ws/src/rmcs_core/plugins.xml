@@ -45,6 +45,9 @@
   <class type="rmcs_core::controller::dart::BeltController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::dart::TriggerController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::dart::FillingController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::dart::FourDofController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::dart::FourZAxisChassisStatus" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::dart::FourZAxisChassisController" base_class_type="rmcs_executor::Component" />
 
   <class type="rmcs_core::controller::adrc::AdrcController" base_class_type="rmcs_executor::Component" />
 
