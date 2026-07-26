@@ -73,18 +73,21 @@ public:
         double target_l_vel = NAN;
         double target_r_vel = NAN;
 
-        const bool is_new_command =
-            rmcs_dart_guidance::msg::is_active(cmd) && cmd != active_cmd_;
+        const bool is_active_command = rmcs_dart_guidance::msg::is_active(cmd);
+        const bool is_new_command = is_active_command && cmd != active_cmd_;
+        update_active_ticks(cmd, is_new_command);
 
         switch (cmd) {
         case BeltCmd::IDLE:
             active_cmd_ = BeltCmd::IDLE;
+            active_ticks_ = 0;
             stage_ = 0;
             status = MechStatus::IDLE;
             break;
 
         case BeltCmd::ABORT:
             active_cmd_ = BeltCmd::IDLE;
+            active_ticks_ = 0;
             stage_ = 0;
             target_l_vel = target_r_vel = 0.0;
             status = MechStatus::ABORTED;
@@ -119,8 +122,8 @@ public:
             break;
 
         case BeltCmd::UP_SOFT_PART:
-            status = handle_up_soft_part(
-                is_new_command, l_angle, r_angle, target_l_vel, target_r_vel);
+            status =
+                handle_up_soft_part(is_new_command, l_angle, r_angle, target_l_vel, target_r_vel);
             break;
 
         case BeltCmd::UP_HARD:
@@ -129,6 +132,8 @@ public:
                 target_l_vel, target_r_vel);
             break;
         }
+
+        status = enforce_minimum_active_ticks(status);
 
         if (status == MechStatus::SUCCEEDED)
             target_l_vel = target_r_vel = post_completion_velocity(active_cmd_);
@@ -140,6 +145,26 @@ public:
     }
 
 private:
+    static constexpr int kMinimumActiveTicks = 10;
+
+    void update_active_ticks(BeltCmd cmd, bool is_new_command) {
+        if (!rmcs_dart_guidance::msg::is_active(cmd)) {
+            active_ticks_ = 0;
+            return;
+        }
+        if (is_new_command) {
+            active_ticks_ = 1;
+            return;
+        }
+        ++active_ticks_;
+    }
+
+    MechStatus enforce_minimum_active_ticks(MechStatus status) const {
+        if (status == MechStatus::SUCCEEDED && active_ticks_ < kMinimumActiveTicks)
+            return MechStatus::BUSY;
+        return status;
+    }
+
     void reset_down(BeltCmd cmd, double l_angle, double r_angle) {
         active_cmd_ = cmd;
         start_angle_left_ = l_angle;
@@ -285,8 +310,8 @@ private:
 
         return (l_delta >= slider_rail_length_ || r_delta >= slider_rail_length_ || l_stall
                 || r_stall)
-                   ? MechStatus::SUCCEEDED
-                   : MechStatus::BUSY;
+                 ? MechStatus::SUCCEEDED
+                 : MechStatus::BUSY;
     }
 
     static double post_completion_velocity(BeltCmd cmd) {
@@ -294,13 +319,10 @@ private:
         case BeltCmd::DOWN_SLOW:
         case BeltCmd::DOWN_FAST:
         case BeltCmd::DOWN_SLOW_PART:
-        case BeltCmd::UP_SOFT_PART:
-            return 0.0;
+        case BeltCmd::UP_SOFT_PART: return 0.0;
         case BeltCmd::UP_SOFT:
-        case BeltCmd::UP_HARD:
-            return NAN;
-        default:
-            return NAN;
+        case BeltCmd::UP_HARD: return NAN;
+        default: return NAN;
         }
     }
 
@@ -334,6 +356,7 @@ private:
     int stall_ticks_ = 50;
 
     BeltCmd active_cmd_{BeltCmd::IDLE};
+    int active_ticks_{0};
     int stage_{0};
     MechStatus pending_status_{MechStatus::IDLE};
 

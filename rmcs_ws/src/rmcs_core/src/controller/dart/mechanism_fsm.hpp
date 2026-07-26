@@ -14,9 +14,11 @@ public:
     using Status = rmcs_dart_guidance::msg::MechanismStatus;
 
     explicit MechanismFsm(uint64_t stub_complete_ticks = 50)
-        : stub_complete_ticks_(stub_complete_ticks) {}
+        : stub_complete_ticks_(clamp_stub_complete_ticks(stub_complete_ticks)) {}
 
-    void set_stub_complete_ticks(uint64_t ticks) { stub_complete_ticks_ = ticks; }
+    void set_stub_complete_ticks(uint64_t ticks) {
+        stub_complete_ticks_ = clamp_stub_complete_ticks(ticks);
+    }
 
     Status update(Command cmd, bool (*is_active)(Command)) {
         if (cmd == Command::ABORT) {
@@ -59,6 +61,12 @@ public:
     uint64_t busy_ticks() const { return tick_; }
 
 private:
+    static constexpr uint64_t kMinimumActiveTicks = 10;
+
+    static uint64_t clamp_stub_complete_ticks(uint64_t ticks) {
+        return ticks < kMinimumActiveTicks ? kMinimumActiveTicks : ticks;
+    }
+
     uint64_t stub_complete_ticks_{50};
     uint64_t tick_{0};
     Command active_cmd_{Command::IDLE};

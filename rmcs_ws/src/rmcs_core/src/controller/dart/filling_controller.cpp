@@ -48,6 +48,7 @@ public:
         limit_angle = 0;
         get_parameter("limit_lock_angle", limit_angle);
         limit_lock_angle_ = static_cast<uint16_t>(limit_angle);
+        servo_angle_ = limit_lock_angle_;
 
         int64_t complete_ticks = 100;
         get_parameter("limit_complete_ticks", complete_ticks);
@@ -81,16 +82,19 @@ public:
 
         const bool is_new_command =
             rmcs_dart_guidance::msg::is_active(cmd) && cmd != active_cmd_;
+        update_active_ticks(cmd, is_new_command);
 
         switch (cmd) {
         case FillingCmd::IDLE:
             active_cmd_ = FillingCmd::IDLE;
+            active_ticks_ = 0;
             stage_ = 0;
             status = MechStatus::IDLE;
             break;
 
         case FillingCmd::ABORT:
             active_cmd_ = FillingCmd::IDLE;
+            active_ticks_ = 0;
             stage_ = 0;
             target_l_vel = target_r_vel = 0.0;
             status = MechStatus::ABORTED;
@@ -119,6 +123,8 @@ public:
             break;
         }
 
+        status = enforce_minimum_active_ticks(status);
+
         if (status == MechStatus::SUCCEEDED) {
             if (active_cmd_ == FillingCmd::LIFT_UP || active_cmd_ == FillingCmd::LIFT_DOWN)
                 target_l_vel = target_r_vel = 0.0;
@@ -135,6 +141,26 @@ public:
     }
 
 private:
+    static constexpr int kMinimumActiveTicks = 10;
+
+    void update_active_ticks(FillingCmd cmd, bool is_new_command) {
+        if (!rmcs_dart_guidance::msg::is_active(cmd)) {
+            active_ticks_ = 0;
+            return;
+        }
+        if (is_new_command) {
+            active_ticks_ = 1;
+            return;
+        }
+        ++active_ticks_;
+    }
+
+    MechStatus enforce_minimum_active_ticks(MechStatus status) const {
+        if (status == MechStatus::SUCCEEDED && active_ticks_ < kMinimumActiveTicks)
+            return MechStatus::BUSY;
+        return status;
+    }
+
     void reset_lift(bool is_up) {
         active_cmd_ = is_up ? FillingCmd::LIFT_UP : FillingCmd::LIFT_DOWN;
         stall_count_left_ = 0;
@@ -241,6 +267,7 @@ private:
     int limit_pulse_ticks_ = 100;
 
     FillingCmd active_cmd_{FillingCmd::IDLE};
+    int active_ticks_{0};
     int stage_{0};
     int tick_counter_{0};
     uint16_t servo_angle_{0};

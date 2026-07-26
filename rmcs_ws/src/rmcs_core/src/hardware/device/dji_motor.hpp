@@ -60,6 +60,8 @@ public:
         status_component.register_output(name_prefix + "/velocity", velocity_output_, 0.0);
         status_component.register_output(name_prefix + "/torque", torque_output_, 0.0);
         status_component.register_output(name_prefix + "/max_torque", max_torque_output_, 0.0);
+        status_component.register_output(
+            name_prefix + "/encoder_angle", encoder_angle_output_, int64_t{0});
 
         command_component.register_input(name_prefix + "/control_torque", control_torque_, false);
     }
@@ -206,6 +208,11 @@ public:
         *angle_output_ = angle();
         *velocity_output_ = velocity();
         *torque_output_ = torque();
+
+        if (multi_turn_angle_enabled_)
+            *encoder_angle_output_ = angle_multi_turn_;
+        else
+            *encoder_angle_output_ = static_cast<int64_t>(calibrated_raw_angle);
     }
 
     double control_torque() const {
@@ -276,6 +283,7 @@ private:
     rmcs_executor::Component::OutputInterface<double> velocity_output_;
     rmcs_executor::Component::OutputInterface<double> torque_output_;
     rmcs_executor::Component::OutputInterface<double> max_torque_output_;
+    rmcs_executor::Component::OutputInterface<int64_t> encoder_angle_output_;
 
     rmcs_executor::Component::InputInterface<double> control_torque_;
 };
