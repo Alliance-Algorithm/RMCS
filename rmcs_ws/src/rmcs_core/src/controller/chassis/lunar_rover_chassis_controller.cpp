@@ -169,7 +169,7 @@ private:
                 case rmcs_msgs::ArmMode::Auto_Storage_RF:
                 case rmcs_msgs::ArmMode::Auto_Storage_RB:
                 case rmcs_msgs::ArmMode::Auto_Five_Mine:
-                case rmcs_msgs::ArmMode::Calibration:
+                case rmcs_msgs::ArmMode::Yaw_Close:
                 case rmcs_msgs::ArmMode::Custome:
                     set_speed_gear(SpeedGear::Low);
                     chassis_mode_ = rmcs_msgs::ChassisMode::Yaw_Free;
@@ -179,6 +179,7 @@ private:
                     chassis_mode_ = rmcs_msgs::ChassisMode::SPIN;
                     break;
                 case rmcs_msgs::ArmMode::Auto_Walk:
+                case rmcs_msgs::ArmMode::Calibration:
                     set_speed_gear(SpeedGear::High);
                     chassis_mode_ = rmcs_msgs::ChassisMode::Flow;
                     break;

@@ -205,7 +205,11 @@ private:
                 set_arm_mode(rmcs_msgs::ArmMode::Auto_Spin, false);
             }
             if (keyboard.e && !last_keyboard_.e) {
-                set_arm_mode(rmcs_msgs::ArmMode::Calibration);
+                if (!keyboard.shift && !keyboard.ctrl)
+                    set_arm_mode(rmcs_msgs::ArmMode::Calibration);
+                else if (keyboard.shift && !keyboard.ctrl) {
+                    set_arm_mode(rmcs_msgs::ArmMode::Yaw_Close);
+                }
             }
             // A: 左前矿仓 (Left Front)
             if (keyboard.a && !last_keyboard_.a) {
@@ -316,7 +320,11 @@ private:
                     {"delay", "delay", "up_two_stairs_initial"}));
                 break;
             case ArmMode::Calibration:
-                arm_action_machine_.process(action_dictionary_.helper_find_chunk("test"));
+                arm_action_machine_.process(
+                    action_dictionary_.helper_find_chunk("crash_wall_calibration"));
+                break;
+            case ArmMode::Yaw_Close:
+                arm_action_machine_.process(action_dictionary_.helper_find_chunk("gripper_open"));
                 break;
             default: break;
             }
@@ -333,14 +341,11 @@ private:
             if ((*keyboard_).ctrl && !last_keyboard_.ctrl) {
                 arm_action_machine_.process(action_dictionary_.helper_build_chunk(
                     {"transition_to_storage_mine_1", "storage_lb", "transition_to_extract_mine_2",
-                     "storage_lf", "transition_to_extract_mine_3", "storage_rb"}));
+                     "storage_lf", "transition_to_extract_mine_3", "storage_rb",
+                     "transition_to_extract_mine_4", "storage_rf",
+                     "transition_to_extract_mine_5"}));
             }
             execute_plan_request_and_trajectory_step();
-            break;
-        }
-        case rmcs_msgs::ArmMode::Calibration: {
-            for (size_t i = 0; i < 6; ++i)
-                *target_theta[i] =NAN;
             break;
         }
         case ArmMode::Auto_Up_One_Stairs:
@@ -483,7 +488,7 @@ private:
         const auto gripper_mode  = get_gripper_mode();
         const auto stock_control = [this, gripper_step]() {
             if (std::abs(*gripper_velocity_) < 0.01 && std::abs(*gripper_torque_) > 1.0) {
-                *gripper_target_theta = *gripper_angle_;
+                *gripper_target_theta = NAN;
                 return true;
             } else {
                 *gripper_target_theta = *gripper_angle_ - gripper_step;
@@ -524,7 +529,7 @@ private:
                 set_gripper_mode(rmcs_msgs::GripperMode::None);
             }
             break;
-        case rmcs_msgs::GripperMode::None: *gripper_target_theta = *gripper_angle_; break;
+        case rmcs_msgs::GripperMode::None: *gripper_target_theta = NAN; break;
         }
     }
 
