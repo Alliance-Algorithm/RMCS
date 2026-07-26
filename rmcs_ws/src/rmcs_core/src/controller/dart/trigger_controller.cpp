@@ -1,11 +1,13 @@
 #include <cmath>
 #include <limits>
 
+#include <eigen3/Eigen/Dense>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_dart_guidance/msg/mechanism_status.hpp>
 #include <rmcs_dart_guidance/msg/trigger_command.hpp>
 #include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/switch.hpp>
 
 namespace rmcs_core::controller::dart {
 
@@ -27,6 +29,10 @@ public:
         register_input("/dart/trigger/position_motor/velocity", motor_velocity_, false);
         register_input("/dart/trigger/position_motor/torque", motor_torque_, false);
         register_input("/dart/trigger/position_motor/encoder_angle", motor_encoder_angle_, false);
+        register_input("/remote/switch/left", switch_left_, false);
+        register_input("/remote/switch/right", switch_right_, false);
+        register_input("/remote/joystick/right", joystick_right_, false);
+        register_input("/remote/rotary_knob_switch", rotary_knob_switch_, false);
 
         register_output(
             "/dart/trigger/position_motor/control_velocity", motor_control_velocity_, NAN);
@@ -55,10 +61,10 @@ public:
         get_parameter("carriage_stall_ticks", stall_ticks);
         carriage_stall_ticks_ = static_cast<int>(stall_ticks);
 
-        get_parameter(
-            "carriage_stall_velocity_threshold", carriage_stall_velocity_threshold_);
-        get_parameter(
-            "carriage_stall_torque_threshold", carriage_stall_torque_threshold_);
+        get_parameter("carriage_stall_velocity_threshold", carriage_stall_velocity_threshold_);
+        get_parameter("carriage_stall_torque_threshold", carriage_stall_torque_threshold_);
+        get_parameter_or(
+            "manual_carriage_velocity_sensitivity", manual_carriage_velocity_sensitivity_, 0.0);
 
         servo_value_ = trigger_free_angle_;
         *servo_value_output_ = servo_value_;
@@ -67,17 +73,37 @@ public:
     void before_updating() override {
         if (!command_.ready()) {
             command_.make_and_bind_directly(TriggerCmd::IDLE);
-            RCLCPP_WARN(
-                get_logger(), "Failed to fetch \"/dart/trigger/command\". Set to IDLE.");
+            RCLCPP_WARN(get_logger(), "Failed to fetch \"/dart/trigger/command\". Set to IDLE.");
         }
         if (!setpoint_.ready()) {
             setpoint_.make_and_bind_directly(std::numeric_limits<double>::quiet_NaN());
+            RCLCPP_WARN(get_logger(), "Failed to fetch \"/dart/trigger/setpoint\". Set to NaN.");
+        }
+        if (!switch_left_.ready()) {
+            switch_left_.make_and_bind_directly(rmcs_msgs::Switch::UNKNOWN);
+            RCLCPP_WARN(get_logger(), "Failed to fetch \"/remote/switch/left\". Set to UNKNOWN.");
+        }
+        if (!switch_right_.ready()) {
+            switch_right_.make_and_bind_directly(rmcs_msgs::Switch::UNKNOWN);
+            RCLCPP_WARN(get_logger(), "Failed to fetch \"/remote/switch/right\". Set to UNKNOWN.");
+        }
+        if (!joystick_right_.ready()) {
+            joystick_right_.make_and_bind_directly(Eigen::Vector2d::Zero());
+            RCLCPP_WARN(get_logger(), "Failed to fetch \"/remote/joystick/right\". Set to zero.");
+        }
+        if (!rotary_knob_switch_.ready()) {
+            rotary_knob_switch_.make_and_bind_directly(rmcs_msgs::Switch::UNKNOWN);
             RCLCPP_WARN(
-                get_logger(), "Failed to fetch \"/dart/trigger/setpoint\". Set to NaN.");
+                get_logger(), "Failed to fetch \"/remote/rotary_knob_switch\". Set to UNKNOWN.");
         }
     }
 
     void update() override {
+        if (manual_mode()) {
+            update_manual();
+            return;
+        }
+
         const auto cmd = command_.ready() ? *command_ : TriggerCmd::IDLE;
         const double setpoint = setpoint_.ready() ? *setpoint_ : NAN;
 
@@ -124,18 +150,18 @@ public:
             break;
 
         case TriggerCmd::CARRIAGE_UP:
-            status = handle_carriage_up_down(is_new_command, true, motor_vel, motor_torque,
-                                             target_motor_vel);
+            status = handle_carriage_up_down(
+                is_new_command, true, motor_vel, motor_torque, target_motor_vel);
             break;
 
         case TriggerCmd::CARRIAGE_DOWN:
-            status = handle_carriage_up_down(is_new_command, false, motor_vel, motor_torque,
-                                             target_motor_vel);
+            status = handle_carriage_up_down(
+                is_new_command, false, motor_vel, motor_torque, target_motor_vel);
             break;
 
         case TriggerCmd::CARRIAGE_GOTO:
-            status = handle_carriage_goto(is_new_command, motor_encoder, setpoint,
-                                          target_motor_vel);
+            status =
+                handle_carriage_goto(is_new_command, motor_encoder, setpoint, target_motor_vel);
             break;
 
         case TriggerCmd::CARRIAGE_CALIBRATE:
@@ -161,6 +187,46 @@ public:
 
 private:
     static constexpr int kMinimumActiveTicks = 10;
+
+    bool manual_mode() const {
+        return switch_left_.ready() && *switch_left_ == rmcs_msgs::Switch::UP;
+    }
+
+    bool manual_trigger_mode() const {
+        return manual_mode() && switch_right_.ready()
+            && *switch_right_ == rmcs_msgs::Switch::MIDDLE;
+    }
+
+    void update_manual() {
+        active_cmd_ = TriggerCmd::IDLE;
+        active_ticks_ = 0;
+        stage_ = 0;
+        settle_count_ = 0;
+        calib_stall_counter_ = 0;
+        calib_sample_count_ = 0;
+        calib_encoder_sum_ = 0;
+
+        double target_motor_vel = 0.0;
+        double target_servo = servo_value_;
+        if (manual_trigger_mode()) {
+            if (joystick_right_.ready()) {
+                target_motor_vel = manual_carriage_velocity_sensitivity_ * joystick_right_->x();
+            }
+            if (rotary_knob_switch_.ready()) {
+                if (*rotary_knob_switch_ == rmcs_msgs::Switch::UP) {
+                    target_servo = trigger_lock_angle_;
+                } else if (*rotary_knob_switch_ == rmcs_msgs::Switch::DOWN) {
+                    target_servo = trigger_free_angle_;
+                }
+            }
+        }
+
+        *servo_value_output_ = target_servo;
+        servo_value_ = target_servo;
+        *motor_control_velocity_ = target_motor_vel;
+        *status_ = MechStatus::BUSY;
+        pending_status_ = MechStatus::BUSY;
+    }
 
     void update_active_ticks(TriggerCmd cmd, bool is_new_command) {
         if (!rmcs_dart_guidance::msg::is_active(cmd)) {
@@ -219,8 +285,7 @@ private:
         if (std::isnan(setpoint))
             return MechStatus::BUSY;
 
-        const int64_t error =
-            (calibrated_zero_ + static_cast<int64_t>(setpoint)) - motor_encoder;
+        const int64_t error = (calibrated_zero_ + static_cast<int64_t>(setpoint)) - motor_encoder;
 
         pid_integral_ += error;
         if (pid_integral_ > carriage_position_integral_max_)
@@ -260,8 +325,7 @@ private:
 
         target_motor_vel = -carriage_calibrate_velocity_;
 
-        const bool stalled =
-            carriage_stall_detected(motor_vel, motor_torque, calib_stall_counter_);
+        const bool stalled = carriage_stall_detected(motor_vel, motor_torque, calib_stall_counter_);
         if (stalled) {
             ++calib_sample_count_;
             calib_encoder_sum_ += motor_encoder;
@@ -284,6 +348,10 @@ private:
     InputInterface<double> motor_velocity_;
     InputInterface<double> motor_torque_;
     InputInterface<int64_t> motor_encoder_angle_;
+    InputInterface<rmcs_msgs::Switch> switch_left_;
+    InputInterface<rmcs_msgs::Switch> switch_right_;
+    InputInterface<Eigen::Vector2d> joystick_right_;
+    InputInterface<rmcs_msgs::Switch> rotary_knob_switch_;
 
     OutputInterface<double> motor_control_velocity_;
     OutputInterface<double> servo_value_output_;
@@ -303,6 +371,7 @@ private:
 
     double carriage_stall_velocity_threshold_ = 0.1;
     double carriage_stall_torque_threshold_ = 1.0;
+    double manual_carriage_velocity_sensitivity_ = 0.0;
     int carriage_stall_ticks_ = 50;
 
     TriggerCmd active_cmd_{TriggerCmd::IDLE};

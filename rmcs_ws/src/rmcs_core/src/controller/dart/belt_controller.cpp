@@ -1,10 +1,12 @@
 #include <cmath>
 
+#include <eigen3/Eigen/Dense>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_dart_guidance/msg/belt_command.hpp>
 #include <rmcs_dart_guidance/msg/mechanism_status.hpp>
 #include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/switch.hpp>
 
 namespace rmcs_core::controller::dart {
 
@@ -28,6 +30,9 @@ public:
         register_input("/dart/belt/right_motor/angle", right_angle_, false);
         register_input("/dart/belt/right_motor/velocity", right_velocity_, false);
         register_input("/dart/belt/right_motor/torque", right_torque_, false);
+        register_input("/remote/switch/left", switch_left_, false);
+        register_input("/remote/switch/right", switch_right_, false);
+        register_input("/remote/joystick/left", joystick_left_, false);
 
         register_output("/dart/belt/left_motor/control_velocity", left_control_velocity_, NAN);
         register_output("/dart/belt/right_motor/control_velocity", right_control_velocity_, NAN);
@@ -50,6 +55,7 @@ public:
 
         get_parameter("belt_stall_velocity_threshold", stall_velocity_threshold_);
         get_parameter("belt_stall_torque_threshold", stall_torque_threshold_);
+        get_parameter_or("manual_belt_velocity_sensitivity", manual_belt_velocity_sensitivity_, 0.0);
     }
 
     void before_updating() override {
@@ -57,9 +63,26 @@ public:
             command_.make_and_bind_directly(BeltCmd::IDLE);
             RCLCPP_WARN(get_logger(), "Failed to fetch \"/dart/belt/command\". Set to IDLE.");
         }
+        if (!switch_left_.ready()) {
+            switch_left_.make_and_bind_directly(rmcs_msgs::Switch::UNKNOWN);
+            RCLCPP_WARN(get_logger(), "Failed to fetch \"/remote/switch/left\". Set to UNKNOWN.");
+        }
+        if (!switch_right_.ready()) {
+            switch_right_.make_and_bind_directly(rmcs_msgs::Switch::UNKNOWN);
+            RCLCPP_WARN(get_logger(), "Failed to fetch \"/remote/switch/right\". Set to UNKNOWN.");
+        }
+        if (!joystick_left_.ready()) {
+            joystick_left_.make_and_bind_directly(Eigen::Vector2d::Zero());
+            RCLCPP_WARN(get_logger(), "Failed to fetch \"/remote/joystick/left\". Set to zero.");
+        }
     }
 
     void update() override {
+        if (manual_mode()) {
+            update_manual();
+            return;
+        }
+
         const auto cmd = command_.ready() ? *command_ : BeltCmd::IDLE;
 
         const double l_angle = left_angle_.ready() ? *left_angle_ : 0.0;
@@ -152,6 +175,32 @@ public:
 
 private:
     static constexpr int kMinimumActiveTicks = 10;
+
+    bool manual_mode() const {
+        return switch_left_.ready() && *switch_left_ == rmcs_msgs::Switch::UP;
+    }
+
+    bool manual_belt_mode() const {
+        return manual_mode() && switch_right_.ready() && *switch_right_ == rmcs_msgs::Switch::MIDDLE;
+    }
+
+    void update_manual() {
+        active_cmd_ = BeltCmd::IDLE;
+        active_ticks_ = 0;
+        stage_ = 0;
+        stall_count_left_ = 0;
+        stall_count_right_ = 0;
+
+        double target_velocity = 0.0;
+        if (manual_belt_mode() && joystick_left_.ready()) {
+            target_velocity = manual_belt_velocity_sensitivity_ * joystick_left_->x();
+        }
+
+        *left_control_velocity_ = target_velocity;
+        *right_control_velocity_ = target_velocity;
+        *status_ = MechStatus::BUSY;
+        pending_status_ = MechStatus::BUSY;
+    }
 
     void update_active_ticks(BeltCmd cmd, bool is_new_command) {
         if (!rmcs_dart_guidance::msg::is_active(cmd)) {
@@ -361,6 +410,9 @@ private:
     InputInterface<double> right_angle_;
     InputInterface<double> right_velocity_;
     InputInterface<double> right_torque_;
+    InputInterface<rmcs_msgs::Switch> switch_left_;
+    InputInterface<rmcs_msgs::Switch> switch_right_;
+    InputInterface<Eigen::Vector2d> joystick_left_;
 
     OutputInterface<double> left_control_velocity_;
     OutputInterface<double> right_control_velocity_;
@@ -379,6 +431,7 @@ private:
 
     double stall_velocity_threshold_ = 0.1;
     double stall_torque_threshold_ = 1.0;
+    double manual_belt_velocity_sensitivity_ = 0.0;
     int stall_ticks_ = 50;
 
     BeltCmd active_cmd_{BeltCmd::IDLE};

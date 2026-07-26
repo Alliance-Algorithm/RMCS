@@ -7,7 +7,6 @@
 
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
-#include <rmcs_dart_guidance/msg/four_z_chassis_command.hpp>
 #include <rmcs_executor/component.hpp>
 
 namespace rmcs_core::controller::dart {
@@ -15,15 +14,11 @@ namespace rmcs_core::controller::dart {
 class FourZAxisChassisStatus
     : public rmcs_executor::Component
     , public rclcpp::Node {
-    using FourZCommand = rmcs_dart_guidance::msg::FourZChassisCommand;
-
 public:
     FourZAxisChassisStatus()
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
-        register_input("/dart/chassis/4z/command", command_, false);
-
         for (size_t i = 0; i < kAxisCount; ++i) {
             register_input(kMotorPrefixes[i] + "/angle", motor_angle_[i], false);
             register_input(kMotorPrefixes[i] + "/velocity", motor_velocity_[i], false);
@@ -54,8 +49,6 @@ public:
 
         get_parameter_or("axis_x", axis_x_, 0.20);
         get_parameter_or("axis_y", axis_y_, 0.15);
-        get_parameter_or(
-            "clear_bottom_zero_on_calibrate_start", clear_bottom_zero_on_calibrate_start_, false);
 
         for (size_t i = 0; i < kAxisCount; ++i) {
             get_parameter_or(
@@ -67,14 +60,6 @@ public:
     }
 
     void update() override {
-        const auto command = command_.ready() ? *command_ : FourZCommand::IDLE;
-        if (command == FourZCommand::CALIBRATE_BOTTOM
-            && last_command_ != FourZCommand::CALIBRATE_BOTTOM
-            && clear_bottom_zero_on_calibrate_start_) {
-            bottom_zero_valid_.fill(false);
-        }
-        last_command_ = command;
-
         std::array<double, kAxisCount> z{};
         std::array<double, kAxisCount> v{};
         std::array<double, kAxisCount> stroke{};
@@ -165,7 +150,6 @@ private:
         return std::reduce(values.begin(), values.end(), 0.0) / static_cast<double>(kAxisCount);
     }
 
-    InputInterface<FourZCommand> command_;
     std::array<InputInterface<double>, kAxisCount> motor_angle_;
     std::array<InputInterface<double>, kAxisCount> motor_velocity_;
     std::array<InputInterface<bool>, kAxisCount> bottom_limit_switch_;
@@ -192,9 +176,7 @@ private:
     double axis_y_ = 0.15;
     std::array<double, kAxisCount> height_per_motor_rad_{0.001, 0.001, 0.001, 0.001};
     std::array<double, kAxisCount> height_direction_{1.0, 1.0, 1.0, 1.0};
-    bool clear_bottom_zero_on_calibrate_start_ = false;
 
-    FourZCommand last_command_ = FourZCommand::IDLE;
     std::array<double, kAxisCount> startup_zero_angle_{0.0, 0.0, 0.0, 0.0};
     std::array<bool, kAxisCount> startup_zero_valid_{false, false, false, false};
     std::array<double, kAxisCount> bottom_zero_angle_{0.0, 0.0, 0.0, 0.0};

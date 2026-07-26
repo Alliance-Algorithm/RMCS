@@ -12,16 +12,14 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController -> right_belt_velocity_pid_controller
 
       - rmcs_core::controller::dart::FillingController -> filling_controller
-      - rmcs_core::controller::pid::PidController -> left_lift_velocity_pid_controller
-      - rmcs_core::controller::pid::PidController -> right_lift_velocity_pid_controller
 
       - rmcs_core::controller::dart::TriggerController -> trigger_controller
       - rmcs_core::controller::pid::PidController -> trigger_velocity_pid_controller
 
-      - rmcs_core::controller::dart::FourDofController -> four_dof_controller
-      - rmcs_core::controller::dart::FourZAxisChassisStatus -> four_z_chassis_status
-      - rmcs_core::controller::dart::FourZAxisChassisController -> four_z_chassis_controller
-      - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
+      # - rmcs_core::controller::dart::FourDofController -> four_dof_controller
+      # - rmcs_core::controller::dart::FourZAxisChassisStatus -> four_z_chassis_status
+      # - rmcs_core::controller::dart::FourZAxisChassisController -> four_z_chassis_controller
+      # - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
 
 dart_hardware:
   ros__parameters:
@@ -34,11 +32,90 @@ dart_hardware:
     back_left_bottom_limit_gpio_index: 6
     back_right_bottom_limit_gpio_index: 7
 
+belt_controller:
+  ros__parameters:
+    belt_slow_down_velocity: 10.0
+    belt_fast_down_velocity: 20.0
+    belt_up_soft_stage1_velocity: 5.0
+    belt_up_soft_stage2_velocity: 20.0
+    belt_up_soft_stage3_velocity: 5.0
+    belt_up_stage1_velocity: 10.0
+    belt_up_stage2_velocity: 5.0
+    slider_rail_length: 1.0
+    soft_stage1_persent: 0.3
+    soft_stage2_persent: 0.85
+    part_persent: 0.5
+    belt_stall_ticks: 250
+    belt_stall_velocity_threshold: 1.0
+    belt_stall_torque_threshold: 0.5
+
+left_belt_velocity_pid_controller:
+  ros__parameters:
+    measurement: /dart/belt/left_motor/velocity
+    setpoint: /dart/belt/left_motor/control_velocity
+    control: /dart/belt/left_motor/control_torque
+    kp: 1.0
+    ki: 0.0
+    kd: 0.0
+
+right_belt_velocity_pid_controller:
+  ros__parameters:
+    measurement: /dart/belt/right_motor/velocity
+    setpoint: /dart/belt/right_motor/control_velocity
+    control: /dart/belt/right_motor/control_torque
+    kp: 1.0
+    ki: 0.0
+    kd: 0.0
+
+filling_controller:
+  ros__parameters:
+    lift_control_velocity: 4.0
+    lift_stall_ticks: 150
+    lift_stall_velocity_threshold: 0.1
+    lift_stall_torque_threshold: 0.1
+    limit_free_angle: 0x0670
+    limit_lock_angle: 0x0599
+    limit_complete_ticks: 100
+    limit_pulse_ticks: 150
+
+trigger_controller:
+  ros__parameters:
+    trigger_free_angle: 0.625
+    trigger_lock_angle: 0.45
+    carriage_velocity: 20.0
+    carriage_calibrate_velocity: 2.0
+    carriage_position_kp: 0.005
+    carriage_position_ki: 0.00025
+    carriage_position_kd: 0.0
+    carriage_position_integral_max: 2.0
+    carriage_position_tolerance: 50
+    carriage_position_settle_ticks: 500
+    carriage_stall_ticks: 100
+    carriage_stall_velocity_threshold: 0.2
+    carriage_stall_torque_threshold: 0.2
+
+trigger_velocity_pid_controller:
+  ros__parameters:
+    measurement: /dart/trigger/position_motor/velocity
+    setpoint: /dart/trigger/position_motor/control_velocity
+    control: /dart/trigger/position_motor/control_torque
+    kp: 0.3
+    ki: 0.0
+    kd: 0.0
+
+yaw_velocity_pid_controller:
+  ros__parameters:
+    measurement: /dart/yaw/motor/velocity
+    setpoint: /dart/yaw/motor/control_velocity
+    control: /dart/yaw/motor/control_torque
+    kp: 1.0
+    ki: 0.0
+    kd: 0.0
+
 four_z_chassis_status:
   ros__parameters:
     axis_x: 0.20
     axis_y: 0.15
-    clear_bottom_zero_on_calibrate_start: false
     front_left_height_per_motor_rad: 0.001
     front_back_height_per_motor_rad: 0.001
     back_left_height_per_motor_rad: 0.001
@@ -85,101 +162,3 @@ four_z_chassis_controller:
     sync_kp: 0.0
     sync_ki: 0.0
     sync_kd: 0.0
-
-belt_controller:
-  ros__parameters:
-    belt_slow_down_velocity: 10.0
-    belt_fast_down_velocity: 20.0
-    belt_up_soft_stage1_velocity: 0.0
-    belt_up_soft_stage2_velocity: 0.0
-    belt_up_soft_stage3_velocity: 0.0
-    belt_up_stage1_velocity: 0.0
-    belt_up_stage2_velocity: 0.0
-    slider_rail_length: 1.0
-    soft_stage1_persent: 0.3
-    soft_stage2_persent: 0.8
-    part_persent: 0.5
-    belt_stall_ticks: 50
-    belt_stall_velocity_threshold: 0.1
-    belt_stall_torque_threshold: 9999.0
-
-left_belt_velocity_pid_controller:
-  ros__parameters:
-    measurement: /dart/belt/left_motor/velocity
-    setpoint: /dart/belt/left_motor/control_velocity
-    control: /dart/belt/left_motor/control_torque
-    kp: 1.0
-    ki: 0.0
-    kd: 0.0
-
-right_belt_velocity_pid_controller:
-  ros__parameters:
-    measurement: /dart/belt/right_motor/velocity
-    setpoint: /dart/belt/right_motor/control_velocity
-    control: /dart/belt/right_motor/control_torque
-    kp: 1.0
-    ki: 0.0
-    kd: 0.0
-
-filling_controller:
-  ros__parameters:
-    lift_control_velocity: 4.0
-    lift_stall_ticks: 150
-    lift_stall_velocity_threshold: 0.1
-    lift_stall_torque_threshold: 0.1
-    limit_free_angle: 0x0670
-    limit_lock_angle: 0x0599
-    limit_complete_ticks: 100
-    limit_pulse_ticks: 150
-
-left_lift_velocity_pid_controller:
-  ros__parameters:
-    measurement: /dart/filling_lift/left_motor/velocity
-    setpoint: /dart/filling_lift/left_motor/control_velocity
-    control: /dart/filling_lift/left_motor/control_torque
-    kp: 1.0
-    ki: 0.0
-    kd: 0.0
-
-right_lift_velocity_pid_controller:
-  ros__parameters:
-    measurement: /dart/filling_lift/right_motor/velocity
-    setpoint: /dart/filling_lift/right_motor/control_velocity
-    control: /dart/filling_lift/right_motor/control_torque
-    kp: 1.0
-    ki: 0.0
-    kd: 0.0
-
-trigger_controller:
-  ros__parameters:
-    trigger_free_angle: 0.625
-    trigger_lock_angle: 0.45
-    carriage_velocity: 20.0
-    carriage_calibrate_velocity: 2.0
-    carriage_position_kp: 0.005
-    carriage_position_ki: 0.00025
-    carriage_position_kd: 0.0
-    carriage_position_integral_max: 2.0
-    carriage_position_tolerance: 50
-    carriage_position_settle_ticks: 500
-    carriage_stall_ticks: 100
-    carriage_stall_velocity_threshold: 0.2
-    carriage_stall_torque_threshold: 0.2
-
-trigger_velocity_pid_controller:
-  ros__parameters:
-    measurement: /dart/trigger/position_motor/velocity
-    setpoint: /dart/trigger/position_motor/control_velocity
-    control: /dart/trigger/position_motor/control_torque
-    kp: 0.3
-    ki: 0.0
-    kd: 0.0
-
-yaw_velocity_pid_controller:
-  ros__parameters:
-    measurement: /dart/yaw/motor/velocity
-    setpoint: /dart/yaw/motor/control_velocity
-    control: /dart/yaw/motor/control_torque
-    kp: 1.0
-    ki: 0.0
-    kd: 0.0

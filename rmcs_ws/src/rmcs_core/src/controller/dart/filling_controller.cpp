@@ -1,10 +1,12 @@
 #include <cmath>
 
+#include <eigen3/Eigen/Dense>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_dart_guidance/msg/filling_command.hpp>
 #include <rmcs_dart_guidance/msg/mechanism_status.hpp>
 #include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/switch.hpp>
 
 namespace rmcs_core::controller::dart {
 
@@ -26,6 +28,10 @@ public:
         register_input("/dart/filling_lift/left_motor/torque", left_lift_torque_, false);
         register_input("/dart/filling_lift/right_motor/velocity", right_lift_velocity_, false);
         register_input("/dart/filling_lift/right_motor/torque", right_lift_torque_, false);
+        register_input("/remote/switch/left", switch_left_, false);
+        register_input("/remote/switch/right", switch_right_, false);
+        register_input("/remote/joystick/left", joystick_left_, false);
+        register_input("/remote/rotary_knob_switch", rotary_knob_switch_, false);
 
         register_output(
             "/dart/filling_lift/left_motor/control_velocity", left_lift_control_velocity_, NAN);
@@ -41,6 +47,7 @@ public:
         lift_stall_ticks_ = static_cast<int>(stall_ticks);
         get_parameter("lift_stall_velocity_threshold", lift_stall_velocity_threshold_);
         get_parameter("lift_stall_torque_threshold", lift_stall_torque_threshold_);
+        get_parameter_or("manual_lift_velocity_sensitivity", manual_lift_velocity_sensitivity_, 0.0);
 
         int64_t limit_angle = 0;
         get_parameter("limit_free_angle", limit_angle);
@@ -65,9 +72,39 @@ public:
             command_.make_and_bind_directly(FillingCmd::IDLE);
             RCLCPP_WARN(get_logger(), "Failed to fetch \"/dart/filling/command\". Set to IDLE.");
         }
+        if (!switch_left_.ready()) {
+            switch_left_.make_and_bind_directly(rmcs_msgs::Switch::UNKNOWN);
+            RCLCPP_WARN(get_logger(), "Failed to fetch \"/remote/switch/left\". Set to UNKNOWN.");
+        }
+        if (!switch_right_.ready()) {
+            switch_right_.make_and_bind_directly(rmcs_msgs::Switch::UNKNOWN);
+            RCLCPP_WARN(get_logger(), "Failed to fetch \"/remote/switch/right\". Set to UNKNOWN.");
+        }
+        if (!joystick_left_.ready()) {
+            joystick_left_.make_and_bind_directly(Eigen::Vector2d::Zero());
+            RCLCPP_WARN(get_logger(), "Failed to fetch \"/remote/joystick/left\". Set to zero.");
+        }
+        if (!rotary_knob_switch_.ready()) {
+            rotary_knob_switch_.make_and_bind_directly(rmcs_msgs::Switch::UNKNOWN);
+            RCLCPP_WARN(
+                get_logger(), "Failed to fetch \"/remote/rotary_knob_switch\". Set to UNKNOWN.");
+        }
     }
 
     void update() override {
+        if (manual_mode()) {
+            update_manual();
+            return;
+        }
+
+        if (was_manual_mode_) {
+            servo_angle_ = limit_lock_angle_;
+            manual_limit_pulse_active_ = false;
+            manual_limit_pulse_stage_ = 0;
+            manual_limit_pulse_ticks_ = 0;
+        }
+        was_manual_mode_ = false;
+
         const auto cmd = command_.ready() ? *command_ : FillingCmd::IDLE;
 
         const double l_vel = left_lift_velocity_.ready() ? *left_lift_velocity_ : 0.0;
@@ -142,6 +179,84 @@ public:
 
 private:
     static constexpr int kMinimumActiveTicks = 10;
+
+    bool manual_mode() const {
+        return switch_left_.ready() && *switch_left_ == rmcs_msgs::Switch::UP;
+    }
+
+    bool manual_filling_mode() const {
+        return manual_mode() && switch_right_.ready() && *switch_right_ == rmcs_msgs::Switch::UP;
+    }
+
+    void update_manual() {
+        if (!was_manual_mode_) {
+            manual_limit_pulse_active_ = false;
+            manual_limit_pulse_stage_ = 0;
+            manual_limit_pulse_ticks_ = 0;
+        }
+        was_manual_mode_ = true;
+
+        active_cmd_ = FillingCmd::IDLE;
+        active_ticks_ = 0;
+        stage_ = 0;
+        tick_counter_ = 0;
+        stall_count_left_ = 0;
+        stall_count_right_ = 0;
+
+        double target_l_vel = 0.0;
+        double target_r_vel = 0.0;
+        uint16_t target_angle = servo_angle_;
+
+        if (manual_filling_mode()) {
+            if (joystick_left_.ready()) {
+                target_l_vel = target_r_vel = manual_lift_velocity_sensitivity_ * joystick_left_->x();
+            }
+            if (rotary_knob_switch_.ready()
+                && last_rotary_knob_switch_ != rmcs_msgs::Switch::DOWN
+                && *rotary_knob_switch_ == rmcs_msgs::Switch::DOWN) {
+                manual_limit_pulse_active_ = true;
+                manual_limit_pulse_stage_ = 0;
+                manual_limit_pulse_ticks_ = 0;
+            }
+        } else {
+            manual_limit_pulse_active_ = false;
+            manual_limit_pulse_stage_ = 0;
+            manual_limit_pulse_ticks_ = 0;
+            target_angle = limit_lock_angle_;
+        }
+
+        if (manual_limit_pulse_active_) {
+            target_angle = update_manual_limit_pulse();
+        }
+
+        if (rotary_knob_switch_.ready()) {
+            last_rotary_knob_switch_ = *rotary_knob_switch_;
+        }
+
+        *left_lift_control_velocity_ = target_l_vel;
+        *right_lift_control_velocity_ = target_r_vel;
+        *servo_control_angle_ = target_angle;
+        servo_angle_ = target_angle;
+        *status_ = MechStatus::BUSY;
+        pending_status_ = MechStatus::BUSY;
+    }
+
+    uint16_t update_manual_limit_pulse() {
+        if (manual_limit_pulse_stage_ == 0) {
+            if (++manual_limit_pulse_ticks_ >= limit_pulse_ticks_) {
+                manual_limit_pulse_stage_ = 1;
+                manual_limit_pulse_ticks_ = 0;
+            }
+            return limit_free_angle_;
+        }
+
+        if (++manual_limit_pulse_ticks_ >= limit_complete_ticks_) {
+            manual_limit_pulse_active_ = false;
+            manual_limit_pulse_stage_ = 0;
+            manual_limit_pulse_ticks_ = 0;
+        }
+        return limit_lock_angle_;
+    }
 
     void update_active_ticks(FillingCmd cmd, bool is_new_command) {
         if (!rmcs_dart_guidance::msg::is_active(cmd)) {
@@ -251,6 +366,10 @@ private:
     InputInterface<double> left_lift_torque_;
     InputInterface<double> right_lift_velocity_;
     InputInterface<double> right_lift_torque_;
+    InputInterface<rmcs_msgs::Switch> switch_left_;
+    InputInterface<rmcs_msgs::Switch> switch_right_;
+    InputInterface<Eigen::Vector2d> joystick_left_;
+    InputInterface<rmcs_msgs::Switch> rotary_knob_switch_;
 
     OutputInterface<double> left_lift_control_velocity_;
     OutputInterface<double> right_lift_control_velocity_;
@@ -259,6 +378,7 @@ private:
     double lift_control_velocity_ = 1.0;
     double lift_stall_velocity_threshold_ = 0.1;
     double lift_stall_torque_threshold_ = 1.0;
+    double manual_lift_velocity_sensitivity_ = 0.0;
     int lift_stall_ticks_ = 50;
 
     uint16_t limit_free_angle_ = 0;
@@ -274,6 +394,11 @@ private:
     MechStatus pending_status_{MechStatus::IDLE};
     int stall_count_left_{0};
     int stall_count_right_{0};
+    bool was_manual_mode_{false};
+    bool manual_limit_pulse_active_{false};
+    int manual_limit_pulse_stage_{0};
+    int manual_limit_pulse_ticks_{0};
+    rmcs_msgs::Switch last_rotary_knob_switch_{rmcs_msgs::Switch::UNKNOWN};
 };
 
 } // namespace rmcs_core::controller::dart

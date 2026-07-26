@@ -38,8 +38,8 @@ public:
             register_input(kMotorPrefixes[i] + "/height", axis_height_[i], false);
             register_input(kMotorPrefixes[i] + "/height_velocity", axis_height_velocity_[i], false);
             register_input(kMotorPrefixes[i] + "/stroke_angle", axis_stroke_angle_[i], false);
-            register_input(kMotorPrefixes[i] + "/bottom_limit_switch", bottom_limit_switch_[i],
-                           false);
+            register_input(
+                kMotorPrefixes[i] + "/bottom_limit_switch", bottom_limit_switch_[i], false);
 
             register_output(kMotorPrefixes[i] + "/control_torque", control_torque_[i], kNaN);
             register_output(kMotorPrefixes[i] + "/axis_effort", axis_effort_output_[i], kNaN);
@@ -47,8 +47,8 @@ public:
 
         register_output("/dart/chassis/4z/status", status_output_, MechStatus::IDLE);
         register_output("/dart/chassis/height_degraded", height_degraded_output_, false);
-        register_output("/dart/chassis/height_target_reachable", height_target_reachable_output_,
-                        true);
+        register_output(
+            "/dart/chassis/height_target_reachable", height_target_reachable_output_, true);
 
         read_parameters();
     }
@@ -92,13 +92,9 @@ public:
         case FourZCommand::LEVEL_ZERO:
             next_status = update_level_zero(feedback, axis_effort);
             break;
-        case FourZCommand::DOWN:
-            next_status = update_down(feedback, axis_effort);
-            break;
+        case FourZCommand::DOWN: next_status = update_down(feedback, axis_effort); break;
         case FourZCommand::IDLE:
-        case FourZCommand::ABORT:
-            next_status = MechStatus::IDLE;
-            break;
+        case FourZCommand::ABORT: next_status = MechStatus::IDLE; break;
         }
 
         current_status_ = next_status;
@@ -185,8 +181,7 @@ private:
         get_parameter_or("limit_hold_margin", limit_hold_margin_, 0.02);
 
         get_parameter_or("level_height_tolerance", level_height_tolerance_, 0.005);
-        get_parameter_or(
-            "level_height_velocity_tolerance", level_height_velocity_tolerance_, 0.01);
+        get_parameter_or("level_height_velocity_tolerance", level_height_velocity_tolerance_, 0.01);
         get_parameter_or("level_pitch_tolerance", level_pitch_tolerance_, 0.01);
         get_parameter_or("level_roll_tolerance", level_roll_tolerance_, 0.01);
         get_parameter_or("level_pitch_rate_tolerance", level_pitch_rate_tolerance_, 0.02);
@@ -201,14 +196,12 @@ private:
         get_parameter_or("axis_effort_max", default_axis_effort_max, default_axis_effort_max);
         double default_axis_torque_direction = 1.0;
         get_parameter_or(
-            "axis_torque_direction", default_axis_torque_direction,
-            default_axis_torque_direction);
+            "axis_torque_direction", default_axis_torque_direction, default_axis_torque_direction);
 
         axis_effort_max_.fill(default_axis_effort_max);
         axis_torque_direction_.fill(default_axis_torque_direction);
         for (size_t i = 0; i < kAxisCount; ++i) {
-            get_parameter_or(
-                kAxisEffortMaxParameters[i], axis_effort_max_[i], axis_effort_max_[i]);
+            get_parameter_or(kAxisEffortMaxParameters[i], axis_effort_max_[i], axis_effort_max_[i]);
             get_parameter_or(
                 kAxisTorqueDirectionParameters[i], axis_torque_direction_[i],
                 axis_torque_direction_[i]);
@@ -276,9 +269,7 @@ private:
         reset_all_pid();
 
         switch (command) {
-        case FourZCommand::CALIBRATE_BOTTOM:
-            calibrate_touched_ = feedback.bottom;
-            break;
+        case FourZCommand::CALIBRATE_BOTTOM: calibrate_touched_ = feedback.bottom; break;
         case FourZCommand::LEVEL_ZERO:
             target_height_ = feedback.height;
             target_pitch_ = 0.0;
@@ -290,8 +281,7 @@ private:
             target_height_ = feedback.height;
             break;
         case FourZCommand::IDLE:
-        case FourZCommand::ABORT:
-            break;
+        case FourZCommand::ABORT: break;
         }
     }
 
@@ -312,13 +302,13 @@ private:
         return MechStatus::BUSY;
     }
 
-    MechStatus update_level_zero(
-        const Feedback& feedback, std::array<double, kAxisCount>& axis_effort) {
+    MechStatus
+        update_level_zero(const Feedback& feedback, std::array<double, kAxisCount>& axis_effort) {
         height_target_reachable_ = compute_height_target_reachable(feedback);
 
         if (!height_degraded_) {
-            compute_normal_pose_effort(feedback, target_height_, target_pitch_, target_roll_,
-                                       axis_effort);
+            compute_normal_pose_effort(
+                feedback, target_height_, target_pitch_, target_roll_, axis_effort);
             if (!height_target_reachable_ || normal_level_should_degrade(feedback, axis_effort)) {
                 height_degraded_ = true;
                 height_pid_.reset();
@@ -343,8 +333,7 @@ private:
         return MechStatus::BUSY;
     }
 
-    MechStatus update_down(
-        const Feedback& feedback, std::array<double, kAxisCount>& axis_effort) {
+    MechStatus update_down(const Feedback& feedback, std::array<double, kAxisCount>& axis_effort) {
         height_degraded_ = false;
         height_target_reachable_ = true;
 
@@ -362,9 +351,8 @@ private:
         const Feedback& feedback, double target_height, double target_pitch, double target_roll,
         std::array<double, kAxisCount>& axis_effort) {
         const auto sync_effort = compute_sync_effort(feedback);
-        const double u_height =
-            height_pid_.update(target_height - feedback.height)
-            - height_pid_.kd * feedback.height_velocity;
+        const double u_height = height_pid_.update(target_height - feedback.height)
+                              - height_pid_.kd * feedback.height_velocity;
         const double u_pitch =
             pitch_pid_.update(target_pitch - feedback.pitch) - pitch_pid_.kd * feedback.pitch_rate;
         const double u_roll =
@@ -374,8 +362,8 @@ private:
             axis_effort[i] = u_height - u_pitch * axis_x(i) + u_roll * axis_y(i) + sync_effort[i];
     }
 
-    void compute_down_effort(
-        const Feedback& feedback, std::array<double, kAxisCount>& axis_effort) {
+    void
+        compute_down_effort(const Feedback& feedback, std::array<double, kAxisCount>& axis_effort) {
         const auto sync_effort = compute_sync_effort(feedback);
         const double u_pitch =
             pitch_pid_.update(target_pitch_ - feedback.pitch) - pitch_pid_.kd * feedback.pitch_rate;
@@ -433,9 +421,8 @@ private:
             const double plane_z =
                 feedback.height - feedback.pitch * axis_x(i) + feedback.roll * axis_y(i);
             const double sync_error = plane_z - feedback.z[i];
-            double u_sync =
-                sync_pid_[i].update(sync_error)
-                - sync_pid_[i].kd * (feedback.velocity[i] - feedback.height_velocity);
+            double u_sync = sync_pid_[i].update(sync_error)
+                          - sync_pid_[i].kd * (feedback.velocity[i] - feedback.height_velocity);
 
             if (feedback.bottom[i] && u_sync < 0.0)
                 u_sync = 0.0;
@@ -599,5 +586,5 @@ private:
 
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::dart::FourZAxisChassisController,
-                       rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(
+    rmcs_core::controller::dart::FourZAxisChassisController, rmcs_executor::Component)
