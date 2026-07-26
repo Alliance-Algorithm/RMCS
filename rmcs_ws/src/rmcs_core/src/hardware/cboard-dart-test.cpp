@@ -216,14 +216,14 @@ private:
                 Spec::kCans.kCan2,
                 {
                     .can_id = 0x141,
-                    .can_data = filling_lift_motor_[0].generate_velocity_command().as_bytes(),
+                    .can_data = filling_lift_motor_[0].generate_command().as_bytes(),
                 });
 
             builder.can_transmit(
                 Spec::kCans.kCan2,
                 {
                     .can_id = 0x145,
-                    .can_data = filling_lift_motor_[1].generate_velocity_command().as_bytes(),
+                    .can_data = filling_lift_motor_[1].generate_command().as_bytes(),
                 });
 
             if (!filling_limit_servo_.calibrate_mode()) {

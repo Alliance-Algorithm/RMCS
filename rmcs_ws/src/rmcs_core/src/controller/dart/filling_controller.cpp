@@ -37,17 +37,23 @@ public:
             "/dart/filling_lift/left_motor/control_velocity", left_lift_control_velocity_, NAN);
         register_output(
             "/dart/filling_lift/right_motor/control_velocity", right_lift_control_velocity_, NAN);
+        // register_output(
+        //     "/dart/filling_lift/left_motor/control_torque", left_lift_control_torque_, NAN);
+        // register_output(
+        //     "/dart/filling_lift/right_motor/control_torque", right_lift_control_torque_, NAN);
 
         register_output("/dart/limiting_servo/control_angle", servo_control_angle_, uint16_t{0});
 
         get_parameter("lift_control_velocity", lift_control_velocity_);
+        get_parameter_or("lift_torque_limit", lift_torque_limit_, 2.0);
 
         int64_t stall_ticks = 50;
         get_parameter("lift_stall_ticks", stall_ticks);
         lift_stall_ticks_ = static_cast<int>(stall_ticks);
         get_parameter("lift_stall_velocity_threshold", lift_stall_velocity_threshold_);
         get_parameter("lift_stall_torque_threshold", lift_stall_torque_threshold_);
-        get_parameter_or("manual_lift_velocity_sensitivity", manual_lift_velocity_sensitivity_, 0.0);
+        get_parameter_or(
+            "manual_lift_velocity_sensitivity", manual_lift_velocity_sensitivity_, 0.0);
 
         int64_t limit_angle = 0;
         get_parameter("limit_free_angle", limit_angle);
@@ -115,7 +121,13 @@ public:
         MechStatus status = MechStatus::IDLE;
         double target_l_vel = NAN;
         double target_r_vel = NAN;
+        double target_l_torque = NAN;
+        double target_r_torque = NAN;
         uint16_t target_angle = servo_angle_;
+
+        const auto set_lift_torque_limit = [&] {
+            target_l_torque = target_r_torque = lift_torque_limit_;
+        };
 
         const bool is_new_command = rmcs_dart_guidance::msg::is_active(cmd) && cmd != active_cmd_;
         update_active_ticks(cmd, is_new_command);
@@ -137,11 +149,13 @@ public:
             break;
 
         case FillingCmd::LIFT_UP:
+            set_lift_torque_limit();
             status = handle_lift(
                 is_new_command, true, l_vel, l_torque, r_vel, r_torque, target_l_vel, target_r_vel);
             break;
 
         case FillingCmd::LIFT_DOWN:
+            set_lift_torque_limit();
             status = handle_lift(
                 is_new_command, false, l_vel, l_torque, r_vel, r_torque, target_l_vel,
                 target_r_vel);
@@ -163,14 +177,18 @@ public:
         status = enforce_minimum_active_ticks(status);
 
         if (status == MechStatus::SUCCEEDED) {
-            if (active_cmd_ == FillingCmd::LIFT_UP || active_cmd_ == FillingCmd::LIFT_DOWN)
+            if (active_cmd_ == FillingCmd::LIFT_UP || active_cmd_ == FillingCmd::LIFT_DOWN) {
                 target_l_vel = target_r_vel = 0.0;
-            else
+                set_lift_torque_limit();
+            } else {
                 target_l_vel = target_r_vel = NAN;
+            }
         }
 
         *left_lift_control_velocity_ = target_l_vel;
         *right_lift_control_velocity_ = target_r_vel;
+        // *left_lift_control_torque_ = target_l_torque;
+        // *right_lift_control_torque_ = target_r_torque;
         *servo_control_angle_ = target_angle;
         servo_angle_ = target_angle;
         *status_ = status;
@@ -209,10 +227,10 @@ private:
 
         if (manual_filling_mode()) {
             if (joystick_left_.ready()) {
-                target_l_vel = target_r_vel = manual_lift_velocity_sensitivity_ * joystick_left_->x();
+                target_l_vel = target_r_vel =
+                    manual_lift_velocity_sensitivity_ * joystick_left_->x();
             }
-            if (rotary_knob_switch_.ready()
-                && last_rotary_knob_switch_ != rmcs_msgs::Switch::DOWN
+            if (rotary_knob_switch_.ready() && last_rotary_knob_switch_ != rmcs_msgs::Switch::DOWN
                 && *rotary_knob_switch_ == rmcs_msgs::Switch::DOWN) {
                 manual_limit_pulse_active_ = true;
                 manual_limit_pulse_stage_ = 0;
@@ -235,6 +253,8 @@ private:
 
         *left_lift_control_velocity_ = target_l_vel;
         *right_lift_control_velocity_ = target_r_vel;
+        // *left_lift_control_torque_ = NAN;
+        // *right_lift_control_torque_ = NAN;
         *servo_control_angle_ = target_angle;
         servo_angle_ = target_angle;
         *status_ = MechStatus::BUSY;
@@ -373,9 +393,12 @@ private:
 
     OutputInterface<double> left_lift_control_velocity_;
     OutputInterface<double> right_lift_control_velocity_;
+    // OutputInterface<double> left_lift_control_torque_;
+    // OutputInterface<double> right_lift_control_torque_;
     OutputInterface<uint16_t> servo_control_angle_;
 
     double lift_control_velocity_ = 1.0;
+    double lift_torque_limit_ = 2.0;
     double lift_stall_velocity_threshold_ = 0.1;
     double lift_stall_torque_threshold_ = 1.0;
     double manual_lift_velocity_sensitivity_ = 0.0;

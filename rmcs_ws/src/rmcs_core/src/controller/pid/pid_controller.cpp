@@ -1,3 +1,7 @@
+#include <algorithm>
+#include <cmath>
+#include <limits>
+
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rclcpp/rclcpp.hpp>
@@ -19,6 +23,8 @@ public:
         , measurement_(*this, "measurement")
         , setpoint_(*this, "setpoint")
         , feedforward_(*this, "feedforward", 0.0)
+        , output_abs_limit_(
+              *this, "output_abs_limit", std::numeric_limits<double>::infinity())
         , pid_calculator_(
               get_parameter("kp").as_double(), get_parameter("ki").as_double(),
               get_parameter("kd").as_double()) {
@@ -37,11 +43,22 @@ public:
 
     void update() override {
         auto err = *setpoint_ - *measurement_;
-        *control_ = *feedforward_ + pid_calculator_.update(err);
+        double control = *feedforward_ + pid_calculator_.update(err);
+        const double output_abs_limit = std::abs(*output_abs_limit_);
+        if (std::isfinite(output_abs_limit)) {
+            const double output_min = std::max(pid_calculator_.output_min, -output_abs_limit);
+            const double output_max = std::min(pid_calculator_.output_max, output_abs_limit);
+            if (output_min <= output_max) {
+                control = std::clamp(control, output_min, output_max);
+            } else {
+                control = std::clamp(control, -output_abs_limit, output_abs_limit);
+            }
+        }
+        *control_ = control;
     }
 
 private:
-    SmartInput measurement_, setpoint_, feedforward_;
+    SmartInput measurement_, setpoint_, feedforward_, output_abs_limit_;
 
     PidCalculator pid_calculator_;
 

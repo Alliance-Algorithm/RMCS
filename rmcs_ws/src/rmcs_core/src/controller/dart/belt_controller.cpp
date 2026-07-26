@@ -36,6 +36,10 @@ public:
 
         register_output("/dart/belt/left_motor/control_velocity", left_control_velocity_, NAN);
         register_output("/dart/belt/right_motor/control_velocity", right_control_velocity_, NAN);
+        register_output(
+            "/dart/belt/left_motor/control_torque_limit", left_control_torque_limit_, NAN);
+        register_output(
+            "/dart/belt/right_motor/control_torque_limit", right_control_torque_limit_, NAN);
 
         get_parameter("belt_slow_down_velocity", belt_slow_down_velocity_);
         get_parameter("belt_fast_down_velocity", belt_fast_down_velocity_);
@@ -48,6 +52,8 @@ public:
         get_parameter("soft_stage1_persent", soft_stage1_persent_);
         get_parameter("soft_stage2_persent", soft_stage2_persent_);
         get_parameter("part_persent", part_persent_);
+        get_parameter_or("belt_load_torque_limit", belt_load_torque_limit_, 5.0);
+        get_parameter_or("belt_unload_torque_limit", belt_unload_torque_limit_, 2.0);
 
         int64_t stall_ticks = 50;
         get_parameter("belt_stall_ticks", stall_ticks);
@@ -55,7 +61,8 @@ public:
 
         get_parameter("belt_stall_velocity_threshold", stall_velocity_threshold_);
         get_parameter("belt_stall_torque_threshold", stall_torque_threshold_);
-        get_parameter_or("manual_belt_velocity_sensitivity", manual_belt_velocity_sensitivity_, 0.0);
+        get_parameter_or(
+            "manual_belt_velocity_sensitivity", manual_belt_velocity_sensitivity_, 0.0);
     }
 
     void before_updating() override {
@@ -95,6 +102,12 @@ public:
         MechStatus status = MechStatus::IDLE;
         double target_l_vel = NAN;
         double target_r_vel = NAN;
+        double target_l_torque_limit = NAN;
+        double target_r_torque_limit = NAN;
+
+        const auto set_torque_limit = [&](double limit) {
+            target_l_torque_limit = target_r_torque_limit = limit;
+        };
 
         const bool is_active_command = rmcs_dart_guidance::msg::is_active(cmd);
         const bool is_new_command = is_active_command && cmd != active_cmd_;
@@ -117,6 +130,7 @@ public:
             break;
 
         case BeltCmd::BRAKE:
+            set_torque_limit(belt_load_torque_limit_);
             if (is_new_command) {
                 active_cmd_ = BeltCmd::BRAKE;
                 stage_ = 0;
@@ -126,6 +140,7 @@ public:
             break;
 
         case BeltCmd::INIT:
+            set_torque_limit(belt_unload_torque_limit_);
             status = handle_init(
                 is_new_command, l_velocity, l_torque, r_velocity, r_torque, target_l_vel,
                 target_r_vel);
@@ -133,12 +148,14 @@ public:
 
         case BeltCmd::DOWN_SLOW:
         case BeltCmd::DOWN_FAST:
+            set_torque_limit(belt_load_torque_limit_);
             status = handle_down_full(
                 cmd, is_new_command, l_angle, l_velocity, l_torque, r_angle, r_velocity, r_torque,
                 target_l_vel, target_r_vel);
             break;
 
         case BeltCmd::DOWN_SLOW_PART:
+            set_torque_limit(belt_load_torque_limit_);
             status = handle_down_part(
                 is_new_command, l_angle, l_velocity, l_torque, r_angle, r_velocity, r_torque,
                 target_l_vel, target_r_vel);
@@ -148,14 +165,17 @@ public:
             status = handle_up_soft(
                 is_new_command, l_angle, l_velocity, l_torque, r_angle, r_velocity, r_torque,
                 target_l_vel, target_r_vel);
+            set_torque_limit(stage_ == 1 ? belt_load_torque_limit_ : belt_unload_torque_limit_);
             break;
 
         case BeltCmd::UP_SOFT_PART:
+            set_torque_limit(belt_load_torque_limit_);
             status =
                 handle_up_soft_part(is_new_command, l_angle, r_angle, target_l_vel, target_r_vel);
             break;
 
         case BeltCmd::UP_HARD:
+            set_torque_limit(belt_load_torque_limit_);
             status = handle_up_hard(
                 is_new_command, l_angle, l_velocity, l_torque, r_angle, r_velocity, r_torque,
                 target_l_vel, target_r_vel);
@@ -164,11 +184,16 @@ public:
 
         status = enforce_minimum_active_ticks(status);
 
-        if (status == MechStatus::SUCCEEDED)
+        if (status == MechStatus::SUCCEEDED) {
             target_l_vel = target_r_vel = post_completion_velocity(active_cmd_);
+            target_l_torque_limit = target_r_torque_limit =
+                post_completion_torque_limit(active_cmd_);
+        }
 
         *left_control_velocity_ = target_l_vel;
         *right_control_velocity_ = target_r_vel;
+        *left_control_torque_limit_ = target_l_torque_limit;
+        *right_control_torque_limit_ = target_r_torque_limit;
         *status_ = status;
         pending_status_ = status;
     }
@@ -181,7 +206,8 @@ private:
     }
 
     bool manual_belt_mode() const {
-        return manual_mode() && switch_right_.ready() && *switch_right_ == rmcs_msgs::Switch::MIDDLE;
+        return manual_mode() && switch_right_.ready()
+            && *switch_right_ == rmcs_msgs::Switch::MIDDLE;
     }
 
     void update_manual() {
@@ -198,6 +224,8 @@ private:
 
         *left_control_velocity_ = target_velocity;
         *right_control_velocity_ = target_velocity;
+        *left_control_torque_limit_ = NAN;
+        *right_control_torque_limit_ = NAN;
         *status_ = MechStatus::BUSY;
         pending_status_ = MechStatus::BUSY;
     }
@@ -240,8 +268,8 @@ private:
     }
 
     MechStatus handle_init(
-        bool is_new_command, double l_velocity, double l_torque, double r_velocity,
-        double r_torque, double& l_vel, double& r_vel) {
+        bool is_new_command, double l_velocity, double l_torque, double r_velocity, double r_torque,
+        double& l_vel, double& r_vel) {
 
         if (is_new_command) {
             active_cmd_ = BeltCmd::INIT;
@@ -287,7 +315,7 @@ private:
         l_vel = belt_slow_down_velocity_;
         r_vel = belt_slow_down_velocity_;
 
-        const double target_dist = slider_rail_length_ * part_persent_;
+        const double target_dist = slider_rail_length_ * (part_persent_ + 0.05);
         const bool l_stall = stall_detected(l_velocity, l_torque, stall_count_left_);
         const bool r_stall = stall_detected(r_velocity, r_torque, stall_count_right_);
         const bool l_reach = (l_angle - start_angle_left_) >= target_dist;
@@ -352,7 +380,7 @@ private:
             stage_ = 0;
         }
 
-        l_vel = r_vel = -belt_up_stage1_velocity_;
+        l_vel = r_vel = -belt_up_stage2_velocity_;
 
         const double target_dist = slider_rail_length_ * part_persent_;
         const double l_delta = start_angle_left_ - l_angle;
@@ -393,10 +421,22 @@ private:
         case BeltCmd::DOWN_SLOW:
         case BeltCmd::DOWN_FAST:
         case BeltCmd::DOWN_SLOW_PART:
-        case BeltCmd::UP_SOFT_PART: return 0.0;
-        case BeltCmd::INIT:
-        case BeltCmd::UP_SOFT:
-        case BeltCmd::UP_HARD: return NAN;
+        case BeltCmd::UP_SOFT_PART:
+        case BeltCmd::UP_HARD:
+        case BeltCmd::INIT: return 0.0;
+        case BeltCmd::UP_SOFT: return NAN;
+        default: return NAN;
+        }
+    }
+
+    double post_completion_torque_limit(BeltCmd cmd) const {
+        switch (cmd) {
+        case BeltCmd::DOWN_SLOW:
+        case BeltCmd::DOWN_FAST:
+        case BeltCmd::DOWN_SLOW_PART:
+        case BeltCmd::UP_SOFT_PART:
+        case BeltCmd::UP_HARD: return belt_load_torque_limit_;
+        case BeltCmd::INIT: return belt_unload_torque_limit_;
         default: return NAN;
         }
     }
@@ -416,6 +456,8 @@ private:
 
     OutputInterface<double> left_control_velocity_;
     OutputInterface<double> right_control_velocity_;
+    OutputInterface<double> left_control_torque_limit_;
+    OutputInterface<double> right_control_torque_limit_;
 
     double belt_slow_down_velocity_ = 1.0;
     double belt_fast_down_velocity_ = 2.0;
@@ -428,6 +470,8 @@ private:
     double soft_stage1_persent_ = 0.3;
     double soft_stage2_persent_ = 0.8;
     double part_persent_ = 0.5;
+    double belt_load_torque_limit_ = 5.0;
+    double belt_unload_torque_limit_ = 2.0;
 
     double stall_velocity_threshold_ = 0.1;
     double stall_torque_threshold_ = 1.0;
