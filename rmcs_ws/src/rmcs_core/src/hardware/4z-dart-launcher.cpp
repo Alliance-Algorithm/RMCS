@@ -84,12 +84,9 @@ private:
                   {catapult_dart, catapult_dart_command, "/dart/filling_lift/right_motor"})
             , filling_limit_servo_{catapult_dart_command, "/dart/limiting_servo", 0x02}
             , trigger_servo_{catapult_dart_command, "/dart/trigger_servo", 20.0, 0.5, 2.5}
-            , front_left_bottom_limit_switch_{
-                  catapult_dart, "/dart/chassis/front_left_motor/bottom_limit_switch"}
-            , front_back_bottom_limit_switch_{
-                  catapult_dart, "/dart/chassis/front_back_motor/bottom_limit_switch"}
-            , back_left_bottom_limit_switch_{
-                  catapult_dart, "/dart/chassis/back_left_motor/bottom_limit_switch"}
+            , front_left_bottom_limit_switch_{catapult_dart, "/dart/chassis/front_left_motor/bottom_limit_switch"}
+            , front_back_bottom_limit_switch_{catapult_dart, "/dart/chassis/front_back_motor/bottom_limit_switch"}
+            , back_left_bottom_limit_switch_{catapult_dart, "/dart/chassis/back_left_motor/bottom_limit_switch"}
             , back_right_bottom_limit_switch_{
                   catapult_dart, "/dart/chassis/back_right_motor/bottom_limit_switch"} {
 
@@ -117,6 +114,7 @@ private:
 
             drive_belt_motors_[1].configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kM3508, 4}
+                    .set_reversed()
                     .set_reduction_ratio(19.)
                     .enable_multi_turn_angle());
 
@@ -127,11 +125,13 @@ private:
 
             trigger_motor_.configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kM3508, 2}
+                    .set_reversed()
                     .set_reduction_ratio(19.)
                     .enable_multi_turn_angle());
 
             filling_lift_motor_[0].configure(
                 device::LkMotor::Config{device::LkMotor::Type::kMG4005Ei10}
+                    .set_reversed()
                     .enable_multi_turn_angle());
             filling_lift_motor_[1].configure(
                 device::LkMotor::Config{device::LkMotor::Type::kMG4005Ei10}
@@ -237,14 +237,14 @@ private:
                 Spec::kCans.kCan3,
                 {
                     .can_id = 0x141,
-                    .can_data = filling_lift_motor_[0].generate_velocity_command().as_bytes(),
+                    .can_data = filling_lift_motor_[0].generate_command().as_bytes(),
                 });
 
             builder.can_transmit(
                 Spec::kCans.kCan3,
                 {
                     .can_id = 0x145,
-                    .can_data = filling_lift_motor_[1].generate_velocity_command().as_bytes(),
+                    .can_data = filling_lift_motor_[1].generate_command().as_bytes(),
                 });
 
             if (!filling_limit_servo_.calibrate_mode()) {

@@ -24,10 +24,10 @@ rmcs_executor:
 
 dart_manager:
   ros__parameters:
-    launch_carriage_position_1: -800000.0
-    launch_carriage_position_2: -800000.0
-    launch_carriage_position_3: -800000.0
-    launch_carriage_position_4: -800000.0
+    launch_carriage_position_1: -4861862.0
+    launch_carriage_position_2: -4599712.0
+    launch_carriage_position_3: -4599712.0
+    launch_carriage_position_4: -4861862.0
 
 value_broadcaster:
   ros__parameters:
@@ -65,16 +65,16 @@ belt_controller:
   ros__parameters:
     belt_slow_down_velocity: 10.0
     belt_fast_down_velocity: 15.0
-    belt_up_soft_stage1_velocity: 5.0
+    belt_up_soft_stage1_velocity: 3.0
     belt_up_soft_stage2_velocity: 20.0
     belt_up_soft_stage3_velocity: 5.0
     belt_up_stage1_velocity: 10.0
     belt_up_stage2_velocity: 5.0
-    slider_rail_length: 38.5
-    soft_stage1_persent: 0.2
+    slider_rail_length: 40.0
+    soft_stage1_persent: 0.15
     soft_stage2_persent: 0.9
     part_persent: 0.45
-    belt_load_torque_limit: 6.0
+    belt_load_torque_limit: 5.5
     belt_unload_torque_limit: 0.6
     belt_stall_ticks: 200
     belt_stall_velocity_threshold: 0.5
@@ -121,10 +121,10 @@ trigger_controller:
     carriage_velocity: 20.0
     carriage_torque_limit: 2.5
     calibrate_rollback: 300000
-    calibrate_rollback_velocity: 30.0
-    carriage_calibrate_torque_limit: 0.20
+    calibrate_rollback_velocity: 15.0
+    carriage_calibrate_torque_limit: 0.3
     carriage_calibrate_launch_ticks: 200
-    carriage_calibrate_control_torque: 0.11
+    carriage_calibrate_control_torque: 0.10
     carriage_stall_velocity_threshold: 0.00
     carriage_stall_ticks: 500
     carriage_velocity_pid_kp: 0.3
@@ -134,7 +134,7 @@ trigger_controller:
     carriage_position_ki: 0.00025
     carriage_position_kd: 0.0
     carriage_position_integral_max: 2.0
-    carriage_position_tolerance: 50
+    carriage_position_tolerance: 100
     carriage_position_settle_ticks: 500
     manual_carriage_velocity_sensitivity: 50.0
 

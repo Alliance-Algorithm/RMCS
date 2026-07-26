@@ -140,5 +140,4 @@ private:
 
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::dart::FourDofController,
-                       rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::dart::FourDofController, rmcs_executor::Component)
