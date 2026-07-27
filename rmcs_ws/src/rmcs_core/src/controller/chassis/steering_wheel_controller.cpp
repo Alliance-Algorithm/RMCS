@@ -35,13 +35,28 @@ public:
         , no_load_power_(get_parameter("no_load_power").as_double())
         , control_acceleration_filter_(5.0, 1000.0)
         , chassis_velocity_expected_(Eigen::Vector3d::Zero())
-        , chassis_translational_velocity_pid_(5.0, 0.0, 1.0)
-        , chassis_angular_velocity_pid_(5.0, 0.0, 1.0)
+        , chassis_translational_velocity_pid_(
+              get_parameter("chassis_translation_kp").as_double(),
+              get_parameter("chassis_translation_ki").as_double(),
+              get_parameter("chassis_translation_kd").as_double())
+        , chassis_angular_velocity_pid_(
+              get_parameter("chassis_angular_velocity_kp").as_double(),
+              get_parameter("chassis_angular_velocity_ki").as_double(),
+              get_parameter("chassis_angular_velocity_kd").as_double())
         , cos_varphi_(1, 0, -1, 0) // 0, pi/2, pi, 3pi/2
         , sin_varphi_(0, 1, 0, -1)
-        , steering_velocity_pid_(0.15, 0.0, 0.0)
-        , steering_angle_pid_(30.0, 0.0, 0.0)
-        , wheel_velocity_pid_(0.6, 0.0, 0.0) {
+        , steering_velocity_pid_(
+              get_parameter("steering_velocity_kp").as_double(),
+              get_parameter("steering_velocity_ki").as_double(),
+              get_parameter("steering_velocity_kd").as_double())
+        , steering_angle_pid_(
+              get_parameter("steering_angle_kp").as_double(),
+              get_parameter("steering_angle_ki").as_double(),
+              get_parameter("steering_angle_kd").as_double())
+        , wheel_velocity_pid_(
+              get_parameter("wheel_velocity_kp").as_double(),
+              get_parameter("wheel_velocity_ki").as_double(),
+              get_parameter("wheel_velocity_kd").as_double()) {
 
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);

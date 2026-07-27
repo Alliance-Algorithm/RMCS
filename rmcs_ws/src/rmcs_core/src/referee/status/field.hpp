@@ -16,10 +16,12 @@ struct __attribute__((packed)) GameRobotHp {
     uint16_t ally_2_robot_hp;
     uint16_t ally_3_robot_hp;
     uint16_t ally_4_robot_hp;
-    uint16_t reserved;
+    int16_t damage_difference;
     uint16_t ally_7_robot_hp;
     uint16_t ally_outpost_hp;
     uint16_t ally_base_hp;
+    uint16_t enemy_outpost_hp;
+    uint16_t enemy_base_hp;
 };
 
 struct __attribute__((packed)) EventData {

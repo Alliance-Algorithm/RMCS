@@ -7,7 +7,7 @@ rmcs_executor:
       - rmcs_core::referee::Status -> referee_status
       - rmcs_core::referee::Command -> referee_command
       - rmcs_core::referee::command::Interaction -> referee_interaction
-      # - rmcs_core::referee::command::interaction::SentryDecision -> referee_sentry_decision
+      - rmcs_core::referee::command::interaction::SentryDecision -> referee_sentry_decision
       - rmcs_core::referee::command::interaction::Ui -> referee_ui
 
       - rmcs_core::controller::gimbal::EccentricDualYaw -> gimbal_controller
@@ -22,7 +22,7 @@ rmcs_executor:
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::SteeringWheelController -> steering_wheel_controller
 
-      # - rmcs::navigation::Navigation -> rmcs_navigation
+      - rmcs::navigation::Navigation -> rmcs_navigation
 
       # - rmcs::AutoAimRecorderComponent -> auto_aim_recorder
       # - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
@@ -34,7 +34,7 @@ rmcs_executor:
 rmcs_navigation:
   ros__parameters:
     command_vel_name: "/cmd_vel"
-    endpoint: "otaku"
+    endpoint: "test"
     enable_goal_topic_forward: true
 
 auto_aim_capturer:
