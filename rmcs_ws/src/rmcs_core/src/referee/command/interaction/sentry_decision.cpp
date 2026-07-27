@@ -24,8 +24,8 @@ public:
     using EventCounts = std::unordered_map<SentryEvent, std::uint16_t>;
     using Clock = std::chrono::steady_clock;
 
-    InputInterface<rmcs_msgs::RobotId> robot_id_;
     InputInterface<EventCounts> sentry_events_;
+    InputInterface<rmcs_msgs::RobotId> robot_id_;
     InputInterface<std::uint8_t> sentry_posture_fb_;
     InputInterface<std::uint16_t> robot_hp_fb_;
     InputInterface<std::uint8_t> energy_core_status_;
@@ -43,17 +43,14 @@ public:
     std::uint8_t last_fb_posture_ = 3;
     bool last_can_rebirth_free_ = false;
 
-    Clock::time_point last_sent_{Clock::now()};
-    Clock::time_point last_status_log_{Clock::now()};
-
-    static const std::unordered_set<SentryEvent>& kPoseEvents() {
-        static const auto s = std::unordered_set<SentryEvent>{
-            SentryEvent::SWITCH_POSE_ATTACK,         SentryEvent::SWITCH_POSE_DEFENSE,
-            SentryEvent::SWITCH_POSE_MOVE,           SentryEvent::SWITCH_POSE_POWERED_ATTACK,
-            SentryEvent::SWITCH_POSE_POWERED_DEFENSE, SentryEvent::SWITCH_POSE_POWERED_MOVE,
-        };
-        return s;
-    }
+    static inline const auto kPoseEvents = std::unordered_set{
+        SentryEvent::SWITCH_POSE_ATTACK,
+        SentryEvent::SWITCH_POSE_DEFENSE,
+        SentryEvent::SWITCH_POSE_MOVE,
+        SentryEvent::SWITCH_POSE_POWERED_ATTACK,
+        SentryEvent::SWITCH_POSE_POWERED_DEFENSE,
+        SentryEvent::SWITCH_POSE_POWERED_MOVE,
+    };
 
     static auto to_posture(SentryEvent event) -> Posture {
         switch (event) {
@@ -63,17 +60,23 @@ public:
         case SentryEvent::SWITCH_POSE_POWERED_ATTACK: return Posture::POWERED_ATTACK;
         case SentryEvent::SWITCH_POSE_POWERED_DEFENSE: return Posture::POWERED_DEFENSE;
         case SentryEvent::SWITCH_POSE_POWERED_MOVE: return Posture::POWERED_MOVE;
-        default: return Posture::MOVE;
+        default: return Posture::UNKNOWN;
         }
     }
 
     static constexpr auto kEventPriority = std::array{
-        SentryEvent::CONFIRM_REBIRTH,            SentryEvent::CONFIRM_INSTANT_REBIRTH,
-        SentryEvent::SWITCH_POSE_ATTACK,         SentryEvent::SWITCH_POSE_DEFENSE,
-        SentryEvent::SWITCH_POSE_MOVE,           SentryEvent::SWITCH_POSE_POWERED_ATTACK,
-        SentryEvent::SWITCH_POSE_POWERED_DEFENSE, SentryEvent::SWITCH_POSE_POWERED_MOVE,
-        SentryEvent::EXCHANGE_AMMO_SUPPLY_POINT,  SentryEvent::EXCHANGE_AMMO_REMOTE,
-        SentryEvent::EXCHANGE_HP_REMOTE,          SentryEvent::ACTIVATE_ENERGY_CORE,
+        SentryEvent::CONFIRM_REBIRTH,
+        SentryEvent::CONFIRM_INSTANT_REBIRTH,
+        SentryEvent::SWITCH_POSE_ATTACK,
+        SentryEvent::SWITCH_POSE_DEFENSE,
+        SentryEvent::SWITCH_POSE_MOVE,
+        SentryEvent::SWITCH_POSE_POWERED_ATTACK,
+        SentryEvent::SWITCH_POSE_POWERED_DEFENSE,
+        SentryEvent::SWITCH_POSE_POWERED_MOVE,
+        SentryEvent::EXCHANGE_AMMO_SUPPLY_POINT,
+        SentryEvent::EXCHANGE_AMMO_REMOTE,
+        SentryEvent::EXCHANGE_HP_REMOTE,
+        SentryEvent::ACTIVATE_ENERGY_CORE,
     };
 
     SentryDecision()
@@ -106,18 +109,9 @@ public:
     }
 
     auto update() -> void override {
-        using namespace std::chrono_literals;
-
         if (*robot_id_ == rmcs_msgs::RobotId::UNKNOWN) {
             *sentry_decision_field_ = Field{};
             return;
-        }
-
-        const auto now = Clock::now();
-
-        if (now - last_status_log_ > 1s) {
-            RCLCPP_INFO(get_logger(), "Sentry posture: %d", *sentry_posture_fb_);
-            last_status_log_ = now;
         }
 
         detect_new_events();
@@ -128,7 +122,7 @@ public:
         }
         last_can_rebirth_free_ = can_rebirth_free;
 
-        consume_one_event(now);
+        consume_one_event();
         verify_feedback();
     }
 
@@ -142,8 +136,8 @@ private:
             auto cache_count = cached_events_[event];
 
             if (cache_count != input_count) {
-                if (kPoseEvents().contains(event)) {
-                    for (const auto rm : kPoseEvents())
+                if (kPoseEvents.contains(event)) {
+                    for (const auto rm : kPoseEvents)
                         requests_.erase(rm);
                 }
                 requests_.insert(event);
@@ -152,8 +146,11 @@ private:
         }
     }
 
-    auto consume_one_event(Clock::time_point now) -> void {
-        using namespace std::chrono_literals;
+    auto consume_one_event() -> void {
+        if (requests_.empty()) {
+            *sentry_decision_field_ = Field{};
+            return;
+        }
 
         const auto id = rmcs_msgs::FullRobotId{*robot_id_};
         header_.command_id = 0x0120;
@@ -166,7 +163,7 @@ private:
 
             command_ = Command{};
 
-            if (kPoseEvents().contains(event)) {
+            if (kPoseEvents.contains(event)) {
                 command_.posture = to_posture(event);
                 pose_targets_[event] = to_posture(event);
             } else if (event == SentryEvent::CONFIRM_REBIRTH) {
@@ -184,16 +181,15 @@ private:
             }
 
             *sentry_decision_field_ = MAKE_FIELD(header_, command_);
-            last_sent_ = now;
 
-            if (kPoseEvents().contains(event)) {
+            if (kPoseEvents.contains(event)) {
                 if (!logged_events_.contains(event)) {
-                    RCLCPP_INFO(get_logger(), "Sentry pose command: %d",
-                                std::to_underlying(command_.posture));
+                    RCLCPP_INFO(
+                        get_logger(), "Sentry pose command: %d",
+                        std::to_underlying(command_.posture));
                     logged_events_.insert(event);
                 }
             }
-
             break;
         }
     }
@@ -201,6 +197,7 @@ private:
     auto verify_feedback() -> void {
         const auto fb_posture_id = *sentry_posture_fb_;
         const auto fb_hp = *robot_hp_fb_;
+        const auto energy_core_status = *energy_core_status_;
 
         if (fb_posture_id != last_fb_posture_) {
             RCLCPP_INFO(
@@ -210,7 +207,7 @@ private:
 
         auto to_erase = std::vector<SentryEvent>{};
         for (const auto event : requests_) {
-            if (kPoseEvents().contains(event)) {
+            if (kPoseEvents.contains(event)) {
                 auto it = pose_targets_.find(event);
                 if (it != pose_targets_.end()
                     && static_cast<uint8_t>(it->second) == fb_posture_id) {
@@ -218,9 +215,14 @@ private:
                     pose_targets_.erase(it);
                     logged_events_.erase(event);
                 }
-            } else if (event == SentryEvent::CONFIRM_REBIRTH
-                       || event == SentryEvent::CONFIRM_INSTANT_REBIRTH) {
+            } else if (
+                event == SentryEvent::CONFIRM_REBIRTH
+                || event == SentryEvent::CONFIRM_INSTANT_REBIRTH) {
                 if (fb_hp > 0) {
+                    to_erase.push_back(event);
+                }
+            } else if (event == SentryEvent::ACTIVATE_ENERGY_CORE) {
+                if (energy_core_status != 0) {
                     to_erase.push_back(event);
                 }
             } else {
@@ -236,6 +238,5 @@ private:
 } // namespace rmcs_core::referee::command::interaction
 
 #include <pluginlib/class_list_macros.hpp>
-
 PLUGINLIB_EXPORT_CLASS(
     rmcs_core::referee::command::interaction::SentryDecision, rmcs_executor::Component)

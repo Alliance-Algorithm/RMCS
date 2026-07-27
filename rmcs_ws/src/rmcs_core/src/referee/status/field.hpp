@@ -112,6 +112,7 @@ static_assert(sizeof(MapCommand) == 12);
 
 struct __attribute__((packed)) SentryCommand {
     enum class Posture : std::uint8_t {
+        UNKNOWN = 0,
         ATTACK = 1,
         DEFENSE = 2,
         MOVE = 3,
@@ -120,40 +121,40 @@ struct __attribute__((packed)) SentryCommand {
         POWERED_MOVE = 6,
     };
 
-    std::uint32_t rebirth_confirm       : 1  = 0;
-    std::uint32_t instant_rebirth_confirm : 1  = 0;
-    std::uint32_t ammo_exchange         : 11 = 0;
-    std::uint32_t remote_ammo_request   : 4  = 0;
-    std::uint32_t remote_hp_request     : 4  = 0;
-    Posture       posture               : 3  = Posture::MOVE;
-    std::uint32_t energy_core_confirm   : 1  = 0;
-    std::uint32_t reserved              : 7  = 0;
+    std::uint32_t rebirth_confirm         : 1 = 0;
+    std::uint32_t instant_rebirth_confirm : 1 = 0;
+    std::uint32_t ammo_exchange           : 11 = 0;
+    std::uint32_t remote_ammo_request     : 4 = 0;
+    std::uint32_t remote_hp_request       : 4 = 0;
+    Posture posture                       : 3 = Posture::UNKNOWN;
+    std::uint32_t energy_core_confirm     : 1 = 0;
+    std::uint32_t reserved                : 7 = 0;
 };
 static_assert(sizeof(SentryCommand) == 4);
 
 struct __attribute__((packed)) SentryInfo {
-    std::uint32_t ammo_exchange_count                : 11 = 0;
-    std::uint32_t remote_ammo_exchange_count         : 4  = 0;
-    std::uint32_t remote_hp_exchange_count           : 4  = 0;
-    std::uint32_t can_rebirth_free                   : 1  = 0;
-    std::uint32_t can_rebirth_gold                   : 1  = 0;
-    std::uint32_t rebirth_gold_cost                  : 10 = 0;
-    std::uint32_t reserved_31                        : 1  = 0;
+    std::uint32_t ammo_exchange_count        : 11 = 0;
+    std::uint32_t remote_ammo_exchange_count : 4 = 0;
+    std::uint32_t remote_hp_exchange_count   : 4 = 0;
+    std::uint32_t can_rebirth_free           : 1 = 0;
+    std::uint32_t can_rebirth_gold           : 1 = 0;
+    std::uint32_t rebirth_gold_cost          : 10 = 0;
+    std::uint32_t reserved_31                : 1 = 0;
 
-    std::uint16_t is_disengaged                      : 1  = 0;
-    std::uint16_t remaining_17mm_ammo_exchangeable   : 11 = 0;
-    std::uint16_t posture                            : 2  = 0;
-    std::uint16_t energy_core_activatable            : 1  = 0;
-    std::uint16_t is_powered                         : 1  = 0;
+    std::uint16_t is_disengaged                    : 1 = 0;
+    std::uint16_t remaining_17mm_ammo_exchangeable : 11 = 0;
+    std::uint16_t posture                          : 2 = 0;
+    std::uint16_t energy_core_activatable          : 1 = 0;
+    std::uint16_t is_powered                       : 1 = 0;
 
-    std::uint64_t attack_posture_remaining_time      : 8  = 0;
-    std::uint64_t defense_posture_remaining_time     : 8  = 0;
-    std::uint64_t move_posture_remaining_time        : 8  = 0;
-    std::uint64_t reserved_24_31                     : 8  = 0;
-    std::uint64_t powered_attack_remaining_time      : 8  = 0;
-    std::uint64_t powered_defense_remaining_time     : 8  = 0;
-    std::uint64_t powered_move_remaining_time        : 8  = 0;
-    std::uint64_t reserved_56_63                     : 8  = 0;
+    std::uint64_t attack_posture_remaining_time  : 8 = 0;
+    std::uint64_t defense_posture_remaining_time : 8 = 0;
+    std::uint64_t move_posture_remaining_time    : 8 = 0;
+    std::uint64_t reserved_24_31                 : 8 = 0;
+    std::uint64_t powered_attack_remaining_time  : 8 = 0;
+    std::uint64_t powered_defense_remaining_time : 8 = 0;
+    std::uint64_t powered_move_remaining_time    : 8 = 0;
+    std::uint64_t reserved_56_63                 : 8 = 0;
 };
 static_assert(sizeof(SentryInfo) == 14);
 
