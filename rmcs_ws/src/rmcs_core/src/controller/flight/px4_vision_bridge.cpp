@@ -1,6 +1,3 @@
-#include "nav_msgs/msg/odometry.hpp"
-#include <mavlink/v2.0/common/mavlink.h>
-
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -10,15 +7,14 @@
 #include <cstdint>
 #include <cstdlib>
 #include <mutex>
-#include <stop_token>
 #include <string>
 #include <thread>
 
 #include <ament_index_cpp/get_package_prefix.hpp>
 #include <eigen3/Eigen/Geometry>
+#include <mavlink/v2.0/common/mavlink.h>
 #include <nav_msgs/msg/odometry.hpp>
 #include <rclcpp/node.hpp>
-#include <rclcpp/qos.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/serial_interface.hpp>
 
@@ -60,7 +56,7 @@ public:
         last_odom_arrival_ns_.store(steady_now_ns(), std::memory_order_relaxed);
         if (odin_autostart_)
             odin_manager_thread_ =
-                std::jthread{[this](std::stop_token st) { odin_manager_loop(st); }};
+                std::jthread{[this](const std::stop_token& st) { odin_manager_loop(st); }};
     }
 
     Px4VisionBridge(const Px4VisionBridge&) = delete;
@@ -159,14 +155,14 @@ private:
     }
 
     // 独立线程看门狗：断流超时且过了冷却期就拉起 tmux-launch.sh；
-    void odin_manager_loop(std::stop_token st) {
+    void odin_manager_loop(const std::stop_token& st) {
         const std::string cmd = "\"" + ament_index_cpp::get_package_prefix("odin_ros_driver")
                               + "/lib/odin_ros_driver/tmux-launch.sh\"";
 
         const auto timeout_ns = static_cast<int64_t>(odin_watchdog_timeout_ * 1e9);
         const auto cooldown_ns = static_cast<int64_t>(odin_restart_cooldown_ * 1e9);
         int64_t last_launch_ns = steady_now_ns() - cooldown_ns; // 首次断流即可拉起
-        bool online = true; // 启动宽限：先假定在线，超时才告警
+        bool online = true;                                     // 启动宽限：先假定在线，超时才告警
 
         // 锁仅为 wait_for 语义存在 request_stop 会直接唤醒等待
         std::mutex sleep_mutex;
@@ -201,9 +197,7 @@ private:
     }
 
     static Eigen::Quaterniond quaternion_from_rpy_zyx(double roll, double pitch, double yaw) {
-
         return Eigen::Quaterniond{
-
             Eigen::AngleAxisd{yaw, Eigen::Vector3d::UnitZ()}
             * Eigen::AngleAxisd{pitch, Eigen::Vector3d::UnitY()}
             * Eigen::AngleAxisd{roll, Eigen::Vector3d::UnitX()}};
@@ -232,10 +226,11 @@ private:
         pitch = (sin_pitch > 0.0) ? M_PI_2 : -M_PI_2;
         yaw = (sin_pitch > 0.0) ? std::atan2(m12, m11) : std::atan2(-m12, m11);
     }
+
     // ENU->NED
-    static inline const Eigen::Quaterniond& kNedEnuQ{0.0, 0.70710678118655, 0.70710678118655, 0.0};
+    static inline const Eigen::Quaterniond kNedEnuQ{0.0, 0.70710678118655, 0.70710678118655, 0.0};
     // FLU->FRD
-    static inline const Eigen::Quaterniond& kAircraftBaselinkQ{0.0, 1.0, 0.0, 0.0};
+    static inline const Eigen::Quaterniond kAircraftBaselinkQ{0.0, 1.0, 0.0, 0.0};
 
     rclcpp::Logger logger_;
     InputInterface<rmcs_msgs::SerialInterface> px4_serial_;
