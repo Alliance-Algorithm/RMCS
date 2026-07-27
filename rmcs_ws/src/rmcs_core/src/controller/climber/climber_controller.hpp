@@ -52,17 +52,18 @@ public:
         : config_(config) {}
 
     void reset() {
-        state_               = State::IDLE;
-        timer_               = 0;
-        stair_index_         = 0;
-        support_block_count_ = 0;
+        state_                 = State::IDLE;
+        timer_                 = 0;
+        stair_index_           = 0;
+        has_second_stair_flag_ = false;
     }
 
     void abort() { reset(); }
 
     void start(Mode mode) {
         reset();
-        stair_index_ = mode == Mode::TwoStairs ? 1 : 0;
+        has_second_stair_flag_ = mode == Mode::TwoStairs ? true : false;
+        stair_index_           = 0;
         enter_state(State::APPROACH);
     }
 
@@ -110,9 +111,8 @@ private:
         if (state == state_)
             return;
 
-        state_               = state;
-        timer_               = 0;
-        support_block_count_ = 0;
+        state_ = state;
+        timer_ = 0;
     }
 
     Output update_approach(const Input& input) {
@@ -210,16 +210,21 @@ private:
             .override_chassis_vx   = 0.0,
         };
 
+        if (has_second_stair_flag_ && !stair_index_) {
+            enter_state(State::APPROACH);
+            return output;
+        }
+
         reset();
 
         return output;
     }
 
     Config config_;
-    State state_             = State::IDLE;
-    int timer_               = 0;
-    int stair_index_         = 0;
-    int support_block_count_ = 0;
+    State state_                = State::IDLE;
+    int timer_                  = 0;
+    int stair_index_            = 0;
+    bool has_second_stair_flag_ = false;
 };
 
 } // namespace rmcs_core::controller::chassis::climber

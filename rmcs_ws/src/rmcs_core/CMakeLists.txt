@@ -14,6 +14,8 @@ endif()
 find_package(ament_cmake_auto REQUIRED)
 include(FetchContent)
 
+find_package(tl-expected REQUIRED)
+
 ament_auto_find_build_dependencies()
 
 set(BUILD_STATIC_LIBRMCS ON CACHE BOOL "Build static librmcs SDK" FORCE)

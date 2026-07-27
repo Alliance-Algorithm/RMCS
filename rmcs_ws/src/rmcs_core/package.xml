@@ -32,6 +32,7 @@
   <depend>moveit_visual_tools</depend>
   <depend>graph_msgs</depend>
   <depend>urdf</depend>
+  <depend>tl_expected</depend>
   <depend>Eigen3</depend>
 
 
