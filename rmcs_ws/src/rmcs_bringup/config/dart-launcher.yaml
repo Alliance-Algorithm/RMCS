@@ -15,11 +15,6 @@ rmcs_executor:
 
       - rmcs_core::controller::dart::TriggerController -> trigger_controller
 
-      # - rmcs_core::controller::dart::FourDofController -> four_dof_controller
-      # - rmcs_core::controller::dart::FourZAxisChassisStatus -> four_z_chassis_status
-      # - rmcs_core::controller::dart::FourZAxisChassisController -> four_z_chassis_controller
-      # - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
-
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 
 dart_manager:
@@ -32,11 +27,11 @@ dart_manager:
 value_broadcaster:
   ros__parameters:
     forward_list:
-      - /dart/trigger/position_motor/control_torque
-      - /dart/trigger/position_motor/torque
-      - /dart/trigger/position_motor/velocity
-      - /dart/trigger/position_motor/angle
-      - /dart/trigger/position_motor/encoder_angle
+      # - /dart/trigger/position_motor/control_torque
+      # - /dart/trigger/position_motor/torque
+      # - /dart/trigger/position_motor/velocity
+      # - /dart/trigger/position_motor/angle
+      # - /dart/trigger/position_motor/encoder_angle
       # - /dart/belt/left_motor/velocity
       # - /dart/belt/right_motor/velocity
       # - /dart/belt/left_motor/angle
@@ -137,63 +132,3 @@ trigger_controller:
     carriage_position_tolerance: 100
     carriage_position_settle_ticks: 500
     manual_carriage_velocity_sensitivity: 50.0
-
-yaw_velocity_pid_controller:
-  ros__parameters:
-    measurement: /dart/yaw/motor/velocity
-    setpoint: /dart/yaw/motor/control_velocity
-    control: /dart/yaw/motor/control_torque
-    kp: 1.0
-    ki: 0.0
-    kd: 0.0
-
-four_z_chassis_status:
-  ros__parameters:
-    axis_x: 0.20
-    axis_y: 0.15
-    front_left_height_per_motor_rad: 0.001
-    front_back_height_per_motor_rad: 0.001
-    back_left_height_per_motor_rad: 0.001
-    back_right_height_per_motor_rad: 0.001
-    front_left_height_direction: 1.0
-    front_back_height_direction: 1.0
-    back_left_height_direction: 1.0
-    back_right_height_direction: 1.0
-
-four_z_chassis_controller:
-  ros__parameters:
-    axis_x: 0.20
-    axis_y: 0.15
-    calibrate_down_effort: 0.2
-    down_effort: 0.2
-    max_stroke: 20.0
-    axis_effort_max: 1.0
-    axis_torque_direction: 1.0
-    sync_output_max: 0.1
-    height_degrade_margin: 0.001
-    limit_hold_margin: 0.02
-    level_height_tolerance: 0.005
-    level_height_velocity_tolerance: 0.01
-    level_pitch_tolerance: 0.01
-    level_roll_tolerance: 0.01
-    level_pitch_rate_tolerance: 0.02
-    level_roll_rate_tolerance: 0.02
-    level_settle_ticks: 250
-    level_timeout_ticks: 5000
-    calibrate_timeout_ticks: 5000
-    down_timeout_ticks: 5000
-    height_kp: 0.0
-    height_ki: 0.0
-    height_kd: 0.0
-    height_bias_kp: 0.0
-    height_bias_ki: 0.0
-    height_bias_kd: 0.0
-    pitch_kp: 0.0
-    pitch_ki: 0.0
-    pitch_kd: 0.0
-    roll_kp: 0.0
-    roll_ki: 0.0
-    roll_kd: 0.0
-    sync_kp: 0.0
-    sync_ki: 0.0
-    sync_kd: 0.0
