@@ -67,7 +67,7 @@ private:
             , imu_(1000, 0.2, 0.0)
             , chassis_motors_(
                   {catapult_dart, catapult_dart_command, "/dart/chassis/front_left_motor"},
-                  {catapult_dart, catapult_dart_command, "/dart/chassis/front_back_motor"},
+                  {catapult_dart, catapult_dart_command, "/dart/chassis/front_right_motor"},
                   {catapult_dart, catapult_dart_command, "/dart/chassis/back_left_motor"},
                   {catapult_dart, catapult_dart_command, "/dart/chassis/back_right_motor"})
             , drive_belt_motors_(

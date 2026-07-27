@@ -35,10 +35,7 @@ public:
             return status_;
         }
 
-        const bool edge = is_active(cmd)
-                       && (cmd != active_cmd_
-                           || status_ == Status::IDLE || status_ == Status::SUCCEEDED
-                           || status_ == Status::FAILED || status_ == Status::ABORTED);
+        const bool edge = is_active(cmd) && cmd != active_cmd_;
 
         if (edge) {
             active_cmd_ = cmd;

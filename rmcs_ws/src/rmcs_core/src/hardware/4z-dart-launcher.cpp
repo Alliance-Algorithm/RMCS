@@ -71,7 +71,7 @@ private:
             , imu_(1000, 0.2, 0.0)
             , chassis_motors_(
                   {catapult_dart, catapult_dart_command, "/dart/chassis/front_left_motor"},
-                  {catapult_dart, catapult_dart_command, "/dart/chassis/front_back_motor"},
+                  {catapult_dart, catapult_dart_command, "/dart/chassis/front_right_motor"},
                   {catapult_dart, catapult_dart_command, "/dart/chassis/back_left_motor"},
                   {catapult_dart, catapult_dart_command, "/dart/chassis/back_right_motor"})
             , drive_belt_motors_(
@@ -85,7 +85,7 @@ private:
             , filling_limit_servo_{catapult_dart_command, "/dart/limiting_servo", 0x02}
             , trigger_servo_{catapult_dart_command, "/dart/trigger_servo", 20.0, 0.5, 2.5}
             , front_left_bottom_limit_switch_{catapult_dart, "/dart/chassis/front_left_motor/bottom_limit_switch"}
-            , front_back_bottom_limit_switch_{catapult_dart, "/dart/chassis/front_back_motor/bottom_limit_switch"}
+            , front_right_bottom_limit_switch_{catapult_dart, "/dart/chassis/front_right_motor/bottom_limit_switch"}
             , back_left_bottom_limit_switch_{catapult_dart, "/dart/chassis/back_left_motor/bottom_limit_switch"}
             , back_right_bottom_limit_switch_{
                   catapult_dart, "/dart/chassis/back_right_motor/bottom_limit_switch"} {
@@ -139,7 +139,7 @@ private:
 
             imu_.set_coordinate_mapping(
                 [](double x, double y, double z) -> std::tuple<double, double, double> {
-                    return {x, -y, -z};
+                    return {y, -x, z};
                 });
 
             catapult_dart.register_output("/dart/chassis/imu/pitch", chassis_imu_pitch_, 0.0);
@@ -193,7 +193,7 @@ private:
             }
 
             front_left_bottom_limit_switch_.update_status();
-            front_back_bottom_limit_switch_.update_status();
+            front_right_bottom_limit_switch_.update_status();
             back_left_bottom_limit_switch_.update_status();
             back_right_bottom_limit_switch_.update_status();
         }
@@ -350,7 +350,7 @@ private:
         device::UartServo filling_limit_servo_;
         device::PWMServo trigger_servo_;
         device::LimitSwitch front_left_bottom_limit_switch_;
-        device::LimitSwitch front_back_bottom_limit_switch_;
+        device::LimitSwitch front_right_bottom_limit_switch_;
         device::LimitSwitch back_left_bottom_limit_switch_;
         device::LimitSwitch back_right_bottom_limit_switch_;
 
@@ -390,15 +390,27 @@ private:
         void load_bottom_limit_gpio_parameters(CatapultDart& catapult_dart) {
             static constexpr std::array<const char*, 4> kIndexParameterNames{
                 "front_left_bottom_limit_gpio_index",
-                "front_back_bottom_limit_gpio_index",
+                "front_right_bottom_limit_gpio_index",
                 "back_left_bottom_limit_gpio_index",
                 "back_right_bottom_limit_gpio_index",
             };
+            static constexpr std::array<const char*, 4> kLegacyIndexParameterNames{
+                nullptr,
+                "front_back_bottom_limit_gpio_index",
+                nullptr,
+                nullptr,
+            };
             static constexpr std::array<const char*, 4> kActiveLowParameterNames{
                 "front_left_bottom_limit_active_low",
-                "front_back_bottom_limit_active_low",
+                "front_right_bottom_limit_active_low",
                 "back_left_bottom_limit_active_low",
                 "back_right_bottom_limit_active_low",
+            };
+            static constexpr std::array<const char*, 4> kLegacyActiveLowParameterNames{
+                nullptr,
+                "front_back_bottom_limit_active_low",
+                nullptr,
+                nullptr,
             };
 
             catapult_dart.get_parameter_or(
@@ -410,14 +422,29 @@ private:
                 "bottom_limit_active_low", default_active_low, default_active_low);
 
             for (size_t i = 0; i < bottom_limit_gpio_indices_.size(); ++i) {
-                catapult_dart.get_parameter_or(
-                    kIndexParameterNames[i], bottom_limit_gpio_indices_[i],
+                load_parameter_with_legacy_fallback(
+                    catapult_dart, kIndexParameterNames[i], kLegacyIndexParameterNames[i],
                     bottom_limit_gpio_indices_[i]);
                 bottom_limit_active_low_[i] = default_active_low;
-                catapult_dart.get_parameter_or(
-                    kActiveLowParameterNames[i], bottom_limit_active_low_[i],
+                load_parameter_with_legacy_fallback(
+                    catapult_dart, kActiveLowParameterNames[i], kLegacyActiveLowParameterNames[i],
                     bottom_limit_active_low_[i]);
             }
+        }
+
+        template <typename T>
+        void load_parameter_with_legacy_fallback(
+            CatapultDart& catapult_dart, const char* preferred_name, const char* legacy_name,
+            T& value) {
+            if (catapult_dart.has_parameter(preferred_name)) {
+                catapult_dart.get_parameter_or(preferred_name, value, value);
+                return;
+            }
+            if (legacy_name != nullptr && catapult_dart.has_parameter(legacy_name)) {
+                catapult_dart.get_parameter_or(legacy_name, value, value);
+                return;
+            }
+            catapult_dart.get_parameter_or(preferred_name, value, value);
         }
 
         void configure_bottom_limit_gpio_reads() {
@@ -445,7 +472,7 @@ private:
         void store_bottom_limit_switch(size_t index, bool triggered) {
             switch (index) {
             case 0: front_left_bottom_limit_switch_.store_status(triggered); break;
-            case 1: front_back_bottom_limit_switch_.store_status(triggered); break;
+            case 1: front_right_bottom_limit_switch_.store_status(triggered); break;
             case 2: back_left_bottom_limit_switch_.store_status(triggered); break;
             case 3: back_right_bottom_limit_switch_.store_status(triggered); break;
             default: break;

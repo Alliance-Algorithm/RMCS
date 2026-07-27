@@ -15,6 +15,12 @@ rmcs_executor:
 
       - rmcs_core::controller::dart::TriggerController -> trigger_controller
 
+      - rmcs_core::controller::dart::FourZChassisController -> four_z_chassis_controller
+      - rmcs_core::controller::pid::PidController -> front_left_chassis_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> front_right_chassis_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> back_left_chassis_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> back_right_chassis_velocity_pid_controller
+
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 
 dart_manager:
@@ -27,6 +33,21 @@ dart_manager:
 value_broadcaster:
   ros__parameters:
     forward_list:
+      - /dart/chassis/front_left_motor/velocity
+      - /dart/chassis/front_right_motor/velocity
+      - /dart/chassis/back_left_motor/velocity
+      - /dart/chassis/back_right_motor/velocity
+      - /dart/chassis/front_left_motor/torque
+      - /dart/chassis/front_right_motor/torque
+      - /dart/chassis/back_left_motor/torque
+      - /dart/chassis/back_right_motor/torque
+      - /dart/chassis/front_left_motor/control_velocity
+      - /dart/chassis/front_right_motor/control_velocity
+      - /dart/chassis/back_left_motor/control_velocity
+      - /dart/chassis/back_right_motor/control_velocity
+      - /dart/chassis/imu/pitch
+      - /dart/chassis/imu/roll
+
       # - /dart/trigger/position_motor/control_torque
       # - /dart/trigger/position_motor/torque
       # - /dart/trigger/position_motor/velocity
@@ -52,7 +73,7 @@ dart_hardware:
     bottom_limit_pull_up: true
     bottom_limit_active_low: true
     front_left_bottom_limit_gpio_index: 4
-    front_back_bottom_limit_gpio_index: 5
+    front_right_bottom_limit_gpio_index: 5
     back_left_bottom_limit_gpio_index: 6
     back_right_bottom_limit_gpio_index: 7
 
@@ -132,3 +153,77 @@ trigger_controller:
     carriage_position_tolerance: 100
     carriage_position_settle_ticks: 500
     manual_carriage_velocity_sensitivity: 50.0
+
+four_z_chassis_controller:
+  ros__parameters:
+    zero_down_speed: 50.0
+    zero_rollback_speed: 50.0
+    zero_rollback_angle: 80.0
+    zero_hold_ticks: 500
+    level_descend_speed: 30.0
+    upper_soft_limit_angle: 170.0
+    level_settle_ticks: 1000
+    level_pitch_tolerance: 0.004
+    level_roll_tolerance: 0.004
+    pitch_offset: -0.0075
+    roll_offset: 0.0060
+    level_correction_velocity_deadband: 50.0
+    level_pitch_pid_kp: 10000.0
+    level_pitch_pid_ki: 10.0
+    level_pitch_pid_kd: 0.0
+    level_pitch_pid_integral_min: -50.0
+    level_pitch_pid_integral_max: 50.0
+    level_pitch_pid_output_min: -100.0
+    level_pitch_pid_output_max: 100.0
+    level_roll_pid_kp: 10000.0
+    level_roll_pid_ki: 10.0
+    level_roll_pid_kd: 0.0
+    level_roll_pid_integral_min: -50.0
+    level_roll_pid_integral_max: 50.0
+    level_roll_pid_output_min: -100.0
+    level_roll_pid_output_max: 100.0
+    level_pitch_rate_kd: 0.0
+    level_roll_rate_kd: 0.0
+    chassis_velocity_limit: 50.0
+    chassis_torque_limit: 2.0
+    manual_chassis_velocity_sensitivity: 50.0
+
+front_left_chassis_velocity_pid_controller:
+  ros__parameters:
+    measurement: /dart/chassis/front_left_motor/velocity
+    setpoint: /dart/chassis/front_left_motor/control_velocity
+    control: /dart/chassis/front_left_motor/control_torque
+    output_abs_limit: /dart/chassis/front_left_motor/control_torque_limit
+    kp: 0.006
+    ki: 0.0
+    kd: 0.0
+
+front_right_chassis_velocity_pid_controller:
+  ros__parameters:
+    measurement: /dart/chassis/front_right_motor/velocity
+    setpoint: /dart/chassis/front_right_motor/control_velocity
+    control: /dart/chassis/front_right_motor/control_torque
+    output_abs_limit: /dart/chassis/front_right_motor/control_torque_limit
+    kp: 0.006
+    ki: 0.0
+    kd: 0.0
+
+back_left_chassis_velocity_pid_controller:
+  ros__parameters:
+    measurement: /dart/chassis/back_left_motor/velocity
+    setpoint: /dart/chassis/back_left_motor/control_velocity
+    control: /dart/chassis/back_left_motor/control_torque
+    output_abs_limit: /dart/chassis/back_left_motor/control_torque_limit
+    kp: 0.006
+    ki: 0.0
+    kd: 0.0
+
+back_right_chassis_velocity_pid_controller:
+  ros__parameters:
+    measurement: /dart/chassis/back_right_motor/velocity
+    setpoint: /dart/chassis/back_right_motor/control_velocity
+    control: /dart/chassis/back_right_motor/control_torque
+    output_abs_limit: /dart/chassis/back_right_motor/control_torque_limit
+    kp: 0.006
+    ki: 0.0
+    kd: 0.0
