@@ -86,6 +86,7 @@ auto_aim_component:
     # 留空或填 unknow 表示禁用。
     dangerous_fallback: ""
     manual_shoot: false
+    enable_rune: false
     camera_translation: [0.25, 0.0, -0.05]
     fire_control:
       bullet_speed: 11.5
