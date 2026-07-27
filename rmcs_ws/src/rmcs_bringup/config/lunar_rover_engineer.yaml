@@ -34,7 +34,8 @@ rmcs_executor:
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 engineer_hardware:
   ros__parameters:
-    board_serial_arm_board: "D4-D354-B7C8-A457-ECB1-11A9-998E"
+    board_serial_arm_board: "D4-D354-B7C8-A457-ECB1-11A9-998E"  
+    board_serial_encoder_board: "D4-9C35-EDF1-2B20-7AE6-4ED0-8308"
     board_serial_left_board: "AF-BE99-F77D-BDAA-8AE1-AE22-EF6E-78F4-6EAC"
     board_serial_right_board: "AF-EEF5-24BA-6675-F1B1-C797-50AF-869C-870E"
     gripper_zero_point: 26298
@@ -64,6 +65,7 @@ arm_controller:
     action_profile: lunar_rover
     gripper_step: 65.0
     gripper_open_angle: 270.0
+    gripper_close_angle: 52.0
     image_pitch_qmin: -0.7
     image_pitch_qmax: 2.2
 
@@ -90,14 +92,14 @@ leg_controller:
     up_one_stairs: 
       params:
         initial: [1.90070, 1.65, 0.0, 2000.0]
-        press: [0.34, 0.51, -500.0, 350.0]
-        press_wait : [0.34,0.51, -100.0, 120.0]
+        press: [0.34, 0.51, -500.0, 120.0]
+        press_wait : [0.34,0.51, -100.0, 280.0]
         lift: [1.016670, 1.150821, -100.0, 100.0]
     up_two_stairs:
       params:
         initial: [1.90070, 1.65, 0.0, 2000.0]
-        press: [0.34, 0.51, -500.0, 350.0]
-        press_wait : [0.34,0.51, -100.0, 120.0]
+        press: [0.34, 0.51, -500.0, 150.0]
+        press_wait : [0.34,0.51, -100.0, 280.0]
         lift: [1.016670, 1.150821, -100.0, 100.0]
         # lift_and_initial: [1.400270, 1.410, -100.0, 1000.0]
         initial_again: [1.90070, 1.65, -300.0, 350.0]

@@ -481,8 +481,9 @@ private:
         return angle < 0 ? angle + M_PI : angle - M_PI;
     }
     void gripper_control() {
-        const double gripper_step       = this->get_parameter("gripper_step").as_double();
-        const double gripper_open_angle = this->get_parameter("gripper_open_angle").as_double();
+        const double gripper_step        = this->get_parameter("gripper_step").as_double();
+        const double gripper_open_angle  = this->get_parameter("gripper_open_angle").as_double();
+        const double gripper_close_angle = this->get_parameter("gripper_close_angle").as_double();
         static bool initial_calibration{false};
 
         const auto gripper_mode  = get_gripper_mode();
@@ -491,7 +492,7 @@ private:
                 *gripper_target_theta = NAN;
                 return true;
             } else {
-                *gripper_target_theta = *gripper_angle_ - gripper_step;
+                *gripper_target_theta = *gripper_angle_ - 40.0;
                 return false;
             }
         };
@@ -521,7 +522,8 @@ private:
             if (!initial_calibration) {
                 calibrate_zero_point();
             } else {
-                stock_control();
+                *gripper_target_theta =
+                    std::max(*gripper_angle_ - gripper_step, gripper_close_angle);
             }
             break;
         case rmcs_msgs::GripperMode::Calibrate:

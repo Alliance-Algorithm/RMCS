@@ -212,9 +212,9 @@ private:
                 switch (*arm_mode) {
                 case rmcs_msgs::ArmMode::Custome:
                 case rmcs_msgs::ArmMode::Auto_Spin:
-                case rmcs_msgs::ArmMode::Auto_Five_Mine: 
+                case rmcs_msgs::ArmMode::Auto_Five_Mine:
                 case rmcs_msgs::ArmMode::Yaw_Close:
-                case rmcs_msgs::ArmMode::Calibration:{
+                case rmcs_msgs::ArmMode::Calibration: {
                     leg_mode = rmcs_msgs::LegMode::Four_Wheel;
                     break;
                 }
