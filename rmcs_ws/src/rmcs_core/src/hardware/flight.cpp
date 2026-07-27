@@ -270,8 +270,7 @@ private:
     std::unique_ptr<device::RemoteControl> remote_control_;
     // 等价于旧 Bmi088 的坐标映射 (x, y, z) -> (y, z, x)：body = body_to_sensor^T * sensor
     device::Bmi088Ekf bmi088_{device::Bmi088Ekf::Config{
-        .body_to_sensor =
-            (Eigen::Matrix3d{} << 0, 0, 1, 1, 0, 0, 0, 1, 0).finished(),
+        .body_to_sensor = (Eigen::Matrix3d{} << 0, 0, 1, 1, 0, 0, 0, 1, 0).finished(),
     }};
     device::BoardClockLifter board_clock_lifter_;
 
