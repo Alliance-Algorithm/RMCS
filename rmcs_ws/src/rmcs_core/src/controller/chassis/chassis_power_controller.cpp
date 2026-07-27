@@ -112,7 +112,7 @@ private:
 
         if (boost_mode_ && *supercap_enabled_)
             power_limit =
-                rmcs_msgs::need_power(*mode_) ? inf_ : *chassis_power_limit_referee_ + 80.0;
+                rmcs_msgs::is_powered(*mode_) ? inf_ : *chassis_power_limit_referee_ + 80.0;
         else
             power_limit = *chassis_power_limit_referee_;
         chassis_power_limit_expected_ = power_limit;

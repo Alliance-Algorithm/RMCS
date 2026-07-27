@@ -51,6 +51,8 @@ public:
     void register_vt13(Vt13* vt13) { vt13_ = vt13; }
 
     void update() {
+        update_timeout_interlock();
+
         const auto control_source = select_control_source();
         const auto snapshot = build_snapshot(control_source);
 
@@ -96,6 +98,16 @@ private:
         rmcs_msgs::Mouse mouse = rmcs_msgs::Mouse::zero();
         rmcs_msgs::Keyboard keyboard = rmcs_msgs::Keyboard::zero();
     };
+
+    // 超时互锁：仅当对方 valid 时本设备才允许超时失效，保证至少一路不失效
+    auto update_timeout_interlock() const -> void {
+        const auto dr16_ok = dr16_ && dr16_->valid();
+        const auto vt13_ok = vt13_ && vt13_->valid();
+        if (dr16_)
+            dr16_->set_timeout_enabled(vt13_ok);
+        if (vt13_)
+            vt13_->set_timeout_enabled(dr16_ok);
+    }
 
     ControlSource select_control_source() const {
         if (vt13_ && vt13_->valid()) {
