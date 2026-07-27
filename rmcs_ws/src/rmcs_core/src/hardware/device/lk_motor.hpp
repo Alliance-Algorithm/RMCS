@@ -177,7 +177,7 @@ public:
             torque_constant = 0.1 * 36.0;
             rated_current   = 4.4;
             rated_torque    = 13.0;
-            max_torque      = 67.0;
+            max_torque      = 68.0;
             LSB             = 648000;
             break;
         case LKMotorType::MHF6015:
@@ -191,7 +191,7 @@ public:
             torque_constant = 2.9;
             rated_current   = 8.4;
             rated_torque    = 12.0;
-            max_torque      = 37.0;
+            max_torque      = 45.0;
             LSB             = 648000;
             break;
         default: throw std::runtime_error{"Unknown motor type"}; break;

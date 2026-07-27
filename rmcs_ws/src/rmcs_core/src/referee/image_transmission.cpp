@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -45,6 +46,7 @@ public:
 
         register_output("/referee/image_transmission/vt13_frame", vt13_frame_data_);
         std::fill((*vt13_frame_data_).begin(), (*vt13_frame_data_).end(), 0);
+        vt13_watchdog_.reset(5'000);
     }
 
     void update() override {
@@ -153,10 +155,14 @@ private:
         std::memcpy(&command_id, frame_ptr + sizeof(frame_.header), sizeof(uint16_t));
 
         if (command_id == 0x0302) {
-            std::copy(
-                reinterpret_cast<const uint8_t*>(frame_.body.data),
-                reinterpret_cast<const uint8_t*>(frame_.body.data) + frame_.header.data_length,
-                (*custom_data_).begin());
+            const auto* payload_ptr = reinterpret_cast<const uint8_t*>(
+                frame_ptr + sizeof(frame_.header) + sizeof(command_id));
+            const auto payload_size =
+                std::min<std::size_t>(frame_.header.data_length, (*custom_data_).size());
+
+            std::fill((*custom_data_).begin(), (*custom_data_).end(), 0);
+            std::copy_n(payload_ptr, payload_size, (*custom_data_).begin());
+            custom_watchdog_.reset(500);
         }
 
         buffer_read_pos_ += total_frame_size;
@@ -195,3 +201,4 @@ private:
 #include <pluginlib/class_list_macros.hpp>
 
 PLUGINLIB_EXPORT_CLASS(rmcs_core::referee::ImageTransmissionLink, rmcs_executor::Component)
+

@@ -56,6 +56,7 @@ arm_controller:
     action_profile: climber
     gripper_step: 65.0
     gripper_open_angle: 270.0
+    gripper_close_angle: 60.0
     image_pitch_qmin: -0.7
     image_pitch_qmax: 2.2
 

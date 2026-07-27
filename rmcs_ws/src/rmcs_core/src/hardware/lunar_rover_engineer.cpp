@@ -12,8 +12,8 @@
 #include "hardware/ring_buffer.hpp"
 #include "librmcs/agent/rmcs_board_lite.hpp"
 #include "rmcs_msgs/relay_mode.hpp"
-#include <array>
 #include <algorithm>
+#include <array>
 #include <bit>
 #include <bitset>
 #include <cmath>
@@ -78,24 +78,17 @@ public:
             if (!endpoint.received) {
                 if (endpoint.type == EndpointType::kCan) {
                     RCLCPP_WARN(
-                        logger_,
-                        "[rx watchdog] %.*s %.*s id %x (%.*s) missing",
-                        static_cast<int>(board_name_.size()),
-                        board_name_.data(),
+                        logger_, "[rx watchdog] %.*s %.*s id %x (%.*s) missing",
+                        static_cast<int>(board_name_.size()), board_name_.data(),
                         static_cast<int>(endpoint.channel_name.size()),
-                        endpoint.channel_name.data(),
-                        static_cast<unsigned int>(endpoint.can_id),
-                        static_cast<int>(endpoint.device_name.size()),
-                        endpoint.device_name.data());
+                        endpoint.channel_name.data(), static_cast<unsigned int>(endpoint.can_id),
+                        static_cast<int>(endpoint.device_name.size()), endpoint.device_name.data());
                 } else {
                     RCLCPP_WARN(
-                        logger_,
-                        "[rx watchdog] %.*s %.*s (%.*s) missing",
-                        static_cast<int>(board_name_.size()),
-                        board_name_.data(),
+                        logger_, "[rx watchdog] %.*s %.*s (%.*s) missing",
+                        static_cast<int>(board_name_.size()), board_name_.data(),
                         static_cast<int>(endpoint.channel_name.size()),
-                        endpoint.channel_name.data(),
-                        static_cast<int>(endpoint.device_name.size()),
+                        endpoint.channel_name.data(), static_cast<int>(endpoint.device_name.size()),
                         endpoint.device_name.data());
                 }
             }
@@ -109,10 +102,8 @@ private:
     [[nodiscard]] auto find_can_endpoint(std::string_view channel_name, std::uint32_t can_id)
         -> Endpoint* {
         const auto it = std::find_if(
-            endpoints_.begin(), endpoints_.end(),
-            [channel_name, can_id](const Endpoint& endpoint) {
-                return endpoint.type == EndpointType::kCan
-                    && endpoint.channel_name == channel_name
+            endpoints_.begin(), endpoints_.end(), [channel_name, can_id](const Endpoint& endpoint) {
+                return endpoint.type == EndpointType::kCan && endpoint.channel_name == channel_name
                     && endpoint.can_id == can_id;
             });
         return it == endpoints_.end() ? nullptr : &*it;
@@ -146,6 +137,8 @@ public:
         , logger_(get_logger())
         , engineer_command_(create_partner_component<EngineerCommand>("engineer_command", *this))
         , armboard_(*this, *engineer_command_, get_parameter("board_serial_arm_board").as_string())
+        , encoderboard_(
+              *this, *engineer_command_, get_parameter("board_serial_encoder_board").as_string())
         , leftboard_(
               *this, *engineer_command_, get_parameter("board_serial_left_board").as_string())
         , rightboard_(
@@ -155,12 +148,14 @@ public:
     ~LunarRoverEngineer() override = default;
     void update() override {
         armboard_.update();
+        encoderboard_.update();
         leftboard_.update();
         rightboard_.update();
         remote_control_->update();
     }
     void command() {
         armboard_.command();
+        encoderboard_.command();
         leftboard_.command();
         rightboard_.command();
     }
@@ -196,7 +191,6 @@ private:
                   {engineer, engineer_command, "/arm/joint_6/motor"})
             , gripper{engineer, engineer_command, "/arm/gripper/motor"}
             , image_pitch{engineer, engineer_command, "/arm/image_pitch/motor"}
-            , joint2_encoder(engineer, "/arm/joint_2/encoder")
             , dr16_()
             , bmi088_(1000, 0.2, 0)
             , receive_watchdog_(
@@ -217,7 +211,7 @@ private:
                 LKMotorConfig{LKMotorType::MG4010E_i10V3}.reverse().set_encoder_zero_point(
                     static_cast<int>(engineer.get_parameter("image_pitch_zero_point").as_int())));
             gripper.configure(
-                LKMotorConfig{LKMotorType::MG4005E_i10V3}
+                LKMotorConfig{LKMotorType::MG4005_i10V2}
                     .set_encoder_zero_point(
                         static_cast<uint16_t>(
                             engineer.get_parameter("gripper_zero_point").as_int()))
@@ -243,9 +237,6 @@ private:
                     .set_encoder_zero_point(
                         static_cast<int16_t>(
                             engineer.get_parameter("joint1_zero_point").as_int())));
-            joint2_encoder.configure(
-                EncoderConfig{EncoderType::KTH7823}.set_encoder_zero_point(
-                    static_cast<int>(engineer.get_parameter("joint2_zero_point").as_int())));
             bmi088_.set_coordinate_mapping(
                 [](double x, double y, double z) { return std::make_tuple(-x, -y, +z); });
         }
@@ -299,32 +290,100 @@ private:
 
     private:
         void update_arm_command() {
-            static bool even_phase{true};
-            auto tx = start_transmit();
+            // static bool even_phase{true};
+            // auto tx = start_transmit();
 
-            if (even_phase) {
+            // if (even_phase) {
+            //     tx.can1_transmit({
+            //         .can_id   = 0x148,
+            //         .can_data = image_pitch.generate_torque_command().as_bytes(),
+            //     });
+
+            //     tx.can1_transmit({
+            //         .can_id   = 0x143,
+            //         .can_data = joint[2].generate_torque_command().as_bytes(),
+            //     });
+
+            //     tx.can2_transmit({
+            //         .can_id   = 0x147,
+            //         .can_data = gripper.generate_torque_command().as_bytes(),
+            //     });
+
+            //     tx.can2_transmit({
+            //         .can_id   = 0x141,
+            //         .can_data = joint[5].generate_torque_command().as_bytes(),
+            //     });
+
+            // } else {
+
+            //     tx.can1_transmit({
+            //         .can_id   = 0x141,
+            //         .can_data = joint[0].generate_torque_command().as_bytes(),
+            //     });
+
+            //     tx.can1_transmit({
+            //         .can_id   = 0x142,
+            //         .can_data = joint[1].generate_torque_command().as_bytes(),
+            //     });
+
+            //     tx.can2_transmit({
+            //         .can_id   = 0x145,
+            //         .can_data = joint[4].generate_torque_command().as_bytes(),
+            //     });
+
+            //     tx.can2_transmit({
+            //         .can_id   = 0x144,
+            //         .can_data = joint[3].generate_torque_command().as_bytes(),
+            //     });
+            // }
+
+            // even_phase = !even_phase;
+
+            static int i{0};
+            auto tx = start_transmit();
+            if (i == 8)
+                i = 0;
+            if (i == 0) {
                 tx.can1_transmit({
                     .can_id   = 0x148,
                     .can_data = image_pitch.generate_torque_command().as_bytes(),
                 });
-
                 tx.can1_transmit({
                     .can_id   = 0x143,
                     .can_data = joint[2].generate_torque_command().as_bytes(),
                 });
+                tx.can1_transmit({
+                    .can_id   = 0x141,
+                    .can_data = joint[0].generate_torque_command().as_bytes(),
+                });
+                tx.can2_transmit({
+                    .can_id   = 0x147,
+                    .can_data = gripper.generate_torque_command().as_bytes(),
+                });
+            } else if (i == 1) {
 
                 tx.can2_transmit({
                     .can_id   = 0x147,
                     .can_data = gripper.generate_torque_command().as_bytes(),
                 });
-
                 tx.can2_transmit({
                     .can_id   = 0x141,
                     .can_data = joint[5].generate_torque_command().as_bytes(),
                 });
+                tx.can2_transmit({
+                    .can_id   = 0x145,
+                    .can_data = joint[4].generate_torque_command().as_bytes(),
+                });
+                tx.can1_transmit({
+                    .can_id   = 0x148,
+                    .can_data = image_pitch.generate_torque_command().as_bytes(),
+                });
+            } else if (i == 2) {
 
-            } else {
-
+                tx.can1_transmit({
+                    .can_id   = 0x143,
+                    .can_data = joint[2].generate_torque_command().as_bytes(),
+                });
                 tx.can1_transmit({
                     .can_id   = 0x141,
                     .can_data = joint[0].generate_torque_command().as_bytes(),
@@ -333,6 +392,15 @@ private:
                 tx.can1_transmit({
                     .can_id   = 0x142,
                     .can_data = joint[1].generate_torque_command().as_bytes(),
+                });
+                tx.can2_transmit({
+                    .can_id   = 0x141,
+                    .can_data = joint[5].generate_torque_command().as_bytes(),
+                });
+            } else if (i == 3) {
+                tx.can2_transmit({
+                    .can_id   = 0x141,
+                    .can_data = joint[5].generate_torque_command().as_bytes(),
                 });
 
                 tx.can2_transmit({
@@ -344,133 +412,87 @@ private:
                     .can_id   = 0x144,
                     .can_data = joint[3].generate_torque_command().as_bytes(),
                 });
+                tx.can1_transmit({
+                    .can_id   = 0x143,
+                    .can_data = joint[2].generate_torque_command().as_bytes(),
+                });
+            } else if (i == 4) {
+                tx.can1_transmit({
+                    .can_id   = 0x141,
+                    .can_data = joint[0].generate_torque_command().as_bytes(),
+                });
+
+                tx.can1_transmit({
+                    .can_id   = 0x142,
+                    .can_data = joint[1].generate_torque_command().as_bytes(),
+                });
+                tx.can1_transmit({
+                    .can_id   = 0x148,
+                    .can_data = image_pitch.generate_torque_command().as_bytes(),
+                });
+                tx.can2_transmit({
+                    .can_id   = 0x145,
+                    .can_data = joint[4].generate_torque_command().as_bytes(),
+                });
+            } else if (i == 5) {
+                tx.can2_transmit({
+                    .can_id   = 0x145,
+                    .can_data = joint[4].generate_torque_command().as_bytes(),
+                });
+
+                tx.can2_transmit({
+                    .can_id   = 0x144,
+                    .can_data = joint[3].generate_torque_command().as_bytes(),
+                });
+                tx.can2_transmit({
+                    .can_id   = 0x147,
+                    .can_data = gripper.generate_torque_command().as_bytes(),
+                });
+                tx.can1_transmit({
+                    .can_id   = 0x141,
+                    .can_data = joint[0].generate_torque_command().as_bytes(),
+                });
+            } else if (i == 6) {
+                tx.can1_transmit({
+                    .can_id   = 0x142,
+                    .can_data = joint[1].generate_torque_command().as_bytes(),
+                });
+                tx.can1_transmit({
+                    .can_id   = 0x148,
+                    .can_data = image_pitch.generate_torque_command().as_bytes(),
+                });
+
+                tx.can1_transmit({
+                    .can_id   = 0x143,
+                    .can_data = joint[2].generate_torque_command().as_bytes(),
+                });
+                tx.can2_transmit({
+                    .can_id   = 0x144,
+                    .can_data = joint[3].generate_torque_command().as_bytes(),
+                });
+            } else if (i == 7) {
+                tx.can2_transmit({
+                    .can_id   = 0x144,
+                    .can_data = joint[3].generate_torque_command().as_bytes(),
+                });
+                tx.can2_transmit({
+                    .can_id   = 0x147,
+                    .can_data = gripper.generate_torque_command().as_bytes(),
+                });
+
+                tx.can2_transmit({
+                    .can_id   = 0x141,
+                    .can_data = joint[5].generate_torque_command().as_bytes(),
+                });
+                tx.can1_transmit({
+                    .can_id   = 0x142,
+                    .can_data = joint[1].generate_torque_command().as_bytes(),
+                });
             }
-
-            even_phase = !even_phase;
-
-            // static int i{0};
-            // auto tx = start_transmit();
-            // if (i == 8)
-            //     i = 0;
-            // if (i == 0) {
-            //     tx.can1_transmit({
-            //         .can_id   = 0x148,
-            //         .can_data = image_pitch.generate_torque_command().as_bytes(),
-            //     });
-            //     tx.can1_transmit({
-            //         .can_id   = 0x143,
-            //         .can_data = joint[2].generate_torque_command().as_bytes(),
-            //     });
-            //     tx.can1_transmit({
-            //         .can_id   = 0x141,
-            //         .can_data = joint[0].generate_torque_command().as_bytes(),
-            //     });
-            // } else if (i == 1) {
-
-            //     tx.can2_transmit({
-            //         .can_id   = 0x147,
-            //         .can_data = gripper.generate_torque_command().as_bytes(),
-            //     });
-            //     tx.can2_transmit({
-            //         .can_id   = 0x141,
-            //         .can_data = joint[5].generate_torque_command().as_bytes(),
-            //     });
-            //     tx.can2_transmit({
-            //         .can_id   = 0x145,
-            //         .can_data = joint[4].generate_torque_command().as_bytes(),
-            //     });
-            // } else if (i == 2) {
-
-            //     tx.can1_transmit({
-            //         .can_id   = 0x143,
-            //         .can_data = joint[2].generate_torque_command().as_bytes(),
-            //     });
-            //     tx.can1_transmit({
-            //         .can_id   = 0x141,
-            //         .can_data = joint[0].generate_torque_command().as_bytes(),
-            //     });
-
-            //     tx.can1_transmit({
-            //         .can_id   = 0x142,
-            //         .can_data = joint[1].generate_torque_command().as_bytes(),
-            //     });
-            // } else if (i == 3) {
-            //     tx.can2_transmit({
-            //         .can_id   = 0x141,
-            //         .can_data = joint[5].generate_torque_command().as_bytes(),
-            //     });
-
-            //     tx.can2_transmit({
-            //         .can_id   = 0x145,
-            //         .can_data = joint[4].generate_torque_command().as_bytes(),
-            //     });
-
-            //     tx.can2_transmit({
-            //         .can_id   = 0x144,
-            //         .can_data = joint[3].generate_torque_command().as_bytes(),
-            //     });
-            // } else if (i == 4) {
-            //     tx.can1_transmit({
-            //         .can_id   = 0x141,
-            //         .can_data = joint[0].generate_torque_command().as_bytes(),
-            //     });
-
-            //     tx.can1_transmit({
-            //         .can_id   = 0x142,
-            //         .can_data = joint[1].generate_torque_command().as_bytes(),
-            //     });
-            //     tx.can1_transmit({
-            //         .can_id   = 0x148,
-            //         .can_data = image_pitch.generate_torque_command().as_bytes(),
-            //     });
-            // } else if (i == 5) {
-            //     tx.can2_transmit({
-            //         .can_id   = 0x145,
-            //         .can_data = joint[4].generate_torque_command().as_bytes(),
-            //     });
-
-            //     tx.can2_transmit({
-            //         .can_id   = 0x144,
-            //         .can_data = joint[3].generate_torque_command().as_bytes(),
-            //     });
-            //     tx.can2_transmit({
-            //         .can_id   = 0x147,
-            //         .can_data = gripper.generate_torque_command().as_bytes(),
-            //     });
-            // } else if (i == 6) {
-            //     tx.can1_transmit({
-            //         .can_id   = 0x142,
-            //         .can_data = joint[1].generate_torque_command().as_bytes(),
-            //     });
-            //     tx.can1_transmit({
-            //         .can_id   = 0x148,
-            //         .can_data = image_pitch.generate_torque_command().as_bytes(),
-            //     });
-
-            //     tx.can1_transmit({
-            //         .can_id   = 0x143,
-            //         .can_data = joint[2].generate_torque_command().as_bytes(),
-            //     });
-            // } else if (i == 7) {
-            //     tx.can2_transmit({
-            //         .can_id   = 0x144,
-            //         .can_data = joint[3].generate_torque_command().as_bytes(),
-            //     });
-            //     tx.can2_transmit({
-            //         .can_id   = 0x147,
-            //         .can_data = gripper.generate_torque_command().as_bytes(),
-            //     });
-
-            //     tx.can2_transmit({
-            //         .can_id   = 0x141,
-            //         .can_data = joint[5].generate_torque_command().as_bytes(),
-            //     });
-            // }
-            // i++;
+            i++;
         }
 
         void update_arm_motors() {
-            joint2_encoder.update();
             joint[5].update();
             joint[4].update();
             joint[3].update();
@@ -506,17 +528,17 @@ private:
                 return;
             receive_watchdog_.record_can("can2", data.can_id);
             if (data.can_id == 0x141) {
-                // RCLCPP_INFO(this->get_logger(), "joint6 %d",joint[5].get_raw_angle());
+                //  RCLCPP_INFO(this->get_logger(), "joint6 %f",joint[5].get_angle());
                 joint[5].store_status(data.can_data);
             } else if (data.can_id == 0x145) {
                 joint[4].store_status(data.can_data);
-                // RCLCPP_INFO(this->get_logger(), "joint5 %d",joint[4].get_raw_angle());
+                // RCLCPP_INFO(this->get_logger(), "joint5 %f",joint[4].get_angle());
             } else if (data.can_id == 0x144) {
                 joint[3].store_status(data.can_data);
-                // RCLCPP_INFO(this->get_logger(), "joint4 %d",joint[3].get_raw_angle());
+                // RCLCPP_INFO(this->get_logger(), "joint4 %f",joint[3].get_angle());
             } else if (data.can_id == 0x147) {
                 gripper.store_status(data.can_data);
-                // RCLCPP_INFO(this->get_logger(), "gripper %d",gripper.get_raw_angle());
+                //  RCLCPP_INFO(this->get_logger(), "gripper %f",gripper.get_angle());
             }
         }
         void can1_receive_callback(const librmcs::data::CanDataView& data) override {
@@ -526,19 +548,16 @@ private:
 
             receive_watchdog_.record_can("can1", data.can_id);
             if (data.can_id == 0x143) {
-                // RCLCPP_INFO(this->get_logger(), "joint3 %d",joint[2].get_raw_angle());
+                // RCLCPP_INFO(this->get_logger(), "joint3 %f",joint[2].get_angle());
                 joint[2].store_status(data.can_data);
             } else if (data.can_id == 0x142) {
                 joint[1].store_status(data.can_data);
                 //  RCLCPP_INFO(this->get_logger(), "joint2");
             } else if (data.can_id == 0x141) {
                 joint[0].store_status(data.can_data);
-                //  RCLCPP_INFO(this->get_logger(), "joint1 %d",joint[0].get_raw_angle());
-            } else if (data.can_id == 0x200) {
-                //  RCLCPP_INFO(this->get_logger(), "joint2 ecd %d",joint2_encoder.get_raw_angle());
-                joint2_encoder.store_status(data.can_data);
+                //  RCLCPP_INFO(this->get_logger(), "joint1 %f",joint[0].get_angle());
             } else if (data.can_id == 0x148) {
-                //   RCLCPP_INFO(this->get_logger(), "image %d",image_pitch.get_raw_angle());
+                //  RCLCPP_INFO(this->get_logger(), "image %d",image_pitch.get_raw_angle());
                 image_pitch.store_status(data.can_data);
             };
         }
@@ -561,7 +580,6 @@ private:
         device::LKMotor joint[6];
         device::LKMotor gripper;
         device::LKMotor image_pitch;
-        device::Encoder joint2_encoder;
         device::Dr16 dr16_;
 
         OutputInterface<double> yaw_imu_velocity;
@@ -573,22 +591,74 @@ private:
         InputInterface<bool> gripper_calibration_done_signal_;
         bool last_gripper_calibration_done_signal{false};
         device::Bmi088 bmi088_;
-        std::array<ReceiveMissingWatchdog::Endpoint, 10> receive_watchdog_entries_{{
-            {ReceiveMissingWatchdog::EndpointType::kCan, "can2", "/arm/joint_6/motor", 0x141},
-            {ReceiveMissingWatchdog::EndpointType::kCan, "can2", "/arm/joint_5/motor", 0x145},
-            {ReceiveMissingWatchdog::EndpointType::kCan, "can2", "/arm/joint_4/motor", 0x144},
-            {ReceiveMissingWatchdog::EndpointType::kCan, "can2", "/arm/gripper/motor", 0x147},
-            {ReceiveMissingWatchdog::EndpointType::kCan, "can1", "/arm/joint_3/motor", 0x143},
-            {ReceiveMissingWatchdog::EndpointType::kCan, "can1", "/arm/joint_2/motor", 0x142},
-            {ReceiveMissingWatchdog::EndpointType::kCan, "can1", "/arm/joint_1/motor", 0x141},
-            {ReceiveMissingWatchdog::EndpointType::kCan, "can1", "/arm/joint_2/encoder", 0x200},
-            {ReceiveMissingWatchdog::EndpointType::kCan, "can1", "/arm/image_pitch/motor", 0x148},
-            {ReceiveMissingWatchdog::EndpointType::kUart, "dbus", "/remote_control/dr16"},
-        }};
+        std::array<ReceiveMissingWatchdog::Endpoint, 9> receive_watchdog_entries_{
+            {
+             {ReceiveMissingWatchdog::EndpointType::kCan, "can2", "/arm/joint_6/motor", 0x141},
+             {ReceiveMissingWatchdog::EndpointType::kCan, "can2", "/arm/joint_5/motor", 0x145},
+             {ReceiveMissingWatchdog::EndpointType::kCan, "can2", "/arm/joint_4/motor", 0x144},
+             {ReceiveMissingWatchdog::EndpointType::kCan, "can2", "/arm/gripper/motor", 0x147},
+             {ReceiveMissingWatchdog::EndpointType::kCan, "can1", "/arm/joint_3/motor", 0x143},
+             {ReceiveMissingWatchdog::EndpointType::kCan, "can1", "/arm/joint_2/motor", 0x142},
+             {ReceiveMissingWatchdog::EndpointType::kCan, "can1", "/arm/joint_1/motor", 0x141},
+             {ReceiveMissingWatchdog::EndpointType::kCan, "can1", "/arm/image_pitch/motor",
+                 0x148},
+             {ReceiveMissingWatchdog::EndpointType::kUart, "dbus", "/remote_control/dr16"},
+             }
+        };
         ReceiveMissingWatchdog receive_watchdog_;
 
     } armboard_;
 
+    class EncoderBoard final
+        : private librmcs::agent::CBoard
+        , rclcpp::Node {
+    public:
+        friend class LunarRoverEngineer;
+        explicit EncoderBoard(
+            LunarRoverEngineer& engineer, EngineerCommand& engineer_command,
+            const std::string& serial_filter)
+            : librmcs::agent::CBoard(serial_filter)
+            , rclcpp::Node{"encoder_board"}
+            , joint2_encoder(engineer, "/arm/joint_2/encoder")
+            , receive_watchdog_(
+                  engineer.get_logger(), "encoder_board",
+                  std::span<ReceiveMissingWatchdog::Endpoint>{receive_watchdog_entries_})
+        {
+            using namespace device;
+            joint2_encoder.configure(
+                EncoderConfig{EncoderType::KTH7823}.set_encoder_zero_point(
+                    static_cast<int>(engineer.get_parameter("joint2_zero_point").as_int())));
+        }
+        ~EncoderBoard() = default;
+
+        void update() {
+            using namespace device;
+            joint2_encoder.update();
+            receive_watchdog_.tick();
+        }
+        void command() {}
+
+    protected:
+        void can1_receive_callback(const librmcs::data::CanDataView& data) override {
+            if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
+                [[unlikely]]
+                return;
+
+            receive_watchdog_.record_can("can1", data.can_id);
+            if (data.can_id == 0x200) {
+                //  RCLCPP_INFO(this->get_logger(), "joint2 ecd %f",joint2_encoder.get_angle());
+                joint2_encoder.store_status(data.can_data);
+            }
+        }
+
+    private:
+        device::Encoder joint2_encoder;
+
+        std::array<ReceiveMissingWatchdog::Endpoint, 1> receive_watchdog_entries_{
+            {{ReceiveMissingWatchdog::EndpointType::kCan, "can1", "/arm/joint_2/encoder", 0x200}}};
+        ReceiveMissingWatchdog receive_watchdog_;
+
+    } encoderboard_;
     class LeftBoard final
         : private librmcs::agent::RmcsBoardLite
         , rclcpp::Node {
@@ -824,17 +894,22 @@ private:
         device::DjiMotor Leg_Motor_lb;
         device::Encoder Leg_ecd_lb;
         device::PowerMeter power_meter;
-        std::array<ReceiveMissingWatchdog::Endpoint, 9> receive_watchdog_entries_{{
-            {ReceiveMissingWatchdog::EndpointType::kCan, "can0", "/leg/joint/lf", 0x141},
-            {ReceiveMissingWatchdog::EndpointType::kCan, "can1", "/steering/steering/lf", 0x207},
-            {ReceiveMissingWatchdog::EndpointType::kCan, "can1", "/steering/wheel/lf", 0x201},
-            {ReceiveMissingWatchdog::EndpointType::kCan, "can1", "/leg/omni/l", 0x203},
-            {ReceiveMissingWatchdog::EndpointType::kCan, "can1", "/steering/power_meter", 0x100},
-            {ReceiveMissingWatchdog::EndpointType::kCan, "can2", "/steering/steering/lb", 0x208},
-            {ReceiveMissingWatchdog::EndpointType::kCan, "can2", "/steering/wheel/lb", 0x201},
-            {ReceiveMissingWatchdog::EndpointType::kCan, "can2", "/leg/joint/lb", 0x202},
-            {ReceiveMissingWatchdog::EndpointType::kCan, "can2", "/leg/encoder/lb", 0x319},
-        }};
+        std::array<ReceiveMissingWatchdog::Endpoint, 9> receive_watchdog_entries_{
+            {
+             {ReceiveMissingWatchdog::EndpointType::kCan, "can0", "/leg/joint/lf", 0x141},
+             {ReceiveMissingWatchdog::EndpointType::kCan, "can1", "/steering/steering/lf",
+                 0x207},
+             {ReceiveMissingWatchdog::EndpointType::kCan, "can1", "/steering/wheel/lf", 0x201},
+             {ReceiveMissingWatchdog::EndpointType::kCan, "can1", "/leg/omni/l", 0x203},
+             {ReceiveMissingWatchdog::EndpointType::kCan, "can1", "/steering/power_meter",
+                 0x100},
+             {ReceiveMissingWatchdog::EndpointType::kCan, "can2", "/steering/steering/lb",
+                 0x208},
+             {ReceiveMissingWatchdog::EndpointType::kCan, "can2", "/steering/wheel/lb", 0x201},
+             {ReceiveMissingWatchdog::EndpointType::kCan, "can2", "/leg/joint/lb", 0x202},
+             {ReceiveMissingWatchdog::EndpointType::kCan, "can2", "/leg/encoder/lb", 0x319},
+             }
+        };
         ReceiveMissingWatchdog receive_watchdog_;
 
         InputInterface<double> leg_lb_target_theta_;
@@ -1121,18 +1196,22 @@ private:
         device::LKMotor Leg_Motor_rf;
         device::Encoder Leg_ecd_rb;
         device::DMMotor big_yaw;
-        std::array<ReceiveMissingWatchdog::Endpoint, 10> receive_watchdog_entries_{{
-            {ReceiveMissingWatchdog::EndpointType::kCan, "can0", "/leg/joint/rf", 0x141},
-            {ReceiveMissingWatchdog::EndpointType::kCan, "can1", "/steering/wheel/rf", 0x201},
-            {ReceiveMissingWatchdog::EndpointType::kCan, "can1", "/leg/omni/r", 0x203},
-            {ReceiveMissingWatchdog::EndpointType::kCan, "can1", "/steering/steering/rf", 0x206},
-            {ReceiveMissingWatchdog::EndpointType::kCan, "can2", "/steering/wheel/rb", 0x201},
-            {ReceiveMissingWatchdog::EndpointType::kCan, "can2", "/leg/joint/rb", 0x202},
-            {ReceiveMissingWatchdog::EndpointType::kCan, "can2", "/steering/steering/rb", 0x205},
-            {ReceiveMissingWatchdog::EndpointType::kCan, "can2", "/chassis/big_yaw", 0x033},
-            {ReceiveMissingWatchdog::EndpointType::kCan, "can2", "/leg/encoder/rb", 0x322},
-            {ReceiveMissingWatchdog::EndpointType::kUart, "uart1", "/leg/tof"},
-        }};
+        std::array<ReceiveMissingWatchdog::Endpoint, 10> receive_watchdog_entries_{
+            {
+             {ReceiveMissingWatchdog::EndpointType::kCan, "can0", "/leg/joint/rf", 0x141},
+             {ReceiveMissingWatchdog::EndpointType::kCan, "can1", "/steering/wheel/rf", 0x201},
+             {ReceiveMissingWatchdog::EndpointType::kCan, "can1", "/leg/omni/r", 0x203},
+             {ReceiveMissingWatchdog::EndpointType::kCan, "can1", "/steering/steering/rf",
+                 0x206},
+             {ReceiveMissingWatchdog::EndpointType::kCan, "can2", "/steering/wheel/rb", 0x201},
+             {ReceiveMissingWatchdog::EndpointType::kCan, "can2", "/leg/joint/rb", 0x202},
+             {ReceiveMissingWatchdog::EndpointType::kCan, "can2", "/steering/steering/rb",
+                 0x205},
+             {ReceiveMissingWatchdog::EndpointType::kCan, "can2", "/chassis/big_yaw", 0x033},
+             {ReceiveMissingWatchdog::EndpointType::kCan, "can2", "/leg/encoder/rb", 0x322},
+             {ReceiveMissingWatchdog::EndpointType::kUart, "uart1", "/leg/tof"},
+             }
+        };
         ReceiveMissingWatchdog receive_watchdog_;
         InputInterface<double> leg_rb_target_theta_;
         InputInterface<bool> is_arm_enable;

@@ -150,17 +150,6 @@ private:
             chassis_mode_ = ChassisMode::SPIN;
             set_speed_gear(SpeedGear::High);
         } else if (switch_left == Switch::DOWN && switch_right == Switch::UP) {
-            if (keyboard.c) {
-                if (!keyboard.shift && !keyboard.ctrl) {
-                    set_speed_gear(SpeedGear::High);
-                }
-                if (keyboard.shift && !keyboard.ctrl) {
-                    set_speed_gear(SpeedGear::Medium);
-                }
-                if (!keyboard.shift && keyboard.ctrl) {
-                    set_speed_gear(SpeedGear::Low);
-                }
-            }
             if (keyboard.q) {
                 if (!keyboard.shift && !keyboard.ctrl) {
                     chassis_mode_ = rmcs_msgs::ChassisMode::Flow;
@@ -179,6 +168,8 @@ private:
                 case rmcs_msgs::ArmMode::Auto_Storage_LB:
                 case rmcs_msgs::ArmMode::Auto_Storage_RF:
                 case rmcs_msgs::ArmMode::Auto_Storage_RB:
+                case rmcs_msgs::ArmMode::Auto_Five_Mine:
+                case rmcs_msgs::ArmMode::Yaw_Close:
                 case rmcs_msgs::ArmMode::Custome:
                     set_speed_gear(SpeedGear::Low);
                     chassis_mode_ = rmcs_msgs::ChassisMode::Yaw_Free;
@@ -188,13 +179,11 @@ private:
                     chassis_mode_ = rmcs_msgs::ChassisMode::SPIN;
                     break;
                 case rmcs_msgs::ArmMode::Auto_Walk:
+                case rmcs_msgs::ArmMode::Calibration:
                     set_speed_gear(SpeedGear::High);
                     chassis_mode_ = rmcs_msgs::ChassisMode::Flow;
                     break;
                 case rmcs_msgs::ArmMode::Auto_Up_One_Stairs:
-                    set_speed_gear(SpeedGear::High);
-                    chassis_mode_ = rmcs_msgs::ChassisMode::Yaw_Free;
-                    break;
                 case rmcs_msgs::ArmMode::Auto_Up_Two_Stairs:
                 case rmcs_msgs::ArmMode::Auto_Down_Stairs:
                     set_speed_gear(SpeedGear::Stairs);
@@ -217,7 +206,7 @@ private:
         switch (gear) {
         case SpeedGear::Medium: *speed_limit_ = 2.0; break;
         case SpeedGear::Low: *speed_limit_ = 0.8; break;
-        case SpeedGear::Stairs: *speed_limit_ = 2.5; break;
+        case SpeedGear::Stairs: *speed_limit_ = 2.3; break;
         case SpeedGear::High:
         default: *speed_limit_ = 3.0; break;
         }

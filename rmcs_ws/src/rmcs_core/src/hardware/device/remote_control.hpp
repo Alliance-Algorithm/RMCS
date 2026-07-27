@@ -132,8 +132,10 @@ private:
             *mouse_output_    = rmcs_msgs::Mouse::zero();
             *keyboard_output_ = rmcs_msgs::Keyboard::zero();
         } else if (vt13_.mode_switch() == Vt13::ModeSwitch::kSport) {
-            *switch_right_output_ = rmcs_msgs::Switch::DOWN;
-            *switch_left_output_  = rmcs_msgs::Switch::UP;
+            // Match the DR16 switch combination that downstream controllers use
+            // for keyboard-driven operation.
+            *switch_right_output_ = rmcs_msgs::Switch::UP;
+            *switch_left_output_  = rmcs_msgs::Switch::DOWN;
 
             *joystick_right_output_ = vt13_.joystick_right();
             *joystick_left_output_  = vt13_.joystick_left();
