@@ -388,6 +388,8 @@ class SentryClimber
     }
 
     auto climb(double direction) -> CoSchduler::Task {
+        using namespace std::chrono_literals;
+
         *chassis_climb_status = 0.0;
 
         node::info("Climb start, direction={:.3f}", direction);
@@ -449,6 +451,12 @@ class SentryClimber
             if (timed_out)
                 node::warn("climb RETRACT stick timeout, continue");
         }
+
+        *chassis_climb_speed = 0;
+        co_await CoSchduler::Sleep{500ms};
+
+        *chassis_climb_speed = config.climb.dash_vx;
+        co_await CoSchduler::Sleep{500ms};
 
         *chassis_climb_status = 1.0;
         release_climber();
