@@ -30,6 +30,7 @@ public:
         register_input("/chassis/power", chassis_power_);
         register_input("/chassis/supercap/voltage", supercap_voltage_);
         register_input("/chassis/supercap/enabled", supercap_enabled_);
+        register_input("/rmcs_navigation/enable_supercap", navigation_supercap_, false);
 
         register_input("/referee/chassis/power_limit", chassis_power_limit_referee_);
         register_input("/referee/chassis/buffer_energy", chassis_buffer_energy_referee_);
@@ -110,7 +111,10 @@ private:
     void update_control_power_limit() {
         double power_limit;
 
-        if (boost_mode_ && *supercap_enabled_)
+        const auto navigation_supercap_boost =
+            navigation_supercap_.ready() && *navigation_supercap_;
+
+        if ((boost_mode_ || navigation_supercap_boost) && *supercap_enabled_)
             power_limit =
                 rmcs_msgs::is_powered(*mode_) ? inf_ : *chassis_power_limit_referee_ + 80.0;
         else
@@ -159,6 +163,7 @@ private:
 
     InputInterface<double> supercap_voltage_;
     InputInterface<bool> supercap_enabled_;
+    InputInterface<bool> navigation_supercap_;
 
     InputInterface<double> chassis_power_limit_referee_;
     InputInterface<double> chassis_buffer_energy_referee_;
