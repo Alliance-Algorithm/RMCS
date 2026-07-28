@@ -40,7 +40,7 @@ rmcs_navigation:
 auto_aim_capturer:
   ros__parameters:
     camera_name: ""
-    exposure_us: 1000.0
+    exposure_us: 3000.0
     gain: 8.0
     framerate: 120.0
     invert_image: true
@@ -60,7 +60,7 @@ auto_aim_recorder:
 auto_aim_component:
   ros__parameters:
     manual_shoot: true
-    enable_rune: false
+    enable_rune: true
     camera_translation: [0.07128, 0.0, 0.0481]
     fire_control:
       bullet_speed: 22.5
@@ -172,10 +172,10 @@ sentry_climber:
       dash_min: 0.1
       dash_duration: 0.8
       stick_timeout: 8.0
-      approach_timeout: 8.0
+      approach_timeout: 6.0
     land:
       dash_vx: 1.0
-      soft_vx: 0.4
+      soft_vx: 0.3
       land_pitch: 0.15
       land_delay: 0.2
       stick_timeout: 8.0
@@ -249,7 +249,7 @@ steering_wheel_controller:
     no_load_power: 11.37
 
     chassis_translation_kp: 20.0
-    chassis_translation_ki: 0.0001
+    chassis_translation_ki: 0.00
     chassis_translation_kd: 0.00
 
     chassis_angular_velocity_kp: 8.0

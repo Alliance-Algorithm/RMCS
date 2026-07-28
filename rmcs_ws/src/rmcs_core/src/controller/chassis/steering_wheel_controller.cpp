@@ -259,6 +259,9 @@ private:
 
         const double& angular_control_velocity = chassis_control_velocity[2];
         const double& angular_velocity = chassis_velocity_expected[2];
+        if (std::abs(angular_control_velocity) < 1e-6)
+            chassis_angular_velocity_pid_.reset();
+
         double angular_control_acceleration =
             chassis_angular_velocity_pid_.update(angular_control_velocity - angular_velocity);
 

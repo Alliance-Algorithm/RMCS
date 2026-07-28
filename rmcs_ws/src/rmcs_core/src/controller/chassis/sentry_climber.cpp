@@ -441,12 +441,31 @@ class SentryClimber
         stick_group->set_state(StickState::kHold);
         *chassis_climb_speed = config.climb.approach_vx;
         {
-            const auto timed_out = co_await CoSchduler::WaitUntil{
-                .monitor = [this] { return *context.chassis_pitch > config.climb.approach_pitch; },
-                .timeout = seconds_to_duration(config.climb.approach_timeout),
-            };
-            if (timed_out)
-                node::warn("climb APPROACH timeout, continue");
+            auto count = std::size_t{0};
+            auto timeout = bool{false};
+            do {
+                if (timeout) {
+                    *chassis_climb_speed = -config.climb.approach_vx;
+                    co_await CoSchduler::Sleep{500ms};
+
+                    *chassis_climb_speed = +config.climb.approach_vx;
+                }
+
+                timeout = co_await CoSchduler::WaitUntil{
+                    .monitor =
+                        [this] { return *context.chassis_pitch > config.climb.approach_pitch; },
+                    .timeout = seconds_to_duration(config.climb.approach_timeout),
+                };
+                if (timeout)
+                    node::warn("climb APPROACH timeout, retry");
+
+                if (count++ > 2) {
+                    node::error("上台阶彻底失败");
+                    release_climber();
+                    *chassis_climb_status = -1;
+                    co_return;
+                }
+            } while (timeout);
         }
 
         // [] 伸出撑杆，同时慢速向台阶方向前进
@@ -479,9 +498,6 @@ class SentryClimber
             if (timed_out)
                 node::warn("climb RETRACT stick timeout, continue");
         }
-
-        *chassis_climb_speed = 0;
-        co_await CoSchduler::Sleep{500ms};
 
         *chassis_climb_speed = config.climb.dash_vx;
         co_await CoSchduler::Sleep{500ms};

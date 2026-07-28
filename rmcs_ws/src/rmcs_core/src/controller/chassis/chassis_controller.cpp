@@ -148,23 +148,19 @@ public:
         *chassis_control_velocity_ = {kNaN, kNaN, kNaN};
 
         spin_stuck_count_ = 0;
-        spin_recovery_count_ = 0;
+        spin_reverse_cooldown_ = 0;
         following_velocity_controller_.reset();
     }
 
-    auto update_spin_stuck_watchdog(rmcs_msgs::ChassisMode& mode) -> void {
+    auto update_spin_stuck_watchdog(rmcs_msgs::ChassisMode mode) -> void {
         constexpr auto kSpinStuckConfirmTicks = std::size_t{300};
-        constexpr auto kSpinRecoveryTicks = std::size_t{1000};
+        constexpr auto kSpinReverseCooldownTicks = std::size_t{1000};
         constexpr auto kSpinStuckAngularVelocityRatio = double{0.2};
 
         using rmcs_msgs::ChassisMode;
 
-        if (spin_recovery_count_ > 0) {
-            mode = ChassisMode::ALIGNMENT_POWERED;
-
-            if (--spin_recovery_count_ == 0)
-                mode = mode_before_watchdog_;
-
+        if (spin_reverse_cooldown_ > 0) {
+            --spin_reverse_cooldown_;
             spin_stuck_count_ = 0;
             return;
         }
@@ -183,12 +179,11 @@ public:
         if (++spin_stuck_count_ < kSpinStuckConfirmTicks)
             return;
 
-        mode_before_watchdog_ = mode;
-        mode = ChassisMode::ALIGNMENT_POWERED;
-        spin_recovery_count_ = kSpinRecoveryTicks;
+        spinning_forward_ = !spinning_forward_;
+        spin_reverse_cooldown_ = kSpinReverseCooldownTicks;
         spin_stuck_count_ = 0;
 
-        node::warn("Spin stuck detected, disable spinning for 1s.");
+        node::warn("Spin stuck detected, reverse spinning direction.");
     }
     void update_velocity_control() {
         auto translational_velocity = update_translational_velocity_control();
@@ -367,8 +362,7 @@ private:
     bool spinning_forward_ = true;
 
     std::size_t spin_stuck_count_ = 0;
-    std::size_t spin_recovery_count_ = 0;
-    rmcs_msgs::ChassisMode mode_before_watchdog_ = rmcs_msgs::ChassisMode::AUTO;
+    std::size_t spin_reverse_cooldown_ = 0;
 
     pid::PidCalculator following_velocity_controller_{
         node::param_or("following_velocity_kp", 8.0),
