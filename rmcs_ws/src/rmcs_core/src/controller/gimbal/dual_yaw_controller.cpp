@@ -36,6 +36,10 @@ public:
         set_pid_parameter(bottom_yaw_angle_pid_, "bottom_yaw_angle");
         set_pid_parameter(bottom_yaw_velocity_pid_, "bottom_yaw_velocity");
 
+        yaw_brake_velocity_pid_.output_min = -kYawBrakeMaxControlTorque;
+        yaw_brake_velocity_pid_.output_max = kYawBrakeMaxControlTorque;
+        set_pid_parameter(yaw_brake_velocity_pid_, "yaw_brake_velocity");
+
         register_input("/gimbal/top_yaw/angle", top_yaw_angle_);
         register_input("/gimbal/top_yaw/velocity", top_yaw_velocity_);
         register_input("/gimbal/bottom_yaw/angle", bottom_yaw_angle_);
@@ -56,6 +60,7 @@ public:
         register_output("/gimbal/bottom_yaw/control_angle", bottom_yaw_control_angle_, nan_);
         register_output("/gimbal/top_yaw/control_angle_shift", top_yaw_control_angle_shift_, nan_);
         register_output("/gimbal/yaw_brake/control_torque", yaw_brake_control_torque_, nan_);
+        register_input("/gimbal/yaw_brake/torque", yaw_brake_torque_);
 
         status_component_ =
             create_partner_component<DualYawStatus>(get_component_name() + "_status");
@@ -96,6 +101,7 @@ public:
             top_yaw_velocity_pid_.reset();
             bottom_yaw_angle_pid_.reset();
             bottom_yaw_velocity_pid_.reset();
+            yaw_brake_velocity_pid_.reset();
 
             if (encoder_state_ == EncoderState::EngageYawBrake
                 || encoder_state_ == EncoderState::BrakeLocked) {
@@ -108,7 +114,7 @@ public:
                 yaw_brake_release_elapsed_count_ = 0;
                 yaw_brake_release_stop_count_ = 0;
                 yaw_brake_release_seen_motion_ = false;
-                *yaw_brake_control_torque_ = nan_;
+                disable_yaw_brake_control();
                 encoder_state_ = EncoderState::Idle;
             }
         }
@@ -126,15 +132,15 @@ public:
         }
 
         // RCLCPP_INFO(get_logger(), "bottom_yaw_raw_angle: %ld", *bottom_yaw_raw_angle_);
-        // RCLCPP_INFO(get_logger(), "bottom_yaw_control_torque: %f", *bottom_yaw_control_torque_);
-        // RCLCPP_INFO(get_logger(), "bottom_yaw_torque: %f", *bottom_yaw_torque_);
-        // RCLCPP_INFO(
-        //     get_logger(), "encoder_state: %s",
-        //     encoder_state_ == EncoderState::Idle                  ? "Idle"
-        //     : encoder_state_ == EncoderState::AlignTargetRawAngle ? "AlignTargetRawAngle"
-        //     : encoder_state_ == EncoderState::EngageYawBrake      ? "EngageYawBrake"
-        //     : encoder_state_ == EncoderState::BrakeLocked         ? "BrakeLocked"
-        //                                                           : "ReleaseYawBrake");
+        //  RCLCPP_INFO(get_logger(), "bottom_yaw_control_torque: %f", *bottom_yaw_control_torque_);
+        //  RCLCPP_INFO(get_logger(), "bottom_yaw_torque: %f", *bottom_yaw_torque_);
+        //  RCLCPP_INFO(
+        //      get_logger(), "encoder_state: %s",
+        //      encoder_state_ == EncoderState::Idle                  ? "Idle"
+        //      : encoder_state_ == EncoderState::AlignTargetRawAngle ? "AlignTargetRawAngle"
+        //      : encoder_state_ == EncoderState::EngageYawBrake      ? "EngageYawBrake"
+        //      : encoder_state_ == EncoderState::BrakeLocked         ? "BrakeLocked"
+        //                                                            : "ReleaseYawBrake");
         const bool hold_encoder_for_brake_release = encoder_state_ == EncoderState::ReleaseYawBrake;
 
         if (mode == rmcs_msgs::GimbalMode::ENCODER || hold_encoder_for_brake_release) {
@@ -152,7 +158,7 @@ public:
 
             if (encoder_state_ == EncoderState::AlignTargetRawAngle) {
                 *top_yaw_control_angle_shift_ = 0.0;
-                *yaw_brake_control_torque_ = nan_;
+                disable_yaw_brake_control();
 
                 if (!bottom_yaw_raw_angle_.ready()) {
                     *bottom_yaw_control_torque_ = nan_;
@@ -203,7 +209,7 @@ public:
             } else if (encoder_state_ == EncoderState::EngageYawBrake) {
                 *top_yaw_control_angle_shift_ = 0.0;
                 *bottom_yaw_control_torque_ = nan_;
-                *yaw_brake_control_torque_ = kYawBrakeEngageTorque;
+                set_yaw_brake_control_velocity(kYawBrakeEngageControlVelocity);
 
                 if (std::abs(*yaw_brake_velocity_) < kYawBrakeEngageVelocityThreshold) {
                     ++yaw_brake_engage_count_;
@@ -213,20 +219,20 @@ public:
 
                 if (yaw_brake_engage_count_ >= kYawBrakeEngageConfirmCount) {
                     yaw_brake_engage_count_ = 0;
-                    *yaw_brake_control_torque_ = nan_;
+                    disable_yaw_brake_control();
                     encoder_state_ = EncoderState::BrakeLocked;
                 }
 
             } else if (encoder_state_ == EncoderState::BrakeLocked) {
-                constexpr double kBrakeLockedHoldTorque = 0.6;
+                constexpr double kBrakeLockedHoldTorque = 0.0;
                 *bottom_yaw_control_torque_ = kBrakeLockedHoldTorque;
-                *yaw_brake_control_torque_ = nan_;
+                disable_yaw_brake_control();
                 *top_yaw_control_angle_shift_ = *control_angle_shift_;
 
             } else if (encoder_state_ == EncoderState::ReleaseYawBrake) {
                 *top_yaw_control_angle_shift_ = 0.0;
                 *bottom_yaw_control_torque_ = nan_;
-                *yaw_brake_control_torque_ = kYawBrakeReleaseTorque;
+                set_yaw_brake_control_velocity(kYawBrakeReleaseControlVelocity);
 
                 ++yaw_brake_release_elapsed_count_;
 
@@ -246,7 +252,7 @@ public:
                     yaw_brake_release_elapsed_count_ = 0;
                     yaw_brake_release_stop_count_ = 0;
                     yaw_brake_release_seen_motion_ = false;
-                    *yaw_brake_control_torque_ = nan_;
+                    disable_yaw_brake_control();
                     encoder_state_ = EncoderState::Idle;
                 } else if (yaw_brake_release_elapsed_count_ >= kYawBrakeReleaseTimeoutCount) {
                     RCLCPP_WARN(
@@ -256,18 +262,18 @@ public:
                     yaw_brake_release_elapsed_count_ = 0;
                     yaw_brake_release_stop_count_ = 0;
                     yaw_brake_release_seen_motion_ = false;
-                    *yaw_brake_control_torque_ = nan_;
+                    disable_yaw_brake_control();
                     encoder_state_ = EncoderState::Idle;
                 }
 
             } else {
                 *top_yaw_control_angle_shift_ = 0.0;
                 *bottom_yaw_control_torque_ = nan_;
-                *yaw_brake_control_torque_ = nan_;
+                disable_yaw_brake_control();
             }
 
         } else {
-            *yaw_brake_control_torque_ = nan_;
+            disable_yaw_brake_control();
 
             *top_yaw_control_torque_ = top_yaw_velocity_pid_.update(
                 top_yaw_angle_pid_.update(*control_angle_error_) - *gimbal_yaw_velocity_imu_);
@@ -294,16 +300,17 @@ private:
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
 
     static constexpr int64_t kBottomYawRawAngleModulus = 1 << 16;
-    static constexpr int64_t kEncoderBottomYawTargetRawAngle = 2434;
+    static constexpr int64_t kEncoderBottomYawTargetRawAngle = 2386;
     static constexpr int64_t kEncoderBottomYawTargetToleranceRawAngle = 80;
     static constexpr double kEncoderBottomYawLockVelocityThreshold = 0.15;
     static constexpr double kEncoderBottomYawRawAngleErrorSign = -1.0;
 
-    static constexpr double kYawBrakeEngageTorque = -0.3;
+    static constexpr double kYawBrakeMaxControlTorque = 0.01;
+    static constexpr double kYawBrakeEngageControlVelocity = -300.0;
     static constexpr double kYawBrakeEngageVelocityThreshold = 0.1;
     static constexpr int kYawBrakeEngageConfirmCount = 50;
 
-    static constexpr double kYawBrakeReleaseTorque = 0.3;
+    static constexpr double kYawBrakeReleaseControlVelocity = 300.0;
     static constexpr double kYawBrakeReleaseMotionVelocityThreshold = 0.2;
     static constexpr double kYawBrakeReleaseStopVelocityThreshold = 0.08;
     static constexpr int kYawBrakeReleaseStopConfirmCount = 20;
@@ -324,6 +331,19 @@ private:
 
     double bottom_yaw_velocity_imu() { return *chassis_yaw_velocity_imu_ + *bottom_yaw_velocity_; }
 
+    void disable_yaw_brake_control() {
+        yaw_brake_velocity_pid_.reset();
+        *yaw_brake_control_torque_ = nan_;
+    }
+    void set_yaw_brake_control_velocity(double target_velocity) {
+        if (!std::isfinite(target_velocity) || !std::isfinite(*yaw_brake_velocity_)) {
+            disable_yaw_brake_control();
+            return;
+        }
+
+        *yaw_brake_control_torque_ =
+            yaw_brake_velocity_pid_.update(target_velocity - *yaw_brake_velocity_);
+    }
     InputInterface<double> top_yaw_angle_, top_yaw_velocity_;
     InputInterface<double> bottom_yaw_angle_, bottom_yaw_velocity_;
     InputInterface<int64_t> bottom_yaw_raw_angle_;
@@ -337,12 +357,14 @@ private:
 
     pid::PidCalculator top_yaw_angle_pid_, top_yaw_velocity_pid_;
     pid::PidCalculator bottom_yaw_angle_pid_, bottom_yaw_velocity_pid_;
+    pid::PidCalculator yaw_brake_velocity_pid_;
 
     OutputInterface<double> top_yaw_control_torque_;
     OutputInterface<double> bottom_yaw_control_torque_;
     OutputInterface<double> bottom_yaw_control_angle_;
     OutputInterface<double> top_yaw_control_angle_shift_;
     OutputInterface<double> yaw_brake_control_torque_;
+    InputInterface<double> yaw_brake_torque_;
 
     rmcs_msgs::GimbalMode last_gimbal_mode_ = rmcs_msgs::GimbalMode::IMU;
     EncoderState encoder_state_ = EncoderState::Idle;
