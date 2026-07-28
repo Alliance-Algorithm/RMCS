@@ -22,7 +22,7 @@ rmcs_executor:
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::SteeringWheelController -> steering_wheel_controller
 
-      # - rmcs::navigation::Navigation -> rmcs_navigation
+      - rmcs::navigation::Navigation -> rmcs_navigation
 
       - rmcs::AutoAimRecorderComponent -> auto_aim_recorder
       - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
@@ -40,7 +40,7 @@ rmcs_navigation:
 auto_aim_capturer:
   ros__parameters:
     camera_name: ""
-    exposure_us: 2000.0
+    exposure_us: 1000.0
     gain: 8.0
     framerate: 120.0
     invert_image: true
@@ -60,7 +60,7 @@ auto_aim_recorder:
 auto_aim_component:
   ros__parameters:
     manual_shoot: true
-    enable_rune: true
+    enable_rune: false
     camera_translation: [0.07128, 0.0, 0.0481]
     fire_control:
       bullet_speed: 22.5
@@ -68,7 +68,7 @@ auto_aim_component:
       offset_yaw: -0.3
       offset_pitch: +0.9
       attack_window: 80.0
-      degraded_angle_speed: 12.0
+      degraded_angle_speed: 10.0
       window_hysteresis: 0.2
       attack_preaim: false
       require_stable_command: false
@@ -144,7 +144,7 @@ sentry_climber:
     stick_group:
       speed_drop: 30.0
       speed_rise: 60.0
-      rise_torque_limit: 1.2
+      rise_torque_limit: 1.5
       land_speed_begin: 100.0
       land_speed_final: 10.0
       land_duration: 0.5
@@ -158,7 +158,7 @@ sentry_climber:
       hold_torque: 0.01
     block_hold: 0.05
     align:
-      err: 0.20
+      err: 0.18
       w: 0.2
       hold: 0.05
       timeout: 15.0
@@ -168,7 +168,7 @@ sentry_climber:
       approach_vx: 1.2
       deploy_vx: 0.3
       dash_vx: 3.0
-      retract_vx: 0.3
+      retract_vx: 0.0
       dash_min: 0.1
       dash_duration: 0.8
       stick_timeout: 8.0
@@ -247,11 +247,11 @@ steering_wheel_controller:
     no_load_power: 11.37
 
     chassis_translation_kp: 20.0
-    chassis_translation_ki: 0.001
+    chassis_translation_ki: 0.0001
     chassis_translation_kd: 0.00
 
     chassis_angular_velocity_kp: 8.0
-    chassis_angular_velocity_ki: 0.0
+    chassis_angular_velocity_ki: 0.005
     chassis_angular_velocity_kd: 1.0
 
     steering_velocity_kp: 0.15
