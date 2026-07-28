@@ -181,6 +181,8 @@ sentry_climber:
       stick_timeout: 8.0
       soft_timeout: 3.0
       settle_timeout: 8.0
+      leave_vx: 0.3
+      leave_duration: 1.0
 
 friction_wheel_controller:
   ros__parameters:

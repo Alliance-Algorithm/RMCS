@@ -60,6 +60,8 @@ class SentryClimber
             double stick_timeout;
             double soft_timeout;
             double settle_timeout;
+            double leave_vx;
+            double leave_duration;
         } land;
 
         double block_hold;
@@ -126,6 +128,8 @@ class SentryClimber
                         .stick_timeout = param_or("land.stick_timeout", 8.0),
                         .soft_timeout = param_or("land.soft_timeout", 3.0),
                         .settle_timeout = param_or("land.settle_timeout", 8.0),
+                        .leave_vx = param_or("land.leave_vx", 0.5),
+                        .leave_duration = param_or("land.leave_duration", 1.0),
                     },
                 .block_hold = param_or("block_hold", 0.05),
             };
@@ -253,6 +257,7 @@ class SentryClimber
     static constexpr double kStatusLandSettle = 0.75;
     static constexpr double kStatusLandSoft = 0.8;
     static constexpr double kStatusLandFinal = 0.9;
+    static constexpr double kStatusLandLeave = 0.95;
 
     struct SimpleComponent : public rmcs_executor::Component {
         std::function<void()> fn;
@@ -571,6 +576,13 @@ class SentryClimber
             if (timed_out)
                 node::warn("land FINAL stick timeout, continue");
         }
+
+        // [] 撑杆收回后，以一定速度向前（驶离台阶方向）运动一段时间
+        *chassis_climb_status = kStatusLandLeave;
+        track_group->set_state(TrackState::kHold);
+        stick_group->set_state(StickState::kHold);
+        *chassis_climb_speed = -config.land.leave_vx;
+        co_await CoSchduler::Sleep{seconds_to_duration(config.land.leave_duration)};
 
         *chassis_climb_status = 1.0;
         release_climber();
