@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <stdexcept>
 
 #include <eigen3/Eigen/Dense>
 #include <rclcpp/logging.hpp>
@@ -46,6 +47,19 @@ public:
 
         get_parameter("trigger_free_angle", trigger_free_angle_);
         get_parameter("trigger_lock_angle", trigger_lock_angle_);
+        int64_t trigger_action_ticks = 0;
+        if (!get_parameter("trigger_action_ticks", trigger_action_ticks)) {
+            throw std::runtime_error("Missing required parameter 'trigger_action_ticks'");
+        }
+        if (trigger_action_ticks < kMinimumActiveTicks) {
+            RCLCPP_WARN(
+                get_logger(),
+                "trigger_action_ticks=%lld is less than minimum %d. Clamped to %d.",
+                static_cast<long long>(trigger_action_ticks), kMinimumActiveTicks,
+                kMinimumActiveTicks);
+            trigger_action_ticks = kMinimumActiveTicks;
+        }
+        trigger_action_ticks_ = static_cast<int>(trigger_action_ticks);
 
         get_parameter("carriage_velocity", carriage_velocity_);
         get_parameter_or("calibrate_rollback", calibrate_rollback_, int64_t{80000});
@@ -156,17 +170,13 @@ public:
             break;
 
         case TriggerCmd::TRIGGER_FREE:
-            if (is_new_command)
-                active_cmd_ = TriggerCmd::TRIGGER_FREE;
-            target_servo = trigger_free_angle_;
-            status = MechStatus::SUCCEEDED;
+            status = handle_trigger_action(
+                is_new_command, TriggerCmd::TRIGGER_FREE, trigger_free_angle_, target_servo);
             break;
 
         case TriggerCmd::TRIGGER_LOCK:
-            if (is_new_command)
-                active_cmd_ = TriggerCmd::TRIGGER_LOCK;
-            target_servo = trigger_lock_angle_;
-            status = MechStatus::SUCCEEDED;
+            status = handle_trigger_action(
+                is_new_command, TriggerCmd::TRIGGER_LOCK, trigger_lock_angle_, target_servo);
             break;
 
         case TriggerCmd::CARRIAGE_UP:
@@ -340,6 +350,15 @@ private:
         return status;
     }
 
+    MechStatus handle_trigger_action(
+        bool is_new_command, TriggerCmd cmd, double target_angle, double& target_servo) {
+        if (is_new_command)
+            active_cmd_ = cmd;
+
+        target_servo = target_angle;
+        return active_ticks_ >= trigger_action_ticks_ ? MechStatus::SUCCEEDED : MechStatus::BUSY;
+    }
+
     bool carriage_stall_detected(double velocity, int& counter) {
         if (std::abs(velocity) <= carriage_stall_velocity_threshold_) {
             ++counter;
@@ -510,6 +529,7 @@ private:
 
     double trigger_free_angle_ = 0.0;
     double trigger_lock_angle_ = 0.0;
+    int trigger_action_ticks_ = kMinimumActiveTicks;
 
     double carriage_velocity_ = 1.0;
     int64_t calibrate_rollback_ = 80000;

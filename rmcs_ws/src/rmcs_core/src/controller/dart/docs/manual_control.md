@@ -11,9 +11,8 @@
 
 2. 左上右上
 - left-joystic.x控制填装升降速度，也是灵敏度x通道值
-- right-joystic.y控制yaw电机的速度，同样是灵敏度乘通道值
 - rotary_knob_switch控制limit-servo，down上升沿时触发一次FillingCommand::LIMIT_PULSE_FILL
 
 3. 左上右下
 - left-joystic.x控制4z底盘整体升降
-- right-joystic.y控制yaw电机的速度
+- right-joystic.y控制yaw电机的速度，控制速度为manual_yaw_velocity_sensitivity*该通道的值

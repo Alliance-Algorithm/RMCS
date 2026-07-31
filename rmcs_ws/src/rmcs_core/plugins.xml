@@ -46,6 +46,7 @@
   <class type="rmcs_core::controller::dart::TriggerController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::dart::FillingController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::dart::FourZChassisController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::dart::YawController" base_class_type="rmcs_executor::Component" />
 
   <class type="rmcs_core::controller::adrc::AdrcController" base_class_type="rmcs_executor::Component" />
 

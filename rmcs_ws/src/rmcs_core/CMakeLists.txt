@@ -14,6 +14,8 @@ endif()
 find_package(ament_cmake_auto REQUIRED)
 ament_auto_find_build_dependencies()
 
+find_package(OpenCV REQUIRED)
+
 include(FetchContent)
 set(BUILD_STATIC_LIBRMCS ON CACHE BOOL "Build static librmcs SDK" FORCE)
 FetchContent_Declare(
@@ -36,7 +38,8 @@ ament_auto_add_library(
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_SOURCE_DIR}/src)
-target_link_libraries(${PROJECT_NAME} librmcs-sdk)
+include_directories(${OpenCV_INCLUDE_DIRS})
+target_link_libraries(${PROJECT_NAME} librmcs-sdk ${OpenCV_LIBS})
 
 pluginlib_export_plugin_description_file(rmcs_executor plugins.xml)
 

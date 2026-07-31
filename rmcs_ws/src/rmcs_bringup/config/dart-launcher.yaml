@@ -16,6 +16,8 @@ rmcs_executor:
       - rmcs_core::controller::dart::TriggerController -> trigger_controller
 
       - rmcs_core::controller::dart::FourZChassisController -> four_z_chassis_controller
+      - rmcs_core::controller::dart::YawController -> yaw_controller
+      - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> front_left_chassis_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> front_right_chassis_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> back_left_chassis_velocity_pid_controller
@@ -25,10 +27,14 @@ rmcs_executor:
 
 dart_manager:
   ros__parameters:
-    launch_carriage_position_1: -4861862.0
-    launch_carriage_position_2: -4599712.0
-    launch_carriage_position_3: -4599712.0
-    launch_carriage_position_4: -4861862.0
+    launch_carriage_position_1: -4350000.0
+    launch_carriage_position_2: -4150000.0
+    launch_carriage_position_3: -4150000.0
+    launch_carriage_position_4: -4350000.0
+    vision_aim_target_setpoint_1: 640.0
+    vision_aim_target_setpoint_2: 640.0
+    vision_aim_target_setpoint_3: 640.0
+    vision_aim_target_setpoint_4: 640.0
 
 value_broadcaster:
   ros__parameters:
@@ -47,16 +53,20 @@ value_broadcaster:
       - /dart/chassis/back_right_motor/control_velocity
       - /dart/chassis/imu/pitch
       - /dart/chassis/imu/roll
-
-      # - /dart/trigger/position_motor/control_torque
-      # - /dart/trigger/position_motor/torque
-      # - /dart/trigger/position_motor/velocity
-      # - /dart/trigger/position_motor/angle
+      - /dart/trigger/position_motor/control_torque
+      - /dart/trigger/position_motor/torque
+      - /dart/trigger/position_motor/velocity
+      - /dart/trigger/position_motor/angle
+      - /dart/yaw/motor/velocity
+      - /dart/yaw/motor/angle
+      - /dart/yaw/motor/control_velocity
+      - /dart/yaw/motor/control_torque
+      - /dart/yaw/status
       # - /dart/trigger/position_motor/encoder_angle
       # - /dart/belt/left_motor/velocity
       # - /dart/belt/right_motor/velocity
-      # - /dart/belt/left_motor/angle
-      # - /dart/belt/right_motor/angle
+      - /dart/belt/left_motor/angle
+      - /dart/belt/right_motor/angle
       # - /dart/belt/left_motor/torque
       # - /dart/belt/right_motor/torque
       # - /dart/belt/left_motor/control_velocity
@@ -90,10 +100,10 @@ belt_controller:
     soft_stage1_persent: 0.15
     soft_stage2_persent: 0.9
     part_persent: 0.45
-    belt_load_torque_limit: 5.5
+    belt_load_torque_limit: 6.0
     belt_unload_torque_limit: 0.6
     belt_stall_ticks: 200
-    belt_stall_velocity_threshold: 0.5
+    belt_stall_velocity_threshold: 0.05
     belt_stall_torque_threshold: 0.5
     manual_belt_velocity_sensitivity: -10.0
 
@@ -134,20 +144,21 @@ trigger_controller:
   ros__parameters:
     trigger_free_angle: 0.625
     trigger_lock_angle: 0.45
+    trigger_action_ticks: 500
     carriage_velocity: 20.0
     carriage_torque_limit: 2.5
-    calibrate_rollback: 300000
+    calibrate_rollback: 800000
     calibrate_rollback_velocity: 15.0
     carriage_calibrate_torque_limit: 0.3
     carriage_calibrate_launch_ticks: 200
-    carriage_calibrate_control_torque: 0.10
+    carriage_calibrate_control_torque: 0.11
     carriage_stall_velocity_threshold: 0.00
     carriage_stall_ticks: 500
     carriage_velocity_pid_kp: 0.3
     carriage_velocity_pid_ki: 0.0
     carriage_velocity_pid_kd: 0.0
     carriage_position_kp: 0.005
-    carriage_position_ki: 0.00025
+    carriage_position_ki:  0.0 # 0.00025
     carriage_position_kd: 0.0
     carriage_position_integral_max: 2.0
     carriage_position_tolerance: 100
@@ -160,15 +171,15 @@ four_z_chassis_controller:
     zero_rollback_speed: 50.0
     zero_rollback_angle: 80.0
     zero_hold_ticks: 500
-    level_descend_speed: 30.0
+    level_descend_speed: 25.0
     upper_soft_limit_angle: 170.0
-    level_settle_ticks: 1000
-    level_pitch_tolerance: 0.004
-    level_roll_tolerance: 0.004
-    pitch_offset: -0.0075
-    roll_offset: 0.0060
+    level_settle_ticks: 500
+    level_pitch_tolerance: 0.0005
+    level_roll_tolerance: 0.0005
+    pitch_offset: -0.0130
+    roll_offset: 0.0210
     level_correction_velocity_deadband: 50.0
-    level_pitch_pid_kp: 10000.0
+    level_pitch_pid_kp: 20000.0
     level_pitch_pid_ki: 10.0
     level_pitch_pid_kd: 0.0
     level_pitch_pid_integral_min: -50.0
@@ -187,6 +198,28 @@ four_z_chassis_controller:
     chassis_velocity_limit: 50.0
     chassis_torque_limit: 2.0
     manual_chassis_velocity_sensitivity: 50.0
+
+yaw_controller:
+  ros__parameters:
+    vision_aim_tolerance_px: 5.0
+    vision_aim_settle_ticks: 50
+    vision_aim_pid_kp: 0.01
+    vision_aim_pid_ki: 0.0
+    vision_aim_pid_kd: 0.0
+    vision_aim_pid_output_min: -50.0
+    vision_aim_pid_output_max: 50.0
+    yaw_torque_limit: 2.0
+    manual_yaw_velocity_sensitivity: 50.0
+
+yaw_velocity_pid_controller:
+  ros__parameters:
+    measurement: /dart/yaw/motor/velocity
+    setpoint: /dart/yaw/motor/control_velocity
+    control: /dart/yaw/motor/control_torque
+    output_abs_limit: /dart/yaw/motor/control_torque_limit
+    kp: 1.0
+    ki: 0.0
+    kd: 0.0
 
 front_left_chassis_velocity_pid_controller:
   ros__parameters:

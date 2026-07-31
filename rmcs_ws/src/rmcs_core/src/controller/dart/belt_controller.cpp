@@ -315,7 +315,7 @@ private:
         l_vel = belt_slow_down_velocity_;
         r_vel = belt_slow_down_velocity_;
 
-        const double target_dist = slider_rail_length_ * (part_persent_ + 0.75);
+        const double target_dist = slider_rail_length_ * (part_persent_ + 0.1);
         const bool l_stall = stall_detected(l_velocity, l_torque, stall_count_left_);
         const bool r_stall = stall_detected(r_velocity, r_torque, stall_count_right_);
         const bool l_reach = (l_angle - start_angle_left_) >= target_dist;
