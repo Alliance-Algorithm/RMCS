@@ -97,7 +97,9 @@ public:
                 } else if (!last_keyboard_.x && keyboard.x) {
                     if (mode != rmcs_msgs::ChassisMode::STEP_DOWN
                         || (mode == rmcs_msgs::ChassisMode::STEP_DOWN
-                            && step_down_facing_ == StepDownFacing::BACK)) {
+                            && step_down_facing_ == StepDownFacing::BACK)
+                        || (mode == rmcs_msgs::ChassisMode::STEP_DOWN
+                            && step_down_facing_ == StepDownFacing::RIGHT)) {
                         mode = rmcs_msgs::ChassisMode::STEP_DOWN;
                         step_down_facing_ = StepDownFacing::FRONT;
                     } else {
@@ -107,12 +109,26 @@ public:
                 } else if (!last_keyboard_.z && keyboard.z) {
                     if (mode != rmcs_msgs::ChassisMode::STEP_DOWN
                         || (mode == rmcs_msgs::ChassisMode::STEP_DOWN
-                            && step_down_facing_ == StepDownFacing::FRONT)) {
+                            && step_down_facing_ == StepDownFacing::FRONT)
+                        || (mode == rmcs_msgs::ChassisMode::STEP_DOWN
+                            && step_down_facing_ == StepDownFacing::RIGHT)) {
                         mode = rmcs_msgs::ChassisMode::STEP_DOWN;
                         step_down_facing_ = StepDownFacing::BACK;
                     } else {
                         mode = rmcs_msgs::ChassisMode::AUTO;
                         step_down_facing_ = StepDownFacing::BACK;
+                    }
+                } else if (!last_keyboard_.q && keyboard.q) {
+                    if (mode != rmcs_msgs::ChassisMode::STEP_DOWN
+                        || (mode == rmcs_msgs::ChassisMode::STEP_DOWN
+                            && step_down_facing_ == StepDownFacing::FRONT)
+                        || (mode == rmcs_msgs::ChassisMode::STEP_DOWN
+                            && step_down_facing_ == StepDownFacing::BACK)) {
+                        mode = rmcs_msgs::ChassisMode::STEP_DOWN;
+                        step_down_facing_ = StepDownFacing::RIGHT;
+                    } else {
+                        mode = rmcs_msgs::ChassisMode::AUTO;
+                        step_down_facing_ = StepDownFacing::RIGHT;
                     }
                 }
                 *mode_ = mode;
@@ -237,7 +253,7 @@ public:
     }
 
 private:
-    enum class StepDownFacing { FRONT, BACK };
+    enum class StepDownFacing { FRONT, BACK, RIGHT };
 
     double update_following_angular_velocity(
         StepDownFacing target_facing, double& chassis_control_angle) {
@@ -246,6 +262,9 @@ private:
             chassis_control_angle =
                 normalize_positive_angle(chassis_control_angle + std::numbers::pi);
             err = normalize_positive_angle(err + std::numbers::pi);
+        } else if (target_facing == StepDownFacing::RIGHT) {
+            chassis_control_angle = normalize_positive_angle(chassis_control_angle + 4.54);
+            err = normalize_positive_angle(err + 4.54);
         }
 
         err = normalize_signed_angle(err);

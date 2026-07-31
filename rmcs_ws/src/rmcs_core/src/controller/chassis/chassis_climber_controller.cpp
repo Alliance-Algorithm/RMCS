@@ -297,7 +297,9 @@ private:
     AutoClimbControl update_manual_support_control(const rmcs_msgs::Keyboard& keyboard) {
         AutoClimbControl control;
 
-        if (keyboard.b) {
+        if (keyboard.b || *rotary_knob_switch_ == rmcs_msgs::Switch::UP) {
+            manual_support_retracting_ = false;
+            manual_support_retract_block_count_ = 0;
             back_climber_zero_velocity_hold_ = false;
             control.back_climber_velocity = climber_back_control_velocity_abs_;
             return control;

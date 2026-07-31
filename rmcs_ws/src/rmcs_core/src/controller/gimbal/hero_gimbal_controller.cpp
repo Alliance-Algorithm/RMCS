@@ -75,8 +75,8 @@ public:
             }
 
             *gimbal_mode_ = gimbal_mode_keyboard_;
-            if (switch_left == Switch::MIDDLE && switch_right == Switch::UP)
-                *gimbal_mode_ = GimbalMode::ENCODER;
+            // if (switch_left == Switch::MIDDLE && switch_right == Switch::UP)
+            //     *gimbal_mode_ = GimbalMode::ENCODER;
 
             if (*gimbal_mode_ == GimbalMode::IMU) {
                 auto angle_error = switch_encoder_to_imu_by_c ? enter_imu_hold_current_pose()

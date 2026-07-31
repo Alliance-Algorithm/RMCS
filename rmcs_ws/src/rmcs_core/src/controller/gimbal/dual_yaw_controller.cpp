@@ -300,7 +300,7 @@ private:
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
 
     static constexpr int64_t kBottomYawRawAngleModulus = 1 << 16;
-    static constexpr int64_t kEncoderBottomYawTargetRawAngle = 51642;
+    static constexpr int64_t kEncoderBottomYawTargetRawAngle = 18673;
     static constexpr int64_t kEncoderBottomYawTargetToleranceRawAngle = 80;
     static constexpr double kEncoderBottomYawLockVelocityThreshold = 0.15;
     static constexpr double kEncoderBottomYawRawAngleErrorSign = -1.0;

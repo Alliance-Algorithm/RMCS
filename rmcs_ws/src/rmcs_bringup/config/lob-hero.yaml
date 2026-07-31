@@ -53,13 +53,13 @@ rmcs_executor:
       # - rmcs_hero_lob::VideoRecorder -> video_recorder
       # - rmcs_hero_lob::ShootSignal -> signal
 
-      - rmcs_hero_lob::CameraCapture -> camera_capture
-      - rmcs_hero_lob::LobVisionCore -> lob_vision_core
+      # - rmcs_hero_lob::CameraCapture -> camera_capture
+      # - rmcs_hero_lob::LobVisionCore -> lob_vision_core
 
       # - rmcs_hero_lob::ImageTestSource -> lob_source
 
-      - rmcs_hero_lob::ImagePacketizer -> image_packetizer
-      - rmcs_hero_lob::ImagePacketizer -> trajectory_packetizer
+      # - rmcs_hero_lob::ImagePacketizer -> image_packetizer
+      # - rmcs_hero_lob::ImagePacketizer -> trajectory_packetizer
 
       # - rmcs_hero_lob::ImageBroadcast -> camera_image_publisher
       # - rmcs_hero_lob::ImageBroadcast -> background_image_publisher
@@ -151,7 +151,7 @@ hero_hardware:
   ros__parameters:
     board_serial_top_board: "AF-8AE3-4EC1-03C3-C494-88FE-2DC4-3018-0298"
     serial_bottom_rmcs_board: "AF-60BB-7484-FA24-F3FC-399B-454D-22FA-1B1D"
-    bottom_yaw_motor_zero_point: 35110
+    bottom_yaw_motor_zero_point: 35202
     pitch_motor_zero_point: 23653
     top_yaw_motor_zero_point: 48525
     viewer_motor_zero_point: 31940
