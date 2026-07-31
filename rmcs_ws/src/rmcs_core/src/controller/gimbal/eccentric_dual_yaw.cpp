@@ -18,6 +18,49 @@
 namespace rmcs_core::controller::gimbal {
 using namespace rmcs_description;
 
+// 对 top 关节自瞄参考角做差分+低通滤波的目标角速度前馈，
+// 补偿斜坡跟踪滞后；切板跳变时清零。
+struct YawRateFeedforward {
+    double gain = 1.0;
+    double cutoff_hz = 15.0;
+    double max_rate = 6.0;
+    double jump_threshold = 0.05;
+
+    auto update(double azimuth, std::chrono::steady_clock::time_point now) -> double {
+        if (std::isfinite(prev_azimuth_)) {
+            const auto dt = std::chrono::duration<double>(now - prev_timestamp_).count();
+            const auto delta = limit_rad(azimuth - prev_azimuth_);
+            if (std::abs(delta) > jump_threshold) {
+                filtered_rate_ = 0.0;
+            } else if (dt > kMinDt) {
+                const auto raw = delta / dt;
+                const auto alpha = dt / (dt + 1.0 / (2.0 * std::numbers::pi * cutoff_hz));
+                filtered_rate_ += alpha * (raw - filtered_rate_);
+            }
+        }
+        prev_azimuth_ = azimuth;
+        prev_timestamp_ = now;
+        return gain * std::clamp(filtered_rate_, -max_rate, max_rate);
+    }
+
+private:
+    static constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
+    static constexpr double kMinDt = 1e-6;
+
+    static auto limit_rad(double angle) -> double {
+        constexpr double kPi = std::numbers::pi_v<double>;
+        while (angle > kPi)
+            angle -= 2.0 * kPi;
+        while (angle <= -kPi)
+            angle += 2.0 * kPi;
+        return angle;
+    }
+
+    double prev_azimuth_ = kNaN;
+    double filtered_rate_ = 0.0;
+    std::chrono::steady_clock::time_point prev_timestamp_{};
+};
+
 class EccentricDualYaw
     : public rmcs_executor::Component
     , public rclcpp::Node {
@@ -25,7 +68,12 @@ public:
     EccentricDualYaw()
         : Node{
               get_component_name(),
-              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)} {}
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)} {
+        get_parameter_or("top_yaw_velocity_ff_gain", top_yaw_ff_.gain, 1.0);
+        get_parameter_or("top_yaw_ff_cutoff_hz", top_yaw_ff_.cutoff_hz, 15.0);
+        get_parameter_or("top_yaw_ff_max", top_yaw_ff_.max_rate, 6.0);
+        get_parameter_or("top_yaw_ff_jump_threshold", top_yaw_ff_.jump_threshold, 0.05);
+    }
 
     auto before_updating() -> void override {
         if (!input_.navigation_enable_control.ready()) {
@@ -60,7 +108,9 @@ public:
                     upper_limit_,
                     lower_limit_,
                 });
-            apply_control(error.bottom_yaw, error.top_yaw, error.pitch);
+            const auto top_yaw_ff =
+                top_yaw_ff_.update(solver_.top_target_azimuth(), *input_.timestamp);
+            apply_control(error.bottom_yaw, error.top_yaw, error.pitch, top_yaw_ff);
 
             const auto [_, cur_pitch] = current_barrel_yaw_pitch();
             stored_bottom_yaw_target_ = limit_rad(current_bottom_world_yaw() + error.bottom_yaw);
@@ -112,6 +162,8 @@ private:
     const double lower_limit_{get_parameter("lower_limit").as_double()};
 
     EccentricDualYawSolver solver_;
+
+    YawRateFeedforward top_yaw_ff_;
 
     struct Input {
         explicit Input(rmcs_executor::Component& component) {
@@ -298,12 +350,15 @@ private:
         return std::atan2(vector.y(), vector.x());
     }
 
-    auto apply_control(double bottom_yaw_error, double top_yaw_error, double pitch_error) -> void {
+    auto apply_control(
+        double bottom_yaw_error, double top_yaw_error, double pitch_error,
+        double top_yaw_feedforward = 0.0) -> void {
         const auto current_bottom_velocity =
             *input_.bottom_yaw_velocity + *input_.chassis_yaw_velocity_imu;
 
         const auto bottom_velocity_ref = bottom_yaw_angle_pid_.update(bottom_yaw_error);
-        const auto top_velocity_ref = top_yaw_angle_pid_.update(top_yaw_error);
+        const auto top_velocity_ref =
+            top_yaw_angle_pid_.update(top_yaw_error) + top_yaw_feedforward;
         const auto pitch_velocity_ref = pitch_angle_pid_.update(pitch_error);
 
         *output_.top_yaw_control_torque =

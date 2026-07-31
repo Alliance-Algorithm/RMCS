@@ -41,7 +41,7 @@ auto_aim_capturer:
   ros__parameters:
     camera_name: ""
     exposure_us: 3000.0
-    gain: 10.0
+    gain: 12.0
     framerate: 120.0
     invert_image: true
     rls_tau_sec: 10.0
@@ -66,7 +66,7 @@ auto_aim_component:
       bullet_speed: 22.5
       shoot_delay: 0.05
       offset_yaw: -0.3
-      offset_pitch: -0.05
+      offset_pitch: -0.1
       attack_window: 80.0
       degraded_angle_speed: 12.0
       window_redundancy: 0.8
@@ -106,7 +106,7 @@ gimbal_controller:
     top_yaw_angle_ki: 0.008
     top_yaw_angle_kd: 0.005
     top_yaw_velocity_kp: 2.160
-    top_yaw_velocity_ki: 0.00
+    top_yaw_velocity_ki: 0.0
     top_yaw_velocity_kd: 0.0
 
     bottom_yaw_angle_kp: 15.0
@@ -116,11 +116,11 @@ gimbal_controller:
     bottom_yaw_velocity_ki: 0.00125
     bottom_yaw_velocity_kd: 0.0
 
-    pitch_angle_kp: 32.0
+    pitch_angle_kp: 35.0
     pitch_angle_ki: 0.01
     pitch_angle_kd: 0.0
     pitch_velocity_kp: 2.5
-    pitch_velocity_ki: 0.0
+    pitch_velocity_ki: 0.01
     pitch_velocity_kd: 0.0
 
     top_yaw_angle_integral_min: -187.0
@@ -137,6 +137,11 @@ gimbal_controller:
     pitch_angle_integral_max: 150.0
     pitch_velocity_integral_min: -2400.0
     pitch_velocity_integral_max: 2400.0
+
+    top_yaw_velocity_ff_gain: 1.0
+    top_yaw_ff_cutoff_hz: 10.0
+    top_yaw_ff_max: 2.0
+    top_yaw_ff_jump_threshold: 0.01
 
 chassis_controller:
   ros__parameters:

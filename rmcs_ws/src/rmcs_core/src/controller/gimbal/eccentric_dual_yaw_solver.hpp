@@ -29,6 +29,9 @@ public:
     auto update(const Operation& op) -> Error { return op.update(*this); }
     auto enabled() const -> bool { return enabled_; }
 
+    // top 关节的自瞄参考角（desired_top），供角速度前馈差分使用
+    auto top_target_azimuth() const -> double { return top_target_azimuth_; }
+
     class SetDisabled : public Operation {
     private:
         auto update(EccentricDualYawSolver& s) const -> Error override {
@@ -80,6 +83,7 @@ public:
             const double bottom_error = limit_rad(center_azimuth - current_btm);
             const double desired_top = limit_rad(barrel_azimuth - center_azimuth);
             const double top_error = limit_rad(desired_top - current_top);
+            s.top_target_azimuth_ = desired_top;
             const double desired_pitch = std::clamp(barrel_pitch, upper_, lower_);
             const double pitch_error = limit_rad(desired_pitch - current_brl);
 
@@ -150,6 +154,7 @@ private:
     }
 
     bool enabled_ = false;
+    double top_target_azimuth_ = kNaN_;
 };
 
 } // namespace rmcs_core::controller::gimbal
