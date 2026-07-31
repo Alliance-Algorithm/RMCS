@@ -249,12 +249,13 @@ inline auto make_lunar_rover_action_parameter_map() {
          {Action::Step::makeJoint(
          Action::JointTarget{
          .joint_1 = 0.0,
-         .joint_2 = 1.23,
-         .joint_3 = -1.36,
+         .joint_2 = 1.321045,
+         .joint_3 = -0.555301,
          .joint_4 = 0.0,
-         .joint_5 = 0.63,
-         .joint_6 = 0.0},
-         Action::MotionParams{.vel = 0.06, .acc = 0.04})}                                      },
+         .joint_5 = 1.228239,
+         .joint_6 = 0.042280},
+         Action::MotionParams{.vel = 0.06, .acc = 0.04})
+        }                                      },
 
         {    "up_two_stairs_lift_again",
          {Action::Step::makeJoint(

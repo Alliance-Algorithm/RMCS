@@ -86,9 +86,9 @@ leg_controller:
     backward_x_position_in_SixWheel: 221.0
     tof_b: 0.51
     lf_angle_pid: [2000.0, 0.0,18.0]
-    lf_vel_pid: [1.48, 0.00, 0.8]
+    lf_vel_pid: [1.08, 0.00, 0.1]
     rf_angle_pid: [2000.0, 0.0, 18.0]
-    rf_vel_pid: [1.48, 0.00, 0.8]
+    rf_vel_pid: [1.08, 0.00, 0.1]
     up_one_stairs: 
       params:
         initial: [1.90070, 1.65, 0.0, 2000.0]
@@ -100,10 +100,10 @@ leg_controller:
         initial: [1.90070, 1.65, 0.0, 2000.0]
         press: [0.34, 0.51, -500.0, 150.0]
         press_wait : [0.34,0.51, -100.0, 280.0]
-        lift: [1.016670, 1.150821, -100.0, 100.0]
+        lift: [1.016670, 1.150821, -200.0, 200.0]
         # lift_and_initial: [1.400270, 1.410, -100.0, 1000.0]
-        initial_again: [1.90070, 1.65, -300.0, 350.0]
-        initial_wait : [1.90070, 1.65, -100.0, 100.0]
+        initial_again: [1.90070, 1.65, -300.0, 170.0]
+        initial_wait : [1.90070, 1.65, -100.0, 50.0]
         press_again: [0.34, 0.51, -500.0, 350.0]
         lift_again: [0.956670, 1.350821, -200.0, 80.0] 
 

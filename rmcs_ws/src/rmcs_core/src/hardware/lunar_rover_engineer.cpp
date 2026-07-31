@@ -591,7 +591,7 @@ private:
         InputInterface<bool> gripper_calibration_done_signal_;
         bool last_gripper_calibration_done_signal{false};
         device::Bmi088 bmi088_;
-        std::array<ReceiveMissingWatchdog::Endpoint, 9> receive_watchdog_entries_{
+        std::array<ReceiveMissingWatchdog::Endpoint, 8> receive_watchdog_entries_{
             {
              {ReceiveMissingWatchdog::EndpointType::kCan, "can2", "/arm/joint_6/motor", 0x141},
              {ReceiveMissingWatchdog::EndpointType::kCan, "can2", "/arm/joint_5/motor", 0x145},
@@ -602,7 +602,7 @@ private:
              {ReceiveMissingWatchdog::EndpointType::kCan, "can1", "/arm/joint_1/motor", 0x141},
              {ReceiveMissingWatchdog::EndpointType::kCan, "can1", "/arm/image_pitch/motor",
                  0x148},
-             {ReceiveMissingWatchdog::EndpointType::kUart, "dbus", "/remote_control/dr16"},
+            //  {ReceiveMissingWatchdog::EndpointType::kUart, "dbus", "/remote_control/dr16"},
              }
         };
         ReceiveMissingWatchdog receive_watchdog_;
