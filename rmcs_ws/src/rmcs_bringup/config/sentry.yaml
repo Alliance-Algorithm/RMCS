@@ -22,7 +22,7 @@ rmcs_executor:
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::SteeringWheelController -> steering_wheel_controller
 
-      - rmcs::navigation::Navigation -> rmcs_navigation
+      # - rmcs::navigation::Navigation -> rmcs_navigation
 
       - rmcs::AutoAimRecorderComponent -> auto_aim_recorder
       - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
@@ -64,11 +64,12 @@ auto_aim_component:
     camera_translation: [0.07128, 0.0, 0.0481]
     fire_control:
       bullet_speed: 22.5
-      shoot_delay: 0.02
+      shoot_delay: 0.05
       offset_yaw: -0.3
-      offset_pitch: +0.9
+      offset_pitch: +0.1
       attack_window: 80.0
-      degraded_angle_speed: 10.0
+      degraded_angle_speed: 12.0
+      window_redundancy: 0.8
       window_hysteresis: 0.2
       attack_preaim: false
       require_stable_command: false
@@ -101,14 +102,14 @@ gimbal_controller:
     upper_limit: -0.65
     lower_limit: 0.36
 
-    top_yaw_angle_kp: 35.0
+    top_yaw_angle_kp: 25.0
     top_yaw_angle_ki: 0.008
     top_yaw_angle_kd: 0.005
     top_yaw_velocity_kp: 2.160
     top_yaw_velocity_ki: 0.00
     top_yaw_velocity_kd: 0.0
 
-    bottom_yaw_angle_kp: 16.0
+    bottom_yaw_angle_kp: 12.0
     bottom_yaw_angle_ki: 0.01
     bottom_yaw_angle_kd: 0.0
     bottom_yaw_velocity_kp: 2.75

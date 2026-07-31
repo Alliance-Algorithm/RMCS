@@ -2,8 +2,8 @@ rmcs_executor:
   ros__parameters:
     update_rate: 1000.0
     components:
-      - rmcs::AutoAimPlayerComponent -> auto_aim_player
-      # - rmcs::AutoAimVideoPlayerComponent -> auto_aim_video_player
+      # - rmcs::AutoAimPlayerComponent -> auto_aim_player
+      - rmcs::AutoAimVideoPlayerComponent -> auto_aim_video_player
       # - rmcs::AutoAimRecorderComponent -> auto_aim_recorder
       - rmcs::AutoAimComponent -> auto_aim_component
 
@@ -41,6 +41,7 @@ auto_aim_component:
       offset_pitch: 0.0
       attack_window: 60.0
       degraded_angle_speed: 12.0
+      window_redundancy: 0.8
       window_hysteresis: 0.2
       attack_preaim: false
       require_stable_command: true

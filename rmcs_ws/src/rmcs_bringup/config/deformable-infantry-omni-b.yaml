@@ -83,6 +83,7 @@ auto_aim_component:
       offset_pitch: +0.5
       attack_window: 80.0
       degraded_angle_speed: 12.0
+      window_redundancy: 0.8
       window_hysteresis: 0.2
       attack_preaim: false
       require_stable_command: false
