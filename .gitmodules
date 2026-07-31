@@ -4,3 +4,7 @@
 [submodule "rmcs_ws/src/rmcs_auto_aim_v2"]
 	path = rmcs_ws/src/rmcs_auto_aim_v2
 	url = https://github.com/Alliance-Algorithm/rmcs_auto_aim_v2.git
+[submodule "rmcs_ws/src/odin_ros_driver"]
+	path = rmcs_ws/src/odin_ros_driver
+	url = https://github.com/noskillzheng/odin_ros_driver.git
+	branch = fix-0.11
