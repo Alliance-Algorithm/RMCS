@@ -39,6 +39,10 @@ public:
         , armboard_(*this, *engineer_command_, get_parameter("board_serial_arm_board").as_string())
         , littleboard_(
               *this, *engineer_command_, get_parameter("board_serial_little_board").as_string()) {
+        gimbal_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
+            "/gimbal/calibrate", rclcpp::QoS{0}, [this](std_msgs::msg::Int32::UniquePtr&& msg) {
+                gimbal_calibrate_subscription_callback(std::move(msg));
+            });
         remote_control_ = std::make_unique<device::RemoteControl>(*this, littleboard_.dr16_);
     }
 
@@ -54,6 +58,19 @@ public:
     }
 
 private:
+    void gimbal_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
+        RCLCPP_INFO(
+            get_logger(), ".joint_1=%f,.joint_2=%f,.joint_3=%f,.joint_4=%f,.joint_5=%f,.joint_6=%f",
+            armboard_.joint[0].get_angle(), littleboard_.joint2_encoder_.get_angle(),
+            armboard_.joint[2].get_angle(), armboard_.joint[3].get_angle(),
+            armboard_.joint[4].get_angle(), armboard_.joint[5].get_angle());
+        RCLCPP_INFO(
+            get_logger(), ".joint_1=%d,.joint_2=%d,.joint_3=%d,.joint_4=%d,.joint_5=%d,.joint_6=%d",
+            armboard_.joint[0].get_raw_angle(), littleboard_.joint2_encoder_.get_raw_angle(),
+            armboard_.joint[2].get_raw_angle(), armboard_.joint[3].get_raw_angle(),
+            armboard_.joint[4].get_raw_angle(), armboard_.joint[5].get_raw_angle());
+    }
+
     rclcpp::Logger logger_;
     class EngineerCommand : public rmcs_executor::Component {
     public:
@@ -89,8 +106,11 @@ private:
                 LKMotorConfig{LKMotorType::MG4010E_i10V3}.reverse().set_encoder_zero_point(
                     static_cast<int>(engineer.get_parameter("image_pitch_zero_point").as_int())));
             gripper.configure(
-                LKMotorConfig{LKMotorType::MG4005_i10V2}.set_encoder_zero_point(
-                    static_cast<uint16_t>(engineer.get_parameter("gripper_zero_point").as_int())));
+                LKMotorConfig{LKMotorType::MG4005_i10V2}
+                    .enable_multi_turn_angle()
+                    .set_encoder_zero_point(
+                        static_cast<uint16_t>(
+                            engineer.get_parameter("gripper_zero_point").as_int())));
             joint[5].configure(
                 LKMotorConfig{LKMotorType::MHF6015}.reverse().set_encoder_zero_point(
                     static_cast<uint16_t>(engineer.get_parameter("joint6_zero_point").as_int())));
@@ -159,16 +179,21 @@ private:
             using namespace device;
             update_arm_motors();
             update_imu();
-            if (joint[0].get_raw_angle() != 0) {
-                // RCLCPP_INFO(this->get_logger(), "joint1:%f", joint[0].get_angle());
-                // RCLCPP_INFO(this->get_logger(), "joint3:%f", joint[2].get_angle());
-                // RCLCPP_INFO(this->get_logger(), "joint4:%f", joint[3].get_angle());
-                // RCLCPP_INFO(this->get_logger(), "joint5:%f", joint[4].get_angle());
-                // RCLCPP_INFO(this->get_logger(), "joint6:%f", joint[5].get_angle());
-                // RCLCPP_INFO(this->get_logger(), "gripper:%f", gripper.get_angle());
-                // RCLCPP_INFO(this->get_logger(), "image:%d", image_pitch.get_raw_angle());
-                // RCLCPP_INFO(this->get_logger(), "gripper_torque:%f", gripper.get_torque());
-            }
+            // if (joint[0].get_raw_angle() != 0) {
+            // RCLCPP_INFO(
+            //     this->get_logger(),
+            //     ".joint_1=%f,.joint_3=%f,.joint_4 = % f,.joint_5 = % f, .joint_6 = % f ",
+            //     joint[0].get_angle(), joint[2].get_angle(), joint[3].get_angle(),
+            //     joint[4].get_angle(), joint[5].get_angle());
+            // RCLCPP_INFO(this->get_logger(), ".joint1=%d,", joint[0].get_raw_angle());
+            // RCLCPP_INFO(this->get_logger(), ".joint3=%d,", joint[2].get_angle());
+            // RCLCPP_INFO(this->get_logger(), ".joint4=%d,", joint[3].get_angle());
+            // RCLCPP_INFO(this->get_logger(), ".joint5=%d,", joint[4].get_angle());
+            // RCLCPP_INFO(this->get_logger(), ".joint6=%d,", joint[5].get_angle());
+            // RCLCPP_INFO(this->get_logger(), "gripper:%d", gripper.get_angle());
+            // RCLCPP_INFO(this->get_logger(), "image:%d", image_pitch.get_raw_angle());
+            // RCLCPP_INFO(this->get_logger(), "gripper_torque:%f", gripper.get_torque());
+            // }
         }
         void command() {
             if (*gripper_calibration_done_signal_ && !last_gripper_calibration_done_signal)
@@ -520,7 +545,7 @@ private:
                     .enable_multi_turn_angle()
                     .set_reduction_ratio(19.));
             big_yaw.configure(
-                device::LKMotorConfig{device::LKMotorType::MG8016E_i6V2}
+                device::LKMotorConfig{device::LKMotorType::MG8010E_i36}
                     .reverse()
                     .set_encoder_zero_point(
                         static_cast<int>(engineer.get_parameter("big_yaw_zero_point").as_int())));
@@ -620,7 +645,8 @@ private:
             joint2_encoder_.update();
             power_meter.update();
             dr16_.update_status();
-            // RCLCPP_INFO(this->get_logger(), "joint2:%f", joint2_encoder_.get_angle());
+            // RCLCPP_INFO(this->get_logger(), ".joint_2=%f,", joint2_encoder_.get_angle());
+            // RCLCPP_INFO(this->get_logger(), "big_yaw=%d,", big_yaw.get_raw_angle());
         }
         void command() {
 
@@ -746,7 +772,6 @@ private:
                 Lift_motors[1].store_status(data.can_data);
             } else if (data.can_id == 0x205) {
                 joint2_encoder_.store_status(data.can_data);
-                // RCLCPP_INFO(this->get_logger(), "joint2:%d", joint2_encoder_.get_raw_angle());
             }
         }
         void can3_receive_callback(const librmcs::data::CanDataView& data) override {
@@ -780,6 +805,8 @@ private:
         InputInterface<bool> is_arm_enable;
 
     } littleboard_;
+
+    rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr gimbal_calibrate_subscription_;
 };
 
 } // namespace rmcs_core::hardware

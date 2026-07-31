@@ -13,7 +13,7 @@
 #include <unordered_set>
 namespace rmcs_core::controller::arm {
 
-class ArmSolver final
+class ClimberArmSolver final
     : public rmcs_executor::Component
     , public rclcpp::Node {
 
@@ -21,13 +21,13 @@ class ArmSolver final
     using TorqueVec                       = Eigen::Array<double, num_axis, 1>;
 
 public:
-    explicit ArmSolver()
+    explicit ClimberArmSolver()
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , joint_angle_pid_controller{
               pid::PidCalculator(1300.0, 0.0, 50.0), // joint_1
-              pid::PidCalculator(80.0, 0.0, 5.0), // joint_2
+              pid::PidCalculator(300.0, 0.0, 50.0), // joint_2
               pid::PidCalculator(500.0, 0.0, 10.0), // joint_3
               pid::PidCalculator(250.0, 0.0, 1.0), // joint_4
               pid::PidCalculator(600.0, 0.0, 10.0), // joint_5
@@ -35,7 +35,7 @@ public:
           }
         , joint_vel_pid_controller{
               pid::PidCalculator(0.6, 0.0, 0.01), // joint_1
-              pid::PidCalculator(1.8, 0.0, 0.03), // joint_2
+              pid::PidCalculator(1.8, 0.0, 0.18), // joint_2
               pid::PidCalculator(0.7, 0.0, 0.004), // joint_3
               pid::PidCalculator(0.65, 0.0, 0.002), // joint_4
               pid::PidCalculator(0.121, 0.0, 0.004), // joint_5
@@ -94,7 +94,7 @@ public:
     }
 
 private:
-    using controller_type = TorqueVec (ArmSolver::*)();
+    using controller_type = TorqueVec (ClimberArmSolver::*)();
 
     TorqueVec calculate_pid() {
         auto clamp_target_theta = [this](std::size_t idx, double target_theta) {
@@ -203,10 +203,10 @@ private:
     }
 
     static constexpr std::array<std::tuple<std::string_view, controller_type>, 4> term_table_{
-        {{"gravity", &ArmSolver::calculate_gravity_compensation},
-         {"pid", &ArmSolver::calculate_pid},
-         {"friction", &ArmSolver::calculate_friction_compensation},
-         {"zero_torque", &ArmSolver::calculate_zero_torque}}
+        {{"gravity", &ClimberArmSolver::calculate_gravity_compensation},
+         {"pid", &ClimberArmSolver::calculate_pid},
+         {"friction", &ClimberArmSolver::calculate_friction_compensation},
+         {"zero_torque", &ClimberArmSolver::calculate_zero_torque}}
     };
 
     std::vector<controller_type> controller_list;
@@ -267,4 +267,4 @@ private:
 } // namespace rmcs_core::controller::arm
 
 #include <pluginlib/class_list_macros.hpp>
-PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::arm::ArmSolver, rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::arm::ClimberArmSolver, rmcs_executor::Component)

@@ -16,6 +16,8 @@ enum class ArmMode : uint8_t {
     Auto_Extract_RF,
     Auto_Extract_RB,
     Auto_Five_Mine,
+    Auto_Three_Mine_First,
+    Auto_Three_Mine_Second,
     Yaw_Close,
     Calibration,
     Auto_Up_One_Stairs,

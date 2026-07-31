@@ -54,6 +54,7 @@ public:
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , action_dictionary_(make_action_parameter_map(get_parameter("action_profile").as_string()))
+        , chassis_type_(get_parameter("action_profile").as_string())
         , arm_action_machine_()
         , custom_joint_filter_(0.2) {
         register_input("/remote/joystick/right", joystick_right_);
@@ -175,7 +176,7 @@ private:
             if (knob != last_rotary_knob_switch_) {
                 if (knob == Switch::UP) {
                     image_pitch_theta1_offset_ = 1.2;
-                    set_arm_mode(rmcs_msgs::ArmMode::Auto_Up_One_Stairs);
+                    set_arm_mode(rmcs_msgs::ArmMode::Auto_Up_Two_Stairs);
                 } else if (knob == Switch::DOWN) {
                     image_pitch_theta1_offset_ = 0.70;
                     set_arm_mode(rmcs_msgs::ArmMode::Auto_Down_Stairs);
@@ -249,7 +250,13 @@ private:
             }
             if (keyboard.c && !last_keyboard_.c) {
                 image_pitch_theta1_offset_ = 0.72;
-                set_arm_mode(rmcs_msgs::ArmMode::Auto_Five_Mine);
+                if (chassis_type_ == "lunar_rover") {
+                    set_arm_mode(rmcs_msgs::ArmMode::Auto_Five_Mine);
+                } else if (chassis_type_ == "climber" && !Auto_Three_Mine_First_finish) {
+                    set_arm_mode(rmcs_msgs::ArmMode::Auto_Three_Mine_First);
+                } else if (chassis_type_ == "climber" && Auto_Three_Mine_First_finish) {
+                    set_arm_mode(rmcs_msgs::ArmMode::Auto_Three_Mine_Second);
+                }
             }
             if (keyboard.z && !last_keyboard_.z) {
                 if (!keyboard.shift && !keyboard.ctrl) {
@@ -308,6 +315,14 @@ private:
                 arm_action_machine_.process(
                     action_dictionary_.helper_find_chunk("roll_out_in_five_mines"));
                 break;
+            case ArmMode::Auto_Three_Mine_First:
+                arm_action_machine_.process(
+                    action_dictionary_.helper_find_chunk("roll_out_in_three_mines_first"));
+                break;
+            case ArmMode::Auto_Three_Mine_Second:
+                arm_action_machine_.process(
+                    action_dictionary_.helper_find_chunk("roll_out_in_three_mines_second"));
+                break;
             case ArmMode::Auto_Walk:
                 arm_action_machine_.process(action_dictionary_.helper_find_chunk("auto_walk"));
                 break;
@@ -320,8 +335,9 @@ private:
                     {"delay", "delay", "up_two_stairs_initial"}));
                 break;
             case ArmMode::Calibration:
-                arm_action_machine_.process(
-                    action_dictionary_.helper_find_chunk("crash_wall_calibration"));
+                // arm_action_machine_.process(
+                //     action_dictionary_.helper_find_chunk("crash_wall_calibration"));
+                arm_action_machine_.process(action_dictionary_.helper_find_chunk("test"));
                 break;
             case ArmMode::Yaw_Close:
                 arm_action_machine_.process(action_dictionary_.helper_find_chunk("gripper_open"));
@@ -348,6 +364,30 @@ private:
             execute_plan_request_and_trajectory_step();
             break;
         }
+        case ArmMode::Auto_Three_Mine_First:
+            if ((*keyboard_).ctrl && !last_keyboard_.ctrl) {
+                arm_action_machine_.process(action_dictionary_.helper_build_chunk(
+                    {"transition_to_storage_mine_1", "storage_lf", "transition_to_extract_mine_2",
+                     "storage_rf", "transition_to_extract_mine_3"}));
+                // arm_action_machine_.process(action_dictionary_.helper_build_chunk(
+                //     {"transition_to_storage_mine_1", "storage_lf",
+                //     "transition_to_extract_mine_2",
+                //      "storage_rf", "transition_to_extract_mine_3"}));
+            }
+            execute_plan_request_and_trajectory_step();
+            break;
+        case ArmMode::Auto_Three_Mine_Second:
+            if ((*keyboard_).ctrl && !last_keyboard_.ctrl) {
+                arm_action_machine_.process(action_dictionary_.helper_build_chunk(
+                    {"transition_to_storage_mine_4", "storage_lf", "transition_to_extract_mine_5",
+                     "storage_rf", "transition_to_extract_mine_6"}));
+                // arm_action_machine_.process(action_dictionary_.helper_build_chunk(
+                //     {"transition_to_storage_mine_4", "storage_lf",
+                //     "transition_to_extract_mine_5",
+                //      "storage_rf", "transition_to_extract_mine_6"}));
+            }
+            execute_plan_request_and_trajectory_step();
+            break;
         case ArmMode::Auto_Up_One_Stairs:
         case ArmMode::Auto_Up_Two_Stairs: {
             // Lunar rover only: switch arm actions based on stair-stage feedback from the legs.
@@ -567,6 +607,7 @@ private:
         set_gripper_mode(rmcs_msgs::GripperMode::None);
     }
     ActionDictionary action_dictionary_;
+    std::string chassis_type_;
     ActionMachine arm_action_machine_;
 
     rmcs_msgs::Switch last_switch_left_{rmcs_msgs::Switch::UNKNOWN};
@@ -614,6 +655,8 @@ private:
 
     InputInterface<std::string> up_stairs_layer;
     std::string last_up_stairs_layer{"none"};
+
+    bool Auto_Three_Mine_First_finish{false};
 };
 
 } // namespace rmcs_core::controller::arm

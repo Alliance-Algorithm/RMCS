@@ -211,6 +211,7 @@ private:
         };
 
         if (has_second_stair_flag_ && !stair_index_) {
+            stair_index_++;
             enter_state(State::APPROACH);
             return output;
         }

@@ -106,10 +106,10 @@ private:
         using namespace rmcs_msgs;
         if (switch_left == Switch::MIDDLE
             && (switch_right == Switch::MIDDLE || switch_right == Switch::DOWN)) {
-            chassis_mode_ = ChassisMode::Yaw_Free;
+            chassis_mode_ = ChassisMode::Flow;
             set_speed_gear(SpeedGear::High);
         } else if (switch_left == Switch::DOWN && switch_right == Switch::UP) {
-            chassis_mode_ = ChassisMode::Yaw_Free;
+            chassis_mode_ = ChassisMode::Flow;
             if (keyboard.c) {
                 if (!keyboard.shift && !keyboard.ctrl) {
                     set_speed_gear(SpeedGear::High);
@@ -127,6 +127,7 @@ private:
                 case rmcs_msgs::ArmMode::Auto_Extract_RB:
                 case rmcs_msgs::ArmMode::Auto_Storage_LB:
                 case rmcs_msgs::ArmMode::Auto_Storage_RB:
+                case rmcs_msgs::ArmMode::Yaw_Close:
                 case rmcs_msgs::ArmMode::Custome: set_speed_gear(SpeedGear::Low); break;
                 case rmcs_msgs::ArmMode::Auto_Spin:
                 case rmcs_msgs::ArmMode::Auto_Walk: set_speed_gear(SpeedGear::High); break;

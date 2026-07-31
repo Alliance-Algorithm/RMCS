@@ -5,7 +5,7 @@ rmcs_executor:
       - rmcs_core::hardware::ClimberEngineer -> engineer_hardware
       - rmcs_core::controller::arm::ArmConfig -> arm_config
       - rmcs_core::controller::arm::ArmController -> arm_controller
-      - rmcs_core::controller::arm::ArmSolver -> arm_solver
+      - rmcs_core::controller::arm::ClimberArmSolver -> arm_solver
 
       - rmcs_core::referee::ImageTransmissionLink -> image_transmission
 
@@ -35,17 +35,17 @@ engineer_hardware:
     # joint1_zero_point: 55385
     gripper_zero_point: 65122
     image_pitch_zero_point: 63043
-    joint6_zero_point: 31317
-    joint5_zero_point: 12873
-    joint4_zero_point: 40551
+    joint6_zero_point: 21685
+    joint5_zero_point: 9522
+    joint4_zero_point: 40324
     joint3_zero_point: 15145
     joint2_zero_point: 43025
-    joint1_zero_point: 4553
+    joint1_zero_point: 4339
     steering_lf_zero_point: 3051 #7168  
     steering_lb_zero_point: 6480 #2362  
     steering_rb_zero_point: 266  #4391  
     steering_rf_zero_point: 7859 #3782  
-    big_yaw_zero_point: 30912
+    big_yaw_zero_point: 540
 
 image_transmission:
   ros__parameters:
@@ -55,8 +55,8 @@ arm_controller:
   ros__parameters:
     action_profile: climber
     gripper_step: 65.0
-    gripper_open_angle: 270.0
-    gripper_close_angle: 60.0
+    gripper_open_angle: 9.062377 #364.537349
+    gripper_close_angle: -1.508094 #-86.407478
     image_pitch_qmin: -0.7
     image_pitch_qmax: 2.2
 
@@ -76,16 +76,16 @@ gripper_angle_pid_controller:
     measurement: /arm/gripper/motor/angle
     setpoint: /arm/gripper/target_theta
     control: /arm/gripper/control_vel
-    kp: 4.5
+    kp: 50.0
     ki: 0.0
-    kd: 0.3
+    kd: 0.03
 
 gripper_velocity_pid_controller:
   ros__parameters:
     measurement: /arm/gripper/motor/velocity
     setpoint: /arm/gripper/control_vel
     control: /arm/gripper/motor/control_torque
-    kp: 0.1
+    kp: 0.03
     ki: 0.0
     kd: 0.03
 
@@ -120,7 +120,7 @@ big_yaw_velocity_pid_controller:
     measurement: /chassis/big_yaw/velocity
     setpoint: /chassis/big_yaw/control_vel
     control: /chassis/big_yaw/control_torque
-    kp: 1.4 #0.06
+    kp: 1.6 #0.06
     ki: 0.0
     kd: 0.01 # 0.02
 
@@ -165,6 +165,7 @@ value_broadcaster:
       - "/arm/gripper/motor/velocity"
       - "/arm/gripper/motor/torque"
       - "/arm/gripper/target_theta"
+      - "/arm/joint_2/target_theta"
       - "/arm/gripper/motor/control_torque"
       - "/arm/gripper/motor/angle"
       - "/big_yaw_calibrate_zero_point_"
@@ -172,6 +173,7 @@ value_broadcaster:
       - "/chassis/big_yaw/angle"
       - "/chassis/big_yaw/torque"
       - "/arm/joint_2/encoder/angle"
+      - "/arm/joint_2/motor/torque"
       
 
 
