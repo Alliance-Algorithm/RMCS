@@ -96,6 +96,18 @@ public:
             "/chassis/right_back_wheel/control_torque", right_back_wheel_control_torque_);
         register_output(
             "/chassis/right_front_wheel/control_torque", right_front_wheel_control_torque_);
+
+        double translation_integral_limit;
+        if (get_parameter("chassis_translation_integral_limit", translation_integral_limit)) {
+            chassis_translational_velocity_pid_.integral_min.setConstant(-translation_integral_limit);
+            chassis_translational_velocity_pid_.integral_max.setConstant(+translation_integral_limit);
+        }
+
+        double angular_velocity_integral_limit;
+        if (get_parameter("chassis_angular_velocity_integral_limit", angular_velocity_integral_limit)) {
+            chassis_angular_velocity_pid_.integral_min = -angular_velocity_integral_limit;
+            chassis_angular_velocity_pid_.integral_max = +angular_velocity_integral_limit;
+        }
     }
 
     void update() override {
