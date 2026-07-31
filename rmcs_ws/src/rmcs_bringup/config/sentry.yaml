@@ -41,7 +41,7 @@ auto_aim_capturer:
   ros__parameters:
     camera_name: ""
     exposure_us: 3000.0
-    gain: 8.0
+    gain: 10.0
     framerate: 120.0
     invert_image: true
     rls_tau_sec: 10.0
@@ -102,14 +102,14 @@ gimbal_controller:
     upper_limit: -0.65
     lower_limit: 0.36
 
-    top_yaw_angle_kp: 25.0
+    top_yaw_angle_kp: 30.0
     top_yaw_angle_ki: 0.008
     top_yaw_angle_kd: 0.005
     top_yaw_velocity_kp: 2.160
     top_yaw_velocity_ki: 0.00
     top_yaw_velocity_kd: 0.0
 
-    bottom_yaw_angle_kp: 12.0
+    bottom_yaw_angle_kp: 15.0
     bottom_yaw_angle_ki: 0.01
     bottom_yaw_angle_kd: 0.0
     bottom_yaw_velocity_kp: 2.75
@@ -122,6 +122,21 @@ gimbal_controller:
     pitch_velocity_kp: 2.5
     pitch_velocity_ki: 0.0
     pitch_velocity_kd: 0.0
+
+    top_yaw_angle_integral_min: -187.0
+    top_yaw_angle_integral_max: 187.0
+    top_yaw_velocity_integral_min: -2400.0
+    top_yaw_velocity_integral_max: 2400.0
+
+    bottom_yaw_angle_integral_min: -150.0
+    bottom_yaw_angle_integral_max: 150.0
+    bottom_yaw_velocity_integral_min: -2400.0
+    bottom_yaw_velocity_integral_max: 2400.0
+
+    pitch_angle_integral_min: -150.0
+    pitch_angle_integral_max: 150.0
+    pitch_velocity_integral_min: -2400.0
+    pitch_velocity_integral_max: 2400.0
 
 chassis_controller:
   ros__parameters:
@@ -252,10 +267,12 @@ steering_wheel_controller:
     chassis_translation_kp: 20.0
     chassis_translation_ki: 0.00
     chassis_translation_kd: 0.00
+    chassis_translation_integral_limit: 200.0
 
     chassis_angular_velocity_kp: 8.0
     chassis_angular_velocity_ki: 0.005
     chassis_angular_velocity_kd: 1.0
+    chassis_angular_velocity_integral_limit: 200.0
 
     steering_velocity_kp: 0.15
     steering_velocity_ki: 0.0
