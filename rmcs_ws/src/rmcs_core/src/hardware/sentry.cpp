@@ -38,13 +38,15 @@ public:
               get_component_name(),
               rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true)) {
 
+        constexpr auto kNaN = std::numeric_limits<double>::quiet_NaN();
+
         register_input("/predefined/timestamp", timestamp_);
 
         register_output("/tf", tf_);
+        register_output("/chassis/climber/measure_yaw", chassis_measure_yaw_, kNaN);
         register_output("/auto_aim/camera_transform", camera_transform_);
         register_output("/auto_aim/barrel_direction", barrel_direction_);
-        register_output(
-            "/auto_aim/yaw_velocity", yaw_velocity_, std::numeric_limits<double>::quiet_NaN());
+        register_output("/auto_aim/yaw_velocity", yaw_velocity_, kNaN);
 
         // 提供 remote-status 命令服务。
         using Srv = std_srvs::srv::Trigger;
@@ -78,6 +80,10 @@ public:
         *barrel_direction_ = *fast_tf::cast<OdomGimbalImu>(
             PitchLink::DirectionVector{Eigen::Vector3d::UnitX()}, *tf_);
         *yaw_velocity_ = gimbal_board_->yaw_velocity();
+
+        const auto chassis_direction =
+            fast_tf::cast<OdomGimbalImu>(BaseLink::DirectionVector{Eigen::Vector3d::UnitX()}, *tf_);
+        *chassis_measure_yaw_ = std::atan2(chassis_direction->y(), chassis_direction->x());
     }
 
 private:
@@ -628,6 +634,7 @@ private:
     OutputInterface<Eigen::Isometry3d> camera_transform_;
     OutputInterface<Eigen::Vector3d> barrel_direction_;
     OutputInterface<double> yaw_velocity_;
+    OutputInterface<double> chassis_measure_yaw_;
 
     std::unique_ptr<GimbalBoard> gimbal_board_;
     std::unique_ptr<ChassisBoard> chassis_board_;

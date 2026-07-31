@@ -8,6 +8,7 @@ on:
     paths:
       - Dockerfile
       - .github/workflows/update-image.yml
+      - .script/template/
       - .script/build-rmcs-cross
       - rmcs_ws/toolchain.cmake
 

@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-TOPIC="/rmcs_navigation/context/mock"
+BASE="/tmp/rmcs-navigation/context"
 
 usage() {
     cat <<'EOF'
@@ -73,12 +73,17 @@ else
     fi
 fi
 
-payload="${key}: ${value}"
+fifo="${BASE}/${key}"
+if [[ ! -p "${fifo}" ]]; then
+    echo "Context FIFO not found: ${fifo}" >&2
+    echo "Start rmcs-navigation first so /tmp/rmcs-navigation/context/ is created." >&2
+    exit 1
+fi
+
 echo "[local-context] key: ${key}"
 echo "[local-context] value: ${value}"
-echo "[local-context] topic: ${TOPIC}"
-echo "[local-context] payload(to publish): ${payload}"
+echo "[local-context] fifo: ${fifo}"
 
-ros2 topic pub -1 "$TOPIC" std_msgs/msg/String "{data: '${payload}'}"
+printf '%s' "${value}" >"${fifo}"
 
-echo "Published ${key}=${value} to local topic ${TOPIC}"
+echo "Wrote ${key}=${value} to ${fifo}"

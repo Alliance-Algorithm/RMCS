@@ -20,6 +20,7 @@
 #include "mouse.hpp"            // IWYU pragma: export
 #include "robot_color.hpp"      // IWYU pragma: export
 #include "robot_id.hpp"         // IWYU pragma: export
+#include "sentry_event.hpp"    // IWYU pragma: export
 #include "serial_interface.hpp" // IWYU pragma: export
 #include "shoot_mode.hpp"       // IWYU pragma: export
 #include "shoot_status.hpp"     // IWYU pragma: export
@@ -49,6 +50,7 @@ constexpr auto to_string(ChassisMode mode) noexcept -> const char* {
     case ChassisMode::SPIN_SLOW: return "SPIN_SLOW";
     case ChassisMode::ALIGNMENT: return "ALIGNMENT";
     case ChassisMode::ALIGNMENT_POWERED: return "ALIGNMENT_POWERED";
+    case ChassisMode::CLIMB: return "CLIMB";
     }
     return "INVALID";
 }
