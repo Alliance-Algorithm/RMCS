@@ -67,7 +67,7 @@ hero_hardware:
 
 auto_aim_capturer:
   ros__parameters:
-    camera_name: ""
+    camera_name: "auto-aim"
     exposure_us: 2000.0
     gain: 8.0
     framerate: 80.0
@@ -283,18 +283,18 @@ friction_wheel_controller:
       - /gimbal/second_back_friction
       - /gimbal/third_back_friction
     friction_velocities_profile_0:
-      # - 370.0
-      # - 370.0
-      # - 370.0
-      # - 308.0
-      # - 308.0
-      # - 308.0
-      - 517.0
-      - 517.0
-      - 517.0
-      - 430.0
-      - 430.0
-      - 430.0
+      - 370.0
+      - 370.0
+      - 370.0
+      - 308.0
+      - 308.0
+      - 308.0
+      # - 517.0
+      # - 517.0
+      # - 517.0
+      # - 430.0
+      # - 430.0
+      # - 430.0
     friction_velocities_profile_1:
       - 527.0
       - 527.0

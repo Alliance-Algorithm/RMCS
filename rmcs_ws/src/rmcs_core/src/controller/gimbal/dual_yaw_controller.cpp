@@ -305,12 +305,12 @@ private:
     static constexpr double kEncoderBottomYawLockVelocityThreshold = 0.15;
     static constexpr double kEncoderBottomYawRawAngleErrorSign = -1.0;
 
-    static constexpr double kYawBrakeMaxControlTorque = 0.01;
-    static constexpr double kYawBrakeEngageControlVelocity = -300.0;
+    static constexpr double kYawBrakeMaxControlTorque = 0.3;
+    static constexpr double kYawBrakeEngageControlVelocity = -260.0;
     static constexpr double kYawBrakeEngageVelocityThreshold = 0.1;
     static constexpr int kYawBrakeEngageConfirmCount = 50;
 
-    static constexpr double kYawBrakeReleaseControlVelocity = 300.0;
+    static constexpr double kYawBrakeReleaseControlVelocity = 260.0;
     static constexpr double kYawBrakeReleaseMotionVelocityThreshold = 0.2;
     static constexpr double kYawBrakeReleaseStopVelocityThreshold = 0.08;
     static constexpr int kYawBrakeReleaseStopConfirmCount = 20;

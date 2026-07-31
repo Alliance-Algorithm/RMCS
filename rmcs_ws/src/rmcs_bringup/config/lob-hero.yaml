@@ -314,6 +314,13 @@ dual_yaw_controller:
     bottom_yaw_velocity_kd: 0.0
     bottom_yaw_velocity_integral_min: -2500.0
     bottom_yaw_velocity_integral_max: 2500.0
+    yaw_brake_velocity_kp: 0.0005
+    yaw_brake_velocity_ki: 0.0
+    yaw_brake_velocity_kd: 0.0
+    yaw_brake_velocity_output_min: -10.0
+    yaw_brake_velocity_output_max: 10.0
+    yaw_brake_velocity_integral_min: -100.0
+    yaw_brake_velocity_integral_max: 100.0
 
 pitch_angle_pid_controller:
   ros__parameters:
@@ -380,12 +387,12 @@ friction_wheel_controller:
       # - 308.0
       # - 308.0
       # - 308.0
-      - 527.0
-      - 527.0
-      - 527.0
-      - 435.0
-      - 435.0
-      - 435.0
+      - 517.0
+      - 517.0
+      - 517.0
+      - 430.0
+      - 430.0
+      - 430.0
     friction_velocities_profile_1:
       - 527.0
       - 527.0
