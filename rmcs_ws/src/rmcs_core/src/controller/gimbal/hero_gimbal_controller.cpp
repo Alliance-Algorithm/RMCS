@@ -38,7 +38,7 @@ public:
         register_input("/auto_aim/control_direction", auto_aim_control_direction_, false);
         register_input("/tf", tf_);
 
-        register_output("/gimbal/mode", gimbal_mode_, rmcs_msgs::GimbalMode::IMU);
+        register_input("/gimbal/mode", gimbal_mode_input_);
 
         register_output("/gimbal/yaw/control_angle_error", yaw_angle_error_, nan_);
         register_output("/gimbal/pitch/control_angle_error", pitch_angle_error_, nan_);
@@ -49,70 +49,50 @@ public:
     void update() override {
         const auto& switch_left = *switch_left_;
         const auto& switch_right = *switch_right_;
+        const auto gimbal_mode = *gimbal_mode_input_;
 
-        // RCLCPP_INFO(get_logger(), "pitch %f", *gimbal_pitch_angle_);
-        do {
-            using namespace rmcs_msgs;
-            if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
-                || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
-                reset_all_control();
-                break;
-            }
+        using namespace rmcs_msgs;
+        if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
+            || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
+            imu_gimbal_solver_.update(TwoAxisGimbalSolver::SetDisabled{});
+            encoder_gimbal_solver_.update(PreciseTwoAxisGimbalSolver::SetDisabled{});
+            *yaw_angle_error_ = nan_;
+            *pitch_angle_error_ = nan_;
+            *yaw_control_angle_shift_ = nan_;
+            *pitch_control_angle_ = nan_;
+            last_gimbal_mode_ = gimbal_mode;
+            last_keyboard_ = *keyboard_;
+            return;
+        }
 
-            if (!last_keyboard_.e && keyboard_->e) {
-                if (gimbal_mode_keyboard_ == GimbalMode::IMU) {
-                    encoder_init_pitch_ = keyboard_->ctrl ? kCtrlEInitPitch : kEInitPitch;
-                    gimbal_mode_keyboard_ = GimbalMode::ENCODER;
-                } else {
-                    gimbal_mode_keyboard_ = GimbalMode::IMU;
-                }
-            }
+        bool switch_encoder_to_imu_by_c = false;
+        if (!last_keyboard_.c && keyboard_->c && last_gimbal_mode_ == GimbalMode::ENCODER
+            && gimbal_mode == GimbalMode::IMU) {
+            switch_encoder_to_imu_by_c = true;
+        }
 
-            bool switch_encoder_to_imu_by_c = false;
+        if (gimbal_mode == GimbalMode::IMU) {
+            auto angle_error = switch_encoder_to_imu_by_c ? enter_imu_hold_current_pose()
+                                                          : update_imu_control();
+            *yaw_angle_error_ = angle_error.yaw_angle_error;
+            *pitch_angle_error_ = angle_error.pitch_angle_error;
 
-            if (!last_keyboard_.c && keyboard_->c && gimbal_mode_keyboard_ == GimbalMode::ENCODER) {
-                gimbal_mode_keyboard_ = GimbalMode::IMU;
-                switch_encoder_to_imu_by_c = true;
-            }
+            encoder_gimbal_solver_.update(PreciseTwoAxisGimbalSolver::SetDisabled{});
+            *yaw_control_angle_shift_ = nan_;
+            *pitch_control_angle_ = nan_;
 
-            *gimbal_mode_ = gimbal_mode_keyboard_;
-            *gimbal_mode_ = switch_right == Switch::UP ? GimbalMode::ENCODER : GimbalMode::IMU;
+        } else {
+            imu_gimbal_solver_.update(TwoAxisGimbalSolver::SetDisabled{});
+            *yaw_angle_error_ = nan_;
+            *pitch_angle_error_ = nan_;
 
-            if (*gimbal_mode_ == GimbalMode::IMU) {
-                auto angle_error = switch_encoder_to_imu_by_c ? enter_imu_hold_current_pose()
-                                                              : update_imu_control();
-                *yaw_angle_error_ = angle_error.yaw_angle_error;
-                *pitch_angle_error_ = angle_error.pitch_angle_error;
+            auto control_angle = update_encoder_control();
+            *yaw_control_angle_shift_ = control_angle.yaw_shift;
+            *pitch_control_angle_ = control_angle.pitch_angle;
+        }
 
-                encoder_gimbal_solver_.update(PreciseTwoAxisGimbalSolver::SetDisabled{});
-                *yaw_control_angle_shift_ = nan_;
-                *pitch_control_angle_ = nan_;
-
-            } else {
-                imu_gimbal_solver_.update(TwoAxisGimbalSolver::SetDisabled{});
-                *yaw_angle_error_ = nan_;
-                *pitch_angle_error_ = nan_;
-
-                auto control_angle = update_encoder_control();
-                *yaw_control_angle_shift_ = control_angle.yaw_shift;
-                *pitch_control_angle_ = control_angle.pitch_angle;
-            }
-        } while (false);
-
+        last_gimbal_mode_ = gimbal_mode;
         last_keyboard_ = *keyboard_;
-    }
-
-    void reset_all_control() {
-        imu_gimbal_solver_.update(TwoAxisGimbalSolver::SetDisabled{});
-        encoder_gimbal_solver_.update(PreciseTwoAxisGimbalSolver::SetDisabled{});
-
-        gimbal_mode_keyboard_ = rmcs_msgs::GimbalMode::IMU;
-        *gimbal_mode_ = rmcs_msgs::GimbalMode::IMU;
-
-        *yaw_angle_error_ = nan_;
-        *pitch_angle_error_ = nan_;
-        *yaw_control_angle_shift_ = nan_;
-        *pitch_control_angle_ = nan_;
     }
 
     TwoAxisGimbalSolver::AngleError update_imu_control() {
@@ -177,7 +157,6 @@ private:
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
 
     static constexpr double kEInitPitch = -0.346584;     // Initial angle for standalone E.
-    static constexpr double kCtrlEInitPitch = -0.471795; // Initial angle for Ctrl+E.
 
     double encoder_init_pitch_ = kEInitPitch;
     InputInterface<Eigen::Vector2d> joystick_left_;
@@ -193,8 +172,8 @@ private:
     InputInterface<Eigen::Vector3d> auto_aim_control_direction_;
     InputInterface<Tf> tf_;
 
-    rmcs_msgs::GimbalMode gimbal_mode_keyboard_ = rmcs_msgs::GimbalMode::IMU;
-    OutputInterface<rmcs_msgs::GimbalMode> gimbal_mode_;
+    InputInterface<rmcs_msgs::GimbalMode> gimbal_mode_input_;
+    rmcs_msgs::GimbalMode last_gimbal_mode_ = rmcs_msgs::GimbalMode::IMU;
 
     OutputInterface<double> yaw_angle_error_, pitch_angle_error_;
     OutputInterface<double> yaw_control_angle_shift_, pitch_control_angle_;
