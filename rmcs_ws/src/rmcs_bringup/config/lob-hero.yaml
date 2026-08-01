@@ -395,12 +395,12 @@ friction_wheel_controller:
       # - 430.0
       # - 430.0
     friction_velocities_profile_1:
-      - 527.0
-      - 527.0
-      - 527.0
-      - 435.0
-      - 435.0
-      - 435.0
+      - 517.0
+      - 517.0
+      - 517.0
+      - 430.0
+      - 430.0
+      - 430.0
     friction_soft_start_stop_time: 1.0
 
 heat_controller:

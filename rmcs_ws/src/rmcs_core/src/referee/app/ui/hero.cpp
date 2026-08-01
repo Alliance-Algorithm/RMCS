@@ -38,7 +38,7 @@ public:
               wheel_indicator_radius, wheel_indicator_radius)
         , pitch_angle_number_(
               Shape::Color::YELLOW, 20, 5, x_center + 270, y_center - 35, 0.0, false)
-        , bottom_yaw_angle_number_(
+        , top_yaw_angle_number_(
               Shape::Color::YELLOW, 20, 5, x_center + 270, y_center - 65, 0.0, false)
         , time_reminder_(Shape::Color::PINK, 50, 5, x_center + 150, y_center + 65, 0, false)
         , bullet_allowance_number_(
@@ -82,6 +82,7 @@ public:
         register_input("/gimbal/pitch/raw_angle", gimbal_pitch_raw_angle_);
         register_input("/gimbal/bottom_yaw/angle", bottom_yaw_angle_);
         register_input("/gimbal/bottom_yaw/raw_angle", bottom_yaw_raw_angle_);
+        register_input("/gimbal/top_yaw/raw_angle", top_yaw_raw_angle_);
 
         register_input("/gimbal/shooter/preloaded_ready", shooter_preloaded_ready_, false);
 
@@ -112,7 +113,7 @@ private:
         chassis_left_wheel_indicator_.set_visible(value);
         chassis_right_wheel_indicator_.set_visible(value);
         pitch_angle_number_.set_visible(value);
-        bottom_yaw_angle_number_.set_visible(value);
+        top_yaw_angle_number_.set_visible(value);
         bullet_allowance_number_.set_visible(value);
         friction_profile_number_.set_visible(value);
         const bool show_friction_profile_box =
@@ -127,7 +128,7 @@ private:
         update_chassis_direction_indicator();
         pitch_angle_number_.set_value(static_cast<double>(*gimbal_pitch_raw_angle_));
         update_pitch_raw_angle_color();
-        bottom_yaw_angle_number_.set_value(static_cast<double>(*bottom_yaw_raw_angle_));
+        top_yaw_angle_number_.set_value(static_cast<double>(*top_yaw_raw_angle_));
         // update_bottom_yaw_tracking_lines();
         const int32_t bullet_allowance =
             static_cast<int32_t>(std::max<int64_t>(0, *robot_bullet_allowance_));
@@ -394,6 +395,7 @@ private:
     InputInterface<double> gimbal_pitch_angle_;
     InputInterface<int64_t> gimbal_pitch_raw_angle_;
     InputInterface<int64_t> bottom_yaw_raw_angle_;
+    InputInterface<int64_t> top_yaw_raw_angle_;
     InputInterface<double> bottom_yaw_angle_;
 
     InputInterface<bool> shooter_preloaded_ready_;
@@ -406,7 +408,7 @@ private:
     Arc chassis_control_direction_indicator_;
 
     Float pitch_angle_number_;
-    Float bottom_yaw_angle_number_;
+    Float top_yaw_angle_number_;
 
     Text state_word_;
     Integer time_reminder_;
