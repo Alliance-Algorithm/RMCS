@@ -1,6 +1,7 @@
 #include <cmath>
 #include <limits>
 
+#include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
@@ -75,8 +76,7 @@ public:
             }
 
             *gimbal_mode_ = gimbal_mode_keyboard_;
-            // if (switch_left == Switch::MIDDLE && switch_right == Switch::UP)
-            //     *gimbal_mode_ = GimbalMode::ENCODER;
+            *gimbal_mode_ = switch_right == Switch::UP ? GimbalMode::ENCODER : GimbalMode::IMU;
 
             if (*gimbal_mode_ == GimbalMode::IMU) {
                 auto angle_error = switch_encoder_to_imu_by_c ? enter_imu_hold_current_pose()

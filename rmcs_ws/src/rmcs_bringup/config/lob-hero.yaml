@@ -11,6 +11,7 @@ rmcs_executor:
       - rmcs_core::referee::Command -> referee_command
 
       - rmcs_core::controller::gimbal::HeroGimbalController -> gimbal_controller
+      - rmcs_core::controller::gimbal::HeroDualCameraController -> hero_dual_camera_controller
       - rmcs_core::controller::gimbal::DualYawController -> dual_yaw_controller
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> pitch_velocity_pid_controller
@@ -53,13 +54,13 @@ rmcs_executor:
       # - rmcs_hero_lob::VideoRecorder -> video_recorder
       # - rmcs_hero_lob::ShootSignal -> signal
 
-      # - rmcs_hero_lob::CameraCapture -> camera_capture
-      # - rmcs_hero_lob::LobVisionCore -> lob_vision_core
+      - rmcs_hero_lob::CameraCapture -> camera_capture
+      - rmcs_hero_lob::LobVisionCore -> lob_vision_core
+
+      - rmcs_hero_lob::ImagePacketizer -> image_packetizer
+      - rmcs_hero_lob::ImagePacketizer -> trajectory_packetizer
 
       # - rmcs_hero_lob::ImageTestSource -> lob_source
-
-      # - rmcs_hero_lob::ImagePacketizer -> image_packetizer
-      # - rmcs_hero_lob::ImagePacketizer -> trajectory_packetizer
 
       # - rmcs_hero_lob::ImageBroadcast -> camera_image_publisher
       # - rmcs_hero_lob::ImageBroadcast -> background_image_publisher
@@ -194,6 +195,7 @@ auto_aim_component:
       require_stable_command: false
       yaw_tolerance: 0.07
       pitch_tolerance: 0.04
+      window_redundancy: 0.8
 
 auto_aim_ui:
   ros__parameters:
