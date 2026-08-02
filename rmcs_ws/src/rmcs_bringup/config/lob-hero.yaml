@@ -269,7 +269,7 @@ climber_controller:
     auto_climb_support_retract_velocity_slow: 20.0
     auto_climb_approach_chassis_velocity: 2.0
     auto_climb_support_deploy_chassis_velocity: 0.4
-    auto_climb_support_retract_chassis_velocity: 0.15
+    auto_climb_support_retract_chassis_velocity: 0.20
     auto_climb_dash_chassis_velocity: 3.0
     first_stair_dash_leveled_pitch_threshold: 0.05
     second_stair_dash_leveled_pitch_threshold: -0.09

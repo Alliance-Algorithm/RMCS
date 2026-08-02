@@ -52,7 +52,7 @@ public:
             }
 
             gimbal_mode_ = gimbal_mode_keyboard_;
-            gimbal_mode_ = switch_right == Switch::UP ? GimbalMode::ENCODER : GimbalMode::IMU;
+            // gimbal_mode_ = switch_right == Switch::UP ? GimbalMode::ENCODER : GimbalMode::IMU;
             //
         } while (false);
 
