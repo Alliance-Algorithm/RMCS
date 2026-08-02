@@ -32,6 +32,7 @@ auto_aim_component:
     dangerous_fallback: "red"
     manual_shoot: false
     enable_rune: true
+    track_ids: [HERO, ENGINEER, INFANTRY_3, INFANTRY_4, SENTRY, OUTPOST]
     camera_translation: [0., 0., 0.]
 
     fire_control:
