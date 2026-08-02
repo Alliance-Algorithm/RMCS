@@ -179,7 +179,7 @@ private:
                     set_arm_mode(rmcs_msgs::ArmMode::Auto_Up_Two_Stairs);
                 } else if (knob == Switch::DOWN) {
                     image_pitch_theta1_offset_ = 0.70;
-                    set_arm_mode(rmcs_msgs::ArmMode::Auto_Down_Stairs);
+                    set_arm_mode(rmcs_msgs::ArmMode::Auto_Up_Two_Stairs);
                 }
             }
             if (keyboard.g && !last_keyboard_.g) {
@@ -215,36 +215,36 @@ private:
             // A: 左前矿仓 (Left Front)
             if (keyboard.a && !last_keyboard_.a) {
                 image_pitch_theta1_offset_ = 0.72;
-                if (keyboard.shift && !keyboard.ctrl) {
+                if (!keyboard.shift && keyboard.ctrl) {
                     set_arm_mode(rmcs_msgs::ArmMode::Auto_Extract_LF);
-                } else if (keyboard.ctrl && !keyboard.shift) {
+                } else if (!keyboard.ctrl && keyboard.shift) {
                     set_arm_mode(rmcs_msgs::ArmMode::Auto_Storage_LF);
                 }
             }
             // S: 左后矿仓 (Left Back)
             if (keyboard.s && !last_keyboard_.s) {
                 image_pitch_theta1_offset_ = 0.72;
-                if (keyboard.shift && !keyboard.ctrl) {
+                if (!keyboard.shift && keyboard.ctrl) {
                     set_arm_mode(rmcs_msgs::ArmMode::Auto_Extract_LB);
-                } else if (keyboard.ctrl && !keyboard.shift) {
+                } else if (!keyboard.ctrl && keyboard.shift) {
                     set_arm_mode(rmcs_msgs::ArmMode::Auto_Storage_LB);
                 }
             }
             // D: 右后矿仓 (Right Back)
             if (keyboard.d && !last_keyboard_.d) {
                 image_pitch_theta1_offset_ = 0.72;
-                if (keyboard.shift && !keyboard.ctrl) {
+                if (!keyboard.shift && keyboard.ctrl) {
                     set_arm_mode(rmcs_msgs::ArmMode::Auto_Extract_RB);
-                } else if (keyboard.ctrl && !keyboard.shift) {
+                } else if (!keyboard.ctrl && keyboard.shift) {
                     set_arm_mode(rmcs_msgs::ArmMode::Auto_Storage_RB);
                 }
             }
             // F: 右前矿仓 (Right Front)
             if (keyboard.f && !last_keyboard_.f) {
                 image_pitch_theta1_offset_ = 0.72;
-                if (keyboard.shift && !keyboard.ctrl) {
+                if (!keyboard.shift && keyboard.ctrl) {
                     set_arm_mode(rmcs_msgs::ArmMode::Auto_Extract_RF);
-                } else if (keyboard.ctrl && !keyboard.shift) {
+                } else if (!keyboard.ctrl && keyboard.shift) {
                     set_arm_mode(rmcs_msgs::ArmMode::Auto_Storage_RF);
                 }
             }
@@ -388,7 +388,7 @@ private:
             // Lunar rover only: switch arm actions based on stair-stage feedback from the legs.
             if (up_stairs_layer.ready() && *up_stairs_layer != last_up_stairs_layer) {
                 last_up_stairs_layer = *up_stairs_layer;
-                if (*up_stairs_layer == "initial_again") {
+                if (*up_stairs_layer == "lift_wait") {
                     arm_action_machine_.process(
                         action_dictionary_.helper_find_chunk("up_two_stairs_initial_again"));
                 } else if (*up_stairs_layer == "lift_again") {

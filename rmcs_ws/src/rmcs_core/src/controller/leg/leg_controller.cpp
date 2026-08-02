@@ -59,7 +59,7 @@ public:
               {*this, "up_one_stairs", {"initial", "press", "press_wait", "lift"}},
               {*this,
                "up_two_stairs",
-               {"initial", "press", "press_wait", "lift", "initial_again", "initial_wait",
+               {"initial", "press", "press_wait", "lift", "lift_wait","initial_again", "initial_wait",
                 "press_again", "lift_again"}}} {
 
         register_input("/remote/joystick/right", joystick_right_);

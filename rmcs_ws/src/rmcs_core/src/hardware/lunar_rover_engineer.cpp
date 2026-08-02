@@ -528,11 +528,11 @@ private:
                 return;
             receive_watchdog_.record_can("can2", data.can_id);
             if (data.can_id == 0x141) {
-                //  RCLCPP_INFO(this->get_logger(), "joint6 %f",joint[5].get_angle());
+                // RCLCPP_INFO(this->get_logger(), "joint6 %d",joint[5].get_raw_angle());
                 joint[5].store_status(data.can_data);
             } else if (data.can_id == 0x145) {
                 joint[4].store_status(data.can_data);
-                // RCLCPP_INFO(this->get_logger(), "joint5 %f",joint[4].get_angle());
+                //  RCLCPP_INFO(this->get_logger(), "joint5 %d",joint[4].get_raw_angle());
             } else if (data.can_id == 0x144) {
                 joint[3].store_status(data.can_data);
                 // RCLCPP_INFO(this->get_logger(), "joint4 %f",joint[3].get_angle());
