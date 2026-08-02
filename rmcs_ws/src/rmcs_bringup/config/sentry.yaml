@@ -34,14 +34,14 @@ rmcs_executor:
 rmcs_navigation:
   ros__parameters:
     command_vel_name: "/cmd_vel"
-    endpoint: "train"
+    endpoint: "rmuc"
     enable_goal_topic_forward: true
 
 auto_aim_capturer:
   ros__parameters:
     camera_name: ""
-    exposure_us: 3000.0
-    gain: 12.0
+    exposure_us: 1500.0
+    gain: 8.0
     framerate: 120.0
     invert_image: true
     rls_tau_sec: 10.0

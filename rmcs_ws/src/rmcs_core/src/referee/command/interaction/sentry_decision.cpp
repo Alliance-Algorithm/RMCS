@@ -222,6 +222,7 @@ private:
                     to_erase.push_back(event);
                 }
             } else if (event == SentryEvent::ACTIVATE_ENERGY_CORE) {
+                // FIXME: 加 5s 超时销毁
                 if (energy_core_status != 0) {
                     to_erase.push_back(event);
                 }
