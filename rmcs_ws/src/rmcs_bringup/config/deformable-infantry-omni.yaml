@@ -89,6 +89,8 @@ auto_aim_component:
       require_stable_command: false
       yaw_tolerance: 0.07
       pitch_tolerance: 0.04
+      rune_idle_duration: 0.4
+      rune_shoot_duration: 0.2
 
 auto_aim_ui:
   ros__parameters:
