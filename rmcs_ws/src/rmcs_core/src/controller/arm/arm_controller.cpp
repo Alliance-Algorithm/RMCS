@@ -249,17 +249,16 @@ private:
                 }
             }
             if (keyboard.c && !last_keyboard_.c) {
-                image_pitch_theta1_offset_ = 0.72;
-                if (chassis_type_ == "lunar_rover") {
-                    set_arm_mode(rmcs_msgs::ArmMode::Auto_Five_Mine);
-                } else if (chassis_type_ == "climber" && !Auto_Three_Mine_First_finish) {
-                    set_arm_mode(rmcs_msgs::ArmMode::Auto_Three_Mine_First);
-                } else if (chassis_type_ == "climber" && Auto_Three_Mine_First_finish) {
+                image_pitch_theta1_offset_ = 0.48;
+                if (!keyboard.shift && !keyboard.ctrl) {
+                    if (chassis_type_ == "lunar_rover") {
+                        set_arm_mode(rmcs_msgs::ArmMode::Auto_Five_Mine);
+                    } else if (chassis_type_ == "climber") {
+                        set_arm_mode(rmcs_msgs::ArmMode::Auto_Three_Mine_First);
+                    }
+                } else if (!keyboard.ctrl && keyboard.shift && chassis_type_ == "climber") {
                     set_arm_mode(rmcs_msgs::ArmMode::Auto_Three_Mine_Second);
                 }
-            }
-            if (keyboard.v && !last_keyboard_.v) {
-                Auto_Three_Mine_First_finish = !Auto_Three_Mine_First_finish;
             }
             if (keyboard.z && !last_keyboard_.z) {
                 if (!keyboard.shift && !keyboard.ctrl) {
@@ -338,9 +337,8 @@ private:
                     {"delay", "delay", "up_two_stairs_initial"}));
                 break;
             case ArmMode::Calibration:
-                // arm_action_machine_.process(
-                //     action_dictionary_.helper_find_chunk("crash_wall_calibration"));
-                arm_action_machine_.process(action_dictionary_.helper_find_chunk("test"));
+                arm_action_machine_.process(
+                    action_dictionary_.helper_find_chunk("crash_wall_calibration"));
                 break;
             case ArmMode::Yaw_Close:
                 arm_action_machine_.process(action_dictionary_.helper_find_chunk("gripper_open"));
@@ -376,7 +374,7 @@ private:
             execute_plan_request_and_trajectory_step();
             break;
         case ArmMode::Auto_Three_Mine_Second:
-            if ((*keyboard_).shift && !last_keyboard_.shift) {
+            if ((*keyboard_).ctrl && !last_keyboard_.ctrl) {
                 arm_action_machine_.process(action_dictionary_.helper_build_chunk(
                     {"transition_to_storage_mine_4", "storage_lf", "transition_to_extract_mine_5",
                      "storage_rf", "transition_to_extract_mine_6"}));

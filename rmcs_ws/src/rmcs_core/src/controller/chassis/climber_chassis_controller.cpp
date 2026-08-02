@@ -136,6 +136,8 @@ private:
                 case rmcs_msgs::ArmMode::Auto_Storage_LB:
                 case rmcs_msgs::ArmMode::Auto_Storage_RB:
                 case rmcs_msgs::ArmMode::Yaw_Close:
+                case rmcs_msgs::ArmMode::Auto_Three_Mine_First:
+                case rmcs_msgs::ArmMode::Auto_Three_Mine_Second:
                 case rmcs_msgs::ArmMode::Custome: set_speed_gear(SpeedGear::Low); break;
                 case rmcs_msgs::ArmMode::Auto_Spin:
                 case rmcs_msgs::ArmMode::Auto_Walk: set_speed_gear(SpeedGear::High); break;
