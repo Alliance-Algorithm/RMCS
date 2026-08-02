@@ -75,7 +75,7 @@ public:
             Eigen::Rotation2D<double> rotation(*chassis_big_yaw_angle_ + *joint1_theta_);
 
             auto move               = rotation * (*joystick_left_);
-            double angular_velocity = angular_velocity_limit_ * joystick_right_->y();
+            double angular_velocity = angular_velocity_limit_ * 0.3 * joystick_right_->y();
 
             if (*arm_mode_ == rmcs_msgs::ArmMode::Auto_Up_One_Stairs
                 || *arm_mode_ == rmcs_msgs::ArmMode::Auto_Up_Two_Stairs
@@ -100,14 +100,22 @@ private:
     enum class SpeedGear : uint8_t { High, Medium, Low, Stairs };
 
     void mode_selection() {
-        auto switch_right = *switch_right_;
-        auto switch_left  = *switch_left_;
-        auto keyboard     = *keyboard_;
+        auto switch_right   = *switch_right_;
+        auto switch_left    = *switch_left_;
+        auto joystick_right = *joystick_right_;
+        auto keyboard       = *keyboard_;
         using namespace rmcs_msgs;
-        if (switch_left == Switch::MIDDLE
-            && (switch_right == Switch::MIDDLE || switch_right == Switch::DOWN)) {
+        if (switch_left == Switch::MIDDLE && (switch_right == Switch::MIDDLE)) {
             chassis_mode_ = ChassisMode::Flow;
             set_speed_gear(SpeedGear::High);
+        } else if (switch_left == Switch::MIDDLE && switch_right == Switch::DOWN) {
+            if (joystick_right.x() > 0.8) {
+                chassis_mode_ = rmcs_msgs::ChassisMode::None;
+            } else if (joystick_right.x() < -0.8) {
+                chassis_mode_ = ChassisMode::Flow;
+                set_speed_gear(SpeedGear::High);
+            }
+
         } else if (switch_left == Switch::DOWN && switch_right == Switch::UP) {
             chassis_mode_ = ChassisMode::Flow;
             if (keyboard.c) {

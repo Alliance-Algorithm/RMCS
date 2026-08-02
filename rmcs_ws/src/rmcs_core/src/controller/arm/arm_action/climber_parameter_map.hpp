@@ -25,7 +25,8 @@ inline auto make_climber_action_parameter_map() {
          .joint_4 = 0.0,
          .joint_5 = 0.63,
          .joint_6 = 0.0},
-         Action::MotionParams{.vel = 0.03, .acc = 0.03})}                                      },
+         Action::MotionParams{
+         .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.001, .tolerance_ori = 0.001})}           },
         {        "crash_wall_calibration",
          {Action::Step::makePose(
          Action::PoseTarget{
@@ -51,15 +52,17 @@ inline auto make_climber_action_parameter_map() {
          Action::MotionParams{
          .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.0007, .tolerance_ori = 0.0007})}         },
         {"roll_out_in_three_mines_second",
-         {Action::Step::makeOpenGripper(), Action::Step::makeJoint(
+         {Action::Step::makeOpenGripper(),
+         Action::Step::makeJoint(
          Action::JointTarget{
          .joint_1 = 0.0,
          .joint_2 = 0.506118,
          .joint_3 = -0.781371,
          .joint_4 = -0.0,
          .joint_5 = 0.406505,
-         .joint_6 = 0.0},
-         Action::MotionParams{.vel = 0.03, .acc = 0.03})}                                      },
+         .joint_6 = 3.100942},
+         Action::MotionParams{
+         .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.001, .tolerance_ori = 0.001})}           },
         {         "up_one_stairs_initial",
          {Action::Step::makeJoint(
          Action::JointTarget{
@@ -69,7 +72,8 @@ inline auto make_climber_action_parameter_map() {
          .joint_4 = 0.0,
          .joint_5 = 0.63,
          .joint_6 = 0.0},
-         Action::MotionParams{.vel = 0.03, .acc = 0.03})}                                      },
+         Action::MotionParams{
+         .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.001, .tolerance_ori = 0.001})}           },
 
         {         "up_two_stairs_initial",
          {Action::Step::makeJoint(
@@ -80,7 +84,8 @@ inline auto make_climber_action_parameter_map() {
          .joint_4 = 0.0,
          .joint_5 = 0.63,
          .joint_6 = 0.0},
-         Action::MotionParams{.vel = 0.03, .acc = 0.03})}                                      },
+         Action::MotionParams{
+         .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.001, .tolerance_ori = 0.001})}           },
 
         {   "up_two_stairs_initial_again",
          {Action::Step::makeJoint(
@@ -91,7 +96,8 @@ inline auto make_climber_action_parameter_map() {
          .joint_4 = 0.0,
          .joint_5 = 0.63,
          .joint_6 = 0.0},
-         Action::MotionParams{.vel = 0.03, .acc = 0.03})}                                      },
+         Action::MotionParams{
+         .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.001, .tolerance_ori = 0.001})}           },
 
         {      "up_two_stairs_lift_again",
          {Action::Step::makeJoint(
@@ -102,7 +108,8 @@ inline auto make_climber_action_parameter_map() {
          .joint_4 = 0.0,
          .joint_5 = 0.63,
          .joint_6 = 0.0},
-         Action::MotionParams{.vel = 0.03, .acc = 0.03})}                                      },
+         Action::MotionParams{
+         .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.001, .tolerance_ori = 0.001})}           },
 
         // ---------- 组合动作 ----------
         {                    "extract_lf",
@@ -116,7 +123,8 @@ inline auto make_climber_action_parameter_map() {
          .joint_4 = 0.0,
          .joint_5 = 0.63,
          .joint_6 = 0.0},
-         Action::MotionParams{.vel = 0.03, .acc = 0.03}),
+         Action::MotionParams{
+         .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.001, .tolerance_ori = 0.001}),
          Action::Step::makeJoint(
          Action::JointTarget{
          .joint_1 = -0.000096,
@@ -125,7 +133,8 @@ inline auto make_climber_action_parameter_map() {
          .joint_4 = -0.006136,
          .joint_5 = 1.347602,
          .joint_6 = -0.044773},
-         Action::MotionParams{.vel = 0.03, .acc = 0.03}),
+         Action::MotionParams{
+         .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.001, .tolerance_ori = 0.001}),
          Action::Step::makePose(
          Action::PoseTarget{
          .x     = -0.186,
@@ -163,7 +172,8 @@ inline auto make_climber_action_parameter_map() {
          .joint_4 = -0.006136,
          .joint_5 = 1.347602,
          .joint_6 = -0.044773},
-         Action::MotionParams{.vel = 0.03, .acc = 0.03}),
+         Action::MotionParams{
+         .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.001, .tolerance_ori = 0.001}),
          Action::Step::makeJoint(
          Action::JointTarget{
          .joint_1 = 0.0,
@@ -172,11 +182,13 @@ inline auto make_climber_action_parameter_map() {
          .joint_4 = 0.0,
          .joint_5 = 0.63,
          .joint_6 = 0.0},
-         Action::MotionParams{.vel = 0.03, .acc = 0.03}),
+         Action::MotionParams{
+         .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.001, .tolerance_ori = 0.001}),
 
          }                                                                                     },
         {                    "extract_lb",
-         {Action::Step::makeJoint(
+         {
+         Action::Step::makeJoint(
          Action::JointTarget{
          .joint_1 = 0.0,
          .joint_2 = 1.23,
@@ -184,9 +196,12 @@ inline auto make_climber_action_parameter_map() {
          .joint_4 = 0.0,
          .joint_5 = 0.63,
          .joint_6 = 0.0},
-         Action::MotionParams{.vel = 0.03, .acc = 0.03})}                                      }, // as same as auto_walk
+         Action::MotionParams{
+         .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.001, .tolerance_ori = 0.001}),
+         }                                                                                     }, // as same as auto_walk
         {                    "extract_rb",
-         {Action::Step::makeJoint(
+         {
+         Action::Step::makeJoint(
          Action::JointTarget{
          .joint_1 = 0.0,
          .joint_2 = 1.23,
@@ -194,7 +209,9 @@ inline auto make_climber_action_parameter_map() {
          .joint_4 = 0.0,
          .joint_5 = 0.63,
          .joint_6 = 0.0},
-         Action::MotionParams{.vel = 0.03, .acc = 0.03})}                                      }, // as same as auto_walk
+         Action::MotionParams{
+         .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.001, .tolerance_ori = 0.001}),
+         }                                                                                     }, // as same as auto_walk
         {                    "extract_rf",
          {
          Action::Step::makeOpenGripper(),
@@ -206,7 +223,8 @@ inline auto make_climber_action_parameter_map() {
          .joint_4 = 0.0,
          .joint_5 = 0.63,
          .joint_6 = 0.0},
-         Action::MotionParams{.vel = 0.03, .acc = 0.03}),
+         Action::MotionParams{
+         .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.001, .tolerance_ori = 0.001}),
          Action::Step::makeJoint(
          Action::JointTarget{
          .joint_1 = -0.000096,
@@ -215,7 +233,8 @@ inline auto make_climber_action_parameter_map() {
          .joint_4 = -0.006136,
          .joint_5 = 1.347602,
          .joint_6 = -0.044773},
-         Action::MotionParams{.vel = 0.03, .acc = 0.03}),
+         Action::MotionParams{
+         .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.001, .tolerance_ori = 0.001}),
          Action::Step::makePose(
          Action::PoseTarget{
          .x     = 0.228,
@@ -283,7 +302,8 @@ inline auto make_climber_action_parameter_map() {
          .joint_4 = -0.006136,
          .joint_5 = 1.347602,
          .joint_6 = -0.044773},
-         Action::MotionParams{.vel = 0.03, .acc = 0.03}),
+         Action::MotionParams{
+         .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.001, .tolerance_ori = 0.001}),
          Action::Step::makeJoint(
          Action::JointTarget{
          .joint_1 = 0.0,
@@ -292,7 +312,8 @@ inline auto make_climber_action_parameter_map() {
          .joint_4 = 0.0,
          .joint_5 = 0.63,
          .joint_6 = 0.0},
-         Action::MotionParams{.vel = 0.03, .acc = 0.03}),
+         Action::MotionParams{
+         .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.001, .tolerance_ori = 0.001}),
          }                                                                                     },
         {                    "storage_lf",
          {
@@ -397,7 +418,8 @@ inline auto make_climber_action_parameter_map() {
          .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.001, .tolerance_ori = 0.001}),
          }                                                                                     },
         {                    "storage_lb",
-         {Action::Step::makeJoint(
+         {
+         Action::Step::makeJoint(
          Action::JointTarget{
          .joint_1 = 0.0,
          .joint_2 = 1.23,
@@ -405,9 +427,12 @@ inline auto make_climber_action_parameter_map() {
          .joint_4 = 0.0,
          .joint_5 = 0.63,
          .joint_6 = 0.0},
-         Action::MotionParams{.vel = 0.03, .acc = 0.03})}                                      }, //  as same as storage_lf
+         Action::MotionParams{
+         .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.001, .tolerance_ori = 0.001}),
+         }                                                                                     }, //  as same as storage_lf
         {                    "storage_rb",
-         {Action::Step::makeJoint(
+         {
+         Action::Step::makeJoint(
          Action::JointTarget{
          .joint_1 = 0.0,
          .joint_2 = 1.23,
@@ -415,7 +440,9 @@ inline auto make_climber_action_parameter_map() {
          .joint_4 = 0.0,
          .joint_5 = 0.63,
          .joint_6 = 0.0},
-         Action::MotionParams{.vel = 0.03, .acc = 0.03})}                                      }, //  as same as storage_rf
+         Action::MotionParams{
+         .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.001, .tolerance_ori = 0.001}),
+         }                                                                                     }, //  as same as storage_rf
         {                    "storage_rf",
          {
          Action::Step::makeJoint(
@@ -495,7 +522,8 @@ inline auto make_climber_action_parameter_map() {
          .joint_4 = -0.006136,
          .joint_5 = 1.347602,
          .joint_6 = -0.044773},
-         Action::MotionParams{.vel = 0.03, .acc = 0.03}),
+         Action::MotionParams{
+         .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.001, .tolerance_ori = 0.001}),
          Action::Step::makeJoint(
          Action::JointTarget{
          .joint_1 = 0.0,
@@ -504,7 +532,8 @@ inline auto make_climber_action_parameter_map() {
          .joint_4 = 0.0,
          .joint_5 = 0.63,
          .joint_6 = 0.0},
-         Action::MotionParams{.vel = 0.03, .acc = 0.03}),
+         Action::MotionParams{
+         .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.001, .tolerance_ori = 0.001}),
          }                                                                                     },
         {  "transition_to_storage_mine_1",
          {
@@ -656,38 +685,41 @@ inline auto make_climber_action_parameter_map() {
          .joint_4 = 0.0,
          .joint_5 = 0.63,
          .joint_6 = 0.0},
-         Action::MotionParams{.vel = 0.03, .acc = 0.03}),
+         Action::MotionParams{
+         .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.001, .tolerance_ori = 0.001}),
          }                                                                                     },
-        {  "transition_to_extract_mine_4",
-         {Action::Step::makeCloseGripper(),
+        {  "transition_to_storage_mine_4",
+         {
+         Action::Step::makeCloseGripper(),
          Action::Step::makeLinear(
          Action::LinearTarget{.dir_x = 1.0, .dir_y = 0.0, .dir_z = 0.0, .distance = 0.080},
          Action::MotionParams{
-         .vel = 0.05, .acc = 0.03, .tolerance_pos = 0.008, .tolerance_ori = 0.005})}           },
+         .vel = 0.05, .acc = 0.03, .tolerance_pos = 0.008, .tolerance_ori = 0.005}),
+         Action::Step::makeJoint(
+         Action::JointTarget{
+         .joint_1 = -0.000288,
+         .joint_2 = 0.308426,
+         .joint_3 = -1.221624,
+         .joint_4 = -0.006328,
+         .joint_5 = 0.942535,
+         .joint_6 = 1.514806},
+         Action::MotionParams{
+         .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.001, .tolerance_ori = 0.001}),
+         }                                                                                     },
         {  "transition_to_extract_mine_5",
-         {Action::Step::makePose(
+         {
+         Action::Step::makePose(
          Action::PoseTarget{
-         .x     = 0.299208,
+         .x     = 0.199208,
          .y     = 0.117225,
          .z     = 0.420141,
          .roll  = -1.469123,
          .pitch = 0.514541,
          .yaw   = 1.775219},
-
          Action::MotionParams{
-         .vel = 0.02, .acc = 0.01, .tolerance_pos = 0.003, .tolerance_ori = 0.02}),
-         Action::Step::makePose(
-         Action::PoseTarget{
-         .x     = 0.271,
-         .y     = 0.117224,
-         .z     = 0.358077,
-         .roll  = -1.570796,
-         .pitch = 0.523599,
-         .yaw   = 1.570796},
-         Action::MotionParams{
-         .vel = 0.02, .acc = 0.02, .tolerance_pos = 0.001, .tolerance_ori = 0.02}),
+         .vel = 0.02, .acc = 0.01, .tolerance_pos = 0.001, .tolerance_ori = 0.001}),
          Action::Step::makeLinear(
-         Action::LinearTarget{.dir_x = 0.0, .dir_y = 0.0, .dir_z = -1.0, .distance = 0.110},
+         Action::LinearTarget{.dir_x = 0.0, .dir_y = 0.0, .dir_z = -1.0, .distance = 0.14},
          Action::MotionParams{
          .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.02}),
          Action::Step::makeCloseGripper(),
@@ -697,48 +729,49 @@ inline auto make_climber_action_parameter_map() {
          .vel = 0.05, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.02}),
          Action::Step::makePose(
          Action::PoseTarget{
-         .x     = 0.159,
-         .y     = 0.249,
-         .z     = 0.461,
-         .roll  = -1.530,
-         .pitch = -0.503,
-         .yaw   = 2.349},
+         .x     = 0.172,
+         .y     = 0.161,
+         .z     = 0.245,
+         .roll  = -1.478,
+         .pitch = 0.256,
+         .yaw   = 2.348},
          Action::MotionParams{
-         .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.02}),
+         .vel = 0.02, .acc = 0.01, .tolerance_pos = 0.001, .tolerance_ori = 0.001}),
+         }                                                                                     },
+        {  "transition_to_extract_mine_6",
+         {
+         Action::Step::makeJoint(
+         Action::JointTarget{
+         .joint_1 = -0.964778,
+         .joint_2 = 0.604676,
+         .joint_3 = -1.376173,
+         .joint_4 = 0.006136,
+         .joint_5 = 0.946658,
+         .joint_6 = -0.044773},
+         Action::MotionParams{
+         .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.001, .tolerance_ori = 0.001}),
+         Action::Step::makeJoint(
+         Action::JointTarget{
+         .joint_1 = -1.058351,
+         .joint_2 = 0.604676,
+         .joint_3 = -0.830746,
+         .joint_4 = -0.101722,
+         .joint_5 = 0.971873,
+         .joint_6 = -1.437723},
+         Action::MotionParams{
+         .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.001, .tolerance_ori = 0.001}),
          Action::Step::makePose(
          Action::PoseTarget{
-         .x     = 0.046,
-         .y     = -0.036,
-         .z     = 0.582,
-         .roll  = 0.517,
-         .pitch = -0.946,
-         .yaw   = -1.023},
-         Action::MotionParams{
-         .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.02})}            },
-        {  "transition_to_extract_mine_6",
-         {Action::Step::makePose(
-         Action::PoseTarget{
-         .x     = 0.299208,
+         .x     = 0.199208,
          .y     = -0.117227,
          .z     = 0.420141,
          .roll  = 1.469118,
          .pitch = 0.514531,
          .yaw   = -1.775218},
-
          Action::MotionParams{
          .vel = 0.02, .acc = 0.01, .tolerance_pos = 0.003, .tolerance_ori = 0.02}),
-         Action::Step::makePose(
-         Action::PoseTarget{
-         .x     = 0.271,
-         .y     = 0.117224,
-         .z     = 0.358077,
-         .roll  = -1.570796,
-         .pitch = 0.523599,
-         .yaw   = 1.570796},
-         Action::MotionParams{
-         .vel = 0.02, .acc = 0.02, .tolerance_pos = 0.001, .tolerance_ori = 0.02}),
          Action::Step::makeLinear(
-         Action::LinearTarget{.dir_x = 0.0, .dir_y = 0.0, .dir_z = -1.0, .distance = 0.110},
+         Action::LinearTarget{.dir_x = 0.0, .dir_y = 0.0, .dir_z = -1.0, .distance = 0.140},
          Action::MotionParams{
          .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.02}),
          Action::Step::makeCloseGripper(),
@@ -746,26 +779,37 @@ inline auto make_climber_action_parameter_map() {
          Action::LinearTarget{.dir_x = 1.0, .dir_y = 0.0, .dir_z = 0.0, .distance = 0.20},
          Action::MotionParams{
          .vel = 0.05, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.02}),
-         Action::Step::makePose(
-         Action::PoseTarget{
-         .x     = 0.159,
-         .y     = 0.249,
-         .z     = 0.461,
-         .roll  = -1.530,
-         .pitch = -0.503,
-         .yaw   = 2.349},
+         Action::Step::makeJoint(
+         Action::JointTarget{
+         .joint_1 = -0.964778,
+         .joint_2 = 0.604676,
+         .joint_3 = -1.376173,
+         .joint_4 = 0.006136,
+         .joint_5 = 0.946658,
+         .joint_6 = -0.044773},
          Action::MotionParams{
-         .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.02}),
-         Action::Step::makePose(
-         Action::PoseTarget{
-         .x     = 0.046,
-         .y     = -0.036,
-         .z     = 0.582,
-         .roll  = 0.517,
-         .pitch = -0.946,
-         .yaw   = -1.023},
+         .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.001, .tolerance_ori = 0.001}),
+         Action::Step::makeJoint(
+         Action::JointTarget{
+         .joint_1 = -0.000096,
+         .joint_2 = 0.219647,
+         .joint_3 = -1.368023,
+         .joint_4 = -0.006136,
+         .joint_5 = 1.347602,
+         .joint_6 = -0.044773},
          Action::MotionParams{
-         .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.003, .tolerance_ori = 0.02})}            },
+         .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.01, .tolerance_ori = 0.01}),
+         Action::Step::makeJoint(
+         Action::JointTarget{
+         .joint_1 = 0.0,
+         .joint_2 = 1.107534,
+         .joint_3 = -1.36,
+         .joint_4 = 0.0,
+         .joint_5 = 0.63,
+         .joint_6 = 0.0},
+         Action::MotionParams{
+         .vel = 0.03, .acc = 0.03, .tolerance_pos = 0.001, .tolerance_ori = 0.001}),
+         }                                                                                     },
     };
 }
 

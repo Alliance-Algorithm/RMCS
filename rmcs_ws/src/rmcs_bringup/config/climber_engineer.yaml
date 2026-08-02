@@ -25,26 +25,18 @@ engineer_hardware:
   ros__parameters:
     board_serial_arm_board: "D4-0262-9E84-E715-CADB-9894-7241"
     board_serial_little_board: "AF-4728-8B65-756E-F0CF-DBDD-D3C8-C843-2DF6"
-    # gripper_zero_point: 26298
-    # image_pitch_zero_point: 43131
-    # joint6_zero_point: 7804
-    # joint5_zero_point: 37436
-    # joint4_zero_point: 32721
-    # joint3_zero_point: 28459
-    # joint2_zero_point: 39898
-    # joint1_zero_point: 55385
     gripper_zero_point: 65122
     image_pitch_zero_point: 63043
-    joint6_zero_point: 21685
-    joint5_zero_point: 9522
+    joint6_zero_point: 23717
+    joint5_zero_point: 28746
     joint4_zero_point: 40324
     joint3_zero_point: 15145
     joint2_zero_point: 43025
     joint1_zero_point: 4339
-    steering_lf_zero_point: 3051 #7168  
-    steering_lb_zero_point: 6480 #2362  
-    steering_rb_zero_point: 266  #4391  
-    steering_rf_zero_point: 7859 #3782  
+    steering_lf_zero_point: 3051   
+    steering_lb_zero_point: 6480 
+    steering_rb_zero_point: 266  
+    steering_rf_zero_point: 7859
     big_yaw_zero_point: 540
 
 image_transmission:
@@ -55,8 +47,8 @@ arm_controller:
   ros__parameters:
     action_profile: climber
     gripper_step: 65.0
-    gripper_open_angle: 9.062377 #364.537349
-    gripper_close_angle: -1.508094 #-86.407478
+    gripper_open_angle: 270.0
+    gripper_close_angle: 52.0
     image_pitch_qmin: -0.7
     image_pitch_qmax: 2.2
 

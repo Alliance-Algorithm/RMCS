@@ -7,7 +7,7 @@ public:
     void reset(unsigned int cooldown) { counter_ = 2 * cooldown; }
 
     bool tick() {
-        if (counter_ == 0) [[unlikely]] {
+        if (counter_ <= 1) [[unlikely]] {
             counter_ = 1;
             return true;
         } else {

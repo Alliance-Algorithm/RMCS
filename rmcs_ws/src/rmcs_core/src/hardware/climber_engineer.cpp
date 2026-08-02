@@ -64,11 +64,20 @@ private:
             armboard_.joint[0].get_angle(), littleboard_.joint2_encoder_.get_angle(),
             armboard_.joint[2].get_angle(), armboard_.joint[3].get_angle(),
             armboard_.joint[4].get_angle(), armboard_.joint[5].get_angle());
+        // RCLCPP_INFO(get_logger(), "gripper:%f", armboard_.gripper.get_angle());
         RCLCPP_INFO(
             get_logger(), ".joint_1=%d,.joint_2=%d,.joint_3=%d,.joint_4=%d,.joint_5=%d,.joint_6=%d",
             armboard_.joint[0].get_raw_angle(), littleboard_.joint2_encoder_.get_raw_angle(),
             armboard_.joint[2].get_raw_angle(), armboard_.joint[3].get_raw_angle(),
             armboard_.joint[4].get_raw_angle(), armboard_.joint[5].get_raw_angle());
+        // RCLCPP_INFO(
+        //     get_logger(),
+        //     "\nsteering_lf_zero_point: %d\nsteering_lb_zero_point: %d\nsteering_rb_zero_point: "
+        //     "%d\nsteering_rf_zero_point: %d",
+        //     littleboard_.Steering_motors[0].calibrate_zero_point(),
+        //     littleboard_.Steering_motors[1].calibrate_zero_point(),
+        //     littleboard_.Steering_motors[2].calibrate_zero_point(),
+        //     littleboard_.Steering_motors[3].calibrate_zero_point());
     }
 
     rclcpp::Logger logger_;
@@ -107,6 +116,7 @@ private:
                     static_cast<int>(engineer.get_parameter("image_pitch_zero_point").as_int())));
             gripper.configure(
                 LKMotorConfig{LKMotorType::MG4005_i10V2}
+                    .reverse()
                     .enable_multi_turn_angle()
                     .set_encoder_zero_point(
                         static_cast<uint16_t>(
@@ -179,21 +189,6 @@ private:
             using namespace device;
             update_arm_motors();
             update_imu();
-            // if (joint[0].get_raw_angle() != 0) {
-            // RCLCPP_INFO(
-            //     this->get_logger(),
-            //     ".joint_1=%f,.joint_3=%f,.joint_4 = % f,.joint_5 = % f, .joint_6 = % f ",
-            //     joint[0].get_angle(), joint[2].get_angle(), joint[3].get_angle(),
-            //     joint[4].get_angle(), joint[5].get_angle());
-            // RCLCPP_INFO(this->get_logger(), ".joint1=%d,", joint[0].get_raw_angle());
-            // RCLCPP_INFO(this->get_logger(), ".joint3=%d,", joint[2].get_angle());
-            // RCLCPP_INFO(this->get_logger(), ".joint4=%d,", joint[3].get_angle());
-            // RCLCPP_INFO(this->get_logger(), ".joint5=%d,", joint[4].get_angle());
-            // RCLCPP_INFO(this->get_logger(), ".joint6=%d,", joint[5].get_angle());
-            // RCLCPP_INFO(this->get_logger(), "gripper:%d", gripper.get_angle());
-            // RCLCPP_INFO(this->get_logger(), "image:%d", image_pitch.get_raw_angle());
-            // RCLCPP_INFO(this->get_logger(), "gripper_torque:%f", gripper.get_torque());
-            // }
         }
         void command() {
             if (*gripper_calibration_done_signal_ && !last_gripper_calibration_done_signal)
@@ -554,6 +549,8 @@ private:
                     static_cast<int>(engineer.get_parameter("joint2_zero_point").as_int())));
 
             engineer_command.register_input("/arm/enable_flag", is_arm_enable);
+
+            steering_wheel_watchdog_.reset(100);
         }
         ~LittleBoard() final {
             auto tx = start_transmit();
@@ -645,11 +642,14 @@ private:
             joint2_encoder_.update();
             power_meter.update();
             dr16_.update_status();
-            // RCLCPP_INFO(this->get_logger(), ".joint_2=%f,", joint2_encoder_.get_angle());
-            // RCLCPP_INFO(this->get_logger(), "big_yaw=%d,", big_yaw.get_raw_angle());
         }
         void command() {
 
+            bool is_chassis_enable{true};
+            if (steering_wheel_watchdog_.tick()) {
+                is_chassis_enable = false;
+                chassis_disable();
+            }
             static bool turn{false};
             auto tx = start_transmit();
             if (turn) {
@@ -668,28 +668,30 @@ private:
                                            }
                             .as_bytes(),
                 });
-                tx.can1_transmit({
-                    .can_id = 0x200,
-                    .can_data =
-                        device::CanPacket8{
-                                           device::CanPacket8::PaddingQuarter{},
-                                           device::CanPacket8::PaddingQuarter{},
-                                           Wheel_motors[2].generate_command(),
-                                           Wheel_motors[3].generate_command(),
-                                           }
-                            .as_bytes(),
-                });
-                tx.can0_transmit({
-                    .can_id = 0x200,
-                    .can_data =
-                        device::CanPacket8{
-                                           Wheel_motors[0].generate_command(),
-                                           Wheel_motors[1].generate_command(),
-                                           device::CanPacket8::PaddingQuarter{},
-                                           device::CanPacket8::PaddingQuarter{},
-                                           }
-                            .as_bytes(),
-                });
+                if (is_chassis_enable)
+                    tx.can1_transmit({
+                        .can_id = 0x200,
+                        .can_data =
+                            device::CanPacket8{
+                                               device::CanPacket8::PaddingQuarter{},
+                                               device::CanPacket8::PaddingQuarter{},
+                                               Wheel_motors[2].generate_command(),
+                                               Wheel_motors[3].generate_command(),
+                                               }
+                                .as_bytes(),
+                    });
+                if (is_chassis_enable)
+                    tx.can0_transmit({
+                        .can_id = 0x200,
+                        .can_data =
+                            device::CanPacket8{
+                                               Wheel_motors[0].generate_command(),
+                                               Wheel_motors[1].generate_command(),
+                                               device::CanPacket8::PaddingQuarter{},
+                                               device::CanPacket8::PaddingQuarter{},
+                                               }
+                                .as_bytes(),
+                    });
             } else {
                 tx.can2_transmit({
                     .can_id = 0x200,
@@ -702,29 +704,30 @@ private:
                                            }
                             .as_bytes(),
                 });
-
-                tx.can1_transmit({
-                    .can_id = 0x1FE,
-                    .can_data =
-                        device::CanPacket8{
-                                           device::CanPacket8::PaddingQuarter{},
-                                           device::CanPacket8::PaddingQuarter{},
-                                           Steering_motors[2].generate_command(),
-                                           Steering_motors[3].generate_command(),
-                                           }
-                            .as_bytes(),
-                });
-                tx.can0_transmit({
-                    .can_id = 0x1FE,
-                    .can_data =
-                        device::CanPacket8{
-                                           Steering_motors[0].generate_command(),
-                                           Steering_motors[1].generate_command(),
-                                           device::CanPacket8::PaddingQuarter{},
-                                           device::CanPacket8::PaddingQuarter{},
-                                           }
-                            .as_bytes(),
-                });
+                if (is_chassis_enable)
+                    tx.can1_transmit({
+                        .can_id = 0x1FE,
+                        .can_data =
+                            device::CanPacket8{
+                                               device::CanPacket8::PaddingQuarter{},
+                                               device::CanPacket8::PaddingQuarter{},
+                                               Steering_motors[2].generate_command(),
+                                               Steering_motors[3].generate_command(),
+                                               }
+                                .as_bytes(),
+                    });
+                if (is_chassis_enable)
+                    tx.can0_transmit({
+                        .can_id = 0x1FE,
+                        .can_data =
+                            device::CanPacket8{
+                                               Steering_motors[0].generate_command(),
+                                               Steering_motors[1].generate_command(),
+                                               device::CanPacket8::PaddingQuarter{},
+                                               device::CanPacket8::PaddingQuarter{},
+                                               }
+                                .as_bytes(),
+                    });
             }
             turn = !turn;
         }
@@ -738,11 +741,14 @@ private:
                 Steering_motors[0].store_status(data.can_data);
             } else if (data.can_id == 0x206) {
                 Steering_motors[1].store_status(data.can_data);
+                steering_wheel_watchdog_.reset(100);
             } else if (data.can_id == 0x201) {
                 Wheel_motors[0].store_status(data.can_data);
             } else if (data.can_id == 0x202) {
                 Wheel_motors[1].store_status(data.can_data);
+                steering_wheel_watchdog_.reset(100);
             }
+            steering_wheel_watchdog_.tick();
         }
         void can1_receive_callback(const librmcs::data::CanDataView& data) override {
             if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
@@ -750,13 +756,16 @@ private:
                 return;
             if (data.can_id == 0x207) {
                 Steering_motors[2].store_status(data.can_data);
+                steering_wheel_watchdog_.reset(100);
             } else if (data.can_id == 0x208) {
                 Steering_motors[3].store_status(data.can_data);
             } else if (data.can_id == 0x203) {
                 Wheel_motors[2].store_status(data.can_data);
+                steering_wheel_watchdog_.reset(100);
             } else if (data.can_id == 0x204) {
                 Wheel_motors[3].store_status(data.can_data);
             }
+            steering_wheel_watchdog_.tick();
         }
         void can2_receive_callback(const librmcs::data::CanDataView& data) override {
             if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
@@ -791,6 +800,58 @@ private:
         }
 
     private:
+        void chassis_disable() {
+            static bool turn{false};
+            auto tx = start_transmit();
+            if (!turn) {
+                tx.can0_transmit({
+                    .can_id = 0x1FE,
+                    .can_data =
+                        device::CanPacket8{
+                                           device::CanPacket8::Quarter{0},
+                                           device::CanPacket8::Quarter{0},
+                                           device::CanPacket8::PaddingQuarter{},
+                                           device::CanPacket8::PaddingQuarter{},
+                                           }
+                            .as_bytes(),
+                });
+                tx.can1_transmit({
+                    .can_id = 0x1FE,
+                    .can_data =
+                        device::CanPacket8{
+                                           device::CanPacket8::PaddingQuarter{},
+                                           device::CanPacket8::PaddingQuarter{},
+                                           device::CanPacket8::Quarter{0},
+                                           device::CanPacket8::Quarter{0},
+                                           }
+                            .as_bytes(),
+                });
+            } else {
+                tx.can0_transmit({
+                    .can_id = 0x200,
+                    .can_data =
+                        device::CanPacket8{
+                                           device::CanPacket8::Quarter{0},
+                                           device::CanPacket8::Quarter{0},
+                                           device::CanPacket8::PaddingQuarter{},
+                                           device::CanPacket8::PaddingQuarter{},
+                                           }
+                            .as_bytes(),
+                });
+                tx.can1_transmit({
+                    .can_id = 0x200,
+                    .can_data =
+                        device::CanPacket8{
+                                           device::CanPacket8::PaddingQuarter{},
+                                           device::CanPacket8::PaddingQuarter{},
+                                           device::CanPacket8::Quarter{0},
+                                           device::CanPacket8::Quarter{0},
+                                           }
+                            .as_bytes(),
+                });
+            }
+            turn = !turn;
+        }
         device::DjiMotor Steering_motors[4];
         device::DjiMotor Wheel_motors[4];
         device::DjiMotor Track_motors[2];
@@ -803,7 +864,7 @@ private:
         device::Dr16 dr16_;
 
         InputInterface<bool> is_arm_enable;
-
+        rmcs_utility::TickTimer steering_wheel_watchdog_;
     } littleboard_;
 
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr gimbal_calibrate_subscription_;

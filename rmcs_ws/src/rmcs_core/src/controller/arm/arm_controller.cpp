@@ -258,6 +258,9 @@ private:
                     set_arm_mode(rmcs_msgs::ArmMode::Auto_Three_Mine_Second);
                 }
             }
+            if (keyboard.v && !last_keyboard_.v) {
+                Auto_Three_Mine_First_finish = !Auto_Three_Mine_First_finish;
+            }
             if (keyboard.z && !last_keyboard_.z) {
                 if (!keyboard.shift && !keyboard.ctrl) {
                     set_gripper_mode(rmcs_msgs::GripperMode::Open);
@@ -369,22 +372,14 @@ private:
                 arm_action_machine_.process(action_dictionary_.helper_build_chunk(
                     {"transition_to_storage_mine_1", "storage_lf", "transition_to_extract_mine_2",
                      "storage_rf", "transition_to_extract_mine_3"}));
-                // arm_action_machine_.process(action_dictionary_.helper_build_chunk(
-                //     {"transition_to_storage_mine_1", "storage_lf",
-                //     "transition_to_extract_mine_2",
-                //      "storage_rf", "transition_to_extract_mine_3"}));
             }
             execute_plan_request_and_trajectory_step();
             break;
         case ArmMode::Auto_Three_Mine_Second:
-            if ((*keyboard_).ctrl && !last_keyboard_.ctrl) {
+            if ((*keyboard_).shift && !last_keyboard_.shift) {
                 arm_action_machine_.process(action_dictionary_.helper_build_chunk(
                     {"transition_to_storage_mine_4", "storage_lf", "transition_to_extract_mine_5",
                      "storage_rf", "transition_to_extract_mine_6"}));
-                // arm_action_machine_.process(action_dictionary_.helper_build_chunk(
-                //     {"transition_to_storage_mine_4", "storage_lf",
-                //     "transition_to_extract_mine_5",
-                //      "storage_rf", "transition_to_extract_mine_6"}));
             }
             execute_plan_request_and_trajectory_step();
             break;

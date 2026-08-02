@@ -30,7 +30,7 @@ public:
               pid::PidCalculator(300.0, 0.0, 0.0), // joint_2
               pid::PidCalculator(500.0, 0.0, 10.0), // joint_3
               pid::PidCalculator(250.0, 0.0, 1.0), // joint_4
-              pid::PidCalculator(600.0, 0.0, 10.0), // joint_5
+              pid::PidCalculator(80.0, 0.0, 2.0), // joint_5
               pid::PidCalculator(this->get_parameter("joint_6_angle_kp").as_double(), this->get_parameter("joint_6_angle_ki").as_double(), this->get_parameter("joint_6_angle_kd").as_double()), // joint_6
           }
         , joint_vel_pid_controller{
@@ -38,7 +38,7 @@ public:
               pid::PidCalculator(3.0, 0.0, 0.0), // joint_2
               pid::PidCalculator(0.7, 0.0, 0.004), // joint_3
               pid::PidCalculator(0.65, 0.0, 0.002), // joint_4
-              pid::PidCalculator(0.121, 0.0, 0.004), // joint_5
+              pid::PidCalculator(1.6, 0.0, 0.004), // joint_5
               pid::PidCalculator(this->get_parameter("joint_6_vel_kp").as_double(), this->get_parameter("joint_6_vel_ki").as_double(), this->get_parameter("joint_6_vel_kd").as_double()), // joint_6
           } {
         for (std::size_t i = 0; i < num_axis; ++i) {
@@ -113,8 +113,7 @@ private:
             const double target_theta  = clamp_target_theta(i, *joint_target_theta[i]);
             const double current_vel   = *joint_velocity[i];
 
-            const double angle_error =
-                rmcs_utility::normalize_angle(target_theta - current_theta);
+            const double angle_error = rmcs_utility::normalize_angle(target_theta - current_theta);
             const double target_vel  = joint_angle_pid_controller[i].update(angle_error);
             const double vel_error   = target_vel - current_vel;
 

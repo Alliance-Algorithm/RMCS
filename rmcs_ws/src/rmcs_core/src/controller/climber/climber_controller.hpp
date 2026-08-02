@@ -31,7 +31,7 @@ public:
         int dash_min_ticks                       = 400;
         int dash_timeout_ticks                   = 800;
         int support_retract_ticks                = 500;
-        int slide_ticks                          = 200;
+        int slide_ticks                          = 500;
     };
 
     struct Input {
