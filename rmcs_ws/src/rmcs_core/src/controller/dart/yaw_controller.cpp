@@ -48,8 +48,7 @@ public:
         }
         if (!target_setpoint_.ready()) {
             target_setpoint_.make_and_bind_directly(kNan);
-            RCLCPP_WARN(
-                get_logger(), "Failed to fetch \"/dart/yaw/target-setpoint\". Set to NaN.");
+            RCLCPP_WARN(get_logger(), "Failed to fetch \"/dart/yaw/target-setpoint\". Set to NaN.");
         }
         if (!target_position_.ready()) {
             target_position_.make_and_bind_directly(cv::Point2i{-1, -1});
@@ -143,8 +142,7 @@ private:
         aim_pid_.reset();
 
         yaw_torque_limit_ = std::abs(get_parameter_or("yaw_torque_limit", 2.0));
-        manual_yaw_velocity_sensitivity_ =
-            get_parameter_or("manual_yaw_velocity_sensitivity", 5.0);
+        manual_yaw_velocity_sensitivity_ = get_parameter_or("manual_yaw_velocity_sensitivity", 5.0);
     }
 
     bool manual_mode() const {
@@ -187,8 +185,7 @@ private:
         aim_pid_.reset();
     }
 
-    MechStatus handle_vision_aim(
-        bool is_new_command, double setpoint, double& target_velocity) {
+    MechStatus handle_vision_aim(bool is_new_command, double setpoint, double& target_velocity) {
         if (is_new_command) {
             active_cmd_ = YawCmd::VISION_AIM;
             settle_ticks_ = 0;
@@ -197,10 +194,11 @@ private:
 
         if (!std::isfinite(setpoint) || !tracking_.ready() || !*tracking_
             || !target_position_.ready() || target_position_->x < 0 || target_position_->y < 0) {
-            return MechStatus::FAILED;
+            target_velocity = kNan;
+            return MechStatus::BUSY;
         }
 
-        const double error = static_cast<double>(target_position_->x) - setpoint;
+        const double error = setpoint - static_cast<double>(target_position_->x);
         target_velocity = aim_pid_.update(error);
 
         if (std::abs(error) <= vision_aim_tolerance_px_) {

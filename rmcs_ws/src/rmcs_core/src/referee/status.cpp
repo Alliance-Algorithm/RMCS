@@ -1,6 +1,7 @@
 #include <cstdint>
 #include <cstring>
 #include <eigen3/Eigen/Eigen>
+#include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/game_stage.hpp>
@@ -40,6 +41,8 @@ public:
             "/referee/event/ally_fortress_occupation_status", ally_fortress_occupation_status_, 0);
         register_output(
             "/referee/dart/latest_hit_target_total_count", dart_latest_hit_target_total_count_, 0);
+
+        register_output("/referee/dart/remaining_time", dart_remaining_time_);
 
         register_output("/referee/id", robot_id_, rmcs_msgs::RobotId::UNKNOWN);
         register_output("/referee/shooter/cooling", robot_shooter_cooling_, 0);
@@ -197,6 +200,7 @@ private:
         auto& data = reinterpret_cast<DartInfo&>(frame_.body.data);
 
         *dart_latest_hit_target_total_count_ = (data.dart_info >> 3) & 0x07;
+        *dart_remaining_time_ = data.dart_remaining_time;
     }
 
     void update_game_robot_hp() {
@@ -321,6 +325,7 @@ private:
     OutputInterface<uint8_t> ally_big_energy_activation_status_;
     OutputInterface<uint8_t> ally_small_energy_activation_status_;
     OutputInterface<uint8_t> ally_fortress_occupation_status_;
+    OutputInterface<uint8_t> dart_remaining_time_;
     OutputInterface<uint8_t> dart_latest_hit_target_total_count_;
 
     rmcs_utility::TickTimer robot_status_watchdog_;

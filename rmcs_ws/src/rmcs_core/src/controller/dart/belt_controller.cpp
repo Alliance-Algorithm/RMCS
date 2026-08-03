@@ -46,7 +46,7 @@ public:
         get_parameter("belt_up_soft_stage1_velocity", belt_up_soft_stage1_velocity_);
         get_parameter("belt_up_soft_stage2_velocity", belt_up_soft_stage2_velocity_);
         get_parameter("belt_up_soft_stage3_velocity", belt_up_soft_stage3_velocity_);
-        get_parameter("belt_up_stage1_velocity", belt_up_stage1_velocity_);
+        get_parameter("belt_up_part_velocity", belt_up_part_velocity_);
         get_parameter("belt_up_stage2_velocity", belt_up_stage2_velocity_);
         get_parameter("slider_rail_length", slider_rail_length_);
         get_parameter("soft_stage1_persent", soft_stage1_persent_);
@@ -380,7 +380,7 @@ private:
             stage_ = 0;
         }
 
-        l_vel = r_vel = -belt_up_stage2_velocity_;
+        l_vel = r_vel = -belt_up_part_velocity_;
 
         const double target_dist = slider_rail_length_ * part_persent_;
         const double l_delta = start_angle_left_ - l_angle;
@@ -464,7 +464,7 @@ private:
     double belt_up_soft_stage1_velocity_ = 1.0;
     double belt_up_soft_stage2_velocity_ = 0.5;
     double belt_up_soft_stage3_velocity_ = 0.3;
-    double belt_up_stage1_velocity_ = 1.0;
+    double belt_up_part_velocity_ = 1.0;
     double belt_up_stage2_velocity_ = 2.0;
     double slider_rail_length_ = 1.0;
     double soft_stage1_persent_ = 0.3;

@@ -4,15 +4,21 @@ rmcs_executor:
     components:
       - rmcs_core::hardware::CatapultDart -> dart_hardware
 
+      - rmcs_core::referee::Status -> referee_status
+      - rmcs_core::referee::Command -> referee_command
+
       - rmcs_dart_guidance::manager::RemoteCommandBridge -> remote_command_bridge
       - rmcs_dart_guidance::manager::DartManager -> dart_manager
+
+      - rmcs_dart_guidance::DartVisionCore -> dart_vision_core
+      - rmcs_dart_guidance::ImagePublisher -> dart_display_image_publisher
+      - rmcs_dart_guidance::ImagePublisher -> host_bridge
 
       - rmcs_core::controller::dart::BeltController -> belt_controller
       - rmcs_core::controller::pid::PidController -> left_belt_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> right_belt_velocity_pid_controller
 
       - rmcs_core::controller::dart::FillingController -> filling_controller
-
       - rmcs_core::controller::dart::TriggerController -> trigger_controller
 
       - rmcs_core::controller::dart::FourZChassisController -> four_z_chassis_controller
@@ -27,18 +33,48 @@ rmcs_executor:
 
 dart_manager:
   ros__parameters:
-    launch_carriage_position_1: -4350000.0
-    launch_carriage_position_2: -4150000.0
-    launch_carriage_position_3: -4150000.0
-    launch_carriage_position_4: -4350000.0
-    vision_aim_target_setpoint_1: 640.0
-    vision_aim_target_setpoint_2: 640.0
-    vision_aim_target_setpoint_3: 640.0
-    vision_aim_target_setpoint_4: 640.0
+    launch_carriage_position_1: -4250000.0
+    launch_carriage_position_2: -3750000.0
+    launch_carriage_position_3: -3800000.0
+    launch_carriage_position_4: -3950000.0
+    vision_aim_target_setpoint_1: 705.0
+    vision_aim_target_setpoint_2: 750.0
+    vision_aim_target_setpoint_3: 740.0
+    vision_aim_target_setpoint_4: 705.0
+
+    # carriage：绝对值增大往近，减小往远
+    # vision：增大往左，减小往右
+
+dart_vision_core:
+  ros__parameters:
+    invert_image: true
+    exposure_time: 2000
+    gain: 0.0
+    L_H: 45.0
+    L_S: 0.0
+    L_V: 200.0
+    U_H: 90.0
+    U_S: 255.0
+    U_V: 255.0
+
+host_bridge:
+  ros__parameters:
+    Interface_name: /dart_guidance/camera/camera_image
+    topic_name: /dart_guidance/camera/camera_image
+    publish_freq: 60.0
+    image_type: bgr8
+
+dart_display_image_publisher:
+  ros__parameters:
+    Interface_name: /dart_guidance/camera/display_image
+    topic_name: /dart_guidance/camera/display_image
+    publish_freq: 60.0
+    image_type: mono8
 
 value_broadcaster:
   ros__parameters:
     forward_list:
+      - /dart/yaw/motor/control_velocity
       - /dart/chassis/front_left_motor/velocity
       - /dart/chassis/front_right_motor/velocity
       - /dart/chassis/back_left_motor/velocity
@@ -89,15 +125,15 @@ dart_hardware:
 
 belt_controller:
   ros__parameters:
-    belt_slow_down_velocity: 10.0
-    belt_fast_down_velocity: 15.0
-    belt_up_soft_stage1_velocity: 3.0
-    belt_up_soft_stage2_velocity: 20.0
+    belt_slow_down_velocity: 15.0
+    belt_fast_down_velocity: 20.0
+    belt_up_soft_stage1_velocity: 5.0
+    belt_up_soft_stage2_velocity:  20.0
     belt_up_soft_stage3_velocity: 5.0
-    belt_up_stage1_velocity: 10.0
+    belt_up_part_velocity: 8.0
     belt_up_stage2_velocity: 5.0
-    slider_rail_length: 40.0
-    soft_stage1_persent: 0.15
+    slider_rail_length: 39.0
+    soft_stage1_persent: 0.10
     soft_stage2_persent: 0.9
     part_persent: 0.45
     belt_load_torque_limit: 6.0
@@ -147,7 +183,7 @@ trigger_controller:
     trigger_action_ticks: 500
     carriage_velocity: 20.0
     carriage_torque_limit: 2.5
-    calibrate_rollback: 800000
+    calibrate_rollback: 500000
     calibrate_rollback_velocity: 15.0
     carriage_calibrate_torque_limit: 0.3
     carriage_calibrate_launch_ticks: 200
@@ -158,9 +194,9 @@ trigger_controller:
     carriage_velocity_pid_ki: 0.0
     carriage_velocity_pid_kd: 0.0
     carriage_position_kp: 0.005
-    carriage_position_ki:  0.0 # 0.00025
+    carriage_position_ki:  0.00025
     carriage_position_kd: 0.0
-    carriage_position_integral_max: 2.0
+    carriage_position_integral_max: 0.5
     carriage_position_tolerance: 100
     carriage_position_settle_ticks: 500
     manual_carriage_velocity_sensitivity: 50.0
@@ -176,8 +212,8 @@ four_z_chassis_controller:
     level_settle_ticks: 500
     level_pitch_tolerance: 0.0005
     level_roll_tolerance: 0.0005
-    pitch_offset: -0.0130
-    roll_offset: 0.0210
+    pitch_offset: -0.0145
+    roll_offset: 0.0254
     level_correction_velocity_deadband: 50.0
     level_pitch_pid_kp: 20000.0
     level_pitch_pid_ki: 10.0
@@ -201,15 +237,15 @@ four_z_chassis_controller:
 
 yaw_controller:
   ros__parameters:
-    vision_aim_tolerance_px: 5.0
-    vision_aim_settle_ticks: 50
-    vision_aim_pid_kp: 0.01
+    vision_aim_tolerance_px: 2.0
+    vision_aim_settle_ticks: 500
+    vision_aim_pid_kp: 0.25
     vision_aim_pid_ki: 0.0
     vision_aim_pid_kd: 0.0
-    vision_aim_pid_output_min: -50.0
-    vision_aim_pid_output_max: 50.0
+    vision_aim_pid_output_min: -30.0
+    vision_aim_pid_output_max: 30.0
     yaw_torque_limit: 2.0
-    manual_yaw_velocity_sensitivity: 50.0
+    manual_yaw_velocity_sensitivity: 30.0
 
 yaw_velocity_pid_controller:
   ros__parameters:

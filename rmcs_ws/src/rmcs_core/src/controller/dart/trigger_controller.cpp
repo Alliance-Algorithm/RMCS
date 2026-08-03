@@ -53,8 +53,7 @@ public:
         }
         if (trigger_action_ticks < kMinimumActiveTicks) {
             RCLCPP_WARN(
-                get_logger(),
-                "trigger_action_ticks=%lld is less than minimum %d. Clamped to %d.",
+                get_logger(), "trigger_action_ticks=%lld is less than minimum %d. Clamped to %d.",
                 static_cast<long long>(trigger_action_ticks), kMinimumActiveTicks,
                 kMinimumActiveTicks);
             trigger_action_ticks = kMinimumActiveTicks;
@@ -67,8 +66,7 @@ public:
         get_parameter_or("carriage_torque_limit", carriage_torque_limit_, 5.0);
         get_parameter_or("carriage_calibrate_torque_limit", carriage_calibrate_torque_limit_, 2.0);
         int64_t calibrate_launch_ticks = 100;
-        get_parameter_or(
-            "carriage_calibrate_launch_ticks", calibrate_launch_ticks, int64_t{100});
+        get_parameter_or("carriage_calibrate_launch_ticks", calibrate_launch_ticks, int64_t{100});
         carriage_calibrate_launch_ticks_ = static_cast<int>(calibrate_launch_ticks);
         get_parameter_or(
             "carriage_calibrate_control_torque", carriage_calibrate_control_torque_,
@@ -233,7 +231,7 @@ public:
 
 private:
     static constexpr int kMinimumActiveTicks = 10;
-    static constexpr int kRelativeEncoderLogThrottleMs = 2000;
+    static constexpr int kRelativeEncoderLogThrottleMs = 1000;
     static constexpr int kCalibStageLaunch = 0;
     static constexpr int kCalibStageDown = 1;
     static constexpr int kCalibStageRollback = 2;
@@ -402,8 +400,7 @@ private:
         return delta >= calibrate_rollback_;
     }
 
-    MechStatus handle_carriage_up_down(
-        bool is_new_command, bool is_up, double& target_motor_vel) {
+    MechStatus handle_carriage_up_down(bool is_new_command, bool is_up, double& target_motor_vel) {
 
         if (is_new_command) {
             active_cmd_ = is_up ? TriggerCmd::CARRIAGE_UP : TriggerCmd::CARRIAGE_DOWN;

@@ -120,6 +120,7 @@ private:
 
             yaw_motor_.configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kM3508, 1}
+                    .set_reversed()
                     .set_reduction_ratio(19.)
                     .enable_multi_turn_angle());
 
