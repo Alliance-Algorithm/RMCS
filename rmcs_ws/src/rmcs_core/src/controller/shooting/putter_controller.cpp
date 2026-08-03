@@ -272,9 +272,9 @@ private:
         }
 
         if (locked_detect_count_ > 150) {
-            if (*photoelectric_sensor_status_) {
-                set_preloaded();
-            }
+            // if (*photoelectric_sensor_status_)
+            set_preloaded();
+
             // If the photoelectric sensor was not triggered, treat it as a simple jam,
             // reverse briefly, then continue until stall.
             locked_detect_count_ = 0;

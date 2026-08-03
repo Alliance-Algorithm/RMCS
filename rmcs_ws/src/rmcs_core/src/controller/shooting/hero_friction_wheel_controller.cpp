@@ -1,5 +1,6 @@
 #include <cmath>
 
+#include <cstdint>
 #include <limits>
 #include <string>
 #include <vector>
@@ -36,16 +37,24 @@ public:
         auto friction_wheels = get_parameter("friction_wheels").as_string_array();
         auto friction_profile_0 = get_parameter("friction_velocities_profile_0").as_double_array();
         auto friction_profile_1 = get_parameter("friction_velocities_profile_1").as_double_array();
+        auto friction_profile_2 = get_parameter("friction_velocities_profile_2").as_double_array();
+        auto friction_profile_3 = get_parameter("friction_velocities_profile_3").as_double_array();
         if (friction_wheels.size() != friction_profile_0.size()
             || friction_wheels.size() != friction_profile_1.size()) {
             throw std::runtime_error(
                 "'friction_wheels' and both friction velocity profiles must have the same length!");
+        } else if (friction_wheels.size() != friction_profile_2.size()
+            || friction_wheels.size() != friction_profile_3.size()) {
+            throw std::runtime_error(
+                "'friction_wheels' and all friction velocity profiles must have the same length!");
         } else if (friction_wheels.size() == 0)
             throw std::runtime_error(
                 "Empty array error: 'friction_wheels' and 'friction_velocities' cannot be empty!");
 
         friction_profile_0_.assign(friction_profile_0.begin(), friction_profile_0.end());
         friction_profile_1_.assign(friction_profile_1.begin(), friction_profile_1.end());
+        friction_profile_2_.assign(friction_profile_2.begin(), friction_profile_2.end());
+        friction_profile_3_.assign(friction_profile_3.begin(), friction_profile_3.end());
         friction_count_ = friction_wheels.size();
         friction_velocities_ = std::make_unique<InputInterface<double>[]>(friction_count_);
         friction_control_velocities_ = std::make_unique<OutputInterface<double>[]>(friction_count_);
@@ -61,6 +70,7 @@ public:
         register_output("/gimbal/friction_ready", friction_ready_, false);
         register_output("/gimbal/friction_jammed", friction_jammed_, false);
         register_output("/gimbal/bullet_fired", bullet_fired_, false);
+        register_output("/gimbal/friction_profile_index", friction_profile_index_, uint8_t{0});
         register_output("/gimbal/friction_profile_1_active", friction_profile_1_active_, false);
     }
 
@@ -69,7 +79,12 @@ public:
         const auto switch_left = *switch_left_;
         const auto keyboard = *keyboard_;
         if (!last_keyboard_.f && keyboard.f) {
-            active_profile_ ^= 1;
+            if (keyboard.ctrl)
+                active_profile_ = 2;
+            else if (keyboard.shift)
+                active_profile_ = 3;
+            else
+                active_profile_ = active_profile_ == 0 ? 1 : 0;
 
             if (!std::isnan(friction_soft_start_stop_percentage_)) {
                 double sum = 0.0;
@@ -79,21 +94,8 @@ public:
                     std::clamp(sum / static_cast<double>(friction_count_), 0.0, 1.0);
             }
         }
-        const bool profile_switch_now = keyboard.ctrl && keyboard.f;
-        const bool profile_switch_last = last_keyboard_.ctrl && last_keyboard_.f;
 
-        if (!profile_switch_last && profile_switch_now) {
-            active_profile_ ^= 1;
-
-            if (!std::isnan(friction_soft_start_stop_percentage_)) {
-                double sum = 0.0;
-                for (size_t i = 0; i < friction_count_; i++)
-                    sum += *friction_velocities_[i] / target_friction_velocity(i);
-                friction_soft_start_stop_percentage_ =
-                    std::clamp(sum / static_cast<double>(friction_count_), 0.0, 1.0);
-            }
-        }
-
+        *friction_profile_index_ = static_cast<uint8_t>(active_profile_);
         *friction_profile_1_active_ = active_profile_ == 1;
         using namespace rmcs_msgs;
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
@@ -122,6 +124,8 @@ public:
         if (!friction_enabled_) {
             reset_all_controls();
         }
+
+        last_keyboard_ = keyboard;
     }
 
 private:
@@ -211,7 +215,18 @@ private:
     }
 
     double target_friction_velocity(size_t i) const {
-        return active_profile_ == 0 ? friction_profile_0_[i] : friction_profile_1_[i];
+        switch (active_profile_) {
+        case 0:
+            return friction_profile_0_[i];
+        case 1:
+            return friction_profile_1_[i];
+        case 2:
+            return friction_profile_2_[i];
+        case 3:
+            return friction_profile_3_[i];
+        default:
+            return friction_profile_0_[i];
+        }
     }
 
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
@@ -230,6 +245,8 @@ private:
 
     std::vector<double> friction_profile_0_;
     std::vector<double> friction_profile_1_;
+    std::vector<double> friction_profile_2_;
+    std::vector<double> friction_profile_3_;
     size_t active_profile_ = 0;
 
     std::unique_ptr<InputInterface<double>[]> friction_velocities_;
@@ -248,6 +265,7 @@ private:
     double last_primary_friction_velocity_ = nan_;
     double primary_friction_velocity_decrease_integral_ = 0;
     OutputInterface<bool> bullet_fired_;
+    OutputInterface<uint8_t> friction_profile_index_;
     OutputInterface<bool> friction_profile_1_active_;
 };
 

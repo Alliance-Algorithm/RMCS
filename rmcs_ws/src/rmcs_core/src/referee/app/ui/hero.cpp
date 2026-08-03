@@ -76,7 +76,7 @@ public:
             "/gimbal/first_back_friction/control_velocity", back_friction_control_velocity_);
         register_input("/gimbal/first_back_friction/velocity", back_friction_velocity_);
         register_input("/gimbal/first_front_friction/velocity", front_friction_velocity_);
-        register_input("/gimbal/friction_profile_1_active", friction_profile_1_active_, false);
+        register_input("/gimbal/friction_profile_index", friction_profile_index_, uint8_t{0});
 
         register_input("/gimbal/pitch/angle", gimbal_pitch_angle_);
         register_input("/gimbal/pitch/raw_angle", gimbal_pitch_raw_angle_);
@@ -107,6 +107,27 @@ private:
         }
         return digits;
     }
+
+    static int32_t friction_profile_label_value(size_t profile_index) {
+        switch (profile_index) {
+        case 0: return 12;
+        case 1: return 16;
+        case 2: return 16;
+        case 3: return 16;
+        default: return 12;
+        }
+    }
+
+    static Shape::Color friction_profile_label_color(size_t profile_index) {
+        switch (profile_index) {
+        case 0: return Shape::Color::GREEN;
+        case 1: return Shape::Color::PINK;
+        case 2: return Shape::Color::ORANGE;
+        case 3: return Shape::Color::CYAN;
+        default: return Shape::Color::GREEN;
+        }
+    }
+
     void set_normal_ui_visible(bool value) {
         status_ring_.set_visible(value);
 
@@ -115,9 +136,8 @@ private:
         pitch_angle_number_.set_visible(value);
         top_yaw_angle_number_.set_visible(value);
         bullet_allowance_number_.set_visible(value);
-        friction_profile_number_.set_visible(value);
-        const bool show_friction_profile_box =
-            value && friction_profile_1_active_.ready() && *friction_profile_1_active_;
+        const bool show_friction_profile_box = value && friction_profile_index_.ready();
+        friction_profile_number_.set_visible(show_friction_profile_box);
         for (auto& line : friction_profile_indicator_)
             line.set_visible(show_friction_profile_box);
         if (!value)
@@ -147,17 +167,20 @@ private:
         const uint16_t box_top = friction_profile_box_top_y;
         const uint16_t box_bottom = pitch_raw_angle_y;
 
-        const bool friction_profile_1_active =
-            friction_profile_1_active_.ready() && *friction_profile_1_active_;
         const uint16_t box_center_x = (box_left + box_right) / 2;
         const uint16_t profile_number_y = box_top + friction_profile_number_gap;
+        const size_t friction_profile_index =
+            friction_profile_index_.ready()
+                ? std::min<size_t>(static_cast<size_t>(*friction_profile_index_), 3)
+                : 0;
+        const int32_t friction_profile_value = friction_profile_label_value(friction_profile_index);
+        const auto friction_profile_color = friction_profile_label_color(friction_profile_index);
 
         for (auto& line : friction_profile_indicator_)
-            line.set_color(Shape::Color::GREEN);
+            line.set_color(friction_profile_color);
 
-        friction_profile_number_.set_value(friction_profile_1_active ? 16 : 12);
-        friction_profile_number_.set_color(
-            friction_profile_1_active ? Shape::Color::PINK : Shape::Color::GREEN);
+        friction_profile_number_.set_value(friction_profile_value);
+        friction_profile_number_.set_color(friction_profile_color);
         friction_profile_number_.set_font_size(friction_profile_number_font_size);
         friction_profile_number_.set_xy(box_left, profile_number_y);
         friction_profile_number_.set_center_x(box_center_x);
@@ -385,7 +408,7 @@ private:
     InputInterface<double> back_friction_control_velocity_;
     InputInterface<double> back_friction_velocity_;
     InputInterface<double> front_friction_velocity_;
-    InputInterface<bool> friction_profile_1_active_;
+    InputInterface<uint8_t> friction_profile_index_;
 
     InputInterface<rmcs_msgs::Mouse> mouse_;
 

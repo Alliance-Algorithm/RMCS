@@ -78,8 +78,8 @@ public:
 private:
     static constexpr int kCameraEnableDelayFrames = 1000;
 
-    static constexpr double kEInitPitch = -0.346584;
-    static constexpr double kCtrlEInitPitch = -0.471795;
+    static constexpr double kEInitPitch = -0.638328;
+    static constexpr double kCtrlEInitPitch = -0.638328;
 
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
     InputInterface<rmcs_msgs::Switch> switch_left_;
