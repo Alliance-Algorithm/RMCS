@@ -2,14 +2,14 @@ rmcs_executor:
   ros__parameters:
     update_rate: 1000.0
     components:
-      # - rmcs::AutoAimPlayerComponent -> auto_aim_player
-      - rmcs::AutoAimVideoPlayerComponent -> auto_aim_video_player
+      - rmcs::AutoAimPlayerComponent -> auto_aim_player
+      # - rmcs::AutoAimVideoPlayerComponent -> auto_aim_video_player
       # - rmcs::AutoAimRecorderComponent -> auto_aim_recorder
       - rmcs::AutoAimComponent -> auto_aim_component
 
 auto_aim_player:
   ros__parameters:
-    input_path: "/workspaces/data/autoaim/robot/blue_fast_track/"
+    input_path: "/workspaces/RMCS/develop_ws/record/26uc-train/2026-08-03_20-51-11"
     loop_play: true
 
 auto_aim_video_player:
@@ -29,10 +29,10 @@ auto_aim_recorder:
 
 auto_aim_component:
   ros__parameters:
-    dangerous_fallback: "red"
+    dangerous_fallback: "blue"
     manual_shoot: false
     enable_rune: true
-    track_ids: [HERO, ENGINEER, INFANTRY_3, INFANTRY_4, SENTRY, OUTPOST]
+    track_ids: [HERO, ENGINEER, INFANTRY_3, INFANTRY_4, SENTRY, OUTPOST, RUNE]
     camera_translation: [0., 0., 0.]
 
     fire_control:
@@ -50,3 +50,4 @@ auto_aim_component:
       pitch_tolerance: 0.04
       rune_idle_duration: 0.4
       rune_shoot_duration: 0.2
+      # is_lazy_gimbal: false
