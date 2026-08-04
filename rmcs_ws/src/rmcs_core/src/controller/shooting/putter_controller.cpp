@@ -129,46 +129,44 @@ public:
                 // Normal operating mode: only fire when the friction wheels are ready.
                 if (*friction_ready_) {
                     // Detect fire triggers.
-                    if (switch_right != Switch::DOWN) {
+                    // if (switch_right != Switch::DOWN) {
 
-                        const auto now = std::chrono::steady_clock::now();
-                        const bool left_click_edge = (!last_mouse_.left && mouse.left);
-                        if (left_click_edge) {
-                            RCLCPP_INFO(get_logger(), "LEFT-CLICK");
-                            if (now - last_click_time_ < std::chrono::milliseconds(500)) {
-                                click_count_++;
-                            } else {
-                                click_count_ = 1;
-                            }
-                            last_click_time_ = now;
+                    const auto now = std::chrono::steady_clock::now();
+                    const bool left_click_edge = (!last_mouse_.left && mouse.left);
+                    if (left_click_edge) {
+                        RCLCPP_INFO(get_logger(), "LEFT-CLICK");
+                        if (now - last_click_time_ < std::chrono::milliseconds(500)) {
+                            click_count_++;
+                        } else {
+                            click_count_ = 1;
                         }
+                        last_click_time_ = now;
+                    }
 
-                        const bool manual_trigger =
-                            (!last_mouse_.left && mouse.left && !mouse.right)
-                            || (last_switch_left_ == rmcs_msgs::Switch::MIDDLE
-                                && switch_left == rmcs_msgs::Switch::DOWN);
+                    const bool manual_trigger = (!last_mouse_.left && mouse.left && !mouse.right)
+                                             || (last_switch_left_ == rmcs_msgs::Switch::MIDDLE
+                                                 && switch_left == rmcs_msgs::Switch::DOWN);
 
-                        const bool auto_fire_now =
-                            (switch_right == Switch::UP || mouse.right) && *should_shoot_;
+                    const bool auto_fire_now =
+                        (switch_right == Switch::UP || mouse.right) && *should_shoot_;
 
-                        const bool auto_trigger_emergence = mouse.right && (click_count_ >= 2);
+                    const bool auto_trigger_emergence = mouse.right && (click_count_ >= 2);
 
-                        const bool auto_trigger =
-                            auto_fire_now
-                            && (now - last_fire_time_ > std::chrono::milliseconds(1000));
+                    const bool auto_trigger =
+                        auto_fire_now && (now - last_fire_time_ > std::chrono::milliseconds(1000));
 
-                        if (manual_trigger || auto_trigger || auto_trigger_emergence) {
-                            if (*control_bullet_allowance_limited_by_heat_ > 0
-                                && (shoot_stage_ == ShootStage::PRELOADED || shoot_first)) {
-                                set_shooting();
-                                last_fire_time_ = now;
-                                shoot_first = false;
-                            }
-                        }
-                        if (auto_trigger_emergence) {
-                            click_count_ = 0;
+                    if (manual_trigger || auto_trigger || auto_trigger_emergence) {
+                        if (*control_bullet_allowance_limited_by_heat_ > 0
+                            && (shoot_stage_ == ShootStage::PRELOADED || shoot_first)) {
+                            set_shooting();
+                            last_fire_time_ = now;
+                            shoot_first = false;
                         }
                     }
+                    if (auto_trigger_emergence) {
+                        click_count_ = 0;
+                    }
+                    // }
 
                     if (shoot_stage_ == ShootStage::PRELOADING) {
 

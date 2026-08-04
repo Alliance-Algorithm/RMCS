@@ -89,6 +89,10 @@ public:
             next_publish_time_.reset();
     }
 
+    bool is_transmitting() const {
+        return publish_index_ < publish_buffer_.size() || !pending_queue_.empty();
+    }
+
 private:
     static constexpr uint16_t kImageCmdId = 0x0310;
     static constexpr size_t kImageDataSize = 300;

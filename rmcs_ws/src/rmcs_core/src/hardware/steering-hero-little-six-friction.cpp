@@ -40,6 +40,7 @@
 #include "hardware/device/supercap.hpp"
 #include "hardware/device/vt13.hpp"
 #include "hardware/vtm-link/custom-msg-transmit.hpp"
+#include "hardware/vtm-link/robot-msg-transmit.hpp"
 
 namespace rmcs_core::hardware {
 
@@ -246,6 +247,14 @@ private:
                           Spec::kUarts.kUart0,
                           {.uart_data = std::span<const std::byte>{data, size}});
                   },
+                  steering_hero.get_logger())
+            , robot_msg_transmit_(
+                  steering_hero_command, std::chrono::milliseconds(50),
+                  [this](const std::byte* data, size_t size) {
+                      board_->start_transmit().uart_transmit(
+                          Spec::kUarts.kUart0,
+                          {.uart_data = std::span<const std::byte>{data, size}});
+                  },
                   steering_hero.get_logger()) {
 
             gimbal_top_yaw_motor_.configure(
@@ -440,6 +449,8 @@ private:
                                            });
 
             image_packet_transmit_.command_update();
+            if (!image_packet_transmit_.is_transmitting())
+                robot_msg_transmit_.command_update();
         }
 
         void can_receive_callback(const Spec::Can& can, const View::Can& data) override {
@@ -547,6 +558,7 @@ private:
         device::DjiMotor putter_motor_;
 
         vtm::ImagePacketTransmit image_packet_transmit_;
+        vtm::RobotMsgTransmit robot_msg_transmit_;
 
         OutputInterface<double> gimbal_yaw_velocity_imu_;
         OutputInterface<double> gimbal_pitch_velocity_imu_;
