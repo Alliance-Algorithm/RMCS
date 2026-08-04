@@ -11,8 +11,8 @@ rmcs_executor:
       - rmcs_dart_guidance::manager::DartManager -> dart_manager
 
       - rmcs_dart_guidance::DartVisionCore -> dart_vision_core
-      - rmcs_dart_guidance::ImagePublisher -> dart_display_image_publisher
-      - rmcs_dart_guidance::ImagePublisher -> host_bridge
+      # - rmcs_dart_guidance::ImagePublisher -> dart_display_image_publisher
+      # - rmcs_dart_guidance::ImagePublisher -> host_bridge
 
       - rmcs_core::controller::dart::BeltController -> belt_controller
       - rmcs_core::controller::pid::PidController -> left_belt_velocity_pid_controller
@@ -33,14 +33,14 @@ rmcs_executor:
 
 dart_manager:
   ros__parameters:
-    launch_carriage_position_1: -4250000.0
-    launch_carriage_position_2: -3750000.0
-    launch_carriage_position_3: -3800000.0
-    launch_carriage_position_4: -3950000.0
-    vision_aim_target_setpoint_1: 705.0
-    vision_aim_target_setpoint_2: 750.0
-    vision_aim_target_setpoint_3: 740.0
-    vision_aim_target_setpoint_4: 705.0
+    launch_carriage_position_1: -3800000.0 #3950000 #-150000
+    launch_carriage_position_2: -4000000.0 #4000000 #+0
+    launch_carriage_position_3: -4250000.0 #4250000 #+0
+    launch_carriage_position_4: -4150000.0 #4000000 #+150000
+    vision_aim_target_setpoint_1: 750.0
+    vision_aim_target_setpoint_2: 740.0
+    vision_aim_target_setpoint_3: 700.0
+    vision_aim_target_setpoint_4: 735.0
 
     # carriage：绝对值增大往近，减小往远
     # vision：增大往左，减小往右
@@ -205,10 +205,10 @@ four_z_chassis_controller:
   ros__parameters:
     zero_down_speed: 50.0
     zero_rollback_speed: 50.0
-    zero_rollback_angle: 80.0
+    zero_rollback_angle: 110.0
     zero_hold_ticks: 500
     level_descend_speed: 25.0
-    upper_soft_limit_angle: 170.0
+    upper_soft_limit_angle: 235.0
     level_settle_ticks: 500
     level_pitch_tolerance: 0.0005
     level_roll_tolerance: 0.0005
