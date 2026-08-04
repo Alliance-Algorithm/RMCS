@@ -43,7 +43,8 @@ public:
             || friction_wheels.size() != friction_profile_1.size()) {
             throw std::runtime_error(
                 "'friction_wheels' and both friction velocity profiles must have the same length!");
-        } else if (friction_wheels.size() != friction_profile_2.size()
+        } else if (
+            friction_wheels.size() != friction_profile_2.size()
             || friction_wheels.size() != friction_profile_3.size()) {
             throw std::runtime_error(
                 "'friction_wheels' and all friction velocity profiles must have the same length!");
@@ -121,6 +122,14 @@ public:
             last_switch_left_ = switch_left;
             last_keyboard_ = keyboard;
         }
+
+        if (++count_ == 2000) {
+            for (int i = 0; i < 6; ++i) {
+                RCLCPP_INFO(get_logger(), "frction %d velocity %f ", i, *friction_velocities_[i]);
+            }
+            count_ = 0;
+        }
+
         if (!friction_enabled_) {
             reset_all_controls();
         }
@@ -216,20 +225,17 @@ private:
 
     double target_friction_velocity(size_t i) const {
         switch (active_profile_) {
-        case 0:
-            return friction_profile_0_[i];
-        case 1:
-            return friction_profile_1_[i];
-        case 2:
-            return friction_profile_2_[i];
-        case 3:
-            return friction_profile_3_[i];
-        default:
-            return friction_profile_0_[i];
+        case 0: return friction_profile_0_[i];
+        case 1: return friction_profile_1_[i];
+        case 2: return friction_profile_2_[i];
+        case 3: return friction_profile_3_[i];
+        default: return friction_profile_0_[i];
         }
     }
 
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
+
+    int count_ = 0;
 
     rclcpp::Logger logger_;
 

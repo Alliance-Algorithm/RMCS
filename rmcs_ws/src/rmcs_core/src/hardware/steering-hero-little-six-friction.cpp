@@ -343,21 +343,21 @@ private:
             *photoelectric_sensor_status_ = photoelectric_sensor_status_atomic.load();
             *grayscale_sensor_status_ = grayscale_sensor_status_atomic.load();
 
-            if (++count_ == 250) {
-                for (int i = 0; i < 6; ++i) {
-                    if (friciton_detect[i] == 0) {
-                        RCLCPP_WARN(logger_, "friction can id 0x%03X missing", i + 0x201);
-                    }
-                }
-                std::fill_n(friciton_detect, 6, 0);
-                for (int i = 0; i < 3; ++i) {
-                    if (can0_detect[i] == 0) {
-                        RCLCPP_WARN(logger_, "top board can id 0x%03X missing", i + 0x141);
-                    }
-                }
-                std::fill_n(can0_detect, 3, 0);
-                count_ = 0;
-            }
+            // if (++count_ == 250) {
+            //     for (int i = 0; i < 6; ++i) {
+            //         if (friciton_detect[i] == 0) {
+            //             RCLCPP_WARN(logger_, "friction can id 0x%03X missing", i + 0x201);
+            //         }
+            //     }
+            //     std::fill_n(friciton_detect, 6, 0);
+            //     for (int i = 0; i < 3; ++i) {
+            //         if (can0_detect[i] == 0) {
+            //             RCLCPP_WARN(logger_, "top board can id 0x%03X missing", i + 0x141);
+            //         }
+            //     }
+            //     std::fill_n(can0_detect, 3, 0);
+            //     count_ = 0;
+            // }
         }
 
         void command_update() {
@@ -709,15 +709,15 @@ private:
             yaw_brake_motor_.update_status();
             gimbal_bottom_yaw_motor_.update_status();
 
-            if (++count_ == 250) {
-                for (int i = 0; i < 8; ++i) {
-                    if (check[i] == 0) {
-                        RCLCPP_WARN(logger_, "bottom board can id 0x%03X missing", i + 0x201);
-                    }
-                }
-                std::fill_n(check, 8, 0);
-                count_ = 0;
-            }
+            // if (++count_ == 250) {
+            //     for (int i = 0; i < 8; ++i) {
+            //         if (check[i] == 0) {
+            //             RCLCPP_WARN(logger_, "bottom board can id 0x%03X missing", i + 0x201);
+            //         }
+            //     }
+            //     std::fill_n(check, 8, 0);
+            //     count_ = 0;
+            // }
         }
 
         void command_update() {

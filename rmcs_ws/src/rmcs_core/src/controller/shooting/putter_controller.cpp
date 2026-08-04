@@ -134,6 +134,7 @@ public:
                         const auto now = std::chrono::steady_clock::now();
                         const bool left_click_edge = (!last_mouse_.left && mouse.left);
                         if (left_click_edge) {
+                            RCLCPP_INFO(get_logger(), "LEFT-CLICK");
                             if (now - last_click_time_ < std::chrono::milliseconds(500)) {
                                 click_count_++;
                             } else {
