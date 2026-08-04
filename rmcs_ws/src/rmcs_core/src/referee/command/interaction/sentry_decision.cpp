@@ -30,6 +30,7 @@ public:
     InputInterface<std::uint16_t> robot_hp_fb_;
     InputInterface<std::uint8_t> energy_core_status_;
     InputInterface<bool> can_rebirth_free_;
+    InputInterface<bool> automatic_resurrection_;
 
     OutputInterface<Field> sentry_decision_field_;
 
@@ -91,6 +92,7 @@ public:
         register_input(
             "/referee/event/ally_big_energy_activation_status", energy_core_status_, false);
         register_input("/referee/sentry/can_rebirth_free", can_rebirth_free_, false);
+        register_input("/rmcs_navigation/automatic_resurrection", automatic_resurrection_, false);
 
         register_output("/referee/command/interaction/sentry_decision", sentry_decision_field_);
     }
@@ -106,6 +108,8 @@ public:
             energy_core_status_.make_and_bind_directly(uint8_t{0});
         if (!can_rebirth_free_.ready())
             can_rebirth_free_.make_and_bind_directly(false);
+        if (!automatic_resurrection_.ready())
+            automatic_resurrection_.make_and_bind_directly(true);
     }
 
     auto update() -> void override {
@@ -117,7 +121,7 @@ public:
         detect_new_events();
 
         const auto can_rebirth_free = *can_rebirth_free_;
-        if (can_rebirth_free && !last_can_rebirth_free_) {
+        if (*automatic_resurrection_ && can_rebirth_free && !last_can_rebirth_free_) {
             requests_.insert(SentryEvent::CONFIRM_REBIRTH);
         }
         last_can_rebirth_free_ = can_rebirth_free;

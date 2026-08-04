@@ -87,6 +87,7 @@ auto_aim_component:
     dangerous_fallback: ""
     manual_shoot: false
     enable_rune: false
+    default_attack_rune: false
     camera_translation: [0.25, 0.0, -0.05]
     fire_control:
       bullet_speed: 11.5
@@ -98,7 +99,6 @@ auto_aim_component:
       window_redundancy: 0.8
       window_hysteresis: 0.2
       attack_preaim: false
-      require_stable_command: false
       yaw_tolerance: 0.07
       pitch_tolerance: 0.04
       rune_idle_duration: 0.4

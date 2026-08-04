@@ -22,7 +22,7 @@ rmcs_executor:
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::SteeringWheelController -> steering_wheel_controller
 
-      # - rmcs::navigation::Navigation -> rmcs_navigation
+      - rmcs::navigation::Navigation -> rmcs_navigation
 
       - rmcs::AutoAimRecorderComponent -> auto_aim_recorder
       - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
@@ -50,7 +50,7 @@ auto_aim_capturer:
 
 auto_aim_recorder:
   ros__parameters:
-    output_path: "/tmp/autoaim/records"
+    output_path: "/autoaim/records"
     queue_depth: 16
     flush_every_n_frames: 64
     max_duration_seconds: 300
@@ -61,8 +61,8 @@ auto_aim_component:
   ros__parameters:
     manual_shoot: true
     enable_rune: true
-    # track_ids: [OUTPOST, BASE]
-    track_ids: [HERO, ENGINEER, INFANTRY_3, INFANTRY_4, SENTRY, OUTPOST, BASE]
+    default_attack_rune: false
+    track_ids: [FULL]
     camera_translation: [0.07128, 0.0, 0.0481]
     fire_control:
       bullet_speed: 22.5
@@ -74,7 +74,6 @@ auto_aim_component:
       window_redundancy: 0.8
       window_hysteresis: 0.2
       attack_preaim: false
-      require_stable_command: false
       yaw_tolerance: 0.07
       pitch_tolerance: 0.04
       rune_idle_duration: 0.4
@@ -142,7 +141,7 @@ gimbal_controller:
     pitch_velocity_integral_min: -2400.0
     pitch_velocity_integral_max: 2400.0
 
-    top_yaw_velocity_ff_gain: 1.0
+    top_yaw_velocity_ff_gain: 0.0
     top_yaw_ff_cutoff_hz: 10.0
     top_yaw_ff_max: 2.0
     top_yaw_ff_jump_threshold: 0.01
