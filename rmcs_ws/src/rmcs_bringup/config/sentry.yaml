@@ -40,8 +40,8 @@ rmcs_navigation:
 auto_aim_capturer:
   ros__parameters:
     camera_name: ""
-    exposure_us: 1500.0
-    gain: 8.0
+    exposure_us: 2000.0
+    gain: 10.0
     framerate: 120.0
     invert_image: true
     rls_tau_sec: 10.0
@@ -59,25 +59,26 @@ auto_aim_recorder:
 
 auto_aim_component:
   ros__parameters:
-    manual_shoot: true
-    enable_rune: true
+    manual_shoot: false
+    enable_rune: false
     default_attack_rune: false
     track_ids: [FULL]
     camera_translation: [0.07128, 0.0, 0.0481]
     fire_control:
       bullet_speed: 22.5
       shoot_delay: 0.05
-      offset_yaw: -0.3
+      offset_yaw: -0.4
       offset_pitch: -0.1
-      attack_window: 80.0
+      attack_window: 120.0
       degraded_angle_speed: 12.0
       window_redundancy: 0.8
       window_hysteresis: 0.2
       attack_preaim: false
-      yaw_tolerance: 0.07
-      pitch_tolerance: 0.04
+      yaw_tolerance: 0.14
+      pitch_tolerance: 0.08
       rune_idle_duration: 0.4
       rune_shoot_duration: 0.2
+      require_stable_command: false
 
 value_broadcaster:
   ros__parameters:
