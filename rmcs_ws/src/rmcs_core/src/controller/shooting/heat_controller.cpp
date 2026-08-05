@@ -18,7 +18,7 @@ public:
 
         register_input("/referee/shooter/cooling", shooter_cooling_);
         register_input("/referee/shooter/heat_limit", shooter_heat_limit_);
-        register_input("/referee/sentry/posture", sentry_posture_, uint8_t{3});
+        register_input("/referee/sentry/posture", sentry_posture_, false);
 
         register_input("/gimbal/bullet_fired", bullet_fired_);
 
@@ -29,7 +29,7 @@ public:
     void update() override {
         shooter_heat_ = std::max<int64_t>(0, shooter_heat_ - *shooter_cooling_);
 
-        if (*sentry_posture_ == kPoweredAttackPosture) {
+        if (sentry_posture_.ready() && *sentry_posture_ == kPoweredAttackPosture) {
             *control_bullet_allowance_ = kUnlimitedBulletAllowance;
             return;
         }
@@ -43,7 +43,7 @@ public:
 
 private:
     static constexpr int64_t kPoweredAttackPosture = 4;
-    static constexpr int64_t kUnlimitedBulletAllowance = 100000;
+    static constexpr int64_t kUnlimitedBulletAllowance = std::numeric_limits<std::int64_t>::max();
 
     InputInterface<int64_t> shooter_cooling_;
     InputInterface<int64_t> shooter_heat_limit_;
