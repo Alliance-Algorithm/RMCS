@@ -409,7 +409,7 @@ friction_wheel_controller:
       - 434.0
       - 434.0
       - 434.0
-    friction_soft_start_stop_time: 1.0
+    friction_soft_start_stop_time: 1.2
 
 heat_controller:
   ros__parameters:
@@ -428,7 +428,7 @@ first_front_friction_velocity_pid_controller:
     setpoint: /gimbal/first_front_friction/control_velocity
     control: /gimbal/first_front_friction/control_torque
     kp: 0.006233371
-    ki: 0.00003
+    ki: 0.0000
     kd: 0.000001
 
 second_front_friction_velocity_pid_controller:
@@ -437,7 +437,7 @@ second_front_friction_velocity_pid_controller:
     setpoint: /gimbal/second_front_friction/control_velocity
     control: /gimbal/second_front_friction/control_torque
     kp: 0.006035661
-    ki: 0.00003
+    ki: 0.0000
     kd: 0.000001
 
 third_front_friction_velocity_pid_controller:
@@ -446,7 +446,7 @@ third_front_friction_velocity_pid_controller:
     setpoint: /gimbal/third_front_friction/control_velocity
     control: /gimbal/third_front_friction/control_torque
     kp: 0.006192421
-    ki: 0.00003
+    ki: 0.0000
     kd: 0.000001
 
 first_back_friction_velocity_pid_controller:
@@ -455,7 +455,7 @@ first_back_friction_velocity_pid_controller:
     setpoint: /gimbal/first_back_friction/control_velocity
     control: /gimbal/first_back_friction/control_torque
     kp: 0.007749503
-    ki: 0.00001
+    ki: 0.0000
     kd: 0.00003
 
 second_back_friction_velocity_pid_controller:
@@ -464,7 +464,7 @@ second_back_friction_velocity_pid_controller:
     setpoint: /gimbal/second_back_friction/control_velocity
     control: /gimbal/second_back_friction/control_torque
     kp: 0.007795934
-    ki: 0.00001
+    ki: 0.0000
     kd: 0.00003
 
 third_back_friction_velocity_pid_controller:
@@ -473,7 +473,7 @@ third_back_friction_velocity_pid_controller:
     setpoint: /gimbal/third_back_friction/control_velocity
     control: /gimbal/third_back_friction/control_torque
     kp: 0.007760993
-    ki: 0.00001
+    ki: 0.0000
     kd: 0.00003
 
 steering_wheel_status:

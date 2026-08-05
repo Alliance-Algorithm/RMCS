@@ -25,6 +25,7 @@ public:
 
         register_input("/referee/shooter/initial_speed", initial_speed_);
         register_input("/referee/shooter/shoot_timestamp", shoot_timestamp_);
+        register_output("shoot/r_bullet_fired", r_bullet_fired_, false);
 
         using namespace std::chrono;
         auto now = high_resolution_clock::now();
@@ -41,6 +42,8 @@ public:
 
     void update() override {
         // Evaluate friction-wheel quality.
+
+        *r_bullet_fired_ = false;
         switch (log_mode_) {
         case LogMode::TRIGGER:
             // It will be triggered by shooting action
@@ -53,6 +56,9 @@ public:
                 return;
             break;
         }
+
+        *r_bullet_fired_ = true;
+
         v = *shoot_timestamp_;
 
         static constexpr size_t max_velocities_size = 1000;
@@ -96,6 +102,7 @@ private:
 
     InputInterface<float> initial_speed_;
     InputInterface<double> shoot_timestamp_;
+    OutputInterface<bool> r_bullet_fired_;
 
     std::size_t friction_wheel_count_ = 6;
     std::array<InputInterface<double>, 2> friction_wheels_velocity_;

@@ -106,8 +106,13 @@ public:
         }
 
         if (switch_right != Switch::DOWN) {
-            if ((!last_keyboard_.v && keyboard.v)
-                || (last_switch_left_ == Switch::MIDDLE && switch_left == Switch::UP)) {
+            const bool v_pressed = !last_keyboard_.v && keyboard.v;
+            const bool switch_toggled =
+                last_switch_left_ == Switch::MIDDLE && switch_left == Switch::UP;
+
+            if (v_pressed) {
+                friction_enabled_ = !keyboard.ctrl;
+            } else if (switch_toggled) {
                 friction_enabled_ = !friction_enabled_;
             }
 

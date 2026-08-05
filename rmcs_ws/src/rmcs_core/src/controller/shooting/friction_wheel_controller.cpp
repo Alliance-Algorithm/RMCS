@@ -146,7 +146,7 @@ private:
             return;
 
         if (detect_friction_faulty()) {
-            if (friction_faulty_count_ == 200) {
+            if (friction_faulty_count_ == 1000) {
                 friction_enabled_ = false;
                 *friction_jammed_ = true;
             } else {

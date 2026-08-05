@@ -22,6 +22,7 @@ public:
         register_input("/referee/shooter/heat_limit", shooter_heat_limit_);
 
         register_input("/gimbal/bullet_fired", bullet_fired_);
+        register_input("shoot/r_bullet_fired", r_bullet_fired_);
 
         register_output(
             "/gimbal/control_bullet_allowance/limited_by_heat", control_bullet_allowance_, 0);
@@ -31,20 +32,30 @@ public:
     void update() override {
         shooter_heat_ = std::max<int64_t>(0, shooter_heat_ - *shooter_cooling_);
 
-        const bool bullet_fired = *bullet_fired_;
-        if (bullet_fired && !last_bullet_fired_)
+        const bool bullet_fired = *r_bullet_fired_;
+        if (bullet_fired && !last_bullet_fired_) {
             shooter_heat_ += heat_per_shot;
+            RCLCPP_INFO(get_logger(), "................................");
+        }
         last_bullet_fired_ = bullet_fired;
 
         *control_bullet_allowance_ = std::max<int64_t>(
             0, (*shooter_heat_limit_ - shooter_heat_ - reserved_heat) / heat_per_shot);
 
         *shooting_heat_ = static_cast<double>(shooter_heat_);
+        if (shooter_heat_ > 0 && ++log_counter_ >= 1000) {
+            log_counter_ = 0;
+            RCLCPP_INFO(
+                get_logger(), "heat=%ld/%ld, cooling=%ld, reserved=%ld, allowance=%ld",
+                shooter_heat_, *shooter_heat_limit_, *shooter_cooling_, reserved_heat,
+                *control_bullet_allowance_);
+        }
     }
 
 private:
     InputInterface<int64_t> shooter_cooling_;
     InputInterface<int64_t> shooter_heat_limit_;
+    InputInterface<bool> r_bullet_fired_;
 
     InputInterface<bool> bullet_fired_;
 
@@ -56,6 +67,7 @@ private:
     OutputInterface<double> shooting_heat_;
 
     OutputInterface<int64_t> control_bullet_allowance_;
+    int64_t log_counter_ = 0;
 };
 
 } // namespace rmcs_core::controller::shooting
