@@ -67,9 +67,9 @@ auto_aim_component:
     fire_control:
       bullet_speed: 22.5
       shoot_delay: 0.05
-      offset_yaw: -0.4
-      offset_pitch: -0.1
-      attack_window: 120.0
+      offset_yaw: -0.5
+      offset_pitch: -0.2
+      attack_window: 110.0
       degraded_angle_speed: 12.0
       window_redundancy: 0.8
       window_hysteresis: 0.2
@@ -222,12 +222,12 @@ friction_wheel_controller:
 heat_controller:
   ros__parameters:
     heat_per_shot: 10000
-    reserved_heat: 30000
+    reserved_heat: 20000
 
 bullet_feeder_controller:
   ros__parameters:
     bullets_per_feeder_turn: 9.0
-    shot_frequency: 28.0
+    shot_frequency: 35.0
     safe_shot_frequency: 10.0
     eject_frequency: 15.0
     eject_time: 0.15
