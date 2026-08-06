@@ -158,6 +158,9 @@ public:
 
     Eigen::Vector2d update_translational_velocity_control() {
         if (!std::isnan(*climbing_forward_velocity_)) {
+            RCLCPP_INFO(
+                get_logger(), "Climbing forward velocity control active: %f",
+                *climbing_forward_velocity_);
             return Eigen::Vector2d{*climbing_forward_velocity_, 0.0};
         }
 

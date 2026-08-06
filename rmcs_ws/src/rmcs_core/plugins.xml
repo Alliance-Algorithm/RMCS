@@ -64,4 +64,6 @@
   <class type="rmcs_core::controller::identification::StaticTorqueTestController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::identification::SweptFrequencyController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::test::output::AngleOutput" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::suicide::SuicideController" base_class_type="rmcs_executor::Component" />
+
 </library>

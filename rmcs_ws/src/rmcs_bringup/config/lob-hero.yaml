@@ -10,6 +10,8 @@ rmcs_executor:
       - rmcs_core::referee::app::ui::Hero -> referee_ui_hero
       - rmcs_core::referee::Command -> referee_command
 
+      - rmcs_core::controller::suicide::SuicideController -> suicide_controller
+      
       - rmcs_core::controller::gimbal::HeroGimbalController -> gimbal_controller
       - rmcs_core::controller::gimbal::HeroDualCameraController -> hero_dual_camera_controller
       - rmcs_core::controller::gimbal::DualYawController -> dual_yaw_controller
@@ -166,7 +168,7 @@ hero_hardware:
 auto_aim_capturer:
   ros__parameters:
     camera_name: "auto-aim"
-    exposure_us: 1000.0
+    exposure_us: 2000.0
     gain: 10.0
     framerate: 100.0
     invert_image: false
@@ -184,11 +186,11 @@ auto_aim_component:
     enable_rune: false
     camera_translation: [0.25, 0.0, -0.05]
     fire_control:
-      bullet_speed: 11.5
+      bullet_speed: 11.35
       shoot_delay: 0.08
-      offset_yaw: 0.0
-      offset_pitch: -0.25
-      attack_window: 45.0
+      offset_yaw: 0.05
+      offset_pitch: -0.4
+      attack_window: 90.0
       degraded_angle_speed: 10.0
       window_hysteresis: 0.2
       attack_preaim: false
