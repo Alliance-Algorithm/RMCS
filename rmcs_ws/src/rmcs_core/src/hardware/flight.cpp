@@ -1,3 +1,4 @@
+#include <chrono>
 #include <cstddef>
 #include <memory>
 #include <new>
@@ -22,6 +23,8 @@
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/lk_motor.hpp"
 #include "hardware/device/remote_control.hpp"
+#include "hardware/device/vt13.hpp"
+#include "hardware/vtm-link/ladar_package_transmit.hpp"
 #include "librmcs/board/rmcs_board_lite.hpp"
 
 namespace rmcs_core::hardware {
@@ -98,16 +101,22 @@ public:
 
         board_ = std::make_unique<librmcs::board::RmcsBoardLite>(
             *this, get_parameter("board_serial").as_string());
+
+        vt13_board_ =
+            std::make_unique<Vt13Board>(*this, get_parameter("vt13_board_serial").as_string());
     }
 
     void update() override {
         update_motors();
         update_imu();
         dr16_.update_status();
+        vt13_board_->update();
         remote_control_->update();
     }
 
     void command_update() {
+        vt13_board_->command_update();
+
         auto builder = board_->start_transmit();
         builder
             .can_transmit(
@@ -243,6 +252,37 @@ protected:
     }
 
 private:
+    struct Vt13Board final : librmcs::board::RmcsBoardLite::Callback {
+        explicit Vt13Board(Flight& flight, std::string_view board_serial)
+            : ladar_transmit_(
+                  *flight.command_component_, std::chrono::milliseconds{200},
+                  [this](const std::byte* buffer, size_t size) {
+                      board_->start_transmit().uart_transmit(
+                          Spec::kUarts.kUart0,
+                          {.uart_data = std::span<const std::byte>{buffer, size}});
+                  },
+                  flight.get_logger()) {
+            board_ = std::make_unique<librmcs::board::RmcsBoardLite>(*this, board_serial);
+            board_->start_transmit().uart_config(Spec::kUarts.kUart0, {.baudrate = 921600});
+
+            flight.remote_control_->register_vt13(&vt13_);
+        }
+
+        void update() { vt13_.update_status(); }
+
+        void command_update() { ladar_transmit_.command_update(); }
+
+        void uart_receive_callback(const Spec::Uart& uart, const View::Uart& data) override {
+            if (uart == Spec::kUarts.kUart0) {
+                vt13_.store_status(data.uart_data);
+            }
+        }
+
+        device::Vt13 vt13_;
+        vtm::LadarPackageTransmit ladar_transmit_;
+        std::unique_ptr<librmcs::board::RmcsBoardLite> board_;
+    };
+
     class FlightCommand : public rmcs_executor::Component {
     public:
         explicit FlightCommand(Flight& flight)
@@ -259,6 +299,7 @@ private:
     std::shared_ptr<rclcpp::Service<std_srvs::srv::Trigger>> status_service_;
 
     std::unique_ptr<librmcs::board::RmcsBoardLite> board_;
+    std::unique_ptr<Vt13Board> vt13_board_;
 
     device::LkMotor gimbal_yaw_motor_{*this, *command_component_, "/gimbal/yaw"};
     device::LkMotor gimbal_pitch_motor_{*this, *command_component_, "/gimbal/pitch"};
