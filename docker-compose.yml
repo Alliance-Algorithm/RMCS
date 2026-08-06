@@ -1,6 +1,6 @@
 services:
   rmcs-develop:
-    image: qzhhhi/rmcs-develop:latest-full
+    image: qzhhhi/rmcs-develop:latest
     user: "1000:1000"
     privileged: true
     volumes:
@@ -8,10 +8,6 @@ services:
       - /tmp/.X11-unix:/tmp/.X11-unix:bind
       - /run/user/1000/wayland-0:/run/user/1000/wayland-0:bind
       - ${HOME}/.config/:${CONTAINER_HOME}/.config/:bind
-      - ${HOME}/.claude/:${CONTAINER_HOME}/.claude/:bind
-      - ${HOME}/.claude.json:${CONTAINER_HOME}/.claude.json:bind
-      - ${HOME}/.codex/:${CONTAINER_HOME}/.codex/:bind
-      - ${HOME}/CLAUDE.md:${CONTAINER_HOME}/CLAUDE.md:bind
       - .:/workspaces/RMCS:bind
     environment:
       - DISPLAY=${DISPLAY}
