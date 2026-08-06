@@ -102,8 +102,8 @@ public:
         board_ = std::make_unique<librmcs::board::RmcsBoardLite>(
             *this, get_parameter("board_serial").as_string());
 
-        vt13_board_ = std::make_unique<Vt13Board>(
-            *this, get_parameter("vt13_board_serial").as_string());
+        vt13_board_ =
+            std::make_unique<Vt13Board>(*this, get_parameter("vt13_board_serial").as_string());
     }
 
     void update() override {

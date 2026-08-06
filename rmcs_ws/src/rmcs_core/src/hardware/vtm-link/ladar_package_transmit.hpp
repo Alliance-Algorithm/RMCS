@@ -54,8 +54,8 @@ private:
         static constexpr size_t kHeaderSize = sizeof(referee::FrameHeader);
         static constexpr size_t kCmdIdSize = sizeof(uint16_t);
         static constexpr size_t kCrc16Size = sizeof(uint16_t);
-        static constexpr size_t kFrameSize = kHeaderSize + kCmdIdSize + kLadarPacketSize
-                                           + kCrc16Size;
+        static constexpr size_t kFrameSize =
+            kHeaderSize + kCmdIdSize + kLadarPacketSize + kCrc16Size;
 
         referee::Frame frame;
         frame.header.sof = referee::sof_value;
@@ -64,8 +64,7 @@ private:
         frame.header.crc8 = 0;
         frame.body.command_id = kLadarCmdId;
         std::memcpy(frame.body.data, lidar_msg_broadcast.data(), kLadarDataSize);
-        std::memset(
-            frame.body.data + kLadarDataSize, 0, kLadarPacketSize - kLadarDataSize);
+        std::memset(frame.body.data + kLadarDataSize, 0, kLadarPacketSize - kLadarDataSize);
 
         rmcs_utility::dji_crc::append_crc8(frame.header);
         rmcs_utility::dji_crc::append_crc16(&frame, kFrameSize);
