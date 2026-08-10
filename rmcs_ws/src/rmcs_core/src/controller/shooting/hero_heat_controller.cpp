@@ -31,8 +31,10 @@ public:
     void update() override {
         shooter_heat_ = std::max<int64_t>(0, shooter_heat_ - *shooter_cooling_);
 
-        if (*bullet_fired_)
+        const bool bullet_fired = *bullet_fired_;
+        if (bullet_fired && !last_bullet_fired_)
             shooter_heat_ += heat_per_shot;
+        last_bullet_fired_ = bullet_fired;
 
         *control_bullet_allowance_ = std::max<int64_t>(
             0, (*shooter_heat_limit_ - shooter_heat_ - reserved_heat) / heat_per_shot);
@@ -49,6 +51,7 @@ private:
     const int64_t heat_per_shot;
     const int64_t reserved_heat;
 
+    bool last_bullet_fired_ = false;
     int64_t shooter_heat_ = 0;
     OutputInterface<double> shooting_heat_;
 
