@@ -1,11 +1,13 @@
 #include <cmath>
 
 #include <algorithm>
+#include <array>
 #include <limits>
 #include <numbers>
 #include <vector>
 
 #include <eigen3/Eigen/Dense>
+#include <fmt/format.h>
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
@@ -41,22 +43,17 @@ public:
 
         register_input("/chassis/left_front_wheel/max_torque", wheel_motor_max_control_torque_);
 
-        register_input("/chassis/left_front_wheel/velocity", left_front_velocity_);
-        register_input("/chassis/left_back_wheel/velocity", left_back_velocity_);
-        register_input("/chassis/right_back_wheel/velocity", right_back_velocity_);
-        register_input("/chassis/right_front_wheel/velocity", right_front_velocity_);
+        for (size_t i = 0; i < kWheelCount; ++i) {
+            register_input(
+                fmt::format("/chassis/{}_wheel/velocity", kWheelName[i]), wheel_velocity_[i]);
+            register_output(
+                fmt::format("/chassis/{}_wheel/control_torque", kWheelName[i]),
+                wheel_control_torque_[i], nan_);
+        }
 
         register_input("/chassis/control_velocity", chassis_control_velocity_);
         register_input("/chassis/control_power_limit", power_limit_);
         register_input("/chassis/radius", chassis_radius_);
-
-        register_output(
-            "/chassis/left_front_wheel/control_torque", left_front_control_torque_, nan_);
-        register_output("/chassis/left_back_wheel/control_torque", left_back_control_torque_, nan_);
-        register_output(
-            "/chassis/right_back_wheel/control_torque", right_back_control_torque_, nan_);
-        register_output(
-            "/chassis/right_front_wheel/control_torque", right_front_control_torque_, nan_);
     }
 
     void before_updating() override {
@@ -76,9 +73,9 @@ public:
             return;
         }
 
-        Eigen::Vector4d wheel_velocities = {
-            *left_front_velocity_, *left_back_velocity_, *right_back_velocity_,
-            *right_front_velocity_};
+        Eigen::Vector4d wheel_velocities;
+        for (size_t i = 0; i < kWheelCount; ++i)
+            wheel_velocities[i] = *wheel_velocity_[i];
 
         const auto chassis_velocity = calculate_chassis_velocity(wheel_velocities);
         auto chassis_control_torque = calculate_chassis_control_torque(chassis_velocity);
@@ -89,23 +86,29 @@ public:
         const auto wheel_control_torques =
             calculate_wheel_control_torques(chassis_control_torque, wheel_pid_torques);
 
-        *left_front_control_torque_ = wheel_control_torques[0];
-        *left_back_control_torque_ = wheel_control_torques[1];
-        *right_back_control_torque_ = wheel_control_torques[2];
-        *right_front_control_torque_ = wheel_control_torques[3];
+        for (size_t i = 0; i < kWheelCount; ++i)
+            *wheel_control_torque_[i] = wheel_control_torques[i];
     }
 
 private:
+    static constexpr size_t kWheelCount = 4;
+    static constexpr const char* kWheelName[] = {
+        "left_front",
+        "left_back",
+        "right_back",
+        "right_front",
+    };
+    static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
+    static constexpr double g_ = 9.81;
+
     struct ChassisControlTorque {
         Eigen::Vector2d torque;
         Eigen::Vector2d lambda;
     };
 
     void reset_all_controls() {
-        *left_front_control_torque_ = 0.0;
-        *left_back_control_torque_ = 0.0;
-        *right_back_control_torque_ = 0.0;
-        *right_front_control_torque_ = 0.0;
+        for (size_t i = 0; i < kWheelCount; ++i)
+            *wheel_control_torque_[i] = 0.0;
     }
 
     Eigen::Vector3d calculate_chassis_velocity(const Eigen::Vector4d& wheel_velocities) const {
@@ -122,16 +125,17 @@ private:
     ChassisControlTorque calculate_chassis_control_torque(const Eigen::Vector3d& chassis_velocity) {
         ChassisControlTorque result;
 
-        Eigen::Vector3d err = chassis_control_velocity_->vector - chassis_velocity;
+        Eigen::Vector3d chassis_velocity_error =
+            chassis_control_velocity_->vector - chassis_velocity;
         Eigen::Vector2d translational_torque =
             (-std::numbers::sqrt2 / 4 * wheel_radius_) * mass_
-            * translational_velocity_pid_calculator_.update(err.head<2>());
+            * translational_velocity_pid_calculator_.update(chassis_velocity_error.head<2>());
         result.torque.x() = translational_torque.norm();
 
         const double a_plus_b = std::numbers::sqrt2 * std::max(*chassis_radius_, 1e-6);
         result.torque.y() = (-std::numbers::sqrt2 / 4 * wheel_radius_)
                           * (moment_of_inertia_ / a_plus_b)
-                          * angular_velocity_pid_calculator_.update(err[2]);
+                          * angular_velocity_pid_calculator_.update(chassis_velocity_error[2]);
 
         Eigen::Vector2d translational_torque_direction;
         if (result.torque.x() > 0)
@@ -230,10 +234,6 @@ private:
         return wheel_torques;
     }
 
-    static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
-
-    static constexpr double g_ = 9.81;
-
     const double mass_;
     const double moment_of_inertia_;
     const double wheel_radius_;
@@ -245,10 +245,8 @@ private:
 
     InputInterface<double> wheel_motor_max_control_torque_;
 
-    InputInterface<double> left_front_velocity_;
-    InputInterface<double> left_back_velocity_;
-    InputInterface<double> right_back_velocity_;
-    InputInterface<double> right_front_velocity_;
+    std::array<InputInterface<double>, kWheelCount> wheel_velocity_;
+    std::array<OutputInterface<double>, kWheelCount> wheel_control_torque_;
 
     InputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;
     InputInterface<double> power_limit_;
@@ -260,11 +258,6 @@ private:
     pid::MatrixPidCalculator<4> wheel_velocity_pid_;
 
     QcpSolver qcp_solver_;
-
-    OutputInterface<double> left_front_control_torque_;
-    OutputInterface<double> left_back_control_torque_;
-    OutputInterface<double> right_back_control_torque_;
-    OutputInterface<double> right_front_control_torque_;
 };
 
 } // namespace rmcs_core::controller::chassis
