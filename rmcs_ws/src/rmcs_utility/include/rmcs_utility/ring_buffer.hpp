@@ -292,6 +292,43 @@ public:
     }
 
     /*!
+     * @brief Visit elements from the head without consuming them
+     * @tparam F Functor with signature `void(T&)`
+     * @param callback_functor Invoked for each readable element in FIFO order
+     * @param count Maximum number of elements to inspect (defaults to all available)
+     * @return Number of elements actually visited
+     * @note Consumer-only. Does not advance `out_` or destroy elements.
+     *       Mutations performed through the callback are applied in place to the
+     *       buffered elements.
+     */
+    template <typename F>
+    requires requires(F& f, T& t) {
+        { f(t) } noexcept;
+    } size_t peek_front_n(F callback_functor, size_t count = std::numeric_limits<size_t>::max()) {
+        const auto in = in_.load(std::memory_order::acquire);
+        const auto out = out_.load(std::memory_order::relaxed);
+
+        const auto readable = in - out;
+        count = std::min(count, readable);
+        if (!count)
+            return 0;
+
+        const auto offset = out & mask_;
+        const auto slice = std::min(count, max_size() - offset);
+
+        auto process = [&callback_functor](std::byte* storage) {
+            auto& element = *std::launder(reinterpret_cast<T*>(storage));
+            callback_functor(element);
+        };
+        for (size_t i = 0; i < slice; i++)
+            process(storage_[offset + i].data);
+        for (size_t i = 0; i < count - slice; i++)
+            process(storage_[i].data);
+
+        return count;
+    }
+
+    /*!
      * @brief Peek the last produced element (consumer side)
      * @return Pointer to the last element, or nullptr if empty
      * @warning Do not call from producer thread. The pointer remains valid
