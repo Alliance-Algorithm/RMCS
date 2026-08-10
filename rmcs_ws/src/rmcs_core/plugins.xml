@@ -1,12 +1,12 @@
 <library path="rmcs_core">
   <class type="rmcs_core::hardware::Flight" base_class_type="rmcs_executor::Component" />
-  <class type="rmcs_core::hardware::SteeringHero" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::hardware::SteeringHeroLittle" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::hardware::OmniInfantry" base_class_type="rmcs_executor::Component" />
-  <class type="rmcs_core::hardware::Sentry" base_class_type="rmcs_executor::Component" />
-  <class type="rmcs_core::hardware::SteeringInfantry" base_class_type="rmcs_executor::Component" />
-  <class type="rmcs_core::hardware::DeformableInfantryV2" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::hardware::DeformableInfantryOmni" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::hardware::DeformableInfantryOmniB" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::hardware::Sentry" base_class_type="rmcs_executor::Component" />
+  
+  <class type="rmcs_core::hardware::Px4VisionBridge" base_class_type="rmcs_executor::Component" />
 
   <class type="rmcs_core::controller::chassis::ChassisController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::ChassisPowerController" base_class_type="rmcs_executor::Component" />
@@ -18,9 +18,10 @@
   <class type="rmcs_core::controller::chassis::HeroSteeringWheelController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::SteeringWheelStatus" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::ChassisClimberController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::chassis::SentryClimber" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::DeformableChassis" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::chassis::DeformableSuspension" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::DeformableJointController" base_class_type="rmcs_executor::Component" />
-  <class type="rmcs_core::controller::chassis::DeformableChassisController" base_class_type="rmcs_executor::Component" />
 
   <class type="rmcs_core::controller::gimbal::SimpleGimbalController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::gimbal::HeroGimbalController" base_class_type="rmcs_executor::Component" />
@@ -47,14 +48,21 @@
   <class type="rmcs_core::broadcaster::TfBroadcaster" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::broadcaster::ValueBroadcaster" base_class_type="rmcs_executor::Component" />
 
+  <class type="rmcs_core::debug::ValueCollector" base_class_type="rmcs_executor::Component" />
+
   <class type="rmcs_core::referee::Status" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::referee::Command" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::referee::command::Interaction" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::referee::command::interaction::Ui" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::referee::command::interaction::SentryDecision" base_class_type="rmcs_executor::Component" />
 
   <class type="rmcs_core::referee::app::ui::Infantry" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::referee::app::ui::DeformableInfantry" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::referee::app::ui::Hero" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::referee::app::ui::Flight" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::referee::app::ui::AutoAimUi" base_class_type="rmcs_executor::Component" />
+
+  <class type="rmcs_core::controller::identification::StaticTorqueTestController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::identification::SweptFrequencyController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::test::output::AngleOutput" base_class_type="rmcs_executor::Component" />
 </library>
