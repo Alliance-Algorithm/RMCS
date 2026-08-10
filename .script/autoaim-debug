@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SESSION="autoaim-debug"
+
+usage() {
+    cat <<'EOF'
+Usage: autoaim-debug <local|remote>
+
+  local   Start autoaim debug tmux session locally.
+  remote  Start autoaim debug tmux session on ssh remote.
+EOF
+}
+
+write_start_script() {
+    local path="$1"
+    cat >"${path}" <<'SCRIPT'
+set -euo pipefail
+
+SESSION="autoaim-debug"
+
+if [[ -f "${HOME}/env_setup.bash" ]]; then
+    ENV_SETUP="${HOME}/env_setup.bash"
+elif [[ -f "/root/env_setup.bash" ]]; then
+    ENV_SETUP="/root/env_setup.bash"
+else
+    echo "env_setup.bash not found in \$HOME or /root" >&2
+    exit 1
+fi
+
+tmux kill-session -t "${SESSION}" 2>/dev/null || true
+
+tmux new-session -d -s "${SESSION}" -n "foxglove" \
+    "bash -lc 'source \"${ENV_SETUP}\" && ros2 launch foxglove_bridge foxglove_bridge_launch.xml'"
+
+tmux new-window -t "${SESSION}" -n "streamer" \
+    "bash -lc '/opt/autoaim/bin/start-streamer'"
+SCRIPT
+    chmod +x "${path}"
+}
+
+if [[ $# -ne 1 ]]; then
+    usage
+    exit 1
+fi
+
+case "$1" in
+local)
+    tmp=$(mktemp)
+    trap 'rm -f "${tmp}"' EXIT
+    write_start_script "${tmp}"
+    bash "${tmp}"
+    tmux has-session -t "${SESSION}"
+    echo "autoaim-debug local started in tmux session: ${SESSION}"
+    echo "Attach with: tmux attach -t ${SESSION}"
+    ;;
+remote)
+    tmp=$(mktemp)
+    trap 'rm -f "${tmp}"' EXIT
+    write_start_script "${tmp}"
+    scp -q "${tmp}" remote:/tmp/autoaim-debug-start.sh
+    ssh-remote "bash /tmp/autoaim-debug-start.sh && rm -f /tmp/autoaim-debug-start.sh && tmux has-session -t ${SESSION}"
+    echo "autoaim-debug remote started in tmux session: ${SESSION}"
+    echo "Attach with: ssh-remote \"tmux attach -t ${SESSION}\""
+    ;;
+*)
+    usage
+    exit 1
+    ;;
+esac
