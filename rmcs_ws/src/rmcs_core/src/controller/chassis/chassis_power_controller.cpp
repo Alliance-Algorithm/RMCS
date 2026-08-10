@@ -30,6 +30,7 @@ public:
         register_input("/chassis/power", chassis_power_);
         register_input("/chassis/supercap/voltage", supercap_voltage_);
         register_input("/chassis/supercap/enabled", supercap_enabled_);
+        register_input("/rmcs_navigation/enable_supercap", navigation_supercap_, false);
 
         register_input("/referee/chassis/power_limit", chassis_power_limit_referee_);
         register_input("/referee/chassis/buffer_energy", chassis_buffer_energy_referee_);
@@ -41,6 +42,8 @@ public:
             "/chassis/supercap/voltage/control_line", supercap_voltage_control_line_, 12.5);
         register_output("/chassis/supercap/voltage/base_line", supercap_voltage_base_line_, 12.0);
         register_output("/chassis/supercap/voltage/dead_line", supercap_voltage_dead_line_, 11.0);
+
+        register_output("/chassis/climber/front/control_power_limit", control_power_limit_, 0.0);
     }
 
     void update() override {
@@ -94,6 +97,7 @@ private:
         virtual_buffer_energy_ = virtual_buffer_energy_limit_;
         boost_mode_ = false;
         *chassis_control_power_limit_ = 0.0;
+        *control_power_limit_ = 0.0;
     }
 
     void update_virtual_buffer_energy() {
@@ -107,10 +111,12 @@ private:
     void update_control_power_limit() {
         double power_limit;
 
-        if (boost_mode_ && *supercap_enabled_)
-            power_limit = *mode_ == rmcs_msgs::ChassisMode::LAUNCH_RAMP
-                            ? inf_
-                            : *chassis_power_limit_referee_ + 80.0;
+        const auto navigation_supercap_boost =
+            navigation_supercap_.ready() && *navigation_supercap_;
+
+        if ((boost_mode_ || navigation_supercap_boost) && *supercap_enabled_)
+            power_limit =
+                rmcs_msgs::is_powered(*mode_) ? inf_ : *chassis_power_limit_referee_ + 80.0;
         else
             power_limit = *chassis_power_limit_referee_;
         chassis_power_limit_expected_ = power_limit;
@@ -132,6 +138,7 @@ private:
         power_limit *= virtual_buffer_energy_ / virtual_buffer_energy_limit_;
 
         *chassis_control_power_limit_ = power_limit;
+        *control_power_limit_ = power_limit;
     }
 
     void update_ui() {
@@ -156,6 +163,7 @@ private:
 
     InputInterface<double> supercap_voltage_;
     InputInterface<bool> supercap_enabled_;
+    InputInterface<bool> navigation_supercap_;
 
     InputInterface<double> chassis_power_limit_referee_;
     InputInterface<double> chassis_buffer_energy_referee_;
@@ -168,6 +176,7 @@ private:
     OutputInterface<double> supercap_voltage_control_line_;
     OutputInterface<double> supercap_voltage_base_line_;
     OutputInterface<double> supercap_voltage_dead_line_;
+    OutputInterface<double> control_power_limit_;
 
     ui::Integer chassis_power_ui_{ui::Shape::Color::WHITE, 15, 2, ui::x_center, 100, 0};
     ui::Integer chassis_control_power_limit_ui_{

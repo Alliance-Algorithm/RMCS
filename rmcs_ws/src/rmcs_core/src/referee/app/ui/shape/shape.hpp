@@ -750,8 +750,6 @@ public:
 
     const char* value() const { return value_; }
     void set_value(const char* value) {
-        if (value_ == value)
-            return;
         value_ = value;
         set_modified();
     }

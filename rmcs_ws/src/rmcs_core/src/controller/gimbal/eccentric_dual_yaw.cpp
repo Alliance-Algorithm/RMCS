@@ -1,3 +1,6 @@
+#include "controller/gimbal/eccentric_dual_yaw_solver.hpp"
+#include "controller/pid/pid_calculator.hpp"
+
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -12,10 +15,51 @@
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/switch.hpp>
 
-#include "controller/pid/pid_calculator.hpp"
-
 namespace rmcs_core::controller::gimbal {
 using namespace rmcs_description;
+
+// 对 top 关节自瞄参考角做差分+低通滤波的目标角速度前馈，
+// 补偿斜坡跟踪滞后；切板跳变时清零。
+struct YawRateFeedforward {
+    double gain = 1.0;
+    double cutoff_hz = 15.0;
+    double max_rate = 6.0;
+    double jump_threshold = 0.05;
+
+    auto update(double azimuth, std::chrono::steady_clock::time_point now) -> double {
+        if (std::isfinite(prev_azimuth_)) {
+            const auto dt = std::chrono::duration<double>(now - prev_timestamp_).count();
+            const auto delta = limit_rad(azimuth - prev_azimuth_);
+            if (std::abs(delta) > jump_threshold) {
+                filtered_rate_ = 0.0;
+            } else if (dt > kMinDt) {
+                const auto raw = delta / dt;
+                const auto alpha = dt / (dt + 1.0 / (2.0 * std::numbers::pi * cutoff_hz));
+                filtered_rate_ += alpha * (raw - filtered_rate_);
+            }
+        }
+        prev_azimuth_ = azimuth;
+        prev_timestamp_ = now;
+        return gain * std::clamp(filtered_rate_, -max_rate, max_rate);
+    }
+
+private:
+    static constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
+    static constexpr double kMinDt = 1e-6;
+
+    static auto limit_rad(double angle) -> double {
+        constexpr double kPi = std::numbers::pi_v<double>;
+        while (angle > kPi)
+            angle -= 2.0 * kPi;
+        while (angle <= -kPi)
+            angle += 2.0 * kPi;
+        return angle;
+    }
+
+    double prev_azimuth_ = kNaN;
+    double filtered_rate_ = 0.0;
+    std::chrono::steady_clock::time_point prev_timestamp_{};
+};
 
 class EccentricDualYaw
     : public rmcs_executor::Component
@@ -24,9 +68,20 @@ public:
     EccentricDualYaw()
         : Node{
               get_component_name(),
-              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)} {}
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)} {
+        get_parameter_or("top_yaw_velocity_ff_gain", top_yaw_ff_.gain, 1.0);
+        get_parameter_or("top_yaw_ff_cutoff_hz", top_yaw_ff_.cutoff_hz, 15.0);
+        get_parameter_or("top_yaw_ff_max", top_yaw_ff_.max_rate, 6.0);
+        get_parameter_or("top_yaw_ff_jump_threshold", top_yaw_ff_.jump_threshold, 0.05);
+    }
 
     auto before_updating() -> void override {
+        if (!input_.navigation_enable_control.ready()) {
+            input_.navigation_enable_control.make_and_bind_directly(false);
+            input_.navigation_toward.make_and_bind_directly(kVecNaN);
+            RCLCPP_INFO(get_logger(), "Manual mode without navigation gimbal control");
+        }
+
         enter_disabled_state();
         previous_actual_yaw_ = current_barrel_yaw_pitch().first;
         previous_yaw_timestamp_ = *input_.timestamp;
@@ -42,56 +97,73 @@ public:
             return;
         }
 
-        const double yaw_shift = kJoystickSensitivity * input_.joystick_left->y()
-                               + kMouseSensitivity * input_.mouse_velocity->y();
-        const double pitch_shift = -kJoystickSensitivity * input_.joystick_left->x()
-                                 - kMouseSensitivity * input_.mouse_velocity->x();
+        // 自动瞄准控制。
+        if (input_.enable_autoaim()) {
+            const auto error = solver_.update(
+                EccentricDualYawSolver::AutoAim{
+                    *input_.tf,
+                    *input_.top_yaw_angle,
+                    *input_.auto_aim_control_direction,
+                    *input_.auto_aim_robot_center,
+                    upper_limit_,
+                    lower_limit_,
+                });
+            const auto top_yaw_ff =
+                top_yaw_ff_.update(solver_.top_target_azimuth(), *input_.timestamp);
+            apply_control(error.bottom_yaw, error.top_yaw, error.pitch, top_yaw_ff);
 
-        manual_bottom_yaw_target_ = limit_rad(manual_bottom_yaw_target_ + yaw_shift);
-        manual_pitch_target_ =
-            std::clamp(manual_pitch_target_ + pitch_shift, upper_limit_, lower_limit_);
+            const auto [_, cur_pitch] = current_barrel_yaw_pitch();
+            stored_bottom_yaw_target_ = limit_rad(current_bottom_world_yaw() + error.bottom_yaw);
+            stored_pitch_target_ =
+                std::clamp(limit_rad(cur_pitch + error.pitch), upper_limit_, lower_limit_);
+            return;
+        }
 
-        const auto manual_target = ControlTarget{
-            .bottom_yaw = {.target = manual_bottom_yaw_target_},
-            .top_yaw = {.target = 0.0},
-            .pitch = {.target = manual_pitch_target_},
-        };
-        apply_control(manual_target);
+        const auto yaw_shift = +kJoystickSensitivity * input_.joystick_left->y()
+                             + kMouseSensitivity * input_.mouse_velocity->y();
+        const auto pitch_shift = -kJoystickSensitivity * input_.joystick_left->x()
+                               - kMouseSensitivity * input_.mouse_velocity->x();
+
+        auto nav_yshift = double{0.};
+        auto nav_pshift = double{0.};
+        if (input_.enable_navigation()) {
+            constexpr auto kGimbalFree = std::numeric_limits<double>::min();
+            const auto& toward = *input_.navigation_toward;
+            if (toward.x() == kGimbalFree && toward.y() == kGimbalFree) {
+                enter_disabled_state();
+                return;
+            }
+            if (std::isfinite(toward.x()))
+                nav_yshift = limit_rad(toward.x() - stored_bottom_yaw_target_);
+            if (std::isfinite(toward.y()))
+                nav_pshift = limit_rad(
+                    std::clamp(toward.y(), upper_limit_, lower_limit_) - stored_pitch_target_);
+        }
+
+        stored_bottom_yaw_target_ = limit_rad(stored_bottom_yaw_target_ + nav_yshift + yaw_shift);
+        stored_pitch_target_ =
+            std::clamp(stored_pitch_target_ + nav_pshift + pitch_shift, upper_limit_, lower_limit_);
+
+        apply_control(
+            limit_rad(+stored_bottom_yaw_target_ - current_bottom_world_yaw()),
+            limit_rad(-*input_.top_yaw_angle),
+            limit_rad(+stored_pitch_target_ - actual_yaw_pitch.second));
     }
 
 private:
     static constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
+    static inline auto kVecNaN = Eigen::Vector2d{kNaN, kNaN};
+    static constexpr double kEpsilon = 1e-9;
+    static constexpr double kMinDt = 1e-6;
     static constexpr double kJoystickSensitivity = 0.006;
     static constexpr double kMouseSensitivity = 0.5;
 
     const double upper_limit_{get_parameter("upper_limit").as_double()};
     const double lower_limit_{get_parameter("lower_limit").as_double()};
 
-    const double bottom_yaw_viscous_ff_gain_{get_parameter_or("bottom_yaw_viscous_ff_gain", 0.0)};
-    const double bottom_yaw_coulomb_ff_gain_{get_parameter_or("bottom_yaw_coulomb_ff_gain", 0.0)};
-    const double bottom_yaw_coulomb_ff_tanh_gain_{
-        get_parameter_or("bottom_yaw_coulomb_ff_tanh_gain", 100.0)};
-    const double k_top_to_bottom_{get_parameter_or("k_top_to_bottom", 0.0)};
-    const double top_yaw_viscous_ff_gain_{get_parameter_or("top_yaw_viscous_ff_gain", 0.0)};
-    const double top_yaw_coulomb_ff_gain_{get_parameter_or("top_yaw_coulomb_ff_gain", 0.0)};
-    const double top_yaw_coulomb_ff_tanh_gain_{
-        get_parameter_or("top_yaw_coulomb_ff_tanh_gain", 100.0)};
-    const double pitch_viscous_ff_gain_{get_parameter_or("pitch_viscous_ff_gain", 0.0)};
-    const double pitch_coulomb_ff_gain_{get_parameter_or("pitch_coulomb_ff_gain", 0.0)};
-    const double pitch_coulomb_ff_tanh_gain_{get_parameter_or("pitch_coulomb_ff_tanh_gain", 100.0)};
-    const double pitch_gravity_ff_gain_{get_parameter_or("pitch_gravity_ff_gain", 0.0)};
-    const double pitch_gravity_ff_phase_{get_parameter_or("pitch_gravity_ff_phase", 0.0)};
+    EccentricDualYawSolver solver_;
 
-    struct AxisCommand {
-        double target = 0.0;
-        double velocity_ff = 0.0;
-        double acceleration_ff = 0.0;
-    };
-    struct ControlTarget {
-        AxisCommand bottom_yaw;
-        AxisCommand top_yaw;
-        AxisCommand pitch;
-    };
+    YawRateFeedforward top_yaw_ff_;
 
     struct Input {
         explicit Input(rmcs_executor::Component& component) {
@@ -99,6 +171,7 @@ private:
             component.register_input("/remote/switch/right", switch_right);
             component.register_input("/remote/switch/left", switch_left);
             component.register_input("/remote/mouse/velocity", mouse_velocity);
+            component.register_input("/remote/mouse", mouse);
 
             component.register_input("/predefined/timestamp", timestamp);
             component.register_input("/tf", tf);
@@ -110,6 +183,13 @@ private:
             component.register_input("/gimbal/pitch/angle", pitch_angle);
             component.register_input("/gimbal/pitch/velocity", pitch_velocity);
             component.register_input("/chassis/yaw/velocity_imu", chassis_yaw_velocity_imu);
+
+            component.register_input(
+                "/auto_aim/control_direction", auto_aim_control_direction, false);
+            component.register_input("/auto_aim/robot_center", auto_aim_robot_center, false);
+            component.register_input(
+                "/rmcs_navigation/enable_control", navigation_enable_control, false);
+            component.register_input("/rmcs_navigation/gimbal_toward", navigation_toward, false);
         }
 
         auto enable_control() const noexcept -> bool {
@@ -121,10 +201,33 @@ private:
             return true;
         }
 
+        auto enable_autoaim() const noexcept -> bool {
+            using namespace rmcs_msgs;
+            if (*switch_right != Switch::UP && !mouse->right)
+                return false;
+            if (!auto_aim_control_direction.ready())
+                return false;
+            const auto& dir = *auto_aim_control_direction;
+            if (!auto_aim_robot_center.ready())
+                return false;
+            const auto& center = *auto_aim_robot_center;
+            return !dir.isZero() && std::isfinite(dir.x()) && std::isfinite(dir.y())
+                && std::isfinite(dir.z()) && !center.isZero() && std::isfinite(center.x())
+                && std::isfinite(center.y()) && std::isfinite(center.z());
+        }
+
+        auto enable_navigation() const noexcept -> bool {
+            if (!*navigation_enable_control || !navigation_toward.ready())
+                return false;
+
+            return true;
+        }
+
         InputInterface<Eigen::Vector2d> joystick_left;
         InputInterface<rmcs_msgs::Switch> switch_right;
         InputInterface<rmcs_msgs::Switch> switch_left;
         InputInterface<Eigen::Vector2d> mouse_velocity;
+        InputInterface<rmcs_msgs::Mouse> mouse;
 
         InputInterface<std::chrono::steady_clock::time_point> timestamp;
         InputInterface<Tf> tf;
@@ -136,6 +239,11 @@ private:
         InputInterface<double> pitch_angle;
         InputInterface<double> pitch_velocity;
         InputInterface<double> chassis_yaw_velocity_imu;
+
+        InputInterface<Eigen::Vector3d> auto_aim_control_direction;
+        InputInterface<Eigen::Vector3d> auto_aim_robot_center;
+        InputInterface<bool> navigation_enable_control;
+        InputInterface<Eigen::Vector2d> navigation_toward;
     } input_{*this};
 
     struct Output {
@@ -169,8 +277,8 @@ private:
     pid::PidCalculator pitch_angle_pid_{pid::make_pid_calculator(*this, "pitch_angle_")};
     pid::PidCalculator pitch_velocity_pid_{pid::make_pid_calculator(*this, "pitch_velocity_")};
 
-    double manual_bottom_yaw_target_ = 0.0;
-    double manual_pitch_target_ = 0.0;
+    double stored_bottom_yaw_target_ = 0.0;
+    double stored_pitch_target_ = 0.0;
     double previous_actual_yaw_ = 0.0;
     std::chrono::steady_clock::time_point previous_yaw_timestamp_{};
 
@@ -199,8 +307,9 @@ private:
     auto enter_disabled_state() -> void {
         reset_all_controls();
 
-        manual_bottom_yaw_target_ = current_bottom_world_yaw();
-        manual_pitch_target_ =
+        solver_.update(EccentricDualYawSolver::SetDisabled{});
+        stored_bottom_yaw_target_ = current_bottom_world_yaw();
+        stored_pitch_target_ =
             std::clamp(limit_rad(*input_.pitch_angle), upper_limit_, lower_limit_);
 
         *output_.yaw_control_angle_error = kNaN;
@@ -208,9 +317,9 @@ private:
 
     auto compute_actual_yaw_velocity(double actual_yaw) -> double {
         const auto now = *input_.timestamp;
-        const double dt = std::chrono::duration<double>(now - previous_yaw_timestamp_).count();
+        const auto dt = std::chrono::duration<double>(now - previous_yaw_timestamp_).count();
         double velocity = 0.0;
-        if (dt > 1e-6)
+        if (dt > kMinDt)
             velocity = limit_rad(actual_yaw - previous_actual_yaw_) / dt;
         previous_actual_yaw_ = actual_yaw;
         previous_yaw_timestamp_ = now;
@@ -221,11 +330,11 @@ private:
         auto direction = fast_tf::cast<OdomGimbalImu>(
             PitchLink::DirectionVector{Eigen::Vector3d::UnitX()}, *input_.tf);
         Eigen::Vector3d vector = *direction;
-        if (vector.norm() > 1e-9)
+        if (vector.norm() > kEpsilon)
             vector.normalize();
         else
             vector = Eigen::Vector3d::UnitX();
-        const double xy_norm = std::hypot(vector.x(), vector.y());
+        const auto xy_norm = std::hypot(vector.x(), vector.y());
         return {std::atan2(vector.y(), vector.x()), std::atan2(-vector.z(), xy_norm)};
     }
 
@@ -234,68 +343,30 @@ private:
             BottomYawLink::DirectionVector{Eigen::Vector3d::UnitX()}, *input_.tf);
         Eigen::Vector3d vector = *direction;
         vector.z() = 0.0;
-        if (vector.norm() > 1e-9)
+        if (vector.norm() > kEpsilon)
             vector.normalize();
         else
             vector = Eigen::Vector3d::UnitX();
         return std::atan2(vector.y(), vector.x());
     }
 
-    auto apply_control(const ControlTarget& target) -> void {
-
-        constexpr auto friction_feedforward = [](double viscous_gain, double coulomb_gain,
-                                                 double tanh_gain, double velocity) -> double {
-            return (viscous_gain * velocity) + (coulomb_gain * std::tanh(tanh_gain * velocity));
-        };
-
-        const double current_bottom_angle = current_bottom_world_yaw();
-        const double current_bottom_velocity =
+    auto apply_control(
+        double bottom_yaw_error, double top_yaw_error, double pitch_error,
+        double top_yaw_feedforward = 0.0) -> void {
+        const auto current_bottom_velocity =
             *input_.bottom_yaw_velocity + *input_.chassis_yaw_velocity_imu;
-        const double current_top_angle = limit_rad(*input_.top_yaw_angle);
-        const double current_pitch_angle = limit_rad(*input_.pitch_angle);
 
-        const double bottom_yaw_error = limit_rad(target.bottom_yaw.target - current_bottom_angle);
-        const double top_yaw_error = limit_rad(target.top_yaw.target - current_top_angle);
-        const double pitch_error = limit_rad(target.pitch.target - current_pitch_angle);
+        const auto bottom_velocity_ref = bottom_yaw_angle_pid_.update(bottom_yaw_error);
+        const auto top_velocity_ref =
+            top_yaw_angle_pid_.update(top_yaw_error) + top_yaw_feedforward;
+        const auto pitch_velocity_ref = pitch_angle_pid_.update(pitch_error);
 
-        const double bottom_velocity_ref =
-            bottom_yaw_angle_pid_.update(bottom_yaw_error) + target.bottom_yaw.velocity_ff;
-        const double top_velocity_ref =
-            top_yaw_angle_pid_.update(top_yaw_error) + target.top_yaw.velocity_ff;
-        const double pitch_velocity_ref =
-            pitch_angle_pid_.update(pitch_error) + target.pitch.velocity_ff;
-
-        const double bottom_world_velocity_ff =
-            target.bottom_yaw.velocity_ff + *input_.chassis_yaw_velocity_imu;
-        const double top_yaw_continuous_torque_ff =
-            target.top_yaw.acceleration_ff + top_yaw_viscous_ff_gain_ * target.top_yaw.velocity_ff;
-        const double bottom_yaw_torque_ff =
-            target.bottom_yaw.acceleration_ff
-            + friction_feedforward(
-                bottom_yaw_viscous_ff_gain_, bottom_yaw_coulomb_ff_gain_,
-                bottom_yaw_coulomb_ff_tanh_gain_, bottom_world_velocity_ff)
-            - k_top_to_bottom_ * top_yaw_continuous_torque_ff;
-
-        const double top_yaw_torque_ff = target.top_yaw.acceleration_ff
-                                       + friction_feedforward(
-                                             top_yaw_viscous_ff_gain_, top_yaw_coulomb_ff_gain_,
-                                             top_yaw_coulomb_ff_tanh_gain_, top_velocity_ref);
-        const double pitch_torque_ff =
-            target.pitch.acceleration_ff
-            + friction_feedforward(
-                pitch_viscous_ff_gain_, pitch_coulomb_ff_gain_, pitch_coulomb_ff_tanh_gain_,
-                pitch_velocity_ref)
-            + pitch_gravity_ff_gain_ * std::sin(current_pitch_angle - pitch_gravity_ff_phase_);
-
-        *output_.bottom_yaw_control_torque =
-            bottom_yaw_velocity_pid_.update(bottom_velocity_ref - current_bottom_velocity)
-            + bottom_yaw_torque_ff;
         *output_.top_yaw_control_torque =
-            top_yaw_velocity_pid_.update(top_velocity_ref - *input_.top_yaw_velocity)
-            + top_yaw_torque_ff;
+            top_yaw_velocity_pid_.update(top_velocity_ref - *input_.top_yaw_velocity);
+        *output_.bottom_yaw_control_torque =
+            bottom_yaw_velocity_pid_.update(bottom_velocity_ref - current_bottom_velocity);
         *output_.pitch_control_torque =
-            pitch_velocity_pid_.update(pitch_velocity_ref - *input_.pitch_velocity)
-            + pitch_torque_ff;
+            pitch_velocity_pid_.update(pitch_velocity_ref - *input_.pitch_velocity);
 
         *output_.yaw_control_angle_error = bottom_yaw_error;
     }
@@ -304,5 +375,4 @@ private:
 } // namespace rmcs_core::controller::gimbal
 
 #include <pluginlib/class_list_macros.hpp>
-
 PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::gimbal::EccentricDualYaw, rmcs_executor::Component)

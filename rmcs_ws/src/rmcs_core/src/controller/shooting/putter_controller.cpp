@@ -68,16 +68,6 @@ public:
         set_pid_parameter(bullet_feeder_velocity_pid_, "bullet_feeder_velocity");
         set_pid_parameter(putter_return_velocity_pid_, "putter_return_velocity");
 
-        putter_velocity_pid_.kp = 0.004;
-        putter_velocity_pid_.ki = 0.0001;
-        putter_velocity_pid_.kd = 0.001;
-        putter_velocity_pid_.integral_max = 0.03;
-        putter_velocity_pid_.integral_min = 0.;
-
-        putter_return_angle_pid.kp = 0.0001;
-        // putter_return_angle_pid.ki = 0.000001;
-        putter_return_angle_pid.kd = 0.;
-
         register_output(
             "/gimbal/bullet_feeder/control_torque", bullet_feeder_control_torque_, nan_);
         register_output("/gimbal/putter/control_torque", putter_control_torque_, nan_);
@@ -85,13 +75,17 @@ public:
         register_output("/gimbal/shoot/delay_ms", shoot_delay_ms_, nan_);
 
         // auto_aim
-        register_input("/gimbal/auto_aim/fire_control", fire_control_, false);
+        register_input("/auto_aim/should_shoot", should_shoot_, false);
 
         register_output("/gimbal/shooter/mode", shoot_mode_, rmcs_msgs::ShootMode::SINGLE);
         register_output("/gimbal/shooter/condiction", shoot_condiction_);
+        register_output("/gimbal/shooter/preloaded_ready", preloaded_ready_, false);
     }
 
-    ~PutterController() {}
+    void before_updating() override {
+        if (!should_shoot_.ready())
+            should_shoot_.bind_directly(false);
+    }
 
     void update() override {
         const auto switch_right = *switch_right_;
@@ -108,19 +102,27 @@ public:
         }
 
         // Normal control flow after the putter has been initialized.
-        if (putter_is_initialized_) {
+        if (putter_initialized) {
             // Handling during bullet-feeder jam-protection cooldown.
             if (bullet_feeder_reverse_end_ > 0) {
                 bullet_feeder_reverse_end_--;
 
                 // Early cooldown stage: reverse the feeder to clear the jam.
-                if (bullet_feeder_reverse_end_ > 500)
+                if (bullet_feeder_reverse_end_ > 300)
                     *bullet_feeder_control_torque_ = bullet_feeder_velocity_pid_.update(
                         -low_latency_velocity_ / 2 - *bullet_feeder_velocity_);
                 else {
                     // Late cooldown stage: stop control.
                     bullet_feeder_velocity_pid_.reset();
                     *bullet_feeder_control_torque_ = 0.0;
+                }
+
+                if (!bullet_feeder_reverse_end_ && shoot_stage_ == ShootStage::PRELOADED)
+                // RCLCPP_INFO(get_logger(), "Reverse finished");
+                {
+                    *preloaded_ready_ = true;
+                } else {
+                    *preloaded_ready_ = false;
                 }
 
             } else {
@@ -146,8 +148,7 @@ public:
                                 && switch_left == rmcs_msgs::Switch::DOWN);
 
                         const bool auto_fire_now =
-                            (switch_right == Switch::UP || (mouse.right && mouse.left))
-                            && (*fire_control_);
+                            (switch_right == Switch::UP || mouse.right) && *should_shoot_;
 
                         const bool auto_trigger_emergence = mouse.right && (click_count_ >= 2);
 
@@ -157,10 +158,10 @@ public:
 
                         if (manual_trigger || auto_trigger || auto_trigger_emergence) {
                             if (*control_bullet_allowance_limited_by_heat_ > 0
-                                && (shoot_stage_ == ShootStage::PRELOADED || first_shot_)) {
+                                && (shoot_stage_ == ShootStage::PRELOADED || shoot_first)) {
                                 set_shooting();
                                 last_fire_time_ = now;
-                                first_shot_ = false;
+                                shoot_first = false;
                             }
                         }
                         if (auto_trigger_emergence) {
@@ -174,36 +175,32 @@ public:
                             low_latency_velocity_ - *bullet_feeder_velocity_); // Velocity loop.
 
                         update_locked_detection();
-
                         // This includes the photoelectric-sensor logic: if triggered, switch to
                         // preloaded; otherwise reverse briefly and continue rotating.
                     }
 
                     if (shoot_stage_ == ShootStage::SHOOTING) {
                         // Firing state: detect whether the bullet has been fired.
-                        if (*bullet_fired_
-                            || *putter_angle_ - putter_start_point_ >= putter_stroke_) {
-                            shot_fired_ = true;
-                        }
+                        // if (*bullet_fired_ && !shooted) {
+                        //     RCLCPP_INFO(get_logger(), "DETECT: Bullet fired!");
+                        //     shooted = true;
+                        // }
 
-                        update_putter_jam_detection();
+                        // if (*putter_angle_ - putter_startpoint >= putter_stroke_ && !shooted) {
+                        //     RCLCPP_INFO(get_logger(), "DETECT: Putter stroke completed!");
+                        //     shooted = true;
+                        // }
 
-                        if (shot_fired_) {
+                        if (shooted) {
                             // Bullet fired: return the putter.
-                            const auto angle_err = putter_start_point_ - *putter_angle_;
-                            if (angle_err > -0.1) {
-                                *putter_control_torque_ = 0.;
-                                set_preloading();
-                                shot_fired_ = false;
-                            } else {
-                                *putter_control_torque_ =
-                                    putter_return_velocity_pid_.update(-80. - *putter_velocity_);
-                                putter_timeout_detection();
-                            }
+                            *putter_control_torque_ =
+                                putter_return_velocity_pid_.update(-50. - *putter_velocity_);
+                            putter_timeout_detection();
                         } else {
                             // Bullet not fired yet: continue advancing.
                             *putter_control_torque_ =
-                                putter_return_velocity_pid_.update(60. - *putter_velocity_);
+                                putter_return_velocity_pid_.update(120. - *putter_velocity_);
+                            update_putter_jam_detection();
                         }
                     }
                 } else {
@@ -240,11 +237,9 @@ private:
 
         shoot_stage_ = ShootStage::PRELOADED;
 
-        putter_is_initialized_ = false;
-        putter_start_point_ = nan_;
+        putter_initialized = false;
+        putter_startpoint = nan_;
         putter_return_velocity_pid_.reset();
-        putter_velocity_pid_.reset();
-        putter_return_angle_pid.reset();
         *putter_control_torque_ = nan_;
 
         bullet_feeder_faulty_count_ = 0;
@@ -252,54 +247,60 @@ private:
         *shoot_delay_ms_ = nan_;
     }
 
-    void set_preloading() { shoot_stage_ = ShootStage::PRELOADING; }
+    void set_preloading() {
+        RCLCPP_INFO(get_logger(), "PRELOADING");
+        shoot_stage_ = ShootStage::PRELOADING;
+    }
 
-    void set_preloaded() { shoot_stage_ = ShootStage::PRELOADED; }
+    void set_preloaded() {
+        RCLCPP_INFO(get_logger(), "PRELOADED");
+        shoot_stage_ = ShootStage::PRELOADED;
+    }
 
-    void set_shooting() { shoot_stage_ = ShootStage::SHOOTING; }
+    void set_shooting() {
+        RCLCPP_INFO(get_logger(), "SHOOTING");
+        shoot_stage_ = ShootStage::SHOOTING;
+    }
 
     void update_locked_detection() {
         // If feeder speed is near zero and the photoelectric sensor is triggered,
         // treat it as locked and start reversing.
-
         if (*bullet_feeder_velocity_ < 0.5 && *bullet_feeder_control_torque_ > 0.1) {
             locked_detect_count_++;
         } else {
             locked_detect_count_ = 0;
         }
 
-        if (locked_detect_count_ > 300) {
+        if (locked_detect_count_ > 150) {
             if (*photoelectric_sensor_status_) {
                 set_preloaded();
             }
             // If the photoelectric sensor was not triggered, treat it as a simple jam,
             // reverse briefly, then continue until stall.
             locked_detect_count_ = 0;
-            enter_jam_protection();
+            enter_reverse_protection();
         }
     }
 
     void update_putter_jam_detection() {
-        if ((*putter_control_torque_ > -0.03 && shoot_stage_ == ShootStage::PRELOADING)
-            || (*putter_control_torque_ < 0.05 && shoot_stage_ == ShootStage::SHOOTING)
-            || std::isnan(*putter_control_torque_)) {
+        if (std::abs(*putter_velocity_) > 0.1 || std::isnan(*putter_control_torque_)) {
             putter_faulty_count_ = 0;
-            return;
+        } else {
+            putter_faulty_count_++;
         }
 
         // Accumulate a fault count when the torque is abnormal.
-        if (putter_faulty_count_ < 500)
-            ++putter_faulty_count_;
-        else {
+        if (putter_faulty_count_ >= 50) {
             putter_faulty_count_ = 0;
             if (shoot_stage_ != ShootStage::SHOOTING) {
                 // Stall detected outside the firing state: the putter is in position,
                 // so mark it initialized.
-                putter_is_initialized_ = true;
-                putter_start_point_ = *putter_angle_;
+                putter_initialized = true;
+                putter_startpoint = *putter_angle_;
             } else {
                 // Stall detected during firing: treat the bullet as fired.
-                shot_fired_ = true;
+                RCLCPP_INFO(get_logger(), "DETECT: Putter freezed");
+                shooted = true;
             }
         }
     }
@@ -308,23 +309,23 @@ private:
         // If the putter stays in the firing state too long without extending,
         // treat it as finished and move to the next state.
         if (shoot_stage_ == ShootStage::SHOOTING) {
-            if (shot_fired_) {
-                if (putter_timeout_count_ < 1600)
+            if (shooted) {
+                if (putter_timeout_count_ < 400)
                     ++putter_timeout_count_;
                 else {
                     putter_timeout_count_ = 0;
+                    RCLCPP_INFO(get_logger(), "PUTTER TIMEOUT");
                     set_preloading();
-                    shot_fired_ = false;
+                    shooted = false;
                 }
             }
         }
     }
 
-    void enter_jam_protection() {
-        // Set the target angle to 60 degrees behind the current angle.
+    void enter_reverse_protection() {
         locked_detect_count_ = 0;
         bullet_feeder_faulty_count_ = 0;
-        bullet_feeder_reverse_end_ = 800;
+        bullet_feeder_reverse_end_ = 400;
         bullet_feeder_velocity_pid_.reset();
     }
 
@@ -332,7 +333,7 @@ private:
         std::numeric_limits<double>::quiet_NaN(); ///< Not-a-number constant.
     static constexpr double inf_ = std::numeric_limits<double>::infinity(); ///< Infinity constant.
 
-    static constexpr double putter_stroke_ = 11.5; ///< Putter stroke length.
+    static constexpr double putter_stroke_ = 12.0; ///< Putter stroke length.
 
     static constexpr double max_bullet_feeder_control_torque_ = 0.1;
     static constexpr double bullet_feeder_angle_per_bullet_ = 2 * std::numbers::pi / 6;
@@ -341,8 +342,8 @@ private:
     InputInterface<bool> photoelectric_sensor_status_;
     InputInterface<bool> grayscale_sensor_status_;
     InputInterface<bool> bullet_fired_;
-    bool shot_fired_{false};
-    bool first_shot_{true};
+    bool shooted{false};
+    bool shoot_first{true};
 
     InputInterface<bool> friction_ready_;
 
@@ -361,14 +362,12 @@ private:
 
     InputInterface<int64_t> control_bullet_allowance_limited_by_heat_;
 
-    bool putter_is_initialized_ = false;
+    bool putter_initialized = false;
     int putter_faulty_count_ = 0;
     int putter_timeout_count_ = 0;
-    double putter_start_point_ = nan_;
+    double putter_startpoint = nan_;
     pid::PidCalculator putter_return_velocity_pid_;
     InputInterface<double> putter_velocity_;
-
-    pid::PidCalculator putter_velocity_pid_;
 
     enum class ShootStage { PRELOADING, PRELOADED, SHOOTING };
     ShootStage shoot_stage_ = ShootStage::PRELOADING;
@@ -378,14 +377,13 @@ private:
     OutputInterface<double> bullet_feeder_control_torque_;
 
     InputInterface<double> putter_angle_;
-    pid::PidCalculator putter_return_angle_pid;
     OutputInterface<double> putter_control_torque_;
 
     int bullet_feeder_faulty_count_ = 0;
 
     OutputInterface<double> shoot_delay_ms_;
 
-    InputInterface<bool> fire_control_;
+    InputInterface<bool> should_shoot_;
     std::chrono::steady_clock::time_point last_fire_time_{};
     std::chrono::steady_clock::time_point last_click_time_{};
     int click_count_ = 0;
@@ -398,6 +396,7 @@ private:
 
     OutputInterface<rmcs_msgs::ShootMode> shoot_mode_;
     OutputInterface<rmcs_msgs::ShootCondiction> shoot_condiction_;
+    OutputInterface<bool> preloaded_ready_;
 };
 
 } // namespace rmcs_core::controller::shooting
