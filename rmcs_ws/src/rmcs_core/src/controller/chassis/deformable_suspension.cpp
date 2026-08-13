@@ -211,6 +211,8 @@ private:
             1e-6);
         active_rate_lpf_cutoff_hz_ =
             std::max(get_parameter_or("active_suspension_rate_lpf_cutoff_hz", 10.0), 1e-6);
+        active_target_pitch_rad_ =
+            deg_to_rad_(get_parameter_or("active_suspension_target_pitch_deg", 0.0));
 
         calibration_wait_time_ =
             std::max(get_parameter_or("chassis_imu_calibration_wait_s", 2.0), 0.0);
@@ -451,7 +453,8 @@ private:
         const double clamped_pitch = std::clamp(pitch, -max_attitude, max_attitude);
         const double clamped_roll = std::clamp(roll, -max_attitude, max_attitude);
 
-        const double pitch_outer = pitch_outer_pid_.update(-clamped_pitch);
+        const double pitch_outer =
+            pitch_outer_pid_.update(active_target_pitch_rad_ - clamped_pitch);
         const double roll_outer = roll_outer_pid_.update(clamped_roll);
         const double pitch_diff = pitch_inner_pid_.update(pitch_outer - pitch_rate);
         const double roll_diff = roll_inner_pid_.update(roll_outer + roll_rate);
@@ -589,6 +592,7 @@ private:
     double active_correction_vel_limit_ = 40.0;
     double active_correction_acc_limit_ = 200.0;
     double active_rate_lpf_cutoff_hz_ = 10.0;
+    double active_target_pitch_rad_ = 0.0;
     double active_rate_filter_sampling_hz_ = 0.0;
 
     double calibration_wait_time_ = 2.0;
