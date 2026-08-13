@@ -30,7 +30,9 @@ public:
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , following_velocity_controller_(10.0, 0.0, 0.0)
-        , spin_ratio_(std::clamp(get_parameter_or("spin_ratio", 0.6), 0.0, 1.0))
+        , wireless_charging_speed_limit_(get_parameter_or("wireless_charging_speed_limit", 0.2))
+        , wireless_charging_angular_velocity_limit_(
+              get_parameter_or("wireless_charging_angular_velocity_limit", 3.0))
         , joint_mode_mgr_(*this) {
 
         following_velocity_controller_.output_max = angular_velocity_max_;
@@ -45,6 +47,10 @@ public:
 
         register_input("/gimbal/yaw/angle", gimbal_yaw_angle_, false);
         register_input("/gimbal/yaw/control_angle_error", gimbal_yaw_angle_error_, false);
+
+        register_input("/auto_aim/single_shoot", auto_aim_single_shoot_, false);
+        register_input("/auto_aim/robot_center", auto_aim_robot_center_, false);
+        register_input("/tf", tf_, false);
 
         register_output("/chassis/angle", chassis_angle_, nan_);
         register_output("/chassis/control_angle", chassis_control_angle_, nan_);
@@ -109,7 +115,8 @@ public:
 
             double rotary_knob = rotary_knob_.ready() ? *rotary_knob_ : 0.0;
 
-            joint_mode_mgr_.update(switch_left, switch_right, keyboard, rotary_knob, update_dt());
+            joint_mode_mgr_.update(
+                switch_left, switch_right, keyboard, rotary_knob, update_dt(), *gimbal_yaw_angle_);
 
             *mode_ = joint_mode_mgr_.mode();
             *pitch_lock_active_ = joint_mode_mgr_.pitch_lock_active();
@@ -121,6 +128,10 @@ public:
             *max_angle_deg_ = joint_mode_mgr_.max_angle();
             *suspension_reference_angle_deg_ = joint_mode_mgr_.suspension_reference_angle_deg();
             publish_joint_posture_targets_();
+
+            update_auto_aim_override_state_();
+            if (auto_aim_posture_override_)
+                apply_auto_aim_posture_override_();
 
             update_velocity_control();
         } while (false);
@@ -153,6 +164,36 @@ private:
         *chassis_control_angle_ = nan_;
     }
 
+    void update_auto_aim_override_state_() {
+        auto_aim_posture_override_ = auto_aim_single_shoot_.ready() && *auto_aim_single_shoot_;
+        auto_aim_vector_follow_ = //
+            auto_aim_posture_override_ && tf_.ready() && auto_aim_robot_center_.ready()
+            && auto_aim_robot_center_->allFinite() && !auto_aim_robot_center_->isZero();
+    }
+
+    void apply_auto_aim_posture_override_() {
+        const double front_rad = deg_to_rad(joint_mode_mgr_.max_angle());
+        const double back_rad = deg_to_rad(joint_mode_mgr_.min_angle());
+        *joint_posture_target_angle_rad_[kLeftFront] = front_rad;
+        *joint_posture_target_angle_rad_[kRightFront] = front_rad;
+        *joint_posture_target_angle_rad_[kLeftBack] = back_rad;
+        *joint_posture_target_angle_rad_[kRightBack] = back_rad;
+
+        *symmetric_posture_target_ = false;
+        *low_prone_active_ = false;
+        *active_suspension_active_ = false;
+
+        const double min_deg = joint_mode_mgr_.min_angle();
+        const double max_deg = joint_mode_mgr_.max_angle();
+        const double reference_deg = (min_deg + max_deg) / 2.0;
+        *suspension_reference_angle_deg_ = reference_deg;
+        // Always true: reference_deg == (min_deg + max_deg) / 2.0
+        // > (min_deg - 5.0 + max_deg) / 2.0 == reference_deg - 2.5.
+        // Under auto-aim low-prone override the correction direction is
+        // intentionally always inverted.
+        *correction_inverted_ = reference_deg > (min_deg - 5.0 + max_deg) / 2.0;
+    }
+
     double update_dt() const {
         if (update_rate_.ready() && std::isfinite(*update_rate_) && *update_rate_ > 1e-6)
             return 1.0 / *update_rate_;
@@ -175,7 +216,10 @@ private:
         if (translational_velocity.norm() > 1.0)
             translational_velocity.normalize();
 
-        translational_velocity *= translational_velocity_max_;
+        const double max_speed = *mode_ == rmcs_msgs::ChassisMode::WIRELESS_CHARGING
+                                   ? wireless_charging_speed_limit_
+                                   : translational_velocity_max_;
+        translational_velocity *= max_speed;
         return translational_velocity;
     }
 
@@ -183,39 +227,80 @@ private:
         double angular_velocity = 0.0;
         double chassis_control_angle = nan_;
 
-        switch (*mode_) {
-        case rmcs_msgs::ChassisMode::AUTO: break;
+        if (auto_aim_posture_override_) {
+            angular_velocity = update_auto_aim_override_angular_velocity_(chassis_control_angle);
+        } else {
+            switch (*mode_) {
+            case rmcs_msgs::ChassisMode::AUTO: break;
 
-        case rmcs_msgs::ChassisMode::SPIN_FAST: {
-            bool forward = joint_mode_mgr_.spinning_forward();
-            angular_velocity =
-                spin_ratio_ * (forward ? angular_velocity_max_ : -angular_velocity_max_);
-            angular_velocity =
-                std::clamp(angular_velocity, -angular_velocity_max_, angular_velocity_max_);
-        } break;
+            case rmcs_msgs::ChassisMode::SPIN_FAST: {
+                bool forward = joint_mode_mgr_.spinning_forward();
+                angular_velocity = forward ? angular_velocity_max_ : -angular_velocity_max_;
+                angular_velocity =
+                    std::clamp(angular_velocity, -angular_velocity_max_, angular_velocity_max_);
+            } break;
 
-        case rmcs_msgs::ChassisMode::STEP_DOWN: {
-            double chassis_angle_error =
-                calculate_unsigned_chassis_angle_error(chassis_control_angle);
+            case rmcs_msgs::ChassisMode::STEP_DOWN: {
+                double chassis_angle_error =
+                    calculate_unsigned_chassis_angle_error(chassis_control_angle);
 
-            constexpr double alignment = std::numbers::pi;
-            while (chassis_angle_error > alignment / 2) {
-                chassis_control_angle -= alignment;
-                if (chassis_control_angle < 0)
-                    chassis_control_angle += 2 * std::numbers::pi;
-                chassis_angle_error -= alignment;
+                constexpr double alignment = std::numbers::pi;
+                while (chassis_angle_error > alignment / 2) {
+                    chassis_control_angle -= alignment;
+                    if (chassis_control_angle < 0)
+                        chassis_control_angle += 2 * std::numbers::pi;
+                    chassis_angle_error -= alignment;
+                }
+
+                angular_velocity = following_velocity_controller_.update(chassis_angle_error);
+            } break;
+
+            case rmcs_msgs::ChassisMode::WIRELESS_CHARGING: {
+                const double wireless_charging_offset_rad =
+                    joint_mode_mgr_.wireless_charging_offset_rad();
+                double chassis_angle_error =
+                    calculate_unsigned_chassis_angle_error(chassis_control_angle);
+
+                chassis_control_angle =
+                    normalize_positive_angle(chassis_control_angle - wireless_charging_offset_rad);
+                chassis_angle_error =
+                    normalize_positive_angle(chassis_angle_error - wireless_charging_offset_rad);
+                chassis_angle_error = normalize_signed_angle(chassis_angle_error);
+
+                angular_velocity = following_velocity_controller_.update(chassis_angle_error);
+                angular_velocity = std::clamp(
+                    angular_velocity, -wireless_charging_angular_velocity_limit_,
+                    wireless_charging_angular_velocity_limit_);
+            } break;
+
+            default: break;
             }
-
-            angular_velocity = following_velocity_controller_.update(chassis_angle_error);
-        } break;
-
-        default: break;
         }
 
         *chassis_angle_ = 2 * std::numbers::pi - *gimbal_yaw_angle_;
         *chassis_control_angle_ = chassis_control_angle;
 
         return angular_velocity;
+    }
+
+    double update_auto_aim_override_angular_velocity_(double& chassis_control_angle) {
+        double chassis_angle_error;
+        if (auto_aim_vector_follow_) {
+            const auto target_in_base = fast_tf::cast<rmcs_description::BaseLink>(
+                rmcs_description::OdomImu::Position{*auto_aim_robot_center_}, *tf_);
+            chassis_angle_error = target_in_base->head<2>().norm() > 1e-6
+                                    ? std::atan2(target_in_base->y(), target_in_base->x())
+                                    : 0.0;
+            chassis_control_angle = normalize_positive_angle(
+                2 * std::numbers::pi - *gimbal_yaw_angle_ + chassis_angle_error);
+        } else {
+            chassis_angle_error = normalize_signed_angle(
+                calculate_unsigned_chassis_angle_error(chassis_control_angle));
+        }
+
+        return std::clamp(
+            following_velocity_controller_.update(chassis_angle_error), -angular_velocity_max_,
+            angular_velocity_max_);
     }
 
     double calculate_unsigned_chassis_angle_error(double& chassis_control_angle) {
@@ -232,6 +317,22 @@ private:
 
     static double deg_to_rad(double deg) { return deg * std::numbers::pi / 180.0; }
 
+    static double normalize_positive_angle(double angle) {
+        constexpr double full_turn = 2 * std::numbers::pi;
+        while (angle >= full_turn)
+            angle -= full_turn;
+        while (angle < 0.0)
+            angle += full_turn;
+        return angle;
+    }
+
+    static double normalize_signed_angle(double angle) {
+        angle = normalize_positive_angle(angle);
+        if (angle > std::numbers::pi)
+            angle -= 2 * std::numbers::pi;
+        return angle;
+    }
+
     void publish_joint_posture_targets_() {
         std::array<double, kJointCount> targets_deg{};
         joint_mode_mgr_.copy_joint_posture_target_deg(targets_deg);
@@ -246,6 +347,10 @@ private:
         "right_back",
         "right_front",
     };
+    static constexpr size_t kLeftFront = 0;
+    static constexpr size_t kLeftBack = 1;
+    static constexpr size_t kRightBack = 2;
+    static constexpr size_t kRightFront = 3;
 
     InputInterface<Eigen::Vector2d> joystick_right_;
     InputInterface<rmcs_msgs::Switch> switch_right_;
@@ -256,6 +361,12 @@ private:
 
     InputInterface<double> gimbal_yaw_angle_, gimbal_yaw_angle_error_;
     OutputInterface<double> chassis_angle_, chassis_control_angle_;
+
+    InputInterface<bool> auto_aim_single_shoot_;
+    InputInterface<Eigen::Vector3d> auto_aim_robot_center_;
+    InputInterface<rmcs_description::Tf> tf_;
+    bool auto_aim_posture_override_ = false;
+    bool auto_aim_vector_follow_ = false;
 
     OutputInterface<rmcs_msgs::ChassisMode> mode_;
     OutputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;
@@ -271,7 +382,9 @@ private:
     std::array<OutputInterface<double>, kJointCount> joint_posture_target_angle_rad_;
 
     pid::PidCalculator following_velocity_controller_;
-    const double spin_ratio_;
+
+    double wireless_charging_speed_limit_;
+    double wireless_charging_angular_velocity_limit_;
 
     DeformableChassisModeManager joint_mode_mgr_;
 };
@@ -280,4 +393,5 @@ private:
 
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::chassis::DeformableChassis, rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(
+    rmcs_core::controller::chassis::DeformableChassis, rmcs_executor::Component)

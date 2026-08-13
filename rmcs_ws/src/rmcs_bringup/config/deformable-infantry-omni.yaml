@@ -30,6 +30,7 @@ rmcs_executor:
       - rmcs_core::controller::chassis::DeformableJointController -> rb_joint_controller
       - rmcs_core::controller::chassis::DeformableJointController -> rf_joint_controller
 
+      - rmcs::AutoAimRecorderComponent -> auto_aim_recorder
       - rmcs::AutoAimComponent -> auto_aim_component
       - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
       - rmcs_core::referee::app::ui::AutoAimUi -> auto_aim_ui
@@ -56,15 +57,24 @@ value_broadcaster:
       - /gimbal/pitch/angle
       - /gimbal/pitch/velocity
 
+auto_aim_recorder:
+  ros__parameters:
+    output_path: "/autoaim/recoder"
+    queue_depth: 16
+    flush_every_n_frames: 64
+    max_duration_seconds: 0
+    max_videos_size_gb: 200.0
+    auto_record: false
+
 auto_aim_capturer:
   ros__parameters:
     camera_name: ""
-    exposure_us: 4000.0
-    gain: 8.0
+    exposure_us: 2000.0
+    gain: 10.0
     framerate: 120.0
     invert_image: false
     rls_tau_sec: 10.0
-    use_hardware_sync: true
+    use_hardware_sync: false
     delay_ms: 6.5
 
 auto_aim_component:
@@ -73,23 +83,23 @@ auto_aim_component:
     # 将强行绑定为对应阵营哨兵，仅供调试，严禁比赛启用。
     # 留空或填 unknow 表示禁用。
     dangerous_fallback: ""
-    manual_shoot: true
+    manual_shoot: false
     enable_rune: true
     camera_translation: [0.058, -0.08, 0.0]
     fire_control:
       bullet_speed: 22.5
-      shoot_delay: 0.04
-      offset_yaw: +0.1
-      offset_pitch: -0.4
-      attack_window: 80.0
+      shoot_delay: 0.07
+      offset_yaw: +0.2
+      offset_pitch: -1.2
+      attack_window: 120.0
       degraded_angle_speed: 12.0
-      window_redundancy: 0.8
+      window_redundancy: 0.6
       window_hysteresis: 0.2
       attack_preaim: false
       require_stable_command: false
-      yaw_tolerance: 0.07
-      pitch_tolerance: 0.04
-      rune_idle_duration: 0.4
+      yaw_tolerance: 0.14
+      pitch_tolerance: 0.08
+      rune_idle_duration: 0.7
       rune_shoot_duration: 0.2
 
 auto_aim_ui:
@@ -106,26 +116,23 @@ deformable_infantry:
     rod_length: 0.140
     yaw_motor_zero_point: 43365
     pitch_motor_zero_point: 6432
-    debug_log_supercap: false
-    debug_log_wheel_motor: false
-    debug_log_deformable_joint_motor: false
 
 chassis_controller:
   ros__parameters:
-    # Deploy geometry / chassis-owned joint intent
-    min_angle: 5.0
+    min_angle: 8.0
     max_angle: 59.0
     active_suspension_enable: true
-    spin_ratio: 1.0
+    wireless_charging_offset_deg: 45.0
+    wireless_charging_speed_limit: 0.6
+    wireless_charging_angular_velocity_limit: 10.0
 
 deformable_suspension:
   ros__parameters:
-    # IMU attitude correction at min-angle stance.
     active_suspension_pitch_outer_kp: 12.0
     active_suspension_pitch_outer_ki: 0.02
     active_suspension_pitch_outer_kd: 0.0
-    active_suspension_pitch_outer_integral_min: -2.0
-    active_suspension_pitch_outer_integral_max: 2.0
+    active_suspension_pitch_outer_integral_min: -1.0
+    active_suspension_pitch_outer_integral_max: 1.0
     active_suspension_pitch_outer_output_min: -3.0
     active_suspension_pitch_outer_output_max: 3.0
 
@@ -140,8 +147,8 @@ deformable_suspension:
     active_suspension_roll_outer_kp: 12.0
     active_suspension_roll_outer_ki: 0.02
     active_suspension_roll_outer_kd: 0.0
-    active_suspension_roll_outer_integral_min: -2.0
-    active_suspension_roll_outer_integral_max: 2.0
+    active_suspension_roll_outer_integral_min: -1.0
+    active_suspension_roll_outer_integral_max: 1.0
     active_suspension_roll_outer_output_min: -3.0
     active_suspension_roll_outer_output_max: 3.0
 
@@ -153,21 +160,20 @@ deformable_suspension:
     active_suspension_roll_inner_output_min: -0.785
     active_suspension_roll_inner_output_max: 0.785
 
-    # Chassis-owned joint intent trajectory limits while attitude correction is active.
-    active_suspension_target_velocity_limit_deg: 80.0
-    active_suspension_target_acceleration_limit_deg: 360.0
+    active_suspension_target_velocity_limit_deg: 150.0
+    active_suspension_target_acceleration_limit_deg: 600.0
     active_suspension_correction_velocity_limit_deg: 720.0
     active_suspension_correction_acceleration_limit_deg: 3600.0
     active_suspension_rate_lpf_cutoff_hz: 10.0
 
-    # Automatic IMU mounting-error calibration.
-    # When all four requested joint targets stay equal for 2s, average pitch/roll from 2s to 5s.
+    active_suspension_target_pitch_deg: 0.0
+
     chassis_imu_calibration_wait_s: 2.0
     chassis_imu_calibration_sample_s: 3.0
 
 gimbal_controller:
   ros__parameters:
-    upper_limit: -0.47123 # -27 deg
+    upper_limit: -0.60 # -27 deg
     lower_limit: 0.10 # 8 deg
     ctrl_hold_pitch_target_angle: 0.0
 
@@ -175,20 +181,32 @@ gimbal_controller:
     yaw_angle_ki: 0.0
     yaw_angle_kd: 0.0
 
-    yaw_velocity_kp: 10.0
-    yaw_velocity_ki: 0.0
+    yaw_velocity_kp: 13.0
+    yaw_velocity_ki: 0.02
     yaw_velocity_kd: 0.0
+    yaw_velocity_integral_min: -5.0
+    yaw_velocity_integral_max: 5.0
 
     pitch_angle_kp: 35.0
-    pitch_angle_ki: 0.02
-    pitch_angle_kd: 0.3
+    pitch_angle_ki: 0.03
+    pitch_angle_kd: 0.2
+    pitch_angle_integral_min: -0.5
+    pitch_angle_integral_max: 0.5
 
     pitch_velocity_kp: 2.0
     pitch_velocity_ki: 0.0
     pitch_velocity_kd: 0.0
 
-    pitch_gravity_ff_gain: 4.302
-    pitch_gravity_ff_phase: 0.589
+    yaw_ref_velocity_gain: 1.0
+    pitch_ref_velocity_gain: 1.0
+
+    yaw_velocity_ff_gain: 0.20
+    yaw_acceleration_ff_gain: 0.17
+    pitch_velocity_ff_gain: 0.356
+    pitch_acceleration_ff_gain: 0.041
+
+    pitch_gravity_ff_gain: 2.575
+    pitch_gravity_ff_phase: 1.7814
 
     pitch_torque_control: true
 
@@ -200,6 +218,9 @@ friction_wheel_controller:
     friction_velocities:
       - 580.0
       - 580.0
+    friction_velocities_low_mode:
+      - 530.0
+      - 530.0
     friction_soft_start_stop_time: 1.0
 
 heat_controller:
@@ -210,7 +231,7 @@ heat_controller:
 bullet_feeder_controller:
   ros__parameters:
     bullets_per_feeder_turn: 8.0
-    shot_frequency: 30.0
+    shot_frequency: 15.0
     safe_shot_frequency: 10.0
     eject_frequency: 10.0
     eject_time: 0.05

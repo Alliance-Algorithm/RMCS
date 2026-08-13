@@ -41,11 +41,11 @@ namespace rmcs_core::hardware {
 
 using Clock = std::chrono::steady_clock;
 
-class DeformableInfantryOmni
+class DeformableInfantryOmniC
     : public rmcs_executor::Component
     , public rclcpp::Node {
 public:
-    DeformableInfantryOmni()
+    DeformableInfantryOmniC()
         : Node(
               get_component_name(),
               rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true))
@@ -77,7 +77,7 @@ public:
             });
     }
 
-    ~DeformableInfantryOmni() override = default;
+    ~DeformableInfantryOmniC() override = default;
 
     void before_updating() override { top_board_->request_hard_sync_read(); }
 
@@ -114,18 +114,18 @@ private:
 
     class Command : public Component {
     public:
-        explicit Command(DeformableInfantryOmni& deformableInfantry)
+        explicit Command(DeformableInfantryOmniC& deformableInfantry)
             : deformableInfantry(deformableInfantry) {}
 
         void update() override { deformableInfantry.command_update(); }
 
-        DeformableInfantryOmni& deformableInfantry;
+        DeformableInfantryOmniC& deformableInfantry;
     };
 
     struct TopBoard final : public librmcs::board::RmcsBoardLite::Callback {
     public:
         explicit TopBoard(
-            DeformableInfantryOmni& status, Component& command,
+            DeformableInfantryOmniC& status, Component& command,
             const std::string& serial_filter = {})
             : status_{status}
             , tf_{status.tf_}
@@ -294,7 +294,7 @@ private:
 
         auto status() const -> std::vector<std::string> { return monitor_.text(); }
 
-        DeformableInfantryOmni& status_;
+        DeformableInfantryOmniC& status_;
         OutputInterface<rmcs_description::Tf>& tf_;
         OutputInterface<double> gimbal_yaw_velocity_bmi088_;
         OutputInterface<double> gimbal_pitch_velocity_bmi088_;
@@ -316,7 +316,7 @@ private:
     struct BottomBoard final : public librmcs::board::RmcsBoardLite::Callback {
     public:
         explicit BottomBoard(
-            DeformableInfantryOmni& status, Component& command,
+            DeformableInfantryOmniC& status, Component& command,
             const std::string& serial_filter = {})
             : status_{status}
             , command_{command}
@@ -369,12 +369,12 @@ private:
             for (size_t i = 0; i < 4; ++i) {
                 status.register_output(
                     std::format(
-                        "/chassis/{}_joint/physical_angle", DeformableInfantryOmni::kJointName[i]),
+                        "/chassis/{}_joint/physical_angle", DeformableInfantryOmniC::kJointName[i]),
                     joint_physical_angle_[i], kNaN);
                 status.register_output(
                     std::format(
                         "/chassis/{}_joint/physical_velocity",
-                        DeformableInfantryOmni::kJointName[i]),
+                        DeformableInfantryOmniC::kJointName[i]),
                     joint_physical_velocity_[i], kNaN);
             }
             status.register_output("/chassis/encoder/alpha", encoder_alpha_, kNaN);
@@ -552,7 +552,7 @@ private:
 
         static constexpr double kJointZeroPhysicalAngleRad = 62.5 * std::numbers::pi / 180.0;
 
-        DeformableInfantryOmni& status_;
+        DeformableInfantryOmniC& status_;
         Component& command_;
 
         std::unique_ptr<librmcs::board::RmcsBoardLite> board_;
@@ -770,4 +770,4 @@ private:
 } // namespace rmcs_core::hardware
 
 #include <pluginlib/class_list_macros.hpp>
-PLUGINLIB_EXPORT_CLASS(rmcs_core::hardware::DeformableInfantryOmni, rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(rmcs_core::hardware::DeformableInfantryOmniC, rmcs_executor::Component)
