@@ -50,6 +50,7 @@ constexpr auto to_string(ChassisMode mode) noexcept -> const char* {
     case ChassisMode::SPIN_SLOW: return "SPIN_SLOW";
     case ChassisMode::ALIGNMENT: return "ALIGNMENT";
     case ChassisMode::ALIGNMENT_POWERED: return "ALIGNMENT_POWERED";
+    case ChassisMode::WIRELESS_CHARGING: return "WIRELESS_CHARGING";
     case ChassisMode::CLIMB: return "CLIMB";
     }
     return "INVALID";

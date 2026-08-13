@@ -259,6 +259,7 @@ public:
 
             // @NOTE: Align With 4 Sides
         case ChassisMode::ALIGNMENT_POWERED: [[fallthrough]];
+        case ChassisMode::WIRELESS_CHARGING: [[fallthrough]];
         case ChassisMode::ALIGNMENT: {
             const auto speed = chassis_control_velocity_->vector.head<2>();
             const auto line1 = Eigen::Vector2d{speed.x(), 0};
