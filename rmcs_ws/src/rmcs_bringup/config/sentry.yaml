@@ -67,9 +67,9 @@ auto_aim_component:
     fire_control:
       bullet_speed: 22.5
       shoot_delay: 0.05
-      offset_yaw: -0.5
-      offset_pitch: -0.2
-      attack_window: 110.0
+      offset_yaw: -0.8
+      offset_pitch: -0.3
+      attack_window: 100.0
       degraded_angle_speed: 12.0
       window_redundancy: 0.8
       window_hysteresis: 0.2
@@ -78,7 +78,6 @@ auto_aim_component:
       pitch_tolerance: 0.08
       rune_idle_duration: 0.4
       rune_shoot_duration: 0.2
-      require_stable_command: false
 
 value_broadcaster:
   ros__parameters:
@@ -258,7 +257,7 @@ bullet_feeder_velocity_pid_controller:
     measurement: /gimbal/bullet_feeder/velocity
     setpoint: /gimbal/bullet_feeder/control_velocity
     control: /gimbal/bullet_feeder/control_torque
-    kp: 0.283
+    kp: 0.583
     ki: 0.0
     kd: 0.0
 
