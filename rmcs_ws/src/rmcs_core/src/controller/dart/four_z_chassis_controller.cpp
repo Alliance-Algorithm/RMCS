@@ -83,11 +83,21 @@ public:
         //     get_logger(), "fl:%d,fr:%d,bl:%d,br:%d", *bottom_limits_[0], *bottom_limits_[1],
         //     *bottom_limits_[2], *bottom_limits_[3]);
         if (manual_mode()) {
-            update_manual();
+            const auto cmd = command_.ready() ? *command_ : ChassisCmd::IDLE;
+            if (cmd == ChassisCmd::IDLE) {
+                update_manual();
+                return;
+            }
+        } else if (!command_.ready()) {
+            active_cmd_ = ChassisCmd::IDLE;
+            reset_command_state();
+            publish_outputs(nan_velocities());
+            status_held_ = MechStatus::IDLE;
+            *status_ = status_held_;
             return;
         }
 
-        const auto cmd = command_.ready() ? *command_ : ChassisCmd::IDLE;
+        const auto cmd = *command_;
 
         if (cmd == ChassisCmd::IDLE) {
             active_cmd_ = ChassisCmd::IDLE;

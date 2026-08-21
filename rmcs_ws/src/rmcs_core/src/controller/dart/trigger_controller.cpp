@@ -63,6 +63,7 @@ public:
         get_parameter("carriage_velocity", carriage_velocity_);
         get_parameter_or("calibrate_rollback", calibrate_rollback_, int64_t{80000});
         get_parameter_or("calibrate_rollback_velocity", calibrate_rollback_velocity_, 50.0);
+        get_parameter_or("calibrate_rollback_retry", calibrate_rollback_retry_, int64_t{50000});
         get_parameter_or("carriage_torque_limit", carriage_torque_limit_, 5.0);
         get_parameter_or("carriage_calibrate_torque_limit", carriage_calibrate_torque_limit_, 2.0);
         int64_t calibrate_launch_ticks = 100;
@@ -91,6 +92,10 @@ public:
         carriage_stall_ticks_ = static_cast<int>(stall_ticks);
 
         get_parameter("carriage_stall_velocity_threshold", carriage_stall_velocity_threshold_);
+        get_parameter_or(
+            "carriage_calibrate_stall_tolerance", carriage_calibrate_stall_tolerance_,
+            int64_t{20000});
+        get_parameter_or("calib_stall_max_retries", calib_stall_max_retries_, int{5});
         get_parameter_or(
             "manual_carriage_velocity_sensitivity", manual_carriage_velocity_sensitivity_, 0.0);
 
@@ -372,12 +377,16 @@ private:
         calib_sample_count_ = 0;
         calib_encoder_sum_ = 0;
         calib_rollback_start_encoder_ = 0;
+        calib_first_stall_encoder_ = 0;
+        calib_stall_retry_count_ = 0;
+        calib_rollback_is_retry_ = false;
     }
 
     void start_calibrate_launch_stage() {
         stage_ = kCalibStageLaunch;
         calib_launch_counter_ = 0;
         calib_stall_counter_ = 0;
+        calib_rollback_is_retry_ = false;
     }
 
     void update_calibrate_launch_stage(double& target_motor_vel, double& target_motor_torque) {
@@ -397,7 +406,9 @@ private:
         const int64_t delta = motor_encoder >= calib_rollback_start_encoder_
                                 ? motor_encoder - calib_rollback_start_encoder_
                                 : calib_rollback_start_encoder_ - motor_encoder;
-        return delta >= calibrate_rollback_;
+        const int64_t target = calib_rollback_is_retry_ ? calibrate_rollback_retry_
+                                                        : calibrate_rollback_;
+        return delta >= target;
     }
 
     MechStatus handle_carriage_up_down(bool is_new_command, bool is_up, double& target_motor_vel) {
@@ -457,6 +468,13 @@ private:
         bool is_new_command, double motor_vel, int64_t motor_encoder, double& target_motor_vel,
         double& target_motor_torque) {
 
+        if (calibrated_zero_valid_) {
+            if (is_new_command) {
+                active_cmd_ = TriggerCmd::CARRIAGE_CALIBRATE;
+            }
+            return MechStatus::SUCCEEDED;
+        }
+
         if (is_new_command) {
             active_cmd_ = TriggerCmd::CARRIAGE_CALIBRATE;
             reset_calibration_state();
@@ -484,6 +502,38 @@ private:
         target_motor_torque = -std::abs(carriage_calibrate_control_torque_);
         const bool stalled = carriage_stall_detected(motor_vel, calib_stall_counter_);
         if (stalled) {
+            if (calib_sample_count_ == 0) {
+                calib_first_stall_encoder_ = motor_encoder;
+            } else {
+                const int64_t deviation = motor_encoder >= calib_first_stall_encoder_
+                                            ? motor_encoder - calib_first_stall_encoder_
+                                            : calib_first_stall_encoder_ - motor_encoder;
+                if (deviation > carriage_calibrate_stall_tolerance_) {
+                    ++calib_stall_retry_count_;
+                    RCLCPP_WARN(
+                        get_logger(),
+                        "[TriggerController] carriage calibrate: stall discarded "
+                        "(deviation=%ld > tolerance=%ld, encoder=%ld, ref=%ld, retry=%d/%d)",
+                        deviation, carriage_calibrate_stall_tolerance_, motor_encoder,
+                        calib_first_stall_encoder_, calib_stall_retry_count_,
+                        calib_stall_max_retries_);
+                    if (calib_stall_retry_count_ >= calib_stall_max_retries_) {
+                        RCLCPP_ERROR(
+                            get_logger(),
+                            "[TriggerController] carriage calibrate: "
+                            "max retries exceeded, failed");
+                        return MechStatus::FAILED;
+                    }
+                    stage_ = kCalibStageRollback;
+                    calib_rollback_start_encoder_ = motor_encoder;
+                    calib_stall_counter_ = 0;
+                    calib_rollback_is_retry_ = true;
+                    target_motor_vel = calibrate_rollback_velocity_;
+                    target_motor_torque = NAN;
+                    return MechStatus::BUSY;
+                }
+            }
+
             ++calib_sample_count_;
             calib_encoder_sum_ += motor_encoder;
             if (calib_sample_count_ >= kCalibSampleTarget) {
@@ -566,6 +616,12 @@ private:
     int64_t calib_rollback_start_encoder_ = 0;
     int64_t calibrated_zero_ = 0;
     bool calibrated_zero_valid_ = false;
+    int64_t calib_first_stall_encoder_ = 0;
+    int calib_stall_retry_count_ = 0;
+    int calib_stall_max_retries_ = 5;
+    int64_t carriage_calibrate_stall_tolerance_ = 20000;
+    int64_t calibrate_rollback_retry_ = 50000;
+    bool calib_rollback_is_retry_ = false;
 };
 
 } // namespace rmcs_core::controller::dart
