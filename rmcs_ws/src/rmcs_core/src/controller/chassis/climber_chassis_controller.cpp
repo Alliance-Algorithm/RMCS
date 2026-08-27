@@ -79,7 +79,8 @@ public:
 
             if (*arm_mode_ == rmcs_msgs::ArmMode::Auto_Up_One_Stairs
                 || *arm_mode_ == rmcs_msgs::ArmMode::Auto_Up_Two_Stairs
-                || *arm_mode_ == rmcs_msgs::ArmMode::Auto_Down_Stairs) {
+                || *arm_mode_ == rmcs_msgs::ArmMode::Auto_Down_Stairs
+                || *arm_mode_ == rmcs_msgs::ArmMode::Auto_Up_Compensation) {
                 move.y()         = 0.0;
                 angular_velocity = 0.0;
                 if (!std::isnan(*climbing_forward_velocity_)) {

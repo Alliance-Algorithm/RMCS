@@ -11,9 +11,18 @@ class ClimberController {
 public:
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
 
-    enum class Mode { OneStair, TwoStairs };
+    enum class Mode { OneStair, TwoStairs, Compensation, Retract };
 
-    enum class State { IDLE, APPROACH, SUPPORT_DEPLOY, DASH, SUPPORT_RETRACT, SLIDE, EMPTY };
+    enum class State {
+        IDLE,
+        APPROACH,
+        SUPPORT_DEPLOY,
+        DASH,
+        SUPPORT_RETRACT,
+        SLIDE,
+        EMPTY,
+        COMPENSATION
+    };
 
     struct Config {
         double track_velocity_max                = 0.0;
@@ -29,7 +38,7 @@ public:
         double back_blocked_velocity_threshold   = 0.1;
         int support_confirm_ticks                = 100;
         int dash_min_ticks                       = 400;
-        int dash_timeout_ticks                   = 800;
+        int dash_timeout_ticks                   = 1000;
         int support_retract_ticks                = 500;
         int slide_ticks                          = 500;
     };
@@ -62,9 +71,15 @@ public:
 
     void start(Mode mode) {
         reset();
+        mode_                  = mode;
         has_second_stair_flag_ = mode == Mode::TwoStairs ? true : false;
         stair_index_           = 0;
-        enter_state(State::APPROACH);
+        switch (mode) {
+        case Mode::OneStair:
+        case Mode::TwoStairs: enter_state(State::APPROACH); break;
+        case Mode::Compensation: enter_state(State::COMPENSATION); break;
+        case Mode::Retract: enter_state(State::SUPPORT_RETRACT); break;
+        }
     }
 
     Output update(const Input& input) {
@@ -81,6 +96,7 @@ public:
         case State::SUPPORT_RETRACT: return update_support_retract();
         case State::SLIDE: return update_slide();
         case State::EMPTY: return update_empty();
+        case State::COMPENSATION: return update_climber_compensation();
         default: return {};
         }
 
@@ -103,6 +119,7 @@ private:
         case State::SUPPORT_DEPLOY: return "SUPPORT_DEPLOY";
         case State::DASH: return "DASH";
         case State::SUPPORT_RETRACT: return "SUPPORT_RETRACT";
+        case State::COMPENSATION: return "CLIMBER_COMPENSATION";
         default: return "UNKNOWN";
         }
     }
@@ -165,7 +182,7 @@ private:
             config_.leveled_pitch_threshold = 0.09;
             break;
         case 1:
-            config_.dash_min_ticks          = 500;
+            config_.dash_min_ticks          = 700;
             config_.leveled_pitch_threshold = 0.15;
             break;
         }
@@ -186,8 +203,13 @@ private:
             .override_chassis_vx   = 0.0,
         };
 
-        if (timer_ > config_.support_retract_ticks)
-            enter_state(State::SLIDE);
+        if (timer_ > config_.support_retract_ticks) {
+            if (mode_ == Mode::Retract) {
+                enter_state(State::EMPTY);
+            } else {
+                enter_state(State::SLIDE);
+            }
+        }
 
         return output;
     }
@@ -221,7 +243,18 @@ private:
         return output;
     }
 
+    Output update_climber_compensation() {
+        Output output{
+            .front_track_velocity  = 0.0,
+            .back_climber_velocity = config_.climber_back_control_velocity_abs,
+            .override_chassis_vx   = config_.dash_chassis_velocity};
+        if (timer_ > 2000)
+            enter_state(State::SUPPORT_RETRACT);
+        return output;
+    }
+
     Config config_;
+    Mode mode_;
     State state_                = State::IDLE;
     int timer_                  = 0;
     int stair_index_            = 0;

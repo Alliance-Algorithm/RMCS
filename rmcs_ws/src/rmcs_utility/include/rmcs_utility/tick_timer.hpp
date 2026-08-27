@@ -7,6 +7,15 @@ public:
     void reset(unsigned int cooldown) { counter_ = 2 * cooldown; }
 
     bool tick() {
+        if (counter_ == 0) [[unlikely]] {
+            counter_ = 1;
+            return true;
+        } else {
+            counter_ -= 2;
+            return false;
+        }
+    }
+    bool tick_always() {
         if (counter_ <= 1) [[unlikely]] {
             counter_ = 1;
             return true;

@@ -26,15 +26,15 @@ public:
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , joint_angle_pid_controller{
-              pid::PidCalculator(1300.0, 0.0, 50.0), // joint_1
-              pid::PidCalculator(300.0, 0.0, 50.0), // joint_2
+              pid::PidCalculator(500.0, 0.0, 20.0), // joint_1
+              pid::PidCalculator(150.0, 0.0, 10.0), // joint_2
               pid::PidCalculator(500.0, 0.0, 10.0), // joint_3
               pid::PidCalculator(250.0, 0.0, 1.0), // joint_4
               pid::PidCalculator(600.0, 0.0, 10.0), // joint_5
               pid::PidCalculator(this->get_parameter("joint_6_angle_kp").as_double(), this->get_parameter("joint_6_angle_ki").as_double(), this->get_parameter("joint_6_angle_kd").as_double()), // joint_6
           }
         , joint_vel_pid_controller{
-              pid::PidCalculator(0.6, 0.0, 0.01), // joint_1
+              pid::PidCalculator(1.5, 0.0, 0.01), // joint_1
               pid::PidCalculator(1.8, 0.0, 0.18), // joint_2
               pid::PidCalculator(0.7, 0.0, 0.004), // joint_3
               pid::PidCalculator(0.65, 0.0, 0.002), // joint_4

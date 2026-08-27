@@ -199,6 +199,9 @@ private:
                 } else if (keyboard.shift && !keyboard.ctrl) {
                     image_pitch_theta1_offset_ = 1.2;
                     set_arm_mode(rmcs_msgs::ArmMode::Auto_Up_One_Stairs);
+                } else if (!keyboard.shift && keyboard.ctrl) {
+                    image_pitch_theta1_offset_ = 1.2;
+                    set_arm_mode(rmcs_msgs::ArmMode::Auto_Up_Compensation);
                 }
             }
             if (keyboard.w && !last_keyboard_.w) {
@@ -337,8 +340,7 @@ private:
                     {"delay", "delay", "up_two_stairs_initial"}));
                 break;
             case ArmMode::Calibration:
-                arm_action_machine_.process(
-                    action_dictionary_.helper_find_chunk("crash_wall_calibration"));
+                arm_action_machine_.process(action_dictionary_.helper_find_chunk("test"));
                 break;
             case ArmMode::Yaw_Close:
                 arm_action_machine_.process(action_dictionary_.helper_find_chunk("gripper_open"));

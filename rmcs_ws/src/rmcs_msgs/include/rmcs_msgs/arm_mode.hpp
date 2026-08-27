@@ -23,6 +23,7 @@ enum class ArmMode : uint8_t {
     Auto_Up_One_Stairs,
     Auto_Up_Two_Stairs,
     Auto_Down_Stairs,
+    Auto_Up_Compensation,
     Custome,
     DT7_Control_Position,
     DT7_Control_Orientation,

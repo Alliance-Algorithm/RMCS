@@ -89,7 +89,7 @@ public:
             return;
         }
 
-        if (!climber_controller_.active() && last_arm_mode_ != *arm_mode_) {
+        if (last_arm_mode_ != *arm_mode_) {
             switch (*arm_mode_) {
             case ArmMode::Auto_Up_One_Stairs:
                 reset_pid_controllers();
@@ -101,7 +101,21 @@ public:
                 climber_controller_.start(climber::ClimberController::Mode::TwoStairs);
                 RCLCPP_INFO(logger_, "Auto climb started in two-stairs mode.");
                 break;
-            default: break;
+            case ArmMode::Auto_Up_Compensation:
+                reset_pid_controllers();
+                climber_controller_.start(climber::ClimberController::Mode::Compensation);
+                RCLCPP_INFO(logger_, "Auto climb started in compensation mode.");
+                break;
+            default:
+                reset_pid_controllers();
+                if (last_arm_mode_ == rmcs_msgs::ArmMode::Auto_Up_One_Stairs
+                    || last_arm_mode_ == rmcs_msgs::ArmMode::Auto_Up_Two_Stairs
+                    || last_arm_mode_ == ArmMode::Auto_Up_Compensation) {
+                    climber_controller_.start(climber::ClimberController::Mode::Retract);
+                    RCLCPP_INFO(logger_, "Auto climb started in retract mode.");
+                } else
+                    climber_controller_.abort();
+                break;
             }
         }
 

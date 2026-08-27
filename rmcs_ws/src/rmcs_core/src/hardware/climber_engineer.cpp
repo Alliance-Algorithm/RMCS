@@ -64,20 +64,15 @@ private:
             armboard_.joint[0].get_angle(), littleboard_.joint2_encoder_.get_angle(),
             armboard_.joint[2].get_angle(), armboard_.joint[3].get_angle(),
             armboard_.joint[4].get_angle(), armboard_.joint[5].get_angle());
-        // RCLCPP_INFO(get_logger(), "gripper:%f", armboard_.gripper.get_angle());
+
         RCLCPP_INFO(
             get_logger(), ".joint_1=%d,.joint_2=%d,.joint_3=%d,.joint_4=%d,.joint_5=%d,.joint_6=%d",
             armboard_.joint[0].get_raw_angle(), littleboard_.joint2_encoder_.get_raw_angle(),
             armboard_.joint[2].get_raw_angle(), armboard_.joint[3].get_raw_angle(),
             armboard_.joint[4].get_raw_angle(), armboard_.joint[5].get_raw_angle());
-        // RCLCPP_INFO(
-        //     get_logger(),
-        //     "\nsteering_lf_zero_point: %d\nsteering_lb_zero_point: %d\nsteering_rb_zero_point: "
-        //     "%d\nsteering_rf_zero_point: %d",
-        //     littleboard_.Steering_motors[0].calibrate_zero_point(),
-        //     littleboard_.Steering_motors[1].calibrate_zero_point(),
-        //     littleboard_.Steering_motors[2].calibrate_zero_point(),
-        //     littleboard_.Steering_motors[3].calibrate_zero_point());
+        RCLCPP_INFO(get_logger(), "image:%d", armboard_.image_pitch.get_raw_angle());
+        RCLCPP_INFO(get_logger(), "big_yaw:%d", littleboard_.big_yaw.get_raw_angle());
+        RCLCPP_INFO(get_logger(), "pitch:%f", *armboard_.pitch_imu_angle);
     }
 
     rclcpp::Logger logger_;
@@ -646,7 +641,7 @@ private:
         void command() {
 
             bool is_chassis_enable{true};
-            if (steering_wheel_watchdog_.tick()) {
+            if (steering_wheel_watchdog_.tick_always()) {
                 is_chassis_enable = false;
                 chassis_disable();
             }
@@ -748,7 +743,7 @@ private:
                 Wheel_motors[1].store_status(data.can_data);
                 steering_wheel_watchdog_.reset(100);
             }
-            steering_wheel_watchdog_.tick();
+            steering_wheel_watchdog_.tick_always();
         }
         void can1_receive_callback(const librmcs::data::CanDataView& data) override {
             if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
@@ -765,7 +760,7 @@ private:
             } else if (data.can_id == 0x204) {
                 Wheel_motors[3].store_status(data.can_data);
             }
-            steering_wheel_watchdog_.tick();
+            steering_wheel_watchdog_.tick_always();
         }
         void can2_receive_callback(const librmcs::data::CanDataView& data) override {
             if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)

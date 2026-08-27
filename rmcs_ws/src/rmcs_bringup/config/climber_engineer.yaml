@@ -26,18 +26,18 @@ engineer_hardware:
     board_serial_arm_board: "D4-0262-9E84-E715-CADB-9894-7241"
     board_serial_little_board: "AF-4728-8B65-756E-F0CF-DBDD-D3C8-C843-2DF6"
     gripper_zero_point: 65122
-    image_pitch_zero_point: 63043
+    image_pitch_zero_point: 9116
     joint6_zero_point: 23717
-    joint5_zero_point: 28746
+    joint5_zero_point: 25431
     joint4_zero_point: 40324
-    joint3_zero_point: 15145
-    joint2_zero_point: 43025
+    joint3_zero_point: 58448
+    joint2_zero_point: 41934
     joint1_zero_point: 4339
     steering_lf_zero_point: 3051   
     steering_lb_zero_point: 6480 
     steering_rb_zero_point: 266  
     steering_rf_zero_point: 7859
-    big_yaw_zero_point: 540
+    big_yaw_zero_point: 65087
 
 image_transmission:
   ros__parameters:
@@ -55,11 +55,11 @@ arm_controller:
 arm_solver:
   ros__parameters:
     controller_list: [pid, gravity, friction]
-    joint_6_angle_kp: 65.00
+    joint_6_angle_kp: 60.00
     joint_6_angle_ki: 0.0
-    joint_6_angle_kd: 0.04
+    joint_6_angle_kd: 3.4
     joint_6_vel_kp: 0.08
-    joint_6_vel_ki: 0.0002
+    joint_6_vel_ki: 0.000
     joint_6_vel_kd: 0.000
 
 
@@ -77,6 +77,7 @@ gripper_velocity_pid_controller:
     measurement: /arm/gripper/motor/velocity
     setpoint: /arm/gripper/control_vel
     control: /arm/gripper/motor/control_torque
+    output_max: 2.25
     kp: 0.03
     ki: 0.0
     kd: 0.03
@@ -143,7 +144,7 @@ engineer_chassis_climber_controller:
     auto_climb_leveled_pitch_threshold: 0.09
     sync_coefficient: 10.0
     first_stair_approach_pitch: 0.568
-    second_stair_approach_pitch: 0.4174   
+    second_stair_approach_pitch: 0.445314 
     front_kp: 1.0
     front_ki: 0.0
     front_kd: 0.5
