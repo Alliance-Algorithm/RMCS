@@ -1,0 +1,113 @@
+# ============================================================================
+# wheel-leg-infantry.yaml — 轮腿步兵 RL 部署配置骨架（方案 A：推理在 mini PC）
+#
+# 机器人：6 DOF 轮腿（4×DM-J8009-2EC 髋 + 2×M3508(+减速箱) 轮）
+#   髋电机协议：达妙 MIT 模式（CAN@1Mbps），见
+#     rmcs_core/src/hardware/device/dm_motor.hpp（依据《DM-J8009-2EC 减速电机使用说明书 V1.0》）
+#   轮电机：DJI M3508 电流环（DjiMotor 驱动）
+# 下位机：rmcs_board_lite（LibRMCS v3 无下位机架构，CAN/IMU/USART 透传，控制全在 PC）
+# 策略：legged_gym infantry_v4 训练导出 ONNX（obs float32[1,28] -> actions float32[1,6]）
+#
+# 启动：set-robot wheel-leg-infantry && launch-rmcs（或 rmcs.launch.py robot:=wheel-leg-infantry）
+#
+# 组件来源：
+#   rmcs_core::hardware::WheelLegInfantry —— 硬件组件（rmcs_core 内，随核心构建）
+#   rmcs::rl::RlController        —— RL 部署（子模块包 rmcs_rl）
+# 不需要 RL 时：删除/注释下方 RlController 组件行，并移除 rmcs_rl
+# 子模块目录即可（硬件部分不受影响）。
+# ============================================================================
+
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::hardware::WheelLegInfantry -> wheel_leg_hardware
+      # 输出: /wheel_leg/{rf0,rf1,r_wheel,lf0,lf1,l_wheel}/{angle,velocity,torque,...}
+      #       /wheel_leg/imu/{quaternion,angular_velocity}
+      # 输入: /wheel_leg/{...}/control_torque（Command partner 内 DmMotor/DjiMotor 注册）
+      - rmcs::rl::RlController -> rl_controller
+
+      # 遥控/裁判等外围组件按需追加（DR16 -> /remote/*；裁判 -> referee_*）
+
+wheel_leg_hardware:
+  ros__parameters:
+    # 板子 USB 序列号子串过滤（librmcs 用 libusb 直连，按 VID 0xA11C + 序列号匹配）。
+    # 空 = 匹配任意板子；多板子时填 `lsusb -v -d a11c:` 看到的 iSerial 子串。
+    serial_filter: ""
+    debug_log_motor: true                  # 每秒打印电机反馈
+
+    # ---- 髋电机 DM-J8009-2EC（MIT 模式）----
+    # CAN ID（rf0, rf1, lf0, lf1）与 CAN 通道（Can0-3）须与实车走线一致
+    hip_motor_id: [1, 2, 3, 4]
+    # 反馈帧 ID（MST_ID，须用达妙调试助手给每台电机设成不同值！
+    # 出厂默认 0：4 台电机同 ID 会在总线上冲突，无法多机共线）
+    hip_motor_feedback_id: [17, 18, 19, 20]
+    hip_reversed: [false, false, false, false]   # 按实车安装方向标定
+    hip_angle_bias: [0.0, 0.0, 0.0, 0.0]         # 电机零点→策略零点（SolidWorks 测量）
+    # P_MAX/V_MAX/T_MAX 必须与电机内寄存器（调试助手设定）一致
+    hip_position_max: 12.5
+    hip_velocity_max: 45.0
+    hip_torque_max: 54.0
+    hip_control_torque_max: 40.0                 # 峰值 40Nm
+
+    # ---- 轮电机 M3508 + 减速箱 ----
+    wheel_motor_id: [1, 2]                       # DJI CAN ID（r, l）
+    wheel_reduction_ratio: 16.33                 # 减速箱总减速比（DjiMotor 语义）
+    wheel_reversed: [false, false]
+
+rl_controller:
+  ros__parameters:
+    # ---- 模型与推理 ----
+    # 模型路径：相对路径相对 rmcs_rl 包 share 目录解析（模型放 rmcs_rl/models/，
+    # 随 install/ 一起 sync-remote 同步，开发/运行环境一致）；也支持绝对路径。
+    rl_model_path: "models/policy.onnx"   # 训练导出（obs[1,28] -> actions[1,6] float32）
+    rl_inference_frequency: 50.0            # 推理频率（训练控制频率 = sim dt 0.005 × decimation 4）
+    rl_publish_network_io: true             # 发布观测/动作调试输出
+
+    # ---- 机器人描述（rmcs_rl 通用包：换机器人只改这里 + 换模型）----
+    joint_names: [rf0, rf1, r_wheel, lf0, lf1, l_wheel]   # 训练 DOF 序
+    joint_base_path: "/wheel_leg"
+    position_pd_joints: [0, 1, 3, 4]        # 位置 PD 组（腿）
+    velocity_pd_joints: [2, 5]              # 速度 PD 组（轮；其位置观测在 obs 中置零）
+    rl_obs_size: 28                         # 默认 10+3N；与模型一致
+    rl_action_size: 6
+
+    # ---- 策略合同（与 legged_gym infantry_v4 一致，勿改）----
+    default_dof_pos: [-0.5, -0.35, 0.0, 0.5, 0.35, 0.0]
+    dof_pos_limits_lower: [-100.0, -0.9, -100.0, -100.0, -0.65, -100.0]   # 训练 URDF 限位
+    dof_pos_limits_upper: [100.0, 0.65, 100.0, 100.0, 0.9, 100.0]
+    position_action_scale: 0.5
+    velocity_action_scale: 10.0
+    max_velocity: 100.0
+    velocity_torque_max: 6.0                # 训练 clamp（轮端，含 16.33 减速箱时按实际校核）
+    position_kp: 200.0                      # 训练 PD（sim 值，部署保持一致）
+    position_kd: 4.0
+    velocity_kp: 20.0
+    velocity_kd: 0.5
+    position_torque_max: 35.0               # 髋输出限幅（参照 XYEGA ±35Nm）
+
+    # ---- 观测缩放（训练 normalization.obs_scales）----
+    obs_ang_vel_scale: 0.5
+    obs_gravity_scale: 1.0
+    obs_dof_pos_scale: 1.0
+    obs_dof_vel_scale: 0.1
+    obs_height_scale: 5.0
+    clip_observations: 100.0
+    clip_actions: 100.0
+
+    # ---- 指令范围 ----
+    motion_linear_x_min: -2.5
+    motion_linear_x_max: 2.5
+    motion_angular_z_min: -3.0
+    motion_angular_z_max: 3.0
+    command_height_min: 0.20
+    command_height_max: 0.42
+    default_command_height: 0.22
+
+    # ---- FSM / PREPARE ----
+    auto_enter_rl: false                    # 调试期保持 false，遥控 state=3 手动进 RL
+    prepare_dof_pos: [-0.5, -0.35, 0.5, 0.35]   # 站立预备位（腿序 rf0,rf1,lf0,lf1）
+    prepare_kp: 80.0
+    prepare_kd: 2.0
+    prepare_max_velocity: 1.0               # 插值速度上限 rad/s
+    prepare_reach_threshold: 0.02
