@@ -32,7 +32,7 @@ requires(std::is_trivial_v<T>) struct ByteConvertible {
         std::memcpy(&data, bytes.data(), sizeof(data));
     }
 
-    constexpr std::span<const std::byte, sizeof(data)> as_bytes() noexcept {
+    constexpr std::span<const std::byte, sizeof(data)> as_bytes() const noexcept {
         return std::span<const std::byte, sizeof(data)>{
             reinterpret_cast<const std::byte*>(&data), sizeof(data)};
     }
