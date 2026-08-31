@@ -1,0 +1,34 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::hardware::HardwareMotorTest -> hardware_motor_test
+
+hardware_motor_test:
+  ros__parameters:
+    # ---- 板子 ----
+    board_serial: "AF-8AE3-4EC1-03C3-C494-88FE-2DC4-3018-0298"
+
+    # ---- CAN 口 / 电机类型映射 ----
+    # 每个口一个条目 "can_index:FAMILY"；FAMILY 取 DM8009 / LK4010i10 / GM6020 / M3508。
+    # 四个口都往外发数据，类型按下面的对应关系走。
+    can_ports:
+      - "0:DM8009"
+      - "1:LK4010i10"
+      - "2:GM6020"
+      - "3:M3508"
+
+    # ---- 电机通用参数 ----
+    motor_id: 1            # 四个口电机 CAN ID 统一；GM6020 通常为 1
+    feedback_id: 1         # DM8009 反馈 ID；LK / DJI 会忽略这个参数
+    encoder_zero_point: 0   # LK / DJI 位置零点；DM8009 会忽略这个参数
+    angle_bias: 0.0         # DM8009 角度偏置；LK / DJI 会忽略这个参数
+    motor_reversed: false
+    multi_turn_angle: true
+
+    # ---- DR16 遥控控制 ----
+    position_scale: 3.0
+    velocity_scale: 5.0
+    torque_scale: 4.5
+    velocity_torque_limit: 4.5
+    log_rate: 1.0

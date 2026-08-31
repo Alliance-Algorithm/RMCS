@@ -151,7 +151,7 @@ public:
 
     static constexpr auto send_id(Type type, std::uint8_t index) -> std::uint32_t {
         switch (type) {
-        case Type::kGM6020: return index <= 4 ? 0x1FE : 0x2FE;
+        case Type::kGM6020: return index <= 4 ? 0x1FF : 0x2FF;
         case Type::kGM6020Voltage: return index <= 4 ? 0x1FF : 0x2FF;
         case Type::kM3508:
         case Type::kM2006: return index <= 4 ? 0x200 : 0x1FF;
