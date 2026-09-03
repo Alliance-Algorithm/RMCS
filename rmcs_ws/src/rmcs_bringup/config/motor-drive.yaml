@@ -1,0 +1,28 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::hardware::MotorDrive -> motor_hardware
+      - rmcs_core::controller::pid::PidController -> motor_velocity_pid
+
+motor_hardware:
+  ros__parameters:
+    board_serial: ""
+    # 遥控器左摇杆顶格对应的电机目标速度上限（rad/s）
+    velocity_max: 2.0
+    # 台架测试：固定目标转速（rad/s），不接遥控器电机直接转
+    fixed_velocity: 2.0
+    # 电机速度反馈一阶低通滤波器的平滑系数（0~1，越大越不滤波）
+    filter_alpha: 0.3
+
+motor_velocity_pid:
+  ros__parameters:
+    # 反馈使用滤波后的速度，减小编码器噪声对微分项的影响
+    measurement: /motor/velocity_filtered
+    setpoint: /motor/control_velocity
+    control: /motor/control_torque
+    kp: 1.0
+    ki: 0.0
+    kd: 0.01
+    output_min: -6.0
+    output_max: 6.0
