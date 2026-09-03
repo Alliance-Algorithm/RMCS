@@ -4,6 +4,8 @@ rmcs_executor:
     components:
       - rmcs_core::hardware::MotorDrive -> motor_hardware
       - rmcs_core::controller::pid::PidController -> motor_velocity_pid
+      # 把内部接口发布成 ROS topic，供 Foxglove 看波形
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 
 motor_hardware:
   ros__parameters:
@@ -12,8 +14,13 @@ motor_hardware:
     velocity_max: 2.0
     # 台架测试：固定目标转速（rad/s），不接遥控器电机直接转
     fixed_velocity: 2.0
+    # 方形波（仅用于调 PID）：true 时目标转速在 square_high/square_low 间来回切换
+    square_wave: true
+    square_low: 0.0
+    square_high: 2.0
+    square_period: 0.5   # 每个半周期时长（秒）：0.5 表示 0.5s 高 + 0.5s 低
     # 电机速度反馈一阶低通滤波器的平滑系数（0~1，越大越不滤波）
-    filter_alpha: 0.3
+    filter_alpha: 0.20
 
 motor_velocity_pid:
   ros__parameters:
@@ -21,8 +28,17 @@ motor_velocity_pid:
     measurement: /motor/velocity_filtered
     setpoint: /motor/control_velocity
     control: /motor/control_torque
-    kp: 1.0
-    ki: 0.0
-    kd: 0.01
-    output_min: -6.0
-    output_max: 6.0
+    kp: 0.38
+    ki: 0.0005
+    kd: 0.05
+    output_min: -3.0
+    output_max: 3.0
+
+value_broadcaster:
+  ros__parameters:
+    # 这些是 std_msgs/msg/Float64 主题，Foxglove 订阅它们画波形
+    forward_list:
+      - /motor/control_velocity
+      - /motor/velocity
+      - /motor/velocity_filtered
+      - /motor/control_torque

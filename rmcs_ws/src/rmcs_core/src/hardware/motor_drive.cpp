@@ -1,3 +1,4 @@
+#include <chrono>
 #include <cstddef>
 #include <memory>
 #include <span>
@@ -47,6 +48,13 @@ public:
         get_parameter_or("filter_alpha", filter_alpha, 0.3);
         velocity_filter_.set_alpha(filter_alpha);
 
+        // 方形波（仅用于调 PID）：square_wave=true 时，目标转速在 square_high/square_low 间来回切。
+        get_parameter_or("square_wave", square_wave_, false);
+        get_parameter_or("square_low", square_low_, 0.0);
+        get_parameter_or("square_high", square_high_, 2.0);
+        get_parameter_or("square_period", square_period_, 0.5); // 每半周期时长（秒）
+        square_wave_start_ = Clock::now();
+
         register_output("/motor/control_velocity", control_velocity_, 0.0);
         register_output("/motor/velocity_filtered", velocity_filtered_, 0.0);
         register_output("/motor/enabled", enabled_, false);
@@ -89,7 +97,17 @@ private:
     // 对电机速度反馈做低通滤波后交给外部 PidController。
     void update_control() {
         *enabled_ = true;
-        *control_velocity_ = fixed_velocity_;
+
+        if (square_wave_) {
+            // 方形波调 PID：前一半周期到 high，后一半到 low。
+            const double elapsed =
+                std::chrono::duration<double>(Clock::now() - square_wave_start_).count();
+            const double half = 2.0 * square_period_;
+            const double phase = std::fmod(elapsed, half);
+            *control_velocity_ = (phase < square_period_) ? square_high_ : square_low_;
+        } else {
+            *control_velocity_ = fixed_velocity_;
+        }
 
         // TODO: 接上 DR16 后，恢复下面遥控器映射逻辑并删掉上面的固定转速
         // const bool armed = dr16_.valid() && dr16_.switch_right() == rmcs_msgs::Switch::MIDDLE;
@@ -134,7 +152,15 @@ private:
     device::Dr16 dr16_;
     std::unique_ptr<device::RemoteControl> remote_control_;
 
+    using Clock = std::chrono::steady_clock;
+
     filter::LowPassFilter<1> velocity_filter_{0.3};
+
+    bool square_wave_ = false;
+    double square_low_ = 0.0;
+    double square_high_ = 2.0;
+    double square_period_ = 0.5;
+    Clock::time_point square_wave_start_{};
 
     double velocity_max_ = 20.0;
     double fixed_velocity_ = 10.0;
