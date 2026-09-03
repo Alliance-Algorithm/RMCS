@@ -1,0 +1,18 @@
+services:
+  rmcs-develop:
+    image: qzhhhi/rmcs-develop:latest-full
+    privileged: true
+    network_mode: host
+    init: true
+    command: /bin/sh -c "while sleep 1000; do :; done"
+    working_dir: /home/ubuntu
+    volumes:
+      - type: bind
+        source: /dev
+        target: /dev
+      - type: bind
+        source: /tmp/.X11-unix
+        target: /tmp/.X11-unix
+      - type: bind
+        source: ..
+        target: /workspaces/RMCS

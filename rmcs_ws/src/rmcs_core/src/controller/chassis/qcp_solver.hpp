@@ -21,6 +21,10 @@ public:
         double right, top;
     };
 
+    struct HalfPlaneConstraint {
+        double a, b, c; // ax + by <= c
+    };
+
     struct QuadraticConstraint {
         double a, b, c, d, e, f;
     };
@@ -50,6 +54,35 @@ public:
         else
             return calculate_best_value_at_intersections(
                 objective, linear_constraint, quadratic_constraint_matrixes);
+    }
+
+    static Eigen::Vector2d solve(
+        const Eigen::Vector2d& objective, const BoundaryConstraint& boundary_constraint,
+        const std::vector<HalfPlaneConstraint>& half_planes,
+        const QuadraticConstraint& quadratic_constraint) {
+        std::vector<Eigen::Vector2d> polygon = {
+            {boundary_constraint.x_max,  boundary_constraint.y_max},
+            {                      0.0,  boundary_constraint.y_max},
+            {                      0.0, -boundary_constraint.y_max},
+            {boundary_constraint.x_max, -boundary_constraint.y_max},
+        };
+
+        for (const auto& half_plane : half_planes) {
+            sutherland_hodgman(polygon, {half_plane.a, half_plane.b, -half_plane.c});
+            if (polygon.size() < 3)
+                return Eigen::Vector2d::Constant(nan_);
+        }
+
+        auto quadratic_constraint_matrixes =
+            calculate_quadratic_constraint_matrixes(quadratic_constraint);
+        auto quadratic_constraint_best_point =
+            calculate_quadratic_constraint_best_point(objective, quadratic_constraint_matrixes);
+
+        if (is_point_inside_polygon(quadratic_constraint_best_point, polygon))
+            return quadratic_constraint_best_point;
+        else
+            return calculate_best_value_at_intersections(
+                objective, polygon, quadratic_constraint_matrixes);
     }
 
 private:
@@ -112,11 +145,13 @@ private:
     static void sutherland_hodgman(
         std::vector<Eigen::Vector2d>& polygon, const auto& edge_compare,
         const auto& calculate_intersecting_point) {
+        if (polygon.empty())
+            return;
 
         std::vector<Eigen::Vector2d> new_polygon;
         for (size_t i = polygon.size() - 1, j = 0; j < polygon.size(); i = j++) {
             auto& current_point = polygon[j];
-            auto& prev_point    = polygon[i];
+            auto& prev_point = polygon[i];
 
             if (edge_compare(current_point) == 0) {
                 new_polygon.emplace_back(current_point);
@@ -229,7 +264,7 @@ private:
             is_in_quadratic_constraint[i] =
                 is_point_inside_quadratic_constraint(linear_constraint[i], quadratic_constraint);
 
-        double max_value           = -inf_;
+        double max_value = -inf_;
         Eigen::Vector2d best_point = Eigen::Vector2d::Zero();
 
         auto check_point = [&](Eigen::Vector2d point) {
@@ -237,7 +272,7 @@ private:
             if ((value > max_value)
                 || (value == max_value && point.x() >= best_point.x()
                     && point.y() >= best_point.y())) {
-                max_value  = value;
+                max_value = value;
                 best_point = point;
             }
         };
@@ -250,9 +285,9 @@ private:
                 const Eigen::Vector2d &x1 = linear_constraint[i], &x2 = linear_constraint[j];
                 Eigen::Vector2d dx = x2 - x1;
 
-                double a     = 0.5 * dx.dot(q * dx);
-                double b     = x1.dot(q * dx) + p.dot(dx);
-                double c     = 0.5 * x1.dot(q * x1) + p.dot(x1) + r;
+                double a = 0.5 * dx.dot(q * dx);
+                double b = x1.dot(q * dx) + p.dot(dx);
+                double c = 0.5 * x1.dot(q * x1) + p.dot(x1) + r;
                 double delta = b * b - 4 * a * c;
 
                 if (delta < 0)

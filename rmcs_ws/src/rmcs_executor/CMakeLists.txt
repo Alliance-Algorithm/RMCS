@@ -6,7 +6,7 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c11")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20")
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  add_compile_options(-O2 -Wall -Wextra -Wpedantic)
+  add_compile_options(-g1 -rdynamic -O2 -Wall -Wextra -Wpedantic)
 endif()
 
 find_package (ament_cmake_auto REQUIRED)

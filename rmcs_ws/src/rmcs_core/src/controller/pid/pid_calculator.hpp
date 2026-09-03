@@ -4,6 +4,10 @@
 
 #include <algorithm>
 #include <limits>
+#include <optional>
+#include <string>
+
+#include <rclcpp/node.hpp>
 
 namespace rmcs_core::controller::pid {
 
@@ -21,7 +25,7 @@ public:
     virtual ~PidCalculator() = default;
 
     void reset() {
-        last_err_     = nan;
+        last_err_ = nan;
         err_integral_ = 0;
     }
 
@@ -56,5 +60,33 @@ private:
 
     double last_err_, err_integral_;
 };
+
+inline auto make_pid_calculator(
+    rclcpp::Node& node, const std::string& prefix, //
+    std::optional<double> kp_default = std::nullopt,
+    std::optional<double> ki_default = std::nullopt,
+    std::optional<double> kd_default = std::nullopt) {
+
+    const auto parameter_or_default =
+        [&node](const std::string& name, std::optional<double> default_value) {
+            if (default_value.has_value() && !node.has_parameter(name))
+                node.declare_parameter<double>(name, *default_value);
+            return node.get_parameter(name).as_double();
+        };
+
+    auto calculator = PidCalculator{
+        parameter_or_default(prefix + "kp", kp_default),
+        parameter_or_default(prefix + "ki", ki_default),
+        parameter_or_default(prefix + "kd", kd_default),
+    };
+
+    node.get_parameter(prefix + "integral_min", calculator.integral_min);
+    node.get_parameter(prefix + "integral_max", calculator.integral_max);
+    node.get_parameter(prefix + "integral_split_min", calculator.integral_split_min);
+    node.get_parameter(prefix + "integral_split_max", calculator.integral_split_max);
+    node.get_parameter(prefix + "output_min", calculator.output_min);
+    node.get_parameter(prefix + "output_max", calculator.output_max);
+    return calculator;
+}
 
 } // namespace rmcs_core::controller::pid

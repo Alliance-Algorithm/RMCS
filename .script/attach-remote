@@ -1,4 +1,4 @@
-#! /bin/bash
+#!/bin/bash
 
 # if arg[1] == "-r"
 if [ "$1" == "-r" ]; then
