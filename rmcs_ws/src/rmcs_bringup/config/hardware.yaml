@@ -4,6 +4,17 @@ rmcs_executor:
     components:
       - rmcs_core::hardware::HardwareMotorTest -> hardware_motor_test
 
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+
+value_broadcaster:
+  ros__parameters:
+    forward_list:
+      - hardware_motor_test/feedback/position
+      - hardware_motor_test/feedback/velocity
+      - hardware_motor_test/feedback/current
+      - hardware_motor_test/feedback/temperature
+      - /hardware_motor_test/motor/can3/control_torque
+
 hardware_motor_test:
   ros__parameters:
     # ---- 板子 ----
