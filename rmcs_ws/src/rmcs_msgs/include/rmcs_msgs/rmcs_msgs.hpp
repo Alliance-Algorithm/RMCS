@@ -9,22 +9,22 @@
 # endif
 #endif
 
-#include "board_clock.hpp"      // IWYU pragma: export
-#include "camera_frame_raw.hpp" // IWYU pragma: export
-#include "chassis_mode.hpp"     // IWYU pragma: export
-#include "full_robot_id.hpp"    // IWYU pragma: export
-#include "game_stage.hpp"       // IWYU pragma: export
-#include "gimbal_mode.hpp"      // IWYU pragma: export
-#include "imu_snapshot.hpp"     // IWYU pragma: export
-#include "keyboard.hpp"         // IWYU pragma: export
-#include "mouse.hpp"            // IWYU pragma: export
-#include "robot_color.hpp"      // IWYU pragma: export
-#include "robot_id.hpp"         // IWYU pragma: export
-#include "sentry_event.hpp"    // IWYU pragma: export
-#include "serial_interface.hpp" // IWYU pragma: export
-#include "shoot_mode.hpp"       // IWYU pragma: export
-#include "shoot_status.hpp"     // IWYU pragma: export
-#include "switch.hpp"           // IWYU pragma: export
+#include "board_clock.hpp"                 // IWYU pragma: export
+#include "camera_frame_raw.hpp"            // IWYU pragma: export
+#include "chassis_mode.hpp"                // IWYU pragma: export
+#include "full_robot_id.hpp"               // IWYU pragma: export
+#include "game_stage.hpp"                  // IWYU pragma: export
+#include "gimbal_mode.hpp"                 // IWYU pragma: export
+#include "imu_snapshot.hpp"                // IWYU pragma: export
+#include "keyboard.hpp"                    // IWYU pragma: export
+#include "mouse.hpp"                       // IWYU pragma: export
+#include "robot_color.hpp"                 // IWYU pragma: export
+#include "robot_id.hpp"                    // IWYU pragma: export
+#include "sentry_event.hpp"                // IWYU pragma: export
+#include "serial_interface.hpp"            // IWYU pragma: export
+#include "shoot_mode.hpp"                  // IWYU pragma: export
+#include "shoot_status.hpp"                // IWYU pragma: export
+#include "switch.hpp"                      // IWYU pragma: export
 
 namespace rmcs_msgs {
 
@@ -43,6 +43,10 @@ constexpr auto to_string(GameStage stage) noexcept -> const char* {
 
 constexpr auto to_string(ChassisMode mode) noexcept -> const char* {
     switch (mode) {
+    case ChassisMode::SPIN: return "SPIN";
+    case ChassisMode::Flow: return "Flow";
+    case ChassisMode::Yaw_Free: return "Yaw_Free";
+    case ChassisMode::None: return "None"; // 为了编译视觉临时添加
     case ChassisMode::AUTO: return "AUTO";
     case ChassisMode::SPIN_FAST: return "SPIN_FAST";
     case ChassisMode::STEP_DOWN: return "STEP_DOWN";
