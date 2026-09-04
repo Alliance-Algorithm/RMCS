@@ -15,7 +15,7 @@
 #include <rclcpp/logging.hpp>
 #include <rmcs_executor/component.hpp>
 
-#include "hardware/device/can_package.hpp"
+#include "hardware/device/can_packet.hpp"
 #include "hardware/endian_promise.hpp"
 
 #include <rclcpp/logging.hpp>
@@ -25,19 +25,19 @@ namespace rmcs_core::hardware::device {
 using rmcs_executor::Component;
 
 enum class LKMotorType : uint8_t {
-    UNKNOWN       = 0,
-    MF7015V210T   = 1,
+    UNKNOWN = 0,
+    MF7015V210T = 1,
     MG4010E_i10V3 = 2,
     MG4010E_i36V3 = 3,
-    MG8010E_i36   = 4,
-    MHF7015       = 5,
-    MG6012_i36    = 6,
+    MG8010E_i36 = 4,
+    MHF7015 = 5,
+    MG6012_i36 = 6,
     MG4005E_i10V3 = 7,
     MG5010E_i10V3 = 8,
     MG5010E_i36V3 = 9,
-    MHF6015       = 10,
-    MG4005_i10V2  = 11,
-    MG8016E_i6V2  = 12
+    MHF6015 = 10,
+    MG4005_i10V2 = 11,
+    MG8016E_i6V2 = 12
 };
 
 struct LKMotorConfig {
@@ -50,12 +50,12 @@ struct LKMotorConfig {
     double iq;
 
     explicit LKMotorConfig(LKMotorType motor_type) {
-        this->encoder_zero_point       = 0;
-        this->motor_type               = motor_type;
-        this->reversed                 = 1.0;
+        this->encoder_zero_point = 0;
+        this->motor_type = motor_type;
+        this->reversed = 1.0;
         this->multi_turn_angle_enabled = false;
-        this->gear_ratio               = 1.0;
-        this->is_angle_zero_to_2pi     = false;
+        this->gear_ratio = 1.0;
+        this->is_angle_zero_to_2pi = false;
         switch (motor_type) {
         case LKMotorType::UNKNOWN:
         case LKMotorType::MG4010E_i10V3:
@@ -85,8 +85,8 @@ public:
         Component& status_component, Component& command_component, const std::string& name_prefix)
 
     {
-        encoder_zero_point_       = 0;
-        last_raw_angle_           = 0;
+        encoder_zero_point_ = 0;
+        last_raw_angle_ = 0;
         multi_turn_angle_enabled_ = false;
 
         raw_angle_to_angle_coefficient_ = angle_to_raw_angle_coefficient_ = 0.0;
@@ -103,7 +103,7 @@ public:
 
         command_component.register_input(name_prefix + "/control_torque", control_torque_);
     }
-    LKMotor(const LKMotor&)            = delete;
+    LKMotor(const LKMotor&) = delete;
     LKMotor& operator=(const LKMotor&) = delete;
 
     void configure(const LKMotorConfig& config) {
@@ -112,87 +112,87 @@ public:
         switch (config.motor_type) {
         case LKMotorType::MF7015V210T:
             torque_constant = 0.12;
-            rated_current   = 8.3;
-            rated_torque    = 1.0;
-            max_torque      = 2.0;
-            LSB             = 18000;
+            rated_current = 8.3;
+            rated_torque = 1.0;
+            max_torque = 2.0;
+            LSB = 18000;
             break;
         case LKMotorType::MG4010E_i10V3:
             torque_constant = 0.07 * 10;
-            rated_current   = 3.5;
-            rated_torque    = 2.5;
-            max_torque      = 4.5;
-            LSB             = 180000;
+            rated_current = 3.5;
+            rated_torque = 2.5;
+            max_torque = 4.5;
+            LSB = 180000;
             break;
         case LKMotorType::MG4010E_i36V3:
             torque_constant = 2.58;
-            rated_current   = 3.5;
-            rated_torque    = 9;
-            max_torque      = 18;
-            LSB             = 648000;
+            rated_current = 3.5;
+            rated_torque = 9;
+            max_torque = 18;
+            LSB = 648000;
             break;
         case LKMotorType::MG8010E_i36:
             torque_constant = 0.15 * 36;
-            rated_current   = 6.9;
-            rated_torque    = 35.0;
-            max_torque      = 45.0;
-            LSB             = 648000;
+            rated_current = 6.9;
+            rated_torque = 35.0;
+            max_torque = 45.0;
+            LSB = 648000;
             break;
         case LKMotorType::MHF7015:
             torque_constant = 0.51;
-            rated_current   = 1.93;
-            rated_torque    = 0.99;
-            max_torque      = 2.42;
-            LSB             = 18000;
+            rated_current = 1.93;
+            rated_torque = 0.99;
+            max_torque = 2.42;
+            LSB = 18000;
             break;
         case LKMotorType::MG6012_i36:
             torque_constant = 0.175 * 36.0;
-            rated_current   = 4.0;
-            rated_torque    = 25.0;
-            max_torque      = 40.0;
-            LSB             = 648000;
+            rated_current = 4.0;
+            rated_torque = 25.0;
+            max_torque = 40.0;
+            LSB = 648000;
             break;
         case LKMotorType::MG4005E_i10V3:
             torque_constant = 0.06 * 10.0;
-            rated_current   = 1.8;
-            rated_torque    = 1.0;
-            max_torque      = 2.5;
-            LSB             = 648000;
+            rated_current = 1.8;
+            rated_torque = 1.0;
+            max_torque = 2.5;
+            LSB = 648000;
             break;
         case LKMotorType::MG4005_i10V2:
             torque_constant = 0.06 * 10.0;
-            rated_current   = 1.6;
-            rated_torque    = 1.0;
-            max_torque      = 2.5;
-            LSB             = 648000;
+            rated_current = 1.6;
+            rated_torque = 1.0;
+            max_torque = 2.5;
+            LSB = 648000;
             break;
         case LKMotorType::MG5010E_i10V3:
             torque_constant = 0.1 * 10.0;
-            rated_current   = 4.4;
-            rated_torque    = 4.0;
-            max_torque      = 10.0;
-            LSB             = 648000;
+            rated_current = 4.4;
+            rated_torque = 4.0;
+            max_torque = 10.0;
+            LSB = 648000;
             break;
         case LKMotorType::MG5010E_i36V3:
             torque_constant = 0.1 * 36.0;
-            rated_current   = 4.4;
-            rated_torque    = 13.0;
-            max_torque      = 70.0;
-            LSB             = 648000;
+            rated_current = 4.4;
+            rated_torque = 13.0;
+            max_torque = 70.0;
+            LSB = 648000;
             break;
         case LKMotorType::MHF6015:
             torque_constant = 0.26;
-            rated_current   = 3.1;
-            rated_torque    = 0.82;
-            max_torque      = 3.0;
-            LSB             = 648000;
+            rated_current = 3.1;
+            rated_torque = 0.82;
+            max_torque = 3.0;
+            LSB = 648000;
             break;
         case LKMotorType::MG8016E_i6V2:
             torque_constant = 2.9;
-            rated_current   = 8.4;
-            rated_torque    = 12.0;
-            max_torque      = 45.0;
-            LSB             = 648000;
+            rated_current = 8.4;
+            rated_torque = 12.0;
+            max_torque = 45.0;
+            LSB = 648000;
             break;
         default: throw std::runtime_error{"Unknown motor type"}; break;
         }
@@ -216,13 +216,15 @@ public:
 
         *gear_ratio_ = config.gear_ratio;
 
-        *max_torque_   = config.gear_ratio * max_torque;
+        *max_torque_ = config.gear_ratio * max_torque;
         *rated_torque_ = config.gear_ratio * rated_torque;
 
-        multi_turn_angle_enabled_  = config.multi_turn_angle_enabled;
+        multi_turn_angle_enabled_ = config.multi_turn_angle_enabled;
         angle_zero_to_2pi_enabled_ = config.is_angle_zero_to_2pi;
-        angle_multi_turn_          = 0;
-        multi_turn_initialized_    = false;
+        angle_multi_turn_ = 0;
+        multi_turn_initialized_ = false;
+
+        rated_current += 0;                  // 为了避免烦人的警告加的，没啥用
     }
 
     void store_status(std::span<const std::byte> can_result) {
@@ -240,8 +242,8 @@ public:
         auto feedback =
             std::bit_cast<LKMotorFeedback>(can_result_.load(std::memory_order::relaxed));
         int raw_angle = feedback.encoder;
-        *raw_angle_   = feedback.encoder;
-        int angle     = raw_angle - encoder_zero_point_;
+        *raw_angle_ = feedback.encoder;
+        int angle = raw_angle - encoder_zero_point_;
         if (angle < 0)
             angle += encoder_resolution_;
         if (!multi_turn_angle_enabled_) {
@@ -285,8 +287,8 @@ public:
 
     CanPacket8 generate_torque_command() {
         std::array<uint8_t, 8> result = {0};
-        result[0]                     = 0xA1;
-        double torque                 = reverse * (*control_torque_);
+        result[0] = 0xA1;
+        double torque = reverse * (*control_torque_);
         if (std::isnan(torque)) {
             result[1] = 0X00;
             result[2] = 0X00;
@@ -298,10 +300,10 @@ public:
 
             return CanPacket8{std::bit_cast<uint64_t>(result)};
         }
-        double max_torque         = *max_torque_;
-        torque                    = std::clamp(torque, -max_torque, max_torque);
-        double current            = std::round(torque_to_raw_current_coefficient_ * torque);
-        int16_t control_current   = static_cast<int16_t>(current);
+        double max_torque = *max_torque_;
+        torque = std::clamp(torque, -max_torque, max_torque);
+        double current = std::round(torque_to_raw_current_coefficient_ * torque);
+        int16_t control_current = static_cast<int16_t>(current);
         auto control_current_bits = std::bit_cast<std::array<uint8_t, 2>>(control_current);
         std::copy(control_current_bits.begin(), control_current_bits.end(), result.begin() + 4);
         return CanPacket8{std::bit_cast<uint64_t>(result)};
@@ -314,10 +316,10 @@ public:
     static CanPacket8 lk_zero_torque_command() { return CanPacket8{uint64_t{0xA1}}; }
 
     int calibrate_zero_point() {
-        encoder_zero_point_     = last_raw_angle_;
-        angle_multi_turn_       = 0;
+        encoder_zero_point_ = last_raw_angle_;
+        angle_multi_turn_ = 0;
         multi_turn_initialized_ = true;
-        *angle_                 = 0.0;
+        *angle_ = 0.0;
         return encoder_zero_point_;
     }
 

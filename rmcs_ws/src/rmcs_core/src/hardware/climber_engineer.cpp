@@ -1,5 +1,5 @@
 #include "hardware/device/bmi088.hpp"
-#include "hardware/device/can_package.hpp"
+#include "hardware/device/can_packet.hpp"
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/encorder.hpp"
@@ -33,7 +33,9 @@ class ClimberEngineer
     , public rclcpp::Node {
 public:
     ClimberEngineer()
-        : Node{get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
+        : Node{
+              get_component_name(),
+              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)}
         , logger_(get_logger())
         , engineer_command_(create_partner_component<EngineerCommand>("engineer_command", *this))
         , armboard_(*this, *engineer_command_, get_parameter("board_serial_arm_board").as_string())
@@ -87,7 +89,9 @@ private:
     std::shared_ptr<EngineerCommand> engineer_command_;
     std::unique_ptr<device::RemoteControl> remote_control_;
 
-    class ArmBoard final : private librmcs::agent::CBoard, rclcpp::Node {
+    class ArmBoard final
+        : private librmcs::agent::CBoard
+        , rclcpp::Node {
     public:
         friend class ClimberEngineer;
         explicit ArmBoard(
@@ -153,28 +157,28 @@ private:
             for (int i = 0; i < 10; i++) {
                 if (i % 2 == 0) {
                     tx.can2_transmit(
-                        {.can_id   = 0x145,
+                        {.can_id = 0x145,
                          .can_data = joint[4].lk_zero_torque_command().as_bytes()});
                     tx.can2_transmit(
-                        {.can_id   = 0x144,
+                        {.can_id = 0x144,
                          .can_data = joint[3].lk_zero_torque_command().as_bytes()});
                     tx.can1_transmit(
-                        {.can_id   = 0x148,
+                        {.can_id = 0x148,
                          .can_data = image_pitch.lk_zero_torque_command().as_bytes()});
                     tx.can1_transmit(
-                        {.can_id   = 0x143,
+                        {.can_id = 0x143,
                          .can_data = joint[2].lk_zero_torque_command().as_bytes()});
                 } else {
                     tx.can2_transmit(
-                        {.can_id   = 0x141,
+                        {.can_id = 0x141,
                          .can_data = joint[5].lk_zero_torque_command().as_bytes()});
                     tx.can2_transmit(
                         {.can_id = 0x147, .can_data = gripper.lk_zero_torque_command().as_bytes()});
                     tx.can1_transmit(
-                        {.can_id   = 0x142,
+                        {.can_id = 0x142,
                          .can_data = joint[1].lk_zero_torque_command().as_bytes()});
                     tx.can1_transmit(
-                        {.can_id   = 0x141,
+                        {.can_id = 0x141,
                          .can_data = joint[0].lk_zero_torque_command().as_bytes()});
                 }
             }
@@ -201,170 +205,170 @@ private:
 
             if (i % 8 == 0) {
                 tx.can1_transmit({
-                    .can_id   = 0x148,
+                    .can_id = 0x148,
                     .can_data = image_pitch.generate_torque_command().as_bytes(),
                 });
 
                 tx.can1_transmit({
-                    .can_id   = 0x143,
+                    .can_id = 0x143,
                     .can_data = joint[2].generate_torque_command().as_bytes(),
                 });
 
                 tx.can1_transmit({
-                    .can_id   = 0x141,
+                    .can_id = 0x141,
                     .can_data = joint[0].generate_torque_command().as_bytes(),
                 });
 
                 tx.can2_transmit({
-                    .can_id   = 0x147,
+                    .can_id = 0x147,
                     .can_data = gripper.generate_torque_command().as_bytes(),
                 });
 
             } else if (i % 8 == 1) {
                 tx.can2_transmit({
-                    .can_id   = 0x147,
+                    .can_id = 0x147,
                     .can_data = gripper.generate_torque_command().as_bytes(),
                 });
 
                 tx.can2_transmit({
-                    .can_id   = 0x141,
+                    .can_id = 0x141,
                     .can_data = joint[5].generate_torque_command().as_bytes(),
                 });
 
                 tx.can2_transmit({
-                    .can_id   = 0x145,
+                    .can_id = 0x145,
                     .can_data = joint[4].generate_torque_command().as_bytes(),
                 });
 
                 tx.can1_transmit({
-                    .can_id   = 0x148,
+                    .can_id = 0x148,
                     .can_data = image_pitch.generate_torque_command().as_bytes(),
                 });
 
             } else if (i % 8 == 2) {
                 tx.can1_transmit({
-                    .can_id   = 0x148,
+                    .can_id = 0x148,
                     .can_data = image_pitch.generate_torque_command().as_bytes(),
                 });
 
                 tx.can1_transmit({
-                    .can_id   = 0x143,
+                    .can_id = 0x143,
                     .can_data = joint[2].generate_torque_command().as_bytes(),
                 });
 
                 tx.can1_transmit({
-                    .can_id   = 0x142,
+                    .can_id = 0x142,
                     .can_data = joint[1].generate_torque_command().as_bytes(),
                 });
 
                 tx.can2_transmit({
-                    .can_id   = 0x141,
+                    .can_id = 0x141,
                     .can_data = joint[5].generate_torque_command().as_bytes(),
                 });
 
             } else if (i % 8 == 3) {
                 tx.can2_transmit({
-                    .can_id   = 0x147,
+                    .can_id = 0x147,
                     .can_data = gripper.generate_torque_command().as_bytes(),
                 });
 
                 tx.can2_transmit({
-                    .can_id   = 0x141,
+                    .can_id = 0x141,
                     .can_data = joint[5].generate_torque_command().as_bytes(),
                 });
 
                 tx.can2_transmit({
-                    .can_id   = 0x144,
+                    .can_id = 0x144,
                     .can_data = joint[3].generate_torque_command().as_bytes(),
                 });
 
                 tx.can1_transmit({
-                    .can_id   = 0x143,
+                    .can_id = 0x143,
                     .can_data = joint[2].generate_torque_command().as_bytes(),
                 });
 
             } else if (i % 8 == 4) {
                 tx.can1_transmit({
-                    .can_id   = 0x148,
+                    .can_id = 0x148,
                     .can_data = image_pitch.generate_torque_command().as_bytes(),
                 });
 
                 tx.can1_transmit({
-                    .can_id   = 0x141,
+                    .can_id = 0x141,
                     .can_data = joint[0].generate_torque_command().as_bytes(),
                 });
 
                 tx.can1_transmit({
-                    .can_id   = 0x142,
+                    .can_id = 0x142,
                     .can_data = joint[1].generate_torque_command().as_bytes(),
                 });
 
                 tx.can2_transmit({
-                    .can_id   = 0x145,
+                    .can_id = 0x145,
                     .can_data = joint[4].generate_torque_command().as_bytes(),
                 });
 
             } else if (i % 8 == 5) {
 
                 tx.can2_transmit({
-                    .can_id   = 0x147,
+                    .can_id = 0x147,
                     .can_data = gripper.generate_torque_command().as_bytes(),
                 });
 
                 tx.can2_transmit({
-                    .can_id   = 0x145,
+                    .can_id = 0x145,
                     .can_data = joint[4].generate_torque_command().as_bytes(),
                 });
 
                 tx.can2_transmit({
-                    .can_id   = 0x144,
+                    .can_id = 0x144,
                     .can_data = joint[3].generate_torque_command().as_bytes(),
                 });
 
                 tx.can1_transmit({
-                    .can_id   = 0x141,
+                    .can_id = 0x141,
                     .can_data = joint[0].generate_torque_command().as_bytes(),
                 });
             } else if (i % 8 == 6) {
 
                 tx.can1_transmit({
-                    .can_id   = 0x143,
+                    .can_id = 0x143,
                     .can_data = joint[2].generate_torque_command().as_bytes(),
                 });
                 tx.can1_transmit({
-                    .can_id   = 0x141,
+                    .can_id = 0x141,
                     .can_data = joint[0].generate_torque_command().as_bytes(),
                 });
 
                 tx.can1_transmit({
-                    .can_id   = 0x142,
+                    .can_id = 0x142,
                     .can_data = joint[1].generate_torque_command().as_bytes(),
                 });
 
                 tx.can2_transmit({
-                    .can_id   = 0x144,
+                    .can_id = 0x144,
                     .can_data = joint[3].generate_torque_command().as_bytes(),
                 });
 
             } else if (i % 8 == 7) {
 
                 tx.can2_transmit({
-                    .can_id   = 0x141,
+                    .can_id = 0x141,
                     .can_data = joint[5].generate_torque_command().as_bytes(),
                 });
 
                 tx.can2_transmit({
-                    .can_id   = 0x145,
+                    .can_id = 0x145,
                     .can_data = joint[4].generate_torque_command().as_bytes(),
                 });
 
                 tx.can2_transmit({
-                    .can_id   = 0x144,
+                    .can_id = 0x144,
                     .can_data = joint[3].generate_torque_command().as_bytes(),
                 });
 
                 tx.can1_transmit({
-                    .can_id   = 0x142,
+                    .can_id = 0x142,
                     .can_data = joint[1].generate_torque_command().as_bytes(),
                 });
             }
@@ -390,9 +394,9 @@ private:
             const double q2 = bmi088_.q2();
             const double q3 = bmi088_.q3();
 
-            *roll_imu_velocity  = bmi088_.gx();
+            *roll_imu_velocity = bmi088_.gx();
             *pitch_imu_velocity = bmi088_.gy();
-            *yaw_imu_velocity   = bmi088_.gz();
+            *yaw_imu_velocity = bmi088_.gz();
 
             *roll_imu_angle =
                 std::atan2(2.0 * (q0 * q1 + q2 * q3), 1.0 - 2.0 * (q1 * q1 + q2 * q2));
@@ -456,7 +460,9 @@ private:
 
     } armboard_;
 
-    class LittleBoard final : private librmcs::agent::RmcsBoardLite, rclcpp::Node {
+    class LittleBoard final
+        : private librmcs::agent::RmcsBoardLite
+        , rclcpp::Node {
     public:
         friend class ClimberEngineer;
         explicit LittleBoard(
@@ -553,70 +559,70 @@ private:
                 .can_id = 0x1FE,
                 .can_data =
                     device::CanPacket8{
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       }
+                        device::CanPacket8::PaddingQuarter{},
+                        device::CanPacket8::PaddingQuarter{},
+                        device::CanPacket8::PaddingQuarter{},
+                        device::CanPacket8::PaddingQuarter{},
+                    }
                         .as_bytes(),
             });
             tx.can1_transmit({
                 .can_id = 0x1FE,
                 .can_data =
                     device::CanPacket8{
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       }
+                        device::CanPacket8::PaddingQuarter{},
+                        device::CanPacket8::PaddingQuarter{},
+                        device::CanPacket8::PaddingQuarter{},
+                        device::CanPacket8::PaddingQuarter{},
+                    }
                         .as_bytes(),
             });
             tx.can2_transmit({
                 .can_id = 0x1FE,
                 .can_data =
                     device::CanPacket8{
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       }
+                        device::CanPacket8::PaddingQuarter{},
+                        device::CanPacket8::PaddingQuarter{},
+                        device::CanPacket8::PaddingQuarter{},
+                        device::CanPacket8::PaddingQuarter{},
+                    }
                         .as_bytes(),
             });
             tx.can2_transmit({
                 .can_id = 0x200,
                 .can_data =
                     device::CanPacket8{
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       }
+                        device::CanPacket8::PaddingQuarter{},
+                        device::CanPacket8::PaddingQuarter{},
+                        device::CanPacket8::PaddingQuarter{},
+                        device::CanPacket8::PaddingQuarter{},
+                    }
                         .as_bytes(),
             });
             tx.can1_transmit({
                 .can_id = 0x200,
                 .can_data =
                     device::CanPacket8{
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       }
+                        device::CanPacket8::PaddingQuarter{},
+                        device::CanPacket8::PaddingQuarter{},
+                        device::CanPacket8::PaddingQuarter{},
+                        device::CanPacket8::PaddingQuarter{},
+                    }
                         .as_bytes(),
             });
             tx.can0_transmit({
                 .can_id = 0x200,
                 .can_data =
                     device::CanPacket8{
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       device::CanPacket8::PaddingQuarter{},
-                                       }
+                        device::CanPacket8::PaddingQuarter{},
+                        device::CanPacket8::PaddingQuarter{},
+                        device::CanPacket8::PaddingQuarter{},
+                        device::CanPacket8::PaddingQuarter{},
+                    }
                         .as_bytes(),
             });
             tx.can3_transmit({
-                .can_id   = 0x142,
+                .can_id = 0x142,
                 .can_data = big_yaw.lk_zero_torque_command().as_bytes(),
             });
         }
@@ -649,18 +655,18 @@ private:
             auto tx = start_transmit();
             if (turn) {
                 tx.can3_transmit({
-                    .can_id   = 0x142,
+                    .can_id = 0x142,
                     .can_data = big_yaw.generate_torque_command().as_bytes(),
                 });
                 tx.can2_transmit({
                     .can_id = 0x200,
                     .can_data =
                         device::CanPacket8{
-                                           Track_motors[0].generate_command(),
-                                           device::CanPacket8::PaddingQuarter{},
-                                           device::CanPacket8::PaddingQuarter{},
-                                           Track_motors[1].generate_command(),
-                                           }
+                            Track_motors[0].generate_command(),
+                            device::CanPacket8::PaddingQuarter{},
+                            device::CanPacket8::PaddingQuarter{},
+                            Track_motors[1].generate_command(),
+                        }
                             .as_bytes(),
                 });
                 if (is_chassis_enable)
@@ -668,11 +674,11 @@ private:
                         .can_id = 0x200,
                         .can_data =
                             device::CanPacket8{
-                                               device::CanPacket8::PaddingQuarter{},
-                                               device::CanPacket8::PaddingQuarter{},
-                                               Wheel_motors[2].generate_command(),
-                                               Wheel_motors[3].generate_command(),
-                                               }
+                                device::CanPacket8::PaddingQuarter{},
+                                device::CanPacket8::PaddingQuarter{},
+                                Wheel_motors[2].generate_command(),
+                                Wheel_motors[3].generate_command(),
+                            }
                                 .as_bytes(),
                     });
                 if (is_chassis_enable)
@@ -680,11 +686,11 @@ private:
                         .can_id = 0x200,
                         .can_data =
                             device::CanPacket8{
-                                               Wheel_motors[0].generate_command(),
-                                               Wheel_motors[1].generate_command(),
-                                               device::CanPacket8::PaddingQuarter{},
-                                               device::CanPacket8::PaddingQuarter{},
-                                               }
+                                Wheel_motors[0].generate_command(),
+                                Wheel_motors[1].generate_command(),
+                                device::CanPacket8::PaddingQuarter{},
+                                device::CanPacket8::PaddingQuarter{},
+                            }
                                 .as_bytes(),
                     });
             } else {
@@ -692,11 +698,11 @@ private:
                     .can_id = 0x200,
                     .can_data =
                         device::CanPacket8{
-                                           device::CanPacket8::PaddingQuarter{},
-                                           Lift_motors[0].generate_command(),
-                                           Lift_motors[1].generate_command(),
-                                           device::CanPacket8::PaddingQuarter{},
-                                           }
+                            device::CanPacket8::PaddingQuarter{},
+                            Lift_motors[0].generate_command(),
+                            Lift_motors[1].generate_command(),
+                            device::CanPacket8::PaddingQuarter{},
+                        }
                             .as_bytes(),
                 });
                 if (is_chassis_enable)
@@ -704,11 +710,11 @@ private:
                         .can_id = 0x1FE,
                         .can_data =
                             device::CanPacket8{
-                                               device::CanPacket8::PaddingQuarter{},
-                                               device::CanPacket8::PaddingQuarter{},
-                                               Steering_motors[2].generate_command(),
-                                               Steering_motors[3].generate_command(),
-                                               }
+                                device::CanPacket8::PaddingQuarter{},
+                                device::CanPacket8::PaddingQuarter{},
+                                Steering_motors[2].generate_command(),
+                                Steering_motors[3].generate_command(),
+                            }
                                 .as_bytes(),
                     });
                 if (is_chassis_enable)
@@ -716,11 +722,11 @@ private:
                         .can_id = 0x1FE,
                         .can_data =
                             device::CanPacket8{
-                                               Steering_motors[0].generate_command(),
-                                               Steering_motors[1].generate_command(),
-                                               device::CanPacket8::PaddingQuarter{},
-                                               device::CanPacket8::PaddingQuarter{},
-                                               }
+                                Steering_motors[0].generate_command(),
+                                Steering_motors[1].generate_command(),
+                                device::CanPacket8::PaddingQuarter{},
+                                device::CanPacket8::PaddingQuarter{},
+                            }
                                 .as_bytes(),
                     });
             }
@@ -803,22 +809,22 @@ private:
                     .can_id = 0x1FE,
                     .can_data =
                         device::CanPacket8{
-                                           device::CanPacket8::Quarter{0},
-                                           device::CanPacket8::Quarter{0},
-                                           device::CanPacket8::PaddingQuarter{},
-                                           device::CanPacket8::PaddingQuarter{},
-                                           }
+                            device::CanPacket8::Quarter{0},
+                            device::CanPacket8::Quarter{0},
+                            device::CanPacket8::PaddingQuarter{},
+                            device::CanPacket8::PaddingQuarter{},
+                        }
                             .as_bytes(),
                 });
                 tx.can1_transmit({
                     .can_id = 0x1FE,
                     .can_data =
                         device::CanPacket8{
-                                           device::CanPacket8::PaddingQuarter{},
-                                           device::CanPacket8::PaddingQuarter{},
-                                           device::CanPacket8::Quarter{0},
-                                           device::CanPacket8::Quarter{0},
-                                           }
+                            device::CanPacket8::PaddingQuarter{},
+                            device::CanPacket8::PaddingQuarter{},
+                            device::CanPacket8::Quarter{0},
+                            device::CanPacket8::Quarter{0},
+                        }
                             .as_bytes(),
                 });
             } else {
@@ -826,22 +832,22 @@ private:
                     .can_id = 0x200,
                     .can_data =
                         device::CanPacket8{
-                                           device::CanPacket8::Quarter{0},
-                                           device::CanPacket8::Quarter{0},
-                                           device::CanPacket8::PaddingQuarter{},
-                                           device::CanPacket8::PaddingQuarter{},
-                                           }
+                            device::CanPacket8::Quarter{0},
+                            device::CanPacket8::Quarter{0},
+                            device::CanPacket8::PaddingQuarter{},
+                            device::CanPacket8::PaddingQuarter{},
+                        }
                             .as_bytes(),
                 });
                 tx.can1_transmit({
                     .can_id = 0x200,
                     .can_data =
                         device::CanPacket8{
-                                           device::CanPacket8::PaddingQuarter{},
-                                           device::CanPacket8::PaddingQuarter{},
-                                           device::CanPacket8::Quarter{0},
-                                           device::CanPacket8::Quarter{0},
-                                           }
+                            device::CanPacket8::PaddingQuarter{},
+                            device::CanPacket8::PaddingQuarter{},
+                            device::CanPacket8::Quarter{0},
+                            device::CanPacket8::Quarter{0},
+                        }
                             .as_bytes(),
                 });
             }

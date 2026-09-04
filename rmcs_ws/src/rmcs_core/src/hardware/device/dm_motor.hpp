@@ -15,7 +15,7 @@
 #include <span>
 #include <stdexcept>
 
-#include "hardware/device/can_package.hpp"
+#include "hardware/device/can_packet.hpp"
 #include "hardware/endian_promise.hpp"
 
 #include <rclcpp/logging.hpp>
@@ -35,11 +35,11 @@ struct DMMotorConfig {
     double iq;
 
     explicit DMMotorConfig(DMMotorType motor_type) {
-        this->encoder_zero_point       = 0;
-        this->motor_type               = motor_type;
-        this->reversed                 = 1.0;
+        this->encoder_zero_point = 0;
+        this->motor_type = motor_type;
+        this->reversed = 1.0;
         this->multi_turn_angle_enabled = false;
-        this->gear_ratio               = 1.0;
+        this->gear_ratio = 1.0;
     }
     DMMotorConfig& set_encoder_zero_point(int value) { return encoder_zero_point = value, *this; }
     DMMotorConfig& set_gear_ratio(double value) { return gear_ratio = value, *this; }
@@ -53,8 +53,8 @@ public:
         Component& status_component, Component& command_component, const std::string& name_prefix)
 
     {
-        encoder_zero_point_       = 0;
-        last_raw_angle_           = 0;
+        encoder_zero_point_ = 0;
+        last_raw_angle_ = 0;
         multi_turn_angle_enabled_ = false;
 
         raw_angle_to_angle_coefficient_ = angle_to_raw_angle_coefficient_ = 0.0;
@@ -68,7 +68,7 @@ public:
 
         command_component.register_input(name_prefix + "/control_torque", control_torque_);
     }
-    DMMotor(const DMMotor&)            = delete;
+    DMMotor(const DMMotor&) = delete;
     DMMotor& operator=(const DMMotor&) = delete;
 
     void configure(const DMMotorConfig& config) {
@@ -81,7 +81,7 @@ public:
 
         default: throw std::runtime_error{"Unknown motor type"};
         }
-        reverse     = config.reversed;
+        reverse = config.reversed;
         gear_ratio_ = config.gear_ratio;
 
         encoder_zero_point_ = config.encoder_zero_point % (raw_angle_max_);
@@ -100,7 +100,7 @@ public:
         torque_to_raw_current_coefficient_ = 1.0 / raw_current_to_torque_coefficient_;
 
         multi_turn_angle_enabled_ = config.multi_turn_angle_enabled;
-        angle_multi_turn_         = 0;
+        angle_multi_turn_ = 0;
     }
 
     void store_status(std::span<const std::byte> can_result) {
@@ -113,38 +113,38 @@ public:
         uint8_t rx_buff[8];
         auto packet = can_result_.load(std::memory_order_relaxed);
         std::memcpy(rx_buff, packet.as_bytes().data(), sizeof(rx_buff));
-        id             = (rx_buff[0]) & 0xff;
-        state          = (rx_buff[0]) >> 4;
+        id = (rx_buff[0]) & 0xff;
+        state = (rx_buff[0]) >> 4;
         uint16_t p_int = (rx_buff[1] << 8) | rx_buff[2];
         uint16_t v_int = (rx_buff[3] << 4) | (rx_buff[4] >> 4);
         uint16_t t_int = ((rx_buff[4] & 0xF) << 8) | rx_buff[5];
 
         raw_angle_ = p_int;
 
-        uint16_t angle = p_int - encoder_zero_point_;
-        if (angle < 0)
+        int32_t angle = p_int - encoder_zero_point_;
+        if (angle < 0) // 没用的东西
             angle += raw_angle_max_;
-        *angle_    = angle < raw_angle_max_ / 2
-                       ? raw_angle_to_angle_coefficient_ * angle
-                       : -2 * std::numbers::pi + raw_angle_to_angle_coefficient_ * angle;
+        *angle_ = angle < raw_angle_max_ / 2
+                    ? raw_angle_to_angle_coefficient_ * angle
+                    : -2 * std::numbers::pi + raw_angle_to_angle_coefficient_ * angle;
         *velocity_ = uint_to_double(v_int, -VMAX, VMAX, 12);
-        *torque_   = uint_to_double(t_int, -TMAX, TMAX, 12);
+        *torque_ = uint_to_double(t_int, -TMAX, TMAX, 12);
 
-        T_mos  = (double)(rx_buff[6]);
+        T_mos = (double)(rx_buff[6]);
         T_coil = (double)(rx_buff[7]);
     }
 
     CanPacket8 generate_torque_command() {
         uint64_t result = 0;
-        double torque   = *control_torque_;
+        double torque = *control_torque_;
         if (std::isnan(torque)) {
             torque = 0.0;
         }
-        torque             = std::clamp(torque, -TMAX, TMAX);
-        uint16_t tor_tmp   = double_to_uint(torque, -TMAX, TMAX, 12);
+        torque = std::clamp(torque, -TMAX, TMAX);
+        uint16_t tor_tmp = double_to_uint(torque, -TMAX, TMAX, 12);
         uint8_t tx_buff[8] = {0, 0, 0, 0, 0, 0, 0, 0};
-        tx_buff[6]         = ((0 & 0xf) << 4) | (tor_tmp >> 8);
-        tx_buff[7]         = tor_tmp;
+        tx_buff[6] = ((0 & 0xf) << 4) | (tor_tmp >> 8);
+        tx_buff[7] = tor_tmp;
         std::copy(tx_buff, tx_buff + 8, reinterpret_cast<uint8_t*>(&result));
         return CanPacket8{result};
     }
@@ -165,19 +165,19 @@ private:
     std::atomic<CanPacket8> can_result_{CanPacket8{uint64_t{0}}};
 
     static double uint_to_double(int x_int, double x_min, double x_max, int bits) {
-        double span   = x_max - x_min;
+        double span = x_max - x_min;
         double offset = x_min;
         return ((double)x_int) * span / ((double)((1 << bits) - 1)) + offset;
     }
     static int double_to_uint(double x_double, double x_min, double x_max, int bits) {
-        double span   = x_max - x_min;
+        double span = x_max - x_min;
         double offset = x_min;
         return (int)((x_double - offset) * ((double)((1 << bits) - 1)) / span);
     }
 
     int last_raw_angle_;
     int raw_angle_;
-    double reverse     = 1.0;
+    double reverse = 1.0;
     double gear_ratio_ = 1.0;
 
     int encoder_zero_point_;
@@ -189,8 +189,8 @@ private:
     double raw_current_to_torque_coefficient_, torque_to_raw_current_coefficient_;
 
     double VMAX, TMAX;
-    static constexpr uint8_t DM_ENABLE[8]      = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFC};
-    static constexpr uint8_t DM_CLOSE[8]       = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFD};
+    static constexpr uint8_t DM_ENABLE[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFC};
+    static constexpr uint8_t DM_CLOSE[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFD};
     static constexpr uint8_t DM_CLEAR_ERROR[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFB};
 
     static constexpr uint16_t raw_angle_max_ = 65535;

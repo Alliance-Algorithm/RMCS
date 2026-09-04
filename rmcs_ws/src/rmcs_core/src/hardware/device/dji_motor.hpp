@@ -6,26 +6,26 @@
 #include <cstddef>
 #include <cstring>
 #include <numbers>
-#include <span>
 #include <rclcpp/node.hpp>
+#include <span>
 #include <stdexcept>
 
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <rmcs_executor/component.hpp>
 
-#include "hardware/device/can_package.hpp"
+#include "hardware/device/can_packet.hpp"
 #include "hardware/endian_promise.hpp"
 
 namespace rmcs_core::hardware::device {
 using rmcs_executor::Component;
 
 enum class DjiMotorType : uint8_t {
-    UNKNOWN        = 0,
-    GM6020         = 1,
+    UNKNOWN = 0,
+    GM6020 = 1,
     GM6020_VOLTAGE = 2,
-    M3508          = 3,
-    M2006          = 4
+    M3508 = 3,
+    M2006 = 4
 };
 
 struct DjiMotorConfig {
@@ -37,7 +37,7 @@ struct DjiMotorConfig {
 
     explicit DjiMotorConfig(DjiMotorType motor_type) {
         this->encoder_zero_point = 0.0;
-        this->motor_type         = motor_type;
+        this->motor_type = motor_type;
         switch (motor_type) {
         case DjiMotorType::UNKNOWN:
         case DjiMotorType::GM6020:
@@ -45,7 +45,7 @@ struct DjiMotorConfig {
         case DjiMotorType::M3508: reduction_ratio = 3591.0 / 187.0; break;
         case DjiMotorType::M2006: reduction_ratio = 36.0; break;
         }
-        this->reversed                 = false;
+        this->reversed = false;
         this->multi_turn_angle_enabled = false;
     }
 
@@ -55,12 +55,12 @@ struct DjiMotorConfig {
     DjiMotorConfig& enable_multi_turn_angle() { return multi_turn_angle_enabled = true, *this; }
 };
 
-class DjiMotor{
+class DjiMotor {
 public:
     DjiMotor(
         Component& status_component, Component& command_component, const std::string& name_prefix) {
-        encoder_zero_point_       = 0;
-        last_raw_angle_           = 0;
+        encoder_zero_point_ = 0;
+        last_raw_angle_ = 0;
         multi_turn_angle_enabled_ = false;
 
         raw_angle_to_angle_coefficient_ = angle_to_raw_angle_coefficient_ = 0.0;
@@ -77,7 +77,7 @@ public:
 
         command_component.register_input(name_prefix + "/control_torque", control_torque_);
     }
-    DjiMotor(const DjiMotor&)            = delete;
+    DjiMotor(const DjiMotor&) = delete;
     DjiMotor& operator=(const DjiMotor&) = delete;
 
     void configure(const DjiMotorConfig& config) {
@@ -100,22 +100,22 @@ public:
         case DjiMotorType::GM6020:
             torque_constant = 0.741;
             raw_current_max = 16384.0;
-            current_max     = 3.0;
+            current_max = 3.0;
             break;
         case DjiMotorType::GM6020_VOLTAGE:
             torque_constant = 0.741;
             raw_current_max = 25000.0;
-            current_max     = 3.0;
+            current_max = 3.0;
             break;
         case DjiMotorType::M3508:
             torque_constant = 0.3 * 187.0 / 3591.0;
             raw_current_max = 16384.0;
-            current_max     = 20.0;
+            current_max = 20.0;
             break;
         case DjiMotorType::M2006:
             torque_constant = 0.18 * 1.0 / 36.0;
             raw_current_max = 16384.0;
-            current_max     = 10.0;
+            current_max = 10.0;
             break;
         default: throw std::runtime_error{"Unknown motor type"};
         }
@@ -125,10 +125,10 @@ public:
         torque_to_raw_current_coefficient_ = 1 / raw_current_to_torque_coefficient_;
 
         *reduction_ratio_ = config.reduction_ratio;
-        *max_torque_      = 1 * config.reduction_ratio * torque_constant * current_max;
+        *max_torque_ = 1 * config.reduction_ratio * torque_constant * current_max;
 
         multi_turn_angle_enabled_ = config.multi_turn_angle_enabled;
-        angle_multi_turn_         = 0;
+        angle_multi_turn_ = 0;
     }
 
     void store_status(std::span<const std::byte> can_data) {
@@ -136,7 +136,6 @@ public:
             return;
         can_data_.store(CanPacket8{can_data}, std::memory_order::relaxed);
     }
-
 
     void update() {
         auto feedback = std::bit_cast<DjiMotorFeedback>(can_data_.load(std::memory_order::relaxed));
@@ -175,7 +174,7 @@ public:
         }
 
         double max_torque = (*motor_)->get_max_torque();
-        torque            = std::clamp(torque, -max_torque, max_torque);
+        torque = std::clamp(torque, -max_torque, max_torque);
 
         double current = std::round((*motor_)->torque_to_raw_current_coefficient_ * torque);
         const be_int16_t control_current = static_cast<int16_t>(current);
@@ -184,7 +183,7 @@ public:
     }
 
     int calibrate_zero_point() {
-        angle_multi_turn_   = 0;
+        angle_multi_turn_ = 0;
         encoder_zero_point_ = last_raw_angle_;
         return encoder_zero_point_;
     }

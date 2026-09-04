@@ -1,6 +1,6 @@
 #pragma once
 
-#include "hardware/device/can_package.hpp"
+#include "hardware/device/can_packet.hpp"
 
 #include <atomic>
 #include <bit>
@@ -9,9 +9,9 @@
 #include <cstdint>
 #include <cstring>
 #include <numbers>
-#include <span>
 #include <rclcpp/logger.hpp>
 #include <rmcs_executor/component.hpp>
+#include <span>
 #include <stdexcept>
 
 #include <rclcpp/logging.hpp>
@@ -21,7 +21,7 @@ namespace rmcs_core::hardware::device {
 using rmcs_executor::Component;
 enum class EncoderType : uint8_t {
     UNKNOWN = 0,
-    Old_    = 1,
+    Old_ = 1,
     KTH7823 = 2,
 };
 struct EncoderConfig {
@@ -31,9 +31,9 @@ struct EncoderConfig {
     bool multi_turn_angle_enabled;
     int raw_angle_max_;
     explicit EncoderConfig(EncoderType encoder_type) {
-        this->encoder_type             = encoder_type;
-        this->encoder_zero_point       = 0;
-        this->reversed                 = 1.0;
+        this->encoder_type = encoder_type;
+        this->encoder_zero_point = 0;
+        this->reversed = 1.0;
         this->multi_turn_angle_enabled = false;
         switch (encoder_type) {
         case EncoderType::Old_: {
@@ -62,19 +62,19 @@ public:
         status_component.register_output(name_prefix + "/encoder", encoder_, this);
     }
 
-    Encoder(const Encoder&)            = delete;
+    Encoder(const Encoder&) = delete;
     Encoder& operator=(const Encoder&) = delete;
 
     void configure(const EncoderConfig& config) {
-        raw_angle_max                   = config.raw_angle_max_;
-        type_                           = config.encoder_type;
-        encoder_zero_point_             = config.encoder_zero_point % raw_angle_max;
-        reverse                         = config.reversed;
+        raw_angle_max = config.raw_angle_max_;
+        type_ = config.encoder_type;
+        encoder_zero_point_ = config.encoder_zero_point % raw_angle_max;
+        reverse = config.reversed;
         raw_angle_to_angle_coefficient_ = (1.0 / (raw_angle_max)) * 2.0 * std::numbers::pi;
         angle_to_raw_angle_coefficient_ = 1.0 / raw_angle_to_angle_coefficient_;
 
         multi_turn_angle_enabled_ = config.multi_turn_angle_enabled;
-        angle_multi_turn_         = 0;
+        angle_multi_turn_ = 0;
     }
 
     void store_status(std::span<const std::byte> can_result) {
@@ -128,7 +128,7 @@ private:
     double raw_angle_to_angle_coefficient_, angle_to_raw_angle_coefficient_;
     int encoder_zero_point_;
     uint32_t last_raw_angle_ = 0;
-    double reverse           = 1.0;
+    double reverse = 1.0;
     bool multi_turn_angle_enabled_ = false;
 };
 

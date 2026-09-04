@@ -10,9 +10,9 @@
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <depend>rclcpp</depend>
-
   <depend>ros2bag</depend>
   <depend>std_msgs</depend>
+  <depend>std_srvs</depend>
   <depend>pluginlib</depend>
   <depend>tf2</depend>
   <depend>tf2_ros</depend>
@@ -34,7 +34,9 @@
   <depend>urdf</depend>
   <depend>tl_expected</depend>
   <depend>Eigen3</depend>
-
+  <depend>mavlink</depend>
+  <depend>nav_msgs</depend>
+  <depend>ament_index_cpp</depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

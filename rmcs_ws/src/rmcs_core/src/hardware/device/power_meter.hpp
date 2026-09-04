@@ -1,6 +1,6 @@
 #pragma once
 
-#include "hardware/device/can_package.hpp"
+#include "hardware/device/can_packet.hpp"
 #include "hardware/endian_promise.hpp"
 
 #include <algorithm>
@@ -10,11 +10,11 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <span>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
+#include <span>
 
 namespace rmcs_core::hardware::device {
 using rmcs_executor::Component;
@@ -29,7 +29,7 @@ public:
         status_component.register_output(name_prefix + "/power", power_, 0.0f);
     }
 
-    PowerMeter(const PowerMeter&)            = delete;
+    PowerMeter(const PowerMeter&) = delete;
     PowerMeter& operator=(const PowerMeter&) = delete;
 
     void store_status(std::span<const std::byte> can_result) {
@@ -47,8 +47,8 @@ public:
                   * (range_conversion_voltage_ / range_conversion_factor);
         *current_ = static_cast<double>(feedback.current)
                   * (range_conversion_current_ / range_conversion_factor);
-        *power_   = static_cast<double>(feedback.power)
-                  * (range_conversion_power_ / range_conversion_factor);
+        *power_ = static_cast<double>(feedback.power)
+                * (range_conversion_power_ / range_conversion_factor);
         if (*power_ >= 120.0f) [[unlikely]] {
             // RCLCPP_WARN(
             //     rclcpp::get_logger("PowerMeter"), "Power reading is abnormally high: %.2f W",
@@ -67,10 +67,10 @@ private:
         uint16_t power;
         uint16_t unused;
     };
-    static constexpr int range_conversion_factor      = 65535;
+    static constexpr int range_conversion_factor = 65535;
     static constexpr double range_conversion_voltage_ = 65.535;
     static constexpr double range_conversion_current_ = 65.535;
-    static constexpr double range_conversion_power_   = 650.535;
+    static constexpr double range_conversion_power_ = 650.535;
     std::atomic<CanPacket8> can_data_{CanPacket8{uint64_t{0}}};
     Component::OutputInterface<double> voltage_;
     Component::OutputInterface<double> current_;
