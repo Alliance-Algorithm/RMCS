@@ -11,6 +11,7 @@
 
   <depend>rclcpp</depend>
   <depend>pluginlib</depend>
+  <depend>rmcs_utility</depend>
 
   <export>
     <build_type>ament_cmake</build_type>

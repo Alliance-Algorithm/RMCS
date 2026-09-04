@@ -5,7 +5,7 @@
 
 namespace rmcs_core::referee {
 
-constexpr uint8_t sof_value            = 0xa5;
+constexpr uint8_t sof_value = 0xa5;
 constexpr size_t frame_data_max_length = 1024;
 
 struct __attribute__((packed)) FrameHeader {

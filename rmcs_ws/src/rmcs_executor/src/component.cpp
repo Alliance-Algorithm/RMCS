@@ -2,6 +2,6 @@
 
 namespace rmcs_executor {
 
-const char* Component::initializing_component_name;
+std::string Component::initializing_component_name;
 
 } // namespace rmcs_executor

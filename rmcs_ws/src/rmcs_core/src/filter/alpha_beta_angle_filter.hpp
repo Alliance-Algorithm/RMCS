@@ -11,7 +11,9 @@ namespace rmcs_core::filter {
 class AlphaBetaAngleFilter {
 public:
     AlphaBetaAngleFilter(double dt, double alpha, double beta)
-        : dt_(dt), alpha_(alpha), beta_(beta) {}
+        : dt_(dt)
+        , alpha_(alpha)
+        , beta_(beta) {}
 
     void reset() {
         initialized_ = false;
@@ -51,9 +53,7 @@ public:
     bool initialized() const { return initialized_; }
 
 private:
-    static double wrap_angle_(double x) {
-        return std::remainder(x, 2.0 * std::numbers::pi);
-    }
+    static double wrap_angle_(double x) { return std::remainder(x, 2.0 * std::numbers::pi); }
 
     double dt_;
     double alpha_;

@@ -43,8 +43,7 @@ int main(int argc, char** argv) {
     rcl_executor.add_node(executor);
 
     std::vector<std::string> component_descriptions;
-    if (!executor->get_parameter("components", component_descriptions))
-        throw std::runtime_error("Missing parameter 'components' or config is not found");
+    executor->get_parameter("components", component_descriptions);
 
     std::regex regex(R"(\s*(\S+)\s*->\s*(\S+)\s*)");
     for (const auto& component_description : component_descriptions) {
@@ -61,7 +60,7 @@ int main(int argc, char** argv) {
             plugin_name = component_name = component_description;
         }
 
-        rmcs_executor::Component::initializing_component_name = component_name.c_str();
+        rmcs_executor::Component::initializing_component_name = component_name;
         auto component = component_loader.createSharedInstance(plugin_name);
         executor->add_component(component);
     }

@@ -11,7 +11,7 @@ inline auto& get_tail(T& data) {
     return *reinterpret_cast<TailT*>(reinterpret_cast<size_t>(&data) + sizeof(T) - sizeof(uint8_t));
 }
 
-constexpr uint8_t crc8_init       = 0xff;
+constexpr uint8_t crc8_init = 0xff;
 constexpr uint8_t crc8_table[256] = {
     0x00, 0x5e, 0xbc, 0xe2, 0x61, 0x3f, 0xdd, 0x83, 0xc2, 0x9c, 0x7e, 0x20, 0xa3, 0xfd, 0x1f, 0x41,
     0x9d, 0xc3, 0x21, 0x7f, 0xfc, 0xa2, 0x40, 0x1e, 0x5f, 0x01, 0xe3, 0xbd, 0x3e, 0x60, 0x82, 0xdc,
@@ -31,7 +31,7 @@ constexpr uint8_t crc8_table[256] = {
     0x74, 0x2a, 0xc8, 0x96, 0x15, 0x4b, 0xa9, 0xf7, 0xb6, 0xe8, 0x0a, 0x54, 0xd7, 0x89, 0x6b, 0x35,
 };
 
-constexpr uint16_t crc16_init       = 0xffff;
+constexpr uint16_t crc16_init = 0xffff;
 constexpr uint16_t crc16_table[256] = {
     0x0000, 0x1189, 0x2312, 0x329b, 0x4624, 0x57ad, 0x6536, 0x74bf, 0x8c48, 0x9dc1, 0xaf5a, 0xbed3,
     0xca6c, 0xdbe5, 0xe97e, 0xf8f7, 0x1081, 0x0108, 0x3393, 0x221a, 0x56a5, 0x472c, 0x75b7, 0x643e,
@@ -59,7 +59,7 @@ constexpr uint16_t crc16_table[256] = {
 } // namespace internal
 
 inline uint8_t calculate_crc8(const void* data, size_t length) {
-    auto* p     = reinterpret_cast<const uint8_t*>(data);
+    auto* p = reinterpret_cast<const uint8_t*>(data);
     auto result = internal::crc8_init;
     while (length--)
         result = internal::crc8_table[result ^ (*p++)];
@@ -87,7 +87,7 @@ inline void append_crc8(T& package) {
 }
 
 inline uint16_t calculate_crc16(const void* data, size_t length) {
-    auto* p         = reinterpret_cast<const uint8_t*>(data);
+    auto* p = reinterpret_cast<const uint8_t*>(data);
     uint16_t result = internal::crc16_init;
     while (length--) {
         result = (result >> 8) ^ internal::crc16_table[(result ^ (*p++)) & 0x00ff];

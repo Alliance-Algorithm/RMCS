@@ -21,7 +21,7 @@ public:
     /// @param data The data to be written to the buffer.
     void write(const T& data) noexcept {
         const uint64_t current = current_.load(std::memory_order_relaxed);
-        const uint64_t next    = current + 1;
+        const uint64_t next = current + 1;
         std::memcpy(&buffers_[next & 1], &data, sizeof(T));
         current_.store(next, std::memory_order_release);
     }
@@ -41,16 +41,12 @@ public:
 
 private:
     /// @brief Internal buffer structure to hold the data.
-    /// @note The buffer alignment is set to the maximum of 64 bytes and `T`'s natural alignment.
-    ///       This serves two purposes:
-    ///       1. Prevents false sharing by ensuring 64-byte cache-line separation.
-    ///       2. Guarantees proper alignment for `T` type operations.
-    struct alignas(std::max(size_t{64}, alignof(T))) Buffer {
+    struct alignas(T) Buffer {
         std::byte data[sizeof(T)];
     };
 
-    alignas(64) std::atomic<uint64_t> current_{0};
-    alignas(64) Buffer buffers_[2];
+    Buffer buffers_[2];
+    std::atomic<uint64_t> current_{0};
 };
 
 } // namespace rmcs_utility

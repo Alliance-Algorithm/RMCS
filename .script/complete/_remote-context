@@ -1,0 +1,22 @@
+#compdef remote-context
+
+_arguments \
+  '1:key:(game_stage robot_health robot_bullet)' \
+  '2:value:->value'
+
+case "$state" in
+  value)
+    case "${words[2]}" in
+      game_stage)
+        _values 'game stage' \
+          not_start \
+          preparation \
+          referee_check \
+          countdown \
+          started \
+          settling \
+          unknown
+        ;;
+    esac
+    ;;
+esac

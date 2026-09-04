@@ -57,14 +57,14 @@ public:
 
 private:
     static double sign(double x) {
-        if (x > 0.0) return 1.0;
-        if (x < 0.0) return -1.0;
+        if (x > 0.0)
+            return 1.0;
+        if (x < 0.0)
+            return -1.0;
         return 0.0;
     }
 
-    static double clamp(double x, double lo, double hi) {
-        return std::max(lo, std::min(x, hi));
-    }
+    static double clamp(double x, double lo, double hi) { return std::max(lo, std::min(x, hi)); }
 
     static double fhan(double x1_minus_v, double x2, double r, double h) {
         const double d = r * h * h;
@@ -72,9 +72,7 @@ private:
         const double y = x1_minus_v + a0;
         const double a1 = std::sqrt(d * (d + 8.0 * std::fabs(y)));
 
-        const double a = (std::fabs(y) > d)
-            ? (a0 + sign(y) * (a1 - d) * 0.5)
-            : (a0 + y);
+        const double a = (std::fabs(y) > d) ? (a0 + sign(y) * (a1 - d) * 0.5) : (a0 + y);
 
         if (std::fabs(a) <= d) {
             return -r * a / d;

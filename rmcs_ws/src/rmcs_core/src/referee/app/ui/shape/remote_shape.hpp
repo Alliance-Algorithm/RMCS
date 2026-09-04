@@ -13,11 +13,11 @@ public:
         friend class RemoteShape;
         friend class RedBlackTree<Descriptor>;
 
-        Descriptor()                             = default;
-        Descriptor(const Descriptor&)            = delete;
+        Descriptor() = default;
+        Descriptor(const Descriptor&) = delete;
         Descriptor& operator=(const Descriptor&) = delete;
-        Descriptor(Descriptor&&)                 = delete;
-        Descriptor& operator=(Descriptor&& obj)  = delete;
+        Descriptor(Descriptor&&) = delete;
+        Descriptor& operator=(Descriptor&& obj) = delete;
 
         [[nodiscard]] bool has_id() const { return id_; }
         [[nodiscard]] bool try_assign_id()
@@ -79,9 +79,9 @@ public:
     private:
         /* Swap requirement: !this->id_ && victim.id_ */
         void swap_id(Descriptor& victim) {
-            id_                     = victim.id_;
+            id_ = victim.id_;
             assigned_list_[id_ - 1] = this;
-            existence_confidence_   = victim.existence_confidence_;
+            existence_confidence_ = victim.existence_confidence_;
 
             victim.revoke_id();
         }
@@ -94,7 +94,7 @@ public:
         }
 
         void revoke_id() {
-            id_                   = 0;
+            id_ = 0;
             existence_confidence_ = 0;
 
             static_cast<T*>(this)->id_revoked();
@@ -104,7 +104,7 @@ public:
             return existence_confidence_ < obj.existence_confidence_;
         }
 
-        uint8_t id_                   = 0;
+        uint8_t id_ = 0;
         uint8_t existence_confidence_ = 0;
     };
 

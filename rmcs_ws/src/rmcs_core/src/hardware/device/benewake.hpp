@@ -45,7 +45,7 @@ public:
     void update_status() {
         const auto package = package_.load(std::memory_order::relaxed);
 
-        *distance_       = package.calculate_distance();
+        *distance_ = package.calculate_distance();
         signal_strength_ = package.calculate_signal_strength();
     }
 

@@ -48,7 +48,7 @@ public:
     private:
         bool operator<(const Entity& obj) const { return vruntime_ < obj.vruntime_; }
         uint64_t vruntime_ : 48 = 65536;
-        uint16_t priority_      = 0;
+        uint16_t priority_ = 0;
     };
 
     // class T : public Entity {};
@@ -58,10 +58,10 @@ public:
         UpdateIterator()
             : current_(run_queue_.first())
             , ignored_(nullptr) {}
-        UpdateIterator(const UpdateIterator&)            = delete;
+        UpdateIterator(const UpdateIterator&) = delete;
         UpdateIterator& operator=(const UpdateIterator&) = delete;
-        UpdateIterator(UpdateIterator&&)                 = default;
-        UpdateIterator& operator=(UpdateIterator&&)      = default;
+        UpdateIterator(UpdateIterator&&) = default;
+        UpdateIterator& operator=(UpdateIterator&&) = default;
 
         T* get() const {
             // NOLINTNEXTLINE(cppcoreguidelines-pro-type-static-cast-downcast)
@@ -74,12 +74,12 @@ public:
 
         auto update() {
             min_vruntime_ = current_->vruntime_;
-            int shift     = 65536 - current_->priority_;
+            int shift = 65536 - current_->priority_;
             current_->vruntime_ += shift;
 
             run_queue_.erase(*current_);
             auto result = get()->update();
-            current_    = ignored_ ? ignored_->next() : run_queue_.first();
+            current_ = ignored_ ? ignored_->next() : run_queue_.first();
 
             return result;
         }

@@ -150,12 +150,8 @@ private:
     struct alignas(8) ImuData {
         int16_t x, y, z;
     };
-    std::atomic<ImuData> accelerometer_data_{
-        {.x = 0, .y = 0, .z = 0}
-    };
-    std::atomic<ImuData> gyroscope_data_{
-        {.x = 0, .y = 0, .z = 0}
-    };
+    std::atomic<ImuData> accelerometer_data_{{.x = 0, .y = 0, .z = 0}};
+    std::atomic<ImuData> gyroscope_data_{{.x = 0, .y = 0, .z = 0}};
     static_assert(std::atomic<ImuData>::is_always_lock_free);
 
     double ax_ = 0, ay_ = 0, az_ = 0, gx_ = 0, gy_ = 0, gz_ = 0;

@@ -1,0 +1,220 @@
+#!/usr/bin/env python3
+"""rmcs-cli - RMCS 开发工作流管理器"""
+
+import subprocess
+import sys
+import os
+import termios
+import tty
+import select
+import time
+
+SESSION = "rmcs-cli"
+RMCS_PATH = os.getenv("RMCS_PATH", "/workspaces/RMCS")
+SCRIPT_DIR = os.path.join(RMCS_PATH, ".script")
+
+# 运行时由 setup_tmux 填充
+_pane_control = None
+_pane_build = None
+_pane_sync = None
+_pane_remote = None
+
+
+def log(msg):
+    print(msg, flush=True)
+
+
+def run_cmd(cmd):
+    return subprocess.run(cmd, shell=True).returncode
+
+
+def _list_pane_ids():
+    result = subprocess.run(
+        ["tmux", "list-panes", "-t", SESSION, "-F", "#{pane_id}"],
+        capture_output=True, text=True
+    )
+    return result.stdout.strip().split("\n")
+
+
+def send_pane(pane_id, cmd):
+    subprocess.run(["tmux", "send-keys", "-t", pane_id, cmd, "Enter"])
+
+
+def setup_tmux():
+    global _pane_control, _pane_build, _pane_sync, _pane_remote
+
+    result = subprocess.run(
+        ["tmux", "has-session", "-t", SESSION],
+        capture_output=True
+    )
+    if result.returncode == 0:
+        subprocess.run(["tmux", "attach", "-t", SESSION])
+        sys.exit(0)
+
+    subprocess.run([
+        "tmux", "new-session", "-d", "-s", SESSION,
+        "-x", "160", "-y", "40"
+    ])
+
+    first_pane = _list_pane_ids()[0]
+
+    # 左右分割
+    subprocess.run(["tmux", "split-window", "-h", "-t", first_pane])
+    time.sleep(0.1)
+    panes = _list_pane_ids()
+
+    # 左边上下分割
+    subprocess.run(["tmux", "split-window", "-v", "-t", panes[0]])
+    time.sleep(0.1)
+
+    # 右边上下分割 (原始右半 pane)
+    subprocess.run(["tmux", "split-window", "-v", "-t", panes[1]])
+    time.sleep(0.1)
+
+    # 布局: [0]=左上(控制) [1]=左下(同步) [2]=右上(编译) [3]=右下(远程)
+    final = _list_pane_ids()
+    _pane_control = final[0]
+    _pane_sync = final[1]
+    _pane_build = final[2]
+    _pane_remote = final[3]
+
+
+def cleanup():
+    subprocess.run(["tmux", "kill-session", "-t", SESSION])
+
+
+def workflow():
+    log("▸ 编译中...")
+    send_pane(_pane_build, f"cd {RMCS_PATH} && .script/build-rmcs")
+
+    log("  等待编译完成...")
+    while True:
+        result = subprocess.run(
+            ["tmux", "capture-pane", "-t", _pane_build, "-p"],
+            capture_output=True, text=True
+        )
+        if "Summary:" in result.stdout or "failed" in result.stdout:
+            break
+        time.sleep(1)
+
+    if "failed" in result.stdout:
+        log("✗ 编译失败")
+        return
+
+    log("  完成")
+
+    log("▸ 等待同步...")
+    if run_cmd(f"{SCRIPT_DIR}/wait-sync") != 0:
+        log("✗ 同步失败")
+        return
+    log("  完成")
+
+    log("▸ 部署中...")
+    send_pane(_pane_remote, f"{SCRIPT_DIR}/attach-remote -r")
+    log("  已发送到远程窗格")
+
+
+def read_key():
+    if select.select([sys.stdin], [], [], 0.1)[0]:
+        return sys.stdin.read(1)
+    return None
+
+
+def main():
+    if run_cmd("which tmux") != 0:
+        sys.exit("错误: 未找到 tmux")
+
+    if os.environ.get("RMCS_CLI") == "1":
+        run_control_panel()
+    else:
+        launch_session()
+
+
+def launch_session():
+    setup_tmux()
+
+    # 在控制面板窗格中重新运行自己
+    subprocess.run([
+        "tmux", "send-keys", "-t", _pane_control,
+        f"cd {RMCS_PATH} && RMCS_CLI=1 {__file__}", "Enter"
+    ])
+
+    subprocess.run(["tmux", "select-pane", "-t", _pane_control])
+    subprocess.run(["tmux", "attach", "-t", SESSION])
+
+
+def run_control_panel():
+    global _pane_control, _pane_build, _pane_sync, _pane_remote
+
+    time.sleep(0.5)
+
+    # 从环境恢复 pane ID (launch_session 设置后，窗格已知)
+    panes = _list_pane_ids()
+    _pane_control = panes[0]
+    _pane_sync = panes[1]
+    _pane_build = panes[2]
+    _pane_remote = panes[3]
+
+    # 自动启动 sync-remote
+    send_pane(_pane_sync, f"cd {RMCS_PATH} && .script/sync-remote")
+    log("同步已在后台启动")
+    log("")
+    log("rmcs-cli v0.1.0")
+    log("")
+    log("  命令")
+    log("    r  编译 -> 同步 -> 部署")
+    log("    b  仅编译")
+    log("    s  仅同步")
+    log("    a  仅部署")
+    log("    q  退出")
+    log("")
+
+    fd = sys.stdin.fileno()
+    old_settings = termios.tcgetattr(fd)
+    try:
+        tty.setraw(fd)
+        while True:
+            key = read_key()
+            if key is None:
+                continue
+
+            if key == "r":
+                termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+                workflow()
+                tty.setraw(fd)
+
+            elif key == "b":
+                termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+                log("▸ 编译中...")
+                send_pane(_pane_build, f"cd {RMCS_PATH} && .script/build-rmcs")
+                tty.setraw(fd)
+
+            elif key == "s":
+                termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+                log("▸ 重新启动同步...")
+                subprocess.run(["tmux", "send-keys", "-t", _pane_sync, "C-c"])
+                time.sleep(0.3)
+                send_pane(_pane_sync, f"cd {RMCS_PATH} && .script/sync-remote")
+                tty.setraw(fd)
+
+            elif key == "a":
+                termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+                log("▸ 重新部署...")
+                subprocess.run(
+                    ["tmux", "send-keys", "-t", _pane_remote, "C-c"])
+                time.sleep(0.3)
+                send_pane(_pane_remote, f"{SCRIPT_DIR}/attach-remote -r")
+                tty.setraw(fd)
+
+            elif key in ("q", "\x03"):
+                termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+                log("退出中...")
+                cleanup()
+                break
+
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+
+
+if __name__ == "__main__":
+    main()
