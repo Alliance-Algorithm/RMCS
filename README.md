@@ -1,297 +1,96 @@
-# RMCS
-RoboMaster Control System based on ROS2.
+# 基于RMCS的电机转动项目
 
-快速开始: [quick-start](https://github.com/Alliance-Algorithm/RMCS/wiki/Quick-Start)
+本项目基于 [RMCS](https://github.com/Alliance-Algorithm/RMCS)（RoboMaster Control System, ROS2）搭建，用于驱动单个 **M3508 电机**，实现**速度（转速）控制**与**位置（角度）控制**两种转动方式。包含两个独立可运行的子项目：
 
-## Development
+| 子项目 | 组件类 | 配置文件 | 控制方式 |
+| --- | --- | --- | --- |
+| 速度控制 | `rmcs_core::hardware::MotorDrive` | `motor_drive.yaml` | 速度环 PID + 遥控器 |
+| 位置控制 | `rmcs_core::hardware::MotorPosition` | `motor_position.yaml` | 角度环 PID + 速度环 PID（双闭环） |
 
-### Pre-requirements:
+两个子项目共用同一个 RMCS 工作区，硬件与上位机相同，仅控制组件与参数配置不同。
 
-- x86-64 架构
-- 任意 Linux 发行版，或 WSL2（参见 [WSL2开发指南](docs/zh-cn/wsl2_develop_guide.md)）
-- [VSCode](https://code.visualstudio.com/)，安装 [Dev Containers 扩展](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
-- [安装 Docker 并 配置代理（部分国家或地区）](docs/zh-cn/docker_with_proxy.md)
+## 项目结构
 
-### Step 1：获取镜像
-
-下载开发镜像：
-```bash
-docker pull qzhhhi/rmcs-develop:latest
+```
+rmcs_ws/
+└── src/
+    ├── rmcs_bringup/config/
+    │   ├── motor_drive.yaml        # 速度控制项目配置
+    │   └── motor_position.yaml     # 位置控制项目配置
+    └── rmcs_core/src/hardware/
+        ├── motor_drive.cpp         # 电机速度控制组件（遥控器/定速/方波）
+        └── motor_position.cpp      # 电机位置控制组件（目标角度订阅/方波/角度序列）
 ```
 
-如需交叉编译环境，可下载：
-```bash
-docker pull qzhhhi/rmcs-develop:latest-full
-```
+## 硬件与依赖
 
-也可自行使用 `Dockerfile` 构建，参见 [镜像构建指南](docs/zh-cn/build_docker_image.md)。
+- 单个 **M3508** 电机，接入 RMCS 下位机（`rmcs_slave`）的 CAN1。
+- 速度控制项目可选 **DR16 遥控器**（DBus 接入）。
+- 上位机与下位机通过 USB（`board_serial`）连接。
 
-### Step 2：克隆并打开仓库
+## 构建方式
 
-克隆仓库，注意需要使用 `recurse-submodules` 以克隆子模块：
+两个子项目位于同一个 `rmcs_ws` 工作区内，**共用一套构建流程**：先构建整个工作区，再分别运行各个项目的配置。
 
-```bash
-git clone --recurse-submodules https://github.com/Alliance-Algorithm/RMCS.git
-```
+### 进入开发环境
 
-在 VSCode 中打开仓库：
-
-```bash
-code ./RMCS
-```
-
-按 `Ctrl+Shift+P`，在弹出的菜单中选择 `Dev Containers: Reopen in Container`。
-
-VSCode 将拉起一个 `Docker` 容器，容器中已配置好完整开发环境，之后所有工作将在容器内进行。
-
-如果 `Dev Containers` 在启动时卡住很长一段时间，可以尝试 [这个解决方案](docs/zh-cn/fix_devcontainer_stuck.md)。
-
-### Step 3：配置 VSCode
-
-在 VSCode 中新建终端，输入：
-
-```bash
-cp .vscode/settings.default.json .vscode/settings.json
-```
-
-这会应用我们推荐的 VSCode 配置文件，你也可以按需自行修改配置文件。
-
-在拓展列表中，可以看到我们推荐使用的拓展正在安装，你也可以按需自行删减拓展。
-
-### Step 4：构建
-
-在 VSCode 终端中输入：
+前提：已准备好 RMCS 开发容器（Docker / Dev Container）。终端内执行：
 
 ```bash
 build-rmcs
 ```
 
-将会运行 `.script/build-rmcs` 脚本，在路径 `rmcs_ws` 下开始构建代码。
+该命令会在 `rmcs_ws` 下对工作区进行 `colcon` 构建（采用 `--symlink-install --merge-install`），构建完成后即可运行任意一个子项目。
 
-构建完毕后，基于 `clangd` 的 `C++` 代码提示将可用。此时可以正常编写代码。
+若需指定架构交叉编译，可运行：
 
-Note: 用于开发的所有脚本均位于 `.script` 中，参见 开发脚本手册(TODO)。
-
-如需在 `latest-full` 中执行交叉编译，请根据当前容器架构选择对向目标：
 ```bash
+# linux/amd64 的 latest-full 变体，编译到 arm64
 build-rmcs-cross --target-arch arm64
 ```
-适用于 `linux/amd64` 的 `latest-full` 变体。
+
+### 项目一：电机速度控制（MotorDrive）
+
+**控制逻辑**（见 `motor_drive.cpp`）：
+
+- 遥控器解锁（DR16 有效且右拨杆中挡）后，左摇杆 Y 轴映射为目标转速，经**速度环 PID** 输出力矩。
+- 未解锁时，可选择输出固定转速 `fixed_velocity` 或**方形波** `square_wave`（用于调 PID）。
+
+**构建/运行**：
 
 ```bash
-build-rmcs-cross --target-arch amd64
-```
-适用于 `linux/arm64` 的 `latest-full` 变体。
+# 设置机器人类型为速度控制项目
+set-robot motor_drive
 
-详见 [交叉编译使用说明](docs/zh-cn/cross_build.md)。
-
-### Step 5 (Optional)：运行
-
-编写代码并编译完成后，可以使用：
-
-```bash
+# 启动
 launch-rmcs
 ```
 
-在本机上运行代码。在首次运行代码前，需要调用 `set-robot` 脚本设置机器人类型。
+### 项目二：电机位置控制（MotorPosition）
 
-#### 确认设备接入
+**控制逻辑**（见 `motor_position.cpp`）：
 
-可以使用 `lsusb` 确定 [下位机](https://github.com/Alliance-Algorithm/rmcs_slave) 是否已接入，若已接入，则 `lsusb` 输出类似：
+- 通过订阅 `/motor/target_angle` 或由 `square_wave` / `sequence_angles` 生成目标角度，**沿优弧（反向绕大圈）转动**。
+- 采用**角度环 PID + 速度环 PID 双闭环**：角度环输出目标速度，速度环输出力矩。
+- 误差限幅 ±2π，未收到目标时不使能。
 
-```
-Bus 001 Device 004: ID a11c:75f3 Alliance RoboMaster Team. RMCS Slave v2.1.2
-```
-
-在 WSL2 下，需要 [使用 usbipd 对设备进行转接](docs/zh-cn/wsl2_develop_guide.md#step-5-optional)。
-
-#### 确认权限正确
-
-在主机（不要在 `docker` 容器）的终端中输入：
+**构建/运行**：
 
 ```bash
-echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="a11c", MODE="0666"' | sudo tee /etc/udev/rules.d/95-rmcs-slave.rules &&
-sudo udevadm control --reload-rules &&
-sudo udevadm trigger
+# 设置机器人类型为位置控制项目
+set-robot motor_position
+
+# 启动
+launch-rmcs
 ```
 
-以允许非 root 用户读写 RMCS 下位机，此指令只需执行一次。
+## 调试
 
-## Deployment
+运行时可使用 `foxglove` 或 `rmcs-cli` 查看 `/motor/*` 相关话题：
 
-### Pre-requirements:
+- `/motor/velocity`：电机实时转速
+- `/motor/angle_single_turn`：单圈规整角度
+- `/motor/control_velocity` / `/motor/control_angle`：当前控制量
+- `/motor/control_torque`：PID 输出力矩
+- `/motor/enabled`：是否使能
 
-- x86-64 架构
-- 任意 Linux 发行版
-- [安装 Docker](docs/zh-cn/docker_with_proxy.md#ubuntu-安装-docker)
-
-### Step 1：获取镜像
-
-下载部署镜像：
-
-```bash
-docker pull qzhhhi/rmcs-develop:latest
-```
-
-如果不方便在 MiniPC 上配置代理，可以在开发机上下载镜像后，使用
-
-```bash
-docker save qzhhhi/rmcs-runtime:latest > rmcs-runtime.tar
-```
-
-然后使用任意方式（如 scp）将 `rmcs-runtime.tar` 传送到 MiniPC 上，并在其上执行：
-
-```bash
-docker load -i rmcs-runtime.tar
-```
-
-即获取部署镜像。
-
-### Step 2：启动容器
-
-在 MiniPC 终端中输入：
-
-```bash
-docker run -d --restart=always --privileged --network=host -v /dev:/dev qzhhhi/rmcs-runtime:latest
-```
-
-即可启动部署镜像，此后镜像将保持开机自启。
-
-### Step 3：远程连接
-
-在开发容器终端中输入：
-
-```bash
-set-remote <remote-host>
-```
-
-其中，`remote-host` 可以为 MiniPC 的：
-
-1. IPv4 / IPv6 地址 (e.g., 169.254.233.233)
-
-2. IPv4 / IPv6 Link-local 地址 (e.g., fe80::c6d0:e3ff:fed7:ed12%eth0)
-
-3. mDNS 主机名 (e.g., my-sentry.local)
-
-参见 网络配置指南(TODO)。
-
-接下来在开发容器终端中继续输入：
-
-```bash
-ssh-remote
-```
-
-即可在开发容器中，ssh 连接到远程的部署容器。
-
-**RMCS 的所有代码更新和调试，都基于从开发容器向部署容器的 ssh 连接。**
-
-部署容器会监听 TCP:2022 端口作为 ssh-server 端口，请注意保证端口空闲。
-
-参见 容器设计思想(TODO)。
-
-> Tip: GUI 可以从部署容器中穿出，尝试在 ssh-remote 中打开 rviz2。
-
-### Step 4：同步构建产物
-
-新启动的部署容器内是没有代码的，需要由开发容器上传。
-
-在开发容器中构建完成后，可以执行指令：
-
-```bash
-sync-remote
-```
-
-这将拉起一个同步进程，自动将开发容器中的构建产物同步到部署容器。
-
-同步进程除非主动使用 `Ctrl+C` 结束，否则不会退出，其会监视所有文件变更，并实时同步到部署容器。
-
-> Tip: 由于 `build-rmcs` 采用 `symlink-install` 方式构建，因此对于配置文件和 .py 文件，直接修改其源文件，无需编译即可触发同步。
-
-### Step 5：重启服务
-
-RMCS 在部署容器中以服务方式启动 (`/etc/init.d/rmcs`)。
-
-确认构建产物同步完毕后（以出现 `Nothing to do` 为标志），进入 `ssh-remote`，输入：
-
-```bash
-set-robot <robot-name>
-```
-
-设置启动的机器人类型（例如 set-robot sentry）。
-
-接下来继续输入：
-
-```bash
-service rmcs restart
-```
-
-如果一切正常，其将会输出：
-
-```bash
-Successfully stopped RMCS daemon.
-Successfully started RMCS daemon.
-```
-
-这证明 RMCS 已成功在部署容器中启动，并会随以后的每次容器启动而启动。
-
-接下来可以使用：
-
-```bash
-service rmcs attach
-```
-
-查看 RMCS 的实时输出。
-
-> 需要注意的是，`service rmcs attach` 本质上是连接到了一个 `GNU screen` 会话，因此任何按键都会被忠实地转发至 RMCS。例如，当键入 `Ctrl+C` 时，RMCS 会接到 `SIGINT`，从而停止运行。
-> 
-> 如果希望退出对实时输出的查看，可以键入 `Ctrl+A` ，然后按 `D`。
-> 
-> 如果希望向上翻页，可以键入 `Ctrl+A` ，然后按 `Esc`。
-> 
-> 更多快捷键组合参见 [Screen Quick Reference](https://gist.github.com/andrimanna/e5379fe6db3af0ecdb1e49e8cfb74d24)。
-
-### Step 6：糖
-
-指令 `ssh-remote` 后可以添加参数，参数内容即为建立链接后立即执行的指令。
-
-例如：
-
-```bash
-ssh-remote service rmcs restart
-```
-
-可以在开发容器端快速重启部署容器中的 RMCS。
-
-又如：
-
-```bash
-ssh-remote service rmcs attach
-```
-
-可以在开发容器端快速查看部署容器中 RMCS 的实时输出。
-
-实际上，可以使用指令：
-
-```bash
-attach-remote
-```
-
-作为前者的替代（其实现就是前者）。
-
-进一步的，还可以使用：
-
-```bash
-attach-remote -r
-```
-
-作为 `ssh-remote "service rmcs restart && service rmcs attach"` 的替代。
-
-其在重启 RMCS 守护进程后，自动连接显示实时输出。
-
-更进一步的，指令间还可以组合，例如：
-
-```bash
-build-rmcs && wait-sync && attach-remote -r
-```
-
-可以触发 RMCS 构建，`wait-sync` 等待文件同步完成，接下来重启 RMCS 守护进程后，显示实时输出。
