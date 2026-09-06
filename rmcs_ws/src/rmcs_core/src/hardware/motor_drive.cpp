@@ -37,10 +37,10 @@ public:
                 .enable_multi_turn_angle());
 
         // 遥控器摇杆 -> 目标速度 的最大速度上限（rad/s）。
-        get_parameter_or("velocity_max", velocity_max_, 20.0);
+        get_parameter_or("velocity_max", velocity_max_, 2.0);
 
         // 台架测试：固定目标转速（rad/s），不接遥控器直接转。
-        get_parameter_or("fixed_velocity", fixed_velocity_, 10.0);
+        get_parameter_or("fixed_velocity", fixed_velocity_, 2.0);
 
         // 用于平滑电机速度反馈的一阶低通滤波器。
         // 用平滑系数 filter_alpha（0~1，越大越不滤波）直接指定，避免与循环率耦合。
@@ -75,9 +75,9 @@ public:
 
     void update() override {
         motor_.update_status();
-        // TODO: 台架测试阶段暂不处理遥控器；接上 DR16 后恢复下面两行
-        // dr16_.update_status();
-        // remote_control_->update();
+        // 只刷新 DR16 本体，保留其默认 500ms 断连超时（未接 Vt13，不调用 remote_control_，
+        // 否则超时互锁会关闭 DR16 超时，遥控断连后电机仍按最后速度旋转，不安全）。
+        dr16_.update_status();
         update_control();
     }
 
@@ -93,30 +93,29 @@ public:
     }
 
 private:
-    // 台架测试：电机固定转速直接转，不依赖遥控器。
-    // 对电机速度反馈做低通滤波后交给外部 PidController。
+    // DR16 遥控控制：解锁后左摇杆 Y 轴 -> 目标转速。
+    // 未接遥控/未解锁时退回台架测试模式（固定转速或方形波），便于无遥控调 PID。
     void update_control() {
-        *enabled_ = true;
+        const bool armed = dr16_.valid() && dr16_.switch_right() == rmcs_msgs::Switch::MIDDLE;
+        *enabled_ = armed;
 
-        if (square_wave_) {
-            // 方形波调 PID：前一半周期到 high，后一半到 low。
-            const double elapsed =
-                std::chrono::duration<double>(Clock::now() - square_wave_start_).count();
-            const double half = 2.0 * square_period_;
-            const double phase = std::fmod(elapsed, half);
-            *control_velocity_ = (phase < square_period_) ? square_high_ : square_low_;
-        } else {
-            *control_velocity_ = fixed_velocity_;
+        if (!armed) {
+            if (square_wave_) {
+                // 方形波调 PID：前一半周期到 high，后一半到 low。
+                const double elapsed =
+                    std::chrono::duration<double>(Clock::now() - square_wave_start_).count();
+                const double half = 2.0 * square_period_;
+                const double phase = std::fmod(elapsed, half);
+                *control_velocity_ = (phase < square_period_) ? square_high_ : square_low_;
+            } else {
+                *control_velocity_ = fixed_velocity_;
+            }
+            *velocity_filtered_ = velocity_filter_.update(motor_.velocity());
+            return;
         }
 
-        // TODO: 接上 DR16 后，恢复下面遥控器映射逻辑并删掉上面的固定转速
-        // const bool armed = dr16_.valid() && dr16_.switch_right() == rmcs_msgs::Switch::MIDDLE;
-        // *enabled_ = armed;
-        // double setpoint_velocity = 0.0;
-        // if (armed)
-        //     setpoint_velocity = dr16_.joystick_left().y() * velocity_max_;
-        // *control_velocity_ = setpoint_velocity;
-
+        // 已解锁（遥控有效 且 右拨杆中挡）：左摇杆推杆定目标转速。
+        *control_velocity_ = dr16_.joystick_left().y() * velocity_max_;
         *velocity_filtered_ = velocity_filter_.update(motor_.velocity());
     }
 
@@ -162,8 +161,8 @@ private:
     double square_period_ = 0.5;
     Clock::time_point square_wave_start_{};
 
-    double velocity_max_ = 20.0;
-    double fixed_velocity_ = 10.0;
+    double velocity_max_ = 2.0;
+    double fixed_velocity_ = 2.0;
 
     OutputInterface<double> control_velocity_;
     OutputInterface<double> velocity_filtered_;
