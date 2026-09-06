@@ -1,0 +1,60 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::hardware::MotorPosition -> motor_hardware
+      # 外环：角度 PID（最短弧角度误差 -> 目标角速度）
+      - rmcs_core::controller::pid::ErrorPidController -> motor_angle_pid
+      # 内环：速度 PID（目标角速度 -> 力矩）
+      - rmcs_core::controller::pid::PidController -> motor_velocity_pid
+      # 把内部接口发布成 ROS topic，供 Foxglove 看波形
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+
+motor_hardware:
+  ros__parameters:
+    board_serial: ""
+    # 内环速度反馈一阶低通滤波器的平滑系数（0~1，越大越不滤波）
+    filter_alpha: 0.18
+    # 可选：初始目标角度(rad)。不设则等 /motor/target_angle 话题
+    # initial_angle: 1.5707963
+    # 位置方形波（仅用于调双环 PID）：true 时目标角度在 square_high/square_low 间切换
+    square_wave: true
+    square_low: 0.0
+    square_high: 1.5707963
+    square_period: 1.0   # 每个半周期时长（秒）：1.0 = 1s到高 + 1s到低
+
+motor_angle_pid:
+  ros__parameters:
+    # 外环测量：硬件算好的"最短弧"角度误差(rad)
+    measurement: /motor/angle_error
+    # 外环输出：内环的目标角速度
+    control: /motor/control_velocity
+    kp: 2.0
+    ki: 0.0
+    kd: 0.0
+    output_min: -8.0
+    output_max: 8.0
+
+motor_velocity_pid:
+  ros__parameters:
+    # 内环测量：滤波后的实际转速(rad/s)
+    measurement: /motor/velocity_filtered
+    setpoint: /motor/control_velocity
+    control: /motor/control_torque
+    kp: 0.25
+    ki: 0.0
+    kd: 0.0
+    output_min: -2.0
+    output_max: 2.0
+
+value_broadcaster:
+  ros__parameters:
+    # std_msgs/msg/Float64 主题，Foxglove 订阅画波形
+    forward_list:
+      - /motor/angle
+      - /motor/velocity
+      - /motor/control_angle
+      - /motor/angle_error
+      - /motor/control_velocity
+      - /motor/velocity_filtered
+      - /motor/control_torque
