@@ -43,9 +43,9 @@ public:
         , command_{create_partner_component<MotorCommand>(get_component_name() + "_command", *this)}
         , motor_{*this, *command_, "/motor"} {
 
-        // GM6020（云台电机，1:1 减速，编码器 8192/圈）。若用手调电压模式则改 kGM6020Voltage。
+        // M3508（内置齿轮减速 3591/187，编码器 8192/圈，电流模式）。
         motor_.configure(
-            device::DjiMotor::Config{device::DjiMotor::Type::kGM6020, 1}
+            device::DjiMotor::Config{device::DjiMotor::Type::kM3508, 3}
                 .set_reversed()
                 .enable_multi_turn_angle());
 

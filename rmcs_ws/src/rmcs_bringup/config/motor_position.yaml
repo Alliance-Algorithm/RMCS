@@ -18,10 +18,10 @@ motor_hardware:
     # 可选：初始目标角度(rad)。不设则等 /motor/target_angle 话题
     # initial_angle: 1.5707963
     # 位置方形波（仅用于调双环 PID）：true 时目标角度在 square_high/square_low 间切换
-    square_wave: true
+    square_wave: false
     square_low: 0.0
     square_high: 1.5707963
-    square_period: 1.0   # 每个半周期时长（秒）：1.0 = 1s到高 + 1s到低
+    square_period: 2.0   # 每个半周期时长（秒）：1.0 = 1s到高 + 1s到低
 
 motor_angle_pid:
   ros__parameters:
@@ -29,11 +29,13 @@ motor_angle_pid:
     measurement: /motor/angle_error
     # 外环输出：内环的目标角速度
     control: /motor/control_velocity
-    kp: 2.0
+    # M3508（内置减速 3591/187）输出转速上限约 2.5 rad/s，限幅先按这个收
+    # 角度误差~1.57rad 时 kp=3 -> 目标速度饱和到 ±2.5，电机才会动
+    kp: 6.5
     ki: 0.0
     kd: 0.0
-    output_min: -8.0
-    output_max: 8.0
+    output_min: -6.0
+    output_max: 6.0
 
 motor_velocity_pid:
   ros__parameters:
@@ -41,11 +43,12 @@ motor_velocity_pid:
     measurement: /motor/velocity_filtered
     setpoint: /motor/control_velocity
     control: /motor/control_torque
-    kp: 0.25
-    ki: 0.0
+    # M3508 输出最大力矩约 6 N·m，先给偏保守的限幅再调
+    kp: 0.42
+    ki: 0.0015
     kd: 0.0
-    output_min: -2.0
-    output_max: 2.0
+    output_min: -3.0
+    output_max: 3.0
 
 value_broadcaster:
   ros__parameters:
