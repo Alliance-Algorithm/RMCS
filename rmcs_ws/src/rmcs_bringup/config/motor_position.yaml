@@ -22,6 +22,10 @@ motor_hardware:
     square_low: 0.0
     square_high: 1.5707963
     square_period: 2.0   # 每个半周期时长（秒）：1.0 = 1s到高 + 1s到低
+    # 位置序列（测试用）：依次走 sequence_angles，每个停 sequence_dwell 秒。优先级高于 square_wave
+    sequence_wave: true
+    sequence_angles: [0.0, 0.785398163, 1.5707963, -1.5707963, 0.0]
+    sequence_dwell: 2.0  # 每个角度停留秒数
 
 motor_angle_pid:
   ros__parameters:

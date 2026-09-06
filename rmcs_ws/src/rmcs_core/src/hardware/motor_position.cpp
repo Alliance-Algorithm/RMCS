@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cmath>
@@ -6,6 +7,7 @@
 #include <memory>
 #include <numbers>
 #include <span>
+#include <vector>
 
 #include <eigen3/Eigen/Dense>
 #include <librmcs/board/c_board.hpp>
@@ -69,6 +71,12 @@ public:
         get_parameter_or("square_period", square_period_, 1.0); // 每半周期时长（秒）
         square_wave_start_ = Clock::now();
 
+        // 位置序列（测试用）：true 时依次走 sequence_angles 里的角度，每个停 sequence_dwell 秒。
+        get_parameter_or("sequence_wave", sequence_wave_, false);
+        get_parameter_or("sequence_angles", sequence_angles_, std::vector<double>{});
+        get_parameter_or("sequence_dwell", sequence_dwell_, 2.0);
+        sequence_start_ = Clock::now();
+
         register_output("/motor/angle_error", angle_error_, 0.0);
         register_output("/motor/velocity_filtered", velocity_filtered_, 0.0);
         // 当前目标角度参考（方形波或 topic 的值），供 Foxglove 看参考轨迹。
@@ -115,7 +123,16 @@ private:
         double target = target_angle_.load();
         bool has_target = target_received_.load();
 
-        if (square_wave_) {
+        if (sequence_wave_ && !sequence_angles_.empty()) {
+            // 位置序列：依次在 sequence_angles 间走，每个角度停留 sequence_dwell 秒。
+            const double elapsed =
+                std::chrono::duration<double>(Clock::now() - sequence_start_).count();
+            const double cycle_time = sequence_dwell_ * sequence_angles_.size();
+            const double phase = std::fmod(elapsed, cycle_time);
+            const auto index = static_cast<std::size_t>(phase / sequence_dwell_);
+            target = sequence_angles_[std::min(index, sequence_angles_.size() - 1)];
+            has_target = true;
+        } else if (square_wave_) {
             // 位置方形波：目标角度在 square_high / square_low 间来回切，仍走最短弧。
             const double elapsed =
                 std::chrono::duration<double>(Clock::now() - square_wave_start_).count();
@@ -172,6 +189,11 @@ private:
     double square_high_ = 1.5707963;
     double square_period_ = 1.0;
     Clock::time_point square_wave_start_{};
+
+    bool sequence_wave_ = false;
+    std::vector<double> sequence_angles_{};
+    double sequence_dwell_ = 2.0;
+    Clock::time_point sequence_start_{};
 
     OutputInterface<double> angle_error_;
     OutputInterface<double> control_angle_;
