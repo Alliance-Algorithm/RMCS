@@ -28,11 +28,12 @@ namespace rmcs_core::hardware {
 //
 // 层叠结构（仿照云台/任务二，只是多一层角度环）：
 //   外环(角度) ErrorPidController:   measurement=/motor/angle_error ->
-//   control=/motor/control_velocity 内环(速度) PidController: measurement=/motor/velocity_filtered
-//   -> control=/motor/control_torque
+//   control=/motor/control_velocity 内环(速度) PidController: measurement=/motor/velocity
+//   -> control=/motor/control_torque （链路上用原始速度；滤波值仅在发布时输出）
 //
 // - 通过 topic /motor/target_angle(Float64) 发布目标角度(rad)，电机转到该位置。
-// - 最短弧(优弧)：std::remainder 把 "目标-当前" 规整到 [-pi, pi]，只走最近方向。
+// - 优弧(>180°)：目标变化时锁定一条长弧方向并解缠出终点，之后方向不再翻转，
+//   误差随接近目标单调收敛，避免中间(半圈对角点)翻转导致的剧烈抖动。
 class MotorPosition
     : public rmcs_executor::Component
     , public rclcpp::Node
@@ -78,6 +79,7 @@ public:
         sequence_start_ = Clock::now();
 
         register_output("/motor/angle_error", angle_error_, 0.0);
+        register_output("/motor/angle_single_turn", angle_single_turn_, 0.0);
         register_output("/motor/velocity_filtered", velocity_filtered_, 0.0);
         // 当前目标角度参考（方形波或 topic 的值），供 Foxglove 看参考轨迹。
         register_output("/motor/control_angle", control_angle_, 0.0);
@@ -118,7 +120,7 @@ public:
     }
 
 private:
-    // 计算到目标角度的最短弧(优弧)误差，并滤波内环速度反馈。
+    // 计算到目标角度的优弧(>180°)误差，并生成发布用的滤波速度。
     void update_control() {
         double target = target_angle_.load();
         bool has_target = target_received_.load();
@@ -133,7 +135,7 @@ private:
             target = sequence_angles_[std::min(index, sequence_angles_.size() - 1)];
             has_target = true;
         } else if (square_wave_) {
-            // 位置方形波：目标角度在 square_high / square_low 间来回切，仍走最短弧。
+            // 位置方形波：目标角度在 square_high / square_low 间来回切，仍走优弧。
             const double elapsed =
                 std::chrono::duration<double>(Clock::now() - square_wave_start_).count();
             const double phase = std::fmod(elapsed, 2.0 * square_period_);
@@ -145,10 +147,27 @@ private:
 
         double error = 0.0;
         if (has_target) {
-            const double delta = target - motor_.angle();
-            error = std::remainder(delta, 2.0 * std::numbers::pi); // 规整到 [-pi, pi]
+            // 仅在"目标真正变化"才重新选定优弧方向并解缠出终点；其余时间恒定持有。
+            // 若不区分这次判定而每次都拿"当前多圈角度"重解缠，电机已停在终点附近时，
+            // 每次重算都会在上一终点基础上再累加 ±2π，导致单向飞车。
+            if (!std::isfinite(committed_target_)
+                || std::abs(target - committed_target_raw_) > kTargetChangeEpsilon) {
+                const double delta = target - motor_.angle();
+                const double shortest = std::remainder(delta, 2.0 * std::numbers::pi);
+                long_direction_ = (shortest >= 0.0) ? -1.0 : 1.0;
+                committed_target_ = motor_.angle()
+                                  + long_direction_
+                                        * (2.0 * std::numbers::pi - std::abs(shortest));
+                committed_target_raw_ = target;
+            }
+            // 误差限幅 ±2π，即使状态异常也不会进入单向飞车。
+            error = std::clamp(
+                committed_target_ - motor_.angle(), -2.0 * std::numbers::pi,
+                2.0 * std::numbers::pi);
         }
         *angle_error_ = error;
+        // 单圈规整角度(与单圈目标同刻度)，便于在 Foxglove 里直接和 /motor/control_angle 比对。
+        *angle_single_turn_ = std::remainder(motor_.angle(), 2.0 * std::numbers::pi);
         *velocity_filtered_ = velocity_filter_.update(motor_.velocity());
         *enabled_ = has_target;
     }
@@ -180,6 +199,12 @@ private:
     std::atomic<bool> target_received_{false};
     rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr target_angle_subscription_;
 
+    // 优弧控制状态：目标真正变化时才锁定一条长弧方向并解缠出终点，之后不再翻转/累加。
+    double committed_target_ = std::numeric_limits<double>::quiet_NaN(); // NaN 表示尚未锁定
+    double committed_target_raw_ = std::numeric_limits<double>::quiet_NaN();
+    double long_direction_ = 0.0; // +1 逆时针 / -1 顺时针
+    static constexpr double kTargetChangeEpsilon = 1e-6;
+
     using Clock = std::chrono::steady_clock;
 
     filter::LowPassFilter<1> velocity_filter_{0.3};
@@ -196,6 +221,7 @@ private:
     Clock::time_point sequence_start_{};
 
     OutputInterface<double> angle_error_;
+    OutputInterface<double> angle_single_turn_;
     OutputInterface<double> control_angle_;
     OutputInterface<double> velocity_filtered_;
     OutputInterface<bool> enabled_;

@@ -42,7 +42,7 @@ public:
         // 台架测试：固定目标转速（rad/s），不接遥控器直接转。
         get_parameter_or("fixed_velocity", fixed_velocity_, 2.0);
 
-        // 用于平滑电机速度反馈的一阶低通滤波器。
+        // 用于平滑电机速度反馈的一阶低通滤波器（仅用于发布波形，不参与链路控制）。
         // 用平滑系数 filter_alpha（0~1，越大越不滤波）直接指定，避免与循环率耦合。
         double filter_alpha = 0.3;
         get_parameter_or("filter_alpha", filter_alpha, 0.3);

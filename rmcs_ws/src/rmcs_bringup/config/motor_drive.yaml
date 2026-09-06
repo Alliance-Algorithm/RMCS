@@ -24,8 +24,8 @@ motor_hardware:
 
 motor_velocity_pid:
   ros__parameters:
-    # 反馈使用滤波后的速度，减小编码器噪声对微分项的影响
-    measurement: /motor/velocity_filtered
+    # 链路内使用原始速度反馈；滤波后的值仅在发布(广播)时输出
+    measurement: /motor/velocity
     setpoint: /motor/control_velocity
     control: /motor/control_torque
     kp: 0.42

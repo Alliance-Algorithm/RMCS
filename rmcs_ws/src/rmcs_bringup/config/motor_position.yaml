@@ -3,7 +3,7 @@ rmcs_executor:
     update_rate: 1000.0
     components:
       - rmcs_core::hardware::MotorPosition -> motor_hardware
-      # 外环：角度 PID（最短弧角度误差 -> 目标角速度）
+      # 外环：角度 PID（优弧角度误差 -> 目标角速度）
       - rmcs_core::controller::pid::ErrorPidController -> motor_angle_pid
       # 内环：速度 PID（目标角速度 -> 力矩）
       - rmcs_core::controller::pid::PidController -> motor_velocity_pid
@@ -36,26 +36,26 @@ motor_hardware:
       -1.570796,      # 负向回程 -90°
       0.0
     ]            
-    sequence_dwell: 2.0  # 每个角度停留秒数
+    sequence_dwell: 3.5  # 每个角度停留秒数
 
 motor_angle_pid:
   ros__parameters:
-    # 外环测量：硬件算好的"最短弧"角度误差(rad)
+    # 外环测量：硬件算好的"优弧"角度误差(rad)
     measurement: /motor/angle_error
     # 外环输出：内环的目标角速度
     control: /motor/control_velocity
     # M3508（内置减速 3591/187）输出转速上限约 2.5 rad/s，限幅先按这个收
     # 角度误差~1.57rad 时 kp=3 -> 目标速度饱和到 ±2.5，电机才会动
-    kp: 8.0
+    kp: 13.0
     ki: 0.0
     kd: 0.0
-    output_min: -8.0
-    output_max: 8.0
+    output_min: -7.0
+    output_max: 7.0
 
 motor_velocity_pid:
   ros__parameters:
-    # 内环测量：滤波后的实际转速(rad/s)
-    measurement: /motor/velocity_filtered
+    # 内环测量：原始实际转速(rad/s)；滤波后的值仅在发布时输出
+    measurement: /motor/velocity
     setpoint: /motor/control_velocity
     control: /motor/control_torque
     # M3508 输出最大力矩约 6 N·m，先给偏保守的限幅再调
@@ -70,6 +70,7 @@ value_broadcaster:
     # std_msgs/msg/Float64 主题，Foxglove 订阅画波形
     forward_list:
       - /motor/angle
+      - /motor/angle_single_turn
       - /motor/velocity
       - /motor/control_angle
       - /motor/angle_error
