@@ -24,7 +24,18 @@ motor_hardware:
     square_period: 2.0   # 每个半周期时长（秒）：1.0 = 1s到高 + 1s到低
     # 位置序列（测试用）：依次走 sequence_angles，每个停 sequence_dwell 秒。优先级高于 square_wave
     sequence_wave: true
-    sequence_angles: [0.0, 0.785398163, 1.5707963, -1.5707963, 0.0]
+    sequence_angles: [
+      0.0,            # 零位
+      0.785398,       # +45°
+      1.570796,       # +90°
+      2.50,           # +143° (大幅度正向)
+      1.570796,       # 阶梯回程 +90°
+      0.0,            # 回中 0°
+      -1.570796,      # 负向 -90°
+      -2.50,          # 负向 -143°
+      -1.570796,      # 负向回程 -90°
+      0.0
+    ]            
     sequence_dwell: 2.0  # 每个角度停留秒数
 
 motor_angle_pid:
@@ -35,11 +46,11 @@ motor_angle_pid:
     control: /motor/control_velocity
     # M3508（内置减速 3591/187）输出转速上限约 2.5 rad/s，限幅先按这个收
     # 角度误差~1.57rad 时 kp=3 -> 目标速度饱和到 ±2.5，电机才会动
-    kp: 6.5
+    kp: 8.0
     ki: 0.0
     kd: 0.0
-    output_min: -6.0
-    output_max: 6.0
+    output_min: -8.0
+    output_max: 8.0
 
 motor_velocity_pid:
   ros__parameters:
@@ -49,7 +60,7 @@ motor_velocity_pid:
     control: /motor/control_torque
     # M3508 输出最大力矩约 6 N·m，先给偏保守的限幅再调
     kp: 0.42
-    ki: 0.0015
+    ki: 0.002
     kd: 0.0
     output_min: -3.0
     output_max: 3.0
