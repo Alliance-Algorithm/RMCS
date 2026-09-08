@@ -1,26 +1,19 @@
 #include <array>
 #include <cstddef>
-#include <cstring>
+#include <cstdint>
 #include <memory>
 #include <ranges>
-#include <span>
 #include <sstream>
-#include <string>
 
 #include <eigen3/Eigen/Dense>
 #include <librmcs/board/rmcs_board_lite.hpp>
-#include <librmcs/data/datas.hpp>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rclcpp/node_options.hpp>
 #include <rclcpp/qos.hpp>
 #include <rclcpp/subscription.hpp>
-#include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
-#include <rmcs_msgs/board_clock.hpp>
-#include <rmcs_msgs/serial_interface.hpp>
-#include <rmcs_utility/ring_buffer.hpp>
 #include <std_msgs/msg/int32.hpp>
 #include <std_srvs/srv/trigger.hpp>
 
@@ -47,14 +40,14 @@ public:
         , infantry_command_(
               create_partner_component<InfantryCommand>(get_component_name() + "_command", *this))
         , chassis_wheel_motors_(
-              {*this, *infantry_command_, "/chassis/left_wheel"},
-              {*this, *infantry_command_, "/chassis/right_wheel"})
+              {*this, *infantry_command_, "/wheel_leg/left_wheel"},
+              {*this, *infantry_command_, "/wheel_leg/right_wheel"})
         , hip_joint_motors_(
-              {*this, *infantry_command_, "/joint/left_hip_joint"},
-              {*this, *infantry_command_, "/joint/right_hip_joint"})
+              {*this, *infantry_command_, "/wheel_leg/left_hip_joint"},
+              {*this, *infantry_command_, "/wheel_leg/right_hip_joint"})
         , knee_joint_motors_(
-              {*this, *infantry_command_, "/joint/left_knee_joint"},
-              {*this, *infantry_command_, "/joint/right_knee_joint"})
+              {*this, *infantry_command_, "/wheel_leg/left_knee_joint"},
+              {*this, *infantry_command_, "/wheel_leg/right_knee_joint"})
         , dr16_{} {
 
         register_output(
@@ -73,21 +66,29 @@ public:
             motor.configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kM3508, id}
                     .set_reversed()
-                    .set_reduction_ratio(13.)
+                    .set_reduction_ratio(16.33)
                     .enable_multi_turn_angle());
 
         constexpr auto kHipJointIds = std::array<std::uint8_t, 2>{1, 2};
         for (auto&& [motor, id] : std::views::zip(hip_joint_motors_, kHipJointIds))
             motor.configure(
-                device::DmMotor::Config{device::DmMotor::Type::kDM8009}.set_id(id).set_reversed());
+                device::DmMotor::Config{device::DmMotor::Type::kDM8009}
+                    .set_id(id)
+                    .set_feedback_id(id)
+                    .set_reversed());
 
         constexpr auto kKneeJointIds = std::array<std::uint8_t, 2>{1, 2};
         for (auto&& [motor, id] : std::views::zip(knee_joint_motors_, kKneeJointIds))
             motor.configure(
-                device::DmMotor::Config{device::DmMotor::Type::kDM8009}.set_id(id).set_reversed());
+                device::DmMotor::Config{device::DmMotor::Type::kDM8009}
+                    .set_id(id)
+                    .set_feedback_id(id)
+                    .set_reversed());
 
+        auto options = librmcs::board::AdvancedOptions{};
+        options.dangerously_skip_version_checks = false;
         board_ = std::make_unique<librmcs::board::RmcsBoardLite>(
-            *this, get_parameter("board_serial").as_string());
+            *this, get_parameter("board_serial").as_string(), options);
 
         auto startup_builder = board_->start_transmit();
         for (auto& motor : hip_joint_motors_) {
@@ -109,13 +110,13 @@ public:
 
         dm_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
             "/wheel_leg/calibrate", rclcpp::QoS{0},
-            [this](std_msgs::msg::Int32::UniquePtr&&) { calibrate_subscription_callback(); });
+            [this](std_msgs::msg::Int32::UniquePtr&&) { calibrate_subscription_callback_(); });
 
         using Srv = std_srvs::srv::Trigger;
         status_service_ = create_service<Srv>(
             "/rmcs/service/robot_status",
             [this](const Srv::Request::SharedPtr&, const Srv::Response::SharedPtr& response) {
-                status_service_callback(response);
+                status_service_callback_(response);
             });
 
         remote_control_ = std::make_unique<device::RemoteControl>(*this);
@@ -197,7 +198,7 @@ private:
             motor.control_angle(), motor.control_velocity(), kp, kd, motor.control_torque());
     }
 
-    void calibrate_subscription_callback() {
+    void calibrate_subscription_callback_() {
         const auto set_zero =
             [this](auto& builder, const Spec::Can& can, device::DmMotor& motor, const char* name) {
                 builder.can_transmit(
@@ -215,8 +216,8 @@ private:
         set_zero(builder, Spec::kCans.kCan2, knee_joint_motors_[1], "right_knee_joint");
     }
 
-    void
-        status_service_callback(const std::shared_ptr<std_srvs::srv::Trigger::Response>& response) {
+    void status_service_callback_(
+        const std::shared_ptr<std_srvs::srv::Trigger::Response>& response) {
         response->success = true;
 
         auto text = std::ostringstream{};
@@ -267,8 +268,6 @@ private:
         if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
             return;
 
-        // DM 反馈帧 MST_ID 默认 0（达妙默认），帧内 D[0] 低 4 位区分同总线各电机；
-        // 车轮 DJI 按 0x201/0x202（M3508 recv_id）。
         if (can == Spec::kCans.kCan0) {
             for (auto& motor : chassis_wheel_motors_) {
                 if (motor.match_then_store_status(data.can_id, data.can_data))
