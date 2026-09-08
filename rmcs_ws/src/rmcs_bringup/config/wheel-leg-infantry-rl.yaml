@@ -1,0 +1,78 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::hardware::WheelLegInfantryRL -> wheel_leg_infantry_rl
+      - rmcs::rl::RlController -> rl_controller
+
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+
+value_broadcaster:
+  ros__parameters:
+    update_rate: 50.0
+    topics:
+      - /wheel_leg/rl/obs
+      - /wheel_leg/rl/actions
+      - /wheel_leg/rl/reward
+      - /wheel_leg/rl/done
+      - /wheel_leg/rl/info
+
+wheel_leg_infantry_rl:
+  ros__parameters:
+    board_serial: ""
+    debug_log_motor: true                  # 每秒打印电机反馈
+
+    hip_kp: 200.0
+    hip_kd: 4.0
+    knee_kp: 200.0
+    knee_kd: 4.0
+
+rl_controller:
+  ros__parameters:
+    rl_model_path: "models/wheel_leg_V1.onnx"   # 训练导出（obs[1,28] -> actions[1,6] float32）
+    rl_inference_frequency: 50.0            # 推理频率（训练控制频率 = sim dt 0.005 × decimation 4）
+    rl_publish_network_io: true             # 发布观测/动作调试输出
+
+    joint_names: [rf0, rf1, r_wheel, lf0, lf1, l_wheel]   # 训练 DOF 序
+    joint_base_path: "/wheel_leg"
+    position_pd_joints: [0, 1, 3, 4]        # 位置 PD 组（腿）
+    velocity_pd_joints: [2, 5]              # 速度 PD 组（轮；其位置观测在 obs 中置零）
+    rl_obs_size: 28                         # 默认 10+3N；与模型一致
+    rl_action_size: 6
+
+    default_dof_pos: [-0.5, -0.35, 0.0, 0.5, 0.35, 0.0]
+    dof_pos_limits_lower: [-100.0, -0.9, -100.0, -100.0, -0.65, -100.0]   # 训练 URDF 限位
+    dof_pos_limits_upper: [100.0, 0.65, 100.0, 100.0, 0.9, 100.0]
+    position_action_scale: 0.5
+    velocity_action_scale: 10.0
+    max_velocity: 100.0
+    velocity_torque_max: 6.0                # 训练 clamp（轮端，含 16.33 减速箱时按实际校核）
+    position_kp: 200.0                      # 训练 PD（sim 值，部署保持一致）
+    position_kd: 4.0
+    velocity_kp: 20.0
+    velocity_kd: 0.5
+    position_torque_max: 35.0               # 髋输出限幅（参照 XYEGA ±35Nm）
+    position_pd_on_motor: true
+
+    obs_ang_vel_scale: 0.5
+    obs_gravity_scale: 1.0
+    obs_dof_pos_scale: 1.0
+    obs_dof_vel_scale: 0.1
+    obs_height_scale: 5.0
+    clip_observations: 100.0
+    clip_actions: 100.0
+
+    motion_linear_x_min: -2.5
+    motion_linear_x_max: 2.5
+    motion_angular_z_min: -3.0
+    motion_angular_z_max: 3.0
+    command_height_min: 0.20
+    command_height_max: 0.42
+    default_command_height: 0.22
+
+    auto_enter_rl: false                    # 调试期保持 false，遥控 state=3 手动进 RL
+    prepare_dof_pos: [-0.5, -0.35, 0.5, 0.35]   # 站立预备位（腿序 rf0,rf1,lf0,lf1）
+    prepare_kp: 80.0
+    prepare_kd: 2.0
+    prepare_max_velocity: 1.0               # 插值速度上限 rad/s
+    prepare_reach_threshold: 0.02
