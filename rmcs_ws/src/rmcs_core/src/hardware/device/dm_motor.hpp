@@ -60,7 +60,8 @@ public:
         }
         Config& set_reversed() { return reversed = true, *this; }
         Config& set_reversed(bool value) { return reversed = value, *this; }
-        /// angle_bias：电机角 → 策略角的偏置，策略角 = sign*(电机角 − angle_bias)（参考 XYEGA 做法）
+        /// angle_bias：电机角 → 策略角的偏置，策略角 = sign*(电机角 − angle_bias)（参考 XYEGA
+        /// 做法）
         Config& set_angle_bias(double angle_bias) { return this->angle_bias = angle_bias, *this; }
         /// 设置 MIT 定标范围，必须与电机内寄存器（调试助手设定）一致
         Config& set_limits(double position_max, double velocity_max, double torque_max) {
@@ -72,13 +73,13 @@ public:
         }
 
         Type motor_type;
-        std::uint8_t id = 1;             // 电机 CAN ID（MIT 命令帧 ID；建议 1..15）
-        std::uint8_t feedback_id = 0;    // 反馈帧 ID（MST_ID，调试助手设置，默认 0）
+        std::uint8_t id = 1;              // 电机 CAN ID（MIT 命令帧 ID；建议 1..15）
+        std::uint8_t feedback_id = 0;     // 反馈帧 ID（MST_ID，调试助手设置，默认 0）
         bool reversed = false;
-        double angle_bias = 0.0;         // rad
-        double position_max = 12.5;      // P_MAX [rad]，须与电机寄存器一致
-        double velocity_max = 45.0;      // V_MAX [rad/s]，须与电机寄存器一致
-        double torque_max = 54.0;        // T_MAX [Nm]，须与电机寄存器一致
+        double angle_bias = 0.0;          // rad
+        double position_max = 12.5;       // P_MAX [rad]，须与电机寄存器一致
+        double velocity_max = 45.0;       // V_MAX [rad/s]，须与电机寄存器一致
+        double torque_max = 54.0;         // T_MAX [Nm]，须与电机寄存器一致
         double control_torque_max = 40.0; // 输出力矩限幅（峰值 40Nm）
     };
 
@@ -150,35 +151,39 @@ public:
     /// 模式 A：纯扭矩（kp=kd=0, p_des=v_des=0, t_ff=τ）
     CanPacket8 generate_command() const { return generate_command(control_torque()); }
 
-    CanPacket8 generate_command(double control_torque) const {
-        if (std::isnan(control_torque) || std::isinf(control_torque))
-            control_torque = 0.0;
-        control_torque = std::clamp(control_torque, -control_torque_max_, control_torque_max_);
+    CanPacket8 generate_command(double torque) const {
+        if (std::isnan(torque) || std::isinf(torque))
+            torque = 0.0;
+        torque = std::clamp(torque, -control_torque_max_, control_torque_max_);
+        const double sign = reversed_ ? -1.0 : 1.0;
+        const double tff_motor = sign * torque;
 
         const auto pos_u = float_to_uint(0.0, -position_max_, position_max_, 16);
         const auto vel_u = float_to_uint(0.0, -velocity_max_, velocity_max_, 12);
         const auto kp_u = float_to_uint(0.0, 0.0, kKpMax, 12);
         const auto kd_u = float_to_uint(0.0, 0.0, kKdMax, 12);
-        const auto tff_u = float_to_uint(control_torque, -torque_max_, torque_max_, 12);
+        const auto tff_u = float_to_uint(tff_motor, -torque_max_, torque_max_, 12);
         return pack_mit(pos_u, vel_u, kp_u, kd_u, tff_u);
     }
 
     /// 模式 B：电机内环 PD（p_des/v_des 单位 rad/rad/s；kp/kd 为物理增益）
-    CanPacket8 generate_command_pd(
-        double p_des, double v_des, double kp, double kd, double t_ff) const {
+    CanPacket8
+        generate_command_pd(double p_des, double v_des, double kp, double kd, double t_ff) const {
         if (!std::isfinite(p_des) || !std::isfinite(v_des) || !std::isfinite(t_ff))
             return CanPacket8{0};
-        p_des = std::clamp(p_des, -position_max_, position_max_);
-        v_des = std::clamp(v_des, -velocity_max_, velocity_max_);
+        const double sign = reversed_ ? -1.0 : 1.0;
+        const double p_motor =
+            std::clamp(angle_bias_ + sign * p_des, -position_max_, position_max_);
+        const double v_motor = std::clamp(sign * v_des, -velocity_max_, velocity_max_);
+        const double tff_motor = std::clamp(sign * t_ff, -torque_max_, torque_max_);
         kp = std::clamp(kp, 0.0, kKpMax);
         kd = std::clamp(kd, 0.0, kKdMax);
-        t_ff = std::clamp(t_ff, -torque_max_, torque_max_);
 
-        const auto pos_u = float_to_uint(p_des, -position_max_, position_max_, 16);
-        const auto vel_u = float_to_uint(v_des, -velocity_max_, velocity_max_, 12);
+        const auto pos_u = float_to_uint(p_motor, -position_max_, position_max_, 16);
+        const auto vel_u = float_to_uint(v_motor, -velocity_max_, velocity_max_, 12);
         const auto kp_u = float_to_uint(kp, 0.0, kKpMax, 12);
         const auto kd_u = float_to_uint(kd, 0.0, kKdMax, 12);
-        const auto tff_u = float_to_uint(t_ff, -torque_max_, torque_max_, 12);
+        const auto tff_u = float_to_uint(tff_motor, -torque_max_, torque_max_, 12);
         return pack_mit(pos_u, vel_u, kp_u, kd_u, tff_u);
     }
 
@@ -246,6 +251,31 @@ public:
     double control_torque() const {
         if (control_torque_.ready())
             return *control_torque_;
+        return 0.0;
+    }
+
+    bool control_angle_ready() const noexcept { return control_angle_.ready(); }
+    double control_angle() const {
+        if (control_angle_.ready())
+            return *control_angle_;
+        return 0.0;
+    }
+    bool control_velocity_ready() const noexcept { return control_velocity_.ready(); }
+    double control_velocity() const {
+        if (control_velocity_.ready())
+            return *control_velocity_;
+        return 0.0;
+    }
+    bool control_kp_ready() const noexcept { return control_kp_.ready(); }
+    double control_kp() const {
+        if (control_kp_.ready())
+            return *control_kp_;
+        return 0.0;
+    }
+    bool control_kd_ready() const noexcept { return control_kd_.ready(); }
+    double control_kd() const {
+        if (control_kd_.ready())
+            return *control_kd_;
         return 0.0;
     }
 
