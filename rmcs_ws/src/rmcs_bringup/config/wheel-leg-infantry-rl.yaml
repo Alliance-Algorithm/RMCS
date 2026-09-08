@@ -4,23 +4,44 @@ rmcs_executor:
     components:
       - rmcs_core::hardware::WheelLegInfantryRL -> wheel_leg_infantry_rl
       - rmcs::rl::RlController -> rl_controller
+      # 遥控器（DR16）→ RL 命令源（摇杆/拨杆/键盘 → /wheel_leg/command/*）
+      - rmcs::rl::RlRemoteCommand -> rl_remote_command
+      # 纯调试可换 RlRemoteCommand 为 RlDebugCommand（topic 下发），两者输出同接口，互斥
 
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 
 value_broadcaster:
   ros__parameters:
     update_rate: 50.0
-    topics:
-      - /wheel_leg/rl/obs
-      - /wheel_leg/rl/actions
-      - /wheel_leg/rl/reward
-      - /wheel_leg/rl/done
-      - /wheel_leg/rl/info
+    # 仅转发 double 类型组件输出（电机反馈等）；完整 obs/action/state 为 vector/int，
+    # 由 rl_controller 直接发布 ROS topic（/wheel_leg/rl/{observation,action,state}，
+    # rl_publish_network_io: true），ros2 topic echo 即可查看，无需在此转发。
+    forward_list:
+      # 右腿（髋/膝/轮）
+      - /wheel_leg/right_hip_joint/angle
+      - /wheel_leg/right_hip_joint/velocity
+      - /wheel_leg/right_hip_joint/torque
+      - /wheel_leg/right_knee_joint/angle
+      - /wheel_leg/right_knee_joint/velocity
+      - /wheel_leg/right_knee_joint/torque
+      - /wheel_leg/right_wheel/angle
+      - /wheel_leg/right_wheel/velocity
+      - /wheel_leg/right_wheel/torque
+
+      # 左腿（髋/膝/轮）
+      - /wheel_leg/left_hip_joint/angle
+      - /wheel_leg/left_hip_joint/velocity
+      - /wheel_leg/left_hip_joint/torque
+      - /wheel_leg/left_knee_joint/angle
+      - /wheel_leg/left_knee_joint/velocity
+      - /wheel_leg/left_knee_joint/torque
+      - /wheel_leg/left_wheel/angle
+      - /wheel_leg/left_wheel/velocity
+      - /wheel_leg/left_wheel/torque
 
 wheel_leg_infantry_rl:
   ros__parameters:
     board_serial: ""
-    debug_log_motor: true                  # 每秒打印电机反馈
 
     hip_kp: 200.0
     hip_kd: 4.0
@@ -33,7 +54,7 @@ rl_controller:
     rl_inference_frequency: 50.0            # 推理频率（训练控制频率 = sim dt 0.005 × decimation 4）
     rl_publish_network_io: true             # 发布观测/动作调试输出
 
-    joint_names: [rf0, rf1, r_wheel, lf0, lf1, l_wheel]   # 训练 DOF 序
+    joint_names: [left_hip_joint, left_knee_joint, left_wheel, right_hip_joint, right_knee_joint, right_wheel]
     joint_base_path: "/wheel_leg"
     position_pd_joints: [0, 1, 3, 4]        # 位置 PD 组（腿）
     velocity_pd_joints: [2, 5]              # 速度 PD 组（轮；其位置观测在 obs 中置零）
@@ -71,8 +92,24 @@ rl_controller:
     default_command_height: 0.22
 
     auto_enter_rl: false                    # 调试期保持 false，遥控 state=3 手动进 RL
-    prepare_dof_pos: [-0.5, -0.35, 0.5, 0.35]   # 站立预备位（腿序 rf0,rf1,lf0,lf1）
+    prepare_dof_pos: [-0.5, -0.35, 0.5, 0.35]   # 站立预备位（腿序 left_hip,left_knee,right_hip,right_knee）
     prepare_kp: 80.0
     prepare_kd: 2.0
     prepare_max_velocity: 1.0               # 插值速度上限 rad/s
     prepare_reach_threshold: 0.02
+
+rl_remote_command:
+  ros__parameters:
+    command_base: "/wheel_leg"
+    arm_switch: "left"                      # 武装拨杆（左/右拨杆三档）
+    vx_max: 2.5                             # 与 rl_controller motion_linear_x_max 一致
+    yaw_rate_max: 3.0                       # 与 rl_controller motion_angular_z_max 一致
+    deadzone: 0.08
+    command_height_min: 0.20                # 与 rl_controller command_height_* 一致
+    command_height_max: 0.42
+    default_command_height: 0.22
+    height_range: 0.20                      # 左杆 Y 满行程 = ±range 绕 default 调高
+    height_step: 0.01                       # 键盘 Q/E 单次步进
+    linear_x_invert: false                  # 前推右杆应为 +vx；若相反改 true
+    angular_z_invert: false                 # 右推右杆应为正转；若相反改 true
+    height_invert: false                    # 前推左杆应为升高；若相反改 true
