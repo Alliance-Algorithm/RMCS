@@ -24,9 +24,9 @@ rmcs_executor:
 
       - rmcs::navigation::Navigation -> rmcs_navigation
 
-      - rmcs::AutoAimRecorderComponent -> auto_aim_recorder
-      - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
-      - rmcs::AutoAimComponent -> auto_aim_component
+      # - rmcs::AutoAimRecorderComponent -> auto_aim_recorder
+      # - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
+      # - rmcs::AutoAimComponent -> auto_aim_component
 
       # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
@@ -34,7 +34,7 @@ rmcs_executor:
 rmcs_navigation:
   ros__parameters:
     command_vel_name: "/cmd_vel"
-    endpoint: "rmuc"
+    endpoint: "tcd-train"
     enable_goal_topic_forward: true
 
 auto_aim_capturer:

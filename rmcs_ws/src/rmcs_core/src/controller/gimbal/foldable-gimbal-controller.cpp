@@ -1,4 +1,4 @@
-#include "controller/gimbal/eccentric_dual_yaw_solver.hpp"
+#include "controller/gimbal/foldabled_dual_yaw_solver.hpp"
 #include "controller/pid/pid_calculator.hpp"
 
 #include <algorithm>
@@ -11,7 +11,7 @@
 
 #include <eigen3/Eigen/Dense>
 #include <rclcpp/node.hpp>
-#include <rmcs_description/sentry_description.hpp>
+#include <rmcs_description/tunnel_sentry_description.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/switch.hpp>
