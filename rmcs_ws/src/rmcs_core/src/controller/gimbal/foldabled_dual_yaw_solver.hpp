@@ -12,7 +12,7 @@
 
 namespace rmcs_core::controller::gimbal {
 
-class EccentricDualYawSolver {
+class FoldableDualYawSolver {
 public:
     struct Error {
         double bottom_yaw = kNaN_;
@@ -22,8 +22,8 @@ public:
     };
 
     class Operation {
-        friend class EccentricDualYawSolver;
-        virtual auto update(EccentricDualYawSolver& solver) const -> Error = 0;
+        friend class FoldableDualYawSolver;
+        virtual auto update(FoldableDualYawSolver& solver) const -> Error = 0;
     };
 
     auto update(const Operation& op) -> Error { return op.update(*this); }
@@ -34,7 +34,7 @@ public:
 
     class SetDisabled : public Operation {
     private:
-        auto update(EccentricDualYawSolver& s) const -> Error override {
+        auto update(FoldableDualYawSolver& s) const -> Error override {
             s.enabled_ = false;
             return {kNaN_, kNaN_, kNaN_, false};
         }
@@ -43,7 +43,7 @@ public:
     class AutoAim : public Operation {
     public:
         AutoAim(
-            const rmcs_description::Tf& tf, double top_yaw_angle,
+            const rmcs_description::tunnel_sentry::Tf& tf, double top_yaw_angle,
             const Eigen::Vector3d& control_direction, Eigen::Vector3d robot_center,
             double upper_pitch, double lower_pitch)
             : tf_(tf)
@@ -54,8 +54,8 @@ public:
             , lower_(lower_pitch) {}
 
     private:
-        auto update(EccentricDualYawSolver& s) const -> Error override {
-            using namespace rmcs_description;
+        auto update(FoldableDualYawSolver& s) const -> Error override {
+            using namespace rmcs_description::tunnel_sentry;
 
             const auto dir_gcl =
                 fast_tf::cast<GimbalCenterLink>(OdomGimbalImu::DirectionVector{dir_}, tf_);
@@ -91,7 +91,7 @@ public:
             return {bottom_error, top_error, pitch_error, true};
         }
 
-        const rmcs_description::Tf& tf_;
+        const rmcs_description::tunnel_sentry::Tf& tf_;
         double top_yaw_angle_;
         Eigen::Vector3d dir_, center_;
         double upper_, lower_;
@@ -113,7 +113,7 @@ public:
             , lower_(lower) {}
 
     private:
-        auto update(EccentricDualYawSolver& s) const -> Error override {
+        auto update(FoldableDualYawSolver& s) const -> Error override {
             double bx = std::isfinite(toward_.x()) ? toward_.x() : fallback_bottom_;
             double by = std::isfinite(toward_.y()) ? toward_.y() : fallback_pitch_;
             by = std::clamp(by, upper_, lower_);

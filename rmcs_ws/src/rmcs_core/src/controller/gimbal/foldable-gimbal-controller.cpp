@@ -17,7 +17,7 @@
 #include <rmcs_msgs/switch.hpp>
 
 namespace rmcs_core::controller::gimbal {
-using namespace rmcs_description;
+using namespace rmcs_description::tunnel_sentry;
 
 enum class FoldState : int {
     UnFold = 0,
@@ -188,7 +188,7 @@ private:
     const double top_yaw_folded_angle_{get_parameter("top_yaw_folded_angle").as_double()};
     const double pitch_folded_angle_{get_parameter("pitch_folded_angle").as_double()};
 
-    EccentricDualYawSolver solver_;
+    FoldableDualYawSolver solver_;
 
     YawRateFeedforward top_yaw_ff_;
 
@@ -390,7 +390,7 @@ private:
     auto enter_disabled_state() -> void {
         reset_all_controls();
 
-        solver_.update(EccentricDualYawSolver::SetDisabled{});
+        solver_.update(FoldableDualYawSolver::SetDisabled{});
         stored_bottom_yaw_target_ = current_bottom_world_yaw();
         stored_pitch_target_ =
             std::clamp(limit_rad(*input_.pitch_angle), upper_limit_, lower_limit_);
@@ -458,7 +458,7 @@ private:
     auto update_normal_gimbal_control() -> void {
         if (input_.enable_autoaim()) {
             const auto error = solver_.update(
-                EccentricDualYawSolver::AutoAim{
+                FoldableDualYawSolver::AutoAim{
                     *input_.tf,
                     *input_.top_yaw_angle,
                     *input_.auto_aim_control_direction,
@@ -596,7 +596,7 @@ private:
         bottom_yaw_velocity_pid_.reset();
         pitch_angle_pid_.reset();
         pitch_velocity_pid_.reset();
-        solver_.update(EccentricDualYawSolver::SetDisabled{});
+        solver_.update(FoldableDualYawSolver::SetDisabled{});
         fold_ready_elapsed_ = 0.0;
         fold_transition_elapsed_ = 0.0;
         fold_state_ = FoldState::UnFold;
