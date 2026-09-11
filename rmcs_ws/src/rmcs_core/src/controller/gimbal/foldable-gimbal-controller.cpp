@@ -87,9 +87,7 @@ public:
         fold_timeout_ = std::max(get_parameter_or("fold_timeout", 5.0), 0.0);
         fold_velocity_tolerance_ =
             std::max(get_parameter_or("fold_velocity_tolerance", 0.05), 1e-6);
-        fold_angle_tolerance_ = 
-            std::max(get_parameter_or("fold_angle_tolerance", 0.05), 1e-6);
-
+        fold_angle_tolerance_ = std::max(get_parameter_or("fold_angle_tolerance", 0.05), 1e-6);
     }
 
     auto before_updating() -> void override {
@@ -121,13 +119,13 @@ public:
             last_rotary_knob_switch_ = *input_.rotary_knob_switch;
             fold_state_ = FoldState::Folded;
             locked_bottom_yaw_target_ = current_bottom_world_yaw();
+            publish_fold_state();
             return;
         }
 
         const auto dt = update_dt();
-        const bool fold_switch_up_edge =
-            last_rotary_knob_switch_ == rmcs_msgs::Switch::MIDDLE
-            && *input_.rotary_knob_switch == rmcs_msgs::Switch::UP;
+        const bool fold_switch_up_edge = last_rotary_knob_switch_ == rmcs_msgs::Switch::MIDDLE
+                                      && *input_.rotary_knob_switch == rmcs_msgs::Switch::UP;
         last_rotary_knob_switch_ = *input_.rotary_knob_switch;
 
         if (fold_switch_up_edge)
@@ -295,6 +293,8 @@ private:
             component.register_output("/gimbal/fold/state", fold_state, 0);
             component.register_output("/gimbal/fold/active", fold_active, false);
             component.register_output("/gimbal/fold/fault", fold_fault, false);
+            component.register_output(
+                "/foldable_gimbal/friction_flag", foldable_gimbal_friction_flag, false);
         }
 
         OutputInterface<double> top_yaw_control_torque;
@@ -309,6 +309,7 @@ private:
         OutputInterface<int> fold_state;
         OutputInterface<bool> fold_active;
         OutputInterface<bool> fold_fault;
+        OutputInterface<bool> foldable_gimbal_friction_flag;
     } output_{*this};
 
     pid::PidCalculator top_yaw_angle_pid_{pid::make_pid_calculator(*this, "top_yaw_angle_")};
@@ -449,9 +450,7 @@ private:
         case FoldState::Fault:
             RCLCPP_WARN(get_logger(), "Fold controller is in fault state; ignore fold switch.");
             break;
-        default:
-            RCLCPP_WARN(get_logger(), "Folding or unfolding, ignore trigger.");
-            break;
+        default: RCLCPP_WARN(get_logger(), "Folding or unfolding, ignore trigger."); break;
         }
     }
 
@@ -501,8 +500,7 @@ private:
         const auto [_, current_pitch] = current_barrel_yaw_pitch();
         apply_control(
             limit_rad(stored_bottom_yaw_target_ - current_bottom_world_yaw()),
-            limit_rad(-*input_.top_yaw_angle),
-            limit_rad(stored_pitch_target_ - current_pitch));
+            limit_rad(-*input_.top_yaw_angle), limit_rad(stored_pitch_target_ - current_pitch));
     }
 
     auto update_fold_pose_control(const std::pair<double, double>& actual_yaw_pitch) -> void {
@@ -515,15 +513,12 @@ private:
     auto fold_pose_reached(const std::pair<double, double>& actual_yaw_pitch) const -> bool {
         if (!input_.top_yaw_angle.ready() || !input_.top_yaw_velocity.ready()
             || !input_.bottom_yaw_velocity.ready() || !input_.pitch_velocity.ready()
-            || !std::isfinite(*input_.top_yaw_angle)
-            || !std::isfinite(*input_.top_yaw_velocity)
-            || !std::isfinite(*input_.bottom_yaw_velocity)
-            || !std::isfinite(*input_.pitch_velocity)
+            || !std::isfinite(*input_.top_yaw_angle) || !std::isfinite(*input_.top_yaw_velocity)
+            || !std::isfinite(*input_.bottom_yaw_velocity) || !std::isfinite(*input_.pitch_velocity)
             || !std::isfinite(actual_yaw_pitch.second))
             return false;
         const auto top_yaw_error = limit_rad(top_yaw_folded_angle_ - *input_.top_yaw_angle);
-        const auto bottom_error =
-            limit_rad(locked_bottom_yaw_target_ - current_bottom_world_yaw());
+        const auto bottom_error = limit_rad(locked_bottom_yaw_target_ - current_bottom_world_yaw());
         const auto pitch_error = limit_rad(pitch_folded_angle_ - actual_yaw_pitch.second);
         return std::abs(top_yaw_error) <= fold_angle_tolerance_
             && std::abs(bottom_error) <= fold_angle_tolerance_
@@ -533,12 +528,10 @@ private:
             && std::abs(*input_.pitch_velocity) <= fold_velocity_tolerance_;
     }
 
-    auto update_move_to_fold_pose(
-        const std::pair<double, double>& actual_yaw_pitch, double dt) -> void {
+    auto update_move_to_fold_pose(const std::pair<double, double>& actual_yaw_pitch, double dt)
+        -> void {
         fold_transition_elapsed_ += dt;
-        fold_ready_elapsed_ = fold_pose_reached(actual_yaw_pitch)
-                                 ? fold_ready_elapsed_ + dt
-                                 : 0.0;
+        fold_ready_elapsed_ = fold_pose_reached(actual_yaw_pitch) ? fold_ready_elapsed_ + dt : 0.0;
         if (fold_ready_elapsed_ >= fold_ready_time_) {
             fold_ready_elapsed_ = 0.0;
             fold_transition_elapsed_ = 0.0;
@@ -557,7 +550,7 @@ private:
         }
         const auto roll_error = limit_rad(roll_folded_angle_ - *input_.roll_angle);
         const bool reached = std::abs(roll_error) <= fold_angle_tolerance_
-                           && std::abs(*input_.roll_velocity) <= fold_velocity_tolerance_;
+                          && std::abs(*input_.roll_velocity) <= fold_velocity_tolerance_;
         fold_ready_elapsed_ = reached ? fold_ready_elapsed_ + dt : 0.0;
         if (fold_ready_elapsed_ >= fold_ready_time_) {
             fold_ready_elapsed_ = 0.0;
@@ -577,7 +570,7 @@ private:
         }
         const auto roll_error = limit_rad(roll_unfold_angle_ - *input_.roll_angle);
         const bool reached = std::abs(roll_error) <= fold_angle_tolerance_
-                           && std::abs(*input_.roll_velocity) <= fold_velocity_tolerance_;
+                          && std::abs(*input_.roll_velocity) <= fold_velocity_tolerance_;
         fold_ready_elapsed_ = reached ? fold_ready_elapsed_ + dt : 0.0;
         if (fold_ready_elapsed_ >= fold_ready_time_) {
             finish_unfolding();
@@ -618,8 +611,7 @@ private:
         }
         const auto roll_error = limit_rad(target_angle - *input_.roll_angle);
         const auto velocity_reference = roll_angle_pid_.update(roll_error);
-        const auto torque =
-            roll_velocity_pid_.update(velocity_reference - *input_.roll_velocity);
+        const auto torque = roll_velocity_pid_.update(velocity_reference - *input_.roll_velocity);
         *output_.roll_control_torque = std::isfinite(torque) ? torque : kNaN;
     }
 
@@ -640,10 +632,7 @@ private:
         roll_angle_pid_.reset();
         roll_velocity_pid_.reset();
 
-        apply_control(
-            limit_rad(0),
-            limit_rad(0),
-            limit_rad(0));
+        apply_control(limit_rad(0), limit_rad(0), limit_rad(0));
     }
 
     auto current_roll_target() const -> double {
@@ -656,9 +645,9 @@ private:
 
     auto publish_fold_state() -> void {
         *output_.fold_state = static_cast<int>(fold_state_);
-        *output_.fold_active = fold_state_ != FoldState::UnFold
-                            && fold_state_ != FoldState::Fault;
+        *output_.fold_active = fold_state_ != FoldState::UnFold && fold_state_ != FoldState::Fault;
         *output_.fold_fault = fold_state_ == FoldState::Fault;
+        *output_.foldable_gimbal_friction_flag = fold_state_ == FoldState::UnFold;
     }
 
     auto apply_control(
@@ -686,4 +675,5 @@ private:
 } // namespace rmcs_core::controller::gimbal
 
 #include <pluginlib/class_list_macros.hpp>
-PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::gimbal::FoldableGimbalController, rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(
+    rmcs_core::controller::gimbal::FoldableGimbalController, rmcs_executor::Component)

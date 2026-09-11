@@ -31,6 +31,7 @@ public:
         register_input("/remote/switch/right", switch_right_);
         register_input("/remote/switch/left", switch_left_);
         register_input("/remote/keyboard", keyboard_);
+        register_input("/foldable_gimbal/friction_flag", foldable_gimbal_friction_flag_, false);
 
         auto friction_wheels = get_parameter("friction_wheels").as_string_array();
         auto friction_working_velocities = get_parameter("friction_velocities").as_double_array();
@@ -66,13 +67,20 @@ public:
         register_output("/gimbal/bullet_fired", bullet_fired_, false);
     }
 
+    auto before_updating() -> void override {
+        if (!foldable_gimbal_friction_flag_.ready()) {
+            foldable_gimbal_friction_flag_.make_and_bind_directly(true);
+        }
+    }
+
     void update() override {
         const auto switch_right = *switch_right_;
         const auto switch_left = *switch_left_;
         const auto keyboard = *keyboard_;
 
         using namespace rmcs_msgs;
-        if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
+        if ((!*foldable_gimbal_friction_flag_ || switch_left == Switch::UNKNOWN
+             || switch_right == Switch::UNKNOWN)
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
             reset_all_controls();
             return;
@@ -199,6 +207,7 @@ private:
     InputInterface<rmcs_msgs::Switch> switch_right_;
     InputInterface<rmcs_msgs::Switch> switch_left_;
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
+    InputInterface<bool> foldable_gimbal_friction_flag_;
 
     rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Switch last_switch_left_ = rmcs_msgs::Switch::UNKNOWN;
