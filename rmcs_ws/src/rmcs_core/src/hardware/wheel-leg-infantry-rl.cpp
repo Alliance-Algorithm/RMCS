@@ -66,7 +66,7 @@ public:
             motor.configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kM3508, id}
                     .set_reversed()
-                    .set_reduction_ratio(16.33)
+                    .set_reduction_ratio(15.8)
                     .enable_multi_turn_angle());
 
         constexpr auto kHipJointIds = std::array<std::uint8_t, 2>{1, 2};
