@@ -4,18 +4,13 @@ rmcs_executor:
     components:
       - rmcs_core::hardware::WheelLegInfantryRL -> wheel_leg_infantry_rl
       - rmcs::rl::RlController -> rl_controller
-      # 遥控器（DR16）→ RL 命令源（摇杆/拨杆/键盘 → /wheel_leg/command/*）
-      - rmcs::rl::RlRemoteCommand -> rl_remote_command
-      # 纯调试可换 RlRemoteCommand 为 RlDebugCommand（topic 下发），两者输出同接口，互斥
+      - rmcs_core::controller::chassis::WheelLegChassisController -> wheel_leg_chassis_controller
 
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 
 value_broadcaster:
   ros__parameters:
     update_rate: 50.0
-    # 仅转发 double 类型组件输出（电机反馈等）；完整 obs/action/state 为 vector/int，
-    # 由 rl_controller 直接发布 ROS topic（/wheel_leg/rl/{observation,action,state}，
-    # rl_publish_network_io: true），ros2 topic echo 即可查看，无需在此转发。
     forward_list:
       # 右腿（髋/膝/轮）
       - /wheel_leg/right_hip_joint/angle
@@ -58,6 +53,8 @@ rl_controller:
     joint_base_path: "/wheel_leg"
     position_pd_joints: [0, 1, 3, 4]        # 位置 PD 组（腿）
     velocity_pd_joints: [2, 5]              # 速度 PD 组（轮；其位置观测在 obs 中置零）
+    position_group_angle_suffix: "/solved_angle"
+    position_group_velocity_suffix: "/solved_velocity"
     rl_obs_size: 28                         # 默认 10+3N；与模型一致
     rl_action_size: 6
 
@@ -98,9 +95,8 @@ rl_controller:
     prepare_max_velocity: 1.0               # 插值速度上限 rad/s
     prepare_reach_threshold: 0.02
 
-rl_remote_command:
+wheel_leg_chassis_controller:
   ros__parameters:
-    command_base: "/wheel_leg"
     arm_switch: "left"                      # 武装拨杆（左/右拨杆三档）
     vx_max: 2.5                             # 与 rl_controller motion_linear_x_max 一致
     yaw_rate_max: 3.0                       # 与 rl_controller motion_angular_z_max 一致
@@ -113,3 +109,35 @@ rl_remote_command:
     linear_x_invert: false                  # 前推右杆应为 +vx；若相反改 true
     angular_z_invert: false                 # 右推右杆应为正转；若相反改 true
     height_invert: false                    # 前推左杆应为升高；若相反改 true
+    arm_switch_down_state: 0
+    arm_switch_middle_state: 1
+    arm_switch_up_state: 3
+
+    fk_tilt_world_frame: false
+    imu_pitch_sign: 1.0
+    engage_prepare_timeout: 2.0
+    # Wheel_leg_V1: O-A-D-C kite loop plus serial O-F-G equivalent leg.
+    # Lengths are metres.  Direction/zero parameters below are calibration values.
+    five_bar_oc: 0.11640                     # O-C, point on the thigh
+    five_bar_of: 0.21300                     # O-F, IsaacLab J1 link
+    five_bar_fg: 0.25000                     # F-G, IsaacLab J2 link
+    five_bar_oa: 0.11640                     # O-A, knee-driven crank
+    five_bar_ad: 0.13500                     # A-D
+    five_bar_dc: 0.13500                     # D-C
+    five_bar_joint8_length: 0.067            # joint8 rigid member, geometry reference
+
+    left_hip_sign: 1.0
+    left_hip_offset: 0.0
+    left_knee_sign: 1.0
+    left_knee_offset: 0.0
+    left_elbow_sign: -1.0                    # D side of A-C; calibrate from assembly
+    left_joint8_direction_offset_deg: 0.0    # DC -> joint8 direction
+    left_shank_direction_offset_deg: 14.8    # joint8 -> FG direction; 180-165.2
+
+    right_hip_sign: 1.0
+    right_hip_offset: 0.0
+    right_knee_sign: 1.0
+    right_knee_offset: 0.0
+    right_elbow_sign: -1.0                   # D side of A-C; calibrate from assembly
+    right_joint8_direction_offset_deg: 0.0   # DC -> joint8 direction
+    right_shank_direction_offset_deg: 14.8   # joint8 -> FG direction; calibrate sign
