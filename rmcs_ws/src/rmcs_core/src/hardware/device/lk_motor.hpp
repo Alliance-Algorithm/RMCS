@@ -16,7 +16,6 @@
 #include <rmcs_executor/component.hpp>
 
 #include "hardware/device/can_packet.hpp"
-#include "hardware/endian_promise.hpp"
 
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
@@ -108,7 +107,8 @@ public:
 
     void configure(const LKMotorConfig& config) {
         using namespace rmcs_core::hardware::device;
-        double torque_constant, rated_current, rated_torque, max_torque;
+        double torque_constant, rated_torque, max_torque;
+        [[maybe_unused]] double rated_current;
         switch (config.motor_type) {
         case LKMotorType::MF7015V210T:
             torque_constant = 0.12;
@@ -223,8 +223,6 @@ public:
         angle_zero_to_2pi_enabled_ = config.is_angle_zero_to_2pi;
         angle_multi_turn_ = 0;
         multi_turn_initialized_ = false;
-
-        rated_current += 0;                  // 为了避免烦人的警告加的，没啥用
     }
 
     void store_status(std::span<const std::byte> can_result) {

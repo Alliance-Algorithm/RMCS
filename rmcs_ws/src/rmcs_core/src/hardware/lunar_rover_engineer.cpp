@@ -612,7 +612,7 @@ private:
     public:
         friend class LunarRoverEngineer;
         explicit EncoderBoard(
-            LunarRoverEngineer& engineer, EngineerCommand& engineer_command,
+            LunarRoverEngineer& engineer, [[maybe_unused]] EngineerCommand& engineer_command,
             const std::string& serial_filter)
             : librmcs::agent::CBoard(serial_filter)
             , rclcpp::Node{"encoder_board"}
@@ -624,7 +624,6 @@ private:
             joint2_encoder.configure(
                 EncoderConfig{EncoderType::KTH7823}.set_encoder_zero_point(
                     static_cast<int>(engineer.get_parameter("joint2_zero_point").as_int())));
-            engineer_command.get_component_name(); // 避免烦人警告
         }
         ~EncoderBoard() = default;
 

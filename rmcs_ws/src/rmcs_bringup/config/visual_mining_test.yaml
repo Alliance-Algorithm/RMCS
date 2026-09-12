@@ -1,0 +1,51 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+
+      - rmcs_core::hardware::TEST ->test
+
+      # - rmcs::AutoAimPlayerComponent -> auto_aim_player
+      # - rmcs::AutoAimVideoPlayerComponent -> auto_aim_video_player
+      # - rmcs::AutoAimRecorderComponent -> auto_aim_recorder
+      - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
+      - rmcs::AutoAimComponent -> auto_aim_component
+
+test:
+  ros__parameters:
+    board_serial_arm_board: "D4-2418-9DD3-9A8B-B5BD-DF64-CE71"
+
+auto_aim_capturer:
+  ros__parameters:
+    camera_name: ""
+    exposure_us: 4000.0
+    gain: 8.0
+    framerate: 120.0
+    invert_image: false
+    rls_tau_sec: 10.0
+    use_hardware_sync: false
+    delay_ms: 6.5
+
+auto_aim_component:
+  ros__parameters:
+    dangerous_fallback: "red"
+    manual_shoot: false
+    enable_rune: true
+    track_ids: [HERO, ENGINEER, INFANTRY_3, INFANTRY_4, SENTRY, OUTPOST]
+    camera_translation: [0., 0., 0.]
+
+    fire_control:
+      bullet_speed: 22.5
+      shoot_delay: 0.0
+      offset_yaw: 0.0
+      offset_pitch: 0.0
+      attack_window: 60.0
+      degraded_angle_speed: 12.0
+      window_redundancy: 0.8
+      window_hysteresis: 0.2
+      attack_preaim: false
+      require_stable_command: true
+      yaw_tolerance: 0.07
+      pitch_tolerance: 0.04
+      rune_idle_duration: 0.4
+      rune_shoot_duration: 0.2
