@@ -1,6 +1,7 @@
 #include <csignal>
 #include <cstdio>
 #include <cstdlib>
+#include <exception>
 #include <execinfo.h>
 #include <unistd.h>
 
@@ -46,26 +47,36 @@ int main(int argc, char** argv) {
     executor->get_parameter("components", component_descriptions);
 
     std::regex regex(R"(\s*(\S+)\s*->\s*(\S+)\s*)");
-    for (const auto& component_description : component_descriptions) {
-        std::smatch matches;
-        std::string plugin_name, component_name;
+    try {
+        for (const auto& component_description : component_descriptions) {
+            std::smatch matches;
+            std::string plugin_name, component_name;
 
-        if (std::regex_search(component_description, matches, regex)) {
-            if (matches.size() != 3)
-                throw std::runtime_error("In regex matching: unexpected number of matches");
+            if (std::regex_search(component_description, matches, regex)) {
+                if (matches.size() != 3)
+                    throw std::runtime_error("In regex matching: unexpected number of matches");
 
-            plugin_name = matches[1].str();
-            component_name = matches[2].str();
-        } else {
-            plugin_name = component_name = component_description;
+                plugin_name = matches[1].str();
+                component_name = matches[2].str();
+            } else {
+                plugin_name = component_name = component_description;
+            }
+
+            rmcs_executor::Component::initializing_component_name = component_name;
+            auto component = component_loader.createSharedInstance(plugin_name);
+            executor->add_component(component);
         }
 
-        rmcs_executor::Component::initializing_component_name = component_name;
-        auto component = component_loader.createSharedInstance(plugin_name);
-        executor->add_component(component);
+        executor->start();
+    } catch (const std::exception& error) {
+        // 组件构造/装配（接口注册、类型、词条校验等）失败：给出单行可读原因并退出，
+        // 而不是让未捕获异常打印整段 terminate 信息。
+        fprintf(stderr, "[Fatal] RMCS startup failed: %s\n", error.what());
+        fflush(stderr);
+        rclcpp::shutdown();
+        return 1;
     }
 
-    executor->start();
     rcl_executor.spin();
 
     rclcpp::shutdown();

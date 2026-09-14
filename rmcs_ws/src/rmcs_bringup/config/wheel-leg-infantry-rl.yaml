@@ -45,63 +45,77 @@ wheel_leg_infantry_rl:
 
 rl_controller:
   ros__parameters:
-    rl_model_path: "models/wheel_leg_V1.onnx"   # 训练导出（obs[1,28] -> actions[1,6] float32）
-    rl_inference_frequency: 50.0            # 推理频率（训练控制频率 = sim dt 0.005 × decimation 4）
+    # 训练导出的 ONNX，必须携带 rmcs_obs_layout / rmcs_actions_layout metadata
+    # （格式与生成方式见 rmcs_rl/doc/model-contract.md 与 tool/stamp_layout_metadata.py）。
+    rl_model_path: "models/wheel_leg_V1.onnx"
+    rl_inference_frequency: 50.0            # 训练控制频率 = sim dt 0.005 × decimation 4
     rl_publish_network_io: true             # 发布观测/动作调试输出
 
+    # ---- 关节（训练 DOF 序；动作/观测词条按名字引用）----
     joint_names: [left_hip_joint, left_knee_joint, left_wheel, right_hip_joint, right_knee_joint, right_wheel]
     joint_base_path: "/wheel_leg"
-    position_pd_joints: [0, 1, 3, 4]        # 位置 PD 组（腿）
-    velocity_pd_joints: [2, 5]              # 速度 PD 组（轮；其位置观测在 obs 中置零）
-    position_group_angle_suffix: "/solved_angle"
-    position_group_velocity_suffix: "/solved_velocity"
-    rl_obs_size: 28                         # 默认 10+3N；与模型一致
+    joint_angle_suffix: "/angle"
+    joint_velocity_suffix: "/velocity"
+    joint_torque_suffix: "/torque"
+
+    # ---- 模型合同尺寸（必须等于词条维度之和 / action_terms 条数）----
+    rl_obs_size: 28
     rl_action_size: 6
 
-    default_dof_pos: [-0.5, -0.35, 0.0, 0.5, 0.35, 0.0]
-    dof_pos_limits_lower: [-100.0, -0.9, -100.0, -100.0, -0.65, -100.0]   # 训练 URDF 限位
-    dof_pos_limits_upper: [100.0, 0.65, 100.0, 100.0, 0.9, 100.0]
-    position_action_scale: 0.5
-    velocity_action_scale: 10.0
-    max_velocity: 100.0
-    velocity_torque_max: 6.0                # 训练 clamp（轮端，含 16.33 减速箱时按实际校核）
-    position_kp: 200.0                      # 训练 PD（sim 值，部署保持一致）
-    position_kd: 4.0
-    velocity_kp: 20.0
-    velocity_kd: 0.5
-    position_torque_max: 35.0               # 髋输出限幅（参照 XYEGA ±35Nm）
-    position_pd_on_motor: true
-
-    obs_ang_vel_scale: 0.5
-    obs_gravity_scale: 1.0
-    obs_dof_pos_scale: 1.0
-    obs_dof_vel_scale: 0.1
-    obs_height_scale: 5.0
-    clip_observations: 100.0
+    obs_clip: 100.0
     clip_actions: 100.0
 
-    motion_linear_x_min: -2.5
-    motion_linear_x_max: 2.5
-    motion_angular_z_min: -3.0
-    motion_angular_z_max: 3.0
-    command_height_min: 0.20
-    command_height_max: 0.42
-    default_command_height: 0.22
+    # ---- 观测布局（顺序 = obs 索引顺序；与训练侧逐项核对）----
+    # 当前 actor 契约（28 维，闭链 RL 直接使用电机原始反馈，无五连杆解算）：
+    #   [0]    vx 指令 (m/s)
+    #   [1]    vy 指令（无接口，恒 0）
+    #   [2]    yaw_rate 指令 (rad/s)
+    #   [3]    目标高度 ×5
+    #   [4:7]  机体角速度 ×0.5
+    #   [7:10] 重力投影
+    #   [10:16] 关节位置（髋/膝 相对 default_joint_pos；轮位置恒 0）
+    #   [16:22] 关节速度 ×0.1
+    #   [22:28] 上一帧动作
+    observation_terms:
+      - /wheel_leg/command/vx
+      - path=/wheel_leg/command/vy default=0.0 clip=-2.5:2.5
+      - /wheel_leg/command/yaw_rate
+      - path=/wheel_leg/command/height scale=5.0 default=0.22 clip=0.20:0.42
+      - type=vector3 path=/wheel_leg/imu/angular_velocity scale=0.5
+      - type=quaternion path=/wheel_leg/imu/quaternion transform=projected_gravity
+      - type=joint_pos joints=left_hip_joint,left_knee_joint relative=true
+      - type=joint_pos joints=left_wheel zero=true
+      - type=joint_pos joints=right_hip_joint,right_knee_joint relative=true
+      - type=joint_pos joints=right_wheel zero=true
+      - type=joint_vel joints=left_hip_joint,left_knee_joint,left_wheel,right_hip_joint,right_knee_joint,right_wheel scale=0.1
+      - type=last_action
 
+    # ---- 动作布局（顺序 = 策略输出槽位顺序）----
+    # 位置 0/1/3/4：髋/膝位置 PD（目标角交给电机内环，DM 模式 B）
+    # 位置 2/5：轮速度 PD（力矩输出）
+    default_joint_pos: {left_hip_joint: -0.5, left_knee_joint: -0.35, left_wheel: 0.0, right_hip_joint: 0.5, right_knee_joint: 0.35, right_wheel: 0.0}
+    action_terms:
+      - joint=left_hip_joint mode=position scale=0.5 kp=200.0 kd=4.0 torque_max=35.0 limits=-100:100 pd_on_motor=true prepare=-0.5
+      - joint=left_knee_joint mode=position scale=0.5 kp=200.0 kd=4.0 torque_max=35.0 limits=-100:100 pd_on_motor=true prepare=-0.35
+      - joint=left_wheel mode=velocity scale=10.0 kp=20.0 kd=0.5 torque_max=6.0 max_velocity=100.0
+      - joint=right_hip_joint mode=position scale=0.5 kp=200.0 kd=4.0 torque_max=35.0 limits=-100:100 pd_on_motor=true prepare=0.5
+      - joint=right_knee_joint mode=position scale=0.5 kp=200.0 kd=4.0 torque_max=35.0 limits=-100:100 pd_on_motor=true prepare=0.35
+      - joint=right_wheel mode=velocity scale=10.0 kp=20.0 kd=0.5 torque_max=6.0 max_velocity=100.0
+
+    # ---- FSM / PREPARE ----
     auto_enter_rl: false                    # 调试期保持 false，遥控 state=3 手动进 RL
-    prepare_dof_pos: [-0.5, -0.35, 0.5, 0.35]   # 站立预备位（腿序 left_hip,left_knee,right_hip,right_knee）
     prepare_kp: 80.0
     prepare_kd: 2.0
-    prepare_max_velocity: 1.0               # 插值速度上限 rad/s
+    prepare_max_velocity: 1.0
     prepare_reach_threshold: 0.02
 
 wheel_leg_chassis_controller:
   ros__parameters:
     arm_switch: "left"                      # 武装拨杆（左/右拨杆三档）
-    vx_max: 2.5                             # 与 rl_controller motion_linear_x_max 一致
-    yaw_rate_max: 3.0                       # 与 rl_controller motion_angular_z_max 一致
+    vx_max: 2.5                             # 与观测指令词条 clip 一致
+    yaw_rate_max: 3.0
     deadzone: 0.08
-    command_height_min: 0.20                # 与 rl_controller command_height_* 一致
+    command_height_min: 0.20                # 与 height 词条 clip 一致
     command_height_max: 0.42
     default_command_height: 0.22
     height_range: 0.20                      # 左杆 Y 满行程 = ±range 绕 default 调高
@@ -112,32 +126,4 @@ wheel_leg_chassis_controller:
     arm_switch_down_state: 0
     arm_switch_middle_state: 1
     arm_switch_up_state: 3
-
-    fk_tilt_world_frame: false
-    imu_pitch_sign: 1.0
     engage_prepare_timeout: 2.0
-    # Wheel_leg_V1: O-A-D-C kite loop plus serial O-F-G equivalent leg.
-    # Lengths are metres.  Direction/zero parameters below are calibration values.
-    five_bar_oc: 0.11640                     # O-C, point on the thigh
-    five_bar_of: 0.21300                     # O-F, IsaacLab J1 link
-    five_bar_fg: 0.25000                     # F-G, IsaacLab J2 link
-    five_bar_oa: 0.11640                     # O-A, knee-driven crank
-    five_bar_ad: 0.13500                     # A-D
-    five_bar_dc: 0.13500                     # D-C
-    five_bar_joint8_length: 0.067            # joint8 rigid member, geometry reference
-
-    left_hip_sign: 1.0
-    left_hip_offset: 0.0
-    left_knee_sign: 1.0
-    left_knee_offset: 0.0
-    left_elbow_sign: -1.0                    # D side of A-C; calibrate from assembly
-    left_joint8_direction_offset_deg: 0.0    # DC -> joint8 direction
-    left_shank_direction_offset_deg: 14.8    # joint8 -> FG direction; 180-165.2
-
-    right_hip_sign: 1.0
-    right_hip_offset: 0.0
-    right_knee_sign: 1.0
-    right_knee_offset: 0.0
-    right_elbow_sign: -1.0                   # D side of A-C; calibrate from assembly
-    right_joint8_direction_offset_deg: 0.0   # DC -> joint8 direction
-    right_shank_direction_offset_deg: 14.8   # joint8 -> FG direction; calibrate sign
