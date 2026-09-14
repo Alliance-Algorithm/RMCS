@@ -6,8 +6,9 @@
 | --- | --- | --- | --- |
 | 速度控制 | `rmcs_core::hardware::MotorDrive` | `motor_drive.yaml` | 速度环 PID + 遥控器 |
 | 位置控制 | `rmcs_core::hardware::MotorPosition` | `motor_position.yaml` | 角度环 PID + 速度环 PID（双闭环） |
+| 龙门架控制 | `rmcs_core::hardware::Gantry` | `gantry.yaml` | 虚拟主轴双闭环 + 交叉耦合同步控制 |
 
-两个子项目共用同一个 RMCS 工作区，硬件与上位机相同，仅控制组件与参数配置不同。
+各子项目共用同一个 RMCS 工作区，硬件与上位机相同，仅控制组件与参数配置不同。
 
 ## 项目结构
 
@@ -16,10 +17,12 @@ rmcs_ws/
 └── src/
     ├── rmcs_bringup/config/
     │   ├── motor_drive.yaml        # 速度控制项目配置
-    │   └── motor_position.yaml     # 位置控制项目配置
+    │   ├── motor_position.yaml     # 位置控制项目配置
+    │   └── gantry.yaml             # 龙门架项目配置
     └── rmcs_core/src/hardware/
         ├── motor_drive.cpp         # 电机速度控制组件（遥控器/定速/方波）
-        └── motor_position.cpp      # 电机位置控制组件（目标角度订阅/方波/角度序列）
+        ├── motor_position.cpp      # 电机位置控制组件（目标角度订阅/方波/角度序列）
+        └── gantry.cpp              # 龙门架同步升降组件（虚拟主轴双闭环 + 交叉耦合同步）
 ```
 
 ## 硬件与依赖
@@ -84,13 +87,48 @@ set-robot motor_position
 launch-rmcs
 ```
 
+### 项目三：龙门架同步升降（Gantry）
+
+**机械与反馈**：左右各一根丝杆，分别由一台 M3508 驱动，横梁刚性连接两侧螺母。
+每台电机自带编码器，经丝杆导程换算为左右高度 `h_left`、`h_right`；可选左右限位开关用于回零。
+
+**控制逻辑**（见 `gantry.cpp`）：
+
+- **虚拟主轴**：以两侧平均高度 `h = (h_left + h_right) / 2` 作为主轴位置，做高度环 + 速度环双闭环。
+- **交叉耦合同步控制**：用 `e_sync = h_left - h_right` 经 PD 生成差动力矩 `tau_sync`，
+  以 `tau_left = tau_common - tau_sync`、`tau_right = tau_common + tau_sync` 主动消除左右错位。
+- **目标速率限幅**（梯形规划）+ 速度前馈，保证平缓升降。
+- **负载前馈/观测**：静止时用速度残差慢积分估计左右保持力矩，补偿左右负载不一致。
+- **安全**：`|e_sync|` 超限、回零超时、电机过温时进入故障并输出零力矩。
+- 无外部传感器时，以多圈编码器 + 丝杆导程估计姿态；有外部传感器时可接入限位开关回零。
+
+**构建/运行**：
+
+```bash
+# 设置机器人类型为龙门架项目
+set-robot gantry
+
+# 启动
+launch-rmcs
+```
+
+目标高度可通过话题 `/gantry/target_height_cmd`（`std_msgs/Float64`）下发，
+或遥控器解锁（右拨杆中挡）后用左摇杆 Y 轴连续调节；`/gantry/home`（`std_srvs/Trigger`）触发回零。
+
 ## 调试
 
 运行时可使用 `foxglove` 或 `rmcs-cli` 查看 `/motor/*` 相关话题：
-
 - `/motor/velocity`：电机实时转速
 - `/motor/angle_single_turn`：单圈规整角度
 - `/motor/control_velocity` / `/motor/control_angle`：当前控制量
 - `/motor/control_torque`：PID 输出力矩
 - `/motor/enabled`：是否使能
+
+龙门架项目可查看 `/gantry/*` 相关话题：
+
+- `/gantry/height` / `/gantry/height_left` / `/gantry/height_right`：主轴高度与左右高度
+- `/gantry/target_height`：规划后的目标高度
+- `/gantry/sync_error` / `/gantry/tilt_angle`：左右高度差与横梁倾角
+- `/gantry/left/control_torque` / `/gantry/right/control_torque`：左右输出力矩
+- `/gantry/enabled` / `/gantry/homed` / `/gantry/fault`：使能、回零、故障状态
 

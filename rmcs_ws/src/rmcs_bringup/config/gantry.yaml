@@ -1,0 +1,70 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::hardware::Gantry -> gantry_hardware
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+
+gantry_hardware:
+  ros__parameters:
+    board_serial: ""
+    # M3508 在 C 板 CAN1 上的电调 ID
+    left_id: 1
+    right_id: 2
+    # 丝杆导程
+    lead: 0.005
+    height_min: 0.0
+    height_max: 0.35
+    max_velocity: 0.15
+    torque_limit: 3.0
+    track_width: 0.30
+    sync_error_limit: 0.03
+    velocity_filter_alpha: 0.3
+    # 回零：无外部限位时置 false
+    use_limit_switches: false
+    left_limit_trigger_high: false
+    right_limit_trigger_high: false
+    homing_torque: 1.5
+    homing_timeout: 6.0
+    # 重力/负载前馈
+    gravity_feedforward_left: 0.0
+    gravity_feedforward_right: 0.0
+    load_estimator_gain: 0.0
+    max_load_feedforward: 2.0
+    # 外环：高度误差 -> 目标速度
+    height_kp: 40.0
+    height_ki: 0.0
+    height_kd: 3.0
+    height_output_min: -0.2
+    height_output_max: 0.2
+    # 内环：速度误差 -> 公共力矩
+    velocity_kp: 8.0
+    velocity_ki: 0.5
+    velocity_kd: 0.0
+    velocity_integral_min: -1.0
+    velocity_integral_max: 1.0
+    velocity_output_min: -3.0
+    velocity_output_max: 3.0
+    # 交叉耦合同步环：左右高度差 -> 差动力矩
+    sync_kp: 200.0
+    sync_ki: 0.0
+    sync_kd: 8.0
+    sync_output_min: -2.0
+    sync_output_max: 2.0
+
+value_broadcaster:
+  ros__parameters:
+    forward_list:
+      - /gantry/height
+      - /gantry/height_left
+      - /gantry/height_right
+      - /gantry/target_height
+      - /gantry/velocity
+      - /gantry/sync_error
+      - /gantry/tilt_angle
+      - /gantry/left/angle
+      - /gantry/right/angle
+      - /gantry/left/velocity
+      - /gantry/right/velocity
+      - /gantry/left/control_torque
+      - /gantry/right/control_torque
