@@ -81,6 +81,7 @@ public:
     void configure(const Config& config) {
         type_ = config.motor_type;
         id_ = config.id;
+        reduction_ratio_ = config.reduction_ratio;
         encoder_zero_point_ = config.encoder_zero_point % kRawAngleMax;
         if (encoder_zero_point_ < 0)
             encoder_zero_point_ += kRawAngleMax;
@@ -242,6 +243,8 @@ public:
     double torque() const { return torque_; }
     double max_torque() const { return max_torque_; }
     double temperature() const { return temperature_; }
+    /// 减速比（输出轴/电机侧）。velocity()/torque() 为输出轴量。
+    double reduction_ratio() const { return reduction_ratio_; }
 
 private:
     struct alignas(uint64_t) DjiMotorFeedback {
@@ -254,6 +257,7 @@ private:
 
     Type type_ = Type::kM3508;
     std::uint8_t id_ = 0;
+    double reduction_ratio_ = 1.0;
     std::atomic<CanPacket8> can_data_;
 
     static constexpr int kRawAngleMax = 8192;

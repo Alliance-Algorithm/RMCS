@@ -126,6 +126,8 @@ public:
         default: std::unreachable();
         }
 
+        reduction_ratio_ = reduction_ratio;
+
         // Make sure raw_angle_modulus_ is a power of 2
         encoder_zero_point_ = config.encoder_zero_point & (raw_angle_modulus_ - 1);
 
@@ -226,6 +228,8 @@ public:
     double torque() const { return torque_; }
     double max_torque() const { return max_torque_; }
     double temperature() const { return temperature_; }
+    /// 减速比（输出轴/电机侧）。velocity()/torque() 为输出轴量。
+    double reduction_ratio() const { return reduction_ratio_; }
 
     /// @brief Switch the motor from the startup state (default state after power-on) to the
     /// shutdown state, clearing the motor's rotation count and previously received control
@@ -524,6 +528,7 @@ private:
 
     bool multi_turn_angle_enabled_;
     int encoder_zero_point_;
+    double reduction_ratio_ = 1.0;
 
     // Coefficients
     double status_angle_to_angle_coefficient_;

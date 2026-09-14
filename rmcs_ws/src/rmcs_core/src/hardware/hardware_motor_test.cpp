@@ -102,6 +102,9 @@ public:
     virtual double torque() const = 0;
     virtual double temperature() const = 0;
     virtual double max_torque() const = 0;
+    /// 减速比（输出轴/电机侧）。velocity()/torque() 均为输出轴量，
+    /// 电机侧速度 = velocity() * reduction_ratio()，电机侧扭矩 = torque() / reduction_ratio()。
+    virtual double reduction_ratio() const = 0;
     virtual std::string feedback_summary() const = 0;
 };
 
@@ -143,6 +146,7 @@ public:
     double torque() const override { return motor_.torque(); }
     double temperature() const override { return motor_.temperature_rotor(); }
     double max_torque() const override { return motor_.max_torque(); }
+    double reduction_ratio() const override { return kReductionRatio; }
 
     std::string feedback_summary() const override {
         return std::format(
@@ -151,6 +155,9 @@ public:
     }
 
 private:
+    // DM-J8009-2EC：减速比 9:1（说明书），MIT 反馈的 vel/torque 为输出轴量。
+    static constexpr double kReductionRatio = 9.0;
+
     device::DmMotor motor_;
     std::uint32_t tx_can_id_ = 0;
     std::uint32_t rx_can_id_ = 0;
@@ -205,6 +212,7 @@ public:
     double torque() const override { return motor_.torque(); }
     double temperature() const override { return motor_.temperature(); }
     double max_torque() const override { return motor_.max_torque(); }
+    double reduction_ratio() const override { return motor_.reduction_ratio(); }
 
     std::string feedback_summary() const override {
         return std::format("raw={} temp={:.1f}", motor_.last_raw_angle(), motor_.temperature());
@@ -262,6 +270,7 @@ public:
     double torque() const override { return motor_.torque(); }
     double temperature() const override { return motor_.temperature(); }
     double max_torque() const override { return motor_.max_torque(); }
+    double reduction_ratio() const override { return motor_.reduction_ratio(); }
 
     std::string feedback_summary() const override {
         return std::format("raw={} temp={:.1f}", motor_.last_raw_angle(), motor_.temperature());
@@ -649,12 +658,20 @@ private:
             last_left_.y(), last_right_.x(), last_right_.y(), last_rotary_knob_, cmd_angle_, cmd_v_des_,
             cmd_t_ff_, cmd_velocity_limit_, cmd_torque_limit_, cmd_hex);
         for (const auto& ch : channels_) {
+            const double ratio = ch.backend->reduction_ratio();
+            const double velocity_out = ch.backend->velocity();
+            const double torque_out = ch.backend->torque();
+            const double power_w = torque_out * velocity_out;
+            const double velocity_motor = velocity_out * ratio;
+            const double torque_motor = torque_out / ratio;
             message += std::format(
-                "\n    {} [{}]: angle={:+.3f} vel={:+.3f} torque={:+.3f} temp={:.1f} "
-                "max_torque={:.2f} rx={} extra={}",
-                can_name(ch.can_index), ch.backend->family_name(), ch.backend->angle(),
-                ch.backend->velocity(), ch.backend->torque(), ch.backend->temperature(),
-                ch.backend->max_torque(), ch.received ? "Y" : "N", ch.backend->feedback_summary());
+                "\n    {} [{}]: ratio={:.3f} angle={:+.3f} rad | out(after ratio): "
+                "vel={:+.3f} rad/s torque={:+.3f} Nm power={:+.3f} W | motor(before ratio): "
+                "vel={:+.3f} rad/s torque={:+.3f} Nm | temp={:.1f} max_torque={:.2f} Nm rx={} extra={}",
+                can_name(ch.can_index), ch.backend->family_name(), ratio, ch.backend->angle(),
+                velocity_out, torque_out, power_w, velocity_motor, torque_motor,
+                ch.backend->temperature(), ch.backend->max_torque(), ch.received ? "Y" : "N",
+                ch.backend->feedback_summary());
         }
         RCLCPP_INFO(logger_, "%s", message.c_str());
     }
@@ -675,13 +692,23 @@ private:
                 << cmd_t_ff_ << " vel_limit=" << cmd_velocity_limit_ << " tq_limit="
                 << cmd_torque_limit_ << '\n';
         for (const auto& ch : channels_) {
+            const double ratio = ch.backend->reduction_ratio();
+            const double velocity_out = ch.backend->velocity();
+            const double torque_out = ch.backend->torque();
+            const double power_w = torque_out * velocity_out;
+            const double velocity_motor = velocity_out * ratio;
+            const double torque_motor = torque_out / ratio;
             message << "  can" << ch.can_index << " [" << ch.backend->family_name()
                     << "]: tx=0x" << std::hex << ch.backend->tx_can_id() << std::dec << " rx=0x"
-                    << std::hex << ch.backend->rx_can_id() << std::dec << " angle=" << ch.backend->angle()
-                    << " vel=" << ch.backend->velocity() << " torque=" << ch.backend->torque()
-                    << " temp=" << ch.backend->temperature() << " max_torque="
-                    << ch.backend->max_torque() << " rx=" << (ch.received ? "Y" : "N") << " extra="
-                    << ch.backend->feedback_summary() << '\n';
+                    << std::hex << ch.backend->rx_can_id() << std::dec << " ratio=" << ratio
+                    << " angle=" << ch.backend->angle() << " rad"
+                    << " | out(after ratio): vel=" << velocity_out << " rad/s torque=" << torque_out
+                    << " Nm power=" << power_w << " W"
+                    << " | motor(before ratio): vel=" << velocity_motor << " rad/s torque="
+                    << torque_motor << " Nm"
+                    << " | temp=" << ch.backend->temperature()
+                    << " max_torque=" << ch.backend->max_torque() << " Nm rx="
+                    << (ch.received ? "Y" : "N") << " extra=" << ch.backend->feedback_summary() << '\n';
         }
         message << "  frame: [" << cmd_hex << "]\n"
                 << "  params: motor_id=" << motor_id_ << " reversed=" << (reversed_ ? "true" : "false")
