@@ -1,0 +1,195 @@
+#include <cmath>
+#include <concepts>
+#include <functional>
+#include <memory>
+#include <numbers>
+#include <string_view>
+#include <utility>
+
+#include <librmcs/board/rmcs_board_lite.hpp>
+#include <rclcpp/node.hpp>
+#include <rmcs_description/tunnel_sentry_description.hpp>
+#include <rmcs_executor/component.hpp>
+
+#include "hardware/device/can_packet.hpp"
+#include "hardware/device/dji_motor.hpp"
+#include "hardware/device/dr16.hpp"
+#include "hardware/device/lk_motor.hpp"
+#include "hardware/device/remote_control.hpp"
+
+namespace rmcs_core::hardware {
+
+class FoldableSentry
+    : public rmcs_executor::Component
+    , public rclcpp::Node {
+
+public:
+    FoldableSentry()
+        : Node(
+              get_component_name(),
+              rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true)) {
+
+        register_output("/tf", tf_);
+
+        remote_control_ = std::make_unique<device::RemoteControl>(*this);
+
+        gimbal_board_ = std::make_unique<GimbalBoard>(
+            *this, *command_component_, get_parameter("board_serial").as_string());
+    }
+
+    void update() override {
+        gimbal_board_->update();
+        remote_control_->update();
+    }
+
+private:
+    class GimbalBoard final : public librmcs::board::RmcsBoardLite::Callback {
+    public:
+        explicit GimbalBoard(
+            FoldableSentry& sentry, rmcs_executor::Component& sentry_command,
+            std::string_view board_serial = {})
+            : tf_(sentry.tf_)
+            , dr16_{}
+            , gimbal_roll_motor_(sentry, sentry_command, "/gimbal/roll")
+            , gimbal_top_yaw_motor_(sentry, sentry_command, "/gimbal/top_yaw")
+            , gimbal_pitch_motor_(sentry, sentry_command, "/gimbal/pitch") {
+
+            using namespace device;
+
+            auto zero_point = int{0};
+            sentry.get_parameter("roll_motor_zero_point", zero_point);
+            gimbal_roll_motor_.configure(
+                LkMotor::Config{LkMotor::Type::kMG5010Ei10}.set_encoder_zero_point(zero_point));
+
+            sentry.get_parameter("top_yaw_motor_zero_point", zero_point);
+            gimbal_top_yaw_motor_.configure(
+                DjiMotor::Config{DjiMotor::Type::kGM6020, 1}.set_encoder_zero_point(zero_point));
+
+            sentry.get_parameter("pitch_motor_zero_point", zero_point);
+            gimbal_pitch_motor_.configure(
+                LkMotor::Config{LkMotor::Type::kMG4010Ei10}.set_encoder_zero_point(zero_point));
+
+            // 折叠云台测试没有 bottom yaw 电机和底盘 IMU，
+            // 注册常量 0 输出供 foldable-gimbal-controller 配对使用。
+            sentry.register_output("/gimbal/bottom_yaw/angle", gimbal_bottom_yaw_angle_, 0.0);
+            sentry.register_output("/gimbal/bottom_yaw/velocity", gimbal_bottom_yaw_velocity_, 0.0);
+            sentry.register_output("/chassis/yaw/velocity_imu", chassis_yaw_velocity_imu_, 0.0);
+
+            board_ = std::make_unique<librmcs::board::RmcsBoardLite>(*this, board_serial);
+
+            sentry.remote_control_->register_dr16(&dr16_);
+        }
+
+        void update() {
+            using namespace rmcs_description::tunnel_sentry;
+
+            dr16_.update_status();
+
+            gimbal_roll_motor_.update_status();
+            tf_->set_state<BottomYawLink, RollLink>(gimbal_roll_motor_.angle());
+
+            gimbal_top_yaw_motor_.update_status();
+            tf_->set_state<RollLink, TopYawLink>(gimbal_top_yaw_motor_.angle());
+
+            gimbal_pitch_motor_.update_status();
+            const auto pitch_angle =
+                std::remainder(gimbal_pitch_motor_.angle(), 2.0 * std::numbers::pi);
+            tf_->set_state<TopYawLink, PitchLink>(pitch_angle);
+        }
+
+        void command_update() const {
+            using namespace device;
+
+            board_->start_transmit()
+                .can_transmit(
+                    Spec::kCans.kCan0,
+                    {
+                        .can_id = 0x141,
+                        .can_data = gimbal_roll_motor_.generate_torque_command().as_bytes(),
+                    })
+                .can_transmit(
+                    Spec::kCans.kCan0,
+                    {
+                        .can_id = 0x142,
+                        .can_data = gimbal_pitch_motor_.generate_torque_command().as_bytes(),
+                    })
+                .can_transmit(
+                    Spec::kCans.kCan1, {
+                                           .can_id = 0x1FE,
+                                           .can_data =
+                                               CanPacket8{
+                                                   gimbal_top_yaw_motor_.generate_command(),
+                                                   CanPacket8::PaddingQuarter{},
+                                                   CanPacket8::PaddingQuarter{},
+                                                   CanPacket8::PaddingQuarter{},
+                                               }
+                                                   .as_bytes(),
+                                       });
+        }
+
+        void can_receive_callback(const Spec::Can& can, const View::Can& data) override {
+            if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
+                return;
+
+            const auto& can_id = data.can_id;
+            const auto& can_data = data.can_data;
+
+            if (can == Spec::kCans.kCan0) {
+                if (can_id == 0x141) {
+                    gimbal_roll_motor_.store_status(can_data);
+                } else if (can_id == 0x142) {
+                    gimbal_pitch_motor_.store_status(can_data);
+                }
+            } else if (can == Spec::kCans.kCan1) {
+                if (can_id == 0x205) {
+                    gimbal_top_yaw_motor_.store_status(can_data);
+                }
+            }
+        }
+
+        void uart_receive_callback(const Spec::Uart& uart, const View::Uart& data) override {
+            if (uart == Spec::kUarts.kDbus)
+                dr16_.store_status(data.uart_data.data(), data.uart_data.size());
+        }
+
+        OutputInterface<rmcs_description::tunnel_sentry::Tf>& tf_;
+
+        device::Dr16 dr16_;
+        device::LkMotor gimbal_roll_motor_;
+        device::DjiMotor gimbal_top_yaw_motor_;
+        device::LkMotor gimbal_pitch_motor_;
+
+        OutputInterface<double> gimbal_bottom_yaw_angle_;
+        OutputInterface<double> gimbal_bottom_yaw_velocity_;
+        OutputInterface<double> chassis_yaw_velocity_imu_;
+
+        std::unique_ptr<librmcs::board::RmcsBoardLite> board_;
+    };
+
+    struct CommandTransmitter : public rmcs_executor::Component {
+        std::function<void()> fn;
+
+        template <std::invocable Fn>
+        explicit CommandTransmitter(Fn&& fn)
+            : fn{std::forward<Fn>(fn)} {}
+
+        void update() override { fn(); }
+    };
+
+    void command_update() { gimbal_board_->command_update(); }
+
+    std::shared_ptr<rmcs_executor::Component> command_component_{
+        create_partner_component<CommandTransmitter>(
+            get_component_name() + "_command", [this] { command_update(); })};
+
+    OutputInterface<rmcs_description::tunnel_sentry::Tf> tf_;
+
+    std::unique_ptr<GimbalBoard> gimbal_board_;
+    std::unique_ptr<device::RemoteControl> remote_control_;
+};
+
+} // namespace rmcs_core::hardware
+
+#include <pluginlib/class_list_macros.hpp>
+
+PLUGINLIB_EXPORT_CLASS(rmcs_core::hardware::FoldableSentry, rmcs_executor::Component)
