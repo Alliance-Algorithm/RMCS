@@ -50,6 +50,12 @@ rl_controller:
     rl_model_path: "models/wheel_leg_V1.onnx"
     rl_inference_frequency: 50.0            # 训练控制频率 = sim dt 0.005 × decimation 4
     rl_publish_network_io: true             # 发布观测/动作调试输出
+    command_state_path: "/chassis/control_state"
+    reset_count_path: "/chassis/reset_count"
+    rl_state_interface_path: "/wheel_leg/rl/state"
+    rl_state_topic: "/chassis/rl/state"
+    observation_topic: "/wheel_leg/rl/observation"
+    action_topic: "/wheel_leg/rl/action"
 
     # ---- 关节（训练 DOF 序；动作/观测词条按名字引用）----
     joint_names: [left_hip_joint, left_knee_joint, left_wheel, right_hip_joint, right_knee_joint, right_wheel]
@@ -67,8 +73,8 @@ rl_controller:
 
     # ---- 观测布局（顺序 = obs 索引顺序；与训练侧逐项核对）----
     # 当前 actor 契约（28 维，闭链 RL 直接使用电机原始反馈，无五连杆解算）：
-    #   [0]    vx 指令 (m/s)
-    #   [1]    vy 指令（无接口，恒 0）
+    #   [0]    vx 指令 (m/s)，来自 /chassis/control_velocity.x
+    #   [1]    vy 指令（当前 motion controller 输出 0）
     #   [2]    yaw_rate 指令 (rad/s)
     #   [3]    目标高度 ×5
     #   [4:7]  机体角速度 ×0.5
@@ -77,10 +83,10 @@ rl_controller:
     #   [16:22] 关节速度 ×0.1
     #   [22:28] 上一帧动作
     observation_terms:
-      - /wheel_leg/command/vx
-      - path=/wheel_leg/command/vy default=0.0 clip=-2.5:2.5
-      - /wheel_leg/command/yaw_rate
-      - path=/wheel_leg/command/height scale=5.0 default=0.22 clip=0.20:0.42
+      - type=direction_vector_component path=/chassis/control_velocity component=x
+      - type=direction_vector_component path=/chassis/control_velocity component=y
+      - type=direction_vector_component path=/chassis/control_velocity component=z
+      - path=/chassis/control_height scale=5.0
       - type=vector3 path=/wheel_leg/imu/angular_velocity scale=0.5
       - type=quaternion path=/wheel_leg/imu/quaternion transform=projected_gravity
       - type=joint_pos joints=left_hip_joint,left_knee_joint relative=true
@@ -111,7 +117,7 @@ rl_controller:
 
 wheel_leg_chassis_controller:
   ros__parameters:
-    arm_switch: "left"                      # 武装拨杆（左/右拨杆三档）
+    rl_state_path: "/wheel_leg/rl/state"    # RlController 输出接口（可选输入，无则兜底 kIdle）
     vx_max: 2.5                             # 与观测指令词条 clip 一致
     yaw_rate_max: 3.0
     deadzone: 0.08
@@ -119,11 +125,7 @@ wheel_leg_chassis_controller:
     command_height_max: 0.42
     default_command_height: 0.22
     height_range: 0.20                      # 左杆 Y 满行程 = ±range 绕 default 调高
-    height_step: 0.01                       # 键盘 Q/E 单次步进
-    linear_x_invert: false                  # 前推右杆应为 +vx；若相反改 true
-    angular_z_invert: false                 # 右推右杆应为正转；若相反改 true
+    height_step: 0.05                       # 键盘 Q/E 单次步进
+    angular_z_invert: false                 # 自动对齐转向；若转向相反改 true
+    heading_kp: 3.0                         # 目标航向误差 -> 转向角速度 的比例增益
     height_invert: false                    # 前推左杆应为升高；若相反改 true
-    arm_switch_down_state: 0
-    arm_switch_middle_state: 1
-    arm_switch_up_state: 3
-    engage_prepare_timeout: 2.0
