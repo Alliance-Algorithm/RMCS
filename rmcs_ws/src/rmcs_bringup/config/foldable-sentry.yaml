@@ -6,15 +6,20 @@ rmcs_executor:
 
       - rmcs_core::controller::gimbal::FoldableGimbalController -> gimbal_controller
 
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+
 foldable_sentry:
   ros__parameters:
-    # rmcs_board 序列号，留空则连接第一个扫描到的板子
     board_serial: ""
 
-    # 上电时读取 /gimbal/{roll,pitch}/raw_angle 与 /gimbal/top_yaw/angle 标定后填入
     roll_motor_zero_point: 0
     top_yaw_motor_zero_point: 0
     pitch_motor_zero_point: 0
+
+value_broadcaster:
+  ros__parameters:
+    forward_list:
+      /gimbal/top_yaw/angle
 
 gimbal_controller:
   ros__parameters:
@@ -34,10 +39,10 @@ gimbal_controller:
     fold_velocity_tolerance: 0.05
     fold_angle_tolerance: 0.05
 
-    top_yaw_velocity_ff_gain: 0.0
-    top_yaw_ff_cutoff_hz: 10.0
-    top_yaw_ff_max: 2.0
-    top_yaw_ff_jump_threshold: 0.01
+    # top_yaw_velocity_ff_gain: 0.0
+    # top_yaw_ff_cutoff_hz: 10.0
+    # top_yaw_ff_max: 2.0
+    # top_yaw_ff_jump_threshold: 0.01
 
     top_yaw_angle_kp: 30.0
     top_yaw_angle_ki: 0.008
@@ -86,3 +91,5 @@ gimbal_controller:
     roll_angle_integral_max: 150.0
     roll_velocity_integral_min: -2400.0
     roll_velocity_integral_max: 2400.0
+
+

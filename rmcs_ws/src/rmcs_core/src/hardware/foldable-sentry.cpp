@@ -3,6 +3,7 @@
 #include <functional>
 #include <memory>
 #include <numbers>
+#include <rclcpp/logging.hpp>
 #include <string_view>
 #include <utility>
 
@@ -10,12 +11,14 @@
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tunnel_sentry_description.hpp>
 #include <rmcs_executor/component.hpp>
+#include <std_srvs/srv/trigger.hpp>
 
 #include "hardware/device/can_packet.hpp"
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/lk_motor.hpp"
 #include "hardware/device/remote_control.hpp"
+#include "hardware/util/status_monitor.hpp"
 
 namespace rmcs_core::hardware {
 
@@ -35,11 +38,24 @@ public:
 
         gimbal_board_ = std::make_unique<GimbalBoard>(
             *this, *command_component_, get_parameter("board_serial").as_string());
+
+        using Srv = std_srvs::srv::Trigger;
+        status_service_ = create_service<Srv>(
+            "/rmcs/service/robot_status",
+            [this](const Srv::Request::SharedPtr&, const Srv::Response::SharedPtr& response) {
+                status_service_callback(response);
+            });
     }
 
     void update() override {
         gimbal_board_->update();
         remote_control_->update();
+
+        // 打印日志供确定 roll_folded_angle roll_unfold_angle top_yaw_folded_angle pitch_folded_angle
+        RCLCPP_INFO_THROTTLE(
+            get_logger(), *get_clock(), 200, "roll %f pitch %f yaw %f",
+            gimbal_board_->gimbal_roll_motor_.angle(), gimbal_board_->gimbal_pitch_motor_.angle(),
+            gimbal_board_->gimbal_top_yaw_motor_.angle());
     }
 
 private:
@@ -79,6 +95,8 @@ private:
 
             sentry.remote_control_->register_dr16(&dr16_);
         }
+
+        auto status() const -> std::vector<std::string> { return monitor_.text(); }
 
         void update() {
             using namespace rmcs_description::tunnel_sentry;
@@ -140,16 +158,23 @@ private:
                 } else if (can_id == 0x142) {
                     gimbal_pitch_motor_.store_status(can_data);
                 }
+
+                monitor_.tick("Gimbal::Can0", can_id);
+
             } else if (can == Spec::kCans.kCan1) {
                 if (can_id == 0x205) {
                     gimbal_top_yaw_motor_.store_status(can_data);
                 }
+
+                monitor_.tick("Gimbal::Can1", can_id);
             }
         }
 
         void uart_receive_callback(const Spec::Uart& uart, const View::Uart& data) override {
-            if (uart == Spec::kUarts.kDbus)
+            if (uart == Spec::kUarts.kDbus) {
                 dr16_.store_status(data.uart_data.data(), data.uart_data.size());
+                monitor_.tick("Gimbal::Dbus", "Active");
+            }
         }
 
         OutputInterface<rmcs_description::tunnel_sentry::Tf>& tf_;
@@ -163,8 +188,34 @@ private:
         OutputInterface<double> gimbal_bottom_yaw_velocity_;
         OutputInterface<double> chassis_yaw_velocity_imu_;
 
+        StatusMonitor monitor_{};
         std::unique_ptr<librmcs::board::RmcsBoardLite> board_;
     };
+
+    void
+        status_service_callback(const std::shared_ptr<std_srvs::srv::Trigger::Response>& response) {
+        response->success = true;
+
+        auto feedback_message = std::ostringstream{};
+        auto text = [&]<typename... Args>(std::format_string<Args...> format, Args&&... args) {
+            std::println(feedback_message, format, std::forward<Args>(args)...);
+        };
+
+        text("    pitch_motor_zero_point: {}", gimbal_board_->gimbal_pitch_motor_.last_raw_angle());
+        text(
+            "    top_yaw_motor_zero_point: {}",
+            gimbal_board_->gimbal_top_yaw_motor_.last_raw_angle());
+        text(
+            "    roll_motor_zero_point: {}",
+            gimbal_board_->gimbal_roll_motor_.last_raw_angle());
+
+        text("\nGimbalBoard Status:");
+        for (const auto& line : gimbal_board_->status()) {
+            text("> {}", line);
+        }
+
+        response->message = feedback_message.str();
+    }
 
     struct CommandTransmitter : public rmcs_executor::Component {
         std::function<void()> fn;
@@ -186,6 +237,8 @@ private:
 
     std::unique_ptr<GimbalBoard> gimbal_board_;
     std::unique_ptr<device::RemoteControl> remote_control_;
+
+    std::shared_ptr<rclcpp::Service<std_srvs::srv::Trigger>> status_service_;
 };
 
 } // namespace rmcs_core::hardware
