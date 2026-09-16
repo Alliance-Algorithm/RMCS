@@ -19,21 +19,34 @@ foldable_sentry:
 value_broadcaster:
   ros__parameters:
     forward_list:
-      /gimbal/top_yaw/angle
+      - /gimbal/roll/angle
+      - /gimbal/roll/velocity
+      - /gimbal/roll/torque
+      - /gimbal/top_yaw/angle
+      - /gimbal/top_yaw/velocity
+      - /gimbal/top_yaw/torque
+      - /gimbal/pitch/angle
+      - /gimbal/pitch/velocity
+      - /gimbal/pitch/torque
+      - /gimbal/roll/control_torque
+      - /gimbal/pitch/control_torque
+      - /gimbal/top_yaw/control_torque
+      - /gimbal/yaw/angle
+      - /gimbal/yaw/velocity
 
 gimbal_controller:
   ros__parameters:
     # 折叠/展开姿态角，按实车标定。
-    # 注意：当前硬件未接 IMU，OdomGimbalImu 恒为单位变换，控制器读到的
-    # IMU pitch 恒为 0；pitch_folded_angle 必须保持 0，否则 pitch 会因
-    # 恒定角度误差持续输出扭矩失控。
+    # bench_mode=true：pitch/top_yaw 用电机编码器角反馈(云台上暂时没陀螺仪)
+    bench_mode: true
+
     roll_folded_angle: 0.0
     roll_unfold_angle: 0.0
     top_yaw_folded_angle: 0.0
     pitch_folded_angle: 0.0
 
-    upper_limit: -0.65
-    lower_limit: 0.36
+    pitch_upper_limit: -0.65
+    pitch_lower_limit: 0.36
 
     fold_ready_time: 0.2
     fold_velocity_tolerance: 0.05
@@ -92,4 +105,19 @@ gimbal_controller:
     roll_velocity_integral_min: -2400.0
     roll_velocity_integral_max: 2400.0
 
+    # PID 输出限幅：角环输出为速度参考(rad/s)，速度环输出为关节力矩(N*m)。
+    top_yaw_angle_output_min: -10.0
+    top_yaw_angle_output_max: 10.0
+    top_yaw_velocity_output_min: -2.0
+    top_yaw_velocity_output_max: 2.0
+
+    pitch_angle_output_min: -10.0
+    pitch_angle_output_max: 10.0
+    pitch_velocity_output_min: -4.5
+    pitch_velocity_output_max: 4.5
+
+    roll_angle_output_min: -10.0
+    roll_angle_output_max: 10.0
+    roll_velocity_output_min: -7.0
+    roll_velocity_output_max: 7.0
 

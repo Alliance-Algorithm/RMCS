@@ -86,6 +86,7 @@ public:
         fold_velocity_tolerance_ =
             std::max(get_parameter_or("fold_velocity_tolerance", 0.05), 1e-6);
         fold_angle_tolerance_ = std::max(get_parameter_or("fold_angle_tolerance", 0.05), 1e-6);
+        bench_mode_ = get_parameter_or("bench_mode", false);
     }
 
     auto before_updating() -> void override {
@@ -165,8 +166,8 @@ private:
     static constexpr double kJoystickSensitivity = 0.006;
     static constexpr double kMouseSensitivity = 0.5;
 
-    const double upper_limit_{get_parameter("upper_limit").as_double()};
-    const double lower_limit_{get_parameter("lower_limit").as_double()};
+    const double upper_limit_{get_parameter("pitch_upper_limit").as_double()};
+    const double lower_limit_{get_parameter("pitch_lower_limit").as_double()};
     const double roll_folded_angle_{get_parameter("roll_folded_angle").as_double()};
     const double roll_unfold_angle_{get_parameter("roll_unfold_angle").as_double()};
     const double top_yaw_folded_angle_{get_parameter("top_yaw_folded_angle").as_double()};
@@ -323,6 +324,8 @@ private:
     double fold_velocity_tolerance_ = 0.05;
     double fold_angle_tolerance_ = 0.05;
 
+    bool bench_mode_ = false;
+
     std::chrono::steady_clock::time_point last_update_timestamp_{};
 
     static constexpr auto limit_rad(double angle) -> double {
@@ -388,6 +391,9 @@ private:
     }
 
     auto current_barrel_yaw_pitch() const -> std::pair<double, double> {
+        if (bench_mode_)
+            return {*input_.bottom_yaw_angle, limit_rad(*input_.pitch_angle)};
+
         auto direction = fast_tf::cast<OdomGimbalImu>(
             PitchLink::DirectionVector{Eigen::Vector3d::UnitX()}, *input_.tf);
         Eigen::Vector3d vector = *direction;
@@ -400,6 +406,9 @@ private:
     }
 
     auto current_bottom_world_yaw() const -> double {
+        if (bench_mode_)
+            return *input_.bottom_yaw_angle;
+
         auto direction = fast_tf::cast<OdomGimbalImu>(
             BottomYawLink::DirectionVector{Eigen::Vector3d::UnitX()}, *input_.tf);
         Eigen::Vector3d vector = *direction;
@@ -427,7 +436,7 @@ private:
     }
 
     auto update_normal_gimbal_control() -> void {
-        if (input_.enable_autoaim()) {
+        if (!bench_mode_ && input_.enable_autoaim()) {
             const auto error = solver_.update(
                 FoldableDualYawSolver::AutoAim{
                     *input_.tf,
