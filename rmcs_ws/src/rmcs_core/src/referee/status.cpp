@@ -1,3 +1,4 @@
+#include <array>
 #include <cstdint>
 #include <cstring>
 #include <eigen3/Eigen/Eigen>
@@ -103,6 +104,9 @@ public:
         register_output("/referee/map_command/event/source", map_command_event_source_, 0);
         register_output("/referee/map_command/event/timestamp", map_command_event_timestamp_, 0.0);
         register_output("/referee/map_command/event/sequence", map_command_event_sequence_, 0);
+        register_output(
+            "/referee/multi_robot_communication/lidar_msg_broadcast", lidar_msg_broadcast_,
+            LidarMsgBroadcast{});
 
         robot_status_watchdog_.reset(5'000);
     }
@@ -182,6 +186,8 @@ private:
             update_sentry_info();
         else if (command_id == 0x0303)
             update_map_command();
+        else if (command_id == 0x0301)
+            update_robot_interaction_data();
     }
 
     void update_game_status() {
@@ -326,6 +332,28 @@ private:
         *map_command_event_timestamp_ = *map_command_received_timestamp_;
         *map_command_event_sequence_ += 1;
     }
+
+    void update_robot_interaction_data() {
+        if (frame_.header.data_length < sizeof(RobotInteractionData)) {
+            RCLCPP_WARN(
+                logger_, "Robot interaction data length invalid: %u",
+                static_cast<unsigned>(frame_.header.data_length));
+            return;
+        }
+
+        RobotInteractionData data;
+        std::memcpy(&data, frame_.body.data, sizeof(data));
+
+        if (data.sender_id != 9 && data.sender_id != 109)
+            return;
+        if (data.data_cmd_id < 0x0200 || data.data_cmd_id > 0x02ff)
+            return;
+
+        LidarMsgBroadcast lidar_msg{};
+        std::memcpy(lidar_msg.data(), data.user_data, lidar_msg.size());
+        *lidar_msg_broadcast_ = lidar_msg;
+    }
+
     // When referee system loses connection unexpectedly,
     // use these indicators make sure the robot safe.
     // Muzzle: Cooling priority with level 1
@@ -403,6 +431,9 @@ private:
     OutputInterface<uint64_t> map_command_event_sequence_;
     MapCommand last_map_command_{};
     bool has_last_map_command_ = false;
+
+    using LidarMsgBroadcast = std::array<std::uint8_t, 118>;
+    OutputInterface<LidarMsgBroadcast> lidar_msg_broadcast_;
 };
 
 } // namespace rmcs_core::referee
