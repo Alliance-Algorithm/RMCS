@@ -125,6 +125,16 @@ public:
 
     bool enabled() const { return control_enabled_; }
 
+    double gimbal_world_pitch() const {
+        auto dir =
+            fast_tf::cast<OdomImu>(PitchLink::DirectionVector{Eigen::Vector3d::UnitX()}, *tf_);
+        return std::asin(std::clamp(dir->z(), -1.0, 1.0));
+    }
+
+    YawLink::DirectionVector odom_to_yaw_link(const OdomImu::DirectionVector& vector) const {
+        return fast_tf::cast<YawLink>(vector, *tf_);
+    }
+
 private:
     void update_yaw_axis() {
         auto yaw_axis =
