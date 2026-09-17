@@ -38,8 +38,13 @@ hardware_motor_test:
     multi_turn_angle: true
 
     # ---- DR16 遥控控制 ----
+    # 拨杆开关左右双上 -> 定速模式：M3508 以 fixed_velocity 恒速旋转（本地 PID 速度环）。
+    fixed_velocity: 10.0
+    velocity_kp: 0.3
+    velocity_ki: 0.2
+    velocity_kd: 0.0
+    velocity_torque_limit: 4.5
     position_scale: 3.0
     velocity_scale: 5.0
     torque_scale: 4.5
-    velocity_torque_limit: 4.5
     log_rate: 1.0

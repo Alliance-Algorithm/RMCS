@@ -97,6 +97,11 @@ public:
         return torque_command(0.0);
     }
 
+    /// 是否支持定速闭环：目前仅 DJI M3508 用本地 PID 速度环实现。
+    virtual bool supports_fixed_velocity() const { return false; }
+    /// 清除速度环等内部状态，模式切换或失能时调用。
+    virtual void reset_control_state() {}
+
     virtual double angle() const = 0;
     virtual double velocity() const = 0;
     virtual double torque() const = 0;
@@ -229,8 +234,12 @@ public:
     DjiBackend(
         rmcs_executor::Component& status_component, rmcs_executor::Component& command_component,
         const std::string& prefix, device::DjiMotor::Type motor_type, int motor_id,
-        int encoder_zero_point, bool reversed, bool multi_turn_angle)
-        : motor_(status_component, command_component, prefix) {
+        int encoder_zero_point, bool reversed, bool multi_turn_angle, double velocity_kp,
+        double velocity_ki, double velocity_kd)
+        : motor_(status_component, command_component, prefix)
+        , velocity_kp_(velocity_kp)
+        , velocity_ki_(velocity_ki)
+        , velocity_kd_(velocity_kd) {
         status_component.register_output(prefix + "/control_torque", control_torque_output_, 0.0);
 
         auto config = device::DjiMotor::Config{motor_type, static_cast<std::uint8_t>(motor_id)}
@@ -243,6 +252,7 @@ public:
         tx_can_id_ = device::DjiMotor::send_id(motor_type, static_cast<std::uint8_t>(motor_id));
         rx_can_id_ = device::DjiMotor::recv_id(motor_type, static_cast<std::uint8_t>(motor_id));
         family_name_ = motor_type == device::DjiMotor::Type::kGM6020 ? "GM6020" : "M3508";
+        supports_fixed_velocity_ = motor_type == device::DjiMotor::Type::kM3508;
     }
 
     const char* family_name() const override { return family_name_; }
@@ -265,6 +275,44 @@ public:
         return packet;
     }
 
+    // DJI 电机只接受扭矩(电流)指令，这里用输出轴速度反馈做 PID 速度环，
+    // 以扭矩为被控量把电机拉到给定目标速度。
+    device::CanPacket8 velocity_command(double velocity, double torque_limit) override {
+        const auto now = std::chrono::steady_clock::now();
+        double dt = std::chrono::duration<double>(now - last_control_time_).count();
+        last_control_time_ = now;
+        if (!(dt > 1.0 / 2000.0 && dt < 0.1))
+            dt = 1.0 / 1000.0;
+
+        const double measured = motor_.velocity();
+        const double error = velocity - measured;
+
+        const double limit = std::clamp(std::abs(torque_limit), 0.0, motor_.max_torque());
+        const double integral_limit = velocity_ki_ > 1e-9 ? limit / velocity_ki_ : 0.0;
+
+        integral_ += error * dt;
+        integral_ = std::clamp(integral_, -integral_limit, integral_limit);
+
+        // 微分项作用在反馈上，避免目标突变时的微分冲击。
+        const double derivative = last_control_valid_ ? -(measured - last_measured_) / dt : 0.0;
+        last_measured_ = measured;
+        last_control_valid_ = true;
+
+        double torque = velocity_kp_ * error + velocity_ki_ * integral_
+                        + velocity_kd_ * derivative;
+        torque = std::clamp(torque, -limit, limit);
+        return torque_command(torque);
+    }
+
+    bool supports_fixed_velocity() const override { return supports_fixed_velocity_; }
+
+    void reset_control_state() override {
+        integral_ = 0.0;
+        last_measured_ = 0.0;
+        last_control_valid_ = false;
+        last_control_time_ = std::chrono::steady_clock::now();
+    }
+
     double angle() const override { return motor_.angle(); }
     double velocity() const override { return motor_.velocity(); }
     double torque() const override { return motor_.torque(); }
@@ -282,6 +330,16 @@ private:
     const char* family_name_ = "M3508";
     std::uint32_t tx_can_id_ = 0;
     std::uint32_t rx_can_id_ = 0;
+
+    bool supports_fixed_velocity_ = false;
+    double velocity_kp_ = 0.0;
+    double velocity_ki_ = 0.0;
+    double velocity_kd_ = 0.0;
+
+    double integral_ = 0.0;
+    double last_measured_ = 0.0;
+    bool last_control_valid_ = false;
+    std::chrono::steady_clock::time_point last_control_time_ = std::chrono::steady_clock::now();
 };
 
 } // namespace
@@ -292,7 +350,9 @@ private:
 ///   can_ports: ["0:DM8009", "1:LK4010i10", "2:GM6020", "3:M3508"]
 /// 四个口同一份指令广播发送，电机 ID 统一由 motor_id 指定（默认 1）。
 ///
-/// LK 支持位置/速度/扭矩三种遥控模式；DM8009 / DJI 6020 / DJI 3508 恒走扭矩测试。
+/// LK 支持位置/速度/扭矩三种遥控模式；DM8009 / DJI 6020 / DJI 3508 走扭矩测试。
+/// 左右拨杆开关双上时进入定速模式：DJI M3508 用本地 PID 速度环以 fixed_velocity
+/// (默认 10 rad/s) 恒速旋转，其余不支持定速的通道保持零扭矩。
 class HardwareMotorTest
     : public rmcs_executor::Component
     , public rclcpp::Node
@@ -320,6 +380,10 @@ public:
         get_parameter_or("velocity_scale", velocity_scale_, 5.0);
         get_parameter_or("torque_scale", torque_scale_, 4.5);
         get_parameter_or("velocity_torque_limit", velocity_torque_limit_, 4.5);
+        get_parameter_or("fixed_velocity", fixed_velocity_, 10.0);
+        get_parameter_or("velocity_kp", velocity_kp_, 0.3);
+        get_parameter_or("velocity_ki", velocity_ki_, 0.2);
+        get_parameter_or("velocity_kd", velocity_kd_, 0.0);
         get_parameter_or("log_rate", log_rate_, 1.0);
 
         if (log_rate_ <= 0.0)
@@ -446,6 +510,7 @@ private:
         kMit,
         kVelocity,
         kPositionVelocity,
+        kFixedVelocity,
     };
 
     static constexpr std::uint8_t kCommandNone = 0xFF;
@@ -456,6 +521,7 @@ private:
         switch (mode) {
         case ControlMode::kPositionVelocity: return "POS_VEL";
         case ControlMode::kVelocity: return "VEL";
+        case ControlMode::kFixedVelocity: return "FIXED_VEL";
         case ControlMode::kMit: return "MIT";
         case ControlMode::kDisabled: return "DISABLED";
         }
@@ -486,6 +552,8 @@ private:
         if (mode_ == mode)
             return;
         mode_ = mode;
+        for (auto& ch : channels_)
+            ch.backend->reset_control_state();
         RCLCPP_INFO(logger_, "[hardware motor test] mode -> %s", mode_name(mode_));
     }
 
@@ -507,11 +575,13 @@ private:
         case MotorFamily::kGm6020:
             return std::make_unique<DjiBackend>(
                 *this, *command_, prefix, device::DjiMotor::Type::kGM6020, motor_id,
-                encoder_zero_point, reversed_, multi_turn_angle_);
+                encoder_zero_point, reversed_, multi_turn_angle_, velocity_kp_, velocity_ki_,
+                velocity_kd_);
         case MotorFamily::kM3508:
             return std::make_unique<DjiBackend>(
                 *this, *command_, prefix, device::DjiMotor::Type::kM3508, motor_id,
-                encoder_zero_point, reversed_, multi_turn_angle_);
+                encoder_zero_point, reversed_, multi_turn_angle_, velocity_kp_, velocity_ki_,
+                velocity_kd_);
         }
         return nullptr;
     }
@@ -561,7 +631,10 @@ private:
         cmd_t_ff_ = last_right_.y() * torque_scale_;
 
         // 开关组合只决定扩展型(LK)通道的模式；非扩展型通道在 build_mode_command_ 里恒走扭矩。
-        if (left == rmcs_msgs::Switch::MIDDLE && right == rmcs_msgs::Switch::MIDDLE) {
+        if (left == rmcs_msgs::Switch::UP && right == rmcs_msgs::Switch::UP) {
+            // 双上：3508 走本地 PID 速度环，定速旋转 fixed_velocity。
+            set_mode(ControlMode::kFixedVelocity);
+        } else if (left == rmcs_msgs::Switch::MIDDLE && right == rmcs_msgs::Switch::MIDDLE) {
             set_mode(ControlMode::kPositionVelocity);
         } else if (left == rmcs_msgs::Switch::UP && right == rmcs_msgs::Switch::MIDDLE) {
             set_mode(ControlMode::kVelocity);
@@ -574,6 +647,21 @@ private:
     }
 
     device::CanPacket8 build_mode_command_(MotorBackend& backend) {
+        if (mode_ == ControlMode::kFixedVelocity) {
+            cmd_angle_ = 0.0;
+            cmd_velocity_limit_ = 0.0;
+            cmd_t_ff_ = 0.0;
+            if (!backend.supports_fixed_velocity()) {
+                // 该通道不支持定速闭环，保持零扭矩，避免误动作。
+                cmd_v_des_ = 0.0;
+                cmd_torque_limit_ = 0.0;
+                return backend.torque_command(0.0);
+            }
+            cmd_v_des_ = fixed_velocity_;
+            cmd_torque_limit_ = velocity_torque_limit_;
+            return backend.velocity_command(cmd_v_des_, cmd_torque_limit_);
+        }
+
         if (!backend.supports_extended_modes()) {
             cmd_angle_ = 0.0;
             cmd_v_des_ = 0.0;
@@ -715,7 +803,9 @@ private:
                 << " multi_turn=" << (multi_turn_angle_ ? "true" : "false") << " angle_bias="
                 << angle_bias_ << " position_scale=" << position_scale_ << " velocity_scale="
                 << velocity_scale_ << " torque_scale=" << torque_scale_
-                << " velocity_torque_limit=" << velocity_torque_limit_;
+                << " velocity_torque_limit=" << velocity_torque_limit_
+                << " fixed_velocity=" << fixed_velocity_ << " velocity_kp=" << velocity_kp_
+                << " velocity_ki=" << velocity_ki_ << " velocity_kd=" << velocity_kd_;
         response->success = true;
         response->message = message.str();
     }
@@ -761,6 +851,10 @@ private:
     double velocity_scale_ = 5.0;
     double torque_scale_ = 4.5;
     double velocity_torque_limit_ = 4.5;
+    double fixed_velocity_ = 15.0;
+    double velocity_kp_ = 0.3;
+    double velocity_ki_ = 0.0;
+    double velocity_kd_ = 0.0;
     double log_rate_ = 1.0;
 
     Clock::time_point next_log_time_{Clock::now()};
