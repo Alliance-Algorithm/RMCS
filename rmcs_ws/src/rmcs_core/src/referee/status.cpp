@@ -350,7 +350,7 @@ private:
             return;
 
         LidarMsgBroadcast lidar_msg{};
-        std::memcpy(lidar_msg.data(), data.user_data, lidar_msg.size());
+        std::memcpy(lidar_msg.data(), data.user_data, sizeof(data.user_data));
         *lidar_msg_broadcast_ = lidar_msg;
     }
 

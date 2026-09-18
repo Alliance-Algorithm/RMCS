@@ -47,12 +47,18 @@ public:
         gimbal_pitch_motor_.configure(
             device::LkMotor::Config{device::LkMotor::Type::kMG4010Ei10}.set_encoder_zero_point(
                 static_cast<int>(get_parameter("pitch_motor_zero_point").as_int())));
+        gimbal_top_friction_.configure(
+            device::DjiMotor::Config{device::DjiMotor::Type::kM2006, 2}
+                .set_reduction_ratio(1.0));
         gimbal_left_friction_.configure(
-            device::DjiMotor::Config{device::DjiMotor::Type::kM3508, 3}
+            device::DjiMotor::Config{device::DjiMotor::Type::kM2006, 3}
+                .set_reduction_ratio(1.0));
+
+        gimbal_right_friction_.configure(
+            device::DjiMotor::Config{device::DjiMotor::Type::kM2006, 4}
                 .set_reversed()
                 .set_reduction_ratio(1.0));
-        gimbal_right_friction_.configure(
-            device::DjiMotor::Config{device::DjiMotor::Type::kM3508, 4}.set_reduction_ratio(1.0));
+
         gimbal_bullet_feeder_.configure(
             device::DjiMotor::Config{device::DjiMotor::Type::kM2006, 1}.enable_multi_turn_angle());
 
@@ -102,20 +108,20 @@ public:
         board_ = std::make_unique<librmcs::board::RmcsBoardLite>(
             *this, get_parameter("board_serial").as_string());
 
-        vt13_board_ =
-            std::make_unique<Vt13Board>(*this, get_parameter("vt13_board_serial").as_string());
+        // vt13_board_ =
+        //     std::make_unique<Vt13Board>(*this, get_parameter("vt13_board_serial").as_string());
     }
 
     void update() override {
         update_motors();
         update_imu();
         dr16_.update_status();
-        vt13_board_->update();
+        // vt13_board_->update();
         remote_control_->update();
     }
 
     void command_update() {
-        vt13_board_->command_update();
+        // vt13_board_->command_update();
 
         auto builder = board_->start_transmit();
         builder
@@ -126,7 +132,7 @@ public:
                     .can_data =
                         device::CanPacket8{
                             device::CanPacket8::PaddingQuarter{},
-                            device::CanPacket8::PaddingQuarter{},
+                            gimbal_top_friction_.generate_command(),
                             gimbal_left_friction_.generate_command(),
                             gimbal_right_friction_.generate_command(),
                         }
@@ -157,6 +163,7 @@ public:
 private:
     void update_motors() {
         gimbal_bullet_feeder_.update_status();
+        gimbal_top_friction_.update_status();
         gimbal_left_friction_.update_status();
         gimbal_right_friction_.update_status();
 
@@ -202,7 +209,9 @@ protected:
             return;
 
         if (can == Spec::kCans.kCan0) {
-            if (data.can_id == 0x203) {
+            if(data.can_id == 0x202) {
+                gimbal_top_friction_.store_status(data.can_data);
+            } else if (data.can_id == 0x203) {
                 gimbal_left_friction_.store_status(data.can_data);
             } else if (data.can_id == 0x204) {
                 gimbal_right_friction_.store_status(data.can_data);
@@ -251,37 +260,37 @@ protected:
         imu_snapshot_output_.emit(*snapshot);
     }
 
-private:
-    struct Vt13Board final : librmcs::board::RmcsBoardLite::Callback {
-        explicit Vt13Board(Flight& flight, std::string_view board_serial)
-            : ladar_transmit_(
-                  *flight.command_component_, std::chrono::milliseconds{200},
-                  [this](const std::byte* buffer, size_t size) {
-                      board_->start_transmit().uart_transmit(
-                          Spec::kUarts.kUart0,
-                          {.uart_data = std::span<const std::byte>{buffer, size}});
-                  },
-                  flight.get_logger()) {
-            board_ = std::make_unique<librmcs::board::RmcsBoardLite>(*this, board_serial);
-            board_->start_transmit().uart_config(Spec::kUarts.kUart0, {.baudrate = 921600});
+// private:
+//     struct Vt13Board final : librmcs::board::RmcsBoardLite::Callback {
+//         explicit Vt13Board(Flight& flight, std::string_view board_serial)
+//             : ladar_transmit_(
+//                   *flight.command_component_, std::chrono::milliseconds{200},
+//                   [this](const std::byte* buffer, size_t size) {
+//                       board_->start_transmit().uart_transmit(
+//                           Spec::kUarts.kUart0,
+//                           {.uart_data = std::span<const std::byte>{buffer, size}});
+//                   },
+//                   flight.get_logger()) {
+//             board_ = std::make_unique<librmcs::board::RmcsBoardLite>(*this, board_serial);
+//             board_->start_transmit().uart_config(Spec::kUarts.kUart0, {.baudrate = 921600});
 
-            flight.remote_control_->register_vt13(&vt13_);
-        }
+//             flight.remote_control_->register_vt13(&vt13_);
+//         }
 
-        void update() { vt13_.update_status(); }
+//         void update() { vt13_.update_status(); }
 
-        void command_update() { ladar_transmit_.command_update(); }
+//         void command_update() { ladar_transmit_.command_update(); }
 
-        void uart_receive_callback(const Spec::Uart& uart, const View::Uart& data) override {
-            if (uart == Spec::kUarts.kUart0) {
-                vt13_.store_status(data.uart_data);
-            }
-        }
+//         void uart_receive_callback(const Spec::Uart& uart, const View::Uart& data) override {
+//             if (uart == Spec::kUarts.kUart0) {
+//                 vt13_.store_status(data.uart_data);
+//             }
+//         }
 
-        device::Vt13 vt13_;
-        vtm::LadarPackageTransmit ladar_transmit_;
-        std::unique_ptr<librmcs::board::RmcsBoardLite> board_;
-    };
+//         device::Vt13 vt13_;
+//         vtm::LadarPackageTransmit ladar_transmit_;
+//         std::unique_ptr<librmcs::board::RmcsBoardLite> board_;
+//     };
 
     class FlightCommand : public rmcs_executor::Component {
     public:
@@ -299,10 +308,11 @@ private:
     std::shared_ptr<rclcpp::Service<std_srvs::srv::Trigger>> status_service_;
 
     std::unique_ptr<librmcs::board::RmcsBoardLite> board_;
-    std::unique_ptr<Vt13Board> vt13_board_;
+    // std::unique_ptr<Vt13Board> vt13_board_;
 
     device::LkMotor gimbal_yaw_motor_{*this, *command_component_, "/gimbal/yaw"};
     device::LkMotor gimbal_pitch_motor_{*this, *command_component_, "/gimbal/pitch"};
+    device::DjiMotor gimbal_top_friction_{*this, *command_component_, "/gimbal/top_friction"};
     device::DjiMotor gimbal_left_friction_{*this, *command_component_, "/gimbal/left_friction"};
     device::DjiMotor gimbal_right_friction_{*this, *command_component_, "/gimbal/right_friction"};
     device::DjiMotor gimbal_bullet_feeder_{*this, *command_component_, "/gimbal/bullet_feeder"};
