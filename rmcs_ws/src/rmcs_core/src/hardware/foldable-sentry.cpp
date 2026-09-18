@@ -91,6 +91,10 @@ private:
             sentry.register_output("/gimbal/bottom_yaw/velocity", gimbal_bottom_yaw_velocity_, 0.0);
             sentry.register_output("/chassis/yaw/velocity_imu", chassis_yaw_velocity_imu_, 0.0);
 
+            // 扫频测试用 top_yaw 力矩覆盖通道，未接/NaN 时回退到云台控制器输出。
+            sentry_command.register_input(
+                "/gimbal/top_yaw/control_torque_test", gimbal_top_yaw_test_torque_, false);
+
             board_ = std::make_unique<librmcs::board::RmcsBoardLite>(*this, board_serial);
 
             sentry.remote_control_->register_dr16(&dr16_);
@@ -118,6 +122,11 @@ private:
         void command_update() const {
             using namespace device;
 
+            const auto top_yaw_command =
+                gimbal_top_yaw_test_torque_.ready() && std::isfinite(*gimbal_top_yaw_test_torque_)
+                    ? gimbal_top_yaw_motor_.generate_command(*gimbal_top_yaw_test_torque_)
+                    : gimbal_top_yaw_motor_.generate_command();
+
             board_->start_transmit()
                 .can_transmit(
                     Spec::kCans.kCan0,
@@ -136,7 +145,7 @@ private:
                                            .can_id = 0x1FE,
                                            .can_data =
                                                CanPacket8{
-                                                   gimbal_top_yaw_motor_.generate_command(),
+                                                   top_yaw_command,
                                                    CanPacket8::PaddingQuarter{},
                                                    CanPacket8::PaddingQuarter{},
                                                    CanPacket8::PaddingQuarter{},
@@ -187,6 +196,8 @@ private:
         OutputInterface<double> gimbal_bottom_yaw_angle_;
         OutputInterface<double> gimbal_bottom_yaw_velocity_;
         OutputInterface<double> chassis_yaw_velocity_imu_;
+
+        InputInterface<double> gimbal_top_yaw_test_torque_;
 
         StatusMonitor monitor_{};
         std::unique_ptr<librmcs::board::RmcsBoardLite> board_;

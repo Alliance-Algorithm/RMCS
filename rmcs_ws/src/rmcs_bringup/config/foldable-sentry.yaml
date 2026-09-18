@@ -6,6 +6,8 @@ rmcs_executor:
 
       - rmcs_core::controller::gimbal::FoldableGimbalController -> gimbal_controller
 
+      - rmcs_core::controller::identification::TopYawSweepController -> top_yaw_sweep_controller
+
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 
 foldable_sentry:
@@ -31,6 +33,7 @@ value_broadcaster:
       - /gimbal/roll/control_torque
       - /gimbal/pitch/control_torque
       - /gimbal/top_yaw/control_torque
+      - /gimbal/top_yaw/control_torque_test
       - /gimbal/yaw/angle
       - /gimbal/yaw/velocity
 
@@ -106,8 +109,8 @@ gimbal_controller:
     roll_velocity_integral_max: 2400.0
 
     # PID 输出限幅：角环输出为速度参考(rad/s)，速度环输出为关节力矩(N*m)。
-    top_yaw_velocity_output_min: -0.5
-    top_yaw_velocity_output_max: 0.5
+    top_yaw_velocity_output_min: -1.0
+    top_yaw_velocity_output_max: 1.0
 
     pitch_angle_output_min: -10.0
     pitch_angle_output_max: 10.0
@@ -119,3 +122,36 @@ gimbal_controller:
     roll_velocity_output_min: -5.0
     roll_velocity_output_max: 5.0
 
+# top_yaw 位置正弦扫频：展开状态下由右拨杆 MIDDLE->UP 触发（保持 UP 运行），
+# 扫频期间通过 /gimbal/top_yaw/control_torque_test 覆盖云台控制器的 top_yaw 力矩，
+# 同时记录 roll 角度闭环响应用于耦合分析。
+# 注意：右拨杆 UP 在非 bench 模式下用于自瞄，非台架测试时请将 enable 置为 false。
+top_yaw_sweep_controller:
+  ros__parameters:
+    enable: true
+
+    angle_min: 0.55
+    angle_max: 0.79
+
+    start_freq: 0.1
+    end_freq: 10.0
+    duration: 60.0
+    logarithmic: true
+
+    settle_time: 2.0
+    angle_tolerance: 0.02
+    approach_timeout: 10.0
+    abort_margin: 0.03
+    abort_velocity: 0.0
+
+    angle_kp: 40.0
+    angle_ki: 0.0
+    angle_kd: 0.0
+    angle_output_min: -2.0
+    angle_output_max: 2.0
+
+    velocity_kp: 0.23
+    velocity_ki: 0.0
+    velocity_kd: 0.0
+    velocity_output_min: -1.0
+    velocity_output_max: 1.0

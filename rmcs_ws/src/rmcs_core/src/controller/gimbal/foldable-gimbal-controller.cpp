@@ -112,9 +112,6 @@ public:
         *output_.yaw_angle = *input_.bottom_yaw_angle;
         *output_.yaw_velocity = compute_actual_yaw_velocity(actual_yaw_pitch.first);
 
-        RCLCPP_INFO_THROTTLE(
-            get_logger(), *get_clock(), 200, " yaw %f err %f",*input_.top_yaw_angle,limit_rad(top_yaw_folded_angle_ - *input_.top_yaw_angle)
-           );
         if (!input_.enable_control()) {
             enter_disabled_state();
             last_rotary_knob_switch_ = *input_.rotary_knob_switch;
@@ -486,7 +483,8 @@ private:
         const auto [_, current_pitch] = current_barrel_yaw_pitch();
         apply_control(
             limit_rad(stored_bottom_yaw_target_ - current_bottom_world_yaw()),
-            limit_rad(stored_bottom_yaw_target_-*input_.top_yaw_angle), limit_rad(stored_pitch_target_ - current_pitch));
+            limit_rad(stored_bottom_yaw_target_-*input_.top_yaw_angle), 
+            limit_rad(stored_pitch_target_ - current_pitch));
     }
 
     auto update_fold_pose_control(const std::pair<double, double>& actual_yaw_pitch) -> void {
