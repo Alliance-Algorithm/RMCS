@@ -81,10 +81,10 @@ gimbal_controller:
     pitch_velocity_ki: 0.00
     pitch_velocity_kd: 0.0
 
-    roll_angle_kp: 30.0
+    roll_angle_kp: 50.0
     roll_angle_ki: 0.0001
     roll_angle_kd: 0.0
-    roll_velocity_kp: 3.5
+    roll_velocity_kp: 6.0
     roll_velocity_ki: 0.00
     roll_velocity_kd: 0.0
 
@@ -130,8 +130,10 @@ top_yaw_sweep_controller:
   ros__parameters:
     enable: true
 
-    angle_min: 0.55
-    angle_max: 0.79
+    log_directory: /workspaces/RMCS
+
+    angle_min: -0.64
+    angle_max: 0.90
 
     start_freq: 0.1
     end_freq: 10.0
@@ -147,11 +149,11 @@ top_yaw_sweep_controller:
     angle_kp: 40.0
     angle_ki: 0.0
     angle_kd: 0.0
-    angle_output_min: -2.0
-    angle_output_max: 2.0
+    angle_output_min: -4.0
+    angle_output_max: 4.0
 
     velocity_kp: 0.23
     velocity_ki: 0.0
     velocity_kd: 0.0
-    velocity_output_min: -1.0
-    velocity_output_max: 1.0
+    velocity_output_min: -2.0
+    velocity_output_max: 2.0

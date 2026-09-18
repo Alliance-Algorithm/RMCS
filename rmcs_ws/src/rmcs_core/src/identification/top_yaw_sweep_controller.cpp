@@ -110,7 +110,9 @@ public:
         , angle_tolerance_(parameter_or_declare(*this, "angle_tolerance", 0.02))
         , approach_timeout_s_(parameter_or_declare(*this, "approach_timeout", 10.0))
         , abort_margin_(parameter_or_declare(*this, "abort_margin", 0.03))
-        , abort_velocity_(parameter_or_declare(*this, "abort_velocity", 0.0)) {
+        , abort_velocity_(parameter_or_declare(*this, "abort_velocity", 0.0))
+        , log_directory_(
+              parameter_or_declare(*this, "log_directory", std::string{"/workspaces/RMCS"})) {
         validate_parameters();
         center_ = 0.5 * (angle_min_ + angle_max_);
         amplitude_ = 0.5 * (angle_max_ - angle_min_);
@@ -426,7 +428,7 @@ private:
     std::filesystem::path build_csv_path() const {
         const auto file_name =
             std::string{"top_yaw_sweep_"} + std::to_string(*update_count_) + ".csv";
-        return std::filesystem::path{"/tmp"} / file_name;
+        return std::filesystem::path{log_directory_} / file_name;
     }
 
     const bool enable_;
@@ -441,6 +443,7 @@ private:
     const double approach_timeout_s_;
     const double abort_margin_;
     const double abort_velocity_;
+    const std::string log_directory_;
 
     double center_ = 0.0;
     double amplitude_ = 0.0;

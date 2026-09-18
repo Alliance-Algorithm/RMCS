@@ -91,6 +91,7 @@ class Run:
         self.roll_control_torque = np.asarray(data["roll_control_torque"], dtype=float)
 
         self.roll_error = wrap_to_pi(roll_ref - self.roll_angle)
+        self.angle = self.ref + wrap_to_pi(self.angle - self.ref)
 
         if self.t.size >= 3:
             dt = np.median(np.diff(self.t))
@@ -287,13 +288,6 @@ def plot_roll_error_spectrum(
         color="tab:red",
         label="roll error amplitude",
     )
-    axis.axhline(
-        reference_deg,
-        color="0.6",
-        linestyle="--",
-        linewidth=1.0,
-        label="top_yaw reference amplitude",
-    )
     axis.set_xlabel("frequency [Hz]")
     axis.set_ylabel("roll error amplitude [deg]")
     axis.grid(True, which="both", alpha=0.3)
@@ -316,6 +310,13 @@ def plot_roll_error_spectrum(
         color="tab:blue",
         alpha=0.6,
         label="top_yaw angle amplitude",
+    )
+    secondary.axhline(
+        reference_deg,
+        color="0.6",
+        linestyle="--",
+        linewidth=1.0,
+        label="top_yaw reference amplitude",
     )
     secondary.set_ylabel("top_yaw angle amplitude [deg]")
 
