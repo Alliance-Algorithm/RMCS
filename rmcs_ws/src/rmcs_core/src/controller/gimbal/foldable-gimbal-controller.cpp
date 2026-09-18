@@ -70,6 +70,43 @@ private:
     std::chrono::steady_clock::time_point prev_timestamp_{};
 };
 
+// top 关节实测角速度差分+低通，得到角加速度用于 roll 轴惯性耦合力矩前馈。
+struct TopYawAccelerationEstimator {
+    double cutoff_hz = 30.0;
+    double max_acceleration = 300.0;
+    double jump_threshold = 50.0;
+
+    auto update(double velocity, std::chrono::steady_clock::time_point now) -> double {
+        if (std::isfinite(prev_velocity_)) {
+            const auto dt = std::chrono::duration<double>(now - prev_timestamp_).count();
+            const auto delta = velocity - prev_velocity_;
+            if (std::abs(delta) > jump_threshold) {
+                filtered_acceleration_ = 0.0;
+            } else if (dt > kMinDt) {
+                const auto raw = delta / dt;
+                const auto alpha = dt / (dt + 1.0 / (2.0 * std::numbers::pi * cutoff_hz));
+                filtered_acceleration_ += alpha * (raw - filtered_acceleration_);
+            }
+        }
+        prev_velocity_ = velocity;
+        prev_timestamp_ = now;
+        return std::clamp(filtered_acceleration_, -max_acceleration, max_acceleration);
+    }
+
+    void reset() {
+        prev_velocity_ = kNaN;
+        filtered_acceleration_ = 0.0;
+    }
+
+private:
+    static constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
+    static constexpr double kMinDt = 1e-6;
+
+    double prev_velocity_ = kNaN;
+    double filtered_acceleration_ = 0.0;
+    std::chrono::steady_clock::time_point prev_timestamp_{};
+};
+
 class FoldableGimbalController
     : public rmcs_executor::Component
     , public rclcpp::Node {
@@ -82,6 +119,16 @@ public:
         get_parameter_or("top_yaw_ff_cutoff_hz", top_yaw_ff_.cutoff_hz, 15.0);
         get_parameter_or("top_yaw_ff_max", top_yaw_ff_.max_rate, 6.0);
         get_parameter_or("top_yaw_ff_jump_threshold", top_yaw_ff_.jump_threshold, 0.05);
+        get_parameter_or("roll_reaction_ff_gain", roll_reaction_ff_gain_, 0.0);
+        get_parameter_or("roll_accel_ff_gain", roll_accel_ff_gain_, 0.0);
+        get_parameter_or(
+            "roll_accel_ff_cutoff_hz", top_yaw_accel_ff_.cutoff_hz, top_yaw_accel_ff_.cutoff_hz);
+        get_parameter_or(
+            "roll_accel_ff_max", top_yaw_accel_ff_.max_acceleration,
+            top_yaw_accel_ff_.max_acceleration);
+        get_parameter_or(
+            "roll_accel_ff_jump_threshold", top_yaw_accel_ff_.jump_threshold,
+            top_yaw_accel_ff_.jump_threshold);
         fold_ready_time_ = std::max(get_parameter_or("fold_ready_time", 0.2), 1e-3);
         fold_velocity_tolerance_ =
             std::max(get_parameter_or("fold_velocity_tolerance", 0.05), 1e-6);
@@ -179,6 +226,10 @@ private:
 
     YawRateFeedforward top_yaw_ff_;
 
+    TopYawAccelerationEstimator top_yaw_accel_ff_;
+    double roll_reaction_ff_gain_ = 0.0;
+    double roll_accel_ff_gain_ = 0.0;
+
     struct Input {
         explicit Input(rmcs_executor::Component& component) {
             component.register_input("/remote/joystick/left", joystick_left);
@@ -194,6 +245,7 @@ private:
 
             component.register_input("/gimbal/top_yaw/angle", top_yaw_angle);
             component.register_input("/gimbal/top_yaw/velocity", top_yaw_velocity);
+            component.register_input("/gimbal/top_yaw/torque", top_yaw_torque);
             component.register_input("/gimbal/bottom_yaw/angle", bottom_yaw_angle);
             component.register_input("/gimbal/bottom_yaw/velocity", bottom_yaw_velocity);
             component.register_input("/gimbal/pitch/angle", pitch_angle);
@@ -252,6 +304,7 @@ private:
 
         InputInterface<double> top_yaw_angle;
         InputInterface<double> top_yaw_velocity;
+        InputInterface<double> top_yaw_torque;
         InputInterface<double> bottom_yaw_angle;
         InputInterface<double> bottom_yaw_velocity;
         InputInterface<double> pitch_angle;
@@ -362,6 +415,7 @@ private:
         pitch_velocity_pid_.reset();
         roll_angle_pid_.reset();
         roll_velocity_pid_.reset();
+        top_yaw_accel_ff_.reset();
 
         *output_.top_yaw_control_torque = kNaN;
         *output_.bottom_yaw_control_torque = kNaN;
@@ -562,18 +616,50 @@ private:
         fold_state_ = FoldState::UnFold;
     }
 
+    auto compute_roll_feedforward() -> double {
+        if (roll_reaction_ff_gain_ == 0.0 && roll_accel_ff_gain_ == 0.0) {
+            top_yaw_accel_ff_.reset();
+            return 0.0;
+        }
+
+        auto top_yaw_torque = 0.0;
+        if (input_.top_yaw_torque.ready() && std::isfinite(*input_.top_yaw_torque))
+            top_yaw_torque = *input_.top_yaw_torque;
+        else if (std::isfinite(*output_.top_yaw_control_torque))
+            top_yaw_torque = *output_.top_yaw_control_torque;
+
+        auto top_yaw_acceleration = 0.0;
+        if (input_.top_yaw_velocity.ready() && std::isfinite(*input_.top_yaw_velocity))
+            top_yaw_acceleration =
+                top_yaw_accel_ff_.update(*input_.top_yaw_velocity, *input_.timestamp);
+        else
+            top_yaw_accel_ff_.reset();
+
+        return -roll_reaction_ff_gain_ * top_yaw_torque
+             - roll_accel_ff_gain_ * top_yaw_acceleration;
+    }
+
     auto apply_roll_control(double target_angle) -> void {
         if (!input_.roll_angle.ready() || !input_.roll_velocity.ready()
             || !std::isfinite(*input_.roll_angle) || !std::isfinite(*input_.roll_velocity)) {
             roll_angle_pid_.reset();
             roll_velocity_pid_.reset();
+            top_yaw_accel_ff_.reset();
             *output_.roll_control_torque = kNaN;
             return;
         }
         const auto roll_error = limit_rad(target_angle - *input_.roll_angle);
         const auto velocity_reference = roll_angle_pid_.update(roll_error);
-        const auto torque = roll_velocity_pid_.update(velocity_reference - *input_.roll_velocity);
-        *output_.roll_control_torque = std::isfinite(torque) ? torque : kNaN;
+        auto torque = roll_velocity_pid_.update(velocity_reference - *input_.roll_velocity);
+        if (std::isfinite(torque)) {
+            torque = std::clamp(
+                torque + compute_roll_feedforward(), roll_velocity_pid_.output_min,
+                roll_velocity_pid_.output_max);
+            *output_.roll_control_torque = torque;
+        } else {
+            top_yaw_accel_ff_.reset();
+            *output_.roll_control_torque = kNaN;
+        }
     }
 
     auto publish_fold_state() -> void {

@@ -51,9 +51,9 @@ gimbal_controller:
     pitch_upper_limit: -0.495
     pitch_lower_limit: 0.770
 
-    fold_ready_time: 0.2
-    fold_velocity_tolerance: 0.1
-    fold_angle_tolerance: 0.1
+    fold_ready_time: 0.1
+    fold_velocity_tolerance: 0.2
+    fold_angle_tolerance: 0.2
 
     top_yaw_velocity_ff_gain: 0.0
     top_yaw_ff_cutoff_hz: 0.0
@@ -63,7 +63,7 @@ gimbal_controller:
     top_yaw_angle_kp: 40.0
     top_yaw_angle_ki: 0.0
     top_yaw_angle_kd: 0.000
-    top_yaw_velocity_kp: 0.23
+    top_yaw_velocity_kp: 0.25
     top_yaw_velocity_ki: 0.0
     top_yaw_velocity_kd: 0.0
 
@@ -74,7 +74,7 @@ gimbal_controller:
     bottom_yaw_velocity_ki: 0.00125
     bottom_yaw_velocity_kd: 0.0
 
-    pitch_angle_kp: 25.0
+    pitch_angle_kp: 35.0
     pitch_angle_ki: 0.0001
     pitch_angle_kd: 0.0
     pitch_velocity_kp: 3.5
@@ -87,6 +87,14 @@ gimbal_controller:
     roll_velocity_kp: 6.0
     roll_velocity_ki: 0.00
     roll_velocity_kd: 0.0
+
+    # roll 轴前馈解耦：tau_ff = -k_t * tau_top_yaw(实测) - k_a * alpha_top_yaw(差分+低通)
+    # k_t 从 0.5 起标定(理论约 1.0~1.4)，k_a 约 0.003~0.006 kg*m^2；符号不对时取负。
+    roll_reaction_ff_gain: 0.6
+    roll_accel_ff_gain: 0.004
+    roll_accel_ff_cutoff_hz: 30.0
+    roll_accel_ff_max: 150.0
+    roll_accel_ff_jump_threshold: 35.0
 
     top_yaw_angle_integral_min: -187.0
     top_yaw_angle_integral_max: 187.0
