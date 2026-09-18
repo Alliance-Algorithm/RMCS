@@ -84,7 +84,7 @@ public:
             ekf_state_time_ = accel_sample_time;
 
             const auto correction = ekf_.prepare_correction(pending_accel_sample_->accel_g);
-            if (!correction || correction->chi_square() >= 3.0)
+            if (!correction || correction->chi_square() >= 16.0)
                 break;
             if (!ekf_.correct(*correction))
                 break;

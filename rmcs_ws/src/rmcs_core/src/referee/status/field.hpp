@@ -158,4 +158,11 @@ struct __attribute__((packed)) SentryInfo {
 };
 static_assert(sizeof(SentryInfo) == 14);
 
+struct __attribute__((packed)) RobotInteractionData {
+    uint16_t data_cmd_id;
+    uint16_t sender_id;
+    uint16_t receiver_id;
+    uint8_t user_data[112];
+};
+
 } // namespace rmcs_core::referee::status
