@@ -122,13 +122,11 @@ public:
         get_parameter_or("roll_reaction_ff_gain", roll_reaction_ff_gain_, 0.0);
         get_parameter_or("roll_accel_ff_gain", roll_accel_ff_gain_, 0.0);
         get_parameter_or(
-            "roll_accel_ff_cutoff_hz", top_yaw_accel_ff_.cutoff_hz, top_yaw_accel_ff_.cutoff_hz);
+            "roll_accel_ff_cutoff_hz", top_yaw_accel_ff_.cutoff_hz, 30.0);
         get_parameter_or(
-            "roll_accel_ff_max", top_yaw_accel_ff_.max_acceleration,
-            top_yaw_accel_ff_.max_acceleration);
+            "roll_accel_ff_max", top_yaw_accel_ff_.max_acceleration, 300.0);
         get_parameter_or(
-            "roll_accel_ff_jump_threshold", top_yaw_accel_ff_.jump_threshold,
-            top_yaw_accel_ff_.jump_threshold);
+            "roll_accel_ff_jump_threshold", top_yaw_accel_ff_.jump_threshold, 50.0);
         fold_ready_time_ = std::max(get_parameter_or("fold_ready_time", 0.2), 1e-3);
         fold_velocity_tolerance_ =
             std::max(get_parameter_or("fold_velocity_tolerance", 0.05), 1e-6);

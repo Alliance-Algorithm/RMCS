@@ -68,7 +68,11 @@ private:
             , dr16_{}
             , gimbal_roll_motor_(sentry, sentry_command, "/gimbal/roll")
             , gimbal_top_yaw_motor_(sentry, sentry_command, "/gimbal/top_yaw")
-            , gimbal_pitch_motor_(sentry, sentry_command, "/gimbal/pitch") {
+            , gimbal_pitch_motor_(sentry, sentry_command, "/gimbal/pitch")
+            , gimbal_bullet_feeder_(sentry, sentry_command, "/gimbal/bullet_feeder")
+            , gimbal_top_friction_(sentry, sentry_command, "/gimbal/top_friction")
+            , gimbal_left_friction_(sentry, sentry_command, "/gimbal/left_friction")
+            , gimbal_right_friction_(sentry, sentry_command, "/gimbal/right_friction") {
 
             using namespace device;
 
@@ -84,6 +88,18 @@ private:
             sentry.get_parameter("pitch_motor_zero_point", zero_point);
             gimbal_pitch_motor_.configure(
                 LkMotor::Config{LkMotor::Type::kMG4010Ei10}.set_encoder_zero_point(zero_point));
+
+            gimbal_bullet_feeder_.configure(
+                DjiMotor::Config{DjiMotor::Type::kM2006, 1}
+                    .set_reversed()
+                    .set_reduction_ratio(36.0));
+            
+            gimbal_top_friction_.configure(
+                DjiMotor::Config{DjiMotor::Type::kM2006, 2}.set_reduction_ratio(1.));
+            gimbal_left_friction_.configure(
+                DjiMotor::Config{DjiMotor::Type::kM2006, 3}.set_reduction_ratio(1.));
+            gimbal_right_friction_.configure(
+                DjiMotor::Config{DjiMotor::Type::kM2006, 4}.set_reduction_ratio(1.).set_reversed());
 
             // 折叠云台测试没有 bottom yaw 电机和底盘 IMU，
             // 注册常量 0 输出供 foldable-gimbal-controller 配对使用。
@@ -106,6 +122,11 @@ private:
             using namespace rmcs_description::tunnel_sentry;
 
             dr16_.update_status();
+
+            gimbal_bullet_feeder_.update_status();
+            gimbal_top_friction_.update_status();
+            gimbal_left_friction_.update_status();
+            gimbal_right_friction_.update_status();
 
             gimbal_roll_motor_.update_status();
             tf_->set_state<BottomYawLink, RollLink>(gimbal_roll_motor_.angle());
@@ -142,16 +163,29 @@ private:
                     })
                 .can_transmit(
                     Spec::kCans.kCan1, {
-                                           .can_id = 0x1FE,
-                                           .can_data =
-                                               CanPacket8{
-                                                   top_yaw_command,
-                                                   CanPacket8::PaddingQuarter{},
-                                                   CanPacket8::PaddingQuarter{},
-                                                   CanPacket8::PaddingQuarter{},
-                                               }
-                                                   .as_bytes(),
-                                       });
+                        .can_id = 0x1FE,
+                        .can_data =
+                            CanPacket8{
+                                top_yaw_command,
+                                CanPacket8::PaddingQuarter{},
+                                CanPacket8::PaddingQuarter{},
+                                CanPacket8::PaddingQuarter{},
+                            }
+                                .as_bytes(),
+                    })
+                .can_transmit(
+                    Spec::kCans.kCan2,
+                    {
+                        .can_id = gimbal_right_friction_.send_id(),
+                        .can_data =
+                            device::CanPacket8{
+                                gimbal_right_friction_.generate_command(),
+                                gimbal_left_friction_.generate_command(),
+                                gimbal_top_friction_.generate_command(),
+                                gimbal_bullet_feeder_.generate_command(),
+                            }
+                                .as_bytes(),
+                    });
         }
 
         void can_receive_callback(const Spec::Can& can, const View::Can& data) override {
@@ -176,7 +210,21 @@ private:
                 }
 
                 monitor_.tick("Gimbal::Can1", can_id);
+            } else if (can == Spec::kCans.kCan2) {
+                if(data.can_id == 0x202) {
+                    gimbal_top_friction_.store_status(data.can_data);
+                } else if (data.can_id == 0x203) {
+                    gimbal_left_friction_.store_status(data.can_data);
+                } else if (data.can_id == 0x204) {
+                    gimbal_right_friction_.store_status(data.can_data);
+                } else if (data.can_id == 0x201) {
+                    gimbal_bullet_feeder_.store_status(data.can_data);
+                }
+
+                monitor_.tick("Gimbal::Can2", can_id);
             }
+
+            
         }
 
         void uart_receive_callback(const Spec::Uart& uart, const View::Uart& data) override {
@@ -196,6 +244,12 @@ private:
         OutputInterface<double> gimbal_bottom_yaw_angle_;
         OutputInterface<double> gimbal_bottom_yaw_velocity_;
         OutputInterface<double> chassis_yaw_velocity_imu_;
+
+        device::DjiMotor gimbal_bullet_feeder_;
+
+        device::DjiMotor gimbal_top_friction_;
+        device::DjiMotor gimbal_left_friction_;
+        device::DjiMotor gimbal_right_friction_;
 
         InputInterface<double> gimbal_top_yaw_test_torque_;
 

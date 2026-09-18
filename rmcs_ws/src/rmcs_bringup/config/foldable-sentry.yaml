@@ -6,7 +6,15 @@ rmcs_executor:
 
       - rmcs_core::controller::gimbal::FoldableGimbalController -> gimbal_controller
 
-      - rmcs_core::controller::identification::TopYawSweepController -> top_yaw_sweep_controller
+      - rmcs_core::controller::shooting::ThreeFrictionWheelController -> friction_wheel_controller
+      - rmcs_core::controller::shooting::BulletFeederController17mm -> bullet_feeder_controller
+      - rmcs_core::controller::shooting::HeatController -> heat_controller
+      - rmcs_core::controller::pid::PidController -> top_friction_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> left_friction_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> right_friction_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller
+
+      # - rmcs_core::controller::identification::TopYawSweepController -> top_yaw_sweep_controller
 
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 
@@ -165,3 +173,64 @@ top_yaw_sweep_controller:
     velocity_kd: 0.0
     velocity_output_min: -2.0
     velocity_output_max: 2.0
+
+heat_controller:
+  ros__parameters:
+    heat_per_shot: 10000
+    reserved_heat: 15000
+
+friction_wheel_controller:
+  ros__parameters:
+    friction_wheels:
+      - /gimbal/top_friction
+      - /gimbal/left_friction
+      - /gimbal/right_friction
+    friction_velocities: [950.0, 950.0, 950.0]
+    friction_soft_start_stop_time: 1.0
+
+bullet_feeder_controller:
+  ros__parameters:
+    bullets_per_feeder_turn: 8.0
+    shot_frequency: 20.0
+    safe_shot_frequency: 10.0
+    eject_frequency: 10.0
+    eject_time: 0.05
+    deep_eject_frequency: 5.0
+    deep_eject_time: 0.2
+    single_shot_max_stop_delay: 2.0
+
+top_friction_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/top_friction/velocity
+    setpoint: /gimbal/top_friction/control_velocity
+    control: /gimbal/top_friction/control_torque
+    kp: 0.003436926
+    ki: 0.0
+    kd: 0.009373434
+
+left_friction_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/left_friction/velocity
+    setpoint: /gimbal/left_friction/control_velocity
+    control: /gimbal/left_friction/control_torque
+    kp: 0.003436926
+    ki: 0.0
+    kd: 0.009373434
+
+right_friction_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/right_friction/velocity
+    setpoint: /gimbal/right_friction/control_velocity
+    control: /gimbal/right_friction/control_torque
+    kp: 0.003436926
+    ki: 0.0
+    kd: 0.009373434
+
+bullet_feeder_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/bullet_feeder/velocity
+    setpoint: /gimbal/bullet_feeder/control_velocity
+    control: /gimbal/bullet_feeder/control_torque
+    kp: 0.583
+    ki: 0.0
+    kd: 0.0
