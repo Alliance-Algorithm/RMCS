@@ -59,6 +59,7 @@ public:
         register_output("/chassis/pitch_lock_active", pitch_lock_active_, false);
         register_output("/chassis/active_suspension/active", active_suspension_active_, false);
         register_output("/chassis/deformable/low_prone_active", low_prone_active_, false);
+        register_output("/chassis/deformable/rl_q_cmd", rl_q_cmd_, rl_q_cmd_high_rad_);
         register_output(
             "/chassis/deformable/symmetric_posture_target", symmetric_posture_target_, true);
         register_output("/chassis/deformable/correction_inverted", correction_inverted_, false);
@@ -77,12 +78,16 @@ public:
                 joint_posture_target_angle_rad_[i], deg_to_rad(joint_mode_mgr_.max_angle()));
         }
 
+        rl_q_cmd_high_rad_ = get_parameter_or("rl_q_cmd_high_rad", 0.0);
+        rl_q_cmd_low_rad_ = get_parameter_or("rl_q_cmd_low_rad", 1.0563);
+
         *mode_ = rmcs_msgs::ChassisMode::AUTO;
         *pitch_lock_active_ = false;
         *active_suspension_active_ = false;
         *low_prone_active_ = false;
         *symmetric_posture_target_ = true;
         *correction_inverted_ = false;
+        *rl_q_cmd_ = rl_q_cmd_high_rad_;
         chassis_control_velocity_->vector << nan_, nan_, nan_;
     }
 
@@ -122,6 +127,7 @@ public:
             *pitch_lock_active_ = joint_mode_mgr_.pitch_lock_active();
             *active_suspension_active_ = joint_mode_mgr_.suspension_active();
             *low_prone_active_ = joint_mode_mgr_.low_prone_active();
+            *rl_q_cmd_ = *low_prone_active_ ? rl_q_cmd_low_rad_ : rl_q_cmd_high_rad_;
             *symmetric_posture_target_ = joint_mode_mgr_.symmetric_posture_target();
             *correction_inverted_ = joint_mode_mgr_.correction_inverted();
             *min_angle_deg_ = joint_mode_mgr_.min_angle();
@@ -152,6 +158,7 @@ private:
         *pitch_lock_active_ = false;
         *active_suspension_active_ = false;
         *low_prone_active_ = false;
+        *rl_q_cmd_ = rl_q_cmd_high_rad_;
         *symmetric_posture_target_ = true;
         *correction_inverted_ = false;
         *min_angle_deg_ = joint_mode_mgr_.min_angle();
@@ -373,6 +380,10 @@ private:
     OutputInterface<bool> pitch_lock_active_;
     OutputInterface<bool> active_suspension_active_;
     OutputInterface<bool> low_prone_active_;
+    OutputInterface<double> rl_q_cmd_;
+
+    double rl_q_cmd_high_rad_ = 0.0;
+    double rl_q_cmd_low_rad_ = 1.0563;
     OutputInterface<bool> symmetric_posture_target_;
     OutputInterface<bool> correction_inverted_;
     OutputInterface<double> min_angle_deg_;
