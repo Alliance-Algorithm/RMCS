@@ -40,6 +40,11 @@ public:
 
         register_output(get_parameter("control").as_string(), control_);
 
+        if (has_parameter("feedforward")) {
+            register_input(get_parameter("feedforward").as_string(), feedforward_);
+            use_feedforward_ = true;
+        }
+
         kt_ = get_parameter_or("kt", 1.0);
         b0_ = get_parameter_or("b0", 1.0);
 
@@ -97,9 +102,29 @@ public:
         const auto nlesf_out = nlesf_.compute(e1, e2, eso_out.z3, b0_);
         const double scaled_u = kt_ * nlesf_out.u;
 
-        const double final_u = std::clamp(scaled_u, output_min_, output_max_);
+        // Feedforward is added before the clamp and included in last_u_, so the
+        // ESO sees the TOTAL applied input (feedback + feedforward) and only
+        // estimates the residual disturbance instead of cancelling the FF.
+        double feedforward = 0.0;
+        if (use_feedforward_) {
+            if (!feedforward_.ready() || !std::isfinite(*feedforward_)) {
+                disable_output();
+                return;
+            }
+            feedforward = *feedforward_;
+        }
+
+        const double final_u = std::clamp(feedforward + scaled_u, output_min_, output_max_);
         *control_ = final_u;
         last_u_ = final_u;
+
+        static int dbg_counter = 0;
+        if (get_parameter_or("debug", false) && (dbg_counter++ % 500 == 0))
+            RCLCPP_INFO(
+                get_logger(), "adrc meas=%.5f ref=%.5f e1=%.5f e2=%.5f z1=%.5f z2=%.5f z3=%.3f "
+                              "u0=%.4f u=%.4f ff=%.3f",
+                measurement, reference, e1, e2, eso_out.z1, eso_out.z2, eso_out.z3, nlesf_out.u0,
+                nlesf_out.u, feedforward);
     }
 
 private:
@@ -176,6 +201,7 @@ private:
     InputInterface<double> setpoint_;
 
     InputInterface<double> limit_;
+    InputInterface<double> feedforward_;
 
     OutputInterface<double> control_;
 
@@ -185,6 +211,7 @@ private:
 
     bool use_error_input_mode_ = false;
     bool use_dynamic_limit_ = false;
+    bool use_feedforward_ = false;
 
     double b0_ = 1.0;
     double kt_ = 1.0;

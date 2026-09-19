@@ -1,0 +1,118 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+    - rmcs_core::hardware::WheelLegSimulation -> wheelleg_sim
+    - rmcs_core::controller::wheelleg::WheelLegTrajectoryController -> wheelleg_trajectory_controller
+    - rmcs_core::controller::pid::PidController -> wheelleg_station_controller
+    - rmcs_core::controller::adrc::AdrcController -> wheelleg_balance_controller
+wheelleg_sim:
+  ros__parameters:
+    dt: 0.001
+    initial_height: 0.392
+    fix_base: true
+    fix_base_planar: true
+    fix_base_hold_z: false
+    hip_kp: 250.0
+    hip_kd: 6.0
+    knee_kp: 0.0
+    knee_kd: 0.0
+    crank_kp: 150.0
+    crank_kd: 2.0
+    wheel_kp: 20.0
+    gravity_feedforward: true
+    sync_kp: 0.0
+    direct_hip_kd: 0.0
+    direct_crank_kd: 0.0
+    sync_kd: 0.0
+    joint_damping: 0.1
+    hip_armature: 0.005
+    constraint_timeconst: 0.002
+    constraint_dampratio: 1.0
+    hip_torque_limit: 40.0
+    crank_torque_limit: 40.0
+    wheel_motor_torque_limit: 3.0
+    wheel_gear_ratio: 15.764705882352942
+    thigh_length: 0.21
+    shank_length: 0.25005
+    hip_sign: -1.0
+    hip_zero: 3.14159265358979
+    knee_zero_l: 0.784469
+    knee_zero_r: 0.784469
+    wheel_dir: 1.0
+    state_pitch_sign: 1.0
+    state_shank_sign: 1.0
+    state_knee_sign: -1.0
+    state_wheel_sign: 1.0
+    command_velocity: 0.0
+    viewer: true
+    viewer_state_rate: 100.0
+    state_topic: /wheelleg/simulation/state
+    lock_leg: false
+    gravity_ff_analytic: false
+    disturbance_force: 40.0
+    disturbance_start: 3.0
+    disturbance_duration: 0.2
+    command_acceleration: 0.0
+    command_leg_length: .nan
+    open_loop_wheel_torque: .nan
+    open_loop_wheel_same_sign: true
+wheelleg_trajectory_controller:
+  ros__parameters:
+    dt: 0.001
+    thigh_length: 0.21
+    shank_length: 0.25005
+    wheel_radius: 0.06
+    nominal_leg_length: 0.334
+    body_mass: 11.62
+    thigh_mass: 0.426
+    shank_mass: 0.507
+    thigh_com_offset: 0.06623
+    shank_com_offset: 0.15344
+    body_com_offset: 0.00918
+    knee_branch_sign: -1.0
+    d_max: 100.0
+    total_mass: 0.0
+    gravity: 9.81
+    velocity_pitch_kp: 0.0
+    velocity_pitch_limit: 0.15
+    transition_time_velocity: 1.5
+    accel_to_pitch: 0.0
+    accel_pitch_limit: 0.15
+    leg_motion_coupling: 0.0
+wheelleg_balance_controller:
+  ros__parameters:
+    measurement: /wheelleg/state/pitch
+    setpoint: /wheelleg/reference/pitch
+    control: /wheelleg/control/wheel_torque
+    dt: 0.001
+    b0: 20.0
+    kt: 1.0
+    td_h: 0.001
+    td_r: 50.0
+    eso_w0: 300.0
+    eso_auto_beta: true
+    k1: 400.0
+    k2: 100.0
+    alpha1: 0.75
+    alpha2: 0.7
+    delta: 0.02
+    u_min: -16.13
+    u_max: 16.13
+    output_min: -16.13
+    output_max: 16.13
+    feedforward: /wheelleg/control/wheel_torque_ff
+wheelleg_station_controller:
+  ros__parameters:
+    measurement: /wheelleg/state/com_x
+    setpoint: /wheelleg/reference/com_x
+    control: /wheelleg/control/wheel_torque_ff
+    kp: 45.0
+    ki: 0.008
+    kd: 25000.0
+    integral_min: -2.0
+    integral_max: 2.0
+    integral_split_min: -100.0
+    integral_split_max: 100.0
+    output_min: -16.13
+    output_max: 16.13

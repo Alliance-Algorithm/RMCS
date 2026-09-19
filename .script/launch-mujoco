@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+: "${MUJOCO_VENV:=${HOME}/.venvs/mujoco}"
+
+if [[ ! -x "${MUJOCO_VENV}/bin/python" ]]; then
+    echo "> ERROR: MuJoCo virtual environment not found: ${MUJOCO_VENV}"
+    echo "> Run 'install-mujoco' first."
+    exit 1
+fi
+
+if [[ -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
+    echo "> ERROR: No graphical display detected. The viewer needs DISPLAY or WAYLAND_DISPLAY."
+    echo "> For headless rendering use: MUJOCO_GL=egl ${MUJOCO_VENV}/bin/python your_script.py"
+    exit 1
+fi
+
+viewer_args=()
+if (($# > 0)) && [[ "$1" != -* ]]; then
+    if [[ ! -f "$1" ]]; then
+        echo "> ERROR: Model file not found: $1"
+        exit 1
+    fi
+    viewer_args+=(--mjcf="$1")
+    shift
+fi
+
+exec "${MUJOCO_VENV}/bin/python" -m mujoco.viewer "${viewer_args[@]}" "$@"

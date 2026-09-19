@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+: "${RMCS_PATH:=/workspaces/RMCS}"
+: "${MUJOCO_VENV:=${HOME}/.venvs/mujoco}"
+: "${RMCS_MUJOCO_STATE_TOPIC:=/wheelleg/simulation/state}"
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+if [[ ! -x "${MUJOCO_VENV}/bin/python" ]]; then
+    echo "> ERROR: MuJoCo virtual environment not found: ${MUJOCO_VENV}"
+    echo "> Run 'install-mujoco' first."
+    exit 1
+fi
+
+if [[ -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
+    echo "> ERROR: No graphical display detected. The viewer needs DISPLAY or WAYLAND_DISPLAY."
+    exit 1
+fi
+
+# rclpy comes from the system ROS install; mujoco/glfw from the MuJoCo venv. Run
+# the system interpreter and expose the venv packages through PYTHONPATH.
+# ROS's setup script is not nounset-clean, so relax `set -u` while sourcing it.
+set +u
+source /opt/ros/jazzy/setup.bash
+set -u
+
+pyver="$("${MUJOCO_VENV}/bin/python" -c 'import sys; print(f"python{sys.version_info.major}.{sys.version_info.minor}")')"
+export PYTHONPATH="${MUJOCO_VENV}/lib/${pyver}/site-packages:${PYTHONPATH:-}"
+
+model="${RMCS_PATH}/rmcs_ws/src/rmcs_core/models/wheelleg/wheelleg.xml"
+if (($# > 0)) && [[ "$1" != -* ]]; then
+    if [[ ! -f "$1" ]]; then
+        echo "> ERROR: Model file not found: $1"
+        exit 1
+    fi
+    model="$1"
+    shift
+fi
+
+exec python3 "${script_dir}/mujoco_viewer.py" \
+    "${model}" --topic "${RMCS_MUJOCO_STATE_TOPIC}" "$@"

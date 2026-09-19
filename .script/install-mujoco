@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+: "${MUJOCO_VENV:=${HOME}/.venvs/mujoco}"
+
+if [[ "$(id -u)" -eq 0 ]]; then
+    sudo_cmd=()
+else
+    sudo_cmd=(sudo)
+fi
+
+apt_packages=(python3-pip python3-venv)
+missing_packages=()
+
+for package in "${apt_packages[@]}"; do
+    if ! dpkg -s "${package}" &>/dev/null; then
+        missing_packages+=("${package}")
+    fi
+done
+
+if ((${#missing_packages[@]} > 0)); then
+    echo "> Installing system packages: ${missing_packages[*]}"
+    "${sudo_cmd[@]}" apt-get update
+    "${sudo_cmd[@]}" apt-get install -y "${missing_packages[@]}"
+fi
+
+if [[ ! -x "${MUJOCO_VENV}/bin/python" ]]; then
+    echo "> Creating virtual environment: ${MUJOCO_VENV}"
+    python3 -m venv "${MUJOCO_VENV}"
+fi
+
+echo "> Installing MuJoCo into: ${MUJOCO_VENV}"
+"${MUJOCO_VENV}/bin/pip" install -U pip
+"${MUJOCO_VENV}/bin/pip" install -U mujoco "$@"
+
+echo "> Verifying installation"
+"${MUJOCO_VENV}/bin/python" - <<'PY'
+import mujoco
+
+mujoco.MjModel.from_xml_string("<mujoco/>")
+print(f"> mujoco {mujoco.__version__} is ready")
+PY
+
+cat <<EOF
+> Done.
+> Activate:      source ${MUJOCO_VENV}/bin/activate
+> Headless GL:   MUJOCO_GL=egl ${MUJOCO_VENV}/bin/python your_script.py
+> Viewer (GUI):  ${MUJOCO_VENV}/bin/python -m mujoco.viewer
+EOF

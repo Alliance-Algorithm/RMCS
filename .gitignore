@@ -79,3 +79,6 @@ develop_ws
 .codex/
 .mimo/
 CLAUDE.md
+
+/rmcs_ws/src/rmcs_core/models/wheelleg
+/source
