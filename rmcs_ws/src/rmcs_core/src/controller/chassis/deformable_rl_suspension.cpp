@@ -38,6 +38,7 @@ public:
             std::swap(physical_min_rad_, physical_max_rad_);
 
         hold_on_invalid_ = get_parameter_or("hold_on_invalid", true);
+        posture_fallback_ = get_parameter_or("posture_fallback", true);
 
         register_input(rl_base_ + "/valid", valid_, false);
         register_input(rl_base_ + "/healthy", healthy_, false);
@@ -49,6 +50,8 @@ public:
         register_input(
             "/chassis/rl/calibration/low_physical_angle_rad", low_physical_angle_, false);
         register_input("/chassis/rl/calibration/q_max_rad", q_max_rad_, false);
+        register_input("/chassis/deformable/min_angle_deg", min_angle_deg_, false);
+        register_input("/chassis/deformable/max_angle_deg", max_angle_deg_, false);
 
         for (std::size_t leg = 0; leg < kLegCount; ++leg)
             register_input(
@@ -56,6 +59,8 @@ public:
 
         for (std::size_t corner = 0; corner < kCornerCount; ++corner) {
             register_input(joint_path_(corner, angle_suffix_), physical_angle_[corner], false);
+            register_input(
+                posture_path_(corner), posture_target_angle_[corner], false);
             register_output(
                 joint_path_(corner, "/target_physical_angle"), target_angle_[corner], nan_);
         }
@@ -78,25 +83,34 @@ public:
             low_physical_angle_.make_and_bind_directly(kDefaultLowPhysicalAngleRad);
         if (!q_max_rad_.ready())
             q_max_rad_.make_and_bind_directly(kDefaultQMaxRad);
+        if (!min_angle_deg_.ready())
+            min_angle_deg_.make_and_bind_directly(kDefaultMinAngleDeg);
+        if (!max_angle_deg_.ready())
+            max_angle_deg_.make_and_bind_directly(kDefaultMaxAngleDeg);
 
         for (std::size_t leg = 0; leg < kLegCount; ++leg)
             if (!action_[leg].ready())
                 action_[leg].make_and_bind_directly(nan_);
-        for (std::size_t corner = 0; corner < kCornerCount; ++corner)
+        for (std::size_t corner = 0; corner < kCornerCount; ++corner) {
             if (!physical_angle_[corner].ready())
                 physical_angle_[corner].make_and_bind_directly(nan_);
+            if (!posture_target_angle_[corner].ready())
+                posture_target_angle_[corner].make_and_bind_directly(nan_);
+        }
 
         last_reset_count_ = *reset_count_;
-        reset_state_();
     }
 
     void update() override {
-        if (*reset_count_ != last_reset_count_) {
+        // A reset only invalidates RL-side bookkeeping; it must never blank the leg targets.
+        // `/chassis/deformable/reset_count` churns every cycle while the remote is UNKNOWN, so
+        // returning here would leave /chassis/*/target_physical_angle at NaN forever and the
+        // joint controllers would disable their torque output.
+        if (*reset_count_ != last_reset_count_)
             last_reset_count_ = *reset_count_;
-            reset_state_();
-        }
 
-        const bool authoritative = *active_suspension_ && *valid_ > 0.5 && *healthy_ > 0.5;
+        const bool suspension_active = *active_suspension_;
+        const bool authoritative = suspension_active && *valid_ > 0.5 && *healthy_ > 0.5;
 
         const double q_cmd = *q_cmd_;
         const double high_physical = *high_physical_angle_;
@@ -106,11 +120,30 @@ public:
         const bool calibration_ok = std::isfinite(high_physical) && std::isfinite(low_physical)
             && std::isfinite(q_max) && q_max > 0.0 && span > 1e-9;
 
+        const double min_angle_deg = *min_angle_deg_;
+        const double max_angle_deg = *max_angle_deg_;
+        const bool posture_limits_ok = std::isfinite(min_angle_deg) && std::isfinite(max_angle_deg)
+            && max_angle_deg > min_angle_deg;
+        const double posture_min_rad =
+            (min_angle_deg - kMinAngleMarginDeg) * std::numbers::pi / 180.0;
+        const double posture_max_rad = max_angle_deg * std::numbers::pi / 180.0;
+
         for (std::size_t leg = 0; leg < kLegCount; ++leg) {
             const auto corner = kCornerForLeg[leg];
             double& target = *target_angle_[corner];
             const double physical = *physical_angle_[corner];
             const double raw_action = *action_[leg];
+
+            // 未开启主动悬挂：退回老 DeformableSuspension 的非激活行为，跟随底盘姿态目标
+            // （默认起立位），RL 不参与。
+            if (!suspension_active) {
+                const double posture_target = *posture_target_angle_[corner];
+                if (posture_fallback_ && posture_limits_ok && std::isfinite(posture_target))
+                    target = std::clamp(posture_target, posture_min_rad, posture_max_rad);
+                else
+                    target = hold_on_invalid_ ? physical : nan_;
+                continue;
+            }
 
             if (!authoritative || !calibration_ok || !std::isfinite(q_cmd)
                 || !std::isfinite(physical) || !std::isfinite(raw_action)) {
@@ -154,14 +187,17 @@ private:
     static constexpr double kDefaultHighPhysicalAngleRad = 59.0 * std::numbers::pi / 180.0;
     static constexpr double kDefaultLowPhysicalAngleRad = 5.0 * std::numbers::pi / 180.0;
     static constexpr double kDefaultQMaxRad = 1.36;
+    static constexpr double kMinAngleMarginDeg = 5.0;
+    static constexpr double kDefaultMinAngleDeg = 8.0;
+    static constexpr double kDefaultMaxAngleDeg = 59.0;
 
     std::string joint_path_(std::size_t corner, const std::string& suffix) const {
         return joint_base_path_ + "/" + kJointName[corner] + joint_suffix_ + suffix;
     }
 
-    void reset_state_() {
-        for (auto& target : target_angle_)
-            *target = nan_;
+    std::string posture_path_(std::size_t corner) const {
+        return std::string{"/chassis/deformable/"} + kJointName[corner]
+             + "_joint/posture_target_angle";
     }
 
     InputInterface<double> valid_;
@@ -172,9 +208,12 @@ private:
     InputInterface<double> high_physical_angle_;
     InputInterface<double> low_physical_angle_;
     InputInterface<double> q_max_rad_;
+    InputInterface<double> min_angle_deg_;
+    InputInterface<double> max_angle_deg_;
 
     std::array<InputInterface<double>, kLegCount> action_;
     std::array<InputInterface<double>, kCornerCount> physical_angle_;
+    std::array<InputInterface<double>, kCornerCount> posture_target_angle_;
     std::array<OutputInterface<double>, kCornerCount> target_angle_;
 
     std::string rl_base_;
@@ -188,6 +227,7 @@ private:
     double physical_min_rad_ = -std::numeric_limits<double>::infinity();
     double physical_max_rad_ = std::numeric_limits<double>::infinity();
     bool hold_on_invalid_ = true;
+    bool posture_fallback_ = true;
 
     std::size_t last_reset_count_ = 0;
 };
