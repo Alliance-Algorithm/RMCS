@@ -2,7 +2,7 @@ rmcs_executor:
   ros__parameters:
     update_rate: 1000.0
     components:
-      - rmcs_core::hardware::DeformableInfantryOmniC -> deformable_infantry_C
+      - rmcs_core::hardware::DeformableInfantryOmniC -> deformable_infantry
 
       - rmcs_core::referee::Status -> referee_status
       - rmcs_core::referee::Command -> referee_command
@@ -27,6 +27,7 @@ rmcs_executor:
       # RL 主动悬挂消费侧（替代 DeformableSuspension）
       - rmcs_core::controller::chassis::DeformableRlSuspension -> deformable_rl_suspension
       - rmcs::rl::RlBridge -> rl_bridge
+      - rmcs::rl::PolicyServerLauncher -> policy_server_launcher
 
       - rmcs_core::controller::chassis::DeformableJointController -> lf_joint_controller
       - rmcs_core::controller::chassis::DeformableJointController -> lb_joint_controller
@@ -117,8 +118,8 @@ deformable_infantry:
     serial_filter_top_board: "AF-ABAC-786D-1B53-99F6-00A2-42A6-AA95-9D69"
     chassis_radius: 0.2341741
     rod_length: 0.140
-    yaw_motor_zero_point: 43365
-    pitch_motor_zero_point: 6432
+    yaw_motor_zero_point: 38910
+    pitch_motor_zero_point: 32214
 
     # RL 坐标标定（硬件层）：q_rl=0 对应最高姿态，q_rl=rl_q_max 对应最低姿态。
     # 现场用机械定位/量角器实测后填写；缺省值仅作为占位。
@@ -131,7 +132,7 @@ chassis_controller:
     min_angle: 8.0
     max_angle: 59.0
     active_suspension_enable: true
-    wireless_charging_offset_deg: 45.0
+    wireless_charging_offset_deg: 135.0
     wireless_charging_speed_limit: 0.6
     wireless_charging_angular_velocity_limit: 10.0
     rl_q_cmd_high_rad: 0.0          # RL 高档基准（= Q_HIGH），low_prone 未激活时下发
@@ -150,7 +151,8 @@ deformable_rl_suspension:
     leg_action_scale: 0.15                 # 与训练 leg_action_scale 一致
     q_target_min_rad: 0.0                  # 训练 LEG_LOWER_LIMIT
     q_target_max_rad: 1.0563               # 训练 leg_target_upper_limit = Q_LOW
-    hold_on_invalid: true                  # 非权威时锁定当前 physical_angle（防塌），false=写 NaN
+    hold_on_invalid: true                  # 主动悬挂已开但 RL 非权威时锁当前 physical_angle（防塌）
+    posture_fallback: true                 # 未开主动悬挂时跟随底盘姿态目标正常起立（复刻老 DeformableSuspension）
 
 # 桥：obs 组装 + 动作回写（两端 layout_hash 必须一致）
 rl_bridge:
@@ -209,45 +211,55 @@ policy_server:
     publish_status: false
     status_rate: 2.0
 
+# 由 executor 进程内组件随 rmcs 一起拉起 policy_server（不改 bringup/launch/服务）。
+# params_file 相对 share/rmcs_bringup/config 解析，也可写绝对路径。
+policy_server_launcher:
+  ros__parameters:
+    autostart: true
+    params_file: "deformable-infantry-omni-rl.yaml"
+    respawn: true
+    respawn_delay: 1.0
+    poll_interval: 0.5
+
 gimbal_controller:
   ros__parameters:
     upper_limit: -0.60 # -27 deg
     lower_limit: 0.10 # 8 deg
     ctrl_hold_pitch_target_angle: 0.0
 
-    yaw_angle_kp: 10.0
+    yaw_angle_kp: 0.0
     yaw_angle_ki: 0.0
     yaw_angle_kd: 0.0
 
-    yaw_velocity_kp: 13.0
-    yaw_velocity_ki: 0.02
+    yaw_velocity_kp: 0.0
+    yaw_velocity_ki: 0.0
     yaw_velocity_kd: 0.0
     yaw_velocity_integral_min: -5.0
     yaw_velocity_integral_max: 5.0
 
-    pitch_angle_kp: 35.0
-    pitch_angle_ki: 0.03
-    pitch_angle_kd: 0.2
+    pitch_angle_kp: 0.0
+    pitch_angle_ki: 0.0
+    pitch_angle_kd: 0.0
     pitch_angle_integral_min: -0.5
     pitch_angle_integral_max: 0.5
 
-    pitch_velocity_kp: 2.0
+    pitch_velocity_kp: 0.0
     pitch_velocity_ki: 0.0
     pitch_velocity_kd: 0.0
 
-    yaw_ref_velocity_gain: 1.0
-    pitch_ref_velocity_gain: 1.0
+    yaw_ref_velocity_gain: 0.0
+    pitch_ref_velocity_gain: 0.0
 
-    yaw_velocity_ff_gain: 0.20
-    yaw_acceleration_ff_gain: 0.17
-    pitch_velocity_ff_gain: 0.356
-    pitch_acceleration_ff_gain: 0.041
+    yaw_velocity_ff_gain: 0.0
+    yaw_acceleration_ff_gain: 0.0
+    pitch_velocity_ff_gain: 0.0
+    pitch_acceleration_ff_gain: 0.0
 
-    pitch_gravity_ff_gain: 2.575
-    pitch_gravity_ff_phase: 1.7814
+    pitch_gravity_ff_gain: 0.0
+    pitch_gravity_ff_phase: 0.0
 
     pitch_torque_control: true
-
+    
 friction_wheel_controller:
   ros__parameters:
     friction_wheels:
@@ -300,7 +312,7 @@ bullet_feeder_velocity_pid_controller:
     measurement: /gimbal/bullet_feeder/velocity
     setpoint: /gimbal/bullet_feeder/control_velocity
     control: /gimbal/bullet_feeder/control_torque
-    kp: 1.5
+    kp: 0.9
     ki: 0.0
     kd: 0.0
 
