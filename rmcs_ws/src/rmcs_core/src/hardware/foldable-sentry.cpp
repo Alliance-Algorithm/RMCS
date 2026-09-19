@@ -179,10 +179,10 @@ private:
                         .can_id = gimbal_right_friction_.send_id(),
                         .can_data =
                             device::CanPacket8{
-                                gimbal_right_friction_.generate_command(),
-                                gimbal_left_friction_.generate_command(),
-                                gimbal_top_friction_.generate_command(),
                                 gimbal_bullet_feeder_.generate_command(),
+                                gimbal_top_friction_.generate_command(),
+                                gimbal_left_friction_.generate_command(),
+                                gimbal_right_friction_.generate_command(),
                             }
                                 .as_bytes(),
                     });

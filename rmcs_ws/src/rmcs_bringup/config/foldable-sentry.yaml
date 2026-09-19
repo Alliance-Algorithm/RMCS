@@ -44,6 +44,12 @@ value_broadcaster:
       - /gimbal/top_yaw/control_torque_test
       - /gimbal/yaw/angle
       - /gimbal/yaw/velocity
+      - /gimbal/right_friction/velocity
+      - /gimbal/right_friction/control_velocity
+      - /gimbal/left_friction/velocity
+      - /gimbal/left_friction/control_velocity
+      - /gimbal/top_friction/velocity
+      - /gimbal/top_friction/control_velocity
 
 gimbal_controller:
   ros__parameters:
@@ -96,8 +102,7 @@ gimbal_controller:
     roll_velocity_ki: 0.00
     roll_velocity_kd: 0.0
 
-    # roll 轴前馈解耦：tau_ff = -k_t * tau_top_yaw(实测) - k_a * alpha_top_yaw(差分+低通)
-    # k_t 从 0.5 起标定(理论约 1.0~1.4)，k_a 约 0.003~0.006 kg*m^2；符号不对时取负。
+    # roll 轴前馈
     roll_reaction_ff_gain: 0.6
     roll_accel_ff_gain: 0.004
     roll_accel_ff_cutoff_hz: 30.0

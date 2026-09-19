@@ -160,7 +160,6 @@ public:
         if (!input_.enable_control()) {
             enter_disabled_state();
             last_rotary_knob_switch_ = *input_.rotary_knob_switch;
-            fold_state_ = FoldState::Folded;
             locked_bottom_yaw_target_ = current_bottom_world_yaw();
             publish_fold_state();
             return;
