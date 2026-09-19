@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include <eigen3/Eigen/Dense>
+#include <rclcpp/logging.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/mouse.hpp>
@@ -54,6 +55,13 @@ public:
         update_timeout_interlock();
 
         const auto control_source = select_control_source();
+        if (!control_source_initialized_ || control_source != last_control_source_) {
+            RCLCPP_INFO(
+                rclcpp::get_logger("remote_control"), "control source changed: %s",
+                control_source_name(control_source));
+            last_control_source_ = control_source;
+            control_source_initialized_ = true;
+        }
         const auto snapshot = build_snapshot(control_source);
 
         *joystick_right_output_ = snapshot.joystick_right;
@@ -122,6 +130,16 @@ private:
         return (dr16_ && dr16_->valid()) ? ControlSource::kDr16 : ControlSource::kInvalidSafe;
     }
 
+    static const char* control_source_name(ControlSource source) {
+        switch (source) {
+        case ControlSource::kDr16: return "DR16";
+        case ControlSource::kVt13Sport: return "VT13_SPORT";
+        case ControlSource::kCineSafe: return "VT13_CINE_SAFE";
+        case ControlSource::kInvalidSafe: return "INVALID_SAFE";
+        }
+        return "UNKNOWN";
+    }
+
     Snapshot build_snapshot(ControlSource source) const {
         Snapshot snapshot{};
         switch (source) {
@@ -172,6 +190,9 @@ private:
 
     rmcs_executor::Component::OutputInterface<rmcs_msgs::Mouse> mouse_output_;
     rmcs_executor::Component::OutputInterface<rmcs_msgs::Keyboard> keyboard_output_;
+
+    ControlSource last_control_source_ = ControlSource::kInvalidSafe;
+    bool control_source_initialized_ = false;
 };
 
 } // namespace rmcs_core::hardware::device
