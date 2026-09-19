@@ -111,6 +111,16 @@ public:
         const auto switch_left = *switch_left_;
         const auto keyboard = *keyboard_;
 
+        if (!remote_switch_state_initialized_ || switch_left != last_switch_left_
+            || switch_right != last_switch_right_) {
+            RCLCPP_INFO(
+                get_logger(), "remote mode input: left=%d right=%d", static_cast<int>(switch_left),
+                static_cast<int>(switch_right));
+            last_switch_left_ = switch_left;
+            last_switch_right_ = switch_right;
+            remote_switch_state_initialized_ = true;
+        }
+
         do {
             if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
                 || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
@@ -134,6 +144,15 @@ public:
             *max_angle_deg_ = joint_mode_mgr_.max_angle();
             *suspension_reference_angle_deg_ = joint_mode_mgr_.suspension_reference_angle_deg();
             publish_joint_posture_targets_();
+
+            if (!active_suspension_state_initialized_
+                || *active_suspension_active_ != last_active_suspension_active_) {
+                RCLCPP_INFO(
+                    get_logger(), "chassis active suspension state: %s",
+                    *active_suspension_active_ ? "active" : "inactive");
+                last_active_suspension_active_ = *active_suspension_active_;
+                active_suspension_state_initialized_ = true;
+            }
 
             update_auto_aim_override_state_();
             if (auto_aim_posture_override_)
@@ -165,6 +184,12 @@ private:
         *max_angle_deg_ = joint_mode_mgr_.max_angle();
         *suspension_reference_angle_deg_ = joint_mode_mgr_.suspension_reference_angle_deg();
         publish_joint_posture_targets_();
+
+        if (!active_suspension_state_initialized_ || last_active_suspension_active_) {
+            RCLCPP_INFO(get_logger(), "chassis active suspension state: inactive (reset)");
+            last_active_suspension_active_ = false;
+            active_suspension_state_initialized_ = true;
+        }
 
         chassis_control_velocity_->vector << nan_, nan_, nan_;
         *chassis_angle_ = nan_;
@@ -398,11 +423,16 @@ private:
     double wireless_charging_angular_velocity_limit_;
 
     DeformableChassisModeManager joint_mode_mgr_;
+
+    rmcs_msgs::Switch last_switch_left_ = rmcs_msgs::Switch::UNKNOWN;
+    rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
+    bool remote_switch_state_initialized_ = false;
+    bool last_active_suspension_active_ = false;
+    bool active_suspension_state_initialized_ = false;
 };
 
 } // namespace rmcs_core::controller::chassis
 
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(
-    rmcs_core::controller::chassis::DeformableChassis, rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::chassis::DeformableChassis, rmcs_executor::Component)
