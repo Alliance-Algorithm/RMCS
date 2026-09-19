@@ -1,4 +1,4 @@
-#include "controller/gimbal/foldabled_dual_yaw_solver.hpp"
+#include "controller/gimbal/foldable_dual_yaw_solver.hpp"
 #include "controller/pid/pid_calculator.hpp"
 
 #include <algorithm>
@@ -121,12 +121,9 @@ public:
         get_parameter_or("top_yaw_ff_jump_threshold", top_yaw_ff_.jump_threshold, 0.05);
         get_parameter_or("roll_reaction_ff_gain", roll_reaction_ff_gain_, 0.0);
         get_parameter_or("roll_accel_ff_gain", roll_accel_ff_gain_, 0.0);
-        get_parameter_or(
-            "roll_accel_ff_cutoff_hz", top_yaw_accel_ff_.cutoff_hz, 30.0);
-        get_parameter_or(
-            "roll_accel_ff_max", top_yaw_accel_ff_.max_acceleration, 300.0);
-        get_parameter_or(
-            "roll_accel_ff_jump_threshold", top_yaw_accel_ff_.jump_threshold, 50.0);
+        get_parameter_or("roll_accel_ff_cutoff_hz", top_yaw_accel_ff_.cutoff_hz, 30.0);
+        get_parameter_or("roll_accel_ff_max", top_yaw_accel_ff_.max_acceleration, 300.0);
+        get_parameter_or("roll_accel_ff_jump_threshold", top_yaw_accel_ff_.jump_threshold, 50.0);
         fold_ready_time_ = std::max(get_parameter_or("fold_ready_time", 0.2), 1e-3);
         fold_velocity_tolerance_ =
             std::max(get_parameter_or("fold_velocity_tolerance", 0.05), 1e-6);
@@ -200,8 +197,6 @@ public:
         }
 
         publish_fold_state();
-
-        
     }
 
 private:
@@ -390,13 +385,7 @@ private:
     }
 
     auto update_dt() -> double {
-        constexpr double kDefaultDt = 1e-3;
-
         const auto now = *input_.timestamp;
-        if (last_update_timestamp_ == std::chrono::steady_clock::time_point{}) {
-            last_update_timestamp_ = now;
-            return kDefaultDt;
-        }
         const auto dt = std::chrono::duration<double>(now - last_update_timestamp_).count();
         last_update_timestamp_ = now;
 
@@ -534,7 +523,7 @@ private:
         const auto [_, current_pitch] = current_barrel_yaw_pitch();
         apply_control(
             limit_rad(stored_bottom_yaw_target_ - current_bottom_world_yaw()),
-            limit_rad(stored_bottom_yaw_target_-*input_.top_yaw_angle), 
+            limit_rad(stored_bottom_yaw_target_ - *input_.top_yaw_angle),
             limit_rad(stored_pitch_target_ - current_pitch));
     }
 
@@ -546,12 +535,6 @@ private:
     }
 
     auto fold_pose_reached(const std::pair<double, double>& actual_yaw_pitch) const -> bool {
-        if (!input_.top_yaw_angle.ready() || !input_.top_yaw_velocity.ready()
-            || !input_.bottom_yaw_velocity.ready() || !input_.pitch_velocity.ready()
-            || !std::isfinite(*input_.top_yaw_angle) || !std::isfinite(*input_.top_yaw_velocity)
-            || !std::isfinite(*input_.bottom_yaw_velocity) || !std::isfinite(*input_.pitch_velocity)
-            || !std::isfinite(actual_yaw_pitch.second))
-            return false;
         const auto top_yaw_error = limit_rad(top_yaw_folded_angle_ - *input_.top_yaw_angle);
         const auto bottom_error = limit_rad(locked_bottom_yaw_target_ - current_bottom_world_yaw());
         const auto pitch_error = limit_rad(pitch_folded_angle_ - actual_yaw_pitch.second);
@@ -573,9 +556,6 @@ private:
     }
 
     auto update_folding(double dt) -> void {
-        if (!input_.roll_angle.ready() || !input_.roll_velocity.ready()
-            || !std::isfinite(*input_.roll_angle) || !std::isfinite(*input_.roll_velocity))
-            return;
         const auto roll_error = limit_rad(roll_folded_angle_ - *input_.roll_angle);
         const bool reached = std::abs(roll_error) <= fold_angle_tolerance_
                           && std::abs(*input_.roll_velocity) <= fold_velocity_tolerance_;
@@ -587,9 +567,6 @@ private:
     }
 
     auto update_unfolding(double dt) -> void {
-        if (!input_.roll_angle.ready() || !input_.roll_velocity.ready()
-            || !std::isfinite(*input_.roll_angle) || !std::isfinite(*input_.roll_velocity))
-            return;
         const auto roll_error = limit_rad(roll_unfold_angle_ - *input_.roll_angle);
         const bool reached = std::abs(roll_error) <= fold_angle_tolerance_
                           && std::abs(*input_.roll_velocity) <= fold_velocity_tolerance_;
@@ -619,14 +596,14 @@ private:
             return 0.0;
         }
 
-        auto top_yaw_torque = 0.0;
-        if (input_.top_yaw_torque.ready() && std::isfinite(*input_.top_yaw_torque))
-            top_yaw_torque = *input_.top_yaw_torque;
-        else if (std::isfinite(*output_.top_yaw_control_torque))
+        auto top_yaw_torque = *input_.top_yaw_torque;
+        if (!std::isfinite(top_yaw_torque))
             top_yaw_torque = *output_.top_yaw_control_torque;
+        if (!std::isfinite(top_yaw_torque))
+            top_yaw_torque = 0.0;
 
         auto top_yaw_acceleration = 0.0;
-        if (input_.top_yaw_velocity.ready() && std::isfinite(*input_.top_yaw_velocity))
+        if (std::isfinite(*input_.top_yaw_velocity))
             top_yaw_acceleration =
                 top_yaw_accel_ff_.update(*input_.top_yaw_velocity, *input_.timestamp);
         else
@@ -637,14 +614,6 @@ private:
     }
 
     auto apply_roll_control(double target_angle) -> void {
-        if (!input_.roll_angle.ready() || !input_.roll_velocity.ready()
-            || !std::isfinite(*input_.roll_angle) || !std::isfinite(*input_.roll_velocity)) {
-            roll_angle_pid_.reset();
-            roll_velocity_pid_.reset();
-            top_yaw_accel_ff_.reset();
-            *output_.roll_control_torque = kNaN;
-            return;
-        }
         const auto roll_error = limit_rad(target_angle - *input_.roll_angle);
         const auto velocity_reference = roll_angle_pid_.update(roll_error);
         auto torque = roll_velocity_pid_.update(velocity_reference - *input_.roll_velocity);

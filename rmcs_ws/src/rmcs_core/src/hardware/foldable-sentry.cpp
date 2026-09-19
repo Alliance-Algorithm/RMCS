@@ -211,7 +211,7 @@ private:
 
                 monitor_.tick("Gimbal::Can1", can_id);
             } else if (can == Spec::kCans.kCan2) {
-                if(data.can_id == 0x202) {
+                if(can_id == 0x202) {
                     gimbal_top_friction_.store_status(data.can_data);
                 } else if (data.can_id == 0x203) {
                     gimbal_left_friction_.store_status(data.can_data);

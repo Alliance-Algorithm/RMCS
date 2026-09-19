@@ -41,7 +41,7 @@ value_broadcaster:
       - /gimbal/roll/control_torque
       - /gimbal/pitch/control_torque
       - /gimbal/top_yaw/control_torque
-      - /gimbal/top_yaw/control_torque_test
+      # - /gimbal/top_yaw/control_torque_test
       - /gimbal/yaw/angle
       - /gimbal/yaw/velocity
       - /gimbal/right_friction/velocity
