@@ -91,7 +91,7 @@ gimbal_controller:
     pitch_angle_kp: 35.0
     pitch_angle_ki: 0.0001
     pitch_angle_kd: 0.0
-    pitch_velocity_kp: 3.5
+    pitch_velocity_kp: 2.8
     pitch_velocity_ki: 0.00
     pitch_velocity_kd: 0.0
 
@@ -183,6 +183,8 @@ heat_controller:
   ros__parameters:
     heat_per_shot: 10000
     reserved_heat: 15000
+    fallback_shooter_cooling: 800
+    fallback_shooter_heat_limit: 500000
 
 friction_wheel_controller:
   ros__parameters:

@@ -95,11 +95,11 @@ private:
                     .set_reduction_ratio(36.0));
             
             gimbal_top_friction_.configure(
-                DjiMotor::Config{DjiMotor::Type::kM2006, 2}.set_reduction_ratio(1.));
+                DjiMotor::Config{DjiMotor::Type::kM2006, 2}.set_reduction_ratio(1.0));
             gimbal_left_friction_.configure(
-                DjiMotor::Config{DjiMotor::Type::kM2006, 3}.set_reduction_ratio(1.));
+                DjiMotor::Config{DjiMotor::Type::kM2006, 3}.set_reduction_ratio(1.0));
             gimbal_right_friction_.configure(
-                DjiMotor::Config{DjiMotor::Type::kM2006, 4}.set_reduction_ratio(1.).set_reversed());
+                DjiMotor::Config{DjiMotor::Type::kM2006, 4}.set_reduction_ratio(1.0).set_reversed());
 
             // 折叠云台测试没有 bottom yaw 电机和底盘 IMU，
             // 注册常量 0 输出供 foldable-gimbal-controller 配对使用。
@@ -179,13 +179,26 @@ private:
                         .can_id = gimbal_right_friction_.send_id(),
                         .can_data =
                             device::CanPacket8{
-                                gimbal_bullet_feeder_.generate_command(),
+                                CanPacket8::PaddingQuarter{},
                                 gimbal_top_friction_.generate_command(),
                                 gimbal_left_friction_.generate_command(),
                                 gimbal_right_friction_.generate_command(),
                             }
                                 .as_bytes(),
-                    });
+                    })
+                .can_transmit(
+                    Spec::kCans.kCan3,
+                    {
+                        .can_id = gimbal_bullet_feeder_.send_id(),
+                        .can_data =
+                            device::CanPacket8{
+                                gimbal_bullet_feeder_.generate_command(),
+                                CanPacket8::PaddingQuarter{},
+                                CanPacket8::PaddingQuarter{},
+                                CanPacket8::PaddingQuarter{},
+                            }
+                                .as_bytes(),
+                    });;
         }
 
         void can_receive_callback(const Spec::Can& can, const View::Can& data) override {
@@ -217,11 +230,15 @@ private:
                     gimbal_left_friction_.store_status(data.can_data);
                 } else if (data.can_id == 0x204) {
                     gimbal_right_friction_.store_status(data.can_data);
-                } else if (data.can_id == 0x201) {
+                } 
+
+                monitor_.tick("Gimbal::Can2", can_id);
+            } else if (can == Spec::kCans.kCan3) {
+                if (data.can_id == 0x201) {
                     gimbal_bullet_feeder_.store_status(data.can_data);
                 }
 
-                monitor_.tick("Gimbal::Can2", can_id);
+                monitor_.tick("Gimbal::Can3", can_id);
             }
 
             

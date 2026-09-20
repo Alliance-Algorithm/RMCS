@@ -143,7 +143,7 @@ public:
         previous_yaw_timestamp_ = *input_.timestamp;
         last_update_timestamp_ = *input_.timestamp;
         last_rotary_knob_switch_ = *input_.rotary_knob_switch;
-        fold_state_ = FoldState::Folded;
+        fold_state_ = FoldState::UnFold;
         fold_ready_elapsed_ = 0.0;
         locked_bottom_yaw_target_ = current_bottom_world_yaw();
         publish_fold_state();
@@ -361,7 +361,7 @@ private:
 
     rmcs_msgs::Switch last_rotary_knob_switch_ = rmcs_msgs::Switch::UNKNOWN;
 
-    FoldState fold_state_ = FoldState::Folded;
+    FoldState fold_state_ = FoldState::UnFold;
 
     double locked_bottom_yaw_target_ = 0.0;
 
