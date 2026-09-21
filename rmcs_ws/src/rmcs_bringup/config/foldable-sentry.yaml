@@ -77,7 +77,7 @@ gimbal_controller:
     top_yaw_angle_kp: 40.0
     top_yaw_angle_ki: 0.0
     top_yaw_angle_kd: 0.000
-    top_yaw_velocity_kp: 0.25
+    top_yaw_velocity_kp: 0.15
     top_yaw_velocity_ki: 0.0
     top_yaw_velocity_kd: 0.0
 
@@ -130,8 +130,10 @@ gimbal_controller:
     roll_velocity_integral_max: 2400.0
 
     # PID 输出限幅：角环输出为速度参考(rad/s)，速度环输出为关节力矩(N*m)。
-    top_yaw_velocity_output_min: -1.0
-    top_yaw_velocity_output_max: 1.0
+    top_yaw_angle_output_min: -10.0
+    top_yaw_angle_output_max: 10.0
+    top_yaw_velocity_output_min: -4.5
+    top_yaw_velocity_output_max: 4.5
 
     pitch_angle_output_min: -10.0
     pitch_angle_output_max: 10.0
@@ -198,7 +200,7 @@ friction_wheel_controller:
 bullet_feeder_controller:
   ros__parameters:
     bullets_per_feeder_turn: 8.0
-    shot_frequency: 20.0
+    shot_frequency: 30.0
     safe_shot_frequency: 10.0
     eject_frequency: 10.0
     eject_time: 0.05
@@ -238,6 +240,6 @@ bullet_feeder_velocity_pid_controller:
     measurement: /gimbal/bullet_feeder/velocity
     setpoint: /gimbal/bullet_feeder/control_velocity
     control: /gimbal/bullet_feeder/control_torque
-    kp: 0.583
+    kp: 0.700
     ki: 0.0
     kd: 0.0
