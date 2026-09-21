@@ -24,6 +24,16 @@ public:
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
         load_config_();
 
+        output_angle_suffix_ =
+            get_parameter_or<std::string>("output_angle_suffix", "/target_physical_angle");
+        output_velocity_suffix_ =
+            get_parameter_or<std::string>("output_velocity_suffix", "/target_physical_velocity");
+        output_acceleration_suffix_ = get_parameter_or<std::string>(
+            "output_acceleration_suffix", "/target_physical_acceleration");
+        output_error_suffix_ =
+            get_parameter_or<std::string>("output_error_suffix", "/control_angle_error");
+        ignore_active_suspension_ = get_parameter_or("ignore_active_suspension", false);
+
         register_input("/predefined/update_rate", update_rate_, false);
 
         register_input("/chassis/active_suspension/active", active_suspension_active_);
@@ -42,24 +52,16 @@ public:
         register_input("/chassis/imu/roll_rate", chassis_imu_roll_rate_, false);
 
         for (size_t i = 0; i < kJointCount; ++i) {
+            const auto joint_base = std::string{"/chassis/"} + kJointName[i] + "_joint";
             register_input(
                 std::string{"/chassis/deformable/"} + kJointName[i] + "_joint/posture_target_angle",
                 joint_posture_target_angle_rad_[i]);
-            register_input(
-                std::string{"/chassis/"} + kJointName[i] + "_joint/physical_angle",
-                joint_physical_angle_[i], false);
+            register_input(joint_base + "/physical_angle", joint_physical_angle_[i], false);
+            register_output(joint_base + output_angle_suffix_, joint_target_angle_[i], nan_);
+            register_output(joint_base + output_velocity_suffix_, joint_target_velocity_[i], nan_);
             register_output(
-                std::string{"/chassis/"} + kJointName[i] + "_joint/target_physical_angle",
-                joint_target_angle_[i], nan_);
-            register_output(
-                std::string{"/chassis/"} + kJointName[i] + "_joint/target_physical_velocity",
-                joint_target_velocity_[i], nan_);
-            register_output(
-                std::string{"/chassis/"} + kJointName[i] + "_joint/target_physical_acceleration",
-                joint_target_acceleration_[i], nan_);
-            register_output(
-                std::string{"/chassis/"} + kJointName[i] + "_joint/control_angle_error",
-                joint_angle_error_[i], nan_);
+                joint_base + output_acceleration_suffix_, joint_target_acceleration_[i], nan_);
+            register_output(joint_base + output_error_suffix_, joint_angle_error_[i], nan_);
         }
     }
 
@@ -104,22 +106,25 @@ public:
         double filtered_roll_rate = *chassis_imu_roll_rate_;
         filter_attitude_rates_(filtered_pitch_rate, filtered_roll_rate);
 
-        if (*active_suspension_active_)
+        const bool suspension_active =
+            !ignore_active_suspension_ && *active_suspension_active_;
+
+        if (suspension_active)
             calibrate_(*chassis_imu_pitch_, *chassis_imu_roll_, *symmetric_posture_target_, dt);
 
         std::array<double, kJointCount> joint_angle_states{};
         copy_joint_angle_states_(joint_angle_states);
         update_suspension_state_(
             *chassis_imu_pitch_ - pitch_offset_value_, *chassis_imu_roll_ - roll_offset_value_,
-            filtered_pitch_rate, filtered_roll_rate, *active_suspension_active_, *low_prone_active_,
+            filtered_pitch_rate, filtered_roll_rate, suspension_active, *low_prone_active_,
             *min_angle_deg_, *max_angle_deg_, *suspension_reference_angle_deg_,
             *correction_inverted_, joint_angle_states, dt);
 
         const auto target_angles_rad = compute_joint_trajectory_targets_(
-            posture_target_angles_rad, *active_suspension_active_, *low_prone_active_,
-            *min_angle_deg_, *suspension_reference_angle_deg_);
+            posture_target_angles_rad, suspension_active, *low_prone_active_, *min_angle_deg_,
+            *suspension_reference_angle_deg_);
 
-        run_joint_trajectory_(target_angles_rad, *active_suspension_active_, dt);
+        run_joint_trajectory_(target_angles_rad, suspension_active, dt);
         publish_joint_targets_(current_physical_angles);
     }
 
@@ -582,6 +587,11 @@ private:
     std::array<OutputInterface<double>, kJointCount> joint_target_acceleration_;
     std::array<OutputInterface<double>, kJointCount> joint_angle_error_;
 
+    std::string output_angle_suffix_;
+    std::string output_velocity_suffix_;
+    std::string output_acceleration_suffix_;
+    std::string output_error_suffix_;
+
     pid::PidCalculator pitch_outer_pid_{};
     pid::PidCalculator pitch_inner_pid_{};
     pid::PidCalculator roll_outer_pid_{};
@@ -620,6 +630,7 @@ private:
     double joint_target_acc_limit_ = 0.0;
     double suspension_target_vel_limit_ = 0.0;
     double suspension_target_acc_limit_ = 0.0;
+    bool ignore_active_suspension_ = false;
     size_t last_reset_count_ = 0;
 };
 
