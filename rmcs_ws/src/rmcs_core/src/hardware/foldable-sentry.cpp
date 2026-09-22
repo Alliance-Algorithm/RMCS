@@ -198,7 +198,7 @@ private:
                                 CanPacket8::PaddingQuarter{},
                             }
                                 .as_bytes(),
-                    });;
+                    });
         }
 
         void can_receive_callback(const Spec::Can& can, const View::Can& data) override {

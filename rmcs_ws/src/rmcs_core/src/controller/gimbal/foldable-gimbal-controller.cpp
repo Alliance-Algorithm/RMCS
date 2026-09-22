@@ -137,6 +137,9 @@ public:
             input_.navigation_toward.make_and_bind_directly(kVecNaN);
             RCLCPP_INFO(get_logger(), "Manual mode without navigation gimbal control");
         }
+        if (!input_.navigation_fold_request.ready())
+            input_.navigation_fold_request.make_and_bind_directly(false);
+        last_navigation_fold_ = *input_.navigation_fold_request;
 
         enter_disabled_state();
         previous_actual_yaw_ = current_barrel_yaw_pitch().first;
@@ -169,6 +172,8 @@ public:
 
         if (fold_switch_up_edge)
             switch_fold_state();
+
+        update_navigation_fold();
 
         switch (fold_state_) {
         case FoldState::UnFold:
@@ -251,6 +256,8 @@ private:
             component.register_input(
                 "/rmcs_navigation/enable_control", navigation_enable_control, false);
             component.register_input("/rmcs_navigation/gimbal_toward", navigation_toward, false);
+            component.register_input(
+                "/rmcs_navigation/request/gimbal_fold", navigation_fold_request, false);
         }
 
         auto enable_control() const noexcept -> bool {
@@ -309,6 +316,7 @@ private:
         InputInterface<Eigen::Vector3d> auto_aim_robot_center;
         InputInterface<bool> navigation_enable_control;
         InputInterface<Eigen::Vector2d> navigation_toward;
+        InputInterface<bool> navigation_fold_request;
     } input_{*this};
 
     struct Output {
@@ -360,6 +368,9 @@ private:
     std::chrono::steady_clock::time_point previous_yaw_timestamp_{};
 
     rmcs_msgs::Switch last_rotary_knob_switch_ = rmcs_msgs::Switch::UNKNOWN;
+
+    bool last_navigation_fold_ = false;
+    bool navigation_fold_target_;
 
     FoldState fold_state_ = FoldState::UnFold;
 
@@ -474,6 +485,21 @@ private:
             fold_state_ = FoldState::UnFolding;
             break;
         default: RCLCPP_WARN(get_logger(), "Folding or unfolding, ignore trigger."); break;
+        }
+    }
+
+    auto update_navigation_fold() -> void {
+        const auto request = *input_.navigation_fold_request;
+        if (request != last_navigation_fold_) {
+            last_navigation_fold_ = request;
+            navigation_fold_target_ = request;
+
+            const auto target = request;
+
+            if ((fold_state_ == FoldState::UnFold && target)
+                || (fold_state_ == FoldState::Folded && !target)) {
+                switch_fold_state();
+            }
         }
     }
 
