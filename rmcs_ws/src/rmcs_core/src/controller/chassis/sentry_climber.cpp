@@ -620,8 +620,8 @@ public:
 
         // 底盘契约输出挂在 partner 上，保证更新序在主逻辑之后对下游可见
         output_component->register_output(
-            "/chassis/climber/direction", chassis_track_direction, kNaN);
-        output_component->register_output("/chassis/climber/speed", chassis_climb_speed, kNaN);
+            "/chassis/cross/direction", chassis_track_direction, kNaN);
+        output_component->register_output("/chassis/cross/speed", chassis_climb_speed, kNaN);
         output_component->register_output("/chassis/climber/status", chassis_climb_status, 0.0);
 
         schduler.append(spin_context());

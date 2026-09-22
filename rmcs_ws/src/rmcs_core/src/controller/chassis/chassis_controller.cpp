@@ -35,8 +35,8 @@ public:
 
         register_input("/chassis/yaw/velocity_imu", chassis_yaw_velocity_imu_, false);
 
-        register_input("/chassis/climber/direction", chassis_climb_direction_, false);
-        register_input("/chassis/climber/speed", chassis_climb_speed_, false);
+        register_input("/chassis/cross/direction", chassis_cross_direction_, false);
+        register_input("/chassis/cross/speed", chassis_cross_speed_, false);
         register_input("/chassis/climber/measure_yaw", chassis_measure_yaw_, false);
 
         register_input("/rmcs_navigation/enable_control", navigation_enable_control_, false);
@@ -59,11 +59,11 @@ public:
             node::warn("Failed to fetch \"/gimbal/yaw/control_angle_error\". Set to 0.0.");
         }
 
-        if (!chassis_climb_direction_.ready()) {
-            chassis_climb_direction_.make_and_bind_directly(kNaN);
+        if (!chassis_cross_direction_.ready()) {
+            chassis_cross_direction_.make_and_bind_directly(kNaN);
         }
-        if (!chassis_climb_speed_.ready()) {
-            chassis_climb_speed_.make_and_bind_directly(kNaN);
+        if (!chassis_cross_speed_.ready()) {
+            chassis_cross_speed_.make_and_bind_directly(kNaN);
         }
         if (!chassis_measure_yaw_.ready()) {
             chassis_measure_yaw_.make_and_bind_directly(kNaN);
@@ -125,9 +125,9 @@ public:
                     mode = *navigation_chassis_behavior_;
                 }
 
-                if (climb_active()) {
-                    mode = ChassisMode::CLIMB;
-                } else if (mode == ChassisMode::CLIMB) {
+                if (cross_active()) {
+                    mode = ChassisMode::CROSS;
+                } else if (mode == ChassisMode::CROSS) {
                     mode = ChassisMode::AUTO;
                 }
 
@@ -192,8 +192,8 @@ public:
         chassis_control_velocity_->vector << translational_velocity, angular_velocity;
     }
 
-    auto climb_active() const -> bool {
-        return std::isfinite(*chassis_climb_direction_) && std::isfinite(*chassis_climb_speed_)
+    auto cross_active() const -> bool {
+        return std::isfinite(*chassis_cross_direction_) && std::isfinite(*chassis_cross_speed_)
             && std::isfinite(*chassis_measure_yaw_);
     }
 
@@ -209,9 +209,9 @@ public:
     Eigen::Vector2d update_translational_velocity_control() {
         using namespace rmcs_msgs;
 
-        if (*mode_ == ChassisMode::CLIMB) {
+        if (*mode_ == ChassisMode::CROSS) {
             // speed 以底盘正向 direction 为正向：上坡为正前进，下坡为负倒车
-            return {*chassis_climb_speed_, 0.0};
+            return {*chassis_cross_speed_, 0.0};
         }
 
         if (*navigation_enable_control_) {
@@ -300,8 +300,8 @@ public:
             angular_velocity = following_velocity_controller_.update(err);
         } break;
 
-        case ChassisMode::CLIMB: {
-            chassis_control_angle = *chassis_climb_direction_;
+        case ChassisMode::CROSS: {
+            chassis_control_angle = *chassis_cross_direction_;
 
             const auto err = normalize_signed_angle(chassis_control_angle - *chassis_measure_yaw_);
             angular_velocity = following_velocity_controller_.update(err);
@@ -350,8 +350,8 @@ private:
     OutputInterface<double> chassis_angle_, chassis_control_angle_;
 
     InputInterface<double> chassis_yaw_velocity_imu_;
-    InputInterface<double> chassis_climb_direction_;
-    InputInterface<double> chassis_climb_speed_;
+    InputInterface<double> chassis_cross_direction_;
+    InputInterface<double> chassis_cross_speed_;
     InputInterface<double> chassis_measure_yaw_;
 
     InputInterface<bool> navigation_enable_control_;

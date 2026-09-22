@@ -137,9 +137,8 @@ public:
             input_.navigation_toward.make_and_bind_directly(kVecNaN);
             RCLCPP_INFO(get_logger(), "Manual mode without navigation gimbal control");
         }
-        if (!input_.navigation_fold_request.ready())
-            input_.navigation_fold_request.make_and_bind_directly(false);
-        last_navigation_fold_ = *input_.navigation_fold_request;
+        last_fold_request_ =
+            input_.gimbal_fold_request.ready() ? *input_.gimbal_fold_request : false;
 
         enter_disabled_state();
         previous_actual_yaw_ = current_barrel_yaw_pitch().first;
@@ -173,7 +172,7 @@ public:
         if (fold_switch_up_edge)
             switch_fold_state();
 
-        update_navigation_fold();
+        update_fold_request();
 
         switch (fold_state_) {
         case FoldState::UnFold:
@@ -256,8 +255,7 @@ private:
             component.register_input(
                 "/rmcs_navigation/enable_control", navigation_enable_control, false);
             component.register_input("/rmcs_navigation/gimbal_toward", navigation_toward, false);
-            component.register_input(
-                "/rmcs_navigation/request/gimbal_fold", navigation_fold_request, false);
+            component.register_input("/gimbal/fold/request", gimbal_fold_request, false);
         }
 
         auto enable_control() const noexcept -> bool {
@@ -316,7 +314,7 @@ private:
         InputInterface<Eigen::Vector3d> auto_aim_robot_center;
         InputInterface<bool> navigation_enable_control;
         InputInterface<Eigen::Vector2d> navigation_toward;
-        InputInterface<bool> navigation_fold_request;
+        InputInterface<bool> gimbal_fold_request;
     } input_{*this};
 
     struct Output {
@@ -369,8 +367,7 @@ private:
 
     rmcs_msgs::Switch last_rotary_knob_switch_ = rmcs_msgs::Switch::UNKNOWN;
 
-    bool last_navigation_fold_ = false;
-    bool navigation_fold_target_;
+    bool last_fold_request_ = false;
 
     FoldState fold_state_ = FoldState::UnFold;
 
@@ -488,18 +485,18 @@ private:
         }
     }
 
-    auto update_navigation_fold() -> void {
-        const auto request = *input_.navigation_fold_request;
-        if (request != last_navigation_fold_) {
-            last_navigation_fold_ = request;
-            navigation_fold_target_ = request;
+    auto update_fold_request() -> void {
+        if (!input_.gimbal_fold_request.ready())
+            return;
 
-            const auto target = request;
+        const auto request = *input_.gimbal_fold_request;
+        if (request == last_fold_request_)
+            return;
 
-            if ((fold_state_ == FoldState::UnFold && target)
-                || (fold_state_ == FoldState::Folded && !target)) {
-                switch_fold_state();
-            }
+        last_fold_request_ = request;
+        if ((fold_state_ == FoldState::UnFold && request)
+            || (fold_state_ == FoldState::Folded && !request)) {
+            switch_fold_state();
         }
     }
 
