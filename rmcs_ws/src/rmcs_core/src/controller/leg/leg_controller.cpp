@@ -59,8 +59,8 @@ public:
               {*this, "up_one_stairs", {"initial", "press", "press_wait", "lift"}},
               {*this,
                "up_two_stairs",
-               {"initial", "press", "press_wait", "lift", "lift_wait","initial_again", "initial_wait",
-                "press_again", "lift_again"}}} {
+               {"initial", "press", "press_wait", "lift", "lift_wait", "initial_again",
+                "initial_wait", "press_again", "lift_again"}}} {
 
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
@@ -213,6 +213,8 @@ private:
                 case rmcs_msgs::ArmMode::Custome:
                 case rmcs_msgs::ArmMode::Auto_Spin:
                 case rmcs_msgs::ArmMode::Auto_Five_Mine:
+                case rmcs_msgs::ArmMode::Auto_Three_Mine_Second:
+                case rmcs_msgs::ArmMode::Auto_Three_Mine_First:
                 case rmcs_msgs::ArmMode::Yaw_Close:
                 case rmcs_msgs::ArmMode::Calibration: {
                     leg_mode = rmcs_msgs::LegMode::Four_Wheel;

@@ -7,6 +7,7 @@
 #include <cstring>
 
 #include <eigen3/Eigen/Dense>
+#include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/mouse.hpp>
@@ -18,12 +19,12 @@
 
 namespace rmcs_core::hardware::device {
 
-class RemoteControl {
+class RemoteControl : rclcpp::Node {
 public:
     RemoteControl(rmcs_executor::Component& component, Dr16& dr16)
-        : dr16_(dr16) {
-        component.register_input(
-            "/referee/image_transmission/vt13_frame", vt13_frame_input_);
+        : rclcpp::Node("sdad")
+        , dr16_(dr16) {
+        component.register_input("/referee/image_transmission/vt13_frame", vt13_frame_input_);
 
         component.register_output(
             "/remote/joystick/right", joystick_right_output_, Eigen::Vector2d::Zero());
@@ -56,7 +57,6 @@ public:
     }
 
 private:
-
     void parse_vt13_frame() {
         if (!vt13_frame_input_.ready())
             return;
@@ -86,13 +86,12 @@ private:
             channel_to_double(static_cast<uint16_t>(data.joystick_channel2)),
             -channel_to_double(static_cast<uint16_t>(data.joystick_channel3)),
         });
-
+        // RCLCPP_INFO(this->get_logger(), "%d",data.joystick_channel2);
         vt13_.set_mouse_velocity({
             -static_cast<double>(data.mouse_velocity_y) / 32768.0,
             -static_cast<double>(data.mouse_velocity_x) / 32768.0,
         });
-        vt13_.set_mouse_wheel(
-            -static_cast<double>(data.mouse_velocity_z) / 32768.0);
+        vt13_.set_mouse_wheel(-static_cast<double>(data.mouse_velocity_z) / 32768.0);
 
         vt13_.set_mouse({
             .left  = static_cast<bool>(data.mouse_left),

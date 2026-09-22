@@ -15,15 +15,6 @@ public:
             return false;
         }
     }
-    bool tick_always() {
-        if (counter_ <= 1) [[unlikely]] {
-            counter_ = 1;
-            return true;
-        } else {
-            counter_ -= 2;
-            return false;
-        }
-    }
 
 private:
     unsigned int counter_ = 1;

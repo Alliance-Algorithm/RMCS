@@ -94,12 +94,22 @@ public:
             set_yaw_mode(YawControlMode::Encoder);
             if (is_stair_mode()) {
                 yaw_target_angle_ = 0.0;
+                angular_velocity  = 0.0;
+            } else if (
+                *arm_mode_ == rmcs_msgs::ArmMode::Auto_Five_Mine
+                || *arm_mode_ == rmcs_msgs::ArmMode::Auto_Three_Mine_First
+                || *arm_mode_ == rmcs_msgs::ArmMode::Auto_Three_Mine_Second) {
+                yaw_target_angle_ = 1.57;
+                angular_velocity  = joystick_right_->y() * 0.2 * angular_velocity_limit_;
+
             } else if (*arm_mode_ == rmcs_msgs::ArmMode::Custome) {
                 yaw_target_angle_ = *custom_big_yaw_;
+                angular_velocity  = joystick_right_->y() * 0.2 * angular_velocity_limit_;
+
             } else {
                 yaw_target_angle_ += joystick_right_->y() * 0.002;
+                angular_velocity = 0.0;
             }
-            angular_velocity = 0.0;
 
             break;
         }
@@ -169,6 +179,8 @@ private:
                 case rmcs_msgs::ArmMode::Auto_Storage_RF:
                 case rmcs_msgs::ArmMode::Auto_Storage_RB:
                 case rmcs_msgs::ArmMode::Auto_Five_Mine:
+                case rmcs_msgs::ArmMode::Auto_Three_Mine_Second:
+                case rmcs_msgs::ArmMode::Auto_Three_Mine_First:
                 case rmcs_msgs::ArmMode::Yaw_Close:
                 case rmcs_msgs::ArmMode::Custome:
                     set_speed_gear(SpeedGear::Low);
@@ -208,7 +220,7 @@ private:
         case SpeedGear::Low: *speed_limit_ = 0.8; break;
         case SpeedGear::Stairs: *speed_limit_ = 2.3; break;
         case SpeedGear::High:
-        default: *speed_limit_ = 3.0; break;
+        default: *speed_limit_ = 4.5; break;
         }
     }
 

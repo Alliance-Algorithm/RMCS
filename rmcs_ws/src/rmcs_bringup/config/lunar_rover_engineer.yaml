@@ -7,8 +7,6 @@ rmcs_executor:
       - rmcs_core::controller::arm::ArmController -> arm_controller
       - rmcs_core::controller::arm::ArmSolver -> arm_solver
 
-      - rmcs_core::referee::ImageTransmissionLink -> image_transmission
-
       - rmcs_core::controller::pid::PidController -> gripper_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> gripper_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> image_pitch_angle_pid_controller
@@ -40,12 +38,12 @@ engineer_hardware:
     board_serial_right_board: "AF-EEF5-24BA-6675-F1B1-C797-50AF-869C-870E"
     gripper_zero_point: 26298
     image_pitch_zero_point: 43131
-    joint6_zero_point: 7737
-    joint5_zero_point: 38000
-    joint4_zero_point: 32721
-    joint3_zero_point: 28459
-    joint2_zero_point: 39898
-    joint1_zero_point: 15010
+    joint6_zero_point: 12793
+    joint5_zero_point: 60137
+    joint4_zero_point: 33493
+    joint3_zero_point: 29072
+    joint2_zero_point: 39433
+    joint1_zero_point: 14669
     steering_lf_zero_point: 1343
     steering_lb_zero_point: 4096
     steering_rb_zero_point: 0
@@ -54,30 +52,26 @@ engineer_hardware:
     leg_lb_ecd_zero_point: 153149
     leg_rb_ecd_zero_point: 221758
     leg_rf_motor_zero_point: 46800
-    big_yaw_zero_point: 41263
-
-image_transmission:
-  ros__parameters:
-    path: /dev/ttyUSB0
+    big_yaw_zero_point: 40944
 
 arm_controller:
   ros__parameters:
     action_profile: lunar_rover
-    gripper_step: 65.0
-    gripper_open_angle: 270.0
-    gripper_close_angle: 52.0
+    gripper_step: 7.0
+    gripper_open_angle: 7.9
+    gripper_close_angle: 0.4
     image_pitch_qmin: -0.7
     image_pitch_qmax: 2.2
 
 arm_solver:
   ros__parameters:
     controller_list: [pid, gravity, friction]
-    joint_6_angle_kp: 65.00
+    joint_6_angle_kp: 120.00
     joint_6_angle_ki: 0.0
     joint_6_angle_kd: 0.04
-    joint_6_vel_kp: 0.08
-    joint_6_vel_ki: 0.0002
-    joint_6_vel_kd: 0.000
+    joint_6_vel_kp: 0.0908
+    joint_6_vel_ki: 0.000
+    joint_6_vel_kd: 0.030
 
 leg_controller:
   ros__parameters:
@@ -114,18 +108,19 @@ gripper_angle_pid_controller:
     measurement: /arm/gripper/motor/angle
     setpoint: /arm/gripper/target_theta
     control: /arm/gripper/control_vel
-    kp: 4.8
+    kp: 38.0
     ki: 0.0
-    kd: 0.0
+    kd: 0.03
 
 gripper_velocity_pid_controller:
   ros__parameters:
     measurement: /arm/gripper/motor/velocity
     setpoint: /arm/gripper/control_vel
     control: /arm/gripper/motor/control_torque
-    kp: 0.08
+    kp: 0.3
     ki: 0.0
-    kd: 0.0
+    kd: 0.01
+    output_max: 1.5
 
 
 image_pitch_angle_pid_controller:

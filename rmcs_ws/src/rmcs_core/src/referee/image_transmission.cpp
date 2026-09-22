@@ -77,12 +77,12 @@ public:
         compact_buffer();
 
         if (custom_watchdog_.tick()) {
-            RCLCPP_WARN(logger_, "Vision custom data receiving timeout. Set data to zero.");
+            // RCLCPP_WARN(logger_, "Vision custom data receiving timeout. Set data to zero.");
             std::fill((*custom_data_).begin(), (*custom_data_).end(), 0);
         }
 
         if (vt13_watchdog_.tick()) {
-            RCLCPP_WARN(logger_, "VT13 remote control receiving timeout.");
+            // RCLCPP_WARN(logger_, "VT13 remote control receiving timeout.");
             std::fill((*vt13_frame_data_).begin(), (*vt13_frame_data_).end(), 0);
         }
     }

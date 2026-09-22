@@ -184,7 +184,7 @@ public:
             torque_constant = 0.26;
             rated_current   = 3.1;
             rated_torque    = 0.82;
-            max_torque      = 3.0;
+            max_torque      = 7.0;
             LSB             = 648000;
             break;
         case LKMotorType::MG8016E_i6V2:
