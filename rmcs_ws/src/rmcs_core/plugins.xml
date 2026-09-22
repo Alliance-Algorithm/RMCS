@@ -27,6 +27,7 @@
   <class type="rmcs_core::controller::wheelleg::WheelLegTaskMapper" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::wheelleg::WheelLegDecoupledLegController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::wheelleg::WheelLegTestSignal" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::wheelleg::WheelLegLqrController" base_class_type="rmcs_executor::Component" />
 
   <class type="rmcs_core::controller::gimbal::SimpleGimbalController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::gimbal::HeroGimbalController" base_class_type="rmcs_executor::Component" />

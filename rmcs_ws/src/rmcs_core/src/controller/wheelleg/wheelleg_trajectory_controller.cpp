@@ -74,24 +74,96 @@ public:
         *force_length_ff_ = 0.5 * total_mass_ * gravity_ * std::sin(state.leg_angle);
         measured_pitch_ = state.pitch;
 
-        const double velocity_command =
+        const double velocity_command_raw =
             command_velocity_.ready() && std::isfinite(*command_velocity_)
                 ? *command_velocity_
                 : default_velocity_command_;
 
+        // S-curve velocity planner: jerk-limited, acceleration-limited tracking
+        // of the raw command. Produces a continuous reference velocity
+        // (velocity_ref_) and acceleration (accel_ref_/a_planned), so a step
+        // change in the command (e.g. a +/- reversal) becomes a smooth S-profile
+        // instead of an instantaneous velocity/acceleration jump. The posture
+        // (gait) is driven by this real-time planned acceleration.
+        if (!std::isfinite(velocity_ref_)) {
+            // Start from rest so the first command is also realised as an
+            // S-profile (velocity_ref_ follows via the planner, not a jump).
+            velocity_ref_ = 0.0;
+            accel_ref_ = 0.0;
+        }
+        const double a_des = std::clamp(
+            command_vloop_kp_ * (velocity_command_raw - velocity_ref_)
+                - command_vloop_kd_ * accel_ref_,
+            -command_accel_limit_, command_accel_limit_);
+        accel_ref_ +=
+            std::clamp(a_des - accel_ref_, -command_jerk_limit_ * dt_, command_jerk_limit_ * dt_);
+        velocity_ref_ += accel_ref_ * dt_;
+
+        const double velocity_command = velocity_command_raw;
+        const double velocity_command_ref = velocity_ref_;
+        const double a_planned = accel_ref_;
+
+        const double a_explicit =
+            (acceleration_command_.ready() && std::isfinite(*acceleration_command_))
+                ? *acceleration_command_ : 0.0;
+
         double leg_length_command = kNaN;
         if (command_leg_length_.ready() && std::isfinite(*command_leg_length_))
             leg_length_command = *command_leg_length_;
-
-        // Coordinated motion: shorten the leg with forward speed so the CoM
-        // stays near the wheel axle (keeps the wheel torque inside the friction
-        // limit while accelerating; see the posture map).
-        const double base_leg_length =
+        double base_leg_length =
             std::isfinite(leg_length_command) ? leg_length_command : nominal_leg_length_;
+
+        // Velocities in m/s (v_base = wheel_velocity * r).
+        const double v_now_mps =
+            (state_wheel_velocity_.ready() && std::isfinite(*state_wheel_velocity_))
+                ? (*state_wheel_velocity_ * wheel_radius_) : 0.0;
+
+        // The acceleration command for the d-loop (gait) is the planned
+        // real-time acceleration plus any explicit acceleration command. It is
+        // zero during cruise, so the posture returns to d~0 when not moving.
+        const double a_cmd = a_explicit + a_planned;
+        const bool accel_mode = std::abs(a_cmd) > 1e-3;
+
+        // Stability bias (always computed): position + velocity error -> pitch
+        // setpoint, tracked by the inner pitch ring (ADRC). The velocity error
+        // uses the planned reference velocity, not the raw command.
+        com_x_reference_ += velocity_command_ref * dt_;
+        const double x_err =
+            (state_com_x_.ready() && std::isfinite(*state_com_x_))
+                ? (com_x_reference_ - *state_com_x_) : 0.0;
+        double pitch_bias = outer_kx_ * x_err + outer_kv_ * (velocity_command_ref - v_now_mps);
+
+        // Keep the body upright while shaping the acceleration posture.
+        if (accel_mode)
+            pitch_bias = 0.0;
+        velocity_pitch_bias_ = std::clamp(pitch_bias, -accel_pitch_limit_, accel_pitch_limit_);
+
+        // Optional coupling of the leg length with forward speed.
         leg_length_command =
             std::clamp(base_leg_length - leg_motion_coupling_ * velocity_command, 0.22, 0.45);
 
         auto target = solve_target_(velocity_command, leg_length_command);
+
+        // Acceleration posture (gait): d_ref = a*h/g realised as a leg-length
+        // offset (dd/dL0 ~ -1.1), applied as a DIRECT additive delta on the
+        // published joint references rather than through the plan. This keeps
+        // the plan target (and therefore the start_plan_ trigger) based on the
+        // nominal leg length, so a continuously varying acceleration does not
+        // re-plan every step. The posture is what realises the acceleration.
+        gait_dknee_ = 0.0;
+        gait_dshank_ = 0.0;
+        if (accel_mode) {
+            const double d_ref = a_cmd * com_height_ / gravity_;
+            const double d_err = d_ref - state.com_offset;
+            const double gait_dl = accel_leg_ff_ * d_ref + accel_d_kp_ * d_err;
+            const auto gait_target = solve_target_(
+                velocity_command, std::clamp(leg_length_command + gait_dl, 0.22, 0.45));
+            if (std::isfinite(gait_target.beta) && std::isfinite(target.beta)
+                && std::isfinite(gait_target.shank) && std::isfinite(target.shank)) {
+                gait_dknee_ = gait_target.beta - target.beta;
+                gait_dshank_ = gait_target.shank - target.shank;
+            }
+        }
 
         // Static-stability guard: while the CoM offset d exceeds d_max, hold the
         // leg length at its current value and freeze the plan restart, so the
@@ -118,22 +190,6 @@ public:
             elapsed_ += dt_;
         }
 
-        // Outer motion loop: while moving, the position reference follows the
-        // actual position (position loop neutral) and the pitch setpoint is
-        // leaned by the velocity error (and the commanded acceleration).
-        const double a_cmd =
-            (acceleration_command_.ready() && std::isfinite(*acceleration_command_))
-                ? *acceleration_command_ : 0.0;
-        const bool moving = std::abs(velocity_command) > 1e-6 || std::abs(a_cmd) > 1e-6;
-        if (moving && state_com_x_.ready() && std::isfinite(*state_com_x_))
-            com_x_reference_ = *state_com_x_;
-        const double v_ref_rad = velocity_command / wheel_radius_;
-        const double v_now =
-            (state_wheel_velocity_.ready() && std::isfinite(*state_wheel_velocity_))
-                ? *state_wheel_velocity_ : 0.0;
-        velocity_pitch_bias_ = std::clamp(
-            -velocity_pitch_kp_ * (v_now - v_ref_rad) + accel_to_pitch_ * a_cmd,
-            -accel_pitch_limit_, accel_pitch_limit_);
         *reference_com_x_ = com_x_reference_;
 
         publish_reference_(target);
@@ -228,6 +284,10 @@ private:
         velocity_epsilon_ = node::param_or("velocity_epsilon", 1e-3);
         leg_length_epsilon_ = node::param_or("leg_length_epsilon", 1e-4);
         default_velocity_command_ = node::param_or("default_velocity_command", 0.0);
+        command_accel_limit_ = node::param_or("command_accel_limit", 1.0);
+        command_jerk_limit_ = node::param_or("command_jerk_limit", 4.0);
+        command_vloop_kp_ = node::param_or("command_vloop_kp", 10.0);
+        command_vloop_kd_ = node::param_or("command_vloop_kd", 2.0);
 
         // A5 velocity outer loop: lean the pitch setpoint by the wheel-speed error.
         velocity_pitch_kp_ = node::param_or("velocity_pitch_kp", 0.0);
@@ -236,6 +296,17 @@ private:
         accel_to_pitch_ = node::param_or("accel_to_pitch", 0.1);
         accel_pitch_limit_ = node::param_or("accel_pitch_limit", 0.25);
         leg_motion_coupling_ = node::param_or("leg_motion_coupling", 0.0);
+        outer_kx_ = node::param_or("outer_kx", 0.0);
+        outer_kv_ = node::param_or("outer_kv", 0.0);
+        // Acceleration mode (gated by the acceleration command): CoM-offset
+        // feedforward d* = a*h/g realised via the leg length.
+        com_height_ = node::param_or("com_height", 0.26);
+        accel_leg_ff_ = node::param_or("accel_leg_ff", 0.0);
+        accel_d_kp_ = node::param_or("accel_d_kp", 0.0);
+        // d-loop: pitch feedforward per unit CoM offset (posture map: d ~ 0.26
+        // per rad of pitch => ~3.85 rad per m).
+        accel_theta_ff_ = node::param_or("accel_theta_ff", 3.85);
+        accel_kv_ = node::param_or("accel_kv", 1.0);
         d_max_ = node::param_or("d_max", 0.03);
         total_mass_ = node::param_or("total_mass", 13.702);
         gravity_ = node::param_or("gravity", 9.81);
@@ -345,13 +416,16 @@ private:
 
         *reference_wheel_velocity_ = (velocity_reference + shank_dx) / wheel_radius_;
         *reference_pitch_ = pitch_reference + velocity_pitch_bias_;
-        *reference_shank_angle_ = shank_reference;
-        *reference_knee_angle_ = knee_reference;
+        // Acceleration posture: direct additive offset on the leg joints.
+        const double shank_published = shank_reference + gait_dshank_;
+        const double knee_published = knee_reference + gait_dknee_;
+        *reference_shank_angle_ = shank_published;
+        *reference_knee_angle_ = knee_published;
         // §7.4: alpha_ref = pi - theta_ref - beta_ref - phi_ref (+ outer d-loop bias).
         const double alpha_bias =
             (alpha_bias_.ready() && std::isfinite(*alpha_bias_)) ? *alpha_bias_ : 0.0;
         *reference_hip_angle_ =
-            std::numbers::pi - pitch_reference - knee_reference - shank_reference + alpha_bias;
+            std::numbers::pi - pitch_reference - knee_published - shank_published + alpha_bias;
 
         *target_leg_length_ = target.leg_length;
         *target_shank_angle_ = target.shank;
@@ -375,6 +449,10 @@ private:
         planned_velocity_ = 0.0;
         planned_leg_length_ = kNaN;
         com_x_reference_ = 0.0;
+        velocity_ref_ = kNaN;
+        accel_ref_ = 0.0;
+        gait_dknee_ = 0.0;
+        gait_dshank_ = 0.0;
 
         *reference_com_x_ = kNaN;
         *reference_wheel_velocity_ = kNaN;
@@ -416,12 +494,27 @@ private:
     double velocity_epsilon_;
     double leg_length_epsilon_;
     double default_velocity_command_;
+    double command_accel_limit_ = 1.0;
+    double command_jerk_limit_ = 4.0;
+    double command_vloop_kp_ = 10.0;
+    double command_vloop_kd_ = 2.0;
+    double velocity_ref_ = kNaN;
+    double accel_ref_ = 0.0;
+    double gait_dknee_ = 0.0;
+    double gait_dshank_ = 0.0;
     double velocity_pitch_kp_;
     double velocity_pitch_limit_;
     double velocity_pitch_bias_ = 0.0;
     double accel_to_pitch_;
     double accel_pitch_limit_;
     double leg_motion_coupling_;
+    double outer_kx_;
+    double outer_kv_;
+    double com_height_;
+    double accel_leg_ff_;
+    double accel_d_kp_;
+    double accel_theta_ff_;
+    double accel_kv_;
     double d_max_;
     double total_mass_;
     double gravity_;

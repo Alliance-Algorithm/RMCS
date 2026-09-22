@@ -4,14 +4,14 @@ rmcs_executor:
     components:
     - rmcs_core::hardware::WheelLegSimulation -> wheelleg_sim
     - rmcs_core::controller::wheelleg::WheelLegTrajectoryController -> wheelleg_trajectory_controller
-    - rmcs_core::controller::pid::PidController -> wheelleg_station_controller
+    - rmcs_core::controller::adrc::AdrcController -> wheelleg_station_controller
     - rmcs_core::controller::adrc::AdrcController -> wheelleg_balance_controller
 wheelleg_sim:
   ros__parameters:
     dt: 0.001
     initial_height: 0.392
-    fix_base: true
-    fix_base_planar: true
+    fix_base: false
+    fix_base_planar: false
     fix_base_hold_z: false
     hip_kp: 250.0
     hip_kd: 6.0
@@ -44,19 +44,29 @@ wheelleg_sim:
     state_shank_sign: 1.0
     state_knee_sign: -1.0
     state_wheel_sign: 1.0
-    command_velocity: 0.0
+    command_velocity: 1.0
     viewer: true
     viewer_state_rate: 100.0
+    viewer_track_body: base_link
+    viewer_follow: false
+    viewer_distance: 2.5
+    viewer_azimuth: 90.0
+    viewer_elevation: -20.0
     state_topic: /wheelleg/simulation/state
     lock_leg: false
     gravity_ff_analytic: false
-    disturbance_force: 40.0
+    disturbance_force: 0.0
     disturbance_start: 3.0
     disturbance_duration: 0.2
     command_acceleration: 0.0
-    command_leg_length: .nan
+    command_leg_length: 0.3
     open_loop_wheel_torque: .nan
     open_loop_wheel_same_sign: true
+    command_velocity_start: 3.0
+    command_velocity: 2.0
+    command_velocity_switch: 5.0
+    command_velocity_2: -2.0
+    command_velocity_period: 5.0
 wheelleg_trajectory_controller:
   ros__parameters:
     dt: 0.001
@@ -75,11 +85,22 @@ wheelleg_trajectory_controller:
     total_mass: 0.0
     gravity: 9.81
     velocity_pitch_kp: 0.0
-    velocity_pitch_limit: 0.15
+    velocity_pitch_limit: 0.2
     transition_time_velocity: 1.5
     accel_to_pitch: 0.0
-    accel_pitch_limit: 0.15
+    accel_pitch_limit: 0.35
     leg_motion_coupling: 0.0
+    outer_kx: 0.0
+    outer_kv: 0.0
+    com_height: 0.26
+    accel_leg_ff: -0.909
+    accel_d_kp: -0.5
+    accel_theta_ff: 3.85
+    accel_kv: 0.0
+    command_accel_limit: 1.5
+    command_jerk_limit: 4.0
+    command_vloop_kp: 10.0
+    command_vloop_kd: 2.0
 wheelleg_balance_controller:
   ros__parameters:
     measurement: /wheelleg/state/pitch
@@ -107,12 +128,22 @@ wheelleg_station_controller:
     measurement: /wheelleg/state/com_x
     setpoint: /wheelleg/reference/com_x
     control: /wheelleg/control/wheel_torque_ff
-    kp: 45.0
-    ki: 0.008
-    kd: 25000.0
-    integral_min: -2.0
-    integral_max: 2.0
-    integral_split_min: -100.0
-    integral_split_max: 100.0
+    dt: 0.001
+    b0: 0.68
+    kt: 1.0
+    td_h: 0.001
+    td_r: 50.0
+    eso_w0: 25.0
+    eso_auto_beta: false
+    eso_beta1: 75.0
+    eso_beta2: 1875.0
+    eso_beta3: 20.0
+    k1: 35.0
+    k2: 25.0
+    alpha1: 0.75
+    alpha2: 0.7
+    delta: 0.02
+    u_min: -16.13
+    u_max: 16.13
     output_min: -16.13
     output_max: 16.13

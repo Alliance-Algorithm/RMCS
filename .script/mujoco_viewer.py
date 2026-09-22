@@ -49,6 +49,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("model", nargs="?", default=DEFAULT_MODEL, help="path to the MJCF")
     parser.add_argument("--topic", default=DEFAULT_TOPIC, help="state topic to mirror")
     parser.add_argument("--rate", type=float, default=60.0, help="viewer refresh rate [Hz]")
+    parser.add_argument(
+        "--track-body",
+        default="base_link",
+        help="body the camera follows (empty to keep the free camera)",
+    )
+    parser.add_argument("--distance", type=float, default=2.5, help="camera distance [m]")
+    parser.add_argument("--azimuth", type=float, default=90.0, help="camera azimuth [deg]")
+    parser.add_argument("--elevation", type=float, default=-20.0, help="camera elevation [deg]")
     return parser.parse_args()
 
 
@@ -85,6 +93,24 @@ def main() -> int:
 
     mismatched = False
     viewer = mujoco.viewer.launch_passive(model, data)
+
+    # Lock the camera onto a body so it follows the (moving) vehicle at a fixed
+    # distance. Distance/azimuth/elevation stay mouse-adjustable; only the
+    # tracking target is re-asserted each frame.
+    track_body_id = (
+        mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, args.track_body)
+        if args.track_body
+        else -1
+    )
+    if track_body_id >= 0:
+        viewer.cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
+        viewer.cam.trackbodyid = track_body_id
+        viewer.cam.distance = args.distance
+        viewer.cam.azimuth = args.azimuth
+        viewer.cam.elevation = args.elevation
+    elif args.track_body:
+        bridge.get_logger().warn(f"track body '{args.track_body}' not found; free camera")
+
     period = 1.0 / args.rate if args.rate > 0.0 else 0.0
     try:
         while viewer.is_running() and not stop.is_set():
@@ -100,6 +126,10 @@ def main() -> int:
                         f"state size {len(frame)} != nq+nv {expected}; ignoring"
                     )
                     mismatched = True
+
+            if track_body_id >= 0:
+                viewer.cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
+                viewer.cam.trackbodyid = track_body_id
 
             viewer.sync()
             if period:

@@ -151,16 +151,29 @@ public:
             info(
                 "t={:.1f} L0L={:.4f} L0R={:.4f} aL={:.4f} aR={:.4f} d={:.4f} pitch={:.4f} "
                 "tauH={:.2f} tauC={:.2f} tauW={:.2f} cH={:.1f} cC={:.1f} dqC={:.3f} "
-                "bz={:.3f} az={:.3f} by={:.4f} dqW={:.3f} dqWR={:.3f} cx={:.4f}",
+                "bz={:.3f} az={:.3f} by={:.4f} dqW={:.3f} dqWR={:.3f} cx={:.4f} bq={:.3f},{:.3f},{:.3f},{:.3f}",
                 step_count_ * dt_, leg_l[0], leg_r[0], leg_l[1], leg_r[1], com[1] - axle_y,
                 body_pitch_(), dbg_hip_torque_, dbg_crank_torque_, dbg_wheel_torque_,
                 data_->ctrl[actuator_ids_[kActuatorHipL]], data_->ctrl[actuator_ids_[kActuatorCrankL]],
                 joint_velocity_(kLCrank), data_->qpos[base_qpos_adr_ + 2],
                 data_->xanchor[3 * joint_ids_[kLJoint3] + 2], data_->qpos[base_qpos_adr_ + 1],
-                joint_velocity_(kLJoint3), joint_velocity_(kRJoint3), com[1]);
+                joint_velocity_(kLJoint3), joint_velocity_(kRJoint3), com[1],
+                data_->qpos[base_qpos_adr_ + 3], data_->qpos[base_qpos_adr_ + 4],
+                data_->qpos[base_qpos_adr_ + 5], data_->qpos[base_qpos_adr_ + 6]);
         }
 
-        *command_velocity_ = command_velocity_target_;
+        const double sim_time = step_count_ * dt_;
+        double velocity_command = command_velocity_target_;
+        if (std::isfinite(command_velocity_period_) && command_velocity_period_ > 0.0
+            && std::isfinite(command_velocity_target_2_)) {
+            // Periodic square wave: alternate target every |period| seconds.
+            const auto half = static_cast<long long>(sim_time / command_velocity_period_);
+            velocity_command = (half % 2 == 0) ? command_velocity_target_ : command_velocity_target_2_;
+        } else if (std::isfinite(command_velocity_switch_) && sim_time >= command_velocity_switch_
+                   && std::isfinite(command_velocity_target_2_)) {
+            velocity_command = command_velocity_target_2_;
+        }
+        *command_velocity_ = (sim_time >= command_velocity_start_) ? velocity_command : 0.0;
         *command_acceleration_ = command_acceleration_target_;
         *command_leg_length_ = command_leg_length_target_;
 
@@ -195,6 +208,7 @@ private:
         open_loop_wheel_torque_ =
             node::param_or("open_loop_wheel_torque", std::numeric_limits<double>::quiet_NaN());
         open_loop_wheel_same_sign_ = node::param_or("open_loop_wheel_same_sign", false);
+        open_loop_wheel_start_ = node::param_or("open_loop_wheel_start", 0.0);
         disturbance_force_ = node::param_or("disturbance_force", 0.0);
         disturbance_start_ = node::param_or("disturbance_start", -1.0);
         disturbance_duration_ = node::param_or("disturbance_duration", 0.0);
@@ -259,6 +273,10 @@ private:
         state_wheel_sign_ = node::param_or("state_wheel_sign", 1.0);
 
         command_velocity_target_ = node::param_or("command_velocity", 0.0);
+        command_velocity_start_ = node::param_or("command_velocity_start", 0.0);
+        command_velocity_target_2_ = node::param_or("command_velocity_2", kNaN);
+        command_velocity_switch_ = node::param_or("command_velocity_switch", kNaN);
+        command_velocity_period_ = node::param_or("command_velocity_period", kNaN);
         command_acceleration_target_ = node::param_or("command_acceleration", 0.0);
         command_leg_length_target_ = node::param_or("command_leg_length", kNaN);
 
@@ -267,6 +285,12 @@ private:
             node::param_or<std::string>("state_topic", "/wheelleg/simulation/state");
         viewer_enabled_ = node::param_or("viewer", true);
         viewer_script_ = node::param_or<std::string>("viewer_script", std::string{});
+        viewer_track_body_ =
+            node::param_or<std::string>("viewer_track_body", "base_link");
+        viewer_follow_ = node::param_or("viewer_follow", true);
+        viewer_distance_ = node::param_or("viewer_distance", 2.5);
+        viewer_azimuth_ = node::param_or("viewer_azimuth", 90.0);
+        viewer_elevation_ = node::param_or("viewer_elevation", -20.0);
 
         if (dt_ <= 0.0)
             throw std::runtime_error{"wheelleg_simulation: dt must be positive"};
@@ -314,7 +338,18 @@ private:
         }
 
         std::vector<std::string> arguments{
-            script, model_path_, "--topic", state_topic_};
+            script,
+            model_path_,
+            "--topic",
+            state_topic_,
+            "--track-body",
+            viewer_follow_ ? viewer_track_body_ : std::string{},
+            "--distance",
+            std::to_string(viewer_distance_),
+            "--azimuth",
+            std::to_string(viewer_azimuth_),
+            "--elevation",
+            std::to_string(viewer_elevation_)};
         std::vector<char*> argv;
         argv.reserve(arguments.size() + 1);
         for (auto& argument : arguments)
@@ -804,7 +839,8 @@ private:
 
         // Open-loop wheel torque injection (system identification): overrides
         // whatever the controllers asked for.
-        if (std::isfinite(open_loop_wheel_torque_)) {
+        if (std::isfinite(open_loop_wheel_torque_)
+            && step_count_ * dt_ >= open_loop_wheel_start_) {
             wheel_torque_l = open_loop_wheel_torque_;
             wheel_torque_r = open_loop_wheel_same_sign_ ? open_loop_wheel_torque_
                                                          : -open_loop_wheel_torque_;
@@ -1160,6 +1196,7 @@ private:
     double wheel_kp_ = 20.0;
     double open_loop_wheel_torque_ = std::numeric_limits<double>::quiet_NaN();
     bool open_loop_wheel_same_sign_ = false;
+    double open_loop_wheel_start_ = 0.0;
     double wheel_velocity_damping_ = 0.0;
     double disturbance_force_ = 0.0;
     double disturbance_start_ = -1.0;
@@ -1207,6 +1244,10 @@ private:
     double previous_pitch_ = 0.0;
 
     double command_velocity_target_ = 0.0;
+    double command_velocity_start_ = 0.0;
+    double command_velocity_target_2_ = std::numeric_limits<double>::quiet_NaN();
+    double command_velocity_switch_ = std::numeric_limits<double>::quiet_NaN();
+    double command_velocity_period_ = std::numeric_limits<double>::quiet_NaN();
     double command_acceleration_target_ = 0.0;
     double command_leg_length_target_ = kNaN;
 
@@ -1216,6 +1257,11 @@ private:
 
     bool viewer_enabled_ = true;
     std::string viewer_script_;
+    std::string viewer_track_body_ = "base_link";
+    bool viewer_follow_ = true;
+    double viewer_distance_ = 2.5;
+    double viewer_azimuth_ = 90.0;
+    double viewer_elevation_ = -20.0;
     pid_t viewer_pid_ = -1;
 
     bool reference_ready_warned_ = false;
