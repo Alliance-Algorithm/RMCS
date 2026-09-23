@@ -29,8 +29,7 @@ public:
             "output_error_suffix", "/traditional_control_angle_error");
 
         joint_target_vel_limit_ = std::max(
-            deg_to_rad_(std::abs(get_parameter_or("target_physical_velocity_limit", 180.0))),
-            1e-6);
+            deg_to_rad_(std::abs(get_parameter_or("target_physical_velocity_limit", 180.0))), 1e-6);
         joint_target_acc_limit_ = std::max(
             deg_to_rad_(std::abs(get_parameter_or("target_physical_acceleration_limit", 720.0))),
             1e-6);
@@ -139,8 +138,8 @@ private:
         return any_active;
     }
 
-    void run_joint_trajectory_(
-        const std::array<double, kJointCount>& target_angles_rad, double dt) {
+    void
+        run_joint_trajectory_(const std::array<double, kJointCount>& target_angles_rad, double dt) {
         for (size_t i = 0; i < kJointCount; ++i) {
             if (!joint_target_active_[i])
                 continue;
@@ -161,8 +160,8 @@ private:
                 desired_velocity = std::copysign(joint_target_vel_limit_, position_error);
 
             const double velocity_error = desired_velocity - velocity_state;
-            acceleration_state = std::clamp(
-                velocity_error / dt, -joint_target_acc_limit_, joint_target_acc_limit_);
+            acceleration_state =
+                std::clamp(velocity_error / dt, -joint_target_acc_limit_, joint_target_acc_limit_);
             velocity_state += acceleration_state * dt;
             velocity_state =
                 std::clamp(velocity_state, -joint_target_vel_limit_, joint_target_vel_limit_);

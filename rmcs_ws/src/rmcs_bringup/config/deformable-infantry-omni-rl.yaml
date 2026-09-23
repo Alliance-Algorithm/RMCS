@@ -21,14 +21,11 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller
 
       - rmcs_core::controller::chassis::DeformableChassis -> chassis_controller
-      - rmcs_core::controller::chassis::DeformablePostureTrajectory -> deformable_posture_trajectory
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::DeformableOmniWheelController -> deformable_chassis_controller
 
-      # RL 只在主动悬挂开启且策略权威时接管；关闭时走 Q 高低姿态轨迹。
+      - rmcs_core::controller::chassis::DeformablePostureTrajectory -> deformable_posture_trajectory
       - rmcs_core::controller::chassis::DeformableRlSuspension -> deformable_rl_suspension
-      - rmcs::rl::RlBridge -> rl_bridge
-      - rmcs::rl::PolicyServerLauncher -> policy_server_launcher
       - rmcs_core::controller::chassis::DeformableSuspensionArbiter -> deformable_suspension_arbiter
 
       - rmcs_core::controller::chassis::DeformableJointController -> lf_joint_controller
@@ -40,6 +37,9 @@ rmcs_executor:
       - rmcs::AutoAimComponent -> auto_aim_component
       - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
       - rmcs_core::referee::app::ui::AutoAimUi -> auto_aim_ui
+
+      - rmcs_rl::RlBridge -> rl_bridge
+      - rmcs_rl::PolicyServerLauncher -> policy_server_launcher
 
       # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       # - rmcs_core::debug::ValueCollector -> value_collector
@@ -198,18 +198,18 @@ rl_bridge:
     joint_torque_suffix: "/torque"
 
     observation_terms:
-      - index=0  path=/chassis/deformable/rl_q_cmd
-      - index=1  path=/chassis/control_velocity take=x
-      - index=2  path=/chassis/control_velocity take=y
-      - index=3  path=/chassis/control_velocity take=z
-      - index=4  path=/chassis/imu/roll_rate scale=0.5
-      - index=5  path=/chassis/imu/pitch_rate scale=-0.5
-      - index=6  path=/chassis/yaw/velocity_imu scale=0.5
-      - index=7  path=/chassis/imu/quaternion transform=projected_gravity
-      - index=10 type=joint_pos  joints=right_front_joint,left_front_joint,left_back_joint,right_back_joint
-      - index=14 type=joint_vel  joints=right_front_joint,left_front_joint,left_back_joint,right_back_joint scale=0.1
-      - index=18 type=joint_torque joints=right_front_joint,left_front_joint,left_back_joint,right_back_joint scale=0.05
-      - index=22 type=last_action
+      - index=0  path=/chassis/deformable/rl_q_cmd clip=-1:2
+      - index=1  path=/chassis/control_velocity take=x clip=-3:3
+      - index=2  path=/chassis/control_velocity take=y clip=-3:3
+      - index=3  path=/chassis/control_velocity take=z clip=-3:3
+      - index=4  path=/chassis/imu/roll_rate scale=0.5 clip=-10:10
+      - index=5  path=/chassis/imu/pitch_rate scale=-0.5 clip=-10:10
+      - index=6  path=/chassis/yaw/velocity_imu scale=0.5 clip=-10:10
+      - index=7  path=/chassis/imu/quaternion transform=projected_gravity clip=-1:1
+      - index=10 type=joint_pos  joints=right_front_joint,left_front_joint,left_back_joint,right_back_joint clip=-0.5:2
+      - index=14 type=joint_vel  joints=right_front_joint,left_front_joint,left_back_joint,right_back_joint scale=0.1 clip=-30:30
+      - index=18 type=joint_torque joints=right_front_joint,left_front_joint,left_back_joint,right_back_joint scale=0.05 clip=-60:60
+      - index=22 type=last_action clip=-1.5:1.5
 
     action_terms:
       - index=0 output=/chassis/rl/action/joint_leg_1
@@ -359,6 +359,7 @@ lf_joint_controller:
     eso_auto_beta: true
     k1: 30.0
     k2: 17.0
+
     alpha1: 0.75
     alpha2: 0.7
     delta: 0.02
