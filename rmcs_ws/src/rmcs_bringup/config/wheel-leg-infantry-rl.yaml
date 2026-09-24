@@ -37,79 +37,61 @@ value_broadcaster:
 wheel_leg_infantry_rl:
   ros__parameters:
     board_serial: ""
+    # 电机调试助手 Master ID；默认 0，按左髋/右髋/左膝/右膝顺序填实机读数。
+    dm_master_ids: [0, 0, 0, 0]
+    # 下列数值仅沿用旧驱动的未核实设定，必须与每台 DM 调试助手的
+    # P_MAX/V_MAX/T_MAX 寄存器逐一核对；额定/峰值扭矩不等于 T_MAX。
+    # 顺序同 dm_master_ids；实际命令限幅会取 min(dm_control_torque_max, dm_mit_torque_max)。
+    dm_mit_position_max: [12.5, 12.5, 12.5, 12.5]
+    dm_mit_velocity_max: [45.0, 45.0, 45.0, 45.0]
+    dm_mit_torque_max: [54.0, 54.0, 54.0, 54.0]
+    dm_control_torque_max: [40.0, 40.0, 40.0, 40.0]
 
-    hip_kp: 200.0
-    hip_kd: 4.0
-    knee_kp: 200.0
-    knee_kd: 4.0
+    # This hardware component always uses zero-Kp/Kd MIT pure-torque commands.
+    # All six drive loops run on the PC (not DM internal position control).
 
 rl_controller:
   ros__parameters:
-    # 训练导出的 ONNX，必须携带 rmcs_obs_layout / rmcs_actions_layout metadata
-    # （格式与生成方式见 rmcs_rl/doc/model-contract.md 与 tool/stamp_layout_metadata.py）。
-    rl_model_path: "models/wheel_leg_V1.onnx"
-    rl_inference_frequency: 50.0            # 训练控制频率 = sim dt 0.005 × decimation 4
-    rl_publish_network_io: true             # 发布观测/动作调试输出
-    command_state_path: "/chassis/control_state"
-    reset_count_path: "/chassis/reset_count"
-    rl_state_interface_path: "/wheel_leg/rl/state"
+    # Historical flat/turn 12486-update candidate (accepted_stage: null), for
+    # offline interface verification. Calibration guards below keep hardware disarmed.
+    policy_profile: "flat_12486"
+    rl_model_path: "models/v5_flat_12486/policy.onnx"
+    rl_model_sha256: "ae58b862be5547195d8c4b3e71aa9be37b147792ebc903c68f032f341d92be6d"
+    rl_inference_frequency: 50.0
+    height_transition_seconds: 6.0      # V5 height reference cubic zero-end-velocity transition
+    wheel_radius: 0.06
+    wheel_track: 0.4373
+    rl_publish_network_io: true
     rl_state_topic: "/chassis/rl/state"
     observation_topic: "/wheel_leg/rl/observation"
     action_topic: "/wheel_leg/rl/action"
 
-    # ---- 关节（训练 DOF 序；动作/观测词条按名字引用）----
-    joint_names: [left_hip_joint, left_knee_joint, left_wheel, right_hip_joint, right_knee_joint, right_wheel]
-    joint_base_path: "/wheel_leg"
-    joint_angle_suffix: "/angle"
-    joint_velocity_suffix: "/velocity"
-    joint_torque_suffix: "/torque"
+    # NO assumed identity transform: fill after identifying chain reduction,
+    # motor sign, encoder zero, coaxial coupling and physical hinge travel.
+    # Leg P order: left_hip, left_knee-drive, right_hip, right_knee-drive.
+    # q_model = leg_motor_to_model(4x4 row-major) * q_motor + leg_model_offsets;
+    # tau_motor = leg_motor_to_model^T * tau_model. Enable only after calibration.
+    calibration_ready: false
+    leg_motor_to_model: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                         0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    leg_model_offsets: [0.0, 0.0, 0.0, 0.0]
+    wheel_model_scale: [1.0, 1.0]
+    nominal_model_pos: [0.42, -0.13742282595254576, -0.42, 0.13741557625658019, 0.0, 0.0]
 
-    # ---- 模型合同尺寸（必须等于词条维度之和 / action_terms 条数）----
-    rl_obs_size: 28
-    rl_action_size: 6
+    # Actual thigh/shank relative angle = a*hip_model + b*knee_model + bias.
+    # Determine physical limits and mapping experimentally before setting ready.
+    soft_limits_ready: false
+    hinge_coefficients: [0.0, 0.0, 0.0, 0.0]
+    hinge_bias: [0.0, 0.0]
+    hinge_min: [0.0, 0.0]
+    hinge_max: [0.0, 0.0]
+    hinge_margin: 0.03
 
-    obs_clip: 100.0
-    clip_actions: 100.0
+    # gyro_base = R_base_imu * gyro_imu; q_world_base = q_world_imu * R_base_imu^T.
+    imu_alignment_ready: false
+    imu_to_base: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
 
-    # ---- 观测布局（顺序 = obs 索引顺序；与训练侧逐项核对）----
-    # 当前 actor 契约（28 维，闭链 RL 直接使用电机原始反馈，无五连杆解算）：
-    #   [0]    vx 指令 (m/s)，来自 /chassis/control_velocity.x
-    #   [1]    vy 指令（当前 motion controller 输出 0）
-    #   [2]    yaw_rate 指令 (rad/s)
-    #   [3]    目标高度 ×5
-    #   [4:7]  机体角速度 ×0.5
-    #   [7:10] 重力投影
-    #   [10:16] 关节位置（髋/膝 相对 default_joint_pos；轮位置恒 0）
-    #   [16:22] 关节速度 ×0.1
-    #   [22:28] 上一帧动作
-    observation_terms:
-      - type=direction_vector_component path=/chassis/control_velocity component=x
-      - type=direction_vector_component path=/chassis/control_velocity component=y
-      - type=direction_vector_component path=/chassis/control_velocity component=z
-      - path=/chassis/control_height scale=5.0
-      - type=vector3 path=/wheel_leg/imu/angular_velocity scale=0.5
-      - type=quaternion path=/wheel_leg/imu/quaternion transform=projected_gravity
-      - type=joint_pos joints=left_hip_joint,left_knee_joint relative=true
-      - type=joint_pos joints=left_wheel zero=true
-      - type=joint_pos joints=right_hip_joint,right_knee_joint relative=true
-      - type=joint_pos joints=right_wheel zero=true
-      - type=joint_vel joints=left_hip_joint,left_knee_joint,left_wheel,right_hip_joint,right_knee_joint,right_wheel scale=0.1
-      - type=last_action
-
-    # ---- 动作布局（顺序 = 策略输出槽位顺序）----
-    # 位置 0/1/3/4：髋/膝位置 PD（目标角交给电机内环，DM 模式 B）
-    # 位置 2/5：轮速度 PD（力矩输出）
-    default_joint_pos: {left_hip_joint: -0.5, left_knee_joint: -0.35, left_wheel: 0.0, right_hip_joint: 0.5, right_knee_joint: 0.35, right_wheel: 0.0}
-    action_terms:
-      - joint=left_hip_joint mode=position scale=0.5 kp=200.0 kd=4.0 torque_max=35.0 limits=-100:100 pd_on_motor=true prepare=-0.5
-      - joint=left_knee_joint mode=position scale=0.5 kp=200.0 kd=4.0 torque_max=35.0 limits=-100:100 pd_on_motor=true prepare=-0.35
-      - joint=left_wheel mode=velocity scale=10.0 kp=20.0 kd=0.5 torque_max=6.0 max_velocity=100.0
-      - joint=right_hip_joint mode=position scale=0.5 kp=200.0 kd=4.0 torque_max=35.0 limits=-100:100 pd_on_motor=true prepare=0.5
-      - joint=right_knee_joint mode=position scale=0.5 kp=200.0 kd=4.0 torque_max=35.0 limits=-100:100 pd_on_motor=true prepare=0.35
-      - joint=right_wheel mode=velocity scale=10.0 kp=20.0 kd=0.5 torque_max=6.0 max_velocity=100.0
-
-    # ---- FSM / PREPARE ----
-    auto_enter_rl: false                    # 调试期保持 false，遥控 state=3 手动进 RL
+    auto_enter_rl: false
     prepare_kp: 80.0
     prepare_kd: 2.0
     prepare_max_velocity: 1.0
@@ -117,15 +99,17 @@ rl_controller:
 
 wheel_leg_chassis_controller:
   ros__parameters:
-    rl_state_path: "/wheel_leg/rl/state"    # RlController 输出接口（可选输入，无则兜底 kIdle）
-    vx_max: 2.5                             # 与观测指令词条 clip 一致
+    vx_max: 2.5
     yaw_rate_max: 3.0
     deadzone: 0.08
-    command_height_min: 0.20                # 与 height 词条 clip 一致
-    command_height_max: 0.42
-    default_command_height: 0.22
-    height_range: 0.20                      # 左杆 Y 满行程 = ±range 绕 default 调高
-    height_step: 0.05                       # 键盘 Q/E 单次步进
+    # This candidate's locomotion/turning evaluations used nominal 0.305m.
+    # Full V5 height/jump/translation commands require a separately selected model.
+    command_height_min: 0.305
+    command_height_max: 0.305
+    default_command_height: 0.305
+    height_range: 0.0
+    height_step: 0.0
     angular_z_invert: false                 # 自动对齐转向；若转向相反改 true
     heading_kp: 3.0                         # 目标航向误差 -> 转向角速度 的比例增益
     height_invert: false                    # 前推左杆应为升高；若相反改 true
+    # V held = jump request; Shift+V selects 0.10m instead of 0.06m apex.
