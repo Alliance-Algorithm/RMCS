@@ -34,6 +34,19 @@ value_broadcaster:
       - /wheel_leg/left_wheel/velocity
       - /wheel_leg/left_wheel/torque
 
+      - /wheel_leg/rl/state
+      - /wheel_leg/rl/performance/inference_us
+      - /wheel_leg/rl/performance/pd_us
+      - /wheel_leg/rl/observation/command/forward
+      - /wheel_leg/rl/observation/command/yaw
+      - /wheel_leg/rl/observation/projected_gravity/z
+      - /wheel_leg/rl/action/left_hip_joint
+      - /wheel_leg/rl/action/left_knee_joint
+      - /wheel_leg/rl/action/right_hip_joint
+      - /wheel_leg/rl/action/right_knee_joint
+      - /wheel_leg/rl/action/left_wheel
+      - /wheel_leg/rl/action/right_wheel
+
 wheel_leg_infantry_rl:
   ros__parameters:
     board_serial: ""
@@ -52,19 +65,12 @@ wheel_leg_infantry_rl:
 
 rl_controller:
   ros__parameters:
-    # Historical flat/turn 12486-update candidate (accepted_stage: null), for
-    # offline interface verification. Calibration guards below keep hardware disarmed.
-    policy_profile: "flat_12486"
-    rl_model_path: "models/v5_flat_12486/policy.onnx"
-    rl_model_sha256: "ae58b862be5547195d8c4b3e71aa9be37b147792ebc903c68f032f341d92be6d"
+    # Planar motion candidate; calibration guards keep hardware disarmed.
+    rl_model_path: "models/wheel_leg/policy.onnx"
     rl_inference_frequency: 50.0
-    height_transition_seconds: 6.0      # V5 height reference cubic zero-end-velocity transition
+    height_transition_seconds: 6.0
     wheel_radius: 0.06
     wheel_track: 0.4373
-    rl_publish_network_io: true
-    rl_state_topic: "/chassis/rl/state"
-    observation_topic: "/wheel_leg/rl/observation"
-    action_topic: "/wheel_leg/rl/action"
 
     # NO assumed identity transform: fill after identifying chain reduction,
     # motor sign, encoder zero, coaxial coupling and physical hinge travel.
@@ -96,6 +102,10 @@ rl_controller:
     prepare_kd: 2.0
     prepare_max_velocity: 1.0
     prepare_reach_threshold: 0.02
+    prepare_max_tilt_rad: 0.2
+    prepare_max_angular_velocity: 0.35
+    prepare_max_joint_velocity: 0.5
+    prepare_stable_seconds: 0.25
 
 wheel_leg_chassis_controller:
   ros__parameters:
@@ -103,7 +113,7 @@ wheel_leg_chassis_controller:
     yaw_rate_max: 3.0
     deadzone: 0.08
     # This candidate's locomotion/turning evaluations used nominal 0.305m.
-    # Full V5 height/jump/translation commands require a separately selected model.
+    # Height/jump/lateral commands require a separately validated model.
     command_height_min: 0.305
     command_height_max: 0.305
     default_command_height: 0.305

@@ -3,17 +3,14 @@
 #include <algorithm>
 #include <cmath>
 #include <filesystem>
-#include <fstream>
-#include <iomanip>
 #include <limits>
 #include <numbers>
-#include <sstream>
+#include <ranges>
 #include <stdexcept>
 #include <utility>
 #include <vector>
 
 #include <ament_index_cpp/get_package_share_directory.hpp>
-#include <openssl/evp.h>
 #include <pluginlib/class_list_macros.hpp>
 
 namespace rmcs::rl {
@@ -30,61 +27,9 @@ std::vector<double> parameter_vector(rclcpp::Node& node, const char* name, std::
 bool almost_integer(double value) {
     return std::isfinite(value) && value >= 1.0 && std::abs(value - std::round(value)) < 1e-6;
 }
-
-std::string sha256_file(const std::filesystem::path& path) {
-    std::ifstream stream{path, std::ios::binary};
-    if (!stream)
-        throw std::runtime_error("Cannot open ONNX model: " + path.string());
-    std::unique_ptr<EVP_MD_CTX, decltype(&EVP_MD_CTX_free)> ctx(EVP_MD_CTX_new(), EVP_MD_CTX_free);
-    if (!ctx || EVP_DigestInit_ex(ctx.get(), EVP_sha256(), nullptr) != 1)
-        throw std::runtime_error("Failed to initialize model SHA-256");
-    std::array<char, 8192> data{};
-    while (stream) {
-        stream.read(data.data(), data.size());
-        const auto size = stream.gcount();
-        if (size > 0
-            && EVP_DigestUpdate(ctx.get(), data.data(), static_cast<std::size_t>(size)) != 1)
-            throw std::runtime_error("Failed to hash ONNX model");
-    }
-    if (!stream.eof())
-        throw std::runtime_error("Failed to read ONNX model for SHA-256");
-    std::array<unsigned char, EVP_MAX_MD_SIZE> digest{};
-    unsigned int length = 0;
-    if (EVP_DigestFinal_ex(ctx.get(), digest.data(), &length) != 1 || length != 32)
-        throw std::runtime_error("Failed to finalize ONNX model SHA-256");
-    std::ostringstream text;
-    for (unsigned i = 0; i < length; ++i)
-        text << std::hex << std::setw(2) << std::setfill('0') << static_cast<unsigned>(digest[i]);
-    return text.str();
-}
 } // namespace
 
-std::expected<PolicyProfile, std::string> parse_policy_profile(std::string_view name) {
-    if (name == "v5_full")
-        return PolicyProfile::kV5Full;
-    if (name == "flat_12486")
-        return PolicyProfile::kFlat12486;
-    return std::unexpected{std::string{"Unknown RL policy_profile: "} + std::string{name}};
-}
-
-std::expected<void, std::string> validate_model_identity(
-    std::string_view expected_sha, std::string_view actual_sha, PolicyProfile profile) {
-    const auto is_lower_hex = [](char c) {
-        return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
-    };
-    if (expected_sha.size() != 64 || !std::ranges::all_of(expected_sha, is_lower_hex))
-        return std::unexpected{std::string{"rl_model_sha256 must be 64 lowercase hex digits"}};
-    if (expected_sha != actual_sha)
-        return std::unexpected{
-            std::string{"ONNX SHA-256 does not match the selected model bundle"}};
-    const bool flat_model = expected_sha == kFlat12486Sha256;
-    const bool flat_profile = profile == PolicyProfile::kFlat12486;
-    if (flat_model != flat_profile)
-        return std::unexpected{std::string{"policy_profile does not match rl_model_sha256"}};
-    return {};
-}
-
-bool flat_candidate_accepts(
+bool accepts_motion_command(
     bool jump, double height, rmcs_msgs::ChassisMode mode,
     const rmcs_description::BaseLink::DirectionVector& command) {
     if (!std::isfinite(height) || !command.vector.allFinite() || jump
@@ -98,9 +43,7 @@ bool flat_candidate_accepts(
 }
 
 RlController::RlController()
-    : Node(
-          get_component_name(),
-          rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
+    : Node{get_component_name(), node::options()} {
     constexpr const char* base = "/wheel_leg/";
     for (std::size_t i = 0; i < kMotorNames.size(); ++i) {
         const std::string prefix = std::string{base} + kMotorNames[i];
@@ -126,29 +69,55 @@ RlController::RlController()
     register_input("/predefined/update_rate", update_rate_);
     register_input("/predefined/timestamp", timestamp_);
     register_output("/wheel_leg/rl/state", state_output_, std::to_underlying(State::kInit));
+    register_output("/wheel_leg/rl/performance/inference_us", inference_time_us_, 0.0);
+    register_output("/wheel_leg/rl/performance/pd_us", pd_time_us_, 0.0);
+    for (std::size_t i = 0; i < observation_outputs_.size(); ++i)
+        register_output(
+            std::string{"/wheel_leg/rl/observation/"} + std::string{kObservationNames[i]},
+            observation_outputs_[i], 0.0);
+    for (std::size_t i = 0; i < action_outputs_.size(); ++i)
+        register_output(
+            std::string{"/wheel_leg/rl/action/"} + kMotorNames[i], action_outputs_[i], 0.0);
 
     calibration_ready_ = get_parameter_or("calibration_ready", false);
     soft_limits_ready_ = get_parameter_or("soft_limits_ready", false);
     imu_alignment_ready_ = get_parameter_or("imu_alignment_ready", false);
     auto_enter_rl_ = get_parameter_or("auto_enter_rl", false);
-    const auto profile =
-        parse_policy_profile(get_parameter_or<std::string>("policy_profile", "v5_full"));
-    if (!profile)
-        throw std::runtime_error(profile.error());
-    policy_profile_ = *profile;
     prepare_kp_ = get_parameter_or("prepare_kp", 80.0);
     prepare_kd_ = get_parameter_or("prepare_kd", 2.0);
     prepare_max_velocity_ = get_parameter_or("prepare_max_velocity", 1.0);
     prepare_reach_threshold_ = get_parameter_or("prepare_reach_threshold", 0.02);
+    prepare_max_tilt_rad_ = get_parameter_or("prepare_max_tilt_rad", 0.2);
+    prepare_max_angular_velocity_ = get_parameter_or("prepare_max_angular_velocity", 0.35);
+    prepare_max_joint_velocity_ = get_parameter_or("prepare_max_joint_velocity", 0.5);
+    prepare_stable_seconds_ = get_parameter_or("prepare_stable_seconds", 0.25);
     hinge_margin_ = get_parameter_or("hinge_margin", 0.03);
     height_transition_seconds_ = get_parameter_or("height_transition_seconds", 6.0);
     wheel_radius_ = get_parameter_or("wheel_radius", 0.06);
     wheel_track_ = get_parameter_or("wheel_track", 0.4373);
     inference_frequency_ = get_parameter_or("rl_inference_frequency", 50.0);
-    if (inference_frequency_ != 50.0 || prepare_kp_ <= 0 || prepare_kd_ < 0
-        || prepare_max_velocity_ <= 0 || prepare_reach_threshold_ <= 0 || hinge_margin_ < 0
+    const std::array parameters{
+        inference_frequency_,
+        prepare_kp_,
+        prepare_kd_,
+        prepare_max_velocity_,
+        prepare_reach_threshold_,
+        prepare_max_tilt_rad_,
+        prepare_max_angular_velocity_,
+        prepare_max_joint_velocity_,
+        prepare_stable_seconds_,
+        hinge_margin_,
+        height_transition_seconds_,
+        wheel_radius_,
+        wheel_track_,
+    };
+    if (!std::ranges::all_of(parameters, [](double value) { return std::isfinite(value); })
+        || inference_frequency_ != 50.0 || prepare_kp_ <= 0 || prepare_kd_ < 0
+        || prepare_max_velocity_ <= 0 || prepare_reach_threshold_ <= 0 || prepare_max_tilt_rad_ <= 0
+        || prepare_max_tilt_rad_ >= std::numbers::pi / 2 || prepare_max_angular_velocity_ <= 0
+        || prepare_max_joint_velocity_ <= 0 || prepare_stable_seconds_ <= 0 || hinge_margin_ < 0
         || height_transition_seconds_ <= 0 || wheel_radius_ <= 0 || wheel_track_ <= 0)
-        throw std::runtime_error("Invalid policy frequency, PREPARE gains, or robot geometry");
+        throw std::runtime_error("Invalid policy frequency, PREPARE thresholds, or robot geometry");
 
     const auto matrix = parameter_vector(*this, "leg_motor_to_model", 16);
     const auto offsets = parameter_vector(*this, "leg_model_offsets", 4);
@@ -199,25 +168,12 @@ RlController::RlController()
                    > 1e-3))
         throw std::runtime_error("imu_to_base must be a calibrated rotation matrix");
 
-    state_pub_ = create_publisher<std_msgs::msg::Int32>(
-        get_parameter_or<std::string>("rl_state_topic", "/chassis/rl/state"), 5);
-    if (get_parameter_or("rl_publish_network_io", false)) {
-        observation_pub_ = create_publisher<std_msgs::msg::Float32MultiArray>(
-            get_parameter_or<std::string>("observation_topic", "/wheel_leg/rl/observation"), 5);
-        action_pub_ = create_publisher<std_msgs::msg::Float32MultiArray>(
-            get_parameter_or<std::string>("action_topic", "/wheel_leg/rl/action"), 5);
-    }
     const std::string model_path = get_parameter_or<std::string>("rl_model_path", "");
     if (!model_path.empty()) {
         auto path = std::filesystem::path{model_path};
         if (!path.is_absolute())
             path = std::filesystem::path{ament_index_cpp::get_package_share_directory("rmcs_rl")}
                  / path;
-        const auto expected_sha = get_parameter_or<std::string>("rl_model_sha256", "");
-        const auto identity =
-            validate_model_identity(expected_sha, sha256_file(path), policy_profile_);
-        if (!identity)
-            throw std::runtime_error(identity.error());
         policy_ = std::make_unique<OnnxPolicy>(path.string());
         policy_ready_ = true;
     }
@@ -243,17 +199,24 @@ void RlController::enter_(State next) {
     if (state_ == next)
         return;
     state_ = next;
-    if (next == State::kIdle || next == State::kInit) {
+    prepare_stable_since_.reset();
+    if (next != State::kRl) {
         clear_outputs_();
+        *inference_time_us_ = 0.0;
+        *pd_time_us_ = 0.0;
         previous_action_.fill(0);
+        for (auto& output : observation_outputs_)
+            *output = 0.0;
+        for (auto& output : action_outputs_)
+            *output = 0.0;
+    }
+    if (next == State::kIdle || next == State::kInit) {
         jump_was_requested_ = false;
         vx_reference_ = yaw_reference_ = 0.0;
         height_reference_ = height_from_ = height_target_ = 0.305;
         height_start_ = *timestamp_;
     } else if (next == State::kPrepare) {
         targets_ = q_;
-        previous_action_.fill(0);
-        clear_outputs_();
     } else if (next == State::kRl) {
         last_policy_tick_ = std::numeric_limits<std::size_t>::max();
         rl_start_ = *timestamp_;
@@ -261,16 +224,7 @@ void RlController::enter_(State next) {
     }
 }
 
-void RlController::publish_state_() {
-    const int state = std::to_underlying(state_);
-    *state_output_ = state;
-    if (last_published_state_ != state) {
-        std_msgs::msg::Int32 msg;
-        msg.data = state;
-        state_pub_->publish(msg);
-        last_published_state_ = state;
-    }
-}
+void RlController::update_state_output_() { *state_output_ = std::to_underlying(state_); }
 
 bool RlController::update_prepare_() {
     const double dt = 1.0 / *update_rate_;
@@ -282,7 +236,19 @@ bool RlController::update_prepare_() {
                  < prepare_reach_threshold_;
     }
     targets_[4] = targets_[5] = 0.0;
-    return reached;
+    const Eigen::Quaterniond q_world_base =
+        orientation_->normalized() * Eigen::Quaterniond{imu_to_base_.transpose()};
+    const double gravity_z = (q_world_base.conjugate() * -Eigen::Vector3d::UnitZ()).z();
+    if (!reached || -gravity_z < std::cos(prepare_max_tilt_rad_)
+        || gyro_->norm() > prepare_max_angular_velocity_
+        || dq_.cwiseAbs().maxCoeff() > prepare_max_joint_velocity_) {
+        prepare_stable_since_.reset();
+        return false;
+    }
+    if (!prepare_stable_since_ || *timestamp_ < *prepare_stable_since_)
+        prepare_stable_since_ = *timestamp_;
+    return *timestamp_ - *prepare_stable_since_
+        >= std::chrono::duration<double>{prepare_stable_seconds_};
 }
 
 void RlController::update() {
@@ -305,7 +271,7 @@ void RlController::update() {
     if (requested == 0) {
         enter_(State::kInit);
         clear_outputs_();
-        publish_state_();
+        update_state_output_();
         return;
     }
     // Auto entry is only for simulation / startup; a manual reset must never
@@ -314,26 +280,24 @@ void RlController::update() {
     if (requested == 1 && !automatic) {
         enter_(State::kIdle);
         clear_outputs_();
-        publish_state_();
+        update_state_output_();
         return;
     }
-    const bool unsupported_flat_command =
-        policy_profile_ == PolicyProfile::kFlat12486
-        && !flat_candidate_accepts(
-            *jump_command_, *height_command_, *chassis_mode_, *velocity_command_);
-    if (unsupported_flat_command)
+    const bool unsupported_command = !accepts_motion_command(
+        *jump_command_, *height_command_, *chassis_mode_, *velocity_command_);
+    if (unsupported_command)
         RCLCPP_WARN_THROTTLE(
             get_logger(), *get_clock(), 1000,
             "Requested motion exceeds the active policy capability profile");
-    if ((requested != 2 && requested != 3 && !automatic) || unsupported_flat_command
-        || fault_latched_ || !policy_ready_ || !calibration_ready_ || !soft_limits_ready_
-        || !imu_alignment_ready_ || !read_model_state_()) {
+    if ((requested != 2 && requested != 3 && !automatic) || unsupported_command || fault_latched_
+        || !policy_ready_ || !calibration_ready_ || !soft_limits_ready_ || !imu_alignment_ready_
+        || !read_model_state_()) {
         if (requested >= 2 && calibration_ready_ && soft_limits_ready_ && policy_ready_
             && imu_alignment_ready_)
             fault_latched_ = true;
         enter_(State::kIdle);
         clear_outputs_();
-        publish_state_();
+        update_state_output_();
         return;
     }
 
@@ -352,37 +316,43 @@ void RlController::update() {
                 fault_latched_ = true;
                 enter_(State::kIdle);
                 clear_outputs_();
-                publish_state_();
+                update_state_output_();
                 return;
             }
-            try {
-                process_action_(policy_->run(observation_));
-            } catch (const std::exception& e) {
-                RCLCPP_ERROR(get_logger(), "ONNX inference failed: %s", e.what());
+            const auto inference_start = Clock::now();
+            const auto inference =
+                policy_->run(observation_).and_then([this](const PolicyAction& raw) {
+                    return process_action_(raw);
+                });
+            *inference_time_us_ =
+                std::chrono::duration<double, std::micro>{Clock::now() - inference_start}.count();
+            if (!inference) {
+                node::error("ONNX inference failed: {}", inference.error());
                 fault_latched_ = true;
                 enter_(State::kIdle);
                 clear_outputs_();
-                publish_state_();
+                update_state_output_();
                 return;
             }
             last_policy_tick_ = tick;
-            if (observation_pub_) {
-                std_msgs::msg::Float32MultiArray obs_msg, action_msg;
-                obs_msg.data.assign(observation_.begin(), observation_.end());
-                action_msg.data.assign(previous_action_.begin(), previous_action_.end());
-                observation_pub_->publish(obs_msg);
-                action_pub_->publish(action_msg);
-            }
+            for (std::size_t i = 0; i < observation_outputs_.size(); ++i)
+                *observation_outputs_[i] = observation_[i];
+            for (std::size_t i = 0; i < action_outputs_.size(); ++i)
+                *action_outputs_[i] = previous_action_[i];
         }
     }
     const std::size_t tick = *update_count_;
     if (tick - last_pd_tick_ >= pd_divisor_ || last_pd_tick_ == 0) {
+        const auto pd_start = Clock::now();
         compute_motor_torques_();
+        if (state_ == State::kPrepare || state_ == State::kRl)
+            *pd_time_us_ =
+                std::chrono::duration<double, std::micro>{Clock::now() - pd_start}.count();
         last_pd_tick_ = tick;
     }
     // Other ticks hold the last PD effort; send it again on the CAN bus at 1kHz.
     // clear_outputs_ above is only for states that cannot execute the PD.
-    publish_state_();
+    update_state_output_();
 }
 
 } // namespace rmcs::rl

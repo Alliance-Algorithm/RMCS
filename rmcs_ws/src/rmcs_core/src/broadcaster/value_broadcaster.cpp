@@ -2,7 +2,7 @@
 #include <rclcpp/parameter_event_handler.hpp>
 #include <rmcs_executor/component.hpp>
 #include <std_msgs/msg/float64.hpp>
-#include <std_msgs/msg/header.hpp>
+#include <std_msgs/msg/int32.hpp>
 
 namespace rmcs_core::broadcaster {
 
@@ -27,6 +27,9 @@ public:
                 forward_units_.emplace(
                     name,
                     std::make_unique<ForwardUnit<double, std_msgs::msg::Float64>>(this, name));
+            } else if (output.type.get() == typeid(int)) {
+                forward_units_.emplace(
+                    name, std::make_unique<ForwardUnit<int, std_msgs::msg::Int32>>(this, name));
             }
         }
         std::vector<std::string> forward_list;

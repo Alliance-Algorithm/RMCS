@@ -1,10 +1,9 @@
-#include "rl_controller.hpp"
+#include "policy.hpp"
 
 #include <algorithm>
 #include <array>
 #include <stdexcept>
 #include <string>
-#include <vector>
 
 #include <onnxruntime_cxx_api.h>
 
@@ -15,10 +14,10 @@ struct OnnxPolicy::Impl {
     Ort::SessionOptions options;
     Ort::Session session{nullptr};
     Ort::MemoryInfo memory{Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault)};
-    std::array<float, ObservationLayout::kSize> input{};
-    std::array<float, 6> output{};
-    std::array<int64_t, 2> input_shape{1, ObservationLayout::kSize};
-    std::array<int64_t, 2> output_shape{1, 6};
+    PolicyObservation input{};
+    PolicyAction output{};
+    std::array<int64_t, 2> input_shape{1, static_cast<int64_t>(input.size())};
+    std::array<int64_t, 2> output_shape{1, static_cast<int64_t>(output.size())};
     Ort::Value input_tensor{nullptr};
     Ort::Value output_tensor{nullptr};
     std::string input_name;
@@ -50,8 +49,8 @@ struct OnnxPolicy::Impl {
                 throw std::runtime_error(
                     "ONNX tensor type or shape does not match the policy contract");
         };
-        check(true, ObservationLayout::kSize);
-        check(false, 6);
+        check(true, input_shape[1]);
+        check(false, output_shape[1]);
 
         input_tensor = Ort::Value::CreateTensor<float>(
             memory, input.data(), input.size(), input_shape.data(), input_shape.size());
@@ -65,14 +64,17 @@ OnnxPolicy::OnnxPolicy(const std::string& model_path)
 
 OnnxPolicy::~OnnxPolicy() = default;
 
-std::array<float, 6>
-    OnnxPolicy::run(const std::array<float, ObservationLayout::kSize>& observation) {
+std::expected<PolicyAction, std::string> OnnxPolicy::run(const PolicyObservation& observation) {
     std::copy(observation.begin(), observation.end(), impl_->input.begin());
-    const char* inputs[] = {impl_->input_name.c_str()};
-    const char* outputs[] = {impl_->output_name.c_str()};
-    impl_->session.Run(
-        Ort::RunOptions{nullptr}, inputs, &impl_->input_tensor, 1, outputs, &impl_->output_tensor,
-        1);
+    const std::array inputs{impl_->input_name.c_str()};
+    const std::array outputs{impl_->output_name.c_str()};
+    try {
+        impl_->session.Run(
+            Ort::RunOptions{nullptr}, inputs.data(), &impl_->input_tensor, inputs.size(),
+            outputs.data(), &impl_->output_tensor, outputs.size());
+    } catch (const std::exception& error) {
+        return std::unexpected{std::string{error.what()}};
+    }
     return impl_->output;
 }
 
