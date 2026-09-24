@@ -1,0 +1,77 @@
+{
+  "model_id": "v5-flat-12486",
+  "role": "historical_partial_capability_candidate",
+  "source_checkpoint_updates": 12486,
+  "source_checkpoint_sha256": "e6307dd7419c052a96285e58ce6a6624b8832e6c5986aadf568287bfcfc37f81",
+  "source_block": "reports/v5_speed_final_20260922/artifacts/train/stage_00_flat/block_016",
+  "source_launch_commit": "76f1b1d09fc013a67c325c92d53e1bb6086b2737",
+  "source_worker_archive_sha256": "c1791425ef6222121124edfdabf2d2794991969314cd1febe4f8ce53bf68c6ef",
+  "source_evaluation": "reports/v53_batches_20260923/artifacts/train/stage_00_flat_repair/baseline_evaluation/candidate_00.json",
+  "onnx_original_bytes_preserved": true,
+  "checkpoint_onnx_parameters_equal": true,
+  "full_stage_accepted": false,
+  "passed_case_count": 18,
+  "case_count": 27,
+  "passed_cases": [
+    "stand",
+    "height",
+    "forward_05",
+    "start_stop_05",
+    "rotate_1",
+    "rotate_1_reverse",
+    "curve_low",
+    "curve_low_reverse",
+    "curve",
+    "curve_reverse",
+    "forward_2",
+    "backward_2",
+    "forward_3",
+    "backward_3",
+    "rotate_4",
+    "rotate_1rps",
+    "rotate_8",
+    "rotate_2rps"
+  ],
+  "failed_cases": {
+    "height_hold_low": [
+      "stand_drift"
+    ],
+    "height_hold_high": [
+      "height",
+      "stand_drift"
+    ],
+    "backward_05": [
+      "velocity"
+    ],
+    "forward_1": [
+      "velocity"
+    ],
+    "backward_1": [
+      "velocity"
+    ],
+    "rotate_4_reverse": [
+      "height"
+    ],
+    "rotate_1rps_reverse": [
+      "height"
+    ],
+    "rotate_8_reverse": [
+      "height"
+    ],
+    "rotate_2rps_reverse": [
+      "height"
+    ]
+  },
+  "copied_source_sha256": {
+    "policy.onnx": "ae58b862be5547195d8c4b3e71aa9be37b147792ebc903c68f032f341d92be6d",
+    "policy.onnx.json": "28936eb3942e0972f0008f8f1c725a8712ed10f2e7f3302e19ecca87ea212b3f",
+    "policy.onnx.contract.json": "c403d29e3876cb7f007d616ec0b50e3e4d0d0fdfee22278ca7bd74ddb8009466",
+    "manifest.json": "5f88012c30ca7191ee30f6ed460bc51bdd96590b63910e119010e7b3dbb6093a",
+    "own_v40_v2.json": "5b97bf2935b5bb04357737e2a54046ab891c15bc15d6e4c2ad9d4d6150e3e8cc",
+    "agent_config.json": "5d08bdea6da7497323d206df835e5cdc4d14d85a75a74aaa44ab1fedbb37079e",
+    "artifact_selection.json": "e3ffc52833ecdfd5f695d63b1507de1964d6880e935011b91106adf23f3eb058",
+    "evaluation.json": "c88118651e3b824fc6be8a0cafa65c55d33b8e6a81cc55ab350c6f3adf45fc5a",
+    "evaluation.contract.json": "ac2b662359a6b9073e70455671a9ba2ef850ce6c2f36566af48e019ed3cea087",
+    "v5_policy_io.py": "b94dec7dad99ad969d33d9104e85e1f3d42e2b893a125e5000a8cf1a99093a42"
+  }
+}
