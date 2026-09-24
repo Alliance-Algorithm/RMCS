@@ -2,7 +2,7 @@ rmcs_executor:
   ros__parameters:
     update_rate: 1000.0
     components:
-      - rmcs_core::hardware::DeformableInfantryOmniB -> deformable_infantry
+      - rmcs_core::hardware::DeformableInfantryOmniC -> deformable_infantry
 
       - rmcs_core::referee::Status -> referee_status
       - rmcs_core::referee::Command -> referee_command
@@ -35,8 +35,6 @@ rmcs_executor:
       - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
       - rmcs_core::referee::app::ui::AutoAimUi -> auto_aim_ui
 
-      # - rmcs_core::debug::GimbalValueCollector -> gimbal_value_collector
-
       # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       # - rmcs_core::debug::ValueCollector -> value_collector
 
@@ -53,17 +51,11 @@ value_collector:
     write_interval: 5
     flush_interval: 1000
 
-gimbal_value_collector:
-  ros__parameters:
-    csv_path: "/tmp/gimbal_ff_<timestamp>.csv"
-    write_interval: 1
-    flush_interval: 1000
-
 value_broadcaster:
   ros__parameters:
     forward_list:
-      - /gimbal/yaw/angle
-      - /gimbal/yaw/velocity
+      - /gimbal/pitch/angle
+      - /gimbal/pitch/velocity
 
 auto_aim_recorder:
   ros__parameters:
@@ -97,40 +89,40 @@ auto_aim_component:
     fire_control:
       bullet_speed: 22.5
       shoot_delay: 0.07
-      offset_yaw: +2.6
-      offset_pitch: -0.3
+      offset_yaw: +0.8
+      offset_pitch: -1.4
       attack_window: 120.0
       degraded_angle_speed: 12.0
       window_redundancy: 0.6
       window_hysteresis: 0.2
       attack_preaim: false
       require_stable_command: false
-      yaw_tolerance: 0.14
-      pitch_tolerance: 0.08
+      yaw_tolerance: 0.21
+      pitch_tolerance: 0.12
       rune_idle_duration: 0.6
       rune_shoot_duration: 0.2
 
 auto_aim_ui:
   ros__parameters:
     offset_x: 0.0
-    offset_y: +0.08
+    offset_y: -0.08
     offset_z: 0.0
 
 deformable_infantry:
   ros__parameters:
-    serial_filter_bottom_board: "AF-73B2-E8A1-A544-79ED-5BDA-D088-7F21-A6A6"
-    serial_filter_top_board: "AF-C26A-0C9C-CF41-3E3C-1596-524B-7527-5744"
+    serial_filter_bottom_board: "AF-C1C3-DFE8-40A8-FC4B-B853-6ED7-AC9F-1DED"
+    serial_filter_top_board: "AF-ABAC-786D-1B53-99F6-00A2-42A6-AA95-9D69"
     chassis_radius: 0.2341741
     rod_length: 0.140
-    yaw_motor_zero_point: 57900
-    pitch_motor_zero_point: 56354
+    yaw_motor_zero_point: 38910
+    pitch_motor_zero_point: 32214
 
 chassis_controller:
   ros__parameters:
     min_angle: 8.0
     max_angle: 59.0
     active_suspension_enable: true
-    wireless_charging_offset_deg: 225.0
+    wireless_charging_offset_deg: 135.0
     wireless_charging_speed_limit: 0.6
     wireless_charging_angular_velocity_limit: 10.0
 
@@ -181,8 +173,8 @@ deformable_suspension:
 
 gimbal_controller:
   ros__parameters:
-    upper_limit: -0.60
-    lower_limit: 0.10
+    upper_limit: -0.60 # -27 deg
+    lower_limit: 0.10 # 8 deg
     ctrl_hold_pitch_target_angle: 0.0
 
     yaw_angle_kp: 10.0
@@ -197,11 +189,11 @@ gimbal_controller:
 
     pitch_angle_kp: 35.0
     pitch_angle_ki: 0.02
-    pitch_angle_kd: 0.0
+    pitch_angle_kd: 0.3
     pitch_angle_integral_min: -0.5
     pitch_angle_integral_max: 0.5
 
-    pitch_velocity_kp: 1.8
+    pitch_velocity_kp: 2.0
     pitch_velocity_ki: 0.0
     pitch_velocity_kd: 0.0
 
@@ -213,8 +205,8 @@ gimbal_controller:
     pitch_velocity_ff_gain: 0.378
     pitch_acceleration_ff_gain: 0.0396
 
-    pitch_gravity_ff_gain: 2.438
-    pitch_gravity_ff_phase: 1.7254
+    pitch_gravity_ff_gain: 2.575
+    pitch_gravity_ff_phase: 1.784
 
     pitch_torque_control: true
 

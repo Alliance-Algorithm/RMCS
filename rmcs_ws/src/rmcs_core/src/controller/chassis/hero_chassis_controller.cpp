@@ -203,6 +203,7 @@ public:
         } break;
         case rmcs_msgs::ChassisMode::ALIGNMENT: [[fallthrough]];
         case rmcs_msgs::ChassisMode::ALIGNMENT_POWERED: [[fallthrough]];
+        case rmcs_msgs::ChassisMode::WIRELESS_CHARGING: [[fallthrough]];
         case rmcs_msgs::ChassisMode::CLIMB: [[fallthrough]];
         case rmcs_msgs::ChassisMode::LAUNCH_RAMP: {
             double err = calculate_unsigned_chassis_angle_error(chassis_control_angle);
