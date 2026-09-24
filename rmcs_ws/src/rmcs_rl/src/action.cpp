@@ -3,19 +3,20 @@
 #include <algorithm>
 #include <cmath>
 #include <numbers>
-#include <stdexcept>
 
 namespace rmcs::rl {
 
-void RlController::process_action_(const std::array<float, 6>& raw) {
+std::expected<void, std::string> RlController::process_action_(const PolicyAction& raw) {
+    PolicyAction clipped;
     for (int i = 0; i < 6; ++i) {
         if (!std::isfinite(raw[i]))
-            throw std::runtime_error("ONNX returned a non-finite action");
-        previous_action_[i] = std::clamp(raw[i], i < 4 ? -3.0f : -9.0f, i < 4 ? 3.0f : 9.0f);
+            return std::unexpected{std::string{"ONNX returned a non-finite action"}};
+        clipped[i] = std::clamp(raw[i], i < 4 ? -3.0f : -9.0f, i < 4 ? 3.0f : 9.0f);
     }
+    Vector6 targets = targets_;
     for (int i = 0; i < 4; ++i) {
-        const double desired = nominal_[i] + 0.25 * previous_action_[i];
-        targets_[i] = q_[i] + std::remainder(desired - q_[i], 2 * std::numbers::pi);
+        const double desired = nominal_[i] + 0.25 * clipped[i];
+        targets[i] = q_[i] + std::remainder(desired - q_[i], 2 * std::numbers::pi);
     }
     for (int side = 0; side < 2; ++side) {
         const int hip = 2 * side, knee = hip + 1;
@@ -23,17 +24,20 @@ void RlController::process_action_(const std::array<float, 6>& raw) {
         // thigh-shank relative angle. It is not assumed to equal q_knee - q_hip.
         const double a = hinge_coeff_[hip], b = hinge_coeff_[knee];
         const double low =
-            (hinge_min_[side] + hinge_margin_ - hinge_bias_[side] - a * targets_[hip]) / b;
+            (hinge_min_[side] + hinge_margin_ - hinge_bias_[side] - a * targets[hip]) / b;
         const double high =
-            (hinge_max_[side] - hinge_margin_ - hinge_bias_[side] - a * targets_[hip]) / b;
-        targets_[knee] = std::clamp(targets_[knee], std::min(low, high), std::max(low, high));
+            (hinge_max_[side] - hinge_margin_ - hinge_bias_[side] - a * targets[hip]) / b;
+        targets[knee] = std::clamp(targets[knee], std::min(low, high), std::max(low, high));
     }
-    // V5 actor output P[4:6] are wheel speed commands (rad/s), not torque.
-    targets_[4] = 10.0 * previous_action_[4];
-    targets_[5] = 10.0 * previous_action_[5];
-    if (!targets_.allFinite())
-        throw std::runtime_error(
-            "Policy action or soft-limit mapping generated a non-finite target");
+    // The last two actions command wheel speeds, not torques.
+    targets[4] = 10.0 * clipped[4];
+    targets[5] = 10.0 * clipped[5];
+    if (!targets.allFinite())
+        return std::unexpected{
+            std::string{"Policy action or soft-limit mapping generated a non-finite target"}};
+    previous_action_ = clipped;
+    targets_ = targets;
+    return {};
 }
 
 void RlController::apply_soft_limits_(Eigen::Vector4d& tau) const {

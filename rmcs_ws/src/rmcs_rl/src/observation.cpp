@@ -41,13 +41,13 @@ void RlController::update_command_reference_() {
     const bool rotating_reference = *chassis_mode_ == rmcs_msgs::ChassisMode::SPIN_FAST;
     constexpr double policy_dt = 0.02;
     if (rotating_reference)
-        vx_reference_ = requested_vx; // training bypasses ordinary vx slew for rotating references
+        vx_reference_ = requested_vx;
     else
         vx_reference_ +=
             std::clamp(requested_vx - vx_reference_, -0.6 * policy_dt, 0.6 * policy_dt);
     yaw_reference_ += std::clamp(requested_yaw - yaw_reference_, -4.0 * policy_dt, 4.0 * policy_dt);
 
-    // Respect the wheel geometry and the V5 combined command envelope.
+    // Respect the wheel geometry and the combined command envelope.
     const double max_linear = 90.0 * wheel_radius_;
     const double demand = std::max(
         std::abs(vx_reference_ - wheel_track_ * yaw_reference_ / 2),
@@ -72,7 +72,6 @@ bool RlController::assemble_observation_() {
         height_target_ = *height_command_;
         height_start_ = *timestamp_;
     }
-    // Same cubic zero-end-velocity profile used by the V5 height reference.
     const double u = std::clamp(
         std::chrono::duration<double>(*timestamp_ - height_start_).count()
             / height_transition_seconds_,
@@ -80,7 +79,6 @@ bool RlController::assemble_observation_() {
     height_reference_ =
         height_from_ + (height_target_ - height_from_) * (3 * u * u - 2 * u * u * u);
     const bool rotating_reference = *chassis_mode_ == rmcs_msgs::ChassisMode::SPIN_FAST;
-    // The V5 task starts jump requests after a standing dwell (about 0.8 s).
     const bool jumping =
         *jump_command_ && *timestamp_ - rl_start_ >= std::chrono::milliseconds(800);
     if (jumping && !jump_was_requested_)
