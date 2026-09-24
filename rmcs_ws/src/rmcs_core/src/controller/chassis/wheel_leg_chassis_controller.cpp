@@ -16,9 +16,7 @@
 namespace rmcs_core::controller::chassis {
 
 // Chassis command source of the wheel-leg. It decodes the remote control into the chassis command
-// interfaces and drives the RlController engage sequence (IDLE -> PREPARE -> RL). It does not read
-// joint feedback, solve the closed chain, or run the policy; those belong to hardware and
-// RlController respectively.
+// interfaces. RlController alone owns PREPARE -> RL, so the executor graph stays acyclic.
 class WheelLegChassisController
     : public rmcs_executor::Component
     , public rclcpp::Node {
@@ -36,12 +34,6 @@ public:
 
         register_input("/wheel_leg/imu/quaternion", chassis_imu_quaternion_, false);
 
-        // RL state is an executor interface produced by RlController. Registering it as optional
-        // avoids a component dependency cycle; before_updating() binds a fallback when no policy
-        // component is present.
-        rl_state_path_ = get_parameter_or<std::string>("rl_state_path", "/wheel_leg/rl/state");
-        register_input(rl_state_path_, rl_state_, false);
-
         register_output(
             "/chassis/control_velocity", chassis_control_velocity_,
             rmcs_description::BaseLink::DirectionVector{0.0, 0.0, 0.0});
@@ -49,6 +41,8 @@ public:
         register_output("/chassis/control_state", chassis_control_state_, 0);
         register_output("/chassis/reset_count", reset_count_output_, std::size_t{0});
         register_output("/chassis/control_mode", mode_, rmcs_msgs::ChassisMode::AUTO);
+        register_output("/chassis/jump_request", jump_request_, false);
+        register_output("/chassis/jump_apex_delta", jump_apex_delta_, 0.0);
 
         vx_max_ = get_parameter_or<double>("vx_max", 2.5);
         yaw_rate_max_ = get_parameter_or<double>("yaw_rate_max", 3.0);
@@ -69,11 +63,6 @@ public:
     }
 
     void before_updating() override {
-        if (!rl_state_.ready()) {
-            rl_state_.make_and_bind_directly(1);
-            RCLCPP_WARN(
-                get_logger(), "Failed to fetch \"%s\". Set to kIdle.", rl_state_path_.c_str());
-        }
         if (!chassis_imu_quaternion_.ready()) {
             chassis_imu_quaternion_.make_and_bind_directly(Eigen::Quaterniond::Identity());
             RCLCPP_WARN(
@@ -90,15 +79,16 @@ public:
         const auto switch_left = *switch_left_;
         const auto keyboard = *keyboard_;
 
-        const bool both_down =
-            switch_left == Switch::DOWN && switch_right == Switch::DOWN;
-        const bool any_unknown =
-            switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN;
+        const bool both_down = switch_left == Switch::DOWN && switch_right == Switch::DOWN;
+        const bool any_unknown = switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN;
 
         // Power-on hold: stay at kInit(0) until the operator first moves a switch.
         if (!switch_activity_seen_
             && (switch_left != last_switch_left_ || switch_right != last_switch_right_))
             switch_activity_seen_ = true;
+
+        *jump_request_ = false;
+        *jump_apex_delta_ = 0.0;
 
         do {
             if (!switch_activity_seen_) {
@@ -159,7 +149,7 @@ private:
             // Capture the current chassis facing as the "gimbal forward" for this session.
             reference_yaw_ = chassis_yaw_();
         }
-        prepare_hold_ = false;
+        armed_ = false;
         stop_controls_(1);
     }
 
@@ -167,6 +157,8 @@ private:
         chassis_control_velocity_->vector << 0.0, 0.0, 0.0;
         *chassis_control_height_ = default_command_height_;
         *chassis_control_state_ = state;
+        *jump_request_ = false;
+        *jump_apex_delta_ = 0.0;
         height_ = default_command_height_;
         height_offset_ = 0.0;
     }
@@ -175,45 +167,46 @@ private:
         update_state_command_();
         update_velocity_control_();
         update_height_control_();
+        // Hold the request while V is held; RL owns the elapsed time and release transition.
+        *jump_request_ = armed_ && keyboard_->v;
+        *jump_apex_delta_ = *jump_request_ ? (keyboard_->shift ? 0.10 : 0.06) : 0.0;
     }
 
-    // Arm sequence for the RL FSM (0 kInit, 1 kIdle, 2 kPrepare, 3 kRl):
-    //   power-on hold -> 0; both switches down / unknown -> 1 (reset);
-    //   both switches down then either to middle -> 2 until RL reports prepare (rl_state >= 2);
-    //   any other combination -> 3.
+    // The operator requests RL after both switches were down. RL enters PREPARE internally
+    // and starts inference only after the joint targets have been reached.
     void update_state_command_() {
         using rmcs_msgs::Switch;
 
         const auto switch_left = *switch_left_;
         const auto switch_right = *switch_right_;
 
-        if (prepare_hold_) {
-            prepare_hold_ = *rl_state_ < 2;
-            *chassis_control_state_ = prepare_hold_ ? 2 : 3;
-            return;
-        }
-
         const bool previous_both_down =
             last_switch_left_ == Switch::DOWN && last_switch_right_ == Switch::DOWN;
-        const bool either_middle =
-            switch_left == Switch::MIDDLE || switch_right == Switch::MIDDLE;
+        const bool either_middle = switch_left == Switch::MIDDLE || switch_right == Switch::MIDDLE;
 
         if (previous_both_down && either_middle) {
-            prepare_hold_ = true;
-            *chassis_control_state_ = 2;
-            return;
+            armed_ = true;
         }
-
-        *chassis_control_state_ = 3;
+        *chassis_control_state_ = armed_ ? 3 : 1;
     }
 
     void update_velocity_control_() {
         const Eigen::Vector2d command = read_translational_command_();
-        const double vx = update_translational_velocity_control_(command);
+        double vx = update_translational_velocity_control_(command);
         const double yaw_rate = update_angular_velocity_control_(command);
 
+        // In the spinning mode the command is a fixed-frame translation reference.
+        // The policy receives both body-frame components, not an imaginary strafe actuator.
+        double vy = 0.0;
+        if (*mode_ == rmcs_msgs::ChassisMode::SPIN_FAST) {
+            const double yaw = chassis_yaw_() - reference_yaw_;
+            const double reference_x = command.x() * vx_max_;
+            const double reference_y = -command.y() * vx_max_;
+            vx = std::cos(yaw) * reference_x + std::sin(yaw) * reference_y;
+            vy = -std::sin(yaw) * reference_x + std::cos(yaw) * reference_y;
+        }
         chassis_control_velocity_->vector.x() = std::clamp(vx, -vx_max_, vx_max_);
-        chassis_control_velocity_->vector.y() = 0.0;
+        chassis_control_velocity_->vector.y() = std::clamp(vy, -vx_max_, vx_max_);
         chassis_control_velocity_->vector.z() = std::clamp(yaw_rate, -yaw_rate_max_, yaw_rate_max_);
     }
 
@@ -310,7 +303,6 @@ private:
     InputInterface<rmcs_msgs::Switch> switch_left_;
     InputInterface<double> rotary_knob_;
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
-    InputInterface<int> rl_state_;
     InputInterface<Eigen::Quaterniond> chassis_imu_quaternion_;
 
     OutputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;
@@ -319,6 +311,8 @@ private:
     OutputInterface<std::size_t> reset_count_output_;
 
     OutputInterface<rmcs_msgs::ChassisMode> mode_;
+    OutputInterface<bool> jump_request_;
+    OutputInterface<double> jump_apex_delta_;
 
     rmcs_msgs::Switch last_switch_left_ = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
@@ -336,10 +330,9 @@ private:
     bool height_invert_ = false;
     double heading_kp_ = 3.0;
 
-    std::string rl_state_path_;
     bool spinning_forward_ = true;
     bool switch_activity_seen_ = false;
-    bool prepare_hold_ = false;
+    bool armed_ = false;
     bool reset_active_ = false;
     double reference_yaw_ = 0.0;
     double height_ = 0.0;
