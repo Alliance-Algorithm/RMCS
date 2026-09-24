@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <numbers>
@@ -48,7 +49,13 @@ public:
         register_output("/chassis/control_height", chassis_control_height_, 0.0);
         register_output("/chassis/control_state", chassis_control_state_, 0);
         register_output("/chassis/reset_count", reset_count_output_, std::size_t{0});
+        register_output("/wheel_leg/rl/enable", rl_enable_, false);
         register_output("/chassis/control_mode", mode_, rmcs_msgs::ChassisMode::AUTO);
+        register_output("/chassis/task_mode/stand", task_mode_[0], 1.0);
+        register_output("/chassis/task_mode/move", task_mode_[1], 0.0);
+        register_output("/chassis/task_mode/up", task_mode_[2], 0.0);
+        register_output("/chassis/task_mode/down", task_mode_[3], 0.0);
+        register_output("/chassis/task_mode/jump", task_mode_[4], 0.0);
 
         vx_max_ = get_parameter_or<double>("vx_max", 2.5);
         yaw_rate_max_ = get_parameter_or<double>("yaw_rate_max", 3.0);
@@ -167,6 +174,7 @@ private:
         chassis_control_velocity_->vector << 0.0, 0.0, 0.0;
         *chassis_control_height_ = default_command_height_;
         *chassis_control_state_ = state;
+        *rl_enable_ = false;
         height_ = default_command_height_;
         height_offset_ = 0.0;
     }
@@ -190,6 +198,7 @@ private:
         if (prepare_hold_) {
             prepare_hold_ = *rl_state_ < 2;
             *chassis_control_state_ = prepare_hold_ ? 2 : 3;
+            *rl_enable_ = *chassis_control_state_ == 3;
             return;
         }
 
@@ -201,10 +210,12 @@ private:
         if (previous_both_down && either_middle) {
             prepare_hold_ = true;
             *chassis_control_state_ = 2;
+            *rl_enable_ = false;
             return;
         }
 
         *chassis_control_state_ = 3;
+        *rl_enable_ = true;
     }
 
     void update_velocity_control_() {
@@ -215,6 +226,12 @@ private:
         chassis_control_velocity_->vector.x() = std::clamp(vx, -vx_max_, vx_max_);
         chassis_control_velocity_->vector.y() = 0.0;
         chassis_control_velocity_->vector.z() = std::clamp(yaw_rate, -yaw_rate_max_, yaw_rate_max_);
+        const bool moving = command.norm() > 1e-6;
+        *task_mode_[0] = moving ? 0.0 : 1.0;
+        *task_mode_[1] = moving ? 1.0 : 0.0;
+        *task_mode_[2] = 0.0;
+        *task_mode_[3] = 0.0;
+        *task_mode_[4] = 0.0;
     }
 
     Eigen::Vector2d read_translational_command_() const {
@@ -317,6 +334,8 @@ private:
     OutputInterface<double> chassis_control_height_;
     OutputInterface<int> chassis_control_state_;
     OutputInterface<std::size_t> reset_count_output_;
+    OutputInterface<bool> rl_enable_;
+    std::array<OutputInterface<double>, 5> task_mode_;
 
     OutputInterface<rmcs_msgs::ChassisMode> mode_;
 
