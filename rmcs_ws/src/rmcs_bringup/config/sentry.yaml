@@ -62,7 +62,7 @@ auto_aim_component:
     manual_shoot: true
     enable_rune: true
     # track_ids: [OUTPOST, BASE]
-    track_ids: [HERO, ENGINEER, INFANTRY_3, INFANTRY_4, SENTRY, OUTPOST, BASE]
+    track_ids: [HERO, ENGINEER, INFANTRY_3, INFANTRY_4, SENTRY, OUTPOST, BASE, RUNE]
     camera_translation: [0.07128, 0.0, 0.0481]
     fire_control:
       bullet_speed: 22.5
