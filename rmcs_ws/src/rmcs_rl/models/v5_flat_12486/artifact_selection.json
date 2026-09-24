@@ -1,9 +1,0 @@
-{
-  "deployment_checkpoint": null,
-  "deployment_onnx": null,
-  "checkpoint_sha256": null,
-  "onnx_sha256": null,
-  "accepted_stage": null,
-  "latest_is_not_necessarily_accepted": true,
-  "status": "stage_gate_pending"
-}

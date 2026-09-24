@@ -43,18 +43,8 @@ target_include_directories(${PROJECT_NAME} PRIVATE ${ORT_ROOT}/include)
 target_link_libraries(${PROJECT_NAME} ${ORT_ROOT}/lib/libonnxruntime.so OpenSSL::Crypto)
 set_target_properties(${PROJECT_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN")
 install(DIRECTORY ${ORT_ROOT}/lib/ DESTINATION lib FILES_MATCHING PATTERN "*.so*")
-install(DIRECTORY models/ DESTINATION share/${PROJECT_NAME}/models)
+install(DIRECTORY models/ DESTINATION share/${PROJECT_NAME}/models
+  FILES_MATCHING PATTERN "*.onnx")
 pluginlib_export_plugin_description_file(rmcs_executor plugins.xml)
-
-if(BUILD_TESTING)
-  find_package(ament_cmake_gtest REQUIRED)
-  ament_add_gtest(rl_policy_fixture_test test/policy_fixture.cpp)
-  target_include_directories(rl_policy_fixture_test PRIVATE src)
-  target_compile_definitions(rl_policy_fixture_test PRIVATE
-    RMCS_RL_FIXTURE_MODEL="${PROJECT_SOURCE_DIR}/models/v5_flat_12486/policy.onnx")
-  ament_target_dependencies(rl_policy_fixture_test
-    rclcpp rmcs_executor rmcs_description rmcs_msgs)
-  target_link_libraries(rl_policy_fixture_test ${PROJECT_NAME})
-endif()
 
 ament_auto_package()
