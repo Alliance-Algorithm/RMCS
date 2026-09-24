@@ -1,0 +1,47 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::hardware::WheelLegInfantryRL -> wheel_leg_infantry_rl
+      - rmcs_core::controller::chassis::WheelLegReferenceController -> wheel_leg_reference_controller
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+
+wheel_leg_infantry_rl:
+  ros__parameters:
+    board_serial: ""
+    require_enable_request: true
+    dm_master_ids: [0, 0, 0, 0]
+    dm_mit_position_max: [12.5, 12.5, 12.5, 12.5]
+    dm_mit_velocity_max: [45.0, 45.0, 45.0, 45.0]
+    dm_mit_torque_max: [54.0, 54.0, 54.0, 54.0]
+    dm_control_torque_max: [40.0, 40.0, 40.0, 40.0]
+
+wheel_leg_reference_controller:
+  ros__parameters:
+    # Motor readings with both thigh axes up and both measured thigh-shank angles at 110 degrees.
+    # Order: left hip, left knee drive, right hip, right knee drive.
+    reference_motor_angles: [-10.6933, 10.3164, -5.65061, 5.77916]
+    hold_kp: 4.0
+    hold_kd: 0.25
+    hold_torque_limit: 0.5
+    capture_window_rad: 0.05
+    hold_velocity_limit: 0.4
+    max_feedback_step_rad: 0.04
+
+value_broadcaster:
+  ros__parameters:
+    update_rate: 50.0
+    forward_list:
+      - /wheel_leg/reference/state
+      - /wheel_leg/left_hip_joint/angle
+      - /wheel_leg/left_knee_joint/angle
+      - /wheel_leg/right_hip_joint/angle
+      - /wheel_leg/right_knee_joint/angle
+      - /wheel_leg/left_hip_joint/velocity
+      - /wheel_leg/left_knee_joint/velocity
+      - /wheel_leg/right_hip_joint/velocity
+      - /wheel_leg/right_knee_joint/velocity
+      - /wheel_leg/left_hip_joint/control_torque
+      - /wheel_leg/left_knee_joint/control_torque
+      - /wheel_leg/right_hip_joint/control_torque
+      - /wheel_leg/right_knee_joint/control_torque
