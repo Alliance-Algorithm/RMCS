@@ -582,7 +582,7 @@ private:
             }
         }
 
-        static constexpr double kJointZeroPhysicalAngleRad = 62.5 * std::numbers::pi / 180.0;
+        static constexpr double kJointZeroPhysicalAngleRad = 73.31 * std::numbers::pi / 180.0;
 
         DeformableInfantryOmni& status_;
         Component& command_;
