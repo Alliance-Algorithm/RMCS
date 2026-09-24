@@ -119,8 +119,8 @@ deformable_infantry:
 
 chassis_controller:
   ros__parameters:
-    min_angle: 8.0
-    max_angle: 59.0
+    min_angle: 17.0
+    max_angle: 75.0
     active_suspension_enable: true
     wireless_charging_offset_deg: 135.0
     wireless_charging_speed_limit: 0.6
