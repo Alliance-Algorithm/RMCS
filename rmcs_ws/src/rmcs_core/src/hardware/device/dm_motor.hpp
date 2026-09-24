@@ -228,6 +228,8 @@ public:
         const double raw_velocity = uint_to_float(vel_u, -velocity_max_, velocity_max_, 12);
         const double raw_torque = uint_to_float(tff_u, -torque_max_, torque_max_, 12);
 
+        raw_angle_ = raw_angle;
+        raw_position_u_ = pos_u;
         angle_ = sign * (raw_angle - angle_bias_);
         velocity_ = sign * raw_velocity;
         torque_ = sign * raw_torque;
@@ -281,6 +283,10 @@ public:
     std::uint32_t send_id() const noexcept { return id_; }
     std::uint32_t feedback_id() const noexcept { return feedback_id_; }
     double angle() const { return angle_; }
+    /// 电机原始角（rad，未减 angle_bias、未乘 reversed 符号）；用于填写 angle_bias
+    double raw_angle() const { return raw_angle_; }
+    /// 反馈帧 16 位原始位置（0..65535，对应 ±position_max）
+    std::uint16_t raw_position() const { return raw_position_u_; }
     double velocity() const { return velocity_; }
     double torque() const { return torque_; }
     double max_torque() const { return control_torque_max_; }
@@ -342,6 +348,8 @@ private:
     std::atomic<CanPacket8> can_data_{CanPacket8{0}};
 
     double angle_ = 0.0;
+    double raw_angle_ = 0.0;
+    std::uint16_t raw_position_u_ = 0;
     double velocity_ = 0.0;
     double torque_ = 0.0;
     double temperature_mos_ = 0.0;

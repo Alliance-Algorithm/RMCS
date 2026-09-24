@@ -3,211 +3,53 @@ rmcs_executor:
     update_rate: 1000.0
     components:
       - rmcs_core::hardware::WheelLegInfantryRL -> wheel_leg_infantry_rl
-      - rmcs_core::controller::chassis::WheelLegChassisController -> wheel_leg_chassis_controller
-      - rmcs_rl::RlBridge -> rl_bridge
-      - rmcs_rl::PolicyServerLauncher -> policy_server_launcher
-      - rmcs_core::controller::chassis::WheelLegRlConsumer -> wheel_leg_rl_consumer
+      - rmcs_core::controller::chassis::WheelLegManualController -> wheel_leg_manual_controller
 
-      - rmcs_core::controller::pid::PidController -> left_hip_position_pid
-      - rmcs_core::controller::pid::PidController -> left_hip_velocity_pid
-      - rmcs_core::controller::pid::PidController -> right_hip_position_pid
-      - rmcs_core::controller::pid::PidController -> right_hip_velocity_pid
-      - rmcs_core::controller::pid::PidController -> left_knee_position_pid
-      - rmcs_core::controller::pid::PidController -> left_knee_velocity_pid
-      - rmcs_core::controller::pid::PidController -> right_knee_position_pid
-      - rmcs_core::controller::pid::PidController -> right_knee_velocity_pid
       - rmcs_core::controller::pid::PidController -> left_wheel_velocity_pid
       - rmcs_core::controller::pid::PidController -> right_wheel_velocity_pid
 
 wheel_leg_infantry_rl:
   ros__parameters:
     board_serial: ""
+    joint_kp: 30.0
+    joint_kd: 1.0
+    # 零点改由机械零位姿态下 /wheel_leg/calibrate 写入电机内部（0xFE），
+    # 避免大 bias 把工作点顶到 ±P_MAX 边界导致闭环走优弧。保持 0；
+    # 若个别关节装配不对称，可填几分之一 rad 的小修正（远离 ±12.5 边界）。
+    left_hip_joint_angle_bias: 0.0
+    left_knee_joint_angle_bias: 0.0
+    right_hip_joint_angle_bias: 0.0
+    right_knee_joint_angle_bias: 0.0
 
-wheel_leg_chassis_controller:
+wheel_leg_manual_controller:
   ros__parameters:
-    vx_max: 2.5
-    yaw_rate_max: 3.0
     deadzone: 0.08
-    command_height_min: 0.20
-    command_height_max: 0.42
-    default_command_height: 0.22
-    height_range: 0.20
-    height_step: 0.05
-    angular_z_invert: false
-    heading_kp: 3.0
-    height_invert: false
+    wheel_velocity_max: 10.0
+    joint_angle_rate: 0.5
+    joint_angle_limit: 1.5
+    control_dt: 0.001
+    # 顺序 [左hip, 左knee, 右hip, 右knee]，配合 angle_bias 后机械零位为 0
+    default_positions: [0.0, 0.0, 0.0, 0.0]
 
-rl_bridge:
-  ros__parameters:
-    rl_base: "/wheel_leg/rl"
-    policy_rate: 50.0
-    max_action_age: 0.04
-    history_length: 5
-    rl_obs_size: 150
-    rl_action_size: 6
-    enable_interface: "/wheel_leg/rl/enable"
-    enable_default: false
-    invalid_value: "nan"
-    reset_interface: "/chassis/reset_count"
-    expected_model_id: "0"
-    joint_names: [left_hip_joint, left_knee_joint, left_wheel, right_hip_joint, right_knee_joint, right_wheel]
-    joint_base_path: "/wheel_leg"
-    joint_angle_suffix: "/angle"
-    joint_velocity_suffix: "/velocity"
-    joint_torque_suffix: "/torque"
-    default_joint_pos: {left_hip_joint: -0.5, left_knee_joint: -0.35, left_wheel: 0.0, right_hip_joint: 0.5, right_knee_joint: 0.35, right_wheel: 0.0}
-    observation_terms:
-      - index=0 path=/wheel_leg/imu/angular_velocity take=vec3 scale=0.5
-      - index=3 path=/wheel_leg/imu/quaternion transform=projected_gravity
-      - index=6 path=/chassis/control_velocity take=x
-      - index=7 path=/chassis/control_velocity take=z
-      - index=8 path=/chassis/control_height scale=5.0
-      - index=9 type=joint_pos joints=left_hip_joint,left_knee_joint,right_hip_joint,right_knee_joint relative=true
-      - index=13 type=joint_vel joints=left_hip_joint,left_knee_joint,left_wheel,right_hip_joint,right_knee_joint,right_wheel scale=0.1
-      - index=19 type=last_action
-      - index=25 path=/chassis/task_mode/stand
-      - index=26 path=/chassis/task_mode/move
-      - index=27 path=/chassis/task_mode/up
-      - index=28 path=/chassis/task_mode/down
-      - index=29 path=/chassis/task_mode/jump
-    action_terms:
-      - index=0 output=/wheel_leg/rl/action/left_hip name=left_hip
-      - index=1 output=/wheel_leg/rl/action/left_knee name=left_knee
-      - index=2 output=/wheel_leg/rl/action/left_wheel name=left_wheel
-      - index=3 output=/wheel_leg/rl/action/right_hip name=right_hip
-      - index=4 output=/wheel_leg/rl/action/right_knee name=right_knee
-      - index=5 output=/wheel_leg/rl/action/right_wheel name=right_wheel
-
-wheel_leg_rl_consumer:
-  ros__parameters:
-    rl_base: "/wheel_leg/rl"
-    action_scale: 0.35
-    wheel_velocity_scale: 10.0
-
-policy_server:
-  ros__parameters:
-    rl_base: "/wheel_leg/rl"
-    rl_model_path: "models/wheel_leg_V5_150.onnx"
-    input_name: "obs"
-    output_name: "actions"
-    normalization_from_metadata: true
-    publish_status: false
-
-policy_server_launcher:
-  ros__parameters:
-    autostart: true
-    params_file: "wheel-leg-infantry-rl.yaml"
-    respawn: true
-    respawn_delay: 1.0
-    poll_interval: 0.5
-
-left_hip_position_pid:
-  ros__parameters:
-    measurement: /wheel_leg/left_hip_joint/angle
-    setpoint: /wheel_leg/left_hip_joint/control_angle
-    control: /wheel_leg/left_hip_joint/control_velocity
-    reset_interface: /chassis/reset_count
-    kp: 5.0
-    ki: 0.0
-    kd: 0.0
-    output_min: -35.0
-    output_max: 35.0
-left_hip_velocity_pid:
-  ros__parameters:
-    measurement: /wheel_leg/left_hip_joint/velocity
-    setpoint: /wheel_leg/left_hip_joint/control_velocity
-    control: /wheel_leg/left_hip_joint/control_torque
-    reset_interface: /chassis/reset_count
-    kp: 20.0
-    ki: 0.0
-    kd: 0.5
-    output_min: -35.0
-    output_max: 35.0
-right_hip_position_pid:
-  ros__parameters:
-    measurement: /wheel_leg/right_hip_joint/angle
-    setpoint: /wheel_leg/right_hip_joint/control_angle
-    control: /wheel_leg/right_hip_joint/control_velocity
-    reset_interface: /chassis/reset_count
-    kp: 5.0
-    ki: 0.0
-    kd: 0.0
-    output_min: -35.0
-    output_max: 35.0
-right_hip_velocity_pid:
-  ros__parameters:
-    measurement: /wheel_leg/right_hip_joint/velocity
-    setpoint: /wheel_leg/right_hip_joint/control_velocity
-    control: /wheel_leg/right_hip_joint/control_torque
-    reset_interface: /chassis/reset_count
-    kp: 20.0
-    ki: 0.0
-    kd: 0.5
-    output_min: -35.0
-    output_max: 35.0
-left_knee_position_pid:
-  ros__parameters:
-    measurement: /wheel_leg/left_knee_joint/angle
-    setpoint: /wheel_leg/left_knee_joint/control_angle
-    control: /wheel_leg/left_knee_joint/control_velocity
-    reset_interface: /chassis/reset_count
-    kp: 5.0
-    ki: 0.0
-    kd: 0.0
-    output_min: -35.0
-    output_max: 35.0
-left_knee_velocity_pid:
-  ros__parameters:
-    measurement: /wheel_leg/left_knee_joint/velocity
-    setpoint: /wheel_leg/left_knee_joint/control_velocity
-    control: /wheel_leg/left_knee_joint/control_torque
-    reset_interface: /chassis/reset_count
-    kp: 20.0
-    ki: 0.0
-    kd: 0.5
-    output_min: -35.0
-    output_max: 35.0
-right_knee_position_pid:
-  ros__parameters:
-    measurement: /wheel_leg/right_knee_joint/angle
-    setpoint: /wheel_leg/right_knee_joint/control_angle
-    control: /wheel_leg/right_knee_joint/control_velocity
-    reset_interface: /chassis/reset_count
-    kp: 5.0
-    ki: 0.0
-    kd: 0.0
-    output_min: -35.0
-    output_max: 35.0
-right_knee_velocity_pid:
-  ros__parameters:
-    measurement: /wheel_leg/right_knee_joint/velocity
-    setpoint: /wheel_leg/right_knee_joint/control_velocity
-    control: /wheel_leg/right_knee_joint/control_torque
-    reset_interface: /chassis/reset_count
-    kp: 20.0
-    ki: 0.0
-    kd: 0.5
-    output_min: -35.0
-    output_max: 35.0
 left_wheel_velocity_pid:
   ros__parameters:
     measurement: /wheel_leg/left_wheel/velocity
     setpoint: /wheel_leg/left_wheel/control_velocity
     control: /wheel_leg/left_wheel/control_torque
     reset_interface: /chassis/reset_count
-    kp: 20.0
+    kp: 0.6
     ki: 0.0
-    kd: 0.5
-    output_min: -6.0
-    output_max: 6.0
+    kd: 0.0
+    output_min: -3.0
+    output_max: 3.0
 right_wheel_velocity_pid:
   ros__parameters:
     measurement: /wheel_leg/right_wheel/velocity
     setpoint: /wheel_leg/right_wheel/control_velocity
     control: /wheel_leg/right_wheel/control_torque
     reset_interface: /chassis/reset_count
-    kp: 20.0
+    kp: 0.6
     ki: 0.0
-    kd: 0.5
-    output_min: -6.0
-    output_max: 6.0
+    kd: 0.0
+    output_min: -3.0
+    output_max: 3.0

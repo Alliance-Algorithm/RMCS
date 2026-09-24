@@ -65,43 +65,50 @@ public:
                     .enable_multi_turn_angle());
 
         constexpr auto kHipJointIds = std::array<std::uint8_t, 2>{1, 2};
-        for (auto&& [motor, id] : std::views::zip(hip_joint_motors_, kHipJointIds))
+        constexpr auto kHipJointNames =
+            std::array<const char*, 2>{"left_hip_joint", "right_hip_joint"};
+        for (auto&& [motor, id, name] :
+             std::views::zip(hip_joint_motors_, kHipJointIds, kHipJointNames))
             motor.configure(
                 device::DmMotor::Config{device::DmMotor::Type::kDM8009}
                     .set_id(id)
                     .set_feedback_id(id)
-                    .set_reversed());
+                    .set_reversed()
+                    .set_angle_bias(
+                        get_parameter_or<double>(std::string{name} + "_angle_bias", 0.0)));
 
         constexpr auto kKneeJointIds = std::array<std::uint8_t, 2>{1, 2};
-        for (auto&& [motor, id] : std::views::zip(knee_joint_motors_, kKneeJointIds))
+        constexpr auto kKneeJointNames =
+            std::array<const char*, 2>{"left_knee_joint", "right_knee_joint"};
+        for (auto&& [motor, id, name] :
+             std::views::zip(knee_joint_motors_, kKneeJointIds, kKneeJointNames))
             motor.configure(
                 device::DmMotor::Config{device::DmMotor::Type::kDM8009}
                     .set_id(id)
                     .set_feedback_id(id)
-                    .set_reversed());
+                    .set_reversed()
+                    .set_angle_bias(
+                        get_parameter_or<double>(std::string{name} + "_angle_bias", 0.0)));
 
         auto options = librmcs::board::AdvancedOptions{};
         options.dangerously_skip_version_checks = false;
         board_ = std::make_unique<librmcs::board::RmcsBoardLite>(
             *this, get_parameter("board_serial").as_string(), options);
 
+        joint_kp_ = get_parameter_or<double>("joint_kp", 30.0);
+        joint_kd_ = get_parameter_or<double>("joint_kd", 1.0);
+        // 上电先显式失能一段时间，把 4 个 DM 关节锁存到已知的失能状态
+        joint_system_resend_ = kJointSystemResendCycles;
+
         auto startup_builder = board_->start_transmit();
-        for (auto& motor : hip_joint_motors_) {
+        for (auto& motor : hip_joint_motors_)
             startup_builder.can_transmit(
                 Spec::kCans.kCan1,
                 {.can_id = motor.send_id(), .can_data = motor.clear_error_command().as_bytes()});
-            startup_builder.can_transmit(
-                Spec::kCans.kCan1,
-                {.can_id = motor.send_id(), .can_data = motor.enable_command().as_bytes()});
-        }
-        for (auto& motor : knee_joint_motors_) {
+        for (auto& motor : knee_joint_motors_)
             startup_builder.can_transmit(
                 Spec::kCans.kCan2,
                 {.can_id = motor.send_id(), .can_data = motor.clear_error_command().as_bytes()});
-            startup_builder.can_transmit(
-                Spec::kCans.kCan2,
-                {.can_id = motor.send_id(), .can_data = motor.enable_command().as_bytes()});
-        }
 
         dm_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
             "/wheel_leg/calibrate", rclcpp::QoS{0},
@@ -135,44 +142,55 @@ public:
     void command_update() {
         auto builder = board_->start_transmit();
 
-        builder
-            .can_transmit(
-                Spec::kCans.kCan0,
-                {
-                    .can_id = 0x200,
-                    .can_data =
-                        device::CanPacket8{
-                            chassis_wheel_motors_[0].generate_command(),
-                            chassis_wheel_motors_[1].generate_command(),
-                            device::CanPacket8::PaddingQuarter{},
-                            device::CanPacket8::PaddingQuarter{},
-                        }
-                            .as_bytes(),
-                })
-            .can_transmit(
-                Spec::kCans.kCan1,
-                {
-                    .can_id = hip_joint_motors_[0].send_id(),
-                    .can_data = hip_joint_motors_[0].generate_command().as_bytes(),
-                })
-            .can_transmit(
-                Spec::kCans.kCan1,
-                {
-                    .can_id = hip_joint_motors_[1].send_id(),
-                    .can_data = hip_joint_motors_[1].generate_command().as_bytes(),
-                })
-            .can_transmit(
-                Spec::kCans.kCan2,
-                {
-                    .can_id = knee_joint_motors_[0].send_id(),
-                    .can_data = knee_joint_motors_[0].generate_command().as_bytes(),
-                })
-            .can_transmit(
-                Spec::kCans.kCan2,
-                {
-                    .can_id = knee_joint_motors_[1].send_id(),
-                    .can_data = knee_joint_motors_[1].generate_command().as_bytes(),
-                });
+        builder.can_transmit(
+            Spec::kCans.kCan0,
+            {
+                .can_id = 0x200,
+                .can_data =
+                    device::CanPacket8{
+                        chassis_wheel_motors_[0].generate_command(),
+                        chassis_wheel_motors_[1].generate_command(),
+                        device::CanPacket8::PaddingQuarter{},
+                        device::CanPacket8::PaddingQuarter{},
+                    }
+                        .as_bytes(),
+            });
+
+        // DM 系统命令（使能/失能）是无应答单帧，丢一帧不会自动恢复，因此在切换后的重发
+        // 窗口内以及稳态周期心跳时重复下发。重发周期只发系统命令、不发同 CAN ID 的 MIT
+        // 帧，避免两者互相覆盖。
+        const bool resending = joint_system_resend_ > 0;
+        bool heartbeat = false;
+        if (!resending && ++joint_heartbeat_ >= kJointHeartbeatCycles) {
+            joint_heartbeat_ = 0;
+            heartbeat = true;
+        }
+        const bool send_system = resending || heartbeat;
+
+        if (joints_enabled_) {
+            if (send_system) {
+                const bool clear_error =
+                    resending && joint_system_resend_ == kJointSystemResendCycles;
+                send_joint_system_commands_(builder, true, clear_error);
+            } else {
+                send_joint_mit_commands_(builder);
+            }
+        } else if (send_system) {
+            send_joint_system_commands_(builder, false, false);
+        }
+
+        if (joint_system_resend_ > 0)
+            --joint_system_resend_;
+    }
+
+    void set_joints_enabled(bool enabled) {
+        if (enabled == joints_enabled_)
+            return;
+        joints_enabled_ = enabled;
+        joint_system_resend_ = kJointSystemResendCycles;
+        joint_heartbeat_ = 0;
+
+        RCLCPP_INFO(logger_, "[joint_enable] DM joints %s", enabled ? "enabled" : "disabled");
     }
 
 private:
@@ -209,7 +227,8 @@ private:
         for (std::size_t i = 0; i < joints.size(); ++i) {
             const auto& motor = *joints[i];
             text << "    " << kNames[i] << ": can_id=" << static_cast<unsigned>(motor.send_id())
-                 << " angle=" << motor.angle() << " rad vel=" << motor.velocity()
+                 << " angle=" << motor.angle() << " rad raw=" << motor.raw_angle()
+                 << " rad raw_u=" << motor.raw_position() << " vel=" << motor.velocity()
                  << " rad/s torque=" << motor.torque() << " Nm fault=0x" << std::hex
                  << motor.fault_code() << std::dec << '\n';
         }
@@ -223,6 +242,64 @@ private:
                 "    ros2 topic pub /wheel_leg/calibrate std_msgs/msg/Int32 '{data: 0}' --once\n";
 
         response->message = text.str();
+    }
+
+    // DM 内环角度控制：只下发角度目标，v_des=0、t_ff=0，增益为硬件参数
+    device::CanPacket8 joint_command_(const device::DmMotor& motor) const {
+        return motor.generate_command_pd(motor.control_angle(), 0.0, joint_kp_, joint_kd_, 0.0);
+    }
+
+    template <typename Builder>
+    void send_joint_system_commands_(Builder& builder, bool enable, bool clear_error) {
+        const auto send = [&](const Spec::Can& can, device::DmMotor& motor) {
+            if (enable) {
+                if (clear_error)
+                    builder.can_transmit(
+                        can,
+                        {.can_id = motor.send_id(),
+                         .can_data = motor.clear_error_command().as_bytes()});
+                builder.can_transmit(
+                    can,
+                    {.can_id = motor.send_id(), .can_data = motor.enable_command().as_bytes()});
+            } else {
+                builder.can_transmit(
+                    can,
+                    {.can_id = motor.send_id(), .can_data = motor.disable_command().as_bytes()});
+            }
+        };
+        for (auto& motor : hip_joint_motors_)
+            send(Spec::kCans.kCan1, motor);
+        for (auto& motor : knee_joint_motors_)
+            send(Spec::kCans.kCan2, motor);
+    }
+
+    template <typename Builder>
+    void send_joint_mit_commands_(Builder& builder) {
+        builder
+            .can_transmit(
+                Spec::kCans.kCan1,
+                {
+                    .can_id = hip_joint_motors_[0].send_id(),
+                    .can_data = joint_command_(hip_joint_motors_[0]).as_bytes(),
+                })
+            .can_transmit(
+                Spec::kCans.kCan1,
+                {
+                    .can_id = hip_joint_motors_[1].send_id(),
+                    .can_data = joint_command_(hip_joint_motors_[1]).as_bytes(),
+                })
+            .can_transmit(
+                Spec::kCans.kCan2,
+                {
+                    .can_id = knee_joint_motors_[0].send_id(),
+                    .can_data = joint_command_(knee_joint_motors_[0]).as_bytes(),
+                })
+            .can_transmit(
+                Spec::kCans.kCan2,
+                {
+                    .can_id = knee_joint_motors_[1].send_id(),
+                    .can_data = joint_command_(knee_joint_motors_[1]).as_bytes(),
+                });
     }
 
     void update_motors() {
@@ -290,12 +367,19 @@ private:
     class InfantryCommand : public rmcs_executor::Component {
     public:
         explicit InfantryCommand(WheelLegInfantryRL& infantry)
-            : infantry_(infantry) {}
+            : infantry_(infantry) {
+            register_input("/wheel_leg/joint_enable", joint_enable_, false);
+        }
 
-        void update() override { infantry_.command_update(); }
+        void update() override {
+            if (joint_enable_.ready())
+                infantry_.set_joints_enabled(*joint_enable_);
+            infantry_.command_update();
+        }
 
     private:
         WheelLegInfantryRL& infantry_;
+        InputInterface<bool> joint_enable_;
     };
     std::shared_ptr<InfantryCommand> infantry_command_;
 
@@ -308,6 +392,15 @@ private:
     std::unique_ptr<device::RemoteControl> remote_control_;
     device::Bmi088Ekf bmi088_;
     device::BoardClockLifter board_clock_lifter_;
+
+    bool joints_enabled_ = false;
+    int joint_system_resend_ = 0;
+    int joint_heartbeat_ = 0;
+    double joint_kp_ = 30.0;
+    double joint_kd_ = 1.0;
+
+    static constexpr int kJointSystemResendCycles = 100;
+    static constexpr int kJointHeartbeatCycles = 500;
 
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr dm_calibrate_subscription_;
 
