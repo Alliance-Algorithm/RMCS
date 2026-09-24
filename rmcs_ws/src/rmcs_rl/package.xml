@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>rmcs_rl</name>
+  <version>0.0.0</version>
+  <description>RMCS policy controller for wheel-leg robots</description>
+  <maintainer email="146398159+Yukikaze2233@users.noreply.github.com">Yuki kaze</maintainer>
+  <license>GPL-3.0-only</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <depend>rclcpp</depend>
+  <depend>pluginlib</depend>
+  <depend>std_msgs</depend>
+  <depend>rmcs_executor</depend>
+  <depend>rmcs_description</depend>
+  <depend>rmcs_msgs</depend>
+  <depend>ament_index_cpp</depend>
+  <depend>openssl</depend>
+  <test_depend>ament_cmake_gtest</test_depend>
+  <export><build_type>ament_cmake</build_type></export>
+</package>
