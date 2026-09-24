@@ -56,11 +56,6 @@ public:
             "/wheel_leg/imu/angular_velocity", imu_angular_velocity_output_,
             Eigen::Vector3d::Zero());
 
-        hip_kp_ = get_parameter("hip_kp").as_double();
-        hip_kd_ = get_parameter("hip_kd").as_double();
-        knee_kp_ = get_parameter("knee_kp").as_double();
-        knee_kd_ = get_parameter("knee_kd").as_double();
-
         constexpr auto kChassisWheelIds = std::array<std::uint8_t, 2>{1, 2};
         for (auto&& [motor, id] : std::views::zip(chassis_wheel_motors_, kChassisWheelIds))
             motor.configure(
@@ -158,46 +153,29 @@ public:
                 Spec::kCans.kCan1,
                 {
                     .can_id = hip_joint_motors_[0].send_id(),
-                    .can_data =
-                        dm_joint_command_(hip_joint_motors_[0], hip_kp_, hip_kd_).as_bytes(),
+                    .can_data = hip_joint_motors_[0].generate_command().as_bytes(),
                 })
             .can_transmit(
                 Spec::kCans.kCan1,
                 {
                     .can_id = hip_joint_motors_[1].send_id(),
-                    .can_data =
-                        dm_joint_command_(hip_joint_motors_[1], hip_kp_, hip_kd_).as_bytes(),
+                    .can_data = hip_joint_motors_[1].generate_command().as_bytes(),
                 })
             .can_transmit(
                 Spec::kCans.kCan2,
                 {
                     .can_id = knee_joint_motors_[0].send_id(),
-                    .can_data =
-                        dm_joint_command_(knee_joint_motors_[0], knee_kp_, knee_kd_).as_bytes(),
+                    .can_data = knee_joint_motors_[0].generate_command().as_bytes(),
                 })
             .can_transmit(
                 Spec::kCans.kCan2,
                 {
                     .can_id = knee_joint_motors_[1].send_id(),
-                    .can_data =
-                        dm_joint_command_(knee_joint_motors_[1], knee_kp_, knee_kd_).as_bytes(),
+                    .can_data = knee_joint_motors_[1].generate_command().as_bytes(),
                 });
     }
 
 private:
-    [[nodiscard]] static device::CanPacket8
-        dm_joint_command_(device::DmMotor& motor, double default_kp, double default_kd) {
-        if (!motor.control_angle_ready()) {
-            // 模式 A：纯力矩（kp=kd=0），t_ff = control_torque 输入
-            return motor.generate_command();
-        }
-        // 模式 B：电机内环 PD；kp/kd 优先用 /control_kp//control_kd 输入，否则用 yaml 参数
-        const double kp = motor.control_kp_ready() ? motor.control_kp() : default_kp;
-        const double kd = motor.control_kd_ready() ? motor.control_kd() : default_kd;
-        return motor.generate_command_pd(
-            motor.control_angle(), motor.control_velocity(), kp, kd, motor.control_torque());
-    }
-
     void calibrate_subscription_callback_() {
         const auto set_zero =
             [this](auto& builder, const Spec::Can& can, device::DmMotor& motor, const char* name) {
@@ -330,12 +308,6 @@ private:
     std::unique_ptr<device::RemoteControl> remote_control_;
     device::Bmi088Ekf bmi088_;
     device::BoardClockLifter board_clock_lifter_;
-
-    // DM 内环 PD（模式 B）默认增益：默认同训练 position_kp/kd，可被 yaml 参数覆盖
-    double hip_kp_ = 200.0;
-    double hip_kd_ = 4.0;
-    double knee_kp_ = 200.0;
-    double knee_kd_ = 4.0;
 
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr dm_calibrate_subscription_;
 
