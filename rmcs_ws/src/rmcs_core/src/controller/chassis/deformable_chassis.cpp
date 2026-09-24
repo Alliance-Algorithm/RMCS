@@ -122,8 +122,15 @@ public:
         }
 
         do {
-            if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
-                || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
+            const bool any_unknown =
+                switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN;
+            const bool both_down =
+                switch_left == Switch::DOWN && switch_right == Switch::DOWN;
+
+            if (!(any_unknown || both_down))
+                reset_active_ = false;
+
+            if (any_unknown || both_down) {
                 reset_all_controls();
                 break;
             }
@@ -171,7 +178,10 @@ private:
 
     void reset_all_controls() {
         joint_mode_mgr_.reset();
-        *deformable_reset_count_ += 1;
+        if (!reset_active_) {
+            *deformable_reset_count_ += 1;
+            reset_active_ = true;
+        }
 
         *mode_ = rmcs_msgs::ChassisMode::AUTO;
         *pitch_lock_active_ = false;
@@ -427,6 +437,7 @@ private:
     rmcs_msgs::Switch last_switch_left_ = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
     bool remote_switch_state_initialized_ = false;
+    bool reset_active_ = false;
     bool last_active_suspension_active_ = false;
     bool active_suspension_state_initialized_ = false;
 };
