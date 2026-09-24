@@ -7,6 +7,7 @@
 #include <rmcs_executor/component.hpp>
 
 #include "hardware/device/dm_motor.hpp"
+#include "hardware/wheel_leg_enable_gate.hpp"
 
 namespace {
 
@@ -95,6 +96,26 @@ TEST(DmMotor, InvalidMappingIsRejected) {
         fixture.motor.configure(
             DmMotor::Config{DmMotor::Type::kDM8009}.set_limits(12.5, 45.0, 0.0)),
         std::invalid_argument);
+}
+
+TEST(WheelLegEnableGate, OnlyFreshDoubleMiddleCanRequestTorque) {
+    using rmcs_core::hardware::wheel_leg_drive_allowed;
+    using rmcs_msgs::Switch;
+    EXPECT_FALSE(wheel_leg_drive_allowed(true, Switch::DOWN, Switch::DOWN, true, true));
+    EXPECT_FALSE(wheel_leg_drive_allowed(true, Switch::UNKNOWN, Switch::MIDDLE, true, true));
+    EXPECT_FALSE(wheel_leg_drive_allowed(false, Switch::MIDDLE, Switch::MIDDLE, true, true));
+    EXPECT_FALSE(wheel_leg_drive_allowed(true, Switch::MIDDLE, Switch::MIDDLE, true, false));
+    EXPECT_TRUE(wheel_leg_drive_allowed(true, Switch::MIDDLE, Switch::MIDDLE, true, true));
+    EXPECT_TRUE(wheel_leg_drive_allowed(true, Switch::MIDDLE, Switch::MIDDLE, false, false));
+}
+
+TEST(DmMotor, DisableCommandUsesMitSystemFrame) {
+    MotorFixture fixture;
+    auto packet = fixture.motor.disable_command();
+    const auto bytes = packet.as_bytes();
+    for (std::size_t i = 0; i < 7; ++i)
+        EXPECT_EQ(bytes[i], std::byte{0xFF});
+    EXPECT_EQ(bytes[7], std::byte{0xFD});
 }
 
 } // namespace

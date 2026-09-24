@@ -18,6 +18,7 @@
 #include <std_srvs/srv/trigger.hpp>
 
 #include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/switch.hpp>
 
 #include "hardware/device/bmi088_ekf.hpp"
 #include "hardware/device/board_clock_lifter.hpp"
@@ -26,6 +27,7 @@
 #include "hardware/device/dm_motor.hpp"
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/remote_control.hpp"
+#include "hardware/wheel_leg_enable_gate.hpp"
 
 namespace rmcs_core::hardware {
 
@@ -95,6 +97,10 @@ private:
             status.register_output(
                 "/wheel_leg/imu/angular_velocity", imu_angular_velocity_, Eigen::Vector3d::Zero());
             status.register_output("/wheel_leg/feedback_fresh", feedback_fresh_output_, false);
+            status.register_output("/wheel_leg/dr16_fresh", dr16_fresh_output_, false);
+            require_enable_request_ = status.get_parameter_or("require_enable_request", false);
+            command.register_input(
+                "/wheel_leg/enable_request", enable_request_, require_enable_request_);
 
             constexpr auto kMotorIds = std::array<std::uint8_t, 2>{1, 2};
             // Master ID 是反馈帧 ID；官方默认 0，与命令 CAN ID 可以不同。
@@ -156,7 +162,7 @@ private:
                                         .can_data = motor.clear_error_command().as_bytes()});
                 builder.can_transmit(
                     Spec::kCans.kCan1,
-                    {.can_id = motor.send_id(), .can_data = motor.enable_command().as_bytes()});
+                    {.can_id = motor.send_id(), .can_data = motor.disable_command().as_bytes()});
             }
             for (auto& motor : knee_motors_) {
                 builder.can_transmit(
@@ -164,7 +170,7 @@ private:
                                         .can_data = motor.clear_error_command().as_bytes()});
                 builder.can_transmit(
                     Spec::kCans.kCan2,
-                    {.can_id = motor.send_id(), .can_data = motor.enable_command().as_bytes()});
+                    {.can_id = motor.send_id(), .can_data = motor.disable_command().as_bytes()});
             }
 
             status_.remote_control_->register_dr16(&dr16_);
@@ -183,30 +189,69 @@ private:
                 *imu_angular_velocity_ = snapshot->gyro_body;
             }
             *feedback_fresh_output_ = feedback_fresh();
+            *dr16_fresh_output_ = dr16_fresh();
             dr16_.update_status();
         }
 
         void command_update() {
             const bool fresh = feedback_fresh();
+            const bool enable = wheel_leg_drive_allowed(
+                dr16_fresh(), dr16_.switch_left(), dr16_.switch_right(), require_enable_request_,
+                enable_request_.ready() && *enable_request_);
+            const auto now = now_ns();
+            const bool was_enabled = dm_enabled_.load(std::memory_order_relaxed);
             auto builder = board_->start_transmit();
             auto wheel_packet = device::CanPacket8{
-                wheel_motors_[0].generate_command(fresh ? wheel_motors_[0].control_torque() : 0.0),
-                wheel_motors_[1].generate_command(fresh ? wheel_motors_[1].control_torque() : 0.0),
+                wheel_motors_[0].generate_command(
+                    enable && fresh ? wheel_motors_[0].control_torque() : 0.0),
+                wheel_motors_[1].generate_command(
+                    enable && fresh ? wheel_motors_[1].control_torque() : 0.0),
                 device::CanPacket8::PaddingQuarter{},
                 device::CanPacket8::PaddingQuarter{},
             };
             builder.can_transmit(
                 Spec::kCans.kCan0, {.can_id = 0x200, .can_data = wheel_packet.as_bytes()});
 
-            for (auto& motor : hip_motors_) {
-                auto packet = motor.generate_command(fresh ? motor.control_torque() : 0.0);
-                builder.can_transmit(
-                    Spec::kCans.kCan1, {.can_id = motor.send_id(), .can_data = packet.as_bytes()});
-            }
-            for (auto& motor : knee_motors_) {
-                auto packet = motor.generate_command(fresh ? motor.control_torque() : 0.0);
-                builder.can_transmit(
-                    Spec::kCans.kCan2, {.can_id = motor.send_id(), .can_data = packet.as_bytes()});
+            if (enable) {
+                if (!was_enabled || now - last_enable_ns_ >= 100'000'000) {
+                    for (auto& motor : hip_motors_)
+                        builder.can_transmit(
+                            Spec::kCans.kCan1, {.can_id = motor.send_id(),
+                                                .can_data = motor.enable_command().as_bytes()});
+                    for (auto& motor : knee_motors_)
+                        builder.can_transmit(
+                            Spec::kCans.kCan2, {.can_id = motor.send_id(),
+                                                .can_data = motor.enable_command().as_bytes()});
+                    last_enable_ns_ = now;
+                }
+                for (auto& motor : hip_motors_) {
+                    auto packet =
+                        motor.generate_command(fresh && was_enabled ? motor.control_torque() : 0.0);
+                    builder.can_transmit(
+                        Spec::kCans.kCan1,
+                        {.can_id = motor.send_id(), .can_data = packet.as_bytes()});
+                }
+                for (auto& motor : knee_motors_) {
+                    auto packet =
+                        motor.generate_command(fresh && was_enabled ? motor.control_torque() : 0.0);
+                    builder.can_transmit(
+                        Spec::kCans.kCan2,
+                        {.can_id = motor.send_id(), .can_data = packet.as_bytes()});
+                }
+                dm_enabled_.store(true, std::memory_order_relaxed);
+            } else {
+                if (was_enabled || now - last_disable_ns_ >= 100'000'000) {
+                    for (auto& motor : hip_motors_)
+                        builder.can_transmit(
+                            Spec::kCans.kCan1, {.can_id = motor.send_id(),
+                                                .can_data = motor.disable_command().as_bytes()});
+                    for (auto& motor : knee_motors_)
+                        builder.can_transmit(
+                            Spec::kCans.kCan2, {.can_id = motor.send_id(),
+                                                .can_data = motor.disable_command().as_bytes()});
+                    last_disable_ns_ = now;
+                }
+                dm_enabled_.store(false, std::memory_order_relaxed);
             }
         }
 
@@ -227,7 +272,10 @@ private:
 
         [[nodiscard]] std::string status() const {
             auto text = std::ostringstream{};
-            text << "WheelLegInfantryRL status (feedback fresh: " << feedback_fresh() << "):\n";
+            text << "WheelLegInfantryRL status (feedback fresh: " << feedback_fresh()
+                 << ", dr16 fresh: " << dr16_fresh()
+                 << ", dm enable requested: " << dm_enabled_.load(std::memory_order_relaxed)
+                 << "):\n";
             constexpr auto kNames = std::array{
                 "left_hip_joint", "right_hip_joint", "left_knee_joint", "right_knee_joint"};
             const std::array<const device::DmMotor*, 4> joints{
@@ -271,6 +319,12 @@ private:
             return true;
         }
 
+        bool dr16_fresh() const {
+            const auto now = now_ns();
+            const auto stamp = dr16_last_ns_.load(std::memory_order::relaxed);
+            return stamp != 0 && now >= stamp && now - stamp < 100'000'000;
+        }
+
         void can_receive_callback(const Spec::Can& can, const View::Can& data) override {
             if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
                 return;
@@ -297,8 +351,10 @@ private:
         }
 
         void uart_receive_callback(const Spec::Uart& uart, const View::Uart& data) override {
-            if (uart == Spec::kUarts.kDbus)
+            if (uart == Spec::kUarts.kDbus && data.uart_data.size() == 18) {
                 dr16_.store_status(data.uart_data.data(), data.uart_data.size());
+                dr16_last_ns_.store(now_ns(), std::memory_order::relaxed);
+            }
         }
 
         void accelerometer_receive_callback(const View::ImuAccelerometer& data) override {
@@ -318,6 +374,8 @@ private:
         OutputInterface<Eigen::Quaterniond> imu_quaternion_;
         OutputInterface<Eigen::Vector3d> imu_angular_velocity_;
         OutputInterface<bool> feedback_fresh_output_;
+        OutputInterface<bool> dr16_fresh_output_;
+        rmcs_executor::Component::InputInterface<bool> enable_request_;
 
         device::DjiMotor wheel_motors_[2];
         device::DmMotor hip_motors_[2];
@@ -327,6 +385,11 @@ private:
         device::BoardClockLifter board_clock_lifter_;
         std::array<std::atomic<std::int64_t>, 6> motor_last_ns_{};
         std::atomic<std::int64_t> imu_last_ns_{0};
+        std::atomic<std::int64_t> dr16_last_ns_{0};
+        bool require_enable_request_ = false;
+        std::atomic<bool> dm_enabled_{false};
+        std::int64_t last_enable_ns_ = 0;
+        std::int64_t last_disable_ns_ = 0;
         std::unique_ptr<librmcs::board::RmcsBoardLite> board_;
     };
 
