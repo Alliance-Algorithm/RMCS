@@ -40,4 +40,11 @@ target_link_libraries(${PROJECT_NAME} librmcs-sdk)
 
 pluginlib_export_plugin_description_file(rmcs_executor plugins.xml)
 
+if(BUILD_TESTING)
+    find_package(ament_cmake_gtest REQUIRED)
+    ament_add_gtest(dm_motor_test test/dm_motor_test.cpp)
+    target_include_directories(dm_motor_test PRIVATE ${PROJECT_SOURCE_DIR}/src)
+    ament_target_dependencies(dm_motor_test rmcs_executor)
+endif()
+
 ament_auto_package()

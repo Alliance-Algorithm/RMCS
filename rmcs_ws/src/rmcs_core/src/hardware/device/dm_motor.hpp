@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <stdexcept>
 #include <string>
 
 #include <rmcs_executor/component.hpp>
@@ -19,7 +20,7 @@ namespace rmcs_core::hardware::device {
 ///
 /// 协议依据（权威来源）：
 ///   《DM-J8009-2EC 减速电机使用说明书 V1.0》(2023.10.15) —— 本机随电机附带
-///   《调试助手使用说明书(达妙驱动控制协议)》 —— 使能/失能/设零/清错命令字节来源
+///   《调试助手使用说明书(达妙驱动控制协议) V1.4》 —— 状态码及系统命令字节来源
 ///
 /// 电机参数（说明书 V1.0）：
 ///   额定 24V（24-48V），额定 20A / 峰值 50A，额定扭矩 20Nm / 峰值 40Nm，
@@ -52,7 +53,7 @@ public:
             : motor_type(motor_type) {}
 
         Config& set_id(std::uint8_t id) { return this->id = id, *this; }
-        Config& set_feedback_id(std::uint8_t feedback_id) {
+        Config& set_feedback_id(std::uint16_t feedback_id) {
             return this->feedback_id = feedback_id, *this;
         }
         Config& set_reversed() { return reversed = true, *this; }
@@ -70,8 +71,8 @@ public:
         }
 
         Type motor_type;
-        std::uint8_t id = 1;              // 电机 CAN ID（MIT 命令帧 ID；建议 1..15）
-        std::uint8_t feedback_id = 0;     // 反馈帧 ID（MST_ID，调试助手设置，默认 0）
+        std::uint8_t id = 1;              // 电机 CAN ID（MIT 命令帧 ID；帧内 ID 仅占低 4 位）
+        std::uint16_t feedback_id = 0;    // 反馈帧 ID（MST_ID，调试助手设置，默认 0）
         bool reversed = false;
         double angle_bias = 0.0;          // rad
         double position_max = 12.5;       // P_MAX [rad]，须与电机寄存器一致
@@ -103,6 +104,7 @@ public:
             name_prefix + "/temperature_rotor", temperature_rotor_output_, 0.0);
         status_component_.register_output(name_prefix + "/max_torque", max_torque_output_, 0.0);
         status_component_.register_output(name_prefix + "/fault_code", fault_code_output_, 0);
+        status_component_.register_output(name_prefix + "/status_code", status_code_output_, 0);
 
         // 模式 A：PC 侧 PD，纯扭矩下发
         command_component_.register_input(name_prefix + "/control_torque", control_torque_, false);
@@ -129,6 +131,14 @@ public:
     ~DmMotor() = default;
 
     void configure(const Config& config) {
+        if (config.id == 0 || config.id > 15 || config.feedback_id > 0x7FF
+            || !std::isfinite(config.angle_bias) || !std::isfinite(config.position_max)
+            || !std::isfinite(config.velocity_max) || !std::isfinite(config.torque_max)
+            || !std::isfinite(config.control_torque_max) || config.position_max <= 0.0
+            || config.velocity_max <= 0.0 || config.torque_max <= 0.0
+            || config.control_torque_max < 0.0)
+            throw std::invalid_argument("Invalid DM motor CAN ID or MIT mapping range");
+
         type_ = config.motor_type;
         id_ = config.id;
         feedback_id_ = config.feedback_id;
@@ -137,7 +147,7 @@ public:
         position_max_ = config.position_max;
         velocity_max_ = config.velocity_max;
         torque_max_ = config.torque_max;
-        control_torque_max_ = config.control_torque_max;
+        control_torque_max_ = std::min(config.control_torque_max, config.torque_max);
 
         *max_torque_output_ = control_torque_max_;
         fault_code_ = 0;
@@ -166,13 +176,14 @@ public:
     /// 模式 B：电机内环 PD（p_des/v_des 单位 rad/rad/s；kp/kd 为物理增益）
     CanPacket8
         generate_command_pd(double p_des, double v_des, double kp, double kd, double t_ff) const {
-        if (!std::isfinite(p_des) || !std::isfinite(v_des) || !std::isfinite(t_ff))
-            return CanPacket8{0};
+        if (!std::isfinite(p_des) || !std::isfinite(v_des) || !std::isfinite(kp)
+            || !std::isfinite(kd) || !std::isfinite(t_ff))
+            return generate_command(0.0);
         const double sign = reversed_ ? -1.0 : 1.0;
         const double p_motor =
             std::clamp(angle_bias_ + sign * p_des, -position_max_, position_max_);
         const double v_motor = std::clamp(sign * v_des, -velocity_max_, velocity_max_);
-        const double tff_motor = std::clamp(sign * t_ff, -torque_max_, torque_max_);
+        const double tff_motor = std::clamp(sign * t_ff, -control_torque_max_, control_torque_max_);
         kp = std::clamp(kp, 0.0, kKpMax);
         kd = std::clamp(kd, 0.0, kKdMax);
 
@@ -211,7 +222,9 @@ public:
         const auto bytes = packet.as_bytes();
 
         const auto d0 = static_cast<std::uint8_t>(bytes[0]);
-        fault_code_ = static_cast<int>(d0 >> 4);
+        status_code_ = static_cast<int>(d0 >> 4);
+        // 官方调试协议 V1.4：0=失能、1=使能、8..E=故障。
+        fault_code_ = status_code_ <= 1 ? 0 : status_code_;
 
         const auto pos_u = static_cast<std::uint16_t>(
             (static_cast<std::uint16_t>(static_cast<std::uint8_t>(bytes[1])) << 8)
@@ -241,6 +254,7 @@ public:
         *temperature_mos_output_ = temperature_mos_;
         *temperature_rotor_output_ = temperature_rotor_;
         *fault_code_output_ = fault_code_;
+        *status_code_output_ = status_code_;
     }
 
     // ---- 查询 ----
@@ -287,6 +301,7 @@ public:
     double temperature_mos() const { return temperature_mos_; }
     double temperature_rotor() const { return temperature_rotor_; }
     int fault_code() const { return fault_code_; }
+    int status_code() const { return status_code_; }
 
     // ---- MIT 定标 ----
 
@@ -331,7 +346,7 @@ public:
 private:
     Type type_ = Type::kDM8009;
     std::uint8_t id_ = 1;
-    std::uint8_t feedback_id_ = 0;
+    std::uint16_t feedback_id_ = 0;
     bool reversed_ = false;
     double angle_bias_ = 0.0;
     double position_max_ = 12.5;
@@ -347,6 +362,7 @@ private:
     double temperature_mos_ = 0.0;
     double temperature_rotor_ = 0.0;
     int fault_code_ = 0;
+    int status_code_ = 0;
 
     rmcs_executor::Component& status_component_;
     rmcs_executor::Component& command_component_;
@@ -358,6 +374,7 @@ private:
     rmcs_executor::Component::OutputInterface<double> temperature_rotor_output_;
     rmcs_executor::Component::OutputInterface<double> max_torque_output_;
     rmcs_executor::Component::OutputInterface<int> fault_code_output_;
+    rmcs_executor::Component::OutputInterface<int> status_code_output_;
 
     rmcs_executor::Component::InputInterface<double> control_torque_;
     rmcs_executor::Component::InputInterface<double> control_angle_;
