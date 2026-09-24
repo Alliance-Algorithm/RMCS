@@ -9,7 +9,6 @@ endif()
 
 find_package(ament_cmake_auto REQUIRED)
 ament_auto_find_build_dependencies()
-find_package(OpenSSL REQUIRED)
 
 # The official x86_64 release contains headers and a prebuilt shared library (no
 # CMakeLists.txt). ONNXRUNTIME_ROOT permits a verified offline copy.
@@ -40,7 +39,7 @@ ament_auto_add_library(${PROJECT_NAME} SHARED
   src/onnx_policy.cpp
 )
 target_include_directories(${PROJECT_NAME} PRIVATE ${ORT_ROOT}/include)
-target_link_libraries(${PROJECT_NAME} ${ORT_ROOT}/lib/libonnxruntime.so OpenSSL::Crypto)
+target_link_libraries(${PROJECT_NAME} ${ORT_ROOT}/lib/libonnxruntime.so)
 set_target_properties(${PROJECT_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN")
 install(DIRECTORY ${ORT_ROOT}/lib/ DESTINATION lib FILES_MATCHING PATTERN "*.so*")
 install(DIRECTORY models/ DESTINATION share/${PROJECT_NAME}/models
