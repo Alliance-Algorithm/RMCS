@@ -57,9 +57,9 @@ public:
         }
         Config& set_reversed() { return reversed = true, *this; }
         Config& set_reversed(bool value) { return reversed = value, *this; }
-        /// angle_bias：电机角 → 策略角的偏置，策略角 = sign*(电机角 − angle_bias)（参考 XYEGA
+        /// angle_offset：电机角 → 策略角的偏置，策略角 = sign*(电机角 − angle_offset)（参考 XYEGA
         /// 做法）
-        Config& set_angle_bias(double angle_bias) { return this->angle_bias = angle_bias, *this; }
+        Config& set_angle_offset(double angle_offset) { return this->angle_offset = angle_offset, *this; }
         /// 设置 MIT 定标范围，必须与电机内寄存器（调试助手设定）一致
         Config& set_limits(double position_max, double velocity_max, double torque_max) {
             return this->position_max = position_max, this->velocity_max = velocity_max,
@@ -73,7 +73,7 @@ public:
         std::uint8_t id = 1;              // 电机 CAN ID（MIT 命令帧 ID；建议 1..15）
         std::uint8_t feedback_id = 0;     // 反馈帧 ID（MST_ID，调试助手设置，默认 0）
         bool reversed = false;
-        double angle_bias = 0.0;          // rad
+        double angle_offset = 0.0;          // rad
         double position_max = 12.5;       // P_MAX [rad]，须与电机寄存器一致
         double velocity_max = 45.0;       // V_MAX [rad/s]，须与电机寄存器一致
         double torque_max = 54.0;         // T_MAX [Nm]，须与电机寄存器一致
@@ -133,7 +133,7 @@ public:
         id_ = config.id;
         feedback_id_ = config.feedback_id;
         reversed_ = config.reversed;
-        angle_bias_ = config.angle_bias;
+        angle_offset_ = config.angle_offset;
         position_max_ = config.position_max;
         velocity_max_ = config.velocity_max;
         torque_max_ = config.torque_max;
@@ -170,7 +170,7 @@ public:
             return CanPacket8{0};
         const double sign = reversed_ ? -1.0 : 1.0;
         const double p_motor =
-            std::clamp(angle_bias_ + sign * p_des, -position_max_, position_max_);
+            std::clamp(angle_offset_ + sign * p_des, -position_max_, position_max_);
         const double v_motor = std::clamp(sign * v_des, -velocity_max_, velocity_max_);
         const double tff_motor = std::clamp(sign * t_ff, -torque_max_, torque_max_);
         kp = std::clamp(kp, 0.0, kKpMax);
@@ -228,7 +228,7 @@ public:
         const double raw_velocity = uint_to_float(vel_u, -velocity_max_, velocity_max_, 12);
         const double raw_torque = uint_to_float(tff_u, -torque_max_, torque_max_, 12);
 
-        angle_ = sign * (raw_angle - angle_bias_);
+        angle_ = sign * (raw_angle - angle_offset_);
         velocity_ = sign * raw_velocity;
         torque_ = sign * raw_torque;
 
@@ -333,7 +333,7 @@ private:
     std::uint8_t id_ = 1;
     std::uint8_t feedback_id_ = 0;
     bool reversed_ = false;
-    double angle_bias_ = 0.0;
+    double angle_offset_ = 0.0;
     double position_max_ = 12.5;
     double velocity_max_ = 45.0;
     double torque_max_ = 54.0;
