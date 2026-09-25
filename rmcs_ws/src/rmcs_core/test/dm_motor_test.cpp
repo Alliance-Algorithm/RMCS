@@ -118,4 +118,17 @@ TEST(DmMotor, DisableCommandUsesMitSystemFrame) {
     EXPECT_EQ(bytes[7], std::byte{0xFD});
 }
 
+TEST(DmMotor, PositionPdCommandUsesMotorGainsWithoutFeedforward) {
+    MotorFixture fixture;
+    auto zero = fixture.motor.generate_command(0.0);
+    auto position = fixture.motor.generate_command_pd(0.1, 0.0, 5.0, 0.3, 0.0);
+    const auto bytes = position.as_bytes();
+    const auto zero_bytes = zero.as_bytes();
+    EXPECT_GT(static_cast<unsigned>(bytes[0]), static_cast<unsigned>(zero_bytes[0]));
+    EXPECT_GT((static_cast<unsigned>(bytes[3]) & 0x0f) << 8 | static_cast<unsigned>(bytes[4]), 0u);
+    EXPECT_GT((static_cast<unsigned>(bytes[5]) << 4) | (static_cast<unsigned>(bytes[6]) >> 4), 0u);
+    EXPECT_EQ(bytes[6] & std::byte{0x0f}, zero_bytes[6] & std::byte{0x0f});
+    EXPECT_EQ(bytes[7], zero_bytes[7]);
+}
+
 } // namespace

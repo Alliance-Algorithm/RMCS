@@ -10,7 +10,11 @@ wheel_leg_infantry_rl:
   ros__parameters:
     board_serial: ""
     require_enable_request: true
-    dm_master_ids: [0, 0, 0, 0]
+    joint_control_mode: "position_pd"
+    joint_position_kp: 30.0
+    joint_position_kd: 1.0
+    joint_position_error_max_rad: 0.02
+    dm_master_ids: [1, 2, 1, 2]
     dm_mit_position_max: [12.5, 12.5, 12.5, 12.5]
     dm_mit_velocity_max: [45.0, 45.0, 45.0, 45.0]
     dm_mit_torque_max: [54.0, 54.0, 54.0, 54.0]
@@ -18,21 +22,25 @@ wheel_leg_infantry_rl:
 
 wheel_leg_reference_controller:
   ros__parameters:
-    # Motor readings with both thigh axes up and both measured thigh-shank angles at 110 degrees.
+    # All four DM drives were zeroed at the 110-degree mechanical reference pose.
     # Order: left hip, left knee drive, right hip, right knee drive.
-    reference_motor_angles: [-10.6933, 10.3164, -5.65061, 5.77916]
-    hold_kp: 4.0
-    hold_kd: 0.25
-    hold_torque_limit: 0.5
-    capture_window_rad: 0.05
+    reference_motor_angles: [0.0, 0.0, 0.0, 0.0]
+    hold_output_mode: "position_pd"
+    capture_window_rad: 0.02
     hold_velocity_limit: 0.4
-    max_feedback_step_rad: 0.04
+    max_feedback_step_rad: 0.015
 
 value_broadcaster:
   ros__parameters:
     update_rate: 50.0
     forward_list:
       - /wheel_leg/reference/state
+      - /wheel_leg/imu/sensor_gravity/x
+      - /wheel_leg/imu/sensor_gravity/y
+      - /wheel_leg/imu/sensor_gravity/z
+      - /wheel_leg/imu/sensor_gyro/x
+      - /wheel_leg/imu/sensor_gyro/y
+      - /wheel_leg/imu/sensor_gyro/z
       - /wheel_leg/left_hip_joint/angle
       - /wheel_leg/left_knee_joint/angle
       - /wheel_leg/right_hip_joint/angle
@@ -45,3 +53,7 @@ value_broadcaster:
       - /wheel_leg/left_knee_joint/control_torque
       - /wheel_leg/right_hip_joint/control_torque
       - /wheel_leg/right_knee_joint/control_torque
+      - /wheel_leg/left_hip_joint/control_angle
+      - /wheel_leg/left_knee_joint/control_angle
+      - /wheel_leg/right_hip_joint/control_angle
+      - /wheel_leg/right_knee_joint/control_angle
