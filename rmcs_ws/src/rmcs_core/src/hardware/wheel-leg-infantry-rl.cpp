@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <ranges>
 #include <sstream>
@@ -98,9 +99,31 @@ private:
                 "/wheel_leg/imu/angular_velocity", imu_angular_velocity_, Eigen::Vector3d::Zero());
             status.register_output("/wheel_leg/feedback_fresh", feedback_fresh_output_, false);
             status.register_output("/wheel_leg/dr16_fresh", dr16_fresh_output_, false);
+            constexpr std::array directions{"x", "y", "z"};
+            for (std::size_t i = 0; i < directions.size(); ++i) {
+                status.register_output(
+                    std::string{"/wheel_leg/imu/sensor_gravity/"} + directions[i],
+                    gravity_outputs_[i], std::numeric_limits<double>::quiet_NaN());
+                status.register_output(
+                    std::string{"/wheel_leg/imu/sensor_gyro/"} + directions[i], gyro_outputs_[i],
+                    std::numeric_limits<double>::quiet_NaN());
+            }
             require_enable_request_ = status.get_parameter_or("require_enable_request", false);
             command.register_input(
                 "/wheel_leg/enable_request", enable_request_, require_enable_request_);
+            const auto control_mode =
+                status.get_parameter_or<std::string>("joint_control_mode", "torque");
+            if (control_mode != "torque" && control_mode != "position_pd")
+                throw std::invalid_argument("joint_control_mode must be torque or position_pd");
+            use_motor_position_pd_ = control_mode == "position_pd";
+            joint_kp_ = status.get_parameter_or("joint_position_kp", 5.0);
+            joint_kd_ = status.get_parameter_or("joint_position_kd", 0.3);
+            joint_position_error_max_ =
+                status.get_parameter_or("joint_position_error_max_rad", 0.05);
+            if (!std::isfinite(joint_kp_) || !std::isfinite(joint_kd_)
+                || !std::isfinite(joint_position_error_max_) || joint_kp_ <= 0 || joint_kp_ > 500
+                || joint_kd_ < 0 || joint_kd_ > 5 || joint_position_error_max_ <= 0)
+                throw std::invalid_argument("Invalid joint position PD gains or error limit");
 
             constexpr auto kMotorIds = std::array<std::uint8_t, 2>{1, 2};
             // Master ID 是反馈帧 ID；官方默认 0，与命令 CAN ID 可以不同。
@@ -187,6 +210,12 @@ private:
             if (const auto snapshot = bmi088_.snapshot()) {
                 *imu_quaternion_ = snapshot->orientation.normalized();
                 *imu_angular_velocity_ = snapshot->gyro_body;
+                const Eigen::Vector3d gravity =
+                    imu_quaternion_->conjugate() * -Eigen::Vector3d::UnitZ();
+                for (int i = 0; i < 3; ++i) {
+                    *gravity_outputs_[i] = gravity[i];
+                    *gyro_outputs_[i] = snapshot->gyro_body[i];
+                }
             }
             *feedback_fresh_output_ = feedback_fresh();
             *dr16_fresh_output_ = dr16_fresh();
@@ -195,11 +224,33 @@ private:
 
         void command_update() {
             const bool fresh = feedback_fresh();
-            const bool enable = wheel_leg_drive_allowed(
+            bool enable = wheel_leg_drive_allowed(
                 dr16_fresh(), dr16_.switch_left(), dr16_.switch_right(), require_enable_request_,
                 enable_request_.ready() && *enable_request_);
+            if (enable && use_motor_position_pd_) {
+                const auto valid_target = [this](const device::DmMotor& motor) {
+                    return motor.control_angle_ready() && std::isfinite(motor.control_angle())
+                        && std::abs(motor.control_angle() - motor.angle())
+                               <= joint_position_error_max_;
+                };
+                enable = std::ranges::all_of(hip_motors_, valid_target)
+                      && std::ranges::all_of(knee_motors_, valid_target);
+            }
             const auto now = now_ns();
             const bool was_enabled = dm_enabled_.load(std::memory_order_relaxed);
+            const auto motor_enabled = [](const device::DmMotor& motor) {
+                return motor.status_code() == 1;
+            };
+            const bool pd_ready = use_motor_position_pd_ && fresh
+                               && std::ranges::all_of(hip_motors_, motor_enabled)
+                               && std::ranges::all_of(knee_motors_, motor_enabled);
+            const auto joint_packet = [&](const device::DmMotor& motor) {
+                if (use_motor_position_pd_)
+                    return pd_ready ? motor.generate_command_pd(
+                                          motor.control_angle(), 0.0, joint_kp_, joint_kd_, 0.0)
+                                    : motor.generate_command(0.0);
+                return motor.generate_command(fresh ? motor.control_torque() : 0.0);
+            };
             auto builder = board_->start_transmit();
             auto wheel_packet = device::CanPacket8{
                 wheel_motors_[0].generate_command(
@@ -223,20 +274,19 @@ private:
                             Spec::kCans.kCan2, {.can_id = motor.send_id(),
                                                 .can_data = motor.enable_command().as_bytes()});
                     last_enable_ns_ = now;
-                }
-                for (auto& motor : hip_motors_) {
-                    auto packet =
-                        motor.generate_command(fresh && was_enabled ? motor.control_torque() : 0.0);
-                    builder.can_transmit(
-                        Spec::kCans.kCan1,
-                        {.can_id = motor.send_id(), .can_data = packet.as_bytes()});
-                }
-                for (auto& motor : knee_motors_) {
-                    auto packet =
-                        motor.generate_command(fresh && was_enabled ? motor.control_torque() : 0.0);
-                    builder.can_transmit(
-                        Spec::kCans.kCan2,
-                        {.can_id = motor.send_id(), .can_data = packet.as_bytes()});
+                } else {
+                    for (auto& motor : hip_motors_) {
+                        auto packet = joint_packet(motor);
+                        builder.can_transmit(
+                            Spec::kCans.kCan1,
+                            {.can_id = motor.send_id(), .can_data = packet.as_bytes()});
+                    }
+                    for (auto& motor : knee_motors_) {
+                        auto packet = joint_packet(motor);
+                        builder.can_transmit(
+                            Spec::kCans.kCan2,
+                            {.can_id = motor.send_id(), .can_data = packet.as_bytes()});
+                    }
                 }
                 dm_enabled_.store(true, std::memory_order_relaxed);
             } else {
@@ -275,6 +325,7 @@ private:
             text << "WheelLegInfantryRL status (feedback fresh: " << feedback_fresh()
                  << ", dr16 fresh: " << dr16_fresh()
                  << ", dm enable requested: " << dm_enabled_.load(std::memory_order_relaxed)
+                 << ", joint mode: " << (use_motor_position_pd_ ? "position_pd" : "torque")
                  << "):\n";
             constexpr auto kNames = std::array{
                 "left_hip_joint", "right_hip_joint", "left_knee_joint", "right_knee_joint"};
@@ -375,6 +426,7 @@ private:
         OutputInterface<Eigen::Vector3d> imu_angular_velocity_;
         OutputInterface<bool> feedback_fresh_output_;
         OutputInterface<bool> dr16_fresh_output_;
+        std::array<OutputInterface<double>, 3> gravity_outputs_, gyro_outputs_;
         rmcs_executor::Component::InputInterface<bool> enable_request_;
 
         device::DjiMotor wheel_motors_[2];
@@ -387,9 +439,13 @@ private:
         std::atomic<std::int64_t> imu_last_ns_{0};
         std::atomic<std::int64_t> dr16_last_ns_{0};
         bool require_enable_request_ = false;
+        bool use_motor_position_pd_ = false;
         std::atomic<bool> dm_enabled_{false};
         std::int64_t last_enable_ns_ = 0;
         std::int64_t last_disable_ns_ = 0;
+        double joint_kp_ = 5.0;
+        double joint_kd_ = 0.3;
+        double joint_position_error_max_ = 0.05;
         std::unique_ptr<librmcs::board::RmcsBoardLite> board_;
     };
 
