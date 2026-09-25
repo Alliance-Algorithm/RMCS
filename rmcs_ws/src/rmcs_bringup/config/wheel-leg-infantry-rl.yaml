@@ -16,6 +16,10 @@ wheel_leg_infantry_rl:
     board_serial: ""
     joint_kp: 30.0
     joint_kd: 1.0
+    # 四个 DM 已在下述姿态写入电机内部零位；此处不再重复扣除零位。
+    # URDF: L_joint1=-1.6, LL_joint1=-2.93,
+    #       R_joint1=+1.6, RR_joint1=+2.93 rad。
+    # 前提：set_reversed 后的四路反馈正方向与对应 URDF 关节角一致。
     left_hip_joint_angle_offset: 0.0
     left_knee_joint_angle_offset: 0.0
     right_hip_joint_angle_offset: 0.0
@@ -53,7 +57,15 @@ rl_bridge:
     joint_angle_suffix: "/angle"
     joint_velocity_suffix: "/velocity"
     joint_torque_suffix: "/torque"
-    default_joint_pos: {left_hip_joint: 0.0, left_knee_joint: 0.0, right_hip_joint: 0.0, right_knee_joint: 0.0, left_wheel: 0.0, right_wheel: 0.0}
+    # 训练名义角减去电机内部标定姿态的 URDF 角，单位 rad。
+    # RMCS 的 knee_joint 对应 V5 的 LL_joint1 / RR_joint1 主动电机。
+    default_joint_pos:
+      left_hip_joint: 2.02
+      left_knee_joint: 2.792577174047454
+      right_hip_joint: -2.02
+      right_knee_joint: -2.79258442374342
+      left_wheel: 0.0
+      right_wheel: 0.0
     observation_terms:
       - index=0 path=/chassis/control_velocity take=x
       - index=1 path=/chassis/control_velocity take=y
@@ -78,10 +90,15 @@ rl_bridge:
 wheel_leg_rl_consumer:
   ros__parameters:
     rl_base: "/wheel_leg/rl"
-    action_scale: 0.5
+    action_scale: 0.25
     wheel_velocity_scale: 10.0
     # 数组顺序: [left_hip, left_knee, right_hip, right_knee]，单位 rad
-    policy_leg_default_position: [0.0, 0.0, 0.0, 0.0]
+    policy_leg_default_position: [2.02, 2.792577174047454, -2.02, -2.79258442374342]
+    # 左下右中：目标反馈角 = URDF 目标角 0 - 标定姿态的 URDF 角。
+    # 例如左髋标定在 -1.6 rad，转到 URDF 0 时目标反馈角是 +1.6 rad。
+    urdf_zero_leg_position: [1.6, 2.93, -1.6, -2.93]
+    # 左中右上：闭环到电机内部标定姿态，四个反馈角均为 0 rad。
+    # 失效目标仍使用电机内部标定后的相对角坐标，与上面的训练名义角独立。
     safe_leg_position: [-0.5, -0.35, 0.5, 0.35]
 
 policy_server:

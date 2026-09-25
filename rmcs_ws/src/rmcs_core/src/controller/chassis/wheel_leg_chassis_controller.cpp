@@ -3,7 +3,6 @@
 #include <cmath>
 #include <cstddef>
 #include <numbers>
-#include <string>
 
 #include <eigen3/Eigen/Dense>
 #include <rclcpp/logging.hpp>
@@ -14,12 +13,13 @@
 #include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/switch.hpp>
 
+#include "controller/chassis/wheel_leg_control_state.hpp"
+
 namespace rmcs_core::controller::chassis {
 
 // Chassis command source of the wheel-leg. It decodes the remote control into the chassis command
-// interfaces and drives the RlController engage sequence (IDLE -> PREPARE -> RL). It does not read
-// joint feedback, solve the closed chain, or run the policy; those belong to hardware and
-// RlController respectively.
+// interfaces and selects the fixed-pose or RL mode. It does not read joint feedback, solve the
+// closed chain, or run the policy; those belong to hardware, WheelLegRlConsumer, and rmcs_rl.
 class WheelLegChassisController
     : public rmcs_executor::Component
     , public rclcpp::Node {
@@ -36,12 +36,6 @@ public:
         register_input("/remote/keyboard", keyboard_);
 
         register_input("/wheel_leg/imu/quaternion", chassis_imu_quaternion_, false);
-
-        // RL state is an executor interface produced by RlController. Registering it as optional
-        // avoids a component dependency cycle; before_updating() binds a fallback when no policy
-        // component is present.
-        rl_state_path_ = get_parameter_or<std::string>("rl_state_path", "/wheel_leg/rl/state");
-        register_input(rl_state_path_, rl_state_, false);
 
         register_output(
             "/chassis/control_velocity", chassis_control_velocity_,
@@ -73,15 +67,10 @@ public:
         heading_kp_ = get_parameter_or<double>("heading_kp", 3.0);
 
         height_ = default_command_height_;
-        stop_controls_(0);
+        stop_controls_(WheelLegControlState::kInit);
     }
 
     void before_updating() override {
-        if (!rl_state_.ready()) {
-            rl_state_.make_and_bind_directly(1);
-            RCLCPP_WARN(
-                get_logger(), "Failed to fetch \"%s\". Set to kIdle.", rl_state_path_.c_str());
-        }
         if (!chassis_imu_quaternion_.ready()) {
             chassis_imu_quaternion_.make_and_bind_directly(Eigen::Quaterniond::Identity());
             RCLCPP_WARN(
@@ -92,48 +81,36 @@ public:
     }
 
     void update() override {
-        using rmcs_msgs::Switch;
-
         const auto switch_right = *switch_right_;
         const auto switch_left = *switch_left_;
         const auto keyboard = *keyboard_;
-
-        const bool both_down =
-            switch_left == Switch::DOWN && switch_right == Switch::DOWN;
-        const bool any_unknown =
-            switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN;
+        const auto selected_state = wheel_leg_control_state(switch_left, switch_right);
 
         // Power-on hold: stay at kInit(0) until the operator first moves a switch.
         if (!switch_activity_seen_
             && (switch_left != last_switch_left_ || switch_right != last_switch_right_))
             switch_activity_seen_ = true;
 
-        *joint_enable_ = switch_activity_seen_ && !any_unknown && !both_down;
+        *joint_enable_ =
+            switch_activity_seen_ && selected_state != WheelLegControlState::kDisabled;
 
         do {
             if (!switch_activity_seen_) {
-                stop_controls_(0);
+                stop_controls_(WheelLegControlState::kInit);
                 break;
             }
 
-            if (!(any_unknown || both_down))
+            if (selected_state != WheelLegControlState::kDisabled)
                 reset_active_ = false;
 
-            if (any_unknown || both_down) {
+            if (selected_state == WheelLegControlState::kDisabled) {
                 reset_all_controls_();
                 break;
             }
 
             auto mode = *mode_;
-            if (switch_left != Switch::DOWN) {
-                if (last_switch_right_ == Switch::MIDDLE && switch_right == Switch::DOWN) {
-                    if (mode != rmcs_msgs::ChassisMode::SPIN_FAST) {
-                        mode = rmcs_msgs::ChassisMode::SPIN_FAST;
-                        spinning_forward_ = !spinning_forward_;
-                    } else {
-                        mode = rmcs_msgs::ChassisMode::STEP_DOWN;
-                    }
-                } else if (!last_keyboard_.c && keyboard.c) {
+            if (selected_state == WheelLegControlState::kRl) {
+                if (!last_keyboard_.c && keyboard.c) {
                     if (mode != rmcs_msgs::ChassisMode::SPIN_FAST) {
                         mode = rmcs_msgs::ChassisMode::SPIN_FAST;
                         spinning_forward_ = !spinning_forward_;
@@ -153,7 +130,7 @@ public:
                 *mode_ = mode;
             }
 
-            update_remote_control_();
+            update_remote_control_(selected_state);
         } while (false);
 
         last_switch_left_ = switch_left;
@@ -166,60 +143,40 @@ private:
         if (!reset_active_) {
             *reset_count_output_ += 1;
             reset_active_ = true;
+            spinning_forward_ = true;
             // Capture the current chassis facing as the "gimbal forward" for this session.
             reference_yaw_ = chassis_yaw_();
         }
-        prepare_hold_ = false;
-        stop_controls_(1);
+        stop_controls_(WheelLegControlState::kDisabled);
     }
 
-    void stop_controls_(int state) {
-        chassis_control_velocity_->vector << 0.0, 0.0, 0.0;
-        *chassis_control_height_ = default_command_height_;
-        *chassis_control_state_ = state;
+    void stop_controls_(WheelLegControlState state) {
+        hold_chassis_commands_();
+        *chassis_control_state_ = static_cast<int>(state);
         *rl_enable_ = false;
         *joint_enable_ = false;
+    }
+
+    void hold_chassis_commands_() {
+        chassis_control_velocity_->vector << 0.0, 0.0, 0.0;
+        *chassis_control_height_ = default_command_height_;
+        *mode_ = rmcs_msgs::ChassisMode::AUTO;
+        *task_mode_[0] = 1.0;
+        for (std::size_t i = 1; i < task_mode_.size(); ++i)
+            *task_mode_[i] = 0.0;
         height_ = default_command_height_;
         height_offset_ = 0.0;
     }
 
-    void update_remote_control_() {
-        update_state_command_();
+    void update_remote_control_(WheelLegControlState state) {
+        *chassis_control_state_ = static_cast<int>(state);
+        *rl_enable_ = state == WheelLegControlState::kRl;
+        if (state != WheelLegControlState::kRl) {
+            hold_chassis_commands_();
+            return;
+        }
         update_velocity_control_();
         update_height_control_();
-    }
-
-    // Arm sequence for the RL FSM (0 kInit, 1 kIdle, 2 kPrepare, 3 kRl):
-    //   power-on hold -> 0; both switches down / unknown -> 1 (reset);
-    //   both switches down then either to middle -> 2 until RL reports prepare (rl_state >= 2);
-    //   any other combination -> 3.
-    void update_state_command_() {
-        using rmcs_msgs::Switch;
-
-        const auto switch_left = *switch_left_;
-        const auto switch_right = *switch_right_;
-
-        if (prepare_hold_) {
-            prepare_hold_ = *rl_state_ < 2;
-            *chassis_control_state_ = prepare_hold_ ? 2 : 3;
-            *rl_enable_ = *chassis_control_state_ == 3;
-            return;
-        }
-
-        const bool previous_both_down =
-            last_switch_left_ == Switch::DOWN && last_switch_right_ == Switch::DOWN;
-        const bool either_middle =
-            switch_left == Switch::MIDDLE || switch_right == Switch::MIDDLE;
-
-        if (previous_both_down && either_middle) {
-            prepare_hold_ = true;
-            *chassis_control_state_ = 2;
-            *rl_enable_ = false;
-            return;
-        }
-
-        *chassis_control_state_ = 3;
-        *rl_enable_ = true;
     }
 
     void update_velocity_control_() {
@@ -331,7 +288,6 @@ private:
     InputInterface<rmcs_msgs::Switch> switch_left_;
     InputInterface<double> rotary_knob_;
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
-    InputInterface<int> rl_state_;
     InputInterface<Eigen::Quaterniond> chassis_imu_quaternion_;
 
     OutputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;
@@ -360,10 +316,8 @@ private:
     bool height_invert_ = false;
     double heading_kp_ = 3.0;
 
-    std::string rl_state_path_;
     bool spinning_forward_ = true;
     bool switch_activity_seen_ = false;
-    bool prepare_hold_ = false;
     bool reset_active_ = false;
     double reference_yaw_ = 0.0;
     double height_ = 0.0;
