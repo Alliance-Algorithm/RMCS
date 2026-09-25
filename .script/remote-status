@@ -42,11 +42,14 @@ if not response.group(1) == "True":
 fresh = re.search(r"feedback fresh:\s*(true|false|0|1)", message, re.IGNORECASE)
 dr16 = re.search(r"dr16 fresh:\s*(true|false|0|1)", message, re.IGNORECASE)
 enable = re.search(r"dm enable requested:\s*(true|false|0|1)", message, re.IGNORECASE)
+mode = re.search(r"joint mode:\s*(torque|position_pd)", message)
 status = f"Robot status | feedback: {fresh.group(1) if fresh else 'not reported'}"
 if dr16:
     status += f" | DR16: {dr16.group(1)}"
 if enable:
     status += f" | DM enable request: {enable.group(1)}"
+if mode:
+    status += f" | joint mode: {mode.group(1)}"
 print(status)
 print(f"{'Motor':<20} {'CAN':>3} {'Master':>6} {'Status':>6} {'Angle(rad)':>11} {'Vel(rad/s)':>11} {'Torque(Nm)':>11} {'Fault':>6}")
 
