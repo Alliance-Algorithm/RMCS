@@ -50,6 +50,7 @@ value_broadcaster:
 wheel_leg_infantry_rl:
   ros__parameters:
     board_serial: ""
+    joint_control_mode: "torque"
     # 电机调试助手 Master ID；默认 0，按左髋/右髋/左膝/右膝顺序填实机读数。
     dm_master_ids: [0, 0, 0, 0]
     # 下列数值仅沿用旧驱动的未核实设定，必须与每台 DM 调试助手的

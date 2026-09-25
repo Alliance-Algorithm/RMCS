@@ -2,6 +2,7 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <limits>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -31,6 +32,9 @@ public:
             register_input(prefix + "/fault_code", fault_[i]);
             register_input(prefix + "/status_code", status_[i]);
             register_output(prefix + "/control_torque", torque_[i], 0.0);
+            register_output(
+                prefix + "/control_angle", angle_target_[i],
+                std::numeric_limits<double>::quiet_NaN());
         }
         register_input("/remote/switch/left", switch_left_);
         register_input("/remote/switch/right", switch_right_);
@@ -49,6 +53,10 @@ public:
         }
         kp_ = get_parameter_or("hold_kp", 4.0);
         kd_ = get_parameter_or("hold_kd", 0.25);
+        const auto output_mode = get_parameter_or<std::string>("hold_output_mode", "torque");
+        if (output_mode != "torque" && output_mode != "position_pd")
+            throw std::runtime_error("hold_output_mode must be torque or position_pd");
+        use_motor_position_pd_ = output_mode == "position_pd";
         torque_limit_ = get_parameter_or("hold_torque_limit", 0.5);
         capture_window_ = get_parameter_or("capture_window_rad", 0.05);
         velocity_limit_ = get_parameter_or("hold_velocity_limit", 0.4);
@@ -63,6 +71,8 @@ public:
     void update() override {
         for (auto& output : torque_)
             *output = 0.0;
+        for (auto& output : angle_target_)
+            *output = std::numeric_limits<double>::quiet_NaN();
         *enable_request_ = false;
         *state_ = 0;
 
@@ -99,15 +109,19 @@ public:
         }
         last_angles_ = current_angles;
 
+        if (use_motor_position_pd_)
+            for (std::size_t i = 0; i < reference_.size(); ++i)
+                *angle_target_[i] = reference_[i];
         *enable_request_ = true;
         *state_ = 1;
         if (!std::ranges::all_of(status_, [](const auto& status) { return *status == 1; }))
             return;
-        for (std::size_t i = 0; i < reference_.size(); ++i)
-            *torque_[i] = std::clamp(
-                kp_ * (reference_[i] - *angle_[i]) - kd_ * *velocity_[i],
-                -std::min(torque_limit_, *max_torque_[i]),
-                std::min(torque_limit_, *max_torque_[i]));
+        if (!use_motor_position_pd_)
+            for (std::size_t i = 0; i < reference_.size(); ++i)
+                *torque_[i] = std::clamp(
+                    kp_ * (reference_[i] - *angle_[i]) - kd_ * *velocity_[i],
+                    -std::min(torque_limit_, *max_torque_[i]),
+                    std::min(torque_limit_, *max_torque_[i]));
         *state_ = 2;
     }
 
@@ -115,6 +129,7 @@ private:
     std::array<InputInterface<double>, 4> angle_, velocity_, max_torque_;
     std::array<InputInterface<int>, 4> fault_, status_;
     std::array<OutputInterface<double>, 4> torque_;
+    std::array<OutputInterface<double>, 4> angle_target_;
     InputInterface<rmcs_msgs::Switch> switch_left_, switch_right_;
     InputInterface<bool> dr16_fresh_, feedback_fresh_;
     OutputInterface<bool> enable_request_;
@@ -123,6 +138,7 @@ private:
     double kp_ = 4.0, kd_ = 0.25, torque_limit_ = 0.5;
     double capture_window_ = 0.05, velocity_limit_ = 0.4, max_feedback_step_ = 0.04;
     bool down_seen_ = false;
+    bool use_motor_position_pd_ = false;
     std::optional<std::array<double, 4>> last_angles_;
 };
 
