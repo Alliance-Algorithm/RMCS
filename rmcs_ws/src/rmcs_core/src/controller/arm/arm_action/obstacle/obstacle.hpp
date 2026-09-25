@@ -47,7 +47,7 @@ public:
     void mesh_load(const std::string& filename) {
         const auto path =
             std::filesystem::path(ament_index_cpp::get_package_share_directory("rmcs_core"))
-            / "meshs" / (filename + ".stl");
+            / "meshes" / (filename + ".stl");
 
         std::unique_ptr<shapes::Mesh> mesh(shapes::createMeshFromResource(path.string()));
         if (!mesh) {
