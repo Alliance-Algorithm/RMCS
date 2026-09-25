@@ -32,7 +32,7 @@ public:
         register_input("/remote/joystick/left", joystick_left_);
         register_input("/remote/switch/right", switch_right_);
         register_input("/remote/switch/left", switch_left_);
-        register_input("/remote/knob", rotary_knob_);
+        register_input("/remote/rotary_knob", rotary_knob_);
         register_input("/remote/keyboard", keyboard_);
 
         register_input("/wheel_leg/imu/quaternion", chassis_imu_quaternion_, false);
@@ -50,6 +50,7 @@ public:
         register_output("/chassis/control_state", chassis_control_state_, 0);
         register_output("/chassis/reset_count", reset_count_output_, std::size_t{0});
         register_output("/wheel_leg/rl/enable", rl_enable_, false);
+        register_output("/wheel_leg/joint_enable", joint_enable_, false);
         register_output("/chassis/control_mode", mode_, rmcs_msgs::ChassisMode::AUTO);
         register_output("/chassis/task_mode/stand", task_mode_[0], 1.0);
         register_output("/chassis/task_mode/move", task_mode_[1], 0.0);
@@ -106,6 +107,8 @@ public:
         if (!switch_activity_seen_
             && (switch_left != last_switch_left_ || switch_right != last_switch_right_))
             switch_activity_seen_ = true;
+
+        *joint_enable_ = switch_activity_seen_ && !any_unknown && !both_down;
 
         do {
             if (!switch_activity_seen_) {
@@ -175,6 +178,7 @@ private:
         *chassis_control_height_ = default_command_height_;
         *chassis_control_state_ = state;
         *rl_enable_ = false;
+        *joint_enable_ = false;
         height_ = default_command_height_;
         height_offset_ = 0.0;
     }
@@ -335,6 +339,7 @@ private:
     OutputInterface<int> chassis_control_state_;
     OutputInterface<std::size_t> reset_count_output_;
     OutputInterface<bool> rl_enable_;
+    OutputInterface<bool> joint_enable_;
     std::array<OutputInterface<double>, 5> task_mode_;
 
     OutputInterface<rmcs_msgs::ChassisMode> mode_;
