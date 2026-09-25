@@ -222,7 +222,7 @@ rl_bridge:
 policy_server:
   ros__parameters:
     rl_base: "/chassis/rl"
-    rl_model_path: "models/deformable_sps_V1.onnx"
+    rl_model_path: "models/deformable_sps_V2.onnx"
     input_name: "obs"
     output_name: "actions"
     normalization_from_metadata: true
