@@ -1,6 +1,6 @@
 #pragma once
-#include "../obstacle/obstacle_course.hpp"
 #include "controller/arm/arm_action/action_step.hpp"
+#include "obstacle/obstacle_course.hpp"
 #include <atomic>
 #include <chrono>
 #include <cstdint>
