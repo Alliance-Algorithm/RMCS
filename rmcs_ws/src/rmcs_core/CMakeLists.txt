@@ -41,4 +41,7 @@ target_link_libraries(${PROJECT_NAME} librmcs-sdk atomic)
 
 pluginlib_export_plugin_description_file(rmcs_executor plugins.xml)
 
+install(DIRECTORY src/controller/arm/obstacle/meshs
+  DESTINATION share/${PROJECT_NAME})
+
 ament_auto_package()
