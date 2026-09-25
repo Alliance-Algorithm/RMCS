@@ -104,7 +104,7 @@ public:
         joint_kd_ = get_parameter_or<double>("joint_kd", 1.0);
         joint_system_resend_ = kJointSystemResendCycles;
         auto startup_builder = board_->start_transmit();
-        send_joint_system_commands_(startup_builder, false, false);
+        send_joint_system_commands_(startup_builder, JointSystemCommand::kDisable);
 
         dm_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
             "/wheel_leg/calibrate", rclcpp::QoS{0},
@@ -163,15 +163,15 @@ public:
         const bool send_system = resending || heartbeat;
 
         if (joints_enabled_) {
-            if (send_system) {
-                const bool clear_error =
-                    resending && joint_system_resend_ == kJointSystemResendCycles;
-                send_joint_system_commands_(builder, true, clear_error);
-            } else {
+            if (resending
+                && joint_system_resend_ > kJointSystemResendCycles - kJointClearErrorCycles)
+                send_joint_system_commands_(builder, JointSystemCommand::kClearError);
+            else if (send_system)
+                send_joint_system_commands_(builder, JointSystemCommand::kEnable);
+            else
                 send_joint_mit_commands_(builder);
-            }
         } else if (send_system) {
-            send_joint_system_commands_(builder, false, false);
+            send_joint_system_commands_(builder, JointSystemCommand::kDisable);
         }
 
         if (joint_system_resend_ > 0)
@@ -189,6 +189,8 @@ public:
     }
 
 private:
+    enum class JointSystemCommand { kClearError, kEnable, kDisable };
+
     void calibrate_subscription_callback_() {
         const auto set_zero =
             [this](auto& builder, const Spec::Can& can, device::DmMotor& motor, const char* name) {
@@ -243,21 +245,12 @@ private:
     }
 
     template <typename Builder>
-    void send_joint_system_commands_(Builder& builder, bool enable, bool clear_error) {
+    void send_joint_system_commands_(Builder& builder, JointSystemCommand command) {
         const auto send = [&](const Spec::Can& can, device::DmMotor& motor) {
-            if (enable) {
-                if (clear_error)
-                    builder.can_transmit(
-                        can, {.can_id = motor.send_id(),
-                              .can_data = motor.clear_error_command().as_bytes()});
-                builder.can_transmit(
-                    can,
-                    {.can_id = motor.send_id(), .can_data = motor.enable_command().as_bytes()});
-            } else {
-                builder.can_transmit(
-                    can,
-                    {.can_id = motor.send_id(), .can_data = motor.disable_command().as_bytes()});
-            }
+            auto payload = command == JointSystemCommand::kClearError ? motor.clear_error_command()
+                         : command == JointSystemCommand::kEnable     ? motor.enable_command()
+                                                                      : motor.disable_command();
+            builder.can_transmit(can, {.can_id = motor.send_id(), .can_data = payload.as_bytes()});
         };
         for (auto& motor : hip_joint_motors_)
             send(Spec::kCans.kCan1, motor);
@@ -391,6 +384,7 @@ private:
     double joint_kd_ = 1.0;
 
     static constexpr int kJointSystemResendCycles = 100;
+    static constexpr int kJointClearErrorCycles = 50;
     static constexpr int kJointHeartbeatCycles = 500;
 
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr dm_calibrate_subscription_;
